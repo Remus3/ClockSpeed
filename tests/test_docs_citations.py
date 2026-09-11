@@ -1048,7 +1048,6 @@ UNVERIFIED_LINE_POINTERS: Final[Mapping[tuple[str, str, int], str]] = {
     ("docs/LEDGER.md", "clockspeed/data/locate.py", 657): "c0f880c0e553",
     ("docs/LEDGER.md", "clockspeed/data/version.py", 352): "1e211b03496a",
     ("docs/LEDGER.md", "clockspeed/data/version.py", 815): "d5cb7f2c533e",
-    ("docs/LEDGER.md", "clockspeed/save/objects.py", 2954): "bee547e7a02b",
     ("docs/LEDGER.md", "clockspeed/save/usmap.py", 46): "82be9ba39f87",
     ("docs/LEDGER.md", "scripts/install_hooks.py", 310): "4facec475176",
     ("docs/LEDGER.md", "tests/data/test_phase2_gate.py", 775): "edaece1458c2",
@@ -1062,7 +1061,6 @@ UNVERIFIED_LINE_POINTERS: Final[Mapping[tuple[str, str, int], str]] = {
     ("docs/item_notes/phase4-followups-850.md", "clockspeed/data/locate.py", 39): "0d5e3276442e",
     ("docs/item_notes/phase4-followups-850.md", "clockspeed/data/locate.py", 141): "fa085c760a09",
     ("docs/item_notes/phase4-followups-850.md", "clockspeed/data/locate.py", 187): "53bcd3acffa2",
-    ("docs/item_notes/phase4-followups-850.md", "clockspeed/save/objects.py", 1756): "0e68b6914ed2",
     ("docs/item_notes/phase4-followups-850.md", "clockspeed/save/workdir.py", 688): "e2d30d6ce513",
     (
         "docs/item_notes/phase4-followups-850.md",
@@ -1238,7 +1236,7 @@ UNFORBIDDEN_LINE_POINTERS: Final[frozenset[tuple[str, str, int]]] = frozenset(
 #: exactly the laundering the comment above forbids. Its neighbour went with it
 #: because the sentence carrying both reads as one claim. The doc already wrote
 #: a third such site in prose as a bare line number for this reason.
-FORGIVEN_LINE_POINTER_CEILING: Final = 63
+FORGIVEN_LINE_POINTER_CEILING: Final = 61
 
 # --- resolution -------------------------------------------------------------
 

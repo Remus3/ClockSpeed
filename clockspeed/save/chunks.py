@@ -1003,15 +1003,25 @@ def decompress_body(
     # with the raw save: `parts` and `inflated` hold inflated world content, which
     # is the second thing the acceptance names. `stream` is compressed and goes
     # too, because what it compresses is not this function's business to judge.
+    # EVERY NAME THE HANDLER DELETES IS BOUND BEFORE THE `try`, NOT INSIDE IT.
+    # `del` on a name that was never bound raises, and that UnboundLocalError
+    # would REPLACE the refusal the caller needed to see - so the handler must
+    # not be reachable with any of them unbound.
+    #
+    # THE FIRST CUT PUT THESE INSIDE THE TRY, which is not good enough and
+    # states the rule while breaking it. `stream` and `inflated` are bound in
+    # the loop, and a refusal out of `iter_frames` arrives before the first
+    # iteration ever runs. `parts` is bound by the try's own first statement,
+    # and an exception arriving AT that statement - a MemoryError, or a
+    # KeyboardInterrupt delivered at that bytecode boundary - lands in the
+    # handler with it unbound. Neither is hypothetical on this machine: a
+    # concurrent suite has already been killed here by MemoryError. An
+    # adversary found the `parts` case; the same reasoning then condemned the
+    # other two, which is the sibling-grep step doing its job.
+    parts: list[bytes] = []
+    stream = b""
+    inflated = b""
     try:
-        parts: list[bytes] = []
-        # `del` ON A NEVER-BOUND NAME RAISES AND WOULD MASK THE REAL REFUSAL.
-        # Both of these are bound inside the loop, and a refusal out of
-        # `iter_frames` arrives before the first iteration ever runs - so they are
-        # pre-bound here to make the scrub unconditional rather than conditional on
-        # how far the walk happened to get.
-        stream = b""
-        inflated = b""
         counts: dict[str, int] = {}
         firsts: dict[str, int] = {}
         chunk_count = 0

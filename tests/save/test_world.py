@@ -4187,3 +4187,240 @@ def test_a_real_usmap_whose_schema_name_did_not_decode_downgrades_the_reason() -
     assert _reasons_of(model) == {objects.REASON_REGISTRY_INCOMPLETE}
     carried = [(w.code, w.subject) for w in model.warnings if w.source == world.SOURCE_USMAP]
     assert (usmap.WARN_UNDECODABLE_NAME, _UNDECODABLE_NAME_SUBJECT) in carried
+
+
+# ---------------------------------------------------------------------------
+# CS-963, REPAIR ROUND - the paths three adversarial lenses found after the
+# first cut was committed green
+# ---------------------------------------------------------------------------
+
+
+def _object_stage_blob_holding_the_marker() -> bytes:
+    """A save whose OBJECT STAGE refuses a payload that still holds the marker.
+
+    THE FIXTURE THE FIRST CUT DID NOT HAVE, and its absence is why a real leak
+    shipped under a green arm. :func:`_truncated_body_blob` cuts the body at its
+    halfway point while ``_PAYLOAD_MARKER`` sits past that cut, so the payload
+    the object walk refuses does not contain the marker AT ALL. Every sweep over
+    that refusal was therefore a statement about an empty population - the arm
+    could not have failed, which is exactly the shape this whole item is about.
+
+    Cutting four bytes off the end instead keeps the marker inside the payload
+    that is walked and still refuses at the same stage with the same error.
+
+    Returns:
+        A whole save blob.
+    """
+    header_version, _save_version = _decodable_pair()
+    head, body = _planted_payload_parts()
+    short = synthetic.body_with_prefix(body[: len(body) - 4], header_version)
+    framing = synthetic.default_framing(header_version)
+    return head + synthetic.build_chunks(short, framing=framing)
+
+
+def test_the_object_stage_leaves_no_frame_holding_the_body_it_refused() -> None:
+    """The decompressed body, on the stage that actually walks it.
+
+    `world._walk_body` and `objects.parse_body` both bind the WHOLE decompressed
+    body and neither was scrubbed. `load_world_from_bytes` chains the
+    `ObjectError`, so both frames reach a renderer as the cause and
+    `TracebackException(capture_locals=True)` prints the body out of either.
+
+    THE ARM THAT SHOULD HAVE COVERED THIS WAS GREEN THROUGHOUT. Widening the
+    walker to the cause chain made these frames reachable for the first time,
+    and the fixture then kept them invisible. A control asserting the marker is
+    in the UNTRUNCATED blob passed happily while the sweep walked a different
+    byte string - the control proved the oracle could see a value the sweep
+    never encountered, which is worth less than no control at all.
+
+    NON-VACUITY IS ASSERTED AGAINST THE BYTES THE WALK ACTUALLY REFUSES, not
+    against the fixture they were cut from.
+    """
+    blob = _object_stage_blob_holding_the_marker()
+    payload = _decompressed_payload(blob)
+    marker = _PAYLOAD_MARKER.encode("ascii")
+
+    assert marker in payload, (
+        "the planted marker is not in the payload the object walk will refuse, so every "
+        "verdict below is a statement about an empty population"
+    )
+
+    with pytest.raises(world.WorldLoadError) as caught:
+        world.load_world_from_bytes(blob)
+    raised = caught.value
+    assert raised.stage == world.STAGE_OBJECTS, (
+        f"the cut no longer refuses at the object stage, so this arm is sweeping some "
+        f"other refusal. Stage: {raised.stage}"
+    )
+
+    entered = test_properties._shipped_frame_names(raised)  # noqa: SLF001
+    for required in ("_walk_body", "parse_body"):
+        assert required in entered, (
+            f"the refusal did not pass through {required}, so its scrub was never on the "
+            f"path. Frames reached: {sorted(entered)}"
+        )
+
+    leaks = test_properties._shipped_frames(raised, _PAYLOAD_MARKER)  # noqa: SLF001
+    assert not leaks, (
+        "a shipped frame still RENDERS the decompressed body across the object stage's "
+        f"refusal (non-negotiable 12). Offending frame(s) and local name(s): {leaks}"
+    )
+
+
+def test_the_only_retained_buffers_are_encapsulated_and_every_holder_withholds() -> None:
+    """THE INVARIANT THAT IS ACTUALLY ACHIEVABLE, replacing one that was not.
+
+    CS-963's filed acceptance said no clockspeed frame anywhere in the chain may
+    HOLD the raw save or the decompressed body. Measured against the tree, that
+    is unachievable and always was: a parser holds the bytes it parses, so the
+    cursor frames retain the buffer by construction and the only way to satisfy
+    the words would be to have no parser. `CLAUDE.md` section 8 - the probe beats
+    the document - so the clause is narrowed HERE, where it is checked, rather
+    than quietly dropped.
+
+    WHAT IS ACHIEVABLE, AND IS ASSERTED, IS TWO THINGS.
+
+    First, NO frame holds either buffer in a form a renderer prints: a structural
+    holder path with no dot in it is a frame local that IS the buffer, and there
+    must be none.
+
+    Second, every remaining holder reaches the buffer through an ATTRIBUTE, and
+    the object in the way must WITHHOLD it - which is asserted against each
+    holder found, not against a list of holders written down here. A list would
+    be silent the day a third one is written, and being silent about a new
+    holder is the failure this item exists to close.
+
+    THIS IS ALSO WHAT KILLS THE EQUIVALENT MUTANT. `_Cursor.__repr__` was
+    measured load-bearing by making it LEAK, and that measurement was wrong in
+    kind: DELETING the method, so `object.__repr__` applies again, left the
+    whole suite green. Its purpose - making a later dataclass conversion a
+    deliberate act rather than a one-line accident - was unmeasured. Deleting it
+    now reddens this arm, because a holder that does not declare its own
+    `__repr__` is a holder relying on an accident.
+    """
+    head_cut = _planted_payload_blob()
+    head_cut = head_cut[: len(head_cut) // 4]
+    object_blob = _object_stage_blob_holding_the_marker()
+    cases = (
+        ("truncated-header", _HEADER_MARKER, lambda: world.load_world_from_bytes(head_cut)),
+        ("object-stage", _PAYLOAD_MARKER, lambda: world.load_world_from_bytes(object_blob)),
+    )
+
+    for label, marker, call in cases:
+        with pytest.raises(Exception) as caught:  # noqa: PT011 - two error types by design
+            call()
+        raised = caught.value
+        needle = marker.encode("ascii")
+
+        holders = test_properties._structural_holders(raised, needle)  # noqa: SLF001
+        assert holders, (
+            f"the {label} refusal retains the buffer in NO shipped frame at all. That is "
+            "either a real improvement or a broken sweep, and this arm cannot tell the "
+            "difference - so it refuses to pass on it"
+        )
+
+        bare = test_properties._bare_holders(holders)  # noqa: SLF001
+        assert not bare, (
+            f"on the {label} refusal a shipped frame local IS the buffer, which a "
+            f"locals-showing renderer prints verbatim (non-negotiable 12): {bare}"
+        )
+
+        for frame_name, paths in holders.items():
+            for path in paths:
+                local_name = path.split(".", 1)[0]
+                holder = _holder_at(raised, frame_name, local_name)
+                declared = type(holder)
+                assert "__repr__" in vars(declared), (
+                    f"on the {label} refusal, {frame_name}:{path} retains the buffer "
+                    f"inside a {declared.__name__} that does NOT declare its own "
+                    "__repr__. It withholds the bytes only because object.__repr__ "
+                    "happens to, which is an accident a dataclass decorator silently "
+                    "reverses"
+                )
+                assert marker not in test_properties._safe_repr(holder), (  # noqa: SLF001
+                    f"on the {label} refusal, {frame_name}:{path} renders the buffer it "
+                    f"holds through {declared.__name__}.__repr__"
+                )
+
+
+def _holder_at(raised: BaseException, frame_name: str, local_name: str) -> object:
+    """The named local in the named shipped frame of the cause chain.
+
+    Args:
+        raised: The exception.
+        frame_name: The frame's code name.
+        local_name: The local to fetch.
+
+    Returns:
+        The value.
+    """
+    for frame in test_properties._frames_in_the_cause_chain(raised):  # noqa: SLF001
+        if frame.f_code.co_name == frame_name and local_name in frame.f_locals:
+            return frame.f_locals[local_name]
+    raise AssertionError(f"{frame_name}:{local_name} is not in the cause chain")
+
+
+def test_the_world_loader_retains_no_decompressed_body_on_any_refusal() -> None:
+    """The one frame the module's own docstring makes a promise about.
+
+    `world.py` says `load_world_from_bytes` is the LAST SCOPE in which the
+    decompressed body is reachable. That is a claim about this frame
+    specifically, and it is stronger than the layer-wide invariant its sibling
+    arm checks: elsewhere an encapsulated buffer behind a withholding `__repr__`
+    is accepted, because a parser must hold the bytes it parses. Here nothing
+    needs to hold them once a refusal is on its way out.
+
+    IT IS ASSERTED STRUCTURALLY, NOT BY REPR, and that is the whole reason this
+    arm exists. `DecompressedBody.__repr__` withholds its payload, so a
+    repr-based sweep is blind to this frame by construction - which is exactly
+    why deleting the scrub left every other arm green when it was measured. A
+    mutant no VALUE can kill is not a surviving mutant, it is an unmeasured
+    property, and the answer is to measure the property rather than to weaken
+    the claim.
+
+    EVERY REFUSAL SHAPE AFTER THE CHUNK STAGE, because the scrub this pins is
+    unconditional and a per-handler one was what went wrong: the old code
+    dropped the body in the `ObjectError` handler alone, on the stated grounds
+    that it was the only handler in which the name was bound, and that was
+    false for every other exit.
+    """
+    object_blob = _object_stage_blob_holding_the_marker()
+    bad_layout = _planted_payload_blob()
+
+    cases = (
+        ("object-stage", _PAYLOAD_MARKER, lambda: world.load_world_from_bytes(object_blob)),
+        (
+            "unknown-body-layout",
+            _PAYLOAD_MARKER,
+            lambda: world.load_world_from_bytes(bad_layout, body_layout=_NOT_A_LAYOUT),
+        ),
+    )
+
+    for label, marker, call in cases:
+        with pytest.raises(Exception) as caught:  # noqa: PT011 - two error types by design
+            call()
+        raised = caught.value
+        needle = marker.encode("ascii")
+
+        frames = [
+            frame
+            for frame in test_properties._frames_in_the_cause_chain(raised)  # noqa: SLF001
+            if frame.f_code.co_name == "load_world_from_bytes"
+        ]
+        assert frames, (
+            f"the {label} refusal never passed through load_world_from_bytes, so this arm "
+            "inspected nothing"
+        )
+
+        for frame in frames:
+            retained = {
+                name: test_properties._reaches_the_needle(value, needle, 0, set())  # noqa: SLF001
+                for name, value in tuple(frame.f_locals.items())
+            }
+            holding = {name: paths for name, paths in retained.items() if paths}
+            assert not holding, (
+                f"on the {label} refusal load_world_from_bytes still REACHES the "
+                "decompressed body, which its own module docstring says is unreachable "
+                "past this scope. A withholding __repr__ hides this from every other "
+                f"sweep in the layer: {holding}"
+            )

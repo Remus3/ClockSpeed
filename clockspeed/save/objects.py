@@ -1524,6 +1524,33 @@ class _Cursor:
         self._data = data
         self.offset = 0
 
+    def __repr__(self) -> str:
+        """Withhold the body, deliberately and structurally.
+
+        THE SIBLING OF ``header._Cursor.__repr__``, AND FOUND BY THE ARM RATHER
+        THAN BY A GREP. This object is the last thing between the decompressed
+        body and a traceback renderer: `parse_body` and the readers below it
+        drop their own `body` local on the way out, so after CS-963's repair
+        round the buffer survives in `self._data` and nowhere else, and every
+        method here that raises leaves `self` in a frame the renderer prints.
+
+        The default ``object.__repr__`` already withholds it. Stating the
+        requirement is the difference between a property that HOLDS and a
+        property that HAPPENS to hold: making this class a dataclass later,
+        whose generated repr would dump the whole body, is now a deliberate act.
+        ``tests/save/test_world.py::test_the_only_retained_buffers_are_
+        encapsulated_and_every_holder_withholds`` asserts it of every retained
+        holder it finds, so a third cursor written tomorrow is covered without
+        anyone remembering to add it.
+
+        THE LENGTH IS NOT RENDERED. On a cursor reached from a world load that
+        is the exact decompressed size of the player's save.
+
+        Returns:
+            The class name and how far the cursor has read. No bytes, no length.
+        """
+        return f"<_Cursor at offset {self.offset}>"
+
     @property
     def remaining(self) -> int:
         """How many bytes are left.
@@ -2588,114 +2615,124 @@ def parse_body(
         ObjectTruncatedError: The body ends inside a level.
         ObjectBudgetExceededError: A declared count exceeds its ceiling.
     """
-    layout = BODY_LAYOUT_BY_PAIR.get((header_version, save_version))
-    if layout is None:
-        raise UnsupportedBodyLayoutError(
-            REASON_UNMEASURED_BODY_LAYOUT,
-            field="body_layout",
-            offset=0,
-            actual=header_version,
-            version=save_version,
-        )
-    delta = layout.transform_delta
+    # THE CS-963 SCRUB. This frame binds the WHOLE decompressed body and every
+    # refusal in the levelled walk unwinds through it; `world.py` chains that
+    # refusal, so the body reaches a renderer as the cause's locals. The two
+    # exported property readers already scrub for exactly this reason - this is the
+    # frame ABOVE them, and it was missed because no arm drove a body whose planted
+    # marker survived into the bytes the walk refused (non-negotiable 12).
+    try:
+        layout = BODY_LAYOUT_BY_PAIR.get((header_version, save_version))
+        if layout is None:
+            raise UnsupportedBodyLayoutError(
+                REASON_UNMEASURED_BODY_LAYOUT,
+                field="body_layout",
+                offset=0,
+                actual=header_version,
+                version=save_version,
+            )
+        delta = layout.transform_delta
 
-    cursor = _Cursor(body)
-    declared, width, warnings = _read_prefix(cursor, header_version)
+        cursor = _Cursor(body)
+        declared, width, warnings = _read_prefix(cursor, header_version)
 
-    start = cursor.offset
-    # The preamble, where the pair has one. Both blocks are stepped over rather
-    # than modelled: nothing downstream consumes a world-partition grid today,
-    # and holding one would put world content into the returned model.
-    if layout.package_summary:
-        _read_package_summary(cursor)
-    if layout.grid_preamble:
-        _read_grid_preamble(cursor)
-    level_count = _read_bounded_count(cursor, "level_count", MAX_LEVELS)
+        start = cursor.offset
+        # The preamble, where the pair has one. Both blocks are stepped over rather
+        # than modelled: nothing downstream consumes a world-partition grid today,
+        # and holding one would put world content into the returned model.
+        if layout.package_summary:
+            _read_package_summary(cursor)
+        if layout.grid_preamble:
+            _read_grid_preamble(cursor)
+        level_count = _read_bounded_count(cursor, "level_count", MAX_LEVELS)
 
-    records: list[ObjectRecord] = []
-    unknown = _UnknownLog()
-    for _ in range(level_count):
+        records: list[ObjectRecord] = []
+        unknown = _UnknownLog()
+        for _ in range(level_count):
+            _read_level(
+                cursor,
+                layout,
+                named=True,
+                known_classes=known_classes,
+                records=records,
+                unknown=unknown,
+                warnings=warnings,
+            )
+        # Exactly one unnamed persistent level closes every measured body.
         _read_level(
             cursor,
             layout,
-            named=True,
+            named=False,
             known_classes=known_classes,
             records=records,
             unknown=unknown,
             warnings=warnings,
         )
-    # Exactly one unnamed persistent level closes every measured body.
-    _read_level(
-        cursor,
-        layout,
-        named=False,
-        known_classes=known_classes,
-        records=records,
-        unknown=unknown,
-        warnings=warnings,
-    )
-    # THE BODY'S FINAL INT32 IS READ AS A COUNT OF OBJECT REFERENCES (CS-867),
-    # each two length-prefixed strings. It read as an opaque word "observed to
-    # be zero" until three real (14,60) saves declared 1 and left 120 bytes
-    # unread.
-    #
-    # THIS IS CS-482 ONE LEVEL UP. There the level tail was 12 constant bytes
-    # because the list is empty on 1522 of 1525 real tails; here the word was a
-    # constant because it is zero on every save the grammar was derived from.
-    # A field observed constant across a corpus is not a constant field.
-    #
-    # WHAT THIS READING DOES NOT ESTABLISH, on the same terms _read_level_tail
-    # states for its own count, and stated here because an adversary measured
-    # the first version of this comment asserting it flatly:
-    #   - WHETHER THE FIELD IS A COUNT AT ALL. The observed population is
-    #     {0: 17, 1: 3} over 20 saves, and the three non-zero tails are
-    #     byte-identical and come from ONE world - so this is one distinct
-    #     sample, not three. Over {0, 1} a count and a presence flag are the
-    #     same field. This reads a count because every sibling list in this walk
-    #     is one, and because the structurally identical level_tail_count is
-    #     MEASURED at {0: 3131, 1: 39, 2: 8, 4: 3} on the same library and so is
-    #     a count there on evidence.
-    #   - HOW A COUNT ABOVE 1 INTERLEAVES. Nothing in the corpus reaches 2.
-    #
-    # LANDING ON THE FINAL BYTE DOES NOT SETTLE EITHER, and the same trap was
-    # walked deliberately: a fixed 120-byte record, a flag then one pair,
-    # non-zero-means-one, and a count of (string, 90 opaque bytes) ALL land 20
-    # real saves of 20 on the exact final byte. UNLIKE CS-482 THERE IS NO RIGHT
-    # EDGE TO PIN, because this list ends where the body ends - which is exactly
-    # why several readings tile it and why the arm parametrizes the count.
-    #
-    # WHAT DOES SUPPORT THE PAIR READING is provenance rather than tiling, and
-    # it is measured: on all three saves the first string is one of the 471
-    # level names this same walk read earlier in the same body, and the pair is
-    # identical to one of that body's own level_tail_entry pairs, which CS-482
-    # reads as (level name, object path).
-    #
-    # THE STRINGS ARE READ AND DISCARDED, on the same terms as a level name and
-    # a level tail entry: they name a level and an object path, which is world
-    # content, and holding one would put it into the returned model and into a
-    # rendered surface (non-negotiable 12).
-    for _ in range(_read_bounded_count(cursor, "body_reference_count", MAX_BODY_REFERENCES)):
-        cursor.string("body_reference")
-        cursor.string("body_reference")
+        # THE BODY'S FINAL INT32 IS READ AS A COUNT OF OBJECT REFERENCES (CS-867),
+        # each two length-prefixed strings. It read as an opaque word "observed to
+        # be zero" until three real (14,60) saves declared 1 and left 120 bytes
+        # unread.
+        #
+        # THIS IS CS-482 ONE LEVEL UP. There the level tail was 12 constant bytes
+        # because the list is empty on 1522 of 1525 real tails; here the word was a
+        # constant because it is zero on every save the grammar was derived from.
+        # A field observed constant across a corpus is not a constant field.
+        #
+        # WHAT THIS READING DOES NOT ESTABLISH, on the same terms _read_level_tail
+        # states for its own count, and stated here because an adversary measured
+        # the first version of this comment asserting it flatly:
+        #   - WHETHER THE FIELD IS A COUNT AT ALL. The observed population is
+        #     {0: 17, 1: 3} over 20 saves, and the three non-zero tails are
+        #     byte-identical and come from ONE world - so this is one distinct
+        #     sample, not three. Over {0, 1} a count and a presence flag are the
+        #     same field. This reads a count because every sibling list in this walk
+        #     is one, and because the structurally identical level_tail_count is
+        #     MEASURED at {0: 3131, 1: 39, 2: 8, 4: 3} on the same library and so is
+        #     a count there on evidence.
+        #   - HOW A COUNT ABOVE 1 INTERLEAVES. Nothing in the corpus reaches 2.
+        #
+        # LANDING ON THE FINAL BYTE DOES NOT SETTLE EITHER, and the same trap was
+        # walked deliberately: a fixed 120-byte record, a flag then one pair,
+        # non-zero-means-one, and a count of (string, 90 opaque bytes) ALL land 20
+        # real saves of 20 on the exact final byte. UNLIKE CS-482 THERE IS NO RIGHT
+        # EDGE TO PIN, because this list ends where the body ends - which is exactly
+        # why several readings tile it and why the arm parametrizes the count.
+        #
+        # WHAT DOES SUPPORT THE PAIR READING is provenance rather than tiling, and
+        # it is measured: on all three saves the first string is one of the 471
+        # level names this same walk read earlier in the same body, and the pair is
+        # identical to one of that body's own level_tail_entry pairs, which CS-482
+        # reads as (level name, object path).
+        #
+        # THE STRINGS ARE READ AND DISCARDED, on the same terms as a level name and
+        # a level tail entry: they name a level and an object path, which is world
+        # content, and holding one would put it into the returned model and into a
+        # rendered surface (non-negotiable 12).
+        for _ in range(_read_bounded_count(cursor, "body_reference_count", MAX_BODY_REFERENCES)):
+            cursor.string("body_reference")
+            cursor.string("body_reference")
 
-    consumed = cursor.offset - start
-    if cursor.remaining:
-        warnings.append(
-            _warning(WARN_UNPARSED_DATA_SECTION, cursor.offset, actual=cursor.remaining)
+        consumed = cursor.offset - start
+        if cursor.remaining:
+            warnings.append(
+                _warning(WARN_UNPARSED_DATA_SECTION, cursor.offset, actual=cursor.remaining)
+            )
+
+        return ObjectTable(
+            records=tuple(records),
+            unknown_classes=unknown.emit(registry_incomplete=registry_incomplete),
+            warnings=tuple(warnings),
+            declared_body_length=declared,
+            body_consumed=consumed,
+            body_prefix_width=width,
+            transform_delta=delta,
+            save_version=save_version,
+            header_version=header_version,
+            level_count=level_count + 1,
         )
-
-    return ObjectTable(
-        records=tuple(records),
-        unknown_classes=unknown.emit(registry_incomplete=registry_incomplete),
-        warnings=tuple(warnings),
-        declared_body_length=declared,
-        body_consumed=consumed,
-        body_prefix_width=width,
-        transform_delta=delta,
-        save_version=save_version,
-        header_version=header_version,
-        level_count=level_count + 1,
-    )
+    except BaseException:
+        del body
+        raise
 
 
 # ---------------------------------------------------------------------------

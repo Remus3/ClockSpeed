@@ -160,6 +160,118 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-09-10 - CS-963 - CORRECTION AND REPAIR ROUND. The entry below overstated what closed, and three lenses refuted it after a green suite
+
+**THIS CORRECTS THE CS-963 ENTRY BELOW IT RATHER THAN REPLACING IT.** That entry is
+accurate about what it did and wrong about what that finished. Nothing in this file is
+edited once written, so the correction is a later record - and the two read together are
+the actual history, which is the point of the rule.
+
+**WHAT THE ENTRY BELOW CLAIMED AND SHOULD NOT HAVE.** It said no clockspeed frame anywhere
+in a raised traceback, cause chain included, holds the raw save or the decompressed body.
+Three adversarial lenses were dispatched against the frozen commit and all three REFUTED
+it. The suite was green, 6165 passed, at the moment every one of the findings below was
+live. That is the third consecutive time this item family has been refuted after a green
+suite, and the second time by the privacy lens specifically.
+
+**THE ACCEPTANCE AS FILED WAS UNACHIEVABLE, AND SAYING SO IS THE MAIN RESULT.** A parser
+holds the bytes it parses. `header._Cursor` and `objects._Cursor` retain the buffer for as
+long as there is a parse in progress, so the only tree in which no frame HOLDS the save is
+a tree with no parser in it. `CLAUDE.md` section 8: the probe beats the document. The
+clause is narrowed where it is checked, in
+`tests/save/test_world.py::test_the_only_retained_buffers_are_encapsulated_and_every_holder_withholds`,
+to two things that are both achievable and stronger than what was there before. First, no
+frame holds either buffer in a form a renderer PRINTS - a structural holder path with no
+attribute hop in it is a frame local that IS the buffer, and there must be none. Second,
+every remaining holder must reach the buffer through an object that WITHHOLDS it, asserted
+against each holder the sweep FINDS rather than against a list written down in advance.
+
+**FOUR LEAKS THE FIRST ROUND LEFT LIVE.**
+
+`world._walk_body` and `objects.parse_body` both bind the WHOLE decompressed body with no
+scrub, and the object stage's refusal unwinds through both. A renderer prints the body out
+of either. THE ARM THAT SHOULD HAVE CAUGHT THIS WAS GREEN THE WHOLE TIME, and its failure
+is the same one this item exists to abolish: `_truncated_body_blob` cuts the body at its
+halfway point while the planted marker sits past that cut, so the payload the walk refused
+never contained the marker at all. Its control asserted the marker was in the UNTRUNCATED
+blob - a different byte string from the one the sweep walked. A control that proves the
+oracle can see a value the sweep never encounters is worth less than no control.
+
+`header._Cursor.string` slices one header string into `raw` and raises `HeaderFormatError`
+out of that frame when it will not decode. That slice is not the whole file, it is exactly
+the options string or the session name. Both header arms drive a TRUNCATION, which raises
+before `raw` is ever bound, so the scrubbed path and the driven path were disjoint.
+
+`load_world_from_bytes` dropped the body only in its `ObjectError` handler, on the stated
+grounds that this was the only handler in which the name was bound. That was false for
+every other exit.
+
+**AND ONE LEAK THE FIRST ROUND INTRODUCED.** `_Cursor.__repr__`, added to withhold the
+buffer, printed `len(self._data)` - the exact byte size of the player's save file, which
+`object.__repr__` never emitted. A change whose entire purpose was to reduce what a
+renderer prints added a disclosure, and no arm could have flagged it, because the sweep
+matches a planted marker substring and a file size is not a substring of anything.
+
+**THE LOAD-BEARING CLAIM WAS WRONG IN KIND FOR ONE SCRUB.** `_Cursor.__repr__` was graded
+by making it LEAK. The mutation that matters is REMOVAL, because the baseline it replaced
+was the inherited `object.__repr__` - and with the method deleted, 604 arms stayed green.
+AN EQUIVALENT MUTANT IS NOT A SURVIVING MUTANT: it is an unmeasured property, and the
+answer is to measure the property structurally rather than to weaken the claim. The
+invariant arm now asserts that every retained holder DECLARES its own `__repr__`, so a
+holder withholding by accident reddens. It found its own sibling immediately:
+`objects._Cursor` was relying on `object.__repr__` and now states the requirement.
+
+**A SECOND ORACLE, BECAUSE ONE WAS NEVER ENOUGH.** `_leaking_locals` asks what a frame
+RENDERS. `tests/save/test_properties.py::_reaches_the_needle` and `::_structural_holders`
+ask what it HOLDS, following attributes, slots and container members reflexively to a
+bounded depth with identity tracked for cycles. Reflexive rather than a list of known
+types, because a list is silent the day a third holder is written.
+`::test_the_structural_sweep_sees_what_the_repr_sweep_cannot` states the gap between the
+two as a positive fact over one value, so it cannot pass by both being blind.
+
+**THE ORACLE BLIND SPOT THAT MATTERS MOST ON A REAL SAVE, AND IT IS NOT FIXED HERE.**
+Every fixture in this suite writes header strings as UTF-8. Unreal writes UTF-16-LE the
+moment a string carries one non-ASCII character, which a real session name or player
+display name routinely does. The marker oracle searches `repr()` for an ASCII needle, so a
+wide-encoded string is invisible to it while a renderer prints it legibly.
+`tests/save/test_header.py::test_the_marker_sweep_is_not_blind_to_a_wide_encoded_header_string`
+now pins the gap and sweeps the WIDE spelling, which is the one the file actually
+contains. THIS IS CS-963'S OWN DEFECT ONE LEVEL UP and it is filed, not finished: the
+remaining ASCII-only arms in this layer are still measuring an encoding the personal-data
+fields do not use. See `ROADMAP.md` under CS-964.
+
+**ONE SCRUB WAS DELETED RATHER THAN ADDED.** With the unconditional guard in place, the
+`ObjectError` handler's own `del body` became redundant - and a redundant scrub is not
+belt-and-braces, it is UNMEASURABLE. Removing it changed nothing, so it was
+indistinguishable from a scrub that never worked. Both survived mutation while both were
+present; one alone is killed.
+
+**FOURTEEN OF FOURTEEN SCRUBS MEASURED LOAD-BEARING, ZERO SURVIVORS**, including both
+`__repr__` DELETION mutants. Re-graded against the shipped tree after every repair, not
+carried forward from the earlier round.
+
+**A FIXTURE THAT MADE ITS OWN ARM VACUOUS, caught by the same mutation run.** The first
+`_Cursor.string` arm reused `_blob_with_an_undecodable_session_name`, which corrupts the
+FIRST byte of its probe and plants no markers at all - so the arm swept for something that
+was never in the bytes, and SURVIVED its own mutant. The replacement corrupts a byte
+APPENDED AFTER the marker, so the slice will not decode and still spells what the sweep
+hunts.
+
+**Merged files:** `clockspeed/save/header.py`, `clockspeed/save/chunks.py`,
+`clockspeed/save/world.py`, `clockspeed/save/objects.py`,
+`tests/save/test_properties.py`, `tests/save/test_world.py`,
+`tests/save/test_header.py`, `tests/test_docs_citations.py`.
+
+**Verify independently:** `python -m pytest tests -q -n auto` - 6182 passed, 7 skipped,
+exit 0. `ruff check .` clean, `python -m mypy clockspeed` clean, `tools/drift_guard.py`
+CLEAN with the standing doc-budget warning.
+
+**Two more pins retired to symbol form**, both in `clockspeed/save/objects.py`, after the
+new `__repr__` moved them. Their prose was ALREADY false about the line it cited - both
+were in the forgiveness table as unexamined, and reading them is what showed it - so each
+now names the symbol whose code the sentence actually describes.
+`FORGIVEN_LINE_POINTER_CEILING` came down 63 -> 61.
+
 ### 2026-09-10 - CS-963 - CLOSED. The walker was the defect and the scrubs were the symptom; nine of nine measured load-bearing
 
 **What was wrong.** `clockspeed/save/header.py` and `clockspeed/save/chunks.py` bound the
@@ -9895,7 +10007,7 @@ value reading is unmeasured - `ArrayProperty`, `MapProperty`, `SetProperty`, `St
 `ArrayProperty` is recorded in `DECLINED_VALUE_READINGS`. The other three are declined in
 `UNMEASURED_PAYLOAD_REGIONS` on sample size, the criterion `WIDTH_SHIPPING_RULE` disclaims. CS-456 was
 filed against `TextProperty` alone and is rewritten in `ROADMAP.md` to the family.
-**WHAT SURVIVED, and it is the item's one real result.** `clockspeed/save/objects.py:2954` is
+**WHAT SURVIVED, and it is the item's one real result.** `clockspeed/save/objects.py::_walk_payload` advances with
 `at = value_start + size` and it is the only tag-walk advance in the package, so an EXTENT width
 genuinely cannot move the cursor. The word "cannot" stands, attacked and unbroken by both passes.
 

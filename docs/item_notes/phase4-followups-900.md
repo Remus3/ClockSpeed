@@ -1127,6 +1127,40 @@ as a probe would flatten a corrupt one that `load_record` cannot parse.
    ordering fix for one property broke another property of the same function,
    and only an agent asking "what did this change break" found it.
 
+## CS-964
+
+### FILED 2026-09-10 (session 80) from the CS-963 repair round, MEASURED not inferred
+
+**WHAT IS BLIND.** Every planted-marker privacy arm under `tests/save/` decides by
+`marker in repr(value)` with an ASCII marker, and every fixture builds its header
+strings through `synthetic.fstring(text)`, which writes UTF-8 with a positive count.
+`synthetic.fstring(text, wide=True)` exists and nothing used it before this session.
+
+**WHY THAT IS THE WRONG ENCODING TO MEASURE.** `header._Cursor.string` selects
+`utf-16-le` whenever the count on the wire is negative, which is what Unreal writes
+the moment a string carries one non-ASCII character. The fields that carry personal
+data are the session name and the player display name - the two a person types. So
+the population of green privacy verdicts in this layer was measured against the
+encoding those fields are LEAST likely to use on a real save.
+
+**WHAT A RENDERER DOES WITH IT.** It prints the marker's letters each followed by a
+null, which a person reads at a glance. The oracle returns an empty verdict. That is
+CS-963's own defect one level up: an oracle that cannot observe the value it is asked
+about passes for that reason alone.
+
+**WHAT IS ALREADY DONE, so the next session does not redo it.**
+`tests/save/test_header.py::test_the_marker_sweep_is_not_blind_to_a_wide_encoded_header_string`
+pins the gap at one site and sweeps the wide spelling through the structural oracle.
+`tests/save/test_header.py::_wide_marker_blob` builds the fixture by SPLICING the
+narrow field for its wide spelling and asserting the splice landed, rather than by
+writing a second header builder beside the first - a parallel builder is a fixture
+that can drift away from the one every other arm uses.
+
+**WHAT IS NOT DONE.** Every other arm. `repr()` of a wide slice renders escapes
+rather than text, so an arm converted to the wide encoding must sweep with the
+STRUCTURAL oracle (`test_properties::_structural_holders`) or compare bytes - moving
+the marker constant alone would make it vacuous rather than wide.
+
 ## CS-962
 
 ### SLICE S0 MERGED - the panel seam - MEASURED 2026-09-09 (session 78)

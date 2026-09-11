@@ -417,7 +417,7 @@ expression into channels. E3 offers four proof forms; anything else is a finding
 **THE HEADLINE REFUTATION: NINE PATHS ISSUED POSITIVE FALSE PROOFS.** This is worse in
 kind than reporting silence - a `proven-*` verdict is a CLEARANCE a later session will
 cite. An adversary made a real save-body-derived value reach `args` in a real shipped
-class - `instance_name` from `cursor.string` at `clockspeed/save/objects.py:1756`,
+class - `instance_name` from `cursor.string` in `clockspeed/save/objects.py::_read_record`,
 interpolated into `ObjectFormatError` - while all 51 arms passed and the report was
 BYTE-IDENTICAL to pristine. The nine:
   - a BoolOp fallback `f"{name or 'unnamed'}"` graded `proven-scalar`. **THIS IS LIVE

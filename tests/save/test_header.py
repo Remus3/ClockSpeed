@@ -1192,3 +1192,156 @@ def test_read_header_leaves_no_frame_holding_the_prefix_when_it_refuses(tmp_path
         "read_header leaves its bounded prefix - the plaintext string region itself - in "
         f"a frame a renderer prints (non-negotiable 12). Offending: {leaks}"
     )
+
+
+def _wide_marker_blob() -> bytes:
+    """A marker blob whose options and session strings are UTF-16-LE.
+
+    `synthetic.build_header` writes every string as UTF-8 with a positive count,
+    which is what a save carries only while every character is ASCII. Unreal
+    writes UTF-16-LE with a NEGATIVE count the moment one is not - and the
+    fields that carry personal data are exactly the ones a person types. So the
+    two fields are SPLICED to their wide spelling rather than a second header
+    builder being written: the splice is asserted to have landed, which a
+    parallel builder could not be.
+
+    Returns:
+        The blob, with both markers present only in their wide spelling.
+    """
+    blob = _marker_blob(VERSION_WITH_SAVE_NAME)
+    for text in ("?" + MARKER_OPTIONS + "=1", MARKER_SESSION):
+        narrow = synthetic.fstring(text)
+        wide = synthetic.fstring(text, wide=True)
+        assert blob.count(narrow) == 1, (
+            f"the {text!r} field is not in the fixture exactly once, so the splice below "
+            f"would be guessing. Found {blob.count(narrow)}"
+        )
+        blob = blob.replace(narrow, wide, 1)
+    return blob
+
+
+def _marker_blob_with_an_undecodable_session_name() -> bytes:
+    """A marker blob whose session name will not decode, MARKER STILL INTACT.
+
+    `_blob_with_an_undecodable_session_name` cannot serve here, and the reason is
+    the vacuity this item keeps turning up: it corrupts the FIRST byte of its own
+    probe, so the slice the parser binds no longer spells anything a sweep hunts -
+    and it plants no ``MARKERS`` at all. An arm sweeping that blob asks about a
+    value which was never in it, and comes back empty for exactly that reason.
+
+    MEASURED, NOT REASONED: the first cut of the arm below used it and SURVIVED
+    its own mutation run - the scrub could be deleted with the suite still green,
+    which is a fix with no guard.
+
+    Here the corruption lands on a byte APPENDED AFTER the marker, so what
+    ``_Cursor.string`` binds is the marker followed by one invalid byte: it will
+    not decode, and it still spells the thing the sweep is looking for.
+
+    Returns:
+        The blob.
+    """
+    kwargs = _marker_header_kwargs(VERSION_WITH_SAVE_NAME)
+    kwargs["session_name"] = MARKER_SESSION + "X"
+    blob = synthetic.build_save(header_kwargs=kwargs)
+
+    tail = (MARKER_SESSION + "X").encode("utf-8")
+    assert blob.count(tail) == 1, (
+        f"the session field is not in the fixture exactly once, so the corruption "
+        f"below would be guessing. Found {blob.count(tail)}"
+    )
+    damaged = blob.replace(tail, tail[:-1] + b"\xff", 1)
+    assert MARKER_SESSION.encode("utf-8") in damaged, (
+        "the corruption destroyed the marker it was meant to leave standing, which "
+        "is exactly what makes a sweep over it vacuous"
+    )
+    return damaged
+
+
+def test_an_undecodable_header_string_leaves_no_frame_holding_its_bytes() -> None:
+    """The one path in `_Cursor` that binds a save slice ACROSS a raise.
+
+    `_Cursor.string` slices the declared extent into `raw`, tries to decode it,
+    and raises `HeaderFormatError` FROM INSIDE that frame when it will not
+    decode. `raw` is not the whole file - it is EXACTLY one header string, which
+    for the options string and the session name is the platform, the account id
+    and the player display name and nothing else (non-negotiable 12). Without
+    the scrub a locals-showing renderer prints those bytes verbatim beside an
+    error whose whole message is that they did not decode.
+
+    NEITHER OF THIS MODULE'S OTHER TWO CS-963 ARMS CAN REACH IT. Both drive a
+    TRUNCATION, which raises in `_string_extent` before `raw` is ever bound, so
+    the scrubbed path and the driven path were disjoint. Found by an adversary
+    reading the class rather than by any arm.
+    """
+    blob = _marker_blob_with_an_undecodable_session_name()
+
+    # CONTROL: the oracle can see the marker in the bytes handed over, so an empty
+    # verdict below is a measurement and not the oracle's own blindness.
+    assert MARKER_SESSION in test_properties._safe_repr(blob)  # noqa: SLF001
+
+    with pytest.raises(HeaderError) as caught:
+        header_module.reveal_strings(blob, reveal_personal_data=True)
+    raised = caught.value
+
+    entered = test_properties._shipped_frame_names(raised)  # noqa: SLF001
+    assert "string" in entered, (
+        f"the refusal did not pass through _Cursor.string, so the scrub this arm is "
+        f"about was never on the path. Frames reached: {sorted(entered)}"
+    )
+
+    for marker in MARKERS:
+        leaks = test_properties._shipped_frames(raised, marker)  # noqa: SLF001
+        assert not leaks, (
+            f"the undecodable-string refusal leaves {marker} in a shipped frame a "
+            f"renderer prints (non-negotiable 12). Offending: {leaks}"
+        )
+
+
+def test_the_marker_sweep_is_not_blind_to_a_wide_encoded_header_string() -> None:
+    """THE ORACLE'S OWN BLIND SPOT, and it is the one that matters on a REAL save.
+
+    Every fixture in this suite writes its header strings as UTF-8. Unreal writes
+    UTF-16-LE - a NEGATIVE length count - the moment a string carries any
+    non-ASCII character, which a real session name or player display name
+    routinely does. The sweep's oracle looks for an ASCII marker inside
+    `repr(value)`, so a wide-encoded spelling is invisible to it while a
+    renderer prints the same bytes in a form a person reads at a glance.
+
+    THAT IS THIS ITEM'S OWN DEFECT ONE LEVEL UP: an oracle that cannot observe
+    the value it is asked about returns an empty verdict about itself. Every
+    green privacy verdict in this layer was measured against the encoding real
+    saves DO NOT use for the fields that carry personal data.
+
+    THE ARM IS STATED AS THE POSITIVE FACT. It builds the wide-encoded blob,
+    asserts the oracle is blind to the ASCII spelling - pinning the gap rather
+    than assuming it - and then asserts the sweep is clean against the WIDE
+    BYTES, which is the spelling that is actually in the file.
+    """
+    blob = _wide_marker_blob()
+    wide = MARKER_OPTIONS.encode("utf-16-le")
+    assert wide in blob, "the wide fixture does not carry the options marker at all"
+
+    # THE GAP, PINNED. The ASCII spelling is genuinely absent from these bytes,
+    # so an ASCII sweep over them is vacuous BY CONSTRUCTION rather than by luck.
+    assert MARKER_OPTIONS.encode("ascii") not in blob, (
+        "the wide fixture also carries the ASCII spelling, so it does not isolate the "
+        "encoding gap this arm exists to measure"
+    )
+
+    at = blob.index(MARKER_SESSION.encode("utf-16-le"))
+    cut = blob[: at + 2]
+    assert wide in cut, "the cut removed the options marker, so the sweep below is vacuous"
+
+    with pytest.raises(HeaderError) as caught:
+        header_module.reveal_strings(cut, reveal_personal_data=True)
+    raised = caught.value
+
+    # The sweep asks about the bytes AS THE FILE SPELLS THEM, via the structural
+    # oracle, because `repr()` of a wide slice renders escapes rather than text.
+    held = test_properties._structural_holders(raised, wide)  # noqa: SLF001
+    bare = test_properties._bare_holders(held)  # noqa: SLF001
+    assert not bare, (
+        "a shipped frame local IS the wide-encoded header string across the refusal. "
+        "On a real save that is the session name or the player display name, and no "
+        f"ASCII sweep in this suite can see it (non-negotiable 12): {bare}"
+    )

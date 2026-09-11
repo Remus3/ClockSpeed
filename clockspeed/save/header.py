@@ -608,10 +608,20 @@ class _Cursor:
         a dataclass later - whose generated repr would dump the whole file - is
         a deliberate act and not a one-line accident.
 
+        THE BUFFER'S LENGTH IS NOT RENDERED EITHER, and the first cut of this
+        method got that wrong. It printed `len(self._data)`, which on a cursor
+        reached from `world.load_world_from_bytes` is the EXACT SIZE OF THE SAVE
+        FILE - information `object.__repr__` never emitted, added by a change
+        whose whole purpose was to reduce what a renderer prints. No arm could
+        have flagged it: the sweep matches a planted marker substring, and a
+        file size is not a substring of anything. The offset stays because it is
+        a position in a parse, derivable from the error that is being raised
+        anyway.
+
         Returns:
-            The class name and how far the cursor has read. No bytes.
+            The class name and how far the cursor has read. No bytes, no length.
         """
-        return f"<_Cursor at offset {self.offset} of {len(self._data)} bytes>"
+        return f"<_Cursor at offset {self.offset}>"
 
     @property
     def remaining(self) -> int:
@@ -771,6 +781,20 @@ class _Cursor:
         try:
             return raw.decode(encoding)
         except UnicodeDecodeError:
+            # THE CS-963 SCRUB, AND THIS SLICE IS THE WORST ONE IN THE MODULE.
+            # `raw` is not the whole file, it is EXACTLY one header string - and
+            # this method is what `reveal_strings` calls for the options string
+            # and the session name, so on a real save it is the platform, the
+            # account id and the player display name and nothing else
+            # (non-negotiable 12). The raise happens INSIDE this frame, so
+            # without the del a locals-showing renderer prints that slice
+            # verbatim beside the error that says the bytes did not decode.
+            #
+            # FOUND BY AN ADVERSARY, NOT BY AN ARM. The two header arms drive a
+            # TRUNCATION, which raises in `_string_extent` before `raw` is ever
+            # bound - so the one path in this class that binds a save slice
+            # across a raise was neither scrubbed nor driven.
+            del raw
             raise HeaderFormatError(
                 field=field, offset=at, reason=REASON_UNDECODABLE_TEXT, declared=byte_count
             ) from None

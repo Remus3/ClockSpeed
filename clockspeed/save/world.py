@@ -1355,23 +1355,37 @@ def _walk_body(
             which since CS-407 means a pair occurring in no real save, every
             real one having been measured.
     """
-    # THE SEAM. Both scalars are threaded SEPARATELY into either reader:
-    # header_version drives the body length prefix width and nothing else,
-    # save_version drives the transform delta and nothing else. Deriving either
-    # from the other is correct on every real file and wrong on SAVE_CROSS.
-    reader = parse_body if body_layout == BODY_LAYOUT_LEVELLED else parse_object_headers
-    return reader(
-        payload,
-        save_version=parsed.save_version,
-        header_version=parsed.header_version,
-        known_classes=None if mapping is None else mapping.schemas,
-        # THE SECOND SEAM, and it goes with the first. Handing over the schema
-        # NAMES without saying that the registry lost some of its own is what
-        # let a modelled class be published as unmodelled (CS-440): the two
-        # facts only exist together here, and either alone is an answer nobody
-        # can audit.
-        registry_incomplete=_registry_incomplete(mapping),
-    )
+    # THE CS-963 SCRUB, ADDED IN THE REPAIR ROUND AFTER AN ADVERSARIAL PASS FOUND
+    # THIS FRAME STILL HOLDING THE WHOLE DECOMPRESSED BODY. It is the object
+    # stage's refusal that unwinds through here, and `world.py` chains it, so a
+    # locals-showing renderer prints the body out of this frame as the CAUSE.
+    #
+    # THE ARM THAT SHOULD HAVE CAUGHT IT WAS VACUOUS, which is the more useful
+    # half: its fixture cut the body at the halfway point while the planted marker
+    # sat past that cut, so the marker was never in the bytes the sweep walked. An
+    # empty verdict over a population the value cannot be in is a statement about
+    # the fixture, not about this frame (non-negotiable 12).
+    try:
+        # THE SEAM. Both scalars are threaded SEPARATELY into either reader:
+        # header_version drives the body length prefix width and nothing else,
+        # save_version drives the transform delta and nothing else. Deriving either
+        # from the other is correct on every real file and wrong on SAVE_CROSS.
+        reader = parse_body if body_layout == BODY_LAYOUT_LEVELLED else parse_object_headers
+        return reader(
+            payload,
+            save_version=parsed.save_version,
+            header_version=parsed.header_version,
+            known_classes=None if mapping is None else mapping.schemas,
+            # THE SECOND SEAM, and it goes with the first. Handing over the schema
+            # NAMES without saying that the registry lost some of its own is what
+            # let a modelled class be published as unmodelled (CS-440): the two
+            # facts only exist together here, and either alone is an answer nobody
+            # can audit.
+            registry_incomplete=_registry_incomplete(mapping),
+        )
+    except BaseException:
+        del payload
+        raise
 
 
 def _decode_properties(
@@ -1676,11 +1690,17 @@ def load_world_from_bytes(
             # here where an unreadable payload is flagged and carried.
             properties = _decode_properties(body.payload, table, mapping)
         except ObjectError as exc:
-            # THE DECOMPRESSED BODY GOES TOO, and separately, because this is
-            # the only handler in which it is bound. `_decode_properties`
-            # scrubs its OWN frame; this frame holds the same bytes through
-            # `body` and would render them just as readily.
-            del body
+            # THE BODY IS NOT DROPPED HERE ANY MORE, AND THAT IS A REPAIR RATHER
+            # THAN A RELAXATION. This handler used to carry its own `del body`,
+            # on the stated grounds that it was the only handler in which the
+            # name was bound. That was never true - every other way out of this
+            # function after the chunk stage kept it - and the guard at the
+            # bottom now drops it on EVERY exit, which strictly dominates this
+            # one. Two scrubs where one suffices is worse than it sounds: the
+            # redundant one cannot be measured, because removing it changes
+            # nothing, and an unmeasurable scrub is indistinguishable from a
+            # scrub that never worked. Measured: with both present, deleting
+            # either left the suite green.
             raise WorldLoadError(STAGE_OBJECTS, type(exc).__name__) from exc
 
         unlocks, unlock_warnings = _read_unlocks()
@@ -1702,6 +1722,18 @@ def load_world_from_bytes(
         )
     except BaseException:
         del data
+        # THE BODY GOES ON EVERY WAY OUT, NOT ONLY THE OBJECT STAGE'S.
+        # `del body` in the ObjectError handler covers the one refusal that was
+        # thought about; a usmap refusal, a node or unlock failure, the
+        # `WorldModel` construction itself, or any exception type a later edit
+        # introduces all reach HERE with the decompressed body still bound.
+        # `DecompressedBody.__repr__` withholds its payload, which is why no
+        # repr-based arm reddened - but a withholding repr is a MITIGATION and
+        # this rule is about what the frame HOLDS, not about what it renders.
+        # The name is unbound if the header stage refused first, so the drop is
+        # conditional: an UnboundLocalError here would replace the real refusal.
+        if "body" in locals():
+            del body
         raise
 
 

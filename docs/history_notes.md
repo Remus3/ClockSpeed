@@ -28,9 +28,12 @@ Where current truth actually lives:
 
 The filed measurement and its detail are the completion record now, in `docs/LEDGER.md`
 under CS-963. It moved here rather than staying in the leaf because a leaf holds LIVE
-detail for OPEN work only, and a pointer stub is still a section - the membership guard
-`tests/data/test_item_notes_index.py::test_every_section_sits_in_the_leaf_the_membership_
-rule_names` reddens on one, which is how this was caught after it had been committed.
+detail for OPEN work only, and a pointer stub is still a section - the membership guard in
+`tests/data/test_item_notes_index.py` reddens on one, which is how this was caught after
+it had already been committed. A SYMBOL SPLIT ACROSS A LINE BREAK IS A DEAD CITATION:
+the first draft of this paragraph wrapped that test's name mid-identifier and the archive
+rot guard counted it, which is the same way trimming prose broke two citations in the
+session before this one.
 
 The transferable half is not this item's: a shared frame walker following `__traceback__`
 alone made EVERY privacy arm in the save layer silent about the cause chain, and they all

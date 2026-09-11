@@ -4639,3 +4639,186 @@ def _shipped_frame_names(raised: BaseException) -> set[str]:
         The frame names.
     """
     return {frame.f_code.co_name for frame in _frames_in_the_cause_chain(raised)}
+
+
+#: How deep the structural sweep follows attributes and members. Bounded rather
+#: than unlimited: the point is to reach a buffer an object is HOLDING, which in
+#: this layer is one or two hops, and an unbounded walk over arbitrary objects
+#: is a way to hang a test suite rather than a way to measure anything.
+_STRUCTURAL_DEPTH: Final = 6
+
+
+def _reaches_the_needle(value: object, needle: bytes, depth: int, seen: set[int]) -> list[str]:
+    """Paths under ``value`` at which ``needle`` is reachable, as attribute text.
+
+    THE ORACLE THE REPR ONE CANNOT BE. :func:`_leaking_locals` asks what a frame
+    RENDERS, which is the right question for what a traceback prints and the
+    wrong one for what a frame HOLDS. A buffer one attribute hop inside an
+    object whose ``__repr__`` withholds is invisible to it - and that gap is not
+    theoretical, it is where the whole of this layer's remaining retention lives.
+
+    IT IS REFLEXIVE RATHER THAN A LIST OF KNOWN TYPES, deliberately. A sweep
+    that enumerated ``_Cursor._data`` and ``DecompressedBody.payload`` by name
+    would be silent the day a third holder is written, which is the failure this
+    whole item is about. Attributes, ``__slots__``, and container members are
+    all followed, with identity tracked so a cycle terminates.
+
+    Args:
+        value: The local, or something reached from one.
+        needle: The planted bytes.
+        depth: How many hops have been taken.
+        seen: Identities already visited, for cycles and shared references.
+
+    Returns:
+        One path string per place the needle is reachable. Empty is a real
+        verdict ONLY alongside a control showing this function finds a planted
+        needle when one IS present.
+    """
+    if depth > _STRUCTURAL_DEPTH or id(value) in seen:
+        return []
+    seen.add(id(value))
+    if isinstance(value, (bytes, bytearray, memoryview)):
+        return [""] if needle in bytes(value) else []
+    if isinstance(value, str):
+        return []
+
+    found: list[str] = []
+    for name in getattr(type(value), "__slots__", ()) or ():
+        if hasattr(value, name):
+            found += [
+                f".{name}{tail}"
+                for tail in _reaches_the_needle(getattr(value, name), needle, depth + 1, seen)
+            ]
+    for name, member in tuple((getattr(value, "__dict__", None) or {}).items()):
+        found += [f".{name}{tail}" for tail in _reaches_the_needle(member, needle, depth + 1, seen)]
+    if isinstance(value, (list, tuple, set, frozenset)):
+        for index, member in enumerate(value):
+            found += [
+                f"[{index}]{tail}" for tail in _reaches_the_needle(member, needle, depth + 1, seen)
+            ]
+    if isinstance(value, dict):
+        for key, member in tuple(value.items()):
+            found += [
+                f"[{key!r}]{tail}" for tail in _reaches_the_needle(member, needle, depth + 1, seen)
+            ]
+    return found
+
+
+def _structural_holders(raised: BaseException, needle: bytes) -> dict[str, tuple[str, ...]]:
+    """Every SHIPPED frame in the cause chain that HOLDS the needle, however deep.
+
+    Args:
+        raised: The exception, taken as a PARAMETER rather than rendered.
+        needle: The planted bytes.
+
+    Returns:
+        Frame name to the ``local`` / ``local.attr`` paths that reach the needle.
+    """
+    holders: dict[str, tuple[str, ...]] = {}
+    for frame in _frames_in_the_cause_chain(raised):
+        if not os.path.normcase(frame.f_code.co_filename).startswith(_SHIPPED_ROOT):
+            continue
+        paths: list[str] = []
+        for name, value in tuple(frame.f_locals.items()):
+            paths += [name + tail for tail in _reaches_the_needle(value, needle, 0, set())]
+        if paths:
+            holders[frame.f_code.co_name] = tuple(sorted(paths))
+    return holders
+
+
+def _encapsulating_holders(holders: dict[str, tuple[str, ...]]) -> tuple[str, ...]:
+    """The holder paths that reach the buffer through an ATTRIBUTE, not directly.
+
+    A path with no dot in it is a frame local that IS the buffer - a renderer
+    prints that, and it is a leak. A path with a dot reaches it through an
+    object, and whether that is a leak depends entirely on what the object's
+    ``__repr__`` does.
+
+    Args:
+        holders: The structural sweep's result.
+
+    Returns:
+        The dotted paths, frame-qualified, sorted.
+    """
+    return tuple(
+        sorted(
+            f"{frame}:{path}" for frame, paths in holders.items() for path in paths if "." in path
+        )
+    )
+
+
+def _bare_holders(holders: dict[str, tuple[str, ...]]) -> tuple[str, ...]:
+    """The holder paths where the frame local IS the buffer - always a leak.
+
+    Args:
+        holders: The structural sweep's result.
+
+    Returns:
+        The undotted paths, frame-qualified, sorted.
+    """
+    return tuple(
+        sorted(
+            f"{frame}:{path}"
+            for frame, paths in holders.items()
+            for path in paths
+            if "." not in path
+        )
+    )
+
+
+#: A marker that exists only inside this module, for the structural control.
+_STRUCTURAL_MARKER: Final = "PlantedStructuralNeedleXray"
+
+
+class _WithholdingHolder:
+    """Holds a buffer and renders none of it - the shape the save layer uses."""
+
+    def __init__(self, buffer: bytes) -> None:
+        """Take the buffer.
+
+        Args:
+            buffer: The bytes to hold.
+        """
+        self._buffer = buffer
+
+    def __repr__(self) -> str:
+        """Say nothing about the buffer.
+
+        Returns:
+            A fixed string.
+        """
+        return "<_WithholdingHolder>"
+
+
+def test_the_structural_sweep_sees_what_the_repr_sweep_cannot() -> None:
+    """THE CONTROL FOR THE SECOND ORACLE, and the reason there is a second one.
+
+    Stated as a DIFFERENCE between the two oracles over one value, so it cannot
+    pass by both of them being blind. The repr oracle is asserted to return
+    NOTHING for a withholding holder - that is the gap, pinned as a positive
+    fact - and the structural sweep is asserted to find the buffer through the
+    attribute in the same breath.
+
+    An adversary found this gap by holding the whole save in a `_Cursor` and
+    watching the project's own sweep return an empty verdict. Neither oracle is
+    sufficient alone: repr answers "what does a traceback print", structural
+    answers "what does the frame hold", and the acceptance needs both.
+    """
+    held = _WithholdingHolder(_STRUCTURAL_MARKER.encode("ascii"))
+
+    assert _STRUCTURAL_MARKER not in _safe_repr(held), (
+        "the holder renders its buffer, so this arm is not measuring the gap it exists to measure"
+    )
+    assert _reaches_the_needle(held, _STRUCTURAL_MARKER.encode("ascii"), 0, set()) == [
+        "._buffer"
+    ], "the structural sweep cannot reach a buffer one attribute hop away"
+
+
+def test_the_structural_sweep_terminates_on_a_reference_cycle() -> None:
+    """A CYCLE MUST NOT HANG THE SWEEP, for the reason the walker's twin gives."""
+    first = _WithholdingHolder(b"nothing")
+    second = _WithholdingHolder(_STRUCTURAL_MARKER.encode("ascii"))
+    first._buffer = second  # type: ignore[assignment]  # noqa: SLF001 - building the cycle
+    second._buffer = first  # type: ignore[assignment]  # noqa: SLF001
+
+    assert _reaches_the_needle(first, b"unreachable-now", 0, set()) == []
