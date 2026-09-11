@@ -80,6 +80,8 @@ from urllib.parse import quote
 
 import pytest
 
+from tests import git_env
+
 # ---------------------------------------------------------------------------
 # File inventory
 # ---------------------------------------------------------------------------
@@ -290,6 +292,39 @@ def _looks_binary(path: Path) -> bool:
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
+
+
+def _scrub_repo_locating_environment() -> None:
+    """Remove every inherited git repository POINTER from this process.
+
+    CS-968, MEASURED 2026-09-11. ``git push`` exports ``GIT_DIR`` to the
+    pre-push hook WHEN THE PUSH COMES FROM A LINKED WORKTREE, and not from a
+    normal checkout. ``.githooks/pre-push`` runs ``pytest tests``, so this whole
+    suite can run with a pointer at a repository nobody in it named.
+
+    THIS IS THE PROCESS-WIDE HALF, AND IT IS NOT REDUNDANT WITH THE PER-SPAWN
+    SCRUBS. ``tests/git_env.py`` cleans the environment handed to a CHILD, which
+    is the half that stops a throwaway ``git init`` from re-initialising the real
+    repository as bare. It cannot help a test that reads the pointer IN-PROCESS -
+    ``tools/precommit_gate.py`` imported through ``load_gate()`` resolves its repo
+    from ``os.environ`` at call time, and the drift driver enumerates documents
+    the same way. Both were measured going red in a real worktree push while
+    every child spawn was already clean.
+
+    NOTHING IN THIS SUITE MAY DEPEND ON AN INHERITED POINTER. A test that wants
+    to act on a specific repository says so with ``-C``, a ``cwd``, or an
+    explicit environment; one that wants to GRADE inheritance builds the
+    variable itself rather than hoping the runner exported one.
+
+    Done at import rather than in an autouse fixture on purpose: module-level
+    code in a test module runs during COLLECTION, before any fixture, and a
+    pointer that survives until the first test has already been read by then.
+    """
+    for name in [key for key in os.environ if key.upper() in git_env.REPO_LOCATING]:
+        del os.environ[name]
+
+
+_scrub_repo_locating_environment()
 
 
 @pytest.fixture(scope="session")
