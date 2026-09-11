@@ -101,8 +101,11 @@ def test_the_scrub_removes_a_planted_pointer_whatever_its_casing() -> None:
 
 
 def test_the_scrub_keeps_the_variables_that_isolate_a_fixture() -> None:
-    """GIT_CONFIG_GLOBAL and GIT_CONFIG_SYSTEM are how a fixture cuts the
-    operator's own configuration off; removing them would undo the isolation.
+    """The isolating variables survive the scrub.
+
+    GIT_CONFIG_GLOBAL and GIT_CONFIG_SYSTEM are how a fixture cuts the
+    operator's own configuration off; removing them would undo the isolation
+    the scrub exists to protect.
     """
     kept = scrub({"GIT_CONFIG_GLOBAL": "g", "GIT_CONFIG_SYSTEM": "s", "GIT_DIR": "d"})
 
