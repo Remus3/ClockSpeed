@@ -1244,9 +1244,11 @@ its ASCII-only question still kills the WIDE cases 3 of 3, because the mixed
 fixture leaves the save-name marker in ASCII and the leaked dump carries it
 whatever the other two fields are spelled. The asymmetry an adversary DID
 measure was `_value_surfaces` over a dataclass field carrying a wide slice, and
-the guard for that is piece 2's own arm,
-`test_the_surface_sweep_is_not_blind_to_a_wide_encoded_raw_slice`, which fails
-without piece 2. The experiment that would separate the two on the population
+the guard for that is piece 2's own wide-encoded-raw-slice arm in
+tests/save/test_header.py, which fails without piece 2. That arm is NOT NAMED
+HERE as a citation because it does not exist on main - it lands with the
+cs964-seam branch, and a doc on main that cites it is asserting something this
+tree cannot resolve. The experiment that would separate the two on the population
 arm is a field-specific mutant dumping only the session slice. NOT RUN.
 
 **THE SURVEY'S EXCUSING RULE WAS REFUTED, so do not rebuild the population from
@@ -1262,8 +1264,8 @@ refuse wide and parse narrow. No arm plants in that window today.
 
 **STILL NOT DONE.** Twelve WIDE-REQUIRED arms - four in `test_header`, nine in
 `test_world`, minus the one converted - plus the two ON-WIRE arms the first
-survey never opened, `test_container_elements.py::test_no_repr_the_container_decode_adds_renders_an_element_s_bytes`
-and `test_struct_interior.py::test_no_repr_the_struct_decode_adds_renders_a_name_a_value_or_a_word`.
+survey never opened, `tests/save/test_container_elements.py::test_no_repr_the_container_decode_adds_renders_an_element_s_bytes`
+and `tests/save/test_struct_interior.py::test_no_repr_the_struct_decode_adds_renders_a_name_a_value_or_a_word`.
 The NARROW-SUFFICIENT arms still owe the sentence in their own text saying why
 one encoding is enough for the value they plant. Nothing in the seam is
 mutation-graded except the one arm above.
