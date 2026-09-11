@@ -24,6 +24,16 @@ Where current truth actually lives:
 | Commands and runbooks | `docs/OPERATIONS.md` |
 
 
+## CS-303 - item section, CLOSED and relocated from `docs/item_notes/phase3.md` 2026-09-11
+
+The body below is the leaf section verbatim. The item closed against the guard
+`tests/solve/test_ceiling_fence.py`; the completion record is in `docs/LEDGER.md`.
+
+### NOTE - relocated from `ROADMAP.md` 2026-08-23
+
+NOTE: raised by the ADR 0006 adjudication on 2026-08-14 as a roadmap candidate and explicitly NOT as a condition of that acceptance. Nothing mechanical currently stops a caller reading the field directly and clamping without going through `clamp_to_unsharded_base`; the ADR claims the name and the docstring as the fence and claims no more. Note that `tests/solve/test_synthetic.py::test_every_building_carries_the_unsharded_clock_base` reads the field directly by design and is one of the exemptions.
+
+
 ## CS-210 - item section, CLOSED and relocated from `docs/item_notes.md` 2026-09-10
 
 The body came from the leaf this family routes ROADMAP `Phase 2` to, and that leaf was

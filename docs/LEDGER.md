@@ -160,6 +160,97 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-09-11 - CS-303 - CLOSED. ADR 0006's name-fence on `Building.unsharded_clock_base` is now mechanical, and the round was REFUTED once on a gate the new file left red
+
+**The defect.** ADR 0006 decided how the one shipped ceiling operand reaches the model
+and said in as many words what it did not close: "nothing mechanical stops a future
+caller reading `Building.unsharded_clock_base` directly and clamping without going
+through `clamp_to_unsharded_base`. This ADR claims the name and the docstring as that
+fence and claims no more." A name is a hint. The trap ADR 0005 named is that the
+un-sharded base READS as an achievable maximum, and because every shipped entry reports
+the same un-overclocked value, a caller that clamps to it caps every solve at 100
+percent and looks correct on every building nobody has overclocked - invisible in
+exactly the worlds where testing is easiest.
+
+**The root cause, stated as a class rather than as this field.** A fence whose only
+enforcement is the reader's diligence is enforced by nothing. The repair is a guard that
+refuses the READ, not a better name.
+
+**What shipped.** `tests/solve/test_ceiling_fence.py`, an AST guard over the whole
+tracked-and-not-ignored Python tree. `clockspeed/solve/power.py` is the one owner, held
+as an exact PATH rather than as a package - widening it to `clockspeed/solve/` would let
+any sibling clamp silently, which is the defect. The test corpus is exempted by exact
+repo-relative path with a reason per entry, never by a glob, and three arms keep the
+table honest: no key may carry a glob metacharacter, every key must name a file git
+actually tracks, and every key must still hold a read it forgives. A dead forgiveness is
+prose the next reader cannot tell from a live rule.
+
+**The sibling sweep, and what it found.** One sibling shares the root cause and is swept:
+`getattr(building, "unsharded_clock_base")` resolves to the identical value while
+spelling the name in a string, so a guard reading only the attribute node is evaded by
+typing the hand-back. Both spellings are detected and each has its own arm. The
+anti-rot direction is swept the same way - a stale, globbed, untracked or reasonless
+exemption, and an owner path that no longer reads the field at all, which would make
+every other arm pass for the wrong reason.
+
+**Tests by name**, all in `tests/solve/test_ceiling_fence.py`:
+`test_a_direct_attribute_read_outside_the_owner_is_reported`,
+`test_the_getattr_handback_spelling_is_reported`,
+`test_a_string_naming_the_field_is_not_a_read`,
+`test_no_module_outside_the_owner_reads_the_fenced_field_directly`,
+`test_the_owner_still_reads_the_field_so_the_fence_is_not_vacuous`,
+`test_no_exemption_is_spelled_as_a_population`,
+`test_every_exemption_names_a_file_git_actually_tracks`,
+`test_every_exemption_still_holds_a_read_it_forgives`,
+`test_every_exemption_records_a_reason`.
+
+**Every arm was measured live rather than assumed.** Each policing arm was mutated in
+turn - a glob key, a key naming no file, a key forgiving a file that reads nothing, a
+blank reason, and an owner path that reads nothing - and each mutation reddened the arm
+that owns it. The repo-wide arm was first run with an EMPTY exemption table and reported
+nine real unexempted reads across the three test modules, which is what the exemptions
+were then written against. Mutations were restored from a byte snapshot, never from git.
+
+**A caveat that belongs in the artifact and not only in a cycle report.**
+`test_every_exemption_records_a_reason` is a NON-BLANKNESS check. It proves the reason
+field was filled and proves nothing about whether the sentence is true or relevant -
+the weakness class CS-937 owns. The module says so in place rather than implying a
+stronger claim by its name.
+
+**The verifier pass REFUTED the first candidate, on a ground outside the new file.**
+`tests/solve/test_phase3_gate.py` pins the contents of the `tests/solve` package in
+`SOLVE_TEST_SOURCES`, so that a new module, a rename or a deletion fails the gate
+instead of silently shrinking its coverage - and the new file was not registered, which
+left `test_the_scanned_solve_test_set_is_exactly_the_solve_test_package` red. That is
+the gate working. The repair is the one line registering `test_ceiling_fence.py` in
+that tuple. Re-run after the repair, in the AUTHORING cycle: `tests/solve` reports
+`346 passed in 9.12s`, exit 0. ONE refutation round was spent; nothing was filed.
+
+**Tier 2**, as the item line asked - the guard sweeps the whole tracked tree, so the
+whole suite was paid rather than the touched module alone.
+
+**Counts observed THIS run**, not carried from any earlier one or from any subagent.
+The whole tracked tree, `python -m pytest tests -q -m "not slow" -n auto`, written to a
+file and read back: `6200 passed, 5 skipped, 7 warnings in 294.67s (0:04:54)`, exit 0.
+`python -m ruff check .` reports `All checks passed!`, exit 0, and `ruff format --check`
+reports the new module already formatted. The five skips are the platform chmod skips
+this suite already carries and are not new here. That line is the SECOND whole-tree run
+of this cycle and it is the one quoted, because the first ran before the pre-commit gate
+required a `ruff format` rewrite of one line in the new module - a suite run that predates
+an edit describes a tree that no longer exists, so it is not the number recorded.
+
+**THE WORK WAS AUTHORED IN ONE CYCLE AND COMMITTED IN THE NEXT, and that is recorded
+rather than smoothed over.** The authoring cycle ended with the change applied to the
+worktree and never committed, so the next cycle inherited a half-applied row. Per the
+lane rule that an in-flight row is finished and never abandoned, this cycle re-measured
+the tree it inherited rather than trusting the prior cycle's numbers: the suite line and
+the ruff line above are from THIS run, and the scoped `tests/solve` line quoted earlier
+in this entry is the authoring cycle's, labelled as such. The ONE refutation round the
+bounded-refutation rule allows was spent in the authoring cycle and was not re-spent
+here; no second round was run, and nothing was filed.
+
+**CI is recorded by the queue lane driver and was NOT observed by this worker.**
+
 ### 2026-09-11 - CS-972 - FROZEN-FILE GRANT, recorded BEFORE the edit per CLAUDE.md section 6
 
 **This is a grant record, not a completion record.** It authorizes ONE edit to

@@ -67,7 +67,6 @@ budget or this file's size here - read both from the tool.
 ## Phase 3 - solver core follow-ups
 
 CS-301 - Model the variable-power law, and cover the two unexercised branches - acceptance: `clockspeed/solve/power.py` computes a draw for the three variable-power buildings and the one struct-range building instead of reporting them unmodeled, and tests cover a building whose un-sharded base is below the reference clock and a recipe naming two producing buildings - tier: 2 - detail: `docs/item_notes.md`
-CS-303 - Make ADR 0006's name-fence on `Building.unsharded_clock_base` mechanical - acceptance: an AST test forbids a direct `.unsharded_clock_base` read anywhere outside `clockspeed/solve/power.py`, with the test corpus exempted explicitly and by name rather than by a blanket path glob - tier: 2 - detail: `docs/item_notes.md`
 CS-302 - Measure `ratio.py`'s refusal path at real-registry scale - acceptance: the leave-one-out diagnosis that names the unproducible item is measured against a registry of the live size, and either shown acceptable or replaced - tier: 2 - detail: `docs/item_notes.md`
 
 

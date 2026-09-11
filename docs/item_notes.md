@@ -83,7 +83,6 @@ a pass - every equality here is satisfied for free by an empty population.
 |---|---|
 | CS-301 | `docs/item_notes/phase3.md` |
 | CS-302 | `docs/item_notes/phase3.md` |
-| CS-303 | `docs/item_notes/phase3.md` |
 | CS-400 | `docs/item_notes/phase4.md` |
 | CS-401 | `docs/item_notes/phase4.md` |
 | CS-412 | `docs/item_notes/phase4.md` |

@@ -26,12 +26,6 @@ leaf. That move is what keeps this file live.
 
 NOTE: phase 3 deliberately refused to invent this. The semantics of `mVariablePowerConsumptionConstant` and `mVariablePowerConsumptionFactor` are unmeasured anywhere in this project - the registry only carries them - so `power.py` hands all four operands back verbatim and applies no law (non-negotiable 7). The two uncovered branches are stated honestly in that module rather than implied to be tested: no fixture building declares a base below the reference clock, and no fixture recipe names two producers.
 
-## CS-303
-
-### NOTE - relocated from `ROADMAP.md` 2026-08-23
-
-NOTE: raised by the ADR 0006 adjudication on 2026-08-14 as a roadmap candidate and explicitly NOT as a condition of that acceptance. Nothing mechanical currently stops a caller reading the field directly and clamping without going through `clamp_to_unsharded_base`; the ADR claims the name and the docstring as the fence and claims no more. Note that `tests/solve/test_synthetic.py::test_every_building_carries_the_unsharded_clock_base` reads the field directly by design and is one of the exemptions.
-
 ## CS-302
 
 ### NOTE - relocated from `ROADMAP.md` 2026-08-23

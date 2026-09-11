@@ -177,6 +177,7 @@ SOLVE_SOURCES: tuple[str, ...] = (
 SOLVE_TEST_SOURCES: tuple[str, ...] = (
     "__init__.py",
     "synthetic.py",
+    "test_ceiling_fence.py",
     "test_exact.py",
     "test_optimize.py",
     "test_power.py",
