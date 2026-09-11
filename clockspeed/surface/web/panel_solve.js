@@ -29,10 +29,15 @@
   renders THE PAIR. A rounded decimal may sit beside it, and it is labelled an
   approximation for display so nobody mistakes it for the answer.
 
-  THERE IS EXACTLY ONE DIVISION IN THIS FILE. It is in approximateDecimal and
-  it exists only to build that label. Every other value is composed from the
-  two integers as text, never computed. tests/surface/test_panel_solve.py
-  measures that structurally rather than taking this paragraph's word for it.
+  NOTHING IN THIS FILE DIVIDES, INCLUDING THE LABEL BUILDER. An earlier draft
+  reached the approximation with a quotient and a toFixed, and the reasoning
+  offered for it - that a reading aid is not the answer, so a float there is
+  harmless - was heard and rejected. CS-962's acceptance says no division
+  anywhere in the render path, and an unguarded quotient also loses precision
+  silently on a denominator big enough to matter. approximateDecimal below
+  reaches the same decimal by repeated subtraction instead, so no float is
+  ever made at all. tests/surface/test_panel_solve.py measures that
+  structurally rather than taking this paragraph's word for it.
 
   NO FORM ELEMENT. The page's content security policy sets form-action to
   none, so a form here would be a control that cannot submit. The bench is four
@@ -96,6 +101,18 @@ var APPROX_MARK = "approx";
 /* How many places the display approximation carries. */
 var APPROX_PLACES = 4;
 
+/*
+  The largest denominator the long division below stays exact for. The running
+  remainder is strictly smaller than the denominator and each step multiplies
+  it by ten and adds a digit, so ten times the denominator plus nine has to
+  remain an exactly representable integer. Past this bound the panel shows the
+  exact pair alone rather than a decimal nobody has checked.
+*/
+var SAFE_DENOMINATOR = 900000000000000;
+
+/* The code unit the digit characters are counted from. */
+var ZERO_CODE = "0".charCodeAt(0);
+
 /* How many keys a vocabulary hint lists before it starts counting instead. */
 var VOCABULARY_SHOWN = 6;
 
@@ -143,20 +160,80 @@ function exactPair(rational) {
   return String(rational.num) + PAIR_MARK + String(rational.den);
 }
 
+function absoluteValue(value) {
+  /* Magnitude, without asking a library and without an operator that divides. */
+  return value < 0 ? -value : value;
+}
+
 function approximateDecimal(num, den) {
   /*
-    THE ONLY DIVISION IN THIS FILE, AND THE ONLY PLACE A FLOAT IS MADE.
+    THE DISPLAY DECIMAL, PRODUCED WITHOUT DIVIDING ANYTHING.
 
-    What it produces is a reading aid and nothing else. It is never compared,
-    never summed, never passed on and never stored - it goes straight into a
-    string that carries the word "approx" beside it. A den of zero has no
-    decimal to show, and answering null there is what keeps an Infinity off
-    the page.
+    The numerator's own decimal digits are consumed left to right. Each output
+    digit is found by subtracting the denominator from a running remainder
+    until the remainder no longer covers it - at most nine subtractions,
+    because the remainder entering a step is already smaller than the
+    denominator. What comes back is the EXACT TRUNCATION of num/den to
+    APPROX_PLACES places, not a rounding of a quotient somebody computed, and
+    no IEEE double is created anywhere along the way.
+
+    WHY THIS IS WRITTEN OUT HERE RATHER THAN SHARED. panel_registry.js carries
+    the same routine. These modules are classic scripts with no module system
+    - there is no import to reach for - and a cross-panel reference would
+    couple two panels that are deliberately independent slices, so that a
+    change to one panel's rendering could break another panel's. The
+    duplication is the cheaper of the two costs and is deliberate.
+
+    WHAT IT REFUSES. A leaf that is not a pair of safe integers, a denominator
+    of zero, and a denominator past SAFE_DENOMINATOR all answer null. The
+    caller renders the exact pair alone in that case, which is the honest
+    outcome: a missing reading aid is a smaller harm than a decimal whose last
+    places nobody can vouch for. Answering null on a zero denominator is also
+    what keeps an Infinity off the page.
   */
-  if (den === 0) {
+  if (!isWholeNumber(num) || !isWholeNumber(den)) {
     return null;
   }
-  return (num / den).toFixed(APPROX_PLACES);
+  if (!Number.isSafeInteger(num) || !Number.isSafeInteger(den)) {
+    return null;
+  }
+  var divisor = absoluteValue(den);
+  if (divisor === 0 || divisor > SAFE_DENOMINATOR) {
+    return null;
+  }
+
+  var negative = num < 0 !== den < 0;
+  var digits = String(absoluteValue(num));
+  var whole = "";
+  var remainder = 0;
+  var index;
+  var digit;
+
+  for (index = 0; index < digits.length; index += 1) {
+    remainder = remainder * 10 + (digits.charCodeAt(index) - ZERO_CODE);
+    digit = 0;
+    while (remainder >= divisor) {
+      remainder -= divisor;
+      digit += 1;
+    }
+    whole += String(digit);
+  }
+  while (whole.length > 1 && whole.charAt(0) === "0") {
+    whole = whole.substring(1);
+  }
+
+  var fraction = "";
+  for (index = 0; index < APPROX_PLACES; index += 1) {
+    remainder = remainder * 10;
+    digit = 0;
+    while (remainder >= divisor) {
+      remainder -= divisor;
+      digit += 1;
+    }
+    fraction += String(digit);
+  }
+
+  return (negative ? "-" : "") + whole + "." + fraction;
 }
 
 function rationalText(rational) {

@@ -40,10 +40,27 @@ rational arithmetic and it does not stop at the browser. Every numeric leaf
 ``/api/solve`` puts on the wire is a ``num``/``den`` pair (spec section 1.1),
 so the bench renders the PAIR, and a decimal may sit beside it only where it is
 labelled an approximation for display.
-:func:`test_the_panel_divides_once_and_only_inside_the_approximation` measures
-that claim structurally - it counts division SITES in the code with comments
-and string literals blanked, and requires the single survivor to sit inside the
-function that builds the approximate label.
+
+**AND THE PANEL NOW DIVIDES NOWHERE AT ALL.** An earlier draft kept one
+quotient to build that label and argued a reading aid may be a float; an
+adjudicator rejected it against CS-962's acceptance - no division anywhere in
+the render path - and against the unguarded precision loss ``toFixed`` carries.
+:func:`test_the_panel_holds_no_division_operator_at_all` measures the claim
+structurally, counting division SITES in the code with comments and string
+literals blanked;
+:func:`test_the_no_division_arm_would_fire_on_a_module_that_divided` proves
+that counter can be non-zero on this module's own text, because a detector that
+cannot fire grades nothing; and
+:func:`test_every_approximation_is_the_exact_truncation_of_its_pair` walks a
+table of ratios whose oracle is recomputed per row, because one memorised
+constant would pass a single-ratio arm without the arithmetic being right.
+
+**THE FIXTURES ANSWER TO THE SERVER, NOT TO A SPEC DOCUMENT.** Every driving
+arm below feeds the panel a payload typed by hand. Section j reconciles those
+payloads against ``clockspeed.surface.api.solve`` and
+``clockspeed.surface.api.contract`` themselves, so a field this file spelled
+wrong - or one the endpoint later renames - is a red arm rather than a page
+that renders ``not an exact rational`` forever while the suite stays green.
 """
 
 from __future__ import annotations
@@ -53,15 +70,19 @@ import json
 import re
 import shutil
 import subprocess
+from collections.abc import Mapping
+from fractions import Fraction
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Final
 
 import pytest
 
+from clockspeed.solve import ratio
+from clockspeed.surface.api import contract, solve
 from tests.surface import panel_harness
 
 if TYPE_CHECKING:
-    from collections.abc import Iterator, Mapping, Sequence
+    from collections.abc import Iterator, Sequence
 
 #: The module this slice owns.
 MODULE: Final = "panel_solve.js"
@@ -1336,29 +1357,168 @@ def test_the_bench_says_something_before_the_first_press(tmp_path: Path) -> None
 # ---------------------------------------------------------------------------
 
 
-def test_the_panel_divides_once_and_only_inside_the_approximation(tmp_path: Path) -> None:
-    """Exactly one division site in the whole module, inside the label builder.
+def test_the_panel_holds_no_division_operator_at_all(tmp_path: Path) -> None:
+    """Zero division sites in the whole module, label builder included.
 
-    NON-NEGOTIABLE 6, ENFORCED IN THE RENDER PATH. Every other value on this
-    page is a pair of integers rendered as a pair of integers. The one
-    exception is the decimal the operator ruled may sit beside a pair when it
-    is labelled an approximation - so there is exactly one place a float may be
-    made, and this arm says which.
+    NON-NEGOTIABLE 6, ENFORCED IN THE RENDER PATH, AND CS-962'S ACCEPTANCE
+    TAKEN LITERALLY. An earlier draft kept one quotient in
+    ``approximateDecimal`` and argued a reading aid may be a float. That
+    argument was adjudicated and rejected: the decimal is reached by repeated
+    subtraction now, so there is no place in this file where a float is made.
+
+    The count alone would pass on a module that rendered nothing, so the panel
+    is driven here too - a zero that comes with a rendered decimal beside a
+    rendered pair is a zero about live code.
     """
     sites = division_sites(read_module())
-    assert len(sites) == 1, f"{len(sites)} division site(s): {sites}"
-    assert sites[0][1] == "approximateDecimal", sites[0]
+    assert sites == (), f"{len(sites)} division site(s) survive: {sites}"
 
-    # The panel was driven for its side effect on the arm above being about a
-    # module that actually renders - a module that divided nowhere because it
-    # rendered nothing would pass the count and mean nothing.
     report = drive(
         tmp_path,
         panel_harness.null_payload(registry=_registry()),
         accepts=[True],
         steps=_settled(PLAN_OUTCOME),
     )
+    text = panel_text(report)
+    assert "10/3" in text, text
+    assert "3.3333" in text, text
+
+
+def test_the_no_division_arm_would_fire_on_a_module_that_divided(tmp_path: Path) -> None:
+    """The zero above is proved capable of being non-zero, on THIS module's text.
+
+    A DETECTOR THAT CANNOT FIRE GRADES NOTHING, and this repo has measured a
+    gate that skipped its own checks and still reported PASS. The synthetic
+    strings in the counter's own arm prove the regex; this proves the whole
+    pipeline end to end on the real file - a quotient put back into
+    ``approximateDecimal`` is seen, attributed to that function, and the
+    planted module still mounts and renders, so what is being seen is live
+    code rather than a dead line.
+    """
+    source = read_module()
+    subtraction = "      remainder -= divisor;"
+    assert subtraction in source, "the long division is not spelled where this plant expects it"
+
+    quotient = "  var quotientPlant = num / den;\n  void quotientPlant;\n"
+    anchor = "  var negative = num < 0 !== den < 0;\n"
+    assert anchor in source, "the plant anchor moved"
+    mutated = source.replace(anchor, quotient + anchor)
+    assert mutated != source, "the plant did not apply"
+
+    planted = tmp_path / "panel_solve_divides.js"
+    planted.write_bytes(mutated.encode("ascii"))
+
+    sites = division_sites(mutated)
+    assert len(sites) == 1, f"the detector did not fire on a module that divides: {sites}"
+    assert sites[0][1] == "approximateDecimal", sites[0]
+
+    report = drive(
+        tmp_path,
+        panel_harness.null_payload(registry=_registry()),
+        module=planted,
+        accepts=[True],
+        steps=_settled(PLAN_OUTCOME),
+    )
     assert "3.3333" in panel_text(report), panel_text(report)
+
+
+#: Ratios the truncation arm walks, chosen so a rounding implementation parts
+#: company with a truncating one. ``22/7`` and ``2/3`` both round UP at the
+#: fourth place, so the ``toFixed`` spelling this repair removed would render
+#: ``3.1429`` and ``0.6667`` and go red here.
+TRUNCATION_CASES: Final = (
+    (1, 8),
+    (100, 7),
+    (10, 3),
+    (22, 7),
+    (2, 3),
+    (7, 1),
+    (0, 1),
+)
+
+#: Places the panel's approximation carries (panel_solve.js APPROX_PLACES).
+APPROX_PLACES: Final = 4
+
+
+def _truncated(num: int, den: int) -> str:
+    """The exact truncation of ``num/den`` to :data:`APPROX_PLACES` places.
+
+    Computed with integer arithmetic only. A float here would make the oracle
+    share the defect it exists to catch.
+
+    Args:
+        num: The numerator.
+        den: The denominator, non-zero.
+
+    Returns:
+        The truncated decimal, always carrying every place.
+    """
+    scale = 10**APPROX_PLACES
+    whole, fraction = divmod(num * scale // den, scale)
+    return f"{whole}.{fraction:0{APPROX_PLACES}d}"
+
+
+def test_every_approximation_is_the_exact_truncation_of_its_pair(tmp_path: Path) -> None:
+    """A table of ratios, each rendered as its pair and its exact truncation.
+
+    ONE HARDCODED CONSTANT PASSING ONE CASE IS AN EQUIVALENT MUTANT - a module
+    that answered ``3.3333`` to everything would satisfy the single-ratio arm
+    above. The oracle is recomputed per row from the two integers, so the
+    arithmetic is graded rather than one memorised answer.
+    """
+    outcome = json.loads(json.dumps(PLAN_OUTCOME))
+    outcome["body"]["data"]["targets"] = {
+        f"Desc_Case{index}_C": {"num": num, "den": den}
+        for index, (num, den) in enumerate(TRUNCATION_CASES)
+    }
+    report = drive(
+        tmp_path,
+        panel_harness.null_payload(registry=_registry()),
+        accepts=[True],
+        steps=_settled(outcome),
+    )
+    assert report["steps"][-1]["threw"] is None, report["steps"][-1]["threw"]
+    text = panel_text(report)
+    for num, den in TRUNCATION_CASES:
+        rendered = f"{num}/{den} (approx {_truncated(num, den)}, display only)"
+        assert rendered in text, f"expected {rendered!r} on the page: {text}"
+
+
+def test_a_denominator_past_the_safe_bound_yields_the_pair_and_no_decimal(
+    tmp_path: Path,
+) -> None:
+    """The precision guard the adjudicator found missing, measured on both sides.
+
+    ``toFixed`` had no bound at all: it would have answered a confident
+    ``0.0000`` for the first row below and an ``Infinity`` for the second had
+    the zero check not caught it. The long division declares the largest
+    denominator it stays exact for and answers nothing past it, so the reader
+    gets the exact pair alone rather than a decimal nobody checked.
+    """
+    outcome = json.loads(json.dumps(PLAN_OUTCOME))
+    plan = outcome["body"]["data"]
+    plan["targets"] = {
+        "Desc_TooBig_C": {"num": 1, "den": 900000000000001},
+        "Desc_ZeroDen_C": {"num": 5, "den": 0},
+    }
+    # Every other rational leaf is emptied, so a decimal found below can only
+    # have come from one of the two rows this arm is about.
+    plan["steps"] = []
+    plan["raw_inputs"] = {}
+    plan["byproducts"] = {}
+    report = drive(
+        tmp_path,
+        panel_harness.null_payload(registry=_registry()),
+        accepts=[True],
+        steps=_settled(outcome),
+    )
+    assert report["steps"][-1]["threw"] is None, report["steps"][-1]["threw"]
+    text = panel_text(report)
+    assert "1/900000000000001" in text, text
+    assert "5/0" in text, text
+    assert "Infinity" not in text, text
+    decimals = re.findall(r"\d+\.\d+", text)
+    assert not decimals, f"a decimal was rendered for an unsafe pair: {decimals} in {text}"
 
 
 def test_a_rational_the_wire_should_never_carry_is_rendered_as_text(
@@ -1388,7 +1548,116 @@ def test_a_rational_the_wire_should_never_carry_is_rendered_as_text(
 
 
 # ---------------------------------------------------------------------------
-# j. Character set
+# j. The fixtures answer to the server, not to a spec document
+# ---------------------------------------------------------------------------
+
+
+def _real_plan_data() -> Mapping[str, Any]:
+    """The ``data`` object the SHIPPED endpoint builds for a solved plan.
+
+    WHY THE PRIVATE SERIALIZER AND NOT THE ROUTE. ``solve._plan_data`` is the
+    one place the wire names are written down; the route only wraps what it
+    returns in an envelope. Driving the route instead would need a whole
+    registry and a real solve, and would grade the solver rather than the
+    names. A leading underscore is a caller-discipline marker, and the caller
+    here is the test that exists to notice when those names move.
+
+    Returns:
+        The serialized plan, keys as the server publishes them.
+    """
+    plan = ratio.ProductionPlan(
+        steps=(ratio.PlanStep(recipe_key="Recipe_IronRod_C", machines=Fraction(10, 3)),),
+        targets={"Desc_IronRod_C": Fraction(50, 1)},
+        raw_inputs={"Desc_OreIron_C": Fraction(100, 7)},
+        byproducts={"Desc_Water_C": Fraction(0, 1)},
+        excluded=(ratio.ExclusionNote(recipe_key="Recipe_Alt_C", reason="zero-duration"),),
+        byproduct_policy="balanced",
+    )
+    return solve._plan_data(plan)  # noqa: SLF001
+
+
+def test_the_plan_fixture_carries_exactly_the_keys_the_server_publishes() -> None:
+    """The hand-typed success fixture is reconciled against the real serializer.
+
+    THE COMMON-MODE HOLE THIS CLOSES. Every other arm in this module drives a
+    payload this file typed from a spec document. If a name in that document
+    were wrong, or the endpoint renamed a field, every one of those arms would
+    stay green while the live page rendered ``not an exact rational`` or a
+    silent blank forever - degradation with no red test anywhere. Nothing here
+    trusts the spec or the fixture: the envelope key sets come from
+    ``contract``, the parameter names from ``solve.SOLVE_REQUIRED``, and the
+    data names from the serializer that actually runs in the server.
+    """
+    body = PLAN_OUTCOME["body"]
+    assert isinstance(body, Mapping)
+    assert set(body) == set(contract.PAYLOAD_KEYS_OK), set(body)
+    assert body["status"] == contract.STATUS_OK
+    assert body["endpoint"] == solve.SOLVE_ENDPOINT
+
+    published = _real_plan_data()
+    fixture = body["data"]
+    assert isinstance(fixture, Mapping)
+    assert set(fixture) == set(published), (set(fixture), set(published))
+
+    step_names = {name for row in published["steps"] for name in row}
+    assert set(fixture["steps"][0]) == step_names, set(fixture["steps"][0])
+
+    note_names = {name for row in published["excluded"] for name in row}
+    assert set(fixture["excluded"][0]) == note_names, set(fixture["excluded"][0])
+
+    leaf = set(contract.rational(Fraction(10, 3)))
+    for pair in (
+        fixture["steps"][0]["machines"],
+        fixture["targets"]["Desc_IronRod_C"],
+        fixture["raw_inputs"]["Desc_OreIron_C"],
+        fixture["byproducts"]["Desc_Water_C"],
+    ):
+        assert set(pair) == leaf, set(pair)
+
+
+def test_the_refusal_fixture_carries_exactly_the_keys_the_server_publishes() -> None:
+    """The hand-typed 400 fixture is reconciled against the contract layer.
+
+    A refusal body carries no ``data`` at all - its reason and detail sit
+    beside it - which is the shape the render arm above depends on. If that
+    shape moved, the bench would render every refusal as silence and no arm
+    here would notice.
+    """
+    body = REFUSAL_OUTCOME["body"]
+    assert isinstance(body, Mapping)
+    assert set(body) == set(contract.PAYLOAD_KEYS_REFUSAL), set(body)
+    assert body["endpoint"] == solve.SOLVE_ENDPOINT
+    assert body["status"] != contract.STATUS_OK
+
+
+def test_the_benchs_four_parameters_are_the_four_the_endpoint_requires() -> None:
+    """``SOLVE_PARAMS`` is reconciled against the endpoint's own frozenset.
+
+    The constant stays spelled out above so a rename shows up HERE as one red
+    arm naming both sides, rather than as a module that silently follows the
+    endpoint wherever it goes.
+    """
+    assert set(SOLVE_PARAMS) == set(solve.SOLVE_REQUIRED), (
+        set(SOLVE_PARAMS),
+        set(solve.SOLVE_REQUIRED),
+    )
+    assert not solve.SOLVE_OPTIONAL, solve.SOLVE_OPTIONAL
+
+
+def test_the_panel_module_spells_the_four_parameters_the_endpoint_requires() -> None:
+    """The JavaScript itself names each required parameter, not just the test.
+
+    The arm above reconciles two Python objects. This one reaches into the
+    shipped panel, so a rename that got past both would still be caught before
+    it reached a reader as a refused request.
+    """
+    source = read_module()
+    for name in sorted(solve.SOLVE_REQUIRED):
+        assert f'name: "{name}"' in source, f"the bench declares no {name} field"
+
+
+# ---------------------------------------------------------------------------
+# k. Character set
 # ---------------------------------------------------------------------------
 
 
