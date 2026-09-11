@@ -174,8 +174,83 @@ _SAFE_RUN_ID = "-_"
 _SAFE_RUN_ID_LENGTH = 32
 
 
+#: WHY A LAUNCH WAS REFUSED, as a closed vocabulary - one code per raise site
+#: below, and one default for a site that names none. Drawn from ``[a-z_]+``
+#: ONLY, which is the point rather than a style call: that character class
+#: cannot express a drive letter, a separator, a space or a digit, so a code is
+#: path-free BY CONSTRUCTION and can never carry a worktree path, an account id
+#: or a world name into a row an operator reads (CLAUDE.md non-negotiable 12).
+#:
+#: A message is NOT a substitute. Three of the messages raised here embed a
+#: path, so the driver that records a refusal cannot write any of them - it
+#: writes the type name alone today, which says a launch failed and nothing
+#: about why. The code is the part that is safe to copy out.
+#:
+#: THE DRIVER KEEPS ITS OWN COPY of this tuple and writes nothing that is not a
+#: member of it. That is what makes a launcher running ahead of its driver
+#: degrade to today's bare type name rather than leaking a word this module
+#: chose after the driver was written.
+REASON_LANE_NOT_WIRED = "lane_not_wired"
+REASON_COMMAND_DOC_MISSING = "command_doc_missing"
+REASON_GIT_NOT_FOUND = "git_not_found"
+REASON_MAIN_TREE_REFUSED = "main_tree_refused"
+REASON_WORKTREE_CREATE_FAILED = "worktree_create_failed"
+REASON_RUNNER_MISSING = "runner_missing"
+REASON_SHELL_NOT_FOUND = "shell_not_found"
+REASON_SPAWN_FAILED = "spawn_failed"
+REASON_RUNNER_EXITED_EARLY = "runner_exited_early"
+REASON_SPAWN_NO_PID = "spawn_no_pid"
+REASON_REPOINT_REFUSED = "repoint_refused"
+REASON_UNEXPECTED_FAULT = "unexpected_fault"
+
+#: The default when a raise site names none. A DEFINED word rather than a blank
+#: or ``None``: a reader validates the code against this tuple before recording
+#: it, so a blank would be discarded and the row would say nothing at all,
+#: while ``unspecified`` records "the launcher refused and did not say why".
+REASON_UNSPECIFIED = "unspecified"
+
+#: The closed set. ``tests/test_lane_launcher.py`` walks this module's syntax
+#: tree and asserts every raise site names a distinct member, so a new site
+#: that forgets one reddens the suite before it can reach main.
+LAUNCH_REASONS = (
+    REASON_LANE_NOT_WIRED,
+    REASON_COMMAND_DOC_MISSING,
+    REASON_GIT_NOT_FOUND,
+    REASON_MAIN_TREE_REFUSED,
+    REASON_WORKTREE_CREATE_FAILED,
+    REASON_RUNNER_MISSING,
+    REASON_SHELL_NOT_FOUND,
+    REASON_SPAWN_FAILED,
+    REASON_RUNNER_EXITED_EARLY,
+    REASON_SPAWN_NO_PID,
+    REASON_REPOINT_REFUSED,
+    REASON_UNEXPECTED_FAULT,
+    REASON_UNSPECIFIED,
+)
+
+
 class LaneLaunchError(RuntimeError):
-    """Anything that stops a lane from starting. Always releases the lane."""
+    """Anything that stops a lane from starting. Always releases the lane.
+
+    Carries a machine-readable ``reason`` drawn from ``LAUNCH_REASONS`` beside
+    the human message. ``str(exc)`` is the message and ONLY the message, exactly
+    as it was before the keyword existed - the reason is a separate attribute
+    precisely so that no caller's rendering changes.
+    """
+
+    def __init__(self, message: str, *, reason: str = REASON_UNSPECIFIED) -> None:
+        """Record the message and the closed-vocabulary reason for the refusal.
+
+        Args:
+            message: What went wrong, in prose. May embed a path, so a caller
+                that copies text out of this exception must copy the reason
+                instead.
+            reason: A member of ``LAUNCH_REASONS``. Defaults to
+                ``REASON_UNSPECIFIED`` so a site that names none still hands a
+                reader a word that is in the set.
+        """
+        super().__init__(message)
+        self.reason = reason
 
 
 def worktree_path(lane: str, base: Any = None) -> Path:
@@ -222,11 +297,11 @@ def command_path(lane: str, root: Any = None) -> Path:
     if relative is None:
         wired = ", ".join(sorted(LANE_COMMANDS)) or "none"
         message = f"lane {lane!r} has no command doc wired yet (wired: {wired})"
-        raise LaneLaunchError(message)
+        raise LaneLaunchError(message, reason=REASON_LANE_NOT_WIRED)
     path = (REPO_ROOT if root is None else Path(root)) / relative
     if not path.is_file():
         message = f"command doc missing on disk: {path}"
-        raise LaneLaunchError(message)
+        raise LaneLaunchError(message, reason=REASON_COMMAND_DOC_MISSING)
     return path
 
 
@@ -266,7 +341,7 @@ def _git(args: list[str], cwd: Any = None, timeout: int = _GIT_TIMEOUT_S) -> Any
     if exe is None:
         # A lane that cannot find git cannot make its worktree, and a worktree
         # is mandatory. Refusing loudly beats spawning into the wrong tree.
-        raise LaneLaunchError("git could not be resolved from PATH")
+        raise LaneLaunchError("git could not be resolved from PATH", reason=REASON_GIT_NOT_FOUND)
     return subprocess.run(
         [exe, *args],
         # tracked file is forbidden by CLAUDE.md non-negotiable 3
@@ -296,7 +371,7 @@ def _refuse_main_tree(worktree: Any, repo: Any, lane: str) -> None:
     """
     if _same_path(worktree, repo) or _same_path(worktree, REPO_ROOT):
         message = f"refusing to run lane {lane!r} against the main tree"
-        raise LaneLaunchError(message)
+        raise LaneLaunchError(message, reason=REASON_MAIN_TREE_REFUSED)
 
 
 def ensure_worktree(lane: str, base: Any = None, root: Any = None) -> Path:
@@ -335,7 +410,7 @@ def ensure_worktree(lane: str, base: Any = None, root: Any = None) -> Path:
     if made.returncode != 0 or not (worktree / ".git").exists():
         detail = (made.stderr or made.stdout or "").strip()[:300]
         message = f"git worktree add failed for {lane!r}: {detail}"
-        raise LaneLaunchError(message)
+        raise LaneLaunchError(message, reason=REASON_WORKTREE_CREATE_FAILED)
     return worktree
 
 
@@ -378,7 +453,7 @@ def _spawn(runner: Path, prompt: Path, cwd: Path, log: Path) -> Any:
     """
     if not runner.is_file():
         message = f"runner missing: {runner}"
-        raise LaneLaunchError(message)
+        raise LaneLaunchError(message, reason=REASON_RUNNER_MISSING)
     # RESOLVED FROM PATH, NEVER NAMED (CS-910). This is the single most exposed
     # spawn in the tree: `cwd` below is the LANE WORKTREE, the directory an
     # unattended worker writes into for hours, and Windows searches the current
@@ -386,7 +461,9 @@ def _spawn(runner: Path, prompt: Path, cwd: Path, log: Path) -> Any:
     # would be executed by the launcher that started it, on the next cycle.
     shell = resolve_tool("powershell")
     if shell is None:
-        raise LaneLaunchError("powershell could not be resolved from PATH")
+        raise LaneLaunchError(
+            "powershell could not be resolved from PATH", reason=REASON_SHELL_NOT_FOUND
+        )
     argv = [
         shell,
         "-NoProfile",
@@ -422,7 +499,7 @@ def _spawn(runner: Path, prompt: Path, cwd: Path, log: Path) -> Any:
         # system's message text and carries no path; the type name is the
         # fallback when there is no strerror to render.
         message = f"spawn failed: {exc.strerror or type(exc).__name__}"
-        raise LaneLaunchError(message) from exc
+        raise LaneLaunchError(message, reason=REASON_SPAWN_FAILED) from exc
 
     try:
         code = proc.wait(timeout=_SPAWN_LIVENESS_GRACE_S)
@@ -432,7 +509,7 @@ def _spawn(runner: Path, prompt: Path, cwd: Path, log: Path) -> Any:
         f"the runner exited {code} within {_SPAWN_LIVENESS_GRACE_S}s of starting,"
         " so no worker is behind this lane"
     )
-    raise LaneLaunchError(message)
+    raise LaneLaunchError(message, reason=REASON_RUNNER_EXITED_EARLY)
 
 
 def _kill_argv(pid: Any) -> list[str] | None:
@@ -527,11 +604,11 @@ def launch_lane(
         pid = getattr(proc, "pid", None)
         if not pid:
             message = "spawn returned no pid"
-            raise LaneLaunchError(message)
+            raise LaneLaunchError(message, reason=REASON_SPAWN_NO_PID)
         if not lanes.repoint_lane_pid(token, pid):
             _kill(pid)
             message = "could not re-point the lane lock at the worker"
-            raise LaneLaunchError(message)
+            raise LaneLaunchError(message, reason=REASON_REPOINT_REFUSED)
     except LaneLaunchError:
         lanes.release_lane(token)
         raise
@@ -542,7 +619,7 @@ def launch_lane(
         # still carries the full detail into the traceback for a reader who is
         # entitled to it (CLAUDE.md non-negotiable 12).
         message = f"launch failed: {type(exc).__name__}"
-        raise LaneLaunchError(message) from exc
+        raise LaneLaunchError(message, reason=REASON_UNEXPECTED_FAULT) from exc
     return {
         "lane": lane,
         "run_id": str(run_id),

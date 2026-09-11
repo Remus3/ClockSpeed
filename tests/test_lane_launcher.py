@@ -62,6 +62,11 @@ WORKER_PID = 4321
 ZERO = 0
 ONE = 1
 
+#: How many ``raise LaneLaunchError(...)`` sites the launcher holds. Named
+#: rather than inline so the structural sweep below states the population it
+#: grades: a sweep that finds nothing passes for the wrong reason.
+RAISE_SITES: Final = 12
+
 #: The last code point 7-bit ASCII covers. A .ps1 byte above it is the
 #: PowerShell 5.1 ANSI-decode hazard, so this is a byte-level bound rather than
 #: a style threshold.
@@ -733,3 +738,147 @@ def test_the_runner_quotes_every_path_it_is_handed() -> None:
         if ("Set-Location $Cwd" in line) or ("Out-File $Log" in line)
     ]
     assert unquoted == []
+
+
+# ===========================================================================
+# g. The refusal vocabulary - why a launch was refused, said in a closed word
+# ===========================================================================
+
+
+def _launch_error_raise_calls() -> list[ast.Call]:
+    """Every ``raise LaneLaunchError(...)`` call node in the launcher.
+
+    THE SAME TRAVERSAL IDIOM ``_creation_flag_arguments`` above uses, and
+    deliberately so: a second traversal shape in one file is how two arms come
+    to walk different trees. The property graded here - that a raise site NAMED
+    a reason - is a keyword that is passed, and a keyword never passed in a test
+    is a keyword no runtime test can see.
+
+    Returns:
+        One call node per raise site, in source order.
+    """
+    tree = ast.parse(LAUNCHER_SOURCE.read_text(encoding="utf-8"))
+    found: list[ast.Call] = []
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Raise):
+            continue
+        raised = node.exc
+        if not isinstance(raised, ast.Call) or not isinstance(raised.func, ast.Name):
+            continue
+        if raised.func.id == "LaneLaunchError":
+            found.append(raised)
+    return found
+
+
+def _reason_keyword_values() -> list[ast.expr]:
+    """The expression handed to every ``reason=`` on a launch-error raise site.
+
+    Returns:
+        One expression per site that passes the keyword, in source order.
+    """
+    return [
+        keyword.value
+        for call in _launch_error_raise_calls()
+        for keyword in call.keywords
+        if keyword.arg == "reason"
+    ]
+
+
+def test_every_launch_error_raise_site_names_a_reason() -> None:
+    """A raise site that forgets its code is caught BEFORE it reaches main.
+
+    The runtime default degrades safely to ``unspecified``, which is a real
+    member of the closed set - but a launcher that refuses and cannot say why
+    is the whole defect CS-970 exists to close, so the structural arm is what
+    stops a new site from landing without one.
+
+    The population is asserted NON-EMPTY and asserted to be exactly the twelve
+    sites that exist, because a sweep over an empty population passes for the
+    wrong reason: "every member has a reason" is vacuously true of no members.
+    """
+    calls = _launch_error_raise_calls()
+    population = len(calls)
+    assert population > ZERO, "no raise site was found - the sweep would be vacuous"
+    assert population == RAISE_SITES, "the launcher's raise sites moved"
+    unnamed = [
+        ast.unparse(call)
+        for call in calls
+        if not any(keyword.arg == "reason" for keyword in call.keywords)
+    ]
+    assert unnamed == [], "a raise site refuses without naming a reason"
+    values = _reason_keyword_values()
+    not_a_constant = [ast.unparse(value) for value in values if not isinstance(value, ast.Name)]
+    assert not_a_constant == [], "a reason was spelled inline instead of named"
+    codes = [getattr(launcher, value.id, None) for value in values if isinstance(value, ast.Name)]
+    unknown = [code for code in codes if code not in launcher.LAUNCH_REASONS]
+    assert unknown == [], "a raise site names a code outside the closed vocabulary"
+    distinct = len(set(codes))
+    assert distinct == population, "two raise sites share one reason code"
+
+
+def test_the_reason_vocabulary_is_lowercase_ascii_and_path_free() -> None:
+    """Path-free BY CONSTRUCTION rather than by review.
+
+    ``[a-z_]+`` cannot express a drive letter, a separator, a space or a digit,
+    so no member of this tuple can ever carry a worktree path, an account id or
+    a world name into a row an operator reads (CLAUDE.md non-negotiable 12).
+    The guarantee is the character class, not anyone's care in choosing words.
+    """
+    vocabulary = launcher.LAUNCH_REASONS
+    is_tuple = isinstance(vocabulary, tuple)
+    assert is_tuple, "the vocabulary is not a tuple, so it is not closed"
+    population = len(vocabulary)
+    assert population > ZERO, "the vocabulary is empty"
+    distinct = len(set(vocabulary))
+    assert distinct == population, "the vocabulary repeats a code"
+    offenders = [code for code in vocabulary if not re.fullmatch(r"[a-z_]+", str(code))]
+    assert offenders == [], "a reason code is not lowercase-ascii and path-free"
+    assert launcher.REASON_UNSPECIFIED in vocabulary
+
+
+def test_a_lock_that_cannot_be_repointed_names_repoint_refused(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The refusal the C4 evidence names as the best-fit live cause.
+
+    Same plant as ``test_a_lock_that_cannot_be_repointed_kills_the_worker_and_releases``
+    above - re-authoring it would give two arms two subjects. What is new is the
+    ORACLE: the code on the exception is asserted by VALUE, so an arm that only
+    proved a reason was present would not pass this one.
+    """
+    root, claim = _acquire(tmp_path)
+    killed: list[int] = []
+
+    def refuse(*_args: Any, **_kwargs: Any) -> bool:
+        return False
+
+    monkeypatch.setattr(launcher, "_kill", killed.append)
+    monkeypatch.setattr(launcher.lanes, "repoint_lane_pid", refuse)
+    with pytest.raises(launcher.LaneLaunchError, match="re-point") as caught:
+        _launch(tmp_path, _Spawn(), claim["token"])
+    named = caught.value.reason
+    assert named == launcher.REASON_REPOINT_REFUSED
+    assert killed == [WORKER_PID]
+    released = not _held(root)
+    assert released
+
+
+def test_a_raise_site_that_forgets_its_reason_degrades_to_unspecified() -> None:
+    """The default is a DEFINED word, never a blank and never ``None``.
+
+    A driver validates the code against a closed set before writing it. A blank
+    default would fail that membership test and be discarded, so the row would
+    say nothing at all; ``unspecified`` is a member, so the row says "the
+    launcher refused and did not say why" - which is information.
+
+    ``str(exc)`` is asserted verbatim because nine existing ``match=`` arms in
+    this file and two bare constructions elsewhere depend on the rendering
+    being byte-identical to what it was before the keyword existed.
+    """
+    message = "a message with no reason"
+    exc = launcher.LaneLaunchError(message)
+    named = exc.reason
+    assert named == launcher.REASON_UNSPECIFIED
+    assert named in launcher.LAUNCH_REASONS
+    rendered = str(exc)
+    assert rendered == message
