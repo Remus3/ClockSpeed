@@ -42,6 +42,8 @@ from types import ModuleType, SimpleNamespace
 
 import pytest
 
+from tests.git_env import scrub, scrubbed_env
+
 REPO_ROOT = Path(__file__).resolve().parents[1]
 GATE = REPO_ROOT / "tools" / "precommit_gate.py"
 
@@ -125,7 +127,13 @@ def base_env(tmp_path: Path) -> dict[str, str]:
     operator's own data. test_gate_checks_its_own_slice_files is the one test
     that deliberately runs against the real environment instead.
     """
-    env = dict(os.environ)
+    # CS-968: SCRUBBED FIRST. The gate shells out to git, and under a worktree
+    # push the pre-push hook hands this suite a GIT_DIR pointing at the real
+    # repository. Without this the gate reads THAT index while the arm stages
+    # its violation in a throwaway repo, so the gate is asked about a tree the
+    # test never wrote to and passes on an empty diff - measured: "PASS - 0
+    # checked, 4 skipped" against an arm that requires a block.
+    env = scrub(dict(os.environ))
     env["CLOCKSPEED_SAVE_ROOT"] = str(tmp_path / "absent-save-root")
     env["CLOCKSPEED_LOCAL_CONFIG"] = str(tmp_path / "absent-local-config.json")
     for key in ("CLOCKSPEED_WORLD_NAMES", "CLOCKSPEED_WORLD_TOKENS", "CLOCKSPEED_ACCOUNT_DIR"):
@@ -483,6 +491,10 @@ def git(*args: str, cwd: Path) -> subprocess.CompletedProcess[str]:
         capture_output=True,
         timeout=TIMEOUT,
         check=False,
+        # CS-968: a push from a worktree exports GIT_DIR to the pre-push hook,
+        # and this suite runs under that hook. Without the scrub a throwaway
+        # `git init` re-initialises the REAL repository as bare.
+        env=scrubbed_env(),
     )
     return subprocess.CompletedProcess(
         proc.args,
@@ -1618,7 +1630,18 @@ def test_a_repo_under_a_home_directory_keeps_its_labels_repo_relative(tmp_path: 
         ["git", "config", "user.email", "t@example.invalid"],
         ["git", "config", "user.name", "t"],
     ):
-        subprocess.run(argv, cwd=str(repo), check=True, capture_output=True, timeout=TIMEOUT)
+        subprocess.run(
+            argv,
+            cwd=str(repo),
+            check=True,
+            capture_output=True,
+            timeout=TIMEOUT,
+            # CS-968: without this the init and both config writes land in
+            # whatever GIT_DIR names, which under a worktree push is the real
+            # repository. Measured on a decoy: it acquired core.bare and this
+            # identity.
+            env=scrubbed_env(),
+        )
 
     write(repo / "pkg" / "charset.md", "# T\n\nAlpha " + EM_DASH + " beta\n")
     write(repo / "pkg" / "broken.py", "def broken(:\n    return 1\n")

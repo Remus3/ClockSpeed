@@ -61,6 +61,8 @@ from typing import Final, NamedTuple
 
 import pytest
 
+from tests.git_env import scrub
+
 REPO_ROOT: Final = Path(__file__).resolve().parent.parent
 HOOKS_DIR: Final = REPO_ROOT / ".githooks"
 TRACKED_GATE: Final = REPO_ROOT / "tools" / "precommit_gate.py"
@@ -475,7 +477,9 @@ def isolated(tmp_path: Path) -> Environment:
     arguments by default - see ``Environment`` for what that printed before this
     was wrapped.
     """
-    env = dict(os.environ)
+    # CS-968: scrubbed FIRST. A push from a worktree exports GIT_DIR, and a
+    # sandbox that inherits it builds itself in the real repository.
+    env = scrub(dict(os.environ))
     env["GIT_CONFIG_GLOBAL"] = str(tmp_path / "absent" / "gitconfig-global")
     env["GIT_CONFIG_SYSTEM"] = str(tmp_path / "absent" / "gitconfig-system")
     env.pop(ENV_NAME, None)
@@ -2561,7 +2565,10 @@ def run_child_pytest(
     stubbed, so this reproduces the unresolvable-shell condition under ANY
     invoking shell rather than only under the one that happens to have it.
     """
-    env = dict(os.environ)
+    # CS-968: a NESTED pytest inherits this environment, and everything it runs
+    # inherits it in turn - so an unscrubbed GIT_DIR reaches every git call in
+    # the child suite, not just the ones in this module.
+    env = scrub(dict(os.environ))
     for name in ("PYTEST_ADDOPTS", "PYTEST_CURRENT_TEST", "PYTEST_DEBUG_TEMPROOT"):
         env.pop(name, None)
     env["PYTHONPATH"] = str(plugin_directory)

@@ -42,6 +42,8 @@ from typing import Final, NamedTuple
 
 import pytest
 
+from tests.git_env import scrub
+
 REPO_ROOT: Final = Path(__file__).resolve().parent.parent
 HOOKS_DIR: Final = REPO_ROOT / ".githooks"
 PRE_PUSH: Final = "pre-push"
@@ -187,7 +189,9 @@ def isolated(tmp_path: Path) -> Environment:
     worker; ``PYTEST_CURRENT_TEST`` and a plugin list leak in the same way. They
     are removed rather than trusted.
     """
-    env = dict(os.environ)
+    # CS-968: scrubbed FIRST, for the same reason the sandbox cuts off global
+    # config - an inherited GIT_DIR relocates every git call below.
+    env = scrub(dict(os.environ))
     env["GIT_CONFIG_GLOBAL"] = str(tmp_path / "absent" / "gitconfig-global")
     env["GIT_CONFIG_SYSTEM"] = str(tmp_path / "absent" / "gitconfig-system")
     env.pop("CLOCKSPEED_PYTHON", None)

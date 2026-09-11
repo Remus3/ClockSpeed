@@ -70,6 +70,55 @@ read as passes while the raw save was live in shipped frames. Filed in harness m
 
 ---
 
+## Session 78 - relocated from `WAKEUP_NOTES.md` 2026-09-11
+
+## Session 78 - 2026-09-09 - a premise this project had built on was refuted in its own tree, and the dashboard turned out to be a self-diagnostic
+
+- Shipped: nothing CLOSED as an ITEM. CS-962's slice S0 merged. CS-960, CS-961
+  and CS-962 FILED. Detail in `docs/LEDGER.md`.
+
+- In flight: nothing. Tree clean, no stash. Two adversary worktrees survive on
+  disk under `.claude/worktrees/`, both clean and detached.
+
+- THE SESSION WAS SENT AT THE DASHBOARD AND FOUND THE DASHBOARD WAS NOT THE
+  PROBLEM. Three parallel read-only surveys established that the page is a
+  SELF-DIAGNOSTIC: it renders its own health, its own route table, six world
+  scalars and five counts. `/api/registry` is fetched every refresh and only
+  its HTTP STATUS reaches the DOM. `/api/solve` and `/api/optimize` answer 200
+  against real data and the page never calls them. `advisor/`, `audit/` and
+  `progress/` contain NO executable code at all - four docstring-only files.
+
+- THE FINDING THAT MATTERS IS THAT A USMAP IS NOT NEEDED TO DECODE A SAVE, and
+  it was settled IN THIS TREE rather than read off a third party. All four uses
+  of the `property_map` parameter below `read_properties` are a membership test
+  on a class name the stream already carries, or the parameter being passed
+  through or deleted for privacy. A probe decoded one synthetic payload twice,
+  the second time with a map holding ZERO schemas, and got the same 17 values
+  with identical references and struct interiors.
+
+- THE RECORDED REASON WAS STALE AND PROVABLY SO. The docstring justifies the
+  mandatory map as a layering choice. `git log -S` finds exactly one commit
+  introducing that signature, and at that commit `read_properties` DECODED
+  NOTHING - the schema lookup was the whole function. Decoding came later and
+  the signature was never revisited. A PARAMETER'S NECESSITY IS A CLAIM ABOUT
+  THE FUNCTION AS IT IS NOW. The tree's own prose already said the mapping is
+  not an input to the decode; nobody had acted on it.
+
+- Decisions: no ADR. Four operator rulings on CS-962 and a licence gate over
+  five save-parser candidates, all recorded with their fences in
+  `docs/LEDGER.md` and `docs/item_notes/phase4-followups-900.md`.
+
+- Surprises: nothing contradicted `BOOTSTRAP.md`. The refuted premise lives in
+  a docstring and an item note, not in the specification.
+
+- Failed paths: none abandoned. One brief was WRONG and the builder said so
+  rather than building to it - the route-table defect was already half-guarded.
+
+- Next action: dispatch CS-960. It is the smallest item with the largest
+  consequence and it is sized for one row.
+
+---
+
 ## Session 76 - relocated from `WAKEUP_NOTES.md` 2026-09-10
 
 ## Session 76 - 2026-09-08 - the repaired sender was refuted on all four lenses, and the second cut's fault was the evidence rather than the code
@@ -9130,3 +9179,48 @@ the fix is an operator decision rather than an edit.
 
 - Next action: read the continuation prompt. The responder-runner filings were
   DRAFTED and deliberately NOT filed on an operator standby ruling.
+
+## Session 79 - relocated from `WAKEUP_NOTES.md` 2026-09-11
+
+## Session 79 - 2026-09-10 - two items closed, and the one that mattered was refuted twice by the same lens after a green suite
+
+- Shipped: CS-960 and CS-961, both CLOSED. Detail in `docs/LEDGER.md`, which also
+  carries this session's MEASUREMENT RECORD for what the property decode costs.
+
+- In flight: nothing. Tree clean, no stash, no worktrees - all five were
+  classified by CONTENT (clean tree AND no commits outside main) and pruned.
+
+- CS-960 - the decode path now accepts an absent property map. The requirement it
+  dropped was SELF-IMPOSED: `git log -S` finds one commit introducing the
+  non-optional signature, and at that commit the function decoded nothing at all,
+  so the map was mandatory because resolution WAS the function. A PARAMETER'S
+  NECESSITY IS A CLAIM ABOUT THE FUNCTION AS IT IS NOW.
+
+- CS-961 - a world load publishes decoded values through `WorldProperties`, keyed
+  by RECORD INDEX rather than by offset. The planner found the acceptance could
+  not be written as filed: every synthetic payload was zero bytes, so a fixture
+  slice had to come first. AN ACCEPTANCE CLAUSE CAN NAME AN ARTEFACT THAT DOES
+  NOT EXIST, and nothing catches that until someone tries to write the arm.
+
+- Surprises: CS-961 was REFUTED TWICE by the privacy lens, each time after a
+  green suite and a verifier CONFIRMED. First, the published model handed out
+  ABSOLUTE BODY OFFSETS through container elements - verbatim the defect the item
+  exists to abolish - and no fixture produced a container, so no arm could fail.
+  Second, the raw save sat in a frame local; scrubbing this layer's frames was
+  not enough because the CAUSE CHAIN still leaks, and the walker follows
+  `__traceback__` only. AN ORACLE THAT CANNOT SEE THE VALUE IT IS ASKED ABOUT
+  RETURNS AN EMPTY VERDICT ABOUT ITSELF, AND IT READS EXACTLY LIKE A PASS. Filed
+  to harness memory as `an-oracle-can-be-blind-to-its-subject`.
+
+- Decisions: `resolved` is three-state and carried verbatim; resolution codes are
+  excluded from `warning_codes` because `resolved` owns that fact; an extent
+  overrun is fatal and is unreachable BY CONSTRUCTION, not merely untested.
+
+- Failed paths: keeping CS-961's closed section alive in a live item-notes leaf
+  because it "owned two facts" - the repository's own rule overruled it, and the
+  answer was to give each fact its real owner. Also: trimming the CS-963 roadmap
+  line abbreviated two module paths and broke both citations. TRIMMING PROSE IS A
+  WAY TO BREAK A CITATION.
+
+- Next action: fix CS-963. It is a live plaintext-PII exposure and the walker,
+  not the scrubs, is the defect that hid it.

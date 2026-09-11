@@ -160,6 +160,87 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-09-11 - CS-968 - CLOSED. A push from a WORKTREE exports GIT_DIR, and the suite rewrote the repository it was running in
+
+**THE MECHANISM, MEASURED RATHER THAN ARGUED.** `git push` exports `GIT_DIR` to the
+pre-push hook WHEN AND ONLY WHEN the push originates in a LINKED WORKTREE. Measured
+side by side, same repository, same hook:
+
+    push from the main checkout   GIT_EXEC_PATH, GIT_PREFIX
+    push from a linked worktree   GIT_EXEC_PATH, GIT_PREFIX, GIT_DIR
+
+`.githooks/pre-push` runs `pytest tests`, so the whole suite can run holding a pointer
+at a repository nobody in it named. A throwaway `git init --bare` then re-initialises
+THE REAL REPOSITORY, and `core.bare` plus any `git config` write land in the config
+every worktree SHARES. That is why a lane worker that never touched the main checkout
+broke the main checkout, and why it read as repository corruption.
+
+**IT HAS TWO INDEPENDENT HALVES AND FIXING ONLY THE FIRST LOOKS COMPLETE.**
+
+- CHILD-SIDE, the damaging half. A spawned `git` or nested `pytest` inherits the
+  pointer. Fixed by `tests/git_env.py`, the one owner of the scrub, applied at five
+  spawn sites in `tests/test_precommit_gate.py`, `tests/test_hook_interpreter_ladder.py`
+  and `tests/test_pre_push_ref_race.py`. `GIT_CONFIG_GLOBAL` and `GIT_CONFIG_SYSTEM`
+  are deliberately KEPT - they are how a fixture cuts the operator's own configuration
+  off, so scrubbing them would undo the isolation.
+- IN-PROCESS, the silent half. `load_gate()` imports `tools/precommit_gate.py` in
+  process, so it resolves its repository from `os.environ` at call time; the dated
+  headings driver enumerates documents the same way. Neither goes through a child, so
+  a clean child-side measurement says nothing about them. Fixed by a process-wide
+  scrub at the FOOT of `tests/conftest.py`, run at import because module-level code in
+  a test module executes during COLLECTION, before any fixture could fire.
+
+**VERIFIED BY.** `tests/test_git_env_scrub.py::test_a_scrubbed_environment_keeps_an_init_inside_the_directory_it_was_aimed_at`,
+`::test_a_scrubbed_environment_keeps_a_config_write_inside_its_own_repository`, and the
+control that makes both mean anything,
+`::test_an_inherited_git_dir_really_does_relocate_an_init`, which does the damage ON
+PURPOSE with the pointer left in place and asserts the decoy turns bare. Plus
+`tests/test_repo_config_hygiene.py::test_this_repository_is_not_configured_bare` and
+`::test_this_repository_does_not_carry_the_fixture_identity`, which grade the STATE so
+a recurrence is loud whatever causes it.
+
+**THE END-TO-END MEASUREMENT.** A push of `cs964-seam` FROM ITS WORKTREE - the exact
+operation that stranded `core.bare` twice - returned 0 with 6209 passed, 7 skipped, and
+the shared config CLEAN afterwards. Before the fix the same operation blocked and left
+the repository unusable for every checkout on the machine.
+
+**THREE MECHANISMS WERE PROPOSED AND REFUTED BEFORE THE RIGHT ONE.** The refutations
+were real measurements and the conclusions drawn from them were too broad: "no hook
+exports GIT_DIR" was measured only from a MAIN CHECKOUT, which is the one arrangement
+where the bug cannot fire. A sibling tree's adversary made the identical mistake, and
+its note was cited here as independent corroboration - two measurements agreeing
+because both were taken in the wrong configuration. A NEGATIVE IS ONLY AS BROAD AS THE
+CONFIGURATION IT WAS MEASURED IN.
+
+**A SECOND WRONG CALL, SAME SHAPE.** An arm was called a probe artifact on the grounds
+it "did not fail in either real worktree push". Those runs used `-x` and stopped
+earlier, so it never executed. ABSENCE UNDER `-x` IS NOT EVIDENCE OF PASSING.
+
+**WHAT FOUND THE LEAKS GREP MISSED.** A decoy: plant `GIT_DIR` at a throwaway
+repository, run the suite, and ask THE DECOY what reached it. Grepping for the symptom
+- helpers already noticed - left two sites live, including a nested `pytest` whose
+child inherits the pointer and passes it to everything beneath it. The decoy does not
+depend on the search being complete.
+
+**CONSEQUENCES, NOT SEPARATE DEFECTS.** CS-970's eleven consecutive `LaneLaunchError`
+cycles were a launcher meeting a bare repository; CS-967's `-n auto` false failures did
+not reproduce across two full runs of the thirteen git-touching modules. CS-970 STAYS
+OPEN on its own acceptance clause, which is about the launcher naming its refusal
+reason, and is not discharged by explaining the trigger.
+
+**ALSO REPAIRED IN THIS ROUND.** Three unpushed commits authored to the fixture
+identity `Gate Test <gate@example.invalid>` were re-authored on an explicit operator
+ruling, tree hashes byte-identical across the rewrite. Four dead doc citations fixed,
+three of them abbreviated module paths. Two rotted pins at
+`tests/test_hook_interpreter_ladder.py` converted to symbol form with their
+`UNVERIFIED_LINE_POINTERS` entries retired and `FORGIVEN_LINE_POINTER_CEILING` ratcheted
+61 to 59, then reconciled to 58 across a merge where each branch had ratcheted
+independently.
+
+**CS-968's ROADMAP LINE IS ON `lane/queue`, NOT ON MAIN,** and that branch is still
+unmerged at `d686365`. The line is removed when the lane branch merges; this record is
+the completion.
+
 ### 2026-09-10 - CS-210 - CLOSED. The absent-`mMaxPotential` branch is grounded in the shipped document, and the two sets ADR 0006's common-mode risk could not separate are MEASURED IDENTICAL
 
 **The defect.** ADR 0006's adjudication named a COMMON-MODE RISK: both fences the ADR
@@ -7415,7 +7496,7 @@ and is NEVER interpolated into `reason`. Only `path` is redacted, by `display_di
 TEN, `RUFF_TIMEOUT` is read at CALL time, not bound as a default argument.
 `tools/edit_lint_check.py` monkeypatches `gate.RUFF_TIMEOUT` around its call, and a default would bind
 at import and ignore it.
-ELEVEN, `TRUNCATIONS` in `tests/test_hook_interpreter_ladder.py:1678` is RE-DERIVED from the located
+ELEVEN, `tests/test_hook_interpreter_ladder.py::TRUNCATIONS` is RE-DERIVED from the located
 `GATE_MAIN_GUARD` rather than left as the hardcoded 2368. MEASURED: across insertion sizes 0 to 60,
 24 of 61 break the 2368-prefix compile. The proposal's 47 lines happening to survive where 36 did not
 is LUCK. Deriving as `main guard line minus one` is INVARIANT under any insertion above it. The module

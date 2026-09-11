@@ -1079,7 +1079,6 @@ UNVERIFIED_LINE_POINTERS: Final[Mapping[tuple[str, str, int], str]] = {
     ("docs/LEDGER.md", "clockspeed/save/usmap.py", 46): "82be9ba39f87",
     ("docs/LEDGER.md", "scripts/install_hooks.py", 310): "4facec475176",
     ("docs/LEDGER.md", "tests/data/test_phase2_gate.py", 775): "edaece1458c2",
-    ("docs/LEDGER.md", "tests/test_hook_interpreter_ladder.py", 1678): "341d96509c98",
     ("docs/LEDGER.md", "tools/edit_lint_check.py", 82): "c52969cc5a4b",
     ("docs/LEDGER.md", "tools/edit_lint_check.py", 113): "a7515962ef0b",
     ("docs/LEDGER.md", "tools/precommit_gate.py", 570): "4b165904f3ca",
@@ -1132,11 +1131,6 @@ UNVERIFIED_LINE_POINTERS: Final[Mapping[tuple[str, str, int], str]] = {
         "tests/save/test_absolute_claims.py",
         192,
     ): "c6f4b966d451",
-    (
-        "docs/item_notes/phase4-followups.md",
-        "tests/test_hook_interpreter_ladder.py",
-        122,
-    ): "bbf9278cdad0",
     ("docs/item_notes/phase4.md", "tests/data/test_locate.py", 858): "7b83ed5742f3",
     ("docs/item_notes/phase4.md", "tests/save/synthetic.py", 1093): "b260445518a9",
     ("docs/item_notes/phase4.md", "tests/save/test_byte_order_status.py", 878): "5d5874e29659",
@@ -1299,7 +1293,17 @@ UNFORBIDDEN_LINE_POINTERS: Final[frozenset[tuple[str, str, int]]] = frozenset(
 #: `except` clause that did carry over, but it takes the enclosing-symbol form for the
 #: better reason: a function body is the anchor an edit above it cannot invalidate, which
 #: is the repair this table exists to shrink toward.
-FORGIVEN_LINE_POINTER_CEILING: Final = 60
+#:
+#: 60 TO 58, 2026-09-11, BY THE MERGE OF `main` INTO `lane/queue` AND NOT BY ANY
+#: EDIT OF ITS OWN. Two retirements landed on separate branches and neither could see
+#: the other: CS-210 above took 61 to 60 here, and CS-968 on `main` retired two
+#: `tests/test_hook_interpreter_ladder.py` pins - one in `docs/LEDGER.md`, one in
+#: `docs/item_notes/phase4-followups.md` - taking 61 to 59 there. The two sets are
+#: disjoint, so the merged tree carries three fewer forgivenesses than the base and the
+#: ceiling is 58. It is recorded here rather than left to arithmetic because a ceiling
+#: that arrives by merge is the one case where no commit on either side argued for the
+#: number that now stands.
+FORGIVEN_LINE_POINTER_CEILING: Final = 58
 
 # --- resolution -------------------------------------------------------------
 
