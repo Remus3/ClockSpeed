@@ -43,8 +43,11 @@ reporting PASS, one layer down. The pin below makes that move visible.
 from __future__ import annotations
 
 import re
+from fractions import Fraction
 from typing import TYPE_CHECKING, Any, Final
 
+from clockspeed.surface.api import contract
+from clockspeed.surface.api import registry as api_registry
 from tests.surface import panel_harness
 from tests.surface.test_panel_seam import PANEL_MODULES
 
@@ -560,3 +563,161 @@ def test_every_scroller_the_panel_builds_declares_its_own_label(tmp_path: Path) 
         row["index"] for row in boxes if not row["attributes"].get("data-scroll-label")
     )
     assert not unlabelled, f"scroller(s) at {unlabelled} would announce themselves as Content"
+
+
+# ---------------------------------------------------------------------------
+# i. The common-mode pin - the fixture is bound to the ENDPOINT, not to a spec
+#
+# WHY THIS SECTION EXISTS, AND WHY IT IS NOT CEREMONY. Every fixture above was
+# hand-typed from a planner-authored spec file in a scratchpad, and so was the
+# panel it grades. That is one shared input, not two independent ones. If a key
+# is misspelled in that spec, the fixture carries the misspelling, the panel
+# reads the misspelling, the arm asserts against the misspelling, AND THE SUITE
+# IS GREEN - while the live page renders "not declared" forever and nothing
+# ever goes red. CLAUDE.md section 5 names the shape exactly: agreement between
+# two agents is not evidence, because two agents deriving from the same stale
+# doc are wrong the same way. The cure is to test the SHARED INPUT, which is
+# what the four arms below do - they bind both the fixture and the panel to
+# ``clockspeed/surface/api/registry.py``, which is the thing that actually
+# serves the bytes.
+#
+# EQUALITY, NEVER SUBSET. A subset check passes forever while a key the
+# endpoint GAINS goes unfixtured and unrendered - the page silently stops
+# showing a new field and no arm notices. Each assertion below is an equality.
+# ---------------------------------------------------------------------------
+
+#: Exactly the two keys ``clockspeed/surface/api/contract.py:836-851`` puts on
+#: an exact ratio. Derived by CALLING the transcriber rather than by retyping
+#: its output, so a rename there reddens here rather than in a browser.
+RATIONAL_KEYS: Final = frozenset(contract.rational(Fraction(10, 3)))
+
+#: The bracket-subscript reads ``panel_registry.js`` performs on a payload.
+#: The leading character class is what separates a SUBSCRIPT from a bare array
+#: literal: the module builds a one-element header list spelled ``["group"]``
+#: at panel_registry.js:465, which reads no key at all and must not be counted
+#: as one.
+SUBSCRIPT: Final = re.compile(r'[A-Za-z0-9_)\]]\["([a-z_]+)"\]')
+
+
+def _module_source() -> str:
+    """The shipped panel asset, as text.
+
+    Returns:
+        The source of the module under grade.
+    """
+    return str((panel_harness.WEB_DIR / MODULE).read_text(encoding="ascii"))
+
+
+def test_the_fixture_body_is_keyed_exactly_as_the_endpoint_keys_one() -> None:
+    """Every level of the canonical fixture equals the endpoint's own key tuple.
+
+    THE ARM WALKS DOWN, not just across the top. A fixture carrying
+    ``warnings: [...]`` against an endpoint carrying ``warnings: {"items": []}``
+    is the identical defect one level down and is equally invisible from the
+    top-level key set alone, so each nested record is checked against the tuple
+    ``clockspeed/surface/api/registry.py`` publishes for it.
+    """
+    body = _registry()
+    assert set(body) == set(api_registry.DATA_KEYS), (
+        "the fixture's top-level keys are not the ones /api/registry serves"
+    )
+    # THE CONTAINER TYPE IS CHECKED BEFORE ITS KEYS. A fixture carrying
+    # ``counts: [{...}]`` against an endpoint carrying ``counts: {...}`` is the
+    # nesting half of this defect, and comparing key sets first would raise a
+    # TypeError that names a Python type rather than the wire shape that drifted.
+    assert isinstance(body["counts"], dict), (
+        f"counts is served as a mapping (registry.py:293-300), not {type(body['counts']).__name__}"
+    )
+    for collection in ("items", "recipes", "buildings", "warnings", "unknown_groups"):
+        assert isinstance(body[collection], list), (
+            f"{collection} is served as a list (registry.py:313-320),"
+            f" not {type(body[collection]).__name__}"
+        )
+    assert set(body["counts"]) == set(api_registry.COUNT_KEYS), (
+        "the fixture's counts block is not keyed the way the endpoint counts"
+    )
+    for item in body["items"]:
+        assert set(item) == set(api_registry.ITEM_KEYS), f"item {item.get('key')!r}"
+    for recipe in body["recipes"]:
+        assert set(recipe) == set(api_registry.RECIPE_KEYS), f"recipe {recipe.get('key')!r}"
+        for field in ("inputs", "outputs", "produced_in"):
+            assert isinstance(recipe[field], list), f"{field} is served as a list"
+        for side in list(recipe["inputs"]) + list(recipe["outputs"]):
+            assert isinstance(side, dict), f"a recipe side is a mapping, not {type(side).__name__}"
+            assert set(side) == set(api_registry.RECIPE_IO_KEYS), f"side {side!r}"
+            assert isinstance(side["amount"], dict), "an amount is a num/den mapping"
+            assert set(side["amount"]) == RATIONAL_KEYS, f"amount of {side!r}"
+        assert isinstance(recipe["duration"], dict), "a duration is a num/den mapping"
+        assert set(recipe["duration"]) == RATIONAL_KEYS, "duration is not a num/den pair"
+    for building in body["buildings"]:
+        assert set(building) == set(api_registry.BUILDING_KEYS), f"building {building!r}"
+    for warning in body["warnings"]:
+        assert set(warning) == set(api_registry.WARNING_KEYS), f"warning {warning!r}"
+    for group in body["unknown_groups"]:
+        assert isinstance(group, str), "an unknown group is a bare name (registry.py:319)"
+
+
+def test_every_nullable_measurement_in_the_fixture_is_a_pair_or_absent() -> None:
+    """``energy_value`` is a num/den pair or None - never a bare number.
+
+    ``registry.py:189-202`` returns ``contract.rational`` or None, so a fixture
+    carrying a bare int would be grading the panel against a shape the wire
+    cannot produce, and the absent-is-not-zero arms would be proving nothing.
+    """
+    for item in _registry()["items"]:
+        energy = item["energy_value"]
+        assert energy is None or isinstance(energy, dict), (
+            f"energy of {item['key']!r} is a num/den mapping or None,"
+            f" never a bare {type(energy).__name__}"
+        )
+        assert energy is None or set(energy) == RATIONAL_KEYS, f"energy of {item['key']!r}"
+        points = item["sink_points"]
+        assert points is None or isinstance(points, int), f"sink points of {item['key']!r}"
+
+
+def test_the_panel_reads_no_wire_key_the_endpoint_does_not_serve() -> None:
+    """Every key ``panel_registry.js`` subscripts is one the endpoint publishes.
+
+    THE OTHER HALF OF THE PIN. The arm above binds the FIXTURE to the endpoint;
+    this one binds the PANEL to it. Without this half a panel could read a key
+    the endpoint never serves and render "not declared" on the live page while
+    every fixture arm stayed green, because no fixture would carry the key
+    either. The closing assertion runs the other way - every top-level key the
+    endpoint serves must actually be read, so a field the panel quietly stops
+    rendering reddens instead of vanishing.
+    """
+    served = (
+        set(api_registry.DATA_KEYS)
+        | set(api_registry.COUNT_KEYS)
+        | set(api_registry.ITEM_KEYS)
+        | set(api_registry.RECIPE_KEYS)
+        | set(api_registry.RECIPE_IO_KEYS)
+        | set(api_registry.BUILDING_KEYS)
+        | set(api_registry.WARNING_KEYS)
+        | RATIONAL_KEYS
+        | {PANEL_ID}
+    )
+    read = set(SUBSCRIPT.findall(_module_source()))
+    assert read, "the subscript scan matched nothing, so it graded nothing"
+    assert read <= served, f"the panel reads key(s) /api/registry never serves: {read - served}"
+    assert set(api_registry.DATA_KEYS) <= read, (
+        f"the panel never reads: {set(api_registry.DATA_KEYS) - read}"
+    )
+
+
+def test_the_panels_count_roster_is_exactly_the_endpoints_count_keys() -> None:
+    """``COUNT_LABELS`` names every counted collection and invents none.
+
+    The roster is a literal table inside the asset, so it is the one place the
+    panel can drift from ``COUNT_KEYS`` without any subscript changing - the
+    scan above reads ``record[COUNT_LABELS[index][0]]`` and learns nothing from
+    it. Equality and in order, so a sixth count the endpoint gains reddens here
+    rather than going unrendered.
+    """
+    marker = "var COUNT_LABELS = ["
+    source = _module_source()
+    assert marker in source, "panel_registry.js no longer declares COUNT_LABELS"
+    roster = re.findall(r'\["([a-z_]+)",', source.split(marker, 1)[1].split("];", 1)[0])
+    assert tuple(roster) == tuple(api_registry.COUNT_KEYS), (
+        f"the panel counts {roster} where the endpoint counts {list(api_registry.COUNT_KEYS)}"
+    )

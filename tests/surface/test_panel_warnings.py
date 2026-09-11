@@ -29,6 +29,8 @@ from typing import Any, Final
 
 import pytest
 
+from clockspeed.surface.api import registry as api_registry
+from clockspeed.surface.api import world as api_world
 from tests.surface import panel_harness
 
 #: The module under grade.
@@ -125,6 +127,76 @@ def _registry(**overrides: Any) -> dict[str, Any]:
     return body
 
 
+def _world_warning(
+    *, source: Any, code: Any, detail: Any, subject: Any, count: Any
+) -> dict[str, Any]:
+    """One ``/api/world`` warning, keyed the way that endpoint keys one.
+
+    THE KEYS ARE SPELLED ONCE, HERE. Every world-warning fixture in this module
+    is built through this function, so the equality arm in the pin section
+    binds ALL of them to ``world.WARNING_KEYS`` rather than the one that
+    happened to be checked - see the pin section's header for why a per-arm
+    spelling is the exact defect that stays green while the page goes blank.
+
+    Args:
+        source: The stage that raised it.
+        code: The warning code.
+        detail: The fixed line the raising layer authored.
+        subject: The structural token, or None.
+        count: How many times it fired.
+
+    Returns:
+        The warning record.
+    """
+    return {
+        "source": source,
+        "code": code,
+        "detail": detail,
+        "subject": subject,
+        "count": count,
+    }
+
+
+def _registry_warning(*, code: Any, detail: Any, subject: Any, count: Any) -> dict[str, Any]:
+    """One ``/api/registry`` warning, keyed the way THAT endpoint keys one.
+
+    Four keys, not five: a registry warning carries no ``source``
+    (registry.py:174), and the panel renders the two shapes separately for
+    exactly that reason. A helper shared with :func:`_world_warning` would have
+    had to invent the field on one side or drop it from the other.
+
+    Args:
+        code: The warning code.
+        detail: The fixed line the data layer authored.
+        subject: A class name, a group short name or a group index.
+        count: How many times it fired.
+
+    Returns:
+        The warning record.
+    """
+    return {"code": code, "subject": subject, "detail": detail, "count": count}
+
+
+def _unknown_class(*, type_path: Any, count: Any, reason: Any, first_index: Any) -> dict[str, Any]:
+    """One ``/api/world`` unmodelled class, keyed the way that endpoint keys one.
+
+    Args:
+        type_path: The class path.
+        count: How many instances were met.
+        reason: Why it was not modelled.
+        first_index: Where the first one sat.
+
+    Returns:
+        The record.
+    """
+    return {
+        "type_path": type_path,
+        "count": count,
+        "reason": reason,
+        "first_index": first_index,
+    }
+
+
 def _text(report: Any) -> str:
     """The whole panel's text, joined by the stand-in from the tree.
 
@@ -178,30 +250,30 @@ def test_both_groups_render_every_code_and_the_world_warning_source(
     data = panel_harness.null_payload(
         world=_world(
             warnings=[
-                {
-                    "source": "usmap",
-                    "code": "unresolved-name",
-                    "detail": "a schema name index fell outside the name table",
-                    "subject": "schema-12",
-                    "count": 3,
-                },
-                {
-                    "source": "objects",
-                    "code": "unresolved-schema",
-                    "detail": "the class path does not resolve to a schema",
-                    "subject": None,
-                    "count": 1,
-                },
+                _world_warning(
+                    source="usmap",
+                    code="unresolved-name",
+                    detail="a schema name index fell outside the name table",
+                    subject="schema-12",
+                    count=3,
+                ),
+                _world_warning(
+                    source="objects",
+                    code="unresolved-schema",
+                    detail="the class path does not resolve to a schema",
+                    subject=None,
+                    count=1,
+                ),
             ]
         ),
         registry=_registry(
             warnings=[
-                {
-                    "code": "unknown-item-reference",
-                    "subject": "Desc_Water_C",
-                    "detail": "a recipe names an item this document does not define",
-                    "count": 2,
-                }
+                _registry_warning(
+                    code="unknown-item-reference",
+                    subject="Desc_Water_C",
+                    detail="a recipe names an item this document does not define",
+                    count=2,
+                )
             ]
         ),
     )
@@ -222,12 +294,12 @@ def test_a_null_world_still_renders_the_registry_group(tmp_path: Path) -> None:
     data = panel_harness.null_payload(
         registry=_registry(
             warnings=[
-                {
-                    "code": "malformed-group",
-                    "subject": "41",
-                    "detail": "a group was not readable as a group and was skipped",
-                    "count": 1,
-                }
+                _registry_warning(
+                    code="malformed-group",
+                    subject="41",
+                    detail="a group was not readable as a group and was skipped",
+                    count=1,
+                )
             ]
         )
     )
@@ -258,15 +330,43 @@ def test_no_unknown_class_type_path_is_duplicated_here(tmp_path: Path) -> None:
         tmp_path: Scratch directory.
     """
     marker = "/Game/FactoryGame/Buildable/Factory/Bogus/Build_Bogus.Build_Bogus_C"
+    companion = "unresolved-schema"
     data = panel_harness.null_payload(
         world=_world(
+            warnings=[
+                _world_warning(
+                    source="objects",
+                    code=companion,
+                    detail="the class path does not resolve to a schema",
+                    subject=None,
+                    count=4,
+                )
+            ],
             unknown_classes=[
-                {"type_path": marker, "count": 4, "reason": "asset_shaped", "first_index": 9}
+                _unknown_class(type_path=marker, count=4, reason="asset_shaped", first_index=9)
             ],
             counts={"unknown_classes": 1},
         )
     )
-    text = _text(_mount(tmp_path, data))
+    report = _mount(tmp_path, data)
+    text = _text(report)
+    # THE POSITIVE HALF, AND WHY IT IS NOT DECORATION. This arm used to rule the
+    # type_path OUT and pin almost nothing IN, so it passed over any panel that
+    # reached the world object and rendered nothing from it - "an oracle can be
+    # blind to its subject", which this repo has already measured twice. The
+    # companion warning is carried by the SAME world object as the unknown
+    # class, so a panel that stopped consuming that object reddens on the line
+    # below instead of quietly satisfying the absence claims. The group label
+    # alone would not do it: the panel emits both labels unconditionally
+    # (panel_warnings.js:351-353) whether or not it ever read a payload.
+    assert companion in text, (
+        "the panel rendered nothing out of the world object, so the absence of a"
+        f" type_path below proves nothing; the panel read {text!r}"
+    )
+    assert "did not answer" not in text.lower().split("registry warnings")[0], (
+        "the world group reported that /api/world never answered, so this arm"
+        " would be grading an unread payload"
+    )
     assert marker not in text
     assert "Build_Bogus" not in text
     assert "world" in text.lower()
@@ -344,13 +444,13 @@ def test_a_detail_carrying_an_absolute_path_never_reaches_the_dom(
     data = panel_harness.null_payload(
         world=_world(
             warnings=[
-                {
-                    "source": "header",
-                    "code": "unmeasured-version-pair",
-                    "detail": HOSTILE_PATH_DETAIL,
-                    "subject": "5/13",
-                    "count": 1,
-                }
+                _world_warning(
+                    source="header",
+                    code="unmeasured-version-pair",
+                    detail=HOSTILE_PATH_DETAIL,
+                    subject="5/13",
+                    count=1,
+                )
             ]
         )
     )
@@ -377,12 +477,12 @@ def test_a_subject_carrying_a_path_never_reaches_the_dom(tmp_path: Path) -> None
     data = panel_harness.null_payload(
         registry=_registry(
             warnings=[
-                {
-                    "code": "malformed-blob",
-                    "subject": _posix_path(),
-                    "detail": "a blob was not readable and was skipped",
-                    "count": 1,
-                }
+                _registry_warning(
+                    code="malformed-blob",
+                    subject=_posix_path(),
+                    detail="a blob was not readable and was skipped",
+                    count=1,
+                )
             ]
         )
     )
@@ -408,13 +508,13 @@ def test_a_non_ascii_detail_is_withheld(tmp_path: Path) -> None:
     data = panel_harness.null_payload(
         world=_world(
             warnings=[
-                {
-                    "source": "objects",
-                    "code": "unresolved-schema",
-                    "detail": "player \u00c9lodie's factory could not be read",
-                    "subject": None,
-                    "count": 1,
-                }
+                _world_warning(
+                    source="objects",
+                    code="unresolved-schema",
+                    detail="player \u00c9lodie's factory could not be read",
+                    subject=None,
+                    count=1,
+                )
             ]
         )
     )
@@ -449,12 +549,12 @@ def test_a_count_that_is_not_a_whole_number_is_withheld(tmp_path: Path) -> None:
     data = panel_harness.null_payload(
         registry=_registry(
             warnings=[
-                {
-                    "code": "duplicate-class-name",
-                    "subject": "Desc_IronRod_C",
-                    "detail": "a class name repeated and the later entry won",
-                    "count": _windows_path(),
-                }
+                _registry_warning(
+                    code="duplicate-class-name",
+                    subject="Desc_IronRod_C",
+                    detail="a class name repeated and the later entry won",
+                    count=_windows_path(),
+                )
             ]
         )
     )
@@ -554,3 +654,169 @@ def test_the_module_reaches_no_network_sink(sink: str) -> None:
         sink: The spelling to look for.
     """
     assert sink not in _code_only(MODULE_PATH.read_text(encoding="ascii"))
+
+
+# ---------------------------------------------------------------------------
+# The common-mode pin - the fixtures are bound to the ENDPOINTS, not to a spec
+#
+# WHY THIS SECTION EXISTS. Every payload above was hand-typed from one
+# planner-authored spec file in a scratchpad, and so was the panel it grades.
+# That is ONE shared input wearing two hats, not two independent witnesses. A
+# key misspelled in that spec is misspelled in the fixture, misspelled in the
+# panel, and asserted against in the misspelling - and the suite is GREEN while
+# the live page renders nothing for that field forever. CLAUDE.md section 5
+# states the rule the arms below apply: agreement between two agents is not
+# evidence, because two agents deriving from the same stale doc are wrong the
+# same way. So the arms go and test the SHARED INPUT, by binding to
+# ``clockspeed/surface/api/world.py`` and ``clockspeed/surface/api/registry.py``
+# - the modules that actually serve the bytes.
+#
+# EQUALITY WHEREVER EQUALITY IS THE TRUTH. A warning record is a whole record
+# and its key set is asserted EQUAL to the endpoint's tuple: a subset check
+# would pass forever while a key the endpoint GAINS went unfixtured and
+# unrendered. The two data objects are the one honest exception - this panel
+# deliberately consumes a handful of keys out of a much larger body - so they
+# get equality against the DECLARED CONSUMED SET plus a membership check
+# against the endpoint, and a source scan makes the declared set equal to what
+# the panel actually reads. A key the panel starts consuming therefore cannot
+# stay unfixtured, and a key it consumes that no endpoint serves cannot stay
+# unnoticed.
+# ---------------------------------------------------------------------------
+
+#: Exactly the ``/api/world`` keys ``panel_warnings.js`` consumes. Asserted
+#: below to be both a real subset of ``world.DATA_KEYS`` and exactly what the
+#: asset reads, so this tuple cannot drift away from either side.
+WORLD_KEYS_CONSUMED: Final = ("warnings", "contains_unmodeled_content")
+
+#: The same for ``/api/registry``.
+REGISTRY_KEYS_CONSUMED: Final = ("warnings", "unknown_groups")
+
+#: A subscript against one of the two data objects, e.g. ``world["warnings"]``.
+DATA_SUBSCRIPT: Final = re.compile(r'\b(world|registry)\["([a-z_]+)"\]')
+
+#: A ``group(root, <label>, <object>, <key>, ...)`` call. The panel passes the
+#: collection name as an ARGUMENT (panel_warnings.js:351-353) rather than
+#: subscripting it, so a scan that only read subscripts would miss the single
+#: most important key on the wire and report a clean sweep.
+GROUP_CALL: Final = re.compile(r'group\(\s*root,\s*"[^"]*",\s*(world|registry),\s*"([a-z_]+)"')
+
+
+def _keys_the_panel_reads() -> dict[str, set[str]]:
+    """Every wire key ``panel_warnings.js`` takes off each data object.
+
+    Returns:
+        The object name mapped to the key names read off it.
+    """
+    code = MODULE_PATH.read_text(encoding="ascii")
+    read: dict[str, set[str]] = {"world": set(), "registry": set()}
+    for name, key in DATA_SUBSCRIPT.findall(code):
+        read[name].add(key)
+    for name, key in GROUP_CALL.findall(code):
+        read[name].add(key)
+    return read
+
+
+def test_the_world_warning_fixture_is_keyed_the_way_the_endpoint_keys_one() -> None:
+    """``_world_warning`` spells exactly ``world.WARNING_KEYS`` and nothing else.
+
+    Equality in both directions: a key the endpoint drops makes the fixture
+    over-declare and a key it gains makes the fixture under-declare, and the
+    second is the silent one - the panel would render a blank where a new
+    field belongs and every content arm would stay green.
+    """
+    record = _world_warning(source="objects", code="c", detail="d", subject=None, count=1)
+    assert set(record) == set(api_world.WARNING_KEYS), (
+        "the world warning fixture is not keyed the way /api/world keys one"
+        f" (world.py:142): {sorted(set(record) ^ set(api_world.WARNING_KEYS))}"
+    )
+
+
+def test_the_registry_warning_fixture_is_keyed_the_way_that_endpoint_keys_one() -> None:
+    """``_registry_warning`` spells exactly ``registry.WARNING_KEYS``.
+
+    FOUR KEYS, NOT FIVE, and the difference is the point: this arm and the one
+    above would both pass against a single merged five-key helper only if that
+    helper invented a ``source`` for the registry side. Keeping them separate
+    is what lets the asymmetry be asserted rather than assumed.
+    """
+    record = _registry_warning(code="c", detail="d", subject="s", count=1)
+    assert set(record) == set(api_registry.WARNING_KEYS), (
+        "the registry warning fixture is not keyed the way /api/registry keys one"
+        f" (registry.py:174): {sorted(set(record) ^ set(api_registry.WARNING_KEYS))}"
+    )
+    assert "source" not in record, "a registry warning carries no source (registry.py:174)"
+    assert "source" in api_world.WARNING_KEYS, "a world warning does carry one (world.py:142)"
+
+
+def test_the_unknown_class_fixture_is_keyed_the_way_the_endpoint_keys_one() -> None:
+    """``_unknown_class`` spells exactly ``world.UNKNOWN_CLASS_KEYS``.
+
+    The arm that proves a ``type_path`` never reaches this panel is only worth
+    anything if the record it hands over is the record the wire carries. A
+    fixture keyed ``typePath`` would make that arm prove the panel does not
+    render a field nobody ever sends it.
+    """
+    record = _unknown_class(type_path="t", count=1, reason="r", first_index=0)
+    assert set(record) == set(api_world.UNKNOWN_CLASS_KEYS), (
+        "the unknown class fixture is not keyed the way /api/world keys one"
+        f" (world.py:145): {sorted(set(record) ^ set(api_world.UNKNOWN_CLASS_KEYS))}"
+    )
+
+
+def test_each_data_object_fixture_declares_exactly_what_the_panel_consumes() -> None:
+    """The two partial fixtures are pinned to the panel AND to the endpoints.
+
+    THREE CLAIMS, and dropping any one reopens the hole. The fixture must equal
+    the declared consumed set, so a key the panel starts reading cannot stay
+    unfixtured. The declared set must equal what the ASSET actually reads, so
+    the declaration cannot drift into fiction. And the declared set must be a
+    real subset of the endpoint's ``DATA_KEYS``, so a key nobody serves cannot
+    sit in the fixture looking authoritative.
+    """
+    read = _keys_the_panel_reads()
+    assert read["world"], "the source scan found no /api/world read, so it graded nothing"
+    assert read["registry"], "the source scan found no /api/registry read, so it graded nothing"
+
+    assert set(_world()) == set(WORLD_KEYS_CONSUMED), "the world fixture drifted from the roster"
+    assert read["world"] == set(WORLD_KEYS_CONSUMED), (
+        f"the panel reads {sorted(read['world'])} off /api/world, not {sorted(WORLD_KEYS_CONSUMED)}"
+    )
+    assert set(WORLD_KEYS_CONSUMED) <= set(api_world.DATA_KEYS), (
+        f"/api/world never serves: {set(WORLD_KEYS_CONSUMED) - set(api_world.DATA_KEYS)}"
+    )
+
+    assert set(_registry()) == set(REGISTRY_KEYS_CONSUMED), (
+        "the registry fixture drifted from the roster"
+    )
+    assert read["registry"] == set(REGISTRY_KEYS_CONSUMED), (
+        f"the panel reads {sorted(read['registry'])} off /api/registry,"
+        f" not {sorted(REGISTRY_KEYS_CONSUMED)}"
+    )
+    assert set(REGISTRY_KEYS_CONSUMED) <= set(api_registry.DATA_KEYS), (
+        f"/api/registry never serves: {set(REGISTRY_KEYS_CONSUMED) - set(api_registry.DATA_KEYS)}"
+    )
+
+
+def test_every_warning_collection_is_nested_the_way_the_endpoints_nest_it() -> None:
+    """``warnings`` is a bare list on both wires, never a wrapper object.
+
+    THE NESTING HALF OF THE SAME DEFECT. A fixture carrying
+    ``warnings: [...]`` against an endpoint carrying ``warnings: {"items": []}``
+    has an identical top-level key set and is exactly as invisible - the panel
+    would read a list off a mapping, find nothing, and render "reported no
+    warnings" over a world full of them. ``world.py:201`` and
+    ``registry.py:318`` both build a list, and that is asserted here rather
+    than trusted.
+    """
+    one_world = _world_warning(source="s", code="c", detail="d", subject=None, count=1)
+    world_body = _world(warnings=[one_world])
+    assert isinstance(world_body["warnings"], list), "/api/world nests warnings as a list"
+    assert isinstance(world_body["contains_unmodeled_content"], bool), (
+        "contains_unmodeled_content is a bare boolean (world.py:119), not a wrapper"
+    )
+    one_registry = _registry_warning(code="c", detail="d", subject="s", count=1)
+    registry_body = _registry(warnings=[one_registry])
+    assert isinstance(registry_body["warnings"], list), "/api/registry nests warnings as a list"
+    assert isinstance(registry_body["unknown_groups"], list), (
+        "unknown_groups is a list of bare names (registry.py:319)"
+    )
