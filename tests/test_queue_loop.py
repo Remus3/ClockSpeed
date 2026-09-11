@@ -1733,11 +1733,22 @@ def test_every_stop_reason_has_its_own_exit_code(monkeypatch, stopped_by, expect
     EXIT_CONSECUTIVE_ERRORS and this arm stayed GREEN while two stop reasons
     collapsed onto one number. A literal is the only oracle an exit code has,
     because the number IS the contract with the launcher and the scheduled task.
+
+    THE RECORD IS NOT DECORATION. `main` now refuses EXIT_OK for a run whose
+    records contain no shipping cycle, so a summary claiming `cycles_run=1` with
+    an EMPTY records list is a summary no driver can produce - and grading a
+    word-to-number mapping against one would be grading the fixture. The
+    shipping record keeps this arm about the mapping; the no-progress rule is
+    graded on its own, further down.
     """
     monkeypatch.setattr(
         queue_loop,
         "run_loop",
-        lambda **_kw: {"cycles_run": 1, "stopped_by": stopped_by, "records": []},
+        lambda **_kw: {
+            "cycles_run": 1,
+            "stopped_by": stopped_by,
+            "records": [{"outcome": "completed", "ok": True}],
+        },
     )
     code = queue_loop.main(["--once"], singleton=FakeSingleton())
     assert code == expected
@@ -1747,12 +1758,18 @@ def test_a_drained_queue_mid_run_is_still_a_success(monkeypatch):
     """The normal end of a good night.
 
     A sentinel the WORKER wrote after doing real work is not the same as
-    one that was already there.
+    one that was already there - and "real work" is now spelled out in the
+    records rather than implied by a cycle count, because a drain whose cycles
+    shipped nothing is not a good night either.
     """
     monkeypatch.setattr(
         queue_loop,
         "run_loop",
-        lambda **_kw: {"cycles_run": 4, "stopped_by": "QUEUE_DRAINED", "records": []},
+        lambda **_kw: {
+            "cycles_run": 4,
+            "stopped_by": "QUEUE_DRAINED",
+            "records": [{"outcome": "completed", "ok": True}] * 4,
+        },
     )
     assert queue_loop.main([], singleton=FakeSingleton()) == queue_loop.EXIT_OK
 
@@ -2329,4 +2346,359 @@ def test_the_launch_fault_row_never_renders_the_caller_s_object():
     assert substituted == 1, (
         "the index substitution is gone from _launch_fault - the sweep above "
         "would then be vacuously true of a function that renders nothing"
+    )
+
+
+# ===========================================================================
+# CS-970 REPAIR - R5. A CYCLE THAT SHIPPED NOTHING IS NOT PROGRESS.
+#
+# The counter keyed on `record["outcome"]` alone, so twelve `completed` cycles
+# that each pushed NOTHING ran the whole budget and exited 0 - observationally
+# identical to the `lane_held` night this feature exists to stop. The module
+# already computes the better field: `record["ok"]` is the roll-up of the
+# outcome, the local suite and the CI verdict, and a no-push cycle is already
+# `ok: false`.
+# ===========================================================================
+
+
+def _moving_ref():
+    """A `head_sha` seam whose answer differs on every call - every cycle pushed.
+
+    The driver reads the ref twice per cycle, before and after, and calls a
+    cycle a push when the two differ. A counter that moves on every call is
+    therefore the "every cycle shipped something" control.
+
+    Returns:
+        A zero-argument callable, shaped like the `head_sha` seam.
+    """
+    seen = {"n": 0}
+
+    def head_sha():
+        seen["n"] += 1
+        return f"sha-{seen['n']}"
+
+    return head_sha
+
+
+def _ci_success(sha, **_kw):
+    """Grade every pushed sha green.
+
+    Args:
+        sha: The sha the driver asked about.
+
+    Returns:
+        A verdict dict in the shape `wait_for_ci` returns.
+    """
+    return {"verdict": queue_loop.CI_SUCCESS, "sha": sha, "waited_s": 1.0, "workflows": []}
+
+
+def _drive(tmp_path, script, *, budget, **over):
+    """Run the REAL `run_loop` over a scripted outcome sequence.
+
+    Every summary asserted below is the driver's own return value, never a
+    dict this file assembled to look like one. That matters for the `main`
+    arms: a hand-built `records` list can be made to say anything, and an exit
+    code graded against one is a claim about the fixture.
+
+    Args:
+        tmp_path: The per-test directory for the ledger and the control dir.
+        script: One `OUTCOME_*` value per cycle, in order.
+        budget: `max_cycles`.
+        **over: Seam overrides.
+
+    Returns:
+        The driver's own summary dict.
+    """
+    clock = FakeClock()
+    seams = loop_seams(
+        clock,
+        max_cycles=budget,
+        cycle_log=tmp_path / "l.jsonl",
+        control_dir=tmp_path / "control",
+        hold=NullHold(),
+        **_scripted_outcomes(script),
+    )
+    seams.setdefault("ci_gate", False)
+    seams.update(over)
+    return queue_loop.run_loop(**seams)
+
+
+def test_completed_cycles_that_push_nothing_cannot_run_the_full_budget(tmp_path):
+    """THE REFUTATION, reproduced and then closed.
+
+    Driven against a ref that never moves, the driver produced twelve
+    `completed` cycles, every one of them `ok: false`, and reported
+    `cycles_run=12 stopped_by=max_cycles` - a night that shipped nothing,
+    burned its whole budget and exited 0.
+    """
+    summary = _drive(
+        tmp_path,
+        [_DONE] * BUDGET,
+        budget=BUDGET,
+        ci_gate=True,
+        head_sha=lambda: "sha-frozen",
+        wait=_ci_success,
+    )
+    # THE CONTROL FOR THE FIXTURE: every cycle really did complete, so this is
+    # not an arm that passes because the outcome word changed underneath it.
+    assert [r["outcome"] for r in summary["records"]] == [_DONE] * 3
+    assert [r["ok"] for r in summary["records"]] == [False] * 3
+    assert summary["stopped_by"] == "no_progress"
+    assert summary["cycles_run"] == 3  # noqa: PLR2004
+
+
+def test_completed_cycles_that_push_run_the_whole_budget(tmp_path):
+    """THE CONTROL. A counter that stops a night which DID ship is worse."""
+    summary = _drive(
+        tmp_path,
+        [_DONE] * 5,
+        budget=5,
+        ci_gate=True,
+        head_sha=_moving_ref(),
+        wait=_ci_success,
+    )
+    assert [r["ok"] for r in summary["records"]] == [True] * 5
+    assert summary["stopped_by"] == "max_cycles"
+    assert summary["cycles_run"] == 5  # noqa: PLR2004
+
+
+def test_a_night_with_the_ci_gate_off_is_untouched(tmp_path):
+    """`--no-ci-gate` sets no `ci` key at all, so `ok` stays true.
+
+    The behaviour change above is confined to the no-push case precisely
+    because the other two `ok: false` causes - a red local suite and a red CI -
+    each hard-stop the night on the same cycle and never reach the counter.
+    A run with no gate has no verdict to be bad, and must still run its budget.
+    """
+    summary = _drive(tmp_path, [_DONE] * 5, budget=5, ci_gate=False)
+    assert all("ci" not in r for r in summary["records"]), "the gate ran with ci_gate off"
+    assert [r["ok"] for r in summary["records"]] == [True] * 5
+    assert summary["stopped_by"] == "max_cycles"
+
+
+# ===========================================================================
+# CS-970 REPAIR - R6. A RUN THAT ACCOMPLISHED NOTHING MUST NOT EXIT 0.
+#
+# `--once` into a held lane gave `cycles_run=1 stopped_by=max_cycles EXIT=0`,
+# and so did a refused launch and a single no-push completion. No counter can
+# see those: every one of them needs three consecutive cycles and the budget
+# was one. The stop WORD stays `max_cycles` - the night did end the way it was
+# asked to - but the exit code is what a launcher and a scheduled task read,
+# and it must not say success over a no-op.
+#
+# EVERY PLR2004 SUPPRESSION BELOW IS DELIBERATE. That rule asks for a named
+# constant, and a named constant is exactly what these arms must NOT use: the
+# number is the contract with the launcher, and an arm resolving its
+# expectation from the constant it grades cannot observe that constant
+# changing. That was R3's whole finding. The literal IS the oracle.
+# ===========================================================================
+
+
+def _exit_for(monkeypatch, summary, argv=("--once",)):
+    """Feed a driver-produced summary to `main` and return its exit code.
+
+    Args:
+        monkeypatch: The pytest fixture.
+        summary: A summary `run_loop` itself produced.
+        argv: The command line.
+
+    Returns:
+        The exit code `main` returned.
+    """
+    monkeypatch.setattr(queue_loop, "run_loop", lambda **_kw: summary)
+    return queue_loop.main(list(argv), singleton=FakeSingleton())
+
+
+@pytest.mark.parametrize(
+    ("script", "over", "label"),
+    [
+        pytest.param([_HELD], {}, "lane-held", id="one-held-cycle"),
+        pytest.param([_REFUSED], {}, "launch-refused", id="one-refused-launch"),
+        pytest.param(
+            [_DONE],
+            {"ci_gate": True, "head_sha": lambda: "sha-frozen", "wait": _ci_success},
+            "no-push",
+            id="one-no-push-completion",
+        ),
+    ],
+)
+def test_a_one_cycle_night_that_accomplished_nothing_does_not_exit_zero(
+    tmp_path, monkeypatch, script, over, label
+):
+    """SMALL BUDGET, NO COUNTER, AND UNTIL NOW EXIT 0.
+
+    The number is pinned as a LITERAL, never read back out of the constant
+    being graded: the exit code IS the contract with the launcher.
+    """
+    summary = _drive(tmp_path, script, budget=1, **over)
+    # The fixture control: the stop word really is the benign one, so this arm
+    # is grading the exit code rather than a hard stop that fired.
+    assert summary["stopped_by"] == "max_cycles", label
+    assert summary["cycles_run"] == 1, label
+    code = _exit_for(monkeypatch, summary)
+    assert code == 9, f"{label}: a night that accomplished nothing exited {code}"  # noqa: PLR2004
+
+
+def test_a_one_cycle_night_that_shipped_exits_zero(tmp_path, monkeypatch):
+    """THE CONTROL. One good cycle is a good night, and must stay exit 0."""
+    summary = _drive(
+        tmp_path, [_DONE], budget=1, ci_gate=True, head_sha=_moving_ref(), wait=_ci_success
+    )
+    assert summary["records"][0]["ok"] is True
+    assert _exit_for(monkeypatch, summary) == 0
+
+
+def test_a_zero_cycle_run_keeps_the_sentinel_code(tmp_path, monkeypatch):
+    """EXIT_STOP_SENTINEL is pinned elsewhere and must not be displaced.
+
+    `tests/test_launch_queue_loop.py` reads 2 as "the sentinel was already
+    there"; a zero-cycle run must keep that number rather than collapsing into
+    the no-progress code this repair adds.
+    """
+    control = tmp_path / "control"
+    control.mkdir()
+    (control / "QUEUE_DRAINED").write_text("drained", encoding="utf-8")
+    summary = {"cycles_run": 0, "stopped_by": "QUEUE_DRAINED", "records": []}
+    monkeypatch.setattr(queue_loop, "run_loop", lambda **_kw: summary)
+    code = queue_loop.main(["--once", "--control-dir", str(control)], singleton=FakeSingleton())
+    assert code == 2  # noqa: PLR2004
+
+
+# ===========================================================================
+# CS-970 REPAIR - R7. AN UNRECOGNISED STOP WORD MUST NOT READ AS SUCCESS.
+#
+# `_STOP_EXIT.get(stopped, EXIT_OK)` returned 0 for any word the table does not
+# list, and the existing sweep only walks `STOPPED_BY_*` NAMES. The module
+# already assigns a stop word that is not one of those - `stopped_by =
+# OUTCOME_KILL_FAILED` - so a new hard stop copied from that same block, say
+# `stopped_by = OUTCOME_TIMEOUT`, exits 0 and the sweep stays green.
+# ===========================================================================
+
+
+def test_a_stop_word_in_no_table_is_not_success(monkeypatch):
+    """The word is a REAL module constant, reachable by one copied line.
+
+    `OUTCOME_TIMEOUT` is what the neighbouring hard-stop block assigns for its
+    own outcome, so this is the mistake that block invites, not an invented one.
+    """
+    summary = {
+        "cycles_run": 1,
+        "stopped_by": queue_loop.OUTCOME_TIMEOUT,
+        "records": [{"outcome": _DONE, "ok": True}],
+    }
+    monkeypatch.setattr(queue_loop, "run_loop", lambda **_kw: summary)
+    code = queue_loop.main(["--once"], singleton=FakeSingleton())
+    assert code != 0, "an unlisted stop word was read as a successful night"
+    assert code == 10  # noqa: PLR2004
+
+
+def test_the_success_stop_words_are_a_closed_set():
+    """THE FENCE, spelled as literals so widening it is a VISIBLE edit.
+
+    A default of EXIT_OK made the permitted-success set implicitly infinite.
+    The repair inverts it: a closed set, and anything outside gets its own
+    number. This arm is what makes adding a member deliberate.
+    """
+    assert set(queue_loop._SUCCESS_STOPS) == {  # noqa: SLF001 - the fence under test
+        "max_cycles",
+        "STOP",
+        "QUEUE_STOP",
+        "QUEUE_DRAINED",
+    }
+    overlap = set(queue_loop._SUCCESS_STOPS) & set(queue_loop._STOP_EXIT)  # noqa: SLF001
+    assert overlap == set(), f"a word both means success and carries a failure code: {overlap}"
+
+
+# ===========================================================================
+# CS-970 REPAIR - R8. THE COMMENT AND THE EMITTED LINE BOTH SAID MORE THAN THE
+# DRIVER KNOWS.
+# ===========================================================================
+
+
+def test_a_pure_refusal_night_loses_its_own_word_once_its_limit_is_raised(tmp_path):
+    """THE COUPLING, made explicit and then GRADED.
+
+    The comment on the no-progress stop claimed it is "reached only by a mixed
+    run - a pure one trips its own counter above". That is true only while the
+    specific limits stay at or below `max_consecutive_unproductive`. Raise the
+    launch-failure limit and a PURE refusal night stops at 3 with `no_progress`
+    and exit 9, and `consecutive_launch_failures` becomes unreachable.
+    """
+    summary = _drive(
+        tmp_path, [_REFUSED] * BUDGET, budget=BUDGET, max_consecutive_launch_failures=5
+    )
+    assert summary["stopped_by"] == "no_progress"
+    assert summary["cycles_run"] == 3  # noqa: PLR2004
+
+
+def test_the_defaults_keep_every_specific_stop_word_reachable():
+    """The other half of the coupling: at the DEFAULTS the specific words win.
+
+    Pinned as literals rather than read from the module, because a comparison
+    between two constants that both moved is no comparison at all.
+    """
+    assert queue_loop.DEFAULT_MAX_CONSECUTIVE_UNPRODUCTIVE == 3  # noqa: PLR2004
+    assert queue_loop.DEFAULT_MAX_CONSECUTIVE_ERRORS == 3  # noqa: PLR2004
+    assert queue_loop.DEFAULT_MAX_CONSECUTIVE_LAUNCH_FAILURES == 3  # noqa: PLR2004
+
+
+def _timeout_night(budget):
+    """Seams that make every cycle time out and kill its worker cleanly.
+
+    Args:
+        budget: `max_cycles` for the night.
+
+    Returns:
+        Seam overrides for `loop_seams`.
+    """
+    live = {"up": False}
+
+    def launch(_lane, **_kw):
+        live["up"] = True
+        return {"pid": 1, "log": "l"}
+
+    def kill(_pid):
+        live["up"] = False
+
+    return {
+        "launch": launch,
+        "alive": lambda _pid: live["up"],
+        "kill": kill,
+        "cycle_timeout_s": 0,
+        "max_cycles": budget,
+    }
+
+
+def test_the_no_progress_line_does_not_claim_the_cycles_pushed_nothing(tmp_path):
+    """`timeout_killed` advances this counter, and a killed worker MAY have pushed.
+
+    The CI gate only runs on a `completed` cycle, so the driver has no verdict
+    for a killed one and cannot support "completed nothing". The wording has to
+    say what it actually knows.
+    """
+    said: list[str] = []
+    clock = FakeClock()
+    seams = loop_seams(
+        clock,
+        ci_gate=False,
+        cycle_log=tmp_path / "l.jsonl",
+        control_dir=tmp_path / "control",
+        hold=NullHold(),
+        emit=said.append,
+        **_timeout_night(BUDGET),
+    )
+    summary = queue_loop.run_loop(**seams)
+    # THE CONTROL: the night really is made of killed workers, so the line
+    # asserted below is the one this arm means to grade.
+    assert {r["outcome"] for r in summary["records"]} == {"timeout_killed"}
+    assert summary["stopped_by"] == "no_progress"
+    stop_lines = [line for line in said if "queue-loop stop:" in line]
+    assert len(stop_lines) == 1, f"expected one stop line, got {stop_lines}"
+    line = stop_lines[0]
+    assert "completed nothing" not in line, (
+        "the driver claimed the cycles pushed nothing; a killed worker may "
+        f"have pushed and the gate never ran to say otherwise: {line!r}"
+    )
+    assert "may still have pushed" in line, (
+        f"the line does not say what the driver actually knows: {line!r}"
     )

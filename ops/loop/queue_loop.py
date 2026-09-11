@@ -120,14 +120,29 @@ WILL NOT START is counted separately again, by
 is the cycle never happening, and one counter for both would report the two with
 one exit code.
 
-AND A THIRD COUNTER HOLDS THE INVARIANT THOSE TWO ONLY APPROXIMATE: no sequence
-of outcomes in which no cycle ever COMPLETES may run the full budget. Two
-counters that each name one cause reset each other, so a night that alternates
-causes - a held lane, then a refused launch, then a held lane - satisfied
-neither and ran all twelve cycles to exit 0. `max_consecutive_unproductive`
-asks the general question against the `PRODUCTIVE_OUTCOMES` allowlist, and is
-checked LAST so the two specific words and their exit codes still win whenever
-one of them applies.
+AND A THIRD COUNTER HOLDS THE INVARIANT THOSE TWO ONLY APPROXIMATE: no night in
+which no cycle ever SHIPPED may be reported as a success. Two counters that each
+name one cause reset each other, so a night that alternates causes - a held
+lane, then a refused launch, then a held lane - satisfied neither and ran all
+twelve cycles to exit 0. `max_consecutive_unproductive` asks the general
+question against the `PRODUCTIVE_OUTCOMES` allowlist AND the row's own `ok`
+roll-up, and is checked LAST so the two specific words and their exit codes
+still win whenever one of them applies.
+
+A COUNTER CANNOT HOLD THAT INVARIANT ALONE, because every counter needs three
+consecutive cycles and `--once` grants one. Driven with a budget of one, a held
+lane reported `cycles_run=1 stopped_by=max_cycles` and exited 0 - a success
+banner over a no-op. So the invariant is held in TWO places: the counter ends a
+long night early, and `main` refuses EXIT_OK for any run whose records contain
+no shipping cycle, whatever the budget. The stop WORD may still be `max_cycles`
+- the night did end the way it was asked to - but the NUMBER a launcher reads
+says nothing was accomplished.
+
+AND NO STOP WORD MAY MEAN SUCCESS BY DEFAULT. `_SUCCESS_STOPS` is the closed set
+permitted to exit 0; anything outside it and outside `_STOP_EXIT` is
+EXIT_UNKNOWN_STOP. A `.get(stopped, EXIT_OK)` made that set implicitly infinite,
+so a hard stop copied from the `timeout_kill_failed` block - which already
+assigns a word that is not a `STOPPED_BY_*` constant - would have exited 0.
 
 ONE DRIVER PER BOX. The lane lock stops two WORKERS, not two DRIVERS. A named
 mutex held for the process lifetime is the guard.
@@ -453,7 +468,10 @@ OUTCOME_ERROR = "error"
 #: deliberately says otherwise, so the hole cannot reopen by omission.
 #:
 #: `completed` is the only member, and `run_cycle` agrees with that by deriving
-#: a record's `ok` from the same equality.
+#: a record's `worker_ok` from the same equality.
+#:
+#: THE OUTCOME IS HALF THE TEST, NOT THE WHOLE ONE - see `_is_progress`. The
+#: word says a worker ran to completion; it does not say the cycle shipped.
 PRODUCTIVE_OUTCOMES = frozenset({OUTCOME_COMPLETED})
 
 STOPPED_BY_MAX_CYCLES = "max_cycles"
@@ -482,7 +500,38 @@ EXIT_CONSECUTIVE_ERRORS = 5  # the same fault repeated until the loop gave up
 EXIT_CI_RED = 6  # a gating CI job went red on a pushed sha
 EXIT_SUITE_RED = 7  # the driver's own local suite went red
 EXIT_CONSECUTIVE_LAUNCH_FAILURES = 8  # the lane refused to start, over and over
-EXIT_NO_PROGRESS = 9  # cycles happened and none of them completed
+EXIT_NO_PROGRESS = 9  # cycles happened and none of them shipped
+EXIT_UNKNOWN_STOP = 10  # a stop word in no table - never read one as success
+
+
+def _is_progress(record) -> bool:
+    """Did this cycle actually ship anything?
+
+    ONE DEFINITION, read by the loop's counter AND by `main`'s exit code, so
+    the two cannot drift into disagreeing about what a good cycle is.
+
+    BOTH HALVES ARE LOAD-BEARING. The outcome word alone was the defect: driven
+    against a ref that never moved, twelve `completed` cycles ran the whole
+    budget and exited 0 - a night that shipped nothing, observationally
+    identical to the all-`lane_held` night this counter exists to stop. The
+    row's own `ok` roll-up already knew better, because a cycle whose push
+    signal never moved is recorded `ci.verdict == no-push` and `ok: false`.
+
+    The other two causes of `ok: false` are unaffected, and deliberately so. A
+    red local suite and a red CI each HARD-STOP the night on the same cycle,
+    above this check and with their own words and numbers, so neither can reach
+    a counter. And a run with `ci_gate=False` sets no `ci` key at all, so its
+    verdict clause is vacuous and `ok` stays true - the gate being off must not
+    turn every cycle into a no-op. The behaviour change is therefore confined to
+    the no-push case.
+
+    Args:
+        record: One cycle row, as `run_loop` writes it.
+
+    Returns:
+        True only for a cycle that completed AND rolled up ok.
+    """
+    return record.get("outcome") in PRODUCTIVE_OUTCOMES and bool(record.get("ok"))
 
 
 # ---------------------------------------------------------------------------
@@ -1970,10 +2019,14 @@ def run_loop(  # noqa: PLR0913, PLR0912, PLR0915 - see THE SEAMS ARE THE POINT
         # asks the general question instead, against the PRODUCTIVE_OUTCOMES
         # allowlist, so a future outcome cannot reopen the hole by being
         # forgotten.
-        if record["outcome"] in PRODUCTIVE_OUTCOMES:
+        if _is_progress(record):
             # CONSECUTIVE, not cumulative. One bad cycle between good ones is a
             # transient the loop is supposed to survive; resetting here is what
             # keeps a flaky night from being scored as a broken one.
+            #
+            # `_is_progress`, not the outcome word: a `completed` cycle whose
+            # push signal never moved shipped nothing, and reading the weaker
+            # of the two fields let twelve of those run the whole budget.
             consecutive_unproductive = 0
         else:
             consecutive_unproductive += 1
@@ -2001,12 +2054,31 @@ def run_loop(  # noqa: PLR0913, PLR0912, PLR0915 - see THE SEAMS ARE THE POINT
             consecutive_errors = 0
             consecutive_launch_failures = 0
         if consecutive_unproductive >= unproductive_limit:
-            # REACHED ONLY BY A MIXED RUN - a pure one trips its own counter
-            # above and breaks there with the more specific word.
+            # REACHED BY A MIXED RUN, AND BY ANY PURE RUN WHOSE OWN LIMIT SITS
+            # ABOVE THIS ONE. The earlier claim here - "reached only by a mixed
+            # run" - is true only at the DEFAULTS, where all three limits are 3
+            # and the two specific counters are checked first, so a pure night
+            # trips its own word on the same cycle and breaks there.
+            #
+            # THE COUPLING IS REAL AND IS STATED RATHER THAN HIDDEN: raise
+            # `max_consecutive_launch_failures` or `max_consecutive_errors`
+            # above `max_consecutive_unproductive` and this backstop fires
+            # first, which makes EXIT_CONSECUTIVE_LAUNCH_FAILURES or
+            # EXIT_CONSECUTIVE_ERRORS unreachable for a pure night. No CLI flag
+            # threads those limits today, so it is latent rather than live; the
+            # caller that first threads one has to decide the ordering, and
+            # `tests/test_queue_loop.py` grades both halves of this paragraph.
             stopped_by = STOPPED_BY_NO_PROGRESS
             emit(
+                # WHAT THE DRIVER ACTUALLY KNOWS, and no more. The earlier
+                # wording said these cycles "completed nothing", which it
+                # cannot support: `timeout_killed` advances this counter, the
+                # CI gate only runs on a `completed` cycle, and so a killed
+                # worker may well have pushed before it was killed.
                 f"queue-loop stop: {consecutive_unproductive} consecutive cycles "
-                f"completed nothing - {record['outcome']} {record['detail']}".rstrip()
+                f"the driver could not grade as having shipped - a killed or "
+                f"ungraded worker may still have pushed - "
+                f"{record['outcome']} {record['detail']}".rstrip()
             )
             break
 
@@ -2036,6 +2108,26 @@ _STOP_EXIT = {
     STOPPED_BY_SUITE_RED: EXIT_SUITE_RED,
 }
 
+#: THE CLOSED SET OF WORDS PERMITTED TO EXIT 0 - and it is closed because the
+#: alternative was measured wrong. `_STOP_EXIT.get(stopped, EXIT_OK)` made the
+#: permitted set implicitly INFINITE: any word the table did not list meant
+#: success. That is not a hypothetical - `run_loop` already assigns a stop word
+#: that is not a `STOPPED_BY_*` constant (`stopped_by = OUTCOME_KILL_FAILED`),
+#: so a new hard stop copied from that same block - `stopped_by =
+#: OUTCOME_TIMEOUT`, say - would have exited 0 while a name sweep over
+#: `STOPPED_BY_*` stayed green. Widening the sweep does not close that; only
+#: inverting the default does.
+#:
+#: `max_cycles` is here rather than in `_STOP_EXIT` deliberately: it is the
+#: night ending the way it was asked to. The three sentinel NAMES are here for
+#: the MID-run case - a sentinel the worker wrote after doing real work. A
+#: sentinel that was already there is caught earlier, on `cycles_run == 0`, and
+#: keeps EXIT_STOP_SENTINEL.
+#:
+#: Membership here is permission to exit 0, NOT a guarantee of it: a run in this
+#: set whose records contain no shipping cycle still returns EXIT_NO_PROGRESS.
+_SUCCESS_STOPS = frozenset({STOPPED_BY_MAX_CYCLES, *STOP_NAMES})
+
 
 def main(argv=None, *, singleton=None) -> int:
     """CLI entry point for the detached launcher.
@@ -2043,9 +2135,20 @@ def main(argv=None, *, singleton=None) -> int:
     A drained queue IS a successful outcome - but it is not the same outcome as
     a night's work, and one number cannot mean both. The distinction is drawn on
     `cycles_run`, so a sentinel that appears MID-run (the worker's own
-    QUEUE_DRAINED, the normal end of a good drain) still exits 0, while a
+    QUEUE_DRAINED, the normal end of a good drain) is eligible for 0, while a
     sentinel that was ALREADY there when the driver started exits
-    EXIT_STOP_SENTINEL so no launcher can print a success banner over a no-op.
+    EXIT_STOP_SENTINEL.
+
+    ELIGIBLE, not entitled. `cycles_run > 0` was the whole of the old test and
+    it was too weak by exactly the amount that matters: a run of one held cycle
+    reported `cycles_run=1 stopped_by=max_cycles` and exited 0. EXIT_OK is now
+    returned only when the stop word is in `_SUCCESS_STOPS` AND at least one
+    record `_is_progress`. Everything else has a number: a listed hard stop
+    keeps its own, a word in neither table gets EXIT_UNKNOWN_STOP, and a
+    permitted stop that shipped nothing gets EXIT_NO_PROGRESS. That is the whole
+    of "no launcher can print a success banner over a no-op", and the residual
+    is named: the driver's push signal is `origin/main` moving, so work that was
+    committed but not pushed is invisible to it and reads as no progress.
 
     Args:
         argv: Command line, for testing.
@@ -2183,7 +2286,30 @@ def main(argv=None, *, singleton=None) -> int:
             "rather than stack more rows onto a broken tree. Read the last row "
             f"of {CYCLE_LOG.name} for the run id, fix the red, then fire again."
         )
-    return _STOP_EXIT.get(stopped, EXIT_OK)
+    numbered = _STOP_EXIT.get(stopped)
+    if numbered is not None:
+        # THE SPECIFIC WORDS WIN. A hard stop names its own cause, and that
+        # number is more useful than "nothing shipped" even when both are true.
+        return numbered
+    if stopped not in _SUCCESS_STOPS:
+        _emit(
+            f"queue-loop ALERT: stopped_by={stopped!r} carries no exit code and "
+            f"is not a permitted success word - refusing to report it as a good "
+            f"night. Add it to _STOP_EXIT or to _SUCCESS_STOPS."
+        )
+        return EXIT_UNKNOWN_STOP
+    if not any(_is_progress(record) for record in summary["records"]):
+        # THE INVARIANT, HELD WHERE A COUNTER CANNOT REACH. Every counter needs
+        # three consecutive cycles; `--once` grants one, and a held lane, a
+        # refused launch or a single no-push completion each exited 0 under a
+        # budget that small. The WORD stays whatever the loop chose - the night
+        # really did end that way - but the number says nothing was shipped.
+        _emit(
+            f"queue-loop: {summary['cycles_run']} cycle(s) ran and none of them "
+            f"shipped - reporting no progress rather than success."
+        )
+        return EXIT_NO_PROGRESS
+    return EXIT_OK
 
 
 if __name__ == "__main__":
