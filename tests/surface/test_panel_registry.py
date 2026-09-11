@@ -17,12 +17,12 @@ rather than a taste:
 
   1. A RATE IS RENDERED FROM THE PAIR THE WIRE CARRIES. ``duration`` and
      ``energy_value`` arrive as ``{"num": int, "den": int}``
-     (``clockspeed/surface/api/registry.py:177-203``). The pair is the truth and
+     (``clockspeed/surface/api/registry.py::_amount``). The pair is the truth and
      is shown as the pair; a decimal may sit beside it ONLY labelled as an
      approximation. Non-negotiable 6 does not stop at the browser.
   2. ABSENT IS NOT ZERO. ``energy_value`` and ``sink_points`` are both nullable
-     (``clockspeed/data/registry.py:453`` and
-     ``clockspeed/surface/api/registry.py:190-202``), and the data layer states
+     (``clockspeed/data/registry.py::Item`` and
+     ``clockspeed/surface/api/registry.py::_optional_amount``), and the data layer states
      that None and zero are different facts. A confident zero over an absent
      measurement is the one unacceptable rendering.
   3. A NULL PAYLOAD RENDERS WITHOUT THROWING AND WITHOUT INVENTING NUMBERS.
@@ -30,9 +30,10 @@ rather than a taste:
      throw would redden an arm this slice does not own.
 
 THE BASELINE PIN, AND WHY IT LIVES HERE.
-``tests/surface/test_panel_seam.py:518-528`` takes ``PANEL_MODULES[0]`` as the
-CLEAN BASELINE for the network detector that grades all four panels, and sorted,
-that is this slice's module. The ordering is alphabetical and no arm in that
+``tests/surface/test_panel_seam.py::test_the_network_detector_fires_on_every_primitive_it_claims``
+takes ``PANEL_MODULES[0]`` as the CLEAN BASELINE for the network detector that
+grades all four panels, and sorted, that is this slice's module. The ordering
+is alphabetical and no arm in that
 file declares it. If a module sorting before ``panel_registry.js`` is ever
 added, the baseline moves silently to a file nobody checked. Worse, the baseline
 is a CONCATENATION PREFIX: a sink in the baseline makes the fire-check compute
@@ -111,7 +112,7 @@ def _registry(**overrides: Any) -> dict[str, Any]:
     """A synthetic ``/api/registry`` body: 2 items, 1 recipe, 1 building, 1 warning.
 
     The shape is read off the endpoint's own builder
-    (``clockspeed/surface/api/registry.py:180-320``), not off prose. The first
+    (``clockspeed/surface/api/registry.py::_amount``), not off prose. The first
     item declares no energy value and the second declares no sink points, so one
     fixture carries both halves of the absent-is-not-zero rule.
     """
@@ -170,7 +171,7 @@ def _panel_text(report: Mapping[str, Any]) -> str:
     """Everything the panel put on screen, as one string.
 
     Row 0 of the dump is the panel's own section
-    (``tests/surface/panel_harness.py:567-604``), so its ``textContent`` is the
+    (``tests/surface/panel_harness.py::_HARNESS_SOURCE``), so its ``textContent`` is the
     whole rendered panel.
     """
     return str(report["nodes"][0]["text"])
@@ -400,7 +401,11 @@ def test_the_panel_states_that_a_decimal_is_for_display_only(tmp_path: Path) -> 
 
 
 def test_an_absent_energy_value_is_named_absent_and_not_zeroed(tmp_path: Path) -> None:
-    """None and ``Fraction(0)`` are different facts (registry.py:190-202)."""
+    """None and ``Fraction(0)`` are different facts.
+
+    Stated by
+    ``clockspeed/surface/api/registry.py::_optional_amount``.
+    """
     texts = _field_texts(_mount(tmp_path, _registry()), "item_energy")
     assert texts, "the items table rendered no energy value cell at all"
     absent = tuple(text for text in texts if ABSENT in text)
@@ -586,7 +591,7 @@ def test_every_scroller_the_panel_builds_declares_its_own_label(tmp_path: Path) 
 # showing a new field and no arm notices. Each assertion below is an equality.
 # ---------------------------------------------------------------------------
 
-#: Exactly the two keys ``clockspeed/surface/api/contract.py:836-851`` puts on
+#: Exactly the two keys ``clockspeed/surface/api/contract.py::rational`` puts on
 #: an exact ratio. Derived by CALLING the transcriber rather than by retyping
 #: its output, so a rename there reddens here rather than in a browser.
 RATIONAL_KEYS: Final = frozenset(contract.rational(Fraction(10, 3)))
