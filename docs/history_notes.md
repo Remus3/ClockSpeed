@@ -42,6 +42,55 @@ read as passes while the raw save was live in shipped frames. Filed in harness m
 
 ---
 
+## Session 78 - relocated from `WAKEUP_NOTES.md` 2026-09-11
+
+## Session 78 - 2026-09-09 - a premise this project had built on was refuted in its own tree, and the dashboard turned out to be a self-diagnostic
+
+- Shipped: nothing CLOSED as an ITEM. CS-962's slice S0 merged. CS-960, CS-961
+  and CS-962 FILED. Detail in `docs/LEDGER.md`.
+
+- In flight: nothing. Tree clean, no stash. Two adversary worktrees survive on
+  disk under `.claude/worktrees/`, both clean and detached.
+
+- THE SESSION WAS SENT AT THE DASHBOARD AND FOUND THE DASHBOARD WAS NOT THE
+  PROBLEM. Three parallel read-only surveys established that the page is a
+  SELF-DIAGNOSTIC: it renders its own health, its own route table, six world
+  scalars and five counts. `/api/registry` is fetched every refresh and only
+  its HTTP STATUS reaches the DOM. `/api/solve` and `/api/optimize` answer 200
+  against real data and the page never calls them. `advisor/`, `audit/` and
+  `progress/` contain NO executable code at all - four docstring-only files.
+
+- THE FINDING THAT MATTERS IS THAT A USMAP IS NOT NEEDED TO DECODE A SAVE, and
+  it was settled IN THIS TREE rather than read off a third party. All four uses
+  of the `property_map` parameter below `read_properties` are a membership test
+  on a class name the stream already carries, or the parameter being passed
+  through or deleted for privacy. A probe decoded one synthetic payload twice,
+  the second time with a map holding ZERO schemas, and got the same 17 values
+  with identical references and struct interiors.
+
+- THE RECORDED REASON WAS STALE AND PROVABLY SO. The docstring justifies the
+  mandatory map as a layering choice. `git log -S` finds exactly one commit
+  introducing that signature, and at that commit `read_properties` DECODED
+  NOTHING - the schema lookup was the whole function. Decoding came later and
+  the signature was never revisited. A PARAMETER'S NECESSITY IS A CLAIM ABOUT
+  THE FUNCTION AS IT IS NOW. The tree's own prose already said the mapping is
+  not an input to the decode; nobody had acted on it.
+
+- Decisions: no ADR. Four operator rulings on CS-962 and a licence gate over
+  five save-parser candidates, all recorded with their fences in
+  `docs/LEDGER.md` and `docs/item_notes/phase4-followups-900.md`.
+
+- Surprises: nothing contradicted `BOOTSTRAP.md`. The refuted premise lives in
+  a docstring and an item note, not in the specification.
+
+- Failed paths: none abandoned. One brief was WRONG and the builder said so
+  rather than building to it - the route-table defect was already half-guarded.
+
+- Next action: dispatch CS-960. It is the smallest item with the largest
+  consequence and it is sized for one row.
+
+---
+
 ## Session 76 - relocated from `WAKEUP_NOTES.md` 2026-09-10
 
 ## Session 76 - 2026-09-08 - the repaired sender was refuted on all four lenses, and the second cut's fault was the evidence rather than the code

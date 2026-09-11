@@ -1182,6 +1182,92 @@ rather than text, so an arm converted to the wide encoding must sweep with the
 STRUCTURAL oracle (`test_properties::_structural_holders`) or compare bytes - moving
 the marker constant alone would make it vacuous rather than wide.
 
+### THE SEAM IS BUILT - MEASURED 2026-09-11 (session 81), branch `cs964-seam`
+
+**THE ARMS COULD NOT BE CONVERTED UNTIL FIVE SHARED THINGS EXISTED, and only one
+did.** Converting arm by arm would have produced thirteen copies of a helper
+written thirteen ways, which is the fixture drift the fence above forbids.
+
+1. `test_properties::_reaches_the_needle` ran the bytes question and the str
+   question through ONE comparison. A bytes holder holds the WIRE spelling and
+   must match byte-exact; a str holder holds DECODED TEXT, where the needle's
+   wire encoding says nothing about what the holder contains. The old str branch
+   asked `needle.decode("utf-8") in value`, and a UTF-16-LE needle DECODES fine
+   there - every byte of wide ASCII is under 0x80 - into the letters each
+   followed by a null, which no decoded string contains. It returned EMPTY, and
+   empty is what every arm reads as a pass. `_needle_as_text` now asks which
+   spellings could have produced the text; the bytes branch is fenced to stay
+   exact, because a fix that matched liberally everywhere would be worse than
+   the defect.
+2. `_leaking_locals` and `test_header::_assert_free_of` asked for the ASCII
+   spelling only. `_rendered_spellings` takes the escaped spelling FROM `repr`
+   rather than interleaving a literal, since `repr` owns its own escaping.
+   Widened at `_assert_free_of`, the chokepoint ten header arms funnel through.
+3. `test_header::_markers_present_in` knew exactly one encoding AND asserted its
+   count, so a spliced fixture reddened it with `encodes 1 markers, expected 3`.
+   LOUD, NOT VACUOUS - the first survey called this vacuous and was wrong.
+   Presence is now asked per marker across both spellings, because
+   `_wide_marker_blob` is MIXED on purpose and one `encoding` parameter cannot
+   describe it. `_spelling_of` lets an arm take its needle FROM the fixture.
+4. `test_properties::_spliced_wide` publishes CS-963's splice out of
+   `test_header` so the body-side arms share it. It REFUSES when the narrow
+   field is not present exactly once.
+5. `test_properties::_assert_the_needle_is_observable` is the control the
+   acceptance clause names, in one line per arm. It refuses a (marker, needle)
+   pair that does not describe one value - the trap named above in capitals -
+   and its three checks are the three holder families this suite sweeps.
+
+**THE BODY SIDE HAD NO WIDE ENCODER AT ALL, which the first survey missed.**
+`test_properties::_fstring` hardcoded `text.encode("ascii")` with a positive
+count and is the encoder for `test_properties`, `test_container_elements`,
+`test_struct_interior`, `test_reference_resolution` and `test_world`'s planted
+payload. `wide` is keyword-only so all 56 positional call sites keep their
+meaning, and it REFUSES an empty wide string: `synthetic.fstring` returns the
+NARROW spelling silently for that case, and a silent narrow fallback hands an
+arm the exact encoding it was written to stop measuring. NO ARM MAY PLANT AN
+EMPTY NAME OR VALUE.
+
+**ONE ARM OF FIFTEEN IS CONVERTED.**
+`test_header::test_planted_markers_never_reach_any_surface` is parametrized over
+the spelling - 3 header versions x 2 encodings. EVERY DERIVED OFFSET IS
+RE-DERIVED PER SPELLING: the wide fields are longer (the header goes 148->203,
+176->231, 206->261 bytes), so the truncation loop takes its bound from the
+RESPELLED header. Bounded by the narrow length it would stop short of the wide
+string block and never enter the frames the arm is about - that is how this
+conversion would have been vacuous.
+
+**AND THE WIDE DRIVE ON THAT ARM IS NOT YET SHOWN LOAD-BEARING. Say so rather
+than rounding up.** The leak mutant - a truncation refusal quoting the 64 bytes
+it refused - is killed 6 of 6 with the mutation asserted to have landed and the
+pristine floor measured first. But holding that mutant AND reverting piece 2 to
+its ASCII-only question still kills the WIDE cases 3 of 3, because the mixed
+fixture leaves the save-name marker in ASCII and the leaked dump carries it
+whatever the other two fields are spelled. The asymmetry an adversary DID
+measure was `_value_surfaces` over a dataclass field carrying a wide slice, and
+the guard for that is piece 2's own arm,
+`test_the_surface_sweep_is_not_blind_to_a_wide_encoded_raw_slice`, which fails
+without piece 2. The experiment that would separate the two on the population
+arm is a field-specific mutant dumping only the session slice. NOT RUN.
+
+**THE SURVEY'S EXCUSING RULE WAS REFUTED, so do not rebuild the population from
+it.** The rule was "a decoded-str oracle sees ASCII at either encoding,
+therefore that arm is narrow-sufficient". `test_header::_value_surfaces` and
+`repr(error.args)` are TYPE-AGNOSTIC ASCII sweeps, and `repr(bytes)` is a str by
+type and raw bytes by content; `isascii()` does not rescue it, because the
+escapes are themselves ASCII. Its conclusions happen to hold at `de9cb6d` only
+because no bytes-typed field is currently reachable from those chains - a fact
+the survey never checked. Also from the refutation, and worth keeping: the
+`MAX_STRING_BYTES` cap is applied POST-MULTIPLY, so characters 8192..16383
+refuse wide and parse narrow. No arm plants in that window today.
+
+**STILL NOT DONE.** Twelve WIDE-REQUIRED arms - four in `test_header`, nine in
+`test_world`, minus the one converted - plus the two ON-WIRE arms the first
+survey never opened, `test_container_elements.py::test_no_repr_the_container_decode_adds_renders_an_element_s_bytes`
+and `test_struct_interior.py::test_no_repr_the_struct_decode_adds_renders_a_name_a_value_or_a_word`.
+The NARROW-SUFFICIENT arms still owe the sentence in their own text saying why
+one encoding is enough for the value they plant. Nothing in the seam is
+mutation-graded except the one arm above.
+
 ## CS-962
 
 ### SLICE S0 MERGED - the panel seam - MEASURED 2026-09-09 (session 78)
