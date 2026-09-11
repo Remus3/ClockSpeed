@@ -750,7 +750,7 @@ A CHAINED RAISE** - measured by walking each key's construction site and testing
 `ast.Raise.cause`: `clockspeed/save/usmap.py::UsmapError`, and
 `clockspeed/save/workdir.py`'s `SourceUnreadableError` and `WorkDirError` at four sites.
 The 11th, `clockspeed/save/header.py::HeaderReadError`, is `from None` at
-`clockspeed/save/header.py:927` and is the one site that closes the channel. The other
+`clockspeed/save/header.py::read_header` and is the one site that closes the channel. The other
 three that do not chain are the three `DestinationRefusedError` keys.
 
 **THE TWO FALSE EXEMPTION REASONS WERE CORRECTED IN SESSION 44**, re-verified in 45, and

@@ -661,44 +661,60 @@ def _read_size_pair(data: bytes, at: int) -> tuple[int, int]:
         ChunkFramingError: The copies disagree, or a size is structurally
             impossible.
     """
-    first_compressed, first_uncompressed, second_compressed, second_uncompressed = (
-        struct.unpack_from(_SIZE_BLOCK_FORMAT, data, at)
-    )
-
-    if first_compressed != second_compressed:
-        raise ChunkFramingError(
-            REASON_SIZE_PAIR_DISAGREES,
-            field="compressed_size",
-            offset=at,
-            expected=first_compressed,
-            actual=second_compressed,
-        )
-    if first_uncompressed != second_uncompressed:
-        raise ChunkFramingError(
-            REASON_SIZE_PAIR_DISAGREES,
-            field="uncompressed_size",
-            offset=at + _INT64_WIDTH,
-            expected=first_uncompressed,
-            actual=second_uncompressed,
+    # THE CS-963 SCRUB, THE SAME MECHANISM `world.py` USES AND FOR A STRONGER
+    # REASON. This frame binds the raw save, and `raise ... from exc` up in
+    # `world.load_world_from_bytes` puts THIS frame in the rendered traceback as
+    # the CAUSE - so `pytest --showlocals` and
+    # `TracebackException(capture_locals=True)` both print the file out of it. The
+    # header's options string carries the platform, the account id and the player
+    # display name in PLAINTEXT (non-negotiable 12, `BOOTSTRAP.md` section 2.2).
+    #
+    # THE GUARD IS BROAD AND UNCONDITIONAL, so there is nothing for it to swallow
+    # and no later-added exception type can slip out still carrying the buffer.
+    # tests/save/test_world.py::test_no_clockspeed_frame_holds_the_raw_save_on_any_
+    # refusal_path walks the CAUSE CHAIN and reddens if this scrub is removed.
+    try:
+        first_compressed, first_uncompressed, second_compressed, second_uncompressed = (
+            struct.unpack_from(_SIZE_BLOCK_FORMAT, data, at)
         )
 
-    if first_compressed < 0:
-        raise ChunkFramingError(
-            REASON_NEGATIVE_SIZE, field="compressed_size", offset=at, actual=first_compressed
-        )
-    if first_compressed == 0:
-        raise ChunkFramingError(
-            REASON_EMPTY_COMPRESSED, field="compressed_size", offset=at, actual=first_compressed
-        )
-    if first_uncompressed < 0:
-        raise ChunkFramingError(
-            REASON_NEGATIVE_SIZE,
-            field="uncompressed_size",
-            offset=at + _INT64_WIDTH,
-            actual=first_uncompressed,
-        )
+        if first_compressed != second_compressed:
+            raise ChunkFramingError(
+                REASON_SIZE_PAIR_DISAGREES,
+                field="compressed_size",
+                offset=at,
+                expected=first_compressed,
+                actual=second_compressed,
+            )
+        if first_uncompressed != second_uncompressed:
+            raise ChunkFramingError(
+                REASON_SIZE_PAIR_DISAGREES,
+                field="uncompressed_size",
+                offset=at + _INT64_WIDTH,
+                expected=first_uncompressed,
+                actual=second_uncompressed,
+            )
 
-    return first_compressed, first_uncompressed
+        if first_compressed < 0:
+            raise ChunkFramingError(
+                REASON_NEGATIVE_SIZE, field="compressed_size", offset=at, actual=first_compressed
+            )
+        if first_compressed == 0:
+            raise ChunkFramingError(
+                REASON_EMPTY_COMPRESSED, field="compressed_size", offset=at, actual=first_compressed
+            )
+        if first_uncompressed < 0:
+            raise ChunkFramingError(
+                REASON_NEGATIVE_SIZE,
+                field="uncompressed_size",
+                offset=at + _INT64_WIDTH,
+                actual=first_uncompressed,
+            )
+
+        return first_compressed, first_uncompressed
+    except BaseException:
+        del data
+        raise
 
 
 def read_frame(data: bytes, offset: int) -> ChunkFrame:
@@ -725,99 +741,115 @@ def read_frame(data: bytes, offset: int) -> ChunkFrame:
         ChunkFramingError: The magic, the marker or a size is malformed.
         ChunkBudgetExceededError: A declared size exceeds a stated ceiling.
     """
-    if offset < 0:
-        raise ValueError(f"offset must not be negative, got {offset}")
+    # THE CS-963 SCRUB, THE SAME MECHANISM `world.py` USES AND FOR A STRONGER
+    # REASON. This frame binds the raw save, and `raise ... from exc` up in
+    # `world.load_world_from_bytes` puts THIS frame in the rendered traceback as
+    # the CAUSE - so `pytest --showlocals` and
+    # `TracebackException(capture_locals=True)` both print the file out of it. The
+    # header's options string carries the platform, the account id and the player
+    # display name in PLAINTEXT (non-negotiable 12, `BOOTSTRAP.md` section 2.2).
+    #
+    # THE GUARD IS BROAD AND UNCONDITIONAL, so there is nothing for it to swallow
+    # and no later-added exception type can slip out still carrying the buffer.
+    # tests/save/test_world.py::test_no_clockspeed_frame_holds_the_raw_save_on_any_
+    # refusal_path walks the CAUSE CHAIN and reddens if this scrub is removed.
+    try:
+        if offset < 0:
+            raise ValueError(f"offset must not be negative, got {offset}")
 
-    available = max(len(data) - offset, 0)
-    if available < _INT32_WIDTH:
-        raise ChunkTruncatedError(
-            REASON_NO_CHUNK_AT_OFFSET,
-            field="magic",
-            offset=offset,
-            expected=_INT32_WIDTH,
-            actual=available,
+        available = max(len(data) - offset, 0)
+        if available < _INT32_WIDTH:
+            raise ChunkTruncatedError(
+                REASON_NO_CHUNK_AT_OFFSET,
+                field="magic",
+                offset=offset,
+                expected=_INT32_WIDTH,
+                actual=available,
+            )
+
+        (magic,) = struct.unpack_from("<I", data, offset)
+        if magic != CHUNK_MAGIC:
+            raise ChunkFramingError(REASON_BAD_MAGIC, field="magic", offset=offset)
+
+        if available < _MARKER_OFFSET + _INT32_WIDTH:
+            raise ChunkTruncatedError(
+                REASON_SHORT_BUFFER,
+                field="marker",
+                offset=offset + _MARKER_OFFSET,
+                expected=_MARKER_OFFSET + _INT32_WIDTH,
+                actual=available,
+            )
+        (marker,) = struct.unpack_from("<I", data, offset + _MARKER_OFFSET)
+        framing, header_size, sizes_offset = _select_variant(marker, offset)
+
+        if available < header_size:
+            raise ChunkTruncatedError(
+                REASON_SHORT_BUFFER,
+                field="frame",
+                offset=offset,
+                expected=header_size,
+                actual=available,
+            )
+
+        (max_chunk_size,) = struct.unpack_from("<q", data, offset + _MAX_CHUNK_SIZE_OFFSET)
+        if max_chunk_size <= 0:
+            raise ChunkFramingError(
+                REASON_NEGATIVE_SIZE,
+                field="max_chunk_size",
+                offset=offset + _MAX_CHUNK_SIZE_OFFSET,
+                actual=max_chunk_size,
+            )
+        if max_chunk_size > MAX_DECLARED_CHUNK_BYTES:
+            raise ChunkBudgetExceededError(
+                REASON_ABOVE_CEILING,
+                field="max_chunk_size",
+                offset=offset + _MAX_CHUNK_SIZE_OFFSET,
+                expected=MAX_DECLARED_CHUNK_BYTES,
+                actual=max_chunk_size,
+            )
+
+        algorithm = data[offset + ALGORITHM_OFFSET] if framing == FRAMING_WITH_ALGORITHM else None
+
+        compressed_size, uncompressed_size = _read_size_pair(data, offset + sizes_offset)
+
+        # THE BOUND, ON THE DECLARED VALUE, BEFORE ANY ALLOCATION. The frame states
+        # its own decompressed ceiling and every measured chunk honours it, so the
+        # tightest correct check is against that field - itself already bounded
+        # above, so a corrupt file cannot raise its own ceiling to escape.
+        if uncompressed_size > max_chunk_size:
+            raise ChunkBudgetExceededError(
+                REASON_ABOVE_DECLARED_MAXIMUM,
+                field="uncompressed_size",
+                offset=offset + sizes_offset + _INT64_WIDTH,
+                expected=max_chunk_size,
+                actual=uncompressed_size,
+            )
+
+        payload_offset = offset + header_size
+        remaining = max(len(data) - payload_offset, 0)
+        if compressed_size > remaining:
+            raise ChunkTruncatedError(
+                REASON_SHORT_BUFFER,
+                field="compressed_size",
+                offset=payload_offset,
+                expected=compressed_size,
+                actual=remaining,
+            )
+
+        return ChunkFrame(
+            magic=magic,
+            marker=marker,
+            max_chunk_size=max_chunk_size,
+            algorithm=algorithm,
+            compressed_size=compressed_size,
+            uncompressed_size=uncompressed_size,
+            header_size=header_size,
+            payload_offset=payload_offset,
+            framing=framing,
         )
-
-    (magic,) = struct.unpack_from("<I", data, offset)
-    if magic != CHUNK_MAGIC:
-        raise ChunkFramingError(REASON_BAD_MAGIC, field="magic", offset=offset)
-
-    if available < _MARKER_OFFSET + _INT32_WIDTH:
-        raise ChunkTruncatedError(
-            REASON_SHORT_BUFFER,
-            field="marker",
-            offset=offset + _MARKER_OFFSET,
-            expected=_MARKER_OFFSET + _INT32_WIDTH,
-            actual=available,
-        )
-    (marker,) = struct.unpack_from("<I", data, offset + _MARKER_OFFSET)
-    framing, header_size, sizes_offset = _select_variant(marker, offset)
-
-    if available < header_size:
-        raise ChunkTruncatedError(
-            REASON_SHORT_BUFFER,
-            field="frame",
-            offset=offset,
-            expected=header_size,
-            actual=available,
-        )
-
-    (max_chunk_size,) = struct.unpack_from("<q", data, offset + _MAX_CHUNK_SIZE_OFFSET)
-    if max_chunk_size <= 0:
-        raise ChunkFramingError(
-            REASON_NEGATIVE_SIZE,
-            field="max_chunk_size",
-            offset=offset + _MAX_CHUNK_SIZE_OFFSET,
-            actual=max_chunk_size,
-        )
-    if max_chunk_size > MAX_DECLARED_CHUNK_BYTES:
-        raise ChunkBudgetExceededError(
-            REASON_ABOVE_CEILING,
-            field="max_chunk_size",
-            offset=offset + _MAX_CHUNK_SIZE_OFFSET,
-            expected=MAX_DECLARED_CHUNK_BYTES,
-            actual=max_chunk_size,
-        )
-
-    algorithm = data[offset + ALGORITHM_OFFSET] if framing == FRAMING_WITH_ALGORITHM else None
-
-    compressed_size, uncompressed_size = _read_size_pair(data, offset + sizes_offset)
-
-    # THE BOUND, ON THE DECLARED VALUE, BEFORE ANY ALLOCATION. The frame states
-    # its own decompressed ceiling and every measured chunk honours it, so the
-    # tightest correct check is against that field - itself already bounded
-    # above, so a corrupt file cannot raise its own ceiling to escape.
-    if uncompressed_size > max_chunk_size:
-        raise ChunkBudgetExceededError(
-            REASON_ABOVE_DECLARED_MAXIMUM,
-            field="uncompressed_size",
-            offset=offset + sizes_offset + _INT64_WIDTH,
-            expected=max_chunk_size,
-            actual=uncompressed_size,
-        )
-
-    payload_offset = offset + header_size
-    remaining = max(len(data) - payload_offset, 0)
-    if compressed_size > remaining:
-        raise ChunkTruncatedError(
-            REASON_SHORT_BUFFER,
-            field="compressed_size",
-            offset=payload_offset,
-            expected=compressed_size,
-            actual=remaining,
-        )
-
-    return ChunkFrame(
-        magic=magic,
-        marker=marker,
-        max_chunk_size=max_chunk_size,
-        algorithm=algorithm,
-        compressed_size=compressed_size,
-        uncompressed_size=uncompressed_size,
-        header_size=header_size,
-        payload_offset=payload_offset,
-        framing=framing,
-    )
+    except BaseException:
+        del data
+        raise
 
 
 def iter_frames(data: bytes, offset: int) -> Iterator[ChunkFrame]:
@@ -844,32 +876,48 @@ def iter_frames(data: bytes, offset: int) -> Iterator[ChunkFrame]:
         ChunkTruncatedError: There is no frame at ``offset`` at all.
         ChunkBudgetExceededError: More than :data:`MAX_CHUNKS` frames.
     """
-    if offset < 0:
-        raise ValueError(f"offset must not be negative, got {offset}")
-    if offset >= len(data):
-        raise ChunkTruncatedError(
-            REASON_NO_CHUNK_AT_OFFSET,
-            field="magic",
-            offset=offset,
-            expected=_INT32_WIDTH,
-            actual=max(len(data) - offset, 0),
-        )
-
-    at = offset
-    seen = 0
-    while at < len(data):
-        frame = read_frame(data, at)
-        seen += 1
-        if seen > MAX_CHUNKS:
-            raise ChunkBudgetExceededError(
-                REASON_ABOVE_CEILING,
-                field="chunk_count",
-                offset=at,
-                expected=MAX_CHUNKS,
-                actual=seen,
+    # THE CS-963 SCRUB, THE SAME MECHANISM `world.py` USES AND FOR A STRONGER
+    # REASON. This frame binds the raw save, and `raise ... from exc` up in
+    # `world.load_world_from_bytes` puts THIS frame in the rendered traceback as
+    # the CAUSE - so `pytest --showlocals` and
+    # `TracebackException(capture_locals=True)` both print the file out of it. The
+    # header's options string carries the platform, the account id and the player
+    # display name in PLAINTEXT (non-negotiable 12, `BOOTSTRAP.md` section 2.2).
+    #
+    # THE GUARD IS BROAD AND UNCONDITIONAL, so there is nothing for it to swallow
+    # and no later-added exception type can slip out still carrying the buffer.
+    # tests/save/test_world.py::test_no_clockspeed_frame_holds_the_raw_save_on_any_
+    # refusal_path walks the CAUSE CHAIN and reddens if this scrub is removed.
+    try:
+        if offset < 0:
+            raise ValueError(f"offset must not be negative, got {offset}")
+        if offset >= len(data):
+            raise ChunkTruncatedError(
+                REASON_NO_CHUNK_AT_OFFSET,
+                field="magic",
+                offset=offset,
+                expected=_INT32_WIDTH,
+                actual=max(len(data) - offset, 0),
             )
-        yield frame
-        at = frame.next_offset
+
+        at = offset
+        seen = 0
+        while at < len(data):
+            frame = read_frame(data, at)
+            seen += 1
+            if seen > MAX_CHUNKS:
+                raise ChunkBudgetExceededError(
+                    REASON_ABOVE_CEILING,
+                    field="chunk_count",
+                    offset=at,
+                    expected=MAX_CHUNKS,
+                    actual=seen,
+                )
+            yield frame
+            at = frame.next_offset
+    except BaseException:
+        del data
+        raise
 
 
 def _inflate(stream: bytes, expected_size: int) -> bytes:
@@ -951,69 +999,84 @@ def decompress_body(
         ChunkBudgetExceededError: A declared size or the running total exceeds
             a stated ceiling.
     """
-    parts: list[bytes] = []
-    counts: dict[str, int] = {}
-    firsts: dict[str, int] = {}
-    chunk_count = 0
-    total = 0
+    # THE CS-963 SCRUB. As in the siblings above, and the decompressed BODY goes
+    # with the raw save: `parts` and `inflated` hold inflated world content, which
+    # is the second thing the acceptance names. `stream` is compressed and goes
+    # too, because what it compresses is not this function's business to judge.
+    try:
+        parts: list[bytes] = []
+        # `del` ON A NEVER-BOUND NAME RAISES AND WOULD MASK THE REAL REFUSAL.
+        # Both of these are bound inside the loop, and a refusal out of
+        # `iter_frames` arrives before the first iteration ever runs - so they are
+        # pre-bound here to make the scrub unconditional rather than conditional on
+        # how far the walk happened to get.
+        stream = b""
+        inflated = b""
+        counts: dict[str, int] = {}
+        firsts: dict[str, int] = {}
+        chunk_count = 0
+        total = 0
 
-    for frame in iter_frames(data, offset):
-        chunk_count += 1
+        for frame in iter_frames(data, offset):
+            chunk_count += 1
 
-        code = _cross_check(frame, header_version)
-        if code is not None:
-            counts[code] = counts.get(code, 0) + 1
-            firsts.setdefault(code, frame.frame_offset)
+            code = _cross_check(frame, header_version)
+            if code is not None:
+                counts[code] = counts.get(code, 0) + 1
+                firsts.setdefault(code, frame.frame_offset)
 
-        if frame.algorithm is not None and frame.algorithm != ALGORITHM_ZLIB:
-            raise ChunkDecompressError(
-                REASON_UNKNOWN_ALGORITHM,
-                field="algorithm",
-                offset=frame.frame_offset + ALGORITHM_OFFSET,
-                expected=ALGORITHM_ZLIB,
-                actual=frame.algorithm,
+            if frame.algorithm is not None and frame.algorithm != ALGORITHM_ZLIB:
+                raise ChunkDecompressError(
+                    REASON_UNKNOWN_ALGORITHM,
+                    field="algorithm",
+                    offset=frame.frame_offset + ALGORITHM_OFFSET,
+                    expected=ALGORITHM_ZLIB,
+                    actual=frame.algorithm,
+                    version=header_version,
+                )
+
+            total += frame.uncompressed_size
+            if total > MAX_TOTAL_BODY_BYTES:
+                raise ChunkBudgetExceededError(
+                    REASON_ABOVE_CEILING,
+                    field="body_size",
+                    offset=frame.frame_offset,
+                    expected=MAX_TOTAL_BODY_BYTES,
+                    actual=total,
+                )
+
+            stream = data[frame.payload_offset : frame.next_offset]
+            try:
+                inflated = _inflate(stream, frame.uncompressed_size)
+            except zlib.error:
+                # The library's own message is not one of this module's fixed
+                # reasons and could quote stream bytes, so the cause is dropped
+                # rather than chained.
+                raise ChunkDecompressError(
+                    REASON_INFLATE_FAILED, field="payload", offset=frame.payload_offset
+                ) from None
+
+            if len(inflated) != frame.uncompressed_size:
+                raise ChunkDecompressError(
+                    REASON_INFLATE_SHORT,
+                    field="uncompressed_size",
+                    offset=frame.payload_offset,
+                    expected=frame.uncompressed_size,
+                    actual=len(inflated),
+                )
+            parts.append(inflated)
+
+        warnings = tuple(
+            ChunkWarning(
+                code=code,
+                detail=_WARNING_DETAIL[code],
+                offset=firsts[code],
                 version=header_version,
+                count=count,
             )
-
-        total += frame.uncompressed_size
-        if total > MAX_TOTAL_BODY_BYTES:
-            raise ChunkBudgetExceededError(
-                REASON_ABOVE_CEILING,
-                field="body_size",
-                offset=frame.frame_offset,
-                expected=MAX_TOTAL_BODY_BYTES,
-                actual=total,
-            )
-
-        stream = data[frame.payload_offset : frame.next_offset]
-        try:
-            inflated = _inflate(stream, frame.uncompressed_size)
-        except zlib.error:
-            # The library's own message is not one of this module's fixed
-            # reasons and could quote stream bytes, so the cause is dropped
-            # rather than chained.
-            raise ChunkDecompressError(
-                REASON_INFLATE_FAILED, field="payload", offset=frame.payload_offset
-            ) from None
-
-        if len(inflated) != frame.uncompressed_size:
-            raise ChunkDecompressError(
-                REASON_INFLATE_SHORT,
-                field="uncompressed_size",
-                offset=frame.payload_offset,
-                expected=frame.uncompressed_size,
-                actual=len(inflated),
-            )
-        parts.append(inflated)
-
-    warnings = tuple(
-        ChunkWarning(
-            code=code,
-            detail=_WARNING_DETAIL[code],
-            offset=firsts[code],
-            version=header_version,
-            count=count,
+            for code, count in counts.items()
         )
-        for code, count in counts.items()
-    )
-    return DecompressedBody(payload=b"".join(parts), chunk_count=chunk_count, warnings=warnings)
+        return DecompressedBody(payload=b"".join(parts), chunk_count=chunk_count, warnings=warnings)
+    except BaseException:
+        del data, parts, inflated, stream
+        raise

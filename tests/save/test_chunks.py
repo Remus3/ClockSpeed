@@ -59,7 +59,7 @@ from typing import Final
 import pytest
 
 from clockspeed.save import chunks
-from tests.save import synthetic
+from tests.save import synthetic, test_properties
 
 # ---------------------------------------------------------------------------
 # Local constants, so no assertion compares against a bare literal
@@ -1099,3 +1099,59 @@ def test_a_legitimate_field_name_still_constructs() -> None:
     for name in sorted(chunks.FIELD_NAMES):
         error = chunks.ChunkError(chunks.REASON_BAD_MAGIC, field=name, offset=0)
         assert error.field == name
+
+
+# ---------------------------------------------------------------------------
+# CS-963 - the size-block reader holds the whole buffer too
+# ---------------------------------------------------------------------------
+
+#: Appended past the last frame, so the buffer `_read_size_pair` binds renders
+#: it while the framing the arm corrupts is untouched.
+_CS963_MARKER: Final = "PlantedRawSaveMarkerZulu"
+
+
+def test_the_size_pair_reader_leaves_no_frame_holding_the_buffer() -> None:
+    """CS-963's third site, found by grepping the MECHANISM not the symptom.
+
+    ``_read_size_pair`` is a private helper and was outside the item's filed
+    measurement, which named ``decompress_body``, ``iter_frames`` and
+    ``read_frame``. It binds the same whole buffer and raises out of it on a
+    size-block disagreement, so it leaks on exactly the same terms - and on a
+    real save that buffer's header carries the platform, the account id and the
+    player display name in plaintext (non-negotiable 12).
+
+    MEASURED BY MUTATION: before this arm existed, removing that scrub left the
+    whole save-layer suite green. A fix with no arm is a fix with no guard.
+
+    THE SWEEP FOLLOWS THE CAUSE CHAIN, because ``world.py`` chains this layer's
+    refusals and a walker following ``__traceback__`` alone is blind to a frame
+    that arrives as the cause - the defect that hid all of CS-963.
+    """
+    save = synthetic.SAVE_V36
+    blob = synthetic.corrupt_size_disagreement(save) + _CS963_MARKER.encode("ascii")
+
+    # CONTROL ONE: the marker is genuinely in the bytes handed over, so an empty
+    # verdict below is about the frames and not about the fixture.
+    assert _CS963_MARKER.encode("ascii") in blob
+    # CONTROL TWO: the oracle can see it in a value that holds it.
+    assert _CS963_MARKER in test_properties._safe_repr(blob)  # noqa: SLF001
+
+    with pytest.raises(chunks.ChunkFramingError) as caught:
+        chunks.read_frame(blob, save.chunk_offset)
+    raised = caught.value
+    assert raised.field == "compressed_size", (
+        "the corruption no longer raises out of the size-block reader, so this arm is "
+        f"sweeping some other refusal. Field: {raised.field}"
+    )
+
+    entered = test_properties._shipped_frame_names(raised)  # noqa: SLF001
+    assert "_read_size_pair" in entered, (
+        f"the refusal never entered _read_size_pair, so nothing was swept. Reached: {entered}"
+    )
+
+    leaks = test_properties._shipped_frames(raised, _CS963_MARKER)  # noqa: SLF001
+    assert not leaks, (
+        "a chunks frame still holds the whole buffer across the size-block refusal. A "
+        "renderer showing locals prints it verbatim, header and all (non-negotiable 12). "
+        f"Offending frame(s) and local name(s): {leaks}"
+    )

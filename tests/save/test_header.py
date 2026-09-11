@@ -91,7 +91,7 @@ from clockspeed.save.header import (
     read_header,
     reveal_strings,
 )
-from tests.save import synthetic
+from tests.save import synthetic, test_properties
 
 # ---------------------------------------------------------------------------
 # Planted markers
@@ -1100,3 +1100,95 @@ def test_the_parser_does_not_import_the_fixture_builder() -> None:
     assert "from tests" not in source
     assert "tests.save" not in source
     assert "import tests" not in source
+
+
+# ---------------------------------------------------------------------------
+# CS-963 - the frames that hold the raw save across a refusal
+# ---------------------------------------------------------------------------
+
+
+def _cut_inside_the_session_name(header_version: int) -> bytes:
+    """A marker blob cut mid-way through its LAST header string.
+
+    Cutting there is what keeps the arms below non-vacuous: the options marker
+    is fully encoded before the cut, so the bytes handed to the parser really do
+    carry the plaintext string whose absence from every frame is the claim.
+
+    Args:
+        header_version: 10, 13 or 14.
+
+    Returns:
+        The truncated blob.
+    """
+    blob = _marker_blob(header_version)
+    at = blob.index(MARKER_SESSION.encode("utf-8"))
+    cut = blob[: at + 2]
+    assert MARKER_OPTIONS.encode("utf-8") in cut, (
+        "the cut removed the options marker, so any sweep over it would be vacuous"
+    )
+    return cut
+
+
+def test_reveal_strings_leaves_no_frame_holding_the_raw_save_when_it_refuses() -> None:
+    """CS-963 at the OPT-IN path, which the first repair left unguarded.
+
+    ``reveal_strings`` is the one function in this module that returns the
+    personal-data strings on purpose, and that makes it the easiest place to
+    assume the question has already been answered. It has not been: its ``data``
+    parameter is the whole save, and a refusal mid-string block unwinds through
+    its frame with the options string still bound (non-negotiable 12).
+
+    MEASURED BY MUTATION rather than asserted: with this arm absent, removing
+    the scrub from ``reveal_strings`` left the whole save-layer suite green.
+    """
+    cut = _cut_inside_the_session_name(VERSION_WITH_SAVE_NAME)
+
+    # CONTROL: the oracle can see the marker in the bytes that hold it, so an
+    # empty verdict below is a measurement and not the oracle's own blindness.
+    assert MARKER_OPTIONS in test_properties._safe_repr(cut)  # noqa: SLF001
+
+    with pytest.raises(HeaderError) as caught:
+        header_module.reveal_strings(cut, reveal_personal_data=True)
+    raised = caught.value
+
+    entered = test_properties._shipped_frame_names(raised)  # noqa: SLF001
+    assert "reveal_strings" in entered, (
+        f"the refusal never entered reveal_strings, so nothing was swept. Reached: {entered}"
+    )
+
+    leaks = test_properties._shipped_frames(raised, MARKER_OPTIONS)  # noqa: SLF001
+    assert not leaks, (
+        "reveal_strings leaves the raw save in a frame a locals-showing renderer prints, "
+        f"options string and all (non-negotiable 12). Offending: {leaks}"
+    )
+
+
+def test_read_header_leaves_no_frame_holding_the_prefix_when_it_refuses(tmp_path: Path) -> None:
+    """CS-963 at the PATH entry point, and its bound prefix is the worst case.
+
+    ``read_header`` reads only ``MAX_HEADER_BYTES`` - which is not a mitigation
+    here but the opposite. The bounded prefix is PRECISELY the plaintext string
+    region; nothing else is in it. A refusal out of ``parse_header`` unwinds
+    through this frame, so scrubbing the callee alone repaired one of two.
+
+    Driven through a real file on disk rather than by calling ``parse_header``,
+    because the frame under test only exists on the path entry.
+    """
+    cut = _cut_inside_the_session_name(VERSION_WITH_SAVE_NAME)
+    source = tmp_path / "cs963-read-header.sav"
+    source.write_bytes(cut)
+
+    with pytest.raises(HeaderError) as caught:
+        header_module.read_header(source)
+    raised = caught.value
+
+    entered = test_properties._shipped_frame_names(raised)  # noqa: SLF001
+    assert "read_header" in entered, (
+        f"the refusal never entered read_header, so nothing was swept. Reached: {entered}"
+    )
+
+    leaks = test_properties._shipped_frames(raised, MARKER_OPTIONS)  # noqa: SLF001
+    assert not leaks, (
+        "read_header leaves its bounded prefix - the plaintext string region itself - in "
+        f"a frame a renderer prints (non-negotiable 12). Offending: {leaks}"
+    )

@@ -199,6 +199,20 @@ GUARDED_SUFFIX = " (opt-in guarded)"
 # and fails the test - this is a record of known residuals, not an allowlist
 # that quietly absorbs the next one.
 UNGUARDED_TRACEBACK_RESIDUALS = {
+    "tests/save/test_properties.py": (
+        "CS-963, and the one entry here whose rendered exception carries nothing "
+        "from a save at all. The cause-chain frame walker skips a context that "
+        "`raise ... from None` suppressed, and that skip is a claim ABOUT THE "
+        "RENDERER - traceback prints neither the suppressed exception nor its "
+        "frames - rather than a preference of this module's. So the renderer is "
+        "run and its output asserted to omit the suppressed frame; if CPython ever "
+        "began showing one, the walker would be wrong rather than merely different "
+        "and the arm reddens. The exception it formats is built in this module by "
+        "two helpers that raise a ValueError and a RuntimeError with literal "
+        "messages, over a literal marker constant - no save, no path, no library "
+        "call anywhere in its chain. Suppressing the rendering would delete the "
+        "only half of that arm that makes it a measurement."
+    ),
     "tests/save/test_header.py": (
         "A redaction-ASSERTION helper: _exception_surfaces() collects str, repr, "
         "args, notes and the formatted traceback precisely so the test can assert "

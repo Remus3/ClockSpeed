@@ -596,6 +596,23 @@ class _Cursor:
         self._data = data
         self.offset = 0
 
+    def __repr__(self) -> str:
+        """Withhold the buffer, deliberately and structurally.
+
+        THIS IS THE LAST THING BETWEEN THE SAVE AND A TRACEBACK RENDERER.
+        :func:`parse_header` unbinds its `data` parameter as soon as this object
+        exists, so the bytes survive only in `self._data` - and every `_Cursor`
+        method that raises leaves `self` in a frame the renderer will print.
+        The default `object.__repr__` already withholds it; this states the
+        requirement rather than inheriting it by luck, so that making this class
+        a dataclass later - whose generated repr would dump the whole file - is
+        a deliberate act and not a one-line accident.
+
+        Returns:
+            The class name and how far the cursor has read. No bytes.
+        """
+        return f"<_Cursor at offset {self.offset} of {len(self._data)} bytes>"
+
     @property
     def remaining(self) -> int:
         """How many bytes are left.
@@ -807,6 +824,20 @@ def parse_header(data: bytes) -> SaveHeader:
             bytes do not decode.
     """
     cursor = _Cursor(data)
+    # THE CS-963 SCRUB, AND IT IS AN EARLY UNBIND RATHER THAN AN UNWIND GUARD.
+    # This frame binds the WHOLE SAVE, and `raise ... from exc` up in
+    # `world.load_world_from_bytes` puts this frame in the rendered traceback as
+    # the CAUSE - so `pytest --showlocals` prints the header's options string,
+    # which carries the platform, the account id and the player display name in
+    # PLAINTEXT (non-negotiable 12, `BOOTSTRAP.md` section 2.2).
+    #
+    # UNBINDING HERE IS STRICTLY STRONGER THAN A GUARD ON THE WAY OUT, because
+    # the name is gone for the function's whole lifetime rather than only while
+    # unwinding - there is no window, and no later-added `return` path that
+    # forgets to pass through a handler. The buffer itself lives on inside the
+    # cursor, which is why `_Cursor` withholds it from `__repr__`: that is what a
+    # renderer reads, and it is the only thing left between the two.
+    del data
     header_version, save_version, build_changelist = _version_prologue(cursor)
 
     # The string block, dispatched on the HEADER version alone. Header 14 adds
@@ -929,7 +960,17 @@ def read_header(path: Path | str) -> SaveHeader:
             redacted_path=redact(target),
             errno=error.errno,
         ) from None
-    return parse_header(data)
+    # THE CS-963 SCRUB. This frame holds a bounded PREFIX of the file, which is
+    # precisely the personal-data-bearing region - the header strings are at the
+    # front. A refusal out of `parse_header` unwinds through here, and
+    # `world.load_world` chains it, so a locals-showing renderer prints the
+    # options string out of THIS frame even once the callee's own is clean.
+    # Scrubbing only the callee would have repaired one of two (non-negotiable 12).
+    try:
+        return parse_header(data)
+    except BaseException:
+        del data
+        raise
 
 
 def reveal_strings(data: bytes, *, reveal_personal_data: bool = False) -> HeaderStrings:
@@ -965,22 +1006,59 @@ def reveal_strings(data: bytes, *, reveal_personal_data: bool = False) -> Header
     if not reveal_personal_data:
         raise PersonalDataOptInRequiredError
     cursor = _Cursor(data)
+    # THE CS-963 SCRUB, AND IT IS AN EARLY UNBIND RATHER THAN AN UNWIND GUARD.
+    # This frame binds the WHOLE SAVE, and `raise ... from exc` up in
+    # `world.load_world_from_bytes` puts this frame in the rendered traceback as
+    # the CAUSE - so `pytest --showlocals` prints the header's options string,
+    # which carries the platform, the account id and the player display name in
+    # PLAINTEXT (non-negotiable 12, `BOOTSTRAP.md` section 2.2).
+    #
+    # UNBINDING HERE IS STRICTLY STRONGER THAN A GUARD ON THE WAY OUT, because
+    # the name is gone for the function's whole lifetime rather than only while
+    # unwinding - there is no window, and no later-added `return` path that
+    # forgets to pass through a handler. The buffer itself lives on inside the
+    # cursor, which is why `_Cursor` withholds it from `__repr__`: that is what a
+    # renderer reads, and it is the only thing left between the two.
+    del data
     header_version, _save_version, _build_changelist = _version_prologue(cursor)
 
-    slot = 0
+    # THE DECODED STRINGS NEED THEIR OWN SCRUB, AND THIS ONE IS WORSE THAN THE
+    # BUFFER. Unbinding `data` above puts the raw bytes out of a renderer's reach,
+    # but this function goes on to decode the options string into a local of its
+    # own - and the strings are read one after another, so a refusal on the LAST
+    # one unwinds with the earlier ones already bound and fully decoded. What a
+    # locals-showing renderer then prints is not bytes a reader has to interpret,
+    # it is the platform, the account id and the player display name as text
+    # (non-negotiable 12, `BOOTSTRAP.md` section 2.2).
+    #
+    # THE OPT-IN IS NOT A DEFENCE HERE. It says the CALLER is a render site; it
+    # says nothing about where a traceback out of this frame ends up, and ADR 0007
+    # decision item 4 forbids putting these values in exception context at all.
+    #
+    # ALL FOUR ARE PRE-BOUND so the scrub is unconditional: `del` on a name that
+    # was never bound raises, and that would MASK the real refusal with a
+    # `NameError` from the handler.
     save_name: str | None = None
-    if header_version >= HEADER_VERSION_WITH_SAVE_NAME:
-        save_name = cursor.string(_string_field(slot))
+    map_name = ""
+    map_options = ""
+    session_name = ""
+    try:
+        slot = 0
+        if header_version >= HEADER_VERSION_WITH_SAVE_NAME:
+            save_name = cursor.string(_string_field(slot))
+            slot += 1
+        map_name = cursor.string(_string_field(slot))
         slot += 1
-    map_name = cursor.string(_string_field(slot))
-    slot += 1
-    map_options = cursor.string(_string_field(slot))
-    slot += 1
-    session_name = cursor.string(_string_field(slot))
+        map_options = cursor.string(_string_field(slot))
+        slot += 1
+        session_name = cursor.string(_string_field(slot))
 
-    return HeaderStrings(
-        save_name=save_name,
-        map_name=map_name,
-        map_options=map_options,
-        session_name=session_name,
-    )
+        return HeaderStrings(
+            save_name=save_name,
+            map_name=map_name,
+            map_options=map_options,
+            session_name=session_name,
+        )
+    except BaseException:
+        del save_name, map_name, map_options, session_name
+        raise

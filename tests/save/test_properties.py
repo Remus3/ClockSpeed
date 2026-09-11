@@ -117,8 +117,10 @@ which every implementation satisfies. The map never leaves the judging frame.
 
 from __future__ import annotations
 
+import os
 import re
 import struct
+import traceback
 from collections import Counter
 from collections.abc import Callable, Iterator, Mapping
 from contextlib import contextmanager
@@ -132,6 +134,7 @@ import pytest
 
 from clockspeed.data import locate
 from clockspeed.save import chunks, header, objects, usmap
+from tests.save import reach_guard
 from tests.save.reach_guard import (
     _assert_library_reach_is_declared,
     _assert_no_test_is_gutted,
@@ -3332,6 +3335,246 @@ def _safe_repr(value: object) -> str:
         return ""
 
 
+def _chained_exceptions(exc: BaseException) -> tuple[BaseException, ...]:
+    """``exc`` plus every exception reachable from it through the cause chain.
+
+    THE CHAIN IS THE POINT, AND IT IS WHY CS-963 WENT UNSEEN FOR AN ITEM AND A
+    HALF. :func:`_frames_beneath_the_caller` follows ``__traceback__`` alone, so
+    a frame belonging to a CAUSE was outside every privacy sweep in this layer
+    by construction - not missed, unreachable. ``raise ... from exc`` puts those
+    frames in the rendered traceback all the same, and both ``pytest
+    --showlocals`` and ``TracebackException(capture_locals=True)`` print their
+    locals verbatim.
+
+    BOTH LINKS ARE FOLLOWED. ``__cause__`` is the explicit ``from exc`` and
+    ``__context__`` is the implicit one a raise inside an ``except`` block sets
+    even when the author wrote no ``from``; a renderer shows either, so a walker
+    that followed only the explicit link would be blind to exactly the raise
+    shape an author did not think about.
+
+    ``__suppress_context__`` IS HONOURED, AND THAT IS A MEASUREMENT RATHER THAN
+    A PREFERENCE. ``raise ... from None`` sets it, and ``traceback`` - which is
+    what ``pytest`` and ``TracebackException`` both render through - then prints
+    neither the suppressed exception nor its frames. Sweeping them anyway would
+    report a leak through a channel no renderer has, and this layer uses
+    ``from None`` deliberately where a library message could quote bytes. The
+    agreement between this rule and the renderer is pinned by
+    :func:`test_the_walker_honours_suppression_exactly_as_the_renderer_does`.
+
+    Cycles are possible - ``__context__`` can point back into a chain already
+    walked - so identity is tracked rather than assuming a finite line.
+
+    Args:
+        exc: The raised exception, taken as a PARAMETER rather than rendered.
+
+    Returns:
+        Every exception in the chain, the head first.
+    """
+    reached: list[BaseException] = []
+    seen: set[int] = set()
+    queue: list[BaseException] = [exc]
+    while queue:
+        node = queue.pop(0)
+        if id(node) in seen:
+            continue
+        seen.add(id(node))
+        reached.append(node)
+        links = [node.__cause__]
+        if not node.__suppress_context__:
+            links.append(node.__context__)
+        queue.extend(link for link in links if link is not None)
+    return tuple(reached)
+
+
+def _frames_in_the_cause_chain(exc: BaseException) -> tuple[FrameType, ...]:
+    """Every frame a renderer would show for ``exc``, cause chain included.
+
+    The head exception's entry frame is dropped for the reason
+    :func:`_frames_beneath_the_caller` gives: it is the caller, and in these
+    modules the caller is the test, which holds the fixture on purpose. A
+    CHAINED exception's frames are ALL kept - its outermost frame is the shipped
+    frame containing the ``try``, which is a frame under test rather than the
+    caller, and dropping it would re-open a hole one level down.
+
+    A frame can appear in more than one traceback in the chain, so identity is
+    tracked and each is reported once.
+
+    Args:
+        exc: The raised exception.
+
+    Returns:
+        The frames, outermost first, head traceback first.
+    """
+    frames: list[FrameType] = []
+    seen: set[int] = set()
+    for index, node in enumerate(_chained_exceptions(exc)):
+        entry = node.__traceback__
+        walk = entry.tb_next if (index == 0 and entry is not None) else entry
+        while walk is not None:
+            if id(walk.tb_frame) not in seen:
+                seen.add(id(walk.tb_frame))
+                frames.append(walk.tb_frame)
+            walk = walk.tb_next
+    return tuple(frames)
+
+
+#: A marker bound in the CAUSE's frame and nowhere else, for the control below.
+_CAUSE_CHAIN_MARKER: Final = "PlantedCauseChainMarker"
+
+
+def _raise_holding_the_marker() -> None:
+    """Bind the marker as a frame local and raise out of that frame.
+
+    Raises:
+        ValueError: Always. The message does NOT carry the marker, so the only
+            channel by which it can be found is the frame local.
+    """
+    held = _CAUSE_CHAIN_MARKER
+    assert held  # the local must be live at the raise, not optimised away
+    raise ValueError("a refusal whose message says nothing")
+
+
+def _raise_chaining_over_the_marker() -> None:
+    """Re-raise a second exception FROM the first, as the save layer does.
+
+    Raises:
+        RuntimeError: Always, chained from the ValueError above.
+    """
+    try:
+        _raise_holding_the_marker()
+    except ValueError as exc:
+        raise RuntimeError("the outer refusal") from exc
+
+
+def test_the_direct_walker_cannot_see_a_local_held_in_a_cause_frame() -> None:
+    """THE BLINDNESS, PINNED AS A PROPERTY OF THE OLD WALKER.
+
+    This is half of CS-963's known-good control and it is stated as a POSITIVE
+    fact about ``_frames_beneath_the_caller`` rather than as an absence: the
+    marker IS visible to the oracle in the value that holds it, the cause frame
+    IS in the chain, and the direct walker still returns no frame holding it.
+
+    Without this arm the widened walker below could be quietly reverted to the
+    direct one and every cause-chain assertion in this layer would go green
+    again while measuring nothing - which is precisely the failure CS-963 was
+    filed for. An oracle that cannot observe the value it is asked about passes
+    for that reason alone.
+    """
+    with pytest.raises(RuntimeError) as caught:
+        _raise_chaining_over_the_marker()
+    raised = caught.value
+
+    # CONTROL: the oracle can see the marker in a value that holds it, so an
+    # empty verdict below is about the WALKER and not about the oracle.
+    assert _CAUSE_CHAIN_MARKER in _safe_repr(_CAUSE_CHAIN_MARKER)
+
+    direct = tuple(
+        frame.f_code.co_name
+        for frame in _frames_beneath_the_caller(raised)
+        if _leaking_locals(frame, _CAUSE_CHAIN_MARKER)
+    )
+    assert direct == (), (
+        "the direct walker now reaches a cause frame, so this arm no longer pins the "
+        f"blindness it exists to pin. Frames it found: {direct}"
+    )
+
+
+def test_the_cause_chain_walker_sees_a_local_held_in_a_cause_frame() -> None:
+    """THE KNOWN-GOOD CONTROL CS-963's acceptance requires, standing alone.
+
+    Every cause-chain privacy assertion in this layer is an assertion that a
+    sweep found NOTHING. That verdict is worth exactly as much as the proof
+    that the same sweep finds something when something IS there, and that proof
+    must not depend on the production code under test - otherwise a scrub
+    landing in ``header.py`` would silently disarm the control along with the
+    leak.
+
+    So the leaking frame here is synthetic, local to this module, and holds the
+    marker in a frame the walker must reach only by following ``__cause__``.
+    """
+    with pytest.raises(RuntimeError) as caught:
+        _raise_chaining_over_the_marker()
+    raised = caught.value
+
+    found = tuple(
+        frame.f_code.co_name
+        for frame in _frames_in_the_cause_chain(raised)
+        if _leaking_locals(frame, _CAUSE_CHAIN_MARKER)
+    )
+    assert found == ("_raise_holding_the_marker",), (
+        "the cause-chain walker did not find the planted local in the cause's own frame, "
+        f"so every empty verdict it returns elsewhere is vacuous. Frames it found: {found}"
+    )
+
+
+def test_the_cause_chain_walker_terminates_on_a_self_referential_chain() -> None:
+    """A CYCLE MUST NOT HANG THE SWEEP.
+
+    ``__context__`` is set implicitly and can be made to point back into a chain
+    already walked. A walker that assumed a finite line would spin here, and a
+    privacy sweep that hangs is a privacy sweep that gets deleted.
+    """
+    first = ValueError("first")
+    second = RuntimeError("second")
+    second.__cause__ = first
+    first.__context__ = second
+
+    # Named rather than inline: the pair IS the fixture, so the expectation is
+    # derived from it and cannot drift away from what the arm actually builds.
+    both = (second, first)
+    assert _chained_exceptions(second) == both, (
+        "the walker did not return exactly the two exceptions in the cycle, so it either "
+        "spun, stopped early, or reported a frame twice"
+    )
+
+
+def _raise_suppressing_the_marker() -> None:
+    """Re-raise with ``from None``, the shape this layer uses deliberately.
+
+    Raises:
+        RuntimeError: Always, with the ValueError's context SUPPRESSED.
+    """
+    try:
+        _raise_holding_the_marker()
+    except ValueError:
+        raise RuntimeError("the outer refusal, context suppressed") from None
+
+
+def test_the_walker_honours_suppression_exactly_as_the_renderer_does() -> None:
+    """THE WALKER'S ONE DELIBERATE BLIND SPOT, MEASURED AGAINST THE RENDERER.
+
+    ``raise ... from None`` is used in ``header.py`` and ``chunks.py`` where a
+    library's own message could quote bytes. ``traceback`` prints neither the
+    suppressed exception nor its frames, so a sweep that reached them would
+    report a leak through a channel that does not exist.
+
+    THIS IS ASSERTED AS AGREEMENT, NOT AS A CHOICE. The renderer is run and its
+    output checked, so if CPython ever began showing suppressed contexts this
+    arm reddens and the walker is wrong rather than merely different. Without
+    that half it would be this module asserting its own preference back to
+    itself.
+    """
+    with pytest.raises(RuntimeError) as caught:
+        _raise_suppressing_the_marker()
+    raised = caught.value
+
+    rendered = "".join(traceback.format_exception(type(raised), raised, raised.__traceback__))
+    assert "_raise_holding_the_marker" not in rendered, (
+        "the renderer DOES show the suppressed cause's frames, so the walker skipping them "
+        f"is a real blind spot rather than agreement:\n{rendered}"
+    )
+
+    walked = tuple(
+        frame.f_code.co_name
+        for frame in _frames_in_the_cause_chain(raised)
+        if _leaking_locals(frame, _CAUSE_CHAIN_MARKER)
+    )
+    assert walked == (), (
+        "the walker reached a frame the renderer does not show, so an empty verdict "
+        f"elsewhere is stricter than the channel it claims to measure. Frames: {walked}"
+    )
+
+
 def test_an_out_of_range_payload_extent_raises_for_an_unresolved_class_too() -> None:
     """The reachability this merge widened, PINNED as deliberate.
 
@@ -3439,7 +3682,7 @@ def test_no_clockspeed_frame_holds_the_body_when_the_extent_raises(
 
     leaks = {
         frame.f_code.co_name: _leaking_locals(frame, _LEAK_MARKER)
-        for frame in _frames_beneath_the_caller(raised)
+        for frame in _frames_in_the_cause_chain(raised)
         if _leaking_locals(frame, _LEAK_MARKER)
     }
     assert not leaks, (
@@ -4002,6 +4245,13 @@ _GRADED_LIBRARY_REACH: Final = MappingProxyType(
 #: Functions that touch a primitive WITHOUT consuming a real path, name to why.
 _EXEMPT_LIBRARY_REACH: Final = MappingProxyType(
     {
+        reach_guard.MODULE_SCOPE_REACH: (
+            "Path(...).resolve() at module scope, building the shipped package's "
+            "directory as a constant so the CS-963 cause-chain sweep can tell a "
+            "clockspeed frame from a test helper's. It resolves a TRACKED SOURCE "
+            "FILE - objects.py itself - never a save directory and never the "
+            "account directory, and it is computed once rather than per frame"
+        ),
         "_assert_every_sweep_declines": (
             "a grader, not a consumer: it calls the contained discovery inside "
             "_contained_call and reduces the result to an integer before asserting"
@@ -4335,3 +4585,57 @@ def test_a_hostile_repr_does_not_unwind_through_the_safe_repr(_forced, raiser) -
     # The positive control: an ordinary value still renders, so the placeholder
     # above is the containment rather than the helper returning "" for anything.
     assert _safe_repr(1) == "1"
+
+
+#: The shipped package, resolved once. Module scope rather than per call: this
+#: is a filesystem primitive, and this module is one of the few that declares a
+#: library reach - which is exactly why the sweep lives here instead of being
+#: re-derived in every test module that wants it.
+_SHIPPED_ROOT: Final = os.path.normcase(str(Path(objects.__file__).resolve().parent.parent))
+
+
+def _shipped_frames(raised: BaseException, marker: str) -> dict[str, tuple[str, ...]]:
+    """Every SHIPPED frame in the cause chain whose locals render the marker.
+
+    The one sweep the save layer's privacy arms share, so that widening it
+    widens all of them at once. CS-963 exists because the opposite was true:
+    each arm reached for :func:`_frames_beneath_the_caller` on its own, that
+    walker followed ``__traceback__`` alone, and so every arm in the layer was
+    silent about any frame arriving as a ``__cause__`` - which is how the raw
+    save sat live in four shipped frames under arms that were green.
+
+    THE ROOT FILTER IS NOT COSMETIC. The walker keeps the test's helper frames,
+    which hold the fixture on purpose; what is asserted is what ``clockspeed``
+    itself leaves behind.
+
+    Args:
+        raised: The exception, taken as a PARAMETER rather than rendered.
+        marker: The planted plaintext needle.
+
+    Returns:
+        Offending shipped frame name to the offending local names in it. Empty
+        when nothing leaks - which means something only alongside a control
+        proving this function can see the marker when one IS present.
+    """
+    return {
+        frame.f_code.co_name: _leaking_locals(frame, marker)
+        for frame in _frames_in_the_cause_chain(raised)
+        if os.path.normcase(frame.f_code.co_filename).startswith(_SHIPPED_ROOT)
+        and _leaking_locals(frame, marker)
+    }
+
+
+def _shipped_frame_names(raised: BaseException) -> set[str]:
+    """The names of every frame in the cause chain, for a non-vacuity check.
+
+    An arm that swept a traceback its subject never entered would report no
+    leak for the wrong reason, so each one asserts its subject is IN here
+    before asserting the sweep came back empty.
+
+    Args:
+        raised: The exception.
+
+    Returns:
+        The frame names.
+    """
+    return {frame.f_code.co_name for frame in _frames_in_the_cause_chain(raised)}

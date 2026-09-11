@@ -2599,7 +2599,7 @@ def test_no_body_byte_reaches_any_echo_path() -> None:
 
         leaks = {
             frame.f_code.co_name: test_properties._leaking_locals(frame, _PAYLOAD_MARKER)  # noqa: SLF001
-            for frame in test_properties._frames_beneath_the_caller(raised)  # noqa: SLF001
+            for frame in test_properties._frames_in_the_cause_chain(raised)  # noqa: SLF001
             if test_properties._leaking_locals(frame, _PAYLOAD_MARKER)  # noqa: SLF001
         }
         assert not leaks, (
@@ -2796,10 +2796,17 @@ _PACKAGE_ROOT: Final = os.path.normcase(str(Path(world.__file__).resolve().paren
 def _clockspeed_frames(raised: BaseException) -> tuple[FrameType, ...]:
     """The frames beneath the caller that belong to the shipped package.
 
-    THE FILTER IS NOT COSMETIC. ``_frames_beneath_the_caller`` excludes only the
-    frame that called in, so a helper in THIS file that holds the fixture on
-    purpose - a lambda driving one refusal, say - stays in the walk and reports
-    itself as a leak. What is asserted is what ``clockspeed`` leaves behind.
+    THE FILTER IS NOT COSMETIC. The walker excludes only the frame that called
+    in, so a helper in THIS file that holds the fixture on purpose - a lambda
+    driving one refusal, say - stays in the walk and reports itself as a leak.
+    What is asserted is what ``clockspeed`` leaves behind.
+
+    IT WALKS THE CAUSE CHAIN, NOT THE DIRECT TRACEBACK, CS-963. ``world.py``
+    chains every sub-layer refusal with ``raise ... from exc``, so a frame
+    belonging to ``header.py`` or ``chunks.py`` reaches a renderer as the CAUSE
+    and a walker following ``__traceback__`` alone could not see it at all. Every
+    sweep in this file was silent about those two modules for that reason, and
+    read as a pass while the raw save was live in three of their frames.
 
     Args:
         raised: The exception, taken as a parameter rather than rendered.
@@ -2809,7 +2816,7 @@ def _clockspeed_frames(raised: BaseException) -> tuple[FrameType, ...]:
     """
     return tuple(
         frame
-        for frame in test_properties._frames_beneath_the_caller(raised)  # noqa: SLF001
+        for frame in test_properties._frames_in_the_cause_chain(raised)  # noqa: SLF001
         if os.path.normcase(frame.f_code.co_filename).startswith(_PACKAGE_ROOT)
     )
 
@@ -3123,15 +3130,25 @@ def test_no_clockspeed_frame_holds_the_raw_save_on_any_refusal_path() -> None:
     EVERY RAISE PATH OF THIS LAYER'S OWN FRAMES, not only the new one - three
     ``WorldLoadError`` shapes and the ``ValueError`` a bad layout raises.
 
-    THE CAUSE CHAIN IS NOT GRADED HERE, AND IT STILL LEAKS. ``parse_header`` and
-    ``decompress_body`` bind the same raw save in THEIR OWN frames, and
-    ``raise ... from exc`` puts those frames in the rendered traceback, so
-    ``pytest --showlocals`` prints the plaintext options string out of them.
-    Neither module carries a single ``del``. The walker this arm uses follows
-    ``__traceback__`` only and never ``__cause__``, so it CANNOT fail for that
-    cause and must not be read as evidence about it. Measured by an adversarial
-    pass over this item and filed as CS-963 rather than repaired here, because
-    the fix lands in two modules this item never scoped.
+    THE CAUSE CHAIN IS GRADED HERE NOW, CS-963. This arm used to say the
+    opposite, and the sentence it used to carry is the most useful thing in its
+    history: it recorded that ``parse_header`` and ``decompress_body`` bound the
+    same raw save in THEIR OWN frames, that ``raise ... from exc`` put those
+    frames in the rendered traceback, and that the walker could not fail for that
+    cause because it followed ``__traceback__`` alone. The arm was green and the
+    leak was live, at the same time and for that reason.
+
+    :func:`_clockspeed_frames` now walks the CAUSE CHAIN, so this arm covers both
+    modules' frames as well as this layer's own. The walker's ability to see a
+    planted local in a cause frame is proved independently of any production code
+    by ``tests/save/test_properties.py::test_the_cause_chain_walker_sees_a_local_
+    held_in_a_cause_frame``, and its one deliberate blind spot - a context
+    suppressed by ``from None``, which no renderer prints either - is pinned
+    against the renderer itself in the arm beside it.
+
+    EVERY SCRUB THIS ARM AND ITS SIBLINGS DEFEND WAS MEASURED LOAD-BEARING by
+    removing each one in turn and watching the suite redden: nine of nine killed,
+    no survivors. See ``docs/LEDGER.md`` under CS-963 for the table.
     """
     blob = _planted_payload_blob()
     marker = _HEADER_MARKER.encode("ascii")

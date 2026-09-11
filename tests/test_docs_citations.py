@@ -1062,7 +1062,6 @@ UNVERIFIED_LINE_POINTERS: Final[Mapping[tuple[str, str, int], str]] = {
     ("docs/item_notes/phase4-followups-850.md", "clockspeed/data/locate.py", 39): "0d5e3276442e",
     ("docs/item_notes/phase4-followups-850.md", "clockspeed/data/locate.py", 141): "fa085c760a09",
     ("docs/item_notes/phase4-followups-850.md", "clockspeed/data/locate.py", 187): "53bcd3acffa2",
-    ("docs/item_notes/phase4-followups-850.md", "clockspeed/save/header.py", 927): "2b49f05b544d",
     ("docs/item_notes/phase4-followups-850.md", "clockspeed/save/objects.py", 1756): "0e68b6914ed2",
     ("docs/item_notes/phase4-followups-850.md", "clockspeed/save/workdir.py", 688): "e2d30d6ce513",
     (
@@ -1239,7 +1238,7 @@ UNFORBIDDEN_LINE_POINTERS: Final[frozenset[tuple[str, str, int]]] = frozenset(
 #: exactly the laundering the comment above forbids. Its neighbour went with it
 #: because the sentence carrying both reads as one claim. The doc already wrote
 #: a third such site in prose as a bare line number for this reason.
-FORGIVEN_LINE_POINTER_CEILING: Final = 64
+FORGIVEN_LINE_POINTER_CEILING: Final = 63
 
 # --- resolution -------------------------------------------------------------
 
