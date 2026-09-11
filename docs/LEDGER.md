@@ -160,6 +160,114 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-09-10 - CS-963 - CLOSED. The walker was the defect and the scrubs were the symptom; nine of nine measured load-bearing
+
+**What was wrong.** `clockspeed/save/header.py` and `clockspeed/save/chunks.py` bound the
+raw save as a frame local and never dropped it. `world.py` scrubs its own frame, but
+`raise ... from exc` puts the CAUSE's frames in the rendered traceback, so
+`pytest --showlocals` and `TracebackException(capture_locals=True)` both printed the
+plaintext options string out of them - platform, account id and player display name on a
+real save, which is the echo path non-negotiable 12 forbids.
+
+**THE DEFECT THAT HID IT IS THE HALF WORTH KEEPING.** The sweep every privacy arm in the
+layer shared followed `__traceback__` alone and never `__cause__`, so a frame arriving as
+a cause was outside all of them BY CONSTRUCTION - not missed, unreachable. The arms were
+green, a verifier confirmed, and the save was live in four shipped frames at the same
+time. An oracle that cannot observe the value it is asked about returns an empty verdict
+about ITSELF, and that is indistinguishable from a pass.
+
+**What shipped.** Merged files: `clockspeed/save/header.py`, `clockspeed/save/chunks.py`,
+`tests/save/test_properties.py`, `tests/save/test_world.py`, `tests/save/test_header.py`,
+`tests/save/test_chunks.py`, `tests/test_exception_rendering.py`,
+`tests/test_docs_citations.py`.
+
+The walker is `tests/save/test_properties.py::_frames_in_the_cause_chain` over
+`::_chained_exceptions`, with `::_shipped_frames` applying the package-root filter. It
+follows `__cause__` AND `__context__`, tracks identity so a cycle terminates, and HONOURS
+`__suppress_context__`. That last is a measurement rather than a preference: `traceback`
+prints neither a suppressed exception nor its frames, so sweeping them would report a leak
+through a channel no renderer has, and this layer uses `from None` deliberately where a
+library message could quote bytes.
+
+**THE CONTROLS DEPEND ON NO PRODUCTION CODE, which is the point.** A control that broke
+when a scrub landed would disarm itself alongside the leak. All three raise over a marker
+local to the test module:
+`::test_the_direct_walker_cannot_see_a_local_held_in_a_cause_frame` pins the old walker's
+blindness as a POSITIVE fact, so reverting the widening reddens rather than going quietly
+green; `::test_the_cause_chain_walker_sees_a_local_held_in_a_cause_frame` is the known-good
+control; `::test_the_walker_honours_suppression_exactly_as_the_renderer_does` runs the
+renderer and asserts agreement, so a CPython that began showing suppressed frames makes
+the walker wrong rather than merely different.
+`::test_the_cause_chain_walker_terminates_on_a_self_referential_chain` covers the cycle.
+
+**Seven scrubs, two shapes.** `parse_header` and `reveal_strings` UNBIND the buffer as
+soon as `_Cursor` encapsulates it - strictly stronger than an unwind guard, because the
+name is gone for the function's whole lifetime and no later `return` can forget a handler.
+`read_header`, `_read_size_pair`, `read_frame`, `iter_frames` and `decompress_body` take
+the `except BaseException: del ...; raise` guard `world.py` already used.
+`decompress_body` drops the inflated body with the raw save and pre-binds `stream` and
+`inflated`, because `del` on a never-bound name raises from inside the handler and would
+MASK the real refusal with a `NameError`.
+
+**TWO SITES THE FILED MEASUREMENT DID NOT NAME, both from the sibling grep - which is
+where the value of that step is.** `_read_size_pair` is a private helper that binds the
+same whole buffer and raises out of it on a size-block disagreement. And `reveal_strings`
+holds the DECODED options string, not merely the bytes: the four header strings are read
+one after another, so a refusal on the last unwinds with the earlier ones bound as
+plaintext. The opt-in flag says the CALLER is a render site; it says nothing about where a
+traceback out of that frame ends up, and ADR 0007 decision item 4 forbids putting these
+values in exception context at all.
+
+**`_Cursor.__repr__` now STATES its withholding** rather than inheriting it from
+`object`. After the early unbind the buffer survives only in `self._data`, and every
+cursor method that raises leaves `self` in a frame a renderer prints - so making that class
+a dataclass later, whose generated repr would dump the whole file, is now a deliberate act
+and not a one-line accident. Measured load-bearing: the dataclass-shaped repr reddens
+three arms.
+
+**NINE OF NINE SCRUBS MEASURED LOAD-BEARING, ZERO SURVIVORS.** Each was neutralised in
+turn against a pristine green floor, with the mutation asserted to have landed and the
+bytecode cache purged first, and both files restored from a byte snapshot rather than from
+git. Killed: `parse_header`, `reveal_strings` buffer, `reveal_strings` decoded strings,
+`read_header`, `_Cursor.__repr__`, `_read_size_pair`, `read_frame`, `iter_frames`,
+`decompress_body`.
+
+**THE FIRST MUTATION RUN GRADED CODE THAT IS NOT WHAT SHIPS, and three scrubs SURVIVED
+it.** `reveal_strings`, `read_header` and `_read_size_pair` had no arm at all - the fix
+was live and unguarded, which is a fix with no guard. Their arms were written, and the run
+was then repeated against the final tree after the sweep was relocated, because a verdict
+covers only the state it ruled on.
+
+**A LOCAL HELPER PULLED TWO SILENT MODULES INTO THREE GUARDS AT ONCE.** The first cut
+computed the package root inside `test_header.py` and `test_chunks.py`. `Path(...).resolve()`
+is a library primitive, so both modules - which had never declared a reach - entered the
+scope of the reach guard, the live-locals guard and the assertion-rendering guard, and
+about twenty PRE-EXISTING findings appeared that have nothing to do with this item. The
+sweep moved to `test_properties.py`, which already declares its reach, and the two modules
+kept their silence. The module-scope reach is declared there with its reason.
+
+**One pin retired to symbol form.** `docs/item_notes/phase4-followups-850.md` pointed at a
+LINE NUMBER in `clockspeed/save/header.py` - the number is deliberately not restated here,
+because writing it down again would be a live pointer at a tracked module and this record
+would then have to be repaired every time that file is edited, which is the whole reason
+the pin was retired. The line moved and its content carried over byte-identical
+- verified against `HEAD` rather than taken on trust, because a slice reported two moved
+pins as identical in session 79 and was wrong about one. A repoint was still refused by the
+citation guard, correctly: a line pointer at a tracked Python module is invalidated by any
+edit above it. It is now `clockspeed/save/header.py::read_header`, its grandfather entry is
+gone, and `FORGIVEN_LINE_POINTER_CEILING` came down 64 -> 63 with it, because a ceiling
+left with slack is that arm's own finding.
+
+**How to verify independently.** `python -m pytest tests -q -n auto` - 6165 passed, 7
+skipped, exit 0 at `4e8b13e`. `ruff check .` clean, `python -m mypy clockspeed` clean. To
+re-derive the load-bearing claim, neutralise any single `del` in either module and run
+`python -m pytest tests/save/test_world.py tests/save/test_header.py tests/save/test_chunks.py -q -p no:randomly`.
+
+**WHAT THIS IS NOT EVIDENCE OF.** Every fixture is synthetic. No real save was parsed, so
+this measures that no frame holds the PLANTED marker and infers the real case from the
+fact that the same local holds the same file. The inference is sound and it is still an
+inference.
+
 ### 2026-09-10 - CS-961 - MEASUREMENT RECORD. What the second pass costs. NOT A COMPLETION RECORD - CS-961's is above
 
 **Relocated from `docs/item_notes/phase4-followups-900.md` 2026-09-10**, because a

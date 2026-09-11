@@ -1129,37 +1129,14 @@ as a probe would flatten a corrupt one that `load_record` cannot parse.
 
 ## CS-963
 
-### FILED 2026-09-10 (session 79) from an adversarial pass over CS-961, MEASURED not inferred
-
-**WHAT LEAKS.** `clockspeed/save/header.py::parse_header` and
-`clockspeed/save/chunks.py::decompress_body` take the raw save as a parameter and
-bind it as a frame local. Neither module contains a single `del`. `world.py` scrubs
-its OWN frame, but `raise ... from exc` puts the cause's frames in the rendered
-traceback, so a locals-showing renderer prints the file out of them. Both
-`pytest --showlocals` and `traceback.TracebackException(capture_locals=True)` do.
-
-**MEASURED, with a planted marker in the plaintext header region.** The
-truncated-header path renders `header.parse_header`. The truncated-chunk-stream path
-renders `chunks.decompress_body`, `chunks.iter_frames` and `chunks.read_frame`. On a
-real save that local is the file whose header carries the platform, the account id
-and the player display name in plaintext - non-negotiable 12's exact subject.
-
-**WHY NO ARM CATCHES IT, AND THIS IS THE TRANSFERABLE HALF.** The shared frame walker
-follows `exc.__traceback__` only and never `__cause__` or `__context__`, so EVERY
-privacy arm in the save layer is silent on the cause chain by construction. The arm
-that appeared to cover this returned an empty verdict about itself. An oracle that
-cannot observe the value it is asked about passes for that reason alone, and the pass
-is indistinguishable from a real one.
-
-**WHAT THE FIX MUST NOT BE.** Scrubbing only the sites named above answers this
-measurement and not the class. The walker is the defect that hid it, so the arm comes
-first: a cause-chain walker, fronted by a known-good control proving it sees a planted
-marker when one IS present, and reddening when any single scrub is removed. Then the
-scrubs. A repair that leaves the walker blind buys one fix and no guard.
-
-**SCOPE, so the next session does not re-derive it.** The leak PREDATES CS-961 - that
-item scrubbed `world.py` and narrowed its own claims to match the measurement rather
-than absorbing this. Two modules are in play and neither was in CS-961's decomposition.
+**CLOSED 2026-09-10.** The detail that was here is the completion record now, in
+`docs/LEDGER.md` under CS-963 - relocated rather than deleted, because a closed
+item's detail may not sit in a leaf that holds LIVE detail for OPEN work
+(`CLAUDE.md` section 4). The one thing worth carrying forward is not this item's:
+it is that a shared frame walker following `__traceback__` alone made EVERY
+privacy arm in the save layer silent about the cause chain, and the arms read as
+passes the whole time. That is filed in harness memory as
+`an-oracle-can-be-blind-to-its-subject`.
 
 ## CS-962
 
