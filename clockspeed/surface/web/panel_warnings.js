@@ -1,41 +1,356 @@
 "use strict";
 
 /*
-  CS-962 - the Warnings panel's module. A SEAM STUB: it holds a place in the
-  panel registry and builds nothing else yet.
+  CS-962 - the Warnings panel. It renders the flagged-and-skipped stream that
+  non-negotiable 7 requires be visible, from both sides of the wire that carry
+  it: data.world.warnings and data.registry.warnings.
 
-  WHY A STUB IS SHIPPED RATHER THAN NOTHING. The seam is only proved by a
-  member using it. An empty directory of future panels would leave
-  registerPanel, the mount loop and the per-panel throw guard graded by their
-  own author's assertions and by no caller at all - and a seam with no members
-  is a seam nobody has tried to build against.
+  WHY THIS PANEL EXISTS. The page already showed counts.warnings. A count tells
+  a reader that something is wrong and nothing whatever about what, which is
+  half of non-negotiable 7 left undone - "flagged" means a person can act on
+  it, and nobody can act on the number 3.
 
-  WHAT REPLACING THIS LOOKS LIKE. Read the fields this panel needs off data,
-  build nodes, append them to root. THIS FILE IS THE ONLY FILE THAT CHANGES:
-  the module is already served, already loaded and already registered, so a
-  panel written here collides with no other panel being written at the same
-  time. That is the whole reason the seam exists.
+  THE TWO SHAPES ARE NOT MERGED. A world warning carries source, code, detail,
+  subject and count (world.py:142). A registry warning carries code, subject,
+  detail and count and has NO source (registry.py:174). Merging them would mean
+  inventing a source for one side or dropping it from the other, so they render
+  as two labelled groups instead.
 
-  IT MUST NOT FETCH. app.js owns every request this page makes and issues them
-  ONE AT A TIME on a button press. The second argument is what those requests
-  already returned. A panel that opened its own would put the page's request
-  behaviour outside the file that documents it.
+  unknown_classes IS NOT RENDERED HERE. app.js:408-424 already lists it in the
+  World section, and world.py:213-221 records that a type_path is the ONE place
+  a class path crosses this wire. One place on the wire, one place on the page;
+  this panel points at that section rather than copying it.
+
+  ------------------------------------------------------------------------
+  THE PERSONAL-DATA FINDING, AND THE DEFENCE BUILT ON IT
+  ------------------------------------------------------------------------
+
+  Every string this panel renders came, transitively, out of the operator's
+  own save file or their own game install. Non-negotiables 11 and 12 hold that
+  a save is a personal-data-bearing artifact - its header carries platform,
+  account and player-display-name strings in plaintext - and that ANY path
+  echoing raw bytes is a leak. Non-negotiable 3 forbids an absolute path under
+  a home directory, because on this machine such a path carries the Windows
+  account name. tools/dashboard_probe.py SCREENSHOTS this page, so a leak here
+  is a leak into an image.
+
+  WHAT WAS MEASURED BEFORE THIS PANEL WAS WRITTEN. The producers were read, not
+  assumed:
+
+    - world.py:230-262 builds the body; the world token is MASKED at
+      world.py:250 rather than carried.
+    - world.py:192-210 copies exactly source, code, detail, subject and count
+      off save/world.py's WorldWarning. Nothing else is promoted.
+    - save/world.py:1760-1787 normalises four layers into that stream, and
+      save/world.py:1102 fills detail from the fixed _WARNING_DETAIL table at
+      save/world.py:484-505.
+    - chunks.py:1082 and objects.py:1782 likewise take detail from a fixed
+      table (chunks.py:219, objects.py:744). Neither layer declares a subject
+      at all.
+    - header.py:915-953 is the only header producer. Its subjects are a
+      version PAIR and the LENGTH of the world token - header.py:947 takes
+      len(world_token) precisely so the token itself cannot become an echo
+      path - and its details interpolate only integers.
+    - usmap.py raises every warning through _WarningLog.add at usmap.py:662;
+      all twelve call sites (usmap.py:709 through usmap.py:1160) pass a
+      structural token - "name-12", "schema-4-super", "type-19" - and a detail
+      interpolating integers only.
+    - registry.py:408-426 declares RegistryWarning; its subject is a class
+      name, a group short name or an index, and registry.py:1338 passes a
+      reason drawn from the closed REASON_* set at docs_extract.py:313-325.
+
+  THE VERDICT: no producer reachable today can put a filesystem path, an
+  account id, a world name or a display name into any field this panel
+  renders. Fifty-two detail strings were harvested from those six modules and
+  every one of them is inside the character set this file accepts.
+
+  WHY A GUARD IS SHIPPED ANYWAY, AND WHY IT IS AN ALLOWLIST. That verdict is a
+  statement about today's producers. The DOM is where a future producer's
+  mistake would become a screenshot, and a sink that trusts an audit is a sink
+  that has no defence the day the audit goes stale. A denylist of bad
+  substrings is not that defence - one defect wears a different field each
+  time. So every rendered value must be INSIDE a stated character set, and
+  anything else renders as WITHHELD.
+
+  The sets are per field, because the fields have genuinely different grammars:
+
+    - a code or a source is a lowercase hyphenated token;
+    - a subject is a structural token, or the one exception header.py:936
+      needs - a digits/digits version pair. That exception admits no path,
+      because a path needs a backslash, a drive colon, or a slash with a
+      non-digit beside it;
+    - a detail is authored prose. Its set excludes the backslash, the forward
+      slash and the colon, which is every path separator and the drive marker.
+
+  NON-ASCII IS REFUSED DELIBERATELY, and it is the sharpest arm here. Rule 4
+  requires every authored line in this project to be 7-bit ASCII. So a detail
+  arriving with a character outside that set was not authored - it was built
+  from content, and the content most likely to carry one is a player display
+  name. Non-ASCII is treated as proof of provenance.
+
+  WITHHELD IS RENDERED, NOT DROPPED. A refused value leaves a visible marker
+  and its warning's code still shows. Silently dropping it would make a
+  refusal indistinguishable from an absence, which is the same collapse the
+  save layer refuses one floor down.
+
+  IT MUST NOT FETCH. app.js owns every request this page makes. The second
+  argument is what those requests already returned.
+
+  Everything below lives inside one closure. Panel modules share a global
+  scope, so a helper declared at the top level of this file would collide with
+  a sibling panel being written at the same moment.
 */
 
-registerPanel("warnings", function mountWarnings(root, data) {
-  /*
-    data is the resolved payloads - data.health, data.world, data.registry and
-    the rest, each null where that route did not answer with one. This stub
-    reads none of them, which is exactly what makes it a stub.
-  */
-  var heading = document.createElement("h2");
-  heading.id = "h-panel-warnings";
-  heading.textContent = "Warnings";
-  root.setAttribute("aria-labelledby", heading.id);
-  root.appendChild(heading);
+(function () {
+  /* Letters and digits, shared by every set below. */
+  var ALNUM =
+    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
 
-  var note = document.createElement("p");
-  note.className = "note";
-  note.textContent = "no warnings panel is built yet; this module holds the seam.";
-  root.appendChild(note);
-});
+  /* A code or a source: the WARN_* and SOURCE_* spellings and nothing else. */
+  var SET_CODE = ALNUM + "-";
+
+  /* A structural token: a class name, a group name, an index, a stage name. */
+  var SET_TOKEN = ALNUM + "_.-";
+
+  /* Authored prose. No backslash, no slash, no colon - no path can pass. */
+  var SET_DETAIL = ALNUM + " ,.;'()_-";
+
+  /* A fixed line is short. A dumped buffer or a deep path is not. */
+  var DETAIL_LIMIT = 400;
+  var TOKEN_LIMIT = 120;
+
+  /* What stands in for a value whose shape this panel does not accept. */
+  var WITHHELD = "[withheld - unexpected shape]";
+
+  function withinSet(value, allowed, limit) {
+    /*
+      True when every character of value is in allowed and the length is
+      inside limit. The scan is an allowlist: a character is accepted only by
+      being present in the set, never by failing to match something bad.
+    */
+    if (typeof value !== "string") {
+      return false;
+    }
+    if (value.length === 0 || value.length > limit) {
+      return false;
+    }
+    for (var i = 0; i < value.length; i += 1) {
+      if (allowed.indexOf(value.charAt(i)) === -1) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  function isVersionPair(value) {
+    /*
+      The one shape carrying a slash that this panel accepts: header.py:936
+      spells an unmeasured version pair as "<header>/<save>". Both sides must
+      be digits, so no path component can wear this shape.
+    */
+    if (typeof value !== "string" || value.length > TOKEN_LIMIT) {
+      return false;
+    }
+    var parts = value.split("/");
+    if (parts.length !== 2) {
+      return false;
+    }
+    for (var i = 0; i < 2; i += 1) {
+      if (!withinSet(parts[i], "0123456789", TOKEN_LIMIT)) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  function safeCode(value) {
+    /* A warning code or a source stage name. */
+    return withinSet(value, SET_CODE, TOKEN_LIMIT) ? value : WITHHELD;
+  }
+
+  function safeToken(value) {
+    /* A subject or an unknown-group name. */
+    if (withinSet(value, SET_TOKEN, TOKEN_LIMIT) || isVersionPair(value)) {
+      return value;
+    }
+    return WITHHELD;
+  }
+
+  function safeDetail(value) {
+    /* An authored consequence line. */
+    return withinSet(value, SET_DETAIL, DETAIL_LIMIT) ? value : WITHHELD;
+  }
+
+  function safeCount(value) {
+    /*
+      A count is a whole number on both wires. Anything else is not rendered
+      as one - a string count could carry any text at all, and a float would
+      be a float on a page whose arithmetic is exact.
+    */
+    if (typeof value !== "number") {
+      return WITHHELD;
+    }
+    if (!isFinite(value) || Math.floor(value) !== value || value < 0) {
+      return WITHHELD;
+    }
+    return String(value);
+  }
+
+  function el(tag, className, text) {
+    /*
+      One element, built the only way the stand-in DOM supports: createElement,
+      a className assignment, textContent. Never innerHTML - every string that
+      reaches here is untrusted text and parsing it as markup would make the
+      shape guard above theatre.
+    */
+    var node = document.createElement(tag);
+    if (className) {
+      node.className = className;
+    }
+    if (text !== null && text !== undefined) {
+      node.textContent = text;
+    }
+    return node;
+  }
+
+  function isArray(value) {
+    /* Array.isArray, spelled out so a non-array payload is a branch. */
+    return Object.prototype.toString.call(value) === "[object Array]";
+  }
+
+  function warningRow(entry, withSource) {
+    /*
+      One warning as a list item. Every field goes through its own guard, and
+      the code is emitted first so that a row whose other fields were all
+      withheld still tells a reader WHICH warning fired.
+    */
+    var row = el("li", "warning", null);
+    row.appendChild(el("span", "warning-code", safeCode(entry.code)));
+    if (withSource) {
+      row.appendChild(el("span", "warning-source", safeCode(entry.source)));
+    }
+    if (entry.subject !== null && entry.subject !== undefined) {
+      row.appendChild(el("span", "warning-subject", safeToken(entry.subject)));
+    }
+    row.appendChild(el("span", "warning-count", safeCount(entry.count)));
+    row.appendChild(el("span", "warning-detail", safeDetail(entry.detail)));
+    return row;
+  }
+
+  function warningList(entries, withSource) {
+    /*
+      The rows, or null when there is nothing well formed to list. A row that
+      is not an object is skipped rather than fatal, which is non-negotiable 7
+      applied to this layer's own input.
+    */
+    var list = el("ul", "warning-list", null);
+    var shown = 0;
+    for (var i = 0; i < entries.length; i += 1) {
+      var entry = entries[i];
+      if (entry === null || typeof entry !== "object") {
+        continue;
+      }
+      list.appendChild(warningRow(entry, withSource));
+      shown += 1;
+    }
+    return shown > 0 ? list : null;
+  }
+
+  function group(root, label, data, key, withSource) {
+    /*
+      One labelled group, in exactly one of three states that a reader has to
+      be able to tell apart:
+
+        - the route did not answer at all, so nothing is known;
+        - it answered and reported nothing, which is a real, good result;
+        - it answered and reported these.
+
+      Collapsing the first two into "no warnings" would let an endpoint that
+      never replied read as a clean bill of health. That is the worst
+      available failure for a panel whose whole job is to surface trouble.
+    */
+    var section = el("section", "warning-group", null);
+    section.appendChild(el("h3", "warning-group-label", label));
+    if (data === null || data === undefined || typeof data !== "object") {
+      section.appendChild(
+        el("p", "note", "did not answer, so nothing is known about what it flagged")
+      );
+      root.appendChild(section);
+      return;
+    }
+    var entries = isArray(data[key]) ? data[key] : [];
+    var list = warningList(entries, withSource);
+    if (list === null) {
+      section.appendChild(el("p", "note", "answered and reported no warnings"));
+    } else {
+      section.appendChild(list);
+    }
+    root.appendChild(section);
+  }
+
+  function unmodelled(root, world) {
+    /*
+      contains_unmodeled_content (world.py:119) is its own fact, not a
+      function of the warning list: the flag can be true while the array is
+      empty. A panel deriving the line from the list length would say nothing
+      in exactly the case that matters.
+    */
+    if (world === null || world === undefined || typeof world !== "object") {
+      return;
+    }
+    if (!world["contains_unmodeled_content"]) {
+      return;
+    }
+    root.appendChild(
+      el(
+        "p",
+        "note",
+        "this world carries unmodelled content; the classes involved are listed"
+          + " in the World section of this page"
+      )
+    );
+  }
+
+  function unknownGroups(root, registry) {
+    /*
+      registry.unknown_groups (registry.py:142) names a docs group this build
+      does not model. Each one goes through the token guard - it is a short
+      name in every measured case, and a name is the only thing it may be.
+    */
+    if (registry === null || registry === undefined || typeof registry !== "object") {
+      return;
+    }
+    var groups = isArray(registry["unknown_groups"]) ? registry["unknown_groups"] : [];
+    if (groups.length === 0) {
+      return;
+    }
+    var section = el("section", "warning-group", null);
+    section.appendChild(el("h3", "warning-group-label", "Unmodelled registry groups"));
+    var list = el("ul", "warning-list", null);
+    for (var i = 0; i < groups.length; i += 1) {
+      list.appendChild(el("li", "warning", safeToken(groups[i])));
+    }
+    section.appendChild(list);
+    root.appendChild(section);
+  }
+
+  registerPanel("warnings", function mountWarnings(root, data) {
+    /*
+      data is the resolved payloads - data.world and data.registry here, each
+      null where that route did not answer with one.
+    */
+    var heading = document.createElement("h2");
+    heading.id = "h-panel-warnings";
+    heading.textContent = "Warnings";
+    root.setAttribute("aria-labelledby", heading.id);
+    root.appendChild(heading);
+
+    var world = data ? data["world"] : null;
+    var registry = data ? data["registry"] : null;
+
+    group(root, "World warnings", world, "warnings", true);
+    unmodelled(root, world);
+    group(root, "Registry warnings", registry, "warnings", false);
+    unknownGroups(root, registry);
+  });
+})();
