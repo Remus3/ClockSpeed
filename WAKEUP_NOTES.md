@@ -34,6 +34,70 @@ the line becomes a pointer.
 
 ---
 
+## Session 83 - 2026-09-11 - the lane was armed and worked, and three claims made about other people's trees were wrong
+
+- Shipped from here: NOTHING CLOSED. A frozen-file GRANT for CS-972 was recorded
+  (`docs/LEDGER.md`, newest entry but one) and CS-973 was filed. Neither is a closure.
+- Shipped by the LANE: CS-303 CLOSED, commit `13cef40`, which the worker pushed to
+  `origin/main` itself. tier1 run 34632821764 COMPLETED SUCCESS. The merged file is
+  `tests/solve/test_ceiling_fence.py` and the ADR is 0006.
+
+- THE CS-968 FIX IS CONFIRMED IN THE FIELD, not just by its own arm. Three pushes from a
+  LINKED WORKTREE this session - the configuration that caused it - each ran the whole
+  suite under an exported `GIT_DIR`, and the shared `.git/config` came through byte
+  identical but for an expected tracking block. Snapshot the config before a worktree push
+  and diff it after; that is the whole measurement and it costs nothing.
+
+- THE LANE WAS ARMED AND IT WORKED, and the handoff's explanation of CS-970 IS WRONG.
+  The handoff says CS-970's trigger is "explained by CS-968". CS-968 is fixed and verified,
+  and the 1-of-12 pattern REPRODUCED ANYWAY on the first arming after the fix: cycle 1
+  completed, cycle 2 failed `LaneLaunchError` in 2.091s with `pid=None`. CS-970 has its own
+  live cause and it is still unidentified. Do not close it on the CS-968 story.
+  A HYPOTHESIS, NOT A FINDING: a `claude.exe` started at 13:02:03 and the failure landed
+  2.091s later, which fits `ops/loop/lane_launcher.py` line 534, where a failed lock
+  repoint KILLS the worker it just spawned. The obvious alternative was ruled out - the
+  lock file present during cycle 2 was released on failure, so the lane lock is not
+  leaking.
+
+- A LANE WORKER KEPT WORKING FOR 15 MINUTES AFTER THE DRIVER WROTE IT OFF. Cycle 1 was
+  recorded `ok: true, worker_ok: true` at 13:01:09 with `ci=no-push`, and at 13:02 the
+  worktree was DIRTY with the whole CS-303 row uncommitted. The commit landed at 13:17:05,
+  after the driver had exited and after cycle 2's worker was supposedly killed. So a
+  cycle's completion row says nothing about whether that cycle's work has landed.
+  THE DRIVER HAD THE EVIDENCE AND DID NOT USE IT: `ci=no-push` is on the row that says
+  `ok: true`.
+  MEASURING THE LANE MID-RUN IS MEASURING A MOVING TREE. This session read the worktree at
+  13:02, reported "cycle 1 shipped nothing", and was wrong fifteen minutes later. Read the
+  lane's state only after the driver has exited, or state the time of the reading.
+
+- THREE CLAIMS ABOUT OTHER PEOPLE'S TREES WERE WRONG, ALL IN ONE DAY, AND THE HABIT IS THE
+  FINDING. Two were the withdrawals CS already owed - that a fix was "the one RC already
+  has and CS does not", and that "at least three of you have a pre-push hook". The third
+  was made THIS session: LW was resolved to Lanternlight and the plugin request delivered
+  there. LW IS LEGION WALLPAPER. LW's own note names Lanternlight as a separate repo it
+  measured, so one line of the note would have shown it. All three are the same shape: an
+  assertion about a tree nobody read. Corrected at both ends and put on the record rather
+  than quietly fixed.
+
+- THE CHANNEL IS ANSWERED. Four notes delivered through `tools/outbound_send.py`, gate
+  CLEAN with all six classes MEASURED, and every destination copy verified BY DIGEST rather
+  than by the sender's own report. The two withdrawals and the Q1-Q5 positions went to all
+  four siblings; the plugin request went to Legion Wallpaper and a misdelivery notice to
+  Lanternlight. The Q1-Q5 note states its own standing in its first paragraph: where CS
+  answers it is REPORTING recorded doctrine, and anything that would be a new commitment is
+  marked AWAITING RULING. Nothing commits this project to build anything.
+
+- LW'S FINDING AGAINST THIS REPO IS REAL AND WAS REPRODUCED HERE - 23 real-save copies in
+  the live work directory - but its attribution to two named modules WAS NOT ADOPTED. CS
+  confirmed the count and that the named files exist, not that they are the writers.
+  CS-973's acceptance therefore requires the arm to DISCOVER the writers. Adopting a
+  sibling's attribution unmeasured would bank someone else's finding as this project's own.
+
+- Next action: triage whether the lane is re-armed, and read CS-970's own cause rather than
+  CS-968's.
+
+---
+
 ## Session 82 - 2026-09-11 - the handoff's diagnosis was right, my refutation of it was wrong, and a green push shipped a red commit
 
 CS-968 IS CLOSED AND PROVEN END TO END. `git push` exports `GIT_DIR` to the pre-push
@@ -194,55 +258,5 @@ ALREADY TAKEN on `lane/queue` - checked rather than assumed, because two agents
 allocating from one high-water mark is a recorded collision here. Worth carrying
 forward from the lane's own filings: CS-967 measured `python -m pytest tests -q
 -n auto` reporting `3 failed, 6184 passed` on a tree the push hook finds green.
-
-## Session 80 - 2026-09-10 - one item, three refutations, and every one of them landed on a green suite
-
-- Shipped: CS-963 CLOSED. Detail in `docs/LEDGER.md`, which carries three entries for it -
-  the over-strong first claim, the correction, and the closing record. They are meant to be
-  read together.
-
-- In flight: nothing. Tree clean, no stash, no worktrees.
-
-- CS-963 - the filed defect was two frames holding the raw save. The REAL defect was that
-  every privacy arm in the save layer shared a walker following `__traceback__` alone, so a
-  frame arriving as a `__cause__` was outside all of them by construction. Fifteen scrubs
-  across four modules, all fifteen measured load-bearing at the shipping tree.
-
-- Surprises: THE ACCEPTANCE AS FILED WAS UNACHIEVABLE. A parser holds the bytes it parses,
-  so no tree with a parser in it can satisfy "no frame holds the save". Narrowed where it
-  is checked, to what a renderer PRINTS plus a withholding requirement on every retained
-  holder. `CLAUDE.md` section 8 covers this: the probe beats the document.
-
-- Surprises: THREE ADVERSARIAL LENSES REFUTED THIS ITEM, each against a green suite, and
-  the third round found the BYTE-IDENTICAL TWIN of a scrub the second round had just
-  applied - in a commit whose own message said the sibling grep had been run. It had not
-  been run against that module. A CLAIMED GREP IS NOT A GREP.
-
-- Surprises: THREE ARMS WERE VACUOUS AND ONE SCRUB WAS UNMEASURED, every one found by
-  mutation rather than by reading. A fixture that corrupts the first byte of its own probe;
-  a correct wide-encoding fixture driven down a path that binds no slice; two cases that
-  discriminated nothing. AN ARM CAN CARRY A CORRECT FIXTURE AND STILL MEASURE NOTHING -
-  what a sweep grades is the frames the refusal actually enters.
-
-- Surprises: AN EQUIVALENT MUTANT IS NOT A SURVIVING MUTANT. `_Cursor.__repr__` was graded
-  by making it LEAK; the mutation that mattered was REMOVAL, and with the method gone the
-  suite stayed green. The fix was a structural arm requiring every retained holder to
-  DECLARE its own repr - which immediately found its own sibling in `objects.py`.
-
-- Surprises: THE STRUCTURAL ORACLE ITSELF RETURNED A FALSE CLEAN, from a flat identity set
-  that let a deep truncated path poison a shallow live one. Repaired and pinned at the
-  exact boundary chain length; one hop either side and the old walker passes the control.
-
-- Failed paths: I SHIPPED A RED HEAD. The records commit ran the drift guard, the citation
-  guard and the doc-budget guard and not the suite, on the reasoning that it was prose.
-  Tier is decided by what a change CAN BREAK: a markdown edit that moves an item between
-  states breaks tests about item state. Caught by a verifier, not by me.
-
-- Failed paths: a shell heredoc collapsed a backslash escape, `Path.write_text` truncated
-  `tests/save/test_header.py` to zero bytes before failing to encode, and the file had to
-  be rebuilt from HEAD plus re-applied edits. The harness-memory note about heredocs eating
-  backslashes is about correctness; this is the destructive half of it.
-
-- Next action: re-arm the `queue` lane, then CS-964 - the ASCII-only marker oracle.
 
 ---

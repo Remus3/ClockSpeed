@@ -80,6 +80,60 @@ read as passes while the raw save was live in shipped frames. Filed in harness m
 
 ---
 
+## Session 80 - relocated from `WAKEUP_NOTES.md` 2026-09-11
+
+## Session 80 - 2026-09-10 - one item, three refutations, and every one of them landed on a green suite
+
+- Shipped: CS-963 CLOSED. Detail in `docs/LEDGER.md`, which carries three entries for it -
+  the over-strong first claim, the correction, and the closing record. They are meant to be
+  read together.
+
+- In flight: nothing. Tree clean, no stash, no worktrees.
+
+- CS-963 - the filed defect was two frames holding the raw save. The REAL defect was that
+  every privacy arm in the save layer shared a walker following `__traceback__` alone, so a
+  frame arriving as a `__cause__` was outside all of them by construction. Fifteen scrubs
+  across four modules, all fifteen measured load-bearing at the shipping tree.
+
+- Surprises: THE ACCEPTANCE AS FILED WAS UNACHIEVABLE. A parser holds the bytes it parses,
+  so no tree with a parser in it can satisfy "no frame holds the save". Narrowed where it
+  is checked, to what a renderer PRINTS plus a withholding requirement on every retained
+  holder. `CLAUDE.md` section 8 covers this: the probe beats the document.
+
+- Surprises: THREE ADVERSARIAL LENSES REFUTED THIS ITEM, each against a green suite, and
+  the third round found the BYTE-IDENTICAL TWIN of a scrub the second round had just
+  applied - in a commit whose own message said the sibling grep had been run. It had not
+  been run against that module. A CLAIMED GREP IS NOT A GREP.
+
+- Surprises: THREE ARMS WERE VACUOUS AND ONE SCRUB WAS UNMEASURED, every one found by
+  mutation rather than by reading. A fixture that corrupts the first byte of its own probe;
+  a correct wide-encoding fixture driven down a path that binds no slice; two cases that
+  discriminated nothing. AN ARM CAN CARRY A CORRECT FIXTURE AND STILL MEASURE NOTHING -
+  what a sweep grades is the frames the refusal actually enters.
+
+- Surprises: AN EQUIVALENT MUTANT IS NOT A SURVIVING MUTANT. `_Cursor.__repr__` was graded
+  by making it LEAK; the mutation that mattered was REMOVAL, and with the method gone the
+  suite stayed green. The fix was a structural arm requiring every retained holder to
+  DECLARE its own repr - which immediately found its own sibling in `objects.py`.
+
+- Surprises: THE STRUCTURAL ORACLE ITSELF RETURNED A FALSE CLEAN, from a flat identity set
+  that let a deep truncated path poison a shallow live one. Repaired and pinned at the
+  exact boundary chain length; one hop either side and the old walker passes the control.
+
+- Failed paths: I SHIPPED A RED HEAD. The records commit ran the drift guard, the citation
+  guard and the doc-budget guard and not the suite, on the reasoning that it was prose.
+  Tier is decided by what a change CAN BREAK: a markdown edit that moves an item between
+  states breaks tests about item state. Caught by a verifier, not by me.
+
+- Failed paths: a shell heredoc collapsed a backslash escape, `Path.write_text` truncated
+  `tests/save/test_header.py` to zero bytes before failing to encode, and the file had to
+  be rebuilt from HEAD plus re-applied edits. The harness-memory note about heredocs eating
+  backslashes is about correctness; this is the destructive half of it.
+
+- Next action: re-arm the `queue` lane, then CS-964 - the ASCII-only marker oracle.
+
+---
+
 ## Session 78 - relocated from `WAKEUP_NOTES.md` 2026-09-11
 
 ## Session 78 - 2026-09-09 - a premise this project had built on was refuted in its own tree, and the dashboard turned out to be a self-diagnostic
