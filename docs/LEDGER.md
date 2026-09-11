@@ -160,6 +160,148 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-09-10 - CS-210 - CLOSED. The absent-`mMaxPotential` branch is grounded in the shipped document, and the two sets ADR 0006's common-mode risk could not separate are MEASURED IDENTICAL
+
+**The defect.** ADR 0006's adjudication named a COMMON-MODE RISK: both fences the ADR
+relies on read the same hand-authored corpus, so the registry-layer and solve-layer tests
+were one fixture read twice rather than two independent confirmations. That a
+registry-published `Building` can lack `mMaxPotential` AT ALL was asserted nowhere against
+the shipped data. The pin recorded per-VALUE counts (`"1.000000": 62`), and a per-value
+counter is structurally blind to the absent case: an entry carrying none of the watched
+fields is counted by no key at all. So the branch that reads an absent field as None -
+live code in `clockspeed/data/registry.py` - rested on a corpus entry a corpus author
+chose to write.
+
+**The root cause.** The census counted VALUES and never the POPULATION. Four watched
+fields each had a value counter and none had a denominator, so "62 entries carry it" could
+not be read against "of how many".
+
+**What shipped.** Census schema 1 to 2, adding `registry_building_field_presence`:
+per watched field, how many registry-published buildings carry it and how many do not.
+Merged files: `clockspeed/data/version.py`, `tests/data/test_version.py`,
+`tests/data/test_registry.py`, `tests/test_docs_citations.py`, `tests/test_archive_rot.py`,
+and the four doc files the closure moves - `ROADMAP.md`, `docs/item_notes.md`,
+`docs/history_notes.md` and this file.
+
+Measured from the live install this cycle by `python tools/drift_guard.py --re-extract`:
+all four fields split 62 present, 6 absent over 68 published buildings. The absent half is
+the number that did not exist before, and it is what makes the None branch a statement
+about the shipped game.
+
+**The predicate is restated, not imported, and the restatement is fenced.**
+`clockspeed/data/version.py` may not import `clockspeed/data/registry.py` - the
+allowed-import matrix in `tests/data/test_phase2_gate.py` permits `version` exactly
+`docs_extract`, and that matrix is asserted in both directions. So
+`is_registry_building_entry` states the published-building predicate a second time on
+purpose, and
+`tests/data/test_registry.py::test_the_census_building_predicate_agrees_with_the_registrys`
+compares the two entry by entry over a case table carrying both a positive and a negative
+verdict, so two predicates that both answered False everywhere could not pass it.
+
+**The sibling sweep, and a finding beyond the acceptance clause.** The item's own note
+recorded an open unknown - ADR 0005 measured 62 entries carrying `mMaxPotential` while
+`clockspeed/data/registry.py` states 6 power-bearing entries carry no exponent, and
+WHETHER THOSE SETS OVERLAP WAS UNKNOWN. Probed against the live install this cycle: the
+absent sets of all four watched fields are the SAME 6 entries. The common-mode unknown is
+resolved.
+
+**That identity is NOT what the census guards, stated plainly so the caveat survives this
+cycle.** The recorded key is a pair of COUNTS per field. A future build that moved which
+entries lack the fields, without changing how many, would leave every count unchanged.
+The acceptance clause asks for counts and counts are what shipped; the set identity above
+is a measurement recorded here, not a guarded invariant.
+
+**Tests, by name.** `tests/data/test_version.py::test_the_tracked_pin_grounds_the_absent_max_potential_branch_in_shipped_data`,
+`::test_the_census_counts_the_registry_published_buildings_that_lack_a_watched_field`,
+`::test_the_census_counts_a_watched_field_as_present_on_every_baseline_building`,
+`::test_the_building_census_ignores_an_entry_no_recognized_group_holds`,
+`tests/data/test_registry.py::test_the_absent_max_potential_branch_is_grounded_in_the_shipped_document`,
+`::test_the_census_building_predicate_agrees_with_the_registrys`.
+
+**The failing-first order, with the reason quoted.** The three assertions that read the
+tracked pin failed `KeyError: 'registry_building_field_presence'` against the
+implementation with the pin left unregenerated - which is the defect itself, the pin
+carrying no such census - and went green only after `--re-extract` measured it from the
+install.
+
+**The census reads the RECOGNIZED groups, and that is the one place it deliberately reads
+less than the whole document.** `census()` is otherwise handed `DocsDocument.all_groups`,
+because under-counting an unseen group is the case a census exists to detect. The presence
+key is different: the registry builds its buildings from the recognized groups only, so
+counting an unrecognized group's power-bearing entry would describe a population nothing
+publishes. `::test_the_building_census_ignores_an_entry_no_recognized_group_holds` asserts
+the exclusion and then asserts the excluded entry really is in the document, so the
+exclusion is a measurement rather than a corpus that never carried it.
+
+**Three line pointers moved, and the two forgiveness ceilings move together.** Growing the
+generated pin moved `clockspeed/data/version.py` lines 352 and 815, both pinned in
+`tests/test_docs_citations.py`. Both became MOVED dispositions naming a live symbol -
+`INTEGRITY_KEY` and `extract_pin_block`. The first could not honestly be repointed: it was
+the pin's own `integrity` VALUE line, and this cycle changed that value as well as its
+position, so its digest did not carry over.
+
+That swap is net zero - two pins out, two dispositions in, a counted population unchanged.
+The DROP comes from the third pointer: the Phase 2 leaf pinned a line in
+`clockspeed/data/registry.py`, and closing the only item in that leaf moved its body to
+`docs/history_notes.md` and removed the leaf, so the pointer left the guarded corpus
+entirely. `FORGIVEN_LINE_POINTER_CEILING` COMES DOWN 61 TO 60.
+
+**The forgiveness changed hands rather than being discharged, so both numbers move in this
+one change.** The deep archive is exempt from the citation module, but not from
+`tests/test_archive_rot.py`, which counts that same pointer in its refused form: `_ROT_FORM`
+GOES UP 13 TO 14 in `tests/test_archive_rot.py`. A pointer that leaves one arm's books and
+enters another's while only one number moves is a forgiveness lost between two guards.
+
+**This paragraph was wrong when first written, and an independent verifier refuted it
+against a green suite.** The first cut of this entry said the ceiling HELD at 61 and did
+not mention `_ROT_FORM` at all - a claim corrected in the code and not in the record, which
+is precisely the fault that makes a record worth less than the tree it describes. 61 is not
+merely wrong in prose: the budget is an exact equality in both directions, so a ceiling of
+61 against 60 recorded forgivenesses turns
+`tests/test_docs_citations.py::test_the_forgiveness_budget_is_spent_exactly_and_cannot_grow`
+RED.
+
+**Tier 2** - a schema bump on a public census plus a new exported predicate.
+
+**SHIPPED-PARTIAL BY MEASUREMENT, AND THIS PARAGRAPH IS WHY THE ITEM CLOSES ANYWAY.**
+The acceptance clause asks for a census key counting registry-published buildings that
+carry `mMaxPotential` against those that do not, and a test that grades the absent-is-None
+branch against that census rather than the synthetic corpus. Both halves shipped and are
+named above. What an adversarial lens then refuted is NOT the acceptance clause but the
+strength of the fence around the word REGISTRY-PUBLISHED: the predicate agreement is a
+seven-case VALUE table, so a marker field added to one predicate only is not caught, and
+the census counts docs ENTRIES where the registry publishes a `ClassName`-keyed dict, so a
+missing or duplicate `ClassName` would be counted and never published. On this build the
+two populations coincide exactly, which is what makes that latent rather than live.
+
+**THAT REMAINDER IS FILED AS CS-966, NOT ABSORBED HERE.** It asks for the two populations
+to be compared STRUCTURALLY rather than by a case table, over both the marker set and the
+keying, proven by two mutants that redden. It is a fence-strength item with its own
+acceptance, and it is recorded in `ROADMAP.md` in the same commit as this entry, so the
+claim and the hole in it cannot be separated by a revert.
+
+**Refutation rounds: two, and the second is what ended the round rather than a third pass.**
+Round one refuted the forgiveness-ceiling paragraph above, which was repaired in place
+because the code was already right and only the record was wrong. Round two refuted the
+population fence, and that claim was FILED rather than re-litigated - which is the
+bounded-refutation rule taking effect, not a scope cut made for convenience.
+
+**Verification, and what this worker did not observe.** The local whole-suite run for the
+landing commit is recorded below with its verbatim summary line and the integer exit code
+of pytest itself, so the green claim is re-gradeable from this entry alone. The CI verdict
+for the pushed head is recorded by `ops/loop/queue_loop.py` and was NOT observed by this
+worker, which never blocks on a run it does not own.
+
+**Provenance.** The implementation was drafted by an earlier session, preserved unmerged
+and ungraded on the lane branch, and re-derived against a tree 96 commits further on
+before it was landed. Every citation in it was re-opened: the import matrix was re-read,
+the registry predicate re-located, the pin regenerated from the install rather than
+carried, and the two citation-guard consequences re-measured rather than copied. The
+regenerated integrity digest matched the draft's byte for byte - `fafa13c0...` from both -
+which is the one piece of independent confirmation that the census is reproducible from the
+install. The draft is checkable rather than asserted: it is preserved on the local branch
+`wip/cs-210-session70`, whose sole commit is the ungraded preservation of it.
+
 ### 2026-09-10 - CS-963 - CLOSED after three rounds. Refuted three times by an adversarial lens, each time against a green suite
 
 **THIS IS THE CLOSING RECORD.** Two earlier CS-963 entries below it stand as written: the

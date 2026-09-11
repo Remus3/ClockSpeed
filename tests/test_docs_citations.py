@@ -951,6 +951,36 @@ DISPOSITIONS: Final[Mapping[tuple[str, str], Disposition]] = {
         " not exist yet`.",
         1,
     ),
+    # CS-210 GREW THE GENERATED PIN, so two sites this append-only file cites
+    # slid down. Re-derived this cycle rather than carried: at the pre-change
+    # commit line 352 was the pin's `"integrity"` VALUE line and line 815 was
+    # the `except ValueError as exc:` inside `extract_pin_block`. Neither
+    # sentence may be repointed where it stands, and both describe declarations
+    # that are still live and nameable, so both take a target rather than a
+    # refusal. The integrity line is the harder of the two: it sat INSIDE the
+    # generated block, which carries no module-scope name at all, and the
+    # digest printed on it changed in the same cycle - so a line-count-neutral
+    # repair would restore a pointer at a value that is itself stale.
+    (LEDGER, line_key("clockspeed/data/version.py", 352)): Disposition(
+        MOVED,
+        "clockspeed/data/version.py::INTEGRITY_KEY",
+        "the entry reads that line as the pin's `integrity` value, refuting a"
+        " base64-shaped premise by measuring it a 64-character lowercase hex"
+        " sha256. INTEGRITY_KEY is the live declaration of the field the"
+        " sentence is about, and _SHA256_HEX_LENGTH beside it states the length"
+        " it asserts.",
+        1,
+    ),
+    (LEDGER, line_key("clockspeed/data/version.py", 815)): Disposition(
+        MOVED,
+        "clockspeed/data/version.py::extract_pin_block",
+        "the CS-202 scope ruling reads that line as one of the exception"
+        " renderings outside its two named files - the `except ValueError as"
+        " exc:` whose handler names msg, lineno and colno rather than str() on"
+        " the object. That handler is still there and is still the only one in"
+        " the function, so the enclosing definition names it unambiguously.",
+        1,
+    ),
     # THE ONE THE REPAIR SLICE REFUSED, and the refusal is the strongest
     # evidence in CS-889 for why a wrong-but-resolving pointer is worse than a
     # dead one. The obvious symbol conversion WOULD have resolved: at an earlier
@@ -1046,8 +1076,6 @@ UNVERIFIED_LINE_POINTERS: Final[Mapping[tuple[str, str, int], str]] = {
     ("docs/LEDGER.md", "clockspeed/data/docs_extract.py", 443): "7d6e8ff5649f",
     ("docs/LEDGER.md", "clockspeed/data/locate.py", 187): "53bcd3acffa2",
     ("docs/LEDGER.md", "clockspeed/data/locate.py", 657): "c0f880c0e553",
-    ("docs/LEDGER.md", "clockspeed/data/version.py", 352): "1e211b03496a",
-    ("docs/LEDGER.md", "clockspeed/data/version.py", 815): "d5cb7f2c533e",
     ("docs/LEDGER.md", "clockspeed/save/usmap.py", 46): "82be9ba39f87",
     ("docs/LEDGER.md", "scripts/install_hooks.py", 310): "4facec475176",
     ("docs/LEDGER.md", "tests/data/test_phase2_gate.py", 775): "edaece1458c2",
@@ -1057,7 +1085,6 @@ UNVERIFIED_LINE_POINTERS: Final[Mapping[tuple[str, str, int], str]] = {
     ("docs/LEDGER.md", "tools/precommit_gate.py", 570): "4b165904f3ca",
     ("docs/LEDGER.md", "tools/precommit_gate.py", 704): "7db8a31d0783",
     ("docs/LEDGER.md", "tools/precommit_gate.py", 1802): "7545e5808a11",
-    ("docs/item_notes/phase2.md", "clockspeed/data/registry.py", 84): "1a66118b40b6",
     ("docs/item_notes/phase4-followups-850.md", "clockspeed/data/locate.py", 39): "0d5e3276442e",
     ("docs/item_notes/phase4-followups-850.md", "clockspeed/data/locate.py", 141): "fa085c760a09",
     ("docs/item_notes/phase4-followups-850.md", "clockspeed/data/locate.py", 187): "53bcd3acffa2",
@@ -1236,7 +1263,43 @@ UNFORBIDDEN_LINE_POINTERS: Final[frozenset[tuple[str, str, int]]] = frozenset(
 #: exactly the laundering the comment above forbids. Its neighbour went with it
 #: because the sentence carrying both reads as one claim. The doc already wrote
 #: a third such site in prose as a bare line number for this reason.
-FORGIVEN_LINE_POINTER_CEILING: Final = 61
+#:
+#: 61 TO 60, 2026-09-10 BY CS-210, AND THE CHANGE IS THE NET OF TWO MOVEMENTS
+#: THAT MUST BE READ SEPARATELY OR THE NUMBER LOOKS ARBITRARY.
+#:
+#: THE FIRST MOVEMENT IS A REPAIR AND IT IS THE WHOLE DROP. The item-notes leaf for
+#: ROADMAP `Phase 2` pinned a line in `clockspeed/data/registry.py`. CS-210 was the only
+#: item in that leaf, so closing it moved the body to `docs/history_notes.md` and removed
+#: the leaf - which is also why the leaf is named by its phase here and not by its path,
+#: since a path this change deleted is a bare path the arms below would report dead,
+#: and the deep archive is exempt from this module for the quoting-versus-citing reason
+#: the 55-to-54 paragraph above gives. The pointer is not repaired in the sense of now
+#: resolving - it left the guarded corpus, which is the same discharge CS-889 took. The
+#: forgiveness is gone from THIS arm's books, so the ceiling comes down with it.
+#: The pointer is not thereby unguarded: `tests/test_archive_rot.py` counts it, and its
+#: `_ROT_FORM` pin went UP by one in the same change. A forgiveness that merely changes
+#: which arm carries it must be visible in both, or the pair of numbers is a way to lose
+#: one.
+#:
+#: THE SECOND MOVEMENT IS A SWAP AND IT MOVES THE NUMBER BY NOTHING. Growing the
+#: generated pin moved two `clockspeed/data/version.py` lines this file pinned; both left
+#: the table and two MOVED dispositions arrived in their place, so the counted population
+#: is unchanged. It does not come down, because nothing was repaired - both sites are
+#: still forgiven, merely forgiven with a live target attached instead of a frozen digest.
+#: It does not go up, because the swap spends no new forgiveness. This is the case the 53
+#: to 66 paragraph made countable: with both tables counted whole, converting a pin into a
+#: disposition is visible as the nothing it is, where under the old line-pointer-only
+#: count it would have read as a raise.
+#:
+#: THOSE TWO PINS WERE RETIRED RATHER THAN REPOINTED, on the CS-961 criterion. A repoint
+#: is honest only while the digest carries over unchanged. One of the two lines was the
+#: pin's own `integrity` VALUE, and regenerating the census changed that value as well as
+#: its line number - so its content did not carry over, and re-cutting the digest from
+#: today's tree would be the laundering the comment above forbids. Its neighbour is an
+#: `except` clause that did carry over, but it takes the enclosing-symbol form for the
+#: better reason: a function body is the anchor an edit above it cannot invalidate, which
+#: is the repair this table exists to shrink toward.
+FORGIVEN_LINE_POINTER_CEILING: Final = 60
 
 # --- resolution -------------------------------------------------------------
 

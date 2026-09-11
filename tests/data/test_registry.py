@@ -70,6 +70,11 @@ from clockspeed.data.registry import (
     automated_recipes,
     build_registry,
 )
+from clockspeed.data.version import (
+    CENSUS_KEY_BUILDING_FIELD_PRESENCE,
+    is_registry_building_entry,
+    pin,
+)
 from tests.data import synthetic
 from tests.data.synthetic import (
     ACCELERATED_RECIPE,
@@ -758,6 +763,56 @@ def test_the_unsharded_clock_base_comes_from_the_data_not_from_a_folded_constant
     assert raised.buildings[BLENDER_BUILDING].unsharded_clock_base == Fraction(2)
     removed = registry_with_building_key(BLENDER_BUILDING, synthetic.KEY_MAX_POTENTIAL, None)
     assert removed.buildings[BLENDER_BUILDING].unsharded_clock_base is None
+
+
+def test_the_absent_max_potential_branch_is_grounded_in_the_shipped_document() -> None:
+    # CS-210. The two tests above prove the BEHAVIOUR - an entry that declares
+    # no base gets None rather than an invented 1. They prove nothing about the
+    # PREMISE, because both read the same hand-authored corpus, and a corpus
+    # entry only demonstrates what a corpus author chose to write. The pin is
+    # measured from the shipped document by tools/drift_guard.py --re-extract,
+    # so it is the one artifact in the repository that can say the shipped game
+    # really ships such a building.
+    field = synthetic.KEY_MAX_POTENTIAL
+    counted = pin()["census"][CENSUS_KEY_BUILDING_FIELD_PRESENCE][field]
+    assert counted["absent"] > 0, (
+        f"the shipped document records no published building without {field}, "
+        "so the None branch below is exercised by the corpus alone"
+    )
+    assert (
+        registry_with_building_key(BLENDER_BUILDING, synthetic.KEY_MAX_POTENTIAL, None)
+        .buildings[BLENDER_BUILDING]
+        .unsharded_clock_base
+        is None
+    )
+
+
+def test_the_census_building_predicate_agrees_with_the_registrys() -> None:
+    # clockspeed/data/version.py and this module are peers over
+    # clockspeed/data/docs_extract.py, and the allowed-import matrix in
+    # tests/data/test_phase2_gate.py forbids either importing the other. So the
+    # census states the published-building predicate a second time on purpose,
+    # and this table is the fence that stops the two statements drifting apart.
+    # A shared import would have been the other answer and is the one the
+    # matrix rules out.
+    cases: list[dict[str, object]] = [
+        {},
+        {synthetic.KEY_CLASS_NAME: "Build_SynthNothing_C"},
+        {synthetic.KEY_POWER_CONSUMPTION: "10.000000"},
+        {synthetic.KEY_POWER_EXPONENT: "1.321929"},
+        {
+            synthetic.KEY_POWER_CONSUMPTION: "10.000000",
+            synthetic.KEY_POWER_EXPONENT: "1.321929",
+        },
+        {synthetic.KEY_MAX_POTENTIAL: "1.000000"},
+        {synthetic.KEY_FORM: FORM_SOLID},
+    ]
+    verdicts = [registry_module._is_building_entry(entry) for entry in cases]  # noqa: SLF001
+    # Positive and negative halves both present, so an agreement between two
+    # predicates that both answered False everywhere cannot pass this.
+    assert any(verdicts)
+    assert not all(verdicts)
+    assert [is_registry_building_entry(entry) for entry in cases] == verdicts
 
 
 def test_the_base_is_read_and_every_other_ceiling_operand_stays_unread() -> None:

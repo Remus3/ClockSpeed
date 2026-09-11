@@ -24,6 +24,34 @@ Where current truth actually lives:
 | Commands and runbooks | `docs/OPERATIONS.md` |
 
 
+## CS-210 - item section, CLOSED and relocated from `docs/item_notes.md` 2026-09-10
+
+The body came from the leaf this family routes ROADMAP `Phase 2` to, and that leaf was
+REMOVED in the same change, because CS-210 was the only item in it and an empty leaf is a
+routing row pointing at nothing. So the heading above names the INDEX rather than the
+leaf: a heading spelling a path the same change deleted would be a dead pointer filed by
+the very change that killed it, and the index's membership rule is what derives the leaf
+from the phase for anyone who needs to know which file it sat in. The phase is named here,
+in the body, because CS-840's rule bars it from the heading - only connectives and a path
+token may sit between a provenance verb and its date, and a heading is not the place to
+spend that budget on prose a sentence below can carry.
+
+Closed by the ledger entry dated 2026-09-10. The body below is VERBATIM, including the
+open question in its last sentence - whether the two sets overlap - which that entry
+records as MEASURED: they are the same six entries.
+
+
+### NOTE - relocated from `ROADMAP.md` 2026-08-23
+
+NOTE: detail relocated 2026-08-23 for budget to this file under **CS-210 - detail**; read it before taking this item.
+
+### detail - relocated from `docs/history_notes.md` 2026-08-23
+
+Relocated from `ROADMAP.md` 2026-08-23 for budget, not deleted. The item stays OPEN in
+`ROADMAP.md`. This block is a LIVE instruction, not history.
+
+this is the COMMON-MODE RISK named by the ADR 0006 adjudication on 2026-08-14. Both fences that ADR relies on read the SAME hand-authored corpus, so the registry-layer and solve-layer tests are one fixture read twice rather than two independent confirmations. That a registry-published `Building` can lack `mMaxPotential` AT ALL is asserted nowhere against the shipped data: the version pin records per-value counts (`"1.000000": 62`) but not WHICH entries carry the key, and ADR 0005 measured 62 entries carrying it while `clockspeed/data/registry.py:84-85` states 6 power-bearing entries carry no exponent - whether those sets overlap is unknown. It fails safe, because None cannot invent a number, so this is a premise risk rather than a correctness bug.
+
 ## CS-963 - retired from `docs/item_notes/phase4-followups-900.md` 2026-09-10
 
 The filed measurement and its detail are the completion record now, in `docs/LEDGER.md`

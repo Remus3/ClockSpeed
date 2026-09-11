@@ -220,13 +220,37 @@ _CYCLE_MODULE_FLOOR: Final = 4
 #: ABOUT a line pointer is a line pointer to the forbid arm, which cannot tell
 #: the two apart and should not try. The target is named by its module and its
 #: clause, and the number is left unspelled.
+#: _ROT_FORM 13 TO 14, 2026-09-10 BY CS-210, AND THE JUDGEMENT THE ARM EXISTS TO
+#: FORCE IS RECORDED RATHER THAN IMPLIED. Closing CS-210 relocated its item body
+#: into this archive, and that body carries a `file:line` pointer at
+#: `clockspeed/data/registry.py` in the refused form. THE EXEMPTION'S RECORDED
+#: REASON DOES NOT COVER IT: that reason speaks of blocks whose SUBJECT is a
+#: pointer being dead, and this is an ordinary citation in an ordinary item body -
+#: the same over-reach CS-897 already measured true of one site and false of
+#: another. It is admitted anyway, because the alternative is worse:
+#: `docs/item_notes.md` requires a relocated body to arrive VERBATIM, so converting
+#: the pointer would edit an archived record to make a guard quiet.
+#:
+#: THE POINTER IS LIVE, WHICH IS WHAT MAKES THIS A FORM AND NOT A DEAD TARGET. It
+#: was carried in the citation pin in `tests/test_docs_citations.py` while the body
+#: sat in a leaf, and its frozen digest still matched at the moment of the move.
+#: That pin left the other arm's table in the same change and its ceiling came down
+#: by one - the forgiveness changed hands rather than being discharged, and both
+#: numbers move together so it cannot be lost between them.
+#:
+#: _ROT_PATH DID NOT MOVE, and that is the other half of the same judgement. The
+#: relocation heading could have spelled the leaf the same change deleted, which
+#: this arm would report as a fifth dead path. That site is AVOIDABLE - the heading
+#: names the item-notes INDEX, which is live, and the body below it says which leaf
+#: the section sat in - and an avoidable site is removed rather than pinned. A pin bumped for
+#: rot that did not have to exist is an exemption widened by convenience.
 ARCHIVE_ROT: Final[Mapping[str, int]] = {
     _ROT_CITATION: 5,
     _ROT_RANGE: 0,
     _ROT_EMPTY: 4,
     _ROT_NAME: 3,
     _ROT_PATH: 4,
-    _ROT_FORM: 13,
+    _ROT_FORM: 14,
 }
 
 

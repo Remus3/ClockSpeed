@@ -32,7 +32,6 @@ mapping has one owner and this file only reports it:
 
 | Leaf | Holds |
 |---|---|
-| `docs/item_notes/phase2.md` | ROADMAP `Phase 2` |
 | `docs/item_notes/phase3.md` | ROADMAP `Phase 3` |
 | `docs/item_notes/phase4.md` | ROADMAP `Phase 4`, ID outside the `CS-8nn` block |
 | `docs/item_notes/phase4-followups.md` | ROADMAP `Phase 4`, ID in the `CS-8nn` block below CS-850 |
@@ -82,7 +81,6 @@ a pass - every equality here is satisfied for free by an empty population.
 
 | Item | Leaf |
 |---|---|
-| CS-210 | `docs/item_notes/phase2.md` |
 | CS-301 | `docs/item_notes/phase3.md` |
 | CS-302 | `docs/item_notes/phase3.md` |
 | CS-303 | `docs/item_notes/phase3.md` |
