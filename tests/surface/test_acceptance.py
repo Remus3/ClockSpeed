@@ -80,6 +80,7 @@ from typing import Final
 
 import pytest
 
+from clockspeed.save import workdir
 from clockspeed.save.header import WORLD_TOKEN_LENGTH
 from clockspeed.surface.api import contract
 from clockspeed.surface.api.routes import ROUTES
@@ -868,6 +869,41 @@ def _config(cert_path: Path, key_path: Path, web_dir: Path) -> ServerConfig:
     )
 
 
+@pytest.fixture(scope="module", autouse=True)
+def isolated_work_root(tmp_path_factory: pytest.TempPathFactory) -> Iterator[Path]:
+    """Send workdir's copies outside the repo for every arm in this module.
+
+    THIS MODULE DRIVES A REAL SERVER WITH ITS REAL PROVIDERS, which is what
+    makes it an acceptance suite and what made it a writer. The world endpoint
+    is answered by ``providers.SaveWorldProvider``, which resolves the newest
+    save and loads it - and ``world.load_world`` copies its subject through
+    ``workdir.copy_for_read`` before parsing a byte. The work root that copy
+    lands in DEFAULTS TO ``<repo>/work``, so driving every endpoint once put a
+    real save, carrying the account id and the world name, into the tracked
+    tree (non-negotiables 11 and 12).
+
+    MODULE SCOPE BECAUSE THE SERVER IS MODULE SCOPE. ``live_api`` and
+    ``observations`` are built once per module and the requests are issued
+    during their setup, so a function-scoped redirect would be installed and
+    torn down entirely AFTER the writes it was meant to prevent. The
+    function-scoped ``monkeypatch`` fixture cannot be requested from here for
+    the same reason, hence the explicit context.
+
+    AUTOUSE BECAUSE THE WRITER IS NOT THE ARM. No test here names the save
+    layer; the copy happens inside a fixture two levels below the signature, so
+    there is no arm for a reader to attach the redirect to. Autouse also orders
+    it ahead of ``live_api``: same-scope autouse fixtures are set up before the
+    fixtures a test requests by name.
+
+    Yields:
+        The redirected work root, under the pytest sandbox rather than the repo.
+    """
+    root = tmp_path_factory.mktemp("s7-work-root") / "work-root"
+    with pytest.MonkeyPatch.context() as patch:
+        patch.setenv(workdir.ENV_WORK_ROOT, str(root))
+        yield root
+
+
 @pytest.fixture(scope="module")
 def tls_material(tmp_path_factory: pytest.TempPathFactory) -> tuple[Path, Path, Path]:
     """A real certificate pair and an empty asset directory, outside the repo.
@@ -946,6 +982,42 @@ def observations(
 # ---------------------------------------------------------------------------
 # A4 first half. The vacuity control runs BEFORE anything iterates.
 # ---------------------------------------------------------------------------
+
+
+def test_the_work_root_the_live_server_copied_into_is_outside_the_repository(
+    isolated_work_root: Path,
+    observations: tuple[Observed, ...],
+) -> None:
+    """THE REGRESSION ARM for the real saves this module used to copy into the tree.
+
+    Driving every endpoint once reaches ``providers.SaveWorldProvider``, which
+    loads the newest save, and the load copies before it parses. The copy is not
+    the defect - WHERE it lands is, and it landed in ``<repo>/work`` until the
+    module-scoped redirect above was added.
+
+    ``observations`` IS THE VACUITY CONTROL AND IS REQUESTED FOR THAT REASON
+    ALONE. It forces the server through its whole endpoint set, so this arm
+    cannot pass by grading a run in which nothing was ever requested. Requesting
+    it also pins the ordering the fix depends on: the redirect is module-scoped
+    and autouse, so it is installed before the server that these observations
+    came from.
+
+    NO COPY COUNT IS ASSERTED. Whether a copy exists at all depends on whether
+    this machine has a save, and an arm that demanded one would be red on CI and
+    on any machine without the game - which is the population BOOTSTRAP.md
+    section 8.1 requires the suite to run on. What is asserted is the property
+    that holds either way: the destination is not inside the repository.
+
+    Args:
+        isolated_work_root: The redirected root under the pytest sandbox.
+        observations: Every endpoint, driven once over the live server.
+    """
+    repo_root = Path(__file__).resolve().parents[2]
+
+    assert observations, "no endpoint was driven, so this arm graded nothing"
+    assert repo_root not in isolated_work_root.resolve().parents, (
+        "the work root the live server copies into is inside the repository"
+    )
 
 
 def test_the_route_table_holds_exactly_the_count_bootstrap_names() -> None:

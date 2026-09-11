@@ -160,6 +160,100 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-09-11 - CS-973 - CLOSED. The suite copied 23 of the operator's real saves into the live copies directory, and the repair is three redirects plus one session-wide count that discovers the NEXT writer rather than the two already known
+
+**Filed and closed from outside.** The finding came from Legion Wallpaper's
+write-attribution tracer, run against this tree on operator direction; the repair
+below was made in this repository by that session. No other sibling tree was
+touched.
+
+**The defect, reproduced here rather than taken on report.** `world.load_world`
+copies its subject through `workdir.copy_for_read` before it parses a byte, and
+the work root that copy lands in DEFAULTS TO `<repo>/work`. Three arms reached a
+real save with no redirect in place: `test_phase4_gate.py`'s
+`test_a_real_world_parses_end_to_end` and
+`test_every_real_save_in_the_library_loads_through_the_one_entry_point`, and
+`test_acceptance.py`'s `test_every_endpoint_bootstrap_names_answers_over_verified_tls`,
+which drives the live server through `providers.SaveWorldProvider`. A traced run
+of those two modules alone wrote 23 files carrying `COPY_SUFFIX` into
+`work/saves/`, one per save in the library, with the tracer's planted control
+proving the instrument was live. Non-negotiables 1 and 11 both held: the
+originals were untouched and the directory is gitignored with no `.sav` tracked.
+This was corpus pollution, not a leak - and that directory is what the save layer
+is measured against, so anything globbing `*.sav` there saw 23 worlds that are
+not worlds.
+
+**Why the acceptance module was a writer at all, which is the part a reader will
+not guess.** No arm in it names the save layer. The copy happens inside
+`observations`, two fixture levels below any signature, during MODULE setup. A
+function-scoped redirect would therefore have been installed and torn down
+entirely AFTER the writes it was meant to prevent, which is why the fixture there
+is module-scoped, autouse, and holds its own `pytest.MonkeyPatch.context()`
+rather than requesting the function-scoped `monkeypatch`.
+
+**What shipped.** Three files, additions only, no line deleted or moved.
+`tests/save/test_phase4_gate.py` gains an autouse `isolated_work_root` matching
+the shipped fixture of the same name in `tests/save/test_world.py`, plus
+`test_the_library_sweep_leaves_its_copies_off_the_repo`.
+`tests/surface/test_acceptance.py` gains the module-scoped autouse redirect plus
+`test_the_work_root_the_live_server_copied_into_is_outside_the_repository`.
+`tests/conftest.py` gains the session-scoped autouse guard
+`_the_live_copies_directory_is_left_as_it_was_found`, appended at the FOOT for
+the reason the CS-968 scrub above it is: the deep archive pins line numbers into
+that module.
+
+**AUTOUSE RATHER THAN REQUESTED BY NAME, DELIBERATELY.** Attaching the redirect
+to the two arms that copy today closes those two and leaves the next arm that
+loads a real save to re-open the hole, which is exactly how this one was opened.
+
+**THE SESSION GUARD DISCOVERS THE WRITER RATHER THAN ENCODING IT,** which is what
+the acceptance criterion asked for and what the per-module fixtures cannot do. It
+counts before and after over the whole run, so a writer added by a module that
+does not exist yet is caught where it lands. It derives the live directory from
+`conftest.py`'s own position instead of calling `workdir.work_root()`, because
+that resolver reads `ENV_WORK_ROOT` and would make the guard watch every
+directory except the one at risk. It reports a DELTA and never a listing: a copy
+carries the name of the save it came from, so a set of names in a failing
+assertion is a set of the operator's world names (non-negotiable 12). Attribution
+is the tracer's job and the failure message says so.
+
+**THE FIRST ATTEMPT MANUFACTURED THE ROT IT WAS REPAIRING, and the full suite
+caught it.** Both phase 4 blocks were first written into the Clause 1 section
+where they read best. That moved `WRITER_WRITE_SURFACE` off line 2089 and
+reddened `test_docs_citations.py` twice, because `docs/item_notes/phase4.md`
+pins that line for the still-open CS-446 note. The guard offered two remedies
+and a trap: convert the pointer to symbol form, adjudicate it into
+`DISPOSITIONS`, or re-cut the digest - the last of which keeps a pointer already
+shown to follow the rot. None was needed. The blocks moved to the FOOT of the
+module instead, below every existing line, which restores line 2089 exactly and
+leaves the item note untouched. The same reasoning the CS-968 scrub records in
+`tests/conftest.py`, applied to a second module.
+
+**One unrelated observation, filed and NOT acted on.** The traced run shows
+`tests/test_edit_lint_check.py` writing its CS-841 bait into two directories
+under `work/` rather than under `tmp_path`. Both are removed before the run ends
+and no file survives, so this is placement rather than pollution and it is not
+CS-973's subject. It is recorded here because the trace is where it was visible.
+
+**Three mutants, three killed, each restored byte-exact.** (1) The phase 4
+redirect removed: `test_the_library_sweep_leaves_its_copies_off_the_repo` goes
+red and the live directory takes 23 copies again, which is the original defect
+reproduced on demand. (2) The acceptance redirect pointed back inside the
+repository: `test_the_work_root_the_live_server_copied_into_is_outside_the_repository`
+goes red. (3) The phase 4 redirect removed with ONLY the library sweep selected,
+so no per-module arm was in the run: `tests/conftest.py` errors the node with
+"the suite added 23 real-save copies", which is the session guard binding alone.
+
+**Verify independently.** `python -m pytest tests/ -q` green, `ruff check tests/`
+clean, and `work/saves/` holding the file count it held at session start. To
+re-attribute from scratch: `pytest tests/ -p lw_write_tracer --trace-roots
+"ops;data;work;config;memory;moon_sync_inbox" --trace-out out.json`. The plugin
+arrived here as `moon_sync_inbox/lw_write_tracer.py.from-lw`, which that suffix
+makes unimportable as written: copy it to `lw_write_tracer.py` somewhere on
+`PYTHONPATH` first. Then read `control.proved` in the report BEFORE believing a
+zero - a tracer that patched nothing reports the same empty buckets as a clean
+run.
+
 ### 2026-09-11 - CS-303 - CLOSED. ADR 0006's name-fence on `Building.unsharded_clock_base` is now mechanical, and the round was REFUTED once on a gate the new file left red
 
 **The defect.** ADR 0006 decided how the one shipped ceiling operand reaches the model

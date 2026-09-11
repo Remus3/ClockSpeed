@@ -3583,6 +3583,13 @@ _EXEMPT_LIBRARY_REACH: Final = MappingProxyType(
             "files inside a tempfile.TemporaryDirectory, made solely to force "
             "the CPython audit events this module's write scanner reasons about"
         ),
+        "test_the_library_sweep_leaves_its_copies_off_the_repo": (
+            "a test rather than a helper. Its rglob runs over exactly two roots "
+            "and neither is discovered: this repo's own work directory, built "
+            "from the REPO_ROOT constant, and the redirected work root the "
+            "isolated_work_root fixture placed under tmp_path. It counts the "
+            "matches and binds no path, so no save name reaches a frame"
+        ),
     }
 )
 
@@ -3874,3 +3881,91 @@ def test_an_unexpected_load_failure_does_not_unwind_through_the_measured_pair_lo
     assert reported == _forced, (
         f"the measured-pair loader reported {reported} rather than the one contained {_forced}"
     )
+
+
+# ===========================================================================
+# CS-973 - the copies this module's real-save arms make land off the repo
+#
+# AT THE FOOT, AND THE PLACEMENT IS THE POINT. This module's Clause 1 section
+# is where these two read, and putting them there is what the first attempt
+# did - which moved `WRITER_WRITE_SURFACE` off line 2089 and broke the archive
+# pin in `docs/item_notes/phase4.md` that anchors it. A block appended below
+# every existing line moves none of them. Fixtures and tests are collected by
+# name, so position costs nothing but the reading order.
+# ===========================================================================
+
+
+@pytest.fixture(autouse=True)
+def isolated_work_root(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> Path:
+    """Send workdir's copies under tmp_path so no test writes into the repo.
+
+    AUTOUSE, AND THAT IS THE POINT. ``world.load_world`` copies its subject
+    through ``workdir.copy_for_read`` before it reads a byte, and the work root
+    that copy lands in DEFAULTS TO ``<repo>/work``. Two arms in this module
+    reached a real save without redirecting it, and the library sweep below
+    reaches EVERY save the operator has - so a plain run of this file deposited
+    one ``.copy.sav`` per real save into the tracked tree, each one a real save
+    carrying the account id and the world name (non-negotiables 11 and 12).
+    That was measured at 23 files, not theorised.
+
+    Requesting it by name on the two arms that copy today would close those two
+    and leave the NEXT arm that loads a real save to re-open the hole, which is
+    how this one was opened. Autouse closes the module.
+
+    The sibling fixture in ``tests/save/test_world.py`` is the same redirect for
+    the same reason; this module could not borrow it because a fixture defined
+    in a test module is private to that module.
+
+    Args:
+        monkeypatch: Restores the environment when the test ends.
+        tmp_path: The per-test sandbox the work root is placed under.
+
+    Returns:
+        The redirected work root. Bound so an arm can assert copies landed in it.
+    """
+    root = tmp_path / "work-root"
+    monkeypatch.setenv(workdir.ENV_WORK_ROOT, str(root))
+    return root
+
+
+def test_the_library_sweep_leaves_its_copies_off_the_repo(isolated_work_root: Path) -> None:
+    """THE REGRESSION ARM for the copies this module used to deposit in the tree.
+
+    ``world.load_world`` copies before it parses, so the sweep above writes one
+    file per real save. Where they land is the whole subject here: under the
+    redirected work root, and NOT in the repo's own ``work`` directory. The
+    measured defect was 23 real saves copied into the tracked tree.
+
+    THE REPO HALF IS A DELTA, NOT A CENSUS. Asserting the repo work directory is
+    EMPTY would grade the machine rather than this run - a stray left by some
+    earlier run would fail an arm that is innocent of it. What is asserted is
+    that this test ADDED nothing there, which is the claim the fix actually
+    makes and is true on a dirty machine as well as a clean one.
+
+    THE FIRST ASSERTION IS THE VACUITY CONTROL. Every other assertion here
+    passes when the sweep copied nothing at all, which is precisely the state a
+    broken ``_load_every_real_save`` would present.
+
+    COUNTS ONLY, AND THAT IS NOT STYLE. A copy is named after the save it came
+    from, so a set of copy paths rendered into a pytest assertion line is a set
+    of the operator's world names (non-negotiable 12). Nothing below binds a
+    name.
+
+    Args:
+        isolated_work_root: The redirected root, requested by name rather than
+            left to the autouse so the reader can see what is being graded.
+    """
+    repo_work = REPO_ROOT / workdir.WORK_DIR_NAME
+    before = len(list(repo_work.rglob("*" + workdir.COPY_SUFFIX))) if repo_work.is_dir() else 0
+
+    swept = _load_every_real_save()
+    if swept is None:
+        pytest.skip("no save library on this machine - there is nothing to copy")
+    found, _loaded, _failures = swept
+
+    after = len(list(repo_work.rglob("*" + workdir.COPY_SUFFIX))) if repo_work.is_dir() else 0
+    copied = len(list(isolated_work_root.rglob("*" + workdir.COPY_SUFFIX)))
+
+    assert copied > 0, "the sweep copied nothing, so this arm would pass over any work root"
+    assert copied <= found, "more copies than saves swept - the redirect is not the only writer"
+    assert after == before, f"the sweep added {after - before} copies to the repo work directory"
