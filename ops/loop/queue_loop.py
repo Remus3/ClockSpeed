@@ -504,34 +504,61 @@ EXIT_NO_PROGRESS = 9  # cycles happened and none of them shipped
 EXIT_UNKNOWN_STOP = 10  # a stop word in no table - never read one as success
 
 
+#: The row's own wording for an unreadable lane HEAD. A CONSTANT because
+#: `detail` is the only thing that separates a worker which committed
+#: nothing from a driver that could not look, and those send an operator to
+#: two different files at 3am.
+_UNREADABLE_HEAD = "the lane worktree HEAD could not be read - "
+
+
 def _is_progress(record) -> bool:
-    """Did this cycle actually ship anything?
+    """Did this cycle produce a commit?
 
     ONE DEFINITION, read by the loop's counter AND by `main`'s exit code, so
     the two cannot drift into disagreeing about what a good cycle is.
 
-    BOTH HALVES ARE LOAD-BEARING. The outcome word alone was the defect: driven
-    against a ref that never moved, twelve `completed` cycles ran the whole
-    budget and exited 0 - a night that shipped nothing, observationally
-    identical to the all-`lane_held` night this counter exists to stop. The
-    row's own `ok` roll-up already knew better, because a cycle whose push
-    signal never moved is recorded `ci.verdict == no-push` and `ok: false`.
+    BOTH HALVES ARE LOAD-BEARING. The outcome word alone was the first defect:
+    driven against a ref that never moved, twelve `completed` cycles ran the
+    whole budget and exited 0 - a night that shipped nothing, observationally
+    identical to the all-`lane_held` night this counter exists to stop.
 
-    The other two causes of `ok: false` are unaffected, and deliberately so. A
-    red local suite and a red CI each HARD-STOP the night on the same cycle,
-    above this check and with their own words and numbers, so neither can reach
-    a counter. And a run with `ci_gate=False` sets no `ci` key at all, so its
-    verdict clause is vacuous and `ok` stays true - the gate being off must not
-    turn every cycle into a no-op. The behaviour change is therefore confined to
-    the no-push case.
+    THE SECOND HALF USED TO BE `record["ok"]`, AND THAT WAS THE SECOND DEFECT.
+    `ok` is false whenever the `ci` verdict is `no-push`, and `no-push` is
+    decided by whether `origin/main` moved - which conflates WHERE the work
+    landed with WHETHER there was work. `tools/headless-queue.md` instructs the
+    worker to push the LANE BRANCH when its push to main is rejected, so a
+    worker doing exactly what it is told never moves `origin/main`; an
+    adversary driving that observed `cycles_run=3 stopped_by=no_progress` and
+    exit 9 on a night doing real work. That is the session-81 shape, where
+    CS-210 landed on `lane/queue` rather than on `main`. Killing such a night is
+    worse than the bug the counter was written to fix.
+
+    So the question is asked DIRECTLY instead: the driver already knows the lane
+    worktree, because it grades the local suite there, and it reads that tree's
+    HEAD before and after every cycle. The three cases an adversary drove all
+    come out right:
+
+    - the worker pushed to main -> HEAD advanced -> progress;
+    - the worker pushed the LANE BRANCH -> HEAD advanced -> progress;
+    - the worker completed having committed nothing -> HEAD stood still -> no
+      progress, which is the case the previous round was right to catch.
+
+    It also survives a FOREIGN push moving `origin/main` while this lane did
+    nothing - `ok` reads that as progress that was never ours; this does not.
+
+    NOTHING ABOUT `ci` OR `ok` CHANGED. A lane-branch night's rows still say
+    `ci: no-push` and `ok: false`, because both are true, and the night still
+    runs its whole budget and exits 0. A row and a night are different claims.
 
     Args:
         record: One cycle row, as `run_loop` writes it.
 
     Returns:
-        True only for a cycle that completed AND rolled up ok.
+        True only for a cycle that completed AND advanced the lane HEAD.
     """
-    return record.get("outcome") in PRODUCTIVE_OUTCOMES and bool(record.get("ok"))
+    return record.get("outcome") in PRODUCTIVE_OUTCOMES and bool(
+        (record.get("commit") or {}).get("advanced")
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -1096,6 +1123,97 @@ def remote_head_sha(ref: str = CI_REF) -> str | None:
     first = (proc.stdout or "").strip().split("\n", 1)[0]
     parts = first.split()
     return parts[0] if parts else None
+
+
+def local_head_sha(cwd) -> str | None:
+    """The sha the LANE WORKTREE's own HEAD points at, or None. Never raises.
+
+    THIS IS NOT `remote_head_sha`, AND THE DIFFERENCE IS THE WHOLE REPAIR.
+    That one asks where `origin/main` points, which answers "where did the work
+    land". This one asks what the tree the worker commits into points at, which
+    answers "was there any work". The two were conflated, and a worker doing
+    exactly what `tools/headless-queue.md` tells it to do - push the LANE
+    BRANCH when the push to main is rejected - was scored as having done
+    nothing three cycles running.
+
+    `rev-parse HEAD`, and it MUTATES NOTHING: no fetch, no index read that
+    writes, no reflog. The driver must never write into a tree a worker may be
+    using, which rules out anything that would take the index lock.
+
+    None on every failure, which the caller turns into "not a commit" - see
+    the default stated at the `commit` record in `run_loop`.
+
+    Args:
+        cwd: The worktree to ask. A missing one is a None, not a raise.
+
+    Returns:
+        The 40-character sha, or None.
+    """
+    exe = resolve_tool("git")
+    if exe is None or cwd is None:
+        return None
+    try:
+        proc = subprocess.run(
+            [exe, "-C", str(cwd), "rev-parse", "HEAD"],
+            capture_output=True,
+            text=True,
+            timeout=GH_TIMEOUT_S,
+            check=False,
+            creationflags=_NO_WINDOW,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return None
+    if proc.returncode != 0:
+        return None
+    return (proc.stdout or "").strip() or None
+
+
+def lane_worktree(lane: str, worktree):
+    """The ONE answer to "which tree is this lane's", for every caller here.
+
+    The local suite is graded in it and the lane HEAD is read from it, and the
+    two must never be able to disagree about which directory they mean - a
+    suite graded in one tree beside a commit counted in another is a pair of
+    correct facts that together say nothing.
+
+    Raises whatever `worktree_path` raises, exactly as the suite call site
+    already did. The progress read wraps it; see `_lane_head`.
+
+    Args:
+        lane: The lane name.
+        worktree: The caller's override, or None to resolve the lane's own.
+
+    Returns:
+        The worktree path.
+    """
+    return worktree if worktree is not None else _mod("lane_launcher").worktree_path(lane)
+
+
+def _lane_head(tree_sha, lane, worktree):
+    """(sha, why). NEVER RAISES, and that is a hard requirement, not a courtesy.
+
+    `run_loop` catches around `run_cycle` and nowhere else, so a fault raised
+    here would escape the loop entirely and take the driver down with it - no
+    ledger row, no stop word, no exit code for the launcher to read. A night
+    the driver cannot grade must still be a night that ENDS, on its own
+    counter, with its reason written down.
+
+    `_fault`, not `str(exc)`: CLAUDE.md non-negotiable 12. The exception
+    message on an OSError appends the path it failed on, and a lane worktree
+    path is not something this row may carry.
+
+    Args:
+        tree_sha: The seam that reads a worktree's HEAD.
+        lane: The lane name.
+        worktree: The caller's worktree override, or None.
+
+    Returns:
+        (sha_or_None, why) - `why` is "" on success.
+    """
+    try:
+        return tree_sha(lane_worktree(lane, worktree)), ""
+    except Exception as exc:  # see the docstring's first line
+        return None, _fault(exc)[:200]
 
 
 def _gh_json(gh, args):
@@ -1772,6 +1890,7 @@ def run_loop(  # noqa: PLR0913, PLR0912, PLR0915 - see THE SEAMS ARE THE POINT
     stranger=None,
     kill=_taskkill,
     head_sha=None,
+    tree_sha=None,
     gh=_gh,
     wait=None,
     suite=None,
@@ -1822,6 +1941,7 @@ def run_loop(  # noqa: PLR0913, PLR0912, PLR0915 - see THE SEAMS ARE THE POINT
         `{"cycles_run", "stopped_by", "records"}`.
     """
     head_sha = remote_head_sha if head_sha is None else head_sha
+    tree_sha = local_head_sha if tree_sha is None else tree_sha
     wait = wait_for_ci if wait is None else wait
     suite = run_local_suite if suite is None else suite
 
@@ -1849,6 +1969,11 @@ def run_loop(  # noqa: PLR0913, PLR0912, PLR0915 - see THE SEAMS ARE THE POINT
         # not knowable in advance, and one `ls-remote` against a multi-hour
         # cycle is not a cost worth optimising.
         pre_sha = head_sha() if ci_gate else None
+        # UNCONDITIONAL, and NOT gated on `ci_gate`. Whether the cycle
+        # produced a commit is a question about the worker, not about the
+        # CI gate, and a night run with the gate off still has to be
+        # stopped when it is accomplishing nothing.
+        pre_tree, pre_why = _lane_head(tree_sha, lane, worktree)
         try:
             record = run_cycle(
                 cycle,
@@ -1894,14 +2019,55 @@ def run_loop(  # noqa: PLR0913, PLR0912, PLR0915 - see THE SEAMS ARE THE POINT
         # ---- THE DRIVER-OWNED WAITS, before the append so ONE row carries
         # ---- the cycle and its acceptance together.
         note = ""
+        post_tree, post_why = _lane_head(tree_sha, lane, worktree)
+        # DID THIS CYCLE PRODUCE A COMMIT - the question the progress
+        # counter asks, and deliberately NOT the question `ok` answers.
+        #
+        # THE DEFAULT ON AN UNREADABLE HEAD IS `False`, AND THE CHOICE IS
+        # BETWEEN TWO COSTS. Defaulting to True re-opens the exact hole this
+        # item exists to close - a night that accomplishes nothing burns its
+        # whole budget and reports exit 0, which is a lie a launcher cannot
+        # see through. Defaulting to False costs the REMAINING cycles of a
+        # night whose lane tree the driver has lost sight of for three
+        # consecutive cycles, and costs nothing already committed. The
+        # counter is CONSECUTIVE, so one transient git failure between two
+        # readable cycles is survived. A driver that cannot see the tree its
+        # worker writes into is not entitled to keep extending the night, so
+        # the honest exit 9 wins over the cheerful exit 0.
+        #
+        # `detail` carries WHICH of the two it was: an operator sent to read
+        # a worker log because the row said the worker committed nothing,
+        # when in fact git could not answer, has been sent to the wrong file.
+        record["commit"] = {
+            "pre": pre_tree,
+            "post": post_tree,
+            "advanced": bool(pre_tree and post_tree and post_tree != pre_tree),
+            "detail": (
+                ""
+                if pre_tree and post_tree
+                else _UNREADABLE_HEAD + (pre_why or post_why or "git gave no answer")
+            ),
+        }
+        # ON THE CONSOLE LINE TOO, because without it a lane-branch night
+        # and a dead night are the same five hundred characters: both read
+        # `ci=no-push`, and only one of them is fine. The operator tailing
+        # this reads a night by counting cycles down the left margin, and
+        # this is the token that tells them which night they are watching.
+        # THREE WORDS, not two: unreadable sends someone to the git state,
+        # `no` sends them to the worker log, and those are different errands.
+        if record["commit"]["advanced"]:
+            note += " commit=yes"
+        elif record["commit"]["detail"]:
+            note += " commit=unreadable"
+        else:
+            note += " commit=no"
         if record["outcome"] == OUTCOME_COMPLETED and local_suite:
             # THE LANE WORKTREE, never this tree - see run_local_suite. The
             # worker's commit lives there; the driver's own checkout is whatever
-            # it was when the night started.
-            graded_tree = worktree
-            if graded_tree is None:
-                graded_tree = _mod("lane_launcher").worktree_path(lane)
-            record["suite"] = suite(cwd=graded_tree, monotonic=monotonic)
+            # it was when the night started. ONE resolver, shared with the
+            # lane-HEAD read below: a suite graded in one tree beside a commit
+            # counted in another is two correct facts that together say nothing.
+            record["suite"] = suite(cwd=lane_worktree(lane, worktree), monotonic=monotonic)
         if ci_gate and record["outcome"] == OUTCOME_COMPLETED:
             post_sha = head_sha()
             if pre_sha is None or post_sha is None:
@@ -1945,7 +2111,10 @@ def run_loop(  # noqa: PLR0913, PLR0912, PLR0915 - see THE SEAMS ARE THE POINT
                 )
         verdict = record.get("ci")
         if verdict:
-            note = f" ci={verdict['verdict']} {verdict.get('waited_s', 0)}s"
+            # `+=`, NOT `=`. This used to be the first thing written to the
+            # note and could assign; it is no longer first, and an assignment
+            # here silently ate the commit token that precedes it.
+            note += f" ci={verdict['verdict']} {verdict.get('waited_s', 0)}s"
         local = record.get("suite")
         if local:
             note += f" suite={'ok' if local['ok'] else 'RED'} [{local['summary']}]"
@@ -2024,9 +2193,11 @@ def run_loop(  # noqa: PLR0913, PLR0912, PLR0915 - see THE SEAMS ARE THE POINT
             # transient the loop is supposed to survive; resetting here is what
             # keeps a flaky night from being scored as a broken one.
             #
-            # `_is_progress`, not the outcome word: a `completed` cycle whose
-            # push signal never moved shipped nothing, and reading the weaker
-            # of the two fields let twelve of those run the whole budget.
+            # `_is_progress`, not the outcome word: a `completed` cycle that
+            # committed nothing produced nothing, and reading the outcome
+            # alone let twelve of those run the whole budget. It reads the
+            # `commit` field rather than `ok` - see the docstring there for
+            # why the remote ref is the wrong question.
             consecutive_unproductive = 0
         else:
             consecutive_unproductive += 1
@@ -2301,9 +2472,10 @@ def main(argv=None, *, singleton=None) -> int:
     if not any(_is_progress(record) for record in summary["records"]):
         # THE INVARIANT, HELD WHERE A COUNTER CANNOT REACH. Every counter needs
         # three consecutive cycles; `--once` grants one, and a held lane, a
-        # refused launch or a single no-push completion each exited 0 under a
-        # budget that small. The WORD stays whatever the loop chose - the night
-        # really did end that way - but the number says nothing was shipped.
+        # refused launch or a single completion that committed nothing each
+        # exited 0 under a budget that small. The WORD stays whatever the loop
+        # chose - the night really did end that way - but the number says
+        # nothing was shipped.
         _emit(
             f"queue-loop: {summary['cycles_run']} cycle(s) ran and none of them "
             f"shipped - reporting no progress rather than success."

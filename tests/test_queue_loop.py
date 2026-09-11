@@ -1094,6 +1094,10 @@ def loop_seams(fake, **over):
         "stranger": lambda _pid, _s: False,
         "kill": lambda _pid: None,
         "head_sha": lambda: "sha-unchanged",
+        # The lane worktree's own HEAD, and INJECTED - the real reader
+        # shells out to git, and a unit suite that reaches a real worktree
+        # is grading whatever the operator last committed there.
+        "tree_sha": _committing_tree(),
         "sleep": fake.sleep,
         "clock": fake.time,
         "monotonic": fake.monotonic,
@@ -1710,6 +1714,13 @@ def test_a_second_driver_refuses_with_its_own_code():
     assert code == queue_loop.EXIT_ALREADY_RUNNING
 
 
+#: ONE SHIPPING ROW, in the shape `run_loop` writes - a completed cycle that
+#: ADVANCED THE LANE HEAD. `ok` is deliberately absent from what makes it
+#: shipping: a night committing to the lane branch carries `ok: false` on
+#: every row and is still a night that did real work.
+SHIPPED = {"outcome": "completed", "ok": True, "commit": {"advanced": True}}
+
+
 @pytest.mark.parametrize(
     ("stopped_by", "expected"),
     [
@@ -1747,7 +1758,7 @@ def test_every_stop_reason_has_its_own_exit_code(monkeypatch, stopped_by, expect
         lambda **_kw: {
             "cycles_run": 1,
             "stopped_by": stopped_by,
-            "records": [{"outcome": "completed", "ok": True}],
+            "records": [SHIPPED],
         },
     )
     code = queue_loop.main(["--once"], singleton=FakeSingleton())
@@ -1768,7 +1779,7 @@ def test_a_drained_queue_mid_run_is_still_a_success(monkeypatch):
         lambda **_kw: {
             "cycles_run": 4,
             "stopped_by": "QUEUE_DRAINED",
-            "records": [{"outcome": "completed", "ok": True}] * 4,
+            "records": [SHIPPED] * 4,
         },
     )
     assert queue_loop.main([], singleton=FakeSingleton()) == queue_loop.EXIT_OK
@@ -2361,6 +2372,39 @@ def test_the_launch_fault_row_never_renders_the_caller_s_object():
 # ===========================================================================
 
 
+def _committing_tree():
+    """A `tree_sha` seam whose answer differs on every call - every cycle committed.
+
+    The driver reads the lane worktree's HEAD twice per cycle, before and
+    after, and calls the cycle a commit when the two differ. A counter that
+    moves on every call is therefore the "the worker committed every cycle"
+    control, and it is deliberately INDEPENDENT of `head_sha`, which is the
+    whole point of the repair.
+
+    Returns:
+        A one-argument callable, shaped like the `tree_sha` seam.
+    """
+    seen = {"n": 0}
+
+    def tree_sha(_cwd):
+        seen["n"] += 1
+        return f"commit-{seen['n']}"
+
+    return tree_sha
+
+
+def _frozen_tree(_cwd):
+    """A `tree_sha` seam that never moves - the worker committed nothing.
+
+    Args:
+        _cwd: The tree the driver asked about.
+
+    Returns:
+        The same sha on every call.
+    """
+    return "commit-frozen"
+
+
 def _moving_ref():
     """A `head_sha` seam whose answer differs on every call - every cycle pushed.
 
@@ -2423,13 +2467,21 @@ def _drive(tmp_path, script, *, budget, **over):
     return queue_loop.run_loop(**seams)
 
 
-def test_completed_cycles_that_push_nothing_cannot_run_the_full_budget(tmp_path):
-    """THE REFUTATION, reproduced and then closed.
+def test_completed_cycles_that_commit_nothing_cannot_run_the_full_budget(tmp_path):
+    """THE REFUTATION, reproduced and then closed - THE GENUINELY DEAD NIGHT.
 
     Driven against a ref that never moves, the driver produced twelve
     `completed` cycles, every one of them `ok: false`, and reported
     `cycles_run=12 stopped_by=max_cycles` - a night that shipped nothing,
     burned its whole budget and exited 0.
+
+    THE FIXTURE NOW FREEZES THE LANE HEAD TOO, and that is the repair to
+    this arm rather than a weakening of it. A frozen `origin/main` alone no
+    longer means the cycle accomplished nothing - a worker told to push the
+    lane branch freezes it every night - so an arm that froze only the
+    remote was grading the wrong fixture. Freezing the TREE is what makes
+    this a worker that completed having committed nothing, which is the
+    case the counter exists for and must keep catching.
     """
     summary = _drive(
         tmp_path,
@@ -2438,6 +2490,7 @@ def test_completed_cycles_that_push_nothing_cannot_run_the_full_budget(tmp_path)
         ci_gate=True,
         head_sha=lambda: "sha-frozen",
         wait=_ci_success,
+        tree_sha=_frozen_tree,
     )
     # THE CONTROL FOR THE FIXTURE: every cycle really did complete, so this is
     # not an arm that passes because the outcome word changed underneath it.
@@ -2516,9 +2569,17 @@ def _exit_for(monkeypatch, summary, argv=("--once",)):
         pytest.param([_REFUSED], {}, "launch-refused", id="one-refused-launch"),
         pytest.param(
             [_DONE],
-            {"ci_gate": True, "head_sha": lambda: "sha-frozen", "wait": _ci_success},
-            "no-push",
-            id="one-no-push-completion",
+            {
+                "ci_gate": True,
+                "head_sha": lambda: "sha-frozen",
+                "wait": _ci_success,
+                # THE TREE IS FROZEN TOO. A frozen remote alone is the
+                # DOCUMENTED lane-branch case and is a night doing real
+                # work; this param means the worker committed nothing.
+                "tree_sha": _frozen_tree,
+            },
+            "no-commit",
+            id="one-completion-that-committed-nothing",
         ),
     ],
 )
@@ -2702,3 +2763,234 @@ def test_the_no_progress_line_does_not_claim_the_cycles_pushed_nothing(tmp_path)
     assert "may still have pushed" in line, (
         f"the line does not say what the driver actually knows: {line!r}"
     )
+
+
+# ===========================================================================
+# CS-970 S2d REPAIR - THE PROGRESS SIGNAL ASKED THE WRONG QUESTION.
+#
+# The previous round read `record["ok"]`, which is false whenever the cycle's
+# `ci` verdict is `no-push`, and `no-push` is decided by whether `origin/main`
+# moved. But `tools/headless-queue.md` INSTRUCTS the worker that a rejected
+# push to main should become a push of the LANE BRANCH. A worker following its
+# own documented instructions therefore never moves `origin/main`, and an
+# adversary driving exactly that observed `cycles_run=3 stopped_by=no_progress`
+# and exit 9 - a night doing real work the documented way, killed at cycle 3.
+# That is the session-81 shape: CS-210 landed on `lane/queue`, not on `main`.
+#
+# WHERE the work landed is not WHETHER there was work. The question the counter
+# has to ask is "did this cycle produce a commit", and the driver can ask it
+# directly: it already knows the lane worktree, because it grades the local
+# suite there. The `ci` field and the `ok` roll-up are UNCHANGED by this repair
+# and keep saying exactly what they said - those rows are honest.
+# ===========================================================================
+
+
+def test_a_night_committing_to_the_lane_branch_runs_its_whole_budget(tmp_path, monkeypatch):
+    """THE REGRESSION, reproduced and then closed.
+
+    `origin/main` never moves, because the worker's push to main was rejected
+    and it pushed the lane branch instead - which `tools/headless-queue.md`
+    tells it to do. Every row is therefore `ci: no-push` and `ok: false`, and
+    the previous round's counter killed the night at cycle 3 with exit 9.
+
+    The rows MUST keep saying what they say: this arm asserts `ok: false` and
+    `no-push` on every one of them, so a fix that bought the budget back by
+    weakening the roll-up fails here rather than passing.
+    """
+    summary = _drive(
+        tmp_path,
+        [_DONE] * BUDGET,
+        budget=BUDGET,
+        ci_gate=True,
+        head_sha=lambda: "sha-frozen",
+        wait=_ci_success,
+        tree_sha=_committing_tree(),
+    )
+    # THE FIXTURE CONTROLS. The night really is made of completed cycles whose
+    # rows are not ok and whose verdict really is `no-push`, so this arm grades
+    # the counter rather than a fixture that quietly stopped reproducing.
+    assert [r["outcome"] for r in summary["records"]] == [_DONE] * BUDGET
+    assert [r["ok"] for r in summary["records"]] == [False] * BUDGET
+    assert [r["ci"]["verdict"] for r in summary["records"]] == ["no-push"] * BUDGET
+    assert summary["stopped_by"] == "max_cycles"
+    assert summary["cycles_run"] == BUDGET
+    # The exit code is the contract with the launcher, pinned as a literal.
+    assert _exit_for(monkeypatch, summary) == 0
+
+
+def test_a_foreign_push_is_not_this_lane_s_progress(tmp_path, monkeypatch):
+    """`origin/main` moved, but not because of us - and `ok` cannot tell.
+
+    Somebody else pushed while this lane committed nothing. The remote ref
+    moved on every cycle, so the gate graded a sha that was never ours, the
+    verdict is `success` and the roll-up says `ok: true` - which is precisely
+    why reading `ok` was the wrong question. The rows stay as they are; the
+    NIGHT must still be scored as having shipped nothing.
+    """
+    summary = _drive(
+        tmp_path,
+        [_DONE] * BUDGET,
+        budget=BUDGET,
+        ci_gate=True,
+        head_sha=_moving_ref(),
+        wait=_ci_success,
+        tree_sha=_frozen_tree,
+    )
+    # THE FIXTURE CONTROL, and the sharp edge of this arm: every row really is
+    # ok and green. An arm whose rows were already `ok: false` would pass for
+    # the old reason and observe nothing.
+    assert [r["ok"] for r in summary["records"]] == [True] * 3
+    assert [r["ci"]["verdict"] for r in summary["records"]] == ["success"] * 3
+    assert summary["stopped_by"] == "no_progress"
+    assert summary["cycles_run"] == 3  # noqa: PLR2004
+    assert _exit_for(monkeypatch, summary) == 9  # noqa: PLR2004
+
+
+def test_an_unreadable_lane_head_degrades_to_no_progress(tmp_path, monkeypatch):
+    """THE STATED DEFAULT, asserted rather than assumed.
+
+    A git failure, a missing worktree or an unreadable HEAD answers None, and
+    the driver treats that as NOT a commit. The alternative - treating an
+    unreadable HEAD as progress - re-opens the budget-burn hole this item
+    exists to close, and does it silently. Defaulting the other way costs the
+    remaining cycles of a night the driver has lost sight of, and says so in
+    the row.
+    """
+    summary = _drive(
+        tmp_path,
+        [_DONE] * BUDGET,
+        budget=BUDGET,
+        ci_gate=False,
+        tree_sha=lambda _cwd: None,
+    )
+    assert [r["outcome"] for r in summary["records"]] == [_DONE] * 3
+    assert summary["stopped_by"] == "no_progress"
+    assert summary["cycles_run"] == 3  # noqa: PLR2004
+    assert _exit_for(monkeypatch, summary) == 9  # noqa: PLR2004
+    # THE ROW SAYS WHICH OF THE TWO IT WAS. "the worker committed nothing" and
+    # "the driver could not read the tree" demand opposite responses, and a
+    # night that reports the first when it meant the second sends an operator
+    # to read a worker log that is perfectly fine.
+    commit = summary["records"][0]["commit"]
+    assert commit["advanced"] is False
+    assert commit["pre"] is None
+    assert commit["post"] is None
+    assert "could not be read" in commit["detail"], (
+        f"the row does not distinguish unreadable from unmoved: {commit!r}"
+    )
+
+
+def test_a_lane_head_read_that_raises_cannot_kill_the_night(tmp_path):
+    """Resolving the worktree HEAD must never be able to end the run by fault.
+
+    `run_loop` catches around `run_cycle` only, so a raising seam here would
+    escape the loop entirely and take the driver with it - no ledger row, no
+    stop word, no exit code anyone can read. It degrades to the same stated
+    default as an unreadable HEAD, and the night ends on its own counter.
+    """
+
+    def exploding(_cwd):
+        raise OSError("no such worktree")
+
+    summary = _drive(
+        tmp_path,
+        [_DONE] * BUDGET,
+        budget=BUDGET,
+        ci_gate=False,
+        tree_sha=exploding,
+    )
+    assert summary["stopped_by"] == "no_progress"
+    assert summary["cycles_run"] == 3  # noqa: PLR2004
+    commit = summary["records"][0]["commit"]
+    assert commit["advanced"] is False
+    # `_fault`, not `str(exc)` - CLAUDE.md non-negotiable 12. The type names the
+    # fault; the message could carry a path.
+    assert "OSError" in commit["detail"], f"the fault is not named: {commit!r}"
+    assert "no such worktree" not in commit["detail"], (
+        f"the row rendered the exception message: {commit!r}"
+    )
+
+
+def test_the_progress_signal_does_not_read_the_remote_ref(tmp_path):
+    """THE SEPARATION, graded structurally rather than by outcome.
+
+    Both halves of the regression come from one conflation: `origin/main`
+    moving is a fact about WHERE work landed, and progress is a question about
+    WHETHER there was work. This arm pins that the two seams are read
+    independently, so a future edit that re-derives one from the other has to
+    delete an assertion to do it.
+    """
+    asked: list[str] = []
+
+    def head_sha():
+        asked.append("remote")
+        return "sha-frozen"
+
+    def tree_sha(_cwd):
+        asked.append("tree")
+        return f"commit-{len(asked)}"
+
+    summary = _drive(
+        tmp_path,
+        [_DONE] * 2,
+        budget=2,
+        ci_gate=True,
+        head_sha=head_sha,
+        wait=_ci_success,
+        tree_sha=tree_sha,
+    )
+    assert asked.count("tree") >= 4, (  # noqa: PLR2004 - two reads per cycle, two cycles
+        f"the lane HEAD was not read before and after each cycle: {asked}"
+    )
+    assert summary["stopped_by"] == "max_cycles"
+
+
+def test_the_cycle_line_says_whether_the_cycle_committed(tmp_path):
+    """A lane-branch night and a dead night must not read identically.
+
+    Both carry `ci=no-push` on every line, and only one of them is fine. The
+    row already distinguishes them, but an operator tailing the console does
+    not read the row - so the token has to be on the line.
+    """
+    said: list[str] = []
+    _drive(
+        tmp_path,
+        [_DONE, _DONE],
+        budget=2,
+        ci_gate=True,
+        head_sha=lambda: "sha-frozen",
+        wait=_ci_success,
+        tree_sha=_committing_tree(),
+        emit=said.append,
+    )
+    lines = [line for line in said if "queue-loop cycle" in line]
+    assert len(lines) == 2, f"expected two cycle lines, got {lines}"  # noqa: PLR2004
+    assert all("commit=yes" in line for line in lines), lines
+    # THE CONTRAST, driven rather than asserted about a string: the same night
+    # with a frozen tree says the opposite word.
+    dead: list[str] = []
+    _drive(
+        tmp_path,
+        [_DONE, _DONE],
+        budget=2,
+        ci_gate=True,
+        head_sha=lambda: "sha-frozen",
+        wait=_ci_success,
+        tree_sha=_frozen_tree,
+        emit=dead.append,
+    )
+    dead_lines = [line for line in dead if "queue-loop cycle" in line]
+    assert all("commit=no" in line for line in dead_lines), dead_lines
+    # And an unreadable HEAD is a THIRD word, because it demands a third
+    # response - read the git state, not the worker log.
+    blind: list[str] = []
+    _drive(
+        tmp_path,
+        [_DONE],
+        budget=1,
+        ci_gate=False,
+        tree_sha=lambda _cwd: None,
+        emit=blind.append,
+    )
+    blind_lines = [line for line in blind if "queue-loop cycle" in line]
+    assert all("commit=unreadable" in line for line in blind_lines), blind_lines
