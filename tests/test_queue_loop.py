@@ -139,9 +139,14 @@ WORKER_PID = 4242
 #: Cycle counts a loop test asks for and then asserts on. Named so the two
 #: halves cannot drift apart in an edit - the bug an inline literal invites.
 THREE_CYCLES = 3
+FIVE_CYCLES = 5
 SIX_CYCLES = 6
 TWO_CYCLES = 2
 ERROR_LIMIT = 3
+#: Consecutive `launch_failed` cycles before the night stops. Named beside
+#: ERROR_LIMIT because the two are separate counters and an inline literal
+#: would let a reader assume otherwise.
+LAUNCH_FAILURE_LIMIT = 3
 MAX_ASCII = 0x7E
 
 TIER1_GREEN = (("gates, lint, types, tests", "success"), ("tests (save shard)", "success"))
@@ -888,12 +893,101 @@ def test_a_launch_failure_is_recorded_not_raised():
 
     got = queue_loop.run_cycle(1, **cycle_seams(clock, launch=fails))
     assert got["outcome"] == queue_loop.OUTCOME_LAUNCH_FAILED
-    # THE TYPE, NOT THE MESSAGE, and the reason is the guard's structural rule:
-    # a module may render whole only an exception type IT defines, because it
-    # builds that message. LaneLaunchError is defined in the launcher, so this
-    # module may not take its word for it - see queue_loop._fault. The OUTCOME
-    # is what the loop acts on and it is unaffected.
-    assert got["detail"] == "LaneLaunchError"
+    # THE TYPE PLUS A CODE THE DRIVER ITSELF HOLDS, never the message, and the
+    # reason is the guard's structural rule: a module may render whole only an
+    # exception type IT defines, because it builds that message. LaneLaunchError
+    # is defined in the launcher, so this module may not take its word for it -
+    # see queue_loop._launch_fault. A site that named no reason lands on
+    # `unspecified`, which is a member of the vocabulary and so is recorded.
+    assert got["detail"] == "LaneLaunchError: unspecified"
+    assert "no worktree" not in got["detail"], "the launcher's message reached the row"
+
+
+def test_a_launch_failure_records_the_launchers_own_reason_code():
+    """The refusal is NAMED, not merely typed.
+
+    The repoint refusal is the one driven here because it is the raise site the
+    evidence on disk points at: a row reading `launch_failed LaneLaunchError`
+    says a lane did not start and nothing about why, which is the defect.
+    """
+    clock = FakeClock()
+
+    def fails(_lane, **_kw):
+        raise queue_loop.lane_launcher.LaneLaunchError(
+            "could not re-point the lane lock at the worker",
+            reason=lane_launcher.REASON_REPOINT_REFUSED,
+        )
+
+    got = queue_loop.run_cycle(1, **cycle_seams(clock, launch=fails))
+    assert got["outcome"] == queue_loop.OUTCOME_LAUNCH_FAILED
+    assert "repoint_refused" in got["detail"], f"the reason was dropped: {got['detail']!r}"
+    assert "LaneLaunchError" in got["detail"], "a fault must still be named by TYPE"
+
+
+def test_a_reason_the_driver_does_not_know_is_never_written_into_the_row(tmp_path):
+    """THE PRIVACY ARM - the whole justification for the driver's own copy.
+
+    Without it, "the driver validates the code" is an unmeasured claim. The
+    planted value is path-shaped, which is exactly the class of string
+    CLAUDE.md non-negotiable 12 exists to keep out of a durable JSONL row.
+    """
+    clock = FakeClock()
+    planted = str(tmp_path / "cs-lane-queue")
+
+    def fails(_lane, **_kw):
+        raise queue_loop.lane_launcher.LaneLaunchError("refused", reason=planted)
+
+    # THE CONTROL FIRST. An arm that asserts only an absence passes just as
+    # happily when the value was never there to redact.
+    assert str(tmp_path) in planted, "the control failed: the planted reason carried no path"
+
+    got = queue_loop.run_cycle(1, **cycle_seams(clock, launch=fails))
+    assert str(tmp_path) not in got["detail"], "an unvalidated reason reached the row"
+    assert Path(got["detail"]).drive == "", f"a rooted path survived: {got['detail']!r}"
+    assert got["detail"] == "LaneLaunchError", "a fault must still be NAMED by its type"
+
+
+def test_the_driver_and_the_launcher_hold_the_same_reason_vocabulary():
+    """Two copies on purpose, so drift between them has to be LOUD.
+
+    The driver writes only a word it itself contains, which is what makes a
+    launcher running ahead of its driver degrade to a bare type name rather
+    than leak a word chosen after the driver was written. The cost of that
+    design is drift, and this arm is what pays it: without this assertion a
+    launcher-side addition degrades silently, which is the defect CS-970
+    closes, reintroduced by an edit nobody graded.
+    """
+    driver = tuple(queue_loop._LAUNCH_REASONS)  # noqa: SLF001 - the copy under test
+    assert driver, "the driver's vocabulary is empty - every reason would be discarded"
+    assert driver == tuple(lane_launcher.LAUNCH_REASONS), (
+        "the driver and the launcher disagree about the reason vocabulary; "
+        "a code the driver does not hold is silently discarded"
+    )
+
+
+def test_an_exception_with_no_reason_attribute_still_records_its_type():
+    """A launch seam that raises a REASONLESS exception must not fault the driver."""
+    clock = FakeClock()
+
+    class Launcher:
+        LaneLaunchError = RuntimeError
+
+        @staticmethod
+        def worktree_path(_lane):
+            return r"C:\cs-worktrees\cs-lane-queue"
+
+    def fails(_lane, **_kw):
+        raise RuntimeError("no reason attribute anywhere on me")
+
+    seams = cycle_seams(clock, launch=fails)
+    seams.pop("worktree")
+    queue_loop.lane_launcher = Launcher  # the lazily-bound module object
+    try:
+        got = queue_loop.run_cycle(1, **seams)
+    finally:
+        del queue_loop.lane_launcher
+    assert got["outcome"] == queue_loop.OUTCOME_LAUNCH_FAILED
+    assert got["detail"] == "RuntimeError"
 
 
 def test_a_launch_that_returns_no_pid_is_a_launch_failure():
@@ -1067,9 +1161,62 @@ def test_no_wait_runs_when_the_worker_pushed_nothing(tmp_path):
         )
     )
     assert waits == []
-    assert "ci" not in summary["records"][0], (
-        "an absent gate must be an ABSENT key, never a verdict word"
+    assert summary["records"][0]["ci"]["verdict"] == queue_loop.CI_NO_PUSH
+
+
+def test_a_cycle_that_pushed_nothing_is_recorded_as_no_push_and_is_not_ok(tmp_path):
+    """THE PAIR IS THE POINT: the worker was fine and the cycle was not good news.
+
+    Measured on disk: `ops/loop/reports/queue_loop.jsonl` carries a 972-second
+    cycle whose console line says `ci=no-push` and whose row says `"ok": true`,
+    because the no-push branch set a local console note and never set
+    `record["ci"]` at all. An absent key made the roll-up's verdict clause
+    vacuously true.
+    """
+    waits: list[str] = []
+    clock = FakeClock()
+    summary = queue_loop.run_loop(
+        **loop_seams(
+            clock,
+            head_sha=lambda: "same",
+            ci_gate=True,
+            wait=lambda sha, **_kw: waits.append(sha),
+            cycle_log=tmp_path / "l.jsonl",
+            control_dir=tmp_path / "control",
+            hold=NullHold(),
+        )
     )
+    row = summary["records"][0]
+    assert waits == [], "no run exists to wait for when nothing was pushed"
+    assert row["ci"]["verdict"] == queue_loop.CI_NO_PUSH
+    assert row["worker_ok"] is True, "the WORKER finished - that half is unchanged"
+    assert row["ok"] is False, "a cycle that shipped nothing is not good news"
+    assert summary["stopped_by"] == queue_loop.STOPPED_BY_MAX_CYCLES, (
+        "a no-push is not a broken branch and must not stop the night"
+    )
+
+
+def test_a_gate_that_did_not_run_leaves_an_absent_ci_key(tmp_path):
+    """A PRESERVED GUARD, not a new one.
+
+    `test_no_wait_runs_when_the_worker_pushed_nothing` used to carry this
+    assertion - "an absent gate must be an ABSENT key, never a verdict word".
+    That case now has a verdict of its own, so the property MOVES here, to the
+    case that still holds it: the gate was off, so no gate ran.
+    """
+    clock = FakeClock()
+    summary = queue_loop.run_loop(
+        **loop_seams(
+            clock,
+            ci_gate=False,
+            cycle_log=tmp_path / "l.jsonl",
+            control_dir=tmp_path / "control",
+            hold=NullHold(),
+        )
+    )
+    row = summary["records"][0]
+    assert "ci" not in row, "an absent gate must be an ABSENT key, never a verdict word"
+    assert row["ok"] is True
 
 
 def test_an_unresolvable_remote_is_recorded_as_unavailable_not_as_a_green(tmp_path):
@@ -1393,6 +1540,106 @@ def test_errors_are_consecutive_not_cumulative(tmp_path):
     assert summary["cycles_run"] == SIX_CYCLES
 
 
+def _always_refuses(_lane, **_kw):
+    """A launch seam that refuses every time, the way a mis-wired lane does."""
+    raise queue_loop.lane_launcher.LaneLaunchError(
+        "the lane is not wired", reason=lane_launcher.REASON_LANE_NOT_WIRED
+    )
+
+
+def test_launch_failures_that_repeat_stop_the_night(tmp_path):
+    """A refusal that will repeat must not burn the whole budget.
+
+    Measured on disk before this arm existed: `launch_failed` fell into the
+    `else` that RESETS the error counter, so twelve cycles could refuse in a
+    row and the night still read as a full night's work.
+    """
+    clock = FakeClock()
+    summary = queue_loop.run_loop(
+        **loop_seams(
+            clock,
+            max_cycles=12,
+            ci_gate=False,
+            launch=_always_refuses,
+            cycle_log=tmp_path / "l.jsonl",
+            control_dir=tmp_path / "control",
+            hold=NullHold(),
+        )
+    )
+    # THE EXACT COUNT, not merely fewer than twelve: the exact count is what
+    # proves the NEW limit is the one that fired.
+    assert summary["cycles_run"] == LAUNCH_FAILURE_LIMIT
+    assert summary["stopped_by"] == queue_loop.STOPPED_BY_LAUNCH_FAILED
+    rows = (tmp_path / "l.jsonl").read_text(encoding="utf-8").splitlines()
+    assert len(rows) == LAUNCH_FAILURE_LIMIT
+
+
+def test_launch_failures_are_consecutive_not_cumulative(tmp_path):
+    """One refusal between good cycles is a transient the loop must survive."""
+    clock = FakeClock()
+    script = iter([True, True, False, True, True])
+
+    def scripted(lane, **kw):
+        if next(script):
+            return _always_refuses(lane, **kw)
+        return {"pid": 1, "log": "l"}
+
+    summary = queue_loop.run_loop(
+        **loop_seams(
+            clock,
+            max_cycles=FIVE_CYCLES,
+            ci_gate=False,
+            launch=scripted,
+            cycle_log=tmp_path / "l.jsonl",
+            control_dir=tmp_path / "control",
+            hold=NullHold(),
+        )
+    )
+    assert summary["cycles_run"] == FIVE_CYCLES
+    assert summary["stopped_by"] == queue_loop.STOPPED_BY_MAX_CYCLES
+
+
+def test_an_error_and_a_launch_failure_do_not_share_one_counter(tmp_path):
+    """TWO counters, and this is what makes that design a measured claim.
+
+    An alternating night trips neither limit. Folding them back into one
+    counter would stop this night at cycle three, so a later simplification
+    cannot pass without reddening here.
+    """
+    clock = FakeClock()
+    seen = {"n": 0}
+
+    def alternating_acquire(_lane, **_kw):
+        seen["n"] += 1
+        if seen["n"] % 2:
+            raise ValueError("a fault run_cycle does not convert into an outcome")
+        return {"ok": True, "token": "T"}
+
+    summary = queue_loop.run_loop(
+        **loop_seams(
+            clock,
+            max_cycles=SIX_CYCLES,
+            ci_gate=False,
+            acquire=alternating_acquire,
+            launch=_always_refuses,
+            cycle_log=tmp_path / "l.jsonl",
+            control_dir=tmp_path / "control",
+            hold=NullHold(),
+        )
+    )
+    outcomes = [r["outcome"] for r in summary["records"]]
+    assert (
+        outcomes
+        == [
+            queue_loop.OUTCOME_ERROR,
+            queue_loop.OUTCOME_LAUNCH_FAILED,
+        ]
+        * THREE_CYCLES
+    ), f"the plant did not alternate: {outcomes}"
+    assert summary["cycles_run"] == SIX_CYCLES
+    assert summary["stopped_by"] == queue_loop.STOPPED_BY_MAX_CYCLES
+
+
 def test_the_settle_does_not_run_after_the_final_cycle(tmp_path):
     clock = FakeClock()
     queue_loop.run_loop(
@@ -1464,6 +1711,7 @@ def test_a_second_driver_refuses_with_its_own_code():
         ("QUEUE_DRAINED", "EXIT_OK"),
         ("timeout_kill_failed", "EXIT_KILL_FAILED"),
         ("consecutive_errors", "EXIT_CONSECUTIVE_ERRORS"),
+        ("consecutive_launch_failures", "EXIT_CONSECUTIVE_LAUNCH_FAILURES"),
         ("ci_red", "EXIT_CI_RED"),
         ("suite_red", "EXIT_SUITE_RED"),
     ],

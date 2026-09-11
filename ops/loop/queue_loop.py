@@ -114,7 +114,11 @@ ONE FAULT IS NOT THE WHOLE NIGHT. `run_cycle` is wrapped: an unexpected fault
 becomes an `error` record that is appended and emitted like any other. The
 SILENT half of that defect was the worse half - without it, a fault leaves NO
 ledger row and the morning's only evidence is a log that stopped. A fault that
-REPEATS is different, and `max_consecutive_errors` stops the loop.
+REPEATS is different, and `max_consecutive_errors` stops the loop. A LANE THAT
+WILL NOT START is counted separately again, by
+`max_consecutive_launch_failures`: a refusal is not a fault inside a cycle, it
+is the cycle never happening, and one counter for both would report the two with
+one exit code.
 
 ONE DRIVER PER BOX. The lane lock stops two WORKERS, not two DRIVERS. A named
 mutex held for the process lifetime is the guard.
@@ -203,6 +207,40 @@ DEFAULT_KILL_GRACE_S = 15
 #: two chances for it to be transient; a fourth would be watching the same
 #: traceback scroll past all night.
 DEFAULT_MAX_CONSECUTIVE_ERRORS = 3
+#: Consecutive `launch_failed` outcomes before the loop gives up. SEPARATE from
+#: the error limit and sized by the same reasoning - one genuine refusal plus
+#: two chances for it to be transient. A lane that cannot start does not start
+#: better on the ninth attempt, and before this existed a mis-wired lane burned
+#: a whole night's budget while every row said the same word.
+DEFAULT_MAX_CONSECUTIVE_LAUNCH_FAILURES = 3
+
+#: THE DRIVER'S OWN COPY of `lane_launcher.LAUNCH_REASONS`, duplicated on
+#: purpose. `_fault`'s structural rule is that this module renders whole only an
+#: exception type IT defines, because it BUILDS that message - and a promise
+#: made in another file is not a substitute (CLAUDE.md non-negotiable 12).
+#: Holding the vocabulary here means every word written into a row is a literal
+#: this file contains, so a launcher that grows a new code degrades to today's
+#: bare type name rather than writing a string this module never saw.
+#:
+#: The cost of a second copy is drift, and it is paid by
+#: `test_the_driver_and_the_launcher_hold_the_same_reason_vocabulary`, which
+#: asserts the two tuples are EQUAL. Without that arm a launcher-side addition
+#: degrades silently, which is the defect CS-970 closed, reintroduced by an edit.
+_LAUNCH_REASONS = (
+    "lane_not_wired",
+    "command_doc_missing",
+    "git_not_found",
+    "main_tree_refused",
+    "worktree_create_failed",
+    "runner_missing",
+    "shell_not_found",
+    "spawn_failed",
+    "runner_exited_early",
+    "spawn_no_pid",
+    "repoint_refused",
+    "unexpected_fault",
+    "unspecified",
+)
 
 
 # ---------------------------------------------------------------------------
@@ -270,6 +308,16 @@ CI_SKIPPED = "skipped"
 CI_TIMEOUT = "timeout"
 CI_UNAVAILABLE = "unavailable"
 CI_UNKNOWN = "unknown"
+#: The cycle completed and the remote ref did not move, so the worker shipped
+#: nothing and there is no run to wait for. A VERDICT rather than an absent key,
+#: because an absent key made the roll-up's verdict clause vacuously true and a
+#: 972-second cycle that pushed nothing was recorded `"ok": true`.
+#:
+#: KNOWN AND ACCEPTED: `_verdict_for` reads a GitHub conclusion through
+#: `in CI_VERDICTS`, so this widens that acceptance by one word. GitHub's
+#: conclusion vocabulary is fixed and contains no `no-push`, so the widening is
+#: unreachable; it is recorded here rather than discovered later.
+CI_NO_PUSH = "no-push"
 CI_VERDICTS = (
     CI_SUCCESS,
     CI_FAILURE,
@@ -278,6 +326,7 @@ CI_VERDICTS = (
     CI_TIMEOUT,
     CI_UNAVAILABLE,
     CI_UNKNOWN,
+    CI_NO_PUSH,
 )
 
 #: Worst-first. The roll-up across workflows returns the WORST verdict seen, so
@@ -289,8 +338,19 @@ _VERDICT_RANK = (
     CI_UNKNOWN,
     CI_UNAVAILABLE,
     CI_SKIPPED,
+    CI_NO_PUSH,
     CI_SUCCESS,
 )
+
+#: Verdict words that make a cycle NOT good news. `CI_FAILURE` because a red
+#: gate is a break; `CI_NO_PUSH` because a cycle that shipped nothing produced
+#: no evidence at all and calling it ok is the defect this tuple was added to
+#: close.
+#:
+#: DELIBERATELY NOT WIDENED FURTHER. `CI_UNAVAILABLE` keeps doing exactly what
+#: it does today to `ok` - tightening it is a separate judgement about a
+#: separate condition and is out of scope here.
+_CI_ROLLUP_BAD = (CI_FAILURE, CI_NO_PUSH)
 
 #: A GitHub job conclusion that means the job did not pass. `timed_out`,
 #: `action_required` and `startup_failure` are separate words for the same
@@ -369,6 +429,11 @@ OUTCOME_ERROR = "error"
 
 STOPPED_BY_MAX_CYCLES = "max_cycles"
 STOPPED_BY_CONSECUTIVE_ERRORS = "consecutive_errors"
+#: DISTINCT from STOPPED_BY_CONSECUTIVE_ERRORS, not a reuse of it. "The cycles
+#: errored" and "the lane never started" demand opposite responses, and one word
+#: for both is precisely how a night that ended at cycle 2 comes to look like a
+#: night that ran all twelve.
+STOPPED_BY_LAUNCH_FAILED = "consecutive_launch_failures"
 STOPPED_BY_CI_RED = "ci_red"
 STOPPED_BY_SUITE_RED = "suite_red"
 
@@ -381,6 +446,7 @@ EXIT_KILL_FAILED = 4  # a worker outlived its taskkill - worktree suspect
 EXIT_CONSECUTIVE_ERRORS = 5  # the same fault repeated until the loop gave up
 EXIT_CI_RED = 6  # a gating CI job went red on a pushed sha
 EXIT_SUITE_RED = 7  # the driver's own local suite went red
+EXIT_CONSECUTIVE_LAUNCH_FAILURES = 8  # the lane refused to start, over and over
 
 
 # ---------------------------------------------------------------------------
@@ -535,14 +601,16 @@ def _fault(exc: BaseException) -> str:
     leaks differently: `TimeoutExpired` renders the whole command line, and
     `CalledProcessError` renders an argv this driver builds from paths.
 
-    A LAUNCH FAILURE CONTRIBUTES ITS TYPE NAME AND NOTHING MORE, even though
-    the launcher already sanitises its own message. The guard's exemption is
-    structural - a module may render whole an exception type IT defines,
-    because it builds that message - and `LaneLaunchError` is defined one module
-    over. Trusting a promise made in another file is exactly what the structural
-    rule refuses, and it is right to: the trade costs message detail and buys a
-    guarantee. The row still names the OUTCOME and the lane, which is what an
-    operator needs to reproduce it.
+    A LAUNCH FAILURE'S MESSAGE IS STILL NEVER RENDERED HERE, even though the
+    launcher sanitises its own. The guard's exemption is structural - a module
+    may render whole an exception type IT defines, because it builds that
+    message - and `LaneLaunchError` is defined one module over. Trusting a
+    promise made in another file is exactly what the structural rule refuses,
+    and three of the launcher's messages embed a path, so the refusal is not
+    theoretical. `_launch_fault` below adds a machine-readable CODE to the type
+    name, and it adds one only after checking that code against a literal tuple
+    THIS file holds - so the added word is still one this module wrote down,
+    which is what the structural rule actually asks for.
     """
     if isinstance(exc, OSError):
         return exc.strerror or type(exc).__name__
@@ -551,6 +619,39 @@ def _fault(exc: BaseException) -> str:
     if isinstance(exc, subprocess.CalledProcessError):
         return f"{type(exc).__name__} exit {exc.returncode}"
     return type(exc).__name__
+
+
+def _launch_fault(exc: BaseException) -> str:
+    """Name a launch refusal by TYPE and, when it is knowable, by REASON.
+
+    `_fault` alone answers "a lane did not start" and nothing about why, which
+    is a row an operator cannot act on. The launcher carries a machine-readable
+    `reason` for exactly this, but a reason is still a string built in another
+    module, so it is NOT copied out on the launcher's word.
+
+    THE VALIDATION IS THE MECHANISM. The incoming value is compared against
+    `_LAUNCH_REASONS`, a literal tuple in this file, and only a member is
+    written. A code this module does not hold - a launcher running ahead of its
+    driver, an injected fake, a path-shaped string - is DISCARDED, and the row
+    degrades to the bare type name it carried before this function existed.
+    `str(exc)` is never read (CLAUDE.md non-negotiable 12).
+
+    Args:
+        exc: The caught launch refusal. Any exception type; no attribute is
+            assumed present.
+
+    Returns:
+        `"<TypeName>: <code>"` for a recognised code, `"<TypeName>"` otherwise.
+        Never an empty string - a fault must still be NAMED.
+    """
+    named = _fault(exc)
+    # `getattr` with a default, NOT `exc.reason`: the launch seam is injectable
+    # and a fake that raises a plain RuntimeError must be recorded, not turned
+    # into an AttributeError that ends the night.
+    reason = getattr(exc, "reason", None)
+    if isinstance(reason, str) and reason in _LAUNCH_REASONS:
+        return f"{named}: {reason}"
+    return named
 
 
 def _emit(line: str) -> None:
@@ -1474,7 +1575,7 @@ def run_cycle(  # noqa: PLR0913, PLR0912, PLR0915 - see THE SEAMS ARE THE POINT
             # finally below releases again, which is deliberate - release_lane
             # is idempotent, and an unconditional release is the only shape that
             # survives a future launcher that stops cleaning up after itself.
-            outcome, detail = OUTCOME_LAUNCH_FAILED, _fault(exc)[:400]
+            outcome, detail = OUTCOME_LAUNCH_FAILED, _launch_fault(exc)[:400]
         else:
             pid = run.get("pid")
             if not pid:
@@ -1546,6 +1647,7 @@ def run_loop(  # noqa: PLR0913, PLR0912, PLR0915 - see THE SEAMS ARE THE POINT
     cycle_timeout_s: float = DEFAULT_CYCLE_TIMEOUT_S,
     kill_grace_s: float = DEFAULT_KILL_GRACE_S,
     max_consecutive_errors: int = DEFAULT_MAX_CONSECUTIVE_ERRORS,
+    max_consecutive_launch_failures: int = DEFAULT_MAX_CONSECUTIVE_LAUNCH_FAILURES,
     ci_gate: bool = True,
     ci_wait_s: float = DEFAULT_CI_WAIT_S,
     ci_poll_s: float = DEFAULT_CI_POLL_S,
@@ -1595,10 +1697,21 @@ def run_loop(  # noqa: PLR0913, PLR0912, PLR0915 - see THE SEAMS ARE THE POINT
     verdict is attached to the SAME record, so one JSONL row carries a cycle and
     its acceptance and nobody has to join two files at 3am.
 
-    An ABSENT `ci` key means no gate ran for that cycle - gate off, no push
-    detected, or an outcome other than `completed`. It deliberately is NOT
+    An ABSENT `ci` key means no gate ran for that cycle - the gate was off, or
+    the outcome was something other than `completed`. It deliberately is NOT
     recorded as `verdict="skipped"`, because that word already means a JOB was
     skipped, and one word cannot carry two conditions.
+
+    A cycle that ran the gate and PUSHED NOTHING is a third condition again, and
+    it gets a word of its own: `verdict="no-push"`, which makes the row not ok
+    without stopping the night. A gate that found nothing to grade produced no
+    evidence, and a cycle with no evidence is not good news - but it is also not
+    a broken branch, so the hard stop stays keyed on `CI_FAILURE` alone. A
+    drained queue pushes nothing too, so the final cycle of a good drain now
+    reads `ok: false`; the NIGHT still exits 0, because a drain is its own stop
+    reason. The alternative - calling a no-push ok whenever a drain sentinel is
+    present - was rejected: the driver cannot see WHY nothing was pushed, and
+    inventing a distinction it cannot observe is the defect class this avoids.
 
     Returns:
         `{"cycles_run", "stopped_by", "records"}`.
@@ -1611,6 +1724,8 @@ def run_loop(  # noqa: PLR0913, PLR0912, PLR0915 - see THE SEAMS ARE THE POINT
     stopped_by = None
     consecutive_errors = 0
     error_limit = max(1, int(max_consecutive_errors))
+    consecutive_launch_failures = 0
+    launch_failure_limit = max(1, int(max_consecutive_launch_failures))
     total = max(0, int(max_cycles))
     for cycle in range(1, total + 1):
         reason = stop_reason(control_dir)
@@ -1696,7 +1811,22 @@ def run_loop(  # noqa: PLR0913, PLR0912, PLR0915 - see THE SEAMS ARE THE POINT
                     ),
                 }
             elif post_sha == pre_sha:
-                note = " ci=no-push"
+                # RECORDED AS A VERDICT, not left as an absent key. This branch
+                # used to set a console note and nothing else, so the row's `ci`
+                # field was ABSENT and the roll-up's verdict clause was
+                # vacuously true - a 972-second cycle that shipped nothing was
+                # written down as `"ok": true`. The SAME five-key shape the
+                # unavailable branch writes, so no reader learns a second shape.
+                record["ci"] = {
+                    "sha": post_sha,
+                    "verdict": CI_NO_PUSH,
+                    "waited_s": 0.0,
+                    "workflows": [],
+                    "detail": (
+                        f"origin/{CI_REF} did not move, so this cycle pushed "
+                        f"nothing and there is no run to wait for"
+                    ),
+                }
             else:
                 record["ci"] = wait(
                     post_sha,
@@ -1722,7 +1852,7 @@ def run_loop(  # noqa: PLR0913, PLR0912, PLR0915 - see THE SEAMS ARE THE POINT
         record["ok"] = bool(
             record["worker_ok"]
             and (local is None or local["ok"])
-            and (verdict is None or verdict["verdict"] != CI_FAILURE)
+            and (verdict is None or verdict["verdict"] not in _CI_ROLLUP_BAD)
         )
 
         records.append(record)
@@ -1764,8 +1894,19 @@ def run_loop(  # noqa: PLR0913, PLR0912, PLR0915 - see THE SEAMS ARE THE POINT
                 f"refusing to launch into {lane} again this run"
             )
             break
+        # TWO COUNTERS, INDEPENDENT ON PURPOSE. Folding `launch_failed` into
+        # `consecutive_errors` would put "the cycles errored" and "the lane
+        # never started" behind one word and one exit code, and those two demand
+        # opposite responses from whoever reads the number.
+        #
+        # ACCEPTED RESIDUAL, left open deliberately for the operator to rule on:
+        # a night that ALTERNATES `error` and `launch_failed` trips neither
+        # counter and still runs its whole budget. It is a narrower and less
+        # likely pattern than the repeat this stop closes, and shutting it would
+        # mean changing the meaning of an existing stop reason and its exit code.
         if record["outcome"] == OUTCOME_ERROR:
             consecutive_errors += 1
+            consecutive_launch_failures = 0
             if consecutive_errors >= error_limit:
                 stopped_by = STOPPED_BY_CONSECUTIVE_ERRORS
                 emit(
@@ -1773,11 +1914,22 @@ def run_loop(  # noqa: PLR0913, PLR0912, PLR0915 - see THE SEAMS ARE THE POINT
                     f"cycles - {record['detail']}"
                 )
                 break
+        elif record["outcome"] == OUTCOME_LAUNCH_FAILED:
+            consecutive_launch_failures += 1
+            consecutive_errors = 0
+            if consecutive_launch_failures >= launch_failure_limit:
+                stopped_by = STOPPED_BY_LAUNCH_FAILED
+                emit(
+                    f"queue-loop stop: {consecutive_launch_failures} consecutive "
+                    f"launch failures - {record['detail']}"
+                )
+                break
         else:
             # CONSECUTIVE, not cumulative. One bad cycle between good ones is a
             # transient the loop is supposed to survive; resetting here is what
             # keeps a flaky night from being scored as a broken one.
             consecutive_errors = 0
+            consecutive_launch_failures = 0
 
         # Between cycles only. A settle after the final cycle would just delay
         # the driver's own exit for nothing.
@@ -1799,6 +1951,7 @@ def run_loop(  # noqa: PLR0913, PLR0912, PLR0915 - see THE SEAMS ARE THE POINT
 _STOP_EXIT = {
     OUTCOME_KILL_FAILED: EXIT_KILL_FAILED,
     STOPPED_BY_CONSECUTIVE_ERRORS: EXIT_CONSECUTIVE_ERRORS,
+    STOPPED_BY_LAUNCH_FAILED: EXIT_CONSECUTIVE_LAUNCH_FAILURES,
     STOPPED_BY_CI_RED: EXIT_CI_RED,
     STOPPED_BY_SUITE_RED: EXIT_SUITE_RED,
 }
