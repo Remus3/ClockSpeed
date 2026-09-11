@@ -120,6 +120,15 @@ WILL NOT START is counted separately again, by
 is the cycle never happening, and one counter for both would report the two with
 one exit code.
 
+AND A THIRD COUNTER HOLDS THE INVARIANT THOSE TWO ONLY APPROXIMATE: no sequence
+of outcomes in which no cycle ever COMPLETES may run the full budget. Two
+counters that each name one cause reset each other, so a night that alternates
+causes - a held lane, then a refused launch, then a held lane - satisfied
+neither and ran all twelve cycles to exit 0. `max_consecutive_unproductive`
+asks the general question against the `PRODUCTIVE_OUTCOMES` allowlist, and is
+checked LAST so the two specific words and their exit codes still win whenever
+one of them applies.
+
 ONE DRIVER PER BOX. The lane lock stops two WORKERS, not two DRIVERS. A named
 mutex held for the process lifetime is the guard.
 
@@ -213,6 +222,12 @@ DEFAULT_MAX_CONSECUTIVE_ERRORS = 3
 #: better on the ninth attempt, and before this existed a mis-wired lane burned
 #: a whole night's budget while every row said the same word.
 DEFAULT_MAX_CONSECUTIVE_LAUNCH_FAILURES = 3
+#: Consecutive cycles that completed NOTHING before the loop gives up, whatever
+#: mixture of refusals, holds and faults they were. Sized to match the two
+#: counters above rather than chosen separately: a night that has produced three
+#: unproductive cycles in a row has produced no work, and the reason it gives
+#: for each one has no bearing on that.
+DEFAULT_MAX_CONSECUTIVE_UNPRODUCTIVE = 3
 
 #: THE DRIVER'S OWN COPY of `lane_launcher.LAUNCH_REASONS`, duplicated on
 #: purpose. `_fault`'s structural rule is that this module renders whole only an
@@ -427,6 +442,20 @@ OUTCOME_KILL_FAILED = "timeout_kill_failed"
 #: A fault `run_cycle` did not convert into an outcome of its own.
 OUTCOME_ERROR = "error"
 
+#: THE OUTCOMES THAT COUNT AS A CYCLE HAVING HAPPENED - an ALLOWLIST, and the
+#: allowlist is the mechanism. The invariant is "no sequence of outcomes in
+#: which no cycle ever completes may run the full budget", and the two ways that
+#: invariant has been broken were both the same shape: a DENYLIST of outcomes
+#: that stop the night, and a new outcome nobody remembered to add to it. First
+#: `launch_failed` fell through the denylist; then `lane_held` did, and an
+#: alternating pair fell through both counters at once. Inverting the default
+#: means a future `OUTCOME_*` constant is unproductive until somebody
+#: deliberately says otherwise, so the hole cannot reopen by omission.
+#:
+#: `completed` is the only member, and `run_cycle` agrees with that by deriving
+#: a record's `ok` from the same equality.
+PRODUCTIVE_OUTCOMES = frozenset({OUTCOME_COMPLETED})
+
 STOPPED_BY_MAX_CYCLES = "max_cycles"
 STOPPED_BY_CONSECUTIVE_ERRORS = "consecutive_errors"
 #: DISTINCT from STOPPED_BY_CONSECUTIVE_ERRORS, not a reuse of it. "The cycles
@@ -436,6 +465,12 @@ STOPPED_BY_CONSECUTIVE_ERRORS = "consecutive_errors"
 STOPPED_BY_LAUNCH_FAILED = "consecutive_launch_failures"
 STOPPED_BY_CI_RED = "ci_red"
 STOPPED_BY_SUITE_RED = "suite_red"
+#: THE BACKSTOP, and the only one of these that generalises. The two counters
+#: above each name ONE repeating cause and are checked first, so a pure night of
+#: refusals or a pure night of faults still gets its own word and its own number.
+#: This one fires on a MIXED night that completes nothing - the pattern neither
+#: specific counter can see, because each keeps resetting the other.
+STOPPED_BY_NO_PROGRESS = "no_progress"
 
 #: Process exit codes, distinct on purpose: a launcher and any future scheduled
 #: task can only tell "ran the night" from "refused to start" by the number.
@@ -447,6 +482,7 @@ EXIT_CONSECUTIVE_ERRORS = 5  # the same fault repeated until the loop gave up
 EXIT_CI_RED = 6  # a gating CI job went red on a pushed sha
 EXIT_SUITE_RED = 7  # the driver's own local suite went red
 EXIT_CONSECUTIVE_LAUNCH_FAILURES = 8  # the lane refused to start, over and over
+EXIT_NO_PROGRESS = 9  # cycles happened and none of them completed
 
 
 # ---------------------------------------------------------------------------
@@ -629,12 +665,28 @@ def _launch_fault(exc: BaseException) -> str:
     `reason` for exactly this, but a reason is still a string built in another
     module, so it is NOT copied out on the launcher's word.
 
-    THE VALIDATION IS THE MECHANISM. The incoming value is compared against
-    `_LAUNCH_REASONS`, a literal tuple in this file, and only a member is
-    written. A code this module does not hold - a launcher running ahead of its
-    driver, an injected fake, a path-shaped string - is DISCARDED, and the row
-    degrades to the bare type name it carried before this function existed.
-    `str(exc)` is never read (CLAUDE.md non-negotiable 12).
+    THE SUBSTITUTION IS THE MECHANISM, not the validation. The incoming value
+    is used only to LOOK UP an index into `_LAUNCH_REASONS`, a literal tuple in
+    this file, and the string written into the row is the element found at that
+    index - this module's own literal, never the caller's object. A code this
+    module does not hold - a launcher running ahead of its driver, an injected
+    fake, a path-shaped string - is DISCARDED, and the row degrades to the bare
+    type name it carried before this function existed. `str(exc)` is never read
+    (CLAUDE.md non-negotiable 12).
+
+    VALIDATING BY VALUE AND THEN RENDERING THE OBJECT IS NOT THE SAME THING, and
+    the difference is only invisible for an exact `str`. Two subclasses defeat
+    it: one overriding `__eq__` to pass any membership test, and - needing no
+    trickery at all - one whose DATA is honestly `unspecified` while its
+    `__str__` returns a home path, because an f-string calls `__str__` on a
+    subclass. Both were driven through this function and both put an
+    account-bearing path into the durable JSONL row. Hence `type(reason) is str`
+    rather than `isinstance`, AND the index substitution: either alone would
+    close one attack and leave the other.
+
+    No shipped raise site was ever affected - all twelve bind plain module
+    constants - so this closes a promise that was nearly true rather than a leak
+    that happened.
 
     Args:
         exc: The caught launch refusal. Any exception type; no attribute is
@@ -649,9 +701,12 @@ def _launch_fault(exc: BaseException) -> str:
     # and a fake that raises a plain RuntimeError must be recorded, not turned
     # into an AttributeError that ends the night.
     reason = getattr(exc, "reason", None)
-    if isinstance(reason, str) and reason in _LAUNCH_REASONS:
-        return f"{named}: {reason}"
-    return named
+    # EXACT `str`, not `isinstance`: a subclass can lie about its comparison or
+    # about its rendering, and the row is a durable personal-data-bearing file.
+    if type(reason) is not str or reason not in _LAUNCH_REASONS:
+        return named
+    # THE DRIVER'S OWN LITERAL, fetched by index. `reason` is not rendered.
+    return f"{named}: {_LAUNCH_REASONS[_LAUNCH_REASONS.index(reason)]}"
 
 
 def _emit(line: str) -> None:
@@ -1648,6 +1703,7 @@ def run_loop(  # noqa: PLR0913, PLR0912, PLR0915 - see THE SEAMS ARE THE POINT
     kill_grace_s: float = DEFAULT_KILL_GRACE_S,
     max_consecutive_errors: int = DEFAULT_MAX_CONSECUTIVE_ERRORS,
     max_consecutive_launch_failures: int = DEFAULT_MAX_CONSECUTIVE_LAUNCH_FAILURES,
+    max_consecutive_unproductive: int = DEFAULT_MAX_CONSECUTIVE_UNPRODUCTIVE,
     ci_gate: bool = True,
     ci_wait_s: float = DEFAULT_CI_WAIT_S,
     ci_poll_s: float = DEFAULT_CI_POLL_S,
@@ -1726,6 +1782,8 @@ def run_loop(  # noqa: PLR0913, PLR0912, PLR0915 - see THE SEAMS ARE THE POINT
     error_limit = max(1, int(max_consecutive_errors))
     consecutive_launch_failures = 0
     launch_failure_limit = max(1, int(max_consecutive_launch_failures))
+    consecutive_unproductive = 0
+    unproductive_limit = max(1, int(max_consecutive_unproductive))
     total = max(0, int(max_cycles))
     for cycle in range(1, total + 1):
         reason = stop_reason(control_dir)
@@ -1894,16 +1952,31 @@ def run_loop(  # noqa: PLR0913, PLR0912, PLR0915 - see THE SEAMS ARE THE POINT
                 f"refusing to launch into {lane} again this run"
             )
             break
-        # TWO COUNTERS, INDEPENDENT ON PURPOSE. Folding `launch_failed` into
-        # `consecutive_errors` would put "the cycles errored" and "the lane
-        # never started" behind one word and one exit code, and those two demand
-        # opposite responses from whoever reads the number.
+        # THREE COUNTERS, AND ONLY THE THIRD GENERALISES.
         #
-        # ACCEPTED RESIDUAL, left open deliberately for the operator to rule on:
-        # a night that ALTERNATES `error` and `launch_failed` trips neither
-        # counter and still runs its whole budget. It is a narrower and less
-        # likely pattern than the repeat this stop closes, and shutting it would
-        # mean changing the meaning of an existing stop reason and its exit code.
+        # The first two each name ONE repeating cause and are checked FIRST, so
+        # a pure night of faults and a pure night of refusals keep their own
+        # word and their own exit code: folding `launch_failed` into
+        # `consecutive_errors` would put "the cycles errored" and "the lane
+        # never started" behind one number, and those demand opposite responses.
+        #
+        # THE THIRD IS THE INVARIANT ITSELF: no sequence of outcomes in which no
+        # cycle ever COMPLETES may run the full budget. A previous merge left an
+        # alternating `error` / `launch_failed` night as an accepted residual on
+        # the grounds that it was narrow; the same hole was then found again
+        # wearing `lane_held`, which reset both counters on every cycle and let
+        # a night whose lane was never free run all twelve and exit 0. The
+        # lesson is that enumerating bad outcomes is the defect. This counter
+        # asks the general question instead, against the PRODUCTIVE_OUTCOMES
+        # allowlist, so a future outcome cannot reopen the hole by being
+        # forgotten.
+        if record["outcome"] in PRODUCTIVE_OUTCOMES:
+            # CONSECUTIVE, not cumulative. One bad cycle between good ones is a
+            # transient the loop is supposed to survive; resetting here is what
+            # keeps a flaky night from being scored as a broken one.
+            consecutive_unproductive = 0
+        else:
+            consecutive_unproductive += 1
         if record["outcome"] == OUTCOME_ERROR:
             consecutive_errors += 1
             consecutive_launch_failures = 0
@@ -1925,11 +1998,17 @@ def run_loop(  # noqa: PLR0913, PLR0912, PLR0915 - see THE SEAMS ARE THE POINT
                 )
                 break
         else:
-            # CONSECUTIVE, not cumulative. One bad cycle between good ones is a
-            # transient the loop is supposed to survive; resetting here is what
-            # keeps a flaky night from being scored as a broken one.
             consecutive_errors = 0
             consecutive_launch_failures = 0
+        if consecutive_unproductive >= unproductive_limit:
+            # REACHED ONLY BY A MIXED RUN - a pure one trips its own counter
+            # above and breaks there with the more specific word.
+            stopped_by = STOPPED_BY_NO_PROGRESS
+            emit(
+                f"queue-loop stop: {consecutive_unproductive} consecutive cycles "
+                f"completed nothing - {record['outcome']} {record['detail']}".rstrip()
+            )
+            break
 
         # Between cycles only. A settle after the final cycle would just delay
         # the driver's own exit for nothing.
@@ -1952,6 +2031,7 @@ _STOP_EXIT = {
     OUTCOME_KILL_FAILED: EXIT_KILL_FAILED,
     STOPPED_BY_CONSECUTIVE_ERRORS: EXIT_CONSECUTIVE_ERRORS,
     STOPPED_BY_LAUNCH_FAILED: EXIT_CONSECUTIVE_LAUNCH_FAILURES,
+    STOPPED_BY_NO_PROGRESS: EXIT_NO_PROGRESS,
     STOPPED_BY_CI_RED: EXIT_CI_RED,
     STOPPED_BY_SUITE_RED: EXIT_SUITE_RED,
 }
