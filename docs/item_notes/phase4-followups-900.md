@@ -1127,6 +1127,27 @@ as a probe would flatten a corrupt one that `load_record` cannot parse.
    ordering fix for one property broke another property of the same function,
    and only an agent asking "what did this change break" found it.
 
+## CS-965
+
+### FILED 2026-09-10 (session 80) from the CS-963 adversarial pass
+
+**THE TREE STATES BOTH POSITIONS AT ONCE.** CS-852 decided that rendering a SIZE
+while withholding the bytes is the safe default, and four shipped reprs do exactly
+that. CS-963 then removed a length from two NEW `_Cursor.__repr__` methods, on the
+grounds that the save's size is information `object.__repr__` never emitted. Both
+cannot be right.
+
+**THE FOUR SITES**, measured: `chunks.DecompressedBody.__repr__` renders the
+decompressed payload length; `objects.ObjectRecord.__repr__` a body offset and
+length; `objects.PropertyName.__repr__` three string lengths;
+`header.SaveHeader.__repr__` a body offset.
+
+**WHY IT IS NOT AN AGENT'S CALL.** CS-852 is a recorded decision. Reversing one
+quietly inside a repair round is how a settled thing gets unsettled by accident,
+and the argument runs both ways: a byte count is not a platform, an account id or a
+player name, which is what non-negotiable 12 names - but it is derived from the
+player's file and it is a fingerprint. The operator rules; an ADR records it.
+
 ## CS-964
 
 ### FILED 2026-09-10 (session 80) from the CS-963 repair round, MEASURED not inferred

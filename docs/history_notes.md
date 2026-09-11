@@ -9053,3 +9053,52 @@ driver is item COUNT, not formatting: the file is item lines, and an acceptance
 clause belongs on the line. `doc_budget.py` exits 0 and the suite is green, so
 nothing is red - but the relocate pass it asks for has no honest target left, and
 the fix is an operator decision rather than an edit.
+
+## Relocated from WAKEUP_NOTES.md 2026-09-10 (session 80)
+
+## Session 77 - 2026-09-08 - the red CI was a Windows assumption, and every claim this session made was refuted before it was believed
+
+- Shipped: nothing CLOSED as an ITEM. CS-958's F1, F4, F5, F6 and F8 closed
+  inside it; the item stays OPEN on F10, D4 and D6. Detail in `docs/LEDGER.md`.
+
+- In flight: nothing. Tree clean, no stash. One adversary worktree survives at
+  `.claude/worktrees/agent-af6f0393f63bd2adb`, clean, at `519cadf`.
+
+- THE SESSION OPENED ON RED CI AND THE CAUSE WAS ONE ASSUMPTION IN EIGHT
+  PLACES. Slice S1's arms encoded WINDOWS filesystem semantics as universal:
+  no `mklink` on ubuntu, a trailing dot not stripped, a case-SENSITIVE
+  filesystem, and a JSON encoder that does not double a forward slash. Repaired
+  by making each arm measure its OWN platform's mechanism - a junction here, a
+  symlink there - and never with `skipif`. CI green, and the passed count rose
+  by exactly the number of arms while the skip count did not move.
+
+- FOUR REFUTATION PASSES, FOUR VERDICTS AGAINST, AND EVERY ONE WAS RIGHT. Three
+  adversaries on the S2 candidate and one verifier on the commit phase. They
+  found: an ungraded STAGED filename that a length-floor rule refuses, the
+  gate's WARN tier dropped on the floor, two refusals that were byte-identical
+  about different faults, a discarded locate hint, refusals that named nobody,
+  a full suite red on a citation guard the targeted suite cannot see, an exit 1
+  printed beside NOTE ALREADY DELIVERED, and a dry run that wrote to disk.
+
+- FOUR MUTANTS SURVIVED ALL 36 ARMS OF THE FIRST S2 CUT, and the reasons
+  transfer better than the fixes. Every fixture put its dirty value at batch
+  index 1, so line attribution was never exercised. Every arm passed
+  `--allow-unmeasured`, so a documented precedence was never reached. The WARN
+  tier is structurally unreachable from this suite. And one mutant was
+  EQUIVALENT rather than surviving - the delivered filename is a strict PREFIX
+  of the staged one and no scanning rule is end-anchored, so no VALUE can tell
+  them apart and the property had to be measured structurally with a recording
+  spy.
+
+- Decisions: no ADR. The exit-code set gained a fourth member so that 1 can go
+  back to meaning nothing was written; the fence is in `docs/LEDGER.md`.
+
+- Surprises: nothing contradicted `BOOTSTRAP.md`. No spec update is owed.
+
+- Failed paths: dispatching a mutating adversary into the main checkout beside
+  read-only siblings. Stopped it before it wrote and re-dispatched it into a
+  worktree - a mutation there would have made both sibling verdicts statements
+  about an unknown tree.
+
+- Next action: read the continuation prompt. The responder-runner filings were
+  DRAFTED and deliberately NOT filed on an operator standby ruling.

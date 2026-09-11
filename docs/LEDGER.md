@@ -160,6 +160,114 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-09-10 - CS-963 - CLOSED after three rounds. Refuted three times by an adversarial lens, each time against a green suite
+
+**THIS IS THE CLOSING RECORD.** Two earlier CS-963 entries below it stand as written: the
+first states a claim that was too strong, the second corrects it. Nothing in this file is
+edited once written, so the three together are the actual history - which is the point of
+the rule, and in this case the history is the more useful artefact.
+
+**WHAT CLOSED.** No shipped frame in a raised traceback - cause chain included - holds the
+raw save, the decompressed body, or a decoded personal-data string in a form any rendering
+channel prints. Fifteen scrubs across four modules, EACH MEASURED LOAD-BEARING AT THE TREE
+THAT SHIPS: `header.parse_header`, `header.reveal_strings` twice (the buffer and the four
+decoded strings), `header.read_header`, `header._Cursor.string`, `header._Cursor.__repr__`,
+`objects._Cursor.string`, `objects._Cursor.__repr__`, `objects.parse_body`,
+`chunks._read_size_pair`, `chunks.read_frame`, `chunks.iter_frames`,
+`chunks.decompress_body`, `world._walk_body`, `world.load_world_from_bytes`. Fifteen of
+fifteen killed, zero survivors, graded against a pristine green floor with each mutation
+asserted to have landed and every file restored from a byte snapshot.
+
+**THE ACCEPTANCE AS FILED WAS UNACHIEVABLE, and that is the item's most durable result.** A
+parser holds the bytes it parses, so the only tree in which no frame HOLDS the save is a
+tree with no parser. `CLAUDE.md` section 8 - the probe beats the document. The clause is
+narrowed where it is checked, in
+`tests/save/test_world.py::test_the_only_retained_buffers_are_encapsulated_and_every_holder_withholds`:
+no frame may hold either buffer in a form a renderer PRINTS, and every remaining holder
+must reach it through an object that withholds it across `__repr__`, `__str__` AND
+`__format__` - asserted against each holder the sweep FINDS, never against a list.
+
+**THE DEFECT THE ITEM EXISTED TO FIX, and it was never the scrubs.** Every privacy arm in
+the layer shared a walker following `exc.__traceback__` alone, so a frame arriving as a
+`__cause__` was outside all of them BY CONSTRUCTION. The arms were green and the save was
+live in shipped frames at the same time.
+`tests/save/test_properties.py::_frames_in_the_cause_chain` follows `__cause__` and
+`__context__`, terminates on cycles, and honours `__suppress_context__` - the last MEASURED
+against `traceback` itself, so a renderer that began showing suppressed frames makes the
+walker wrong rather than merely different.
+
+**A SECOND ORACLE, because one was never enough.** `_leaking_locals` asks what a frame
+RENDERS; `_reaches_the_needle` and `_structural_holders` ask what it HOLDS - reflexively
+through attributes, MRO-declared slots, container members, closure cells, partials, bound
+receivers, suspended generator frames and decoded strings.
+`::test_the_structural_sweep_sees_what_the_repr_sweep_cannot` states the gap between the
+two as a positive fact over one value, so it cannot pass by both being blind.
+
+**THREE REFUTATIONS, AND WHAT EACH ONE TAUGHT.**
+
+Round one shipped green with four leaks live and one introduced. The arm that should have
+caught the worst of them - the decompressed body in `world._walk_body` and
+`objects.parse_body` - was green because its fixture cut the body at its halfway point
+while the planted marker sat past the cut. Its control asserted the marker was in the
+UNTRUNCATED blob, a different byte string from the one the sweep walked. A CONTROL THAT
+PROVES THE ORACLE CAN SEE A VALUE THE SWEEP NEVER ENCOUNTERS IS WORTH LESS THAN NO CONTROL.
+
+Round two introduced a disclosure while removing one: the `__repr__` added to withhold the
+buffer printed `len(self._data)`, the exact size of the player's save, which
+`object.__repr__` never emitted. No arm could flag it - the sweep matches a planted marker
+substring and a size is not a substring of anything.
+
+Round three found the byte-identical TWIN of a scrub round two had just applied.
+`objects._Cursor.string` is the same code as `header._Cursor.string` against the
+decompressed body, and round two's commit message said the sibling grep had condemned the
+siblings. It had not been run against that module. A CLAIMED GREP IS NOT A GREP.
+
+**THREE SEPARATE ARMS WERE VACUOUS AND ONE SCRUB WAS UNMEASURED, all found by mutation
+rather than by reading.** The first `_Cursor.string` arm reused a fixture that corrupts the
+FIRST byte of its own probe and plants no markers at all, so it swept for something never
+in the bytes and SURVIVED its own mutant. The first wide-encoding arm built a correct wide
+fixture and then drove a TRUNCATION, which raises before any slice is bound - wide and
+narrow gave byte-identical verdicts. And the `body` scrub's arm drove two cases that
+between them discriminated nothing, so "deleting either left the suite green" was read as
+evidence of redundancy when it was evidence of a blind arm. AN ARM CAN CARRY A CORRECT
+FIXTURE AND STILL MEASURE NOTHING: what a sweep grades is the frames the refusal enters.
+
+**THE STRUCTURAL ORACLE RETURNED A FALSE CLEAN and was repaired.** `seen` was a flat
+identity set: a value first reached AT the depth boundary was recorded, its children cut
+off by the boundary, and a SHALLOWER path to it afterwards hit the set and returned
+nothing. It now maps identity to the shallowest depth walked, pinned by
+`::test_the_structural_sweep_does_not_go_blind_when_a_deep_path_is_walked_first`, whose
+chain length is exact - one hop either side and the old walker passes it too.
+
+**ONE SCRUB WAS DELETED RATHER THAN ADDED.** With the unconditional guard in place, the
+`ObjectError` handler's own `del body` was redundant - and a redundant scrub is
+UNMEASURABLE, because removing it changes nothing and it cannot be told apart from a scrub
+that never worked.
+
+**RAISED WITH THE OPERATOR, NOT DECIDED HERE.** `chunks.DecompressedBody.__repr__` renders
+the payload's SIZE. An adversary calls that the same disclosure this item removed from
+`_Cursor.__repr__`, and the comparison is fair - the same category is live in
+`objects.ObjectRecord.__repr__` (offset and length), `objects.PropertyName.__repr__` (three
+string lengths) and `header.SaveHeader.__repr__` (body offset). But it is a RECORDED CS-852
+decision and reversing one of those quietly inside a repair round is not an agent's call.
+See `ROADMAP.md` under CS-965.
+
+**Merged files:** `clockspeed/save/header.py`, `clockspeed/save/chunks.py`,
+`clockspeed/save/world.py`, `clockspeed/save/objects.py`,
+`tests/save/test_properties.py`, `tests/save/test_world.py`, `tests/save/test_header.py`,
+`tests/save/test_chunks.py`, `tests/test_exception_rendering.py`,
+`tests/test_docs_citations.py`.
+
+**Verify independently:** `python -m pytest tests -q -n auto` - 6186 passed, 7 skipped,
+exit 0. `ruff check .` clean, `ruff format --check .` clean, `python -m mypy clockspeed`
+clean. To re-derive the load-bearing claim, neutralise any single `del` in those four
+modules and run
+`python -m pytest tests/save/test_world.py tests/save/test_header.py tests/save/test_chunks.py -q -p no:randomly`.
+
+**WHAT THIS IS NOT EVIDENCE OF.** Every fixture is synthetic; no real save was parsed. And
+CS-964 is open for the reason that matters most on a real one - the remaining arms hunt an
+ASCII marker while Unreal writes UTF-16-LE for exactly the fields carrying personal data.
+
 ### 2026-09-10 - CS-963 - CORRECTION AND REPAIR ROUND. The entry below overstated what closed, and three lenses refuted it after a green suite
 
 **THIS CORRECTS THE CS-963 ENTRY BELOW IT RATHER THAN REPLACING IT.** That entry is

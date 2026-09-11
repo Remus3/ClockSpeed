@@ -34,6 +34,58 @@ the line becomes a pointer.
 
 ---
 
+## Session 80 - 2026-09-10 - one item, three refutations, and every one of them landed on a green suite
+
+- Shipped: CS-963 CLOSED. Detail in `docs/LEDGER.md`, which carries three entries for it -
+  the over-strong first claim, the correction, and the closing record. They are meant to be
+  read together.
+
+- In flight: nothing. Tree clean, no stash, no worktrees.
+
+- CS-963 - the filed defect was two frames holding the raw save. The REAL defect was that
+  every privacy arm in the save layer shared a walker following `__traceback__` alone, so a
+  frame arriving as a `__cause__` was outside all of them by construction. Fifteen scrubs
+  across four modules, all fifteen measured load-bearing at the shipping tree.
+
+- Surprises: THE ACCEPTANCE AS FILED WAS UNACHIEVABLE. A parser holds the bytes it parses,
+  so no tree with a parser in it can satisfy "no frame holds the save". Narrowed where it
+  is checked, to what a renderer PRINTS plus a withholding requirement on every retained
+  holder. `CLAUDE.md` section 8 covers this: the probe beats the document.
+
+- Surprises: THREE ADVERSARIAL LENSES REFUTED THIS ITEM, each against a green suite, and
+  the third round found the BYTE-IDENTICAL TWIN of a scrub the second round had just
+  applied - in a commit whose own message said the sibling grep had been run. It had not
+  been run against that module. A CLAIMED GREP IS NOT A GREP.
+
+- Surprises: THREE ARMS WERE VACUOUS AND ONE SCRUB WAS UNMEASURED, every one found by
+  mutation rather than by reading. A fixture that corrupts the first byte of its own probe;
+  a correct wide-encoding fixture driven down a path that binds no slice; two cases that
+  discriminated nothing. AN ARM CAN CARRY A CORRECT FIXTURE AND STILL MEASURE NOTHING -
+  what a sweep grades is the frames the refusal actually enters.
+
+- Surprises: AN EQUIVALENT MUTANT IS NOT A SURVIVING MUTANT. `_Cursor.__repr__` was graded
+  by making it LEAK; the mutation that mattered was REMOVAL, and with the method gone the
+  suite stayed green. The fix was a structural arm requiring every retained holder to
+  DECLARE its own repr - which immediately found its own sibling in `objects.py`.
+
+- Surprises: THE STRUCTURAL ORACLE ITSELF RETURNED A FALSE CLEAN, from a flat identity set
+  that let a deep truncated path poison a shallow live one. Repaired and pinned at the
+  exact boundary chain length; one hop either side and the old walker passes the control.
+
+- Failed paths: I SHIPPED A RED HEAD. The records commit ran the drift guard, the citation
+  guard and the doc-budget guard and not the suite, on the reasoning that it was prose.
+  Tier is decided by what a change CAN BREAK: a markdown edit that moves an item between
+  states breaks tests about item state. Caught by a verifier, not by me.
+
+- Failed paths: a shell heredoc collapsed a backslash escape, `Path.write_text` truncated
+  `tests/save/test_header.py` to zero bytes before failing to encode, and the file had to
+  be rebuilt from HEAD plus re-applied edits. The harness-memory note about heredocs eating
+  backslashes is about correctness; this is the destructive half of it.
+
+- Next action: re-arm the `queue` lane, then CS-964 - the ASCII-only marker oracle.
+
+---
+
 ## Session 79 - 2026-09-10 - two items closed, and the one that mattered was refuted twice by the same lens after a green suite
 
 - Shipped: CS-960 and CS-961, both CLOSED. Detail in `docs/LEDGER.md`, which also
@@ -122,54 +174,5 @@ the line becomes a pointer.
 
 - Next action: dispatch CS-960. It is the smallest item with the largest
   consequence and it is sized for one row.
-
----
-
-## Session 77 - 2026-09-08 - the red CI was a Windows assumption, and every claim this session made was refuted before it was believed
-
-- Shipped: nothing CLOSED as an ITEM. CS-958's F1, F4, F5, F6 and F8 closed
-  inside it; the item stays OPEN on F10, D4 and D6. Detail in `docs/LEDGER.md`.
-
-- In flight: nothing. Tree clean, no stash. One adversary worktree survives at
-  `.claude/worktrees/agent-af6f0393f63bd2adb`, clean, at `519cadf`.
-
-- THE SESSION OPENED ON RED CI AND THE CAUSE WAS ONE ASSUMPTION IN EIGHT
-  PLACES. Slice S1's arms encoded WINDOWS filesystem semantics as universal:
-  no `mklink` on ubuntu, a trailing dot not stripped, a case-SENSITIVE
-  filesystem, and a JSON encoder that does not double a forward slash. Repaired
-  by making each arm measure its OWN platform's mechanism - a junction here, a
-  symlink there - and never with `skipif`. CI green, and the passed count rose
-  by exactly the number of arms while the skip count did not move.
-
-- FOUR REFUTATION PASSES, FOUR VERDICTS AGAINST, AND EVERY ONE WAS RIGHT. Three
-  adversaries on the S2 candidate and one verifier on the commit phase. They
-  found: an ungraded STAGED filename that a length-floor rule refuses, the
-  gate's WARN tier dropped on the floor, two refusals that were byte-identical
-  about different faults, a discarded locate hint, refusals that named nobody,
-  a full suite red on a citation guard the targeted suite cannot see, an exit 1
-  printed beside NOTE ALREADY DELIVERED, and a dry run that wrote to disk.
-
-- FOUR MUTANTS SURVIVED ALL 36 ARMS OF THE FIRST S2 CUT, and the reasons
-  transfer better than the fixes. Every fixture put its dirty value at batch
-  index 1, so line attribution was never exercised. Every arm passed
-  `--allow-unmeasured`, so a documented precedence was never reached. The WARN
-  tier is structurally unreachable from this suite. And one mutant was
-  EQUIVALENT rather than surviving - the delivered filename is a strict PREFIX
-  of the staged one and no scanning rule is end-anchored, so no VALUE can tell
-  them apart and the property had to be measured structurally with a recording
-  spy.
-
-- Decisions: no ADR. The exit-code set gained a fourth member so that 1 can go
-  back to meaning nothing was written; the fence is in `docs/LEDGER.md`.
-
-- Surprises: nothing contradicted `BOOTSTRAP.md`. No spec update is owed.
-
-- Failed paths: dispatching a mutating adversary into the main checkout beside
-  read-only siblings. Stopped it before it wrote and re-dispatched it into a
-  worktree - a mutation there would have made both sibling verdicts statements
-  about an unknown tree.
-
-- Next action: read the continuation prompt. The responder-runner filings were
-  DRAFTED and deliberately NOT filed on an operator standby ruling.
 
 ---
