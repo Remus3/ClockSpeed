@@ -23,6 +23,20 @@ Where current truth actually lives:
 | Module map and seams | `docs/ARCHITECTURE.md` |
 | Commands and runbooks | `docs/OPERATIONS.md` |
 
+
+## CS-963 - retired from `docs/item_notes/phase4-followups-900.md` 2026-09-10
+
+The filed measurement and its detail are the completion record now, in `docs/LEDGER.md`
+under CS-963. It moved here rather than staying in the leaf because a leaf holds LIVE
+detail for OPEN work only, and a pointer stub is still a section - the membership guard
+`tests/data/test_item_notes_index.py::test_every_section_sits_in_the_leaf_the_membership_
+rule_names` reddens on one, which is how this was caught after it had been committed.
+
+The transferable half is not this item's: a shared frame walker following `__traceback__`
+alone made EVERY privacy arm in the save layer silent about the cause chain, and they all
+read as passes while the raw save was live in shipped frames. Filed in harness memory as
+`an-oracle-can-be-blind-to-its-subject`.
+
 ---
 
 ## Session 76 - relocated from `WAKEUP_NOTES.md` 2026-09-10

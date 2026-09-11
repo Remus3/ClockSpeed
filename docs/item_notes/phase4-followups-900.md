@@ -1127,17 +1127,6 @@ as a probe would flatten a corrupt one that `load_record` cannot parse.
    ordering fix for one property broke another property of the same function,
    and only an agent asking "what did this change break" found it.
 
-## CS-963
-
-**CLOSED 2026-09-10.** The detail that was here is the completion record now, in
-`docs/LEDGER.md` under CS-963 - relocated rather than deleted, because a closed
-item's detail may not sit in a leaf that holds LIVE detail for OPEN work
-(`CLAUDE.md` section 4). The one thing worth carrying forward is not this item's:
-it is that a shared frame walker following `__traceback__` alone made EVERY
-privacy arm in the save layer silent about the cause chain, and the arms read as
-passes the whole time. That is filed in harness memory as
-`an-oracle-can-be-blind-to-its-subject`.
-
 ## CS-962
 
 ### SLICE S0 MERGED - the panel seam - MEASURED 2026-09-09 (session 78)
