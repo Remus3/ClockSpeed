@@ -29,8 +29,12 @@ handler receives query parameters only, so a captured segment would have nowhere
 to go". That was wrong about its own type: :data:`contract.Handler` is
 ``Callable[[Mapping[str, str]], Response]`` and a captured segment is a ``str``.
 The cost of the refusal was not theoretical - ``/api/advice/<id>/derivation`` and
-``/api/advice/<id>/state`` are two of the nine endpoints ``BOOTSTRAP.md`` section
-7.1 publishes, ``contract.ENDPOINT_PATTERN`` already admitted their spelling, and
+``/api/advice/<id>/state`` are two of the endpoints ``BOOTSTRAP.md`` section 7.1
+publishes, and HOW MANY IT PUBLISHES IS NOT WRITTEN DOWN HERE: that number is
+owned by ``api.health.ENDPOINT_TEMPLATES``, a copy of it in this docstring would
+go stale the next time a route is published, and nothing would go red when it
+did - which is what happened to the copy that stood here until CS-929.
+``contract.ENDPOINT_PATTERN`` already admitted their spelling, and
 ``serve(config, ROUTES)`` raised before it reached a socket. Three rules replace
 it, and each is decided here rather than left to fall out of iteration order:
 
