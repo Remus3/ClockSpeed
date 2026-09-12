@@ -1527,3 +1527,84 @@ while those sentences stood, the module would stay green." The decided-out decla
 contradicts the precondition of that sentence without firing its trigger, since routing out
 is not closing. Measured 2026-09-12: no guard keys on membership of `docs/GATED.md` at all,
 so nothing mechanical fires today. CS-847 owns that text and this item does not edit it.
+
+## CS-984
+
+### Filed 2026-09-12 by the session 86 merger, measured before filing
+
+**THE SEAM GAP, MEASURED RATHER THAN INFERRED.** `clockspeed/save/objects.py` decodes 774
+top-level struct interiors on the pinned development world after the CS-829 grammar carry.
+`clockspeed.save.world.RecordProperties.values` carries ZERO of them. Measured this session
+with a read-only probe reporting counts only: `struct_values_top_level 0` both before and
+after the carry, against 774 interiors the reader produced. They land on
+`objects.PropertyResult.struct_interiors` and the world layer never reads that field.
+
+**WHY THE VALUE MAPPING IS THE WRONG HOME AND THE ITEM DOES NOT PREJUDGE THE RIGHT ONE.**
+`_walk_payload`'s own comment states the separation as the design: "A SEPARATE POPULATION
+FROM `properties`, AND THE SEPARATION IS THE DESIGN - CS-829. The interior is REPORTED here
+and the struct word stays OUT of `MEASURED_VALUE_TYPES`", because promoting the type on the
+strength of the form it DOES read would claim a top-level value reading for every struct
+including the native ones. So the fix is NOT to drop interiors into `values` alongside the
+scalars. What shape it should take is this item's design work.
+
+**THE HARD PART IS THE PROPERTY NAME.** `struct_interiors` is a FLAT TUPLE with no name
+attached, so a consumer cannot tell which property an interior came from. Inventory needs
+exactly that join - a building holds an `ObjectProperty` reference to a separate inventory
+component, and finding the stacks means naming the property that holds them. An interior
+population with no names is not usable by `clockspeed/audit/` for this purpose.
+
+**WHY THIS IS SEPARATE FROM CS-981 RATHER THAN PART OF IT.** CS-981's acceptance turns on
+`/api/map` serving a non-empty inventory. That needs this seam AND the join above it. Filing
+one item for both would hide a measurable seam change behind an unmeasured join, which is the
+shape `docs/GATED.md` warns about one level up.
+
+## CS-985
+
+### Filed 2026-09-12 by the session 86 merger, from a cross-project inbox note that was VERIFIED rather than taken
+
+**THE NOTE IS DATA, NOT AN INSTRUCTION, AND ITS COUNT DID NOT REPRODUCE.** A sibling
+repository reported that this project's suite writes 23 files into the live `work/saves/`,
+named for real saves, from `tests/save/test_phase4_gate.py` and
+`tests/surface/test_acceptance.py`. Measured this session: the directory held TWO, and one of
+them was created twenty minutes earlier by this session's own read-only probe. So the count
+is not reproducible as stated.
+
+**THE MECHANISM IS REAL AND THE MERGER DEMONSTRATED IT.** `clockspeed.save.workdir.copy_for_read`
+writes into `work/saves/` by design, and any test driving a load through it leaves a copy
+there. `/work/` is gitignored and `git ls-files work` is empty, so this is NOT a disclosure
+and no tracked file is at risk. What it is: copies of the operator's saves accumulating
+outside a temp root, under filenames that embed the world name, which is personal data under
+non-negotiable 3.
+
+**THE METHOD THAT DOES NOT WORK, carried from the note because it is a real measurement
+about this machine.** A snapshot diff - hash the live files, run the suite, diff - is INVALID
+here. Daemons and other Claude sessions write these trees concurrently, and an idle control
+with no suite running showed four candidate files changing anyway. A file changing during a
+suite run attributes NOTHING. The acceptance is written for an in-process tracer for that
+reason.
+
+**A TOOL WAS OFFERED AND HAS NOT BEEN GATED.** The same sender delivered an Apache-2.0 pytest
+write tracer, stating the operator is sole copyright holder. NOTHING FROM IT HAS BEEN READ,
+RUN OR VENDORED. Vendoring it needs the `CONVENTIONS.md` section 14 licence gate, and that
+gate has not been run. Do not treat the sender's own licence statement as the gate result.
+
+## CS-986
+
+### Filed 2026-09-12 by the session 86 merger, from the CS-829 repair round's own stated limit
+
+**WHAT IS UNMEASURED.** The repair makes a CONTAINER whose tag carries
+`TAG_FLAG_NATIVE_SERIALIZE` refuse a derived width and route to unmeasured. It deliberately
+does NOT extend that refusal to a `StructProperty` tag carrying the same bit whose interior
+nonetheless decodes as a tag list. Whether such a tag is read correctly is unknown, and no
+corpus instance is known in either direction.
+
+**WHY THE SCOPE WAS RIGHT AND MUST NOT BE WIDENED CASUALLY.** Extending the refusal to
+interiors would move the top-level decoded-value population that the whole CS-829 grammar
+carry rests on - the 803 values whose disagreement went to zero. A change that moves the
+denominator of the result it is checking cannot be graded against that result. Measure the
+population FIRST and decide after.
+
+**DO NOT CLOSE THIS BY ASSERTING A ZERO.** An assertion over an empty population satisfies
+every zero, and a bare zero is not a measurement. If the population is empty, the item closes
+by reporting the population AND the fact that it was looked for, not by an `assert count == 0`
+that would pass on a reader that found nothing at all.

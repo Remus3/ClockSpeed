@@ -33,6 +33,66 @@ Keep every entry to that shape. If an item needs a paragraph, it needs its own f
 the line becomes a pointer.
 
 ---
+## Session 86 - 2026-09-12 - a gate's routing was one third false, and the save reader learned a flag it already knew
+
+- Shipped: NOTHING CLOSED. CS-829, CS-981, CS-982 and CS-983 all stay OPEN. Two mechanism
+  landings and one routing, all recorded in `docs/LEDGER.md` as NOT A COMPLETION RECORD.
+- Filed: CS-983 (the CS-G05 half-move), CS-984 (the world model publishes no struct
+  interior), CS-985 (the suite writes save copies into the live work directory), CS-986 (a
+  native-serialize struct tag whose interior still reads is unmeasured).
+- In flight: nothing mid-edit. Main is committed and the tree is clean.
+
+- CS-981'S OWN ACCEPTANCE CLAUSE WAS ONE THIRD FALSE AND GREPPING IT TOOK TWO MINUTES. It
+  named CS-829, CS-830 and CS-831 as gated behind CS-G05. Only CS-829 ever had a section in
+  `docs/GATED.md`; CS-830 closed NARROWED and CS-831 closed, both on 2026-08-23, and
+  `tools/headless-queue.md` already said so in terms. The false premise and its own
+  contradiction were sitting in the tree at the same time. GREP A PREMISE; DO NOT INHERIT
+  ONE, including from a continuation prompt.
+
+- Surprises: BYTE-IDENTICAL RELOCATION IS NOT FAITHFUL RELOCATION. Two of CS-829's fences
+  cited "the rule at the top of this file" and "this file's opening rule". At their old
+  address that was `docs/GATED.md`'s rule against synthetic closure; at the new address they
+  resolved to nothing. An adversary found both. A self-referential citation is exactly where
+  a verbatim move breaks, and the fix is to make the pointer absolute and say it was relative.
+
+- Surprises: a constant the module DEFINED, folded into its own mask and STEPPED OVER was
+  read by no line in `clockspeed/` or `tests/`. `TAG_FLAG_NATIVE_SERIALIZE` partitions the
+  (14,60) container population exactly - every derived-width container carries it, every
+  grammar-closing one leaves it clear. Eleven values were published under a width derived as
+  region over count, and the derived width was the TRUE width, so nothing looked wrong. That
+  is non-negotiable 7 inverted, and the merger repeated the "flagged and skipped" claim in a
+  commit message without measuring it.
+
+- Surprises: the disagreement counter went 803 to 0 and the honest reading was NOT that the
+  fix was good. An adversary established it properly by showing the tag population conserved
+  at exactly 7058 across both trees, so the 803 were decoded rather than relabelled into
+  another counter. A decoder that stops disagreeing may be a decoder that stopped checking.
+
+- Surprises: four mutants survived the whole 1486-test save suite, one on the line whose own
+  docstring calls itself "the whole discriminator" and which is the evidentiary basis of
+  every newly accepted value. A green suite of that size is not coverage of the line the
+  result rests on.
+
+- Failed paths: the merger briefed `_read_array_struct_tag` as a fault site. It is not. A
+  (14,60) array of struct carries NO inner tag at all - an inner-tag read accounts for the
+  element region on 0 of 6198, established by an offset sweep fronted by a known-good control
+  on a synthetic payload that does carry one. The builder refuted the brief and was right.
+
+- Failed paths: a repair brief that asked for `ruff check` and `ruff format` and not for
+  mypy. The slice ran what it was asked, honestly, and merged main went RED on four
+  annotation errors with 1500 save tests green on both sides. RUFF AND MYPY ARE DIFFERENT
+  GATES; a brief naming one is not asking for the other.
+
+- Decisions: `StructValue.disagreed` is NOT folded into `disagreeing_value_count` - that
+  counter partitions the top-level tag population and CS-831 grades an identity against it.
+  `ContainerValue.struct_word` stays None at these pairs; digging the word out of the type
+  name is CS-829's measurement, not a decode slice's, and no consumer branches on None.
+
+- Next action: CS-984. Publish decoded struct interiors through
+  `clockspeed.save.world.WorldModel` WITH the property name attached, because a flat tuple of
+  interiors cannot answer "which property held this" and the inventory join needs exactly
+  that. `/api/map` serves an empty inventory until it lands.
+
 
 ## Session 85 - 2026-09-11 - the operator asked for a map, and the save reader turned out to be the thing in the way
 
@@ -125,68 +185,3 @@ the line becomes a pointer.
   `runner_exited_early` or `spawn_failed`, which names the proximate mechanism and points
   at the runner rather than at whatever actually refused. Decide whether one instrumented
   arming to READ that row is worth a night, knowing the row may mislead.
-
-
-## Session 83 - 2026-09-11 - the lane was armed and worked, and three claims made about other people's trees were wrong
-
-- Shipped from here: NOTHING CLOSED. A frozen-file GRANT for CS-972 was recorded
-  (`docs/LEDGER.md`, newest entry but one) and CS-973 was filed. Neither is a closure.
-- Shipped by the LANE: CS-303 CLOSED, commit `13cef40`, which the worker pushed to
-  `origin/main` itself. tier1 run 34632821764 COMPLETED SUCCESS. The merged file is
-  `tests/solve/test_ceiling_fence.py` and the ADR is 0006.
-
-- THE CS-968 FIX IS CONFIRMED IN THE FIELD, not just by its own arm. Three pushes from a
-  LINKED WORKTREE this session - the configuration that caused it - each ran the whole
-  suite under an exported `GIT_DIR`, and the shared `.git/config` came through byte
-  identical but for an expected tracking block. Snapshot the config before a worktree push
-  and diff it after; that is the whole measurement and it costs nothing.
-
-- THE LANE WAS ARMED AND IT WORKED, and the handoff's explanation of CS-970 IS WRONG.
-  The handoff says CS-970's trigger is "explained by CS-968". CS-968 is fixed and verified,
-  and the 1-of-12 pattern REPRODUCED ANYWAY on the first arming after the fix: cycle 1
-  completed, cycle 2 failed `LaneLaunchError` in 2.091s with `pid=None`. CS-970 has its own
-  live cause and it is still unidentified. Do not close it on the CS-968 story.
-  A HYPOTHESIS, NOT A FINDING: a `claude.exe` started at 13:02:03 and the failure landed
-  2.091s later, which fits `ops/loop/lane_launcher.py` line 534, where a failed lock
-  repoint KILLS the worker it just spawned. The obvious alternative was ruled out - the
-  lock file present during cycle 2 was released on failure, so the lane lock is not
-  leaking.
-
-- A LANE WORKER KEPT WORKING FOR 15 MINUTES AFTER THE DRIVER WROTE IT OFF. Cycle 1 was
-  recorded `ok: true, worker_ok: true` at 13:01:09 with `ci=no-push`, and at 13:02 the
-  worktree was DIRTY with the whole CS-303 row uncommitted. The commit landed at 13:17:05,
-  after the driver had exited and after cycle 2's worker was supposedly killed. So a
-  cycle's completion row says nothing about whether that cycle's work has landed.
-  THE DRIVER HAD THE EVIDENCE AND DID NOT USE IT: `ci=no-push` is on the row that says
-  `ok: true`.
-  MEASURING THE LANE MID-RUN IS MEASURING A MOVING TREE. This session read the worktree at
-  13:02, reported "cycle 1 shipped nothing", and was wrong fifteen minutes later. Read the
-  lane's state only after the driver has exited, or state the time of the reading.
-
-- THREE CLAIMS ABOUT OTHER PEOPLE'S TREES WERE WRONG, ALL IN ONE DAY, AND THE HABIT IS THE
-  FINDING. Two were the withdrawals CS already owed - that a fix was "the one RC already
-  has and CS does not", and that "at least three of you have a pre-push hook". The third
-  was made THIS session: LW was resolved to Lanternlight and the plugin request delivered
-  there. LW IS LEGION WALLPAPER. LW's own note names Lanternlight as a separate repo it
-  measured, so one line of the note would have shown it. All three are the same shape: an
-  assertion about a tree nobody read. Corrected at both ends and put on the record rather
-  than quietly fixed.
-
-- THE CHANNEL IS ANSWERED. Four notes delivered through `tools/outbound_send.py`, gate
-  CLEAN with all six classes MEASURED, and every destination copy verified BY DIGEST rather
-  than by the sender's own report. The two withdrawals and the Q1-Q5 positions went to all
-  four siblings; the plugin request went to Legion Wallpaper and a misdelivery notice to
-  Lanternlight. The Q1-Q5 note states its own standing in its first paragraph: where CS
-  answers it is REPORTING recorded doctrine, and anything that would be a new commitment is
-  marked AWAITING RULING. Nothing commits this project to build anything.
-
-- LW'S FINDING AGAINST THIS REPO IS REAL AND WAS REPRODUCED HERE - 23 real-save copies in
-  the live work directory - but its attribution to two named modules WAS NOT ADOPTED. CS
-  confirmed the count and that the named files exist, not that they are the writers.
-  CS-973's acceptance therefore requires the arm to DISCOVER the writers. Adopting a
-  sibling's attribution unmeasured would bank someone else's finding as this project's own.
-
-- Next action: triage whether the lane is re-armed, and read CS-970's own cause rather than
-  CS-968's.
-
----

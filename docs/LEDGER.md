@@ -160,6 +160,104 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-09-12 - CS-829 - NOT A COMPLETION RECORD. NOTHING CLOSED. The (14,60) tag grammar now reaches struct interiors and nested element tag lists, and the native-serialize flag is read rather than defined and ignored
+
+**NOTHING CLOSED.** CS-829 stays OPEN in `ROADMAP.md` with its acceptance clause untouched.
+No struct vocabulary was written, no population was defined by the decoder's own success, no
+quantifier was graded over a pool, and `_UNEXPLAINED_WORD_CEILING` was not touched. This
+entry records a MECHANISM landing, not a clause being met.
+
+**WHAT CHANGED.** CS-980 threaded the complete-type-name tag grammar through the top-level
+payload walk only. Three reading paths below it still read the LEGACY tag shape, so at this
+pair every struct interior refused and every array of struct refused with it. The grammar is
+carried into the interior walk, the interior tag decode and the nested element tag list.
+Merged file: `clockspeed/save/objects.py`. Test names that prove it:
+`tests/save/test_struct_interior_14_60.py::test_the_library_14_60_arrays_of_struct_are_shaped_the_way_the_fixtures_say`
+and `tests/save/test_element_framing_refusals.py::test_a_native_serialized_container_is_not_published_under_a_derived_width`.
+
+**MEASURED BY THE MERGER, INDEPENDENTLY OF THE SLICE THAT BUILT IT**, on the pinned
+development world at 3918 records, read-only, counts only: struct interiors decoded 0 to 774;
+containers published 641 to 1441; DISAGREEING VALUES 803 TO 0; unmeasured 1530 to 1533;
+unread payloads 0 throughout. The disagreement counter is the redundancy oracle - a measured
+type whose bytes did not account for its declared extent - so the zero is the reader arriving
+where it believes it is. An adversary established that separately: the tag population is
+conserved exactly at 7058 across both trees, so the 803 were decoded rather than relabelled,
+and no comparison in the diff loosened.
+
+**A BRIEFED FAULT SITE WAS NOT A FAULT, AND THE REFUTATION IS THE FINDING.** The builder was
+told `_read_array_struct_tag` was broken at this pair. It is not: a (14,60) array of struct
+carries NO inner tag at all. An adversary re-derived this from base-commit primitives and
+swept every offset in 0 to 128, fronted by a known-good control on a synthetic payload that
+DOES carry an inner tag, so "found none" and "the reader never worked" could not be the same
+output. An inner-tag READ accounts for the element region on 0 of 6198. That function is left
+legacy-only and is not called at these pairs.
+
+**NON-NEGOTIABLE 7 WAS INVERTED IN THE FIRST CUT AND THE COMMIT MESSAGE SAID OTHERWISE.**
+That first commit claimed eleven values were "flagged and skipped". They were not: all 11272
+containers of the pair decoded and nothing refused. The eleven were published as
+`uniform_width` with a width DERIVED as region over count, 112/7 = 16, with no warning and no
+counter moved - and 16 is the true width, which is the entire hazard. THE MERGER REPEATED
+THAT CLAIM WITHOUT MEASURING IT. An adversary measured it.
+
+**THE CAUSE HAD A NAME THE MODULE ALREADY CARRIED AND NOTHING READ.**
+`TAG_FLAG_NATIVE_SERIALIZE`, 0x08, was defined, folded into the measured mask, stepped over,
+and consulted by no line in `clockspeed/` or `tests/`. It partitions the population exactly:
+every one of the 30 derived-width containers carries it, all 11242 that close by grammar
+leave it clear, and no flagged container closes by grammar. It now reaches the container
+decode as a THREE-VALUED carry - None under the legacy grammar, because a grammar with no
+flags byte makes no statement and False would be a claim. A container whose only closing
+shape is a derived width is refused and routed to UNMEASURED rather than to disagreed; a
+self-delimiting close is still admitted under the bit, because that shape is falsifiable
+element by element.
+
+**A PROVENANCE CLAIM WAS FALSE.** The first cut called the derived-width residue
+pre-existing. Base measures 9 uniform-width and 0 solved-width; the first cut measured 20 and
+10. TWENTY-ONE OF THE THIRTY were introduced by that change, newly admitted from containers
+the base refused outright. The mechanism is old; the population is not.
+
+**FOUR MUTANTS SURVIVED THE WHOLE SAVE SUITE AND NOW DIE.** The exact close at
+`_walk_elements`, whose own docstring calls itself the whole discriminator and which is the
+evidentiary basis of every newly accepted value; the refusal branch of
+`_element_tag_list_end`, a line the first cut changed in the function it says carried the
+population; the interior refusal routing; and the type-name count guard, which was split in
+three because the whole-guard form leaves either half unmeasured. The new native-serialize
+guard is itself mutated and dies, so the repair grades its own repair. An adversary also
+drove mutants at all eleven arms of the new file and found NO vacuous arm - no blind oracle,
+no skip read from the code under test, no empty-population assertion.
+
+**TWO CORRECTIONS TO THE GRADING ITSELF, recorded because agreement between agents is not
+evidence.** An adversary reported zero closings at any inner-tag offset in 1 to 128; 5569 of
+6198 also close from a non-zero start, because an element is itself a tag list and a later
+tag boundary inside the first element still ends on the same terminator. And
+`StructValue.disagreed` did not go 0 to 774: summed over every reachable interior it is 0,
+and the corpus holds no interior below depth 0 at all. Both defects were real; both stated
+populations were wrong.
+
+**THE REPO-WIDE MYPY GATE WENT RED ON MERGED MAIN AND THAT IS THE MERGER'S PROCESS DEFECT.**
+Four errors, annotations only, with 1500 save-suite tests green on both sides - the repair
+widened `_read_tag_and_words` to a seven-element return while `_decode_interior_tag`'s
+PARAMETER annotation stayed at six and its body unpacked seven. The repair brief asked for
+`ruff check` and `ruff format` and did not ask for mypy, so the slice ran what it was asked.
+RUFF AND MYPY ARE DIFFERENT GATES AND A BRIEF NAMING ONE IS NOT ASKING FOR THE OTHER.
+
+**DECIDED, AND NOT RE-LITIGATED.** `StructValue.disagreed` is NOT folded into
+`disagreeing_value_count`: that counter partitions the top-level tag population and CS-831
+grades an identity against it. `ContainerValue.struct_word` stays None at these pairs even
+though the concrete word is visible one level deeper in the tag's own type name - digging it
+out is CS-829's measurement, not a decode slice's. An adversary enumerated every consumer of
+that attribute and none branches on None, treats it as "not a struct", or feeds it to a
+decode.
+
+**UNVERIFIED, STATED RATHER THAN ROUNDED UP.** Whether a `StructProperty` tag carrying 0x08
+whose interior nonetheless decodes as a tag list is read correctly. The repair is scoped to
+containers deliberately: extending the refusal to interiors would move the population the
+core result rests on. No corpus instance is known either way. Filed as CS-986.
+
+**NO LICENCE GATE RAN AND NONE WAS NEEDED.** Nothing was copied from any third-party save
+parser; the grammar came from the bytes. The session 85 verdicts stand unchanged.
+
+---
+
 ### 2026-09-12 - CS-981, CS-983 - NOT A COMPLETION RECORD. NOTHING CLOSED. The routing record below was ADJUDICATED and then REFUTED, and this is what the repair round changed
 
 **NOTHING CLOSED.** This entry corrects the entry immediately beneath it, which is the

@@ -80,6 +80,74 @@ read as passes while the raw save was live in shipped frames. Filed in harness m
 
 ---
 
+## Session 83 - relocated from `WAKEUP_NOTES.md` 2026-09-12
+
+## Session 83 - 2026-09-11 - the lane was armed and worked, and three claims made about other people's trees were wrong
+
+- Shipped from here: NOTHING CLOSED. A frozen-file GRANT for CS-972 was recorded
+  (`docs/LEDGER.md`, newest entry but one) and CS-973 was filed. Neither is a closure.
+- Shipped by the LANE: CS-303 CLOSED, commit `13cef40`, which the worker pushed to
+  `origin/main` itself. tier1 run 34632821764 COMPLETED SUCCESS. The merged file is
+  `tests/solve/test_ceiling_fence.py` and the ADR is 0006.
+
+- THE CS-968 FIX IS CONFIRMED IN THE FIELD, not just by its own arm. Three pushes from a
+  LINKED WORKTREE this session - the configuration that caused it - each ran the whole
+  suite under an exported `GIT_DIR`, and the shared `.git/config` came through byte
+  identical but for an expected tracking block. Snapshot the config before a worktree push
+  and diff it after; that is the whole measurement and it costs nothing.
+
+- THE LANE WAS ARMED AND IT WORKED, and the handoff's explanation of CS-970 IS WRONG.
+  The handoff says CS-970's trigger is "explained by CS-968". CS-968 is fixed and verified,
+  and the 1-of-12 pattern REPRODUCED ANYWAY on the first arming after the fix: cycle 1
+  completed, cycle 2 failed `LaneLaunchError` in 2.091s with `pid=None`. CS-970 has its own
+  live cause and it is still unidentified. Do not close it on the CS-968 story.
+  A HYPOTHESIS, NOT A FINDING: a `claude.exe` started at 13:02:03 and the failure landed
+  2.091s later, which fits `ops/loop/lane_launcher.py` line 534, where a failed lock
+  repoint KILLS the worker it just spawned. The obvious alternative was ruled out - the
+  lock file present during cycle 2 was released on failure, so the lane lock is not
+  leaking.
+
+- A LANE WORKER KEPT WORKING FOR 15 MINUTES AFTER THE DRIVER WROTE IT OFF. Cycle 1 was
+  recorded `ok: true, worker_ok: true` at 13:01:09 with `ci=no-push`, and at 13:02 the
+  worktree was DIRTY with the whole CS-303 row uncommitted. The commit landed at 13:17:05,
+  after the driver had exited and after cycle 2's worker was supposedly killed. So a
+  cycle's completion row says nothing about whether that cycle's work has landed.
+  THE DRIVER HAD THE EVIDENCE AND DID NOT USE IT: `ci=no-push` is on the row that says
+  `ok: true`.
+  MEASURING THE LANE MID-RUN IS MEASURING A MOVING TREE. This session read the worktree at
+  13:02, reported "cycle 1 shipped nothing", and was wrong fifteen minutes later. Read the
+  lane's state only after the driver has exited, or state the time of the reading.
+
+- THREE CLAIMS ABOUT OTHER PEOPLE'S TREES WERE WRONG, ALL IN ONE DAY, AND THE HABIT IS THE
+  FINDING. Two were the withdrawals CS already owed - that a fix was "the one RC already
+  has and CS does not", and that "at least three of you have a pre-push hook". The third
+  was made THIS session: LW was resolved to Lanternlight and the plugin request delivered
+  there. LW IS LEGION WALLPAPER. LW's own note names Lanternlight as a separate repo it
+  measured, so one line of the note would have shown it. All three are the same shape: an
+  assertion about a tree nobody read. Corrected at both ends and put on the record rather
+  than quietly fixed.
+
+- THE CHANNEL IS ANSWERED. Four notes delivered through `tools/outbound_send.py`, gate
+  CLEAN with all six classes MEASURED, and every destination copy verified BY DIGEST rather
+  than by the sender's own report. The two withdrawals and the Q1-Q5 positions went to all
+  four siblings; the plugin request went to Legion Wallpaper and a misdelivery notice to
+  Lanternlight. The Q1-Q5 note states its own standing in its first paragraph: where CS
+  answers it is REPORTING recorded doctrine, and anything that would be a new commitment is
+  marked AWAITING RULING. Nothing commits this project to build anything.
+
+- LW'S FINDING AGAINST THIS REPO IS REAL AND WAS REPRODUCED HERE - 23 real-save copies in
+  the live work directory - but its attribution to two named modules WAS NOT ADOPTED. CS
+  confirmed the count and that the named files exist, not that they are the writers.
+  CS-973's acceptance therefore requires the arm to DISCOVER the writers. Adopting a
+  sibling's attribution unmeasured would bank someone else's finding as this project's own.
+
+- Next action: triage whether the lane is re-armed, and read CS-970's own cause rather than
+  CS-968's.
+
+---
+
+---
+
 ## Session 80 - relocated from `WAKEUP_NOTES.md` 2026-09-11
 
 ## Session 80 - 2026-09-10 - one item, three refutations, and every one of them landed on a green suite
