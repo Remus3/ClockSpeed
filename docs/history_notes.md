@@ -9658,3 +9658,34 @@ already knew about.
 Do not close this by editing "ten" to whatever the count becomes. That is the
 weak fix CS-927 explicitly refused, and it puts the site straight back in the
 queue for the eleventh route.
+
+## Session 84 - RELOCATED 2026-09-12 from `WAKEUP_NOTES.md` - 2026-09-11 - the lane's refusal got a name, and a green suite was refuted four times
+
+- Shipped: CS-970. Five commits, `aa5a828` through `03bcf1c`. Detail in docs/LEDGER.md.
+- Filed: CS-974 (the `_CI_ROLLUP_BAD` denylist) and CS-975 (nothing reads the driver's
+  exit code), both split out of CS-970 on an operator ruling rather than absorbed into it.
+- In flight: nothing. The lane is still STOPPED by `ops/loop/control/lanes/QUEUE_STOP`,
+  deliberately - see Next action.
+- Decisions: two acceptance clauses AMENDED, both recorded in the CS-970 ledger entry
+  because an adjudicator required the amendment be written rather than inferred. The
+  dirty-worktree precondition does not exist in the code and was refused, not built; the
+  eleven-failure threshold became three.
+- Surprises: the suite was GREEN at every single refuted commit - 6224, 6241 and 6256
+  passes against trees that each still held a live defect. Four adversarial rounds found
+  the SAME defect wearing a different field each time, and the fourth was a regression
+  this session's own fix had introduced. An allowlist over what counts as progress was
+  the only shape that held; every denylist leaked.
+- Surprises: `docs/LEDGER.md`'s own 2026-09-11 record is CORRECTED by the new entry. The
+  eleven failures were not "a launcher meeting a bare repository" - every failing cycle
+  left a worker log, and a bare-repo fault raises before any worker is spawned.
+- Surprises: another session committed and PUSHED main mid-work, so three CS-970 commits
+  reached `origin/main` before their repairs existed. Main is shared; unpushed is not a
+  state this session controlled.
+- Failed paths: keying progress on whether `origin/main` moved. It reads a worker that
+  pushed the LANE BRANCH, which `tools/headless-queue.md` explicitly instructs on a
+  rejected push, as a dead night and killed it at cycle 3. Do not retry that signal.
+- Next action: the lane is STILL NOT SAFE TO RE-ARM BLIND, but for a new reason. The
+  2026-09-11 trigger is still UNDIAGNOSED, and the row it will now print most likely reads
+  `runner_exited_early` or `spawn_failed`, which names the proximate mechanism and points
+  at the runner rather than at whatever actually refused. Decide whether one instrumented
+  arming to READ that row is worth a night, knowing the row may mislead.

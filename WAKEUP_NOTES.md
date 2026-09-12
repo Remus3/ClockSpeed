@@ -33,6 +33,43 @@ Keep every entry to that shape. If an item needs a paragraph, it needs its own f
 the line becomes a pointer.
 
 ---
+## Session 87 - 2026-09-12 - twenty-one worktrees pruned, and one defect found four times, each instance made by the previous repair
+
+- Shipped: CS-929, CS-933, CS-987 closed. CS-964's seam merged and the item stays OPEN.
+  CS-987 and CS-988 filed. Detail in `docs/LEDGER.md`, not here.
+- In flight: nothing. Working tree clean, `main` at `95cdce0`, pushed, tier1 CI read as
+  `completed success`. Two worktrees remain and both are deliberate: the repo itself and
+  `cs-lane-queue`, which is live lane infrastructure.
+- Decisions: no ADR. Four operator questions are carried in the continuation prompt and
+  none of them were answered here.
+- Surprises, and this is the session's substance. **CS-988, the displaced knob: a value
+  that decides what a POPULATION MEASURES, narrowable at its use site, guarded by a floor
+  met EXACTLY.** Found FOUR times inside CS-929, each instance created by the previous
+  repair - corpus root, the anchor pinning it, that anchor's use site reachable by
+  concatenation despite being derived, the plant producer's own return. Every instance was
+  a SILENT ARM-COUNT DROP (155, 452, 466 green while arms vanished). What finally worked
+  is set EQUALITY against a second derivation sharing no constant with the first, plus a
+  module asserting its own collected arm count. **Do not close CS-988 by pinning floors -
+  a floor IS the defect.**
+- Surprises, second: THREE unrelated instances of "an instrument that cannot observe its
+  subject reports success for that reason alone" in one day - CS-987's thread oracle
+  counting a process-global population, CS-964's fixture whose wideness nothing graded,
+  and a builder's mutation probe blind to five of its own mutations. The merger hit it too
+  when a quoted heredoc ate the backslashes out of a plant and the unmutated run printed
+  `2 passed`.
+- Surprises, third: a slice's green is a statement about its OWN SCOPE. The forgiveness
+  ceiling broke only where two branches met; mypy broke only outside the slice's modules.
+  Four adversarial passes and every scoped run missed both. The merged-tree whole-suite run
+  is what caught them.
+- Failed paths: pinning knobs. Three repair rounds added pins and each displaced the defect
+  one level out rather than removing it - do not retry that shape. Also refuted and not to
+  be rebuilt: CS-964's load-bearing claim (the field-specific session-only leak mutant is
+  SYMMETRIC, killed 3 of 3 at both encodings) and CS-929's original acceptance requiring
+  the CS-927 detector be widened (seven false positives, zero hits, measured in session 70).
+- Next action: answer the four operator questions in the continuation prompt before taking
+  any new item, because the first one decides whether 39 branches are work or litter.
+
+---
 ## Session 86 - 2026-09-12 - a gate's routing was one third false, and the save reader learned a flag it already knew
 
 - Shipped: NOTHING CLOSED. CS-829, CS-981, CS-982 and CS-983 all stay OPEN. Two mechanism
@@ -154,34 +191,3 @@ the line becomes a pointer.
 - Next action: CS-981. Route CS-829, CS-830 and CS-831 out of `docs/GATED.md` now that
   their condition is discharged, READING CS-829's fences first - inventory is three items
   and not one, and an operator ruling was once obtained on the premise that it was one.
-
-## Session 84 - 2026-09-11 - the lane's refusal got a name, and a green suite was refuted four times
-
-- Shipped: CS-970. Five commits, `aa5a828` through `03bcf1c`. Detail in docs/LEDGER.md.
-- Filed: CS-974 (the `_CI_ROLLUP_BAD` denylist) and CS-975 (nothing reads the driver's
-  exit code), both split out of CS-970 on an operator ruling rather than absorbed into it.
-- In flight: nothing. The lane is still STOPPED by `ops/loop/control/lanes/QUEUE_STOP`,
-  deliberately - see Next action.
-- Decisions: two acceptance clauses AMENDED, both recorded in the CS-970 ledger entry
-  because an adjudicator required the amendment be written rather than inferred. The
-  dirty-worktree precondition does not exist in the code and was refused, not built; the
-  eleven-failure threshold became three.
-- Surprises: the suite was GREEN at every single refuted commit - 6224, 6241 and 6256
-  passes against trees that each still held a live defect. Four adversarial rounds found
-  the SAME defect wearing a different field each time, and the fourth was a regression
-  this session's own fix had introduced. An allowlist over what counts as progress was
-  the only shape that held; every denylist leaked.
-- Surprises: `docs/LEDGER.md`'s own 2026-09-11 record is CORRECTED by the new entry. The
-  eleven failures were not "a launcher meeting a bare repository" - every failing cycle
-  left a worker log, and a bare-repo fault raises before any worker is spawned.
-- Surprises: another session committed and PUSHED main mid-work, so three CS-970 commits
-  reached `origin/main` before their repairs existed. Main is shared; unpushed is not a
-  state this session controlled.
-- Failed paths: keying progress on whether `origin/main` moved. It reads a worker that
-  pushed the LANE BRANCH, which `tools/headless-queue.md` explicitly instructs on a
-  rejected push, as a dead night and killed it at cycle 3. Do not retry that signal.
-- Next action: the lane is STILL NOT SAFE TO RE-ARM BLIND, but for a new reason. The
-  2026-09-11 trigger is still UNDIAGNOSED, and the row it will now print most likely reads
-  `runner_exited_early` or `spawn_failed`, which names the proximate mechanism and points
-  at the runner rather than at whatever actually refused. Decide whether one instrumented
-  arming to READ that row is worth a night, knowing the row may mislead.
