@@ -184,12 +184,46 @@ def _marker_header_length(header_version: int) -> int:
     return len(synthetic.build_header(**kwargs))  # type: ignore[arg-type]
 
 
+def _spelling_of(marker: str, blob: bytes) -> bytes | None:
+    """Which spelling of ``marker`` the fixture carries, or None for neither.
+
+    Unreal writes a string as UTF-8 with a positive count or UTF-16-LE with a
+    negative one, so there are two candidates and no third. An arm uses this to
+    take its needle FROM THE FIXTURE rather than assuming a spelling - assuming
+    is what made the arms this item exists to fix measure the wrong encoding.
+
+    Args:
+        marker: The planted marker, in its plain text.
+        blob: The fixture bytes.
+
+    Returns:
+        The spelling found, narrow preferred when somehow both are present, or
+        None if the fixture carries neither.
+    """
+    for candidate in (marker.encode("utf-8"), marker.encode("utf-16-le")):
+        if candidate in blob:
+            return candidate
+    return None
+
+
 def _markers_present_in(blob: bytes, header_version: int) -> tuple[str, ...]:
     """Which markers the fixture actually encodes at this header version.
 
     Header versions 10 and 13 carry no save name, so its marker is never in
     the bytes and asserting its absence downstream would pass vacuously. This
     keeps the marker test honest about what it is actually proving.
+
+    PRESENCE IS ASKED PER MARKER ACROSS BOTH SPELLINGS (CS-964). It used to ask
+    ``marker.encode("utf-8") in blob``, which reddened this helper the moment a
+    fixture was spliced to its wide spelling - two of the three markers went
+    missing as far as it could tell. A single ``encoding`` parameter would be
+    the wrong shape, because ``_wide_marker_blob`` is MIXED on purpose: it
+    splices the options and session fields, the two a person types, and leaves
+    the save name narrow.
+
+    The PLAIN TEXT is still what comes back, because :func:`_assert_free_of`
+    searches every spelling a renderer prints, so its callers go on handing it
+    plain markers.
 
     Args:
         blob: The fixture bytes.
@@ -198,7 +232,7 @@ def _markers_present_in(blob: bytes, header_version: int) -> tuple[str, ...]:
     Returns:
         The markers genuinely encoded in ``blob``.
     """
-    present = tuple(marker for marker in MARKERS if marker.encode("utf-8") in blob)
+    present = tuple(marker for marker in MARKERS if _spelling_of(marker, blob) is not None)
     expected = len(MARKERS) if header_version >= VERSION_WITH_SAVE_NAME else len(MARKERS) - 1
     assert len(present) == expected, (
         f"marker fixture for header {header_version} encodes {len(present)} markers,"
@@ -328,6 +362,42 @@ def test_the_surface_sweep_is_not_blind_to_a_wide_encoded_raw_slice() -> None:
     # sweep has not become an assertion that fires on everything.
     clean = _CarriesARawSlice(b"nothing planted here")
     _assert_free_of(_value_surfaces(clean), (MARKER_OPTIONS,), "clean control")
+
+
+def test_the_marker_selector_is_not_blind_to_a_wide_fixture() -> None:
+    """PIECE 3 - THE NEEDLE SELECTOR KNEW EXACTLY ONE ENCODING. CS-964.
+
+    :func:`_markers_present_in` decided presence by ``marker.encode("utf-8") in
+    blob`` and ASSERTED the count it found, so a fixture whose fields are
+    spliced to their wide spelling reddens it - two of the three markers go
+    missing as far as it can tell. That is loud rather than silent, which makes
+    it a signpost rather than a trap, but it still blocks every wide header arm
+    at the first line.
+
+    THE FIXTURE IS MIXED ON PURPOSE, which is why a single encoding parameter
+    would be the wrong shape: ``_wide_marker_blob`` splices the options and
+    session fields, the two a person types, and leaves the save name narrow. So
+    presence is asked per marker across both spellings, and the plain text is
+    still what comes back - :func:`_assert_free_of` now searches every spelling
+    a renderer prints, so its callers keep handing it plain markers.
+    """
+    narrow = _markers_present_in(_marker_blob(VERSION_WITH_SAVE_NAME), VERSION_WITH_SAVE_NAME)
+    assert narrow == MARKERS, "the narrow fixture no longer carries all three markers"
+
+    # THE CLAIM - the same three markers are found in the mixed wide fixture.
+    wide = _markers_present_in(_wide_marker_blob(), VERSION_WITH_SAVE_NAME)
+    assert wide == MARKERS, (
+        "the needle selector cannot see the wide-spelled markers, so every wide header "
+        "arm reddens at its first line however correct its fixture is"
+    )
+
+    # FENCE - it still refuses a fixture that is genuinely missing a marker,
+    # which is the vacuity check it was written for in the first place.
+    stripped = _marker_blob(VERSION_WITH_SAVE_NAME).replace(
+        synthetic.fstring(MARKER_SESSION), synthetic.fstring("HarmlessReplacement"), 1
+    )
+    with pytest.raises(AssertionError):
+        _markers_present_in(stripped, VERSION_WITH_SAVE_NAME)
 
 
 # ---------------------------------------------------------------------------

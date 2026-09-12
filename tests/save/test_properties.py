@@ -2324,6 +2324,47 @@ def _fstring(text: str, *, wide: bool = False) -> bytes:
     return _i32(len(raw)) + raw
 
 
+def _spliced_wide(blob: bytes, *texts: str) -> bytes:
+    """``blob`` with each text's narrow field replaced by its wide spelling.
+
+    THE ALTERNATIVE WAS A SECOND BUILDER, AND THE ACCEPTANCE CLAUSE FORBIDS ONE
+    BY NAME. A parallel wide builder beside the narrow one is a fixture that can
+    drift away from the one every other arm uses, and the drift would be
+    invisible: both would parse, and only the arms on one of them would be
+    measuring the encoding they claim to. Splicing keeps ONE builder and makes
+    the change to it assertable - which a parallel builder could not be.
+
+    IT REFUSES TO GUESS. If the narrow field is not present EXACTLY once there
+    is no single place to put the wide one, and a splice that took the first of
+    several would build a fixture no arm could reason about. That refusal is the
+    reason this is a helper rather than two lines inlined per arm.
+
+    Args:
+        blob: The fixture bytes, built by the narrow path like every other.
+        texts: The field texts to respell, each of which must appear exactly
+            once in its narrow encoding. Non-empty - there is no wide encoding
+            of the empty string.
+
+    Returns:
+        The blob, with those fields wide and everything else untouched.
+
+    Raises:
+        AssertionError: A field was absent, or present more than once, or the
+            splice did not land.
+    """
+    for text in texts:
+        narrow = _fstring(text)
+        wide = _fstring(text, wide=True)
+        assert blob.count(narrow) == 1, (
+            f"the {text!r} field appears {blob.count(narrow)} times in its narrow spelling, "
+            "so this splice would be guessing which one the arm meant"
+        )
+        blob = blob.replace(narrow, wide, 1)
+        assert narrow not in blob, f"the narrow {text!r} field survived the splice"
+        assert wide in blob, f"the wide {text!r} field is not in the spliced blob"
+    return blob
+
+
 def _tag_head(name: str, type_word: str, size: int, extra: bytes) -> bytes:
     """Build one property tag up to but not including its value.
 
@@ -3354,6 +3395,53 @@ def _rendered_spellings(marker: str) -> tuple[str, ...]:
     rendered = repr(marker.encode("utf-16-le"))
     escaped = rendered[2:-1]
     return (marker, escaped) if escaped != marker else (marker,)
+
+
+def _assert_the_needle_is_observable(marker: str, needle: bytes) -> None:
+    """Prove both oracles CAN see this needle before an arm concludes from silence.
+
+    THE CONTROL THE ACCEPTANCE CLAUSE NAMES, in one line per arm. An arm's empty
+    verdict means "nothing holds the value" only if the oracle could have seen
+    the value at all - and session 80 shipped three arms where it could not. A
+    correct-looking fixture, a refusal that never enters the frame holding the
+    value, and an oracle blind to the value's spelling all produce the SAME
+    empty output as a genuinely clean parser. Reading cannot tell them apart;
+    only a control can.
+
+    WHAT IT CATCHES is the trap this item's own note names in capitals: moving
+    the marker constant to its wide spelling while the fixture still carries the
+    narrow one makes an arm VACUOUS rather than wide. Handed the text and the
+    needle bytes, this refuses a pair that does not describe one value, so the
+    mismatch fails loudly at the top of the arm instead of passing quietly at
+    the bottom.
+
+    THE THREE CHECKS ARE THE THREE HOLDER FAMILIES, deliberately - a decoded
+    string, a value one attribute hop inside a withholding object, and a
+    rendering. Each is a family some arm in this suite actually sweeps, and an
+    oracle can be live for one and blind to another.
+
+    Args:
+        marker: The planted marker, in its plain text.
+        needle: The same value in the spelling the fixture carries.
+
+    Raises:
+        AssertionError: The pair does not describe one value, or an oracle
+            cannot observe it.
+    """
+    assert _reaches_the_needle(marker, needle, 0) == [""], (
+        f"the structural sweep cannot see {needle!r} in the decoded text {marker!r}. "
+        "Either the needle is not this marker's spelling, or the str branch is blind "
+        "to it - and an arm built on this pair would measure nothing"
+    )
+    assert _reaches_the_needle(_WithholdingHolder(marker), needle, 0) == ["._buffer"], (
+        f"the structural sweep cannot reach {needle!r} one attribute hop inside a "
+        "withholding holder, which is the shape the save layer actually uses"
+    )
+    rendered = _safe_repr(needle)
+    assert any(spelling in rendered for spelling in _rendered_spellings(marker)), (
+        f"no spelling the rendering sweep hunts appears in {rendered!r}, so the repr "
+        f"oracle is blind to {marker!r} in this encoding"
+    )
 
 
 def _leaking_locals(frame: FrameType, marker: str) -> tuple[str, ...]:
@@ -5267,6 +5355,80 @@ def test_the_rendering_sweep_is_not_blind_to_a_wide_buffer_in_a_frame_local() ->
         "the rendering sweep reports a leak for a local that carries no spelling of the "
         "marker, so it matches anything and no arm built on it measures its subject"
     )
+
+
+def test_the_splice_helper_swaps_a_narrow_field_for_its_wide_spelling() -> None:
+    """PIECE 4 - THE SPLICE, PUBLISHED. CS-964.
+
+    CS-963 spliced a header field to its wide spelling rather than writing a
+    second header builder, because a parallel builder is a fixture that can
+    drift away from the one every other arm uses - and the acceptance clause
+    forbids one by name. That splice was file-local to ``test_header``, and the
+    body-side arms need the same operation, so it moves here.
+
+    IT REFUSES TO GUESS. If the narrow field is not in the blob EXACTLY once,
+    there is no single place to put the wide one, and a splice that picked the
+    first of several would build a fixture nobody could reason about.
+    """
+    text = _STRUCTURAL_MARKER
+    blob = b"head" + _fstring(text) + b"tail"
+
+    spliced = _spliced_wide(blob, text)
+
+    assert spliced.startswith(b"head"), "the splice disturbed the bytes before the field"
+    assert spliced.endswith(b"tail"), "the splice disturbed the bytes after the field"
+    assert _fstring(text) not in spliced, "the narrow field survived the splice"
+    assert _fstring(text, wide=True) in spliced, "the wide field is not in the result"
+
+    # THE ISOLATION PROPERTY every wide arm rests on: the ASCII spelling is
+    # genuinely gone, so an ASCII sweep over this blob is vacuous BY
+    # CONSTRUCTION rather than by luck.
+    assert text.encode("ascii") not in spliced, (
+        "the spliced blob still carries the ASCII spelling, so it does not isolate "
+        "the encoding gap the arms exist to measure"
+    )
+
+    # AND THE SHIPPED READER STILL READS IT - an unparseable fixture would give
+    # every arm built on it a refusal for the wrong reason.
+    assert _payload_text_or_fail(spliced, len(b"head"))[0] == text, (
+        "the shipped body reader cannot read the spliced field back"
+    )
+
+    with pytest.raises(AssertionError):
+        _spliced_wide(b"no such field here", text)
+    with pytest.raises(AssertionError):
+        _spliced_wide(blob + _fstring(text), text)
+
+
+def test_the_observability_control_refuses_a_needle_the_oracles_cannot_see() -> None:
+    """PIECE 5 - THE CONTROL EVERY ARM OWES, AND WHAT IT CATCHES. CS-964.
+
+    An arm's empty verdict means "no holder" only if the oracle could have seen
+    the value at all. Session 80 shipped THREE arms where it could not, and not
+    one was caught by reading - a correct-looking fixture, a sweep that entered
+    the wrong frame, and an oracle blind to its subject's spelling all produce
+    the same empty output as a clean parser.
+
+    WHAT THIS CATCHES SPECIFICALLY is the trap the item note names: moving the
+    marker constant to its wide spelling while the fixture still carries the
+    narrow one, which makes an arm VACUOUS rather than wide. The control is
+    handed both the text and the needle bytes and asserts they describe the same
+    value, so a mismatched pair fails loudly at the top of the arm instead of
+    passing silently at the bottom.
+    """
+    wide = _STRUCTURAL_MARKER.encode("utf-16-le")
+    narrow = _STRUCTURAL_MARKER.encode("utf-8")
+
+    # Both real pairings are observable.
+    _assert_the_needle_is_observable(_STRUCTURAL_MARKER, narrow)
+    _assert_the_needle_is_observable(_STRUCTURAL_MARKER, wide)
+
+    # A needle for a DIFFERENT value is refused - this is the mismatch that
+    # would otherwise turn an arm into a measurement of nothing.
+    with pytest.raises(AssertionError):
+        _assert_the_needle_is_observable(
+            _STRUCTURAL_MARKER, _STRUCTURAL_MARKER_ABSENT.encode("utf-16-le")
+        )
 
 
 def test_the_structural_sweep_terminates_on_a_reference_cycle() -> None:
