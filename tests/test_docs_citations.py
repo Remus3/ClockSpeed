@@ -1072,7 +1072,6 @@ UNVERIFIED_LINE_POINTERS: Final[Mapping[tuple[str, str, int], str]] = {
         "tests/save/test_container_elements.py",
         1168,
     ): "b04f24100c34",
-    ("docs/item_notes/phase4-followups-850.md", "tests/save/test_header.py", 1048): "0e6ebeb1b024",
     (
         "docs/item_notes/phase4-followups-850.md",
         "tests/save/test_inventory_potential.py",
@@ -1236,7 +1235,7 @@ UNFORBIDDEN_LINE_POINTERS: Final[frozenset[tuple[str, str, int]]] = frozenset(
 #: exactly the laundering the comment above forbids. Its neighbour went with it
 #: because the sentence carrying both reads as one claim. The doc already wrote
 #: a third such site in prose as a bare line number for this reason.
-FORGIVEN_LINE_POINTER_CEILING: Final = 61
+FORGIVEN_LINE_POINTER_CEILING: Final = 60
 
 # --- resolution -------------------------------------------------------------
 

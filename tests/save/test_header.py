@@ -696,6 +696,25 @@ def _respell(data: bytes, spelling: str) -> bytes:
     return test_properties._spliced_wide(data, *WIDE_SPLICED_FIELDS)  # noqa: SLF001
 
 
+def _marker_header_length_at(header_version: int, spelling: str) -> int:
+    """The marker header's byte length AT THIS SPELLING.
+
+    The wide fields are longer, so a truncation loop bounded by the narrow
+    length stops short of the wide string block and never enters the frames the
+    arm is about. Deriving the bound per spelling is what keeps that arm from
+    being vacuous.
+
+    Args:
+        header_version: 10, 13 or 14.
+        spelling: ``"narrow"`` or ``"wide"``.
+
+    Returns:
+        The byte length of the header alone, respelled.
+    """
+    kwargs = _marker_header_kwargs(header_version)
+    return len(_respell(synthetic.build_header(**kwargs), spelling))  # type: ignore[arg-type]
+
+
 @pytest.mark.parametrize("header_version", HEADER_VERSIONS)
 @pytest.mark.parametrize("spelling", ["narrow", "wide"])
 def test_planted_markers_never_reach_any_surface(header_version: int, spelling: str) -> None:
@@ -744,9 +763,7 @@ def test_planted_markers_never_reach_any_surface(header_version: int, spelling: 
     _assert_free_of([repr(parsed.warnings)], needles, f"warnings ({spelling})")
 
     # --- truncation, at every offset in the header region ------------------
-    header_length = len(
-        _respell(synthetic.build_header(**_marker_header_kwargs(header_version)), spelling)
-    )  # type: ignore[arg-type]
+    header_length = _marker_header_length_at(header_version, spelling)
     for cut in range(header_length + 4):
         try:
             parse_header(synthetic.truncated_at(blob, cut))

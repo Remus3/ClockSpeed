@@ -5087,11 +5087,17 @@ _STRUCTURAL_MARKER: Final = "PlantedStructuralNeedleXray"
 class _WithholdingHolder:
     """Holds a buffer and renders none of it - the shape the save layer uses."""
 
-    def __init__(self, buffer: bytes) -> None:
+    def __init__(self, buffer: bytes | str) -> None:
         """Take the buffer.
 
+        EITHER TYPE, because the sweep has two holder families and CS-964's
+        control drives both through this one stand-in: a DECODED STRING, which
+        is what `_Cursor.string` binds, and a RAW BUFFER, which is what the
+        cursor keeps. Annotating it `bytes` alone was a lie the type checker
+        was right to reject.
+
         Args:
-            buffer: The bytes to hold.
+            buffer: The bytes, or the decoded text, to hold.
         """
         self._buffer = buffer
 
