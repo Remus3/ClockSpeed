@@ -672,31 +672,96 @@ def test_an_empty_input_is_a_truncation_rather_than_an_index_error() -> None:
 # ---------------------------------------------------------------------------
 
 
+#: The two header fields the wide drive respells, and the reason it is these
+#: two: they are the ones a PERSON TYPES, so they are the ones that carry a
+#: non-ASCII character on a real save and therefore arrive UTF-16-LE with a
+#: negative count. The save name is deliberately left narrow, which is what
+#: makes the wide fixture MIXED - see `_markers_present_in`.
+WIDE_SPLICED_FIELDS: Final = ("?" + MARKER_OPTIONS + "=1", MARKER_SESSION)
+
+
+def _respell(data: bytes, spelling: str) -> bytes:
+    """``data`` with the personal-data fields in the requested spelling.
+
+    Args:
+        data: A marker-bearing header or whole save, built by the narrow path
+            like every other fixture in this module.
+        spelling: ``"narrow"`` to leave it alone, ``"wide"`` to respell.
+
+    Returns:
+        The bytes, respelled or untouched.
+    """
+    if spelling == "narrow":
+        return data
+    return test_properties._spliced_wide(data, *WIDE_SPLICED_FIELDS)  # noqa: SLF001
+
+
 @pytest.mark.parametrize("header_version", HEADER_VERSIONS)
-def test_planted_markers_never_reach_any_surface(header_version: int) -> None:
+@pytest.mark.parametrize("spelling", ["narrow", "wide"])
+def test_planted_markers_never_reach_any_surface(header_version: int, spelling: str) -> None:
     """The load-bearing test. See the module docstring.
 
     Drives the success path and every failure path this module has, at every
-    header version, and asserts the planted markers reach none of the surfaces
-    a human or a log can read.
+    header version AND AT BOTH ON-WIRE ENCODINGS, and asserts the planted
+    markers reach none of the surfaces a human or a log can read.
+
+    WHY BOTH SPELLINGS (CS-964). Unreal writes a string UTF-16-LE with a
+    negative count the moment it carries one non-ASCII character, which the
+    session name and the player display name - the two a person types - readily
+    do. This arm drove the narrow spelling only, so its whole population of
+    green verdicts was measured against the encoding those fields are LEAST
+    likely to have. An adversary then measured the consequence rather than
+    arguing it: a parse result carrying a raw slice - the exact regression this
+    arm exists to catch, since the design is that the bytes never become Python
+    strings at all - DIES against the narrow field and SURVIVES against the
+    wide one.
+
+    THE WIDE FIXTURE IS SPLICED, NOT SEPARATELY BUILT. One builder, one blob,
+    two spellings: a parallel wide builder is a fixture that can drift away
+    from the narrow one, and the drift would be invisible because both parse.
+    The splice asserts it landed; a second builder could not.
+
+    EVERY DERIVED OFFSET IS RE-DERIVED PER SPELLING. The wide fields are longer,
+    so the header length is taken from the respelled header rather than the
+    narrow one - a truncation loop bounded by the narrow length would stop short
+    of the wide string block and never reach the frames this arm is about.
     """
-    blob = _marker_blob(header_version)
+    blob = _respell(_marker_blob(header_version), spelling)
     needles = _markers_present_in(blob, header_version)
+
+    # THE CONTROL THE ACCEPTANCE CLAUSE REQUIRES, per needle: the sweep can
+    # SEE this value in the spelling THIS fixture carries. Without it, a wide
+    # drive whose needles were still narrow would report clean for the one
+    # reason that proves nothing - and that is the trap this item is named for.
+    for marker in needles:
+        found = _spelling_of(marker, blob)
+        assert found is not None, f"{marker!r} is in neither spelling, so its sweep is vacuous"
+        test_properties._assert_the_needle_is_observable(marker, found)  # noqa: SLF001
 
     # --- the success path -------------------------------------------------
     parsed = parse_header(blob)
-    _assert_free_of(_value_surfaces(parsed), needles, "SaveHeader on the success path")
-    _assert_free_of([repr(parsed.warnings)], needles, "warnings")
+    _assert_free_of(_value_surfaces(parsed), needles, f"SaveHeader success path ({spelling})")
+    _assert_free_of([repr(parsed.warnings)], needles, f"warnings ({spelling})")
 
     # --- truncation, at every offset in the header region ------------------
-    header_length = _marker_header_length(header_version)
+    header_length = len(
+        _respell(synthetic.build_header(**_marker_header_kwargs(header_version)), spelling)
+    )  # type: ignore[arg-type]
     for cut in range(header_length + 4):
         try:
             parse_header(synthetic.truncated_at(blob, cut))
         except HeaderError as error:
-            _assert_free_of(_exception_surfaces(error), needles, f"truncation at {cut}")
+            _assert_free_of(
+                _exception_surfaces(error), needles, f"truncation at {cut} ({spelling})"
+            )
 
     # --- a declared length above the cap -----------------------------------
+    # The splice lands AFTER this offset at every header version - asserted,
+    # not assumed, because a respelling that moved it would make the cap path
+    # test a different field than the one it names.
+    assert (
+        blob[:FIRST_STRING_COUNT_OFFSET] == _marker_blob(header_version)[:FIRST_STRING_COUNT_OFFSET]
+    ), "the respelling moved the first string's count field, so the cap path below has drifted"
     absurd = (
         blob[:FIRST_STRING_COUNT_OFFSET]
         + struct.pack("<i", synthetic.ABSURD_STRING_LENGTH)
@@ -704,25 +769,32 @@ def test_planted_markers_never_reach_any_surface(header_version: int) -> None:
     )
     with pytest.raises(HeaderFormatError) as format_error:
         parse_header(absurd)
-    _assert_free_of(_exception_surfaces(format_error.value), needles, "declared length above cap")
+    _assert_free_of(
+        _exception_surfaces(format_error.value), needles, f"declared length above cap ({spelling})"
+    )
 
     # --- an unsupported version, with the markers still in the bytes -------
     kwargs = _marker_header_kwargs(header_version)
     kwargs["header_version"] = synthetic.UNSUPPORTED_HEADER_VERSION
     kwargs["with_save_name"] = True
     kwargs["with_tail"] = True
+    unsupported = _respell(synthetic.build_save(header_kwargs=kwargs), spelling)
     with pytest.raises(UnsupportedHeaderVersionError) as version_error:
-        parse_header(synthetic.build_save(header_kwargs=kwargs))
-    _assert_free_of(_exception_surfaces(version_error.value), needles, "unsupported version")
+        parse_header(unsupported)
+    _assert_free_of(
+        _exception_surfaces(version_error.value), needles, f"unsupported version ({spelling})"
+    )
 
     # --- the opt-in refusal ------------------------------------------------
     with pytest.raises(PersonalDataOptInRequiredError) as opt_in_error:
         reveal_strings(blob)
-    _assert_free_of(_exception_surfaces(opt_in_error.value), needles, "opt-in refusal")
+    _assert_free_of(
+        _exception_surfaces(opt_in_error.value), needles, f"opt-in refusal ({spelling})"
+    )
 
     # --- the withheld repr of the opt-in RESULT ----------------------------
     revealed = reveal_strings(blob, reveal_personal_data=True)
-    _assert_free_of([repr(revealed), str(revealed)], needles, "HeaderStrings repr")
+    _assert_free_of([repr(revealed), str(revealed)], needles, f"HeaderStrings repr ({spelling})")
 
 
 def test_the_marker_fixture_really_does_carry_the_markers() -> None:
