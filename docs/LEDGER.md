@@ -7197,7 +7197,7 @@ and is NEVER interpolated into `reason`. Only `path` is redacted, by `display_di
 TEN, `RUFF_TIMEOUT` is read at CALL time, not bound as a default argument.
 `tools/edit_lint_check.py` monkeypatches `gate.RUFF_TIMEOUT` around its call, and a default would bind
 at import and ignore it.
-ELEVEN, `TRUNCATIONS` in `tests/test_hook_interpreter_ladder.py:1678` is RE-DERIVED from the located
+ELEVEN, `tests/test_hook_interpreter_ladder.py::TRUNCATIONS` is RE-DERIVED from the located
 `GATE_MAIN_GUARD` rather than left as the hardcoded 2368. MEASURED: across insertion sizes 0 to 60,
 24 of 61 break the 2368-prefix compile. The proposal's 47 lines happening to survive where 36 did not
 is LUCK. Deriving as `main guard line minus one` is INVARIANT under any insertion above it. The module

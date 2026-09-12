@@ -340,7 +340,7 @@ the guard raised, THREE WERE REAL AND ARE NOW FIXED ON MAIN - the orphaned ledge
 the four citations downstream of it, and a slash-command example wired to real closed ids.
 Exactly one finding remained, and it is not a defect in the tree:
 
-    tests/test_hook_interpreter_ladder.py:122 records CS-703 as the owner, and it is CLOSED
+    tests/test_hook_interpreter_ladder.py::ITEM_ID records CS-703 as the owner, and it is CLOSED
 
 **IT IS A PIN, NOT A ROUTE.** `.githooks/commit-msg` renders that id inside its own refusal
 text, and the same module asserts that the hook's rendered output CITES it. The constant

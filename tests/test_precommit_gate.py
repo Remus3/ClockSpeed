@@ -42,6 +42,8 @@ from types import ModuleType, SimpleNamespace
 
 import pytest
 
+from tests.git_env import scrubbed_env
+
 REPO_ROOT = Path(__file__).resolve().parents[1]
 GATE = REPO_ROOT / "tools" / "precommit_gate.py"
 
@@ -483,6 +485,10 @@ def git(*args: str, cwd: Path) -> subprocess.CompletedProcess[str]:
         capture_output=True,
         timeout=TIMEOUT,
         check=False,
+        # CS-968: a push from a worktree exports GIT_DIR to the pre-push hook,
+        # and this suite runs under that hook. Without the scrub a throwaway
+        # `git init` re-initialises the REAL repository as bare.
+        env=scrubbed_env(),
     )
     return subprocess.CompletedProcess(
         proc.args,
