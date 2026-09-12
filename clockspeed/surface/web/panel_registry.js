@@ -79,6 +79,89 @@
   /* What an absent measurement renders as. Never a digit. */
   var ABSENT = "not declared";
 
+  /*
+    THE WARNING STREAM IS GUARDED, AND THE REASON IS THE PAGE AND NOT THIS
+    PANEL. panel_warnings.js renders the same KIND of record - a code, a
+    subject, a consequence line and a count - and runs every field through a
+    per-field allowlist, substituting a visible marker for anything outside it.
+    This panel rendered its own warnings through a bare string check. So one
+    value could be withheld in the Warnings table and printed in full in the
+    Registry table, in the same document, in the same screenshot that
+    tools/dashboard_probe.py writes to a file. Two sinks over one record class
+    means the page is only as careful as the weaker of them, and a leak into an
+    image file is what non-negotiables 3, 11 and 12 forbid.
+
+    WHAT CAN ACTUALLY REACH THESE FIELDS - read, not assumed. Every
+    RegistryWarning in the project is built at one site,
+    clockspeed/data/registry.py::_WarningLog.emit, fed by sixteen log.add calls
+    in that one module. Their subjects are a ClassName, a group short name from
+    clockspeed/data/docs_extract.py::derive_short_name, an item key, a
+    produced-in token from clockspeed/data/registry.py::_class_name_from_path,
+    and a group index rendered with str(). Their details are f-strings over
+    that module's own KEY_* constants, plus the four closed reasons whose first
+    is clockspeed/data/docs_extract.py::REASON_NOT_A_MAPPING. THE VERDICT: this
+    stream is publisher-owned. It is built from the shipped game data file and
+    nothing save-derived, no header field, no account id and no world name can
+    reach any of it. That is narrower than the world warning stream one panel
+    over, and it is why no rule here treats a non-ASCII character as evidence of
+    a player display name: there is no player anywhere in this provenance.
+
+    A GUARD IS SHIPPED ANYWAY, AND IT IS AN ALLOWLIST. The verdict above is a
+    statement about today's producers, and a sink that trusts an audit has no
+    defence the day the audit goes stale. A denylist of bad substrings is not a
+    defence either - one defect wears a different field each time. So a value is
+    rendered only by being INSIDE a stated set, never by failing to match
+    something bad.
+
+    THE SUBJECT SET IS DELIBERATELY WIDER THAN THE SIBLING'S, and copying the
+    sibling's would have been a defect of its own. Its token set excludes the
+    forward slash and admits exactly one slash-bearing exception, digits over
+    digits. But this stream carries slash-bearing subjects LEGITIMATELY:
+    clockspeed/data/blobs.py::parse_class_paths returns whatever sits between
+    two double quotes verbatim, and
+    clockspeed/data/registry.py::_class_name_from_path returns the WHOLE path
+    when the token holds no "." separator at all. That module says plainly that
+    dropping such a token erases the evidence it was ever present - so
+    withholding it here would hide the very thing flag-and-skip exists to
+    publish. An object path is therefore accepted, but only as a whole shape:
+    rooted, and every segment between separators a bare token.
+
+    WHAT THAT SHAPE CANNOT WEAR is a path on this machine. A Windows path needs
+    a drive colon or a reverse separator, and neither character is in any set
+    here. THE ONE RESIDUAL, stated rather than argued away: a POSIX-style home
+    path is rooted and its segments are bare tokens, so this shape would admit
+    one. No producer read above can put one there, and the platform this runs on
+    does not spell a home directory that way - but that is a claim about today,
+    which is exactly the kind of claim the paragraph before this one refuses to
+    rest on. Narrowing further would need a denylist, and a denylist is the
+    thing that has already leaked four times.
+
+    WITHHELD IS RENDERED, NOT DROPPED. A refused field leaves a visible marker
+    and its warning's code and count still show, so a reader learns that
+    something was flagged. Omitting the row would make a refusal and an absence
+    indistinguishable, which is the collapse the data layer refuses one floor
+    down when it insists that absent is not zero.
+  */
+
+  /* Letters and digits, shared by every set below. */
+  var ALNUM = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+
+  /* A warning code: the WARN_* spellings are lowercase and hyphenated. */
+  var SET_CODE = ALNUM + "-";
+
+  /* One bare token: a ClassName, a group short name, an index. */
+  var SET_TOKEN = ALNUM + "_.-";
+
+  /* Authored prose. No separator of either hand, and no colon. */
+  var SET_DETAIL = ALNUM + " ,.;'()_-";
+
+  /* An authored line is short. A dumped buffer or a deep path is not. */
+  var DETAIL_LIMIT = 400;
+  var TOKEN_LIMIT = 120;
+
+  /* What stands in for a value whose shape this panel does not accept. */
+  var WITHHELD = "[withheld - unexpected shape]";
+
   function absolute(value) {
     return value < 0 ? -value : value;
   }
@@ -174,6 +257,67 @@
 
   function textOf(value) {
     return typeof value === "string" ? value : "";
+  }
+
+  /*
+    True when every character of value is in allowed and the length is inside
+    limit. The scan is an allowlist: a character is accepted by being present in
+    the set, never by failing to match something bad.
+  */
+  function withinSet(value, allowed, limit) {
+    if (typeof value !== "string") {
+      return false;
+    }
+    if (value.length === 0 || value.length > limit) {
+      return false;
+    }
+    for (var index = 0; index < value.length; index += 1) {
+      if (allowed.indexOf(value.charAt(index)) === -1) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  /*
+    THE ONE SHAPE CARRYING A SEPARATOR THAT THIS PANEL ACCEPTS. An Unreal object
+    path is rooted and every segment between separators is a bare token, so the
+    whole string is checked as a shape rather than character by character. A
+    drive-rooted path fails on its first segment, because a drive marker is a
+    colon and a colon is in no set here.
+  */
+  function isObjectPath(value) {
+    if (typeof value !== "string" || value.length > TOKEN_LIMIT) {
+      return false;
+    }
+    var segments = value.split("/");
+    if (segments.length < 2 || segments[0] !== "") {
+      return false;
+    }
+    for (var index = 1; index < segments.length; index += 1) {
+      if (!withinSet(segments[index], SET_TOKEN, TOKEN_LIMIT)) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  /* A warning code, out of the closed set the data layer declares. */
+  function safeCode(value) {
+    return withinSet(value, SET_CODE, TOKEN_LIMIT) ? value : WITHHELD;
+  }
+
+  /* A subject or an unknown-group name: a bare token, or a rooted path. */
+  function safeToken(value) {
+    if (withinSet(value, SET_TOKEN, TOKEN_LIMIT) || isObjectPath(value)) {
+      return value;
+    }
+    return WITHHELD;
+  }
+
+  /* An authored consequence line. */
+  function safeDetail(value) {
+    return withinSet(value, SET_DETAIL, DETAIL_LIMIT) ? value : WITHHELD;
   }
 
   function listOf(value) {
@@ -328,16 +472,16 @@
   function warningRow(entry) {
     var record = mapOf(entry);
     var row = document.createElement("tr");
-    row.appendChild(cell("warning_code", "route", textOf(record["code"])));
-    row.appendChild(cell("warning_subject", "route", textOf(record["subject"])));
-    row.appendChild(cell("warning_detail", null, textOf(record["detail"])));
+    row.appendChild(cell("warning_code", "route", safeCode(record["code"])));
+    row.appendChild(cell("warning_subject", "route", safeToken(record["subject"])));
+    row.appendChild(cell("warning_detail", null, safeDetail(record["detail"])));
     row.appendChild(cell("warning_count", "count", countText(record["count"])));
     return row;
   }
 
   function groupRow(name) {
     var row = document.createElement("tr");
-    row.appendChild(cell("unknown_group", "route", textOf(name)));
+    row.appendChild(cell("unknown_group", "route", safeToken(name)));
     return row;
   }
 
