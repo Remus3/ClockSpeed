@@ -365,6 +365,15 @@ h3 {
   than the 24px floor, so a row of controls lines up on one baseline instead of
   stepping - and the floor is a minimum, never a target to sit on.
 
+  THE FLOOR IS NOW GRADED, WHICH IT WAS NOT WHEN THIS RULE LANDED. This input is
+  built by a panel module at runtime, so it appears in no markup and the arm that
+  reads index.html could never see it, while the sizing arm beside that one
+  grades the button element selector alone. A rule this project treats as a
+  hit-target requirement was enforced by nothing. The arm that reaches it derives
+  the set of injected controls from the SCRIPTS that create them rather than
+  naming this class, so a fifth panel's control is graded the day it ships:
+  tests/surface/test_web_assets.py::test_every_control_a_script_injects_declares_the_target_box
+
   EVERY COLOUR HERE READS A TOKEN, which is not a style preference on this
   sheet: .hud-overlay redefines the palette whole for a layer that sits over a
   game pixel, and a literal colour written here would arrive there unchanged
