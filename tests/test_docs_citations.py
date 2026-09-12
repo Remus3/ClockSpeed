@@ -1098,7 +1098,6 @@ UNVERIFIED_LINE_POINTERS: Final[Mapping[tuple[str, str, int], str]] = {
         "tests/save/test_container_elements.py",
         1168,
     ): "b04f24100c34",
-    ("docs/item_notes/phase4-followups-850.md", "tests/save/test_header.py", 1048): "0e6ebeb1b024",
     (
         "docs/item_notes/phase4-followups-850.md",
         "tests/save/test_inventory_potential.py",
@@ -1303,7 +1302,22 @@ UNFORBIDDEN_LINE_POINTERS: Final[frozenset[tuple[str, str, int]]] = frozenset(
 #: ceiling is 58. It is recorded here rather than left to arithmetic because a ceiling
 #: that arrives by merge is the one case where no commit on either side argued for the
 #: number that now stands.
-FORGIVEN_LINE_POINTER_CEILING: Final = 58
+#:
+#: 58 TO 57, 2026-09-12 BY CS-964 AT THE MERGE OF `cs964-seam`, AND IT IS A REPAIR
+#: RATHER THAN A RETIREMENT. The pin was `docs/item_notes/phase4-followups-850.md`
+#: into `tests/save/test_header.py` line 1048, an `__cause__` nullity assertion the
+#: CS-857 prose counted by line. The seam rewrote that sentence to name the test by
+#: its own symbol - `test_read_header_does_not_leak_the_original_oserror_as_context`
+#: - so there is no line pointer left to forgive and the forgiveness leaves the books
+#: rather than moving to another arm. That is the enclosing-symbol form the 61-to-60
+#: paragraph above argues for in so many words: a function body is the anchor an edit
+#: above it cannot invalidate, and it is the direction this table exists to shrink in.
+#: It comes down by one because the repair spent nothing and banked nothing.
+#:
+#: IT IS RECORDED AS ARRIVING AT A MERGE because the seam branch carried the repair
+#: and `main` carried the 58, and neither side's commit argued for 57 - the same case
+#: the 60-to-58 paragraph above already names, one branch further along.
+FORGIVEN_LINE_POINTER_CEILING: Final = 57
 
 # --- resolution -------------------------------------------------------------
 

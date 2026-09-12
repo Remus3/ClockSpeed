@@ -2304,17 +2304,93 @@ def _i32(value: int) -> bytes:
     return struct.pack("<i", value)
 
 
-def _fstring(text: str) -> bytes:
-    """Encode one length-prefixed UTF-8 string, its NUL terminator included.
+def _fstring(text: str, *, wide: bool = False) -> bytes:
+    """Encode one length-prefixed string, its NUL terminator included.
+
+    THE BODY SIDE HAD NO WIDE SPELLING UNTIL CS-964, and this is the encoder for
+    five test modules' planted payloads. Unreal writes a string as UTF-8 with a
+    POSITIVE count or UTF-16-LE with a NEGATIVE one, and it picks the second the
+    moment a character is not ASCII - which the fields carrying personal data,
+    the ones a person types, routinely are. So every body-side privacy arm was
+    measured against the encoding its subject is least likely to use.
+
+    ``wide`` is KEYWORD-ONLY so that EVERY existing positional call site keeps
+    its current meaning untouched, and so that a wide fixture has to say so at
+    the call. The count of those sites is deliberately not spelled here: it was
+    filed as 56, re-derived as 47 by a verifier that tokenized rather than
+    grepped, and it is decoration either way - the property is that no
+    positional caller changed meaning, which does not need a population size to
+    state and cannot be kept true by one (CLAUDE.md section 4).
+
+    It mirrors ``synthetic.fstring``'s flag rather than introducing a
+    second convention - a parallel builder is a fixture that drifts away from
+    the one every other arm uses, which the acceptance clause forbids by name.
 
     Args:
-        text: ASCII text.
+        text: ASCII text. Non-empty when ``wide`` is set - see below.
+        wide: Encode UTF-16-LE with a negative count instead of UTF-8.
 
     Returns:
         The prefix and the bytes, in the shape ``objects._payload_text`` reads.
+
+    Raises:
+        ValueError: ``wide`` was set for empty text. There is no wide encoding
+            of the empty string - the count field carries a bare zero and says
+            nothing about the encoding - and ``synthetic.fstring`` returns that
+            narrow spelling SILENTLY for this case. A silent narrow fallback
+            would hand an arm the exact encoding it was written to stop
+            measuring, with nothing to say so, so this one refuses instead.
     """
+    if wide:
+        if not text:
+            raise ValueError(
+                "there is no wide encoding of the empty string, so a wide fixture cannot "
+                "plant one - refusing rather than silently emitting the narrow spelling"
+            )
+        return _i32(-(len(text) + 1)) + text.encode("utf-16-le") + b"\x00\x00"
     raw = text.encode("ascii") + b"\x00"
     return _i32(len(raw)) + raw
+
+
+def _spliced_wide(blob: bytes, *texts: str) -> bytes:
+    """``blob`` with each text's narrow field replaced by its wide spelling.
+
+    THE ALTERNATIVE WAS A SECOND BUILDER, AND THE ACCEPTANCE CLAUSE FORBIDS ONE
+    BY NAME. A parallel wide builder beside the narrow one is a fixture that can
+    drift away from the one every other arm uses, and the drift would be
+    invisible: both would parse, and only the arms on one of them would be
+    measuring the encoding they claim to. Splicing keeps ONE builder and makes
+    the change to it assertable - which a parallel builder could not be.
+
+    IT REFUSES TO GUESS. If the narrow field is not present EXACTLY once there
+    is no single place to put the wide one, and a splice that took the first of
+    several would build a fixture no arm could reason about. That refusal is the
+    reason this is a helper rather than two lines inlined per arm.
+
+    Args:
+        blob: The fixture bytes, built by the narrow path like every other.
+        texts: The field texts to respell, each of which must appear exactly
+            once in its narrow encoding. Non-empty - there is no wide encoding
+            of the empty string.
+
+    Returns:
+        The blob, with those fields wide and everything else untouched.
+
+    Raises:
+        AssertionError: A field was absent, or present more than once, or the
+            splice did not land.
+    """
+    for text in texts:
+        narrow = _fstring(text)
+        wide = _fstring(text, wide=True)
+        assert blob.count(narrow) == 1, (
+            f"the {text!r} field appears {blob.count(narrow)} times in its narrow spelling, "
+            "so this splice would be guessing which one the arm meant"
+        )
+        blob = blob.replace(narrow, wide, 1)
+        assert narrow not in blob, f"the narrow {text!r} field survived the splice"
+        assert wide in blob, f"the wide {text!r} field is not in the spliced blob"
+    return blob
 
 
 def _tag_head(name: str, type_word: str, size: int, extra: bytes) -> bytes:
@@ -3324,11 +3400,89 @@ def _frames_beneath_the_caller(exc: BaseException) -> tuple[FrameType, ...]:
     return tuple(frames)
 
 
+def _rendered_spellings(marker: str) -> tuple[str, ...]:
+    r"""Every spelling of the marker a RENDERER could put in front of a person.
+
+    TWO, AND THE SECOND ONE IS THE ONE CS-964 IS ABOUT. A renderer handed a
+    UTF-16-LE slice prints the letters each followed by an escaped null, so the
+    marker ``Needle`` appears as ``N\\x00e\\x00e\\x00d\\x00l\\x00e\\x00``. A person
+    reads that at a glance; an ASCII substring search does not find it at all.
+
+    THE ESCAPED SPELLING IS TAKEN FROM ``repr`` ITSELF rather than assembled by
+    interleaving a literal, because ``repr`` decides its own escaping and a
+    hand-built spelling would be a second implementation of it - wrong the first
+    time a marker carries a quote or a backslash.
+
+    Args:
+        marker: The planted marker, in its plain text.
+
+    Returns:
+        The plain spelling first, then the wide-rendered one.
+    """
+    # repr(bytes) is always `b`, a quote, the body, the same quote.
+    rendered = repr(marker.encode("utf-16-le"))
+    escaped = rendered[2:-1]
+    return (marker, escaped) if escaped != marker else (marker,)
+
+
+def _assert_the_needle_is_observable(marker: str, needle: bytes) -> None:
+    """Prove both oracles CAN see this needle before an arm concludes from silence.
+
+    THE CONTROL THE ACCEPTANCE CLAUSE NAMES, in one line per arm. An arm's empty
+    verdict means "nothing holds the value" only if the oracle could have seen
+    the value at all - and session 80 shipped three arms where it could not. A
+    correct-looking fixture, a refusal that never enters the frame holding the
+    value, and an oracle blind to the value's spelling all produce the SAME
+    empty output as a genuinely clean parser. Reading cannot tell them apart;
+    only a control can.
+
+    WHAT IT CATCHES is the trap this item's own note names in capitals: moving
+    the marker constant to its wide spelling while the fixture still carries the
+    narrow one makes an arm VACUOUS rather than wide. Handed the text and the
+    needle bytes, this refuses a pair that does not describe one value, so the
+    mismatch fails loudly at the top of the arm instead of passing quietly at
+    the bottom.
+
+    THE THREE CHECKS ARE THE THREE HOLDER FAMILIES, deliberately - a decoded
+    string, a value one attribute hop inside a withholding object, and a
+    rendering. Each is a family some arm in this suite actually sweeps, and an
+    oracle can be live for one and blind to another.
+
+    Args:
+        marker: The planted marker, in its plain text.
+        needle: The same value in the spelling the fixture carries.
+
+    Raises:
+        AssertionError: The pair does not describe one value, or an oracle
+            cannot observe it.
+    """
+    assert _reaches_the_needle(marker, needle, 0) == [""], (
+        f"the structural sweep cannot see {needle!r} in the decoded text {marker!r}. "
+        "Either the needle is not this marker's spelling, or the str branch is blind "
+        "to it - and an arm built on this pair would measure nothing"
+    )
+    assert _reaches_the_needle(_WithholdingHolder(marker), needle, 0) == ["._buffer"], (
+        f"the structural sweep cannot reach {needle!r} one attribute hop inside a "
+        "withholding holder, which is the shape the save layer actually uses"
+    )
+    rendered = _safe_repr(needle)
+    assert any(spelling in rendered for spelling in _rendered_spellings(marker)), (
+        f"no spelling the rendering sweep hunts appears in {rendered!r}, so the repr "
+        f"oracle is blind to {marker!r} in this encoding"
+    )
+
+
 def _leaking_locals(frame: FrameType, marker: str) -> tuple[str, ...]:
-    """Names in one frame whose RENDERING carries the marker.
+    """Names in one frame whose RENDERING carries the marker, in any spelling.
 
     Rendering is the oracle rather than identity, because that is exactly what
     a traceback formatter showing locals prints.
+
+    IT ASKS FOR EVERY SPELLING A RENDERER WOULD PRINT, not only the ASCII one.
+    A wide-encoded buffer renders legibly and the plain marker is genuinely
+    absent from that rendering, so the ASCII-only question reported clean over a
+    frame that was printing the value - an oracle blind to its own subject. See
+    :func:`test_the_rendering_sweep_is_not_blind_to_a_wide_buffer_in_a_frame_local`.
 
     Args:
         frame: The frame to inspect.
@@ -3337,7 +3491,12 @@ def _leaking_locals(frame: FrameType, marker: str) -> tuple[str, ...]:
     Returns:
         The offending local names.
     """
-    return tuple(name for name, value in frame.f_locals.items() if marker in _safe_repr(value))
+    spellings = _rendered_spellings(marker)
+    return tuple(
+        name
+        for name, value in frame.f_locals.items()
+        if any(spelling in _safe_repr(value) for spelling in spellings)
+    )
 
 
 def _safe_repr(value: object) -> str:
@@ -4777,6 +4936,40 @@ def _member_paths(value: object, needle: bytes, depth: int, seen: dict[int, int]
     return found
 
 
+def _needle_as_text(needle: bytes) -> tuple[str, ...]:
+    """Every text the needle could have been DECODED FROM on the wire.
+
+    Asked of a ``str`` holder only. The holder carries text that the parser
+    already decoded, so the question is which spellings of the needle could have
+    produced it - not which bytes the needle literally is. Unreal writes a
+    string as UTF-8 with a positive count or UTF-16-LE with a negative one, so
+    those are the two candidates and there is no third.
+
+    An empty decode is DROPPED rather than returned: ``"" in value`` is true of
+    every string alive, so letting one through would make the sweep report a
+    holder for anything at all, and an oracle that always fires is as useless as
+    one that never does.
+
+    Args:
+        needle: The planted bytes, in whichever spelling the fixture used.
+
+    Returns:
+        The candidate texts, deduplicated, in a stable order.
+    """
+    spellings: list[str] = []
+    for encoding in ("utf-8", "utf-16-le"):
+        try:
+            text = needle.decode(encoding)
+        except UnicodeDecodeError:
+            # An odd-length needle cannot be UTF-16 at all, and a needle with a
+            # high byte may not be valid UTF-8. Neither is an error here: it
+            # rules that spelling out, which is the answer.
+            continue
+        if text and text not in spellings:
+            spellings.append(text)
+    return tuple(spellings)
+
+
 def _reaches_the_needle(
     value: object, needle: bytes, depth: int, seen: dict[int, int] | None = None
 ) -> list[str]:
@@ -4808,6 +5001,22 @@ def _reaches_the_needle(
     withholds. On a real save the decoded strings are the session name and the
     player display name, so skipping them skipped the subject.
 
+    THE BYTES BRANCH AND THE STR BRANCH ANSWER DIFFERENT QUESTIONS, and running
+    both through one comparison is what CS-964 found. A bytes holder holds the
+    WIRE spelling, so it must match byte-exact - that exactness is the entire
+    reason the wide arms exist. A str holder holds DECODED TEXT, where the
+    needle's wire encoding says nothing about what the holder contains.
+
+    The old str branch asked ``needle.decode("utf-8") in value``. Hand that a
+    UTF-16-LE needle and the decode SUCCEEDS - every byte of wide ASCII is below
+    0x80 - yielding the marker's letters each followed by a null, which no
+    decoded string contains. It returned EMPTY, and an empty verdict is what
+    every arm here reads as a pass. Since ``_Cursor.string`` decodes BEFORE it
+    binds, the frame local on a wide save holds the plain text while the fixture
+    spells it wide, so the blindness landed on the one holder family that
+    renders the value legibly. See
+    :func:`test_the_structural_sweep_is_not_blind_to_a_wide_needle_over_decoded_text`.
+
     Args:
         value: The local, or something reached from one.
         needle: The planted bytes.
@@ -4828,10 +5037,7 @@ def _reaches_the_needle(
     if isinstance(value, (bytes, bytearray, memoryview)):
         return [""] if needle in bytes(value) else []
     if isinstance(value, str):
-        try:
-            return [""] if needle.decode("utf-8") in value else []
-        except UnicodeDecodeError:
-            return []
+        return [""] if any(text in value for text in _needle_as_text(needle)) else []
 
     return (
         _slot_and_attribute_paths(value, needle, depth, seen)
@@ -4909,11 +5115,17 @@ _STRUCTURAL_MARKER: Final = "PlantedStructuralNeedleXray"
 class _WithholdingHolder:
     """Holds a buffer and renders none of it - the shape the save layer uses."""
 
-    def __init__(self, buffer: bytes) -> None:
+    def __init__(self, buffer: bytes | str) -> None:
         """Take the buffer.
 
+        EITHER TYPE, because the sweep has two holder families and CS-964's
+        control drives both through this one stand-in: a DECODED STRING, which
+        is what `_Cursor.string` binds, and a RAW BUFFER, which is what the
+        cursor keeps. Annotating it `bytes` alone was a lie the type checker
+        was right to reject.
+
         Args:
-            buffer: The bytes to hold.
+            buffer: The bytes, or the decoded text, to hold.
         """
         self._buffer = buffer
 
@@ -4948,6 +5160,309 @@ def test_the_structural_sweep_sees_what_the_repr_sweep_cannot() -> None:
     assert _reaches_the_needle(held, _STRUCTURAL_MARKER.encode("ascii"), 0) == ["._buffer"], (
         "the structural sweep cannot reach a buffer one attribute hop away"
     )
+
+
+#: The same text as _STRUCTURAL_MARKER with its last word changed. Used as the
+#: NEGATIVE control below, and non-empty on purpose: synthetic.fstring returns a
+#: bare zero count above its own wide branch, so there is no wide encoding of the
+#: empty string in either of this suite's two encoders (CS-964).
+_STRUCTURAL_MARKER_ABSENT: Final = "PlantedStructuralNeedleYankee"
+
+
+def test_the_structural_sweep_is_not_blind_to_a_wide_needle_over_decoded_text() -> None:
+    """A WIDE NEEDLE MUST STILL FIND DECODED TEXT. CS-964, the seam.
+
+    THE BLINDNESS, stated as the mechanism rather than as a worry. The str
+    branch of ``_reaches_the_needle`` asks ``needle.decode("utf-8") in value``.
+    Hand it a UTF-16-LE needle and that decode SUCCEEDS - every byte of wide
+    ASCII is below 0x80 - and yields the marker's letters each followed by a
+    null. No decoded string contains that, so the sweep returns EMPTY and every
+    arm downstream reads empty as a pass.
+
+    WHY THAT MATTERS HERE AND NOT ONLY IN THEORY. ``_Cursor.string`` DECODES
+    before it binds, so on a wide save the frame local holds the marker's plain
+    text while the fixture on disk spells it wide - which is the spelling an arm
+    over a wide fixture naturally sweeps with. The oracle would then be blind to
+    the one holder family that renders the value legibly.
+
+    THE TWO QUESTIONS ARE DIFFERENT, and that is the fix. A bytes holder holds
+    the WIRE spelling and must match byte-exact. A str holder holds DECODED
+    TEXT, where the needle's wire encoding is irrelevant to what the holder
+    contains. One comparison cannot answer both, and the fences below pin each
+    half so the fix cannot be "match more liberally everywhere".
+    """
+    text = _STRUCTURAL_MARKER
+    wide = _STRUCTURAL_MARKER.encode("utf-16-le")
+    narrow = _STRUCTURAL_MARKER.encode("utf-8")
+
+    # CONTROL - the subject is real and this helper can see it at all. Without
+    # this line a blind oracle and a missing fixture are the same output.
+    assert _reaches_the_needle(text, narrow, 0) == [""], (
+        "the narrow needle cannot find the marker in plain decoded text, so every "
+        "assertion below would be measuring a broken fixture rather than the encoding"
+    )
+    assert wide != narrow, "the two spellings are the same bytes, so this arm proves nothing"
+
+    # THE CLAIM.
+    assert _reaches_the_needle(text, wide, 0) == [""], (
+        "the structural sweep is blind to a wide needle over decoded text. On a real "
+        "save that text is the session name or the player display name, and an arm "
+        "over a wide fixture sweeps with exactly this needle (non-negotiable 12)"
+    )
+
+    # THE CLAIM, one attribute hop in - the shape the save layer actually uses.
+    assert _reaches_the_needle(_WithholdingHolder(text), wide, 0) == ["._buffer"], (
+        "the sweep reaches decoded text held through an attribute only in its narrow spelling"
+    )
+
+    # FENCE - the fix must not be "always report a hit". A needle whose text is
+    # genuinely absent stays absent at the wide encoding too.
+    assert _reaches_the_needle(text, _STRUCTURAL_MARKER_ABSENT.encode("utf-16-le"), 0) == [], (
+        "a wide needle for text that is NOT present reports a holder, so the widened "
+        "comparison matches anything and no arm built on it measures its own subject"
+    )
+
+    # FENCE - the BYTES branch stays byte-exact. A buffer carrying the narrow
+    # spelling does not contain the wide one, and widening the str branch must
+    # not make the bytes branch decode-tolerant: R2 is why the wide arms exist.
+    assert _reaches_the_needle(narrow, wide, 0) == [], (
+        "a bytes buffer holding the NARROW spelling was matched by a WIDE needle, so the "
+        "bytes branch has gone decode-tolerant and can no longer tell the encodings apart"
+    )
+
+
+def test_the_body_side_encoder_spells_a_string_wide_and_the_reader_reads_it_back() -> None:
+    """THE BODY SIDE HAD NO WIDE ENCODER AT ALL. CS-964, the seam.
+
+    ``synthetic.fstring`` grew a ``wide`` flag for the HEADER side, and the body
+    side never did: :func:`_fstring` hardcoded ``text.encode("ascii")`` with a
+    positive count. It is the encoder for this module, ``test_container_elements``,
+    ``test_struct_interior``, ``test_reference_resolution`` and ``test_world``'s
+    planted payload - so the whole body half of the population could not be
+    driven wide even in principle, whatever an arm's own text claimed.
+
+    That is why this is a seam rather than an arm edit. The acceptance clause
+    requires the fixture builders to emit a wide string WITHOUT a second builder
+    beside the first, so the existing encoder is taught the spelling and the 56
+    positional call sites keep working untouched.
+
+    THE ROUND TRIP IS THE POINT, not the byte shape. An encoder that writes
+    something the shipped reader refuses would give every arm built on it a
+    refusal for the wrong reason - which is the vacuity this item exists to
+    close. So the assertion is that ``objects._payload_text`` reads the wide
+    spelling back to the SAME TEXT, measured against the shipped reader rather
+    than against this file's idea of the format.
+    """
+    text = _STRUCTURAL_MARKER
+    narrow = _fstring(text)
+    wide = _fstring(text, wide=True)
+
+    # CONTROL - the narrow spelling round-trips, so a wide failure below is
+    # about the encoding and not about this helper or the reader being broken.
+    assert _payload_text_or_fail(narrow, 0)[0] == text, (
+        "the narrow spelling does not round-trip, so nothing below measures the wide one"
+    )
+
+    # THE WIRE SHAPE. A NEGATIVE count is what makes the reader select
+    # utf-16-le, and its magnitude counts CHARACTERS plus the terminator.
+    (count,) = struct.unpack_from("<i", wide, 0)
+    assert count == -(len(text) + 1), f"the wide count is {count}, not the negative char count"
+    assert wide[4:] == text.encode("utf-16-le") + b"\x00\x00", (
+        "the wide payload is not utf-16-le followed by a two-byte terminator"
+    )
+
+    # THE CLAIM - the shipped reader accepts it and returns the same text.
+    assert _payload_text_or_fail(wide, 0)[0] == text, (
+        "the shipped body reader does not read the wide spelling back, so every arm "
+        "driven wide through this encoder would refuse for the wrong reason"
+    )
+
+    # ISOLATION CONTROL - the wide bytes do NOT carry the ASCII spelling. This is
+    # what makes an ASCII sweep over them vacuous BY CONSTRUCTION rather than by
+    # luck, and it is the property the wide arms are built on.
+    assert text.encode("ascii") not in wide, (
+        "the wide encoding still carries the ASCII spelling, so it does not isolate "
+        "the encoding gap the arms exist to measure"
+    )
+
+    # FENCE - THE TWO ENCODERS MUST NOT DRIFT APART ON THE WIDE PATH. This suite
+    # already carries two encoders that DISAGREE on the empty string, and neither
+    # disagreement is measured. A second divergence is not being added.
+    from tests.save import synthetic  # noqa: PLC0415 - local, as the module's other import is
+
+    assert wide == synthetic.fstring(text, wide=True), (
+        "the body encoder and the header encoder spell the same wide string differently, "
+        "so a fixture's encoding now depends on which helper built it"
+    )
+
+
+def test_the_body_side_encoder_refuses_an_empty_wide_string() -> None:
+    """AN EMPTY WIDE STRING IS NOT A THING, AND THE REFUSAL IS LOUD ON PURPOSE.
+
+    ``synthetic.fstring`` returns a bare zero count for empty text ABOVE its own
+    wide branch, so ``synthetic.fstring("", wide=True)`` is byte-identical to the
+    NARROW empty spelling. Measured in session 80 and re-measured for CS-964.
+
+    That silent fallback is the exact shape of this item's defect: an arm that
+    asked for a wide fixture and got a narrow one would measure the encoding it
+    was written to stop measuring, and nothing would say so. The body encoder
+    therefore REFUSES rather than falling back, so the hazard cannot reach an
+    arm quietly.
+
+    The header encoder's own fallback is left alone deliberately - changing it
+    is a claim about `synthetic`'s pinned behaviour, not about this seam, and it
+    is recorded as its own fence rather than fixed in passing.
+    """
+    with pytest.raises(ValueError, match="empty"):
+        _fstring("", wide=True)
+
+    # The narrow empty string keeps working: 56 call sites rely on it, and this
+    # refusal is scoped to the spelling that genuinely has no encoding.
+    assert _fstring("") == _i32(1) + b"\x00"
+
+
+def _frame_holding(value: object) -> FrameType:
+    """A frame whose one interesting local IS the value handed in.
+
+    Built from a caught exception's traceback rather than ``inspect`` so this
+    helper adds no import, and the module already reads frames this way.
+
+    Args:
+        value: The value to bind as a local named ``subject``.
+
+    Returns:
+        This function's own frame, with ``subject`` bound.
+    """
+    subject = value  # noqa: F841 - binding it IS the point
+    try:
+        raise RuntimeError("frame capture")
+    except RuntimeError as error:
+        captured = error.__traceback__
+        assert captured is not None
+        return captured.tb_frame
+
+
+def test_the_rendering_sweep_is_not_blind_to_a_wide_buffer_in_a_frame_local() -> None:
+    r"""A RENDERER PRINTS WIDE BYTES LEGIBLY AND THE ASCII SWEEP SEES NOTHING.
+
+    ``repr()`` of a UTF-16-LE ASCII slice renders the marker's letters each
+    followed by an escaped null - ``M\\x00a\\x00r\\x00`` - which a person reads at
+    a glance and an ASCII substring search does not find at all. So the frame
+    leaks and :func:`_leaking_locals` reports clean, which is an oracle blind to
+    its own subject: the shape that passed three arms in session 80.
+
+    THIS IS THE REPR ORACLE, NOT THE STRUCTURAL ONE. The structural sweep asks
+    what a frame HOLDS and is already exact about bytes. This asks what a
+    traceback PRINTS, and a rendering is exactly where the escaped spelling
+    appears. Both oracles are kept - that is settled - so both must be able to
+    see the wide spelling in their own terms.
+    """
+    wide = _STRUCTURAL_MARKER.encode("utf-16-le")
+    narrow = _STRUCTURAL_MARKER.encode("utf-8")
+
+    # CONTROL - the sweep finds the NARROW spelling in a frame local, so a wide
+    # miss below is about the encoding and not about the helper or the frame.
+    assert "subject" in _leaking_locals(_frame_holding(narrow), _STRUCTURAL_MARKER), (
+        "the repr sweep cannot see a plain ASCII buffer in a frame local, so nothing "
+        "below is measuring the encoding"
+    )
+
+    # ISOLATION - the wide rendering genuinely lacks the ASCII spelling, and
+    # `isascii()` does NOT rescue it: the escapes are themselves ASCII text.
+    rendered = _safe_repr(wide)
+    assert _STRUCTURAL_MARKER not in rendered, (
+        "the wide rendering already carries the ASCII spelling, so this arm does not "
+        "isolate the gap it exists to measure"
+    )
+    assert rendered.isascii(), "the wide rendering is not ASCII, so an isascii gate would catch it"
+
+    # THE CLAIM.
+    assert "subject" in _leaking_locals(_frame_holding(wide), _STRUCTURAL_MARKER), (
+        "a frame local RENDERS the wide-encoded marker and the repr sweep reports clean. "
+        "On a real save those bytes are the session name or the player display name, "
+        "printed legibly by any traceback formatter (non-negotiable 12)"
+    )
+
+    # FENCE - the widened oracle must not fire on everything. A frame holding a
+    # value with neither spelling in it stays clean.
+    assert _leaking_locals(_frame_holding(b"nothing planted here"), _STRUCTURAL_MARKER) == (), (
+        "the rendering sweep reports a leak for a local that carries no spelling of the "
+        "marker, so it matches anything and no arm built on it measures its subject"
+    )
+
+
+def test_the_splice_helper_swaps_a_narrow_field_for_its_wide_spelling() -> None:
+    """PIECE 4 - THE SPLICE, PUBLISHED. CS-964.
+
+    CS-963 spliced a header field to its wide spelling rather than writing a
+    second header builder, because a parallel builder is a fixture that can
+    drift away from the one every other arm uses - and the acceptance clause
+    forbids one by name. That splice was file-local to ``test_header``, and the
+    body-side arms need the same operation, so it moves here.
+
+    IT REFUSES TO GUESS. If the narrow field is not in the blob EXACTLY once,
+    there is no single place to put the wide one, and a splice that picked the
+    first of several would build a fixture nobody could reason about.
+    """
+    text = _STRUCTURAL_MARKER
+    blob = b"head" + _fstring(text) + b"tail"
+
+    spliced = _spliced_wide(blob, text)
+
+    assert spliced.startswith(b"head"), "the splice disturbed the bytes before the field"
+    assert spliced.endswith(b"tail"), "the splice disturbed the bytes after the field"
+    assert _fstring(text) not in spliced, "the narrow field survived the splice"
+    assert _fstring(text, wide=True) in spliced, "the wide field is not in the result"
+
+    # THE ISOLATION PROPERTY every wide arm rests on: the ASCII spelling is
+    # genuinely gone, so an ASCII sweep over this blob is vacuous BY
+    # CONSTRUCTION rather than by luck.
+    assert text.encode("ascii") not in spliced, (
+        "the spliced blob still carries the ASCII spelling, so it does not isolate "
+        "the encoding gap the arms exist to measure"
+    )
+
+    # AND THE SHIPPED READER STILL READS IT - an unparseable fixture would give
+    # every arm built on it a refusal for the wrong reason.
+    assert _payload_text_or_fail(spliced, len(b"head"))[0] == text, (
+        "the shipped body reader cannot read the spliced field back"
+    )
+
+    with pytest.raises(AssertionError):
+        _spliced_wide(b"no such field here", text)
+    with pytest.raises(AssertionError):
+        _spliced_wide(blob + _fstring(text), text)
+
+
+def test_the_observability_control_refuses_a_needle_the_oracles_cannot_see() -> None:
+    """PIECE 5 - THE CONTROL EVERY ARM OWES, AND WHAT IT CATCHES. CS-964.
+
+    An arm's empty verdict means "no holder" only if the oracle could have seen
+    the value at all. Session 80 shipped THREE arms where it could not, and not
+    one was caught by reading - a correct-looking fixture, a sweep that entered
+    the wrong frame, and an oracle blind to its subject's spelling all produce
+    the same empty output as a clean parser.
+
+    WHAT THIS CATCHES SPECIFICALLY is the trap the item note names: moving the
+    marker constant to its wide spelling while the fixture still carries the
+    narrow one, which makes an arm VACUOUS rather than wide. The control is
+    handed both the text and the needle bytes and asserts they describe the same
+    value, so a mismatched pair fails loudly at the top of the arm instead of
+    passing silently at the bottom.
+    """
+    wide = _STRUCTURAL_MARKER.encode("utf-16-le")
+    narrow = _STRUCTURAL_MARKER.encode("utf-8")
+
+    # Both real pairings are observable.
+    _assert_the_needle_is_observable(_STRUCTURAL_MARKER, narrow)
+    _assert_the_needle_is_observable(_STRUCTURAL_MARKER, wide)
+
+    # A needle for a DIFFERENT value is refused - this is the mismatch that
+    # would otherwise turn an arm into a measurement of nothing.
+    with pytest.raises(AssertionError):
+        _assert_the_needle_is_observable(
+            _STRUCTURAL_MARKER, _STRUCTURAL_MARKER_ABSENT.encode("utf-16-le")
+        )
 
 
 def test_the_structural_sweep_terminates_on_a_reference_cycle() -> None:

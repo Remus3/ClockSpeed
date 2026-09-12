@@ -742,7 +742,9 @@ of the five whose cause reaches an `OSError` that does. The CS-852 message guard
 the channel out of scope because `from exc` sets `__cause__` rather than `args`. Both
 guards say "not me"; CS-857 now says "me" and nothing yet grades it. Every `__cause__` assertion in the
 suite grades the cause's TYPE or its nullity - SIX in `tests/save/test_world.py`, all
-`isinstance`, and one asserting `None` at `tests/save/test_header.py:1048`. The first
+`isinstance`, and one asserting `None` in
+`tests/save/test_header.py::test_read_header_does_not_leak_the_original_oserror_as_context`.
+The first
 filing said five; six was measured in session 44. None grades content.
 
 **IT LANDS ON THE CS-852 EXEMPTION RECORD, NOT MERELY NEAR IT. 7 OF 11 EXEMPT KEYS SIT ON
