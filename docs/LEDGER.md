@@ -160,6 +160,87 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-09-12 - CS-929 CS-933 - CLOSED TOGETHER. The aggregate route count is swept by SHAPE rather than by value, and the defect that had to be beaten was not the stale sentence but a guard whose own configuration nothing graded - found four times, each instance created by the previous repair
+
+**WHAT CLOSED, and neither item's filed description was accurate by the time it was
+taken.** `clockspeed/surface/server.py` said `/api/advice/<id>/state` are "two of the NINE
+endpoints `BOOTSTRAP.md` section 7.1 publishes". The owner,
+`clockspeed/surface/api/health.py::ENDPOINT_TEMPLATES`, holds ELEVEN, as does
+`routes.ROUTES`, as does section 7.1 itself - so the sentence was stale by TWO, not by one
+as CS-929 was filed, `/api/map` having arrived as the eleventh with CS-977/CS-980. And
+**CS-933's cited `app.js` restatements were already gone**, removed in passing by the
+CS-962 work: line 88 now names the section with no count and the "Two of the ten routes
+take a body" sentence does not survive. Its fence was right that the eleventh route would
+come and wrong about which file would be carrying a count when it did.
+
+**THE SENTENCE NAMES THE OWNER AND SPELLS NO SIZE.** Writing "eleven" was refused - a
+corrected literal is the same defect with a fresher date, the weak fix CS-927 declined and
+CS-933 forbids by name.
+
+**THE SWEEP IS KEYED ON SHAPE.** Its correct-value arm derives the planted word from
+`len(ENDPOINT_TEMPLATES)` at runtime, so it reddens on a restatement that is accurate
+TODAY. That is the case every session-70 sweep missed: all of them hunted the number NINE,
+so a site carrying the then-correct TEN was invisible to every one, including the sweep
+that reported the population complete.
+
+**FOUR ADVERSARIAL PASSES, AND EACH FOUND THE SAME DEFECT ONE LEVEL FURTHER OUT.** This is
+the substance of the item and it is filed as its own class in CS-988.
+
+1. The corpus root narrowed from `clockspeed` to `clockspeed/surface`: 28 of 49 files
+   dropped out, 155 arms green.
+2. The ANCHOR introduced to pin that root, repointed: 452 arms green.
+3. That anchor's USE SITE, `anchor + "/surface"` - reachable by concatenation even though
+   the anchor was by then derived from the import system. A derived value does not protect
+   its own use.
+4. The plant PRODUCER's return, `_lifted(...)[:3]`, against a floor of 3 met EXACTLY: 466
+   green, ten arms gone.
+
+**WHAT REPLACED THE FLOORS, and it is the transferable part.** Set EQUALITY between the
+swept corpus and a second corpus walked by separately spelled rules, reported as the
+symmetric difference in both directions rather than as a summed count. Measured: the only
+symbol the two derivations share is `REPO_ROOT`, a single path, so an edit to it can only
+EMPTY both sides - and mutual emptiness is killed by three independent arm families. Plus
+`test_the_collected_arm_count_matches_an_independent_expectation`, which asserts the
+module's own collected arm count against a derived expectation and catches the whole class
+at once, including instances nobody has thought of yet.
+
+**HOW TO VERIFY INDEPENDENTLY.** `python -m pytest tests/surface/test_aggregate_count_prose.py -q -p no:randomly`
+reports 484 passed. The decisive mutation is appending `[:3]` to the return inside
+`_lifted`: it kills `test_each_plant_population_equals_an_independent_rederivation` and
+`test_the_collected_arm_count_matches_an_independent_expectation`, and collection drops
+from 484 to 474. **That check must run ON DISK.** The builder's in-memory harness mutates
+after collection, so it structurally could not grade a collection-time backstop; it said
+so rather than claiming the result, and the merger ran it instead.
+
+**A REAL LATENT BUG CLOSED WITH IT.** `EXCLUDED_PATH_PARTS` was matched against ABSOLUTE
+path parts, so a checkout under any directory named `test` or `tests` would have excluded
+every file - and an empty population passes the arm this module exists for. Its sibling one
+function away had INVERSE polarity, reporting strays and going red, which is why no pass
+had noticed it. Both now go through `is_excluded_by_component`, whose docstring records the
+polarity difference.
+
+**KNOWN AND LEFT STANDING, in the module's own text rather than implied.** A coordinated
+multi-site edit - weaken the equality to a superset, drop `shell` from the roots, delete
+two entries from the carrier list - leaves 18 files unswept with the arm count intact. No
+single-edit mutation reaches it. One mutant is EQUIVALENT and measured rather than
+asserted: adding `docs` to the roots leaves the corpus byte-identical because `docs/` holds
+0 of 36 graded-suffix files, and it reddens the instant a `.py` lands there. One is
+recorded as UNOBSERVABLE alone.
+
+**FIVE CARRIER SHAPES ARE STATED AS UNCATCHABLE, each with a boundary arm, and the
+load-bearing one is MEASURED rather than argued.** At `NOUN_LOOKAHEAD=3` the detector
+reddens on `api/solve.py`'s own legal `Owns` opener and on this item's own repair, because
+the house style places an authority reference beside every count in every api module's
+first sentence. The legal and illegal shapes are lexically identical and the only
+discriminator is the value - which CS-933 forbids keying on. Two earlier justifications
+were DELETED rather than defended after measurement refuted them: the underscore-compound
+cost does not exist (splitting costs zero new hits, so that shape is now closed) and half
+the forbidden-prefix list was inert.
+
+**`docs/adr/0012` also says nine and is deliberately untouched.** An ADR records what was
+decided when it was decided. CS-929's note said not to file it without arguing that point
+first, and nothing here argues it.
+
 ### 2026-09-12 - CS-987 - CLOSED. The bind-failure arm's leak oracle asked a process-global question and attributed the answer to the call under test, so it went RED on a correct refusal and would have gone GREEN on the leak it exists to catch
 
 **WHAT CLOSED.** `tests/surface/test_server.py::test_run_exits_non_zero_on_a_bind_failure_and_binds_nothing_else`

@@ -9583,3 +9583,78 @@ identities before `server.run`, snapshot after, and assert on what APPEARED.
 is what proves the repair actually removed the global dependency rather than
 reordering it. Without it a difference-based oracle that still consults the
 population would pass its own positive arm.
+
+## CS-929 - CLOSED 2026-09-12, body relocated from `docs/item_notes/phase4-followups-900.md`
+
+
+### FILED 2026-09-06 (session 70) by the CS-927 builder, which correctly refused to sweep it
+
+`clockspeed/surface/server.py` says `/api/advice/<id>/state` are "two of the
+NINE endpoints `BOOTSTRAP.md` section 7.1 publishes". Section 7.1 has named TEN
+since CS-912 published `/api/registry` - `BOOTSTRAP.md` section 7.1, which
+saying so explicitly.
+
+Same root cause as CS-927, different module. It was left untouched deliberately
+because it sat outside that slice's declared write-list.
+
+### WHY THIS IS NOT JUST "FIX THE NUMBER"
+
+CS-927 closed by making `pending.py` name the SET and its OWNER rather than its
+SIZE, and shipped `tests/surface/test_pending_route_count.py` to keep it that
+way. **That detector is scoped to `pending.py` alone** - stated in its own
+docstring - so it cannot see this site. Widening the detector is the greater
+half of this item; editing the sentence is the lesser half.
+
+`tests/surface/audit_harness.py` already records that CS-912 falsified
+"the THIRD sentence in this repository that a new route falsified without
+touching the file it sat in". This is the fourth. The population is the finding.
+
+### ALSO SEEN, AND DELIBERATELY NOT FILED
+
+`docs/adr/0012-dashboard-refusal-vocabulary-and-wire-form.md` also says nine.
+It is stamped `accepted - 2026-08-29`. An ADR records what was decided when it
+was decided; correcting it would rewrite history rather than fix drift. Left
+alone on purpose. Do not file it without arguing that point first.
+
+### MEASURED 2026-09-06 (session 70) - the filed acceptance was unachievable
+
+The item originally required "the detector's scope reaches this module, proven
+by a mutation that reddens it". **That cannot be done**, and the measurement is
+not a matter of opinion: running the shipped CS-927 detector over
+`clockspeed/surface/server.py` yields **seven false positives** - all of them
+"two templates" phrases about template COLLISION rather than counts - and
+**zero hits on the actual stale sentence**.
+
+The reason is structural. The stale noun is **endpoints**, and `COUNTED_NOUNS`
+in `tests/surface/test_pending_route_count.py` deliberately excludes it so that
+`pending.py` can keep saying "the five unbacked endpoints" about its own set.
+Widening the detector to `server.py` therefore either floods or misses.
+
+**So the acceptance was rewritten** to require a guard proven by mutation
+WITHOUT mandating that it be the CS-927 detector. Left as filed, this item would
+have closed on a green run that measured nothing - the exact shape CS-605
+closed on.
+## CS-933 - CLOSED 2026-09-12, body relocated from `docs/item_notes/phase4-followups-900.md`
+
+
+### FILED 2026-09-06 (session 70) by an adversary sweeping for SIBLINGS of CS-927
+
+`clockspeed/surface/web/app.js` says "The ten routes `BOOTSTRAP.md` section 7.1
+publishes" and "Two of the ten routes take a body".
+
+**IT IS CORRECT TODAY. That is precisely why it is filed.** Every sweep this
+session searched for the NUMBER NINE - the stale value - so a restatement
+carrying the CURRENT value was invisible to all of them, including the sweep
+that produced the CS-927 record's "two siblings". There are three.
+
+**THE LESSON, which outranks the fix.** A drifting-count sweep must be defined
+by the SHAPE - an aggregate count restated in prose with no owner and no guard -
+and never by the value that happens to be wrong this week. A sweep keyed to the
+wrong value finds only the sites that have already broken, which is the set you
+already knew about.
+
+### THE FENCE
+
+Do not close this by editing "ten" to whatever the count becomes. That is the
+weak fix CS-927 explicitly refused, and it puts the site straight back in the
+queue for the eleventh route.
