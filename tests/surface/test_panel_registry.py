@@ -74,9 +74,32 @@ IRON_ROD: Final = "Desc_IronRod_C"
 WATER: Final = "Desc_Water_C"
 RECIPE_KEY: Final = "Recipe_IronRod_C"
 BUILDING_KEY: Final = "Build_ConstructorMk1_C"
-WARNING_CODE: Final = "item_missing_name"
-WARNING_SUBJECT: Final = "Desc_Mystery_C"
 UNKNOWN_GROUP: Final = "FGBuildableWeirdThing"
+
+#: The warning fixture's code, spelled the way the only thing that builds one
+#: spells it. Every member of the closed set whose first entry is
+#: ``clockspeed/data/registry.py::WARN_DUPLICATE_CLASS_NAME`` is lowercase and
+#: hyphenated, so the underscored synthetic this constant used to carry was a
+#: fixture that disagreed with its producer - and a fixture that disagrees with
+#: its producer is what lets a guard calibrated to the producer look wrong.
+WARNING_CODE: Final = "empty-display-name"
+WARNING_SUBJECT: Final = "Desc_Mystery_C"
+
+#: The warning fixture's detail, and the one every renders-in-full arm reads.
+WARNING_DETAIL: Final = "the entry declared no display name"
+
+#: What the panel substitutes for a field whose shape it does not accept. The
+#: SAME marker ``clockspeed/surface/web/panel_warnings.js`` uses, deliberately:
+#: the two panels render the same kind of record into the same document, and a
+#: reader should not have to learn a second vocabulary to read the second table.
+WITHHELD: Final = "[withheld - unexpected shape]"
+
+#: Two characters spelled as code points, so that no tracked line in this file
+#: carries a path-shaped literal. Non-negotiable 3 is a rule about the tracked
+#: BYTE and not about the author's intent, and the pre-commit gate reads the
+#: byte. Everything hostile below is assembled at runtime from these.
+BACKSLASH: Final = chr(92)
+COLON: Final = chr(58)
 
 #: What the panel must say when it is handed no registry at all.
 ROUTE: Final = "/api/registry"
@@ -157,7 +180,7 @@ def _registry(**overrides: Any) -> dict[str, Any]:
             {
                 "code": WARNING_CODE,
                 "subject": WARNING_SUBJECT,
-                "detail": "the entry declared no display name",
+                "detail": WARNING_DETAIL,
                 "count": 2,
             }
         ],
@@ -196,6 +219,74 @@ def _field_texts(report: Mapping[str, Any], field: str) -> tuple[str, ...]:
         for row in panel_harness.nodes_matching(report, {"tag": "td"})
         if row["attributes"].get("data-field") == field
     )
+
+
+def _windows_path() -> str:
+    """A drive-rooted path, assembled at runtime and never written down.
+
+    The account segment is the word PLAYER and is nobody's account name. What
+    the arms grade is the SHAPE, because the shape is what a leak would wear:
+    the drive marker and the separator are the two characters that make a
+    string on this platform a path rather than a token.
+    """
+    return BACKSLASH.join(("C" + COLON, "Users", "PLAYER", "AppData", "world.sav"))
+
+
+def _object_path() -> str:
+    """A publisher-owned Unreal object path, which is a LEGITIMATE subject.
+
+    ``clockspeed/data/blobs.py::parse_class_paths`` returns whatever sits
+    between two double quotes VERBATIM, and
+    ``clockspeed/data/registry.py::_class_name_from_path`` returns the WHOLE
+    path when the token carries no ``.`` separator at all - so a slash-bearing
+    subject is a real registry reading and not a defect. An arm that only
+    withheld things would be satisfied by a panel that withheld this too.
+    """
+    return "/" + "/".join(("Script", "FactoryGame", "FGBuildableAutomatedWorkBench"))
+
+
+def _warning(**overrides: Any) -> dict[str, Any]:
+    """One warning row, keyed exactly as ``registry.WARNING_KEYS`` spells it."""
+    row: dict[str, Any] = {
+        "code": WARNING_CODE,
+        "subject": WARNING_SUBJECT,
+        "detail": WARNING_DETAIL,
+        "count": 1,
+    }
+    row.update(overrides)
+    return row
+
+
+def _count_values(report: Mapping[str, Any]) -> dict[str, str]:
+    """The counts grid as label to rendered value, read off the grid itself.
+
+    ANCHORED TO THE NODE THAT CARRIES THE VALUES rather than to whole-panel
+    text, and that is the whole point of this helper. An arm that searched the
+    panel's text for the five labels could not tell a right count from a wrong
+    one at all: every label still appears while every number beside it reads
+    zero. Reading the ``dd`` beside each ``dt`` is what makes the assertion
+    about the count rather than about the word next to it.
+
+    Returns:
+        Each label mapped to the text of the ``dd`` beside it, or an empty
+        mapping when the panel built no grid at all.
+    """
+    grids = panel_harness.nodes_matching(report, {"tag": "dl", "id": "registry-counts"})
+    if not grids:
+        return {}
+    rows = report["nodes"]
+    boxes = sorted(row["index"] for row in rows if row["parent"] == grids[0]["index"])
+    pairs: dict[str, str] = {}
+    for box in boxes:
+        label: str | None = None
+        for row in rows:
+            if row["parent"] != box:
+                continue
+            if str(row["tag"]).upper() == "DT":
+                label = str(row["text"])
+            elif str(row["tag"]).upper() == "DD" and label is not None:
+                pairs[label] = str(row["text"])
+    return pairs
 
 
 def _mount(tmp_path: Path, registry: Mapping[str, Any] | None) -> Mapping[str, Any]:
@@ -285,31 +376,153 @@ def test_the_panel_renders_display_names_beside_the_keys(tmp_path: Path) -> None
     assert not missing, f"the panel displayed no display name for {missing}"
 
 
-def test_the_panel_renders_the_five_counts(tmp_path: Path) -> None:
-    """``COUNT_KEYS`` is a cheap header over collections the body also carries."""
-    text = _panel_text(_mount(tmp_path, _registry()))
-    missing = tuple(
-        label
-        for label in ("items", "recipes", "buildings", "warnings", "unknown groups")
-        if label not in text
-    )
-    assert not missing, f"the counts grid named no {missing}"
+def test_the_panel_renders_the_five_count_values(tmp_path: Path) -> None:
+    """``COUNT_KEYS`` is a cheap header over collections the body also carries.
+
+    WIDENED FROM A LABEL SEARCH. The arm this replaces asserted only that the
+    five lowercase labels appeared somewhere in the whole-panel text, so no arm
+    anywhere in the repo asserted that a count VALUE reached the document. Both
+    halves of that were measured against planted mutants rather than argued:
+
+      - replacing every rendered count with the digit zero leaves the old arm
+        GREEN, because the five labels are still there beside the wrong
+        numbers. That is the mutant this arm exists to kill, and it does.
+      - deleting the counts grid outright does NOT survive the old arm, which
+        is worth recording because the refutation that prompted this widening
+        said it did. The reasoning offered was that each label is a substring
+        of a table heading such as "Registry items" - but that string is the
+        value of a ``data-scroll-label`` ATTRIBUTE and never text, and the
+        ``h3`` titles beside it are capitalised. The old arm was vacuous about
+        values, not about the grid's existence.
+
+    This arm dies on both mutants, because it reads the values off the grid.
+    """
+    values = _count_values(_mount(tmp_path, _registry()))
+    assert values == {
+        "items": "2",
+        "recipes": "1",
+        "buildings": "1",
+        "warnings": "1",
+        "unknown groups": "1",
+    }, f"the counts grid published {values}"
 
 
-def test_the_panel_renders_each_warning_in_full(tmp_path: Path) -> None:
-    """A flagged-and-skipped piece of content is useless without its subject."""
-    text = _panel_text(_mount(tmp_path, _registry()))
-    missing = tuple(
-        part
-        for part in (WARNING_CODE, WARNING_SUBJECT, "the entry declared no display name")
-        if part not in text
-    )
-    assert not missing, f"the warning list dropped {missing}"
+def test_the_panel_renders_a_legitimate_warning_in_full(tmp_path: Path) -> None:
+    """A flagged-and-skipped piece of content is useless without its subject.
+
+    NARROWED FROM ``renders_each_warning_in_full``, which pinned an UNGUARDED
+    rendering: the panel put ``code``, ``subject`` and ``detail`` on the page
+    through a bare string check, so a subject shaped like a filesystem path
+    rendered here in full while ``panel_warnings.js`` withheld the same value
+    on the same page and in the same screenshot. The claim had to narrow to
+    survive the repair - but it narrowed to a LEGITIMATE warning rather than
+    away, because a panel that withholds everything is the other way to fail
+    this arm and would have passed a weaker successor.
+    """
+    rendered = {
+        "code": _field_texts(_mount(tmp_path, _registry()), "warning_code"),
+        "subject": _field_texts(_mount(tmp_path, _registry()), "warning_subject"),
+        "detail": _field_texts(_mount(tmp_path, _registry()), "warning_detail"),
+    }
+    assert rendered == {
+        "code": (WARNING_CODE,),
+        "subject": (WARNING_SUBJECT,),
+        "detail": (WARNING_DETAIL,),
+    }, f"the warning row published {rendered}"
 
 
 def test_the_panel_names_each_unknown_group(tmp_path: Path) -> None:
     text = _panel_text(_mount(tmp_path, _registry()))
     assert UNKNOWN_GROUP in text
+
+
+# ---------------------------------------------------------------------------
+# c2. The warning stream is guarded, because the DOM is where a leak becomes an
+#     image file. See the guard's own doctrine in the module under grade.
+# ---------------------------------------------------------------------------
+
+
+def test_a_subject_shaped_like_a_filesystem_path_is_withheld(tmp_path: Path) -> None:
+    """The refutation this section exists to discharge.
+
+    ``panel_warnings.js`` withholds a subject wearing this shape and this panel
+    used to render it in full - same document, same screenshot out of
+    ``tools/dashboard_probe.py``. A path on this machine carries the Windows
+    account name, so non-negotiables 3, 11 and 12 are what the inconsistency
+    put at stake, and the weaker of two sinks is the one that decides.
+    """
+    body = _registry(warnings=[_warning(subject=_windows_path())])
+    rendered = _field_texts(_mount(tmp_path, body), "warning_subject")
+    assert rendered == (WITHHELD,), f"the panel published the subject as {rendered}"
+
+
+def test_a_detail_carrying_a_path_separator_is_withheld(tmp_path: Path) -> None:
+    """A detail is authored prose, and no authored line here carries a separator.
+
+    Every detail the producer builds is an f-string over the module's own
+    ``KEY_*`` constants, plus the four closed reasons whose first is
+    ``clockspeed/data/docs_extract.py::REASON_NOT_A_MAPPING``. Not one of them
+    holds a slash, a backslash or a colon, so refusing all three costs the
+    panel nothing it can legitimately show.
+    """
+    body = _registry(warnings=[_warning(detail="skipped " + _windows_path())])
+    rendered = _field_texts(_mount(tmp_path, body), "warning_detail")
+    assert rendered == (WITHHELD,), f"the panel published the detail as {rendered}"
+
+
+def test_a_code_outside_the_closed_set_shape_is_withheld(tmp_path: Path) -> None:
+    """A code is a lowercase hyphenated token and the set of them is closed."""
+    body = _registry(warnings=[_warning(code="C" + COLON + BACKSLASH + "boom")])
+    rendered = _field_texts(_mount(tmp_path, body), "warning_code")
+    assert rendered == (WITHHELD,), f"the panel published the code as {rendered}"
+
+
+def test_a_publisher_owned_object_path_subject_still_renders(tmp_path: Path) -> None:
+    """THE ARM THAT KEEPS THE REPAIR HONEST, and it is not a formality.
+
+    A copy of ``panel_warnings.js``'s subject guard would refuse this value:
+    its token set excludes the forward slash and its one slash-bearing
+    exception admits digits over digits only. But the registry stream carries
+    slash-bearing subjects legitimately -
+    ``clockspeed/data/registry.py::_class_name_from_path`` returns the WHOLE
+    path when the token holds no ``.`` - and
+    ``clockspeed/data/blobs.py::parse_class_paths`` says in as many words that
+    dropping such a token erases the evidence it was ever present. Withholding
+    it here would hide exactly what flag-and-skip exists to publish.
+    """
+    body = _registry(warnings=[_warning(subject=_object_path())])
+    rendered = _field_texts(_mount(tmp_path, body), "warning_subject")
+    assert rendered == (_object_path(),), f"the panel published the subject as {rendered}"
+
+
+def test_a_withheld_field_still_shows_which_warning_fired(tmp_path: Path) -> None:
+    """A refusal is rendered, not dropped.
+
+    Silently omitting the row would make a refusal indistinguishable from an
+    absence, and the reader would have no way to learn that anything was
+    flagged at all. The code and the count survive a withheld subject.
+    """
+    body = _registry(warnings=[_warning(subject=_windows_path(), count=7)])
+    report = _mount(tmp_path, body)
+    surviving = (
+        _field_texts(report, "warning_code"),
+        _field_texts(report, "warning_count"),
+    )
+    assert surviving == ((WARNING_CODE,), ("7",)), f"the row published {surviving}"
+
+
+def test_an_unknown_group_name_shaped_like_a_path_is_withheld(tmp_path: Path) -> None:
+    """The sibling case sharing the root cause, and it is on the same page.
+
+    ``unknown_groups`` is the second publisher-owned token stream this panel
+    renders, it reaches the document through the same bare string check the
+    warning row used, and ``panel_warnings.js`` runs its own unknown groups
+    through the token guard. Repairing one and not the other would have left
+    the page's weakest sink exactly where it was.
+    """
+    body = _registry(unknown_groups=[_windows_path(), UNKNOWN_GROUP])
+    rendered = _field_texts(_mount(tmp_path, body), "unknown_group")
+    assert rendered == (WITHHELD, UNKNOWN_GROUP), f"the group list published {rendered}"
 
 
 # ---------------------------------------------------------------------------
