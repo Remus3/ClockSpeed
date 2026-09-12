@@ -1377,6 +1377,45 @@ different blast radius; this one asks only that a collision be detectable.
 
 ## CS-981
 
+### Measured 2026-09-12 by session 86 - one third of this item's stated population is false
+
+**NEITHER CS-830 NOR CS-831 IS GATED, AND NEITHER WAS GATED WHEN THIS ITEM WAS
+FILED.** The first paragraph of the `Filed 2026-09-11` block below opens "CS-829, CS-830 and CS-831 are filed
+in `docs/GATED.md`". **That sentence is WRONG.** It is left standing rather than edited,
+because the block below is the record of what was believed when the item was filed; the
+correction is this block, and the live statement of scope - the item LINE in `ROADMAP.md` -
+is amended. `CLAUDE.md` section 8 for ground truth beating the document, section 4 for
+relocate-never-delete. What is true, each measured this session against the tree:
+
+- `docs/GATED.md` carries a section for CS-829 and for no other `CS-8nn` item at all. Its
+  remaining sections are the `CS-G` series.
+- CS-830 is CLOSED NARROWED, recorded in `docs/LEDGER.md` under the heading "CS-830 -
+  CLOSED NARROWED. Container element EXTENTS are read over the whole library; the internal
+  PARTITION is recorded as undiscriminated, after an adversary refuted the first close".
+- CS-831 is CLOSED, recorded in `docs/LEDGER.md` under the heading "CS-831 - CLOSED. A
+  record's cross-references RESOLVE to the records they name; the acceptance was AMENDED by
+  the operator the same day and the amended wording is preserved here". Those headings are
+  cited rather than line numbers: an append-only file's line numbers rot, its headings do
+  not.
+- Neither CS-830 nor CS-831 carries an open item line in `ROADMAP.md`.
+- `tools/headless-queue.md` already said so in terms - "that chain runs CS-831 and CS-830,
+  both closed, then CS-829". The false premise and its own contradiction were sitting in the
+  tree at the same time, which is the argument for grepping a premise rather than inheriting
+  it.
+
+**WHAT THE CORRECTION DOES NOT TOUCH.** The `/api/map` half of the acceptance stands
+unchanged: a non-empty `inventory` for the pinned development world, graded against a
+synthetic model. The chain behind it is shorter than the item line claimed - two of its
+three layers were already built - and that makes the remaining work smaller, not different.
+
+**WHAT WAS ROUTED THIS SESSION.** CS-829 is moved out of `docs/GATED.md`: its body, every
+fence verbatim, is in `docs/item_notes/phase4-followups.md` under CS-829, and its item LINE
+is back in `ROADMAP.md` under Phase 4 carrying its pre-gate acceptance clause word for word.
+The clause was NOT rewritten and the population was NOT narrowed. CS-G05's own disposition -
+decided out of `docs/GATED.md`, with the execution gap named - is written into a STATUS
+block at the head of its section in `docs/GATED.md`. **This item does not close on any of
+that**; the acceptance turns on `/api/map`, and no measurement of it was taken here.
+
 ### Filed 2026-09-11
 
 **WHY THIS IS A ROUTING ITEM AND NOT AN INVENTORY ITEM.** CS-829, CS-830 and CS-831 are

@@ -160,6 +160,67 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-09-12 - CS-829, CS-981 and CS-G05 - NOT A COMPLETION RECORD. NOTHING CLOSED. A routing record: CS-829 leaves docs/GATED.md with its fences intact, CS-981's stated population is corrected against ground truth, and CS-G05's disposition is decided
+
+**NOTHING CLOSED.** CS-829 stays open, CS-981 stays open, and this entry does not close
+CS-G05. It is filed because three facts changed owner file and one stated premise was
+measured false. It grades nothing, it ran no suite, and it makes no claim about behaviour.
+
+**CS-829 IS ROUTED OUT OF `docs/GATED.md`.** Its stated unblocking condition was "CS-G05
+clearing", and the STATUS block at the head of CS-G05's section records that gate as
+discharged; `docs/GATED.md`'s opening rule says an item that is merely unstarted is not
+gated. The section is deleted from that file and its body - every fence, verbatim - is
+relocated to `docs/item_notes/phase4-followups.md` under CS-829, the leaf
+`docs/item_notes.md` routes a Phase 4 item in the `CS-8nn` block below CS-850 to; the
+routing row is added to that index. The item LINE is restored to `ROADMAP.md` under Phase 4
+carrying the acceptance clause it held before it was gated, WORD FOR WORD, recovered from
+the tree's own history rather than retyped. **The population was not narrowed and the clause
+was not rewritten**, because CS-829's own fences say a restated clause is a scope change
+that closes as one and is not the gate clearing. Whether the clause is satisfiable as
+written is a measurement, and this record does not take it.
+
+**CS-981's STATED POPULATION WAS ONE THIRD FALSE AND IS CORRECTED.** Its acceptance named
+CS-829, CS-830 and CS-831 as gated behind CS-G05. Only CS-829 ever was. CS-830 is CLOSED
+NARROWED, recorded in this file under the heading "CS-830 - CLOSED NARROWED. Container
+element EXTENTS are read over the whole library; the internal PARTITION is recorded as
+undiscriminated, after an adversary refuted the first close". CS-831 is CLOSED, recorded
+under the heading "CS-831 - CLOSED. A record's cross-references RESOLVE to the records they
+name; the acceptance was AMENDED by the operator the same day and the amended wording is
+preserved here". Those two headings are the citations, not line numbers - an append-only
+file's line numbers rot and its headings do not. Neither item carries an open line in
+`ROADMAP.md`, and `docs/GATED.md` has a section for neither. `tools/headless-queue.md`
+already stated it in terms. The item LINE in `ROADMAP.md` is amended to the true population;
+the `/api/map` half of the acceptance is untouched; the wrong sentence in
+`docs/item_notes/phase4-followups-900.md` under CS-981 is corrected by a dated block ABOVE
+it rather than deleted.
+
+**CS-G05's DISPOSITION: DECIDED OUT, EXECUTION INCOMPLETE, AND THE GAP IS NAMED RATHER THAN
+LEFT TO BE REDISCOVERED.** Its own status blocks assign every measured residue to an item
+that is not itself - CS-828, CS-832, CS-829 and CS-982. What is left owned by nothing is one
+thing: the PREP harness
+`tests/save/test_properties.py::test_save_60_refuses_the_grammar_the_other_pairs_accept` is
+vacuous, and CS-G05's section says correcting it is a separate slice. That is work entirely
+inside this repository, so by `docs/GATED.md`'s own definition CS-G05 is not gated. The
+decision, recorded in a STATUS block at the head of its section, is that it routes out.
+**The move is NOT finished.** It still needs a `ROADMAP.md` line under its own `CS-G` ID -
+the route that file's header prescribes - and its body relocated into
+`docs/item_notes/phase4.md`, the leaf the routing table names for a Phase 4 item outside
+both the `CS-8nn` and the `CS-9nn` blocks. That file was outside the write-list of the slice
+that took the decision, and writing into a file a slice may not open is the seam violation
+that makes parallel work collide. The section therefore stays in `docs/GATED.md` as a
+DECIDED-OUT item until the move lands.
+
+**THE HAZARD THE MOVE MUST NOT OUTRUN.** `docs/item_notes/phase4-followups.md` under CS-847
+records two live sites in `clockspeed/save/objects.py` that hand off to `CS-G05` in prose,
+and says they are harmless only while CS-G05 stays GATED - if it CLOSED with those sentences
+standing, the module would stay green. Routing CS-G05 OUT does not close it, so the hazard
+does not fire on this change. It fires on a CLOSE, and CS-847 owns fixing it.
+
+**Files changed:** `docs/GATED.md`, `ROADMAP.md`, `docs/item_notes.md`,
+`docs/item_notes/phase4-followups.md`, `docs/item_notes/phase4-followups-900.md`, and this
+file. No file under `clockspeed/` or `tests/` was touched.
+
+
 ### 2026-09-11 - CS-980 - THE (14,60) PROPERTY WALL WAS OURS, NOT THE FORMAT'S. Every payload of the pinned world now decodes, and a documented gate's premise is refuted
 
 **What changed.** `clockspeed/save/objects.py` gained a third dispatch on the version pair,
