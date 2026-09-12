@@ -459,3 +459,63 @@ The headline this item carried before its line was cut to the one-liner the
 the line alone. Relocated verbatim, never deleted:
 
 every TLS arm sits behind `cert_pair`, which skips when openssl cannot be run, so a runner without openssl loses the whole TLS path as a skip rather than as a failure
+
+## CS-988
+
+### FILED 2026-09-12 (session 87) after FOUR measured instances inside one item, not from a read
+
+**THE SHAPE.** A value decides what a population MEASURES - which files are swept, which
+sentences are planted, which arms are parametrized into existence. It is guarded by a
+floor: `>= MINIMUM`, `> 0`, `count > 1`. The floor grades the BOTTOM of the range and
+nothing else, so when the live value sits exactly at the floor, narrowing the producer at
+its USE SITE satisfies the floor and deletes arms in silence. The run stays green and the
+arm count drops.
+
+**WHY A FLOOR MET EXACTLY IS AN INVITATION.** `MINIMUM_LIFTED_SUBSET_SENTENCES` was 3 and
+the derivation yielded 8. Appending `[:3]` to the producer's return left the floor
+satisfied and dropped five of eight plants. `[:2]` died. So the floor was the ONLY thing
+holding it, and it held exactly one point of a range it was supposed to cover.
+
+**THE FOUR INSTANCES, all inside CS-929, each found by an adversary AFTER the previous one
+was repaired.** This is the part that makes it a class rather than a bug.
+
+1. `POPULATION_ROOT_RELATIVE` narrowed from `clockspeed` to `clockspeed/surface`: 28 of 49
+   files dropped out, all 155 arms green.
+2. The ANCHOR introduced to pin that root: `SHIPPING_PACKAGE_ANCHOR` repointed, 452 arms
+   green. The repair had moved the knob up one level rather than removing it.
+3. That anchor's USE SITE: `SHIPPING_PACKAGE_ANCHOR + "/surface"` - reachable by string
+   concatenation even though the anchor itself was now derived from the import system. A
+   derived value does not protect its own use.
+4. The plant PRODUCER's return: `_lifted(...)[:3]`, 476 arms to 466, exit 0. Ten arms gone
+   in silence.
+
+**WHAT ACTUALLY KILLED INSTANCES 1 THROUGH 3, and it is the fix to generalize.** Set
+EQUALITY between the swept corpus and a second corpus walked by separately spelled rules.
+Not a superset, not one-file-per-package: equality, reported as the symmetric difference.
+No config change at any level can then shrink the corpus unless both derivations are wrong
+the SAME way. Measured: the only shared symbol between the two walks is `REPO_ROOT`, which
+is a single path, so an edit to it can only EMPTY both sides - and mutual emptiness is
+killed by three independent arm families. **Two derivations that read the same knob are
+one derivation wearing two hats**, so the second must not import the first's constants.
+
+**THE CHEAP BACKSTOP THAT WOULD HAVE CAUGHT ALL FOUR.** Every instance was a silent
+arm-count drop. A module that asserts its OWN collected arm count against an
+independently derived expectation catches the whole class at once, including instances
+nobody has thought of yet. It must be DERIVED rather than written, or it is simply knob
+number five.
+
+**WHERE ELSE TO LOOK, and this is the item's real scope.** CS-929's guard is one module.
+Any arm parametrized over a derived population has this shape, and this project has many:
+the vocabulary sweeps, the census modules, the citation tables, the exemption records.
+`tools/drift_guard.py` already had to repair a version of it once - a vocabulary spelled as
+data and never swept is one whose members can be deleted one at a time with the suite
+staying green.
+
+**DO NOT close this by pinning floors.** A floor is the defect. The two mechanisms that
+work are equality against an independent derivation, and an asserted arm count. Anything
+that grades only the bottom of a range reproduces the class at the next level out, which
+this item measured four times before it was filed.
+
+**RELATED, and distinct.** A pooled threshold summed over a population is met by its
+strongest member while the weakest goes unmeasured - that is the same family one step
+sideways, and the acceptance clause here should not be read as covering it.
