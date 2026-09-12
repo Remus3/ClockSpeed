@@ -842,6 +842,36 @@ def test_the_bind_failure_names_the_port_and_the_two_places_to_look(
     assert "scripts/verify_env.py" in message
 
 
+#: CS-987 - WHY THE LEAK ORACLE BELOW TAKES A DIFFERENCE AND NOT A COUNT.
+#:
+#: This arm used to finish with a population question::
+#:
+#:     serving = sum(1 for ... in threading.enumerate() if "serve" in name)
+#:     assert serving == 0
+#:
+#: ``threading.enumerate()`` is PROCESS-wide. Under ``-n auto`` one xdist worker
+#: runs many modules in one process, and ``server.py`` names its serving thread
+#: ``clockspeed-serve`` - so a SUCCESSFUL ``server.run`` anywhere in that worker
+#: leaves a daemon whose name satisfies the filter for the rest of the process's
+#: life. On 2026-09-12 that made this arm RED on gw3 at ``assert 1 == 0`` while
+#: everything it is actually about BEHAVED: the bind failed as designed, the exit
+#: was ``EXIT_BIND_FAILED``, and the refusal printed naming the port and
+#: ``OSError 10048``. The arm had read a neighbour's residue as its own leak.
+#:
+#: THE FALSE RED WAS THE LESSER FAULT. A population question cannot tell the
+#: subject's own leak from a neighbour's live thread in one direction, nor from a
+#: neighbour's already-exited thread in the other - so on a run where no sibling
+#: has served yet it reports 0 whether or not the subject leaked. It could not
+#: observe the value it was asked about, which is the one way an arm passes for
+#: no reason at all.
+#:
+#: SO THE SUBJECT IS ISOLATED BY IDENTITY, NOT BY NAME. The set of thread
+#: identities is taken before and after the call and the assertion is on what
+#: APPEARED. Identity rather than name because a name is not unique and a
+#: neighbour may start another thread sharing one. Narrowing the FILTER instead -
+#: excluding daemons, matching the name harder, or marking this arm serial -
+#: would each have left the oracle asking a global question and merely reduced
+#: the population able to answer it, which is why none of the three was taken.
 def test_run_exits_non_zero_on_a_bind_failure_and_binds_nothing_else(
     cert_pair: tuple[Path, Path], tmp_path: Path, occupied: int
 ) -> None:
@@ -849,11 +879,58 @@ def test_run_exits_non_zero_on_a_bind_failure_and_binds_nothing_else(
     taken = config.ServerConfig(
         host=config.LOOPBACK, port=occupied, cert_path=cert, key_path=key, web_dir=tmp_path
     )
+    before = {t.ident for t in threading.enumerate()}
     code = server.run(taken, [probe_route()])
     assert code != server.EXIT_OK
     assert code == server.EXIT_BIND_FAILED
-    serving = sum(1 for name in sorted(t.name for t in threading.enumerate()) if "serve" in name)
-    assert serving == 0, "a failed bind left a serving thread behind"
+    appeared = sorted(
+        t.name for t in threading.enumerate() if t.ident not in before and "serve" in t.name
+    )
+    left_behind = len(appeared)
+    assert left_behind == 0, f"a failed bind left a serving thread behind: {appeared}"
+
+
+def test_the_leak_oracle_ignores_a_serving_thread_this_call_did_not_start(
+    cert_pair: tuple[Path, Path], tmp_path: Path, occupied: int
+) -> None:
+    """CS-987 - THE GREEN CONTROL, and it is the half that proves the repair.
+
+    A foreign thread named exactly like the one the subject would leak is alive
+    for this arm's whole duration. The arm above must stay GREEN through it,
+    because that thread is not one the call under test created. Before the
+    repair this is the shape that went red on a correct refusal.
+
+    Without this control a difference-based oracle that still consulted the
+    population would pass its own positive arm and nothing would say so.
+    """
+    cert, key = cert_pair
+    taken = config.ServerConfig(
+        host=config.LOOPBACK, port=occupied, cert_path=cert, key_path=key, web_dir=tmp_path
+    )
+    release = threading.Event()
+    foreign = threading.Thread(target=release.wait, name="clockspeed-serve", daemon=True)
+    foreign.start()
+    try:
+        assert foreign.is_alive(), "the control thread did not start, so this arm measures nothing"
+        before = {t.ident for t in threading.enumerate()}
+        assert foreign.ident in before, (
+            "the control thread is not in the population it must survive"
+        )
+        code = server.run(taken, [probe_route()])
+        appeared = sorted(
+            t.name for t in threading.enumerate() if t.ident not in before and "serve" in t.name
+        )
+        left_behind = len(appeared)
+        assert code == server.EXIT_BIND_FAILED
+        assert left_behind == 0, f"the oracle counted a thread it did not start: {appeared}"
+        naive = sum(1 for t in threading.enumerate() if "serve" in t.name)
+        assert naive > 0, (
+            "the NAIVE population oracle must still see the control, or this arm is not "
+            "measuring the difference between the two questions"
+        )
+    finally:
+        release.set()
+        foreign.join(timeout=5)
 
 
 def test_an_unusable_certificate_is_a_distinct_non_zero_exit(tmp_path: Path) -> None:
