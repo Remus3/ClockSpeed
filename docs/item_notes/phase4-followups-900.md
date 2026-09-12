@@ -1337,3 +1337,39 @@ render nothing.
   they may go on the wire - node purity and resource type are NOT in the save,
   so a node panel shows placement and class only. This is a new endpoint plus a
   panel, not a UI-only slice, and it is unbuilt.
+
+## CS-976
+
+### FILED 2026-09-11 by the CS-962 merger, from an adjudicated finding
+
+**WHAT WAS MEASURED, AT 098bf1f.** `panel_registry.js`, `panel_scope.js` and
+`panel_warnings.js` declare ZERO top-level names - each scopes itself in a
+closure or inside its mount function. `panel_solve.js` declares TWENTY-SIX,
+among them `FIELDS`, `POLICY_FIELD`, `PAIR_MARK`, `textOf`, `isWholeNumber`,
+`exactPair`, `clearNode`, `addNote`, `addGroup`, `readField` and
+`renderOutcome`. All four are classic scripts, not modules, so every one of
+those is a property of the one global the page shares with `app.js`.
+
+**THERE IS NO COLLISION TODAY AND THAT IS A MEASUREMENT, NOT A HOPE.** Both name
+sets were derived at 098bf1f - `app.js`'s thirty-six top-level names against
+`panel_solve.js`'s twenty-six - and the intersection is empty. An adjudicator
+ruled this a follow-up rather than a blocker on exactly that basis.
+
+**WHY IT IS STILL WORTH AN ITEM.** `registerPanel` refuses a duplicate panel
+ID, which reads as collision protection and is not: it compares the id only and
+never notices a duplicate top-level FUNCTION name. A fifth panel, or a later
+`app.js` helper, taking a name `panel_solve.js` already holds wins by load order
+and the screen says only that one panel did not render. Nothing in the suite
+grades it, so the first symptom would be a panel that stopped working for a
+reason no test names.
+
+**THE GRADER THE ADJUDICATOR NAMED**, and it is cheap: load all four panel
+modules plus `app.js` into one global, collect the own-property additions each
+makes, and assert the union contains no duplicate. Plant a duplicate name to
+prove the arm fires - an arm that has never been red proves nothing.
+
+**DO NOT RE-PITCH** converting the panels to ES modules as the fix for this. The
+seam's whole premise is that a panel is a plain script the server already
+serves and `index.html` already loads, and `tests/surface/test_server.py` pins
+the static surface by name. A module rewrite is a different item with a
+different blast radius; this one asks only that a collision be detectable.
