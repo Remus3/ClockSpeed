@@ -907,6 +907,238 @@ def test_the_button_declares_a_target_box_of_at_least_the_minimum() -> None:
         assert min(sizes) >= MIN_TARGET_PX, f"button {axis} is {min(sizes)}px"
 
 
+#: Every tag from :data:`_INTERACTIVE_TAGS` as a bare element name, plus
+#: ``button`` - the one interactive element the page does admit. DERIVED from
+#: that tuple rather than spelled again, so the arm above and the arms below
+#: cannot come to disagree about what counts as a pointer target.
+INJECTABLE_TAGS: Final = frozenset(
+    {tag.lstrip("<").rstrip(" >") for tag in _INTERACTIVE_TAGS} | {"button"}
+)
+
+#: One ``document.createElement("tag")`` call, with the variable the new node is
+#: bound to when there is one. A call whose argument is a VARIABLE - the generic
+#: ``el``/``element``/``add`` helpers - does not match, which is exactly what
+#: :func:`test_no_asset_names_an_interactive_tag_in_a_shape_this_module_cannot_read`
+#: exists to catch.
+_CREATE_CALL: Final = re.compile(
+    r"""(?:(?P<name>[A-Za-z_$][\w$]*)\s*=\s*)?"""
+    r"""document\.createElement\(\s*["'](?P<tag>[a-z]+)["']\s*\)"""
+)
+
+#: A bare tag-shaped string literal. Used to find an interactive tag name in a
+#: position this module does not know how to resolve.
+_TAG_LITERAL: Final = re.compile(r"""["']([a-z]+)["']""")
+
+#: ``setAttribute("type", "button")``. The second legal place an interactive tag
+#: name may appear in a script: it names an input TYPE, not a new element.
+_TYPE_ATTRIBUTE: Final = re.compile(r"""setAttribute\(\s*["']type["']\s*,\s*["'][a-z]+["']\s*\)""")
+
+
+def injected_controls(code: str) -> tuple[tuple[str, tuple[str, ...]], ...]:
+    """Every interactive control the script CREATES, with the selectors that size it.
+
+    WHY THIS IS DERIVED AND NOT A LIST OF CLASS NAMES. The solve bench's text
+    input is built by a panel module at runtime and appears in no markup, so
+    :func:`test_the_page_offers_exactly_one_kind_of_clickable_target` - which
+    reads ``index.html`` - cannot see it, and the sizing arm above grades the
+    ``button`` element selector alone. An arm naming ``.bench-input`` would grade
+    exactly one control and go quietly out of date the moment a fifth panel
+    injects a second one. So the set comes from the SCRIPTS, which own it.
+
+    Resolution, in two shapes, both present in the assets today:
+
+    - ``var input = document.createElement("input"); input.className = "x";``
+      resolves to the class selector ``.x``.
+    - ``var button = document.createElement("button");`` with no class resolves
+      to the bare element selector ``button``.
+
+    The class search is bounded to the text between this creation call and the
+    next one, so a later node's class cannot be read as this one's. A node whose
+    class is assigned after the next ``createElement`` resolves to its bare tag
+    instead, which reddens the arm rather than passing quietly.
+
+    A multi-class assignment yields one candidate per class and the caller
+    requires ONE of them to carry the box - which is how CSS behaves.
+
+    Args:
+        code: One script's text with its block comments already removed by
+            :func:`code_only`. The assets carry no ``//`` line comments at all -
+            :func:`test_no_asset_references_a_remote_resource` is what keeps it
+            that way - so no further stripping is needed here.
+
+    Returns:
+        One ``(tag, candidate selectors)`` pair per distinct control, in the
+        order the script creates them.
+    """
+    found: list[tuple[str, tuple[str, ...]]] = []
+    for match in _CREATE_CALL.finditer(code):
+        tag = match.group("tag")
+        if tag not in INJECTABLE_TAGS:
+            continue
+        candidates: tuple[str, ...] = (tag,)
+        name = match.group("name")
+        if name:
+            window = code[match.end() :]
+            following = window.find("document.createElement(")
+            if following >= 0:
+                window = window[:following]
+            pattern = r"\b" + re.escape(name) + r"""\.className\s*=\s*["']([^"']+)["']"""
+            assigned = re.search(pattern, window)
+            if assigned:
+                candidates = tuple("." + part for part in assigned.group(1).split())
+        pair = (tag, candidates)
+        if pair not in found:
+            found.append(pair)
+    return tuple(found)
+
+
+def declarations_for(rules: tuple[tuple[str, str], ...], selector: str) -> str | None:
+    """The body of the first rule whose selector LIST holds ``selector`` exactly.
+
+    An exact match over the comma-split list, rather than a substring search:
+    ``.bench-input`` is a substring of ``.bench-input:focus`` and of any
+    descendant selector ending in it, and neither of those sizes the control.
+
+    Args:
+        rules: A :func:`css_rules` result.
+        selector: One selector, spelled as the sheet spells it.
+
+    Returns:
+        The declarations, or ``None`` when no rule carries that selector alone.
+    """
+    for name, body in rules:
+        if selector in tuple(part.strip() for part in name.split(",")):
+            return body
+    return None
+
+
+def undersized_axes(declarations: str) -> tuple[str, ...]:
+    """Which of the two axes this rule body fails to floor at the minimum.
+
+    The same four questions the ``button`` arm above asks, in a form a caller can
+    ask of any rule: is the axis declared, is it declared in px, and is the
+    smallest px value it names at or above :data:`MIN_TARGET_PX`. That arm keeps
+    its own copy deliberately - it is a passing guard and this slice widens
+    coverage without touching it.
+
+    Args:
+        declarations: A rule body, as :func:`css_rules` returns one.
+
+    Returns:
+        One string per fault, empty when the rule declares a legal target box.
+    """
+    faults: list[str] = []
+    for axis in ("min-width", "min-height"):
+        line = next((part for part in declarations.split(";") if axis in part), None)
+        if line is None:
+            faults.append(f"{axis} undeclared")
+            continue
+        sizes = tuple(int(value) for value in _PX.findall(line))
+        if not sizes:
+            faults.append(f"{axis} is not declared in px")
+        elif min(sizes) < MIN_TARGET_PX:
+            faults.append(f"{axis} is {min(sizes)}px")
+    return tuple(faults)
+
+
+def test_the_injected_control_scan_reads_both_shapes_and_drops_a_div() -> None:
+    """The resolver is proved on a sample before any arm relies on it.
+
+    A resolver that silently returned nothing would make the arm below
+    vacuously green, which is the exact shape this module exists to refuse.
+    """
+    sample = (
+        'var wrap = document.createElement("div");\n'
+        'wrap.className = "bench-field";\n'
+        'var input = document.createElement("input");\n'
+        'input.className = "bench-input";\n'
+        'var button = document.createElement("button");\n'
+        'button.setAttribute("type", "button");\n'
+    )
+    assert injected_controls(sample) == (
+        ("input", (".bench-input",)),
+        ("button", ("button",)),
+    ), injected_controls(sample)
+
+
+def test_the_target_box_reader_names_each_fault_it_claims() -> None:
+    """:func:`undersized_axes` fires on all three faults and clears a legal box."""
+    assert undersized_axes("min-width: 24px; min-height: 44px;") == ()
+    assert undersized_axes("min-height: 44px;") == ("min-width undeclared",)
+    assert undersized_axes("min-width: 100%; min-height: 44px;") == (
+        "min-width is not declared in px",
+    )
+    assert undersized_axes("min-width: 8px; min-height: 44px;") == ("min-width is 8px",)
+
+
+def test_every_control_a_script_injects_declares_the_target_box() -> None:
+    """A control built at RUNTIME is held to the same minimum as a marked-up one.
+
+    THIS IS THE ARM THE SOLVE BENCH HAD NONE OF. ``.bench-input`` declared a
+    target box that no test read: the markup arm above scans ``index.html``, and
+    a node a panel module creates appears in no markup, while the sizing arm
+    above grades the ``button`` selector alone. So a stylesheet rule this project
+    treats as a hit-target requirement was enforced by nothing.
+
+    WHAT THIS ARM STILL CANNOT SAY. It grades DECLARED px, not computed style.
+    No browser runs here, so a declared floor beaten by a later cascade or by a
+    box-sizing interaction is out of its reach - see the section preamble above
+    on what a source-level arm is worth.
+    """
+    rules = css_rules(read_asset(STYLESHEET))
+    found: list[tuple[str, str, tuple[str, ...]]] = []
+    for asset in (SCRIPT, *PANEL_MODULES):
+        for tag, candidates in injected_controls(code_only(read_asset(asset))):
+            found.append((asset, tag, candidates))
+
+    assert found, "no script injects any interactive control - the scan found nothing"
+    shapes = tuple(candidates[0][:1] for _, _, candidates in found)
+    assert "." in shapes, f"no control resolved to a class selector: {found}"
+
+    faults = []
+    for asset, tag, candidates in found:
+        graded = {
+            selector: undersized_axes(body)
+            for selector in candidates
+            if (body := declarations_for(rules, selector)) is not None
+        }
+        if not any(result == () for result in graded.values()):
+            faults.append((asset, tag, candidates, graded))
+    assert not faults, f"injected controls with no legal target box: {faults}"
+
+
+def test_no_asset_names_an_interactive_tag_in_a_shape_this_module_cannot_read() -> None:
+    """An interactive tag name appears only where the arm above can resolve it.
+
+    THIS IS THE ANTI-VACUITY HALF. The resolver reads
+    ``document.createElement("input")`` and nothing else, so a future panel
+    building its control through the generic ``el``/``element``/``add`` helper -
+    ``el("input", "bench-input")`` - would create a pointer target the arm above
+    never sees, and the coverage would be lost silently.
+
+    The check is an ALLOWLIST of the two legal contexts, not a ban on a list of
+    bad ones: a tag name may sit inside a ``createElement`` call or inside a
+    ``setAttribute("type", ...)`` call, and anywhere else is a finding. A
+    denylist would leak the moment a third shape arrived.
+    """
+    stray = []
+    for asset in (SCRIPT, *PANEL_MODULES):
+        code = code_only(read_asset(asset))
+        legal = tuple(
+            match.span()
+            for pattern in (_CREATE_CALL, _TYPE_ATTRIBUTE)
+            for match in pattern.finditer(code)
+        )
+        for match in _TAG_LITERAL.finditer(code):
+            if match.group(1) not in INJECTABLE_TAGS:
+                continue
+            if any(start <= match.start() and match.end() <= end for start, end in legal):
+                continue
+            line = code.count("\n", 0, match.start()) + 1
+            stray.append((asset, match.group(1), line))
+    assert not stray, f"an interactive tag name sits where the scan cannot read it: {stray}"
+
+
 def test_focus_is_visible_and_is_not_removed_anywhere() -> None:
     """A ``:focus-visible`` rule paints an outline, and nothing suppresses one."""
     css = read_asset(STYLESHEET)
