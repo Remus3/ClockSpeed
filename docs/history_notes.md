@@ -9524,3 +9524,62 @@ BOTH BRANCHES ARE ON ORIGIN. `main` at `77a43e2`, tier1 CI SUCCESS. `cs964-seam`
 
 CS-964 IS STILL OPEN AND IS ONE ARM OF FIFTEEN. Pushing the branch published work in
 progress; it did not finish it.
+
+## CS-987 - CLOSED 2026-09-12, body relocated from `docs/item_notes/phase6.md`
+
+### FILED 2026-09-12 (session 87) by the merger, from a real suite run and not from a read
+
+**WHAT WENT RED, AND IT WAS NOT THE SUBJECT.**
+`tests/surface/test_server.py::test_run_exits_non_zero_on_a_bind_failure_and_binds_nothing_else`
+failed on worker `gw3` of a `-n auto` run at `AssertionError: a failed bind left a
+serving thread behind / assert 1 == 0`. Everything the arm is actually about
+BEHAVED: `server.run` returned `EXIT_BIND_FAILED`, the stderr refusal printed in
+full naming port 64780 and `OSError 10048`, and no other port was tried. The only
+thing wrong was the leak count.
+
+**THE ORACLE, AND WHY IT CANNOT SEE ITS OWN SUBJECT.** The last line is
+
+    serving = sum(1 for name in sorted(t.name for t in threading.enumerate()) if "serve" in name)
+
+`threading.enumerate()` is PROCESS-wide. Under xdist one worker process runs many
+modules, and `clockspeed/surface/server.py` names its serving thread
+`clockspeed-serve` - so a SUCCESSFUL `server.run` anywhere in that worker leaves a
+daemon thread whose name satisfies the filter for the rest of the process's life.
+The arm then reads a neighbour's residue as its own leak.
+
+**THE FALSE RED IS THE LESSER FAULT. The greater one is the false GREEN.** The arm
+exists to catch a serving thread the BIND-FAILURE path left behind. Because it
+asks a population question, that leak is indistinguishable from a neighbour's
+live thread in one direction and from a neighbour's already-exited thread in the
+other. A run where no sibling has served yet reports 0 whether or not the subject
+leaked. This is the harness-recorded shape: an oracle that cannot observe the
+value it is asked about passes for that reason alone.
+
+**MEASURED, with the controls, so a later session does not re-diagnose it.**
+
+- The arm passes ALONE in the seam worktree (`1 passed`) and ALONE on `main`
+  (`1 passed`), which is why no isolation run can reproduce it.
+- The whole module passes SERIALLY: `pytest tests/surface/test_server.py -q -p
+  no:randomly` gives `130 passed`. So the residue comes from ANOTHER module landing
+  in the same worker, not from a neighbour in this file.
+- `-x` was in effect, so the red stopped the whole suite at 3048 passed. A
+  cross-test contamination that halts the suite is a tier-1 cost even before the
+  false-green half is counted.
+
+**THE SIBLING GREP IS DONE AND IT IS CLEAN.** `threading.enumerate()` appears at
+exactly ONE site in `tests/`, `clockspeed/` and `tools/` - this one. There is no
+population to repair beside it, which is the whole of the sibling-case obligation
+for this item.
+
+**WHAT THE FIX MAY NOT BE.** Do not discharge this by filtering the name harder,
+by excluding daemon threads, or by marking the arm `serial`. Each leaves the
+oracle asking a global question and merely narrows the population that can
+answer it - the false green survives all three. A set difference taken around
+the call is the only shape that grades the subject: snapshot the thread
+identities before `server.run`, snapshot after, and assert on what APPEARED.
+
+**AND THE GREEN CONTROL IS NOT OPTIONAL.** The second arm - a foreign
+`clockspeed-serve` thread alive for the whole duration, with the arm still GREEN -
+is what proves the repair actually removed the global dependency rather than
+reordering it. Without it a difference-based oracle that still consults the
+population would pass its own positive arm.

@@ -160,6 +160,63 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-09-12 - CS-987 - CLOSED. The bind-failure arm's leak oracle asked a process-global question and attributed the answer to the call under test, so it went RED on a correct refusal and would have gone GREEN on the leak it exists to catch
+
+**WHAT CLOSED.** `tests/surface/test_server.py::test_run_exits_non_zero_on_a_bind_failure_and_binds_nothing_else`
+ended with a population question - every thread whose name contains `serve`, summed over
+`threading.enumerate()`, asserted to be zero. `threading.enumerate()` is PROCESS-wide, one
+xdist worker runs many modules in one process, and `clockspeed/surface/server.py` names its
+serving thread `clockspeed-serve`. So a SUCCESSFUL `server.run` anywhere in that worker left
+a daemon satisfying the filter for the rest of the process's life, and the arm read a
+neighbour's residue as its own leak.
+
+**HOW IT WAS FOUND, and it was not a read.** A whole-suite run on the CS-964 merge candidate
+under `-n auto` went red on gw3 at `assert 1 == 0` while everything the arm is actually about
+BEHAVED: the bind failed as designed, the exit was `EXIT_BIND_FAILED`, and the refusal printed
+naming the port and `OSError 10048`. Because `-x` was in effect the red stopped the whole
+suite at 3048 passed, which is a tier-1 cost on its own.
+
+**THE FALSE RED WAS THE LESSER FAULT.** A population question cannot tell the subject's own
+leak from a neighbour's live thread in one direction, nor from a neighbour's already-exited
+thread in the other. On a run where no sibling had served yet it reported 0 whether or not
+the subject leaked. It could not observe the value it was asked about, which is the one way
+an arm passes for no reason at all.
+
+**THE REPAIR.** The set of thread IDENTITIES is taken before and after the call and the
+assertion is on what APPEARED. Identity rather than name, because a name is not unique and a
+neighbour may start another thread sharing one.
+
+**WHAT WAS REFUSED, and why each would have left the defect.** Narrowing the FILTER instead -
+excluding daemon threads, matching the name harder, or marking the arm serial - each leaves
+the oracle asking a global question and merely shrinks the population able to answer it. The
+false green survives all three. The written fence in the item note said so before the repair
+was attempted, and the repair did not depart from it.
+
+**PROVEN IN BOTH DIRECTIONS, which is what the acceptance required.**
+
+- POSITIVE: a leak planted in `server.run`'s bind-failure path - a thread named
+  `clockspeed-serve-LEAKPLANT` started before the refusal returns - reddens BOTH arms, and the
+  failure message names the planted thread. The plant was asserted to have LANDED before the
+  run, from a script written with a file-writing tool after a quoted heredoc silently ate the
+  backslashes out of the matched source line and the resulting unmutated run reported green -
+  a mutant that never applied and a surviving mutant produce identical output.
+- NEGATIVE: `test_the_leak_oracle_ignores_a_serving_thread_this_call_did_not_start` holds a
+  foreign `clockspeed-serve` thread alive for its whole duration and stays GREEN. It also
+  asserts the NAIVE population oracle still SEES that thread, so the arm measures the
+  difference between the two questions rather than restating one of them. Reverting that
+  arm's oracle to the population question reddens it.
+
+**HOW TO VERIFY INDEPENDENTLY.** `python -m pytest tests/surface/test_server.py -q -p no:randomly`
+reports 131 passed. The arm and its control are `test_run_exits_non_zero_on_a_bind_failure_and_binds_nothing_else`
+and `test_the_leak_oracle_ignores_a_serving_thread_this_call_did_not_start`. The sibling grep is
+clean and was part of the close: `threading.enumerate()` appears at exactly ONE site across
+`tests/`, `clockspeed/` and `tools/`, so there is no population to repair beside it.
+
+**THE ITEM WAS FILED AND CLOSED IN THE SAME SESSION**, which is recorded rather than hidden:
+it was filed when it blocked a merge verdict, and repaired the same day because
+`.githooks/pre-push` runs the suite with `-x`, so a nondeterministic cross-test red could
+block every push in the project until it was fixed.
+
 ### 2026-09-12 - CS-829 - NOT A COMPLETION RECORD. NOTHING CLOSED. The (14,60) tag grammar now reaches struct interiors and nested element tag lists, and the native-serialize flag is read rather than defined and ignored
 
 **NOTHING CLOSED.** CS-829 stays OPEN in `ROADMAP.md` with its acceptance clause untouched.
