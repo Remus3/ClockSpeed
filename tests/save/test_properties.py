@@ -2314,9 +2314,13 @@ def _fstring(text: str, *, wide: bool = False) -> bytes:
     the ones a person types, routinely are. So every body-side privacy arm was
     measured against the encoding its subject is least likely to use.
 
-    ``wide`` is KEYWORD-ONLY so that all 56 existing positional call sites keep
-    their current meaning untouched, and so that a wide fixture has to say so at
-    the call. It mirrors ``synthetic.fstring``'s flag rather than introducing a
+    ``wide`` is KEYWORD-ONLY so that EVERY existing positional call site keeps
+    its current meaning untouched, and so that a wide fixture has to say so at
+    the call. The count of those sites is deliberately not spelled here: it was
+    filed as 56, re-derived as 47 by a verifier that tokenized rather than
+    grepped, and it is decoration either way - the property is that no
+    positional caller changed meaning, which does not need a population size to
+    state and cannot be kept true by one (CLAUDE.md section 4). It mirrors ``synthetic.fstring``'s flag rather than introducing a
     second convention - a parallel builder is a fixture that drifts away from
     the one every other arm uses, which the acceptance clause forbids by name.
 
