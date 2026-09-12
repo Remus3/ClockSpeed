@@ -121,6 +121,19 @@ NETWORK_SINKS: Final = (
 #: How many presses the re-entry arms drive.
 TWO_PRESSES: Final = 2
 
+#: The three doors :func:`drive` can hand a mount. Named rather than spelled as
+#: two booleans, because "door=False, live_door=True" is a state that means
+#: nothing and a signature that allows it invites a run nobody can read back.
+DOOR_STUB: Final = "stub"
+DOOR_NONE: Final = "none"
+DOOR_LIVE: Final = "live"
+
+#: The HTTP status a solved plan comes back under.
+OK_STATUS: Final = 200
+
+#: The HTTP status a refused solve comes back under.
+REFUSED_STATUS: Final = 400
+
 #: Renderings that mean a value reached the page without being read.
 NON_RENDERINGS: Final = ("undefined", "[object Object]", "NaN", "null")
 
@@ -267,12 +280,49 @@ globalThis.window = {
   load-time repaint would otherwise overwrite the caller's payload with its
   own. The bench's own request never comes near this - it goes through the
   recording stub installed below, which is the whole point of this driver.
+
+  UNLESS THE RUN ASKED FOR A LIVE DOOR, and then exactly one thing changes:
+  liveFetch is raised AFTER app.js has loaded, so the page's own load-time
+  probes stay parked on the never-settling promise above and only requests
+  issued from a step are answerable. A live-door run is how the SEAM's own
+  delivery path is graded rather than a stand-in for it - the recording stub
+  below never enters app.js at all, so no arm built on it can say anything
+  about what app.js does with an answer that arrives late.
 */
-globalThis.fetch = function () {
-  return new Promise(function () {
-    return undefined;
+var liveFetch = false;
+var fetchCalls = [];
+var pendingFetches = [];
+
+globalThis.fetch = function (target, init) {
+  if (!liveFetch) {
+    return new Promise(function () {
+      return undefined;
+    });
+  }
+  fetchCalls.push({
+    url: String(target),
+    method: init && init.method ? String(init.method) : "GET",
+    has_body: Boolean(init && Object.prototype.hasOwnProperty.call(init, "body"))
+  });
+  return new Promise(function (resolve, reject) {
+    pendingFetches.push({ resolve: resolve, reject: reject });
   });
 };
+
+/*
+  LET EVERY PENDING MICROTASK RUN. Resolving a fetch only queues the
+  continuation inside app.js; a step that read the page straight afterwards
+  would read it before the answer had been delivered and would pass whatever
+  the delivery does. setImmediate is a macrotask, so each turn drains the whole
+  microtask queue behind it.
+*/
+async function drain() {
+  for (var turn = 0; turn < 5; turn += 1) {
+    await new Promise(function (done) {
+      setImmediate(done);
+    });
+  }
+}
 
 function load(file) {
   var source = fs.readFileSync(file, "utf8");
@@ -291,6 +341,20 @@ load(path.join(webDir, "app.js"));
 if (typeof registerPanel !== "function" || typeof mountPanel !== "function") {
   throw new Error("app.js published no registerPanel/mountPanel seam");
 }
+if (typeof mountPanels !== "function" || typeof panelData !== "function") {
+  throw new Error("app.js published no mountPanels/panelData seam");
+}
+
+/*
+  WHAT THE SEAM PUBLISHES WITH NOTHING REGISTERED YET. Read HERE, before the
+  module under test loads, because "an empty array rather than absent or null"
+  is a claim about exactly this moment and about no later one. panelData has no
+  side effects - it reads the probes it is handed and builds an object - so
+  asking it costs the run nothing.
+*/
+var emptySeam = panelData({});
+var panelsKeyWhenEmpty = Object.prototype.hasOwnProperty.call(emptySeam, "panels");
+var panelsWhenEmpty = panelsKeyWhenEmpty ? emptySeam.panels : null;
 
 var captured = null;
 var mountThrew = null;
@@ -321,6 +385,17 @@ try {
 } catch (failure) {
   loadThrew = describe(failure);
 }
+
+/*
+  EXTRA PANELS, REGISTERED AFTER THE MODULE UNDER TEST AND THROUGH THE REAL
+  REGISTRAR. Registration ORDER is the whole claim data.panels makes, and a
+  one-member list cannot show an order at all.
+*/
+(request.extra_panels || []).forEach(function (id) {
+  realRegister(id, function (root) {
+    root.appendChild(document.createElement("p"));
+  });
+});
 
 /* --- the door, recorded --------------------------------------------------- */
 
@@ -355,8 +430,21 @@ function stubRequestSolve(params, onSettled) {
   return accepted;
 }
 
+var delivered = [];
 var data = request.data;
-if (request.door) {
+if (request.live_door) {
+  /*
+    THE SEAM'S OWN DOOR, AND THE DRIVER LOWERS repainting TO REACH IT. app.js
+    refuses a solve while a repaint is in flight, and the load-time repaint is
+    parked forever on the never-settling promise above - so without this it
+    would refuse every request for a reason that is a property of THIS DRIVER
+    and not of the page. Lowered here, once, and reported after every step so
+    an arm can see the page's own flags rather than trusting this comment.
+  */
+  globalThis.repainting = false;
+  liveFetch = true;
+  data.actions = { requestSolve: requestSolve };
+} else if (request.door) {
   data.actions = { requestSolve: stubRequestSolve };
 }
 
@@ -417,6 +505,53 @@ function stateOf() {
   return host ? host.getAttribute("data-panel-state") : null;
 }
 
+/*
+  THE NODE A hold STEP PINNED, AND WHETHER THE SECTION STILL HOLDS IT.
+
+  This pair is what makes "delivered into a node that is not in the document"
+  an observable fact rather than an inference. dump(section()) can only ever
+  show what the CURRENT tree holds, so a plan written into a node the seam
+  already discarded is invisible to it - the arm would read a clean page and
+  call the fault fixed. A hold step keeps the node itself, and the report
+  carries both its text and whether it is still reachable from the section.
+*/
+var heldNode = null;
+
+function containsNode(root, target) {
+  if (!root || !target) {
+    return false;
+  }
+  if (root === target) {
+    return true;
+  }
+  for (var index = 0; index < root.childNodes.length; index += 1) {
+    if (containsNode(root.childNodes[index], target)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+function seamState(step) {
+  /* The page's own flags and the held node, recorded after one step. */
+  step.solving = Boolean(globalThis.solving);
+  step.repainting = Boolean(globalThis.repainting);
+  step.generation =
+    typeof globalThis.panelGeneration === "number" ? globalThis.panelGeneration : null;
+  var payloads = globalThis.panelPayloads;
+  /*
+    null RATHER THAN ABSENT. JSON.stringify drops a key whose value is
+    undefined, so a seam that published no roster would leave the report without
+    the field at all and an arm reading it would die of a KeyError instead of
+    reporting what it measured.
+  */
+  step.panels =
+    payloads && Object.prototype.hasOwnProperty.call(payloads, "panels") ? payloads.panels : null;
+  step.held = dump(heldNode, null);
+  step.held_in_section = containsNode(section(), heldNode);
+  return step;
+}
+
 function matches(row, match) {
   var keys = Object.keys(match);
   for (var index = 0; index < keys.length; index += 1) {
@@ -447,17 +582,23 @@ function select(match) {
 
 var steps = [];
 
-if (captured) {
+async function drive() {
+  if (!captured) {
+    return;
+  }
   mountPanel(captured, data);
-  steps.push({
-    kind: "mount",
-    state: stateOf(),
-    threw: mountThrew,
-    matched: 1,
-    nodes: dump(section(), null)
-  });
+  steps.push(
+    seamState({
+      kind: "mount",
+      state: stateOf(),
+      threw: mountThrew,
+      matched: 1,
+      nodes: dump(section(), null)
+    })
+  );
 
-  request.steps.forEach(function (spec) {
+  for (var at = 0; at < request.steps.length; at += 1) {
+    var spec = request.steps[at];
     var step = { kind: null, threw: null, matched: null, state: stateOf() };
     if (spec.fill) {
       step.kind = "fill";
@@ -497,6 +638,75 @@ if (captured) {
           }
         });
       }
+    } else if (spec.hold) {
+      step.kind = "hold";
+      step.match = spec.hold;
+      var pinned = select(spec.hold);
+      step.matched = pinned.hits.length;
+      if (pinned.hits.length === 1) {
+        heldNode = pinned.hits[0];
+      }
+    } else if (spec.remount) {
+      /*
+        A REPAINT'S OWN REMOUNT, THROUGH THE SHIPPED FUNCTION. mountPanels is
+        what refresh() calls, so this is the same door the fault arrived by
+        rather than a re-creation of it. The probes are empty because what is
+        under test is the teardown and not the payload.
+      */
+      step.kind = "remount";
+      step.matched = 1;
+      try {
+        mountPanels({});
+      } catch (failure) {
+        step.threw = describe(failure);
+      }
+    } else if (spec.ask) {
+      /*
+        A REQUEST MADE BY THE DRIVER RATHER THAN BY THE BENCH, which is the
+        only way to grade an onSettled that THROWS - the panel's own never
+        does, and a claim about that exit path needs a caller that can.
+      */
+      step.kind = "ask";
+      step.matched = 1;
+      step.tag = String(spec.ask.tag);
+      step.accepted = false;
+      var thrower = Boolean(spec.ask.throws);
+      var tag = String(spec.ask.tag);
+      try {
+        step.accepted = requestSolve(spec.ask.params, function (outcome) {
+          delivered.push({
+            tag: tag,
+            reached: outcome ? Boolean(outcome.reached) : null,
+            http: outcome && typeof outcome.http === "number" ? outcome.http : null
+          });
+          if (thrower) {
+            throw new Error("the caller threw");
+          }
+        });
+      } catch (failure) {
+        step.threw = describe(failure);
+      }
+    } else if (spec.resolve) {
+      step.kind = "resolve";
+      step.call = spec.resolve.call;
+      step.matched = 1;
+      var slot = pendingFetches[spec.resolve.call];
+      if (!slot) {
+        step.matched = 0;
+      } else if (spec.resolve.reject) {
+        slot.reject(new Error("the connection was refused"));
+      } else {
+        slot.resolve({
+          status: spec.resolve.status,
+          json: function () {
+            if (spec.resolve.bad_json) {
+              return Promise.reject(new Error("the body is not JSON"));
+            }
+            return Promise.resolve(spec.resolve.body);
+          }
+        });
+      }
+      await drain();
     } else {
       step.kind = "settle";
       step.call = spec.settle.call;
@@ -514,14 +724,13 @@ if (captured) {
     }
     step.state = stateOf();
     step.nodes = dump(section(), null);
-    steps.push(step);
-  });
+    steps.push(seamState(step));
+  }
 }
 
-var last = steps.length ? steps[steps.length - 1] : null;
-
-process.stdout.write(
-  JSON.stringify({
+function report() {
+  var last = steps.length ? steps[steps.length - 1] : null;
+  return {
     module: path.basename(request.module),
     registered: Boolean(captured),
     panel_id: captured ? captured.id : null,
@@ -531,11 +740,33 @@ process.stdout.write(
     nodes: last ? last.nodes : [],
     steps: steps,
     solve_calls: solveCalls,
+    fetch_calls: fetchCalls,
+    delivered: delivered,
+    solving: Boolean(globalThis.solving),
+    repainting: Boolean(globalThis.repainting),
+    panels_key_when_empty: panelsKeyWhenEmpty,
+    panels_when_empty: panelsWhenEmpty,
     standin_surface: {
       node: Object.getOwnPropertyNames(makeNode("div")).sort(),
       document: Object.keys(globalThis.document).sort()
     }
-  })
+  };
+}
+
+/*
+  THE REPORT IS WRITTEN AFTER THE STEPS HAVE FINISHED, AND A THROW INSIDE THEM
+  IS STILL FATAL. A driver that swallowed one here would print a report about a
+  run that stopped halfway and every arm reading it would grade a truncated
+  page as a whole one.
+*/
+drive().then(
+  function () {
+    process.stdout.write(JSON.stringify(report()));
+  },
+  function (failure) {
+    process.stderr.write("the stepping loop threw: " + describe(failure));
+    process.exitCode = 1;
+  }
 );
 """
 
@@ -545,9 +776,11 @@ def drive(
     data: Mapping[str, Any],
     *,
     module: str | Path = MODULE,
-    door: bool = True,
+    door: str = DOOR_STUB,
     accepts: Sequence[bool] = (),
     steps: Sequence[Mapping[str, Any]] = (),
+    extra_panels: Sequence[str] = (),
+    web_dir: Path | None = None,
 ) -> Mapping[str, Any]:
     """Mount ``panel_solve.js`` with a recording door and drive the given steps.
 
@@ -555,20 +788,39 @@ def drive(
         tmp_path: A directory the driver may write scratch files into.
         data: The six-key payload. Use :func:`panel_harness.null_payload`.
         module: A shipped asset name, or a path to a planted module.
-        door: Whether to install ``data.actions.requestSolve``. False models
-            the seam grader's own harness, where ``actions`` is absent.
+        door: Which ``data.actions.requestSolve`` a mount is handed.
+            :data:`DOOR_STUB` installs the recording stub; :data:`DOOR_NONE`
+            installs no ``actions`` key at all, which models the seam grader's
+            own harness; :data:`DOOR_LIVE` installs ``app.js``'s OWN
+            ``requestSolve`` and makes the driver's ``fetch`` answerable from a
+            ``resolve`` step. Only the live door grades what the SEAM does with
+            an answer, because the stub never enters ``app.js``.
         accepts: What the stub returns for call 0, call 1 and so on. A call
             past the end of this sequence is REFUSED, so an unexpected extra
             call is refused loudly rather than quietly served.
         steps: In order, ``{"fill": {"match": {...}, "value": "..."}}``,
-            ``{"click": {...}}`` or
+            ``{"click": {...}}``, ``{"hold": {...}}`` (pin the one matching
+            node so a later step can read it even once the seam has discarded
+            it), ``{"remount": true}`` (call the shipped ``mountPanels``, which
+            is what a repaint calls), ``{"ask": {"tag": ..., "params": {...},
+            "throws": bool}}`` (ask the seam directly, so an ``onSettled`` that
+            throws can be graded), ``{"resolve": {"call": 0, "status": 200,
+            "body": {...}}}`` - or ``"reject"`` / ``"bad_json"`` - or
             ``{"settle": {"call": 0, "outcome": {...}}}``.
+        extra_panels: Ids registered through the real registrar AFTER the module
+            under test, so a registration ORDER has more than one member.
+        web_dir: A copy of the web directory to load ``app.js`` from. Used to
+            plant a defect back into the SEAM rather than into a panel.
 
     Returns:
         The report described on :func:`panel_harness.run`, plus ``solve_calls``
         - one record per stub call carrying ``param_keys``, ``params``,
         ``types``, ``callback_is_function`` and ``accepted``. Node rows carry
-        an extra ``value``, which is what a reader would have typed.
+        an extra ``value``, which is what a reader would have typed. Every step
+        additionally carries ``solving``, ``repainting``, ``generation``,
+        ``panels``, ``held`` and ``held_in_section``, and the report carries
+        ``fetch_calls``, ``delivered``, ``panels_key_when_empty`` and
+        ``panels_when_empty``.
     """
     node = shutil.which("node")
     if node is None:
@@ -578,7 +830,8 @@ def drive(
             "skips its checks reports PASS while measuring nothing."
         )
 
-    target = panel_harness.WEB_DIR / module if isinstance(module, str) else module
+    root = panel_harness.WEB_DIR if web_dir is None else web_dir
+    target = root / module if isinstance(module, str) else module
     if not target.is_file():
         pytest.fail(f"there is no panel module at {target}")
 
@@ -590,12 +843,14 @@ def drive(
     request.write_bytes(
         json.dumps(
             {
-                "web_dir": str(panel_harness.WEB_DIR),
+                "web_dir": str(root),
                 "module": str(target),
                 "data": dict(data),
-                "door": door,
+                "door": door == DOOR_STUB,
+                "live_door": door == DOOR_LIVE,
                 "accepts": list(accepts),
                 "steps": [dict(step) for step in steps],
+                "extra_panels": list(extra_panels),
             }
         ).encode("ascii")
     )
@@ -847,7 +1102,7 @@ def test_the_driver_stand_in_is_exactly_the_shared_harnesses_surface(tmp_path: P
     is MEASURED against the shared harness's pinned lists rather than asserted
     in prose.
     """
-    report = drive(tmp_path, panel_harness.null_payload(), door=False)
+    report = drive(tmp_path, panel_harness.null_payload(), door=DOOR_NONE)
     surface = report["standin_surface"]
     assert tuple(surface["node"]) == panel_harness.STANDIN_NODE_SURFACE, surface["node"]
     assert tuple(surface["document"]) == panel_harness.STANDIN_DOCUMENT_SURFACE, surface["document"]
@@ -881,12 +1136,12 @@ def test_the_panel_says_so_when_the_seam_published_no_door(tmp_path: Path) -> No
     that does nothing on a press - the exact fault the refusal arm below exists
     to prevent, wearing a different hat.
     """
-    report = drive(tmp_path, panel_harness.null_payload(), door=False)
+    report = drive(tmp_path, panel_harness.null_payload(), door=DOOR_NONE)
     assert report["state"] == panel_harness.STATE_MOUNTED
     after = drive(
         tmp_path,
         panel_harness.null_payload(),
-        door=False,
+        door=DOOR_NONE,
         steps=[{"click": {"tag": "button"}}],
     )
     assert after["steps"][1]["threw"] is None, after["steps"][1]["threw"]
@@ -1096,6 +1351,24 @@ REFUSAL_OUTCOME: Final = {
         "blocked_by": None,
     },
 }
+
+
+def _envelope(outcome: Mapping[str, Any]) -> dict[str, Any]:
+    """The response envelope out of one canned outcome, as a fresh mapping.
+
+    Read through a narrowing check rather than indexed straight into a driver
+    step, because the outcome tables are inferred as mappings of ``object`` and
+    a step spelling has to hand the driver a real mapping.
+
+    Args:
+        outcome: :data:`PLAN_OUTCOME` or :data:`REFUSAL_OUTCOME`.
+
+    Returns:
+        A copy of that outcome's ``body``.
+    """
+    body = outcome["body"]
+    assert isinstance(body, Mapping), body
+    return dict(body)
 
 
 def _settled(outcome: Mapping[str, Any]) -> list[dict[str, Any]]:
@@ -1654,6 +1927,510 @@ def test_the_panel_module_spells_the_four_parameters_the_endpoint_requires() -> 
     source = read_module()
     for name in sorted(solve.SOLVE_REQUIRED):
         assert f'name: "{name}"' in source, f"the bench declares no {name} field"
+
+
+# ---------------------------------------------------------------------------
+# l. A SUPERSEDED SOLVE. The answer must never be written into a dead node
+# ---------------------------------------------------------------------------
+
+#: The four values an ``ask`` step hands the seam. Any four strings will do -
+#: what is under test is the delivery, not the query - but they have to be
+#: exactly the four names or ``requestSolve`` refuses before a fetch is made.
+_ASK_PARAMS: Final = {
+    "targets": "Desc_IronPlate_C=10",
+    "recipes": "Recipe_IronPlate_C",
+    "raw_items": "Desc_OreIron_C",
+    "byproduct_policy": DEFAULT_POLICY,
+}
+
+#: A bench filled and pressed, with the result region pinned before a repaint.
+#: ``hold`` comes AFTER the press so the node it pins is the one carrying the
+#: "asking ..." line, which is the node the answer would land in.
+_IN_FLIGHT_STEPS: Final = (
+    {"fill": {"match": {"id": "solve-targets"}, "value": "Desc_IronPlate_C=10"}},
+    {"click": {"tag": "button"}},
+    {"hold": {"class": "bench-result"}},
+)
+
+
+def _seam_copy(tmp_path: Path, *, plant: tuple[str, str] | None = None) -> Path:
+    """A copy of the whole web directory, optionally with ``app.js`` mutated.
+
+    THE PLANT GOES INTO THE SEAM, NOT INTO A PANEL, because the guard under test
+    lives in ``app.js``. Every other asset is copied verbatim so the copy is the
+    shipped page in every respect but the one being measured.
+
+    Args:
+        tmp_path: A directory the copy may live under.
+        plant: ``(before, after)``, an exact substitution applied to ``app.js``.
+            ``None`` copies it unchanged, which is the control.
+
+    Returns:
+        The copied web directory.
+    """
+    into = tmp_path / f"web_{next(_RUN_COUNTER)}"
+    shutil.copytree(panel_harness.WEB_DIR, into)
+    if plant is not None:
+        before, after = plant
+        source = (into / "app.js").read_bytes().decode("ascii")
+        # A MUTANT THAT NEVER APPLIED LOOKS EXACTLY LIKE A SURVIVING ONE, so the
+        # substitution is counted rather than attempted.
+        assert source.count(before) == 1, (
+            f"the plant anchor is not in app.js exactly once: {source.count(before)}"
+        )
+        (into / "app.js").write_bytes(source.replace(before, after).encode("ascii"))
+    return into
+
+
+def _held_text(report: Mapping[str, Any], kind: str) -> str:
+    """Every character the PINNED node held after the last step of one kind.
+
+    Args:
+        report: A report from :func:`drive`.
+        kind: The step kind to read after.
+
+    Returns:
+        The pinned node's joined ``textContent``, or the empty string if no node
+        was pinned.
+
+    Raises:
+        ValueError: If the run holds no step of that kind.
+    """
+    matching = [step for step in report["steps"] if step["kind"] == kind]
+    if not matching:
+        drove = [step["kind"] for step in report["steps"]]
+        raise ValueError(f"the run drove no {kind} step; it drove {drove}")
+    rows = matching[-1]["held"]
+    return str(rows[0]["text"]) if rows else ""
+
+
+def _superseded_run(tmp_path: Path, *, web_dir: Path) -> Mapping[str, Any]:
+    """Press Solve, repaint, then answer the request that the repaint outran.
+
+    THE INTERLEAVING IS THE SUBJECT. A ``resolve`` after a ``remount`` is
+    exactly the sequence a reader produces by pressing Solve and then Refresh
+    before the answer lands.
+
+    Args:
+        tmp_path: A directory the driver may write scratch files into.
+        web_dir: The web directory to load the seam from.
+
+    Returns:
+        The driver report.
+    """
+    return drive(
+        tmp_path,
+        panel_harness.null_payload(registry=_registry()),
+        door=DOOR_LIVE,
+        web_dir=web_dir,
+        steps=[
+            *_IN_FLIGHT_STEPS,
+            {"remount": True},
+            {"resolve": {"call": 0, "status": OK_STATUS, "body": _envelope(PLAN_OUTCOME)}},
+        ],
+    )
+
+
+def test_a_press_through_the_live_door_issues_one_post_and_is_answered(
+    tmp_path: Path,
+) -> None:
+    """The KNOWN-GOOD CONTROL for this whole section.
+
+    With no repaint interleaved, the same steps deliver: one POST to
+    ``/api/solve`` carrying no body, and the plan rendered where the reader is
+    looking. Without this, "the answer did not arrive" would be satisfied by a
+    driver that never asked for one.
+    """
+    report = drive(
+        tmp_path,
+        panel_harness.null_payload(registry=_registry()),
+        door=DOOR_LIVE,
+        steps=[
+            *_IN_FLIGHT_STEPS,
+            {"resolve": {"call": 0, "status": OK_STATUS, "body": _envelope(PLAN_OUTCOME)}},
+        ],
+    )
+    calls = report["fetch_calls"]
+    assert len(calls) == 1, calls
+    assert calls[0]["method"] == "POST", calls[0]
+    assert calls[0]["url"].startswith("/api/solve?"), calls[0]
+    assert calls[0]["has_body"] is False, calls[0]
+
+    text = text_after_kind(report, "resolve")
+    assert "solved" in text, text
+    assert "10/3" in text, text
+    assert report["solving"] is False, "the seam left its solve flag raised"
+
+
+def test_a_superseded_solve_is_never_rendered_into_a_dead_node(tmp_path: Path) -> None:
+    """Press Solve, press Refresh, then let the answer land. It lands nowhere.
+
+    THE FAULT THIS ARM EXISTS FOR. ``waiting`` is per-mount closure state inside
+    the panel and the seam's own flag is per-page, so a repaint between the
+    request and its delivery used to destroy the bench, build a fresh one saying
+    no solve had been asked for, and then write the plan into the RESULT NODE OF
+    THE BENCH THAT NO LONGER EXISTS. The reader's answer was computed, returned
+    and rendered into nothing, with no message and no error.
+
+    IT IS GRADED ON THE PINNED NODE AND NOT ON THE SECTION, because a plan
+    written into a discarded node is invisible to a dump of the live tree - an
+    arm reading only the section would call the fault fixed while it stood.
+    ``test_the_dead_node_arm_fires_on_a_seam_with_no_generation_gate`` runs these
+    same steps against an ``app.js`` with the guard planted out, where the
+    pinned node DOES receive the plan, so this arm is known able to go red.
+    """
+    report = _superseded_run(tmp_path, web_dir=panel_harness.WEB_DIR)
+
+    remounted = [step for step in report["steps"] if step["kind"] == "remount"][-1]
+    assert remounted["held_in_section"] is False, (
+        "the pinned result node is still in the section, so the repaint never "
+        "discarded it and this arm is measuring nothing"
+    )
+
+    dead = _held_text(report, "resolve")
+    assert "solved" not in dead, f"the plan was written into a discarded node: {dead}"
+    assert "10/3" not in dead, f"a rate was written into a discarded node: {dead}"
+
+    live = text_after_kind(report, "resolve")
+    assert "no solve has been asked for yet" in live, live
+    assert report["solving"] is False, "the seam left its solve flag raised"
+
+
+def test_the_dead_node_arm_fires_on_a_seam_with_no_generation_gate(
+    tmp_path: Path,
+) -> None:
+    """The guard is planted out of ``app.js`` and the arm above must go red.
+
+    A TEST THAT HAS NEVER BEEN RED PROVES NOTHING, and this is the one plant
+    that matters here: the generation comparison is turned into a tautology, so
+    every late answer is delivered exactly as it was before the repair. The
+    pinned node then carries the plan, which is the defect stated as a
+    measurement.
+    """
+    planted = _seam_copy(
+        tmp_path,
+        plant=("if (generation !== panelGeneration) {", "if (generation === null) {"),
+    )
+    report = _superseded_run(tmp_path, web_dir=planted)
+
+    remounted = [step for step in report["steps"] if step["kind"] == "remount"][-1]
+    assert remounted["held_in_section"] is False, remounted
+
+    dead = _held_text(report, "resolve")
+    assert "solved" in dead, (
+        "the planted seam delivered nothing either, so the arm above is not "
+        f"known able to fire: {dead}"
+    )
+    assert "10/3" in dead, dead
+
+
+def test_the_dead_node_arm_fires_on_a_seam_that_never_advances_its_generation(
+    tmp_path: Path,
+) -> None:
+    """The OTHER half of the mechanism, planted out on its own.
+
+    THE COMPARISON AND THE ADVANCE ARE TWO SITES AND EITHER ONE CAN BE LOST. A
+    gate that compares faithfully against a counter nothing ever moves answers
+    "same generation" forever, so the plant above would not have caught this.
+    The advance is removed here and the same steps must deliver into the
+    discarded node again.
+    """
+    planted = _seam_copy(tmp_path, plant=("  panelGeneration += 1;\n", ""))
+    report = _superseded_run(tmp_path, web_dir=planted)
+
+    remounted = [step for step in report["steps"] if step["kind"] == "remount"][-1]
+    assert remounted["held_in_section"] is False, remounted
+    assert "solved" in _held_text(report, "resolve"), (
+        "removing the generation advance changed nothing, so the advance is not "
+        "what the suppression rests on"
+    )
+
+
+def test_the_flag_arms_fire_on_a_seam_that_never_lowers_the_solve_flag(
+    tmp_path: Path,
+) -> None:
+    """``solving`` is planted into a latch and the exit-path arms must go red.
+
+    A LATCHED FLAG LEAVES THE SOLVE BUTTON DEAD FOR THE LIFE OF THE PAGE and
+    this page never reloads itself, so the arms above are only worth their words
+    if they can see it. The release is moved behind a condition that is never
+    true - the query reaching this point is always a string - which latches every
+    exit path at once.
+    """
+    planted = _seam_copy(
+        tmp_path,
+        plant=(
+            "  } catch (networkFailure) {\n"
+            "    outcome = { reached: false, http: null, body: null };\n"
+            "  } finally {\n",
+            "  } catch (networkFailure) {\n"
+            "    outcome = { reached: false, http: null, body: null };\n"
+            "  }\n"
+            "  if (query === null) {\n",
+        ),
+    )
+    report = drive(
+        tmp_path,
+        panel_harness.null_payload(),
+        door=DOOR_LIVE,
+        web_dir=planted,
+        steps=[
+            {"ask": {"tag": "first", "params": dict(_ASK_PARAMS)}},
+            {"resolve": {"call": 0, "status": OK_STATUS, "body": _envelope(PLAN_OUTCOME)}},
+            {"ask": {"tag": "second", "params": dict(_ASK_PARAMS)}},
+        ],
+    )
+    settled = [step for step in report["steps"] if step["kind"] == "resolve"][-1]
+    assert settled["solving"] is True, (
+        "the planted latch did not latch, so the flag arms are not known able to fire"
+    )
+    asks = [step for step in report["steps"] if step["kind"] == "ask"]
+    assert asks[1]["accepted"] is False, asks
+
+
+def test_a_repaint_rebuilds_the_bench_and_drops_typed_values(tmp_path: Path) -> None:
+    """A repaint replaces every field node, so what the reader typed is gone.
+
+    THIS IS THE MEASUREMENT ``app.js``'s SEAM COMMENT NOW CITES. That comment
+    used to say panel sections are "refilled, never rebuilt" so that whatever a
+    keyboard reader was standing on survives a repaint, and that was false in
+    the way that matters: no reader stands on a SECTION, they stand on its
+    CHILDREN, and the seam empties every child on every repaint.
+
+    WHAT IS MEASURED HERE IS NODE IDENTITY AND VALUES, NOT FOCUS. No browser
+    runs in this suite, so real focus behaviour is unmeasured and the comment
+    says so rather than claiming a guarantee nothing here can check.
+    """
+    report = drive(
+        tmp_path,
+        panel_harness.null_payload(registry=_registry()),
+        door=DOOR_LIVE,
+        steps=[
+            {"fill": {"match": {"id": "solve-targets"}, "value": "Desc_IronPlate_C=10"}},
+            {"hold": {"id": "solve-targets"}},
+            {"remount": True},
+        ],
+    )
+    filled = [step for step in report["steps"] if step["kind"] == "fill"][-1]
+    assert input_values({"nodes": filled["nodes"]})["targets"] == "Desc_IronPlate_C=10"
+
+    remounted = [step for step in report["steps"] if step["kind"] == "remount"][-1]
+    assert remounted["held_in_section"] is False, (
+        "the field the reader typed into is still in the section, so this arm "
+        "is not measuring a rebuild at all"
+    )
+    assert input_values({"nodes": remounted["nodes"]})["targets"] == "", (
+        "the rebuilt bench kept a typed value, so the comment this arm backs is "
+        "now understating what the seam does"
+    )
+
+
+# ---------------------------------------------------------------------------
+# m. The solve flag never latches, on any exit path
+# ---------------------------------------------------------------------------
+
+#: Every way a solve can settle, and how a ``resolve`` step spells it. A flag
+#: raised and not lowered leaves the Solve button dead for the life of the page,
+#: and this page never reloads itself - so each path is walked rather than
+#: argued about.
+_EXIT_PATHS: Final = (
+    ("a plan", {"call": 0, "status": OK_STATUS, "body": _envelope(PLAN_OUTCOME)}),
+    ("a refusal", {"call": 0, "status": REFUSED_STATUS, "body": _envelope(REFUSAL_OUTCOME)}),
+    ("a body that is not JSON", {"call": 0, "status": OK_STATUS, "bad_json": True}),
+    ("a network rejection", {"call": 0, "reject": True}),
+)
+
+
+@pytest.mark.parametrize(("name", "resolution"), _EXIT_PATHS, ids=[row[0] for row in _EXIT_PATHS])
+def test_the_solve_flag_is_lowered_on_every_settled_outcome(
+    tmp_path: Path, name: str, resolution: Mapping[str, Any]
+) -> None:
+    """Each exit path lowers ``solving``, and a later press is accepted.
+
+    THE SECOND ASK IS THE PART THAT CANNOT BE FAKED. A report saying the flag
+    reads false could be true of a driver looking at the wrong global; a second
+    request that the seam ACCEPTS and puts on the wire can only be true of a
+    seam that is genuinely free again.
+
+    Args:
+        tmp_path: A directory the driver may write scratch files into.
+        name: Which exit path this row walks, for the failure message.
+        resolution: The ``resolve`` step spelling that path.
+    """
+    report = drive(
+        tmp_path,
+        panel_harness.null_payload(),
+        door=DOOR_LIVE,
+        steps=[
+            {"ask": {"tag": "first", "params": dict(_ASK_PARAMS)}},
+            {"resolve": dict(resolution)},
+            {"ask": {"tag": "second", "params": dict(_ASK_PARAMS)}},
+        ],
+    )
+    asks = [step for step in report["steps"] if step["kind"] == "ask"]
+    assert asks[0]["accepted"] is True, f"the seam refused the first ask on {name}"
+
+    settled = [step for step in report["steps"] if step["kind"] == "resolve"][-1]
+    assert settled["solving"] is False, f"solving latched on {name}"
+    assert asks[1]["accepted"] is True, (
+        f"the seam refused a later solve after {name}, so the flag latched"
+    )
+    assert len(report["fetch_calls"]) == TWO_PRESSES, report["fetch_calls"]
+
+
+def test_the_solve_flag_is_lowered_when_the_caller_itself_throws(tmp_path: Path) -> None:
+    """A panel whose ``onSettled`` throws costs itself a result and nothing else.
+
+    THE ONE EXIT PATH THE BENCH CANNOT DRIVE, which is why the driver can ask
+    the seam directly. A throw out of the callback must not take the flag with
+    it, and nothing from the exception may reach the page.
+    """
+    report = drive(
+        tmp_path,
+        panel_harness.null_payload(),
+        door=DOOR_LIVE,
+        steps=[
+            {"ask": {"tag": "thrower", "params": dict(_ASK_PARAMS), "throws": True}},
+            {"resolve": {"call": 0, "status": OK_STATUS, "body": _envelope(PLAN_OUTCOME)}},
+            {"ask": {"tag": "after", "params": dict(_ASK_PARAMS)}},
+        ],
+    )
+    assert [row["tag"] for row in report["delivered"]] == ["thrower"], report["delivered"]
+
+    settled = [step for step in report["steps"] if step["kind"] == "resolve"][-1]
+    assert settled["threw"] is None, "the throw escaped the seam"
+    assert settled["solving"] is False, "solving latched on a throwing callback"
+
+    asks = [step for step in report["steps"] if step["kind"] == "ask"]
+    assert asks[1]["accepted"] is True, "the seam refused a later solve after a throw"
+
+
+def test_a_delivery_the_repaint_outran_is_dropped_and_still_lowers_the_flag(
+    tmp_path: Path,
+) -> None:
+    """The suppression is a gate on the CALLBACK and never on the flag.
+
+    A guard that suppressed the delivery by refusing to leave the in-flight
+    state would trade a silent fault for a dead button. This walks both halves
+    at once: the outran callback never fires, and the very next ask is accepted.
+    """
+    report = drive(
+        tmp_path,
+        panel_harness.null_payload(),
+        door=DOOR_LIVE,
+        steps=[
+            {"ask": {"tag": "outran", "params": dict(_ASK_PARAMS)}},
+            {"remount": True},
+            {"resolve": {"call": 0, "status": OK_STATUS, "body": _envelope(PLAN_OUTCOME)}},
+            {"ask": {"tag": "after", "params": dict(_ASK_PARAMS)}},
+        ],
+    )
+    assert report["delivered"] == [], (
+        f"an answer the repaint outran was still delivered: {report['delivered']}"
+    )
+
+    settled = [step for step in report["steps"] if step["kind"] == "resolve"][-1]
+    assert settled["solving"] is False, "the suppression latched the solve flag"
+
+    asks = [step for step in report["steps"] if step["kind"] == "ask"]
+    assert asks[1]["accepted"] is True, "a suppressed delivery left the seam busy"
+
+
+def test_a_delivery_with_no_repaint_between_is_not_suppressed(tmp_path: Path) -> None:
+    """The control the suppression arm needs: without a repaint, it arrives.
+
+    AGREEMENT BETWEEN TWO NEGATIVE MEASUREMENTS IS NOT EVIDENCE. A gate that
+    dropped EVERY delivery would satisfy both arms above, so this one pins the
+    positive case through the same steps minus the remount.
+    """
+    report = drive(
+        tmp_path,
+        panel_harness.null_payload(),
+        door=DOOR_LIVE,
+        steps=[
+            {"ask": {"tag": "arrives", "params": dict(_ASK_PARAMS)}},
+            {"resolve": {"call": 0, "status": OK_STATUS, "body": _envelope(PLAN_OUTCOME)}},
+        ],
+    )
+    assert [row["tag"] for row in report["delivered"]] == ["arrives"], report["delivered"]
+    assert report["delivered"][0]["http"] == OK_STATUS, report["delivered"]
+
+
+# ---------------------------------------------------------------------------
+# n. The seam publishes the registered panel ids
+# ---------------------------------------------------------------------------
+
+#: ``registerPanel``'s whole body, from its declaration to the brace that
+#: closes it at column zero.
+_REGISTRAR_BLOCK: Final = re.compile(r"function registerPanel\([\s\S]*?\n\}\n")
+
+#: An id registered after the panel under test, so an ORDER has two members.
+_EXTRA_PANEL: Final = "x1probe"
+
+
+def test_the_seam_publishes_the_panel_ids_in_registration_order(tmp_path: Path) -> None:
+    """``data.panels`` is an array of id strings, in the order they registered.
+
+    THE ANTI-DRIFT REASON THIS KEY EXISTS. No route serves the panel list, so a
+    panel that wanted it had either to read the host's own global or to carry a
+    typed copy that goes stale the moment a panel is added or renamed. The seam
+    publishes it instead, beside the payloads a mount already receives.
+    """
+    report = drive(
+        tmp_path,
+        panel_harness.null_payload(),
+        door=DOOR_LIVE,
+        extra_panels=[_EXTRA_PANEL],
+        steps=[{"remount": True}],
+    )
+    published = [step for step in report["steps"] if step["kind"] == "remount"][-1]["panels"]
+    assert published == [PANEL_ID, _EXTRA_PANEL], published
+    assert all(isinstance(entry, str) for entry in published), published
+
+
+def test_the_seam_publishes_an_empty_array_when_nothing_is_registered(
+    tmp_path: Path,
+) -> None:
+    """With no panel registered the key is PRESENT and is ``[]``.
+
+    ABSENT AND NULL ARE BOTH REFUSED. A reader of this key has to be able to
+    iterate it without asking whether it exists, or the anti-drift gain is spent
+    on a guard at every call site.
+    """
+    report = drive(tmp_path, panel_harness.null_payload())
+    assert report["panels_key_when_empty"] is True, (
+        "the seam omits the panels key entirely before anything registers"
+    )
+    assert report["panels_when_empty"] == [], report["panels_when_empty"]
+
+
+def test_a_late_registration_is_mounted_against_a_list_holding_itself(
+    tmp_path: Path,
+) -> None:
+    """A panel registering after a repaint sees a list that includes it.
+
+    THE SEAM HOLDS THE LAST REPAINT'S PAYLOAD AND MOUNTS A LATE MODULE AGAINST
+    IT. A list built once and never refreshed would hand that module a roster
+    missing the only member it is certain of - itself - which is the drift this
+    key exists to remove, reappearing one layer down.
+    """
+    report = drive(
+        tmp_path,
+        panel_harness.null_payload(),
+        door=DOOR_LIVE,
+        extra_panels=[_EXTRA_PANEL],
+        steps=[{"remount": True}],
+    )
+    published = [step for step in report["steps"] if step["kind"] == "remount"][-1]["panels"]
+    assert _EXTRA_PANEL in published, published
+
+    source = (panel_harness.WEB_DIR / "app.js").read_bytes().decode("ascii")
+    registrar = re.search(_REGISTRAR_BLOCK, source)
+    assert registrar is not None, "registerPanel is not where this arm expects it"
+    assert "panelIds()" in registrar.group(0), (
+        "registerPanel mounts a late panel without refreshing the published id "
+        "list, so that panel is handed a roster that does not include it"
+    )
 
 
 # ---------------------------------------------------------------------------

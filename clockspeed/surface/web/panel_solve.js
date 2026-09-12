@@ -22,6 +22,18 @@
   CLOSURE and writes into them. Nothing here asks to be remounted, and nothing
   here is rebuilt after the mount returns.
 
+  AND HOLDING NODES BY CLOSURE IS EXACTLY WHY THE SEAM HAS TO GATE THE
+  DELIVERY, which is a fact about this file even though the guard is not in it.
+  A repaint between the press and the answer discards this mount's whole tree,
+  so a callback that still ran would write the plan into a result region that is
+  not in the document - the reader's answer computed, returned, and rendered
+  where nobody can see it. app.js captures a repaint generation when it accepts
+  the request and drops the answer if the page has been rebuilt since; see
+  panelGeneration there. WHAT THAT COSTS THIS FILE IS NOTHING TO CLEAN UP: the
+  waiting flag below lives in the discarded closure and goes with it, and the
+  fresh mount starts from "no solve has been asked for yet", which is the truth
+  about the bench now on the page. The reader loses the press, not the page.
+
   THE EXACT RATIONAL IS THE WHOLE POINT, NOT A DETAIL. Every numeric leaf
   /api/solve puts on the wire is a pair of integers, num and den, because the
   contract layer refuses a float on the wire outright. Non-negotiable 6 is
