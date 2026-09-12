@@ -474,11 +474,26 @@ function renderWorld(result) {
   account name - non-negotiable 3. The failure note is built from the panel's
   own id, which is a string this repo authored.
 
-  THE SECTIONS ARE BUILT ONCE AND REFILLED, NEVER REBUILT. Discarding and
-  recreating a section on every repaint is the innerHTML fault in another
-  costume: whatever a keyboard reader was standing on inside a panel would be a
-  node no longer in the document. The host keeps each panel's section and the
-  mount is given an empty one.
+  THE SECTIONS ARE KEPT; THEIR CONTENTS ARE NOT, AND THIS PARAGRAPH USED TO
+  CLAIM OTHERWISE. It said the sections are "refilled, never rebuilt" so that
+  whatever a keyboard reader was standing on inside a panel survives a repaint,
+  and that was false in the way that matters: NO READER EVER STANDS ON A
+  SECTION, they stand on its CHILDREN, and mountPanel empties every child
+  before the mount runs. So a repaint replaces every control inside every
+  panel, and a bench field a reader had typed into is a node no longer in the
+  document with its value gone.
+
+  WHAT IS ACTUALLY TRUE is narrower and is worth having on its own: the SECTION
+  survives, so its id, its order on the page and its aria-labelledby target are
+  stable across a repaint, and a panel that fails on one press does not lose its
+  place on the next. KNOWN LIMITATION, recorded rather than papered over:
+  whatever a reader was standing on INSIDE a panel does not survive a repaint.
+  What this suite can measure of that is node identity and typed values, in
+  tests/surface/test_panel_solve.py::test_a_repaint_rebuilds_the_bench_and_drops_typed_values
+  - no browser runs here, so the focus consequence is reasoned from the audit
+  refresh() records below and is NOT measured by any arm. The seam's job is
+  therefore to make sure a repaint costs a reader only their input, and never
+  an ANSWER it already paid for; see panelGeneration below.
 */
 
 /* The element every panel's section is appended to, and the marker each carries. */
@@ -525,9 +540,31 @@ function registerPanel(id, mountFn) {
   var entry = { id: id, mount: mountFn };
   panelEntries.push(entry);
   if (panelPayloads) {
+    /*
+      THE PUBLISHED ID LIST IS REFRESHED BEFORE THE LATE MOUNT, or this module
+      would be handed a roster missing the only member it is certain of -
+      itself. panelPayloads is the payload of a repaint that finished before
+      this registration, so its list was built without it.
+    */
+    panelPayloads.panels = panelIds();
     mountPanel(entry, panelPayloads);
   }
   return true;
+}
+
+function panelIds() {
+  /*
+    The registered ids, in registration order, as a FRESH array of strings.
+
+    FRESH RATHER THAN THE LIVE ARRAY, because panelEntries holds this file's own
+    bookkeeping - a mount handed it could splice a panel out of the page. What a
+    panel gets is a copy of the ids and nothing else.
+  */
+  var ids = [];
+  for (var index = 0; index < panelEntries.length; index += 1) {
+    ids.push(panelEntries[index].id);
+  }
+  return ids;
 }
 
 function panelSection(id) {
@@ -573,6 +610,21 @@ function panelData(probes) {
     audit: bodyData(probes["/api/audit"]),
     plan: bodyData(probes["/api/plan"]),
     /*
+      THE PANEL ROSTER, WHICH IS NOT A PAYLOAD EITHER AND IS HERE FOR AN
+      ANTI-DRIFT REASON. No route serves the list of panels this page carries,
+      so a panel that needed it had two options and both were worse: read
+      panelEntries out of this file's scope, which makes a private of this
+      module part of every panel's contract, or carry a typed copy, which goes
+      stale the first time a panel is added or renamed and goes stale SILENTLY.
+      Publishing it here means there is exactly one place the list is derived
+      and it is derived from the registrations themselves.
+
+      ALWAYS AN ARRAY, NEVER ABSENT AND NEVER null. A reader has to be able to
+      iterate it without first asking whether it exists, or the drift this
+      removes comes back as a guard at every call site.
+    */
+    panels: panelIds(),
+    /*
       THE SEVENTH KEY IS NOT A PAYLOAD AND IS NAMED SO IT CANNOT BE READ AS
       ONE. The six above are data a repaint already fetched; this one is a
       door a panel may knock on. Calling it "solve" would have put a verb in
@@ -583,8 +635,42 @@ function panelData(probes) {
   };
 }
 
+/*
+  HOW MANY TIMES THIS PAGE HAS TORN ITS PANELS DOWN AND BUILT THEM AGAIN.
+
+  THE FAULT IT EXISTS TO CLOSE. A solve is asked for on a click and answered
+  later; a repaint in between empties every panel's section. The bench holds its
+  result region by closure - it has to, for the reason requestSolve documents -
+  so when the answer arrived the seam handed it to a callback writing into nodes
+  the repaint had already discarded. The reader's plan was computed, returned,
+  and rendered into a node that is not in the document: no plan, no message, no
+  error. A generation is captured when a request is accepted and compared before
+  the answer is delivered, so an answer the repaint outran is DROPPED rather
+  than written somewhere nobody can see it. The fresh bench says no solve has
+  been asked for yet, which is the truth about the bench now on the page.
+
+  WHY NOT REFUSE A REPAINT WHILE A SOLVE IS IN FLIGHT, which is the other shape
+  this could take and reads simpler. Because there is no timeout anywhere on
+  this page and no AbortController - by design, since the only thing that could
+  fire one is a timer, and a timer-rebuilt panel is the mouse-only fault
+  CONVENTIONS 13.3 records. So a request that never settles is possible, and
+  under that rule it would freeze Refresh - the page's ONLY control - for the
+  life of the page, with no reload of its own. That trades a silent wrong answer
+  for a visible deadlock, which is not an improvement: the reader loses the
+  whole page instead of one answer. Dropping the superseded answer costs the
+  reader one press and leaves every control working.
+
+  ADVANCED ONCE PER REPAINT, IN mountPanels, AND NOT ONCE PER MOUNT. mountPanel
+  is also reached from registerPanel, where it empties the newly registered
+  panel's own section and touches no other - advancing there would invalidate an
+  in-flight request belonging to a panel whose nodes are all still in the
+  document, which is the same silent drop wearing the opposite sign.
+*/
+var panelGeneration = 0;
+
 function mountPanels(probes) {
   /* Every registered panel, in registration order, each isolated from the rest. */
+  panelGeneration += 1;
   panelPayloads = panelData(probes);
   for (var index = 0; index < panelEntries.length; index += 1) {
     mountPanel(panelEntries[index], panelPayloads);
@@ -644,7 +730,7 @@ function solveQuery(params) {
   return parts.join("&");
 }
 
-async function runSolve(query, onSettled) {
+async function runSolve(query, onSettled, generation) {
   /*
     The one non-GET request this page issues, folded into the same outcome
     shape probeRoute returns - with one difference that is load-bearing. The
@@ -675,6 +761,18 @@ async function runSolve(query, onSettled) {
       refuses every later one is a dead bench, recoverable only by a reload.
     */
     solving = false;
+  }
+
+  if (generation !== panelGeneration) {
+    /*
+      THE PANELS WERE TORN DOWN AND REBUILT WHILE THIS WAS IN FLIGHT, so the
+      nodes onSettled would write into are no longer in the document. Dropped
+      HERE, after the flag above was lowered and never instead of lowering it:
+      a gate that suppressed the answer by staying busy would leave the Solve
+      button dead for the life of the page. See panelGeneration for why a
+      superseded answer is dropped rather than a repaint refused.
+    */
+    return;
   }
 
   try {
@@ -723,7 +821,12 @@ function requestSolve(params, onSettled) {
   }
 
   solving = true;
-  runSolve(query, onSettled);
+  /*
+    THE GENERATION IS READ NOW AND COMPARED LATER. Captured at acceptance rather
+    than at delivery, because the question the gate answers is whether the nodes
+    this caller was holding WHEN IT ASKED are the nodes still on the page.
+  */
+  runSolve(query, onSettled, panelGeneration);
   return true;
 }
 
