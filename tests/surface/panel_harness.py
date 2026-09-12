@@ -648,18 +648,27 @@ def _compare(
         expected: The member names it must equal.
         why: The sentence explaining why the difference matters.
     """
-    if measured == expected:
-        return
     widened = sorted(set(measured) - set(expected))
     narrowed = sorted(set(expected) - set(measured))
-    pytest.fail(
-        f"{measured_label} is not {expected_label}. "
-        f"Offered here and not there: {widened}. "
-        f"Offered there and not here: {narrowed}. "
-        f"{why} "
-        f"Measured {measured_label}: {list(measured)}. "
-        f"Measured {expected_label}: {list(expected)}."
+    difference = (
+        ""
+        if measured == expected
+        else (
+            f"{measured_label} is not {expected_label}. "
+            f"Offered here and not there: {widened}. "
+            f"Offered there and not here: {narrowed}. "
+            f"{why} "
+            f"Measured {measured_label}: {list(measured)}. "
+            f"Measured {expected_label}: {list(expected)}."
+        )
     )
+    # NO EARLY RETURN. tests/test_liveness.py refuses a grader carrying a bare
+    # return before its assertions, because that is the shape a gutted check
+    # wears - and this helper is the one that pins the stand-in surface, so it
+    # of all things must not be able to exit without comparing. The difference
+    # is bound to a scalar first so the rendered expression cannot say more
+    # than the message does.
+    assert not difference, difference
 
 
 def _check_standin(report: Mapping[str, Any], module: str) -> None:
