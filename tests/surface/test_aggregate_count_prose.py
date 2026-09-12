@@ -89,6 +89,33 @@ rather than on the sweep, so an empty-set equality cannot pass either. The
 honest residual, stated rather than left to be found: a mutation that edits BOTH
 spellings identically survives, and no single-edit mutation does.
 
+THE CLASS, NAMED, because it was rebuilt four times before anyone wrote it down.
+A VALUE THAT DECIDES WHAT A POPULATION MEASURES, NARROWABLE AT ITS USE SITE, AND
+GUARDED BY A FLOOR THAT IS MET EXACTLY. Every instance had that shape and every
+repair created a fresh one a level out: the corpus root, then the anchor that
+pinned the root, then the anchor narrowed at its use site, then the derived plant
+population's PRODUCER sliced at its own return statement - ``[:3]`` on
+:func:`_lifted`, touching no literal, no vocabulary and no config, dropping five
+of eight subset slices and ten arms with 466 green because the floor was 3 and
+3 was met exactly. A floor met exactly grades the bottom of the range and nothing
+else. So floors are gone wherever a second derivation can replace them: the plant
+populations are graded by EQUALITY against :func:`independently_paired_slices`,
+the walk's four thresholds are graded by degenerate corpora that each provoke
+THEIR OWN named finding, and both directions of the corpus difference are
+returned separately and asserted separately rather than summed into one count a
+single term could be dropped from.
+
+AND ABOVE ALL OF IT, ONE BACKSTOP THAT DOES NOT CARE WHAT THE NEXT INSTANCE IS.
+All four defects presented identically - a silent arm-count drop, 476 to 466, 476
+to 474, and once a silent rise to 478 - and nothing was watching the number.
+:func:`test_the_collected_arm_count_matches_an_independent_expectation` now
+compares what pytest actually collected from this module against an expectation
+derived from the module's own declarations, with every DERIVED plant population
+counted by its independent re-derivation rather than by the mark under test.
+Verified against a real on-disk edit rather than assumed: the ``[:3]`` slice
+takes the collected count from 484 to 474 and reddens both that arm and the
+plant-equality arm.
+
 ONE MUTANT SURVIVES THE EQUALITY ARM AND IS EQUIVALENT RATHER THAN LIVE, which
 is a different thing and is measured, not asserted. Adding ``docs`` to
 :data:`POPULATION_ROOTS` leaves every arm green because ``docs/`` holds ZERO of
@@ -99,6 +126,27 @@ could distinguish the two trees. The moment somebody adds a ``.py`` under
 because the independent walk does not read that root. An equivalent mutant is
 not a surviving one, and the way to tell them apart is to name the structural
 fact that makes it equivalent.
+
+TWO MORE EQUIVALENCES, recorded on the same terms rather than left as apparent
+survivors. Reducing the corpus difference to one direction is equivalent IN THIS
+CHECKOUT because both derivations agree, so nothing could observe it; it is now
+graded structurally anyway, by feeding the helper an asymmetry each way.
+Similarly, making :func:`_declared_case_count` read the mark instead of the
+independent re-derivation is unobservable while the producer is intact - the two
+numbers are both 8 - and becomes observable only once the producer has been
+narrowed, which the plant-equality arm already kills on its own. Defence in depth
+whose removal no single edit can expose is still worth keeping and is not worth
+claiming an arm for.
+
+THE KNOWN BACKSTOP-OF-LAST-RESORT GAP, one honest sentence rather than a fifth
+round. A THREE-EDIT route survives everything above: weaken the corpus equality
+to a superset, drop ``shell`` from the roots, and delete two entries from the
+carrier list in
+:func:`test_the_population_contains_every_known_carrier`, which leaves 18
+``shell/`` files unswept with the arm count intact. That carrier list is a
+parametrized literal naming 15 of 59 files and is self-deleting in exactly the
+way this module has now repaired four times. It is left standing deliberately: no
+single-edit mutation reaches it.
 
 THE ELECTRON SHELL IS IN THE POPULATION. ``shell/`` carries 18 ``.js`` files and
 is the companion surface that renders the same route set, so a restated count
@@ -207,6 +255,7 @@ from __future__ import annotations
 
 import inspect
 import os
+import sys
 from pathlib import Path
 from typing import Final
 
@@ -479,6 +528,30 @@ def aggregate_count_phrases(text: str) -> tuple[str, ...]:
     return tuple(hits)
 
 
+def is_excluded_by_component(path: Path) -> bool:
+    """Whether PATH carries an excluded component BELOW the repository root.
+
+    THE COMPONENTS ARE MATCHED RELATIVE TO :data:`REPO_ROOT`, NEVER ABSOLUTE, and
+    that distinction was a live defect twice over in opposite polarities. Matching
+    ``path.parts`` on an absolute path also inspects the drive and every ancestor
+    directory, so a checkout under any directory named ``test`` or ``tests``
+    excluded EVERY file and the population went empty - and an empty population
+    silently passes the arm this module exists for, a let-through. The same
+    confusion sat one function away in the exclusion arm, matching absolute parts
+    from :func:`population_files`, where the polarity was inverted: under such a
+    checkout it reported strays and went RED, a false alarm rather than a
+    let-through. Both now go through here.
+
+    Args:
+        path: An absolute path under :data:`REPO_ROOT`.
+
+    Returns:
+        True when some repository-relative component is excluded.
+    """
+    relative = path.relative_to(REPO_ROOT).parts
+    return any(part in EXCLUDED_PATH_PARTS for part in relative)
+
+
 def _is_population_member(path: Path) -> bool:
     """Whether PATH is a file this guard grades.
 
@@ -490,8 +563,7 @@ def _is_population_member(path: Path) -> bool:
     """
     if not path.is_file() or path.suffix not in POPULATION_SUFFIXES:
         return False
-    relative = path.relative_to(REPO_ROOT).parts
-    return not any(part in EXCLUDED_PATH_PARTS for part in relative)
+    return not is_excluded_by_component(path)
 
 
 def population_files() -> tuple[Path, ...]:
@@ -683,21 +755,26 @@ def test_every_forbidden_prefix_is_live_rather_than_decorative(prefix: str) -> N
     )
 
 
-def test_the_derived_population_floors_are_pinned_in_both_directions() -> None:
-    """The floors under the DERIVED plant populations are values too, so they are pinned.
+def test_the_plant_source_modules_are_pinned_in_both_directions() -> None:
+    """WHICH modules the plants are lifted from is a value, so it is pinned.
 
-    Lowered to zero, a parametrized arm over an empty derivation collects no cases
-    and vanishes in silence, which is the one way a derived population can still
-    grade nothing.
+    Equality between two derivations over the SAME source cannot notice the
+    source itself being narrowed - both sides would shrink together - so the
+    module tuples get an ordinary both-directions pin. Measured: narrowing the
+    distributive tuple to ``(routes,)`` took the population from three pairs to
+    two and survived, because the floor it replaced was two.
     """
-    expected_subset = 3
-    expected_distributive = 2
-    assert expected_subset == MINIMUM_LIFTED_SUBSET_SENTENCES, (
-        f"the subset floor is {MINIMUM_LIFTED_SUBSET_SENTENCES}, not {expected_subset}"
+    subset_modules = sorted(module.__name__ for module in SUBSET_PLANT_MODULES)
+    distributive_modules = sorted(module.__name__ for module in DISTRIBUTIVE_PLANT_MODULES)
+    expected_subset = ["clockspeed.surface.api.pending", "clockspeed.surface.api.solve"]
+    expected_distributive = ["clockspeed.surface.api.pending", "clockspeed.surface.api.routes"]
+    assert expected_subset == subset_modules, (
+        f"the subset plant modules are {subset_modules}, not {expected_subset}; "
+        "narrowing this tuple shrinks a population that equality then measures "
+        "against the same narrowed source"
     )
-    assert expected_distributive == MINIMUM_LIFTED_DISTRIBUTIVE_SENTENCES, (
-        f"the distributive floor is {MINIMUM_LIFTED_DISTRIBUTIVE_SENTENCES}, not "
-        f"{expected_distributive}"
+    assert expected_distributive == distributive_modules, (
+        f"the distributive plant modules are {distributive_modules}, not {expected_distributive}"
     )
 
 
@@ -1062,13 +1139,13 @@ def test_the_detector_does_not_read_a_section_reference_as_a_count() -> None:
 #: sentence is one token away from firing.
 AUTHORITY_PREFIX: Final = "``BOOTSTRAP.md`` section 7.1 lists them."
 
-#: Fewest live subset sentences the extraction below must find. A floor, not a
-#: membership list: a list of sentences is self-deleting under parametrize, which
-#: is how an earlier revision let "drop one plant" survive with 463 arms green.
-MINIMUM_LIFTED_SUBSET_SENTENCES: Final = 3
+#: Which live modules each derived plant population is lifted from. Spelled once
+#: so the independent re-derivation below can read exactly the same source
+#: without sharing the derivation that reads it.
+SUBSET_PLANT_MODULES: Final = (pending, solve)
 
-#: Fewest live distributive sentences, on the same terms.
-MINIMUM_LIFTED_DISTRIBUTIVE_SENTENCES: Final = 2
+#: The same, for the distributive population.
+DISTRIBUTIVE_PLANT_MODULES: Final = (routes, pending)
 
 
 def _pair_slices(source: str) -> tuple[tuple[str, bool], ...]:
@@ -1106,11 +1183,15 @@ def _pair_slices(source: str) -> tuple[tuple[str, bool], ...]:
 def _lifted(modules: tuple[object, ...], distributive: bool) -> tuple[str, ...]:
     """Pair slices lifted from live modules, of one kind.
 
-    DERIVED FROM THE SHIPPING SOURCE rather than listed, which is the point. An
-    earlier revision held these as literals in a parametrized tuple; dropping one
-    deleted its own two arms and survived with every arm green - the same
-    self-deleting-vocabulary hazard the numeric vocabularies carry a membership
-    pin for. There is nothing here to drop.
+    DERIVED FROM THE SHIPPING SOURCE rather than listed, and then graded by
+    EQUALITY against :func:`independently_paired_slices` rather than by a floor.
+    The history is worth the two sentences. An early revision held these as
+    literals in a parametrized tuple, and dropping one deleted its own arms and
+    survived. Deriving them removed that, but left the PRODUCER narrowable at its
+    own return: appending ``[:3]`` here - touching no literal, no vocabulary and
+    no config - dropped five of eight subset slices and ten arms with 466 green,
+    because the floor guarding it was 3 and was met EXACTLY. A floor met exactly
+    grades the bottom of the range and nothing else.
 
     Args:
         modules: Live modules to read.
@@ -1127,27 +1208,162 @@ def _lifted(modules: tuple[object, ...], distributive: bool) -> tuple[str, ...]:
     return tuple(sorted(found, key=lambda text: (-len(text), text)))
 
 
+def independently_paired_slices(source: str, distributive: bool) -> tuple[str, ...]:
+    """The same pairs, found again by rules spelled nowhere else in this module.
+
+    This is the corpus construction applied to the PLANT populations: two
+    derivations, no shared helper and no shared constant, graded by set equality
+    so a narrowing on either side is a disagreement rather than a floor that
+    still holds. It calls neither :func:`_tokenize`, :func:`_is_count`,
+    :func:`_noun_index` nor :func:`_pair_slices`, and spells its own separators,
+    count words, nouns, rate word and distances as literals.
+
+    Args:
+        source: Module source to scan.
+        distributive: Which kind to return.
+
+    Returns:
+        Distinct slices, sorted the same way so the two sides are comparable.
+    """
+    counts_here = (
+        "one",
+        "two",
+        "three",
+        "four",
+        "five",
+        "six",
+        "seven",
+        "eight",
+        "nine",
+        "ten",
+        "eleven",
+        "twelve",
+        "thirteen",
+        "fourteen",
+        "fifteen",
+        "sixteen",
+        "seventeen",
+        "eighteen",
+        "nineteen",
+        "twenty",
+        "dozen",
+    )
+    nouns_here = (
+        "endpoint",
+        "endpoints",
+        "route",
+        "routes",
+        "template",
+        "templates",
+        "path",
+        "paths",
+        "url",
+        "urls",
+        "handler",
+        "handlers",
+        "api",
+        "apis",
+        "resource",
+        "resources",
+        "surface",
+        "surfaces",
+    )
+    rate_here = "per"
+    ahead_here = 2
+    behind_here = 2
+    digits_here = 3
+    flattened = source.replace("-", " ").replace("_", " ")
+    words = flattened.split()
+    letters = ["".join(filter(str.isalpha, word)).lower() for word in words]
+    found: set[str] = set()
+    for index, word in enumerate(words):
+        if letters[index] not in counts_here and not (word.isdigit() and len(word) <= digits_here):
+            continue
+        noun_at = None
+        for offset in range(index + 1, min(index + 1 + ahead_here, len(letters))):
+            if letters[offset] in nouns_here:
+                noun_at = offset
+                break
+        if noun_at is None:
+            for offset in range(index - 1, max(-1, index - 1 - behind_here), -1):
+                if letters[offset] in nouns_here:
+                    noun_at = offset
+                    break
+        if noun_at is None:
+            continue
+        low = min(index, noun_at)
+        high = max(index, noun_at)
+        trailing = letters[high + 1] if high + 1 < len(letters) else ""
+        if (trailing == rate_here) != distributive:
+            continue
+        found.add(" ".join(words[low : high + 2]))
+    return tuple(sorted(found, key=lambda text: (-len(text), text)))
+
+
 def lifted_subset_sentences() -> tuple[str, ...]:
     """Live count-noun pairs that are NOT rates - a module counting its own subset."""
-    return _lifted((pending, solve), distributive=False)
+    return _lifted(SUBSET_PLANT_MODULES, distributive=False)
 
 
 def lifted_distributive_sentences() -> tuple[str, ...]:
     """Live count-noun pairs that state a RATE rather than a count."""
-    return _lifted((routes, pending), distributive=True)
+    return _lifted(DISTRIBUTIVE_PLANT_MODULES, distributive=True)
 
 
-def test_the_lifted_sentence_populations_are_not_vacuous() -> None:
-    """Both derivations must actually find something, or every arm over them is empty."""
-    subset_count = len(lifted_subset_sentences())
-    distributive_count = len(lifted_distributive_sentences())
-    assert subset_count >= MINIMUM_LIFTED_SUBSET_SENTENCES, (
-        f"the subset extraction found {subset_count} live sentence(s), fewer than the "
-        f"{MINIMUM_LIFTED_SUBSET_SENTENCES} this repository carries"
+def _independent_population(modules: tuple[object, ...], distributive: bool) -> tuple[str, ...]:
+    """The independent re-derivation over the same modules.
+
+    Args:
+        modules: Live modules to read.
+        distributive: Which kind to return.
+
+    Returns:
+        Distinct slices, sorted as :func:`_lifted` sorts them.
+    """
+    found: set[str] = set()
+    for module in modules:
+        found.update(
+            independently_paired_slices(inspect.getsource(module), distributive)  # type: ignore[arg-type]
+        )
+    return tuple(sorted(found, key=lambda text: (-len(text), text)))
+
+
+@pytest.mark.parametrize(
+    ("kind", "lifted", "modules"),
+    [
+        ("subset", lifted_subset_sentences, SUBSET_PLANT_MODULES),
+        ("distributive", lifted_distributive_sentences, DISTRIBUTIVE_PLANT_MODULES),
+    ],
+)
+def test_each_plant_population_equals_an_independent_rederivation(
+    kind: str, lifted: object, modules: tuple[object, ...]
+) -> None:
+    """Equality, not a floor. A producer narrowed at its return is a disagreement.
+
+    The floors this replaced were met exactly - three of three, and two of two -
+    so they graded the bottom of the range and nothing else, and slicing the
+    producer's return to that exact floor survived with ten arms gone.
+    """
+    produced = frozenset(lifted())  # type: ignore[operator]
+    expected = frozenset(_independent_population(modules, kind == "distributive"))
+    produced_count = len(produced)
+    expected_count = len(expected)
+    assert expected_count > 0, (
+        f"the independent re-derivation found no {kind} pair, so equality with it "
+        "would prove nothing"
     )
-    assert distributive_count >= MINIMUM_LIFTED_DISTRIBUTIVE_SENTENCES, (
-        f"the distributive extraction found {distributive_count} live sentence(s), "
-        f"fewer than the {MINIMUM_LIFTED_DISTRIBUTIVE_SENTENCES} this repository carries"
+    missing = sorted(expected - produced)
+    surplus = sorted(produced - expected)
+    missing_count = len(missing)
+    surplus_count = len(surplus)
+    assert missing_count == 0, (
+        f"the {kind} producer dropped {missing_count} of the {expected_count} pair(s) "
+        f"the independent re-derivation finds, the first few being {missing[:3]}"
+    )
+    assert surplus_count == 0, (
+        f"the {kind} producer returned {surplus_count} pair(s) the independent "
+        f"re-derivation does not find, the first few being {surplus[:3]}; it produced "
+        f"{produced_count} in total"
     )
 
 
@@ -1254,58 +1470,188 @@ def test_two_modifiers_between_count_and_noun_is_a_stated_limit() -> None:
 # ---------------------------------------------------------------------------
 
 
+def corpus_disagreement(
+    swept: frozenset[Path], walked: frozenset[Path]
+) -> tuple[tuple[str, ...], tuple[str, ...]]:
+    """Both directions of the difference between the two corpus derivations.
+
+    Extracted from the arm so the arm cannot be reduced to a superset check by
+    deleting a term from a summed count. Replacing
+    ``len(unswept) + len(unexpected)`` with ``len(unexpected)`` was measured to
+    survive - equivalent in this checkout, because both sides agree, but it is
+    the defence on the arm the whole construction rests on, so both directions
+    are now returned separately, asserted separately, and graded by
+    :func:`test_both_directions_of_the_corpus_difference_are_reported`.
+
+    Args:
+        swept: What :func:`population_files` found.
+        walked: What :func:`independently_walked_corpus` found.
+
+    Returns:
+        The walked-but-unswept spellings, then the swept-but-unwalked ones.
+    """
+    return tuple(_relative(walked - swept)), tuple(_relative(swept - walked))
+
+
+def test_both_directions_of_the_corpus_difference_are_reported() -> None:
+    """Feed the helper an asymmetry each way and require it to notice each one.
+
+    Without this, dropping either term leaves the equality arm green in a
+    checkout where the two derivations agree, and the arm silently becomes a
+    one-sided check.
+    """
+    present = frozenset({REPO_ROOT / "clockspeed" / "__init__.py"})
+    empty: frozenset[Path] = frozenset()
+    unswept_only, unexpected_only = corpus_disagreement(empty, present)
+    assert len(unswept_only) == 1, (
+        "a file the walk found and the sweep missed was not reported, so the "
+        "unswept direction of the difference is not consulted"
+    )
+    assert len(unexpected_only) == 0, "the unexpected direction reported a phantom"
+    unswept_other, unexpected_other = corpus_disagreement(present, empty)
+    assert len(unexpected_other) == 1, (
+        "a file the sweep found and the walk missed was not reported, so the "
+        "unexpected direction of the difference is not consulted"
+    )
+    assert len(unswept_other) == 0, "the unswept direction reported a phantom"
+
+
 def test_the_swept_corpus_equals_an_independently_walked_corpus() -> None:
-    """THE guarantee. Set equality, reported as counts plus the symmetric difference."""
+    """THE guarantee. Set equality, with each direction asserted on its own."""
     swept = frozenset(population_files())
     walked = frozenset(independently_walked_corpus())
     swept_count = len(swept)
     walked_count = len(walked)
-    unswept = _relative(walked - swept)
-    unexpected = _relative(swept - walked)
-    difference_count = len(unswept) + len(unexpected)
-    assert difference_count == 0, (
-        f"the two derivations of the corpus disagree on {difference_count} file(s): "
-        f"the walk found {walked_count} and the sweep {swept_count}; "
-        f"{len(unswept)} walked file(s) are unswept, the first few being {unswept[:5]}; "
-        f"{len(unexpected)} swept file(s) are outside the walk, the first few being "
-        f"{unexpected[:5]}"
+    unswept, unexpected = corpus_disagreement(swept, walked)
+    unswept_count = len(unswept)
+    unexpected_count = len(unexpected)
+    assert unswept_count == 0, (
+        f"{unswept_count} of the {walked_count} file(s) the independent walk found are "
+        f"NOT swept, the first few being {list(unswept[:5])}; the sweep found "
+        f"{swept_count}"
+    )
+    assert unexpected_count == 0, (
+        f"{unexpected_count} of the {swept_count} swept file(s) lie outside the "
+        f"independent walk, the first few being {list(unexpected[:5])}; the walk found "
+        f"{walked_count}"
     )
 
 
-def test_the_independent_walk_is_not_vacuous() -> None:
-    """Equality with an empty set is not a guarantee, so the WALK has its own floor.
+#: The degenerate corpora the walk's floor must reject, one per threshold, each
+#: sitting exactly one step below it. A floor that accepts any of these has been
+#: loosened; a floor that rejects the real corpus has been tightened. Both
+#: directions therefore die, which four inline comparisons did not manage: all of
+#: ``walked_count > 0``, ``top_level_count > 1``, ``suffix_count > 1`` and
+#: ``minimum_packages = 5`` could be loosened with every arm green.
+#: Each entry fails EXACTLY ONE threshold and satisfies the rest, so loosening
+#: any single threshold is killed by its own entry and by no other - a corpus
+#: that failed two would let one loosening hide behind the other, which is the
+#: pooled-guard shape these controls exist to avoid.
+#: Each entry names the finding it must provoke, so every threshold is graded
+#: SEPARATELY. Asserting only that some finding appeared would leave the
+#: emptiness threshold redundant - an empty corpus trips all four - and a
+#: redundant threshold is one that can be loosened for free.
+DEGENERATE_CORPORA: Final = {
+    "empty": ((), "found nothing"),
+    "one top-level tree": (
+        (
+            "clockspeed/a/x.py",
+            "clockspeed/b/x.py",
+            "clockspeed/c/x.py",
+            "clockspeed/d/x.py",
+            "clockspeed/e/x.py",
+            "clockspeed/a/y.js",
+        ),
+        "top-level tree",
+    ),
+    "one suffix": (
+        (
+            "clockspeed/a/x.py",
+            "clockspeed/b/x.py",
+            "clockspeed/c/x.py",
+            "clockspeed/d/x.py",
+            "clockspeed/e/x.py",
+            "shell/main.py",
+        ),
+        "suffix(es)",
+    ),
+    "too few subpackages": (
+        (
+            "clockspeed/a/x.py",
+            "clockspeed/b/x.py",
+            "clockspeed/c/x.py",
+            "clockspeed/d/x.py",
+            "shell/main.js",
+        ),
+        "subpackage(s)",
+    ),
+}
 
-    Every number here is derived from the walk alone - the side that shares no
-    constant with the detector - so a shrink on the other side cannot satisfy it.
+
+def walk_floor_findings(walked: tuple[Path, ...]) -> tuple[str, ...]:
+    """Why WALKED is too degenerate to make set equality mean anything.
+
+    Args:
+        walked: A candidate corpus.
+
+    Returns:
+        One finding per failed threshold, empty when the corpus is adequate.
     """
-    walked = independently_walked_corpus()
-    walked_count = len(walked)
-    assert walked_count > 0, "the independent walk found nothing; equality would prove nothing"
-    top_levels = {path.relative_to(REPO_ROOT).parts[0] for path in walked}
-    top_level_count = len(top_levels)
-    assert top_level_count > 1, (
-        f"the independent walk reaches only {top_level_count} top-level tree(s) "
-        f"{sorted(top_levels)}, so it cannot notice one of them being dropped"
-    )
-    suffixes = {path.suffix for path in walked}
-    suffix_count = len(suffixes)
-    assert suffix_count > 1, (
-        f"the independent walk reaches only {suffix_count} suffix(es) {sorted(suffixes)}, "
-        "so it cannot notice a language being dropped"
-    )
-    nested_depth = 2
-    packages = {
-        path.relative_to(REPO_ROOT).parts[1]
-        for path in walked
-        if path.relative_to(REPO_ROOT).parts[0] == "clockspeed"
-        and len(path.relative_to(REPO_ROOT).parts) > nested_depth
-    }
-    package_count = len(packages)
+    minimum_top_levels = 2
+    minimum_suffixes = 2
     minimum_packages = 5
-    assert package_count >= minimum_packages, (
-        f"the independent walk reaches {package_count} subpackage(s) of the shipping "
-        f"tree, fewer than the {minimum_packages} this repository has carried since "
-        f"phase 4: {sorted(packages)}"
+    nested_depth = 2
+    findings: list[str] = []
+    if len(walked) == 0:
+        findings.append("the walk found nothing, so equality would prove nothing")
+    relatives = [path.relative_to(REPO_ROOT).parts for path in walked]
+    top_levels = {parts[0] for parts in relatives}
+    if len(top_levels) < minimum_top_levels:
+        findings.append(
+            f"the walk reaches {len(top_levels)} top-level tree(s) {sorted(top_levels)}, "
+            f"fewer than {minimum_top_levels}, so it cannot notice one being dropped"
+        )
+    suffixes = {path.suffix for path in walked}
+    if len(suffixes) < minimum_suffixes:
+        findings.append(
+            f"the walk reaches {len(suffixes)} suffix(es) {sorted(suffixes)}, fewer than "
+            f"{minimum_suffixes}, so it cannot notice a language being dropped"
+        )
+    packages = {
+        parts[1] for parts in relatives if parts[0] == "clockspeed" and len(parts) > nested_depth
+    }
+    if len(packages) < minimum_packages:
+        findings.append(
+            f"the walk reaches {len(packages)} subpackage(s) {sorted(packages)}, fewer "
+            f"than the {minimum_packages} this repository has carried since phase 4"
+        )
+    return tuple(findings)
+
+
+def test_the_independent_walk_is_not_degenerate() -> None:
+    """Equality with a degenerate set is not a guarantee, so the WALK has a floor.
+
+    Every number is derived from the walk alone - the side that shares no constant
+    with the detector - so a shrink on the other side cannot satisfy it.
+    """
+    findings = walk_floor_findings(independently_walked_corpus())
+    finding_count = len(findings)
+    assert finding_count == 0, (
+        f"the independent walk is degenerate in {finding_count} way(s): {list(findings)}"
+    )
+
+
+@pytest.mark.parametrize("label", sorted(DEGENERATE_CORPORA))
+def test_the_walk_floor_rejects_every_degenerate_corpus(label: str) -> None:
+    """The firing leg under each threshold, so loosening any of the four dies here."""
+    spellings, marker = DEGENERATE_CORPORA[label]
+    candidate = tuple(REPO_ROOT / spelling for spelling in spellings)
+    findings = walk_floor_findings(candidate)
+    matched_count = len([finding for finding in findings if marker in finding])
+    assert matched_count > 0, (
+        f"the walk floor did not report {marker!r} for a corpus degenerate in exactly "
+        f"that way ({label}), so that threshold has been loosened; it reported "
+        f"{len(findings)} other finding(s)"
     )
 
 
@@ -1354,10 +1700,48 @@ def test_the_population_excludes_the_recording_trees(prefix: str) -> None:
 
 @pytest.mark.parametrize("part", EXCLUDED_PATH_PARTS)
 def test_the_population_excludes_every_declared_path_component(part: str) -> None:
-    strays = [member for member in population_files() if part in member.parts]
+    """Matched on the REPOSITORY-RELATIVE parts, never the absolute ones.
+
+    The reason is stated at length on :func:`is_excluded_by_component`: this arm
+    carried the absolute spelling, where the polarity is a false RED rather than
+    a let-through.
+    """
+    strays = [
+        member for member in population_files() if part in member.relative_to(REPO_ROOT).parts
+    ]
     stray_count = len(strays)
     assert stray_count == 0, (
         f"{stray_count} population file(s) carry the excluded path component {part}"
+    )
+
+
+def test_component_exclusion_reads_the_relative_path_and_not_the_absolute_one(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The arm the relative-path repair shipped without. Both polarities are graded.
+
+    A synthetic checkout is placed UNDER a directory named ``tests``, which is
+    exactly the shape that emptied the population. Nothing in this repository is
+    touched: the tree is built in pytest's own temporary directory and
+    :data:`REPO_ROOT` is redirected for the duration of this arm alone.
+    """
+    checkout = tmp_path / "tests" / "cs929-checkout"
+    inside = checkout / "clockspeed" / "surface"
+    inside.mkdir(parents=True)
+    wanted = inside / "server.py"
+    wanted.write_text("# synthetic\n", encoding="utf-8")
+    genuinely_excluded = checkout / "clockspeed" / "tests" / "helper.py"
+    genuinely_excluded.parent.mkdir(parents=True)
+    genuinely_excluded.write_text("# synthetic\n", encoding="utf-8")
+    monkeypatch.setattr("tests.surface.test_aggregate_count_prose.REPO_ROOT", checkout)
+    assert not is_excluded_by_component(wanted), (
+        "a file whose ABSOLUTE ancestry carries an excluded component - but whose "
+        "repository-relative path does not - was excluded, which empties the whole "
+        "population for any checkout under a directory named test or tests"
+    )
+    assert is_excluded_by_component(genuinely_excluded), (
+        "a file genuinely under an excluded component was not excluded, so the "
+        "exclusion has stopped working in the direction it is for"
     )
 
 
@@ -1394,4 +1778,107 @@ def test_no_shipping_module_restates_the_published_route_count() -> None:
         f"{offender_count} place(s) in the shipping tree restate the size of the "
         f"published route set - {offenders} - and the owner of that number is "
         "health.ENDPOINT_TEMPLATES, not a docstring or a comment"
+    )
+
+
+# ---------------------------------------------------------------------------
+# THE ARM-COUNT BACKSTOP. Every one of the four defects in this module's history
+# presented as a SILENT ARM-COUNT DROP and nothing else: 476 to 466 when the
+# plant producer was sliced at its return, 476 to 474 when a plant source tuple
+# was narrowed, and one widening moved it silently to 478. Whatever the next
+# instance of the class turns out to be, it will show up here first.
+# ---------------------------------------------------------------------------
+
+
+#: For a parametrized argument name whose population is derived, how to count it
+#: INDEPENDENTLY of the producer under test. Any other argument's size is taken
+#: from the mark itself, because those populations are membership-pinned.
+INDEPENDENT_CASE_COUNTS: Final = {
+    "legal": lambda: len(_independent_population(SUBSET_PLANT_MODULES, distributive=False)),
+    "distributive": lambda: len(
+        _independent_population(DISTRIBUTIVE_PLANT_MODULES, distributive=True)
+    ),
+}
+
+
+def _declared_case_count(function: object) -> int:
+    """How many cases FUNCTION declares, with derived populations counted independently.
+
+    Args:
+        function: A module-level test function.
+
+    Returns:
+        The product of its parametrize sizes, or one when it takes no parameters.
+    """
+    total = 1
+    for mark in getattr(function, "pytestmark", ()):
+        if mark.name != "parametrize":
+            continue
+        argnames, argvalues = mark.args[0], mark.args[1]
+        names = argnames if isinstance(argnames, str) else ",".join(argnames)
+        independent = INDEPENDENT_CASE_COUNTS.get(names.strip())
+        total *= independent() if independent else len(list(argvalues))
+    return total
+
+
+def expected_arm_count() -> int:
+    """This module's arm count, expected from its own declarations.
+
+    Derived rather than written down, because a literal here would be knob number
+    five. For every parametrized arm over a DERIVED plant population the size is
+    taken from the independent re-derivation instead of from the mark, so a
+    producer narrowed at its return statement shows up as a shortfall.
+
+    Returns:
+        The number of arms this module should collect.
+    """
+    return sum(
+        _declared_case_count(value)
+        for name, value in sorted(vars(sys.modules[__name__]).items())
+        if name.startswith("test_") and callable(value)
+    )
+
+
+def test_the_collected_arm_count_matches_an_independent_expectation(
+    request: pytest.FixtureRequest,
+) -> None:
+    """The backstop of last resort: how many arms this module actually collected.
+
+    A FILTERED session cannot assert equality - the operator asked for a subset -
+    so it asserts the weaker direction rather than skipping, because a gate that
+    skips its checks reports PASS.
+
+    THE KNOWN GAP, recorded rather than pursued. A THREE-EDIT route survives
+    this and everything above it: weaken the corpus equality to a superset, drop
+    ``shell`` from the roots, and delete two entries from the carrier list, which
+    leaves 18 ``shell/`` files unswept with the arm count intact. The carrier list
+    is a parametrized literal naming 15 of 59 files, so it is self-deleting in
+    the way this module has now repaired four times over. It is left standing
+    deliberately: no single-edit mutation reaches it, and the honest record of one
+    sentence is worth more than a fifth round.
+    """
+    collected = [
+        item
+        for item in request.session.items
+        if getattr(getattr(item, "module", None), "__name__", "") == __name__
+    ]
+    collected_count = len(collected)
+    expected_count = expected_arm_count()
+    assert expected_count > 0, "the expectation derived to zero; this arm would prove nothing"
+    filtered = bool(
+        getattr(request.config.option, "keyword", "")
+        or getattr(request.config.option, "markexpr", "")
+        or getattr(request.config.option, "deselect", None)
+        or getattr(request.config.option, "last_failed", False)
+    )
+    if filtered:
+        assert collected_count <= expected_count, (
+            f"this filtered session collected {collected_count} arm(s) from this module, "
+            f"MORE than the {expected_count} it declares, which a filter cannot do"
+        )
+        return
+    assert collected_count == expected_count, (
+        f"this module collected {collected_count} arm(s) but declares {expected_count}; "
+        "a shortfall means a population shrank without its own arm noticing, which is "
+        "how each of this module's four repaired defects first presented"
     )
