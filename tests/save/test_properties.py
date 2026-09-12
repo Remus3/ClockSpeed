@@ -2320,7 +2320,9 @@ def _fstring(text: str, *, wide: bool = False) -> bytes:
     filed as 56, re-derived as 47 by a verifier that tokenized rather than
     grepped, and it is decoration either way - the property is that no
     positional caller changed meaning, which does not need a population size to
-    state and cannot be kept true by one (CLAUDE.md section 4). It mirrors ``synthetic.fstring``'s flag rather than introducing a
+    state and cannot be kept true by one (CLAUDE.md section 4).
+
+    It mirrors ``synthetic.fstring``'s flag rather than introducing a
     second convention - a parallel builder is a fixture that drifts away from
     the one every other arm uses, which the acceptance clause forbids by name.
 

@@ -745,7 +745,31 @@ def test_planted_markers_never_reach_any_surface(header_version: int, spelling: 
     narrow one - a truncation loop bounded by the narrow length would stop short
     of the wide string block and never reach the frames this arm is about.
     """
-    blob = _respell(_marker_blob(header_version), spelling)
+    narrow = _marker_blob(header_version)
+    blob = _respell(narrow, spelling)
+
+    # CS-964 - THE WIDE DRIVE'S WIDENESS IS ASSERTED, NOT ASSUMED, and this
+    # check exists because an adversary measured its absence. Reducing
+    # `_respell` to `return data` - so the "wide" ids become byte-identical
+    # duplicates of the narrow ones - left the whole of `tests/save` GREEN at
+    # 1511 passed. Nothing anywhere noticed that the wide half of a
+    # parametrization named for its encoding was not wide. The splice helper
+    # has its own arm, but the ARM'S USE of it had none, which is the same
+    # defect one level out: a fixture property that decides what a whole
+    # parametrized population measures, graded by nothing.
+    if spelling == "wide":
+        assert blob != narrow, (
+            "the wide spelling is byte-identical to the narrow one, so this half of the "
+            "parametrization is a duplicate of the other half and measures nothing"
+        )
+        assert MARKER_SESSION.encode("utf-16-le") in blob, (
+            "the respelled blob does not carry the session marker in its wide spelling"
+        )
+        assert MARKER_SESSION.encode("utf-8") not in blob, (
+            "the respelled blob still carries the session marker NARROW, so the splice "
+            "left the encoding this arm was written to stop measuring"
+        )
+
     needles = _markers_present_in(blob, header_version)
 
     # THE CONTROL THE ACCEPTANCE CLAUSE REQUIRES, per needle: the sweep can
