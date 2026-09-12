@@ -1766,7 +1766,7 @@ def test_the_excluded_adr_would_redden_this_guard() -> None:
 
 
 def test_no_shipping_module_restates_the_published_route_count() -> None:
-    offenders = []
+    offenders: list[tuple[str, str]] = []
     for path in population_files():
         text = path.read_text(encoding="utf-8", errors="replace")
         offenders.extend(
