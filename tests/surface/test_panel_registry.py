@@ -31,7 +31,7 @@ rather than a taste:
 
 THE BASELINE PIN, AND WHY IT LIVES HERE.
 ``tests/surface/test_panel_seam.py::test_the_network_detector_fires_on_every_primitive_it_claims``
-takes ``PANEL_MODULES[0]`` as the CLEAN BASELINE for the network detector that
+takes ``NETWORK_BASELINE_MODULE`` as the CLEAN BASELINE for the network detector that
 grades all four panels, and sorted, that is this slice's module. The ordering
 is alphabetical and no arm in that
 file declares it. If a module sorting before ``panel_registry.js`` is ever
@@ -50,7 +50,7 @@ from typing import TYPE_CHECKING, Any, Final
 from clockspeed.surface.api import contract
 from clockspeed.surface.api import registry as api_registry
 from tests.surface import panel_harness
-from tests.surface.test_panel_seam import PANEL_MODULES
+from tests.surface.test_panel_seam import NETWORK_BASELINE_MODULE, PANEL_MODULES
 
 if TYPE_CHECKING:
     from collections.abc import Mapping
@@ -300,20 +300,29 @@ def _mount(tmp_path: Path, registry: Mapping[str, Any] | None) -> Mapping[str, A
 
 
 def test_this_module_is_the_network_detectors_clean_baseline() -> None:
-    """``PANEL_MODULES[0]`` is this slice's file, and nothing else declares that.
+    """``NETWORK_BASELINE_MODULE`` is this slice's file, and nothing else declares it.
 
-    ``test_panel_seam.py:522`` reads ``PANEL_MODULES[0]`` as the text the network
-    detector must find clean, and line 526 concatenates each sink onto it to
-    prove the detector fires. Both claims are claims about THIS file. The
-    ordering that makes it so is ``sorted()`` over the server's asset names and
-    is stated nowhere - so this is the one arm that would go red the day a new
-    panel module sorts ahead of it, instead of the baseline moving in silence.
+    The seam's network detector is proved clean against one named module and
+    then proved to FIRE by concatenating each sink onto that same text. Both
+    claims are claims about THIS file, so this arm is what stops the baseline
+    being repointed at a file the pin was never checked against.
+
+    IT WAS A POSITIONAL PIN AND THE POSITION MOVED. Until CS-977 the seam read
+    ``PANEL_MODULES[0]``, ordered by ``sorted()`` over the server's asset names
+    and stated nowhere; a new panel module sorted ahead of this one and took the
+    baseline with it. This arm caught exactly that, which is what it was written
+    for - and the repair was to give the baseline a NAME, because an ordering no
+    file owns is not something a sibling slice can be expected to preserve.
     """
     assert PANEL_MODULES, "no panel module is published, so the baseline names nothing"
-    assert PANEL_MODULES[0] == MODULE, (
-        f"the network detector's clean baseline moved from {MODULE} to "
-        f"{PANEL_MODULES[0]}; the arm at test_panel_seam.py:522 now grades a "
-        "file this pin was never checked against"
+    assert NETWORK_BASELINE_MODULE in PANEL_MODULES, (
+        f"the baseline {NETWORK_BASELINE_MODULE} is not published at all, so the "
+        "seam's detector arm grades nothing"
+    )
+    assert NETWORK_BASELINE_MODULE == MODULE, (
+        f"the network detector's clean baseline is {NETWORK_BASELINE_MODULE}, not "
+        f"{MODULE}; the seam's detector arm now grades a file this pin was never "
+        "checked against"
     )
 
 

@@ -392,6 +392,83 @@ grammar measured on the other three version pairs does not accept.
 DIFFERENT from the two already present. Playing the pinned development world forward and
 saving on the current game build is the only thing that produces one.
 
+**STATUS 2026-09-11 (session 61): THE PREMISE OF THIS ENTRY IS REFUTED. THE (14,60) ZERO WAS
+A DEFECT IN THIS REPOSITORY'S READER, NOT A PROPERTY OF THE SAVE FORMAT. IT IS FIXED, AND
+THE PROPERTY PAYLOAD NOW READS ON EVERY RECORD OF THE PINNED DEVELOPMENT WORLD.** Ground
+truth beats every document including this one - `CLAUDE.md` section 8 - and the ground truth
+is the operator's: a third-party interactive map renders container contents and machine
+settings out of THE SAME FILE on THIS machine. The data is therefore present and decodable,
+so every sentence below that reads "zero payloads reach a terminator" as a fact about the
+PAIR, and the CONTROL framing that followed from it, was a fact about
+`clockspeed/save/objects.py` instead. Nothing below is deleted: the reasoning is a record of
+how a reader defect was carried for eight sessions as a format property, which is worth more
+kept than tidied away.
+
+**THE TWO OFFSETS THAT LOCALISED IT, read out of the bytes by hand rather than hypothesised.**
+
+- **ONE OPAQUE BYTE stands between a payload's head and its first tag.** On an actor that is
+  just past the component list; on a component it is the payload's first byte. The walk
+  landed exactly one byte short of the first tag name and read that byte as the top of a
+  length prefix. This is the "single leading byte" the blocks below say "accounts for 669 of
+  1832 and nothing like all of it" - the arithmetic was right and the conclusion drawn from
+  it was wrong. It is the first half of one grammar, not a rival explanation.
+- **THE TAG SPELLS ITS TYPE AS A RECURSIVE NAME** - a word, an int32 parameter count, then
+  that many nested names - rather than as a type word followed by per-type extra strings.
+  There is no index field, and the tag closes with a FLAGS BYTE rather than a guid-present
+  flag. A container's element words are the top-level parameters of that name. Stepping the
+  lead byte ALONE gets 3215 of 3918 payloads of the current world to a terminator with ZERO
+  container values; the 703 that still break are the ones whose flags byte the old
+  guid-flag reading refuses. Neither half is a fix on its own.
+
+**THE FLAGS BYTE'S BITS ARE MEASURED ONE AT A TIME AND THE UNSEEN ONES ARE REFUSED.** Over
+9058 tags the byte takes four values: 0x00 on 6123, 0x08 on 757, 0x09 on 2 and 0x10 on 176.
+0x08 rides only on the four container-and-struct words and adds no bytes; 0x10 rides only on
+`BoolProperty` and IS its true value; 0x01 adds an int32, and that is the weakest reading in
+the repair - it rests on TWO tags, and what makes it more than a coincidence is that
+dropping the four bytes costs a whole record. **0x02 reads like a property guid and appears
+on NOT ONE TAG**, so the width of whatever follows it is unknown and a payload carrying any
+unobserved bit is FLAGGED rather than stepped over (non-negotiable 7).
+
+**WHAT THE REPAIR IS MEASURED AT, from a read-only probe reporting no path, no name, no
+string and no value.** All 3918 walked records of the pinned development world now decode
+their payload and 0 remain flagged unparsed, against 3918 of 3918 flagged before. 189
+distinct property names are published. 641 container values decode, and their element total
+is dominated by ONE `ByteProperty` array of 2^20 elements bounded by uniform width - the
+other 640 close on their own element grammar, so the aggregate is a byte blob plus 3097
+elements and not a million decoded items. 1970 object references and 1365 integers decode.
+
+**WHAT IS STILL OPEN, AND IT IS NOT THIS GATE.** 1530 tags are of types this project has not
+measured and 803 values disagree with their declared extent - both were INVISIBLE on this
+pair while nothing read at all, and both belong to the existing items that own them
+(`CS-828`, `CS-832`). **ZERO struct interiors decode on this pair**, because the repair
+deliberately did not carry the new grammar into the struct-interior reader: a struct's word
+is a parameter of the type name here, and CS-829 is the item that owns reading it. That is a
+narrower CS-829 than the one filed below, not a wider one.
+
+**THE `#### The (14,60) wall` SUB-BLOCK BELOW ASKS FRAMING OR VALUE GRAMMAR. THE ANSWER IS
+BOTH, AND ITS NAMED SUSPECT IS CLEARED.** The 22 opaque bytes inside the package summary are
+NOT the discriminator and nothing needed to read a UE5 file version: the version PAIR this
+reader already dispatches on was sufficient. The sub-block's own warning held - the
+resemblance it found was not the finding.
+
+**THE PREP HARNESS IS NOW VACUOUS AND ITS GREEN IS NOT EVIDENCE.**
+`tests/save/test_properties.py::test_save_60_refuses_the_grammar_the_other_pairs_accept`
+still passes, and it passes because its sweep carries its own independent reader of the
+LEGACY tag grammar. Its zero is therefore a true statement about that grammar and a FALSE
+statement about the save, which its own docstring now asserts ("save 60 reaches a terminator
+on no payload at all"). **Correcting it is a separate slice** - that file was outside the
+write-list of the slice that made this measurement, and rewriting a test to match a repair
+in the same breath as the repair is exactly the self-grading `CLAUDE.md` section 5 forbids.
+Until then, do not cite that test's green for anything.
+
+**WHAT THIS DOES NOT DO.** It does not by itself relocate this item, close CS-829, or write
+an acceptance clause for either. The GATE - "no amount of work inside this repo can close
+it" - is what is refuted, since work inside this repo did close it; where the residue lives
+under `CLAUDE.md` section 4 is a routing decision, and improvising one inside a status block
+is the synthetic closure this file's own rule forbids. Graded by
+`tests/save/test_property_payload_14_60.py`, on a SYNTHETIC (14,60) fixture, so every arm
+runs on a machine with no game and no save.
+
 **STATUS 2026-08-16 (session 15): THE OPERATOR PLAYED THE WORLD FORWARD AND SAVED. THE
 CONDITION IS PLAUSIBLY MET AND IS DELIBERATELY NOT DECLARED MET.** Measured read-only,
 counts only: the pair now has FIVE files where the entry above was written against two,

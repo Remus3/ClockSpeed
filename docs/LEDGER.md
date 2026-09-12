@@ -160,6 +160,257 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-09-11 - CS-980 - THE (14,60) PROPERTY WALL WAS OURS, NOT THE FORMAT'S. Every payload of the pinned world now decodes, and a documented gate's premise is refuted
+
+**What changed.** `clockspeed/save/objects.py` gained a third dispatch on the version pair,
+beside the two it already had for the body prefix width and the transform delta. The pair
+carries a different tag grammar: one lead byte between the payload head and the first tag,
+a recursive type NAME where the legacy shape has a type word plus tag-extra strings, and a
+flags bitfield where the legacy shape has a guid flag. Merged files
+`clockspeed/save/objects.py` and `clockspeed/save/world.py`, verified by
+`tests/save/test_property_payload_14_60.py` against a synthetic fixture in
+`tests/save/synthetic.py`, so the arm runs on a machine with no game and no save.
+
+**WHY IT WAS LOOKED AT AT ALL, recorded because the trigger matters more than the fix.**
+The operator demonstrated a third-party tool rendering container contents and miner
+settings out of a save on this machine while this project decoded zero property tags from
+the same file. `CLAUDE.md` section 8 says ground truth beats every document; `docs/GATED.md`
+was the document, and it lost.
+
+**WHAT THE GATE SAID AND WHY IT WAS WRONG.** CS-G05 recorded that every record of every
+`(14,60)` save decodes zero property tags and that such a save "cannot exercise the decoder
+at all - it is the CONTROL", cause unestablished between payload framing and value grammar.
+The zero was real and reproduced on demand. The inference from it was not: a save that
+decodes nothing under ONE grammar is not a save that carries nothing. The answer was
+framing AND grammar, which is why neither candidate alone closed it.
+
+**THE DISCRIMINATING MEASUREMENT, since a plausible fix and a correct one look alike here.**
+Four readings were driven against the whole record population and compared: the lead byte
+alone left every container value unreachable; the lead byte plus a guid-flag reading broke
+hundreds of records, almost all on `StructProperty`; a sixteen-byte struct guid was worse
+still; the flags bitfield read every record with no breaks. One bit's width rests on two
+tags and is recorded as weak. A bit never observed refuses the payload rather than assuming
+a width - non-negotiable 7.
+
+**WHAT IT UNBLOCKS AND WHAT IT DOES NOT.** Every walked payload of the pinned development
+world now reads, and container values, object references and integers are published where
+none were. Struct INTERIORS are deliberately still not read: CS-829 owns that, and carrying
+a new grammar into the interior reader in the same change would have made one measurement
+answer for two. So an item total is still not derivable, and the reason is now a narrower
+and named one - see CS-981.
+
+**A SECOND ARM WENT VACUOUS AND WAS NARROWED RATHER THAN DELETED.**
+`tests/save/test_properties.py::test_save_60_refuses_the_grammar_the_other_pairs_accept`
+still passes and its zero is still true, because the sweep it runs carries its own
+independent reader of the LEGACY grammar. Its DOCSTRING claimed the save reached a
+terminator on no payload at all, which ground truth refutes. The claim is now stated as
+what it measures - the legacy reader must go on refusing this pair, or the two grammars
+have converged and the dispatch between them grades nothing. The symbol was deliberately
+NOT renamed: `docs/LEDGER.md` and `docs/history_notes.md` cite it by name and both are
+append-only, so a rename would rot two citations in records that are never edited.
+
+**The license gate that ran first is the entry above this one.** No third-party source was
+copied, and the two refused candidates - including the tool the operator demonstrated -
+were not read. The grammar above was derived from the bytes of saves on this machine.
+
+---
+
+### 2026-09-11 - CS-979 - The registry models power and no extraction rate, so throughput was not computable at all
+
+**What changed.** `clockspeed/data/registry.py` gained an `Extractor` model and an
+`extractors` mapping carrying items per cycle, extract cycle time and the allowed resource
+forms as exact `Fraction` values, read from the shipped docs. Verified by
+`tests/data/test_extraction_rates.py` against hand-authored synthetic blobs.
+
+**`clockspeed/data/docs_extract.py` NEEDED NO CHANGE and that is a finding, not an
+omission.** All five native extractor classes were already in its known-group table, so
+every entry already reached the document; that module never coerces a value by design, so
+the key reading belongs on the registry side of the seam.
+
+**MEASURED, NOT REMEMBERED.** The key spellings were read off the shipped docs on this
+machine through the project's own loader. The allowed-forms value is a parenthesized LIST
+and one token in it is spelled differently from the constant a reader would expect; it is
+carried verbatim in `unrecognized_forms` and flagged rather than equated to the spelling
+that looks right. One class declares a default extraction rate of zero and is deliberately
+not read, because publishing zero for a building that extracts is the one unacceptable
+answer.
+
+**An absent rate is `None` and is never defaulted.** `Building.power_consumption`'s
+docstring is both the precedent and the reason: a confident zero is exactly what a plan
+cannot detect as wrong.
+
+---
+
+### 2026-09-11 - CS-978 - The placement and inventory models, which is where a map's computation lives
+
+**What changed.** `clockspeed/audit/placement.py` and `clockspeed/audit/inventory.py`
+consume one `WorldModel` and return frozen models: node and built placements with exact
+decimal-string coordinates, per-class counts, world bounds, and an item aggregation that
+carries its own denominators. Verified by `tests/audit/test_placement.py` and
+`tests/audit/test_inventory.py`, both on synthetic models.
+
+**`surface/` NEVER COMPUTES, WHICH IS WHY THIS LAYER EXISTS.** Choosing how a stored float
+is written down is a computation, so the rendering happens here and the endpoint names
+fields. A coordinate leaves as `repr(float(value))` - shortest round trip, so
+`float(published) == stored` exactly - because a rounding done here cannot be undone by a
+consumer.
+
+**THE BUILT ALLOWLIST WAS SEEDED FROM THE ONLY SPELLINGS THE TREE HELD, AND THEY WERE
+NEARLY ALL ABSENT FROM THE WORLD.** The nine names recovered from an archived spike report
+matched three of the classes actually built in the pinned development world, so the first
+version of this map plotted a small fraction of what is there and said nothing about the
+rest. A read-only census of that world's own actor classes, reported as class names and
+counts, supplied extraction, power, storage and landmark spellings; the list is now
+measured rather than recalled. What the allowlist still skips is COUNTED and published
+under `built-class-not-plotted`, verified by
+`tests/audit/test_placement.py::test_a_built_class_off_the_allowlist_is_counted_rather_than_dropped`.
+A filtered view that says nothing about what it filtered is not filtered, it is wrong.
+
+**THE INVENTORY IS EMPTY ON THE REAL WORLD AND SAYS SO WITH ITS REASON.** A building names
+its inventory by reference rather than carrying stacks, and the stacks sit in struct
+interiors no shipped reader opens. `WARN_INVENTORY_TOTAL_EMPTY` accompanies every empty
+total for that reason: an empty tuple with no warning is indistinguishable from a world in
+which the player owns nothing.
+
+---
+
+### 2026-09-11 - CS-977 - The dashboard had no map, and 810 node actors carrying exact transforms reached no surface at all
+
+**What changed.** `GET /api/map` and a registered Map panel. Merged files
+`clockspeed/surface/api/map.py`, `clockspeed/surface/web/panel_map.js`, the route joins in
+`clockspeed/surface/api/routes.py` and `clockspeed/surface/api/health.py`, the static route
+row in `clockspeed/surface/server.py`, and the probe row in
+`clockspeed/surface/web/app.js`. Verified by `tests/surface/test_map.py` and
+`tests/surface/test_panel_map.py`. `BOOTSTRAP.md` section 7.1 gained the endpoint under the
+word "minimum", in the shape CS-912 set.
+
+**THE MAP CANNOT SAY "IRON" AND SAYS SO ON THE PAGE.** ADR 0003 measured a node's purity
+and resource type at zero occurrences across three worlds and four builds, because a save
+stores deltas from level defaults and a node's type never changes. Geometry is exact and
+free; semantics are not in the file. The panel states that where a reader would otherwise
+infer it.
+
+**THROUGHPUT IS ONE DERIVED FIGURE AND ONE DECLARED ASSUMPTION, RENDERED AS TWO DIFFERENT
+KINDS OF STATEMENT.** The normal-purity rate is exact from the shipped items-per-cycle and
+cycle time. No purity multiplier exists in the shipped docs or in a save, so the scaling is
+served with `purity_scaling_measured` false and the page repeats it. The first draft printed
+three equal-looking figures, which presented an assumption in the same voice as a
+derivation.
+
+**EVERY COORDINATE AND EVERY RATE CROSSES AS A STRING.** A bare JSON number is the IEEE
+double non-negotiable 6 keeps out of the answer path. Counts are integers, which are exact.
+No instance name, no record index, no byte offset, no path and no header string crosses at
+all, each refusal graded by its own arm rather than by a comment.
+
+**A REAL BROWSER RAN AGAINST THIS PAGE, WHICH NOTHING HAD DONE SINCE SESSION 78**, driven
+through `tests/surface/audit_harness.py` on plain HTTP because no automation loads the
+dashboard's self-signed certificate. It found three defects no arm could see:
+
+1. The map was listed as text TWICE - a legend and an identical list under a second
+   heading, each green on its own arm because each was graded alone. One list now, and the
+   SVG's `aria-describedby` points at it. Graded by
+   `tests/surface/test_panel_map.py::test_the_map_is_not_listed_as_text_twice`, shown
+   load-bearing by re-introducing the duplicate and watching it redden.
+2. An empty item total printed "no item was served", which reads as "you are holding
+   nothing" - a confident wrong answer of the kind non-negotiable 7 forbids. It now prints
+   the reason the wire carries and disclaims the reading.
+3. `tests/surface/test_acceptance.py`'s account-id detector fired on EVERY REAL SAVE. A
+   coordinate carries up to seventeen significant digits and a bare fifteen-digit run
+   matched the fractional tail. Anchored to a maximal run that is not a decimal fraction's
+   tail, with `test_the_account_id_detector_is_not_blinded_by_its_decimal_anchors` driving
+   five real account-id spellings so the anchor is proved not to be a blindfold.
+
+**A POSITIONAL PIN MOVED UNDER A SIBLING SLICE, AND THE ARM THAT CAUGHT IT WAS DOING ITS
+JOB.** The seam's network detector took its clean baseline from `PANEL_MODULES[0]`, ordered
+by `sorted()` over the server's asset names and stated nowhere; a new panel module sorted
+ahead of the intended baseline and took it. The repair was to give the baseline a NAME -
+`NETWORK_BASELINE_MODULE` - because an ordering no file owns is not something a sibling
+slice can be expected to preserve.
+
+**A PANEL IS SERVED FROM A LITERAL AND THE LITERAL IS ON NOBODY'S WRITE-LIST.** The
+decomposition proved its slices disjoint and still collided: `server.STATIC_ROUTES`,
+`tests/surface/audit_harness.py` and `tests/surface/test_panel_registry.py` each needed a
+row that no slice owned. `tests/surface/test_panel_seam.py::test_every_panel_module_on_disk_is_published_by_the_server`
+now reddens with a named diagnostic rather than rendering a blank panel.
+
+
+### 2026-09-11 - CS-980 - LICENSE GATE RESULT. Five third-party save parsers triaged before a byte of format knowledge entered the tree, and the one the operator watched is the one that is refused
+
+**This entry closes nothing.** It records the `CONVENTIONS.md` section 14 gate that had to
+pass before the CS-980 decode work could consider an external format reference, per the
+rule that the gate result is recorded BEFORE the project acts on it. Retrieved 2026-09-11.
+
+**Why the gate ran.** The operator demonstrated satisfactory-calculator.com's interactive
+map rendering container contents and miner settings out of a save on this machine, while
+this project's own reader decodes zero property tags from the same file. That makes a
+third-party parser the obvious hypothesis generator and therefore a license question.
+
+**The project's own license was read, not assumed:** `LICENSE` is the MIT License,
+copyright line `Copyright (c) 2026 Clockspeed contributors`. It is a frozen file under
+`CLAUDE.md` section 6, so any inbound term that attaches to the whole work conflicts with
+it and is refused without a verbal clearance being available.
+
+**Per-candidate verdicts.**
+
+- `AnthorNet/SC-InteractiveMap` - **REFUSED for every purpose, including reading.** No
+  LICENSE file, GitHub reports no license, `package.json` carries no `license` field and is
+  marked private. Its README states that reuse of the source and data assets is not
+  permitted in any case and that the source is available for educational purposes only -
+  wording that reaches past copying toward a derived independent implementation, so the
+  safe default is refusal. It is very probably the code behind the map the operator
+  watched, which makes it the most tempting candidate and the most clearly fenced. Its
+  repository root also carries a third party's save file, so cloning it would import one.
+- `etothepii4/satisfactory-file-parser` - **CLEARED WITH OBLIGATIONS.** MIT,
+  `Copyright (c) 2021-2025 etothepii`, notice-retention and warranty paragraphs both
+  present, manifest and license agree. Reading requires nothing. Lifting any portion would
+  require reproducing the MIT text and that copyright line in a third-party notices file.
+  It does NOT relicense this project. Its README states GAME versions, never numeric save
+  versions - the version pair mapping stays this project's own pin.
+- `ficsit-felix/ficsit-felix` - CLEARED WITH OBLIGATIONS (MIT, holder bitowl), but
+  format-stale and therefore low value.
+- `GreyHak/sat_sav_parse` - **REFUSED, including for reading.** GPL-3.0. Copyleft bars
+  vendoring absolutely, and it is written in this project's own language, which carries the
+  highest structural-copying risk of any candidate.
+- `FabianFG/CUE4Parse` - reading CLEARED WITH OBLIGATIONS, vendoring REFUSED. Apache-2.0
+  with an unfilled template copyright line and a NOTICE naming twenty-plus upstreams
+  including a path into Epic's engine source. A clean license that is not vendor-safe.
+- `moritz-h/satisfactory-3d-map`, its save-format document - reading CLEARED WITH
+  OBLIGATIONS, copying REFUSED. The repository is GPL-3.0,
+  `Copyright (C) 2021 - 2026 Moritz Heinemann`, and the document carries no separate grant,
+  so the prose is covered by it. Not one sentence, field-name table or list may enter this
+  tree. It is nonetheless the only current document found that addresses the decode
+  question at all.
+- `satisfactorymodding/Documentation` - UNRESOLVED and therefore refused for copying. No
+  license file at the repository root and the license endpoint returns 404. Absence is not
+  permission. It adds no byte-level fact.
+
+**The wiki's save-format pages, re-measured.** They still do not cover the body of the
+version pair this project parses: the page states the body has not been analyzed beyond
+Patch 1.0.0.3. It now names header version 14, but as a header-only note. The byte this
+project already measured false is still labelled with a name implying a meaning the bytes
+do not carry, now annotated as unused garbage - which partially converges with
+`BOOTSTRAP.md` section 2.4 and still refutes any flag reading of it. CS-485's verdict and
+`CLAUDE.md` section 7's no-lifted-datasets fence are unchanged and were not re-litigated.
+
+**The operative distinction, recorded because this project has conflated it before.**
+Reading a source to learn a byte layout and then writing an independent implementation is
+not what MIT, Apache-2.0 or GPL-3.0 attach obligations to - their duties attach to
+distributing copies or conveying a derivative. Copying a line, a table, a constant list or
+a fixture is a different act with a different answer per license, and under GPL-3.0 it
+would relicense this project and conflict with the frozen `LICENSE`.
+
+**The standing instruction this puts on the decode work.** Restate every adopted fact in
+this project's own words and confirm it against the local bytes before it becomes code. The
+always-legal path is the one CS-482 already used - derive the grammar from the saves on
+this machine with a structural anchor, with any cleared reading serving only as a
+hypothesis generator. No test fixture from any candidate may be copied under any license;
+the synthetic-fixtures settled entry and non-negotiable 11 bar it independently of this
+gate.
+
+**No save file, no fragment of one and no hex dump of one was uploaded, pasted or
+submitted anywhere during this gate.** All retrieval was outbound fetches of public
+repository metadata and documents.
+
 ### 2026-09-11 - CS-970 - CLOSED. The lane names why it refused, and no night that accomplished nothing reports success
 
 **Two acceptance clauses were AMENDED, and this record is the amendment.** The

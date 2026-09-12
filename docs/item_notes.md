@@ -247,6 +247,8 @@ a pass - every equality here is satisfied for free by an empty population.
 | CS-914 | `docs/item_notes/phase6.md` |
 | CS-915 | `docs/item_notes/phase6.md` |
 | CS-916 | `docs/item_notes/phase6.md` |
+| CS-981 | `docs/item_notes/phase4-followups-900.md` |
+| CS-982 | `docs/item_notes/phase4-followups-900.md` |
 | CS-603 | `docs/item_notes/phase6.md` |
 | CS-608 | `docs/item_notes/phase6.md` |
 | CS-613 | `docs/item_notes/phase6.md` |

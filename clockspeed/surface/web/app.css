@@ -941,3 +941,102 @@ tbody td:first-child:not(.empty) {
   border-radius: 0;
   padding: 0.5rem 0.75rem;
 }
+
+
+/* --- CS-977, the Map panel -----------------------------------------------
+
+  NO NEW PALETTE TOKEN. Every colour here reads one of the tokens :root already
+  declares, which is what keeps the three-way pairing - light :root, the dark
+  query, and the .hud-overlay redefinition - a closed set. A new token would
+  have to be added in all three places and its absence from one is a colour that
+  is right in one scheme and wrong in the other.
+
+  THE TWO POPULATIONS DIFFER BY SHAPE AS WELL AS BY HUE. A circle is a resource
+  node and a square is a built machine, and the legend says both words, so the
+  distinction survives a reader who does not separate --accent from
+  --status-optimal.
+
+  THE MAP IS SIZED IN VIEWPORT-RELATIVE HEIGHT WITH A PIXEL CEILING, and the
+  viewBox does the rest: aspect is held by preserveAspectRatio, so the element
+  can be any box and the world still maps into it without distortion.
+*/
+
+.map-canvas {
+  display: block;
+  width: 100%;
+  height: 46vh;
+  max-height: 520px;
+  margin: 0.7rem 0 0;
+  background: var(--surface-alt);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+
+.map-node {
+  fill: var(--accent);
+  stroke: var(--surface);
+  stroke-width: 0.5;
+}
+
+.map-built {
+  fill: var(--status-optimal);
+  stroke: var(--surface);
+  stroke-width: 0.5;
+}
+
+/*
+  THE CONTROL ROW WRAPS RATHER THAN SCROLLING. A row of seven 44px targets does
+  not fit 375px, and a horizontal scroller would need the measured-overflow tab
+  stop idiom for a box whose contents are already focusable one by one - which
+  is the case that idiom explicitly does not cover.
+*/
+.map-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin: 0.6rem 0 0;
+}
+
+/*
+  THE TARGET BOX IS DECLARED HERE AND IS READ BY A TEST.
+  tests/surface/test_web_assets.py resolves a script-injected control to its
+  class selector and requires both axes floored in px, so this rule is the
+  hit-target guarantee for every button this panel builds - the view controls
+  and the per-class filters alike.
+*/
+.map-control {
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0.45rem 0.8rem;
+  background: var(--btn-bg);
+  color: var(--btn-fg);
+  border: 1px solid var(--btn-border);
+  border-radius: 6px;
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+/*
+  A FILTER THAT IS PRESSED IS A CLASS THAT IS HIDDEN, and it is announced twice
+  over: aria-pressed for a screen reader, and this demoted fill for a reader
+  looking at it. The label changes too, from Hide to Show, so the state is
+  legible without either.
+*/
+.map-filter[aria-pressed="true"] {
+  background: var(--idle-bg);
+  color: var(--idle-fg);
+  border: 1px solid var(--border);
+}
+
+.map-legend {
+  margin: 0.6rem 0 0;
+  padding: 0 0 0 1.1rem;
+  font-size: 0.82rem;
+  color: var(--text);
+}
+
+.map-legend li {
+  margin: 0.15rem 0;
+}

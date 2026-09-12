@@ -205,6 +205,7 @@ STATIC_ROUTES: Final[Mapping[str, tuple[str, str]]] = {
     "/panel_scope.js": ("panel_scope.js", "text/javascript; charset=utf-8"),
     "/panel_solve.js": ("panel_solve.js", "text/javascript; charset=utf-8"),
     "/panel_warnings.js": ("panel_warnings.js", "text/javascript; charset=utf-8"),
+    "/panel_map.js": ("panel_map.js", "text/javascript; charset=utf-8"),
 }
 
 #: The filenames the table names, which is the closed set the asset reader is

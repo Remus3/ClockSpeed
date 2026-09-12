@@ -34,6 +34,67 @@ the line becomes a pointer.
 
 ---
 
+## Session 85 - 2026-09-11 - the operator asked for a map, and the save reader turned out to be the thing in the way
+
+- Shipped: CS-977 (the `/api/map` endpoint and the Map panel), CS-978 (the placement and
+  inventory models in `clockspeed/audit/`), CS-979 (extraction rates in the registry),
+  CS-980 (the `(14,60)` property tag grammar, plus the license gate that ran before it).
+  Detail in `docs/LEDGER.md`.
+- Filed: CS-981 (route the three items gated behind a gate that is now discharged) and
+  CS-982 (two flags bits pinned on almost no evidence).
+- In flight: nothing mid-edit. The tree is committed.
+
+- THE OPERATOR SUPPLIED GROUND TRUTH THAT REFUTED A DOCUMENTED GATE, AND THAT IS THE
+  SESSION. `docs/GATED.md` recorded under CS-G05 that a `(14,60)` save decodes zero
+  property tags and "cannot exercise the decoder at all - it is the CONTROL". The operator
+  showed a third-party interactive map rendering container contents out of a save on this
+  machine. Same file, same pair. The zero was real and reproduced on demand; the inference
+  from it was wrong. A save that decodes nothing under ONE grammar is not a save that
+  carries nothing. `CLAUDE.md` section 8 decided it: the probe wins, the gate is corrected.
+
+- Surprises: the wall was BOTH candidates at once, which is why neither alone closed it -
+  a lead byte the reader did not skip AND a tag grammar it did not know. Four readings were
+  driven against the whole population before one read every record with no breaks. A
+  plausible fix and a correct one look identical on a single record.
+
+- Surprises: an adversary was dispatched to refute the zero-properties finding and did not
+  refute it - but corrected its WORDING in the way that mattered. The finding had been
+  stated as a defect on the production dashboard path; it was neither path-specific nor
+  novel, and `docs/GATED.md` already held it. Being right about the fact and wrong about
+  its standing is the failure mode to watch for here.
+
+- Surprises: the built-class allowlist was seeded from the only `Build_*_C` spellings in
+  the tree, which came out of an ARCHIVED spike report - and three of those nine were the
+  only ones present in the operator's world. The map plotted 37 of 698 built actors. A
+  read-only census of the world's own classes fixed it to 68 across 15 classes, and what is
+  still skipped is counted and published rather than dropped.
+
+- Surprises: a REAL BROWSER found three defects that no arm could see, including one that
+  would have fired on every real save - the account-id leak detector matching the fractional
+  tail of a coordinate. Nothing had driven a browser at this page since session 78. The
+  instrument that worked was `tests/surface/audit_harness.py` over plain HTTP with
+  Playwright; the in-app browser pane cannot scroll - programmatic and synthetic scrolls
+  both leave `window.scrollY` at zero - so it can only ever screenshot the top viewport.
+
+- Failed paths: filtering the panel's warning explainer on the endpoint's own source. It
+  dropped exactly the warnings that explain an empty answer, because the emptiness and its
+  reason arrive from different layers. The endpoint deliberately does NOT remap a warning's
+  source; that field names the layer that flagged it.
+
+- Failed paths: a positional pin. The seam's network-detector baseline was
+  `PANEL_MODULES[0]`, ordered by `sorted()` over the server's asset names and stated
+  nowhere. A new panel module sorted ahead of it and took the baseline. The arm that caught
+  it was doing its job; the repair was to give the baseline a name.
+
+- Decisions: the license gate ran BEFORE any format knowledge was acted on and its verdicts
+  are in `docs/LEDGER.md`. The tool the operator demonstrated is the one source that may
+  NOT be read - no LICENSE file, private manifest, and a README forbidding reuse in any
+  case. Nothing was copied from anywhere; the grammar came from the bytes.
+
+- Next action: CS-981. Route CS-829, CS-830 and CS-831 out of `docs/GATED.md` now that
+  their condition is discharged, READING CS-829's fences first - inventory is three items
+  and not one, and an operator ruling was once obtained on the premise that it was one.
+
 ## Session 84 - 2026-09-11 - the lane's refusal got a name, and a green suite was refuted four times
 
 - Shipped: CS-970. Five commits, `aa5a828` through `03bcf1c`. Detail in docs/LEDGER.md.
@@ -129,75 +190,3 @@ the line becomes a pointer.
   CS-968's.
 
 ---
-
-## Session 82 - 2026-09-11 - the handoff's diagnosis was right, my refutation of it was wrong, and a green push shipped a red commit
-
-CS-968 IS CLOSED AND PROVEN END TO END. `git push` exports `GIT_DIR` to the pre-push
-hook WHEN AND ONLY WHEN the push comes from a LINKED WORKTREE. The hook runs
-`pytest tests`, so the suite ran holding a pointer at the real repository, and a
-throwaway `git init --bare` re-initialised it - putting `core.bare` and a fixture
-`[user]` block into the config every worktree SHARES. The full record is in
-`docs/LEDGER.md` under CS-968.
-
-THE THING WORTH CARRYING FORWARD IS HOW I GOT IT WRONG, TWICE, THE SAME WAY.
-
-FIRST: I measured a push from the MAIN CHECKOUT, found no `GIT_DIR`, and reported the
-handoff's mechanism REFUTED. That is the one arrangement in which the bug cannot fire.
-I then cited a sibling tree's note as independent corroboration - it has the identical
-blind spot, so two measurements agreed because both were taken in the wrong
-configuration. A NEGATIVE IS ONLY AS BROAD AS THE CONFIGURATION IT WAS MEASURED IN, and
-agreement between two agents is not evidence when they share a setup.
-
-SECOND: I called a failing arm a probe artifact because it "did not fail in either real
-worktree push". Those runs used `-x` and stopped on an earlier failure, so it never
-executed. ABSENCE UNDER `-x` IS NOT EVIDENCE OF PASSING. I read a gap in the data as a
-result.
-
-AND A THIRD, THE MOST EXPENSIVE: I SHIPPED A RED COMMIT TO `origin/main` AND REPORTED
-IT GREEN. The command was `git add`, then `git commit -q -F -` with a heredoc, then
-`git push`, all on one compound line. The commit FAILED - the commit-msg gate rejected a
-74-character subject - `-q` swallowed the message, and my grep only read the push
-markers. `git push` then ran with HEAD at the PREVIOUS commit while the working tree
-held the repair. The hook graded the WORKING TREE, found 6198 passed, and pushed a
-commit containing the version that fails `tests/test_archive_rot.py`. `origin/main` was
-red from `66c707f` until `77a43e2`. Caught by reading the PUSHED BLOB, not the exit
-code. FILED AS CS-972.
-
-A GREEN PUSH PROVES THE WORKING TREE WAS GREEN WHEN THE HOOK RAN. It proves nothing
-about the pushed commit unless the tree was clean, and nothing checked that.
-
-WHAT FOUND THE LEAKS THAT GREP MISSED: a DECOY. Plant `GIT_DIR` at a throwaway
-repository, run the suite, then ask THE DECOY what reached it. My first fix patched
-three helpers I had noticed and looked complete on a green suite; the decoy immediately
-found two more, including a NESTED `pytest` whose child inherits the pointer and hands
-it to everything beneath it. Grep tests whether your search was complete; the decoy
-tests the property.
-
-CS-968 HAS TWO INDEPENDENT HALVES and fixing only the first looks finished. The
-CHILD-SIDE half is the damaging one, fixed by `tests/git_env.py` at five spawn sites.
-The IN-PROCESS half is silent - `load_gate()` imports the gate in process and reads
-`os.environ` at call time - and no child-side measurement can see it. Fixed at the FOOT
-of `tests/conftest.py`, at import, because module-level code in a test module runs
-during COLLECTION before any fixture.
-
-THE SCRUB WENT AT THE FOOT OF THE FILE FOR A MEASURED REASON. Placed mid-file it
-inserted about thirty-five lines above every existing one, and the deep archive pins
-LINE NUMBERS into `tests/conftest.py`. One pointer changed bucket, `_ROT_FORM` 13 to 12
-and `_ROT_EMPTY` 4 to 5, and the guard offered to let me re-pin both counts. Re-pinning
-would have banked rot the change itself produced. EDITING A CITED FILE IS A LINE-NUMBER
-CHANGE BEFORE IT IS A CONTENT CHANGE - it bit twice this session.
-
-THE SHARED CONFIG WAS ALSO CARRYING A STRANDED FIXTURE IDENTITY and the handoff's claim
-that nothing was misattributed was FALSE. Three unpushed commits were authored
-`Gate Test <gate@example.invalid>`. Re-authored on an explicit operator ruling; tree
-hashes byte-identical across the rewrite, so only authorship changed.
-
-FOUR DEAD DOC CITATIONS were red at `57d70e4` and would have blocked the first push on
-their own - the handoff's "0 failed" was wrong about that too. Three were abbreviated
-module paths.
-
-BOTH BRANCHES ARE ON ORIGIN. `main` at `77a43e2`, tier1 CI SUCCESS. `cs964-seam` at
-`aa30cd5`, 6209 passed, CI was still running when this note was written.
-
-CS-964 IS STILL OPEN AND IS ONE ARM OF FIFTEEN. Pushing the branch published work in
-progress; it did not finish it.

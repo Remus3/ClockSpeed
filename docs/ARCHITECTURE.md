@@ -33,7 +33,7 @@ clockspeed/
     optimize.py
     backends/
     power.py
-  audit/          pillar 3 whole-world audit - NOT BUILT
+  audit/          pillar 3 whole-world audit - PLACEMENT AND INVENTORY ONLY
   progress/       pillar 4 milestone routing - NOT BUILT
   advisor/        pillar 5 - NOT BUILT
     rules/
@@ -69,7 +69,7 @@ data/             generated artifacts - GITIGNORED
 | `clockspeed/solve/optimize.py` | Pillar 2 objective handling and the `OptimizerBackend` interface. Owns the interface, not any particular solver. |
 | `clockspeed/solve/backends/` | Pluggable optimizer implementations behind that interface. Swapping one changes no caller. |
 | `clockspeed/solve/power.py` | Power and clock mathematics, including the overclock scaling exponent taken from data rather than hardcoded. |
-| `clockspeed/audit/` | NOTHING YET. The package is reserved for pillar 3 and holds a docstring and no code. What it will own is specified in `BOOTSTRAP.md` section 4. |
+| `clockspeed/audit/` | TWO MODULES, AND THE PILLAR ITSELF IS STILL UNBUILT. `clockspeed/audit/placement.py` turns one `WorldModel` into node and built placements with exact decimal-string coordinates, per-class counts and world bounds; `clockspeed/audit/inventory.py` aggregates container contents into per-item totals and carries its own denominators. Both are what the map surface consumes, and neither is the diff-against-intent the pillar is specified as in `BOOTSTRAP.md` section 4. |
 | `clockspeed/progress/` | NOTHING YET. The package is reserved for pillar 4 and holds a docstring and no code. What it will own is specified in `BOOTSTRAP.md` section 4. |
 | `clockspeed/advisor/rules/` | NOTHING YET. The package is reserved for pillar 5 and holds a docstring and no code. What it will own is specified in `BOOTSTRAP.md` sections 4 and 5. |
 | `clockspeed/surface/server.py` | The local HTTPS listener and static serving. Port allocation is recorded in `config/ports.json`; see `docs/OPERATIONS.md`. |
@@ -209,11 +209,14 @@ implementations).
 
 ### Pillar 3 - Whole-world audit from the save
 
-**Status:** NOT BUILT. Reserved for `audit/`, which holds a package docstring and no code.
-Specified in `BOOTSTRAP.md` section 4.
+**Status:** PARTLY BUILT, AND THE PART THAT EXISTS IS NOT THE PILLAR. `audit/` now holds
+`clockspeed/audit/placement.py` and `clockspeed/audit/inventory.py`, landed under CS-978 because the map surface needed a
+layer that computes and `surface/` never computes. They DESCRIBE a world - where things
+are, and how much of what is held. Specified in `BOOTSTRAP.md` section 4.
 
-Intent: diff what is actually built against what should be, and name the cause rather than
-the symptom.
+Intent, still unmet: diff what is actually built against what should be, and name the cause
+rather than the symptom. Describing is not diffing, and nothing here compares a world to an
+intent yet.
 
 ### Pillar 4 - Milestone and progression routing
 

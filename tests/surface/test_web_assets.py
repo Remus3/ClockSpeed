@@ -73,6 +73,7 @@ PANEL_MODULES: Final = (
     "panel_scope.js",
     "panel_solve.js",
     "panel_warnings.js",
+    "panel_map.js",
 )
 
 #: The route template ``clockspeed/surface/api/world.py`` answers. Spelled here
@@ -82,8 +83,13 @@ WORLD_ENDPOINT: Final = "/api/world"
 
 #: The route template ``clockspeed/surface/api/registry.py`` answers, spelled
 #: here for the same reason and no other: that module also names it
-#: ``ENDPOINT``. CS-912 added it as the tenth template.
+#: ``ENDPOINT``. CS-912 added it under BOOTSTRAP.md section 7.1's word "minimum".
 REGISTRY_ENDPOINT: Final = "/api/registry"
+
+#: The route template ``clockspeed/surface/api/map.py`` answers, spelled here for
+#: the third time for the same reason: that module also names it ``ENDPOINT``.
+#: CS-977 added it the way CS-912 added its predecessor.
+MAP_ENDPOINT: Final = "/api/map"
 
 #: The highest byte the project's character-set rule admits. Restated from
 #: nowhere: it is the same 0x7E ``contract.MAX_ASCII_BYTE`` and the commit gate
@@ -133,16 +139,20 @@ def read_asset(name: str) -> str:
 # ---------------------------------------------------------------------------
 
 
-def test_the_server_names_exactly_seven_assets() -> None:
-    """The name set this module grades is the server's own, and holds seven.
+def test_the_server_names_exactly_the_assets_the_page_loads() -> None:
+    """The name set this module grades is the server's own, and it is the page's.
 
     An arm that grades a name set it invented would stay green while the server
-    served an eighth file nobody checked.
+    served one more file nobody checked. THE COUNT IS NOT WRITTEN DOWN: it is
+    the page, the sheet, the script and the panel modules ``index.html`` loads,
+    derived from :data:`PANEL_MODULES` rather than restated beside it, because a
+    number typed next to a list it does not come from has no way of staying
+    right - CLAUDE.md section 4.
 
-    SEVEN RATHER THAN THREE SINCE CS-962: the page, the sheet, the script and
-    the four panel modules the page loads after it. The count is asserted
-    against the names rather than beside them, so a module added to the table
-    without being added here goes red on the set and not only on the length.
+    A PANEL MODULE THE SERVER DOES NOT NAME IS A FILE THE PAGE CANNOT LOAD, and
+    since ``STATIC_ROUTES`` is a literal by design - no directory walk - the
+    name has to be added there on purpose. This arm is what makes forgetting it
+    a red suite rather than a blank panel.
     """
     expected = 3 + len(PANEL_MODULES)
     assert len(ASSET_NAMES) == expected, ASSET_NAMES
@@ -245,6 +255,41 @@ _PROTOCOL_RELATIVE = re.compile(r"""["'`(=]\s*//""")
 #: relative import leaves a mechanism whose only future use is a remote one.
 _ANY_IMPORT = re.compile(r"@import")
 
+#: The SVG namespace URI, and the ONE exemption this leg carries.
+#:
+#: IT IS A NAME AND NEVER A REQUEST. ``document.createElementNS`` takes it to
+#: decide which element interface to construct; no user agent dereferences it,
+#: and there is no other way to build an SVG element that paints - an element
+#: made with ``createElement("svg")`` is an unknown HTML element. So CS-977's map
+#: panel cannot exist without this string, and banning it would ban the feature
+#: rather than the leak.
+#:
+#: THE EXEMPTION IS A CONTEXT AND NOT A SPELLING, which is the difference between
+#: an allowlist and a hole. What is admitted is this URI sitting INSIDE a
+#: ``createElementNS`` call; the same characters in an ``href``, a ``src`` or a
+#: CSS ``url()`` are a finding, and
+#: :func:`test_the_svg_namespace_is_admitted_only_inside_a_createelementns_call`
+#: proves both halves.
+SVG_NAMESPACE: Final = "http://www.w3.org/2000/svg"
+
+#: The one legal position: ``document.createElementNS("<the URI>"`` - up to and
+#: including the comma, so a bare mention outside a call matches nothing.
+_NAMESPACE_CALL: Final = re.compile(
+    r"""document\.createElementNS\(\s*["']""" + re.escape(SVG_NAMESPACE) + r"""["']\s*,"""
+)
+
+
+def _exempt_spans(text: str) -> tuple[tuple[int, int], ...]:
+    """The character ranges a remote-reference finding is admitted inside.
+
+    Args:
+        text: The asset's text.
+
+    Returns:
+        One ``(start, end)`` span per legal ``createElementNS`` call.
+    """
+    return tuple(match.span() for match in _NAMESPACE_CALL.finditer(text))
+
 
 def remote_references(text: str) -> tuple[str, ...]:
     """Every remote-resource reference in one asset's text.
@@ -254,19 +299,28 @@ def remote_references(text: str) -> tuple[str, ...]:
     reference, and a stylesheet ``@import``. "Local. Nothing is uploaded." is a
     property of the shipped bytes, not only of the response header.
 
+    ONE EXEMPTION, BY CONTEXT: :data:`SVG_NAMESPACE` inside a
+    ``createElementNS`` call. See that constant for why a namespace URI is not a
+    fetch and why the admission is a position rather than a spelling.
+
     Args:
         text: The asset's text.
 
     Returns:
         One finding per match, in file order.
     """
+    exempt = _exempt_spans(text)
     findings: list[str] = []
     for label, pattern in (
         ("absolute-url", _ABSOLUTE_URL),
         ("protocol-relative", _PROTOCOL_RELATIVE),
         ("css-import", _ANY_IMPORT),
     ):
-        findings.extend(f"{label}: {match.group(0)!r}" for match in pattern.finditer(text))
+        findings.extend(
+            f"{label}: {match.group(0)!r}"
+            for match in pattern.finditer(text)
+            if not any(start <= match.start() and match.end() <= end for start, end in exempt)
+        )
     return tuple(findings)
 
 
@@ -279,6 +333,37 @@ def test_no_asset_references_a_remote_resource() -> None:
     }
     total = len(findings)
     assert total == 0, f"remote references in {total} asset(s): {findings}"
+
+
+def test_the_svg_namespace_is_admitted_only_inside_a_createelementns_call() -> None:
+    """The one exemption is a position, and every other position still fires.
+
+    BOTH HALVES, because an exemption that is only proved to admit is a hole
+    nobody has measured. The shipped assets are asserted clean WITH the URI
+    present in at least one of them - so the exemption is doing work - and the
+    same characters planted in an ``href``, a ``src`` and a CSS ``url()`` are
+    each asserted to be found.
+    """
+    carriers = tuple(name for name in ASSET_NAMES if SVG_NAMESPACE in read_asset(name))
+    assert carriers, (
+        "no shipped asset names the SVG namespace, so this exemption admits "
+        "nothing and the arm below grades a rule with no subject"
+    )
+    for name in carriers:
+        text = read_asset(name)
+        assert remote_references(text) == (), f"{name} is not clean under the exemption"
+        assert _exempt_spans(text), f"{name} names the namespace outside a createElementNS call"
+
+    clean = read_asset(STYLESHEET)
+    assert remote_references(clean) == ()
+    planted = {
+        "href": clean + "\n.f::before { content: \"<a href='" + SVG_NAMESPACE + "'>\"; }\n",
+        "src": clean + "\n.f { --x: \"<img src='" + SVG_NAMESPACE + "'>\"; }\n",
+        "url": clean + '\n.f { background: url("' + SVG_NAMESPACE + '"); }\n',
+        "bare": clean + "\n.f { --x: " + SVG_NAMESPACE + "; }\n",
+    }
+    silent = tuple(shape for shape, text in planted.items() if not remote_references(text))
+    assert not silent, f"the namespace exemption admitted a real reference in: {silent}"
 
 
 def test_the_remote_reference_detector_fires_on_each_planted_shape() -> None:
@@ -2191,6 +2276,7 @@ def test_the_script_gives_each_route_the_method_its_owner_publishes() -> None:
         health.ENDPOINT: "GET",
         WORLD_ENDPOINT: "GET",
         REGISTRY_ENDPOINT: "GET",
+        MAP_ENDPOINT: "GET",
     }
     assert len(expected) == len(health.ENDPOINT_TEMPLATES), sorted(expected)
 

@@ -1464,7 +1464,25 @@ def _decode_properties(
     decoded: dict[int, RecordProperties] = {}
     try:
         for index, record in enumerate(table.records):
-            decoded[index] = _record_properties(read_properties(payload, record, mapping))
+            decoded[index] = _record_properties(
+                read_properties(
+                    payload,
+                    record,
+                    mapping,
+                    # THE THIRD SEAM, AND CS-G05's REPAIR RESTS ON IT. The
+                    # property TAG grammar is version dispatched exactly as
+                    # the body skeleton is, and this is the only scope where
+                    # the walked table's pair and the decompressed body are
+                    # both alive - so a reader that could read (14,60)
+                    # perfectly would still publish nothing without these
+                    # two lines. Threaded SEPARATELY for the reason
+                    # `_walk_body` gives: deriving either scalar from the
+                    # other is correct on every real file and wrong on
+                    # SAVE_CROSS.
+                    save_version=table.save_version,
+                    header_version=table.header_version,
+                )
+            )
     except BaseException:
         del payload, mapping
         raise

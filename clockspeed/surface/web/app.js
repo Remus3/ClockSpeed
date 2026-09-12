@@ -85,7 +85,7 @@
 */
 
 /*
-  The ten routes BOOTSTRAP.md section 7.1 publishes, in that section's order,
+  The routes BOOTSTRAP.md section 7.1 publishes, in that section's order,
   each with the verb its own endpoint module registers and the concrete path -
   if there is one - this page may safely ask for with a GET.
 */
@@ -99,7 +99,8 @@ var ROUTES = [
   { template: "/api/solve", method: "POST", probe: null },
   { template: "/api/optimize", method: "POST", probe: null },
   { template: "/api/audit", method: "GET", probe: "/api/audit" },
-  { template: "/api/plan", method: "GET", probe: "/api/plan" }
+  { template: "/api/plan", method: "GET", probe: "/api/plan" },
+  { template: "/api/map", method: "GET", probe: "/api/map" }
 ];
 
 /* The five collections /api/world counts rather than lists, and their labels. */
@@ -609,6 +610,14 @@ function panelData(probes) {
     advice: bodyData(probes["/api/advice"]),
     audit: bodyData(probes["/api/audit"]),
     plan: bodyData(probes["/api/plan"]),
+    /*
+      CS-977 - the Map panel's supply line. A parameterless GET like the five
+      above it, so the page asks for it on a repaint and the panel is handed the
+      answer; a panel issues no request of its own. NULL IS THE ORDINARY CASE
+      HERE rather than an edge one: /api/map refuses with 503 whenever no world
+      is loaded, and the Map panel renders that as a named refusal.
+    */
+    map: bodyData(probes["/api/map"]),
     /*
       THE PANEL ROSTER, WHICH IS NOT A PAYLOAD EITHER AND IS HERE FOR AN
       ANTI-DRIFT REASON. No route serves the list of panels this page carries,

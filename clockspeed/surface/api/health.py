@@ -117,6 +117,14 @@ LIVENESS_WORDS: Final = (LIVE, NOT_LIVE)
 #: route, MEASURED ZERO of the templates then published named a single item or
 #: recipe identifier in any body, so both solver doors were live and unreachable
 #: at once.
+#:
+#: ``/api/map`` ARRIVED THE SAME WAY, UNDER THE SAME WORD (CS-977), AND SITS
+#: LAST. It CONSUMES both routes above it - a world from the save layer and the
+#: extractor vocabulary from the registry - so CS-912's own argument puts it
+#: after them, and last is after them. Appending rather than inserting is also
+#: what kept the page's route table (``clockspeed/surface/web/app.js``, bound to
+#: this tuple by EQUALITY in ``tests/surface/test_route_table_binding.py``) from
+#: needing an edit in a slice that did not own it.
 ENDPOINT_TEMPLATES: Final = (
     "/api/health",
     "/api/world",
@@ -128,6 +136,7 @@ ENDPOINT_TEMPLATES: Final = (
     "/api/optimize",
     "/api/audit",
     "/api/plan",
+    "/api/map",
 )
 
 #: Exactly the keys a health body carries.

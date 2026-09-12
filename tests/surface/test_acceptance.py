@@ -107,8 +107,9 @@ from tests.test_make_cert import CERT_STUB, KEY_STUB, cert_pair
 #: NOT NAMED FOR ITS VALUE. It was spelled as the count itself until CS-912 added
 #: ``/api/registry`` and made the specification name ten, at which point a
 #: constant whose NAME was its value either had to be renamed or had to start
-#: lying. The count moves; what it MEANS does not.
-PUBLISHED_ENDPOINTS: Final = 10
+#: lying. The count moves - CS-977's ``/api/map`` moved it again - and what it
+#: MEANS does not.
+PUBLISHED_ENDPOINTS: Final = 11
 
 #: The endpoint set, TRANSCRIBED BY HAND from the "Endpoints, minimum:" sentence
 #: of ``BOOTSTRAP.md`` section 7.1, in the order that sentence lists them. The
@@ -131,6 +132,7 @@ BOOTSTRAP_ENDPOINTS: Final = (
     "/api/optimize",
     "/api/audit",
     "/api/plan",
+    "/api/map",
 )
 
 #: A3. The routes whose layer EXISTS ON DISK today, so a 501 from any of them is
@@ -145,13 +147,21 @@ BACKED: Final = (
     "/api/registry",
     "/api/solve",
     "/api/optimize",
+    # CS-977. ``clockspeed/audit/placement.py`` and
+    # ``clockspeed/audit/inventory.py`` ship the two models this route
+    # serializes, so a 501 from it would be a refusal with a layer behind it.
+    "/api/map",
 )
 
-#: A3, the other half. ``clockspeed/advisor/``, ``clockspeed/audit/`` and
-#: ``clockspeed/progress/`` hold a package docstring and nothing else, so these
-#: five have no layer to serialize and must say so with a 501 that names its
-#: blocking item. WHEN ONE OF THEM BECOMES REAL THIS ARM GOES RED and the route
-#: has to be moved into :data:`BACKED` deliberately.
+#: A3, the other half. ``clockspeed/advisor/`` and ``clockspeed/progress/`` hold a
+#: package docstring and nothing else, so these five have no layer to serialize
+#: and must say so with a 501 that names its blocking item. WHEN ONE OF THEM
+#: BECOMES REAL THIS ARM GOES RED and the route has to be moved into
+#: :data:`BACKED` deliberately - which is what CS-978 and CS-977 just did for
+#: ``/api/map``. ``clockspeed/audit/`` is no longer empty and is deliberately no
+#: longer named above: it holds the placement and inventory models, and
+#: ``/api/audit`` stays here because PILLAR 3 - the findings-with-causes audit
+#: that route serializes - is still behind the phase 5 gate.
 UNBUILT: Final = (
     "/api/advice",
     "/api/advice/<id>/derivation",
@@ -261,8 +271,16 @@ BACKED_CODES: Final = frozenset(
 #: The backed routes that need no parameter, and therefore have no honest reason
 #: to answer anything but a real answer or an unavailability. ``/api/registry``
 #: joined them under CS-912: it takes no parameter, refuses one outright the way
-#: ``/api/world`` does, and answers 200 or 503 and nothing else.
-PARAMETERLESS_BACKED: Final = ("/api/health", "/api/world", "/api/registry")
+#: ``/api/world`` does, and answers 200 or 503 and nothing else. ``/api/map``
+#: joined them under CS-977 on identical terms, and its 503 is the NO SAVE one -
+#: a missing registry costs it the throughput rows and the display names and is
+#: reported inside a 200, because the geometry is true without an install.
+PARAMETERLESS_BACKED: Final = (
+    "/api/health",
+    "/api/world",
+    "/api/registry",
+    "/api/map",
+)
 PARAMETERLESS_CODES: Final = frozenset({contract.HTTP_OK, contract.HTTP_UNAVAILABLE})
 
 
@@ -285,8 +303,22 @@ CLASS_SAVE_IDENTIFIER: Final = "save-identifier"
 #: The floor is set well above any count, offset, numerator or denominator this
 #: API has a reason to render, because a shape detector that fires on an ordinary
 #: integer is a detector that gets deleted.
+#:
+#: THE THREE ANCHORS ARE NOT DECORATION, AND CS-977 MEASURED WHY. ``/api/map``
+#: renders a coordinate as the shortest round-trip decimal of a float32 widened
+#: to a double, and such a string carries up to seventeen significant digits - so
+#: a bare run of fifteen fired on the FRACTIONAL TAIL of an ordinary node
+#: coordinate, on every real save, reporting a platform account id that was not
+#: there. The two leading lookbehinds say "start of a maximal digit run, and not
+#: the tail of a decimal fraction"; the trailing one says "end of that run". A
+#: real account id is preceded by a path separator, a quote or a letter and never
+#: by ``<digit>.``, so all three spellings the save directory uses still fire -
+#: which ``test_the_personal_data_detector_fires_on_a_planted_value_of_every_class``
+#: proves rather than this comment asserting it.
 _MIN_ACCOUNT_ID_DIGITS: Final = 15
-_ACCOUNT_ID_DIGITS: Final = re.compile(rf"\d{{{_MIN_ACCOUNT_ID_DIGITS},}}")
+_ACCOUNT_ID_DIGITS: Final = re.compile(
+    rf"(?<![0-9])(?<![0-9]\.)\d{{{_MIN_ACCOUNT_ID_DIGITS},}}(?![0-9])"
+)
 
 #: The other spelling of the same identifier, as a 32 character hexadecimal id.
 _ACCOUNT_ID_HEX: Final = re.compile(r"(?<![0-9A-Za-z])[0-9a-fA-F]{32}(?![0-9A-Za-z])")
@@ -1379,6 +1411,38 @@ def test_the_personal_data_detector_fires_on_a_planted_value_of_every_class() ->
     )
     missed_count = len(missed)
     assert missed_count == 0, f"the detector is blind to: {', '.join(missed)}"
+
+
+def test_the_account_id_detector_is_not_blinded_by_its_decimal_anchors() -> None:
+    """The anchors exclude a decimal fraction and nothing else.
+
+    CS-977 ANCHORED THIS DETECTOR AND AN ANCHOR IS ONE CHARACTER FROM A
+    BLINDFOLD, so both directions are measured in one arm. ``/api/map`` renders
+    a coordinate as the shortest round-trip decimal of a float32 widened to a
+    double, which carries up to seventeen significant digits; the unanchored run
+    of fifteen fired on that fractional tail and reported an account id that was
+    not in the body, on every real save. The fix must not cost the detector a
+    single real spelling, so every spelling the save directory actually uses is
+    driven here rather than reasoned about.
+    """
+    coordinate = ' "-12345.500976562500001" '
+    fired = _personal_data_classes(coordinate)
+    assert CLASS_ACCOUNT_ID not in fired, f"a coordinate still reads as an account id: {fired}"
+
+    spellings = (
+        " 76561190000000000 ",
+        "76561190000000000",
+        '"C:/x/76561190000000000/world.sav"',
+        "account=76561190000000000,",
+        "[76561190000000000]",
+    )
+    blind = tuple(
+        spelling
+        for spelling in spellings
+        if CLASS_ACCOUNT_ID not in _personal_data_classes(spelling)
+    )
+    blind_count = len(blind)
+    assert blind_count == 0, f"{blind_count} account-id spelling(s) no longer fire"
 
 
 def test_the_registry_subtraction_whitelists_only_token_shaped_runs() -> None:

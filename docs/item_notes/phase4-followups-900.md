@@ -1373,3 +1373,72 @@ seam's whole premise is that a panel is a plain script the server already
 serves and `index.html` already loads, and `tests/surface/test_server.py` pins
 the static surface by name. A module rewrite is a different item with a
 different blast radius; this one asks only that a collision be detectable.
+
+
+## CS-981
+
+### Filed 2026-09-11
+
+**WHY THIS IS A ROUTING ITEM AND NOT AN INVENTORY ITEM.** CS-829, CS-830 and CS-831 are
+filed in `docs/GATED.md`, and CS-829's entry names its unblocking condition as "CS-G05
+clearing", on an operator ruling taken against the item's own acceptance clause. CS-G05 is
+discharged - see the CS-980 entry in `docs/LEDGER.md`, and the STATUS block at the head of
+CS-G05's section in `docs/GATED.md`. So three items sit in the file for externally blocked
+work while their condition no longer holds, and `docs/GATED.md` says in its own opening
+that merely unstarted is not gated.
+
+THE AGENT THAT DISCHARGED THE GATE DECLINED TO ROUTE THEM, deliberately and correctly: a
+decomposition question is not something a decode slice answers in passing, and CS-829's
+acceptance clause has already been rewritten twice for unsatisfiability and refuted five
+times. This item is that decomposition question, filed so it is answered once and on
+purpose.
+
+**READ CS-829's FENCES BEFORE TOUCHING ANY OF THE THREE.** They are in `docs/GATED.md`
+under its section, they are LIVE instructions, and the first of them is the one that bears
+on the operator's actual request:
+
+- DO NOT re-pitch CS-829 as the inventory item. No building record carries an
+  `InventoryStack`. A building holds an `ObjectProperty` REFERENCE to a separate inventory
+  component and the stacks live over there inside a container property. So inventory sits
+  behind the cross-record join (CS-831), the container element framing (CS-830), and only
+  then the struct interior (CS-829). Answering "what am I holding" is three items, not one,
+  and an operator ruling was once obtained on the false premise that it was one.
+- DO NOT hand-write a struct vocabulary. Derive the population.
+- DO NOT define the population by the decoder's own success. That is an identity.
+- A restated acceptance clause is a SCOPE CHANGE and closes as one, with its own record.
+  It is not the gate clearing. Narrowing the graded population to the reachable sites and
+  declaring the clause met is the synthetic close CS-829's own entry names in advance.
+
+**WHAT CHANGED UNDERNEATH THEM, MEASURED.** Every walked payload of the pinned development
+world now reads, where none did. Container values are published where none were. Struct
+INTERIORS are still not read: the decode slice deliberately did not carry the new tag
+grammar into the interior reader, and instead let the struct word come from the type name
+so it cannot be read off a wrong offset. CS-829's DRAIN half - the population its clause
+calls unreachable - is what the discharge makes reachable, and whether the clause is now
+satisfiable AS WRITTEN is the first thing to measure rather than assume.
+
+**THE VISIBLE CONSEQUENCE, so the next session knows what "done" looks like.** The Map
+panel's "WHAT I HAVE" section prints an empty total plus the warning that says why. That is
+correct behaviour for an empty answer and it is not the answer the operator asked for. The
+acceptance above is written against `/api/map` for that reason - the chain is only finished
+when the panel shows something.
+
+## CS-982
+
+### Filed 2026-09-11
+
+The `(14,60)` property tag carries a flags bitfield where the legacy shape carries a guid
+flag. Three bit values were observed across the real record population and one was not
+observed at all; an unobserved bit REFUSES the payload rather than assuming a width, which
+is non-negotiable 7 and is the right default.
+
+**THE WEAKNESS IS IN AN OBSERVED BIT, NOT THE UNOBSERVED ONE.** The bit read as adding an
+int32 was seen on two tags in one record. Dropping that reading costs exactly one record,
+which is the only discriminating evidence there is for it. Two tags is not a measurement of
+a field width; it is a hypothesis that happens to close the walk.
+
+**DO NOT close this by re-running the same population.** The same two tags will be there.
+What would settle it is a tag of that shape whose value can be read back independently, or
+a second save carrying more of them. The honest alternative is to record the width as
+unmeasured and refuse it, exactly as the unobserved bit is refused - which costs one
+record's payload and buys a claim that is true.

@@ -55,10 +55,23 @@ SCRIPT: Final = "app.js"
 
 #: Every panel module the server publishes, derived from the server's own table
 #: rather than listed here, so a module added there is graded here without an
-#: edit. Sorted so the order is the page's load order.
+#: edit. SORTED FOR A STABLE ORDER, WHICH IS NOT THE PAGE'S LOAD ORDER - that
+#: claim was true until CS-977 added a module that sorts first and loads last.
+#: Every consumer here compares sets or iterates all of them, so a stable
+#: order is all this needs; a consumer that wants load order must read
+#: index.html, which owns it.
 PANEL_MODULES: Final = tuple(
     sorted(name for name in server.ASSET_NAMES if name.startswith("panel_"))
 )
+
+#: The module the network detector is proved clean against, NAMED rather than
+#: taken positionally. It was ``PANEL_MODULES[0]`` until CS-977, where a new
+#: panel module sorted ahead of the intended baseline and silently moved what
+#: this arm grades - the failure the pin in ``tests/surface/test_panel_registry.py``
+#: was written to catch, and did. A name cannot be moved by a sibling
+#: slice adding a file, so the pin now grades a fact instead of an ordering.
+NETWORK_BASELINE_MODULE: Final = "panel_registry.js"
+
 
 #: The exported name every panel module calls, spelled as a CALL so a prose
 #: mention in a comment explaining the seam does not read as one.
@@ -451,6 +464,40 @@ def test_there_is_at_least_one_panel_module_to_grade() -> None:
     assert PANEL_MODULES, "the server publishes no panel_*.js module"
 
 
+def test_every_panel_module_on_disk_is_published_by_the_server() -> None:
+    """A ``panel_*.js`` sitting in the asset directory is one the server serves.
+
+    THIS IS THE ANTI-VACUITY ARM FOR EVERY OTHER ARM IN THIS MODULE.
+    :data:`PANEL_MODULES` is derived from ``server.ASSET_NAMES``, which is the
+    right direction - a module added to the served table is graded here with no
+    edit - and it has one blind spot in the other direction: a panel module that
+    exists on disk and is NOT in that table is excluded from every arm above and
+    below, silently. It registers on no page, it is mounted by no harness, its
+    bytes are scanned by no character-set or network check, and the suite is
+    green.
+
+    THAT IS THE SAME FAULT AS AN UNTRACKED FILE BEING INVISIBLE TO A REPO GUARD,
+    and the repair is the same: compare the table against the directory rather
+    than reading only one of them. ``STATIC_ROUTES`` is a literal by deliberate
+    design - CS-962 records that a glob over the directory would publish
+    whatever a working tree happened to hold - so the name must be added on
+    purpose, and this arm is what turns forgetting it into a red suite instead of
+    a panel nobody can load.
+    """
+    on_disk = tuple(sorted(path.name for path in WEB_DIR.glob("panel_*.js")))
+    assert on_disk, f"there is no panel module in {WEB_DIR.name} at all"
+
+    unpublished = tuple(name for name in on_disk if name not in PANEL_MODULES)
+    assert not unpublished, (
+        f"{len(unpublished)} panel module(s) exist but are not in "
+        f"clockspeed/surface/server.py STATIC_ROUTES, so the page cannot load "
+        f"them and no arm in this module grades them: {unpublished}"
+    )
+
+    missing = tuple(name for name in PANEL_MODULES if name not in on_disk)
+    assert not missing, f"the server publishes panel module(s) with no file: {missing}"
+
+
 def test_the_script_publishes_the_registration_seam() -> None:
     """``app.js`` defines ``registerPanel`` in its code, not only in its prose."""
     code = code_only(read_module(SCRIPT))
@@ -521,7 +568,11 @@ def test_the_network_detector_fires_on_every_primitive_it_claims() -> None:
     A detector that cannot fire is a detector that grades nothing, and the arm
     above would be the same green either way.
     """
-    clean = code_only(read_module(PANEL_MODULES[0]))
+    assert NETWORK_BASELINE_MODULE in PANEL_MODULES, (
+        f"the baseline {NETWORK_BASELINE_MODULE} is not published, so this arm "
+        "would grade a file the server does not serve"
+    )
+    clean = code_only(read_module(NETWORK_BASELINE_MODULE))
     assert network_sinks(clean) == ()
 
     silent = tuple(sink for sink in _NETWORK_SINKS if not network_sinks(clean + "\n" + sink + "\n"))

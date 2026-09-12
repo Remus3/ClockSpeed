@@ -110,6 +110,24 @@ passes its own tests, so each is handled explicitly and each has a named test.
   "the ceiling". ADR 0005 owns where the ceiling comes from; ADR 0006 owns how
   the base enters this model.
 
+- **``mAllowedResourceForms`` is a parenthesized LIST, and one of its tokens
+  is spelled differently from every form constant in this file.** The measured
+  values are ``(RF_SOLID)``, ``(RF_LIQUID)``, ``(RF_LIQUID,RF_GAS)`` and
+  ``(RF_LIQUID,RF_GAS,(INVALID))``. A reader comparing the raw value against
+  RF_SOLID matches none of the 8 entries that carry the field and reports every
+  extractor as formless, which is indistinguishable from a document that
+  stopped shipping it. The nested ``(INVALID)`` is NOT RF_INVALID, so it is
+  kept verbatim and flagged rather than mapped onto a form the document never
+  named - an allowlist of good tokens, never a denylist of bad ones.
+
+- **An extraction rate has two operands and the document omits both on some
+  entries.** 6 measured entries carry ``mItemsPerCycle`` and
+  ``mExtractCycleTime``; 8 carry ``mAllowedResourceForms``. The two extras are
+  real extraction content whose rate this document does not state, so they are
+  modeled with a rate of None and flagged. A zero there would be a throughput
+  of nothing published about buildings that extract, which is
+  ``mPowerConsumption``'s confident zero with a different unit on it.
+
 - **Recipes are whitelisted on NativeClass, never detected by shape.**
   ``FGCustomizationRecipe`` has a keyset byte-identical to ``FGRecipe``'s, so
   any field-presence or shape-based detector silently inflates 872 recipes
@@ -206,19 +224,23 @@ from clockspeed.data.blobs import (
 from clockspeed.data.docs_extract import KEY_CLASS_NAME, DocsDocument, DocsGroup
 
 __all__ = [
+    "EXTRACTION_MARKER_KEYS",
     "FLUID_FORMS",
     "FORM_GAS",
     "FORM_INVALID",
     "FORM_LIQUID",
     "FORM_SOLID",
     "ITEM_GROUP_SHORT_NAMES",
+    "KEY_ALLOWED_RESOURCE_FORMS",
     "KEY_DISPLAY_NAME",
     "KEY_DURATION",
     "KEY_ENERGY_VALUE",
     "KEY_ESTIMATED_MAX_POWER",
     "KEY_ESTIMATED_MIN_POWER",
+    "KEY_EXTRACT_CYCLE_TIME",
     "KEY_FORM",
     "KEY_INGREDIENTS",
+    "KEY_ITEMS_PER_CYCLE",
     "KEY_MAX_POTENTIAL",
     "KEY_POWER_CONSUMPTION",
     "KEY_POWER_EXPONENT",
@@ -231,6 +253,7 @@ __all__ = [
     "MAX_MALFORMED_BLOBS",
     "POWER_MARKER_KEYS",
     "RECIPE_GROUP_SHORT_NAMES",
+    "RESOURCE_FORMS",
     "UNMODELED_GROUP_SHORT_NAMES",
     "WARN_DUPLICATE_CLASS_NAME",
     "WARN_EMPTY_DISPLAY_NAME",
@@ -238,14 +261,17 @@ __all__ = [
     "WARN_MALFORMED_GROUP",
     "WARN_MISSING_CLASS_NAME",
     "WARN_MISSING_DURATION",
+    "WARN_MISSING_EXTRACTION_RATE",
     "WARN_MISSING_FORM",
     "WARN_MISSING_POWER",
     "WARN_NON_STRING_VALUE",
     "WARN_UNKNOWN_GROUP",
     "WARN_UNKNOWN_ITEM",
+    "WARN_UNKNOWN_RESOURCE_FORM",
     "WARN_UNPARSABLE_NUMBER",
     "WARN_UNRESOLVED_PRODUCED_IN",
     "Building",
+    "Extractor",
     "Item",
     "Recipe",
     "RecipeIO",
@@ -292,6 +318,16 @@ KEY_VARIABLE_POWER_FACTOR: Final = "mVariablePowerConsumptionFactor"
 #: deliberately absent from this file.
 KEY_MAX_POTENTIAL: Final = "mMaxPotential"
 
+#: The three extraction fields, measured on the pinned build before any of
+#: this was written. mItemsPerCycle and mExtractCycleTime sit on 6 entries
+#: across 3 groups; mAllowedResourceForms reaches 8 entries across 5, and the
+#: two extra groups carry NO rate at all. That asymmetry is why the marker
+#: set below is any-of rather than all-of, and why an extractor with no
+#: readable rate is a modeled fact rather than a dropped entry.
+KEY_ITEMS_PER_CYCLE: Final = "mItemsPerCycle"
+KEY_EXTRACT_CYCLE_TIME: Final = "mExtractCycleTime"
+KEY_ALLOWED_RESOURCE_FORMS: Final = "mAllowedResourceForms"
+
 # ---------------------------------------------------------------------------
 # Forms and units
 # ---------------------------------------------------------------------------
@@ -306,6 +342,14 @@ FORM_INVALID: Final = "RF_INVALID"
 
 #: The forms whose amounts are litres. Everything else is a plain count.
 FLUID_FORMS: Final = frozenset({FORM_LIQUID, FORM_GAS})
+
+#: The CLOSED vocabulary of form tokens this build recognizes. It exists for
+#: mAllowedResourceForms, which is a parenthesized LIST of tokens rather than
+#: a single form, and one measured value carries a token spelled '(INVALID)' -
+#: NOT RF_INVALID. An allowlist of good values is what keeps that token out of
+#: the recognized set: a denylist would admit the next differently spelled one
+#: silently. Unrecognized tokens are kept verbatim and flagged instead.
+RESOURCE_FORMS: Final = frozenset({FORM_SOLID, FORM_LIQUID, FORM_GAS, FORM_INVALID})
 
 #: The fluid scale factor. Applied as a Fraction DENOMINATOR, never as integer
 #: division: two measured amounts are not multiples of it.
@@ -331,6 +375,20 @@ RECIPE_GROUP_SHORT_NAMES: Final = frozenset({"FGRecipe"})
 #: entry carrying only the exponent is a gap in the document rather than a
 #: reason to drop the building.
 POWER_MARKER_KEYS: Final = (KEY_POWER_CONSUMPTION, KEY_POWER_EXPONENT)
+
+#: The fields whose presence makes an entry an extractor. Any ONE is enough,
+#: on the same measured grounds as POWER_MARKER_KEYS above: the two rate keys
+#: reach 6 entries and the forms key reaches 8, and the two entries carrying
+#: only the forms are real extraction content whose rate this document does
+#: not state. Requiring all three would drop them; requiring only the forms
+#: would drop an entry a patch ships with a rate and no forms. There is no
+#: group floor, for the reason _is_building_entry states: a list of group
+#: names goes stale on the next patch, silently.
+EXTRACTION_MARKER_KEYS: Final = (
+    KEY_ITEMS_PER_CYCLE,
+    KEY_EXTRACT_CYCLE_TIME,
+    KEY_ALLOWED_RESOURCE_FORMS,
+)
 
 #: The measured descriptor groups, kept ONLY as a floor beneath the mForm test.
 #: Their purpose is the entry that a future patch ships into one of them with
@@ -382,11 +440,13 @@ WARN_MALFORMED_BLOB: Final = "malformed-blob"
 WARN_MALFORMED_GROUP: Final = "malformed-group"
 WARN_MISSING_CLASS_NAME: Final = "missing-class-name"
 WARN_MISSING_DURATION: Final = "missing-duration"
+WARN_MISSING_EXTRACTION_RATE: Final = "missing-extraction-rate"
 WARN_MISSING_FORM: Final = "missing-form"
 WARN_MISSING_POWER: Final = "missing-power"
 WARN_NON_STRING_VALUE: Final = "non-string-value"
 WARN_UNKNOWN_GROUP: Final = "unknown-group"
 WARN_UNKNOWN_ITEM: Final = "unknown-item-reference"
+WARN_UNKNOWN_RESOURCE_FORM: Final = "unknown-resource-form"
 WARN_UNPARSABLE_NUMBER: Final = "unparsable-number"
 WARN_UNRESOLVED_PRODUCED_IN: Final = "unresolved-produced-in"
 
@@ -523,6 +583,72 @@ class Building:
 
 
 @dataclass(frozen=True)
+class Extractor:
+    """One buildable that pulls a raw resource out of the world.
+
+    Throughput is ``items_per_cycle / extract_cycle_time`` per second, and
+    NEITHER operand may be assumed. Both are None on the two measured entries
+    that carry only the allowed forms, and a caller that substitutes a number
+    for a None here publishes a confident rate the game never stated - the
+    exact failure :attr:`Building.power_consumption` documents at length.
+
+    WHAT THIS MODEL DELIBERATELY DOES NOT DO
+    ----------------------------------------
+    - **It does not convert litres.** ``mItemsPerCycle`` is 1 on a solid miner
+      and 2000 on a fluid extractor, and the second number is LITRES. The
+      conversion cannot happen here because the resource is not known here:
+      :attr:`allowed_forms` is a SET, sometimes of two forms, and which
+      resource a given extractor actually pulls is a property of the node it
+      sits on, which ADR 0003 measured as absent from the save. Dividing by
+      LITRES_PER_CUBIC_METRE at this layer would publish 2 items per cycle for
+      a pump the document says moves 2000 litres. The caller converts, once it
+      has resolved a form.
+    - **It does not apply a purity multiplier.** Purity scales the rate in the
+      game and no purity value is exported by this document or stored in a
+      save, so a per-purity rate is the CALLER's, computed from a stated
+      multiplier it owns and can be held to.
+    - **It does not read the pressurizer's own extraction field.** One measured
+      entry carries ``mDefaultPotentialExtractionPerMinute``, and its value is
+      ``'0.000000'``. Reading it would publish a rate of zero per minute for a
+      building that genuinely extracts, which is a wrong number wearing the
+      right type. It is left unread, and the entry reports its rate as unknown.
+
+    Attributes:
+        key: The entry's ClassName, which is unique document-wide and is the
+            same token :class:`Building` is keyed by - the join a throughput
+            consumer needs, because an extractor also draws power.
+        display_name: The verbatim mDisplayName from the buildable entry. It is
+            genuinely ABSENT on one measured entry, which yields the empty
+            string and a flag rather than a name synthesized from the key.
+        items_per_cycle: mItemsPerCycle as an exact Fraction, or None when the
+            entry declares none or declares something unreadable. In the
+            document's own units - a count for a solid, litres for a fluid.
+        extract_cycle_time: mExtractCycleTime in seconds as an exact Fraction,
+            or None on the same terms. A DECLARED zero is Fraction(0) and is a
+            different fact from None, on the rule :attr:`Recipe.duration`
+            states; a consumer dividing by it guards the division itself
+            rather than having this layer silently rewrite the document.
+        allowed_forms: The recognized FORM_* tokens from
+            mAllowedResourceForms, which is a parenthesized LIST rather than a
+            single token. Empty when the entry declares none - never a guessed
+            RF_SOLID.
+        unrecognized_forms: Tokens inside that list which are outside
+            RESOURCE_FORMS, kept verbatim and in source order. One measured
+            value carries ``'(INVALID)'``, which is not ``RF_INVALID``:
+            treating the two as the same would invent a form the document never
+            named, and dropping the token would erase the evidence that it was
+            ever there (non-negotiable 7).
+    """
+
+    key: str
+    display_name: str
+    items_per_cycle: Fraction | None
+    extract_cycle_time: Fraction | None
+    allowed_forms: frozenset[str]
+    unrecognized_forms: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True)
 class Recipe:
     """One production recipe, joined against items and buildings.
 
@@ -560,6 +686,12 @@ class Recipe:
     unresolved_produced_in: tuple[str, ...] = ()
 
 
+#: The empty, read-only extractor mapping :class:`Registry` defaults to.
+#: Module-level so every default-constructed Registry shares one immutable
+#: object rather than a fresh mutable dict.
+_NO_EXTRACTORS: Final[Mapping[str, Extractor]] = MappingProxyType({})
+
+
 @dataclass(frozen=True)
 class Registry:
     """The normalized model, plus everything the build refused to guess at.
@@ -568,6 +700,13 @@ class Registry:
         items: Items by ClassName. Read-only.
         recipes: Production recipes by ClassName. Read-only.
         buildings: Power-consuming buildables by ClassName. Read-only.
+        extractors: Resource extractors by ClassName, read-only. A SEPARATE
+            namespace from ``buildings`` rather than a subset of it: an
+            extractor is detected by its own fields and most extractors also
+            draw power, so the same ClassName appears in both and the join is
+            the key. One measured extractor entry carries no power field at
+            all, which is why membership in one cannot be derived from the
+            other.
         warnings: Everything flagged and skipped, aggregated by subject and
             ordered deterministically so two builds of one document produce
             byte-identical output.
@@ -580,6 +719,11 @@ class Registry:
     buildings: Mapping[str, Building]
     warnings: tuple[RegistryWarning, ...]
     unknown_groups: tuple[str, ...]
+    # Appended, and with a default, for the reason Building.unsharded_clock_base
+    # states: a required field inserted mid-class breaks every positional
+    # construction of a Registry at once. The default is an empty READ-ONLY
+    # mapping, so a caller cannot mutate a shared default into existence.
+    extractors: Mapping[str, Extractor] = _NO_EXTRACTORS
 
 
 class _WarningLog:
@@ -945,6 +1089,159 @@ def _building(entry: Mapping[str, object], key: str, group_name: str, log: _Warn
     )
 
 
+def _unwrap_outer_parens(text: str) -> str:
+    """Remove ONE enclosing layer of parentheses, and only a real one.
+
+    The measured mAllowedResourceForms values are wrapped end to end -
+    ``(RF_SOLID)``, ``(RF_LIQUID,RF_GAS)`` - so the wrapper has to come off
+    before anything can be split. The depth scan is what makes this safe on a
+    value whose first ``(`` closes before the end: a blind ``text[1:-1]`` on a
+    hypothetical ``(A),(B)`` yields ``A),(B``, which then splits into two
+    tokens that are each half of a group and look like content.
+
+    Args:
+        text: The verbatim field value.
+
+    Returns:
+        The stripped body when the leading parenthesis is closed by the
+        trailing one, and the whitespace-stripped value verbatim otherwise -
+        including when the parentheses are unbalanced, which is content this
+        build does not understand rather than content to repair.
+    """
+    body = text.strip()
+    if not (body.startswith("(") and body.endswith(")")):
+        return body
+    depth = 0
+    for index, character in enumerate(body):
+        if character == "(":
+            depth += 1
+        elif character == ")":
+            depth -= 1
+            if depth == 0:
+                return body[1:-1] if index == len(body) - 1 else body
+    return body
+
+
+def _split_form_tokens(text: str) -> tuple[str, ...]:
+    """Split one mAllowedResourceForms value into its tokens.
+
+    Depth-aware, so a nested group stays ONE token. The only measured nesting
+    holds a single token - ``(INVALID)`` - which a plain ``str.split(",")``
+    also gets right, by luck rather than by rule; a nested ``(A,B)`` would
+    arrive as ``(A`` and ``B)``, two unbalanced fragments that each look like a
+    form token nobody recognizes. Keeping the group whole is what lets the
+    caller report one unknown token instead of two invented ones.
+
+    Args:
+        text: The verbatim field value.
+
+    Returns:
+        The tokens, in source order, each whitespace-stripped. Empty tokens are
+        dropped: a trailing separator is punctuation rather than content.
+    """
+    tokens: list[str] = []
+    current: list[str] = []
+    depth = 0
+    for character in _unwrap_outer_parens(text):
+        if character == "," and depth == 0:
+            tokens.append("".join(current))
+            current = []
+            continue
+        if character == "(":
+            depth += 1
+        elif character == ")":
+            # Clamped, never negative: an unbalanced value must still terminate
+            # this scan with every later comma treated as a separator.
+            depth = max(depth - 1, 0)
+        current.append(character)
+    tokens.append("".join(current))
+    return tuple(stripped for token in tokens if (stripped := token.strip()))
+
+
+def _resource_forms(
+    entry: Mapping[str, object],
+    subject: str,
+    log: _WarningLog,
+) -> tuple[frozenset[str], tuple[str, ...]]:
+    """Read mAllowedResourceForms against the closed form vocabulary.
+
+    Args:
+        entry: The entry mapping.
+        subject: The owning ClassName, for the warning.
+        log: The warning log.
+
+    Returns:
+        A ``(recognized, unrecognized)`` pair. The first holds only tokens in
+        RESOURCE_FORMS; the second holds every other token verbatim, in source
+        order and deduplicated, and each occurrence is flagged. An absent key
+        yields two empties and no flag - an entry that declares no form
+        declares none - while a token this build does not know is new content
+        and is never guessed at (non-negotiable 7).
+    """
+    text = _text(entry, KEY_ALLOWED_RESOURCE_FORMS, subject, log)
+    if text is None:
+        return frozenset(), ()
+    recognized: list[str] = []
+    unrecognized: list[str] = []
+    for token in _split_form_tokens(text):
+        if token in RESOURCE_FORMS:
+            recognized.append(token)
+            continue
+        # The detail names the field and the consequence and never the token -
+        # diagnostics in this module do not echo document content.
+        log.add(
+            WARN_UNKNOWN_RESOURCE_FORM,
+            subject,
+            f"{KEY_ALLOWED_RESOURCE_FORMS} carries a token outside the recognized form "
+            "vocabulary; it is kept verbatim and excluded from the allowed set",
+        )
+        if token not in unrecognized:
+            unrecognized.append(token)
+    return frozenset(recognized), tuple(unrecognized)
+
+
+def _extractor(
+    entry: Mapping[str, object],
+    key: str,
+    group_name: str,
+    log: _WarningLog,
+) -> Extractor:
+    """Build one extractor from its buildable entry.
+
+    Args:
+        entry: The entry mapping.
+        key: Its ClassName.
+        group_name: The group's short name.
+        log: The warning log.
+
+    Returns:
+        The extractor. Either rate operand may be None - absent, unparsable or
+        present-but-not-a-string - and a None is never replaced by a number,
+        because a rate of zero is a throughput claim the document did not make.
+        Both operands are needed for a throughput, so either one missing is
+        flagged, which is the same shape as WARN_MISSING_POWER firing alongside
+        the unparsable-number flag that explains it.
+    """
+    items_per_cycle = _optional_fraction(entry, KEY_ITEMS_PER_CYCLE, key, log)
+    cycle_time = _optional_fraction(entry, KEY_EXTRACT_CYCLE_TIME, key, log)
+    allowed, unrecognized = _resource_forms(entry, key, log)
+    if items_per_cycle is None or cycle_time is None:
+        log.add(
+            WARN_MISSING_EXTRACTION_RATE,
+            key,
+            f"no readable {KEY_ITEMS_PER_CYCLE} and {KEY_EXTRACT_CYCLE_TIME} pair; the "
+            "throughput is published as unknown rather than as zero",
+        )
+    return Extractor(
+        key=key,
+        display_name=_display_name(entry, group_name, log),
+        items_per_cycle=items_per_cycle,
+        extract_cycle_time=cycle_time,
+        allowed_forms=allowed,
+        unrecognized_forms=unrecognized,
+    )
+
+
 def _recipe_io(amount: ItemAmount, items: Mapping[str, Item], log: _WarningLog) -> RecipeIO:
     """Normalize one parsed item-amount against the item's form.
 
@@ -1158,6 +1455,23 @@ def _is_building_entry(entry: Mapping[str, object]) -> bool:
     return any(marker in entry for marker in POWER_MARKER_KEYS)
 
 
+def _is_extractor_entry(entry: Mapping[str, object]) -> bool:
+    """Decide whether one entry is a resource extractor.
+
+    Args:
+        entry: The entry mapping.
+
+    Returns:
+        True when the entry carries ANY of EXTRACTION_MARKER_KEYS. Any-of
+        rather than all-of is measured, not lenient: 2 of the 8 entries that
+        declare allowed resource forms declare no rate at all, and requiring
+        the rate would drop them from a model whose whole subject is which
+        buildings extract what. There is no group floor here either, for the
+        reason :func:`_is_building_entry` states.
+    """
+    return any(marker in entry for marker in EXTRACTION_MARKER_KEYS)
+
+
 def _build_items(groups: Sequence[DocsGroup], log: _WarningLog) -> dict[str, Item]:
     """Build every item, in document order.
 
@@ -1198,6 +1512,30 @@ def _build_buildings(groups: Sequence[DocsGroup], log: _WarningLog) -> dict[str,
             if key is not None:
                 buildings[key] = _building(entry, key, group.short_name, log)
     return buildings
+
+
+def _build_extractors(groups: Sequence[DocsGroup], log: _WarningLog) -> dict[str, Extractor]:
+    """Build every resource extractor, in document order.
+
+    Args:
+        groups: The recognized groups.
+        log: The warning log.
+
+    Returns:
+        Extractors by ClassName. This is its own namespace, so an entry that is
+        both a power consumer and an extractor is built twice, once per model,
+        under one key - and a duplicate ClassName inside THIS namespace is
+        flagged by :func:`_entry_key` exactly as it is for the others.
+    """
+    extractors: dict[str, Extractor] = {}
+    for group in groups:
+        for entry in group.entries:
+            if not _is_extractor_entry(entry):
+                continue
+            key = _entry_key(entry, group.short_name, extractors, log)
+            if key is not None:
+                extractors[key] = _extractor(entry, key, group.short_name, log)
+    return extractors
 
 
 def _build_recipes(
@@ -1339,6 +1677,7 @@ def build_registry(document: DocsDocument) -> Registry:
     unknown = _unknown_groups(document, log)
     items = _build_items(document.groups, log)
     buildings = _build_buildings(document.groups, log)
+    extractors = _build_extractors(document.groups, log)
     recipes = _build_recipes(document.groups, items, buildings, log)
     _assert_grammar_intact(_recipe_entry_count(document.groups), len(recipes), log)
     return Registry(
@@ -1347,6 +1686,7 @@ def build_registry(document: DocsDocument) -> Registry:
         buildings=MappingProxyType(buildings),
         warnings=log.emit(),
         unknown_groups=unknown,
+        extractors=MappingProxyType(extractors),
     )
 
 
