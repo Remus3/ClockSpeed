@@ -442,6 +442,12 @@ falls outside both the `CS-8nn` and the `CS-9nn` blocks, on the same footing as 
 body into a file a slice may not open - or deleting the body instead of moving it - are both
 worse than saying plainly that the move is owed. So CS-G05's section STAYS IN THIS FILE
 until its body lands in that leaf, and it stays as a DECIDED-OUT item rather than as a gate.
+**THE MOVE IS OWNED BY CS-983 IN `ROADMAP.md`, FILED 2026-09-12 BY THIS SESSION'S MERGER AFTER
+AN ADVERSARY REFUTED THE HALF-MOVE.** Its finding stands and is recorded rather than argued
+away: a section declaring that it does not meet this file's own membership rule, while
+staying in this file, is incoherent under that rule. It is a TRANSITIONAL state with a named
+owner and an acceptance clause, which is what this project does with every other state it
+cannot finish in one slice - it is not a licence to leave it here indefinitely.
 **DO NOT re-decide this, and DO NOT close CS-G05 as part of executing it.** The move is a
 relocation and every status block below travels with it, verbatim.
 

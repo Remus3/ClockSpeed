@@ -133,7 +133,9 @@ touches the 23529.
   grammar, is itself unmeasured.
 - Any restatement of the clause's population. **A restated clause is a scope change and
   closes as one**, with its own record - it is not this gate clearing. The rule at the top
-  of this file covers exactly this move.
+  of `docs/GATED.md` - "The rule that protects this file" - covers exactly this move.
+  THAT POINTER WAS RELATIVE AND IS MADE ABSOLUTE HERE: this bullet was written while the
+  item lived in that file, and "this file" meant it. Nothing else in the bullet is changed.
 
 **PREP - workable now, and mostly already built:**
 
@@ -157,7 +159,8 @@ touches the 23529.
 
 **WHAT WOULD BE A SYNTHETIC CLOSE HERE**, named so it is recognised: narrowing the graded
 population to the reachable, size-compatible sites and declaring the clause met. That is
-the proxy substitution this file's opening rule describes. The narrowing may well be the
+the proxy substitution the opening rule of `docs/GATED.md` describes - again a relative
+pointer made absolute, for the reason the bullet above states. The narrowing may well be the
 right ENGINEERING answer - it is what the shipped arms already do - but it is a scope change
 and it needs the operator's ruling and its own record, not a green suite.
 
