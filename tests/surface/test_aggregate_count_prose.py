@@ -65,17 +65,40 @@ ANCHOR turned out to be a knob of its own, narrowable to ``clockspeed/surface``
 with every breadth arm green, so the anchor is now derived from the import
 system rather than compared against a literal.
 
-THE POPULATION'S BREADTH IS GUARDED STRUCTURALLY, NOT BY A LIST OF FILENAMES.
-The worst of those six survivors moved the population root from ``clockspeed`` to
+THE CORPUS IS GRADED BY SET EQUALITY, AND THAT REPLACED THREE ROUNDS OF PINS.
+The worst survivor of round one moved the population root from ``clockspeed`` to
 ``clockspeed/surface`` and dropped 28 of 49 files - every module under ``data/``,
 ``save/``, ``solve/``, ``audit/``, ``progress/`` and ``advisor/`` - with nothing
-red, because every named-carrier arm named a file under ``surface/``. So breadth
-is now derived: :func:`test_the_population_covers_every_shipping_package` lists
-the package directories under ``clockspeed/`` from the filesystem and requires
-each to contribute, and
-:func:`test_the_population_is_a_superset_of_the_anchored_corpus` re-derives the
-whole corpus from anchors spelled independently of the knob. Adding a package
-cannot go unswept either.
+red. Round two pinned the root with an ANCHOR; round three's adversary narrowed
+the anchor's own helper, and then narrowed the anchor AT ITS USE SITE by
+concatenating ``"/surface"`` onto it, rebuilding the original defect without
+touching a single literal and leaving 9 of 10 ``shell/`` files unswept with 452
+arms green. The unpinned knob had simply moved up a level each time, because
+every pin is itself a value for the next pass to find.
+
+So the construction changed instead. :func:`population_files` is enumerated at
+run time, :func:`independently_walked_corpus` derives the same corpus a second
+time by ``os.walk`` with its own roots, suffixes and exclusions spelled as
+literals that appear nowhere else in this module, and
+:func:`test_the_swept_corpus_equals_an_independently_walked_corpus` asserts the
+two sets are EQUAL - not a superset, and not one-file-per-package, both of which
+a shrink can satisfy. No config change at any level can shrink the corpus without
+that arm dying, because the two derivations would have to be wrong the SAME way.
+:func:`test_the_independent_walk_is_not_vacuous` puts the floor on the WALK
+rather than on the sweep, so an empty-set equality cannot pass either. The
+honest residual, stated rather than left to be found: a mutation that edits BOTH
+spellings identically survives, and no single-edit mutation does.
+
+ONE MUTANT SURVIVES THE EQUALITY ARM AND IS EQUIVALENT RATHER THAN LIVE, which
+is a different thing and is measured, not asserted. Adding ``docs`` to
+:data:`POPULATION_ROOTS` leaves every arm green because ``docs/`` holds ZERO of
+its 36 files with a graded suffix - the same is true of ``memory/`` (0 of 21) and
+``config/`` (0 of 1) - so the corpus is byte-identical either way and no value
+could distinguish the two trees. The moment somebody adds a ``.py`` under
+``docs/``, the mutation stops being equivalent and the equality arm reddens,
+because the independent walk does not read that root. An equivalent mutant is
+not a surviving one, and the way to tell them apart is to name the structural
+fact that makes it equivalent.
 
 THE ELECTRON SHELL IS IN THE POPULATION. ``shell/`` carries 18 ``.js`` files and
 is the companion surface that renders the same route set, so a restated count
@@ -91,11 +114,28 @@ typo dressed as a policy: :func:`test_the_excluded_adr_would_redden_this_guard`
 proves the excluded file DOES carry the shape. ``BOOTSTRAP.md`` section 7.1 is
 likewise out - it is the document that ENUMERATES the set, so it is the one place
 a size may be spelled - and so are ``tests/`` and ``docs/`` generally, which
-RECORD the history of these sentences on purpose. Running this detector over
-``docs/`` fires on ``docs/ARCHITECTURE.md``'s "The five endpoints that would
-surface it", a legal subset count that only looks like an aggregate because an
-authority reference happens to sit six tokens back. That is information about the
-heuristic's limit, not a site to edit.
+RECORD the history of these sentences on purpose.
+
+EACH EXCLUSION IS MADE BY A NAMED MECHANISM, and the mechanisms are not
+interchangeable. ``tests/`` and ``shell/test/`` go out through
+:data:`EXCLUDED_PATH_PARTS`, which prunes by path component. ``docs/`` and
+``memory/`` go out because ``.md`` is not a graded suffix, so they hold nothing
+this guard could read in the first place. ``tools/``, ``ops/`` and ``scripts/``
+hold real ``.py`` files and go out only because they are not roots, which is why
+those three - and ONLY those three - are named in
+:data:`FORBIDDEN_POPULATION_PREFIXES`: an earlier revision listed ``docs/``,
+``memory/`` and ``tests/`` there too and promised that widening the root "pulls
+them in and this arm dies", which was false for all three. The inert members were
+deleted and :func:`test_every_forbidden_prefix_is_live_rather_than_decorative`
+now stops one being added back.
+
+A RELATED DEAD CLAIM, corrected rather than left standing. Running this detector
+over ``docs/`` fires on ``docs/ARCHITECTURE.md``'s "The five endpoints that would
+surface it" - a legal subset count that only looks like an aggregate because an
+authority reference happens to sit six tokens back. That is a true observation
+about the heuristic and NOT a risk this population can run: ``.md`` is not a
+graded suffix, so no setting of the root knob can reach it. It is recorded here
+as information about the limit, and never as a site to edit.
 
 WHAT THIS DETECTOR CANNOT CATCH, stated here rather than left for the next
 adversary to find. Each of these was planted, measured to pass through, and has
@@ -117,10 +157,16 @@ an arm below pinning the boundary so it cannot move silently.
     is the dial that trades reach against subset false positives, and it is set
     at the widest value the measured population tolerates: at 12 it reddens
     ``pending.py``'s own legal "five unbacked endpoints".
-  - A COMPOUND JOINED BY ANYTHING BUT A HYPHEN. ``route-templates`` is split and
-    caught; ``route_templates`` is not, and deliberately - splitting on the
-    underscore would make ``ENDPOINT_TEMPLATES`` yield the token "templates",
-    so the sentences that correctly NAME the owner would start reddening.
+  - A COMPOUND JOINED BY NEITHER A HYPHEN NOR AN UNDERSCORE - ``route/templates``
+    or ``routeTemplates``. Both separators in :data:`COMPOUND_SEPARATORS` are
+    split and caught. THE UNDERSCORE USED TO BE LISTED HERE as a limit, on the
+    stated grounds that splitting it would make ``ENDPOINT_TEMPLATES`` yield
+    "templates" and redden the sentences that correctly NAME the owner. That was
+    measured and is FALSE - splitting the underscore adds zero population hits -
+    so the shape was closed and the claim deleted. The remaining two are not
+    closed for a stated reason: a slash would split ``/api/health`` into tokens
+    and shift every distance in this repository's most common phrase, and camel
+    case has no live carrier to justify a case-boundary tokenizer.
   - A COUNT SPELLED IN A WAY :data:`COUNT_WORDS` does not hold. "a dozen" and
     "twenty-one" are caught; "a handful" and "a couple" are not counts.
 
@@ -130,9 +176,23 @@ at all, so "``BOOTSTRAP.md`` section 7.1 is the owner. There are eleven
 endpoints." IS caught, and an arm plants it. That choice is taken knowingly: this
 repository's prose routinely puts the authority in one sentence and the claim in
 the next, so a boundary-respecting detector would miss the house style. The cost
-is the ``docs/ARCHITECTURE.md`` shape above - a subset count near an unrelated
-authority reference. Inside the population that cost was measured at ZERO, and
-the span is what holds it there.
+is a subset count sitting near an unrelated authority reference, which is the
+shape ``docs/ARCHITECTURE.md`` carries and which ``pending.py`` would carry if
+the span reached twelve. Inside the population that cost was measured at ZERO,
+and the span is what holds it there.
+
+WHERE AN ARM WOULD BE VACUOUS IT IS PAIRED WITH A FIRING LEG, or deleted. An
+adversarial pass found three negative arms that no value of any knob could make
+fire: two distributive phrases carried no authority token, so they were green for
+that reason rather than because of the distributive skip, and one "legal subset"
+sentence had neither a count-noun pair nor an authority token and was doubly
+vacuous. The vacuous sentence was deleted; the other two were extended with an
+authority reference, which departs from the live text on purpose; and every
+member of :data:`LEGAL_SUBSET_SENTENCES` and :data:`DISTRIBUTIVE_PHRASES` now
+carries a paired arm asserting that it DOES fire once the one feature holding it
+green is removed. Three of seventeen arms silently unable to fail is the
+pooled-guard shape, where a population's weakest members go unmeasured while the
+acceptance clause still passes.
 
 Test-quality discipline (CONVENTIONS.md section 7.2). Every population size is
 bound to a SCALAR before it is asserted, so the pytest assertion channel renders
@@ -146,12 +206,13 @@ authored in this repository or lifted from a tracked source file.
 from __future__ import annotations
 
 import inspect
+import os
 from pathlib import Path
 from typing import Final
 
 import pytest
 
-from clockspeed.surface.api import health, pending, solve
+from clockspeed.surface.api import health, pending, routes, solve
 
 # ---------------------------------------------------------------------------
 # The detector
@@ -272,44 +333,48 @@ DISTRIBUTIVE_WORD: Final = "per"
 #: marker ("10)") and a section reference ("7.1") out; both have their own arm.
 MAX_DIGIT_RUN: Final = 3
 
-#: Split on this before tokenizing, so ``route-templates`` reads as two tokens
-#: and ``twenty-one`` as a count. The underscore is deliberately NOT split - see
-#: the docstring's limits section.
-COMPOUND_SEPARATOR: Final = "-"
+#: Turned into whitespace before tokenizing, so ``route-templates`` reads as two
+#: tokens, ``twenty-one`` as a count, and ``route_templates`` as two as well.
+#: The underscore is here BY MEASUREMENT: a previous revision of this module
+#: declined to split it on the stated grounds that ``ENDPOINT_TEMPLATES`` would
+#: then yield the token "templates" and redden the sentences that correctly NAME
+#: the owner. That cost was measured and does not exist - splitting the
+#: underscore adds ZERO population hits - so the claim was deleted rather than
+#: defended, and the shape is now closed.
+COMPOUND_SEPARATORS: Final = ("-", "_")
 
 #: Which file suffixes carry prose this guard grades.
 POPULATION_SUFFIXES: Final = (".py", ".js", ".html")
 
 #: Where the population is rooted: the shipping Python package and the Electron
-#: shell. Breadth is NOT trusted to this knob - the arms below re-derive the
-#: corpus from anchors spelled independently of it.
+#: shell. NOTHING about breadth is trusted to this knob, or to any other - the
+#: corpus is graded by SET EQUALITY against an independent walk below.
 POPULATION_ROOTS: Final = ("clockspeed", "shell")
 
-#: Path components that take a file out of the population wherever they appear.
-#: Test trees RECORD the history of these sentences on purpose.
+#: Path components that take a file out of the population wherever they appear
+#: BELOW the repository root. Test trees RECORD the history of these sentences on
+#: purpose. Matched against the REPOSITORY-RELATIVE parts, not the absolute ones:
+#: matching absolute parts made the whole population vanish for anyone whose
+#: checkout sat under a directory named "test", and an empty population passes
+#: the arm this module exists for.
 EXCLUDED_PATH_PARTS: Final = ("__pycache__", "node_modules", "test", "tests")
 
-#: Directories that must never contribute, asserted rather than assumed. These
-#: are the deliberate exclusions the docstring argues for, and the arm over them
-#: is what dies if the population root is widened toward the repository root.
+#: Trees that must never contribute, asserted rather than assumed. Every member
+#: is LIVE - it holds at least one graded-suffix file, pinned by its own arm - so
+#: adding one to the roots really does redden
+#: :func:`test_the_population_excludes_the_recording_trees`. Three members were
+#: REMOVED from this tuple rather than kept: ``docs/`` and ``memory/`` hold no
+#: graded-suffix file at all, and ``tests/`` is already removed by
+#: :data:`EXCLUDED_PATH_PARTS`, so an arm naming them promised a net it did not
+#: provide.
 FORBIDDEN_POPULATION_PREFIXES: Final = (
-    "tests/",
-    "docs/",
     "tools/",
     "ops/",
     "scripts/",
-    "memory/",
 )
 
 #: The ADR that spells this defect and is deliberately left alone.
 EXCLUDED_ADR_RELATIVE: Final = "docs/adr/0012-dashboard-refusal-vocabulary-and-wire-form.md"
-
-#: The package anchor, spelled here so the breadth arms cannot drift with the
-#: knob they are grading.
-SHIPPING_PACKAGE_ANCHOR: Final = "clockspeed"
-
-#: The Electron shell anchor, on the same terms.
-SHELL_ANCHOR: Final = "shell"
 
 
 def _normalize(token: str) -> str:
@@ -340,7 +405,10 @@ def _tokenize(text: str) -> tuple[tuple[str, ...], tuple[str, ...]]:
     Returns:
         The original tokens and their normalized forms, same length, same order.
     """
-    original = tuple(text.replace(COMPOUND_SEPARATOR, " ").split())
+    loosened = text
+    for separator in COMPOUND_SEPARATORS:
+        loosened = loosened.replace(separator, " ")
+    original = tuple(loosened.split())
     return original, tuple(_normalize(token) for token in original)
 
 
@@ -420,11 +488,10 @@ def _is_population_member(path: Path) -> bool:
     Returns:
         True for a regular file with a graded suffix and no excluded component.
     """
-    return (
-        path.is_file()
-        and path.suffix in POPULATION_SUFFIXES
-        and not any(part in EXCLUDED_PATH_PARTS for part in path.parts)
-    )
+    if not path.is_file() or path.suffix not in POPULATION_SUFFIXES:
+        return False
+    relative = path.relative_to(REPO_ROOT).parts
+    return not any(part in EXCLUDED_PATH_PARTS for part in relative)
 
 
 def population_files() -> tuple[Path, ...]:
@@ -441,24 +508,43 @@ def population_files() -> tuple[Path, ...]:
     return tuple(sorted(found))
 
 
-def _anchored_corpus() -> tuple[Path, ...]:
-    """The corpus re-derived from anchors spelled independently of the knob.
+def independently_walked_corpus() -> tuple[Path, ...]:
+    """The corpus, derived a SECOND time by rules spelled nowhere else.
 
-    This exists so narrowing :data:`POPULATION_ROOTS` cannot silently shrink what
-    is graded. It repeats the suffix and exclusion logic on purpose: a guard that
-    derives its expectation from the value it is grading grades nothing.
+    THIS IS THE GUARANTEE, and it replaces three rounds of pins. Every earlier
+    attempt to protect the corpus added a constant - a root, then an anchor for
+    the root, then a private config inside the anchor's own helper - and each
+    time the unpinned knob simply moved up one level and the next adversarial
+    pass narrowed it there. An anchor could even be narrowed AT THE USE SITE by
+    concatenation, rebuilding the original defect without touching its literal.
+    Pinning values cannot close that class, because every pin is itself a value.
+
+    So the corpus is enumerated twice by different means and asserted EQUAL -
+    not a superset, and not one-file-per-package, both of which a shrink can
+    satisfy. This walk shares NOTHING with :func:`population_files`: it uses
+    ``os.walk`` rather than ``Path.rglob``, prunes as it descends rather than
+    filtering afterwards, and spells its own roots, suffixes and exclusions as
+    literals. Two derivations that both read the same knob are not independent,
+    which is exactly why none of this module's constants appear below.
+
+    A plain walk was chosen over ``git ls-files`` deliberately. Git cannot see an
+    untracked file, so a newly added module would be absent from one side and
+    present in the other, and this arm would redden for someone mid-edit rather
+    than for a real shrink. Both sides therefore read the filesystem.
 
     Returns:
         Absolute paths, sorted.
     """
-    found: set[Path] = set()
-    for anchor in (SHIPPING_PACKAGE_ANCHOR, SHELL_ANCHOR):
-        for path in (REPO_ROOT / anchor).rglob("*"):
-            if not path.is_file() or path.suffix not in (".py", ".js", ".html"):
-                continue
-            if any(part in ("__pycache__", "node_modules", "test", "tests") for part in path.parts):
-                continue
-            found.add(path)
+    graded_here = {".py", ".js", ".html"}
+    pruned_here = {"__pycache__", "node_modules", "test", "tests"}
+    found: list[Path] = []
+    for top in ("clockspeed", "shell"):
+        for directory, subdirectories, filenames in os.walk(REPO_ROOT / top):
+            subdirectories[:] = [name for name in subdirectories if name not in pruned_here]
+            here = Path(directory)
+            found.extend(
+                here / filename for filename in filenames if Path(filename).suffix in graded_here
+            )
     return tuple(sorted(found))
 
 
@@ -565,13 +651,74 @@ def test_the_excluded_path_component_membership_is_pinned_in_both_directions() -
 
 
 def test_the_forbidden_prefix_membership_is_pinned_in_both_directions() -> None:
-    expected = ("tests/", "docs/", "tools/", "ops/", "scripts/", "memory/")
+    expected = ("tools/", "ops/", "scripts/")
     missing = sorted(frozenset(expected) - frozenset(FORBIDDEN_POPULATION_PREFIXES))
     extra = sorted(frozenset(FORBIDDEN_POPULATION_PREFIXES) - frozenset(expected))
     drift_count = len(missing) + len(extra)
     assert drift_count == 0, (
         f"FORBIDDEN_POPULATION_PREFIXES drifted: {len(missing)} missing {missing}, "
         f"{len(extra)} extra {extra}"
+    )
+
+
+@pytest.mark.parametrize("prefix", FORBIDDEN_POPULATION_PREFIXES)
+def test_every_forbidden_prefix_is_live_rather_than_decorative(prefix: str) -> None:
+    """A forbidden prefix that could never be reached promises a net it has not got.
+
+    Three earlier members were inert and measurably so: adding ``docs`` or
+    ``memory`` to the roots left every arm green because neither holds a
+    graded-suffix file, and ``tests`` was already removed by the path-component
+    filter, so its prefix arm graded nothing either. They were deleted rather
+    than explained. This arm is what stops one being added back.
+    """
+    tree = REPO_ROOT / prefix.rstrip("/")
+    assert tree.is_dir(), f"{prefix} is not a directory in this repository"
+    graded = [
+        path for path in tree.rglob("*") if path.is_file() and path.suffix in POPULATION_SUFFIXES
+    ]
+    graded_count = len(graded)
+    assert graded_count > 0, (
+        f"{prefix} holds no file with a graded suffix, so forbidding it cannot ever "
+        "redden and the exclusion is decorative"
+    )
+
+
+def test_the_derived_population_floors_are_pinned_in_both_directions() -> None:
+    """The floors under the DERIVED plant populations are values too, so they are pinned.
+
+    Lowered to zero, a parametrized arm over an empty derivation collects no cases
+    and vanishes in silence, which is the one way a derived population can still
+    grade nothing.
+    """
+    expected_subset = 3
+    expected_distributive = 2
+    assert expected_subset == MINIMUM_LIFTED_SUBSET_SENTENCES, (
+        f"the subset floor is {MINIMUM_LIFTED_SUBSET_SENTENCES}, not {expected_subset}"
+    )
+    assert expected_distributive == MINIMUM_LIFTED_DISTRIBUTIVE_SENTENCES, (
+        f"the distributive floor is {MINIMUM_LIFTED_DISTRIBUTIVE_SENTENCES}, not "
+        f"{expected_distributive}"
+    )
+
+
+def test_the_authority_prefix_really_carries_an_authority() -> None:
+    """Every firing leg below depends on this string carrying a token; nothing else said so."""
+    _original, normalized = _tokenize(AUTHORITY_PREFIX)
+    carried = sorted(frozenset(normalized) & frozenset(AUTHORITY_TOKENS))
+    carried_count = len(carried)
+    assert carried_count > 0, (
+        "the prefix the firing legs prepend carries no authority token, so every one "
+        "of them would fail for a reason unrelated to the boundary it grades"
+    )
+
+
+def test_the_compound_separator_membership_is_pinned_in_both_directions() -> None:
+    expected = ("-", "_")
+    missing = sorted(frozenset(expected) - frozenset(COMPOUND_SEPARATORS))
+    extra = sorted(frozenset(COMPOUND_SEPARATORS) - frozenset(expected))
+    drift_count = len(missing) + len(extra)
+    assert drift_count == 0, (
+        f"COMPOUND_SEPARATORS drifted: {len(missing)} missing {missing}, {len(extra)} extra {extra}"
     )
 
 
@@ -657,6 +804,44 @@ def test_the_detector_fires_on_a_hyphenated_compound() -> None:
     planted = "the eleven route-templates ``BOOTSTRAP.md`` section 7.1 publishes"
     hit_count = len(aggregate_count_phrases(planted))
     assert hit_count > 0, "a hyphen fused the noun to its modifier and hid the count"
+
+
+def test_the_detector_fires_on_an_underscore_compound() -> None:
+    """The shape a previous revision declined to close on a cost that did not exist."""
+    planted = "the eleven route_templates ``BOOTSTRAP.md`` section 7.1 publishes"
+    hit_count = len(aggregate_count_phrases(planted))
+    assert hit_count > 0, "an underscore fused the noun to its modifier and hid the count"
+
+
+def test_normalizing_keeps_letters_only_so_a_glued_section_number_still_reads() -> None:
+    """Grades the ``isalpha`` in :func:`_normalize`, which nothing else did.
+
+    ``isalnum`` would leave "section7.1" as "section71", which is not an
+    authority token, and the whole sentence would go quiet. The discriminator is
+    load-bearing rather than incidental, so it gets an arm of its own.
+    """
+    planted = "the nine endpoints, enumerated in the section7.1 listing above"
+    hit_count = len(aggregate_count_phrases(planted))
+    assert hit_count == 1, (
+        "a section reference glued to its number stopped reading as an authority, so "
+        "digits are no longer being dropped from a token before it is matched"
+    )
+
+
+def test_the_noun_search_prefers_the_noun_after_the_count() -> None:
+    """Grades the ORDER of the two legs in :func:`_noun_index`, which nothing else did.
+
+    Searching backward first pairs the count with an earlier noun, which moves
+    the window's near edge left and pushes a trailing authority reference out of
+    span. Forward-before-backward is the correct precedence because the noun a
+    count modifies normally follows it.
+    """
+    planted = "the routes for nine endpoints a b c d e f g BOOTSTRAP.md names"
+    hit_count = len(aggregate_count_phrases(planted))
+    assert hit_count == 1, (
+        "the noun search no longer prefers the noun AFTER the count, so a count is "
+        "being paired with an earlier noun and its authority falls outside the span"
+    )
 
 
 def test_the_detector_fires_on_a_hyphenated_count_word() -> None:
@@ -873,35 +1058,157 @@ def test_the_detector_does_not_read_a_section_reference_as_a_count() -> None:
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.parametrize(
-    "legal",
-    [
-        "The five endpoints whose computing layer does not exist yet, answering so.",
-        "The five unbacked endpoints, one route each, ready to be registered.",
-        "The five routes, in a stable order, with pairwise distinct templates.",
-        "naming a different item on each would imply five independent unlocks",
-    ],
-)
+#: An authority reference this module prepends to a lifted sentence to prove the
+#: sentence is one token away from firing.
+AUTHORITY_PREFIX: Final = "``BOOTSTRAP.md`` section 7.1 lists them."
+
+#: Fewest live subset sentences the extraction below must find. A floor, not a
+#: membership list: a list of sentences is self-deleting under parametrize, which
+#: is how an earlier revision let "drop one plant" survive with 463 arms green.
+MINIMUM_LIFTED_SUBSET_SENTENCES: Final = 3
+
+#: Fewest live distributive sentences, on the same terms.
+MINIMUM_LIFTED_DISTRIBUTIVE_SENTENCES: Final = 2
+
+
+def _pair_slices(source: str) -> tuple[tuple[str, bool], ...]:
+    """Every count-noun pair the detector's pairing step finds in SOURCE.
+
+    The slice runs from the pair's first token through ONE TOKEN PAST the noun,
+    because that trailing token is what the distributive skip reads. Taking the
+    pair's own neighbourhood rather than the whole sentence is deliberate: a
+    sentence lifted whole from module source can run sixty tokens, and an
+    authority reference placed at its front then falls outside
+    :data:`AUTHORITY_SPAN`, which made the firing legs fail for a reason that had
+    nothing to do with the boundary they grade.
+
+    Args:
+        source: Module source.
+
+    Returns:
+        One entry per pair: the slice, and whether it is distributive.
+    """
+    original, normalized = _tokenize(source)
+    found: list[tuple[str, bool]] = []
+    for index, token in enumerate(original):
+        if not _is_count(token, normalized[index]):
+            continue
+        noun_at = _noun_index(normalized, index)
+        if noun_at is None:
+            continue
+        low = min(index, noun_at)
+        high = max(index, noun_at)
+        trailing = normalized[high + 1] if high + 1 < len(normalized) else ""
+        found.append((" ".join(original[low : high + 2]), trailing == DISTRIBUTIVE_WORD))
+    return tuple(found)
+
+
+def _lifted(modules: tuple[object, ...], distributive: bool) -> tuple[str, ...]:
+    """Pair slices lifted from live modules, of one kind.
+
+    DERIVED FROM THE SHIPPING SOURCE rather than listed, which is the point. An
+    earlier revision held these as literals in a parametrized tuple; dropping one
+    deleted its own two arms and survived with every arm green - the same
+    self-deleting-vocabulary hazard the numeric vocabularies carry a membership
+    pin for. There is nothing here to drop.
+
+    Args:
+        modules: Live modules to read.
+        distributive: Which kind to return.
+
+    Returns:
+        Distinct slices, longest first so the sample is stable.
+    """
+    found: set[str] = set()
+    for module in modules:
+        for slice_text, is_distributive in _pair_slices(inspect.getsource(module)):  # type: ignore[arg-type]
+            if is_distributive == distributive:
+                found.add(slice_text)
+    return tuple(sorted(found, key=lambda text: (-len(text), text)))
+
+
+def lifted_subset_sentences() -> tuple[str, ...]:
+    """Live count-noun pairs that are NOT rates - a module counting its own subset."""
+    return _lifted((pending, solve), distributive=False)
+
+
+def lifted_distributive_sentences() -> tuple[str, ...]:
+    """Live count-noun pairs that state a RATE rather than a count."""
+    return _lifted((routes, pending), distributive=True)
+
+
+def test_the_lifted_sentence_populations_are_not_vacuous() -> None:
+    """Both derivations must actually find something, or every arm over them is empty."""
+    subset_count = len(lifted_subset_sentences())
+    distributive_count = len(lifted_distributive_sentences())
+    assert subset_count >= MINIMUM_LIFTED_SUBSET_SENTENCES, (
+        f"the subset extraction found {subset_count} live sentence(s), fewer than the "
+        f"{MINIMUM_LIFTED_SUBSET_SENTENCES} this repository carries"
+    )
+    assert distributive_count >= MINIMUM_LIFTED_DISTRIBUTIVE_SENTENCES, (
+        f"the distributive extraction found {distributive_count} live sentence(s), "
+        f"fewer than the {MINIMUM_LIFTED_DISTRIBUTIVE_SENTENCES} this repository carries"
+    )
+
+
+@pytest.mark.parametrize("legal", lifted_subset_sentences())
 def test_the_detector_leaves_a_modules_own_subset_count_alone(legal: str) -> None:
-    """Lifted verbatim from ``pending.py``, which OWNS the number five."""
     hit_count = len(aggregate_count_phrases(legal))
     assert hit_count == 0, "the detector fired on a module counting its own subset"
 
 
-@pytest.mark.parametrize(
-    "distributive",
-    [
-        "One route per published template, in ``BOOTSTRAP.md`` section 7.1's order.",
-        "Assemble one route per published template, with the providers bound in.",
-        "ONE ROUTE PER TEMPLATE, AND THE METHOD-BOUNDARY ROUTE IS PUBLISHED",
-    ],
-)
+@pytest.mark.parametrize("legal", lifted_subset_sentences())
+def test_every_lifted_subset_sentence_fires_with_an_authority_beside_it(
+    legal: str,
+) -> None:
+    """The firing leg that makes the arm above grade the AUTHORITY, not the shape.
+
+    Without it, "stayed green" and "could never have gone red" are the same
+    observation. An adversarial pass found three arms in this file that no value
+    of any knob could make fire, one of them a sentence with neither a count-noun
+    pair nor an authority token; the extraction above cannot produce that shape,
+    because it selects on the pair.
+    """
+    hit_count = len(aggregate_count_phrases(f"{AUTHORITY_PREFIX} {legal}"))
+    assert hit_count > 0, (
+        "this subset sentence does not fire even with an authority reference beside "
+        "it, so the arm asserting it stays green is vacuous and grades no boundary"
+    )
+
+
+@pytest.mark.parametrize("distributive", lifted_distributive_sentences())
 def test_the_detector_does_not_read_a_distributive_phrase_as_a_count(
     distributive: str,
 ) -> None:
-    """A rate is not a count. Lifted from ``routes.py`` and ``pending.py``."""
-    hit_count = len(aggregate_count_phrases(distributive))
+    """Each phrase is graded WITH an authority beside it, which the live text lacks.
+
+    Two of the three literal phrases an earlier revision used carried no
+    authority token, so they were green for that reason and not because of the
+    distributive skip: setting :data:`DISTRIBUTIVE_WORD` to another word killed
+    exactly one of the three. Prepending the authority is what makes the skip the
+    only thing holding each one green.
+    """
+    hit_count = len(aggregate_count_phrases(f"{AUTHORITY_PREFIX} {distributive}"))
     assert hit_count == 0, "the detector read a distributive phrase as a count"
+
+
+@pytest.mark.parametrize("distributive", lifted_distributive_sentences())
+def test_every_lifted_distributive_phrase_fires_once_the_rate_word_is_gone(
+    distributive: str,
+) -> None:
+    """The firing leg for the arm above."""
+    substituted = " ".join(
+        "in" if _normalize(word) == DISTRIBUTIVE_WORD else word for word in distributive.split()
+    )
+    assert substituted != distributive, (
+        f"the rate word {DISTRIBUTIVE_WORD!r} does not appear as a word in this "
+        "sentence, so it cannot grade the distributive skip"
+    )
+    hit_count = len(aggregate_count_phrases(f"{AUTHORITY_PREFIX} {substituted}"))
+    assert hit_count > 0, (
+        "this phrase does not fire even with the rate word removed, so the arm "
+        "asserting it stays green is vacuous and grades no boundary"
+    )
 
 
 def test_the_detector_does_not_fire_on_a_bare_aggregate_noun() -> None:
@@ -936,92 +1243,69 @@ def test_two_modifiers_between_count_and_noun_is_a_stated_limit() -> None:
 
 
 # ---------------------------------------------------------------------------
-# The population is real, and its BREADTH is derived rather than listed. A glob
-# that matched nothing - or a root narrowed to one subpackage - would make the
-# arm this item exists for pass by measuring almost nothing at all.
+# THE CORPUS IS GRADED BY SET EQUALITY, which is the one arm that closes the
+# whole knob class instead of pinning its current members. Three rounds of pins
+# each displaced the unpinned knob up a level - root, then anchor, then the
+# anchor helper's own private config, then the anchor narrowed at its use site by
+# concatenation - because every pin is itself a value for the next pass to find.
+# Equality against a derivation that shares no constant with the first one cannot
+# be satisfied by a shrink at any level: both derivations would have to be wrong
+# the same way, which a single edit cannot do.
 # ---------------------------------------------------------------------------
 
 
-def test_the_shipping_package_anchor_is_the_top_level_package() -> None:
-    """The breadth ANCHOR is itself a knob, and an unpinned anchor is an unpinned guard.
+def test_the_swept_corpus_equals_an_independently_walked_corpus() -> None:
+    """THE guarantee. Set equality, reported as counts plus the symmetric difference."""
+    swept = frozenset(population_files())
+    walked = frozenset(independently_walked_corpus())
+    swept_count = len(swept)
+    walked_count = len(walked)
+    unswept = _relative(walked - swept)
+    unexpected = _relative(swept - walked)
+    difference_count = len(unswept) + len(unexpected)
+    assert difference_count == 0, (
+        f"the two derivations of the corpus disagree on {difference_count} file(s): "
+        f"the walk found {walked_count} and the sweep {swept_count}; "
+        f"{len(unswept)} walked file(s) are unswept, the first few being {unswept[:5]}; "
+        f"{len(unexpected)} swept file(s) are outside the walk, the first few being "
+        f"{unexpected[:5]}"
+    )
 
-    Narrowing the anchor to ``clockspeed/surface`` left every breadth arm green
-    while shrinking what they grade to one subpackage - the same defect the
-    breadth arms exist to kill, one level up. The expectation is DERIVED from the
-    import system rather than written down: the module this suite imports knows
-    its own top-level package name.
+
+def test_the_independent_walk_is_not_vacuous() -> None:
+    """Equality with an empty set is not a guarantee, so the WALK has its own floor.
+
+    Every number here is derived from the walk alone - the side that shares no
+    constant with the detector - so a shrink on the other side cannot satisfy it.
     """
-    derived = health.__name__.split(".")[0]
-    assert derived == SHIPPING_PACKAGE_ANCHOR, (
-        f"the anchor names {SHIPPING_PACKAGE_ANCHOR!r} but the shipping package this "
-        f"suite imports from is {derived!r}"
+    walked = independently_walked_corpus()
+    walked_count = len(walked)
+    assert walked_count > 0, "the independent walk found nothing; equality would prove nothing"
+    top_levels = {path.relative_to(REPO_ROOT).parts[0] for path in walked}
+    top_level_count = len(top_levels)
+    assert top_level_count > 1, (
+        f"the independent walk reaches only {top_level_count} top-level tree(s) "
+        f"{sorted(top_levels)}, so it cannot notice one of them being dropped"
     )
-    assert "/" not in SHIPPING_PACKAGE_ANCHOR, (
-        "the anchor carries a path separator, so it names a SUBPACKAGE and the breadth "
-        "arms below would grade only part of the shipping tree"
+    suffixes = {path.suffix for path in walked}
+    suffix_count = len(suffixes)
+    assert suffix_count > 1, (
+        f"the independent walk reaches only {suffix_count} suffix(es) {sorted(suffixes)}, "
+        "so it cannot notice a language being dropped"
     )
-
-
-def test_the_shell_anchor_names_the_electron_package() -> None:
-    """Same reasoning, derived from the marker file rather than from a literal."""
-    assert "/" not in SHELL_ANCHOR, "the shell anchor names a subdirectory, not the shell"
-    anchor = REPO_ROOT / SHELL_ANCHOR
-    assert (anchor / "package.json").is_file(), (
-        f"{SHELL_ANCHOR}/ carries no package.json, so it is not the Electron package"
-    )
-    assert not (anchor / "__init__.py").exists(), (
-        f"{SHELL_ANCHOR}/ is a Python package, so the anchor has been pointed at the "
-        "shipping package rather than at the shell"
-    )
-
-
-def test_the_population_covers_every_shipping_package() -> None:
-    """Derived by LISTING the packages, so adding one cannot go unswept either.
-
-    The anchor is spelled in this arm rather than read from POPULATION_ROOTS, so
-    narrowing that knob cannot narrow the expectation with it. This is the arm
-    that kills the survivor which dropped 28 of 49 files with nothing red.
-    """
-    anchor = REPO_ROOT / SHIPPING_PACKAGE_ANCHOR
-    packages = sorted(
-        directory
-        for directory in anchor.iterdir()
-        if directory.is_dir() and (directory / "__init__.py").is_file()
-    )
+    nested_depth = 2
+    packages = {
+        path.relative_to(REPO_ROOT).parts[1]
+        for path in walked
+        if path.relative_to(REPO_ROOT).parts[0] == "clockspeed"
+        and len(path.relative_to(REPO_ROOT).parts) > nested_depth
+    }
     package_count = len(packages)
-    assert package_count > 0, "no package directory was found; this arm would prove nothing"
-    members = population_files()
-    unswept = sorted(
-        package.name
-        for package in packages
-        if not any(package in member.parents for member in members)
-    )
-    unswept_count = len(unswept)
-    assert unswept_count == 0, (
-        f"{unswept_count} of {package_count} shipping package(s) contribute no file to "
-        f"the population: {unswept}"
-    )
-
-
-def test_the_population_covers_the_electron_shell() -> None:
-    """``shell/`` is in scope by decision, argued in the module docstring."""
-    anchor = REPO_ROOT / SHELL_ANCHOR
-    assert anchor.is_dir(), "the Electron shell is not where this arm says it is"
-    contributed = [member for member in population_files() if anchor in member.parents]
-    contributed_count = len(contributed)
-    assert contributed_count > 0, "the population reaches no file under the Electron shell"
-
-
-def test_the_population_is_a_superset_of_the_anchored_corpus() -> None:
-    """Pins the population root in the NARROWING direction, from anchors of its own."""
-    expected = frozenset(_anchored_corpus())
-    expected_count = len(expected)
-    assert expected_count > 0, "the anchored corpus is empty; this arm would prove nothing"
-    missing = _relative(expected - frozenset(population_files()))
-    missing_count = len(missing)
-    assert missing_count == 0, (
-        f"{missing_count} anchored file(s) are outside the population, the first few "
-        f"being {missing[:5]}"
+    minimum_packages = 5
+    assert package_count >= minimum_packages, (
+        f"the independent walk reaches {package_count} subpackage(s) of the shipping "
+        f"tree, fewer than the {minimum_packages} this repository has carried since "
+        f"phase 4: {sorted(packages)}"
     )
 
 
@@ -1043,7 +1327,12 @@ def test_the_population_holds_at_least_one_file_of_every_graded_suffix(suffix: s
         "clockspeed/surface/web/index.html",
         "clockspeed/data/registry.py",
         "clockspeed/save/header.py",
+        "clockspeed/solve/ratio.py",
+        "clockspeed/audit/placement.py",
+        "clockspeed/progress/__init__.py",
+        "clockspeed/advisor/__init__.py",
         "shell/main.js",
+        "shell/preload.js",
     ],
 )
 def test_the_population_contains_every_known_carrier(relative: str) -> None:
