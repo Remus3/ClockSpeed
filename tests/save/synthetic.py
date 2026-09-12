@@ -3219,6 +3219,280 @@ def type_tree_payload_with_flags(flags: int) -> bytes:
     )
 
 
+# ---------------------------------------------------------------------------
+# The (14,60) STRUCT INTERIOR and ARRAY-OF-STRUCT fixture - CS-829's mechanism.
+#
+# WHAT IT ADDS OVER THE BLOCK ABOVE. That one grades the TOP-LEVEL tag walk:
+# the lead byte, the recursive type name and the flags byte. Everything it
+# reaches stops at a tag's declared size. This block carries the same grammar
+# INSIDE a value - a struct interior written as a nested tag list, a container
+# sitting inside one, and the inner tag an array of struct writes ahead of its
+# elements - because those interiors were left unread when the top-level walk
+# was repaired and they read the LEGACY shape until they are told not to.
+#
+# IT IS A SEPARATE RECORD RATHER THAN MORE TAGS ON THE EXISTING ONE. The arms
+# in ``tests/save/test_property_payload_14_60.py`` assert against the actor
+# payload above by name, and one of them asserts a whole-mapping equality on
+# the component. Growing either would move assertions this block does not own.
+#
+# THE TWO ELEMENTS OF THE ARRAY ARE DELIBERATELY DIFFERENT LENGTHS. An element
+# region that divides evenly is closed by ``ELEMENT_SHAPE_UNIFORM_WIDTH`` for
+# arithmetic reasons rather than grammatical ones, and a fixture that let that
+# happen would grade division rather than the tag list.
+# ---------------------------------------------------------------------------
+
+#: The word a ``StructProperty`` type name carries its struct word under. Spelled
+#: here rather than imported from the reader so the fixture and the reader can be
+#: held against each other without either quoting the other's literal.
+TREE_STRUCT_TYPE_WORD: Final = "StructProperty"
+TREE_ARRAY_TYPE_WORD: Final = "ArrayProperty"
+
+
+def type_tree_tag_list(tags: tuple[bytes, ...]) -> bytes:
+    """Close a run of (14,60) tags with the terminator name a tag list ends on.
+
+    NO LEAD BYTE. The opaque byte belongs to a PAYLOAD, not to every tag list -
+    an interior begins at its tag's declared value offset and its first byte is
+    a property name's length prefix.
+
+    Args:
+        tags: The encoded tags, in file order.
+
+    Returns:
+        The tag list, terminator included.
+    """
+    return b"".join(tags) + fstring(PROPERTY_TERMINATOR)
+
+
+def type_tree_struct_tag(
+    name: str, struct_word: str, interior: bytes, *, flags: int = TAG_FLAGS_NATIVE_SERIALIZE
+) -> bytes:
+    """Encode one (14,60) ``StructProperty`` tag around an already-built interior.
+
+    THE STRUCT WORD IS A PARAMETER OF THE TYPE NAME HERE, which is the whole
+    difference from the legacy shape: there is no string sitting between the
+    index field and the guid flag for a reader to pick it out of.
+
+    Args:
+        name: The property name.
+        struct_word: The struct type word, written as the name's one parameter.
+        interior: The value bytes, normally a :func:`type_tree_tag_list`.
+        flags: The flags byte.
+
+    Returns:
+        The whole tag, interior included.
+    """
+    return type_tree_property_tag(
+        name,
+        type_name_tree(TREE_STRUCT_TYPE_WORD, ((struct_word, ()),)),
+        interior,
+        flags=flags,
+    )
+
+
+def type_tree_array_of_struct_tag(
+    name: str,
+    struct_word: str,
+    elements: tuple[bytes, ...],
+    *,
+    inner_tag: bool = False,
+    flags: int = TAG_FLAGS_NATIVE_SERIALIZE,
+) -> bytes:
+    """Encode one (14,60) ``ArrayProperty`` of ``StructProperty``.
+
+    NO INNER TAG, AND THAT IS MEASURED RATHER THAN CHOSEN. A legacy array of
+    struct writes its element count, then ONE tag naming the struct and
+    declaring the whole element region, then the elements. At this pair the
+    elements follow the count directly: over every (14,60) save in the library
+    reachable when this was written, walking ``count`` element tag lists from
+    the byte after the count closed the value exactly on 6187 of 6198 such
+    tags, where reading an inner tag of either grammar there read 0 of 6198.
+
+    THE STRUCT WORD IS STILL IN THE BYTES - it is the type name one level below
+    ``StructProperty``, which all 6198 carried. The reader does not publish it,
+    so no arm here asserts it comes back; the fixture writes it because the
+    save does, and a fixture that omitted it would let a reader that walked off
+    the end of a shorter name pass.
+
+    Args:
+        name: The property name.
+        struct_word: The struct type word, written as the nested parameter of
+            the type name's ``StructProperty``.
+        elements: The encoded elements, each normally a tag list.
+        inner_tag: Write the inner tag the LEGACY grammar carries, in the tree
+            spelling. FOR THE ARM THAT ASSERTS THE READER REFUSES IT - the
+            measurement above says no real (14,60) array carries one, and a
+            reader that accepted either shape would be grading nothing.
+        flags: The flags byte.
+
+    Returns:
+        The whole tag, elements included.
+    """
+    region = b"".join(elements)
+    if inner_tag:
+        region = type_tree_property_tag(
+            name,
+            type_name_tree(TREE_STRUCT_TYPE_WORD, ((struct_word, ()),)),
+            region,
+            flags=flags,
+        )
+    return type_tree_property_tag(
+        name,
+        type_name_tree(TREE_ARRAY_TYPE_WORD, ((TREE_STRUCT_TYPE_WORD, ((struct_word, ()),)),)),
+        _i32(len(elements)) + region,
+        flags=flags,
+    )
+
+
+#: The second (14,60) actor's identity. Every string invented.
+TREE_STRUCT_CLASS_PATH: Final = (
+    "/Synthetic/Parts/Build_SyntheticTreeStruct.Build_SyntheticTreeStruct_C"
+)
+TREE_STRUCT_INSTANCE: Final = "Persistent_Level:PersistentLevel.Build_SyntheticTreeStruct_C_0"
+
+#: The struct words. INVENTED, and that is the point: nothing in the reader may
+#: key on a transcribed vocabulary of observed words, so a fixture whose words
+#: appear in no save at all is the arm that catches one.
+TREE_STRUCT_WORD: Final = "SyntheticTreeItemAmount"
+TREE_NESTED_STRUCT_WORD: Final = "SyntheticTreeNestedPoint"
+TREE_ELEMENT_STRUCT_WORD: Final = "SyntheticTreeArrayEntry"
+
+#: The top-level struct tag and what its interior holds.
+TREE_STRUCT_NAME: Final = "mSyntheticTreeStruct"
+TREE_STRUCT_INT_NAME: Final = "mSyntheticTreeStructAmount"
+TREE_STRUCT_INT_VALUE: Final = 909
+TREE_STRUCT_STR_NAME: Final = "mSyntheticTreeStructLabel"
+TREE_STRUCT_STR_VALUE: Final = "SyntheticTreeStructLabel"
+
+#: The container sitting INSIDE the struct interior. Its element words come from
+#: the nested type name exactly as a top-level container's do, and an interior
+#: that read them from the legacy tag-extra run gets a parameter count instead.
+TREE_STRUCT_MAP_NAME: Final = "mSyntheticTreeStructInventory"
+TREE_STRUCT_MAP_ITEM_CLASS: Final = (
+    "/Synthetic/Items/Desc_SyntheticNestedOre.Desc_SyntheticNestedOre_C"
+)
+TREE_STRUCT_MAP_ITEM_AMOUNT: Final = 58
+TREE_STRUCT_MAP_VALUE_BYTES: Final = (
+    _i32(0) * TREE_MAP_LEAD_FIELDS
+    + _i32(1)
+    + fstring(MAP_NAME)
+    + fstring(TREE_STRUCT_MAP_ITEM_CLASS)
+    + _i32(TREE_STRUCT_MAP_ITEM_AMOUNT)
+)
+
+#: The struct nested one level down inside that interior - depth 2 of the walk.
+TREE_NESTED_STRUCT_NAME: Final = "mSyntheticTreeNested"
+TREE_NESTED_INT_NAME: Final = "mSyntheticTreeNestedInt"
+TREE_NESTED_INT_VALUE: Final = -31
+
+TREE_NESTED_INTERIOR: Final = type_tree_tag_list(
+    (
+        type_tree_property_tag(
+            TREE_NESTED_INT_NAME,
+            type_name_tree(TREE_INT_TYPE_WORD),
+            _i32(TREE_NESTED_INT_VALUE),
+        ),
+    )
+)
+
+TREE_STRUCT_INTERIOR: Final = type_tree_tag_list(
+    (
+        type_tree_property_tag(
+            TREE_STRUCT_INT_NAME,
+            type_name_tree(TREE_INT_TYPE_WORD),
+            _i32(TREE_STRUCT_INT_VALUE),
+        ),
+        type_tree_property_tag(
+            TREE_STRUCT_STR_NAME,
+            type_name_tree(TREE_STR_TYPE_WORD),
+            fstring(TREE_STRUCT_STR_VALUE),
+        ),
+        type_tree_property_tag(
+            TREE_STRUCT_MAP_NAME,
+            type_name_tree(
+                TREE_MAP_TYPE_WORD, ((TREE_MAP_KEY_WORD, ()), (TREE_MAP_VALUE_WORD, ()))
+            ),
+            TREE_STRUCT_MAP_VALUE_BYTES,
+            flags=TAG_FLAGS_NATIVE_SERIALIZE,
+        ),
+        type_tree_struct_tag(
+            TREE_NESTED_STRUCT_NAME, TREE_NESTED_STRUCT_WORD, TREE_NESTED_INTERIOR
+        ),
+    )
+)
+
+#: The array of struct. TWO elements of DIFFERENT lengths - see the block above.
+TREE_ARRAY_NAME: Final = "mSyntheticTreeStructArray"
+TREE_ELEMENT_INT_NAME: Final = "mSyntheticTreeElementInt"
+TREE_ELEMENT_INT_VALUES: Final = (11, 22)
+TREE_ELEMENT_STR_NAME: Final = "mSyntheticTreeElementStr"
+TREE_ELEMENT_STR_VALUE: Final = "SyntheticTreeElementStr"
+
+TREE_ARRAY_ELEMENTS: Final = (
+    type_tree_tag_list(
+        (
+            type_tree_property_tag(
+                TREE_ELEMENT_INT_NAME,
+                type_name_tree(TREE_INT_TYPE_WORD),
+                _i32(TREE_ELEMENT_INT_VALUES[0]),
+            ),
+        )
+    ),
+    type_tree_tag_list(
+        (
+            type_tree_property_tag(
+                TREE_ELEMENT_INT_NAME,
+                type_name_tree(TREE_INT_TYPE_WORD),
+                _i32(TREE_ELEMENT_INT_VALUES[1]),
+            ),
+            type_tree_property_tag(
+                TREE_ELEMENT_STR_NAME,
+                type_name_tree(TREE_STR_TYPE_WORD),
+                fstring(TREE_ELEMENT_STR_VALUE),
+            ),
+            type_tree_struct_tag(
+                TREE_NESTED_STRUCT_NAME, TREE_NESTED_STRUCT_WORD, TREE_NESTED_INTERIOR
+            ),
+        )
+    ),
+)
+
+
+def type_tree_array_payload_with_an_inner_tag() -> bytes:
+    """One component payload whose only tag is an array of struct WITH an inner tag.
+
+    THE NEGATIVE CONTROL for the measurement above. A reader that accepted both
+    shapes would publish this, and would therefore be saying nothing about
+    which one the save writes.
+
+    Returns:
+        The payload bytes.
+    """
+    return type_tree_property_payload(
+        (
+            type_tree_array_of_struct_tag(
+                TREE_ARRAY_NAME,
+                TREE_ELEMENT_STRUCT_WORD,
+                TREE_ARRAY_ELEMENTS,
+                inner_tag=True,
+            ),
+        ),
+        trailing=DECODABLE_TRAILING_RUN,
+    )
+
+
+TREE_STRUCT_ACTOR_PAYLOAD: Final = type_tree_property_payload(
+    (
+        type_tree_struct_tag(TREE_STRUCT_NAME, TREE_STRUCT_WORD, TREE_STRUCT_INTERIOR),
+        type_tree_array_of_struct_tag(
+            TREE_ARRAY_NAME, TREE_ELEMENT_STRUCT_WORD, TREE_ARRAY_ELEMENTS
+        ),
+    ),
+    head=actor_payload_head(MAP_NAME, TREE_DECODABLE_ROOT, ()),
+    trailing=DECODABLE_TRAILING_RUN,
+)
+
+
 TREE_DECODABLE_NAMED: Final = (
     SyntheticLevel(
         name="Persistent_Level:SyntheticTreeCell_0",
@@ -3226,6 +3500,7 @@ TREE_DECODABLE_NAMED: Final = (
             SyntheticObject(
                 TREE_DECODABLE_CLASS_PATH, TREE_DECODABLE_ROOT, TREE_DECODABLE_INSTANCE
             ),
+            SyntheticObject(TREE_STRUCT_CLASS_PATH, TREE_DECODABLE_ROOT, TREE_STRUCT_INSTANCE),
         ),
         components=(
             SyntheticComponent(
@@ -3235,7 +3510,11 @@ TREE_DECODABLE_NAMED: Final = (
                 parent_object_root=TREE_DECODABLE_INSTANCE,
             ),
         ),
-        payloads=(TREE_DECODABLE_ACTOR_PAYLOAD, TREE_DECODABLE_COMPONENT_PAYLOAD),
+        payloads=(
+            TREE_DECODABLE_ACTOR_PAYLOAD,
+            TREE_STRUCT_ACTOR_PAYLOAD,
+            TREE_DECODABLE_COMPONENT_PAYLOAD,
+        ),
     ),
 )
 
