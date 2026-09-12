@@ -5402,7 +5402,7 @@ def _decode_struct_interior(
 
 def _decode_interior_tag(
     body: bytes,
-    header: tuple[str, int, int, int | None, tuple[str, ...], str | None],
+    header: tuple[str, int, int, int | None, tuple[str, ...], str | None, bool | None],
     name_at: int,
     end: int,
     depth: int,

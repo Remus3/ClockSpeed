@@ -39,7 +39,7 @@ import pytest
 
 from clockspeed.save import objects
 from clockspeed.save.chunks import decompress_body
-from clockspeed.save.header import HeaderError, parse_header
+from clockspeed.save.header import HeaderError, SaveHeader, parse_header
 from tests.save import reach_guard, synthetic, test_properties
 
 #: The pair under test, spelled once.
@@ -524,7 +524,7 @@ def _payload_start(body: bytes, record: objects.ObjectRecord) -> int | None:
     return lead if lead <= end else None
 
 
-def _tally_one_save(data: bytes, parsed: object, into: list[int]) -> None:
+def _tally_one_save(data: bytes, parsed: SaveHeader, into: list[int]) -> None:
     """Walk one save's records, adding to the running counts.
 
     Args:
