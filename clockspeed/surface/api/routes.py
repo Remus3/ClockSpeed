@@ -26,7 +26,8 @@ of the sequence. Two copies of an ordering is exactly the drift the doc topology
 rule exists to stop, and here it would be silent: a table in a different order
 still holds the same number of routes. THE COUNT IS NEVER WRITTEN DOWN IN THIS
 MODULE, deliberately - ``health.ENDPOINT_TEMPLATES`` is its one owner, and
-CS-912's tenth route moved it without editing a literal here.
+CS-912's tenth route moved it without editing a literal here, as CS-977's
+eleventh did again.
 
 THE ASSEMBLY IS TOTAL IN BOTH DIRECTIONS, CHECKED AT IMPORT. A published
 template with no route, or a route whose template is not a published one, raises
@@ -52,6 +53,7 @@ from types import MappingProxyType
 from typing import TYPE_CHECKING, Final
 
 from clockspeed.surface.api import contract, health, pending, solve, world
+from clockspeed.surface.api import map as map_endpoint
 from clockspeed.surface.api import registry as registry_endpoint
 from clockspeed.surface.providers import InstalledRegistryProvider, SaveWorldProvider
 
@@ -76,7 +78,8 @@ __all__ = [
 #: route's verb exists. EVERY OTHER TEMPLATE ARRIVES CARRYING ITS OWN, and
 #: ``clockspeed/surface/api/registry.py`` was written that way on purpose so this
 #: constant's claim about which two routes need it stayed true when the tenth
-#: route landed (CS-912).
+#: route landed (CS-912) and when the eleventh did (CS-977) -
+#: ``clockspeed/surface/api/map.py`` publishes its own ``METHOD_GET`` too.
 METHOD_GET: Final = "GET"
 
 #: Every template with a layer beneath it today. Read from the endpoint modules'
@@ -90,6 +93,7 @@ BACKED_TEMPLATES: Final = (
     registry_endpoint.ENDPOINT,
     solve.SOLVE_ENDPOINT,
     solve.OPTIMIZE_ENDPOINT,
+    map_endpoint.ENDPOINT,
 )
 
 #: What the server says about its own route table, in the two words
@@ -204,6 +208,12 @@ def build_routes(
             handler=world.make_handler(worlds),
         ),
         *registry_endpoint.routes(registries),
+        # THE ONE ROUTE BESIDES HEALTH THAT TAKES BOTH PROVIDERS. A map is a
+        # world joined against the registry - the display names and the
+        # extraction rates come from one, everything else from the other -
+        # and it answers 200 with a stated gap when the registry is absent
+        # rather than refusing, because the geometry is true without one.
+        *map_endpoint.routes(worlds, registries),
         *solve.routes(registries),
         *pending.routes(),
     )

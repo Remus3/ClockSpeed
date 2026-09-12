@@ -211,6 +211,7 @@ __all__ = [
     "BYTE_ORDER_SURVIVING_CANDIDATES",
     "BYTE_ORDER_UNSCORED",
     "BYTE_ORDER_VACUOUS",
+    "COMPLETE_TYPE_NAME_PAIRS",
     "CONTAINER_ADJACENT_OWNERS",
     "CONTAINER_TYPE_WORDS",
     "CONTAINER_WORDS_WITHOUT_ELEMENT_GRAMMAR_EVIDENCE",
@@ -246,7 +247,9 @@ __all__ = [
     "MAX_STRUCT_DEPTH",
     "MEASURED_BODY_LAYOUTS",
     "MEASURED_HEADER_VERSIONS",
+    "MEASURED_TAG_FLAG_MASK",
     "MEASURED_VALUE_TYPES",
+    "PAYLOAD_TAG_LEAD_BYTES",
     "REASON_NO_DISCRIMINATION_TEST",
     "REASON_SAMPLE_SIZE",
     "REASON_SHIPPED_ALIGNMENT_ONLY",
@@ -312,6 +315,7 @@ __all__ = [
     "parse_properties",
     "read_properties",
     "resolve_references",
+    "uses_complete_type_name",
 ]
 
 # ---------------------------------------------------------------------------
@@ -3742,6 +3746,27 @@ ELEMENT_SHAPES: Final = frozenset(
 #: resolving it by preference, so its boundaries are pinned by the bytes.
 UNDISCRIMINATED_ELEMENT_SHAPES: Final = frozenset({ELEMENT_SHAPE_UNIFORM_WIDTH})
 
+#: The shapes a container whose tag declared a NATIVE-SERIALIZED value may not
+#: be published under - see :func:`_decode_container`, which owns the argument.
+#:
+#: IT IS DERIVED RATHER THAN LISTED, and that is the anti-drift control rather
+#: than brevity. Written out as its two members it would silently stop covering
+#: a fourth shape the day one is added; derived as "every shape whose partition
+#: was not read from the bytes", a new shape is refused under the bit by default
+#: and somebody has to argue it OUT. That is the safe direction.
+#:
+#: IT IS A SUPERSET OF :data:`UNDISCRIMINATED_ELEMENT_SHAPES` AND THE TWO ARE
+#: NOT THE SAME QUESTION. That one names the shapes whose internal partition
+#: nothing discriminates, and the solved width is deliberately absent from it
+#: because exactly one width in the searched range closes the region. This one
+#: asks a different question - whether the partition came from the ELEMENT'S OWN
+#: GRAMMAR - and a width found by searching for the one that closes did not,
+#: however well pinned it is. Under a bit that says the region is not a tag
+#: list at all, fitting a width to it is fitting.
+_UNEVIDENCED_UNDER_NATIVE_SERIALIZE: Final = ELEMENT_SHAPES - frozenset(
+    {ELEMENT_SHAPE_SELF_DELIMITING}
+)
+
 #: A container word for which NOT ONE instance in this project's corpus was
 #: bounded by the element's own grammar, name to what that leaves unproven.
 #:
@@ -4513,6 +4538,216 @@ def _decode_text_value(body: bytes, type_word: str, at: int, size: int) -> objec
     return None
 
 
+# ---------------------------------------------------------------------------
+# THE (14,60) COMPLETE-TYPE-NAME TAG GRAMMAR - CS-G05
+#
+# `docs/GATED.md` recorded under CS-G05 that every record of every (14,60) save
+# decodes ZERO property tags and that the pair was therefore a CONTROL - a save
+# that could not exercise this decoder at all, cause unestablished. THE PREMISE
+# WAS WRONG, and ground truth is what refuted it (CLAUDE.md section 8): a
+# third-party map tool reads container contents and machine settings out of the
+# same file on the same machine, so the data is present and decodable. The zero
+# was a defect HERE.
+#
+# TWO OFFSETS LOCALISED IT, and both were read out of the bytes by hand:
+#
+#   - ONE OPAQUE BYTE stands between a payload's head and its first tag. On an
+#     actor that is just past the component list; on a component it is the
+#     payload's first byte. `_skip_actor_head` landed exactly one byte short of
+#     the first tag name, so `_payload_text` read that byte as the top of a
+#     length prefix and refused every payload in the world. Its WIDTH is pinned
+#     and its MEANING is not, which is the footing `transform_delta` and
+#     `data_entry_lead` already stand on: it is zero on all 3918 payloads of
+#     the pinned development world, and a constant field cannot be told apart
+#     from a reserved one. Graded by
+#     tests/save/test_property_payload_14_60.py::test_the_opaque_lead_byte_is_load_bearing,
+#     which strips the byte from the fixture and asserts the reader refuses it.
+#   - THE TAG SPELLS ITS TYPE AS A RECURSIVE NAME - a word, an int32 parameter
+#     count, then that many nested names - rather than as a type word followed
+#     by per-type extra strings. There is no index field, and the tag closes
+#     with a FLAGS BYTE rather than a guid-present flag. A container's element
+#     words are the TOP-LEVEL PARAMETERS of that name. Graded by
+#     tests/save/test_property_payload_14_60.py::test_a_14_60_container_tag_yields_its_element_words_from_the_type_name,  # noqa: E501
+#     which is the arm a lead-byte-only repair cannot pass.
+#
+# WHY THE SECOND HALF IS NOT OPTIONAL. Stepping the lead byte alone reaches the
+# first tag NAME and gets 3215 of 3918 payloads to a terminator with ZERO
+# container values, because the element words a container needs are no longer
+# where the legacy reader looks, and the 703 that still broke were the ones
+# whose flags byte the legacy guid-flag reading refused. Both halves are one
+# grammar and neither is a fix on its own.
+#
+# THE FLAGS BITS ARE MEASURED ONE AT A TIME AND THE UNSEEN ONES ARE NOT
+# GUESSED. Over the 9058 tags of the pinned development world the byte takes
+# four values: 0x00 on 6123, 0x08 on 757, 0x09 on 2 and 0x10 on 176. 0x08 rides
+# only on the four container-and-struct words and adds no bytes; 0x10 rides only
+# on `BoolProperty` and IS its true value; 0x01 adds an int32, and that is the
+# weakest reading here - it rests on two tags, and what makes it more than a
+# coincidence is that dropping the four bytes costs a whole record.
+#
+# EVERY OTHER BIT REFUSES THE PAYLOAD. 0x02 reads like a property guid and this
+# project has seen it on NOT ONE TAG, so the width of whatever follows it is
+# unknown; assuming 16 bytes there would publish values read from the wrong
+# offset on the first save that carried one, which is the silently wrong answer
+# non-negotiable 7 rules out. A flagged payload is recoverable. A wrong value is
+# not.
+#
+# tests/save/test_property_payload_14_60.py grades all of it on a SYNTHETIC
+# (14,60) fixture, so every arm runs on a machine with no game and no save.
+# ---------------------------------------------------------------------------
+
+#: MEASURED. The pairs whose property payload carries the lead byte and the
+#: recursive type name instead of the legacy tag shape. ONE ENTRY, and the two
+#: changes were measured together on it - this set names the pair, and claims
+#: nothing about whether some future pair could carry one without the other.
+COMPLETE_TYPE_NAME_PAIRS: Final[frozenset[tuple[int, int]]] = frozenset({(HEADER_VERSION_14, 60)})
+
+#: The opaque run between a payload's head and its first tag, on the pairs
+#: above. Zero everywhere else, which is why the legacy reader never had one.
+PAYLOAD_TAG_LEAD_BYTES: Final = 1
+
+#: The flags byte's measured bits. NAMED because a bare hex literal at a use
+#: site is a bit nobody can hold a table against.
+TAG_FLAG_ARRAY_INDEX: Final = 0x01
+TAG_FLAG_NATIVE_SERIALIZE: Final = 0x08
+TAG_FLAG_BOOL_TRUE: Final = 0x10
+
+#: Every bit this project has observed, as a mask. A byte with any bit OUTSIDE
+#: it refuses the payload rather than being stepped over - see the block above.
+MEASURED_TAG_FLAG_MASK: Final = (
+    TAG_FLAG_ARRAY_INDEX | TAG_FLAG_NATIVE_SERIALIZE | TAG_FLAG_BOOL_TRUE
+)
+
+#: How deep a type name may nest, and how many parameters one level may carry.
+#: BOUNDS, NOT MEASUREMENTS - the deepest real name nests three levels and
+#: carries at most two parameters. They only stop a corrupt count from spinning.
+_MAX_TYPE_NAME_DEPTH: Final = 12
+_MAX_TYPE_NAME_PARAMS: Final = 12
+
+
+def uses_complete_type_name(header_version: int | None, save_version: int | None) -> bool:
+    """Whether a pair's payloads carry the complete-type-name tag grammar.
+
+    NONE MEANS "THE CALLER NAMED NO PAIR", and it resolves to the legacy
+    grammar. That default is load-bearing rather than tidy: every caller of
+    :func:`read_properties` that predates this repair passes three positional
+    arguments, so a default selecting the new grammar would silently change what
+    all of them read.
+
+    Args:
+        header_version: The header version, or None.
+        save_version: The save version, or None.
+
+    Returns:
+        True only for a pair in :data:`COMPLETE_TYPE_NAME_PAIRS`.
+    """
+    if header_version is None or save_version is None:
+        return False
+    return (header_version, save_version) in COMPLETE_TYPE_NAME_PAIRS
+
+
+def _read_type_name(
+    body: bytes, at: int, end: int, depth: int = 0
+) -> tuple[str, tuple[str, ...], int] | None:
+    """Read one recursive property type name.
+
+    Args:
+        body: The decompressed body.
+        at: The name's first byte.
+        end: The first byte past the payload.
+        depth: How deep this call already is, for the nesting bound.
+
+    Returns:
+        The type word, its TOP-LEVEL parameter words, and the first byte past
+        the whole name. None when any part of it does not read.
+
+        ONLY THE TOP LEVEL COMES BACK, and that is not laziness. The top level
+        is exactly what a container's element words are; the deeper levels
+        describe a struct interior, which is CS-829's measurement and not this
+        function's. Handing back the whole tree would invite a caller to read a
+        struct shape out of it that no measurement supports.
+    """
+    if depth > _MAX_TYPE_NAME_DEPTH:
+        return None
+    step = _payload_text(body, at, end)
+    if step is None:
+        return None
+    word, cursor = step
+    if cursor + INT32_SIZE > end:
+        return None
+    (count,) = struct.unpack_from("<i", body, cursor)
+    cursor += INT32_SIZE
+    if count < 0 or count > _MAX_TYPE_NAME_PARAMS:
+        return None
+    params: list[str] = []
+    for _ in range(count):
+        nested = _read_type_name(body, cursor, end, depth + 1)
+        if nested is None:
+            return None
+        params.append(nested[0])
+        cursor = nested[2]
+    return (word, tuple(params), cursor)
+
+
+def _read_type_tree_tag_header(
+    body: bytes, at: int, end: int
+) -> tuple[str, int, int, int | None, tuple[str, ...], bool] | None:
+    """Read one tag of the complete-type-name grammar, stopping at its value.
+
+    THE RETURN SHAPE IS ITS OWN rather than :func:`_read_tag_header`'s, and the
+    fifth element is why: the element words live INSIDE the type name here, so
+    the read that produced them is the only place they exist. The legacy grammar
+    re-reads its words from the name offset because they sit in the tag data
+    after it; re-reading a nested name would be parsing it twice to arrive back
+    at what the first parse already had.
+
+    THE SIXTH ELEMENT IS THE NATIVE-SERIALIZE BIT, CARRIED OUT RATHER THAN
+    STEPPED OVER. It was defined, folded into the measured mask and consumed by
+    nothing - a grep over the package and the suite found the constant's two
+    definition lines and no use at all - and :func:`_decode_container` is where
+    it earns its name. The alternative was a second read of the flags byte from
+    the name offset, which means parsing the whole nested type name again to
+    arrive back at a byte this read already had; two derivations of one byte is
+    the shape that drifts. Widening here fails LOUDLY instead: every consumer
+    of this tuple unpacks it positionally.
+
+    Args:
+        body: The decompressed body.
+        at: Just past the tag's name.
+        end: The first byte past the payload.
+
+    Returns:
+        The type word, where the value starts, its declared size, the byte a
+        BoolProperty carries in its flags, the type name's top-level parameter
+        words, and whether the tag declared :data:`TAG_FLAG_NATIVE_SERIALIZE`.
+        None if the tag does not read - including when the flags byte carries a
+        bit outside :data:`MEASURED_TAG_FLAG_MASK`.
+    """
+    named = _read_type_name(body, at, end)
+    if named is None:
+        return None
+    type_word, params, cursor = named
+    if cursor + INT32_SIZE + 1 > end:
+        return None
+    (size,) = struct.unpack_from("<i", body, cursor)
+    cursor += INT32_SIZE
+    flags = body[cursor]
+    cursor += 1
+    if flags & ~MEASURED_TAG_FLAG_MASK:
+        return None
+    if flags & TAG_FLAG_ARRAY_INDEX:
+        cursor += INT32_SIZE
+    in_tag_byte = None
+    if type_word == "BoolProperty":
+        # THE BIT IS THE VALUE. The legacy grammar gave a bool its own byte
+        # ahead of the guid flag; here one byte does both jobs, and a reader
+        # expecting two desynchronises on the tag after every bool.
+        in_tag_byte = 1 if flags & TAG_FLAG_BOOL_TRUE else 0
+    if size < 0 or cursor + size > end:
+        return None
+    return (type_word, cursor, size, in_tag_byte, params, bool(flags & TAG_FLAG_NATIVE_SERIALIZE))
+
+
 def _container_element_words(
     body: bytes, at: int, end: int, type_word: str
 ) -> tuple[str, ...] | None:
@@ -4549,7 +4784,7 @@ def _container_element_words(
     return tuple(words)
 
 
-def _element_tag_list_end(body: bytes, at: int, end: int) -> int | None:
+def _element_tag_list_end(body: bytes, at: int, end: int, *, type_tree: bool = False) -> int | None:
     """Walk one NESTED property tag list and report where it closes.
 
     An element of a struct is a tag list closed by the same terminator name a
@@ -4557,10 +4792,20 @@ def _element_tag_list_end(body: bytes, at: int, end: int) -> int | None:
     header only, to step by its declared size. The interior is CS-829's, and
     reading a value out of it would be exactly the guess this decode declines.
 
+    IT GOES THROUGH :func:`_read_tag_and_words` RATHER THAN CALLING A GRAMMAR
+    DIRECTLY, so the pair dispatch lives at the one site that owns it. Under
+    the legacy grammar that is the same reading it did before: the element
+    words that call also reads come from the same offsets
+    :func:`_skip_tag_extra` already stepped over, so a header that read there
+    reads them too.
+
     Args:
         body: The decompressed body.
         at: Where the first nested tag begins.
         end: The first byte past the element region.
+        type_tree: Read the complete-type-name grammar rather than the legacy
+            one - see :func:`uses_complete_type_name`. DEFAULTED so that adding
+            it could not change what any existing caller reads.
 
     Returns:
         The first byte past the terminator, or None when the list does not close.
@@ -4572,15 +4817,16 @@ def _element_tag_list_end(body: bytes, at: int, end: int) -> int | None:
             return None
         if name[0] == _PAYLOAD_TERMINATOR:
             return name[1]
-        tag = _read_tag_header(body, name[1], end)
-        if tag is None:
+        header = _read_tag_and_words(body, name[1], end, type_tree=type_tree)
+        if header is None:
             return None
-        _word, value_at, size, _in_tag_byte = tag
-        cursor = value_at + size
+        cursor = header[1] + header[2]
     return None
 
 
-def _element_half_end(body: bytes, word: str, at: int, end: int, width: int | None) -> int | None:
+def _element_half_end(
+    body: bytes, word: str, at: int, end: int, width: int | None, *, type_tree: bool = False
+) -> int | None:
     """Where one element half ends, by its own grammar or by a forced width.
 
     THE TWO BRANCHES ARE NOT EQUALLY STRONG AND THE FORCED ONE CANNOT FAIL
@@ -4597,6 +4843,8 @@ def _element_half_end(body: bytes, word: str, at: int, end: int, width: int | No
         at: The half's first byte.
         end: The first byte past the element region.
         width: A forced raw width, or None to use the word's own grammar.
+        type_tree: Read the complete-type-name grammar rather than the legacy
+            one inside a nested tag list - see :func:`uses_complete_type_name`.
 
     Returns:
         The first byte past the half, or None when it does not read.
@@ -4618,7 +4866,7 @@ def _element_half_end(body: bytes, word: str, at: int, end: int, width: int | No
             cursor += _SOFT_OBJECT_TAIL_BYTES
         return cursor if cursor <= end else None
     if word == _ELEMENT_TAG_LIST_WORD:
-        return _element_tag_list_end(body, at, end)
+        return _element_tag_list_end(body, at, end, type_tree=type_tree)
     return None
 
 
@@ -4629,6 +4877,8 @@ def _walk_elements(
     end: int,
     count: int,
     widths: tuple[int | None, ...],
+    *,
+    type_tree: bool = False,
 ) -> tuple[ContainerElement, ...] | None:
     """Bound every element half, refusing anything that does not close exactly.
 
@@ -4644,6 +4894,8 @@ def _walk_elements(
         end: The first byte past the element region.
         count: How many entries the container declared.
         widths: A forced width per half, each None to use that word's grammar.
+        type_tree: Read the complete-type-name grammar rather than the legacy
+            one inside a nested tag list - see :func:`uses_complete_type_name`.
 
     Returns:
         One entry per element half in byte order, or None when the halves do
@@ -4653,7 +4905,7 @@ def _walk_elements(
     found: list[ContainerElement] = []
     for _ in range(count):
         for position, word in enumerate(words):
-            step = _element_half_end(body, word, cursor, end, widths[position])
+            step = _element_half_end(body, word, cursor, end, widths[position], type_tree=type_tree)
             if step is None:
                 return None
             found.append(
@@ -4700,7 +4952,13 @@ def _decode_element_value(body: bytes, word: str, at: int, end: int) -> object |
 
 
 def _bound_container_elements(
-    body: bytes, words: tuple[str, ...], at: int, end: int, count: int
+    body: bytes,
+    words: tuple[str, ...],
+    at: int,
+    end: int,
+    count: int,
+    *,
+    type_tree: bool = False,
 ) -> tuple[str, tuple[ContainerElement, ...]] | None:
     """Bound a container's elements by the STRONGEST shape that closes the region.
 
@@ -4716,12 +4974,14 @@ def _bound_container_elements(
         at: Where the first element begins.
         end: The first byte past the element region.
         count: How many entries the container declared.
+        type_tree: Read the complete-type-name grammar rather than the legacy
+            one inside a nested tag list - see :func:`uses_complete_type_name`.
 
     Returns:
         The shape that bounded them and the elements, or None when none did.
     """
     blank: tuple[int | None, ...] = (None,) * len(words)
-    found = _walk_elements(body, words, at, end, count, blank)
+    found = _walk_elements(body, words, at, end, count, blank, type_tree=type_tree)
     if found is not None:
         return (ELEMENT_SHAPE_SELF_DELIMITING, found)
 
@@ -4741,7 +5001,9 @@ def _bound_container_elements(
     slots = count * len(words)
     if slots > 0 and (end - at) % slots == 0:
         width = (end - at) // slots
-        found = _walk_elements(body, words, at, end, count, (width,) * len(words))
+        found = _walk_elements(
+            body, words, at, end, count, (width,) * len(words), type_tree=type_tree
+        )
         if found is not None:
             return (ELEMENT_SHAPE_UNIFORM_WIDTH, found)
 
@@ -4753,7 +5015,7 @@ def _bound_container_elements(
         for width in range(_SOLVED_WIDTH_CAP + 1):
             forced: list[int | None] = [None] * len(words)
             forced[position] = width
-            found = _walk_elements(body, words, at, end, count, tuple(forced))
+            found = _walk_elements(body, words, at, end, count, tuple(forced), type_tree=type_tree)
             if found is not None:
                 solutions.append(found)
                 if len(solutions) > 1:
@@ -4770,6 +5032,11 @@ def _read_array_struct_tag(body: bytes, at: int, end: int) -> tuple[str, int] | 
     declaring the extent of the WHOLE element region, then the elements. The
     struct word is carried out because it is what CS-829 needs; the extent is
     checked against the value's own end rather than trusted.
+
+    THERE IS NO SUCH TAG ON THE PAIRS IN :data:`COMPLETE_TYPE_NAME_PAIRS`, AND
+    THIS FUNCTION IS NOT CALLED THERE. That is MEASURED rather than assumed -
+    see the comment at the one call site in :func:`_decode_container`. Reading
+    a tree-grammar tag here anyway was tried and is recorded there as refuted.
 
     Args:
         body: The decompressed body.
@@ -4836,7 +5103,14 @@ def _open_container(
 
 
 def _decode_container(
-    body: bytes, type_word: str, element_words: tuple[str, ...], at: int, size: int
+    body: bytes,
+    type_word: str,
+    element_words: tuple[str, ...],
+    at: int,
+    size: int,
+    *,
+    type_tree: bool = False,
+    native_serialize: bool | None = None,
 ) -> ContainerValue | None:
     """Decode one container tag's element framing - CS-830.
 
@@ -4846,33 +5120,106 @@ def _decode_container(
     that has lost its place. :func:`_walk_payload` separates the two rather than
     collapsing them, because they mean opposite things.
 
+    A NATIVE-SERIALIZED CONTAINER MAY NOT BE PUBLISHED UNDER A DERIVED WIDTH,
+    and that refusal is non-negotiable 7 rather than caution. The derived
+    shapes' whole admission test is that an integer divided evenly, or that one
+    width in a searched range closed; neither is a fact about the bytes between
+    the boundaries. The flags byte is the WRITER saying the value went through a
+    native serializer, which is a statement that the region is not the tag list
+    the element grammar would be reading - so where the bit is set this module
+    has no evidenced partition at all, and publishing an arithmetic one is the
+    "silently wrong" half the non-negotiable rules out. Flag it and skip it: the
+    caller's advance steps by the tag's own declared size and is unaffected.
+
+    WHAT THIS DOES NOT DO IS DELETE THE DERIVED BRANCHES. They stay reachable
+    for every container whose tag did not set the bit, and for the legacy
+    grammar, which has no flags byte and therefore says nothing either way -
+    ``native_serialize`` is None there and nothing below changes.
+
+    A SELF-DELIMITING CLOSE IS STILL ADMITTED UNDER THE BIT, deliberately. That
+    shape is falsifiable element by element: a wrong reading fails to close, so
+    its closing is evidence about the bytes rather than about arithmetic, and
+    refusing it would be discarding the strong reading along with the weak one.
+    A synthetic fixture writes exactly that combination -
+    ``tests/save/test_struct_interior_14_60.py`` - so the line between the two
+    is exercised rather than asserted.
+
+    WHAT WAS MEASURED, read-only and counts only, over the 11 saves of this
+    pair reachable in the library on the run that filed this: 11272 container
+    decodes at (14,60). Every one of the 11242 whose tag left the bit clear
+    closed SELF-DELIMITING. Every one of the 30 that set it fell to a derived
+    width and NOT ONE of them closed self-delimiting. The bit partitions the
+    population exactly, which is what makes it a predictor rather than a
+    correlation - and the figure is scoped to that pair and that run, because
+    the operator plays this game and the population moves.
+
     Args:
         body: The decompressed body.
         type_word: The container's type word.
         element_words: The element type words its tag carried.
         at: The value's first byte.
         size: The value's declared extent.
+        type_tree: Read the complete-type-name grammar rather than the legacy
+            one for the inner tag and for any nested tag list - see
+            :func:`uses_complete_type_name`.
+        native_serialize: Whether the tag declared a native-serialized value,
+            or None when the grammar states nothing. DEFAULTED so that adding
+            it could not change what any existing caller reads.
 
     Returns:
         The container, or None when the elements do not consume the declared
-        size exactly.
+        size exactly, or when the only reading that closed was a derived width
+        on a tag that declared a native-serialized value.
     """
     opened = _open_container(body, type_word, element_words, at, size)
     if opened is None:
         return None
     count, cursor, end = opened
 
+    # THE INNER TAG IS A LEGACY-ONLY FIELD, MEASURED AND NOT ASSUMED. An array
+    # of struct writes its element count and then, on the legacy pairs, ONE tag
+    # naming the struct and declaring the whole element region. On the pairs in
+    # :data:`COMPLETE_TYPE_NAME_PAIRS` it writes the elements straight after
+    # the count and no inner tag at all.
+    #
+    # WHAT WAS MEASURED, read-only and counts only, over every (14,60) save in
+    # the library reachable at the time: 6198 `ArrayProperty` tags whose one
+    # element word is `StructProperty`. Walking `count` element tag lists from
+    # the byte after the count closes the value EXACTLY on 6187 of them and
+    # fails on 11. Reading a tree-grammar inner tag there instead read 0 of
+    # 6198 - the type name it found was the FIRST ELEMENT'S first property, its
+    # int32 was that property's declared size, and the region it implied fell
+    # short of the value end by hundreds of bytes on every one.
+    #
+    # THE STRUCT WORD IS THEREFORE NOT STATED HERE AND IS LEFT None. It is one
+    # level further down the tag's own type name, and reading a struct word out
+    # of a type name is CS-829's measurement rather than this frame's - see
+    # `_read_type_name`, which hands back only the top level for that reason.
+    # None already means "this container named no struct word", so nothing here
+    # publishes a word the save did not write.
     struct_word: str | None = None
-    if type_word == "ArrayProperty" and element_words == (_ELEMENT_TAG_LIST_WORD,):
+    if (
+        not type_tree
+        and type_word == "ArrayProperty"
+        and element_words == (_ELEMENT_TAG_LIST_WORD,)
+    ):
         inner = _read_array_struct_tag(body, cursor, end)
         if inner is None:
             return None
         struct_word, cursor = inner
 
-    bounded = _bound_container_elements(body, element_words, cursor, end, count)
+    bounded = _bound_container_elements(
+        body, element_words, cursor, end, count, type_tree=type_tree
+    )
     if bounded is None:
         return None
     shape, elements = bounded
+    if native_serialize and shape in _UNEVIDENCED_UNDER_NATIVE_SERIALIZE:
+        # THE ONE READING THAT CLOSED IS THE ONE THE TAG SAYS IS NOT THERE.
+        # Publishing it would put a width DERIVED BY DIVISION beside widths
+        # READ FROM THE BYTES with nothing on the value to tell them apart -
+        # see the docstring above.
+        return None
     return ContainerValue(
         type_word=type_word,
         element_words=element_words,
@@ -4900,7 +5247,9 @@ def _container_grammar_is_modelled(element_words: tuple[str, ...]) -> bool:
     )
 
 
-def _refusal_is_unmodelled_content(type_word: str, element_words: tuple[str, ...]) -> bool:
+def _refusal_is_unmodelled_content(
+    type_word: str, element_words: tuple[str, ...], *, native_serialize: bool | None = None
+) -> bool:
     """Which counter a refused value belongs in - unmodelled content, or a lost walk.
 
     THE TWO MEAN OPPOSITE THINGS AND THE WHOLE POINT IS NOT COLLAPSING THEM.
@@ -4919,16 +5268,30 @@ def _refusal_is_unmodelled_content(type_word: str, element_words: tuple[str, ...
     is unaffected. Counting that as a disagreement reports new game content as a
     broken reader, which is the direction with no second chance.
 
+    A NATIVE-SERIALIZED CONTAINER IS UNMODELLED CONTENT WHATEVER ITS ELEMENT
+    WORDS ARE, and that clause is checked FIRST rather than folded in with the
+    grammar test. The bit is the writer saying the value did not go through the
+    tagged-property path at all, so the element grammar this module holds is not
+    the grammar those bytes are in - the word being one it CAN read says
+    nothing, because the region is not the thing the word describes. Reporting
+    that as a lost walk would fire the redundancy oracle on content the save
+    told us it had written some other way, which is reporting new game content
+    as a broken reader: the direction with no second chance.
+
     Args:
         type_word: The tag's type word.
         element_words: The element type words a container's tag carried, empty
             for every other type.
+        native_serialize: Whether the tag declared a native-serialized value,
+            or None when the grammar states nothing. DEFAULTED, so the legacy
+            grammar and every caller that predates the field route exactly as
+            they did.
 
     Returns:
         Whether the refusal is unmodelled content rather than a lost walk.
     """
     if type_word in CONTAINER_TYPE_WORDS:
-        return not _container_grammar_is_modelled(element_words)
+        return bool(native_serialize) or not _container_grammar_is_modelled(element_words)
     return type_word not in MEASURED_VALUE_TYPES
 
 
@@ -4967,7 +5330,7 @@ def _struct_word_of_tag(body: bytes, name_at: int, end: int) -> str | None:
 
 
 def _decode_struct_interior(
-    body: bytes, struct_word: str, at: int, end: int, depth: int = 0
+    body: bytes, struct_word: str, at: int, end: int, depth: int = 0, *, type_tree: bool = False
 ) -> StructValue | None:
     """Decode one struct interior written as a nested property tag list - CS-829.
 
@@ -5012,6 +5375,10 @@ def _decode_struct_interior(
         at: The interior's first byte.
         end: The first byte past the interior, from the tag's declared size.
         depth: How far inside another struct this one sits.
+        type_tree: Read the complete-type-name tag grammar inside this interior
+            rather than the legacy one - see :func:`uses_complete_type_name`.
+            DEFAULTED so that adding it could not change what any existing
+            caller reads.
 
     Returns:
         The decoded interior, or None when it is not a tag list closing exactly
@@ -5019,7 +5386,7 @@ def _decode_struct_interior(
     """
     if depth > MAX_STRUCT_DEPTH or at < 0 or at > end or end > len(body):
         return None
-    walked = _walk_struct_tags(body, at, end, depth)
+    walked = _walk_struct_tags(body, at, end, depth, type_tree=type_tree)
     if walked is None:
         return None
     decoded, unmeasured, disagreed = walked
@@ -5035,56 +5402,79 @@ def _decode_struct_interior(
 
 def _decode_interior_tag(
     body: bytes,
-    type_word: str,
+    header: tuple[str, int, int, int | None, tuple[str, ...], str | None, bool | None],
     name_at: int,
-    value_at: int,
-    size: int,
-    in_tag_byte: int | None,
     end: int,
     depth: int,
-) -> tuple[object | None, tuple[str, ...]] | None:
+    *,
+    type_tree: bool = False,
+) -> tuple[object | None, tuple[str, ...]]:
     """Decode one tag sitting inside a struct interior.
 
-    THREE OUTCOMES, NOT TWO, and collapsing any pair of them loses a
-    distinction the caller needs. A VALUE means the tag decoded. A ``(None,
-    words)`` pair means the tag's type is one this module does not read, or its
-    bytes disagreed - the caller sorts those two by the element words it is
-    handed back. A bare None means the TAG ITSELF did not read, which breaks
-    the walk rather than skipping a value.
+    TWO OUTCOMES, AND COLLAPSING THEM LOSES A DISTINCTION THE CALLER NEEDS. A
+    VALUE means the tag decoded. A ``(None, words)`` pair means the tag's type
+    is one this module does not read, or its bytes disagreed - the caller sorts
+    those two by the element words it is handed back.
+
+    IT ONCE HAD A THIRD, a bare None meaning the TAG ITSELF did not read, and
+    that outcome is gone because the tag read moved OUT of this function.
+    :func:`_walk_struct_tags` now reads the header through
+    :func:`_read_tag_and_words` - the one site that owns the pair dispatch -
+    and a header that does not read breaks the walk there, before this is
+    called at all.
+
+    THE HEADER ARRIVES WHOLE rather than as six positional arguments. That is
+    the shape :func:`_read_tag_and_words` returns, and re-spreading it here
+    would be a second place for a caller to start unpacking the wrong element
+    in silence - the failure ``_walk_payload`` records CS-831 designing around.
 
     Args:
         body: The decompressed body.
-        type_word: The tag's type word.
-        name_at: Where the tag's type word begins.
-        value_at: The value's first byte.
-        size: The value's declared extent.
-        in_tag_byte: The byte a BoolProperty carries in its tag, or None.
+        header: What :func:`_read_tag_and_words` returned for this tag.
+        name_at: Where the tag's type word begins. Still needed because the
+            LEGACY grammar keeps the struct word in the tag data rather than in
+            the type name, so it is re-read from this offset.
         end: The first byte past the interior.
         depth: How deep the interior holding this tag sits.
+        type_tree: Which grammar the header was read under - see
+            :func:`uses_complete_type_name`.
 
     Returns:
-        The value and the element words a container's tag carried, or None when
-        the tag's own extra data does not read.
+        The value and the element words a container's tag carried.
     """
+    type_word, value_at, size, in_tag_byte, element_words, named_struct, native = header
     if type_word == STRUCT_TYPE_WORD:
-        nested = _struct_word_of_tag(body, name_at, end)
+        # THE STRUCT WORD IS A TYPE-NAME PARAMETER AT THIS PAIR, so it comes
+        # from the header read. Reaching for it with `_struct_word_of_tag`
+        # would read a parameter count as a string length prefix - the hazard
+        # :func:`_fold_struct_tag` already names at the top level, verbatim
+        # applicable one level in.
+        nested = named_struct if type_tree else _struct_word_of_tag(body, name_at, end)
         if nested is None:
             return (None, ())
-        return (_decode_struct_interior(body, nested, value_at, value_at + size, depth + 1), ())
-    element_words: tuple[str, ...] = ()
-    if type_word in CONTAINER_TYPE_WORDS:
-        read_words = _container_element_words(body, name_at, end, type_word)
-        if read_words is None:
-            return None
-        element_words = read_words
+        return (
+            _decode_struct_interior(
+                body, nested, value_at, value_at + size, depth + 1, type_tree=type_tree
+            ),
+            (),
+        )
     return (
-        _decode_value(body, type_word, value_at, size, in_tag_byte, element_words),
+        _decode_value(
+            body,
+            type_word,
+            value_at,
+            size,
+            in_tag_byte,
+            element_words,
+            type_tree=type_tree,
+            native_serialize=native,
+        ),
         element_words,
     )
 
 
 def _walk_struct_tags(
-    body: bytes, at: int, end: int, depth: int
+    body: bytes, at: int, end: int, depth: int, *, type_tree: bool = False
 ) -> tuple[dict[str, object], int, int] | None:
     """Walk one struct interior's tag list, refusing anything that does not close.
 
@@ -5093,6 +5483,9 @@ def _walk_struct_tags(
         at: The interior's first byte.
         end: The first byte past the interior.
         depth: How deep this interior sits.
+        type_tree: Read the complete-type-name tag grammar rather than the
+            legacy one - see :func:`uses_complete_type_name`. DEFAULTED so that
+            adding it could not change what any existing caller reads.
 
     Returns:
         The decoded values, the unmeasured count and the disagreement count, or
@@ -5113,28 +5506,36 @@ def _walk_struct_tags(
             # and kept for the corpus that does, with a test asserting the
             # inertness rather than a comment claiming the strength.
             return (decoded, unmeasured, disagreed) if name[1] == end else None
-        tag = _read_tag_header(body, name[1], end)
-        if tag is None:
+        # BOTH GRAMMARS' TAG HEADERS COME BACK THROUGH ONE CALL, the same one
+        # :func:`_walk_payload` uses. There is one tag grammar dispatch in this
+        # module and not two, which is what keeps an interior from drifting out
+        # of step with the payload that holds it.
+        header = _read_tag_and_words(body, name[1], end, type_tree=type_tree)
+        if header is None:
             return None
-        type_word, value_at, size, in_tag_byte = tag
-        step = _decode_interior_tag(
-            body, type_word, name[1], value_at, size, in_tag_byte, end, depth
+        value, element_words = _decode_interior_tag(
+            body, header, name[1], end, depth, type_tree=type_tree
         )
-        if step is None:
-            return None
-        value, element_words = step
         if value is not None:
             decoded[name[0]] = value
-        elif _refusal_is_unmodelled_content(type_word, element_words):
+        elif _refusal_is_unmodelled_content(header[0], element_words, native_serialize=header[6]):
             unmeasured += 1
         else:
             disagreed += 1
-        cursor = value_at + size
+        cursor = header[1] + header[2]
     return None
 
 
 def _fold_struct_tag(
-    body: bytes, type_word: str, name_at: int, value_at: int, size: int, end: int
+    body: bytes,
+    type_word: str,
+    name_at: int,
+    value_at: int,
+    size: int,
+    end: int,
+    *,
+    struct_word: str | None = None,
+    type_tree: bool = False,
 ) -> tuple[int, tuple[StructValue, ...]]:
     """Whether one tag is a struct, and its interior when the interior reads.
 
@@ -5151,6 +5552,19 @@ def _fold_struct_tag(
         value_at: The value's first byte.
         size: The value's declared extent.
         end: The first byte past the payload.
+        struct_word: The struct word the CALLER already read, or None to read it
+            out of the tag data. NOT A CONVENIENCE: on the pairs in
+            :data:`COMPLETE_TYPE_NAME_PAIRS` the word is a parameter of the
+            type NAME, so `_struct_word_of_tag` would read a parameter count as
+            a string length prefix. It refuses almost always, and "almost" is
+            the problem - a length that happened to read would publish a struct
+            interior decoded against a word this save never wrote.
+        type_tree: Read the complete-type-name grammar INSIDE the interior as
+            well - see :func:`uses_complete_type_name`. SEPARATE FROM
+            ``struct_word`` on purpose: the word says what this tag named, and
+            this says what the bytes under it are written in. A caller that
+            supplied one and not the other would decode the right word against
+            the wrong grammar.
 
     Returns:
         1 when the tag is a struct and 0 otherwise, and a tuple holding the
@@ -5158,16 +5572,21 @@ def _fold_struct_tag(
     """
     if type_word != STRUCT_TYPE_WORD:
         return (0, ())
-    struct_word = _struct_word_of_tag(body, name_at, end)
+    if struct_word is None:
+        struct_word = _struct_word_of_tag(body, name_at, end)
     interior = (
         None
         if struct_word is None
-        else _decode_struct_interior(body, struct_word, value_at, value_at + size)
+        else _decode_struct_interior(
+            body, struct_word, value_at, value_at + size, type_tree=type_tree
+        )
     )
     return (1, () if interior is None else (interior,))
 
 
-def decode_struct_interior(body: bytes, struct_word: str, at: int, end: int) -> StructValue | None:
+def decode_struct_interior(
+    body: bytes, struct_word: str, at: int, end: int, *, type_tree: bool = False
+) -> StructValue | None:
     """Decode one ``StructProperty`` interior, or refuse it - CS-829.
 
     THE STATED SEAM for a caller holding a struct tag's own bounds, and the
@@ -5181,12 +5600,17 @@ def decode_struct_interior(body: bytes, struct_word: str, at: int, end: int) -> 
         struct_word: The struct type word the tag carried.
         at: The interior's first byte.
         end: The first byte past the interior, from the tag's declared size.
+        type_tree: Read the complete-type-name tag grammar rather than the
+            legacy one - see :func:`uses_complete_type_name`. DEFAULTED so that
+            adding it could not change what any existing caller reads, and
+            REQUIRED from a caller holding (14,60) bytes: this seam takes no
+            record and no version pair, so the pair cannot be derived here.
 
     Returns:
         The decoded interior, or None when it is not a tag list closing exactly
         at ``end``.
     """
-    return _decode_struct_interior(body, struct_word, at, end)
+    return _decode_struct_interior(body, struct_word, at, end, type_tree=type_tree)
 
 
 def _decode_value(
@@ -5196,6 +5620,9 @@ def _decode_value(
     size: int,
     in_tag_byte: int | None,
     element_words: tuple[str, ...] = (),
+    *,
+    type_tree: bool = False,
+    native_serialize: bool | None = None,
 ) -> object | None:
     """Decode one property value, or return None when its type is unmeasured.
 
@@ -5223,13 +5650,34 @@ def _decode_value(
             A container reached WITHOUT them cannot be decoded and comes back
             None, which is honest: the element words are in the tag, and a
             caller that did not read them has not supplied the value's grammar.
+        type_tree: Read the complete-type-name grammar rather than the legacy
+            one inside this value - see :func:`uses_complete_type_name`. IT
+            REACHES ONLY THE CONTAINER BRANCH, and that is not an omission:
+            what a scalar VALUE looks like did not change at (14,60), only the
+            tag framing did, and the only framing inside a value is a
+            container's inner tag and its nested tag lists.
+        native_serialize: Whether the tag declared a native-serialized value,
+            or None when the grammar states nothing. IT REACHES ONLY THE
+            CONTAINER BRANCH, for the same reason ``type_tree`` does: the bit
+            is a statement about a value's FRAMING, and a container's element
+            partition is the only framing this module derives rather than
+            reads. DEFAULTED, so a caller that predates it decodes exactly what
+            it did.
 
     Returns:
         The decoded value, or None when the type is unmeasured or the bytes
         disagree with the declaration.
     """
     if type_word in CONTAINER_TYPE_WORDS:
-        return _decode_container(body, type_word, element_words, at, size)
+        return _decode_container(
+            body,
+            type_word,
+            element_words,
+            at,
+            size,
+            type_tree=type_tree,
+            native_serialize=native_serialize,
+        )
     if type_word == "BoolProperty":
         # The value rides in the TAG and the declared size is 0. Measured: the
         # byte takes only 0 and 1 across all 4077 instances in the library.
@@ -5333,7 +5781,87 @@ class _PayloadWalk:
         )
 
 
-def _walk_payload(body: bytes, at: int, end: int) -> _PayloadWalk | None:
+def _read_tag_and_words(
+    body: bytes, name_at: int, end: int, *, type_tree: bool
+) -> tuple[str, int, int, int | None, tuple[str, ...], str | None, bool | None] | None:
+    """Read one tag header under either grammar and report what it named.
+
+    THE SEVENTH ELEMENT IS ``None`` UNDER THE LEGACY GRAMMAR AND A BOOL UNDER
+    THE OTHER, and the three-valued shape is the honest one. The legacy tag has
+    no flags byte at all, so that grammar makes no statement about native
+    serialization - and False would be a statement. A consumer reading None as
+    False would be treating "the writer did not say" as "the writer said no",
+    which is how a pair that never carried the field starts being refused or
+    accepted on the strength of a field it does not have.
+
+    WHY THE TWO GRAMMARS MEET HERE AND NOWHERE ELSE - CS-G05. They differ for
+    exactly these seven locals and rejoin immediately: what a VALUE looks like did
+    not change at (14,60), the tag FRAMING did. Two copies of the decode and the
+    bookkeeping below would be two places for the reference and struct counters
+    to drift apart, and the loop invariant :func:`_walk_payload` documents rests
+    on there being one.
+
+    IT IS A SEPARATE FUNCTION RATHER THAN A BRANCH IN THAT LOOP for the reason
+    :func:`_fold_struct_tag` already gives: the loop sits at its branch budget,
+    and a walk that grows one more ``if`` per grammar is the shape that gets
+    refactored badly later.
+
+    Args:
+        body: The decompressed body.
+        name_at: Just past the tag's name - where its type begins.
+        end: The first byte past the payload.
+        type_tree: Read the complete-type-name grammar rather than the legacy
+            one. See :func:`uses_complete_type_name`.
+
+    Returns:
+        The type word, where the value starts, its declared size, the byte a
+        BoolProperty carries, the element words a container's tag named, the
+        struct word when this grammar states one, and whether the tag declared
+        a native-serialized value - None when the grammar has no such field.
+        None when the tag does not read at all.
+    """
+    if type_tree:
+        tree_tag = _read_type_tree_tag_header(body, name_at, end)
+        if tree_tag is None:
+            return None
+        type_word, value_start, size, in_tag_byte, params, native = tree_tag
+        # THE WORDS CAME OUT OF THE HEADER READ rather than a second pass: they
+        # are the type name's own parameters at this pair, and the legacy re-read
+        # below would have to parse the nested name twice to arrive back at
+        # them. A struct's word is the first of them.
+        container = type_word in CONTAINER_TYPE_WORDS
+        struct_word = params[0] if type_word == STRUCT_TYPE_WORD and params else None
+        return (
+            type_word,
+            value_start,
+            size,
+            in_tag_byte,
+            params if container else (),
+            struct_word,
+            native,
+        )
+
+    tag = _read_tag_header(body, name_at, end)
+    if tag is None:
+        return None
+    type_word, value_start, size, in_tag_byte = tag
+    # THE ELEMENT WORDS ARE READ HERE BECAUSE HERE IS WHERE THE OFFSET STILL
+    # EXISTS - CS-830. They sit inside the tag, between the index field and the
+    # guid flag, and `_read_tag_header` steps over them without handing them
+    # back. Widening its return shape in place is how a caller starts unpacking
+    # the wrong element in silence, so they are re-read from the name offset.
+    element_words: tuple[str, ...] = ()
+    if type_word in CONTAINER_TYPE_WORDS:
+        read_words = _container_element_words(body, name_at, end, type_word)
+        if read_words is None:
+            return None
+        element_words = read_words
+    return (type_word, value_start, size, in_tag_byte, element_words, None, None)
+
+
+def _walk_payload(
+    body: bytes, at: int, end: int, *, type_tree: bool = False
+) -> _PayloadWalk | None:
     """Walk one payload's tags, decoding values and collecting references.
 
     THE WALK ITSELF, which :func:`_decode_payload` narrows for the consumers
@@ -5366,6 +5894,9 @@ def _walk_payload(body: bytes, at: int, end: int) -> _PayloadWalk | None:
         body: The decompressed body.
         at: Where the first tag begins.
         end: The first byte past the payload.
+        type_tree: Read the complete-type-name tag grammar rather than the
+            legacy one - see :func:`uses_complete_type_name`. DEFAULTED so that
+            adding it could not change what any existing caller reads.
 
     Returns:
         What the walk observed, or None when it broke before its terminator.
@@ -5394,23 +5925,23 @@ def _walk_payload(body: bytes, at: int, end: int) -> _PayloadWalk | None:
                 struct_interiors=tuple(struct_interiors),
                 struct_tags=struct_tags,
             )
-        tag = _read_tag_header(body, name[1], end)
-        if tag is None:
+        # BOTH GRAMMARS' TAG HEADERS COME BACK THROUGH ONE CALL - CS-G05.
+        # :func:`_read_tag_and_words` says why the divergence lives there and
+        # not in this loop.
+        header = _read_tag_and_words(body, name[1], end, type_tree=type_tree)
+        if header is None:
             return None
-        type_word, value_start, size, in_tag_byte = tag
-        # THE ELEMENT WORDS ARE READ HERE BECAUSE HERE IS WHERE THE OFFSET
-        # STILL EXISTS - CS-830. They sit inside the tag, between the index
-        # field and the guid flag, and `_read_tag_header` steps over them
-        # without handing them back. Widening its return shape in place is how
-        # a caller starts unpacking the wrong element in silence, so they are
-        # re-read from the name offset this loop already holds.
-        element_words: tuple[str, ...] = ()
-        if type_word in CONTAINER_TYPE_WORDS:
-            read_words = _container_element_words(body, name[1], end, type_word)
-            if read_words is None:
-                return None
-            element_words = read_words
-        value = _decode_value(body, type_word, value_start, size, in_tag_byte, element_words)
+        type_word, value_start, size, in_tag_byte, element_words, struct_word, native = header
+        value = _decode_value(
+            body,
+            type_word,
+            value_start,
+            size,
+            in_tag_byte,
+            element_words,
+            type_tree=type_tree,
+            native_serialize=native,
+        )
         # A SEPARATE POPULATION FROM ``properties``, AND THE SEPARATION IS THE
         # DESIGN - CS-829. The interior is REPORTED here and the struct word
         # stays OUT of MEASURED_VALUE_TYPES, because the corpus carries struct
@@ -5421,7 +5952,16 @@ def _walk_payload(body: bytes, at: int, end: int) -> _PayloadWalk | None:
         # reporting shipped game content as a decoder that lost its place.
         #
         # NO BRANCH IS ADDED TO THIS LOOP and :func:`_fold_struct_tag` says why.
-        struct_step = _fold_struct_tag(body, type_word, name[1], value_start, size, end)
+        struct_step = _fold_struct_tag(
+            body,
+            type_word,
+            name[1],
+            value_start,
+            size,
+            end,
+            struct_word=struct_word,
+            type_tree=type_tree,
+        )
         struct_tags += struct_step[0]
         struct_interiors.extend(struct_step[1])
         if type_word == REFERENCE_TYPE_WORD:
@@ -5438,7 +5978,7 @@ def _walk_payload(body: bytes, at: int, end: int) -> _PayloadWalk | None:
                 references.append(reference)
         if value is not None:
             decoded[name[0]] = value
-        elif _refusal_is_unmodelled_content(type_word, element_words):
+        elif _refusal_is_unmodelled_content(type_word, element_words, native_serialize=native):
             unmeasured += 1
         else:
             disagreed += 1
@@ -5482,7 +6022,12 @@ def _as_reference(property_name: str, value: object) -> ObjectReference | None:
 
 
 def read_properties(
-    body: bytes, record: ObjectRecord, property_map: PropertyMap | None = None
+    body: bytes,
+    record: ObjectRecord,
+    property_map: PropertyMap | None = None,
+    *,
+    save_version: int | None = None,
+    header_version: int | None = None,
 ) -> PropertyResult:
     """Decode one record's measured properties and report what was skipped.
 
@@ -5539,6 +6084,13 @@ def read_properties(
     Args:
         body: The decompressed body the record was walked out of.
         record: The record to resolve.
+        save_version: The save version the body was walked on, or None. With
+            ``header_version`` it selects the property TAG grammar - see
+            :func:`uses_complete_type_name`. BOTH DEFAULT TO NONE, which selects
+            the legacy grammar, because every caller predating CS-G05 passes
+            three positional arguments and a default that changed what they read
+            would be a silent regression.
+        header_version: The header version the body was walked on, or None.
         property_map: The parsed mapping, or None when none was supplied.
             OPTIONAL, and defaulted so that "no map" is the shape a caller
             falls into rather than one it has to construct. It drives the
@@ -5610,11 +6162,21 @@ def read_properties(
     start: int | None = record.body_offset
     if record.kind == KIND_ACTOR:
         start = _skip_actor_head(body, record.body_offset, end)
-    walked = None if start is None else _walk_payload(body, start, end)
+    type_tree = uses_complete_type_name(header_version, save_version)
+    if type_tree and start is not None:
+        # THE LEAD BYTE, STEPPED FOR BOTH KINDS. On an actor it sits past the
+        # component list, on a component it is the payload's first byte - one
+        # field in one place, which is why this is here rather than inside
+        # `_skip_actor_head`, whose whole subject is the actor asymmetry.
+        lead = start + PAYLOAD_TAG_LEAD_BYTES
+        start = lead if lead <= end else None
+    walked = None if start is None else _walk_payload(body, start, end, type_tree=type_tree)
     if walked is None:
-        # The payload does not read under the measured grammar at all - which
-        # is every payload of the (14,60) pair. Flagged exactly as before, so
-        # nothing this slice added changed what that pair reports.
+        # The payload does not read under the grammar the caller's pair
+        # selected. A SENTENCE HERE USED TO SAY THIS WAS "every payload of the
+        # (14,60) pair" and treat that as a fact about the pair. It was a fact
+        # about this function - see the CS-G05 block above
+        # :data:`COMPLETE_TYPE_NAME_PAIRS`.
         return PropertyResult(
             properties=MappingProxyType({}),
             schema_name=name,
@@ -5727,9 +6289,14 @@ REFERENCE_COUNT_COMMON_MODE: Final = frozenset(
         "KIND_ACTOR",
         "MAX_OBJECTS",
         "MAX_STRING_BYTES",
+        "MEASURED_TAG_FLAG_MASK",
         "MEASURED_VALUE_TYPES",
         "ObjectReference",
         "REFERENCE_TYPE_WORD",
+        "STRUCT_TYPE_WORD",
+        "TAG_FLAG_ARRAY_INDEX",
+        "TAG_FLAG_BOOL_TRUE",
+        "TAG_FLAG_NATIVE_SERIALIZE",
         "UTF16_CHAR_SIZE",
         "_CONTAINER_LEAD_FIELDS",
         "_ELEMENT_FIXED_WIDTHS",
@@ -5739,6 +6306,8 @@ REFERENCE_COUNT_COMMON_MODE: Final = frozenset(
         "_MAX_CONTAINER_ELEMENTS",
         "_MAX_ELEMENT_TAGS",
         "_MAX_TAGS_PER_PAYLOAD",
+        "_MAX_TYPE_NAME_DEPTH",
+        "_MAX_TYPE_NAME_PARAMS",
         "_ONE_STRING_VALUES",
         "_PAYLOAD_TERMINATOR",
         "_RAW_SHAPE_ELEMENT_WORDS",
@@ -5748,8 +6317,10 @@ REFERENCE_COUNT_COMMON_MODE: Final = frozenset(
         "_TAG_EXTRA_STRINGS",
         "_TAG_INDEX_FIELD_BYTES",
         "_TWO_STRING_VALUES",
+        "_UNEVIDENCED_UNDER_NATIVE_SERIALIZE",
         "_as_reference",
         "_bound_container_elements",
+        "_container_element_words",
         "_decode_container",
         "_decode_element_value",
         "_decode_fixed_width",
@@ -5761,7 +6332,10 @@ REFERENCE_COUNT_COMMON_MODE: Final = frozenset(
         "_open_container",
         "_payload_text",
         "_read_array_struct_tag",
+        "_read_tag_and_words",
         "_read_tag_header",
+        "_read_type_name",
+        "_read_type_tree_tag_header",
         "_skip_actor_head",
         "_skip_guid_flag",
         "_skip_tag_extra",
@@ -5989,7 +6563,12 @@ def resolve_references(index: RecordIndex, result: PropertyResult) -> ReferenceR
 
 
 def parse_properties(
-    body: bytes, record: ObjectRecord, property_map: PropertyMap | None = None
+    body: bytes,
+    record: ObjectRecord,
+    property_map: PropertyMap | None = None,
+    *,
+    save_version: int | None = None,
+    header_version: int | None = None,
 ) -> Mapping[str, object]:
     """Resolve one record's properties, discarding the diagnostics.
 
@@ -6015,6 +6594,13 @@ def parse_properties(
     Args:
         body: The decompressed body the record was walked out of.
         record: The record to resolve.
+        save_version: The save version the body was walked on, or None. With
+            ``header_version`` it selects the property TAG grammar - see
+            :func:`uses_complete_type_name`. BOTH DEFAULT TO NONE, which selects
+            the legacy grammar, because every caller predating CS-G05 passes
+            three positional arguments and a default that changed what they read
+            would be a silent regression.
+        header_version: The header version the body was walked on, or None.
         property_map: The parsed mapping, or None when none was supplied.
             OPTIONAL on the same terms as :func:`read_properties`, and the
             optionality matters MORE here: this is the accessor that discards
@@ -6033,7 +6619,13 @@ def parse_properties(
             body - see the handler below.
     """
     try:
-        return read_properties(body, record, property_map).properties
+        return read_properties(
+            body,
+            record,
+            property_map,
+            save_version=save_version,
+            header_version=header_version,
+        ).properties
     except BaseException:
         # THE HANDLER CHANGES NOTHING ABOUT WHAT PROPAGATES. It catches, scrubs
         # this frame and re-raises the same exception with the same traceback;

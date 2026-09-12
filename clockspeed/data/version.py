@@ -57,6 +57,7 @@ from typing import Any, Final
 
 from clockspeed.data.docs_extract import (
     KEY_CLASS_NAME,
+    DocsDocument,
     DocsGroup,
     decode_docs_bytes,
     load_document,
@@ -76,6 +77,7 @@ __all__ = [
     "compare",
     "extract_pin_block",
     "integrity_digest",
+    "is_registry_building_entry",
     "pin",
     "render_pin_block",
     "rewrite_pin_source",
@@ -90,7 +92,7 @@ __all__ = [
 #: re-shape. A pin from an unknown schema is a validation failure rather than a
 #: best-effort read, because a shape this build does not understand cannot be
 #: compared field by field against live data.
-SCHEMA: Final = 1
+SCHEMA: Final = 2
 
 #: The docs file, relative to the install root. Named here because the pin is
 #: about that specific file and records its own subject. `scripts/verify_env.py`
@@ -128,6 +130,7 @@ _REQUIRED_CENSUS_KEYS: Final = (
     "override_potential_shard_slots_values",
     "power_shard_extra_potential",
     "power_shard_group_size",
+    "registry_building_field_presence",
 )
 
 _SHA256_HEX_LENGTH: Final = 64
@@ -161,6 +164,50 @@ _CENSUS_KEY_BY_FIELD: Final = {
     FIELD_POTENTIAL_SHARD_SLOTS: "potential_shard_slots_values",
     FIELD_OVERRIDE_SHARD_SLOTS: "override_potential_shard_slots_values",
 }
+
+#: The watched fields, in the order the presence census reports them. Derived
+#: from the table above rather than listed again, so a field added there is
+#: counted both ways at once.
+WATCHED_BUILDING_FIELDS: Final = tuple(_CENSUS_KEY_BY_FIELD)
+
+# --- the published-building population --------------------------------------
+
+#: The other half of the registry's published-building predicate.
+#: ``mPowerConsumption`` is named here and in ``clockspeed/data/registry.py``
+#: independently, because the two modules are peers over
+#: ``clockspeed/data/docs_extract.py`` and neither may import the other - the
+#: allowed-import matrix in ``tests/data/test_phase2_gate.py`` is that contract.
+#: The restatement is therefore deliberate, and it is fenced by a test that
+#: compares the two predicates entry by entry rather than by a shared import.
+FIELD_POWER_CONSUMPTION: Final = "mPowerConsumption"
+
+#: Carrying either of these is what makes a docs entry a published Building.
+REGISTRY_BUILDING_MARKER_FIELDS: Final = (FIELD_POWER_CONSUMPTION, FIELD_POWER_EXPONENT)
+
+#: The census key recording, per watched field, how many published buildings
+#: carry it and how many do not.
+CENSUS_KEY_BUILDING_FIELD_PRESENCE: Final = "registry_building_field_presence"
+
+
+def is_registry_building_entry(entry: Mapping[str, object]) -> bool:
+    """Decide whether one docs entry is a building the registry publishes.
+
+    States the registry's own predicate a second time on purpose - see
+    :data:`FIELD_POWER_CONSUMPTION` for why an import is not available - so the
+    census can describe the population the registry publishes rather than every
+    entry in the file.
+
+    Args:
+        entry: One docs entry, verbatim.
+
+    Returns:
+        True when the entry carries either power field. Presence of the KEY is
+        the whole test, matching the registry: an entry whose power value is
+        unreadable is still published, and the registry's own warning channel
+        is what reports the value.
+    """
+    return any(marker in entry for marker in REGISTRY_BUILDING_MARKER_FIELDS)
+
 
 # --- the constant ADR 0005 specifies and deliberately leaves empty -----------
 
@@ -343,14 +390,32 @@ _PIN_JSON: Final = """
       "PST_Overclock": "0.500000",
       "PST_ProductionBoost": "0.000000"
     },
-    "power_shard_group_size": 2
+    "power_shard_group_size": 2,
+    "registry_building_field_presence": {
+      "mMaxPotential": {
+        "absent": 6,
+        "present": 62
+      },
+      "mOverridePotentialShardSlots": {
+        "absent": 6,
+        "present": 62
+      },
+      "mPotentialShardSlots": {
+        "absent": 6,
+        "present": 62
+      },
+      "mPowerConsumptionExponent": {
+        "absent": 6,
+        "present": 62
+      }
+    }
   },
   "docs_bytes": 10640180,
   "docs_relative": "CommunityResources/Docs/en-US.json",
   "docs_sha256": "a81d250e96aa13db3c0bf8c332c199ad930b2f15323e2c1a069afa4c07f971bb",
   "game_build": "++FactoryGame+rel-main-anniversary-2026-CL-502094",
-  "integrity": "fd6000262c98c2f5aa532a00227dfb57da09e805f7f11fb5bb88f303f3121afe",
-  "schema": 1
+  "integrity": "fafa13c09e18e9e8f5868292a09c0dad89e93c39ffd50810fa8015257da227d8",
+  "schema": 2
 }
 """
 # --- END GENERATED PIN ---
@@ -554,7 +619,36 @@ def _tally(counters: dict[str, Counter[str]], entry: Mapping[str, object]) -> No
             counters[key][value] += 1
 
 
-def census(groups: Sequence[DocsGroup]) -> dict[str, Any]:
+def _building_field_presence(groups: Sequence[DocsGroup]) -> dict[str, dict[str, int]]:
+    """Count how many published buildings carry each watched field, and how many do not.
+
+    This is the half a per-value counter cannot report. ``max_potential_values``
+    and its three siblings count the VALUES of the entries that carry a field,
+    so an entry carrying none of them is invisible to every one of them - and
+    the absent case is a live branch in ``clockspeed/data/registry.py``, where a
+    missing field becomes None rather than an invented number.
+
+    Args:
+        groups: The RECOGNIZED groups only. The registry builds its buildings
+            from those, so counting an unrecognized group's entries here would
+            describe a population nothing publishes. This is the one place the
+            census deliberately reads less than the whole document.
+
+    Returns:
+        field name -> {"absent": int, "present": int}, key-sorted at both
+        levels so the result is byte-stable under the pin's canonical form.
+    """
+    presence = {field: {"absent": 0, "present": 0} for field in WATCHED_BUILDING_FIELDS}
+    for group in groups:
+        for entry in group.entries:
+            if not is_registry_building_entry(entry):
+                continue
+            for field, counts in presence.items():
+                counts["present" if field in entry else "absent"] += 1
+    return {field: dict(sorted(counts.items())) for field, counts in sorted(presence.items())}
+
+
+def census(document: DocsDocument) -> dict[str, Any]:
     """Measure the structural and balance invariants a patch would move.
 
     Everything here is DERIVED from the groups it is given. Nothing is
@@ -562,10 +656,14 @@ def census(groups: Sequence[DocsGroup]) -> dict[str, Any]:
     a patched install differs from a pinned one exactly where the game changed.
 
     Args:
-        groups: Every well-formed group in the document, recognized or not.
-            Pass ``DocsDocument.all_groups``. Passing only the recognized groups
-            would silently under-count on any build carrying a group the pin has
-            never seen, which is precisely the case a census exists to detect.
+        document: The loaded document. Every key but the building presence
+            one counts ``all_groups`` - every well-formed group, recognized
+            or not - because counting only the recognized ones would
+            silently under-count on a build carrying a group the pin has
+            never seen, which is precisely the case a census exists to
+            detect. The document is taken whole rather than as one group
+            sequence so that the one key measured over a NARROWER
+            population cannot be handed the wrong list.
 
     Returns:
         The census payload. Every mapping is key-sorted so the result is
@@ -579,7 +677,7 @@ def census(groups: Sequence[DocsGroup]) -> dict[str, Any]:
     shard_group_size = 0
     entry_total = 0
 
-    for group in groups:
+    for group in document.all_groups:
         group_entries[group.short_name] += len(group.entries)
         is_shard_group = group.short_name == POWER_SHARD_GROUP
         if is_shard_group:
@@ -599,8 +697,9 @@ def census(groups: Sequence[DocsGroup]) -> dict[str, Any]:
                     shard_extra[shard_type] = extra
 
     body: dict[str, Any] = {
-        "group_count": len(groups),
+        "group_count": len(document.all_groups),
         "entry_count": entry_total,
+        CENSUS_KEY_BUILDING_FIELD_PRESENCE: _building_field_presence(document.groups),
         "distinct_class_names": len(class_names),
         "group_entry_counts": dict(sorted(group_entries.items())),
         "power_consumption_exponent_groups": len(exponent_groups),
@@ -640,7 +739,7 @@ def build_pin(raw: bytes, game_build: str, *, docs_relative: str = DOCS_RELATIVE
         "docs_relative": docs_relative,
         "docs_bytes": len(raw),
         "docs_sha256": hashlib.sha256(raw).hexdigest(),
-        "census": census(document.all_groups),
+        "census": census(document),
     }
     payload[INTEGRITY_KEY] = integrity_digest(payload)
     return payload

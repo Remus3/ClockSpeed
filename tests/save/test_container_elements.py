@@ -958,11 +958,11 @@ def _sweep_with_a_wrong_partition() -> tuple[_ContainerSweep, int]:
     applied = 0
     real = objects._bound_container_elements  # noqa: SLF001
 
-    def _mutated(
-        body: bytes, words: tuple[str, ...], at: int, end: int, count: int
+    def _mutated(  # EVERY KEYWORD IS FORWARDED, so a widened call site cannot break it.
+        body: bytes, words: tuple[str, ...], at: int, end: int, count: int, **grammar: bool
     ) -> tuple[str, tuple[objects.ContainerElement, ...]] | None:
         nonlocal applied
-        bounded = real(body, words, at, end, count)
+        bounded = real(body, words, at, end, count, **grammar)
         if bounded is None or bounded[0] != objects.ELEMENT_SHAPE_UNIFORM_WIDTH:
             return bounded
         slots = count * len(words)

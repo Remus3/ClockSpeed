@@ -35,7 +35,7 @@ import json
 import re
 import socket
 from pathlib import Path
-from typing import TYPE_CHECKING, Final
+from typing import TYPE_CHECKING, Final, NamedTuple
 
 import pytest
 
@@ -73,6 +73,7 @@ PANEL_MODULES: Final = (
     "panel_scope.js",
     "panel_solve.js",
     "panel_warnings.js",
+    "panel_map.js",
 )
 
 #: The route template ``clockspeed/surface/api/world.py`` answers. Spelled here
@@ -82,8 +83,13 @@ WORLD_ENDPOINT: Final = "/api/world"
 
 #: The route template ``clockspeed/surface/api/registry.py`` answers, spelled
 #: here for the same reason and no other: that module also names it
-#: ``ENDPOINT``. CS-912 added it as the tenth template.
+#: ``ENDPOINT``. CS-912 added it under BOOTSTRAP.md section 7.1's word "minimum".
 REGISTRY_ENDPOINT: Final = "/api/registry"
+
+#: The route template ``clockspeed/surface/api/map.py`` answers, spelled here for
+#: the third time for the same reason: that module also names it ``ENDPOINT``.
+#: CS-977 added it the way CS-912 added its predecessor.
+MAP_ENDPOINT: Final = "/api/map"
 
 #: The highest byte the project's character-set rule admits. Restated from
 #: nowhere: it is the same 0x7E ``contract.MAX_ASCII_BYTE`` and the commit gate
@@ -133,16 +139,20 @@ def read_asset(name: str) -> str:
 # ---------------------------------------------------------------------------
 
 
-def test_the_server_names_exactly_seven_assets() -> None:
-    """The name set this module grades is the server's own, and holds seven.
+def test_the_server_names_exactly_the_assets_the_page_loads() -> None:
+    """The name set this module grades is the server's own, and it is the page's.
 
     An arm that grades a name set it invented would stay green while the server
-    served an eighth file nobody checked.
+    served one more file nobody checked. THE COUNT IS NOT WRITTEN DOWN: it is
+    the page, the sheet, the script and the panel modules ``index.html`` loads,
+    derived from :data:`PANEL_MODULES` rather than restated beside it, because a
+    number typed next to a list it does not come from has no way of staying
+    right - CLAUDE.md section 4.
 
-    SEVEN RATHER THAN THREE SINCE CS-962: the page, the sheet, the script and
-    the four panel modules the page loads after it. The count is asserted
-    against the names rather than beside them, so a module added to the table
-    without being added here goes red on the set and not only on the length.
+    A PANEL MODULE THE SERVER DOES NOT NAME IS A FILE THE PAGE CANNOT LOAD, and
+    since ``STATIC_ROUTES`` is a literal by design - no directory walk - the
+    name has to be added there on purpose. This arm is what makes forgetting it
+    a red suite rather than a blank panel.
     """
     expected = 3 + len(PANEL_MODULES)
     assert len(ASSET_NAMES) == expected, ASSET_NAMES
@@ -245,6 +255,41 @@ _PROTOCOL_RELATIVE = re.compile(r"""["'`(=]\s*//""")
 #: relative import leaves a mechanism whose only future use is a remote one.
 _ANY_IMPORT = re.compile(r"@import")
 
+#: The SVG namespace URI, and the ONE exemption this leg carries.
+#:
+#: IT IS A NAME AND NEVER A REQUEST. ``document.createElementNS`` takes it to
+#: decide which element interface to construct; no user agent dereferences it,
+#: and there is no other way to build an SVG element that paints - an element
+#: made with ``createElement("svg")`` is an unknown HTML element. So CS-977's map
+#: panel cannot exist without this string, and banning it would ban the feature
+#: rather than the leak.
+#:
+#: THE EXEMPTION IS A CONTEXT AND NOT A SPELLING, which is the difference between
+#: an allowlist and a hole. What is admitted is this URI sitting INSIDE a
+#: ``createElementNS`` call; the same characters in an ``href``, a ``src`` or a
+#: CSS ``url()`` are a finding, and
+#: :func:`test_the_svg_namespace_is_admitted_only_inside_a_createelementns_call`
+#: proves both halves.
+SVG_NAMESPACE: Final = "http://www.w3.org/2000/svg"
+
+#: The one legal position: ``document.createElementNS("<the URI>"`` - up to and
+#: including the comma, so a bare mention outside a call matches nothing.
+_NAMESPACE_CALL: Final = re.compile(
+    r"""document\.createElementNS\(\s*["']""" + re.escape(SVG_NAMESPACE) + r"""["']\s*,"""
+)
+
+
+def _exempt_spans(text: str) -> tuple[tuple[int, int], ...]:
+    """The character ranges a remote-reference finding is admitted inside.
+
+    Args:
+        text: The asset's text.
+
+    Returns:
+        One ``(start, end)`` span per legal ``createElementNS`` call.
+    """
+    return tuple(match.span() for match in _NAMESPACE_CALL.finditer(text))
+
 
 def remote_references(text: str) -> tuple[str, ...]:
     """Every remote-resource reference in one asset's text.
@@ -254,19 +299,28 @@ def remote_references(text: str) -> tuple[str, ...]:
     reference, and a stylesheet ``@import``. "Local. Nothing is uploaded." is a
     property of the shipped bytes, not only of the response header.
 
+    ONE EXEMPTION, BY CONTEXT: :data:`SVG_NAMESPACE` inside a
+    ``createElementNS`` call. See that constant for why a namespace URI is not a
+    fetch and why the admission is a position rather than a spelling.
+
     Args:
         text: The asset's text.
 
     Returns:
         One finding per match, in file order.
     """
+    exempt = _exempt_spans(text)
     findings: list[str] = []
     for label, pattern in (
         ("absolute-url", _ABSOLUTE_URL),
         ("protocol-relative", _PROTOCOL_RELATIVE),
         ("css-import", _ANY_IMPORT),
     ):
-        findings.extend(f"{label}: {match.group(0)!r}" for match in pattern.finditer(text))
+        findings.extend(
+            f"{label}: {match.group(0)!r}"
+            for match in pattern.finditer(text)
+            if not any(start <= match.start() and match.end() <= end for start, end in exempt)
+        )
     return tuple(findings)
 
 
@@ -279,6 +333,37 @@ def test_no_asset_references_a_remote_resource() -> None:
     }
     total = len(findings)
     assert total == 0, f"remote references in {total} asset(s): {findings}"
+
+
+def test_the_svg_namespace_is_admitted_only_inside_a_createelementns_call() -> None:
+    """The one exemption is a position, and every other position still fires.
+
+    BOTH HALVES, because an exemption that is only proved to admit is a hole
+    nobody has measured. The shipped assets are asserted clean WITH the URI
+    present in at least one of them - so the exemption is doing work - and the
+    same characters planted in an ``href``, a ``src`` and a CSS ``url()`` are
+    each asserted to be found.
+    """
+    carriers = tuple(name for name in ASSET_NAMES if SVG_NAMESPACE in read_asset(name))
+    assert carriers, (
+        "no shipped asset names the SVG namespace, so this exemption admits "
+        "nothing and the arm below grades a rule with no subject"
+    )
+    for name in carriers:
+        text = read_asset(name)
+        assert remote_references(text) == (), f"{name} is not clean under the exemption"
+        assert _exempt_spans(text), f"{name} names the namespace outside a createElementNS call"
+
+    clean = read_asset(STYLESHEET)
+    assert remote_references(clean) == ()
+    planted = {
+        "href": clean + "\n.f::before { content: \"<a href='" + SVG_NAMESPACE + "'>\"; }\n",
+        "src": clean + "\n.f { --x: \"<img src='" + SVG_NAMESPACE + "'>\"; }\n",
+        "url": clean + '\n.f { background: url("' + SVG_NAMESPACE + '"); }\n',
+        "bare": clean + "\n.f { --x: " + SVG_NAMESPACE + "; }\n",
+    }
+    silent = tuple(shape for shape, text in planted.items() if not remote_references(text))
+    assert not silent, f"the namespace exemption admitted a real reference in: {silent}"
 
 
 def test_the_remote_reference_detector_fires_on_each_planted_shape() -> None:
@@ -905,6 +990,238 @@ def test_the_button_declares_a_target_box_of_at_least_the_minimum() -> None:
         sizes = tuple(int(value) for value in _PX.findall(line))
         assert sizes, f"button {axis} is not declared in px"
         assert min(sizes) >= MIN_TARGET_PX, f"button {axis} is {min(sizes)}px"
+
+
+#: Every tag from :data:`_INTERACTIVE_TAGS` as a bare element name, plus
+#: ``button`` - the one interactive element the page does admit. DERIVED from
+#: that tuple rather than spelled again, so the arm above and the arms below
+#: cannot come to disagree about what counts as a pointer target.
+INJECTABLE_TAGS: Final = frozenset(
+    {tag.lstrip("<").rstrip(" >") for tag in _INTERACTIVE_TAGS} | {"button"}
+)
+
+#: One ``document.createElement("tag")`` call, with the variable the new node is
+#: bound to when there is one. A call whose argument is a VARIABLE - the generic
+#: ``el``/``element``/``add`` helpers - does not match, which is exactly what
+#: :func:`test_no_asset_names_an_interactive_tag_in_a_shape_this_module_cannot_read`
+#: exists to catch.
+_CREATE_CALL: Final = re.compile(
+    r"""(?:(?P<name>[A-Za-z_$][\w$]*)\s*=\s*)?"""
+    r"""document\.createElement\(\s*["'](?P<tag>[a-z]+)["']\s*\)"""
+)
+
+#: A bare tag-shaped string literal. Used to find an interactive tag name in a
+#: position this module does not know how to resolve.
+_TAG_LITERAL: Final = re.compile(r"""["']([a-z]+)["']""")
+
+#: ``setAttribute("type", "button")``. The second legal place an interactive tag
+#: name may appear in a script: it names an input TYPE, not a new element.
+_TYPE_ATTRIBUTE: Final = re.compile(r"""setAttribute\(\s*["']type["']\s*,\s*["'][a-z]+["']\s*\)""")
+
+
+def injected_controls(code: str) -> tuple[tuple[str, tuple[str, ...]], ...]:
+    """Every interactive control the script CREATES, with the selectors that size it.
+
+    WHY THIS IS DERIVED AND NOT A LIST OF CLASS NAMES. The solve bench's text
+    input is built by a panel module at runtime and appears in no markup, so
+    :func:`test_the_page_offers_exactly_one_kind_of_clickable_target` - which
+    reads ``index.html`` - cannot see it, and the sizing arm above grades the
+    ``button`` element selector alone. An arm naming ``.bench-input`` would grade
+    exactly one control and go quietly out of date the moment a fifth panel
+    injects a second one. So the set comes from the SCRIPTS, which own it.
+
+    Resolution, in two shapes, both present in the assets today:
+
+    - ``var input = document.createElement("input"); input.className = "x";``
+      resolves to the class selector ``.x``.
+    - ``var button = document.createElement("button");`` with no class resolves
+      to the bare element selector ``button``.
+
+    The class search is bounded to the text between this creation call and the
+    next one, so a later node's class cannot be read as this one's. A node whose
+    class is assigned after the next ``createElement`` resolves to its bare tag
+    instead, which reddens the arm rather than passing quietly.
+
+    A multi-class assignment yields one candidate per class and the caller
+    requires ONE of them to carry the box - which is how CSS behaves.
+
+    Args:
+        code: One script's text with its block comments already removed by
+            :func:`code_only`. The assets carry no ``//`` line comments at all -
+            :func:`test_no_asset_references_a_remote_resource` is what keeps it
+            that way - so no further stripping is needed here.
+
+    Returns:
+        One ``(tag, candidate selectors)`` pair per distinct control, in the
+        order the script creates them.
+    """
+    found: list[tuple[str, tuple[str, ...]]] = []
+    for match in _CREATE_CALL.finditer(code):
+        tag = match.group("tag")
+        if tag not in INJECTABLE_TAGS:
+            continue
+        candidates: tuple[str, ...] = (tag,)
+        name = match.group("name")
+        if name:
+            window = code[match.end() :]
+            following = window.find("document.createElement(")
+            if following >= 0:
+                window = window[:following]
+            pattern = r"\b" + re.escape(name) + r"""\.className\s*=\s*["']([^"']+)["']"""
+            assigned = re.search(pattern, window)
+            if assigned:
+                candidates = tuple("." + part for part in assigned.group(1).split())
+        pair = (tag, candidates)
+        if pair not in found:
+            found.append(pair)
+    return tuple(found)
+
+
+def declarations_for(rules: tuple[tuple[str, str], ...], selector: str) -> str | None:
+    """The body of the first rule whose selector LIST holds ``selector`` exactly.
+
+    An exact match over the comma-split list, rather than a substring search:
+    ``.bench-input`` is a substring of ``.bench-input:focus`` and of any
+    descendant selector ending in it, and neither of those sizes the control.
+
+    Args:
+        rules: A :func:`css_rules` result.
+        selector: One selector, spelled as the sheet spells it.
+
+    Returns:
+        The declarations, or ``None`` when no rule carries that selector alone.
+    """
+    for name, body in rules:
+        if selector in tuple(part.strip() for part in name.split(",")):
+            return body
+    return None
+
+
+def undersized_axes(declarations: str) -> tuple[str, ...]:
+    """Which of the two axes this rule body fails to floor at the minimum.
+
+    The same four questions the ``button`` arm above asks, in a form a caller can
+    ask of any rule: is the axis declared, is it declared in px, and is the
+    smallest px value it names at or above :data:`MIN_TARGET_PX`. That arm keeps
+    its own copy deliberately - it is a passing guard and this slice widens
+    coverage without touching it.
+
+    Args:
+        declarations: A rule body, as :func:`css_rules` returns one.
+
+    Returns:
+        One string per fault, empty when the rule declares a legal target box.
+    """
+    faults: list[str] = []
+    for axis in ("min-width", "min-height"):
+        line = next((part for part in declarations.split(";") if axis in part), None)
+        if line is None:
+            faults.append(f"{axis} undeclared")
+            continue
+        sizes = tuple(int(value) for value in _PX.findall(line))
+        if not sizes:
+            faults.append(f"{axis} is not declared in px")
+        elif min(sizes) < MIN_TARGET_PX:
+            faults.append(f"{axis} is {min(sizes)}px")
+    return tuple(faults)
+
+
+def test_the_injected_control_scan_reads_both_shapes_and_drops_a_div() -> None:
+    """The resolver is proved on a sample before any arm relies on it.
+
+    A resolver that silently returned nothing would make the arm below
+    vacuously green, which is the exact shape this module exists to refuse.
+    """
+    sample = (
+        'var wrap = document.createElement("div");\n'
+        'wrap.className = "bench-field";\n'
+        'var input = document.createElement("input");\n'
+        'input.className = "bench-input";\n'
+        'var button = document.createElement("button");\n'
+        'button.setAttribute("type", "button");\n'
+    )
+    assert injected_controls(sample) == (
+        ("input", (".bench-input",)),
+        ("button", ("button",)),
+    ), injected_controls(sample)
+
+
+def test_the_target_box_reader_names_each_fault_it_claims() -> None:
+    """:func:`undersized_axes` fires on all three faults and clears a legal box."""
+    assert undersized_axes("min-width: 24px; min-height: 44px;") == ()
+    assert undersized_axes("min-height: 44px;") == ("min-width undeclared",)
+    assert undersized_axes("min-width: 100%; min-height: 44px;") == (
+        "min-width is not declared in px",
+    )
+    assert undersized_axes("min-width: 8px; min-height: 44px;") == ("min-width is 8px",)
+
+
+def test_every_control_a_script_injects_declares_the_target_box() -> None:
+    """A control built at RUNTIME is held to the same minimum as a marked-up one.
+
+    THIS IS THE ARM THE SOLVE BENCH HAD NONE OF. ``.bench-input`` declared a
+    target box that no test read: the markup arm above scans ``index.html``, and
+    a node a panel module creates appears in no markup, while the sizing arm
+    above grades the ``button`` selector alone. So a stylesheet rule this project
+    treats as a hit-target requirement was enforced by nothing.
+
+    WHAT THIS ARM STILL CANNOT SAY. It grades DECLARED px, not computed style.
+    No browser runs here, so a declared floor beaten by a later cascade or by a
+    box-sizing interaction is out of its reach - see the section preamble above
+    on what a source-level arm is worth.
+    """
+    rules = css_rules(read_asset(STYLESHEET))
+    found: list[tuple[str, str, tuple[str, ...]]] = []
+    for asset in (SCRIPT, *PANEL_MODULES):
+        for tag, candidates in injected_controls(code_only(read_asset(asset))):
+            found.append((asset, tag, candidates))
+
+    assert found, "no script injects any interactive control - the scan found nothing"
+    shapes = tuple(candidates[0][:1] for _, _, candidates in found)
+    assert "." in shapes, f"no control resolved to a class selector: {found}"
+
+    faults = []
+    for asset, tag, candidates in found:
+        graded = {
+            selector: undersized_axes(body)
+            for selector in candidates
+            if (body := declarations_for(rules, selector)) is not None
+        }
+        if not any(result == () for result in graded.values()):
+            faults.append((asset, tag, candidates, graded))
+    assert not faults, f"injected controls with no legal target box: {faults}"
+
+
+def test_no_asset_names_an_interactive_tag_in_a_shape_this_module_cannot_read() -> None:
+    """An interactive tag name appears only where the arm above can resolve it.
+
+    THIS IS THE ANTI-VACUITY HALF. The resolver reads
+    ``document.createElement("input")`` and nothing else, so a future panel
+    building its control through the generic ``el``/``element``/``add`` helper -
+    ``el("input", "bench-input")`` - would create a pointer target the arm above
+    never sees, and the coverage would be lost silently.
+
+    The check is an ALLOWLIST of the two legal contexts, not a ban on a list of
+    bad ones: a tag name may sit inside a ``createElement`` call or inside a
+    ``setAttribute("type", ...)`` call, and anywhere else is a finding. A
+    denylist would leak the moment a third shape arrived.
+    """
+    stray = []
+    for asset in (SCRIPT, *PANEL_MODULES):
+        code = code_only(read_asset(asset))
+        legal = tuple(
+            match.span()
+            for pattern in (_CREATE_CALL, _TYPE_ATTRIBUTE)
+            for match in pattern.finditer(code)
+        )
+        for match in _TAG_LITERAL.finditer(code):
+            if match.group(1) not in INJECTABLE_TAGS:
+                continue
+            if any(start <= match.start() and match.end() <= end for start, end in legal):
+                continue
+            line = code.count("\n", 0, match.start()) + 1
+            stray.append((asset, match.group(1), line))
+    assert not stray, f"an interactive tag name sits where the scan cannot read it: {stray}"
 
 
 def test_focus_is_visible_and_is_not_removed_anywhere() -> None:
@@ -1959,6 +2276,7 @@ def test_the_script_gives_each_route_the_method_its_owner_publishes() -> None:
         health.ENDPOINT: "GET",
         WORLD_ENDPOINT: "GET",
         REGISTRY_ENDPOINT: "GET",
+        MAP_ENDPOINT: "GET",
     }
     assert len(expected) == len(health.ENDPOINT_TEMPLATES), sorted(expected)
 
@@ -2099,12 +2417,128 @@ def test_the_page_shows_the_masked_token_and_the_world_scalars() -> None:
     assert not unread, f"version scalars the page never reads: {unread}"
 
 
-def test_the_page_issues_no_post_and_no_form() -> None:
-    """GET only, and no form to submit. CSRF is absent by construction.
+#: A ``fetch`` call AS A CALL. The lookbehind separates the call from the same
+#: six characters appearing inside a longer identifier or after a dot, which is
+#: the distinction :data:`_SINKS` above already had to make for ``.innerHTML``.
+_FETCH_CALL = re.compile(r"(?<![\w$.])fetch\s*\(")
 
-    The walking skeleton reads solve and optimize liveness from the health
-    body's endpoint map instead of exercising either route, so there is nothing
-    on this page that changes server state and nothing to forge a request to.
+#: The verb an options object names. Read out of THAT OBJECT and never out of a
+#: window of characters following the call, because the arm this feeds counts
+#: calls and a window cannot say which call it landed in.
+_OPTIONS_METHOD = re.compile(r'\bmethod\s*:\s*"([A-Za-z]+)"')
+
+#: A request body in an options object, spelled as a KEY - the name followed by
+#: a colon - so a local variable named ``body`` or a ``result.body`` read cannot
+#: be mistaken for one.
+_OPTIONS_BODY = re.compile(r"(?<![\w$.-])body\s*:")
+
+
+class FetchCall(NamedTuple):
+    """One ``fetch`` call site, split into the three things this section asks about.
+
+    Attributes:
+        target: The first argument exactly as written, so an arm may assert what
+            path a call asks for rather than only what verb it uses.
+        method: The verb its options name, or ``None`` where they name none.
+        sends_body: Whether its options carry a request body at all.
+    """
+
+    target: str
+    method: str | None
+    sends_body: bool
+
+
+def call_span(mask: str, start: int) -> tuple[int, int]:
+    """The half-open span INSIDE the first argument list opening at or after ``start``.
+
+    The paren-matching sibling of :func:`block_span`, and it exists for the same
+    reason: a fixed-width window of characters after ``fetch(`` is not a call.
+    The window the arm below replaced was 200 characters wide, which is both
+    longer than the whole of one call here and shorter than the options object
+    of a call somebody might write next.
+
+    Args:
+        mask: A :func:`string_free` result, so a parenthesis inside a string
+            literal cannot be mistaken for a delimiter.
+        start: Where to begin looking for the opening parenthesis.
+
+    Returns:
+        ``(first, last)`` - the offset just past the opening parenthesis, and
+        the offset OF the matching closing one.
+
+    Raises:
+        ValueError: If no call opens at or after ``start``, or if the one that
+            does is never closed.
+    """
+    opened = mask.find("(", start)
+    if opened < 0:
+        raise ValueError("no call opens at or after this offset")
+    depth = 0
+    for index in range(opened, len(mask)):
+        if mask[index] == "(":
+            depth += 1
+        elif mask[index] == ")":
+            depth -= 1
+            if depth == 0:
+                return opened + 1, index
+    raise ValueError("the call that opens here is never closed")
+
+
+def fetch_calls(code: str) -> tuple[FetchCall, ...]:
+    """Every ``fetch`` call in the script, in file order.
+
+    Args:
+        code: The script with its block comments already removed.
+
+    Returns:
+        One :class:`FetchCall` per call site.
+    """
+    mask = string_free(code)
+    calls: list[FetchCall] = []
+    for match in _FETCH_CALL.finditer(mask):
+        first, last = call_span(mask, match.end() - 1)
+        depth = 0
+        cut = last
+        for index in range(first, last):
+            char = mask[index]
+            if char in "([{":
+                depth += 1
+            elif char in ")]}":
+                depth -= 1
+            elif char == "," and depth == 0:
+                cut = index
+                break
+        options = code[cut + 1 : last] if cut < last else ""
+        named = _OPTIONS_METHOD.search(options)
+        calls.append(
+            FetchCall(
+                target=code[first:cut].strip(),
+                method=named.group(1) if named else None,
+                sends_body=_OPTIONS_BODY.search(options) is not None,
+            )
+        )
+    return tuple(calls)
+
+
+def test_the_page_issues_exactly_one_post_and_no_form() -> None:
+    """One non-GET request, to ``/api/solve``, with no body and still no form.
+
+    THE SUCCESSOR TO ``test_the_page_issues_no_post_and_no_form``, WHICH WAS
+    RIGHT UNTIL THE OPERATOR RULED OTHERWISE. That arm asserted the page named
+    POST nowhere outside its route table and that every fetch it issued was a
+    GET - true of the walking skeleton and false of a page carrying a solve
+    bench. CS-962 does not relax the claim, it re-aims it: the question a CSRF
+    reader needs answered is not "does this page ever POST" but "how many
+    state-changing requests can it make, where do they go, and what do they
+    carry". A count of ONE, pinned to ONE path, is a stronger statement than an
+    absence that any later slice could quietly spend.
+
+    AND THE PARAMETERS RIDE IN THE QUERY STRING, WHICH IS WHY THE BODY LEG IS
+    HERE. ``clockspeed/surface/server.py`` parses the query and reads the
+    request body nowhere at all, so a body would be ignored on arrival - and an
+    unread body on a kept-alive HTTP/1.1 connection is the classic desync. A
+    fetch with no ``body`` key sends ``Content-Length: 0``, which is safe; this
+    arm is what keeps it that way.
     """
     code = code_only(read_asset(SCRIPT))
     markup = read_asset(INDEX)
@@ -2113,17 +2547,69 @@ def test_the_page_issues_no_post_and_no_form() -> None:
     table = re.search(r"var ROUTES = \[[\s\S]*?\n\];", code)
     assert table is not None, "the route table is not where this arm expects it"
 
-    outside = code.replace(table.group(0), " ")
-    assert "POST" not in outside, "app.js names POST outside its own route table"
-
     verbs = re.findall(r"method: \"([A-Z]+)\"", table.group(0))
     posts = tuple(verb for verb in verbs if verb == "POST")
     expected_posts = 3
     assert len(posts) == expected_posts, f"the route table names {len(posts)} POST verb(s)"
 
-    calls = re.findall(r"fetch\([\s\S]{0,200}?method: \"([A-Z]+)\"", code)
-    assert calls, "no fetch call names a method at all"
-    assert set(calls) == {"GET"}, f"a fetch issues something other than GET: {sorted(set(calls))}"
+    calls = fetch_calls(code)
+    assert calls, "no fetch call parsed at all, so this arm grades nothing"
+
+    unnamed = tuple(call.target for call in calls if call.method is None)
+    assert not unnamed, f"a fetch names no method at all: {unnamed}"
+
+    non_get = tuple(call for call in calls if call.method != "GET")
+    total = len(non_get)
+    assert total == 1, (
+        f"the page issues {total} non-GET fetch(es) rather than exactly one: "
+        f"{tuple((call.method, call.target) for call in non_get)}"
+    )
+
+    only = non_get[0]
+    assert only.method == "POST", f"the one non-GET fetch issues {only.method}"
+    assert only.target.startswith('"/api/solve?'), (
+        f"the one non-GET fetch does not ask for /api/solve with a query string: {only.target}"
+    )
+
+    carried = tuple(f"{call.method} {call.target}" for call in calls if call.sends_body)
+    assert not carried, f"a fetch carries a request body the server never reads: {carried}"
+
+
+def test_the_request_detector_fires_on_a_planted_second_call_and_on_a_body() -> None:
+    """Both legs of the arm above are proved able to fire, on real edits.
+
+    A detector that parsed nothing would report zero non-GET calls and zero
+    bodies, and the arm above would then be green over a page that POSTs to
+    anywhere it likes. Each leg is therefore run once against the shipped text,
+    where the count is known, and once against that text with the banned edit
+    PLANTED, where it must move.
+    """
+    clean = code_only(read_asset(SCRIPT))
+    parsed = fetch_calls(clean)
+    minimum_calls = 2
+    assert len(parsed) >= minimum_calls, (
+        f"the detector read {len(parsed)} fetch call(s); the script issues more"
+    )
+    assert len(tuple(call for call in parsed if call.method != "GET")) == 1
+
+    planted = clean + (
+        "\nfunction plantedSecond() {\n"
+        '  return fetch("/api/optimize?targets=x", { method: "POST", cache: "no-store" });\n'
+        "}\n"
+    )
+    after = tuple(call for call in fetch_calls(planted) if call.method != "GET")
+    expected_after = 2
+    assert len(after) == expected_after, (
+        f"the detector saw {len(after)} non-GET call(s) after planting a second one"
+    )
+
+    bodied = clean + (
+        "\nfunction plantedBody() {\n"
+        '  return fetch("/api/solve?targets=x", { method: "POST", body: "targets=x" });\n'
+        "}\n"
+    )
+    seen = tuple(call for call in fetch_calls(bodied) if call.sends_body)
+    assert len(seen) == 1, f"the detector saw {len(seen)} body-carrying call(s) after planting one"
 
 
 # ---------------------------------------------------------------------------

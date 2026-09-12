@@ -51,8 +51,11 @@ if TYPE_CHECKING:
 #: How many endpoints BOOTSTRAP.md section 7.1 lists. The count is asserted so a
 #: scanner that silently matches nothing cannot pass the arm that consumes it.
 #: MOVED FROM 9 TO 10 BY CS-912, which added ``/api/registry`` - the vocabulary
-#: route ``/api/solve`` and ``/api/optimize`` were unreachable without.
-EXPECTED_ENDPOINTS: Final = 10
+#: route ``/api/solve`` and ``/api/optimize`` were unreachable without - and FROM
+#: 10 TO 11 BY CS-977, which added ``/api/map``: ``/api/world`` counts nodes and
+#: never lists them, so nothing published a coordinate and no surface could draw
+#: the world.
+EXPECTED_ENDPOINTS: Final = 11
 
 #: The backticked route in the section 7.1 sentence. ``/api/plan?target=...``
 #: carries a query string, which ``contract.ENDPOINT_PATTERN`` refuses outright,

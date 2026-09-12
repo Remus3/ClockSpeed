@@ -958,3 +958,76 @@ def _scrub_repo_locating_environment() -> None:
 
 
 _scrub_repo_locating_environment()
+
+
+# ---------------------------------------------------------------------------
+# CS-973 - the live copies directory is left as it was found
+#
+# APPENDED AT THE FOOT FOR THE SAME REASON THE SCRUB ABOVE IS: the deep archive
+# pins line numbers into this module, so a block placed higher up manufactures
+# rot rather than finding it. A fixture is resolved by NAME, so position costs
+# nothing here.
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture(scope="session", autouse=True)
+def _the_live_copies_directory_is_left_as_it_was_found() -> Generator[None]:
+    """Count the real-save copies in the live work directory before and after the run.
+
+    THE DEFECT THIS GRADES, MEASURED 2026-09-11. ``world.load_world`` copies its
+    subject through ``workdir.copy_for_read`` before it parses a byte, and the
+    work root that copy lands in DEFAULTS TO ``<repo>/work``. Two test modules
+    reached real saves without redirecting it and left 23 files carrying
+    ``COPY_SUFFIX`` in the live copies directory - one per save in the
+    operator's library. The originals were untouched and the directory is
+    gitignored with no ``.sav`` tracked, so this was corpus pollution rather
+    than a leak: anything globbing ``*.sav`` there saw 23 worlds that are not
+    worlds, and that directory is what the save layer is measured against.
+
+    IT DISCOVERS THE WRITER RATHER THAN NAMING IT. The two modules were found
+    from outside, by a sibling project's write-attribution run, and a guard that
+    encoded that attribution would grade only the two writers already known. A
+    count over the whole session catches the next one, wherever it is written,
+    including one added by a module that does not exist yet.
+
+    SESSION SCOPE IS THE CLAIM. Per-module redirects are the fix and each is
+    graded where it lives; this is the arm that says the SUITE leaves the
+    directory as it found it, which is the property CS-973 asks for and which no
+    per-module arm can assert.
+
+    THE DEFAULT ROOT IS DERIVED, NOT RESOLVED. ``workdir.work_root()`` reads
+    ``ENV_WORK_ROOT``, so calling it here would make this guard watch whatever
+    directory the last redirect pointed at - which is every directory except the
+    one at risk. The location is built from this file's own position instead,
+    exactly as :func:`repo_root` builds the root.
+
+    A COUNT, NOT A LISTING. A copy is named after the save it came from, so a
+    set of names rendered into a failing assertion is a set of the operator's
+    world names (non-negotiable 12). The delta is a number and the remedy is to
+    run the write tracer, which is where attribution belongs.
+
+    Yields:
+        Nothing. The assertion is the teardown.
+    """
+    from clockspeed.save import workdir  # noqa: PLC0415 - see the placement note above
+
+    live = Path(__file__).resolve().parents[1] / workdir.WORK_DIR_NAME / workdir.COPIES_DIR_NAME
+
+    def _copies() -> int:
+        """Count the copies present now.
+
+        Returns:
+            How many files carrying ``COPY_SUFFIX`` the live directory holds.
+        """
+        if not live.is_dir():
+            return 0
+        return sum(1 for _ in live.glob("*" + workdir.COPY_SUFFIX))
+
+    before = _copies()
+    yield
+    after = _copies()
+
+    assert after == before, (
+        f"the suite added {after - before} real-save copies to the live copies "
+        f"directory; run the write tracer to attribute them"
+    )

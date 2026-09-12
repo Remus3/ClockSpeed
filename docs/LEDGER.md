@@ -160,6 +160,1169 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-09-12 - CS-829 - NOT A COMPLETION RECORD. NOTHING CLOSED. The (14,60) tag grammar now reaches struct interiors and nested element tag lists, and the native-serialize flag is read rather than defined and ignored
+
+**NOTHING CLOSED.** CS-829 stays OPEN in `ROADMAP.md` with its acceptance clause untouched.
+No struct vocabulary was written, no population was defined by the decoder's own success, no
+quantifier was graded over a pool, and `_UNEXPLAINED_WORD_CEILING` was not touched. This
+entry records a MECHANISM landing, not a clause being met.
+
+**WHAT CHANGED.** CS-980 threaded the complete-type-name tag grammar through the top-level
+payload walk only. Three reading paths below it still read the LEGACY tag shape, so at this
+pair every struct interior refused and every array of struct refused with it. The grammar is
+carried into the interior walk, the interior tag decode and the nested element tag list.
+Merged file: `clockspeed/save/objects.py`. Test names that prove it:
+`tests/save/test_struct_interior_14_60.py::test_the_library_14_60_arrays_of_struct_are_shaped_the_way_the_fixtures_say`
+and `tests/save/test_element_framing_refusals.py::test_a_native_serialized_container_is_not_published_under_a_derived_width`.
+
+**MEASURED BY THE MERGER, INDEPENDENTLY OF THE SLICE THAT BUILT IT**, on the pinned
+development world at 3918 records, read-only, counts only: struct interiors decoded 0 to 774;
+containers published 641 to 1441; DISAGREEING VALUES 803 TO 0; unmeasured 1530 to 1533;
+unread payloads 0 throughout. The disagreement counter is the redundancy oracle - a measured
+type whose bytes did not account for its declared extent - so the zero is the reader arriving
+where it believes it is. An adversary established that separately: the tag population is
+conserved exactly at 7058 across both trees, so the 803 were decoded rather than relabelled,
+and no comparison in the diff loosened.
+
+**A BRIEFED FAULT SITE WAS NOT A FAULT, AND THE REFUTATION IS THE FINDING.** The builder was
+told `_read_array_struct_tag` was broken at this pair. It is not: a (14,60) array of struct
+carries NO inner tag at all. An adversary re-derived this from base-commit primitives and
+swept every offset in 0 to 128, fronted by a known-good control on a synthetic payload that
+DOES carry an inner tag, so "found none" and "the reader never worked" could not be the same
+output. An inner-tag READ accounts for the element region on 0 of 6198. That function is left
+legacy-only and is not called at these pairs.
+
+**NON-NEGOTIABLE 7 WAS INVERTED IN THE FIRST CUT AND THE COMMIT MESSAGE SAID OTHERWISE.**
+That first commit claimed eleven values were "flagged and skipped". They were not: all 11272
+containers of the pair decoded and nothing refused. The eleven were published as
+`uniform_width` with a width DERIVED as region over count, 112/7 = 16, with no warning and no
+counter moved - and 16 is the true width, which is the entire hazard. THE MERGER REPEATED
+THAT CLAIM WITHOUT MEASURING IT. An adversary measured it.
+
+**THE CAUSE HAD A NAME THE MODULE ALREADY CARRIED AND NOTHING READ.**
+`TAG_FLAG_NATIVE_SERIALIZE`, 0x08, was defined, folded into the measured mask, stepped over,
+and consulted by no line in `clockspeed/` or `tests/`. It partitions the population exactly:
+every one of the 30 derived-width containers carries it, all 11242 that close by grammar
+leave it clear, and no flagged container closes by grammar. It now reaches the container
+decode as a THREE-VALUED carry - None under the legacy grammar, because a grammar with no
+flags byte makes no statement and False would be a claim. A container whose only closing
+shape is a derived width is refused and routed to UNMEASURED rather than to disagreed; a
+self-delimiting close is still admitted under the bit, because that shape is falsifiable
+element by element.
+
+**A PROVENANCE CLAIM WAS FALSE.** The first cut called the derived-width residue
+pre-existing. Base measures 9 uniform-width and 0 solved-width; the first cut measured 20 and
+10. TWENTY-ONE OF THE THIRTY were introduced by that change, newly admitted from containers
+the base refused outright. The mechanism is old; the population is not.
+
+**FOUR MUTANTS SURVIVED THE WHOLE SAVE SUITE AND NOW DIE.** The exact close at
+`_walk_elements`, whose own docstring calls itself the whole discriminator and which is the
+evidentiary basis of every newly accepted value; the refusal branch of
+`_element_tag_list_end`, a line the first cut changed in the function it says carried the
+population; the interior refusal routing; and the type-name count guard, which was split in
+three because the whole-guard form leaves either half unmeasured. The new native-serialize
+guard is itself mutated and dies, so the repair grades its own repair. An adversary also
+drove mutants at all eleven arms of the new file and found NO vacuous arm - no blind oracle,
+no skip read from the code under test, no empty-population assertion.
+
+**TWO CORRECTIONS TO THE GRADING ITSELF, recorded because agreement between agents is not
+evidence.** An adversary reported zero closings at any inner-tag offset in 1 to 128; 5569 of
+6198 also close from a non-zero start, because an element is itself a tag list and a later
+tag boundary inside the first element still ends on the same terminator. And
+`StructValue.disagreed` did not go 0 to 774: summed over every reachable interior it is 0,
+and the corpus holds no interior below depth 0 at all. Both defects were real; both stated
+populations were wrong.
+
+**THE REPO-WIDE MYPY GATE WENT RED ON MERGED MAIN AND THAT IS THE MERGER'S PROCESS DEFECT.**
+Four errors, annotations only, with 1500 save-suite tests green on both sides - the repair
+widened `_read_tag_and_words` to a seven-element return while `_decode_interior_tag`'s
+PARAMETER annotation stayed at six and its body unpacked seven. The repair brief asked for
+`ruff check` and `ruff format` and did not ask for mypy, so the slice ran what it was asked.
+RUFF AND MYPY ARE DIFFERENT GATES AND A BRIEF NAMING ONE IS NOT ASKING FOR THE OTHER.
+
+**DECIDED, AND NOT RE-LITIGATED.** `StructValue.disagreed` is NOT folded into
+`disagreeing_value_count`: that counter partitions the top-level tag population and CS-831
+grades an identity against it. `ContainerValue.struct_word` stays None at these pairs even
+though the concrete word is visible one level deeper in the tag's own type name - digging it
+out is CS-829's measurement, not a decode slice's. An adversary enumerated every consumer of
+that attribute and none branches on None, treats it as "not a struct", or feeds it to a
+decode.
+
+**UNVERIFIED, STATED RATHER THAN ROUNDED UP.** Whether a `StructProperty` tag carrying 0x08
+whose interior nonetheless decodes as a tag list is read correctly. The repair is scoped to
+containers deliberately: extending the refusal to interiors would move the population the
+core result rests on. No corpus instance is known either way. Filed as CS-986.
+
+**NO LICENCE GATE RAN AND NONE WAS NEEDED.** Nothing was copied from any third-party save
+parser; the grammar came from the bytes. The session 85 verdicts stand unchanged.
+
+---
+
+### 2026-09-12 - CS-981, CS-983 - NOT A COMPLETION RECORD. NOTHING CLOSED. The routing record below was ADJUDICATED and then REFUTED, and this is what the repair round changed
+
+**NOTHING CLOSED.** This entry corrects the entry immediately beneath it, which is the
+mechanism this file's own header prescribes - a record that turns out to be wrong gets a
+new, later record that says so. The routing itself stands. Four things about it did not.
+
+**THE ADJUDICATOR ACCEPTED THE CS-981 AMENDMENT WITH A NAMED CHANGE, AND THE CHANGE IS
+APPLIED.** The amended `ROADMAP.md` line carried a trailing clause explaining that its first
+wording had rested on a false premise. That is a third owner of one fact, in the file whose
+header says it owns the item LINE alone. The clause is struck; the correction stays in
+`docs/item_notes/phase4-followups-900.md` under CS-981, where it was already complete and
+self-standing, and in the entry below. **The ruling that made the amendment itself legitimate
+is worth carrying:** the conjunct naming CS-830 and CS-831 was already true of the tree the
+day it was filed, so striking it removes no work and the set of actions satisfying the clause
+is identical before and after. CS-829's fence against a restated clause is DIRECTIONAL - it
+forbids restatements that move a clause toward vacuity, and this one deletes conjuncts that
+were already vacuous. An amendment that changes what must be TRUE to close is a different
+act and remains the operator's alone.
+
+**AN ADVERSARY REFUTED THE ROUTING ON TWO LENSES AND BOTH FINDINGS ARE REPAIRED.**
+
+- **Two fences lost their referent, and byte-identical relocation is what caused it.** The
+  DRAIN bullet on a restated clause and the synthetic-close paragraph each cited "the rule at
+  the top of this file" and "this file's opening rule". At the old address that was
+  `docs/GATED.md`'s "The rule that protects this file". At the new address it resolves to
+  nothing. Both pointers are made ABSOLUTE, each annotated to say the pointer was relative
+  and why it moved; no other word of either fence is changed. **A verbatim relocation is not
+  automatically a faithful one, and a self-referential citation is where that breaks.**
+- **The lane worker's prompt asserted two things this session made false.**
+  `tools/headless-queue.md` said CS-829 "sits in `docs/GATED.md` behind CS-G05" and listed it
+  under FENCE 2 as untakeable BECAUSE of that membership. Both are repaired in place. The
+  fence on CS-829 is kept and its REASON is restated - its acceptance is an EQUALITY over a
+  derived population with six standing fences against a synthetic close - so a lane reading
+  the repair cannot infer that a row leaving `docs/GATED.md` becomes takeable.
+
+**THE HALF-MOVE OF CS-G05 IS NOW OWNED, WHICH IT WAS NOT.** The adversary is right that a
+section declaring it does not meet its file's membership rule, while staying in that file, is
+incoherent under that rule. The routing slice was right to refuse to self-widen its
+write-list, and both things are true at once. **CS-983** is filed in `ROADMAP.md` to own the
+execution, with both routes left open - a clause plus a relocation, or a withdrawal of the
+decided-out declaration in favour of a condition genuinely outside this repo. The vacuous
+PREP harness is named as owed either way, and the standing instruction not to rename it is
+carried.
+
+**NOT REPAIRED, AND SAID PLAINLY RATHER THAN LEFT TO BE FOUND.** `WAKEUP_NOTES.md` still
+carries session 85's "Next action" naming three items to route. It is a SESSION RECORD of
+what session 85 believed, editing it would falsify that record, and the `/done` ritual
+rewrites the file at session end. `docs/item_notes/phase4-followups.md` under CS-847 still
+says two prose hand-offs in `clockspeed/save/objects.py` are "harmless only while CS-G05
+stays GATED"; the decided-out declaration contradicts that precondition without firing its
+trigger, since routing out is not closing. Measured 2026-09-12: NO guard keys on membership
+of `docs/GATED.md` at all, so nothing mechanical fires. CS-847 owns that text.
+
+**HOW TO VERIFY THIS INDEPENDENTLY.** `grep -n "CS-829" tools/headless-queue.md` and read the
+fence. `grep -n "this file's opening rule" docs/item_notes/phase4-followups.md` returns
+nothing. `grep -c "FALSE PREMISE" ROADMAP.md` returns 0. `python tools/drift_guard.py` and
+`python tools/doc_budget.py` both exit 0.
+
+---
+
+### 2026-09-12 - CS-829, CS-981 and CS-G05 - NOT A COMPLETION RECORD. NOTHING CLOSED. A routing record: CS-829 leaves docs/GATED.md with its fences intact, CS-981's stated population is corrected against ground truth, and CS-G05's disposition is decided
+
+**NOTHING CLOSED.** CS-829 stays open, CS-981 stays open, and this entry does not close
+CS-G05. It is filed because three facts changed owner file and one stated premise was
+measured false. It grades nothing, it ran no suite, and it makes no claim about behaviour.
+
+**CS-829 IS ROUTED OUT OF `docs/GATED.md`.** Its stated unblocking condition was "CS-G05
+clearing", and the STATUS block at the head of CS-G05's section records that gate as
+discharged; `docs/GATED.md`'s opening rule says an item that is merely unstarted is not
+gated. The section is deleted from that file and its body - every fence, verbatim - is
+relocated to `docs/item_notes/phase4-followups.md` under CS-829, the leaf
+`docs/item_notes.md` routes a Phase 4 item in the `CS-8nn` block below CS-850 to; the
+routing row is added to that index. The item LINE is restored to `ROADMAP.md` under Phase 4
+carrying the acceptance clause it held before it was gated, WORD FOR WORD, recovered from
+the tree's own history rather than retyped. **The population was not narrowed and the clause
+was not rewritten**, because CS-829's own fences say a restated clause is a scope change
+that closes as one and is not the gate clearing. Whether the clause is satisfiable as
+written is a measurement, and this record does not take it.
+
+**CS-981's STATED POPULATION WAS ONE THIRD FALSE AND IS CORRECTED.** Its acceptance named
+CS-829, CS-830 and CS-831 as gated behind CS-G05. Only CS-829 ever was. CS-830 is CLOSED
+NARROWED, recorded in this file under the heading "CS-830 - CLOSED NARROWED. Container
+element EXTENTS are read over the whole library; the internal PARTITION is recorded as
+undiscriminated, after an adversary refuted the first close". CS-831 is CLOSED, recorded
+under the heading "CS-831 - CLOSED. A record's cross-references RESOLVE to the records they
+name; the acceptance was AMENDED by the operator the same day and the amended wording is
+preserved here". Those two headings are the citations, not line numbers - an append-only
+file's line numbers rot and its headings do not. Neither item carries an open line in
+`ROADMAP.md`, and `docs/GATED.md` has a section for neither. `tools/headless-queue.md`
+already stated it in terms. The item LINE in `ROADMAP.md` is amended to the true population;
+the `/api/map` half of the acceptance is untouched; the wrong sentence in
+`docs/item_notes/phase4-followups-900.md` under CS-981 is corrected by a dated block ABOVE
+it rather than deleted.
+
+**CS-G05's DISPOSITION: DECIDED OUT, EXECUTION INCOMPLETE, AND THE GAP IS NAMED RATHER THAN
+LEFT TO BE REDISCOVERED.** Its own status blocks assign every measured residue to an item
+that is not itself - CS-828, CS-832, CS-829 and CS-982. What is left owned by nothing is one
+thing: the PREP harness
+`tests/save/test_properties.py::test_save_60_refuses_the_grammar_the_other_pairs_accept` is
+vacuous, and CS-G05's section says correcting it is a separate slice. That is work entirely
+inside this repository, so by `docs/GATED.md`'s own definition CS-G05 is not gated. The
+decision, recorded in a STATUS block at the head of its section, is that it routes out.
+**The move is NOT finished.** It still needs a `ROADMAP.md` line under its own `CS-G` ID -
+the route that file's header prescribes - and its body relocated into
+`docs/item_notes/phase4.md`, the leaf the routing table names for a Phase 4 item outside
+both the `CS-8nn` and the `CS-9nn` blocks. That file was outside the write-list of the slice
+that took the decision, and writing into a file a slice may not open is the seam violation
+that makes parallel work collide. The section therefore stays in `docs/GATED.md` as a
+DECIDED-OUT item until the move lands.
+
+**THE HAZARD THE MOVE MUST NOT OUTRUN.** `docs/item_notes/phase4-followups.md` under CS-847
+records two live sites in `clockspeed/save/objects.py` that hand off to `CS-G05` in prose,
+and says they are harmless only while CS-G05 stays GATED - if it CLOSED with those sentences
+standing, the module would stay green. Routing CS-G05 OUT does not close it, so the hazard
+does not fire on this change. It fires on a CLOSE, and CS-847 owns fixing it.
+
+**Files changed:** `docs/GATED.md`, `ROADMAP.md`, `docs/item_notes.md`,
+`docs/item_notes/phase4-followups.md`, `docs/item_notes/phase4-followups-900.md`, and this
+file. No file under `clockspeed/` or `tests/` was touched.
+
+
+### 2026-09-11 - CS-980 - THE (14,60) PROPERTY WALL WAS OURS, NOT THE FORMAT'S. Every payload of the pinned world now decodes, and a documented gate's premise is refuted
+
+**What changed.** `clockspeed/save/objects.py` gained a third dispatch on the version pair,
+beside the two it already had for the body prefix width and the transform delta. The pair
+carries a different tag grammar: one lead byte between the payload head and the first tag,
+a recursive type NAME where the legacy shape has a type word plus tag-extra strings, and a
+flags bitfield where the legacy shape has a guid flag. Merged files
+`clockspeed/save/objects.py` and `clockspeed/save/world.py`, verified by
+`tests/save/test_property_payload_14_60.py` against a synthetic fixture in
+`tests/save/synthetic.py`, so the arm runs on a machine with no game and no save.
+
+**WHY IT WAS LOOKED AT AT ALL, recorded because the trigger matters more than the fix.**
+The operator demonstrated a third-party tool rendering container contents and miner
+settings out of a save on this machine while this project decoded zero property tags from
+the same file. `CLAUDE.md` section 8 says ground truth beats every document; `docs/GATED.md`
+was the document, and it lost.
+
+**WHAT THE GATE SAID AND WHY IT WAS WRONG.** CS-G05 recorded that every record of every
+`(14,60)` save decodes zero property tags and that such a save "cannot exercise the decoder
+at all - it is the CONTROL", cause unestablished between payload framing and value grammar.
+The zero was real and reproduced on demand. The inference from it was not: a save that
+decodes nothing under ONE grammar is not a save that carries nothing. The answer was
+framing AND grammar, which is why neither candidate alone closed it.
+
+**THE DISCRIMINATING MEASUREMENT, since a plausible fix and a correct one look alike here.**
+Four readings were driven against the whole record population and compared: the lead byte
+alone left every container value unreachable; the lead byte plus a guid-flag reading broke
+hundreds of records, almost all on `StructProperty`; a sixteen-byte struct guid was worse
+still; the flags bitfield read every record with no breaks. One bit's width rests on two
+tags and is recorded as weak. A bit never observed refuses the payload rather than assuming
+a width - non-negotiable 7.
+
+**WHAT IT UNBLOCKS AND WHAT IT DOES NOT.** Every walked payload of the pinned development
+world now reads, and container values, object references and integers are published where
+none were. Struct INTERIORS are deliberately still not read: CS-829 owns that, and carrying
+a new grammar into the interior reader in the same change would have made one measurement
+answer for two. So an item total is still not derivable, and the reason is now a narrower
+and named one - see CS-981.
+
+**A SECOND ARM WENT VACUOUS AND WAS NARROWED RATHER THAN DELETED.**
+`tests/save/test_properties.py::test_save_60_refuses_the_grammar_the_other_pairs_accept`
+still passes and its zero is still true, because the sweep it runs carries its own
+independent reader of the LEGACY grammar. Its DOCSTRING claimed the save reached a
+terminator on no payload at all, which ground truth refutes. The claim is now stated as
+what it measures - the legacy reader must go on refusing this pair, or the two grammars
+have converged and the dispatch between them grades nothing. The symbol was deliberately
+NOT renamed: `docs/LEDGER.md` and `docs/history_notes.md` cite it by name and both are
+append-only, so a rename would rot two citations in records that are never edited.
+
+**The license gate that ran first is the entry above this one.** No third-party source was
+copied, and the two refused candidates - including the tool the operator demonstrated -
+were not read. The grammar above was derived from the bytes of saves on this machine.
+
+---
+
+### 2026-09-11 - CS-979 - The registry models power and no extraction rate, so throughput was not computable at all
+
+**What changed.** `clockspeed/data/registry.py` gained an `Extractor` model and an
+`extractors` mapping carrying items per cycle, extract cycle time and the allowed resource
+forms as exact `Fraction` values, read from the shipped docs. Verified by
+`tests/data/test_extraction_rates.py` against hand-authored synthetic blobs.
+
+**`clockspeed/data/docs_extract.py` NEEDED NO CHANGE and that is a finding, not an
+omission.** All five native extractor classes were already in its known-group table, so
+every entry already reached the document; that module never coerces a value by design, so
+the key reading belongs on the registry side of the seam.
+
+**MEASURED, NOT REMEMBERED.** The key spellings were read off the shipped docs on this
+machine through the project's own loader. The allowed-forms value is a parenthesized LIST
+and one token in it is spelled differently from the constant a reader would expect; it is
+carried verbatim in `unrecognized_forms` and flagged rather than equated to the spelling
+that looks right. One class declares a default extraction rate of zero and is deliberately
+not read, because publishing zero for a building that extracts is the one unacceptable
+answer.
+
+**An absent rate is `None` and is never defaulted.** `Building.power_consumption`'s
+docstring is both the precedent and the reason: a confident zero is exactly what a plan
+cannot detect as wrong.
+
+---
+
+### 2026-09-11 - CS-978 - The placement and inventory models, which is where a map's computation lives
+
+**What changed.** `clockspeed/audit/placement.py` and `clockspeed/audit/inventory.py`
+consume one `WorldModel` and return frozen models: node and built placements with exact
+decimal-string coordinates, per-class counts, world bounds, and an item aggregation that
+carries its own denominators. Verified by `tests/audit/test_placement.py` and
+`tests/audit/test_inventory.py`, both on synthetic models.
+
+**`surface/` NEVER COMPUTES, WHICH IS WHY THIS LAYER EXISTS.** Choosing how a stored float
+is written down is a computation, so the rendering happens here and the endpoint names
+fields. A coordinate leaves as `repr(float(value))` - shortest round trip, so
+`float(published) == stored` exactly - because a rounding done here cannot be undone by a
+consumer.
+
+**THE BUILT ALLOWLIST WAS SEEDED FROM THE ONLY SPELLINGS THE TREE HELD, AND THEY WERE
+NEARLY ALL ABSENT FROM THE WORLD.** The nine names recovered from an archived spike report
+matched three of the classes actually built in the pinned development world, so the first
+version of this map plotted a small fraction of what is there and said nothing about the
+rest. A read-only census of that world's own actor classes, reported as class names and
+counts, supplied extraction, power, storage and landmark spellings; the list is now
+measured rather than recalled. What the allowlist still skips is COUNTED and published
+under `built-class-not-plotted`, verified by
+`tests/audit/test_placement.py::test_a_built_class_off_the_allowlist_is_counted_rather_than_dropped`.
+A filtered view that says nothing about what it filtered is not filtered, it is wrong.
+
+**THE INVENTORY IS EMPTY ON THE REAL WORLD AND SAYS SO WITH ITS REASON.** A building names
+its inventory by reference rather than carrying stacks, and the stacks sit in struct
+interiors no shipped reader opens. `WARN_INVENTORY_TOTAL_EMPTY` accompanies every empty
+total for that reason: an empty tuple with no warning is indistinguishable from a world in
+which the player owns nothing.
+
+---
+
+### 2026-09-11 - CS-977 - The dashboard had no map, and 810 node actors carrying exact transforms reached no surface at all
+
+**What changed.** `GET /api/map` and a registered Map panel. Merged files
+`clockspeed/surface/api/map.py`, `clockspeed/surface/web/panel_map.js`, the route joins in
+`clockspeed/surface/api/routes.py` and `clockspeed/surface/api/health.py`, the static route
+row in `clockspeed/surface/server.py`, and the probe row in
+`clockspeed/surface/web/app.js`. Verified by `tests/surface/test_map.py` and
+`tests/surface/test_panel_map.py`. `BOOTSTRAP.md` section 7.1 gained the endpoint under the
+word "minimum", in the shape CS-912 set.
+
+**THE MAP CANNOT SAY "IRON" AND SAYS SO ON THE PAGE.** ADR 0003 measured a node's purity
+and resource type at zero occurrences across three worlds and four builds, because a save
+stores deltas from level defaults and a node's type never changes. Geometry is exact and
+free; semantics are not in the file. The panel states that where a reader would otherwise
+infer it.
+
+**THROUGHPUT IS ONE DERIVED FIGURE AND ONE DECLARED ASSUMPTION, RENDERED AS TWO DIFFERENT
+KINDS OF STATEMENT.** The normal-purity rate is exact from the shipped items-per-cycle and
+cycle time. No purity multiplier exists in the shipped docs or in a save, so the scaling is
+served with `purity_scaling_measured` false and the page repeats it. The first draft printed
+three equal-looking figures, which presented an assumption in the same voice as a
+derivation.
+
+**EVERY COORDINATE AND EVERY RATE CROSSES AS A STRING.** A bare JSON number is the IEEE
+double non-negotiable 6 keeps out of the answer path. Counts are integers, which are exact.
+No instance name, no record index, no byte offset, no path and no header string crosses at
+all, each refusal graded by its own arm rather than by a comment.
+
+**A REAL BROWSER RAN AGAINST THIS PAGE, WHICH NOTHING HAD DONE SINCE SESSION 78**, driven
+through `tests/surface/audit_harness.py` on plain HTTP because no automation loads the
+dashboard's self-signed certificate. It found three defects no arm could see:
+
+1. The map was listed as text TWICE - a legend and an identical list under a second
+   heading, each green on its own arm because each was graded alone. One list now, and the
+   SVG's `aria-describedby` points at it. Graded by
+   `tests/surface/test_panel_map.py::test_the_map_is_not_listed_as_text_twice`, shown
+   load-bearing by re-introducing the duplicate and watching it redden.
+2. An empty item total printed "no item was served", which reads as "you are holding
+   nothing" - a confident wrong answer of the kind non-negotiable 7 forbids. It now prints
+   the reason the wire carries and disclaims the reading.
+3. `tests/surface/test_acceptance.py`'s account-id detector fired on EVERY REAL SAVE. A
+   coordinate carries up to seventeen significant digits and a bare fifteen-digit run
+   matched the fractional tail. Anchored to a maximal run that is not a decimal fraction's
+   tail, with `test_the_account_id_detector_is_not_blinded_by_its_decimal_anchors` driving
+   five real account-id spellings so the anchor is proved not to be a blindfold.
+
+**A POSITIONAL PIN MOVED UNDER A SIBLING SLICE, AND THE ARM THAT CAUGHT IT WAS DOING ITS
+JOB.** The seam's network detector took its clean baseline from `PANEL_MODULES[0]`, ordered
+by `sorted()` over the server's asset names and stated nowhere; a new panel module sorted
+ahead of the intended baseline and took it. The repair was to give the baseline a NAME -
+`NETWORK_BASELINE_MODULE` - because an ordering no file owns is not something a sibling
+slice can be expected to preserve.
+
+**A PANEL IS SERVED FROM A LITERAL AND THE LITERAL IS ON NOBODY'S WRITE-LIST.** The
+decomposition proved its slices disjoint and still collided: `server.STATIC_ROUTES`,
+`tests/surface/audit_harness.py` and `tests/surface/test_panel_registry.py` each needed a
+row that no slice owned. `tests/surface/test_panel_seam.py::test_every_panel_module_on_disk_is_published_by_the_server`
+now reddens with a named diagnostic rather than rendering a blank panel.
+
+
+### 2026-09-11 - CS-980 - LICENSE GATE RESULT. Five third-party save parsers triaged before a byte of format knowledge entered the tree, and the one the operator watched is the one that is refused
+
+**This entry closes nothing.** It records the `CONVENTIONS.md` section 14 gate that had to
+pass before the CS-980 decode work could consider an external format reference, per the
+rule that the gate result is recorded BEFORE the project acts on it. Retrieved 2026-09-11.
+
+**Why the gate ran.** The operator demonstrated satisfactory-calculator.com's interactive
+map rendering container contents and miner settings out of a save on this machine, while
+this project's own reader decodes zero property tags from the same file. That makes a
+third-party parser the obvious hypothesis generator and therefore a license question.
+
+**The project's own license was read, not assumed:** `LICENSE` is the MIT License,
+copyright line `Copyright (c) 2026 Clockspeed contributors`. It is a frozen file under
+`CLAUDE.md` section 6, so any inbound term that attaches to the whole work conflicts with
+it and is refused without a verbal clearance being available.
+
+**Per-candidate verdicts.**
+
+- `AnthorNet/SC-InteractiveMap` - **REFUSED for every purpose, including reading.** No
+  LICENSE file, GitHub reports no license, `package.json` carries no `license` field and is
+  marked private. Its README states that reuse of the source and data assets is not
+  permitted in any case and that the source is available for educational purposes only -
+  wording that reaches past copying toward a derived independent implementation, so the
+  safe default is refusal. It is very probably the code behind the map the operator
+  watched, which makes it the most tempting candidate and the most clearly fenced. Its
+  repository root also carries a third party's save file, so cloning it would import one.
+- `etothepii4/satisfactory-file-parser` - **CLEARED WITH OBLIGATIONS.** MIT,
+  `Copyright (c) 2021-2025 etothepii`, notice-retention and warranty paragraphs both
+  present, manifest and license agree. Reading requires nothing. Lifting any portion would
+  require reproducing the MIT text and that copyright line in a third-party notices file.
+  It does NOT relicense this project. Its README states GAME versions, never numeric save
+  versions - the version pair mapping stays this project's own pin.
+- `ficsit-felix/ficsit-felix` - CLEARED WITH OBLIGATIONS (MIT, holder bitowl), but
+  format-stale and therefore low value.
+- `GreyHak/sat_sav_parse` - **REFUSED, including for reading.** GPL-3.0. Copyleft bars
+  vendoring absolutely, and it is written in this project's own language, which carries the
+  highest structural-copying risk of any candidate.
+- `FabianFG/CUE4Parse` - reading CLEARED WITH OBLIGATIONS, vendoring REFUSED. Apache-2.0
+  with an unfilled template copyright line and a NOTICE naming twenty-plus upstreams
+  including a path into Epic's engine source. A clean license that is not vendor-safe.
+- `moritz-h/satisfactory-3d-map`, its save-format document - reading CLEARED WITH
+  OBLIGATIONS, copying REFUSED. The repository is GPL-3.0,
+  `Copyright (C) 2021 - 2026 Moritz Heinemann`, and the document carries no separate grant,
+  so the prose is covered by it. Not one sentence, field-name table or list may enter this
+  tree. It is nonetheless the only current document found that addresses the decode
+  question at all.
+- `satisfactorymodding/Documentation` - UNRESOLVED and therefore refused for copying. No
+  license file at the repository root and the license endpoint returns 404. Absence is not
+  permission. It adds no byte-level fact.
+
+**The wiki's save-format pages, re-measured.** They still do not cover the body of the
+version pair this project parses: the page states the body has not been analyzed beyond
+Patch 1.0.0.3. It now names header version 14, but as a header-only note. The byte this
+project already measured false is still labelled with a name implying a meaning the bytes
+do not carry, now annotated as unused garbage - which partially converges with
+`BOOTSTRAP.md` section 2.4 and still refutes any flag reading of it. CS-485's verdict and
+`CLAUDE.md` section 7's no-lifted-datasets fence are unchanged and were not re-litigated.
+
+**The operative distinction, recorded because this project has conflated it before.**
+Reading a source to learn a byte layout and then writing an independent implementation is
+not what MIT, Apache-2.0 or GPL-3.0 attach obligations to - their duties attach to
+distributing copies or conveying a derivative. Copying a line, a table, a constant list or
+a fixture is a different act with a different answer per license, and under GPL-3.0 it
+would relicense this project and conflict with the frozen `LICENSE`.
+
+**The standing instruction this puts on the decode work.** Restate every adopted fact in
+this project's own words and confirm it against the local bytes before it becomes code. The
+always-legal path is the one CS-482 already used - derive the grammar from the saves on
+this machine with a structural anchor, with any cleared reading serving only as a
+hypothesis generator. No test fixture from any candidate may be copied under any license;
+the synthetic-fixtures settled entry and non-negotiable 11 bar it independently of this
+gate.
+
+**No save file, no fragment of one and no hex dump of one was uploaded, pasted or
+submitted anywhere during this gate.** All retrieval was outbound fetches of public
+repository metadata and documents.
+
+### 2026-09-11 - CS-970 - CLOSED. The lane names why it refused, and no night that accomplished nothing reports success
+
+**Two acceptance clauses were AMENDED, and this record is the amendment.** The
+adjudicator required the change be written down rather than inferred from its verdict,
+because an agent that rewrites its own acceptance after the fact is how an acceptance
+stops being a fence.
+
+- `ROADMAP.md` asked for a test driving the DIRTY-WORKTREE precondition. No such check
+  exists anywhere in `ops/loop/lane_launcher.py`: `ensure_worktree` returns early once
+  `.git` is present and runs no git at all on a reused worktree. The ROADMAP line itself
+  labelled that reading "unproven". A clause cannot require an arm for a precondition with
+  no code, so the arm drives the real lock-repoint refusal instead. Adding a dirty-tree
+  check was considered and REFUSED: a dirty lane worktree is normal between cycles, and
+  refusing it would convert a recoverable state into a permanently dead lane.
+- `ROADMAP.md` asked for ELEVEN identical consecutive launch failures to stop the driver.
+  The driver stops at THREE. Eleven was the count observed in the incident, not a designed
+  threshold, and three matches the existing consecutive-error precedent. Stopping sooner
+  discharges the clause strictly.
+
+**What shipped,** across `aa5a828`, `6814f90`, `e3276bb`, `6bad0e4` and `03bcf1c`. Merged
+files: `ops/loop/lane_launcher.py`, `ops/loop/queue_loop.py`, `tests/test_lane_launcher.py`,
+`tests/test_queue_loop.py`. A closed thirteen-member `LAUNCH_REASONS` vocabulary, one
+path-free code per raise site; the driver validating an incoming code against its OWN copy
+and rendering its own literal by index; a consecutive-launch-failure stop with its own exit
+code; a no-push cycle recorded as a verdict and refused by the roll-up; and a progress
+counter that stops any night which never produces a commit. Verified by
+`tests/test_lane_launcher.py::test_every_launch_error_raise_site_names_a_reason`,
+`::test_every_raise_site_keeps_the_reason_code_it_was_reviewed_with`,
+`tests/test_queue_loop.py::test_the_driver_and_the_launcher_hold_the_same_reason_vocabulary`,
+`::test_the_launch_fault_row_never_renders_the_caller_s_object`,
+`::test_a_night_that_never_completes_a_cycle_cannot_run_the_full_budget` and
+`::test_a_night_committing_to_the_lane_branch_runs_its_whole_budget`.
+
+**THE SUITE WAS GREEN AT EVERY REFUTED COMMIT.** Four adversarial rounds landed findings
+against trees that had just passed 6224, 6241 and 6256 tests. Round 1: `lane_held` reset the
+counters, so a night whose lock was held every cycle ran all twelve and exited 0. Round 2: a
+COMPLETED cycle that pushed nothing did the same; a budget at or below the limit exited 0;
+and an unlisted stop word read as success through a `.get(stopped, EXIT_OK)` default. Round
+3: the progress test read the `ok` roll-up, which is false on a no-push cycle, so a worker
+following `tools/headless-queue.md`'s own instruction to push the LANE BRANCH on a rejected
+push had its night killed at cycle 3 - a REGRESSION this work introduced, worse than the
+burn it was written to stop. THE PATTERN IS THE FINDING: the same defect reappeared four
+times wearing a different field each time, and only an allowlist over what counts as
+progress, rather than a denylist of what does not, finally held.
+
+**A PRIVACY GUARANTEE THAT WAS NEARLY TRUE.** The driver validated the reason by VALUE and
+then rendered the CALLER'S OBJECT, so a `str` subclass whose data is honestly a vocabulary
+member but whose `__str__` returns a home path was written verbatim into the durable JSONL
+row. Two adversaries broke it by different mechanisms. Never reachable in the field, since
+every raise site binds a module constant, but the fix is structural: `type(reason) is str`
+plus an index substitution, so this module renders only its own literal. Either defence
+alone is insufficient.
+
+**THIS FILE'S OWN 2026-09-11 RECORD IS CORRECTED.** The entry above states that CS-970's
+eleven consecutive failures "were a launcher meeting a bare repository". That cannot be the
+mechanism. Every failing cycle left a 134-byte worker log containing the `lane start` header
+that `ops/loop/run_lane.ps1` writes, and a bare-repository fault raises in `ensure_worktree`
+BEFORE any worker is spawned, so no log would exist at all. The runner started every time and
+died before writing its exit line. The trigger remains UNDIAGNOSED.
+
+**WHAT THIS DOES NOT PROVE.** No arm calls `launch_lane` through to a real spawned worker;
+every arm injects seams. Eleven of the twelve reasons could be recorded WRONG in the field
+with the suite green. If the lane is re-armed and cycle 2 fails as before, the row will most
+likely read `runner_exited_early` or `spawn_failed`, naming the proximate mechanism and
+sending the reader to the runner rather than to the contended tree. The work makes the next
+failure self-describing; it does not make the lane start.
+
+**RESIDUALS, all filed rather than left implicit.** CS-974 holds the `_CI_ROLLUP_BAD`
+denylist, under which a cancelled, skipped, timed-out, unavailable or unknown CI verdict
+still rolls up as a good cycle. CS-975 holds the fact that nothing reads the driver's exit
+code at all, so `EXIT_NO_PROGRESS` and `EXIT_UNKNOWN_STOP` are decorative in production.
+Accepted and not filed: a worker that advances HEAD with a junk commit reads as progress,
+and the site-to-code mapping arm encodes a reviewed reading rather than ground truth.
+
+**Independently verified** at `03bcf1c` in a worktree pinned to that SHA, tree confirmed
+unmoved at both ends: `pytest tests -q -n auto --dist loadfile` exit 0, 6262 passed, 7
+skipped; `mypy` exit 0, 189 source files; `ruff check .` exit 0; `tools/drift_guard.py` exit
+0, 11 guards, 10 PASS, 1 WARN, 0 FAIL, the WARN being CS-971's ROADMAP budget;
+`tools/doc_budget.py` exit 0, VERDICT WARN, 1 soft failure. Every behavioural claim was
+DRIVEN against the real `run_loop` and the real `main`, with a control run proving a
+`time.sleep` patch changed no outcome.
+
+### 2026-09-11 - CS-973 - CLOSED. The suite copied 23 of the operator's real saves into the live copies directory, and the repair is three redirects plus one session-wide count that discovers the NEXT writer rather than the two already known
+
+**Filed and closed from outside.** The finding came from Legion Wallpaper's
+write-attribution tracer, run against this tree on operator direction; the repair
+below was made in this repository by that session. No other sibling tree was
+touched.
+
+**The defect, reproduced here rather than taken on report.** `world.load_world`
+copies its subject through `workdir.copy_for_read` before it parses a byte, and
+the work root that copy lands in DEFAULTS TO `<repo>/work`. Three arms reached a
+real save with no redirect in place: `test_phase4_gate.py`'s
+`test_a_real_world_parses_end_to_end` and
+`test_every_real_save_in_the_library_loads_through_the_one_entry_point`, and
+`test_acceptance.py`'s `test_every_endpoint_bootstrap_names_answers_over_verified_tls`,
+which drives the live server through `providers.SaveWorldProvider`. A traced run
+of those two modules alone wrote 23 files carrying `COPY_SUFFIX` into
+`work/saves/`, one per save in the library, with the tracer's planted control
+proving the instrument was live. Non-negotiables 1 and 11 both held: the
+originals were untouched and the directory is gitignored with no `.sav` tracked.
+This was corpus pollution, not a leak - and that directory is what the save layer
+is measured against, so anything globbing `*.sav` there saw 23 worlds that are
+not worlds.
+
+**Why the acceptance module was a writer at all, which is the part a reader will
+not guess.** No arm in it names the save layer. The copy happens inside
+`observations`, two fixture levels below any signature, during MODULE setup. A
+function-scoped redirect would therefore have been installed and torn down
+entirely AFTER the writes it was meant to prevent, which is why the fixture there
+is module-scoped, autouse, and holds its own `pytest.MonkeyPatch.context()`
+rather than requesting the function-scoped `monkeypatch`.
+
+**What shipped.** Three files, additions only, no line deleted or moved.
+`tests/save/test_phase4_gate.py` gains an autouse `isolated_work_root` matching
+the shipped fixture of the same name in `tests/save/test_world.py`, plus
+`test_the_library_sweep_leaves_its_copies_off_the_repo`.
+`tests/surface/test_acceptance.py` gains the module-scoped autouse redirect plus
+`test_the_work_root_the_live_server_copied_into_is_outside_the_repository`.
+`tests/conftest.py` gains the session-scoped autouse guard
+`_the_live_copies_directory_is_left_as_it_was_found`, appended at the FOOT for
+the reason the CS-968 scrub above it is: the deep archive pins line numbers into
+that module.
+
+**AUTOUSE RATHER THAN REQUESTED BY NAME, DELIBERATELY.** Attaching the redirect
+to the two arms that copy today closes those two and leaves the next arm that
+loads a real save to re-open the hole, which is exactly how this one was opened.
+
+**THE SESSION GUARD DISCOVERS THE WRITER RATHER THAN ENCODING IT,** which is what
+the acceptance criterion asked for and what the per-module fixtures cannot do. It
+counts before and after over the whole run, so a writer added by a module that
+does not exist yet is caught where it lands. It derives the live directory from
+`conftest.py`'s own position instead of calling `workdir.work_root()`, because
+that resolver reads `ENV_WORK_ROOT` and would make the guard watch every
+directory except the one at risk. It reports a DELTA and never a listing: a copy
+carries the name of the save it came from, so a set of names in a failing
+assertion is a set of the operator's world names (non-negotiable 12). Attribution
+is the tracer's job and the failure message says so.
+
+**THE FIRST ATTEMPT MANUFACTURED THE ROT IT WAS REPAIRING, and the full suite
+caught it.** Both phase 4 blocks were first written into the Clause 1 section
+where they read best. That moved `WRITER_WRITE_SURFACE` off line 2089 and
+reddened `test_docs_citations.py` twice, because `docs/item_notes/phase4.md`
+pins that line for the still-open CS-446 note. The guard offered two remedies
+and a trap: convert the pointer to symbol form, adjudicate it into
+`DISPOSITIONS`, or re-cut the digest - the last of which keeps a pointer already
+shown to follow the rot. None was needed. The blocks moved to the FOOT of the
+module instead, below every existing line, which restores line 2089 exactly and
+leaves the item note untouched. The same reasoning the CS-968 scrub records in
+`tests/conftest.py`, applied to a second module.
+
+**One unrelated observation, filed and NOT acted on.** The traced run shows
+`tests/test_edit_lint_check.py` writing its CS-841 bait into two directories
+under `work/` rather than under `tmp_path`. Both are removed before the run ends
+and no file survives, so this is placement rather than pollution and it is not
+CS-973's subject. It is recorded here because the trace is where it was visible.
+
+**Three mutants, three killed, each restored byte-exact.** (1) The phase 4
+redirect removed: `test_the_library_sweep_leaves_its_copies_off_the_repo` goes
+red and the live directory takes 23 copies again, which is the original defect
+reproduced on demand. (2) The acceptance redirect pointed back inside the
+repository: `test_the_work_root_the_live_server_copied_into_is_outside_the_repository`
+goes red. (3) The phase 4 redirect removed with ONLY the library sweep selected,
+so no per-module arm was in the run: `tests/conftest.py` errors the node with
+"the suite added 23 real-save copies", which is the session guard binding alone.
+
+**Verify independently.** `python -m pytest tests/ -q` green, `ruff check tests/`
+clean, and `work/saves/` holding the file count it held at session start. To
+re-attribute from scratch: `pytest tests/ -p lw_write_tracer --trace-roots
+"ops;data;work;config;memory;moon_sync_inbox" --trace-out out.json`. The plugin
+arrived here as `moon_sync_inbox/lw_write_tracer.py.from-lw`, which that suffix
+makes unimportable as written: copy it to `lw_write_tracer.py` somewhere on
+`PYTHONPATH` first. Then read `control.proved` in the report BEFORE believing a
+zero - a tracer that patched nothing reports the same empty buckets as a clean
+run.
+
+### 2026-09-11 - CS-303 - CLOSED. ADR 0006's name-fence on `Building.unsharded_clock_base` is now mechanical, and the round was REFUTED once on a gate the new file left red
+
+**The defect.** ADR 0006 decided how the one shipped ceiling operand reaches the model
+and said in as many words what it did not close: "nothing mechanical stops a future
+caller reading `Building.unsharded_clock_base` directly and clamping without going
+through `clamp_to_unsharded_base`. This ADR claims the name and the docstring as that
+fence and claims no more." A name is a hint. The trap ADR 0005 named is that the
+un-sharded base READS as an achievable maximum, and because every shipped entry reports
+the same un-overclocked value, a caller that clamps to it caps every solve at 100
+percent and looks correct on every building nobody has overclocked - invisible in
+exactly the worlds where testing is easiest.
+
+**The root cause, stated as a class rather than as this field.** A fence whose only
+enforcement is the reader's diligence is enforced by nothing. The repair is a guard that
+refuses the READ, not a better name.
+
+**What shipped.** `tests/solve/test_ceiling_fence.py`, an AST guard over the whole
+tracked-and-not-ignored Python tree. `clockspeed/solve/power.py` is the one owner, held
+as an exact PATH rather than as a package - widening it to `clockspeed/solve/` would let
+any sibling clamp silently, which is the defect. The test corpus is exempted by exact
+repo-relative path with a reason per entry, never by a glob, and three arms keep the
+table honest: no key may carry a glob metacharacter, every key must name a file git
+actually tracks, and every key must still hold a read it forgives. A dead forgiveness is
+prose the next reader cannot tell from a live rule.
+
+**The sibling sweep, and what it found.** One sibling shares the root cause and is swept:
+`getattr(building, "unsharded_clock_base")` resolves to the identical value while
+spelling the name in a string, so a guard reading only the attribute node is evaded by
+typing the hand-back. Both spellings are detected and each has its own arm. The
+anti-rot direction is swept the same way - a stale, globbed, untracked or reasonless
+exemption, and an owner path that no longer reads the field at all, which would make
+every other arm pass for the wrong reason.
+
+**Tests by name**, all in `tests/solve/test_ceiling_fence.py`:
+`test_a_direct_attribute_read_outside_the_owner_is_reported`,
+`test_the_getattr_handback_spelling_is_reported`,
+`test_a_string_naming_the_field_is_not_a_read`,
+`test_no_module_outside_the_owner_reads_the_fenced_field_directly`,
+`test_the_owner_still_reads_the_field_so_the_fence_is_not_vacuous`,
+`test_no_exemption_is_spelled_as_a_population`,
+`test_every_exemption_names_a_file_git_actually_tracks`,
+`test_every_exemption_still_holds_a_read_it_forgives`,
+`test_every_exemption_records_a_reason`.
+
+**Every arm was measured live rather than assumed.** Each policing arm was mutated in
+turn - a glob key, a key naming no file, a key forgiving a file that reads nothing, a
+blank reason, and an owner path that reads nothing - and each mutation reddened the arm
+that owns it. The repo-wide arm was first run with an EMPTY exemption table and reported
+nine real unexempted reads across the three test modules, which is what the exemptions
+were then written against. Mutations were restored from a byte snapshot, never from git.
+
+**A caveat that belongs in the artifact and not only in a cycle report.**
+`test_every_exemption_records_a_reason` is a NON-BLANKNESS check. It proves the reason
+field was filled and proves nothing about whether the sentence is true or relevant -
+the weakness class CS-937 owns. The module says so in place rather than implying a
+stronger claim by its name.
+
+**The verifier pass REFUTED the first candidate, on a ground outside the new file.**
+`tests/solve/test_phase3_gate.py` pins the contents of the `tests/solve` package in
+`SOLVE_TEST_SOURCES`, so that a new module, a rename or a deletion fails the gate
+instead of silently shrinking its coverage - and the new file was not registered, which
+left `test_the_scanned_solve_test_set_is_exactly_the_solve_test_package` red. That is
+the gate working. The repair is the one line registering `test_ceiling_fence.py` in
+that tuple. Re-run after the repair, in the AUTHORING cycle: `tests/solve` reports
+`346 passed in 9.12s`, exit 0. ONE refutation round was spent; nothing was filed.
+
+**Tier 2**, as the item line asked - the guard sweeps the whole tracked tree, so the
+whole suite was paid rather than the touched module alone.
+
+**Counts observed THIS run**, not carried from any earlier one or from any subagent.
+The whole tracked tree, `python -m pytest tests -q -m "not slow" -n auto`, written to a
+file and read back: `6200 passed, 5 skipped, 7 warnings in 294.67s (0:04:54)`, exit 0.
+`python -m ruff check .` reports `All checks passed!`, exit 0, and `ruff format --check`
+reports the new module already formatted. The five skips are the platform chmod skips
+this suite already carries and are not new here. That line is the SECOND whole-tree run
+of this cycle and it is the one quoted, because the first ran before the pre-commit gate
+required a `ruff format` rewrite of one line in the new module - a suite run that predates
+an edit describes a tree that no longer exists, so it is not the number recorded.
+
+**THE WORK WAS AUTHORED IN ONE CYCLE AND COMMITTED IN THE NEXT, and that is recorded
+rather than smoothed over.** The authoring cycle ended with the change applied to the
+worktree and never committed, so the next cycle inherited a half-applied row. Per the
+lane rule that an in-flight row is finished and never abandoned, this cycle re-measured
+the tree it inherited rather than trusting the prior cycle's numbers: the suite line and
+the ruff line above are from THIS run, and the scoped `tests/solve` line quoted earlier
+in this entry is the authoring cycle's, labelled as such. The ONE refutation round the
+bounded-refutation rule allows was spent in the authoring cycle and was not re-spent
+here; no second round was run, and nothing was filed.
+
+**CI is recorded by the queue lane driver and was NOT observed by this worker.**
+
+### 2026-09-11 - CS-972 - FROZEN-FILE GRANT, recorded BEFORE the edit per CLAUDE.md section 6
+
+**This is a grant record, not a completion record.** It authorizes ONE edit to
+`.githooks/pre-push`, which is frozen. The closing record for CS-972 is a separate entry
+and does not exist yet. Nothing in `.githooks/` has been edited under this grant.
+
+**THE ROUTE.** A proposal was written by the session merger, frozen at sha256
+`71893fda7b6290459bc8c77b3baf60045a02bf040d6e2e833b38b5ef65aaf742`, and dispatched to an
+adjudicator that wrote neither the proposal, the hook, the item line nor the CS-968 work,
+against a candidate pinned at `7634f806ba609101664a9c2692c0f4d8d57a30d4` with a clean tree.
+The adjudicator re-verified the pin and the hash before reading, created one detached probe
+worktree and removed it, and the tree was confirmed unchanged afterward. Ruling: GRANT WITH
+CONDITIONS. The operator's standing authorization this session was "frozen grant approved if
+valid" - a conditional pre-authorization, which is why the validity question was put to an
+adjudicator rather than answered by the agent that wanted the edit.
+
+**THE PREMISE WAS RE-PROBED RATHER THAN ACCEPTED, TWICE, BY TWO PARTIES.** The item line
+claims `origin/main` was red from `66c707f` until `77a43e2`. `git reflog show
+refs/remotes/origin/main` records an `update by push` at each. A detached worktree at
+`66c707f` runs `tests/test_archive_rot.py` as `1 failed, 7 passed`, failing
+`test_the_deep_archives_rot_is_measured_and_pinned_per_arm` on two counts - "12 found
+against a pin of 13" and "5 found against a pin of 4". The merger reproduced the same
+module, the same verdict and the same two counts in a separate probe worktree of its own,
+because a subagent's test count is not evidence on this project.
+
+**AND THE MECHANISM IS SHARPER THAN THE ITEM LINE STATES.** `git show --stat 77a43e2`
+touches exactly one file, `tests/conftest.py`, 40 insertions and 35 deletions - and that
+same module is `8 passed` at `77a43e2`. The archive-rot arm counts line pointers into
+tracked modules, so moving the CS-968 scrub to the foot of `conftest.py` changed which
+archived pointer lands. The repaired `conftest.py` was therefore in the WORKING TREE when
+the hook graded it green, and in NO COMMIT when git shipped `66c707f`. That is the defect
+exactly: the hook grades the tree, git ships the commit, and the CS-954 ref check cannot see
+it because the ref never moved.
+
+**A NON-FROZEN ROUTE WAS FOUND AND REFUSED, AND IT IS RECORDED SO IT IS NOT RE-PITCHED AS
+THE CHEAP OPTION.** A test module under `tests/` asserting `git diff --quiet HEAD --` would
+block a push through a red suite and costs no grant. It fails on four grounds: it goes red
+on every ordinary hand-run `pytest tests` with uncommitted work, which is the normal state
+of development and collides with non-negotiable 9; it cannot tell a hook run from a hand run
+without an environment variable the hook would have to set, itself a frozen edit; it has no
+access to the ref list on stdin, so it can never compare against the PUSHED sha nor carry the
+state-loudly branch; and it grades the tree from inside the very run whose verdict is in
+question. CS-954's grant record already ruled out the wrapper script, the CI-side check and
+the second-hook route for this same file, and those findings are adopted rather than
+re-derived.
+
+**THE SEVENTEEN CONDITIONS BIND THE GRANT.** Recorded in full so the edit can be checked
+against them by someone who was not here.
+
+1. SINGLE-USE. One additive block in `.githooks/pre-push`. No other frozen file.
+2. No existing line in the file is modified, and the CS-954 block is not touched.
+3. The block runs BEFORE the suite. A POST-SUITE RE-CHECK IS NOT AUTHORIZED: the window in
+   which the tree changes DURING the suite stays open, and is filed as its own item rather
+   than absorbed into this one.
+4. Proven by measurement under a real linked-worktree push, WITH A POSITIVE CONTROL: from a
+   real linked worktree, with a tracked file dirtied, the block REFUSES and names that
+   worktree's own HEAD object id. A green clean-tree push alone does NOT discharge this.
+5. A delete - the all-zero local sha - is skipped, not refused.
+6. The remote URL, the raw stdin lines, and any path under a home directory are NEVER
+   echoed. Non-negotiables 3 and 12. Ref names and object ids only.
+7. The suite is never re-run. One decision, one run.
+8. With NO ref list - a terminal, or empty stdin - the block cannot know the pushed sha and
+   must SKIP, loudly, in the CS-954 register. It must NOT fall back to a bare HEAD
+   comparison.
+9. The arm is shown load-bearing by a mutation that REMOVES the check, plus a clean-tree
+   control, and it spawns through `tests/git_env.py` per the CS-968 closure.
+10. The not-covered register in the file names FOUR things: the tree modified after this
+    block and before the suite; the pushed-sha-is-not-HEAD case being stated only; untracked
+    files being stated only, including under `tests/`, where they change collection; and
+    `--no-verify`.
+11. CS-972 does not close CS-954 and must not be recorded as doing so.
+12. The grant expires when CS-972 closes or is abandoned. Any later edit to this file needs
+    a fresh grant.
+13. If a cheaper non-frozen change turns out to satisfy the acceptance clause, the grant is
+    left UNSPENT and that is recorded - the CS-952 precedent, where a granted exception was
+    deliberately not taken.
+14. The block resolves its repository EXPLICITLY rather than trusting ambient state: the
+    comparison runs in a subshell that unsets `GIT_DIR`, `GIT_WORK_TREE` and
+    `GIT_INDEX_FILE` and operates from `$ROOT`, so discovery walks up from the work tree.
+    Scoped to this block; the CS-954 region's existing git calls are not touched.
+15. Any non-zero status from the comparison REFUSES. A dirty answer and a failed git
+    invocation must not be distinguishable in a way that lets an error read as clean.
+16. Every new variable is initialised before first use, including on the rendering path,
+    per `set -u` and the `cs_probe` precedent. An unresolvable HEAD refuses.
+17. This record is committed BEFORE the edit, every added byte is 7-bit ASCII, and
+    `python scripts/install_hooks.py` runs clean afterward.
+
+**REFUSE VERSUS STATE, RULED.** Refuse on a tracked difference; state loudly on untracked
+files and on a pushed sha that is not HEAD. The file's own trade governs and it is written
+there twice: in a gate a LOUD FALSE REFUSAL beats a SILENT FALSE ACCEPT. The false-refusal
+surface is named rather than waved at - pushing a finished commit while work-in-progress
+edits sit in the tree, and the autonomous lane if it ever leaves a tracked modification
+uncommitted. Untracked files must STAY stated: refusing a new untracked file under `tests/`
+would break TDD's first step, which is non-negotiable 9. CRLF-only harness damage normalises
+clean under the same rules as `git status` and so is not a false refusal.
+
+**AND THE COMPARISON TARGET IS A PROXY, WHICH THE RULING CORRECTS.** `git diff --quiet HEAD
+--` asks about HEAD; the gate's real question is whether the graded tree equals the PUSHED
+local sha. Where they agree the comparison is identical. Where they differ - `git push
+origin HEAD~1:main`, or pushing a branch other than the checked-out one - the suite graded
+content that is a statement about no shipped commit at all, and the message must say the
+gate is VACUOUS FOR THAT REF in the CS-703 register, not merely that a different branch is
+being pushed. HEAD-equality decides refuse-versus-state; it is not the thing being asserted.
+
+**THE `GIT_DIR` RISK IS NOT DISCHARGED BY THE LANE PUSH, AND THE RULING DECLINES TO
+CONFLATE THEM.** CS-968 established that a push from a linked worktree exports `GIT_DIR` to
+this hook. A real push from `lane/queue` in a linked worktree completed this session and left
+the shared `.git/config` byte-identical but for an expected tracking block, which proves the
+CS-968 scrubs hold - and says nothing about whether git commands INSIDE the hook resolve the
+right work tree. Nor does line 78 working under a worktree push prove anything: with
+`GIT_DIR` set and `GIT_WORK_TREE` unset, `git rev-parse --show-toplevel` returns the current
+directory whatever repository `GIT_DIR` names, so `ROOT` resolving correctly is compatible
+with the pointer being wrong. If `GIT_DIR` resolved to the common dir rather than the linked
+worktree's gitdir, every lane push would false-refuse against main's HEAD. Hence condition 14
+- the block defends itself - rather than a single measurement trusted afterward. CS-968's own
+rule is binding here: a negative is only as broad as the configuration it was measured in,
+and a green clean-tree worktree push is a vacuous control.
+
+**WHAT THIS GRANT DOES NOT AUTHORIZE.** One additive block in `.githooks/pre-push` and
+nothing else. Not `.githooks/pre-commit`, `.githooks/commit-msg`, `scripts/install_hooks.py`,
+`tools/precommit_gate.py`, the Claude settings file or `LICENSE`. Not the standing
+trailer-range-scan proposal against this same file, which CS-906's grant already ruled needs
+its own. Not a post-suite re-check. Not any modification to the CS-954 block, the CS-703
+probe, the interpreter ladder, the CS-906 invocation, the exit-5 guard or the exit path - all
+survive byte-identical. It does not close CS-954. It expires when CS-972 closes or is
+abandoned. **Leaving it UNSPENT is a legitimate outcome.**
+
+### 2026-09-11 - CS-968 - CLOSED. A push from a WORKTREE exports GIT_DIR, and the suite rewrote the repository it was running in
+
+**THE MECHANISM, MEASURED RATHER THAN ARGUED.** `git push` exports `GIT_DIR` to the
+pre-push hook WHEN AND ONLY WHEN the push originates in a LINKED WORKTREE. Measured
+side by side, same repository, same hook:
+
+    push from the main checkout   GIT_EXEC_PATH, GIT_PREFIX
+    push from a linked worktree   GIT_EXEC_PATH, GIT_PREFIX, GIT_DIR
+
+`.githooks/pre-push` runs `pytest tests`, so the whole suite can run holding a pointer
+at a repository nobody in it named. A throwaway `git init --bare` then re-initialises
+THE REAL REPOSITORY, and `core.bare` plus any `git config` write land in the config
+every worktree SHARES. That is why a lane worker that never touched the main checkout
+broke the main checkout, and why it read as repository corruption.
+
+**IT HAS TWO INDEPENDENT HALVES AND FIXING ONLY THE FIRST LOOKS COMPLETE.**
+
+- CHILD-SIDE, the damaging half. A spawned `git` or nested `pytest` inherits the
+  pointer. Fixed by `tests/git_env.py`, the one owner of the scrub, applied at five
+  spawn sites in `tests/test_precommit_gate.py`, `tests/test_hook_interpreter_ladder.py`
+  and `tests/test_pre_push_ref_race.py`. `GIT_CONFIG_GLOBAL` and `GIT_CONFIG_SYSTEM`
+  are deliberately KEPT - they are how a fixture cuts the operator's own configuration
+  off, so scrubbing them would undo the isolation.
+- IN-PROCESS, the silent half. `load_gate()` imports `tools/precommit_gate.py` in
+  process, so it resolves its repository from `os.environ` at call time; the dated
+  headings driver enumerates documents the same way. Neither goes through a child, so
+  a clean child-side measurement says nothing about them. Fixed by a process-wide
+  scrub at the FOOT of `tests/conftest.py`, run at import because module-level code in
+  a test module executes during COLLECTION, before any fixture could fire.
+
+**VERIFIED BY.** `tests/test_git_env_scrub.py::test_a_scrubbed_environment_keeps_an_init_inside_the_directory_it_was_aimed_at`,
+`::test_a_scrubbed_environment_keeps_a_config_write_inside_its_own_repository`, and the
+control that makes both mean anything,
+`::test_an_inherited_git_dir_really_does_relocate_an_init`, which does the damage ON
+PURPOSE with the pointer left in place and asserts the decoy turns bare. Plus
+`tests/test_repo_config_hygiene.py::test_this_repository_is_not_configured_bare` and
+`::test_this_repository_does_not_carry_the_fixture_identity`, which grade the STATE so
+a recurrence is loud whatever causes it.
+
+**THE END-TO-END MEASUREMENT.** A push of `cs964-seam` FROM ITS WORKTREE - the exact
+operation that stranded `core.bare` twice - returned 0 with 6209 passed, 7 skipped, and
+the shared config CLEAN afterwards. Before the fix the same operation blocked and left
+the repository unusable for every checkout on the machine.
+
+**THREE MECHANISMS WERE PROPOSED AND REFUTED BEFORE THE RIGHT ONE.** The refutations
+were real measurements and the conclusions drawn from them were too broad: "no hook
+exports GIT_DIR" was measured only from a MAIN CHECKOUT, which is the one arrangement
+where the bug cannot fire. A sibling tree's adversary made the identical mistake, and
+its note was cited here as independent corroboration - two measurements agreeing
+because both were taken in the wrong configuration. A NEGATIVE IS ONLY AS BROAD AS THE
+CONFIGURATION IT WAS MEASURED IN.
+
+**A SECOND WRONG CALL, SAME SHAPE.** An arm was called a probe artifact on the grounds
+it "did not fail in either real worktree push". Those runs used `-x` and stopped
+earlier, so it never executed. ABSENCE UNDER `-x` IS NOT EVIDENCE OF PASSING.
+
+**WHAT FOUND THE LEAKS GREP MISSED.** A decoy: plant `GIT_DIR` at a throwaway
+repository, run the suite, and ask THE DECOY what reached it. Grepping for the symptom
+- helpers already noticed - left two sites live, including a nested `pytest` whose
+child inherits the pointer and passes it to everything beneath it. The decoy does not
+depend on the search being complete.
+
+**CONSEQUENCES, NOT SEPARATE DEFECTS.** CS-970's eleven consecutive `LaneLaunchError`
+cycles were a launcher meeting a bare repository; CS-967's `-n auto` false failures did
+not reproduce across two full runs of the thirteen git-touching modules. CS-970 STAYS
+OPEN on its own acceptance clause, which is about the launcher naming its refusal
+reason, and is not discharged by explaining the trigger.
+
+**ALSO REPAIRED IN THIS ROUND.** Three unpushed commits authored to the fixture
+identity `Gate Test <gate@example.invalid>` were re-authored on an explicit operator
+ruling, tree hashes byte-identical across the rewrite. Four dead doc citations fixed,
+three of them abbreviated module paths. Two rotted pins at
+`tests/test_hook_interpreter_ladder.py` converted to symbol form with their
+`UNVERIFIED_LINE_POINTERS` entries retired and `FORGIVEN_LINE_POINTER_CEILING` ratcheted
+61 to 59, then reconciled to 58 across a merge where each branch had ratcheted
+independently.
+
+**CS-968's ROADMAP LINE IS ON `lane/queue`, NOT ON MAIN,** and that branch is still
+unmerged at `d686365`. The line is removed when the lane branch merges; this record is
+the completion.
+
+### 2026-09-10 - CS-210 - CLOSED. The absent-`mMaxPotential` branch is grounded in the shipped document, and the two sets ADR 0006's common-mode risk could not separate are MEASURED IDENTICAL
+
+**The defect.** ADR 0006's adjudication named a COMMON-MODE RISK: both fences the ADR
+relies on read the same hand-authored corpus, so the registry-layer and solve-layer tests
+were one fixture read twice rather than two independent confirmations. That a
+registry-published `Building` can lack `mMaxPotential` AT ALL was asserted nowhere against
+the shipped data. The pin recorded per-VALUE counts (`"1.000000": 62`), and a per-value
+counter is structurally blind to the absent case: an entry carrying none of the watched
+fields is counted by no key at all. So the branch that reads an absent field as None -
+live code in `clockspeed/data/registry.py` - rested on a corpus entry a corpus author
+chose to write.
+
+**The root cause.** The census counted VALUES and never the POPULATION. Four watched
+fields each had a value counter and none had a denominator, so "62 entries carry it" could
+not be read against "of how many".
+
+**What shipped.** Census schema 1 to 2, adding `registry_building_field_presence`:
+per watched field, how many registry-published buildings carry it and how many do not.
+Merged files: `clockspeed/data/version.py`, `tests/data/test_version.py`,
+`tests/data/test_registry.py`, `tests/test_docs_citations.py`, `tests/test_archive_rot.py`,
+and the four doc files the closure moves - `ROADMAP.md`, `docs/item_notes.md`,
+`docs/history_notes.md` and this file. The tenth path is a DELETION:
+the Phase 2 leaf under `docs/item_notes/`, whose only item was this one, so the
+leaf is named rather than spelled - a path this change deletes cannot resolve, and
+pinning a dead spelling would widen the bare-path exemption for a site that did not
+have to exist.
+
+Measured from the live install this cycle by `python tools/drift_guard.py --re-extract`:
+all four fields split 62 present, 6 absent over 68 published buildings. The absent half is
+the number that did not exist before, and it is what makes the None branch a statement
+about the shipped game.
+
+**The predicate is restated, not imported, and the restatement is fenced.**
+`clockspeed/data/version.py` may not import `clockspeed/data/registry.py` - the
+allowed-import matrix in `tests/data/test_phase2_gate.py` permits `version` exactly
+`docs_extract`, and that matrix is asserted in both directions. So
+`is_registry_building_entry` states the published-building predicate a second time on
+purpose, and
+`tests/data/test_registry.py::test_the_census_building_predicate_agrees_with_the_registrys`
+compares the two entry by entry over a case table carrying both a positive and a negative
+verdict, so two predicates that both answered False everywhere could not pass it.
+
+**The sibling sweep, and a finding beyond the acceptance clause.** The item's own note
+recorded an open unknown - ADR 0005 measured 62 entries carrying `mMaxPotential` while
+`clockspeed/data/registry.py` states 6 power-bearing entries carry no exponent, and
+WHETHER THOSE SETS OVERLAP WAS UNKNOWN. Probed against the live install this cycle: the
+absent sets of all four watched fields are the SAME 6 entries. The common-mode unknown is
+resolved.
+
+**That identity is NOT what the census guards, stated plainly so the caveat survives this
+cycle.** The recorded key is a pair of COUNTS per field. A future build that moved which
+entries lack the fields, without changing how many, would leave every count unchanged.
+The acceptance clause asks for counts and counts are what shipped; the set identity above
+is a measurement recorded here, not a guarded invariant.
+
+**Tests, by name.** `tests/data/test_version.py::test_the_tracked_pin_grounds_the_absent_max_potential_branch_in_shipped_data`,
+`::test_the_census_counts_the_registry_published_buildings_that_lack_a_watched_field`,
+`::test_the_census_counts_a_watched_field_as_present_on_every_baseline_building`,
+`::test_the_building_census_ignores_an_entry_no_recognized_group_holds`,
+`tests/data/test_registry.py::test_the_absent_max_potential_branch_is_grounded_in_the_shipped_document`,
+`::test_the_census_building_predicate_agrees_with_the_registrys`.
+
+**The failing-first order, with the reason quoted.** The three assertions that read the
+tracked pin failed `KeyError: 'registry_building_field_presence'` against the
+implementation with the pin left unregenerated - which is the defect itself, the pin
+carrying no such census - and went green only after `--re-extract` measured it from the
+install.
+
+**The census reads the RECOGNIZED groups, and that is the one place it deliberately reads
+less than the whole document.** `census()` is otherwise handed `DocsDocument.all_groups`,
+because under-counting an unseen group is the case a census exists to detect. The presence
+key is different: the registry builds its buildings from the recognized groups only, so
+counting an unrecognized group's power-bearing entry would describe a population nothing
+publishes. `::test_the_building_census_ignores_an_entry_no_recognized_group_holds` asserts
+the exclusion and then asserts the excluded entry really is in the document, so the
+exclusion is a measurement rather than a corpus that never carried it.
+
+**Three line pointers moved, and the two forgiveness ceilings move together.** Growing the
+generated pin moved `clockspeed/data/version.py` lines 352 and 815, both pinned in
+`tests/test_docs_citations.py`. Both became MOVED dispositions naming a live symbol -
+`INTEGRITY_KEY` and `extract_pin_block`. The first could not honestly be repointed: it was
+the pin's own `integrity` VALUE line, and this cycle changed that value as well as its
+position, so its digest did not carry over.
+
+That swap is net zero - two pins out, two dispositions in, a counted population unchanged.
+The DROP comes from the third pointer: the Phase 2 leaf pinned a line in
+`clockspeed/data/registry.py`, and closing the only item in that leaf moved its body to
+`docs/history_notes.md` and removed the leaf, so the pointer left the guarded corpus
+entirely. `FORGIVEN_LINE_POINTER_CEILING` COMES DOWN 61 TO 60.
+
+**The forgiveness changed hands rather than being discharged, so both numbers move in this
+one change.** The deep archive is exempt from the citation module, but not from
+`tests/test_archive_rot.py`, which counts that same pointer in its refused form: `_ROT_FORM`
+GOES UP 13 TO 14 in `tests/test_archive_rot.py`. A pointer that leaves one arm's books and
+enters another's while only one number moves is a forgiveness lost between two guards.
+
+**This paragraph was wrong when first written, and an independent verifier refuted it
+against a green suite.** The first cut of this entry said the ceiling HELD at 61 and did
+not mention `_ROT_FORM` at all - a claim corrected in the code and not in the record, which
+is precisely the fault that makes a record worth less than the tree it describes. 61 is not
+merely wrong in prose: the budget is an exact equality in both directions, so a ceiling of
+61 against 60 recorded forgivenesses turns
+`tests/test_docs_citations.py::test_the_forgiveness_budget_is_spent_exactly_and_cannot_grow`
+RED.
+
+**Tier 2** - a schema bump on a public census plus a new exported predicate.
+
+**SHIPPED-PARTIAL BY MEASUREMENT, AND THIS PARAGRAPH IS WHY THE ITEM CLOSES ANYWAY.**
+The acceptance clause asks for a census key counting registry-published buildings that
+carry `mMaxPotential` against those that do not, and a test that grades the absent-is-None
+branch against that census rather than the synthetic corpus. Both halves shipped and are
+named above. What an adversarial lens then refuted is NOT the acceptance clause but the
+strength of the fence around the word REGISTRY-PUBLISHED: the predicate agreement is a
+seven-case VALUE table, so a marker field added to one predicate only is not caught, and
+the census counts docs ENTRIES where the registry publishes a `ClassName`-keyed dict, so a
+missing or duplicate `ClassName` would be counted and never published. On this build the
+two populations coincide exactly, which is what makes that latent rather than live.
+
+**THAT REMAINDER IS FILED AS CS-966, NOT ABSORBED HERE.** It asks for the two populations
+to be compared STRUCTURALLY rather than by a case table, over both the marker set and the
+keying, proven by two mutants that redden. It is a fence-strength item with its own
+acceptance, and it is recorded in `ROADMAP.md` in the same commit as this entry, so the
+claim and the hole in it cannot be separated by a revert.
+
+**Refutation rounds: two, and the second is what ended the round rather than a third pass.**
+Round one refuted the forgiveness-ceiling paragraph above, which was repaired in place
+because the code was already right and only the record was wrong. Round two refuted the
+population fence, and that claim was FILED rather than re-litigated - which is the
+bounded-refutation rule taking effect, not a scope cut made for convenience.
+
+**Verification. Tier 2** - the census schema moved 1 to 2 and `census()` changed its public
+signature from a group sequence to the whole `DocsDocument`, so the whole tree was paid.
+Whole suite, run by this worker from the repo root in the pre-push hook's own configuration
+(`python -m pytest tests -q -n auto --dist loadfile`), written to a file and read back:
+
+```
+6187 passed, 7 skipped, 7 warnings in 445.36s (0:07:25)
+```
+
+with pytest's own integer exit code 0. Targeted first, before that:
+`tests/data/test_version.py`, `tests/data/test_registry.py`, `tests/data/test_phase2_gate.py`,
+`tests/test_archive_rot.py` and `tests/test_docs_citations.py` together, `494 passed in 95.53s`,
+exit 0. `python -m ruff check .` exit 0.
+
+
+**The whole-suite run for this landing commit.** Observed this cycle in the lane
+worktree, spelled the way `.githooks/pre-push` spells it:
+
+```
+python -m pytest tests -q -n auto --dist loadfile
+6187 passed, 7 skipped, 7 warnings in 449.57s (0:07:29)
+PYTEST_EXIT=0
+```
+
+A summary line was parsed AND pytest's own exit code was 0, which is the only shape this
+project accepts as green. `python -m ruff check .` printed `All checks passed!`, and a
+byte-level sweep of the nine authored files found no non-ASCII byte and no CRLF, with a
+positive control proving the sweep can see one.
+
+**A bare `-n auto` on this same tree is RED, and that is the scheduler rather than this
+change.** The first whole-tree run this cycle used xdist's DEFAULT scheduler and reported
+`3 failed, 6184 passed, 7 skipped, 7 warnings in 600.13s (0:10:00)`, pytest exit 1 - over
+the same 6187 collected tests. The three were
+`tests/test_hook_interpreter_ladder.py::test_pre_push_accepts_a_real_interpreter_named_in_the_variable`,
+`tests/save/test_properties.py::test_a_cursor_width_is_discriminated_and_never_on_a_majority_of_payloads`
+and
+`tests/save/test_properties.py::test_an_extent_width_cannot_desynchronise_and_is_caught_by_disagreement`.
+All three pass SERIALLY in this lane worktree with this change staged, and all three pass
+serially in a clean detached worktree at the base commit `de9cb6d` - so they are neither a
+regression from this item nor a red base tree. The default scheduler spreads one FILE's
+tests across separate workers; `--dist loadfile` keeps them together, which is the reason
+the hook passes it.
+
+**That trap is FILED as CS-967 and is NOT fixed here**, because it is outside this row.
+
+**A SECOND WORKER RAN THIS WORKTREE CONCURRENTLY AND MEASURED THE SAME RED WITH A
+DIFFERENT FAILURE SET, WHICH IS WHAT SETTLES THE ATTRIBUTION.** Its own default-scheduler
+run reported `1 failed, 6186 passed, 7 skipped, 7 warnings in 625.77s (0:10:25)` at pytest
+exit 1, the one failure being
+`tests/save/test_struct_interior.py::test_the_tag_list_finding_does_not_reach_the_undiscriminated_partition`
+raising `MemoryError` inside `clockspeed/save/objects.py` while walking a container
+declaring 1048576 elements - not one of the three above. Re-run alone and serially on the
+identical tree it reported `1 passed` at exit 0, and that worker's own
+`-n auto --dist loadfile` run reported `6187 passed, 7 skipped, 7 warnings in 445.36s
+(0:07:25)` at exit 0. **THE ATTRIBUTION THAT WORKER FIRST WROTE HERE WAS WRONG AND IS
+CORRECTED RATHER THAN DELETED:** it blamed the memory pressure on its own verifier pass,
+which was re-extracting the shipped document at the same moment, and a sibling run with no
+verifier beside it reddening three DIFFERENT tests under the same scheduler refutes that.
+The scheduler is the common cause and the two failure sets are two of its faces. Neither
+red touches a file this row changed. Recorded because a contention red and a defect red
+are indistinguishable from a summary line, and the save layer this row never touched is
+exactly where a wrong attribution would have sent the next cycle.
+
+**THE PUSH OF THIS COMMIT DID NOT LAND ON THE FIRST ATTEMPT, AND THE REASON IS OUTSIDE
+THIS REPOSITORY.** While the cycle wrapped, `C:\Clockspeed\.git\config` - the config the
+main checkout and every worktree share - was repeatedly rewritten with `bare = true`,
+which makes every worktree git command fail with `fatal: this operation must be run in a
+work tree` and leaves a push with no working tree to run its hook against. It was
+observed returning within seconds of an UNRELATED project's pytest run starting on this
+machine, and this worker cleared it with `git config --unset core.bare` three times in
+one cycle. The same rewrite also left `user.name = Gate Test` and
+`user.email = gate@example.invalid` in that file, which would silently mis-attribute any
+commit made while it stood. FILED as CS-968; the commit recorded here carries the correct
+authorship, which was checked rather than assumed.
+
+The CI verdict for the pushed head is recorded by `ops/loop/queue_loop.py` and was NOT
+observed by this worker, which never blocks on a run it does not own.
+
+**Provenance.** The implementation was drafted by an earlier session, preserved unmerged
+and ungraded on the lane branch, and re-derived against a tree 96 commits further on
+before it was landed. Every citation in it was re-opened: the import matrix was re-read,
+the registry predicate re-located, the pin regenerated from the install rather than
+carried, and the two citation-guard consequences re-measured rather than copied. The
+regenerated integrity digest matched the draft's byte for byte - `fafa13c0...` from both -
+which is the one piece of independent confirmation that the census is reproducible from the
+install. The draft is checkable rather than asserted: it is preserved on the local branch
+`wip/cs-210-session70`, whose sole commit is the ungraded preservation of it.
+
 ### 2026-09-10 - CS-963 - CLOSED after three rounds. Refuted three times by an adversarial lens, each time against a green suite
 
 **THIS IS THE CLOSING RECORD.** Two earlier CS-963 entries below it stand as written: the

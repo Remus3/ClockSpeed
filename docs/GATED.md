@@ -392,6 +392,147 @@ grammar measured on the other three version pairs does not accept.
 DIFFERENT from the two already present. Playing the pinned development world forward and
 saving on the current game build is the only thing that produces one.
 
+**STATUS 2026-09-12 (session 86): CS-829 IS ROUTED OUT OF THIS FILE. CS-830 AND CS-831 WERE
+NEVER IN IT. THE ROUTING THE BLOCK BELOW DECLINED TO IMPROVISE IS NOW TAKEN, AND NOTHING
+HERE CLOSES ANYTHING.** The block below says in terms that it "does not by itself relocate
+this item, close CS-829, or write an acceptance clause for either", and that routing is "a
+decomposition question that was deliberately NOT improvised inside this status block".
+CS-981 in `ROADMAP.md` is that decomposition question. This block is its answer for the
+parts that live in this file.
+
+**CS-829 IS RELOCATED, NOT CLOSED AND NOT NARROWED.** Its section is gone from this file and
+its body - every fence, verbatim - now sits in `docs/item_notes/phase4-followups.md` under
+CS-829, which is the leaf the routing table in `docs/item_notes.md` names for a Phase 4 item
+in the `CS-8nn` block below CS-850. Its item LINE is back in `ROADMAP.md` under Phase 4
+carrying the acceptance clause it held before it was gated, WORD FOR WORD. **The clause was
+not rewritten and the population was not narrowed**, because CS-829's own fences say a
+restated clause is a scope change that closes as one and is not the gate clearing. Whether
+that clause is satisfiable AS WRITTEN is a MEASUREMENT, not a routing decision, and nothing
+here takes it.
+
+**WHY IT IS NO LONGER GATED, BY THIS FILE'S OWN DEFINITION.** CS-829's stated unblocking
+condition was "CS-G05 clearing". The block below records that gate as discharged. A
+condition that no longer holds is not a gate, and the rule at the top of this file says an
+item that is merely unstarted is not gated - that is `ROADMAP.md`.
+
+**NEITHER CS-830 NOR CS-831 WAS EVER FILED HERE, AND NEITHER IS OPEN WORK AT
+ALL.** CS-981's acceptance named three items as gated behind this one. One of them was. Both of the others
+are CLOSED and their records are in `docs/LEDGER.md` - CS-830 as a NARROWED close taken
+after an adversary refuted the first one, CS-831 with an acceptance the operator AMENDED the
+same day. Neither carries an open line in `ROADMAP.md` and neither has ever had a section in
+this file. The correction is recorded in CS-981's line and in its section under
+`docs/item_notes/phase4-followups-900.md`.
+
+**WHAT REMAINS OF CS-G05 ITSELF.** The block below assigns every measured residue to an item
+that is not this one: the unmeasured tag types and the extent disagreements to CS-828 and
+CS-832, the struct interiors to CS-829, and the weakest flags bit is CS-982. What is left
+over and owned by nothing is ONE thing - the PREP harness
+`tests/save/test_properties.py::test_save_60_refuses_the_grammar_the_other_pairs_accept` is
+now vacuous, its green is not evidence, and the block below says correcting it is a separate
+slice. That is work entirely inside this repository. **By this file's own definition - gated
+means no amount of work inside this repo can close it - CS-G05 IS NOT GATED, AND THE
+DECISION TAKEN HERE IS THAT IT ROUTES OUT.**
+
+**THE DECISION IS TAKEN; ITS EXECUTION IS NOT COMPLETE, AND SAYING SO IS THE POINT OF THIS
+PARAGRAPH.** Routing CS-G05 out means a `ROADMAP.md` line under its own `CS-G` ID - the
+route this file's header prescribes - plus its body relocated into the leaf the routing
+table names. That leaf is `docs/item_notes/phase4.md`: CS-G05 is a Phase 4 item whose ID
+falls outside both the `CS-8nn` and the `CS-9nn` blocks, on the same footing as CS-501.
+**That file was outside the write-list of the slice that took this decision**, and writing a
+body into a file a slice may not open - or deleting the body instead of moving it - are both
+worse than saying plainly that the move is owed. So CS-G05's section STAYS IN THIS FILE
+until its body lands in that leaf, and it stays as a DECIDED-OUT item rather than as a gate.
+**THE MOVE IS OWNED BY CS-983 IN `ROADMAP.md`, FILED 2026-09-12 BY THIS SESSION'S MERGER AFTER
+AN ADVERSARY REFUTED THE HALF-MOVE.** Its finding stands and is recorded rather than argued
+away: a section declaring that it does not meet this file's own membership rule, while
+staying in this file, is incoherent under that rule. It is a TRANSITIONAL state with a named
+owner and an acceptance clause, which is what this project does with every other state it
+cannot finish in one slice - it is not a licence to leave it here indefinitely.
+**DO NOT re-decide this, and DO NOT close CS-G05 as part of executing it.** The move is a
+relocation and every status block below travels with it, verbatim.
+
+**THE HAZARD THE MOVE MUST NOT OUTRUN.** `docs/item_notes/phase4-followups.md` under CS-847
+records two live sites in `clockspeed/save/objects.py` that hand off to `CS-G05` in prose,
+and says they are harmless only while CS-G05 stays GATED - if it CLOSED with those sentences
+standing, the module would stay green. Routing CS-G05 OUT does not close it, so the hazard
+does not fire here. It fires on a CLOSE, and CS-847 is the item that owns fixing it.
+**STATUS 2026-09-11 (session 61): THE PREMISE OF THIS ENTRY IS REFUTED. THE (14,60) ZERO WAS
+A DEFECT IN THIS REPOSITORY'S READER, NOT A PROPERTY OF THE SAVE FORMAT. IT IS FIXED, AND
+THE PROPERTY PAYLOAD NOW READS ON EVERY RECORD OF THE PINNED DEVELOPMENT WORLD.** Ground
+truth beats every document including this one - `CLAUDE.md` section 8 - and the ground truth
+is the operator's: a third-party interactive map renders container contents and machine
+settings out of THE SAME FILE on THIS machine. The data is therefore present and decodable,
+so every sentence below that reads "zero payloads reach a terminator" as a fact about the
+PAIR, and the CONTROL framing that followed from it, was a fact about
+`clockspeed/save/objects.py` instead. Nothing below is deleted: the reasoning is a record of
+how a reader defect was carried for eight sessions as a format property, which is worth more
+kept than tidied away.
+
+**THE TWO OFFSETS THAT LOCALISED IT, read out of the bytes by hand rather than hypothesised.**
+
+- **ONE OPAQUE BYTE stands between a payload's head and its first tag.** On an actor that is
+  just past the component list; on a component it is the payload's first byte. The walk
+  landed exactly one byte short of the first tag name and read that byte as the top of a
+  length prefix. This is the "single leading byte" the blocks below say "accounts for 669 of
+  1832 and nothing like all of it" - the arithmetic was right and the conclusion drawn from
+  it was wrong. It is the first half of one grammar, not a rival explanation.
+- **THE TAG SPELLS ITS TYPE AS A RECURSIVE NAME** - a word, an int32 parameter count, then
+  that many nested names - rather than as a type word followed by per-type extra strings.
+  There is no index field, and the tag closes with a FLAGS BYTE rather than a guid-present
+  flag. A container's element words are the top-level parameters of that name. Stepping the
+  lead byte ALONE gets 3215 of 3918 payloads of the current world to a terminator with ZERO
+  container values; the 703 that still break are the ones whose flags byte the old
+  guid-flag reading refuses. Neither half is a fix on its own.
+
+**THE FLAGS BYTE'S BITS ARE MEASURED ONE AT A TIME AND THE UNSEEN ONES ARE REFUSED.** Over
+9058 tags the byte takes four values: 0x00 on 6123, 0x08 on 757, 0x09 on 2 and 0x10 on 176.
+0x08 rides only on the four container-and-struct words and adds no bytes; 0x10 rides only on
+`BoolProperty` and IS its true value; 0x01 adds an int32, and that is the weakest reading in
+the repair - it rests on TWO tags, and what makes it more than a coincidence is that
+dropping the four bytes costs a whole record. **0x02 reads like a property guid and appears
+on NOT ONE TAG**, so the width of whatever follows it is unknown and a payload carrying any
+unobserved bit is FLAGGED rather than stepped over (non-negotiable 7).
+
+**WHAT THE REPAIR IS MEASURED AT, from a read-only probe reporting no path, no name, no
+string and no value.** All 3918 walked records of the pinned development world now decode
+their payload and 0 remain flagged unparsed, against 3918 of 3918 flagged before. 189
+distinct property names are published. 641 container values decode, and their element total
+is dominated by ONE `ByteProperty` array of 2^20 elements bounded by uniform width - the
+other 640 close on their own element grammar, so the aggregate is a byte blob plus 3097
+elements and not a million decoded items. 1970 object references and 1365 integers decode.
+
+**WHAT IS STILL OPEN, AND IT IS NOT THIS GATE.** 1530 tags are of types this project has not
+measured and 803 values disagree with their declared extent - both were INVISIBLE on this
+pair while nothing read at all, and both belong to the existing items that own them
+(`CS-828`, `CS-832`). **ZERO struct interiors decode on this pair**, because the repair
+deliberately did not carry the new grammar into the struct-interior reader: a struct's word
+is a parameter of the type name here, and CS-829 is the item that owns reading it. That is a
+narrower CS-829 than the one filed below, not a wider one.
+
+**THE `#### The (14,60) wall` SUB-BLOCK BELOW ASKS FRAMING OR VALUE GRAMMAR. THE ANSWER IS
+BOTH, AND ITS NAMED SUSPECT IS CLEARED.** The 22 opaque bytes inside the package summary are
+NOT the discriminator and nothing needed to read a UE5 file version: the version PAIR this
+reader already dispatches on was sufficient. The sub-block's own warning held - the
+resemblance it found was not the finding.
+
+**THE PREP HARNESS IS NOW VACUOUS AND ITS GREEN IS NOT EVIDENCE.**
+`tests/save/test_properties.py::test_save_60_refuses_the_grammar_the_other_pairs_accept`
+still passes, and it passes because its sweep carries its own independent reader of the
+LEGACY tag grammar. Its zero is therefore a true statement about that grammar and a FALSE
+statement about the save, which its own docstring now asserts ("save 60 reaches a terminator
+on no payload at all"). **Correcting it is a separate slice** - that file was outside the
+write-list of the slice that made this measurement, and rewriting a test to match a repair
+in the same breath as the repair is exactly the self-grading `CLAUDE.md` section 5 forbids.
+Until then, do not cite that test's green for anything.
+
+**WHAT THIS DOES NOT DO.** It does not by itself relocate this item, close CS-829, or write
+an acceptance clause for either. The GATE - "no amount of work inside this repo can close
+it" - is what is refuted, since work inside this repo did close it; where the residue lives
+under `CLAUDE.md` section 4 is a routing decision, and improvising one inside a status block
+is the synthetic closure this file's own rule forbids. Graded by
+`tests/save/test_property_payload_14_60.py`, on a SYNTHETIC (14,60) fixture, so every arm
+runs on a machine with no game and no save.
+
 **STATUS 2026-08-16 (session 15): THE OPERATOR PLAYED THE WORLD FORWARD AND SAVED. THE
 CONDITION IS PLAUSIBLY MET AND IS DELIBERATELY NOT DECLARED MET.** Measured read-only,
 counts only: the pair now has FIVE files where the entry above was written against two,
@@ -563,106 +704,6 @@ terminator. The observation that zero reached one "at every alignment tried"
 argues against a pure start-offset error, but the set of alignments tried was
 never recorded, so it does not settle it either. Do not close CS-G05 by
 resemblance to the three readable pairs - its own section forbids exactly that.
-
-### CS-829 - StructProperty's interior, gated behind CS-G05
-
-**One line:** Read the interior of every `StructProperty` the shipped vocabulary names, and
-grade it as an EQUALITY over that population.
-
-**Unblocked by:** CS-G05 clearing. Operator ruling, session 50, taken on an adjudicator's
-verdict against the item's own acceptance clause.
-
-**WHY IT IS GATED AND NOT MERELY HARD.** The acceptance clause names "EVERY record carrying
-a struct type word the shipped vocabulary names". **23529 struct type words sit in the bytes
-of records NO reading opens** - they belong to the version pair whose payload grammar is
-exactly what CS-G05 exists to measure. The clause's literal population therefore contains a
-class this repo cannot grade at all, and no amount of work inside the repo changes that
-while CS-G05 stands. The item was rewritten twice for unsatisfiability in one day at filing;
-this is the same fault surviving in a third form, and dispatching a sixth build against the
-present wording produces a sixth refutation for the first draft's reason.
-
-**THE ITEM IS NOT MOVED HERE TO PARK IT.** It is moved because the gate is real and was
-being paid for in refutations instead of being named. Four rounds were spent relocating a
-shared substrate; the fifth relocated it again and is filed as CS-863. None of that work
-touches the 23529.
-
-**DRAIN - blocked, untouchable until CS-G05 clears:**
-
-- The equality the clause demands over its literal population. The 23529 unreached words are
-  in it and cannot be reached.
-- `compatible_decoded == size_compatible` with no ceiling. `_COMPATIBLE_REFUSAL_CEILING` is
-  64 against an observed residue of 12, so the shipped grade is a floor plus a ceiling with
-  52 of headroom where the clause says "an EQUALITY over that population and not as a floor".
-  The 12 residual refusals are not explained. Whether they can be, without the gated pair's
-  grammar, is itself unmeasured.
-- Any restatement of the clause's population. **A restated clause is a scope change and
-  closes as one**, with its own record - it is not this gate clearing. The rule at the top
-  of this file covers exactly this move.
-
-**PREP - workable now, and mostly already built:**
-
-- `tests/save/independent_table.py` reads the record framing without calling one shipped
-  reader, and its output equals the shipped table element-for-element across the library.
-  Merged session 50.
-- The record-table anti-monotone control. Its limits were CS-862, which CLOSED
-  2026-08-31 - see `docs/LEDGER.md`. The control's own claim is now narrowed to the one
-  bit of wiring it grades, and the second reading is separated from the shipped record
-  table by dynamic arms that redden for a wrapper, including through the `getattr` route
-  no static arm sees.
-- The follow-ups CS-864 and CS-865 are PREP and still OPEN. CS-866 CLOSED 2026-08-31.
-  CS-868, CS-869, CS-870 and CS-871 joined the PREP set the same day - the first three from
-  an adversarial pass that REFUTED CS-863's two arms, the fourth from the adjudication of
-  CS-866. They are the harness that will grade the DRAIN half when the gate clears, and
-  every one of them is worth doing before it does.
-- CS-862, CS-863 and CS-866 are done - see `docs/LEDGER.md`, INCLUDING THE CORRECTIONS.
-  CS-862's record is corrected twice and CS-863's once, and all three corrections narrow
-  what the arms are shown to grade rather than widening it. Read the corrections before
-  trusting any scope claim in the entries beneath them.
-
-**WHAT WOULD BE A SYNTHETIC CLOSE HERE**, named so it is recognised: narrowing the graded
-population to the reachable, size-compatible sites and declaring the clause met. That is
-the proxy substitution this file's opening rule describes. The narrowing may well be the
-right ENGINEERING answer - it is what the shipped arms already do - but it is a scope change
-and it needs the operator's ruling and its own record, not a green suite.
-
-**THE FENCES, CARRIED FORWARD FROM THE ITEM NOTE.** The rounds-1-to-5 record is archived at
-`docs/history_notes.md` under **CS-829**, and that file holds nothing current by its own
-header - so the standing instructions live here, where the item now does:
-
-- **DO NOT re-pitch this as the inventory item.** Its first acceptance asked for
-  `InventoryStack` off a real BUILDING and MEASURED over the real library: no building record
-  carries one. A building holds an `ObjectProperty` REFERENCE to a separate inventory
-  component and the stacks live over there inside a container property, so inventory sits
-  behind the cross-record join (CS-831), the container element framing (CS-830), and only
-  then this item. An operator ruling on CS-400 clause 1 was obtained on that false premise
-  and has been restated by SUBSTANCE rather than by item id as a result.
-- **DO NOT hand-write a struct vocabulary.** Derive the population. A transcribed list of
-  observed type words is the hand-maintained list this project has repeatedly recorded as
-  the thing that rots.
-- **DO NOT define the population by the decoder's own success.** That is an identity: a
-  decoder refusing a word outright does not fail, the word merely leaves the class and is
-  relabelled. It was proven mechanically against two hundred thousand arbitrary wrong
-  decoders, none of which it caught. The population is every site whose DECLARED SIZE could
-  hold a tag list, which never calls the decoder.
-- **DO NOT grade over the pool.** Every quantifier ranging over a set is asserted per member
-  of that set. Pooling three container words is exactly how CS-830 shipped a word with no
-  element-grammar evidence behind one that had plenty.
-- **DO NOT skip `_UNEXPLAINED_WORD_CEILING`.** The skip was built, measured and REVERTED: an
-  in-process mutant refusing the weakest reading word at `objects._decode_struct_interior` is
-  caught by that arm and NO OTHER, so the skip that spares the subset spares a real defect.
-  Its own residual work is CS-865.
-- **DISTINCT FROM CS-456**, which asks whether a WRONG tag-extra width is discriminated for
-  the four types that ship one. That is a question about the FRAMING; this item is about the
-  CONTENTS. Closing either leaves the other open.
-- **DO NOT re-pitch `BODY_LAYOUT_BY_PAIR` as the next shared substrate.** Measured session
-  50: 53 of 56 layout plants make `parse_body` raise and `assert not sweep.failures` catches
-  them, 3 are equivalent mutants, silent loss is zero. The shared SCALARS were the live
-  hole after it and they were CS-863, which CLOSED 2026-08-31: the second tag reading no
-  longer consults the shipped tag ceiling, and every shipped symbol it still shares is
-  enumerated at the point of use rather than sampled in prose. The measurement of what a
-  plant on each of those does is in that item's ledger entry - two of the three ceilings
-  KILL rather than degrade, so they are recorded UNESTABLISHED rather than safe, and one
-  shared width moves nothing at all.
 
 ---
 

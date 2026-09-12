@@ -74,6 +74,135 @@ one. Do not restate it as a defect in the body walk.
 **DO NOT close this by widening the declared-length step.** Stepping over a region is what
 makes the body walk exact today; the question is what the region CONTAINS, and a step is not a
 reading.
+## CS-829
+
+### Relocated 2026-09-12 from `docs/GATED.md` by session 86
+
+**WHY IT MOVED, AND WHAT DID NOT HAPPEN.** CS-829 sat in `docs/GATED.md` with its unblocking
+condition stated as "CS-G05 clearing". That condition no longer holds - the STATUS block at
+the head of CS-G05's section in `docs/GATED.md` records that gate as discharged - and
+`docs/GATED.md`'s own opening rule says an item that is merely unstarted is not gated. So
+the item LINE is routed back to `ROADMAP.md` under Phase 4 and its body comes here, which is
+the leaf `docs/item_notes.md` routes a Phase 4 item in the `CS-8nn` block below CS-850 to.
+
+**NOTHING ABOUT THE ITEM CHANGED IN THE MOVE.** It is NOT closed, its population is NOT
+narrowed, and its acceptance clause is carried into `ROADMAP.md` word for word as it stood
+before it was gated. Whether that clause is satisfiable AS WRITTEN is a measurement that had
+not been taken when this block was filed; taking it is the first thing the item asks for,
+and it is not something a routing pass may assume in either direction.
+
+**THE FENCES BELOW ARE LIVE INSTRUCTIONS AND TRAVEL WITH THE ITEM.** The body is relocated
+VERBATIM under the family rule in `docs/item_notes.md`, so its DRAIN and PREP split still
+reads as it did while the item was gated. Read "blocked, untouchable until CS-G05 clears" as
+a record of the state the item was in, not as a current claim about it. Everything the
+fences forbid - re-pitching this as the inventory item, hand-writing a struct vocabulary,
+defining the population by the decoder's own success, grading over the pool, skipping
+`_UNEXPLAINED_WORD_CEILING`, restating the clause without an operator ruling and its own
+record - is forbidden exactly as before. The gate going away removed a blocker, not a fence.
+
+### CS-829 - StructProperty's interior, gated behind CS-G05
+
+**One line:** Read the interior of every `StructProperty` the shipped vocabulary names, and
+grade it as an EQUALITY over that population.
+
+**Unblocked by:** CS-G05 clearing. Operator ruling, session 50, taken on an adjudicator's
+verdict against the item's own acceptance clause.
+
+**WHY IT IS GATED AND NOT MERELY HARD.** The acceptance clause names "EVERY record carrying
+a struct type word the shipped vocabulary names". **23529 struct type words sit in the bytes
+of records NO reading opens** - they belong to the version pair whose payload grammar is
+exactly what CS-G05 exists to measure. The clause's literal population therefore contains a
+class this repo cannot grade at all, and no amount of work inside the repo changes that
+while CS-G05 stands. The item was rewritten twice for unsatisfiability in one day at filing;
+this is the same fault surviving in a third form, and dispatching a sixth build against the
+present wording produces a sixth refutation for the first draft's reason.
+
+**THE ITEM IS NOT MOVED HERE TO PARK IT.** It is moved because the gate is real and was
+being paid for in refutations instead of being named. Four rounds were spent relocating a
+shared substrate; the fifth relocated it again and is filed as CS-863. None of that work
+touches the 23529.
+
+**DRAIN - blocked, untouchable until CS-G05 clears:**
+
+- The equality the clause demands over its literal population. The 23529 unreached words are
+  in it and cannot be reached.
+- `compatible_decoded == size_compatible` with no ceiling. `_COMPATIBLE_REFUSAL_CEILING` is
+  64 against an observed residue of 12, so the shipped grade is a floor plus a ceiling with
+  52 of headroom where the clause says "an EQUALITY over that population and not as a floor".
+  The 12 residual refusals are not explained. Whether they can be, without the gated pair's
+  grammar, is itself unmeasured.
+- Any restatement of the clause's population. **A restated clause is a scope change and
+  closes as one**, with its own record - it is not this gate clearing. The rule at the top
+  of `docs/GATED.md` - "The rule that protects this file" - covers exactly this move.
+  THAT POINTER WAS RELATIVE AND IS MADE ABSOLUTE HERE: this bullet was written while the
+  item lived in that file, and "this file" meant it. Nothing else in the bullet is changed.
+
+**PREP - workable now, and mostly already built:**
+
+- `tests/save/independent_table.py` reads the record framing without calling one shipped
+  reader, and its output equals the shipped table element-for-element across the library.
+  Merged session 50.
+- The record-table anti-monotone control. Its limits were CS-862, which CLOSED
+  2026-08-31 - see `docs/LEDGER.md`. The control's own claim is now narrowed to the one
+  bit of wiring it grades, and the second reading is separated from the shipped record
+  table by dynamic arms that redden for a wrapper, including through the `getattr` route
+  no static arm sees.
+- The follow-ups CS-864 and CS-865 are PREP and still OPEN. CS-866 CLOSED 2026-08-31.
+  CS-868, CS-869, CS-870 and CS-871 joined the PREP set the same day - the first three from
+  an adversarial pass that REFUTED CS-863's two arms, the fourth from the adjudication of
+  CS-866. They are the harness that will grade the DRAIN half when the gate clears, and
+  every one of them is worth doing before it does.
+- CS-862, CS-863 and CS-866 are done - see `docs/LEDGER.md`, INCLUDING THE CORRECTIONS.
+  CS-862's record is corrected twice and CS-863's once, and all three corrections narrow
+  what the arms are shown to grade rather than widening it. Read the corrections before
+  trusting any scope claim in the entries beneath them.
+
+**WHAT WOULD BE A SYNTHETIC CLOSE HERE**, named so it is recognised: narrowing the graded
+population to the reachable, size-compatible sites and declaring the clause met. That is
+the proxy substitution the opening rule of `docs/GATED.md` describes - again a relative
+pointer made absolute, for the reason the bullet above states. The narrowing may well be the
+right ENGINEERING answer - it is what the shipped arms already do - but it is a scope change
+and it needs the operator's ruling and its own record, not a green suite.
+
+**THE FENCES, CARRIED FORWARD FROM THE ITEM NOTE.** The rounds-1-to-5 record is archived at
+`docs/history_notes.md` under **CS-829**, and that file holds nothing current by its own
+header - so the standing instructions live here, where the item now does:
+
+- **DO NOT re-pitch this as the inventory item.** Its first acceptance asked for
+  `InventoryStack` off a real BUILDING and MEASURED over the real library: no building record
+  carries one. A building holds an `ObjectProperty` REFERENCE to a separate inventory
+  component and the stacks live over there inside a container property, so inventory sits
+  behind the cross-record join (CS-831), the container element framing (CS-830), and only
+  then this item. An operator ruling on CS-400 clause 1 was obtained on that false premise
+  and has been restated by SUBSTANCE rather than by item id as a result.
+- **DO NOT hand-write a struct vocabulary.** Derive the population. A transcribed list of
+  observed type words is the hand-maintained list this project has repeatedly recorded as
+  the thing that rots.
+- **DO NOT define the population by the decoder's own success.** That is an identity: a
+  decoder refusing a word outright does not fail, the word merely leaves the class and is
+  relabelled. It was proven mechanically against two hundred thousand arbitrary wrong
+  decoders, none of which it caught. The population is every site whose DECLARED SIZE could
+  hold a tag list, which never calls the decoder.
+- **DO NOT grade over the pool.** Every quantifier ranging over a set is asserted per member
+  of that set. Pooling three container words is exactly how CS-830 shipped a word with no
+  element-grammar evidence behind one that had plenty.
+- **DO NOT skip `_UNEXPLAINED_WORD_CEILING`.** The skip was built, measured and REVERTED: an
+  in-process mutant refusing the weakest reading word at `objects._decode_struct_interior` is
+  caught by that arm and NO OTHER, so the skip that spares the subset spares a real defect.
+  Its own residual work is CS-865.
+- **DISTINCT FROM CS-456**, which asks whether a WRONG tag-extra width is discriminated for
+  the four types that ship one. That is a question about the FRAMING; this item is about the
+  CONTENTS. Closing either leaves the other open.
+- **DO NOT re-pitch `BODY_LAYOUT_BY_PAIR` as the next shared substrate.** Measured session
+  50: 53 of 56 layout plants make `parse_body` raise and `assert not sweep.failures` catches
+  them, 3 are equivalent mutants, silent loss is zero. The shared SCALARS were the live
+  hole after it and they were CS-863, which CLOSED 2026-08-31: the second tag reading no
+  longer consults the shipped tag ceiling, and every shipped symbol it still shares is
+  enumerated at the point of use rather than sampled in prose. The measurement of what a
+  plant on each of those does is in that item's ledger entry - two of the three ceilings
+  KILL rather than degrade, so they are recorded UNESTABLISHED rather than safe, and one
+  shared width moves nothing at all.
+
 ## CS-839
 
 ### NOTE - filed 2026-08-23 by the merger

@@ -62,6 +62,11 @@ WORKER_PID = 4321
 ZERO = 0
 ONE = 1
 
+#: How many ``raise LaneLaunchError(...)`` sites the launcher holds. Named
+#: rather than inline so the structural sweep below states the population it
+#: grades: a sweep that finds nothing passes for the wrong reason.
+RAISE_SITES: Final = 12
+
 #: The last code point 7-bit ASCII covers. A .ps1 byte above it is the
 #: PowerShell 5.1 ANSI-decode hazard, so this is a byte-level bound rather than
 #: a style threshold.
@@ -733,3 +738,298 @@ def test_the_runner_quotes_every_path_it_is_handed() -> None:
         if ("Set-Location $Cwd" in line) or ("Out-File $Log" in line)
     ]
     assert unquoted == []
+
+
+# ===========================================================================
+# g. The refusal vocabulary - why a launch was refused, said in a closed word
+# ===========================================================================
+
+
+def _launch_error_raise_calls() -> list[ast.Call]:
+    """Every ``raise LaneLaunchError(...)`` call node in the launcher.
+
+    THE SAME TRAVERSAL IDIOM ``_creation_flag_arguments`` above uses, and
+    deliberately so: a second traversal shape in one file is how two arms come
+    to walk different trees. The property graded here - that a raise site NAMED
+    a reason - is a keyword that is passed, and a keyword never passed in a test
+    is a keyword no runtime test can see.
+
+    Returns:
+        One call node per raise site, in source order.
+    """
+    tree = ast.parse(LAUNCHER_SOURCE.read_text(encoding="utf-8"))
+    found: list[ast.Call] = []
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Raise):
+            continue
+        raised = node.exc
+        if not isinstance(raised, ast.Call) or not isinstance(raised.func, ast.Name):
+            continue
+        if raised.func.id == "LaneLaunchError":
+            found.append(raised)
+    return found
+
+
+def _reason_keyword_values() -> list[ast.expr]:
+    """The expression handed to every ``reason=`` on a launch-error raise site.
+
+    Returns:
+        One expression per site that passes the keyword, in source order.
+    """
+    return [
+        keyword.value
+        for call in _launch_error_raise_calls()
+        for keyword in call.keywords
+        if keyword.arg == "reason"
+    ]
+
+
+def test_every_launch_error_raise_site_names_a_reason() -> None:
+    """A raise site that forgets its code is caught BEFORE it reaches main.
+
+    The runtime default degrades safely to ``unspecified``, which is a real
+    member of the closed set - but a launcher that refuses and cannot say why
+    is the whole defect CS-970 exists to close, so the structural arm is what
+    stops a new site from landing without one.
+
+    The population is asserted NON-EMPTY and asserted to be exactly the twelve
+    sites that exist, because a sweep over an empty population passes for the
+    wrong reason: "every member has a reason" is vacuously true of no members.
+    """
+    calls = _launch_error_raise_calls()
+    population = len(calls)
+    assert population > ZERO, "no raise site was found - the sweep would be vacuous"
+    assert population == RAISE_SITES, "the launcher's raise sites moved"
+    unnamed = [
+        ast.unparse(call)
+        for call in calls
+        if not any(keyword.arg == "reason" for keyword in call.keywords)
+    ]
+    assert unnamed == [], "a raise site refuses without naming a reason"
+    values = _reason_keyword_values()
+    not_a_constant = [ast.unparse(value) for value in values if not isinstance(value, ast.Name)]
+    assert not_a_constant == [], "a reason was spelled inline instead of named"
+    codes = [getattr(launcher, value.id, None) for value in values if isinstance(value, ast.Name)]
+    unknown = [code for code in codes if code not in launcher.LAUNCH_REASONS]
+    assert unknown == [], "a raise site names a code outside the closed vocabulary"
+    distinct = len(set(codes))
+    assert distinct == population, "two raise sites share one reason code"
+
+
+def test_the_reason_vocabulary_is_lowercase_ascii_and_path_free() -> None:
+    """Path-free BY CONSTRUCTION rather than by review.
+
+    ``[a-z_]+`` cannot express a drive letter, a separator, a space or a digit,
+    so no member of this tuple can ever carry a worktree path, an account id or
+    a world name into a row an operator reads (CLAUDE.md non-negotiable 12).
+    The guarantee is the character class, not anyone's care in choosing words.
+    """
+    vocabulary = launcher.LAUNCH_REASONS
+    is_tuple = isinstance(vocabulary, tuple)
+    assert is_tuple, "the vocabulary is not a tuple, so it is not closed"
+    population = len(vocabulary)
+    assert population > ZERO, "the vocabulary is empty"
+    distinct = len(set(vocabulary))
+    assert distinct == population, "the vocabulary repeats a code"
+    offenders = [code for code in vocabulary if not re.fullmatch(r"[a-z_]+", str(code))]
+    assert offenders == [], "a reason code is not lowercase-ascii and path-free"
+    assert launcher.REASON_UNSPECIFIED in vocabulary
+
+
+def test_a_lock_that_cannot_be_repointed_names_repoint_refused(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The refusal the C4 evidence names as the best-fit live cause.
+
+    Same plant as ``test_a_lock_that_cannot_be_repointed_kills_the_worker_and_releases``
+    above - re-authoring it would give two arms two subjects. What is new is the
+    ORACLE: the code on the exception is asserted by VALUE, so an arm that only
+    proved a reason was present would not pass this one.
+    """
+    root, claim = _acquire(tmp_path)
+    killed: list[int] = []
+
+    def refuse(*_args: Any, **_kwargs: Any) -> bool:
+        return False
+
+    monkeypatch.setattr(launcher, "_kill", killed.append)
+    monkeypatch.setattr(launcher.lanes, "repoint_lane_pid", refuse)
+    with pytest.raises(launcher.LaneLaunchError, match="re-point") as caught:
+        _launch(tmp_path, _Spawn(), claim["token"])
+    named = caught.value.reason
+    assert named == launcher.REASON_REPOINT_REFUSED
+    assert killed == [WORKER_PID]
+    released = not _held(root)
+    assert released
+
+
+def test_a_raise_site_that_forgets_its_reason_degrades_to_unspecified() -> None:
+    """The default is a DEFINED word, never a blank and never ``None``.
+
+    A driver validates the code against a closed set before writing it. A blank
+    default would fail that membership test and be discarded, so the row would
+    say nothing at all; ``unspecified`` is a member, so the row says "the
+    launcher refused and did not say why" - which is information.
+
+    ``str(exc)`` is asserted verbatim because nine existing ``match=`` arms in
+    this file and two bare constructions elsewhere depend on the rendering
+    being byte-identical to what it was before the keyword existed.
+    """
+    message = "a message with no reason"
+    exc = launcher.LaneLaunchError(message)
+    named = exc.reason
+    assert named == launcher.REASON_UNSPECIFIED
+    assert named in launcher.LAUNCH_REASONS
+    rendered = str(exc)
+    assert rendered == message
+
+
+# ---------------------------------------------------------------------------
+# g2. CS-970 REPAIR - the fence, and the mapping the fence does not cover.
+#
+# The arm above walks nested functions, class bodies, except handlers and
+# conditional branches, and an adversary confirmed it finds all four. What it
+# could NOT see was the SHAPE of the raise: it required an `ast.Call` whose
+# func is an `ast.Name`, so `exc = LaneLaunchError(...); raise exc`, an aliased
+# name, `raise mod.LaneLaunchError(...)` and bare `raise LaneLaunchError` were
+# all invisible to it. A probe planted eight such sites and the sweep saw four,
+# and the `population == RAISE_SITES` fence did not fire either - so a
+# thirteenth reasonless refusal path could land green.
+#
+# SEPARATELY: the arms above grade membership, distinctness and a count, and
+# NOTHING binds a code to the MEANING of the site that raises it. Swapping
+# REASON_GIT_NOT_FOUND onto the lane-not-wired site keeps the population at
+# twelve, all members, all distinct - green. A wrong-but-valid code is worse
+# than the bare type name it replaced, because the row then names a cause
+# confidently and sends the operator to the wrong file.
+# ---------------------------------------------------------------------------
+
+#: Exception types the launcher may raise that are NOT launch refusals, named
+#: here so the fence below can be DEFAULT-DENY. Everything not on this list and
+#: not a direct `LaneLaunchError(...)` call is rejected, which is what makes the
+#: via-variable, aliased, attribute-qualified and bare-class forms impossible to
+#: land silently. Widening this list is a visible edit, which is the point.
+NON_REFUSAL_RAISES: Final = ("ImportError",)
+
+#: THE REVIEWED SITE-TO-CODE MAPPING, keyed by `(enclosing qualified function,
+#: ordinal within that function)`.
+#:
+#: WHY THAT KEY. A line number rots on the next edit above it. A message string
+#: rots on the next reword. A function name plus a position inside it is stable
+#: across every edit that does not MOVE the site, and an edit that does move a
+#: site is exactly the edit that should be re-reviewed. Swapping two codes
+#: between any two sites reddens, because the key of each is unchanged while its
+#: value is not.
+SITE_REASONS: Final = {
+    ("command_path", 0): "REASON_LANE_NOT_WIRED",
+    ("command_path", 1): "REASON_COMMAND_DOC_MISSING",
+    ("_git", 0): "REASON_GIT_NOT_FOUND",
+    ("_refuse_main_tree", 0): "REASON_MAIN_TREE_REFUSED",
+    ("ensure_worktree", 0): "REASON_WORKTREE_CREATE_FAILED",
+    ("_spawn", 0): "REASON_RUNNER_MISSING",
+    ("_spawn", 1): "REASON_SHELL_NOT_FOUND",
+    ("_spawn", 2): "REASON_SPAWN_FAILED",
+    ("_spawn", 3): "REASON_RUNNER_EXITED_EARLY",
+    ("launch_lane", 0): "REASON_SPAWN_NO_PID",
+    ("launch_lane", 1): "REASON_REPOINT_REFUSED",
+    ("launch_lane", 2): "REASON_UNEXPECTED_FAULT",
+}
+
+
+def _raises_by_function() -> list[tuple[str, ast.Raise]]:
+    """Every ``raise`` in the launcher, paired with its enclosing function.
+
+    The qualified name is built on the way DOWN rather than looked up
+    afterwards, because ``ast.walk`` discards the parent and a second pass to
+    recover it is how two arms come to disagree about which function a node
+    sits in. A raise at module scope gets the name ``"<module>"``, which is
+    itself a site the mapping would have to declare.
+
+    Returns:
+        ``(qualified function name, raise node)`` pairs, in source order.
+    """
+    tree = ast.parse(LAUNCHER_SOURCE.read_text(encoding="utf-8"))
+    found: list[tuple[str, ast.Raise]] = []
+
+    def descend(node: ast.AST, qualname: str) -> None:
+        for child in ast.iter_child_nodes(node):
+            if isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                descend(child, f"{qualname}.{child.name}" if qualname else child.name)
+                continue
+            if isinstance(child, ast.Raise):
+                found.append((qualname or "<module>", child))
+            descend(child, qualname)
+
+    descend(tree, "")
+    return found
+
+
+def _refusal_sites() -> list[tuple[tuple[str, int], ast.Call]]:
+    """Every launch-refusal raise site, keyed by function and ordinal.
+
+    Returns:
+        ``((function, ordinal), call node)`` pairs, in source order.
+    """
+    seen: dict[str, int] = {}
+    sites: list[tuple[tuple[str, int], ast.Call]] = []
+    for qualname, node in _raises_by_function():
+        raised = node.exc
+        if not isinstance(raised, ast.Call) or not isinstance(raised.func, ast.Name):
+            continue
+        if raised.func.id != "LaneLaunchError":
+            continue
+        ordinal = seen.get(qualname, 0)
+        seen[qualname] = ordinal + 1
+        sites.append(((qualname, ordinal), raised))
+    return sites
+
+
+def test_no_launch_refusal_can_hide_behind_an_ungraded_raise_shape() -> None:
+    """DEFAULT-DENY over raise SHAPES, not an allowlist of the ones we thought of.
+
+    The reason arm above can only grade a site it can SEE, and it sees only
+    ``raise LaneLaunchError(...)`` spelled directly. This arm closes the gap
+    from the other side: every ``raise`` in the launcher must be a shape the
+    reason arm can grade, a bare re-raise, or a declared non-refusal type.
+    Anything else - a variable, an attribute, an alias, a bare class - is a
+    refusal path that could carry no reason and never be counted.
+    """
+    ungraded: list[str] = []
+    for qualname, node in _raises_by_function():
+        raised = node.exc
+        if raised is None:
+            continue  # a bare re-raise carries the original exception whole
+        if (
+            isinstance(raised, ast.Call)
+            and isinstance(raised.func, ast.Name)
+            and (raised.func.id == "LaneLaunchError" or raised.func.id in NON_REFUSAL_RAISES)
+        ):
+            continue
+        ungraded.append(f"{qualname}: raise {ast.unparse(raised)}")
+    assert ungraded == [], (
+        "a raise shape the reason sweep cannot see - a refusal could land here "
+        "carrying no reason code and never be counted"
+    )
+
+
+def test_every_raise_site_keeps_the_reason_code_it_was_reviewed_with() -> None:
+    """THE MAPPING, pinned - membership and distinctness do not imply CORRECTNESS.
+
+    Twelve distinct members can be twelve WRONG members. A code that names the
+    wrong cause is worse than no code at all, because the operator acts on it.
+    Only one of the twelve mappings had a value oracle before this arm; this
+    pins the other eleven against the reading they were reviewed under.
+    """
+    sites = _refusal_sites()
+    assert sites, "no refusal site was found - the sweep would be vacuous"
+    actual: dict[tuple[str, int], str] = {}
+    for key, call in sites:
+        named = [kw.value for kw in call.keywords if kw.arg == "reason"]
+        assert len(named) == 1, f"{key} does not pass exactly one reason"
+        value = named[0]
+        assert isinstance(value, ast.Name), f"{key} spells its reason inline"
+        actual[key] = value.id
+    assert actual == SITE_REASONS, (
+        "a raise site no longer carries the reason code it was reviewed with; "
+        "re-read the site and update SITE_REASONS deliberately"
+    )

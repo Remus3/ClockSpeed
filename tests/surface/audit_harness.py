@@ -98,6 +98,7 @@ from types import MappingProxyType
 from typing import TYPE_CHECKING, Final
 
 import clockspeed
+from clockspeed.audit import placement
 from clockspeed.data import version
 from clockspeed.save.header import masked_token
 from clockspeed.save.objects import REASON_CLASS_NOT_MODELLED
@@ -109,6 +110,7 @@ from clockspeed.save.world import (
 )
 from clockspeed.surface import config, server
 from clockspeed.surface.api import contract, health, pending, registry, solve
+from clockspeed.surface.api import map as map_endpoint
 
 if TYPE_CHECKING:
     from collections.abc import Mapping
@@ -270,6 +272,164 @@ def _world_data() -> dict[str, object]:
         "warnings": _warnings(),
         "unknown_classes": _unknown_classes(),
     }
+
+
+# ---------------------------------------------------------------------------
+# The map body - the one canned answer with a SHAPE rather than a scalar
+# ---------------------------------------------------------------------------
+
+#: The synthetic world the map body describes, as (class name, count) pairs laid
+#: out on a deterministic lattice by :func:`_map_placements`. IT IS AUTHORED
+#: RATHER THAN SAMPLED. A slice of a real save would be personal data under
+#: non-negotiable 11, and a handful of points would grade a page that the real
+#: one - hundreds of nodes deep - renders quite differently. These populations
+#: are the order of magnitude the pinned development world actually carries, so
+#: the visual audit sees a plausible density instead of a diagram.
+_MAP_NODE_CLASSES: Final = (
+    ("BP_ResourceNode_C", 46),
+    ("BP_ResourceDeposit_C", 19),
+    ("BP_FrackingSatellite_C", 12),
+    ("BP_ResourceNodeGeyser_C", 4),
+    ("BP_FrackingCore_C", 2),
+)
+
+#: The built population, on the same terms. Mixed tiers on purpose: a legend
+#: with one entry proves nothing about a legend with seven.
+_MAP_BUILT_CLASSES: Final = (
+    ("Build_MinerMk1_C", 9),
+    ("Build_SmelterMk1_C", 7),
+    ("Build_ConstructorMk1_C", 5),
+    ("Build_GeneratorCoal_C", 3),
+    ("Build_WaterPump_C", 2),
+    ("Build_StorageContainerMk1_C", 2),
+)
+
+#: The lattice's extent in the game's own units, and its step. Whole numbers,
+#: rendered with a fractional part, so every coordinate on this wire has the
+#: SHAPE a real one has - a decimal string - without carrying a real one.
+_MAP_SPAN: Final = 240000
+_MAP_STEP: Final = 7919
+
+
+def _map_placements(
+    populations: tuple[tuple[str, int], ...], phase: int
+) -> tuple[list[dict[str, object]], dict[str, int]]:
+    """Lay a population out on a deterministic lattice.
+
+    The walk is a fixed stride around a ring, so the same input yields the same
+    output on every run and on every machine - a canned body that moved between
+    runs would make a visual audit unrepeatable.
+
+    Args:
+        populations: Class name and how many of it to place.
+        phase: An offset that separates one population from another, so nodes
+            and built actors do not land on identical coordinates.
+
+    Returns:
+        The placement rows, and the per-class counts. The counts are DERIVED
+        from the rows rather than copied from the input, so the two cannot
+        disagree - which is the property the panel's legend depends on.
+    """
+    rows: list[dict[str, object]] = []
+    counts: dict[str, int] = {}
+    seed = _MAP_STEP + phase
+    for class_name, count in populations:
+        for _ in range(count):
+            # A TEXTBOOK LINEAR CONGRUENTIAL STEP, NOT A STRIDE AROUND A RING.
+            # The stride version laid every population out on three straight
+            # diagonals - deterministic, and nothing like a world. A visual
+            # audit against a fixture that could not occur grades a page nobody
+            # will ever see. This is still fully deterministic: same seed, same
+            # points, every run and every machine.
+            seed = (seed * 1103515245 + 12345) % 2147483648
+            x = (seed % (2 * _MAP_SPAN)) - _MAP_SPAN
+            seed = (seed * 1103515245 + 12345) % 2147483648
+            y = (seed % (2 * _MAP_SPAN)) - _MAP_SPAN
+            seed = (seed * 1103515245 + 12345) % 2147483648
+            z = (seed % 20000) - 10000
+            rows.append(
+                {
+                    "class_name": class_name,
+                    "x": f"{x}.0",
+                    "y": f"{y}.0",
+                    "z": f"{z}.0",
+                }
+            )
+        counts[class_name] = count
+    return rows, counts
+
+
+def _map_data() -> dict[str, object]:
+    """Build the ``/api/map`` data object a populated save produces.
+
+    KEYED FROM THE ENDPOINT'S OWN TUPLES, not from a second list written here.
+    ``clockspeed/surface/api/map.py`` owns the key set; a hand-written copy is
+    the restated fact CLAUDE.md section 4 names as one that will drift, and the
+    drift would be silent - a canned body missing a key renders as a panel with
+    an empty section rather than as a failure.
+
+    Returns:
+        The body, keyed exactly as the endpoint keys it.
+    """
+    nodes, node_counts = _map_placements(_MAP_NODE_CLASSES, phase=0)
+    built, built_counts = _map_placements(_MAP_BUILT_CLASSES, phase=3557)
+    body: dict[str, object] = {
+        "schema": map_endpoint.SCHEMA,
+        "masked_token": masked_token(SYNTHETIC_WORLD_SEED),
+        "coordinate_units": placement.COORDINATE_UNITS,
+        "node_semantics_available": False,
+        "bounds": {
+            "min_x": f"-{_MAP_SPAN}.0",
+            "max_x": f"{_MAP_SPAN}.0",
+            "min_y": f"-{_MAP_SPAN}.0",
+            "max_y": f"{_MAP_SPAN}.0",
+            "min_z": "-10000.0",
+            "max_z": "10000.0",
+        },
+        "nodes": nodes,
+        "node_counts": node_counts,
+        "built": built,
+        "built_counts": built_counts,
+        "inventory": [],
+        "throughput": [
+            {
+                "class_name": "Build_MinerMk1_C",
+                "display_name": "Miner Mk.1",
+                "built": 9,
+                "per_minute_normal": "60",
+                "per_minute_unit": map_endpoint.RATE_UNIT,
+                "allowed_forms": ["RF_SOLID"],
+                "purity_scaling": {"impure": "1/2", "normal": "1", "pure": "2"},
+                "purity_scaling_measured": False,
+                "purity_known": False,
+            },
+            {
+                "class_name": "Build_WaterPump_C",
+                "display_name": "Water Extractor",
+                "built": 2,
+                "per_minute_normal": "120000",
+                "per_minute_unit": map_endpoint.RATE_UNIT,
+                "allowed_forms": ["RF_LIQUID"],
+                "purity_scaling": {"impure": "1/2", "normal": "1", "pure": "2"},
+                "purity_scaling_measured": False,
+                "purity_known": False,
+            },
+        ],
+        "warnings": [
+            {
+                "source": SOURCE_WORLD,
+                "code": WARN_NODE_SEMANTICS_UNAVAILABLE,
+                "count": sum(count for _name, count in _MAP_NODE_CLASSES),
+            },
+            {"source": "inventory", "code": "inventory-total-empty", "count": 1},
+        ],
+    }
+    missing = tuple(key for key in map_endpoint.DATA_KEYS if key not in body)
+    surplus = tuple(key for key in body if key not in map_endpoint.DATA_KEYS)
+    if missing or surplus:
+        message = f"canned map body does not match the endpoint: {missing} {surplus}"
+        raise AssertionError(message)
+    return body
 
 
 # ---------------------------------------------------------------------------
@@ -435,6 +595,7 @@ def _canned() -> dict[tuple[str, str], contract.Response]:
         ("GET", health.ENDPOINT): contract.ok(health.ENDPOINT, _health_data()),
         ("GET", WORLD_ENDPOINT): contract.ok(WORLD_ENDPOINT, _world_data()),
         ("GET", registry.ENDPOINT): contract.ok(registry.ENDPOINT, _registry_data()),
+        ("GET", map_endpoint.ENDPOINT): contract.ok(map_endpoint.ENDPOINT, _map_data()),
         ("POST", solve.SOLVE_ENDPOINT): contract.ok(solve.SOLVE_ENDPOINT, _plan_data()),
         ("POST", solve.OPTIMIZE_ENDPOINT): contract.ok(
             solve.OPTIMIZE_ENDPOINT,

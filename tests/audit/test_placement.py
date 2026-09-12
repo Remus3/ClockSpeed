@@ -1,0 +1,547 @@
+"""CS-978: the placement model over one world - geometry, counts, bounds, refusals.
+
+Every fixture here is a hand-built synthetic ``WorldModel``. Nothing in this
+module opens a save, a docs file or the install, and nothing here needs the game
+to be present - see ``tests/audit/__init__.py`` for the four rules.
+
+THE COORDINATE ASSERTIONS ARE ABOUT A STRING AND THAT IS THE POINT. The wire
+forbids a JSON float (``clockspeed/surface/api/world.py``: a bare JSON number is
+the IEEE double non-negotiable 6 keeps out of the answer path) and a rounding
+done inside this layer cannot be undone by a consumer, so the model publishes
+the shortest round-trip decimal rendering of the stored value. A test that
+compared floats would be green against a model that published floats, which is
+the one defect these arms exist to catch.
+"""
+
+from __future__ import annotations
+
+import math
+import struct
+from collections.abc import Mapping
+from dataclasses import fields, is_dataclass
+from pathlib import Path
+from typing import Final
+
+import pytest
+
+from clockspeed.audit import placement
+from clockspeed.save import objects
+from clockspeed.save.header import SaveHeader
+from clockspeed.save.world import (
+    EMPTY_UNLOCK_STATE,
+    WARN_NODE_SEMANTICS_UNAVAILABLE,
+    ResourceNode,
+    WorldModel,
+)
+
+# An invented 22-character base64url literal. Never a real world token.
+SYNTHETIC_TOKEN = "ClockspeedAuditToken0"  # noqa: S105 - an invented marker, not a secret
+
+# The markers the refusal arms hunt for. Each is a value a correct model can
+# never carry, planted in the INPUT so the walk has a control.
+INSTANCE_NAME_MARKER = "SyntheticInstanceNameMarkerQx71"
+PATH_MARKER = "SyntheticPathMarkerQx71"
+BODY_OFFSET_MARKER = 987654321
+BODY_LENGTH_MARKER = 987654322
+
+
+def header() -> SaveHeader:
+    """Build a synthetic header carrying no operator-authored string at all.
+
+    Returns:
+        The header.
+    """
+    return SaveHeader(
+        header_version=14,
+        save_version=52,
+        build_changelist=0,
+        map_name="SyntheticMap",
+        world_token=SYNTHETIC_TOKEN,
+        play_duration=0,
+        datetime_ticks=0,
+        byte_after_datetime_ticks=0,
+        editor_object_version=0,
+        is_modded=0,
+        body_offset=0,
+        warnings=(),
+    )
+
+
+def actor(
+    type_path: str,
+    translation: tuple[float, float, float] | None,
+    *,
+    instance_name: str = INSTANCE_NAME_MARKER,
+) -> objects.ObjectRecord:
+    """Build one synthetic actor record.
+
+    Args:
+        type_path: The class path, namespaced or bare.
+        translation: The placement, or None for a record carrying no transform.
+        instance_name: The instance name. Defaults to the refusal marker, so
+            EVERY fixture in this module plants it without having to say so.
+
+    Returns:
+        The record.
+    """
+    transform = (
+        None
+        if translation is None
+        else objects.Transform(
+            rotation=(0.0, 0.0, 0.0, 1.0),
+            translation=translation,
+            scale=(1.0, 1.0, 1.0),
+        )
+    )
+    return objects.ObjectRecord(
+        kind=objects.KIND_ACTOR,
+        type_path=type_path,
+        root_object=PATH_MARKER,
+        instance_name=instance_name,
+        transform=transform,
+        parent=None,
+        object_type=1,
+        was_placed_in_level=0,
+        body_offset=BODY_OFFSET_MARKER,
+        body_length=BODY_LENGTH_MARKER,
+    )
+
+
+def table(records: tuple[objects.ObjectRecord, ...]) -> objects.ObjectTable:
+    """Build a synthetic object table around the given records.
+
+    Args:
+        records: The records, in order.
+
+    Returns:
+        The table.
+    """
+    return objects.ObjectTable(
+        records=records,
+        unknown_classes=(),
+        warnings=(),
+        declared_body_length=0,
+        body_consumed=0,
+        body_prefix_width=8,
+        transform_delta=0,
+        save_version=52,
+        header_version=14,
+        level_count=1,
+    )
+
+
+def world(
+    *,
+    nodes: tuple[ResourceNode, ...] = (),
+    records: tuple[objects.ObjectRecord, ...] = (),
+) -> WorldModel:
+    """Build a synthetic world model holding exactly what a test needs.
+
+    Args:
+        nodes: The resource nodes.
+        records: The object records.
+
+    Returns:
+        The model.
+    """
+    return WorldModel(
+        token=SYNTHETIC_TOKEN,
+        header=header(),
+        objects=table(records),
+        unlocks=EMPTY_UNLOCK_STATE,
+        nodes=nodes,
+        warnings=(),
+    )
+
+
+def node(class_name: str, translation: tuple[float, float, float]) -> ResourceNode:
+    """Build one synthetic resource node carrying the instance-name marker.
+
+    Args:
+        class_name: One of the measured node classes.
+        translation: The placement.
+
+    Returns:
+        The node.
+    """
+    return ResourceNode(
+        class_name=class_name,
+        instance_name=INSTANCE_NAME_MARKER,
+        translation=translation,
+    )
+
+
+def reachable(value: object, seen: set[int] | None = None) -> list[object]:
+    """Every value reachable from one object, the object itself included.
+
+    Walks dataclass fields, mappings and sequences. STRUCTURAL on purpose: an
+    assertion that named today's field list would pass unchanged the day a field
+    is added, which is the defect these arms exist to catch.
+
+    Args:
+        value: The root.
+        seen: Identities already walked, to survive a cycle.
+
+    Returns:
+        Every reachable value.
+    """
+    seen = set() if seen is None else seen
+    if id(value) in seen:
+        return []
+    seen.add(id(value))
+    found: list[object] = [value]
+    if is_dataclass(value) and not isinstance(value, type):
+        for field in fields(value):
+            found.extend(reachable(getattr(value, field.name), seen))
+        return found
+    if isinstance(value, (str, bytes, bytearray)):
+        return found
+    if isinstance(value, Mapping):
+        for key, item in value.items():
+            found.extend(reachable(key, seen))
+            found.extend(reachable(item, seen))
+        return found
+    if isinstance(value, (tuple, list, set, frozenset)):
+        for item in value:
+            found.extend(reachable(item, seen))
+    return found
+
+
+#: The two off-allowlist buildables the arm below plants. Named so the
+#: assertion compares against a stated expectation rather than a literal.
+EXPECTED_SKIPPED: Final = 2
+
+
+def test_a_built_class_off_the_allowlist_is_counted_rather_than_dropped() -> None:
+    """Every skipped buildable is reported, so the view states its own coverage.
+
+    THE ALLOWLIST IS THE RIGHT SHAPE AND THE SILENCE WAS NOT. In the world this
+    project develops against the great majority of built actors are belts,
+    pipes, poles and power lines; plotting them would bury everything a reader
+    acts on, and dropping them without a word renders a fraction of a factory
+    as though it were the whole of it. The count is the difference between a
+    view that is filtered and a view that is wrong.
+    """
+    model = world(
+        records=(
+            actor("Build_MinerMk1_C", (1.0, 2.0, 3.0)),
+            actor("Build_ConveyorBeltMk2_C", (4.0, 5.0, 6.0)),
+            actor("Build_PowerLine_C", (7.0, 8.0, 9.0)),
+        )
+    )
+
+    result = placement.placement_of(model)
+
+    assert len(result.built_placements) == 1, result.built_placements
+    codes = {warning.code: warning.count for warning in result.warnings}
+    skipped = codes.get(placement.WARN_BUILT_CLASS_NOT_PLOTTED)
+    assert skipped == EXPECTED_SKIPPED, (
+        f"{EXPECTED_SKIPPED} buildables were skipped and the model reports {skipped}"
+    )
+
+
+def test_every_node_becomes_one_placement_carrying_its_class_and_coordinates() -> None:
+    model = world(
+        nodes=(
+            node("BP_ResourceNode_C", (1.0, 2.0, 3.0)),
+            node("BP_ResourceDeposit_C", (-4.5, 5.25, -6.75)),
+        )
+    )
+
+    result = placement.placement_of(model)
+
+    assert [(entry.class_name, entry.x, entry.y, entry.z) for entry in result.node_placements] == [
+        ("BP_ResourceNode_C", "1.0", "2.0", "3.0"),
+        ("BP_ResourceDeposit_C", "-4.5", "5.25", "-6.75"),
+    ]
+
+
+def test_a_coordinate_leaves_as_the_shortest_round_trip_decimal_string() -> None:
+    # A float32 value widened to a double. Its shortest round-trip rendering has
+    # a long tail, and a model that rounded it would publish a coordinate no
+    # consumer can undo.
+    stored = struct.unpack("<f", struct.pack("<f", 0.1))[0]
+    model = world(nodes=(node("BP_ResourceNode_C", (stored, 0.0, 0.0)),))
+
+    rendered = placement.placement_of(model).node_placements[0].x
+
+    assert rendered == repr(stored)
+    assert float(rendered) == stored
+
+
+def test_no_float_reaches_any_placement_output_field() -> None:
+    model = world(
+        nodes=(node("BP_ResourceNode_C", (1.5, 2.5, 3.5)),),
+        records=(actor("Build_MinerMk1_C", (4.5, 5.5, 6.5)),),
+    )
+
+    floats_out = [item for item in reachable(placement.placement_of(model)) if type(item) is float]
+    floats_in = [item for item in reachable(model) if type(item) is float]
+
+    # The control: the walk CAN see a float, and the input is full of them.
+    assert floats_in != []
+    assert floats_out == []
+
+
+def test_no_node_instance_name_reaches_the_placement_model() -> None:
+    model = world(
+        nodes=(node("BP_ResourceNode_C", (1.0, 2.0, 3.0)),),
+        records=(actor("Build_MinerMk1_C", (4.0, 5.0, 6.0)),),
+    )
+    result = placement.placement_of(model)
+
+    strings_out = [item for item in reachable(result) if isinstance(item, str)]
+    leaked = [item for item in strings_out if INSTANCE_NAME_MARKER in item]
+
+    assert [item for item in reachable(model) if item == INSTANCE_NAME_MARKER] != []
+    assert leaked == []
+    assert INSTANCE_NAME_MARKER not in repr(result)
+
+
+def test_no_record_index_offset_or_path_reaches_the_placement_model() -> None:
+    model = world(records=(actor("Build_MinerMk1_C", (1.0, 2.0, 3.0)),))
+    result = placement.placement_of(model)
+    walked = reachable(result)
+
+    positions = [item for item in walked if item in (BODY_OFFSET_MARKER, BODY_LENGTH_MARKER)]
+    paths = [item for item in walked if isinstance(item, (Path, bytes, bytearray))]
+    path_strings = [item for item in walked if isinstance(item, str) and PATH_MARKER in item]
+
+    assert [item for item in reachable(model) if item == BODY_OFFSET_MARKER] != []
+    assert positions == []
+    assert paths == []
+    assert path_strings == []
+
+
+def test_no_placement_type_annotates_a_carrier_field() -> None:
+    # `bytes` and `Path` are the two annotations that can render raw save
+    # content or a home directory. Graded on the ANNOTATION rather than on a
+    # value, so a carrier that happens to be empty in every fixture is caught.
+    carriers = {"bytes", "bytearray", "Path", "pathlib.Path"}
+    declared = {
+        field.type if isinstance(field.type, str) else getattr(field.type, "__name__", "")
+        for published in (
+            placement.Placement,
+            placement.AxisBounds,
+            placement.WorldBounds,
+            placement.WorldPlacement,
+        )
+        for field in fields(published)
+    }
+
+    assert declared & carriers == set()
+
+
+def test_only_an_allowlisted_built_class_is_published() -> None:
+    model = world(
+        records=(
+            actor("Build_MinerMk1_C", (1.0, 1.0, 1.0)),
+            actor("/Game/Synthetic/Build_NotOnTheAllowlist.Build_NotOnTheAllowlist_C", (2.0,) * 3),
+            actor("Build_SmelterMk1_C", (3.0, 3.0, 3.0)),
+        )
+    )
+
+    result = placement.placement_of(model)
+
+    assert [entry.class_name for entry in result.built_placements] == [
+        "Build_MinerMk1_C",
+        "Build_SmelterMk1_C",
+    ]
+
+
+def test_a_namespaced_allowlisted_path_still_matches_on_its_class_name() -> None:
+    model = world(
+        records=(
+            actor(
+                "/Game/FactoryGame/Buildable/Factory/MinerMk1/Build_MinerMk1.Build_MinerMk1_C",
+                (7.0, 8.0, 9.0),
+            ),
+        )
+    )
+
+    result = placement.placement_of(model)
+
+    assert [entry.class_name for entry in result.built_placements] == ["Build_MinerMk1_C"]
+
+
+def test_the_allowlist_is_a_closed_frozenset_and_not_a_denylist() -> None:
+    # An allowlist over class names is the whole design. A denylist leaks: one
+    # defect wore four different fields across four green commits in this
+    # project's own history, and only an allowlist of good values held.
+    assert type(placement.BUILT_CLASS_ALLOWLIST) is frozenset
+    assert frozenset() != placement.BUILT_CLASS_ALLOWLIST
+    assert all(name.startswith("Build_") for name in placement.BUILT_CLASS_ALLOWLIST)
+
+
+def test_per_class_counts_cover_both_populations() -> None:
+    model = world(
+        nodes=(
+            node("BP_ResourceNode_C", (1.0, 1.0, 1.0)),
+            node("BP_ResourceNode_C", (2.0, 2.0, 2.0)),
+            node("BP_FrackingCore_C", (3.0, 3.0, 3.0)),
+        ),
+        records=(
+            actor("Build_MinerMk1_C", (4.0, 4.0, 4.0)),
+            actor("Build_MinerMk1_C", (5.0, 5.0, 5.0)),
+        ),
+    )
+
+    result = placement.placement_of(model)
+
+    assert dict(result.node_counts) == {"BP_FrackingCore_C": 1, "BP_ResourceNode_C": 2}
+    assert dict(result.built_counts) == {"Build_MinerMk1_C": 2}
+
+
+def test_bounds_span_every_placement_on_every_axis() -> None:
+    model = world(
+        nodes=(node("BP_ResourceNode_C", (-10.0, 0.0, 5.0)),),
+        records=(actor("Build_MinerMk1_C", (20.0, -30.0, 2.0)),),
+    )
+
+    bounds = placement.placement_of(model).bounds
+
+    assert bounds is not None
+    assert (bounds.x.min_value, bounds.x.max_value) == ("-10.0", "20.0")
+    assert (bounds.y.min_value, bounds.y.max_value) == ("-30.0", "0.0")
+    assert (bounds.z.min_value, bounds.z.max_value) == ("2.0", "5.0")
+
+
+def test_an_empty_world_yields_a_valid_model_rather_than_an_exception() -> None:
+    result = placement.placement_of(world())
+
+    assert result.node_placements == ()
+    assert result.built_placements == ()
+    assert dict(result.node_counts) == {}
+    assert dict(result.built_counts) == {}
+
+
+def test_an_empty_world_has_no_bounds_and_says_so_rather_than_boxing_none() -> None:
+    result = placement.placement_of(world())
+
+    # A box whose six fields are None is the forbidden shape: it reads as a
+    # bounding box that was computed and came back empty. Absence of the box,
+    # plus the code naming why, is the honest rendering.
+    assert result.bounds is None
+    assert placement.WARN_PLACEMENT_BOUNDS_UNDEFINED in [
+        warning.code for warning in result.warnings
+    ]
+
+
+def test_a_world_with_no_built_actor_still_yields_bounds_over_its_nodes() -> None:
+    model = world(nodes=(node("BP_ResourceNodeGeyser_C", (1.0, 2.0, 3.0)),))
+
+    result = placement.placement_of(model)
+
+    assert result.built_placements == ()
+    assert result.bounds is not None
+    assert result.bounds.x.min_value == "1.0"
+    assert placement.WARN_PLACEMENT_BOUNDS_UNDEFINED not in [
+        warning.code for warning in result.warnings
+    ]
+
+
+def test_node_semantics_unavailable_is_flagged_rather_than_left_to_inference() -> None:
+    # ADR 0003 measured that a node's resource type and purity are NOT IN A
+    # SAVE. Without this flag a consumer showing unlabelled dots would read the
+    # absence of labels as all there is to know.
+    model = world(nodes=(node("BP_ResourceNode_C", (1.0, 1.0, 1.0)),))
+
+    warnings = {warning.code: warning for warning in placement.placement_of(model).warnings}
+
+    assert WARN_NODE_SEMANTICS_UNAVAILABLE in warnings
+    assert warnings[WARN_NODE_SEMANTICS_UNAVAILABLE].count == 1
+    assert warnings[WARN_NODE_SEMANTICS_UNAVAILABLE].detail != ""
+
+
+def test_the_semantics_flag_is_a_field_as_well_as_a_warning() -> None:
+    result = placement.placement_of(world(nodes=(node("BP_ResourceNode_C", (0.0, 0.0, 0.0)),)))
+
+    assert result.node_semantics_available is False
+
+
+def test_an_allowlisted_record_with_no_transform_is_skipped_and_flagged() -> None:
+    model = world(
+        records=(
+            actor("Build_MinerMk1_C", None),
+            actor("Build_MinerMk1_C", (1.0, 1.0, 1.0)),
+        )
+    )
+
+    result = placement.placement_of(model)
+    warnings = {warning.code: warning for warning in result.warnings}
+
+    assert len(result.built_placements) == 1
+    assert placement.WARN_BUILT_TRANSFORM_ABSENT in warnings
+    assert warnings[placement.WARN_BUILT_TRANSFORM_ABSENT].count == 1
+
+
+@pytest.mark.parametrize("bad", [math.inf, -math.inf, math.nan])
+def test_a_non_finite_coordinate_is_skipped_and_flagged_rather_than_widening_bounds(
+    bad: float,
+) -> None:
+    model = world(
+        nodes=(
+            node("BP_ResourceNode_C", (bad, 0.0, 0.0)),
+            node("BP_ResourceNode_C", (1.0, 2.0, 3.0)),
+        )
+    )
+
+    result = placement.placement_of(model)
+    codes = [warning.code for warning in result.warnings]
+
+    assert len(result.node_placements) == 1
+    assert placement.WARN_PLACEMENT_COORDINATE_NON_FINITE in codes
+    assert result.bounds is not None
+    assert result.bounds.x.max_value == "1.0"
+
+
+def test_the_local_class_name_rule_agrees_with_the_save_layers_own() -> None:
+    # This layer consumes the world MODEL, not the save package, so it owns its
+    # own path-to-class-name reduction. The two must agree or a built actor is
+    # matched against the allowlist by a different rule than the one the save
+    # layer matched a node with. This arm is the anti-drift pin; it is the only
+    # place in this package that reaches for the save layer's own helper.
+    samples = (
+        "Build_MinerMk1_C",
+        "/Game/FactoryGame/Buildable/Factory/MinerMk1/Build_MinerMk1.Build_MinerMk1_C",
+        "Modded/Thing.Build_SyntheticModded_C",
+        "",
+    )
+
+    assert [placement.class_name_of_path(item) for item in samples] == [
+        objects.class_name_of(item) for item in samples
+    ]
+
+
+def test_two_runs_over_one_model_return_equal_models() -> None:
+    model = world(
+        nodes=(
+            node("BP_ResourceNode_C", (1.0, 2.0, 3.0)),
+            node("BP_FrackingSatellite_C", (4.0, 5.0, 6.0)),
+        ),
+        records=(
+            actor("Build_SmelterMk1_C", (7.0, 8.0, 9.0)),
+            actor("Build_MinerMk1_C", (10.0, 11.0, 12.0)),
+        ),
+    )
+
+    first = placement.placement_of(model)
+    second = placement.placement_of(model)
+
+    assert first == second
+    assert list(first.node_counts.items()) == list(second.node_counts.items())
+    assert list(first.built_counts.items()) == list(second.built_counts.items())
+
+
+def test_the_counts_iterate_in_a_stable_sorted_order() -> None:
+    model = world(
+        nodes=(
+            node("BP_ResourceNodeGeyser_C", (1.0, 1.0, 1.0)),
+            node("BP_FrackingCore_C", (2.0, 2.0, 2.0)),
+            node("BP_ResourceNode_C", (3.0, 3.0, 3.0)),
+        )
+    )
+
+    keys = list(placement.placement_of(model).node_counts)
+
+    assert keys == sorted(keys)

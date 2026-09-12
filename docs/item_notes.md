@@ -32,7 +32,6 @@ mapping has one owner and this file only reports it:
 
 | Leaf | Holds |
 |---|---|
-| `docs/item_notes/phase2.md` | ROADMAP `Phase 2` |
 | `docs/item_notes/phase3.md` | ROADMAP `Phase 3` |
 | `docs/item_notes/phase4.md` | ROADMAP `Phase 4`, ID outside the `CS-8nn` block |
 | `docs/item_notes/phase4-followups.md` | ROADMAP `Phase 4`, ID in the `CS-8nn` block below CS-850 |
@@ -82,10 +81,8 @@ a pass - every equality here is satisfied for free by an empty population.
 
 | Item | Leaf |
 |---|---|
-| CS-210 | `docs/item_notes/phase2.md` |
 | CS-301 | `docs/item_notes/phase3.md` |
 | CS-302 | `docs/item_notes/phase3.md` |
-| CS-303 | `docs/item_notes/phase3.md` |
 | CS-400 | `docs/item_notes/phase4.md` |
 | CS-401 | `docs/item_notes/phase4.md` |
 | CS-412 | `docs/item_notes/phase4.md` |
@@ -170,6 +167,7 @@ a pass - every equality here is satisfied for free by an empty population.
 | CS-826 | `docs/item_notes/phase4-followups.md` |
 | CS-827 | `docs/item_notes/phase4-followups.md` |
 | CS-828 | `docs/item_notes/phase4-followups.md` |
+| CS-829 | `docs/item_notes/phase4-followups.md` |
 | CS-832 | `docs/item_notes/phase4-followups.md` |
 | CS-839 | `docs/item_notes/phase4-followups.md` |
 | CS-840 | `docs/item_notes/phase4-followups.md` |
@@ -225,6 +223,7 @@ a pass - every equality here is satisfied for free by an empty population.
 | CS-948 | `docs/item_notes/phase4-followups-900.md` |
 | CS-951 | `docs/item_notes/phase4-followups-900.md` |
 | CS-958 | `docs/item_notes/phase4-followups-900.md` |
+| CS-976 | `docs/item_notes/phase4-followups-900.md` |
 | CS-965 | `docs/item_notes/phase4-followups-900.md` |
 | CS-964 | `docs/item_notes/phase4-followups-900.md` |
 | CS-962 | `docs/item_notes/phase4-followups-900.md` |
@@ -249,6 +248,12 @@ a pass - every equality here is satisfied for free by an empty population.
 | CS-914 | `docs/item_notes/phase6.md` |
 | CS-915 | `docs/item_notes/phase6.md` |
 | CS-916 | `docs/item_notes/phase6.md` |
+| CS-981 | `docs/item_notes/phase4-followups-900.md` |
+| CS-982 | `docs/item_notes/phase4-followups-900.md` |
+| CS-983 | `docs/item_notes/phase4-followups-900.md` |
+| CS-984 | `docs/item_notes/phase4-followups-900.md` |
+| CS-985 | `docs/item_notes/phase4-followups-900.md` |
+| CS-986 | `docs/item_notes/phase4-followups-900.md` |
 | CS-603 | `docs/item_notes/phase6.md` |
 | CS-608 | `docs/item_notes/phase6.md` |
 | CS-613 | `docs/item_notes/phase6.md` |

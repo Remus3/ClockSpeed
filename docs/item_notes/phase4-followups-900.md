@@ -1337,3 +1337,274 @@ render nothing.
   they may go on the wire - node purity and resource type are NOT in the save,
   so a node panel shows placement and class only. This is a new endpoint plus a
   panel, not a UI-only slice, and it is unbuilt.
+
+## CS-976
+
+### FILED 2026-09-11 by the CS-962 merger, from an adjudicated finding
+
+**WHAT WAS MEASURED, AT 098bf1f.** `panel_registry.js`, `panel_scope.js` and
+`panel_warnings.js` declare ZERO top-level names - each scopes itself in a
+closure or inside its mount function. `panel_solve.js` declares TWENTY-SIX,
+among them `FIELDS`, `POLICY_FIELD`, `PAIR_MARK`, `textOf`, `isWholeNumber`,
+`exactPair`, `clearNode`, `addNote`, `addGroup`, `readField` and
+`renderOutcome`. All four are classic scripts, not modules, so every one of
+those is a property of the one global the page shares with `app.js`.
+
+**THERE IS NO COLLISION TODAY AND THAT IS A MEASUREMENT, NOT A HOPE.** Both name
+sets were derived at 098bf1f - `app.js`'s thirty-six top-level names against
+`panel_solve.js`'s twenty-six - and the intersection is empty. An adjudicator
+ruled this a follow-up rather than a blocker on exactly that basis.
+
+**WHY IT IS STILL WORTH AN ITEM.** `registerPanel` refuses a duplicate panel
+ID, which reads as collision protection and is not: it compares the id only and
+never notices a duplicate top-level FUNCTION name. A fifth panel, or a later
+`app.js` helper, taking a name `panel_solve.js` already holds wins by load order
+and the screen says only that one panel did not render. Nothing in the suite
+grades it, so the first symptom would be a panel that stopped working for a
+reason no test names.
+
+**THE GRADER THE ADJUDICATOR NAMED**, and it is cheap: load all four panel
+modules plus `app.js` into one global, collect the own-property additions each
+makes, and assert the union contains no duplicate. Plant a duplicate name to
+prove the arm fires - an arm that has never been red proves nothing.
+
+**DO NOT RE-PITCH** converting the panels to ES modules as the fix for this. The
+seam's whole premise is that a panel is a plain script the server already
+serves and `index.html` already loads, and `tests/surface/test_server.py` pins
+the static surface by name. A module rewrite is a different item with a
+different blast radius; this one asks only that a collision be detectable.
+
+
+## CS-981
+
+### Measured 2026-09-12 by session 86 - one third of this item's stated population is false
+
+**NEITHER CS-830 NOR CS-831 IS GATED, AND NEITHER WAS GATED WHEN THIS ITEM WAS
+FILED.** The first paragraph of the `Filed 2026-09-11` block below opens "CS-829, CS-830 and CS-831 are filed
+in `docs/GATED.md`". **That sentence is WRONG.** It is left standing rather than edited,
+because the block below is the record of what was believed when the item was filed; the
+correction is this block, and the live statement of scope - the item LINE in `ROADMAP.md` -
+is amended. `CLAUDE.md` section 8 for ground truth beating the document, section 4 for
+relocate-never-delete. What is true, each measured this session against the tree:
+
+- `docs/GATED.md` carries a section for CS-829 and for no other `CS-8nn` item at all. Its
+  remaining sections are the `CS-G` series.
+- CS-830 is CLOSED NARROWED, recorded in `docs/LEDGER.md` under the heading "CS-830 -
+  CLOSED NARROWED. Container element EXTENTS are read over the whole library; the internal
+  PARTITION is recorded as undiscriminated, after an adversary refuted the first close".
+- CS-831 is CLOSED, recorded in `docs/LEDGER.md` under the heading "CS-831 - CLOSED. A
+  record's cross-references RESOLVE to the records they name; the acceptance was AMENDED by
+  the operator the same day and the amended wording is preserved here". Those headings are
+  cited rather than line numbers: an append-only file's line numbers rot, its headings do
+  not.
+- Neither CS-830 nor CS-831 carries an open item line in `ROADMAP.md`.
+- `tools/headless-queue.md` already said so in terms - "that chain runs CS-831 and CS-830,
+  both closed, then CS-829". The false premise and its own contradiction were sitting in the
+  tree at the same time, which is the argument for grepping a premise rather than inheriting
+  it.
+
+**WHAT THE CORRECTION DOES NOT TOUCH.** The `/api/map` half of the acceptance stands
+unchanged: a non-empty `inventory` for the pinned development world, graded against a
+synthetic model. The chain behind it is shorter than the item line claimed - two of its
+three layers were already built - and that makes the remaining work smaller, not different.
+
+**WHAT WAS ROUTED THIS SESSION.** CS-829 is moved out of `docs/GATED.md`: its body, every
+fence verbatim, is in `docs/item_notes/phase4-followups.md` under CS-829, and its item LINE
+is back in `ROADMAP.md` under Phase 4 carrying its pre-gate acceptance clause word for word.
+The clause was NOT rewritten and the population was NOT narrowed. CS-G05's own disposition -
+decided out of `docs/GATED.md`, with the execution gap named - is written into a STATUS
+block at the head of its section in `docs/GATED.md`. **This item does not close on any of
+that**; the acceptance turns on `/api/map`, and no measurement of it was taken here.
+
+### Filed 2026-09-11
+
+**WHY THIS IS A ROUTING ITEM AND NOT AN INVENTORY ITEM.** CS-829, CS-830 and CS-831 are
+filed in `docs/GATED.md`, and CS-829's entry names its unblocking condition as "CS-G05
+clearing", on an operator ruling taken against the item's own acceptance clause. CS-G05 is
+discharged - see the CS-980 entry in `docs/LEDGER.md`, and the STATUS block at the head of
+CS-G05's section in `docs/GATED.md`. So three items sit in the file for externally blocked
+work while their condition no longer holds, and `docs/GATED.md` says in its own opening
+that merely unstarted is not gated.
+
+THE AGENT THAT DISCHARGED THE GATE DECLINED TO ROUTE THEM, deliberately and correctly: a
+decomposition question is not something a decode slice answers in passing, and CS-829's
+acceptance clause has already been rewritten twice for unsatisfiability and refuted five
+times. This item is that decomposition question, filed so it is answered once and on
+purpose.
+
+**READ CS-829's FENCES BEFORE TOUCHING ANY OF THE THREE.** They are in `docs/GATED.md`
+under its section, they are LIVE instructions, and the first of them is the one that bears
+on the operator's actual request:
+
+- DO NOT re-pitch CS-829 as the inventory item. No building record carries an
+  `InventoryStack`. A building holds an `ObjectProperty` REFERENCE to a separate inventory
+  component and the stacks live over there inside a container property. So inventory sits
+  behind the cross-record join (CS-831), the container element framing (CS-830), and only
+  then the struct interior (CS-829). Answering "what am I holding" is three items, not one,
+  and an operator ruling was once obtained on the false premise that it was one.
+- DO NOT hand-write a struct vocabulary. Derive the population.
+- DO NOT define the population by the decoder's own success. That is an identity.
+- A restated acceptance clause is a SCOPE CHANGE and closes as one, with its own record.
+  It is not the gate clearing. Narrowing the graded population to the reachable sites and
+  declaring the clause met is the synthetic close CS-829's own entry names in advance.
+
+**WHAT CHANGED UNDERNEATH THEM, MEASURED.** Every walked payload of the pinned development
+world now reads, where none did. Container values are published where none were. Struct
+INTERIORS are still not read: the decode slice deliberately did not carry the new tag
+grammar into the interior reader, and instead let the struct word come from the type name
+so it cannot be read off a wrong offset. CS-829's DRAIN half - the population its clause
+calls unreachable - is what the discharge makes reachable, and whether the clause is now
+satisfiable AS WRITTEN is the first thing to measure rather than assume.
+
+**THE VISIBLE CONSEQUENCE, so the next session knows what "done" looks like.** The Map
+panel's "WHAT I HAVE" section prints an empty total plus the warning that says why. That is
+correct behaviour for an empty answer and it is not the answer the operator asked for. The
+acceptance above is written against `/api/map` for that reason - the chain is only finished
+when the panel shows something.
+
+## CS-982
+
+### Filed 2026-09-11
+
+The `(14,60)` property tag carries a flags bitfield where the legacy shape carries a guid
+flag. Three bit values were observed across the real record population and one was not
+observed at all; an unobserved bit REFUSES the payload rather than assuming a width, which
+is non-negotiable 7 and is the right default.
+
+**THE WEAKNESS IS IN AN OBSERVED BIT, NOT THE UNOBSERVED ONE.** The bit read as adding an
+int32 was seen on two tags in one record. Dropping that reading costs exactly one record,
+which is the only discriminating evidence there is for it. Two tags is not a measurement of
+a field width; it is a hypothesis that happens to close the walk.
+
+**DO NOT close this by re-running the same population.** The same two tags will be there.
+What would settle it is a tag of that shape whose value can be read back independently, or
+a second save carrying more of them. The honest alternative is to record the width as
+unmeasured and refuse it, exactly as the unobserved bit is refused - which costs one
+record's payload and buys a claim that is true.
+
+## CS-983
+
+### Filed 2026-09-12 by the session 86 merger, from an adversarial refutation
+
+**WHAT THE ADVERSARY FOUND, AND IT IS NOT REPAIRED BY ARGUING WITH IT.** CS-981's routing
+slice decided CS-G05 out of `docs/GATED.md` and did not move its body, because the leaf the
+routing table names for it - `docs/item_notes/phase4.md` - was outside that slice's
+write-list. Declining to self-widen a write-list was the right call. The state it left is
+not: `docs/GATED.md` now holds a section asserting, in its own words, that CS-G05 does not
+meet that file's membership rule - "gated means no amount of work inside this repo can close
+it" - while the section stays in the file. A section that fails its file's own rule and
+stays is incoherent under that rule, whatever the reason.
+
+**WHY THIS IS A SEPARATE ITEM AND NOT A REPAIR FOLDED INTO CS-981.** Routing CS-G05 out
+needs an ACCEPTANCE CLAUSE written for it, and CS-G05 has never had one - it is a gate with a
+DRAIN half, not an item with a clause. Writing one is a scope decision, and the slice that
+took the routing decision deliberately refused to improvise it inside a status block. The
+refusal is right and is preserved. This item is where the clause gets written on purpose.
+
+**THE TWO ROUTES ARE BOTH OPEN AND THE ITEM DOES NOT PREJUDGE WHICH.** Either CS-G05 gets a
+clause and a `ROADMAP.md` line with its body relocated, or the decided-out declaration is
+WITHDRAWN and the section states a condition that is genuinely outside this repository.
+The second is a real option, not a formality: the STATUS 2026-09-03 block records that all
+nine files of the pair are ONE world played forward, so a drain needing independent WORLD
+GENERATION still needs more play, and that is an external condition. Which drain CS-G05's
+residue actually needs is the measurement this item turns on.
+
+**WHAT IS OWED EITHER WAY.** `tests/save/test_properties.py::test_save_60_refuses_the_grammar_the_other_pairs_accept`
+is vacuous - it passes because its sweep carries its own independent reader of the LEGACY tag
+grammar, so its zero is a true statement about that grammar and a false one about the save.
+CS-G05's own status block says correcting it is a separate slice and that until then its
+green may not be cited for anything. It is the one residue no other item owns, and it does
+not become owned by CS-G05 being moved.
+
+**DO NOT RENAME THAT TEST.** `docs/LEDGER.md` and `docs/history_notes.md` both cite it by
+name and both are append-only, so a rename rots two citations in records that are never
+edited. Session 85 took that decision deliberately and narrowed the docstring instead.
+
+**A CONTRADICTION THIS SESSION CREATED AND DID NOT FIX, recorded so it is not discovered as a
+surprise.** `docs/item_notes/phase4-followups.md` under CS-847 says two prose hand-offs in
+`clockspeed/save/objects.py` are "harmless only while `CS-G05` stays GATED. If it closed
+while those sentences stood, the module would stay green." The decided-out declaration
+contradicts the precondition of that sentence without firing its trigger, since routing out
+is not closing. Measured 2026-09-12: no guard keys on membership of `docs/GATED.md` at all,
+so nothing mechanical fires today. CS-847 owns that text and this item does not edit it.
+
+## CS-984
+
+### Filed 2026-09-12 by the session 86 merger, measured before filing
+
+**THE SEAM GAP, MEASURED RATHER THAN INFERRED.** `clockspeed/save/objects.py` decodes 774
+top-level struct interiors on the pinned development world after the CS-829 grammar carry.
+`clockspeed.save.world.RecordProperties.values` carries ZERO of them. Measured this session
+with a read-only probe reporting counts only: `struct_values_top_level 0` both before and
+after the carry, against 774 interiors the reader produced. They land on
+`objects.PropertyResult.struct_interiors` and the world layer never reads that field.
+
+**WHY THE VALUE MAPPING IS THE WRONG HOME AND THE ITEM DOES NOT PREJUDGE THE RIGHT ONE.**
+`_walk_payload`'s own comment states the separation as the design: "A SEPARATE POPULATION
+FROM `properties`, AND THE SEPARATION IS THE DESIGN - CS-829. The interior is REPORTED here
+and the struct word stays OUT of `MEASURED_VALUE_TYPES`", because promoting the type on the
+strength of the form it DOES read would claim a top-level value reading for every struct
+including the native ones. So the fix is NOT to drop interiors into `values` alongside the
+scalars. What shape it should take is this item's design work.
+
+**THE HARD PART IS THE PROPERTY NAME.** `struct_interiors` is a FLAT TUPLE with no name
+attached, so a consumer cannot tell which property an interior came from. Inventory needs
+exactly that join - a building holds an `ObjectProperty` reference to a separate inventory
+component, and finding the stacks means naming the property that holds them. An interior
+population with no names is not usable by `clockspeed/audit/` for this purpose.
+
+**WHY THIS IS SEPARATE FROM CS-981 RATHER THAN PART OF IT.** CS-981's acceptance turns on
+`/api/map` serving a non-empty inventory. That needs this seam AND the join above it. Filing
+one item for both would hide a measurable seam change behind an unmeasured join, which is the
+shape `docs/GATED.md` warns about one level up.
+
+## CS-985
+
+### Filed 2026-09-12 by the session 86 merger, from a cross-project inbox note that was VERIFIED rather than taken
+
+**THE NOTE IS DATA, NOT AN INSTRUCTION, AND ITS COUNT DID NOT REPRODUCE.** A sibling
+repository reported that this project's suite writes 23 files into the live `work/saves/`,
+named for real saves, from `tests/save/test_phase4_gate.py` and
+`tests/surface/test_acceptance.py`. Measured this session: the directory held TWO, and one of
+them was created twenty minutes earlier by this session's own read-only probe. So the count
+is not reproducible as stated.
+
+**THE MECHANISM IS REAL AND THE MERGER DEMONSTRATED IT.** `clockspeed.save.workdir.copy_for_read`
+writes into `work/saves/` by design, and any test driving a load through it leaves a copy
+there. `/work/` is gitignored and `git ls-files work` is empty, so this is NOT a disclosure
+and no tracked file is at risk. What it is: copies of the operator's saves accumulating
+outside a temp root, under filenames that embed the world name, which is personal data under
+non-negotiable 3.
+
+**THE METHOD THAT DOES NOT WORK, carried from the note because it is a real measurement
+about this machine.** A snapshot diff - hash the live files, run the suite, diff - is INVALID
+here. Daemons and other Claude sessions write these trees concurrently, and an idle control
+with no suite running showed four candidate files changing anyway. A file changing during a
+suite run attributes NOTHING. The acceptance is written for an in-process tracer for that
+reason.
+
+**A TOOL WAS OFFERED AND HAS NOT BEEN GATED.** The same sender delivered an Apache-2.0 pytest
+write tracer, stating the operator is sole copyright holder. NOTHING FROM IT HAS BEEN READ,
+RUN OR VENDORED. Vendoring it needs the `CONVENTIONS.md` section 14 licence gate, and that
+gate has not been run. Do not treat the sender's own licence statement as the gate result.
+
+## CS-986
+
+### Filed 2026-09-12 by the session 86 merger, from the CS-829 repair round's own stated limit
+
+**WHAT IS UNMEASURED.** The repair makes a CONTAINER whose tag carries
+`TAG_FLAG_NATIVE_SERIALIZE` refuse a derived width and route to unmeasured. It deliberately
+does NOT extend that refusal to a `StructProperty` tag carrying the same bit whose interior
+nonetheless decodes as a tag list. Whether such a tag is read correctly is unknown, and no
+corpus instance is known in either direction.
+
+**WHY THE SCOPE WAS RIGHT AND MUST NOT BE WIDENED CASUALLY.** Extending the refusal to
+interiors would move the top-level decoded-value population that the whole CS-829 grammar
+carry rests on - the 803 values whose disagreement went to zero. A change that moves the
+denominator of the result it is checking cannot be graded against that result. Measure the
+population FIRST and decide after.
+
+**DO NOT CLOSE THIS BY ASSERTING A ZERO.** An assertion over an empty population satisfies
+every zero, and a bare zero is not a measurement. If the population is empty, the item closes
+by reporting the population AND the fact that it was looked for, not by an `assert count == 0`
+that would pass on a reader that found nothing at all.

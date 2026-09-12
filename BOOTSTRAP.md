@@ -643,7 +643,12 @@ Endpoints, minimum: `/api/health`, `/api/world` (current parsed state),
 `/api/registry` (the item, recipe and building vocabulary the solver doors take),
 `/api/advice` (cards with tier 1 and 2), `/api/advice/<id>/derivation` (tier 3),
 `/api/advice/<id>/state` (accept, dismiss, snooze, pin), `/api/solve` (pillar 1),
-`/api/optimize` (pillar 2), `/api/audit`, `/api/plan?target=<milestone>`.
+`/api/optimize` (pillar 2), `/api/audit`, `/api/plan?target=<milestone>`,
+`/api/map` (node and built-actor placement, item totals and extractor throughput).
+
+`/api/map` was added under CS-977 on the same word: `/api/world` counts nodes and
+never lists them, so MEASURED ZERO of the templates then published named a single
+coordinate, and no surface could draw the world the operator asked to see.
 
 `/api/registry` was added under CS-912 and is what the word "minimum" above was
 for. `/api/solve` and `/api/optimize` both require `targets`, `recipes` and

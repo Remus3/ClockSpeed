@@ -35,11 +35,14 @@ from typing import Any
 import pytest
 
 from clockspeed.data.version import (
+    CENSUS_KEY_BUILDING_FIELD_PRESENCE,
     DOCS_RELATIVE,
+    FIELD_MAX_POTENTIAL,
     OVERCLOCK_POTENTIAL_SHARD_SLOTS,
     PIN_BEGIN_MARKER,
     PIN_END_MARKER,
     SCHEMA,
+    WATCHED_BUILDING_FIELDS,
     PinFormatError,
     build_pin,
     compare,
@@ -152,6 +155,40 @@ def synthetic_groups() -> list[dict[str, Any]]:
     ]
 
 
+#: A group short name no shipped build carries, so a group built under it is
+#: UNRECOGNIZED and its entries are outside the registry's published set. Used
+#: to prove the building census counts what the registry would publish rather
+#: than every power-bearing entry in the file.
+UNRECOGNIZED_GROUP = "FGSynthUnknownGroup"
+
+
+def groups_with_an_unpotentialed_building() -> list[dict[str, Any]]:
+    """Return the baseline corpus plus the two entries the presence census needs.
+
+    One power-bearing entry in a RECOGNIZED group carrying none of the watched
+    fields - the shape the shipped document ships six of - and one carrying the
+    same power field in an unrecognized group, which the registry never
+    publishes and which the census must therefore not count.
+
+    Returns:
+        A fresh group list every call.
+    """
+    groups = synthetic_groups()
+    groups.append(
+        _group(
+            "FGBuildableFloodlight",
+            [{"ClassName": "Build_SynthFloodlight_C", "mPowerConsumption": "10.000000"}],
+        )
+    )
+    groups.append(
+        _group(
+            UNRECOGNIZED_GROUP,
+            [{"ClassName": "Build_SynthUnknown_C", "mPowerConsumption": "20.000000"}],
+        )
+    )
+    return groups
+
+
 def encode_docs(groups: list[dict[str, Any]]) -> bytes:
     """Encode a synthetic group list the way the shipped locale file is encoded.
 
@@ -176,6 +213,11 @@ EXPECTED_ENTRY_COUNT = 7
 EXPECTED_EXPONENT_COUNTS = {"1.321929": 2, "1.600000": 1}
 EXPECTED_EXPONENT_GROUPS = 2
 EXPECTED_SHARD_GROUP_SIZE = 2
+
+# The published buildings in groups_with_an_unpotentialed_building(): the
+# three overclockable ones the baseline carries, plus the floodlight. The
+# entry in the unrecognized group is deliberately not among them.
+EXPECTED_VARIANT_BUILDING_COUNT = 4
 
 # The highest byte 7-bit ASCII admits. Named so the assertion below reads as
 # the project rule it enforces rather than as a magic number.
@@ -316,6 +358,70 @@ def test_build_pin_records_the_adr_0005_shard_invariants(synthetic_pin: dict[str
     assert census["max_potential_values"] == {"1.000000": 3}
     assert census["potential_shard_slots_values"] == {"0": 3}
     assert census["override_potential_shard_slots_values"] == {"False": 3}
+
+
+# ---------------------------------------------------------------------------
+# CS-210 - the absent branch of each watched field, counted over the buildings
+# the registry actually publishes
+# ---------------------------------------------------------------------------
+
+
+def test_the_census_counts_a_watched_field_as_present_on_every_baseline_building(
+    synthetic_pin: dict[str, Any],
+) -> None:
+    # The baseline corpus carries all three overclock fields on all three of
+    # its power-bearing entries, so every absent count is a real measured zero
+    # rather than a key that was never written. Without this half the variant
+    # below could pass on a census that only ever counted absences.
+    presence = synthetic_pin["census"][CENSUS_KEY_BUILDING_FIELD_PRESENCE]
+    assert sorted(presence) == sorted(WATCHED_BUILDING_FIELDS)
+    for field in WATCHED_BUILDING_FIELDS:
+        assert presence[field] == {"absent": 0, "present": 3}, field
+
+
+def test_the_census_counts_the_registry_published_buildings_that_lack_a_watched_field() -> None:
+    # The point of the key: a per-value count answers WHICH VALUES a field
+    # takes among the entries that carry it, and says nothing at all about the
+    # entries that carry none. Only the absent half can ground the branch that
+    # reads an absent field as None.
+    payload = build_pin(encode_docs(groups_with_an_unpotentialed_building()), SYNTHETIC_BUILD)
+    presence = payload["census"][CENSUS_KEY_BUILDING_FIELD_PRESENCE]
+    for field in WATCHED_BUILDING_FIELDS:
+        assert presence[field] == {"absent": 1, "present": 3}, field
+
+
+def test_the_building_census_ignores_an_entry_no_recognized_group_holds() -> None:
+    # The unrecognized group in the variant corpus carries the same power field
+    # as the floodlight beside it. The registry builds from the RECOGNIZED
+    # groups only, so counting that entry would make the key describe a
+    # population the registry never publishes.
+    payload = build_pin(encode_docs(groups_with_an_unpotentialed_building()), SYNTHETIC_BUILD)
+    census = payload["census"]
+    counted = census[CENSUS_KEY_BUILDING_FIELD_PRESENCE][FIELD_MAX_POTENTIAL]
+    assert counted["absent"] + counted["present"] == EXPECTED_VARIANT_BUILDING_COUNT
+    # Positive half: the entry really is in the document the census read, so
+    # the exclusion above is a measurement rather than a corpus that never
+    # carried it.
+    assert census["group_entry_counts"][UNRECOGNIZED_GROUP] == 1
+
+
+def test_the_tracked_pin_grounds_the_absent_max_potential_branch_in_shipped_data() -> None:
+    # CS-210. Before this key the claim "a registry-published building can lack
+    # mMaxPotential at all" was asserted nowhere against the shipped document -
+    # only against one hand-authored corpus entry. The pin is measured from the
+    # install by tools/drift_guard.py --re-extract, so this assertion reads the
+    # shipped document on a machine with no game on it.
+    presence = pin()["census"][CENSUS_KEY_BUILDING_FIELD_PRESENCE]
+    counted = presence[FIELD_MAX_POTENTIAL]
+    assert counted["absent"] > 0, (
+        "the shipped document records no registry-published building without "
+        f"{FIELD_MAX_POTENTIAL}, so the absent-is-None branch is grounded in the "
+        "synthetic corpus alone"
+    )
+    assert counted["present"] > 0, (
+        f"the shipped document records no registry-published building carrying "
+        f"{FIELD_MAX_POTENTIAL}, so the present branch is ungrounded"
+    )
 
 
 # ---------------------------------------------------------------------------

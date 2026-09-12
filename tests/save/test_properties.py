@@ -641,13 +641,33 @@ def test_three_pairs_reach_a_property_terminator_on_every_payload() -> None:
 
 
 def test_save_60_refuses_the_grammar_the_other_pairs_accept() -> None:
-    """The NEGATIVE result, pinned so nobody interpolates a fourth pair.
+    """The negative result, and it is about THIS MODULE'S LEGACY READER.
 
-    ADR 0005's refuted arithmetic route is exactly this shape: three measured
-    neighbours make the fourth look derivable. It is not - save 60 reaches a
-    terminator on no payload at all, and a single leading byte accounts for
-    some of the gap and nothing like all of it. Pinning the refusal is what
-    keeps a later slice from closing it by resemblance.
+    THE NAME IS KEPT DELIBERATELY. It reads as a claim about the save and the
+    claim below is narrower, but `docs/LEDGER.md` and `docs/history_notes.md`
+    cite this symbol by name and both are append-only - renaming it would rot
+    two citations in records that are never edited to chase a rename. The
+    docstring is where the claim lives, so the docstring is what changed.
+
+    WHAT THIS ARM MEASURES, NARROWED 2026-09-11 BECAUSE ITS OLD WORDING BECAME
+    FALSE. The sweep below carries its own independent reader of the LEGACY tag
+    grammar. Its zero is a true statement about that grammar and, until CS-980,
+    this docstring read it as a statement about the file: "save 60 reaches a
+    terminator on no payload at all". Ground truth refuted that - a third-party
+    tool renders container contents out of exactly these saves, and the shipped
+    reader now decodes every payload of the pair under a different tag grammar
+    measured from the bytes. Only the legacy grammar refuses them, which is
+    precisely why a third dispatch exists.
+
+    SO THE ARM IS KEPT AND ITS CLAIM IS SHRUNK. The legacy reader must go on
+    refusing this pair: if it ever stopped, the two grammars would have
+    converged and the dispatch that tells them apart would be grading nothing.
+    What the SHIPPED reader does with the pair is graded in
+    ``tests/save/test_property_payload_14_60.py``, which is where the positive
+    claim belongs.
+
+    ADR 0005's refuted arithmetic route is still the hazard being pinned: three
+    measured neighbours make a fourth look derivable, and it was not.
 
     The zero here is guarded by :func:`_assert_walker_is_live`, without which
     it also passes when the walker reaches a terminator on NOTHING at all.
@@ -658,9 +678,11 @@ def test_save_60_refuses_the_grammar_the_other_pairs_accept() -> None:
         pytest.skip("no save of the unmeasured pair on this machine")
 
     assert sweep.walked.get(UNMEASURED_PAIR, 0) == 0, (
-        f"pair {UNMEASURED_PAIR} now reaches a terminator on "
-        f"{sweep.walked.get(UNMEASURED_PAIR, 0)} payloads; if that is real it is a "
-        "measurement worth making properly rather than a reason to relax this test"
+        f"the LEGACY reader now reaches a terminator on "
+        f"{sweep.walked.get(UNMEASURED_PAIR, 0)} payloads of pair {UNMEASURED_PAIR}. "
+        "That is the two grammars converging, which would make the dispatch "
+        "between them grade nothing - measure it properly rather than relaxing "
+        "this arm"
     )
 
 

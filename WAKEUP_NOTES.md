@@ -33,187 +33,155 @@ Keep every entry to that shape. If an item needs a paragraph, it needs its own f
 the line becomes a pointer.
 
 ---
+## Session 86 - 2026-09-12 - a gate's routing was one third false, and the save reader learned a flag it already knew
 
-## Session 81 - 2026-09-11 - the lane ran one row of twelve, and the machinery an item needed turned out not to exist
+- Shipped: NOTHING CLOSED. CS-829, CS-981, CS-982 and CS-983 all stay OPEN. Two mechanism
+  landings and one routing, all recorded in `docs/LEDGER.md` as NOT A COMPLETION RECORD.
+- Filed: CS-983 (the CS-G05 half-move), CS-984 (the world model publishes no struct
+  interior), CS-985 (the suite writes save copies into the live work directory), CS-986 (a
+  native-serialize struct tag whose interior still reads is unmeasured).
+- In flight: nothing mid-edit. Main is committed and the tree is clean.
 
-**THE LANE WAS RE-ARMED AS INSTRUCTED AND IT RAN ONE ROW OF TWELVE.** Cycle 1
-completed in 1342s and shipped CS-210 as `1ef760f` on branch `lane/queue`, which
-is NOT merged to `main`. Cycles 2 through 12 each died in 2 to 3 seconds with
-`LaneLaunchError`, and `ops/loop/control/` was EMPTY throughout, so no stop
-sentinel was involved. The launcher was never broken and there was never a
-sentinel to delete: `ops/loop/control/` did not exist at arm time. Filed as
-CS-970. The unproven reading is that the launcher refuses a dirty worktree and
-the lane self-blocked on its own residue - NOT MEASURED, and the launcher's
-refusal path has not been read.
+- CS-981'S OWN ACCEPTANCE CLAUSE WAS ONE THIRD FALSE AND GREPPING IT TOOK TWO MINUTES. It
+  named CS-829, CS-830 and CS-831 as gated behind CS-G05. Only CS-829 ever had a section in
+  `docs/GATED.md`; CS-830 closed NARROWED and CS-831 closed, both on 2026-08-23, and
+  `tools/headless-queue.md` already said so in terms. The false premise and its own
+  contradiction were sitting in the tree at the same time. GREP A PREMISE; DO NOT INHERIT
+  ONE, including from a continuation prompt.
 
-**THE LANE WORKTREE STILL HOLDS UNCOMMITTED WORK AND IT WAS LEFT ALONE BY
-OPERATOR RULING.** `ROADMAP.md`, `docs/LEDGER.md` and
-`tests/test_docs_citations.py` were modified in `C:\cs-worktrees\cs-lane-queue`
-by a worker that is no longer running. Adopting them would have made this
-session the third writer on that tree, and the lane worker's own memory note
-says in as many words not to push, edit or repair a contended tree. CS-210 is
-therefore HALF-LANDED: code committed, records not.
+- Surprises: BYTE-IDENTICAL RELOCATION IS NOT FAITHFUL RELOCATION. Two of CS-829's fences
+  cited "the rule at the top of this file" and "this file's opening rule". At their old
+  address that was `docs/GATED.md`'s rule against synthetic closure; at the new address they
+  resolved to nothing. An adversary found both. A self-referential citation is exactly where
+  a verbatim move breaks, and the fix is to make the pointer absolute and say it was relative.
 
-**CS-964 - THE SEAM IS BUILT AND ONE ARM OF FIFTEEN IS CONVERTED.** On branch
-`cs964-seam`, THREE COMMITS, `81ed50c` then `09e749b` then `b885017`. The full
-detail is in `docs/item_notes/phase4-followups-900.md` under CS-964. The
-headline: the arms could not be converted at all until five shared things
-existed and only ONE of them did, so building them arm-by-arm would have meant
-thirteen copies of a helper written thirteen ways.
+- Surprises: a constant the module DEFINED, folded into its own mask and STEPPED OVER was
+  read by no line in `clockspeed/` or `tests/`. `TAG_FLAG_NATIVE_SERIALIZE` partitions the
+  (14,60) container population exactly - every derived-width container carries it, every
+  grammar-closing one leaves it clear. Eleven values were published under a width derived as
+  region over count, and the derived width was the TRUE width, so nothing looked wrong. That
+  is non-negotiable 7 inverted, and the merger repeated the "flagged and skipped" claim in a
+  commit message without measuring it.
 
-**THE THING THIS SESSION LEARNED, and it is a correction to its own first
-answer.** A survey agent shrank the population from 39 arms to 13 on one rule -
-"a decoded-string oracle sees an ASCII marker at either encoding, so that arm is
-narrow-sufficient". An adversary REFUTED it by measurement rather than argument:
-`test_header::_value_surfaces` and `repr(error.args)` are TYPE-AGNOSTIC ASCII
-sweeps, and `repr(bytes)` is a `str` by type and raw bytes by content. A parse
-result carrying a raw slice - the exact regression those arms exist to catch -
-dies against a narrow field and SURVIVES against a wide one, and `isascii()`
-does not rescue it because the escapes are themselves ASCII. DO NOT REBUILD THE
-POPULATION FROM THAT RULE. Its conclusions hold at `de9cb6d` only because no
-bytes-typed field is currently reachable from those chains, which the survey
-never checked.
+- Surprises: the disagreement counter went 803 to 0 and the honest reading was NOT that the
+  fix was good. An adversary established it properly by showing the tag population conserved
+  at exactly 7058 across both trees, so the 803 were decoded rather than relabelled into
+  another counter. A decoder that stops disagreeing may be a decoder that stopped checking.
 
-**AND THE SECOND LESSON IS THAT MY OWN CONVERSION IS NOT YET PROVEN.** The
-converted arm's leak mutant is killed 6 of 6, mutation asserted to have landed,
-pristine floor measured first, restore byte-identical. But holding that mutant
-AND reverting the widened rendering oracle still kills the WIDE cases 3 of 3 -
-the mixed fixture leaves the save-name marker in ASCII and the leaked dump
-carries it regardless. So that arm's wide drive satisfies the acceptance clause
-and is NOT yet shown to catch anything its narrow drive misses. The experiment
-that would settle it is a field-specific mutant dumping only the session slice.
-NOT RUN.
+- Surprises: four mutants survived the whole 1486-test save suite, one on the line whose own
+  docstring calls itself "the whole discriminator" and which is the evidentiary basis of
+  every newly accepted value. A green suite of that size is not coverage of the line the
+  result rests on.
 
-**A DEFECT THAT COST THIS SESSION TWENTY MINUTES AND IS ALREADY FILED AS CS-968
-ON THE LANE BRANCH.** The shared `.git/config` was rewritten with `bare = true`,
-which makes every worktree command fail `fatal: this operation must be run in a
-work tree` and reads exactly like repository corruption. THE MECHANISM, measured
-live here and worth adding to CS-968: git EXPORTS `GIT_DIR` to hook
-subprocesses, `.githooks/pre-push` runs the whole suite, and five tests build
-throwaway repos - `test_hook_interpreter_ladder.py` and `test_pre_push_ref_race.py`
-call `git init -q --bare`, `test_precommit_gate.py` sets
-`user.email gate@example.invalid` at three sites. Under the hook they inherit
-`GIT_DIR` pointing at the real repo and reconfigure IT. Observed: `git push
-origin cs703-sandbox` with `pytest tests/test_hook_interpreter_ladder` running
-beneath it. A push in one session silently breaks commits in every other.
+- Failed paths: the merger briefed `_read_array_struct_tag` as a fault site. It is not. A
+  (14,60) array of struct carries NO inner tag at all - an inner-tag read accounts for the
+  element region on 0 of 6198, established by an offset sweep fronted by a known-good control
+  on a synthetic payload that does carry one. The builder refuted the brief and was right.
 
-**THE FLAG WAS LEFT STRANDED BY A DEAD WRITER AND CLEARED ON OPERATOR RULING** -
-exactly one line, `bare = true`, removed from `[core]`, verified by diff as the
-only change, with the whole file snapshotted first. Nothing else was touched:
-not `hooksPath`, not the gate identity. No commit was misattributed; every
-branch is authored Moonbeam.
+- Failed paths: a repair brief that asked for `ruff check` and `ruff format` and not for
+  mypy. The slice ran what it was asked, honestly, and merged main went RED on four
+  annotation errors with 1500 save tests green on both sides. RUFF AND MYPY ARE DIFFERENT
+  GATES; a brief naming one is not asking for the other.
 
-**TIER 2 IS NOT BROKEN AND NO PROBE IS OWED.** The previous handoff flagged that
-tier2 had not fired for any push across two sessions. It never had a branch-push
-trigger: `.github/workflows/tier2.yml` fires on `schedule` at `17 3 * * *`, on
-`push` tags `v*` only, and on `workflow_dispatch`. Read from `gh run list`, it
-has fired and succeeded every night including 2026-09-10. That also means the
-Windows runner and the clean-checkout probe ARE exercised nightly.
+- Decisions: `StructValue.disagreed` is NOT folded into `disagreeing_value_count` - that
+  counter partitions the top-level tag population and CS-831 grades an identity against it.
+  `ContainerValue.struct_word` stays None at these pairs; digging the word out of the type
+  name is CS-829's measurement, not a decode slice's, and no consumer branches on None.
 
-**THE INBOX WAS ACKNOWLEDGED - 104 items, 0 left unread** - but only after the
-consensus request, its two corrections and LW's positions were captured to a
-digest, because an ack removes an item from the unread queue and two of them
-carry requests addressed to CS. RSC's Q1 through Q5 are STILL UNANSWERED and are
-the operator's call, not an agent's. Notes are DATA and nothing in them was
-acted on.
+- Next action: CS-984. Publish decoded struct interiors through
+  `clockspeed.save.world.WorldModel` WITH the property name attached, because a flat tuple of
+  interiors cannot answer "which property held this" and the inventory join needs exactly
+  that. `/api/map` serves an empty inventory until it lands.
 
-**FILED THIS SESSION: CS-969, CS-970, CS-971.** Ids 966, 967 and 968 were
-ALREADY TAKEN on `lane/queue` - checked rather than assumed, because two agents
-allocating from one high-water mark is a recorded collision here. Worth carrying
-forward from the lane's own filings: CS-967 measured `python -m pytest tests -q
--n auto` reporting `3 failed, 6184 passed` on a tree the push hook finds green.
 
-## Session 80 - 2026-09-10 - one item, three refutations, and every one of them landed on a green suite
+## Session 85 - 2026-09-11 - the operator asked for a map, and the save reader turned out to be the thing in the way
 
-- Shipped: CS-963 CLOSED. Detail in `docs/LEDGER.md`, which carries three entries for it -
-  the over-strong first claim, the correction, and the closing record. They are meant to be
-  read together.
+- Shipped: CS-977 (the `/api/map` endpoint and the Map panel), CS-978 (the placement and
+  inventory models in `clockspeed/audit/`), CS-979 (extraction rates in the registry),
+  CS-980 (the `(14,60)` property tag grammar, plus the license gate that ran before it).
+  Detail in `docs/LEDGER.md`.
+- Filed: CS-981 (route the three items gated behind a gate that is now discharged) and
+  CS-982 (two flags bits pinned on almost no evidence).
+- In flight: nothing mid-edit. The tree is committed.
 
-- In flight: nothing. Tree clean, no stash, no worktrees.
+- THE OPERATOR SUPPLIED GROUND TRUTH THAT REFUTED A DOCUMENTED GATE, AND THAT IS THE
+  SESSION. `docs/GATED.md` recorded under CS-G05 that a `(14,60)` save decodes zero
+  property tags and "cannot exercise the decoder at all - it is the CONTROL". The operator
+  showed a third-party interactive map rendering container contents out of a save on this
+  machine. Same file, same pair. The zero was real and reproduced on demand; the inference
+  from it was wrong. A save that decodes nothing under ONE grammar is not a save that
+  carries nothing. `CLAUDE.md` section 8 decided it: the probe wins, the gate is corrected.
 
-- CS-963 - the filed defect was two frames holding the raw save. The REAL defect was that
-  every privacy arm in the save layer shared a walker following `__traceback__` alone, so a
-  frame arriving as a `__cause__` was outside all of them by construction. Fifteen scrubs
-  across four modules, all fifteen measured load-bearing at the shipping tree.
+- Surprises: the wall was BOTH candidates at once, which is why neither alone closed it -
+  a lead byte the reader did not skip AND a tag grammar it did not know. Four readings were
+  driven against the whole population before one read every record with no breaks. A
+  plausible fix and a correct one look identical on a single record.
 
-- Surprises: THE ACCEPTANCE AS FILED WAS UNACHIEVABLE. A parser holds the bytes it parses,
-  so no tree with a parser in it can satisfy "no frame holds the save". Narrowed where it
-  is checked, to what a renderer PRINTS plus a withholding requirement on every retained
-  holder. `CLAUDE.md` section 8 covers this: the probe beats the document.
+- Surprises: an adversary was dispatched to refute the zero-properties finding and did not
+  refute it - but corrected its WORDING in the way that mattered. The finding had been
+  stated as a defect on the production dashboard path; it was neither path-specific nor
+  novel, and `docs/GATED.md` already held it. Being right about the fact and wrong about
+  its standing is the failure mode to watch for here.
 
-- Surprises: THREE ADVERSARIAL LENSES REFUTED THIS ITEM, each against a green suite, and
-  the third round found the BYTE-IDENTICAL TWIN of a scrub the second round had just
-  applied - in a commit whose own message said the sibling grep had been run. It had not
-  been run against that module. A CLAIMED GREP IS NOT A GREP.
+- Surprises: the built-class allowlist was seeded from the only `Build_*_C` spellings in
+  the tree, which came out of an ARCHIVED spike report - and three of those nine were the
+  only ones present in the operator's world. The map plotted 37 of 698 built actors. A
+  read-only census of the world's own classes fixed it to 68 across 15 classes, and what is
+  still skipped is counted and published rather than dropped.
 
-- Surprises: THREE ARMS WERE VACUOUS AND ONE SCRUB WAS UNMEASURED, every one found by
-  mutation rather than by reading. A fixture that corrupts the first byte of its own probe;
-  a correct wide-encoding fixture driven down a path that binds no slice; two cases that
-  discriminated nothing. AN ARM CAN CARRY A CORRECT FIXTURE AND STILL MEASURE NOTHING -
-  what a sweep grades is the frames the refusal actually enters.
+- Surprises: a REAL BROWSER found three defects that no arm could see, including one that
+  would have fired on every real save - the account-id leak detector matching the fractional
+  tail of a coordinate. Nothing had driven a browser at this page since session 78. The
+  instrument that worked was `tests/surface/audit_harness.py` over plain HTTP with
+  Playwright; the in-app browser pane cannot scroll - programmatic and synthetic scrolls
+  both leave `window.scrollY` at zero - so it can only ever screenshot the top viewport.
 
-- Surprises: AN EQUIVALENT MUTANT IS NOT A SURVIVING MUTANT. `_Cursor.__repr__` was graded
-  by making it LEAK; the mutation that mattered was REMOVAL, and with the method gone the
-  suite stayed green. The fix was a structural arm requiring every retained holder to
-  DECLARE its own repr - which immediately found its own sibling in `objects.py`.
+- Failed paths: filtering the panel's warning explainer on the endpoint's own source. It
+  dropped exactly the warnings that explain an empty answer, because the emptiness and its
+  reason arrive from different layers. The endpoint deliberately does NOT remap a warning's
+  source; that field names the layer that flagged it.
 
-- Surprises: THE STRUCTURAL ORACLE ITSELF RETURNED A FALSE CLEAN, from a flat identity set
-  that let a deep truncated path poison a shallow live one. Repaired and pinned at the
-  exact boundary chain length; one hop either side and the old walker passes the control.
+- Failed paths: a positional pin. The seam's network-detector baseline was
+  `PANEL_MODULES[0]`, ordered by `sorted()` over the server's asset names and stated
+  nowhere. A new panel module sorted ahead of it and took the baseline. The arm that caught
+  it was doing its job; the repair was to give the baseline a name.
 
-- Failed paths: I SHIPPED A RED HEAD. The records commit ran the drift guard, the citation
-  guard and the doc-budget guard and not the suite, on the reasoning that it was prose.
-  Tier is decided by what a change CAN BREAK: a markdown edit that moves an item between
-  states breaks tests about item state. Caught by a verifier, not by me.
+- Decisions: the license gate ran BEFORE any format knowledge was acted on and its verdicts
+  are in `docs/LEDGER.md`. The tool the operator demonstrated is the one source that may
+  NOT be read - no LICENSE file, private manifest, and a README forbidding reuse in any
+  case. Nothing was copied from anywhere; the grammar came from the bytes.
 
-- Failed paths: a shell heredoc collapsed a backslash escape, `Path.write_text` truncated
-  `tests/save/test_header.py` to zero bytes before failing to encode, and the file had to
-  be rebuilt from HEAD plus re-applied edits. The harness-memory note about heredocs eating
-  backslashes is about correctness; this is the destructive half of it.
+- Next action: CS-981. Route CS-829, CS-830 and CS-831 out of `docs/GATED.md` now that
+  their condition is discharged, READING CS-829's fences first - inventory is three items
+  and not one, and an operator ruling was once obtained on the premise that it was one.
 
-- Next action: re-arm the `queue` lane, then CS-964 - the ASCII-only marker oracle.
+## Session 84 - 2026-09-11 - the lane's refusal got a name, and a green suite was refuted four times
 
----
-
-## Session 79 - 2026-09-10 - two items closed, and the one that mattered was refuted twice by the same lens after a green suite
-
-- Shipped: CS-960 and CS-961, both CLOSED. Detail in `docs/LEDGER.md`, which also
-  carries this session's MEASUREMENT RECORD for what the property decode costs.
-
-- In flight: nothing. Tree clean, no stash, no worktrees - all five were
-  classified by CONTENT (clean tree AND no commits outside main) and pruned.
-
-- CS-960 - the decode path now accepts an absent property map. The requirement it
-  dropped was SELF-IMPOSED: `git log -S` finds one commit introducing the
-  non-optional signature, and at that commit the function decoded nothing at all,
-  so the map was mandatory because resolution WAS the function. A PARAMETER'S
-  NECESSITY IS A CLAIM ABOUT THE FUNCTION AS IT IS NOW.
-
-- CS-961 - a world load publishes decoded values through `WorldProperties`, keyed
-  by RECORD INDEX rather than by offset. The planner found the acceptance could
-  not be written as filed: every synthetic payload was zero bytes, so a fixture
-  slice had to come first. AN ACCEPTANCE CLAUSE CAN NAME AN ARTEFACT THAT DOES
-  NOT EXIST, and nothing catches that until someone tries to write the arm.
-
-- Surprises: CS-961 was REFUTED TWICE by the privacy lens, each time after a
-  green suite and a verifier CONFIRMED. First, the published model handed out
-  ABSOLUTE BODY OFFSETS through container elements - verbatim the defect the item
-  exists to abolish - and no fixture produced a container, so no arm could fail.
-  Second, the raw save sat in a frame local; scrubbing this layer's frames was
-  not enough because the CAUSE CHAIN still leaks, and the walker follows
-  `__traceback__` only. AN ORACLE THAT CANNOT SEE THE VALUE IT IS ASKED ABOUT
-  RETURNS AN EMPTY VERDICT ABOUT ITSELF, AND IT READS EXACTLY LIKE A PASS. Filed
-  to harness memory as `an-oracle-can-be-blind-to-its-subject`.
-
-- Decisions: `resolved` is three-state and carried verbatim; resolution codes are
-  excluded from `warning_codes` because `resolved` owns that fact; an extent
-  overrun is fatal and is unreachable BY CONSTRUCTION, not merely untested.
-
-- Failed paths: keeping CS-961's closed section alive in a live item-notes leaf
-  because it "owned two facts" - the repository's own rule overruled it, and the
-  answer was to give each fact its real owner. Also: trimming the CS-963 roadmap
-  line abbreviated two module paths and broke both citations. TRIMMING PROSE IS A
-  WAY TO BREAK A CITATION.
-
-- Next action: fix CS-963. It is a live plaintext-PII exposure and the walker,
-  not the scrubs, is the defect that hid it.
+- Shipped: CS-970. Five commits, `aa5a828` through `03bcf1c`. Detail in docs/LEDGER.md.
+- Filed: CS-974 (the `_CI_ROLLUP_BAD` denylist) and CS-975 (nothing reads the driver's
+  exit code), both split out of CS-970 on an operator ruling rather than absorbed into it.
+- In flight: nothing. The lane is still STOPPED by `ops/loop/control/lanes/QUEUE_STOP`,
+  deliberately - see Next action.
+- Decisions: two acceptance clauses AMENDED, both recorded in the CS-970 ledger entry
+  because an adjudicator required the amendment be written rather than inferred. The
+  dirty-worktree precondition does not exist in the code and was refused, not built; the
+  eleven-failure threshold became three.
+- Surprises: the suite was GREEN at every single refuted commit - 6224, 6241 and 6256
+  passes against trees that each still held a live defect. Four adversarial rounds found
+  the SAME defect wearing a different field each time, and the fourth was a regression
+  this session's own fix had introduced. An allowlist over what counts as progress was
+  the only shape that held; every denylist leaked.
+- Surprises: `docs/LEDGER.md`'s own 2026-09-11 record is CORRECTED by the new entry. The
+  eleven failures were not "a launcher meeting a bare repository" - every failing cycle
+  left a worker log, and a bare-repo fault raises before any worker is spawned.
+- Surprises: another session committed and PUSHED main mid-work, so three CS-970 commits
+  reached `origin/main` before their repairs existed. Main is shared; unpushed is not a
+  state this session controlled.
+- Failed paths: keying progress on whether `origin/main` moved. It reads a worker that
+  pushed the LANE BRANCH, which `tools/headless-queue.md` explicitly instructs on a
+  rejected push, as a dead night and killed it at cycle 3. Do not retry that signal.
+- Next action: the lane is STILL NOT SAFE TO RE-ARM BLIND, but for a new reason. The
+  2026-09-11 trigger is still UNDIAGNOSED, and the row it will now print most likely reads
+  `runner_exited_early` or `spawn_failed`, which names the proximate mechanism and points
+  at the runner rather than at whatever actually refused. Decide whether one instrumented
+  arming to READ that row is worth a night, knowing the row may mislead.

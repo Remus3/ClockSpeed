@@ -350,6 +350,100 @@ h3 {
   margin: 0;
 }
 
+/* --- the solve bench: labelled text inputs and the control beside them --- */
+
+/*
+  WHO THESE RULES ARE FOR, AND WHY THEY ARE HERE RATHER THAN WITH THE PANEL
+  THAT USES THEM. The bench is built by a panel module, and a panel module
+  ships no stylesheet - there is exactly one sheet on this page and four panels
+  cannot each own it. So the shape of a labelled text input is declared once,
+  here, and the panel writes class names against it.
+
+  THE INPUT IS SIZED THE WAY THE BUTTON IS, and for the same reason: it is a
+  pointer target, and a target below 24x24 CSS px is one a reader with an
+  imprecise pointer misses. 44px matches the button's own min-height rather
+  than the 24px floor, so a row of controls lines up on one baseline instead of
+  stepping - and the floor is a minimum, never a target to sit on.
+
+  THE FLOOR IS NOW GRADED, WHICH IT WAS NOT WHEN THIS RULE LANDED. This input is
+  built by a panel module at runtime, so it appears in no markup and the arm that
+  reads index.html could never see it, while the sizing arm beside that one
+  grades the button element selector alone. A rule this project treats as a
+  hit-target requirement was enforced by nothing. The arm that reaches it derives
+  the set of injected controls from the SCRIPTS that create them rather than
+  naming this class, so a fifth panel's control is graded the day it ships:
+  tests/surface/test_web_assets.py::test_every_control_a_script_injects_declares_the_target_box
+
+  EVERY COLOUR HERE READS A TOKEN, which is not a style preference on this
+  sheet: .hud-overlay redefines the palette whole for a layer that sits over a
+  game pixel, and a literal colour written here would arrive there unchanged
+  and paint a light value on a dark ground.
+*/
+
+.bench {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 0.75rem 1rem;
+  margin: 0.9rem 0 0;
+}
+
+.bench-field {
+  display: flex;
+  flex: 1 1 14rem;
+  flex-direction: column;
+  gap: 0.3rem;
+  min-width: 0;
+}
+
+.bench-label {
+  color: var(--muted);
+  font-size: 0.8rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.bench-input {
+  min-width: 24px;
+  min-height: 44px;
+  width: 100%;
+  padding: 0.45rem 0.6rem;
+  background: var(--surface-alt);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font: inherit;
+  font-size: 0.95rem;
+}
+
+/*
+  THE PLACEHOLDER IS NOT A LABEL AND IS NOT COLOURED AS IF IT WERE. It sits on
+  --muted, the same token the label above uses, so the two cannot drift into
+  different contrasts; the label carries the meaning and the placeholder only
+  shows the shape of a legal value.
+*/
+.bench-input::placeholder {
+  color: var(--muted);
+  opacity: 1;
+}
+
+/*
+  WHERE THE BENCH PUTS ITS ANSWER. A result region the panel writes into on a
+  callback, never a repaint - so it has to be legible on its own rather than
+  as a row of a table that a repaint would have rebuilt around it.
+*/
+.bench-result {
+  flex: 1 1 100%;
+  margin: 0.9rem 0 0;
+  padding: 0.7rem 0.85rem;
+  background: var(--surface-alt);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-size: 0.95rem;
+}
+
 /* --- wide content owns its overflow, so the page never scrolls sideways - */
 
 .scroll-x {
@@ -846,4 +940,103 @@ tbody td:first-child:not(.empty) {
   border: 1px solid var(--hud-rule);
   border-radius: 0;
   padding: 0.5rem 0.75rem;
+}
+
+
+/* --- CS-977, the Map panel -----------------------------------------------
+
+  NO NEW PALETTE TOKEN. Every colour here reads one of the tokens :root already
+  declares, which is what keeps the three-way pairing - light :root, the dark
+  query, and the .hud-overlay redefinition - a closed set. A new token would
+  have to be added in all three places and its absence from one is a colour that
+  is right in one scheme and wrong in the other.
+
+  THE TWO POPULATIONS DIFFER BY SHAPE AS WELL AS BY HUE. A circle is a resource
+  node and a square is a built machine, and the legend says both words, so the
+  distinction survives a reader who does not separate --accent from
+  --status-optimal.
+
+  THE MAP IS SIZED IN VIEWPORT-RELATIVE HEIGHT WITH A PIXEL CEILING, and the
+  viewBox does the rest: aspect is held by preserveAspectRatio, so the element
+  can be any box and the world still maps into it without distortion.
+*/
+
+.map-canvas {
+  display: block;
+  width: 100%;
+  height: 46vh;
+  max-height: 520px;
+  margin: 0.7rem 0 0;
+  background: var(--surface-alt);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+
+.map-node {
+  fill: var(--accent);
+  stroke: var(--surface);
+  stroke-width: 0.5;
+}
+
+.map-built {
+  fill: var(--status-optimal);
+  stroke: var(--surface);
+  stroke-width: 0.5;
+}
+
+/*
+  THE CONTROL ROW WRAPS RATHER THAN SCROLLING. A row of seven 44px targets does
+  not fit 375px, and a horizontal scroller would need the measured-overflow tab
+  stop idiom for a box whose contents are already focusable one by one - which
+  is the case that idiom explicitly does not cover.
+*/
+.map-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin: 0.6rem 0 0;
+}
+
+/*
+  THE TARGET BOX IS DECLARED HERE AND IS READ BY A TEST.
+  tests/surface/test_web_assets.py resolves a script-injected control to its
+  class selector and requires both axes floored in px, so this rule is the
+  hit-target guarantee for every button this panel builds - the view controls
+  and the per-class filters alike.
+*/
+.map-control {
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0.45rem 0.8rem;
+  background: var(--btn-bg);
+  color: var(--btn-fg);
+  border: 1px solid var(--btn-border);
+  border-radius: 6px;
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+/*
+  A FILTER THAT IS PRESSED IS A CLASS THAT IS HIDDEN, and it is announced twice
+  over: aria-pressed for a screen reader, and this demoted fill for a reader
+  looking at it. The label changes too, from Hide to Show, so the state is
+  legible without either.
+*/
+.map-filter[aria-pressed="true"] {
+  background: var(--idle-bg);
+  color: var(--idle-fg);
+  border: 1px solid var(--border);
+}
+
+.map-legend {
+  margin: 0.6rem 0 0;
+  padding: 0 0 0 1.1rem;
+  font-size: 0.82rem;
+  color: var(--text);
+}
+
+.map-legend li {
+  margin: 0.15rem 0;
 }
