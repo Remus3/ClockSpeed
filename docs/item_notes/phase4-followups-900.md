@@ -1264,7 +1264,60 @@ tests/save/test_header.py, which fails without piece 2. That arm is NOT NAMED
 HERE as a citation because it does not exist on main - it lands with the
 cs964-seam branch, and a doc on main that cites it is asserting something this
 tree cannot resolve. The experiment that would separate the two on the population
-arm is a field-specific mutant dumping only the session slice. NOT RUN.
+arm is a field-specific mutant dumping only the session slice.
+
+### THE EXPERIMENT WAS RUN - MEASURED 2026-09-12 (session 87) BY AN ADVERSARY, AND IT ANSWERS AGAINST THE SEAM
+
+**THE LOAD-BEARING CLAIM IS REFUTED AS A GENERAL CLAIM.** Do not restate it. The
+field-specific mutant the paragraph above named as decisive was built: `parse_header`
+captures the session-name field's exact wire slice onto the cursor after `skip_string`,
+and `_Cursor._require` attaches ONLY that slice - not the 64-byte dump - as a note on the
+truncation refusal. Landing was asserted by a substring check before every run, and the
+pristine floor was measured three times.
+
+**IT IS SYMMETRIC. Narrow kills it 3 of 3 and so does wide.** By the criterion this item
+set for itself, the wide half buys nothing on that mutant. The kills are genuine rather
+than riding the narrow save-name marker - narrow reports the leak as
+`'MarkerCharlieSessionNeedle'` and wide as `'M\x00a\x00r\x00k\x00e\x00r\x00...'` - so
+the mixed-fixture confound the paragraph above worried about is resolved in the seam's
+favour, and the question is still answered against it.
+
+**AND THE WIDE DRIVE'S WIDENESS WAS ITSELF UNGRADED, which is worse than the symmetry.**
+Reducing `_respell` to `return data`, so the wide ids became byte-identical duplicates of
+the narrow ones, left the WHOLE of `tests/save` green at 1511 passed, exit 0. Nothing
+anywhere noticed that the wide half of a parametrization named for its encoding was not
+wide. `_spliced_wide` has its own arm; the ARM'S USE of it had none - the same defect one
+level out, a fixture property deciding what a whole parametrized population measures and
+graded by nothing. **REPAIRED at the merge, post-verdict**: the arm now asserts the
+respelled blob differs from the narrow one, carries the session marker in its WIDE
+spelling, and does NOT still carry it narrow. That mutant now fails the three wide cases
+and leaves the three narrow ones untouched.
+
+**ONE MEASURED EXCEPTION, and it is the reason the seam is not merely decorative.** A
+mutant retaining the payload on the wide branch of `_string_extent`, gated to header
+versions 10 and 13, is killed by `[wide-10]` and `[wide-13]` AND BY NOTHING ELSE IN 1511
+TESTS. So the wide half does hold unique cross-version coverage of that `count < 0`
+branch. **That coverage is real and was, before this repair, unprotected.** The
+ungated form of the same mutant is caught by the pre-existing
+`test_the_marker_sweep_is_not_blind_to_a_wide_encoded_header_string`, so only the gated
+form isolates it.
+
+**THE FIVE PIECES, GRADED INDIVIDUALLY.** Piece 1 (`_needle_as_text`) reduced to a single
+UTF-8 decode fails the wide cases 3 of 3 - graded. Piece 3 (`_markers_present_in`) reduced
+to the UTF-8 question fails wide 3 of 3 - graded. Piece 2 is graded by its OWN arm rather
+than by the converted arm: a sweep-only revert at `_assert_free_of` leaves all 6 cases
+passing and reddens only `test_the_surface_sweep_is_not_blind_to_a_wide_encoded_raw_slice`.
+Piece 4 is the one the repair above closes. **Piece 5's own revert was NOT RUN and stays
+UNMEASURED** - do not record it as graded.
+
+**THE CONTROL CAN REFUSE, BUT ITS ONE SHIPPED CALL SITE IS VACUOUS FOR THAT HALF.**
+`_assert_the_needle_is_observable` correctly refused all six malformed pairs put to it -
+a wide needle of different text, a narrow needle of different text, needle a prefix of the
+marker, marker a prefix of the needle, an empty needle, a one-byte needle. But the call
+site in `test_header` passes `_spelling_of(marker, blob)`, which DERIVES the needle from
+the marker, so the pair is consistent by construction and the pair-mismatch trap this note
+names in capitals can never fire there. Only the oracle-blindness half is live at that
+site. **A later conversion must not cite that call site as evidence the trap is graded.**
 
 **THE SURVEY'S EXCUSING RULE WAS REFUTED, so do not rebuild the population from
 it.** The rule was "a decoded-str oracle sees ASCII at either encoding,
