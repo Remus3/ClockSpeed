@@ -1221,11 +1221,26 @@ written thirteen ways, which is the fixture drift the fence above forbids.
 `test_properties::_fstring` hardcoded `text.encode("ascii")` with a positive
 count and is the encoder for `test_properties`, `test_container_elements`,
 `test_struct_interior`, `test_reference_resolution` and `test_world`'s planted
-payload. `wide` is keyword-only so all 56 positional call sites keep their
-meaning, and it REFUSES an empty wide string: `synthetic.fstring` returns the
+payload - and for `test_synthetic`, a SIXTH consumer this paragraph missed when
+it was written and a verifier found on 2026-09-12. `wide` is keyword-only so
+EVERY positional call site keeps its meaning, and it REFUSES an empty wide
+string: `synthetic.fstring` returns the
 NARROW spelling silently for that case, and a silent narrow fallback hands an
 arm the exact encoding it was written to stop measuring. NO ARM MAY PLANT AN
 EMPTY NAME OR VALUE.
+
+**TWO COUNTS IN THIS SECTION DID NOT SURVIVE RE-DERIVATION, corrected 2026-09-12
+by the verifier that graded the merge candidate rather than by the session that
+wrote them.** The call-site figure was filed as 56 and re-derived as 47 by
+tokenizing rather than grepping, against a baseline of 42 on `main`. It is now
+spelled in NEITHER this note nor the encoder docstring: the property is that no
+positional caller changed meaning, which needs no population size to state and
+cannot be kept true by one. **AND THE ENCODER POPULATION IS NOT YET WHOLE.**
+`tests/save/test_struct_interior.py` carries its OWN narrow-only `_fstring`
+that the seam did not widen, so widening the shared encoder did not reach that
+module's planted payloads. That is a residual for the remaining conversions and
+is the kind of parallel builder the fence above forbids - it must be folded into
+the shared encoder rather than widened in place.
 
 **ONE ARM OF FIFTEEN IS CONVERTED.**
 `test_header::test_planted_markers_never_reach_any_surface` is parametrized over
