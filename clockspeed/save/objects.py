@@ -3746,6 +3746,27 @@ ELEMENT_SHAPES: Final = frozenset(
 #: resolving it by preference, so its boundaries are pinned by the bytes.
 UNDISCRIMINATED_ELEMENT_SHAPES: Final = frozenset({ELEMENT_SHAPE_UNIFORM_WIDTH})
 
+#: The shapes a container whose tag declared a NATIVE-SERIALIZED value may not
+#: be published under - see :func:`_decode_container`, which owns the argument.
+#:
+#: IT IS DERIVED RATHER THAN LISTED, and that is the anti-drift control rather
+#: than brevity. Written out as its two members it would silently stop covering
+#: a fourth shape the day one is added; derived as "every shape whose partition
+#: was not read from the bytes", a new shape is refused under the bit by default
+#: and somebody has to argue it OUT. That is the safe direction.
+#:
+#: IT IS A SUPERSET OF :data:`UNDISCRIMINATED_ELEMENT_SHAPES` AND THE TWO ARE
+#: NOT THE SAME QUESTION. That one names the shapes whose internal partition
+#: nothing discriminates, and the solved width is deliberately absent from it
+#: because exactly one width in the searched range closes the region. This one
+#: asks a different question - whether the partition came from the ELEMENT'S OWN
+#: GRAMMAR - and a width found by searching for the one that closes did not,
+#: however well pinned it is. Under a bit that says the region is not a tag
+#: list at all, fitting a width to it is fitting.
+_UNEVIDENCED_UNDER_NATIVE_SERIALIZE: Final = ELEMENT_SHAPES - frozenset(
+    {ELEMENT_SHAPE_SELF_DELIMITING}
+)
+
 #: A container word for which NOT ONE instance in this project's corpus was
 #: bounded by the element's own grammar, name to what that leaves unproven.
 #:
@@ -4670,7 +4691,7 @@ def _read_type_name(
 
 def _read_type_tree_tag_header(
     body: bytes, at: int, end: int
-) -> tuple[str, int, int, int | None, tuple[str, ...]] | None:
+) -> tuple[str, int, int, int | None, tuple[str, ...], bool] | None:
     """Read one tag of the complete-type-name grammar, stopping at its value.
 
     THE RETURN SHAPE IS ITS OWN rather than :func:`_read_tag_header`'s, and the
@@ -4680,6 +4701,16 @@ def _read_type_tree_tag_header(
     after it; re-reading a nested name would be parsing it twice to arrive back
     at what the first parse already had.
 
+    THE SIXTH ELEMENT IS THE NATIVE-SERIALIZE BIT, CARRIED OUT RATHER THAN
+    STEPPED OVER. It was defined, folded into the measured mask and consumed by
+    nothing - a grep over the package and the suite found the constant's two
+    definition lines and no use at all - and :func:`_decode_container` is where
+    it earns its name. The alternative was a second read of the flags byte from
+    the name offset, which means parsing the whole nested type name again to
+    arrive back at a byte this read already had; two derivations of one byte is
+    the shape that drifts. Widening here fails LOUDLY instead: every consumer
+    of this tuple unpacks it positionally.
+
     Args:
         body: The decompressed body.
         at: Just past the tag's name.
@@ -4687,9 +4718,10 @@ def _read_type_tree_tag_header(
 
     Returns:
         The type word, where the value starts, its declared size, the byte a
-        BoolProperty carries in its flags, and the type name's top-level
-        parameter words. None if the tag does not read - including when the
-        flags byte carries a bit outside :data:`MEASURED_TAG_FLAG_MASK`.
+        BoolProperty carries in its flags, the type name's top-level parameter
+        words, and whether the tag declared :data:`TAG_FLAG_NATIVE_SERIALIZE`.
+        None if the tag does not read - including when the flags byte carries a
+        bit outside :data:`MEASURED_TAG_FLAG_MASK`.
     """
     named = _read_type_name(body, at, end)
     if named is None:
@@ -4713,7 +4745,7 @@ def _read_type_tree_tag_header(
         in_tag_byte = 1 if flags & TAG_FLAG_BOOL_TRUE else 0
     if size < 0 or cursor + size > end:
         return None
-    return (type_word, cursor, size, in_tag_byte, params)
+    return (type_word, cursor, size, in_tag_byte, params, bool(flags & TAG_FLAG_NATIVE_SERIALIZE))
 
 
 def _container_element_words(
@@ -5078,6 +5110,7 @@ def _decode_container(
     size: int,
     *,
     type_tree: bool = False,
+    native_serialize: bool | None = None,
 ) -> ContainerValue | None:
     """Decode one container tag's element framing - CS-830.
 
@@ -5086,6 +5119,39 @@ def _decode_container(
     CONTENT, where one this module can bound whose bytes then disagree is a walk
     that has lost its place. :func:`_walk_payload` separates the two rather than
     collapsing them, because they mean opposite things.
+
+    A NATIVE-SERIALIZED CONTAINER MAY NOT BE PUBLISHED UNDER A DERIVED WIDTH,
+    and that refusal is non-negotiable 7 rather than caution. The derived
+    shapes' whole admission test is that an integer divided evenly, or that one
+    width in a searched range closed; neither is a fact about the bytes between
+    the boundaries. The flags byte is the WRITER saying the value went through a
+    native serializer, which is a statement that the region is not the tag list
+    the element grammar would be reading - so where the bit is set this module
+    has no evidenced partition at all, and publishing an arithmetic one is the
+    "silently wrong" half the non-negotiable rules out. Flag it and skip it: the
+    caller's advance steps by the tag's own declared size and is unaffected.
+
+    WHAT THIS DOES NOT DO IS DELETE THE DERIVED BRANCHES. They stay reachable
+    for every container whose tag did not set the bit, and for the legacy
+    grammar, which has no flags byte and therefore says nothing either way -
+    ``native_serialize`` is None there and nothing below changes.
+
+    A SELF-DELIMITING CLOSE IS STILL ADMITTED UNDER THE BIT, deliberately. That
+    shape is falsifiable element by element: a wrong reading fails to close, so
+    its closing is evidence about the bytes rather than about arithmetic, and
+    refusing it would be discarding the strong reading along with the weak one.
+    A synthetic fixture writes exactly that combination -
+    ``tests/save/test_struct_interior_14_60.py`` - so the line between the two
+    is exercised rather than asserted.
+
+    WHAT WAS MEASURED, read-only and counts only, over the 11 saves of this
+    pair reachable in the library on the run that filed this: 11272 container
+    decodes at (14,60). Every one of the 11242 whose tag left the bit clear
+    closed SELF-DELIMITING. Every one of the 30 that set it fell to a derived
+    width and NOT ONE of them closed self-delimiting. The bit partitions the
+    population exactly, which is what makes it a predictor rather than a
+    correlation - and the figure is scoped to that pair and that run, because
+    the operator plays this game and the population moves.
 
     Args:
         body: The decompressed body.
@@ -5096,10 +5162,14 @@ def _decode_container(
         type_tree: Read the complete-type-name grammar rather than the legacy
             one for the inner tag and for any nested tag list - see
             :func:`uses_complete_type_name`.
+        native_serialize: Whether the tag declared a native-serialized value,
+            or None when the grammar states nothing. DEFAULTED so that adding
+            it could not change what any existing caller reads.
 
     Returns:
         The container, or None when the elements do not consume the declared
-        size exactly.
+        size exactly, or when the only reading that closed was a derived width
+        on a tag that declared a native-serialized value.
     """
     opened = _open_container(body, type_word, element_words, at, size)
     if opened is None:
@@ -5144,6 +5214,12 @@ def _decode_container(
     if bounded is None:
         return None
     shape, elements = bounded
+    if native_serialize and shape in _UNEVIDENCED_UNDER_NATIVE_SERIALIZE:
+        # THE ONE READING THAT CLOSED IS THE ONE THE TAG SAYS IS NOT THERE.
+        # Publishing it would put a width DERIVED BY DIVISION beside widths
+        # READ FROM THE BYTES with nothing on the value to tell them apart -
+        # see the docstring above.
+        return None
     return ContainerValue(
         type_word=type_word,
         element_words=element_words,
@@ -5171,7 +5247,9 @@ def _container_grammar_is_modelled(element_words: tuple[str, ...]) -> bool:
     )
 
 
-def _refusal_is_unmodelled_content(type_word: str, element_words: tuple[str, ...]) -> bool:
+def _refusal_is_unmodelled_content(
+    type_word: str, element_words: tuple[str, ...], *, native_serialize: bool | None = None
+) -> bool:
     """Which counter a refused value belongs in - unmodelled content, or a lost walk.
 
     THE TWO MEAN OPPOSITE THINGS AND THE WHOLE POINT IS NOT COLLAPSING THEM.
@@ -5190,16 +5268,30 @@ def _refusal_is_unmodelled_content(type_word: str, element_words: tuple[str, ...
     is unaffected. Counting that as a disagreement reports new game content as a
     broken reader, which is the direction with no second chance.
 
+    A NATIVE-SERIALIZED CONTAINER IS UNMODELLED CONTENT WHATEVER ITS ELEMENT
+    WORDS ARE, and that clause is checked FIRST rather than folded in with the
+    grammar test. The bit is the writer saying the value did not go through the
+    tagged-property path at all, so the element grammar this module holds is not
+    the grammar those bytes are in - the word being one it CAN read says
+    nothing, because the region is not the thing the word describes. Reporting
+    that as a lost walk would fire the redundancy oracle on content the save
+    told us it had written some other way, which is reporting new game content
+    as a broken reader: the direction with no second chance.
+
     Args:
         type_word: The tag's type word.
         element_words: The element type words a container's tag carried, empty
             for every other type.
+        native_serialize: Whether the tag declared a native-serialized value,
+            or None when the grammar states nothing. DEFAULTED, so the legacy
+            grammar and every caller that predates the field route exactly as
+            they did.
 
     Returns:
         Whether the refusal is unmodelled content rather than a lost walk.
     """
     if type_word in CONTAINER_TYPE_WORDS:
-        return not _container_grammar_is_modelled(element_words)
+        return bool(native_serialize) or not _container_grammar_is_modelled(element_words)
     return type_word not in MEASURED_VALUE_TYPES
 
 
@@ -5350,7 +5442,7 @@ def _decode_interior_tag(
     Returns:
         The value and the element words a container's tag carried.
     """
-    type_word, value_at, size, in_tag_byte, element_words, named_struct = header
+    type_word, value_at, size, in_tag_byte, element_words, named_struct, native = header
     if type_word == STRUCT_TYPE_WORD:
         # THE STRUCT WORD IS A TYPE-NAME PARAMETER AT THIS PAIR, so it comes
         # from the header read. Reaching for it with `_struct_word_of_tag`
@@ -5368,7 +5460,14 @@ def _decode_interior_tag(
         )
     return (
         _decode_value(
-            body, type_word, value_at, size, in_tag_byte, element_words, type_tree=type_tree
+            body,
+            type_word,
+            value_at,
+            size,
+            in_tag_byte,
+            element_words,
+            type_tree=type_tree,
+            native_serialize=native,
         ),
         element_words,
     )
@@ -5419,7 +5518,7 @@ def _walk_struct_tags(
         )
         if value is not None:
             decoded[name[0]] = value
-        elif _refusal_is_unmodelled_content(header[0], element_words):
+        elif _refusal_is_unmodelled_content(header[0], element_words, native_serialize=header[6]):
             unmeasured += 1
         else:
             disagreed += 1
@@ -5523,6 +5622,7 @@ def _decode_value(
     element_words: tuple[str, ...] = (),
     *,
     type_tree: bool = False,
+    native_serialize: bool | None = None,
 ) -> object | None:
     """Decode one property value, or return None when its type is unmeasured.
 
@@ -5556,13 +5656,28 @@ def _decode_value(
             what a scalar VALUE looks like did not change at (14,60), only the
             tag framing did, and the only framing inside a value is a
             container's inner tag and its nested tag lists.
+        native_serialize: Whether the tag declared a native-serialized value,
+            or None when the grammar states nothing. IT REACHES ONLY THE
+            CONTAINER BRANCH, for the same reason ``type_tree`` does: the bit
+            is a statement about a value's FRAMING, and a container's element
+            partition is the only framing this module derives rather than
+            reads. DEFAULTED, so a caller that predates it decodes exactly what
+            it did.
 
     Returns:
         The decoded value, or None when the type is unmeasured or the bytes
         disagree with the declaration.
     """
     if type_word in CONTAINER_TYPE_WORDS:
-        return _decode_container(body, type_word, element_words, at, size, type_tree=type_tree)
+        return _decode_container(
+            body,
+            type_word,
+            element_words,
+            at,
+            size,
+            type_tree=type_tree,
+            native_serialize=native_serialize,
+        )
     if type_word == "BoolProperty":
         # The value rides in the TAG and the declared size is 0. Measured: the
         # byte takes only 0 and 1 across all 4077 instances in the library.
@@ -5668,11 +5783,19 @@ class _PayloadWalk:
 
 def _read_tag_and_words(
     body: bytes, name_at: int, end: int, *, type_tree: bool
-) -> tuple[str, int, int, int | None, tuple[str, ...], str | None] | None:
+) -> tuple[str, int, int, int | None, tuple[str, ...], str | None, bool | None] | None:
     """Read one tag header under either grammar and report what it named.
 
+    THE SEVENTH ELEMENT IS ``None`` UNDER THE LEGACY GRAMMAR AND A BOOL UNDER
+    THE OTHER, and the three-valued shape is the honest one. The legacy tag has
+    no flags byte at all, so that grammar makes no statement about native
+    serialization - and False would be a statement. A consumer reading None as
+    False would be treating "the writer did not say" as "the writer said no",
+    which is how a pair that never carried the field starts being refused or
+    accepted on the strength of a field it does not have.
+
     WHY THE TWO GRAMMARS MEET HERE AND NOWHERE ELSE - CS-G05. They differ for
-    exactly these six locals and rejoin immediately: what a VALUE looks like did
+    exactly these seven locals and rejoin immediately: what a VALUE looks like did
     not change at (14,60), the tag FRAMING did. Two copies of the decode and the
     bookkeeping below would be two places for the reference and struct counters
     to drift apart, and the loop invariant :func:`_walk_payload` documents rests
@@ -5692,15 +5815,16 @@ def _read_tag_and_words(
 
     Returns:
         The type word, where the value starts, its declared size, the byte a
-        BoolProperty carries, the element words a container's tag named, and the
-        struct word when this grammar states one. None when the tag does not
-        read at all.
+        BoolProperty carries, the element words a container's tag named, the
+        struct word when this grammar states one, and whether the tag declared
+        a native-serialized value - None when the grammar has no such field.
+        None when the tag does not read at all.
     """
     if type_tree:
         tree_tag = _read_type_tree_tag_header(body, name_at, end)
         if tree_tag is None:
             return None
-        type_word, value_start, size, in_tag_byte, params = tree_tag
+        type_word, value_start, size, in_tag_byte, params, native = tree_tag
         # THE WORDS CAME OUT OF THE HEADER READ rather than a second pass: they
         # are the type name's own parameters at this pair, and the legacy re-read
         # below would have to parse the nested name twice to arrive back at
@@ -5714,6 +5838,7 @@ def _read_tag_and_words(
             in_tag_byte,
             params if container else (),
             struct_word,
+            native,
         )
 
     tag = _read_tag_header(body, name_at, end)
@@ -5731,7 +5856,7 @@ def _read_tag_and_words(
         if read_words is None:
             return None
         element_words = read_words
-    return (type_word, value_start, size, in_tag_byte, element_words, None)
+    return (type_word, value_start, size, in_tag_byte, element_words, None, None)
 
 
 def _walk_payload(
@@ -5806,9 +5931,16 @@ def _walk_payload(
         header = _read_tag_and_words(body, name[1], end, type_tree=type_tree)
         if header is None:
             return None
-        type_word, value_start, size, in_tag_byte, element_words, struct_word = header
+        type_word, value_start, size, in_tag_byte, element_words, struct_word, native = header
         value = _decode_value(
-            body, type_word, value_start, size, in_tag_byte, element_words, type_tree=type_tree
+            body,
+            type_word,
+            value_start,
+            size,
+            in_tag_byte,
+            element_words,
+            type_tree=type_tree,
+            native_serialize=native,
         )
         # A SEPARATE POPULATION FROM ``properties``, AND THE SEPARATION IS THE
         # DESIGN - CS-829. The interior is REPORTED here and the struct word
@@ -5846,7 +5978,7 @@ def _walk_payload(
                 references.append(reference)
         if value is not None:
             decoded[name[0]] = value
-        elif _refusal_is_unmodelled_content(type_word, element_words):
+        elif _refusal_is_unmodelled_content(type_word, element_words, native_serialize=native):
             unmeasured += 1
         else:
             disagreed += 1
@@ -6164,6 +6296,7 @@ REFERENCE_COUNT_COMMON_MODE: Final = frozenset(
         "STRUCT_TYPE_WORD",
         "TAG_FLAG_ARRAY_INDEX",
         "TAG_FLAG_BOOL_TRUE",
+        "TAG_FLAG_NATIVE_SERIALIZE",
         "UTF16_CHAR_SIZE",
         "_CONTAINER_LEAD_FIELDS",
         "_ELEMENT_FIXED_WIDTHS",
@@ -6184,6 +6317,7 @@ REFERENCE_COUNT_COMMON_MODE: Final = frozenset(
         "_TAG_EXTRA_STRINGS",
         "_TAG_INDEX_FIELD_BYTES",
         "_TWO_STRING_VALUES",
+        "_UNEVIDENCED_UNDER_NATIVE_SERIALIZE",
         "_as_reference",
         "_bound_container_elements",
         "_container_element_words",
