@@ -1377,6 +1377,45 @@ different blast radius; this one asks only that a collision be detectable.
 
 ## CS-981
 
+### Measured 2026-09-12 by session 86 - one third of this item's stated population is false
+
+**NEITHER CS-830 NOR CS-831 IS GATED, AND NEITHER WAS GATED WHEN THIS ITEM WAS
+FILED.** The first paragraph of the `Filed 2026-09-11` block below opens "CS-829, CS-830 and CS-831 are filed
+in `docs/GATED.md`". **That sentence is WRONG.** It is left standing rather than edited,
+because the block below is the record of what was believed when the item was filed; the
+correction is this block, and the live statement of scope - the item LINE in `ROADMAP.md` -
+is amended. `CLAUDE.md` section 8 for ground truth beating the document, section 4 for
+relocate-never-delete. What is true, each measured this session against the tree:
+
+- `docs/GATED.md` carries a section for CS-829 and for no other `CS-8nn` item at all. Its
+  remaining sections are the `CS-G` series.
+- CS-830 is CLOSED NARROWED, recorded in `docs/LEDGER.md` under the heading "CS-830 -
+  CLOSED NARROWED. Container element EXTENTS are read over the whole library; the internal
+  PARTITION is recorded as undiscriminated, after an adversary refuted the first close".
+- CS-831 is CLOSED, recorded in `docs/LEDGER.md` under the heading "CS-831 - CLOSED. A
+  record's cross-references RESOLVE to the records they name; the acceptance was AMENDED by
+  the operator the same day and the amended wording is preserved here". Those headings are
+  cited rather than line numbers: an append-only file's line numbers rot, its headings do
+  not.
+- Neither CS-830 nor CS-831 carries an open item line in `ROADMAP.md`.
+- `tools/headless-queue.md` already said so in terms - "that chain runs CS-831 and CS-830,
+  both closed, then CS-829". The false premise and its own contradiction were sitting in the
+  tree at the same time, which is the argument for grepping a premise rather than inheriting
+  it.
+
+**WHAT THE CORRECTION DOES NOT TOUCH.** The `/api/map` half of the acceptance stands
+unchanged: a non-empty `inventory` for the pinned development world, graded against a
+synthetic model. The chain behind it is shorter than the item line claimed - two of its
+three layers were already built - and that makes the remaining work smaller, not different.
+
+**WHAT WAS ROUTED THIS SESSION.** CS-829 is moved out of `docs/GATED.md`: its body, every
+fence verbatim, is in `docs/item_notes/phase4-followups.md` under CS-829, and its item LINE
+is back in `ROADMAP.md` under Phase 4 carrying its pre-gate acceptance clause word for word.
+The clause was NOT rewritten and the population was NOT narrowed. CS-G05's own disposition -
+decided out of `docs/GATED.md`, with the execution gap named - is written into a STATUS
+block at the head of its section in `docs/GATED.md`. **This item does not close on any of
+that**; the acceptance turns on `/api/map`, and no measurement of it was taken here.
+
 ### Filed 2026-09-11
 
 **WHY THIS IS A ROUTING ITEM AND NOT AN INVENTORY ITEM.** CS-829, CS-830 and CS-831 are
@@ -1442,3 +1481,49 @@ What would settle it is a tag of that shape whose value can be read back indepen
 a second save carrying more of them. The honest alternative is to record the width as
 unmeasured and refuse it, exactly as the unobserved bit is refused - which costs one
 record's payload and buys a claim that is true.
+
+## CS-983
+
+### Filed 2026-09-12 by the session 86 merger, from an adversarial refutation
+
+**WHAT THE ADVERSARY FOUND, AND IT IS NOT REPAIRED BY ARGUING WITH IT.** CS-981's routing
+slice decided CS-G05 out of `docs/GATED.md` and did not move its body, because the leaf the
+routing table names for it - `docs/item_notes/phase4.md` - was outside that slice's
+write-list. Declining to self-widen a write-list was the right call. The state it left is
+not: `docs/GATED.md` now holds a section asserting, in its own words, that CS-G05 does not
+meet that file's membership rule - "gated means no amount of work inside this repo can close
+it" - while the section stays in the file. A section that fails its file's own rule and
+stays is incoherent under that rule, whatever the reason.
+
+**WHY THIS IS A SEPARATE ITEM AND NOT A REPAIR FOLDED INTO CS-981.** Routing CS-G05 out
+needs an ACCEPTANCE CLAUSE written for it, and CS-G05 has never had one - it is a gate with a
+DRAIN half, not an item with a clause. Writing one is a scope decision, and the slice that
+took the routing decision deliberately refused to improvise it inside a status block. The
+refusal is right and is preserved. This item is where the clause gets written on purpose.
+
+**THE TWO ROUTES ARE BOTH OPEN AND THE ITEM DOES NOT PREJUDGE WHICH.** Either CS-G05 gets a
+clause and a `ROADMAP.md` line with its body relocated, or the decided-out declaration is
+WITHDRAWN and the section states a condition that is genuinely outside this repository.
+The second is a real option, not a formality: the STATUS 2026-09-03 block records that all
+nine files of the pair are ONE world played forward, so a drain needing independent WORLD
+GENERATION still needs more play, and that is an external condition. Which drain CS-G05's
+residue actually needs is the measurement this item turns on.
+
+**WHAT IS OWED EITHER WAY.** `tests/save/test_properties.py::test_save_60_refuses_the_grammar_the_other_pairs_accept`
+is vacuous - it passes because its sweep carries its own independent reader of the LEGACY tag
+grammar, so its zero is a true statement about that grammar and a false one about the save.
+CS-G05's own status block says correcting it is a separate slice and that until then its
+green may not be cited for anything. It is the one residue no other item owns, and it does
+not become owned by CS-G05 being moved.
+
+**DO NOT RENAME THAT TEST.** `docs/LEDGER.md` and `docs/history_notes.md` both cite it by
+name and both are append-only, so a rename rots two citations in records that are never
+edited. Session 85 took that decision deliberately and narrowed the docstring instead.
+
+**A CONTRADICTION THIS SESSION CREATED AND DID NOT FIX, recorded so it is not discovered as a
+surprise.** `docs/item_notes/phase4-followups.md` under CS-847 says two prose hand-offs in
+`clockspeed/save/objects.py` are "harmless only while `CS-G05` stays GATED. If it closed
+while those sentences stood, the module would stay green." The decided-out declaration
+contradicts the precondition of that sentence without firing its trigger, since routing out
+is not closing. Measured 2026-09-12: no guard keys on membership of `docs/GATED.md` at all,
+so nothing mechanical fires today. CS-847 owns that text and this item does not edit it.

@@ -167,12 +167,17 @@ take. Leave it and take the next.
 A gate is a roll-up over its whole phase, it is tier 2, and it closes when its phase's
 follow-ups close - it is not a row a cycle can ship. CS-400 is the worked example and it is
 also fenced twice over: its section rules that clause 1 waits until a building's inventory
-is actually readable, and that chain runs CS-831 and CS-830, both closed, then CS-829 -
-which sits in `docs/GATED.md` behind CS-G05. A gate row reached through a gated item cannot
-be closed by any amount of work inside this repository.
+is actually readable, and that chain runs CS-831 and CS-830, both closed, then CS-829.
+**CS-829 WAS ROUTED OUT OF `docs/GATED.md` ON 2026-09-12 (CS-981) AND IS NOW AN OPEN
+`ROADMAP.md` ROW.** It is still not a row a cycle can ship, and the reason CHANGED rather
+than lapsed: the fence on it is no longer that it is gated, it is that its acceptance is an
+EQUALITY over a derived population with six standing fences against a synthetic close.
+**NEVER TAKE CS-829.** A gate row reached through it cannot be closed by shipping it.
 
-**FENCE 2 - NEVER TAKE ANYTHING IN `docs/GATED.md`.** That is the whole `CS-G` series plus
-CS-829. Gated means no amount of work inside this repo can close it. That file carries its
+**FENCE 2 - NEVER TAKE ANYTHING IN `docs/GATED.md`.** That is the whole `CS-G` series. It
+listed CS-829 too until 2026-09-12, when CS-981 routed that item out; read the fence above
+for why it stays untakeable anyway. **DO NOT infer from this that a row leaving that file
+becomes takeable** - membership of that file is one fence among several, never the only one. Gated means no amount of work inside this repo can close it. That file carries its
 own rule and it is the one you are most likely to break by accident: **gated items are
 never closed synthetically.** Substituting a proxy for the external condition and declaring
 the item done is the single most common way a gated backlog gets falsely drained, and it is
