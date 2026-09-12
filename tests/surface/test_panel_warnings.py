@@ -17,8 +17,11 @@ The producers were audited before a line of this panel was written and they are
 clean - the finding is recorded in the panel module's own header comment with
 its file:line citations. The panel does not RELY on that audit. It re-checks
 shape at the sink, because the audit is a statement about today's producers and
-the sink is where a future one would leak. Four arms below are hostile
-fixtures that no producer can emit today and that the sink must still refuse.
+the sink is where a future one would leak. The hostile-fixture arms below carry
+shapes no producer can emit today and that the sink must still refuse - and one
+arm carries the whole authored corpus, because a sink tight enough to refuse a
+name is tight enough to refuse a sentence and that floor has to be measured
+rather than hoped for.
 """
 
 from __future__ import annotations
@@ -29,9 +32,14 @@ from typing import Any, Final
 
 import pytest
 
+from clockspeed.data import docs_extract
+from clockspeed.save import chunks as save_chunks
+from clockspeed.save import objects as save_objects
+from clockspeed.save import world as save_world
 from clockspeed.surface.api import registry as api_registry
 from clockspeed.surface.api import world as api_world
 from tests.surface import panel_harness
+from tests.surface import test_web_assets as web_assets
 
 #: The module under grade.
 MODULE: Final = "panel_warnings.js"
@@ -78,11 +86,111 @@ def _posix_path() -> str:
     return "/".join(["", "home", HOSTILE_PATH_NAME, ".local", "share", "docs.json"])
 
 
+def _account_id_shape() -> str:
+    """A platform-account-shaped run of digits, assembled at run time.
+
+    THE VALUE IS NOT A REAL ID and could not be: every digit is the same one.
+    What makes it a fixture is its SHAPE, which is the only thing the sink can
+    judge and the only thing ``test_web_assets.personal_data_findings`` judges
+    either. The arms below assert that owner agrees before trusting the
+    fixture, so a fixture that stopped being hostile cannot pass by being
+    harmless.
+
+    Returns:
+        The digit run.
+    """
+    return "7" * ACCOUNT_ID_DIGITS
+
+
+def _authored_details() -> tuple[str, ...]:
+    """Every warning detail the shipping producers can author, harvested live.
+
+    THE ANTI-OVERCORRECTION FLOOR, and it is harvested rather than transcribed
+    for the reason the pin section states about fixtures: a transcribed copy of
+    a producer's prose is a second place to get it wrong, and it would agree
+    with a stale panel forever. Reading the tables means a producer that
+    authors a line the sink would WITHHOLD reddens here, in the author's own
+    change, rather than shipping a page that silently hides their warning.
+
+    The four ``REASON_*`` constants are in here on purpose: they are the
+    SHORTEST authored lines in the project and two of them lead with a
+    capitalised identifier, so they are the calibration that a prose rule
+    cannot be tightened past.
+
+    Returns:
+        The details, deduplicated and sorted.
+    """
+    harvested: set[str] = set()
+    for module in (save_world, save_chunks, save_objects):
+        # SLF001: the table is the producer's own authored prose and there is no
+        # public accessor for it. Copying the strings here instead would be the
+        # transcription this docstring exists to refuse.
+        harvested.update(module._WARNING_DETAIL.values())  # noqa: SLF001
+    for name, value in vars(docs_extract).items():
+        if name.startswith("REASON_") and isinstance(value, str):
+            harvested.add(value)
+    return tuple(sorted(harvested))
+
+
+def _sweep_floor(build: Any) -> int:
+    """The shortest run of one shape the repository's own sweep calls personal.
+
+    DERIVED, NOT RESTATED. ``test_web_assets.personal_data_findings`` owns the
+    threshold; asking it where its edge is binds to the owner without copying
+    its pattern into a second file, which is the only way the two cannot drift.
+
+    Args:
+        build: Builds a candidate of a given length.
+
+    Returns:
+        The shortest length that sweep reports on.
+    """
+    for length in range(1, RUN_SEARCH_CEILING):
+        if web_assets.personal_data_findings(build(length)):
+            return length
+    raise AssertionError(
+        "test_web_assets.personal_data_findings reported nothing at any length,"
+        " so it can no longer own the threshold this panel binds to"
+    )
+
+
 #: A hostile detail. Nothing in the save or registry layers can produce this
 #: today - every detail is a fixed table line or an integer interpolation - and
 #: that is exactly why it belongs here. An absolute path on this machine
 #: carries the Windows account name, which non-negotiable 3 forbids.
 HOSTILE_PATH_DETAIL: Final = "could not read " + _windows_path()
+
+#: How many digits a platform account id carries. NAMED AND MULTIPLIED, never
+#: written out. The pre-commit gate blocks a digit run this long in a tracked
+#: file and it is right to: non-negotiable 3 is about the byte on disk, not
+#: about the intent of whoever put it there. This is also the shape
+#: ``test_web_assets.personal_data_findings`` already calls personal data, and
+#: the arms below bind to that function rather than restating its pattern.
+ACCOUNT_ID_DIGITS: Final = 17
+
+#: A world-name-shaped detail: title-cased words and nothing else. FOUR of
+#: them, deliberately - the word floor alone would refuse a two-word value, so
+#: a four-word name is refused by the PROSE VOCABULARY rule or not at all.
+HOSTILE_WORLD_NAME: Final = "Grand Northern Forest Outpost"
+
+#: A display-name-shaped detail. Openly synthetic, because no real person's
+#: name belongs in a tracked file either.
+HOSTILE_DISPLAY_NAME: Final = "Somebody Nameson"
+
+#: A floor under the harvested producer corpus, not a measurement of it. A
+#: sweep that harvested nothing would grade nothing and report PASS, which is
+#: the failure this repository has already measured on a skipped gate.
+AUTHORED_DETAIL_FLOOR: Final = 10
+
+#: The longest run this search will try before calling the owner's sweep blind.
+RUN_SEARCH_CEILING: Final = 64
+
+#: The panel's declared digit-run threshold, read out of its source so the
+#: number can be compared against the function that owns the shape.
+DIGIT_RUN_CONSTANT: Final = re.compile(r"var OPAQUE_DIGIT_RUN = (\d+);")
+
+#: The same for the hex-run threshold.
+HEX_RUN_CONSTANT: Final = re.compile(r"var OPAQUE_HEX_RUN = (\d+);")
 
 #: How many groups the panel renders unconditionally: one per wire that
 #: carries a warning stream. Both must say they did not answer when both
@@ -537,11 +645,253 @@ def test_an_unknown_group_carrying_a_path_is_withheld(tmp_path: Path) -> None:
     assert WITHHELD in text
 
 
+# ---------------------------------------------------------------------------
+# THE THREE SHAPES A CHARACTER SET CANNOT SEE
+#
+# The character sets above are a PATH CHECK wearing allowlist clothing. What
+# they exclude is a separator and a non-ASCII byte - and three of the four
+# personal-data classes CLAUDE.md section 2 names need neither. A platform
+# account id is entirely alphanumeric; a world name and a player display name
+# are alphanumeric plus spaces. All three passed the sets verbatim, which means
+# all three reached ``span.warning-subject`` and the ``dashboard_probe``
+# screenshot. The arms below are the ones that were missing, and each names the
+# rule that must refuse it so a repair cannot satisfy them by accident.
+# ---------------------------------------------------------------------------
+
+
+def test_a_subject_shaped_like_a_platform_account_id_is_withheld(tmp_path: Path) -> None:
+    """A run of digits that long is an account id, and it is entirely alnum.
+
+    THIS IS THE ARM THE OLD SETS FAILED. ``SET_TOKEN`` is letters, digits and
+    three punctuation marks, so a 17-digit subject was inside the set, inside
+    the length limit, and returned verbatim. The sink refuses it now by RUN, at
+    the threshold ``test_web_assets.personal_data_findings`` already uses.
+
+    Args:
+        tmp_path: Scratch directory.
+    """
+    identifier = _account_id_shape()
+    assert web_assets.personal_data_findings(identifier), (
+        "the fixture is not personal-data shaped by this repository's own sweep,"
+        " so refusing it would prove nothing"
+    )
+    data = panel_harness.null_payload(
+        registry=_registry(
+            warnings=[
+                _registry_warning(
+                    code="malformed-blob",
+                    subject=identifier,
+                    detail="a blob was not readable and was skipped",
+                    count=1,
+                )
+            ]
+        )
+    )
+    text = _text(_mount(tmp_path, data))
+    assert identifier not in text
+    # A truncating panel would pass the whole-string check while shipping most
+    # of the id, which is the same defect the path arms guard with a fragment.
+    assert identifier[: ACCOUNT_ID_DIGITS // 2] not in text
+    assert WITHHELD in text
+    assert "malformed-blob" in text
+    assert "a blob was not readable and was skipped" in text
+
+
+def test_a_detail_shaped_like_a_world_or_a_display_name_is_withheld(
+    tmp_path: Path,
+) -> None:
+    """Neither shape needs a separator, a digit or a non-ASCII byte.
+
+    A world name and a player display name are both title-cased alphanumeric
+    words, which is to say they were inside ``SET_DETAIL`` in full. The sink
+    refuses them now because they do not READ as authored prose: no lowercase
+    function word appears in either, and every line this project's producers
+    author carries one.
+
+    Args:
+        tmp_path: Scratch directory.
+    """
+    names = (HOSTILE_DISPLAY_NAME, HOSTILE_WORLD_NAME)
+    data = panel_harness.null_payload(
+        world=_world(
+            warnings=[
+                _world_warning(
+                    source="header",
+                    code="empty-display-name",
+                    detail=names[0],
+                    subject=None,
+                    count=1,
+                ),
+                _world_warning(
+                    source="world",
+                    code="node-transform-absent",
+                    detail=names[1],
+                    subject=None,
+                    count=2,
+                ),
+            ]
+        )
+    )
+    report = _mount(tmp_path, data)
+    text = _text(report)
+    for name in names:
+        for fragment in name.split():
+            assert fragment not in text, f"the panel rendered {fragment!r} out of a name"
+    details = panel_harness.nodes_matching(report, {"class": "warning-detail"})
+    assert len(details) == len(names), (
+        f"the panel built {len(details)} detail nodes for {len(names)} warnings"
+    )
+    for node in details:
+        assert str(node["text"]) == WITHHELD, node["text"]
+    assert "empty-display-name" in text
+    assert "node-transform-absent" in text
+
+
+def test_a_detail_that_reads_as_prose_but_carries_an_account_id_is_withheld(
+    tmp_path: Path,
+) -> None:
+    """The two rules are independent, and this arm is why both are needed.
+
+    A future producer's mistake will not look like a bare name - it will look
+    like a sentence with a value interpolated into it. This detail passes the
+    word floor, passes the vocabulary and passes the character set, and it is
+    still refused, by the run threshold alone.
+
+    Args:
+        tmp_path: Scratch directory.
+    """
+    identifier = _account_id_shape()
+    data = panel_harness.null_payload(
+        world=_world(
+            warnings=[
+                _world_warning(
+                    source="header",
+                    code="unmeasured-version-pair",
+                    detail="the save was written by account " + identifier + " and was read",
+                    subject="5/13",
+                    count=1,
+                )
+            ]
+        )
+    )
+    text = _text(_mount(tmp_path, data))
+    assert identifier not in text
+    assert identifier[: ACCOUNT_ID_DIGITS // 2] not in text
+    assert WITHHELD in text
+    assert "unmeasured-version-pair" in text
+    # AND NOT COLLATERAL DAMAGE. The version pair on the same row is a
+    # legitimate subject and must survive the refusal beside it.
+    assert "5/13" in text
+
+
+def test_a_code_that_is_a_bare_run_of_digits_is_withheld(tmp_path: Path) -> None:
+    """The code channel was the widest of the three and nothing pinned it.
+
+    Every one of the project's ``WARN_*`` and stage spellings is a lowercase
+    hyphenated token, so a code carrying anything else is a producer that
+    changed - and under the old set a code could have been an account id
+    outright.
+
+    Args:
+        tmp_path: Scratch directory.
+    """
+    identifier = _account_id_shape()
+    data = panel_harness.null_payload(
+        registry=_registry(
+            warnings=[
+                _registry_warning(
+                    code=identifier,
+                    subject="Desc_Water_C",
+                    detail="a recipe names an item this document does not define",
+                    count=1,
+                )
+            ]
+        )
+    )
+    text = _text(_mount(tmp_path, data))
+    assert identifier not in text
+    assert WITHHELD in text
+    assert "Desc_Water_C" in text
+
+
+def test_every_detail_the_producers_author_is_still_rendered(tmp_path: Path) -> None:
+    """THE OVER-TIGHTENING FLOOR, measured against the real producers.
+
+    A guard tight enough to refuse a name is tight enough to refuse a sentence,
+    and this repository has already measured a repair that started killing
+    healthy nights. So the whole authored corpus goes through the sink in one
+    mount and every line must come back VERBATIM. A rule cannot be tightened
+    past the prose the project actually ships without reddening here.
+
+    Args:
+        tmp_path: Scratch directory.
+    """
+    details = _authored_details()
+    assert len(details) > AUTHORED_DETAIL_FLOOR, (
+        f"the harvest found only {len(details)} authored details, so this arm graded almost nothing"
+    )
+    data = panel_harness.null_payload(
+        world=_world(
+            warnings=[
+                _world_warning(
+                    source="objects",
+                    code="unparsed-property-payload",
+                    detail=detail,
+                    subject=None,
+                    count=1,
+                )
+                for detail in details
+            ]
+        )
+    )
+    report = _mount(tmp_path, data)
+    rendered = tuple(
+        str(node["text"])
+        for node in panel_harness.nodes_matching(report, {"class": "warning-detail"})
+    )
+    assert len(rendered) == len(details), (
+        f"the panel built {len(rendered)} detail nodes for {len(details)} warnings"
+    )
+    refused = tuple(
+        authored for authored, shown in zip(details, rendered, strict=True) if shown != authored
+    )
+    assert not refused, f"the sink withheld {len(refused)} authored producer detail(s): {refused}"
+
+
+def test_the_opaque_run_thresholds_are_the_ones_this_repository_already_sweeps() -> None:
+    """The panel's two numbers are bound to the function that owns the shapes.
+
+    A restated threshold is a threshold that will drift, and the drift is
+    silent in the dangerous direction - a panel loosened to 20 digits while the
+    sweep still calls 12 personal would keep passing every arm above. The
+    thresholds are DERIVED from
+    ``test_web_assets.personal_data_findings`` by asking where its edge is,
+    so neither file can move without the other.
+    """
+    code = MODULE_PATH.read_text(encoding="ascii")
+    digits = DIGIT_RUN_CONSTANT.search(code)
+    hexes = HEX_RUN_CONSTANT.search(code)
+    assert digits is not None, "the panel declares no digit-run threshold to bind"
+    assert hexes is not None, "the panel declares no hex-run threshold to bind"
+    assert int(digits.group(1)) == _sweep_floor(lambda length: "7" * length)
+    assert int(hexes.group(1)) == _sweep_floor(lambda length: ("ab" * length)[:length])
+
+
 def test_a_count_that_is_not_a_whole_number_is_withheld(tmp_path: Path) -> None:
     """A count is an int on both wires. Anything else is not rendered as one.
 
     A float would also be a float on a page whose solve path forbids them, and
     a string count could carry anything at all.
+
+    THE POSITIVE HALF IS WHAT MAKES THIS AN ARM. It used to assert only that
+    the hostile value was ABSENT and that the code still rendered, which a
+    ``safeCount`` returning the empty string satisfies perfectly - and an
+    adversary built exactly that mutant and watched it survive. Silence and
+    refusal must not look alike; the module's own ``WITHHELD`` constant exists
+    to say so, and no other field in this fixture can produce it, so the marker
+    asserted below can only have come from the count. It is read off the
+    ``warning-count`` node rather than out of the joined text, because an
+    oracle that cannot see the field it names passes for that reason alone.
 
     Args:
         tmp_path: Scratch directory.
@@ -558,9 +908,44 @@ def test_a_count_that_is_not_a_whole_number_is_withheld(tmp_path: Path) -> None:
             ]
         )
     )
-    text = _text(_mount(tmp_path, data))
+    report = _mount(tmp_path, data)
+    text = _text(report)
     assert HOSTILE_PATH_NAME not in text
     assert "duplicate-class-name" in text
+    counts = panel_harness.nodes_matching(report, {"class": "warning-count"})
+    assert len(counts) == 1, f"the panel built {len(counts)} count nodes, not one"
+    assert str(counts[0]["text"]) == WITHHELD, (
+        "the count was refused without saying so, which makes a refusal"
+        f" indistinguishable from an absence; the node read {counts[0]['text']!r}"
+    )
+
+
+def test_a_whole_number_count_still_renders_as_itself(tmp_path: Path) -> None:
+    """The control for the arm above, and it is not decoration.
+
+    A ``safeCount`` that returned the marker for EVERY input would satisfy the
+    refusal arm and withhold every honest count on the page. One arm proves the
+    refusal, this one proves it is a refusal of something rather than a policy.
+
+    Args:
+        tmp_path: Scratch directory.
+    """
+    data = panel_harness.null_payload(
+        registry=_registry(
+            warnings=[
+                _registry_warning(
+                    code="duplicate-class-name",
+                    subject="Desc_IronRod_C",
+                    detail="a class name repeated and the later entry won",
+                    count=703,
+                )
+            ]
+        )
+    )
+    report = _mount(tmp_path, data)
+    counts = panel_harness.nodes_matching(report, {"class": "warning-count"})
+    assert len(counts) == 1, f"the panel built {len(counts)} count nodes, not one"
+    assert str(counts[0]["text"]) == "703", counts[0]["text"]
 
 
 def test_a_warning_that_is_not_an_object_does_not_throw(tmp_path: Path) -> None:
