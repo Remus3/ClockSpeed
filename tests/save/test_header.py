@@ -250,19 +250,84 @@ def _value_surfaces(value: object) -> list[str]:
 
 
 def _assert_free_of(surfaces: list[str], needles: tuple[str, ...], where: str) -> None:
-    """Assert no needle appears in any surface.
+    """Assert no needle appears in any surface, IN ANY SPELLING A RENDERER PRINTS.
+
+    THE ASCII-ONLY VERSION WENT GREEN OVER A WIDE RAW SLICE, measured by an
+    adversary against this very helper: ``_value_surfaces`` recurses arbitrary
+    field types and emits ``repr(value)``, and ``repr(bytes)`` is a string by
+    type and raw bytes by content. So a parser carrying a UTF-16-LE slice - the
+    spelling a session name or a player display name actually has on a real save
+    - leaked through a sweep that reported clean.
+
+    EVERY HEADER PRIVACY ARM FUNNELS THROUGH HERE, which is why the spelling set
+    is widened at this one chokepoint instead of in ten arms separately. The
+    spelling list itself lives in ``test_properties`` so the frame-local oracle
+    and this one cannot drift apart.
 
     Args:
         surfaces: Renderings to search.
-        needles: The planted markers.
+        needles: The planted markers, in their plain text.
         where: A label naming the path under test, for the failure message.
 
     Raises:
-        AssertionError: A needle leaked.
+        AssertionError: A needle leaked, in any of its rendered spellings.
     """
     for needle in needles:
-        for surface in surfaces:
-            assert needle not in surface, f"planted marker leaked via {where}"
+        for spelling in test_properties._rendered_spellings(needle):  # noqa: SLF001
+            for surface in surfaces:
+                assert spelling not in surface, (
+                    f"planted marker leaked via {where} - as {spelling!r}"
+                )
+
+
+def test_the_surface_sweep_is_not_blind_to_a_wide_encoded_raw_slice() -> None:
+    """MEASURED BY AN ADVERSARY: THE WIDE FIELD MAKES THIS SUITE'S WIDEST ARM GREEN.
+
+    :func:`_value_surfaces` recurses into arbitrary dataclass field types and
+    emits ``repr(value)`` for each. ``repr(bytes)`` is a ``str`` BY TYPE and raw
+    bytes BY CONTENT, so the survey's rule - "a decoded-string oracle sees ASCII
+    at either encoding" - does not hold here, and this is the counter-example it
+    was refuted by.
+
+    WHAT REGRESSION THIS GUARDS. The header module's design is that the bytes
+    never become Python strings at all; the mutant that matters is a parser that
+    stops stepping over a slice and starts CARRYING it. Measured: that mutant
+    dies against a narrow field and SURVIVES against a wide one, because the
+    ASCII needle cannot be seen in the wide rendering. An ``isascii()`` gate does
+    not help - the escapes are ASCII themselves.
+
+    Every header privacy arm funnels through :func:`_assert_free_of`, so the
+    spelling set is widened THERE rather than in ten arms one at a time.
+    """
+
+    @dataclasses.dataclass
+    class _CarriesARawSlice:
+        """A parse result that carries a raw slice instead of stepping over it."""
+
+        options_raw: bytes
+
+    narrow = _CarriesARawSlice(MARKER_OPTIONS.encode("utf-8"))
+    wide = _CarriesARawSlice(MARKER_OPTIONS.encode("utf-16-le"))
+
+    # CONTROL - the sweep DOES catch the narrow spelling. Without this line a
+    # blind oracle and a fixture that never held the needle look identical.
+    with pytest.raises(AssertionError):
+        _assert_free_of(_value_surfaces(narrow), (MARKER_OPTIONS,), "narrow control")
+
+    # ISOLATION - the wide rendering carries no ASCII spelling of the marker,
+    # and is itself pure ASCII, so no character-set gate stands in for this arm.
+    rendered = repr(wide.options_raw)
+    assert MARKER_OPTIONS not in rendered, "the wide rendering carries the ASCII spelling"
+    assert rendered.isascii(), "an isascii gate would have caught this without the sweep"
+
+    # THE CLAIM - the wide slice must leak just as loudly as the narrow one.
+    with pytest.raises(AssertionError):
+        _assert_free_of(_value_surfaces(wide), (MARKER_OPTIONS,), "wide raw slice")
+
+    # FENCE - a result carrying NEITHER spelling still passes, so the widened
+    # sweep has not become an assertion that fires on everything.
+    clean = _CarriesARawSlice(b"nothing planted here")
+    _assert_free_of(_value_surfaces(clean), (MARKER_OPTIONS,), "clean control")
 
 
 # ---------------------------------------------------------------------------
