@@ -312,6 +312,7 @@ import ast
 import inspect
 import os
 import sys
+import textwrap
 from collections.abc import Callable, Mapping, Sequence
 from pathlib import Path
 from typing import Final
@@ -1913,6 +1914,26 @@ INDEPENDENT_CASE_COUNTS: Final[dict[CaseKey, Callable[[], int]]] = {
 #:
 #: The arms these keys DO carry grade something else and are not a substitute: a
 #: per-member liveness arm dies WITH the member it grades.
+#:
+#: MEMBERSHIP IN THIS SET IS ITSELF GRADED, by
+#: :func:`unpinned_eligibility_faults`, and the relationship is recorded here
+#: because it is not visible from either side alone. Moving a key out of
+#: :data:`INDEPENDENT_CASE_COUNTS` and into this set leaves
+#: :func:`registration_faults` green BY CONSTRUCTION - the union is unchanged and
+#: the halves stay disjoint - while silently downgrading that population from
+#: graded to UNGRADED. Every key admitted here must name a population this file
+#: writes out as literal text.
+#:
+#: THAT CONDITION IS NECESSARY AND NOT SUFFICIENT, and the sentence that once
+#: stood here said otherwise - that literal text "is what makes the per-member
+#: arms above a real record of its size", contradicting the paragraph above it
+#: nine lines earlier. It does not. It means only that a member cannot leave
+#: without a VISIBLE EDIT to a literal in this file, which stops a DERIVED
+#: population being moved here and losing its independent count unseen. It says
+#: NOTHING about the size being graded: ``relative`` is literal text, is
+#: ungraded, and carries the declared three-edit route this module's own
+#: docstring records. Gradedness is a separate leg and is not built here.
+
 UNPINNED_CASE_KEYS: Final[frozenset[CaseKey]] = frozenset(
     {
         ("test_each_authority_token_carries_a_hit_on_its_own", "token"),
@@ -1949,20 +1970,49 @@ def walk_floor_threshold_messages() -> tuple[str, ...]:
     )
 
 
+def module_source() -> str:
+    """This module's own source text, for the two AST reads below.
+
+    Returns:
+        The text of this file as it sits on disk.
+    """
+    return inspect.getsource(sys.modules[__name__])
+
+
 def lifted_sentence_producers() -> dict[str, object]:
-    """Every derived-plant producer this module defines, found by name.
+    """Every derived-plant producer this module defines, found by what it CALLS.
 
     The independent handle on the plant-equality parametrize: there must be one
     row per producer, and the rows are graded against THIS set rather than
     counted in themselves.
 
+    DISCOVERY IS STRUCTURAL AND NOT BY NAME, which is the CS-988 residual this
+    closes. The previous revision selected on the ``lifted_*_sentences``
+    spelling. That survived a rename at ONE edit - the renamed producer left
+    this set, the equality rows did not, and the surplus leg reddened - but went
+    fully green at TWO: measured, renaming the distributive producer and then
+    deleting its equality row left 489 passed, exit 0, with the distributive
+    population's only equality arm gone and that population still registered as
+    independently counted. A producer is now anything that calls :func:`_lifted`,
+    read from this file's own source, and the builder is named by its own
+    ``__name__`` so renaming IT follows too. Renaming a producer is invisible
+    here on purpose: only DELETING one can change this set, and a deletion is
+    exactly what the equality rows must not be allowed to follow down.
+
     Returns:
-        Producer name to producer, for every ``lifted_*_sentences`` callable.
+        Producer name to producer, for every function calling :func:`_lifted`.
     """
+    builder = _lifted.__name__
+    module_scope = vars(sys.modules[__name__])
     return {
-        name: value
-        for name, value in vars(sys.modules[__name__]).items()
-        if name.startswith("lifted_") and name.endswith("_sentences") and callable(value)
+        node.name: module_scope[node.name]
+        for node in ast.parse(module_source()).body
+        if isinstance(node, ast.FunctionDef)
+        and any(
+            isinstance(call.func, ast.Name) and call.func.id == builder
+            for call in ast.walk(node)
+            if isinstance(call, ast.Call)
+        )
     }
 
 
@@ -2025,6 +2075,197 @@ def parametrized_case_keys(functions: Sequence[tuple[str, object]]) -> set[CaseK
         for name, function in functions
         for mark in parametrize_marks(function)
     }
+
+
+#: How many positional arguments a ``parametrize`` call must carry before it
+#: declares both an argument name and a population.
+_PARAMETRIZE_ARITY: Final = 2
+
+
+def _source_argnames(node: ast.expr) -> str | None:
+    """The argument-name half of a registration key, read from a parametrize's SOURCE.
+
+    The AST-side spelling of :func:`_case_name`, written out again rather than
+    shared with it: this pair exists to derive one key two ways, and a shared
+    helper would make them agree by construction.
+
+    Args:
+        node: The first argument of a ``parametrize`` call.
+
+    Returns:
+        The key's argument-name half, or ``None`` when the spelling is neither a
+        string nor a sequence of strings and the key therefore cannot be read.
+    """
+    if isinstance(node, ast.Constant) and isinstance(node.value, str):
+        return node.value.strip()
+    if (
+        isinstance(node, ast.Tuple | ast.List)
+        and node.elts
+        and all(
+            isinstance(element, ast.Constant) and isinstance(element.value, str)
+            for element in node.elts
+        )
+    ):
+        return ",".join(element.value for element in node.elts).strip()  # type: ignore[attr-defined]
+    return None
+
+
+def _is_spelled_out_population(node: ast.expr, assignments: Mapping[str, ast.expr]) -> bool:
+    """Whether NODE is a population this file writes out as literal text.
+
+    A non-empty list or tuple of string constants, either inline or behind one
+    module-level name assigned exactly such a literal. Everything else - a call,
+    a comprehension, a sequence naming objects, a name assigned from a call, a
+    chain of names - is a population this file does NOT spell out.
+
+    Args:
+        node: A ``parametrize`` call's argvalues expression.
+        assignments: Module-level name to assigned expression. Empty on the
+            recursive step, so a name may be followed exactly once and a chain
+            of names resolves to False rather than being walked.
+
+    Returns:
+        True when deleting a member of this population is a visible edit to a
+        literal in this file.
+    """
+    if isinstance(node, ast.Name):
+        assigned = assignments.get(node.id)
+        return assigned is not None and _is_spelled_out_population(assigned, {})
+    return (
+        isinstance(node, ast.Tuple | ast.List)
+        and bool(node.elts)
+        and all(
+            isinstance(element, ast.Constant) and isinstance(element.value, str)
+            for element in node.elts
+        )
+    )
+
+
+def spelled_out_population_keys(source: str) -> dict[CaseKey, bool]:
+    """Every parametrize SOURCE declares, and whether its population is spelled out.
+
+    Read from the text rather than from the collected marks, because the marks
+    answer only what the population IS and this asks where it came FROM.
+
+    Args:
+        source: Module source to read.
+
+    Returns:
+        Registration key to whether its population is literal text in SOURCE. A
+        key whose argnames cannot be read is absent rather than False, so the
+        caller refuses instead of ruling on it.
+    """
+    tree = ast.parse(source)
+    assignments: dict[str, ast.expr] = {}
+    for node in tree.body:
+        if isinstance(node, ast.Assign):
+            for target in node.targets:
+                if isinstance(target, ast.Name):
+                    assignments[target.id] = node.value
+        elif (
+            isinstance(node, ast.AnnAssign)
+            and isinstance(node.target, ast.Name)
+            and node.value is not None
+        ):
+            assignments[node.target.id] = node.value
+    found: dict[CaseKey, bool] = {}
+    for node in tree.body:
+        if not isinstance(node, ast.FunctionDef):
+            continue
+        for decorator in node.decorator_list:
+            if not isinstance(decorator, ast.Call) or len(decorator.args) < _PARAMETRIZE_ARITY:
+                continue
+            if not isinstance(decorator.func, ast.Attribute):
+                continue
+            if decorator.func.attr != "parametrize":
+                continue
+            argnames = _source_argnames(decorator.args[0])
+            if argnames is None:
+                continue
+            found[(node.name, argnames)] = _is_spelled_out_population(
+                decorator.args[1], assignments
+            )
+    return found
+
+
+def unpinned_eligibility_faults(source: str, unpinned: frozenset[CaseKey]) -> tuple[str, ...]:
+    """Every key in UNPINNED that is not entitled to be counted from its own mark.
+
+    THE RESIDUAL THIS CLOSES, and it is instance seven of this module's own class
+    in SHAPE. Which registry a key sits in was itself unpinned: moving one from
+    :data:`INDEPENDENT_CASE_COUNTS` into :data:`UNPINNED_CASE_KEYS` is a ONE-LINE
+    edit that keeps :func:`registration_faults` green BY CONSTRUCTION - the union
+    is unchanged and the halves stay disjoint - while downgrading that population
+    from graded to UNGRADED. Measured on the revision before this guard: moving
+    ``("test_the_live_subset_counting_modules_stay_green", "module")`` across left
+    490 passed, exit 0, with its size no longer graded by anything.
+
+    THE RULE, and it is one rule rather than two so neither half can be dropped
+    as redundant. :data:`UNPINNED_CASE_KEYS` says a size is counted from the very
+    object parametrized over and is therefore ungraded. That is only honest when
+    the population is literal text in this file, because a member can then be
+    deleted only by a VISIBLE EDIT to a literal. It is a NECESSARY condition and
+    not a sufficient one, and the difference matters: it says nothing about the
+    size being graded, and ``relative`` is literal text whose size is ungraded
+    exactly as :data:`UNPINNED_CASE_KEYS` says. What it does stop is a DERIVED
+    population being moved here and losing its independent count in silence. A
+    population that arrives from a CALL has no visible edit, so it must be
+    counted independently, and so must one naming objects rather than strings.
+    All seven independently-counted keys fail this rule today, so moving any one
+    of them here reddens at the same single edit that made the move.
+
+    BOTH DIRECTIONS, on the reasoning :func:`registration_faults` already states
+    in this module: a relation graded one way is one a narrowed argument
+    satisfies. Every key whose population IS spelled out must be registered here,
+    which is what pins this guard's INPUT against what the source declares.
+    Without it, handing the guard a SUBSET of the registry returns no finding -
+    measured on the revision before this leg, ``[:7]``, ``[:5]`` and ``[:1]`` all
+    returned ``()``, so a two-edit narrowing at the two call sites was invisible.
+    The converse is deliberately absolute rather than carrying an
+    independently-counted escape hatch: an escape argument is a silencing knob,
+    and this module's whole history is knobs being turned rather than guards
+    being argued with.
+
+    Args:
+        source: Module source to read the parametrizes from.
+        unpinned: The counted-from-the-mark registry, taken as an argument so
+            this grades a stated expectation rather than the live tree alone.
+
+    Returns:
+        One finding per fault, empty when every registration is entitled.
+    """
+    spelled_out = spelled_out_population_keys(source)
+    faults: list[str] = []
+    if not unpinned:
+        faults.append(
+            "no key is registered as counted-from-its-own-mark, so the rule below "
+            "holds vacuously and this guard would prove nothing"
+        )
+    unregistered = {key for key, literal in spelled_out.items() if literal} - unpinned
+    if unregistered:
+        faults.append(
+            f"{sorted(unregistered)} parametrize a population this source spells out "
+            "as literal text but are not registered as counted-from-their-own-mark, so "
+            "this guard has been handed less than the source declares and would pass "
+            "over the difference in silence"
+        )
+    for key in sorted(unpinned):
+        if key not in spelled_out:
+            faults.append(
+                f"{key} is registered as counted-from-its-own-mark but no readable "
+                "parametrize in the source declares it, so whether it is entitled to "
+                "be counted that way cannot be decided and is refused rather than "
+                "assumed"
+            )
+        elif not spelled_out[key]:
+            faults.append(
+                f"{key} is registered as counted-from-its-own-mark, but its population "
+                "is not literal text in this file: it arrives from a call or names "
+                "something other than strings, so nothing here would show a member "
+                "being deleted. Count it independently instead - registering it here "
+                "downgrades a graded population to an ungraded one at a single edit"
+            )
+    return tuple(faults)
 
 
 def registration_faults(
@@ -2212,6 +2453,186 @@ def test_the_registration_guard_reddens_in_every_direction() -> None:
     only_finding(registration_faults([], {}, frozenset()), "vacuously", "an empty population")
 
 
+def test_every_unpinned_key_is_a_population_this_file_spells_out() -> None:
+    """WHICH REGISTRY a key belongs in, pinned - not merely that it is in one.
+
+    :func:`registration_faults` grades the UNION of the two registries against
+    what is parametrized, which a move between them leaves untouched. This is the
+    arm that notices the move itself.
+    """
+    faults = unpinned_eligibility_faults(module_source(), UNPINNED_CASE_KEYS)
+    fault_count = len(faults)
+    assert fault_count == 0, (
+        f"{fault_count} key(s) are registered as ungraded without being entitled to "
+        f"be: {list(faults)}"
+    )
+
+
+def test_the_eligibility_guard_reports_every_offender_and_not_only_the_first() -> None:
+    """BREADTH, which is instance EIGHT of this module's class and the reason for it.
+
+    Every direction graded below this arm passes a registry of ONE key, and the
+    guard's only breadth guard was its emptiness floor, so its loop was exercised
+    at breadth 0 and 1 and never above. Measured: ``for key in
+    sorted(unpinned)[:1]`` left 492 passed, exit 0, and every one of the seven
+    independently-counted keys escaped - including the very key whose one-line
+    move that guard was written to catch. A value deciding what the population
+    MEASURES, standing behind a floor its own shape satisfies, narrowable at the
+    producer in one line, staying green: this module's defect, worn by its own
+    repair.
+
+    HOW THE EXPECTATION IS DERIVED, and THE NINTH INSTANCE THAT WAS FOUND HERE
+    AND CLOSED. The population handed over is the live registries: every
+    independently-counted key goes to the guard AS IF registered as
+    counted-from-its-own-mark, alongside every entitled one. The first draft then
+    took the expectation from THAT SAME EXPRESSION - ``len(independent_keys)`` -
+    and it was instance nine on sight. Measured before the repair: narrowing the
+    producer to ``sorted(INDEPENDENT_CASE_COUNTS)[:3]`` lowered the population and
+    the expectation together and left 493 passed, exit 0.
+
+    The expectation now comes from a DIFFERENT source: what the module actually
+    PARAMETRIZES, minus the entitled registry. The two agree only because
+    :func:`registration_faults` grades the union against the parametrized keys in
+    both directions and grades the halves disjoint - a mechanism this arm does
+    not share and does not re-derive. Narrowing the population alone now
+    desynchronises the two, and narrowing the parametrized side instead reddens
+    the registration guard at import time and the arm-count backstop at run time.
+    The mixture matters as much as the size: a guard that reported a finding for
+    every key it was handed would fail here rather than pass by over-reporting.
+    """
+    independent_keys = frozenset(INDEPENDENT_CASE_COUNTS)
+    mixed = UNPINNED_CASE_KEYS | independent_keys
+    expected_count = len(parametrized_case_keys(module_test_functions()) - UNPINNED_CASE_KEYS)
+    entitled_count = len(UNPINNED_CASE_KEYS)
+    assert expected_count > 1, (
+        f"only {expected_count} key(s) are independently counted, so this arm cannot "
+        "tell a guard that reports EVERY offender from one that reports only the first"
+    )
+    assert entitled_count > 0, (
+        "no key is entitled, so the population handed over below is not the MIXTURE "
+        "this arm needs and over-reporting would pass"
+    )
+    faults = unpinned_eligibility_faults(module_source(), mixed)
+    fault_count = len(faults)
+    assert fault_count == expected_count, (
+        f"the guard reported {fault_count} finding(s) over a registry of "
+        f"{len(mixed)} key(s) holding {expected_count} offender(s) and "
+        f"{entitled_count} entitled key(s); it must report one per offender and no "
+        f"more: {list(faults)}"
+    )
+    unnamed = sorted(key for key in independent_keys if not any(str(key) in f for f in faults))
+    assert unnamed == [], (
+        f"{unnamed} are offenders the guard did not name, so it reported the right "
+        "NUMBER of findings about the wrong keys"
+    )
+
+
+def test_the_unpinned_eligibility_guard_reddens_in_every_direction() -> None:
+    """The new guard is a knob of its own, so its discrimination is graded too.
+
+    Both legs of its single rule are provoked separately, because a rule graded
+    only by "the live tree is clean" passes equally well against a predicate that
+    returns True for everything. The two well-formed controls are what stop
+    "always faults" reading as "correctly faults", and the tuple-spelled argnames
+    control is what stops the key read below silently failing to resolve, which
+    would make every verdict here the not-declared one.
+    """
+    source = textwrap.dedent(
+        '''
+        WORDS = ("alpha", "beta")
+        MODULES = (alpha, beta)
+        DERIVED = produced()
+        ALIAS = WORDS
+
+        @pytest.mark.parametrize("named", WORDS)
+        def sample_over_a_named_literal() -> None:
+            """A stand-in; never collected."""
+
+        @pytest.mark.parametrize("inline", ["alpha", "beta"])
+        def sample_over_an_inline_literal() -> None:
+            """A stand-in; never collected."""
+
+        @pytest.mark.parametrize(("left", "right"), [("a", "b")])
+        def sample_over_tuple_spelled_argnames() -> None:
+            """A stand-in; never collected."""
+
+        @pytest.mark.parametrize("derived", produced())
+        def sample_over_a_call() -> None:
+            """A stand-in; never collected."""
+
+        @pytest.mark.parametrize("objects", [alpha, beta])
+        def sample_over_objects() -> None:
+            """A stand-in; never collected."""
+
+        @pytest.mark.parametrize("hoisted", DERIVED)
+        def sample_over_a_hoisted_call() -> None:
+            """A stand-in; never collected."""
+
+        @pytest.mark.parametrize("aliased", ALIAS)
+        def sample_over_a_name_chain() -> None:
+            """A stand-in; never collected."""
+        '''
+    )
+
+    def only_finding(faults: tuple[str, ...], expected: str, direction: str) -> None:
+        """One finding, and it must be the one this direction is for."""
+        fault_count = len(faults)
+        assert fault_count == 1, (
+            f"the guard reported {fault_count} finding(s) for {direction} rather than "
+            f"exactly one, so this direction is graded by whichever fired: {list(faults)}"
+        )
+        assert expected in faults[0], (
+            f"the guard's finding for {direction} does not say so: {faults[0]}"
+        )
+
+    named = ("sample_over_a_named_literal", "named")
+    inline = ("sample_over_an_inline_literal", "inline")
+    entitled = frozenset({named, inline})
+    clean = unpinned_eligibility_faults(source, entitled)
+    assert clean == (), f"the two spelled-out populations reported {list(clean)}"
+    only_finding(
+        unpinned_eligibility_faults(source, frozenset({named})),
+        "less than the source declares",
+        "a registry narrower than the source, which is the converse direction",
+    )
+    for direction, key in (
+        ("a population arriving from a call", ("sample_over_a_call", "derived")),
+        ("a population naming objects", ("sample_over_objects", "objects")),
+        ("a name assigned from a call", ("sample_over_a_hoisted_call", "hoisted")),
+        (
+            "a chain of names, which is REFUSED rather than walked even though it ends "
+            "at a literal: following names is where a resolver can be talked into "
+            "agreeing with anything, and one hop is what the module actually uses",
+            ("sample_over_a_name_chain", "aliased"),
+        ),
+        (
+            "rows under tuple-spelled argnames, whose finding is the ENTITLEMENT one "
+            "and not the not-declared one, which is what shows that spelling resolved",
+            ("sample_over_tuple_spelled_argnames", "left,right"),
+        ),
+    ):
+        only_finding(
+            unpinned_eligibility_faults(source, entitled | {key}),
+            "not literal text in this file",
+            direction,
+        )
+    only_finding(
+        unpinned_eligibility_faults(source, entitled | {("no_such_sample", "named")}),
+        "cannot be decided",
+        "a key no parametrize declares",
+    )
+    bare = (
+        'DERIVED = produced()\n\n@pytest.mark.parametrize("derived", DERIVED)\n'
+        'def sample_with_no_spelled_out_population() -> None:\n    """Never collected."""\n'
+    )
+    only_finding(
+        unpinned_eligibility_faults(bare, frozenset()),
+        "vacuously",
+        "an empty registry over a source with nothing spelled out, so the converse "
+        "direction is satisfied and cannot mask this one",
+    )
+
+
 def test_an_unregistered_case_key_raises_instead_of_falling_back() -> None:
     """The raise is the repair, and this is what stops it decaying to a fallback.
 
@@ -2282,6 +2703,11 @@ def test_the_degenerate_corpora_cover_every_walk_floor_threshold() -> None:
     :func:`walk_floor_findings` itself, so the two sides cannot shrink together.
     """
     messages = walk_floor_threshold_messages()
+    message_count = len(messages)
+    assert message_count > 0, (
+        "the threshold read found no finding in walk_floor_findings at all, so every "
+        "assertion below holds over an empty set and this arm would prove nothing"
+    )
     markers = {label: marker for label, (_spellings, marker) in DEGENERATE_CORPORA.items()}
     matched = {
         label: [message for message in messages if marker in message]
@@ -2315,6 +2741,11 @@ def test_the_plant_equality_rows_cover_every_derived_producer() -> None:
     rows = parametrize_marks(test_each_plant_population_equals_an_independent_rederivation)[0]
     row_producers = {producer for _kind, producer, _modules in rows.args[1]}
     declared = set(lifted_sentence_producers().values())
+    declared_count = len(declared)
+    assert declared_count > 0, (
+        "the structural discovery found no plant producer at all, so both directions "
+        "below hold over an empty set and this arm would prove nothing"
+    )
     missing = sorted(
         name for name, value in lifted_sentence_producers().items() if value not in row_producers
     )
@@ -2325,7 +2756,7 @@ def test_the_plant_equality_rows_cover_every_derived_producer() -> None:
     extra_count = len(row_producers - declared)
     assert extra_count == 0, (
         f"{extra_count} equality row(s) name a producer this module does not define as "
-        "a lifted_*_sentences callable, so the two derivations are not over one set"
+        "a plant producer, so the two derivations are not over one set"
     )
 
 
@@ -2339,6 +2770,11 @@ def test_the_live_subset_module_parametrize_matches_the_plant_tuple() -> None:
     mark = parametrize_marks(test_the_live_subset_counting_modules_stay_green)[0]
     parametrized = {module.__name__ for module in mark.args[1]}
     pinned = {module.__name__ for module in SUBSET_PLANT_MODULES}
+    pinned_count = len(pinned)
+    assert pinned_count > 0, (
+        "the pinned tuple names no module, so both directions below hold over an empty "
+        "set and this arm would prove nothing"
+    )
     assert sorted(parametrized - pinned) == [], (
         f"{sorted(parametrized - pinned)} are parametrized here but are not subset "
         "plant modules, so this arm is grading files the pinned tuple does not cover"
@@ -2435,4 +2871,20 @@ if _REGISTRATION_FAULTS:
         "this module's parametrize registration is out of date, and collection is "
         "refused rather than deferred to an arm a filtered session could deselect: "
         f"{list(_REGISTRATION_FAULTS)}"
+    )
+
+# WHICH REGISTRY, at the same moment and for the same reason. The check above
+# grades the UNION of the two registries and is untouched by a move between
+# them, which is a one-line downgrade from graded to ungraded. Run here as well
+# as in its arm on the same reasoning stated above: the escape this closes is a
+# session that deselects the arm, and the move leaves every count consistent, so
+# no other arm would notice. Deleting this call alone is unobservable on a clean
+# tree in exactly the way the comment above describes, and becomes observable
+# the moment a key is moved - which is the only moment it matters.
+_ELIGIBILITY_FAULTS: Final = unpinned_eligibility_faults(module_source(), UNPINNED_CASE_KEYS)
+if _ELIGIBILITY_FAULTS:
+    raise AssertionError(
+        "a key is registered as counted-from-its-own-mark without being entitled to "
+        "be, so a graded population has been downgraded to an ungraded one and "
+        f"collection is refused: {list(_ELIGIBILITY_FAULTS)}"
     )

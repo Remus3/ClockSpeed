@@ -606,6 +606,26 @@ def _bind(dotted: str, private: str, filename: str):
     file-path fallback exists only for callers with no package on `sys.path`
     (the detached launcher runs this by absolute path), and it reuses the same
     private name so the fallback still yields one object.
+
+    THE PRIVATE NAME IS NOT ENOUGH, AND THAT IS CS-1000, MEASURED. Reusing one
+    private name only keeps THIS module's own binds together. `lane_launcher.py`
+    carries a fallback of its own under a DIFFERENT private name, so when the
+    package route fails for both - which is every detached run, because
+    `pythonw <repo>/ops/loop/queue_loop.py` puts `ops/loop` on `sys.path` and
+    the repository root nowhere - each file loaded its own copy of `lanes.py`
+    and the two ownership maps never met. Cycle 1's re-point landed in one copy
+    and its release was refused by the other, so from cycle 2 on the launcher
+    refused to re-point, KILLED each freshly spawned worker and the lane
+    completed exactly one row per launch, twice over.
+
+    So the loaded module is REGISTERED UNDER THE DOTTED NAME as well. That makes
+    the fix independent of what anybody's private name happens to be:
+    `importlib.import_module` consults `sys.modules` before it looks for a
+    loader, so whichever file falls back FIRST publishes the one object and
+    every later `import_module(dotted)` - in this file or any other - gets it.
+    `setdefault`, never an assignment: a genuine package module already in
+    `sys.modules` is the canonical one and must never be displaced by a
+    file-path copy.
     """
     try:
         return importlib.import_module(dotted)
@@ -619,6 +639,9 @@ def _bind(dotted: str, private: str, filename: str):
     mod = importlib.util.module_from_spec(spec)
     sys.modules[private] = mod
     spec.loader.exec_module(mod)
+    # AFTER a successful exec, so a half-executed module is never published
+    # under the name every other importer will now trust.
+    sys.modules.setdefault(dotted, mod)
     return mod
 
 

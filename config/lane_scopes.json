@@ -1,0 +1,66 @@
+{
+  "_README": [
+    "Named SUBJECTS a headless lane can be pointed at, consumed by ops/loop/scope.py.",
+    "Point a lane at one for a single run with CLOCKSPEED_LANE_SCOPE_<LANE>=<name>;",
+    "for the queue lane that is CLOCKSPEED_LANE_SCOPE_QUEUE=dashboard.",
+    "",
+    "A SCOPE THAT NAMES AN anchor_phase IS A PARTITION, NOT A LIST, AND THAT IS WHAT",
+    "STOPS IT SHRINKING IN SILENCE. Every takeable row of the anchor phase must be",
+    "either in items or in excluded with a written reason. Delete an id from items",
+    "and it becomes UNCLASSIFIED: the lane REFUSES naming it, and the arm",
+    "tests/ops/test_lane_scope.py::test_the_dashboard_scope_partitions_its_anchor_phase",
+    "goes RED. A first cut of this file was a bare list whose length nothing graded -",
+    "cutting it from eight ids to two left the whole suite green while the lane served",
+    "a quarter of its queue. That is why excluded exists and why it carries reasons.",
+    "",
+    "items MAY name rows outside the anchor phase - CS-962 is one - and those are",
+    "additions the partition does not account for, so they are pinned by a second",
+    "enumeration in the test module instead.",
+    "",
+    "MAINTENANCE. When a member closes, delete its id from items. When a NEW row is",
+    "filed under the anchor phase, put it in items or in excluded with a reason; until",
+    "then the lane refuses and names it. Never delete an id from items and add it to",
+    "excluded to quiet a red without saying why - the reason field is the whole point.",
+    "",
+    "Do not add a phase gate row and do not add a docs/GATED.md id; both are refused",
+    "anyway - tools/headless-queue.md section 5 FENCE 1 and FENCE 2."
+  ],
+  "scopes": {
+    "dashboard": {
+      "description": "The dashboard surface subject. NOT expressible as a phase filter: it partitions '## Phase 6 - surfaces' and additionally pulls in CS-962, the row that says the dashboard renders nothing a player would act on, which sits in the phase 4 block entirely.",
+      "anchor_phase": "Phase 6",
+      "items": [
+        "CS-962",
+        "CS-603",
+        "CS-606",
+        "CS-608",
+        "CS-613",
+        "CS-618",
+        "CS-887",
+        "CS-909"
+      ],
+      "excluded": {
+        "CS-604": "a docs ownership defect about config/ports.json; touches no surface code",
+        "CS-607": "a mypy-gate arm's flakiness; the surface is only where it happens to live",
+        "CS-609": "a path-spelling helper defect, shared machinery rather than the surface",
+        "CS-610": "conftest redaction of a skip report; test harness, not the surface",
+        "CS-611": "a POSIX socket-rebind question about the server, not what it serves",
+        "CS-612": "a key-permission arm that may be tautological; TLS plumbing, not a panel",
+        "CS-614": "a thread-counting oracle defect in a bind-failure arm",
+        "CS-615": "the pooled tier-2 count floor; a CI gate, not the surface",
+        "CS-616": "an Electron session-scope question for the companion shell",
+        "CS-619": "shell/main.js and preload.js coverage; the companion, not the dashboard",
+        "CS-620": "which CI lane the Node suite runs on",
+        "CS-621": "two gates enumerating shell/ differently; gate population, not the surface",
+        "CS-622": "the forbidden-token sweep's ceiling; a guard, not the surface",
+        "CS-623": "two arms disagreeing on the 7-bit-ASCII boundary; a guard pair",
+        "CS-872": "the composed page's keyboard scrolling - COMPANION shell, adjacent to this subject but not in it. Move it into items deliberately if the subject widens to the shell.",
+        "CS-910": "toolpath coverage of spawn sites, four of them frozen files",
+        "CS-914": "a save-layer workdir truncation race; phase 4 work filed under phase 6",
+        "CS-915": "two guards reporting zero findings for the wrong reason",
+        "CS-916": "an asset-extraction prerequisite in the published model",
+        "CS-988": "the population-floor defect class itself; a cross-cutting guard item"
+      }
+    }
+  }
+}

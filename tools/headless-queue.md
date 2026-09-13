@@ -141,6 +141,43 @@ headline, the acceptance clause and the tier - and its phase headings give the d
 order. Within a phase, the file's own line order is the order. Take the FIRST row, in that
 order, that survives every fence below.
 
+**FIRST, COMPUTE THE QUEUE. DO NOT EYEBALL IT.** From your lane worktree, run
+`python -m ops.loop.scope`. It prints the rows you may take, in this file's order, with
+FENCES 1, 2 and 4 ALREADY APPLIED - the phase gate rows, everything named in
+`docs/GATED.md`, and everything carrying a closure record in `docs/LEDGER.md` are gone
+before you ever see the list. Take the first row it prints. Section 1 of this document says
+an instruction a worker can rationalize past is not a mechanism, and it says it about a
+rule that failed four times out of six; that is exactly why the fences that CAN be computed
+now are, and why you read a LIST rather than apply a rule to a file.
+
+**A LANE CAN BE POINTED AT A SUBJECT.** Set `CLOCKSPEED_LANE_SCOPE_QUEUE=<name>` in the
+environment and the same command answers only that subject's rows. The subjects are
+declared in `config/lane_scopes.json` and `dashboard` is the worked example. It exists
+because the dashboard rows are NOT contiguous and are NOT one phase - seven sit under
+`## Phase 6 - surfaces` and one sits in the phase 4 block - so no phase filter expresses
+that subject and the ids have to be written down.
+
+**WHEN THAT COMMAND REFUSES, STOP AND REPORT IT.** Do not fall back to reading the file by
+hand. A refusal exits non-zero and NAMES every offending id and its class - closed, gated,
+a phase gate row, absent from `ROADMAP.md`, or, for a scope that partitions a phase, an
+anchor-phase row nobody classified. It means the DECLARATION is wrong, which is a different
+event from a scope that is merely empty; an empty scope says it is empty and exits 0.
+Repairing `config/lane_scopes.json` is in scope for that cycle - read that file's own
+`_README` first, because a scope with an `anchor_phase` must account for EVERY takeable row
+of that phase, and the dashboard subject is additionally pinned a second time in
+`tests/ops/test_lane_scope.py` so the two must be edited together. Widening a fence is
+never in scope.
+
+**READ THE `FENCED OUT` BLOCK THE COMMAND PRINTS.** Every read ends with it, naming each row
+a fence removed and why, or saying plainly that nothing was removed. A row you expected and
+cannot find is in that block with its reason; a queue that shrank and a queue that was
+always short are not the same thing and the command no longer lets them look alike.
+
+**WHAT THE COMMAND DOES NOT COMPUTE, and you must still apply by hand.** FENCE 3, the
+frozen-file list, which is about FILES rather than rows. And the prose half of section 5b -
+the settled decisions in `CLAUDE.md` section 7 - which name no item ids at all. Those two
+remain instructions, with everything section 1 says that implies.
+
 **WHAT `ROADMAP.md`'S PHASE RULE DOES AND DOES NOT SAY, because the strict reading is
 falsified by the tree.** It says: do not advance past a phase whose acceptance criterion is
 unmet. That bars DECLARING A PHASE COMPLETE while its gate is open. **It does not bar taking
