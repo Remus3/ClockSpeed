@@ -160,6 +160,90 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-09-12 - CS-989 - FROZEN-FILE GRANT, recorded BEFORE the edit per CLAUDE.md section 6
+
+**This is a grant record, not a completion record.** It authorizes ONE edit to
+`.githooks/pre-push`, which is frozen. The closing record for CS-989 is a separate entry
+and does not exist yet. Nothing in `.githooks/` has been edited under this grant.
+
+**THE ROUTE.** A proposal by the session merger was dispatched to an adjudicator that
+wrote neither the proposal, the hook, nor any of the cited items, against a candidate
+pinned at `76cfea3336948e3c7957f234ae0a20465f87f3c7` with a clean tree. The adjudicator
+created no worktree, edited nothing, and did not run the suite. Ruling: GRANT RECOMMENDED
+WITH TWELVE CONDITIONS. The operator approved.
+
+**THE DEFECT.** The hook captures the ref list at lines 73-75, runs the whole suite at
+line 297, and does not consult the ref list CONTENT until the loop at line 346. Its own
+comment at 327-328 states that a delete grades nothing and ships nothing. So the hook
+already knows a deletion is inert and learns it only after paying the full suite.
+
+**THE CHANGE.** After the pytest-importability probe at line 243 and before the xdist
+decision at line 286: if the ref list is NON-EMPTY and EVERY line's local sha is a
+non-empty string of zeros, skip the suite, say so loudly, and exit 0.
+
+**WHY IT IS NOT THE CS-907 SYMPTOM TREATMENT.** The distinguishing test is whether the
+change alters which tests are selected on a push that ships something. Parallelism
+(CS-906) does not, and imports a tier-2 property into tier 0. This changes the graded
+population by exactly zero on every push that ships a commit, and only declines to grade
+a push whose verdict is definitionally inert. That is a scope correction of the CS-954
+family, not a speed treatment. **CS-907 stays open and uncredited.**
+
+**CS-954 IS NOT NARROWED, AND THE ARGUMENT IS EXACT.** The loop at 348-351 already
+continues on precisely the lines whose local sha is all zeros, so on an all-delete push
+the loop body never executes and the block is already a no-op on exactly the set this
+skip covers.
+
+**THE TWELVE CONDITIONS, reproduced in full.**
+
+1. **The grant is recorded in `docs/LEDGER.md` BEFORE any byte of `.githooks/pre-push`
+   changes.** No agent grants itself this exception.
+2. **PLACEMENT.** The block sits after line 243 (the pytest-importability probe) and
+   before line 286 (the xdist decision). Never above the interpreter ladder.
+3. **EVERY, NEVER ANY.** A per-line loop over the ref list that sets a disqualifying flag
+   the moment one line is not a deletion. No `grep -q`, no `case` over the whole blob.
+   The default must be run-the-suite.
+4. **AN EMPTY REF LIST IS EXCLUDED,** guarded explicitly before the loop, so a terminal
+   hand-run, a test invocation and a no-op push all keep the behaviour at lines 329-336
+   exactly.
+5. **A MALFORMED LINE DISQUALIFIES THE WHOLE PUSH.** The sha field must be non-empty and
+   contain no character other than zero. Do not reuse the spelling at 348-351, which
+   accepts the empty string as all-zeros.
+6. **A NAMED STATE VARIABLE, NOT A BARE `exit 0`,** recording that the suite did not run,
+   so CS-824's future floor check and CS-972's future tree check can ask.
+7. **THE MESSAGE IS LOUD, ON STDERR, CARRYING THE `clockspeed pre-push` BANNER,** naming
+   the item id and stating plainly that the suite did NOT run and that this push therefore
+   says nothing about whether the tree is green. It renders the ref COUNT only - never a
+   raw stdin line, never the remote URL, never a path (non-negotiables 3 and 12, the same
+   reason lines 321-325 exist).
+8. **THE ARM IS `test_a_pure_delete_push_skips_the_suite_entirely`** in
+   `tests/test_pre_push_ref_race.py`, including the positive control and the explicit
+   unlink of the marker before the delete push.
+9. **THE SECOND ARM IS `test_a_mixed_delete_and_update_push_still_runs_the_suite`,** same
+   module.
+10. **BOTH ARMS ARE PROVEN LOAD-BEARING BY MUTATION,** not by their own greenness:
+    removing the block reddens arm 1; EVERY changed to ANY reddens arm 2. Both outcomes
+    observed in the spending session and recorded in the closing entry.
+11. **SCOPE.** Single-use. Only the new block and its comment may be added; no existing
+    line may change. Lines 245-297 are CS-906's thirteen-condition territory and lines
+    310-369 are CS-954's - neither may be touched. CS-907 is not addressed by this and may
+    not be cited as progress on it. Sequence against the unspent CS-972 grant at
+    `docs/LEDGER.md:1038`; whichever lands second re-reads the other's conditions and
+    re-runs both arms.
+12. **BYTES AND NUMBERS.** LF endings, no BOM, 7-bit ASCII, verified by reading the bytes
+    after the edit and not by the editor's report - the harness converts tracked files to
+    CRLF and git normalises the blob so the tree reports clean. And the 7m46s / 7m00s /
+    7m31s figures are re-measured in the spending session or dropped from the ledger text;
+    an unrecorded number must not be carried forward as fact.
+
+**ON CONDITION 12, AND IT ALREADY BIT.** Those three timings were carried into the
+session 88 handoff as measured facts. They are recorded in no tracked file -
+`WAKEUP_NOTES.md`, `docs/LEDGER.md` and `docs/item_notes/` all hold none of them. The
+ruling does not rest on them, because the ordering is provable by reading the hook, but
+they are hereby marked UNMEASURED and are not to be requoted.
+
+**UNVERIFIED AT GRANT TIME:** the end-to-end cost of a real delete push through the
+edited hook, which only a real push can measure.
+
 ### 2026-09-12 - CS-929 CS-933 - CLOSED TOGETHER. The aggregate route count is swept by SHAPE rather than by value, and the defect that had to be beaten was not the stale sentence but a guard whose own configuration nothing graded - found four times, each instance created by the previous repair
 
 **WHAT CLOSED, and neither item's filed description was accurate by the time it was

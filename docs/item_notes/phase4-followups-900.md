@@ -539,6 +539,76 @@ Charter v4's worktree order is three steps, not two: commit onto the worktree's
 own branch, PUSH the branch, then remove the worktree. Step 2 is RC's addition
 and is the one this tree does not satisfy.
 
+### MEASURED 2026-09-12 (session 88) - the disposition, and the count in the line above has drifted
+
+**THE 52-OF-62 FIGURE ABOVE IS THE 2026-09-07 READING AND IS NO LONGER TRUE.** It is
+kept because a FILED section records what was measured when it was filed. The live
+figure is below and the ROADMAP line no longer restates any count, per the
+`CLAUDE.md` section 4 rule that a hardcoded count in prose is a lie with a timestamp
+on it.
+
+**THE READING, taken at `76cfea3` with a clean tree.** 55 local branches; 17 merged
+into `origin/main`; 38 not merged, which reconciles with `git branch --no-merged
+origin/main`. Of those 38:
+
+| class | count | what it means |
+|---|---|---|
+| LANDED-AS-MODIFIED | 26 | the merger took the slice and reshaped it before merging, so patch-id differs while the content is in `origin/main` |
+| HOLDING WORK | 11 | content absent from `origin/main` and not recoverable from it |
+| SPECIAL | 1 | `archive/local-history` - see CS-936 |
+
+**THE METHOD, because `git cherry` ALONE CANNOT ANSWER THIS.** Patch-id is undefined
+for a merge commit and `git cherry` skips them, so a "0 unmerged patches" reading is
+not sufficient for any branch containing a merge. The decisive test is TREE IDENTITY
+plus a content-presence measure: build one tree-sha to commit map over
+`git rev-list origin/main` (668 commits), look up each branch tip, then for every path
+a branch touches count how many of its own added lines (stripped, length >= 12,
+deduped) are absent from the `origin/main` version of that same path. The resulting
+distribution is BIMODAL with an empty band between 77 and 86 per cent present, so the
+cut is measured rather than chosen, and every branch sits clear of the band.
+
+**AN INSTRUMENT FAULT WAS FOUND AND CORRECTED MID-RUN, and it inverted a verdict.**
+Under MSYS, argument path-conversion rewrites any `rev:path` whose path begins with a
+dot. `git rev-parse origin/main:.github/workflows/tier2.yml` returns EMPTY and
+`git show origin/main:.gitignore` fatals with the argument mangled. The first pass
+therefore scored `.github/...`, `.githooks/commit-msg` and `.gitignore` as ABSENT FROM
+MAIN when they plainly are not, and filed one branch at 0 per cent present. Re-run with
+path conversion disabled and fronted by a known-good control (`origin/main:.gitignore`
+resolving to a real blob sha) and a known-bad control (`origin/main:no/such/file.txt`
+resolving empty at rc 1), that branch reads 93 per cent. **Without the control it would
+have been recorded as holding work it does not hold.**
+
+**DISPOSITION APPLIED THIS SESSION.** Six branches holding work were pushed to
+`origin` in one invocation, so they are no longer single-copy: `cs807-attribute-half`,
+`wip/cs-210-session70`, `worktree-agent-a1d0d1c85dd5bc8fc`,
+`worktree-agent-a29bded19d0edd514`, `worktree-agent-abccd667b38e14135` and
+`worktree-agent-af11f14194b6508f8`. Two of those are CS-492 rounds nine and ten, held
+unmerged BY RULING rather than by refutation, which is a decision someone may revisit.
+
+**FIVE ARE RECORDED DISPOSABLE AND ARE NOT DELETED BY THIS ENTRY.** CS-492 rounds seven
+and eight (`worktree-agent-a7a207a7fac1a22b7`, `worktree-agent-a970f46db2e225244`) are
+graded REFUTED by their own commit messages and superseded on the same two files by
+round nine. The three `diag/` branches (`diag/cs-448-precondition`,
+`diag/cs-896-runner-profile`, `diag/cs-896-xdist`) are throwaway CI mutations already
+mirrored on `origin` at the same sha, so deleting the local ref loses nothing.
+
+**`archive/local-history` IS NEITHER PUSHED NOR DELETED.** CS-936 owns it: its history
+carries pre-scrub blobs and it must never reach a pushable ref. It is also the only
+copy of that history, so deleting it is a separate deliberate decision with its own
+record. Its tip content is already in `origin/main`, so never pushing it loses nothing.
+
+**WHAT THIS MEASUREMENT CANNOT SEE, and the acceptance arm still does not exist.** The
+line-presence test is a LINE-SET test, not a semantic one: a branch at 99 per cent could
+still hold the one arm that matters, and a line that merely appears somewhere in the
+main version of the same path counts as present even if it moved or is there for an
+unrelated reason. That bias runs toward LANDED, which is the wrong direction for a
+report about work at risk, so the 26 is the WEAKER of the two verdicts. Added lines
+under 12 characters are not counted at all. And no ref-based test sees UNCOMMITTED work
+- both worktrees measured clean at the instant of the probe, but the operator works
+while a session runs. **The item stays OPEN: its acceptance asks for an ARM that reddens
+on an unrecorded branch, and this entry is a measurement, not that arm.**
+
+
 ## CS-946
 
 ### FILED 2026-09-07 (session 72), on an operator ruling
