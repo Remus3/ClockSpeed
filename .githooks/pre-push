@@ -242,6 +242,77 @@ if ! cs_python -c "import pytest" >/dev/null 2>&1; then
         "Run: python scripts/verify_env.py"
 fi
 
+# CS-989: A PUSH THAT ONLY DELETES REFS IS NOT GRADED, BECAUSE THERE IS NOTHING
+# TO GRADE. The CS-954 block below already states it in its own words: git sends
+# the all-zero id as the local sha when a ref is being deleted, nothing was
+# graded and nothing ships. The ref list arrives on stdin before the suite runs,
+# so paying for a whole suite to learn what the hook was handed at the top is
+# cost with no coverage attached. Authorized by the frozen-file grant recorded in
+# docs/LEDGER.md under "2026-09-12 - CS-989"; read its twelve conditions before
+# changing a byte of this block, and do not widen it.
+#
+# THE PLACEMENT IS PART OF THE GRANT. This sits BELOW the interpreter ladder and
+# the pytest-importability probe on purpose. Above them there would be a class of
+# push that runs zero checks at all and never learns its interpreter is broken,
+# which is the CS-703 no-op shape and falsifies CS-821's acceptance.
+#
+# THE DEFAULT IS RUN-THE-SUITE. This is a per-line loop that sets a disqualifying
+# flag the moment one line is not a deletion - never a `grep -q` and never a
+# `case` over the whole blob, either of which answers ANY when the question is
+# EVERY. One shipping ref in a batch of fifty deletions must still cost the full
+# suite, because that ref is exactly the thing a gate exists to grade.
+#
+# AN EMPTY REF LIST IS EXCLUDED BEFORE THE LOOP EVER RUNS. Running this file by
+# hand, a test invocation and a push with no ref to update all arrive with
+# nothing on stdin, and a loop over nothing satisfies EVERY vacuously - which
+# would skip the suite for all three. Those keep the existing behaviour exactly.
+#
+# A MALFORMED LINE DISQUALIFIES THE WHOLE PUSH rather than being skipped. The sha
+# field must be a NON-EMPTY string containing no character other than zero. The
+# CS-954 loop's own spelling is deliberately not reused: `*[!0]*) ;; *) continue`
+# treats the EMPTY string as all-zeros, which is harmless where it only declines
+# to check one line and is not harmless where it decides whether the suite runs.
+#
+# THE MESSAGE RENDERS THE REF COUNT AND NOTHING ELSE - never a raw stdin line,
+# never the remote URL, never a path. Non-negotiables 3 and 12, the same reason
+# the CS-954 block refuses to echo them.
+CS_SUITE_RAN=1
+cs_all_deletes=0
+cs_delete_count=0
+cs_line_ref=""
+cs_line_sha=""
+if [ -n "$CS_REFS" ]; then
+    cs_all_deletes=1
+    # Field order on each line is: local-ref local-sha remote-ref remote-sha.
+    while read -r cs_line_ref cs_line_sha _; do
+        if [ -z "$cs_line_ref" ] || [ -z "$cs_line_sha" ]; then
+            cs_all_deletes=0
+            break
+        fi
+        case "$cs_line_sha" in
+            *[!0]*)
+                cs_all_deletes=0
+                break
+                ;;
+        esac
+        cs_delete_count=$((cs_delete_count + 1))
+    done <<CS_989_REFS
+$CS_REFS
+CS_989_REFS
+fi
+
+if [ "$cs_all_deletes" -eq 1 ] && [ "$cs_delete_count" -gt 0 ]; then
+    # A NAMED STATE VARIABLE, not a bare `exit 0`, so a later check can ask
+    # whether the suite ran rather than infer it from the exit code.
+    CS_SUITE_RAN=0
+    printf 'clockspeed pre-push: %s ref deletion(s) and nothing else on stdin, ' \
+        "$cs_delete_count" >&2
+    printf 'so the suite did NOT run - CS-989. A deletion grades nothing and ' >&2
+    printf 'ships nothing. THIS PUSH SAYS NOTHING ABOUT WHETHER THE TREE IS ' >&2
+    printf 'GREEN; push a commit to learn that.\n' >&2
+    exit 0
+fi
+
 # Explicit target directory, run from the repo root. Never a bare recursive
 # invocation from the root - that can sweep runtime state directories
 # (CONVENTIONS.md section 7.1). stdin is the ref list git handed us; pytest

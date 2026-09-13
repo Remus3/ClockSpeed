@@ -50,6 +50,11 @@ PRE_PUSH: Final = "pre-push"
 
 GIT_TIMEOUT: Final = 300
 SANDBOX_BRANCH: Final = "cs954-sandbox"
+
+#: A SECOND branch, so one push event can carry a deletion AND an update at
+#: once. CS-989 skips the suite only when EVERY line is a deletion, and a
+#: single-branch sandbox cannot construct the mixed push that grades that word.
+DOOMED_BRANCH: Final = "cs989-doomed"
 FIXTURE_NAME: Final = "CS-954 Fixture"
 FIXTURE_EMAIL: Final = "cs954@example.invalid"
 
@@ -435,3 +440,140 @@ def test_deleting_a_ref_is_not_refused_by_the_ref_check(
         "the hook refused a ref DELETE, which grades nothing and ships nothing:\n" + "\n".join(said)
     )
     assert not remote_tip(box), "the branch is still on the remote after a delete"
+
+
+def marker_present(box: Sandbox) -> bool:
+    """Whether the sandbox suite left its marker behind - a BOOL, never a path.
+
+    THE PATH IS NEVER RETURNED AND NEVER BOUND IN A CALLER'S FRAME. ``Sandbox``
+    ships a ``__repr__`` that withholds its paths, but ``Sandbox.work`` itself is
+    a bare ``Path`` under the operator's profile, so a local holding it is
+    rendered in full by ``-l`` whatever the assertion's message said. Measured:
+    binding ``marker = box.work / MARKER_NAME`` reddened both
+    ``tests/test_assertion_rendering.py`` and ``tests/test_locals_rendering.py``,
+    and their remedy is to stop binding it rather than to bind a scalar beside
+    it - CLAUDE.md non-negotiables 3 and 12.
+    """
+    return (box.work / MARKER_NAME).exists()
+
+
+def clear_the_marker(box: Sandbox) -> bool:
+    """Remove the marker and report whether it is gone, handing back no path.
+
+    THE RETURN IS THE READBACK, not the unlink's own silence. A marker that
+    survived its removal would make the arm below read the PREVIOUS push's
+    result and report the exact opposite of the truth.
+    """
+    (box.work / MARKER_NAME).unlink()
+    return not (box.work / MARKER_NAME).exists()
+
+
+def test_a_pure_delete_push_skips_the_suite_entirely(tmp_path: Path, isolated: Environment) -> None:
+    """CS-989 - a push that only deletes refs must not pay for a whole suite.
+
+    THIS ARM CANNOT BE THE ONE ABOVE IT. ``test_deleting_a_ref_is_not_refused_by
+    _the_ref_check`` reads the EXIT CODE only, so removing the CS-989 skip leaves
+    it green - the hook would simply run the suite and still exit 0. What has to
+    be observed is whether pytest RAN, which the sandbox suite's marker records.
+
+    THE MARKER IS CLEARED BEFORE THE DELETE PUSH, and that is load-bearing rather
+    than tidy. The ordinary push immediately above leaves a marker behind;
+    without the clear this arm would read THAT one and report the exact opposite
+    of the truth on a hook that skipped nothing.
+
+    THE ORDINARY PUSH IS ALSO THE POSITIVE CONTROL. A marker mechanism that never
+    writes would make the absence below pass for a reason that has nothing to do
+    with CS-989, so the same test first proves the marker appears when the suite
+    really does run.
+    """
+    box = make_sandbox(tmp_path, isolated, seconds=0.5)
+
+    pushed = race_a_push(box, advance=False)
+    assert not pushed.blocked, f"the sandbox branch would not push:\n{pushed.report}"
+    # THE POSITIVE CONTROL, asserted before the marker is trusted as an oracle.
+    control = marker_present(box)
+    assert control, (
+        "the sandbox suite left no marker on an ORDINARY push, so its absence "
+        "after the delete push below would prove nothing about CS-989"
+    )
+
+    cleared = clear_the_marker(box)
+    assert cleared, "the marker survived its own removal"
+
+    deleted = run_git(box, "push", "origin", "--delete", SANDBOX_BRANCH)
+    said = hook_output(deleted.stderr)
+    # Bound to scalars before asserting: pytest renders the asserted EXPRESSION
+    # independently of the message, and a CompletedProcess carries the sandbox's
+    # absolute path under the operator's profile (non-negotiables 3 and 12).
+    code = deleted.returncode
+    ran = marker_present(box)
+    assert code == 0, (
+        "the hook refused a ref DELETE, which grades nothing and ships nothing:\n" + "\n".join(said)
+    )
+    assert not ran, (
+        "the pre-push suite RAN on a push that only deletes refs - CS-989. The "
+        "delete grades nothing and ships nothing, so the run is pure cost:\n" + "\n".join(said)
+    )
+    # ATTRIBUTE THE SKIP, do not merely observe a missing marker. A hook that
+    # died before reaching pytest for an unrelated reason also leaves none.
+    assert any("CS-989" in line for line in said), (
+        "the suite did not run, but the hook never said so - a silent skip is "
+        "indistinguishable from a gate that broke:\n" + "\n".join(said)
+    )
+    assert not remote_tip(box), "the branch is still on the remote after a delete"
+
+
+def test_a_mixed_delete_and_update_push_still_runs_the_suite(
+    tmp_path: Path, isolated: Environment
+) -> None:
+    """CS-989 skips on EVERY, never on ANY - one shipping ref pays the full suite.
+
+    THE MUTATION THIS ARM EXISTS TO KILL is the word EVERY weakened to ANY: a
+    ``grep -q`` for a zero sha, or a ``case`` over the whole blob, both answer
+    "there is a deletion here" when the question is "is there anything else".
+    That mutant ships an ungraded commit whenever one travels beside a deletion,
+    which is the worst outcome this hook has, and no arm that pushes a single
+    ref can see it.
+    """
+    box = make_sandbox(tmp_path, isolated, seconds=0.5)
+
+    seeded = race_a_push(box, advance=False)
+    assert not seeded.blocked, f"the sandbox branch would not push:\n{seeded.report}"
+
+    branched = run_git(box, "branch", DOOMED_BRANCH)
+    made = branched.returncode
+    assert made == 0, "the second sandbox branch could not be created"
+    planted = run_git(box, "push", "origin", DOOMED_BRANCH)
+    plant_code = planted.returncode
+    assert plant_code == 0, "the second sandbox branch would not push"
+
+    shipped = run_git(box, "commit", "-q", "--allow-empty", "-m", "CS-989 shipping commit")
+    commit_code = shipped.returncode
+    assert commit_code == 0, "the shipping commit could not be made"
+    tip = local_tip(box)
+    assert tip, "the sandbox branch will not resolve after the shipping commit"
+
+    cleared = clear_the_marker(box)
+    assert cleared, "the marker survived its own removal"
+
+    # ONE push event carrying TWO lines: an update and a deletion. `--delete`
+    # cannot be used here - it would make BOTH refspecs deletions and rebuild
+    # the pure-delete case this arm is the counterpart to.
+    mixed = run_git(
+        box,
+        "push",
+        "origin",
+        f"refs/heads/{SANDBOX_BRANCH}:refs/heads/{SANDBOX_BRANCH}",
+        f":refs/heads/{DOOMED_BRANCH}",
+    )
+    said = hook_output(mixed.stderr)
+    code = mixed.returncode
+    ran = marker_present(box)
+    assert code == 0, "the hook refused a push carrying one update and one deletion:\n" + "\n".join(
+        said
+    )
+    assert ran, (
+        "the pre-push suite did NOT run on a push that ships a commit, because "
+        "a deletion travelled beside it - CS-989 skips on EVERY, never on ANY:\n" + "\n".join(said)
+    )
+    assert remote_tip(box) == tip, "the shipping commit did not reach the remote"
