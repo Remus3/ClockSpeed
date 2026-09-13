@@ -101,7 +101,16 @@ driver's own:
   * the driver's `run_local_suite` is serial, and is the one this file rations.
 
 So the honest fraction is one of three invocations and none of the one that
-forks. The driver COULD cover the other two transitively by holding the slot
+forks - AND THAT FRACTION IS CONDITIONAL, which an earlier wording of this
+paragraph stated as a flat property and an adjudicator caught. It holds only
+when the driver is asked for a local suite at all. `local_suite` defaults to
+FALSE and `launch_queue_loop.ps1` forwards the flag only when it is passed, so
+on a DEFAULT night the driver issues no suite, this ration covers ZERO of the
+two invocations that do run, and the cycle records `RATION_NO_SUITE` rather
+than a coverage it did not provide. Read the conditional at the call site as
+the authority and this paragraph as its summary, never the other way round.
+
+The driver COULD cover the other two transitively by holding the slot
 across the whole worker cycle; that is rejected in `queue_loop.run_suite_step`
 with the arithmetic, because it serialises a cycle bounded at
 `DEFAULT_CYCLE_TIMEOUT_S` to protect a 320s window. A SIBLING PROJECT's suite is

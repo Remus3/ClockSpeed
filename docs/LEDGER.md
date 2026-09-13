@@ -24,6 +24,64 @@ to `docs/history_notes.md`; they are never dropped.
 Newest entry goes directly under the `## Entries` heading. Each entry is:
 
 ```
+### 2026-09-13 - CS-993 - A FROZEN-FILE GRANT, GRANTED BY THE OPERATOR AND LEFT UNSPENT. Nothing was edited under it, and the reason is recorded so neither the grant nor the route it covers is re-pitched
+
+**CS-993 STAYS OPEN and this entry does not close it.** Its acceptance says two lanes cannot run a
+suite simultaneously, and two of the three pytest invocations in a cycle remain outside the ration -
+including the only one that forks. What merged is the driver-side half, and the detection route that
+addresses the remaining harm is filed as CS-1007.
+
+**THE GRANT EXISTS AND IS NOT SPENT.** The operator granted the exception on
+`.githooks/pre-push` in as many words. An adjudicator that wrote no part of CS-993, the hook or
+either prior grant then ruled DENY on the EDIT, and the grant is recorded here GRANTED AND UNSPENT
+rather than quietly dropped. That is the CS-972 shape on this same file: a grant issued, no edit ever
+made, because conditions could not be honestly met. **A grant is permission, not a design.**
+
+**THE GAP IS REAL AND WAS VERIFIED, not taken on the requester's word.** The hook's pytest
+invocation carries `-n auto --dist loadfile` and is the ONLY xdist run in a lane cycle. CS-993
+therefore covers none of the runs that fork, which is the mechanism the defect statement names. The
+requester reported that honestly and routed the proposal rather than taking the edit.
+
+**GROUND ONE - NO CEILING VALUE IS BOTH USEFUL AND SAFE.** A hook that waits usefully must wait at
+least one suite; at the shipped ceiling constant it would wait three hours. The hook's OWN header
+already rules on that scenario in as many words - a hung gate reads as a wedged suite and gets killed
+rather than diagnosed, which is worse than either answer. A ceiling short enough to be safe on an
+operator's interactive push falls through unrationed on essentially every real collision, making the
+ration decorative. The hook cannot tell a lane push from an interactive one: it reads exactly one
+environment variable, and CS-972's record already ruled that adding another IS ITSELF a frozen edit.
+
+**GROUND TWO - THE ONLY WORKING MECHANICS ARE FROZEN-FILE LAUNDERING.** `sh` cannot hold a Python
+context manager across a later command. The split form - acquire, run, release - records the
+ACQUIRING process's pid, which is dead before pytest starts, so the slot reads reclaimable at once
+and the next lane takes it: it would ration nothing while logging that it did. The only shape that
+works inserts a wrapper between the gate and pytest, and the hook's own prose names that shape as the
+CS-703 mechanism that turns all three tier-0 gates into no-ops. It would also move the gate's
+exit-code fidelity into a NON-FROZEN module editable without any grant at all. Disqualifying on its
+own.
+
+**NAMED AND REJECTED SO IT IS NOT RE-PITCHED AS CHEAP.** Injecting a ration plugin through
+`PYTEST_ADDOPTS` in the worker's environment reaches the hook's pytest with no frozen byte changed.
+It is rejected: it fails OPEN AND SILENT if the variable is lost anywhere along the driver, worker,
+git and hook chain, which is precisely the defect the ration exists to close, and it adds an
+environment-variable disarm surface to a tier-0 gate.
+
+**THE ROUTE THAT IS TAKEN INSTEAD IS DETECTION IN THE DRIVER, NOT PREVENTION IN THE GATE.** The harm
+is not the overlap; it is an unattended lane writing a green it did not earn. The driver already
+writes its ration verdict on every cycle and already refuses the cycle roll-up on an unrationed step.
+Extending that to OBSERVE whether a foreign suite ran during the window it already polls converts an
+unearned green into a re-run, costs no wait, hangs no push, and needs no grant. Filed as CS-1007.
+
+**A FALSE CLAIM IN THE MERGED CODE WAS CORRECTED IN THE SAME CHANGE.** `ration`'s module docstring
+quoted its coverage as one of three invocations as though that were unconditional. It holds only when
+the driver is asked for a local suite; the flag defaults to false, so on a default night the driver
+issues no suite and the ration covers zero of the two invocations that do run. The conditional was
+written correctly at the call site and wrongly in the summary, which is the half a reader sees.
+
+**ONE THING CS-993 MAKES WORSE, NARROWLY AND IN THE FAIL-CLOSED DIRECTION**, recorded rather than
+smoothed over: an unrationed but green suite now sets the cycle row not-ok, an outcome that did not
+exist before. That is the intended trade - an unmeasurable run should not read as an earned one - but
+it is a new way for a night to report failure.
+
 ### 2026-09-05 - CS-909 - MEASUREMENT RECORD. The companion ran for the first time in the project's history, and the round that shipped it was REFUTED on five counts including a local code-execution vector
 
 **CS-909 STAYS OPEN and this entry does not close it.** Section 8.5 of
