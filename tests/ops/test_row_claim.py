@@ -2242,7 +2242,16 @@ def test_a_lane_sharing_a_worktree_cannot_delete_the_other_lanes_record(
     token = _claim_from(shared, ROW_A, LANE_A, "worker")
     before = claims.claim_state(ROW_A, root=store)
     assert str(before["state"]) == claims.HELD, f"the row reads {before['state']} before the arm"
-    assert str(before["anchor"]) == claims.ANCHOR_LANE, f"anchored on {before['anchor']!r}"
+    # PROVABILITY IS PLATFORM-CONDITIONAL AND IS NOT WHAT THIS ARM GRADES. psutil is
+    # an optional dependency, so `lanes.proc_started` answers None wherever it is
+    # absent - the CI runner, measured - and the same live lock then renders
+    # ANCHOR_LANE_UNPROVEN rather than ANCHOR_LANE. Both spellings are LANE-anchored,
+    # which is the precondition this arm needs before it can say anything about the
+    # release. Asserting the provable spelling graded the runner's package list.
+    assert str(before["anchor"]) in (
+        claims.ANCHOR_LANE,
+        claims.ANCHOR_LANE_UNPROVEN,
+    ), f"anchored on {before['anchor']!r}"
 
     # The second lane arrives in the same tree.
     _plant_lane_lock(lock_root, LANE_B, "cycle-b", worktree=str(shared))
