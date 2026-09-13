@@ -708,7 +708,49 @@ stated rather than left as an omission.
 4. **The lane worktree is the worktree.** Confirm the worker's commits land on
    `lane/queue` and that `C:\Clockspeed` is untouched while a cycle runs.
 
-## 11. Cross-references
+## 11. A row that will not come back
+
+**Symptom.** A `ROADMAP.md` row is never offered to either lane. `python -m ops.loop.scope`
+lists it, but every cycle skips it, and no cycle is working it.
+
+**Read the claim before doing anything.** From the MAIN checkout:
+
+```
+python -c "from ops.loop import claims; print(claims.claim_states())"
+```
+
+A row in that mapping whose `anchor` is `lane_lock_unproven` is the case this section is
+about. `lane_lock` means a cycle really is running it - leave it alone. `pid` means the
+claim is anchored on a process rather than a cycle and expires on its own.
+
+**What `lane_lock_unproven` means.** The row is held on the authority of a lane lock that
+reads RUNNING but cannot prove the process behind it is the one it recorded. That happens
+when a driver dies without releasing AND the operating system reissues its pid AND the
+start time cannot be read - the last of which is unconditional where `psutil` is not
+installed. The claim store believes the lane lock deliberately: guessing the other way
+would hand a live cycle's row to a second lane, which has no undo. The lane is stale too,
+and `try_acquire_lane` is refusing it for the same reason, so this is a lane to recover
+rather than a row.
+
+**The fix is to clear the stale LANE LOCK.** The slot files live under the main checkout's
+lane lock root, `ops/loop/control/lanes/`, one per lane, named by slot index. Confirm the
+lane is genuinely dead first:
+
+```
+python -c "from ops.loop import lanes; print(lanes.lane_states())"
+```
+
+Then delete that lane's slot file. The row is reclaimed automatically on the next fire -
+nothing else is required and no claim file is touched.
+
+**NEVER DELETE A CLAIM RECORD BY HAND.** Records under `ops/loop/control/claims/` are not
+the thing to clear. If the holder is really gone the next `first_takeable` already offers
+the row; if it is not, deleting the record puts a second lane into a worktree that already
+has one, which is the concurrent-index corruption class and is not recoverable by retrying.
+The lane lock is the safe thing to remove because removing it also frees the lane, which is
+the actual fault.
+
+## 12. Cross-references
 
 - Module map, seams, card contract: `docs/ARCHITECTURE.md`
 - Decisions and their fences: `docs/adr/README.md`

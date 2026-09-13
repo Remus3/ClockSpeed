@@ -160,7 +160,7 @@ held = claims.try_claim_row(row, lane=<your lane>, run_id=<your run id>, worktre
 if not held["ok"]:                                             # CHECK THIS. See below.
     ...                                                        # recompute and take the next row
 ...                                                            # the cycle
-claims.release_claim(held["token"], receipt=held["receipt"])   # section 11, at the wrap
+claims.release_claim(held["token"])                            # section 11, at the wrap
 ```
 
 **`try_claim_row` REFUSES RATHER THAN RAISING, so a worker that ignores `ok` proceeds on a
@@ -206,20 +206,21 @@ WORKING this row RIGHT NOW" and is worthless the moment its holder stops running
 write a claim in place of a closure record, and never read a claim as evidence a row is
 done.
 
-**PASS `receipt=` BACK ON THE RELEASE.** `try_claim_row` hands you a `receipt` alongside
-the `token`; keep both and give both back. You reach python through a fresh subprocess per
-call, so the process that wraps your cycle is never the one that took the claim and
-inherits none of its in-memory ownership - the receipt is what identifies the record
-instead. Omit it and the release removes nothing, which does not wedge the row, because the
-record dies with your cycle either way, but it does leave a record behind that nobody asked
-for (CS-1009).
+**THE RELEASE TAKES THE TOKEN AND NOTHING ELSE. You do not have to carry a credential
+across your cycle, and there is nothing you can pass that would help.** Two earlier builds
+asked for one - a run id, then a receipt - and BOTH were measured to let a wrap arriving
+late from a crashed cycle DELETE the live claim of the lane that had legitimately reclaimed
+the row. The second was worse than the first: a receipt was a hash of the claim file, so
+re-reading and re-hashing the record was both the documented way to recover a lost receipt
+AND the attack. Neither is accepted now. If you pass one anyway it is ignored rather than
+refused, so a wrap written against an older copy of this document cannot raise inside its
+own `finally`.
 
-**DO NOT PASS YOUR RUN ID INSTEAD, AND IT IS NOT ACCEPTED IF YOU TRY.** A run id is
-whatever you say it is - this document has never required one to be unique, and two lanes
-picking the same string is ordinary. Matching a release on one was measured to let a wrap
-arriving late from a crashed cycle DELETE the live claim of the lane that had legitimately
-reclaimed the row. The receipt names the record rather than the caller, which is why it is
-the thing you hand back.
+**WHAT AUTHORISES YOUR RELEASE IS THE WORKTREE YOU ARE RUNNING IN.** The store reads your
+lane's lock, matches the worktree it records against the checkout your `import` came from,
+and removes the record only if it names that lane and that lane's current run. You cannot
+present this and you do not need to keep it - it is a fact about where your process is, not
+a string you hold.
 
 **YOUR CLAIM IS ANCHORED ON YOUR LANE LOCK, NOT ON THE PROCESS THAT WROTE IT.** That is
 what makes the fresh-subprocess-per-call convention safe: the claim is held for as long as
@@ -227,6 +228,17 @@ the CYCLE runs, and your cycle is the worker process the launcher started, not t
 call that happened to write the record. Nothing is asked of you for this - the store reads
 your lane's lock itself. It is worth knowing only because it is why a claim taken by a
 process that exited a second later still excludes the other lane.
+
+**THE ONE CASE WHERE THAT EXCLUSION DOES NOT HOLD, stated rather than promised away.** The
+store asks your lane's lock whether your cycle is alive. If that lock is RUNNING it is
+believed, even when the operating system will not say whether the process behind it is
+really yours - which is every machine with no `psutil` installed, and any machine at all
+when the probe is refused for an elevated or scheduled-task holder. The consequence runs
+the SAFE way (your row stays held rather than being handed out), but a lane lock left
+behind by a driver that died can then hold its last row until someone clears it. A reading
+of that row says so: its `anchor` is `lane_lock_unproven` rather than `lane_lock`. The
+remedy is an operator one and it is NOT yours to improvise - `docs/OPERATIONS.md`, "A row
+that will not come back", says to delete the stale LANE LOCK and never the claim record.
 
 **A CRASHED CYCLE DOES NOT RELEASE ITS CLAIM, AND DOES NOT WEDGE ITS ROW EITHER.** Release
 is deliberate. A killed cycle leaves its record where it was; the store then probes the
@@ -608,7 +620,7 @@ engine change is substantive; a five-file rename is not.
 
 **Every cycle ends by exiting after one row.**
 
-**RELEASE THE ROW CLAIM, and do it whether the cycle shipped or gave up.** `claims.release_claim(held["token"], receipt=held["receipt"])`,
+**RELEASE THE ROW CLAIM, and do it whether the cycle shipped or gave up.** `claims.release_claim(held["token"])`,
 from section 5. A cycle that finished and a cycle that abandoned its row are the same event
 to the next lane - neither is working the row any more. The one case you do NOT have to
 handle is being killed: release is deliberate precisely so that a crash leaves the record

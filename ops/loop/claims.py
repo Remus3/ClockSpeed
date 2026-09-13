@@ -107,6 +107,32 @@ population it was tuned against. The lock is a probe, not a timer. The one
 duration this file reads is ``WRITE_GRACE_S``, which is the exclusive create's
 fill window and applies to a record with NO readable holder at all.
 
+A RUNNING LOCK THAT CANNOT PROVE ITS HOLDER ANCHORS ITS ROW ANYWAY, AND THAT IS
+INHERITED DELIBERATELY RATHER THAN OVERLOOKED. ``lanes.holder_is_a_stranger``
+FAILS OPEN: with either half of the holder's identity unreadable it answers "not
+a stranger" and the lane reads RUNNING. A build of this module gated the anchor
+on that provability and was REFUTED by adjudication, because the gate inverted
+the trade ``lanes.py`` had already ruled - freeing a lane on a guess
+double-books a running worker, which is strictly worse than the wedge. A ROW IS
+A SMALLER UNIT THAN A LANE, so the ranking cannot flip on the way up: if a guess
+may not free a lane it may not free one of that lane's rows. The gate also
+re-derived that same predicate from the same two payload fields, which is the
+second copy this docstring forbids, and it made
+``lanes.lane_state`` say RUNNING while ``claims.claim_state`` said RECLAIMABLE
+about one lock at one instant.
+
+WHAT THAT COSTS AND WHY IT IS RECOVERABLE. The row wedges only ALONGSIDE A
+WEDGED LANE - the same lock also refuses ``try_acquire_lane``, so the lane is
+discovered dead by the driver rather than quietly skipped, and it takes three
+things at once (a driver that died without releasing, AND a reissued pid, AND an
+unreadable start time). The escape is to clear the stale LANE LOCK under the
+main checkout's lock root, which an operator has to do for the lane in any case;
+the row is then reclaimed on the next fire. `docs/OPERATIONS.md` carries the
+procedure. THE CLAIM RECORD ITSELF IS NEVER HAND-DELETED - deleting one puts a
+second lane into a worktree that already has one. Because it is a state nobody
+should have to deduce, :data:`ANCHOR_LANE_UNPROVEN` is a DECLARED anchor value
+and every reading carries it.
+
 THE LIMIT, STATED RATHER THAN IMPLIED: A CLAIM WITH NO LANE LOCK IS ANCHORED ON
 ITS PROCESS. A hand-run worker, an arm in a test, an operator at a REPL - none
 of them hold a lane lock, and a claim that read dead the instant it was made
@@ -122,7 +148,6 @@ it rather than by inferring it.
 from __future__ import annotations
 
 import contextlib
-import hashlib
 import json
 import os
 import time
@@ -194,6 +219,14 @@ MAX_ROW_LENGTH: Final = 64
 #: anchor, which is how CS-1009 survived CS-991's whole test suite.
 ANCHOR_LANE: Final = "lane_lock"
 ANCHOR_PID: Final = "pid"
+
+#: LANE-ANCHORED, BUT THE LOCK CANNOT PROVE ITS HOLDER. A distinct value rather
+#: than a shade of :data:`ANCHOR_LANE`, because the two differ in what an
+#: operator must do: the first needs nothing, the second means the LANE is stale
+#: too and its lock wants clearing. The state is unaffected - the row is HELD
+#: either way, which is the adjudicated ruling - so this is the only place the
+#: condition is visible at all.
+ANCHOR_LANE_UNPROVEN: Final = "lane_lock_unproven"
 
 #: The directory the lane locks sit in, TAKEN FROM ``lanes`` rather than
 #: spelled, so a rename there moves this with it instead of leaving the anchor
@@ -478,32 +511,27 @@ def claim_for_row(row: Any, root: Any = None) -> Path:
 # ---------------------------------------------------------------------------
 
 
-def _lock_can_prove_its_holder(reading: dict[str, Any], root: Any, lane: Any) -> bool:
+def _holder_is_provable(reading: dict[str, Any], root: Any, lane: Any) -> bool:
     """Whether a RUNNING lane lock can PROVE the process behind it is its own.
 
-    A NEW PERMANENT-WEDGE CLASS, FOUND BY AN ADVERSARY AND CLOSED HERE. The lane
-    lock's pid-reuse guard, ``lanes.holder_is_a_stranger``, FAILS SOFT: when
-    either the recorded start time or the live one cannot be read it answers
-    "not a stranger", so the lock reads RUNNING. That is the right call for the
-    lock itself, which is driver-side and short-lived. It is the wrong call to
-    hang a ROW on. A lock left by a dead driver whose pid the operating system
-    has since reissued reads RUNNING forever, and a claim anchored to it would
-    be HELD forever - off the queue, refused to the other lane, with no age
-    floor to expire it by ruling and nothing in `tools/headless-queue.md`
-    telling anyone to hand-delete it. The module docstring above rules that a
-    wedged claim is worse than no claim at all, and that ruling decides this.
+    THIS DECIDES A LABEL AND NEVER A STATE, and that boundary is the whole of an
+    adjudication. Gating the ANCHOR on it was refuted - see the module docstring
+    - because it inverted ``lanes.holder_is_a_stranger``'s own ruling and handed
+    a live cycle's row to the other lane wherever a start time could not be
+    read, which is every box without ``psutil`` and, measured, any box at all
+    when ``psutil`` raises ``AccessDenied`` for an elevated or scheduled-task
+    holder. DO NOT RE-WIRE THIS INTO :func:`_lane_anchor_state`. What it is for
+    is :data:`ANCHOR_LANE_UNPROVEN`, so an operator can SEE a stale lane rather
+    than deduce it from a row that will not move.
 
-    AND IT IS THE UNCONDITIONAL CASE ON A BOX WITHOUT ``psutil``, which
-    `pyproject.toml` declares optional. Measured on this machine ``psutil`` IS
-    installed and ``lanes.proc_started`` returns a real value, so the wedge is
-    other people's boxes rather than this one - which is exactly the kind of
-    defect that ships.
-
-    SO A LOCK THAT CANNOT PROVE ITS HOLDER ANCHORS NOTHING. The caller answers
-    None and the claim falls back to the pid probe: degraded, because a per-call
-    subprocess is dead the moment it returns, but BOUNDED - the row comes back
-    on the next fire instead of never. Trading a wedge for a re-offer is the
-    direction this module already takes everywhere else.
+    THE CONDITION IT MEASURES. ``lanes.holder_is_a_stranger`` needs both the
+    start time recorded in the lock and the live one read back; with either
+    unreadable it answers "not a stranger" and the lock stays RUNNING. The two
+    halves fail TOGETHER rather than independently - when ``lanes.proc_started``
+    answers None, ``lanes.repoint_lane_pid`` wrote ``pid_started: null`` for the
+    same reason - so this is one condition wearing two fields. ``psutil`` is
+    optional in `pyproject.toml`, and where it is absent the condition holds
+    unconditionally.
 
     Args:
         reading: What ``lanes.lane_state`` answered for the lane.
@@ -538,9 +566,14 @@ def _lane_anchor_state(record: dict[str, Any], root: Any, now: Any) -> str | Non
     for as long as the loop kept firing.
 
     None means NO ANCHOR - the record predates the anchor, or was taken with no
-    lane lock held, or names a lane off the roster so no lock can exist for it,
-    or the lane's lock cannot prove its own holder and so may not speak for a
-    row (see :func:`_lock_can_prove_its_holder`).
+    lane lock held, or names a lane off the roster so no lock can exist for it.
+
+    A RUNNING LOCK ANCHORS ITS ROW WHETHER OR NOT ITS HOLDER CAN BE PROVEN, by
+    adjudication. An earlier build returned None here when the start time was
+    unreadable; that handed a live cycle's row to the other lane on a box
+    without ``psutil`` and was refuted. :func:`_holder_is_provable` still
+    measures the condition, but it decides a LABEL and never a state, and it
+    must not be re-wired into this function.
     The caller then falls back to the pid probe. An off-roster lane is the
     sharp case and it is answered this way deliberately: reporting HELD there
     would wedge the row forever, because the lock it waits on can never appear.
@@ -563,49 +596,37 @@ def _lane_anchor_state(record: dict[str, Any], root: Any, now: Any) -> str | Non
         return None
     if reading.get("state") != lanes.RUNNING:
         return RECLAIMABLE
-    if not _lock_can_prove_its_holder(reading, root, lane):
-        return None
     return HELD if lanes.str_or_none(reading.get("run_id")) == anchored else RECLAIMABLE
 
 
-def _receipt_for(raw: bytes) -> str:
-    """The receipt a claimant is handed: a digest of the record's EXACT BYTES.
+def _anchor_of(record: dict[str, Any], root: Any) -> str:
+    """Which anchor a record is on. Rendered, so a degradation is readable.
 
-    WHY NOT THE RUN ID, WHICH THIS REPLACES AND WHICH WAS A WAIVER RATHER THAN A
-    GUARD. A run id is whatever the caller says it is: :func:`try_claim_row`
-    accepts any value, `tools/headless-queue.md` asks for "your run id" with no
-    derivation, format or uniqueness clause, and an adversary measured two live
-    claims under the identical id, an empty id accepted, and None recorded as
-    the string "None". Nothing makes one unique, so matching on it let a late
-    wrap from a CRASHED cycle delete the LIVE record of the lane that had
-    legitimately reclaimed the row - no malicious actor required, both sides
-    following the documented convention exactly. That is worse than the defect
-    it was meant to fix, and it was reachable only because of it.
-
-    A DIGEST OF THE BYTES CANNOT BE MINTED BY AGREEING ON A STRING. It names one
-    record, written once, at one instant, by one claimant: ``ts`` alone differs
-    between any two claims of a row, and the digest covers the whole payload
-    rather than any one field a caller might reproduce. A record that has moved
-    on - reclaimed and retaken by somebody else - hashes differently, so the
-    late release refuses and the new holder keeps its row.
-
-    THE SAME DISCIPLINE :func:`_reclaim` ALREADY USES, one layer up. That
-    function carries the graded bytes with the grade so it can prove it removed
-    what it judged; this carries the claimed bytes with the claim so a releaser
-    can prove it is removing what it wrote. One idea, two callers.
+    THREE VALUES, NOT TWO, because "lane-anchored" hides a case an operator has
+    to act on. A row held behind a lock that cannot prove its holder looks
+    exactly like a row held behind a healthy one - same state, same age, same
+    lane - and the difference is that the second needs nothing while the first
+    means the LANE is stale and its lock wants clearing. Deducing that from a
+    row that will not move is the diagnosis this value exists to skip.
 
     Args:
-        raw: The record's bytes exactly as they were written.
+        record: The record's payload.
+        root: The claim root, whose sibling holds the lane locks.
 
     Returns:
-        The receipt.
+        One of :data:`ANCHOR_PID`, :data:`ANCHOR_LANE` or
+        :data:`ANCHOR_LANE_UNPROVEN`.
     """
-    return hashlib.sha256(raw).hexdigest()
-
-
-def _anchor_of(record: dict[str, Any]) -> str:
-    """Which anchor a record declares. Rendered, so a degradation is readable."""
-    return ANCHOR_LANE if lanes.str_or_none(record.get("lane_run_id")) else ANCHOR_PID
+    lane = lanes.str_or_none(record.get("lane"))
+    if not lanes.str_or_none(record.get("lane_run_id")) or lane is None:
+        return ANCHOR_PID
+    try:
+        reading = lanes.lane_state(lock_root(root), None, lane)
+    except (ValueError, OSError):
+        return ANCHOR_LANE
+    if reading.get("state") != lanes.RUNNING:
+        return ANCHOR_LANE
+    return ANCHOR_LANE if _holder_is_provable(reading, root, lane) else ANCHOR_LANE_UNPROVEN
 
 
 def _state_of(record: dict[str, Any], age_s: float | None, root: Any, now: Any) -> str:
@@ -641,7 +662,7 @@ def _state_of(record: dict[str, Any], age_s: float | None, root: Any, now: Any) 
     return HELD
 
 
-def _reading(entry: _Candidate, now: Any) -> dict[str, Any]:
+def _reading(entry: _Candidate, now: Any, root: Any = None) -> dict[str, Any]:
     """One graded record rendered as a state answer. NEVER mutates anything."""
     path, _raw, record, state = entry
     return {
@@ -656,7 +677,7 @@ def _reading(entry: _Candidate, now: Any) -> dict[str, Any]:
         # decided a state could not tell a cycle-anchored store from one that
         # had quietly degraded to the process anchor - which is the shape that
         # made CS-1009 survive a green suite.
-        "anchor": _anchor_of(record),
+        "anchor": _anchor_of(record, root),
         "lane_run_id": lanes.str_or_none(record.get("lane_run_id")),
     }
 
@@ -722,7 +743,8 @@ def claim_states(root: Any = None, now: Any = None) -> dict[str, dict[str, Any]]
         A mapping of row id to the state read for it.
     """
     return {
-        row: _reading(_authoritative(found), now) for row, found in _candidates(root, now).items()
+        row: _reading(_authoritative(found), now, root)
+        for row, found in _candidates(root, now).items()
     }
 
 
@@ -909,7 +931,7 @@ def try_claim_row(
     if found is not None:
         speaker = _authoritative(found)
         if speaker[3] == HELD:
-            return _refusal(_reading(speaker, None))
+            return _refusal(_reading(speaker, None, directory))
         # Nothing here is held, so EVERY record naming this row is stale and
         # every one of them is cleared. Leaving a duplicate behind would let it
         # win a later grading and report a holder that finished long ago.
@@ -949,11 +971,6 @@ def try_claim_row(
         # Lost a race between the read above and the exclusive create.
         return _refusal(claim_state(key, directory))
     _OWNED[lanes.path_key(token)] = (payload["run_id"], payload["ts"], payload["pid"])
-    # READ BACK RATHER THAN RE-SERIALISED. The receipt has to be a digest of what
-    # IS ON DISK, not of what this function believes it wrote - a re-serialised
-    # payload would differ from the file the moment anything about the encoding
-    # changed, and every release would then refuse for a reason nobody could see.
-    written, _decoded = _read_record(token)
     return {
         "ok": True,
         "row": key,
@@ -961,7 +978,6 @@ def try_claim_row(
         "run_id": payload["run_id"],
         "worktree": payload["worktree"],
         "token": str(token),
-        "receipt": _receipt_for(written) if written else None,
     }
 
 
@@ -992,35 +1008,85 @@ def _identity(record: dict[str, Any]) -> tuple[str | None, float | None, int | N
     )
 
 
-def _cycle_has_not_ended(record: dict[str, Any], root: Any) -> bool:
-    """False only when the record's own CYCLE is PROVABLY over.
+def _this_checkout() -> Path:
+    """The checkout THIS COPY of the module was imported from.
 
-    The second half of the release guard, and it is deliberately one-sided. The
-    receipt already settles WHICH record is being released; this settles whether
-    the releaser's cycle is still the one that holds it, so a straggler from a
-    finished cycle cannot reach past its own end. An anchor that cannot speak -
-    no anchor recorded, or a lock that cannot prove its holder - does not refuse,
-    because the receipt is a complete answer on its own and a second gate that
-    failed CLOSED would strand records on exactly the boxes the wedge repair
-    exists to protect.
+    DELIBERATELY THE OPPOSITE DERIVATION FROM :data:`DEFAULT_ROOT`, and the two
+    are not in tension. The STORE must be one directory every lane agrees on, so
+    it resolves the main tree. IDENTITY must be local, because the whole point is
+    to tell one lane's worker from another's, and the thing that differs between
+    them is exactly which checkout they run in. Same module, two questions, two
+    derivations.
+
+    Returns:
+        The working tree this module was loaded from.
+    """
+    return Path(__file__).resolve().parents[2]
+
+
+def _same_tree(left: Any, right: Any) -> bool:
+    """Whether two spellings name one directory.
+
+    RESOLVED ON BOTH SIDES BEFORE COMPARING. Windows hands out 8.3 short
+    components - a temporary directory under a long account name is the common
+    source - and ``lanes.path_key`` normalises case and separators but does NOT
+    expand them, so two spellings of one directory would compare unequal and a
+    lane would fail to recognise its own worktree.
+    """
+    try:
+        return lanes.path_key(Path(str(left)).resolve()) == lanes.path_key(
+            Path(str(right)).resolve()
+        )
+    except OSError:
+        return False
+
+
+def running_cycle_here(root: Any = None) -> tuple[str, str] | None:
+    """The lane and run id of the cycle THIS PROCESS IS RUNNING INSIDE, or None.
+
+    DERIVED FROM THE CHECKOUT, WHICH IS NOT A CREDENTIAL AND CANNOT BE PRESENTED.
+    Every lane's worker runs in its OWN worktree - ``ops/loop/lane_launcher.py``
+    gives each lane one and no two lanes share - and the lane lock records which
+    worktree it handed out. So a process can be ASKED which lane it is, by
+    matching the tree it was imported from against the roster's locks, and it
+    has nothing to say about the answer.
+
+    THIS REPLACES A RECEIPT, AND THE RECEIPT WAS REFUTED. That build handed the
+    claimant a digest of the record's bytes and accepted it back as proof of
+    ownership. Every lane can read every claim file, so the digest was
+    computable by anyone who could name the record - one line of code - and an
+    adversary used it to delete a live record from the lane that had
+    legitimately reclaimed the row. Worse, re-reading and re-hashing was the
+    only documented way for a worker that had lost the string across thousands
+    of seconds of fresh subprocesses to wrap at all, so THE ATTACK WAS THE
+    RECOVERY PATH. A secret that every reader can recompute is not a secret, and
+    the repair is to stop authenticating and start deriving.
 
     Args:
-        record: The record's current payload.
         root: The claim root, whose sibling holds the lane locks.
 
     Returns:
-        False when the record's lane says its cycle is over.
+        The lane and its current run id, or None when this process is not
+        running inside any lane's worktree.
     """
-    return _lane_anchor_state(record, root, None) != RECLAIMABLE
+    here = _this_checkout()
+    for lane in lanes.LANES:
+        try:
+            reading = lanes.lane_state(lock_root(root), None, lane)
+        except (ValueError, OSError):
+            continue
+        if reading.get("state") != lanes.RUNNING:
+            continue
+        worktree = lanes.str_or_none(reading.get("worktree"))
+        run_id = lanes.str_or_none(reading.get("run_id"))
+        if worktree is None or run_id is None:
+            continue
+        if _same_tree(worktree, here):
+            return (lane, run_id)
+    return None
 
 
-def _is_ours(
-    record_path: Path,
-    record: dict[str, Any],
-    raw: bytes = b"",
-    receipt: Any = None,
-    root: Any = None,
-) -> bool:
+def _is_ours(record_path: Path, record: dict[str, Any], root: Any = None) -> bool:
     """True when the record's CURRENT payload is the identity we wrote there.
 
     THE ABA GUARD. If the row was reclaimed and re-claimed after our token was
@@ -1037,25 +1103,28 @@ def _is_ours(
     releasing process's own, which could not match, so the wrap left its record
     on disk and reported nothing removed.
 
-    A RECEIPT IS WHAT STANDS IN FOR THE LOST TABLE ENTRY, and it is a digest of
-    the record's bytes rather than a string the caller chose - see
-    :func:`_receipt_for` for the measured failure that ruled out the run id. Two
-    conditions, and BOTH must hold: the record on disk must still be the one the
-    receipt names, and the record's own cycle must not be provably over.
+    NOTHING IS PRESENTED. THE LANE IS DERIVED - see :func:`running_cycle_here`
+    for the two credential shapes that were tried here and refuted. A process
+    running inside a lane's worktree may remove a record that names THAT lane
+    and carries THAT lane's current run id, and nothing else. The attacker in
+    the measured counter-example runs in its own lane's tree, so it derives its
+    own lane, finds a record naming the other, and refuses STRUCTURALLY rather
+    than by losing a comparison it could have won by reading a file.
 
-    THE RESIDUAL, AND WHY IT IS NOT LOAD-BEARING: a caller that offers NO
-    receipt is still on the pid comparison and a later subprocess of its cycle
-    still cannot release. That leaks a record rather than a row - the claim is
-    anchored on the lane lock, so it reads RECLAIMABLE the moment the cycle ends
-    and the next fire clears it. It cannot wedge a row and it cannot
-    double-book one.
+    A DERIVED LANE IS FINAL AND DOES NOT FALL THROUGH TO THE PID. Falling
+    through would hand back the shape this replaces: a second chance decided by
+    something the caller is holding.
+
+    THE RESIDUALS, BOTH BOUNDED AND BOTH LEAKS OF A RECORD RATHER THAN A ROW.
+    A wrap arriving after its own lane lock was released or retaken derives no
+    lane, falls to the pid comparison and fails it, so the record stays. So does
+    a record taken with no anchor by a process that has since exited. Neither
+    can wedge a row: the record reads RECLAIMABLE on its own merits and the next
+    claim clears it.
 
     Args:
         record_path: The record file.
         record: Its current payload.
-        raw: The record's bytes, read in the same pass as ``record``.
-        receipt: What :func:`try_claim_row` handed back, or None to fall back to
-            the pid comparison.
         root: The claim root, whose sibling holds the lane locks.
 
     Returns:
@@ -1065,15 +1134,17 @@ def _is_ours(
     identity = _identity(record)
     if owned is not None:
         return identity == owned
-    offered = lanes.str_or_none(receipt)
-    if offered is None:
+    cycle = running_cycle_here(root)
+    if cycle is None:
         return identity[2] == os.getpid()
-    if not raw or _receipt_for(raw) != offered:
-        return False
-    return _cycle_has_not_ended(record, root)
+    lane, run_id = cycle
+    return (
+        lanes.str_or_none(record.get("lane")) == lane
+        and lanes.str_or_none(record.get("lane_run_id")) == run_id
+    )
 
 
-def release_claim(token: Any, root: Any = None, receipt: Any = None) -> bool:
+def release_claim(token: Any, root: Any = None, **_retired_credentials: Any) -> bool:
     """Release a claim handed out by :func:`try_claim_row`. Idempotent.
 
     DELIBERATE, AND THAT IS THE WHOLE CONTRACT. A claim is released because a
@@ -1087,18 +1158,25 @@ def release_claim(token: Any, root: Any = None, receipt: Any = None) -> bool:
     to remove. NEVER raises - a release runs in a finally, and a release that can
     throw turns one failure into two.
 
-    A LATER SUBPROCESS OF THE SAME CYCLE MUST OFFER ITS RECEIPT. The ownership
+    A LATER SUBPROCESS OF THE SAME CYCLE NEEDS TO PRESENT NOTHING. The ownership
     table is process-local, so a worker that reaches python per call has none by
-    the time it wraps; the receipt is the identity it presents instead, and
-    :func:`_is_ours` states what that does and does not guarantee. A RUN ID IS
-    NOT ACCEPTED HERE AND MUST NOT BE REINTRODUCED - :func:`_receipt_for`
-    records the two-lane deletion that shape was measured to allow.
+    the time it wraps; :func:`_is_ours` DERIVES the lane from the checkout the
+    caller is running in instead. Two credential shapes were tried here first, a
+    run id and a receipt, and both were measured to let one lane delete
+    another's live record; neither may be reintroduced.
+
+    ``**_retired_credentials`` IS WHY THOSE TWO CAN BE RETIRED SAFELY. A wrap
+    runs in a ``finally`` and this function's contract is that it NEVER raises;
+    a worker still following an older convention would otherwise hit a
+    ``TypeError`` on a keyword that no longer exists, turning one failure into
+    two, at the exact moment the prompt it is following has been edited under
+    it. Retired credentials are accepted and IGNORED. Nothing decides anything
+    on them, which is the whole point of deriving instead.
 
     Args:
         token: What :func:`try_claim_row` handed back.
         root: The claim root, used only when the token is a bare name.
-        receipt: The ``receipt`` :func:`try_claim_row` handed back. Needed only
-            when the releasing process is not the one that claimed the row.
+        **_retired_credentials: Accepted and ignored - see above.
 
     Returns:
         True when this call removed the record.
@@ -1110,12 +1188,8 @@ def release_claim(token: Any, root: Any = None, receipt: Any = None) -> bool:
     if not record_path.exists():
         _OWNED.pop(key, None)
         return False
-    # ONE PASS, BYTES AND PAYLOAD TOGETHER. A second read to obtain the bytes
-    # would open a window in which the record could change between the two, and
-    # the receipt would then be checked against something the payload check
-    # never saw.
-    raw, record = _read_record(record_path)
-    if not record or not _is_ours(record_path, record, raw, receipt, root):
+    record = lanes.read_payload(record_path)
+    if not record or not _is_ours(record_path, record, root):
         # Half-written, corrupt, or somebody else's now - not provably ours.
         return False
     try:
