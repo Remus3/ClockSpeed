@@ -206,6 +206,8 @@ class ScopeRefusedError(RuntimeError):
         scope_name: The scope that was asked for.
         faults: The offending members. EMPTY when the scope name itself is not
             declared, which is a refusal about the name rather than its rows.
+        detail: The human-readable body. Render THIS, never the exception
+            object - see the field's own comment below.
     """
 
     def __init__(self, scope_name: str, faults: tuple[ScopeFault, ...], detail: str) -> None:
@@ -219,6 +221,11 @@ class ScopeRefusedError(RuntimeError):
         super().__init__(detail)
         self.scope_name = scope_name
         self.faults = faults
+        #: The human-readable body, kept as a NAMED FIELD because rendering the
+        #: exception OBJECT is an echo path - str() on an OSError appends the
+        #: path it failed on, which carries the account name (CLAUDE.md
+        #: non-negotiable 12). Callers render this, never the exception.
+        self.detail = detail
 
 
 #: THIS CHECKOUT, and deliberately NOT ``lanes.REPO_ROOT``. That constant
@@ -724,7 +731,7 @@ def main(argv: list[str] | None = None) -> int:
     try:
         rows = rows_for_scope(name, args.root)
     except ScopeRefusedError as refused:
-        sys.stdout.write(f"REFUSED: {refused}\n")
+        sys.stdout.write(f"REFUSED: {refused.detail}\n")
         return 2
     sys.stdout.write(render_report(rows, name, fenced_faults(args.root)))
     return 0

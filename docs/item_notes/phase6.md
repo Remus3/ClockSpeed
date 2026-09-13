@@ -686,3 +686,85 @@ named band-B rows plus the roughly 36-pair literal population, using the criteri
 
 **THE ITEM STAYS OPEN.** Nothing was built this session. The fence holds and is unchanged:
 do not close this by pinning a floor.
+
+
+### MEASURED 2026-09-13 (session 89) - the criterion swept over the whole 193-pair population, and SEVENTEEN instances are confirmed against a derived guard set
+
+**THE BAND IS NO LONGER A SAMPLE OF FOUR.** The criterion was applied on disk to
+every one of the 193 file-and-name pairs, re-derived here by an independent AST scan
+that returned 193 pairs across 49 files. Leg 1 mutated each knob and compared
+collect-only counts: 93 reduced the arm count, 43 did not, 48 could not be sliced at
+all, 9 were the deferred module. Leg 2 then ran each of the 93 against an objector
+set derived per candidate. **Seventeen sites are green end to end and are instances.
+Thirty-two are DEFENDED. Forty-four are INDETERMINATE because the sweep ran out of
+wall clock before their second phase, and they are left unranked rather than argued
+into a band.**
+
+**THE FOUR ON FILE ALL REPRODUCE, AND THE TWO DERIVED ONES RECONCILE AT AN OFFSET OF
+EXACTLY ONE.** `DATA_MODULES` -6 and `LEVEL_KEYS` -2 land on the nose. The two DERIVED
+knobs come out at -55 and -10 under a ONE-element truncation, against -54 and -9 on
+file; under a TWO-element truncation they are -54 and -9 exactly. Measured, not
+inferred - `[:2]` was run on both. **So the narrowing the prior pass applied to a
+derived knob kept two members, and the record did not say so.** Neither population has
+drifted: `tests/test_scaffold.py` has two commits in its entire history. The operator
+this sweep used is therefore shape-directed and the split is forced by calibration,
+not chosen for convenience: a literal display loses its last member, a derived
+population is truncated.
+
+**THE GUARD POPULATION MUST BE MEASURED, AND THE OBVIOUS GREP GETS IT BACKWARDS.** A
+regex for a python-file enumeration plus a tests root nominated eleven modules as
+all-source readers. An audit hook on `open` says six of them read nine files or fewer
+- `tests/save/test_phase4_gate.py` opens FIVE - while three modules the regex never
+nominated open all 143. Grading against the regex set cost 250 seconds per candidate
+and spent most of it on modules that cannot see the mutation at all. The eight
+measured readers are `test_liveness`, `test_docs_citations`, `test_toolpath`,
+`save/test_absolute_claims`, `save/test_oracle_citations`, `test_chained_cause_census`,
+`test_tier1_budget` and `test_scaffold`.
+
+**EVERY DEFENDED VERDICT WAS SETTLED BY THE CANDIDATE'S OWN MODULE - ALL 32, WITH ZERO
+EXTERNAL REDDENING NODES.** That is the cost lever for anyone continuing: run the own
+module first and the expensive readers only for what survives. It is also a warning
+against the opposite reading - it does NOT license dropping the readers, because a
+green needs them and a red never did.
+
+**THE BACKSTOP GRADES NONE OF THE SEVENTEEN.** `_declared_case_count` lives in
+`tests/surface/test_aggregate_count_prose.py` and a repo-wide grep finds no other
+module importing it. Six of the seventeen instance modules do carry an equality or
+symmetric-difference arm somewhere in the file, but none of those arms is wired to the
+knob that moved, and the run proves it rather than arguing it: a second derivation of
+that population would have reddened, and none did. **So for all seventeen the answer
+to "second derivation or backstop count" is neither.**
+
+**WHAT THE SEVENTEEN ARE.** `DOCUMENTED_PATHS` -55, `MEASURED_PAIRS` -36,
+`WITNESS_ROWS` -32, `TOPOLOGY` -31, `TOKENS` -17, `SAVE_MODULES` -12, `HOOK_NAMES` -10,
+`CLOCKSPEED_PACKAGES` -10, `SOLVE_MODULES` -7, `DATA_MODULES` -6, `_INJECTIONS` -6,
+`_FAILURE_PARAMS` -5, `_TRUNCATIONS` -4, `_FORCED_DISCOVERY_FAILURES` -4,
+`_SOURCE_FILES` -4, `ATTRIBUTED_TOKENS` -4, `HEADER_VERSIONS` -3. Four of the seventeen
+sit in `tests/test_architecture_attributions.py`, which is the densest single module
+in the population and carries no arm-count assertion of any kind.
+
+**EVERY LEG-2 VERDICT HERE CARRIES THE RE-MEASURE-IN-PRIMARY FLAG, GREEN AND RED
+ALIKE.** No instance's arm COUNT depends on a filesystem or git walk, so the deltas are
+checkout-independent and stand as measured. The guard set is not: it includes
+`tests/test_liveness.py` and `tests/test_docs_citations.py`, both of which enumerate
+the tree, and a worktree carries no `moon_sync_inbox/`.
+
+**WHAT IS UNMEASURED, STATED AS UNMEASURED.** The 48 pairs whose knob is a Mapping, a
+frozenset, a Fraction or an int - the slice raises at import, so the operator has
+nothing to say about them and neither does this pass. The 9 pairs in the deferred
+module. The 44 INDETERMINATE rows. The `-5` second `DATA_MODULES` narrowing, which is
+arithmetic over six measured use sites rather than a run of its own. None of these is
+ranked, banded or called likely-anything.
+
+**THREE DEFENDED VERDICTS REST ON A FLOOR, WHICH IS THE SHAPE THIS ITEM'S FENCE
+FORBIDS RELYING ON.** `_DEFERRED_SHAPES` is held by
+`test_the_over_and_under_report_rows_are_both_populated`, and `_CLEAN_REFUSALS`,
+`_CLEARED_SHAPES` and `_LIMIT_TEN_ESCAPES` by
+`test_neither_refusal_population_is_empty_and_together_they_are_the_table`. Each of
+those knobs is two or three members deep, so dropping one member empties a row and
+trips the floor. **A DEFENDED verdict of that shape is defended by arithmetic, not by
+design** - the same guard over a five-member population would pass the narrowing in
+silence. They are correctly DEFENDED under the criterion and should NOT be counted as
+evidence that a floor works.
+
+**THE PER-SITE DATA IS IN `docs/item_notes/cs988-sweep-record.md`** - every instance with its delta and guard set, every DEFENDED verdict with the node id that reddened, and the 44 INDETERMINATE rows listed unranked. That annex is where the next pass starts; do not re-derive the population.

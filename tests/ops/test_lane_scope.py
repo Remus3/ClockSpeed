@@ -51,6 +51,7 @@ import re
 import subprocess
 import sys
 from pathlib import Path
+from typing import Final
 
 import pytest
 from ops.loop import lanes, scope
@@ -157,6 +158,13 @@ DASHBOARD_MEMBERS = frozenset(
 #: fenced out. Written from the corpus above by hand and cross-checked against
 #: the parser in ``test_the_synthetic_corpus_parses_to_the_rows_it_was_written_with``.
 SYNTHETIC_TAKEABLE_UNSCOPED = ("CS-410", "CS-462", "CS-603", "CS-618", "CS-620")
+
+
+#: Ceiling for the CLI children below. An unbounded child cannot fail the
+#: test that owns it - it burns the whole CI budget until the lane is
+#: cancelled, which is evidence of nothing (CS-896). Matches the sibling
+#: idiom in tests/ops/test_queue_lane_relaunch.py.
+_CLI_TIMEOUT_S: Final = 300
 
 
 def _write_corpus(root: Path, scopes: dict[str, object]) -> Path:
@@ -810,6 +818,7 @@ def test_the_module_runs_as_a_command_and_prints_the_rows_it_computed(
         capture_output=True,
         text=True,
         check=False,
+        timeout=_CLI_TIMEOUT_S,
     )
 
     assert finished.returncode == 0, finished.stderr
@@ -840,6 +849,7 @@ def test_the_command_exits_non_zero_and_names_the_offender_on_a_bad_scope(
         capture_output=True,
         text=True,
         check=False,
+        timeout=_CLI_TIMEOUT_S,
     )
 
     assert finished.returncode != 0
