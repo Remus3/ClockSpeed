@@ -160,6 +160,82 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-09-13 - CS-988 - NOT A COMPLETION RECORD. NOTHING CLOSED. CS-988 STAYS OPEN. The arm-count backstop's own omission knob is repaired, and the first cut of that repair was itself instance six
+
+**CS-988 STAYS OPEN.** This entry records the backstop repair that the reworked cut line
+ordered FIRST, because every instance depends on it. The sweep over the remaining
+population is still owed and is not started.
+
+**WHAT WAS WRONG WITH THE SHIPPED BACKSTOP.** `_declared_case_count` fell back to
+`len(list(argvalues))` for any argname not registered in `INDEPENDENT_CASE_COUNTS` -
+counting the population from THE SAME OBJECT being parametrized, so the expectation
+followed the population down. The fallback was not an oversight: a comment justified it,
+"because those populations are membership-pinned", and **nothing verified that claim**. The
+real defect was an UNCHECKED JUSTIFICATION, and the map was itself a knob - omit an entry
+for a derived population and the backstop silently disarmed for that argname.
+
+**THE FIRST CUT WAS REFUTED AND IT WAS INSTANCE SIX.** It made omission raise and pinned
+the key sets both directions, which was right and survives. But its set-equality arm
+compares NAME SETS: it grades REGISTRATION and cannot grade the JUSTIFICATION for
+registration. The unverified comment was promoted to a named constant and asserted true for
+FOUR of ten names where it was false - `label` over `sorted(DEGENERATE_CORPORA)` with no
+arm pinning its keys, `kind,lifted,modules` over two inline tuples, `module` over an inline
+list, and `relative` over the carrier list THIS MODULE'S OWN DOCSTRING calls self-deleting.
+A second channel: registration was keyed by ARGNAME ALONE, so a derived population could be
+smuggled in under any already-registered name on a different function. Both were measured
+GREEN on the first cut - 485 passed exit 0, and 494 passed exit 0 - before the repair.
+
+**WHAT SHIPPED.** Registration is keyed by `(function name, argument name)` across two
+registries: `INDEPENDENT_CASE_COUNTS`, whose entries re-derive their size from a source the
+mark does not read, and `UNPINNED_CASE_KEYS`, which **certifies nothing** and states that
+its sizes are counted from their own mark and are therefore UNGRADED. `_declared_case_count`
+raises on any key in neither. `registration_faults()` grades both registries against the
+keys actually parametrized by set equality in both directions plus disjointness, and runs
+AT MODULE IMPORT so collection is refused rather than deferred to an arm a filtered session
+could deselect. Three of the four mis-certified names moved to independent re-derivations
+with new membership arms; `relative` is now explicitly recorded as ungraded rather than
+certified. Merged file: `tests/surface/test_aggregate_count_prose.py`.
+
+**THE MUTATIONS, all five RED on the final bytes, each proven LANDED by hash and restored
+from a byte snapshot.** Deleting a map entry, a stale entry, an unregistered derived
+parametrize, and a derived population under an already-registered name on a different
+function all now fail at COLLECTION, exit 2. Slicing a producer's return still fails as a
+shortfall, exit 1, proving the original protection survived. Arm count 486 to 490: two
+backstop arms were replaced by six, and nothing was adjusted to match.
+
+**A LABEL CORRECTED, BECAUSE THE DISTINCTION IS THE WHOLE POINT.** The builder disclosed
+the import-time call as an EQUIVALENT mutation when disabled alone - 490 passed, exit 0 -
+and that disclosure was honest and welcome. **The adjudicating pass established the label is
+WRONG: it is a SURVIVING mutant, killable only higher-order.** The equivalence is an
+artefact of the clean tree, because an arm runs the same function there. Deselect that arm
+with a node-id run and put a fault in the tree and the guard is the only thing standing.
+Keep the call; the label was the error. An equivalent mutant and a surviving one are not
+the same finding and must not be recorded as one.
+
+**THREE RESIDUALS ARE RECORDED AGAINST THE OPEN ITEM RATHER THAN CLOSED HERE.** (1) Which
+registry a key belongs in is itself unpinned - moving a key from the independent map into
+`UNPINNED_CASE_KEYS` is a one-line edit that keeps the equality arm green by construction
+and silently downgrades that population from graded to ungraded. That is instance seven IN
+SHAPE; harm needs a SECOND edit today, because the membership arms hold - and **nothing
+records that those arms are load-bearing for this reason**. (2) Two new membership arms omit
+the non-vacuity leg this module demands elsewhere: both pass when both sets are empty. (3)
+`lifted_sentence_producers()` discovers by name prefix and survives a rename at one edit,
+but a rename PLUS a row deletion goes fully green and takes the distributive equality arm
+with it.
+
+**A SCOPE GAP CONFIRMED FROM CONFIG THAT APPLIES TO EVERY SLICE IN THIS PROJECT.**
+`pyproject.toml` sets `files = ["clockspeed", "ops", "scripts", "tests", "tools"]` and CI
+runs `python -m mypy` BARE. **Naming a target REPLACES that discovery**, so
+`python -m mypy clockspeed` never reads `tests/`. This slice's `mypy clockspeed` exited 0 on
+bytes carrying four `arg-type` errors that the repo-wide gate caught. Every brief in this
+project asks for the scoped form, so a builder whose write-list is a test module gets a
+green that cannot see its own work. Any brief touching `tests/`, `ops/`, `scripts/` or
+`tools/` must ask for bare `python -m mypy` or for `tests/test_mypy_gate.py`.
+
+**VERIFIED.** Full suite 7111 passed, 7 skipped, exit 0 on the merged tree, re-run by the
+merger rather than taken from the slice. `ruff check`, `ruff format --check` and the mypy
+gate module all exit 0. Bytes re-read in Python: zero CR, zero above 127.
+
 ### 2026-09-12 - CS-989 - CLOSED. A pure-delete push cost 0.56 s against an ordinary push's 352.84 s, and the frozen-file grant that authorized it reddened a doc guard by existing
 
 **THE GRANT IS SPENT.** The single-use frozen-file grant recorded earlier in this file

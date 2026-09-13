@@ -74,10 +74,33 @@ the line becomes a pointer.
   push's 352.84 s (a LOWER BOUND - that run was blocked partway; the nearest honest full-run
   figure is 623.38 s). The 7m46s / 7m00s / 7m31s figures from the session 87 handoff are
   recorded in NO tracked file, are marked UNMEASURED, and must not be requoted.**
-- Next action: **CS-988's cut line, reworked against the refutation** - keep the arm counts,
-  the shortlist membership and the never-share-the-second-derivation ruling; discard the
-  six-site band, the shared backstop as specified, and the identical-argv second derivation.
-  Then CS-948, which is genuinely open and is the remaining half of the outbound path.
+- LATE IN THE SESSION, after the questions were answered: CS-990 filed (the CI workflows
+  pin actions on a deprecated Node 20 runtime, already force-run on Node 24). CS-988's cut
+  line REWORKED BY MEASUREMENT and its backstop REPAIRED and merged - both recorded in
+  `docs/LEDGER.md`, and CS-988 still OPEN with the sweep owed. The reworked criterion is
+  mechanical and is the durable part: a site is an instance IF AND ONLY IF, measured on
+  disk, a one-line use-site narrowing REDUCES the collected arm count AND the objecting
+  guard population stays GREEN.
+- Surprises, fifth, and it kept going: the backstop repair's FIRST CUT was itself instance
+  SIX - its equality arm graded REGISTRATION and could not grade the JUSTIFICATION for
+  registration, so four of ten names were certified as pinned while nothing pinned them.
+  The repaired version leaves instance SEVEN IN SHAPE (moving a key between the two
+  registries is a one-line edit the equality arm cannot see), needing a second edit to do
+  harm. Recorded against the item rather than closed.
+- Surprises, sixth, and it applies to EVERY slice this project dispatches: `python -m mypy
+  clockspeed` CANNOT SEE `tests/`, because naming a target REPLACES the `pyproject.toml`
+  discovery list rather than narrowing it. A slice reported exit 0 on bytes carrying four
+  `arg-type` errors that the repo-wide gate caught. Every brief here asks for the scoped
+  form, so a builder writing a test module gets a green that structurally cannot see its
+  own work.
+- A subagent STOPPED MID-TASK and returned "I'll wait for the completion notification"
+  instead of a report, with 482 insertions uncommitted in its worktree. The notification
+  read like an ordinary completion. Checking the worktree rather than trusting it is what
+  caught it; the work was snapshotted and the agent resumed by id rather than re-dispatched.
+- Next action: **CS-988's SWEEP, using the reworked criterion** - the 15 UNMEASURED band-B
+  rows plus the roughly 36 file-and-name pairs an AST scan found, measuring each rather
+  than arguing it. Any equality arm must be measured in the PRIMARY CHECKOUT, never only in
+  a worktree. Then CS-948, the remaining half of the outbound path.
 
 ---
 ## Session 87 - 2026-09-12 - twenty-one worktrees pruned, and one defect found four times, each instance made by the previous repair
