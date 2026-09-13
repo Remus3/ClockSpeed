@@ -55,7 +55,7 @@ if TYPE_CHECKING:
 #: 10 TO 11 BY CS-977, which added ``/api/map``: ``/api/world`` counts nodes and
 #: never lists them, so nothing published a coordinate and no surface could draw
 #: the world.
-EXPECTED_ENDPOINTS: Final = 11
+EXPECTED_ENDPOINTS: Final = 12
 
 #: The backticked route in the section 7.1 sentence. ``/api/plan?target=...``
 #: carries a query string, which ``contract.ENDPOINT_PATTERN`` refuses outright,

@@ -109,7 +109,7 @@ from tests.test_make_cert import CERT_STUB, KEY_STUB, cert_pair
 #: constant whose NAME was its value either had to be renamed or had to start
 #: lying. The count moves - CS-977's ``/api/map`` moved it again - and what it
 #: MEANS does not.
-PUBLISHED_ENDPOINTS: Final = 11
+PUBLISHED_ENDPOINTS: Final = 12
 
 #: The endpoint set, TRANSCRIBED BY HAND from the "Endpoints, minimum:" sentence
 #: of ``BOOTSTRAP.md`` section 7.1, in the order that sentence lists them. The
@@ -133,6 +133,7 @@ BOOTSTRAP_ENDPOINTS: Final = (
     "/api/audit",
     "/api/plan",
     "/api/map",
+    "/api/power",
 )
 
 #: A3. The routes whose layer EXISTS ON DISK today, so a 501 from any of them is
@@ -151,6 +152,11 @@ BACKED: Final = (
     # ``clockspeed/audit/inventory.py`` ship the two models this route
     # serializes, so a 501 from it would be a refusal with a layer behind it.
     "/api/map",
+    # ``clockspeed/solve/power.py`` ships the declared-draw reader, the clocked
+    # draw, the ceiling report, the un-sharded clamp and the variable-power
+    # operands. It shipped BEFORE this route did and was reachable from none of
+    # them, which is the fault this row closes.
+    "/api/power",
 )
 
 #: A3, the other half. ``clockspeed/advisor/`` and ``clockspeed/progress/`` hold a

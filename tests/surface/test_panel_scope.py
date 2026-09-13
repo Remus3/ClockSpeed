@@ -118,6 +118,12 @@ UNLOCK_SIZES: Final = ("purchased_schematics", "recipes", "scanned_resources")
 #: exactly the set ``bodyData`` drops before a panel ever sees a body.
 ENVELOPE_ONLY: Final = tuple(sorted(contract.PAYLOAD_KEYS_REFUSAL - contract.PAYLOAD_KEYS_OK))
 
+#: The panel modules that hold a request door, and therefore the only ones with
+#: a refusal envelope of their own to render. Sorted, because ``_renders``
+#: returns its matches sorted and an order written by hand here would be a
+#: second fact about the same set.
+REFUSAL_PRINTING_BENCHES: Final = ("panel_optimize.js", "panel_power.js", "panel_solve.js")
+
 #: Every browser asset the page loads, read off disk rather than listed, so an
 #: asset added to the directory is scanned without an edit here.
 WEB_ASSETS: Final = tuple(sorted(path.name for path in panel_harness.WEB_DIR.glob("*.js")))
@@ -581,8 +587,14 @@ def test_no_envelope_member_the_seam_prints_is_called_absent(tmp_path: Path) -> 
         f"{SEAM} no longer reads a refusal blocked_by, or _renders has gone blind; "
         f"it found {ENVELOPE_ONLY} at {[(key, _renders(key)) for key in ENVELOPE_ONLY]}"
     )
-    assert _renders("reason") == ("panel_solve.js",), (
-        "exactly one asset prints a refusal reason and it is the solve bench; "
+    # THE BENCHES, AND ONLY THE BENCHES. A refusal reason reaches the page from
+    # exactly the panels that ASK for something, because only a panel holding a
+    # door has a refusal to render. It was the solve bench alone until the
+    # optimize and power benches got doors of their own; anything else printing
+    # one would mean a panel rendering an envelope no request of its own
+    # produced, which is the class of false sentence this whole arm exists for.
+    assert _renders("reason") == REFUSAL_PRINTING_BENCHES, (
+        "exactly the asking benches print a refusal reason; "
         f"now {_renders('reason')}. The panel's sentence about it must be rewritten."
     )
     assert ENVELOPE_ON_THE_PAGE, "the seam prints no envelope member; this arm grades a split"

@@ -151,12 +151,19 @@ MIN_SURFACE_MODULES: Final = 5
 MIN_ENDPOINT_MODULES: Final = 2
 
 #: The whole static surface, as a count an arm asserts rather than a literal
-#: buried inside one.
-#: SEVEN SINCE CS-962, not three: the page, the sheet, the script and the
-#: four panel modules. DERIVED FROM THE SERVER'S OWN TABLE rather than
-#: retyped, because a hand-kept count in a second file is the drift this
-#: arm exists to catch - and a count that has to be edited in two places
-#: when a panel is added is a count that will be edited in one.
+#: buried inside one: the page, the sheet, the script and every panel module.
+#: DERIVED FROM THE SERVER'S OWN TABLE rather than retyped, because a hand-kept
+#: count in a second file is the drift this arm exists to catch - and a count
+#: that has to be edited in two places when a panel is added is a count that
+#: will be edited in one.
+#:
+#: THE NUMBER IS NO LONGER WRITTEN HERE, AND THAT IS A REPAIR RATHER THAN A
+#: TRIM. This comment said "SEVEN SINCE CS-962", and it was already false before
+#: this line was next read: CS-977's ``panel_map.js`` took the surface to eight
+#: without touching the prose, because the constant beside it derives and the
+#: sentence does not. CLAUDE.md section 4 names a hardcoded measurement in prose
+#: as a lie with a timestamp on it, and a stale one sitting on top of a correct
+#: derivation is the worst version - it reads as the authority.
 STATIC_SURFACE_SIZE: Final = len(server.ASSET_NAMES)
 
 #: Header names every answer carries, whatever its status.
@@ -2883,6 +2890,8 @@ def test_the_static_surface_is_exactly_the_names_the_page_loads() -> None:
         "app.js",
         "index.html",
         "panel_map.js",
+        "panel_optimize.js",
+        "panel_power.js",
         "panel_registry.js",
         "panel_scope.js",
         "panel_solve.js",

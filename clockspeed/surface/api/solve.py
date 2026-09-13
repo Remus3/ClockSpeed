@@ -42,6 +42,18 @@ with a different remedy from "this layer has not been built yet". Answering 501
 would report pillar 1 as unwritten when it is written and merely un-fed, and
 would send an operator to a roadmap item instead of to their game installation.
 
+``/api/solve`` ANSWERS PILLAR 1 IN BOTH DIRECTIONS, THROUGH ONE TEMPLATE. The
+solve layer publishes ``solve_for_targets`` - rates in, machine counts out - and
+``solve_for_supply`` - a cap in, the rate it buys out - and both return the same
+``ProductionPlan``, because the reverse direction re-solves FORWARDS at the rate
+the cap sustains rather than scaling a unit plan. One answer shape means one
+serializer, so the supply mode adds no field to the response and no second
+opinion about what a plan looks like. ``mode`` selects the direction, defaults to
+``targets`` so no caller written before this existed changed meaning, and cannot
+answer the wrong question silently: the two required sets are disjoint in the
+names that matter, so a supply request that omits ``mode`` is refused as an
+unknown parameter rather than solved as a forward one.
+
 WHY A MALFORMED REQUEST IS REFUSED BEFORE THE PROVIDER IS CONSULTED. A request
 that does not satisfy the grammar fails identically on every machine, and saying
 so does not depend on any machine state. Consulting the provider first would
@@ -79,7 +91,7 @@ from clockspeed.solve import optimize, ratio
 from clockspeed.surface.api import contract
 
 if TYPE_CHECKING:
-    from collections.abc import Mapping
+    from collections.abc import Callable, Mapping
 
     from clockspeed.data.registry import Registry
 
@@ -87,22 +99,29 @@ __all__ = [
     "ASSIGNMENT",
     "KEY_PATTERN",
     "METHOD_POST",
+    "MODES",
+    "MODE_SUPPLY",
+    "MODE_TARGETS",
     "OPTIMIZE_ENDPOINT",
     "OPTIMIZE_OPTIONAL",
     "OPTIMIZE_REQUIRED",
     "PARAM_BACKEND",
     "PARAM_BYPRODUCT_POLICY",
     "PARAM_CANDIDATES",
+    "PARAM_MODE",
     "PARAM_OBJECTIVE",
     "PARAM_RAW_ITEMS",
     "PARAM_RECIPES",
+    "PARAM_SUPPLY",
     "PARAM_TARGETS",
+    "PARAM_TARGET_ITEM",
     "PARAM_UNLOCKED",
     "RATIONAL_PATTERN",
     "SEPARATOR",
     "SOLVE_ENDPOINT",
     "SOLVE_OPTIONAL",
     "SOLVE_REQUIRED",
+    "SOLVE_SUPPLY_REQUIRED",
     "optimize_handler",
     "routes",
     "solve_handler",
@@ -133,22 +152,66 @@ PARAM_CANDIDATES: Final = "candidates"
 PARAM_UNLOCKED: Final = "unlocked"
 PARAM_OBJECTIVE: Final = "objective"
 PARAM_BACKEND: Final = "backend"
+PARAM_MODE: Final = "mode"
+PARAM_SUPPLY: Final = "supply"
+PARAM_TARGET_ITEM: Final = "target_item"
 
-#: Exactly what ``/api/solve`` requires. ``byproduct_policy`` is here rather than
-#: defaulted because ``clockspeed/solve/ratio.py`` has no default for it and this
-#: module must not invent one: the third reading of an unconsumed byproduct -
-#: assume it vanishes - produces the same machine counts as sinking it with the
-#: byproduct nowhere in the output, so a default would be a silent policy choice
-#: wearing the caller's name.
+#: Solve forwards: requested rates in, machine counts out.
+#: ``clockspeed/solve/ratio.py::solve_for_targets``.
+MODE_TARGETS: Final = "targets"
+
+#: Solve backwards: a supply cap in, the rate it buys out.
+#: ``clockspeed/solve/ratio.py::solve_for_supply``.
+MODE_SUPPLY: Final = "supply"
+
+#: The two directions the solve layer publishes, and a CLOSED vocabulary: a
+#: value outside it is refused rather than resolved to the nearest one.
+#:
+#: EACH MODE IS NAMED FOR THE PARAMETER THAT DISTINGUISHES IT, which is not a
+#: collision with :data:`PARAM_TARGETS` and :data:`PARAM_SUPPLY` but the point.
+#: The two request grammars are disjoint in exactly one name apiece, so a reader
+#: who knows which parameter they are holding knows which mode to state.
+MODES: Final = (MODE_TARGETS, MODE_SUPPLY)
+
+#: Exactly what ``/api/solve`` requires IN THE TARGETS MODE. ``byproduct_policy``
+#: is here rather than defaulted because ``clockspeed/solve/ratio.py`` has no
+#: default for it and this module must not invent one: the third reading of an
+#: unconsumed byproduct - assume it vanishes - produces the same machine counts
+#: as sinking it with the byproduct nowhere in the output, so a default would be
+#: a silent policy choice wearing the caller's name.
 SOLVE_REQUIRED: Final = frozenset(
     {PARAM_TARGETS, PARAM_RECIPES, PARAM_RAW_ITEMS, PARAM_BYPRODUCT_POLICY}
 )
 
-#: ``/api/solve`` accepts nothing else. An unknown parameter is REFUSED rather
+#: Exactly what ``/api/solve`` requires IN THE SUPPLY MODE. It differs from the
+#: set above in two names and no more: a basket of target rates becomes a basket
+#: of available supply plus the SINGLE item to make from it.
+#:
+#: ONE TARGET ITEM AND NOT A BASKET, because ``ratio.SupplyRequest`` takes one
+#: and says why: maximizing a basket needs an objective to trade its members off
+#: against, and choosing that objective is pillar 2's call rather than this
+#: door's. Accepting a basket here would mean inventing one at the surface.
+SOLVE_SUPPLY_REQUIRED: Final = frozenset(
+    {PARAM_SUPPLY, PARAM_TARGET_ITEM, PARAM_RECIPES, PARAM_RAW_ITEMS, PARAM_BYPRODUCT_POLICY}
+)
+
+#: ``mode`` is the one name ``/api/solve`` accepts in either direction, and it is
+#: OPTIONAL rather than required so that every caller written before the supply
+#: mode existed still asks the question it asked. Anything else is REFUSED rather
 #: than ignored, on the rule ``clockspeed/solve/optimize.py`` states for an
 #: unknown objective weight: an ignored parameter is one the caller believes is
 #: in force and is not.
-SOLVE_OPTIONAL: Final[frozenset[str]] = frozenset()
+#:
+#: WHY A DEFAULT HERE IS NOT THE SIN ``byproduct_policy`` REFUSES TO COMMIT. That
+#: one is a SOLVE-layer parameter with a published owner and no default, and
+#: guessing it changes the ANSWER while the request still looks answered. This
+#: one is a SURFACE-layer discriminator with no owner below - the solve layer
+#: publishes two functions and no selector between them - and it cannot answer
+#: the wrong question silently, because the two required sets above are disjoint
+#: in the names that matter: a supply request that omits ``mode`` names ``supply``
+#: and ``target_item``, which the targets set does not accept, so it is refused
+#: as an unknown parameter rather than solved as something else.
+SOLVE_OPTIONAL: Final = frozenset({PARAM_MODE})
 
 OPTIMIZE_REQUIRED: Final = frozenset(
     {
@@ -315,6 +378,52 @@ def _keys(text: str) -> tuple[str, ...]:
     return members
 
 
+def _key(text: str) -> str:
+    """Read a parameter that is one bare key and nothing else.
+
+    Args:
+        text: The verbatim parameter text.
+
+    Returns:
+        The key, unchanged. A key naming nothing in the registry is NOT refused
+        here - that is the solve layer's ValueError to raise, exactly as
+        :data:`KEY_PATTERN` records for the list-valued parameters.
+
+    Raises:
+        _ParameterError: The text is empty, or is not a well-formed key. Both
+            separators are outside the pattern, so a comma-joined list and a
+            ``key=value`` pair are refused rather than silently truncated to
+            their first member.
+    """
+    if KEY_PATTERN.fullmatch(text) is None:
+        raise _ParameterError(contract.REASON_INVALID_PARAMETER)
+    return text
+
+
+def _mode(parameters: Mapping[str, str]) -> str:
+    """Read which direction this request asks for.
+
+    Args:
+        parameters: The request parameters, before the name check - the mode
+            decides WHICH name check applies, so it has to be read first.
+
+    Returns:
+        The stated mode, or :data:`MODE_TARGETS` when none was stated.
+
+    Raises:
+        _ParameterError: A mode was stated and is not one of :data:`MODES`.
+            Refused rather than resolved to the default: a caller who spelled
+            ``Supply`` asked for the supply direction and must be told they did
+            not get it, not handed a forward solve that looks like an answer.
+    """
+    stated = parameters.get(PARAM_MODE)
+    if stated is None:
+        return MODE_TARGETS
+    if stated not in MODES:
+        raise _ParameterError(contract.REASON_INVALID_PARAMETER)
+    return stated
+
+
 def _ratio_request(parameters: Mapping[str, str]) -> ratio.RatioRequest:
     """Build the pillar 1 request from the parsed parameters.
 
@@ -332,6 +441,30 @@ def _ratio_request(parameters: Mapping[str, str]) -> ratio.RatioRequest:
     """
     return ratio.RatioRequest(
         targets=_rates(parameters[PARAM_TARGETS]),
+        recipes=_keys(parameters[PARAM_RECIPES]),
+        raw_items=_keys(parameters[PARAM_RAW_ITEMS]),
+        byproduct_policy=parameters[PARAM_BYPRODUCT_POLICY],
+    )
+
+
+def _supply_request(parameters: Mapping[str, str]) -> ratio.SupplyRequest:
+    """Build the reverse-direction request from the parsed parameters.
+
+    Args:
+        parameters: The request parameters, names already checked.
+
+    Returns:
+        The request. ``supply`` is read by the SAME reader ``targets`` is, so
+        the two directions cannot disagree about what an exact rate is spelled
+        like, and ``byproduct_policy`` is passed through verbatim for the reason
+        :func:`_ratio_request` states.
+
+    Raises:
+        _ParameterError: A value is unreadable.
+    """
+    return ratio.SupplyRequest(
+        supply=_rates(parameters[PARAM_SUPPLY]),
+        target_item=_key(parameters[PARAM_TARGET_ITEM]),
         recipes=_keys(parameters[PARAM_RECIPES]),
         raw_items=_keys(parameters[PARAM_RAW_ITEMS]),
         byproduct_policy=parameters[PARAM_BYPRODUCT_POLICY],
@@ -501,8 +634,57 @@ def _solver_refusal(
 # ---------------------------------------------------------------------------
 
 
+def _bound_solve(parameters: Mapping[str, str]) -> Callable[[Registry], ratio.ProductionPlan]:
+    """Read the whole request and return the solve it asks for, registry apart.
+
+    THE MODE IS READ BEFORE THE NAMES, because it decides WHICH name check
+    applies. Checking names first would measure every request against the
+    targets grammar and report a supply request as four missing parameters,
+    which names the wrong fault.
+
+    THE REGISTRY IS THE ONE THING NOT BOUND IN, and that is the whole reason
+    this returns a callable rather than a plan. The grammar must be checked
+    before the provider is consulted - see the module docstring - and the solve
+    must run after it, so the two halves cannot sit in one function without the
+    provider check falling between them. Handing back the chosen call lets the
+    handler keep that order with no flag to carry and no branch to repeat.
+
+    Args:
+        parameters: The request parameters, unchecked.
+
+    Returns:
+        The solve-layer call this request asks for, wanting only a registry.
+
+    Raises:
+        _ParameterError: The mode, the parameter names, or a value is not one
+            this door accepts.
+    """
+    if _mode(parameters) == MODE_SUPPLY:
+        _check_names(parameters, SOLVE_SUPPLY_REQUIRED, SOLVE_OPTIONAL)
+        supply = _supply_request(parameters)
+        return lambda registry: ratio.solve_for_supply(registry, supply)
+
+    _check_names(parameters, SOLVE_REQUIRED, SOLVE_OPTIONAL)
+    targets = _ratio_request(parameters)
+    return lambda registry: ratio.solve_for_targets(registry, targets)
+
+
 def solve_handler(provider: contract.RegistryProvider[Registry]) -> contract.Handler:
     """Build the ``/api/solve`` handler around a bound registry provider.
+
+    ONE DOOR, TWO DIRECTIONS, AND THE SAME ANSWER SHAPE OUT OF BOTH. The solve
+    layer publishes ``solve_for_targets`` and ``solve_for_supply``, and both
+    return a ``ProductionPlan`` - the reverse direction re-solves forwards at the
+    rate the supply buys rather than scaling a unit plan, so the plan a caller
+    gets back is a plan the forward path produced and audited. Serializing the
+    two through :func:`_plan_data` is therefore transcription of one model and
+    not two, which is why the supply mode adds no field to the response.
+
+    A SECOND TEMPLATE WOULD HAVE BEEN THE OTHER SHAPE, AND IT COSTS MORE THAN IT
+    LOOKS. ``BOOTSTRAP.md`` section 7.1 owns the published template set and
+    ``clockspeed/surface/api/health.py`` mirrors it, so a route is a
+    specification edit; a direction is not. Pillar 1 is one question asked two
+    ways round, and the ANSWER is byte-identical in shape either way.
 
     Args:
         provider: Whatever hands this endpoint the registry. Bound by the server
@@ -514,8 +696,7 @@ def solve_handler(provider: contract.RegistryProvider[Registry]) -> contract.Han
 
     def handler(parameters: Mapping[str, str]) -> contract.Response:
         try:
-            _check_names(parameters, SOLVE_REQUIRED, SOLVE_OPTIONAL)
-            request = _ratio_request(parameters)
+            bound = _bound_solve(parameters)
         except _ParameterError as exc:
             return contract.bad_request(SOLVE_ENDPOINT, exc.reason)
 
@@ -524,8 +705,11 @@ def solve_handler(provider: contract.RegistryProvider[Registry]) -> contract.Han
             return contract.unavailable(SOLVE_ENDPOINT, contract.REASON_NO_GAME_INSTALL)
 
         try:
-            plan = ratio.solve_for_targets(registry, request)
+            plan = bound(registry)
         except (ratio.RatioError, optimize.OptimizeError) as exc:
+            # UnboundedSupply arrives here and is routed by name like every
+            # other solver verdict - nothing about the reverse direction is
+            # decided at this layer.
             return _solver_refusal(SOLVE_ENDPOINT, exc)
         except ValueError:
             # A caller SHAPE bug the solve layer names as such: a recipe key

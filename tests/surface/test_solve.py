@@ -755,3 +755,200 @@ def test_every_published_template_is_spellable_as_an_endpoint(registry: Registry
     ]
     unspellable_count = len(unspellable)
     assert unspellable_count == 0
+
+
+# ---------------------------------------------------------------------------
+# (f) the supply direction, reachable through the same door
+# ---------------------------------------------------------------------------
+
+#: The reverse direction over the SAME chain C1 runs forwards. Spelled with
+#: literals rather than with ``solve.PARAM_*`` so that a missing constant fails
+#: ONE arm loudly instead of breaking this module's collection, where an
+#: AttributeError and a deliberate refusal print the same exit code.
+SUPPLY_PARAMETERS: Final[Mapping[str, str]] = {
+    "mode": "supply",
+    "supply": f"{synthetic.SOLVE_ORE_ITEM}={synthetic.C1_ORE_DEMAND.numerator}",
+    "target_item": synthetic.SOLVE_ROD_ITEM,
+    "recipes": f"{synthetic.ROD_RECIPE},{synthetic.PLATE_RECIPE}",
+    "raw_items": synthetic.SOLVE_ORE_ITEM,
+    "byproduct_policy": ratio.BYPRODUCT_SINKABLE,
+}
+
+#: A supplied item the C1 chain never consumes, so nothing caps the target.
+#: The refusal that follows is the solver's, not this layer's.
+UNCONSUMED_SUPPLY_ITEM: Final = synthetic.SOLVE_RARE_ITEM
+
+#: How many supply-mode parameters must all be present.
+EXPECTED_SUPPLY_REQUIRED: Final = 5
+
+#: How many directions pillar 1 is asked in. Asserted rather than assumed, so a
+#: third mode arriving without an arm goes red here.
+EXPECTED_MODES: Final = 2
+
+
+def test_the_mode_vocabulary_is_the_two_solve_directions() -> None:
+    # The names are pinned so the arms below are spelled against the module
+    # rather than against a hope, and so the two directions cannot silently
+    # acquire a third.
+    assert solve.PARAM_MODE == "mode"
+    assert solve.PARAM_SUPPLY == "supply"
+    assert solve.PARAM_TARGET_ITEM == "target_item"
+    assert solve.MODE_TARGETS == "targets"
+    assert solve.MODE_SUPPLY == "supply"
+    mode_count = len(solve.MODES)
+    assert mode_count == EXPECTED_MODES
+    assert sorted(solve.MODES) == [solve.MODE_SUPPLY, solve.MODE_TARGETS]
+    required_count = len(solve.SOLVE_SUPPLY_REQUIRED)
+    assert required_count == EXPECTED_SUPPLY_REQUIRED
+
+
+def test_supply_mode_answers_200_with_the_c1_plan_run_backwards(registry: Registry) -> None:
+    # THE REVERSE DIRECTION LANDS ON THE FORWARD DIRECTION'S PUBLISHED PLAN.
+    # C1 asks for 50 rod and finds it costs 50 ore; capping ore at 50 must buy
+    # exactly 50 rod and the same machine counts. Grading against the C1
+    # constants rather than against numbers written here is what stops this arm
+    # agreeing with whatever the serializer happens to emit.
+    response = call(DOORS["solve"], registry, SUPPLY_PARAMETERS)
+    status = response.http_status
+    problems = contract.contract_problems(response)
+    assert status == contract.HTTP_OK
+    assert problems == ()
+
+    data = response.payload["data"]
+    assert isinstance(data, dict)
+    assert data["targets"][synthetic.SOLVE_ROD_ITEM] == contract.rational(synthetic.C1_ROD_TARGET)
+    machines = {step["recipe_key"]: step["machines"] for step in data["steps"]}
+    assert machines[synthetic.ROD_RECIPE] == contract.rational(synthetic.C1_ROD_MACHINES)
+    assert machines[synthetic.PLATE_RECIPE] == contract.rational(synthetic.C1_PLATE_MACHINES)
+    assert data["raw_inputs"][synthetic.SOLVE_ORE_ITEM] == contract.rational(
+        synthetic.C1_ORE_DEMAND
+    )
+    assert data["byproduct_policy"] == ratio.BYPRODUCT_SINKABLE
+
+
+def test_the_supply_answer_carries_no_bare_number(registry: Registry) -> None:
+    data = call(DOORS["solve"], registry, SUPPLY_PARAMETERS).payload["data"]
+    offences = bare_number_paths(data)
+    offence_count = len(offences)
+    assert offence_count == 0
+
+
+def test_the_supply_answer_carries_ten_thirds_as_a_pair(registry: Registry) -> None:
+    # The same non-representable value C1 publishes, reached the other way. A
+    # supply door that divided anywhere would print 3.3333333333333335 here.
+    raw = contract.encode(call(DOORS["solve"], registry, SUPPLY_PARAMETERS).payload)
+    assert synthetic.C1_ROD_MACHINES_FLOAT_REPR.encode("ascii") not in raw
+    offences = inexact_tokens(raw)
+    offence_count = len(offences)
+    token_count = len(number_tokens(raw))
+    assert token_count > 0
+    assert offence_count == 0
+
+
+def test_a_supply_figure_is_read_exactly_and_never_through_a_float(registry: Registry) -> None:
+    # A tenth of the C1 ore cap must buy a tenth of the C1 rod rate, exactly.
+    # Stated as a ratio, which is the shape a float reading rounds away.
+    tenth = synthetic.C1_ORE_DEMAND / 10
+    parameters = {
+        **SUPPLY_PARAMETERS,
+        "supply": f"{synthetic.SOLVE_ORE_ITEM}={tenth.numerator}/{tenth.denominator}",
+    }
+    response = call(DOORS["solve"], registry, parameters)
+    status = response.http_status
+    assert status == contract.HTTP_OK
+    data = response.payload["data"]
+    assert isinstance(data, dict)
+    assert data["targets"][synthetic.SOLVE_ROD_ITEM] == contract.rational(
+        synthetic.C1_ROD_TARGET / 10
+    )
+
+
+def test_an_unbounded_supply_is_the_solvers_verdict(registry: Registry) -> None:
+    # Nothing in the supply is consumed by the chain, so every rate satisfies
+    # the request equally. The refusal is raised by ratio.solve_for_supply and
+    # transcribed here - the surface reaches no such conclusion of its own.
+    parameters = {**SUPPLY_PARAMETERS, "supply": f"{UNCONSUMED_SUPPLY_ITEM}=1"}
+    response = call(DOORS["solve"], registry, parameters)
+    status = response.http_status
+    assert status == contract.HTTP_BAD_REQUEST
+    assert response.payload["reason"] == contract.REASON_SUPPLY_UNBOUNDED
+
+
+def test_omitting_the_mode_still_asks_the_targets_question(registry: Registry) -> None:
+    # The default is not an invented policy - it is this endpoint's existing
+    # meaning, unchanged. Every caller written before the supply mode existed
+    # still asks the question it asked.
+    response = call(DOORS["solve"], registry, SOLVE_PARAMETERS)
+    status = response.http_status
+    assert status == contract.HTTP_OK
+    stated = call(DOORS["solve"], registry, {**SOLVE_PARAMETERS, "mode": "targets"})
+    assert stated.http_status == contract.HTTP_OK
+    assert stated.payload["data"] == response.payload["data"]
+
+
+def test_targets_mode_refuses_a_supply_parameter(registry: Registry) -> None:
+    # The default mode did NOT widen. A supply request that forgets to say so
+    # is refused loudly rather than answered as a targets request.
+    parameters = {**SOLVE_PARAMETERS, "supply": f"{synthetic.SOLVE_ORE_ITEM}=50"}
+    response = call(DOORS["solve"], registry, parameters)
+    status = response.http_status
+    assert status == contract.HTTP_BAD_REQUEST
+    assert response.payload["reason"] == contract.REASON_UNKNOWN_PARAMETER
+
+
+def test_supply_mode_refuses_a_targets_parameter(registry: Registry) -> None:
+    parameters = {**SUPPLY_PARAMETERS, "targets": f"{synthetic.SOLVE_ROD_ITEM}=50"}
+    response = call(DOORS["solve"], registry, parameters)
+    status = response.http_status
+    assert status == contract.HTTP_BAD_REQUEST
+    assert response.payload["reason"] == contract.REASON_UNKNOWN_PARAMETER
+
+
+@pytest.mark.parametrize("absent", sorted(set(SUPPLY_PARAMETERS) - {"mode"}))
+def test_each_supply_parameter_is_individually_required(absent: str, registry: Registry) -> None:
+    parameters = {name: value for name, value in SUPPLY_PARAMETERS.items() if name != absent}
+    response = call(DOORS["solve"], registry, parameters)
+    status = response.http_status
+    assert status == contract.HTTP_BAD_REQUEST
+    assert response.payload["reason"] == contract.REASON_MISSING_PARAMETER
+
+
+@pytest.mark.parametrize("stated", ["", "Supply", "supply ", "targets,supply", "plan"])
+def test_a_mode_outside_the_vocabulary_is_400_invalid_parameter(
+    stated: str, registry: Registry
+) -> None:
+    response = call(DOORS["solve"], registry, {**SUPPLY_PARAMETERS, "mode": stated})
+    status = response.http_status
+    assert status == contract.HTTP_BAD_REQUEST
+    assert response.payload["reason"] == contract.REASON_INVALID_PARAMETER
+
+
+@pytest.mark.parametrize("stated", ["", "Desc Rod", "a,b", "1Desc", "Desc=Rod"])
+def test_a_malformed_target_item_is_400_invalid_parameter(stated: str, registry: Registry) -> None:
+    response = call(DOORS["solve"], registry, {**SUPPLY_PARAMETERS, "target_item": stated})
+    status = response.http_status
+    assert status == contract.HTTP_BAD_REQUEST
+    assert response.payload["reason"] == contract.REASON_INVALID_PARAMETER
+
+
+def test_a_bad_supply_request_is_refused_before_the_provider_is_consulted() -> None:
+    # Determinism: a malformed request fails the same way on a machine with no
+    # game as on one with a game, so the grammar is checked first.
+    response = call(DOORS["solve"], None, {**SUPPLY_PARAMETERS, "mode": "nonsense"})
+    status = response.http_status
+    assert status == contract.HTTP_BAD_REQUEST
+    assert response.payload["reason"] == contract.REASON_INVALID_PARAMETER
+
+
+def test_a_well_formed_supply_request_with_no_registry_is_503() -> None:
+    response = call(DOORS["solve"], None, SUPPLY_PARAMETERS)
+    status = response.http_status
+    assert status == contract.HTTP_UNAVAILABLE
+    assert response.payload["reason"] == contract.REASON_NO_GAME_INSTALL
+
+
+def test_a_supply_refusal_body_never_echoes_a_request_value(registry: Registry) -> None:
+    parameters = {**SUPPLY_PARAMETERS, "supply": f"{UNCONSUMED_SUPPLY_ITEM}=1"}
+    raw = contract.encode(call(DOORS["solve"], registry, parameters).payload)
+    assert UNCONSUMED_SUPPLY_ITEM.encode("ascii") not in raw
+    assert synthetic.SOLVE_ROD_ITEM.encode("ascii") not in raw

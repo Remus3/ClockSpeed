@@ -42,6 +42,7 @@ import pytest
 from clockspeed.save.header import MASK_DIGEST_CHARACTERS, MASK_PREFIX, masked_token
 from clockspeed.surface import config, server
 from clockspeed.surface.api import contract, health, pending, solve, world
+from clockspeed.surface.api import power as power_endpoint
 from tests.surface import audit_harness
 
 if TYPE_CHECKING:
@@ -74,6 +75,8 @@ PANEL_MODULES: Final = (
     "panel_solve.js",
     "panel_warnings.js",
     "panel_map.js",
+    "panel_optimize.js",
+    "panel_power.js",
 )
 
 #: The route template ``clockspeed/surface/api/world.py`` answers. Spelled here
@@ -2277,6 +2280,10 @@ def test_the_script_gives_each_route_the_method_its_owner_publishes() -> None:
         WORLD_ENDPOINT: "GET",
         REGISTRY_ENDPOINT: "GET",
         MAP_ENDPOINT: "GET",
+        # READ FROM THE OWNER, not spelled. /api/power is the one route in the
+        # table that takes a required parameter and still answers GET, so a
+        # literal here would be the easiest of the twelve to get wrong.
+        power_endpoint.ENDPOINT: power_endpoint.METHOD_GET,
     }
     assert len(expected) == len(health.ENDPOINT_TEMPLATES), sorted(expected)
 
@@ -2520,8 +2527,19 @@ def fetch_calls(code: str) -> tuple[FetchCall, ...]:
     return tuple(calls)
 
 
+#: How many state-changing requests this page can issue, and exactly where each
+#: goes. A COUNT PINNED TO A PATH SET is a stronger statement than an absence
+#: that any later slice could quietly spend - which is the reason CS-962 re-aimed
+#: this arm rather than relaxing it when the first POST landed. It moved from one
+#: to two when the optimize bench got a door: ``/api/optimize`` answered 200
+#: against real data for as long as nothing on the page called it, and the fix
+#: for that was necessarily a second POST.
+EXPECTED_NON_GET_FETCHES: Final = 2
+NON_GET_TARGETS: Final = ('"/api/solve?" + query', '"/api/optimize?" + query')
+
+
 def test_the_page_issues_exactly_one_post_and_no_form() -> None:
-    """One non-GET request, to ``/api/solve``, with no body and still no form.
+    """Two non-GET requests, each pinned to a path, no body and still no form.
 
     THE SUCCESSOR TO ``test_the_page_issues_no_post_and_no_form``, WHICH WAS
     RIGHT UNTIL THE OPERATOR RULED OTHERWISE. That arm asserted the page named
@@ -2560,16 +2578,22 @@ def test_the_page_issues_exactly_one_post_and_no_form() -> None:
 
     non_get = tuple(call for call in calls if call.method != "GET")
     total = len(non_get)
-    assert total == 1, (
-        f"the page issues {total} non-GET fetch(es) rather than exactly one: "
-        f"{tuple((call.method, call.target) for call in non_get)}"
+    assert total == EXPECTED_NON_GET_FETCHES, (
+        f"the page issues {total} non-GET fetch(es) rather than exactly "
+        f"{EXPECTED_NON_GET_FETCHES}: {tuple((call.method, call.target) for call in non_get)}"
     )
 
-    only = non_get[0]
-    assert only.method == "POST", f"the one non-GET fetch issues {only.method}"
-    assert only.target.startswith('"/api/solve?'), (
-        f"the one non-GET fetch does not ask for /api/solve with a query string: {only.target}"
-    )
+    targets = sorted(call.target for call in non_get)
+    assert targets == sorted(NON_GET_TARGETS), targets
+    wrong_verb = tuple(call.target for call in non_get if call.method != "POST")
+    assert not wrong_verb, f"a non-GET fetch issues something other than POST: {wrong_verb}"
+
+    # THE POWER DOOR IS A GET AND IS STILL PINNED. It is not state-changing, so
+    # it is outside the count above - but leaving it ungraded would mean the one
+    # request this page can aim at a NEW path went unmeasured, so its literal is
+    # required to be present exactly as the other two are.
+    asked = tuple(call.target for call in calls if call.target.startswith('"/api/power?'))
+    assert len(asked) == 1, f"the page names /api/power in {len(asked)} fetch call(s)"
 
     carried = tuple(f"{call.method} {call.target}" for call in calls if call.sends_body)
     assert not carried, f"a fetch carries a request body the server never reads: {carried}"
@@ -2590,7 +2614,7 @@ def test_the_request_detector_fires_on_a_planted_second_call_and_on_a_body() -> 
     assert len(parsed) >= minimum_calls, (
         f"the detector read {len(parsed)} fetch call(s); the script issues more"
     )
-    assert len(tuple(call for call in parsed if call.method != "GET")) == 1
+    assert len(tuple(call for call in parsed if call.method != "GET")) == EXPECTED_NON_GET_FETCHES
 
     planted = clean + (
         "\nfunction plantedSecond() {\n"
@@ -2598,7 +2622,7 @@ def test_the_request_detector_fires_on_a_planted_second_call_and_on_a_body() -> 
         "}\n"
     )
     after = tuple(call for call in fetch_calls(planted) if call.method != "GET")
-    expected_after = 2
+    expected_after = EXPECTED_NON_GET_FETCHES + 1
     assert len(after) == expected_after, (
         f"the detector saw {len(after)} non-GET call(s) after planting a second one"
     )

@@ -108,9 +108,11 @@ from clockspeed.save.world import (
     WARN_NO_PROPERTY_MAP,
     WARN_NODE_SEMANTICS_UNAVAILABLE,
 )
+from clockspeed.solve import power
 from clockspeed.surface import config, server
 from clockspeed.surface.api import contract, health, pending, registry, solve
 from clockspeed.surface.api import map as map_endpoint
+from clockspeed.surface.api import power as power_endpoint
 
 if TYPE_CHECKING:
     from collections.abc import Mapping
@@ -647,6 +649,136 @@ def _registry_data() -> dict[str, object]:
     }
 
 
+#: A building key for the canned power answer. AUTHORED IN THIS FILE, like every
+#: other identifier the harness serves - no name here is read off an install.
+_POWER_BUILDING: Final = "Build_ExampleSmelter_C"
+
+#: The canned clock, away from the reference so the answer is the DEFERRED one.
+#: Deliberately not 1: at the reference clock the draw is an exact scalar and the
+#: symbolic term is absent, so a fixture pinned there would render the one shape
+#: that cannot expose a surface which evaluates the power law.
+_POWER_CLOCK: Final = Fraction(3, 2)
+
+
+def _power_data() -> dict[str, object]:
+    """Build the ``/api/power`` data object, bound to the endpoint's own keys.
+
+    THE GUARD IS THE POINT, AND IT IS CS-1013'S LESSON APPLIED TO A SECOND BODY.
+    That item found ``PLACEMENT_KEYS`` grown from four entries to six while every
+    canned map row still carried four, with the top-level check passing happily
+    over them: a guard that checks the outer envelope and not the nested objects
+    has already been passed by the thing it exists to catch. This body is five
+    nested objects deep, so every one of them is bound to the tuple
+    ``clockspeed/surface/api/power.py`` publishes for it, in BOTH directions.
+
+    THE NUMBERS ARE EXACT PAIRS BECAUSE THE REAL ENDPOINT SENDS PAIRS. A canned
+    body carrying a bare number would let the audit grade a page rendering a
+    float, which is the one rendering the whole power path exists to prevent.
+
+    THE DEFERRED TERM IS UNEVALUATED HERE TOO. ``clockspeed/solve/power.py``
+    records that ``Fraction ** Fraction`` returns a float for the shipped
+    exponent; this fixture carries the two operands and applies neither, so a
+    panel that evaluated one would have nothing correct to compare against.
+
+    Returns:
+        The body, keyed by ``power_endpoint.DATA_KEYS``.
+
+    Raises:
+        AssertionError: When the body or any nested object differs from the
+            endpoint's published key tuple in either direction.
+    """
+    declared = {
+        "shape": power.SHAPE_FIXED,
+        "megawatts": contract.rational(Fraction(4)),
+        "minimum": None,
+        "maximum": None,
+        "modeled": True,
+        "reason": "the entry declares a scalar draw, which is the draw at the reference clock",
+    }
+    ceiling = {
+        "base": contract.rational(Fraction(1)),
+        "slots": None,
+        "known": False,
+        "reason": power.ceiling_reason(None),
+    }
+    at_clock = {
+        "outcome": power.OUTCOME_DEFERRED,
+        "megawatts": None,
+        "coefficient": contract.rational(Fraction(4)),
+        "deferred": {
+            "base": contract.rational(_POWER_CLOCK),
+            # DELIBERATELY NOT A SHIPPED EXPONENT, AND DELIBERATELY IRRATIONAL
+            # WHEN APPLIED. CS-105 keeps the real exponent out of every file
+            # that could restate it, and 11/7 cannot be mistaken for a
+            # measurement; (3/2) ** (11/7) has no exact rational value, so a
+            # surface that evaluated the term would produce a float this
+            # fixture gives it nothing correct to be confused with.
+            "exponent": contract.rational(Fraction(11, 7)),
+        },
+        "reason": "away from the reference clock the power law has no exact rational value",
+    }
+    clamped = {
+        "clock": contract.rational(Fraction(1)),
+        "base": contract.rational(Fraction(1)),
+        "clamped": True,
+        "reason": "the clock was clamped to the un-sharded base, which is not the ceiling",
+    }
+    variable = {
+        "constant": None,
+        "factor": None,
+        "minimum": None,
+        "maximum": None,
+        "modeled": False,
+        "reason": "the variable-power law is unmeasured",
+    }
+    body: dict[str, object] = {
+        "building_key": _POWER_BUILDING,
+        "declared": declared,
+        "ceiling": ceiling,
+        "at_clock": at_clock,
+        "clamped": clamped,
+        "variable_inputs": variable,
+    }
+
+    _assert_keys_match("power body", body, power_endpoint.DATA_KEYS)
+    _assert_keys_match("power declared", declared, power_endpoint.DECLARED_KEYS)
+    _assert_keys_match("power ceiling", ceiling, power_endpoint.CEILING_KEYS)
+    _assert_keys_match("power at_clock", at_clock, power_endpoint.AT_CLOCK_KEYS)
+    _assert_keys_match("power deferred term", at_clock["deferred"], power_endpoint.TERM_KEYS)
+    _assert_keys_match("power clamped", clamped, power_endpoint.CLAMPED_KEYS)
+    _assert_keys_match("power variable_inputs", variable, power_endpoint.VARIABLE_KEYS)
+    return body
+
+
+def _assert_keys_match(what: str, section: object, key_tuple: tuple[str, ...]) -> None:
+    """Bind one canned object to the key tuple its endpoint publishes for it.
+
+    TWO-WAY, AND REFUSING AN EMPTY SECTION, exactly as
+    :func:`_assert_rows_match` is. A one-way check passes over a fixture that
+    has lost a key, and an empty object satisfies every subset rule there is
+    while grading nothing at all.
+
+    Args:
+        what: What to call the object in the message. A literal authored here.
+        section: The canned object.
+        key_tuple: The endpoint's own published tuple of its keys.
+
+    Raises:
+        AssertionError: The object is not a non-empty mapping, or its key set
+            differs from the published tuple in either direction.
+    """
+    if not isinstance(section, dict) or not section:
+        message = f"canned {what} is not a non-empty object, so this guard grades nothing"
+        raise AssertionError(message)
+    published = frozenset(key_tuple)
+    keys = frozenset(section)
+    if keys != published:
+        missing = tuple(sorted(published - keys))
+        surplus = tuple(sorted(keys - published))
+        message = f"canned {what} does not match the endpoint: {missing} {surplus}"
+        raise AssertionError(message)
+
+
 def _canned() -> dict[tuple[str, str], contract.Response]:
     """Build the whole routable answer table.
 
@@ -661,6 +793,10 @@ def _canned() -> dict[tuple[str, str], contract.Response]:
         ("GET", WORLD_ENDPOINT): contract.ok(WORLD_ENDPOINT, _world_data()),
         ("GET", registry.ENDPOINT): contract.ok(registry.ENDPOINT, _registry_data()),
         ("GET", map_endpoint.ENDPOINT): contract.ok(map_endpoint.ENDPOINT, _map_data()),
+        # A GET, UNLIKE THE TWO SOLVER DOORS BELOW IT. /api/power takes a
+        # required parameter and still answers GET, so it is the one row here
+        # whose verb cannot be guessed from whether it takes one.
+        ("GET", power_endpoint.ENDPOINT): contract.ok(power_endpoint.ENDPOINT, _power_data()),
         ("POST", solve.SOLVE_ENDPOINT): contract.ok(solve.SOLVE_ENDPOINT, _plan_data()),
         ("POST", solve.OPTIMIZE_ENDPOINT): contract.ok(
             solve.OPTIMIZE_ENDPOINT,
