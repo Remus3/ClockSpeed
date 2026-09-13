@@ -49,18 +49,18 @@ show most clearly: cycle 1 succeeds, every later cycle dies.
 **The two module objects.** At the commits in force on 2026-09-11 at 13:02 - `dd182d7` for
 the launcher, `e0523d8` for the driver - neither file publishes the dotted name:
 
-- `ops/loop/lane_launcher.py:82` sets `_LANES_MODULE_NAME = "clockspeed_loop_lanes"` and
-  `:124` registers the by-path load under that private name.
-- `ops/loop/queue_loop.py:419` maps `"lanes"` to the triple
-  `("ops.loop.lanes", "cs_loop_lanes", "lanes.py")` and `:413` registers its fallback under
-  `cs_loop_lanes`.
+- `ops/loop/lane_launcher.py`'s module-level `_LANES_MODULE_NAME` is
+  `"clockspeed_loop_lanes"`, and its by-path load registers under that private name.
+- `ops/loop/queue_loop.py`'s module-level module table maps `"lanes"` to the triple
+  `("ops.loop.lanes", "cs_loop_lanes", "lanes.py")`, and its `_mod` fallback registers
+  under `cs_loop_lanes`.
 
 The detached driver is started by path, so `ops/loop` is on `sys.path` and the repository
 root is not; `import ops.loop.lanes` fails for both files and each takes its own fallback.
 Two module objects means two module-level `_OWNED` dicts, in ONE process - the launcher is
 imported by the driver and runs inside it.
 
-**Cycle 1 - the repoint succeeds by accident.** `_is_ours` (`ops/loop/lanes.py:1016-1020`)
+**Cycle 1 - the repoint succeeds by accident.** `_is_ours` (`ops/loop/lanes.py`'s `_is_ours`)
 reads `_OWNED.get(path_key(lock))`; in the LAUNCHER's copy that is empty, because the
 driver's `try_acquire_lane` wrote its entry into the OTHER copy. So the function falls
 through to `return identity[2] == os.getpid()`. `identity[2]` is the record's `pid`, which
@@ -77,7 +77,7 @@ the on-disk record now reads `(run_id, ts, worker)`. `release_lane`'s `_is_ours`
 reclaims it, and rewrites the record with a fresh `run_id`, `ts` and pid, updating the
 DRIVER's map. The LAUNCHER's map still holds cycle 1's stale triple, so this time `owned is
 not None` and `_is_ours` takes `identity == owned`, which is False. `repoint_lane_pid`
-returns False at `ops/loop/lanes.py:1057-1058`, and `ops/loop/lane_launcher.py:635-636`
+returns False at `ops/loop/lanes.py`'s `repoint_lane_pid`, and `ops/loop/lane_launcher.py`'s `launch_lane`, at its `_kill` call
 runs `_kill(pid)` on the worker it spawned three lines earlier.
 
 **What the trace predicts, and what the rows show.** Cycle 1 completes; every subsequent
@@ -122,9 +122,9 @@ The earlier draft argued: `_SPAWN_LIVENESS_GRACE_S = 2.0`, every failed row ran 
 excluded. **That argument is wrong three times over and must not be reinstated.**
 
 **It compares two different clocks.** `duration_s` is the DRIVER CYCLE wall clock:
-`ops/loop/queue_loop.py:2291` sets `started_at = clock()` before the acquire loop begins,
+`ops/loop/queue_loop.py`'s `run_cycle` sets `started_at = clock()` before the acquire loop begins,
 and `:2301` writes `round(ended_at - started_at, 3)` (line numbers at `9a7e152`). The 2.0s
-grace is `proc.wait(timeout=_SPAWN_LIVENESS_GRACE_S)` at `ops/loop/lane_launcher.py:532`,
+grace is `proc.wait(timeout=_SPAWN_LIVENESS_GRACE_S)` at `ops/loop/lane_launcher.py`'s `_spawn`, at its `proc.wait` on the grace,
 measured from the `subprocess.Popen` at `:513`. A row is `pre_spawn + t_exit + release`, so
 a runner exiting at 1.97s produces a row above 2.0s. The inference does not follow.
 
@@ -164,14 +164,14 @@ the whole time.
 | CS-1012 is related | REFUTED | CS-1012 is the CI runner's tier-1 duration gate. "Runner-side" there means the GitHub runner, not `run_lane.ps1`. A false lead on the word alone. |
 | `runner_exited_early` | NOT EXCLUDED by timing, but unnecessary | See section 4. The mechanism trace explains every row without it, and no artifact supports it. |
 | **A stale or corrupt lock, as an ALTERNATIVE cause** | REFUTED as an alternative | It is a CONSEQUENCE, not a rival. With a single `lanes` module the trace gives reclaim followed by a SUCCESSFUL repoint, so a stale lock alone cannot produce a refusal. It is what the double import leaves behind. |
-| **Pid reuse** | REFUTED | `_is_ours` (`ops/loop/lanes.py:1016-1020`) never consults liveness - it compares an identity triple, or falls back to `os.getpid()`. No pid-reuse condition can flip it. |
+| **Pid reuse** | REFUTED | `_is_ours` (`ops/loop/lanes.py`'s `_is_ours`) never consults liveness - it compares an identity triple, or falls back to `os.getpid()`. No pid-reuse condition can flip it. |
 | Double-imported `lanes`, launcher kills its own worker | SUPPORTED | Section 2. The only path in the tree producing this log shape, and the only one that predicts cycle-1-succeeds. |
 
 ---
 
 ## 6. Still open
 
-1. **A permissions or IO fault on the lock write.** `ops/loop/lanes.py:1066` returns False
+1. **A permissions or IO fault on the lock write.** `ops/loop/lanes.py`'s `repoint_lane_pid`, at its `_atomic_write` returns False
    when `_atomic_write` fails, which reaches the same `_kill`. Genuinely open, weakly
    disfavoured: `try_acquire_lane` successfully wrote a fresh lock on all twelve cycles, so
    the directory was writable each time.
@@ -185,7 +185,7 @@ the whole time.
 4. **Cycle 8's gap.** Run id `62f29b90`, 2026-09-10 23:25:52, duration 3.151s - the LONGEST
    row - and the only failed cycle with no log file at all. The gap from cycle 7's start to
    its own is **262.5s**, against 47.9 to 70.4s for every other gap in the file. Its absent
-   log does NOT place it before the spawn: `_log_path` (`lane_launcher.py:444-462`) creates
+   log does NOT place it before the spawn: `_log_path` (`lane_launcher.py`'s `_log_path`) creates
    only the DIRECTORY at `:458` and returns a path, and the runner creates the file - so
    "no log" is consistent with a spawn that never got as far as the header. Being the
    slowest row where a pre-spawn failure would be the fastest, it fits the kill model

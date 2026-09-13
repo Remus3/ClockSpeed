@@ -1903,6 +1903,11 @@ THIS_MODULE: Final = Path(__file__).resolve().relative_to(REPO_ROOT).as_posix()
 #: said "there is nothing to be bought by adding to it" and that was false as
 #: written; see :func:`decline_budget_problems`.
 DECLINED_AS_DECLARED_UNTRACKED: Final[Mapping[tuple[str, str, str], int]] = {
+    (
+        "docs/item_notes/lane-start-failure-record.md",
+        "ops/loop/config.json",
+        "## 5. Hypotheses discriminated",
+    ): 1,
     ("ROADMAP.md", "config/local.json", "## Phase 4 - save reader"): 1,
     ("clockspeed/solve/optimize.py", "config/local.json", ""): 1,
     (
@@ -2068,7 +2073,16 @@ DECLINED_AS_A_FIXTURE_LITERAL: Final[Mapping[tuple[str, str, str], int]] = {
 #: the leaf that carries the finding, not for the item: when CS-958 closes and
 #: its detail relocates to `docs/history_notes.md`, this row REFUNDS and the
 #: ceiling comes back down with it, exactly as CS-952's did.
-DECLARED_UNTRACKED_CEILING: Final = 13
+#: 13 TO 14 WHEN SESSION 91 FILED THE LANE START-FAILURE DIAGNOSIS. That annex
+#: names the lane's optional model-config file to record that it DOES NOT EXIST
+#: - the whole
+#: content of the refuted model-config hypothesis is the file's absence, so the
+#: path has to be spelled or the row says nothing a reader can check. The file is
+#: gitignored and will never be tracked, which is what puts it on this rung. The
+#: row is bought for the leaf that carries the finding: if that diagnosis
+#: relocates to `docs/history_notes.md` the row REFUNDS and the ceiling comes
+#: back down to 13.
+DECLARED_UNTRACKED_CEILING: Final = 14
 #: 9 TO 6 WHEN CS-928 DELETED THE THREE FALSE ADVISOR ATTRIBUTIONS. Six
 #: `docs/ARCHITECTURE.md` rows left the rung and three arrived from the guard
 #: that now asserts those files absent, so the disclosure holds six rows and the
