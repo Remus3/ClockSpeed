@@ -33,6 +33,64 @@ The unit is the game's own and is published as :data:`COORDINATE_UNITS` rather
 than assumed by the reader, because a map that silently mixed centimetres with
 metres is wrong by a factor no consumer can detect from the numbers.
 
+A ROTATION AND A SCALE ARE THE SAME KIND OF VALUE AND LEAVE THE SAME WAY
+--------------------------------------------------------------------------
+``objects.Transform`` parses THREE blocks per actor - a rotation quaternion, a
+translation and a per-axis scale - and this seam used to publish one of them.
+Rotation and scale were read and then dropped here, which meant no building on
+any map could be oriented even though the bytes had already been decoded. They
+are stored floats exactly as a coordinate is, so they get a coordinate's
+treatment: each component leaves as :func:`decimal_string`, never as a JSON
+number, and a block leaves as a tuple of those strings.
+
+THE QUATERNION'S COMPONENT ORDER IS THE FILE'S AND IS NOT NAMED HERE.
+``objects.Transform`` says "in file order" and names no component, so this model
+publishes a four-element sequence rather than an ``i``/``j``/``k``/``w`` mapping.
+Naming them would be a measured claim about the format that this project has not
+made, and a consumer that trusted invented names would build a rotation matrix
+that is confidently wrong rather than one it knows it cannot build.
+
+BOTH POPULATIONS CARRY ORIENTATION, AND FOR ONE REVIEW ROUND ONE DID NOT
+---------------------------------------------------------------------------
+An earlier cut of this slice published orientation on built actors only and
+called a node's absent rotation STRUCTURAL, on the grounds that
+``clockspeed.save.world.ResourceNode`` carried a translation and nothing else.
+**THAT WAS THE SAME DEFECT ONE SEAM LOWER, NOT A PROPERTY OF THE DATA.**
+``clockspeed/save/world.py`` ``_node_or_none`` had ``record.transform`` already
+bound and read one of its three blocks, discarding the other two on the line
+that kept the first - so the value was in hand and was dropped, exactly as it
+was dropped here. It has been carried through, and a node placement now gets a
+rotation and a scale on identical terms to a built one. There is no node branch
+in this module any more, because there is no longer anything to branch on.
+
+:attr:`WorldPlacement.node_orientation_available` is True and stays a FIELD, for
+the reason ``node_semantics_available`` is one: a consumer branches on the
+declared capability rather than sniffing a row for a null and guessing what the
+null meant. No warning accompanies it, because nothing is missing - an advisory
+that fires on every world carrying any node would be a line every real save
+prints and no reader can act on.
+
+A NON-FINITE ORIENTATION WITHHOLDS THE BLOCK AND KEEPS THE BUILDING
+----------------------------------------------------------------------
+**THIS IS DELIBERATELY NOT THE COORDINATE RULE, AND THE DIFFERENCE IS THE WHOLE
+POINT.** A non-finite COORDINATE is skipped because it poisons the world
+bounding box - one ``inf`` makes every other placement's position unreadable on
+a rendered map. A non-finite ROTATION or SCALE poisons nothing: the bounding box
+is computed from translations alone and never reads either block. So skipping a
+placement for a bad rotation would silently remove a BUILDING from the map over
+a field the map does not measure, which trades a defect nobody can see for one
+everybody can.
+
+The rule is therefore: the placement survives with its coordinates intact, and
+the OFFENDING BLOCK is withheld whole - None rather than three good components
+and one ``'inf'``, because a partial quaternion normalises into garbage and a
+partial scale is a shape claim nothing supports. The two blocks are refused
+INDEPENDENTLY, so one bad scale axis does not cost the rotation. Every placement
+that lost at least one block is counted once under
+:data:`WARN_PLACEMENT_ORIENTATION_NON_FINITE` - once per PLACEMENT and not once
+per component, so the count answers "how many buildings cannot be oriented".
+Non-negotiable 7: flagged and skipped, never fatal and never silently wrong.
+
 A NON-FINITE COORDINATE IS SKIPPED AND FLAGGED, NOT PUBLISHED
 ---------------------------------------------------------------
 ``repr(float("inf"))`` is ``'inf'``, which is not a decimal string a consumer
@@ -78,7 +136,12 @@ the silently-wrong half of non-negotiable 7 wearing a filter.
 WHAT NEVER LEAVES THIS MODULE
 -------------------------------
 An instance name, a record index, a byte offset and a filesystem path. The
-class name and the coordinates are the whole output. ``ResourceNode`` withholds
+class name, the coordinates and the orientation are the whole output, and
+widening the model to carry an orientation did not widen this list by one
+entry: a rotation and a scale are geometry read out of the same transform block
+the coordinates come from, and neither names anything the operator authored.
+
+``ResourceNode`` withholds
 its ``instance_name`` from its own repr because it is world content, and
 ``ObjectRecord`` withholds every string for the same reason; a model assembled
 here that carried either would re-open the channel both of them closed. The
@@ -141,6 +204,7 @@ __all__ = [
     "WARN_BUILT_TRANSFORM_ABSENT",
     "WARN_PLACEMENT_BOUNDS_UNDEFINED",
     "WARN_PLACEMENT_COORDINATE_NON_FINITE",
+    "WARN_PLACEMENT_ORIENTATION_NON_FINITE",
     "AxisBounds",
     "Placement",
     "WorldBounds",
@@ -168,6 +232,11 @@ WARN_BUILT_TRANSFORM_ABSENT: Final = "built-transform-absent"
 _BUILT_CLASS_PREFIX: Final = "Build_"
 WARN_PLACEMENT_COORDINATE_NON_FINITE: Final = "placement-coordinate-non-finite"
 WARN_PLACEMENT_BOUNDS_UNDEFINED: Final = "placement-bounds-undefined"
+
+#: How many PUBLISHED placements lost a rotation or a scale to a non-finite
+#: component. Not a skip: the placement and its coordinates survive. See the
+#: module docstring for why this is deliberately not the coordinate rule.
+WARN_PLACEMENT_ORIENTATION_NON_FINITE: Final = "placement-orientation-non-finite"
 
 #: The built classes this model MAY publish. See the module docstring for why
 #: this is an allowlist rather than a denylist, for where each of these nine
@@ -240,6 +309,12 @@ _WARNING_DETAIL: Final[Mapping[str, str]] = MappingProxyType(
             "no placement survived, so this world has no bounding box; six null axes"
             " would read as a box that was computed and came back empty"
         ),
+        WARN_PLACEMENT_ORIENTATION_NON_FINITE: (
+            "a placement carried a non-finite rotation or scale component, so that block"
+            " was withheld whole while the placement and its coordinates were kept;"
+            " orientation does not enter the bounding box, so dropping the building"
+            " instead would hide it over a field this view does not measure"
+        ),
     }
 )
 
@@ -262,12 +337,23 @@ class Placement:
         x: The first coordinate, as an exact decimal string.
         y: The second coordinate, as an exact decimal string.
         z: The third coordinate, as an exact decimal string.
+        rotation: The rotation quaternion IN FILE ORDER, four exact decimal
+            strings, or None. The components are deliberately unnamed - see the
+            module docstring. None for exactly ONE reason: the stored quaternion
+            held a non-finite component, so the block was withheld WHOLE rather
+            than published three-quarters valid. Node and built placements are
+            on identical terms here.
+        scale: The per-axis scale, three exact decimal strings, or None. Null on
+            exactly the same term as ``rotation``, and refused independently of
+            it: one bad scale axis does not cost the rotation.
     """
 
     class_name: str
     x: str
     y: str
     z: str
+    rotation: tuple[str, str, str, str] | None
+    scale: tuple[str, str, str] | None
 
 
 @dataclass(frozen=True)
@@ -335,6 +421,11 @@ class WorldPlacement:
             consumer never has to import a constant to read a number.
         node_semantics_available: Always False today, and a FIELD rather than a
             constant - see the module docstring.
+        node_orientation_available: Whether a node placement in this model can
+            carry a rotation and a scale. True since CS-1013 carried both
+            through ``ResourceNode``. A FIELD rather than a constant for exactly
+            the reason ``node_semantics_available`` is one - a consumer branches
+            on the declared capability instead of sniffing a row for a null.
         warnings: Everything flagged, in the ``WorldWarning`` idiom this project
             already uses. RAISED HERE EVEN WHEN THE WORLD MODEL ALSO RAISED IT,
             because a consumer holding this object must not have to reach into a
@@ -348,6 +439,7 @@ class WorldPlacement:
     bounds: WorldBounds | None
     coordinate_units: str
     node_semantics_available: bool
+    node_orientation_available: bool
     warnings: tuple[WorldWarning, ...]
 
     @property
@@ -372,6 +464,7 @@ class WorldPlacement:
             f"built_classes={len(self.built_counts)}, "
             f"bounded={self.bounds is not None}, "
             f"node_semantics_available={self.node_semantics_available}, "
+            f"node_orientation_available={self.node_orientation_available}, "
             f"warnings={len(self.warnings)})"
         )
 
@@ -440,35 +533,95 @@ def _warning(code: str, count: int = 1) -> WorldWarning:
     )
 
 
+def _rotation_of(rotation: tuple[float, float, float, float]) -> tuple[str, str, str, str] | None:
+    """Render a stored quaternion, or withhold the whole block.
+
+    ALL FOUR OR NONE. Three good components beside one ``'inf'`` is not a
+    partial answer a consumer can use - a quaternion normalises as a unit, so a
+    partial one becomes a rotation matrix that is confidently wrong. The block
+    is therefore refused whole and the placement keeps its coordinates.
+
+    Args:
+        rotation: The four stored components, in file order.
+
+    Returns:
+        The four decimal renderings in the same order, or None when any
+        component is not finite.
+    """
+    a, b, c, d = (float(part) for part in rotation)
+    if not (math.isfinite(a) and math.isfinite(b) and math.isfinite(c) and math.isfinite(d)):
+        return None
+    return decimal_string(a), decimal_string(b), decimal_string(c), decimal_string(d)
+
+
+def _scale_of(scale: tuple[float, float, float]) -> tuple[str, str, str] | None:
+    """Render a stored per-axis scale, or withhold the whole block.
+
+    ALL THREE OR NONE, on the terms :func:`_rotation_of` states, and refused
+    INDEPENDENTLY of the rotation: a bad scale axis is not evidence about the
+    quaternion beside it and must not cost a consumer an orientation it could
+    have had.
+
+    Args:
+        scale: The three stored components.
+
+    Returns:
+        The three decimal renderings, or None when any component is not finite.
+    """
+    a, b, c = (float(part) for part in scale)
+    if not (math.isfinite(a) and math.isfinite(b) and math.isfinite(c)):
+        return None
+    return decimal_string(a), decimal_string(b), decimal_string(c)
+
+
 def _placement_of(
-    class_name: str, translation: tuple[float, float, float]
-) -> tuple[Placement, tuple[float, float, float]] | None:
-    """Build one placement, or refuse a non-finite one.
+    class_name: str,
+    translation: tuple[float, float, float],
+    rotation: tuple[float, float, float, float],
+    scale: tuple[float, float, float],
+) -> tuple[Placement, tuple[float, float, float], bool] | None:
+    """Build one placement, or refuse a non-finite COORDINATE.
 
     THERE IS NO ARITY GUARD HERE ON PURPOSE. ``objects.Transform.translation``
     and ``ResourceNode.translation`` are both declared as three-tuples, so a
     length check is unreachable under the declared type and mypy says so; a
     guard the type system has already discharged is a branch no test can reach
-    and therefore an untested claim about what the save layer does.
+    and therefore an untested claim about what the save layer does. The same
+    argument covers the rotation's four components and the scale's three.
+
+    A NON-FINITE COORDINATE REFUSES THE PLACEMENT AND A NON-FINITE ORIENTATION
+    DOES NOT. See the module docstring: a coordinate poisons the bounding box
+    and an orientation enters no computation at all, so refusing a building over
+    one would hide it from a map over a field the map does not measure.
 
     Args:
         class_name: The already-reduced class name.
         translation: The three stored coordinates.
+        rotation: The stored quaternion, in file order. REQUIRED, with no
+            default: both populations carry one, so an optional parameter here
+            would be a branch no caller reaches and no test can grade.
+        scale: The stored per-axis scale, required on the same terms.
 
     Returns:
-        The placement together with its widened coordinates, or None when any
-        coordinate is not finite.
+        The placement, its widened coordinates, and whether an orientation
+        block was withheld for non-finiteness; or None when any coordinate is
+        not finite.
     """
     x, y, z = (float(axis) for axis in translation)
     if not (math.isfinite(x) and math.isfinite(y) and math.isfinite(z)):
         return None
+    rendered_rotation = _rotation_of(rotation)
+    rendered_scale = _scale_of(scale)
+    withheld = rendered_rotation is None or rendered_scale is None
     placement = Placement(
         class_name=class_name,
         x=decimal_string(x),
         y=decimal_string(y),
         z=decimal_string(z),
+        rotation=rendered_rotation,
+        scale=rendered_scale,
     )
-    return placement, (x, y, z)
+    return placement, (x, y, z), withheld
 
 
 def _counts(placements: tuple[Placement, ...]) -> Mapping[str, int]:
@@ -487,6 +640,26 @@ def _counts(placements: tuple[Placement, ...]) -> Mapping[str, int]:
     for placement in placements:
         tally[placement.class_name] = tally.get(placement.class_name, 0) + 1
     return MappingProxyType(dict(sorted(tally.items())))
+
+
+def _warnings_for(counted: tuple[tuple[str, int], ...]) -> list[WorldWarning]:
+    """Raise one warning per code that actually has occurrences behind it.
+
+    ORDER IS THE CALLER'S AND ZERO IS A SILENCE. A code whose count is zero is
+    dropped rather than raised with a zero on it, because a warning that says
+    "this happened zero times" is noise a consumer has to filter and is
+    indistinguishable, at a glance, from one that happened. The caller lists the
+    pairs in the order the model publishes them, so the warning list is
+    deterministic across runs without being sorted into an order nobody chose.
+
+    Args:
+        counted: One ``(code, count)`` pair per advisory this model can raise
+            from a tally, in publication order.
+
+    Returns:
+        The warnings, in that order, for the codes with a non-zero count.
+    """
+    return [_warning(code, count) for code, count in counted if count]
 
 
 def _bounds(triples: list[tuple[float, float, float]]) -> WorldBounds | None:
@@ -535,16 +708,23 @@ def placement_of(model: WorldModel) -> WorldPlacement:
     built_placements: list[Placement] = []
     triples: list[tuple[float, float, float]] = []
     non_finite = 0
+    orientation_non_finite = 0
     transform_absent = 0
     not_plotted = 0
 
     for node in model.nodes:
-        built = _placement_of(node.class_name, node.translation)
-        if built is None:
+        # THE SAME FOUR ARGUMENTS THE BUILT LOOP PASSES. A node's orientation is
+        # not a special case and there is no node branch anywhere below this
+        # line - see the module docstring for the review round in which there
+        # briefly was one.
+        placed_node = _placement_of(node.class_name, node.translation, node.rotation, node.scale)
+        if placed_node is None:
             non_finite += 1
             continue
-        node_placements.append(built[0])
-        triples.append(built[1])
+        node_placements.append(placed_node[0])
+        triples.append(placed_node[1])
+        if placed_node[2]:
+            orientation_non_finite += 1
 
     for record in model.objects.records:
         class_name = class_name_of_path(record.type_path)
@@ -555,23 +735,33 @@ def placement_of(model: WorldModel) -> WorldPlacement:
         if record.transform is None:
             transform_absent += 1
             continue
-        placed = _placement_of(class_name, record.transform.translation)
+        placed = _placement_of(
+            class_name,
+            record.transform.translation,
+            record.transform.rotation,
+            record.transform.scale,
+        )
         if placed is None:
             non_finite += 1
             continue
         built_placements.append(placed[0])
         triples.append(placed[1])
+        if placed[2]:
+            orientation_non_finite += 1
 
     bounds = _bounds(triples)
-    warnings: list[WorldWarning] = []
-    if node_placements:
-        warnings.append(_warning(WARN_NODE_SEMANTICS_UNAVAILABLE, len(node_placements)))
-    if not_plotted:
-        warnings.append(_warning(WARN_BUILT_CLASS_NOT_PLOTTED, not_plotted))
-    if transform_absent:
-        warnings.append(_warning(WARN_BUILT_TRANSFORM_ABSENT, transform_absent))
-    if non_finite:
-        warnings.append(_warning(WARN_PLACEMENT_COORDINATE_NON_FINITE, non_finite))
+    warnings = _warnings_for(
+        (
+            (WARN_NODE_SEMANTICS_UNAVAILABLE, len(node_placements)),
+            (WARN_BUILT_CLASS_NOT_PLOTTED, not_plotted),
+            (WARN_BUILT_TRANSFORM_ABSENT, transform_absent),
+            (WARN_PLACEMENT_COORDINATE_NON_FINITE, non_finite),
+            (WARN_PLACEMENT_ORIENTATION_NON_FINITE, orientation_non_finite),
+        )
+    )
+    # NOT IN THE TALLY LIST ABOVE, because this one is not driven by a count at
+    # all: it fires on the ABSENCE of a box, and its occurrence count is always
+    # one. Folding it in would mean inventing a tally that means nothing.
     if bounds is None:
         warnings.append(_warning(WARN_PLACEMENT_BOUNDS_UNDEFINED))
 
@@ -583,5 +773,6 @@ def placement_of(model: WorldModel) -> WorldPlacement:
         bounds=bounds,
         coordinate_units=COORDINATE_UNITS,
         node_semantics_available=False,
+        node_orientation_available=True,
         warnings=tuple(warnings),
     )

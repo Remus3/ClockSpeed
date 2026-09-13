@@ -45,6 +45,27 @@ BODY_OFFSET_MARKER = 987654321
 BODY_LENGTH_MARKER = 987654322
 
 
+#: The orientation every fixture carries unless it says otherwise. Exactly
+#: representable in float32, so a rendered expectation is exact rather than
+#: approximately right.
+IDENTITY_ROTATION: Final = (0.0, 0.0, 0.0, 1.0)
+IDENTITY_SCALE: Final = (1.0, 1.0, 1.0)
+
+#: A distinctive orientation, every component exactly representable. Chosen so
+#: an arm that asserted the identity by accident would fail.
+PLANTED_ROTATION: Final = (0.5, -0.25, 0.125, 0.8125)
+PLANTED_SCALE: Final = (2.0, 0.5, -1.5)
+
+#: The component counts each orientation block carries. Named so an arm states
+#: its expectation rather than comparing two collections that are both empty.
+ROTATION_COMPONENTS: Final = 4
+SCALE_COMPONENTS: Final = 3
+
+#: One node and one built placement. Named so an arm that grades "both
+#: populations widened" states its expectation rather than asserting non-empty.
+BOTH_POPULATIONS: Final = 2
+
+
 def header() -> SaveHeader:
     """Build a synthetic header carrying no operator-authored string at all.
 
@@ -72,6 +93,8 @@ def actor(
     translation: tuple[float, float, float] | None,
     *,
     instance_name: str = INSTANCE_NAME_MARKER,
+    rotation: tuple[float, float, float, float] = IDENTITY_ROTATION,
+    scale: tuple[float, float, float] = IDENTITY_SCALE,
 ) -> objects.ObjectRecord:
     """Build one synthetic actor record.
 
@@ -80,6 +103,8 @@ def actor(
         translation: The placement, or None for a record carrying no transform.
         instance_name: The instance name. Defaults to the refusal marker, so
             EVERY fixture in this module plants it without having to say so.
+        rotation: The quaternion, in file order. Defaults to the identity.
+        scale: The per-axis scale. Defaults to unity.
 
     Returns:
         The record.
@@ -88,9 +113,9 @@ def actor(
         None
         if translation is None
         else objects.Transform(
-            rotation=(0.0, 0.0, 0.0, 1.0),
+            rotation=rotation,
             translation=translation,
-            scale=(1.0, 1.0, 1.0),
+            scale=scale,
         )
     )
     return objects.ObjectRecord(
@@ -154,12 +179,20 @@ def world(
     )
 
 
-def node(class_name: str, translation: tuple[float, float, float]) -> ResourceNode:
+def node(
+    class_name: str,
+    translation: tuple[float, float, float],
+    *,
+    rotation: tuple[float, float, float, float] = IDENTITY_ROTATION,
+    scale: tuple[float, float, float] = IDENTITY_SCALE,
+) -> ResourceNode:
     """Build one synthetic resource node carrying the instance-name marker.
 
     Args:
         class_name: One of the measured node classes.
         translation: The placement.
+        rotation: The quaternion, in file order. Defaults to the identity.
+        scale: The per-axis scale. Defaults to unity.
 
     Returns:
         The node.
@@ -168,6 +201,8 @@ def node(class_name: str, translation: tuple[float, float, float]) -> ResourceNo
         class_name=class_name,
         instance_name=INSTANCE_NAME_MARKER,
         translation=translation,
+        rotation=rotation,
+        scale=scale,
     )
 
 
@@ -545,3 +580,310 @@ def test_the_counts_iterate_in_a_stable_sorted_order() -> None:
     keys = list(placement.placement_of(model).node_counts)
 
     assert keys == sorted(keys)
+
+
+# ---------------------------------------------------------------------------
+# CS-1013: orientation - the rotation and the scale the audit seam used to drop
+# ---------------------------------------------------------------------------
+
+
+def test_a_built_placement_carries_its_rotation_and_scale_as_exact_strings() -> None:
+    """``Transform`` parsed all three blocks and this seam published one of them.
+
+    The rotation and the scale are the SAME KIND OF VALUE as a coordinate - a
+    stored float the wire may not carry as a JSON number - so they leave on the
+    same terms, as shortest round-trip decimal strings.
+    """
+    model = world(
+        records=(
+            actor(
+                "Build_MinerMk1_C",
+                (1.0, 2.0, 3.0),
+                rotation=PLANTED_ROTATION,
+                scale=PLANTED_SCALE,
+            ),
+        )
+    )
+
+    placed = placement.placement_of(model).built_placements[0]
+    rotation = placed.rotation
+    scale = placed.scale
+
+    assert rotation is not None, "the rotation was withheld"
+    assert scale is not None, "the scale was withheld"
+    assert rotation == tuple(repr(part) for part in PLANTED_ROTATION), rotation
+    assert scale == tuple(repr(part) for part in PLANTED_SCALE), scale
+    assert len(rotation) == ROTATION_COMPONENTS
+    assert len(scale) == SCALE_COMPONENTS
+
+
+def test_an_orientation_component_leaves_as_the_shortest_round_trip_decimal() -> None:
+    """A rounding done here cannot be undone by a consumer, so the arm is exact."""
+    stored = struct.unpack("<f", struct.pack("<f", 0.1))[0]
+    model = world(
+        records=(
+            actor(
+                "Build_MinerMk1_C",
+                (0.0, 0.0, 0.0),
+                rotation=(stored, 0.0, 0.0, 1.0),
+                scale=(stored, 1.0, 1.0),
+            ),
+        )
+    )
+
+    placed = placement.placement_of(model).built_placements[0]
+    rotation = placed.rotation
+    scale = placed.scale
+
+    assert rotation is not None, "the rotation was withheld"
+    assert scale is not None, "the scale was withheld"
+    assert rotation[0] == repr(stored)
+    assert scale[0] == repr(stored)
+    assert float(rotation[0]) == stored
+    assert float(scale[0]) == stored
+
+
+def test_a_node_placement_carries_its_orientation_on_the_same_terms_as_a_building() -> None:
+    """A node's rotation was dropped by ``_node_or_none``, not absent from the file.
+
+    An earlier cut of this slice called the null structural. It was the same
+    defect one seam lower: ``clockspeed/save/world.py`` had ``record.transform``
+    bound and read one of its three blocks. There is no node special case left.
+    """
+    model = world(nodes=(node("BP_ResourceNode_C", (1.0, 2.0, 3.0), rotation=PLANTED_ROTATION),))
+
+    placed = placement.placement_of(model).node_placements[0]
+    rotation = placed.rotation
+
+    assert rotation is not None, "a node placement lost its rotation"
+    assert rotation == tuple(repr(part) for part in PLANTED_ROTATION), rotation
+    assert placed.scale == tuple(repr(part) for part in IDENTITY_SCALE), placed.scale
+
+
+def test_the_node_orientation_flag_declares_a_capability_the_rows_actually_have() -> None:
+    """The flag and the rows are asserted TOGETHER, because either alone is a lie.
+
+    A True flag over rows carrying nulls, and populated rows under a False flag,
+    are both states a consumer would be misled by. The earlier arm asserted only
+    the warning half and was mislabelled a field arm; there is no warning now,
+    because nothing about a node's orientation is unavailable.
+    """
+    result = placement.placement_of(
+        world(nodes=(node("BP_ResourceNode_C", (1.0, 2.0, 3.0), rotation=PLANTED_ROTATION),))
+    )
+
+    assert result.node_orientation_available is True
+    unoriented = [
+        entry for entry in result.node_placements if entry.rotation is None or entry.scale is None
+    ]
+    assert unoriented == [], "the flag claims an orientation these rows do not carry"
+
+
+def test_no_advisory_claims_a_node_orientation_is_unavailable() -> None:
+    """The code was retired with the defect. A warning that always fires says nothing.
+
+    Graded on the served vocabulary rather than on a deleted constant, so the
+    arm still means something if somebody reintroduces the idea under a new
+    spelling.
+    """
+    model = world(nodes=(node("BP_ResourceNode_C", (1.0, 2.0, 3.0)),))
+
+    result = placement.placement_of(model)
+    codes = [warning.code for warning in result.warnings]
+
+    # The control: this world DOES raise an advisory, so an empty vocabulary is
+    # not what makes the assertion below pass.
+    assert codes != [], "the fixture raised nothing, so this arm grades nothing"
+    assert [code for code in codes if "orientation-unavailable" in code] == [], sorted(codes)
+
+
+@pytest.mark.parametrize("bad", [math.inf, -math.inf, math.nan])
+def test_a_non_finite_rotation_withholds_the_rotation_and_keeps_the_building(
+    bad: float,
+) -> None:
+    """A non-finite ROTATION is not a non-finite coordinate and is not treated as one.
+
+    Skipping the whole placement would remove a building from the map over a
+    field the map does not measure, which is a worse answer than a null.
+    """
+    model = world(
+        records=(
+            actor(
+                "Build_MinerMk1_C",
+                (1.0, 2.0, 3.0),
+                rotation=(bad, 0.0, 0.0, 1.0),
+                scale=PLANTED_SCALE,
+            ),
+        )
+    )
+
+    result = placement.placement_of(model)
+    codes = {warning.code: warning.count for warning in result.warnings}
+
+    assert len(result.built_placements) == 1, result.built_placements
+    placed = result.built_placements[0]
+    assert (placed.x, placed.y, placed.z) == ("1.0", "2.0", "3.0")
+    assert placed.rotation is None, placed.rotation
+    assert placed.scale == tuple(repr(part) for part in PLANTED_SCALE), placed.scale
+    assert codes.get(placement.WARN_PLACEMENT_ORIENTATION_NON_FINITE) == 1
+    assert placement.WARN_PLACEMENT_COORDINATE_NON_FINITE not in codes, sorted(codes)
+
+
+@pytest.mark.parametrize("bad", [math.inf, -math.inf, math.nan])
+def test_a_non_finite_scale_withholds_the_scale_and_keeps_the_rotation(bad: float) -> None:
+    """The two blocks are refused independently; one bad axis costs one block."""
+    model = world(
+        records=(
+            actor(
+                "Build_MinerMk1_C",
+                (1.0, 2.0, 3.0),
+                rotation=PLANTED_ROTATION,
+                scale=(1.0, bad, 1.0),
+            ),
+        )
+    )
+
+    result = placement.placement_of(model)
+    codes = {warning.code: warning.count for warning in result.warnings}
+
+    placed = result.built_placements[0]
+    assert placed.scale is None, placed.scale
+    assert placed.rotation == tuple(repr(part) for part in PLANTED_ROTATION), placed.rotation
+    assert codes.get(placement.WARN_PLACEMENT_ORIENTATION_NON_FINITE) == 1
+
+
+def test_one_placement_losing_both_blocks_is_counted_once_and_not_twice() -> None:
+    """The advisory counts PLACEMENTS that lost orientation, not components."""
+    model = world(
+        records=(
+            actor(
+                "Build_MinerMk1_C",
+                (1.0, 2.0, 3.0),
+                rotation=(math.inf, 0.0, 0.0, 1.0),
+                scale=(math.nan, 1.0, 1.0),
+            ),
+        )
+    )
+
+    result = placement.placement_of(model)
+    codes = {warning.code: warning.count for warning in result.warnings}
+
+    assert result.built_placements[0].rotation is None
+    assert result.built_placements[0].scale is None
+    assert codes.get(placement.WARN_PLACEMENT_ORIENTATION_NON_FINITE) == 1
+
+
+def test_a_non_finite_orientation_never_widens_the_bounds() -> None:
+    """The bounding box is a claim about COORDINATES, and orientation is not one."""
+    model = world(
+        records=(
+            actor(
+                "Build_MinerMk1_C",
+                (1.0, 2.0, 3.0),
+                rotation=(math.inf, math.inf, math.inf, math.inf),
+                scale=(math.inf, math.inf, math.inf),
+            ),
+        )
+    )
+
+    bounds = placement.placement_of(model).bounds
+
+    assert bounds is not None
+    assert (bounds.x.max_value, bounds.y.max_value, bounds.z.max_value) == ("1.0", "2.0", "3.0")
+
+
+def test_a_non_finite_coordinate_still_skips_the_whole_placement() -> None:
+    """The COORDINATE rule is unchanged by the orientation rule beside it.
+
+    One non-finite coordinate poisons the world bounding box, which is why that
+    placement is skipped outright while a non-finite orientation is not.
+    """
+    model = world(
+        records=(
+            actor(
+                "Build_MinerMk1_C",
+                (math.inf, 2.0, 3.0),
+                rotation=PLANTED_ROTATION,
+                scale=PLANTED_SCALE,
+            ),
+        )
+    )
+
+    result = placement.placement_of(model)
+    codes = {warning.code: warning.count for warning in result.warnings}
+
+    assert result.built_placements == ()
+    assert codes.get(placement.WARN_PLACEMENT_COORDINATE_NON_FINITE) == 1
+    assert placement.WARN_PLACEMENT_ORIENTATION_NON_FINITE not in codes, sorted(codes)
+
+
+def test_no_orientation_component_reaches_the_model_as_a_float() -> None:
+    """The structural float sweep, aimed at the two blocks this slice added.
+
+    ABSENCE MUST NOT SATISFY THIS ARM. A seam that ignored rotation and scale
+    entirely would leave nothing for the sweep to find and pass for that reason
+    alone, which is how the earlier cut of this arm survived mutation. So the
+    arm first asserts that the components ARE here and ARE the planted ones,
+    and only then that none of them is a float.
+    """
+    model = world(
+        records=(
+            actor(
+                "Build_MinerMk1_C",
+                (1.5, 2.5, 3.5),
+                rotation=PLANTED_ROTATION,
+                scale=PLANTED_SCALE,
+            ),
+        )
+    )
+
+    placed = placement.placement_of(model).built_placements[0]
+    walked = reachable(placed)
+    components = [item for item in walked if isinstance(item, str)]
+
+    # The live control. Every planted component must be present as a STRING, so
+    # a model that dropped the blocks fails here rather than passing below.
+    planted = tuple(repr(part) for part in (*PLANTED_ROTATION, *PLANTED_SCALE))
+    absent = [part for part in planted if part not in components]
+    assert absent == [], "the sweep found no orientation, so it is vacuous: " + str(absent)
+
+    assert [item for item in walked if type(item) is float] == []
+    assert [item for item in reachable(model) if type(item) is float] != []
+
+
+def test_widening_the_model_did_not_widen_what_it_withholds() -> None:
+    """The privacy list is unchanged: no instance name, index, offset or path.
+
+    THE ARM ASSERTS THAT SOMETHING WIDENED BEFORE IT ASSERTS THAT NOTHING ELSE
+    DID. A model that never grew an orientation withholds the markers trivially
+    and would pass this arm while the feature was absent - the vacuity the
+    earlier cut shipped. The control below fails first in that world.
+    """
+    model = world(
+        nodes=(node("BP_ResourceNode_C", (1.0, 2.0, 3.0), rotation=PLANTED_ROTATION),),
+        records=(
+            actor(
+                "Build_MinerMk1_C",
+                (4.0, 5.0, 6.0),
+                rotation=PLANTED_ROTATION,
+                scale=PLANTED_SCALE,
+            ),
+        ),
+    )
+
+    result = placement.placement_of(model)
+    walked = reachable(result)
+
+    # The live control: BOTH populations really did widen, so the sweep below is
+    # walking a model that carries the new fields.
+    widened = [
+        entry
+        for entry in (*result.node_placements, *result.built_placements)
+        if entry.rotation is not None and entry.scale is not None
+    ]
+    assert len(widened) == BOTH_POPULATIONS, "nothing widened, so the sweep is vacuous"
+
+    assert [item for item in walked if item in (BODY_OFFSET_MARKER, BODY_LENGTH_MARKER)] == []
+    assert [item for item in walked if isinstance(item, str) and INSTANCE_NAME_MARKER in item] == []
+    assert [item for item in walked if isinstance(item, str) and PATH_MARKER in item] == []
+    assert [item for item in walked if isinstance(item, (Path, bytes, bytearray))] == []
