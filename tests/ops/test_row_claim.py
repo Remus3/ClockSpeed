@@ -2089,3 +2089,196 @@ def _short_name(path: Path) -> str | None:
     if not written or written >= len(buffer):
         return None
     return buffer.value
+
+
+# ---------------------------------------------------------------------------
+# i. FINDING 6 - two lanes in one worktree, repaired on both sides
+# ---------------------------------------------------------------------------
+#
+# THE MODULE DOCSTRING USED TO ASSERT THIS COULD NOT HAPPEN and nothing enforced
+# it. An adversary acquired BOTH lanes against ONE tree with no refusal at all,
+# both locks RUNNING and both recording that tree, and then measured two
+# distinct harms: a lane whose worker could never release its own records, and a
+# lane that DELETED the other's live record while naming nothing but the public
+# row id. This project also carries an open doubt about exactly this state - the
+# lane lock's behaviour under a shared tree was reported to fail open and the
+# report was later corrected to UNVERIFIED IN BOTH DIRECTIONS - so "it cannot
+# happen" was never available as an answer.
+#
+# BOTH SIDES ARE GRADED HERE, because either alone leaves half the harm. The
+# acquire refuses the second lane; the derivation refuses to guess when it finds
+# the state anyway, which a lock written by an older build can still produce.
+#
+# THE ACQUIRE ARM LIVES IN THIS MODULE RATHER THAN BESIDE ``ops/loop/lanes.py``
+# deliberately: the refusal exists because of what a shared tree does to THIS
+# store's derivation, and an arm filed away from the reason it exists is an arm
+# somebody deletes as redundant.
+
+
+def test_a_second_lane_is_refused_a_worktree_another_lane_is_running_in(
+    tmp_path: Path,
+) -> None:
+    """PREVENTION, on the side where the assumption was made.
+
+    ``lanes.try_acquire_lane`` refused a HELD LANE and nothing else, so two
+    lanes could be pointed at one tree by a launcher bug, a hand-run driver or
+    an operator, and both would succeed. The refusal is now the same shape as
+    the held-lane one - it touches nothing on disk and carries its OWN reason
+    string, so a driver log names this fault instead of showing a lane that
+    mysteriously did not start.
+
+    The edit that reddens this: removing the cross-lane worktree check from
+    ``lanes.try_acquire_lane``.
+    """
+    lock_root = tmp_path / "lanes"
+    shared = _worktree(tmp_path, "one-tree")
+
+    first = lanes.try_acquire_lane(
+        LANE_A, run_id="cycle-a", worktree=str(shared), root=str(lock_root)
+    )
+    try:
+        took_it = bool(first["ok"])
+        assert took_it, "the first lane could not acquire its own tree"
+
+        second = lanes.try_acquire_lane(
+            LANE_B, run_id="cycle-b", worktree=str(shared), root=str(lock_root)
+        )
+        refused = not bool(second["ok"])
+        assert refused, "a second lane acquired a tree another lane is running in"
+        reason = str(second["refused"])
+        assert reason == "worktree_in_use", f"the refusal reads {reason!r}"
+        names_the_holder = str(second["holder"])
+        assert names_the_holder == LANE_A, f"the refusal blames {names_the_holder!r}"
+
+        # A REFUSAL WRITES NOTHING. The second lane's own lock must not exist.
+        wrote_anything = lanes.lock_for_lane(str(lock_root), LANE_B).exists()
+        assert not wrote_anything, "a refused acquire created the second lane's lock"
+
+        # AND THE REFUSAL IS NOT A BLANKET ONE. The SAME second lane, asking for
+        # a DIFFERENT tree WHILE THE FIRST LANE STILL HOLDS ITS OWN, must
+        # succeed - otherwise the assertion above would also pass against a
+        # check that refused every tree, which is the mutant this control
+        # exists to kill.
+        elsewhere = lanes.try_acquire_lane(
+            LANE_B,
+            run_id="cycle-b",
+            worktree=_worktree(tmp_path, "other-tree"),
+            root=str(lock_root),
+        )
+        separate_trees_are_fine = bool(elsewhere["ok"])
+        if separate_trees_are_fine:
+            lanes.release_lane(elsewhere["token"], root=str(lock_root))
+        assert separate_trees_are_fine, (
+            f"a lane was refused a tree nobody else is in - {elsewhere.get('refused')!r}"
+        )
+    finally:
+        lanes.release_lane(first["token"], root=str(lock_root))
+
+
+def test_an_ambiguous_checkout_derives_no_lane_rather_than_the_first_one(
+    tmp_path: Path,
+) -> None:
+    """FAIL-SAFE, on the side where the state is consumed.
+
+    The acquire refusal above cannot reach a lock that is ALREADY on disk - one
+    written by an older build, or by a hand-run driver. So the derivation has to
+    survive the state too, and the only safe answer is that it has none: with
+    two live locks naming this checkout, a process in it genuinely IS
+    indistinguishable between the lanes, and picking by roster order is not a
+    tie-break but an arbitrary choice between two answers that are equally
+    wrong. An adversary measured ``LANES[0]`` winning every time across three
+    runs, which is what let one lane act with the other's identity.
+
+    NONE TURNS A BREACH INTO A LEAK, and a leak is recoverable: the record is
+    left behind, reads RECLAIMABLE once its cycle ends, and the next claim
+    clears it. Nothing is deleted that somebody else owns.
+
+    The edit that reddens this: returning the first match instead of requiring
+    exactly one.
+    """
+    main = _checkout(tmp_path, "main-tree", None)
+    shared = _checkout(tmp_path, "shared-tree", main)
+    lock_root = _lane_lock_root_of(main)
+
+    # PLANTED, because the repaired acquire will not produce this state any
+    # more - which is the point of grading it from both sides.
+    _plant_lane_lock(lock_root, LANE_A, "cycle-a", worktree=str(shared))
+    _plant_lane_lock(lock_root, LANE_B, "cycle-b", worktree=str(shared))
+    for lane in (LANE_A, LANE_B):
+        running = str(lanes.lane_state(str(lock_root), None, lane)["state"])
+        assert running == lanes.RUNNING, f"lane {lane} reads {running} - the arm has no ambiguity"
+
+    derived = _derive_cycle_in(shared)
+    assert derived == "None", f"an ambiguous checkout derived {derived!r} instead of none"
+
+
+def test_a_lane_sharing_a_worktree_cannot_delete_the_other_lanes_record(
+    tmp_path: Path,
+) -> None:
+    """THE ADVERSARY'S OWN BREACH, re-run. This is the harm, not the mechanism.
+
+    Both lanes are live in one tree. A worker there takes a row as lane
+    ``queue``. A LATER call from that same tree - which is lane ``queue-b``'s
+    worker just as much as it is lane ``queue``'s, because nothing on disk can
+    separate them - then names the PUBLIC ROW ID and asks to release. Before the
+    repair it succeeded: the record went from HELD to gone while its cycle ran,
+    which is designs 1 and 2's breach arriving through a third door.
+
+    THE DECLARED COST IS IN THE SECOND HALF OF THIS ARM: neither lane can
+    release in a shared tree, so records leak there. That is the trade the
+    fail-safe makes and it is stated rather than discovered - a leaked record
+    reads RECLAIMABLE when its cycle ends and the next claim clears it, while a
+    deleted one is a row two lanes are working.
+
+    The edit that reddens this: letting ``claims.running_cycle_here`` pick a
+    lane when more than one matches.
+    """
+    main = _checkout(tmp_path, "main-tree", None)
+    shared = _checkout(tmp_path, "shared-tree", main)
+    lock_root = _lane_lock_root_of(main)
+    store = main / "ops" / "loop" / "control" / "claims"
+
+    _plant_lane_lock(lock_root, LANE_A, "cycle-a", worktree=str(shared))
+    token = _claim_from(shared, ROW_A, LANE_A, "worker")
+    before = claims.claim_state(ROW_A, root=store)
+    assert str(before["state"]) == claims.HELD, f"the row reads {before['state']} before the arm"
+    assert str(before["anchor"]) == claims.ANCHOR_LANE, f"anchored on {before['anchor']!r}"
+
+    # The second lane arrives in the same tree.
+    _plant_lane_lock(lock_root, LANE_B, "cycle-b", worktree=str(shared))
+
+    stolen = _release_from(shared, token)
+    assert stolen == "False", f"a lane in a shared tree released the other's record - {stolen!r}"
+    after = claims.claim_state(ROW_A, root=store)
+    assert str(after["state"]) == claims.HELD, f"the live record reads {after['state']} after"
+    assert str(after["lane"]) == LANE_A, f"the surviving record names {after['lane']!r}"
+
+
+#: Prints what a process in this checkout derives its cycle to be. ``None`` is
+#: the safe answer and is what an ambiguous checkout must produce.
+_DERIVE_PROBE: Final = """
+import sys
+
+sys.path.insert(0, sys.argv[1])
+
+from ops.loop import claims
+
+sys.stdout.write(str(claims.running_cycle_here()))
+"""
+
+
+def _derive_cycle_in(checkout: Path) -> str:
+    """What ``running_cycle_here`` answers for a process inside this checkout."""
+    script = checkout / "cs1009_derive_probe.py"
+    script.write_text(_DERIVE_PROBE, encoding="utf-8")
+    done = subprocess.run(
+        [sys.executable, str(script), str(checkout)],
+        cwd=str(checkout),
+        capture_output=True,
+        check=False,
+        text=True,
+        timeout=_CHILD_TIMEOUT_S,
+    )
+    ran = done.returncode == 0
+    assert ran, f"the derivation probe did not run - stderr was {done.stderr!r}"
+    return done.stdout.strip()

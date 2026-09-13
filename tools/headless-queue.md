@@ -242,9 +242,10 @@ that will not come back", says to delete the stale LANE LOCK and never the claim
 
 **A CRASHED CYCLE DOES NOT RELEASE ITS CLAIM, AND DOES NOT WEDGE ITS ROW EITHER.** Release
 is deliberate. A killed cycle leaves its record where it was; the store then probes the
-CYCLE, finds it over, reports the row RECLAIMABLE and offers it again on the next fire. So you never hand-delete a claim file to unstick a lane - if the holder is really
-gone the next `first_takeable` already offers the row, and if it is not, deleting the file
-puts a second lane into a worktree that has one.
+CYCLE, finds it over, reports the row RECLAIMABLE and offers it again on the next fire.
+So you never hand-delete a claim file to unstick a lane - if the holder is really gone the
+next `first_takeable` already offers the row, and if it is not, deleting the file puts a
+second lane into a worktree that has one.
 
 **A LANE CAN BE POINTED AT A SUBJECT.** Set `CLOCKSPEED_LANE_SCOPE_QUEUE=<name>` in the
 environment and the same command answers only that subject's rows. The subjects are

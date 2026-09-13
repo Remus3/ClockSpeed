@@ -1024,23 +1024,6 @@ def _this_checkout() -> Path:
     return Path(__file__).resolve().parents[2]
 
 
-def _same_tree(left: Any, right: Any) -> bool:
-    """Whether two spellings name one directory.
-
-    RESOLVED ON BOTH SIDES BEFORE COMPARING. Windows hands out 8.3 short
-    components - a temporary directory under a long account name is the common
-    source - and ``lanes.path_key`` normalises case and separators but does NOT
-    expand them, so two spellings of one directory would compare unequal and a
-    lane would fail to recognise its own worktree.
-    """
-    try:
-        return lanes.path_key(Path(str(left)).resolve()) == lanes.path_key(
-            Path(str(right)).resolve()
-        )
-    except OSError:
-        return False
-
-
 def running_cycle_here(root: Any = None) -> tuple[str, str] | None:
     """The lane and run id of the cycle THIS PROCESS IS RUNNING INSIDE, or None.
 
@@ -1062,14 +1045,30 @@ def running_cycle_here(root: Any = None) -> tuple[str, str] | None:
     RECOVERY PATH. A secret that every reader can recompute is not a secret, and
     the repair is to stop authenticating and start deriving.
 
+    AN AMBIGUOUS CHECKOUT ANSWERS NONE, AND ROSTER ORDER IS NOT A TIE-BREAK.
+    If two live locks record this tree, a process in it genuinely is
+    indistinguishable between the lanes, and returning the first match is an
+    arbitrary choice between two answers that are equally wrong. An adversary
+    measured that shape: with both lanes pointed at one tree ``LANES[0]`` won
+    every time, so one lane acted with the other's identity and DELETED its live
+    record while naming nothing but the public row id, and the lane that lost
+    the tie could not release its own records at all.
+
+    NONE TURNS A BREACH INTO A LEAK, which is the trade this module makes
+    everywhere: the record is left behind, reads RECLAIMABLE once its cycle
+    ends, and the next claim clears it. ``lanes.try_acquire_lane`` now refuses
+    to create the state at all; this is what happens when it is found anyway,
+    from a lock an older build left on disk.
+
     Args:
         root: The claim root, whose sibling holds the lane locks.
 
     Returns:
         The lane and its current run id, or None when this process is not
-        running inside any lane's worktree.
+        running inside exactly one lane's worktree.
     """
     here = _this_checkout()
+    matches: list[tuple[str, str]] = []
     for lane in lanes.LANES:
         try:
             reading = lanes.lane_state(lock_root(root), None, lane)
@@ -1081,9 +1080,10 @@ def running_cycle_here(root: Any = None) -> tuple[str, str] | None:
         run_id = lanes.str_or_none(reading.get("run_id"))
         if worktree is None or run_id is None:
             continue
-        if _same_tree(worktree, here):
-            return (lane, run_id)
-    return None
+        if lanes.same_tree(worktree, here):
+            matches.append((str(lane), run_id))
+    # EXACTLY ONE, OR NONE. Never the first of several - see above.
+    return matches[0] if len(matches) == 1 else None
 
 
 def _is_ours(record_path: Path, record: dict[str, Any], root: Any = None) -> bool:
@@ -1172,6 +1172,15 @@ def release_claim(token: Any, root: Any = None, **_retired_credentials: Any) -> 
     two, at the exact moment the prompt it is following has been edited under
     it. Retired credentials are accepted and IGNORED. Nothing decides anything
     on them, which is the whole point of deriving instead.
+
+    IGNORED IN BOTH DIRECTIONS, AND SILENTLY - stated because it surprises.
+    A caller passing a WRONG value is not refused: ``run_id='TOTALLY-WRONG'``
+    from the right tree releases, because the value is never read at all. That
+    is correct - the derivation decided, and it decided on the tree - but a
+    worker still following an older convention gets no signal that what it
+    passed was never consulted. There is deliberately no warning: a release runs
+    in a ``finally`` at the end of a cycle, and a diagnostic there is noise
+    nobody reads attached to the one call that must never fail.
 
     Args:
         token: What :func:`try_claim_row` handed back.
