@@ -33,6 +33,53 @@ Keep every entry to that shape. If an item needs a paragraph, it needs its own f
 the line becomes a pointer.
 
 ---
+## Session 88 - 2026-09-12 - five operator questions answered, and three artifacts refuted BEFORE they shipped rather than after
+
+- Shipped: CS-957 and CS-989 closed. CS-989 filed, granted and spent in one session. CS-945
+  measured but STILL OPEN - it wants an arm and this was a measurement. Six branches holding
+  single-copy work pushed to `origin`. CS position on the fleet refutation-cost consensus
+  DELIVERED to all four peers, gate CLEAN. Detail in `docs/LEDGER.md`, not here.
+- In flight: nothing. Working tree clean, suite 7105 passed / 7 skipped / 0 failed, drift
+  guard CLEAN with the one pre-existing `ROADMAP.md` budget WARN. Two builder worktrees
+  (`cs957-account-name`, `cs989-prepush`) are merged and prunable; `cs-lane-queue` is live
+  lane infrastructure and stays.
+- Decisions: no ADR. **New standing operator directive: do NOT ask the operator to authorise
+  a send or pick a direction - route a choice to an adjudicator or lane it through the sync
+  box; writing outbound is allowed, into the sync inboxes only.** Recorded in harness memory.
+- Surprises, and it is the session's substance. **THREE artifacts were refuted by an
+  adversarial pass BEFORE they were used, not after.** The CS-988 scoping document lost 7 of
+  8 claims; the outbound census lost 4 of 7 and would have published two wrong claims into a
+  fleet consensus; and the pre-push proposal's placement was too wide and would have created
+  a class of push running ZERO checks. All three refutations were cheap and all three landed
+  before the cost was paid. That is the shape the fleet lane is looking for.
+- Surprises, second: **CS-988's SCOPING DOCUMENT reproduced CS-988.** It argued its proposed
+  shared backstop had no narrowable knob, then mandated a per-module map of counts that is
+  exactly one, eleven modules deep. Fifth instance of the pattern and the first found in an
+  ANALYSIS rather than a repair - the class reaches prose about the class. **CS-988 was NOT
+  implemented; the cut line needs rework and building on a refuted scope was declined.**
+- Surprises, third: **a decayed record nearly bought a rebuild.** CS-957 arrived as a
+  BLOCKER; five of its six clauses were already shipped. Every NUMBER in its line re-derived
+  exactly - only re-grading the acceptance against the shipped tree exposed it. Its one live
+  residue was ROUTING, buried inside the false premise.
+- Surprises, fourth: two guards were reddened by THIS session's own docs commits, invisible
+  to the commit gate because it does not run the suite. A non-closure phrase not bound to its
+  id by name, and four line pointers at tracked Python modules in - of all things - the note
+  about record decay.
+- Failed paths, do not retry: pinning floors for CS-988 (the fence holds, now with a fifth
+  witness); the "free second derivation" of four identical `ls-files` spellings, which is
+  three copy-pasted spellings of ONE command and is the trap, not a win; and treating a
+  branch's `git cherry` reading as sufficient - patch-id is undefined for merge commits and
+  tree identity plus content presence is what decides.
+- **Measured and worth carrying: a pure-delete push now costs 0.56 s against an ordinary
+  push's 352.84 s (a LOWER BOUND - that run was blocked partway; the nearest honest full-run
+  figure is 623.38 s). The 7m46s / 7m00s / 7m31s figures from the session 87 handoff are
+  recorded in NO tracked file, are marked UNMEASURED, and must not be requoted.**
+- Next action: **CS-988's cut line, reworked against the refutation** - keep the arm counts,
+  the shortlist membership and the never-share-the-second-derivation ruling; discard the
+  six-site band, the shared backstop as specified, and the identical-argv second derivation.
+  Then CS-948, which is genuinely open and is the remaining half of the outbound path.
+
+---
 ## Session 87 - 2026-09-12 - twenty-one worktrees pruned, and one defect found four times, each instance made by the previous repair
 
 - Shipped: CS-929, CS-933, CS-987 closed. CS-964's seam merged and the item stays OPEN.
@@ -129,65 +176,3 @@ the line becomes a pointer.
   `clockspeed.save.world.WorldModel` WITH the property name attached, because a flat tuple of
   interiors cannot answer "which property held this" and the inventory join needs exactly
   that. `/api/map` serves an empty inventory until it lands.
-
-
-## Session 85 - 2026-09-11 - the operator asked for a map, and the save reader turned out to be the thing in the way
-
-- Shipped: CS-977 (the `/api/map` endpoint and the Map panel), CS-978 (the placement and
-  inventory models in `clockspeed/audit/`), CS-979 (extraction rates in the registry),
-  CS-980 (the `(14,60)` property tag grammar, plus the license gate that ran before it).
-  Detail in `docs/LEDGER.md`.
-- Filed: CS-981 (route the three items gated behind a gate that is now discharged) and
-  CS-982 (two flags bits pinned on almost no evidence).
-- In flight: nothing mid-edit. The tree is committed.
-
-- THE OPERATOR SUPPLIED GROUND TRUTH THAT REFUTED A DOCUMENTED GATE, AND THAT IS THE
-  SESSION. `docs/GATED.md` recorded under CS-G05 that a `(14,60)` save decodes zero
-  property tags and "cannot exercise the decoder at all - it is the CONTROL". The operator
-  showed a third-party interactive map rendering container contents out of a save on this
-  machine. Same file, same pair. The zero was real and reproduced on demand; the inference
-  from it was wrong. A save that decodes nothing under ONE grammar is not a save that
-  carries nothing. `CLAUDE.md` section 8 decided it: the probe wins, the gate is corrected.
-
-- Surprises: the wall was BOTH candidates at once, which is why neither alone closed it -
-  a lead byte the reader did not skip AND a tag grammar it did not know. Four readings were
-  driven against the whole population before one read every record with no breaks. A
-  plausible fix and a correct one look identical on a single record.
-
-- Surprises: an adversary was dispatched to refute the zero-properties finding and did not
-  refute it - but corrected its WORDING in the way that mattered. The finding had been
-  stated as a defect on the production dashboard path; it was neither path-specific nor
-  novel, and `docs/GATED.md` already held it. Being right about the fact and wrong about
-  its standing is the failure mode to watch for here.
-
-- Surprises: the built-class allowlist was seeded from the only `Build_*_C` spellings in
-  the tree, which came out of an ARCHIVED spike report - and three of those nine were the
-  only ones present in the operator's world. The map plotted 37 of 698 built actors. A
-  read-only census of the world's own classes fixed it to 68 across 15 classes, and what is
-  still skipped is counted and published rather than dropped.
-
-- Surprises: a REAL BROWSER found three defects that no arm could see, including one that
-  would have fired on every real save - the account-id leak detector matching the fractional
-  tail of a coordinate. Nothing had driven a browser at this page since session 78. The
-  instrument that worked was `tests/surface/audit_harness.py` over plain HTTP with
-  Playwright; the in-app browser pane cannot scroll - programmatic and synthetic scrolls
-  both leave `window.scrollY` at zero - so it can only ever screenshot the top viewport.
-
-- Failed paths: filtering the panel's warning explainer on the endpoint's own source. It
-  dropped exactly the warnings that explain an empty answer, because the emptiness and its
-  reason arrive from different layers. The endpoint deliberately does NOT remap a warning's
-  source; that field names the layer that flagged it.
-
-- Failed paths: a positional pin. The seam's network-detector baseline was
-  `PANEL_MODULES[0]`, ordered by `sorted()` over the server's asset names and stated
-  nowhere. A new panel module sorted ahead of it and took the baseline. The arm that caught
-  it was doing its job; the repair was to give the baseline a name.
-
-- Decisions: the license gate ran BEFORE any format knowledge was acted on and its verdicts
-  are in `docs/LEDGER.md`. The tool the operator demonstrated is the one source that may
-  NOT be read - no LICENSE file, private manifest, and a README forbidding reuse in any
-  case. Nothing was copied from anywhere; the grammar came from the bytes.
-
-- Next action: CS-981. Route CS-829, CS-830 and CS-831 out of `docs/GATED.md` now that
-  their condition is discharged, READING CS-829's fences first - inventory is three items
-  and not one, and an operator ruling was once obtained on the premise that it was one.

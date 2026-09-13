@@ -80,6 +80,71 @@ read as passes while the raw save was live in shipped frames. Filed in harness m
 
 ---
 
+## Session 85 - relocated from `WAKEUP_NOTES.md` 2026-09-12
+
+## Session 85 - 2026-09-11 - the operator asked for a map, and the save reader turned out to be the thing in the way
+
+- Shipped: CS-977 (the `/api/map` endpoint and the Map panel), CS-978 (the placement and
+  inventory models in `clockspeed/audit/`), CS-979 (extraction rates in the registry),
+  CS-980 (the `(14,60)` property tag grammar, plus the license gate that ran before it).
+  Detail in `docs/LEDGER.md`.
+- Filed: CS-981 (route the three items gated behind a gate that is now discharged) and
+  CS-982 (two flags bits pinned on almost no evidence).
+- In flight: nothing mid-edit. The tree is committed.
+
+- THE OPERATOR SUPPLIED GROUND TRUTH THAT REFUTED A DOCUMENTED GATE, AND THAT IS THE
+  SESSION. `docs/GATED.md` recorded under CS-G05 that a `(14,60)` save decodes zero
+  property tags and "cannot exercise the decoder at all - it is the CONTROL". The operator
+  showed a third-party interactive map rendering container contents out of a save on this
+  machine. Same file, same pair. The zero was real and reproduced on demand; the inference
+  from it was wrong. A save that decodes nothing under ONE grammar is not a save that
+  carries nothing. `CLAUDE.md` section 8 decided it: the probe wins, the gate is corrected.
+
+- Surprises: the wall was BOTH candidates at once, which is why neither alone closed it -
+  a lead byte the reader did not skip AND a tag grammar it did not know. Four readings were
+  driven against the whole population before one read every record with no breaks. A
+  plausible fix and a correct one look identical on a single record.
+
+- Surprises: an adversary was dispatched to refute the zero-properties finding and did not
+  refute it - but corrected its WORDING in the way that mattered. The finding had been
+  stated as a defect on the production dashboard path; it was neither path-specific nor
+  novel, and `docs/GATED.md` already held it. Being right about the fact and wrong about
+  its standing is the failure mode to watch for here.
+
+- Surprises: the built-class allowlist was seeded from the only `Build_*_C` spellings in
+  the tree, which came out of an ARCHIVED spike report - and three of those nine were the
+  only ones present in the operator's world. The map plotted 37 of 698 built actors. A
+  read-only census of the world's own classes fixed it to 68 across 15 classes, and what is
+  still skipped is counted and published rather than dropped.
+
+- Surprises: a REAL BROWSER found three defects that no arm could see, including one that
+  would have fired on every real save - the account-id leak detector matching the fractional
+  tail of a coordinate. Nothing had driven a browser at this page since session 78. The
+  instrument that worked was `tests/surface/audit_harness.py` over plain HTTP with
+  Playwright; the in-app browser pane cannot scroll - programmatic and synthetic scrolls
+  both leave `window.scrollY` at zero - so it can only ever screenshot the top viewport.
+
+- Failed paths: filtering the panel's warning explainer on the endpoint's own source. It
+  dropped exactly the warnings that explain an empty answer, because the emptiness and its
+  reason arrive from different layers. The endpoint deliberately does NOT remap a warning's
+  source; that field names the layer that flagged it.
+
+- Failed paths: a positional pin. The seam's network-detector baseline was
+  `PANEL_MODULES[0]`, ordered by `sorted()` over the server's asset names and stated
+  nowhere. A new panel module sorted ahead of it and took the baseline. The arm that caught
+  it was doing its job; the repair was to give the baseline a name.
+
+- Decisions: the license gate ran BEFORE any format knowledge was acted on and its verdicts
+  are in `docs/LEDGER.md`. The tool the operator demonstrated is the one source that may
+  NOT be read - no LICENSE file, private manifest, and a README forbidding reuse in any
+  case. Nothing was copied from anywhere; the grammar came from the bytes.
+
+- Next action: CS-981. Route CS-829, CS-830 and CS-831 out of `docs/GATED.md` now that
+  their condition is discharged, READING CS-829's fences first - inventory is three items
+  and not one, and an operator ruling was once obtained on the premise that it was one.
+
+---
+
 ## Session 83 - relocated from `WAKEUP_NOTES.md` 2026-09-12
 
 ## Session 83 - 2026-09-11 - the lane was armed and worked, and three claims made about other people's trees were wrong
