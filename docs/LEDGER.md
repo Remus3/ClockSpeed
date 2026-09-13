@@ -24,6 +24,162 @@ to `docs/history_notes.md`; they are never dropped.
 Newest entry goes directly under the `## Entries` heading. Each entry is:
 
 ```
+### 2026-09-13 - CS-1005 - CLOSED. The scope and the claim store were both correct and nothing in the driver path imported either
+
+**WHAT CHANGED.** `ops/loop/queue_loop.py` now binds the row a cycle works to the row the lane may
+work. `scope.lane_permit` computes the permitted ids BEFORE the cycle, so a cycle that closes its own
+row cannot read as out-of-scope. `ClaimWatch` samples inside the poll loop as well as after the wait,
+and the in-loop sample is load-bearing: a compliant worker releases at the wrap, so a post-cycle read
+learns nothing from exactly the cycles that behaved. Binding is by set membership, the verdict is
+written on every cycle, and the roll-up refuses `ok` when a row was worked outside the permit.
+
+**PROVEN BY.** `tests/ops/test_scope_binding.py::test_a_row_outside_the_permit_reaches_the_record_and_refuses_the_roll_up`,
+killed by four independent mutations including the checkout-local rooting that defeated two other
+slices today. Merged files: `ops/loop/queue_loop.py`, `ops/loop/scope.py`.
+
+**CLAIMS RATHER THAN COMMITS ARE THE SOURCE, and the reason is recorded so it is not simplified
+later:** a worker fast-forwards its tree, so a sibling lane's commits land in the same revision
+range. A claim record carries its lane; a commit does not.
+
+**WHAT REMAINS PROSE, stated as plainly as the defect was.** A cycle that never claims cannot be
+checked: it records itself unobserved and does NOT refuse `ok`. That clause was declined on
+measurement rather than omitted - no worker claims today, so taking it would report every cycle of
+every night unbound on the night it shipped. Filed as part of CS-1009's territory.
+
+### 2026-09-13 - CS-992 - CLOSED. A second lane can start, and one lane still excludes itself
+
+**WHAT CHANGED.** The roster carries more than one lane, the driver mutex name is DERIVED per lane
+rather than the box-wide constant, and the lock slot varies per lane. Merged files:
+`ops/loop/lanes.py`, `ops/loop/queue_loop.py`, `ops/loop/launch_queue_loop.ps1`.
+
+**PROVEN BY.** `tests/ops/test_multi_lane.py::test_a_roster_insertion_cannot_hide_a_live_holder`.
+The merger reproduced the pre-repair defect against the pre-repair candidate as a control - roster
+insertion made `lane_state` read FREE while a live worker held the slot, and a second claim
+succeeded - and the same probe on the repair reads RUNNING and refuses.
+
+**THREE DEFECTS WERE FOUND AND FIXED BEFORE THIS CLOSED, each worth its fence.** The first cut
+FOLDED lane names, so two distinct lanes collapsed onto one mutex - the defect the item exists to
+prevent, arriving through the sanitiser; closed with a digest of the raw name. The second keyed lock
+slots POSITIONALLY by roster index, so inserting a lane at the front re-pointed every slot; a lock is
+now resolved by the lane its payload RECORDS. And scoping the mutex by repo token introduced a SAFETY
+REGRESSION the acceptance never asked for - two clones at different paths got disjoint mutexes AND
+disjoint locks while both pointed at one checkout, which the old box-wide constant had prevented by
+accident. A box-wide guard keyed on the working directory alone now sits inside the per-lane one.
+
+**A CORRECTED CLAIM.** An arm named for driver exclusion asserted the OPPOSITE of Win32: mutex
+ownership is per-THREAD, so the same-thread nesting it measured was a statement about the stand-in,
+which is stricter than the primitive. It now runs over the real mutex on two threads.
+
+**UNVERIFIED, labelled rather than rounded up:** cross-PROCESS exclusion on the derived names.
+
+### 2026-09-13 - CS-994 - CLOSED. A lane can be pointed at a declared, validated subject
+
+**WHAT CHANGED.** `ops/loop/scope.py` computes the rows a lane may take from a declared scope in
+`config/lane_scopes.json`, re-graded against the live `ROADMAP.md`, `docs/GATED.md` and
+`docs/LEDGER.md` on EVERY read, so a hand-maintained id list cannot silently drift. A member that has
+closed, is gated, is a phase gate or is absent refuses loudly and names itself. The dashboard scope
+serves exactly its eight rows with the phase-6 gate row excluded, and the unscoped path now names
+what it fenced out instead of dropping it silently.
+
+**PROVEN BY.** `tests/ops/test_lane_scope.py::test_the_dashboard_scope_partitions_its_anchor_phase`
+and `::test_a_scope_naming_an_untakeable_id_refuses_and_names_it`. The merger verified all four
+refusal classes independently against a temp root with planted faults, fronted by a control proving
+the members were actually parsed.
+
+**THE FIRST CUT WAS INSTANCE ELEVEN OF CS-988 AND THE FENCE IS THE POINT.** An arm NAMED
+"is exactly the rows" asserted a subset plus a floor over the phase count. Narrowing the declaration
+from eight ids to two left the suite at 18 passed exit 0 while the lane served a quarter of its
+queue. **A floor was forbidden in that slice's brief BY NAME and it landed anyway** - which is the
+transferable finding: this class is not caught by knowing about it. The repair deletes the floor for
+a partition of the anchor phase plus a second pin in a different file, and the partition ALONE was
+measured insufficient.
+
+**ALSO CORRECTED.** The ledger closure reader matched space-separated ids only, so a comma-separated
+CLOSED heading matched nothing and left both rows takeable - degrading to SILENTLY OPEN, not to the
+loud refusal its own note claimed.
+
+### 2026-09-13 - CS-1000 - CLOSED. The lane completed exactly one row per launch, and the cause was not in the lane
+
+**WHAT CHANGED.** `ops/loop/queue_loop.py` and `ops/loop/lane_launcher.py` publish their by-path
+module load under the canonical dotted name, so one `lanes` module exists per process.
+
+**THE DIAGNOSIS, from the driver's own report file rather than from a read.** Across two independent
+nights cycle 1 completed both times and EVERY subsequent cycle failed in 2.1 to 3.2 s. The detached
+driver runs the script by path, so `ops/loop` is on `sys.path` and the repo root is not,
+`import ops.loop.lanes` fails, and the two files each fell back to a by-path load under a DIFFERENT
+private name - two module objects, two ownership maps. Cycle 1's re-point landed in one, the release
+consulted the other, refused, and the launcher killed the worker it had just spawned. That is why
+every failed log ended at the header with no exit line.
+
+**PROVEN BY.** `tests/ops/test_queue_lane_relaunch.py::test_two_consecutive_lane_cycles_both_reach_a_spawned_worker`.
+The merger confirmed with its own probe calling the real binders: two modules and two maps on the
+unfixed tree in both load orderings, one of each on the fix, with a control asserting the dotted
+import was genuinely unavailable.
+
+**A FILED CLAIM WAS FALSE AND IS CORRECTED RATHER THAN DROPPED.** CS-1000 was filed claiming the
+driver discards the launch reason code. That shipped in CS-970 1h40m BEFORE the last driver row, so
+the rows cited as evidence were written by stale code. A decayed artifact read as current behaviour.
+
+**UNVERIFIED:** no real second-night worker was spawned; the arm fakes the spawn seam.
+
+### 2026-09-13 - CS-991 - NOT A COMPLETION RECORD. CS-991 STAYS OPEN, BLOCKED ON CS-1009. The claim store is built and its headline claim is in doubt under real use
+
+**CS-991 STAYS OPEN and this entry does not close it.** Its acceptance says a row taken by one lane
+is not takeable by another FOR THE LIFE OF THAT CYCLE. CS-1009 questions exactly that: the store
+decides HELD against the pid recorded in the claim, and an LLM worker reaches python through a fresh
+subprocess per call, so the claiming process exits immediately and the record reads RECLAIMABLE from
+that moment. The arms pass; the calling convention may defeat them.
+
+**WHAT MERGED.** `ops/loop/claims.py` keys claims by the ROW ID, never by queue index, line number or
+slot - those reorder on every close, and a record keyed by one would re-point when a row above it
+closed. A claim is resolved by the row its payload RECORDS, not by its file name. Proven by
+`tests/ops/test_row_claim.py::test_a_second_lane_offered_the_same_queue_takes_a_different_row` and
+`::test_a_crashed_cycle_does_not_release_its_claim`, the latter using `os._exit` so no `finally`,
+`atexit` or `__exit__` runs.
+
+**THE FIRST CUT SHIPPED A DEFECT WORSE THAN NO FEATURE, and the arm that should have caught it
+assumed it away.** The store rooted itself at the importing FILE, and each lane's worker runs in its
+OWN checkout, so the two lanes read different directories and were structurally blind to each other -
+an adversary reproduced both lanes holding one row across two real processes. The arm written to
+prove exclusion had passed an explicit shared root, so it could never see a defect that IS the root.
+`lanes.REPO_ROOT` already resolved the indirection and the store now uses it. The merger verified
+from a REAL git worktree, which is stronger than the arm, whose checkouts are synthetic.
+
+**THE DRIVER-SIDE / WORKER-SIDE ASYMMETRY IS THE GENERAL LESSON** and is recorded in the module:
+driver-side state may use the checkout because the driver runs from the main tree; WORKER-side state
+may not, because each lane worker runs in its own worktree. Two independent slices got this wrong in
+one session.
+
+### 2026-09-13 - CS-988 - NOT A COMPLETION RECORD. NOTHING CLOSED. CS-988 STAYS OPEN. The criterion swept the whole population and the band is seventeen, not four
+
+**CS-988 STAYS OPEN.** The sweep is a measurement, not a repair, and the seventeen instances it
+confirms are unrepaired.
+
+**WHAT WAS MEASURED.** The settled criterion was applied ON DISK to all 193 file-and-name pairs, the
+population re-derived by an independent AST scan returning 193 across 49 files. Leg 1 compared
+collect-only counts: 93 reduced the arm count, 43 did not, 48 could not be sliced, 9 were deferred.
+Leg 2 ran 93 against a guard set derived per candidate. **SEVENTEEN instances, 32 DEFENDED, 44
+INDETERMINATE** - the last left unranked rather than argued into a band. Per-site detail is in
+`docs/item_notes/cs988-sweep-record.md`, a declared departure from one-leaf-per-phase recorded in the
+routing table.
+
+**THREE FINDINGS WORTH MORE THAN THE COUNT.** The four instances on file reproduce, but the two
+DERIVED ones reconcile only at an offset of one: the prior pass's narrowing kept TWO members and the
+record did not say so. The obvious grep for the guard population gets it BACKWARDS - an `open` audit
+shows six nominated modules read nine files or fewer while three it never nominated read all 143. And
+**the backstop grades NONE of the seventeen**: six of those modules carry an equality arm, but none
+is wired to the knob that moved, proven by the run rather than argued.
+
+**A WARNING THAT MUST NOT BE READ THE OTHER WAY.** Three DEFENDED verdicts rest on a non-emptiness
+floor over a two or three member knob, so they are defended BY ARITHMETIC rather than by design - the
+same guard over a five-member population would pass the narrowing in silence. Correct under the
+criterion, and NOT evidence that a floor works.
+
+**THE CLASS REACHED FIVE NEW INSTANCES THIS SESSION, all inside repairs built to catch it:** the
+backstop guard's loop breadth (eight), an expectation taken from the population's own expression
+(nine), a converse leg's breadth (ten), a scope arm named for an equality that asserted a subset plus
+a floor (eleven), and lock slots keyed positionally by roster index (twelve).
+
 ### 2026-09-13 - CS-993 - A FROZEN-FILE GRANT, GRANTED BY THE OPERATOR AND LEFT UNSPENT. Nothing was edited under it, and the reason is recorded so neither the grant nor the route it covers is re-pitched
 
 **CS-993 STAYS OPEN and this entry does not close it.** Its acceptance says two lanes cannot run a

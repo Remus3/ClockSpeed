@@ -173,7 +173,7 @@ def _reaped_pid() -> int:
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
     )
-    child.wait()
+    child.wait(timeout=_CHILD_TIMEOUT_S)
     return int(child.pid)
 
 
@@ -223,6 +223,7 @@ def _crash_after_claiming(tmp_path: Path, row: str, root: Path) -> tuple[bool, i
         capture_output=True,
         check=False,
         text=True,
+        timeout=_CHILD_TIMEOUT_S,
     )
     exited_as_told = done.returncode == CRASH_CODE
     assert exited_as_told, f"the child did not reach its crash - stderr was {done.stderr!r}"
@@ -302,6 +303,7 @@ def _probe_roots(checkout: Path) -> tuple[str, str]:
         capture_output=True,
         check=False,
         text=True,
+        timeout=_CHILD_TIMEOUT_S,
     )
     ran = done.returncode == 0
     assert ran, f"the root probe did not run - stderr was {done.stderr!r}"

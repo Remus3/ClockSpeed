@@ -33,6 +33,36 @@ Keep every entry to that shape. If an item needs a paragraph, it needs its own f
 the line becomes a pointer.
 
 ---
+## Session 89 - 2026-09-13 - the dashboard lane's five prerequisites, and five new instances of the class they were built to avoid
+
+- Shipped: CS-1000, CS-992, CS-994, CS-1005 CLOSED. CS-988's sweep landed as a measurement and the
+  item STAYS OPEN. CS-991 and CS-993 merged but STAY OPEN, each blocked on a residual its own slice
+  disclosed. Detail in `docs/LEDGER.md`, not here.
+- In flight: nothing. Tree clean. Eleven worktrees remain and are prunable except
+  `C:/cs-worktrees/cs-lane-queue`, which is live lane infrastructure.
+- Decisions: no ADR. **The operator granted the frozen-file exception on `.githooks/pre-push` and an
+  adjudicator ruled DENY on the EDIT, so the grant is recorded GRANTED AND UNSPENT** - the CS-972
+  shape on the same file. Two grounds: no wait ceiling is both useful and non-hanging, and the only
+  working mechanics move a tier-0 gate's exit-code fidelity into a non-frozen module.
+- Surprises, and it is the session's substance. **FIVE new instances of the CS-988 class were found,
+  every one of them inside a repair built to catch that class**, and one landed in a slice whose
+  brief forbade a floor BY NAME. The class is not caught by knowing about it. What caught all five
+  was measurement: narrow the knob, run the suite, watch it stay green.
+- Surprises, second: **two independent slices rooted worker-side state at the importing file**, so
+  each lane's worker read its own private store and the two lanes were structurally blind to each
+  other. One shipped a claim store where both lanes granted the same row. `lanes.REPO_ROOT` already
+  resolved the indirection and neither used it. The driver-side / worker-side asymmetry is now
+  recorded in the modules themselves.
+- Surprises, third: **an arm written to prove exclusion hardcoded the defect away** by passing the
+  very root the production path derives. Every arm was green, every mutation killed its target, and
+  the feature was inert in production.
+- Failed paths: the frozen-file edit (denied, grounds recorded); `PYTEST_ADDOPTS` injection to reach
+  the hook's pytest (fails open and silent); holding the suite ration across the whole worker cycle
+  (45:1 against the window it protects, and it would undo CS-992).
+- Next action: CS-1009. Establish whether a claim survives the exit of the process that made it.
+
+---
+
 ## Session 88 - 2026-09-12 - five operator questions answered, and three artifacts refuted BEFORE they shipped rather than after
 
 - Shipped: CS-957 and CS-989 closed. CS-989 filed, granted and spent in one session. CS-945
