@@ -48,6 +48,10 @@ the line becomes a pointer.
   authenticating it with a receipt (forgeable by any reader); and requiring a lock to prove its holder
   before anchoring a claim (inverts the item wherever a start time cannot be read, handing a live
   cycle's row to the other lane). None is to be retried.
+- Watch: CI is GREEN on main, but tier 1's duration gate is marginal - 470s and 493s on one
+  tree against a 480s ceiling, 360s in session 89. Filed as CS-1012 and UNATTRIBUTED: the
+  whole suite on this box is flat across the same delta, so the cost is runner-side. The
+  next commit of any size can flip that gate red on arrival. Do not raise the ceiling.
 - Next action: CS-1008 - `tests/test_queue_loop.py`'s `_drive` injects neither the permit seam nor the
   claim-states seam, so those arms read the LIVE store and flip non-deterministically against a real
   lane. It is tier 1 and it is the last thing reading live state in a suite.
