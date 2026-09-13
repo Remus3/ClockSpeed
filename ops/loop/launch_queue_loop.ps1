@@ -13,7 +13,16 @@
 param(
   [int]$Cycles = 12,
   [int]$Settle = 45,
-  [string]$Log  = "$PSScriptRoot\reports\queue_loop.log",
+  # WHICH LANE. Empty means "the driver's own default", and that is deliberate:
+  # a lane name spelled here would be a second copy of queue_loop.LANE, and two
+  # copies of one fact is the drift CLAUDE.md section 4 exists to stop. The
+  # driver refuses a lane that is not on its roster, so a typo fails loudly
+  # there rather than silently here.
+  [string]$Lane = "",
+  # Empty means "derive it from the lane" - see the block below the param list,
+  # which is where it is computed because a param default cannot see another
+  # param reliably enough to bet a whole night on.
+  [string]$Log  = "",
   # See the sentinel pre-check below. -Force starts the driver over a stop file
   # that is already present; it does NOT override the driver's own check.
   [switch]$Force,
@@ -23,6 +32,17 @@ param(
   [switch]$NoCiGate,
   [switch]$LocalSuite
 )
+# ONE LOG PER LANE, and this is a real collision rather than tidiness.
+# Start-Process TRUNCATES its redirect target at every launch, so a second lane
+# pointed at one file erases the first lane's log the moment it starts - and the
+# first driver's handle stays open on a file nobody can read any more. The
+# durable record is the JSONL ledger either way; this is the human tail.
+if (-not $Log) {
+  $suffix = ""
+  if ($Lane) { $suffix = "-$Lane" }
+  $Log = Join-Path $PSScriptRoot "reports\queue_loop$suffix.log"
+}
+
 $ErrorActionPreference = "Stop"   # unlike run_lane.ps1: nothing here is long-lived
                                   # enough to ride out a fault, and a launcher that
                                   # half-worked must fail loudly at the prompt.
@@ -77,6 +97,11 @@ if (-not (Test-Path $driver)) { throw "driver not found: $driver" }
 # The same relative paths as queue_loop.STOP_RELPATHS, in the same order.
 # tests/test_launch_queue_loop.py asserts that correspondence, because two
 # copies of one list is exactly the drift CLAUDE.md section 4 is about.
+#
+# THESE ARE BOX-WIDE AND NOT PER-LANE, said plainly rather than discovered at
+# 3am: any one of them refuses EVERY lane, whatever -Lane was asked for. A
+# per-lane sentinel is a separate change - it moves STOP_RELPATHS, which this
+# list is pinned against.
 $sentinels = @(
   (Join-Path $PSScriptRoot "control\STOP"),
   (Join-Path $PSScriptRoot "control\lanes\QUEUE_STOP"),
@@ -126,6 +151,9 @@ $errLog = "$Log.err"
 # this latent rather than absent - and a latent version of a measured failure is
 # still that failure.
 $argList = @("`"$driver`"", "--cycles", $Cycles, "--settle", $Settle)
+# QUOTED for the same measured reason as the driver path above, and forwarded
+# only when it was asked for, so the driver's own default stays the one answer.
+if ($Lane)       { $argList += @("--lane", "`"$Lane`"") }
 if ($NoCiGate)   { $argList += "--no-ci-gate" }
 if ($LocalSuite) { $argList += "--local-suite" }
 
@@ -136,7 +164,8 @@ $proc = Start-Process -FilePath $py -ArgumentList $argList `
 
 # THE BANNER IS UNREACHABLE FROM THE REFUSAL PATH ABOVE - the `exit 2` returns
 # before it. That ordering is the property, and it is what the guard asserts.
-"queue-loop driver started pid=$($proc.Id) cycles=$Cycles settle=$Settle"
+$laneSaid = if ($Lane) { $Lane } else { "the driver's default" }
+"queue-loop driver started pid=$($proc.Id) lane=$laneSaid cycles=$Cycles settle=$Settle"
 "  log:    $Log"
 "  errlog: $errLog"
 "  ledger: $(Join-Path $PSScriptRoot 'reports\queue_loop.jsonl')"

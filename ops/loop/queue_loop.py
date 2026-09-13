@@ -144,8 +144,17 @@ EXIT_UNKNOWN_STOP. A `.get(stopped, EXIT_OK)` made that set implicitly infinite,
 so a hard stop copied from the `timeout_kill_failed` block - which already
 assigns a word that is not a `STOPPED_BY_*` constant - would have exited 0.
 
-ONE DRIVER PER BOX. The lane lock stops two WORKERS, not two DRIVERS. A named
-mutex held for the process lifetime is the guard.
+ONE DRIVER PER LANE, NOT ONE PER BOX. The lane lock stops two WORKERS, not two
+DRIVERS - a driver claims and releases that lock once per cycle and is otherwise
+idle, so it is invisible to the lock for most of its life. A named mutex held for
+the process lifetime is the guard, and its NAME IS DERIVED FROM THE LANE by
+`driver_mutex`. A constant here was the defect: it refused every second driver
+whatever lane it was asked for, so a second lane could not start at all, and the
+refusal was indistinguishable from the one that protects a lane from itself. A
+hand-written second constant is not the fix either - the roster is the only place
+a lane is declared, and a name list beside it goes stale on the first edit that
+forgets it. The name also carries THIS CHECKOUT's identity, because a named mutex
+is a machine-wide object and this box runs sibling projects.
 
 STOP IS THREE FILES, CHECKED BEFORE EVERY CYCLE INCLUDING THE FIRST. A driver
 that only checks between cycles fires one unwanted worker on every start, and
@@ -161,6 +170,8 @@ from __future__ import annotations
 
 import argparse
 import contextlib
+import functools
+import hashlib
 import importlib
 import importlib.util
 import json
@@ -440,7 +451,25 @@ _NO_WINDOW = 0x08000000 if os.name == "nt" else 0  # CREATE_NO_WINDOW
 #: Two names, never one. The driver mutex is held for the WHOLE run, so an
 #: append taken under that same name would block every other appender for the
 #: length of the night - correct-looking and useless.
-DRIVER_MUTEX = "Global\\CS_QUEUE_LOOP_DRIVER"
+#:
+#: THE DRIVER'S NAME IS DERIVED PER LANE BY `driver_mutex` AND IS NOT A CONSTANT.
+#: A second hand-written constant per lane is the defect this replaced, not the
+#: fix: the roster is the only place a lane is declared, and a name list beside
+#: it goes stale the first time somebody adds a lane and forgets the second
+#: edit. This stem is the part every lane shares.
+DRIVER_MUTEX_STEM = "CS_QUEUE_LOOP_DRIVER"
+#: Everything a mutex name may not carry past its namespace prefix, folded to
+#: one replacement - see `_lane_token` on why a digest rides along behind it.
+_MUTEX_UNSAFE = re.compile(r"[^A-Za-z0-9]")
+#: Digest widths. Long enough that a collision is not a real risk, short enough
+#: that an operator can read a mutex name in a log line.
+_TOKEN_HEX = 12
+_TOKEN_HEX_SHORT = 8
+#: LANE-INDEPENDENT ON PURPOSE, and this is a ruling rather than an omission.
+#: Every lane's driver appends to ONE ledger file, so the append has to be
+#: serialised across lanes as well as across drivers. Deriving this name per
+#: lane would let one lane's append interleave with another's inside a single
+#: row - the unparseable half-line at 3am that the mutex exists to prevent.
 LEDGER_MUTEX = "Global\\CS_QUEUE_LOOP_LEDGER"
 #: The ledger append is a few hundred bytes; this is a wedged holder, not a busy
 #: one. On timeout the append proceeds UNSERIALIZED and says so.
@@ -494,7 +523,7 @@ STOPPED_BY_NO_PROGRESS = "no_progress"
 #: task can only tell "ran the night" from "refused to start" by the number.
 EXIT_OK = 0
 EXIT_STOP_SENTINEL = 2  # zero cycles because a stop file was already there
-EXIT_ALREADY_RUNNING = 3  # another driver holds DRIVER_MUTEX
+EXIT_ALREADY_RUNNING = 3  # another driver already holds THIS LANE's driver mutex
 EXIT_KILL_FAILED = 4  # a worker outlived its taskkill - worktree suspect
 EXIT_CONSECUTIVE_ERRORS = 5  # the same fault repeated until the loop gave up
 EXIT_CI_RED = 6  # a gating CI job went red on a pushed sha
@@ -796,14 +825,86 @@ def _emit(line: str) -> None:
     print(line, flush=True)
 
 
-def _driver_singleton():
-    """Hold DRIVER_MUTEX for the whole run, or raise MutexTimeout immediately.
+def _repo_token() -> str:
+    """A short, stable identity for THIS checkout, spelled as a digest.
+
+    A NAMED MUTEX IS A MACHINE-WIDE OBJECT and several projects run on this box,
+    so a name has to be unique to the checkout as well as to the lane. The
+    identity is DIGESTED rather than spelled: a checkout under a home directory
+    would otherwise write the Windows account name into an object any process
+    can enumerate, which CLAUDE.md non-negotiable 3 forbids outright.
+
+    The main tree is the identity even when the driver is started from a
+    worktree - `lanes.REPO_ROOT` already resolves that indirection - so two
+    drivers started from two worktrees of one checkout still exclude.
+
+    Returns:
+        The identity token.
+    """
+    root = os.path.normcase(os.path.normpath(str(_mod("lanes").REPO_ROOT)))
+    return hashlib.sha256(root.encode("utf-8")).hexdigest()[:_TOKEN_HEX]
+
+
+def _lane_token(lane: str) -> str:
+    """One lane's half of a mutex name - readable, and INJECTIVE.
+
+    A mutex name may not carry a backslash past its namespace prefix, so the
+    lane is folded to an identifier-safe spelling. FOLDING ALONE IS A COLLAPSE
+    RISK: every character the fold replaces maps to the same one, so a roster
+    holding two lanes differing only in such a character would land both on a
+    single name - the defect this item removes, arriving by the back door. The
+    digest of the RAW lane is appended so distinct lanes stay distinct whatever
+    the fold did.
+
+    NO ROSTER CHECK HERE, deliberately. Refusing an unknown lane is the lock's
+    ruling and it makes it in one place with one message; naming a mutex for a
+    lane that will then be refused costs nothing and keeps this a pure function.
+
+    Args:
+        lane: The lane name.
+
+    Returns:
+        The lane's token.
+    """
+    text = str(lane)
+    folded = _MUTEX_UNSAFE.sub("_", text)
+    return f"{folded}_{hashlib.sha256(text.encode('utf-8')).hexdigest()[:_TOKEN_HEX_SHORT]}"
+
+
+def driver_mutex(lane: str) -> str:
+    """The name the driver of one lane is a singleton under.
+
+    DERIVED, NEVER RESTATED. A hand-written constant per lane is the defect this
+    replaced: the roster is the only place a lane is declared, and a second list
+    beside it goes stale the first time somebody adds a lane and makes one edit.
+
+    Args:
+        lane: The lane being driven.
+
+    Returns:
+        The mutex name, in the machine-wide namespace.
+    """
+    return f"Global\\{DRIVER_MUTEX_STEM}_{_repo_token()}_{_lane_token(lane)}"
+
+
+def _driver_singleton(lane: str):
+    """Hold the LANE's driver mutex for the whole run, or raise at once.
+
+    ONE DRIVER PER LANE, not one per box. The lane lock stops two WORKERS; this
+    stops two DRIVERS of the same lane, which the lock cannot see because a
+    driver claims and releases the lock once per cycle and is otherwise idle.
 
     `timeout=0` makes this a TEST rather than a wait. A second driver must exit
     at once with a distinct code; queueing it behind the first for six hours
     would start a run nobody asked for, at a time nobody chose.
+
+    Args:
+        lane: The lane being driven.
+
+    Returns:
+        The context manager held for the whole run.
     """
-    return _mod("winmutex").hold(DRIVER_MUTEX, timeout=0.0, log=_emit)
+    return _mod("winmutex").hold(driver_mutex(lane), timeout=0.0, log=_emit)
 
 
 def _ledger_lock():
@@ -2406,7 +2507,9 @@ def main(argv=None, *, singleton=None) -> int:
     cycle_log = None if args.reports_dir is None else Path(args.reports_dir) / CYCLE_LOG.name
     control_dir = None if args.control_dir is None else Path(args.control_dir)
 
-    guard = _driver_singleton if singleton is None else singleton
+    # THE LANE IS BOUND INTO THE GUARD, not read inside it, so the injected
+    # seam stays the zero-argument callable every existing caller passes.
+    guard = functools.partial(_driver_singleton, args.lane) if singleton is None else singleton
     try:
         with guard():
             summary = run_loop(
@@ -2427,10 +2530,15 @@ def main(argv=None, *, singleton=None) -> int:
         # symptom of two drivers is invisible at a glance: both survive, both
         # look busy, and each spends up to ten minutes per cycle losing the
         # acquire race to the other while their rows interleave in one ledger.
+        #
+        # THE NAME IS THE LANE'S OWN, so the refusal says WHICH lane is already
+        # driven rather than implying the box is busy - a driver on another lane
+        # is unaffected and must not be stopped on the strength of this line.
         _emit(
-            f"queue-loop refused: another driver already holds {DRIVER_MUTEX}. "
-            f"Two drivers interleave on the lane lock and append to one "
-            f"ledger. Stop that one first: taskkill /F /T /PID <pid>"
+            f"queue-loop refused: another driver already holds "
+            f"{driver_mutex(args.lane)} for lane {args.lane!r}. Two drivers on "
+            f"one lane interleave on its lock and append to one ledger. Stop "
+            f"that one first: taskkill /F /T /PID <pid>"
         )
         return EXIT_ALREADY_RUNNING
 

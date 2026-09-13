@@ -206,11 +206,27 @@ def _acquire(root: Path, worktree: Path, run_id: str = RUN_ID) -> dict[str, Any]
 # ===========================================================================
 
 
-def test_the_roster_carries_the_queue_lane_and_a_single_slot() -> None:
+def test_the_roster_carries_the_queue_lane_and_one_slot_for_each_lane() -> None:
+    """CS-992 widened this from a single slot to one slot per lane.
+
+    THE WIDTH IS DERIVED AND GRADED BY EQUALITY, never by a floor. A floor over
+    the roster or the bucket grades the bottom of a range, so a roster that had
+    silently lost a lane - or a ``lock_name`` that had collapsed every lane onto
+    one file - would still satisfy it. The second enumeration here is the set of
+    names ``lock_name`` actually produces, which is the mechanism the lock uses
+    rather than the arithmetic ``MAX_SLOTS`` comes from.
+    """
     wired = "queue" in lanes.LANES
     assert wired, "the queue lane is the roster's reason to exist"
-    assert lanes.MAX_SLOTS == ONE
-    assert lanes.LOCK_NAME == "0.lock"
+    slots = {lanes.lock_name(lane) for lane in lanes.LANES}
+    counted = (lanes.MAX_SLOTS, len(slots))
+    assert counted == (len(lanes.LANES), len(lanes.LANES))
+    # The upstream bucket names slot i ``<i>.lock``, and the roster's first lane
+    # is the one a caller naming no lane gets. ``tests/test_lane_launcher.py``
+    # reads LOCK_NAME as the queue lane's own lock, so both halves are contract.
+    named = (lanes.LOCK_NAME, lanes.DEFAULT_LANE)
+    expected = ("0.lock", lanes.LANES[0])
+    assert named == expected
 
 
 def test_the_module_docstring_does_not_recite_the_size_of_the_roster() -> None:
@@ -565,13 +581,13 @@ def test_the_exclusive_create_refuses_a_lock_that_already_exists(tmp_path: Path)
     """
     root = tmp_path / "lanes"
     _write_lock(root, _payload())
-    taken = lanes._exclusive_create(root, _payload())  # noqa: SLF001 - under test
+    taken = lanes._exclusive_create(root, "queue", _payload())  # noqa: SLF001 - under test
     assert taken is None
 
 
 def test_the_exclusive_create_makes_the_lock_when_the_lane_is_free(tmp_path: Path) -> None:
     root = tmp_path / "lanes"
-    taken = lanes._exclusive_create(root, _payload())  # noqa: SLF001 - under test
+    taken = lanes._exclusive_create(root, "queue", _payload())  # noqa: SLF001 - under test
     made = taken is not None and taken.name == lanes.LOCK_NAME
     assert made, "the exclusive create did not make the lock on a free lane"
 

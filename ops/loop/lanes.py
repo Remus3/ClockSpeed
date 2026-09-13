@@ -30,6 +30,16 @@ this repository, the two primitives are local, and no upstream file is read,
 imported or edited. See ``ops/loop/winmutex.py`` for the other half of the
 ruling, which came out the other way and is a declared FORK.
 
+ONE SLOT PER LANE, AND THE SLOT IS DERIVED FROM THE ROSTER. ``lock_name`` places
+a lane at ``<slot>.lock`` by its position in ``LANES``, so widening the roster
+widens the bucket with it and no second constant has to be remembered. THE
+SHARED-SLOT SHAPE IS THE DEFECT THIS REPLACES: a guard taken per lane over ONE
+shared lock file is worse than either half by itself, because the guards wave
+every lane through while the file quietly serialises them, and each holder
+believes it owns something another holder also believes it owns. A lane off the
+roster gets no slot at all rather than the default one - handing a typo the
+first lane's lock would claim a running worker's slot.
+
 WHY THREE STATES AND NOT TWO. A lock file whose pid is DEAD is indistinguishable
 from a live holder by file inspection alone: it has the same name, the same
 shape and a plausible timestamp. Every reader that treats EXISTENCE as RUNNING
@@ -118,12 +128,65 @@ def _main_tree_root(root: Path | None = None) -> Path:
 REPO_ROOT = _main_tree_root()
 
 #: The roster. Its size is not written anywhere but here.
-LANES = ("queue",)
+LANES = ("queue", "queue-b")
 
-#: One holder at a time. The upstream bucket names slot i ``<i>.lock``, so at
-#: this width there is only slot 0 and LOCK_NAME is that name.
-MAX_SLOTS = 1
-LOCK_NAME = "0.lock"
+
+def slot_index(lane: Any) -> int:
+    """The slot a lane owns, DERIVED from its position on the roster.
+
+    A ROSTER MEMBER IS NOT A DEFAULT. An unrecognised lane raises rather than
+    answering slot 0: a typo handed the first lane's own lock would claim a
+    running worker's slot, and a caller that cannot spell its lane has no
+    business holding anything.
+
+    Args:
+        lane: The lane to place.
+
+    Returns:
+        Its slot index.
+
+    Raises:
+        ValueError: The lane is not on the roster.
+    """
+    try:
+        return LANES.index(str(lane))
+    except ValueError:
+        message = f"unknown lane {lane!r} - valid lanes are {', '.join(LANES)}"
+        raise ValueError(message) from None
+
+
+def lock_name(lane: Any) -> str:
+    """The lock file one lane holds. The upstream bucket names slot i ``<i>.lock``.
+
+    ONE FILE PER LANE IS THE WHOLE MUTEX. A per-lane guard layered over a
+    SHARED slot file is worse than either half alone: the guards wave both
+    lanes through while the file serialises them, so each lane believes it
+    holds something the other also believes it holds.
+
+    Args:
+        lane: The lane.
+
+    Returns:
+        The lock's file name.
+
+    Raises:
+        ValueError: The lane is not on the roster.
+    """
+    return f"{slot_index(lane)}.lock"
+
+
+#: One holder per lane, so the width IS the roster's. DERIVED rather than
+#: restated: a number written beside the tuple it counts is a number that drifts
+#: the moment the tuple changes (CLAUDE.md section 4).
+MAX_SLOTS = len(LANES)
+
+#: THE LANE A CALLER THAT NAMES NONE GETS, and it is stated rather than implied.
+#: The poll path predates the roster's widening and a required argument here
+#: would have been a silent behaviour change for every existing reader. A reader
+#: that cares which lane it is looking at must SAY so - see ``lane_states`` for
+#: the whole-roster answer.
+DEFAULT_LANE = LANES[0]
+LOCK_NAME = lock_name(DEFAULT_LANE)
 
 #: Inside this repository, deliberately - see the DERIVED FROM note above on
 #: why joining the shared machine-wide bucket was refused.
@@ -339,18 +402,22 @@ def _resolve_root(root: Any) -> Path:
     return DEFAULT_ROOT if root is None else Path(root)
 
 
-def lock_path(root: Any = None) -> Path:
-    """Where the single lane lock lives.
+def lock_path(root: Any = None, lane: Any = None) -> Path:
+    """Where one lane's lock lives.
 
     Read-only helper - it creates nothing, so it is safe on the poll path.
 
     Args:
         root: The lock root, or None for the default.
+        lane: The lane, or None for ``DEFAULT_LANE``.
 
     Returns:
         The lock's path.
+
+    Raises:
+        ValueError: The lane is not on the roster.
     """
-    return _resolve_root(root) / LOCK_NAME
+    return _resolve_root(root) / lock_name(DEFAULT_LANE if lane is None else lane)
 
 
 def _read_payload(lock: Path) -> dict[str, Any]:
@@ -380,8 +447,8 @@ def _read_payload(lock: Path) -> dict[str, Any]:
 # ---------------------------------------------------------------------------
 
 
-def lane_state(root: Any = None, now: Any = None) -> dict[str, Any]:
-    """FREE, RUNNING or RECLAIMABLE for the lane lock. NEVER mutates anything.
+def lane_state(root: Any = None, now: Any = None, lane: Any = None) -> dict[str, Any]:
+    """FREE, RUNNING or RECLAIMABLE for one lane's lock. NEVER mutates anything.
 
     RECLAIMABLE means a lock file is present but its holder is provably gone. It
     is REPORTED, not acted on: clearing it is ``try_acquire_lane``'s job, for
@@ -391,11 +458,18 @@ def lane_state(root: Any = None, now: Any = None) -> dict[str, Any]:
         root: The lock root, or None for the default.
         now: The wall clock reading to age the lock against. Injected so an
             ageing arm never has to sleep.
+        lane: The lane to read, or None for ``DEFAULT_LANE``. A reader covering
+            the whole roster wants ``lane_states`` instead - asking for one lane
+            and reading the answer as "the lane" is how a widened roster goes
+            unnoticed.
 
     Returns:
         The state, the holder it read, and the lock's age in seconds.
+
+    Raises:
+        ValueError: The lane is not on the roster.
     """
-    lock = lock_path(root)
+    lock = lock_path(root, lane)
     reading = time.time() if now is None else float(now)
     if not lock.exists():
         return {
@@ -436,6 +510,24 @@ def lane_state(root: Any = None, now: Any = None) -> dict[str, Any]:
     return answer
 
 
+def lane_states(root: Any = None, now: Any = None) -> dict[str, dict[str, Any]]:
+    """Every lane on the roster and its state. NEVER mutates anything.
+
+    THE WHOLE-ROSTER READ, so a dashboard or a driver never has to know the
+    roster's width to poll it. Deriving the population here rather than at each
+    caller is what stops a widened roster from being invisible to a reader that
+    asked about one lane and rendered the answer as "the lane".
+
+    Args:
+        root: The lock root, or None for the default.
+        now: The wall clock reading to age the locks against.
+
+    Returns:
+        A mapping of lane to the state ``lane_state`` reports for it.
+    """
+    return {lane: lane_state(root, now, lane) for lane in LANES}
+
+
 # ---------------------------------------------------------------------------
 # Acquire and release
 # ---------------------------------------------------------------------------
@@ -469,16 +561,17 @@ def _require_worktree(worktree: Any) -> Path:
     return path
 
 
-def _exclusive_create(root: Any, payload: dict[str, Any]) -> Path | None:
+def _exclusive_create(root: Any, lane: Any, payload: dict[str, Any]) -> Path | None:
     """Create the lock, or answer None because somebody else already holds it.
 
     ``O_CREAT|O_EXCL`` rather than the tmp-plus-replace this module uses for
     every other write: EXCLUSIVITY IS THE MUTEX, and a replace cannot be
-    exclusive. DERIVED from the sibling projects' shared bucket at a single
-    slot - see the module docstring on why it is not imported.
+    exclusive. DERIVED from the sibling projects' shared bucket - see the module
+    docstring on why it is not imported.
 
     Args:
         root: The lock root.
+        lane: The lane claiming, which decides WHICH slot is created.
         payload: The holder record to write into the lock.
 
     Returns:
@@ -486,7 +579,7 @@ def _exclusive_create(root: Any, payload: dict[str, Any]) -> Path | None:
     """
     directory = Path(root)
     directory.mkdir(parents=True, exist_ok=True)
-    lock = directory / LOCK_NAME
+    lock = directory / lock_name(lane)
     try:
         handle = os.open(str(lock), os.O_CREAT | os.O_EXCL | os.O_WRONLY)
     except OSError:
@@ -536,19 +629,22 @@ def _atomic_write(target: Path, data: bytes) -> bool:
     return False
 
 
-def _reclaim(root: Path) -> bool:
+def _reclaim(root: Path, lane: Any) -> bool:
     """Clear a lock whose holder is provably gone. Never touches a live one.
 
     Args:
         root: The lock root.
+        lane: The lane whose slot is being reclaimed. THE SLOT IS PART OF THE
+            DECISION: reclaiming by root alone would clear the default lane's
+            lock whichever lane asked, which is a live worker's lock.
 
     Returns:
         True when the lane is free afterwards.
     """
-    lock = lock_path(root)
+    lock = lock_path(root, lane)
     if not lock.exists():
         return True
-    if lane_state(root)["state"] != RECLAIMABLE:
+    if lane_state(root, None, lane)["state"] != RECLAIMABLE:
         return False
     _remove_quietly(lock)
     return not lock.exists()
@@ -583,17 +679,15 @@ def try_acquire_lane(lane: str, *, run_id: Any, worktree: Any, root: Any = None)
         ValueError: The lane is unknown, or the worktree is absent or the main
             tree.
     """
-    if lane not in LANES:
-        message = f"unknown lane {lane!r} - valid lanes are {', '.join(LANES)}"
-        raise ValueError(message)
+    slot_index(lane)  # ROSTER CHECK, raising the one message for an unknown lane
     target = _require_worktree(worktree)
     directory = _resolve_root(root)
 
-    state = lane_state(directory)
+    state = lane_state(directory, None, lane)
     if state["state"] == RUNNING:
         return _refusal(state)
     if state["state"] == RECLAIMABLE:
-        _reclaim(directory)
+        _reclaim(directory, lane)
 
     payload: dict[str, Any] = {
         "pid": os.getpid(),
@@ -608,10 +702,10 @@ def try_acquire_lane(lane: str, *, run_id: Any, worktree: Any, root: Any = None)
         # tolerance and is wrong in both directions.
         "pid_started": proc_started(os.getpid()),
     }
-    token = _exclusive_create(directory, payload)
+    token = _exclusive_create(directory, lane, payload)
     if token is None:
         # Lost a race between the read above and the exclusive create.
-        return _refusal(lane_state(directory))
+        return _refusal(lane_state(directory, None, lane))
     _OWNED[_key(token)] = (payload["run_id"], payload["ts"], payload["pid"])
     return {
         "ok": True,
