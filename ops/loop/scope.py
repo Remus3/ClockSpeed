@@ -156,6 +156,15 @@ CONTRADICTED = "in_items_and_excluded"
 STALE_EXCLUSION = "excluded_but_not_a_takeable_anchor_row"
 UNCLASSIFIED = "anchor_phase_row_neither_member_nor_excluded"
 
+#: The three ways the row a cycle WORKED fails to bind to the rows its lane was
+#: PERMITTED to work - see :func:`binding_fact`. These strings are written into
+#: the cycle record and read by an operator at 3am, so they are the vocabulary
+#: of the refusal rather than internal tags, and each one sends a reader
+#: somewhere different: to the declaration, to the worker log, to the prompt.
+UNCOMPUTED = "the_lanes_takeable_rows_could_not_be_computed"
+OUT_OF_SCOPE = "a_row_this_lane_may_not_take"
+UNNAMED = "the_cycle_committed_while_claiming_no_row"
+
 #: A scope declaration whose file is missing, unreadable or malformed answers
 #: nothing rather than guessing - and a lane pointed at a scope then refuses,
 #: because an unknown name is a refusal.
@@ -658,6 +667,152 @@ def takeable_rows(
         ScopeRefusedError: The lane is pointed at a scope that cannot be honoured.
     """
     return rows_for_scope(lanes.scope_for_lane(lane, env), root)
+
+
+def lane_permit(lane: str, root: Any = None, env: dict[str, str] | None = None) -> dict[str, Any]:
+    """What this lane is ALLOWED to work, as a fact that NEVER raises.
+
+    THE SAME ANSWER ``takeable_rows`` GIVES, TURNED INTO A ROW OF A LEDGER. The
+    driver computes this BEFORE it launches a worker and carries it across the
+    cycle, and that ordering is load-bearing rather than incidental: a cycle that
+    CLOSES its row removes that row from `ROADMAP.md`, so a permit recomputed
+    after the cycle would report the row the worker just finished as one it was
+    never allowed to take. The permit is what the lane could take when it
+    started.
+
+    A REFUSAL IS A PERMIT TO TAKE NOTHING, NOT A PERMIT TO TAKE ANYTHING. The
+    refusal is carried as ``ok`` plus the refusal's own ``detail`` field, which
+    is what a caller renders - never the exception object, whose ``str()`` on an
+    OSError appends the path it failed on (CLAUDE.md non-negotiable 12).
+
+    Args:
+        lane: The lane name, from ``ops.loop.lanes.LANES``.
+        root: Repository root, or None for the checkout this module lives in.
+        env: The environment to read the lane's scope pointer from, or None for
+            the live process environment.
+
+    Returns:
+        ``{"ok", "lane_scope", "allowed", "detail"}``. ``allowed`` is a tuple of
+        row ids in `ROADMAP.md`'s own order, EMPTY when ``ok`` is false.
+    """
+    try:
+        rows = takeable_rows(lane, root, env)
+    except ScopeRefusedError as refused:
+        return {
+            "ok": False,
+            "lane_scope": refused.scope_name,
+            "allowed": (),
+            "detail": refused.detail,
+        }
+    return {
+        "ok": True,
+        "lane_scope": lanes.scope_for_lane(lane, env),
+        "allowed": tuple(row.item_id for row in rows),
+        "detail": "",
+    }
+
+
+def binding_fact(permit: Any, worked: Any, *, committed: bool = False) -> dict[str, Any]:
+    """Bind the rows a cycle WORKED to the rows its lane was PERMITTED to work.
+
+    THIS IS THE MECHANISM THE PROMPT'S OWN STANDARD ASKS FOR. `tools/headless-queue.md`
+    section 1 says an instruction a worker can rationalize past is not a
+    mechanism; until this existed, the only thing joining the computed queue to
+    the row a worker took was the worker's own reading of printed text. Nothing
+    here is authored by the worker: the permit is computed from the docs and the
+    worked set is observed from the claim store by the driver.
+
+    MEMBERSHIP, NEVER A COUNT. The answer is a set difference and a set
+    difference only. A floor over the size of the permitted set would be
+    satisfied by its strongest member while the weakest went unmeasured - the
+    CS-988 class, twelve instances of which are measured in this repository -
+    and would pass a lane permitted one row that worked a different one.
+
+    ANY row outside refuses the whole cycle. Grading the first row, or the
+    majority, would let an out-of-scope row travel behind an in-scope one.
+
+    THE FOUR ANSWERS ARE DISTINCT ON PURPOSE, because they send a reader to four
+    different files:
+
+    - UNCOMPUTED - the permit itself was refused, so nothing was checked. Not
+      bound, because a check that did not happen is not a check that passed.
+    - OUT_OF_SCOPE - a row was worked that this lane may not take.
+    - UNNAMED - the cycle produced a commit while holding no claim, so there was
+      NOTHING TO CHECK. This is an observation gap and it is recorded as one:
+      ``observed`` is false and the reason names it, so a reader can count the
+      nights this lane never claimed a row. It does NOT refuse the roll-up, and
+      that boundary is deliberate rather than lenient - see the residual below.
+    - Bound, with no reason - either every worked row is permitted, or the cycle
+      worked nothing and committed nothing. The second is the ``RATION_NO_SUITE``
+      shape: a lane_held cycle, a failed launch and a worker that gave up all
+      reach here, and refusing them would make every such row read like a
+      violation.
+
+    THE RESIDUAL, STATED RATHER THAN CLAIMED SHUT. A cycle that never claims is
+    a cycle this cannot check, so the mechanism binds what it can SEE and says
+    plainly when it saw nothing. Making an unnamed commit refuse the roll-up is
+    the obvious next turn of the ratchet and it was NOT taken here, for a
+    measured reason: no worker claims a row today, so the clause would report
+    every cycle of every night unbound on the night it shipped, and a refusal
+    that fires on everything is the kind nobody reads. The gap closes from the
+    other end - a worker that claims, which `tools/headless-queue.md` section 5
+    already requires and which this field now MEASURES rather than assumes.
+
+    Args:
+        permit: What :func:`lane_permit` answered.
+        worked: The row ids the driver observed this cycle holding.
+        committed: Did the cycle advance its lane worktree's HEAD.
+
+    Returns:
+        ``{"checked", "observed", "bound", "lane_scope", "worked", "outside",
+        "reason", "detail"}``, JSON-safe, written into the cycle record on EVERY
+        cycle. ``checked`` says the permit was computable, ``observed`` says a
+        row was seen at all, and ``bound`` is the roll-up's clause.
+    """
+    body = permit if isinstance(permit, dict) else {}
+    allowed = frozenset(str(item) for item in (body.get("allowed") or ()))
+    rows = tuple(sorted({str(row).strip().upper() for row in (worked or ()) if str(row).strip()}))
+    fact: dict[str, Any] = {
+        "checked": bool(body.get("ok")),
+        "observed": bool(rows),
+        "bound": False,
+        "lane_scope": body.get("lane_scope"),
+        "worked": list(rows),
+        "outside": [],
+        "reason": "",
+        "detail": "",
+    }
+    if not fact["checked"]:
+        fact["reason"] = UNCOMPUTED
+        fact["detail"] = str(body.get("detail") or "the lane's takeable rows could not be read")
+        return fact
+
+    outside = tuple(row for row in rows if row not in allowed)
+    if outside:
+        fact["reason"] = OUT_OF_SCOPE
+        fact["outside"] = list(outside)
+        fact["detail"] = (
+            f"this cycle worked {', '.join(outside)}, which this lane may not take. "
+            f"The lane was permitted {len(allowed)} row(s) under scope "
+            f"{fact['lane_scope']!r} and none of them is that. The work is not "
+            "discarded and the row is not withdrawn - this cycle is recorded as "
+            "one nobody authorised, which is the thing a later reader has to be "
+            "able to tell apart from an earned one."
+        )
+        return fact
+    fact["bound"] = True
+    if rows:
+        return fact
+    if committed:
+        fact["reason"] = UNNAMED
+        fact["detail"] = (
+            "this cycle committed while holding no claim, so there was no row to "
+            "check it against - the check did not fail, it did not happen. The "
+            "claim is what names the row; see tools/headless-queue.md section 5."
+        )
+        return fact
+    fact["detail"] = "this cycle worked no row and committed nothing, so there was nothing to bind"
+    return fact
 
 
 def render_report(rows: tuple[Row, ...], name: str | None, dropped: tuple[ScopeFault, ...]) -> str:

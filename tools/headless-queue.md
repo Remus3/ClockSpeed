@@ -170,6 +170,27 @@ took the row between your queue read and your claim. Recompute the queue and tak
 row. Do NOT pass `root=` - the store resolves the main checkout for itself, and naming a
 root from inside your lane worktree points you at a private directory nobody else reads.
 
+**THE DRIVER NOW CHECKS THE ROW YOU TOOK, AND IT DOES NOT ASK YOU WHAT IT WAS.** Before it
+launches you, `ops/loop/queue_loop.py` computes this lane's takeable rows through the same
+`ops/loop/scope.py` you just ran, and while you work it SAMPLES the claim store. At the end
+of the cycle it writes the comparison into the cycle record as `scope`, and the row's `ok`
+is false when a row you held is one this lane may not take. Nothing in that path is
+authored by you, which is the point: section 1 says an instruction a worker can rationalize
+past is not a mechanism, and until this existed the only thing joining the computed queue
+to the row you actually took was your own reading of printed text.
+
+Three consequences, in the order you will meet them:
+
+- **A row outside this lane's scope is RECORDED, not blocked.** Your work is not discarded
+  and your commit is not reverted. What happens is that the row says so, permanently, and
+  an operator reading the ledger can tell that cycle from an earned one. Repairing the
+  declaration is in scope for the cycle; taking the row anyway is not.
+- **A cycle that commits while holding NO claim is recorded as `UNNAMED`.** The claim is
+  what names the row; without one there is nothing for the driver to check and the check
+  does not happen. That is an observation gap and it is counted as one. Claim the row.
+- **The permit is computed BEFORE your cycle**, so closing your row mid-cycle cannot make
+  your own row read as one you were never allowed to take.
+
 **WHY THIS EXISTS, because the reason is the shape of the fence below and not a tidiness
 rule.** FENCE 6 makes a closure record in `docs/LEDGER.md` the test of DONE, and that record
 is written at the END of a cycle. So for the whole length of a cycle - both real nights
