@@ -190,6 +190,7 @@ import sys
 import time
 import uuid
 from pathlib import Path
+from types import MappingProxyType
 from typing import NamedTuple
 
 _HERE = Path(__file__).resolve().parent
@@ -453,6 +454,18 @@ LOCAL_SUITE_ARGV = (_console_interpreter(), "-m", "pytest", "tests", "-q")
 #: A full local suite has been measured in the tens of minutes here. This bounds
 #: a wedge, not the work.
 DEFAULT_SUITE_TIMEOUT_S = 5400
+#: How long a lane waits behind another lane's suite before it runs its own
+#: UNRATIONED and says so. DERIVED from the timeout above rather than written as
+#: a second number, and the multiple is the whole content of the choice: a
+#: waiter has to outlast a holder that runs all the way to its OWN wedge ceiling,
+#: or the ration would fall open while the holder was still legitimately working
+#: - which is the overlap it exists to prevent, arriving on a timer. `ration.py`
+#: itself defaults to waiting forever and holds no number, so this is the one
+#: place the figure lives.
+SUITE_RATION_CEILING_S = 2 * DEFAULT_SUITE_TIMEOUT_S
+#: Between attempts on a held ration. Sized against a suite measured in tens of
+#: minutes: polling faster buys nothing and only wakes the box.
+SUITE_RATION_POLL_S = 30.0
 
 _NO_WINDOW = 0x08000000 if os.name == "nt" else 0  # CREATE_NO_WINDOW
 
@@ -660,11 +673,12 @@ _LAZY = {
     "lanes": ("ops.loop.lanes", "cs_loop_lanes", "lanes.py"),
     "lane_launcher": ("ops.loop.lane_launcher", "cs_loop_lane_launcher", "lane_launcher.py"),
     "winmutex": ("ops.loop.winmutex", "cs_loop_winmutex", "winmutex.py"),
+    "ration": ("ops.loop.ration", "cs_loop_ration", "ration.py"),
 }
 
 
 def __getattr__(name: str):
-    """Resolve `lanes`, `lane_launcher` and `winmutex` on first use (PEP 562).
+    """Resolve every module named in `_LAZY` on first use (PEP 562).
 
     Binding them at import would make reading a constant out of this file
     require the whole lane to be on disk, and would make an import of the
@@ -1139,6 +1153,174 @@ def run_local_suite(*, argv=None, runner=None, cwd=None, monotonic=time.monotoni
         }
     )
     return verdict
+
+
+def suite_ration(**kwargs):
+    """The default ration around the local suite step - see `ops/loop/ration.py`.
+
+    A THIN ADAPTER, deliberately. It exists so `run_suite_step` has ONE name to
+    default to and so a caller can substitute the whole ration with a keyword
+    argument, which is how every other dependency in this file is replaced. It
+    holds no policy of its own: the ceiling and the poll are passed in by
+    `run_suite_step` from the two constants above.
+
+    Args:
+        **kwargs: Passed through to `ration.hold_suite_slot`.
+
+    Returns:
+        The context manager that holds the slot for the block.
+    """
+    return _mod("ration").hold_suite_slot(**kwargs)
+
+
+#: What `record["ration"]` says on a cycle that ran no suite of its own. WRITTEN
+#: RATHER THAN OMITTED, and that is the whole point of it: with `--local-suite`
+#: off - which is the driver's default and what `launch_queue_loop.ps1` produces
+#: unless asked otherwise - the ration is entered zero times per cycle, and an
+#: ABSENT key made that indistinguishable from a cycle it covered. A reader can
+#: now count the nights this lane rationed nothing.
+RATION_NO_SUITE = MappingProxyType(
+    {
+        "suite_ran": False,
+        "rationed": True,
+        "holder": None,
+        "detail": (
+            "this cycle ran no driver suite, so there was nothing for the ration to hold;"
+            " the worker's own runs and the pre-push hook's are outside it either way"
+        ),
+    }
+)
+
+
+def ration_fact(claim) -> dict:
+    """What the ration did for one suite step, as a field of the cycle record.
+
+    A CLAIM THAT IS NOT `ok` IS THE FALL-THROUGH, not an error: `hold_suite_slot`
+    yields the refusal it overran when its ceiling expires, and the block runs
+    anyway because a ration that refuses turns a slow night into a dead one. The
+    price of proceeding is that somebody has to be able to SEE it afterwards,
+    and a log line cannot be that somebody - the driver's stdout file is
+    truncated at every launch.
+
+    TOTAL BY CONSTRUCTION. A ration seam that yields None, or anything without an
+    `ok`, is read as NOT rationed rather than raising. A substituted ration that
+    says nothing about itself has told us nothing, and nothing is not a pass.
+
+    Args:
+        claim: Whatever the ration's context manager yielded.
+
+    Returns:
+        The `suite_ran`, `rationed`, `holder` and `detail` fact.
+    """
+    held = bool(claim.get("ok")) if isinstance(claim, dict) else False
+    holder = claim.get("pid") if isinstance(claim, dict) else None
+    return {
+        "suite_ran": True,
+        "rationed": held,
+        "holder": None if held else holder,
+        "detail": ""
+        if held
+        else (
+            "the ration was still held when this driver's ceiling expired, so the suite"
+            f" ran beside another one - the holder was pid {holder}. The summary line"
+            " below is a measurement of a contended box, not of this tree"
+        ),
+    }
+
+
+def run_suite_step(  # noqa: PLR0913 - see THE SEAMS ARE THE POINT
+    record,
+    *,
+    lane,
+    worktree,
+    run_id,
+    suite,
+    ration=None,
+    root=None,
+    ceiling_s=None,
+    sleep=time.sleep,
+    monotonic=time.monotonic,
+    emit=_emit,
+) -> None:
+    """Run one cycle's local suite INSIDE the ration and record its verdict.
+
+    A SEPARATE FUNCTION RATHER THAN THREE LINES IN THE LOOP, and the reason is
+    what can be graded. The ration is only worth anything if the suite step is
+    actually inside it, and a wiring arm that had to drive a whole night to
+    observe that would grade the loop instead. Named here, the property is one
+    call away: an arm can watch the slot from inside the injected suite.
+
+    THE WAIT LIVES HERE, WITH EVERY OTHER WAIT THIS DRIVER OWNS. The driver
+    sleeps behind another lane's suite; the worker never blocks on anything, and
+    the worker's own suite runs - inside its iteration loop, and inside the
+    frozen pre-push hook - are outside this ration and are not claimed to be in
+    it.
+
+    THE UNRATIONED FALL-THROUGH REACHES THE RECORD, NOT ONLY THE LOG. It used to
+    reach only `emit`, whose stdout file `launch_queue_loop.ps1` truncates at
+    every launch - so the row an operator reads at 3am was byte-identical to a
+    row whose suite ran alone, which is the precise harm `ration.py`'s own
+    docstring names. `record["ration"]` is therefore written on EVERY cycle,
+    including the cycles where no suite ran at all, and a suite that ran
+    unrationed makes the row not ok. A suite measured while another suite was
+    running is not evidence, for the same reason a suite graded in the wrong
+    tree is not: both produce a summary line nobody can act on.
+
+    HOLDING THE SLOT ACROSS THE WHOLE WORKER CYCLE WAS WEIGHED AND REJECTED, and
+    the arithmetic is the reason rather than a preference. It is the only way
+    this driver could cover the worker's two runs, because the driver reaches a
+    worker by pid and by nothing else. The hook's own header records 320s for the
+    xdist suite on a real push; a cycle is bounded at `DEFAULT_CYCLE_TIMEOUT_S`
+    and legitimately spends most of itself on work that forks nothing. Holding
+    across it would serialise up to that bound to protect 320s - a ratio of about
+    45 to 1 at the ceiling - and would make two lanes strictly one lane for the
+    whole night, undoing CS-992 without its authors present. The gap is recorded
+    instead, and closing it properly means `.githooks/pre-push` taking this same
+    slot, which is a FROZEN file and needs a grant.
+
+    THE SUITE RUNS IN THE LANE WORKTREE, never this tree - see `run_local_suite`.
+    That resolution stays here rather than moving into the ration, because the
+    ration is about WHETHER the step may run and the worktree is about WHICH
+    tree it grades, and one function answering both would be the seam mistake
+    this package keeps writing down.
+
+    Args:
+        record: The cycle record to write `suite` and `ration` into.
+        lane: The lane, for the worktree resolution and the ration's holder.
+        worktree: The caller's worktree override, or None.
+        run_id: This cycle's identifier, so a ration log line joins to a row.
+        suite: The suite seam, `run_local_suite`'s shape.
+        ration: The ration seam, or None for `suite_ration`.
+        root: The slot root, or None for the ration's own default.
+        ceiling_s: How long to wait before running unrationed, or None for
+            `SUITE_RATION_CEILING_S`. An arm passes 0 to reach the fall-through
+            without spending the night's real budget getting there.
+        sleep: The wait, injected so an arm never has to spend real time.
+        monotonic: Deadline clock. Never wall time.
+        emit: The log sink, so an unrationed step is findable at 3am.
+    """
+    ration = suite_ration if ration is None else ration
+    with ration(
+        holder=lane,
+        run_id=run_id,
+        root=root,
+        ceiling_s=SUITE_RATION_CEILING_S if ceiling_s is None else ceiling_s,
+        poll_s=SUITE_RATION_POLL_S,
+        sleep=sleep,
+        monotonic=monotonic,
+        emit=emit,
+    ) as claim:
+        record["suite"] = suite(cwd=lane_worktree(lane, worktree), monotonic=monotonic)
+        # INSIDE the block, so a ration whose context manager never yielded a
+        # claim cannot leave the field behind from a previous cycle.
+        record["ration"] = ration_fact(claim)
+    if not record["ration"]["rationed"]:
+        # THE VERDICT IS DOWNGRADED, not merely annotated. `suite["ok"]` keeps
+        # pytest's own answer - the summary line and the exit code are still
+        # verbatim and still reproducible - and the row's roll-up is what
+        # refuses to call the cycle good news. Overwriting `suite["ok"]` would
+        # destroy the distinction between a red suite and an unmeasurable one.
+        emit(f"queue-loop: cycle {run_id} ran its suite UNRATIONED - {record['ration']['detail']}")
 
 
 # ---------------------------------------------------------------------------
@@ -1783,8 +1965,11 @@ def wait_for_ci(
 # One cycle.
 # ---------------------------------------------------------------------------
 #
-# THE SEAMS ARE THE POINT, and they are why `run_cycle` and `run_loop` carry a
-# PLR0913 / PLR0912 / PLR0915 exemption each rather than being split.
+# THE SEAMS ARE THE POINT, and they are why `run_cycle`, `run_loop` and
+# `run_suite_step` carry a PLR0913 / PLR0912 / PLR0915 exemption rather than
+# being split. (`run_suite_step` sits above this block and cites it; it carries
+# PLR0913 alone, because a wrapper around one call has neither the branches nor
+# the statements the other two do.)
 #
 # Every external dependency of this driver is a keyword argument with a real
 # default: the lock, the launcher, the liveness probe, the killer, both clocks,
@@ -2076,6 +2261,7 @@ def run_loop(  # noqa: PLR0913, PLR0912, PLR0915 - see THE SEAMS ARE THE POINT
     gh=_gh,
     wait=None,
     suite=None,
+    ration=None,
     hold=None,
     sleep=time.sleep,
     clock=time.time,
@@ -2244,12 +2430,35 @@ def run_loop(  # noqa: PLR0913, PLR0912, PLR0915 - see THE SEAMS ARE THE POINT
         else:
             note += " commit=no"
         if record["outcome"] == OUTCOME_COMPLETED and local_suite:
-            # THE LANE WORKTREE, never this tree - see run_local_suite. The
-            # worker's commit lives there; the driver's own checkout is whatever
-            # it was when the night started. ONE resolver, shared with the
-            # lane-HEAD read below: a suite graded in one tree beside a commit
-            # counted in another is two correct facts that together say nothing.
-            record["suite"] = suite(cwd=lane_worktree(lane, worktree), monotonic=monotonic)
+            # INSIDE THE RATION, and the worktree resolution lives with it - see
+            # `run_suite_step`. Two lanes running a suite at once exhausts the
+            # box and the loser reports a pass count beside an error while
+            # thousands of tests never run, which reaches this ledger as a green
+            # nobody earned. The driver waits here, which is where every wait
+            # this file owns already happens.
+            run_suite_step(
+                record,
+                lane=lane,
+                worktree=worktree,
+                run_id=run_id,
+                suite=suite,
+                ration=ration,
+                # BENEATH the control directory, so `--control-dir` moves the
+                # ration with the stop sentinels rather than leaving half the
+                # control plane pointed at the real one. The dirname is
+                # `ration.py`'s to spell, not this file's.
+                root=(None if control_dir is None else Path(control_dir) / _mod("ration").DIR_NAME),
+                sleep=sleep,
+                monotonic=monotonic,
+                emit=emit,
+            )
+        else:
+            # ON EVERY OTHER CYCLE TOO. With `--local-suite` off - the default,
+            # and what the launcher produces unless asked - this branch is the
+            # ONLY thing that records that the ration covered nothing, and a row
+            # that says nothing about the ration reads exactly like a row it
+            # protected. Measured: 0 ration entries per cycle under the default.
+            record["ration"] = dict(RATION_NO_SUITE)
         if ci_gate and record["outcome"] == OUTCOME_COMPLETED:
             post_sha = head_sha()
             if pre_sha is None or post_sha is None:
@@ -2298,8 +2507,15 @@ def run_loop(  # noqa: PLR0913, PLR0912, PLR0915 - see THE SEAMS ARE THE POINT
             # here silently ate the commit token that precedes it.
             note += f" ci={verdict['verdict']} {verdict.get('waited_s', 0)}s"
         local = record.get("suite")
+        rationed = record.get("ration") or dict(RATION_NO_SUITE)
         if local:
             note += f" suite={'ok' if local['ok'] else 'RED'} [{local['summary']}]"
+        if not rationed["rationed"]:
+            # ON THE CONSOLE LINE AS WELL AS IN THE ROW. An operator tailing this
+            # reads a night by counting cycles down the left margin, and a suite
+            # verdict that was measured on a contended box has to be legible
+            # there rather than only in a file nobody opens until morning.
+            note += " ration=UNRATIONED"
 
         # THE ROLL-UP, and it is the LAST thing set before the row is written.
         # `worker_ok` says the worker ran to completion, which is all `run_cycle`
@@ -2307,9 +2523,18 @@ def run_loop(  # noqa: PLR0913, PLR0912, PLR0915 - see THE SEAMS ARE THE POINT
         # reading this file actually wants. Keeping only the first was measured
         # to produce `"ok": true` beside `"suite": {"ok": false}` on a cycle
         # whose tests went red - both fields correct, the pair a trap.
+        #
+        # AND A SUITE NOBODY COULD MEASURE IS NOT A PASS. The unrationed
+        # fall-through keeps `suite["ok"]` verbatim, because pytest's answer is
+        # still pytest's answer; what it cannot do is stand as this cycle's
+        # acceptance, because it was taken while another suite was running and
+        # the loser of that contest reports a pass count beside an error with
+        # thousands of tests unrun. So the roll-up refuses it here, where every
+        # other "this is not good news" clause already lives.
         record["ok"] = bool(
             record["worker_ok"]
             and (local is None or local["ok"])
+            and rationed["rationed"]
             and (verdict is None or verdict["verdict"] not in _CI_ROLLUP_BAD)
         )
 
