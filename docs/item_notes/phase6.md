@@ -519,3 +519,73 @@ this item measured four times before it was filed.
 **RELATED, and distinct.** A pooled threshold summed over a population is met by its
 strongest member while the weakest goes unmeasured - that is the same family one step
 sideways, and the acceptance clause here should not be read as covering it.
+
+
+### SCOPED AND THEN REFUTED 2026-09-12 (session 88) - the scoping document reproduced the defect class, which is instance FIVE
+
+**NOTHING WAS IMPLEMENTED THIS SESSION AND THAT IS THE FINDING.** A scoping sweep was
+commissioned to decide HOW WIDE to go before any code moved. An adversary with a
+correctness-of-the-cut lens then refuted SEVEN of its EIGHT claims. The scope is NOT safe
+to implement as written and no repair was built on it.
+
+**THE INSTANCE THAT MATTERS, AND IT IS THIS ITEM'S OWN SHAPE ONE LEVEL OUT.** The document
+proposed a SHARED arm-count backstop for eleven modules and argued it was safe because the
+backstop "has no root, no prefix, no suffix and no width in it to narrow". Two bullets
+later it mandated a PER-MODULE MAP OF INDEPENDENTLY-COUNTED ARGNAMES. **That map is a
+shared width knob.** Delete one argname entry and that module's expectation falls in step
+with its collected count, silently, eleven modules deep. The document anticipated a
+sentinel-and-skip single point of failure and did NOT anticipate this one.
+
+So the pattern recorded in the FILED section - each repair creating the next instance one
+level out - now has a fifth instance, and it is the first found in an ANALYSIS rather than
+in a repair. Recorded because it changes what this item has to defend against: the class
+reaches prose about the class.
+
+**WHAT SURVIVED THE PASS.** The eleven arm counts were re-measured exact this run: 856,
+484, 341, 245, 135, 134, 100, 79, 70, 64, 54. The shortlist MEMBERSHIP is undisturbed -
+eight sites the sweep missed were found, none at band-A severity. And the ruling
+**NEVER SHARE THE SECOND DERIVATION** survives intact; it is only the shared-backstop half
+that fell.
+
+**WHAT WAS REFUTED, so none of it is rebuilt from the scoping document as written.**
+
+- **THE FREE SECOND DERIVATION IS THE TRAP, NOT A WIN.** The document claimed FOUR modules
+  spell an identical tree-enumeration argv and are therefore a second derivation already
+  paid for. Only THREE do; `tests/liveness.py:2028` spells a different command and the
+  document contradicts itself one sentence later. The three that match are byte-identical
+  copy-paste with near-identical docstrings - **one derivation wearing three hats**, and a
+  single search-and-replace of the pathspec keeps an equality between them green. This is
+  precisely the "two derivations reading the same knob are one derivation" trap this item
+  was filed to name.
+- **THE PROPOSED SECOND DERIVATION WOULD BE FALSE-RED BY CONSTRUCTION.** Measured: rglob
+  214, git 207, walk-only 7, git-only 0. The document's population of 197 is its own
+  `data/` component prune - the very trap it documents elsewhere - and the symmetric
+  difference against git is 24, covering all of `clockspeed/data/` and `tests/data/`. The
+  correct prune yields 207 exactly.
+- **THREE OF THE SIX BAND-A SITES DO NOT BELONG THERE.** Their stated one-line narrowings
+  would REDDEN an existing guard rather than pass it: one kills an `OWNER` literal at
+  `tests/solve/test_ceiling_fence.py:204`, one kills every `EXEMPT` key at :223, one takes
+  all four `SPAWN_ROOTS` to zero and reddens `tests/test_toolpath.py:502`, and one is
+  filtered by `repr_rendering_guard.py:431` so the narrowing trips three named literals. A
+  site whose guard already reddens is not an instance of this class.
+- **THE CUT CRITERION IS NOT DECIDABLE AS WRITTEN.** Its criterion (2) - a silent drop
+  makes a real defect class go unmeasured - is a judgement the author made and then
+  described as a criterion; the document concedes in its own words that every severity in
+  it "is an argument, not a measurement". And the three tests are CONJUNCTIVE, which
+  excludes at least one site that fails only the filesystem-derived test while passing the
+  other two badly: `tests/data/test_phase2_gate.py:80 DATA_MODULES`, whose sibling phase3
+  and phase4 gates the document itself names as the in-repo template because they already
+  carry the disk-equality arm phase2 lacks.
+
+**ONE SIDE CLAIM IS LATENT RATHER THAN LIVE.** Two enumerations missing `--others` cannot
+see untracked files, and the citations reproduce - but measured this run, `git ls-files
+"*.py"` and the `--others` form both return 207, so there is no untracked `.py` for it to
+miss today. Latent, and worth fixing on its own terms, not as evidence for this item.
+
+**WHERE THIS LEAVES THE ITEM.** OPEN, and the acceptance is unchanged. What the next
+attempt must NOT do: adopt the six-site band as given, adopt the shared backstop as
+specified, or treat the identical-argv modules as an independent second derivation. What
+it may keep: the arm counts, the shortlist membership, and the never-share-the-second-
+derivation ruling. **The fence from the FILED section still holds and now has a fifth
+witness - do not close this by pinning a floor, and check whatever you build for the knob
+you just introduced.**
