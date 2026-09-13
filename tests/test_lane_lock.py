@@ -206,11 +206,53 @@ def _acquire(root: Path, worktree: Path, run_id: str = RUN_ID) -> dict[str, Any]
 # ===========================================================================
 
 
-def test_the_roster_carries_the_queue_lane_and_a_single_slot() -> None:
-    wired = "queue" in lanes.LANES
-    assert wired, "the queue lane is the roster's reason to exist"
-    assert lanes.MAX_SLOTS == ONE
-    assert lanes.LOCK_NAME == "0.lock"
+def test_the_roster_and_the_slot_it_maps_each_lane_to_are_pinned() -> None:
+    """FOUR TAUTOLOGIES REPLACED - an assertion that cannot fail is not a pin.
+
+    What stood here graded MEMBERSHIP and left the MAPPING ungraded, which is the
+    CS-988 shape. Every one of them held for ANY roster: ``"queue" in LANES`` is
+    order-blind; ``LOCK_NAME == "0.lock"`` is true for any roster at all, because
+    LOCK_NAME is ``lock_name(LANES[0])``; ``DEFAULT_LANE == LANES[0]`` restates a
+    definition; and a width equality holds for any distinct roster. Meanwhile the
+    slot index is POSITIONAL, so inserting one lane at the front re-points every
+    slot under it - and nothing here could say so.
+
+    THIS PINS THE MAPPING ITSELF, lane by lane, against literals. Adding,
+    removing, renaming or REORDERING a lane reddens it, which is the intent: the
+    roster's order decides where a claim is written, so an edit to it has to be
+    deliberate. ``tests/ops/test_multi_lane.py`` carries the other half - that a
+    roster edit made anyway cannot hide a LIVE holder, because ``lock_for_lane``
+    resolves by the recorded lane rather than by position.
+    """
+    pinned = (lanes.LANES, lanes.DEFAULT_LANE, lanes.lock_name("queue"), lanes.lock_name("queue-b"))
+    assert pinned == (("queue", "queue-b"), "queue", "0.lock", "1.lock")
+    # The width and the bucket are DERIVED from the roster above rather than
+    # restated beside it, and the second enumeration is the set of names
+    # ``lock_name`` actually produces - the mechanism, not the arithmetic.
+    slots = {lanes.lock_name(lane) for lane in lanes.LANES}
+    counted = (lanes.MAX_SLOTS, len(slots), lanes.LOCK_NAME)
+    assert counted == (len(lanes.LANES), len(lanes.LANES), lanes.lock_name("queue"))
+
+
+def test_a_lock_is_resolved_by_the_lane_it_records_not_by_its_slot(tmp_path: Path) -> None:
+    """The structural half of the order defect, graded where the lock lives.
+
+    A lock sitting at a slot the current roster would NOT derive still belongs to
+    the lane its payload names. Planted at the far end of the bucket so the
+    derived path cannot accidentally be right.
+    """
+    root = tmp_path / "lanes"
+    root.mkdir(parents=True, exist_ok=True)
+    stray = root / "7.lock"
+    # The planted holder is THIS process, start time included, so the arm
+    # grades resolution rather than tripping the pid-reuse guard on a
+    # fixture's stand-in timestamp.
+    live = _payload(pid_started=lanes.proc_started(os.getpid()))
+    stray.write_bytes(json.dumps(live).encode("utf-8"))
+    found = lanes.lock_for_lane(root, "queue").name
+    derived = lanes.lock_path(root, "queue").name
+    state = lanes.lane_state(root, None, "queue")["state"]
+    assert (found, derived, state) == ("7.lock", "0.lock", lanes.RUNNING)
 
 
 def test_the_module_docstring_does_not_recite_the_size_of_the_roster() -> None:
@@ -565,13 +607,13 @@ def test_the_exclusive_create_refuses_a_lock_that_already_exists(tmp_path: Path)
     """
     root = tmp_path / "lanes"
     _write_lock(root, _payload())
-    taken = lanes._exclusive_create(root, _payload())  # noqa: SLF001 - under test
+    taken = lanes._exclusive_create(root, "queue", _payload())  # noqa: SLF001 - under test
     assert taken is None
 
 
 def test_the_exclusive_create_makes_the_lock_when_the_lane_is_free(tmp_path: Path) -> None:
     root = tmp_path / "lanes"
-    taken = lanes._exclusive_create(root, _payload())  # noqa: SLF001 - under test
+    taken = lanes._exclusive_create(root, "queue", _payload())  # noqa: SLF001 - under test
     made = taken is not None and taken.name == lanes.LOCK_NAME
     assert made, "the exclusive create did not make the lock on a free lane"
 

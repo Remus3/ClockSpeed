@@ -647,7 +647,7 @@ Three files, checked before EVERY cycle including the first:
 | File | Stops |
 |---|---|
 | `ops/loop/control/STOP` | everything on this box |
-| `ops/loop/control/lanes/QUEUE_STOP` | this lane only |
+| `ops/loop/control/lanes/QUEUE_STOP` | EVERY lane - the roster carries more than one and this file is not per-lane |
 | `ops/loop/control/lanes/QUEUE_DRAINED` | written by the WORKER when the queue is empty |
 
 Creating one stops the loop at the next cycle boundary; it does not kill a worker that is
