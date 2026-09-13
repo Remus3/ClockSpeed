@@ -160,6 +160,68 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-09-12 - CS-957 - CLOSED. Five of six clauses were already shipped and the item's own line said none were, and the one real gap was the class that is MEASURED on every machine
+
+**THE ITEM WAS CARRIED INTO THIS SESSION AS A BLOCKER AND WAS FIVE SIXTHS DONE.** Its
+line read that the outbound reporting half "is an exfiltration path this project has no
+gate on". `tools/outbound_gate.py` has been that gate for some time. An independent
+grader that wrote none of it re-derived clauses (i), (ii), (iii), (iv) and (vi) as MET
+against the shipped tree. **The MEASUREMENT embedded in the line still reproduces exactly
+- `tools/precommit_gate.py --text-stdin` returns PASS exit 0 on a payload whose two
+Windows home paths that module's own matcher finds, negative control clean - so nothing
+in the line was ever false. What decayed is the DIAGNOSIS wrapped around a true reading.**
+Recorded here because a decayed record is not a wrong record and does not announce itself:
+every number in that line re-derives, and only re-grading the acceptance against the
+shipped tree exposed it. It was one dispatch away from buying a rebuild.
+
+**THE ONE REAL GAP, AND IT WAS THE REVERSE OF THE EXPECTED SHAPE.** The gate's coverage
+table names six classes and five carried a planted-leak arm. `account-name` carried none -
+and it is the ONLY class MEASURED on every machine including a bare runner, because its
+population comes from `USERNAME` and `USER` rather than from a save root. The three
+classes that DID have arms are precisely the ones that go UNMEASURED on a bare box. So the
+class most likely to appear verbatim in real outbound prose was the one nothing graded.
+
+**WHAT SHIPPED.** `test_planted_account_name_refuses` in `tests/test_outbound_gate.py`,
+seeding both environment spellings, reading the value back through the module's existing
+discovery helper, and asserting on the `<pii:account-name>` CLASS in the refusal rather
+than on a non-zero exit. The literal the environment seeds was lifted into a named
+constant so the planting arm and the discovering environment cannot drift apart. A
+negative control in the same arm and the same environment proves ordinary prose is not
+refused. Merged files: `tests/test_outbound_gate.py`, `docs/OPERATIONS.md`.
+
+**THE MUTATION IS THE EVIDENCE, AND IT SHOWS THE ARM COULD EASILY HAVE BEEN VACUOUS.**
+Emptying the account-name matcher list left the gate STILL REFUSING - it files the
+position as `unattributed` - so an arm asserting only a non-zero exit would have SURVIVED
+the mutation and proved nothing. The shipped arm goes red, on `assert 0 > 0` against the
+named class. The mutated gate also still printed `account-name MEASURED 1 spelling(s)
+discovered` while scanning nothing, which is this project's own recurring shape: an
+instrument reporting success because it cannot observe its subject. A second mutation
+widening the short-value warn threshold reddened the arm at `assert 3 == 1`. The gate file
+was restored from a byte snapshot, never with `git checkout`, and its sha256 is unchanged
+either side: `3c6edd8cee8e08ef2d3f33354832ec8dc04fc09a33779f17cd2ece0eaee043b3`.
+
+**THE ROUTING HALF, WHICH NEEDED NO FROZEN-FILE GRANT AND WAS THE ITEM'S LIVE RESIDUE.**
+`grep -i outbound` over `docs/OPERATIONS.md`, `CLAUDE.md` and `CONVENTIONS.md` returned
+zero: the correct gate appeared in no operating document, while the command table's only
+route for grading text pointed at the gate that scans no personal-data class - and the
+live PreToolUse hook runs that same command, so it is the one an agent watches working.
+`docs/OPERATIONS.md` now carries a row routing OUTBOUND text to `tools/outbound_gate.py`,
+and the older row is scoped to a commit message and to charset and secrets only.
+**`tools/precommit_gate.py` was NOT edited. It is frozen, no grant was sought, and none
+was needed** - a characterisation fence already pins its stdin scope on purpose, and
+widening it would have fought that fence rather than the defect.
+
+**VERIFIED.** `tests/test_outbound_gate.py::test_planted_account_name_refuses`, with the
+whole pair of modules at 72 passed and 1 skipped on the merged tree. The skip is a
+platform UNMEASURED, not an absence, and says so. `ruff check`, `ruff format --check` and
+`mypy clockspeed` all exit 0 on the slice.
+
+**WHAT IS NOT CLOSED.** CS-948 stays OPEN and this entry does not touch it: the
+verdict-consumption seam exists, but there is no manifest producer, no scrub attestation
+quoting the coverage table, and no multi-file mode. And the arm's behaviour on a Linux
+runner is reasoned from the discovery helper's source rather than from a run - stated as
+unverified rather than claimed.
+
 ### 2026-09-12 - CS-989 - FROZEN-FILE GRANT, recorded BEFORE the edit per CLAUDE.md section 6
 
 **This is a grant record for CS-989, not a completion record, and it does not close
