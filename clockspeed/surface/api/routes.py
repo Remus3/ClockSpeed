@@ -54,6 +54,7 @@ from typing import TYPE_CHECKING, Final
 
 from clockspeed.surface.api import contract, health, pending, solve, world
 from clockspeed.surface.api import map as map_endpoint
+from clockspeed.surface.api import power as power_endpoint
 from clockspeed.surface.api import registry as registry_endpoint
 from clockspeed.surface.providers import InstalledRegistryProvider, SaveWorldProvider
 
@@ -94,6 +95,7 @@ BACKED_TEMPLATES: Final = (
     solve.SOLVE_ENDPOINT,
     solve.OPTIMIZE_ENDPOINT,
     map_endpoint.ENDPOINT,
+    power_endpoint.ENDPOINT,
 )
 
 #: What the server says about its own route table, in the two words
@@ -215,6 +217,10 @@ def build_routes(
         # rather than refusing, because the geometry is true without one.
         *map_endpoint.routes(worlds, registries),
         *solve.routes(registries),
+        # THE REGISTRY AND NOTHING ELSE. A power figure is a property of a
+        # Building, which the registry publishes; no save is involved, so this
+        # door answers identically whether or not a world is loaded.
+        *power_endpoint.routes(registries),
         *pending.routes(),
     )
     order = health.ENDPOINT_TEMPLATES

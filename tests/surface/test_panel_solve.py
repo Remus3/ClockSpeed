@@ -534,7 +534,7 @@ function containsNode(root, target) {
 
 function seamState(step) {
   /* The page's own flags and the held node, recorded after one step. */
-  step.solving = Boolean(globalThis.solving);
+  step.solving = Boolean(globalThis.asking);
   step.repainting = Boolean(globalThis.repainting);
   step.generation =
     typeof globalThis.panelGeneration === "number" ? globalThis.panelGeneration : null;
@@ -742,7 +742,7 @@ function report() {
     solve_calls: solveCalls,
     fetch_calls: fetchCalls,
     delivered: delivered,
-    solving: Boolean(globalThis.solving),
+    solving: Boolean(globalThis.asking),
     repainting: Boolean(globalThis.repainting),
     panels_key_when_empty: panelsKeyWhenEmpty,
     panels_when_empty: panelsWhenEmpty,
@@ -1909,12 +1909,23 @@ def test_the_benchs_four_parameters_are_the_four_the_endpoint_requires() -> None
     The constant stays spelled out above so a rename shows up HERE as one red
     arm naming both sides, rather than as a module that silently follows the
     endpoint wherever it goes.
+
+    THE BENCH SENDS THE REQUIRED SET AND DELIBERATELY NONE OF THE OPTIONAL ONE,
+    which is a statement about the bench rather than about the endpoint. This
+    arm used to read ``assert not solve.SOLVE_OPTIONAL`` - a claim that the door
+    accepted nothing beyond the four - and that claim stopped being about the
+    bench the moment the door grew a second direction. ``mode`` is optional
+    there and defaults to ``targets``, so the bench asks the forward question by
+    sending nothing; asserting the SET rather than its emptiness keeps the same
+    fence - a fifth name reaching the door still goes red here - while letting
+    the door say what it actually accepts.
     """
     assert set(SOLVE_PARAMS) == set(solve.SOLVE_REQUIRED), (
         set(SOLVE_PARAMS),
         set(solve.SOLVE_REQUIRED),
     )
-    assert not solve.SOLVE_OPTIONAL, solve.SOLVE_OPTIONAL
+    assert set(solve.SOLVE_OPTIONAL) == {solve.PARAM_MODE}, solve.SOLVE_OPTIONAL
+    assert solve.PARAM_MODE not in SOLVE_PARAMS, SOLVE_PARAMS
 
 
 def test_the_panel_module_spells_the_four_parameters_the_endpoint_requires() -> None:

@@ -125,6 +125,16 @@ LIVENESS_WORDS: Final = (LIVE, NOT_LIVE)
 #: what kept the page's route table (``clockspeed/surface/web/app.js``, bound to
 #: this tuple by EQUALITY in ``tests/surface/test_route_table_binding.py``) from
 #: needing an edit in a slice that did not own it.
+#:
+#: ``/api/power`` IS THE THIRD ARRIVAL UNDER THE SAME WORD, AND IT SITS LAST FOR
+#: THE SAME REASON ``/api/map`` DOES. It CONSUMES ``/api/registry`` - a power
+#: question is asked about a building, and the building vocabulary comes from
+#: there - so CS-912's own argument puts it after that route, and last is after
+#: it. ``clockspeed/solve/power.py`` was written, tested and reachable from NO
+#: route: MEASURED ZERO of the templates above it named a megawatt figure, a
+#: clock or the un-sharded base in any body, so the whole power half of the
+#: solve layer was live and unaskable at once - which is the same fault CS-912
+#: and CS-977 each found, wearing a third face.
 ENDPOINT_TEMPLATES: Final = (
     "/api/health",
     "/api/world",
@@ -137,6 +147,7 @@ ENDPOINT_TEMPLATES: Final = (
     "/api/audit",
     "/api/plan",
     "/api/map",
+    "/api/power",
 )
 
 #: Exactly the keys a health body carries.

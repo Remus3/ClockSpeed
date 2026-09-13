@@ -644,7 +644,14 @@ Endpoints, minimum: `/api/health`, `/api/world` (current parsed state),
 `/api/advice` (cards with tier 1 and 2), `/api/advice/<id>/derivation` (tier 3),
 `/api/advice/<id>/state` (accept, dismiss, snooze, pin), `/api/solve` (pillar 1),
 `/api/optimize` (pillar 2), `/api/audit`, `/api/plan?target=<milestone>`,
-`/api/map` (node and built-actor placement, item totals and extractor throughput).
+`/api/map` (node and built-actor placement, item totals and extractor throughput),
+`/api/power` (declared draw, draw at a clock, and what is known about the ceiling).
+
+`/api/power` was added on the same word again: `clockspeed/solve/power.py` was
+written, tested and reachable from no route at all, so MEASURED ZERO of the
+templates then published named a megawatt figure, a clock or the un-sharded base
+in any response body. A capability nobody can ask for is indistinguishable from
+one that was never built.
 
 `/api/map` was added under CS-977 on the same word: `/api/world` counts nodes and
 never lists them, so MEASURED ZERO of the templates then published named a single

@@ -29,15 +29,20 @@
   panel becomes mouse-only, invisibly." Refresh is the button in the header and
   nothing else repaints this page.
 
-  WHY THIS PAGE ISSUES EXACTLY ONE POST, WHICH IS A COUNT AND NOT AN ABSENCE.
-  This block used to say the page issued none at all and that the question did
-  not arise. The operator has ruled that the solve bench may ask /api/solve for
-  a plan, so it does arise and the honest answer is a bound rather than a zero:
-  requestSolve below is the ONLY non-GET request this file can issue, it is
-  reachable only from a panel's own click handler, and it can ask for one path
-  and no other because app.js - never the panel - builds the query string from
-  a fixed table of the four names the solve endpoint requires. A panel cannot
-  smuggle a fifth parameter through it and cannot redirect it.
+  WHY THIS PAGE ISSUES EXACTLY THREE ON-DEMAND REQUESTS, WHICH IS A COUNT AND
+  NOT AN ABSENCE. This block used to say the page issued none at all and that
+  the question did not arise; then it said exactly one POST. Both were true when
+  written. The honest answer is a BOUND rather than a zero, and the bound is now
+  three: the solve bench asks /api/solve, the optimize bench asks /api/optimize
+  and the power bench asks /api/power. Two are POSTs and one is a GET, because
+  the verb belongs to the route rather than to this page.
+
+  WHAT THE BOUND BUYS IS UNCHANGED BY THE COUNT. Each is reachable only from a
+  panel's own click handler; each can ask for one path and no other, because
+  app.js - never the panel - builds the query string from a fixed table of the
+  names that endpoint takes; and one shared flag means at most one of the three
+  is ever outstanding. A panel cannot smuggle an unnamed parameter through any
+  of them, cannot redirect one, and cannot start a second while one is running.
 
   AND THE PARAMETERS RIDE IN THE QUERY STRING, NOT IN A BODY. The server splits
   the request path at the question mark and parses only what follows it; no code
@@ -46,18 +51,23 @@
   connection desyncs whatever request follows it on that socket. The fetch
   therefore carries no body key, which sends Content-Length: 0.
 
-  WHY FOUR ROWS SAY "not probed". The two /api/advice/<id>/... routes need a
+  WHY FIVE ROWS SAY "not probed". The two /api/advice/<id>/... routes need a
   card id, and this page has none to give: /api/advice is 501 until phase 5
   builds the advisor, so it returns no card list and there is no id to put in
   the path. Asking with an invented one would be asking about a card that does
-  not exist. The other two are the POST routes, and the table below is a map of
-  what this page may safely ask for on a REPAINT: /api/solve is asked on a
-  click and answers into the panel that clicked, so the row still has no
-  transport code of its own to print and /api/optimize is asked not at all.
-  AN EARLIER VERSION OF THIS SENTENCE SAID THOSE TWO "take a body this page
-  will not send", and both halves of that were false - they take a query
-  string, and the page now sends one to one of them.
-  For those four the page prints what /api/health says and names that as the
+  not exist. The other three take a parameter this page has nothing to put in
+  on a repaint, and the table below is a map of what this page may safely ask
+  for on a REPAINT: /api/solve, /api/optimize and /api/power are each asked on
+  a click and answer into the panel that clicked, so their rows still have no
+  transport code of their own to print.
+  AN EARLIER VERSION OF THIS SENTENCE SAID THE TWO SOLVER ROWS "take a body
+  this page will not send", and both halves of that were false - they take a
+  query string, and the page now sends one to each of them.
+  /api/power IS A GET AND IS STILL NOT PROBED, which is the reason this
+  paragraph is about PARAMETERS rather than about verbs: it requires a building
+  identifier, and a repaint has no building to name. Inventing one would ask
+  about a building the operator did not choose.
+  For those five the page prints what /api/health says and names that as the
   source, rather than inventing a transport code it never observed.
 
   WHY /api/registry IS PROBED EVEN THOUGH ITS BODY IS LARGE. The four rows
@@ -100,7 +110,8 @@ var ROUTES = [
   { template: "/api/optimize", method: "POST", probe: null },
   { template: "/api/audit", method: "GET", probe: "/api/audit" },
   { template: "/api/plan", method: "GET", probe: "/api/plan" },
-  { template: "/api/map", method: "GET", probe: "/api/map" }
+  { template: "/api/map", method: "GET", probe: "/api/map" },
+  { template: "/api/power", method: "GET", probe: null }
 ];
 
 /* The five collections /api/world counts rather than lists, and their labels. */
@@ -635,12 +646,23 @@ function panelData(probes) {
     panels: panelIds(),
     /*
       THE SEVENTH KEY IS NOT A PAYLOAD AND IS NAMED SO IT CANNOT BE READ AS
-      ONE. The six above are data a repaint already fetched; this one is a
-      door a panel may knock on. Calling it "solve" would have put a verb in
+      ONE. The six above are data a repaint already fetched; these are doors a
+      panel may knock on. Calling the key "solve" would have put a verb in
       a list of nouns and invited the next reader to expect a solve RESULT
       here, which no repaint has and no repaint will.
+
+      THREE DOORS AND NOT ONE, because three published routes take a parameter
+      a repaint cannot supply: /api/solve and /api/optimize want a target
+      basket, /api/power wants a building. Each was reachable from this page
+      only by adding its door - /api/optimize answered 200 against real data for
+      as long as the page never called it, which is the same "written and
+      unreachable" fault /api/power's whole route was filed for.
     */
-    actions: { requestSolve: requestSolve }
+    actions: {
+      requestSolve: requestSolve,
+      requestOptimize: requestOptimize,
+      requestPower: requestPower
+    }
   };
 }
 
@@ -689,46 +711,105 @@ function mountPanels(probes) {
 /* --- the one request that is not a repaint ------------------------------ */
 
 /*
-  THE FOUR NAMES /api/solve REQUIRES, SPELLED HERE AND NOWHERE ELSE. This table
-  is the reason a panel cannot widen the request: requestSolve reads the four
-  names OUT OF THIS ARRAY and copies the caller's values across, so a fifth key
-  on the caller's object is not encoded - it makes the whole call refuse. The
-  endpoint answers 400 unknown_parameter to a fifth parameter anyway; what this
-  buys is that a bad request is refused HERE, where the panel that made it can
-  be told, rather than spent on a round trip.
+  THE NAMES EACH ASKABLE ROUTE TAKES, SPELLED HERE AND NOWHERE ELSE. These
+  tables are the reason a panel cannot widen a request: the door builder reads
+  the names OUT OF THESE ARRAYS and copies the caller's values across, so a key
+  the table does not name is not encoded - it makes the whole call refuse. Each
+  endpoint answers 400 unknown_parameter to one anyway; what this buys is that a
+  bad request is refused HERE, where the panel that made it can be told, rather
+  than spent on a round trip.
+
+  AN OPTIONAL NAME IS STILL A NAME FROM THIS TABLE. A panel may omit one and may
+  not invent one, so the fence is exactly where it was when every door required
+  everything: the panel chooses WHICH of these to send and never WHAT.
 */
 var SOLVE_PARAMS = ["targets", "recipes", "raw_items", "byproduct_policy"];
+var OPTIMIZE_PARAMS = [
+  "targets",
+  "candidates",
+  "unlocked",
+  "raw_items",
+  "byproduct_policy",
+  "objective"
+];
+var OPTIMIZE_OPTIONAL = ["backend"];
+var POWER_PARAMS = ["building"];
+var POWER_OPTIONAL = ["clock", "recipe"];
 
 /*
-  Whether a solve is already in flight. The sibling of repainting below, and it
-  exists for the same reason: one request at a time, refused rather than queued.
+  One row per door a panel may knock on: where it goes, what verb it answers,
+  and which names it takes. THE VERB IS PER ROUTE AND NOT PER PAGE - the two
+  solver doors answer POST because a request carries a target basket, and
+  /api/power answers GET because it carries one building identifier.
 */
-var solving = false;
+var REQUESTS = {
+  solve: { path: "/api/solve", method: "POST", required: SOLVE_PARAMS, optional: [] },
+  optimize: {
+    path: "/api/optimize",
+    method: "POST",
+    required: OPTIMIZE_PARAMS,
+    optional: OPTIMIZE_OPTIONAL
+  },
+  power: { path: "/api/power", method: "GET", required: POWER_PARAMS, optional: POWER_OPTIONAL }
+};
 
-function solveQuery(params) {
+/*
+  Whether a request is already in flight. ONE FLAG FOR ALL THREE DOORS, not one
+  each. The sibling of repainting below, and it exists for the same reason: one
+  request at a time, refused rather than queued. A flag per door would let three
+  panels have three requests outstanding at once, which is the concurrency this
+  page's whole sequential-probe discipline exists to avoid.
+*/
+var asking = false;
+
+function nameIsTaken(spec, name) {
+  /* Whether this door's table names the parameter at all. */
+  return spec.required.indexOf(name) >= 0 || spec.optional.indexOf(name) >= 0;
+}
+
+function requestQuery(spec, params) {
   /*
-    The query string for exactly those four names, or null if the caller did
-    not hand over exactly those four strings.
+    The query string for one door, or null if the caller's object does not fit
+    that door's table.
 
-    EXACTLY, IN BOTH DIRECTIONS. The length check refuses a fifth key and the
-    hasOwnProperty check refuses a missing one, so neither a superset nor a
-    subset gets encoded. encodeURIComponent is applied to the NAME as well as
-    the value - the names here are literals and need no escaping today, which
-    is precisely why encoding them costs nothing and stops mattering only if
-    someone later builds this table from something that is not a literal.
+    EXACTLY, IN BOTH DIRECTIONS. Every name the caller states must be one this
+    door takes, and every REQUIRED name must be stated, so neither a superset
+    nor a short request gets encoded. An OPTIONAL name may be present or
+    absent and nothing else may be either.
+
+    THE ORDER IS THE TABLE'S, NOT THE CALLER'S OBJECT'S. Two identical requests
+    therefore produce byte-identical query strings whatever order a panel built
+    its keys in, which is the determinism property applied to the one thing on
+    this page that leaves it.
+
+    encodeURIComponent is applied to the NAME as well as the value - the names
+    here are literals and need no escaping today, which is precisely why
+    encoding them costs nothing and stops mattering only if someone later
+    builds these tables from something that is not a literal.
   */
   if (!params || typeof params !== "object") {
     return null;
   }
-  if (Object.keys(params).length !== SOLVE_PARAMS.length) {
-    return null;
+
+  var stated = Object.keys(params);
+  var index;
+  for (index = 0; index < stated.length; index += 1) {
+    if (!nameIsTaken(spec, stated[index])) {
+      return null;
+    }
+  }
+  for (index = 0; index < spec.required.length; index += 1) {
+    if (!Object.prototype.hasOwnProperty.call(params, spec.required[index])) {
+      return null;
+    }
   }
 
+  var ordered = spec.required.concat(spec.optional);
   var parts = [];
-  for (var index = 0; index < SOLVE_PARAMS.length; index += 1) {
-    var name = SOLVE_PARAMS[index];
+  for (index = 0; index < ordered.length; index += 1) {
+    var name = ordered[index];
     if (!Object.prototype.hasOwnProperty.call(params, name)) {
-      return null;
+      continue;
     }
     var value = params[name];
     if (typeof value !== "string") {
@@ -739,21 +820,55 @@ function solveQuery(params) {
   return parts.join("&");
 }
 
-async function runSolve(query, onSettled, generation) {
+function requestFetch(spec, query) {
   /*
-    The one non-GET request this page issues, folded into the same outcome
-    shape probeRoute returns - with one difference that is load-bearing. The
-    body handed back is the FULL parsed envelope and not bodyData, because a
-    refusal carries its reason and its detail OUTSIDE data and a bench that
-    could not read them would have to render a 400 as silence.
+    THE THREE REQUESTS THIS PAGE CAN ISSUE, EACH WRITTEN OUT WITH ITS PATH AND
+    ITS VERB AS LITERALS. Every one of them could be reached from spec.path and
+    spec.method in a single call, and that shape was written first and rejected:
+    it makes "which URLs can this page reach, with which verbs" a question only
+    answerable by following a table indirection, and it defeats the static arm
+    in tests/surface/test_web_assets.py that counts the page's non-GET requests
+    and pins each to a path. A security-relevant control that a refactor
+    silently blinds is worse than three visible lines.
+
+    NO BODY KEY ON ANY OF THEM. clockspeed/surface/server.py parses the query
+    string and reads a request body nowhere at all, so a body would be ignored
+    on arrival - and an unread body on a kept-alive HTTP/1.1 connection desyncs
+    whatever request follows it on that socket. Omitting the key sends
+    Content-Length: 0.
   */
-  var outcome = { reached: false, http: null, body: null };
-  try {
-    var response = await fetch("/api/solve?" + query, {
+  if (spec === REQUESTS.solve) {
+    return fetch("/api/solve?" + query, {
       method: "POST",
       headers: { "Accept": "application/json" },
       cache: "no-store"
     });
+  }
+  if (spec === REQUESTS.optimize) {
+    return fetch("/api/optimize?" + query, {
+      method: "POST",
+      headers: { "Accept": "application/json" },
+      cache: "no-store"
+    });
+  }
+  return fetch("/api/power?" + query, {
+    method: "GET",
+    headers: { "Accept": "application/json" },
+    cache: "no-store"
+  });
+}
+
+async function runRequest(spec, query, onSettled, generation) {
+  /*
+    The requests this page issues that are not repaints, folded into the same
+    outcome shape probeRoute returns - with one difference that is load-bearing.
+    The body handed back is the FULL parsed envelope and not bodyData, because a
+    refusal carries its reason and its detail OUTSIDE data and a panel that
+    could not read them would have to render a 400 as silence.
+  */
+  var outcome = { reached: false, http: null, body: null };
+  try {
+    var response = await requestFetch(spec, query);
     var payload = null;
     try {
       payload = await response.json();
@@ -766,10 +881,10 @@ async function runSolve(query, onSettled, generation) {
   } finally {
     /*
       IN THE finally FOR THE REASON refresh() RELEASES ITS OWN FLAG THERE. A
-      solve that throws once is a bad solve; a solve that throws once and then
+      request that throws once is a bad request; one that throws once and then
       refuses every later one is a dead bench, recoverable only by a reload.
     */
-    solving = false;
+    asking = false;
   }
 
   if (generation !== panelGeneration) {
@@ -800,13 +915,15 @@ async function runSolve(query, onSettled, generation) {
   }
 }
 
-function requestSolve(params, onSettled) {
+function makeDoor(spec) {
   /*
-    Ask /api/solve for a plan on behalf of a panel, and hand that panel the
-    outcome when it settles. Returns true if the request was accepted, false if
-    it was refused - and a false return means onSettled is NEVER called, so a
-    caller that ignores the return value waits forever rather than seeing a
-    fabricated answer.
+    Build the one function a panel is handed for one route.
+
+    Ask that route on behalf of a panel, and hand that panel the outcome when
+    it settles. Returns true if the request was accepted, false if it was
+    refused - and a false return means onSettled is NEVER called, so a caller
+    that ignores the return value waits forever rather than seeing a fabricated
+    answer.
 
     WHY A CALLBACK AND NOT A REPAINT. mountPanel empties a panel's section and
     mounts it again, so repainting the bench to show its result would discard
@@ -816,28 +933,41 @@ function requestSolve(params, onSettled) {
 
     REFUSED WHILE A REPAINT IS IN FLIGHT, because a repaint is about to empty
     and remount every section including the one that would receive this answer.
-  */
-  if (repainting || solving) {
-    return false;
-  }
-  if (typeof onSettled !== "function") {
-    return false;
-  }
 
-  var query = solveQuery(params);
-  if (query === null) {
-    return false;
-  }
-
-  solving = true;
-  /*
-    THE GENERATION IS READ NOW AND COMPARED LATER. Captured at acceptance rather
-    than at delivery, because the question the gate answers is whether the nodes
-    this caller was holding WHEN IT ASKED are the nodes still on the page.
+    ONE BUILDER RATHER THAN THREE HAND-WRITTEN DOORS. Each door differs only in
+    its row of REQUESTS, so writing them out separately would be three copies of
+    the generation gate, three copies of the busy flag and three chances for one
+    of them to drift out of step with the other two - and the one that drifted
+    would be the one that silently wrote an answer into a discarded node.
   */
-  runSolve(query, onSettled, panelGeneration);
-  return true;
+  return function door(params, onSettled) {
+    if (repainting || asking) {
+      return false;
+    }
+    if (typeof onSettled !== "function") {
+      return false;
+    }
+
+    var query = requestQuery(spec, params);
+    if (query === null) {
+      return false;
+    }
+
+    asking = true;
+    /*
+      THE GENERATION IS READ NOW AND COMPARED LATER. Captured at acceptance
+      rather than at delivery, because the question the gate answers is whether
+      the nodes this caller was holding WHEN IT ASKED are the nodes still on the
+      page.
+    */
+    runRequest(spec, query, onSettled, panelGeneration);
+    return true;
+  };
 }
+
+var requestSolve = makeDoor(REQUESTS.solve);
+var requestOptimize = makeDoor(REQUESTS.optimize);
+var requestPower = makeDoor(REQUESTS.power);
 
 /* --- one repaint, on demand, never on a schedule ------------------------ */
 
