@@ -1026,3 +1026,415 @@ def test_releasing_a_row_that_is_not_claimed_reports_nothing_removed(tmp_path: P
     root = tmp_path / "claims"
     answer = claims.release_claim(str(root / f"{ROW_A}{claims.CLAIM_SUFFIX}"), root=root)
     assert answer is False, "a release reported removing a claim that was never taken"
+
+
+# ===========================================================================
+# f. CS-1009 - the claim outlives the process that made it, not the cycle
+# ===========================================================================
+#
+# WHY THIS SECTION EXISTS. Every arm above claims a row from a process that
+# stays alive for the length of the arm, so every one of them is satisfied by
+# the pid anchor. An LLM worker does not run that way: it reaches python through
+# a FRESH SUBPROCESS PER CALL, so the process that writes the claim has exited
+# microseconds later while its CYCLE runs for thousands of seconds. Under the
+# pid anchor the record read RECLAIMABLE for that whole span and a second lane
+# reclaimed a row somebody was working, which is the double-booking CS-991 was
+# filed to stop, restored by the calling convention rather than by the code.
+#
+# THE ANCHOR THESE ARMS GRADE IS THE LANE LOCK. A cycle's lane lock is held by
+# the spawned WORKER - ``ops/loop/lane_launcher.py`` re-points it through
+# ``lanes.repoint_lane_pid`` the moment it has a worker pid - and that process
+# lives the whole cycle. So the arms below drive a REAL lane lock behind a REAL
+# live foreign process rather than patching a probe, for the reason the module
+# docstring already gives about ``pid_alive``.
+
+
+def _lock_root_beside(root: Path) -> Path:
+    """Where the lane locks sit for a claim store rooted at ``root``.
+
+    SPELLED FROM ``lanes.DEFAULT_ROOT`` RATHER THAN AS A LITERAL, so a rename of
+    the lane lock directory moves the arms with it instead of leaving them
+    writing locks nothing reads. What these arms grade is the DELEGATION, not
+    the location: the location has its own arm, which compares the production
+    answer against the main tree.
+    """
+    return root.parent / lanes.DEFAULT_ROOT.name
+
+
+#: Claims a row and then EXITS NORMALLY, which is how a per-call worker
+#: subprocess ends. Not ``os._exit``: the crash arm above already grades a death
+#: past cleanup, and a normal exit is the case CS-1009 is about.
+_EXITING_CLAIMANT: Final = """
+import os
+import sys
+
+sys.path.insert(0, sys.argv[1])
+
+from ops.loop import claims
+
+answer = claims.try_claim_row(
+    sys.argv[2],
+    lane=sys.argv[3],
+    run_id=sys.argv[4],
+    worktree=sys.argv[5],
+    root=sys.argv[6],
+)
+sys.stdout.write("{0}|{1}|{2}".format(answer.get("ok"), os.getpid(), answer.get("token")))
+"""
+
+#: Releases a claim by token from a DIFFERENT process than the one that took it,
+#: which is the second facet CS-1009 names: ``_OWNED`` is process-local, so a
+#: later per-call subprocess of one cycle cannot release what an earlier one
+#: took. The run id is the identity it offers in place of the lost table entry.
+_RELEASING_SUBPROCESS: Final = """
+import sys
+
+sys.path.insert(0, sys.argv[1])
+
+from ops.loop import claims
+
+offered = sys.argv[4]
+answer = claims.release_claim(
+    sys.argv[2],
+    root=sys.argv[3],
+    run_id=None if offered == "-" else offered,
+)
+sys.stdout.write(str(answer))
+"""
+
+
+def _claim_and_exit(
+    tmp_path: Path, row: str, lane: str, run_id: str, root: Path
+) -> tuple[int, str]:
+    """Claim ``row`` in a child that then exits normally. Returns its pid and token."""
+    script = tmp_path / "cs1009_exiting_claimant.py"
+    script.write_text(_EXITING_CLAIMANT, encoding="utf-8")
+    done = subprocess.run(
+        [
+            sys.executable,
+            str(script),
+            str(ROOT),
+            row,
+            lane,
+            run_id,
+            str(_worktree(tmp_path, "cs1009-claimtree")),
+            str(root),
+        ],
+        capture_output=True,
+        check=False,
+        text=True,
+        timeout=_CHILD_TIMEOUT_S,
+    )
+    ran = done.returncode == 0
+    assert ran, f"the claimant did not run - stderr was {done.stderr!r}"
+    reported, _, rest = done.stdout.partition("|")
+    took_it = reported == "True"
+    assert took_it, f"the claimant did not take the row - stdout was {done.stdout!r}"
+    spelled, _, token = rest.partition("|")
+    return int(spelled), token
+
+
+def _release_from_a_second_process(tmp_path: Path, token: str, root: Path, run_id: str) -> str:
+    """Call ``release_claim`` from a process that never held the claim."""
+    script = tmp_path / "cs1009_releasing_subprocess.py"
+    script.write_text(_RELEASING_SUBPROCESS, encoding="utf-8")
+    done = subprocess.run(
+        [sys.executable, str(script), str(ROOT), token, str(root), run_id],
+        capture_output=True,
+        check=False,
+        text=True,
+        timeout=_CHILD_TIMEOUT_S,
+    )
+    ran = done.returncode == 0
+    assert ran, f"the releasing process did not run - stderr was {done.stderr!r}"
+    return done.stdout.strip()
+
+
+@contextmanager
+def _cycle_on_lane(
+    lock_root: Path, lane: str, run_id: str, worktree: Path, pid: Any = None
+) -> Iterator[int]:
+    """A lane lock RUNNING behind a real process, exactly as a launch leaves it.
+
+    Acquired through ``lanes.try_acquire_lane`` and re-pointed through
+    ``lanes.repoint_lane_pid`` - the same two calls ``ops/loop/lane_launcher.py``
+    makes - so what the arm drives is the production shape rather than a
+    hand-written lock file. ``pid`` names the process the lock ends up pointing
+    at; None means a long-lived child this helper starts and reaps.
+
+    Yields:
+        The pid the lock names.
+    """
+    child = None
+    if pid is None:
+        child = subprocess.Popen(
+            [sys.executable, "-c", "import sys; sys.stdin.readline()"],
+            stdin=subprocess.PIPE,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+        pid = child.pid
+    token = None
+    try:
+        got = lanes.try_acquire_lane(
+            lane, run_id=run_id, worktree=str(worktree), root=str(lock_root)
+        )
+        acquired = bool(got["ok"])
+        assert acquired, f"the arm could not acquire lane {lane!r}"
+        token = got["token"]
+        pointed = lanes.repoint_lane_pid(token, pid, root=str(lock_root))
+        assert pointed, "the arm could not re-point the lane lock at its worker"
+        yield int(pid)
+    finally:
+        if token is not None:
+            lanes.release_lane(token, root=str(lock_root))
+        if child is not None:
+            with contextlib.suppress(OSError, ValueError):
+                assert child.stdin is not None
+                child.stdin.close()
+            with contextlib.suppress(subprocess.TimeoutExpired):
+                child.wait(timeout=_CHILD_TIMEOUT_S)
+            if child.poll() is None:
+                child.kill()
+                child.wait()
+
+
+def test_the_arms_can_tell_a_live_cycle_from_the_exited_process_that_claimed_it(
+    tmp_path: Path,
+) -> None:
+    """THE CONTROL. Without it, the arms below could pass by grading nothing.
+
+    A probe that answered False for everything would make the reclaim arms pass
+    for the wrong reason, and a probe that answered True for everything would
+    make the exclusion arms pass for no reason at all. So this fronts the
+    section by asserting the two readings the arms depend on, at the moment they
+    depend on them: the process that claimed the row is GONE, and the process
+    the cycle's lane lock names is ALIVE.
+    """
+    root = tmp_path / "control" / "claims"
+    lock_root = _lock_root_beside(root)
+    with _cycle_on_lane(lock_root, LANE_A, "cycle-control", _worktree(tmp_path, "wt-cycle")) as pid:
+        claimant, _token = _claim_and_exit(tmp_path, ROW_A, LANE_A, "worker-call", root)
+        claimant_is_gone = not lanes.pid_alive(claimant)
+        assert claimant_is_gone, "the claiming process outlived its own exit"
+        cycle_is_running = lanes.pid_alive(pid)
+        assert cycle_is_running, "the cycle's process died before the arm could read it"
+        lock_says = str(lanes.lane_state(str(lock_root), None, LANE_A)["state"])
+        assert lock_says == lanes.RUNNING, f"the lane lock reads {lock_says}"
+
+
+def test_a_claim_outlives_the_process_that_made_it_while_its_cycle_runs(
+    tmp_path: Path,
+) -> None:
+    """THE SUBJECT OF CS-1009, driven through a real process exit.
+
+    The claiming process is a child that takes the row and then returns - a per
+    call worker subprocess, which is how an LLM worker reaches python. Its pid is
+    dead before the assertions run, and the control above establishes that at
+    the moment it matters. What is still alive is the CYCLE, named by the lane
+    lock its claim recorded.
+
+    The edit that reddens this: deleting the lane-lock branch from
+    ``claims._state_of`` puts the store back on the pid anchor and the second
+    lane takes the row.
+    """
+    root = tmp_path / "control" / "claims"
+    lock_root = _lock_root_beside(root)
+    with _cycle_on_lane(lock_root, LANE_A, "cycle-alpha", _worktree(tmp_path, "wt-cycle")):
+        _claimant, _token = _claim_and_exit(tmp_path, ROW_A, LANE_A, "worker-call", root)
+
+        state = str(claims.claim_state(ROW_A, root=root)["state"])
+        assert state == claims.HELD, f"a claim whose cycle is running reads {state}"
+
+        offered = claims.first_takeable(_offered(), root=root)
+        assert offered == ROW_B, f"the queue still offered {offered!r}"
+
+        second = claims.try_claim_row(
+            ROW_A, lane=LANE_B, run_id="lane-b", worktree=_worktree(tmp_path, "wt-b"), root=root
+        )
+        double_booked = bool(second["ok"])
+        assert not double_booked, "a second lane took a row whose cycle is still running"
+        refusal = str(second["refused"])
+        assert refusal == "row_claimed", f"the second lane was refused with {refusal!r}"
+
+
+def test_a_genuinely_dead_cycle_returns_its_row(tmp_path: Path) -> None:
+    """The other half of the acceptance, and it must beat a LIVE claimant pid.
+
+    The record here names THIS process, which is alive, so the pid anchor alone
+    would report the row held forever. What decides it is the cycle: the lane
+    lock is present but names a reaped pid, so the cycle is provably over and the
+    row goes back on the queue.
+
+    The edit that reddens this: making the lane-lock branch answer HELD whenever
+    a lock file EXISTS, rather than when ``lanes.lane_state`` reports RUNNING.
+    """
+    root = tmp_path / "control" / "claims"
+    lock_root = _lock_root_beside(root)
+    dead = _reaped_pid()
+    claimant_is_alive = lanes.pid_alive(os.getpid())
+    assert claimant_is_alive, "the control process cannot see itself"
+    cycle_is_dead = not lanes.pid_alive(dead)
+    assert cycle_is_dead, "the reaped pid was reissued before the arm could read it"
+
+    with _cycle_on_lane(lock_root, LANE_A, "cycle-dead", _worktree(tmp_path, "wt-cycle"), pid=dead):
+        _plant(root, ROW_A, pid=os.getpid(), lane=LANE_A, lane_run_id="cycle-dead")
+        state = str(claims.claim_state(ROW_A, root=root)["state"])
+        assert state == claims.RECLAIMABLE, f"a dead cycle's row reads {state}"
+
+        offered = claims.first_takeable(_offered(), root=root)
+        assert offered == ROW_A, f"the queue withheld the row and offered {offered!r}"
+
+        retaken = claims.try_claim_row(
+            ROW_A, lane=LANE_B, run_id="lane-b", worktree=_worktree(tmp_path, "wt-b"), root=root
+        )
+        took_it = bool(retaken["ok"])
+        assert took_it, f"a dead cycle wedged its row - {retaken.get('refused')!r}"
+
+
+def test_a_later_cycle_on_the_same_lane_does_not_inherit_the_earlier_claim(
+    tmp_path: Path,
+) -> None:
+    """A lane is reused; a cycle is not. The match is on the LOCK'S RUN ID.
+
+    Without the run id the anchor would be the lane, and a lane is occupied
+    again within seconds of a cycle ending - so every abandoned record would
+    read held for as long as the loop kept firing. The record here names a live
+    pid as well, so the pid anchor cannot be what answers.
+
+    The edit that reddens this: dropping the run-id comparison and answering HELD
+    on RUNNING alone.
+    """
+    root = tmp_path / "control" / "claims"
+    lock_root = _lock_root_beside(root)
+    with _cycle_on_lane(lock_root, LANE_A, "cycle-two", _worktree(tmp_path, "wt-cycle")) as pid:
+        running = lanes.pid_alive(pid)
+        assert running, "the later cycle's process died before the arm could read it"
+        _plant(root, ROW_A, pid=os.getpid(), lane=LANE_A, lane_run_id="cycle-one")
+
+        state = str(claims.claim_state(ROW_A, root=root)["state"])
+        assert state == claims.RECLAIMABLE, f"an earlier cycle's record reads {state}"
+
+        retaken = claims.try_claim_row(
+            ROW_A, lane=LANE_B, run_id="lane-b", worktree=_worktree(tmp_path, "wt-b"), root=root
+        )
+        took_it = bool(retaken["ok"])
+        assert took_it, f"a finished cycle kept its row - {retaken.get('refused')!r}"
+
+
+def test_a_live_cycle_holds_its_row_however_old_the_record_is(tmp_path: Path) -> None:
+    """NO FLOOR OVER A CLAIM'S AGE ANYWHERE ON THIS PATH - the CS-988 shape.
+
+    The record is stamped at the epoch and read against a clock reading decades
+    later, and its own pid is dead, so age and pid both say abandon it. The cycle
+    says otherwise and the cycle decides.
+
+    The edit that reddens this: inserting any ``age_s > <number>`` test into
+    ``claims._state_of`` ahead of the lane-lock branch. That is the whole point
+    of the arm - an age floor is the fix this item forbids by name, and this is
+    what makes adding one visible.
+    """
+    root = tmp_path / "control" / "claims"
+    lock_root = _lock_root_beside(root)
+    dead = _reaped_pid()
+    long_after = 2_000_000_000.0
+    with _cycle_on_lane(lock_root, LANE_A, "cycle-old", _worktree(tmp_path, "wt-cycle")):
+        _plant(root, ROW_A, pid=dead, lane=LANE_A, lane_run_id="cycle-old", ts=0.0)
+        reading = claims.claim_state(ROW_A, root=root, now=long_after)
+        age = reading["age_s"]
+        ancient = age is not None and float(age) > long_after / 2
+        assert ancient, f"the arm did not age the record - it reads {age!r} seconds old"
+        state = str(reading["state"])
+        assert state == claims.HELD, f"an aged record under a live cycle reads {state}"
+
+
+def test_a_claim_made_with_no_lane_lock_falls_back_to_the_pid_and_says_so(
+    tmp_path: Path,
+) -> None:
+    """THE STATED LIMIT, made observable rather than left in prose.
+
+    A hand-run worker, a test or an operator at a REPL holds no lane lock, and a
+    claim that read dead the instant it was made would be a new defect. So the
+    store falls back to the pid anchor there, and the record SAYS which anchor it
+    is on, so a reader can tell a cycle-anchored claim from a process-anchored
+    one without inferring it.
+
+    This arm is the second control the section needs: it holds under the pid
+    anchor and under the lane-lock anchor alike, so a change that broke every
+    reading would not be able to hide behind the arms above.
+    """
+    root = tmp_path / "control" / "claims"
+    held = claims.try_claim_row(
+        ROW_A, lane=LANE_A, run_id="by-hand", worktree=_worktree(tmp_path, "wt-a"), root=root
+    )
+    took_it = bool(held["ok"])
+    assert took_it, "a claim with no lane lock was refused"
+
+    reading = claims.claim_state(ROW_A, root=root)
+    anchor = str(reading["anchor"])
+    assert anchor == claims.ANCHOR_PID, f"a claim with no lane lock is anchored on {anchor!r}"
+    state = str(reading["state"])
+    assert state == claims.HELD, f"a claim held by this live process reads {state}"
+
+    claimant, _token = _claim_and_exit(tmp_path, ROW_B, LANE_A, "by-hand", root)
+    gone = not lanes.pid_alive(claimant)
+    assert gone, "the claiming process outlived its own exit"
+    orphan = str(claims.claim_state(ROW_B, root=root)["state"])
+    assert orphan == claims.RECLAIMABLE, f"an unanchored claim by a dead process reads {orphan}"
+
+
+def test_the_lane_lock_root_the_store_anchors_to_is_the_main_trees(tmp_path: Path) -> None:
+    """The production wiring, which every arm above assumes away by passing a root.
+
+    A lane's worker runs inside its own checkout, so ``lanes.DEFAULT_ROOT`` -
+    rooted at the importing file - names a directory in the WORKTREE that holds
+    no lock at all. Anchored there, every claim would fall back to the pid and
+    CS-1009 would be undisclosed rather than fixed. The production answer must be
+    the MAIN tree's lane lock root, and a root a caller names must sit beside the
+    claim root it named.
+
+    The edit that reddens this: anchoring on ``lanes.DEFAULT_ROOT`` itself, which
+    resolves inside whichever checkout imported the module.
+    """
+    resolved = claims.lock_root()
+    under_the_repo = str(resolved).startswith(str(lanes.REPO_ROOT))
+    assert under_the_repo, "the default lane lock root is outside the main checkout"
+    tail = resolved.name
+    assert tail == lanes.DEFAULT_ROOT.name, f"the default lane lock root ends in {tail!r}"
+    shape = resolved.relative_to(lanes.REPO_ROOT).as_posix()
+    expected = lanes.DEFAULT_ROOT.relative_to(lanes.DEFAULT_ROOT.parents[3]).as_posix()
+    assert shape == expected, f"the default lane lock root sits at {shape!r} under the main tree"
+
+    named = claims.lock_root(tmp_path / "control" / "claims")
+    beside = named == _lock_root_beside(tmp_path / "control" / "claims")
+    assert beside, "a named claim root did not resolve its lane locks beside it"
+
+
+def test_a_later_subprocess_of_the_same_cycle_can_release_the_claim(tmp_path: Path) -> None:
+    """THE SECOND FACET. ``_OWNED`` is process-local and a worker is not one process.
+
+    An earlier per-call subprocess takes the claim and exits, taking its
+    ``_OWNED`` entry with it. A later call of the SAME cycle then wraps and
+    releases, and before CS-1009 it could not: the fallback compared the
+    record's pid against the releasing process's own, which never matched, so
+    the wrap left the record behind.
+
+    The run id is what the later call offers in place of the lost table entry,
+    and it is a real ABA guard rather than a waiver - the control below offers a
+    DIFFERENT run id against the same token and is refused.
+
+    The edit that reddens this: dropping the run-id branch from
+    ``claims._is_ours``.
+    """
+    root = tmp_path / "control" / "claims"
+    _claimant, token = _claim_and_exit(tmp_path, ROW_A, LANE_A, "one-cycle", root)
+
+    refused = _release_from_a_second_process(tmp_path, token, root, "a-different-cycle")
+    assert refused == "False", f"a stranger's run id released the claim - it answered {refused!r}"
+    survived = str(claims.claim_state(ROW_A, root=root)["row"])
+    assert survived == ROW_A, "the refused release removed the record anyway"
+
+    released = _release_from_a_second_process(tmp_path, token, root, "one-cycle")
+    assert released == "True", f"the cycle's own later call could not release - {released!r}"
+    left = _rows_on_disk(root)
+    assert left == set(), f"the release left {sorted(left)} behind"

@@ -61,6 +61,62 @@ NOTHING HERE READS `ROADMAP.md`. The caller brings the queue it computed - from
 on the queue and deciding WHO is holding a row are separate jobs, and a claim
 store that parsed the roadmap would have to agree with the scope module about
 the fences as well, which is a second copy of a different answer.
+
+LIVENESS IS THE CYCLE'S, NEVER THE CLAIMING PROCESS'S - CS-1009. The first
+build of this module probed the pid that WROTE the record, which is correct
+only if the writer runs for as long as the work does. The worker does not run
+that way. `tools/headless-queue.md` hands the queue to an LLM agent that
+reaches python through a FRESH SUBPROCESS PER CALL, so the process that takes
+the claim has exited microseconds later while its cycle runs for thousands of
+seconds - both measured nights did. Under the pid anchor the record read
+RECLAIMABLE for that whole span and a second lane reclaimed a row somebody was
+working: the exact double-booking this module exists to stop, restored by the
+CALLING CONVENTION rather than by the code, and invisible to every arm that
+claims from a process which stays alive.
+
+THE ANCHOR IS THE LANE LOCK, because it is the one thing already on disk that
+outlives a per-call subprocess and is not a duration. ``ops/loop/lanes.py``
+holds one lock per lane; ``ops/loop/lane_launcher.py`` re-points it at the
+SPAWNED WORKER through ``lanes.repoint_lane_pid`` as soon as it has a pid, and
+that process lives the whole cycle. ``lanes.lane_state`` already answers FREE,
+RUNNING or RECLAIMABLE over it with the pid-reuse guard paid for. So a claim
+DELEGATES: :func:`_lane_anchor_state` asks the lock of the lane the record
+itself names, and the row is held exactly while that lane's cycle runs.
+
+MATCHED ON THE LOCK'S RUN ID, or a lane would be the anchor rather than a
+cycle. A lane is re-occupied within seconds of a cycle ending, so without the
+run id every abandoned record would read held for as long as the loop kept
+firing - a wedged row wearing the clothes of a live one, which the module
+docstring above already rules is worse than no claim at all.
+
+AND THE RUN ID IS READ OFF THE LOCK, NOT TAKEN FROM THE CALLER. This is the
+half that would be easy to get wrong and would fail silently in production.
+The caller's ``run_id`` is the WORKER'S OWN, invented inside the cycle;
+``launch_lane`` never hands the worker the driver's run id, by environment or
+by argument. Comparing the caller's run id against the lock's would therefore
+mismatch on every real fire and answer RECLAIMABLE for every claim - the defect
+this closes, restored with more machinery. So :func:`try_claim_row` READS the
+lane's lock and snapshots the run id it finds into ``lane_run_id``. A caller
+cannot assert its own liveness; all it supplies is which lane it is on.
+
+NO FLOOR OVER A CLAIM'S AGE ANYWHERE ON THIS PATH, and that is a ruling rather
+than an omission - CS-1009 forbids the CS-988 shape by name. An age floor picks
+a number that is too small for a long cycle and too large for a crashed one at
+the same time, and it is satisfied by the strongest member of whatever
+population it was tuned against. The lock is a probe, not a timer. The one
+duration this file reads is ``WRITE_GRACE_S``, which is the exclusive create's
+fill window and applies to a record with NO readable holder at all.
+
+THE LIMIT, STATED RATHER THAN IMPLIED: A CLAIM WITH NO LANE LOCK IS ANCHORED ON
+ITS PROCESS. A hand-run worker, an arm in a test, an operator at a REPL - none
+of them hold a lane lock, and a claim that read dead the instant it was made
+would be a new defect traded for the old one. So where the lane is FREE or
+RECLAIMABLE at claim time the record carries no ``lane_run_id`` and the pid
+probe decides it, exactly as before. That is CS-1009's own failure in
+miniature, confined to callers the queue never launches, and it is DECLARED in
+the record as ``anchor`` and rendered by every reader, so a dashboard or an
+operator can tell a cycle-anchored claim from a process-anchored one by reading
+it rather than by inferring it.
 """
 
 from __future__ import annotations
@@ -131,6 +187,19 @@ WRITE_GRACE_S: Final = lanes.WRITE_GRACE_S
 #: for a reason nobody reading the error would connect to the row.
 MAX_ROW_LENGTH: Final = 64
 
+#: WHICH LIVENESS ANCHOR A RECORD IS ON, written into the record and rendered
+#: by every reader. A store that silently degraded from the cycle anchor to the
+#: process anchor would be indistinguishable from one that never had the cycle
+#: anchor, which is how CS-1009 survived CS-991's whole test suite.
+ANCHOR_LANE: Final = "lane_lock"
+ANCHOR_PID: Final = "pid"
+
+#: The directory the lane locks sit in, TAKEN FROM ``lanes`` rather than
+#: spelled, so a rename there moves this with it instead of leaving the anchor
+#: pointed at nothing - and an anchor pointed at nothing reads FREE, which is
+#: the silent degradation above.
+_LOCK_DIR_NAME: Final = lanes.DEFAULT_ROOT.name
+
 #: The characters a row id may be spelled with. AN ALLOWLIST RATHER THAN A LIST
 #: OF THINGS TO REJECT: a denylist over path syntax has to anticipate every
 #: separator, drive letter, reserved device name and dot form the platform
@@ -196,6 +265,50 @@ def row_key(row: Any) -> str:
 def _resolve_root(root: Any) -> Path:
     """The claim root to use, defaulting to this repository's own."""
     return DEFAULT_ROOT if root is None else Path(root)
+
+
+def lock_root(root: Any = None) -> Path:
+    """Where the LANE LOCKS this store anchors liveness to live.
+
+    A SIBLING OF THE CLAIM ROOT, AND DERIVED FROM IT RATHER THAN TAKEN AS AN
+    ARGUMENT. Two reasons, and the first is the one that would have made this
+    fix a no-op in production while passing every arm:
+
+    ``lanes.DEFAULT_ROOT`` is rooted at the IMPORTING FILE, not at the main
+    tree. A lane's worker runs inside its own checkout and imports that
+    checkout's copy of ``ops/loop/lanes.py``, so that constant names a lane
+    lock directory INSIDE THE WORKTREE, which holds no lock at all - the
+    driver took the lane from the main tree. Anchored there, every claim a
+    worker made would find its lane FREE and fall back to the pid, which is
+    CS-1009 undisclosed rather than closed. The module docstring on
+    :data:`DEFAULT_ROOT` records the same trap being measured across two real
+    processes, and this is that trap one directory over.
+
+    So the anchor follows the CLAIM root, which already resolves the main
+    checkout through ``lanes.REPO_ROOT``. A caller that names a claim root gets
+    its lane locks beside it - one directory pair, moved together - and a
+    caller that names none gets the main tree's, which is the only spelling
+    every lane agrees on.
+
+    WHAT THAT LEAVES RESTING ON THE DRIVER, stated because the fix depends on it
+    and nothing here can check it. The driver takes its lane lock with no root
+    at all (`ops/loop/queue_loop.py`, the `acquire` call in `run_cycle`), so the
+    lock lands under whichever checkout the DRIVER was started from, and
+    `ops/loop/launch_queue_loop.ps1` resolves the driver by its own script root.
+    Started from the main checkout - which is how it is documented and run -
+    that is this directory and the two agree. Started from inside a worktree it
+    would not be, and every claim would find its lane FREE and quietly fall back
+    to the pid anchor. This is not a new dependency - the note on
+    :data:`DEFAULT_ROOT` already leans on it - but it is load-bearing here in a
+    way it was not before, and it is UNMEASURED.
+
+    Args:
+        root: The claim root, or None for the default.
+
+    Returns:
+        The lane lock root to probe.
+    """
+    return _resolve_root(root).parent / _LOCK_DIR_NAME
 
 
 def claim_path(row: Any, root: Any = None) -> Path:
@@ -304,7 +417,7 @@ def _candidates(root: Any, now: Any) -> dict[str, list[_Candidate]]:
         recorded = lanes.str_or_none(record.get("row"))
         if recorded is None or not recorded.strip():
             continue
-        state = _state_of(record, _age_of(record, path, now))
+        state = _state_of(record, _age_of(record, path, now), root, now)
         grouped.setdefault(recorded.strip().upper(), []).append((path, raw, record, state))
     return grouped
 
@@ -364,16 +477,72 @@ def claim_for_row(row: Any, root: Any = None) -> Path:
 # ---------------------------------------------------------------------------
 
 
-def _state_of(record: dict[str, Any], age_s: float | None) -> str:
+def _lane_anchor_state(record: dict[str, Any], root: Any, now: Any) -> str | None:
+    """HELD or RECLAIMABLE from the CYCLE'S lane lock, or None when there is none.
+
+    THE DELEGATION CS-1009 TURNS ON. The record names a lane and the run id its
+    lock carried when the claim was taken; this asks ``lanes.lane_state`` what
+    that lane is doing now. The row is held exactly while that lock is RUNNING
+    behind that same run id - so the claim survives every process the cycle
+    spawns and dies with the cycle, which is the acceptance.
+
+    A RUN ID THAT NO LONGER MATCHES IS A LATER CYCLE, not a live one. The lane
+    has been released and retaken; whoever wrote this record finished or died,
+    and holding its row against the lane's next occupant would wedge the row
+    for as long as the loop kept firing.
+
+    None means NO ANCHOR - the record predates the anchor, or was taken with no
+    lane lock held, or names a lane off the roster so no lock can exist for it.
+    The caller then falls back to the pid probe. An off-roster lane is the
+    sharp case and it is answered this way deliberately: reporting HELD there
+    would wedge the row forever, because the lock it waits on can never appear.
+
+    Args:
+        record: The record's payload.
+        root: The claim root, whose sibling holds the lane locks.
+        now: The wall clock reading, passed through so an arm never sleeps.
+
+    Returns:
+        The state the cycle implies, or None when the record carries no anchor.
+    """
+    anchored = lanes.str_or_none(record.get("lane_run_id"))
+    lane = lanes.str_or_none(record.get("lane"))
+    if anchored is None or lane is None:
+        return None
+    try:
+        reading = lanes.lane_state(lock_root(root), now, lane)
+    except (ValueError, OSError):
+        return None
+    if reading.get("state") != lanes.RUNNING:
+        return RECLAIMABLE
+    return HELD if lanes.str_or_none(reading.get("run_id")) == anchored else RECLAIMABLE
+
+
+def _anchor_of(record: dict[str, Any]) -> str:
+    """Which anchor a record declares. Rendered, so a degradation is readable."""
+    return ANCHOR_LANE if lanes.str_or_none(record.get("lane_run_id")) else ANCHOR_PID
+
+
+def _state_of(record: dict[str, Any], age_s: float | None, root: Any, now: Any) -> str:
     """FREE, HELD or RECLAIMABLE for one record's payload. Decided by the PROBE.
+
+    THE CYCLE IS ASKED FIRST AND ITS ANSWER IS FINAL. The pid branch below is
+    the fallback for a record carrying no lane anchor, and it is exactly the
+    rule CS-1009 found insufficient for a worker - see the module docstring's
+    stated limit for who is still on it and why that is not a silent default.
 
     Args:
         record: The record's payload.
         age_s: How old the record is, or None when that cannot be established.
+        root: The claim root, whose sibling holds the lane locks.
+        now: The wall clock reading, passed through so an arm never sleeps.
 
     Returns:
         The state.
     """
+    anchored = _lane_anchor_state(record, root, now)
+    if anchored is not None:
+        return anchored
     pid = lanes.int_or_none(record.get("pid"))
     if pid is None:
         # No readable holder at all - see WRITE_GRACE_S.
@@ -398,6 +567,12 @@ def _reading(entry: _Candidate, now: Any) -> dict[str, Any]:
         "pid": lanes.int_or_none(record.get("pid")),
         "run_id": lanes.str_or_none(record.get("run_id")),
         "worktree": lanes.str_or_none(record.get("worktree")),
+        # DECLARED RATHER THAN INFERRED. A reader that had to guess which anchor
+        # decided a state could not tell a cycle-anchored store from one that
+        # had quietly degraded to the process anchor - which is the shape that
+        # made CS-1009 survive a green suite.
+        "anchor": _anchor_of(record),
+        "lane_run_id": lanes.str_or_none(record.get("lane_run_id")),
     }
 
 
@@ -435,6 +610,8 @@ def claim_state(row: Any, root: Any = None, now: Any = None) -> dict[str, Any]:
             "run_id": None,
             "worktree": None,
             "age_s": None,
+            "anchor": None,
+            "lane_run_id": None,
         }
     return found
 
@@ -589,6 +766,28 @@ def _refusal(state: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def _cycle_run_id(lane: Any, root: Any) -> str | None:
+    """The run id of the cycle currently RUNNING on a lane, or None.
+
+    None where no cycle holds the lane - which is every hand-run claim, and is
+    the stated limit rather than an error. See the module docstring.
+
+    Args:
+        lane: The lane the claim is being taken on.
+        root: The claim root, whose sibling holds the lane locks.
+
+    Returns:
+        The lock's run id, or None when the lane is not running one.
+    """
+    try:
+        reading = lanes.lane_state(lock_root(root), None, lane)
+    except (ValueError, OSError):
+        return None
+    if reading.get("state") != lanes.RUNNING:
+        return None
+    return lanes.str_or_none(reading.get("run_id"))
+
+
 def try_claim_row(
     row: Any, *, lane: Any, run_id: Any, worktree: Any, root: Any = None
 ) -> dict[str, Any]:
@@ -636,11 +835,22 @@ def try_claim_row(
                 # over whatever it is doing.
                 return _refusal(claim_state(key, directory))
 
+    # READ OFF THE LANE'S LOCK, NEVER OFF THE ARGUMENTS. `run_id` above is the
+    # WORKER'S own and has nothing to do with the driver's - see the module
+    # docstring. This is the derivation the acceptance asks for: all the caller
+    # supplies is which lane it is on, and the store establishes the liveness.
+    cycle = _cycle_run_id(lane, directory)
     payload: dict[str, Any] = {
         "row": key,
         "lane": str(lane),
         "run_id": str(run_id),
         "worktree": str(target),
+        # ONE SOURCE FOR THE ANCHOR, WHICH IS THIS FIELD. The anchor a reader
+        # renders is DERIVED from it by `_anchor_of`, never stored beside it: a
+        # second copy is a second thing to drift, and a stored anchor that
+        # disagreed with the run id beside it would be read in preference to
+        # the truth (CLAUDE.md section 4).
+        "lane_run_id": cycle,
         "pid": os.getpid(),
         "ts": time.time(),
         "repo": str(lanes.REPO_ROOT),
@@ -691,7 +901,7 @@ def _identity(record: dict[str, Any]) -> tuple[str | None, float | None, int | N
     )
 
 
-def _is_ours(record_path: Path, record: dict[str, Any]) -> bool:
+def _is_ours(record_path: Path, record: dict[str, Any], run_id: Any = None) -> bool:
     """True when the record's CURRENT payload is the identity we wrote there.
 
     THE ABA GUARD. If the row was reclaimed and re-claimed after our token was
@@ -701,9 +911,28 @@ def _is_ours(record_path: Path, record: dict[str, Any]) -> bool:
     claims by THIS process are indistinguishable - harmless, since both are us.
     The cross-process case, the one that matters, is caught.
 
+    ``_OWNED`` IS PROCESS-LOCAL AND A WORKER IS NOT ONE PROCESS - the second
+    facet of CS-1009. An LLM worker reaches python per call, so the subprocess
+    that WRAPS a cycle is never the one that claimed the row and inherits no
+    table entry. The old fallback compared the record's pid against the
+    releasing process's own, which could not match, so the wrap left its record
+    on disk and reported nothing removed. A caller that offers the run id it
+    claimed under is matched on that instead, which is a real ABA guard rather
+    than a waiver: the record's run id moves on when the row is retaken, so a
+    stale offer fails exactly where the pid comparison used to.
+
+    THE RESIDUAL, AND WHY IT IS NOT LOAD-BEARING: a caller that offers NO run id
+    is still on the pid comparison and a later subprocess of its cycle still
+    cannot release. That leaks a record rather than a row - the claim is
+    anchored on the lane lock, so it reads RECLAIMABLE the moment the cycle
+    ends and the next fire clears it. It cannot wedge a row and it cannot
+    double-book one.
+
     Args:
         record_path: The record file.
         record: Its current payload.
+        run_id: The run id the caller claims to hold the record under, or None
+            to fall back to the pid comparison.
 
     Returns:
         True when this process may act on the record.
@@ -712,10 +941,13 @@ def _is_ours(record_path: Path, record: dict[str, Any]) -> bool:
     identity = _identity(record)
     if owned is not None:
         return identity == owned
+    offered = lanes.str_or_none(run_id)
+    if offered is not None:
+        return identity[0] == offered
     return identity[2] == os.getpid()
 
 
-def release_claim(token: Any, root: Any = None) -> bool:
+def release_claim(token: Any, root: Any = None, run_id: Any = None) -> bool:
     """Release a claim handed out by :func:`try_claim_row`. Idempotent.
 
     DELIBERATE, AND THAT IS THE WHOLE CONTRACT. A claim is released because a
@@ -729,9 +961,16 @@ def release_claim(token: Any, root: Any = None) -> bool:
     to remove. NEVER raises - a release runs in a finally, and a release that can
     throw turns one failure into two.
 
+    A LATER SUBPROCESS OF THE SAME CYCLE MUST OFFER ITS RUN ID. The ownership
+    table is process-local, so a worker that reaches python per call has none by
+    the time it wraps; ``run_id`` is the identity it presents instead, and
+    :func:`_is_ours` states what that does and does not guarantee.
+
     Args:
         token: What :func:`try_claim_row` handed back.
         root: The claim root, used only when the token is a bare name.
+        run_id: The run id the claim was taken under. Needed only when the
+            releasing process is not the one that claimed the row.
 
     Returns:
         True when this call removed the record.
@@ -744,7 +983,7 @@ def release_claim(token: Any, root: Any = None) -> bool:
         _OWNED.pop(key, None)
         return False
     record = lanes.read_payload(record_path)
-    if not record or not _is_ours(record_path, record):
+    if not record or not _is_ours(record_path, record, run_id):
         # Half-written, corrupt, or somebody else's now - not provably ours.
         return False
     try:

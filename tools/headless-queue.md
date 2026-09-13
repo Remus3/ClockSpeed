@@ -160,7 +160,7 @@ held = claims.try_claim_row(row, lane=<your lane>, run_id=<your run id>, worktre
 if not held["ok"]:                                             # CHECK THIS. See below.
     ...                                                        # recompute and take the next row
 ...                                                            # the cycle
-claims.release_claim(held["token"])                            # section 11, at the wrap
+claims.release_claim(held["token"], run_id=held["run_id"])     # section 11, at the wrap
 ```
 
 **`try_claim_row` REFUSES RATHER THAN RAISING, so a worker that ignores `ok` proceeds on a
@@ -206,10 +206,23 @@ WORKING this row RIGHT NOW" and is worthless the moment its holder stops running
 write a claim in place of a closure record, and never read a claim as evidence a row is
 done.
 
+**PASS `run_id=` BACK ON THE RELEASE, and pass the SAME value you claimed with.** You
+reach python through a fresh subprocess per call, so the process that wraps your cycle is
+never the one that took the claim and inherits none of its in-memory ownership. The run id
+is what identifies you instead. Omit it and the release removes nothing - which does not
+wedge the row, because the record dies with your cycle either way, but it does leave a
+record behind that nobody asked for (CS-1009).
+
+**YOUR CLAIM IS ANCHORED ON YOUR LANE LOCK, NOT ON THE PROCESS THAT WROTE IT.** That is
+what makes the fresh-subprocess-per-call convention safe: the claim is held for as long as
+the CYCLE runs, and your cycle is the worker process the launcher started, not the python
+call that happened to write the record. Nothing is asked of you for this - the store reads
+your lane's lock itself. It is worth knowing only because it is why a claim taken by a
+process that exited a second later still excludes the other lane.
+
 **A CRASHED CYCLE DOES NOT RELEASE ITS CLAIM, AND DOES NOT WEDGE ITS ROW EITHER.** Release
-is deliberate. A killed cycle leaves its record where it was; the store then PROBES the
-holder's pid, finds it gone, reports the row RECLAIMABLE and offers it again on the next
-fire. So you never hand-delete a claim file to unstick a lane - if the holder is really
+is deliberate. A killed cycle leaves its record where it was; the store then probes the
+CYCLE, finds it over, reports the row RECLAIMABLE and offers it again on the next fire. So you never hand-delete a claim file to unstick a lane - if the holder is really
 gone the next `first_takeable` already offers the row, and if it is not, deleting the file
 puts a second lane into a worktree that has one.
 
@@ -587,7 +600,7 @@ engine change is substantive; a five-file rename is not.
 
 **Every cycle ends by exiting after one row.**
 
-**RELEASE THE ROW CLAIM, and do it whether the cycle shipped or gave up.** `claims.release_claim(held["token"])`,
+**RELEASE THE ROW CLAIM, and do it whether the cycle shipped or gave up.** `claims.release_claim(held["token"], run_id=held["run_id"])`,
 from section 5. A cycle that finished and a cycle that abandoned its row are the same event
 to the next lane - neither is working the row any more. The one case you do NOT have to
 handle is being killed: release is deliberate precisely so that a crash leaves the record
