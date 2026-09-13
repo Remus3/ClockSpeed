@@ -1103,6 +1103,21 @@ def loop_seams(fake, **over):
         "monotonic": fake.monotonic,
         "emit": lambda _line: None,
         "worktree": r"C:\cs-worktrees\cs-lane-queue",
+        # CS-1008 - BOTH SCOPE SEAMS, STATED, AND HERE RATHER THAN ONLY IN
+        # `_drive`. Left at None these two fall through to `permit_for_lane` and
+        # `claims.claim_states`, which read the LIVE `ROADMAP.md` and the LIVE
+        # claim store; `scope.bound` is a clause of `record["ok"]`, so a real
+        # lane holding a closed or gated row while this suite ran would flip
+        # every arm that grades a roll-up. Because it depends on state that
+        # comes and goes, that red reads as a FLAKE rather than as the fixture
+        # defect it is - the same shape as the worktree-population trap.
+        #
+        # The defect was filed against `_drive`, but twenty-odd arms call
+        # `run_loop(**loop_seams(...))` directly and every one of them had it.
+        # Fixing the helper they all share is the repair; fixing only `_drive`
+        # would leave the same live read one call site over.
+        "permit": _permit_fixture,
+        "claim_states": _empty_claim_store,
     }
     seams.update(over)
     return seams
@@ -2039,6 +2054,18 @@ def _scripted_outcomes(words):
             raise ValueError("a scripted fault")
         if current["word"] == queue_loop.OUTCOME_LANE_HELD:
             return {"ok": False, "refused": "lane_held", "holder": "queue", "pid": 99}
+        if current["word"] == queue_loop.OUTCOME_WORKTREE_IN_USE:
+            # THE SECOND REFUSAL SHAPE, carried here rather than only in the
+            # `run_cycle` arms: the counters, the console line and the JSONL row
+            # all live in `run_loop`, so an outcome that cannot be scripted
+            # through this helper is one no night-long arm can reach.
+            return {
+                "ok": False,
+                "refused": "worktree_in_use",
+                "holder": "queue-b",
+                "pid": 99,
+                "worktree": r"C:\cs-worktrees\cs-lane-queue",
+            }
         return {"ok": True, "token": "T"}
 
     def launch(lane, **kw):
@@ -2436,6 +2463,50 @@ def _ci_success(sha, **_kw):
     return {"verdict": queue_loop.CI_SUCCESS, "sha": sha, "waited_s": 1.0, "workflows": []}
 
 
+def _permit_fixture(_lane, *_args, **_kw):
+    """A STATED permit, so `_drive`'s arms never read the live `ROADMAP.md`.
+
+    `ok` true with a non-empty allowlist is the shape that lets a bound cycle
+    be bound; the row id is deliberately not one this repository uses, so an
+    arm that starts passing because the real queue happens to contain it is
+    impossible.
+    """
+    return {"ok": True, "lane_scope": "fixture", "allowed": ("CS-FIXTURE",), "detail": ""}
+
+
+def _empty_claim_store(_root=None, _now=None):
+    """A STATED claim store, holding nothing. Signature matches `claim_states`."""
+    return {}
+
+
+def test_every_loop_seam_set_states_both_scope_seams(tmp_path):
+    """CS-1008, as a MECHANISM rather than a habit kept by twenty call sites.
+
+    The two seams are only injected because `loop_seams` carries them, and a
+    later edit that drops either one would restore the live read silently -
+    every arm would still pass on a quiet machine, which is exactly how this
+    defect survived. So the property is asserted about the helper itself, and
+    then DRIVEN once end to end so it is not a claim about a dict literal.
+
+    WHICH MUTATION GRADES THIS ARM, stated because a reader will otherwise
+    reach for the wrong one. CS-1008's whole repair is in THIS file - the two
+    entries in `loop_seams` - so reverting `ops/loop/queue_loop.py` cannot move
+    this arm and its survival under that mutation is not evidence of anything.
+    Delete either seam entry from `loop_seams` and this goes red on the line
+    below; that is its anchor. The three CS-1011 arms are the ones the driver
+    mutation grades.
+    """
+    seams = loop_seams(FakeClock())
+    assert seams["permit"] is _permit_fixture, "the permit seam is not stated"
+    assert seams["claim_states"] is _empty_claim_store, "the claim-states seam is not stated"
+
+    row = _drive(tmp_path, [_DONE], budget=1)["records"][0]
+    assert row["scope"]["lane_scope"] == "fixture", (
+        f"the driver did not read the stated permit: {row['scope']}"
+    )
+    assert row["scope"]["samples"] >= 0, "the watch was never constructed"
+
+
 def _drive(tmp_path, script, *, budget, **over):
     """Run the REAL `run_loop` over a scripted outcome sequence.
 
@@ -2463,6 +2534,9 @@ def _drive(tmp_path, script, *, budget, **over):
         **_scripted_outcomes(script),
     )
     seams.setdefault("ci_gate", False)
+    # THE TWO SCOPE SEAMS ARRIVE FROM `loop_seams` - see the CS-1008 note there.
+    # `over` still wins, which is what lets the control arm below hand them back
+    # to their live defaults with an explicit None.
     seams.update(over)
     return queue_loop.run_loop(**seams)
 
@@ -2994,3 +3068,340 @@ def test_the_cycle_line_says_whether_the_cycle_committed(tmp_path):
     )
     blind_lines = [line for line in blind if "queue-loop cycle" in line]
     assert all("commit=unreadable" in line for line in blind_lines), blind_lines
+
+
+# ---------------------------------------------------------------------------
+# CS-1008 - `_drive` grades a STATED fixture, never the machine's live state.
+# CS-1011 - a worktree collision is its OWN recorded fault.
+# ---------------------------------------------------------------------------
+
+
+def _plant_live_scope(monkeypatch, *, allowed, claimed):
+    """Plant an out-of-scope claim in the LIVE readers the DEFAULT seams call.
+
+    NOT A WRITE INTO THE REAL CLAIM STORE, and the refusal is deliberate rather
+    than a shortcut. `ops/loop/claims.py` resolves `DEFAULT_ROOT` through
+    `lanes.REPO_ROOT`, which is the MAIN checkout - so a test that laid a claim
+    file down under the default root would be writing into the live control
+    plane a real lane reads, from a suite running in a worktree, with no
+    guarantee of cleanup (a killed process skips its `finally`). What CS-1008 is
+    about is whether the driver READS live state, so the plant goes where the
+    read lands: the two module functions `permit_for_lane` and `ClaimWatch`
+    reach for when their seams are left at None.
+
+    Args:
+        monkeypatch: pytest's patcher.
+        allowed: The row ids the planted permit says the lane may take.
+        claimed: The row id the planted store says the lane is holding.
+    """
+
+    def permit(_lane, *_a, **_kw):
+        return {"ok": True, "lane_scope": "planted", "allowed": tuple(allowed), "detail": ""}
+
+    def states(_root=None, _now=None):
+        return {claimed: {"lane": "queue", "row": claimed, "age_s": 0.0}}
+
+    monkeypatch.setattr(queue_loop._mod("scope"), "lane_permit", permit)  # noqa: SLF001
+    monkeypatch.setattr(queue_loop._mod("claims"), "claim_states", states)  # noqa: SLF001
+
+
+def test_the_live_store_cannot_move_a_drive_arm(tmp_path, monkeypatch):
+    """CS-1008 - THE ARMS GRADE A STATED FIXTURE, not the machine's state.
+
+    `_drive` passed neither the permit seam nor the claim-states seam, so
+    CS-1005's defaults read the LIVE `ROADMAP.md` and the LIVE claim store. That
+    was harmless only while no worker claims a row and an unscoped permit
+    contains every takeable one: a lane holding a closed or gated row while this
+    suite ran would flip `scope.bound`, and `bound` is a clause of `record["ok"]`
+    in the driver's roll-up. The red would then arrive and depart with the
+    machine's state, which reads as a flake rather than as the fixture defect it
+    is - the same shape as the worktree-population trap already on record.
+
+    The CONTROL below is what makes this arm mean anything: the identical plant,
+    driven down the UN-injected path, really does flip the roll-up.
+    """
+    _plant_live_scope(monkeypatch, allowed=["CS-0001"], claimed="CS-9999")
+
+    summary = _drive(tmp_path, [_DONE], budget=1)
+
+    row = summary["records"][0]
+    assert row["ok"] is True, f"the live store moved a _drive arm: {json.dumps(row, default=str)}"
+    assert row["scope"]["bound"] is True
+    assert row["scope"]["lane_scope"] != "planted", (
+        "the driver read the LIVE permit; the seam is not injected"
+    )
+    assert row["scope"]["worked"] == [], (
+        f"the driver read the LIVE claim store: {row['scope']['worked']}"
+    )
+
+
+def test_the_plant_really_does_flip_an_uninjected_drive(tmp_path, monkeypatch):
+    """THE CONTROL FOR THE ARM ABOVE. An absence proves nothing on its own.
+
+    Same plant, same driver, the two seams handed back to their defaults with an
+    explicit None - which is exactly what `_drive` used to do by omission. If
+    this arm did not go red on the plant, the arm above would be passing because
+    the plant is inert, which is the vacuous shape recorded against three
+    earlier refusal arms in this repository.
+    """
+    _plant_live_scope(monkeypatch, allowed=["CS-0001"], claimed="CS-9999")
+
+    summary = _drive(tmp_path, [_DONE], budget=1, permit=None, claim_states=None)
+
+    row = summary["records"][0]
+    assert row["scope"]["lane_scope"] == "planted", "the plant never reached the driver"
+    assert row["scope"]["worked"] == ["CS-9999"]
+    assert row["scope"]["bound"] is False
+    assert row["ok"] is False, "the plant is inert - the arm above measures nothing"
+
+
+def _refused(word, **extra):
+    """An `acquire` seam that refuses every attempt with `word`."""
+    payload = {"ok": False, "refused": word, "holder": "queue-b", "pid": 99}
+    payload.update(extra)
+    return lambda _lane, **_kw: dict(payload)
+
+
+#: A path SEGMENT planted where an account name would sit. Segment, not joined
+#: path, because a segment carries no separator and so survives every escaping a
+#: renderer can apply - which is the whole defect the helpers below exist for.
+LEAK_NEEDLE = "sliceb-account-needle"
+
+
+def _flatten_for_leak_search(text) -> str:
+    r"""Collapse every separator and escape so a SEGMENT search cannot be fooled.
+
+    THE DEFECT THIS CLOSES, AND IT SHIPPED IN THIS FILE. Three arms asserted
+    `planted not in got["detail"]` against a driver that rendered the value with
+    `{holder!r}`. `repr` DOUBLES each backslash, so a path spelled with one
+    separator per level comes back with two, and a raw substring test for the
+    original can never match. The arms reported clean while the row genuinely
+    carried an account name - an oracle blind to the very value it names, which
+    passes for that reason alone and reads as coverage.
+
+    `json.dumps` doubles them again, a `pathlib` repr may spell them forward, and
+    a future renderer may pick something else. Guessing the escape is the losing
+    move; normalising the text before the search is not. Every run of forward or
+    backward slashes collapses to a single `/`, and the comparison is case-folded
+    because Windows paths are.
+
+    Args:
+        text: Anything renderable.
+
+    Returns:
+        The flattened, case-folded text.
+    """
+    return re.sub(r"[\\/]+", "/", str(text)).casefold()
+
+
+def _leaked(rendered, needle) -> bool:
+    """Did `needle` survive into `rendered` under ANY escaping.
+
+    Args:
+        rendered: The row, the detail, or a JSON dump of either.
+        needle: The value that must not be there.
+
+    Returns:
+        True when it leaked.
+    """
+    return _flatten_for_leak_search(needle) in _flatten_for_leak_search(rendered)
+
+
+def _assert_oracle_is_sighted(planted, *needles) -> None:
+    """PROVE THE ORACLE CAN SEE A LEAK before trusting it to report none.
+
+    A control that only proves the value was PLANTED - which is what the three
+    arms below used to do - says nothing about whether the search could have
+    found it. This one runs the oracle against the EXACT pre-fix rendering, `!r`
+    and all, and fails if the oracle reports that string clean.
+
+    Args:
+        planted: The value handed to the driver.
+        *needles: What the arms will search for.
+    """
+    # THE PRE-FIX RENDERER, REPRODUCED VERBATIM: this is the f-string
+    # `run_cycle` used before CS-1011, so the control is a real known-good
+    # rather than a string invented to be findable.
+    pre_fix_rendering = f"lane held by {planted!r} (pid 99) after 20 attempts"
+    for needle in needles:
+        assert _leaked(pre_fix_rendering, needle), (
+            f"THE ORACLE IS BLIND: it cannot see {needle!r} in the pre-fix "
+            f"rendering {pre_fix_rendering!r}, so its silence proves nothing"
+        )
+        assert _leaked(json.dumps({"detail": pre_fix_rendering}), needle), (
+            f"the oracle is blind to {needle!r} once json doubles the escapes"
+        )
+
+
+def test_a_worktree_collision_is_not_recorded_as_a_held_lane(tmp_path):
+    """CS-1011 - the two refusals are DISTINGUISHABLE in the row.
+
+    `ops/loop/lanes.py` answers `worktree_in_use` and names the OCCUPYING lane
+    when a second lane asks for a tree another lane is running in, and
+    `_worktree_refusal`'s own docstring rules that one word for both faults
+    would send whoever reads the log looking at the wrong lane: one waits, the
+    other repoints a lane. The driver read only `ok`, `holder`, `pid` and
+    `token`, so both arrived as `lane_held` with a detail saying the lane was
+    held by a lane that holds nothing.
+    """
+    held = queue_loop.run_cycle(1, **cycle_seams(FakeClock(), acquire=_refused("lane_held")))
+    collided = queue_loop.run_cycle(
+        1,
+        **cycle_seams(
+            FakeClock(),
+            acquire=_refused("worktree_in_use", worktree=str(tmp_path / "cs-lane-queue")),
+        ),
+    )
+
+    # THE CONTROL, FIRST: an ordinary held lane still reads as one. A repair
+    # that renamed both would satisfy "distinguishable" and destroy the word an
+    # operator already knows.
+    assert held["outcome"] == queue_loop.OUTCOME_LANE_HELD
+    assert held["worker_ok"] is False
+
+    assert collided["outcome"] == queue_loop.OUTCOME_WORKTREE_IN_USE
+    assert collided["outcome"] != held["outcome"], "the two refusals are the same row"
+    assert collided["worker_ok"] is False
+    # THE OCCUPYING LANE IS NAMED, which is the whole point of the distinction.
+    assert "queue-b" in collided["detail"], f"the occupying lane is unnamed: {collided['detail']!r}"
+
+
+def test_the_worktree_path_in_a_refusal_never_reaches_the_row(tmp_path):
+    """THE PRIVACY CLAUSE - non-negotiable 3, measured rather than promised.
+
+    `_worktree_refusal` carries a `worktree` PATH, and a cycle record is a
+    durable JSONL file. A driver that rendered the refusal dict, or copied its
+    `worktree` through, would write a path under a home directory into that
+    file for as long as the ledger lives.
+    """
+    planted = str(tmp_path / LEAK_NEEDLE / "cs-lane-queue")
+    # THE CONTROL IS ABOUT THE ORACLE, NOT ABOUT THE PLANT. Proving the value
+    # was planted - which is all this arm used to do - says nothing about
+    # whether the search could find it if it leaked. See `_flatten_for_leak_search`.
+    _assert_oracle_is_sighted(planted, LEAK_NEEDLE, planted)
+
+    got = queue_loop.run_cycle(
+        1,
+        **cycle_seams(FakeClock(), acquire=_refused("worktree_in_use", worktree=planted)),
+    )
+    # THE DISCRIMINATING ANCHOR. Before CS-1011 the driver never read this
+    # refusal shape at all, so "the path stayed out" was true for the empty
+    # reason that nothing was read - an arm that cannot fail. The property is
+    # that the driver now reads the collision AND still leaves the path behind.
+    assert got["outcome"] == queue_loop.OUTCOME_WORKTREE_IN_USE
+    assert not _leaked(got["detail"], LEAK_NEEDLE), "the worktree path reached the row"
+    assert not _leaked(json.dumps(got), planted), "the path reached the row somewhere else"
+    assert Path(got["detail"]).drive == "", f"a rooted path survived: {got['detail']!r}"
+
+
+def test_a_refusal_word_the_driver_does_not_hold_degrades_to_lane_held(tmp_path):
+    """AN ALLOWLIST, NOT A DENYLIST, and a substitution rather than a render.
+
+    `lanes.py` is free to grow a third refusal word ahead of this driver, and an
+    injected fake is free to hand back anything at all. Neither may put a string
+    this module does not itself contain into the row - the `_LAUNCH_REASONS`
+    rule, one seam over. A `str` subclass whose DATA is an honest word while its
+    `__str__` returns a path defeats validate-then-render, so the word written
+    is fetched by index from this module's own literal tuple.
+    """
+    planted = str(tmp_path / LEAK_NEEDLE / "cs-lane-queue")
+    _assert_oracle_is_sighted(planted, LEAK_NEEDLE)
+
+    class Liar(str):
+        """Honest data, dishonest rendering - the CS-970 attack, one seam over."""
+
+        def __str__(self) -> str:
+            """Return a path-shaped string no caller asked for."""
+            return planted
+
+    # THE DISCRIMINATING HALF, AND IT COMES FIRST. Before CS-1011 every refusal
+    # degraded to `lane_held` because the word was never read, so an arm that
+    # asserted only the degrade passed against the unfixed driver and measured
+    # nothing. What the allowlist has to do is TELL THE TWO APART: honour the
+    # word it holds, discard the one it does not.
+    known = queue_loop.run_cycle(1, **cycle_seams(FakeClock(), acquire=_refused("worktree_in_use")))
+    assert known["outcome"] == queue_loop.OUTCOME_WORKTREE_IN_USE, (
+        "the allowlist discards a word this module DOES hold"
+    )
+
+    got = queue_loop.run_cycle(
+        1, **cycle_seams(FakeClock(), acquire=_refused("a_word_from_a_newer_lanes"))
+    )
+    assert got["outcome"] == queue_loop.OUTCOME_LANE_HELD, (
+        "an unknown refusal word must degrade to the generic fault, never invent one"
+    )
+    assert "a_word_from_a_newer_lanes" not in json.dumps(got), "the caller's word reached the row"
+
+    lying = queue_loop.run_cycle(
+        1, **cycle_seams(FakeClock(), acquire=_refused(Liar("worktree_in_use")))
+    )
+    # REFUSED OUTRIGHT rather than validated and then rendered, which is the
+    # `_LAUNCH_REASONS` ruling: validating by VALUE and rendering the OBJECT are
+    # not the same act, and the difference is invisible only for an exact `str`.
+    # The cost is that an honest subclass loses its distinction; the row stays
+    # correct-but-generic, which is the side to err on for a durable file.
+    assert lying["outcome"] == queue_loop.OUTCOME_LANE_HELD, (
+        "a str subclass was trusted; validate-by-value then render is the CS-970 defect"
+    )
+    assert not _leaked(json.dumps(lying), LEAK_NEEDLE), "a lying str subclass rendered into the row"
+
+
+def test_a_holder_the_lane_roster_does_not_know_is_never_rendered(tmp_path):
+    """The refusal's `holder` is read off a LOCK FILE, so it is not this driver's.
+
+    It was passed straight into the detail with `!r`. A lock whose `lane` field
+    is path-shaped - an older build, a hand-edited file, a fake - therefore put
+    that path into the durable row. The roster in `ops/loop/lanes.py` is the
+    allowlist, and a name outside it is named as unknown rather than rendered.
+    """
+    planted = str(tmp_path / LEAK_NEEDLE / "cs-lane-queue")
+    # THE ORACLE FIRST, AND THIS ARM IS WHY. Its previous control proved only
+    # that the path had been PLANTED. Measured against the pre-fix driver, the
+    # row really did carry an account name and `planted not in json.dumps(got)`
+    # still reported clean, because `{holder!r}` doubles every backslash. The
+    # arm was not merely non-discriminating - it was blind to the exact leak it
+    # is named after, which is worse than having no arm at all.
+    _assert_oracle_is_sighted(planted, LEAK_NEEDLE, planted)
+
+    for word in ("lane_held", "worktree_in_use"):
+        got = queue_loop.run_cycle(
+            1,
+            **cycle_seams(
+                FakeClock(),
+                acquire=_refused(word, holder=planted),
+            ),
+        )
+        assert not _leaked(got["detail"], LEAK_NEEDLE), (
+            f"an unrostered holder reached the row on {word}: {got['detail']!r}"
+        )
+        assert not _leaked(json.dumps(got), planted), (
+            f"an unrostered holder reached the row on {word}"
+        )
+        assert queue_loop.UNKNOWN_HOLDER in got["detail"], (
+            f"the holder was dropped rather than named as unknown on {word}"
+        )
+        # AND THE ROSTERED CASE IS UNCHANGED - otherwise this "fix" would erase
+        # the lane name every operator already reads off these rows.
+        rostered = queue_loop.run_cycle(1, **cycle_seams(FakeClock(), acquire=_refused(word)))
+        assert "queue-b" in rostered["detail"], f"a rostered holder was erased on {word}"
+
+
+def test_a_worktree_collision_survives_a_whole_night_as_its_own_word(tmp_path):
+    """END TO END, through `run_loop`, because the row is what the ledger keeps.
+
+    An outcome word that only `run_cycle` can produce is one nobody reads: the
+    counters, the console line and the JSONL row all live in `run_loop`. A
+    collision must be unproductive there exactly as a held lane is - the
+    `PRODUCTIVE_OUTCOMES` allowlist is what guarantees that, and this drives it
+    rather than asserting the constant.
+    """
+    summary = _drive(
+        tmp_path,
+        [queue_loop.OUTCOME_WORKTREE_IN_USE] * BUDGET,
+        budget=BUDGET,
+    )
+    assert [r["outcome"] for r in summary["records"]] == [queue_loop.OUTCOME_WORKTREE_IN_USE] * 3
+    assert summary["stopped_by"] == "no_progress", (
+        "a night that never got its tree ran past the backstop"
+    )
+    assert summary["cycles_run"] == 3  # noqa: PLR2004
