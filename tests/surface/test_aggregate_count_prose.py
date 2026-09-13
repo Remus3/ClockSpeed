@@ -312,7 +312,7 @@ import ast
 import inspect
 import os
 import sys
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Mapping, Sequence
 from pathlib import Path
 from typing import Final
 
@@ -2010,7 +2010,7 @@ def module_test_functions() -> list[tuple[str, object]]:
     ]
 
 
-def parametrized_case_keys(functions: list[tuple[str, object]]) -> set[CaseKey]:
+def parametrized_case_keys(functions: Sequence[tuple[str, object]]) -> set[CaseKey]:
     """Every ``(function name, argument name)`` key FUNCTIONS parametrize over.
 
     Args:
@@ -2028,7 +2028,7 @@ def parametrized_case_keys(functions: list[tuple[str, object]]) -> set[CaseKey]:
 
 
 def registration_faults(
-    functions: list[tuple[str, object]],
+    functions: Sequence[tuple[str, object]],
     independent: Mapping[CaseKey, Callable[[], int]],
     unpinned: frozenset[CaseKey],
 ) -> tuple[str, ...]:
