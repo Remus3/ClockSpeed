@@ -160,7 +160,7 @@ held = claims.try_claim_row(row, lane=<your lane>, run_id=<your run id>, worktre
 if not held["ok"]:                                             # CHECK THIS. See below.
     ...                                                        # recompute and take the next row
 ...                                                            # the cycle
-claims.release_claim(held["token"], run_id=held["run_id"])     # section 11, at the wrap
+claims.release_claim(held["token"], receipt=held["receipt"])   # section 11, at the wrap
 ```
 
 **`try_claim_row` REFUSES RATHER THAN RAISING, so a worker that ignores `ok` proceeds on a
@@ -206,12 +206,20 @@ WORKING this row RIGHT NOW" and is worthless the moment its holder stops running
 write a claim in place of a closure record, and never read a claim as evidence a row is
 done.
 
-**PASS `run_id=` BACK ON THE RELEASE, and pass the SAME value you claimed with.** You
-reach python through a fresh subprocess per call, so the process that wraps your cycle is
-never the one that took the claim and inherits none of its in-memory ownership. The run id
-is what identifies you instead. Omit it and the release removes nothing - which does not
-wedge the row, because the record dies with your cycle either way, but it does leave a
-record behind that nobody asked for (CS-1009).
+**PASS `receipt=` BACK ON THE RELEASE.** `try_claim_row` hands you a `receipt` alongside
+the `token`; keep both and give both back. You reach python through a fresh subprocess per
+call, so the process that wraps your cycle is never the one that took the claim and
+inherits none of its in-memory ownership - the receipt is what identifies the record
+instead. Omit it and the release removes nothing, which does not wedge the row, because the
+record dies with your cycle either way, but it does leave a record behind that nobody asked
+for (CS-1009).
+
+**DO NOT PASS YOUR RUN ID INSTEAD, AND IT IS NOT ACCEPTED IF YOU TRY.** A run id is
+whatever you say it is - this document has never required one to be unique, and two lanes
+picking the same string is ordinary. Matching a release on one was measured to let a wrap
+arriving late from a crashed cycle DELETE the live claim of the lane that had legitimately
+reclaimed the row. The receipt names the record rather than the caller, which is why it is
+the thing you hand back.
 
 **YOUR CLAIM IS ANCHORED ON YOUR LANE LOCK, NOT ON THE PROCESS THAT WROTE IT.** That is
 what makes the fresh-subprocess-per-call convention safe: the claim is held for as long as
@@ -600,7 +608,7 @@ engine change is substantive; a five-file rename is not.
 
 **Every cycle ends by exiting after one row.**
 
-**RELEASE THE ROW CLAIM, and do it whether the cycle shipped or gave up.** `claims.release_claim(held["token"], run_id=held["run_id"])`,
+**RELEASE THE ROW CLAIM, and do it whether the cycle shipped or gave up.** `claims.release_claim(held["token"], receipt=held["receipt"])`,
 from section 5. A cycle that finished and a cycle that abandoned its row are the same event
 to the next lane - neither is working the row any more. The one case you do NOT have to
 handle is being killed: release is deliberate precisely so that a crash leaves the record

@@ -51,7 +51,7 @@ import sys
 from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
-from typing import Any, Final
+from typing import Any, Final, NamedTuple
 
 import pytest
 
@@ -1079,13 +1079,19 @@ answer = claims.try_claim_row(
     worktree=sys.argv[5],
     root=sys.argv[6],
 )
-sys.stdout.write("{0}|{1}|{2}".format(answer.get("ok"), os.getpid(), answer.get("token")))
+sys.stdout.write(
+    "{0}|{1}|{2}|{3}".format(
+        answer.get("ok"), os.getpid(), answer.get("receipt"), answer.get("token")
+    )
+)
 """
 
 #: Releases a claim by token from a DIFFERENT process than the one that took it,
 #: which is the second facet CS-1009 names: ``_OWNED`` is process-local, so a
 #: later per-call subprocess of one cycle cannot release what an earlier one
-#: took. The run id is the identity it offers in place of the lost table entry.
+#: took. The RECEIPT is the identity it offers in place of the lost table entry
+#: - never a run id, which an adversary measured to be mintable and which is
+#: refused by ``claims.release_claim`` for that reason.
 _RELEASING_SUBPROCESS: Final = """
 import sys
 
@@ -1097,16 +1103,22 @@ offered = sys.argv[4]
 answer = claims.release_claim(
     sys.argv[2],
     root=sys.argv[3],
-    run_id=None if offered == "-" else offered,
+    receipt=None if offered == "-" else offered,
 )
 sys.stdout.write(str(answer))
 """
 
 
-def _claim_and_exit(
-    tmp_path: Path, row: str, lane: str, run_id: str, root: Path
-) -> tuple[int, str]:
-    """Claim ``row`` in a child that then exits normally. Returns its pid and token."""
+class _Claim(NamedTuple):
+    """What a child that claimed a row and exited reported back."""
+
+    pid: int
+    receipt: str
+    token: str
+
+
+def _claim_and_exit(tmp_path: Path, row: str, lane: str, run_id: str, root: Path) -> _Claim:
+    """Claim ``row`` in a child that then exits normally. Returns what it was handed."""
     script = tmp_path / "cs1009_exiting_claimant.py"
     script.write_text(_EXITING_CLAIMANT, encoding="utf-8")
     done = subprocess.run(
@@ -1130,16 +1142,16 @@ def _claim_and_exit(
     reported, _, rest = done.stdout.partition("|")
     took_it = reported == "True"
     assert took_it, f"the claimant did not take the row - stdout was {done.stdout!r}"
-    spelled, _, token = rest.partition("|")
-    return int(spelled), token
+    spelled, receipt, token = rest.split("|", 2)
+    return _Claim(int(spelled), receipt, token)
 
 
-def _release_from_a_second_process(tmp_path: Path, token: str, root: Path, run_id: str) -> str:
+def _release_from_a_second_process(tmp_path: Path, token: str, root: Path, receipt: str) -> str:
     """Call ``release_claim`` from a process that never held the claim."""
     script = tmp_path / "cs1009_releasing_subprocess.py"
     script.write_text(_RELEASING_SUBPROCESS, encoding="utf-8")
     done = subprocess.run(
-        [sys.executable, str(script), str(ROOT), token, str(root), run_id],
+        [sys.executable, str(script), str(ROOT), token, str(root), receipt],
         capture_output=True,
         check=False,
         text=True,
@@ -1214,8 +1226,8 @@ def test_the_arms_can_tell_a_live_cycle_from_the_exited_process_that_claimed_it(
     root = tmp_path / "control" / "claims"
     lock_root = _lock_root_beside(root)
     with _cycle_on_lane(lock_root, LANE_A, "cycle-control", _worktree(tmp_path, "wt-cycle")) as pid:
-        claimant, _token = _claim_and_exit(tmp_path, ROW_A, LANE_A, "worker-call", root)
-        claimant_is_gone = not lanes.pid_alive(claimant)
+        taken = _claim_and_exit(tmp_path, ROW_A, LANE_A, "worker-call", root)
+        claimant_is_gone = not lanes.pid_alive(taken.pid)
         assert claimant_is_gone, "the claiming process outlived its own exit"
         cycle_is_running = lanes.pid_alive(pid)
         assert cycle_is_running, "the cycle's process died before the arm could read it"
@@ -1241,7 +1253,7 @@ def test_a_claim_outlives_the_process_that_made_it_while_its_cycle_runs(
     root = tmp_path / "control" / "claims"
     lock_root = _lock_root_beside(root)
     with _cycle_on_lane(lock_root, LANE_A, "cycle-alpha", _worktree(tmp_path, "wt-cycle")):
-        _claimant, _token = _claim_and_exit(tmp_path, ROW_A, LANE_A, "worker-call", root)
+        _claim_and_exit(tmp_path, ROW_A, LANE_A, "worker-call", root)
 
         state = str(claims.claim_state(ROW_A, root=root)["state"])
         assert state == claims.HELD, f"a claim whose cycle is running reads {state}"
@@ -1376,38 +1388,61 @@ def test_a_claim_made_with_no_lane_lock_falls_back_to_the_pid_and_says_so(
     state = str(reading["state"])
     assert state == claims.HELD, f"a claim held by this live process reads {state}"
 
-    claimant, _token = _claim_and_exit(tmp_path, ROW_B, LANE_A, "by-hand", root)
-    gone = not lanes.pid_alive(claimant)
+    orphaned = _claim_and_exit(tmp_path, ROW_B, LANE_A, "by-hand", root)
+    gone = not lanes.pid_alive(orphaned.pid)
     assert gone, "the claiming process outlived its own exit"
     orphan = str(claims.claim_state(ROW_B, root=root)["state"])
     assert orphan == claims.RECLAIMABLE, f"an unanchored claim by a dead process reads {orphan}"
 
 
-def test_the_lane_lock_root_the_store_anchors_to_is_the_main_trees(tmp_path: Path) -> None:
-    """The production wiring, which every arm above assumes away by passing a root.
+def test_two_checkouts_anchor_their_claims_on_one_lane_lock_directory(
+    tmp_path: Path,
+) -> None:
+    """WHERE THE ANCHOR LIVES, graded so it reddens WHEREVER THE SUITE RUNS.
 
-    A lane's worker runs inside its own checkout, so ``lanes.DEFAULT_ROOT`` -
-    rooted at the importing file - names a directory in the WORKTREE that holds
-    no lock at all. Anchored there, every claim would fall back to the pid and
-    CS-1009 would be undisclosed rather than fixed. The production answer must be
-    the MAIN tree's lane lock root, and a root a caller names must sit beside the
-    claim root it named.
+    The arm this replaces was vacuous and an adversary said so. It asked whether
+    the resolved path started with ``lanes.REPO_ROOT`` - true for the WRONG
+    answer too, because this project keeps its worktrees UNDER the repo root -
+    and whether it ended in ``lanes.DEFAULT_ROOT.name``, which is the constant
+    production derives the name FROM. Its one real assertion compared a path
+    against the main tree, which is a byte-identical no-op in a MAIN checkout,
+    and a main checkout is where CI and the pre-push hook run. It was sharp only
+    because that session happened to run the suite from a worktree.
 
-    The edit that reddens this: anchoring on ``lanes.DEFAULT_ROOT`` itself, which
-    resolves inside whichever checkout imported the module.
+    WHAT IS ACTUALLY AT STAKE IS INDEPENDENCE FROM THE IMPORTING CHECKOUT, and
+    that is gradeable anywhere. Two synthetic checkouts each carry their own copy
+    of the store, so ``lanes.DEFAULT_ROOT`` - rooted at the importing file -
+    differs between them. If the anchor followed that constant, each lane's
+    worker would probe lane locks inside its OWN worktree, find none, and fall
+    back to the pid for every claim: CS-1009 undisclosed rather than closed. So
+    the two checkouts must agree on ONE lane lock directory.
+
+    AND THE THIRD ASSERTION PINS THE JOIN TO THE DRIVER. The driver takes its
+    lane lock with no root at all, so the lock lands at ``lanes.DEFAULT_ROOT`` as
+    resolved in the driver's own checkout - the main one. The directory the two
+    checkouts agree on has to BE that one, or the store would be reading a
+    directory nothing ever writes.
+
+    The edits that redden these, in order: anchoring on ``lanes.DEFAULT_ROOT``
+    reddens the agreement; a probe that printed a constant reddens the control;
+    rooting the anchor anywhere but the main tree reddens the join.
     """
-    resolved = claims.lock_root()
-    under_the_repo = str(resolved).startswith(str(lanes.REPO_ROOT))
-    assert under_the_repo, "the default lane lock root is outside the main checkout"
-    tail = resolved.name
-    assert tail == lanes.DEFAULT_ROOT.name, f"the default lane lock root ends in {tail!r}"
-    shape = resolved.relative_to(lanes.REPO_ROOT).as_posix()
-    expected = lanes.DEFAULT_ROOT.relative_to(lanes.DEFAULT_ROOT.parents[3]).as_posix()
-    assert shape == expected, f"the default lane lock root sits at {shape!r} under the main tree"
+    main = _checkout(tmp_path, "main-tree", None)
+    linked = _checkout(tmp_path, "linked-tree", main)
 
-    named = claims.lock_root(tmp_path / "control" / "claims")
-    beside = named == _lock_root_beside(tmp_path / "control" / "claims")
-    assert beside, "a named claim root did not resolve its lane locks beside it"
+    main_anchor, main_lanes = _probe_anchor(main)
+    linked_anchor, linked_lanes = _probe_anchor(linked)
+
+    # THE CONTROL FIRST. Without it, two equal anchors would also be what a probe
+    # that printed one constant produced, and the arm would grade nothing.
+    checkouts_differ = main_lanes != linked_lanes
+    assert checkouts_differ, "the two checkouts resolved one lane lock constant - no contrast"
+
+    agree = main_anchor == linked_anchor
+    assert agree, "two checkouts anchor their claims on different lane lock directories"
+
+    joins_the_driver = linked_anchor == main_lanes
+    assert joins_the_driver, "the anchor is not the directory a driver in the main tree locks in"
 
 
 def test_a_later_subprocess_of_the_same_cycle_can_release_the_claim(tmp_path: Path) -> None:
@@ -1419,22 +1454,247 @@ def test_a_later_subprocess_of_the_same_cycle_can_release_the_claim(tmp_path: Pa
     record's pid against the releasing process's own, which never matched, so
     the wrap left the record behind.
 
-    The run id is what the later call offers in place of the lost table entry,
-    and it is a real ABA guard rather than a waiver - the control below offers a
-    DIFFERENT run id against the same token and is refused.
+    The RECEIPT is what the later call offers in place of the lost table entry.
+    The control below offers a receipt that names a DIFFERENT record and is
+    refused, so the arm cannot pass on a release that accepts anything.
 
-    The edit that reddens this: dropping the run-id branch from
+    The edit that reddens this: dropping the receipt branch from
     ``claims._is_ours``.
     """
     root = tmp_path / "control" / "claims"
-    _claimant, token = _claim_and_exit(tmp_path, ROW_A, LANE_A, "one-cycle", root)
+    taken = _claim_and_exit(tmp_path, ROW_A, LANE_A, "one-cycle", root)
+    other = _claim_and_exit(tmp_path, ROW_B, LANE_A, "one-cycle", root)
+    distinct = taken.receipt != other.receipt
+    assert distinct, "two claims of two rows were handed the same receipt"
 
-    refused = _release_from_a_second_process(tmp_path, token, root, "a-different-cycle")
-    assert refused == "False", f"a stranger's run id released the claim - it answered {refused!r}"
+    refused = _release_from_a_second_process(tmp_path, taken.token, root, other.receipt)
+    assert refused == "False", f"another record's receipt released this one - {refused!r}"
     survived = str(claims.claim_state(ROW_A, root=root)["row"])
     assert survived == ROW_A, "the refused release removed the record anyway"
 
-    released = _release_from_a_second_process(tmp_path, token, root, "one-cycle")
+    released = _release_from_a_second_process(tmp_path, taken.token, root, taken.receipt)
     assert released == "True", f"the cycle's own later call could not release - {released!r}"
     left = _rows_on_disk(root)
-    assert left == set(), f"the release left {sorted(left)} behind"
+    assert left == {ROW_B}, f"the release left {sorted(left)} behind"
+
+
+# ===========================================================================
+# g. CS-1009 repair - what three adversaries refuted at f94efa9
+# ===========================================================================
+
+
+#: Printed by a child in a synthetic checkout: where the claim store ANCHORS -
+#: the lane lock directory it will probe - and, as the CONTROL, the lane lock
+#: constant that checkout's own copy of ``lanes`` resolves. The control is what
+#: proves the probe can see a difference between two checkouts at all; without
+#: it, two equal anchors are also what a probe printing a constant produces.
+_ANCHOR_PROBE: Final = """
+import sys
+
+sys.path.insert(0, sys.argv[1])
+
+from ops.loop import claims, lanes
+
+sys.stdout.write("{0}\\n{1}".format(claims.lock_root(), lanes.DEFAULT_ROOT))
+"""
+
+
+def _probe_anchor(checkout: Path) -> tuple[str, str]:
+    """The anchor and the checkout-local control, as that checkout sees them.
+
+    Returns:
+        The lane lock root the store would probe, and that checkout's own
+        ``lanes.DEFAULT_ROOT``.
+    """
+    script = checkout / "anchor_probe.py"
+    script.write_text(_ANCHOR_PROBE, encoding="utf-8")
+    done = subprocess.run(
+        [sys.executable, str(script), str(checkout)],
+        cwd=str(checkout),
+        capture_output=True,
+        check=False,
+        text=True,
+        timeout=_CHILD_TIMEOUT_S,
+    )
+    ran = done.returncode == 0
+    assert ran, f"the anchor probe did not run - stderr was {done.stderr!r}"
+    anchor, _, local = done.stdout.partition("\n")
+    return anchor.strip(), local.strip()
+
+
+def _plant_lane_lock(lock_root: Path, lane: str, run_id: str, **overrides: Any) -> Path:
+    """Write a lane lock by hand, bypassing ``lanes.try_acquire_lane``.
+
+    Used where an arm needs a lock this process could not legitimately produce -
+    one whose holder's start time is UNREADABLE, which is what a box without
+    ``psutil`` writes unconditionally and what a reissued pid leaves behind.
+    """
+    lock_root.mkdir(parents=True, exist_ok=True)
+    record: dict[str, Any] = {
+        "lane": lane,
+        "run_id": run_id,
+        "worktree": str(lock_root),
+        "pid": os.getpid(),
+        "ts": 1.0,
+        "pid_started": lanes.proc_started(os.getpid()),
+    }
+    record.update(overrides)
+    target = lock_root / lanes.lock_name(lane)
+    target.write_text(json.dumps(record), encoding="utf-8")
+    return target
+
+
+def test_a_late_wrap_from_a_crashed_cycle_cannot_delete_the_reclaimers_record(
+    tmp_path: Path,
+) -> None:
+    """FINDING 1, REFUTED AT f94efa9 AND REPRODUCED HERE WITH REAL PROCESSES.
+
+    THE SCENARIO NEEDS NO MALICIOUS ACTOR AND BOTH SIDES FOLLOW THE DOCUMENTED
+    CONVENTION. Lane ``queue`` claims a row and its cycle dies. Lane ``queue-b``
+    legitimately finds the row reclaimable and takes it. Lane ``queue``'s wrap
+    then arrives late, holding its OWN token for that row and its OWN
+    credential, and asks to release. At f94efa9 the credential was a run id and
+    NOTHING MADE ONE UNIQUE - ``try_claim_row`` accepts any value and
+    `tools/headless-queue.md` asks only for "your run id" - so two lanes using
+    the same string was ordinary, and the late wrap DELETED the live record of a
+    lane that was still working the row. That is worse than the defect the run
+    id was introduced to fix, and it was reachable only because of it.
+
+    THE RECEIPT CLOSES IT BY NAMING THE RECORD RATHER THAN THE CALLER. The two
+    claims are different records - different stamps, different payloads - so
+    they hash differently, and no agreement on a string can make the first
+    receipt name the second record.
+
+    BOTH LANES USE THE IDENTICAL RUN ID HERE, deliberately: that is the shape
+    the adversary measured, and an arm that varied the id would grade the case
+    that was never in doubt.
+
+    The edit that reddens this: accepting a caller-supplied run id in
+    ``claims._is_ours`` in place of the receipt.
+    """
+    root = tmp_path / "control" / "claims"
+    lock_root = _lock_root_beside(root)
+    shared = "same"
+
+    # Lane queue takes the row, then its whole cycle ends.
+    with _cycle_on_lane(lock_root, LANE_A, "cycle-crashed", _worktree(tmp_path, "wt-a")):
+        crashed = _claim_and_exit(tmp_path, ROW_A, LANE_A, shared, root)
+    lane_a_is_over = str(lanes.lane_state(str(lock_root), None, LANE_A)["state"])
+    assert lane_a_is_over == lanes.FREE, f"lane {LANE_A} still reads {lane_a_is_over}"
+
+    # Lane queue-b legitimately reclaims the row and is working it.
+    with _cycle_on_lane(lock_root, LANE_B, "cycle-reclaimer", _worktree(tmp_path, "wt-b")):
+        reclaimer = _claim_and_exit(tmp_path, ROW_A, LANE_B, shared, root)
+        distinct = reclaimer.receipt != crashed.receipt
+        assert distinct, "the reclaimer's record hashes the same as the crashed cycle's"
+        held_by_b = str(claims.claim_state(ROW_A, root=root)["lane"])
+        assert held_by_b == LANE_B, f"the reclaimed row reads as held by {held_by_b!r}"
+
+        # THE ATTACK, and it is an accident rather than an attack.
+        stole = _release_from_a_second_process(tmp_path, crashed.token, root, crashed.receipt)
+        assert stole == "False", f"a crashed cycle's wrap released a live record - {stole!r}"
+
+        state = str(claims.claim_state(ROW_A, root=root)["state"])
+        assert state == claims.HELD, f"the reclaimer's row reads {state} after the late wrap"
+        third = claims.try_claim_row(
+            ROW_A, lane=LANE_A, run_id=shared, worktree=_worktree(tmp_path, "wt-c"), root=root
+        )
+        double_booked = bool(third["ok"])
+        assert not double_booked, "the row was handed out while a lane was working it"
+
+
+def test_a_wrap_arriving_after_its_own_cycle_ended_releases_nothing(tmp_path: Path) -> None:
+    """The second half of the release guard: the receipt is not a licence forever.
+
+    A receipt names one record for as long as that record exists, so on its own
+    it would let a straggler from a finished cycle reach past its own end. The
+    record's lane says when that end was, so a release is refused once the
+    cycle the record was anchored to is provably over.
+
+    The edit that reddens this: deleting the ``_cycle_has_not_ended`` call from
+    ``claims._is_ours``.
+    """
+    root = tmp_path / "control" / "claims"
+    lock_root = _lock_root_beside(root)
+    with _cycle_on_lane(lock_root, LANE_A, "cycle-ending", _worktree(tmp_path, "wt-a")):
+        taken = _claim_and_exit(tmp_path, ROW_A, LANE_A, "one-cycle", root)
+        anchored = str(claims.claim_state(ROW_A, root=root)["anchor"])
+        assert anchored == claims.ANCHOR_LANE, f"the claim is anchored on {anchored!r}"
+
+    # The cycle is over. The wrap is late.
+    late = _release_from_a_second_process(tmp_path, taken.token, root, taken.receipt)
+    assert late == "False", f"a wrap from a finished cycle released its record - {late!r}"
+
+    # AND THE ROW IS NOT WEDGED BY THE REFUSAL - the record reads reclaimable on
+    # its own merits, which is the whole reason refusing here is safe.
+    state = str(claims.claim_state(ROW_A, root=root)["state"])
+    assert state == claims.RECLAIMABLE, f"the refused release left the row reading {state}"
+
+
+def test_a_lock_that_cannot_prove_its_holder_does_not_wedge_the_row(tmp_path: Path) -> None:
+    """FINDING 2, REFUTED AT f94efa9 - a NEW PERMANENT-WEDGE CLASS.
+
+    ``lanes.holder_is_a_stranger`` FAILS SOFT: with no readable start time on
+    either side it answers "not a stranger", so the lock reads RUNNING. That is
+    right for the lock and wrong for a row. A lock left by a dead driver whose
+    pid the operating system reissued reads RUNNING for as long as the file
+    lasts, and at f94efa9 a claim anchored to it was HELD for just as long -
+    off the queue, refused to the other lane, with no age floor to expire it by
+    ruling and nothing in `tools/headless-queue.md` telling anyone to delete it.
+    It is also the UNCONDITIONAL case where ``psutil`` is absent, which
+    `pyproject.toml` declares optional.
+
+    The controls come first and they establish that the wedge precondition is
+    real rather than assumed: the hand-written lock DOES read RUNNING, and the
+    pid-reuse guard DOES wave it through.
+
+    The edit that reddens this: deleting the ``_lock_can_prove_its_holder`` gate
+    from ``claims._lane_anchor_state``.
+    """
+    root = tmp_path / "control" / "claims"
+    lock_root = _lock_root_beside(root)
+    _plant_lane_lock(lock_root, LANE_A, "cycle-unprovable", pid_started=None)
+
+    waved_through = lanes.holder_is_a_stranger(os.getpid(), None) is False
+    assert waved_through, "the pid-reuse guard did not fail soft - the arm grades nothing"
+    lock_says = str(lanes.lane_state(str(lock_root), None, LANE_A)["state"])
+    assert lock_says == lanes.RUNNING, f"the unprovable lock reads {lock_says}, not RUNNING"
+
+    dead = _reaped_pid()
+    really_dead = not lanes.pid_alive(dead)
+    assert really_dead, "the reaped pid was reissued before the arm could read it"
+    _plant(root, ROW_A, pid=dead, lane=LANE_A, lane_run_id="cycle-unprovable")
+
+    reading = claims.claim_state(ROW_A, root=root)
+    anchor = str(reading["anchor"])
+    assert anchor == claims.ANCHOR_LANE, f"the planted record declares anchor {anchor!r}"
+    state = str(reading["state"])
+    assert state == claims.RECLAIMABLE, f"an unprovable lock wedged the row at {state}"
+
+    offered = claims.first_takeable(_offered(), root=root)
+    assert offered == ROW_A, f"the wedged row stayed off the queue - it offered {offered!r}"
+
+
+def test_a_provable_lock_still_holds_its_row(tmp_path: Path) -> None:
+    """THE CONTROL FOR THE WEDGE REPAIR, and the reason it is not a blanket retreat.
+
+    The gate above refuses to anchor on a lock that cannot prove its holder. If
+    it refused a PROVABLE one too, the repair would have quietly undone CS-1009
+    and every exclusion arm would still pass on the pid anchor for as long as a
+    claimant happened to be alive. So this plants the same shape with the start
+    time present and requires the row to stay held behind a dead claimant.
+
+    The edit that reddens this: widening the gate to reject any lock, or reading
+    the start time from the wrong half of the lock's payload.
+    """
+    root = tmp_path / "control" / "claims"
+    lock_root = _lock_root_beside(root)
+    _plant_lane_lock(lock_root, LANE_A, "cycle-provable")
+
+    dead = _reaped_pid()
+    really_dead = not lanes.pid_alive(dead)
+    assert really_dead, "the reaped pid was reissued before the arm could read it"
+    _plant(root, ROW_A, pid=dead, lane=LANE_A, lane_run_id="cycle-provable")
+
+    state = str(claims.claim_state(ROW_A, root=root)["state"])
+    assert state == claims.HELD, f"a provable lock did not hold its row - it reads {state}"
