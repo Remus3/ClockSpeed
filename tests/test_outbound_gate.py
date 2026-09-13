@@ -102,6 +102,14 @@ SEED_ACCOUNT_ID = "12345678901234567"
 SEED_WORLD_NAME = "Zynthetiqua" + "Prime"
 SEED_WORLD_TOKEN = "Zq7vNbXt41" + "KpRs93" + "MwYd2C"
 
+# The synthetic account name every child environment in this module logs in
+# as. Above MIN_ACCOUNT_NAME_CHARS, absent from GENERIC_ACCOUNT_NAMES
+# (tools/precommit_gate.py::GENERIC_ACCOUNT_NAMES) and longer than
+# outbound_gate.WARN_SHORT_CHARS, so a hit on it is a refusal and not a
+# warning. Owned here rather than spelled inline in base_env, so the arm that
+# plants it and the environment that discovers it cannot drift apart.
+SEED_ACCOUNT_NAME = "gatetestaccount"
+
 # Ordinary prose. Carries no path, no credential shape and no seeded value,
 # and is the negative control the planted arms are graded against.
 CLEAN_PAYLOAD = (
@@ -147,8 +155,8 @@ def base_env(tmp_path: Path) -> dict[str, str]:
     env["CLOCKSPEED_LOCAL_CONFIG"] = str(tmp_path / "absent-local-config.json")
     for key in ("CLOCKSPEED_WORLD_NAMES", "CLOCKSPEED_WORLD_TOKENS", "CLOCKSPEED_ACCOUNT_DIR"):
         env.pop(key, None)
-    env["USERNAME"] = "gatetestaccount"
-    env["USER"] = "gatetestaccount"
+    env["USERNAME"] = SEED_ACCOUNT_NAME
+    env["USER"] = SEED_ACCOUNT_NAME
     env["PYTHONIOENCODING"] = "utf-8"
     return env
 
@@ -940,3 +948,75 @@ def test_unattributed_refusal_names_the_class_only(
     assert "line %d col %d" % (PHANTOM_LINE, PHANTOM_COL) in err, "the position is not reported"
     assert "disagreed with this gate's attribution" in err, "the reason does not say what happened"
     assert_absent_in_any_case(PHANTOM_MARKER, (err.encode("ascii"),))
+
+
+# --------------------------------------------------------------------------
+# 19. The environment-derived class - account name
+# --------------------------------------------------------------------------
+
+
+def test_planted_account_name_refuses(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Prove this machine's account name is refused, and that prose is not.
+
+    THE ONE CLASS THAT GRADES EVERYWHERE AND HAD NO ARM. Its population comes
+    from USERNAME/USER (tools/precommit_gate.py::current_account_names) rather
+    than from a save root, so unlike account-id, world-name and world-token it
+    is derivable on a bare CI box with no game installed and no save
+    directory - and it was the one name in ``CLASS_ORDER`` with no planted
+    arm. The three arms that DO plant a value are exactly the three that skip
+    or report UNMEASURED there. So a silently weakened account-name rule
+    reddened nothing in this suite on precisely the machines where this suite
+    is the only thing grading.
+
+    Were this arm absent, an account-name rule that matched nothing would pass
+    every other arm in this module: the coverage row is not pinned, no planted
+    arm reaches the class, and the negative control cannot tell a rule that
+    catches nothing from a rule with nothing to catch.
+
+    THE ARM GRADES THE REFUSAL AND PINS NO COVERAGE ROW.
+    ``test_coverage_polarity_is_per_class`` declines to pin the account-name
+    row because its population is environment-derived and may legitimately
+    differ between an operator box and a bare runner; nothing here pins it
+    either. Asserting the refusal is the stronger claim anyway - a row cannot
+    read MEASURED while the value it was derived from goes unrefused - and it
+    is the claim that makes the oracle observe its own subject: the assertion
+    is on the ``<pii:account-name>`` class in the refusal, not on a non-zero
+    exit that any other class could have produced.
+
+    THE NEGATIVE CONTROL IS IN THIS ARM, under the same pinned environment and
+    the same discovered value, because a wall refuses ordinary prose too.
+
+    The value is read back out of ``current_account_names`` rather than taken
+    from this file, the same shape ``seeded_discovery`` gives the three
+    save-derived arms, so what gets planted genuinely came out of discovery
+    and is still known synthetic before the gate sees it.
+
+    Placed last rather than beside the other planted arms so the numbered
+    sections above - and the arm counts two of them record from a mutation
+    measurement taken before this arm existed - stay true to what was
+    measured.
+    """
+    # Both keys, matching base_env: current_account_names reads USERNAME then
+    # USER, and a real USER left standing would make discovery return a second
+    # value and skip this arm on exactly the machine it is meant to grade.
+    monkeypatch.setenv("USER", SEED_ACCOUNT_NAME)
+    planted = seeded_discovery(
+        monkeypatch, tmp_path, "USERNAME", SEED_ACCOUNT_NAME, "current_account_names"
+    )
+    env = base_env(tmp_path)
+    payload = ("the operator " + planted + " ran the audit\n").encode("ascii")
+    code, out, err = run_gate(env=env, stdin=payload)
+    err_text = text(err)
+    named = err_text.count("<pii:account-name>")
+
+    assert code == REFUSED, f"exit {code} for a planted account name; stdout {text(out)!r}"
+    assert "outbound-gate: REFUSED" in err_text
+    assert named > 0, "the refusal does not name the account-name class"
+    assert_absent_in_any_case(planted, (out, err))
+
+    clean_code, clean_out, clean_err = run_gate(env=env, stdin=CLEAN_PAYLOAD.encode("ascii"))
+    clean_named = (text(clean_out) + text(clean_err)).count("<pii:account-name>")
+
+    assert clean_code != REFUSED, f"ordinary prose was refused; stderr {text(clean_err)!r}"
+    assert clean_code in {CLEAN, UNMEASURED}, f"exit {clean_code} for ordinary prose"
+    assert clean_named == 0, "the account-name class fired on prose carrying no account name"
