@@ -150,6 +150,48 @@ an instruction a worker can rationalize past is not a mechanism, and it says it 
 rule that failed four times out of six; that is exactly why the fences that CAN be computed
 now are, and why you read a LIST rather than apply a rule to a file.
 
+**THEN CLAIM THE ROW BEFORE YOU WORK IT, AND RELEASE THE CLAIM WHEN YOU WRAP.** The store
+is `ops/loop/claims.py`:
+
+```
+from ops.loop import claims
+row = claims.first_takeable(queue_you_just_computed)          # skips held rows
+held = claims.try_claim_row(row, lane=<your lane>, run_id=<your run id>, worktree=<your tree>)
+if not held["ok"]:                                             # CHECK THIS. See below.
+    ...                                                        # recompute and take the next row
+...                                                            # the cycle
+claims.release_claim(held["token"])                            # section 11, at the wrap
+```
+
+**`try_claim_row` REFUSES RATHER THAN RAISING, so a worker that ignores `ok` proceeds on a
+refusal and works a row another lane is holding** - the precise failure the claim exists to
+stop, reintroduced by not reading the answer. A refusal is a NORMAL result: the other lane
+took the row between your queue read and your claim. Recompute the queue and take the next
+row. Do NOT pass `root=` - the store resolves the main checkout for itself, and naming a
+root from inside your lane worktree points you at a private directory nobody else reads.
+
+**WHY THIS EXISTS, because the reason is the shape of the fence below and not a tidiness
+rule.** FENCE 6 makes a closure record in `docs/LEDGER.md` the test of DONE, and that record
+is written at the END of a cycle. So for the whole length of a cycle - both real nights
+measured so far ran into the thousands of seconds - the row you are working is
+indistinguishable from an untaken one by anything on disk. That was harmless while the
+roster held one lane. It is not now: CS-992 widened the roster, two lanes poll one
+`ROADMAP.md`, and without a claim the second lane takes the row the first is already
+working and spends its whole cycle on it.
+
+**A CLAIM IS NOT A CLOSURE, AND NEITHER SUBSTITUTES FOR THE OTHER.** The ledger answers "is
+this row FINISHED" - durably, for every future session. A claim answers "is somebody
+WORKING this row RIGHT NOW" and is worthless the moment its holder stops running. Never
+write a claim in place of a closure record, and never read a claim as evidence a row is
+done.
+
+**A CRASHED CYCLE DOES NOT RELEASE ITS CLAIM, AND DOES NOT WEDGE ITS ROW EITHER.** Release
+is deliberate. A killed cycle leaves its record where it was; the store then PROBES the
+holder's pid, finds it gone, reports the row RECLAIMABLE and offers it again on the next
+fire. So you never hand-delete a claim file to unstick a lane - if the holder is really
+gone the next `first_takeable` already offers the row, and if it is not, deleting the file
+puts a second lane into a worktree that has one.
+
 **A LANE CAN BE POINTED AT A SUBJECT.** Set `CLOCKSPEED_LANE_SCOPE_QUEUE=<name>` in the
 environment and the same command answers only that subject's rows. The subjects are
 declared in `config/lane_scopes.json` and `dashboard` is the worked example. It exists
@@ -238,6 +280,12 @@ items. An item there is not queued until somebody moves it, and moving it is not
 **FENCE 6 - A ROW IS DONE ONLY WHEN ITS ID CARRIES A CLOSURE RECORD** - an entry heading in
 `docs/LEDGER.md` naming it CLOSED. **Never because it failed to appear in a grep.** An empty
 grep is a claim about your pattern, not about the row.
+
+**FENCE 7 - NEVER TAKE A ROW ANOTHER LANE IS HOLDING.** `ops/loop/claims.py` owns that
+answer and `first_takeable` applies it for you. This fence is the one FENCE 6 cannot cover:
+a closure record says a row is finished, and until one is written a row being worked right
+now and a row nobody has touched look exactly alike. Taking a held row is not recoverable by
+noticing later - two cycles will have edited the same files against the same item.
 
 ### 5b. THE DO-NOT-REDO SET
 
@@ -517,6 +565,12 @@ engine change is substantive; a five-file rename is not.
 ## 11. Ending a cycle, and ending the loop
 
 **Every cycle ends by exiting after one row.**
+
+**RELEASE THE ROW CLAIM, and do it whether the cycle shipped or gave up.** `claims.release_claim(held["token"])`,
+from section 5. A cycle that finished and a cycle that abandoned its row are the same event
+to the next lane - neither is working the row any more. The one case you do NOT have to
+handle is being killed: release is deliberate precisely so that a crash leaves the record
+behind, where the pid probe finds the holder gone and offers the row again on its own.
 
 **THE DRAINED SENTINEL.** If no takeable row remains after applying section 5's fences,
 write one line - an ISO timestamp and the reason - to:
