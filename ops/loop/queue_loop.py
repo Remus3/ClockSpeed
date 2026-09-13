@@ -502,6 +502,15 @@ LEDGER_MUTEX_TIMEOUT_S = 5.0
 OUTCOME_COMPLETED = "completed"
 OUTCOME_TIMEOUT = "timeout_killed"
 OUTCOME_LANE_HELD = "lane_held"
+#: THE OTHER WAY AN ACQUIRE IS REFUSED, and its OWN word rather than a second
+#: spelling of the one above. `ops/loop/lanes.py` answers `worktree_in_use` when
+#: a lane asks for a tree ANOTHER lane is already running in, and
+#: `_worktree_refusal`'s docstring rules why the two must not share a word: they
+#: demand opposite operator actions. A held lane is waited out; an occupied tree
+#: is repointed, and nothing about waiting will ever free it. Rendering both as
+#: `lane_held` also named the occupying lane as the HOLDER of a lock it does not
+#: hold, which sends whoever reads the row to the wrong lane.
+OUTCOME_WORKTREE_IN_USE = "worktree_in_use"
 OUTCOME_LAUNCH_FAILED = "launch_failed"
 #: The kill was issued and the worker OUTLIVED it. Distinct from
 #: OUTCOME_TIMEOUT because the two demand opposite responses: a killed worker
@@ -867,6 +876,85 @@ def _launch_fault(exc: BaseException) -> str:
         return named
     # THE DRIVER'S OWN LITERAL, fetched by index. `reason` is not rendered.
     return f"{named}: {_LAUNCH_REASONS[_LAUNCH_REASONS.index(reason)]}"
+
+
+#: THE REFUSAL WORDS THIS DRIVER ITSELF HOLDS, parallel to `_REFUSAL_OUTCOMES`.
+#: The SAME rule as `_LAUNCH_REASONS` one seam over, for the same reason: the
+#: dict comes from another module and the row it lands in is a durable
+#: personal-data-bearing file, so an incoming word is used to LOOK UP an index
+#: and the value written is this module's own literal at that index. A word this
+#: driver does not hold - a `lanes.py` running ahead of it, an injected fake -
+#: is DISCARDED and the row degrades to the generic refusal it already had.
+_ACQUIRE_REFUSALS = ("lane_held", "worktree_in_use")
+_REFUSAL_OUTCOMES = (OUTCOME_LANE_HELD, OUTCOME_WORKTREE_IN_USE)
+
+#: What a holder outside the lane roster is called. A refusal's `holder` is read
+#: off a LOCK FILE this driver did not write, so it is not this module's string.
+UNKNOWN_HOLDER = "unknown"
+
+
+def _refusal_outcome(refused: object) -> str:
+    """Which fault an acquire refusal is, as one of THIS module's own words.
+
+    The driver used to read only `ok`, `holder`, `pid` and `token`, so both
+    refusals arrived as `lane_held` - a doc-versus-ship contradiction against
+    `_worktree_refusal`'s own docstring, and a row that sent a reader to the
+    wrong lane.
+
+    EXACT `str`, not `isinstance`, and then an INDEX SUBSTITUTION. A `str`
+    subclass can lie about its comparison or about its rendering - honest data,
+    a `__str__` that returns a home path - and both were driven through the
+    launch seam and both reached the durable row. A subclass is refused outright
+    here rather than validated and rendered.
+
+    Args:
+        refused: The refusal dict's `refused` field. Any object.
+
+    Returns:
+        `OUTCOME_WORKTREE_IN_USE` for the collision, `OUTCOME_LANE_HELD` for a
+        held lane AND for every word this module does not hold. Never invents an
+        outcome, and never returns the caller's object.
+    """
+    if type(refused) is not str or refused not in _ACQUIRE_REFUSALS:
+        return OUTCOME_LANE_HELD
+    return _REFUSAL_OUTCOMES[_ACQUIRE_REFUSALS.index(refused)]
+
+
+def _holder_name(holder: object) -> str:
+    """The occupying lane's name, or `UNKNOWN_HOLDER`. Never the caller's object.
+
+    `ops/loop/lanes.LANES` is the allowlist. A lock file whose `lane` field is
+    path-shaped - an older build, a hand-edited file, an injected fake - would
+    otherwise have gone into the row through an f-string, which is CLAUDE.md
+    non-negotiable 3. The rostered case renders exactly as it always did, so the
+    lane name an operator already reads off these rows is not erased.
+
+    Args:
+        holder: The refusal dict's `holder` field. Any object.
+
+    Returns:
+        A name from this repository's lane roster, or `UNKNOWN_HOLDER`.
+    """
+    if type(holder) is not str:
+        return UNKNOWN_HOLDER
+    # ANNOTATED, because `_mod` is deliberately untyped - see its docstring - so
+    # without this the roster is `Any` and the substitution below silently stops
+    # being a `str` guarantee at all.
+    roster: tuple[str, ...] = tuple(str(name) for name in _mod("lanes").LANES)
+    if holder not in roster:
+        return UNKNOWN_HOLDER
+    return roster[roster.index(holder)]
+
+
+def _holder_pid(pid: object) -> int | None:
+    """The holder's pid when it is honestly one, and None otherwise.
+
+    Same surface, same rule: the value is copied out of a dict another module
+    built and written into a durable row. A pid is an integer; anything else is
+    a string this driver has no business rendering. `bool` is excluded because
+    it is an `int` subclass and `True` is not a process.
+    """
+    return pid if type(pid) is int else None
 
 
 def _emit(line: str) -> None:
@@ -2315,14 +2403,30 @@ def run_cycle(  # noqa: PLR0913, PLR0912, PLR0915 - see THE SEAMS ARE THE POINT
         if attempt < attempts:
             sleep(acquire_wait_s)
     if not (claim and claim.get("ok")):
-        holder = (claim or {}).get("holder")
-        return _record(
-            OUTCOME_LANE_HELD,
-            False,
-            None,
-            clock(),
-            f"lane held by {holder!r} (pid {(claim or {}).get('pid')}) after {attempts} attempts",
-        )
+        # THE REFUSAL WORD IS READ, and that is the whole of CS-1011. `lanes.py`
+        # has answered two different faults since CS-1009 and this branch saw
+        # one, so an occupied WORKTREE was written down as a held LANE naming a
+        # lane that holds nothing - one waits, the other repoints.
+        #
+        # NOTHING FROM THE DICT IS RENDERED. The word, the holder and the pid
+        # each go through a validator that returns one of this module's own
+        # values, because the refusal payload carries a worktree PATH and the
+        # row it lands in is a durable JSONL file - CLAUDE.md non-negotiable 3.
+        # The path itself is never copied at all: an operator who needs it reads
+        # it off the lock, and a lane name is what identifies the collision.
+        refusal = _refusal_outcome((claim or {}).get("refused"))
+        holder = _holder_name((claim or {}).get("holder"))
+        pid = _holder_pid((claim or {}).get("pid"))
+        if refusal == OUTCOME_WORKTREE_IN_USE:
+            detail = (
+                f"the worktree this lane is pointed at is already in use by "
+                f"lane {holder!r} (pid {pid}) after {attempts} attempts - "
+                f"waiting will not free it, one of the two lanes must be "
+                f"re-pointed"
+            )
+        else:
+            detail = f"lane held by {holder!r} (pid {pid}) after {attempts} attempts"
+        return _record(refusal, False, None, clock(), detail)
 
     token = claim.get("token")
     outcome, detail, pid = OUTCOME_COMPLETED, "", None
