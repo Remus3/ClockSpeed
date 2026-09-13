@@ -120,6 +120,26 @@ REPO_ROOT = _main_tree_root()
 #: The roster. Its size is not written anywhere but here.
 LANES = ("queue",)
 
+#: Where a lane is POINTED AT A SUBJECT. ``CLOCKSPEED_LANE_SCOPE_QUEUE=dashboard``
+#: narrows the queue lane to the scope of that name in ``config/lane_scopes.json``
+#: - see ``ops/loop/scope.py`` for what a scope is and how it is validated.
+#:
+#: AN ENVIRONMENT VARIABLE RATHER THAN A TRACKED BINDING, deliberately. Pointing
+#: a lane at a subject is an operator act for one run, and writing it into a
+#: tracked file would make the DEFAULT queue silently narrower for every clone
+#: and every later session - a lane that has quietly stopped reading most of
+#: `ROADMAP.md` is exactly the failure the loud refusal in ``scope.py`` exists to
+#: prevent, wearing a different hat. So the declaration of what a scope CONTAINS
+#: is tracked and reviewable, and the decision to APPLY one is not.
+LANE_SCOPE_ENV_PREFIX = "CLOCKSPEED_LANE_SCOPE_"
+
+#: Lane name -> the scope it runs under when nothing points it elsewhere. EMPTY,
+#: and that is the whole point: the single existing lane keeps reading the whole
+#: of `ROADMAP.md` exactly as `tools/headless-queue.md` section 5 has always
+#: said, and scoping is opt-in per run. A lane gains an entry here only when the
+#: operator decides that lane's DEFAULT subject is narrower than the file.
+DEFAULT_LANE_SCOPES: dict[str, str] = {}
+
 #: One holder at a time. The upstream bucket names slot i ``<i>.lock``, so at
 #: this width there is only slot 0 and LOCK_NAME is that name.
 MAX_SLOTS = 1
@@ -169,6 +189,40 @@ _OWNED: dict[str, tuple[str | None, float | None, int | None]] = {}
 # ---------------------------------------------------------------------------
 # Small readers
 # ---------------------------------------------------------------------------
+
+
+def scope_for_lane(lane: Any, env: dict[str, str] | None = None) -> str | None:
+    """The scope name this lane is pointed at, or None for the whole file.
+
+    Reads ``CLOCKSPEED_LANE_SCOPE_<LANE>`` first and falls back to
+    ``DEFAULT_LANE_SCOPES``. The lane name is upper-cased into the variable
+    name, so the ``queue`` lane reads ``CLOCKSPEED_LANE_SCOPE_QUEUE``.
+
+    A BLANK VALUE MEANS UNSCOPED, NOT A SCOPE NAMED "". Exporting the variable
+    empty is how a shell unsets a pointer in practice, and treating that as a
+    scope name would refuse every run under it for a reason nobody would guess.
+
+    THIS DOES NOT VALIDATE THE NAME. Whether a scope exists, and whether its
+    members are still takeable, is ``ops/loop/scope.py``'s job and it refuses
+    loudly. Resolving the pointer and grading it are deliberately separate: a
+    pointer this function could not resolve would otherwise be indistinguishable
+    from a scope whose rows have all closed.
+
+    Args:
+        lane: The lane name.
+        env: The environment to read, or None for the live process environment.
+
+    Returns:
+        The scope name, or None.
+    """
+    name = str(lane).strip()
+    if not name:
+        return None
+    source = os.environ if env is None else env
+    pointed = str(source.get(LANE_SCOPE_ENV_PREFIX + name.upper(), "")).strip()
+    if pointed:
+        return pointed
+    return DEFAULT_LANE_SCOPES.get(name)
 
 
 def _key(path: Any) -> str:

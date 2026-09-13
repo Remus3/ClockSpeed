@@ -1,0 +1,36 @@
+{
+  "_README": [
+    "Named SUBJECTS a headless lane can be pointed at, consumed by ops/loop/scope.py.",
+    "Point a lane at one for a single run with CLOCKSPEED_LANE_SCOPE_<LANE>=<name>;",
+    "for the queue lane that is CLOCKSPEED_LANE_SCOPE_QUEUE=dashboard.",
+    "",
+    "THIS FILE IS A HAND-MAINTAINED ID LIST AND THAT IS ONLY SAFE BECAUSE IT IS",
+    "VALIDATED ON EVERY READ. ops/loop/scope.py::validate_scope grades every member",
+    "against the live ROADMAP.md item lines, docs/GATED.md and docs/LEDGER.md, and",
+    "refuses LOUDLY naming the offender when a member has closed, is gated, is a",
+    "phase gate row, or is absent. A scope that finds nothing and a scope that is",
+    "wrong are different events here and never render the same.",
+    "",
+    "WHEN A MEMBER CLOSES, DELETE ITS ID FROM THE items LIST. That is the whole",
+    "maintenance burden, and tests/ops/test_lane_scope.py goes RED until it is done.",
+    "",
+    "DO NOT add a member without checking it is an open ROADMAP.md row. Do not add a",
+    "phase gate row (they are rejected anyway - CLAUDE.md and tools/headless-queue.md",
+    "section 5 FENCE 1 both forbid taking one) and do not add a docs/GATED.md id."
+  ],
+  "scopes": {
+    "dashboard": {
+      "description": "The dashboard and companion surface rows. NOT expressible as a phase filter: seven sit under '## Phase 6 - surfaces' and CS-962, the row that says the dashboard renders nothing a player would act on, sits in the phase 4 block entirely.",
+      "items": [
+        "CS-962",
+        "CS-603",
+        "CS-606",
+        "CS-608",
+        "CS-613",
+        "CS-618",
+        "CS-887",
+        "CS-909"
+      ]
+    }
+  }
+}

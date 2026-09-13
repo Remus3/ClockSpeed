@@ -141,6 +141,34 @@ headline, the acceptance clause and the tier - and its phase headings give the d
 order. Within a phase, the file's own line order is the order. Take the FIRST row, in that
 order, that survives every fence below.
 
+**FIRST, COMPUTE THE QUEUE. DO NOT EYEBALL IT.** From your lane worktree, run
+`python -m ops.loop.scope`. It prints the rows you may take, in this file's order, with
+FENCES 1, 2 and 4 ALREADY APPLIED - the phase gate rows, everything named in
+`docs/GATED.md`, and everything carrying a closure record in `docs/LEDGER.md` are gone
+before you ever see the list. Take the first row it prints. Section 1 of this document says
+an instruction a worker can rationalize past is not a mechanism, and it says it about a
+rule that failed four times out of six; that is exactly why the fences that CAN be computed
+now are, and why you read a LIST rather than apply a rule to a file.
+
+**A LANE CAN BE POINTED AT A SUBJECT.** Set `CLOCKSPEED_LANE_SCOPE_QUEUE=<name>` in the
+environment and the same command answers only that subject's rows. The subjects are
+declared in `config/lane_scopes.json` and `dashboard` is the worked example. It exists
+because the dashboard rows are NOT contiguous and are NOT one phase - seven sit under
+`## Phase 6 - surfaces` and one sits in the phase 4 block - so no phase filter expresses
+that subject and the ids have to be written down.
+
+**WHEN THAT COMMAND REFUSES, STOP AND REPORT IT.** Do not fall back to reading the file by
+hand. A refusal exits non-zero and NAMES the offending id and its class - closed, gated,
+a phase gate row, or absent from `ROADMAP.md` - and it means the DECLARATION is wrong,
+which is a different event from a scope that is merely empty. An empty scope prints that it
+is empty and exits 0. Repairing `config/lane_scopes.json` by deleting the offending id is
+in scope for that cycle; widening a fence never is.
+
+**WHAT THE COMMAND DOES NOT COMPUTE, and you must still apply by hand.** FENCE 3, the
+frozen-file list, which is about FILES rather than rows. And the prose half of section 5b -
+the settled decisions in `CLAUDE.md` section 7 - which name no item ids at all. Those two
+remain instructions, with everything section 1 says that implies.
+
 **WHAT `ROADMAP.md`'S PHASE RULE DOES AND DOES NOT SAY, because the strict reading is
 falsified by the tree.** It says: do not advance past a phase whose acceptance criterion is
 unmet. That bars DECLARING A PHASE COMPLETE while its gate is open. **It does not bar taking
