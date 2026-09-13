@@ -38,6 +38,26 @@ an objection to the WIRE TYPE rather than to the value. So the class names ship
 and every coordinate ships as the exact decimal STRING
 ``clockspeed/audit/placement.py`` renders, never as a JSON number.
 
+WHAT CS-1013 ADDED, ON THE SAME AUTHORITY AND NOT A BYTE MORE. EVERY placement's
+ROTATION and SCALE now ship beside its coordinates - a node's exactly as much as
+a building's. ``objects.Transform`` parsed all three blocks all along and two
+seams below this one dropped two of them, so nothing on this map could be
+oriented over data that had already been decoded. They are stored floats exactly
+as a coordinate is, so they ship exactly as a coordinate does - as exact decimal
+strings, never as JSON numbers - and they name nothing the operator authored, so
+the withheld list above is unchanged by one entry. They ship as ARRAYS in file
+order rather than as named components; :data:`PLACEMENT_KEYS` says why, and
+:func:`_placements` says when each is null and why a null beats an invented
+identity.
+
+``node_orientation_available`` ships beside ``node_semantics_available`` and is
+the exact counterpart of it: a declared capability, so a consumer branches on
+the field rather than sniffing a row for a null and guessing what the null
+meant. It is True and ``node_semantics_available`` is False, which is the whole
+distinction this endpoint exists to keep straight - a node's GEOMETRY is
+complete in the file, and its resource type and purity are not in the file at
+all.
+
 NODE SEMANTICS ARE UNAVAILABLE AND THE BODY SAYS SO TWICE.
 ``docs/adr/0003-s4-node-actors-in-save.md`` measured ``mPurity``,
 ``mResourceNodeType`` and ``mResourceClass`` at ZERO occurrences across three
@@ -247,6 +267,7 @@ DATA_KEYS: Final = (
     "masked_token",
     "coordinate_units",
     "node_semantics_available",
+    "node_orientation_available",
     "bounds",
     "nodes",
     "node_counts",
@@ -266,7 +287,13 @@ BOUNDS_KEYS: Final = ("min_x", "max_x", "min_y", "max_y", "min_z", "max_z")
 #: One placed thing's keys, and the complete list. NO INSTANCE NAME, NO INDEX,
 #: NO OFFSET, NO PATH - ``clockspeed/audit/placement.py``'s ``Placement`` carries
 #: none of those to begin with, and this tuple is why it never grows one.
-PLACEMENT_KEYS: Final = ("class_name", "x", "y", "z")
+#:
+#: ``rotation`` and ``scale`` are ARRAYS of exact decimal strings, or ``null``.
+#: Arrays rather than named-component objects because ``objects.Transform`` says
+#: the quaternion is "in file order" and names no component; inventing ``i``,
+#: ``j``, ``k`` and ``w`` here would publish a claim about the format this
+#: project has not measured. See :func:`_placements` for when each is null.
+PLACEMENT_KEYS: Final = ("class_name", "x", "y", "z", "rotation", "scale")
 
 #: One item total's keys. ``display_name`` is the registry join and is ``null``
 #: when there is no registry or when it holds no descriptor for the key.
@@ -407,8 +434,25 @@ def _bounds(bounds: placement_model.WorldBounds | None) -> dict[str, str] | None
     }
 
 
-def _placements(placements: Sequence[placement_model.Placement]) -> list[dict[str, str]]:
-    """Render every placement by naming its four fields.
+def _placements(placements: Sequence[placement_model.Placement]) -> list[dict[str, object]]:
+    """Render every placement by naming its six fields.
+
+    THE ORIENTATION IS TRANSCRIBED AND NOT INTERPRETED. ``list()`` widens the
+    model's tuple into the JSON array the encoder writes, and nothing here
+    normalises a quaternion, converts one to Euler angles or multiplies a scale
+    by anything - ``surface/`` never computes, and every one of those is a
+    computation. A component arrives as the exact decimal string
+    ``clockspeed/audit/placement.py`` rendered and leaves as that same string.
+
+    ``null`` RATHER THAN AN IDENTITY when the model carries no block, and there
+    is now exactly ONE reason it can be null: the stored block held a non-finite
+    component, so the audit layer withheld it whole and kept the placement. That
+    is flagged in ``warnings`` as ``placement-orientation-non-finite`` rather
+    than guessed at here, and it applies to a node and a building alike.
+    SERVING AN IDENTITY QUATERNION INSTEAD WOULD BE A CLAIM - that the thing is
+    unrotated - and this layer has no basis for it; a consumer cannot tell an
+    invented identity from a measured one, which is the silently-wrong half of
+    non-negotiable 7.
 
     Args:
         placements: The placements, in the order the model carries them.
@@ -422,6 +466,8 @@ def _placements(placements: Sequence[placement_model.Placement]) -> list[dict[st
             "x": placed.x,
             "y": placed.y,
             "z": placed.z,
+            "rotation": None if placed.rotation is None else list(placed.rotation),
+            "scale": None if placed.scale is None else list(placed.scale),
         }
         for placed in placements
     ]
@@ -598,6 +644,7 @@ def _body(model: WorldModel, registry: Registry | None) -> dict[str, object]:
         "masked_token": masked_token(model.token),
         "coordinate_units": placed.coordinate_units,
         "node_semantics_available": placed.node_semantics_available,
+        "node_orientation_available": placed.node_orientation_available,
         "bounds": _bounds(placed.bounds),
         "nodes": _placements(placed.node_placements),
         "node_counts": _counts(placed.node_counts),

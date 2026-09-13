@@ -133,6 +133,21 @@ UNLISTED_PATH: Final = "/Synthetic/Build/" + UNLISTED_CLASS + "." + UNLISTED_CLA
 NODE_TRANSLATION: Final = (-1024.0, 512.0, -64.0)
 BUILT_TRANSLATION: Final = (2048.0, -256.0, 128.0)
 
+#: The built actor's ORIENTATION. Every component is exactly representable in
+#: float32 and none of them is the identity, so an arm that graded a dropped
+#: rotation against the default quaternion would fail rather than pass.
+BUILT_ROTATION: Final = (0.5, -0.25, 0.125, 0.8125)
+BUILT_SCALE: Final = (2.0, 0.5, -1.5)
+
+#: The NODE's orientation, deliberately different from the building's in every
+#: component. A seam that served one population the other's block, or that
+#: served a shared default, fails rather than passing on a coincidence.
+NODE_ROTATION: Final = (-0.75, 0.0625, -0.375, 0.25)
+NODE_SCALE: Final = (0.25, -2.0, 4.0)
+
+ROTATION_COMPONENTS: Final = 4
+SCALE_COMPONENTS: Final = 3
+
 #: One node and one built actor survive the allowlist; the third record is a
 #: belt, which the allowlist deliberately excludes.
 EXPECTED_NODES: Final = 1
@@ -175,9 +190,9 @@ ARITHMETIC_NODES: Final = (ast.BinOp, ast.AugAssign)
 #: compares a served body against it. A tuple that was silently emptied would
 #: make every shape arm pass by comparing two empty sets - the exact vacuity
 #: this file's own stub phase measured, and the one hole it found.
-EXPECTED_DATA_KEYS: Final = 12
+EXPECTED_DATA_KEYS: Final = 13
 EXPECTED_BOUNDS_KEYS: Final = 6
-EXPECTED_PLACEMENT_KEYS: Final = 4
+EXPECTED_PLACEMENT_KEYS: Final = 6
 EXPECTED_INVENTORY_KEYS: Final = 3
 EXPECTED_THROUGHPUT_KEYS: Final = 9
 EXPECTED_WARNING_KEYS: Final = 3
@@ -291,10 +306,20 @@ def canary_blob() -> bytes:
         },
         objects=(
             synthetic.SyntheticObject(
-                NODE_PATH, CANARY_ROOT, CANARY_INSTANCE + "_0", translation=NODE_TRANSLATION
+                NODE_PATH,
+                CANARY_ROOT,
+                CANARY_INSTANCE + "_0",
+                translation=NODE_TRANSLATION,
+                rotation=NODE_ROTATION,
+                scale=NODE_SCALE,
             ),
             synthetic.SyntheticObject(
-                BUILT_PATH, CANARY_ROOT, CANARY_INSTANCE + "_1", translation=BUILT_TRANSLATION
+                BUILT_PATH,
+                CANARY_ROOT,
+                CANARY_INSTANCE + "_1",
+                translation=BUILT_TRANSLATION,
+                rotation=BUILT_ROTATION,
+                scale=BUILT_SCALE,
             ),
             synthetic.SyntheticObject(
                 UNLISTED_PATH, CANARY_ROOT, CANARY_INSTANCE + "_2", translation=BUILT_TRANSLATION
@@ -1073,3 +1098,159 @@ def test_the_provider_protocols_are_the_ones_the_contract_publishes() -> None:
     """The stubs above satisfy the published protocols, not a local lookalike."""
     assert isinstance(_Worlds(None), contract.WorldProvider), "the world stub is not a provider"
     assert isinstance(_Registries(None), contract.RegistryProvider), "the registry stub is not one"
+
+
+# ---------------------------------------------------------------------------
+# 9 - CS-1013: the orientation the audit seam used to drop
+# ---------------------------------------------------------------------------
+
+
+def test_a_built_row_carries_the_rotation_and_the_scale_as_arrays_of_strings() -> None:
+    """``objects.Transform`` parsed three blocks and this wire published one.
+
+    Every component is a STRING for the reason a coordinate is one: a bare JSON
+    number is the IEEE double non-negotiable 6 keeps out of the answer path, and
+    a rotation component is the same kind of stored float a coordinate is.
+    """
+    data = body_of(answer(canary_world(), fixture_registry()))
+    built = rows(data, "built")
+    seen = len(built)
+    assert seen == EXPECTED_BUILT, "the body carries built rows: " + str(seen)
+
+    rotation = built[0]["rotation"]
+    scale = built[0]["scale"]
+    assert isinstance(rotation, list), type(rotation).__name__
+    assert isinstance(scale, list), type(scale).__name__
+    assert len(rotation) == ROTATION_COMPONENTS, str(rotation)
+    assert len(scale) == SCALE_COMPONENTS, str(scale)
+    assert [item for item in rotation + scale if not isinstance(item, str)] == []
+
+
+def test_an_orientation_component_round_trips_to_the_stored_value_exactly() -> None:
+    """A rounding done below cannot be undone here, so the arm asserts exactness.
+
+    This is also the arm that grades the DEFECT: the fixture's rotation is not
+    the identity, so a wire that dropped the block and a wire that published a
+    default would both fail here.
+    """
+    data = body_of(answer(canary_world(), fixture_registry()))
+    built = rows(data, "built")[0]
+    rotation = built["rotation"]
+    scale = built["scale"]
+
+    assert isinstance(rotation, list), type(rotation).__name__
+    assert isinstance(scale, list), type(scale).__name__
+
+    served_rotation = tuple(float(str(part)) for part in rotation)
+    served_scale = tuple(float(str(part)) for part in scale)
+
+    assert served_rotation == BUILT_ROTATION, str(served_rotation)
+    assert served_scale == BUILT_SCALE, str(served_scale)
+
+
+def test_a_node_row_carries_its_own_orientation_off_the_real_parser() -> None:
+    """A node's rotation was dropped by ``_node_or_none``, not absent from the file.
+
+    The fixture packs a DISTINCT quaternion into the node's float32 transform
+    bytes, so this arm dies if either seam drops the block and dies again if a
+    seam substitutes the building's.
+    """
+    data = body_of(answer(canary_world(), fixture_registry()))
+    node_rows = rows(data, "nodes")
+    seen = len(node_rows)
+    assert seen == EXPECTED_NODES, "the body carries node rows: " + str(seen)
+
+    rotation = node_rows[0]["rotation"]
+    scale = node_rows[0]["scale"]
+    assert isinstance(rotation, list), type(rotation).__name__
+    assert isinstance(scale, list), type(scale).__name__
+
+    served_rotation = tuple(float(str(part)) for part in rotation)
+    served_scale = tuple(float(str(part)) for part in scale)
+    assert served_rotation == NODE_ROTATION, str(served_rotation)
+    assert served_scale == NODE_SCALE, str(served_scale)
+    assert served_rotation != BUILT_ROTATION, "the node was served the building's rotation"
+
+
+def test_the_orientation_capability_flag_is_served_and_the_rows_honour_it() -> None:
+    """``node_orientation_available`` is the counterpart of ``node_semantics_available``.
+
+    Asserted TOGETHER with the rows, because a True flag over null rows is a
+    worse answer than no flag at all - a consumer that branched on it would
+    build a rotation matrix out of nothing.
+    """
+    data = body_of(answer(canary_world(), fixture_registry()))
+
+    assert data["node_orientation_available"] is True, str(data["node_orientation_available"])
+    assert data["node_semantics_available"] is False, str(data["node_semantics_available"])
+
+    node_rows = rows(data, "nodes")
+    seen = len(node_rows)
+    assert seen == EXPECTED_NODES, "the body carries node rows: " + str(seen)
+    unoriented = [row for row in node_rows if row["rotation"] is None or row["scale"] is None]
+    assert unoriented == [], "the flag claims an orientation these rows do not carry"
+
+
+def test_an_orientation_never_reaches_the_wire_as_a_float() -> None:
+    """The mutation goes into THE ORIENTATION THIS ENDPOINT BUILT, not beside it.
+
+    The earlier cut of this arm planted a float under a brand new key and so
+    graded pre-existing encoder behaviour - its oracle never observed a rotation
+    at all, and it survived a mutant that reverted the row to four keys. This
+    version reaches into the served body, finds the built row's own rotation
+    array, and swaps one rendered string back to the float it came from. A
+    response that carries no rotation cannot be mutated that way and fails at
+    the control.
+    """
+    payload = answer(canary_world(), fixture_registry()).payload
+    contract.encode(payload)
+
+    data = body_of(answer(canary_world(), fixture_registry()))
+    built = rows(data, "built")[0]
+    rotation = built["rotation"]
+
+    # The control. There must BE an orientation here to corrupt.
+    assert isinstance(rotation, list), type(rotation).__name__
+    assert len(rotation) == ROTATION_COMPONENTS, str(rotation)
+
+    corrupted = dict(built)
+    corrupted["rotation"] = [BUILT_ROTATION[0], *rotation[1:]]
+    with pytest.raises(ValueError, match=contract.FLOAT_ON_THE_WIRE):
+        contract.encode({"data": {"built": [corrupted]}})
+
+
+def test_the_orientation_keys_are_published_and_the_emitter_actually_emits_them() -> None:
+    """The tuple and the BUILDER are bound together, in both directions.
+
+    The earlier cut asserted membership in the constant tuple alone and was
+    blind to ``_placements``: a mutant that reverted the emitter to four keys
+    left the tuple untouched and the arm green. A key tuple nothing emits is a
+    published promise the wire does not keep, so the assertion below is over a
+    row this endpoint really built.
+    """
+    published = frozenset(endpoint.PLACEMENT_KEYS)
+    assert "rotation" in published, sorted(published)
+    assert "scale" in published, sorted(published)
+
+    data = body_of(answer(canary_world(), fixture_registry()))
+    emitted = rows(data, "nodes") + rows(data, "built")
+    seen = len(emitted)
+    assert seen == EXPECTED_PLACEMENTS, "the body carries placements: " + str(seen)
+
+    unkept = [key for key in endpoint.PLACEMENT_KEYS if any(key not in row for row in emitted)]
+    assert unkept == [], "published keys the emitter never emits: " + str(unkept)
+
+
+def test_no_withheld_canary_rides_in_on_the_orientation() -> None:
+    """Widening the row must not widen what the row withholds.
+
+    The sweep is over the SERVED BYTES, so a marker hidden in a nested array is
+    caught as readily as one in a top-level string.
+    """
+    served = contract.encode(answer(canary_world(), fixture_registry()).payload).decode("ascii")
+    planted = len(WITHHELD_CANARIES)
+    assert planted == EXPECTED_WITHHELD_CANARIES, "canaries planted: " + str(planted)
+
+    leaked = [marker for marker in WITHHELD_CANARIES if marker in served]
+    assert len(leaked) == NO_LEAKS, "markers on the wire: " + str(len(leaked))
+    assert str(BUILT_ROTATION[0]) in served, "the sweep found no orientation, so it is vacuous"

@@ -242,6 +242,15 @@ never written to the save at all. Geometry is exact and free; semantics need
 the asset-extraction path. :class:`ResourceNode` carries placement and nothing
 else, and says so.
 
+PLACEMENT MEANS THE WHOLE TRANSFORM, AND FOR ONE RELEASE IT DID NOT (CS-1013).
+:func:`_node_or_none` bound ``record.transform`` and then read one of its three
+blocks, discarding the rotation and the scale on the same line that kept the
+translation. That was a drop, not a measurement: unlike purity, both values ARE
+in the file and are already parsed by ``objects.Transform`` before this function
+sees them. The distinction matters because a consumer cannot tell an absent
+field from an unmeasurable one, and this package had exactly one of each sitting
+side by side. Semantics remain genuinely unavailable; geometry is now complete.
+
 Geometry is free only for a record that HAS a transform, and CS-430 is the case
 where one does not. A record whose class is a measured node class but which
 carries no transform is skipped - inventing coordinates for it would be the
@@ -693,11 +702,18 @@ class ResourceNode:
         class_name: The actor class, from :data:`NODE_CLASS_NAMES`.
         instance_name: The instance name, verbatim.
         translation: World coordinates, from the record's transform.
+        rotation: The rotation quaternion IN FILE ORDER, from the same
+            transform. Carried rather than dropped since CS-1013 - see the
+            module docstring. The components are deliberately unnamed, because
+            ``objects.Transform`` names none of them either.
+        scale: The per-axis scale, from the same transform.
     """
 
     class_name: str
     instance_name: str
     translation: tuple[float, float, float]
+    rotation: tuple[float, float, float, float]
+    scale: tuple[float, float, float]
 
     def __repr__(self) -> str:
         """Render the class and the coordinates, and withhold the instance name.
@@ -1265,6 +1281,8 @@ def _node_or_none(record: ObjectRecord) -> ResourceNode | None:
         class_name=name,
         instance_name=record.instance_name,
         translation=record.transform.translation,
+        rotation=record.transform.rotation,
+        scale=record.transform.scale,
     )
 
 

@@ -310,6 +310,21 @@ _MAP_BUILT_CLASSES: Final = (
 _MAP_SPAN: Final = 240000
 _MAP_STEP: Final = 7919
 
+#: The four quarter turns about the vertical axis, as the exact decimal strings
+#: the wire carries. A canned orientation must have the SHAPE a real one has -
+#: an array of strings, never numbers - because a panel that parsed a number
+#: here would pass the audit and fail on the live wire.
+_MAP_QUARTER_TURNS: Final = (
+    ("0.0", "0.0", "0.0", "1.0"),
+    ("0.0", "0.0", "0.5", "0.5"),
+    ("0.0", "0.0", "1.0", "0.0"),
+    ("0.0", "0.0", "-0.5", "0.5"),
+)
+
+#: Unbuilt scale. Every real building carries it, so a fixture that varied it
+#: would grade a case the game does not produce.
+_MAP_UNIT_SCALE: Final = ("1.0", "1.0", "1.0")
+
 
 def _map_placements(
     populations: tuple[tuple[str, int], ...], phase: int
@@ -347,12 +362,21 @@ def _map_placements(
             y = (seed % (2 * _MAP_SPAN)) - _MAP_SPAN
             seed = (seed * 1103515245 + 12345) % 2147483648
             z = (seed % 20000) - 10000
+            # THE ORIENTATION IS DRAWN FROM THE SAME LATTICE, so a rendered
+            # fixture shows buildings at differing angles rather than a field of
+            # identical ones. Quarter turns about the vertical axis: the four
+            # spellings a factory actually contains, and every component is
+            # exactly representable so the string is short and exact.
+            seed = (seed * 1103515245 + 12345) % 2147483648
+            quarter = _MAP_QUARTER_TURNS[seed % len(_MAP_QUARTER_TURNS)]
             rows.append(
                 {
                     "class_name": class_name,
                     "x": f"{x}.0",
                     "y": f"{y}.0",
                     "z": f"{z}.0",
+                    "rotation": list(quarter),
+                    "scale": list(_MAP_UNIT_SCALE),
                 }
             )
         counts[class_name] = count
@@ -378,6 +402,7 @@ def _map_data() -> dict[str, object]:
         "masked_token": masked_token(SYNTHETIC_WORLD_SEED),
         "coordinate_units": placement.COORDINATE_UNITS,
         "node_semantics_available": False,
+        "node_orientation_available": True,
         "bounds": {
             "min_x": f"-{_MAP_SPAN}.0",
             "max_x": f"{_MAP_SPAN}.0",
@@ -429,7 +454,47 @@ def _map_data() -> dict[str, object]:
     if missing or surplus:
         message = f"canned map body does not match the endpoint: {missing} {surplus}"
         raise AssertionError(message)
+    _assert_rows_match(body)
     return body
+
+
+def _assert_rows_match(body: dict[str, object]) -> None:
+    """Bind the canned PLACEMENT ROWS to the endpoint's own row tuple.
+
+    THE TOP-LEVEL CHECK ABOVE GUARDS ONE LEVEL AND CS-1013 DRIFTED UNDERNEATH
+    IT. ``PLACEMENT_KEYS`` grew from four entries to six while every canned row
+    here still carried four, and ``_map_data`` returned normally - so this
+    fixture would have stayed green straight through the real defect, the day a
+    panel reads a rotation off a row that has none. A guard that checks the
+    outer envelope and not the rows is a guard that has already been passed by
+    the thing it exists to catch.
+
+    Args:
+        body: The canned body, already checked at the top level.
+
+    Raises:
+        AssertionError: When a placement row's key set differs from
+            ``map_endpoint.PLACEMENT_KEYS`` in either direction, naming the
+            section and the difference.
+    """
+    sections = (
+        ("nodes", map_endpoint.PLACEMENT_KEYS),
+        ("built", map_endpoint.PLACEMENT_KEYS),
+        ("warnings", map_endpoint.WARNING_KEYS),
+    )
+    for section, key_tuple in sections:
+        published = frozenset(key_tuple)
+        rows = body[section]
+        if not isinstance(rows, list) or not rows:
+            message = f"canned map body has no {section} rows, so this guard grades nothing"
+            raise AssertionError(message)
+        for row in rows:
+            keys = frozenset(row)
+            if keys != published:
+                missing = tuple(sorted(published - keys))
+                surplus = tuple(sorted(keys - published))
+                message = f"canned {section} row does not match the endpoint: {missing} {surplus}"
+                raise AssertionError(message)
 
 
 # ---------------------------------------------------------------------------
