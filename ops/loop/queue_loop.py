@@ -453,6 +453,18 @@ LOCAL_SUITE_ARGV = (_console_interpreter(), "-m", "pytest", "tests", "-q")
 #: A full local suite has been measured in the tens of minutes here. This bounds
 #: a wedge, not the work.
 DEFAULT_SUITE_TIMEOUT_S = 5400
+#: How long a lane waits behind another lane's suite before it runs its own
+#: UNRATIONED and says so. DERIVED from the timeout above rather than written as
+#: a second number, and the multiple is the whole content of the choice: a
+#: waiter has to outlast a holder that runs all the way to its OWN wedge ceiling,
+#: or the ration would fall open while the holder was still legitimately working
+#: - which is the overlap it exists to prevent, arriving on a timer. `ration.py`
+#: itself defaults to waiting forever and holds no number, so this is the one
+#: place the figure lives.
+SUITE_RATION_CEILING_S = 2 * DEFAULT_SUITE_TIMEOUT_S
+#: Between attempts on a held ration. Sized against a suite measured in tens of
+#: minutes: polling faster buys nothing and only wakes the box.
+SUITE_RATION_POLL_S = 30.0
 
 _NO_WINDOW = 0x08000000 if os.name == "nt" else 0  # CREATE_NO_WINDOW
 
@@ -660,11 +672,12 @@ _LAZY = {
     "lanes": ("ops.loop.lanes", "cs_loop_lanes", "lanes.py"),
     "lane_launcher": ("ops.loop.lane_launcher", "cs_loop_lane_launcher", "lane_launcher.py"),
     "winmutex": ("ops.loop.winmutex", "cs_loop_winmutex", "winmutex.py"),
+    "ration": ("ops.loop.ration", "cs_loop_ration", "ration.py"),
 }
 
 
 def __getattr__(name: str):
-    """Resolve `lanes`, `lane_launcher` and `winmutex` on first use (PEP 562).
+    """Resolve every module named in `_LAZY` on first use (PEP 562).
 
     Binding them at import would make reading a constant out of this file
     require the whole lane to be on disk, and would make an import of the
@@ -1139,6 +1152,83 @@ def run_local_suite(*, argv=None, runner=None, cwd=None, monotonic=time.monotoni
         }
     )
     return verdict
+
+
+def suite_ration(**kwargs):
+    """The default ration around the local suite step - see `ops/loop/ration.py`.
+
+    A THIN ADAPTER, deliberately. It exists so `run_suite_step` has ONE name to
+    default to and so a caller can substitute the whole ration with a keyword
+    argument, which is how every other dependency in this file is replaced. It
+    holds no policy of its own: the ceiling and the poll are passed in by
+    `run_suite_step` from the two constants above.
+
+    Args:
+        **kwargs: Passed through to `ration.hold_suite_slot`.
+
+    Returns:
+        The context manager that holds the slot for the block.
+    """
+    return _mod("ration").hold_suite_slot(**kwargs)
+
+
+def run_suite_step(  # noqa: PLR0913 - see THE SEAMS ARE THE POINT
+    record,
+    *,
+    lane,
+    worktree,
+    run_id,
+    suite,
+    ration=None,
+    root=None,
+    sleep=time.sleep,
+    monotonic=time.monotonic,
+    emit=_emit,
+) -> None:
+    """Run one cycle's local suite INSIDE the ration and record its verdict.
+
+    A SEPARATE FUNCTION RATHER THAN THREE LINES IN THE LOOP, and the reason is
+    what can be graded. The ration is only worth anything if the suite step is
+    actually inside it, and a wiring arm that had to drive a whole night to
+    observe that would grade the loop instead. Named here, the property is one
+    call away: an arm can watch the slot from inside the injected suite.
+
+    THE WAIT LIVES HERE, WITH EVERY OTHER WAIT THIS DRIVER OWNS. The driver
+    sleeps behind another lane's suite; the worker never blocks on anything, and
+    the worker's own suite runs - inside its iteration loop, and inside the
+    frozen pre-push hook - are outside this ration and are not claimed to be in
+    it.
+
+    THE SUITE RUNS IN THE LANE WORKTREE, never this tree - see `run_local_suite`.
+    That resolution stays here rather than moving into the ration, because the
+    ration is about WHETHER the step may run and the worktree is about WHICH
+    tree it grades, and one function answering both would be the seam mistake
+    this package keeps writing down.
+
+    Args:
+        record: The cycle record to write `suite` into.
+        lane: The lane, for the worktree resolution and the ration's holder.
+        worktree: The caller's worktree override, or None.
+        run_id: This cycle's identifier, so a ration log line joins to a row.
+        suite: The suite seam, `run_local_suite`'s shape.
+        ration: The ration seam, or None for `suite_ration`.
+        root: The slot root, or None for the ration's own default.
+        sleep: The wait, injected so an arm never has to spend real time.
+        monotonic: Deadline clock. Never wall time.
+        emit: The log sink, so an unrationed step is findable at 3am.
+    """
+    ration = suite_ration if ration is None else ration
+    with ration(
+        holder=lane,
+        run_id=run_id,
+        root=root,
+        ceiling_s=SUITE_RATION_CEILING_S,
+        poll_s=SUITE_RATION_POLL_S,
+        sleep=sleep,
+        monotonic=monotonic,
+        emit=emit,
+    ):
+        record["suite"] = suite(cwd=lane_worktree(lane, worktree), monotonic=monotonic)
 
 
 # ---------------------------------------------------------------------------
@@ -1783,8 +1873,11 @@ def wait_for_ci(
 # One cycle.
 # ---------------------------------------------------------------------------
 #
-# THE SEAMS ARE THE POINT, and they are why `run_cycle` and `run_loop` carry a
-# PLR0913 / PLR0912 / PLR0915 exemption each rather than being split.
+# THE SEAMS ARE THE POINT, and they are why `run_cycle`, `run_loop` and
+# `run_suite_step` carry a PLR0913 / PLR0912 / PLR0915 exemption rather than
+# being split. (`run_suite_step` sits above this block and cites it; it carries
+# PLR0913 alone, because a wrapper around one call has neither the branches nor
+# the statements the other two do.)
 #
 # Every external dependency of this driver is a keyword argument with a real
 # default: the lock, the launcher, the liveness probe, the killer, both clocks,
@@ -2076,6 +2169,7 @@ def run_loop(  # noqa: PLR0913, PLR0912, PLR0915 - see THE SEAMS ARE THE POINT
     gh=_gh,
     wait=None,
     suite=None,
+    ration=None,
     hold=None,
     sleep=time.sleep,
     clock=time.time,
@@ -2244,12 +2338,28 @@ def run_loop(  # noqa: PLR0913, PLR0912, PLR0915 - see THE SEAMS ARE THE POINT
         else:
             note += " commit=no"
         if record["outcome"] == OUTCOME_COMPLETED and local_suite:
-            # THE LANE WORKTREE, never this tree - see run_local_suite. The
-            # worker's commit lives there; the driver's own checkout is whatever
-            # it was when the night started. ONE resolver, shared with the
-            # lane-HEAD read below: a suite graded in one tree beside a commit
-            # counted in another is two correct facts that together say nothing.
-            record["suite"] = suite(cwd=lane_worktree(lane, worktree), monotonic=monotonic)
+            # INSIDE THE RATION, and the worktree resolution lives with it - see
+            # `run_suite_step`. Two lanes running a suite at once exhausts the
+            # box and the loser reports a pass count beside an error while
+            # thousands of tests never run, which reaches this ledger as a green
+            # nobody earned. The driver waits here, which is where every wait
+            # this file owns already happens.
+            run_suite_step(
+                record,
+                lane=lane,
+                worktree=worktree,
+                run_id=run_id,
+                suite=suite,
+                ration=ration,
+                # BENEATH the control directory, so `--control-dir` moves the
+                # ration with the stop sentinels rather than leaving half the
+                # control plane pointed at the real one. The dirname is
+                # `ration.py`'s to spell, not this file's.
+                root=(None if control_dir is None else Path(control_dir) / _mod("ration").DIR_NAME),
+                sleep=sleep,
+                monotonic=monotonic,
+                emit=emit,
+            )
         if ci_gate and record["outcome"] == OUTCOME_COMPLETED:
             post_sha = head_sha()
             if pre_sha is None or post_sha is None:
