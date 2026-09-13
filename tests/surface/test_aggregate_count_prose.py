@@ -113,8 +113,29 @@ compares what pytest actually collected from this module against an expectation
 derived from the module's own declarations, with every DERIVED plant population
 counted by its independent re-derivation rather than by the mark under test.
 Verified against a real on-disk edit rather than assumed: the ``[:3]`` slice
-takes the collected count from 484 to 474 and reddens both that arm and the
+takes the collected count from 486 to 476 and reddens both that arm and the
 plant-equality arm.
+
+AND THE FIFTH INSTANCE OF THE CLASS WAS INSIDE THAT BACKSTOP - CS-988. The
+expectation counted a DERIVED population from
+:data:`INDEPENDENT_CASE_COUNTS` and every other argument name from
+``len(list(argvalues))``, justified by a comment saying those populations are
+membership-pinned. Nothing verified the comment. ``argvalues`` is the same object
+being parametrized over, so for any name absent from that map the expectation
+FOLLOWED THE POPULATION DOWN: measured on the shipped helper, expected 4
+unsliced, expected 2 after slicing that population to one, collected also 2,
+green. The map was therefore a value deciding what the backstop measures, silent
+on omission - the same shape, one level further in. Deleting the ``legal`` entry
+on the shipped file changed nothing at all: 484 passed, exit 0.
+
+THE REPAIR IS A REFUSAL PLUS AN EQUALITY, not a wider map. An argument name
+registered in NEITHER :data:`INDEPENDENT_CASE_COUNTS` NOR
+:data:`MEMBERSHIP_PINNED_CASE_NAMES` raises and names both the argument and the
+function, so no parametrize can be added silently; and
+:func:`test_every_case_name_is_registered_in_exactly_one_key_set` grades the two
+sets against the names actually parametrized by EQUALITY in both directions, so
+the registration cannot go stale in one direction while passing in the other. A
+floor here would have been the sixth instance rather than a repair of the fifth.
 
 ONE MUTANT SURVIVES THE EQUALITY ARM AND IS EQUIVALENT RATHER THAN LIVE, which
 is a different thing and is measured, not asserted. Adding ``docs`` to
@@ -1790,15 +1811,106 @@ def test_no_shipping_module_restates_the_published_route_count() -> None:
 # ---------------------------------------------------------------------------
 
 
-#: For a parametrized argument name whose population is derived, how to count it
-#: INDEPENDENTLY of the producer under test. Any other argument's size is taken
-#: from the mark itself, because those populations are membership-pinned.
+#: For a parametrized argument name whose population is DERIVED by a producer,
+#: how to count it INDEPENDENTLY of the producer under test.
 INDEPENDENT_CASE_COUNTS: Final = {
     "legal": lambda: len(_independent_population(SUBSET_PLANT_MODULES, distributive=False)),
     "distributive": lambda: len(
         _independent_population(DISTRIBUTIVE_PLANT_MODULES, distributive=True)
     ),
 }
+
+#: Parametrized argument names whose size MAY be read from the mark itself,
+#: because their populations are membership-pinned: each is a module-level
+#: literal or an enumerated constant that carries its own arm above, so the mark
+#: and the truth cannot disagree.
+#:
+#: THIS SET EXISTS BECAUSE THAT JUSTIFICATION USED TO BE A COMMENT AND NOTHING
+#: ELSE. Every name absent from the map above fell through to
+#: ``len(list(argvalues))`` - and ``argvalues`` IS the object being parametrized
+#: over, so for any unregistered name the expectation FOLLOWED THE POPULATION
+#: DOWN and the backstop graded nothing. Measured on the shipped helper before
+#: this repair: expected 4 unsliced, expected 2 after slicing that population to
+#: one, collected also 2, green. The map was itself the displaced knob this
+#: module has now repaired five times - omit an entry for a derived population
+#: and the backstop disarms for that argname in silence.
+#:
+#: So omission is a RAISE rather than a fallback, and the completeness of the two
+#: sets together is graded by
+#: :func:`test_every_case_name_is_registered_in_exactly_one_key_set`, which
+#: asserts EQUALITY against the names actually parametrized - both directions,
+#: no floor - so neither a stale entry nor an unregistered one can sit here
+#: quietly.
+MEMBERSHIP_PINNED_CASE_NAMES: Final = frozenset(
+    {
+        "kind,lifted,modules",
+        "label",
+        "module",
+        "noun",
+        "part",
+        "prefix",
+        "relative",
+        "suffix",
+        "token",
+        "word",
+    }
+)
+
+
+def _case_name(mark: pytest.Mark) -> str:
+    """The registration key for one parametrize MARK.
+
+    Args:
+        mark: A ``parametrize`` mark taken from a function's ``pytestmark``.
+
+    Returns:
+        The mark's argument names, in the one spelling both key sets use.
+    """
+    argnames = mark.args[0]
+    names = argnames if isinstance(argnames, str) else ",".join(argnames)
+    return names.strip()
+
+
+def parametrize_marks(function: object) -> list[pytest.Mark]:
+    """Every ``parametrize`` mark FUNCTION carries.
+
+    Args:
+        function: A module-level test function.
+
+    Returns:
+        The function's parametrize marks, in declaration order.
+    """
+    return [mark for mark in getattr(function, "pytestmark", ()) if mark.name == "parametrize"]
+
+
+def module_test_functions() -> list[tuple[str, object]]:
+    """This module's own test functions, by name.
+
+    One derivation shared by the arm-count expectation and by the key-set
+    equality arm, so the functions GRADED and the functions COUNTED are the same
+    set by construction rather than by two spellings agreeing.
+
+    Returns:
+        ``(name, function)`` pairs sorted by name.
+    """
+    return [
+        (name, value)
+        for name, value in sorted(vars(sys.modules[__name__]).items())
+        if name.startswith("test_") and callable(value)
+    ]
+
+
+def parametrized_case_names() -> set[str]:
+    """Every registration key this module's parametrizes actually use right now.
+
+    Returns:
+        The set of normalized argname keys in use.
+    """
+    return {
+        _case_name(mark)
+        for _name, function in module_test_functions()
+        for mark in parametrize_marks(function)
+    }
 
 
 def _declared_case_count(function: object) -> int:
@@ -1809,15 +1921,31 @@ def _declared_case_count(function: object) -> int:
 
     Returns:
         The product of its parametrize sizes, or one when it takes no parameters.
+
+    Raises:
+        AssertionError: If an argument name is registered in NEITHER key set.
+            There is deliberately no default: counting an unregistered name from
+            its own mark is the population under test grading itself, which is
+            what let a derived population shrink here in silence.
     """
     total = 1
-    for mark in getattr(function, "pytestmark", ()):
-        if mark.name != "parametrize":
-            continue
-        argnames, argvalues = mark.args[0], mark.args[1]
-        names = argnames if isinstance(argnames, str) else ",".join(argnames)
-        independent = INDEPENDENT_CASE_COUNTS.get(names.strip())
-        total *= independent() if independent else len(list(argvalues))
+    for mark in parametrize_marks(function):
+        name = _case_name(mark)
+        independent = INDEPENDENT_CASE_COUNTS.get(name)
+        if independent is not None:
+            total *= independent()
+        elif name in MEMBERSHIP_PINNED_CASE_NAMES:
+            total *= len(list(mark.args[1]))
+        else:
+            raise AssertionError(
+                f"parametrize argument name {name!r} on "
+                f"{getattr(function, '__name__', function)!r} is registered in neither "
+                "INDEPENDENT_CASE_COUNTS nor MEMBERSHIP_PINNED_CASE_NAMES. Counting it "
+                "from its own mark would read the very object being parametrized over, "
+                "so the expectation would follow that population down and grade nothing. "
+                "Register it in exactly one: the independent map when a PRODUCER derives "
+                "the population, the membership-pinned set when it is a literal."
+            )
     return total
 
 
@@ -1832,10 +1960,96 @@ def expected_arm_count() -> int:
     Returns:
         The number of arms this module should collect.
     """
-    return sum(
-        _declared_case_count(value)
-        for name, value in sorted(vars(sys.modules[__name__]).items())
-        if name.startswith("test_") and callable(value)
+    return sum(_declared_case_count(value) for _name, value in module_test_functions())
+
+
+def test_every_case_name_is_registered_in_exactly_one_key_set() -> None:
+    """The completeness pin that a documented fallback used to stand in for.
+
+    :data:`INDEPENDENT_CASE_COUNTS` and :data:`MEMBERSHIP_PINNED_CASE_NAMES` are
+    together a PER-NAME REGISTRATION, and a per-name registration whose omission
+    is silent is the displaced-knob class sitting inside the mechanism built to
+    catch it. So the registration itself is graded here, by equality in both
+    directions: every name this module parametrizes over must be registered, and
+    every registered name must still be parametrized over. A subset in one
+    direction only lets a stale entry rot and lets a new derived population in
+    unregistered; a floor would be the sixth instance of the class.
+
+    The two differences are asserted SEPARATELY rather than summed, for the same
+    reason the corpus difference is: a single term can be dropped from a sum.
+    """
+    independent_names = set(INDEPENDENT_CASE_COUNTS)
+    pinned_names = set(MEMBERSHIP_PINNED_CASE_NAMES)
+    registered = independent_names | pinned_names
+    in_both = independent_names & pinned_names
+    assert in_both == set(), (
+        f"{sorted(in_both)} sit in BOTH key sets, so which counting rule applies is "
+        "decided by the order of two lookups rather than by a recorded decision"
+    )
+    used = parametrized_case_names()
+    assert used != set(), (
+        "this module parametrizes nothing, so the equality below would hold "
+        "vacuously and this arm would prove nothing"
+    )
+    unregistered = used - registered
+    assert unregistered == set(), (
+        f"{sorted(unregistered)} are parametrized in this module but registered in "
+        "neither INDEPENDENT_CASE_COUNTS nor MEMBERSHIP_PINNED_CASE_NAMES. Register "
+        "each in exactly one: the independent map when a producer DERIVES the "
+        "population, the membership-pinned set when it is a literal whose membership "
+        "is already pinned by an arm of its own"
+    )
+    stale = registered - used
+    assert stale == set(), (
+        f"{sorted(stale)} are registered but no parametrize in this module uses them, "
+        "so the registration is describing a population that no longer exists and the "
+        "next reader will trust it"
+    )
+
+
+def test_an_unregistered_case_name_raises_instead_of_falling_back() -> None:
+    """The raise IS the repair, so this is the arm that stops it decaying back.
+
+    A synthetic function stands in for a parametrize somebody adds tomorrow over
+    a derived population. The shipped helper counted such a name from its own
+    mark and therefore agreed with whatever the producer happened to emit; the
+    repaired one refuses and names both the argument and the function.
+
+    The membership-pinned control is not decoration. Without it an arm asserting
+    only that something raised would also pass on a helper that raised for every
+    name, which grades nothing about the discrimination this repair is made of.
+    """
+    unregistered = "an_unregistered_derived_population"
+    assert unregistered not in INDEPENDENT_CASE_COUNTS
+    assert unregistered not in MEMBERSHIP_PINNED_CASE_NAMES
+
+    @pytest.mark.parametrize(unregistered, [1, 2, 3])
+    def sample_over_an_unregistered_population() -> None:
+        """A stand-in for a module-level test function; never collected."""
+
+    pinned_cases = (1, 2, 3, 4)
+
+    @pytest.mark.parametrize("label", pinned_cases)
+    def sample_over_a_membership_pinned_population() -> None:
+        """The known-good control for the same helper."""
+
+    with pytest.raises(AssertionError) as raised:
+        _declared_case_count(sample_over_an_unregistered_population)
+    message = str(raised.value)
+    assert unregistered in message, (
+        f"the refusal did not name the offending argument, so a reader cannot act on it: {message}"
+    )
+    assert "sample_over_an_unregistered_population" in message, (
+        f"the refusal did not name the function the argument sits on, so a reader "
+        f"cannot find it: {message}"
+    )
+
+    control = _declared_case_count(sample_over_a_membership_pinned_population)
+    assert control == len(pinned_cases), (
+        f"a REGISTERED membership-pinned name counted to {control} rather than the "
+        f"{len(pinned_cases)} cases its mark declares, so the helper has stopped "
+        "counting rather than started discriminating, and the refusal above proves "
+        "nothing"
     )
 
 
