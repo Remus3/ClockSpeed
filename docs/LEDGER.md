@@ -160,6 +160,90 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-09-12 - CS-989 - CLOSED. A pure-delete push cost 0.56 s against an ordinary push's 352.84 s, and the frozen-file grant that authorized it reddened a doc guard by existing
+
+**THE GRANT IS SPENT.** The single-use frozen-file grant recorded earlier in this file
+under CS-989 authorized exactly one edit to `.githooks/pre-push` under twelve conditions.
+All twelve were met and the evidence for each is below or in the merged diff. **The
+unspent CS-972 grant on the same file is UNTOUCHED and remains unspent** - condition 11's
+sequencing clause never triggered because the two did not land together; if CS-972 lands
+later, both arms below must be re-run.
+
+**THE DEFECT.** The hook read its ref list from stdin, ran the whole suite, and only then
+looked at what it had been handed - at which point its own comment already said that a
+deletion grades nothing and ships nothing. So a push that only DELETES remote refs paid a
+full suite to learn something the file knew before it started.
+
+**THE MEASUREMENT, taken this session against a throwaway bare repo in a temp directory
+and never against `origin`.** Pure-delete push: **0.56 s, exit 0**. Ordinary push:
+**352.84 s, exit 1**.
+
+**THAT SECOND FIGURE IS A LOWER BOUND AND IS NOT THE COST OF A GREEN PUSH.** The ordinary
+push was blocked partway by three failures present at the slice's base, so it stopped
+early. The nearest honest figure for a full run is the standalone whole-suite run on the
+merged worktree, **623.38 s**. Both numbers are stated with their method because this
+item's own grant condition 12 exists for that reason: **the 7m46s / 7m00s / 7m31s figures
+carried into the session handoff are recorded in NO tracked file, were marked UNMEASURED
+in the grant record, and are not requoted here.**
+
+A method note worth keeping, because it would silently invalidate a repeat measurement:
+`core.hooksPath` points at the main checkout, so a plain `git push` from a worktree runs
+the UNEDITED hook. Every timing above used `git -c core.hooksPath=<worktree>/.githooks`
+per invocation, which exercises the edited hook without writing shared repository config.
+
+**BOTH ARMS ARE PROVEN LOAD-BEARING BY MUTATION, NOT BY THEIR OWN GREENNESS, and each
+mutation was proven to have LANDED by hash before it was run.** Arm 1,
+`test_a_pure_delete_push_skips_the_suite_entirely`, was watched failing BEFORE the change
+for the right reason - the suite marker was present after a pure-delete push, meaning
+pytest had run. Removing the new block reddens it again. Arm 2,
+`test_a_mixed_delete_and_update_push_still_runs_the_suite`, passes before the change by
+construction and is graded ONLY by mutation: weakening EVERY to ANY reddens it. The hook
+was restored from a byte snapshot after each mutation, never with `git checkout`, and
+independently corroborated - the base blob of the hook hashes to the same value as
+mutation A's mutant, which is what removing exactly the new block should produce.
+
+**THE ARMS OBSERVE WHETHER PYTEST RAN, WHICH THE EXISTING DELETE ARM DOES NOT.** The
+adjudicator caught that the pre-existing delete arm asserts exit 0 only, so removing this
+whole feature would have left it green. The new arms read a marker the sandbox suite
+writes, and **unlink it before the delete push** - without that they would have observed
+the marker left by the preceding ordinary push and reported the exact opposite of the
+truth. Arm 1 also carries a positive control: an ordinary push in the same test that DOES
+leave the marker, so a marker mechanism that never writes cannot pass it vacuously.
+
+**CONDITION 11 IS SATISFIED STRUCTURALLY RATHER THAN BY CLAIM.** The hook diff is 71 lines
+inserted at line 245 and **zero deletions**; the insert asserted line-by-line equality of
+every pre-existing line before writing. CS-906's and CS-954's territories are untouched.
+**CS-907 is NOT addressed by this and may not be cited as progress on it** - the graded
+population changes by exactly zero on every push that ships a commit.
+
+**A DEFECT THE BUILDER CAUGHT IN ITSELF, recorded because it is a personal-data path.**
+The first version of the arms bound the sandbox's working path into a local, and pytest's
+assertion rewriting renders locals independently of the author's message - so two
+rendering guards went red on an absolute path under a home directory, non-negotiables 3
+and 12. Repaired by never binding the path: two helpers return bools instead. The
+mutation proofs above were re-taken against the corrected arms, not inherited from the
+first pass.
+
+**A PROTOCOL FINDING THIS ITEM PRODUCED BY BEING EXECUTED, worth more than the fix.**
+Condition 1 requires the grant be recorded BEFORE any byte of the frozen file changes. A
+grant record necessarily NAMES the arms it is buying, and those arms do not exist yet - so
+recording it reddened the bare-identifier citation guard on `docs/LEDGER.md` for as long
+as the grant was unspent. The frozen-file protocol and the citation guard are in tension
+by construction, and the tension is only resolvable by landing the arms. It is recorded
+here rather than filed, because the resolution - do not push between the grant and the
+spend - is a sequencing rule and not a code change.
+
+**VERIFIED.** `tests/test_pre_push_ref_race.py::test_a_pure_delete_push_skips_the_suite_entirely`
+and `::test_a_mixed_delete_and_update_push_still_runs_the_suite`. Merged files:
+`.githooks/pre-push`, `tests/test_pre_push_ref_race.py`. `ruff check`, `ruff format
+--check` and `mypy clockspeed` all exit 0. Bytes re-read in Python on both the working
+tree and the committed blobs: zero CR, zero non-ASCII, no BOM.
+
+**UNVERIFIED, STATED RATHER THAN ROUNDED AWAY.** Behaviour against a real remote
+transport - every measurement used a local bare repo. And `CS_SUITE_RAN`, the named state
+variable condition 6 required, is set and named but **nothing reads it yet, so nothing
+grades its shape**; CS-824's and CS-972's future consumers may find it wrong.
+
 ### 2026-09-12 - CS-957 - CLOSED. Five of six clauses were already shipped and the item's own line said none were, and the one real gap was the class that is MEASURED on every machine
 
 **THE ITEM WAS CARRIED INTO THIS SESSION AS A BLOCKER AND WAS FIVE SIXTHS DONE.** Its

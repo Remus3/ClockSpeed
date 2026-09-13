@@ -521,7 +521,7 @@ strongest member while the weakest goes unmeasured - that is the same family one
 sideways, and the acceptance clause here should not be read as covering it.
 
 
-### SCOPED AND THEN REFUTED 2026-09-12 (session 88) - the scoping document reproduced the defect class, which is instance FIVE
+### MEASURED 2026-09-12 (session 88) - the scope was REFUTED seven of eight, and the scoping document reproduced the defect class, which is instance FIVE
 
 **NOTHING WAS IMPLEMENTED THIS SESSION AND THAT IS THE FINDING.** A scoping sweep was
 commissioned to decide HOW WIDE to go before any code moved. An adversary with a
