@@ -162,9 +162,9 @@ machine-checked artifact that produces it.
 
 ### 2026-09-12 - CS-989 - FROZEN-FILE GRANT, recorded BEFORE the edit per CLAUDE.md section 6
 
-**This is a grant record, not a completion record.** It authorizes ONE edit to
-`.githooks/pre-push`, which is frozen. The closing record for CS-989 is a separate entry
-and does not exist yet. Nothing in `.githooks/` has been edited under this grant.
+**This is a grant record for CS-989, not a completion record, and it does not close
+CS-989 - CS-989 stays open.** It authorizes ONE edit to `.githooks/pre-push`, which is
+frozen. The closing record for CS-989 is a separate entry and does not exist yet. Nothing in `.githooks/` has been edited under this grant.
 
 **THE ROUTE.** A proposal by the session merger was dispatched to an adjudicator that
 wrote neither the proposal, the hook, nor any of the cited items, against a candidate

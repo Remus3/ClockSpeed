@@ -551,7 +551,7 @@ that fell.
 
 - **THE FREE SECOND DERIVATION IS THE TRAP, NOT A WIN.** The document claimed FOUR modules
   spell an identical tree-enumeration argv and are therefore a second derivation already
-  paid for. Only THREE do; `tests/liveness.py:2028` spells a different command and the
+  paid for. Only THREE do; the enumeration in `tests/liveness.py` spells a different command and the
   document contradicts itself one sentence later. The three that match are byte-identical
   copy-paste with near-identical docstrings - **one derivation wearing three hats**, and a
   single search-and-replace of the pathspec keeps an equality between them green. This is
@@ -563,17 +563,20 @@ that fell.
   difference against git is 24, covering all of `clockspeed/data/` and `tests/data/`. The
   correct prune yields 207 exactly.
 - **THREE OF THE SIX BAND-A SITES DO NOT BELONG THERE.** Their stated one-line narrowings
-  would REDDEN an existing guard rather than pass it: one kills an `OWNER` literal at
-  `tests/solve/test_ceiling_fence.py:204`, one kills every `EXEMPT` key at :223, one takes
-  all four `SPAWN_ROOTS` to zero and reddens `tests/test_toolpath.py:502`, and one is
-  filtered by `repr_rendering_guard.py:431` so the narrowing trips three named literals. A
+  would REDDEN an existing guard rather than pass it: one kills the `OWNER` literal that
+  `test_the_owner_still_reads_the_field_so_the_fence_is_not_vacuous` reads, one kills
+  every `EXEMPT` key that `test_every_exemption_names_a_file_git_actually_tracks` walks, one takes
+  all four `SPAWN_ROOTS` to zero and reddens
+  `test_every_spawn_root_is_reached_by_the_walk`, and one is filtered by
+  `repr_rendering_guard.scan_tree` on `SHIPPED_ROOT` so the narrowing trips three named
+  literals. A
   site whose guard already reddens is not an instance of this class.
 - **THE CUT CRITERION IS NOT DECIDABLE AS WRITTEN.** Its criterion (2) - a silent drop
   makes a real defect class go unmeasured - is a judgement the author made and then
   described as a criterion; the document concedes in its own words that every severity in
   it "is an argument, not a measurement". And the three tests are CONJUNCTIVE, which
   excludes at least one site that fails only the filesystem-derived test while passing the
-  other two badly: `tests/data/test_phase2_gate.py:80 DATA_MODULES`, whose sibling phase3
+  other two badly: `DATA_MODULES` in `tests/data/test_phase2_gate.py`, whose sibling phase3
   and phase4 gates the document itself names as the in-repo template because they already
   carry the disk-equality arm phase2 lacks.
 
