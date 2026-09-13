@@ -674,6 +674,13 @@ _LAZY = {
     "lane_launcher": ("ops.loop.lane_launcher", "cs_loop_lane_launcher", "lane_launcher.py"),
     "winmutex": ("ops.loop.winmutex", "cs_loop_winmutex", "winmutex.py"),
     "ration": ("ops.loop.ration", "cs_loop_ration", "ration.py"),
+    # THE TWO THIS FILE USED TO NAME ONLY IN PROSE. `scope.py` computed which
+    # rows a lane may take and `claims.py` recorded which row was in flight, and
+    # nothing in the driver path imported either - so the only bridge from both
+    # to the row a worker actually took was the worker's own transcription of
+    # printed text. See `ClaimWatch` and the `scope` field of a cycle record.
+    "scope": ("ops.loop.scope", "cs_loop_scope", "scope.py"),
+    "claims": ("ops.loop.claims", "cs_loop_claims", "claims.py"),
 }
 
 
@@ -1321,6 +1328,170 @@ def run_suite_step(  # noqa: PLR0913 - see THE SEAMS ARE THE POINT
         # refuses to call the cycle good news. Overwriting `suite["ok"]` would
         # destroy the distinction between a red suite and an unmeasurable one.
         emit(f"queue-loop: cycle {run_id} ran its suite UNRATIONED - {record['ration']['detail']}")
+
+
+# ---------------------------------------------------------------------------
+# The scope binding. Which row this lane WAS ALLOWED to work, which row it
+# ACTUALLY held, and the comparison of the two - see `ops/loop/scope.py`.
+# ---------------------------------------------------------------------------
+
+#: How much older than this cycle a claim record may read and still be
+#: attributed to it. It covers the ordinary skew between the `time.time()` the
+#: store stamps a record with and the reading this loop took at the top of the
+#: cycle; it is NOT a grace period for a claim from a previous cycle, which is
+#: hours old and is excluded by a window this size.
+CLAIM_WINDOW_SLACK_S = 30.0
+
+#: The console token a cycle whose row did not bind adds to its line. On the
+#: line as well as in the row, for the reason `ration=UNRATIONED` is: an
+#: operator tailing a night reads it by counting cycles down the left margin,
+#: and a cycle nobody authorised has to be legible there too. The ROW is still
+#: the acceptance - this file's stdout is truncated at every launch.
+SCOPE_NOTE = "scope=UNBOUND"
+
+
+def _noop() -> None:
+    """The default observer: a driver that was given nothing to watch."""
+
+
+class ClaimWatch:
+    """Which rows this lane HELD while its worker ran, sampled by the driver.
+
+    SAMPLED DURING THE CYCLE, NEVER READ AFTER IT, AND THAT IS THE WHOLE DESIGN.
+    `tools/headless-queue.md` section 11 tells a worker to RELEASE its claim at
+    the wrap, and a well-behaved worker does exactly that - so by the time the
+    cycle record is written the store is empty and a post-cycle read would learn
+    nothing from a compliant cycle and everything from a crashed one, which is
+    precisely backwards. `run_cycle` therefore calls :meth:`sample` on its poll
+    path, which is the one place in this driver that is awake while the worker
+    is.
+
+    THE LANE IS THE DISAMBIGUATOR, AND IT IS WHY THE CLAIM STORE IS THE SOURCE
+    RATHER THAN THE COMMITS. Reading the ids off the commits in the lane
+    worktree was weighed and rejected: a worker fast-forwards its tree at the
+    top of a cycle, so a sibling lane's commits - naming rows outside THIS
+    lane's subject, entirely legitimately - arrive inside the same revision
+    range and would be read as this cycle's work. A claim record carries the
+    lane that wrote it and cannot be confused that way.
+
+    NOTHING HERE INVENTS A ROOT. `claims.DEFAULT_ROOT` resolves the MAIN
+    checkout through the `.git`-file indirection, which is the only spelling
+    every lane's worker agrees on - a store rooted at a checkout is a different
+    directory in every worktree, which is how two lanes were measured both
+    holding one row. The driver runs from the main tree, so it would get away
+    with a checkout-local root and the worker would not; passing the root
+    through as None keeps ONE answer rather than two that happen to agree.
+
+    NEVER RAISES. It runs inside `run_cycle`'s wait loop, where a fault would
+    escape the loop entirely and take the driver down with no ledger row, no
+    stop word and no exit code for the launcher to read. A store it could not
+    read is COUNTED instead, so an unreadable store and a genuinely empty one
+    are different rows.
+    """
+
+    def __init__(
+        self,
+        lane: str,
+        *,
+        started_at: float,
+        states=None,
+        root=None,
+        clock=time.time,
+        slack_s: float = CLAIM_WINDOW_SLACK_S,
+    ) -> None:
+        """Watch one lane's claims for the life of one cycle.
+
+        Args:
+            lane: The lane whose records count. A record written by any other
+                lane is somebody else's row and is never this cycle's.
+            started_at: The cycle's own start, on the same wall clock the store
+                stamps its records with.
+            states: The store reader, or None for `claims.claim_states`.
+            root: The claim root. None is the production answer and means the
+                store resolves its own - see the class docstring. A path here is
+                a test seam and nothing else.
+            clock: Wall clock, injected so an arm never has to sleep.
+            slack_s: The window's tolerance.
+        """
+        self.lane = str(lane)
+        self.root = root
+        self.started_at = float(started_at)
+        self.slack_s = float(slack_s)
+        #: How many times the store was read, and how many of those faulted.
+        #: DIAGNOSTIC ONLY - nothing grades a cycle on either number, because a
+        #: threshold over a count is the CS-988 shape this item exists to avoid.
+        #: Zero samples means the driver never looked, which a reader has to be
+        #: able to tell from a store that was empty every time it did.
+        self.samples = 0
+        self.faults = 0
+        self.fault_detail = ""
+        self._states = states
+        self._clock = clock
+        self._rows: set[str] = set()
+
+    def sample(self) -> tuple[str, ...]:
+        """Read the store once and remember any row this lane holds.
+
+        Returns:
+            Every row seen so far, which is what :meth:`rows` answers.
+        """
+        self.samples += 1
+        try:
+            reader = _mod("claims").claim_states if self._states is None else self._states
+            readings = reader(self.root, None) or {}
+            # AGAINST THIS CYCLE'S OWN ELAPSED TIME. A record older than the
+            # cycle is a record from a cycle that is over - a lane that died
+            # holding its row leaves exactly that - and attributing it here
+            # would refuse a lane over a row it is not working.
+            window = max(0.0, float(self._clock()) - self.started_at) + self.slack_s
+            for reading in readings.values():
+                if str(reading.get("lane") or "") != self.lane:
+                    continue
+                row = str(reading.get("row") or "").strip()
+                age = reading.get("age_s")
+                # A record whose age cannot be established is not attributed.
+                # It cannot be placed in time, and a refusal has to be able to
+                # say WHEN the row was taken or it cannot be acted on.
+                if not row or age is None:
+                    continue
+                if float(age) <= window:
+                    self._rows.add(row.upper())
+        except Exception as exc:  # see the class docstring's last paragraph
+            self.faults += 1
+            if not self.fault_detail:
+                # `_fault`, never str(exc): an OSError's message carries the
+                # path it failed on - CLAUDE.md non-negotiable 12.
+                self.fault_detail = _fault(exc)[:200]
+        return self.rows()
+
+    def rows(self) -> tuple[str, ...]:
+        """Every row this lane was seen holding, sorted.
+
+        Returns:
+            The row ids.
+        """
+        return tuple(sorted(self._rows))
+
+
+def permit_for_lane(lane: str):
+    """What this lane may take right now, read from the docs this tree carries.
+
+    THE DEFAULT `permit` SEAM, and a one-line bind rather than a call site so
+    `run_loop` does not have to resolve `scope` itself. Read DRIVER-SIDE: this
+    driver runs from the main checkout, which is the tree whose `ROADMAP.md`,
+    `docs/GATED.md` and `docs/LEDGER.md` say what is open, and `scope.py`
+    deliberately reads the checkout it lives in.
+
+    Args:
+        lane: The lane name.
+
+    Returns:
+        What `scope.lane_permit` answered. It never raises. UNANNOTATED, like
+        every other `_mod` caller here: the lazy bind hands back an untyped
+        module, and declaring a return type would make this line the one place
+        the repo-wide gate reports an `Any` it cannot see through.
+    """
+    return _mod("scope").lane_permit(lane)
 
 
 # ---------------------------------------------------------------------------
@@ -2070,6 +2241,7 @@ def run_cycle(  # noqa: PLR0913, PLR0912, PLR0915 - see THE SEAMS ARE THE POINT
     proc_started=None,
     stranger=None,
     kill=_taskkill,
+    observe=_noop,
     sleep=time.sleep,
     clock=time.time,
     monotonic=time.monotonic,
@@ -2181,6 +2353,14 @@ def run_cycle(  # noqa: PLR0913, PLR0912, PLR0915 - see THE SEAMS ARE THE POINT
                 # none of it is the worker's to pay for.
                 launched_m = monotonic()
                 while _worker_is_up(pid, worker_started, alive=alive, stranger=stranger):
+                    # THE ONLY MOMENT THIS DRIVER IS AWAKE WHILE THE WORKER IS,
+                    # which is the only moment a row claim is observable: the
+                    # worker releases its claim at the wrap, so a read taken
+                    # after this loop learns nothing from a compliant cycle.
+                    # `ClaimWatch.sample` never raises - see its docstring, and
+                    # note that a fault here would escape `run_loop`'s catch
+                    # around this call only by ending the night.
+                    observe()
                     waited = monotonic() - launched_m
                     if waited >= float(cycle_timeout_s):
                         # EXACTLY once - the break is load-bearing. A second
@@ -2214,6 +2394,12 @@ def run_cycle(  # noqa: PLR0913, PLR0912, PLR0915 - see THE SEAMS ARE THE POINT
                             )
                         break
                     sleep(poll_s)
+                # ONCE MORE AFTER THE WAIT, on every path out of it. A worker
+                # that exits before the first poll - or a killed one that leaves
+                # its claim behind - would otherwise be a cycle the driver never
+                # looked at, and a cycle nobody looked at must not read like one
+                # that was checked and found clean.
+                observe()
     finally:
         # Every path, including an exception nobody predicted. The release runs
         # BEFORE that exception escapes, because a driver that dies holding the
@@ -2262,6 +2448,9 @@ def run_loop(  # noqa: PLR0913, PLR0912, PLR0915 - see THE SEAMS ARE THE POINT
     wait=None,
     suite=None,
     ration=None,
+    permit=None,
+    claim_states=None,
+    claim_root=None,
     hold=None,
     sleep=time.sleep,
     clock=time.time,
@@ -2342,6 +2531,19 @@ def run_loop(  # noqa: PLR0913, PLR0912, PLR0915 - see THE SEAMS ARE THE POINT
         # CI gate, and a night run with the gate off still has to be
         # stopped when it is accomplishing nothing.
         pre_tree, pre_why = _lane_head(tree_sha, lane, worktree)
+        # BEFORE THE CYCLE, AND THE ORDER IS THE MECHANISM. A cycle that closes
+        # its row deletes that row from `ROADMAP.md`, so a permit computed
+        # afterwards would report the row the worker just finished as one it was
+        # never allowed to take. What is graded is what the lane could take when
+        # it started.
+        permitted = (permit_for_lane if permit is None else permit)(lane)
+        watch = ClaimWatch(
+            lane,
+            started_at=started_at,
+            states=claim_states,
+            root=claim_root,
+            clock=clock,
+        )
         try:
             record = run_cycle(
                 cycle,
@@ -2361,6 +2563,7 @@ def run_loop(  # noqa: PLR0913, PLR0912, PLR0915 - see THE SEAMS ARE THE POINT
                 proc_started=proc_started,
                 stranger=stranger,
                 kill=kill,
+                observe=watch.sample,
                 sleep=sleep,
                 clock=clock,
                 monotonic=monotonic,
@@ -2429,6 +2632,21 @@ def run_loop(  # noqa: PLR0913, PLR0912, PLR0915 - see THE SEAMS ARE THE POINT
             note += " commit=unreadable"
         else:
             note += " commit=no"
+        # ON EVERY CYCLE, INCLUDING THE ONES THAT CLAIMED NOTHING. The CS-993
+        # shape: a field written only when it has bad news to report leaves a
+        # row nobody checked byte-identical to a row that passed the check, and
+        # the stdout log this driver writes is truncated at every launch, so the
+        # ROW is the only place the distinction can live.
+        record["scope"] = _mod("scope").binding_fact(
+            permitted,
+            watch.rows(),
+            committed=record["commit"]["advanced"],
+        )
+        # DIAGNOSTIC, AND NOTHING GRADES ON EITHER NUMBER. Zero samples means
+        # the driver never looked, which a reader has to be able to tell from a
+        # store that was empty every time it did.
+        record["scope"]["samples"] = watch.samples
+        record["scope"]["sample_faults"] = watch.faults
         if record["outcome"] == OUTCOME_COMPLETED and local_suite:
             # INSIDE THE RATION, and the worktree resolution lives with it - see
             # `run_suite_step`. Two lanes running a suite at once exhausts the
@@ -2516,6 +2734,12 @@ def run_loop(  # noqa: PLR0913, PLR0912, PLR0915 - see THE SEAMS ARE THE POINT
             # verdict that was measured on a contended box has to be legible
             # there rather than only in a file nobody opens until morning.
             note += " ration=UNRATIONED"
+        bound = record["scope"]
+        if not bound["bound"]:
+            # THE SAME REASONING, over the row the cycle worked. The reason word
+            # rides along because the three ways a binding fails send a reader
+            # to three different files.
+            note += f" {SCOPE_NOTE}({bound['reason']})"
 
         # THE ROLL-UP, and it is the LAST thing set before the row is written.
         # `worker_ok` says the worker ran to completion, which is all `run_cycle`
@@ -2531,10 +2755,17 @@ def run_loop(  # noqa: PLR0913, PLR0912, PLR0915 - see THE SEAMS ARE THE POINT
         # the loser of that contest reports a pass count beside an error with
         # thousands of tests unrun. So the roll-up refuses it here, where every
         # other "this is not good news" clause already lives.
+        #
+        # AND A ROW NOBODY AUTHORISED IS NOT GOOD NEWS EITHER. The binding
+        # clause sits here with every other "this is not good news" clause
+        # rather than stopping the night: the work is done and the commit is
+        # real, and discarding either would cost more than it bought. What must
+        # not happen is that the row reads like one the lane was pointed at.
         record["ok"] = bool(
             record["worker_ok"]
             and (local is None or local["ok"])
             and rationed["rationed"]
+            and bound["bound"]
             and (verdict is None or verdict["verdict"] not in _CI_ROLLUP_BAD)
         )
 
