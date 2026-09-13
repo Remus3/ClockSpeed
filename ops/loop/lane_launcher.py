@@ -81,6 +81,12 @@ from toolpath import resolve_tool  # noqa: E402
 #: on it.
 _LANES_MODULE_NAME = "clockspeed_loop_lanes"
 
+#: The CANONICAL name for the same file. A module loaded by path is published
+#: under this name as well, so a sibling that reaches lanes.py through the
+#: ordinary package route gets the object that is already loaded rather than
+#: building a second one. See ``_load_lanes`` - this is the whole of CS-1000.
+_LANES_DOTTED_NAME = "ops.loop.lanes"
+
 
 def _load_lanes() -> Any:
     """Bind the SAME lanes module everything else uses - never a second copy.
@@ -103,6 +109,24 @@ def _load_lanes() -> Any:
     package on ``sys.path``: the detached launcher can run this file by
     absolute path, and that route has no ``ops`` package to import.
 
+    AND THE FALLBACK PUBLISHES WHAT IT LOADED UNDER THE DOTTED NAME - CS-1000,
+    and the second time this exact defect shipped. The prediction above was that
+    preferring the private name would keep one object; what it actually keeps is
+    one object PER PRIVATE NAME, and ``queue_loop.py`` falls back under a
+    different one. On every detached run the package route fails for BOTH files
+    - the driver is started as ``pythonw <repo>/ops/loop/queue_loop.py``, which
+    puts ``ops/loop`` on ``sys.path`` and the repository root nowhere - so each
+    loaded its own copy of ``lanes.py`` and the two ``_OWNED`` maps never met.
+    MEASURED across two nights: cycle 1's re-point landed in this module's copy,
+    its release was refused by the driver's, and from cycle 2 on this module
+    refused to re-point, KILLED the freshly spawned worker and the lane produced
+    exactly one row per launch - eleven wasted cycles the first night.
+
+    Registering under the dotted name fixes it for any sibling, whatever private
+    name that sibling chose, because ``import_module`` consults ``sys.modules``
+    before it looks for a loader. ``setdefault``, never an assignment: a genuine
+    package module already loaded is the canonical one and is never displaced.
+
     Returns:
         The lanes module.
 
@@ -110,7 +134,7 @@ def _load_lanes() -> Any:
         ImportError: lanes.py could not be turned into a module.
     """
     try:
-        return importlib.import_module("ops.loop.lanes")
+        return importlib.import_module(_LANES_DOTTED_NAME)
     except ImportError:
         pass
     existing = sys.modules.get(_LANES_MODULE_NAME)
@@ -123,6 +147,9 @@ def _load_lanes() -> Any:
     module = importlib.util.module_from_spec(spec)
     sys.modules[_LANES_MODULE_NAME] = module
     spec.loader.exec_module(module)
+    # AFTER a successful exec, so a half-executed module is never published
+    # under the name every other importer will now trust.
+    sys.modules.setdefault(_LANES_DOTTED_NAME, module)
     return module
 
 
