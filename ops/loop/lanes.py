@@ -76,6 +76,20 @@ REFUSE, DO NOT QUEUE. A fire against a genuinely held lane returns
 queue would turn one fire into a run that starts minutes later against a tree
 that has moved on.
 
+THE PRIMITIVES ARE A PUBLIC SEAM, NOT A PRIVATE CONVENIENCE. ``pid_alive``,
+``proc_started``, ``holder_is_a_stranger``, ``path_key``, ``read_payload``,
+``exclusive_create``, ``require_worktree``, ``remove_quietly`` and the three
+coercers are public because ``ops/loop/claims.py`` holds the SAME mutex shape
+over a different subject - a `ROADMAP.md` row rather than a lane - and answers
+the same FREE / held / RECLAIMABLE question by the same probe. A second copy of
+any of them there would be a second place for the answer to go subtly wrong, and
+a caller reaching past a leading underscore for the one predicate both must
+agree on is exactly the shape ``holder_is_a_stranger``'s own note calls out
+upstream. WHAT IS NOT SHARED IS THE NAMING: this module places a lane at a slot
+derived from the roster, the claim store keys a row by its id, and those two
+derivations are deliberately separate because a claim keyed by position would
+re-point every record the moment a row above it closed.
+
 NOTHING HERE STARTS A PROCESS. This module is pure state management: it decides
 who may run, it does not run anything, and it is therefore testable without
 spawning. ``pid`` in the payload is the pid of whatever CLAIMED the lane;
@@ -305,7 +319,7 @@ def scope_for_lane(lane: Any, env: dict[str, str] | None = None) -> str | None:
     return DEFAULT_LANE_SCOPES.get(name)
 
 
-def _key(path: Any) -> str:
+def path_key(path: Any) -> str:
     """A comparable spelling of a path.
 
     ``normpath`` rather than ``resolve`` on purpose: resolve expands 8.3 short
@@ -321,7 +335,16 @@ def _key(path: Any) -> str:
     return os.path.normcase(os.path.normpath(str(Path(path).absolute())))
 
 
-def _int_or_none(value: Any) -> int | None:
+#: ONE DEFINITION, TWO NAMES, and the second one is on its way out.
+#: ``ops/loop/lane_launcher.py`` reads ``lanes._key`` behind an ``SLF001``
+#: suppression, written when this was private. The rename made it public rather
+#: than adding a second spelling of the same normalisation - two normalisers is
+#: how two modules stop agreeing about whether one directory is another - and
+#: this alias exists only so that caller keeps working until it is next edited.
+_key = path_key
+
+
+def int_or_none(value: Any) -> int | None:
     """The value as an int, or None when it is not one."""
     try:
         return int(value)
@@ -329,7 +352,7 @@ def _int_or_none(value: Any) -> int | None:
         return None
 
 
-def _float_or_none(value: Any) -> float | None:
+def float_or_none(value: Any) -> float | None:
     """The value as a float, or None when it is not one."""
     try:
         return float(value)
@@ -337,12 +360,12 @@ def _float_or_none(value: Any) -> float | None:
         return None
 
 
-def _str_or_none(value: Any) -> str | None:
+def str_or_none(value: Any) -> str | None:
     """The value as a string, or None when it is absent."""
     return None if value is None else str(value)
 
 
-def _remove_quietly(path: Path) -> None:
+def remove_quietly(path: Path) -> None:
     """Delete one file, reporting nothing. Used only on scratch and on locks."""
     with contextlib.suppress(OSError):
         path.unlink()
@@ -400,7 +423,7 @@ def pid_alive(pid: Any) -> bool:
     Returns:
         True when the process is alive or exists but cannot be inspected.
     """
-    number = _int_or_none(pid)
+    number = int_or_none(pid)
     if number is None or number <= 0:
         return False
     return _windows_alive(number) if os.name == "nt" else _posix_alive(number)
@@ -426,7 +449,7 @@ def proc_started(pid: Any) -> float | None:
     Returns:
         The creation time, or None when it cannot be established.
     """
-    number = _int_or_none(pid)
+    number = int_or_none(pid)
     if number is None or number <= 0:
         return None
     try:
@@ -459,7 +482,7 @@ def holder_is_a_stranger(pid: Any, recorded: Any) -> bool:
     Returns:
         True when the two provably name different processes.
     """
-    expected = _float_or_none(recorded)
+    expected = float_or_none(recorded)
     if expected is None:
         return False
     actual = proc_started(pid)
@@ -539,12 +562,12 @@ def lock_for_lane(root: Any = None, lane: Any = None) -> Path:
     if slot.exists():
         return slot
     for candidate in _lock_files(_resolve_root(root)):
-        if _str_or_none(_read_payload(candidate).get("lane")) == wanted:
+        if str_or_none(read_payload(candidate).get("lane")) == wanted:
             return candidate
     return slot
 
 
-def _read_payload(lock: Path) -> dict[str, Any]:
+def read_payload(lock: Path) -> dict[str, Any]:
     """The lock's payload, or {} when it is missing, empty or half-written.
 
     Args:
@@ -605,20 +628,20 @@ def lane_state(root: Any = None, now: Any = None, lane: Any = None) -> dict[str,
             "age_s": None,
         }
 
-    record = _read_payload(lock)
-    stamp = _float_or_none(record.get("ts"))
+    record = read_payload(lock)
+    stamp = float_or_none(record.get("ts"))
     if stamp is None:
         try:
             stamp = lock.stat().st_mtime
         except OSError:
             stamp = None
-    pid = _int_or_none(record.get("pid"))
+    pid = int_or_none(record.get("pid"))
     answer: dict[str, Any] = {
         "state": RUNNING,
-        "lane": _str_or_none(record.get("lane")),
+        "lane": str_or_none(record.get("lane")),
         "pid": pid,
-        "run_id": _str_or_none(record.get("run_id")),
-        "worktree": _str_or_none(record.get("worktree")),
+        "run_id": str_or_none(record.get("run_id")),
+        "worktree": str_or_none(record.get("worktree")),
         "age_s": None if stamp is None else max(0.0, reading - stamp),
     }
     if pid is None:
@@ -657,7 +680,7 @@ def lane_states(root: Any = None, now: Any = None) -> dict[str, dict[str, Any]]:
 # ---------------------------------------------------------------------------
 
 
-def _require_worktree(worktree: Any) -> Path:
+def require_worktree(worktree: Any) -> Path:
     """A lane may NEVER run against the main tree.
 
     A lane rewrites files while it works; pointed at the checkout the operator
@@ -679,19 +702,49 @@ def _require_worktree(worktree: Any) -> Path:
         message = "worktree is mandatory"
         raise ValueError(message)
     path = Path(str(worktree).strip()).expanduser()
-    if _key(path) == _key(REPO_ROOT):
+    if path_key(path) == path_key(REPO_ROOT):
         message = "worktree is mandatory - a lane may never run against the main tree"
         raise ValueError(message)
     return path
 
 
-def _exclusive_create(root: Any, lane: Any, payload: dict[str, Any]) -> Path | None:
-    """Create the lock, or answer None because somebody else already holds it.
+def exclusive_create(target: Any, payload: dict[str, Any]) -> Path | None:
+    """Create one file exclusively and fill it, or answer None.
 
     ``O_CREAT|O_EXCL`` rather than the tmp-plus-replace this module uses for
     every other write: EXCLUSIVITY IS THE MUTEX, and a replace cannot be
     exclusive. DERIVED from the sibling projects' shared bucket - see the module
     docstring on why it is not imported.
+
+    TAKES THE TARGET PATH RATHER THAN DERIVING IT. ``ops/loop/claims.py`` runs
+    the same mutex over a different file naming, and a second copy of this
+    function there would be a second place for the exclusivity to get subtly
+    wrong - the exact divergence the module docstring refuses elsewhere.
+
+    Args:
+        target: The file to create.
+        payload: The holder record to write into it.
+
+    Returns:
+        The path, or None when the file already existed or could not be filled.
+    """
+    path = Path(target)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        handle = os.open(str(path), os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+    except OSError:
+        return None
+    try:
+        with os.fdopen(handle, "w", encoding="utf-8") as stream:
+            json.dump(payload, stream)
+    except OSError:
+        remove_quietly(path)
+        return None
+    return path
+
+
+def _exclusive_create(root: Any, lane: Any, payload: dict[str, Any]) -> Path | None:
+    """The lane-shaped entry to :func:`exclusive_create`, which does the work.
 
     Args:
         root: The lock root.
@@ -701,20 +754,7 @@ def _exclusive_create(root: Any, lane: Any, payload: dict[str, Any]) -> Path | N
     Returns:
         The lock path, or None when the lane was already taken.
     """
-    directory = Path(root)
-    directory.mkdir(parents=True, exist_ok=True)
-    lock = directory / lock_name(lane)
-    try:
-        handle = os.open(str(lock), os.O_CREAT | os.O_EXCL | os.O_WRONLY)
-    except OSError:
-        return None
-    try:
-        with os.fdopen(handle, "w", encoding="utf-8") as stream:
-            json.dump(payload, stream)
-    except OSError:
-        _remove_quietly(lock)
-        return None
-    return lock
+    return exclusive_create(Path(root) / lock_name(lane), payload)
 
 
 def _atomic_write(target: Path, data: bytes) -> bool:
@@ -737,7 +777,7 @@ def _atomic_write(target: Path, data: bytes) -> bool:
     try:
         scratch.write_bytes(data)
     except OSError:
-        _remove_quietly(scratch)
+        remove_quietly(scratch)
         return False
     for attempt in range(_RENAME_ATTEMPTS):
         try:
@@ -749,7 +789,7 @@ def _atomic_write(target: Path, data: bytes) -> bool:
             break
         else:
             return True
-    _remove_quietly(scratch)
+    remove_quietly(scratch)
     return False
 
 
@@ -770,7 +810,7 @@ def _reclaim(root: Path, lane: Any) -> bool:
         return True
     if lane_state(root, None, lane)["state"] != RECLAIMABLE:
         return False
-    _remove_quietly(lock)
+    remove_quietly(lock)
     return not lock.exists()
 
 
@@ -804,7 +844,7 @@ def try_acquire_lane(lane: str, *, run_id: Any, worktree: Any, root: Any = None)
             tree.
     """
     slot_index(lane)  # ROSTER CHECK, raising the one message for an unknown lane
-    target = _require_worktree(worktree)
+    target = require_worktree(worktree)
     directory = _resolve_root(root)
 
     state = lane_state(directory, None, lane)
@@ -830,7 +870,7 @@ def try_acquire_lane(lane: str, *, run_id: Any, worktree: Any, root: Any = None)
     if token is None:
         # Lost a race between the read above and the exclusive create.
         return _refusal(lane_state(directory, None, lane))
-    _OWNED[_key(token)] = (payload["run_id"], payload["ts"], payload["pid"])
+    _OWNED[path_key(token)] = (payload["run_id"], payload["ts"], payload["pid"])
     return {
         "ok": True,
         "lane": lane,
@@ -861,9 +901,9 @@ def _lock_for(token: Any, root: Any) -> Path | None:
 def _identity(record: dict[str, Any]) -> tuple[str | None, float | None, int | None]:
     """The triple that names one holder of one lock."""
     return (
-        _str_or_none(record.get("run_id")),
-        _float_or_none(record.get("ts")),
-        _int_or_none(record.get("pid")),
+        str_or_none(record.get("run_id")),
+        float_or_none(record.get("ts")),
+        int_or_none(record.get("pid")),
     )
 
 
@@ -884,7 +924,7 @@ def _is_ours(lock: Path, record: dict[str, Any]) -> bool:
     Returns:
         True when this process may act on the lock.
     """
-    owned = _OWNED.get(_key(lock))
+    owned = _OWNED.get(path_key(lock))
     identity = _identity(record)
     if owned is not None:
         return identity == owned
@@ -923,12 +963,12 @@ def repoint_lane_pid(token: Any, pid: Any, root: Any = None) -> bool:
     lock = _lock_for(token, root)
     if lock is None:
         return False
-    record = _read_payload(lock)
-    worker = _int_or_none(pid)
+    record = read_payload(lock)
+    worker = int_or_none(pid)
     if not record or worker is None or not _is_ours(lock, record):
         return False
 
-    key = _key(lock)
+    key = path_key(lock)
     owned = _OWNED.get(key)
     run_id, stamp, claimer = _identity(record)
     record["pid"] = worker
@@ -957,11 +997,11 @@ def release_lane(token: Any, root: Any = None) -> bool:
     lock = _lock_for(token, root)
     if lock is None:
         return False
-    key = _key(lock)
+    key = path_key(lock)
     if not lock.exists():
         _OWNED.pop(key, None)
         return False
-    record = _read_payload(lock)
+    record = read_payload(lock)
     if not record or not _is_ours(lock, record):
         # Half-written, corrupt, or somebody else's now - not provably ours.
         return False
