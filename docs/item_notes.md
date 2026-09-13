@@ -41,6 +41,7 @@ mapping has one owner and this file only reports it:
 | `docs/item_notes/phase6.md` | ROADMAP `Phase 6` |
 | `docs/item_notes/phase7.md` | ROADMAP `Phase 7` |
 | `docs/item_notes/cs988-sweep-record.md` | ANNEX, not a phase leaf - CS-988's per-site sweep measurements. A declared departure from one-leaf-per-phase, because it is measurement data for an OPEN item rather than an item body |
+| `docs/item_notes/lane-start-failure-record.md` | ANNEX, not a phase leaf - the read-only diagnosis of the 2026-09-11 lane start failure, feeding CS-1017, CS-1018 and CS-1001. A declared departure, on the same grounds as the row above |
 
 **Phase 4 is four leaves and no seam is arbitrary.** `CS-8nn` is the follow-up
 block, created because `CS-4nn` filled up at 98 of 100 - operator decision 2026-08-21,
