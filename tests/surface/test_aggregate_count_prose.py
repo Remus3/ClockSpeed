@@ -113,8 +113,63 @@ compares what pytest actually collected from this module against an expectation
 derived from the module's own declarations, with every DERIVED plant population
 counted by its independent re-derivation rather than by the mark under test.
 Verified against a real on-disk edit rather than assumed: the ``[:3]`` slice
-takes the collected count from 484 to 474 and reddens both that arm and the
+takes the collected count from 486 to 476 and reddens both that arm and the
 plant-equality arm.
+
+AND THE FIFTH INSTANCE OF THE CLASS WAS INSIDE THAT BACKSTOP - CS-988. The
+expectation counted a DERIVED population from
+:data:`INDEPENDENT_CASE_COUNTS` and every other argument name from
+``len(list(argvalues))``, justified by a comment saying those populations are
+membership-pinned. Nothing verified the comment. ``argvalues`` is the same object
+being parametrized over, so for any name absent from that map the expectation
+FOLLOWED THE POPULATION DOWN: measured on the shipped helper, expected 4
+unsliced, expected 2 after slicing that population to one, collected also 2,
+green. The map was therefore a value deciding what the backstop measures, silent
+on omission - the same shape, one level further in. Deleting the ``legal`` entry
+on the shipped file changed nothing at all: 484 passed, exit 0.
+
+AND THE SIXTH WAS THE FIRST REPAIR OF THE FIFTH, which is the whole lesson of
+this file in one move. That repair replaced the unchecked COMMENT with a named
+constant, ``MEMBERSHIP_PINNED_CASE_NAMES``, whose docstring certified that every
+name in it was a module-level literal or enumerated constant carrying its own
+arm. Four of the ten were not: ``label`` was ``sorted(DEGENERATE_CORPORA)`` with
+no arm on its keys, ``module`` and ``kind,lifted,modules`` were inline tuples
+with no arm at all, and ``relative`` was the carrier list this very docstring
+calls self-deleting. Measured: deleting the "one suffix" degenerate corpus took
+the count from 486 to 485 with everything green and one walk-floor threshold
+left ungraded. A written justification the tree contradicts is WORSE than no
+justification, because it reads as verified. So the set is now named
+:data:`UNPINNED_CASE_KEYS`, it certifies nothing, and it says in plain words that
+the sizes it holds are ungraded.
+
+AND A SEVENTH CHANNEL WAS THE KEY ITSELF. Registration was keyed by argument
+name alone while ``prefix``, ``legal`` and ``distributive`` each sit on two
+functions, so any function could parametrize under a name already spoken for:
+``@pytest.mark.parametrize("label", lifted_subset_sentences())`` on a new
+function counted 8 from the mark, raised nothing and passed with 494 arms. Keys
+are now ``(function name, argument name)``.
+
+WHAT THIS DID AND DID NOT DO TO THE THREE-EDIT ``shell/`` GAP RECORDED ABOVE,
+ruled explicitly because the answer was briefly the wrong one. The carrier list
+is UNCHANGED and so is the gap: the third edit of that route still deletes two
+carrier entries, and nothing here derives "known carrier" from a second source,
+because no second source exists. What changed is what this module SAYS about it.
+The first cut of CS-988 listed ``relative`` among names certified as
+membership-pinned, which WIDENED the gap by asserting cover that was not there;
+that key now sits in :data:`UNPINNED_CASE_KEYS`, whose whole purpose is to say
+the size is ungraded. So: unchanged against the state before CS-988, narrowed
+against the first cut of it.
+
+THE REPAIR IS A REFUSAL, AN EQUALITY AND A COLLECTION-TIME GUARD. A
+``(function, argument)`` key registered in NEITHER
+:data:`INDEPENDENT_CASE_COUNTS` NOR :data:`UNPINNED_CASE_KEYS` raises and names
+both halves; :func:`registration_faults` grades the two registries against the
+keys actually parametrized by EQUALITY in both directions plus disjointness; and
+that function is run AT MODULE IMPORT at the foot of this file, so no filtered
+session can deselect past it. Three of the four falsely-certified populations
+moved up into the independent registry with a real second derivation and a
+membership arm each. A floor anywhere here would have been the next instance
+rather than a repair of the last.
 
 ONE MUTANT SURVIVES THE EQUALITY ARM AND IS EQUIVALENT RATHER THAN LIVE, which
 is a different thing and is measured, not asserted. Adding ``docs`` to
@@ -253,15 +308,21 @@ authored in this repository or lifted from a tracked source file.
 
 from __future__ import annotations
 
+import ast
 import inspect
 import os
 import sys
+from collections.abc import Callable, Mapping, Sequence
 from pathlib import Path
 from typing import Final
 
 import pytest
 
 from clockspeed.surface.api import health, pending, routes, solve
+
+#: How a parametrize is registered for counting: the function it sits on AND
+#: the argument name, never the argument name alone.
+CaseKey = tuple[str, str]
 
 # ---------------------------------------------------------------------------
 # The detector
@@ -1790,34 +1851,285 @@ def test_no_shipping_module_restates_the_published_route_count() -> None:
 # ---------------------------------------------------------------------------
 
 
-#: For a parametrized argument name whose population is derived, how to count it
-#: INDEPENDENTLY of the producer under test. Any other argument's size is taken
-#: from the mark itself, because those populations are membership-pinned.
-INDEPENDENT_CASE_COUNTS: Final = {
-    "legal": lambda: len(_independent_population(SUBSET_PLANT_MODULES, distributive=False)),
-    "distributive": lambda: len(
-        _independent_population(DISTRIBUTIVE_PLANT_MODULES, distributive=True)
+#: THE TWO REGISTRIES, KEYED BY ``(function name, argument name)`` AND NEVER BY
+#: THE ARGUMENT NAME ALONE. Keying by argname was a silent-omission channel of its
+#: own: ``prefix``, ``legal`` and ``distributive`` each sit on two functions, so
+#: once a name was registered ANY function could parametrize under it. Measured on
+#: the argname-keyed revision: adding
+#: ``@pytest.mark.parametrize("label", lifted_subset_sentences())`` to a new
+#: function counted 8 from the mark, raised nothing, left the registration
+#: equality green, and passed with 494 arms. A derived population could be
+#: smuggled in under any name already spoken for.
+#:
+#: For a key whose population is DERIVED, how to count it INDEPENDENTLY of the
+#: producer under test. Every entry here re-derives the size from a DIFFERENT
+#: source than the mark reads, and each has a membership arm below asserting the
+#: two agree as SETS and not merely in size.
+INDEPENDENT_CASE_COUNTS: Final[dict[CaseKey, Callable[[], int]]] = {
+    ("test_every_lifted_subset_sentence_fires_with_an_authority_beside_it", "legal"): (
+        lambda: len(_independent_population(SUBSET_PLANT_MODULES, distributive=False))
+    ),
+    ("test_the_detector_leaves_a_modules_own_subset_count_alone", "legal"): (
+        lambda: len(_independent_population(SUBSET_PLANT_MODULES, distributive=False))
+    ),
+    (
+        "test_every_lifted_distributive_phrase_fires_once_the_rate_word_is_gone",
+        "distributive",
+    ): (lambda: len(_independent_population(DISTRIBUTIVE_PLANT_MODULES, distributive=True))),
+    ("test_the_detector_does_not_read_a_distributive_phrase_as_a_count", "distributive"): (
+        lambda: len(_independent_population(DISTRIBUTIVE_PLANT_MODULES, distributive=True))
+    ),
+    ("test_the_walk_floor_rejects_every_degenerate_corpus", "label"): (
+        lambda: len(walk_floor_threshold_messages())
+    ),
+    ("test_each_plant_population_equals_an_independent_rederivation", "kind,lifted,modules"): (
+        lambda: len(lifted_sentence_producers())
+    ),
+    ("test_the_live_subset_counting_modules_stay_green", "module"): (
+        lambda: len(SUBSET_PLANT_MODULES)
     ),
 }
 
+#: THE KEYS THIS MODULE COUNTS FROM THEIR OWN MARK, AND THEREFORE DOES NOT GRADE.
+#: Read that sentence literally. For every key below, ``_declared_case_count``
+#: reads ``len(list(argvalues))`` - the very object being parametrized over - so
+#: the expectation FOLLOWS THE POPULATION DOWN and the arm-count backstop says
+#: NOTHING about its size. Delete a member of :data:`AGGREGATE_NOUNS`, of
+#: :data:`EXCLUDED_PATH_PARTS`, or of the carrier list, and the arm it deleted
+#: goes with it in silence. That is a stated gap, not a covered one.
+#:
+#: THE PREVIOUS REVISION CALLED THIS SET ``MEMBERSHIP_PINNED_CASE_NAMES`` AND SAID
+#: EACH POPULATION WAS A MODULE-LEVEL LITERAL CARRYING ITS OWN ARM. That was false
+#: for four of the ten and was the SIXTH instance of this module's own class: an
+#: unchecked justification, promoted from a comment to a named constant and
+#: thereby made to read as verified. ``label`` was ``sorted(DEGENERATE_CORPORA)``
+#: with no arm on its keys, ``module`` and ``kind,lifted,modules`` were inline
+#: tuples with no arm at all, and ``relative`` is the carrier list this module's
+#: own docstring calls self-deleting. Three of the four now carry a real
+#: independent re-derivation above. The fourth - ``relative`` - stays here,
+#: NAMED AS UNGRADED, because no second source of truth for "known carrier"
+#: exists to derive it from; certifying it was the widening, and saying so is the
+#: repair.
+#:
+#: The arms these keys DO carry grade something else and are not a substitute: a
+#: per-member liveness arm dies WITH the member it grades.
+UNPINNED_CASE_KEYS: Final[frozenset[CaseKey]] = frozenset(
+    {
+        ("test_each_authority_token_carries_a_hit_on_its_own", "token"),
+        ("test_every_forbidden_prefix_is_live_rather_than_decorative", "prefix"),
+        ("test_the_detector_fires_on_every_word_and_noun_in_its_vocabulary", "noun"),
+        ("test_the_detector_fires_on_every_word_and_noun_in_its_vocabulary", "word"),
+        ("test_the_population_contains_every_known_carrier", "relative"),
+        ("test_the_population_excludes_every_declared_path_component", "part"),
+        ("test_the_population_excludes_the_recording_trees", "prefix"),
+        ("test_the_population_holds_at_least_one_file_of_every_graded_suffix", "suffix"),
+    }
+)
 
-def _declared_case_count(function: object) -> int:
-    """How many cases FUNCTION declares, with derived populations counted independently.
+
+def walk_floor_threshold_messages() -> tuple[str, ...]:
+    """Every finding :func:`walk_floor_findings` can emit, read from its own source.
+
+    The independent handle on :data:`DEGENERATE_CORPORA`. The corpora exist one
+    per threshold, so the thresholds - parsed out of the function that owns them
+    rather than counted in the dict that answers them - are a second derivation
+    of the same number and of the same membership.
+
+    Returns:
+        The unparsed source of each appended finding, in declaration order.
+    """
+    tree = ast.parse(inspect.getsource(walk_floor_findings))
+    return tuple(
+        ast.unparse(node.args[0])
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Attribute)
+        and node.func.attr == "append"
+        and node.args
+    )
+
+
+def lifted_sentence_producers() -> dict[str, object]:
+    """Every derived-plant producer this module defines, found by name.
+
+    The independent handle on the plant-equality parametrize: there must be one
+    row per producer, and the rows are graded against THIS set rather than
+    counted in themselves.
+
+    Returns:
+        Producer name to producer, for every ``lifted_*_sentences`` callable.
+    """
+    return {
+        name: value
+        for name, value in vars(sys.modules[__name__]).items()
+        if name.startswith("lifted_") and name.endswith("_sentences") and callable(value)
+    }
+
+
+def _case_name(mark: pytest.Mark) -> str:
+    """The argument-name half of a registration key, for one parametrize MARK.
+
+    Args:
+        mark: A ``parametrize`` mark taken from a function's ``pytestmark``.
+
+    Returns:
+        The mark's argument names, in the one spelling both registries use.
+    """
+    argnames = mark.args[0]
+    names = argnames if isinstance(argnames, str) else ",".join(argnames)
+    return names.strip()
+
+
+def parametrize_marks(function: object) -> list[pytest.Mark]:
+    """Every ``parametrize`` mark FUNCTION carries.
 
     Args:
         function: A module-level test function.
 
     Returns:
-        The product of its parametrize sizes, or one when it takes no parameters.
+        The function's parametrize marks, in declaration order.
     """
+    return [mark for mark in getattr(function, "pytestmark", ()) if mark.name == "parametrize"]
+
+
+def module_test_functions() -> list[tuple[str, object]]:
+    """This module's own test functions, by name.
+
+    One derivation shared by the arm-count expectation and by the registration
+    guard, so the functions GRADED and the functions COUNTED are the same set by
+    construction rather than by two spellings agreeing. Narrowing it lowers the
+    expectation without lowering what pytest collected, so the backstop reddens.
+
+    Returns:
+        ``(name, function)`` pairs sorted by name.
+    """
+    return [
+        (name, value)
+        for name, value in sorted(vars(sys.modules[__name__]).items())
+        if name.startswith("test_") and callable(value)
+    ]
+
+
+def parametrized_case_keys(functions: Sequence[tuple[str, object]]) -> set[CaseKey]:
+    """Every ``(function name, argument name)`` key FUNCTIONS parametrize over.
+
+    Args:
+        functions: ``(name, function)`` pairs, as :func:`module_test_functions`
+            returns them.
+
+    Returns:
+        The set of registration keys in use.
+    """
+    return {
+        (name, _case_name(mark))
+        for name, function in functions
+        for mark in parametrize_marks(function)
+    }
+
+
+def registration_faults(
+    functions: Sequence[tuple[str, object]],
+    independent: Mapping[CaseKey, Callable[[], int]],
+    unpinned: frozenset[CaseKey],
+) -> tuple[str, ...]:
+    """Every way the case-key registration disagrees with what is parametrized.
+
+    Set equality in both directions plus disjointness, returned as separate
+    findings rather than summed, because a single term can be dropped from a sum.
+    Written as a pure function of its three inputs so
+    :func:`test_the_registration_guard_reddens_in_every_direction` can feed it
+    each fault in turn instead of asserting that the live tree happens to be
+    clean, which grades nothing about the guard.
+
+    Args:
+        functions: ``(name, function)`` pairs to read parametrizes from.
+        independent: The independently-counted registry.
+        unpinned: The counted-from-the-mark registry.
+
+    Returns:
+        One finding per fault, empty when the registration is exact.
+    """
+    independent_keys = set(independent)
+    unpinned_keys = set(unpinned)
+    used = parametrized_case_keys(functions)
+    faults: list[str] = []
+    in_both = independent_keys & unpinned_keys
+    if in_both:
+        faults.append(
+            f"{sorted(in_both)} are registered in BOTH registries, so which counting "
+            "rule applies is decided by the order of two lookups rather than by a "
+            "recorded decision"
+        )
+    if not used:
+        faults.append(
+            "nothing is parametrized at all, so the equality below would hold "
+            "vacuously and this guard would prove nothing"
+        )
+    unregistered = used - independent_keys - unpinned_keys
+    if unregistered:
+        faults.append(
+            f"{sorted(unregistered)} are parametrized but registered in neither "
+            "INDEPENDENT_CASE_COUNTS nor UNPINNED_CASE_KEYS. Register each in exactly "
+            "one: the independent map when the size can be re-derived from a source "
+            "the mark does not read, UNPINNED_CASE_KEYS when it cannot, which records "
+            "that its size is UNGRADED rather than implying it is covered"
+        )
+    stale = (independent_keys | unpinned_keys) - used
+    if stale:
+        faults.append(
+            f"{sorted(stale)} are registered but no parametrize uses them, so the "
+            "registration is describing a population that no longer exists and the "
+            "next reader will trust it"
+        )
+    return tuple(faults)
+
+
+def _declared_case_count(
+    function: object,
+    independent: Mapping[CaseKey, Callable[[], int]] | None = None,
+    unpinned: frozenset[CaseKey] | None = None,
+) -> int:
+    """How many cases FUNCTION declares, with derived populations counted independently.
+
+    Args:
+        function: A module-level test function.
+        independent: The independently-counted registry; the module's own when
+            omitted. Injectable so an arm can exercise the branches on synthetic
+            functions rather than only on the live tree.
+        unpinned: The counted-from-the-mark registry; the module's own when
+            omitted.
+
+    Returns:
+        The product of its parametrize sizes, or one when it takes no parameters.
+
+    Raises:
+        AssertionError: If a ``(function, argument)`` key is registered in
+            NEITHER registry. There is deliberately no default: counting an
+            unregistered key from its own mark is the population under test
+            grading itself, which is what let a derived population shrink here in
+            silence.
+    """
+    independent_counts = INDEPENDENT_CASE_COUNTS if independent is None else independent
+    unpinned_keys = UNPINNED_CASE_KEYS if unpinned is None else unpinned
+    function_name = getattr(function, "__name__", repr(function))
     total = 1
-    for mark in getattr(function, "pytestmark", ()):
-        if mark.name != "parametrize":
-            continue
-        argnames, argvalues = mark.args[0], mark.args[1]
-        names = argnames if isinstance(argnames, str) else ",".join(argnames)
-        independent = INDEPENDENT_CASE_COUNTS.get(names.strip())
-        total *= independent() if independent else len(list(argvalues))
+    for mark in parametrize_marks(function):
+        key = (function_name, _case_name(mark))
+        rederive = independent_counts.get(key)
+        if rederive is not None:
+            total *= rederive()
+        elif key in unpinned_keys:
+            total *= len(list(mark.args[1]))
+        else:
+            raise AssertionError(
+                f"parametrize argument {key[1]!r} on {key[0]!r} is registered in "
+                "neither INDEPENDENT_CASE_COUNTS nor UNPINNED_CASE_KEYS. Registration "
+                "is keyed by (function, argument) and never by argument alone, because "
+                "a name already registered elsewhere would otherwise let a DERIVED "
+                "population in unnoticed. Counting this from its own mark would read "
+                "the very object being parametrized over, so the expectation would "
+                "follow that population down and grade nothing."
+            )
     return total
 
 
@@ -1825,17 +2137,215 @@ def expected_arm_count() -> int:
     """This module's arm count, expected from its own declarations.
 
     Derived rather than written down, because a literal here would be knob number
-    five. For every parametrized arm over a DERIVED plant population the size is
-    taken from the independent re-derivation instead of from the mark, so a
-    producer narrowed at its return statement shows up as a shortfall.
+    five. For every key over a DERIVED population the size comes from the
+    independent re-derivation instead of from the mark, so a producer narrowed at
+    its return statement shows up as a shortfall.
 
     Returns:
         The number of arms this module should collect.
     """
-    return sum(
-        _declared_case_count(value)
-        for name, value in sorted(vars(sys.modules[__name__]).items())
-        if name.startswith("test_") and callable(value)
+    return sum(_declared_case_count(value) for _name, value in module_test_functions())
+
+
+def test_every_case_key_is_registered_in_exactly_one_registry() -> None:
+    """The completeness pin, and the backstop for the import-time guard below.
+
+    The registration is graded twice on purpose and the two cover each other's
+    gap. The IMPORT-TIME call at the foot of this module is the primary: it runs
+    at collection, off the file on disk, and no ``-k`` or ``--deselect`` can skip
+    it. This arm is what notices that call being deleted, which the import-time
+    check cannot notice about itself.
+    """
+    faults = registration_faults(
+        module_test_functions(), INDEPENDENT_CASE_COUNTS, UNPINNED_CASE_KEYS
+    )
+    fault_count = len(faults)
+    assert fault_count == 0, (
+        f"the case-key registration is wrong in {fault_count} way(s): {list(faults)}"
+    )
+
+
+def test_the_registration_guard_reddens_in_every_direction() -> None:
+    """The guard is the mechanism, so its discrimination is graded, not assumed.
+
+    An arm that only asserts the live tree is clean passes equally well against a
+    guard that returns no finding for anything. Each direction is provoked on its
+    own here, and the well-formed control is what stops "always faults" reading
+    as "correctly faults".
+    """
+
+    @pytest.mark.parametrize("solo", [1, 2])
+    def sample() -> None:
+        """A stand-in for a module-level test function; never collected."""
+
+    def only_finding(faults: tuple[str, ...], expected: str, direction: str) -> None:
+        """One finding, and it must be the one this direction is for."""
+        fault_count = len(faults)
+        assert fault_count == 1, (
+            f"the guard reported {fault_count} finding(s) for {direction} rather than "
+            f"exactly one, so this direction is graded by whichever fired: {list(faults)}"
+        )
+        assert expected in faults[0], (
+            f"the guard's finding for {direction} does not say so: {faults[0]}"
+        )
+
+    functions = [("sample", sample)]
+    key = ("sample", "solo")
+    other = ("sample", "a_key_nothing_parametrizes")
+    clean = registration_faults(functions, {}, frozenset({key}))
+    assert clean == (), f"a well-formed registration reported {list(clean)}"
+    only_finding(
+        registration_faults(functions, {}, frozenset()),
+        "registered in neither",
+        "an unregistered key",
+    )
+    only_finding(
+        registration_faults(functions, {}, frozenset({key, other})),
+        "no parametrize uses them",
+        "a stale key",
+    )
+    only_finding(
+        registration_faults(functions, {key: lambda: 2}, frozenset({key})),
+        "BOTH registries",
+        "a key in both registries",
+    )
+    only_finding(registration_faults([], {}, frozenset()), "vacuously", "an empty population")
+
+
+def test_an_unregistered_case_key_raises_instead_of_falling_back() -> None:
+    """The raise is the repair, and this is what stops it decaying to a fallback.
+
+    Three synthetic functions, because the bypass this closes is not "an
+    unregistered NAME" but "an unregistered PAIR". ``label`` is registered - on
+    :func:`test_the_walk_floor_rejects_every_degenerate_corpus` and nowhere else -
+    and the argname-keyed revision counted a DERIVED population under it from a
+    different function, silently, with 494 arms green. It must now raise.
+
+    The counted-from-the-mark control is not decoration: without it an arm
+    asserting only that something raised would also pass against a helper that
+    raised for every key.
+    """
+
+    @pytest.mark.parametrize("an_unregistered_derived_population", [1, 2, 3])
+    def sample_over_an_unregistered_population() -> None:
+        """A stand-in for a module-level test function; never collected."""
+
+    @pytest.mark.parametrize("label", [1, 2, 3])
+    def sample_reusing_a_registered_argname() -> None:
+        """The finding-2 bypass: a registered NAME on an unregistered FUNCTION."""
+
+    counted_cases = (1, 2, 3, 4)
+
+    @pytest.mark.parametrize("label", counted_cases)
+    def sample_over_a_counted_population() -> None:
+        """The known-good control for the same helper."""
+
+    with pytest.raises(AssertionError) as raised:
+        _declared_case_count(sample_over_an_unregistered_population)
+    message = str(raised.value)
+    assert "an_unregistered_derived_population" in message, (
+        f"the refusal did not name the offending argument: {message}"
+    )
+    assert "sample_over_an_unregistered_population" in message, (
+        f"the refusal did not name the function the argument sits on: {message}"
+    )
+
+    assert any(name == "label" for _function, name in INDEPENDENT_CASE_COUNTS), (
+        "'label' is no longer a registered argument name, so the bypass below is not "
+        "the bypass this arm exists for"
+    )
+    with pytest.raises(AssertionError) as reused:
+        _declared_case_count(sample_reusing_a_registered_argname)
+    assert "sample_reusing_a_registered_argname" in str(reused.value), (
+        f"a registered argname on an unregistered function did not raise by pair: {reused.value}"
+    )
+
+    control = _declared_case_count(
+        sample_over_a_counted_population,
+        unpinned=frozenset({("sample_over_a_counted_population", "label")}),
+    )
+    assert control == len(counted_cases), (
+        f"a REGISTERED counted-from-the-mark key counted to {control} rather than the "
+        f"{len(counted_cases)} cases its mark declares, so the helper has stopped "
+        "counting rather than started discriminating, and the refusals above prove "
+        "nothing"
+    )
+
+
+def test_the_degenerate_corpora_cover_every_walk_floor_threshold() -> None:
+    """The membership leg under ``label``, both directions and no floor.
+
+    :data:`DEGENERATE_CORPORA` is the population behind that parametrize, and its
+    keys had no arm at all: deleting the "one suffix" entry took the expectation
+    and the collected count down together - 486 to 485, green - leaving one walk
+    floor threshold ungraded. The thresholds are now read out of
+    :func:`walk_floor_findings` itself, so the two sides cannot shrink together.
+    """
+    messages = walk_floor_threshold_messages()
+    markers = {label: marker for label, (_spellings, marker) in DEGENERATE_CORPORA.items()}
+    matched = {
+        label: [message for message in messages if marker in message]
+        for label, marker in markers.items()
+    }
+    ambiguous = {label: len(hits) for label, hits in matched.items() if len(hits) != 1}
+    assert ambiguous == {}, (
+        f"{ambiguous} corpus marker(s) matched something other than exactly one of the "
+        f"{len(messages)} walk-floor thresholds, so which threshold each grades is not "
+        "decided"
+    )
+    covered = {hits[0] for hits in matched.values() if hits}
+    uncovered = [message for message in messages if message not in covered]
+    assert uncovered == [], (
+        f"{len(uncovered)} walk-floor threshold(s) have no degenerate corpus and are "
+        f"therefore ungraded: {uncovered}"
+    )
+    orphaned = sorted(label for label, hits in matched.items() if not hits)
+    assert orphaned == [], (
+        f"{orphaned} name a marker no walk-floor threshold emits, so those corpora grade nothing"
+    )
+
+
+def test_the_plant_equality_rows_cover_every_derived_producer() -> None:
+    """The membership leg under ``kind,lifted,modules``, both directions.
+
+    The rows were two inline tuples with no arm, so deleting the distributive row
+    deleted the distributive population's equality arm while leaving that
+    population registered and live.
+    """
+    rows = parametrize_marks(test_each_plant_population_equals_an_independent_rederivation)[0]
+    row_producers = {producer for _kind, producer, _modules in rows.args[1]}
+    declared = set(lifted_sentence_producers().values())
+    missing = sorted(
+        name for name, value in lifted_sentence_producers().items() if value not in row_producers
+    )
+    assert missing == [], (
+        f"{missing} produce a derived plant population with no equality row, so that "
+        "population is registered as independently counted and graded by nothing"
+    )
+    extra_count = len(row_producers - declared)
+    assert extra_count == 0, (
+        f"{extra_count} equality row(s) name a producer this module does not define as "
+        "a lifted_*_sentences callable, so the two derivations are not over one set"
+    )
+
+
+def test_the_live_subset_module_parametrize_matches_the_plant_tuple() -> None:
+    """The membership leg under ``module``, both directions.
+
+    The parametrize was an inline ``[pending, solve]`` with no arm. It is the same
+    set as :data:`SUBSET_PLANT_MODULES`, which DOES carry a both-directions pin
+    with literal expectations, so that tuple is the independent handle.
+    """
+    mark = parametrize_marks(test_the_live_subset_counting_modules_stay_green)[0]
+    parametrized = {module.__name__ for module in mark.args[1]}
+    pinned = {module.__name__ for module in SUBSET_PLANT_MODULES}
+    assert sorted(parametrized - pinned) == [], (
+        f"{sorted(parametrized - pinned)} are parametrized here but are not subset "
+        "plant modules, so this arm is grading files the pinned tuple does not cover"
+    )
+    assert sorted(pinned - parametrized) == [], (
+        f"{sorted(pinned - parametrized)} are subset plant modules that this arm does "
+        "not grade as they ship, so dropping one costs an arm and nothing notices"
     )
 
 
@@ -1881,4 +2391,48 @@ def test_the_collected_arm_count_matches_an_independent_expectation(
         f"this module collected {collected_count} arm(s) but declares {expected_count}; "
         "a shortfall means a population shrank without its own arm noticing, which is "
         "how each of this module's four repaired defects first presented"
+    )
+
+
+# ---------------------------------------------------------------------------
+# THE REGISTRATION GUARD, AT IMPORT TIME AND THEREFORE AT COLLECTION TIME.
+#
+# WHY IT IS NOT ONLY AN ARM, ruled explicitly rather than left implicit. The
+# refusal inside _declared_case_count fires when the expectation is DERIVED,
+# which happens inside test_the_collected_arm_count_matches_an_independent_
+# expectation - so a session that deselects that arm never evaluates it, and
+# such a session also takes the filtered "<=" branch, which a shortfall
+# satisfies. Both escapes are closed by running the equality here, at module
+# import: pytest imports this file to collect it, the check reads the functions
+# defined above it in this file on disk, and no -k, -m, --deselect or --lf can
+# reach past it. A new parametrize over a derived population cannot be added
+# without either registering it or failing collection outright.
+#
+# WHAT THIS STILL LEAVES UNGRADED, stated rather than left to be found. The
+# import-time call grades REGISTRATION - which keys exist - and not SIZE. Sizes
+# are graded at run time by the arm-count backstop, and only for the keys in
+# INDEPENDENT_CASE_COUNTS; every key in UNPINNED_CASE_KEYS is counted from its
+# own mark and its size is ungraded in any session.
+#
+# THE TWO COVER EACH OTHER'S GAP, and the honest form of that claim is narrower
+# than it first reads. Deleting this call ALONE is unobservable and therefore an
+# EQUIVALENT mutation, not a surviving one: the arm runs the same function over
+# the same registries, and on a clean tree there is no fault for either to
+# report. Measured: disabling this call left 490 passed, exit 0. It becomes
+# observable the moment a registration fault exists, which is the only moment it
+# matters - measured, this call disabled AND a derived population smuggled in
+# under an already-registered argname reddened
+# test_every_case_key_is_registered_in_exactly_one_registry and the arm-count
+# backstop, 2 failed. In the other direction, deselecting that arm is caught by
+# this call, which no filter can reach. Neither alone covers both.
+# ---------------------------------------------------------------------------
+
+_REGISTRATION_FAULTS: Final = registration_faults(
+    module_test_functions(), INDEPENDENT_CASE_COUNTS, UNPINNED_CASE_KEYS
+)
+if _REGISTRATION_FAULTS:
+    raise AssertionError(
+        "this module's parametrize registration is out of date, and collection is "
+        "refused rather than deferred to an arm a filtered session could deselect: "
+        f"{list(_REGISTRATION_FAULTS)}"
     )
