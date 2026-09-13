@@ -37,12 +37,15 @@ would print a temporary directory into the report.
 
 from __future__ import annotations
 
+import contextlib
+import importlib.util
 import json
 import os
 import subprocess
 import sys
 import time
 from pathlib import Path
+from typing import Any
 
 import pytest
 from ops.loop import queue_loop, ration
@@ -72,6 +75,16 @@ _CHILD_EXITS = {
     11: "the child was refused the slot nothing was holding",
     12: "the child timed out waiting to be told to release",
 }
+
+#: How many distinct clone directories the root-scope arm places, and how many
+#: state reads the raced acquire makes. Named rather than spelled inline so the
+#: assertion says WHAT the number is rather than only that it is two.
+_CLONE_COUNT = 2
+_READS_ON_THE_RACED_PATH = 2
+
+#: The pid the roll-up arm's ration reports as the other holder. A literal
+#: nothing on this box owns, so a row naming it named what the seam said.
+_OTHER_HOLDER_PID = 4242
 
 #: The child that takes the slot, announces it, and releases only when told.
 _HOLD_THEN_RELEASE = """
@@ -308,12 +321,20 @@ def test_the_drivers_suite_step_runs_inside_the_ration(tmp_path: Path) -> None:
         seen.append(str(ration.slot_state(root=root)["state"]))
         return {"ok": True, "summary": "1 passed", "exit_code": 0}
 
-    record: dict[str, object] = {"outcome": queue_loop.OUTCOME_COMPLETED}
-    held_before = str(ration.slot_state(root=root)["state"])
-    assert held_before == ration.FREE, (
-        "the slot was already held before the driver ran, so an observation of "
-        "RUNNING inside the step would prove nothing about the driver"
+    record: dict[str, Any] = {"outcome": queue_loop.OUTCOME_COMPLETED}
+
+    # THE CONTROL IS THE SAME OBSERVER IN THE OTHER CONTEXT. Asserting the slot
+    # reads FREE before the call would restate what `tmp_path` already
+    # guarantees - an empty directory - and prove nothing about the observer.
+    # Running `fake_suite` OUTSIDE the step is what shows it can distinguish the
+    # two, so the RUNNING it reports inside is a difference it measured rather
+    # than the only answer it knows how to give.
+    fake_suite(cwd=None, monotonic=time.monotonic)
+    assert seen == [ration.FREE], (
+        "the observer reports the same state outside the driver's step as in "
+        f"it, so it cannot tell the two apart - it saw {seen}"
     )
+    seen.clear()
 
     queue_loop.run_suite_step(
         record,
@@ -411,4 +432,335 @@ def test_a_wait_that_reaches_its_ceiling_proceeds_unrationed_and_says_so(
     assert still_held == ration.RUNNING, (
         "the unrationed path took or cleared the wedged holder's slot, which is "
         "a second writer in the same directory rather than a loud fall-through"
+    )
+
+
+def _wedged_slot(root: Path) -> Path:
+    """Plant a slot held by THIS process, so the probe reads RUNNING throughout."""
+    root.mkdir(parents=True, exist_ok=True)
+    slot = ration.slot_path(root=root)
+    slot.write_text(
+        json.dumps({"pid": os.getpid(), "holder": "wedged", "run_id": "x", "ts": time.time()}),
+        encoding="utf-8",
+    )
+    return slot
+
+
+def _run_step(record: dict, root: Path, lines: list[str]) -> None:
+    """Drive one real `run_suite_step` with a suite that always answers green."""
+    queue_loop.run_suite_step(
+        record,
+        lane=queue_loop.LANE,
+        worktree=root.parent / "tree",
+        run_id="rec",
+        suite=lambda **_kw: {"ok": True, "summary": "1 passed", "exit_code": 0},
+        root=root,
+        ceiling_s=0.0,
+        sleep=lambda seconds: None,  # noqa: ARG005 - the ceiling decides, not the clock
+        monotonic=time.monotonic,
+        emit=lines.append,
+    )
+
+
+def test_an_unrationed_suite_is_distinguishable_in_the_cycle_record(tmp_path: Path) -> None:
+    # CONTROL: the same call, the same suite verdict, against a FREE slot. Two
+    # records that differ only in the ration are what makes the measurement
+    # below a measurement rather than a description of one record.
+    clean_root = tmp_path / "clean"
+    clean: dict[str, Any] = {"outcome": queue_loop.OUTCOME_COMPLETED}
+    clean_lines: list[str] = []
+    _run_step(clean, clean_root, clean_lines)
+
+    wedged_root = tmp_path / "wedged"
+    _wedged_slot(wedged_root)
+    held = str(ration.slot_state(root=wedged_root)["state"])
+    assert held == ration.RUNNING, (
+        f"the planted slot reads {held}, so the step below would be rationed "
+        "and this arm would grade the control twice"
+    )
+    contended: dict[str, Any] = {"outcome": queue_loop.OUTCOME_COMPLETED}
+    contended_lines: list[str] = []
+    _run_step(contended, wedged_root, contended_lines)
+
+    assert clean["suite"] == contended["suite"], (
+        "the two suite verdicts differ, so any difference found below could be "
+        "the suite rather than the ration"
+    )
+    assert clean["ration"] != contended["ration"], (
+        "the cycle record is identical whether the suite was rationed or ran "
+        "beside another one, so the ledger row nobody can re-grade is back"
+    )
+    clean_fact = clean["ration"]
+    contended_fact = contended["ration"]
+    control_flag = clean_fact["rationed"]
+    assert control_flag is True, "the control row claims it was not rationed"
+    contended_flag = contended_fact["rationed"]
+    assert contended_flag is False, (
+        "a suite that overran the ration's ceiling is recorded as rationed, "
+        "which is the green nobody earned wearing the right label"
+    )
+    named = contended_fact["holder"]
+    assert named == os.getpid(), (
+        "the record does not name the process the suite ran beside, so nobody "
+        "reading it can tell which two runs collided"
+    )
+    loud = len([line for line in contended_lines if ration.UNRATIONED in line])
+    assert loud == 1, f"the unrationed step emitted {loud} marker lines rather than one"
+
+
+def test_a_cycle_that_runs_no_driver_suite_still_records_what_the_ration_covered(
+    tmp_path: Path,
+) -> None:
+    # MEASURED, and this is the DEFAULT configuration: with local_suite off the
+    # ration is entered zero times per cycle. The row has to say so, or a night
+    # that rationed nothing reads exactly like a night it protected.
+    log = tmp_path / "queue_loop.jsonl"
+
+    queue_loop.run_loop(
+        max_cycles=1,
+        settle_s=0,
+        poll_s=1,
+        ci_gate=False,
+        local_suite=False,
+        worktree=tmp_path / "tree",
+        acquire=lambda _lane, **_kw: {"ok": True, "token": "T"},
+        release=lambda _token, **_kw: True,
+        launch=lambda _lane, **_kw: {"pid": 1, "log": "l"},
+        alive=lambda _pid: False,
+        proc_started=lambda _pid: 1.0,
+        stranger=lambda _pid, _s: False,
+        kill=lambda _pid: None,
+        head_sha=lambda: "sha",
+        tree_sha=lambda _tree: "tree-sha",
+        cycle_log=log,
+        control_dir=tmp_path / "control",
+        hold=contextlib.nullcontext,
+        sleep=lambda _s: None,
+        emit=lambda _line: None,
+    )
+    written = [json.loads(line) for line in log.read_text(encoding="utf-8").splitlines() if line]
+    drove = len(written)
+    assert drove == 1, f"the probe drove {drove} cycles rather than one"
+    fact = written[0].get("ration")
+    assert fact == dict(queue_loop.RATION_NO_SUITE), (
+        "a cycle that ran no driver suite left the ration unrecorded, so a "
+        "reader cannot count the nights this lane rationed nothing"
+    )
+    ran = written[0].get("suite")
+    assert ran is None, (
+        "the probe's cycle ran a driver suite after all, so the branch this arm "
+        "grades was never entered"
+    )
+
+
+def test_the_default_slot_root_is_box_wide_and_not_checkout_local(tmp_path: Path) -> None:
+    # TWO CHECKOUTS, SPELLED AS TWO COPIES OF THE MODULE AT TWO PATHS. That is
+    # the shape the finding names: two clones of this repository whose roots
+    # must agree. Importing both under distinct names is what lets one process
+    # ask each of them where it would put the slot.
+    here = Path(ration.__file__).resolve().parent
+    homes = []
+    roots = []
+    for name in ("cs_ration_clone_a", "cs_ration_clone_b"):
+        home = tmp_path / name / "ops" / "loop"
+        home.mkdir(parents=True)
+        (home / "ration.py").write_bytes((here / "ration.py").read_bytes())
+        (home / "lanes.py").write_bytes((here / "lanes.py").read_bytes())
+        spec = importlib.util.spec_from_file_location(name, home / "ration.py")
+        assert spec is not None, f"{name} would not load"
+        loader = spec.loader
+        assert loader is not None, f"{name} has no loader"
+        clone = importlib.util.module_from_spec(spec)
+        sys.modules[name] = clone
+        loader.exec_module(clone)
+        homes.append(str(home))
+        roots.append(str(clone.default_root()))
+
+    # THE CONTROL: the two clones really are at different paths, so an equal
+    # answer below is agreement rather than the same module read twice.
+    distinct = len(set(homes))
+    assert distinct == _CLONE_COUNT, "the two clones were placed at one path"
+    assert roots[0] == roots[1], (
+        "two checkouts of this repository derive different slot roots, so each "
+        "rations against itself and neither sees the other"
+    )
+    inside = [root for root in roots if str(tmp_path) in root]
+    assert inside == [], (
+        f"the default root sits inside the checkout - {inside}. That is the "
+        "narrowed shape queue_loop.worktree_mutex exists to refuse"
+    )
+
+
+def test_the_root_environment_override_wins(tmp_path: Path, monkeypatch) -> None:
+    # CONTROL FIRST: the unset case must differ from the override, or the
+    # assertion below would hold however the variable were read.
+    monkeypatch.delenv(ration.ROOT_ENV, raising=False)
+    unset = str(ration.default_root())
+    wanted = tmp_path / "elsewhere"
+    assert unset != str(wanted), "the control and the override name the same directory"
+
+    monkeypatch.setenv(ration.ROOT_ENV, str(wanted))
+    assert ration.default_root() == wanted, (
+        "the environment override did not move the slot root, so an operator "
+        "cannot point the ration anywhere without editing a tracked file"
+    )
+
+
+def test_an_empty_slot_past_the_write_grace_stops_being_presumed_live(tmp_path: Path) -> None:
+    root = tmp_path / "ration"
+    root.mkdir(parents=True)
+    # THE STATE the exclusive create leaves between opening the file and writing
+    # its payload: a slot that exists and names nobody. Inside the grace it is
+    # presumed live, so a waiter cannot reclaim it out from under an acquirer
+    # that is mid-write.
+    ration.slot_path(root=root).write_text("", encoding="utf-8")
+    now = time.time()
+
+    inside = str(ration.slot_state(root=root, now=now)["state"])
+    assert inside == ration.RUNNING, (
+        f"an empty slot reads {inside} the instant it is created, so a waiter "
+        "can reclaim it from an acquirer that is still writing its payload"
+    )
+    outside = str(ration.slot_state(root=root, now=now + ration.WRITE_GRACE_S + 1.0)["state"])
+    assert outside == ration.RECLAIMABLE, (
+        f"an empty slot still reads {outside} long past the write window, so a "
+        "half-written slot wedges the ration with nothing left to probe"
+    )
+
+
+def test_a_stale_free_reading_is_refused_rather_than_double_booking(
+    tmp_path: Path, monkeypatch
+) -> None:
+    root = tmp_path / "ration"
+    _wedged_slot(root)
+    real = ration.slot_state
+    calls: list[int] = []
+
+    def stale_then_real(*args, **kwargs):
+        # THE RACE, made deterministic. The first read answers FREE - which is
+        # what a reader gets when it looks a moment before another process
+        # creates the slot - and every later read tells the truth.
+        calls.append(1)
+        if len(calls) == 1:
+            return {
+                "state": ration.FREE,
+                "holder": None,
+                "pid": None,
+                "run_id": None,
+                "age_s": None,
+            }
+        return real(*args, **kwargs)
+
+    # THE CONTROL: with the real reader, the same on-disk state refuses through
+    # the RUNNING branch and asks the state exactly once. That is what makes the
+    # call count below evidence about WHICH branch ran.
+    control = ration.try_acquire(holder="probe", run_id="control", root=root)
+    control_ok = control["ok"]
+    assert control_ok is False, "the planted slot did not refuse a plain acquire"
+
+    calls.clear()
+    monkeypatch.setattr(ration, "slot_state", stale_then_real)
+    raced = ration.try_acquire(holder="probe", run_id="raced", root=root)
+
+    reads = len(calls)
+    assert reads == _READS_ON_THE_RACED_PATH, (
+        f"the raced acquire read the state {reads} times. One means it refused "
+        "on the RUNNING branch and never reached the exclusive create, so this "
+        "arm graded the control a second time"
+    )
+    raced_ok = raced["ok"]
+    assert raced_ok is False, (
+        "a caller whose FREE reading went stale was handed the slot anyway, so "
+        "two processes now believe they hold the one ration"
+    )
+    assert raced["refused"] == "suite_held", (
+        f"the raced refusal is worded {raced['refused']!r}, so a reader cannot "
+        "tell it from an error"
+    )
+    assert raced["pid"] == os.getpid(), (
+        "the raced refusal does not name the live holder, so the waiter has no "
+        "pid to report when it gives up"
+    )
+
+
+def _drive_one_cycle(tmp_path: Path, name: str, claim: dict) -> Any:
+    """One real `run_loop` cycle whose ration yields `claim`. Returns the row.
+
+    The ration is the injected seam here rather than the real slot, because the
+    property under test is what the ROLL-UP does with the ration's answer, and a
+    real slot would make the arm depend on the primitive as well as on the
+    clause.
+    """
+    log = tmp_path / f"{name}.jsonl"
+
+    @contextlib.contextmanager
+    def ration_seam(**_kw):
+        yield claim
+
+    queue_loop.run_loop(
+        max_cycles=1,
+        settle_s=0,
+        poll_s=1,
+        ci_gate=False,
+        local_suite=True,
+        worktree=tmp_path / "tree",
+        acquire=lambda _lane, **_kw: {"ok": True, "token": "T"},
+        release=lambda _token, **_kw: True,
+        launch=lambda _lane, **_kw: {"pid": 1, "log": "l"},
+        alive=lambda _pid: False,
+        proc_started=lambda _pid: 1.0,
+        stranger=lambda _pid, _s: False,
+        kill=lambda _pid: None,
+        head_sha=lambda: "sha",
+        tree_sha=lambda _tree: "tree-sha",
+        suite=lambda **_kw: {
+            "ok": True,
+            "summary": "5371 passed in 765.00s",
+            "exit_code": 0,
+            "truncated": False,
+            "argv": ["pytest"],
+            "duration_s": 765.0,
+            "detail": "",
+        },
+        ration=ration_seam,
+        cycle_log=log,
+        control_dir=tmp_path / f"control-{name}",
+        hold=contextlib.nullcontext,
+        sleep=lambda _s: None,
+        emit=lambda _line: None,
+    )
+    rows = [json.loads(line) for line in log.read_text(encoding="utf-8").splitlines() if line]
+    drove = len(rows)
+    assert drove == 1, f"the {name} leg drove {drove} cycles rather than one"
+    return rows[0]
+
+
+def test_a_green_suite_that_ran_unrationed_does_not_make_the_cycle_ok(tmp_path: Path) -> None:
+    # CONTROL AND MEASURE DIFFER IN THE RATION AND IN NOTHING ELSE: same worker
+    # outcome, same green suite verdict, same everything. So a difference in the
+    # roll-up below is attributable to the ration's answer and to nothing else.
+    covered = _drive_one_cycle(tmp_path, "covered", {"ok": True, "token": "T"})
+    exposed = _drive_one_cycle(tmp_path, "exposed", {"ok": False, "pid": _OTHER_HOLDER_PID})
+
+    assert covered["suite"] == exposed["suite"], (
+        "the two legs recorded different suite verdicts, so the roll-up "
+        "difference below could be the suite rather than the ration"
+    )
+    assert covered["worker_ok"] == exposed["worker_ok"], (
+        "the two legs disagree about the worker, so the roll-up difference "
+        "below could be the worker rather than the ration"
+    )
+    assert covered["ok"] is True, (
+        "a cycle whose worker finished and whose suite was green and rationed "
+        "is not ok, so the control leg proves nothing about the clause"
+    )
+    assert exposed["ok"] is False, (
+        "a cycle whose suite ran beside another suite is rolled up as ok. That "
+        "verdict was measured on a contended box, and the row carrying it is "
+        "the green nobody earned that this item exists to stop"
+    )
+    named = exposed["ration"]["holder"]
+    assert named == _OTHER_HOLDER_PID, (
+        "the row does not name the process the suite ran beside, so nobody can "
+        "tell which two runs collided"
     )

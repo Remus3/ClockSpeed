@@ -77,13 +77,37 @@ would make the one cycle that overlapped the one cycle nobody can see.
 file that another file already owns. `queue_loop.py` owns the suite's own wedge
 ceiling and derives the waiter's from it.
 
-WHAT THIS DOES NOT COVER, stated rather than left to be discovered. The slot root
-defaults inside this checkout, following `lanes.DEFAULT_ROOT` and for its
-reason - joining a machine-wide bucket would enrol this project in a resource
-other trees share. Two CLONES at different paths therefore ration separately,
-which is the same residual `queue_loop.worktree_mutex` exists to cover for the
-driver guard, and closing it here is not this item's work. Sibling PROJECTS on
-this box are not rationed by anything here at all.
+THE ROOT IS BOX-WIDE, NOT CHECKOUT-LOCAL, and that is a correction rather than a
+preference. An earlier revision put it under this module's own directory and
+recorded the consequence as a residual - two clones of this repository at
+different paths derive different roots, ration against themselves, and never see
+each other. That is the hole `queue_loop.worktree_mutex` was written to close
+for the driver guard, in its own words the half that must not be narrowed, and a
+residual is a record of a hole rather than a closure of it. `default_root` is
+where the scoping now lives, with the one thing it still does not cover.
+
+WHAT THIS DOES NOT COVER, MEASURED RATHER THAN ESTIMATED. Per productive lane
+cycle this repository issues three pytest runs, and exactly ONE of them is the
+driver's own:
+
+  * `.githooks/pre-push` runs `pytest tests -q -x -n auto --dist loadfile` on
+    the worker's push - eight workers, and its own header records 320s on a real
+    push against 765s serial. That is the xdist run, it is the mechanism named
+    in the defect, and it is OUTSIDE this ration. The hook is a FROZEN file
+    (CLAUDE.md section 6) and closing that gap needs a grant this item does not
+    have.
+  * the worker's own `pytest tests -q -m "not slow"` is serial and inside the
+    worker, which this driver reaches only by pid. Also outside.
+  * the driver's `run_local_suite` is serial, and is the one this file rations.
+
+So the honest fraction is one of three invocations and none of the one that
+forks. The driver COULD cover the other two transitively by holding the slot
+across the whole worker cycle; that is rejected in `queue_loop.run_suite_step`
+with the arithmetic, because it serialises a cycle bounded at
+`DEFAULT_CYCLE_TIMEOUT_S` to protect a 320s window. A SIBLING PROJECT's suite is
+not covered either, and cannot be from here: `lanes.py` already ruled that
+enrolling other repositories in a shared bucket unilaterally is exactly the
+silent divergence their byte-identity pin exists to prevent.
 
 SIDE-EFFECT FREE AT IMPORT. Nothing below creates a directory, reads the control
 plane or resolves `lanes` at import time.
@@ -97,6 +121,7 @@ import importlib.util
 import json
 import os
 import sys
+import tempfile
 import time
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
@@ -117,9 +142,51 @@ SLOT_NAME = "suite.slot"
 #: control plane while reporting itself isolated.
 DIR_NAME = "ration"
 
-#: Inside this repository, following `lanes.DEFAULT_ROOT` - see the residual in
-#: the module docstring on what that scoping does and does not cover.
-DEFAULT_ROOT = _HERE / "control" / DIR_NAME
+#: The machine-wide parent this project claims, and the environment variable
+#: that moves the whole root. The variable exists so an operator can point the
+#: ration somewhere else WITHOUT editing a tracked file, which is the same
+#: reason `LANE_SCOPE_ENV_PREFIX` is an environment variable in `lanes.py`.
+BOX_DIRNAME = "Clockspeed"
+ROOT_ENV = "CLOCKSPEED_SUITE_RATION_ROOT"
+
+
+def default_root() -> Path:
+    """The slot root when nobody names one - BOX-WIDE, NOT CHECKOUT-LOCAL.
+
+    THIS IS THE HALF THAT MUST NOT BE NARROWED, and the wording is deliberate:
+    it is the ruling `queue_loop.worktree_mutex` already made, applied to the
+    same class of resource. A root under `__file__` gives two clones of this
+    repository at different paths two DIFFERENT roots, so each rations against
+    itself and neither sees the other - which is not a smaller version of the
+    guarantee, it is the absence of one, because the measured incident was
+    several suites at once on ONE box. An earlier revision of this file put the
+    root under the module directory and said so in a residual; a residual is a
+    record of a hole, not a closure of it.
+
+    `%PROGRAMDATA%` is the machine-wide, per-machine-not-per-user location on
+    Windows, and it is read from the environment rather than spelled, so no
+    absolute path and no account name enters a tracked file (CLAUDE.md
+    non-negotiable 3). Off Windows, and on a Windows box that somehow has no
+    `PROGRAMDATA`, this degrades to the system temporary directory - which is
+    box-wide on POSIX and is the best available answer rather than a good one.
+
+    WHAT IT STILL DOES NOT COVER, stated rather than implied: a SIBLING PROJECT
+    running its own suite. Covering that needs a name those trees also take, and
+    `lanes.py` already ruled that enrolling other repositories in a shared
+    bucket unilaterally is the silent divergence their byte-identity pin exists
+    to prevent. So this root is box-wide for every clone of THIS project and for
+    nothing else.
+
+    Returns:
+        The slot root.
+    """
+    named = os.environ.get(ROOT_ENV, "").strip()
+    if named:
+        return Path(named)
+    program_data = os.environ.get("PROGRAMDATA", "").strip()
+    parent = Path(program_data) if program_data else Path(tempfile.gettempdir())
+    return parent / BOX_DIRNAME / DIR_NAME
+
 
 FREE = "FREE"
 RUNNING = "RUNNING"
@@ -195,7 +262,7 @@ def _lanes() -> Any:
 
 def _resolve_root(root: Any) -> Path:
     """The slot root to use, defaulting to this repository's own."""
-    return DEFAULT_ROOT if root is None else Path(root)
+    return default_root() if root is None else Path(root)
 
 
 def _key(path: Any) -> str:
