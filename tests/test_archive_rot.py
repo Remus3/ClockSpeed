@@ -244,13 +244,40 @@ _CYCLE_MODULE_FLOOR: Final = 4
 #: names the item-notes INDEX, which is live, and the body below it says which leaf
 #: the section sat in - and an avoidable site is removed rather than pinned. A pin bumped for
 #: rot that did not have to exist is an exemption widened by convenience.
+#: `_ROT_EMPTY` 4 TO 3 AND `_ROT_FORM` 14 TO 15, 2026-09-13, AND IT IS ONE
+#: POINTER RATHER THAN TWO FINDINGS. The archive names a line of
+#: `tests/save/test_absolute_claims.py` meaning the fenced-prose arm's clause
+#: that matches a quoted paragraph against the known set. Declaring
+#: `tests/ops/__init__.py` in `FENCED_MODULES` inserted ONE line above that
+#: clause, so the pointer stopped landing on the bare bracket that closes the
+#: tuple and started landing on a real statement. NO NEW ROT ARRIVED and nothing
+#: in the archive was edited - one already-stale pointer changed bucket, and the
+#: total across the two arms is unmoved. That is the CS-960 inversion in the
+#: other direction, and pooled it would have moved no total at all.
+#:
+#: THE RECORDED REASON COVERS THIS SITE, on the same check CS-960 applied rather
+#: than a fresh argument. The archive declares `Section status: HISTORICAL` and
+#: that it holds nothing current, so the citation was RIGHT WHEN WRITTEN and the
+#: module moved underneath it - rot by construction, which is the stated
+#: exemption. Repairing it would mean editing a record of what a past session
+#: measured, which is what the exemption exists to forbid.
+#:
+#: WHAT MOVED THE LINE IS WORTH NAMING, because it is the rule this family
+#: teaches. A one-line declaration added to a tuple shifted every line below it,
+#: and a pointer two thousand lines away changed meaning without anyone touching
+#: it. A line pointer at a tracked module is invalidated by ANY edit above it,
+#: which is why the live carriers cite the SYMBOL form and only the archive is
+#: exempt.
+#:
+#: NO COLON-NUMBER SHAPE APPEARS IN THIS COMMENT, per the note above. The target
+#: is named by its module and its clause, and the number is left unspelled.
 ARCHIVE_ROT: Final[Mapping[str, int]] = {
     _ROT_CITATION: 5,
     _ROT_RANGE: 0,
-    _ROT_EMPTY: 4,
+    _ROT_EMPTY: 3,
     _ROT_NAME: 3,
     _ROT_PATH: 4,
-    _ROT_FORM: 14,
+    _ROT_FORM: 15,
 }
 
 
