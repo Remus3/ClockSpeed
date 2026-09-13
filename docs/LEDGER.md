@@ -374,6 +374,102 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-09-13 - CS-1013 - CLOSED. A placement is the whole transform, and for one release it was a third of one
+
+**WHAT CHANGED.** `clockspeed/save/objects.py::Transform` has always parsed rotation, translation
+and scale for every actor. `clockspeed/audit/placement.py::Placement` published a class name and
+x, y, z and dropped the other two blocks, so no building could be oriented on a map while the data
+to do it sat parsed one layer down. Rotation and scale now cross the audit seam and reach
+`/api/map`, rendered by the rule that module already set - `repr(float(v))`, shortest round-trip,
+never a bare JSON number.
+
+**THE NODE HALF WAS A DISCARD, NOT AN ABSENCE, AND THE FIRST ROUND CLAIMED OTHERWISE IN CODE.**
+`clockspeed/save/world.py::_node_or_none` had `record.transform` bound and read one of its three
+blocks. `ResourceNode` now carries all three. `node_orientation_available` is therefore True and
+means something, and the `node-orientation-unavailable` warning is DELETED rather than kept - it
+would have fired on every world containing any node, and a warning that always fires carries no
+information. The round-one docstring calling the absence structural was retracted in the code, not
+only in a report.
+
+**THE NON-FINITE ASYMMETRY IS DELIBERATE AND ARMED.** A non-finite COORDINATE still skips the whole
+placement, because one such value poisons the world bounding box. A non-finite rotation or scale
+withholds only that block and keeps the building, because orientation enters no computation and
+hiding a building over a field the map does not measure trades an invisible defect for a visible
+one. Refused per block, because a quaternion normalises as a unit and three good components beside
+an `inf` is not usable partial data. Counted once per placement, so the advisory answers how many
+buildings cannot be oriented.
+
+**VERIFY IT.** `tests/audit/test_placement.py` and `tests/surface/test_map.py`, 18 arms, including
+`test_a_node_row_carries_its_own_orientation_off_the_real_parser` - synthetic float32 bytes through
+the actual parser. Whole suite measured by the adjudicator at 7292 passed, 7 skipped, exit 0.
+
+**THE ROUND-ONE REFUTATION IS RECORDED BECAUSE IT IS THE REASON THE SHIPPED ARMS LOOK AS THEY DO.**
+Four arms survived mutation, two of them satisfied by ABSENCE - a sweep for floats passes when there
+are no fields to sweep. The canned fixture in `tests/surface/audit_harness.py` had drifted from
+`PLACEMENT_KEYS` at the ROW level while its guard checked only the top level. Every shipped arm now
+fronts its sweep with a live anti-vacuity control, and `_assert_rows_match` binds canned rows to
+`PLACEMENT_KEYS` and canned warnings to `WARNING_KEYS` in both directions, refusing an empty section.
+Ten of eleven adversarial mutants died; the survivor is filed as CS-1020.
+
+**A PRIVACY ADVERSARY SWEPT THE LIVE WIRE AND FOUND NOTHING**, with a proven-sighted oracle rather
+than a bare negative: seven withheld canaries through the real code path, 1001 served bytes, zero
+hits, and a positive control that fired when a canary was spliced in. `ResourceNode.__repr__` is
+byte-identical to base and renders class name and translation only.
+
+**FILED RATHER THAN FOLDED IN:** CS-1019 through CS-1025.
+
+### 2026-09-13 - CS-1011 - CLOSED. A refusal that named the wrong lane now names its own fault
+
+**WHAT CHANGED.** `ops/loop/queue_loop.py` reads `refused` from the acquire dict and records a
+worktree collision as `OUTCOME_WORKTREE_IN_USE` naming the occupying lane, rather than as
+`lane_held` naming a lane that is not the fault. The refusal word, the holder and the pid each pass
+an allowlist by INDEX SUBSTITUTION rather than validate-then-render, so a `str` subclass is refused
+outright, and the refusal's worktree path never reaches the row.
+
+**THIS ENTRY CORRECTS AN EARLIER LINE IN THIS FILE.** The CS-1009 record states in the present
+tense that "the driver renders the new refusal as `lane_held` because it never reads the reason".
+That was true when written and is false as of this commit. Nothing in this file is edited, so the
+correction is recorded here instead.
+
+**VERIFY IT.** `tests/test_queue_loop.py`, including
+`test_a_worktree_collision_is_not_recorded_as_a_held_lane` and
+`test_a_worktree_collision_survives_a_whole_night_as_its_own_word`. The adjudicator's mutation C -
+keep the constant, revert only the read of `refused` - kills all four arms on their named property.
+
+**A PRIVACY ARM SHIPPED BLIND IN THE FIRST ROUND AND THE MECHANISM IS WORTH KEEPING.** The arm
+asserted `planted not in json.dumps(got)`. Against the pre-fix driver the row genuinely carried an
+account name and the assertion still reported clean, because `{holder!r}` DOUBLES THE BACKSLASHES
+and a raw substring search for a Windows path can never match. An independent verifier found it by
+reverting the driver and re-running. The oracle now normalises separator runs and case and searches
+for a path SEGMENT, and a control fails the arm if the oracle calls a known-leaking string clean.
+
+**FILED RATHER THAN FOLDED IN:** CS-1014 through CS-1018.
+
+### 2026-09-13 - CS-1008 - CLOSED. A fixture the running machine can no longer move
+
+**WHAT CHANGED.** `tests/test_queue_loop.py`'s `_drive` helper and its `loop_seams` factory inject
+the permit seam and the claim-states seam, so CS-1005's defaults no longer fall through to the LIVE
+`ROADMAP.md` and the LIVE claim store. The repair went into `loop_seams` rather than only `_drive`
+because 22 other arms call `run_loop(**loop_seams(...))` and every one carried the same live read.
+
+**VERIFY IT.** `test_the_live_store_cannot_move_a_drive_arm`, with
+`test_the_plant_really_does_flip_an_uninjected_drive` as its potency control - the second passes in
+the state where the first fails, so the green is not vacuous. The adjudicator's mutations B1 and B2
+kill the seam arm on each seam individually.
+
+**A DECLARED DEVIATION FROM THE FILED ACCEPTANCE.** The acceptance says to plant a claimed
+out-of-scope row "in the LIVE store". `ops/loop/claims.py::DEFAULT_ROOT` resolves through
+`lanes.REPO_ROOT` to the MAIN tree's shared claim directory, so a worktree suite writing there would
+mutate the control plane a real lane reads, with no cleanup guarantee. The plant targets the live
+READERS instead - the exact two functions the un-injected path calls - and proves potency with the
+control above. The adjudicator ruled this SATISFIES the acceptance rather than approximating it,
+because the acceptance's purpose is that the arms grade a stated fixture rather than the machine's
+current state, and that is what is measured. The deviation is stated in the helper's own docstring.
+
+**THE NON-DETERMINISM THIS REMOVES IS THE POINT.** The red depended on live state that comes and
+goes, so it read as a flake rather than as a fixture defect - the same shape already recorded
+against a worktree-population equality arm.
+
 ### 2026-09-13 - CS-1009 - CLOSED. A claim now survives the exit of the process that made it, and three designs were refuted before one held
 
 **THE DEFECT, REPRODUCED BEFORE ANYTHING WAS DESIGNED.** `_state_of` decided HELD against the pid
