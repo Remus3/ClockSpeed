@@ -156,6 +156,14 @@ a lane is declared, and a name list beside it goes stale on the first edit that
 forgets it. The name also carries THIS CHECKOUT's identity, because a named mutex
 is a machine-wide object and this box runs sibling projects.
 
+AND THE NARROWING IS PAID FOR BY A SECOND, BOX-WIDE GUARD. Scoping the driver
+mutex per lane AND per checkout opened a hole the old constant had closed by
+accident: two clones at different paths derive different names and keep disjoint
+lock roots, while `lane_launcher.WORKTREE_BASE` resolves both to ONE
+`cs-lane-<lane>` checkout - two workers in one working directory. So
+`_driver_singleton` takes `worktree_mutex` as well, keyed on the working
+directory and on nothing else, and a refusal on either guard refuses the run.
+
 STOP IS THREE FILES, CHECKED BEFORE EVERY CYCLE INCLUDING THE FIRST. A driver
 that only checks between cycles fires one unwanted worker on every start, and
 against this lane that is one work item executed and committed.
@@ -458,6 +466,9 @@ _NO_WINDOW = 0x08000000 if os.name == "nt" else 0  # CREATE_NO_WINDOW
 #: it goes stale the first time somebody adds a lane and forgets the second
 #: edit. This stem is the part every lane shares.
 DRIVER_MUTEX_STEM = "CS_QUEUE_LOOP_DRIVER"
+#: The BOX-WIDE guard's stem - see `worktree_mutex`. Deliberately carries no
+#: repository token: it is the one name two different clones must agree on.
+WORKTREE_MUTEX_STEM = "CS_LANE_WORKTREE"
 #: Everything a mutex name may not carry past its namespace prefix, folded to
 #: one replacement - see `_lane_token` on why a digest rides along behind it.
 _MUTEX_UNSAFE = re.compile(r"[^A-Za-z0-9]")
@@ -910,24 +921,71 @@ def driver_mutex(lane: str) -> str:
     return f"Global\\{DRIVER_MUTEX_STEM}_{_repo_token()}_{_lane_token(lane)}"
 
 
-def _driver_singleton(lane: str):
-    """Hold the LANE's driver mutex for the whole run, or raise at once.
+def worktree_mutex(worktree) -> str:
+    """The BOX-WIDE guard over one working directory. NOT scoped to a checkout.
 
-    ONE DRIVER PER LANE, not one per box. The lane lock stops two WORKERS; this
-    stops two DRIVERS of the same lane, which the lock cannot see because a
-    driver claims and releases the lock once per cycle and is otherwise idle.
+    THIS IS THE HALF THAT MUST NOT BE NARROWED, and it exists because narrowing
+    the driver mutex per checkout opened a hole the old box-wide constant had
+    closed by accident. Measured: two clones of this repository at different
+    paths derive DIFFERENT driver mutexes and keep DISJOINT lock roots, while
+    `lane_launcher.WORKTREE_BASE` resolves both to the SAME
+    `cs-lane-<lane>` checkout on the same branch. Two workers in one working
+    directory is the concurrent-index corruption class, and it is not
+    recoverable by retrying.
 
-    `timeout=0` makes this a TEST rather than a wait. A second driver must exit
+    So the name is keyed on the WORKING DIRECTORY and on nothing else - no repo
+    token, no lane. Whoever is about to write in that directory takes this,
+    whichever clone, whichever lane, whichever branch they think they are on.
+    The path is normalised and digested rather than spelled: a worktree base
+    under a home directory would otherwise put the account name into an object
+    any process on the box can enumerate.
+
+    Args:
+        worktree: The working directory the driver will write in.
+
+    Returns:
+        The mutex name, in the machine-wide namespace.
+    """
+    key = os.path.normcase(os.path.normpath(str(worktree)))
+    digest = hashlib.sha256(key.encode("utf-8")).hexdigest()[:_TOKEN_HEX]
+    return f"Global\\{WORKTREE_MUTEX_STEM}_{digest}"
+
+
+@contextlib.contextmanager
+def _driver_singleton(lane: str, worktree=None):
+    """Hold BOTH run-length guards, or raise at once.
+
+    ONE DRIVER PER LANE, not one per box: the lane lock stops two WORKERS, and
+    the driver mutex stops two DRIVERS of the same lane in the same checkout,
+    which the lock cannot see because a driver claims and releases it once per
+    cycle and is otherwise idle.
+
+    ONE DRIVER PER WORKING DIRECTORY, ACROSS CHECKOUTS. The second guard is the
+    box-wide one and is taken INSIDE the first, so a refusal on either one is a
+    refusal to run. Narrowing the driver mutex per lane and per checkout without
+    it would let two clones fire two workers into one worktree - see
+    `worktree_mutex`.
+
+    `timeout=0` makes both a TEST rather than a wait. A second driver must exit
     at once with a distinct code; queueing it behind the first for six hours
     would start a run nobody asked for, at a time nobody chose.
 
     Args:
         lane: The lane being driven.
+        worktree: The working directory, or None to resolve the lane's own. It
+            is resolved HERE rather than in `main` so a caller injecting its own
+            guard never touches the launcher.
 
-    Returns:
-        The context manager held for the whole run.
+    Yields:
+        None, for the length of the run.
     """
-    return _mod("winmutex").hold(driver_mutex(lane), timeout=0.0, log=_emit)
+    tree = _mod("lane_launcher").worktree_path(lane) if worktree is None else worktree
+    winmutex = _mod("winmutex")
+    with (
+        winmutex.hold(driver_mutex(lane), timeout=0.0, log=_emit),
+        winmutex.hold(worktree_mutex(tree), timeout=0.0, log=_emit),
+    ):
+        yield
 
 
 def _ledger_lock():
@@ -2554,14 +2612,19 @@ def main(argv=None, *, singleton=None) -> int:
         # look busy, and each spends up to ten minutes per cycle losing the
         # acquire race to the other while their rows interleave in one ledger.
         #
-        # THE NAME IS THE LANE'S OWN, so the refusal says WHICH lane is already
-        # driven rather than implying the box is busy - a driver on another lane
-        # is unaffected and must not be stopped on the strength of this line.
+        # BOTH GUARDS ARE NAMED, and the exception is NOT rendered - str() on a
+        # caught object is the personal-data channel non-negotiable 12 closes,
+        # and tests/test_exception_rendering.py walks every tracked module for
+        # it. Which of the two refused is already in the log: winmutex emits an
+        # ACQUIRED line for the one that was taken, and nothing for the one that
+        # was not.
         _emit(
-            f"queue-loop refused: another driver already holds "
-            f"{driver_mutex(args.lane)} for lane {args.lane!r}. Two drivers on "
-            f"one lane interleave on its lock and append to one ledger. Stop "
-            f"that one first: taskkill /F /T /PID <pid>"
+            f"queue-loop refused: one of the two run-length guards is already "
+            f"held. Per lane and checkout: {driver_mutex(args.lane)} for lane "
+            f"{args.lane!r}. Box-wide over the working directory: "
+            f"{worktree_mutex(_mod('lane_launcher').worktree_path(args.lane))}. "
+            f"The second is held by ANY clone driving that directory. Stop that "
+            f"one first: taskkill /F /T /PID <pid>"
         )
         return EXIT_ALREADY_RUNNING
 

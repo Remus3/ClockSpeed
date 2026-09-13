@@ -23,20 +23,34 @@ an arm that catches one is usually blind to the other:
     that never excludes. Caught by the exclusion arm and by the stability half
     of the concurrency arm.
 
-NO ARM HERE TAKES A REAL OS MUTEX, and it is structural rather than promised: the
-stand-in below is installed by an AUTOUSE fixture, so no test in this module can
-reach the Win32 namespace even by accident. The sibling project this substrate
-came from shipped arms that took its real driver mutex, and they went red exactly
-when a lane was running - the one time a suite must not.
+A PREMISE THIS FILE ONCE STATED IS FALSE, AND THE CORRECTION IS THE REASON THE
+REAL-PRIMITIVE ARM EXISTS. It said a Windows named mutex is re-entrant "for the
+thread that owns it" and concluded that an in-process arm could not observe
+exclusion at all. Ownership is per-THREAD, so the conclusion does not follow:
+a SECOND THREAD in the same process observes exclusion exactly. Measured against
+the shipped ``ops/loop/winmutex.py`` on this box:
 
-WHY A STAND-IN IS THE RIGHT ORACLE HERE AND NOT A WEAKENING. A Windows named
-mutex is RE-ENTRANT for the thread that owns it, so a second acquire inside ONE
-process succeeds whatever the name is. An in-process arm over the real primitive
-therefore cannot observe exclusion at all, and would pass just as happily for a
-derivation that collapsed every lane onto one name - an oracle blind to its own
-subject. Cross-process exclusion is ``ops/loop/winmutex.py``'s subject and is
-pinned there by digest; what is under test HERE is the NAME the driver asks for,
-and the stand-in observes exactly that.
+    same thread, nested, one name      -> ACQUIRED  (the only true half)
+    another thread, the same name      -> REFUSED   (real exclusion, in-process)
+    another thread, a different name   -> ACQUIRED  (the control)
+
+So the same-thread nesting the stand-in arms use is a statement about the MODEL
+and not about Win32 - the stand-in is STRICTER than the primitive - and
+``test_the_real_named_mutex_excludes_a_second_thread`` grades the primitive
+itself on two threads. It takes a mutex whose lane token is unique to the run,
+never a production lane's name, so it cannot go red because a real lane happens
+to be running - which is the failure the sibling project shipped.
+
+WHAT THE STAND-IN IS STILL FOR, stated as a boundary. It runs on every platform
+and it records the NAME each guard asked for, which is what makes a collapsed or
+degenerate derivation visible. THE GAP IT CANNOT SEE IS RECORDED RATHER THAN
+IMPLIED: ``winmutex.hold`` has three fail-open branches that yield None and
+serialise NOTHING - off win32, on a failed CreateMutexW, and on an unexpected
+wait result - and the stand-in has none of them, so on a non-win32 CI leg every
+``_driver_singleton`` excludes nothing while every arm here still passes.
+``test_the_fail_open_branch_is_loud_rather_than_silent`` forces that branch and
+asserts the marker reaches the driver's own log sink, so the occasion is visible
+in the run log even though no arm can make it a failure.
 
 ASSERTIONS ARE MADE ON SCALARS BOUND FIRST. Every arm works under ``tmp_path``,
 and pytest renders an asserted expression's sub-expressions with their own reprs
@@ -47,7 +61,10 @@ print a temporary directory into the failure report.
 from __future__ import annotations
 
 import itertools
+import os
 import sys
+import threading
+import uuid
 from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
@@ -63,12 +80,24 @@ if str(ROOT) not in sys.path:
 # A PLAIN IMPORT, never importorskip: a missing driver must be a COLLECTION
 # error rather than a quiet skip, and the package route is the one production
 # uses, so this suite holds the same module objects the driver does.
-from ops.loop import lanes, queue_loop  # noqa: E402
+from ops.loop import lane_launcher, lanes, queue_loop, winmutex  # noqa: E402
 
 #: The real exception the driver catches, taken from the module the driver
 #: itself resolves. The stand-in raises THIS class rather than a look-alike,
 #: which is what makes the refusal path the same one `main` handles.
 MutexTimeout: Final = queue_loop.winmutex.MutexTimeout
+
+#: The driver's own source, read once - the fail-open arm asks whether the
+#: driver passes a log sink, which is a property of the call site rather than
+#: of any value it returns.
+DRIVER_SOURCE: Final = (ROOT / "ops" / "loop" / "queue_loop.py").read_text(encoding="utf-8")
+
+#: Both run-length guards a driver takes: per lane and checkout, then
+#: box-wide over the working directory.
+TWO_GUARDS: Final = 2
+
+#: A bounded join, so a wedged thread fails the arm instead of the session.
+THREAD_JOIN_S: Final = 10.0
 
 RUN_ID: Final = "cs992a"
 OTHER_RUN_ID: Final = "cs992b"
@@ -214,7 +243,7 @@ def test_the_driver_reaches_the_stand_in_and_never_the_real_namespace() -> None:
 
 
 def test_the_driver_asks_for_the_derived_name_and_never_for_another(
-    mutexes: NameKeyedMutexes,
+    tmp_path: Path, mutexes: NameKeyedMutexes
 ) -> None:
     """A RECORDING SPY, because an outcome alone cannot see WHICH name was used.
 
@@ -223,10 +252,15 @@ def test_the_driver_asks_for_the_derived_name_and_never_for_another(
     driver's own guard apart from one that consulted something else. This reads
     the name off the namespace as it was asked for.
     """
+    trees = {lane: tmp_path / f"cs-lane-{lane}" for lane in LANE_LIST}
     for lane in LANE_LIST:
-        with queue_loop._driver_singleton(lane):  # noqa: SLF001 - the subject
+        with queue_loop._driver_singleton(lane, trees[lane]):  # noqa: SLF001 - the subject
             pass
-    expected = [queue_loop.driver_mutex(lane) for lane in LANE_LIST]
+    expected = [
+        name
+        for lane in LANE_LIST
+        for name in (queue_loop.driver_mutex(lane), queue_loop.worktree_mutex(trees[lane]))
+    ]
     assert mutexes.asked == expected
 
 
@@ -272,12 +306,12 @@ def test_two_distinct_lanes_reach_acquisition_together(
     # the stand-in underneath it. Reaching it through anything else would grade
     # a re-implementation of the thing under test.
     with (
-        queue_loop._driver_singleton(first),  # noqa: SLF001
-        queue_loop._driver_singleton(second),  # noqa: SLF001
+        queue_loop._driver_singleton(first, tmp_path / f"cs-lane-{first}"),  # noqa: SLF001
+        queue_loop._driver_singleton(second, tmp_path / f"cs-lane-{second}"),  # noqa: SLF001
     ):
         held = len(mutexes.held)
     stable = queue_loop.driver_mutex(first) == queue_loop.driver_mutex(first)
-    assert (claimed, held, stable) == ((True, True), len({first, second}), True)
+    assert (claimed, held, stable) == ((True, True), TWO_GUARDS * len({first, second}), True)
 
 
 # ===========================================================================
@@ -300,10 +334,11 @@ def test_two_drivers_on_one_lane_still_exclude(
     first = _claim(lane, root, tmp_path / "wt-a")
     second = _claim(lane, root, tmp_path / "wt-b", OTHER_RUN_ID)
     refused = False
-    with queue_loop._driver_singleton(lane):  # noqa: SLF001 - see the arm above
+    tree = tmp_path / f"cs-lane-{lane}"
+    with queue_loop._driver_singleton(lane, tree):  # noqa: SLF001 - see the arm above
         held_by_the_first = len(mutexes.held)
         try:
-            with queue_loop._driver_singleton(lane):  # noqa: SLF001 - same
+            with queue_loop._driver_singleton(lane, tree):  # noqa: SLF001 - same
                 pass
         except MutexTimeout:
             refused = True
@@ -312,7 +347,7 @@ def test_two_drivers_on_one_lane_still_exclude(
         other for other in LANE_LIST if other != lane and queue_loop.driver_mutex(other) == mine
     )
     verdict = (bool(first.get("ok")), second.get("refused"), refused, held_by_the_first, shared)
-    assert verdict == (True, "lane_held", True, 1, [])
+    assert verdict == (True, "lane_held", True, TWO_GUARDS, [])
 
 
 # ===========================================================================
@@ -420,3 +455,211 @@ def test_the_ledger_mutex_is_lane_independent_and_never_a_driver_name() -> None:
     collided = sorted(name for name in names if name == queue_loop.LEDGER_MUTEX)
     is_one_name = isinstance(queue_loop.LEDGER_MUTEX, str)
     assert (collided, is_one_name) == ([], True)
+
+
+# ===========================================================================
+# g. The REAL primitive, on two threads - the model is not the subject
+# ===========================================================================
+
+
+def test_the_real_named_mutex_excludes_a_second_thread() -> None:
+    """Exclusion measured on ``winmutex.hold`` itself, with both controls.
+
+    THE STAND-IN IS NOT THE SUBJECT HERE, and this arm is what keeps the rest of
+    this file honest: it takes the REAL machine-wide object, on two threads in
+    one process, and reads all three outcomes. The name comes from the shipped
+    derivation but from a lane token unique to this run, so the arm can never
+    collide with a lane that is actually running on this box.
+
+    OFF WIN32 THIS IS A SKIP AND THE SKIP IS THE POINT. ``winmutex`` yields
+    unheld there and says so with its own marker; pretending to measure
+    exclusion on a platform that has none is how a green leg comes to mean
+    nothing. The forced-fail-open arm below runs on every platform and grades
+    that behaviour directly.
+    """
+    if sys.platform != "win32":
+        pytest.skip("no named-mutex namespace off win32 - see the fail-open arm below")
+    name = queue_loop.driver_mutex(f"cs992-arm-{uuid.uuid4().hex[:8]}")
+    other = queue_loop.driver_mutex(f"cs992-arm-{uuid.uuid4().hex[:8]}")
+    outcomes: dict[str, str] = {}
+
+    def take(key: str, wanted: str) -> None:
+        """Try to hold one name on THIS thread and record what happened."""
+        try:
+            with winmutex.hold(wanted, timeout=0.0):
+                outcomes[key] = "ACQUIRED"
+        except winmutex.MutexTimeout:
+            outcomes[key] = "REFUSED"
+
+    with winmutex.hold(name, timeout=0.0):
+        take("same_thread_nested", name)
+        for key, wanted in (("other_thread_same", name), ("other_thread_other", other)):
+            worker = threading.Thread(target=take, args=(key, wanted))
+            worker.start()
+            worker.join(timeout=THREAD_JOIN_S)
+    measured = (
+        outcomes.get("same_thread_nested"),
+        outcomes.get("other_thread_same"),
+        outcomes.get("other_thread_other"),
+    )
+    assert measured == ("ACQUIRED", "REFUSED", "ACQUIRED")
+
+
+def test_the_fail_open_branch_is_loud_rather_than_silent(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The recorded gap: three branches in ``hold`` serialise NOTHING.
+
+    None of them can be made a failure here - a driver that cannot take a mutex
+    must run rather than wedge, which is the shipped ruling. What CAN be graded
+    is that the occasion is not silent: the branch emits the one UNSERIALIZED
+    marker, and the driver passes a log sink so that marker reaches the run log.
+    The platform branch is forced rather than waited for, so this runs and means
+    the same thing on every leg.
+    """
+    lines: list[str] = []
+    monkeypatch.setattr(winmutex.sys, "platform", "definitely-not-win32")
+    with winmutex.hold("cs992-forced-fail-open", timeout=0.0, log=lines.append) as handle:
+        unheld = handle is None
+    marked = [line for line in lines if "UNSERIALIZED" in line]
+    # The driver's own sink, read off the source rather than assumed: a fail-open
+    # branch nobody logs is a lock that was not taken and not recorded either.
+    sink = "log=_emit" in DRIVER_SOURCE
+    assert (unheld, len(marked), sink) == (True, 1, True)
+
+
+# ===========================================================================
+# h. FINDING A - the slot index is positional, the recorded lane is not
+# ===========================================================================
+
+
+def test_a_roster_insertion_cannot_hide_a_live_holder(tmp_path: Path) -> None:
+    """THE COUNTER-EXAMPLE, as an arm. It reddens against a positional lookup.
+
+    Insert one lane at the FRONT of the roster and every slot index under it
+    re-points. A reader that resolved a lane by position alone then reads the
+    wrong file, reports FREE over a live worker, and the next claim double-books
+    the worktree - the concurrent-index corruption class. The claim here is made
+    BEFORE the roster moves and probed after, which is exactly the order a
+    roster edit lands in against a running lane.
+    """
+    root = tmp_path / "locks"
+    claimed = bool(_claim("queue", root, tmp_path / "wt-a").get("ok"))
+    held_at = sorted(path.name for path in root.iterdir())
+    monkeypatch_roster = ("queue-a-priority", "queue", "queue-b")
+    with pytest.MonkeyPatch.context() as patch:
+        patch.setattr(lanes, "LANES", monkeypatch_roster)
+        moved = lanes.lock_path(root=root, lane="queue").name
+        state = lanes.lane_state(root, None, "queue")
+        again = _claim("queue", root, tmp_path / "wt-b", OTHER_RUN_ID)
+    verdict = (claimed, held_at, moved, state["state"], state["pid"], again.get("refused"))
+    assert verdict == (True, ["0.lock"], "1.lock", lanes.RUNNING, os.getpid(), "lane_held")
+
+
+# ===========================================================================
+# i. FINDING B - two clones, one worktree, and the guard that stops them
+# ===========================================================================
+
+
+def test_two_clones_driving_one_worktree_exclude(
+    tmp_path: Path, mutexes: NameKeyedMutexes, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The regression the per-checkout narrowing would otherwise have opened.
+
+    Two clones at different paths derive DIFFERENT driver mutexes and keep
+    DISJOINT lock roots, while the launcher resolves both to ONE working
+    directory. Nothing repo-scoped can see that, so the second guard is keyed on
+    the directory alone. Measured by moving the repository identity between two
+    acquisitions of the SAME lane against the SAME worktree.
+    """
+    tree = tmp_path / "cs-lane-queue"
+    lane = LANE_LIST[0]
+    with queue_loop._driver_singleton(lane, tree):  # noqa: SLF001 - the subject
+        names_held = sorted(mutexes.held)
+        monkeypatch.setattr(lanes, "REPO_ROOT", tmp_path / "another-clone")
+        second_clone = queue_loop.driver_mutex(lane)
+        refused = False
+        try:
+            with queue_loop._driver_singleton(lane, tree):  # noqa: SLF001 - same
+                pass
+        except MutexTimeout:
+            refused = True
+    distinct_driver_names = second_clone not in names_held
+    guards_taken = len(names_held)
+    assert (distinct_driver_names, refused, guards_taken) == (True, True, 2)
+
+
+def test_a_second_worktree_is_not_refused_by_the_box_wide_guard(
+    tmp_path: Path, mutexes: NameKeyedMutexes
+) -> None:
+    """THE CONTROL for the arm above - the guard must not refuse everything.
+
+    A guard that refused any second driver would pass the exclusion arm while
+    making a second lane impossible, which is the defect this whole item exists
+    to remove. Two lanes in two working directories run together.
+    """
+    first, second = LANE_PAIRS[0]
+    with (
+        queue_loop._driver_singleton(first, tmp_path / "cs-lane-one"),  # noqa: SLF001
+        queue_loop._driver_singleton(second, tmp_path / "cs-lane-two"),  # noqa: SLF001
+    ):
+        held = len(mutexes.held)
+    # Two guards each, and every name distinct: the driver half by lane, the
+    # box-wide half by directory.
+    assert held == TWO_GUARDS * len({first, second})
+
+
+def test_the_box_wide_guard_carries_no_repository_token(tmp_path: Path) -> None:
+    """It is the ONE name two clones must agree on, so it may not be narrowed.
+
+    Measured the only way that means anything: move the repository identity and
+    the lane, and watch the name stay put, while moving the DIRECTORY moves it.
+    """
+    tree = tmp_path / "cs-lane-queue"
+    before = queue_loop.worktree_mutex(tree)
+    with pytest.MonkeyPatch.context() as patch:
+        patch.setattr(lanes, "REPO_ROOT", tmp_path / "another-clone")
+        after_move = queue_loop.worktree_mutex(tree)
+    elsewhere = queue_loop.worktree_mutex(tmp_path / "cs-lane-other")
+    spelled = str(tree) in before
+    assert (after_move, before != elsewhere, spelled) == (before, True, False)
+
+
+# ===========================================================================
+# j. The second lane is claimable but NOT yet launchable, and that is MEASURED
+# ===========================================================================
+
+
+def test_a_claimed_but_unwired_lane_is_released_rather_than_wedged(tmp_path: Path) -> None:
+    """The roster is wider than the WIRING, so this path is live today.
+
+    ``lane_launcher.LANE_COMMANDS`` has no entry for the second lane, so a fire
+    against it claims the lane and then cannot start a worker. That was reasoned
+    from reading the release path and is now measured: the refusal names the
+    reason, the lock is GONE, and the lane reads FREE rather than wedged behind
+    a claimer that never spawned. The spawn seam raises if it is ever reached,
+    so the arm cannot pass by starting a real process.
+    """
+    root = tmp_path / "locks"
+    unwired = sorted(set(LANE_LIST) - set(lane_launcher.LANE_COMMANDS))
+    if not unwired:
+        pytest.skip("every lane on the roster is wired - this path is no longer reachable")
+    lane = unwired[0]
+    claim = _claim(lane, root, tmp_path / "wt")
+
+    def never_spawn(*_args: Any, **_kwargs: Any) -> Any:
+        """The default really starts a process, so reaching it is the failure."""
+        message = "the launcher reached a spawn for an unwired lane"
+        raise AssertionError(message)
+
+    with pytest.raises(lane_launcher.LaneLaunchError) as caught:
+        lane_launcher.launch_lane(
+            lane, run_id=RUN_ID, token=claim["token"], root=tmp_path, spawn=never_spawn
+        )
+    verdict = (
+        bool(claim.get("ok")),
+        caught.value.reason,
+        sorted(path.name for path in root.iterdir()),
+        lanes.lane_state(root, None, lane)["state"],
+    )
+    assert verdict == (True, lane_launcher.REASON_LANE_NOT_WIRED, [], lanes.FREE)

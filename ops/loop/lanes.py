@@ -40,6 +40,23 @@ believes it owns something another holder also believes it owns. A lane off the
 roster gets no slot at all rather than the default one - handing a typo the
 first lane's lock would claim a running worker's slot.
 
+THE SLOT INDEX IS POSITIONAL, AND POSITION IS NOT THE KEY THE DECISION RESTS ON.
+That distinction is the whole of this paragraph and it was measured rather than
+imagined. Inserting a lane at the FRONT of the roster re-points every slot
+under it: the lane that used to be slot 0 reads slot 1, finds nothing, reports
+FREE - and the live worker still holding slot 0 is invisible. A second worker
+then enters a worktree that already has one, which is the concurrent-index
+corruption class the worktree rule exists to prevent. TWO THINGS ANSWER IT, and
+neither is enough alone:
+
+  * ``tests/test_lane_lock.py`` PINS THE ROSTER'S ORDER by literal equality, so a
+    reorder or an insertion is red rather than silent. A pin is a tripwire.
+  * ``lock_for_lane`` makes the RECORDED LANE authoritative and the slot index
+    merely where a NEW claim is written. Every reader resolves a lane to the lock
+    that says it holds that lane, wherever in the bucket it sits, so a re-pointed
+    index cannot hide a live holder even from somebody who edited past the pin.
+    That is the structural half, and it is what makes the tripwire survivable.
+
 WHY THREE STATES AND NOT TWO. A lock file whose pid is DEAD is indistinguishable
 from a live holder by file inspection alone: it has the same name, the same
 shape and a plausible timestamp. Every reader that treats EXISTENCE as RUNNING
@@ -474,6 +491,59 @@ def lock_path(root: Any = None, lane: Any = None) -> Path:
     return _resolve_root(root) / lock_name(DEFAULT_LANE if lane is None else lane)
 
 
+def _lock_files(root: Any) -> list[Path]:
+    """Every lock file sitting in one root, sorted. Reads nothing else.
+
+    Total by construction: a root that does not exist, or cannot be listed,
+    answers an empty list rather than raising on the poll path.
+
+    Args:
+        root: The lock root.
+
+    Returns:
+        The lock files present.
+    """
+    try:
+        return sorted(p for p in Path(root).iterdir() if p.suffix == ".lock" and p.is_file())
+    except OSError:
+        return []
+
+
+def lock_for_lane(root: Any = None, lane: Any = None) -> Path:
+    """The lock that HOLDS this lane, or the slot a new claim would be written to.
+
+    THE RECORDED LANE IS AUTHORITATIVE, THE SLOT INDEX IS NOT. ``lock_path`` is
+    positional and a roster edit re-points it; a reader that trusted position
+    alone would report FREE over a live holder sitting at the old index, and the
+    next claim would double-book a running worker. So the derived slot is tried
+    first - it is right in every ordinary case and costs one stat - and only when
+    nothing is there does this look for a lock that NAMES this lane.
+
+    WHAT IT DELIBERATELY DOES NOT DO: attribute an unparseable lock. A lock with
+    no readable payload names no lane, so it is left to whichever lane keyed it
+    rather than being claimed by the first reader that stumbles on it - the
+    write-grace window in ``lane_state`` is the answer to that one.
+
+    Args:
+        root: The lock root, or None for the default.
+        lane: The lane, or None for ``DEFAULT_LANE``.
+
+    Returns:
+        The lock holding the lane, or the slot it would be claimed in.
+
+    Raises:
+        ValueError: The lane is not on the roster.
+    """
+    wanted = str(DEFAULT_LANE if lane is None else lane)
+    slot = lock_path(root, wanted)
+    if slot.exists():
+        return slot
+    for candidate in _lock_files(_resolve_root(root)):
+        if _str_or_none(_read_payload(candidate).get("lane")) == wanted:
+            return candidate
+    return slot
+
+
 def _read_payload(lock: Path) -> dict[str, Any]:
     """The lock's payload, or {} when it is missing, empty or half-written.
 
@@ -523,7 +593,7 @@ def lane_state(root: Any = None, now: Any = None, lane: Any = None) -> dict[str,
     Raises:
         ValueError: The lane is not on the roster.
     """
-    lock = lock_path(root, lane)
+    lock = lock_for_lane(root, lane)
     reading = time.time() if now is None else float(now)
     if not lock.exists():
         return {
@@ -695,7 +765,7 @@ def _reclaim(root: Path, lane: Any) -> bool:
     Returns:
         True when the lane is free afterwards.
     """
-    lock = lock_path(root, lane)
+    lock = lock_for_lane(root, lane)
     if not lock.exists():
         return True
     if lane_state(root, None, lane)["state"] != RECLAIMABLE:

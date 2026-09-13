@@ -206,27 +206,53 @@ def _acquire(root: Path, worktree: Path, run_id: str = RUN_ID) -> dict[str, Any]
 # ===========================================================================
 
 
-def test_the_roster_carries_the_queue_lane_and_one_slot_for_each_lane() -> None:
-    """CS-992 widened this from a single slot to one slot per lane.
+def test_the_roster_and_the_slot_it_maps_each_lane_to_are_pinned() -> None:
+    """FOUR TAUTOLOGIES REPLACED - an assertion that cannot fail is not a pin.
 
-    THE WIDTH IS DERIVED AND GRADED BY EQUALITY, never by a floor. A floor over
-    the roster or the bucket grades the bottom of a range, so a roster that had
-    silently lost a lane - or a ``lock_name`` that had collapsed every lane onto
-    one file - would still satisfy it. The second enumeration here is the set of
-    names ``lock_name`` actually produces, which is the mechanism the lock uses
-    rather than the arithmetic ``MAX_SLOTS`` comes from.
+    What stood here graded MEMBERSHIP and left the MAPPING ungraded, which is the
+    CS-988 shape. Every one of them held for ANY roster: ``"queue" in LANES`` is
+    order-blind; ``LOCK_NAME == "0.lock"`` is true for any roster at all, because
+    LOCK_NAME is ``lock_name(LANES[0])``; ``DEFAULT_LANE == LANES[0]`` restates a
+    definition; and a width equality holds for any distinct roster. Meanwhile the
+    slot index is POSITIONAL, so inserting one lane at the front re-points every
+    slot under it - and nothing here could say so.
+
+    THIS PINS THE MAPPING ITSELF, lane by lane, against literals. Adding,
+    removing, renaming or REORDERING a lane reddens it, which is the intent: the
+    roster's order decides where a claim is written, so an edit to it has to be
+    deliberate. ``tests/ops/test_multi_lane.py`` carries the other half - that a
+    roster edit made anyway cannot hide a LIVE holder, because ``lock_for_lane``
+    resolves by the recorded lane rather than by position.
     """
-    wired = "queue" in lanes.LANES
-    assert wired, "the queue lane is the roster's reason to exist"
+    pinned = (lanes.LANES, lanes.DEFAULT_LANE, lanes.lock_name("queue"), lanes.lock_name("queue-b"))
+    assert pinned == (("queue", "queue-b"), "queue", "0.lock", "1.lock")
+    # The width and the bucket are DERIVED from the roster above rather than
+    # restated beside it, and the second enumeration is the set of names
+    # ``lock_name`` actually produces - the mechanism, not the arithmetic.
     slots = {lanes.lock_name(lane) for lane in lanes.LANES}
-    counted = (lanes.MAX_SLOTS, len(slots))
-    assert counted == (len(lanes.LANES), len(lanes.LANES))
-    # The upstream bucket names slot i ``<i>.lock``, and the roster's first lane
-    # is the one a caller naming no lane gets. ``tests/test_lane_launcher.py``
-    # reads LOCK_NAME as the queue lane's own lock, so both halves are contract.
-    named = (lanes.LOCK_NAME, lanes.DEFAULT_LANE)
-    expected = ("0.lock", lanes.LANES[0])
-    assert named == expected
+    counted = (lanes.MAX_SLOTS, len(slots), lanes.LOCK_NAME)
+    assert counted == (len(lanes.LANES), len(lanes.LANES), lanes.lock_name("queue"))
+
+
+def test_a_lock_is_resolved_by_the_lane_it_records_not_by_its_slot(tmp_path: Path) -> None:
+    """The structural half of the order defect, graded where the lock lives.
+
+    A lock sitting at a slot the current roster would NOT derive still belongs to
+    the lane its payload names. Planted at the far end of the bucket so the
+    derived path cannot accidentally be right.
+    """
+    root = tmp_path / "lanes"
+    root.mkdir(parents=True, exist_ok=True)
+    stray = root / "7.lock"
+    # The planted holder is THIS process, start time included, so the arm
+    # grades resolution rather than tripping the pid-reuse guard on a
+    # fixture's stand-in timestamp.
+    live = _payload(pid_started=lanes.proc_started(os.getpid()))
+    stray.write_bytes(json.dumps(live).encode("utf-8"))
+    found = lanes.lock_for_lane(root, "queue").name
+    derived = lanes.lock_path(root, "queue").name
+    state = lanes.lane_state(root, None, "queue")["state"]
+    assert (found, derived, state) == ("7.lock", "0.lock", lanes.RUNNING)
 
 
 def test_the_module_docstring_does_not_recite_the_size_of_the_roster() -> None:
