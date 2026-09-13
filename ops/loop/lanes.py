@@ -814,9 +814,86 @@ def _reclaim(root: Path, lane: Any) -> bool:
     return not lock.exists()
 
 
+def same_tree(left: Any, right: Any) -> bool:
+    """Whether two spellings name one directory.
+
+    RESOLVED ON BOTH SIDES BEFORE COMPARING. Windows hands out 8.3 short
+    components - a path under a long account name is the common source - and
+    :func:`path_key` normalises case and separators but does NOT expand them, so
+    two spellings of one directory would compare unequal. Public because
+    ``ops/loop/claims.py`` asks the same question about the same worktrees, and
+    a second copy of a path comparison is a second place for it to go subtly
+    wrong.
+
+    Args:
+        left: One path.
+        right: The other.
+
+    Returns:
+        True when both name one directory.
+    """
+    try:
+        return path_key(Path(str(left)).resolve()) == path_key(Path(str(right)).resolve())
+    except OSError:
+        return False
+
+
 def _refusal(state: dict[str, Any]) -> dict[str, Any]:
     """The answer a genuinely held lane gets. Writes nothing, by construction."""
     return {"ok": False, "refused": "lane_held", "holder": state["lane"], "pid": state["pid"]}
+
+
+def _worktree_refusal(state: dict[str, Any]) -> dict[str, Any]:
+    """The answer a lane pointed at somebody else's tree gets. Writes nothing.
+
+    ITS OWN REASON STRING, not ``lane_held``. The two faults need different
+    operator actions - one waits, the other repoints a lane - and a driver log
+    that showed the same word for both would send whoever reads it looking at
+    the wrong lane.
+    """
+    return {
+        "ok": False,
+        "refused": "worktree_in_use",
+        "holder": state["lane"],
+        "pid": state["pid"],
+        "worktree": state["worktree"],
+    }
+
+
+def _worktree_occupant(root: Path, lane: Any, target: Path) -> dict[str, Any] | None:
+    """The OTHER lane running in this worktree, if any.
+
+    TWO LANES IN ONE TREE IS A CROSS-LANE DELETION, measured rather than
+    theorised. ``ops/loop/claims.py`` derives WHICH LANE a releasing process
+    belongs to by matching its checkout against the worktree these locks record.
+    With two live locks naming one tree that derivation is ambiguous, and an
+    adversary measured the consequence: one lane deleted the other's LIVE claim
+    record while naming nothing but the public row id, and the lane that lost
+    the tie could never release its own records at all.
+
+    ``claims.py`` now refuses to guess when it sees this state, which turns the
+    deletion into a leak. This stops the state being reached in the first place,
+    and the two are not redundant: a lock written by an older build is already
+    on disk and never passes through here.
+
+    Args:
+        root: The lock root.
+        lane: The lane asking, which is not its own occupant.
+        target: The worktree it wants.
+
+    Returns:
+        The occupying lane's reading, or None when the tree is free.
+    """
+    for other in LANES:
+        if other == str(lane):
+            continue
+        reading = lane_state(root, None, other)
+        if reading["state"] != RUNNING:
+            continue
+        recorded = str_or_none(reading.get("worktree"))
+        if recorded is not None and same_tree(recorded, target):
+            return reading
+    return None
 
 
 def try_acquire_lane(lane: str, *, run_id: Any, worktree: Any, root: Any = None) -> dict[str, Any]:
@@ -827,6 +904,10 @@ def try_acquire_lane(lane: str, *, run_id: Any, worktree: Any, root: Any = None)
     refused, and the refusal touches nothing on disk - the state is read BEFORE
     any mkdir or scratch write for exactly that reason.
 
+    A WORKTREE ANOTHER LIVE LANE RECORDS IS REFUSED TOO, and for a reason that
+    belongs to a different module - see :func:`_worktree_occupant`. Two lanes in
+    one tree was measured to let one delete the other's live row claim.
+
     Args:
         lane: The lane to claim. Must be in ``LANES``.
         run_id: The caller's identifier for this run.
@@ -836,8 +917,10 @@ def try_acquire_lane(lane: str, *, run_id: Any, worktree: Any, root: Any = None)
     Returns:
         ``{"ok": True, "lane", "run_id", "worktree", "token"}`` on success -
         ``token`` is the lock path and is what ``release_lane`` wants back - or
-        ``{"ok": False, "refused": "lane_held", "holder", "pid"}``, which is a
-        normal answer rather than an error.
+        ``{"ok": False, "refused": "lane_held", "holder", "pid"}`` when the lane
+        is busy, or ``{"ok": False, "refused": "worktree_in_use", "holder",
+        "pid", "worktree"}`` when another live lane is already in that tree.
+        Both refusals are normal answers rather than errors.
 
     Raises:
         ValueError: The lane is unknown, or the worktree is absent or the main
@@ -850,6 +933,12 @@ def try_acquire_lane(lane: str, *, run_id: Any, worktree: Any, root: Any = None)
     state = lane_state(directory, None, lane)
     if state["state"] == RUNNING:
         return _refusal(state)
+    # BEFORE THE RECLAIM, so a refusal still touches nothing on disk. Clearing
+    # this lane's stale lock and then refusing would leave the roster changed by
+    # a call that answered no.
+    occupant = _worktree_occupant(directory, lane, target)
+    if occupant is not None:
+        return _worktree_refusal(occupant)
     if state["state"] == RECLAIMABLE:
         _reclaim(directory, lane)
 
