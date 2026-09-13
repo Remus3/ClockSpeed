@@ -157,9 +157,18 @@ is `ops/loop/claims.py`:
 from ops.loop import claims
 row = claims.first_takeable(queue_you_just_computed)          # skips held rows
 held = claims.try_claim_row(row, lane=<your lane>, run_id=<your run id>, worktree=<your tree>)
+if not held["ok"]:                                             # CHECK THIS. See below.
+    ...                                                        # recompute and take the next row
 ...                                                            # the cycle
 claims.release_claim(held["token"])                            # section 11, at the wrap
 ```
+
+**`try_claim_row` REFUSES RATHER THAN RAISING, so a worker that ignores `ok` proceeds on a
+refusal and works a row another lane is holding** - the precise failure the claim exists to
+stop, reintroduced by not reading the answer. A refusal is a NORMAL result: the other lane
+took the row between your queue read and your claim. Recompute the queue and take the next
+row. Do NOT pass `root=` - the store resolves the main checkout for itself, and naming a
+root from inside your lane worktree points you at a private directory nobody else reads.
 
 **WHY THIS EXISTS, because the reason is the shape of the fence below and not a tidiness
 rule.** FENCE 6 makes a closure record in `docs/LEDGER.md` the test of DONE, and that record

@@ -65,19 +65,45 @@ the fences as well, which is a second copy of a different answer.
 
 from __future__ import annotations
 
+import contextlib
+import json
 import os
 import time
+import uuid
 from collections.abc import Iterable, Sequence
 from pathlib import Path
 from typing import Any, Final
 
 from ops.loop import lanes
 
-_HERE: Final = Path(__file__).resolve().parent
+#: One record as every reader here handles it: where it sits, the exact bytes it
+#: was graded from, its payload, and the state that grading produced. THE BYTES
+#: TRAVEL WITH THE GRADE so a reclaim can prove it is removing the record it
+#: graded rather than whatever later took that path.
+_Candidate = tuple[Path, bytes, dict[str, Any], str]
 
-#: Beside the lane locks and under the same gitignored control plane. A claim is
-#: runtime state about this machine's current work and is never tracked.
-DEFAULT_ROOT: Final = _HERE / "control" / "claims"
+#: ROOTED AT THE MAIN CHECKOUT, NEVER AT THIS FILE, and that distinction is the
+#: whole of this comment because getting it wrong makes the store a no-op.
+#:
+#: A CLAIM IS TAKEN WORKER-SIDE. Each lane's worker runs INSIDE ITS OWN CHECKOUT
+#: - ``ops/loop/lane_launcher.py`` hands it a per-lane worktree and the runner
+#: sets its cwd there - so a lane importing this module imports ITS OWN COPY of
+#: it. A root derived from ``__file__`` is therefore a DIFFERENT DIRECTORY IN
+#: EVERY LANE, the two stores never meet, and every lane reads every row FREE
+#: while another holds it. That was measured across two real processes in two
+#: checkouts, both holding one row at once.
+#:
+#: ``lanes.REPO_ROOT`` exists precisely to resolve that indirection: it reads the
+#: ``.git`` FILE a worktree carries and answers the MAIN tree, so every checkout
+#: on this machine agrees on one path. That is what a mutex needs and what
+#: ``__file__`` cannot give.
+#:
+#: WHY THE LANE LOCK GETS AWAY WITH THE OTHER SHAPE, so nobody "fixes" it to
+#: match: the lane lock and the suite ration are taken DRIVER-side, and the
+#: driver runs from the main checkout, so their per-checkout roots already
+#: resolve to one path in practice. This is the first store on the WORKER side.
+#: ``lanes.DEFAULT_ROOT`` is load-bearing for the driver and is left alone.
+DEFAULT_ROOT: Final = lanes.REPO_ROOT / "ops" / "loop" / "control" / "claims"
 
 #: The extension a claim record carries. Distinct from the lane lock's, so a
 #: claim root and a lock root could share a directory without either reader
@@ -208,40 +234,129 @@ def _claim_files(root: Any) -> list[Path]:
         return []
 
 
+def _read_record(path: Path) -> tuple[bytes, dict[str, Any]]:
+    """One record's RAW BYTES and its decoded payload, read in a SINGLE pass.
+
+    THE BYTES ARE KEPT, and that is not an optimisation. :func:`_reclaim` has to
+    prove it removed the record it GRADED rather than whatever happens to occupy
+    that path by the time it gets there, and re-reading to obtain them would
+    open exactly the window that proof exists to close.
+
+    An unreadable, empty or unparseable record decodes to an empty mapping,
+    which names no row and is therefore attributed to nobody.
+
+    Args:
+        path: The record file.
+
+    Returns:
+        Its bytes, and its payload or an empty mapping.
+    """
+    try:
+        raw = path.read_bytes()
+    except OSError:
+        return b"", {}
+    if not raw.strip():
+        return raw, {}
+    try:
+        record = json.loads(raw.decode("utf-8"))
+    except (UnicodeDecodeError, ValueError):
+        return raw, {}
+    return raw, (record if isinstance(record, dict) else {})
+
+
+def _age_of(record: dict[str, Any], path: Path, now: Any) -> float | None:
+    """How old a record is, by its own stamp or failing that by its mtime."""
+    stamp = lanes.float_or_none(record.get("ts"))
+    if stamp is None:
+        try:
+            stamp = path.stat().st_mtime
+        except OSError:
+            return None
+    clock = time.time() if now is None else float(now)
+    return max(0.0, clock - stamp)
+
+
+def _candidates(root: Any, now: Any) -> dict[str, list[_Candidate]]:
+    """Every record in the store, GROUPED BY THE ROW IT NAMES, each graded.
+
+    ONE PASS, ONE GROUPING, AND EVERY READER ABOVE IS BUILT ON IT. The shape
+    this replaces had two resolution rules for one fact - a per-row lookup that
+    tried the derived path first, and a whole-store scan where the last file
+    name won - and they DISAGREED whenever more than one record named a row: the
+    per-row read answered HELD while the scan answered RECLAIMABLE and the queue
+    offered the row to a second lane. Two rules for one fact is a disagreement
+    waiting for an occasion, so there is one rule and every caller shares it.
+
+    A record whose payload names no row is skipped rather than filed under its
+    file name: guessing an identity for an unreadable record is how a reader
+    hands somebody else's row to the next caller.
+
+    Args:
+        root: The claim root.
+        now: The wall clock reading to age the records against.
+
+    Returns:
+        Row id -> its records, in sorted file-name order.
+    """
+    grouped: dict[str, list[_Candidate]] = {}
+    for path in _claim_files(_resolve_root(root)):
+        raw, record = _read_record(path)
+        recorded = lanes.str_or_none(record.get("row"))
+        if recorded is None or not recorded.strip():
+            continue
+        state = _state_of(record, _age_of(record, path, now))
+        grouped.setdefault(recorded.strip().upper(), []).append((path, raw, record, state))
+    return grouped
+
+
+def _authoritative(candidates: list[_Candidate]) -> _Candidate:
+    """Which record speaks for a row when more than one names it.
+
+    A LIVE HOLDER WINS. That is the whole rule and it is the conservative one:
+    refusing a lane a row somebody may still be working costs one cycle, and
+    handing out a row somebody IS working costs two cycles and a contended
+    worktree. So a single HELD record decides the row however many stale ones
+    sit beside it, and no file name can outvote it.
+
+    THE SORTED ORDER IS A TIE-BREAK AND NEVER A DECISION. It chooses between
+    records that are ALL non-HELD, where every choice reports the same state, so
+    it settles which holder is NAMED in the report and nothing else. That
+    boundary is the reason this is not the positional keying the module
+    docstring refuses: position never decides whether a row is held.
+
+    Args:
+        candidates: The records naming one row, in sorted file-name order.
+
+    Returns:
+        The record that speaks for the row.
+    """
+    for entry in candidates:
+        if entry[3] == HELD:
+            return entry
+    return candidates[0]
+
+
 def claim_for_row(row: Any, root: Any = None) -> Path:
-    """The record HOLDING this row, or the path a new claim would be written to.
+    """The record SPEAKING FOR this row, or the path a new claim is written to.
 
     THE RECORDED ROW IS AUTHORITATIVE, THE FILE NAME IS NOT. The name is derived
     and a change to the derivation re-points it; a reader that trusted the name
     alone would report FREE over a live holder filed under the old spelling, and
-    the next claim would double-book a running cycle. So the derived path is
-    tried first - it is right in every ordinary case and costs one stat - and
-    only when nothing is there does this look for a record that NAMES this row.
-
-    WHAT IT DELIBERATELY DOES NOT DO: attribute an unreadable record. A record
-    with no readable payload names no row, so it is left where it is rather than
-    claimed by the first reader that stumbles on it - :data:`WRITE_GRACE_S` in
-    :func:`claim_state` is the answer to that one.
+    the next claim would double-book a running cycle.
 
     Args:
         row: The row id.
         root: The claim root, or None for the default.
 
     Returns:
-        The record holding the row, or the path it would be claimed at.
+        The record speaking for the row, or the path it would be claimed at.
 
     Raises:
         ValueError: The row id cannot be spelled.
     """
     wanted = row_key(row)
-    derived = claim_path(wanted, root)
-    if derived.exists():
-        return derived
-    for candidate in _claim_files(_resolve_root(root)):
-        recorded = lanes.str_or_none(lanes.read_payload(candidate).get("row"))
-        if recorded is not None and recorded.strip().upper() == wanted:
-            return candidate
-    return derived
+    found = _candidates(root, None).get(wanted)
+    return claim_path(wanted, root) if not found else _authoritative(found)[0]
 
 
 # ---------------------------------------------------------------------------
@@ -272,24 +387,17 @@ def _state_of(record: dict[str, Any], age_s: float | None) -> str:
     return HELD
 
 
-def _reading(record: dict[str, Any], path: Path, now: Any) -> dict[str, Any]:
-    """One record rendered as a state answer. NEVER mutates anything."""
-    stamp = lanes.float_or_none(record.get("ts"))
-    if stamp is None:
-        try:
-            stamp = path.stat().st_mtime
-        except OSError:
-            stamp = None
-    clock = time.time() if now is None else float(now)
-    age_s = None if stamp is None else max(0.0, clock - stamp)
+def _reading(entry: _Candidate, now: Any) -> dict[str, Any]:
+    """One graded record rendered as a state answer. NEVER mutates anything."""
+    path, _raw, record, state = entry
     return {
-        "state": _state_of(record, age_s),
+        "state": state,
+        "age_s": _age_of(record, path, now),
         "row": lanes.str_or_none(record.get("row")),
         "lane": lanes.str_or_none(record.get("lane")),
         "pid": lanes.int_or_none(record.get("pid")),
         "run_id": lanes.str_or_none(record.get("run_id")),
         "worktree": lanes.str_or_none(record.get("worktree")),
-        "age_s": age_s,
     }
 
 
@@ -299,6 +407,11 @@ def claim_state(row: Any, root: Any = None, now: Any = None) -> dict[str, Any]:
     RECLAIMABLE means a record is present but its holder is provably gone. It is
     REPORTED, not acted on: clearing it is :func:`try_claim_row`'s job, for the
     reason in the module docstring.
+
+    A LOOKUP OF ONE ROW IS :func:`claim_states` NARROWED, not a second rule. The
+    per-row and whole-store answers were once computed separately and disagreed
+    the moment two records named one row; sharing one implementation makes that
+    disagreement unreachable rather than merely untested.
 
     Args:
         row: The row id.
@@ -312,8 +425,8 @@ def claim_state(row: Any, root: Any = None, now: Any = None) -> dict[str, Any]:
     Raises:
         ValueError: The row id cannot be spelled.
     """
-    record_path = claim_for_row(row, root)
-    if not record_path.exists():
+    found = claim_states(root, now).get(row_key(row))
+    if found is None:
         return {
             "state": FREE,
             "row": None,
@@ -323,7 +436,7 @@ def claim_state(row: Any, root: Any = None, now: Any = None) -> dict[str, Any]:
             "worktree": None,
             "age_s": None,
         }
-    return _reading(lanes.read_payload(record_path), record_path, now)
+    return found
 
 
 def claim_states(root: Any = None, now: Any = None) -> dict[str, dict[str, Any]]:
@@ -335,9 +448,9 @@ def claim_states(root: Any = None, now: Any = None) -> dict[str, dict[str, Any]]
     other way would mean a record filed under a row the caller did not think to
     ask about went unreported.
 
-    A record whose payload names no row is skipped rather than filed under its
-    file name: guessing an identity for an unreadable record is how a reader
-    hands somebody else's row to the next caller.
+    WHERE MORE THAN ONE RECORD NAMES A ROW, :func:`_authoritative` decides which
+    speaks for it, and that is the SAME function :func:`claim_state` and
+    :func:`claim_for_row` go through. One fact, one rule.
 
     Args:
         root: The claim root, or None for the default.
@@ -346,14 +459,9 @@ def claim_states(root: Any = None, now: Any = None) -> dict[str, dict[str, Any]]
     Returns:
         A mapping of row id to the state read for it.
     """
-    answer: dict[str, dict[str, Any]] = {}
-    for candidate in _claim_files(_resolve_root(root)):
-        record = lanes.read_payload(candidate)
-        recorded = lanes.str_or_none(record.get("row"))
-        if recorded is None or not recorded.strip():
-            continue
-        answer[recorded.strip().upper()] = _reading(record, candidate, now)
-    return answer
+    return {
+        row: _reading(_authoritative(found), now) for row, found in _candidates(root, now).items()
+    }
 
 
 def takeable_rows(rows: Iterable[Any], root: Any = None, now: Any = None) -> tuple[str, ...]:
@@ -415,23 +523,58 @@ def first_takeable(rows: Sequence[Any], root: Any = None, now: Any = None) -> st
 # ---------------------------------------------------------------------------
 
 
-def _reclaim(row: str, root: Any) -> bool:
-    """Clear a record whose holder is provably gone. Never touches a live one.
+def _reclaim(entry: _Candidate) -> bool:
+    """Clear the record that was GRADED reclaimable, and nothing else.
+
+    THE SHAPE THIS REPLACES WAS A TIME-OF-CHECK RACE, and it was the exact
+    failure a claim store exists to prevent. It re-read the state and then
+    unlinked the path: between those two steps another process could reclaim the
+    same record and write its own live claim there, whereupon this unlink
+    deleted a LIVE record and the create that followed double-booked the row.
+    Checking harder cannot fix that - the gap is between the check and the act.
+
+    SO THE RENAME IS THE ARBITRATION. Renaming a file is all-or-nothing and its
+    SOURCE can be moved by exactly one racer: the loser gets "no such file" and
+    touches nothing at all. Winning the rename is winning the reclaim, and the
+    bytes are then compared against the ones that were graded, because a racer
+    that already replaced the record would otherwise have its live claim carried
+    off. A mismatch is put straight back and the reclaim refuses.
+
+    WHAT THIS DOES NOT CLOSE, stated rather than implied. A filesystem offers no
+    atomic compare-and-swap: between this rename and the caller's exclusive
+    create the path is momentarily absent, so a third claimant can create there
+    and win - which is CORRECT, because the exclusive create then refuses the
+    caller. The genuinely open sliver is the restore path above, where a record
+    put back can land on top of a claim made in that same moment. It is much
+    narrower than the window it replaces and it is not measured here.
 
     Args:
-        row: The canonical row id.
-        root: The claim root.
+        entry: The record as it was graded, bytes included.
 
     Returns:
-        True when the row is free afterwards.
+        True when this call removed the graded record.
     """
-    record_path = claim_for_row(row, root)
-    if not record_path.exists():
-        return True
-    if claim_state(row, root)["state"] != RECLAIMABLE:
+    record_path, graded, _record, state = entry
+    if state != RECLAIMABLE:
         return False
-    lanes.remove_quietly(record_path)
-    return not record_path.exists()
+    scratch = record_path.with_name(f"{record_path.name}.{os.getpid()}.{uuid.uuid4().hex}.gone")
+    try:
+        record_path.rename(scratch)
+    except OSError:
+        # Another racer moved it first, or it is gone. Either way not ours.
+        return False
+    try:
+        carried = scratch.read_bytes()
+    except OSError:
+        carried = None
+    if carried != graded:
+        # Somebody replaced the record between the grade and the rename, so what
+        # was just carried off is not what was judged dead. Put it back.
+        with contextlib.suppress(OSError):
+            scratch.replace(record_path)
+        return False
+    lanes.remove_quietly(scratch)
+    return True
 
 
 def _refusal(state: dict[str, Any]) -> dict[str, Any]:
@@ -478,11 +621,20 @@ def try_claim_row(
     target = lanes.require_worktree(worktree)
     directory = _resolve_root(root)
 
-    state = claim_state(key, directory)
-    if state["state"] == HELD:
-        return _refusal(state)
-    if state["state"] == RECLAIMABLE:
-        _reclaim(key, directory)
+    found = _candidates(directory, None).get(key)
+    if found is not None:
+        speaker = _authoritative(found)
+        if speaker[3] == HELD:
+            return _refusal(_reading(speaker, None))
+        # Nothing here is held, so EVERY record naming this row is stale and
+        # every one of them is cleared. Leaving a duplicate behind would let it
+        # win a later grading and report a holder that finished long ago.
+        for stale in found:
+            if not _reclaim(stale):
+                # The reclaim lost its arbitration, which means another process
+                # is acting on this row right now. Re-read rather than create
+                # over whatever it is doing.
+                return _refusal(claim_state(key, directory))
 
     payload: dict[str, Any] = {
         "row": key,

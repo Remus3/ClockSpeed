@@ -43,10 +43,13 @@ account name - into the failure report.
 
 from __future__ import annotations
 
+import contextlib
 import json
 import os
 import subprocess
 import sys
+from collections.abc import Iterator
+from contextlib import contextmanager
 from pathlib import Path
 from typing import Any, Final
 
@@ -129,11 +132,13 @@ def _rows_on_disk(root: Path) -> set[str]:
     return found
 
 
-def _plant(root: Path, row: str, **overrides: Any) -> Path:
+def _plant(root: Path, row: str, file_name: str | None = None, **overrides: Any) -> Path:
     """Write a claim record by hand, bypassing the acquire path.
 
     Used where an arm needs a holder this process could not legitimately become
-    - a dead pid, for instance.
+    - a dead pid, for instance. ``file_name`` names the FILE rather than the row,
+    so an arm can put two records for one row under names that sort either way
+    round.
     """
     root.mkdir(parents=True, exist_ok=True)
     record: dict[str, Any] = {
@@ -145,9 +150,14 @@ def _plant(root: Path, row: str, **overrides: Any) -> Path:
         "ts": 1.0,
     }
     record.update(overrides)
-    target = root / f"{row}{claims.CLAIM_SUFFIX}"
+    target = root / f"{row if file_name is None else file_name}{claims.CLAIM_SUFFIX}"
     target.write_text(json.dumps(record), encoding="utf-8")
     return target
+
+
+def _state_of_row_a(root: Path) -> str:
+    """The per-row read for ``ROW_A``, which is the half a scan can disagree with."""
+    return str(claims.claim_state(ROW_A, root=root)["state"])
 
 
 def _reaped_pid() -> int:
@@ -218,6 +228,390 @@ def _crash_after_claiming(tmp_path: Path, row: str, root: Path) -> tuple[bool, i
     assert exited_as_told, f"the child did not reach its crash - stderr was {done.stderr!r}"
     reported, _, spelled = done.stdout.partition("|")
     return reported == "True", int(spelled)
+
+
+# ---------------------------------------------------------------------------
+# Synthetic checkouts - the only way to grade the DEFAULT root
+# ---------------------------------------------------------------------------
+
+#: The package files a synthetic checkout needs to import the claim store.
+_COPIED_MODULES: Final = (
+    "ops/__init__.py",
+    "ops/loop/__init__.py",
+    "ops/loop/lanes.py",
+    "ops/loop/claims.py",
+)
+
+
+def _checkout(tmp_path: Path, name: str, main: Path | None) -> Path:
+    """Build a checkout that carries its own copy of the claim store.
+
+    ``main`` None makes a MAIN tree - ``.git`` is a directory, the way git lays
+    one out. Otherwise it makes a LINKED WORKTREE of that main tree: ``.git`` is
+    a FILE holding a ``gitdir:`` pointer, which is the indirection
+    ``lanes.REPO_ROOT`` exists to resolve.
+
+    THE COPY IS THE POINT. A lane's worker runs inside its own checkout and
+    imports that checkout's copy of the module, so a store rooted at ``__file__``
+    lands somewhere different in every lane. Only separate copies on disk can
+    show that.
+    """
+    tree = tmp_path / name
+    for relative in _COPIED_MODULES:
+        destination = tree / relative
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        destination.write_bytes((ROOT / relative).read_bytes())
+    if main is None:
+        (tree / ".git").mkdir(parents=True, exist_ok=True)
+    else:
+        pointer = main / ".git" / "worktrees" / name
+        pointer.mkdir(parents=True, exist_ok=True)
+        (tree / ".git").write_text(f"gitdir: {pointer}", encoding="utf-8")
+    return tree
+
+
+#: Printed by a child in a synthetic checkout: the store root it would use, and
+#: - as the CONTROL - the root the defective ``__file__`` derivation gives. The
+#: control is what proves the probe can see a difference between two checkouts
+#: at all; without it, equal store roots would also be what a probe that printed
+#: a constant produced.
+_ROOT_PROBE: Final = """
+import sys
+from pathlib import Path
+
+sys.path.insert(0, sys.argv[1])
+
+from ops.loop import claims
+
+here_derived = Path(claims.__file__).resolve().parent / "control" / "claims"
+sys.stdout.write("{0}\\n{1}".format(claims.DEFAULT_ROOT, here_derived))
+"""
+
+
+def _probe_roots(checkout: Path) -> tuple[str, str]:
+    """The store root and the ``__file__``-derived control, as that checkout sees them.
+
+    Returns:
+        The default claim root, and the root a ``__file__`` derivation gives.
+    """
+    script = checkout / "root_probe.py"
+    script.write_text(_ROOT_PROBE, encoding="utf-8")
+    done = subprocess.run(
+        [sys.executable, str(script), str(checkout)],
+        cwd=str(checkout),
+        capture_output=True,
+        check=False,
+        text=True,
+    )
+    ran = done.returncode == 0
+    assert ran, f"the root probe did not run - stderr was {done.stderr!r}"
+    store, _, here = done.stdout.partition("\n")
+    return store.strip(), here.strip()
+
+
+#: Claims a row from inside one checkout and then BLOCKS on stdin, so the
+#: claimant is still ALIVE while a second process tries the same row. A claimant
+#: that exited would be reclaimed on its own merits and the arm would grade the
+#: reclaim path instead of exclusion.
+#:
+#: NO root= ARGUMENT ANYWHERE BELOW. That omission is the whole point: passing a
+#: shared root would hand the store the answer it is being graded on.
+_HOLDING_CLAIMANT: Final = """
+import sys
+
+sys.path.insert(0, sys.argv[1])
+
+from ops.loop import claims
+
+answer = claims.try_claim_row(
+    sys.argv[2],
+    lane=sys.argv[3],
+    run_id=sys.argv[4],
+    worktree=sys.argv[1],
+)
+sys.stdout.write(str(answer.get("ok")) + "\\n")
+sys.stdout.flush()
+sys.stdin.readline()
+"""
+
+_PASSING_CLAIMANT: Final = """
+import sys
+
+sys.path.insert(0, sys.argv[1])
+
+from ops.loop import claims
+
+answer = claims.try_claim_row(
+    sys.argv[2],
+    lane=sys.argv[3],
+    run_id=sys.argv[4],
+    worktree=sys.argv[1],
+)
+sys.stdout.write(str(answer.get("ok")))
+"""
+
+#: Seconds a child gets. Generous - it starts an interpreter and imports two
+#: modules - and present only so a wedged arm fails rather than hanging the run.
+_CHILD_TIMEOUT_S: Final = 60.0
+
+
+@contextmanager
+def _holding_claim(checkout: Path, row: str, lane: str, run_id: str) -> Iterator[bool]:
+    """Claim a row from one checkout and KEEP the claimant alive inside the block.
+
+    Yields:
+        Whether the claim was taken.
+    """
+    script = checkout / "holding_claimant.py"
+    script.write_text(_HOLDING_CLAIMANT, encoding="utf-8")
+    child = subprocess.Popen(
+        [sys.executable, str(script), str(checkout), row, lane, run_id],
+        cwd=str(checkout),
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+    try:
+        assert child.stdout is not None
+        yield child.stdout.readline().strip() == "True"
+    finally:
+        with contextlib.suppress(OSError, ValueError):
+            assert child.stdin is not None
+            child.stdin.close()
+        with contextlib.suppress(subprocess.TimeoutExpired):
+            child.wait(timeout=_CHILD_TIMEOUT_S)
+        if child.poll() is None:
+            child.kill()
+            child.wait()
+
+
+def _claim_from_checkout(checkout: Path, row: str, lane: str, run_id: str) -> bool:
+    """Claim a row from inside one checkout and let the claimant exit."""
+    script = checkout / "passing_claimant.py"
+    script.write_text(_PASSING_CLAIMANT, encoding="utf-8")
+    done = subprocess.run(
+        [sys.executable, str(script), str(checkout), row, lane, run_id],
+        cwd=str(checkout),
+        capture_output=True,
+        check=False,
+        text=True,
+        timeout=_CHILD_TIMEOUT_S,
+    )
+    ran = done.returncode == 0
+    assert ran, f"the claimant did not run - stderr was {done.stderr!r}"
+    return done.stdout.strip() == "True"
+
+
+# ===========================================================================
+# e. The DEFAULT root, which every arm above assumes away
+# ===========================================================================
+
+
+def test_two_checkouts_resolve_the_default_store_to_one_directory(tmp_path: Path) -> None:
+    """THE ACCEPTANCE FOR THE ROOTING, and the arm this file was missing.
+
+    Every other arm here passes an explicit shared ``root=``, so none of them
+    can see a defect that IS the root. A lane's worker runs inside its own
+    checkout and imports that checkout's copy of the store, so a root derived
+    from ``__file__`` puts each lane in a private directory and nothing is ever
+    excluded - measured across two real processes both holding one row.
+
+    THE CONTROL IS THE OTHER HALF. The same probe also reports what the
+    ``__file__`` derivation gives, and those MUST DIFFER between the two
+    checkouts. Without that leg, two equal store roots would be exactly what a
+    probe reading one checkout twice would print.
+    """
+    main = _checkout(tmp_path, "main", None)
+    lane_a = _checkout(tmp_path, "lane-a", main)
+    lane_b = _checkout(tmp_path, "lane-b", main)
+
+    store_a, here_a = _probe_roots(lane_a)
+    store_b, here_b = _probe_roots(lane_b)
+    store_main, _here_main = _probe_roots(main)
+
+    # CONTROL FIRST - the two checkouts really are distinct on disk, and the
+    # defective derivation can be seen to separate them.
+    control_separates = here_a != here_b
+    assert control_separates, "the probe cannot tell the two checkouts apart"
+
+    lanes_agree = store_a == store_b
+    assert lanes_agree, "the two lanes root their claim stores in different directories"
+
+    main_agrees = store_a == store_main
+    assert main_agrees, "the lanes and the main checkout do not share one store"
+
+    not_per_checkout = store_a != here_a
+    assert not_per_checkout, "the store root is still derived from the module's own file"
+
+
+def test_two_concurrent_checkouts_cannot_both_claim_one_row(tmp_path: Path) -> None:
+    """The adversary's counter-example, kept as a regression arm.
+
+    Two processes, two checkouts, one row, and NEITHER is told where the store
+    is - each resolves the default. The first claimant is STILL RUNNING while the
+    second tries, which is what makes this exclusion rather than a reclaim: a
+    claimant that had exited would be reclaimed on its own merits and the second
+    lane would rightly get the row.
+
+    TWO CONTROLS, because "the second was refused" is also what a store that
+    refused everything would produce, and "the first won" is also what a store
+    that granted everything would produce:
+
+      * the first claimant must have SUCCEEDED, so something is being excluded;
+      * a DISTINCT row must be granted to the second lane while the first claim
+        is still held, so the refusal is about the row and not about the lane.
+    """
+    main = _checkout(tmp_path, "main", None)
+    lane_a = _checkout(tmp_path, "lane-a", main)
+    lane_b = _checkout(tmp_path, "lane-b", main)
+
+    with _holding_claim(lane_a, ROW_A, LANE_A, "a") as first:
+        assert first, "the first checkout could not claim at all - nothing is being graded"
+
+        second = _claim_from_checkout(lane_b, ROW_A, LANE_B, "b")
+        assert second is False, "two checkouts both hold one row"
+
+        # CONTROL - the store is not simply refusing the second lane everything.
+        other_row = _claim_from_checkout(lane_b, ROW_B, LANE_B, "b2")
+        assert other_row, "a distinct row was refused too, so the refusal above proves nothing"
+
+
+# ===========================================================================
+# f. One fact, one resolution rule
+# ===========================================================================
+
+
+def test_a_live_holder_decides_the_row_whatever_the_file_names_sort_to(
+    tmp_path: Path,
+) -> None:
+    """TWO RULES FOR ONE FACT IS A DISAGREEMENT WAITING FOR AN OCCASION.
+
+    The shape this grades once resolved a single row by the derived path and the
+    whole store by a scan where the last file name won. With two records naming
+    one row they DISAGREED: the per-row read answered held while the scan
+    answered reclaimable, and the queue offered a row that a live process was
+    working.
+
+    BOTH ORDERINGS ARE DRIVEN. The live record sits before the dead one in one
+    leg and after it in the other, so neither "derived path first" nor "last
+    name wins" can pass this by luck.
+    """
+    reaped = _reaped_pid()
+    gone = lanes.pid_alive(reaped)
+    assert gone is False, "the planted dead holder is alive - the arm grades nothing"
+
+    for tag, live_name, dead_name in (
+        ("live-sorts-first", f"aaa-{ROW_A}", f"zzz-{ROW_A}"),
+        ("live-sorts-last", f"zzz-{ROW_A}", f"aaa-{ROW_A}"),
+    ):
+        root = tmp_path / f"claims-{tag}"
+        _plant(root, ROW_A, pid=os.getpid(), file_name=live_name)
+        _plant(root, ROW_A, pid=reaped, file_name=dead_name)
+
+        single = _state_of_row_a(root)
+        agrees_with_the_scan = single == claims.claim_states(root=root)[ROW_A]["state"]
+        assert agrees_with_the_scan, f"{tag}: the per-row and whole-store reads disagree"
+
+        assert single == claims.HELD, f"{tag}: a live holder reads {single!r}"
+
+        offered = claims.first_takeable(_offered(), root=root)
+        assert offered == ROW_B, f"{tag}: the queue offered {offered!r} over a live holder"
+
+
+def test_a_row_whose_records_are_all_stale_is_offered(tmp_path: Path) -> None:
+    """The control for the arm above, and the non-vacuity leg it needs.
+
+    "The row was not offered" would also be what a store that offered nothing
+    produced. With every record for the row stale, the row must come back.
+    """
+    reaped = _reaped_pid()
+    gone = lanes.pid_alive(reaped)
+    assert gone is False, "the planted dead holder is alive - the arm grades nothing"
+
+    root = tmp_path / "claims"
+    _plant(root, ROW_A, pid=reaped, file_name=f"aaa-{ROW_A}")
+    _plant(root, ROW_A, pid=reaped, file_name=f"zzz-{ROW_A}")
+
+    single = _state_of_row_a(root)
+    assert single == claims.RECLAIMABLE, f"an all-stale row reads {single!r}"
+
+    offered = claims.first_takeable(_offered(), root=root)
+    assert offered == ROW_A, f"the queue offered {offered!r} instead of the stale row"
+
+
+def test_claiming_a_row_clears_every_stale_record_naming_it(tmp_path: Path) -> None:
+    """A duplicate left behind can win a later grading and report a dead holder.
+
+    So a claim clears ALL of them, and the store is left holding exactly one
+    record for the row - graded by set equality against a walk of the directory.
+    """
+    reaped = _reaped_pid()
+    gone = lanes.pid_alive(reaped)
+    assert gone is False, "the planted dead holder is alive - the arm grades nothing"
+
+    root = tmp_path / "claims"
+    _plant(root, ROW_A, pid=reaped, file_name=f"aaa-{ROW_A}")
+    _plant(root, ROW_A, pid=reaped, file_name=f"zzz-{ROW_A}")
+    before = set(_snapshot(root))
+    planted_names = {f"aaa-{ROW_A}{claims.CLAIM_SUFFIX}", f"zzz-{ROW_A}{claims.CLAIM_SUFFIX}"}
+    two_planted = before == planted_names
+    assert two_planted, f"the arm planted {sorted(before)}"
+
+    taken = claims.try_claim_row(
+        ROW_A, lane=LANE_A, run_id="a", worktree=_worktree(tmp_path, "wt"), root=root
+    )
+    taken_ok = bool(taken["ok"])
+    assert taken_ok, "the claim over stale duplicates was refused"
+
+    after = set(_snapshot(root))
+    only_the_new_one = after == {f"{ROW_A}{claims.CLAIM_SUFFIX}"}
+    assert only_the_new_one, f"the store now holds {sorted(after)}"
+
+
+# ===========================================================================
+# g. The reclaim removes the record it GRADED, and nothing else
+# ===========================================================================
+
+
+def test_a_reclaim_refuses_when_the_record_changed_under_it(tmp_path: Path) -> None:
+    """The time-of-check race, driven by hand at the seam where it happens.
+
+    The old shape re-read the state and then unlinked the path. Between those
+    two steps another process could reclaim the record and write its own LIVE
+    claim there, whereupon the unlink deleted a live record and the create that
+    followed double-booked the row. This drives exactly that interleaving: a
+    record is graded reclaimable, then REPLACED by a live one before the reclaim
+    acts.
+    """
+    reaped = _reaped_pid()
+    gone = lanes.pid_alive(reaped)
+    assert gone is False, "the planted dead holder is alive - the arm grades nothing"
+
+    root = tmp_path / "claims"
+    _plant(root, ROW_A, pid=reaped)
+    graded = claims._candidates(root, None)[ROW_A][0]  # noqa: SLF001 - the seam under test
+    was_reclaimable = graded[3] == claims.RECLAIMABLE
+    assert was_reclaimable, f"the planted record graded {graded[3]!r}"
+
+    # CONTROL - acting on the record AS GRADED does remove it.
+    control_root = tmp_path / "claims-control"
+    _plant(control_root, ROW_A, pid=reaped)
+    control = claims._candidates(control_root, None)[ROW_A][0]  # noqa: SLF001 - the seam
+    control_removed = claims._reclaim(control)  # noqa: SLF001 - the seam under test
+    assert control_removed is True, "a reclaim of the graded record removed nothing"
+
+    # Now the race: a live claimant replaces the record between grade and act.
+    _plant(root, ROW_A, pid=os.getpid(), run_id="the-live-one")
+    acted = claims._reclaim(graded)  # noqa: SLF001 - the seam under test
+    assert acted is False, "the reclaim carried off a record it had not graded"
+
+    survivor = claims.claim_state(ROW_A, root=root)
+    holder = survivor["run_id"]
+    assert holder == "the-live-one", f"the surviving record names {holder!r}"
+
+    still_held = survivor["state"]
+    assert still_held == claims.HELD, f"the live record now reads {still_held!r}"
 
 
 # ===========================================================================
