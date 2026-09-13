@@ -110,6 +110,18 @@ NO_LEAKS: Final = 0
 ONE_PLANTED_LEAK: Final = 1
 THREE_PLANTED_TOKENS: Final = 3
 
+#: CS-1025. How many times an anti-vacuity needle may appear in the served body.
+#: A VALUE needle must appear exactly once - see ``assert_needle_occurrences``.
+NO_OCCURRENCES: Final = 0
+ONE_OCCURRENCE: Final = 1
+TWO_OCCURRENCES: Final = 2
+
+#: A class name is carried TWICE by design - once as the row's ``class_name``
+#: and once as the key of its per-class tally. Both hits are the same value, so
+#: the needle is not ambiguous; it is pinned at two rather than left at
+#: ``in``, so a row that stopped carrying its class still fails.
+CLASS_NAME_OCCURRENCES: Final = 2
+
 #: How many of the two record markers must reach the record table, and how many
 #: per-class tallies and refusal branches each sweep below grades.
 BOTH_RECORD_MARKERS: Final = 2
@@ -136,17 +148,33 @@ BUILT_TRANSLATION: Final = (2048.0, -256.0, 128.0)
 #: The built actor's ORIENTATION. Every component is exactly representable in
 #: float32 and none of them is the identity, so an arm that graded a dropped
 #: rotation against the default quaternion would fail rather than pass.
-BUILT_ROTATION: Final = (0.5, -0.25, 0.125, 0.8125)
-BUILT_SCALE: Final = (2.0, 0.5, -1.5)
+#:
+#: CS-1025. Every component below is a distinct multiple of 1/32 with a distinct
+#: MAGNITUDE, across all four tuples and against the translations too. That is
+#: what makes each rendering a needle unique to itself: the earlier cut used
+#: round values, ``0.5`` was both a rotation component and a scale component,
+#: and the anti-vacuity control for the rotation was satisfied by the scale.
+#: Distinct magnitudes also defeat substring containment - ``"0.5"`` sits inside
+#: ``"-0.5"``, whereas no two five-decimal 32nds of different magnitude contain
+#: one another. ``test_every_orientation_needle_is_unique_to_the_value_it_proves``
+#: measures this against the real response rather than trusting the reasoning.
+BUILT_ROTATION: Final = (0.53125, -0.21875, 0.09375, 0.78125)
+BUILT_SCALE: Final = (2.03125, 0.65625, -1.28125)
 
 #: The NODE's orientation, deliberately different from the building's in every
 #: component. A seam that served one population the other's block, or that
 #: served a shared default, fails rather than passing on a coincidence.
-NODE_ROTATION: Final = (-0.75, 0.0625, -0.375, 0.25)
-NODE_SCALE: Final = (0.25, -2.0, 4.0)
+NODE_ROTATION: Final = (-0.71875, 0.34375, -0.15625, 0.46875)
+NODE_SCALE: Final = (0.59375, -2.40625, 4.84375)
 
 ROTATION_COMPONENTS: Final = 4
 SCALE_COMPONENTS: Final = 3
+
+#: Every orientation component the fixture puts on the wire - both rotations and
+#: both scales. CS-1025 requires each of them to be a needle unique to itself,
+#: so that ANY of them is a sound anti-vacuity control rather than only the ones
+#: that happen not to collide today.
+EXPECTED_ORIENTATION_COMPONENTS: Final = 14
 
 #: One node and one built actor survive the allowlist; the third record is a
 #: belt, which the allowlist deliberately excludes.
@@ -574,6 +602,67 @@ def leak_count(blob: bytes) -> int:
     return sum(1 for canary in WITHHELD_CANARIES if canary.encode("ascii") in blob)
 
 
+def served_body() -> str:
+    """The encoded response as text, which is what every needle is hunted in.
+
+    Returns:
+        The served bytes, decoded. ``contract.encode`` emits ASCII, so the
+        decode cannot invent a character the wire does not carry.
+    """
+    return contract.encode(answer(canary_world(), fixture_registry()).payload).decode("ascii")
+
+
+def assert_needle_occurrences(served: str, needle: str, expected: int, reason: str) -> None:
+    """Assert a needle appears EXACTLY ``expected`` times in the served body.
+
+    CS-1025. An anti-vacuity control asserts that some value reached the wire,
+    and ``needle in served`` is evidence about THAT value only when no other
+    value renders the same substring. It did not: ``str(BUILT_ROTATION[0])``
+    was ``"0.5"``, which ``BUILT_SCALE`` also put on the wire, so the control
+    that existed to prove the rotation was present passed off the SCALE and
+    would have survived the rotation being dropped from the response whole.
+
+    The count is a SUBSTRING count, because that is how the defeat happened -
+    ``"0.5"`` is a substring of ``"-0.5"`` and of ``"0.5625"`` as readily as it
+    is an element of its own.
+
+    Zero fails (the control is vacuous) and more than the pinned count fails
+    (the control is ambiguous - a different value could satisfy it).
+
+    The count is bound to a scalar BEFORE it is asserted, because pytest renders
+    the asserted EXPRESSION independently of the message (CONVENTIONS.md
+    section 7.2) and an inlined ``served.count(...)`` would dump the whole body.
+
+    Args:
+        served: The encoded response, decoded.
+        needle: The substring the control claims proves a value is present.
+        expected: How many times that substring may legitimately appear.
+        reason: What the needle is being asked to prove.
+    """
+    seen = served.count(needle)
+    assert seen == expected, (
+        reason
+        + " - "
+        + repr(needle)
+        + " appears "
+        + str(seen)
+        + " times on the wire, not "
+        + str(expected)
+        + "; zero is vacuous and a surplus is ambiguous"
+    )
+
+
+def assert_unique_needle(served: str, needle: str, reason: str) -> None:
+    """The shape every VALUE needle must take: present exactly once.
+
+    Args:
+        served: The encoded response, decoded.
+        needle: The substring the control claims proves a value is present.
+        reason: What the needle is being asked to prove.
+    """
+    assert_needle_occurrences(served, needle, ONE_OCCURRENCE, reason)
+
+
 # ---------------------------------------------------------------------------
 # 1 - the AST arms (a) and (b), each with a planted positive
 # ---------------------------------------------------------------------------
@@ -739,11 +828,22 @@ def test_no_withheld_canary_reaches_the_wire() -> None:
 
 
 def test_the_wire_carries_the_mask_and_the_class_names_so_the_sweep_is_not_vacuous() -> None:
-    """The other direction. An empty body would pass the sweep above."""
-    blob = contract.encode(answer(canary_world(), fixture_registry()).payload)
-    assert masked_token(CANARY_TOKEN).encode("ascii") in blob, "the mask is absent"
-    assert NODE_CLASS.encode("ascii") in blob, "the node class name is absent"
-    assert BUILT_CLASS.encode("ascii") in blob, "the built class name is absent"
+    """The other direction. An empty body would pass the sweep above.
+
+    CS-1025. Each needle is PINNED at a count rather than tested with ``in``.
+    A membership test is satisfied by any one hit, so a body that stopped
+    carrying a row's ``class_name`` still passed off the per-class tally that
+    repeats it. The mask is unique; a class name is carried exactly twice by
+    design, and both hits are that same class name, so two is the honest pin.
+    """
+    served = served_body()
+    assert_unique_needle(served, masked_token(CANARY_TOKEN), "the mask must reach the wire")
+    assert_needle_occurrences(
+        served, NODE_CLASS, CLASS_NAME_OCCURRENCES, "the node class name, as row and as tally"
+    )
+    assert_needle_occurrences(
+        served, BUILT_CLASS, CLASS_NAME_OCCURRENCES, "the built class name, as row and as tally"
+    )
 
 
 def test_the_sweep_finds_a_planted_leaky_serializer() -> None:
@@ -1247,10 +1347,57 @@ def test_no_withheld_canary_rides_in_on_the_orientation() -> None:
     The sweep is over the SERVED BYTES, so a marker hidden in a nested array is
     caught as readily as one in a top-level string.
     """
-    served = contract.encode(answer(canary_world(), fixture_registry()).payload).decode("ascii")
+    served = served_body()
     planted = len(WITHHELD_CANARIES)
     assert planted == EXPECTED_WITHHELD_CANARIES, "canaries planted: " + str(planted)
 
     leaked = [marker for marker in WITHHELD_CANARIES if marker in served]
     assert len(leaked) == NO_LEAKS, "markers on the wire: " + str(len(leaked))
-    assert str(BUILT_ROTATION[0]) in served, "the sweep found no orientation, so it is vacuous"
+    assert_unique_needle(
+        served, str(BUILT_ROTATION[0]), "the sweep must have had an orientation to sweep"
+    )
+
+
+def test_every_orientation_needle_is_unique_to_the_value_it_proves() -> None:
+    """CS-1025's enforcement. No orientation component may share a rendering.
+
+    The defect was one call site, but the CAUSE is the fixture: two constants
+    rendered the same substring, so an anti-vacuity control drawn from either
+    was satisfied by the other. Pinning only the one call site leaves the next
+    author free to pick a colliding component, so the sweep is over EVERY
+    component of both rotations and both scales.
+    """
+    served = served_body()
+    components = BUILT_ROTATION + BUILT_SCALE + NODE_ROTATION + NODE_SCALE
+    swept = len(components)
+    assert swept == EXPECTED_ORIENTATION_COMPONENTS, "components swept: " + str(swept)
+
+    ambiguous = [str(part) for part in components if served.count(str(part)) != ONE_OCCURRENCE]
+    assert ambiguous == [], "orientation renderings that are not unique on the wire: " + str(
+        ambiguous
+    )
+
+
+def test_the_uniqueness_helper_refuses_an_ambiguous_needle_and_an_absent_one() -> None:
+    """The negative control for the helper itself.
+
+    A helper that cannot REFUSE is the CS-1025 defect rebuilt one layer up: the
+    guard exists to prove a control is not vacuous, so an unrefuting guard is
+    itself vacuous. Both refusals are graded, because a helper that only caught
+    the absent case would have passed the original ``"0.5"`` unchanged.
+    """
+    served = served_body()
+
+    #: The built actor's x is echoed by the bounds, so this needle really does
+    #: appear twice in the body rather than in a body invented for the control.
+    ambiguous = str(BUILT_TRANSLATION[0])
+    seen = served.count(ambiguous)
+    assert seen == TWO_OCCURRENCES, "the planted ambiguous needle appears " + str(seen) + " times"
+    with pytest.raises(AssertionError):
+        assert_unique_needle(served, ambiguous, "planted ambiguity")
+
+    absent = CANARY_INSTANCE
+    gone = served.count(absent)
+    assert gone == NO_OCCURRENCES, "the planted absent needle appears " + str(gone) + " times"
+    with pytest.raises(AssertionError):
+        assert_unique_needle(served, absent, "planted vacuity")

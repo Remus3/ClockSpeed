@@ -697,31 +697,89 @@ def test_no_advisory_claims_a_node_orientation_is_unavailable() -> None:
     assert [code for code in codes if "orientation-unavailable" in code] == [], sorted(codes)
 
 
+#: The two populations ``placement_of`` walks. The orientation rules below hold
+#: identically for both, and the arms that follow drive both, because the
+#: function counts them in two separate loops behind two separate copies of the
+#: same guard - CS-1020, where the node copy was graded by nothing at all.
+POPULATIONS: Final = ("node", "built")
+
+#: One measured class per population. Distinct on purpose: a helper that fed the
+#: wrong class to the wrong loop would build a world with no placement in it,
+#: and an arm over an empty population passes for that reason alone.
+NODE_CLASS: Final = "BP_ResourceNode_C"
+BUILT_CLASS: Final = "Build_MinerMk1_C"
+
+
+def one_placement_world(
+    population: str,
+    translation: tuple[float, float, float],
+    *,
+    rotation: tuple[float, float, float, float] = IDENTITY_ROTATION,
+    scale: tuple[float, float, float] = IDENTITY_SCALE,
+) -> WorldModel:
+    """Build a world holding exactly one placement, in the named population.
+
+    Args:
+        population: One of :data:`POPULATIONS`.
+        translation: The placement.
+        rotation: The quaternion, in file order. Defaults to the identity.
+        scale: The per-axis scale. Defaults to unity.
+
+    Returns:
+        The model.
+    """
+    assert population in POPULATIONS, population
+    if population == "node":
+        return world(nodes=(node(NODE_CLASS, translation, rotation=rotation, scale=scale),))
+    return world(records=(actor(BUILT_CLASS, translation, rotation=rotation, scale=scale),))
+
+
+def placements_in(
+    result: placement.WorldPlacement,
+    population: str,
+) -> tuple[placement.Placement, ...]:
+    """The rows the named population contributed.
+
+    SELECTED, NEVER HARDCODED. The node loop appends to ``node_placements`` and
+    the built loop to ``built_placements``, so an arm that read
+    ``built_placements`` under the node population would assert over an empty
+    tuple and grade nothing.
+
+    Args:
+        result: The computed placement model.
+        population: One of :data:`POPULATIONS`.
+
+    Returns:
+        That population's rows, in model order.
+    """
+    assert population in POPULATIONS, population
+    return result.node_placements if population == "node" else result.built_placements
+
+
+@pytest.mark.parametrize("population", POPULATIONS)
 @pytest.mark.parametrize("bad", [math.inf, -math.inf, math.nan])
-def test_a_non_finite_rotation_withholds_the_rotation_and_keeps_the_building(
+def test_a_non_finite_rotation_withholds_the_rotation_and_keeps_the_placement(
     bad: float,
+    population: str,
 ) -> None:
     """A non-finite ROTATION is not a non-finite coordinate and is not treated as one.
 
-    Skipping the whole placement would remove a building from the map over a
-    field the map does not measure, which is a worse answer than a null.
+    Skipping the whole placement would remove a row from the map over a field
+    the map does not measure, which is a worse answer than a null.
     """
-    model = world(
-        records=(
-            actor(
-                "Build_MinerMk1_C",
-                (1.0, 2.0, 3.0),
-                rotation=(bad, 0.0, 0.0, 1.0),
-                scale=PLANTED_SCALE,
-            ),
-        )
+    model = one_placement_world(
+        population,
+        (1.0, 2.0, 3.0),
+        rotation=(bad, 0.0, 0.0, 1.0),
+        scale=PLANTED_SCALE,
     )
 
     result = placement.placement_of(model)
     codes = {warning.code: warning.count for warning in result.warnings}
+    rows = placements_in(result, population)
 
-    assert len(result.built_placements) == 1, result.built_placements
-    placed = result.built_placements[0]
+    assert len(rows) == 1, rows
+    placed = rows[0]
     assert (placed.x, placed.y, placed.z) == ("1.0", "2.0", "3.0")
     assert placed.rotation is None, placed.rotation
     assert placed.scale == tuple(repr(part) for part in PLANTED_SCALE), placed.scale
@@ -729,61 +787,58 @@ def test_a_non_finite_rotation_withholds_the_rotation_and_keeps_the_building(
     assert placement.WARN_PLACEMENT_COORDINATE_NON_FINITE not in codes, sorted(codes)
 
 
+@pytest.mark.parametrize("population", POPULATIONS)
 @pytest.mark.parametrize("bad", [math.inf, -math.inf, math.nan])
-def test_a_non_finite_scale_withholds_the_scale_and_keeps_the_rotation(bad: float) -> None:
+def test_a_non_finite_scale_withholds_the_scale_and_keeps_the_rotation(
+    bad: float,
+    population: str,
+) -> None:
     """The two blocks are refused independently; one bad axis costs one block."""
-    model = world(
-        records=(
-            actor(
-                "Build_MinerMk1_C",
-                (1.0, 2.0, 3.0),
-                rotation=PLANTED_ROTATION,
-                scale=(1.0, bad, 1.0),
-            ),
-        )
+    model = one_placement_world(
+        population,
+        (1.0, 2.0, 3.0),
+        rotation=PLANTED_ROTATION,
+        scale=(1.0, bad, 1.0),
     )
 
     result = placement.placement_of(model)
     codes = {warning.code: warning.count for warning in result.warnings}
+    placed = placements_in(result, population)[0]
 
-    placed = result.built_placements[0]
     assert placed.scale is None, placed.scale
     assert placed.rotation == tuple(repr(part) for part in PLANTED_ROTATION), placed.rotation
     assert codes.get(placement.WARN_PLACEMENT_ORIENTATION_NON_FINITE) == 1
 
 
-def test_one_placement_losing_both_blocks_is_counted_once_and_not_twice() -> None:
+@pytest.mark.parametrize("population", POPULATIONS)
+def test_one_placement_losing_both_blocks_is_counted_once_and_not_twice(
+    population: str,
+) -> None:
     """The advisory counts PLACEMENTS that lost orientation, not components."""
-    model = world(
-        records=(
-            actor(
-                "Build_MinerMk1_C",
-                (1.0, 2.0, 3.0),
-                rotation=(math.inf, 0.0, 0.0, 1.0),
-                scale=(math.nan, 1.0, 1.0),
-            ),
-        )
+    model = one_placement_world(
+        population,
+        (1.0, 2.0, 3.0),
+        rotation=(math.inf, 0.0, 0.0, 1.0),
+        scale=(math.nan, 1.0, 1.0),
     )
 
     result = placement.placement_of(model)
     codes = {warning.code: warning.count for warning in result.warnings}
+    placed = placements_in(result, population)[0]
 
-    assert result.built_placements[0].rotation is None
-    assert result.built_placements[0].scale is None
+    assert placed.rotation is None
+    assert placed.scale is None
     assert codes.get(placement.WARN_PLACEMENT_ORIENTATION_NON_FINITE) == 1
 
 
-def test_a_non_finite_orientation_never_widens_the_bounds() -> None:
+@pytest.mark.parametrize("population", POPULATIONS)
+def test_a_non_finite_orientation_never_widens_the_bounds(population: str) -> None:
     """The bounding box is a claim about COORDINATES, and orientation is not one."""
-    model = world(
-        records=(
-            actor(
-                "Build_MinerMk1_C",
-                (1.0, 2.0, 3.0),
-                rotation=(math.inf, math.inf, math.inf, math.inf),
-                scale=(math.inf, math.inf, math.inf),
-            ),
-        )
+    model = one_placement_world(
+        population,
+        (1.0, 2.0, 3.0),
+        rotation=(math.inf, math.inf, math.inf, math.inf),
+        scale=(math.inf, math.inf, math.inf),
     )
 
     bounds = placement.placement_of(model).bounds
@@ -792,27 +847,27 @@ def test_a_non_finite_orientation_never_widens_the_bounds() -> None:
     assert (bounds.x.max_value, bounds.y.max_value, bounds.z.max_value) == ("1.0", "2.0", "3.0")
 
 
-def test_a_non_finite_coordinate_still_skips_the_whole_placement() -> None:
+@pytest.mark.parametrize("population", POPULATIONS)
+def test_a_non_finite_coordinate_still_skips_the_whole_placement(population: str) -> None:
     """The COORDINATE rule is unchanged by the orientation rule beside it.
 
     One non-finite coordinate poisons the world bounding box, which is why that
-    placement is skipped outright while a non-finite orientation is not.
+    placement is skipped outright while a non-finite orientation is not. THE
+    ASYMMETRY IS COORDINATE AGAINST ORIENTATION, NOT NODE AGAINST BUILT: both
+    loops obey the same rule, which is why this arm drives both populations
+    rather than asserting a difference between them.
     """
-    model = world(
-        records=(
-            actor(
-                "Build_MinerMk1_C",
-                (math.inf, 2.0, 3.0),
-                rotation=PLANTED_ROTATION,
-                scale=PLANTED_SCALE,
-            ),
-        )
+    model = one_placement_world(
+        population,
+        (math.inf, 2.0, 3.0),
+        rotation=PLANTED_ROTATION,
+        scale=PLANTED_SCALE,
     )
 
     result = placement.placement_of(model)
     codes = {warning.code: warning.count for warning in result.warnings}
 
-    assert result.built_placements == ()
+    assert placements_in(result, population) == ()
     assert codes.get(placement.WARN_PLACEMENT_COORDINATE_NON_FINITE) == 1
     assert placement.WARN_PLACEMENT_ORIENTATION_NON_FINITE not in codes, sorted(codes)
 
