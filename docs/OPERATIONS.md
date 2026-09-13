@@ -73,7 +73,8 @@ each worktree path is its own key), and the general case that presence is not fi
 | Verify environment, machine-readable | `python scripts/verify_env.py --json` |
 | Run the commit gate over the staged set | `python tools/precommit_gate.py --staged` |
 | Run the commit gate over specific files | `python tools/precommit_gate.py --files <path> [<path> ...]` |
-| Run the commit gate over text on stdin (commit messages) | `python tools/precommit_gate.py --text-stdin` |
+| Run the commit gate over a commit message on stdin - charset and secrets only | `python tools/precommit_gate.py --text-stdin` |
+| Grade OUTBOUND text before it leaves this machine - personal data and credentials | `python tools/outbound_gate.py` |
 | Lint the files just edited | `python tools/edit_lint_check.py --files <path> [<path> ...]` |
 | Run all drift guards | `python tools/drift_guard.py` |
 | Check documentation size budgets | `python tools/doc_budget.py` |
@@ -84,6 +85,14 @@ each worktree path is its own key), and the general case that presence is not fi
 
 Gate exit codes: **0 = pass, 1 = block.** Anything else is a gate malfunction and is
 itself a blocking condition - do not interpret a crash as a pass.
+
+**That legend is the COMMIT gate's, and `--text-stdin` is not an outbound check.** It
+grades charset and secrets and reaches no personal-data class, so a pass from it says
+nothing about a home path, an account name, an account id, a world name or a world
+token in the same bytes. Text that is about to LEAVE this machine goes to
+`tools/outbound_gate.py`, which answers safe-to-send rather than safe-to-commit and
+returns its own closed exit set - documented in that module's docstring, and never
+restated here.
 
 **Never run a bare recursive test invocation from the repo root.** Always name the target
 directory explicitly. A bare sweep from the root can walk runtime state directories and
