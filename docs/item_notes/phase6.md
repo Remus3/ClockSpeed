@@ -592,3 +592,97 @@ it may keep: the arm counts, the shortlist membership, and the never-share-the-s
 derivation ruling. **The fence from the FILED section still holds and now has a fifth
 witness - do not close this by pinning a floor, and check whatever you build for the knob
 you just introduced.**
+
+
+### MEASURED 2026-09-12 (session 88) - the cut line reworked BY MEASUREMENT, and the criterion is the only part that survived a second adversary
+
+**THE CUT CRITERION IS SETTLED AND IS THE DELIVERABLE. THE BAND IS NOT, AND THE BACKSTOP
+IS NOT.** Three successive analyses contradicted each other on this item in one session -
+a scope, its refutation, and a measured rework - and an independent adversary then refuted
+three of the rework's six claims. What converged is the CRITERION. Anyone continuing this
+item adopts the criterion and re-derives everything else.
+
+**THE CRITERION, and the reason it replaced the old one.** Version 1 ranked sites by an
+argued severity and conceded in its own words that "every severity above is an argument,
+not a measurement". That is why it lost. The replacement is mechanical and carries no
+judgement call:
+
+> A site is an instance of CS-988 if and only if, MEASURED ON DISK: a plausible one-line
+> use-site narrowing of its knob REDUCES the collected arm count, AND the guard population
+> that could object stays GREEN with the narrowing in place. If anything reddens, the site
+> is already defended and is NOT an instance, however bad it looks by argument.
+
+**THE OLD CRITERION SELECTED AGAINST THE REAL INSTANCES, WHICH IS WORSE THAN RANKING THEM
+WRONG.** Measured across 23 sites by on-disk mutation in 29 runs: **all six of version 1's
+band-A sites are DEFENDED**, not the three its refutation caught - the refutation was
+itself wrong twice, and the objectors it missed are named in the rework. Band A was
+selected by "the population is derived from the filesystem or the git index", and that
+turns out to be the best-defended set in the repo, because a filesystem-derived population
+is exactly the kind someone already thought to guard. **Every instance found was BELOW the
+old cut line.**
+
+**FOUR INSTANCES ARE CONFIRMED BY BOTH THE REWORK AND ITS ADVERSARY**, each verified to
+exist at its cited site with its delta matching today's collection:
+`DOCUMENTED_PATHS` in `tests/test_architecture_attributions.py` (-54 arms),
+`DATA_MODULES` in `tests/data/test_phase2_gate.py` (-6 and -5, two independent
+narrowings), `CLOCKSPEED_PACKAGES` in `tests/test_scaffold.py` (-9), and `LEVEL_KEYS` in
+`tests/test_tier1_budget.py` (-2). All four names are module-local with zero external grep
+hits, so no external objector exists for any of them. Three further sites are green with
+ZERO arm drop - silent at runtime - and are deliberately kept OUT of the band rather than
+counted.
+
+**BUT FOUR IS A SAMPLE, NOT A BAND, AND THE REWORK OVERSTATED THIS.** An AST scan finds
+368 parametrize sites, of which 48 are over module-level all-constant sequences across 36
+distinct file-and-name pairs. Four measured instances out of roughly 36 candidates is a
+sample. **Do not adopt "the corrected band" as a closed set.** Fifteen band-B rows were
+correctly reported UNMEASURED rather than classified, and that conduct is right and should
+continue - an unmeasured site classified by argument is the original defect.
+
+**THE PRISTINE FLOOR DOES NOT UNDERWRITE THE REDS, AND THIS BOUNDS EVERY VERDICT ABOVE.**
+The rework established a floor of 21 modules and 2125 arms before mutating, offered as
+proof that every RED was a real objection. The floor is a STRICT SUBSET of the guard
+populations actually exercised: one site's unmutated guard set is 22 modules and 1688
+arms, another's is a disjoint 12 modules and 1349 arms, and the union lower bound is 33
+modules and 2696 arms. A floor cannot license a conclusion about a mutation whose blast
+radius falls outside it. Two of the four instances were graded against a guard set of ONE
+module and should have included `tests/test_docs_citations.py`, `tests/liveness.py` and
+`tests/test_liveness.py`. **The four instances stand; the confidence attached to them does
+not.**
+
+**THE BACKSTOP: THE SHARED-KNOB CHARGE IS ANSWERED, AND A WORSE ONE REPLACED IT.**
+Measured, and this settles the version-1 dispute: a per-argname map IS a silent knob
+wherever it lives - deleting one entry gives 1347 passed, exit 0, and zero arm change - so
+the helper must take the expectation as an ARGUMENT and stay module-local, bounding the
+blast radius to one module per edit. **"Expectation as an argument" was checked for being
+the displaced knob one level out and it is NOT.** That question is closed.
+
+What replaced it is sharper and is about code already shipped. `_declared_case_count` in
+`tests/surface/test_aggregate_count_prose.py` computes
+`total *= independent() if independent else len(list(argvalues))` - and `argvalues` is THE
+SAME OBJECT being parametrized over. So where no independent re-derivation is supplied,
+the expectation follows the population down. Observed by calling the shipped helper:
+expected 4 unsliced, expected 2 after slicing `LEVEL_KEYS` to one, collected also 2,
+**GREEN**. **The claim that a backstop alone suffices and needs no second derivation is
+FALSE against shipped code**, and it is false in the one module this item has already
+repaired. All four instances need a genuine second derivation; a map entry whose value is
+not an independent re-derivation buys nothing.
+
+**A HARNESS HAZARD THAT WOULD HAVE SHIPPED A FALSE RED, and it is the most transferable
+finding here.** The walk-versus-git population is CHECKOUT-DEPENDENT. `.gitignore` line
+282 ignores `/moon_sync_inbox/`, which exists in the primary checkout and in no worktree.
+Measured in the primary checkout: git 207, rglob 214, walk-only 7, git-only 0, symmetric
+difference 7; under a `data/` component prune, walk-only 7 and git-only 17 for a difference
+of 24. Measured in a worktree: 207, 207, difference 0. All three passes reconcile once the
+mechanism is known. **An equality arm developed in a worktree calibrates GREEN and ships a
+FALSE RED to the primary checkout** - and because it depends on ignored content that comes
+and goes, the false red is NON-DETERMINISTIC there and reads as a flake. Any equality-based
+arm this item produces must be developed or at minimum re-measured in the primary checkout.
+
+**THE ORDER OF WORK, from the adversary's recommendation and adopted here.** Adopt the
+CRITERION - it is mechanical and unaffected by the unmeasured sites. Do NOT adopt the band.
+**Repair the backstop FIRST**, because every instance depends on it and it is currently
+vacuous wherever no independent re-derivation is passed. Then finish the sweep over the 15
+named band-B rows plus the roughly 36-pair literal population, using the criterion.
+
+**THE ITEM STAYS OPEN.** Nothing was built this session. The fence holds and is unchanged:
+do not close this by pinning a floor.
