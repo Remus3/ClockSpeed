@@ -1922,8 +1922,17 @@ INDEPENDENT_CASE_COUNTS: Final[dict[CaseKey, Callable[[], int]]] = {
 #: :func:`registration_faults` green BY CONSTRUCTION - the union is unchanged and
 #: the halves stay disjoint - while silently downgrading that population from
 #: graded to UNGRADED. Every key admitted here must name a population this file
-#: writes out as literal text, which is what makes the per-member arms above a
-#: real record of its size rather than a promise.
+#: writes out as literal text.
+#:
+#: THAT CONDITION IS NECESSARY AND NOT SUFFICIENT, and the sentence that once
+#: stood here said otherwise - that literal text "is what makes the per-member
+#: arms above a real record of its size", contradicting the paragraph above it
+#: nine lines earlier. It does not. It means only that a member cannot leave
+#: without a VISIBLE EDIT to a literal in this file, which stops a DERIVED
+#: population being moved here and losing its independent count unseen. It says
+#: NOTHING about the size being graded: ``relative`` is literal text, is
+#: ungraded, and carries the declared three-edit route this module's own
+#: docstring records. Gradedness is a separate leg and is not built here.
 
 UNPINNED_CASE_KEYS: Final[frozenset[CaseKey]] = frozenset(
     {
@@ -2194,12 +2203,28 @@ def unpinned_eligibility_faults(source: str, unpinned: frozenset[CaseKey]) -> tu
     THE RULE, and it is one rule rather than two so neither half can be dropped
     as redundant. :data:`UNPINNED_CASE_KEYS` says a size is counted from the very
     object parametrized over and is therefore ungraded. That is only honest when
-    the population is literal text in this file, where deleting a member is a
-    visible edit - which is exactly what the per-member arms those keys carry
-    are for. A population that arrives from a CALL has no such edit, so it must
-    be counted independently, and so must one naming objects rather than strings.
+    the population is literal text in this file, because a member can then be
+    deleted only by a VISIBLE EDIT to a literal. It is a NECESSARY condition and
+    not a sufficient one, and the difference matters: it says nothing about the
+    size being graded, and ``relative`` is literal text whose size is ungraded
+    exactly as :data:`UNPINNED_CASE_KEYS` says. What it does stop is a DERIVED
+    population being moved here and losing its independent count in silence. A
+    population that arrives from a CALL has no visible edit, so it must be
+    counted independently, and so must one naming objects rather than strings.
     All seven independently-counted keys fail this rule today, so moving any one
     of them here reddens at the same single edit that made the move.
+
+    BOTH DIRECTIONS, on the reasoning :func:`registration_faults` already states
+    in this module: a relation graded one way is one a narrowed argument
+    satisfies. Every key whose population IS spelled out must be registered here,
+    which is what pins this guard's INPUT against what the source declares.
+    Without it, handing the guard a SUBSET of the registry returns no finding -
+    measured on the revision before this leg, ``[:7]``, ``[:5]`` and ``[:1]`` all
+    returned ``()``, so a two-edit narrowing at the two call sites was invisible.
+    The converse is deliberately absolute rather than carrying an
+    independently-counted escape hatch: an escape argument is a silencing knob,
+    and this module's whole history is knobs being turned rather than guards
+    being argued with.
 
     Args:
         source: Module source to read the parametrizes from.
@@ -2215,6 +2240,14 @@ def unpinned_eligibility_faults(source: str, unpinned: frozenset[CaseKey]) -> tu
         faults.append(
             "no key is registered as counted-from-its-own-mark, so the rule below "
             "holds vacuously and this guard would prove nothing"
+        )
+    unregistered = {key for key, literal in spelled_out.items() if literal} - unpinned
+    if unregistered:
+        faults.append(
+            f"{sorted(unregistered)} parametrize a population this source spells out "
+            "as literal text but are not registered as counted-from-their-own-mark, so "
+            "this guard has been handed less than the source declares and would pass "
+            "over the difference in silence"
         )
     for key in sorted(unpinned):
         if key not in spelled_out:
@@ -2435,6 +2468,65 @@ def test_every_unpinned_key_is_a_population_this_file_spells_out() -> None:
     )
 
 
+def test_the_eligibility_guard_reports_every_offender_and_not_only_the_first() -> None:
+    """BREADTH, which is instance EIGHT of this module's class and the reason for it.
+
+    Every direction graded below this arm passes a registry of ONE key, and the
+    guard's only breadth guard was its emptiness floor, so its loop was exercised
+    at breadth 0 and 1 and never above. Measured: ``for key in
+    sorted(unpinned)[:1]`` left 492 passed, exit 0, and every one of the seven
+    independently-counted keys escaped - including the very key whose one-line
+    move that guard was written to catch. A value deciding what the population
+    MEASURES, standing behind a floor its own shape satisfies, narrowable at the
+    producer in one line, staying green: this module's defect, worn by its own
+    repair.
+
+    HOW THE EXPECTATION IS DERIVED, and THE NINTH INSTANCE THAT WAS FOUND HERE
+    AND CLOSED. The population handed over is the live registries: every
+    independently-counted key goes to the guard AS IF registered as
+    counted-from-its-own-mark, alongside every entitled one. The first draft then
+    took the expectation from THAT SAME EXPRESSION - ``len(independent_keys)`` -
+    and it was instance nine on sight. Measured before the repair: narrowing the
+    producer to ``sorted(INDEPENDENT_CASE_COUNTS)[:3]`` lowered the population and
+    the expectation together and left 493 passed, exit 0.
+
+    The expectation now comes from a DIFFERENT source: what the module actually
+    PARAMETRIZES, minus the entitled registry. The two agree only because
+    :func:`registration_faults` grades the union against the parametrized keys in
+    both directions and grades the halves disjoint - a mechanism this arm does
+    not share and does not re-derive. Narrowing the population alone now
+    desynchronises the two, and narrowing the parametrized side instead reddens
+    the registration guard at import time and the arm-count backstop at run time.
+    The mixture matters as much as the size: a guard that reported a finding for
+    every key it was handed would fail here rather than pass by over-reporting.
+    """
+    independent_keys = frozenset(INDEPENDENT_CASE_COUNTS)
+    mixed = UNPINNED_CASE_KEYS | independent_keys
+    expected_count = len(parametrized_case_keys(module_test_functions()) - UNPINNED_CASE_KEYS)
+    entitled_count = len(UNPINNED_CASE_KEYS)
+    assert expected_count > 1, (
+        f"only {expected_count} key(s) are independently counted, so this arm cannot "
+        "tell a guard that reports EVERY offender from one that reports only the first"
+    )
+    assert entitled_count > 0, (
+        "no key is entitled, so the population handed over below is not the MIXTURE "
+        "this arm needs and over-reporting would pass"
+    )
+    faults = unpinned_eligibility_faults(module_source(), mixed)
+    fault_count = len(faults)
+    assert fault_count == expected_count, (
+        f"the guard reported {fault_count} finding(s) over a registry of "
+        f"{len(mixed)} key(s) holding {expected_count} offender(s) and "
+        f"{entitled_count} entitled key(s); it must report one per offender and no "
+        f"more: {list(faults)}"
+    )
+    unnamed = sorted(key for key in independent_keys if not any(str(key) in f for f in faults))
+    assert unnamed == [], (
+        f"{unnamed} are offenders the guard did not name, so it reported the right "
+        "NUMBER of findings about the wrong keys"
+    )
+
+
 def test_the_unpinned_eligibility_guard_reddens_in_every_direction() -> None:
     """The new guard is a knob of its own, so its discrimination is graded too.
 
@@ -2493,12 +2585,16 @@ def test_the_unpinned_eligibility_guard_reddens_in_every_direction() -> None:
             f"the guard's finding for {direction} does not say so: {faults[0]}"
         )
 
-    entitled = frozenset({("sample_over_a_named_literal", "named")})
+    named = ("sample_over_a_named_literal", "named")
+    inline = ("sample_over_an_inline_literal", "inline")
+    entitled = frozenset({named, inline})
     clean = unpinned_eligibility_faults(source, entitled)
-    assert clean == (), f"a population spelled out behind a name reported {list(clean)}"
-    inline = frozenset({("sample_over_an_inline_literal", "inline")})
-    inline_faults = unpinned_eligibility_faults(source, inline)
-    assert inline_faults == (), f"an inline string literal reported {list(inline_faults)}"
+    assert clean == (), f"the two spelled-out populations reported {list(clean)}"
+    only_finding(
+        unpinned_eligibility_faults(source, frozenset({named})),
+        "less than the source declares",
+        "a registry narrower than the source, which is the converse direction",
+    )
     for direction, key in (
         ("a population arriving from a call", ("sample_over_a_call", "derived")),
         ("a population naming objects", ("sample_over_objects", "objects")),
@@ -2516,19 +2612,24 @@ def test_the_unpinned_eligibility_guard_reddens_in_every_direction() -> None:
         ),
     ):
         only_finding(
-            unpinned_eligibility_faults(source, frozenset({key})),
+            unpinned_eligibility_faults(source, entitled | {key}),
             "not literal text in this file",
             direction,
         )
     only_finding(
-        unpinned_eligibility_faults(source, frozenset({("no_such_sample", "named")})),
+        unpinned_eligibility_faults(source, entitled | {("no_such_sample", "named")}),
         "cannot be decided",
         "a key no parametrize declares",
     )
+    bare = (
+        'DERIVED = produced()\n\n@pytest.mark.parametrize("derived", DERIVED)\n'
+        'def sample_with_no_spelled_out_population() -> None:\n    """Never collected."""\n'
+    )
     only_finding(
-        unpinned_eligibility_faults(source, frozenset()),
+        unpinned_eligibility_faults(bare, frozenset()),
         "vacuously",
-        "an empty registry",
+        "an empty registry over a source with nothing spelled out, so the converse "
+        "direction is satisfied and cannot mask this one",
     )
 
 
