@@ -374,6 +374,94 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-09-13 - CS-1009 - CLOSED. A claim now survives the exit of the process that made it, and three designs were refuted before one held
+
+**THE DEFECT, REPRODUCED BEFORE ANYTHING WAS DESIGNED.** `_state_of` decided HELD against the pid
+recorded in the claim. A worker reaches python through a fresh subprocess per call, so the claiming
+process exits at once and the row read RECLAIMABLE for the rest of a cycle that runs for thousands of
+seconds. Measured with two real processes and a control on the same tree: the long-lived holder read
+HELD and refused a second lane, the claimant that exited read RECLAIMABLE and a second lane CLAIMED
+THE ROW. That is the double-booking CS-991 exists to stop, restored by the calling convention.
+
+**WHAT CHANGED.** Liveness DELEGATES to the lane lock of the lane the record itself names, matched on
+the run id the store READS OFF THAT LOCK rather than accepts from its caller - `launch_lane` never
+hands the worker the driver's run id, so a caller-supplied one would have mismatched on every real
+fire and answered RECLAIMABLE for every claim. The lock directory is derived from the claim root, so a
+worker importing its own checkout's copy still anchors on the main tree. Ownership for release is
+DERIVED too: `running_cycle_here` matches the checkout the module was imported from against the
+worktree each lane lock records, and no credential crosses a subprocess boundary at all. Merged files:
+`ops/loop/claims.py`, `ops/loop/lanes.py`, `tools/headless-queue.md`, `docs/OPERATIONS.md`.
+
+**PROVEN BY.** `tests/ops/test_row_claim.py::test_a_claim_outlives_the_process_that_made_it_while_its_cycle_runs`
+and `::test_a_genuinely_dead_cycle_returns_its_row`, with
+`::test_a_live_cycle_holds_its_row_however_old_the_record_is` fencing the age floor the acceptance
+forbids by name - an inserted `age_s > 3600` floor reddens five arms. A second, independent
+reproduction by an adversary that did not build it: the old tree double-books, the new tree refuses
+`row_claimed`, and removing the lane lock flips the same probe to `RECLAIMABLE/pid`, which is the
+control that separates graded-clean from graded-nothing.
+
+**THREE RELEASE DESIGNS WERE REFUTED, AND THE PATTERN IS THE FINDING.** A caller-supplied `run_id` was
+refuted because run ids are policed nowhere - two live claims under the identical string both
+succeeded, `""` was accepted, `None` became the string `"None"` - so a crashed cycle's late wrap
+deleted the live holder's record with NO malicious actor and both sides following the documented
+convention. A sha256 RECEIPT over the record's bytes was refuted because every lane can read every
+claim file, so the attacker recomputed it in one line - and re-hashing was the ONLY recovery path the
+worker prompt left a cycle that lost the string, so the convention steered a worker into the attack.
+What held was removing the credential entirely: an attacker derives its own lane, finds a record
+naming another, and refuses structurally rather than by comparing a string it could compute. EVERY
+CREDENTIAL A READER OF THE PROTECTED OBJECT CAN CONSTRUCT IS NOT A CREDENTIAL.
+
+**AN ADJUDICATOR RULED THE ANCHOR FORK, and the ruling is why the provability gate is not on the state
+path.** A repair that required a lock to PROVE its holder before anchoring a claim was measured to
+invert the item where `proc_started` cannot read - unconditionally without psutil, which
+`pyproject.toml` declares optional, and on this box through `psutil.AccessDenied` for an elevated or
+scheduled-task driver - handing a LIVE cycle's row to the other lane. The ruling was strict
+delegation, on the ground that `lanes.holder_is_a_stranger` already decided this exact trade one layer
+down: freeing a lane on a guess is strictly worse than the wedge, and a row is a smaller unit than a
+lane, so the ranking cannot invert going up. The cost is disclosed rather than hidden:
+`ANCHOR_LANE_UNPROVEN` is a declared third reading, and `docs/OPERATIONS.md` section 11 documents the
+operator's escape - clear the stale lane lock, never the claim record.
+
+**A FOURTH BREACH WAS FOUND AFTER THE SUITE WENT GREEN.** Two lane locks recording ONE worktree made
+`running_cycle_here` resolve by roster order, so `LANES[0]` won every time: the other lane could not
+release its own records and could delete the first lane's live one by naming the public row id.
+`claims.py` ASSERTED that no two lanes share a worktree and nothing enforced it. Repaired on both
+sides - `lanes.try_acquire_lane` refuses a worktree another lane's live lock records, and an ambiguous
+checkout now derives NO lane rather than a guess. Proven by
+`::test_a_second_lane_is_refused_a_worktree_another_lane_is_running_in`,
+`::test_an_ambiguous_checkout_derives_no_lane_rather_than_the_first_one` and
+`::test_a_lane_sharing_a_worktree_cannot_delete_the_other_lanes_record`.
+
+**VERIFIED INDEPENDENTLY AT THE MERGED SHA.** 7269 passed, 7 skipped, 0 failed, exit code read from a
+log sentinel rather than after a pipe; the seven skips are the same seven classes as the previous SHA
+and none is new. `ruff check`, `ruff format --check`, bare `mypy` over 217 files, `drift_guard` and
+`doc_budget` all exit 0. No frozen file is in the delta; 0 non-ASCII and 0 CR measured byte-wise on
+the blobs rather than with a CR grep.
+
+**WHAT REMAINS, stated rather than rounded up.** In a shared worktree NEITHER lane can release, so
+records leak there - bounded, because the next claim clears a record whose cycle ended, and it is the
+declared cost of refusing to guess. A row wedges alongside a wedged lane when a stale lock cannot
+prove its holder; the escape is documented and CS-1010 carries the behaviour that would take neither
+harm. The driver renders the new refusal as `lane_held` because it never reads the reason - CS-1011.
+NO REAL LANE NIGHT HAS RUN: every measurement here is processes and locks driven directly, never a
+driver fired end to end.
+
+### 2026-09-13 - CS-991 - CLOSED. Its headline claim was in doubt for exactly one blocker, and that blocker closed
+
+**WHY THIS CLOSES NOW.** The 2026-09-13 entry above it in this file recorded CS-991 as NOT CLOSED and
+named the reason: its acceptance says a row taken by one lane is not takeable by another FOR THE LIFE
+OF THAT CYCLE, and under the way a worker actually calls the store that was false. CS-1009 measured
+it false, repaired it, and proved the repair with a second lane refused while the claiming process was
+gone. Nothing in CS-991's own acceptance was weakened to get here.
+
+**PROVEN BY.** The CS-1009 arms named in the entry above, plus CS-991's own arms, which continue to
+pass: a dead claimant's row returns to the queue, and a claim is not released by a cycle that crashed
+mid-row. A crashed cycle's record now reads RECLAIMABLE and is cleared by the next claim rather than
+by anything the crashed cycle does.
+
+**WHAT REMAINS.** The residuals are CS-1009's and are listed there. CS-1006's restore sliver in
+`_reclaim` is untouched and still measured by nothing.
+
 ### 2026-09-13 - CS-988 - NOT A COMPLETION RECORD. NOTHING CLOSED. CS-988 STAYS OPEN. The arm-count backstop's own omission knob is repaired, and the first cut of that repair was itself instance six
 
 **CS-988 STAYS OPEN.** This entry records the backstop repair that the reworked cut line

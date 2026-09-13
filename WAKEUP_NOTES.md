@@ -33,6 +33,25 @@ Keep every entry to that shape. If an item needs a paragraph, it needs its own f
 the line becomes a pointer.
 
 ---
+## Session 90 - 2026-09-13 - the claim store measured against the way a worker actually calls it, and three release designs refuted before one held
+
+- Shipped: CS-1009 and CS-1009's blocked dependent CS-991. Detail in docs/LEDGER.md, not here.
+- In flight: nothing. The tree is clean and the merge is one commit.
+- Decisions: no ADR. One adjudicated ruling, recorded inside the CS-1009 ledger entry: a lane lock
+  that reads RUNNING anchors its claim whether or not its holder can be proven, because
+  `lanes.holder_is_a_stranger` already ruled that trade one layer down and a row is a smaller unit
+  than a lane.
+- Surprises: nothing contradicted BOOTSTRAP.md, so no update is owed. What did surprise: a sha256
+  receipt over a record's own bytes is not a credential, because every lane can read every claim
+  file - and the worker prompt's only documented recovery path WAS the attack.
+- Failed paths: authenticating a release with a caller-supplied run id (run ids are policed nowhere);
+  authenticating it with a receipt (forgeable by any reader); and requiring a lock to prove its holder
+  before anchoring a claim (inverts the item wherever a start time cannot be read, handing a live
+  cycle's row to the other lane). None is to be retried.
+- Next action: CS-1008 - `tests/test_queue_loop.py`'s `_drive` injects neither the permit seam nor the
+  claim-states seam, so those arms read the LIVE store and flip non-deterministically against a real
+  lane. It is tier 1 and it is the last thing reading live state in a suite.
+
 ## Session 89 - 2026-09-13 - the dashboard lane's five prerequisites, and five new instances of the class they were built to avoid
 
 - Shipped: CS-1000, CS-992, CS-994, CS-1005 CLOSED. CS-988's sweep landed as a measurement and the
