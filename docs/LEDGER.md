@@ -374,6 +374,56 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-09-13 - CS-962 - NOT A COMPLETION RECORD. Three built answers reached the page, and the acceptance clause about what the page SAYS is untested
+
+**CS-962 STAYS OPEN and this entry does not close it.** Its acceptance has four clauses and this
+work discharges two of them plainly, one partly, and one not at all. The fourth is named at the
+bottom rather than quietly folded in.
+
+**WHAT CHANGED.** Three capabilities that were fully built and unreachable are now reachable.
+`/api/solve` takes `mode=targets|supply` and routes the second to `clockspeed/solve/ratio.py`'s
+`solve_for_supply`, which no route exposed. A new `/api/power` publishes `clockspeed/solve/power.py`,
+which was reachable from no route at all. `panel_optimize.js` calls `/api/optimize`, which had been
+answering 200 against real data while the page never called it, and `panel_power.js` calls the new
+route. Both panels are IIFE-wrapped and both go through the existing panel seam; neither issues its
+own fetch.
+
+**THE EXACTNESS CLAUSE IS DISCHARGED AND WAS CHECKED BY SOMEONE WHO DID NOT WRITE IT.** Every rate
+crosses the wire as the exact `{num,den}` pair and nothing in the render path divides. The builder's
+own division detectors are not the evidence for that - an adjudicator wrote an independent JS
+tokenizer handling comments, all three quote styles and escapes, and swept both new panels and
+`app.js` for bare slashes: zero. The one arithmetic idiom present is a long-division reading aid
+whose intermediates are bounded under 2^53, and it is pre-existing merged precedent rather than
+something this slice introduced.
+
+**THE SPEC WAS WIDENED, DELIBERATELY AND UNDER PRECEDENT.** Publishing a route requires the template
+to be in BOOTSTRAP.md section 7.1, because `routes._checked` refuses one that is not and an arm
+binds the tuple by equality to the list parsed out of that section. Section 7.1 says "Endpoints,
+minimum:", and that word already licensed `/api/registry` (CS-912) and `/api/map` (CS-977).
+`/api/power` is the third arrival in the same shape. The edit was proven load-bearing rather than
+decorative: deleting the clause reddens `tests/surface/test_health.py`.
+
+**THE FIRST PASS WAS ADJUDICATED DO-NOT-MERGE, AND THE REASON IS WORTH MORE THAN THE FIX.**
+`clockspeed/surface/api/power.py` declared `_ParameterError`, a private name
+`clockspeed/surface/api/solve.py` already owns, and the exception-derivation guard refuses an
+ambiguous name - a leading underscore makes a name unimported, not unambiguous. The scoped suite
+could not see it, for two compounding reasons: the arm lives in `tests/` while the slice measured
+`tests/surface`, and the six NEW files were untracked, so every `git ls-files`-backed guard
+population in the suite excluded exactly the files the slice had added. A green suite over an
+invisible file is not a green suite, and `git add -N` must precede the measurement rather than
+follow it.
+
+**VERIFY IT.** `tests/surface/test_power.py` (24 arms), `test_panel_power.py` (18) and
+`test_panel_optimize.py` (19). Whole suite on the merged tip: 7422 passed, 7 skipped, exit 0, with
+the exit code read out of a log rather than from a compound command's tail.
+
+**WHAT REMAINS BEFORE CS-962 CAN CLOSE.** The acceptance also requires that the page "states plainly
+which of its panels are registry-derived and which are world-derived and names what it cannot show".
+Nothing in this work tested that clause and no arm here claims it. Until it is measured, the item
+stays open on that clause alone.
+
+**FILED RATHER THAN FOLDED IN:** CS-1027 through CS-1032.
+
 ### 2026-09-13 - CS-1013 - CLOSED. A placement is the whole transform, and for one release it was a third of one
 
 **WHAT CHANGED.** `clockspeed/save/objects.py::Transform` has always parsed rotation, translation
