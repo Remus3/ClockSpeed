@@ -75,9 +75,19 @@ SYNTHETIC_CORPUS = DATA_TESTS / "synthetic.py"
 # never from a literal filename that a rename would leave pointing at nothing.
 THIS_MODULE = Path(__file__).resolve()
 
-# The five modules the phase 2 gate covers. Short names, joined to the package
+# The modules the phase 2 gate covers. Short names, joined to the package
 # below, so the parametrize ids read as the module rather than as a path.
-DATA_MODULES: tuple[str, ...] = ("blobs", "docs_extract", "locate", "registry", "version")
+# "assets" joined the list when it landed - it reads the shipped install, which
+# is exactly the property this gate exists to hold, so leaving it out would have
+# left the newest install reader the only one ungraded.
+DATA_MODULES: tuple[str, ...] = (
+    "assets",
+    "blobs",
+    "docs_extract",
+    "locate",
+    "registry",
+    "version",
+)
 
 # ---------------------------------------------------------------------------
 # Forcing "no install"
@@ -990,6 +1000,9 @@ def test_the_synthetic_corpus_names_no_install_path_and_no_account_id() -> None:
 # (CONVENTIONS.md section 7.2) - it would pass just as happily for a module
 # that had collapsed to importing nothing at all.
 ALLOWED_IMPORTS: dict[str, frozenset[str]] = {
+    # assets reaches locate and NOTHING else: reading the shipped archive must not
+    # depend on the registry, on the build pin, or on the blob grammar.
+    "assets": frozenset({"locate"}),
     "blobs": frozenset(),
     "docs_extract": frozenset(),
     "locate": frozenset(),

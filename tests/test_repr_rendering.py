@@ -42,6 +42,7 @@ from typing import Final
 import pytest
 from _pytest._io.saferepr import saferepr
 
+from clockspeed.data.assets import ExtractResult
 from clockspeed.save.chunks import DecompressedBody
 from clockspeed.save.header import _Cursor as HeaderCursor
 from clockspeed.save.objects import _Cursor as ObjectCursor
@@ -141,6 +142,7 @@ UNGRADED_EXCEPTION_CHANNEL: tuple[str, ...] = (
 #: ``opaque_class_names``: the population went 43 to 42, one save-layer class
 #: dropped out of grading, and every arm stayed green.
 RECORDED_POPULATION: tuple[str, ...] = (
+    "clockspeed/data/assets.py::ExtractResult",
     "clockspeed/save/chunks.py::ChunkError",
     "clockspeed/save/chunks.py::ChunkFrame",
     "clockspeed/save/chunks.py::ChunkWarning",
@@ -583,6 +585,9 @@ def _install_under(root: Path) -> tuple[Path | None, str]:
 #: in this record: the first draft listed only the three dataclasses and was
 #: told it had missed three carriers.
 FORCED: Final[dict[str, object]] = {
+    "clockspeed/data/assets.py::ExtractResult": ExtractResult(
+        index=None, artifact=Path(f"C:/Users/{MARKER}/header_index.json"), reason=""
+    ),
     "clockspeed/save/chunks.py::DecompressedBody": DecompressedBody(
         payload=MARKER.encode("ascii"), chunk_count=1
     ),
