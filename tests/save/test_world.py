@@ -67,15 +67,21 @@ silent fallback from the levelled reader to the flat one would keep all of this
 green while returning a wrong record count for a real world, which is precisely
 the defect CS-409 removed.
 
-Unlock state is NOT parsed by anything in this project. ADR 0004 measured which
-FIELDS exist; it did not measure their serialized grammar, and ``world.py``'s
-one producer of the published state returns its empty constant with no read of
-its own. So the assertions below pin an HONESTLY EMPTY unlock state carrying a
-warning that says that grammar is unmeasured, per non-negotiable 7. An empty
-unlock set that says so is correct; a fabricated one is not, and ADR 0004
-requires both a fresh-shaped and a mature-shaped world be asserted because a
-fixture built only from a mature world stays green through exactly the defect
-that reports a mature world's state for a fresh one.
+Unlock state IS parsed now, from the three carriers ``world.UNLOCK_CARRIERS``
+names - CS-1039. What is still not read is named in
+``world.UNLOCK_CARRIERS_UNREAD``, and the warning saying so is raised on EVERY
+load rather than only on an empty one, per non-negotiable 7: a partial reading
+reported as complete is the confident wrong answer. An empty unlock set that
+says so is correct; a fabricated one is not, and ADR 0004 requires both a
+fresh-shaped and a mature-shaped world be asserted because a fixture built only
+from a mature world stays green through exactly the defect that reports a mature
+world's state for a fresh one.
+
+THE CARRIER KEYS ARE SAVE-SIDE CLASS NAMES AND THE ARMS BELOW DO NOT SHARE A
+SOURCE WITH THEM. CS-1039's first cut keyed on the C++ classes that DECLARE the
+properties, matched zero records on every real world, and passed every synthetic
+arm because fixture and oracle came from the same wrong note. The fixtures below
+take their class paths from ADR 0016's own carrier table, parsed at test time.
 
 THE TRACEBACK RENDERING BELOW IS THE ASSERTION, NOT AN EMISSION
 ------------------------------------------------------------------
@@ -4912,45 +4918,161 @@ def test_a_container_inside_a_published_struct_interior_is_narrowed() -> None:
 
 
 # --- half two: the unlock carriers -----------------------------------------
+#
+# THE FIXTURES AND THE ORACLE DO NOT SHARE A SOURCE, AND THAT IS THE WHOLE
+# REPAIR. CS-1039's first cut keyed `world.UNLOCK_CARRIERS` on the C++ classes
+# the shipped headers DECLARE the properties on - AFGSchematicManager and its
+# siblings - and authored its fixtures from the same list. A save carries the
+# BLUEPRINT deriving from those classes, so `objects.class_name_of` returned
+# BP_SchematicManager_C and not one key matched any record on any real world,
+# while every arm here passed. Fixture and oracle agreeing is not evidence when
+# both were copied from the same wrong note.
+#
+# So the class paths below are read out of ADR 0016's own carrier table, which
+# was measured by running the decoder over real saves, and the arm that grades
+# the key table parses that same file rather than importing the keys.
 
-#: The three carriers the acceptance names, as ``(class path, instance name)``.
-#: THE CLASS PATHS ARE NAMESPACED because ``objects.class_name_of`` reduces a
-#: path to its final segment, and a bare name would not exercise that step.
-_SCHEMATIC_MANAGER: Final = (
-    "/Script/FactoryGame.FGSchematicManager.AFGSchematicManager",
-    "Persistent_Level:PersistentLevel.SchematicManager_0",
-)
-_GAME_PHASE_MANAGER: Final = (
-    "/Script/FactoryGame.FGGamePhaseManager.AFGGamePhaseManager",
-    "Persistent_Level:PersistentLevel.GamePhaseManager_0",
-)
-_TUTORIAL_INTRO_MANAGER: Final = (
-    "/Script/FactoryGame.FGTutorialIntroManager.AFGTutorialIntroManager",
-    "Persistent_Level:PersistentLevel.TutorialIntroManager_0",
+#: The ADR whose carrier table is the measured source for every class path in
+#: this section. Named once so a rename is one edit and not five.
+_CARRIER_ADR: Final = (
+    Path(world.__file__).resolve().parents[2]
+    / "docs"
+    / "adr"
+    / "0016-unlock-arrays-carriers-and-serialized-grammar.md"
 )
 
-#: The values the three carriers are packed with. Small DISTINCT integers, so a
-#: reader that crossed two carriers' values produces a visible wrong answer
-#: rather than a coincidentally right one.
+
+def _adr_carrier_paths() -> dict[str, str]:
+    """Every ``(property name, carrier type path)`` ADR 0016 records.
+
+    PARSED FROM THE ADR RATHER THAN TRANSCRIBED. A transcription is a second
+    copy of a measured fact and would drift the first time the table is
+    re-measured - and a transcription is exactly what let the first cut of this
+    item ship a key table no save could match.
+
+    Returns:
+        The carrier type path for each property name the table's rows list. A
+        row naming several properties contributes one entry per name.
+
+    Raises:
+        AssertionError: The table did not parse, so nothing below is graded
+            against a measured source.
+    """
+    rows = re.findall(
+        r"^\|\s*`?([^|]+?)`?\s*\|\s*`([^`]+)`\s*\|$",
+        _CARRIER_ADR.read_text(encoding="utf-8"),
+        re.MULTILINE,
+    )
+    found: dict[str, str] = {}
+    for names, path in rows:
+        if not path.startswith("/"):
+            continue
+        for name in names.split(","):
+            cleaned = name.strip().strip("`")
+            if cleaned.startswith("m"):
+                found[cleaned] = path
+    assert found, f"no carrier row parsed out of {_CARRIER_ADR.name}, so no arm here grades"
+    return found
+
+
+def test_every_unlock_carrier_key_is_reachable_from_the_adr_carrier_table() -> None:
+    """THE CONTROL WHOSE ABSENCE LET A ZERO-MATCH READER SHIP.
+
+    ``world.UNLOCK_CARRIERS`` is keyed by the class name a SAVE carries, which
+    is what ``objects.class_name_of`` returns for the record's type path. The
+    measured type paths live in ADR 0016's carrier table. This arm reduces each
+    of those paths the same way the reader does and asserts every key is among
+    them - so a key naming a C++ declaring class, or any other class no save
+    writes, fails here rather than passing every fixture and matching nothing.
+
+    IT ALSO GRADES THE PROPERTY NAME, not only the class. A key pairing the
+    right carrier with a property that carrier does not hold would otherwise
+    survive.
+    """
+    measured = _adr_carrier_paths()
+    reachable = {objects.class_name_of(path) for path in measured.values()}
+
+    unreachable = sorted(
+        f"{carrier}.{name}"
+        for carrier, name in world.UNLOCK_CARRIERS
+        if carrier not in reachable or objects.class_name_of(measured.get(name, "")) != carrier
+    )
+    assert unreachable == [], (
+        "unlock carrier key(s) naming a class or pairing no save writes, "
+        f"measured against {_CARRIER_ADR.name}: {unreachable}"
+    )
+
+
+def _adr_carrier(name: str) -> tuple[str, str]:
+    """One carrier's class path and a synthetic instance name for it.
+
+    Args:
+        name: The property name, as ADR 0016's table spells it.
+
+    Returns:
+        The measured class path and an instance name built from its class.
+    """
+    path = _adr_carrier_paths()[name]
+    return path, f"{synthetic.DECODABLE_ROOT}.{objects.class_name_of(path)}_0"
+
+
+#: The asset paths the schematic array is packed with. ASSET PATHS AND NOT
+#: INSTANCE NAMES: ADR 0016 measured that every element of these arrays is an
+#: object reference to a ``/Game/FactoryGame/...`` GAME ASSET whose level
+#: reference is EMPTY, and that not one element joined a record's
+#: ``instance_name``. A fixture built from instance names would grade a reader
+#: that resolves against the record table, which is the reader that finds
+#: nothing on a real world.
 _PURCHASED_PATHS: Final = (
-    "/Game/FactoryGame/Schematics/Schematic_CS1039_A.Schematic_CS1039_A_C",
-    "/Game/FactoryGame/Schematics/Schematic_Alternate_CS1039.Schematic_Alternate_CS1039_C",
+    "/Game/FactoryGame/Schematics/Progression/Schematic_1-1.Schematic_1-1_C",
+    "/Game/FactoryGame/Schematics/Alternate/Schematic_Alternate_CS1039.Schematic_Alternate_CS1039_C",
 )
-_GAME_PHASE_VALUE: Final = 3
-_TRADING_POST_VALUE: Final = 5
+
+#: The recipe array's asset paths, on a DIFFERENT carrier from the schematics -
+#: ADR 0016 measured that too, and a reader keying both to one class would pass
+#: an arm that packed them onto the same record.
+_RECIPE_PATHS: Final = ("/Game/FactoryGame/Recipes/Recipe_CS1039.Recipe_CS1039_C",)
+
+#: The asset the phase reference names. A ``GP_*`` asset path and NOT AN
+#: INTEGER: ADR 0016 measured that no ``Phase``-named property in either
+#: readable world's record table decoded to an integer at all, and the C++
+#: declares ``TObjectPtr<UFGGamePhase>``. The first cut of this item read this
+#: carrier through an int-only narrowing and authored its fixture as an
+#: ``IntProperty``, so fixture and oracle were wrong together and no arm could
+#: have caught it.
+_GAME_PHASE_ASSET: Final = "/Game/FactoryGame/GamePhases/GP_Phase3.GP_Phase3_C"
+
+#: The EMPTY level reference every element and every top-level unlock reference
+#: carries, per ADR 0016. Spelled rather than reused from the seam fixtures
+#: above, which pair their references with a level on purpose.
+_ASSET_LEVEL: Final = ""
 
 
-def _purchased_tag() -> bytes:
-    """The ``mPurchasedSchematics`` array-of-``ObjectProperty`` tag.
+def _asset_reference(path: str) -> bytes:
+    """One ``ObjectProperty`` value naming a game asset.
+
+    Args:
+        path: The asset path.
+
+    Returns:
+        The encoded pair, whose level reference half is empty.
+    """
+    return synthetic.fstring(_ASSET_LEVEL) + synthetic.fstring(path)
+
+
+def _asset_array_tag(name: str, paths: tuple[str, ...]) -> bytes:
+    """One ``ArrayProperty`` of ``ObjectProperty`` over asset references.
+
+    Args:
+        name: The property name.
+        paths: The asset paths, in element order.
 
     Returns:
         The encoded tag.
     """
-    value = _i32(len(_PURCHASED_PATHS)) + b"".join(
-        _reference_value(path) for path in _PURCHASED_PATHS
-    )
+    value = _i32(len(paths)) + b"".join(_asset_reference(path) for path in paths)
     return synthetic.property_tag(
-        "mPurchasedSchematics",
+        name,
         _CONTAINER_TYPE_WORD,
         value,
         tag_extra=synthetic.fstring(objects.REFERENCE_TYPE_WORD),
@@ -4958,61 +5080,56 @@ def _purchased_tag() -> bytes:
 
 
 def _carrier_records() -> tuple[tuple[str, str, bytes], ...]:
-    """The three carrier records the acceptance names, wired.
+    """The three measured carriers the acceptance names, wired.
 
     Returns:
-        One triple per record.
+        One ``(class path, instance name, encoded tag)`` per carrier record.
     """
     return (
-        (*_SCHEMATIC_MANAGER, _purchased_tag()),
         (
-            *_GAME_PHASE_MANAGER,
+            *_adr_carrier("mPurchasedSchematics"),
+            _asset_array_tag("mPurchasedSchematics", _PURCHASED_PATHS),
+        ),
+        (*_adr_carrier("mAvailableRecipes"), _asset_array_tag("mAvailableRecipes", _RECIPE_PATHS)),
+        (
+            *_adr_carrier("mCurrentGamePhase"),
             synthetic.property_tag(
                 "mCurrentGamePhase",
-                synthetic.DECODABLE_INT_TYPE_WORD,
-                _i32(_GAME_PHASE_VALUE),
-            ),
-        ),
-        (
-            *_TUTORIAL_INTRO_MANAGER,
-            synthetic.property_tag(
-                "mTradingPostLevel",
-                synthetic.DECODABLE_INT_TYPE_WORD,
-                _i32(_TRADING_POST_VALUE),
+                objects.REFERENCE_TYPE_WORD,
+                _asset_reference(_GAME_PHASE_ASSET),
             ),
         ),
     )
 
 
-def test_the_three_named_carriers_round_trip_into_the_unlock_state() -> None:
-    """CS-1039 acceptance, half two: each named carrier's value arrives.
+def test_the_three_measured_carriers_round_trip_into_the_unlock_state() -> None:
+    """CS-1039 acceptance, half two: each measured carrier's value arrives.
 
-    ``_read_unlocks`` took no arguments and returned ``EMPTY_UNLOCK_STATE``,
-    so a world whose carrier payloads HAD decoded published nothing - an empty
+    ``_read_unlocks`` took no arguments and returned ``EMPTY_UNLOCK_STATE``, so
+    a world whose carrier payloads HAD decoded published nothing - an empty
     unlock set indistinguishable from a world with nothing unlocked.
 
-    ``mTradingPostLevel`` HAS NO FIELD ON THE MODEL AT HEAD. That is why this
-    arm is written against ``trading_post_level`` rather than around it: an arm
-    written against today's ``UnlockState`` passes while grading nothing for
-    that carrier, which is the shape this repository has measured repeatedly.
+    THE PHASE IS ASSERTED AS AN ASSET PATH. ``UnlockState.current_game_phase``
+    was retyped off ``int | None`` for this, which ROADMAP.md's CS-913 line
+    independently requires; asserting an integer here would grade the defect.
     """
     model = world.load_world_from_bytes(_carrier_blob(_carrier_records()))
     unlocks = model.unlocks
 
     assert not unlocks.is_empty
     assert unlocks.purchased_schematics == frozenset(_PURCHASED_PATHS)
-    assert unlocks.current_game_phase == _GAME_PHASE_VALUE
-    assert unlocks.trading_post_level == _TRADING_POST_VALUE
+    assert unlocks.recipes == frozenset(_RECIPE_PATHS)
+    assert unlocks.current_game_phase == _GAME_PHASE_ASSET
 
 
-@pytest.mark.parametrize("dropped", [0, 1, 2], ids=["schematics", "phase", "trading_post"])
+@pytest.mark.parametrize("dropped", [0, 1, 2], ids=["schematics", "recipes", "phase"])
 def test_unwiring_any_one_carrier_reddens_its_own_clause(dropped: int) -> None:
     """CS-1039 acceptance, half two: the negative control, SHIPPED.
 
     An arm that cannot be reddened on demand is not evidence. Each parameter
     removes exactly ONE carrier record from the fixture and asserts that the
-    field that carrier feeds goes back to its empty reading while the other
-    two still arrive - so a reader that populated the whole state from any one
+    field that carrier feeds goes back to its empty reading while the other two
+    still arrive - so a reader that populated the whole state from any one
     record, or from none of them, fails here rather than passing three times.
     """
     records = _carrier_records()
@@ -5021,8 +5138,8 @@ def test_unwiring_any_one_carrier_reddens_its_own_clause(dropped: int) -> None:
 
     readings = (
         unlocks.purchased_schematics == frozenset(_PURCHASED_PATHS),
-        unlocks.current_game_phase == _GAME_PHASE_VALUE,
-        unlocks.trading_post_level == _TRADING_POST_VALUE,
+        unlocks.recipes == frozenset(_RECIPE_PATHS),
+        unlocks.current_game_phase == _GAME_PHASE_ASSET,
     )
     assert not readings[dropped], (
         "the clause for the removed carrier still reads as populated, so it "
@@ -5032,10 +5149,59 @@ def test_unwiring_any_one_carrier_reddens_its_own_clause(dropped: int) -> None:
     assert surviving, f"removing one carrier lost another carrier's value too: {readings}"
 
 
-def test_a_carrier_property_on_the_wrong_owner_is_not_read() -> None:
-    """THE SECOND-OWNER TRAP, MEASURED 2026-09-14 AND GRADED HERE.
+def test_the_declaring_class_names_the_first_cut_used_match_nothing() -> None:
+    """THE DEFECT ITSELF, PINNED SO IT CANNOT COME BACK.
 
-    ``mCurrentGamePhase`` is declared on ``AFGGamePhaseManager`` WITH the
+    The first cut keyed on ``AFGSchematicManager``, ``AFGRecipeManager`` and
+    ``AFGGamePhaseManager``. Those names are real - the shipped headers declare
+    the properties on them - which is what made the mistake survive review. A
+    save carries the blueprint that derives from them, so this arm packs the
+    same payloads onto records of those classes and asserts the reader
+    contributes NOTHING, rather than asserting only that the right names work.
+    """
+    declaring = (
+        "/Script/FactoryGame.FGSchematicManager.AFGSchematicManager",
+        "/Script/FactoryGame.FGRecipeManager.AFGRecipeManager",
+        "/Script/FactoryGame.FGGamePhaseManager.AFGGamePhaseManager",
+    )
+    records = tuple(
+        (class_path, f"{synthetic.DECODABLE_ROOT}.Declaring_{position}", tag)
+        for position, (class_path, (_path, _instance, tag)) in enumerate(
+            zip(declaring, _carrier_records(), strict=True)
+        )
+    )
+    unlocks = world.load_world_from_bytes(_carrier_blob(records)).unlocks
+
+    assert unlocks.is_empty, (
+        "a C++ DECLARING class matched a carrier key, so the reader would "
+        f"accept a class no save writes: {unlocks!r}"
+    )
+
+
+def test_an_array_element_is_taken_as_an_asset_path_and_not_joined_to_a_record() -> None:
+    """ADR 0016: not one array element joined a record's ``instance_name``.
+
+    The elements are asset references whose LEVEL REFERENCE IS EMPTY. A reader
+    that resolved them against the record table would find nothing and report
+    an empty unlock set for a world that has one - so this arm asserts the
+    published paths are the asset paths verbatim, and that none of them is any
+    record's instance name in the same world.
+    """
+    model = world.load_world_from_bytes(_carrier_blob(_carrier_records()))
+    instances = {record.instance_name for record in model.objects.records}
+
+    assert model.unlocks.purchased_schematics == frozenset(_PURCHASED_PATHS)
+    assert not (model.unlocks.purchased_schematics & instances), (
+        "an unlock path coincides with a record instance name, so this arm "
+        "cannot tell an asset-path reader from a record-table reader"
+    )
+    assert instances, "the world carried no records, so the disjointness is vacuous"
+
+
+def test_a_carrier_property_on_the_wrong_owner_is_not_read() -> None:
+    """THE SECOND-OWNER TRAP.
+
+    ``mCurrentGamePhase`` is declared on the game phase manager WITH the
     ``SaveGame`` specifier and ALSO on ``UFGSessionInformationModel`` WITHOUT
     it. A reader matching on the bare property name would accept a field that
     cannot be in a save at all, and would do it silently. The match is on the
@@ -5043,11 +5209,11 @@ def test_a_carrier_property_on_the_wrong_owner_is_not_read() -> None:
     """
     stranger = (
         "/Script/FactoryGame.FGSessionInformationModel.UFGSessionInformationModel",
-        "Persistent_Level:PersistentLevel.SessionInformationModel_0",
+        f"{synthetic.DECODABLE_ROOT}.SessionInformationModel_0",
         synthetic.property_tag(
             "mCurrentGamePhase",
-            synthetic.DECODABLE_INT_TYPE_WORD,
-            _i32(_GAME_PHASE_VALUE + 1),
+            objects.REFERENCE_TYPE_WORD,
+            _asset_reference(_GAME_PHASE_ASSET),
         ),
     )
     unlocks = world.load_world_from_bytes(_carrier_blob((stranger,))).unlocks
@@ -5059,36 +5225,59 @@ def test_a_carrier_property_on_the_wrong_owner_is_not_read() -> None:
     assert unlocks.is_empty
 
 
-def test_no_unlock_value_is_a_float() -> None:
-    """Non-negotiable 6: no float reaches the state, and no bool passes as one.
+def test_the_phase_is_never_published_as_an_integer() -> None:
+    """Non-negotiable 6 and ADR 0016 together: no float, and no int either.
 
-    ``bool`` IS a subclass of ``int`` in Python, so an ``isinstance(value,
-    int)`` admission check accepts True as a phase index of 1. The admitted
-    values are asserted here over the live state rather than trusted.
+    The phase is an ASSET REFERENCE. An ``int`` here would mean the reader had
+    gone back to the narrowing that could not read a real save, and ``bool`` is
+    a subclass of ``int`` so an ``isinstance`` check alone would admit True as
+    a phase of 1. The type is asserted exactly.
     """
     unlocks = world.load_world_from_bytes(_carrier_blob(_carrier_records())).unlocks
 
-    for value in (unlocks.current_game_phase, unlocks.trading_post_level):
-        assert value is not None
-        assert not isinstance(value, float), f"a float reached the unlock state: {value!r}"
-        assert type(value) is int, f"a non-int integer reached the unlock state: {value!r}"
+    phase = unlocks.current_game_phase
+    assert phase is not None
+    assert type(phase) is str, f"the phase was published as {type(phase).__name__}: {phase!r}"
+    assert not isinstance(phase, float | int), "the phase reverted to a numeric reading"
+
+
+def test_the_unread_carriers_are_named_and_still_warned_about() -> None:
+    """Non-negotiable 7: a PARTIAL reading may not be reported as complete.
+
+    The warning is raised on every load, including one that found three
+    carriers. A warning conditional on having found nothing would go silent
+    exactly on the worlds with the most still unread - and ``mTradingPostLevel``
+    is among them, because ADR 0016 records no carrier type path for it, so
+    there is no class name to key it on and inventing one is the defect this
+    item's first cut shipped.
+    """
+    model = world.load_world_from_bytes(_carrier_blob(_carrier_records()))
+
+    assert not model.unlocks.is_empty, "the fixture read nothing, so the warning is trivial"
+    assert world.WARN_UNLOCK_GRAMMAR_UNMEASURED in {w.code for w in model.warnings}
+    assert "mTradingPostLevel" in world.UNLOCK_CARRIERS_UNREAD
+    assert model.unlocks.trading_post_level is None
+    keyed = {name for _carrier, name in world.UNLOCK_CARRIERS}
+    assert not (keyed & set(world.UNLOCK_CARRIERS_UNREAD)), (
+        "a carrier is listed as both read and unread"
+    )
 
 
 def test_the_unlock_state_renders_no_object_path() -> None:
     """PRIVACY, AND IT IS NOT INHERITED FROM THE OLD EMPTINESS.
 
-    ``UnlockState``'s entry in ``tests/repr_rendering_guard.py`` rested on a
-    measured fact - ``_read_unlocks`` produced only the empty constant - and
-    that fact is what this item removes. The collections now hold OBJECT PATHS
-    read out of a save. An object path may cross the SAVE seam and may not
-    reach a repr, so the rendering is hand written and renders lengths only. A
-    test runner reprs a value before a human chooses what to print.
+    ``UnlockState`` was exempted in ``tests/repr_rendering_guard.py`` on a
+    MEASURED claim that ``_read_unlocks`` produced only the empty constant, and
+    that claim is what this item removes. The exemption is gone with it, so the
+    derivation now grades the class itself. The collections hold object paths
+    read out of a save; a path may cross the SAVE seam and may not reach a
+    repr, and a test runner reprs a value before a human chooses what to print.
     """
     unlocks = world.load_world_from_bytes(_carrier_blob(_carrier_records())).unlocks
     short = type(unlocks).__name__
 
     for rendered in (repr(unlocks), saferepr(unlocks)):
-        for path in _PURCHASED_PATHS:
+        for path in (*_PURCHASED_PATHS, *_RECIPE_PATHS, _GAME_PHASE_ASSET):
             assert path not in rendered, f"the unlock repr renders an object path: {rendered}"
         assert short in rendered
         assert rendered != f"{short}()", (

@@ -151,16 +151,26 @@ A mapping that is PRESENT and unreadable is a different thing entirely and does
 raise, because collapsing the two would hide a shipped-format change behind the
 same value that means "no install".
 
-UNLOCK STATE IS HONESTLY EMPTY, AND SAYS SO
----------------------------------------------
+UNLOCK STATE IS READ FROM THREE CARRIERS, AND SAYS WHAT IT STILL CANNOT READ
+------------------------------------------------------------------------------
 ADR 0004 measured WHICH unlock fields exist in a mature world - 246 schematic
 paths including the alt-recipe purchases, 360 recipe paths, the game phase, the
-research trees, the scanned resources and the feature booleans. It did **not**
-measure their serialized grammar, and :func:`_read_unlocks` - the single
-producer of the published state - returns :data:`EMPTY_UNLOCK_STATE` with no
-read of its own. So :class:`UnlockState` is published EMPTY with a warning
-saying the unlock grammar is unmeasured, per non-negotiable 7 - unknown content
-is flagged and skipped, never fatal and never silently wrong.
+research trees, the scanned resources and the feature booleans. ADR 0016 then
+measured the SAVE-SIDE carriers and the grammar, and :func:`_read_unlocks` reads
+three of them: ``mPurchasedSchematics``, ``mAvailableRecipes`` and
+``mCurrentGamePhase``. Everything in :data:`UNLOCK_CARRIERS_UNREAD` is still
+unread, which is why :data:`WARN_UNLOCK_GRAMMAR_UNMEASURED` is raised on EVERY
+load and not only on an empty one - per non-negotiable 7, a partial reading
+reported as complete is the confident wrong answer, and a warning that goes
+silent once something was found goes silent exactly on the worlds with the most
+still missing.
+
+TWO THINGS THIS READER IS NOT. It does not key on the C++ class that DECLARES a
+property - a save carries the blueprint deriving from it, so the keys are
+``BP_SchematicManager_C`` and not ``AFGSchematicManager``, and CS-1039's first
+cut matched zero records on every real world while every synthetic arm passed.
+And it does not treat the phase as an integer: it is an ``ObjectProperty``
+naming a ``GP_*`` asset, so :attr:`UnlockState.current_game_phase` is a string.
 
 That is not a placeholder to be quietly filled in by inference. ADR 0004's
 single most important engineering consequence is that **an absent unlock array
@@ -619,10 +629,10 @@ class WorldWarning:
 class UnlockState:
     """What the player has unlocked.
 
-    NO LONGER EMPTY ON EVERY PATH - CS-1039. :func:`_read_unlocks` reads four
-    of the eight declared carriers out of the decoded payloads, so a collection
-    here can now hold what a save actually wrote. The four it does NOT read are
-    named in :data:`UNLOCK_CARRIERS_UNREAD`, and
+    NO LONGER EMPTY ON EVERY PATH - CS-1039. :func:`_read_unlocks` reads the
+    three carriers :data:`UNLOCK_CARRIERS` names out of the decoded payloads,
+    so a collection here can now hold what a save actually wrote. The ones it
+    does NOT read are named in :data:`UNLOCK_CARRIERS_UNREAD`, and
     :data:`WARN_UNLOCK_GRAMMAR_UNMEASURED` is still raised on every load
     because of them: an empty unlock set with no warning is indistinguishable
     from a world that genuinely has nothing unlocked, and the difference
@@ -648,7 +658,13 @@ class UnlockState:
             ``Schematic_Alternate_*`` entries that are pillar 2's alt-recipe
             purchase state.
         recipes: Unlocked recipe paths, including ``Recipe_Alternate_*``.
-        current_game_phase: The phase index, or None when it was not read.
+        current_game_phase: The ASSET PATH of the phase the world is in, or
+            None when no carrier named one. A STRING AND NOT AN INDEX, retyped
+            off ``int | None`` by CS-1039 because ADR 0016 measured the value
+            to be a top-level ``ObjectProperty`` naming a ``GP_*`` asset and
+            measured that no ``Phase``-named property in either readable world
+            decoded to an integer at all. ROADMAP.md's CS-913 line requires the
+            same retype, so this delivery OVERLAPS that item.
         feature_flags: Feature-level unlocks as discrete booleans - blueprints,
             building overclock, building efficiency, the map, the customizer.
             Overclock availability is a direct precondition for power and clock
@@ -656,18 +672,18 @@ class UnlockState:
             without it.
         scanned_resources: The scanned-resource state, which is the input that
             keeps ADR 0003's degraded node mode viable.
-        trading_post_level: The tutorial trading post's level, or None when no
-            carrier was found. ADDED BY CS-1039 RATHER THAN ALREADY PRESENT,
-            and that is the point of it: the acceptance requires
-            ``mTradingPostLevel`` to round-trip and to redden when its carrier
-            is unwired, and neither can hold while there is no field to hold
-            it. An arm written against the model as it stood passes while
-            grading nothing at all for that carrier.
+        trading_post_level: The tutorial trading post's tier, or None. ALWAYS
+            None TODAY, and honestly so: ADR 0016's measured carrier table
+            records no carrier type path for ``mTradingPostLevel`` at all, so
+            there is no class name to key it on. The field exists because the
+            filed acceptance names the carrier and because inventing a class
+            name to key it on is the exact defect CS-1039's first cut shipped.
+            It is listed in :data:`UNLOCK_CARRIERS_UNREAD`.
     """
 
     purchased_schematics: frozenset[str]
     recipes: frozenset[str]
-    current_game_phase: int | None
+    current_game_phase: str | None
     feature_flags: Mapping[str, bool]
     scanned_resources: frozenset[str]
     trading_post_level: int | None = None
@@ -696,12 +712,19 @@ class UnlockState:
     def __repr__(self) -> str:
         """Render counts and flags, and withhold every path.
 
-        The two integers ARE rendered. Neither is a string read out of a save -
-        each is a small ordinal the game's own progression defines - and
-        rendering a count for a scalar would withhold by saying nothing. The
-        feature flags are counted rather than named for the habit's sake: the
-        names are module-side today and a later edit widening them to something
-        read from a file must not silently turn this into an echo path.
+        THE PHASE IS RENDERED AS A PRESENCE AND NOT AS ITS VALUE. It used to
+        be an integer here, and rendering an integer was safe; CS-1039 retyped
+        it to the ASSET PATH the save actually names, and an object path may
+        not reach a repr. The privacy arm caught exactly that the moment the
+        retype landed, which is the argument for the arm rather than for the
+        annotation. ``trading_post_level`` stays a number and is rendered,
+        because it is an ordinal the game's own progression defines and is
+        never a string read out of a save.
+
+        The feature flags are counted rather than named for the habit's sake:
+        the names are module-side today and a later edit widening them to
+        something read from a file must not silently turn this into an echo
+        path.
 
         Returns:
             The safe rendering.
@@ -710,7 +733,7 @@ class UnlockState:
             f"{type(self).__name__}("
             f"purchased_schematics={len(self.purchased_schematics)}, "
             f"recipes={len(self.recipes)}, "
-            f"current_game_phase={self.current_game_phase}, "
+            f"current_game_phase={self.current_game_phase is not None}, "
             f"feature_flags={len(self.feature_flags)}, "
             f"scanned_resources={len(self.scanned_resources)}, "
             f"trading_post_level={self.trading_post_level})"
@@ -1395,53 +1418,65 @@ def _untransformed_node_class(record: ObjectRecord) -> bool:
     return class_name_of(record.type_path) in NODE_CLASS_NAMES and record.transform is None
 
 
-#: THE CARRIERS THIS MODULE READS, KEYED BY OWNING CLASS AND PROPERTY NAME
-#: TOGETHER - CS-1039. Each value is the :class:`UnlockState` field the carrier
-#: feeds.
+#: THE CARRIERS THIS MODULE READS, KEYED BY THE RECORD CLASS NAME A SAVE
+#: ACTUALLY WRITES AND BY THE PROPERTY NAME TOGETHER. Each value is the
+#: :class:`UnlockState` field that carrier feeds.
 #:
-#: THE KEY IS A PAIR AND NOT A BARE NAME, AND THAT IS THE WHOLE CONTROL.
-#: ``mCurrentGamePhase`` is declared TWICE in the shipped headers: on
-#: ``AFGGamePhaseManager`` WITH the ``SaveGame`` specifier, and on
-#: ``UFGSessionInformationModel`` WITHOUT it. A reader matching on the name
-#: alone would accept a field that cannot appear in a save at all, and would do
-#: it silently - which is the confident wrong answer non-negotiable 7 forbids
-#: rather than a near miss. Measured against the install's own headers through
-#: ``clockspeed/data/assets.py``, 2026-09-14.
+#: THE CLASS NAMES ARE SAVE-SIDE, NOT C++ DECLARING CLASSES, AND THE FIRST
+#: CUT OF THIS ITEM GOT THAT WRONG. It keyed on ``AFGSchematicManager``,
+#: ``AFGRecipeManager`` and ``AFGGamePhaseManager`` - the classes the shipped
+#: headers DECLARE the properties on. A save carries the blueprint that
+#: derives from them, so :func:`class_name_of` returns ``BP_SchematicManager_C``
+#: and no key matched any record on any real world while every synthetic arm
+#: passed. That is non-negotiable 7's silently-wrong outcome reached through a
+#: fixture and an oracle taken from the same wrong source.
 #:
-#: WHY FOUR AND NOT EIGHT. Eight declarations carry ``SaveGame`` and so CAN
-#: appear in a save. Four of them have a field on :class:`UnlockState` to land
-#: in; the other four are listed in :data:`UNLOCK_CARRIERS_UNREAD` and are not
-#: read, because inventing a field to hold one would put a shape in the model
-#: with no consumer and no acceptance behind it.
+#: THE TYPE PATHS ARE RECORDED IN
+#: ``docs/adr/0016-unlock-arrays-carriers-and-serialized-grammar.md`` under
+#: "The carriers", measured by running the decoder over real saves.
+#: ``tests/save/test_world.py::test_every_unlock_carrier_key_is_reachable_from_
+#: the_adr_carrier_table`` parses that table and asserts every key here is
+#: reachable from it - the control whose absence let the first cut ship.
+#:
+#: ``mTradingPostLevel`` IS ABSENT AND THAT IS DELIBERATE. The item note names
+#: it as a HUB-tier carrier, but ADR 0016's measured table records no carrier
+#: type path for it at all. Keying it would mean inventing a class name, which
+#: is exactly the defect above. It is listed in :data:`UNLOCK_CARRIERS_UNREAD`
+#: and :attr:`UnlockState.trading_post_level` stays None until a carrier is
+#: measured.
 UNLOCK_CARRIERS: Final[Mapping[tuple[str, str], str]] = MappingProxyType(
     {
-        ("AFGSchematicManager", "mPurchasedSchematics"): "purchased_schematics",
-        ("AFGRecipeManager", "mAvailableRecipes"): "recipes",
-        ("AFGGamePhaseManager", "mCurrentGamePhase"): "current_game_phase",
-        ("AFGTutorialIntroManager", "mTradingPostLevel"): "trading_post_level",
+        ("BP_SchematicManager_C", "mPurchasedSchematics"): "purchased_schematics",
+        ("FGRecipeManager", "mAvailableRecipes"): "recipes",
+        ("BP_GamePhaseManager_C", "mCurrentGamePhase"): "current_game_phase",
     }
 )
 
-#: The declarations that carry ``SaveGame`` and are STILL NOT READ, named so
-#: the warning below reports a specific gap rather than a general one. Two were
-#: named in the item note as explicitly retained; the other two decode but have
-#: nowhere on :class:`UnlockState` to land.
+#: The carriers that are NOT read, so the warning below reports a specific gap
+#: rather than a general one. The first two were named in the item note as
+#: explicitly retained; the next two decode but have nowhere on
+#: :class:`UnlockState` to land; the last has no measured carrier at all.
 UNLOCK_CARRIERS_UNREAD: Final = (
-    ("AFGSchematicManager", "mPaidOffSchematic"),
-    ("AFGResearchManager", "mSavedOngoingResearch"),
-    ("AFGResearchManager", "mUnlockedResearchTrees"),
-    ("AFGGamePhaseManager", "mTargetGamePhase"),
+    "mPaidOffSchematic",
+    "mSavedOngoingResearch",
+    "mUnlockedResearchTrees",
+    "mTargetGamePhase",
+    "mTradingPostLevel",
 )
 
-#: The fields :data:`UNLOCK_CARRIERS` fills with a SET OF OBJECT PATHS. The
-#: remaining fields take a scalar, and the two are read differently.
+#: The fields :data:`UNLOCK_CARRIERS` fills from an ARRAY of asset references.
+#: The remaining field is read from a TOP-LEVEL reference tag, and the two
+#: arrive on different attributes of :class:`RecordProperties`.
 _UNLOCK_PATH_FIELDS: Final = frozenset({"purchased_schematics", "recipes"})
 
-#: How many strings a decoded ``objects.REFERENCE_TYPE_WORD`` value carries: a
-#: level reference and an object path. Spelled here rather than imported from
-#: ``objects``, whose own copy is private - reaching for it would be the seam
-#: violation this layer is built to avoid, and the number is a shape check on a
-#: value this module already holds rather than a grammar this module reads.
+#: The one field read from :attr:`RecordProperties.references` rather than from
+#: ``values``. ADR 0016 measured that ``mCurrentGamePhase`` is a TOP-LEVEL
+#: ``ObjectProperty`` tag naming a ``GP_*`` asset, and that no ``Phase``-named
+#: property in either readable world's record table decoded to an INTEGER at
+#: all. A reader admitting only ``int`` therefore cannot read it, which is what
+#: the first cut of this item shipped.
+_UNLOCK_REFERENCE_FIELDS: Final = frozenset({"current_game_phase"})
+
 _REFERENCE_PARTS: Final = 2
 
 
@@ -1453,6 +1488,14 @@ def _unlock_paths(value: object) -> frozenset[str]:
     rather than guessed at - a container that decoded partially still yields
     the members that decoded, and a value of some other shape yields nothing at
     all instead of raising out of a reader whose contract is to flag and skip.
+
+    THE OBJECT PATH HALF IS AN ASSET PATH AND JOINS THE REGISTRY, NEVER THE
+    RECORD TABLE. ADR 0016 measured every element of these arrays across both
+    readable worlds: the level reference is empty and the object path is a
+    ``/Game/FactoryGame/...`` asset path, and NOT ONE element joined a record's
+    ``instance_name``. So this returns the path and looks nothing up - a reader
+    that resolved these against the record table would find nothing and report
+    an empty unlock set for a world that has one.
 
     Args:
         value: One entry of ``RecordProperties.values``, of any shape.
@@ -1473,24 +1516,36 @@ def _unlock_paths(value: object) -> frozenset[str]:
     return frozenset(paths)
 
 
-def _unlock_scalar(value: object) -> int | None:
-    """One published value narrowed to a whole number, or refused.
+def _unlock_reference(entry: RecordProperties, name: str) -> str | None:
+    """The asset path one TOP-LEVEL reference tag names, or None.
 
-    ``bool`` IS A SUBCLASS OF ``int`` AND IS REFUSED HERE EXPLICITLY.
-    ``isinstance(value, int)`` alone admits True as a game phase of 1, which is
-    a wrong answer that looks like a right one. NO FLOAT IS ADMITTED EITHER:
-    non-negotiable 6 keeps the arithmetic exact, and a carrier that decoded to
-    a float decoded as something other than the ``IntProperty`` it declares.
+    READ FROM ``references`` RATHER THAN FROM ``values``, and that is the
+    correction this function exists for. ADR 0016 measured ``mCurrentGamePhase``
+    as a top-level ``ObjectProperty`` tag naming a ``GP_*`` asset, and measured
+    that no ``Phase``-named property in either readable world's record table
+    decoded to an integer at all - which the C++ agrees with, declaring
+    ``TObjectPtr<UFGGamePhase>``. The first cut of this item read it through an
+    int-only narrowing, so it could not have read a real save's phase under any
+    fixture.
+
+    ``references`` IS THE POPULATION CS-1039's OTHER HALF PUBLISHED. Reading
+    the phase is the first consumer of it inside this module, which is why the
+    two halves were filed as one item.
 
     Args:
-        value: One entry of ``RecordProperties.values``, of any shape.
+        entry: One record's published properties.
+        name: The reference tag's property name.
 
     Returns:
-        The integer, or None when the value is not one.
+        The object path of the FIRST tag with that name, or None when the
+        record carries none. First rather than last because the population is
+        in tag order and a duplicate would mean a save wrote the property
+        twice, which ADR 0016 did not observe.
     """
-    if isinstance(value, bool) or not isinstance(value, int):
-        return None
-    return value
+    for reference in entry.references:
+        if reference.property_name == name:
+            return reference.object_path
+    return None
 
 
 def _read_unlocks(
@@ -1522,27 +1577,31 @@ def _read_unlocks(
         The state and the warning that says what is still not read.
     """
     paths: dict[str, set[str]] = {field: set() for field in _UNLOCK_PATH_FIELDS}
-    scalars: dict[str, int] = {}
+    assets: dict[str, str] = {}
     for index, record in enumerate(table.records):
         entry = properties.by_record_index.get(index)
         if entry is None:
             continue
         owner = class_name_of(record.type_path)
-        for name, value in entry.values.items():
-            field = UNLOCK_CARRIERS.get((owner, name))
-            if field is None:
+        for (carrier, name), field in UNLOCK_CARRIERS.items():
+            if carrier != owner:
                 continue
+            # THE TWO POPULATIONS ARE READ FROM DIFFERENT ATTRIBUTES BECAUSE
+            # THE READER PUTS THEM THERE. An array of asset references is a
+            # container in `values`; a top-level reference tag is in
+            # `references` and in `values` BOTH, but only the first keeps the
+            # typed pair - see `_unlock_reference` for what ADR 0016 measured.
             if field in _UNLOCK_PATH_FIELDS:
-                paths[field].update(_unlock_paths(value))
-            elif (scalar := _unlock_scalar(value)) is not None:
-                scalars[field] = scalar
+                paths[field].update(_unlock_paths(entry.values.get(name)))
+            elif (asset := _unlock_reference(entry, name)) is not None:
+                assets[field] = asset
     state = UnlockState(
         purchased_schematics=frozenset(paths["purchased_schematics"]),
         recipes=frozenset(paths["recipes"]),
-        current_game_phase=scalars.get("current_game_phase"),
+        current_game_phase=assets.get("current_game_phase"),
         feature_flags=MappingProxyType({}),
         scanned_resources=frozenset(),
-        trading_post_level=scalars.get("trading_post_level"),
+        trading_post_level=None,
     )
     if state.is_empty:
         # THE CONSTANT RATHER THAN AN EQUAL-BUT-DISTINCT INSTANCE, so the

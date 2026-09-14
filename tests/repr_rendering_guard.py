@@ -198,18 +198,6 @@ EXEMPT: Final[Mapping[str, str]] = {
         "so _listing_problem lifts ONLY errno as a named field and detail is "
         "the fixed line for the code."
     ),
-    "clockspeed/save/world.py::UnlockState": (
-        "RETAINED AND REWRITTEN, NOT REMOVED - CS-1039. The reason recorded "
-        "here was a MEASURED claim that _read_unlocks returns EMPTY_UNLOCK_"
-        "STATE on every path, and CS-1039 is the item that made it false: the "
-        "function now reads UNLOCK_CARRIERS out of the decoded payloads, so "
-        "purchased_schematics and recipes hold object paths a save wrote. The "
-        "class answered that by growing a hand-written __repr__ rendering "
-        "counts only, which is why the derivation may now grade it withheld "
-        "and report this key as no longer needed. The entry stays as the "
-        "record of what changed and why; a bare removal would leave the class "
-        "looking as though it had never been in the population at all."
-    ),
     "clockspeed/save/world.py::WorldWarning": (
         "source is a module constant. code, detail AND subject are all "
         "FORWARDED rather than authored here - MEASURED in _carried, "
