@@ -455,6 +455,24 @@ than by the derivation being right. Repairing it moves what
 `objects.REFERENCE_COUNT_COMMON_MODE` is compared against - a SHIPPED constant and CS-835's
 territory - so it is CS-1069 and not part of this row.
 
+**THREE REDS WERE INHERITED AT HEAD AND ARE REPAIRED HERE, because a cycle cannot push over
+them and leaving them would have cost the next cycle the same discovery.** All three came
+from the previous cycle's commit `8c5cf88`, which is why `origin/main` was a commit behind
+when this cycle opened: its push was refused by the hook and nothing recorded that. Two were
+dead bare identifiers in this file - a test-name typo, `..._carries_a_lead_field` for the arm
+really spelled `test_every_payload_that_terminates_yields_a_lead_field`, and a REMOVED arm's
+name cited to say it was removed. The second is de-spelled rather than forgiven:
+`tests/test_docs_citations.py` can only tell quoting from citing by a disposition, and its
+forgiveness budget is a ratchet that may only come down, so adding one would have been the
+laundering that module exists to prevent. The third is
+`tests/save/test_trailing_run.py:_EXEMPT_LIBRARY_REACH`, an empty `MappingProxyType` with no
+type annotation, which the repo-wide mypy gate refuses; it now carries
+`Final[Mapping[str, str]]`, the spelling its sibling modules already use. **THAT ONE IS ONLY
+VISIBLE TO A RUN THAT DOES NOT DESELECT `slow`**, which is how it survived: every arm of
+`tests/test_mypy_gate.py` is marked slow and that module is the whole of the slow set, so
+`-m "not slow"` - the spelling `tools/headless-queue.md` section 7a prescribes - hides the
+only gate that reads the repo the way CI does.
+
 **TIER 2, AND THE SUITE LINE IS THIS RUN'S RATHER THAN A CARRIED ONE.** The module is
 imported by `tests/save/test_struct_controls.py` and the change is to the apparatus every
 equality in both modules is graded through, so the whole suite was paid:

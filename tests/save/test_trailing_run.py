@@ -32,6 +32,7 @@ skip-if-absent and grades the claim about the WORLD.
 from __future__ import annotations
 
 from collections import Counter
+from collections.abc import Mapping
 from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
@@ -60,7 +61,7 @@ _GRADED_LIBRARY_REACH: Final = MappingProxyType(
 #: declaration whose subject no longer reaches, so a placeholder entry written
 #: to look thorough would turn this module red rather than green. An entry here
 #: has to earn itself.
-_EXEMPT_LIBRARY_REACH: Final = MappingProxyType({})
+_EXEMPT_LIBRARY_REACH: Final[Mapping[str, str]] = MappingProxyType({})
 
 #: The lead int32 of :data:`tests.save.synthetic.DECODABLE_TRAILING_RUN`, which
 #: is `11 22 33 44` little-endian. DELIBERATELY NON-ZERO: the value the library
