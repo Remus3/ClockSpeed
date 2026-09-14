@@ -1712,10 +1712,43 @@ wired and is KEPT for `mPaidOffSchematic` and `mSavedOngoingResearch`.
 
 **ADR 0016 IS `proposed`, NOT `accepted`, AND THIS ITEM INHERITS THAT UNFINISHED BUSINESS.**
 Its carrier table was an assumption to verify first, and verifying it is what produced the
-three corrections below. **DO NOT RE-VERIFY THESE - they are measured, 2026-09-14.**
+three corrections below. **CORRECTED 2026-09-14 AFTER THIS NOTE CAUSED A DEFECT - READ THE CORRECTION BELOW BEFORE
+THE TABLE.**
 
-**THE EIGHT CARRIERS ARE SETTLED BY DECLARATION, the same standard that closed node
-purity.** Read against the install's own headers through `clockspeed/data/assets.py`, which
+**THE CORRECTION, AND IT IS THE MOST IMPORTANT LINE IN THIS SECTION. THE OWNER CLASSES
+BELOW ARE C++ DECLARING CLASSES AND ARE NOT THE KEYS A SAVE IS JOINED ON.** A build keyed
+on them matches ZERO records on every real save while every synthetic arm passes, which is
+non-negotiable 7 exactly - silently wrong. It happened: the first CS-1039 candidate was
+refused for it. **The join keys are the SAVE-SIDE carrier type paths measured in
+`docs/adr/0016-unlock-arrays-carriers-and-serialized-grammar.md` at its carrier table**, run through `objects.class_name_of`, which
+returns the text after the final dot - so `BP_SchematicManager_C`, `FGRecipeManager`,
+`BP_GamePhaseManager_C`, `BP_ResearchManager_C`, NOT `AFGSchematicManager`,
+`AFGRecipeManager`, `AFGGamePhaseManager`. UE strips the A/U prefix and a blueprint carrier
+is a `BP_*_C`.
+
+**THE REASONING ERROR IS THE REUSABLE PART.** ADR 0016 lines 29 and 128 ARE false, and that
+was read as licence to prefer the headers over the ADR wholesale. It is not: the headers
+answer WHAT C++ DECLARES, the save answers WHAT IS IN THE FILE, and for save contents the
+save is ground truth. The ADR's carrier table is a MEASUREMENT over real saves and outranks
+any declaration for the join. A document with false statements in it is not a document with
+no true measurements in it.
+
+**THE GRAMMAR, WHICH THE DECLARATIONS AND THE ADR AGREE ON.** `mCurrentGamePhase` and
+`mTargetGamePhase` are TOP-LEVEL `ObjectProperty` tags naming a `GP_*` ASSET - they arrive
+in `PropertyResult.references` and are **NOT** integers. The ADR measured that no
+`Phase`-named property in either record table decoded to an integer at all, and the header
+declares `TObjectPtr<UFGGamePhase>`, which is the same answer. A scalar reader admitting
+only `int` cannot read them. The schematic, recipe and research arrays are `ArrayProperty`
+of `ObjectProperty` whose elements are ASSET paths that join the REGISTRY, never a record's
+`instance_name` - the ADR measured that not one element joined an instance name.
+
+**CS-913 IS A FENCE ACROSS THIS ITEM, NOT MERELY ADJACENT TO IT.** `ROADMAP.md:272`
+requires `current_game_phase` be RETYPED off `int | None` first, because the value is an
+asset reference. Wiring a reader into the existing `int | None` crosses that fence.
+
+**THE DECLARATION TABLE BELOW REMAINS TRUE FOR WHAT IT ANSWERS** - which properties can be
+in a save at all, settled by the `SaveGame` specifier, the same standard that closed node
+purity. Use it to know a carrier EXISTS. Do not use it to know how to FIND one. Read against the install's own headers through `clockspeed/data/assets.py`, which
 CS-1040 shipped: 1112 headers, 8024 properties. All eight carry the `SaveGame` specifier
 and so CAN appear in a save - `mPurchasedSchematics` and `mPaidOffSchematic` on
 `AFGSchematicManager`, `mCurrentGamePhase` and `mTargetGamePhase` on `AFGGamePhaseManager`,

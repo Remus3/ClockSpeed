@@ -769,6 +769,44 @@ evidence that a floor works.
 
 **THE PER-SITE DATA IS IN `docs/item_notes/cs988-sweep-record.md`** - every instance with its delta and guard set, every DEFENDED verdict with the node id that reddened, and the 44 INDETERMINATE rows listed unranked. That annex is where the next pass starts; do not re-derive the population.
 
+## CS-1051
+
+### Filed 2026-09-14
+
+**FOUND WHILE MERGING CS-1039, AND THE WAY IT WAS FOUND IS THE POINT.** CS-1039 retypes
+`UnlockState.current_game_phase` from `int | None` to `str | None`, because the value is an
+asset reference. `clockspeed/surface/api/world.py::_unlocks` publishes that field VERBATIM, so the
+wire changed type. The surface suite stayed GREEN at 1478 passed. It did not notice, and it
+could not have: `tests/surface/audit_harness.py::SYNTHETIC_UNLOCKS` hand-builds the published dict and
+hardcodes `"current_game_phase": 2`, an integer, while `tests/surface/test_world.py`
+asserts only that the KEY is present.
+
+**SO THE HARNESS IS NOW A FIXTURE THAT CONTRADICTS THE MODEL IT STANDS IN FOR, AND NOTHING
+GRADES THE CONTRADICTION.** A green surface suite is currently a statement about the
+harness, not about the wire. This is the oracle-blind-to-its-subject class: the arm cannot
+observe the value it names, so it passes for that reason alone.
+
+**WHY THIS IS TIER 1 RATHER THAN A TIDY-UP.** The defect is not the one wrong value. It is
+that ANY retype in `save/` can change the wire with the whole surface suite green, and the
+dashboard is the consumer. The next retype gets no warning either.
+
+**THE ACCEPTANCE MUST NOT BE MET BY RE-TYPING THE LITERAL.** Changing `2` to a string makes
+today's arms pass and rebuilds the same blindness one edit later. The published type has to
+be derived from `UnlockState`'s own annotation so the two sides share no constant, and the
+key sets compared in BOTH directions so a field added to one alone is caught. A one-sided
+subset is the floor shape this repo has measured leaking repeatedly.
+
+**DO NOT WIDEN CS-1039 TO COVER THIS.** `clockspeed/surface/` is not on its write-list, the
+candidate is frozen, and the wire-shape question it raises is separately adjudicated. One
+owner per item.
+
+**RELATED MEASUREMENT, WORTH MORE THAN THIS ITEM.** During CS-1039's first cut the WHOLE
+suite ran green - 3153 passed - while `UNLOCK_CARRIERS` was keyed on C++ declaring class
+names that match ZERO records on every real save. No arm anywhere saw it. The two arms
+added in the re-work, the ADR-table control and the declaring-class arm, are what close
+that hole, and neither existed when the suite went green. A green suite is evidence about
+what the suite can see.
+
 ## CS-1046
 
 ### Filed 2026-09-13

@@ -99,12 +99,12 @@ float-to-Fraction bridge explicitly, because no clause currently requires one.
 **CS-1042. NOT BLOCKED, AND THE BLOCKER FILED AGAINST IT WAS WRONG.** A spec check
 reported that collectables do not cross the save seam because `WorldModel` carries no
 `collectables` field. That read `WorldModel`'s own field list and MISSED THE NESTED MODEL.
-Verified at four sites: `clockspeed/save/objects.py:1224` declares
-`ObjectTable.collectables`, `objects.py:2831` populates it in `parse_body` - the levelled
-reader real saves take - and `world.py:1753` publishes the whole `ObjectTable` as
+Verified at four sites: `clockspeed/save/objects.py::ObjectTable` declares
+`ObjectTable.collectables`, `clockspeed/save/objects.py::parse_body` populates it - the levelled
+reader real saves take - and `world.py` publishes the whole `ObjectTable` as
 `objects=table`. So `model.objects.collectables` is live TODAY. The idiom is already
-established above the seam by `audit/footprint.py:1024`, `audit/placement.py:729` and
-`surface/api/world.py:236`, all reading `model.objects.<x>`. Reading a fourth attribute of
+established above the seam by `clockspeed/audit/footprint.py`, `clockspeed/audit/placement.py` and
+`clockspeed/surface/api/world.py`, all reading `model.objects.<x>`. Reading a fourth attribute of
 the same published model is NOT reaching past `save/` - `ObjectTable` is the stated model.
 CS-1042 therefore ships on its FILED write-list and needs no seam item in front of it.
 **Do not re-file that blocker.** The lesson is narrower and worth keeping: a seam check
@@ -119,7 +119,7 @@ wrong.
 **CS-1042, the empty instance half, AND A COUNT OR A FLAG WILL NOT COVER IT.** It is published as `""` - no
 Optional, no flag, no count - so a consumer joining on `instance_name` treats it as an
 ordinary non-match and CANNOT DETECT that it dropped the row. Measured at
-`tests/save/test_collectables.py:31-36`. An Optional, a flag and a count are each
+`tests/save/test_collectables.py`. An Optional, a flag and a count are each
 individually INSUFFICIENT because each is ignorable. The requirement is a PARTITION WITH
 CONSERVATION: every collectable row lands in exactly one bucket and the arm asserts
 `joined + unjoinable == len(collectables)`, so a dropped row cannot be expressed. This is
@@ -129,7 +129,7 @@ one place and 79 in another, and neither number exists in code. Measure it; do n
 either.
 
 **CS-1043.** `clockspeed/progress/` holds only `__init__.py` - confirmed. The `FGSchematic`
-exclusion is a frozenset at `clockspeed/data/registry.py:424` and is correctly cited as NOT
+exclusion is the frozenset `clockspeed/data/registry.py::UNMODELED_GROUP_SHORT_NAMES` and is correctly cited as NOT
 to be amended. Its carrier citations resolve only AFTER CS-1039 lands. The trap: NO budget
 constant exists anywhere at HEAD, so the acceptance clause "reddens when the budget constant
 moves" REQUIRES a named `Fraction` constant. A literal makes that clause unreddenable, which
@@ -147,7 +147,7 @@ and `RecordProperties` explicitly FORBIDS `bytes` fields on published world type
 exactly what a raster needs. The fog half therefore has no subject and cannot be built as
 filed; the arm would grade synthetic bytes injected past the seam, which is a statement about
 the fixture and not about the save. The BOUNDS half is sound and REFUTES the worry filed
-against it: `WorldBounds` exists at `clockspeed/audit/placement.py:378` and is reachable via
+against it: `clockspeed/audit/placement.py::WorldBounds` exists and is reachable via
 `WorldPlacement.bounds`, so "reddens if a bounds field is read" is NOT vacuous. Split the
 item or re-file the fog half; do not inject bytes and call it measured.
 
