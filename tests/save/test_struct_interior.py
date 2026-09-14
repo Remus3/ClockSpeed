@@ -122,7 +122,7 @@ from dataclasses import dataclass, field
 from functools import lru_cache
 from pathlib import Path
 from types import MappingProxyType
-from typing import Final
+from typing import Final, Protocol
 
 import pytest
 
@@ -3546,6 +3546,195 @@ class _TableControlCounts:
     degraded: _TableReading = field(default_factory=_TableReading)
 
 
+# ---------------------------------------------------------------------------
+# WHICH CORPUS A PAIR-SHAPED CONTROL GRADED - CS-1054
+#
+# THE DEFECT THIS REPLACES, MEASURED RATHER THAN REASONED. Both pair-shaped
+# controls below chose their graded pair as "the pair carrying the most records
+# of those that parsed". That rule reads a MUTABLE directory: the operator plays
+# while a session runs, so the totals move between two runs at the SAME commit.
+# Measured on this machine at 27482eb - 28 saves over four version pairs, and
+# dropping the single newest save flipped the graded pair from one carrying
+# 80801 records to one carrying 77263. One autosave is 7739 records and the
+# margin was 3538, so a single autosave landing mid-session changed which pair
+# either control graded, with nothing in this repository moving at all. That is
+# exactly the green-then-red with a clean tree this item was filed for.
+#
+# AND THE PAIR IT FLIPPED TO IS ONE THIS MODULE'S SECOND READING DOES NOT
+# IMPLEMENT. `objects.COMPLETE_TYPE_NAME_PAIRS` declares the pairs whose
+# payloads carry `objects.PAYLOAD_TAG_LEAD_BYTES` before the first tag and the
+# recursive complete type name in place of the legacy tag shape. The shipped
+# reader steps both - `objects.read_properties` reads those payloads and warns
+# only `unmeasured-property-type` on them - while `_independent_tag_walk` here
+# and `test_decode_oracles._walk_with_the_shipped_reader` both read the LEGACY
+# grammar and nothing else, so every record of such a pair comes back unreached.
+# A corpus that gained a save in a newer format is a corpus that CHANGED. It is
+# not evidence destroyed, and reporting it as evidence destroyed was the red.
+#
+# THE PARTITION IS TAKEN FROM THE SHIPPED DECLARATION AND NEVER FROM THE
+# OUTCOME, which is the discipline `_size_admits_a_tag_list` states at length: a
+# population an equality is asserted over may not be defined by the outcome that
+# equality reports. Selecting on "the pairs whose sites came back non-zero"
+# would be exactly that, and it would swallow a real destroyed-evidence red the
+# day one happened. `objects.uses_complete_type_name` is a declaration about a
+# GRAMMAR, decided before a single byte is read.
+#
+# THE SET-ASIDE IS NOT SILENT AND CANNOT ROT. The arms assert that the pairs set
+# aside yield NO site to this module's own reading. The day the second reading
+# learns the complete-type-name grammar, that goes RED and says the set-aside is
+# stale rather than leaving a pair quietly ungraded forever.
+# ---------------------------------------------------------------------------
+
+
+class _HasRecords(Protocol):
+    """A per-pair tally that states how many records it folded.
+
+    Attributes:
+        records: Records folded into this pair's tally.
+    """
+
+    records: int
+
+
+def _the_second_reading_implements(pair: tuple[int, int]) -> bool:
+    """Whether THIS MODULE'S own tag reading implements that pair's grammar.
+
+    KEY ORDER, THE TRAP THIS MODULE ALREADY NAMES ONCE.
+    ``objects.COMPLETE_TYPE_NAME_PAIRS`` and ``objects.uses_complete_type_name``
+    are keyed ``(header_version, save_version)`` while every pair key in this
+    module is ``(save_version, header_version)``, matching :class:`_SaveShape`.
+    The unpacking below is where the two meet and it is the only place they do.
+
+    Args:
+        pair: The version pair, ``(save_version, header_version)``.
+
+    Returns:
+        True when the pair's payloads carry the legacy tag grammar, which is
+        the only one the readings in this module express.
+    """
+    save_version, header_version = pair
+    return not objects.uses_complete_type_name(header_version, save_version)
+
+
+def _grade_the_pair_this_module_can_read(
+    by_pair: Mapping[tuple[int, int], _HasRecords],
+) -> tuple[tuple[int, int] | None, int, int]:
+    """Pick the graded pair from those whose grammar this module reads.
+
+    Ties are broken by the pair itself, as before, so the choice cannot depend
+    on the order the library happens to be walked in.
+
+    Args:
+        by_pair: Every version pair that folded, to its tally.
+
+    Returns:
+        The graded pair or None when the library holds no pair this module's
+        own reading implements, then how many pairs were set aside for their
+        declared grammar and how many records those pairs carried.
+    """
+    readable = {
+        pair: tally for pair, tally in by_pair.items() if _the_second_reading_implements(pair)
+    }
+    set_aside = [tally for pair, tally in by_pair.items() if pair not in readable]
+    graded = (
+        max(readable, key=lambda candidate: (readable[candidate].records, candidate))
+        if readable
+        else None
+    )
+    return graded, len(set_aside), sum(tally.records for tally in set_aside)
+
+
+def _corpus_line(
+    *,
+    saves: int,
+    pairs: int,
+    library_records: int,
+    graded_records: int,
+    set_aside_pairs: int,
+    set_aside_records: int,
+) -> str:
+    """State WHICH corpus this run measured, as integers and nothing else.
+
+    THE RED THIS ITEM REPAIRS WAS UNATTRIBUTABLE, and that is what this fixes
+    rather than the equality. Two runs at the same commit disagreed and neither
+    message said which corpus it had read, so there was no way to tell a defect
+    from a library that had moved underneath the run.
+
+    Every argument is a count. No path, no world name, no account directory and
+    no version pair reaches this string.
+
+    Args:
+        saves: Saves this run folded.
+        pairs: Version pairs those saves covered.
+        library_records: Records over every one of those pairs.
+        graded_records: Records of the graded pair.
+        set_aside_pairs: Pairs set aside for their declared payload grammar.
+        set_aside_records: Records those set-aside pairs carried.
+
+    Returns:
+        A one-line counts-only statement of the corpus.
+    """
+    return (
+        f"corpus: {saves} saves, {pairs} version pairs, {library_records} records, "
+        f"{graded_records} of them in the graded pair, with {set_aside_pairs} pairs and "
+        f"{set_aside_records} records set aside as a declared complete-type-name grammar"
+    )
+
+
+#: The graded pair carries records and this module's reading found sites in it.
+_POPULATION_GRADED: Final = "graded"
+
+#: Every pair the library holds uses a payload grammar declared in
+#: ``objects.COMPLETE_TYPE_NAME_PAIRS``, which this module's own reading does not
+#: express. THE CORPUS CHANGED - nothing here was destroyed.
+_POPULATION_GRAMMAR_SET_ASIDE: Final = "grammar-set-aside"
+
+#: No save this run read folded into a record table at all.
+_POPULATION_NO_RECORD: Final = "no-record"
+
+#: The graded pair's records carry no struct type word in their BYTES, so there
+#: is no site for any degradation to take away.
+_POPULATION_NO_STRUCT_IN_BYTES: Final = "no-struct-in-bytes"
+
+#: The bytes carry struct type words inside the graded pair's records and this
+#: module's reading found none. THE ONLY ONE OF THE FIVE THAT IS A RED.
+_POPULATION_EVIDENCE_DESTROYED: Final = "evidence-destroyed"
+
+
+def _classify_graded_population(
+    *, graded_records: int, set_aside_records: int, census: int, independent_sites: int
+) -> str:
+    """Say what a pair-shaped control's population IS, from four counts.
+
+    A PURE FUNCTION OF FOUR INTEGERS, DELIBERATELY, so both directions of the
+    distinction this item exists for are gradeable with no game, no save and no
+    library - see
+    :func:`test_a_changed_corpus_and_destroyed_evidence_are_not_the_same_verdict`.
+    The live arms below then do nothing but route on what it returns.
+
+    THE ORDER OF THE TESTS IS THE DISTINCTION. A corpus that gained a pair this
+    module's reading does not express is asked about BEFORE a zero reading is
+    called destroyed evidence, because the first explains the second and the
+    second is a red.
+
+    Args:
+        graded_records: Records of the graded pair.
+        set_aside_records: Records of the pairs set aside by declared grammar.
+        census: Struct type words the BYTES carry in the graded pair's records.
+        independent_sites: Sites this module's own reading found in them.
+
+    Returns:
+        One of the five ``_POPULATION_*`` constants above.
+    """
+    if graded_records == 0:
+        return _POPULATION_GRAMMAR_SET_ASIDE if set_aside_records > 0 else _POPULATION_NO_RECORD
+    if census == 0 and independent_sites == 0:
+        return _POPULATION_NO_STRUCT_IN_BYTES
+    if independent_sites == 0:
+        return _POPULATION_EVIDENCE_DESTROYED
+    return _POPULATION_GRADED
+
+
 @dataclass(frozen=True)
 class _TableControlResult:
     """The library reduced to the one version pair the control grades.
@@ -3565,12 +3754,26 @@ class _TableControlResult:
             on purpose, so a raise there is a containment question first and a
             coverage question second. The arm asserts it at zero, which is what
             keeps the handler from becoming a silent drop.
+        saves: Saves this run folded. Part of the corpus statement CS-1054
+            added, and the count that makes two runs comparable at all.
+        set_aside_pairs: Version pairs excluded from the choice because
+            ``objects.COMPLETE_TYPE_NAME_PAIRS`` declares a payload grammar this
+            module's own reading does not express.
+        set_aside_records: Records those pairs carried.
+        set_aside_sites: Struct sites this module's own reading found inside
+            them. ASSERTED AT ZERO by the arm: the set-aside rests on a
+            declaration, and a site found in a set-aside pair means the
+            declaration no longer describes this reading.
     """
 
     pairs: int
     library_records: int
     chosen: _TableControlCounts
     failures: int = 0
+    saves: int = 0
+    set_aside_pairs: int = 0
+    set_aside_records: int = 0
+    set_aside_sites: int = 0
 
 
 def _fold_table_control(
@@ -3626,10 +3829,18 @@ def _run_table_degradation_control() -> _TableControlResult | None:
 
     THE GRADED PAIR IS DERIVED AND NOT TRANSCRIBED, on the same terms as this
     module's struct vocabulary. It is the pair carrying the MOST records of
-    those that parsed, ties broken by the pair itself so the choice cannot
-    depend on the order the library happens to be walked in. A pair written into
-    this file would be a hand-maintained list that rots the first time the
-    operator's library gains or loses a save.
+    those that parsed AND whose payload grammar this module's own reading
+    expresses, ties broken by the pair itself so the choice cannot depend on the
+    order the library happens to be walked in. A pair written into this file
+    would be a hand-maintained list that rots the first time the operator's
+    library gains or loses a save.
+
+    THE GRAMMAR CLAUSE IS CS-1054 AND IT IS NOT A NARROWING. The block above
+    :class:`_TableControlResult` states what was measured: without it this
+    control graded a pair whose payloads neither reading here can walk, and
+    reported "no site" as evidence destroyed. What was set aside is set aside by
+    a SHIPPED DECLARATION, and the arm asserts those pairs yield no site, so the
+    exclusion cannot grow or go stale in silence.
 
     THE COUNTS ARE KEPT PER PAIR RATHER THAN POOLED, and that is what makes this
     a ONE-pair degradation without a second read of anything: a save carries
@@ -3651,6 +3862,7 @@ def _run_table_degradation_control() -> _TableControlResult | None:
         return None
     by_pair: dict[tuple[int, int], _TableControlCounts] = {}
     failures = 0
+    folded = 0
     for path in saves:
         try:
             data = path.read_bytes()
@@ -3680,6 +3892,7 @@ def _run_table_degradation_control() -> _TableControlResult | None:
             continue
         if mine is None or len(mine) != len(table.records):
             continue
+        folded += 1
         counts = by_pair.setdefault(
             (parsed.save_version, parsed.header_version), _TableControlCounts()
         )
@@ -3697,16 +3910,99 @@ def _run_table_degradation_control() -> _TableControlResult | None:
         except (Exception, SystemExit):
             # Counted, not swallowed - the arm asserts this at zero.
             failures += 1
-    if not by_pair:
-        return _TableControlResult(
-            pairs=0, library_records=0, chosen=_TableControlCounts(), failures=failures
-        )
-    graded = max(by_pair, key=lambda candidate: (by_pair[candidate].records, candidate))
+    graded, set_aside_pairs, set_aside_records = _grade_the_pair_this_module_can_read(by_pair)
     return _TableControlResult(
         pairs=len(by_pair),
         library_records=sum(counts.records for counts in by_pair.values()),
-        chosen=by_pair[graded],
+        chosen=_TableControlCounts() if graded is None else by_pair[graded],
         failures=failures,
+        saves=folded,
+        set_aside_pairs=set_aside_pairs,
+        set_aside_records=set_aside_records,
+        set_aside_sites=sum(
+            counts.pristine.independent_sites
+            for pair, counts in by_pair.items()
+            if not _the_second_reading_implements(pair)
+        ),
+    )
+
+
+def test_a_changed_corpus_and_destroyed_evidence_are_not_the_same_verdict() -> None:
+    """CS-1054's distinction, graded in BOTH DIRECTIONS with no save at all.
+
+    THE TWO ARMS BELOW IT ARE LIBRARY-BACKED AND CANNOT GRADE THIS. They see
+    whatever the operator's library happens to hold at the second they run, and
+    the whole finding is that the library moves: at 9f4fe6d the same arm passed
+    inside a whole-suite run and failed on the same commit with a clean tree
+    twenty-five minutes later, because one autosave had landed and changed which
+    version pair was graded. A distinction that only one of those two corpora
+    exercises is a distinction nothing checks.
+
+    :func:`_classify_graded_population` is a pure function of four integers
+    precisely so this arm can drive both directions, here, on a machine with no
+    game installed.
+
+    THE FIRST DIRECTION IS THE ONE THAT WAS WRONG. A corpus whose every pair
+    carries a payload grammar declared in ``objects.COMPLETE_TYPE_NAME_PAIRS``
+    yields no site to a reading that expresses only the legacy grammar, and the
+    bytes still carry the words. That is a corpus that CHANGED and it MUST NOT
+    be a red.
+
+    THE SECOND DIRECTION IS THE ONE THAT MUST STILL FIRE. A graded pair this
+    reading DOES express, whose bytes carry struct words and in which the
+    reading finds none, is evidence destroyed, and nothing added here may turn
+    that into a skip.
+
+    THE NUMBERS ARE THE MEASURED ONES from this machine at 27482eb - 172810
+    census words over 80801 records in the set-aside pair, 91450 over 77263 in
+    the largest pair this module reads - so the fixture is the real shape rather
+    than a convenient one. They are counts, and counts are the only thing about
+    a save this file is allowed to carry.
+    """
+    changed = _classify_graded_population(
+        graded_records=0, set_aside_records=80801, census=172810, independent_sites=0
+    )
+    assert changed == _POPULATION_GRAMMAR_SET_ASIDE, (
+        f"a corpus holding only pairs whose grammar this module does not express was "
+        f"classified {changed!r}. The library gaining a save in a newer format is the "
+        "corpus CHANGING, and calling that destroyed evidence is the red CS-1054 was "
+        "filed for"
+    )
+
+    destroyed = _classify_graded_population(
+        graded_records=77263, set_aside_records=80801, census=91450, independent_sites=0
+    )
+    assert destroyed == _POPULATION_EVIDENCE_DESTROYED, (
+        f"a graded pair whose bytes carry 91450 struct type words across 77263 records, "
+        f"in which this module's own reading found none, was classified {destroyed!r}. "
+        "THAT MUST STAY A RED. An empty population satisfies every equality below it, "
+        "which is why this arm is an assertion and never a skip"
+    )
+
+    # THE TWO REMAINING CLASSIFICATIONS, so the routing above cannot quietly
+    # collapse into two answers. A pair with no struct word in its BYTES is an
+    # absent population and not a loss; a run that folded nothing has no
+    # population at all.
+    absent = _classify_graded_population(
+        graded_records=77263, set_aside_records=0, census=0, independent_sites=0
+    )
+    assert absent == _POPULATION_NO_STRUCT_IN_BYTES, (
+        f"a graded pair whose bytes carry no struct type word was classified {absent!r} "
+        "rather than an absent population, so a corpus holding nothing to lose would be "
+        "reported as having lost it"
+    )
+    empty = _classify_graded_population(
+        graded_records=0, set_aside_records=0, census=0, independent_sites=0
+    )
+    assert empty == _POPULATION_NO_RECORD, (
+        f"a run that folded no record at all was classified {empty!r}"
+    )
+    graded = _classify_graded_population(
+        graded_records=77263, set_aside_records=80801, census=91450, independent_sites=30642
+    )
+    assert graded == _POPULATION_GRADED, (
+        f"a graded pair this reading found 30642 sites in was classified {graded!r}, so "
+        "the ordinary case does not reach the comparisons this control exists for"
     )
 
 
@@ -3763,24 +4059,77 @@ def test_the_table_control_takes_its_window_from_the_body_not_the_degraded_recor
     :func:`_sweep_or_skip` splits it: a zero the BYTE CENSUS contradicts is
     evidence destroyed and stays an assertion, while a zero the bytes agree with
     is a skip naming the ingredient it lacks.
+
+    AND A FOURTH, WHICH IS CS-1054. The corpus is a directory the operator
+    writes to while a session runs, so this arm now STATES which corpus it
+    measured - saves, pairs, records, graded records, records set aside - in
+    every message it can emit, and its graded pair is chosen only from pairs
+    whose payload grammar this module's own reading expresses. Without that it
+    graded whichever pair the last autosave made largest and reported a grammar
+    it cannot walk as evidence destroyed. Measured at 9f4fe6d: green inside a
+    whole-suite run, red on the same commit with a clean tree twenty-five
+    minutes later, nothing in the repository moved. The set-aside is itself
+    asserted at zero sites, and the changed-versus-destroyed distinction is
+    graded synthetically in both directions by
+    :func:`test_a_changed_corpus_and_destroyed_evidence_are_not_the_same_verdict`,
+    because a library-backed arm can only ever see the one corpus it ran on.
     """
     _sweep_or_skip()
 
     result = _run_table_degradation_control()
     if result is None:
         pytest.skip("no save library on this machine - there is no record table to degrade")
+    chosen = result.chosen
+    corpus = _corpus_line(
+        saves=result.saves,
+        pairs=result.pairs,
+        library_records=result.library_records,
+        graded_records=chosen.records,
+        set_aside_pairs=result.set_aside_pairs,
+        set_aside_records=result.set_aside_records,
+    )
     control_failures = result.failures
     assert control_failures == 0, (
         f"{control_failures} saves raised inside the fold. This control feeds the shipped "
         "readers misaligned offsets deliberately, so a raise there is contained rather "
         "than rendered - but it is asserted here so containment cannot become a silent "
-        "drop, which is the shape that has refuted this item repeatedly"
+        f"drop, which is the shape that has refuted this item repeatedly. {corpus}"
     )
-    chosen = result.chosen
-    if chosen.records == 0:
+
+    # THE SET-ASIDE IS ASSERTED, NOT ASSUMED - CS-1054. The pairs excluded from
+    # the choice are excluded on a shipped DECLARATION about their grammar, and
+    # a declaration nothing checks is a comment. A site found by this module's
+    # own reading inside one of them means the reading now expresses a grammar
+    # the exclusion still says it does not, and the pair belongs back in the
+    # graded population. A RED HERE IS GOOD NEWS.
+    set_aside_sites = result.set_aside_sites
+    assert set_aside_sites == 0, (
+        f"this module's own reading found {set_aside_sites} struct sites inside the "
+        f"{result.set_aside_records} records of the {result.set_aside_pairs} version "
+        "pairs set aside for carrying a declared complete-type-name payload grammar. "
+        "The set-aside says this reading cannot express those payloads and it just "
+        f"did, so the exclusion is STALE and those pairs must be graded. {corpus}"
+    )
+
+    census = chosen.census
+    independent_pristine = chosen.pristine.independent_sites
+    population = _classify_graded_population(
+        graded_records=chosen.records,
+        set_aside_records=result.set_aside_records,
+        census=census,
+        independent_sites=independent_pristine,
+    )
+    if population == _POPULATION_GRAMMAR_SET_ASIDE:
+        pytest.skip(
+            "every version pair this run read carries a payload grammar declared in "
+            "objects.COMPLETE_TYPE_NAME_PAIRS, which this module's own tag reading does "
+            "not express, so there is no pair it could grade. THE CORPUS CHANGED AND "
+            f"NOTHING WAS DESTROYED - that is the distinction CS-1054 exists for. {corpus}"
+        )
+    if population == _POPULATION_NO_RECORD:
         pytest.skip(
             "no save this run read parses into a record table, so the control measured "
-            "no record at all and a degraded table has nothing to cost"
+            f"no record at all and a degraded table has nothing to cost. {corpus}"
         )
 
     records = chosen.records
@@ -3792,23 +4141,28 @@ def test_the_table_control_takes_its_window_from_the_body_not_the_degraded_recor
         "here. THIS STAYS AN ASSERTION rather than joining the skips: its population is "
         "the graded pair's records, which the guard above has already established is "
         "non-empty, so a zero here is the degradation being inert and not an absent "
-        "corpus"
+        f"corpus. {corpus}"
     )
 
-    census = chosen.census
-    independent_pristine = chosen.pristine.independent_sites
-    if census == 0 and independent_pristine == 0:
+    if population == _POPULATION_NO_STRUCT_IN_BYTES:
         pytest.skip(
             "the graded version pair's records carry no struct type word in their BYTES, "
             "so this pair holds no site a degraded table could take away and every "
-            "comparison over it would be measuring an absent population"
+            f"comparison over it would be measuring an absent population. {corpus}"
         )
+    # THE ORIGINAL ASSERTION, UNCHANGED IN SHAPE AND IN STRENGTH. Everything
+    # CS-1054 added above is ROUTING: the two skips it introduces are the
+    # classifications this comparison never distinguished, and reaching this
+    # line means the population is one this module's own reading expresses and
+    # the bytes say carries struct content. A zero here is still destroyed
+    # evidence and is still a red.
     assert independent_pristine > 0, (
         f"the byte census found {census} struct type words inside the graded pair's "
         f"{records} records while this module's own reading found no site in them at "
         "all. THAT IS EVIDENCE DESTROYED AND NOT AN ABSENT CORPUS - the line "
         "`_sweep_or_skip` draws - so it stays an assertion, because an empty population "
-        "satisfies every equality below"
+        "satisfies every equality below. The graded pair is one this reading DOES "
+        f"express, so a changed corpus is not the explanation. {corpus}"
     )
 
     independent_degraded = chosen.degraded.independent_sites
@@ -3919,12 +4273,23 @@ class _CeilingResult:
         planted_reads: How many measurements ran while the plant was armed. A
             COUNT, because a plant that never applied and one that was survived
             produce identical output.
+        saves: Saves this run folded - part of CS-1054's corpus statement.
+        set_aside_pairs: Pairs excluded from the choice by the declared
+            complete-type-name grammar. See the block above
+            :class:`_TableControlResult`.
+        set_aside_records: Records those pairs carried.
+        set_aside_sites: Struct sites this module's own reading found in them,
+            asserted at zero on the same terms as the table control.
     """
 
     pairs: int
     library_records: int
     chosen: _CeilingCounts
     planted_reads: int
+    saves: int = 0
+    set_aside_pairs: int = 0
+    set_aside_records: int = 0
+    set_aside_sites: int = 0
 
 
 def _install_ceiling(value: int) -> None:
@@ -3994,8 +4359,16 @@ def _run_ceiling_control(original: int) -> _CeilingResult | None:
     pair-shaped plant the one worth grading.
 
     THE GRADED PAIR IS DERIVED AND NOT TRANSCRIBED: the pair carrying the most
-    records of those that parsed, ties broken by the pair itself so the choice
-    cannot depend on the order the library happens to be walked in.
+    records of those that parsed AND whose payload grammar this module's own
+    reading expresses, ties broken by the pair itself so the choice cannot
+    depend on the order the library happens to be walked in.
+
+    THE GRAMMAR CLAUSE IS CS-1054, AND THIS CONTROL IS WHERE THE DEFECT WAS
+    WORSE THAN A RED. On the library measured at 27482eb the pair carrying the
+    most records was one neither reading here can walk, so
+    ``chosen.shipped_pristine`` was zero and this arm SKIPPED - the third
+    anti-monotone control went vacuous and said so in a reason line nobody was
+    reading. The table control at least went red about it.
 
     Args:
         original: The shipped ceiling, restored around each planted measurement.
@@ -4010,6 +4383,7 @@ def _run_ceiling_control(original: int) -> _CeilingResult | None:
         return None
     by_pair: dict[tuple[int, int], _CeilingCounts] = {}
     planted_reads = 0
+    folded = 0
     for path in saves:
         try:
             data = path.read_bytes()
@@ -4032,6 +4406,7 @@ def _run_ceiling_control(original: int) -> _CeilingResult | None:
             continue
         if mine is None or len(mine) != len(table.records):
             continue
+        folded += 1
         counts = by_pair.setdefault((parsed.save_version, parsed.header_version), _CeilingCounts())
         for index, record in enumerate(table.records):
             _install_ceiling(original)
@@ -4040,16 +4415,20 @@ def _run_ceiling_control(original: int) -> _CeilingResult | None:
             planted_reads += 1
             _fold_ceiling_control(body, record, mine[index], counts, degraded=True)
             _install_ceiling(original)
-    if not by_pair:
-        return _CeilingResult(
-            pairs=0, library_records=0, chosen=_CeilingCounts(), planted_reads=planted_reads
-        )
-    graded = max(by_pair, key=lambda candidate: (by_pair[candidate].records, candidate))
+    graded, set_aside_pairs, set_aside_records = _grade_the_pair_this_module_can_read(by_pair)
     return _CeilingResult(
         pairs=len(by_pair),
         library_records=sum(tally.records for tally in by_pair.values()),
-        chosen=by_pair[graded],
+        chosen=_CeilingCounts() if graded is None else by_pair[graded],
         planted_reads=planted_reads,
+        saves=folded,
+        set_aside_pairs=set_aside_pairs,
+        set_aside_records=set_aside_records,
+        set_aside_sites=sum(
+            tally.independent_pristine
+            for pair, tally in by_pair.items()
+            if not _the_second_reading_implements(pair)
+        ),
     )
 
 
@@ -4102,11 +4481,36 @@ def test_a_stricter_shared_ceiling_cannot_improve_this_modules_grade(
 
     if result is None:
         pytest.skip("no save library on this machine - the control has nothing to plant")
+    corpus = _corpus_line(
+        saves=result.saves,
+        pairs=result.pairs,
+        library_records=result.library_records,
+        graded_records=result.chosen.records,
+        set_aside_pairs=result.set_aside_pairs,
+        set_aside_records=result.set_aside_records,
+    )
+    # THE SET-ASIDE IS ASSERTED HERE TOO - see the table control's copy of this
+    # guard and the block above `_TableControlResult` for why an exclusion that
+    # nothing checks is a comment.
+    ceiling_set_aside_sites = result.set_aside_sites
+    assert ceiling_set_aside_sites == 0, (
+        f"this module's own reading found {ceiling_set_aside_sites} struct sites inside "
+        f"the {result.set_aside_records} records of the {result.set_aside_pairs} version "
+        "pairs set aside for carrying a declared complete-type-name payload grammar, so "
+        f"the exclusion is STALE and those pairs must be graded. {corpus}"
+    )
+    if result.chosen.records == 0 and result.set_aside_records > 0:
+        pytest.skip(
+            "every version pair this run read carries a payload grammar declared in "
+            "objects.COMPLETE_TYPE_NAME_PAIRS, which this module's own tag reading does "
+            "not express, so there is no pair it could plant against. THE CORPUS "
+            f"CHANGED AND NOTHING WAS DESTROYED. {corpus}"
+        )
     if result.chosen.records == 0:
         pytest.skip(
             "no save this run read parses into a record table this module's own reading "
             "can pair, so the control measured no record at all and a stricter ceiling "
-            "has nothing to cost"
+            f"has nothing to cost. {corpus}"
         )
 
     assert result.planted_reads > 0, (
@@ -4121,7 +4525,7 @@ def test_a_stricter_shared_ceiling_cannot_improve_this_modules_grade(
         pytest.skip(
             "the shipped walk found no struct site in the graded pair's records, so "
             "there is nothing for a stricter ceiling to take away and a fall below "
-            "would measure an absent population rather than a loss"
+            f"would measure an absent population rather than a loss. {corpus}"
         )
     if result.chosen.shipped_degraded == result.chosen.shipped_pristine:
         pytest.skip(
