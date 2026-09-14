@@ -33,7 +33,7 @@ mapping has one owner and this file only reports it:
 | Leaf | Holds |
 |---|---|
 | `docs/item_notes/phase3.md` | ROADMAP `Phase 3` |
-| `docs/item_notes/phase4.md` | ROADMAP `Phase 4`, ID outside the `CS-8nn` and `CS-9nn` blocks - the `CS-10nn` block included |
+| `docs/item_notes/phase4.md` | ROADMAP `Phase 4`, ID BELOW the `CS-8nn` block. The `CS-10nn` block does NOT land here - the membership rule routes every phase 4 ID at 900 or higher to the `CS-9nn` leaf, four-digit IDs included, and that leaf's own header says so |
 | `docs/item_notes/phase4-followups.md` | ROADMAP `Phase 4`, ID in the `CS-8nn` block below CS-850 |
 | `docs/item_notes/phase4-followups-850.md` | ROADMAP `Phase 4`, ID in the `CS-8nn` block at or above CS-850 |
 | `docs/item_notes/phase4-followups-900.md` | ROADMAP `Phase 4`, ID in the `CS-9nn` block |
@@ -276,8 +276,8 @@ a pass - every equality here is satisfied for free by an empty population.
 | CS-1047 | `docs/item_notes/phase6.md` |
 | CS-1048 | `docs/item_notes/phase5.md` |
 | CS-1061 | `docs/item_notes/phase5.md` |
-| CS-1012 | `docs/item_notes/phase4.md` |
-| CS-1060 | `docs/item_notes/phase4.md` |
+| CS-1012 | `docs/item_notes/phase4-followups-900.md` |
+| CS-1060 | `docs/item_notes/phase4-followups-900.md` |
 
 ## Rules every leaf obeys
 
