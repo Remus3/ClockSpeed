@@ -1158,16 +1158,36 @@ def test_the_rows_unfenced_by_describe_never_number_are_pinned_as_mentions(
     partition they are named AND classified, so they are unfenced by a recorded
     decision rather than by the absence of evidence.
 
+    THE LEGS SPLIT ON 2026-09-13 BECAUSE CLOSURE IS NOT A FENCE. CS-1040 and
+    CS-1044 closed that day, left `ROADMAP.md`, and took the old single
+    ``pinned <= takeable`` leg red with them. Deleting the two ids to get green
+    was REFUSED by adjudication: shrinking a literal population until it passes
+    is the CS-988 move this module's own docstring records eleven instances of.
+    All four stay pinned for the classification legs, which are not row-filtered
+    and so still grade a closed id; the takeable leg applies to the live subset,
+    DERIVED from `ROADMAP.md` rather than written as a second literal; and every
+    id that left is required to have left BY CLOSURE, read from `docs/LEDGER.md`
+    - a different file from the one the other legs read, which is the only part
+    of this arm not exposed to a common-mode fault in the gate block.
+
+    THE NON-VACUITY LEG IS LOAD-BEARING. If all four ever close, ``live`` empties
+    and this arm reddens rather than passing on nothing. The repair then is to
+    retire the arm by a recorded decision, never to edit it green.
+
     Args:
         repo_root: Repository root.
     """
     classification = scope.gate_classification(repo_root)
     takeable = frozenset(row.item_id for row in scope.rows_for_scope(None, repo_root))
+    rows = frozenset(row.item_id for row in scope.roadmap_rows(repo_root))
     pinned = frozenset({"CS-1040", "CS-1044", "CS-1047", "CS-1048"})
+    live = pinned & rows
 
     assert pinned <= classification.mentioned
-    assert pinned <= takeable
     assert pinned & scope.gated_ids(repo_root) == frozenset()
+    assert live, "every pinned row has left ROADMAP.md, so the takeable leg grades nothing"
+    assert live <= takeable
+    assert pinned - live <= scope.closed_ids(repo_root)
 
 
 def test_a_roadmap_line_under_the_cs_g_series_parses_as_a_row(tmp_path: Path) -> None:
