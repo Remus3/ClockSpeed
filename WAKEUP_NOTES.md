@@ -55,7 +55,8 @@ the line becomes a pointer.
   the needle is a raw home-shaped path. A body that genuinely reflects a refused path passes
   all four. Filed as CS-1034, tier 1. This is the same trap session 91 hit once, in four more
   places, and it guards non-negotiables 3 and 12.
-- CI IS RED AT THE TIP, ON THE CLOCK AND NOT ON THE CODE. Run 34791962600 on 9378975
+- CI WENT RED AND THEN GREEN ACROSS A DOC-ONLY COMMIT, WHICH IS THE POINT. The tip e2aff7a
+  is GREEN - both jobs success. The commit before it, 9378975, was RED. Run 34791962600 on 9378975
   failed ONLY the "Duration against the budget" step: tier 1 took 491s against a 480s
   ceiling and a 420s budget. Every other step passed - character-set gate, ruff check,
   format check, doc budgets, drift guard, markdown links, type check AND unit tests. The
@@ -65,6 +66,10 @@ the line becomes a pointer.
   about 140 seconds, far wider than the roughly 20s spread CS-1012 was filed with. A
   ceiling 60s above budget cannot survive that spread whatever the tree does, which is
   evidence for the runner-side hypothesis CS-1012 already names as the first to test.
+  THE STRONGEST POINT IS THE PAIR: 9378975 failed the gate and e2aff7a passed it, and the
+  two differ by ONE DOC-ONLY COMMIT that adds no test and no code. A gate whose verdict
+  flips across a change that cannot affect runtime is measuring the runner, not the tree.
+  Do not read the green tip as the problem having gone away.
 - Next action: CS-1034 - give every path-shaped privacy needle an oracle proven potent by a
   planted positive the arm FINDS, and redden the four arms on a reflecting body.
 
