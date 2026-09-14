@@ -1685,15 +1685,18 @@ that would pass on a reader that found nothing at all.
 `_record_properties` drops `PropertyResult.references` and `struct_interiors` at the one
 seam every higher layer reads, so the typed, tag-ordered reference population never crosses
 the save seam. Separately `_read_unlocks` takes zero arguments and returns
-`EMPTY_UNLOCK_STATE` unconditionally, even though every carrier ADR 0016 names -
-`mPurchasedSchematics`, `mCurrentGamePhase`, `mTargetGamePhase`, `mUnlockedResearchTrees`,
-`mTradingPostLevel` for the HUB tier, `mAvailableRecipes` - is decodable by the SHIPPED
-reader today. Splitting the unlocks into a new module was considered and rejected: the
+`EMPTY_UNLOCK_STATE` unconditionally, even though every carrier named below is decodable
+by the SHIPPED reader today. Splitting the unlocks into a new module was considered and rejected: the
 `_read_unlocks` call site is in `world.py` either way, so the collision survives the split.
 
-**WRITE-LIST:** `clockspeed/save/world.py`, `tests/save/test_world.py`. **DEPENDS ON:**
-CS-1038 for the interiors half ONLY - the unlocks half depends on nothing and starts
-immediately. **TIER 2, NO GAME NEEDED.**
+**WRITE-LIST:** `clockspeed/save/world.py`, `tests/save/test_world.py`,
+`tests/test_repr_rendering.py`, `tests/repr_rendering_guard.py`. **THE LAST TWO WERE ADDED
+2026-09-14 AND ARE NOT A SCOPE WIDENING** - they are a mechanical consequence of the
+change. A new save-layer type auto-enters the repr guard population by path prefix but
+must also be registered in `RECORDED_POPULATION`, and `UnlockState`'s EXEMPT reason goes
+false the moment it stops being empty. A builder frozen to the first two files would hit a
+red it was forbidden to repair. **DEPENDS ON:** CS-1038 for the interiors half ONLY - the
+unlocks half depends on nothing and starts immediately. **TIER 2, NO GAME NEEDED.**
 
 **PRIVACY, LOAD-BEARING.** An object path is world content. It MAY cross the SAVE seam -
 property names and values already do - and must NOT reach the wire, a log line, an
@@ -1708,5 +1711,36 @@ item merges. `WARN_UNLOCK_GRAMMAR_UNMEASURED` is withdrawn ONLY for the carriers
 wired and is KEPT for `mPaidOffSchematic` and `mSavedOngoingResearch`.
 
 **ADR 0016 IS `proposed`, NOT `accepted`, AND THIS ITEM INHERITS THAT UNFINISHED BUSINESS.**
-Its carrier table is an assumption to verify first, not a fact to build on.
+Its carrier table was an assumption to verify first, and verifying it is what produced the
+three corrections below. **DO NOT RE-VERIFY THESE - they are measured, 2026-09-14.**
+
+**THE EIGHT CARRIERS ARE SETTLED BY DECLARATION, the same standard that closed node
+purity.** Read against the install's own headers through `clockspeed/data/assets.py`, which
+CS-1040 shipped: 1112 headers, 8024 properties. All eight carry the `SaveGame` specifier
+and so CAN appear in a save - `mPurchasedSchematics` and `mPaidOffSchematic` on
+`AFGSchematicManager`, `mCurrentGamePhase` and `mTargetGamePhase` on `AFGGamePhaseManager`,
+`mUnlockedResearchTrees` and `mSavedOngoingResearch` on `AFGResearchManager`,
+`mAvailableRecipes` on `AFGRecipeManager`, and `mTradingPostLevel` as an `int32` on
+`AFGTutorialIntroManager`. Note the second owner: `mCurrentGamePhase` ALSO exists on
+`UFGSessionInformationModel` WITHOUT `SaveGame`, so the name-level answer rests on the
+`AFGGamePhaseManager` declaration and a reader that matched the other owner would be
+matching a field that cannot be in a save. All eight also decode at HEAD - IntProperty at
+`objects.py:6015`, ObjectProperty at `objects.py:6020`, array-of-object elements at
+`objects.py:5134`, array-of-struct interiors at `objects.py:5119`, published at
+`world.py:1534`.
+
+**ADR 0016 CARRIES TWO FALSE STATEMENTS AND MUST NOT BE BUILT ON UNREAD.** Its line 29
+says the decoder has no production caller; `world.py:1485` calls `read_properties` per
+record. Its line 128 says the `(14,60)` shape decodes ZERO property tags; `docs/LEDGER.md`
+records 3918 records on the pinned world with disagreeing 803 to 0, and `objects.py:4694`
+ships `(14,60)`. The second may make CS-913's "pinned world as the CONTROL that must stay
+empty" a SUBJECT rather than a control - do not assume that control still holds.
+
+**THE MODEL SHAPE IS THE REAL GAP, NOT THE DECLARATIONS.** `UnlockState` at
+`world.py:653` declares only `purchased_schematics`, `recipes`, `current_game_phase`,
+`feature_flags` and `scanned_resources`, and `is_empty` at `world.py:660` consults no
+trading-post field. The filed acceptance requires `mTradingPostLevel` to round-trip and to
+redden when unwired, which CANNOT hold until the field exists - so adding it is required
+by the acceptance rather than optional. An arm written against today's `UnlockState` would
+pass while grading nothing for that carrier.
 
