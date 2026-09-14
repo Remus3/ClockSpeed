@@ -65,6 +65,92 @@ different region, is not clause 2, and is filed as its own item.
 seen as a new world rather than failing.
 
 
+## Wave 2 - verified against ground truth 2026-09-14, read before taking ANY item below
+
+**THESE FIVE WERE SPEC-CHECKED BEFORE DISPATCH AND THE CHECK FOUND REAL DEFECTS.** Sibling
+CS-1039 was checked the same way the same day and its filing carried three. Do NOT
+re-derive what is recorded here; DO refuse to build past a defect it names.
+
+**`docs/ARCHITECTURE.md` IS NOT ON ANY WRITE-LIST AND NO BUILDER MAY TOUCH IT.** It is
+owned by a doc-sync pass the MERGER runs after the wave merges. The reason is measured:
+`docs/ARCHITECTURE.md` lines 37 and 38 declare `progress/` and `advisor/` NOT BUILT, and
+`tests/test_architecture_attributions.py::test_a_package_the_document_calls_not_built_really_is`
+asserts a NOT-BUILT package binds NO public name. So CS-1043 and CS-1048 turn that arm RED
+the moment they bind one. **THAT RED IS EXPECTED IN THOSE TWO WORKTREES AND IS NOT THE
+BUILDER'S TO REPAIR** - repairing it locally means two worktrees editing one file and a
+merge collision the wave was decomposed to avoid. `audit/` is already built and carries no
+such gate, so CS-1041, CS-1042 and CS-1045 do not force the file at all; CS-1044 shipped
+`footprint.py` touching neither it nor `audit/__init__.py`, which is the precedent.
+
+**PER-ITEM DEFECTS FOUND. Each is a live instruction, not history.**
+
+**CS-1041.** The LINE names FOUR questions - which belt feeds which machine, which node a
+miner sits on, which connections share a power circuit, whether a machine is running - and
+the acceptance grades only TWO. Belt-feeds-machine and circuit membership have no clause,
+so an implementation answering two of four satisfies the filed acceptance. The LINE also
+asserts as FACT the property name by which a miner names its node, which the note labels
+ASSUMED; verify it before building on it. And the LINE's premise that `mCurrentRecipe` is
+"decoded and then dropped" is OVERSTATED - the per-name value already reaches
+`RecordProperties.values` at HEAD. What is genuinely missing is the TYPE-DISCRIMINATED,
+tag-ordered reference population, which is CS-1039's half. Finally `mCurrentPotential` is a
+FloatProperty and non-negotiable 6 forbids floats in the solve path: name the
+float-to-Fraction bridge explicitly, because no clause currently requires one.
+
+**CS-1042. NOT BLOCKED, AND THE BLOCKER FILED AGAINST IT WAS WRONG.** A spec check
+reported that collectables do not cross the save seam because `WorldModel` carries no
+`collectables` field. That read `WorldModel`'s own field list and MISSED THE NESTED MODEL.
+Verified at four sites: `clockspeed/save/objects.py:1224` declares
+`ObjectTable.collectables`, `objects.py:2831` populates it in `parse_body` - the levelled
+reader real saves take - and `world.py:1753` publishes the whole `ObjectTable` as
+`objects=table`. So `model.objects.collectables` is live TODAY. The idiom is already
+established above the seam by `audit/footprint.py:1024`, `audit/placement.py:729` and
+`surface/api/world.py:236`, all reading `model.objects.<x>`. Reading a fourth attribute of
+the same published model is NOT reaching past `save/` - `ObjectTable` is the stated model.
+CS-1042 therefore ships on its FILED write-list and needs no seam item in front of it.
+**Do not re-file that blocker.** The lesson is narrower and worth keeping: a seam check
+that reads only the top-level model's field list will report a live nested payload as
+absent.
+
+**CS-1042, the residual that IS real.** `collected_state_available` must be FALSE when
+`parse_object_headers` was the reader. That path returns empty, and empty there means "saw
+none", never "has none" - reporting it as a measured zero is non-negotiable 7's silently
+wrong.
+
+**CS-1042, the empty instance half, AND A COUNT OR A FLAG WILL NOT COVER IT.** It is published as `""` - no
+Optional, no flag, no count - so a consumer joining on `instance_name` treats it as an
+ordinary non-match and CANNOT DETECT that it dropped the row. Measured at
+`tests/save/test_collectables.py:31-36`. An Optional, a flag and a count are each
+individually INSUFFICIENT because each is ignorable. The requirement is a PARTITION WITH
+CONSERVATION: every collectable row lands in exactly one bucket and the arm asserts
+`joined + unjoinable == len(collectables)`, so a dropped row cannot be expressed. This is
+CS-1042's to own - CS-1038 is CLOSED, and re-typing `Collectable` would relitigate it and
+still not stop a drop. **The pair count is UNVERIFIED** - prose says 72 in
+one place and 79 in another, and neither number exists in code. Measure it; do not repeat
+either.
+
+**CS-1043.** `clockspeed/progress/` holds only `__init__.py` - confirmed. The `FGSchematic`
+exclusion is a frozenset at `clockspeed/data/registry.py:424` and is correctly cited as NOT
+to be amended. Its carrier citations resolve only AFTER CS-1039 lands. The trap: NO budget
+constant exists anywhere at HEAD, so the acceptance clause "reddens when the budget constant
+moves" REQUIRES a named `Fraction` constant. A literal makes that clause unreddenable, which
+is the CS-1039 defect shape exactly.
+
+**CS-1045.** Its dependency on CS-1041 is PARTIAL, not total, and the note overstates it.
+Arm one - the exact Fraction sum over built counts, and the NAMED gap for an unmodeled draw
+- needs `placement.py` built counts and `solve/power.py` OUTCOME_UNMODELED and ZERO CS-1041
+symbols. Only arm two, the producing flag and the published edge set, needs CS-1041. Arm one
+may be built in parallel; only arm two must be sequenced.
+
+**CS-1048.** ITS CENTRAL SUBJECT IS ABSENT FROM THE CODE. `mFogOfWarRawData` has ZERO hits
+in any `.py` file at HEAD - it exists in docs and ADRs only. It does not cross the save seam,
+and `RecordProperties` explicitly FORBIDS `bytes` fields on published world types, which is
+exactly what a raster needs. The fog half therefore has no subject and cannot be built as
+filed; the arm would grade synthetic bytes injected past the seam, which is a statement about
+the fixture and not about the save. The BOUNDS half is sound and REFUTES the worry filed
+against it: `WorldBounds` exists at `clockspeed/audit/placement.py:378` and is reachable via
+`WorldPlacement.bounds`, so "reddens if a bounds field is read" is NOT vacuous. Split the
+item or re-file the fog half; do not inject bytes and call it measured.
+
 ## CS-1041
 
 ### Filed 2026-09-13
