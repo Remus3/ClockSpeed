@@ -267,7 +267,8 @@ a pass - every equality here is satisfied for free by an empty population.
 | CS-1051 | `docs/item_notes/phase6.md` |
 | CS-1052 | `docs/item_notes/phase4-followups-900.md` |
 | CS-1053 | `docs/item_notes/phase4-followups-900.md` |
-| CS-1054 | `docs/item_notes/phase4-followups-900.md` |
+| CS-1055 | `docs/item_notes/phase6.md` |
+| CS-1056 | `docs/item_notes/phase4-followups-900.md` |
 | CS-1042 | `docs/item_notes/phase5.md` |
 | CS-1043 | `docs/item_notes/phase5.md` |
 | CS-1045 | `docs/item_notes/phase5.md` |
@@ -282,16 +283,11 @@ re-ordered. A body therefore still reads as it did when it was written, includin
 parts a later session measured false and corrected in place rather than rewriting. The
 2026-08-25 split moved all 97 sections byte-for-byte and changed no body.
 
-**ONE EXCEPTION TO VERBATIM, AND IT IS THE ONLY ONE.** The 2026-08-23 relocation
-FALSIFIED every pointer that sent a reader to `docs/history_notes.md` for a block the
-same relocation moved into this family - usually into the same section as the pointer
-naming it. Those pointers were repointed at this family on 2026-08-23, as one mechanical
-substitution over the whole derived population, and nothing else in any body was touched.
-THE FIRST SWEEP OF THAT POPULATION WAS INCOMPLETE: it keyed on the block name
-`<ITEM> - detail` and so walked straight past **CS-454 - status detail**, which is the
-same defect in miniature - a population derived from the shape in front of you rather
-than from the shape itself. A pointer that still names `docs/history_notes.md` names a
-block that is genuinely still there.
+**ONE EXCEPTION TO VERBATIM EXISTS AND IT IS THE ONLY ONE** - the 2026-08-23
+repointing of pointers this family's own relocation falsified, including the sweep that
+missed `CS-454 - status detail`. Relocated to `docs/history_notes.md` 2026-09-14 under
+its own heading; it is a record of one mechanical substitution, not a live rule. **A
+pointer that still names `docs/history_notes.md` names a block genuinely still there.**
 
 **A WRITE-LIST NAMES A FILE IT WILL CREATE BY DIRECTORY AND STEM, NEVER AS A PATH.** An
 unbuilt path is a dead citation to `tests/test_docs_citations.py`, whose only routes are

@@ -374,6 +374,53 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-09-14 - CS-1054 - CLOSED. Two causes, and the one nobody asked about was that the suite could not read the format the operator plays on
+
+**WHAT CHANGED.** `tests/save/test_struct_interior.py` selects its graded version pair from
+pairs whose grammar the module's own reading EXPRESSES - taken from the shipped declaration,
+never from the outcome - states the corpus as counts in every message and skip, and asserts
+the set-aside at zero sites so it can neither grow nor rot. A new synthetic arm,
+`test_a_changed_corpus_and_destroyed_evidence_are_not_the_same_verdict`, grades all five
+classifications with no game needed. The ceiling control, which had SILENTLY DEGRADED TO A
+SKIP for the same root cause, is live again.
+
+**CAUSE ONE, THE ONE THE ITEM WAS FILED FOR.** The graded pair is chosen by record count
+over a directory the operator writes to while sessions run. Measured: 28 saves, 4 version
+pairs, and the graded pair (60,14) led the next by 3538 records against a 7739-record
+autosave. One autosave landing between the green run and the red run changed WHICH PAIR WAS
+GRADED, with nothing in the repository moving. The arm was never flaky and was right to
+assert rather than skip.
+
+**CAUSE TWO, WHICH NOBODY ASKED ABOUT AND MATTERS MORE.** `objects.COMPLETE_TYPE_NAME_PAIRS`
+declares pair (60,14) as carrying the recursive complete-type-name grammar, and the SHIPPED
+READER reads it correctly - 400 of 400 sampled records. The module's own independent tag
+walk expresses the LEGACY grammar only, so all 80801 records of that pair came back
+unreached and the arm reported evidence destroyed. **The suite was under-measuring the save
+format the operator is actually playing on, and the production reader was fine.** A test-side
+oracle blind to the newest format reports a production gap that does not exist.
+
+**WHAT WAS RULED OUT, WITH EVIDENCE.** No production reader gap - `clockspeed/save/` was not
+touched and needed no change. The byte census is a superset by design and is not what
+disagreed.
+
+**A FALSE ALARM AGAINST THIS ITEM, RECORDED BECAUSE THE REFUSAL WAS CORRECT.** After the
+merge a conftest teardown reported the suite adding a real-save copy to the live copies
+directory. It was NOT this module: every save read here goes through `read_bytes` plus
+`parse_header` plus `decompress_body` and never reaches `world.load_world`, the only caller
+of `workdir.copy_for_read`. A purpose-written tracer measured `copy_for_read` called ZERO
+times across the whole module. The writer was a `python -m clockspeed.surface` process that
+had been running about 24 hours, whose newest copy landed 4.8 minutes before the check while
+no suite was running at all. The builder refused to repair a module it had proved innocent
+and reported instead, which is the behaviour the stop-and-report rule exists for.
+
+**WHAT IS UNMEASURED AND STAYS UNMEASURED, NAMED RATHER THAN ASSUMED.** Whether other
+modules sharing `_walk_with_the_shipped_reader` also under-measure pair (60,14) - filed as
+CS-1056. `_run_degradation_control` POOLS the library, so that pair's zero DILUTES rather
+than reddens, and this is the pooled-guard shape this repo has measured before. The library's
+exact contents at the green run cannot be recovered; the flip is inferred from a
+drop-the-newest measurement, not observed.
+
+
 ### 2026-09-14 - CS-1039 - CLOSED with two carriers of three, the third re-sited rather than the acceptance rewritten
 
 **WHAT CHANGED.** `clockspeed/save/world.py::_record_properties` publishes

@@ -1715,48 +1715,39 @@ save file, no header bytes, no account id, no world name.
 record of what was wrong; the ADR should say what is true. Do not delete the false lines
 silently - an ADR that quietly loses a claim it once made is a document nobody can audit.
 
-## CS-1054
+## CS-1056
 
 ### Filed 2026-09-14
 
-**THE ARM IS NOT FLAKY AND MUST NOT BE TREATED AS FLAKY.** It PASSED inside the whole-suite
-pre-push run at `9f4fe6d` - 7560 passed, zero failed - and FAILED on that same commit, with
-a clean tree and nothing rebuilt, roughly 25 minutes later. Nothing in the repository
-changed between the two runs. What moved was its CORPUS: the operator's live save library,
-which this project reads and does not own.
+**THE SUITE WAS UNDER-MEASURING THE SAVE FORMAT THE OPERATOR ACTUALLY PLAYS ON, AND THE
+PRODUCTION READER WAS FINE.** CS-1054 found that `tests/save/test_struct_interior.py`'s
+independent tag walk expressed the LEGACY grammar only, so it read ZERO sites across all
+80801 records of version pair (60,14) - a pair `objects.COMPLETE_TYPE_NAME_PAIRS` declares
+and the shipped reader reads correctly, measured at 400 of 400 sampled records. That module
+is repaired. This item is about every OTHER module carrying the same shape.
 
-**WHY IT IS AN ASSERTION AND NOT A SKIP, IN THE AUTHOR'S OWN WORDS.** The arm says an empty
-population satisfies every equality below it, so refusing to skip is deliberate - a skip
-here would mute the finding rather than report it. That design is CORRECT and is not what
-this item changes. This repo has separately measured that a gate which skips its checks
-still reports PASS.
+**THE POPULATION IS ENUMERATED FROM THE IMPORT GRAPH, NEVER BY HAND.** A hand list of
+modules reaching `tests/save/test_decode_oracles.py::_walk_with_the_shipped_reader` is a
+denylist by another name, and this repo has measured that shape leaking four times. Derive
+it, then measure each member.
 
-**WHAT IT REPORTED.** A byte census found 172810 struct type words inside the graded pair's
-80801 records while the module's own reading found NO site in them at all. The arm calls
-that evidence destroyed rather than an absent corpus.
+**THE TEST IS SITES-FOUND AGAINST CENSUS, PER VERSION PAIR.** A module that reads many sites
+on old pairs and zero on (60,14) is under-measuring, not observing an absence. A module that
+reads zero everywhere is a different fault. Say which each one is.
 
-**THERE ARE TWO CANDIDATE CAUSES AND THIS ITEM MUST NOT PICK ONE BEFORE MEASURING.**
-Either the reader has a genuine gap against save content that appeared in the last half
-hour - new shapes the census counts and the reading cannot see - or the census counts words
-the reading correctly excludes and the disagreement is in the oracle. **A third possibility
-is that the graded pair is selected from a mutable directory and the two runs did not
-measure the same thing at all**, which is the one that makes the other two unanswerable.
-Settle that first; nothing else can be concluded until a run can say WHICH corpus it read.
+**A ZERO THAT DILUTES IS THE SECOND HALF OF THIS ITEM.** `_run_degradation_control` POOLS the
+library, so one pair's zero is averaged away instead of reddening. That is the pooled-guard
+shape already measured in this project: a threshold summed over a population is met by its
+strongest member while its weakest goes ungraded. Per-pair, not pooled.
 
-**DO NOT RELAX THE ARM TO RECOVER GREEN.** That is the repair this project refuses by name.
-An arm that stops reporting a disagreement has not resolved it. Equally, do not convert it
-to a skip - see above.
+**WHAT THIS ITEM IS NOT.** It is not a production reader item. `clockspeed/save/` reads that
+grammar correctly and CS-1054 changed none of it. Any finding that points at production code
+is a NEW item and must be filed as one rather than repaired here.
 
-**CLAUDE.md SECTION 7 IS THE BACKGROUND TENSION, NOT A VERDICT.** Fixtures are synthetic and
-the rule suite must run with no game installed - and it does, which is why CI is green and
-the no-install gate passes at 245. This arm is deliberately library-backed because its whole
-subject is real bytes. The fix is therefore NOT to make it synthetic; it is to make it say
-what it measured, so a red is attributable.
-
-**THE STANDING HAZARD THIS INSTANCE PROVES.** The operator plays while sessions run. Any
-library-backed measurement can change under a session without a commit, so a library-backed
-red must be re-checked against the base commit before it is attributed to the work in hand -
-and a library-backed GREEN is evidence only about the library that existed when it ran.
+**THE GENERAL LESSON, WHICH OUTLIVES THE ITEM.** A test-side oracle blind to the newest
+format reports a production gap that does not exist, and it does so LOUDLY - CS-1054's arm
+said evidence destroyed. An oracle must be checked against the formats it claims to cover
+before its verdict about production is believed.
 
 ## CS-1052
 
