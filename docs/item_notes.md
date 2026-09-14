@@ -33,7 +33,7 @@ mapping has one owner and this file only reports it:
 | Leaf | Holds |
 |---|---|
 | `docs/item_notes/phase3.md` | ROADMAP `Phase 3` |
-| `docs/item_notes/phase4.md` | ROADMAP `Phase 4`, ID BELOW the `CS-8nn` block. The `CS-10nn` block does NOT land here - the membership rule routes every phase 4 ID at 900 or higher to the `CS-9nn` leaf, four-digit IDs included, and that leaf's own header says so |
+| `docs/item_notes/phase4.md` | ROADMAP `Phase 4`, ID BELOW the `CS-8nn` block. NOT the `CS-10nn` block - the rule sends every phase 4 ID at 900 or higher to the `CS-9nn` leaf |
 | `docs/item_notes/phase4-followups.md` | ROADMAP `Phase 4`, ID in the `CS-8nn` block below CS-850 |
 | `docs/item_notes/phase4-followups-850.md` | ROADMAP `Phase 4`, ID in the `CS-8nn` block at or above CS-850 |
 | `docs/item_notes/phase4-followups-900.md` | ROADMAP `Phase 4`, ID in the `CS-9nn` block |
