@@ -14,6 +14,9 @@ Budgets: this file under 20 KB (CI hard fail), each leaf under 6 KB (CI warn).
   resource; main session stays usable; operator does only what Claude cannot.
 - [Orchestrated multi-agent is the default](orchestrated-multi-agent-is-the-default.md) -
   default session shape, not an escalation; producers never grade their own work.
+- [Full authority - adjudicate, do not ask](full-authority-adjudicate-do-not-ask.md) -
+  operator directive 2026-09-13, every session shape; a blocked decision goes to an
+  adjudicator and the best recommendation is taken immediately, never to the operator.
 
 ## Hard rules and mechanisms
 

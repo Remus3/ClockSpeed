@@ -272,6 +272,36 @@ agent grants itself the exception, and no agent widens the list without the same
 
 ---
 
+## 6.1 Authority - filed 2026-09-13 by operator directive
+
+**Full authority is granted by default, in every session shape.** Frozen files, full
+computer use, OBS, computer vision, keyboard, mouse, window, browser, research, download,
+install, terminal and settings access are granted, and restarting the server, the overlay
+or the dashboard is allowed even mid-game.
+
+**A blocked decision goes to an ADJUDICATOR, never to the operator.** Anything an agent
+would have marked "not without operator approval" is adjudicated and the best
+recommendation is taken immediately. Never ask the operator to authorise a send or to pick
+a direction - they intervene by typing into the main session. Section 6's frozen-file route
+is unchanged in shape: adjudicator grant, recorded in `docs/LEDGER.md` before the edit.
+Only the grantor changed.
+
+**This removes the operator from the approval path. It removes nothing else.** Section 3 is
+untouched: no red suite ships, the failing test still comes first, and nothing is called
+done that its acceptance says is not.
+
+**Nothing stays uncommitted or unpushed.** Batch commits and pushes so CI waits overlap
+with other work - remembering that CI runs only the TIP of a push, so a batch leaves its
+intermediate commits untested.
+
+**A status request is answered with the session checklist inline** - DONE, STILL OPEN,
+added, retracted - not with prose. Every action, tool call and agent dispatch carries an
+expected duration in its label.
+
+Rationale and the operator's own evidence: `memory/full-authority-adjudicate-do-not-ask.md`.
+
+---
+
 ## 7. Settled - decided, do not re-litigate
 
 Each entry records what was decided AND specifically what not to re-pitch. A settled entry
