@@ -9955,3 +9955,153 @@ Relocated, not deleted - sessions 88 and older, at the fidelity they were writte
 - Next action: CS-1009. Establish whether a claim survives the exit of the process that made it.
 
 ---
+
+
+## Retired from `docs/item_notes/` on 2026-09-13 (session 93)
+
+Relocated, not deleted - the leaf sections of the items that CLOSED this session, verbatim.
+Each item's completion record is in `docs/LEDGER.md`; a body below is history and is not a
+live instruction.
+
+## CS-1038 - item section, CLOSED and relocated from `docs/item_notes/phase4-followups-900.md` 2026-09-13
+
+### Filed 2026-09-13
+
+**WHY THIS IS THE KEYSTONE AND WHY IT STARTS FIRST.** `clockspeed/save/objects.py` already
+decodes a struct interior at TOP LEVEL and already yields `InventoryStack` with `NumItems`,
+so the grammar is known and only the CONTAINER APPLICATION is missing. One seam unblocks
+container stacks, spline data, wire instances and the space elevator's delivered items at
+once. Container elements today bound and type their elements and decode zero of them.
+
+**WRITE-LIST:** `clockspeed/save/objects.py`, `tests/save/test_container_elements.py`,
+and one NEW arm module beside it under `tests/save/` for the collectable pairs.
+**CONSUMES:** `_decode_interior_tag`,
+`_decode_container`, `ELEMENT_SHAPES`. **PUBLISHES:** container-element struct interiors on
+`ContainerElement.value`, and the collectable pairs on the walk result. **DEPENDS ON:**
+nothing. **TIER 2, NO GAME NEEDED** - synthetic payload bytes; a skip-if-absent
+real-library arm is ADDITIVE and never load-bearing.
+
+**FENCE - THIS IS NOT CS-829 AND MUST NOT BE FILED AS IT.** CS-829 is OPEN and its
+acceptance is an EQUALITY over every record carrying a struct type word the shipped
+vocabulary names. Its fences are LIVE and travel with it, and they forbid BY NAME
+re-pitching it as the inventory item, defining its population by the decoder's own success,
+and restating its clause without an operator ruling. This item CONSUMES CS-829's grammar and
+applies it to the container-element population; folding the two together would narrow CS-829
+to the inventory case, which its own fences forbid. **This item may not edit CS-829's
+population.** The ruling that they are separate is the planner's recommendation and is for
+an adjudicator to confirm, never for the implementing agent.
+
+**FENCE - THE COLLECTABLE SECTION'S POLARITY IS COLLECTED, AND THE OBVIOUS READING IS
+BACKWARDS.** The section reads a count and then that many (level, actor) PAIRS.
+Measured 2026-09-13: 72 pairs, and NOT ONE of them matches a live record. That is what
+identifies them as the COLLECTED set. **UNCOLLECTED is the live records carrying transforms
+MINUS those pairs.** An agent that names a field "uncollected" straight off the section has
+the polarity inverted and will ship a silently wrong answer that reads like a right one.
+This item carries the pairs up unchanged and claims no meaning for either string beyond
+what the code's own docstring already claims; the subtraction and the meaning are CS-1042.
+
+## CS-1040 - item section, CLOSED and relocated from `docs/item_notes/phase4-followups-900.md` 2026-09-13
+
+### Filed 2026-09-13
+
+**WHAT THIS RETIRES PERMANENTLY.** Every question of the form "is this field in the save"
+has been answered on this project by grepping a save and guessing. The authoritative answer
+is a UPROPERTY specifier one lookup away, in `CommunityResources/Headers.zip` beside the
+`Docs` file this project already reads. It would have answered ADR 0003 in one query.
+
+**PURITY IS CLOSED BY DECLARATION AND MUST NOT BE RE-OPENED AS AN UNSOLVED PROBLEM.**
+`FGResourceNode.h` declares `mPurity` with NO `SaveGame` specifier. A property without
+`SaveGame` is structurally incapable of being serialized into a save ON ANY BUILD - a
+different and far stronger claim than "we did not find it", and stronger than ADR 0003's
+zero-occurrence sampling. `mResourceClass` and `mResourceNodeType` are the same. The class
+name does not carry it either, and deriving it from a miner's rate fails because
+`mItemsPerCycle` and `mExtractCycleTime` are machine-side. **No slice may assume this away
+and no later session should re-derive it.** The one live exception is
+`mResourceDepositTableIndex`, a SaveGame property on the deposit records, whose lookup table
+is in the assets - CS-1048 reads it as an opaque index.
+
+**WRITE-LIST:** a NEW `headers` module under `clockspeed/data/`, one NEW arm module for
+it under `tests/data/`, plus the ADR.
+**CONSUMES:** `clockspeed/data/locate.py`, `clockspeed/data/version.py`. **DEPENDS ON:**
+nothing. **TIER 2.** It NEEDS the real install to build a live index; the shipped acceptance
+arm runs with NO GAME against a synthetic header fixture and asserts the clean skip.
+
+**THE ADR NUMBER MOVED, AND TAKING THE STALE ONE WOULD COLLIDE.** The session-85 plan named
+slot `0019` for this decision. `0019` was taken on 2026-09-13 by the map-underlay and
+purity-declaration adjudication. **This item's ADR is `0020`, reserved in
+`docs/adr/README.md` section 4.** Do not open a second slot for the same subject.
+
+**NOT GATED, and the distinction is the whole point.** `Headers.zip` is an ordinary zip of
+text. Nothing here touches a pak, so the Oodle Data gate recorded at CS-G01 does not reach
+it. Read-only against the install (non-negotiable 1); writes only under gitignored `data/`;
+commits nothing extracted (non-negotiable 2).
+
+**OPEN QUESTION FOR THE ADJUDICATOR, carrying its recommendation:** does this discharge
+CS-916, extend it, or sit beside it? RECOMMENDATION - it discharges the HEADERS half and
+leaves the pak half gated behind the Oodle Data verdict, so CS-916 is re-gated rather than
+left on the roadmap. The ADR must say which it did. The ADR must also be moved from
+`proposed` to `accepted` by an agent that did not produce the measurement; ADR 0016 is
+still `proposed` for exactly that reason and repeating it would leave two unadjudicated
+ADRs.
+
+## CS-1044 - item section, CLOSED and relocated from `docs/item_notes/phase5.md` 2026-09-13
+
+### Filed 2026-09-13
+
+**THREE SEPARATE GAPS, ONE MODULE.** `clockspeed/audit/placement.py`'s built-class allowlist
+plots no foundation, no conveyor, no pipe, no power pole and no power tower; a `Placement`
+carries a point and never an extent; and `WorldBounds` is a WHOLE-WORLD box rather than a
+per-building footprint. The map therefore cannot draw a category-differentiated engineering
+schematic at all.
+
+**WRITE-LIST:** `clockspeed/audit/footprint.py`, `tests/audit/test_footprint.py`.
+**DEPENDS ON:** nothing - it starts immediately. **TIER 2, NO GAME NEEDED.**
+**PUBLISHES:** `WorldFootprint` - a per-record category covering foundation, machine, miner,
+conveyor, pipe, wiring, pole, tower, coal plant, container, special machine and the AWESOME
+sink; an extent where derivable from scale with `extent_available` otherwise false;
+`water_regions_available` false; and a skipped-class count.
+
+**DECLARED DESIGN DECISION, SO IT IS NOT MISTAKEN FOR AN OVERSIGHT.** This module builds its
+OWN population rather than widening `BUILT_CLASS_ALLOWLIST`. That allowlist exists to keep a
+plan view legible; widening it would change the shape `/api/map` already serves and collide
+with the open placement residuals filed against it. Two populations, two purposes, BOTH
+allowlists with published skip counts. **A denylist is forbidden** - one defect on this
+project wore four spellings across four green commits and only an allowlist held.
+
+**ASSERT PER CATEGORY, NOT OVER THE POOL.** A pooled guard is satisfied by its strongest
+member while the weakest goes unmeasured. The served category set must EQUAL the categories
+the model DECLARES, derived from the model's own field rather than from a literal list.
+
+**WATER REGIONS SHIP AS UNAVAILABLE AND DRAW NOTHING.** The reason is external and is
+recorded in `docs/GATED.md`; do not substitute a partial here.
+
+**ASSUMED, NOT MEASURED:** that a footprint is derivable from class plus scale. If it is
+not, this ships `extent_available: false` and the map draws marks rather than rectangles.
+That is the honest outcome, not a failure.
+
+## Retired from `WAKEUP_NOTES.md` on 2026-09-13 (session 93)
+
+Relocated, not deleted - session 90, at the fidelity it was written.
+
+## Session 90 - 2026-09-13 - the claim store measured against the way a worker actually calls it, and three release designs refuted before one held
+
+- Shipped: CS-1009 and CS-1009's blocked dependent CS-991. Detail in docs/LEDGER.md, not here.
+- In flight: nothing. The tree is clean and the merge is one commit.
+- Decisions: no ADR. One adjudicated ruling, recorded inside the CS-1009 ledger entry: a lane lock
+  that reads RUNNING anchors its claim whether or not its holder can be proven, because
+  `lanes.holder_is_a_stranger` already ruled that trade one layer down and a row is a smaller unit
+  than a lane.
+- Surprises: nothing contradicted BOOTSTRAP.md, so no update is owed. What did surprise: a sha256
+  receipt over a record's own bytes is not a credential, because every lane can read every claim
+  file - and the worker prompt's only documented recovery path WAS the attack.
+- Failed paths: authenticating a release with a caller-supplied run id (run ids are policed nowhere);
+  authenticating it with a receipt (forgeable by any reader); and requiring a lock to prove its holder
+  before anchoring a claim (inverts the item wherever a start time cannot be read, handing a live
+  cycle's row to the other lane). None is to be retried.
+- Watch: CI is GREEN on main, but tier 1's duration gate is marginal - 470s and 493s on one
+  tree against a 480s ceiling, 360s in session 89. Filed as CS-1012 and UNATTRIBUTED: the
+  whole suite on this box is flat across the same delta, so the cost is runner-side. The
+  next commit of any size can flip that gate red on arrival. Do not raise the ceiling.
+- Next action: CS-1008 - `tests/test_queue_loop.py`'s `_drive` injects neither the permit seam nor the
+  claim-states seam, so those arms read the LIVE store and flip non-deterministically against a real
+  lane. It is tier 1 and it is the last thing reading live state in a suite.

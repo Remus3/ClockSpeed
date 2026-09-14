@@ -374,6 +374,133 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-09-13 - CS-1038 - CLOSED. The objects layer stops discarding what it already read
+
+**WHAT CHANGED.** Container elements were bounded and typed and decoded ZERO of the time. The
+struct grammar already existed AT TOP LEVEL and was simply never applied INSIDE a container; it is
+applied now. The collectable section read a count and then that many string PAIRS and then discarded
+both strings; the pairs now survive the read in file order. Merged files: `clockspeed/save/objects.py`,
+`tests/save/test_container_elements.py`, `tests/save/test_collectables.py`.
+
+**PROVEN BY.** `tests/save/test_container_elements.py::test_a_struct_element_inside_a_container_yields_its_interior`
+and `tests/save/test_collectables.py::test_the_collectable_pairs_survive_the_read_rather_than_being_counted`.
+
+**FENCE - THE SECTION RECORDS WHAT HAS BEEN COLLECTED, AND UNCOLLECTED IS A SUBTRACTION RATHER THAN
+A LOOKUP.** None of the section's entries resolves to a live record, which is what identifies the set.
+UNCOLLECTED is therefore the live records carrying transforms MINUS those pairs. A field named for the
+complement inverts every consumer downstream of it, and the inversion reads exactly like a right answer.
+
+**FENCE - THE TWO HALVES ARE NOT BOTH ALWAYS PRESENT.** Every entry carries a level half; two of them
+carry no instance half. A consumer that assumes both halves are populated drops those entries silently
+rather than failing, which is the non-negotiable-7 shape.
+
+**THREE EXISTING ARMS REDDENED BY DESIGN AND WERE REFINED, NOT WEAKENED.** The residue equality now
+says every struct element is either READ or SKIPPED for the derived-width reason. Its old clause - that
+SOME elements are unread - was DELETED, and the reason it was deleted rather than re-tuned is recorded
+here so it is not restored: a derived-width refusal may reappear on the next autosave, and an arm
+pinning its ABSENCE would ship a false red on a tree that never changed.
+
+### 2026-09-13 - CS-1049 - CLOSED. The gated fence becomes a classified partition
+
+**WHAT CHANGED.** `gated_ids()` fenced every id `docs/GATED.md` NAMED anywhere, so mention and
+blockage were the same signal. A machine-readable classification block now partitions the population
+the wide scan produces. An adjudicator graded the fourteen live rows the old fence caught and found
+THIRTEEN fenced by mention alone and exactly ONE truly gated - CS-913, blocked by CS-G06. Merged files:
+`docs/GATED.md`, `ops/loop/scope.py`, `tests/ops/test_lane_scope.py`.
+
+**PROVEN BY.** `tests/ops/test_lane_scope.py::test_a_row_this_file_merely_mentions_is_takeable`,
+`::test_an_id_the_block_does_not_classify_is_fenced_and_named`, and
+`::test_dropping_one_classification_line_flips_that_row_from_takeable_to_fenced`.
+
+**FENCE - THE WIDE SCAN STAYS AND IS THE POPULATION; THE BLOCK IS THE CLASSIFIER.** An id that nothing
+classifies counts as GATED and is REPORTED by name, so omission fails CLOSED. Narrowing the scan to
+headings or to a declared field is the DENYLIST shape this project has already measured leaking four
+times across four green commits, and it fails OPEN on CS-G06, which names its blocked row in prose
+rather than in a field.
+
+**FENCE - REWRITING GATE PROSE TO DESCRIBE A ROW RATHER THAN NUMBER IT IS NO LONGER THE UNFENCING
+MECHANISM.** That lever fails OPEN: it unfences by making a row invisible to the scan. The four rows
+unfenced that way earlier in the session are now pinned as explicit MENTIONED entries in the block, so
+the classification is stated rather than inferred from an absence.
+
+### 2026-09-13 - CS-1040 - CLOSED. The shipped headers become a queryable index, and four questions are answered by declaration
+
+**WHAT CHANGED.** `CommunityResources/Headers.zip` ships 1144 publisher headers beside the `Docs` file
+this project already reads, and nothing in the tree had ever opened it. It is now an index, so a
+question of the form "is this field in the save" is answered by a UPROPERTY specifier rather than by
+grepping a save and guessing. Merged files: `clockspeed/data/assets.py`, `tests/data/test_assets.py`,
+`docs/adr/0020-shipped-asset-extraction.md`.
+
+**PROVEN BY.** `tests/data/test_assets.py::test_the_extraction_reads_only_and_skips_cleanly_with_no_install`.
+
+**FOUR VERDICTS, EACH RECORDED WITH THE GROUND IT STANDS ON.** Purity is NOT RECOVERABLE BY
+DECLARATION: `mPurity` is `EditInstanceOnly` with no `SaveGame` specifier, so it cannot serialize on
+ANY build - a strictly stronger claim than zero-occurrence sampling. Building extent is RECOVERABLE
+WITH NO GATE: `mClearanceData` is `EditDefaultsOnly` and is therefore a class default, and class
+defaults ship in the `Docs` file already read - 501 buildable classes across 66 groups, each with a box
+and a relative transform. The map underlay defers to ADR 0019, with sharper evidence than that ADR had:
+`mUpperLeftWorld` and `mWorldToMapScale` carry NO property macro at all and the class overrides no
+serialization hook, so they are in NO cooked asset and a cleared Oodle gate would not yield them. Water
+geometry is NOT RECOVERABLE and stays gated.
+
+**THE INDEX CAUGHT A DEFECT IN ITSELF, and it is worth more than the feature.** Commented-out macros
+were indexed as live declarations, so one commented-out `SaveGame` property was producing a FALSE TRUE
+- the index answering confidently in the one direction that would have been acted on.
+
+**A PRIVACY DEFECT WAS FOUND AND CLOSED ON THE WAY.** A frozen dataclass carrying a `Path` would have
+printed a home directory through its GENERATED repr, which no author wrote and no reviewer would read.
+That repr and two exception renderings that append a filename are now withholding. Non-negotiables 3
+and 12.
+
+### 2026-09-13 - CS-1050 - CLOSED. The headless lane starts again, and the two root causes were not the same defect
+
+**THE ID WAS ASSIGNED AT CLOSURE and that is stated rather than hidden.** The repair was carried out
+and merged with no item id; the id is allocated here so the work has exactly one owner file, and
+nothing remains open on it. The lane had launched nothing since 2026-09-11. Merged files:
+`ops/loop/lane_launcher.py`, `ops/loop/run_lane.ps1`, `ops/loop/scope.py`, `ops/loop/claims.py`,
+`config/lane_scopes.json`, `tests/test_lane_launcher.py`, `tests/test_lane_runner_script.py`,
+`tests/ops/test_driver_module_binding.py`, `tests/ops/test_row_claim.py`.
+
+**PROVEN BY.** `tests/ops/test_driver_module_binding.py::test_every_module_the_driver_binds_imports_without_the_repository_root`,
+plus one REAL detached cycle recording `lane exit code=0`. The stop sentinel is deleted.
+
+**TWO ROOT CAUSES, AND THE SECOND WAS UNREACHABLE BY UNIT TEST.** First: the launcher spawned fine,
+survived its liveness grace, and then a repoint returned false and it FORCE-KILLED the worker. A forced
+terminate runs no `finally`, which is the entire explanation for every 134-byte log that stopped at its
+own header - those logs were not truncated, they were never unwound. Second, and found ONLY by running
+a real detached cycle: the driver starts as a windowless interpreter ON A FILE PATH, so the repository
+root is never on `sys.path`, and it died on its first import before its first acquire. No unit test
+could have caught that one, because every unit test imports the module the ordinary way.
+
+### 2026-09-13 - CS-1044 - CLOSED. Footprint categories, extents and an elevation order, shipped then REFUTED then repaired
+
+**WHAT CHANGED.** `clockspeed/audit/footprint.py` publishes a per-record category, an extent where one
+is derivable, and an elevation ordering, over its own allowlisted population with a published skip
+count. Merged files: `clockspeed/audit/footprint.py`, `tests/audit/test_footprint.py`.
+
+**PROVEN BY.** `tests/audit/test_footprint.py::test_every_published_category_is_reachable_from_a_synthetic_world`,
+`::test_a_skipped_class_is_counted_and_never_silently_dropped`, and
+`::test_each_named_class_spelling_lands_in_the_category_the_map_draws_it_as`.
+
+**IT SHIPPED GREEN AND WAS THEN REFUTED, WHICH IS THE RECORD THAT MATTERS.** An adversary frozen at
+`39c30bb` returned PARTIALLY REFUTED with three findings, each carrying a mutant that nobody killed.
+The headline acceptance arm was ORACLE-BLIND: its fixture and its oracle both derived from
+`CATEGORY_OF_CLASS`, so deleting a belt spelling, or filing it under the wrong category, left all
+seventeen arms green. A second arm was PROVABLY DEAD, subtracting the declared categories from a
+mapping built by iterating those same categories. And the elevation order was claimed TOTAL when two
+records of one class at one transform tie on all five key components.
+
+**THE ACCEPTANCE CLAUSE CAUSED THE FIRST FINDING, and that is the fence.** The wording "derived from
+the model's own field rather than a literal list" was written to stop an arm that merely re-types a
+list, and it OVERSHOT INTO A TAUTOLOGY: derive both sides from one source and the arm asserts that
+source equals itself. Structure and membership are now graded by SEPARATE arms, and membership is
+graded by 80 retyped spellings across 13 categories asserted PER CATEGORY rather than over the pool.
+
+**THE GENERATOR CATEGORY WAS ADJUDICATED, NOT ASKED.** The coal plant keeps its own layer because the
+operator named it. Fuel, nuclear, geothermal and automated biomass take a `generator` category,
+because a power view that silently omits a power source is the non-negotiable-7 failure in the surface
+this item exists to draw. Power stores and switches are excluded: neither produces.
+
 ### 2026-09-13 - CS-300, CS-854 - CORRECTION RECORD. NOT A COMPLETION RECORD. NOTHING CLOSED. The CS-300 entry below cites `tests/data/test_phase2_gate.py` BY LINE, that line is now blank, and this file forbids the edit that would repair it
 
 **CS-854 STAYS OPEN and this entry does not close it.** It is named in the head only

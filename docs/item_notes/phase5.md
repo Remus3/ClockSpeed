@@ -186,41 +186,6 @@ entry is null and never zero.
 **NO FLOAT REACHES A RATE.** The two-hour completion budget is held as a `Fraction`, and the
 every-machine-at-full-clock assumption is named ON THE MODEL rather than in a comment.
 
-## CS-1044
-
-### Filed 2026-09-13
-
-**THREE SEPARATE GAPS, ONE MODULE.** `clockspeed/audit/placement.py`'s built-class allowlist
-plots no foundation, no conveyor, no pipe, no power pole and no power tower; a `Placement`
-carries a point and never an extent; and `WorldBounds` is a WHOLE-WORLD box rather than a
-per-building footprint. The map therefore cannot draw a category-differentiated engineering
-schematic at all.
-
-**WRITE-LIST:** `clockspeed/audit/footprint.py`, `tests/audit/test_footprint.py`.
-**DEPENDS ON:** nothing - it starts immediately. **TIER 2, NO GAME NEEDED.**
-**PUBLISHES:** `WorldFootprint` - a per-record category covering foundation, machine, miner,
-conveyor, pipe, wiring, pole, tower, coal plant, container, special machine and the AWESOME
-sink; an extent where derivable from scale with `extent_available` otherwise false;
-`water_regions_available` false; and a skipped-class count.
-
-**DECLARED DESIGN DECISION, SO IT IS NOT MISTAKEN FOR AN OVERSIGHT.** This module builds its
-OWN population rather than widening `BUILT_CLASS_ALLOWLIST`. That allowlist exists to keep a
-plan view legible; widening it would change the shape `/api/map` already serves and collide
-with the open placement residuals filed against it. Two populations, two purposes, BOTH
-allowlists with published skip counts. **A denylist is forbidden** - one defect on this
-project wore four spellings across four green commits and only an allowlist held.
-
-**ASSERT PER CATEGORY, NOT OVER THE POOL.** A pooled guard is satisfied by its strongest
-member while the weakest goes unmeasured. The served category set must EQUAL the categories
-the model DECLARES, derived from the model's own field rather than from a literal list.
-
-**WATER REGIONS SHIP AS UNAVAILABLE AND DRAW NOTHING.** The reason is external and is
-recorded in `docs/GATED.md`; do not substitute a partial here.
-
-**ASSUMED, NOT MEASURED:** that a footprint is derivable from class plus scale. If it is
-not, this ships `extent_available: false` and the map draws marks rather than rectangles.
-That is the honest outcome, not a failure.
-
 ## CS-1045
 
 ### Filed 2026-09-13
