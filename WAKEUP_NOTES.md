@@ -55,6 +55,16 @@ the line becomes a pointer.
   the needle is a raw home-shaped path. A body that genuinely reflects a refused path passes
   all four. Filed as CS-1034, tier 1. This is the same trap session 91 hit once, in four more
   places, and it guards non-negotiables 3 and 12.
+- CI IS RED AT THE TIP, ON THE CLOCK AND NOT ON THE CODE. Run 34791962600 on 9378975
+  failed ONLY the "Duration against the budget" step: tier 1 took 491s against a 480s
+  ceiling and a 420s budget. Every other step passed - character-set gate, ruff check,
+  format check, doc budgets, drift guard, markdown links, type check AND unit tests. The
+  ceiling was NOT raised; CS-1012's line forbids that by name. The measurement is worth
+  more than the red: the same gate took 355s on 73f4e36 one session earlier and 493s and
+  470s on the CS-1009 tree, so the observed spread on this workflow is now 355s to 493s -
+  about 140 seconds, far wider than the roughly 20s spread CS-1012 was filed with. A
+  ceiling 60s above budget cannot survive that spread whatever the tree does, which is
+  evidence for the runner-side hypothesis CS-1012 already names as the first to test.
 - Next action: CS-1034 - give every path-shaped privacy needle an oracle proven potent by a
   planted positive the arm FINDS, and redden the four arms on a reflecting body.
 
