@@ -1907,6 +1907,79 @@ def is_target(token: str) -> bool:
     return token == SUITE_ROOT or token.startswith(SUITE_ROOT + "/")
 
 
+def test_no_shard_names_a_node_id_where_a_path_is_required() -> None:
+    """A node id as a target is a SILENT OVERLAP, and the token arms cannot see it.
+
+    MEASURED by an adversarial pass over ea3591a, not imagined. Give ``guards``
+    the target ``tests/test_toolpath.py::test_x`` and the catch-all the BYTE
+    IDENTICAL string as its ``--ignore=``, and every partition arm passes: the
+    claimed set equals the ignored set, nothing nests, no narrowing flag
+    appears. The module reported 143 passed. Collection reported 7720 against a
+    true 7719, with that one test collected by TWO shards.
+
+    THE ASYMMETRY IS THE WHOLE MECHANISM. ``--ignore`` matches a PATH and is a
+    silent no-op when handed a node id, while the same string as a positional
+    argument selects exactly one test. The partition arms compare the two
+    strings as opaque tokens, so a string that means one thing on the left and
+    nothing on the right reads as a matched pair.
+
+    So the pairing is not enough on its own: both sides have to be the KIND of
+    thing ``--ignore`` can act on. That is what this arm pins.
+    """
+    offenders = sorted(
+        f"{job_id} -> {token}"
+        for job_id, tokens in suite_shards().items()
+        for token in tokens
+        if (is_target(token) or token.startswith("--ignore=")) and "::" in token
+    )
+    assert offenders == [], (
+        f"{offenders} name a pytest NODE ID where a path is required. `--ignore=` silently"
+        " ignores a node id, so such a token excludes nothing while its twin on another"
+        " shard still selects: the two strings match, the collected sets do not, and every"
+        " other arm in this module stays green over the overlap"
+    )
+
+
+def test_no_selection_narrowing_hides_in_the_pytest_configuration() -> None:
+    """The workflow tokens are only the whole selection if NOTHING ELSE narrows.
+
+    EVERY ARM ABOVE READS THE WORKFLOW AND NOTHING BUT THE WORKFLOW. That is
+    exactly as wide as the partition argument reaches, and an adversarial pass
+    over ea3591a walked straight through the gap: adding ``-m 'not slow'`` to
+    ``addopts`` in pyproject.toml, with the workflow untouched, left this module
+    at 143 passed while 12 tests in the guard shard were deselected and
+    therefore ran in NO SHARD AT ALL.
+
+    A gap opened outside the file the arms read is still a gap. pytest applies
+    ``addopts`` to every invocation, so a narrowing flag there subtracts from
+    all three shards at once and the partition proof above says nothing about
+    it.
+
+    THE INVERSE IS NOT CHECKED HERE AND THAT IS DELIBERATE. ``testpaths`` cannot
+    narrow a run that names its own targets, and a ``collect_ignore`` in a
+    conftest is a separate mechanism with its own reach; neither belongs in an
+    assertion about ``addopts``. They are named here so the next reader knows
+    they were considered rather than missed.
+    """
+    config = tomllib.loads(Path(PYPROJECT_RELATIVE).read_text(encoding="utf-8"))
+    addopts = config["tool"]["pytest"]["ini_options"].get("addopts", "")
+    assert isinstance(addopts, str), f"addopts is {type(addopts).__name__}, not a string"
+
+    # SCANNED DIRECTLY RATHER THAN THROUGH :func:`narrowing_selectors`, which
+    # refuses a token list carrying no ``pytest`` and returns a sentinel saying
+    # so. That refusal is right for a COMMAND - it exists because scanning a
+    # whole `python -m pytest ...` list reads python's own -m as pytest's
+    # marker expression - and wrong for ``addopts``, which is a bare flag
+    # string with no interpreter in front of it. The shared thing is the
+    # vocabulary, and that is what is reused here.
+    narrowing = [token for token in addopts.split() if token.split("=", 1)[0] in NARROWING_FLAGS]
+    assert narrowing == [], (
+        f"pyproject.toml addopts carries {narrowing}, which narrows EVERY pytest invocation"
+        " including all three shards. Whatever those exclude is run by no shard, while the"
+        " partition arms above - which read only the workflow - stay green over the gap"
+    )
+
+
 def shard_targets(tokens: list[str]) -> list[str]:
     """The paths one shard hands pytest, in command order.
 

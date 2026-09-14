@@ -1056,9 +1056,13 @@ def test_isolating_rows_does_not_grow_its_work_with_the_row_count(
     old_large = _eliminations_during(
         monkeypatch, lambda: _brute_force_isolating(oracle_matrix, oracle_rhs)
     )
-    assert _ORACLE_GROWTH_CHAIN > _SMALL_CHAIN, (
-        "the oracle's two sizes are not different, so the growth assertion below is comparing a "
-        "count with itself and cannot fail"
+    assert _SMALL_CHAIN < _ORACLE_GROWTH_CHAIN < _LARGE_CHAIN, (
+        f"the oracle's growth is measured at {_ORACLE_GROWTH_CHAIN} rows against a small chain of "
+        f"{_SMALL_CHAIN} and an implementation chain of {_LARGE_CHAIN}. The LOWER bound keeps the "
+        "growth assertion below from comparing a count with itself. The UPPER bound is the one "
+        "that was missing and it is the one that matters: restoring this to _LARGE_CHAIN reverts "
+        "CS-1060's trim - measured at 1.02s against 20.42s - and WITHOUT this bound that revert "
+        "was green. A comment saying MUST NOT is not a guard"
     )
     assert old_large > old_small, (
         "the oracle did not get more expensive with the row count, so this arm is comparing two "
