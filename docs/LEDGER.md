@@ -374,6 +374,79 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-09-14 - CS-1045 - CLOSED on its acceptance, with two clauses of its PROSE unmet and re-sited
+
+**WHAT CHANGED.** `clockspeed/audit/balance.py` sums the world draw as an exact Fraction over
+built counts. `DrawGap` DECLARES NO MEGAWATTS FIELD, so a zero for an unmodeled draw is not
+discouraged but UNREPRESENTABLE, and that is graded structurally off the dataclass's own
+fields rather than by asserting a value. Five gap kinds, countable in actors and separately
+in classes, buckets conserving. `tests/audit/test_balance.py`, 34 arms.
+
+**WHAT IS UNMET AND WHY IT IS NOT A SHORTFALL.** The item's PROSE names a connected edge set
+to outline and a production-versus-consumption graph. Neither is buildable at HEAD: CS-1041
+publishes NO edges and hardcodes its topology flags False, and no `Building` field or
+extractor for production exists anywhere. Both are published as UNAVAILABLE with a warning
+that travels with every balance - never as a zero. Re-sited to CS-1058 and CS-1059. The two
+clauses the ACCEPTANCE grades are both met.
+
+**A MASKED CLAUSE THE BUILDER FOUND IN ITS OWN WORK.** Under a confident-zero mutant the
+CONSERVATION arm stayed GREEN - zero gaps still conserves. A partition arm alone would have
+shipped the defect; the per-contributor gap arms are what catch it. Third instance of that
+shape today.
+
+**A BRIDGE DELIBERATELY NOT REUSED.** CS-1041's `exact_from_float32` converts a stored
+float32 property to its authored decimal. Every draw here arrives as an exact Fraction from
+the registry, so a non-Fraction scalar is REFUSED as an inexact-draw gap rather than
+converted. No second bridge was written.
+
+### 2026-09-14 - CS-1042 - CLOSED. Uncollected is a subtraction, and a dropped row is now unrepresentable
+
+**WHAT CHANGED.** `clockspeed/audit/collectibles.py` serves uncollected collectibles as the
+live records carrying transforms MINUS the collected pairs. Two frozen types raise unless
+their buckets sum to the declared total, so **a dropped row is not a value this layer can
+construct** - an Optional, a flag or a count would each have been ignorable.
+
+**THE EMPTY INSTANCE HALF.** An unjoinable pair contributes NO KEY to the subtraction, so the
+empty string is never a key. The arm that grades it uses the one fixture nothing else
+refuses - a live actor whose own instance name is empty beside a pair whose instance half is
+empty - so the clause cannot be masked by an earlier check.
+
+**READER PROVENANCE, non-negotiable 7.** The availability flag is false when the flat header
+reader was used, because that path returns empty and empty there means "saw none", never
+"has none". The safe direction is the default.
+
+**A COUNT MEASURED AND DELIBERATELY NOT WRITTEN DOWN.** 89 collectable pairs, 2 with an empty
+instance half, 0 resolving to a live record - read once, read-only. Prose elsewhere said 72
+in one place and 79 in another and BOTH ARE WRONG. No count was written into a tracked file.
+
+**HONEST LIMIT.** The class allowlist comes from a read-only census; that each named class is
+a MAM collectible rather than merely a transform-carrying actor is SUPPORTED AND NOT PROVED.
+
+### 2026-09-14 - CS-1041 - CLOSED on its acceptance; TWO of the four questions its line names have no clause and are re-sited
+
+**WHAT CHANGED.** `clockspeed/audit/network.py` publishes one node use per node in model
+order, carrying no index and no instance name, with mined-state from the typed reference
+join CS-1039 landed. `clockspeed/audit/machines.py` publishes three-state producing, recipe,
+and real overclock with per-field availability flags and refusal counts. 48 arms.
+
+**THE PROPERTY THE ITEM LINE ASSERTED AS FACT DOES NOT EXIST.** The line names the property
+by which a miner names its node; ADR 0003 MEASURED it at zero occurrences across three
+worlds and four builds, and it has zero hits in any shipped module. The join is therefore
+name-agnostic over the typed reference population, decided structurally by the instance
+separator. Keying on the named property would have reproduced CS-1039's first-candidate
+defect exactly.
+
+**ONE MUTATION SURVIVED AND FOUND A REAL DEFECT.** Disabling the instance-path refusal left
+all 29 machine arms green - the asset-root clause refused the fixture first, so the two were
+never told apart. A fixture wearing a permitted root unmasks it. Second instance of that
+shape today.
+
+**UNMET AND RE-SITED.** Which belt feeds which machine, and which connections share a power
+circuit. Both are named in the item LINE and graded by NO acceptance clause, so an
+implementation answering two of four would have satisfied the filed acceptance. Declared
+unavailable with a warning rather than left silent. Re-sited to CS-1058.
+
+
 ### 2026-09-14 - CS-1054 - CLOSED. Two causes, and the one nobody asked about was that the suite could not read the format the operator plays on
 
 **WHAT CHANGED.** `tests/save/test_struct_interior.py` selects its graded version pair from

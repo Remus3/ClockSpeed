@@ -10274,3 +10274,117 @@ THE FIRST SWEEP OF THAT POPULATION WAS INCOMPLETE: it keyed on the block name
 same defect in miniature - a population derived from the shape in front of you rather
 than from the shape itself. A pointer that still names `docs/history_notes.md` names a
 block that is genuinely still there.
+
+## CS-1041
+
+### Filed 2026-09-13
+
+**FOUR QUESTIONS, ONE CAUSE.** Which belt feeds which machine, which node a miner sits on,
+which connections share a power circuit, and whether a machine is running are all answered
+by references and per-machine properties that the decoder already recovers and the world
+seam already drops. The mechanism is verified - an `ObjectProperty` value decodes, and
+`RecordIndex.records_for` resolves an object path to every record bearing that name.
+
+**WRITE-LIST:** NEW `network` and `machines` modules under `clockspeed/audit/`, and one
+NEW arm module under `tests/audit/` for each of them. **DEPENDS ON:** CS-1039.
+**TIER 2, NO GAME NEEDED.** **PUBLISHES:** `WorldNetwork` - mined node keys, belt and pipe
+edges keyed by an INDEX into the placement population and NEVER by instance name, circuit
+membership, and the counts that are its own denominators; `WorldMachines` - per-record
+recipe, producing flag and overclock, each behind a declared availability flag.
+
+**A PROXIMITY FALLBACK IS FORBIDDEN.** Non-negotiable 7 forbids it by name: nearest-neighbour
+renders a wrong answer that reads like a right one. The acceptance arm must REDDEN when the
+reference join is replaced by nearest-neighbour, or it grades nothing.
+
+**ASSUMED, NOT MEASURED:** that a miner carries an ObjectProperty naming its node actor. The
+MECHANISM is verified; the PROPERTY NAME is not. Measure it before building on it.
+
+**A CORRECTION THIS ITEM CARRIES, BECAUSE IT IS A REFUTATION OF A SESSION-85 SPIKE CLAIM.**
+A spike reported that CS-405 "probes the wrong field" because `mInventoryPotential` is an
+ObjectProperty resolving to an inventory component rather than the overclock float. **That
+correction was already known and the spike's claim is REFUTED.** Verified this session by
+reading the module: `tests/save/test_inventory_potential.py`'s module docstring, under
+its heading WHAT THE TAG WAS ALREADY MEASURED TO BE, already records that
+`mInventoryPotential` decodes as an ObjectProperty - a level string and an object path - and
+not as a bare integer, and states that this refutes the naive reading of YES without
+establishing NO because a count may live BEHIND the reference; ADR 0009 records what the
+experiment found and CS-831 shipped the reference following the module consumes. CS-405 is
+CLOSED and its body is in `docs/history_notes.md`; no item is filed against it and nothing
+in it needs repair. **The USEFUL half of the spike survives and lands here:** the live
+overclock values are `mCurrentPotential` and `mPendingPotential`, measured 2026-09-13 at
+five records each, and those are the fields this item reads. An ABSENT `mCurrentPotential`
+is published as null and NEVER as 1.
+
+**`mHasBeenLooted` IS SPARSE AND ITS ABSENCE MEANS DEFAULT-FALSE.** Read as "unknown" it
+makes a plain unlooted pod unmeasurable; read as false it is correct. The model states which
+reading it took rather than leaving it to a reader.
+
+**BELT PATH GEOMETRY IS OUT OF SCOPE AND THAT IS NOT A DEFERRAL.** `mSplineData` and
+`mSplinePoints` decode to zero elements today and are unblocked only by CS-1038. The
+red-outline requirement needs the GRAPH, not the path. Belts render endpoint-to-endpoint and
+the model declares `spline_geometry_available` false.
+
+## CS-1042
+
+### Filed 2026-09-13
+
+**THE POLARITY IS COLLECTED, AND EVERY LATER READER MUST BE TOLD SO BEFORE THEY NAME A
+FIELD.** The save's collectable section records what has ALREADY BEEN COLLECTED, as
+(level, actor instance) pairs. Measured 2026-09-13: 72 pairs, none of which matches a live
+record - which is exactly what identifies the polarity. **UNCOLLECTED is the live records
+carrying transforms MINUS those pairs.** An agent that reads the section as a list of
+uncollected items has it backwards. Live uncollected records carry transforms and are the
+crystal classes and their marks, the spawnable pickups, the drop pods, the crash-site debris
+and the resource deposits; the collected stems seen in the pairs are a different and
+non-overlapping population.
+
+**WRITE-LIST:** a NEW `collectibles` module under `clockspeed/audit/`, and one NEW arm
+module for it under `tests/audit/`. **DEPENDS ON:** CS-1038 for the pairs and CS-1039 for the seam. **TIER 2, NO GAME NEEDED.**
+**PUBLISHES:** `WorldCollectibles` - one row per uncollected item with its transform,
+per-class counts, a skipped count, and a `collected_state_available` flag.
+
+**THE ACCEPTANCE GRADES THE SUBTRACTION, NOT THE PLOTTING.** This is the single
+highest-vacuity-risk arm in the session. An arm asserting only that three collectibles
+render PASSES on an implementation that ignores the collected list entirely, which is the
+whole defect. The arm must redden when the subtraction is removed.
+
+**THE CLASS FILTER IS AN ALLOWLIST AND NEVER A DENYLIST**, authored from the measured stems,
+with a PUBLISHED skipped count. A denylist on this project leaked four times - one defect
+wore four spellings across four GREEN commits - and only an allowlist of good values held.
+A skipped class is COUNTED, never silently dropped.
+
+**ASSERT PER CLASS, NOT OVER THE POOL.** A threshold summed over a population is met by its
+strongest member while the weakest goes unmeasured with the acceptance clause still passing.
+
+**THE SAVE LIBRARY MOVES WHILE YOU WORK, so no acceptance here may state a hardcoded save
+count.** The operator plays while agents run: the record total was probed twice inside one
+session on 2026-09-13 and had moved between the two reads. A count written into a test is a
+lie with a timestamp on it (`CLAUDE.md` section 4). Every equality below is over a
+population DERIVED from the payload being read, compared against the reader's own output,
+never against a literal.
+
+## CS-1045
+
+### Filed 2026-09-13
+
+**TWO REQUIREMENTS WITH NO NUMBER BEHIND THEM.** `/api/power` answers for ONE building
+against the registry alone with no world bound into it, nothing multiplies a per-class draw
+by a built count, and no rule anywhere compares a machine's input to its output.
+
+**WRITE-LIST:** a NEW `balance` module under `clockspeed/audit/`, and one NEW arm
+module for it under `tests/audit/`. **DEPENDS ON:** CS-1041. **TIER 2, NO GAME NEEDED** - synthetic registry and synthetic
+world. **PUBLISHES:** `WorldBalance` - production and consumption, an unmodeled-contributor
+count, the imbalanced record set, and the connected edge set the panel outlines red.
+
+**THE CONFIDENT ZERO IS THE FAILURE MODE HERE.** `clockspeed/solve/power.py`'s unmodeled
+cases must EACH contribute a NAMED gap to the total and never a zero. `contract.encode`
+refuses a float; a zero it happily accepts, and a zero is a lie a power plan cannot detect.
+This is the silently-wrong half of non-negotiable 7 wearing a number.
+
+**ASSERT PER CONTRIBUTOR, NOT OVER THE POOL.** A total that is correct in aggregate can hide
+a class whose draw was never modelled; the arm must name the gap rather than measure the sum
+alone.
+
+**THE WHOLE-WORLD PAIR DOES NOT NEED THE CIRCUIT GRAPH** and is what this item ships. The
+per-circuit split does need it and is a stated stretch, recorded here so a later reader does
+not mistake its absence for an oversight.
