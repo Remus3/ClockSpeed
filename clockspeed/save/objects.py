@@ -287,6 +287,7 @@ __all__ = [
     "WIDTH_SHIPPING_GROUNDS",
     "WIDTH_SHIPPING_RULE",
     "BodyLayout",
+    "Collectable",
     "ContainerElement",
     "ContainerValue",
     "ObjectBudgetExceededError",
@@ -986,6 +987,55 @@ class Transform:
 
 
 @dataclass(frozen=True, repr=False)
+class Collectable:
+    """One entry of a level's collectable list - CS-1038.
+
+    ``repr`` is hand written and withholds BOTH strings, on exactly the terms
+    :class:`ObjectRecord` states: a level name and an actor instance name are
+    world content, and a repr is an echo path under non-negotiable 12 just as
+    much as a log line is.
+
+    WHAT THE PAIR IS. The two halves have the shape the level tail and the
+    body's trailing reference list already carry - a level name and an object
+    inside it. The first half is PROVENANCE rather than inference: it is one of
+    the level names the same walk read earlier in the same body.
+
+    POLARITY, AND IT IS THE ONE THING A CONSUMER CAN GET BACKWARDS. The section
+    records what HAS BEEN COLLECTED, so an entry names an actor that is no
+    longer in the world. A field named for the complement would invert every
+    consumer downstream of it, which is why the name here is the positive one.
+
+    WHAT IS NOT CLAIMED. The reading is measured only in the sense that reading
+    the block any other way stops the whole-body walk short of the final byte,
+    and the polarity is supported rather than proved: measured on the pinned
+    development world as counts only, ZERO of the entries name an instance the
+    same walk found as a live record, which is what a collected actor looks
+    like and is also consistent with other readings. No join is performed here;
+    a consumer that wants one performs it against
+    :attr:`ObjectRecord.instance_name`.
+
+    Attributes:
+        level_name: The pair's first string - a level name.
+        instance_name: The pair's second string - an actor instance name, and
+            the half a consumer joins on.
+    """
+
+    level_name: str
+    instance_name: str
+
+    def __repr__(self) -> str:
+        """Render presence and withhold both strings.
+
+        Returns:
+            The safe rendering.
+        """
+        return (
+            f"{type(self).__name__}(level_name={bool(self.level_name)}, "
+            f"instance_name={bool(self.instance_name)})"
+        )
+
+
+@dataclass(frozen=True, repr=False)
 class ObjectRecord:
     """One entry in the object record table.
 
@@ -1152,6 +1202,13 @@ class ObjectTable:
             level included. 0 from :func:`parse_object_headers`, which reads a
             single flat table and knows nothing of levels. DEFAULTED so that
             adding it could not change the construction of any existing caller.
+        collectables: Every collectable entry every level declared, FLAT and in
+            file order - CS-1038. Empty from :func:`parse_object_headers`, which
+            reads a single flat table and walks no collectable block at all;
+            empty is therefore "this reader saw none", never "this world has
+            none". :class:`Collectable` owns what a pair means and what is not
+            claimed about it. DEFAULTED so that adding it could not change the
+            construction of any existing caller.
     """
 
     records: tuple[ObjectRecord, ...]
@@ -1164,6 +1221,7 @@ class ObjectTable:
     save_version: int
     header_version: int
     level_count: int = 0
+    collectables: tuple[Collectable, ...] = ()
 
     @property
     def contains_unmodeled_content(self) -> bool:
@@ -1183,6 +1241,7 @@ class ObjectTable:
         return (
             f"{type(self).__name__}(records={len(self.records)}, "
             f"levels={self.level_count}, "
+            f"collectables={len(self.collectables)}, "
             f"unknown_classes={len(self.unknown_classes)}, "
             f"warnings={len(self.warnings)}, "
             f"save_version={self.save_version}, header_version={self.header_version}, "
@@ -2358,23 +2417,35 @@ def _read_levelled_record(cursor: _Cursor, layout: BodyLayout) -> ObjectRecord:
     )
 
 
-def _read_collectables(cursor: _Cursor) -> int:
-    """Read one collectable list.
+def _read_collectables(cursor: _Cursor, into: list[Collectable]) -> int:
+    """Read one collectable list and APPEND its entries in file order - CS-1038.
 
     MEASURED as a count followed by that many PAIRS OF STRINGS - measured in
     the sense that reading it any other way stops the whole-body walk short of
-    the final byte. No meaning is claimed for either string.
+    the final byte.
+
+    THE STRINGS USED TO BE READ AND DROPPED ON THE SAME LINE, and this is the
+    repair rather than a widening. The reading was never in doubt; what was
+    missing was the CARRY. The block is the only record in the body of what the
+    player has already collected, and four downstream consumers cannot be built
+    against a count. :class:`Collectable` owns what the two halves are, what the
+    polarity is, and what is not claimed about either.
+
+    IT TAKES THE ACCUMULATOR RATHER THAN RETURNING A LIST, matching the record
+    and warning accumulators this walk already threads: one list per body, in
+    file order, with no per-level tuple allocated and discarded on the way.
 
     Args:
         cursor: Positioned at the count.
+        into: The body's accumulator, appended to in file order.
 
     Returns:
         How many entries were read.
     """
     count = _read_bounded_count(cursor, "collectable_count", MAX_OBJECTS)
     for _ in range(count):
-        cursor.string("collectable")
-        cursor.string("collectable")
+        level_name = cursor.string("collectable")
+        into.append(Collectable(level_name=level_name, instance_name=cursor.string("collectable")))
     return count
 
 
@@ -2496,6 +2567,7 @@ def _read_level(
     records: list[ObjectRecord],
     unknown: _UnknownLog,
     warnings: list[ObjectWarning],
+    collectables: list[Collectable],
 ) -> None:
     """Read one level: its record table, its collectables and its payload section.
 
@@ -2544,6 +2616,12 @@ def _read_level(
         records: Accumulator, appended to in file order.
         unknown: Accumulator for unmodelled class paths.
         warnings: Accumulator for flagged conditions.
+        collectables: Accumulator for this body's collectable entries, appended
+            to in file order - CS-1038. ONE LIST FOR THE WHOLE BODY rather than
+            one per level, because a level is not a thing the returned model
+            holds: :class:`ObjectTable` publishes records flat, in file order,
+            and a per-level split here would be the only place in the walk
+            claiming a level identity the model cannot carry.
 
     Raises:
         ObjectFormatError: A declared section size disagrees with its content,
@@ -2569,7 +2647,7 @@ def _read_level(
         if known_classes is not None and class_name_of(record.type_path) not in known_classes:
             unknown.add(record.type_path, index)
     if cursor.offset - base < header_size:
-        _read_collectables(cursor)
+        _read_collectables(cursor, collectables)
     _check_section(cursor, "header_section", at, base, header_size)
 
     data_at = cursor.offset
@@ -2586,7 +2664,7 @@ def _read_level(
             _read_level_tail(cursor)
             _read_package_summary(cursor)
     if not named or layout.second_collectables_named:
-        _read_collectables(cursor)
+        _read_collectables(cursor, collectables)
 
 
 def parse_body(
@@ -2666,6 +2744,7 @@ def parse_body(
 
         records: list[ObjectRecord] = []
         unknown = _UnknownLog()
+        collectables: list[Collectable] = []
         for _ in range(level_count):
             _read_level(
                 cursor,
@@ -2675,6 +2754,7 @@ def parse_body(
                 records=records,
                 unknown=unknown,
                 warnings=warnings,
+                collectables=collectables,
             )
         # Exactly one unnamed persistent level closes every measured body.
         _read_level(
@@ -2685,6 +2765,7 @@ def parse_body(
             records=records,
             unknown=unknown,
             warnings=warnings,
+            collectables=collectables,
         )
         # THE BODY'S FINAL INT32 IS READ AS A COUNT OF OBJECT REFERENCES (CS-867),
         # each two length-prefixed strings. It read as an opaque word "observed to
@@ -2747,6 +2828,7 @@ def parse_body(
             save_version=save_version,
             header_version=header_version,
             level_count=level_count + 1,
+            collectables=tuple(collectables),
         )
     except BaseException:
         del body
@@ -4042,8 +4124,17 @@ class StructValue:
     so the quiet rendering has to be the only one available.
 
     Attributes:
-        struct_word: The struct type word the tag carried. DECODED CONTENT,
-            which is why the repr renders its presence rather than the word.
+        struct_word: The struct type word the tag carried, or None when the
+            tag that carried this interior named no word at all. DECODED
+            CONTENT, which is why the repr renders its presence rather than the
+            word. NONE IS NOT AN ABSENCE OF EVIDENCE ABOUT THE INTERIOR - it is
+            an absence of a NAME for it, and the two are separable: a container
+            element under the complete-type-name grammar is a tag list this
+            module reads in full while its struct word sits one level down a
+            type name :func:`_read_type_name` deliberately does not hand back.
+            Publishing a fabricated word there would put a string in the model
+            that the save never wrote, so the field says None and the interior
+            still travels - CS-1038.
         form: Which of the two forms this interior was read under. Always a
             member of :data:`STRUCT_FORMS_READ` on a value that exists at all -
             an interior in a form this module does not read is not decoded, so
@@ -4063,7 +4154,7 @@ class StructValue:
             without re-walking, and so the ceiling is observable.
     """
 
-    struct_word: str
+    struct_word: str | None
     form: str
     properties: Mapping[str, object]
     unmeasured: int = 0
@@ -4887,6 +4978,15 @@ def _walk_elements(
     all, which is why a short or an overrunning walk yields None rather than a
     truncated list.
 
+    IT BOUNDS AND DOES NOT DECODE - CS-1038. This function is the SEARCH:
+    :func:`_bound_container_elements` calls it once per candidate shape and up
+    to :data:`_SOLVED_WIDTH_CAP` more times per half while solving a width, so
+    a decode inside it runs once per CANDIDATE rather than once per element -
+    and a struct element's interior is a recursive walk that may hold further
+    containers with searches of their own. Every element therefore comes back
+    with ``value`` None here, and the WINNING partition is decoded exactly once
+    by :func:`_decode_bounded_elements`.
+
     Args:
         body: The decompressed body.
         words: The element type words, one per half of an entry.
@@ -4898,8 +4998,8 @@ def _walk_elements(
             one inside a nested tag list - see :func:`uses_complete_type_name`.
 
     Returns:
-        One entry per element half in byte order, or None when the halves do
-        not consume the region exactly.
+        One entry per element half in byte order and every value None, or None
+        when the halves do not consume the region exactly.
     """
     cursor = at
     found: list[ContainerElement] = []
@@ -4909,35 +5009,123 @@ def _walk_elements(
             if step is None:
                 return None
             found.append(
-                ContainerElement(
-                    type_word=word,
-                    start=cursor,
-                    length=step - cursor,
-                    value=_decode_element_value(body, word, cursor, step),
-                )
+                ContainerElement(type_word=word, start=cursor, length=step - cursor, value=None)
             )
             cursor = step
     return tuple(found) if cursor == end else None
 
 
-def _decode_element_value(body: bytes, word: str, at: int, end: int) -> object | None:
+def _decode_element_interior(
+    body: bytes,
+    at: int,
+    end: int,
+    *,
+    struct_word: str | None,
+    own_grammar: bool,
+    depth: int,
+    type_tree: bool,
+) -> StructValue | None:
+    """Read a struct ELEMENT's interior, or refuse it - CS-1038.
+
+    THE GATE IS ``own_grammar`` AND IT IS NOT COSMETIC. A struct element has two
+    shapes: a nested tag list, and a RAW body whose width was DERIVED by
+    dividing the element region. Under a derived width the region is not a tag
+    list at all, and reading one out of it would be publishing an interior the
+    writer never wrote - the "silently wrong" half of non-negotiable 7. The
+    caller passes True only where the half was bounded by the word's OWN
+    grammar, which is exactly where a wrong reading would have failed to close.
+
+    THE DEPTH GOES UP BY ONE, exactly as :func:`_decode_interior_tag` counts a
+    struct nested directly. Passing the caller's depth through unchanged would
+    make :data:`MAX_STRUCT_DEPTH` unreachable: struct, container, struct
+    element, container is a cycle whose byte regions strictly shrink and whose
+    depth would never move, so it would terminate on the interpreter's stack
+    rather than on the bound - a crash where non-negotiable 7 asks for a flag
+    and a skip.
+
+    NOTHING HERE IS FATAL. A refusal comes back None and the element stays
+    bounded, typed and unread, which is the state every struct element was in
+    before this.
+
+    Args:
+        body: The decompressed body.
+        at: The element's first byte.
+        end: The first byte past the element.
+        struct_word: The struct word the CONTAINER named, or None when it named
+            none. Recorded on the interior; it does not drive the reading.
+        own_grammar: Whether this half was bounded by the word's own grammar
+            rather than by a derived width.
+        depth: How deep the container holding this element sits.
+        type_tree: Read the complete-type-name grammar inside the interior - see
+            :func:`uses_complete_type_name`.
+
+    Returns:
+        The interior, or None when the region is not a tag list closing exactly
+        at ``end`` or was not bounded by the element's own grammar.
+    """
+    if not own_grammar:
+        return None
+    return _decode_struct_interior(body, struct_word, at, end, depth + 1, type_tree=type_tree)
+
+
+def _decode_element_value(
+    body: bytes,
+    word: str,
+    at: int,
+    end: int,
+    *,
+    struct_word: str | None = None,
+    own_grammar: bool = False,
+    depth: int = 0,
+    type_tree: bool = False,
+) -> object | None:
     """Decode one element's value, or refuse to.
 
-    IT REFUSES FOR A TYPE WHOSE TOP-LEVEL VALUE THIS MODULE DOES NOT DECODE,
-    which is why a struct element and an `InterfaceProperty` element come back
-    bounded and unread. Bounding an element is a claim about the CONTAINER's
-    framing; reading it is a claim about that type's own encoding, and CS-830
-    earns only the first.
+    IT REFUSES FOR A TYPE WHOSE TOP-LEVEL VALUE THIS MODULE DOES NOT DECODE.
+    Bounding an element is a claim about the CONTAINER's framing; reading it is
+    a claim about that type's own encoding, and CS-830 earned only the first.
+
+    A STRUCT ELEMENT IS THE ONE EXCEPTION AND IT IS EARNED RATHER THAN ASSUMED -
+    CS-1038. CS-829 measured the interior grammar and applied it at TOP LEVEL
+    ONLY, so every array of struct bounded its elements perfectly and read none
+    of them: ``mInventoryStacks``, ``mSplineData`` and their siblings arrived
+    typed, bounded and empty. The grammar an element tag list closes under IS
+    the interior grammar - :data:`_ELEMENT_TAG_LIST_WORD` is spelled as
+    :data:`STRUCT_TYPE_WORD` for exactly that reason - so applying it here reads
+    a measured shape rather than a guessed one.
+
+    THE GATE AND THE DEPTH BOUND LIVE IN :func:`_decode_element_interior`, which
+    owns the struct branch. They are not restated here - a rule written down at
+    two sites rots at the second one.
 
     Args:
         body: The decompressed body.
         word: The element's type word.
         at: The element's first byte.
         end: The first byte past the element.
+        struct_word: The struct word the CONTAINER named, or None when it named
+            none. Recorded on the interior; it does not drive the reading.
+        own_grammar: Whether this half was bounded by the word's own grammar
+            rather than by a derived width.
+        depth: How deep the container holding this element sits, so a struct
+            nested through a container is bounded by :data:`MAX_STRUCT_DEPTH`
+            exactly as one nested directly is.
+        type_tree: Read the complete-type-name grammar inside the interior - see
+            :func:`uses_complete_type_name`.
 
     Returns:
         The value, or None when the element's type is not decoded here.
     """
+    if word == _ELEMENT_TAG_LIST_WORD:
+        return _decode_element_interior(
+            body,
+            at,
+            end,
+            struct_word=struct_word,
+            own_grammar=own_grammar,
+            depth=depth,
+            type_tree=type_tree,
+        )
     if word not in MEASURED_VALUE_TYPES or word in CONTAINER_TYPE_WORDS:
         return None
     fixed = _FIXED_WIDTH_VALUES.get(word)
@@ -4951,6 +5139,76 @@ def _decode_element_value(body: bytes, word: str, at: int, end: int) -> object |
     return None
 
 
+def _decode_bounded_elements(
+    body: bytes,
+    elements: tuple[ContainerElement, ...],
+    widths: tuple[int | None, ...],
+    *,
+    struct_word: str | None,
+    depth: int,
+    type_tree: bool,
+) -> tuple[ContainerElement, ...]:
+    """Decode the values of a partition that has ALREADY WON - CS-1038.
+
+    IT RUNS ONCE PER CONTAINER RATHER THAN ONCE PER CANDIDATE, and that is the
+    whole reason it exists apart from :func:`_walk_elements`. The shape search
+    walks the region up to :data:`_SOLVED_WIDTH_CAP` times per half, so decoding
+    inside it would run a struct element's interior - itself a recursive walk
+    that may hold further containers with searches of their own - once per
+    CANDIDATE rather than once per element. That is a structural argument about
+    the search rather than a benchmark, and no figure is claimed for it.
+
+    WHAT WAS MEASURED IS THAT THE INTERIOR READING ITSELF IS NOT THE COST. With
+    the split in place, the shipped container sweep over this machine's library
+    took the same time with the interior decode disabled as with it enabled -
+    the difference was inside the run-to-run spread. The separation is kept
+    because the search is the thing that repeats, not because the decode is
+    expensive.
+
+    IT CHANGES NOTHING ABOUT WHICH PARTITION IS CHOSEN, because a value has
+    never been part of that decision: :func:`_walk_elements` accepts or refuses
+    on whether the halves consume the region exactly, and nothing below that
+    close is consulted.
+
+    THE ``own_grammar`` FLAG COMES OFF THE SAME ``widths`` TUPLE the walk was
+    bounded under, indexed by the half's position in the entry. A second
+    derivation of "was this half read or forced" would be a second place for the
+    two to disagree, and they would disagree silently: an interior read out of a
+    raw region either refuses or, worse, closes.
+
+    Args:
+        body: The decompressed body.
+        elements: The winning partition, every value None.
+        widths: The forced width per half the partition was bounded under, each
+            None where the half's own grammar decided.
+        struct_word: The struct word the container named, or None.
+        depth: How deep the container sits.
+        type_tree: Read the complete-type-name grammar inside a nested tag list.
+
+    Returns:
+        The same partition with every decodable value read.
+    """
+    halves = len(widths)
+    return tuple(
+        ContainerElement(
+            type_word=element.type_word,
+            start=element.start,
+            length=element.length,
+            value=_decode_element_value(
+                body,
+                element.type_word,
+                element.start,
+                element.start + element.length,
+                struct_word=struct_word,
+                own_grammar=widths[index % halves] is None,
+                depth=depth,
+                type_tree=type_tree,
+            ),
+        )
+        for index, element in enumerate(elements)
+    )
+
+
 def _bound_container_elements(
     body: bytes,
     words: tuple[str, ...],
@@ -4958,6 +5216,8 @@ def _bound_container_elements(
     end: int,
     count: int,
     *,
+    struct_word: str | None = None,
+    depth: int = 0,
     type_tree: bool = False,
 ) -> tuple[str, tuple[ContainerElement, ...]] | None:
     """Bound a container's elements by the STRONGEST shape that closes the region.
@@ -4974,6 +5234,10 @@ def _bound_container_elements(
         at: Where the first element begins.
         end: The first byte past the element region.
         count: How many entries the container declared.
+        struct_word: The struct word the container named, or None - CS-1038.
+            Passed through to a struct element's interior, which records it.
+        depth: How deep the container sits, so a struct reached through one is
+            bounded by :data:`MAX_STRUCT_DEPTH` exactly as a nested one is.
         type_tree: Read the complete-type-name grammar rather than the legacy
             one inside a nested tag list - see :func:`uses_complete_type_name`.
 
@@ -4983,7 +5247,17 @@ def _bound_container_elements(
     blank: tuple[int | None, ...] = (None,) * len(words)
     found = _walk_elements(body, words, at, end, count, blank, type_tree=type_tree)
     if found is not None:
-        return (ELEMENT_SHAPE_SELF_DELIMITING, found)
+        return (
+            ELEMENT_SHAPE_SELF_DELIMITING,
+            _decode_bounded_elements(
+                body,
+                found,
+                blank,
+                struct_word=struct_word,
+                depth=depth,
+                type_tree=type_tree,
+            ),
+        )
 
     # ONLY A HALF WITH A SECOND KNOWN SHAPE MAY BE FORCED TO A WIDTH, and that
     # restriction is the repair for a real defect rather than a caution. Without
@@ -5001,27 +5275,48 @@ def _bound_container_elements(
     slots = count * len(words)
     if slots > 0 and (end - at) % slots == 0:
         width = (end - at) // slots
-        found = _walk_elements(
-            body, words, at, end, count, (width,) * len(words), type_tree=type_tree
-        )
+        forced_widths = (width,) * len(words)
+        found = _walk_elements(body, words, at, end, count, forced_widths, type_tree=type_tree)
         if found is not None:
-            return (ELEMENT_SHAPE_UNIFORM_WIDTH, found)
+            return (
+                ELEMENT_SHAPE_UNIFORM_WIDTH,
+                _decode_bounded_elements(
+                    body,
+                    found,
+                    forced_widths,
+                    struct_word=struct_word,
+                    depth=depth,
+                    type_tree=type_tree,
+                ),
+            )
 
     # ONE HALF'S WIDTH SOLVED, THE REST BY THEIR OWN GRAMMAR. Admitted only
     # when exactly one width closes the region: two would mean the width is not
     # determined by the bytes, and a decoder that picked one would be fitting.
     for position in range(len(words)):
-        solutions: list[tuple[ContainerElement, ...]] = []
+        solutions: list[tuple[tuple[ContainerElement, ...], tuple[int | None, ...]]] = []
         for width in range(_SOLVED_WIDTH_CAP + 1):
             forced: list[int | None] = [None] * len(words)
             forced[position] = width
-            found = _walk_elements(body, words, at, end, count, tuple(forced), type_tree=type_tree)
+            solved_widths = tuple(forced)
+            found = _walk_elements(body, words, at, end, count, solved_widths, type_tree=type_tree)
             if found is not None:
-                solutions.append(found)
+                solutions.append((found, solved_widths))
                 if len(solutions) > 1:
                     break
         if len(solutions) == 1:
-            return (ELEMENT_SHAPE_SOLVED_WIDTH, solutions[0])
+            elements, solved_widths = solutions[0]
+            return (
+                ELEMENT_SHAPE_SOLVED_WIDTH,
+                _decode_bounded_elements(
+                    body,
+                    elements,
+                    solved_widths,
+                    struct_word=struct_word,
+                    depth=depth,
+                    type_tree=type_tree,
+                ),
+            )
     return None
 
 
@@ -5109,6 +5404,7 @@ def _decode_container(
     at: int,
     size: int,
     *,
+    depth: int = 0,
     type_tree: bool = False,
     native_serialize: bool | None = None,
 ) -> ContainerValue | None:
@@ -5159,6 +5455,12 @@ def _decode_container(
         element_words: The element type words its tag carried.
         at: The value's first byte.
         size: The value's declared extent.
+        depth: How far inside another struct the tag holding this container
+            sits. Carried so a struct ELEMENT's interior is bounded by
+            :data:`MAX_STRUCT_DEPTH` - CS-1038. Without it a struct holding a
+            container of structs holding a container would recurse on a body
+            whose regions strictly shrink, which terminates only when the
+            interpreter's stack does.
         type_tree: Read the complete-type-name grammar rather than the legacy
             one for the inner tag and for any nested tag list - see
             :func:`uses_complete_type_name`.
@@ -5209,7 +5511,14 @@ def _decode_container(
         struct_word, cursor = inner
 
     bounded = _bound_container_elements(
-        body, element_words, cursor, end, count, type_tree=type_tree
+        body,
+        element_words,
+        cursor,
+        end,
+        count,
+        struct_word=struct_word,
+        depth=depth,
+        type_tree=type_tree,
     )
     if bounded is None:
         return None
@@ -5330,7 +5639,13 @@ def _struct_word_of_tag(body: bytes, name_at: int, end: int) -> str | None:
 
 
 def _decode_struct_interior(
-    body: bytes, struct_word: str, at: int, end: int, depth: int = 0, *, type_tree: bool = False
+    body: bytes,
+    struct_word: str | None,
+    at: int,
+    end: int,
+    depth: int = 0,
+    *,
+    type_tree: bool = False,
 ) -> StructValue | None:
     """Decode one struct interior written as a nested property tag list - CS-829.
 
@@ -5371,7 +5686,8 @@ def _decode_struct_interior(
 
     Args:
         body: The decompressed body.
-        struct_word: The struct type word the tag carried.
+        struct_word: The struct type word the tag carried, or None when the tag
+            named none - see :class:`StructValue`, which owns what None means.
         at: The interior's first byte.
         end: The first byte past the interior, from the tag's declared size.
         depth: How far inside another struct this one sits.
@@ -5459,6 +5775,11 @@ def _decode_interior_tag(
             (),
         )
     return (
+        # THE DEPTH GOES DOWN WITH THE VALUE - CS-1038. A container tag inside
+        # an interior reads on the same grammar as one at top level, and its
+        # struct ELEMENTS are now read too; without the depth each one would
+        # restart the nesting count at zero and the ceiling would never be
+        # reached on a body whose regions keep shrinking.
         _decode_value(
             body,
             type_word,
@@ -5466,6 +5787,7 @@ def _decode_interior_tag(
             size,
             in_tag_byte,
             element_words,
+            depth=depth,
             type_tree=type_tree,
             native_serialize=native,
         ),
@@ -5613,7 +5935,7 @@ def decode_struct_interior(
     return _decode_struct_interior(body, struct_word, at, end, type_tree=type_tree)
 
 
-def _decode_value(
+def _decode_value(  # noqa: PLR0913
     body: bytes,
     type_word: str,
     at: int,
@@ -5621,6 +5943,7 @@ def _decode_value(
     in_tag_byte: int | None,
     element_words: tuple[str, ...] = (),
     *,
+    depth: int = 0,
     type_tree: bool = False,
     native_serialize: bool | None = None,
 ) -> object | None:
@@ -5650,6 +5973,12 @@ def _decode_value(
             A container reached WITHOUT them cannot be decoded and comes back
             None, which is honest: the element words are in the tag, and a
             caller that did not read them has not supplied the value's grammar.
+        depth: How far inside another struct the tag carrying this value sits.
+            IT REACHES ONLY THE CONTAINER BRANCH, because a container is the
+            only value that can hold a struct interior - CS-1038 - and carrying
+            it is what bounds a struct nested THROUGH a container by
+            :data:`MAX_STRUCT_DEPTH`. DEFAULTED at the top level, which is what
+            every caller outside a struct interior means.
         type_tree: Read the complete-type-name grammar rather than the legacy
             one inside this value - see :func:`uses_complete_type_name`. IT
             REACHES ONLY THE CONTAINER BRANCH, and that is not an omission:
@@ -5675,6 +6004,7 @@ def _decode_value(
             element_words,
             at,
             size,
+            depth=depth,
             type_tree=type_tree,
             native_serialize=native_serialize,
         )
@@ -6289,11 +6619,14 @@ REFERENCE_COUNT_COMMON_MODE: Final = frozenset(
         "KIND_ACTOR",
         "MAX_OBJECTS",
         "MAX_STRING_BYTES",
+        "MAX_STRUCT_DEPTH",
         "MEASURED_TAG_FLAG_MASK",
         "MEASURED_VALUE_TYPES",
         "ObjectReference",
         "REFERENCE_TYPE_WORD",
+        "STRUCT_FORM_TAG_LIST",
         "STRUCT_TYPE_WORD",
+        "StructValue",
         "TAG_FLAG_ARRAY_INDEX",
         "TAG_FLAG_BOOL_TRUE",
         "TAG_FLAG_NATIVE_SERIALIZE",
@@ -6321,10 +6654,15 @@ REFERENCE_COUNT_COMMON_MODE: Final = frozenset(
         "_as_reference",
         "_bound_container_elements",
         "_container_element_words",
+        "_container_grammar_is_modelled",
+        "_decode_bounded_elements",
         "_decode_container",
+        "_decode_element_interior",
         "_decode_element_value",
         "_decode_fixed_width",
+        "_decode_interior_tag",
         "_decode_object_reference",
+        "_decode_struct_interior",
         "_decode_text_value",
         "_decode_value",
         "_element_half_end",
@@ -6336,10 +6674,13 @@ REFERENCE_COUNT_COMMON_MODE: Final = frozenset(
         "_read_tag_header",
         "_read_type_name",
         "_read_type_tree_tag_header",
+        "_refusal_is_unmodelled_content",
         "_skip_actor_head",
         "_skip_guid_flag",
         "_skip_tag_extra",
+        "_struct_word_of_tag",
         "_walk_elements",
+        "_walk_struct_tags",
     }
 )
 

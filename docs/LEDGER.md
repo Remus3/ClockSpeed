@@ -374,6 +374,62 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-09-13 - CS-300, CS-854 - CORRECTION RECORD. The CS-300 entry below cites `tests/data/test_phase2_gate.py` BY LINE, that line is now blank, and this file forbids the edit that would repair it
+
+**THIS ENTRY CORRECTS THE CS-300 ENTRY BELOW IT, which is append-only and therefore not
+edited.** That entry cites `tests/data/test_phase2_gate.py:775-781` to support its claim that
+the gate REQUIRES the `registry` and `version` edges into `clockspeed.data.docs_extract`. The
+claim is still TRUE and the pointer is now WRONG. An entry was added to that module's
+`DATA_MODULES` and to its `ALLOWED_IMPORTS`, every line below moved, and the cited line now
+carries nothing at all. Read the CS-300 entry as citing
+`tests/data/test_phase2_gate.py::ALLOWED_IMPORTS`, which records the two permitted edges, and
+`tests/data/test_phase2_gate.py::test_importing_a_data_module_pulls_in_only_its_permitted_neighbours`,
+which is what holds a data module to them. Cite that module BY NAME, not by line, which is this
+file's stated repair and what the CS-300, CS-928 correction record above already applied to the
+same entry's other rotted pointer.
+
+**THE POINTER WAS ALREADY NAMING THE WRONG DECLARATION BEFORE IT WENT BLANK, and that is the
+sharper finding.** The text its pin froze is still in the file, and it is prose from
+`tests/data/test_phase2_gate.py::_strip_generated_pin` - a docstring about excluding the
+generated pin block from an account-id scan, which has nothing to do with the import edges the
+CS-300 sentence describes. So the by-line citation was wrong on CONTENT while it was still
+green on RANGE and on non-blankness, exactly the gap
+`tests/test_docs_citations.py::test_no_line_pointer_in_the_scoped_population_lands_on_nothing`
+records that it cannot see. Re-cutting the pointer at whatever line the import table sits on
+today would have restored a citation that was never right and would rot again on the next
+append to either table.
+
+**WHY THIS IS A RECORD AND NOT A REPAIR.** This file states that nothing in it is ever edited
+or deleted once written and that a record which turns out to be wrong gets a new, later record
+that corrects it. Rewriting the pointer in the CS-300 entry would be that forbidden edit, so
+the correction is appended here instead. The pointer stays live and blank.
+
+**THE THREE CS-854 SITES WERE REPAIRED RATHER THAN RECORDED, because their carriers are not
+append-only.** `ROADMAP.md` and `docs/item_notes/phase4-followups-850.md` cited the unswept
+select-by-reader-word siblings by line. The keystone moved all of them, and the occupant of
+each old offset is NOT the site the item is about - one old offset now sits inside a test the
+keystone added, one inside a `_mutated` helper and one inside a docstring. The real sites were
+located by the text each pin froze and converted to the enclosing symbol:
+`tests/save/test_container_elements.py::_sweep_one_save`,
+`tests/save/test_inventory_potential.py::_collect_potential_tags` and
+`tests/save/test_reference_resolution.py::_second_join`. The stated near-miss that must not be
+"fixed" became
+`tests/save/test_container_elements.py::test_the_shape_evidence_is_graded_per_container_word_and_not_pooled`.
+CS-854's acceptance clause was rewritten in the same change: it demanded a DERIVED population
+while transcribing three line numbers, which is the contradiction the item exists to close, and
+it now demands derivation from the SHAPE and names the three symbols. That is more testable,
+not less - a symbol citation resolves through the symbol table and this repository's citation
+guard checks it, where a line number is checked by nothing.
+
+**WHAT LEAVES THIS SESSION RED, stated rather than absorbed.** The repairs above take those
+sites out of the corpus, so their rows in `tests/test_docs_citations.py::UNVERIFIED_LINE_POINTERS`
+now outlive what they answered, and the blank ledger pointer still needs a `NO_TARGET`
+disposition. Both fixes are edits to `tests/test_docs_citations.py` - retire the repaired pin
+rows, record the ledger site in `DISPOSITIONS`, and settle
+`tests/test_docs_citations.py::FORGIVEN_LINE_POINTER_CEILING` at whatever the two-way budget
+check then demands. That module was outside this slice's write-list and a suite was running
+over it, so the edit was not taken here.
+
 ### 2026-09-13 - ADR 0019 - ADJUDICATED. The dashboard map underlay, and purity closed by declaration
 
 **NOT A COMPLETION RECORD.** This entry records an adjudication and closes nothing. The

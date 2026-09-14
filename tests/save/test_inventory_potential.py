@@ -36,7 +36,8 @@ top-level tags decoded, how many of those names fall in the slot-count
 vocabulary ADR 0005 fixes, how many carry an integer at all, how many tags
 remain of a type whose value encoding is unmeasured, how many onward reference
 tags there are for the chain to continue through, and what the containers on
-it bound but do not read.
+it bound - which, since CS-1038, includes the struct-element interiors they
+bound and now READ.
 
 THESE ASSERTIONS ARE THE RE-RUN TRIGGER AND ARE MEANT TO REDDEN. The library
 grows whenever the operator plays, and ADR 0009's outcome holds only while the
@@ -82,7 +83,10 @@ from tests.save import reach_guard, test_decode_oracles, test_properties
 #: ``FGBuildableFactory.h:663`` and records the identifiers as committable.
 POTENTIAL_TAG_NAME: Final = "mInventoryPotential"
 
-#: The type word whose interior CS-829 owns and this experiment does not read.
+#: The type word whose interior CS-829 measured and CS-1038 carried inside a
+#: container element. This experiment CONSUMES that reading and grades none of
+#: it: what it counts is how many element interiors came back, never what any of
+#: them says.
 STRUCT_TYPE_WORD: Final = "StructProperty"
 
 #: The names a slot count would arrive under if the component carried one.
@@ -155,8 +159,14 @@ class _PotentialSweep:
         undecoded_elements: Bounded elements it read no value from - None means
             NOT DECODED HERE and never EMPTY, per ``objects.ContainerElement``.
         struct_elements: Bounded elements whose own type word is
-            :data:`STRUCT_TYPE_WORD`. Held against ``undecoded_elements`` so
-            the unread residue is named rather than left as a remainder.
+            :data:`STRUCT_TYPE_WORD`. Held against ``struct_valued_elements``
+            and ``undecoded_elements`` so every one of them is accounted for as
+            READ or as SKIPPED, rather than left as a remainder.
+        struct_valued_elements: Bounded elements that decoded to an
+            ``objects.StructValue`` - a struct element whose interior CS-1038
+            read. A subset of ``struct_elements`` and of ``decoded_elements``:
+            no other element word can produce one, and a struct element that
+            was bounded by a DERIVED width is refused and stays undecoded.
         int_valued_elements: Decoded element values that are an ``int`` and not
             a ``bool``. The same bound as ``int_valued_keys``, one level down.
         pair_tags: Version pair to how many tags it contributed, sorted. A
@@ -186,6 +196,7 @@ class _PotentialSweep:
     decoded_elements: int
     undecoded_elements: int
     struct_elements: int
+    struct_valued_elements: int
     int_valued_elements: int
     pair_tags: tuple[tuple[tuple[int, int], int], ...]
     failures: tuple[str, ...]
@@ -213,6 +224,7 @@ _SWEEP_KEYS: Final = (
     "decoded_elements",
     "undecoded_elements",
     "struct_elements",
+    "struct_valued_elements",
     "int_valued_elements",
 )
 
@@ -251,6 +263,8 @@ def _fold_elements(value: objects.ContainerValue, into: dict[str, int]) -> None:
                 into["int_valued_elements"] += 1
         if element.type_word == STRUCT_TYPE_WORD:
             into["struct_elements"] += 1
+        if isinstance(element.value, objects.StructValue):
+            into["struct_valued_elements"] += 1
 
 
 def _fold_target(result: objects.PropertyResult, into: dict[str, int]) -> None:
@@ -679,16 +693,46 @@ def test_the_reference_chain_stops_at_the_target() -> None:
     )
 
 
-def test_the_unread_residue_is_exactly_the_struct_element_interior() -> None:
-    """What is left unread, named by its owner rather than left a remainder.
+def test_the_struct_element_residue_is_read_and_whatever_is_left_is_still_its_own() -> None:
+    """THE RE-RUN THIS CASE ASKED FOR. CS-829's seam landed, so the residue moved.
 
-    CS-830 BOUNDS AND TYPES EVERY ELEMENT AND DELIBERATELY READS NO STRUCT
-    INTERIOR - ``objects.ContainerElement`` records that None means NOT DECODED
-    HERE and never EMPTY. So the residue is not a gap in this experiment; it is
-    a seam CS-829 owns, and this clause pins it to exactly that seam rather
-    than letting "some elements did not decode" stand as a vague remainder.
+    WHAT THIS CASE ASSERTED BEFORE, AND WHY IT WAS RIGHT THEN. CS-830 bounded
+    and typed every element and deliberately read NO struct interior, so the
+    unread elements were EXACTLY the struct elements and the case asserted that
+    equality, plus ``undecoded_elements > 0`` to keep the bounded outcome from
+    being quietly lost. Its own docstring said it would redden when CS-829
+    landed and named that the correct signal to re-run. CS-1038 carried the
+    measured interior grammar inside a container element and it reddened on
+    schedule, with the unread count at zero.
 
-    IT REDDENS WHEN CS-829 LANDS, which is the correct signal to re-run.
+    WHAT IT ASSERTS NOW. The equality is not weakened, it is REFINED: every
+    struct element is either READ or SKIPPED, and nothing that is not a struct
+    element is unread. A struct element whose half was bounded by a DERIVED
+    width is a raw region rather than a tag list, and
+    ``objects._decode_element_interior`` refuses it on purpose - that skip is
+    non-negotiable 7 and is counted here rather than dropped, so it may exist
+    without the residue stopping being wholly this seam's.
+
+    ``undecoded_elements > 0`` IS DELETED RATHER THAN INVERTED, and its subject
+    is what makes that the honest move: it asserted that SOMETHING was unread,
+    and on this library nothing is. Inverting it to ``== 0`` would pin an
+    absence that the derived-width skip above is entitled to break on the next
+    autosave, which would be a false red rather than a finding.
+
+    THE BOUNDED OUTCOME IS NOT LOST WITH IT, AND THE BOUND MOVED RATHER THAN
+    CLOSED. ADR 0009 is bounded because content below the top level is read and
+    NOT ATTRIBUTED, and there is now more of it, not less: the interiors
+    themselves. THIS SWEEP DOES NOT SEARCH AN INTERIOR FOR A SLOT-COUNT KEY -
+    :func:`_fold_target` reads :data:`SLOT_COUNT_KEYS` against the TOP LEVEL
+    alone - so a target's interiors are read-and-unsearched rather than
+    unread, and no flat NO may be concluded from this run. The non-attribution
+    half is asserted by
+    ``tests/save/test_inventory_potential.py::test_the_integer_elements_below_
+    the_top_level_are_unattributed`` and is not restated here.
+
+    ``struct_valued_elements > 0`` IS THE LIVENESS CONTROL. Without it every
+    clause below is satisfied by a decoder that read no interior at all, which
+    is precisely the state this case was written in.
     """
     sweep = _sweep_or_skip()
 
@@ -696,13 +740,22 @@ def test_the_unread_residue_is_exactly_the_struct_element_interior() -> None:
         f"no container on any target, so there is no residue to attribute and "
         f"this clause is vacuous: {_rendered(sweep)}"
     )
-    assert sweep.undecoded_elements == sweep.struct_elements, (
-        f"the unread elements are not exactly the struct elements, so the "
-        f"residue is not wholly CS-829's: {_rendered(sweep)}"
+    assert sweep.struct_elements > 0, (
+        f"no struct element on any target, so the clauses below are vacuous "
+        f"rather than satisfied: {_rendered(sweep)}"
     )
-    assert sweep.undecoded_elements > 0, (
-        f"nothing is unread, so the outcome is a full NO rather than a "
-        f"bounded one - supersede ADR 0009: {_rendered(sweep)}"
+    assert sweep.struct_valued_elements > 0, (
+        f"not one struct element yielded an interior, so the residue is unread "
+        f"again and ADR 0009's bound is back where CS-830 left it: {_rendered(sweep)}"
+    )
+    assert sweep.struct_valued_elements + sweep.undecoded_elements == sweep.struct_elements, (
+        f"the struct elements do not partition into READ and SKIPPED, so either "
+        f"an element that is not a struct is unread - the residue is no longer "
+        f"wholly this seam's - or a non-struct element published an interior: "
+        f"{_rendered(sweep)}"
+    )
+    assert sweep.struct_valued_elements <= sweep.decoded_elements, (
+        f"more interiors were read than elements decoded: {_rendered(sweep)}"
     )
     assert sweep.decoded_elements + sweep.undecoded_elements == sweep.container_elements, (
         f"an element is neither decoded nor undecoded: {_rendered(sweep)}"

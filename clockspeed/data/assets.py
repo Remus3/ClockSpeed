@@ -321,8 +321,9 @@ def _rendered_count(index: object) -> str:
     A ``__repr__`` THAT RAISES FAILS EXACTLY WHEN SOMETHING HAS ALREADY GONE
     WRONG, which is the one moment it exists for. Measured here rather than
     reasoned about: the first draft called ``len(self.index.properties)``
-    straight, and ``tests/test_assertion_rendering.py::
-    test_the_shipped_repr_is_what_gets_bypassed_in_every_forced_arm`` reddened
+    straight, and
+    ``tests/test_assertion_rendering.py::test_the_shipped_repr_is_what_gets_
+    bypassed_in_every_forced_arm`` reddened
     because the forced arm constructs the type with a planted value the field's
     annotation does not admit. The GENERATED repr this method replaced was
     total, so anything less would be a regression bought with a privacy fix.

@@ -700,12 +700,13 @@ The CS-829 slice repaired `_fold_one_tag`, `_sample_one_record` and
 `_uniform_width_struct_words` inside its own file, and reported these three as outside its
 write-list:
 
-    tests/save/test_container_elements.py:839
-    tests/save/test_inventory_potential.py:316
-    tests/save/test_reference_resolution.py:968
+    tests/save/test_container_elements.py::_sweep_one_save
+    tests/save/test_inventory_potential.py::_collect_potential_tags
+    tests/save/test_reference_resolution.py::_second_join
 
 **TWO NEAR-MISSES ARE EXPLICITLY NOT SIBLINGS** and must not be "fixed":
-`tests/save/test_container_elements.py:1168` is a validation assertion, and
+`tests/save/test_container_elements.py::test_the_shape_evidence_is_graded_per_container_word_and_not_pooled`
+is a validation assertion, and
 `tests/save/test_value_anchoring.py:1082` is a deliberate privacy intersection.
 
 **DERIVE, DO NOT WORK THE LIST.** Three line numbers in a note are the hand-maintained thing

@@ -241,13 +241,39 @@ def test_a_14_60_array_of_struct_carrying_an_inner_tag_is_not_read_by_grammar() 
     assert objects.WARN_UNMEASURED_PROPERTY_TYPE in {warning.code for warning in result.warnings}
 
 
-def test_a_14_60_struct_element_is_bounded_by_its_own_tag_list() -> None:
-    """The elements close by GRAMMAR, not by division - CS-830's distinction.
+def test_a_14_60_struct_element_is_bounded_by_its_own_tag_list_and_now_reads() -> None:
+    """The elements close by GRAMMAR, not by division - and what closes now READS.
 
     ``ELEMENT_SHAPE_SELF_DELIMITING`` is the only one of the three shapes whose
     closing is evidence about the bytes. The fixture writes two elements of
     DIFFERENT lengths precisely so a uniform width could not rescue a wrong
-    reading and be mistaken for one.
+    reading and be mistaken for one. That half is unchanged and is still the
+    subject: everything below rests on the partition having been read out of the
+    bytes rather than derived by division.
+
+    WHAT THIS ARM ASSERTED BEFORE CS-1038, AND WHY IT WAS RIGHT THEN. It ended
+    on ``all(element.value is None)`` - a struct element came back BOUNDED and
+    UNREAD, because reading the interior was a claim about the struct's own
+    encoding that CS-830's container framing had not earned. CS-829 then
+    measured that encoding and applied it at TOP LEVEL ONLY, so the claim held
+    for one more slice. CS-1038 carries the same measured grammar INSIDE an
+    element, gated on the half having been bounded by its own grammar, which is
+    exactly the condition this arm's first three lines assert. The absence is
+    therefore the thing that was removed on purpose, and asserting it now would
+    be asserting that the keystone did not land.
+
+    THE BOUNDED-AND-UNREAD CASE STILL EXISTS AND IS NOT GRADED HERE. A half
+    bounded by a DERIVED width is a raw region rather than a tag list, and
+    ``_decode_element_interior`` refuses it; that case is owned by
+    ``tests/save/test_container_elements.py::test_an_element_interior_that_does_not_
+    read_leaves_the_element_bounded``.
+    This fixture's array closes self-delimiting, so it carries no such half and
+    cannot speak to it.
+
+    THE DEPTH IS ASSERTED BECAUSE THE CEILING DEPENDS ON IT. An element interior
+    is published one level deeper than the container holding it, which is what
+    makes struct-container-struct-container terminate on
+    ``MAX_STRUCT_DEPTH`` rather than on the interpreter's stack.
     """
     container = _struct_result().properties[synthetic.TREE_ARRAY_NAME]
     assert isinstance(container, objects.ContainerValue)
@@ -255,9 +281,35 @@ def test_a_14_60_struct_element_is_bounded_by_its_own_tag_list() -> None:
     lengths = [element.length for element in container.elements]
     assert len(lengths) == len(synthetic.TREE_ARRAY_ELEMENTS)
     assert lengths[0] != lengths[1], "the fixture's two elements must differ in length"
-    assert all(element.value is None for element in container.elements), (
-        "a struct element comes back BOUNDED and UNREAD - reading it is a claim "
-        "about the struct's own encoding, which the container framing does not earn"
+
+    read = [
+        element.value
+        for element in container.elements
+        if isinstance(element.value, objects.StructValue)
+    ]
+    assert len(read) == len(container.elements), (
+        "a bounded struct element did not yield its interior - the partition "
+        "closed by the element's own grammar, which is the condition the "
+        "interior read is gated on"
+    )
+    # THE INTERIOR IS THE ELEMENT'S OWN AND NOT THE FIRST ONE REPEATED. The
+    # fixture's two elements carry DIFFERENT values under the same name, so a
+    # decoder that read one interior and copied it fails on the tuple and not on
+    # the count above.
+    assert (
+        tuple(one.properties[synthetic.TREE_ELEMENT_INT_NAME] for one in read)
+        == synthetic.TREE_ELEMENT_INT_VALUES
+    )
+    assert all(one.form == objects.STRUCT_FORM_TAG_LIST for one in read)
+    assert all(one.depth == 1 for one in read), (
+        "an element interior was published at the container's own depth, so the "
+        "struct-through-container cycle would never reach MAX_STRUCT_DEPTH"
+    )
+    assert all(one.struct_word is None for one in read), (
+        "an element interior published a struct word at a pair whose container "
+        "named none - the word sits one level down a type name _read_type_name "
+        "deliberately does not hand back, and inventing one would put a string "
+        "in the model the save never wrote"
     )
 
 

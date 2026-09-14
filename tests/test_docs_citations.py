@@ -955,6 +955,17 @@ DISPOSITIONS: Final[Mapping[tuple[str, str], Disposition]] = {
         " not exist yet`.",
         1,
     ),
+    # WRONG FROM BIRTH, NOT MERELY STALE, so it is not re-cut: the text its digest
+    # froze is a `_strip_generated_pin` docstring line, never the cited table.
+    (LEDGER, line_key("tests/data/test_phase2_gate.py", 775)): Disposition(
+        NO_TARGET,
+        "",
+        "the entry reads those lines as the gate REQUIRING the registry and"
+        " version edges into docs_extract. Durable targets, since the dead form"
+        " leaves a machine nothing to check: ALLOWED_IMPORTS and the"
+        " permitted-neighbours import arm of tests/data/test_phase2_gate.py.",
+        2,
+    ),
     # CS-210 GREW THE GENERATED PIN, so two sites this append-only file cites
     # slid down. Re-derived this cycle rather than carried: at the pre-change
     # commit line 352 was the pin's `"integrity"` VALUE line and line 815 was
@@ -1074,15 +1085,11 @@ DISPOSITIONS: Final[Mapping[tuple[str, str], Disposition]] = {
 #: real, resolvable citation inside the guard that judges citations - the fault
 #: :func:`line_key` exists to avoid, arriving by another door.
 UNVERIFIED_LINE_POINTERS: Final[Mapping[tuple[str, str, int], str]] = {
-    ("ROADMAP.md", "tests/save/test_container_elements.py", 839): "f14141e92679",
-    ("ROADMAP.md", "tests/save/test_inventory_potential.py", 316): "c86d7b08a03a",
-    ("ROADMAP.md", "tests/save/test_reference_resolution.py", 968): "f9e88114f42a",
     ("docs/LEDGER.md", "clockspeed/data/docs_extract.py", 443): "7d6e8ff5649f",
     ("docs/LEDGER.md", "clockspeed/data/locate.py", 187): "53bcd3acffa2",
     ("docs/LEDGER.md", "clockspeed/data/locate.py", 657): "c0f880c0e553",
     ("docs/LEDGER.md", "clockspeed/save/usmap.py", 46): "82be9ba39f87",
     ("docs/LEDGER.md", "scripts/install_hooks.py", 310): "4facec475176",
-    ("docs/LEDGER.md", "tests/data/test_phase2_gate.py", 775): "edaece1458c2",
     ("docs/LEDGER.md", "tools/edit_lint_check.py", 82): "c52969cc5a4b",
     ("docs/LEDGER.md", "tools/edit_lint_check.py", 113): "a7515962ef0b",
     ("docs/LEDGER.md", "tools/precommit_gate.py", 570): "4b165904f3ca",
@@ -1092,26 +1099,6 @@ UNVERIFIED_LINE_POINTERS: Final[Mapping[tuple[str, str, int], str]] = {
     ("docs/item_notes/phase4-followups-850.md", "clockspeed/data/locate.py", 141): "fa085c760a09",
     ("docs/item_notes/phase4-followups-850.md", "clockspeed/data/locate.py", 187): "53bcd3acffa2",
     ("docs/item_notes/phase4-followups-850.md", "clockspeed/save/workdir.py", 688): "e2d30d6ce513",
-    (
-        "docs/item_notes/phase4-followups-850.md",
-        "tests/save/test_container_elements.py",
-        839,
-    ): "f14141e92679",
-    (
-        "docs/item_notes/phase4-followups-850.md",
-        "tests/save/test_container_elements.py",
-        1168,
-    ): "b04f24100c34",
-    (
-        "docs/item_notes/phase4-followups-850.md",
-        "tests/save/test_inventory_potential.py",
-        316,
-    ): "c86d7b08a03a",
-    (
-        "docs/item_notes/phase4-followups-850.md",
-        "tests/save/test_reference_resolution.py",
-        968,
-    ): "f9e88114f42a",
     (
         "docs/item_notes/phase4-followups-850.md",
         "tests/save/test_value_anchoring.py",
@@ -1321,7 +1308,12 @@ UNFORBIDDEN_LINE_POINTERS: Final[frozenset[tuple[str, str, int]]] = frozenset(
 #: IT IS RECORDED AS ARRIVING AT A MERGE because the seam branch carried the repair
 #: and `main` carried the 58, and neither side's commit argued for 57 - the same case
 #: the 60-to-58 paragraph above already names, one branch further along.
-FORGIVEN_LINE_POINTER_CEILING: Final = 57
+#:
+#: 57 TO 50, 2026-09-13 BY CS-854 - SEVEN REPAIRS PLUS ONE SWAP. Seven pins left
+#: because their docs now cite the enclosing SYMBOL, located by the TEXT each
+#: digest froze and NOT by the occupant of the old offset. The eighth moved from
+#: an unexamined pin to an adjudicated NO_TARGET, which is budget-neutral.
+FORGIVEN_LINE_POINTER_CEILING: Final = 50
 
 # --- resolution -------------------------------------------------------------
 

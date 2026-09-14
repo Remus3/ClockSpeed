@@ -21,10 +21,12 @@ container's element COUNT, its element type word or words, and the EXTENT of
 every element - where each one starts and how many bytes it spans - and it
 claims those only when the elements so bounded consume the tag's declared size
 EXACTLY. It claims a VALUE only for an element whose own type word this module
-already decodes at top level. A ``StructProperty`` element comes back as a
-bounded, typed region carrying no value at all, because the struct INTERIOR is
-CS-829 and reading it here would be this project publishing a guess. That seam
-is asserted below rather than promised.
+decodes, and a ``StructProperty`` element joined that set at CS-1038: its
+interior is read by the SHIPPED INTERIOR READER, the one CS-829 measured, and
+only where the element half was bounded by that grammar rather than by a
+derived width. Under a derived width the region is a raw body and no tag list
+exists to read, so the element still comes back bounded, typed and unread.
+Both halves of that seam are asserted below rather than promised.
 
 THE THREE ELEMENT SHAPES ARE ORDERED BY STRENGTH AND THE ORDER IS LOAD-BEARING.
 A SELF-DELIMITING reading - a stated width, a length-prefixed string, or a
@@ -127,6 +129,15 @@ _MAP_ENTRY_HALVES: Final = 2
 #: An inner type word this module has no element grammar for, planted so
 #: "flagged and skipped" is exercised rather than described.
 _UNMODELLED_INNER_WORD: Final = "SyntheticUnmodelledProperty"
+
+#: How many struct elements the CS-1038 interior cases write. MORE THAN ONE on
+#: purpose: a single element makes every "every element decoded" equality a
+#: statement about one slot, and a decoder that read the first interior and
+#: copied it would pass.
+_INTERIOR_ELEMENTS: Final = 3
+
+#: The struct word the synthetic array-of-struct fixtures name.
+_SYNTHETIC_ELEMENT_STRUCT_WORD: Final = "SyntheticInnerStruct"
 
 #: A save version pair the fixture record is built against.
 _SYNTHETIC_SAVE_VERSION: Final = 52
@@ -625,12 +636,21 @@ def test_a_container_whose_element_word_has_no_grammar_is_flagged_and_never_rais
     assert result.disagreeing_value_count == 0
 
 
-def test_an_array_of_struct_bounds_each_element_without_claiming_its_interior() -> None:
+def test_an_array_of_struct_bounds_each_element_and_carries_the_struct_word() -> None:
     """The seam with CS-829, exercised rather than promised.
 
     An array of ``StructProperty`` carries an inner tag naming the struct and
     bounding the whole element region; the elements inside it are nested tag
-    lists. This module bounds each one and hands back no value for any of them.
+    lists. This module bounds each one and carries the struct word out.
+
+    ITS THIRD ASSERTION USED TO BE ``value is None`` ON EVERY ELEMENT, and
+    CS-1038 is why it is not. CS-830 refused the interior because the interior
+    grammar was CS-829's and did not exist yet; CS-829 then shipped it AT TOP
+    LEVEL ONLY, and the refusal here outlived its reason - every array of struct
+    in the library bounded its elements and decoded none of them. The seam is
+    now that the element's EXTENT is this module's claim and the interior is
+    read by the shipped interior reader, so what is asserted below is that the
+    two agree rather than that the second is absent.
 
     NEEDS NO SAVE LIBRARY.
     """
@@ -666,10 +686,165 @@ def test_an_array_of_struct_bounds_each_element_without_claiming_its_interior() 
     assert all(bounded.length == len(element) for bounded in decoded.elements), (
         "an element was bounded at some length other than the nested tag list's own"
     )
-    assert all(bounded.value is None for bounded in decoded.elements)
+    interiors = sum(
+        1 for bounded in decoded.elements if isinstance(bounded.value, objects.StructValue)
+    )
+    assert interiors == decoded.element_count, (
+        "the elements were bounded as tag lists and their interiors were not "
+        "read, which is the gap CS-1038 closes"
+    )
     assert decoded.struct_word == "SyntheticInnerStruct", (
         "the inner struct's own type word was not carried out. It is what CS-829 "
         "needs to read the interior this decode deliberately leaves alone"
+    )
+
+
+def _struct_element(inner_name: str, inner_value: int) -> bytes:
+    """One container element written as a NESTED PROPERTY TAG LIST.
+
+    The shape ``_element_tag_list_end`` bounds: one tag, then the terminator
+    name that closes the list.
+
+    Args:
+        inner_name: The one interior property's name.
+        inner_value: Its int32 value.
+
+    Returns:
+        The element bytes.
+    """
+    return (
+        test_properties._tag_head(inner_name, "IntProperty", 4, b"")  # noqa: SLF001
+        + struct.pack("<i", inner_value)
+        + test_properties._fstring("None")  # noqa: SLF001
+    )
+
+
+def _array_of_struct_tag(elements: tuple[bytes, ...]) -> bytes:
+    """A legacy ``ArrayProperty`` of ``StructProperty`` carrying those elements.
+
+    Args:
+        elements: The element tag lists, in file order.
+
+    Returns:
+        The whole tag.
+    """
+    region = b"".join(elements)
+    inner_tag = (
+        test_properties._fstring("mSyntheticStructArray")  # noqa: SLF001
+        + test_properties._fstring("StructProperty")  # noqa: SLF001
+        + struct.pack("<i", len(region))
+        + struct.pack("<i", 0)
+        + test_properties._fstring(_SYNTHETIC_ELEMENT_STRUCT_WORD)  # noqa: SLF001
+        + bytes(objects.GUID_BYTES)
+        + b"\x00"
+    )
+    return _container_tag(
+        "mSyntheticStructArray",
+        "ArrayProperty",
+        ("StructProperty",),
+        struct.pack("<i", len(elements)) + inner_tag + region,
+    )
+
+
+def test_a_struct_element_inside_a_container_yields_its_interior() -> None:
+    """CS-1038's acceptance - the interior grammar reaches INSIDE a container.
+
+    WHAT WAS MISSING, AND WHY IT WAS A SEAM RATHER THAN AN OVERSIGHT. CS-830
+    bounded and typed every element and deliberately read none of them, because
+    the struct interior was CS-829's measurement and reading it here would have
+    been publishing a guess. CS-829 then landed that measurement AT TOP LEVEL
+    ONLY. The consequence was that ``mInventoryStacks``, ``mSplineData`` and
+    every other array of struct bounded its elements perfectly and decoded zero
+    of them - the grammar existed, and nothing applied it one level in.
+
+    THE POPULATION IS DERIVED FROM THE PAYLOAD AND IS NOT A LITERAL. The
+    denominator is ``element_count`` as the container ITSELF declared it, read
+    back off the decode, so the equality cannot be satisfied by a decoder that
+    shrank its own denominator and cannot rot when the fixture grows.
+
+    IT IS AN EQUALITY AND NOT A FLOOR. "at least one interior decoded" passes
+    while every other element stays unread, which is the pooled-guard failure
+    this project has recorded; the weakest member has to be measured.
+
+    NEEDS NO SAVE LIBRARY.
+    """
+    names = tuple(f"mSyntheticInner_{index}" for index in range(_INTERIOR_ELEMENTS))
+    elements = tuple(_struct_element(name, index) for index, name in enumerate(names))
+
+    result = _read_payload_of(_array_of_struct_tag(elements))
+    decoded = result.properties["mSyntheticStructArray"]
+
+    assert isinstance(decoded, objects.ContainerValue)
+    assert decoded.element_shape == objects.ELEMENT_SHAPE_SELF_DELIMITING, (
+        "the elements were not bounded by their own grammar, so this arm would "
+        "be grading a derived partition rather than the interior reading"
+    )
+    declared = decoded.element_count
+    interiors = sum(
+        1 for bounded in decoded.elements if isinstance(bounded.value, objects.StructValue)
+    )
+    assert interiors == declared, (
+        "a bounded struct element did not yield its interior - the count of "
+        "decoded interiors is not the element count the container declared"
+    )
+
+    # THE INTERIOR IS THE ELEMENT'S OWN AND NOT THE FIRST ONE REPEATED. Every
+    # element names a DIFFERENT interior property, so a decoder that read one
+    # interior and copied it to every slot fails here and not above.
+    read_names = tuple(
+        sorted(
+            name
+            for bounded in decoded.elements
+            if isinstance(bounded.value, objects.StructValue)
+            for name in bounded.value.properties
+        )
+    )
+    assert read_names == tuple(sorted(names)), (
+        "the interiors decoded do not name the properties the elements carry"
+    )
+    assert all(
+        isinstance(bounded.value, objects.StructValue)
+        and bounded.value.form == objects.STRUCT_FORM_TAG_LIST
+        for bounded in decoded.elements
+    ), "an interior was published under a form other than the tag list it was read as"
+
+
+def test_an_element_interior_that_does_not_read_leaves_the_element_bounded() -> None:
+    """Non-negotiable 7 - unknown content is flagged and skipped, never fatal.
+
+    A NATIVE-SERIALIZED struct element is a RAW body rather than a tag list, so
+    the region is divided by the declared count and no interior exists to read.
+    The element must still come back bounded and typed, carrying no value, and
+    nothing may raise.
+
+    NEEDS NO SAVE LIBRARY.
+    """
+    region = bytes(_SET_ELEMENT_BYTES * _INTERIOR_ELEMENTS)
+    inner_tag = (
+        test_properties._fstring("mSyntheticRawStructArray")  # noqa: SLF001
+        + test_properties._fstring("StructProperty")  # noqa: SLF001
+        + struct.pack("<i", len(region))
+        + struct.pack("<i", 0)
+        + test_properties._fstring(_SYNTHETIC_ELEMENT_STRUCT_WORD)  # noqa: SLF001
+        + bytes(objects.GUID_BYTES)
+        + b"\x00"
+    )
+    tag = _container_tag(
+        "mSyntheticRawStructArray",
+        "ArrayProperty",
+        ("StructProperty",),
+        struct.pack("<i", _INTERIOR_ELEMENTS) + inner_tag + region,
+    )
+
+    result = _read_payload_of(tag)
+    decoded = result.properties["mSyntheticRawStructArray"]
+
+    assert isinstance(decoded, objects.ContainerValue)
+    assert decoded.element_shape in objects.UNDISCRIMINATED_ELEMENT_SHAPES
+    unread = sum(1 for bounded in decoded.elements if bounded.value is None)
+    assert unread == len(decoded.elements), (
+        "an element whose region is a raw body published an interior, which "
+        "would be reading a tag list out of bytes that are not one"
     )
 
 
@@ -958,11 +1133,33 @@ def _sweep_with_a_wrong_partition() -> tuple[_ContainerSweep, int]:
     applied = 0
     real = objects._bound_container_elements  # noqa: SLF001
 
-    def _mutated(  # EVERY KEYWORD IS FORWARDED, so a widened call site cannot break it.
-        body: bytes, words: tuple[str, ...], at: int, end: int, count: int, **grammar: bool
+    def _mutated(
+        body: bytes,
+        words: tuple[str, ...],
+        at: int,
+        end: int,
+        count: int,
+        *,
+        # EVERY KEYWORD THE SHIPPED SIGNATURE CARRIES IS NAMED AND FORWARDED.
+        # It was ``**grammar: bool`` until CS-1038 widened the real signature
+        # with a ``str | None``, which the catch-all annotation could not hold -
+        # and a catch-all typed loosely enough to hold anything would stop
+        # catching a keyword this mutant silently drops.
+        struct_word: str | None = None,
+        depth: int = 0,
+        type_tree: bool = False,
     ) -> tuple[str, tuple[objects.ContainerElement, ...]] | None:
         nonlocal applied
-        bounded = real(body, words, at, end, count, **grammar)
+        bounded = real(
+            body,
+            words,
+            at,
+            end,
+            count,
+            struct_word=struct_word,
+            depth=depth,
+            type_tree=type_tree,
+        )
         if bounded is None or bounded[0] != objects.ELEMENT_SHAPE_UNIFORM_WIDTH:
             return bounded
         slots = count * len(words)
