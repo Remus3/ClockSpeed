@@ -1715,6 +1715,41 @@ save file, no header bytes, no account id, no world name.
 record of what was wrong; the ADR should say what is true. Do not delete the false lines
 silently - an ADR that quietly loses a claim it once made is a document nobody can audit.
 
+## CS-1055
+
+### Filed 2026-09-14
+
+**THE GUARD INFERS AUTHORSHIP FROM A WALL CLOCK, AND AUTHORSHIP IS NOT A TIMESTAMP.** The
+live-copies teardown in `tests/conftest.py` counts files carrying the copy suffix before and
+after a test, and blames the difference on the suite. Any process holding the same workdir
+is indistinguishable from the suite under that rule.
+
+**MEASURED 2026-09-14, AND THE FALSE ACCUSATION WAS THE FIRST ONE IT EVER MADE HERE.** A
+`python -m clockspeed.surface` process that had been running about 24 hours wrote a copy 4.8
+minutes before the check, while NO suite was running. It failed
+`tests/save/test_struct_interior.py`, a module a purpose-written tracer showed calling
+`workdir.copy_for_read` ZERO times across a full run. The module never reaches
+`world.load_world`, which is the only caller of that function in the tree. A builder proved
+the module innocent and refused to repair it, which is what the stop-and-report rule is for.
+
+**THE FIX IS TO MEASURE THE THING THE GUARD IS ACTUALLY ASSERTING.** It wants to know
+whether THIS PROCESS copied a save. Instrument `workdir.copy_for_read` and count calls;
+do not difference a directory. A count of calls cannot be confused by a neighbour.
+
+**SHIP THE TRACER.** The guard's own message says to run the write tracer, and THE REPO HAS
+NO WRITE TRACER - the instruction was inherited from a sibling project. One was written from
+scratch to answer this, and then thrown away. An instruction naming a tool that does not
+exist is worse than no instruction: it reads as though attribution is available.
+
+**THE ASSERTION STAYS A COUNT AND NEVER BECOMES A LISTING.** A copy is named for the save it
+came from, so a set of names rendered into a failing assertion is a set of the operator's
+world names. Non-negotiable 12. The existing docstring is right about this and must survive
+the repair.
+
+**BOTH DIRECTIONS MUST BE GRADED.** A concurrent writer's copy during the window must NOT
+redden the guard, and a copy the suite itself makes MUST. One arm each. A guard that only
+proves the first has been relaxed rather than repaired.
+
 ## CS-1056
 
 ### Filed 2026-09-14
