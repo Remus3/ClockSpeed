@@ -10105,3 +10105,112 @@ Relocated, not deleted - session 90, at the fidelity it was written.
 - Next action: CS-1008 - `tests/test_queue_loop.py`'s `_drive` injects neither the permit seam nor the
   claim-states seam, so those arms read the LIVE store and flip non-deterministically against a real
   lane. It is tier 1 and it is the last thing reading live state in a suite.
+
+## CS-1039
+
+### Filed 2026-09-13
+
+**TWO SEAMS AND ONE FILL, MERGED BECAUSE THEY COLLIDE ON ONE FILE.**
+`_record_properties` drops `PropertyResult.references` and `struct_interiors` at the one
+seam every higher layer reads, so the typed, tag-ordered reference population never crosses
+the save seam. Separately `_read_unlocks` takes zero arguments and returns
+`EMPTY_UNLOCK_STATE` unconditionally, even though every carrier named below is decodable
+by the SHIPPED reader today. Splitting the unlocks into a new module was considered and rejected: the
+`_read_unlocks` call site is in `world.py` either way, so the collision survives the split.
+
+**WRITE-LIST:** `clockspeed/save/world.py`, `tests/save/test_world.py`,
+`tests/test_repr_rendering.py`, `tests/repr_rendering_guard.py`. **THE LAST TWO WERE ADDED
+2026-09-14 AND ARE NOT A SCOPE WIDENING** - they are a mechanical consequence of the
+change. A new save-layer type auto-enters the repr guard population by path prefix but
+must also be registered in `RECORDED_POPULATION`, and `UnlockState`'s EXEMPT reason goes
+false the moment it stops being empty. A builder frozen to the first two files would hit a
+red it was forbidden to repair. **DEPENDS ON:** CS-1038 for the interiors half ONLY - the
+unlocks half depends on nothing and starts immediately. **TIER 2, NO GAME NEEDED.**
+
+**PRIVACY, LOAD-BEARING.** An object path is world content. It MAY cross the SAVE seam -
+property names and values already do - and must NOT reach the wire, a log line, an
+exception or a `repr`. The new types need hand-written `__repr__` rendering lengths only,
+following the `ObjectReference` precedent. `tests/repr_rendering_guard.py` and the
+no-body-byte arm both grade it. Non-negotiables 3, 11 and 12 are unchanged by this item:
+widening what crosses the SAVE seam does not widen what crosses the WIRE.
+
+**CLOSING SCOPE, ADJUDICATED 2026-09-14: TWO CARRIERS OF THREE, AND THAT IS NOT A
+SHORTFALL.** The acceptance names `mCurrentGamePhase`, `mPurchasedSchematics` and
+`mTradingPostLevel`. The first two are wired. The third is re-sited to CS-1052 because ADR
+0016 records NO carrier type path for it: keying it would mean INVENTING a class name,
+which is the exact defect that refused this item's first candidate. The builder's refusal
+to invent one is non-negotiable 7 compliance and was upheld. Rewriting the acceptance to
+drop the clause was REFUSED outright - that is a lie with a timestamp. The clause is not
+dropped, it is re-sited with its evidence bar RAISED to a measurement against a real save.
+
+**HIGHEST-RISK SLICE IN THE SESSION.** It writes the module every layer above depends on
+and CS-913 is open over the same code. It gets a DEDICATED adjudicator before any dependent
+item merges. `WARN_UNLOCK_GRAMMAR_UNMEASURED` is withdrawn ONLY for the carriers actually
+wired and is KEPT for `mPaidOffSchematic` and `mSavedOngoingResearch`.
+
+**ADR 0016 IS `proposed`, NOT `accepted`, AND THIS ITEM INHERITS THAT UNFINISHED BUSINESS.**
+Its carrier table was an assumption to verify first, and verifying it is what produced the
+three corrections below. **CORRECTED 2026-09-14 AFTER THIS NOTE CAUSED A DEFECT - READ THE CORRECTION BELOW BEFORE
+THE TABLE.**
+
+**THE CORRECTION, AND IT IS THE MOST IMPORTANT LINE IN THIS SECTION. THE OWNER CLASSES
+BELOW ARE C++ DECLARING CLASSES AND ARE NOT THE KEYS A SAVE IS JOINED ON.** A build keyed
+on them matches ZERO records on every real save while every synthetic arm passes, which is
+non-negotiable 7 exactly - silently wrong. It happened: the first CS-1039 candidate was
+refused for it. **The join keys are the SAVE-SIDE carrier type paths measured in
+`docs/adr/0016-unlock-arrays-carriers-and-serialized-grammar.md` at its carrier table**, run through `objects.class_name_of`, which
+returns the text after the final dot - so `BP_SchematicManager_C`, `FGRecipeManager`,
+`BP_GamePhaseManager_C`, `BP_ResearchManager_C`, NOT `AFGSchematicManager`,
+`AFGRecipeManager`, `AFGGamePhaseManager`. UE strips the A/U prefix and a blueprint carrier
+is a `BP_*_C`.
+
+**THE REASONING ERROR IS THE REUSABLE PART.** ADR 0016 lines 29 and 128 ARE false, and that
+was read as licence to prefer the headers over the ADR wholesale. It is not: the headers
+answer WHAT C++ DECLARES, the save answers WHAT IS IN THE FILE, and for save contents the
+save is ground truth. The ADR's carrier table is a MEASUREMENT over real saves and outranks
+any declaration for the join. A document with false statements in it is not a document with
+no true measurements in it.
+
+**THE GRAMMAR, WHICH THE DECLARATIONS AND THE ADR AGREE ON.** `mCurrentGamePhase` and
+`mTargetGamePhase` are TOP-LEVEL `ObjectProperty` tags naming a `GP_*` ASSET - they arrive
+in `PropertyResult.references` and are **NOT** integers. The ADR measured that no
+`Phase`-named property in either record table decoded to an integer at all, and the header
+declares `TObjectPtr<UFGGamePhase>`, which is the same answer. A scalar reader admitting
+only `int` cannot read them. The schematic, recipe and research arrays are `ArrayProperty`
+of `ObjectProperty` whose elements are ASSET paths that join the REGISTRY, never a record's
+`instance_name` - the ADR measured that not one element joined an instance name.
+
+**CS-913 IS A FENCE ACROSS THIS ITEM, NOT MERELY ADJACENT TO IT.** `ROADMAP.md:272`
+requires `current_game_phase` be RETYPED off `int | None` first, because the value is an
+asset reference. Wiring a reader into the existing `int | None` crosses that fence.
+
+**THE DECLARATION TABLE BELOW REMAINS TRUE FOR WHAT IT ANSWERS** - which properties can be
+in a save at all, settled by the `SaveGame` specifier, the same standard that closed node
+purity. Use it to know a carrier EXISTS. Do not use it to know how to FIND one. Read against the install's own headers through `clockspeed/data/assets.py`, which
+CS-1040 shipped: 1112 headers, 8024 properties. All eight carry the `SaveGame` specifier
+and so CAN appear in a save - `mPurchasedSchematics` and `mPaidOffSchematic` on
+`AFGSchematicManager`, `mCurrentGamePhase` and `mTargetGamePhase` on `AFGGamePhaseManager`,
+`mUnlockedResearchTrees` and `mSavedOngoingResearch` on `AFGResearchManager`,
+`mAvailableRecipes` on `AFGRecipeManager`, and `mTradingPostLevel` as an `int32` on
+`AFGTutorialIntroManager`. Note the second owner: `mCurrentGamePhase` ALSO exists on
+`UFGSessionInformationModel` WITHOUT `SaveGame`, so the name-level answer rests on the
+`AFGGamePhaseManager` declaration and a reader that matched the other owner would be
+matching a field that cannot be in a save. All eight also decode at HEAD - IntProperty at
+`objects.py:6015`, ObjectProperty at `objects.py:6020`, array-of-object elements at
+`objects.py:5134`, array-of-struct interiors at `objects.py:5119`, published at
+`world.py:1534`.
+
+**ADR 0016 CARRIES TWO FALSE STATEMENTS AND MUST NOT BE BUILT ON UNREAD.** Its line 29
+says the decoder has no production caller; `world.py:1485` calls `read_properties` per
+record. Its line 128 says the `(14,60)` shape decodes ZERO property tags; `docs/LEDGER.md`
+records 3918 records on the pinned world with disagreeing 803 to 0, and `objects.py:4694`
+ships `(14,60)`. The second may make CS-913's "pinned world as the CONTROL that must stay
+empty" a SUBJECT rather than a control - do not assume that control still holds.
+
+**THE MODEL SHAPE IS THE REAL GAP, NOT THE DECLARATIONS.** `UnlockState` at
+`world.py:653` declares only `purchased_schematics`, `recipes`, `current_game_phase`,
+`feature_flags` and `scanned_resources`, and `is_empty` at `world.py:660` consults no
+trading-post field. The filed acceptance requires `mTradingPostLevel` to round-trip and to
+redden when unwired, which CANNOT hold until the field exists - so adding it is required
+by the acceptance rather than optional. An arm written against today's `UnlockState` would
+pass while grading nothing for that carrier.

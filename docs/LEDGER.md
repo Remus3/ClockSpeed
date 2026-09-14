@@ -374,6 +374,67 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-09-14 - CS-1039 - CLOSED with two carriers of three, the third re-sited rather than the acceptance rewritten
+
+**WHAT CHANGED.** `clockspeed/save/world.py::_record_properties` publishes
+`PropertyResult.references` and `struct_interiors` through `RecordProperties` in tag order,
+carrying no byte offset and no absolute position. `_read_unlocks` takes the table and the
+properties and actually reads, instead of returning `EMPTY_UNLOCK_STATE` on every path.
+`UnlockState` gains `trading_post_level`, and `current_game_phase` is retyped off `int` to
+an asset-path string because the value is an object reference. An allowlist at the save
+seam refuses a record instance path packed into a reference field, and fails closed on a
+field nobody classified. Tests: `tests/save/test_world.py` section 14, 193 passed;
+`tests/repr_rendering_guard.py` loses the `UnlockState` exemption.
+
+**WHY THE FIRST CANDIDATE WAS REFUSED, AND IT IS THE FINDING OF THE ITEM.** It keyed
+`UNLOCK_CARRIERS` on C++ DECLARING class names - `AFGSchematicManager` and siblings - taken
+from the install's headers. A save is joined on the SAVE-SIDE type path, which UE writes
+without the A/U prefix and with a `BP_*_C` spelling for a blueprint carrier. Not one key
+matched. The reader would have matched ZERO records on every real save while every
+synthetic arm passed. A whole-suite run of 3153 tests went GREEN over that tree. The suite
+could not see it, and that is a measurement about the suite rather than about the code.
+
+**THE REASONING ERROR THAT PRODUCED IT IS THE REUSABLE PART.** ADR 0016 was found to carry
+two false statements, and that was taken as licence to prefer the headers over the ADR
+wholesale. It is not. A header declaration answers WHAT C++ DECLARES; the save answers WHAT
+IS IN THE FILE; for save contents the save is ground truth, and the ADR's carrier table is a
+measurement over real saves. **A document with false statements in it is not a document with
+no true measurements in it.** The wrong keys were handed to the builder by an item note
+which also said DO NOT RE-VERIFY. The note has been corrected and now leads with that
+correction.
+
+**WHAT THE REPAIR ADDED THAT THE ORIGINAL LACKED.** Fixtures now parse ADR 0016's carrier
+table AT TEST TIME, so fixture and oracle no longer share a source, and a control arm
+asserts every production key is reachable from that table. Mutating a key back to the
+declaring-class spelling now reddens. Removing the `UnlockState` repr exemption made
+`test_no_shipped_class_renders_a_graded_field` able to see the type at all - under the
+retained exemption, deleting `__repr__` stayed green.
+
+**A MASKED CLAUSE WAS FOUND AND FIXED INSIDE THE GUARD.** Deleting the separator check left
+all three guard arms green: the attack path did not begin with a permitted root, so the root
+check refused it first and the two clauses were never told apart. A second fixture wearing a
+permitted root, refusable only by the separator, now separates them, plus an assertion that
+it still passes the root check so the masking cannot silently return.
+
+**WHAT IS NOT DONE, RECORDED AS NOT DONE.** `mTradingPostLevel` is unwired. ADR 0016
+records no carrier type path for it, and keying it would mean inventing a class name - the
+exact defect that refused the first candidate. It stays in `UNLOCK_CARRIERS_UNREAD`, the
+field stays `None`, the unread warning still fires, and the clause is re-sited to CS-1052
+with its evidence bar RAISED to a measurement against a real save. Rewriting the acceptance
+to match the delivery was refused outright.
+
+**OVERLAP WITH CS-913, RECORDED SO TWO ITEMS DO NOT CLAIM ONE CHANGE.** `ROADMAP.md`'s
+CS-913 line requires `current_game_phase` be retyped off `int | None` because the value is
+an asset reference. This item delivered that retype, because its own acceptance forced it.
+CS-913 remains OPEN for everything else it names, and whoever takes it must not re-file the
+retype as undone.
+
+**RESIDUAL RISK, CARRIED FORWARD AS CS-1053.** The independence restored was from the item
+note only. ADR 0016 is now the single source for BOTH production keys and fixtures, is still
+`proposed`, and carries two statements already measured false. The reader is correct by
+citation, not correct by measurement.
+
+
 ### 2026-09-13 - CS-1038 - CLOSED. The objects layer stops discarding what it already read
 
 **WHAT CHANGED.** Container elements were bounded and typed and decoded ZERO of the time. The

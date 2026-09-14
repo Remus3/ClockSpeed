@@ -65,7 +65,7 @@ different region, is not clause 2, and is filed as its own item.
 seen as a new world rather than failing.
 
 
-## Wave 2 - verified against ground truth 2026-09-14, read before taking ANY item below
+## Wave 2 - the pre-dispatch spec check, filed 2026-09-14
 
 **THESE FIVE WERE SPEC-CHECKED BEFORE DISPATCH AND THE CHECK FOUND REAL DEFECTS.** Sibling
 CS-1039 was checked the same way the same day and its filing carried three. Do NOT
