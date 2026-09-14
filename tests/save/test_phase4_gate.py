@@ -2461,6 +2461,61 @@ def test_the_composer_imports_all_five() -> None:
     assert len(ALLOWED_SAVE_IMPORTS["clockspeed.save.world"]) == len(SAVE_SOURCES) - 2
 
 
+#: Workers for the child pytest run, BOUNDED rather than ``auto`` on purpose.
+#:
+#: THE CHILD USED TO RUN SERIALLY WHILE THE PARENT RAN ``-n auto``, and that is
+#: what timed out. The windows-latest leg of tier 2 crossed this module's own
+#: ``_CHILD_TIMEOUT_SECONDS`` outright while the ubuntu leg did not, against
+#: 68.98s measured serially on the operator's 16 core machine. The runner is
+#: 3.6x to 4.3x slower for this work, so the timeout is not mis-set: the work
+#: was being done one test at a time on a box the parent had already filled.
+#: Distributing the child costs the invariant nothing, because the same tests
+#: run in the same stripped environment and only the scheduling changes.
+#:
+#: NO LANE DURATION TARGET IS RESTATED HERE, and that is deliberate rather than
+#: terse - ``.github/workflows/tier1.yml`` is the one owner of this lane's
+#: levels and ``tools/drift_guard.py`` guard (k) fails any second statement of
+#: one. The CI readings that motivated this change live in the ledger entry.
+#:
+#: ``auto`` IS THE WRONG ANSWER AND THE CAP IS MEASURED RATHER THAN PREFERRED.
+#: The parent is itself running ``-n auto``, so an ``auto`` child asks for a
+#: second full set of workers on a box that already carries one, and this
+#: repository has measured that hazard twice: concurrent suites exhausting the
+#: box RAM, and two parallel xdist suites exhausting the Windows fork budget so
+#: that the failures land on unrelated subprocess tests and read as flakes.
+#:
+#: THE EXTRA WORKERS BUY NOTHING ANYWAY. Measured on this machine at one tree,
+#: ``--dist loadfile`` throughout, 1197 passed and 96 skipped on every point:
+#:
+#:     serial 68.98s | -n 2 46.68s | -n 4 37.72s | -n 8 33.41s | -n 16 33.96s
+#:
+#: Sixteen workers are SLOWER than eight and the floor sits near 33s, because
+#: the critical path under ``loadfile`` is the single slowest FILE and
+#: ``test_absolute_claims.py`` alone is roughly 30 of the 69 serial seconds.
+#: Four workers take 88 per cent of the entire available gain at a quarter of
+#: the process count, and on a four core hosted runner the cap does not bind at
+#: all - ``auto`` would ask for four there too - so it costs the platform that
+#: actually failed nothing. The floor of two is not taste either: one IS the
+#: serial case this constant exists to remove.
+#:
+#: MEASURED UNDER THE REAL CONTENTION, not just alone: the whole of tests/save
+#: run as tier 1 runs it, ``-n auto --dist loadfile`` with sixteen parent
+#: workers on sixteen cores, put this child at 39.41s against 37.37s unopposed.
+#: The nested run degrades by two seconds under a fully loaded box, which is the
+#: property the serial child did not have.
+_CHILD_WORKERS: Final = min(4, max(2, os.cpu_count() or 2))
+
+#: How the child distributes, and it is the CI-proven mode rather than the
+#: fastest one. ``tests/save`` is run as ``-n auto --dist loadfile`` by tier 1's
+#: own save job, so parallel-safety at this setting is established by evidence
+#: rather than argued. Per-test ``--dist load`` was measured FASTER here - 32.68s
+#: at four workers against 37.72s - and is declined anyway, because it spreads a
+#: file's tests across workers in a mode no lane has ever run this directory
+#: under, and 5 seconds on the operator's box is not worth finding that out from
+#: a red gate.
+_CHILD_DIST: Final = "loadfile"
+
+
 def _child_pytest_args() -> list[str]:
     """Build the argv for the child pytest run over the save-layer suite.
 
@@ -2469,6 +2524,10 @@ def _child_pytest_args() -> list[str]:
     absolute path derived from ``__file__``, so a rename cannot leave it
     pointing at a path that no longer exists - which would look green right up
     to the moment the machine ran out of processes.
+
+    The single ``-q`` is deliberate and must stay single: a second one collapses
+    ``--collect-only`` to a bare count, and a count carries no test name, so the
+    recursion guard below would assert against an empty haystack.
 
     Returns:
         Arguments after the interpreter.
@@ -2481,6 +2540,10 @@ def _child_pytest_args() -> list[str]:
         "-p",
         "no:cacheprovider",
         "-q",
+        "-n",
+        str(_CHILD_WORKERS),
+        "--dist",
+        _CHILD_DIST,
     ]
 
 
@@ -2531,6 +2594,54 @@ def test_the_child_run_excludes_this_module_so_the_gate_cannot_recurse() -> None
             f"the child run collects no {sibling}; the ignore is too wide and the gate "
             "would pass by testing nothing"
         )
+
+
+def test_the_child_run_asks_for_bounded_parallelism_rather_than_auto() -> None:
+    """The child is parallel AND capped, and neither half may be lost in silence.
+
+    Both regressions are invisible in a green summary line. Dropping ``-n`` puts
+    the child back to one process underneath a parent running ``-n auto``, which
+    is precisely the shape that crossed the timeout; widening it to ``auto``
+    asks a box already carrying a full set of workers for a second one.
+
+    THE CEILING IS A LITERAL HERE, stated independently of the expression that
+    computes :data:`_CHILD_WORKERS`, so an edit letting that expression track the
+    core count reddens on any machine with more than four. An arm that recomputed
+    the same formula would agree with the constant by construction and grade
+    nothing.
+
+    The distribution mode is asserted too. ``loadfile`` is the only mode any lane
+    has run ``tests/save`` under, so switching it is a claim about parallel
+    safety that no measurement in this repository backs.
+    """
+    args = _child_pytest_args()
+
+    assert "-n" in args, (
+        "the child run names no worker count, so it is serial again underneath a "
+        "parent running -n auto - the shape that timed out"
+    )
+    workers = args[args.index("-n") + 1]
+    assert workers != "auto", (
+        "the child asks for auto workers while the parent already runs -n auto, which "
+        "is the oversubscription this cap exists to refuse"
+    )
+    assert workers.isdigit(), f"the child's worker count is not a plain number: {workers!r}"
+
+    # STATED AS LITERALS, AND DELIBERATELY NOT READ FROM _CHILD_WORKERS. Reading
+    # the bound from the expression under test would make this agree by
+    # construction and grade nothing; written out here, an edit that lets the
+    # constant track the core count reddens on any machine with more than four.
+    serial_is_one, measured_floor_is_reached_by = 2, 4
+    assert serial_is_one <= int(workers) <= measured_floor_is_reached_by, (
+        f"the child asks for {workers} workers; four reaches the measured floor and one "
+        "is the serial case this bound exists to remove"
+    )
+
+    assert "--dist" in args, "the child states no distribution mode"
+    assert args[args.index("--dist") + 1] == "loadfile", (
+        "the child distributes by something other than loadfile, which is the only mode "
+        "a lane has ever run tests/save under"
+    )
 
 
 # --- the redactor is imported, never re-implemented -------------------------

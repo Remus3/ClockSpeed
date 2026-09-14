@@ -325,12 +325,19 @@ class CiSpec(NamedTuple):
 #: A BRANCH ref, which is what `gh workflow run` takes.
 CI_REF = "main"
 
-#: `.github/workflows/tier1.yml` - `jobs.fast.name` and `jobs.save.name`. It
-#: fires on every branch push, so it is never dispatched from here.
+#: `.github/workflows/tier1.yml` - `jobs.fast.name`, `jobs.save.name` and
+#: `jobs.guards.name`. It fires on every branch push, so it is never dispatched
+#: from here.
+#:
+#: EVERY DECLARED JOB APPEARS HERE, and a test enforces it both ways. A shard
+#: added to the workflow and nowhere else is graded by accident: skipped, or
+#: never reached by the run, it falls through the grader's tail into `success`
+#: and the lane ships the next row onto a main whose new shard was never
+#: measured.
 CI_TIER1 = CiSpec(
     workflow="tier1.yml",
     dispatch=False,
-    required=("gates, lint, types, tests", "tests (save shard)"),
+    required=("gates, lint, types, tests", "tests (save shard)", "tests (guard shard)"),
     advisory=(),
 )
 

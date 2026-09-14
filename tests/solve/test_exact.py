@@ -719,6 +719,26 @@ def test_the_deferred_power_term_is_symbolic_and_carries_no_evaluation() -> None
 _SMALL_CHAIN: Final = 6
 _LARGE_CHAIN: Final = 96
 
+#: The upper row count the ORACLE's growth is measured at. It is deliberately far
+#: below ``_LARGE_CHAIN`` and MUST NOT be "restored" to it.
+#:
+#: The two halves of the scaling arm need different sizes because they make
+#: different claims. The implementation's claim is that its elimination count
+#: stays FIXED as the row count grows, so it has to be measured somewhere the
+#: count is genuinely large - that is ``_LARGE_CHAIN``, and shrinking it would
+#: gut the acceptance. The oracle's claim is only that its own cost RISES with
+#: the row count, on a number that equals ``len(matrix)`` exactly; any value
+#: clearly above ``_SMALL_CHAIN`` establishes that, and no value establishes it
+#: any better.
+#:
+#: The difference is not free. The oracle runs one full exact-Fraction
+#: elimination PER ROW, so asking it for its cost at ``_LARGE_CHAIN`` means a
+#: hundred eliminations of a hundred-row system - measured as very nearly the
+#: whole wall time of this arm, spent on the half whose assertion is a single
+#: inequality. Measuring it here instead leaves both claims intact and drops
+#: that cost.
+_ORACLE_GROWTH_CHAIN: Final = 24
+
 #: The attribute the elimination counter hooks. Named as a STRING so the hook is
 #: installed through ``monkeypatch.setattr`` rather than by reaching into the
 #: module under test - the patch is temporary, and spelling it this way is what
@@ -1010,12 +1030,19 @@ def test_isolating_rows_does_not_grow_its_work_with_the_row_count(
     number of them regardless of how many rows there are. The oracle beside it
     is the old cost, and it is asserted to grow so that the comparison cannot
     quietly become a comparison of two constants.
+
+    The two halves are measured at DIFFERENT row counts on purpose, and
+    ``_ORACLE_GROWTH_CHAIN`` records why: the fixed-cost claim needs a large
+    system, the growth claim needs only two different sizes, and the oracle is
+    the expensive one to ask.
     """
     small_matrix, small_rhs = _closed_loop(_SMALL_CHAIN)
     large_matrix, large_rhs = _closed_loop(_LARGE_CHAIN)
+    oracle_matrix, oracle_rhs = _closed_loop(_ORACLE_GROWTH_CHAIN)
 
     assert solve_linear(small_matrix, small_rhs).outcome == OUTCOME_INCONSISTENT
     assert solve_linear(large_matrix, large_rhs).outcome == OUTCOME_INCONSISTENT
+    assert solve_linear(oracle_matrix, oracle_rhs).outcome == OUTCOME_INCONSISTENT
 
     small_cost = _eliminations_during(monkeypatch, lambda: isolating_rows(small_matrix, small_rhs))
     large_cost = _eliminations_during(monkeypatch, lambda: isolating_rows(large_matrix, large_rhs))
@@ -1027,7 +1054,11 @@ def test_isolating_rows_does_not_grow_its_work_with_the_row_count(
         monkeypatch, lambda: _brute_force_isolating(small_matrix, small_rhs)
     )
     old_large = _eliminations_during(
-        monkeypatch, lambda: _brute_force_isolating(large_matrix, large_rhs)
+        monkeypatch, lambda: _brute_force_isolating(oracle_matrix, oracle_rhs)
+    )
+    assert _ORACLE_GROWTH_CHAIN > _SMALL_CHAIN, (
+        "the oracle's two sizes are not different, so the growth assertion below is comparing a "
+        "count with itself and cannot fail"
     )
     assert old_large > old_small, (
         "the oracle did not get more expensive with the row count, so this arm is comparing two "

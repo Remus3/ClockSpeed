@@ -921,10 +921,19 @@ def test_moving_the_runaway_cutoff_at_all_turns_the_guard_red(
 
 
 def test_the_shipped_workflow_states_exactly_the_recorded_levels() -> None:
-    """The other half of the ratchet, read off the PARSED workflow."""
+    """The other half of the ratchet, read off the PARSED workflow.
+
+    THE CUTOFF IS READ OFF EVERY JOB AND NOT OFF ONE OF THEM. It used to read
+    `fast_job()`, which was the whole lane when it was written and is now one
+    shard of several - a shard that carried a different cutoff would have been
+    invisible here (CS-1060).
+    """
     assert staged_budget() == EXPECTED_RECORDED_BUDGET
     assert staged_ceiling() == EXPECTED_RECORDED_CEILING
-    assert fast_job()["timeout-minutes"] == EXPECTED_POLICY_CUTOFF_MINUTES
+    stated = sorted({job.get(TIMEOUT_KEY) for job in every_parsed_job().values()}, key=repr)
+    assert stated == [EXPECTED_POLICY_CUTOFF_MINUTES], (
+        f"the jobs state cutoffs {stated}, not exactly {EXPECTED_POLICY_CUTOFF_MINUTES}"
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -1363,6 +1372,13 @@ def test_the_lane_records_a_start_before_it_does_anything_else() -> None:
 
     Deleting this step entirely left the first build green, because the string
     `TIER1_STARTED` also occurs in the report step below it.
+
+    SCOPED TO THE CATCH-ALL SHARD ON PURPOSE, and checked as such for CS-1060.
+    It reads `workflow_steps()`, which addresses one job. The lane-wide
+    counterpart is
+    :func:`test_every_job_records_its_start_before_it_does_anything_else`, which
+    asks the same question of every job the parser resolves; this arm is the
+    detailed one and additionally grades what the marker is and where it goes.
     """
     steps = workflow_steps()
     names = [str(step.get("name")) for step in steps]
@@ -1382,6 +1398,10 @@ def test_the_comparison_runs_even_when_an_earlier_step_failed() -> None:
     A comparison that only ran when every earlier step succeeded would report
     nothing on exactly the runs worth measuring. Deleting the live key left the
     first build green, because the same string sits in the comment above it.
+
+    SCOPED TO THE CATCH-ALL SHARD ON PURPOSE, and checked as such for CS-1060.
+    :func:`test_every_duration_report_runs_on_every_outcome` is the lane-wide
+    counterpart and reads every job the parser resolves.
     """
     condition = step_named(REPORT_STEP).get("if")
 
@@ -1391,10 +1411,25 @@ def test_the_comparison_runs_even_when_an_earlier_step_failed() -> None:
 
 
 def test_the_comparison_reaches_the_run_summary() -> None:
-    script = step_named(REPORT_STEP).get("run")
+    """Read off EVERY job, because a shard is a whole job's worth of silence.
 
-    assert isinstance(script, str), "the report step runs nothing"
-    assert "GITHUB_STEP_SUMMARY" in script, "the comparison never reaches the run summary"
+    It read the catch-all shard alone, which was the whole lane when it was
+    written. A shard whose report never reached the summary would have been
+    invisible here, and the summary is where the operator reads the number
+    (CS-1060).
+    """
+    silent: list[str] = []
+    for job_id, job in every_parsed_job().items():
+        for step in job.get("steps") or []:
+            if isinstance(step, dict) and step.get("name") == REPORT_STEP:
+                script = step.get("run")
+                if not isinstance(script, str) or "GITHUB_STEP_SUMMARY" not in script:
+                    silent.append(job_id)
+
+    assert silent == [], (
+        f"the duration report in {silent} never reaches the run summary, so those"
+        " shards report a number nobody reading the run will see"
+    )
 
 
 def test_the_unit_test_step_runs_in_parallel() -> None:
@@ -1404,6 +1439,12 @@ def test_the_unit_test_step_runs_in_parallel() -> None:
     workflow's own comments, so deleting it from the live command left the first
     build's arm - which grepped the file text - green while the lane reverted to
     serial.
+
+    SCOPED TO THE CATCH-ALL SHARD ON PURPOSE, and checked as such for CS-1060.
+    The second assertion here is about the bare `tests` target, which is the
+    catch-all's defining property and is true of NO other shard.
+    :func:`test_both_shards_run_in_parallel_because_one_of_them_owns_an_open_item`
+    carries the parallel half over every shard.
     """
     script = step_named(SUITE_STEP).get("run")
 
@@ -1415,11 +1456,20 @@ def test_the_unit_test_step_runs_in_parallel() -> None:
 
 
 def test_the_suite_step_never_invokes_pytest_from_the_bare_repo_root() -> None:
-    """CONVENTIONS.md section 7.1 - a bare root run can sweep runtime state."""
-    script = step_named(SUITE_STEP)["run"]
-    tokens = str(script).split()
+    """CONVENTIONS.md section 7.1 - a bare root run can sweep runtime state.
 
-    assert "tests" in tokens, f"the target directory is not a token of its own: {script!r}"
+    ASKED OF EVERY SHARD. It read the catch-all alone, and a shard added later
+    that invoked pytest with no target at all would have been outside it
+    (CS-1060).
+    """
+    rootless = sorted(
+        job_id for job_id, tokens in suite_shards().items() if not shard_targets(tokens)
+    )
+
+    assert rootless == [], (
+        f"the {rootless} shards name no target under {SUITE_ROOT!r} as a token of its"
+        " own, so pytest runs from the bare repo root and can sweep runtime state"
+    )
 
 
 def test_the_workflow_cites_the_open_item_that_owns_the_parallel_flag() -> None:
@@ -1600,12 +1650,25 @@ def test_pytest_xdist_is_pinned_with_both_bounds_exactly_as_recorded() -> None:
 
 
 def test_the_workflow_does_not_install_xdist_itself() -> None:
-    """One owner for the pin, which is how tier 2 ends up tolerating its absence."""
-    scripts = " ".join(str(step.get("run", "")) for step in workflow_steps())
+    """One owner for the pin, which is how tier 2 ends up tolerating its absence.
 
-    assert "install pytest-xdist" not in scripts, (
-        "the workflow installs pytest-xdist itself, so the dev extra is not the one owner "
-        "of the pin"
+    READ OVER EVERY JOB. It scanned the catch-all shard's steps alone, so a
+    second owner of the pin installed by another shard was invisible to it - and
+    every shard runs `-n auto`, so every shard has a reason to reach for it
+    (CS-1060).
+    """
+    offending = sorted(
+        job_id
+        for job_id, job in every_parsed_job().items()
+        if any(
+            isinstance(step, dict) and "install pytest-xdist" in str(step.get("run", ""))
+            for step in (job.get("steps") or [])
+        )
+    )
+
+    assert offending == [], (
+        f"the {offending} jobs install pytest-xdist themselves, so the dev extra is not"
+        " the one owner of the pin"
     )
 
 
@@ -1643,6 +1706,11 @@ def test_the_steps_the_stale_pointers_meant_are_addressable_by_name() -> None:
     for two earlier stale citations and lifted into
     `tests/test_docs_citations.py` as its forbid rule. A by-name citation is only
     a repair while the names exist, so this arm holds them.
+
+    CORRECTLY SCOPED TO THE CATCH-ALL SHARD, and checked as such for CS-1060.
+    Both steps it names are GATES, and the gates read the whole tree and belong
+    to exactly one job - the other shards carry none by design, so widening this
+    arm over every job would assert a shape the lane deliberately does not have.
     """
     names = [str(step.get("name")) for step in workflow_steps()]
 
@@ -1694,52 +1762,23 @@ def test_the_stale_ledger_pointers_are_corrected_by_an_appended_record() -> None
 
 
 # ---------------------------------------------------------------------------
-# The lane runs in two shards, and a shard is where coverage goes missing
+# The lane runs in SHARDS, and a shard is where coverage goes missing
 # ---------------------------------------------------------------------------
 
-#: The second job. The lane was split on 2026-09-06 after run 34013336391 was
-#: CANCELLED at 611s at 99 per cent of the suite with nothing failing.
+#: The save shard. The lane was first split on 2026-09-06 after run 34013336391
+#: was CANCELLED at 611s at 99 per cent of the suite with nothing failing.
 SAVE_JOB_ID = "save"
 
-#: What the save shard runs, and therefore what the other shard must ignore.
-SHARD_BOUNDARY = "tests/save"
-
-#: What the wide shard runs before its ignore is applied.
+#: What the CATCH-ALL shard names before any ignore is applied. Exactly one
+#: shard may name it, and that shard is the catch-all BY DEFINITION rather than
+#: by id - so the arms below never have to know which id it is.
 SUITE_ROOT = "tests"
 
-
-def job_named(job_id: str) -> dict[str, Any]:
-    """One job of the lane, addressed by its id.
-
-    Args:
-        job_id: The key under ``jobs``.
-
-    Returns:
-        The parsed job.
-    """
-    jobs = workflow_document().get("jobs")
-    assert isinstance(jobs, dict), f"{WORKFLOW_RELATIVE} declares no jobs mapping"
-    job = jobs.get(job_id)
-    assert isinstance(job, dict), f"{WORKFLOW_RELATIVE} declares no job named {job_id!r}"
-    return job
-
-
-def suite_invocation(job_id: str) -> list[str]:
-    """The pytest command one job runs, as tokens.
-
-    Args:
-        job_id: The key under ``jobs``.
-
-    Returns:
-        The tokens of the single step named :data:`SUITE_STEP`.
-    """
-    listed = job_named(job_id).get("steps")
-    assert isinstance(listed, list), f"the {job_id!r} job declares no step list"
-    matched = [step for step in listed if isinstance(step, dict) and step.get("name") == SUITE_STEP]
-    assert len(matched) == 1, f"the {job_id!r} job has {len(matched)} steps named {SUITE_STEP!r}"
-    script = matched[0].get("run")
-    assert isinstance(script, str), f"the {job_id!r} job's suite step runs nothing"
-    return script.split()
+#: The one narrowing spelling this lane permits, and only on the catch-all. The
+#: SPACE form is refused outright rather than accommodated: `--ignore x` splits
+#: into two tokens, so a scan that accepted it could not say whether the path
+#: that follows is an exclusion or a target.
+IGNORE_PREFIX = "--ignore="
 
 
 #: Every flag that can make pytest collect LESS than its target names. The arm
@@ -1792,85 +1831,294 @@ def narrowing_selectors(tokens: list[str]) -> list[str]:
     return found
 
 
-def test_the_two_shards_partition_the_suite_with_no_gap_and_no_overlap() -> None:
-    """CS-896 - a shard is exactly where a directory stops being tested silently.
+def suite_shards() -> dict[str, list[str]]:
+    """Every shard of this lane, DERIVED from the parsed workflow.
 
-    THE FIRST VERSION OF THIS ARM READ ONE SIDE AND AN ADVERSARY WALKED THROUGH
-    THE OTHER. It took the wide shard's ignore list and the narrow shard's
-    target and argued a partition from the pair, which says nothing at all about
-    what the NARROW shard additionally excludes. Adding one ignore and one
-    marker expression to the save job dropped 244 of its 1413 tests - the whole
-    of tests/save/test_phase4_gate.py, including the test CS-448's acceptance
-    names - and this file, the drift guard and the pre-commit gate all stayed
-    green. The docstring claimed the gap case was covered while the gap was
-    reachable in one line.
+    THE SHARD SET USED TO BE TWO IDS WRITTEN OUT AS LITERALS, and CS-1060 is
+    what that cost. Adding a third job turned three arms red for the wrong
+    reason and left two more SILENTLY NARROWED - the parallel arm and the
+    partition arm both went on grading the pair they named while the new shard
+    was covered by neither. MEASURED on this very edit, before this function
+    existed: with the third job appended and nothing else changed, the parallel
+    arm passed over a shard it had never looked at.
 
-    SO THE PARTITION IS NOW ARGUED FROM THE COMPLETE SELECTOR SET OF BOTH
-    SHARDS. The wide shard may narrow itself exactly once, by the ignore that
-    names the narrow shard; the narrow shard may not narrow itself at all. Any
-    other selector on either side fails, by NAME, because the failure has to say
-    which flag reintroduced the hole.
+    SO NO SHARD COUNT IS WRITTEN ANYWHERE IN THIS MODULE. Not a number, not a
+    ``len(...) == n``, not a tuple of ids. A count is the same defect as the
+    pair of literals it would replace: it is a second copy of a fact the
+    workflow already states, and the copy is the one that drifts.
+
+    Returns:
+        Every job carrying a step named :data:`SUITE_STEP`, by id, mapped to
+        that step's command split into tokens.
     """
-    wide = suite_invocation(JOB_ID)
-    narrow = suite_invocation(SAVE_JOB_ID)
-
-    wide_selectors = narrowing_selectors(wide)
-    narrow_selectors = narrowing_selectors(narrow)
-    narrow_targets = [token for token in narrow if token.startswith(SUITE_ROOT)]
-
-    assert SUITE_ROOT in wide, f"the wide shard names no explicit target directory: {wide}"
-    assert narrow_targets == [SHARD_BOUNDARY], (
-        f"the narrow shard runs {narrow_targets}, not [{SHARD_BOUNDARY!r}]"
+    shards: dict[str, list[str]] = {}
+    duplicated: list[str] = []
+    for job_id, job in every_parsed_job().items():
+        matched = [
+            step
+            for step in (job.get("steps") or [])
+            if isinstance(step, dict) and step.get("name") == SUITE_STEP
+        ]
+        if not matched:
+            continue
+        if len(matched) > 1:
+            duplicated.append(f"{job_id} declares {len(matched)}")
+            continue
+        script = matched[0].get("run")
+        assert isinstance(script, str), f"job {job_id!r} suite step runs nothing"
+        shards[job_id] = script.split()
+    assert duplicated == [], (
+        f"a job declares more than one step named {SUITE_STEP!r}: {duplicated}. The"
+        " arms below read one command per shard, so a second one is uncovered"
     )
-    assert wide_selectors == [f"--ignore={SHARD_BOUNDARY}"], (
-        f"the wide shard's narrowing selectors are {wide_selectors}; it may narrow itself"
-        f" exactly once, by the ignore naming {SHARD_BOUNDARY!r}, or the two shards are"
-        " not a partition"
+    assert shards, f"{WORKFLOW_RELATIVE} declares no shard running {SUITE_STEP!r}"
+    return shards
+
+
+def after_pytest(tokens: list[str]) -> list[str]:
+    """The arguments pytest itself receives, with python's own flags dropped.
+
+    SCANNING STARTS AFTER `pytest` AND THAT IS NOT A DETAIL - the command is
+    `python -m pytest ...`, so a scan over the whole token list reads PYTHON's
+    -m as pytest's marker expression.
+
+    Args:
+        tokens: A pytest command, already split.
+
+    Returns:
+        Every token after the literal ``pytest``.
+    """
+    assert "pytest" in tokens, f"this command does not invoke pytest: {tokens}"
+    return tokens[tokens.index("pytest") + 1 :]
+
+
+def is_target(token: str) -> bool:
+    """Whether ``token`` names a path inside the suite root.
+
+    The boundary is a `/` rather than a prefix, so a sibling directory whose
+    name merely starts with the same letters is not read as a target.
+
+    Args:
+        token: One token of a pytest command.
+
+    Returns:
+        True for the suite root itself and for anything properly under it.
+    """
+    return token == SUITE_ROOT or token.startswith(SUITE_ROOT + "/")
+
+
+def shard_targets(tokens: list[str]) -> list[str]:
+    """The paths one shard hands pytest, in command order.
+
+    Args:
+        tokens: A pytest command, already split.
+
+    Returns:
+        Every target token, in order.
+    """
+    return [token for token in after_pytest(tokens) if is_target(token)]
+
+
+def shard_ignores(tokens: list[str]) -> list[str]:
+    """The `--ignore=` exclusions one shard states, in command order.
+
+    Args:
+        tokens: A pytest command, already split.
+
+    Returns:
+        Every ``--ignore=<path>`` token, in order.
+    """
+    return [token for token in after_pytest(tokens) if token.startswith(IGNORE_PREFIX)]
+
+
+def test_the_two_shards_partition_the_suite_with_no_gap_and_no_overlap() -> None:
+    """CS-896 and CS-1060 - a shard is exactly where a directory stops being tested.
+
+    THE NAME SAYS TWO AND THE ARM COUNTS NONE. It is kept because `docs/LEDGER.md`
+    cites it by name and that file is append-only by its own header, so the
+    pointer cannot be repaired by an edit there. What the arm grades is stated
+    below and holds for ANY number of shards.
+
+    THE FIRST VERSION READ ONE SIDE AND AN ADVERSARY WALKED THROUGH THE OTHER.
+    It took the wide shard's ignore list and the narrow shard's target and
+    argued a partition from the pair, which says nothing about what the narrow
+    shard additionally excludes. Adding one ignore and one marker expression to
+    the save job dropped 244 of its 1413 tests - the whole of
+    tests/save/test_phase4_gate.py - while this file, the drift guard and the
+    pre-commit gate all stayed green.
+
+    THE SECOND VERSION NAMED ITS TWO SHARDS AS LITERALS, which is the fault
+    CS-1060 repairs. A third shard was outside every sentence the arm could
+    make, so the lane could grow a job that ran tests nothing here reasoned
+    about.
+
+    THE ARGUMENT, FOR ANY N, AND IT NEEDS NO COUNT:
+
+      1. Exactly one shard names the bare suite root. That shard is the
+         CATCH-ALL, identified by what it runs rather than by its id.
+      2. Every other shard names its own explicit paths properly under the
+         suite root, and narrows itself NOT AT ALL.
+      3. The catch-all's ignores are exactly the union of the other shards'
+         targets - one ignore per target, no duplicates, nothing else.
+      4. No two claimed targets nest at a path boundary.
+
+    (1) and (3) make the catch-all `tests` MINUS that union, so nothing is run
+    twice. (2) and (4) make the union disjoint and every claimed path really
+    collected by the shard that claims it, so nothing is run by no one. A target
+    added without its ignore is an OVERLAP; an ignore added without its target
+    is a GAP. Both are red here, and neither is argued from a shard count.
+    """
+    shards = suite_shards()
+    targets = {job_id: shard_targets(tokens) for job_id, tokens in shards.items()}
+    ignores = {job_id: shard_ignores(tokens) for job_id, tokens in shards.items()}
+
+    # (1) EXACTLY ONE CATCH-ALL, found by what it runs.
+    catch_all = sorted(job_id for job_id, named in targets.items() if named == [SUITE_ROOT])
+    assert len(catch_all) == 1, (
+        f"the shards naming the bare {SUITE_ROOT!r} target are {catch_all}; exactly one"
+        f" shard may be the catch-all, because the partition is {SUITE_ROOT!r} minus the"
+        f" other shards' targets. The shards are { {key: targets[key] for key in targets} }"
     )
-    assert narrow_selectors == [], (
-        f"the narrow shard narrows itself with {narrow_selectors}; whatever those exclude"
-        " is run by NEITHER shard and both jobs stay green over it"
+    catch = catch_all[0]
+    others = sorted(job_id for job_id in shards if job_id != catch)
+    assert others, (
+        f"only the catch-all shard {catch!r} runs the suite, so this lane is not"
+        " sharded at all and the arm below would be grading nothing"
+    )
+
+    # (2) EVERY OTHER SHARD NAMES ITS OWN PATHS AND NARROWS ITSELF NOT AT ALL.
+    for job_id in others:
+        named = targets[job_id]
+        assert named, f"the {job_id!r} shard names no target under {SUITE_ROOT!r}: {shards[job_id]}"
+        outside = [name for name in named if not name.startswith(SUITE_ROOT + "/")]
+        assert outside == [], (
+            f"the {job_id!r} shard names {outside}, which are not proper paths under"
+            f" {SUITE_ROOT + '/'!r}, so the catch-all cannot exclude them by name"
+        )
+        assert ignores[job_id] == [], (
+            f"the {job_id!r} shard excludes {ignores[job_id]}; whatever those name is run"
+            " by NEITHER shard, and both jobs stay green over it"
+        )
+
+    # (3) THE CATCH-ALL IGNORES EXACTLY THE UNION OF THE OTHERS' TARGETS.
+    claimed = [name for job_id in others for name in targets[job_id]]
+    repeated = sorted({name for name in claimed if claimed.count(name) > 1})
+    assert repeated == [], (
+        f"{repeated} are claimed by more than one shard, so those tests run twice on"
+        " every push and the catch-all's single ignore hides it"
+    )
+    assert sorted(ignores[catch]) == sorted(IGNORE_PREFIX + name for name in claimed), (
+        f"the catch-all shard {catch!r} excludes {sorted(ignores[catch])} while the other"
+        f" shards claim {sorted(claimed)}. Each claimed target needs exactly one"
+        f" {IGNORE_PREFIX!r} on the catch-all: a target without one is run twice, and an"
+        " ignore without one is run by nobody"
+    )
+
+    # (4) NO CLAIMED TARGET SITS INSIDE ANOTHER.
+    nested = sorted(
+        f"{inner} sits inside {outer}"
+        for outer in claimed
+        for inner in claimed
+        if inner != outer and inner.startswith(outer + "/")
+    )
+    assert nested == [], (
+        f"{nested}; a nested pair makes the union ambiguous and the single ignore that"
+        " covers the outer path silently covers the inner one too"
+    )
+
+
+def test_no_shard_narrows_itself_by_any_route_the_ignore_list_cannot_name() -> None:
+    """CS-896 - a partition argued from targets alone is defeated in one flag.
+
+    MEASURED: adding `--ignore=tests/save/test_phase4_gate.py` and `-m "not slow"`
+    to a shard dropped 244 of its 1413 tests while every guard, gate and arm in
+    this repository stayed green. So the COMPLETE selector set of every shard is
+    read, and the only narrowing permitted anywhere is the catch-all's own
+    `--ignore=` list - which the arm above has already matched against the other
+    shards' targets.
+
+    THE SPACE FORM IS REFUSED SEPARATELY AND ON PURPOSE. `--ignore tests/save`
+    splits into a bare `--ignore` and a path that then reads as a TARGET, so a
+    scan that tolerated it would classify an exclusion as a claim. It is named
+    here rather than absorbed, so the failure says which spelling was written.
+    """
+    shards = suite_shards()
+    targets = {job_id: shard_targets(tokens) for job_id, tokens in shards.items()}
+
+    spaced = sorted(job_id for job_id, tokens in shards.items() if "--ignore" in tokens)
+    assert spaced == [], (
+        f"{spaced} write the SPACE form of an ignore. Only {IGNORE_PREFIX!r} is"
+        " readable here: the path after a bare --ignore is indistinguishable from a"
+        " target, so the partition above would count an exclusion as a claim"
+    )
+
+    catch_all = [job_id for job_id, named in targets.items() if named == [SUITE_ROOT]]
+    assert len(catch_all) == 1, f"the catch-all shards are {sorted(catch_all)}"
+    catch = catch_all[0]
+
+    offending: list[str] = []
+    for job_id, tokens in shards.items():
+        permitted = shard_ignores(tokens) if job_id == catch else []
+        found = narrowing_selectors(tokens)
+        if sorted(found) != sorted(permitted):
+            offending.append(f"{job_id} -> {found}")
+    assert offending == [], (
+        f"{offending} narrow themselves by a route the partition cannot see. The"
+        f" catch-all may narrow itself only by its {IGNORE_PREFIX!r} list, and no other"
+        " shard may narrow itself at all"
     )
 
 
 def test_both_shards_run_in_parallel_because_one_of_them_owns_an_open_item() -> None:
-    """CS-448 - the flag its acceptance names must be pinned on the shard that runs it.
+    """CS-448 - the flag its acceptance names must be pinned on EVERY shard that runs it.
 
-    Only the wide job's invocation was ever asserted to carry ``-n auto``, and
-    the test CS-448 is filed against lives in the NARROW one. MEASURED: deleting
-    the flag from the save job alone left every arm in this module and the drift guard green,
-    so the acceptance could have been silently ungenerated by a one-word edit.
+    THE NAME SAYS BOTH AND THE ARM READS EVERY SHARD. It is kept because
+    `docs/LEDGER.md` cites it by name and that file is append-only.
+
+    Only the catch-all job's invocation was ever asserted to carry ``-n auto``,
+    and the test CS-448 is filed against lives elsewhere. MEASURED twice:
+    deleting the flag from the save job alone left every arm in this module and
+    the drift guard green, and a THIRD shard appended with no flag at all was
+    invisible to the id pair this arm used to name.
     """
-    for job_id in (JOB_ID, SAVE_JOB_ID):
-        tokens = suite_invocation(job_id)
-        joined = " ".join(tokens)
-        assert "-n auto" in joined, f"the {job_id!r} shard does not run in parallel: {joined!r}"
+    serial = sorted(
+        job_id for job_id, tokens in suite_shards().items() if "-n auto" not in " ".join(tokens)
+    )
+
+    assert serial == [], (
+        f"the {serial} shards do not run in parallel, so each of them reverts to serial"
+        " and puts this lane back over the cutoff while saying nothing about why"
+    )
 
 
 def test_no_third_job_runs_the_suite_without_being_part_of_the_partition() -> None:
-    """CS-896 - the partition is over EVERY job, not over the two it names.
+    """CS-896 and CS-1060 - the partition is over EVERY job that runs pytest.
 
-    A third job added later that ran its own pytest would be outside the
-    argument above, and the arm would keep passing while the lane silently ran
-    something a fourth reader knows nothing about. The set of suite-running jobs
-    is pinned instead of assumed.
+    A job that ran its own pytest outside the shard table would be outside the
+    argument above, and the partition arm would keep passing while the lane
+    silently ran something nobody reasoned about.
+
+    BOTH SIDES ARE DERIVED FROM THE PARSED DOCUMENT AND NEITHER IS A LIST. The
+    shard table is every job carrying a step named :data:`SUITE_STEP`; the other
+    side is every job whose steps mention pytest at all, whatever the step is
+    called. A job that invoked pytest from a step under another name would show
+    up on the second side and not the first, which is exactly the hole this arm
+    exists to close - and the previous version, which compared against two
+    hardcoded ids, could not see it once a third id was legitimate.
     """
-    jobs = workflow_document().get("jobs")
-    assert isinstance(jobs, dict), f"{WORKFLOW_RELATIVE} declares no jobs mapping"
-
-    running = sorted(
+    invoking = sorted(
         job_id
-        for job_id, job in jobs.items()
-        if isinstance(job, dict)
-        and any(
+        for job_id, job in every_parsed_job().items()
+        if any(
             isinstance(step, dict) and "pytest" in str(step.get("run", ""))
             for step in (job.get("steps") or [])
         )
     )
 
-    assert running == sorted([JOB_ID, SAVE_JOB_ID]), (
-        f"the jobs that run pytest are {running}; the partition above reasons about"
-        f" exactly {sorted([JOB_ID, SAVE_JOB_ID])} and says nothing about any other"
+    assert sorted(suite_shards()) == invoking, (
+        f"the jobs invoking pytest are {invoking} but the shard table is"
+        f" {sorted(suite_shards())}. Every job that runs the suite must do it from a"
+        f" step named {SUITE_STEP!r}, or the partition above says nothing about it"
     )
 
 
@@ -1883,31 +2131,37 @@ def test_every_job_reports_its_own_duration_with_the_identical_step() -> None:
     was filed about.
 
     THE STEP IS COPIED RATHER THAN SHARED, because a job key cannot be written
-    once for two jobs, and its shell carries three refusals that took a
-    measurement each to find. A copy that drifts keeps one of them and loses the
-    other, so the two are asserted BYTE-IDENTICAL rather than merely both
+    once for several jobs, and its shell carries five refusals that took a
+    measurement each to find. A copy that drifts keeps one of them and loses
+    another, so every copy is asserted BYTE-IDENTICAL rather than merely
     present.
+
+    THE JOB SET IS THE PARSER'S, NOT A PAIR OF LITERALS. MEASURED on this edit:
+    with the ids written out, appending a third job turned this arm red for the
+    wrong reason - it reported an unexpected id rather than a missing report -
+    and the natural repair was to add the id, which is how a list stops grading.
     """
-    jobs = workflow_document().get("jobs")
-    assert isinstance(jobs, dict), f"{WORKFLOW_RELATIVE} declares no jobs mapping"
-
     scripts: dict[str, str] = {}
-    for job_id, job in jobs.items():
-        if not isinstance(job, dict):
+    wrong: list[str] = []
+    for job_id, job in every_parsed_job().items():
+        matched = [
+            step
+            for step in (job.get("steps") or [])
+            if isinstance(step, dict) and step.get("name") == REPORT_STEP
+        ]
+        if len(matched) != 1:
+            wrong.append(f"{job_id} declares {len(matched)}")
             continue
-        for step in job.get("steps") or []:
-            if isinstance(step, dict) and step.get("name") == REPORT_STEP:
-                scripts[job_id] = str(step.get("run"))
+        scripts[job_id] = str(matched[0].get("run"))
 
-    reporting = sorted(scripts)
-    assert reporting == sorted([JOB_ID, SAVE_JOB_ID]), (
-        f"the jobs carrying a {REPORT_STEP!r} step are {reporting}, so some job can"
-        " reach the cutoff without reporting the duration it took"
+    assert wrong == [], (
+        f"{wrong} steps named {REPORT_STEP!r}; every job in this lane must report its"
+        " own duration exactly once, or it can reach the cutoff reporting nothing"
     )
     distinct = sorted(set(scripts.values()))
     assert len(distinct) == 1, (
-        f"the {len(scripts)} duration steps are NOT identical, so one shard grades its"
-        " duration by rules the other does not"
+        f"the duration steps of {sorted(scripts)} are NOT identical, so one shard grades"
+        " its duration by rules the others do not"
     )
 
 
@@ -1976,25 +2230,47 @@ def test_every_duration_report_runs_on_every_outcome() -> None:
     nothing on exactly the runs worth measuring - a red or cancelled lane. The
     workflow's own comment calls this "the load-bearing half"; nothing asserted
     it, and MEASURED, deleting the key from one shard left every arm green.
-    """
-    jobs = workflow_document().get("jobs")
-    assert isinstance(jobs, dict), f"{WORKFLOW_RELATIVE} declares no jobs mapping"
 
+    THE JOB SET IS THE PARSER'S. It was a pair of ids, and a third job appended
+    with no report step at all turned this arm red for the wrong reason.
+    """
     conditions: dict[str, object] = {}
-    for job_id, job in jobs.items():
-        if not isinstance(job, dict):
-            continue
+    for job_id, job in every_parsed_job().items():
         for step in job.get("steps") or []:
             if isinstance(step, dict) and step.get("name") == REPORT_STEP:
                 conditions[job_id] = step.get("if")
 
-    assert sorted(conditions) == sorted([JOB_ID, SAVE_JOB_ID]), (
-        f"the jobs carrying a {REPORT_STEP!r} step are {sorted(conditions)}"
+    missing = sorted(job_id for job_id in every_parsed_job() if job_id not in conditions)
+    assert missing == [], (
+        f"{missing} carry no {REPORT_STEP!r} step at all, so they report nothing on any"
+        " outcome whatever their condition says"
     )
     silent = sorted(job_id for job_id, value in conditions.items() if value != "always()")
     assert silent == [], (
         f"the duration report in {silent} does not run on every outcome, so those shards"
         " report nothing on precisely the runs worth measuring"
+    )
+
+
+def jobs_without_a_cutoff(jobs: dict[str, Any]) -> list[str]:
+    """Every job of ``jobs`` that states no runaway cutoff.
+
+    SEPARATED FROM THE ARM THAT USES IT SO IT CAN BE GRADED. An arm that reads
+    the shipped tree and finds nothing wrong is a statement about the shipped
+    tree and NOT about the arm: it passes identically whether it looks at
+    :data:`TIMEOUT_KEY` or at nothing at all. Lifting the question out lets the
+    arm below hand it a document with a known hole and check it says so.
+
+    Args:
+        jobs: A jobs mapping, parsed from the workflow or synthesised from one.
+
+    Returns:
+        The ids stating no :data:`TIMEOUT_KEY`, sorted.
+    """
+    return sorted(
+        str(job_id)
+        for job_id, job in jobs.items()
+        if not isinstance(job, dict) or job.get(TIMEOUT_KEY) is None
     )
 
 
@@ -2014,18 +2290,56 @@ def test_every_job_the_parser_sees_states_the_runaway_cutoff() -> None:
     guard means to ask: does EVERY job GitHub will actually run declare the
     cutoff?
     """
-    jobs = workflow_document().get("jobs")
-    assert isinstance(jobs, dict), f"{WORKFLOW_RELATIVE} declares no jobs mapping"
-
-    uncapped = sorted(
-        str(job_id)
-        for job_id, job in jobs.items()
-        if not isinstance(job, dict) or job.get("timeout-minutes") is None
-    )
+    uncapped = jobs_without_a_cutoff(dict(every_parsed_job()))
 
     assert uncapped == [], (
         f"{uncapped} declare no {TIMEOUT_KEY!r}, so they run under the platform default"
         " rather than this lane's runaway cutoff"
+    )
+
+
+def test_a_shard_that_states_no_cutoff_is_named_rather_than_walked_past() -> None:
+    """CS-1060 - the arm above passes over the shipped tree, and only over that.
+
+    THE CLAUSE THE ACCEPTANCE ASKS FOR. A cutoff check that has only ever seen a
+    healthy document is a check nobody has measured: it reports the same empty
+    list whether it reads :data:`TIMEOUT_KEY`, reads a key that does not exist,
+    or reads nothing. So each shard's cutoff is REMOVED IN TURN and the detector
+    is required to name that shard and only that shard.
+
+    IN TURN, AND NOT ONCE. A detector that stopped at the first job, or that
+    reported the LAST hole it found, passes a single-mutation grading and then
+    misses the shard nobody thought to try. Every job the parser resolves is
+    mutated here, and the failure names each one that escaped rather than the
+    first.
+
+    THE MUTATION IS APPLIED TO A COPY. The shipped workflow is never written to
+    - a graded mutation that touched the tree would poison every sibling arm in
+    this run and, if the process were killed mid-grade, would survive on disk.
+    """
+    jobs = every_parsed_job()
+    escaped: list[str] = []
+    for job_id in sorted(jobs):
+        mutated: dict[str, Any] = {}
+        for other, job in jobs.items():
+            copied = dict(job)
+            if other == job_id:
+                copied.pop(TIMEOUT_KEY, None)
+            mutated[other] = copied
+        assert TIMEOUT_KEY not in mutated[job_id], (
+            f"the mutation never landed on {job_id!r}, so this iteration graded the"
+            " unmutated document and a surviving detector is indistinguishable from a"
+            " working one"
+        )
+        named = jobs_without_a_cutoff(mutated)
+        if named != [job_id]:
+            escaped.append(f"{job_id} -> {named}")
+
+    assert escaped == [], (
+        f"{escaped}. A shard whose {TIMEOUT_KEY!r} is deleted must be named by"
+        " :func:`jobs_without_a_cutoff`, and by it alone; a shard the detector walks"
+        " past runs under the platform's 360-minute default while this lane reports"
+        " that every job is capped"
     )
 
 

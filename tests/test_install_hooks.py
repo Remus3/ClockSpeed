@@ -34,9 +34,11 @@ WHAT IS MEASURED HERE AND WHAT IS NOT, stated plainly, because an unexplained sk
 mute button the defect gets to press.
 
   On POSIX the mode bits are real, the two exec-bit arms RUN, and the integer read back
-  off disk is the whole of what they assert. `.github/workflows/tier1.yml` runs
-  `python -m pytest tests --ignore=tests/save` on `ubuntu-latest` and this module is not
-  under `tests/save`, so it is graded there on every push; `tier2.yml` runs the full
+  off disk is the whole of what they assert. `.github/workflows/tier1.yml` shards the
+  suite across several `ubuntu-latest` jobs that partition it exactly - the invocations
+  are the one owner of which shard runs what, and `tests/test_tier1_budget.py` holds them
+  to a partition - so this module is graded there on every push whichever shard collects
+  it, and naming that shard here would be a restated fact. `tier2.yml` runs the full
   suite on an os matrix carrying `ubuntu-latest` as well.
 
   On Windows the filesystem has no POSIX exec bit to set. `os.chmod` honours only the

@@ -152,7 +152,16 @@ ERROR_LIMIT = queue_loop.DEFAULT_MAX_CONSECUTIVE_ERRORS
 LAUNCH_FAILURE_LIMIT = queue_loop.DEFAULT_MAX_CONSECUTIVE_LAUNCH_FAILURES
 MAX_ASCII = 0x7E
 
-TIER1_GREEN = (("gates, lint, types, tests", "success"), ("tests (save shard)", "success"))
+#: ONE ENTRY PER REQUIRED MATCHER IN `queue_loop.CI_TIER1`. A fixture short of
+#: a matcher does not grade green - it grades `unavailable`, because the grader
+#: answers about the TOOL when a required job is absent - so a shard added to
+#: the spec and not to this tuple turns every arm below into an assertion about
+#: a payload the workflow never emits.
+TIER1_GREEN = (
+    ("gates, lint, types, tests", "success"),
+    ("tests (save shard)", "success"),
+    ("tests (guard shard)", "success"),
+)
 TIER2_GREEN = (
     ("full suite (ubuntu-latest)", "success"),
     ("full suite (windows-latest)", "success"),
@@ -367,6 +376,50 @@ def test_the_local_suite_runner_never_raises_on_a_broken_runner():
 def test_all_required_jobs_green_grades_success():
     verdict, _ = queue_loop.grade_ci_jobs(queue_loop.CI_TIER1, jobs_payload(TIER1_GREEN))
     assert verdict == queue_loop.CI_SUCCESS
+
+
+def test_the_green_fixtures_carry_one_job_per_required_matcher():
+    """The known-good control over the fixtures the arms above are built from.
+
+    A fixture missing a matcher does not fail loudly - it grades `unavailable`,
+    which several arms below would read as "not success" and accept for the
+    wrong reason. Read from the SPEC, never hand-counted, so adding a shard to
+    the driver reddens here instead of quietly rewriting what these arms mean.
+    """
+    for spec, fixture in ((queue_loop.CI_TIER1, TIER1_GREEN), (queue_loop.CI_TIER2, TIER2_GREEN)):
+        names = [name for name, _ in fixture]
+        missing = [m for m in spec.required if not any(n.startswith(m) for n in names)]
+        assert not missing, f"{spec.workflow} fixture carries no job for matcher(s) {missing}"
+
+
+def test_a_required_shard_that_was_skipped_is_not_success():
+    """THE UNGRADED-SHARD CASE, at the grader rather than at the workflow file.
+
+    Without a matcher of its own a shard is neither required nor advisory, and
+    the grader's tail accepts `skipped` alongside `success` - so a guard shard
+    that never ran would read as a green tier1 and the lane would push the next
+    row onto a main nothing measured. With the matcher the verdict is `skipped`.
+    """
+    jobs = [
+        (name, "skipped" if name == "tests (guard shard)" else conclusion)
+        for name, conclusion in TIER1_GREEN
+    ]
+    verdict, detail = queue_loop.grade_ci_jobs(queue_loop.CI_TIER1, jobs_payload(jobs))
+    assert verdict != queue_loop.CI_SUCCESS
+    assert verdict == queue_loop.CI_SKIPPED
+    assert "tests (guard shard)" in detail
+
+
+def test_a_required_shard_the_run_never_reached_is_unavailable():
+    """The same defect one step earlier: the job is absent from the payload.
+
+    An answer about the TOOL, never a pass - the shape `grade_ci_jobs` already
+    gives a renamed workflow, now reaching the shard the lane grades.
+    """
+    without_guards = [row for row in TIER1_GREEN if row[0] != "tests (guard shard)"]
+    verdict, detail = queue_loop.grade_ci_jobs(queue_loop.CI_TIER1, jobs_payload(without_guards))
+    assert verdict == queue_loop.CI_UNAVAILABLE
+    assert "tests (guard shard)" in detail
 
 
 def test_one_failed_matrix_leg_fails_the_whole_workflow():

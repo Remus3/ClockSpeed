@@ -387,9 +387,28 @@ jobs:
       # roughly 2x slower for subprocess-heavy work - so the profile has to be
       # taken here or not at all. It costs nothing: pytest already times every
       # test, and the threshold keeps the sub-5s tail out of the log.
+      #
+      # THIS IS THE CATCH-ALL LEG OF THE PARTITION (CS-1060), and the ignores are
+      # NOT a trim. Each one names a target of another shard, one for one, and
+      # tests/test_tier1_budget.py derives the two lists from this file and fails
+      # unless they match exactly: a target without its ignore runs twice, an
+      # ignore without its target runs nowhere. The `--ignore=` spelling is the
+      # only one those arms accept - the space form would make the path that
+      # follows it indistinguishable from a target.
       - name: Unit tests
         run: >-
-          python -m pytest tests --ignore=tests/save -q -n auto --dist loadfile
+          python -m pytest tests
+          --ignore=tests/save
+          --ignore=tests/test_hook_interpreter_ladder.py
+          --ignore=tests/test_liveness.py
+          --ignore=tests/test_commit_msg_gate.py
+          --ignore=tests/test_pre_push_ref_race.py
+          --ignore=tests/test_mypy_gate.py
+          --ignore=tests/test_docs_citations.py
+          --ignore=tests/test_toolpath.py
+          --ignore=tests/test_precommit_gate.py
+          --ignore=tests/test_chained_cause_census.py
+          -q -n auto --dist loadfile
           --durations=15 --durations-min=5.0
 
       # -- The comparison CS-896's acceptance clause asks for. --
@@ -560,6 +579,155 @@ jobs:
       - name: Unit tests
         run: >-
           python -m pytest tests/save -q -n auto --dist loadfile
+          --durations=15 --durations-min=5.0
+
+      - name: Duration against the budget
+        if: always()
+        run: |
+          if [ -z "${TIER1_STARTED:-}" ]; then
+            echo "FAIL: no start was recorded, so there is nothing to compare against."
+            echo "Refusing to report a duration this job did not measure."
+            exit 1
+          fi
+          case "$TIER1_STARTED" in
+            *[!0-9]*)
+              echo "FAIL: the recorded start is not a whole number of seconds."
+              echo "Refusing to report a duration this job did not measure."
+              exit 1
+              ;;
+          esac
+          ELAPSED=$(( $(date +%s) - TIER1_STARTED ))
+          if [ "$ELAPSED" -lt 0 ]; then
+            echo "FAIL: the clock ran backwards - elapsed came out as ${ELAPSED}s."
+            echo "Refusing to report a duration this job did not measure."
+            exit 1
+          fi
+          BUDGET="${TIER1_BUDGET_SECONDS:-}"
+          CEILING="${TIER1_CEILING_SECONDS:-}"
+          # THE LEVELS GET THE SAME REFUSAL THE START DOES, FOR THE SAME REASON.
+          # MEASURED 2026-09-06 (session 65), against this very script: with
+          # either level empty or carrying a unit, `[ 900 -gt "" ]` exits 2 with
+          # `integer expression expected` on stderr - and an `if` CONDITION is
+          # exempt from `set -e`, so the script did NOT stop. Both comparisons
+          # fell through to `else`, and a 900-second run printed
+          # `tier 1 took 900s - within budget` and exited 0.
+          #
+          # So the healthiest verdict this step can print was exactly what it
+          # printed when its own configuration was broken. The comment above
+          # already claimed every meaningless number "has to end in a refusal
+          # rather than in a cheerful verdict"; all three refusals it shipped
+          # guarded TIER1_STARTED and neither level had one.
+          case "$BUDGET" in
+            "" | *[!0-9]*)
+              echo "FAIL: TIER1_BUDGET_SECONDS is '${BUDGET}', not a whole number of seconds."
+              echo "Refusing to report a duration against a level this job cannot read."
+              exit 1
+              ;;
+          esac
+          case "$CEILING" in
+            "" | *[!0-9]*)
+              echo "FAIL: TIER1_CEILING_SECONDS is '${CEILING}', not a whole number of seconds."
+              echo "Refusing to report a duration against a level this job cannot read."
+              exit 1
+              ;;
+          esac
+          if [ "$ELAPSED" -gt "$CEILING" ]; then
+            VERDICT="OVER THE CEILING"
+          elif [ "$ELAPSED" -gt "$BUDGET" ]; then
+            VERDICT="over budget"
+          else
+            VERDICT="within budget"
+          fi
+          LINE="tier 1 took ${ELAPSED}s - ${VERDICT}"
+          DETAIL="budget ${BUDGET}s, ceiling ${CEILING}s"
+          echo "${LINE} (${DETAIL})"
+          {
+            echo "### tier 1 duration"
+            echo ""
+            echo "| level | seconds |"
+            echo "| --- | --- |"
+            echo "| elapsed | ${ELAPSED} |"
+            echo "| budget | ${BUDGET} |"
+            echo "| ceiling | ${CEILING} |"
+            echo ""
+            echo "${LINE} (${DETAIL})"
+          } >> "$GITHUB_STEP_SUMMARY"
+          if [ "$ELAPSED" -gt "$CEILING" ]; then
+            echo "::error::${LINE} (${DETAIL})"
+            echo "The ceiling sits BELOW the runaway cutoff on purpose, so this is a"
+            echo "failure naming a number rather than a cancellation naming none."
+            exit 1
+          fi
+          if [ "$ELAPSED" -gt "$BUDGET" ]; then
+            echo "::warning::${LINE} (${DETAIL})"
+            echo "Over budget is a REPORT, not a failure - the lane must never be red"
+            echo "for runner noise. The ceiling is what fails it."
+          fi
+
+  # -- THE THIRD SHARD, AND THE MEASUREMENT THAT FORCED IT (CS-1060). --
+  #
+  # MEASURED: the fast shard reached 583s against a 480s ceiling. THE CEILING WAS
+  # NOT RAISED AND MUST NOT BE, nor the budget, nor the cutoff - guard (k) ratchets
+  # all three in BOTH directions, and raising a level to meet a slow lane is the
+  # move CS-896 exists to refuse. With every level fixed the only remaining move is
+  # a third runner, so the work is PARTITIONED again rather than trimmed: every test
+  # that ran before still runs on every push, in one shard or another.
+  #
+  # THE BALANCE IS DERIVED, NOT GUESSED, the way the env block above derives its
+  # levels. Measured locally over the whole of the old fast shard: 607.7 CPU seconds
+  # in total. The nine files below are its subprocess-heavy guard and gate modules
+  # and account for 300.3 of that; the catch-all remainder is 307.4. The split is
+  # even to within 7 CPU seconds, so neither shard alone decides the lane.
+  #
+  # THE PARTITION IS HELD BY tests/test_tier1_budget.py AND IT IS DERIVED FOR ANY N.
+  # Exactly one shard runs the bare `tests` target and carries one `--ignore=` per
+  # target of every other shard; no other shard narrows itself at all. A target added
+  # here without its ignore above is an OVERLAP and an ignore above without a target
+  # here is a GAP - both are red, and neither is argued from a shard count.
+  #
+  # NO GATES HERE, for the reason the save shard already states: the character set,
+  # lint, format, doc budget, drift, link and type gates all read the WHOLE TREE, so
+  # running them again in this job would measure the same bytes twice and pay twice.
+  guards:
+    name: tests (guard shard)
+    runs-on: ubuntu-latest
+    # THE SAME CUTOFF AS EVERY OTHER JOB, and guard (k) pins this one too. A shard is
+    # not a licence to run long.
+    timeout-minutes: 10
+    defaults:
+      run:
+        shell: bash
+
+    steps:
+      - name: Record the start
+        run: echo "TIER1_STARTED=$(date +%s)" >> "$GITHUB_ENV"
+
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.14'
+          cache: pip
+          cache-dependency-path: pyproject.toml
+
+      - name: Install toolchain
+        run: python -m pip install -e ".[dev]"
+
+      # THE THIRD LEG OF THE PARTITION. Explicit targets, never a bare recursive
+      # invocation from the repo root - CONVENTIONS.md section 7.1. Every path here is
+      # named as an `--ignore=` on the catch-all shard above, and the arms in
+      # tests/test_tier1_budget.py are red unless the two lists match exactly.
+      - name: Unit tests
+        run: >-
+          python -m pytest
+          tests/test_hook_interpreter_ladder.py tests/test_liveness.py
+          tests/test_commit_msg_gate.py tests/test_pre_push_ref_race.py
+          tests/test_mypy_gate.py tests/test_docs_citations.py
+          tests/test_toolpath.py tests/test_precommit_gate.py
+          tests/test_chained_cause_census.py
+          -q -n auto --dist loadfile
           --durations=15 --durations-min=5.0
 
       - name: Duration against the budget

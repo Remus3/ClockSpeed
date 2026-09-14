@@ -104,7 +104,7 @@ def test_the_parser_actually_finds_the_jobs_it_claims_to():
     """The known-good control. Everything below is vacuous without it."""
     tier1 = declared_job_names("tier1.yml")
     tier2 = declared_job_names("tier2.yml")
-    assert set(tier1) == {"fast", "save"}, tier1
+    assert set(tier1) == {"fast", "save", "guards"}, tier1
     assert set(tier2) >= {"suite", "clean-checkout-probe", "audits"}, tier2
 
 
@@ -138,6 +138,41 @@ def test_every_advisory_matcher_still_matches_a_declared_job(spec):
         if not any(name == m or name.startswith(m) or m.startswith(name) for name in declared)
     ]
     assert not unmatched, f"{spec.workflow}: advisory matchers matching nothing: {unmatched}"
+
+
+@pytest.mark.parametrize("spec", queue_loop.CI_SPECS, ids=lambda s: s.workflow)
+def test_every_declared_job_is_covered_by_some_matcher(spec):
+    """Every job a workflow declares must be covered by some matcher.
+
+    THE REVERSE DIRECTION. The two arms above ask matcher -> job; this one asks
+    job -> matcher, and nothing in this suite asked it before.
+
+    Add a shard to a workflow and touch nothing else and the driver grades it
+    by accident or not at all: a guard shard that is SKIPPED, or that the run
+    never reached, is not a required matcher and is not advisory, so the
+    grader's tail accepts it and the verdict is `success`. The lane then pushes
+    the next row onto a main whose new shard was never measured.
+
+    COVERAGE IS ONE-WAY ON PURPOSE. A declared name is a TEMPLATE; what CI
+    reports is that name with `${{ ... }}` expanded, so the literal prefix is
+    all this file can know. Matcher `m` is guaranteed to match EVERY expansion
+    only when the declared prefix itself starts with `m` - the symmetric test
+    the forward arms use would let a declared `tests` count as covered by a
+    matcher `tests (save shard)`, which matches no job the workflow can emit.
+    """
+    declared = declared_job_names(spec.workflow)
+    matchers = (*spec.required, *spec.advisory)
+    uncovered = {
+        key: name
+        for key, name in declared.items()
+        if not any(_matchable(name).startswith(m) for m in matchers)
+    }
+    assert not uncovered, (
+        f"{spec.workflow} declares job(s) no matcher covers: {uncovered}. "
+        f"Neither required nor advisory, so the driver grades them by accident: "
+        f"a skipped or never-reached one reads as success and the lane ships on "
+        f"a shard nobody measured. Matchers are {matchers}"
+    )
 
 
 @pytest.mark.parametrize("spec", queue_loop.CI_SPECS, ids=lambda s: s.workflow)
