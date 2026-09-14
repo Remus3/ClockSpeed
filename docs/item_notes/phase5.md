@@ -75,8 +75,8 @@ by references and per-machine properties that the decoder already recovers and t
 seam already drops. The mechanism is verified - an `ObjectProperty` value decodes, and
 `RecordIndex.records_for` resolves an object path to every record bearing that name.
 
-**WRITE-LIST:** `clockspeed/audit/network.py`, `clockspeed/audit/machines.py`,
-`tests/audit/test_network.py`, `tests/audit/test_machines.py`. **DEPENDS ON:** CS-1039.
+**WRITE-LIST:** NEW `network` and `machines` modules under `clockspeed/audit/`, and one
+NEW arm module under `tests/audit/` for each of them. **DEPENDS ON:** CS-1039.
 **TIER 2, NO GAME NEEDED.** **PUBLISHES:** `WorldNetwork` - mined node keys, belt and pipe
 edges keyed by an INDEX into the placement population and NEVER by instance name, circuit
 membership, and the counts that are its own denominators; `WorldMachines` - per-record
@@ -93,7 +93,8 @@ MECHANISM is verified; the PROPERTY NAME is not. Measure it before building on i
 A spike reported that CS-405 "probes the wrong field" because `mInventoryPotential` is an
 ObjectProperty resolving to an inventory component rather than the overclock float. **That
 correction was already known and the spike's claim is REFUTED.** Verified this session by
-reading the module: `tests/save/test_inventory_potential.py:12-17` already records that
+reading the module: `tests/save/test_inventory_potential.py`'s module docstring, under
+its heading WHAT THE TAG WAS ALREADY MEASURED TO BE, already records that
 `mInventoryPotential` decodes as an ObjectProperty - a level string and an object path - and
 not as a bare integer, and states that this refutes the naive reading of YES without
 establishing NO because a count may live BEHIND the reference; ADR 0009 records what the
@@ -127,8 +128,8 @@ crystal classes and their marks, the spawnable pickups, the drop pods, the crash
 and the resource deposits; the collected stems seen in the pairs are a different and
 non-overlapping population.
 
-**WRITE-LIST:** `clockspeed/audit/collectibles.py`, `tests/audit/test_collectibles.py`.
-**DEPENDS ON:** CS-1038 for the pairs and CS-1039 for the seam. **TIER 2, NO GAME NEEDED.**
+**WRITE-LIST:** a NEW `collectibles` module under `clockspeed/audit/`, and one NEW arm
+module for it under `tests/audit/`. **DEPENDS ON:** CS-1038 for the pairs and CS-1039 for the seam. **TIER 2, NO GAME NEEDED.**
 **PUBLISHES:** `WorldCollectibles` - one row per uncollected item with its transform,
 per-class counts, a skipped count, and a `collected_state_available` flag.
 
@@ -161,9 +162,9 @@ modelled groups and `clockspeed/progress/` holds a docstring and a seam comment 
 at all, so the project cannot name one milestone, its cost, its tier, or a space-elevator
 phase cost. That is the whole of the milestone-requirements panel.
 
-**WRITE-LIST:** `clockspeed/progress/milestones.py`, `clockspeed/progress/phases.py`,
-`tests/progress/__init__.py`, `tests/progress/test_milestones.py`,
-`tests/progress/test_phases.py`. **DEPENDS ON:** CS-1039 for `UnlockState`, including the HUB
+**WRITE-LIST:** NEW `milestones` and `phases` modules under `clockspeed/progress/`,
+and a NEW `tests/progress/` package - its `__init__` plus one arm module for each of the
+two modules above. **DEPENDS ON:** CS-1039 for `UnlockState`, including the HUB
 tier from `mTradingPostLevel` and the phase from `mCurrentGamePhase`. **TIER 2, NO GAME
 NEEDED** - a hand-authored synthetic schematic document; the rule suite must run with no
 install.
@@ -228,8 +229,8 @@ That is the honest outcome, not a failure.
 against the registry alone with no world bound into it, nothing multiplies a per-class draw
 by a built count, and no rule anywhere compares a machine's input to its output.
 
-**WRITE-LIST:** `clockspeed/audit/balance.py`, `tests/audit/test_balance.py`.
-**DEPENDS ON:** CS-1041. **TIER 2, NO GAME NEEDED** - synthetic registry and synthetic
+**WRITE-LIST:** a NEW `balance` module under `clockspeed/audit/`, and one NEW arm
+module for it under `tests/audit/`. **DEPENDS ON:** CS-1041. **TIER 2, NO GAME NEEDED** - synthetic registry and synthetic
 world. **PUBLISHES:** `WorldBalance` - production and consumption, an unmodeled-contributor
 count, the imbalanced record set, and the connected edge set the panel outlines red.
 
@@ -262,13 +263,14 @@ structurally on 2026-09-13 to be exactly a 1024 by 1024 byte square - reading th
 bytes lands exactly on the next property tag. That is a map-shaped raster of the player's
 own explored area, in a file this project is already allowed to read.
 
-**WRITE-LIST:** `clockspeed/audit/underlay.py`, `clockspeed/advisor/annotations.py`,
-`tests/audit/test_underlay.py`, `tests/advisor/__init__.py`,
-`tests/advisor/test_annotations.py`. **DEPENDS ON:** CS-1039. **TIER 2, NO GAME NEEDED** -
+**WRITE-LIST:** a NEW `underlay` module under `clockspeed/audit/` with one NEW arm
+module for it under `tests/audit/`, a NEW `annotations` module under `clockspeed/advisor/`,
+and a NEW `tests/advisor/` package - its `__init__` plus one arm module for that. **DEPENDS ON:** CS-1039. **TIER 2, NO GAME NEEDED** -
 synthetic raster bytes and a synthetic annotation store.
 
 **THE REGISTRATION FENCE, WHICH INVALIDATES THE OBVIOUS IMPLEMENTATION.**
-`WorldBounds` (`clockspeed/audit/placement.py:378`) bounds THIS WORLD'S PLACEMENTS and moves
+`WorldBounds` (`clockspeed/audit/placement.py::WorldBounds`) bounds THIS WORLD'S
+PLACEMENTS and moves
 every time the operator builds anything. **A transform registered against it drifts under
 the operator's own hands and must NEVER be built.** The honest registration without the
 shipped constants is the raster's own fixed square grid plus a config-overridable world

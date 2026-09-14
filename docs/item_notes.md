@@ -263,9 +263,9 @@ a pass - every equality here is satisfied for free by an empty population.
 | CS-603 | `docs/item_notes/phase6.md` |
 | CS-608 | `docs/item_notes/phase6.md` |
 | CS-613 | `docs/item_notes/phase6.md` |
-| CS-1038 | `docs/item_notes/phase4.md` |
-| CS-1039 | `docs/item_notes/phase4.md` |
-| CS-1040 | `docs/item_notes/phase4.md` |
+| CS-1038 | `docs/item_notes/phase4-followups-900.md` |
+| CS-1039 | `docs/item_notes/phase4-followups-900.md` |
+| CS-1040 | `docs/item_notes/phase4-followups-900.md` |
 | CS-1041 | `docs/item_notes/phase5.md` |
 | CS-1042 | `docs/item_notes/phase5.md` |
 | CS-1043 | `docs/item_notes/phase5.md` |
@@ -292,6 +292,10 @@ THE FIRST SWEEP OF THAT POPULATION WAS INCOMPLETE: it keyed on the block name
 same defect in miniature - a population derived from the shape in front of you rather
 than from the shape itself. A pointer that still names `docs/history_notes.md` names a
 block that is genuinely still there.
+
+**A WRITE-LIST NAMES A FILE IT WILL CREATE BY DIRECTORY AND STEM, NEVER AS A PATH.** An
+unbuilt path is a dead citation to `tests/test_docs_citations.py`, whose only routes are
+ratcheted budgets.
 
 **A pointer inside a body saying "this file" means the leaf that body sits in.** Every
 one of those was measured before the 2026-08-25 split and every one is a self-reference

@@ -480,6 +480,9 @@ GUARDED_DOCS: Final = (
     # staying live - an ADR whose subject has been renamed out from under it
     # argues about nothing.
     "docs/adr/0017-the-lane-forks-the-shared-loop-modules.md",
+    # Unguarded on arrival 2026-09-13; both argue from what they name.
+    "docs/adr/0019-the-map-underlay-and-the-purity-declaration.md",
+    "memory/full-authority-adjudicate-do-not-ask.md",
     # The headless queue lane's worker prompt (CS-918). Guarded on arrival
     # rather than recorded, because every path in it resolves today AND because
     # of who reads it: an unattended worker, once per cycle, with nobody

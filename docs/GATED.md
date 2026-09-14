@@ -14,6 +14,16 @@ Gated IDs use the `CS-G` series. They are permanent and never reused. When a gat
 unblocks, it moves to `ROADMAP.md` under its own `CS-G` ID and closes into
 `docs/LEDGER.md` under the same ID.
 
+**NAMING A LIVE ROADMAP ID ANYWHERE IN THIS FILE FENCES THAT ROW OUT OF THE HEADLESS
+LANE.** `ops/loop/scope.py`'s `gated_ids` fences every `CS-` id this file NAMES, wherever
+it names it, and that wide reading is DELIBERATE - it errs toward refusing a row rather
+than taking one it should not, and it is not the thing to weaken. The cost lands here
+instead: a live row merely DISCUSSED in gate prose is fenced out too, which has already
+happened to a row that was the most visible deliverable open. **So a PREP-half carrier,
+or any row this file's own prose calls workable, is described by what it does and NEVER
+by its number.** Spell an id only where the gate genuinely blocks that row, which is the
+one case where fencing it is the correct outcome.
+
 ---
 
 ## The rule that protects this file
@@ -154,13 +164,15 @@ project already reads, and `FGResourceNode.h` declares `mPurity` with NO `SaveGa
 specifier. A property without `SaveGame` is structurally incapable of being serialized into
 a save ON ANY BUILD. `mResourceClass` and `mResourceNodeType` are the same. **Purity is not
 in any save and no future session should re-derive that.** The reasoning is recorded in
-`docs/adr/0019-the-map-underlay-and-the-purity-declaration.md` and the headers index that
-answers questions of this shape once and for all is CS-1040.
+`docs/adr/0019-the-map-underlay-and-the-purity-declaration.md`, and the roadmap row that
+builds a `SaveGame`-specifier index over those shipped headers answers questions of this
+shape once and for all.
 
 **WHAT THIS DOES NOT DO.** It does not make purity obtainable. The shipped assets remain the
 only conceivable source, and reaching them is what the NEW block below prevents. The honest
 substitute shipping in the meantime - an operator annotation whose published provenance
-reads operator and never measured, CS-1048 - is a SCOPE CHANGE recorded as one. **It is not
+reads operator and never measured, carried by the roadmap row that owns the map underlay
+and the purity annotation - is a SCOPE CHANGE recorded as one. **It is not
 this gate clearing, and it must never be written up as one.** This file's rule against
 synthetic closure covers exactly that move.
 
@@ -183,7 +195,16 @@ without deleting them:**
 
 **WHAT IS NOT GATED BY THIS, so the gate does not grow by accident.** `Headers.zip` is an
 ordinary zip of text sitting beside a file this project already reads; nothing in it touches
-a pak, so the Oodle Data gate does not reach it and CS-1040 is an ordinary roadmap item.
+a pak, so the Oodle Data gate does not reach it and the header-index row is an ordinary
+roadmap item.
+
+**AND THE GATE WOULD NOT YIELD THE MAP TRANSFORM EVEN IF IT CLEARED.** Read directly from
+the shipped headers: `mUpperLeftWorld` and `mWorldToMapScale` carry NO `UPROPERTY` macro at
+all, and the declaring class overrides neither `Serialize` nor `PostLoad`. A member with no
+`UPROPERTY` is not written into the cooked asset either, so no pak extraction reaches it
+and no Oodle verdict changes that. This is strictly stronger than "they live behind Oodle":
+the fit-and-prove derivation is not the preferred path for the map transform, it is the
+ONLY path.
 
 **PREP half, workable now, unchanged in spirit:** the node-data interface both paths must
 satisfy, the fixtures, and the declared availability flags every consumer already reads.
@@ -197,19 +218,29 @@ extractors, and the geometry that defines them is level geometry inside the paks
 recorded under CS-G01 above. No amount of work inside this repo reaches it.
 
 **Measured 2026-09-13.** `FGWaterVolume` declares `mCanPlaceExtractor` - exactly the flag
-the requirement wants - but it is `EditDefaultsOnly` level geometry, and there are ZERO
-water-volume type paths anywhere in the save. The save cannot answer this question.
+the requirement wants - but it is `EditDefaultsOnly` level geometry.
+
+**RE-MEASURED AGAINST THE SHIPPED HEADERS: THE SAVE IS NOT SILENT, IT IS EMPTY, AND THE
+DIFFERENCE MATTERS.** It holds three object references to ONE named level actor,
+`FGWaterVolume30_0`, and they carry no geometry. `FGWaterVolume` declares ZERO `SaveGame`
+properties, so no build of it ever serializes one. A reference to a volume is not the
+volume, and a later session reading "zero water-volume type paths" would go looking for
+paths that are in fact there and conclude the earlier measurement was wrong. The save
+still cannot answer this question.
 
 **THE THREE-PUMP PARTIAL WAS CONSIDERED AND IS REJECTED BY NAME, so nobody re-proposes it.**
 The only water points the save confirms are the three built pumps, through each one's own
 extractable-resource reference. Shipping those three as "water coverage" would imply that
 every unmarked water body is unusable - silently wrong rather than flagged, which is the
 non-negotiable 7 trap precisely. **Ship `water_regions_available: false` and draw nothing**,
-as CS-1044 already specifies, until the verdict lands.
+as the map-model row already specifies, until the verdict lands.
 
 **PREP half, workable now:** the availability flag, and the panel rendering that says
-UNAVAILABLE rather than drawing an empty map and letting a reader infer no water. CS-1044
-and CS-1047 carry both.
+UNAVAILABLE rather than drawing an empty map and letting a reader infer no water. The
+roadmap row that models the map's categories, extents and elevation order carries the
+flag; the row that renders the map panel carries the UNAVAILABLE rendering. Both are
+workable today and neither is named here by number, for the reason this file's header
+gives.
 
 ### CS-G02 - External LP/ILP optimizer dependency
 
