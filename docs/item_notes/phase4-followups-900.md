@@ -1715,6 +1715,49 @@ save file, no header bytes, no account id, no world name.
 record of what was wrong; the ADR should say what is true. Do not delete the false lines
 silently - an ADR that quietly loses a claim it once made is a document nobody can audit.
 
+## CS-1054
+
+### Filed 2026-09-14
+
+**THE ARM IS NOT FLAKY AND MUST NOT BE TREATED AS FLAKY.** It PASSED inside the whole-suite
+pre-push run at `9f4fe6d` - 7560 passed, zero failed - and FAILED on that same commit, with
+a clean tree and nothing rebuilt, roughly 25 minutes later. Nothing in the repository
+changed between the two runs. What moved was its CORPUS: the operator's live save library,
+which this project reads and does not own.
+
+**WHY IT IS AN ASSERTION AND NOT A SKIP, IN THE AUTHOR'S OWN WORDS.** The arm says an empty
+population satisfies every equality below it, so refusing to skip is deliberate - a skip
+here would mute the finding rather than report it. That design is CORRECT and is not what
+this item changes. This repo has separately measured that a gate which skips its checks
+still reports PASS.
+
+**WHAT IT REPORTED.** A byte census found 172810 struct type words inside the graded pair's
+80801 records while the module's own reading found NO site in them at all. The arm calls
+that evidence destroyed rather than an absent corpus.
+
+**THERE ARE TWO CANDIDATE CAUSES AND THIS ITEM MUST NOT PICK ONE BEFORE MEASURING.**
+Either the reader has a genuine gap against save content that appeared in the last half
+hour - new shapes the census counts and the reading cannot see - or the census counts words
+the reading correctly excludes and the disagreement is in the oracle. **A third possibility
+is that the graded pair is selected from a mutable directory and the two runs did not
+measure the same thing at all**, which is the one that makes the other two unanswerable.
+Settle that first; nothing else can be concluded until a run can say WHICH corpus it read.
+
+**DO NOT RELAX THE ARM TO RECOVER GREEN.** That is the repair this project refuses by name.
+An arm that stops reporting a disagreement has not resolved it. Equally, do not convert it
+to a skip - see above.
+
+**CLAUDE.md SECTION 7 IS THE BACKGROUND TENSION, NOT A VERDICT.** Fixtures are synthetic and
+the rule suite must run with no game installed - and it does, which is why CI is green and
+the no-install gate passes at 245. This arm is deliberately library-backed because its whole
+subject is real bytes. The fix is therefore NOT to make it synthetic; it is to make it say
+what it measured, so a red is attributable.
+
+**THE STANDING HAZARD THIS INSTANCE PROVES.** The operator plays while sessions run. Any
+library-backed measurement can change under a session without a commit, so a library-backed
+red must be re-checked against the base commit before it is attributed to the work in hand -
+and a library-backed GREEN is evidence only about the library that existed when it ran.
+
 ## CS-1052
 
 ### Filed 2026-09-14
