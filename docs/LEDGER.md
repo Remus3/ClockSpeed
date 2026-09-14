@@ -374,7 +374,12 @@ machine-checked artifact that produces it.
 
 ## Entries
 
-### 2026-09-13 - CS-300, CS-854 - CORRECTION RECORD. The CS-300 entry below cites `tests/data/test_phase2_gate.py` BY LINE, that line is now blank, and this file forbids the edit that would repair it
+### 2026-09-13 - CS-300, CS-854 - CORRECTION RECORD. NOT A COMPLETION RECORD. NOTHING CLOSED. The CS-300 entry below cites `tests/data/test_phase2_gate.py` BY LINE, that line is now blank, and this file forbids the edit that would repair it
+
+**CS-854 STAYS OPEN and this entry does not close it.** It is named in the head only
+because its acceptance clause was the other half of this repair - the clause transcribed
+three line numbers while demanding a population not transcribed from them, and it now names
+symbols instead. The sweep it asks for has not been done.
 
 **THIS ENTRY CORRECTS THE CS-300 ENTRY BELOW IT, which is append-only and therefore not
 edited.** That entry cites `tests/data/test_phase2_gate.py:775-781` to support its claim that

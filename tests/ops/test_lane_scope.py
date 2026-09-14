@@ -105,8 +105,8 @@ CS-410 is discussed here and this gate does not block it.
 
 ```
 CLOCKSPEED-GATE-CLASSIFICATION BEGIN
-CS-470 BLOCKED CS-G01
-CS-410 MENTIONED
+gate: CS-470 BLOCKED CS-G01
+gate: CS-410 MENTIONED
 CLOCKSPEED-GATE-CLASSIFICATION END
 ```
 """
@@ -950,7 +950,7 @@ def test_a_row_this_file_merely_mentions_is_takeable(tmp_path: Path) -> None:
     """
     root = _write_corpus(tmp_path, {})
     (root / "docs" / "GATED.md").write_bytes(
-        _gated_text("CS-470 BLOCKED CS-G01", "CS-410 MENTIONED").encode("ascii")
+        _gated_text("gate: CS-470 BLOCKED CS-G01", "gate: CS-410 MENTIONED").encode("ascii")
     )
 
     takeable = frozenset(row.item_id for row in scope.rows_for_scope(None, root))
@@ -968,7 +968,7 @@ def test_a_row_a_gate_blocks_is_refused_and_reported_as_gated(tmp_path: Path) ->
     """
     root = _write_corpus(tmp_path, {})
     (root / "docs" / "GATED.md").write_bytes(
-        _gated_text("CS-470 BLOCKED CS-G01", "CS-410 MENTIONED").encode("ascii")
+        _gated_text("gate: CS-470 BLOCKED CS-G01", "gate: CS-410 MENTIONED").encode("ascii")
     )
 
     classification = scope.gate_classification(root)
@@ -994,7 +994,9 @@ def test_an_id_the_block_does_not_classify_is_fenced_and_named(tmp_path: Path) -
         tmp_path: pytest temporary directory.
     """
     root = _write_corpus(tmp_path, {})
-    (root / "docs" / "GATED.md").write_bytes(_gated_text("CS-470 BLOCKED CS-G01").encode("ascii"))
+    (root / "docs" / "GATED.md").write_bytes(
+        _gated_text("gate: CS-470 BLOCKED CS-G01").encode("ascii")
+    )
 
     classification = scope.gate_classification(root)
     report = scope.render_report(
@@ -1030,11 +1032,11 @@ def test_dropping_one_classification_line_flips_that_row_from_takeable_to_fenced
     """
     classified = _write_corpus(tmp_path / "classified", {})
     (classified / "docs" / "GATED.md").write_bytes(
-        _gated_text("CS-470 BLOCKED CS-G01", "CS-410 MENTIONED").encode("ascii")
+        _gated_text("gate: CS-470 BLOCKED CS-G01", "gate: CS-410 MENTIONED").encode("ascii")
     )
     dropped = _write_corpus(tmp_path / "dropped", {})
     (dropped / "docs" / "GATED.md").write_bytes(
-        _gated_text("CS-470 BLOCKED CS-G01").encode("ascii")
+        _gated_text("gate: CS-470 BLOCKED CS-G01").encode("ascii")
     )
 
     before = scope.gated_ids(classified)
@@ -1061,7 +1063,9 @@ def test_an_id_classified_twice_over_is_unclassified_rather_than_resolved(
     """
     root = _write_corpus(tmp_path, {})
     (root / "docs" / "GATED.md").write_bytes(
-        _gated_text("CS-470 BLOCKED CS-G01", "CS-470 MENTIONED", "CS-410 MENTIONED").encode("ascii")
+        _gated_text(
+            "gate: CS-470 BLOCKED CS-G01", "gate: CS-470 MENTIONED", "gate: CS-410 MENTIONED"
+        ).encode("ascii")
     )
 
     classification = scope.gate_classification(root)

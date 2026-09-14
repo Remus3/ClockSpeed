@@ -156,7 +156,7 @@ _CLASSIFY_END = "CLOCKSPEED-GATE-CLASSIFICATION END"
 #: like a classification must not unfence a row, or quoting the mechanism inside
 #: the file it governs would switch it off - the fenced-block trap
 #: `.githooks/commit-msg` already records one instance of.
-_CLASSIFY_LINE = re.compile(r"^(CS-[0-9]+) (?:BLOCKED (CS-G[0-9]+)|MENTIONED)$")
+_CLASSIFY_LINE = re.compile(r"^gate: (CS-[0-9]+) (?:BLOCKED (CS-G[0-9]+)|MENTIONED)$")
 
 #: Any item id INCLUDING the ``CS-G`` gated series, which a ledger heading can
 #: name alongside ordinary ids. Tokenising the G series too is what keeps the
