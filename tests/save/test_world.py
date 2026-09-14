@@ -5283,3 +5283,162 @@ def test_the_unlock_state_renders_no_object_path() -> None:
         assert rendered != f"{short}()", (
             "the rendering collapsed to a bare type name, which withholds by saying nothing at all"
         )
+
+
+# --- the asset-path allowlist at the save seam ------------------------------
+#
+# PUBLISHING THE PHASE'S ASSET PATH WAS RULED PERMITTED WITH A NAMED GUARD, and
+# the guard is what these arms grade. A /Game/FactoryGame/... path is shipped
+# content, byte-identical on every install, carrying no account id, world name,
+# Windows user or home path - and clockspeed/surface/api/world.py already
+# publishes objects.UnknownClass.type_path verbatim on that same ground.
+#
+# THE RISK IS THE NEXT FIELD, NOT THIS ONE. objects.ObjectReference's docstring
+# says all three of its fields are WORLD CONTENT and that object_path is THE
+# JOIN KEY matched against a record's instance_name. Nothing in that population
+# structurally separates a shipped asset path from a record instance path, so
+# field two would reach the wire with no friction. These three arms are what
+# make adding one a deliberate act rather than an oversight.
+
+#: A record instance path, shaped exactly as the object table writes one. THE
+#: ATTACK VALUE: world content that decodes cleanly, looks like every other
+#: string on ``references``, and is the join key the reference population exists
+#: to carry.
+_INSTANCE_PATH_ATTACK: Final = f"{synthetic.DECODABLE_ROOT}.GP_NotAnAsset_C_0"
+
+#: THE SAME ATTACK, WEARING A PERMITTED ROOT, and it exists because without it
+#: the separator clause was graded by nothing. Measured: deleting the separator
+#: check left all three arms GREEN, because the path above is refused by the
+#: ROOT check first and the two clauses were never told apart. This value passes
+#: the root check and can only be refused by the separator, so each clause now
+#: has an input that isolates it.
+_ROOTED_INSTANCE_PATH_ATTACK: Final = (
+    f"/Game/FactoryGame/Map/{synthetic.DECODABLE_ROOT}.GP_NotAnAsset_C_0"
+)
+
+#: A path under a root the allowlist does not name. Shipped content, so this is
+#: not an attack - it is the arm that tells an ALLOWLIST from a denylist, which
+#: would admit anything it had not thought to forbid.
+_UNPERMITTED_ROOT_PATH: Final = "/Engine/Transient/GP_Phase3.GP_Phase3_C"
+
+
+def _phase_record(path: str) -> tuple[str, str, bytes]:
+    """One game-phase carrier record whose phase reference names ``path``.
+
+    Args:
+        path: The object path to pack into the reference.
+
+    Returns:
+        The ``(class path, instance name, encoded tag)`` triple.
+    """
+    return (
+        *_adr_carrier("mCurrentGamePhase"),
+        synthetic.property_tag(
+            "mCurrentGamePhase", objects.REFERENCE_TYPE_WORD, _asset_reference(path)
+        ),
+    )
+
+
+def test_a_record_instance_path_packed_into_the_phase_is_refused() -> None:
+    """THE ACTUAL ATTACK: world content that looks exactly like a good value.
+
+    A record instance path is what ``objects.ObjectReference.object_path``
+    carries everywhere else in the reference population - it is the join key.
+    Packed into ``mCurrentGamePhase`` it decodes cleanly, survives the tag
+    grammar, and is indistinguishable from the shipped asset path by anything
+    except the guard. If it reached :class:`world.UnlockState` it would reach
+    every layer above the save seam, and the endpoint publishes that field.
+
+    THE CONTROL IS THAT THE SAME FIXTURE WORKS WITH A GOOD PATH. Without it,
+    an arm asserting None passes against a fixture that decoded nothing at all.
+    """
+    good = world.load_world_from_bytes(_carrier_blob((_phase_record(_GAME_PHASE_ASSET),))).unlocks
+    assert good.current_game_phase == _GAME_PHASE_ASSET, (
+        "the fixture did not decode a phase even with a permitted path, so the "
+        "refusal below would prove nothing"
+    )
+
+    for attack in (_INSTANCE_PATH_ATTACK, _ROOTED_INSTANCE_PATH_ATTACK):
+        attacked = world.load_world_from_bytes(_carrier_blob((_phase_record(attack),))).unlocks
+        assert attacked.current_game_phase is None, (
+            "a record instance path reached the published unlock state, so "
+            f"world content crosses the save seam into every layer above: {attack!r}"
+        )
+        assert attacked.is_empty
+
+    # THE ROOTED VARIANT MUST REACH THE SEPARATOR CHECK TO GRADE IT. It passes
+    # the root check by construction, so if this stops holding the arm above is
+    # back to grading one clause twice.
+    roots = world.UNLOCK_ASSET_ROOTS["current_game_phase"]
+    assert any(_ROOTED_INSTANCE_PATH_ATTACK.startswith(root) for root in roots), (
+        "the rooted attack no longer passes the allowlist, so the separator "
+        "check is masked by the root check and is graded by nothing"
+    )
+
+
+def test_the_asset_root_check_is_an_allowlist_and_not_a_denylist() -> None:
+    """A DENYLIST ADMITS WHATEVER IT DID NOT THINK TO FORBID.
+
+    This repository has measured one defect wearing four different fields
+    across four GREEN commits, where only an allowlist of good values held. So
+    the check is asserted to REFUSE a path that carries no instance separator
+    and is perfectly well-formed shipped content, purely because its root is
+    not named - which a denylist keyed on the attack shape would admit.
+    """
+    assert _INSTANCE_SEPARATOR_ABSENT(_UNPERMITTED_ROOT_PATH), (
+        "the unpermitted-root fixture carries an instance separator, so this "
+        "arm would pass through the separator check and grade nothing"
+    )
+    unlocks = world.load_world_from_bytes(
+        _carrier_blob((_phase_record(_UNPERMITTED_ROOT_PATH),))
+    ).unlocks
+
+    assert unlocks.current_game_phase is None, (
+        "a path under an unnamed root was published, so the check admits "
+        f"anything it was not told to refuse: {unlocks!r}"
+    )
+    roots = world.UNLOCK_ASSET_ROOTS["current_game_phase"]
+    assert roots, "the allowlist is empty, so every path would be refused for that reason"
+    assert not any(_UNPERMITTED_ROOT_PATH.startswith(root) for root in roots)
+
+
+def _INSTANCE_SEPARATOR_ABSENT(path: str) -> bool:  # noqa: N802 - reads as a predicate
+    """Whether a path carries no level separator.
+
+    Args:
+        path: The object path.
+
+    Returns:
+        True when the separator is absent.
+    """
+    return ":" not in path
+
+
+def test_an_unclassified_reference_field_fails_closed() -> None:
+    """THE GUARD MUST FAIL CLOSED ON A FIELD NOBODY CLASSIFIED.
+
+    ``_UNLOCK_REFERENCE_FIELDS`` holds one name today. The day a second joins
+    it, the question "may this field's strings cross?" has to be ANSWERED
+    rather than defaulted - and a guard that publishes an unclassified field
+    answers it silently with yes. So the classification is asserted to cover
+    the set exactly, and the narrowing is asserted to refuse a field absent
+    from it rather than pass it through.
+
+    BOTH HALVES ARE NEEDED. The structural half alone is satisfied by a
+    narrowing that ignores its classification entirely; the behavioural half
+    alone is satisfied while a field sits in the set unclassified.
+    """
+    unclassified = sorted(world._UNLOCK_REFERENCE_FIELDS - set(world.UNLOCK_ASSET_ROOTS))  # noqa: SLF001
+    assert unclassified == [], f"reference field(s) no allowlist entry classifies: {unclassified}"
+    assert world._UNLOCK_REFERENCE_FIELDS, "the field set is empty, so this arm grades nothing"  # noqa: SLF001
+
+    admitted = world._permitted_asset_path("current_game_phase", _GAME_PHASE_ASSET)  # noqa: SLF001
+    assert admitted == _GAME_PHASE_ASSET, (
+        "a classified field refuses a permitted path, so the refusal below is "
+        "not evidence of failing CLOSED - it refuses everything"
+    )
+    refused = world._permitted_asset_path("a_field_nobody_classified", _GAME_PHASE_ASSET)  # noqa: SLF001
+    assert refused is None, (
+        "an unclassified field published its value, so the guard fails OPEN: "
+        "a name joining the reference set reaches the wire unreviewed"
+    )

@@ -1469,15 +1469,88 @@ UNLOCK_CARRIERS_UNREAD: Final = (
 #: arrive on different attributes of :class:`RecordProperties`.
 _UNLOCK_PATH_FIELDS: Final = frozenset({"purchased_schematics", "recipes"})
 
-#: The one field read from :attr:`RecordProperties.references` rather than from
+#: WHICH ASSET ROOTS A REFERENCE FIELD MAY PUBLISH, PER FIELD. An ALLOWLIST and
+#: never a denylist: this repository has measured a denylist leaking four times,
+#: once across four green commits wearing a different field each time, and only
+#: an allowlist of good values held.
+#:
+#: THE RISK THIS GUARDS IS NOT THE FIELD IT HOLDS TODAY, IT IS THE SECOND ONE.
+#: ``objects.ObjectReference``'s own docstring says all three of its fields are
+#: WORLD CONTENT and that ``object_path`` is THE JOIN KEY matched against a
+#: record's ``instance_name``. Nothing in that population structurally separates
+#: a shipped asset path from a record instance path - both are strings on the
+#: same attribute - so a second name added to :data:`_UNLOCK_REFERENCE_FIELDS`
+#: would reach the published state, and from there the wire, with no friction at
+#: all. The allowlist is what makes that addition a deliberate act.
+#:
+#: WHY ``/Game/`` IS PERMITTED TO CROSS. A ``/Game/FactoryGame/...`` path is
+#: SHIPPED content, byte-identical on every install, and carries no account id,
+#: no world name, no Windows user and no home path - so it is outside
+#: non-negotiables 3, 11 and 12 rather than excused from them. It is also an
+#: established category rather than a new exposure: ``clockspeed/surface/api/
+#: world.py`` already publishes ``objects.UnknownClass.type_path`` verbatim on
+#: exactly that justification.
+UNLOCK_ASSET_ROOTS: Final[Mapping[str, tuple[str, ...]]] = MappingProxyType(
+    {
+        "current_game_phase": ("/Game/",),
+    }
+)
+
+#: The character an object path uses to separate its LEVEL from the object
+#: inside it - ``Persistent_Level:PersistentLevel.Thing_C_0``. A shipped asset
+#: path never carries one and a record instance path always does, so its
+#: presence is the structural tell the allowlist alone would miss: a world whose
+#: level happened to be named so the path began ``/Game/`` would otherwise pass
+#: the root check while naming a record.
+_INSTANCE_SEPARATOR: Final = ":"
+
+#: The fields read from :attr:`RecordProperties.references` rather than from
 #: ``values``. ADR 0016 measured that ``mCurrentGamePhase`` is a TOP-LEVEL
 #: ``ObjectProperty`` tag naming a ``GP_*`` asset, and that no ``Phase``-named
 #: property in either readable world's record table decoded to an INTEGER at
 #: all. A reader admitting only ``int`` therefore cannot read it, which is what
 #: the first cut of this item shipped.
-_UNLOCK_REFERENCE_FIELDS: Final = frozenset({"current_game_phase"})
+#:
+#: EVERY MEMBER MUST BE CLASSIFIED IN :data:`UNLOCK_ASSET_ROOTS`. A member that
+#: is not is refused at runtime rather than published unchecked - see
+#: :func:`_permitted_asset_path` - so the guard fails CLOSED on a field nobody
+#: classified instead of passing it through.
+_UNLOCK_REFERENCE_FIELDS: Final = frozenset(UNLOCK_ASSET_ROOTS)
 
 _REFERENCE_PARTS: Final = 2
+
+
+def _permitted_asset_path(field: str, path: str) -> str | None:
+    """One reference value, admitted only if it is a shipped asset path.
+
+    THREE REFUSALS, AND THE ORDER OF THEM DOES NOT MATTER BECAUSE EACH IS
+    INDEPENDENT. An unclassified field is refused, because a field nobody
+    classified is a field nobody decided about. A path carrying
+    :data:`_INSTANCE_SEPARATOR` is refused, because that is a record instance
+    path and world content. A path under no permitted root is refused, because
+    the list is of what MAY cross rather than of what may not.
+
+    THE REFUSAL IS SILENT AND THAT IS ALREADY HONEST. Every load carries
+    :data:`WARN_UNLOCK_GRAMMAR_UNMEASURED` unconditionally, so a state missing a
+    value it refused is never reported as a complete reading - which is the
+    guarantee non-negotiable 7 asks for, and it is one this function does not
+    have to make a second time.
+
+    Args:
+        field: The :class:`UnlockState` field the value would be bound to.
+        path: The object path half of the decoded reference.
+
+    Returns:
+        The path when it may be published, and None otherwise.
+    """
+    roots = UNLOCK_ASSET_ROOTS.get(field)
+    if roots is None:
+        return None
+    if _INSTANCE_SEPARATOR in path:
+        return None
+    if not any(path.startswith(root) for root in roots):
+        return None
+    return path
 
 
 def _unlock_paths(value: object) -> frozenset[str]:
@@ -1516,7 +1589,7 @@ def _unlock_paths(value: object) -> frozenset[str]:
     return frozenset(paths)
 
 
-def _unlock_reference(entry: RecordProperties, name: str) -> str | None:
+def _unlock_reference(entry: RecordProperties, name: str, field: str) -> str | None:
     """The asset path one TOP-LEVEL reference tag names, or None.
 
     READ FROM ``references`` RATHER THAN FROM ``values``, and that is the
@@ -1535,6 +1608,8 @@ def _unlock_reference(entry: RecordProperties, name: str) -> str | None:
     Args:
         entry: One record's published properties.
         name: The reference tag's property name.
+        field: The :class:`UnlockState` field it would be bound to, which is
+            what :func:`_permitted_asset_path` classifies against.
 
     Returns:
         The object path of the FIRST tag with that name, or None when the
@@ -1544,7 +1619,10 @@ def _unlock_reference(entry: RecordProperties, name: str) -> str | None:
     """
     for reference in entry.references:
         if reference.property_name == name:
-            return reference.object_path
+            # THE GUARD SITS AT THE SAVE SEAM RATHER THAN AT THE WIRE, because
+            # the wire is not the only consumer - every layer above holds the
+            # model. A value refused here never enters it.
+            return _permitted_asset_path(field, reference.object_path)
     return None
 
 
@@ -1593,7 +1671,7 @@ def _read_unlocks(
             # typed pair - see `_unlock_reference` for what ADR 0016 measured.
             if field in _UNLOCK_PATH_FIELDS:
                 paths[field].update(_unlock_paths(entry.values.get(name)))
-            elif (asset := _unlock_reference(entry, name)) is not None:
+            elif (asset := _unlock_reference(entry, name, field)) is not None:
                 assets[field] = asset
     state = UnlockState(
         purchased_schematics=frozenset(paths["purchased_schematics"]),
