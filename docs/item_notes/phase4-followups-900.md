@@ -1955,3 +1955,25 @@ runaway detector into a budget, and `tools/drift_guard.py` guard (k) pins it as 
 rather than reading it as a tunable, so any change up or down is red until the pin moves
 in the same diff with a stated reason. The remedy here is a shorter lane, never a longer
 leash.
+## CS-1067
+
+### NOTE - filed 2026-09-14 by the CS-302 verifier pass
+
+THE GAP IS THE CALLER AND NOT THE FALLBACK. `exact.isolating_rows` returning empty is
+already pinned directly, twice, in `tests/solve/test_exact.py`. What nothing reaches is
+`clockspeed/solve/ratio.py::_name_unsatisfiable_item`'s LAST return - the one that names
+`system.rows[0]` when no single row isolates the contradiction. A `trace` run over
+`tests/solve/test_ratio.py` puts ZERO hits on it while the all-zero fast path takes two
+and the isolating branch takes four. So the item a caller is handed in that case rests on
+reading the code.
+
+IT IS REACHABLE, AND THAT WAS DEMONSTRATED BEFORE IT WAS FILED. A system built from the
+CS-302 corpus generator drives it and it names the first row, exactly as its comment says.
+The finding is coverage, not correctness, and it is UNCHANGED from before CS-302 - the old
+leave-one-out loop had the same fallback and the same absence of a test through the caller.
+
+BUILD IT FROM A SYNTHETIC REGISTRY, NEVER FROM A HAND-MADE `_System`. Constructing the
+private dataclass directly would exercise the fallback while proving nothing about the
+path a caller actually takes, which is the whole of what is missing. The shape needed is a
+selected recipe set whose balance rows carry two or more INDEPENDENT contradictions, so
+that striking any single row leaves another one standing.

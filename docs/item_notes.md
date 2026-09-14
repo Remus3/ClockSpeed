@@ -32,7 +32,6 @@ mapping has one owner and this file only reports it:
 
 | Leaf | Holds |
 |---|---|
-| `docs/item_notes/phase3.md` | ROADMAP `Phase 3` |
 | `docs/item_notes/phase4.md` | ROADMAP `Phase 4`, ID BELOW the `CS-8nn` block. NOT the `CS-10nn` block - the rule sends every phase 4 ID at 900 or higher to the `CS-9nn` leaf |
 | `docs/item_notes/phase4-followups.md` | ROADMAP `Phase 4`, ID in the `CS-8nn` block below CS-850 |
 | `docs/item_notes/phase4-followups-850.md` | ROADMAP `Phase 4`, ID in the `CS-8nn` block at or above CS-850 |
@@ -88,7 +87,6 @@ a pass - every equality here is satisfied for free by an empty population.
 
 | Item | Leaf |
 |---|---|
-| CS-302 | `docs/item_notes/phase3.md` |
 | CS-400 | `docs/item_notes/phase4.md` |
 | CS-401 | `docs/item_notes/phase4.md` |
 | CS-412 | `docs/item_notes/phase4.md` |
@@ -141,6 +139,7 @@ a pass - every equality here is satisfied for free by an empty population.
 | CS-501 | `docs/item_notes/phase4.md` |
 | CS-609 | `docs/item_notes/phase6.md` |
 | CS-1065 | `docs/item_notes/phase6.md` |
+| CS-1067 | `docs/item_notes/phase4-followups-900.md` |
 | CS-614 | `docs/item_notes/phase6.md` |
 | CS-615 | `docs/item_notes/phase6.md` |
 | CS-616 | `docs/item_notes/phase6.md` |

@@ -51,6 +51,7 @@ an import that is absent, which no runtime probe can see because
 from __future__ import annotations
 
 import ast
+from collections.abc import Callable
 from fractions import Fraction
 from pathlib import Path
 from typing import Final, cast
@@ -58,7 +59,7 @@ from typing import Final, cast
 import pytest
 
 from clockspeed.data.registry import Recipe, Registry, automated_recipes
-from clockspeed.solve import ratio
+from clockspeed.solve import exact, ratio
 from tests.solve import synthetic
 
 # ---------------------------------------------------------------------------
@@ -885,6 +886,118 @@ def test_an_unbounded_supply_request_is_refused(registry: Registry) -> None:
                 byproduct_policy=ratio.BYPRODUCT_BALANCED,
             ),
         )
+
+
+# ---------------------------------------------------------------------------
+# CS-302 - the refusal diagnosis costs no solve per row
+# ---------------------------------------------------------------------------
+
+#: What a refusal may spend on elimination: the solve that discovered the
+#: contradiction, plus at most ONE pass to say which equation carries it. Not a
+#: budget that grows with the system - that growth is the whole of CS-302.
+_REFUSAL_ELIMINATIONS: Final = 2
+
+#: The attribute the counter hooks, named as a STRING so the hook goes in
+#: through ``monkeypatch.setattr`` and comes out again whatever the test does.
+_VALIDATE: Final = "_validate_system"
+
+
+def _eliminations_for(monkeypatch: pytest.MonkeyPatch, work: Callable[[], object]) -> int:
+    """How many elimination passes ``work`` ran inside the solve primitives.
+
+    Counted at ``exact._validate_system``, which every entry point that
+    eliminates calls exactly once before touching a coefficient. Measuring the
+    WORK rather than the clock is deliberate: a wall-clock bound asserted here
+    would be a statement about the machine that happened to run it, and on a fast
+    enough machine it would pass against the very implementation CS-302 replaced.
+
+    Args:
+        monkeypatch: The fixture that installs and removes the counter, so a
+            refusal raised inside ``work`` cannot leave it installed.
+        work: The call to measure. Its return value is discarded, and a refusal
+            it raises is swallowed - a refusal is the subject here.
+
+    Returns:
+        The number of elimination passes performed.
+    """
+    original = getattr(exact, _VALIDATE)
+    passes = 0
+
+    def counting(matrix: object, rhs: object) -> int:
+        nonlocal passes
+        passes += 1
+        return int(original(matrix, rhs))
+
+    monkeypatch.setattr(exact, _VALIDATE, counting)
+    try:
+        work()
+    except ratio.RatioError:
+        pass
+    finally:
+        monkeypatch.undo()
+    return passes
+
+
+def test_a_refusal_costs_a_fixed_number_of_eliminations_never_one_per_row(
+    registry: Registry, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """CS-302's acceptance: the refusal path's cost does not scale with the rows.
+
+    The diagnosis used to drop one row at a time and re-solve, which is one full
+    elimination PER ROW on top of the solve that refused. Measured against the
+    live registry that is a system of 750 rows by 872 columns, so the refusal
+    path cost three orders of magnitude more than the answer it was explaining.
+
+    NOT ZERO EXTRA PASSES, AND THE DIFFERENCE IS THE POINT. The solve that
+    discovers the contradiction is itself a pass, and naming the row costs at
+    most one more - so the budget is two, and what matters is that it is FIXED.
+    The three cases below differ in row count, which is why the second assertion
+    compares two of them to each other: a budget alone would still be met by an
+    implementation that probed once per row on a corpus this small.
+    """
+    cases = {
+        "orphan chain": _request(
+            {synthetic.SOLVE_RELIC_ITEM: _NONZERO_DEMAND}, (synthetic.ORPHAN_RECIPE,)
+        ),
+        "every recipe excluded": _request(
+            {synthetic.SOLVE_SMELTER_DESCRIPTOR: _NONZERO_DEMAND},
+            (synthetic.ZERO_DURATION_RECIPE,),
+        ),
+        "open loop under balanced": _request(
+            {synthetic.SOLVE_GADGET_ITEM: synthetic.C3_GADGET_TARGET},
+            _OPEN_LOOP_RECIPES,
+            ratio.BYPRODUCT_BALANCED,
+        ),
+    }
+
+    def refusal(request: ratio.RatioRequest) -> Callable[[], object]:
+        """Bind ONE request into a no-argument call for the counter.
+
+        A closure factory rather than a lambda with a default argument: the
+        default-argument idiom binds correctly at runtime and is exactly what
+        the repo-wide mypy gate refuses, because it cannot infer the type of a
+        lambda whose parameter carries a default.
+
+        Args:
+            request: The request to solve when the returned call is made.
+
+        Returns:
+            The call, which refuses.
+        """
+        return lambda: ratio.solve_for_targets(registry, request)
+
+    measured = {
+        name: _eliminations_for(monkeypatch, refusal(request)) for name, request in cases.items()
+    }
+    over_budget = {name: cost for name, cost in measured.items() if cost > _REFUSAL_ELIMINATIONS}
+
+    assert not over_budget, (
+        f"a refusal eliminated more than {_REFUSAL_ELIMINATIONS} times: {measured}"
+    )
+    assert measured["orphan chain"] == measured["open loop under balanced"], (
+        "two refusals over different row counts cost different numbers of eliminations, which "
+        f"is the per-row probe CS-302 removed coming back: {measured}"
+    )
 
 
 # ---------------------------------------------------------------------------

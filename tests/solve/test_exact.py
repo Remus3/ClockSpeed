@@ -29,16 +29,18 @@ from __future__ import annotations
 
 import ast
 import re
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from decimal import Decimal
 from enum import IntEnum
 from fractions import Fraction
 from itertools import permutations
 from pathlib import Path
-from typing import cast
+from typing import Final, cast
 
 import pytest
 
+from clockspeed.solve import exact as exact_module
 from clockspeed.solve.exact import (
     OUTCOME_INCONSISTENT,
     OUTCOME_UNDERDETERMINED,
@@ -49,6 +51,7 @@ from clockspeed.solve.exact import (
     UndefinedRateError,
     _pivot_row,
     audit_exact,
+    isolating_rows,
     per_minute,
     solve_linear,
     to_exact,
@@ -704,3 +707,329 @@ def test_the_deferred_power_term_is_symbolic_and_carries_no_evaluation() -> None
     assert not methods, f"DeferredPowerTerm exposes {methods}; it must stay a record"
 
     audit_exact(term, path="term")
+
+
+# ===========================================================================
+# f. isolating_rows - CS-302, the refusal diagnosis without a solve per row
+# ===========================================================================
+
+#: Row counts the scaling arm compares. The lower one is small enough to read
+#: by hand; the upper one is far enough above it that a cost linear in the row
+#: count cannot be mistaken for a constant one.
+_SMALL_CHAIN: Final = 6
+_LARGE_CHAIN: Final = 96
+
+#: The attribute the elimination counter hooks. Named as a STRING so the hook is
+#: installed through ``monkeypatch.setattr`` rather than by reaching into the
+#: module under test - the patch is temporary, and spelling it this way is what
+#: makes pytest responsible for removing it again.
+_VALIDATE: Final = "_validate_system"
+
+#: The corpus generator. An explicit recurrence, so the systems it yields are a
+#: property of this file rather than of the interpreter's random module.
+_LCG_MULTIPLIER: Final = 1103515245
+_LCG_INCREMENT: Final = 12345
+_LCG_MODULUS: Final = 2147483648
+
+#: One row in ``_DEPENDENT_ROW_ODDS`` is drawn fresh; the rest are scaled copies
+#: of an earlier row. Copies are the majority on purpose - see the generator.
+_DEPENDENT_ROW_ODDS: Final = 2
+
+#: What a fresh row's entries and a copy's scale factor are drawn from. Zeros are
+#: over-represented so the matrices are sparse, which is the shape a production
+#: chain actually has.
+_ENTRIES: Final = (0, 0, 1, -1, 2)
+_SCALES: Final = (-2, -1, 1, 2, 3)
+
+#: How much of the corpus must turn out inconsistent before the equivalence arm
+#: is worth anything. A generator that drifted into producing solvable systems
+#: would otherwise pass by checking almost nothing.
+_MIN_INCONSISTENT: Final = 60
+
+
+def _eliminations_during(monkeypatch: pytest.MonkeyPatch, work: Callable[[], object]) -> int:
+    """How many elimination passes ``work`` ran, counted at the one shared gate.
+
+    Every entry point here that eliminates - :func:`solve_linear` and
+    :func:`isolating_rows` alike - validates its system exactly once, at the top,
+    before touching a coefficient. That call is therefore a faithful counter for
+    passes over the matrix, and counting it needs no hook inside the arithmetic
+    itself. A wall clock would measure this machine; this measures the work, so
+    the arm says the same thing on a slow machine as on a fast one.
+
+    Args:
+        monkeypatch: The fixture that installs and removes the counter. Used
+            rather than a hand-rolled try/finally so a failing assertion inside
+            ``work`` cannot leave the counter installed for the next test.
+        work: The call to measure. Its return value is discarded.
+
+    Returns:
+        The number of elimination passes performed.
+    """
+    original = getattr(exact_module, _VALIDATE)
+    passes = 0
+
+    def counting(matrix: Sequence[Sequence[Fraction]], rhs: Sequence[Fraction]) -> int:
+        nonlocal passes
+        passes += 1
+        return int(original(matrix, rhs))
+
+    monkeypatch.setattr(exact_module, _VALIDATE, counting)
+    work()
+    monkeypatch.undo()
+    return passes
+
+
+def _pseudo_random_system(seed: int) -> tuple[list[list[Fraction]], list[Fraction]]:
+    """One system from a deterministic corpus dense with DEPENDENT rows.
+
+    Roughly half the rows are exact scalar multiples of an earlier one, which is
+    what drives the left null space above a single dimension. A criterion that
+    happens to work when the contradiction has one witness passes a corpus of
+    independent rows and fails here, so the duplication is the point of this
+    generator rather than an economy in it.
+
+    The generator is an explicit linear congruential recurrence rather than the
+    standard library's, so the corpus is a property of this file: the same seed
+    yields the same system on every interpreter, forever, and a case that once
+    caught a defect cannot silently stop being generated.
+
+    Args:
+        seed: Selects the system.
+
+    Returns:
+        The matrix and the right-hand side.
+    """
+    state = seed * 2 + 1
+
+    def draw(bound: int) -> int:
+        nonlocal state
+        state = (state * _LCG_MULTIPLIER + _LCG_INCREMENT) % _LCG_MODULUS
+        return state % bound
+
+    rows = 3 + draw(6)
+    columns = 1 + draw(6)
+    matrix: list[list[Fraction]] = []
+    for _ in range(rows):
+        if matrix and draw(_DEPENDENT_ROW_ODDS) != 0:
+            scale = Fraction(_SCALES[draw(len(_SCALES))])
+            matrix.append([scale * entry for entry in matrix[draw(len(matrix))]])
+            continue
+        matrix.append([Fraction(_ENTRIES[draw(len(_ENTRIES))]) for _ in range(columns)])
+    return matrix, [Fraction(draw(3) - 1) for _ in range(rows)]
+
+
+def _brute_force_isolating(
+    matrix: Sequence[Sequence[Fraction]], rhs: Sequence[Fraction]
+) -> tuple[int, ...]:
+    """The leave-one-out loop, as an ORACLE rather than as an implementation.
+
+    This is the O(rows) formulation CS-302 measured and replaced. It is kept
+    here, in the test, precisely because the replacement's whole claim is that it
+    answers the same question - and a claim of equivalence needs the thing it is
+    equivalent TO, written out independently of the code under test rather than
+    remembered from a commit message.
+
+    Args:
+        matrix: The coefficient rows.
+        rhs: One constant per equation.
+
+    Returns:
+        Every row index whose removal leaves a consistent system, ascending.
+    """
+    found: list[int] = []
+    for drop in range(len(matrix)):
+        reduced = [row for index, row in enumerate(matrix) if index != drop]
+        constants = [value for index, value in enumerate(rhs) if index != drop]
+        if solve_linear(reduced, constants).outcome != OUTCOME_INCONSISTENT:
+            found.append(drop)
+    return tuple(found)
+
+
+def _closed_loop(length: int) -> tuple[list[list[Fraction]], list[Fraction]]:
+    """A closed production loop of ``length`` steps, asked for a net output.
+
+    Every item is produced by one step and consumed by the next, so the loop can
+    balance at any scale and can yield NOTHING. Demanding output from it is
+    therefore inconsistent, and no row is all-zero - which is what puts the
+    system on the expensive path rather than on the cheap all-zero check that
+    precedes it in the caller.
+
+    Args:
+        length: How many steps the loop has. One row per step, plus the demand.
+
+    Returns:
+        The matrix and the right-hand side.
+    """
+    matrix: list[list[Fraction]] = []
+    for step in range(length):
+        row = [F0] * length
+        row[step] += F1
+        row[(step + 1) % length] -= F1
+        matrix.append(row)
+    demand = [F0] * length
+    demand[0] += F1
+    demand[1 % length] -= F1
+    matrix.append(demand)
+    return matrix, [F0] * length + [Fraction(10)]
+
+
+def test_isolating_rows_answers_exactly_what_the_leave_one_out_loop_answered() -> None:
+    """The equivalence the replacement rests on, against the loop it replaced.
+
+    The corpus is deliberately dense with DEPENDENT rows - scaled copies of
+    earlier ones - because that is what makes the left null space more than one
+    dimensional, and a criterion that happens to work on a single dependency is
+    not the same as one that works. A system nobody can fix by striking one row
+    is a real case here, not a hypothetical: both answers must be empty.
+    """
+    checked = 0
+    for seed in range(240):
+        matrix, rhs = _pseudo_random_system(seed)
+        if solve_linear(matrix, rhs).outcome != OUTCOME_INCONSISTENT:
+            continue
+        checked += 1
+        assert isolating_rows(matrix, rhs) == _brute_force_isolating(matrix, rhs), (
+            f"seed {seed} disagrees with the oracle"
+        )
+    assert checked >= _MIN_INCONSISTENT, (
+        f"only {checked} of the corpus was inconsistent; the arm is too thin to mean anything"
+    )
+
+
+def test_isolating_rows_reports_nothing_for_a_system_that_has_a_solution() -> None:
+    """A consistent system has no row worth striking, and says so by being empty.
+
+    Returning a row here would be worse than useless: the caller reads a
+    non-empty answer as "this is the equation that cannot be met".
+    """
+    assert isolating_rows(_MATRIX, _RHS) == ()
+
+
+def test_isolating_rows_is_empty_when_no_single_row_isolates_the_contradiction() -> None:
+    """TWO independent contradictions, so striking either one leaves the other.
+
+    ``x = 1`` beside ``x = 2`` is one contradiction and ``y = 1`` beside ``y = 2``
+    is a second, and they share no variable. Remove any single row and the other
+    pair is still there, so no row isolates anything and the honest answer is
+    empty rather than an arbitrary index.
+
+    THE FIRST FIXTURE WRITTEN HERE DID THE OPPOSITE AND A VERIFIER CAUGHT IT.
+    It was ``x + y = 1``, ``y + z = 1``, ``x + z = 1`` and ``x + y + z = 2``,
+    described as a contradiction no single row isolates. It is the reverse: each
+    of those rows CAN be struck to leave a satisfiable system, so every index is
+    isolating and the arm was measuring ``(0, 1, 2, 3)`` while its name and its
+    docstring both said empty. It passed anyway, because its only assertion was
+    equality with the oracle - which is exactly why the case below asserts the
+    empty tuple DIRECTLY as well. An arm whose whole claim is delegated to an
+    oracle cannot notice that it is pointed at the wrong system.
+    """
+    matrix = [[F1, F0], [F1, F0], [F0, F1], [F0, F1]]
+    rhs = [F1, Fraction(2), F1, Fraction(2)]
+
+    assert solve_linear(matrix, rhs).outcome == OUTCOME_INCONSISTENT
+    assert isolating_rows(matrix, rhs) == ()
+    assert isolating_rows(matrix, rhs) == _brute_force_isolating(matrix, rhs)
+
+
+def test_isolating_rows_names_every_row_when_every_row_isolates() -> None:
+    """The opposite end of the same axis, and the fixture that taught it.
+
+    Three rows that are pairwise satisfiable and jointly impossible - ``x + y``,
+    ``y + z`` and ``x + z`` each one, against ``x + y + z`` two - are contradicted
+    as a SET. Striking any one of the four leaves a system with a solution, so
+    EVERY index is isolating and the answer is the full tuple.
+
+    This is the case the empty-answer arm above was mistakenly written against.
+    Keeping it, under a name that says what it does, is worth more than deleting
+    it: it is the only fixture here whose answer is every row rather than none or
+    one, and it pins the end of the range the criterion has to span.
+    """
+    matrix = [
+        [F1, F1, F0, F0],
+        [F0, F1, F1, F0],
+        [F1, F0, F1, F0],
+        [F1, F1, F1, F0],
+    ]
+    rhs = [F1, F1, F1, Fraction(2)]
+
+    assert solve_linear(matrix, rhs).outcome == OUTCOME_INCONSISTENT
+    assert isolating_rows(matrix, rhs) == (0, 1, 2, 3)
+    assert isolating_rows(matrix, rhs) == _brute_force_isolating(matrix, rhs)
+
+
+def test_isolating_rows_holds_on_rows_that_have_no_coefficients_at_all() -> None:
+    """A system of zero-width rows is a real shape, not a degenerate one to guard.
+
+    ``ratio.py`` builds exactly this when every selected recipe is excluded: no
+    recipe means no variable means no column, and what is left is a demand with
+    nothing at all on the other side. The rows carry no coefficients, so every
+    one of them is trivially a left null vector and the whole question falls to
+    the constants - which is the thinnest the criterion ever gets and therefore
+    the place an off-by-one in it would show first.
+
+    The oracle answers each case beside the implementation, so the arm states no
+    expected tuple of its own and cannot drift away from the definition.
+    """
+    cases: tuple[tuple[list[list[Fraction]], list[Fraction]], ...] = (
+        ([[]], [F1]),
+        ([[], []], [F0, F1]),
+        ([[], []], [F1, F1]),
+        ([[], [], []], [F1, F0, Fraction(2)]),
+        ([[F1, F0], [F0, F0]], [F1, Fraction(5)]),
+    )
+    for matrix, rhs in cases:
+        assert solve_linear(matrix, rhs).outcome == OUTCOME_INCONSISTENT, (
+            f"{matrix} over {rhs} is not on the refusal path, so this case proves nothing"
+        )
+        assert isolating_rows(matrix, rhs) == _brute_force_isolating(matrix, rhs), (
+            f"{matrix} over {rhs} disagrees with the oracle"
+        )
+
+
+def test_isolating_rows_is_empty_for_a_system_with_no_equations() -> None:
+    """No equations cannot contradict, so there is no row to strike.
+
+    The oracle is NOT consulted here, and the reason is the whole of why it is
+    guarded everywhere else: it defines an isolating row as one whose removal
+    leaves a consistent system, which every row of an ALREADY consistent system
+    satisfies vacuously. It is an oracle for inconsistent systems only.
+    """
+    assert isolating_rows([], []) == ()
+    assert isolating_rows([[F1]], [F3]) == ()
+
+
+def test_isolating_rows_does_not_grow_its_work_with_the_row_count(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """THE CS-302 acceptance, stated as a count rather than as a clock.
+
+    A wall-clock bound on this machine is a statement about this machine. What
+    the item actually measured is that the old diagnosis ran ONE FULL
+    ELIMINATION PER ROW, so the property to pin is that the new one runs a fixed
+    number of them regardless of how many rows there are. The oracle beside it
+    is the old cost, and it is asserted to grow so that the comparison cannot
+    quietly become a comparison of two constants.
+    """
+    small_matrix, small_rhs = _closed_loop(_SMALL_CHAIN)
+    large_matrix, large_rhs = _closed_loop(_LARGE_CHAIN)
+
+    assert solve_linear(small_matrix, small_rhs).outcome == OUTCOME_INCONSISTENT
+    assert solve_linear(large_matrix, large_rhs).outcome == OUTCOME_INCONSISTENT
+
+    small_cost = _eliminations_during(monkeypatch, lambda: isolating_rows(small_matrix, small_rhs))
+    large_cost = _eliminations_during(monkeypatch, lambda: isolating_rows(large_matrix, large_rhs))
+    assert small_cost == large_cost == 1, (
+        f"isolating_rows eliminated {small_cost} and {large_cost} times; it must be one each"
+    )
+
+    old_small = _eliminations_during(
+        monkeypatch, lambda: _brute_force_isolating(small_matrix, small_rhs)
+    )
+    old_large = _eliminations_during(
+        monkeypatch, lambda: _brute_force_isolating(large_matrix, large_rhs)
+    )
+    assert old_large > old_small, (
+        "the oracle did not get more expensive with the row count, so this arm is comparing two "
+        "constants and would pass against the very implementation it exists to reject"
+    )

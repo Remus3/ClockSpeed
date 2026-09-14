@@ -374,6 +374,138 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-09-14 - CS-302 - CLOSED. The refusal diagnosis cost one full elimination per row, and it was measured at live scale before it was replaced
+
+**WHAT THE MEASUREMENT FOUND.** `ratio._name_unsatisfiable_item` recovered the name of the
+unsatisfiable item by dropping one row at a time and re-solving, which is one full exact
+elimination PER ROW on top of the solve that already refused. The item's own note recorded
+that as reasoned acceptable for optimizer-sized sets and NOT measured at real scale. Measured
+now, against the registry this machine's install actually builds - 750 items, 872 recipes, 0
+recipes excluded - the system the whole recipe set produces WITH ONE TARGET ON IT is 750 rows
+by 872 columns under `BYPRODUCT_BALANCED` and 153 by 872 under `BYPRODUCT_SINKABLE`. The
+target matters to the second number and not the first, and saying so is a correction: under
+`sinkable` an unconsumed byproduct gets no equation, so the same recipe set with NO target is
+152 by 872 and naming one of those 598 sunk items as the target is what adds the row. Under
+`balanced` every one of them already carries a balance row, so the count does not move. One `solve_linear` over the
+balanced system takes 4.86 s and one leave-one-out probe over it takes 4.73 s, so the loop's
+worst case of 750 probes is 3549 s - 59 minutes to explain a refusal the solve itself reached
+in under five seconds. The sinkable system's 153 probes are 193.6 s. NOT ACCEPTABLE, so the
+diagnosis was replaced rather than blessed.
+
+The 3549 s is one measured probe times the loop's own bound and not a wall-clock run of all
+750; the loop is a `for` over `range(len(system.rows))` and the bound is therefore exact,
+but this entry says which half was measured so the number is not read as a stopwatch reading.
+
+**WHAT REPLACED IT.** `clockspeed/solve/exact.py` gains `isolating_rows`, which answers the
+same question in ONE elimination. The elimination carries the transform that produced it, so
+every row whose coefficients vanish is a left null vector `y` of the matrix in original row
+order and the constant beside it is `y . rhs`. Those vectors are a basis of the left null
+space `N`, because the accumulated transform is a product of elementary operations and is
+therefore invertible. Writing `f(y) = y . rhs`, striking row `i` leaves `N_i = {y in N :
+y[i] == 0}` and the reduced system is consistent exactly when `f` vanishes on `N_i` - which,
+since `N_i` and `ker f` both have codimension at most one in `N`, happens exactly when the
+coordinate functional `y -> y[i]` is a NONZERO multiple of `f` on `N`. That is a column
+comparison against the constants, not a solve. Measured on the same balanced system:
+8.94 s against the loop's 3549 s, a factor of 397. On the sinkable system, 1.48 s against
+193.6 s, a factor of 131.
+
+**THE VERIFIER REFUTED ONE OF THESE ARMS AND IT IS REPAIRED HERE.** The arm named for the
+empty answer was pointed at the wrong system: `x + y = 1`, `y + z = 1`, `x + z = 1` against
+`x + y + z = 2` is contradicted as a SET, and striking any one of those rows leaves a system
+that HAS a solution - so every index is isolating and the arm was measuring `(0, 1, 2, 3)`
+while its name and its docstring both said empty. It passed anyway, because its only
+assertion was equality with the oracle. That is the lesson worth keeping: an arm whose whole
+claim is delegated to an oracle cannot notice it is aimed at the wrong subject. The empty case
+is now two independent contradictions over disjoint variables, it asserts the empty tuple
+DIRECTLY as well as against the oracle, and the original fixture is kept under a name that
+says what it does - it is the only one here whose answer is every row.
+
+**THE EQUIVALENCE IS PROVEN AGAINST THE LOOP ITSELF, NOT ASSERTED.** The replaced loop is
+written out again in `tests/solve/test_exact.py` as `_brute_force_isolating` and used as an
+ORACLE. `test_isolating_rows_answers_exactly_what_the_leave_one_out_loop_answered` runs both
+over a 240-seed corpus, 227 of which are inconsistent, and requires the answers to be equal
+index for index. The corpus is dense with rows that are exact scalar multiples of earlier
+rows, deliberately: that is what drives the left null space above one dimension, and a
+criterion that works when the contradiction has a single witness is not the same as one that
+works. Two mutations were planted and both were killed by that arm - dropping the nonzero
+clause from the multiple test, and letting a zero-constant basis vector stop constraining.
+
+**THE COST CLAIM IS A COUNT AND NEVER A CLOCK.** A wall-clock bound asserted in the suite
+would be a statement about the machine that ran it and would pass on a fast enough machine
+against the implementation this item replaced. Both cost arms count elimination passes at
+`exact._validate_system`, which every entry point that eliminates calls exactly once before
+touching a coefficient. `test_isolating_rows_does_not_grow_its_work_with_the_row_count` pins
+one pass at 6 rows and one at 96, and requires the ORACLE's cost to grow between those two
+sizes so the arm cannot quietly become a comparison of two constants.
+
+**SIBLING SWEEP: ONE SITE, AND IT IS THE WHOLE POPULATION.** `grep` for the drop-and-resolve
+shape over `clockspeed/` returns exactly `ratio.py:644`, and `solve_linear` has no other
+caller in the package that loops. Nothing else to sweep, which is reported rather than
+assumed.
+
+**THE ZERO-WIDTH SHAPE IS GRADED BECAUSE `ratio.py` BUILDS IT.** With every selected recipe
+excluded there is no variable, so there is no column, and what is left is a demand with nothing
+on the other side. Those rows carry no coefficients at all, every one of them is trivially a
+left null vector, and the whole question falls to the constants - the thinnest the criterion
+ever gets. Five such systems are held to the oracle. The empty system is held to a written
+answer INSTEAD of the oracle, and that is deliberate: the oracle calls a row isolating when
+removing it leaves a consistent system, which every row of an already-consistent system
+satisfies vacuously, so it is an oracle for inconsistent systems only and is guarded as one
+everywhere it is used.
+
+**BEHAVIOUR IS UNCHANGED, INCLUDING THE FALLBACK.** The cheap all-zero-row check still runs
+first and still returns the first such row. When no single row isolates the contradiction -
+three or more mutually dependent rows - `isolating_rows` returns empty and the caller still
+names the first balance row, because a refusal with no subject is one nobody can act on. The
+three refusals the suite already pinned name the same items they named before, and that was
+re-derived rather than assumed: the old loop and the new code were both run against the real
+`_System` each of the three builds, and all three agree on the item.
+
+**THE FALLBACK IS UNCHANGED AND IS STILL NOT REACHED BY ANY TEST THROUGH THE CALLER**, which
+the verifier measured rather than inferred - a `trace` run over `tests/solve/test_ratio.py`
+puts zero hits on that return while the fast path takes two and the isolating branch four.
+It is reachable: a system from the corpus generator drives it, and it names the first row as
+its comment says. This is a coverage gap that predates this item and is unchanged by it, so it
+is FILED as CS-1067 rather than closed here - `isolating_rows` returning empty is now cheap to
+construct, which is what makes the gap worth filing now and not before.
+
+**PROVEN BY.** `tests/solve/test_exact.py::test_isolating_rows_answers_exactly_what_the_leave_one_out_loop_answered`,
+`tests/solve/test_exact.py::test_isolating_rows_does_not_grow_its_work_with_the_row_count`,
+`tests/solve/test_exact.py::test_isolating_rows_is_empty_when_no_single_row_isolates_the_contradiction`,
+`tests/solve/test_exact.py::test_isolating_rows_names_every_row_when_every_row_isolates`,
+`tests/solve/test_exact.py::test_isolating_rows_reports_nothing_for_a_system_that_has_a_solution`,
+`tests/solve/test_exact.py::test_isolating_rows_holds_on_rows_that_have_no_coefficients_at_all`,
+`tests/solve/test_exact.py::test_isolating_rows_is_empty_for_a_system_with_no_equations`,
+and `tests/solve/test_ratio.py::test_a_refusal_costs_a_fixed_number_of_eliminations_never_one_per_row`. Merged
+files: `clockspeed/solve/exact.py`, `clockspeed/solve/ratio.py`, `tests/solve/test_exact.py`,
+`tests/solve/test_ratio.py`.
+
+**TIER 2, AND WHY.** A core-algorithm change in the exact solve path plus a new published
+function on the lowest module of the solve layer, so the whole suite was run:
+`7704 passed, 7 skipped, 7 warnings in 503.30s (0:08:23)`, exit 0. `ruff check .` clean and
+a bare `python -m mypy` clean over 237 source files. Only this paragraph was edited after
+that run, and a doc edit adds no test.
+
+**THE SUITE TOTAL WENT UP BY THREE AND EIGHT TESTS WERE ADDED, WHICH RECONCILES RATHER THAN
+CONTRADICTS.** The run on the inherited tree before any edit was `7701 passed, 7 skipped`.
+Eight arms were added and FIVE were removed, because every leaf under `docs/item_notes/`
+carries exactly five parameterized cases in the doc guards and this change deleted one leaf.
+Measured by collecting those guards and counting the per-leaf ids, not inferred from the
+difference.
+
+**TWO GATES WENT RED ON THE FIRST WHOLE-TREE RUN AND BOTH WERE THIS ITEM'S OWN COST.**
+`tests/test_mypy_gate.py` refused a lambda carrying a default argument - the idiom that binds
+a loop variable correctly at runtime and that mypy cannot infer a type for - which a targeted
+`mypy clockspeed` would never have seen, since an explicit target replaces config discovery.
+It is a closure factory now. `tests/test_archive_rot.py` then reported the deep archive's
+bare-path rot at 6 against a pin of 4: removing the phase 3 leaf dangled two headings already
+in the archive that spell it, filed on 2026-09-11 and earlier on 2026-09-14. The pin is bumped
+to 6 with the reason recorded beside it, on the route that table states - the sites were true
+when written, neither is avoidable by the change that broke them, and repairing them would
+mean editing what a past session measured.
+
+**CI IS RECORDED BY THE DRIVER AND WAS NOT OBSERVED BY THIS WORKER.**
+
 ### 2026-09-14 - CS-301 - CLOSED. The variable-power law was unmeasured, not unmeasurable, and the obvious cross-check was wrong
 
 **WHAT CHANGED.** `clockspeed/solve/power.py` gains `bounded_draw`, which answers the two shapes

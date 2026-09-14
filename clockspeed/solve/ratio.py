@@ -127,6 +127,7 @@ from clockspeed.solve.exact import (
     OUTCOME_UNIQUE,
     InexactValueError,
     audit_exact,
+    isolating_rows,
     per_minute,
     solve_linear,
 )
@@ -196,8 +197,9 @@ class UnsolvableChain(RatioError):  # noqa: N818
     """The item balances contradict each other; no plan exists at any scale.
 
     Attributes:
-        item: The item whose balance cannot be met. Recovered by probing rather
-            than read off a row index, because ``solve_linear`` publishes none.
+        item: The item whose balance cannot be met. Recovered from the rows this
+            module built rather than read off the reduced form, because
+            ``solve_linear`` publishes no row index.
     """
 
     def __init__(self, item: str, message: str) -> None:
@@ -621,14 +623,23 @@ def _name_unsatisfiable_item(system: _System) -> str:
     ``solve_linear`` publishes no row index on purpose: an inconsistency belongs
     to the row SPACE, so any one of the dependent rows could be blamed for it and
     a row index would also move under a permutation. The name is therefore
-    recovered here, by dropping one row at a time and asking whether the rest is
-    satisfiable. Rows are probed in the order they were built - balance rows
-    before target rows - so the answer is the item the chain cannot supply rather
-    than the target the caller asked for, which is the useful half of the finding.
+    recovered here, by asking which of THESE rows - the ones this module built,
+    in the order it built them - could be struck out to leave a satisfiable
+    system. Balance rows come before target rows, so the answer is the item the
+    chain cannot supply rather than the target the caller asked for, which is the
+    useful half of the finding.
 
-    An all-zero row over a non-zero constant is checked first. It needs no probe,
-    it is the commonest shape by far (a target nothing in the set produces), and
-    it keeps the linear number of extra solves off the common path.
+    An all-zero row over a non-zero constant is checked first. It needs no
+    elimination at all, and it is the commonest shape by far - a target nothing
+    in the selected set produces.
+
+    CS-302 REPLACED THE PROBE LOOP THAT USED TO LIVE HERE. It dropped one row at
+    a time and re-solved, which is one full elimination PER ROW. Measured against
+    the live registry that is a 750 by 872 system whose single solve takes
+    seconds, so explaining a refusal cost three orders of magnitude more than
+    reaching it. :func:`~clockspeed.solve.exact.isolating_rows` answers the same
+    question in one elimination, and ``tests/solve/test_exact.py`` holds it to
+    the old loop's answers as an oracle rather than taking that on trust.
 
     Args:
         system: The system ``solve_linear`` reported inconsistent.
@@ -641,11 +652,9 @@ def _name_unsatisfiable_item(system: _System) -> str:
         if system.rhs[index] != 0 and all(entry == 0 for entry in row):
             return system.rows[index]
 
-    for drop in range(len(system.rows)):
-        reduced = [row for index, row in enumerate(system.matrix) if index != drop]
-        constants = [value for index, value in enumerate(system.rhs) if index != drop]
-        if solve_linear(reduced, constants).outcome != OUTCOME_INCONSISTENT:
-            return system.rows[drop]
+    isolating = isolating_rows(system.matrix, system.rhs)
+    if isolating:
+        return system.rows[isolating[0]]
 
     # Reachable only when no single row isolates the contradiction, which takes
     # three or more mutually dependent rows. The first balance row is named

@@ -271,12 +271,30 @@ _CYCLE_MODULE_FLOOR: Final = 4
 #:
 #: NO COLON-NUMBER SHAPE APPEARS IN THIS COMMENT, per the note above. The target
 #: is named by its module and its clause, and the number is left unspelled.
+#: `_ROT_PATH` 4 TO 6, 2026-09-14, AND BOTH NEW SITES WERE READ BEFORE THE PIN
+#: MOVED. CS-302 closed the last OPEN item filed under ROADMAP `Phase 3`, so the
+#: leaf that family routed that phase to held no sections and was REMOVED - which
+#: is the index's own membership rule and the same move CS-210 made for phase 2.
+#: TWO HEADINGS ALREADY IN THE ARCHIVE SPELL THAT LEAF: CS-303's relocation
+#: heading, filed 2026-09-11, and the note heading under CS-301, filed earlier the
+#: same day this pin moved. Both were TRUE WHEN WRITTEN. Neither is avoidable by
+#: the change that broke them, and that is the distinction this table already
+#: draws: the paragraph above records CS-210 DECLINING to spend a bump on a site
+#: it could have avoided by naming the live index in its own heading, and CS-302's
+#: heading names the index for exactly that reason. An existing record cannot be
+#: repaired the same way, because repairing it means editing what a past session
+#: measured - which is the stated exemption, not a hole in it.
+#:
+#: NO NEW ROT WAS AUTHORED. The two sites are one deleted file counted at the two
+#: places that name it, and this arm counts SITES rather than distinct paths, which
+#: is why one deletion moves the pin by two. A reader who expects the pin to track
+#: files will read this as two findings and it is one.
 ARCHIVE_ROT: Final[Mapping[str, int]] = {
     _ROT_CITATION: 5,
     _ROT_RANGE: 0,
     _ROT_EMPTY: 3,
     _ROT_NAME: 3,
-    _ROT_PATH: 4,
+    _ROT_PATH: 6,
     _ROT_FORM: 15,
 }
 

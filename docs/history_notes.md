@@ -24,6 +24,26 @@ Where current truth actually lives:
 | Commands and runbooks | `docs/OPERATIONS.md` |
 
 
+## CS-302 - item section, CLOSED and relocated from `docs/item_notes.md` 2026-09-14
+
+The body came from the leaf this family routes ROADMAP `Phase 3` to, and that leaf was
+REMOVED in the same change, for the reason the index states as a rule: a phase with no
+OPEN item carrying detail has no leaf, and a routing row pointing at an empty file is a
+row pointing at nothing. CS-302 was the last section in it, CS-303 having gone the same
+way on 2026-09-11. The heading therefore names the INDEX rather than the leaf, following
+CS-210: a heading spelling a path the same change deleted would be a dead pointer filed
+by the change that killed it.
+
+Closed by the ledger entry dated 2026-09-14. The body below is VERBATIM, and its last
+sentence is the thing that closed: the cost was NOT measured at real scale when the note
+was written, and the ledger entry records what measuring it found - 750 rows by 872
+columns against the live registry, 4.73 s per probe, and a worst case of 3549 s.
+
+### NOTE - relocated from `ROADMAP.md` 2026-08-23
+
+NOTE: that diagnosis costs O(rows) extra exact solves and runs only on the refusal path. It was reasoned acceptable for optimizer-sized recipe sets and NOT measured at real scale, which is a stated limit rather than a claim.
+
+
 ## CS-303 - item section, CLOSED and relocated from `docs/item_notes/phase3.md` 2026-09-11
 
 The body below is the leaf section verbatim. The item closed against the guard

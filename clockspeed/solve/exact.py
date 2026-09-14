@@ -159,6 +159,7 @@ __all__ = [
     "LinearSolution",
     "UndefinedRateError",
     "audit_exact",
+    "isolating_rows",
     "per_minute",
     "solve_linear",
     "to_exact",
@@ -632,3 +633,151 @@ def solve_linear(matrix: Sequence[Sequence[Fraction]], rhs: Sequence[Fraction]) 
     return LinearSolution(
         outcome=OUTCOME_UNIQUE, values=tuple(values), free_variables=(), rank=next_row
     )
+
+
+def isolating_rows(
+    matrix: Sequence[Sequence[Fraction]], rhs: Sequence[Fraction]
+) -> tuple[int, ...]:
+    """Row indices whose removal leaves a consistent system, ascending.
+
+    THE ONE FUNCTION HERE THAT PUBLISHES ROW INDICES, and the reason it may is
+    that it answers a different question from :func:`solve_linear`. That function
+    answers "does this system have a solution", which is a property of the row
+    SPACE and is invariant under permutation - publishing an index there would
+    hand the caller an answer that moved when the equations were reordered. This
+    one answers "which of the equations YOU wrote could be struck out to make the
+    rest satisfiable", which is a question ABOUT the caller's rows and has no
+    permutation-invariant form at all. Two questions, two functions, and the
+    indices never leak from this one into that one.
+
+    WHY THIS IS NOT A LOOP OF SOLVES - CS-302. The obvious implementation drops
+    one row at a time and re-solves, which is one full elimination per row. That
+    was measured against the live registry, where the system is 750 rows by 872
+    columns: one elimination there takes seconds, and seven hundred and fifty of
+    them take an hour to explain a refusal the solve itself reached in seconds.
+    So the elimination runs ONCE here, carrying the transform that produced it.
+
+    WHAT THE TRANSFORM GIVES. Every row whose coefficients vanish under
+    elimination is a left null vector ``y`` of the matrix, written in ORIGINAL
+    row order, and the constant beside it is ``y . rhs``. Those vectors are
+    independent, because the accumulated transform is a product of elementary
+    row operations and is therefore invertible, so they are a BASIS of the left
+    null space ``N``.
+
+    THE TEST EACH ROW IS PUT TO. Write ``f(y) = y . rhs``, a linear functional on
+    ``N``. The system is inconsistent exactly when ``f`` is not identically zero.
+    Striking row ``i`` leaves ``N_i = {y in N : y[i] == 0}``, and the reduced
+    system is consistent exactly when ``f`` vanishes on ``N_i``. Both ``N_i`` and
+    the kernel of ``f`` have codimension at most one in ``N``, so that happens
+    exactly when the coordinate functional ``y -> y[i]`` is a NONZERO multiple of
+    ``f`` on ``N``. That is a column comparison against the constants - no solve.
+    The zero multiple is excluded deliberately: it is the case where row ``i``
+    takes no part in any contradiction, and striking it changes nothing.
+
+    Args:
+        matrix: The coefficient rows. Every entry must be exactly a Fraction.
+        rhs: One constant per equation, each exactly a Fraction.
+
+    Returns:
+        The isolating row indices, ascending. EMPTY for a system that already
+        has a solution, and empty for one whose contradiction no single row
+        isolates - three or more mutually dependent rows do that, and the caller
+        is left to say so rather than handed an arbitrary index.
+
+    Raises:
+        ValueError: The system is ragged or the right-hand side is the wrong
+            length.
+        InexactValueError: An entry is not exactly a Fraction.
+    """
+    column_count = _validate_system(matrix, rhs)
+    row_count = len(matrix)
+
+    work = [list(row) for row in matrix]
+    constants = list(rhs)
+    # The transform, accumulated beside the coefficients. Row i starts as one
+    # times original row i, which is the identity, and every operation below is
+    # applied to it in lockstep with the row it came from.
+    transform = [
+        [Fraction(1) if source == row else Fraction(0) for source in range(row_count)]
+        for row in range(row_count)
+    ]
+    next_row = 0
+
+    for column in range(column_count):
+        found = _pivot_row(work, next_row, column)
+        if found is None:
+            continue
+
+        work[next_row], work[found] = work[found], work[next_row]
+        constants[next_row], constants[found] = constants[found], constants[next_row]
+        transform[next_row], transform[found] = transform[found], transform[next_row]
+
+        scale = work[next_row][column]
+        work[next_row] = [entry / scale for entry in work[next_row]]
+        constants[next_row] = constants[next_row] / scale
+        transform[next_row] = [entry / scale for entry in transform[next_row]]
+
+        for other in range(row_count):
+            if other == next_row:
+                continue
+            factor = work[other][column]
+            if factor == 0:
+                continue
+            work[other] = [
+                entry - factor * pivot
+                for entry, pivot in zip(work[other], work[next_row], strict=True)
+            ]
+            constants[other] = constants[other] - factor * constants[next_row]
+            transform[other] = [
+                entry - factor * pivot
+                for entry, pivot in zip(transform[other], transform[next_row], strict=True)
+            ]
+
+        next_row += 1
+
+    # Tested over every row rather than from the last pivot down, for the reason
+    # solve_linear states about the same scan: a row that constrains nothing is
+    # defined by its contents, and reading it off an index would make the answer
+    # depend on where elimination happened to leave things.
+    vanished = [row for row in range(row_count) if all(entry == 0 for entry in work[row])]
+    basis = [tuple(transform[row]) for row in vanished]
+    witnessed = [constants[row] for row in vanished]
+
+    if all(constant == 0 for constant in witnessed):
+        return ()
+
+    return tuple(index for index in range(row_count) if _is_isolating(basis, witnessed, index))
+
+
+def _is_isolating(
+    basis: Sequence[Sequence[Fraction]], witnessed: Sequence[Fraction], index: int
+) -> bool:
+    """Whether striking row ``index`` would leave the system consistent.
+
+    The criterion is stated in :func:`isolating_rows`: the coordinate ``y[index]``
+    must be one FIXED nonzero multiple of ``y . rhs`` across the whole basis. A
+    basis vector whose constant is zero constrains the multiple not at all, so
+    its coordinate has to be zero too - otherwise the two functionals disagree on
+    that vector and no multiple exists.
+
+    Args:
+        basis: Left null vectors of the coefficient matrix, in original row
+            order.
+        witnessed: Each basis vector dotted with the right-hand side.
+        index: The row to test.
+
+    Returns:
+        True when striking that row removes every contradiction.
+    """
+    multiple: Fraction | None = None
+    for vector, constant in zip(basis, witnessed, strict=True):
+        if constant == 0:
+            if vector[index] != 0:
+                return False
+            continue
+        here = vector[index] / constant
+        if multiple is None:
+            multiple = here
+        elif multiple != here:
+            return False
+    return multiple is not None and multiple != 0
