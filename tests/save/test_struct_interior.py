@@ -1612,6 +1612,7 @@ class _StructTally:
     census_tails: int = 0
     censuses: list[_SaveCensus] = field(default_factory=list)
     pair_ids: dict[tuple[int, int], int] = field(default_factory=dict)
+    payload_tag_counts: dict[int, int] = field(default_factory=dict)
     sites_seen: int = 0
     name_unread: int = 0
     word_unread: int = 0
@@ -1759,6 +1760,8 @@ class _StructSweep:
     field_misses: int
     miss_words: frozenset[str]
     failures: tuple[str, ...]
+    max_payload_tags: int
+    median_payload_tags: int
 
     def __repr__(self) -> str:
         """Render counts only, and withhold every struct word.
@@ -1769,6 +1772,8 @@ class _StructSweep:
         return (
             f"{type(self).__name__}(saves={self.saves}, records={self.records}, "
             f"tags_seen={self.tags_seen}, "
+            f"max_payload_tags={self.max_payload_tags}, "
+            f"median_payload_tags={self.median_payload_tags}, "
             f"reader_only_struct={self.reader_only_struct}, "
             f"bytes_only_struct={self.bytes_only_struct}, "
             f"independent_walkable={self.independent_walkable}, "
@@ -2238,6 +2243,14 @@ def _sweep_one_record(
         return
     if not own_reads:
         into.independent_only_refused += 1
+    # THE CORPUS'S OWN TAG DEPTH, FROM THE WALK ALREADY IN HAND - CS-869.
+    # The ceiling control's strength is derived from this distribution, and
+    # taking it here is what keeps that derivation free: this sweep is cached
+    # and the control already calls it, so nothing re-reads the library. A
+    # SECOND READ IS WHAT THIS AVOIDS, for the reason `_run_ceiling_control`
+    # states - the operator plays while a session runs, so two reads race a
+    # real autosave and report the difference as a defect.
+    into.payload_tag_counts[len(walked)] = into.payload_tag_counts.get(len(walked), 0) + 1
     shipped_sites = into.sites_seen
     at = start
     for _name, word, value_at, size in walked:
@@ -2252,6 +2265,32 @@ def _sweep_one_record(
     if own_reads and shipped_sites != own_sites:
         into.site_disagreements += 1
         run.disagreements += 1
+
+
+def _median_payload_tags(histogram: Mapping[int, int]) -> int:
+    """The middle of the corpus's tags-per-payload distribution.
+
+    FROM THE HISTOGRAM AND NEVER FROM A MATERIALISED LIST, because the corpus
+    this runs over holds six figures of payloads and the only thing wanted from
+    them is one integer.
+
+    Args:
+        histogram: Tags enumerated in one payload, to how many payloads carried
+            that many.
+
+    Returns:
+        The median, or zero when the shipped walk enumerated no payload at all -
+        which is an absent corpus and not a shallow one.
+    """
+    total = sum(histogram.values())
+    if total == 0:
+        return 0
+    seen = 0
+    for depth in sorted(histogram):
+        seen += histogram[depth]
+        if seen * 2 > total:
+            return depth
+    return max(histogram)
 
 
 def _sweep_one_save(
@@ -2430,6 +2469,8 @@ def _sweep_the_library() -> _StructSweep | None:
         saves=tally.saves,
         records=tally.records,
         tags_seen=tally.tags_seen,
+        max_payload_tags=max(tally.payload_tag_counts, default=0),
+        median_payload_tags=_median_payload_tags(tally.payload_tag_counts),
         reader_only_struct=tally.reader_only_struct,
         bytes_only_struct=tally.bytes_only_struct,
         independent_walkable=tally.independent_walkable,
@@ -3585,13 +3626,20 @@ def _classify_graded_population(
 # ---------------------------------------------------------------------------
 
 
-#: How strict the shared tag ceiling is made while the control is armed. A BOUND
-#: ON WHAT THE PLANT REFUSES, not a measurement of anything: any ceiling below
-#: the corpus's own observed maximum exercises the same loss class, and the arm
-#: asserts what the plant actually COST rather than assuming it. It is above one
-#: so a refusal is a payload losing its tail rather than every payload dying at
-#: its first tag, which would be a kill and not a degradation.
-_CEILING_CONTROL_TAGS: Final = 8
+#: THE LOWEST CEILING THAT IS STILL A DEGRADATION, and it is a BAND EDGE rather
+#: than a strength - CS-869. The strength is derived from the corpus by
+#: :func:`_derive_ceiling_control_tags`; this only says where the band stops. At
+#: one, every payload dies at its first tag, which is a KILL and not a
+#: degradation, and this project has already measured a plant that killed being
+#: read as per-field coverage it never gave.
+#:
+#: WHAT THE OLD LITERAL CLAIMED, AND WHY IT IS GONE. It was a bare 8 whose
+#: docstring said any ceiling below the corpus's observed maximum exercised the
+#: same loss class. Measured false on one library read: the observed maximum is
+#: 31 and ceilings of 22, 24 and 26 sit below it while costing the shipped walk
+#: no struct site at all. A second hand-picked number would be the same item
+#: again, so nothing here picks one.
+_CEILING_CONTROL_FLOOR: Final = 2
 
 
 @dataclass
@@ -3643,6 +3691,9 @@ class _CeilingResult:
         set_aside_records: Records those pairs carried.
         set_aside_sites: Struct sites this module's own reading found in them,
             asserted at zero on the same terms as the table control.
+        planted: The ceiling this run installed, DERIVED FROM THE CORPUS by
+            :func:`_derive_ceiling_control_tags` and never transcribed, so a
+            reason line naming it is naming what actually ran.
     """
 
     pairs: int
@@ -3653,6 +3704,70 @@ class _CeilingResult:
     set_aside_pairs: int = 0
     set_aside_records: int = 0
     set_aside_sites: int = 0
+    planted: int = 0
+
+
+def _the_plant_cost_nothing(counts: _CeilingCounts) -> bool:
+    """Whether the plant took NEITHER a record NOR a struct site - CS-869.
+
+    KEYED ON EVERY QUANTITY THE PLANT MOVES, and it used to be keyed on one of
+    them. A stricter tag ceiling refuses whole RECORDS - the walk runs out of
+    iterations and reports nothing - and a refused record costs a struct SITE
+    only when it happened to carry one. The condition this replaces compared
+    site totals alone, so on the ceilings the item measured the three refused
+    records carried no struct tag, the site totals matched, and the arm skipped
+    before reaching either assertion that catches a shared constant moving this
+    module's own reading.
+
+    THIS STAYS A SKIP AND NOT A FAILURE. A plant that cost nothing is an ABSENT
+    POPULATION - a corpus holding no payload deep enough for the ceiling to bite
+    - and reddening on it would fail every machine whose library is shallow
+    rather than every reader that is wrong.
+
+    Args:
+        counts: The graded pair's tally.
+
+    Returns:
+        Whether the plant is worth grading.
+    """
+    return (
+        counts.reached_degraded == counts.reached_pristine
+        and counts.shipped_degraded == counts.shipped_pristine
+    )
+
+
+def _derive_ceiling_control_tags(*, max_payload_tags: int, median_payload_tags: int) -> int | None:
+    """The plant's strength, DERIVED FROM THE CORPUS - CS-869 clause 1.
+
+    THE MIDDLE OF THE CORPUS'S OWN TAG DEPTH, clamped into the band the control
+    requires. The median is the choice because it is the one statistic that
+    cannot be met by an outlier: a ceiling at the median refuses about half the
+    payloads the corpus holds however that corpus is shaped, so the plant costs
+    something on every library rather than on the one it was picked against.
+
+    WHY NOT THE MAXIMUM MINUS ONE, which is the reading the deleted docstring
+    invited. On the library measured for this item that is 30, it refuses the
+    single deepest payload, and on the graded pair it can refuse none at all -
+    which is the vacuous control this item exists to repair, reached by a
+    different route.
+
+    THE FLOOR IS NOT A SECOND PICKED STRENGTH. :data:`_CEILING_CONTROL_FLOOR`
+    says where a degradation stops being one; the corpus says how hard to push
+    inside that band.
+
+    Args:
+        max_payload_tags: The deepest payload the shipped walk enumerated.
+        median_payload_tags: The middle of that distribution.
+
+    Returns:
+        The ceiling to install, or None when the corpus admits none - a corpus
+        whose deepest payload is at or under the floor has no value both above
+        one and below its own maximum, and a control with nothing to plant must
+        say so rather than plant a kill.
+    """
+    if max_payload_tags <= _CEILING_CONTROL_FLOOR:
+        return None
+    return max(_CEILING_CONTROL_FLOOR, min(median_payload_tags, max_payload_tags - 1))
 
 
 def _install_ceiling(value: int) -> None:
@@ -3705,7 +3820,7 @@ def _fold_ceiling_control(
         counts.own_reached_pristine += own_ok
 
 
-def _run_ceiling_control(original: int) -> _CeilingResult | None:
+def _run_ceiling_control(original: int, planted: int) -> _CeilingResult | None:
     """Read each save ONCE, measure every record TWICE, and grade ONE pair.
 
     EACH SAVE IS READ ONCE AND MEASURED TWICE, for the reason
@@ -3735,6 +3850,8 @@ def _run_ceiling_control(original: int) -> _CeilingResult | None:
 
     Args:
         original: The shipped ceiling, restored around each planted measurement.
+        planted: The ceiling to install while the plant is armed, DERIVED from
+            the corpus by the caller - see :func:`_derive_ceiling_control_tags`.
 
     Returns:
         The reduction, or None when NO save library is reachable at all - which
@@ -3774,7 +3891,7 @@ def _run_ceiling_control(original: int) -> _CeilingResult | None:
         for index, record in enumerate(table.records):
             _install_ceiling(original)
             _fold_ceiling_control(body, record, mine[index], counts, degraded=False)
-            _install_ceiling(_CEILING_CONTROL_TAGS)
+            _install_ceiling(planted)
             planted_reads += 1
             _fold_ceiling_control(body, record, mine[index], counts, degraded=True)
             _install_ceiling(original)
@@ -3792,6 +3909,7 @@ def _run_ceiling_control(original: int) -> _CeilingResult | None:
             for pair, tally in by_pair.items()
             if not _the_second_reading_implements(pair)
         ),
+        planted=planted,
     )
 
 
@@ -3821,8 +3939,31 @@ def test_a_stricter_shared_ceiling_cannot_improve_this_modules_grade(
     records: an arm reaching the library past that guard goes RED on a corpus
     where seventeen of its siblings SKIP, and autosave rotation alone reaches
     that corpus.
+
+    THE STRENGTH IS DERIVED AND NOT PICKED - CS-869. It comes from the sweep
+    above, which has already walked every payload in the library and is cached,
+    so the derivation costs no second read of a corpus the operator is playing
+    into. The corpus is ASSERTED to exceed what is installed rather than assumed
+    to, which is the half of the old literal nothing checked.
     """
-    _sweep_or_skip()
+    sweep = _sweep_or_skip()
+
+    planted = _derive_ceiling_control_tags(
+        max_payload_tags=sweep.max_payload_tags,
+        median_payload_tags=sweep.median_payload_tags,
+    )
+    if planted is None:
+        pytest.skip(
+            f"the deepest payload in this corpus carries {sweep.max_payload_tags} tags, "
+            f"so no ceiling is both above {_CEILING_CONTROL_FLOOR - 1} and below that "
+            "maximum. There is no degradation to install here, only a kill, and a "
+            "control with nothing to plant says so"
+        )
+    assert planted < sweep.max_payload_tags, (
+        f"the derived ceiling {planted} is not below the corpus's own deepest payload at "
+        f"{sweep.max_payload_tags} tags, so the plant refuses nothing and every count "
+        "below is taken against a module that was never degraded"
+    )
 
     original = objects._MAX_TAGS_PER_PAYLOAD  # noqa: SLF001
     # REGISTERS THE UNDO AND CHANGES NOTHING. The control toggles the attribute
@@ -3831,7 +3972,7 @@ def test_a_stricter_shared_ceiling_cannot_improve_this_modules_grade(
     # inside the fold.
     monkeypatch.setattr(objects, "_MAX_TAGS_PER_PAYLOAD", original)
 
-    result = _run_ceiling_control(original)
+    result = _run_ceiling_control(original, planted)
 
     # THE REVERT IS ASSERTED BEFORE ANY SKIP CAN LEAVE, and the ordering is the
     # repair rather than a tidy-up: a skip taken while the module is still
@@ -3890,12 +4031,15 @@ def test_a_stricter_shared_ceiling_cannot_improve_this_modules_grade(
             "there is nothing for a stricter ceiling to take away and a fall below "
             f"would measure an absent population rather than a loss. {corpus}"
         )
-    if result.chosen.shipped_degraded == result.chosen.shipped_pristine:
+    if _the_plant_cost_nothing(result.chosen):
         pytest.skip(
-            f"a ceiling of {_CEILING_CONTROL_TAGS} refused no payload the graded pair "
-            "carries, so this corpus holds no record long enough to exercise the loss "
-            "class this control exists for. That is an absent population and not a "
-            "reader that held up under it"
+            f"a ceiling of {result.planted} cost the graded pair neither a record nor a "
+            "struct site, so this corpus holds no payload deep enough to exercise the "
+            "loss class this control exists for. That is an absent population and not a "
+            "reader that held up under it. THE CONDITION IS BOTH QUANTITIES - CS-869: "
+            "keyed on sites alone it forgave a plant that refused whole records whenever "
+            "those records happened to carry no struct tag, which is how the ceilings "
+            "this item measured left the arm vacuous at exit 0"
         )
 
     assert result.chosen.independent_degraded == result.chosen.independent_pristine, (
@@ -3914,17 +4058,159 @@ def test_a_stricter_shared_ceiling_cannot_improve_this_modules_grade(
         "module chose"
     )
 
-    assert result.chosen.shipped_degraded < result.chosen.shipped_pristine, (
-        f"the planted ceiling left the shipped walk at {result.chosen.shipped_degraded} "
-        f"struct sites where it reached {result.chosen.shipped_pristine} pristine. The "
-        "plant cost the shipped reader nothing measurable, so this control is not "
-        "exercising the direction it claims to"
+    # THE DIRECTION, AND IT REPLACES AN ASSERTION THAT COULD NOT FIRE - CS-869.
+    # The old line demanded a strict fall in struct sites, sitting directly
+    # below a skip that had already left on the equality, so the only outcome it
+    # could ever have reported was one the skip took first. What cannot be
+    # reached from the skip is a plant that made the shipped walk reach MORE, and
+    # that is what is graded here: a stricter ceiling is a subset of a looser one
+    # in both quantities or the plant is not the thing being measured.
+    assert result.chosen.shipped_degraded <= result.chosen.shipped_pristine, (
+        f"a ceiling of {result.planted} left the shipped walk at "
+        f"{result.chosen.shipped_degraded} struct sites where it reached "
+        f"{result.chosen.shipped_pristine} pristine. A stricter ceiling cannot find MORE, "
+        "so the two halves are not measuring the same population"
     )
-    assert result.chosen.shipped_degraded < result.chosen.independent_degraded, (
-        f"the shipped walk lost sites under a stricter shared ceiling and the equality "
-        f"still holds at {result.chosen.shipped_degraded} against "
-        f"{result.chosen.independent_degraded}. THE CHECK IS STILL ANTI-MONOTONE: the "
-        "population shrank with the constant instead of the grade going red"
+    assert result.chosen.reached_degraded <= result.chosen.reached_pristine, (
+        f"a ceiling of {result.planted} let the shipped walk open "
+        f"{result.chosen.reached_degraded} records where it opened "
+        f"{result.chosen.reached_pristine} pristine. A stricter ceiling cannot enumerate "
+        "MORE records, so the plant is not what separated the two halves"
+    )
+
+    # THE ANTI-MONOTONE CHECK ITSELF, and it is asked only where it has meaning.
+    # Its subject is a shipped walk that LOST SITES; on a corpus whose refusals
+    # all land on records carrying no struct tag there is no site loss to grade,
+    # and demanding one there would redden a healthy tree for the shape of its
+    # library. The record loss above is what carries those corpora.
+    if result.chosen.shipped_degraded < result.chosen.shipped_pristine:
+        assert result.chosen.shipped_degraded < result.chosen.independent_degraded, (
+            f"the shipped walk lost sites under a stricter shared ceiling and the "
+            f"equality still holds at {result.chosen.shipped_degraded} against "
+            f"{result.chosen.independent_degraded}. THE CHECK IS STILL ANTI-MONOTONE: "
+            "the population shrank with the constant instead of the grade going red"
+        )
+
+
+def test_the_ceiling_controls_skip_forgives_only_a_plant_that_cost_nothing() -> None:
+    """CS-869 - the skip is keyed on the quantity the plant MOVES.
+
+    THE DEFECT THIS PINS, recorded on the item from one library read: the plant
+    refuses whole RECORDS, and at a ceiling of 22, 24 or 26 the three records it
+    refused on the graded pair carried no struct tag at all - so the SITE totals
+    did not move, the skip fired on a site equality, and the arm left before
+    either of the assertions that catch a shared constant moving this module's
+    own reading. With CS-863's defect deliberately restored that ceiling gave
+    one SKIPPED run at exit 0 where the shipped literal gave one FAILED at exit
+    1, which is a suppressed true positive and not a quiet corpus.
+
+    SYNTHETIC AND DETERMINISTIC ON PURPOSE. It grades the DECISION and never the
+    library, so it reddens on a machine with no game and no save on it - which
+    is the whole reason the decision is a named predicate rather than a
+    condition spelled inline in an arm that skips before reaching it.
+    """
+    cost_a_record_only = _CeilingCounts(
+        records=10,
+        shipped_pristine=30,
+        shipped_degraded=30,
+        independent_pristine=30,
+        independent_degraded=30,
+        reached_pristine=10,
+        reached_degraded=7,
+        own_reached_pristine=10,
+        own_reached_degraded=10,
+    )
+    assert not _the_plant_cost_nothing(cost_a_record_only), (
+        "the plant refused 3 of 10 records and the control forgave it because no struct "
+        "SITE moved. The skip is keyed on a quantity this plant does not move, so every "
+        "ceiling whose refusals fall on records carrying no struct tag leaves this arm "
+        "vacuous at exit 0 - including the ceilings the item measured"
+    )
+
+    cost_a_site_only = _CeilingCounts(
+        records=10,
+        shipped_pristine=30,
+        shipped_degraded=24,
+        independent_pristine=30,
+        independent_degraded=30,
+        reached_pristine=10,
+        reached_degraded=10,
+        own_reached_pristine=10,
+        own_reached_degraded=10,
+    )
+    assert not _the_plant_cost_nothing(cost_a_site_only), (
+        "the plant took 6 of 30 struct sites and the control forgave it. The site "
+        "reading is still half of what the plant moves and re-keying the skip must not "
+        "trade one blind quantity for another"
+    )
+
+    cost_nothing = _CeilingCounts(
+        records=10,
+        shipped_pristine=30,
+        shipped_degraded=30,
+        independent_pristine=30,
+        independent_degraded=30,
+        reached_pristine=10,
+        reached_degraded=10,
+        own_reached_pristine=10,
+        own_reached_degraded=10,
+    )
+    assert _the_plant_cost_nothing(cost_nothing), (
+        "the plant cost the shipped reader no record and no site, which is an ABSENT "
+        "POPULATION rather than a reader that held up under one. That case must stay a "
+        "skip - turning it into a failure would redden every corpus too shallow to "
+        "carry the loss class this control exists for"
+    )
+
+
+def test_the_ceiling_controls_strength_is_derived_from_the_corpus() -> None:
+    """CS-869 - the plant's strength moves with the library, not with a literal.
+
+    WHAT A LITERAL CANNOT DO, and it is the whole of clause 1: answer
+    differently for two different corpora. The shipped constant was a bare 8
+    with a docstring claiming any ceiling below the corpus maximum exercised the
+    same loss class - measured false, since the observed maximum is 31 and 22
+    through 26 sit below it and cost the shipped walk no struct site at all.
+
+    NOT A REQUEST TO PICK A BETTER NUMBER, so this arm never names one. It pins
+    the two properties the derivation owes: it MOVES with the corpus, and it
+    lands strictly inside the band the control's own docstring requires - above
+    one, so a refusal is a payload losing its tail rather than every payload
+    dying at its first tag, and below the corpus's observed maximum, so the
+    corpus is asserted to exceed it rather than assumed to.
+    """
+    # THE ONE FIGURE THIS ARM TRANSCRIBES, and it is a SYNTHETIC CORPUS rather
+    # than a claim about any library: the item measured a deepest payload of 31
+    # tags on one read, and re-using it here keeps the two corpora below
+    # comparable to the numbers in the item's own table. Nothing installs it.
+    corpus_max = 31
+    shallow = _derive_ceiling_control_tags(max_payload_tags=corpus_max, median_payload_tags=2)
+    deeper = _derive_ceiling_control_tags(max_payload_tags=corpus_max, median_payload_tags=9)
+    assert shallow is not None, "a corpus reaching 31 tags in one payload admits a ceiling"
+    assert deeper is not None, "so does the same maximum over a deeper middle"
+    assert shallow != deeper, (
+        f"two corpora with different tag distributions were handed the same strength "
+        f"{shallow}. A value that does not move with the library is a literal however it "
+        "is spelled, which is the defect rather than the number it happens to hold"
+    )
+    for derived in (shallow, deeper):
+        assert 1 < derived < corpus_max, (
+            f"the derived ceiling {derived} is outside the band the control requires. At "
+            "or below one every payload dies at its first tag, which is a kill and not a "
+            "degradation; at or above the observed maximum the plant refuses nothing and "
+            "the control measures an absent population"
+        )
+
+    assert _derive_ceiling_control_tags(max_payload_tags=2, median_payload_tags=1) is None, (
+        "a corpus whose deepest payload carries two tags has NO ceiling both above one "
+        "and below that maximum, so the derivation must decline rather than return a "
+        "value outside its own band. Declining is what lets the arm skip with a reason "
+        "instead of planting a kill"
+    )
+
+    assert _derive_ceiling_control_tags(max_payload_tags=0, median_payload_tags=0) is None, (
+        "a corpus in which the shipped walk enumerated no payload at all offers nothing "
+        "to derive a strength from"
     )
 
 

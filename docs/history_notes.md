@@ -24,6 +24,32 @@ Where current truth actually lives:
 | Commands and runbooks | `docs/OPERATIONS.md` |
 
 
+## CS-869 - item section, CLOSED and relocated from `docs/item_notes/phase4-followups-850.md` 2026-09-14
+
+### Filed 2026-08-31 (session 53), from the same pass
+
+**THE CONTROL'S STRENGTH IS PICKED, AND ITS SKIP IS KEYED ON THE WRONG QUANTITY.**
+`_CEILING_CONTROL_TAGS` is a bare literal; nothing derives it from the corpus and nothing
+asserts the corpus exceeds it. Measured on the graded pair, one library read:
+
+| control ceiling | struct sites, pristine to degraded | records reached, pristine to degraded | skip fires |
+|---|---|---|---|
+| 8 (shipped) | 30642 to 28716 | 77263 to 76368 | no |
+| 22, 24, 26 | 30642 to 30642 | 77263 to **77260** | **yes** |
+
+The skip compares SITE counts. The plant refuses whole RECORDS, and the three it refuses
+carry no struct tag, so the site count never moves and the arm skips before either
+assertion is reached. **THE SUPPRESSED TRUE POSITIVE, measured:** with CS-863's defect
+deliberately restored, a control ceiling of 24 gives 1 skipped EXIT 0 where the shipped
+literal 8 gives 1 failed EXIT 1.
+
+**THE CONSTANT'S OWN DOCSTRING IS FALSE.** It says any ceiling below the corpus's observed
+maximum exercises the same loss class. The observed maximum is 31 and 22 through 26 are
+below it and exercise nothing.
+
+**NOT A REQUEST TO PICK A BETTER NUMBER.** A second hand-picked literal is the same item
+again. The counts are library-dependent and the operator plays while sessions run.
+
 ## CS-868 - item section, CLOSED and relocated from `docs/item_notes/phase4-followups-850.md` 2026-09-14
 
 ### Filed 2026-08-31 (session 53), from an adversarial pass CS-863's own session recorded as owed

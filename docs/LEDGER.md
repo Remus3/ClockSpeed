@@ -374,6 +374,64 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-09-14 - CS-869 - CLOSED. The ceiling control's strength is derived from the corpus and its skip is keyed on what the plant moves
+
+**THE DEFECT, AND IT WAS TWO HALVES OF ONE SENTENCE.** The third anti-monotone control in
+`tests/save/test_struct_interior.py` planted a tag ceiling of 8 - a bare literal - and then decided
+whether the plant was worth grading by comparing STRUCT SITE totals. A tag ceiling refuses whole
+RECORDS: the walk runs out of iterations and reports nothing. A refused record costs a struct site
+only when it happened to carry one, so on every ceiling whose refusals land on struct-free records
+the site totals matched, the skip fired, and the arm left before reaching either assertion that
+catches a shared constant moving this module's own reading. The item measured the suppression
+directly: with CS-863's defect restored, one such ceiling gave 1 skipped at exit 0 where the shipped
+literal gave 1 failed at exit 1.
+
+**THE ROOT CAUSE** is that the skip and the plant were keyed on different quantities, and the
+literal is what hid it - a number picked against one corpus sat where the corpus's own shape
+belonged, and its docstring's claim that any ceiling below the observed maximum exercised the same
+loss class was measured false by the item before this cycle started.
+
+**WHAT CHANGED.** `_CEILING_CONTROL_TAGS` is gone. `_derive_ceiling_control_tags` returns the middle
+of the corpus's own tags-per-payload distribution, clamped into the band the control requires, and
+declines outright when the deepest payload admits no ceiling both above one and below it - so the
+control says it has nothing to plant rather than planting a kill. `_CEILING_CONTROL_FLOOR` remains a
+BAND EDGE and is not a second picked strength. The distribution comes from `_StructSweep`, which is
+cached and which the arm already pays for, so nothing re-reads a library the operator is playing
+into. The arm now ASSERTS the corpus exceeds what it installed, which is the half the old literal
+had nothing checking. `_the_plant_cost_nothing` is the skip, and it forgives only a plant that took
+neither a record nor a site.
+
+**AND ONE ASSERTION THAT COULD NOT FIRE WAS REPLACED RATHER THAN KEPT.** The old strict fall in
+struct sites sat directly below a skip that had already left on that same equality, so its only
+reachable outcome was one the skip took first. Two monotonicity assertions stand there now - a
+stricter ceiling cannot find more sites and cannot open more records - and the anti-monotone site
+check is asked only where a site was actually lost, because demanding one on a corpus whose refusals
+are all struct-free would redden a healthy tree for the shape of its library.
+
+**PROVEN BY.** `tests/save/test_struct_interior.py::test_the_ceiling_controls_skip_forgives_only_a_plant_that_cost_nothing`
+and `::test_the_ceiling_controls_strength_is_derived_from_the_corpus`. Both are SYNTHETIC and
+deterministic - they grade the decision and never the library, so they redden on a machine with no
+game installed, which is the point: the defect was an arm that skipped before reaching its own
+evidence. Staged red twice, the second time for the right reason with the current logic moved behind
+the two names unchanged: `assert not True` on a plant that refused 3 of 10 records, and
+`assert 8 != 8` on two corpora handed the same strength. Merged file:
+`tests/save/test_struct_interior.py`.
+
+**THE SIBLING SWEEP CAME BACK NEGATIVE, and that is a result rather than an omission.** The other
+two anti-monotone controls live in `tests/save/test_struct_controls.py`. Neither shares the root
+cause: the reader control skips on sites lost inside records that stayed ACCEPTED, which is exactly
+what its plant moves, and the table control's cost assertion has no skip standing in front of it at
+all. Both were read for this, not grepped.
+
+**TIER 2, and the live arm was run rather than reasoned about.** The whole
+`tests/save/test_struct_interior.py` module was run against this machine's real save library with
+the derived ceiling installed, and the control arm PASSED rather than skipped - which is the claim
+that matters, since a skip is the failure mode this item exists to remove.
+
+**WHAT IS NOT CLAIMED.** The derived value on any particular machine is a property of that machine's
+library, and this entry deliberately records none as a live figure. The CI verdict for this push is
+recorded by the lane driver and was not observed by this worker.
+
 ### 2026-09-14 - CS-868 - CLOSED. The reach closure stopped at the file it was written in, so a reading assembled from two modules read as one
 
 **THE DEFECT, REPRODUCED BEFORE IT WAS REPAIRED.** `_shared_tag_symbols` in
