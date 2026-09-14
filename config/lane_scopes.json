@@ -27,9 +27,8 @@
   ],
   "scopes": {
     "save-reader": {
-      "description": "The CS-1038 block: the save reader's container-element and world-seam decode gaps, filed together by one review and worked as one unit. AN ENUMERATION, NOT A PARTITION, AND DELIBERATELY SO - '## Phase 4 - save reader' carries 140 takeable rows, so anchoring here would need 138 exclusion entries with written reasons, and an exclusion reason invented to quiet a red is the exact abuse the dashboard scope's reason field exists to prevent. A short named block is graded per member instead: every id here is checked against the live ROADMAP.md for closure, gating, gate-row shape and absence by test_the_declared_scopes_all_validate_against_the_live_roadmap, which iterates every declared scope. CS-1040 is a member of the same review block and is NOT here because it is not a takeable row today; add it when that changes.",
+      "description": "The CS-1038 block: the save reader's container-element and world-seam decode gaps, filed together by one review and worked as one unit. AN ENUMERATION, NOT A PARTITION, AND DELIBERATELY SO - '## Phase 4 - save reader' carries 140 takeable rows, so anchoring here would need 138 exclusion entries with written reasons, and an exclusion reason invented to quiet a red is the exact abuse the dashboard scope's reason field exists to prevent. A short named block is graded per member instead: every id here is checked against the live ROADMAP.md for closure, gating, gate-row shape and absence by test_the_declared_scopes_all_validate_against_the_live_roadmap, which iterates every declared scope. CS-1038 and CS-1040 are members of the same review block and are NOT here because both CLOSED on 2026-09-13; a closed row is never takeable, so neither is ever re-added.",
       "items": [
-        "CS-1038",
         "CS-1039"
       ],
       "excluded": {}
