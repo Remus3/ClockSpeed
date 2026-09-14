@@ -365,6 +365,7 @@ from clockspeed.save.objects import (
     ContainerValue,
     ObjectError,
     ObjectRecord,
+    ObjectReference,
     ObjectTable,
     PropertyResult,
     StructValue,
@@ -614,26 +615,33 @@ class WorldWarning:
     count: int = 1
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, repr=False)
 class UnlockState:
     """What the player has unlocked.
 
-    EMPTY ON EVERY PATH TODAY, AND THAT IS A MEASURED POSITION RATHER THAN A
-    STUB. ADR 0004 established that unlock state IS recoverable from a save and
-    named the fields; it did not measure their serialized grammar. Nor does this
-    module hold a path by which a purchased schematic could arrive:
-    :func:`_read_unlocks` is the only producer of this type and returns
-    :data:`EMPTY_UNLOCK_STATE` with no read of its own. A non-empty collection
-    here would therefore be an invented one.
+    NO LONGER EMPTY ON EVERY PATH - CS-1039. :func:`_read_unlocks` reads four
+    of the eight declared carriers out of the decoded payloads, so a collection
+    here can now hold what a save actually wrote. The four it does NOT read are
+    named in :data:`UNLOCK_CARRIERS_UNREAD`, and
+    :data:`WARN_UNLOCK_GRAMMAR_UNMEASURED` is still raised on every load
+    because of them: an empty unlock set with no warning is indistinguishable
+    from a world that genuinely has nothing unlocked, and the difference
+    between those two is the difference between honest silence and confident
+    wrong advice.
 
-    The load carries :data:`WARN_UNLOCK_GRAMMAR_UNMEASURED` for exactly that
-    reason: an empty unlock set with no warning is indistinguishable from a
-    world that genuinely has nothing unlocked, and the difference between those
-    two is the difference between honest silence and confident wrong advice.
+    THE ABSENT-ARRAY RULE IS THE ONE ADR 0004 ASKED TO BE PRESERVED and it is.
+    An array that is not present in the file is EMPTY, never missing and never
+    an error - a fresh onboarding world writes no ``mPurchasedSchematics`` at
+    all, and the reader contributes nothing for a carrier it does not find
+    rather than refusing.
 
-    When the grammar is measured, the absent-array rule is the one to preserve:
-    an array that is not present in the file is EMPTY, never missing and never
-    an error. Arrays that are still empty are simply not written.
+    ``repr`` IS HAND WRITTEN AND RENDERS COUNTS ONLY, which it did not need to
+    be while every field was empty. ``purchased_schematics`` and ``recipes``
+    hold OBJECT PATHS read out of a save. A path may cross this seam and may
+    not reach a repr, a log line or an exception (non-negotiable 12), and a
+    test runner reprs a value before a human chooses what to print.
+    ``tests/save/test_world.py::test_the_unlock_state_renders_no_object_path``
+    grades it against a populated state rather than an empty one.
 
     Attributes:
         purchased_schematics: Schematic paths bought, including the
@@ -648,6 +656,13 @@ class UnlockState:
             without it.
         scanned_resources: The scanned-resource state, which is the input that
             keeps ADR 0003's degraded node mode viable.
+        trading_post_level: The tutorial trading post's level, or None when no
+            carrier was found. ADDED BY CS-1039 RATHER THAN ALREADY PRESENT,
+            and that is the point of it: the acceptance requires
+            ``mTradingPostLevel`` to round-trip and to redden when its carrier
+            is unwired, and neither can hold while there is no field to hold
+            it. An arm written against the model as it stood passes while
+            grading nothing at all for that carrier.
     """
 
     purchased_schematics: frozenset[str]
@@ -655,13 +670,19 @@ class UnlockState:
     current_game_phase: int | None
     feature_flags: Mapping[str, bool]
     scanned_resources: frozenset[str]
+    trading_post_level: int | None = None
 
     @property
     def is_empty(self) -> bool:
         """Whether nothing at all was recovered.
 
+        EVERY FIELD IS CONSULTED, INCLUDING THE ONE CS-1039 ADDED. A field
+        omitted here makes a state holding only that field report itself empty,
+        which is the confident wrong answer in the one place a caller asks
+        whether it may trust anything at all.
+
         Returns:
-            True when every collection is empty and no phase was read.
+            True when every collection is empty and neither integer was read.
         """
         return not (
             self.purchased_schematics
@@ -669,17 +690,44 @@ class UnlockState:
             or self.feature_flags
             or self.scanned_resources
             or self.current_game_phase is not None
+            or self.trading_post_level is not None
+        )
+
+    def __repr__(self) -> str:
+        """Render counts and flags, and withhold every path.
+
+        The two integers ARE rendered. Neither is a string read out of a save -
+        each is a small ordinal the game's own progression defines - and
+        rendering a count for a scalar would withhold by saying nothing. The
+        feature flags are counted rather than named for the habit's sake: the
+        names are module-side today and a later edit widening them to something
+        read from a file must not silently turn this into an echo path.
+
+        Returns:
+            The safe rendering.
+        """
+        return (
+            f"{type(self).__name__}("
+            f"purchased_schematics={len(self.purchased_schematics)}, "
+            f"recipes={len(self.recipes)}, "
+            f"current_game_phase={self.current_game_phase}, "
+            f"feature_flags={len(self.feature_flags)}, "
+            f"scanned_resources={len(self.scanned_resources)}, "
+            f"trading_post_level={self.trading_post_level})"
         )
 
 
-#: The one shape any load produces today. A module-level constant rather than a
-#: fresh instance per load, because it is immutable and identical every time.
+#: The shape a load produces when no carrier record was found at all - which is
+#: every synthetic fixture, and a real world in which none of the four read
+#: carriers is present. A module-level constant rather than a fresh instance per
+#: load, because it is immutable and identical every time.
 EMPTY_UNLOCK_STATE: Final = UnlockState(
     purchased_schematics=frozenset(),
     recipes=frozenset(),
     current_game_phase=None,
     feature_flags=MappingProxyType({}),
     scanned_resources=frozenset(),
+    trading_post_level=None,
 )
 
 
@@ -913,6 +961,44 @@ class RecordProperties:
             schema RESOLUTION are excluded - see
             :data:`_RESOLUTION_WARNING_CODES` for why the exclusion is not a
             style choice.
+        references: The record's top-level ``objects.REFERENCE_TYPE_WORD``
+            values, ONE PER TAG AND IN TAG ORDER, carried from
+            ``objects.PropertyResult.references`` - CS-1039. A TUPLE RATHER
+            THAN A MAPPING, for the reason that type gives: two tags sharing a
+            name may not collapse into one, because a population that loses a
+            member is no longer the population. ``values`` tolerates that
+            collapse because a caller there asks BY NAME.
+
+            NOT A DUPLICATE OF ``values``. A reference tag's decoded value is
+            in ``values`` too, as the measured pair, but keyed by name and
+            therefore unordered and collapsible; this is the ordered
+            population the acceptance names. DECODED WORLD CONTENT holding
+            OBJECT PATHS - ``objects.ObjectReference`` withholds all three of
+            its strings from its own repr, and this type's repr renders a
+            length.
+        struct_interiors: One ``objects.StructValue`` per TOP-LEVEL struct tag
+            whose interior read, in tag order, from
+            ``objects.PropertyResult.struct_interiors`` - CS-1039. Reported
+            APART FROM ``values`` because that is what the reader measured: a
+            struct written as native raw bytes is not read at all, so
+            ``StructProperty`` stays outside ``objects.MEASURED_VALUE_TYPES``
+            and a struct tag still counts in ``unmeasured_value_count``.
+            Putting an interior into ``values`` would claim the type's
+            top-level value is measured, which for the native form is false.
+
+            EVERY INTERIOR IS NARROWED RATHER THAN FORWARDED, and the
+            distinction is load-bearing. ``objects.StructValue`` declares no
+            position of its own, which makes forwarding it look safe; what its
+            ``properties`` mapping HOLDS can be an ``objects.ContainerValue``
+            whose elements each carry an absolute offset into the decompressed
+            body. :func:`_published_value` already owns that narrowing and
+            this population goes through it, so what arrives is a struct whose
+            containers are :class:`ContainerContents`.
+
+            THE ARRAY-OF-STRUCT CASE IS NOT THIS ONE and is not duplicated
+            here. Interiors belonging to a container's ELEMENTS already cross
+            inside that container's own published entries; this field is the
+            TOP-LEVEL tag population, which crossed nowhere before CS-1039.
     """
 
     values: Mapping[str, object]
@@ -922,6 +1008,8 @@ class RecordProperties:
     unmeasured_value_count: int = 0
     disagreeing_value_count: int = 0
     warning_codes: tuple[str, ...] = ()
+    references: tuple[ObjectReference, ...] = ()
+    struct_interiors: tuple[StructValue, ...] = ()
 
     def __repr__(self) -> str:
         """Render counts and flags, and withhold every string.
@@ -940,7 +1028,9 @@ class RecordProperties:
             f"payload_read={self.payload_read}, "
             f"unmeasured_value_count={self.unmeasured_value_count}, "
             f"disagreeing_value_count={self.disagreeing_value_count}, "
-            f"warning_codes={len(self.warning_codes)})"
+            f"warning_codes={len(self.warning_codes)}, "
+            f"references={len(self.references)}, "
+            f"struct_interiors={len(self.struct_interiors)})"
         )
 
 
@@ -1305,17 +1395,161 @@ def _untransformed_node_class(record: ObjectRecord) -> bool:
     return class_name_of(record.type_path) in NODE_CLASS_NAMES and record.transform is None
 
 
-def _read_unlocks() -> tuple[UnlockState, list[WorldWarning]]:
-    """Recover the unlock state, which today means reporting that it cannot be.
+#: THE CARRIERS THIS MODULE READS, KEYED BY OWNING CLASS AND PROPERTY NAME
+#: TOGETHER - CS-1039. Each value is the :class:`UnlockState` field the carrier
+#: feeds.
+#:
+#: THE KEY IS A PAIR AND NOT A BARE NAME, AND THAT IS THE WHOLE CONTROL.
+#: ``mCurrentGamePhase`` is declared TWICE in the shipped headers: on
+#: ``AFGGamePhaseManager`` WITH the ``SaveGame`` specifier, and on
+#: ``UFGSessionInformationModel`` WITHOUT it. A reader matching on the name
+#: alone would accept a field that cannot appear in a save at all, and would do
+#: it silently - which is the confident wrong answer non-negotiable 7 forbids
+#: rather than a near miss. Measured against the install's own headers through
+#: ``clockspeed/data/assets.py``, 2026-09-14.
+#:
+#: WHY FOUR AND NOT EIGHT. Eight declarations carry ``SaveGame`` and so CAN
+#: appear in a save. Four of them have a field on :class:`UnlockState` to land
+#: in; the other four are listed in :data:`UNLOCK_CARRIERS_UNREAD` and are not
+#: read, because inventing a field to hold one would put a shape in the model
+#: with no consumer and no acceptance behind it.
+UNLOCK_CARRIERS: Final[Mapping[tuple[str, str], str]] = MappingProxyType(
+    {
+        ("AFGSchematicManager", "mPurchasedSchematics"): "purchased_schematics",
+        ("AFGRecipeManager", "mAvailableRecipes"): "recipes",
+        ("AFGGamePhaseManager", "mCurrentGamePhase"): "current_game_phase",
+        ("AFGTutorialIntroManager", "mTradingPostLevel"): "trading_post_level",
+    }
+)
 
-    A function rather than a constant reference at the call site, so the place
-    the real reader goes is already named and the warning cannot be dropped
-    without deleting a line that says why it exists.
+#: The declarations that carry ``SaveGame`` and are STILL NOT READ, named so
+#: the warning below reports a specific gap rather than a general one. Two were
+#: named in the item note as explicitly retained; the other two decode but have
+#: nowhere on :class:`UnlockState` to land.
+UNLOCK_CARRIERS_UNREAD: Final = (
+    ("AFGSchematicManager", "mPaidOffSchematic"),
+    ("AFGResearchManager", "mSavedOngoingResearch"),
+    ("AFGResearchManager", "mUnlockedResearchTrees"),
+    ("AFGGamePhaseManager", "mTargetGamePhase"),
+)
+
+#: The fields :data:`UNLOCK_CARRIERS` fills with a SET OF OBJECT PATHS. The
+#: remaining fields take a scalar, and the two are read differently.
+_UNLOCK_PATH_FIELDS: Final = frozenset({"purchased_schematics", "recipes"})
+
+#: How many strings a decoded ``objects.REFERENCE_TYPE_WORD`` value carries: a
+#: level reference and an object path. Spelled here rather than imported from
+#: ``objects``, whose own copy is private - reaching for it would be the seam
+#: violation this layer is built to avoid, and the number is a shape check on a
+#: value this module already holds rather than a grammar this module reads.
+_REFERENCE_PARTS: Final = 2
+
+
+def _unlock_paths(value: object) -> frozenset[str]:
+    """Every object path inside one published container value.
+
+    NON-NEGOTIABLE 7 IS THE WHOLE SHAPE OF THIS FUNCTION. An element whose
+    value is not the measured reference pair is SKIPPED rather than refused and
+    rather than guessed at - a container that decoded partially still yields
+    the members that decoded, and a value of some other shape yields nothing at
+    all instead of raising out of a reader whose contract is to flag and skip.
+
+    Args:
+        value: One entry of ``RecordProperties.values``, of any shape.
 
     Returns:
-        The empty state and the warning that makes the emptiness honest.
+        The object path half of every element that decoded as a reference.
+        Empty when the value is not a published container.
     """
-    return EMPTY_UNLOCK_STATE, [_warning(SOURCE_WORLD, WARN_UNLOCK_GRAMMAR_UNMEASURED)]
+    if not isinstance(value, ContainerContents):
+        return frozenset()
+    paths: set[str] = set()
+    for entry in value.entries:
+        element = entry.value
+        if isinstance(element, tuple) and len(element) == _REFERENCE_PARTS:
+            path = element[1]
+            if isinstance(path, str):
+                paths.add(path)
+    return frozenset(paths)
+
+
+def _unlock_scalar(value: object) -> int | None:
+    """One published value narrowed to a whole number, or refused.
+
+    ``bool`` IS A SUBCLASS OF ``int`` AND IS REFUSED HERE EXPLICITLY.
+    ``isinstance(value, int)`` alone admits True as a game phase of 1, which is
+    a wrong answer that looks like a right one. NO FLOAT IS ADMITTED EITHER:
+    non-negotiable 6 keeps the arithmetic exact, and a carrier that decoded to
+    a float decoded as something other than the ``IntProperty`` it declares.
+
+    Args:
+        value: One entry of ``RecordProperties.values``, of any shape.
+
+    Returns:
+        The integer, or None when the value is not one.
+    """
+    if isinstance(value, bool) or not isinstance(value, int):
+        return None
+    return value
+
+
+def _read_unlocks(
+    table: ObjectTable, properties: WorldProperties
+) -> tuple[UnlockState, list[WorldWarning]]:
+    """Recover the unlock state from the payloads the second pass decoded.
+
+    IT READS NO BYTES OF ITS OWN, BY DESIGN. Every value it needs is already in
+    :class:`WorldProperties`, keyed by record index, so this function consumes
+    the seam above the decoder rather than reaching past it - and cannot hold a
+    position in the decompressed body, because nothing it touches carries one.
+
+    THE OWNING CLASS AND THE PROPERTY NAME ARE MATCHED TOGETHER. See
+    :data:`UNLOCK_CARRIERS` for why a bare-name match would accept a
+    declaration that cannot be in a save.
+
+    THE WARNING IS STILL RAISED ON EVERY LOAD and is not conditional on having
+    found nothing. Four declarations in :data:`UNLOCK_CARRIERS_UNREAD` carry
+    ``SaveGame`` and are not read, so a state built here is INCOMPLETE even
+    when it is full - and a caller told "complete" about a partial reading is
+    the confident wrong answer the warning exists to prevent. A conditional
+    warning would go silent exactly on the worlds that have the most unread.
+
+    Args:
+        table: The walked record table, for each record's class path.
+        properties: The decoded payloads, keyed by index into ``table.records``.
+
+    Returns:
+        The state and the warning that says what is still not read.
+    """
+    paths: dict[str, set[str]] = {field: set() for field in _UNLOCK_PATH_FIELDS}
+    scalars: dict[str, int] = {}
+    for index, record in enumerate(table.records):
+        entry = properties.by_record_index.get(index)
+        if entry is None:
+            continue
+        owner = class_name_of(record.type_path)
+        for name, value in entry.values.items():
+            field = UNLOCK_CARRIERS.get((owner, name))
+            if field is None:
+                continue
+            if field in _UNLOCK_PATH_FIELDS:
+                paths[field].update(_unlock_paths(value))
+            elif (scalar := _unlock_scalar(value)) is not None:
+                scalars[field] = scalar
+    state = UnlockState(
+        purchased_schematics=frozenset(paths["purchased_schematics"]),
+        recipes=frozenset(paths["recipes"]),
+        current_game_phase=scalars.get("current_game_phase"),
+        feature_flags=MappingProxyType({}),
+        scanned_resources=frozenset(),
+        trading_post_level=scalars.get("trading_post_level"),
+    )
+    if state.is_empty:
+        # THE CONSTANT RATHER THAN AN EQUAL-BUT-DISTINCT INSTANCE, so the
+        # no-carrier path keeps producing the one shape the module documents
+        # and every arm that asserts identity against it stays meaningful.
+        state = EMPTY_UNLOCK_STATE
+    return state, [_warning(SOURCE_WORLD, WARN_UNLOCK_GRAMMAR_UNMEASURED)]
 
 
 def _checked_layout(body_layout: str) -> str:
@@ -1627,7 +1861,50 @@ def _record_properties(result: PropertyResult) -> RecordProperties:
         unmeasured_value_count=result.unmeasured_value_count,
         disagreeing_value_count=result.disagreeing_value_count,
         warning_codes=codes,
+        # BOTH POPULATIONS ARE CARRIED IN TAG ORDER, WHICH IS THE READER'S OWN
+        # ORDER AND IS NOT RE-DERIVED HERE. Rebuilding either from `properties`
+        # would lose it: that mapping is keyed by NAME, so it is unordered with
+        # respect to the file and collapses two tags sharing a name into one.
+        #
+        # THE REFERENCES ARE CARRIED VERBATIM AND THE INTERIORS ARE NOT, and
+        # the asymmetry is a fact about the two types rather than a choice.
+        # `objects.ObjectReference` holds three strings and no position, so
+        # there is nothing to narrow away. `objects.StructValue` holds an
+        # interior MAPPING that can hold an `objects.ContainerValue`, whose
+        # elements each carry an absolute offset into a buffer that is gone by
+        # the time a consumer holds this object - so forwarding an interior
+        # would publish a clean struct full of dirty elements. That is the
+        # exact defect this seam exists to remove.
+        references=result.references,
+        struct_interiors=tuple(_published_struct(interior) for interior in result.struct_interiors),
     )
+
+
+def _published_struct(interior: StructValue) -> StructValue:
+    """Narrow one TOP-LEVEL struct interior to what a higher layer may hold.
+
+    A one-line hop through :func:`_published_value` rather than a second
+    narrowing, so the top-level population and the one reached through a
+    container are narrowed by the SAME code. Two narrowings would be two places
+    for the recursion to stop early, and the whole defect this seam removes is a
+    recursion that stopped one level too soon.
+
+    The cast is what the hop costs. :func:`_published_value` is typed over
+    ``object`` because it is called on every decoded value; its ``StructValue``
+    branch returns a ``StructValue`` and no other shape, which is asserted by
+    ``tests/save/test_world.py::test_a_container_inside_a_published_struct_
+    interior_is_narrowed`` rather than left to the annotation.
+
+    Args:
+        interior: One entry of ``objects.PropertyResult.struct_interiors``.
+
+    Returns:
+        The interior a :class:`RecordProperties` may carry.
+    """
+    published = _published_value(interior)
+    if not isinstance(published, StructValue):  # pragma: no cover - defended, not reachable
+        raise TypeError("the struct narrowing returned a shape that is not a StructValue")
+    return published
 
 
 def load_world_from_bytes(
@@ -1739,7 +2016,7 @@ def load_world_from_bytes(
             # either left the suite green.
             raise WorldLoadError(STAGE_OBJECTS, type(exc).__name__) from exc
 
-        unlocks, unlock_warnings = _read_unlocks()
+        unlocks, unlock_warnings = _read_unlocks(table, properties)
         nodes, node_warnings = _nodes_from(table)
 
         warnings.extend(unlock_warnings)

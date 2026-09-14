@@ -4565,7 +4565,12 @@ def test_the_world_loader_drops_the_body_on_a_refusal_after_the_object_stage(
         monkeypatch: Replaces the post-body step with one that refuses.
     """
 
-    def _refuse() -> tuple[object, ...]:
+    def _refuse(*_args: object) -> tuple[object, ...]:
+        # THE STAND-IN TAKES WHATEVER IT IS HANDED. It took zero arguments
+        # while `_read_unlocks` did, and the day CS-1039 gave the real function
+        # the table and the decoded properties this raised a TypeError from the
+        # CALL rather than the RuntimeError the arm is about - which is a
+        # refusal from a different place, past a different set of locals.
         raise RuntimeError("a refusal after the body is bound")
 
     monkeypatch.setattr(world, "_read_unlocks", _refuse)
@@ -4594,4 +4599,498 @@ def test_the_world_loader_drops_the_body_on_a_refusal_after_the_object_stage(
             "on a refusal raised after the object stage, load_world_from_bytes still "
             "reaches the decompressed body - the region the deleted per-handler scrub "
             f"never covered: {holding}"
+        )
+
+
+# ---------------------------------------------------------------------------
+# 14 - CS-1039: the two dropped populations, and the unlock carriers
+# ---------------------------------------------------------------------------
+#
+# TWO SEAMS AND ONE FILL, AND THEY ARE GRADED APART. ``_record_properties``
+# never named ``objects.PropertyResult.references`` or ``struct_interiors``, so
+# two populations the reader had already decoded stopped at the one seam every
+# higher layer reads. ``_read_unlocks`` took no arguments and returned
+# ``EMPTY_UNLOCK_STATE`` on every path, so a carrier record whose payload HAD
+# decoded contributed nothing.
+#
+# WHY THE FIXTURES ARE BUILT HERE RATHER THAN REACHED FOR. Every existing
+# decodable fixture in ``tests/save/synthetic.py`` carries scalars and one
+# array; none carries a TOP-LEVEL ``ObjectProperty`` tag, a TOP-LEVEL
+# ``StructProperty`` tag, or a record whose class is an unlock carrier. An arm
+# written against those fixtures would assert over populations with no member
+# in them and pass for that reason alone.
+
+#: The struct tag's extra is the struct word AND a property guid - see
+#: ``objects._tag_extra_end``, which steps ``objects.GUID_BYTES`` past the word
+#: for this type word and no other. MEASURED, not assumed: the same fixture
+#: without these bytes reads as an unparsed payload rather than as a struct.
+_STRUCT_TAG_GUID: Final = bytes(objects.GUID_BYTES)
+
+#: The level every reference in these fixtures is paired with.
+_SEAM_LEVEL: Final = synthetic.MAP_NAME
+
+#: The two TOP-LEVEL reference tags, in the order the payload writes them, with
+#: an unrelated struct tag BETWEEN them. The gap is the point: a reader that
+#: published the references by walking ``values`` would lose the ordering the
+#: acceptance names, because ``values`` is keyed by name.
+_SEAM_REFERENCES: Final = (
+    ("mOwnedPawn", "Persistent_Level:PersistentLevel.Char_Player_C_0"),
+    ("mLastSafeGroundPosition", "Persistent_Level:PersistentLevel.Marker_1"),
+)
+
+#: The top-level struct tag's word, and its interior as name to value.
+_SEAM_STRUCT_WORD: Final = "InventoryStack"
+_SEAM_STRUCT_INTERIOR: Final = {"NumItems": 7, "StackSize": 9}
+
+
+def _reference_value(path: str) -> bytes:
+    """One ``ObjectProperty`` value: the level reference then the object path.
+
+    Args:
+        path: The object path half.
+
+    Returns:
+        The encoded pair.
+    """
+    return synthetic.fstring(_SEAM_LEVEL) + synthetic.fstring(path)
+
+
+def _carrier_blob(records: tuple[tuple[str, str, bytes], ...]) -> bytes:
+    """A LEVELLED save whose named level holds one record per supplied triple.
+
+    Built from the PUBLIC synthetic primitives for the reason
+    :func:`_container_property_blob` gives - ``tests/save/synthetic.py`` is
+    outside this slice's write-list.
+
+    Args:
+        records: One ``(class path, instance name, encoded tag)`` per record,
+            in the order the level writes them.
+
+    Returns:
+        A whole save blob.
+    """
+    header_version, save_version = _decodable_pair()
+    level = synthetic.SyntheticLevel(
+        name="CS1039Level",
+        objects=tuple(
+            synthetic.SyntheticObject(class_path, synthetic.DECODABLE_ROOT, instance)
+            for class_path, instance, _ in records
+        ),
+        payloads=tuple(
+            synthetic.tagged_property_payload(
+                (tag,),
+                head=synthetic.actor_payload_head(_SEAM_LEVEL, synthetic.DECODABLE_ROOT, ()),
+                trailing=synthetic.DECODABLE_TRAILING_RUN,
+            )
+            for _, _, tag in records
+        ),
+    )
+    body = synthetic.build_levelled_body(
+        (level,),
+        synthetic.SyntheticLevel(name=None),
+        header_version=header_version,
+        save_version=save_version,
+        grids=synthetic.LEVELLED_GRIDS,
+    )
+    head = synthetic.build_header(header_version=header_version, save_version=save_version)
+    return head + synthetic.build_chunks(
+        synthetic.body_with_prefix(body, header_version),
+        framing=synthetic.default_framing(header_version),
+    )
+
+
+def _seam_blob() -> bytes:
+    """One record carrying reference, struct and reference tags in that order.
+
+    Returns:
+        A whole save blob.
+    """
+    interior = synthetic.tagged_property_payload(
+        tuple(
+            synthetic.property_tag(name, synthetic.DECODABLE_INT_TYPE_WORD, _i32(value))
+            for name, value in _SEAM_STRUCT_INTERIOR.items()
+        )
+    )
+    tags = (
+        synthetic.property_tag(
+            _SEAM_REFERENCES[0][0],
+            objects.REFERENCE_TYPE_WORD,
+            _reference_value(_SEAM_REFERENCES[0][1]),
+        ),
+        synthetic.property_tag(
+            "mStack",
+            objects.STRUCT_TYPE_WORD,
+            interior,
+            tag_extra=synthetic.fstring(_SEAM_STRUCT_WORD) + _STRUCT_TAG_GUID,
+        ),
+        synthetic.property_tag(
+            _SEAM_REFERENCES[1][0],
+            objects.REFERENCE_TYPE_WORD,
+            _reference_value(_SEAM_REFERENCES[1][1]),
+        ),
+    )
+    return _carrier_blob_from_tags(tags)
+
+
+def _carrier_blob_from_tags(tags: tuple[bytes, ...]) -> bytes:
+    """One record carrying every supplied tag, in the supplied order.
+
+    Separate from :func:`_carrier_blob`, which puts ONE tag on each of several
+    records. This puts SEVERAL tags on one record, which is what an ordering
+    assertion needs.
+
+    Args:
+        tags: The encoded tags, in file order.
+
+    Returns:
+        A whole save blob.
+    """
+    header_version, save_version = _decodable_pair()
+    payload = synthetic.tagged_property_payload(
+        tags,
+        head=synthetic.actor_payload_head(_SEAM_LEVEL, synthetic.DECODABLE_ROOT, ()),
+        trailing=synthetic.DECODABLE_TRAILING_RUN,
+    )
+    level = synthetic.SyntheticLevel(
+        name="CS1039Seam",
+        objects=(
+            synthetic.SyntheticObject(
+                synthetic.DECODABLE_CLASS_PATH,
+                synthetic.DECODABLE_ROOT,
+                synthetic.DECODABLE_INSTANCE,
+            ),
+        ),
+        payloads=(payload,),
+    )
+    body = synthetic.build_levelled_body(
+        (level,),
+        synthetic.SyntheticLevel(name=None),
+        header_version=header_version,
+        save_version=save_version,
+        grids=synthetic.LEVELLED_GRIDS,
+    )
+    head = synthetic.build_header(header_version=header_version, save_version=save_version)
+    return head + synthetic.build_chunks(
+        synthetic.body_with_prefix(body, header_version),
+        framing=synthetic.default_framing(header_version),
+    )
+
+
+def _seam_entry() -> world.RecordProperties:
+    """The one published entry of the seam fixture.
+
+    Returns:
+        The entry.
+    """
+    model = world.load_world_from_bytes(_seam_blob())
+    return model.properties.by_record_index[_index_of(model, synthetic.DECODABLE_INSTANCE)]
+
+
+def test_the_reader_has_both_populations_the_seam_is_asked_to_publish() -> None:
+    """THE CONTROL, AND IT COMES FIRST.
+
+    Every arm below asserts that a population REACHED the published seam. Each
+    of them is satisfied by a fixture in which the reader decoded nothing, so
+    without this arm a fixture bug and a repaired seam are the same green.
+    ``objects.read_properties`` is the layer beneath the seam and is asked here
+    directly, so what follows is graded against a population known to exist.
+    """
+    blob = _seam_blob()
+    model = world.load_world_from_bytes(blob)
+    index = _index_of(model, synthetic.DECODABLE_INSTANCE)
+    header_version, save_version = _decodable_pair()
+
+    result = objects.read_properties(
+        _decompressed_payload(blob),
+        model.objects.records[index],
+        None,
+        save_version=save_version,
+        header_version=header_version,
+    )
+
+    assert len(result.references) == len(_SEAM_REFERENCES), (
+        "the fixture's reference tags did not decode, so no arm below is "
+        f"grading a reference population: {result!r}"
+    )
+    assert len(result.struct_interiors) == 1, (
+        "the fixture's struct tag yielded no interior, so no arm below is "
+        f"grading a struct population: {result!r}"
+    )
+
+
+def test_both_dropped_populations_reach_the_published_seam_in_tag_order() -> None:
+    """CS-1039 acceptance, half one: the two populations cross, ordered.
+
+    ``_record_properties`` named neither field, so a consumer holding a
+    ``RecordProperties`` could not tell a record with two references from one
+    with none - the same confident-wrong-answer shape non-negotiable 7 rules
+    out, at the one seam every layer above reads.
+
+    TAG ORDER IS ASSERTED RATHER THAN MEMBERSHIP. The fixture writes an
+    unrelated struct tag BETWEEN its two reference tags, so a publisher that
+    rebuilt the population from ``values`` - which is keyed by NAME - cannot
+    reproduce this sequence by accident.
+    """
+    entry = _seam_entry()
+
+    rendered = tuple(
+        (reference.property_name, reference.object_path) for reference in entry.references
+    )
+    assert rendered == _SEAM_REFERENCES
+
+    assert len(entry.struct_interiors) == 1
+    interior = entry.struct_interiors[0]
+    assert interior.struct_word == _SEAM_STRUCT_WORD
+    assert dict(interior.properties) == _SEAM_STRUCT_INTERIOR
+
+
+def test_neither_published_population_carries_a_position_in_the_body() -> None:
+    """CS-1039 acceptance, half one: no byte offset and no absolute position.
+
+    THE ORACLE IS THE RECORD'S EXTENT RATHER THAN A FIELD NAME, for the reason
+    :func:`_offsets_into` states: a name census is defeated by a rename and
+    this is not. The extent is the record's own payload span, which is where
+    every position the reader held pointed.
+    """
+    blob = _seam_blob()
+    model = world.load_world_from_bytes(blob)
+    index = _index_of(model, synthetic.DECODABLE_INSTANCE)
+    record = model.objects.records[index]
+    entry = model.properties.by_record_index[index]
+    extent = range(record.body_offset, record.body_offset + record.body_length)
+
+    assert extent, "the record was attributed no extent, so this arm grades nothing"
+    offending = _offsets_into((entry.references, entry.struct_interiors), extent)
+    assert offending == {}, (
+        "a position in the decompressed body is reachable from the newly "
+        f"published populations: {offending}"
+    )
+
+
+def test_a_container_inside_a_published_struct_interior_is_narrowed() -> None:
+    """A struct interior may not be published VERBATIM.
+
+    ``objects.StructValue`` declares no position of its own, which makes
+    forwarding it look safe. What its ``properties`` mapping HOLDS can be an
+    ``objects.ContainerValue``, whose elements each carry an absolute offset
+    into the decompressed body - so the safe-looking forward publishes a clean
+    struct full of dirty elements. :func:`world._published_value` already owns
+    that narrowing; this arm asserts the new population goes THROUGH it.
+    """
+    elements = _i32(len(_CONTAINER_ELEMENT_VALUES)) + b"".join(
+        _i32(value) for value in _CONTAINER_ELEMENT_VALUES
+    )
+    interior = synthetic.tagged_property_payload(
+        (
+            synthetic.property_tag(
+                _CONTAINER_PROPERTY_NAME,
+                _CONTAINER_TYPE_WORD,
+                elements,
+                tag_extra=synthetic.fstring(synthetic.DECODABLE_INT_TYPE_WORD),
+            ),
+        )
+    )
+    tag = synthetic.property_tag(
+        "mStack",
+        objects.STRUCT_TYPE_WORD,
+        interior,
+        tag_extra=synthetic.fstring(_SEAM_STRUCT_WORD) + _STRUCT_TAG_GUID,
+    )
+    model = world.load_world_from_bytes(_carrier_blob_from_tags((tag,)))
+    index = _index_of(model, synthetic.DECODABLE_INSTANCE)
+    entry = model.properties.by_record_index[index]
+
+    assert len(entry.struct_interiors) == 1, (
+        f"the nested-container fixture yielded no interior: {entry!r}"
+    )
+    nested = entry.struct_interiors[0].properties[_CONTAINER_PROPERTY_NAME]
+    assert isinstance(nested, world.ContainerContents), (
+        "the container inside the published interior was forwarded as the "
+        f"reader's own positioned type: {type(nested).__name__}"
+    )
+    assert tuple(item.value for item in nested.entries) == _CONTAINER_ELEMENT_VALUES
+
+
+# --- half two: the unlock carriers -----------------------------------------
+
+#: The three carriers the acceptance names, as ``(class path, instance name)``.
+#: THE CLASS PATHS ARE NAMESPACED because ``objects.class_name_of`` reduces a
+#: path to its final segment, and a bare name would not exercise that step.
+_SCHEMATIC_MANAGER: Final = (
+    "/Script/FactoryGame.FGSchematicManager.AFGSchematicManager",
+    "Persistent_Level:PersistentLevel.SchematicManager_0",
+)
+_GAME_PHASE_MANAGER: Final = (
+    "/Script/FactoryGame.FGGamePhaseManager.AFGGamePhaseManager",
+    "Persistent_Level:PersistentLevel.GamePhaseManager_0",
+)
+_TUTORIAL_INTRO_MANAGER: Final = (
+    "/Script/FactoryGame.FGTutorialIntroManager.AFGTutorialIntroManager",
+    "Persistent_Level:PersistentLevel.TutorialIntroManager_0",
+)
+
+#: The values the three carriers are packed with. Small DISTINCT integers, so a
+#: reader that crossed two carriers' values produces a visible wrong answer
+#: rather than a coincidentally right one.
+_PURCHASED_PATHS: Final = (
+    "/Game/FactoryGame/Schematics/Schematic_CS1039_A.Schematic_CS1039_A_C",
+    "/Game/FactoryGame/Schematics/Schematic_Alternate_CS1039.Schematic_Alternate_CS1039_C",
+)
+_GAME_PHASE_VALUE: Final = 3
+_TRADING_POST_VALUE: Final = 5
+
+
+def _purchased_tag() -> bytes:
+    """The ``mPurchasedSchematics`` array-of-``ObjectProperty`` tag.
+
+    Returns:
+        The encoded tag.
+    """
+    value = _i32(len(_PURCHASED_PATHS)) + b"".join(
+        _reference_value(path) for path in _PURCHASED_PATHS
+    )
+    return synthetic.property_tag(
+        "mPurchasedSchematics",
+        _CONTAINER_TYPE_WORD,
+        value,
+        tag_extra=synthetic.fstring(objects.REFERENCE_TYPE_WORD),
+    )
+
+
+def _carrier_records() -> tuple[tuple[str, str, bytes], ...]:
+    """The three carrier records the acceptance names, wired.
+
+    Returns:
+        One triple per record.
+    """
+    return (
+        (*_SCHEMATIC_MANAGER, _purchased_tag()),
+        (
+            *_GAME_PHASE_MANAGER,
+            synthetic.property_tag(
+                "mCurrentGamePhase",
+                synthetic.DECODABLE_INT_TYPE_WORD,
+                _i32(_GAME_PHASE_VALUE),
+            ),
+        ),
+        (
+            *_TUTORIAL_INTRO_MANAGER,
+            synthetic.property_tag(
+                "mTradingPostLevel",
+                synthetic.DECODABLE_INT_TYPE_WORD,
+                _i32(_TRADING_POST_VALUE),
+            ),
+        ),
+    )
+
+
+def test_the_three_named_carriers_round_trip_into_the_unlock_state() -> None:
+    """CS-1039 acceptance, half two: each named carrier's value arrives.
+
+    ``_read_unlocks`` took no arguments and returned ``EMPTY_UNLOCK_STATE``,
+    so a world whose carrier payloads HAD decoded published nothing - an empty
+    unlock set indistinguishable from a world with nothing unlocked.
+
+    ``mTradingPostLevel`` HAS NO FIELD ON THE MODEL AT HEAD. That is why this
+    arm is written against ``trading_post_level`` rather than around it: an arm
+    written against today's ``UnlockState`` passes while grading nothing for
+    that carrier, which is the shape this repository has measured repeatedly.
+    """
+    model = world.load_world_from_bytes(_carrier_blob(_carrier_records()))
+    unlocks = model.unlocks
+
+    assert not unlocks.is_empty
+    assert unlocks.purchased_schematics == frozenset(_PURCHASED_PATHS)
+    assert unlocks.current_game_phase == _GAME_PHASE_VALUE
+    assert unlocks.trading_post_level == _TRADING_POST_VALUE
+
+
+@pytest.mark.parametrize("dropped", [0, 1, 2], ids=["schematics", "phase", "trading_post"])
+def test_unwiring_any_one_carrier_reddens_its_own_clause(dropped: int) -> None:
+    """CS-1039 acceptance, half two: the negative control, SHIPPED.
+
+    An arm that cannot be reddened on demand is not evidence. Each parameter
+    removes exactly ONE carrier record from the fixture and asserts that the
+    field that carrier feeds goes back to its empty reading while the other
+    two still arrive - so a reader that populated the whole state from any one
+    record, or from none of them, fails here rather than passing three times.
+    """
+    records = _carrier_records()
+    kept = tuple(record for position, record in enumerate(records) if position != dropped)
+    unlocks = world.load_world_from_bytes(_carrier_blob(kept)).unlocks
+
+    readings = (
+        unlocks.purchased_schematics == frozenset(_PURCHASED_PATHS),
+        unlocks.current_game_phase == _GAME_PHASE_VALUE,
+        unlocks.trading_post_level == _TRADING_POST_VALUE,
+    )
+    assert not readings[dropped], (
+        "the clause for the removed carrier still reads as populated, so it "
+        "was never grading that carrier"
+    )
+    surviving = all(value for position, value in enumerate(readings) if position != dropped)
+    assert surviving, f"removing one carrier lost another carrier's value too: {readings}"
+
+
+def test_a_carrier_property_on_the_wrong_owner_is_not_read() -> None:
+    """THE SECOND-OWNER TRAP, MEASURED 2026-09-14 AND GRADED HERE.
+
+    ``mCurrentGamePhase`` is declared on ``AFGGamePhaseManager`` WITH the
+    ``SaveGame`` specifier and ALSO on ``UFGSessionInformationModel`` WITHOUT
+    it. A reader matching on the bare property name would accept a field that
+    cannot be in a save at all, and would do it silently. The match is on the
+    OWNING CLASS and the name together, so this record contributes nothing.
+    """
+    stranger = (
+        "/Script/FactoryGame.FGSessionInformationModel.UFGSessionInformationModel",
+        "Persistent_Level:PersistentLevel.SessionInformationModel_0",
+        synthetic.property_tag(
+            "mCurrentGamePhase",
+            synthetic.DECODABLE_INT_TYPE_WORD,
+            _i32(_GAME_PHASE_VALUE + 1),
+        ),
+    )
+    unlocks = world.load_world_from_bytes(_carrier_blob((stranger,))).unlocks
+
+    assert unlocks.current_game_phase is None, (
+        "a property name matched without its owning class, so a declaration "
+        "carrying no SaveGame specifier reached the published unlock state"
+    )
+    assert unlocks.is_empty
+
+
+def test_no_unlock_value_is_a_float() -> None:
+    """Non-negotiable 6: no float reaches the state, and no bool passes as one.
+
+    ``bool`` IS a subclass of ``int`` in Python, so an ``isinstance(value,
+    int)`` admission check accepts True as a phase index of 1. The admitted
+    values are asserted here over the live state rather than trusted.
+    """
+    unlocks = world.load_world_from_bytes(_carrier_blob(_carrier_records())).unlocks
+
+    for value in (unlocks.current_game_phase, unlocks.trading_post_level):
+        assert value is not None
+        assert not isinstance(value, float), f"a float reached the unlock state: {value!r}"
+        assert type(value) is int, f"a non-int integer reached the unlock state: {value!r}"
+
+
+def test_the_unlock_state_renders_no_object_path() -> None:
+    """PRIVACY, AND IT IS NOT INHERITED FROM THE OLD EMPTINESS.
+
+    ``UnlockState``'s entry in ``tests/repr_rendering_guard.py`` rested on a
+    measured fact - ``_read_unlocks`` produced only the empty constant - and
+    that fact is what this item removes. The collections now hold OBJECT PATHS
+    read out of a save. An object path may cross the SAVE seam and may not
+    reach a repr, so the rendering is hand written and renders lengths only. A
+    test runner reprs a value before a human chooses what to print.
+    """
+    unlocks = world.load_world_from_bytes(_carrier_blob(_carrier_records())).unlocks
+    short = type(unlocks).__name__
+
+    for rendered in (repr(unlocks), saferepr(unlocks)):
+        for path in _PURCHASED_PATHS:
+            assert path not in rendered, f"the unlock repr renders an object path: {rendered}"
+        assert short in rendered
+        assert rendered != f"{short}()", (
+            "the rendering collapsed to a bare type name, which withholds by saying nothing at all"
         )
