@@ -768,3 +768,83 @@ silence. They are correctly DEFENDED under the criterion and should NOT be count
 evidence that a floor works.
 
 **THE PER-SITE DATA IS IN `docs/item_notes/cs988-sweep-record.md`** - every instance with its delta and guard set, every DEFENDED verdict with the node id that reddened, and the 44 INDETERMINATE rows listed unranked. That annex is where the next pass starts; do not re-derive the population.
+
+## CS-1046
+
+### Filed 2026-09-13
+
+**TWO PUBLISHED DOORS THAT REFUSE, AND A PATTERN THAT CANNOT NAME A MODERN ITEM.**
+`/api/plan` and `/api/audit` are published in the endpoint table and answer 501 blocked by
+CS-500 while the layers beneath them now exist. Separately `contract.BLOCKER_PATTERN` admits
+`CS-` followed by exactly three digits, applied with `fullmatch`, so no item at CS-1000 or
+above could ever be named by a 501 even if one were needed.
+
+**WRITE-LIST:** `clockspeed/surface/api/contract.py`, `.../plan.py`, `.../audit.py`,
+`.../pending.py`, `.../routes.py`, `clockspeed/surface/providers.py`, and the six matching
+surface test modules. **DEPENDS ON:** CS-1041, CS-1042, CS-1043, CS-1044, CS-1045.
+**TIER 2, NO GAME NEEDED.** **PUBLISHES:** two backed routes, a concrete `SchematicSource`,
+and a CHEAP world-change token on the audit body for the liveness poll to read.
+
+**IT DOES NOT WRITE `health.py`, AND THAT IS WHY THE TWO EXISTING UNBACKED TEMPLATES ARE
+REUSED RATHER THAN NEW ONES INVENTED.** No template is added or removed, so the endpoint
+table is untouched and the page's route array stays equal to it in order. A new template
+would force simultaneous edits to `health.py`, `routes.py`, `pending.py` AND `app.js`,
+merging this item and the render item into one unslicable blob.
+
+**`tests/surface/audit_harness.py` IS NOT IN THE WRITE-LIST.** CS-1031 is already open
+against it; if it must change, that is a separate item routed to an adjudicator.
+
+**ADDING AN `OPEN_BLOCKERS` MEMBER REQUIRES A PUBLISHED ROUTE TO NAME IT.** The converse arm
+measured that a member no endpoint cited was green. This item widens the PATTERN and adds a
+member only if it also publishes the route naming it, in the same change.
+
+**`surface/` NEVER COMPUTES.** Every number a body carries is computed in `audit/`,
+`progress/` or `solve/` and transcribed here. The withheld list stands: no instance name, no
+record index, no byte offset and no path crosses the wire. Uniform refusals - no world is a
+503 with the no-save reason, no registry is a 200 with a named warning rather than a
+refusal, and an unknown parameter is a 400 reflecting NOTHING of what it refused.
+
+## CS-1047
+
+### Filed 2026-09-13
+
+**WHY THIS IS ONE ITEM AND NOT TWO.** `server.py`'s static route table, `index.html`'s
+script tags and the asset-existence arms in `tests/surface/test_web_assets.py` are a
+three-way total-set guard: a new panel file must appear in all three at once or the suite is
+red. Splitting the render would put the same three files in two write-lists, which is a
+merge conflict already.
+
+**DEPENDS ON:** CS-1046 for the bodies, and CS-1048 for the underlay and the annotation
+provenance. **TIER 2, NO GAME NEEDED** - canned bodies bound to the endpoints' own key
+tuples.
+
+**THE ORACLE LIMIT IS RECORDED, NOT ASSUMED AWAY.** CS-1032 is open: the DOM stand-in has no
+known-good browser control anywhere in this repo, so "the map renders X" is a claim about
+the stand-in. Every acceptance clause must be expressible in the stand-in's vocabulary or it
+grades nothing, and the adjudicator's verdict must ENUMERATE the stand-in's divergences.
+This project has already recorded browser-pane resize, focus and default key scrolling as
+silently faked, with three false findings out of one session that trusted them. **ASSUMED,
+NOT MEASURED:** that the stand-in can observe a per-category `class` attribute set at
+creation. Check that BEFORE writing the acceptance.
+
+**EVERY NEW PANEL IS IIFE-WRAPPED.** Three existing panels are not and CS-1026 is open over
+exactly that; a new unwrapped panel would be a fourth instance of an open defect.
+**NOTHING IN A PANEL DIVIDES** - CS-962, CS-1027 and CS-1028 are open over the division
+detectors and over four ungraded `approximateDecimal` copies. Import the graded one or add
+none.
+
+**CS-1022 IS OPEN AGAINST THIS ITEM'S OWN FIXTURE.** `tests/surface/test_panel_map.py`'s
+canned body claims to be the frozen contract shape while binding to neither the placement
+key tuple nor the data key tuple. Binding it discharges CS-1022 incidentally; adding more
+unbound canned keys makes it worse. The item must SAY which it did.
+
+**THE CSP CHANGE IS ASSERTED, NOT MERELY TYPED.** `img-src 'self'` is added to the
+`server.py` policy and graded by an arm. No absolute URL enters a shipped asset.
+
+**THE UNDERLAY IS NEVER REGISTERED AGAINST `WorldBounds`.** That box bounds THIS world's
+placements and moves every time the operator builds anything, so a transform fitted to it
+drifts under the operator's own hands. Registration is CS-1048's declared config origin and
+scale, carried through and labelled ESTIMATED on the page.
+
+**NODES RENDER SHAPE-CODED BY CLASS AND UNLABELLED.** Purity is not derivable and is never
+guessed; where the page shows one it shows an operator annotation and says so on the row.

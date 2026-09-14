@@ -374,6 +374,45 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-09-13 - ADR 0019 - ADJUDICATED. The dashboard map underlay, and purity closed by declaration
+
+**NOT A COMPLETION RECORD.** This entry records an adjudication and closes nothing. The
+items it governs stay open in `ROADMAP.md`: CS-1047 stays open, CS-1048 stays open, and
+CS-1040 stays open. The gated half stays gated in `docs/GATED.md`.
+
+**WHAT WAS ADJUDICATED.** The dashboard map underlay. No baked map image ships - the in-game
+map is a live SceneCapture2D - and the real transform (`mUpperLeftWorld`,
+`mWorldToMapScale`, `mDataWidth`) sits behind Oodle Data, which the install ships no callable
+copy of.
+
+**DECIDED.** The dashboard ships a schematic ground plane from save-exact placements with no
+underlay. The save's `mFogOfWarRawData` (1024x1024, structurally proved) may become a
+toggled layer ONLY after a fit whose registration is proved by held-out containment of built
+placements, a sign-flip negative control that reddens, and cross-save invariance; failing any
+of those it carries a visible "registration unverified" flag or does not ship. Oodle Data
+adoption stays GATED at CS-G01 pending a written `CONVENTIONS.md` section 14 verdict.
+
+**DO NOT RE-PITCH:** a screen-captured or OBS-captured map underlay as shipped data; an
+underlay registered to `WorldBounds`; a fitted transform accepted on visual plausibility
+without the negative control; any Oodle-dependent extraction slice before CS-G01 rules in
+writing; and any lifted map tile, table or image from a wiki or community source (CS-485).
+
+**WHY `WorldBounds` IS NAMED RATHER THAN LEFT IMPLIED.** It bounds THIS WORLD'S placements
+and moves every time the operator builds anything, so a transform registered against it
+drifts under the operator's own hands. That is the obvious implementation and it is the
+wrong one.
+
+**THE SECOND HALF OF THE RULING, RECORDED WITH IT because the two were argued together.**
+Node purity is closed BY DECLARATION rather than by sampling: `FGResourceNode.h` in the
+install's `CommunityResources/Headers.zip` declares `mPurity` with NO `SaveGame` specifier,
+so it cannot be serialized on any build. That is a stronger result than ADR 0003's
+zero-occurrence measurement and it retires the question permanently. The substitute is an
+operator annotation whose published provenance reads operator and never measured - a scope
+change recorded as one, and NOT the CS-G01 gate clearing.
+
+**READ IT AT** `docs/adr/0019-the-map-underlay-and-the-purity-declaration.md`, `accepted`
+2026-09-13, adjudicated by an agent that produced none of the work it ruled on.
+
 ### 2026-09-13 - CS-1025 - CLOSED. The anti-vacuity needle is unique AND present, and the disjoint constants are the half that does the killing
 
 **WHAT CHANGED.** `tests/surface/test_map.py` gained `served_body`, `assert_needle_occurrences` and

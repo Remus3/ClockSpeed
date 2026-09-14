@@ -87,6 +87,8 @@ Status line to point at the successor and leave every other word of it untouched
 | [0016](0016-unlock-arrays-carriers-and-serialized-grammar.md) | The unlock arrays' carriers, and their serialized grammar | `proposed` |
 | [0017](0017-the-lane-forks-the-shared-loop-modules.md) | The lane FORKS the cross-repo loop modules rather than joining their pin | `accepted` |
 | [0018](0018-the-flip-recreates-the-remote-and-keeps-the-commit-graph.md) | The public flip recreates the remote and keeps the commit graph unrewritten | `accepted` |
+| [0019](0019-the-map-underlay-and-the-purity-declaration.md) | The map underlay, and purity closed by declaration | `accepted` |
+| 0020 | Shipped-asset extraction, and where node purity comes from | reserved, no file yet |
 
 Slots 0002, 0003 and 0004 were reserved for the three phase-1 spike decisions and have now
 been written, in the order the spikes ran: S8, then S4, then S6. These three are the spikes
@@ -97,6 +99,14 @@ Each records a binary result measured against live data, plus the stated limits 
 measurement. Read 0003 before planning any node-data work: it is the one whose result
 contradicts a premise in `BOOTSTRAP.md` section 8.3, and the correction is recorded in
 `docs/LEDGER.md`.
+
+**Slot 0020 is RESERVED and its file may not exist when you read this.** It was reserved on
+2026-09-13 for the shipped-asset extraction decision, being written in the same session as
+`0020-shipped-asset-extraction-and-where-node-purity-comes-from.md`. Section 2's rule applies
+unchanged: the number is burned whether or not the ADR is eventually written, so the next
+unused number is 0021. Do not open a second slot for that subject - the session-85 plan named
+`0019` for it before `0019` was taken by the map-underlay adjudication, and that pointer is
+stale.
 
 ---
 

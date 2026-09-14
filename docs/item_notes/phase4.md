@@ -625,3 +625,115 @@ stays OPEN in `ROADMAP.md`.
 
 CS-484 - The local lint gate cannot reproduce CI's, because `pyproject.toml` pins `ruff>=0.13` with no upper bound and CI installs whatever is newest - acceptance: running the documented local gate set on a tree CI will reject turns something RED locally first, with the reproduction recorded - tier: 2 - NOTE: filed 2026-08-19 (session 21). MEASURED, not inferred: CI run 32211377535 failed `ruff check` on FURB192 at `tests/save/test_byte_order_status.py:878`, a line shipped in `e86f84d` (session 20) and never seen by CI because that session's push was blocked. Locally the same command passes and `ruff check --select FURB192` answers `Selection FURB192 has no effect because preview is not enabled` - the rule is PREVIEW on ruff 0.15.12 here and STABLE on the newer ruff CI resolves. **THIS IS SESSION 19's LESSON IN A NEW FORM AND THE OLD FIX DOES NOT COVER IT.** That session learned to run `ruff format --check` as well as `ruff check`; running BOTH still does not reproduce CI, because the divergence is now the ruff VERSION rather than the command. An unpinned linter means the gate's ruleset changes under the project with no commit, so a tree that is green today is red tomorrow for reasons no diff explains - and the failure lands AFTER the push, which is the expensive place. Pinning an exact version and bumping it deliberately is the obvious candidate; enabling preview locally is NOT, it would over-approximate CI in the other direction. `pyproject.toml` is not a frozen file, but the toolchain pin is asserted by `scripts/verify_env.py`, so any change goes with it. **THE DIVERGENCE IS NOW MEASURED RATHER THAN INFERRED, 2026-08-20 (session 24).** The entry rested on a version gap nobody had extracted from a CI log, and three sessions carried it as UNVERIFIED. Taken from the tier1 run on `76fac74`: CI resolved **ruff 0.16.3**; this machine has **0.15.12**. That is the premise confirmed, not the item closed - both linters passed the shipped tree on that run, so the gap cost nothing this time. What is still missing is the acceptance's own half: a tree CI rejects and the local gate does not. **DO NOT read the passing run as evidence the gap is harmless;** it is evidence that this tree happens not to touch a rule the two versions disagree on.
 
+
+## CS-1038
+
+### Filed 2026-09-13
+
+**WHY THIS IS THE KEYSTONE AND WHY IT STARTS FIRST.** `clockspeed/save/objects.py` already
+decodes a struct interior at TOP LEVEL and already yields `InventoryStack` with `NumItems`,
+so the grammar is known and only the CONTAINER APPLICATION is missing. One seam unblocks
+container stacks, spline data, wire instances and the space elevator's delivered items at
+once. Container elements today bound and type their elements and decode zero of them.
+
+**WRITE-LIST:** `clockspeed/save/objects.py`, `tests/save/test_container_elements.py`,
+`tests/save/test_collectables.py`. **CONSUMES:** `_decode_interior_tag`,
+`_decode_container`, `ELEMENT_SHAPES`. **PUBLISHES:** container-element struct interiors on
+`ContainerElement.value`, and the collectable pairs on the walk result. **DEPENDS ON:**
+nothing. **TIER 2, NO GAME NEEDED** - synthetic payload bytes; a skip-if-absent
+real-library arm is ADDITIVE and never load-bearing.
+
+**FENCE - THIS IS NOT CS-829 AND MUST NOT BE FILED AS IT.** CS-829 is OPEN and its
+acceptance is an EQUALITY over every record carrying a struct type word the shipped
+vocabulary names. Its fences are LIVE and travel with it, and they forbid BY NAME
+re-pitching it as the inventory item, defining its population by the decoder's own success,
+and restating its clause without an operator ruling. This item CONSUMES CS-829's grammar and
+applies it to the container-element population; folding the two together would narrow CS-829
+to the inventory case, which its own fences forbid. **This item may not edit CS-829's
+population.** The ruling that they are separate is the planner's recommendation and is for
+an adjudicator to confirm, never for the implementing agent.
+
+**FENCE - THE COLLECTABLE SECTION'S POLARITY IS COLLECTED, AND THE OBVIOUS READING IS
+BACKWARDS.** The section reads a count and then that many (level, actor) PAIRS.
+Measured 2026-09-13: 72 pairs, and NOT ONE of them matches a live record. That is what
+identifies them as the COLLECTED set. **UNCOLLECTED is the live records carrying transforms
+MINUS those pairs.** An agent that names a field "uncollected" straight off the section has
+the polarity inverted and will ship a silently wrong answer that reads like a right one.
+This item carries the pairs up unchanged and claims no meaning for either string beyond
+what the code's own docstring already claims; the subtraction and the meaning are CS-1042.
+
+## CS-1039
+
+### Filed 2026-09-13
+
+**TWO SEAMS AND ONE FILL, MERGED BECAUSE THEY COLLIDE ON ONE FILE.**
+`_record_properties` drops `PropertyResult.references` and `struct_interiors` at the one
+seam every higher layer reads, so the typed, tag-ordered reference population never crosses
+the save seam. Separately `_read_unlocks` takes zero arguments and returns
+`EMPTY_UNLOCK_STATE` unconditionally, even though every carrier ADR 0016 names -
+`mPurchasedSchematics`, `mCurrentGamePhase`, `mTargetGamePhase`, `mUnlockedResearchTrees`,
+`mTradingPostLevel` for the HUB tier, `mAvailableRecipes` - is decodable by the SHIPPED
+reader today. Splitting the unlocks into a new module was considered and rejected: the
+`_read_unlocks` call site is in `world.py` either way, so the collision survives the split.
+
+**WRITE-LIST:** `clockspeed/save/world.py`, `tests/save/test_world.py`. **DEPENDS ON:**
+CS-1038 for the interiors half ONLY - the unlocks half depends on nothing and starts
+immediately. **TIER 2, NO GAME NEEDED.**
+
+**PRIVACY, LOAD-BEARING.** An object path is world content. It MAY cross the SAVE seam -
+property names and values already do - and must NOT reach the wire, a log line, an
+exception or a `repr`. The new types need hand-written `__repr__` rendering lengths only,
+following the `ObjectReference` precedent. `tests/repr_rendering_guard.py` and the
+no-body-byte arm both grade it. Non-negotiables 3, 11 and 12 are unchanged by this item:
+widening what crosses the SAVE seam does not widen what crosses the WIRE.
+
+**HIGHEST-RISK SLICE IN THE SESSION.** It writes the module every layer above depends on
+and CS-913 is open over the same code. It gets a DEDICATED adjudicator before any dependent
+item merges. `WARN_UNLOCK_GRAMMAR_UNMEASURED` is withdrawn ONLY for the carriers actually
+wired and is KEPT for `mPaidOffSchematic` and `mSavedOngoingResearch`.
+
+**ADR 0016 IS `proposed`, NOT `accepted`, AND THIS ITEM INHERITS THAT UNFINISHED BUSINESS.**
+Its carrier table is an assumption to verify first, not a fact to build on.
+
+## CS-1040
+
+### Filed 2026-09-13
+
+**WHAT THIS RETIRES PERMANENTLY.** Every question of the form "is this field in the save"
+has been answered on this project by grepping a save and guessing. The authoritative answer
+is a UPROPERTY specifier one lookup away, in `CommunityResources/Headers.zip` beside the
+`Docs` file this project already reads. It would have answered ADR 0003 in one query.
+
+**PURITY IS CLOSED BY DECLARATION AND MUST NOT BE RE-OPENED AS AN UNSOLVED PROBLEM.**
+`FGResourceNode.h` declares `mPurity` with NO `SaveGame` specifier. A property without
+`SaveGame` is structurally incapable of being serialized into a save ON ANY BUILD - a
+different and far stronger claim than "we did not find it", and stronger than ADR 0003's
+zero-occurrence sampling. `mResourceClass` and `mResourceNodeType` are the same. The class
+name does not carry it either, and deriving it from a miner's rate fails because
+`mItemsPerCycle` and `mExtractCycleTime` are machine-side. **No slice may assume this away
+and no later session should re-derive it.** The one live exception is
+`mResourceDepositTableIndex`, a SaveGame property on the deposit records, whose lookup table
+is in the assets - CS-1048 reads it as an opaque index.
+
+**WRITE-LIST:** `clockspeed/data/headers.py`, `tests/data/test_headers.py`, plus the ADR.
+**CONSUMES:** `clockspeed/data/locate.py`, `clockspeed/data/version.py`. **DEPENDS ON:**
+nothing. **TIER 2.** It NEEDS the real install to build a live index; the shipped acceptance
+arm runs with NO GAME against a synthetic header fixture and asserts the clean skip.
+
+**THE ADR NUMBER MOVED, AND TAKING THE STALE ONE WOULD COLLIDE.** The session-85 plan named
+slot `0019` for this decision. `0019` was taken on 2026-09-13 by the map-underlay and
+purity-declaration adjudication. **This item's ADR is `0020`, reserved in
+`docs/adr/README.md` section 4.** Do not open a second slot for the same subject.
+
+**NOT GATED, and the distinction is the whole point.** `Headers.zip` is an ordinary zip of
+text. Nothing here touches a pak, so the Oodle Data gate recorded at CS-G01 does not reach
+it. Read-only against the install (non-negotiable 1); writes only under gitignored `data/`;
+commits nothing extracted (non-negotiable 2).
+
+**OPEN QUESTION FOR THE ADJUDICATOR, carrying its recommendation:** does this discharge
+CS-916, extend it, or sit beside it? RECOMMENDATION - it discharges the HEADERS half and
+leaves the pak half gated behind the Oodle Data verdict, so CS-916 is re-gated rather than
+left on the roadmap. The ADR must say which it did. The ADR must also be moved from
+`proposed` to `accepted` by an agent that did not produce the measurement; ADR 0016 is
+still `proposed` for exactly that reason and repeating it would leave two unadjudicated
+ADRs.

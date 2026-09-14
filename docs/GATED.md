@@ -135,6 +135,82 @@ the opposite, drains the backlog exactly as falsely as substituting a proxy woul
 outside the repo changed here - what changed is that the condition was never re-read against
 the ADR that answered it.
 
+**STATUS, measured 2026-09-13 (session 85): CONDITION 1 IS NOW RESOLVED ON BOTH HALVES, AND
+A DIFFERENT EXTERNAL BLOCK HAS TAKEN ITS PLACE. THE ID IS NOT QUIETLY REPURPOSED** - the
+original purpose and the replacement are recorded separately below, because an item whose
+block silently changes underneath its one-line is an item nobody can audit.
+
+**HALF ONE - COORDINATES. VOID, as condition 1 always said it would be.** Re-measured this
+session against the live save: 1065 resource-node actors, every one carrying exact
+coordinates. The save IS the source. The asset path is not needed as a fallback for
+coordinates and that half of this item's one-line is superseded, with ADR 0003 and this
+measurement cited. That is a condition RESOLVING, not a gate clearing.
+
+**HALF TWO - PURITY. THE QUESTION IS CLOSED, AND NOT THE WAY THIS ITEM EXPECTED.** The
+2026-08-22 block above made the purity half LOAD-BEARING on the strength of a
+zero-occurrence sampling measurement. It is now closed BY DECLARATION, which is a stronger
+result: the install ships `CommunityResources/Headers.zip` beside the `Docs` file this
+project already reads, and `FGResourceNode.h` declares `mPurity` with NO `SaveGame`
+specifier. A property without `SaveGame` is structurally incapable of being serialized into
+a save ON ANY BUILD. `mResourceClass` and `mResourceNodeType` are the same. **Purity is not
+in any save and no future session should re-derive that.** The reasoning is recorded in
+`docs/adr/0019-the-map-underlay-and-the-purity-declaration.md` and the headers index that
+answers questions of this shape once and for all is CS-1040.
+
+**WHAT THIS DOES NOT DO.** It does not make purity obtainable. The shipped assets remain the
+only conceivable source, and reaching them is what the NEW block below prevents. The honest
+substitute shipping in the meantime - an operator annotation whose published provenance
+reads operator and never measured, CS-1048 - is a SCOPE CHANGE recorded as one. **It is not
+this gate clearing, and it must never be written up as one.** This file's rule against
+synthetic closure covers exactly that move.
+
+**THE NEW BLOCK, STATED PLAINLY RATHER THAN INHERITED: OODLE DATA.** Measured 2026-09-13,
+read-only against the install. The pak index is unencrypted and all 13576 entries parse in
+pure stdlib - but 6993 of them, `DefaultGame.ini` included, are Oodle-compressed, and the
+install ships NO callable `oo2core`. What it does ship is `OodleNetwork`, which is a
+DIFFERENT codec and decodes none of it. Oodle Data is proprietary RAD/Epic software.
+
+**THE REVISED UNBLOCKING CONDITION, which supersedes the wording of conditions 1 and 2 above
+without deleting them:**
+
+1. RESOLVED, on both halves, as recorded in this block. Nothing further is owed against it.
+2. **A WRITTEN `CONVENTIONS.md` section 14 licence verdict on an Oodle Data decoder**, one
+   that reads the LICENSE text, the copyright line AND the provenance claim, and is recorded
+   in `docs/LEDGER.md` and as an ADR. **Verbal clearance is not written clearance. The
+   absence of a LICENSE file is not permission.** Copyleft stays do-not-vendor regardless of
+   who says otherwise. Until that verdict exists, EVERY pak-asset extraction is gated here
+   and none of it goes to `ROADMAP.md`.
+
+**WHAT IS NOT GATED BY THIS, so the gate does not grow by accident.** `Headers.zip` is an
+ordinary zip of text sitting beside a file this project already reads; nothing in it touches
+a pak, so the Oodle Data gate does not reach it and CS-1040 is an ordinary roadmap item.
+
+**PREP half, workable now, unchanged in spirit:** the node-data interface both paths must
+satisfy, the fixtures, and the declared availability flags every consumer already reads.
+
+### CS-G07 - Usable water region geometry for extractor siting
+
+**One line:** the map is required to draw outlined and tinted usable water regions for water
+extractors, and the geometry that defines them is level geometry inside the paks.
+
+**Unblocked by:** the SAME written `CONVENTIONS.md` section 14 verdict on Oodle Data
+recorded under CS-G01 above. No amount of work inside this repo reaches it.
+
+**Measured 2026-09-13.** `FGWaterVolume` declares `mCanPlaceExtractor` - exactly the flag
+the requirement wants - but it is `EditDefaultsOnly` level geometry, and there are ZERO
+water-volume type paths anywhere in the save. The save cannot answer this question.
+
+**THE THREE-PUMP PARTIAL WAS CONSIDERED AND IS REJECTED BY NAME, so nobody re-proposes it.**
+The only water points the save confirms are the three built pumps, through each one's own
+extractable-resource reference. Shipping those three as "water coverage" would imply that
+every unmarked water body is unusable - silently wrong rather than flagged, which is the
+non-negotiable 7 trap precisely. **Ship `water_regions_available: false` and draw nothing**,
+as CS-1044 already specifies, until the verdict lands.
+
+**PREP half, workable now:** the availability flag, and the panel rendering that says
+UNAVAILABLE rather than drawing an empty map and letting a reader infer no water. CS-1044
+and CS-1047 carry both.
+
 ### CS-G02 - External LP/ILP optimizer dependency
 
 **One line:** Add an external linear or integer programming backend behind
