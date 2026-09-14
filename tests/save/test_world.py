@@ -5237,8 +5237,12 @@ def test_the_phase_is_never_published_as_an_integer() -> None:
 
     phase = unlocks.current_game_phase
     assert phase is not None
+    # `type(phase) is str` is the whole claim, and it is STRICTLY STRONGER than a
+    # follow-up `not isinstance(phase, float | int)`. That follow-up was here and
+    # mypy refused it as unreachable, correctly: after the exact-type assertion
+    # there is no numeric case left to exclude. Re-adding it does not harden this
+    # arm; it only re-breaks the repo-wide type gate.
     assert type(phase) is str, f"the phase was published as {type(phase).__name__}: {phase!r}"
-    assert not isinstance(phase, float | int), "the phase reverted to a numeric reading"
 
 
 def test_the_unread_carriers_are_named_and_still_warned_about() -> None:

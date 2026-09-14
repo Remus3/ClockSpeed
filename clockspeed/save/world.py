@@ -1434,9 +1434,11 @@ def _untransformed_node_class(record: ObjectRecord) -> bool:
 #: THE TYPE PATHS ARE RECORDED IN
 #: ``docs/adr/0016-unlock-arrays-carriers-and-serialized-grammar.md`` under
 #: "The carriers", measured by running the decoder over real saves.
-#: ``tests/save/test_world.py::test_every_unlock_carrier_key_is_reachable_from_
-#: the_adr_carrier_table`` parses that table and asserts every key here is
-#: reachable from it - the control whose absence let the first cut ship.
+#: The control arm whose absence let the first cut ship is
+#: tests/save/test_world.py::test_every_unlock_carrier_key_is_reachable_from_the_adr_carrier_table
+#: It parses that table and asserts every key here is reachable from it. The
+#: name is kept on ONE line deliberately: a citation broken across a wrap reads
+#: as a truncated symbol to the oracle-citation guard, which is how it got here.
 #:
 #: ``mTradingPostLevel`` IS ABSENT AND THAT IS DELIBERATE. The item note names
 #: it as a HUB-tier carrier, but ADR 0016's measured table records no carrier
