@@ -382,7 +382,7 @@ arm over all fourteen orientation components and a negative control that grades 
 directions against the REAL served body rather than an invented string. All four orientation constant
 tuples were re-picked as distinct thirty-seconds so that every rendering is unique on the wire; they
 are float32-exact, so they survive the round trip through the real loader unchanged. The class-name
-sibling at `:828-846` moved from membership to an exact count of two rather than being forced to one,
+sibling moved from membership to an exact count of two rather than being forced to one,
 because both of its hits are the same value - the row field and the per-class tally key.
 
 **PROVEN BY.** `tests/surface/test_map.py::test_every_orientation_needle_is_unique_to_the_value_it_proves`
@@ -418,8 +418,8 @@ the rename is pure and nothing else moved with it.
 and its four parametrised siblings. Merged file: `tests/audit/test_placement.py`.
 
 **THE MUTANT DIES IN BOTH DIRECTIONS, which nobody had measured before.** Mutating the NODE guard at
-`clockspeed/audit/placement.py:726` to `if False:` fails seven arms, every one a node case. Mutating
-the BUILT guard at `:749` instead fails seven arms, every one a built case. Neither mutation touches
+`clockspeed/audit/placement.py::placement_of`'s node-loop guard to `if False:` fails seven arms, every one a node case. Mutating
+the built-loop guard in the same function instead fails seven arms, every one a built case. Neither mutation touches
 the other population, so the parametrisation separates exactly what it claims to rather than running
 one assertion twice. Against the pre-repair arms the node mutant survived outright.
 
