@@ -374,6 +374,107 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-09-14 - CS-868 - CLOSED. The reach closure stopped at the file it was written in, so a reading assembled from two modules read as one
+
+**THE DEFECT, REPRODUCED BEFORE IT WAS REPAIRED.** `_shared_tag_symbols` in
+`tests/save/test_struct_interior.py` parsed THIS MODULE'S SOURCE ONLY, so its assertion that
+the second tag reading does not reach `objects._MAX_TAGS_PER_PAYLOAD` was a claim about one
+file wearing the words of a claim about a reading. A reading here is assembled from several
+test-side files and the ceiling is one call away, in `tests/save/test_decode_oracles.py`.
+
+**MEASURED THIS RUN, whole module, and the middle row is the defect:**
+
+| variant, whole module | before the repair | after both rounds |
+|---|---|---|
+| pristine floor | `35 passed in 52.45s`, exit 0 | `37 passed in 52.83s`, exit 0 |
+| the memo mutant, qualified call | `35 passed in 52.49s`, exit 0 | `1 failed, 36 passed in 51.84s`, exit 1 |
+| the same mutant, memo deleted | `1 failed, 34 passed in 53.42s`, exit 1 | not re-run |
+| the memo mutant, BARE from-import | not built in round 1 | `1 failed, 36 passed in 52.20s`, exit 1 |
+
+The third row is the anti-vacuity control and it is what makes the second a measurement
+rather than a guess: a mutant that never applied and one that was survived produce identical
+output, so the no-memo variant is what proves this mutant is in the executed path. The arm it
+reddens under the repair is
+`test_every_shipped_symbol_the_second_tag_reading_shares_is_recorded` - the CS-863 arm the
+item says stays green.
+
+**WHAT CHANGED.** `_symbols_reached_from(seeds)` replaces the single-module closure and
+FOLLOWS a qualified call into any test-side module. Aliases are resolved from the imported
+module's own namespace rather than by a second implementation of Python's import rules, so
+`import x as y` and `from p import m` both land without being parsed.
+`clockspeed.save.objects` is deliberately never followed INTO: what the shipped module does
+with a symbol is its own business and the claim is only about which of its symbols a reading
+touches. `_shared_tag_symbols` is now that function under the second reading's seeds.
+
+**THE RECORDED SET DID NOT MOVE, AND THAT IS A RESULT RATHER THAN A RELIEF.**
+`TAG_READING_SHARED_SYMBOLS` is unchanged, because the second tag reading reaches no
+test-side module at all. Before this the derivation could not have told that apart from a
+reading that reached six of them.
+
+**PROVEN BY.**
+`tests/save/test_struct_interior.py::test_the_symbol_derivation_sees_a_reach_that_leaves_this_module`,
+a known-good control that seeds the derivation on the SHIPPED reading - which is entitled to
+the ceiling and reaches it through another module in the tree as it stands, with nothing
+planted and nothing arranged. Before the repair it failed on
+`assert '_MAX_TAGS_PER_PAYLOAD' in frozenset({'KIND_ACTOR', 'STRUCT_TYPE_WORD',
+'_payload_text', '_skip_actor_head'})`. Merged file: `tests/save/test_struct_interior.py`.
+
+**ROUND 2 - THE VERIFIER REFUTED THE FIRST REPAIR AND THE REPAIR FOR IT IS IN THIS COMMIT.**
+The first closure crossed a module boundary ONLY on an `ast.Attribute` over a module-aliased
+name. An agent that produced no part of the work wrote the same memo as
+`from tests.save.test_decode_oracles import _walk_with_the_shipped_reader as ...` - a bare
+name binds no module and carries no attribute - and both arms stayed green. It measured the
+spelling fair rather than assuming it: `ruff` accepts it, and this repo already uses that
+spelling in `tests/test_liveness.py` and two other modules. `_imported_names_of` now reads
+each module's `ImportFrom` provenance from SOURCE, because the runtime namespace cannot
+answer the question - a shipped width imported bare is an `int` and carries no `__module__` -
+and the closure follows a bare name into a test-side module and RECORDS one that came from
+`clockspeed.save.objects` directly. Proven by
+`test_the_symbol_derivation_sees_a_reach_a_from_import_bound`, whose subject is a live
+from-import binding in this module rather than a story about a spelling nothing here uses,
+and which is not vacuous: with the from-import branch of the closure disabled it fails,
+`1 failed, 2 passed, 34 deselected in 0.42s`, exit 1. ONE refutation round was spent and no
+second was run, which is the bounded-refutation rule rather than a shortage of lenses.
+
+**THE SECOND MECHANISM THE ITEM NAMED IS NOT REPAIRED, AND THIS SAYS SO RATHER THAN CLAIMING
+IT AWAY.** `_run_ceiling_control` still takes its pristine and its degraded reading over the
+SAME body object, so a memo would still make the degraded call a cache hit inside that arm.
+That arm is not what reddens the mutant; the symbol arm is. The item's acceptance asks that
+the arms redden for a second reading that reaches the ceiling through any module, and they
+now do - it does not ask that every route to a cache hit be closed. The cache-hit shape is
+untouched and is named in CS-1069's note.
+
+**SIBLING SWEEP - one found, FILED rather than swept, with the measurement that sized it.**
+`tests/save/test_reference_resolution.py`'s `_shared_reference_symbols` has the same root
+cause wearing a patch: it closes over one file and TRANSCRIBES the single crossing it knows
+about, `test_decode_oracles._walk_with_the_shipped_reader`. Measured here: `_sweep_one_save`
+calls the same-file helpers `_second_join` and `_scan_type_words`, and neither is folded into
+pass one's seed set, so pass one's reach is read from two functions' DIRECT attributes only.
+The arm holds today by accident of `objects`' own call graph covering the difference rather
+than by the derivation being right. Repairing it moves what
+`objects.REFERENCE_COUNT_COMMON_MODE` is compared against - a SHIPPED constant and CS-835's
+territory - so it is CS-1069 and not part of this row.
+
+**TIER 2, AND THE SUITE LINE IS THIS RUN'S RATHER THAN A CARRIED ONE.** The module is
+imported by `tests/save/test_struct_controls.py` and the change is to the apparatus every
+equality in both modules is graded through, so the whole suite was paid:
+`python -m pytest tests -q -n auto -m "not slow"` gave `7722 passed, 5 skipped, 7 warnings in
+463.73s (0:07:43)`, exit 0. The five skips are this platform's chmod probes and the empty
+mypy-gap record, unchanged by this row. `python -m ruff check .` exit 0 and
+`python -m ruff format --check .` exit 0.
+
+**VERIFIER: REFUTED on the first candidate, and the refutation is discharged above rather
+than deferred.** An agent that produced no part of the work graded it against the clause,
+confirmed seven of eight claims by re-deriving them - including that
+`TAG_READING_SHARED_SYMBOLS` is genuinely unmoved rather than unmoved by accident, measured
+by forcing the crossing off - and refuted the eighth with the bare-import mutant above. Its
+other probes stand recorded: the new control is not tautological, a bad seed name returns an
+empty set and is already covered in both directions by the seed-existence assertion, and
+`is_relative_to` without `resolve` is sound here because `_TESTS_ROOT` and every crossed
+`__file__` derive from the same `sys.path` entry.
+
+**CI:** recorded by the driver, not observed by this worker.
+
 ### 2026-09-14 - CS-828 - MEASUREMENT RECORD. THE ITEM STAYS OPEN. The trailing run's floor was arithmetic and is now a decoded field, and the remainder is filed as CS-1068
 
 **THIS ENTRY DOES NOT CLOSE CS-828.** Its clause asks for the run's contents on EVERY payload of
@@ -429,7 +530,7 @@ reading by SYMBOL NAME, so renaming the reader without updating the record is re
 **THREE MUTANTS, EACH KILLED, AND THE THIRD IS THE ONE THAT MATTERED.** A constant `lead=0` was
 killed by the non-zero synthetic fixture and both plumbing arms. A constant `unread=0` was killed by
 the partition-population arm. `read_trailing_run` returning None for every run wider than the field
-was killed by `test_every_payload_that_terminates_carries_a_lead_field` - and that arm was VACUOUS
+was killed by `test_every_payload_that_terminates_yields_a_lead_field` - and that arm was VACUOUS
 against this mutant in the first draft, where the sweep took its denominator from the reader. The
 independent denominator was added because of it.
 
@@ -454,10 +555,13 @@ fences are clean. It found four defects in the first draft and all four are repa
   run is at least `TRAILING_RUN_LEAD_BYTES` wide, and that width is `declared_end - terminator_end`,
   so the field's VALUE is read and its PRESENCE is not. The note and the arm's docstring now say
   which half is which, because the unmet half is precisely what CS-828 still asks for.
-- **AN ARM THAT GRADED NOTHING IS REMOVED RATHER THAN REWORDED.**
-  `test_the_partition_of_read_against_unread_is_exhaustive` asserted an identity that the tally's
-  own if/else makes unfalsifiable - no third exit, so no reader could move the sum. Removed with its
-  claim, the way `ReferenceResolution`'s constant-True self-check was.
+- **AN ARM THAT GRADED NOTHING IS REMOVED RATHER THAN REWORDED.** The first draft's
+  exhaustive-partition arm asserted an identity that the tally's own if/else makes unfalsifiable -
+  no third exit, so no reader could move the sum. Removed with its claim, the way
+  `ReferenceResolution`'s constant-True self-check was. ITS NAME IS DELIBERATELY NOT SPELLED: a
+  removed symbol quoted in a guarded doc is a quoting-not-citing site, `tests/test_docs_citations.py`
+  can only tell the two apart by a forgiveness, and that module's budget is a ratchet that may only
+  come down.
 - **AN ARM TOOK ITS DENOMINATOR FROM THE READER UNDER TEST.** The zero-lead arm subtracted
   `zero_lead` from `with_lead`, both of them the reader's output, so a reader declining every lead
   emptied both sides and passed. It now subtracts from `terminated`. PROVEN BY A FOURTH MUTANT run

@@ -1364,46 +1364,6 @@ to skip it. Both have been tried and both are recorded as wrong. It is a request
 the per-word residue in evidence that does not depend on which saves the operator's library
 happens to hold at the moment the suite runs.
 
-## CS-868
-
-### Filed 2026-08-31 (session 53), from an adversarial pass CS-863's own session recorded as owed
-
-**CS-863 SHIPPED WITHOUT AN INDEPENDENT PASS AND SAID SO.** Its arms were built and graded
-by the session that wrote them. THE ARMS ARE THOSE OF
-`tests/save/test_struct_interior.py`, which is the module every measurement below is
-taken over; that citation moved here from the item line, which does not carry it. This is that pass, and it REFUTES them. Two agents that
-produced no part of CS-863, working from different briefs and building their mutants
-independently from source, reached the same counter-example; the second never opened the
-first's directory.
-
-**THE COUNTER-EXAMPLE.** Replace the body of `_independent_sites_of` with a memo over a call
-to `tests/save/test_decode_oracles.py`'s `_walk_with_the_shipped_reader`. That helper carries
-its own `for _ in range(objects._MAX_TAGS_PER_PAYLOAD)`, so the mutant puts CS-863's defect
-straight back - the second reading consults the shared ceiling again.
-
-| variant, whole module | observed |
-|---|---|
-| pristine floor | 37 passed, EXIT 0 |
-| the memo mutant | **37 passed, EXIT 0** |
-| the same mutant with the memo deleted | 1 failed, 1 passed, EXIT 1 |
-| the memo ALONE over the repaired walk | 37 passed, EXIT 0 |
-
-**TWO MECHANISMS, AND BOTH HAVE TO BE FIXED.** `_shared_tag_symbols` records a symbol only
-where the AST node is an attribute over the name `objects`, and it parses THIS MODULE'S
-SOURCE ONLY - so the assertion that the ceiling's name is absent cannot see a ceiling read
-in another module. And `_run_ceiling_control` takes its pristine and its degraded reading
-over the SAME body object, so under a memo the degraded call is always a cache hit.
-
-**IT IS A FAIR MUTANT, NOT AN ADVERSARIAL CURIOSITY**, and that is the reason to word this
-as a hole. The memo alone is invisible. The call is one line away - `_shipped_sites_of`
-already calls that same helper and the module is already imported. Every record is walked
-twice, so a memo is the obvious performance edit. And the project has been bitten by this
-exact shape twice already in the sibling module: CS-862's correction and CS-866.
-
-**DO NOT REPAIR THIS BY DELETING THE MEMO.** There is no memo in the tree. The arms have to
-be unable to accept a reading that is a cached function of the shipped one, which is what
-CS-866 did next door by making every graded case ask a question no earlier call answered.
-
 ## CS-869
 
 ### Filed 2026-08-31 (session 53), from the same pass

@@ -2022,3 +2022,50 @@ this becomes the item that absorbs a night and ships nothing.
 CS-829 and carries its own six fences. The (14,60) pair reaches no property terminator at
 all, so it has no trailing run to read and stays scoped into CS-G05; `TRAILING_RUN_PAIRS`
 is derived so that the pair cannot drift into this item's population by editing a list.
+
+## CS-1069
+
+### Filed 2026-09-14 by the queue lane, from CS-868's sibling sweep
+
+**WHAT WAS MEASURED, and it is a measurement rather than a reading of the code.** With
+CS-868's cross-module closure in hand, the same question was put to
+`tests/save/test_reference_resolution.py`'s `_shared_reference_symbols`. It has CS-868's root
+cause wearing a patch: the closure is taken over one file, and the single crossing it knows
+about - `test_decode_oracles._walk_with_the_shipped_reader` - is TRANSCRIBED into the seed
+union by hand rather than followed.
+
+Two facts came out of the measurement and both belong to this row:
+
+- `_sweep_one_save` calls the same-file helpers `_second_join` and `_scan_type_words`, and
+  NEITHER is folded into pass one's seed set. Pass one's reach is therefore read from two
+  functions' DIRECT qualified attributes and from nothing they call.
+- The arm nevertheless passes, because `_objects_closure` closes the seeds over `objects`'
+  OWN call graph and that graph happens to cover the difference. **THE CLAIM HOLDS BY
+  ACCIDENT OF THE SHIPPED MODULE'S SHAPE, NOT BECAUSE THE DERIVATION IS RIGHT**, and an
+  accident is exactly what a refactor of `objects` removes without anything going red.
+
+**WHY IT WAS FILED RATHER THAN SWEPT INTO CS-868.** The arm compares its derived set to
+`objects.REFERENCE_COUNT_COMMON_MODE` - a SHIPPED constant, and CS-835's subject. Widening
+the derivation moves both sides of that comparison, so the repair is a change to a shipped
+record and to another item's recorded claim. CS-868's acceptance names two arms in one test
+module and neither is here.
+
+**THE SECOND HALF OF THIS ROW IS THE CACHE-HIT SHAPE CS-868 LEFT STANDING.**
+`test_struct_interior._run_ceiling_control` takes its pristine and its degraded reading over
+the SAME body object, so a memo on the second reading makes the degraded call a cache hit and
+the arm's "this module's own site total does not move under the plant" holds vacuously.
+CS-868 closed on the symbol arm reddening, which is what its acceptance asked for; this shape
+is untouched. **DO NOT REPAIR IT BY DELETING A MEMO - there is no memo in the tree.** The
+repair CS-866 used next door is to make every graded case ask a question no earlier call
+answered.
+
+**FENCE - DO NOT CLOSE THIS BY WIDENING THE RECORDED CONSTANT UNTIL THE DERIVATION IS RIGHT.**
+A derivation that reaches more symbols and a recorded set edited to match it produce the same
+green. The order is: make the closure follow what the passes call, MEASURE what joins, and
+only then decide whether the constant moves - saying in the ledger which symbols joined and
+whether any of them was a reader rather than a width.
+
+**FENCE - THE TWO HALVES SHARE A ROOT CAUSE AND MUST NOT BE SPLIT ON CONVENIENCE.** Both are
+a grading apparatus that cannot see a reading it did not expect - one through a module
+boundary, one through a cache. Shipping either alone is a partial and is recorded as one.
+

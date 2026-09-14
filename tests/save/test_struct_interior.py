@@ -117,17 +117,28 @@ from __future__ import annotations
 
 import ast
 import struct
+import sys
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
-from functools import lru_cache
+from functools import cache, lru_cache
 from pathlib import Path
-from types import MappingProxyType
+from types import MappingProxyType, ModuleType
 from typing import Final, Protocol
 
 import pytest
 
 from clockspeed.save import chunks, header, objects, usmap
 from tests.save import independent_table, reach_guard, test_decode_oracles, test_properties
+
+# THE BARE SPELLING OF THE SAME HELPER, IMPORTED ON PURPOSE AND USED IN ONE
+# PLACE - the control below. The qualified call `test_decode_oracles.<name>` is
+# what `_shipped_sites_of` uses; this is the OTHER way the same reach can be
+# written, and a closure that crosses only on the qualified one accepts it in
+# silence. Keeping a live binding of it here is what makes that control a
+# measurement rather than a story about a spelling nothing in the tree uses.
+from tests.save.test_decode_oracles import (
+    _walk_with_the_shipped_reader as _bare_imported_shipped_walk,
+)
 
 # ---------------------------------------------------------------------------
 # Synthetic fixtures - the tag grammar is IMPORTED rather than transcribed
@@ -1006,9 +1017,102 @@ def _executed_nodes(scope: ast.AST) -> list[ast.AST]:
     return seen
 
 
-@lru_cache(maxsize=1)
-def _shared_tag_symbols() -> frozenset[str]:
-    """Derive what the second tag reading reaches inside ``clockspeed.save.objects``.
+#: The directory under which a module is TEST-SIDE - part of a reading rather
+#: than the thing being read. A reading is assembled from several of these
+#: files, so a closure that stopped at one of them would describe a file and
+#: call it a reading. ``clockspeed.save.objects`` is deliberately NOT followed
+#: INTO: what the shipped module does with a symbol is its own business, and the
+#: claim here is only about which of its symbols a reading touches.
+_TESTS_ROOT: Final = Path(__file__).parents[1]
+
+
+@cache
+def _source_bindings_of(module_name: str) -> Mapping[str, ast.AST]:
+    """Module-level bindings of one already-imported module, by name.
+
+    Args:
+        module_name: A key of ``sys.modules``.
+
+    Returns:
+        Name to the node to walk for it, empty when the module has no source
+        file - a C extension, or anything built rather than written.
+    """
+    path = getattr(sys.modules[module_name], "__file__", None)
+    if path is None:
+        return {}
+    return _module_bindings(ast.parse(Path(path).read_text(encoding="ascii")))
+
+
+@cache
+def _imported_names_of(module_name: str) -> Mapping[str, tuple[str, str]]:
+    """Where each ``from X import y`` name in a module came from.
+
+    THE CLOSURE NEEDS THIS AND AN ALIAS MAP IS NOT ENOUGH. A bare imported name
+    is an ``ast.Name`` and binds no module, so a walk that crossed only on
+    ``module.attribute`` follows nothing through
+    ``from tests.save.test_decode_oracles import _walk_with_the_shipped_reader``
+    - which is a spelling this repo already uses, which ``ruff`` accepts, and
+    which an adversary reached for as the first thing it tried.
+
+    THE RUNTIME NAMESPACE CANNOT ANSWER THIS and that is why the source is read.
+    A name bound to an ``int`` carries no ``__module__``, so a shipped width
+    imported bare would be indistinguishable from a local one.
+
+    Args:
+        module_name: A key of ``sys.modules``.
+
+    Returns:
+        Bound name to the module it came from and the name it has there.
+    """
+    path = getattr(sys.modules[module_name], "__file__", None)
+    if path is None:
+        return {}
+    tree = ast.parse(Path(path).read_text(encoding="ascii"))
+    out: dict[str, tuple[str, str]] = {}
+    for node in tree.body:
+        if isinstance(node, ast.ImportFrom) and node.module is not None and node.level == 0:
+            for alias in node.names:
+                out[alias.asname or alias.name] = (node.module, alias.name)
+    return out
+
+
+def _module_aliases_of(module_name: str) -> Mapping[str, ModuleType]:
+    """Every module a module has bound to a name, by that name.
+
+    IT ASKS THE IMPORTED MODULE RATHER THAN PARSING ITS IMPORTS, because an
+    alias is what the source actually spells and ``import x as y``,
+    ``from p import m`` and a rebinding all resolve here without a second
+    implementation of Python's import rules.
+
+    Args:
+        module_name: A key of ``sys.modules``.
+
+    Returns:
+        Alias to module.
+    """
+    return {
+        alias: value
+        for alias, value in vars(sys.modules[module_name]).items()
+        if isinstance(value, ModuleType)
+    }
+
+
+def _is_test_side(module: ModuleType | None) -> bool:
+    """Whether ``module`` is one of this repo's own test-side modules.
+
+    Args:
+        module: The module to place, or None when the name bound no module.
+
+    Returns:
+        True when its source sits under ``tests/``.
+    """
+    path = None if module is None else getattr(module, "__file__", None)
+    return path is not None and Path(path).is_relative_to(_TESTS_ROOT)
+
+
+@cache
+def _symbols_reached_from(seeds: tuple[str, ...]) -> frozenset[str]:
+    """Derive what ``seeds`` reach inside ``clockspeed.save.objects``.
 
     IT READS SOURCE, NOT BEHAVIOUR, and that is deliberate: the claim is about
     which symbols the two readings SHARE, and two readings agreeing at runtime is
@@ -1018,34 +1122,62 @@ def _shared_tag_symbols() -> frozenset[str]:
     and every other attribute that happens to share a spelling with a shipped
     one, inflating the record with symbols nothing here touches.
 
-    Returns:
-        Every ``objects.<name>`` reachable from the seeds, closed over this
-        module's own module-level bindings.
-    """
-    tree = ast.parse(Path(__file__).read_text(encoding="ascii"))
-    bindings = _module_bindings(tree)
+    IT CROSSES A MODULE BOUNDARY, AND THAT IS CS-868. The closure used to stop
+    at this file, so a reading that reached a shipped symbol one call away in
+    another test-side module reported that reach as absent - and the arms built
+    on the absence stayed green for a reading that consulted the shipped ceiling
+    on every record. A reading is assembled from several files; the claim is
+    about the reading.
 
+    Args:
+        seeds: The module-level names the reading is entered through, resolved
+            in THIS module.
+
+    Returns:
+        Every ``objects.<name>`` reachable from the seeds, closed over the
+        module-level bindings of every test-side module the walk enters.
+    """
     reached: set[str] = set()
-    seen: set[str] = set()
-    stack = list(_TAG_READING_SEEDS)
+    seen: set[tuple[str, str]] = set()
+    stack = [(__name__, seed) for seed in seeds]
     while stack:
-        name = stack.pop()
-        if name in seen:
+        module_name, name = stack.pop()
+        if (module_name, name) in seen:
             continue
-        seen.add(name)
+        seen.add((module_name, name))
+        bindings = _source_bindings_of(module_name)
         node = bindings.get(name)
         if node is None:
             continue
+        aliases = _module_aliases_of(module_name)
+        imported = _imported_names_of(module_name)
         for used in _executed_nodes(node):
-            if (
-                isinstance(used, ast.Attribute)
-                and isinstance(used.value, ast.Name)
-                and used.value.id == "objects"
-            ):
-                reached.add(used.attr)
-            elif isinstance(used, ast.Name) and used.id in bindings and used.id not in seen:
-                stack.append(used.id)
+            if isinstance(used, ast.Attribute) and isinstance(used.value, ast.Name):
+                target = aliases.get(used.value.id)
+                if target is objects:
+                    reached.add(used.attr)
+                elif target is not None and _is_test_side(target):
+                    stack.append((target.__name__, used.attr))
+            elif isinstance(used, ast.Name):
+                if used.id in bindings:
+                    stack.append((module_name, used.id))
+                    continue
+                source, there = imported.get(used.id, ("", ""))
+                if source == objects.__name__:
+                    reached.add(there)
+                elif _is_test_side(sys.modules.get(source)):
+                    stack.append((source, there))
     return frozenset(reached)
+
+
+@lru_cache(maxsize=1)
+def _shared_tag_symbols() -> frozenset[str]:
+    """What the SECOND tag reading reaches, derived by :func:`_symbols_reached_from`.
+
+    Returns:
+        Every ``objects.<name>`` the second tag reading reaches.
+    """
+    return _symbols_reached_from(_TAG_READING_SEEDS)
 
 
 def test_every_shipped_symbol_the_second_tag_reading_shares_is_recorded() -> None:
@@ -1105,6 +1237,112 @@ def test_every_shipped_symbol_the_second_tag_reading_shares_is_recorded() -> Non
             f"{named} is a width or a name the second reading cannot avoid sharing and "
             "it is not in the recorded set, so the set understates the limit"
         )
+
+
+#: The function that IS the SHIPPED tag reading, named as a derivation seed.
+#: It is the control for :func:`_symbols_reached_from` and not a claim about the
+#: second reading: it reaches the shipped ceiling THROUGH ANOTHER MODULE, by
+#: calling :mod:`tests.save.test_decode_oracles`'s walk, which carries its own
+#: ``range(objects._MAX_TAGS_PER_PAYLOAD)``.
+_SHIPPED_TAG_READING_SEEDS: Final = ("_shipped_sites_of",)
+
+
+def test_the_symbol_derivation_sees_a_reach_that_leaves_this_module() -> None:
+    """CS-868. The known-good control for the derivation's module crossing.
+
+    WITHOUT IT THE ARM ABOVE IS A CLAIM ABOUT ONE FILE WEARING THE WORDS OF A
+    CLAIM ABOUT A READING. ``_shared_tag_symbols`` asserts the shipped ceiling
+    is absent from what the second reading reaches; a derivation that stops at
+    this module's own source cannot see a ceiling reached one call away in
+    another module, so that absence would hold for a reading that consults the
+    ceiling on every record. Two agents that produced no part of CS-863 built
+    that mutant independently and the whole module stayed green under it.
+
+    THE CONTROL IS A REACH THAT IS REAL AND LEGITIMATE RATHER THAN PLANTED. The
+    shipped reading is ENTITLED to the shipped ceiling - it IS the shipped
+    reader - so this seed reaches ``_MAX_TAGS_PER_PAYLOAD`` through
+    :mod:`tests.save.test_decode_oracles` in the tree as it stands, with nothing
+    mutated and nothing arranged. That is what makes it a control: it fails
+    exactly when the derivation cannot cross a module boundary, and for no other
+    reason.
+
+    IT IS NOT AN ASSERTION ABOUT THE SECOND READING and must never be read as
+    one. The second reading's own claim is the arm above, and the two are kept
+    apart by their seeds.
+
+    NEEDS NO SAVE LIBRARY AND NO INSTALL - it is a claim about the repo.
+    """
+    reached = _symbols_reached_from(_SHIPPED_TAG_READING_SEEDS)
+
+    assert "_MAX_TAGS_PER_PAYLOAD" in reached, (
+        "the symbol derivation cannot see a reach that leaves this module. "
+        f"{_SHIPPED_TAG_READING_SEEDS[0]} calls test_decode_oracles's walk, which reads "
+        "objects._MAX_TAGS_PER_PAYLOAD, and the derivation reported that reach absent. "
+        "So every 'this reading does not touch X' assertion built on it is a statement "
+        "about this file's source and not about the reading, and a second reading that "
+        "reaches the ceiling through any other module passes them all. reached instead: "
+        f"{sorted(reached)}"
+    )
+
+
+def _reaches_the_ceiling_through_a_bare_import(body: bytes, start: int, end: int) -> object:
+    """The from-import control's subject, and it is a FIXTURE not a reading.
+
+    IT IS NOT PART OF EITHER GRADED READING and must never be named as a seed of
+    one. It exists so that the claim "the closure follows a name a from-import
+    bound" is measured against a binding that is really in this tree, rather
+    than asserted about a spelling nothing here uses.
+
+    Args:
+        body: The decompressed body.
+        start: Where the payload's tags begin.
+        end: The first byte past the payload.
+
+    Returns:
+        Whatever the shipped walk returns.
+    """
+    return _bare_imported_shipped_walk(body, start, end)
+
+
+#: The fixture above, named as the derivation's seed.
+_BARE_IMPORT_CONTROL_SEEDS: Final = ("_reaches_the_ceiling_through_a_bare_import",)
+
+
+def test_the_symbol_derivation_sees_a_reach_a_from_import_bound() -> None:
+    """CS-868 round 2. The OTHER spelling of a crossing, refuted into existence.
+
+    THE FIRST REPAIR CROSSED ON A QUALIFIED ATTRIBUTE ONLY, and an adversary
+    that produced no part of it wrote the same memo as
+    ``from tests.save.test_decode_oracles import _walk_with_the_shipped_reader``
+    and both arms stayed green. A bare imported name is an ``ast.Name``: it
+    binds no module, carries no attribute, and a closure keyed on
+    ``module.attribute`` follows nothing through it. ``ruff`` accepts the
+    spelling and this repo already uses it elsewhere, so it is a fair mutant and
+    not an adversarial curiosity.
+
+    THE CONTROL IS THE BINDING RATHER THAN A STORY ABOUT ONE. The import at the
+    head of this module is live and this arm's subject calls it, so the arm
+    fails exactly when the closure stops at the qualified spelling - and a
+    binding deleted as unused takes the arm down with it rather than leaving it
+    green over nothing.
+
+    NEEDS NO SAVE LIBRARY AND NO INSTALL - it is a claim about the repo.
+    """
+    assert _reaches_the_ceiling_through_a_bare_import(b"", 0, 0) is None, (
+        "the fixture no longer runs the walk it names, so the binding this arm "
+        "measures is not the one the derivation is asked about"
+    )
+
+    reached = _symbols_reached_from(_BARE_IMPORT_CONTROL_SEEDS)
+
+    assert "_MAX_TAGS_PER_PAYLOAD" in reached, (
+        "the symbol derivation cannot see a reach a from-import bound. "
+        f"{_BARE_IMPORT_CONTROL_SEEDS[0]} calls a bare-imported name whose own module "
+        "reads objects._MAX_TAGS_PER_PAYLOAD, and the derivation reported that reach "
+        "absent. A second reading spelled that way consults the shipped ceiling on "
+        "every record and every 'this reading does not touch X' assertion built on "
+        f"this closure passes anyway. reached instead: {sorted(reached)}"
+    )
 
 
 @dataclass

@@ -141,6 +141,7 @@ a pass - every equality here is satisfied for free by an empty population.
 | CS-1065 | `docs/item_notes/phase6.md` |
 | CS-1067 | `docs/item_notes/phase4-followups-900.md` |
 | CS-1068 | `docs/item_notes/phase4-followups-900.md` |
+| CS-1069 | `docs/item_notes/phase4-followups-900.md` |
 | CS-614 | `docs/item_notes/phase6.md` |
 | CS-615 | `docs/item_notes/phase6.md` |
 | CS-616 | `docs/item_notes/phase6.md` |
@@ -200,7 +201,6 @@ a pass - every equality here is satisfied for free by an empty population.
 | CS-861 | `docs/item_notes/phase4-followups-850.md` |
 | CS-864 | `docs/item_notes/phase4-followups-850.md` |
 | CS-865 | `docs/item_notes/phase4-followups-850.md` |
-| CS-868 | `docs/item_notes/phase4-followups-850.md` |
 | CS-869 | `docs/item_notes/phase4-followups-850.md` |
 | CS-870 | `docs/item_notes/phase4-followups-850.md` |
 | CS-871 | `docs/item_notes/phase4-followups-850.md` |
