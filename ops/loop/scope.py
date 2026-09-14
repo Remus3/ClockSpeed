@@ -45,7 +45,12 @@ module as a literal:
   The four ids the prompt names are nowhere in this file, and
   `tests/ops/test_lane_scope.py` asserts the derived set EQUALS the set read out
   of the prompt's own fence sentence, so the two cannot drift apart in silence.
-- FENCE 2, never anything in `docs/GATED.md`. Derived by reading that file.
+- FENCE 2, never anything `docs/GATED.md` says is BLOCKED. Derived by reading
+  that file as a CLASSIFIED PARTITION rather than as a bare id scan: the wide
+  scan is the population, a machine-readable block in that file classifies every
+  id it finds as BLOCKED or MENTIONED, and an id nothing classifies is gated AND
+  named. See ``gate_classification`` for the fourteen-row measurement that forced
+  it and for why narrowing the scan instead would have been the denylist shape.
 - FENCE 4, never anything on the do-not-redo set. Its id-bearing half is
   section 5b's closing clause, "AND EVERY ITEM ALREADY CLOSED", and that is
   derived from `docs/LEDGER.md`.
@@ -115,7 +120,15 @@ from ops.loop import lanes  # noqa: E402
 #: An item LINE in `ROADMAP.md`: the id at column zero, then the spaced-hyphen
 #: clause break the whole project uses. The file's own prose carries ``CS-nnn -``
 #: as a shape example and ``CS-900, then`` in a sentence; neither matches.
-_ITEM_LINE = re.compile(r"^(CS-[0-9]+) - (.*)$")
+#:
+#: THE ``CS-G`` SERIES IS ADMITTED, and its absence was a measured hole rather
+#: than a style choice. `docs/GATED.md`'s own header prescribes that a gated item
+#: which unblocks moves to `ROADMAP.md` UNDER ITS OWN ``CS-G`` ID. A pattern
+#: reading only ``CS-[0-9]+`` sees no such line at all, so that row would be
+#: INVISIBLE to the lane rather than takeable - and invisible is the worse of the
+#: two failures, because a takeable row refuses loudly when something is wrong
+#: with it while a row nobody parses is a row nobody can miss.
+_ITEM_LINE = re.compile(r"^(CS-[A-Z]*[0-9]+) - (.*)$")
 
 #: A phase heading in `ROADMAP.md`. The headings are the single owner of which
 #: phase a row belongs to.
@@ -125,8 +138,25 @@ _PHASE_HEADING = re.compile(r"^## (Phase [0-9]+)\b")
 _GATE_HEADLINE = re.compile(r"^Phase [0-9]+ gate:")
 
 #: Any item id, wherever it appears. Used for `docs/GATED.md`, which names its
-#: blocked rows in prose rather than on item lines.
+#: blocked rows in prose rather than on item lines. THE WIDE SCAN SURVIVES THE
+#: PARTITION BELOW AND IS NOT THE THING TO NARROW - see ``gate_classification``.
 _ANY_ID = re.compile(r"CS-[0-9]+")
+
+#: THE CLASSIFICATION BLOCK IN `docs/GATED.md`, which turns the wide scan from a
+#: FENCE into a PARTITION. The scan says which ids that file names; the block
+#: says, for each one, whether a gate BLOCKS the row or the file merely MENTIONS
+#: it. An id the scan finds and the block does not classify is GATED and
+#: REPORTED - omission fails CLOSED, which is what makes the block an allowlist
+#: rather than the denylist shape this project has measured leaking four times.
+_CLASSIFY_BEGIN = "CLOCKSPEED-GATE-CLASSIFICATION BEGIN"
+_CLASSIFY_END = "CLOCKSPEED-GATE-CLASSIFICATION END"
+
+#: One classification line, matched ONLY between the sentinels. The block is the
+#: classifier, not the line shape: a sentence in gate prose that happens to read
+#: like a classification must not unfence a row, or quoting the mechanism inside
+#: the file it governs would switch it off - the fenced-block trap
+#: `.githooks/commit-msg` already records one instance of.
+_CLASSIFY_LINE = re.compile(r"^(CS-[0-9]+) (?:BLOCKED (CS-G[0-9]+)|MENTIONED)$")
 
 #: Any item id INCLUDING the ``CS-G`` gated series, which a ledger heading can
 #: name alongside ordinary ids. Tokenising the G series too is what keeps the
@@ -172,6 +202,13 @@ PHASE_GATE = "phase_gate"
 #: ways that promise breaks. UNCLASSIFIED is the one that matters most: without
 #: it, deleting a member shortens the subject and nothing anywhere notices,
 #: which is the defect this module was refuted for on its first round.
+#: FENCE 2's own fault, and the one that makes the partition an allowlist. An
+#: id `docs/GATED.md` NAMES that its classification block does not classify is
+#: fenced AND named - both, never either. Fencing it silently would be the
+#: narrowing ``fenced_faults`` already refuses over; naming it without fencing it
+#: would make a forgotten block a fail-open lever.
+UNCLASSIFIED_GATE_MENTION = "named_in_gated_md_and_classified_by_no_block"
+
 CONTRADICTED = "in_items_and_excluded"
 STALE_EXCLUSION = "excluded_but_not_a_takeable_anchor_row"
 UNCLASSIFIED = "anchor_phase_row_neither_member_nor_excluded"
@@ -333,22 +370,124 @@ def phase_gate_ids(rows: tuple[Row, ...]) -> frozenset[str]:
     return frozenset(row.item_id for row in rows if _GATE_HEADLINE.match(row.headline))
 
 
-def gated_ids(root: Any = None) -> frozenset[str]:
-    """FENCE 2, derived by reading `docs/GATED.md`.
+@dataclass(frozen=True)
+class GateClassification:
+    """How `docs/GATED.md` classifies every id it names.
 
-    Every id the file NAMES, wherever it names it. Deliberately wide: that file
-    names a blocked row inside the gate's prose rather than on an item line, and
-    a fence that reads only headings would miss exactly the rows it exists for.
-    The cost of the wide reading is that a row merely DISCUSSED there is fenced
-    out too, which errs toward refusing rather than toward taking.
+    Attributes:
+        named: Every id the WIDE SCAN found, wherever it appears. This is the
+            POPULATION, and it is deliberately not narrowed.
+        blocked: ``(item_id, gate_id)`` pairs, in block order - the rows a gate
+            genuinely blocks. A tuple rather than a dict so the record stays
+            frozen and hashable.
+        mentioned: The ids the file merely DISCUSSES.
+        unclassified: Every named id the block classifies neither way, or
+            classifies twice over, sorted. Each one is fenced AND reported.
+    """
+
+    named: frozenset[str]
+    blocked: tuple[tuple[str, str], ...]
+    mentioned: frozenset[str]
+    unclassified: tuple[str, ...]
+
+
+def gate_classification(root: Any = None) -> GateClassification:
+    """FENCE 2, derived by reading `docs/GATED.md` as a CLASSIFIED PARTITION.
+
+    THE WIDE SCAN STAYS AND IS THE POPULATION. That file names a genuinely
+    blocked row inside a gate's PROSE rather than in any structural field -
+    CS-G06 is the live instance - so a fence that read only headings, item lines
+    or a declared field would fail open on exactly the rows the fence exists for.
+    That is the denylist shape, and this project has measured a denylist leaking
+    four times across four green commits with only an allowlist holding.
+
+    WHAT THE BLOCK ADDS IS THE CLASSIFIER, and the cost it repays was measured:
+    FOURTEEN live roadmap rows were fenced by mention alone and an adjudicator
+    graded THIRTEEN of them accidental. The sharpest was a deadlock - the row
+    whose entire job is to empty a section OUT of that file was fenced BY that
+    file, so the headless lane could never execute the repair. Four more were
+    named by a sentence whose own opening clause says they are filed separately,
+    and one by a heading reading "WHY IT IS NO LONGER GATED".
+
+    OMISSION FAILS CLOSED. An id the scan finds that the block does not classify
+    is treated as gated and is reported by name, which is what makes an omitted
+    or stale block DETECTABLE rather than silently permissive. It is the same
+    idiom ``validate_scope`` already ships one function over under
+    ``UNCLASSIFIED``, deliberately reused rather than reinvented.
+
+    A CONTRADICTED ID FAILS CLOSED TOO. Two lines disagreeing about one id is a
+    declaration nobody can read, and resolving it either way would let a BLOCKED
+    row be unfenced by appending a MENTIONED line below it.
 
     Args:
         root: Repository root, or None for the main working tree.
 
     Returns:
-        The ids named anywhere in that file.
+        The classification of every id that file names.
     """
-    return frozenset(_ANY_ID.findall(_text(_root(root) / "docs" / "GATED.md")))
+    text = _text(_root(root) / "docs" / "GATED.md")
+    named = frozenset(_ANY_ID.findall(text))
+
+    verdicts: dict[str, list[str | None]] = {}
+    order: list[str] = []
+    inside = False
+    for line in text.splitlines():
+        stripped = line.strip()
+        if stripped == _CLASSIFY_BEGIN:
+            inside = True
+            continue
+        if stripped == _CLASSIFY_END:
+            inside = False
+            continue
+        if not inside:
+            continue
+        entry = _CLASSIFY_LINE.match(stripped)
+        if entry is None:
+            continue
+        if entry.group(1) not in verdicts:
+            verdicts[entry.group(1)] = []
+            order.append(entry.group(1))
+        verdicts[entry.group(1)].append(entry.group(2))
+
+    blocked: list[tuple[str, str]] = []
+    mentioned: set[str] = set()
+    contradicted: set[str] = set()
+    for item in order:
+        seen = verdicts[item]
+        if len(seen) != 1:
+            contradicted.add(item)
+        elif seen[0] is None:
+            mentioned.add(item)
+        else:
+            blocked.append((item, str(seen[0])))
+
+    classified = frozenset(item for item, _ in blocked) | mentioned
+    return GateClassification(
+        named=named,
+        blocked=tuple(blocked),
+        mentioned=frozenset(mentioned),
+        unclassified=tuple(sorted((named - classified) | (named & contradicted))),
+    )
+
+
+def gated_ids(root: Any = None) -> frozenset[str]:
+    """FENCE 2 - the ids a cycle may not take because `docs/GATED.md` says so.
+
+    The BLOCKED half of :func:`gate_classification`, PLUS every id it could not
+    classify. An unclassified id is gated because omission fails closed, and it
+    is reported by name through ``fenced_faults`` and ``render_report`` because
+    a fence nobody can see is the silent narrowing this module exists against.
+
+    Args:
+        root: Repository root, or None for the main working tree.
+
+    Returns:
+        The fenced ids.
+    """
+    classification = gate_classification(root)
+    return frozenset(item for item, _ in classification.blocked) | frozenset(
+        classification.unclassified
+    )
 
 
 def heading_subject_ids(ids_field: str) -> tuple[str, ...]:
@@ -429,6 +568,7 @@ def fenced_faults(root: Any = None, rows: tuple[Row, ...] | None = None) -> tupl
     """
     known = roadmap_rows(root) if rows is None else rows
     gates = phase_gate_ids(known)
+    unclassified = frozenset(gate_classification(root).unclassified)
     gated = gated_ids(root)
     closed = closed_ids(root)
 
@@ -436,6 +576,8 @@ def fenced_faults(root: Any = None, rows: tuple[Row, ...] | None = None) -> tupl
     for row in known:
         if row.item_id in gates:
             faults.append(ScopeFault(row.item_id, PHASE_GATE))
+        elif row.item_id in unclassified:
+            faults.append(ScopeFault(row.item_id, UNCLASSIFIED_GATE_MENTION))
         elif row.item_id in gated:
             faults.append(ScopeFault(row.item_id, GATED))
         elif row.item_id in closed:
@@ -581,6 +723,7 @@ def validate_scope(name: str, root: Any = None) -> tuple[ScopeFault, ...]:
     rows = roadmap_rows(root)
     present = {row.item_id for row in rows}
     gates = phase_gate_ids(rows)
+    unclassified = frozenset(gate_classification(root).unclassified)
     gated = gated_ids(root)
     closed = closed_ids(root)
 
@@ -591,6 +734,8 @@ def validate_scope(name: str, root: Any = None) -> tuple[ScopeFault, ...]:
     for item in members:
         if item in gates:
             faults.append(ScopeFault(item, PHASE_GATE))
+        elif item in unclassified:
+            faults.append(ScopeFault(item, UNCLASSIFIED_GATE_MENTION))
         elif item in gated:
             faults.append(ScopeFault(item, GATED))
         elif item not in present:
@@ -835,7 +980,12 @@ def binding_fact(permit: Any, worked: Any, *, committed: bool = False) -> dict[s
     return fact
 
 
-def render_report(rows: tuple[Row, ...], name: str | None, dropped: tuple[ScopeFault, ...]) -> str:
+def render_report(
+    rows: tuple[Row, ...],
+    name: str | None,
+    dropped: tuple[ScopeFault, ...],
+    unclassified: tuple[str, ...] = (),
+) -> str:
     """What the command prints on success.
 
     THE DROP IS PRINTED, NOT ONLY THE SURVIVORS. Rendering the survivors alone
@@ -849,6 +999,11 @@ def render_report(rows: tuple[Row, ...], name: str | None, dropped: tuple[ScopeF
         rows: The takeable rows.
         name: The scope they were narrowed to, or None.
         dropped: Every row a fence removed, with its reason.
+        unclassified: Every id `docs/GATED.md` names that its classification
+            block does not classify. REPORTED SEPARATELY FROM ``dropped``
+            because not every one of them is a `ROADMAP.md` row, and an
+            unclassified id that is not a row would otherwise be fenced with
+            nothing printed anywhere - which is precisely the silent case.
 
     Returns:
         The report body.
@@ -872,6 +1027,16 @@ def render_report(rows: tuple[Row, ...], name: str | None, dropped: tuple[ScopeF
         parts.extend(f"  {fault.item_id}  {fault.reason}" for fault in dropped)
     else:
         parts.append("FENCED OUT: nothing. No fence removed a row from this read.")
+
+    if unclassified:
+        parts.append("")
+        parts.append(
+            f"{UNCLASSIFIED_GATE_MENTION}, {len(unclassified)} id(s) - docs/GATED.md NAMES "
+            "these and its classification block classifies none of them, so they are "
+            "fenced. Omission fails CLOSED. The repair is a BLOCKED or MENTIONED line "
+            "in that block, never a narrowed scan:"
+        )
+        parts.extend(f"  {item}" for item in unclassified)
     return "\n".join(parts) + "\n"
 
 
@@ -908,7 +1073,14 @@ def main(argv: list[str] | None = None) -> int:
     except ScopeRefusedError as refused:
         sys.stdout.write(f"REFUSED: {refused.detail}\n")
         return 2
-    sys.stdout.write(render_report(rows, name, fenced_faults(args.root)))
+    sys.stdout.write(
+        render_report(
+            rows,
+            name,
+            fenced_faults(args.root),
+            gate_classification(args.root).unclassified,
+        )
+    )
     return 0
 
 

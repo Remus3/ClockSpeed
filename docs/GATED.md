@@ -14,15 +14,89 @@ Gated IDs use the `CS-G` series. They are permanent and never reused. When a gat
 unblocks, it moves to `ROADMAP.md` under its own `CS-G` ID and closes into
 `docs/LEDGER.md` under the same ID.
 
-**NAMING A LIVE ROADMAP ID ANYWHERE IN THIS FILE FENCES THAT ROW OUT OF THE HEADLESS
-LANE.** `ops/loop/scope.py`'s `gated_ids` fences every `CS-` id this file NAMES, wherever
-it names it, and that wide reading is DELIBERATE - it errs toward refusing a row rather
-than taking one it should not, and it is not the thing to weaken. The cost lands here
-instead: a live row merely DISCUSSED in gate prose is fenced out too, which has already
-happened to a row that was the most visible deliverable open. **So a PREP-half carrier,
-or any row this file's own prose calls workable, is described by what it does and NEVER
-by its number.** Spell an id only where the gate genuinely blocks that row, which is the
-one case where fencing it is the correct outcome.
+**NAMING A LIVE ROADMAP ID ANYWHERE IN THIS FILE PUTS THAT ROW INTO A POPULATION THE
+BLOCK BELOW MUST CLASSIFY.** `ops/loop/scope.py`'s `gate_classification` still scans this
+whole file for every `CS-` id, wherever it appears, and **that wide scan is not the thing
+to weaken** - a real gate names its blocked row in PROSE rather than in any structural
+field, CS-G06 below is the live proof, and a fence reading only headings or a declared
+field would fail open on exactly the rows the fence exists for. What changed is what the
+scan ANSWERS. The scan is the POPULATION; the classification block below is the
+CLASSIFIER; and every id the scan finds is declared either **BLOCKED** - a gate here
+genuinely blocks that row - or **MENTIONED** - this file merely talks about it. **An id
+the scan finds that the block does not classify is treated as GATED and is reported by
+name. Omission fails CLOSED.**
+
+**WHY THE PARTITION EXISTS, MEASURED RATHER THAN ARGUED.** Under the bare scan, FOURTEEN
+live `ROADMAP.md` rows were fenced by mention alone and an adjudicator graded THIRTEEN of
+them accidental. The sharpest was a deadlock: the row whose entire job is to empty CS-G05
+out of this file was fenced BY this file, so the headless lane could never execute the
+repair. Four more were fenced by a sentence whose own opening clause reads "What remains
+open here is narrower and is filed separately", and one by a heading reading "WHY IT IS NO
+LONGER GATED, BY THIS FILE'S OWN DEFINITION".
+
+**DESCRIBE-NEVER-NUMBER IS NO LONGER THE UNFENCING MECHANISM, and that is a fence rather
+than a loss of convenience.** Before the classifier, the only way to unfence a row this
+file discussed was to stop spelling its number, and one commit did exactly that to four
+rows. **That move is a FAIL-OPEN LEVER:** the same edit applied to a row a gate GENUINELY
+blocks unfences it, and no guard can tell the two apart afterwards, because the evidence
+has been deleted. Under the partition, a row this file merely discusses is unfenced by a
+`MENTIONED` line and may be spelled by number freely; **a row a gate genuinely blocks is
+unfenced ONLY by deleting its `BLOCKED` line**, which is an edit somebody has to make on
+purpose and which this block records. Describing rather than numbering remains good prose
+for a mention. It is no longer evidence of anything, and it must never again be cited as
+an unfencing.
+
+### The classification block - the classifier, read by `ops/loop/scope.py`
+
+Every id the wide scan finds appears here exactly once. `BLOCKED` carries the `CS-G` gate
+that blocks the row; `MENTIONED` carries no second field. **The two sentinel lines are what
+delimit the classifier** - a `CS-` id spelled anywhere else in this file classifies
+nothing, so quoting the mechanism inside the file it governs cannot switch it off. An id
+appearing twice, or twice with different verdicts, is UNCLASSIFIED rather than resolved:
+a partition is not a vote, and resolving a disagreement either way would let a `BLOCKED`
+row be unfenced by appending a `MENTIONED` line under it.
+
+`CS-8` and `CS-9` are not item ids. They are what the scan's own `CS-[0-9]+` pattern reads
+out of the `CS-8nn` and `CS-9nn` block names in the prose below. They are classified here
+rather than argued away, because the population is whatever the scan LITERALLY finds and
+an exception carved for a cosmetic case is the first hole in an allowlist.
+
+The four rows carried at the end of the block are MENTIONED here **on purpose and with
+nothing else riding on it**. They are the four that commit `7fbe529` unfenced by deleting
+their numbers from gate prose; naming and classifying them pins that decision in a form a
+later session can read, instead of leaving it resting on the absence of a sentence.
+
+```
+CLOCKSPEED-GATE-CLASSIFICATION BEGIN
+CS-913 BLOCKED CS-G06
+CS-8 MENTIONED
+CS-9 MENTIONED
+CS-300 MENTIONED
+CS-413 MENTIONED
+CS-501 MENTIONED
+CS-702 MENTIONED
+CS-703 MENTIONED
+CS-813 MENTIONED
+CS-815 MENTIONED
+CS-817 MENTIONED
+CS-821 MENTIONED
+CS-828 MENTIONED
+CS-829 MENTIONED
+CS-830 MENTIONED
+CS-831 MENTIONED
+CS-832 MENTIONED
+CS-847 MENTIONED
+CS-850 MENTIONED
+CS-867 MENTIONED
+CS-981 MENTIONED
+CS-982 MENTIONED
+CS-983 MENTIONED
+CS-1040 MENTIONED
+CS-1044 MENTIONED
+CS-1047 MENTIONED
+CS-1048 MENTIONED
+CLOCKSPEED-GATE-CLASSIFICATION END
+```
 
 ---
 

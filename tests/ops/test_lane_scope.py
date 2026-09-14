@@ -89,7 +89,11 @@ CS-618 - another subject row - acceptance: something - tier: 2
 CS-620 - a surface row that is not about the subject - acceptance: something - tier: 1
 """
 
-#: `docs/GATED.md` carries CS-470 and nothing else this corpus names.
+#: `docs/GATED.md`. It NAMES two rows and CLASSIFIES both, because naming is no
+#: longer what fences: the wide id scan is the POPULATION and the block below is
+#: the CLASSIFIER. CS-470 is BLOCKED by the gate. CS-410 is merely DISCUSSED and
+#: is takeable, which is the case the live file measured fourteen of and had no
+#: way to express.
 SYNTHETIC_GATED = """# Gated items
 
 ## Open gated items
@@ -97,6 +101,14 @@ SYNTHETIC_GATED = """# Gated items
 ### CS-G01 - something outside the repo
 
 CS-470 is blocked behind it and cannot close inside this repository.
+CS-410 is discussed here and this gate does not block it.
+
+```
+CLOCKSPEED-GATE-CLASSIFICATION BEGIN
+CS-470 BLOCKED CS-G01
+CS-410 MENTIONED
+CLOCKSPEED-GATE-CLASSIFICATION END
+```
 """
 
 #: `docs/LEDGER.md`. CS-799 CLOSED here and appears in no roadmap row, which is
@@ -857,3 +869,331 @@ def test_the_command_exits_non_zero_and_names_the_offender_on_a_bad_scope(
     assert finished.returncode != 0
     assert "CS-799" in finished.stdout + finished.stderr
     assert scope.CLOSED in finished.stdout + finished.stderr
+
+
+# ===========================================================================
+# e. FENCE 2 is a CLASSIFIED PARTITION, not a structural-position match
+# ===========================================================================
+#
+# WHY THE WIDE SCAN SURVIVED THE REPAIR. `docs/GATED.md` names a genuinely
+# blocked row inside a gate's PROSE - CS-G06 is the live proof - so a fence that
+# read only headings, item lines or a declared field would fail open on exactly
+# the rows the fence exists for. That is the denylist shape, and this project has
+# measured a denylist leaking four times.
+#
+# WHAT CHANGED IS WHAT THE SCAN ANSWERS. The scan is the POPULATION; a
+# machine-readable block in that file is the CLASSIFIER; and an id the scan finds
+# that the block does not classify is GATED AND REPORTED, both rather than
+# either. Omission fails CLOSED, which is what makes the block an allowlist.
+
+#: The sentinels, SPELLED OUT HERE rather than imported from the module under
+#: test. A grader that reads its subject's own constant grades nothing about the
+#: constant; these two copies live in different files, so a silent rename of
+#: either reddens.
+_BEGIN = "CLOCKSPEED-GATE-CLASSIFICATION BEGIN"
+_END = "CLOCKSPEED-GATE-CLASSIFICATION END"
+
+#: The gate prose the synthetic file carries. It names one row the gate blocks
+#: and one row it merely discusses, IN THE SAME PARAGRAPH, so nothing about a
+#: line's position can separate them - only the classification can.
+_GATE_PROSE = (
+    "# Gated items\n"
+    "\n"
+    "## Open gated items\n"
+    "\n"
+    "### CS-G01 - something outside the repo\n"
+    "\n"
+    "CS-470 is blocked behind it and cannot close inside this repository.\n"
+    "CS-410 is discussed here and this gate does not block it.\n"
+)
+
+
+def _gated_text(*classifications: str) -> str:
+    """A synthetic `docs/GATED.md` whose classification block is under test control.
+
+    Args:
+        classifications: The block's body lines, in order. NONE of them means
+            the file names two rows and classifies neither.
+
+    Returns:
+        The file text.
+    """
+    body = _GATE_PROSE
+    if classifications:
+        body += "\n```\n" + _BEGIN + "\n" + "\n".join(classifications) + "\n" + _END + "\n```\n"
+    return body
+
+
+def _fence_reasons(root: Path) -> dict[str, str]:
+    """Every fenced row of a corpus, mapped to the reason it was fenced.
+
+    Args:
+        root: A synthetic root.
+
+    Returns:
+        Row id -> fault reason.
+    """
+    return {fault.item_id: fault.reason for fault in scope.fenced_faults(root)}
+
+
+def test_a_row_this_file_merely_mentions_is_takeable(tmp_path: Path) -> None:
+    """REQUIRED ARM. A MENTIONED id is not fenced.
+
+    THE DEFECT THIS CLOSES, MEASURED ON THE LIVE FILE: fourteen live roadmap
+    rows were fenced by mention alone and an adjudicator graded thirteen of them
+    accidental. The sharpest was a deadlock - the row whose entire job is to
+    empty a section OUT of `docs/GATED.md` was fenced BY that file, so the
+    headless lane could never execute the repair.
+
+    Args:
+        tmp_path: pytest temporary directory.
+    """
+    root = _write_corpus(tmp_path, {})
+    (root / "docs" / "GATED.md").write_bytes(
+        _gated_text("CS-470 BLOCKED CS-G01", "CS-410 MENTIONED").encode("ascii")
+    )
+
+    takeable = frozenset(row.item_id for row in scope.rows_for_scope(None, root))
+
+    assert takeable, "no row is takeable at all, so this arm proves nothing about CS-410"
+    assert "CS-410" in takeable
+    assert "CS-470" not in takeable
+
+
+def test_a_row_a_gate_blocks_is_refused_and_reported_as_gated(tmp_path: Path) -> None:
+    """REQUIRED ARM. A BLOCKED id is fenced, under the GATED reason.
+
+    Args:
+        tmp_path: pytest temporary directory.
+    """
+    root = _write_corpus(tmp_path, {})
+    (root / "docs" / "GATED.md").write_bytes(
+        _gated_text("CS-470 BLOCKED CS-G01", "CS-410 MENTIONED").encode("ascii")
+    )
+
+    classification = scope.gate_classification(root)
+
+    assert scope.gated_ids(root) == frozenset({"CS-470"})
+    assert _fence_reasons(root)["CS-470"] == scope.GATED
+    assert dict(classification.blocked) == {"CS-470": "CS-G01"}
+    assert classification.mentioned == frozenset({"CS-410"})
+    assert classification.unclassified == ()
+
+
+def test_an_id_the_block_does_not_classify_is_fenced_and_named(tmp_path: Path) -> None:
+    """REQUIRED ARM. Omission fails CLOSED, and it fails LOUDLY.
+
+    BOTH, NOT EITHER. Fencing an unclassified id without naming it would be the
+    silent narrowing this module already refuses one function over; naming it
+    without fencing it would make an omitted block a fail-open lever. The arm
+    reads the fence set, the fault's own reason field, and the text a worker
+    sees in the terminal - so a module that refuses for the right reason while
+    printing nothing useful still fails here.
+
+    Args:
+        tmp_path: pytest temporary directory.
+    """
+    root = _write_corpus(tmp_path, {})
+    (root / "docs" / "GATED.md").write_bytes(_gated_text("CS-470 BLOCKED CS-G01").encode("ascii"))
+
+    classification = scope.gate_classification(root)
+    report = scope.render_report(
+        scope.rows_for_scope(None, root),
+        None,
+        scope.fenced_faults(root),
+        classification.unclassified,
+    )
+
+    assert classification.unclassified == ("CS-410",)
+    assert "CS-410" in scope.gated_ids(root)
+    assert _fence_reasons(root)["CS-410"] == scope.UNCLASSIFIED_GATE_MENTION
+    assert "CS-410" in report
+    assert scope.UNCLASSIFIED_GATE_MENTION in report
+
+
+def test_dropping_one_classification_line_flips_that_row_from_takeable_to_fenced(
+    tmp_path: Path,
+) -> None:
+    """POTENCY CONTROL. The two corpora differ by ONE line and the answer flips.
+
+    WHY THIS ARM EXISTS AS A SEPARATE ARM. An arm whose oracle cannot observe
+    the value it names passes for that reason alone, and this repository caught
+    exactly that twice in one item. So rather than asserting a property of one
+    fixture, this compares two fixtures that differ ONLY in the presence of
+    ``CS-410 MENTIONED`` and asserts the classification MOVED. If the block were
+    inert - read by nothing, or read and discarded - both sides would agree and
+    this arm would fail, which is the whole point of measuring a difference
+    rather than a value.
+
+    Args:
+        tmp_path: pytest temporary directory.
+    """
+    classified = _write_corpus(tmp_path / "classified", {})
+    (classified / "docs" / "GATED.md").write_bytes(
+        _gated_text("CS-470 BLOCKED CS-G01", "CS-410 MENTIONED").encode("ascii")
+    )
+    dropped = _write_corpus(tmp_path / "dropped", {})
+    (dropped / "docs" / "GATED.md").write_bytes(
+        _gated_text("CS-470 BLOCKED CS-G01").encode("ascii")
+    )
+
+    before = scope.gated_ids(classified)
+    after = scope.gated_ids(dropped)
+
+    assert "CS-410" not in before
+    assert "CS-410" in after
+    assert after - before == frozenset({"CS-410"})
+    assert _fence_reasons(dropped)["CS-410"] == scope.UNCLASSIFIED_GATE_MENTION
+
+
+def test_an_id_classified_twice_over_is_unclassified_rather_than_resolved(
+    tmp_path: Path,
+) -> None:
+    """A contradicted id fails CLOSED, because a partition is not a vote.
+
+    Two lines disagreeing about one id is a declaration nobody can read, and
+    picking either one would let a BLOCKED row be unfenced by appending a
+    MENTIONED line below it - a fail-open lever exactly like the one this
+    mechanism replaced.
+
+    Args:
+        tmp_path: pytest temporary directory.
+    """
+    root = _write_corpus(tmp_path, {})
+    (root / "docs" / "GATED.md").write_bytes(
+        _gated_text("CS-470 BLOCKED CS-G01", "CS-470 MENTIONED", "CS-410 MENTIONED").encode("ascii")
+    )
+
+    classification = scope.gate_classification(root)
+
+    assert classification.unclassified == ("CS-470",)
+    assert dict(classification.blocked) == {}
+    assert "CS-470" in scope.gated_ids(root)
+
+
+def test_a_classification_line_outside_the_sentinels_classifies_nothing(
+    tmp_path: Path,
+) -> None:
+    """The BLOCK is the classifier, not the line shape.
+
+    A sentence in gate prose that happens to read like a classification must not
+    unfence a row, or quoting the mechanism inside this file would switch it off
+    - the same fenced-block trap `.githooks/commit-msg` already records.
+
+    Args:
+        tmp_path: pytest temporary directory.
+    """
+    root = _write_corpus(tmp_path, {})
+    (root / "docs" / "GATED.md").write_bytes((_GATE_PROSE + "\nCS-410 MENTIONED\n").encode("ascii"))
+
+    classification = scope.gate_classification(root)
+
+    assert classification.mentioned == frozenset()
+    assert classification.unclassified == ("CS-410", "CS-470")
+    assert scope.gated_ids(root) == frozenset({"CS-410", "CS-470"})
+
+
+def test_the_live_gated_file_classifies_every_id_its_own_scan_finds(
+    repo_root: Path,
+) -> None:
+    """THE LIVE PARTITION IS COMPLETE, and the population is the scan's own.
+
+    Both sides are enumerated independently: the left by the shipped module, the
+    right by a regex over the same bytes that shares no code with it. The
+    non-vacuity legs matter more than usual here - a `docs/GATED.md` that named
+    no id at all would satisfy the equality with nothing in it.
+
+    THIS ARM REDDENS THE DAY SOMEBODY SPELLS A NEW ID IN THAT FILE. That is the
+    mechanism working. The repair is a line in the classification block, never a
+    narrowed scan.
+
+    Args:
+        repo_root: Repository root.
+    """
+    classification = scope.gate_classification(repo_root)
+    independent = frozenset(
+        re.findall(r"CS-[0-9]+", (repo_root / "docs" / "GATED.md").read_text(encoding="utf-8"))
+    )
+
+    assert independent, "the live gated file names no id, so this arm grades nothing"
+    assert classification.named == independent
+    assert classification.mentioned, "no id is classified MENTIONED, so the partition is trivial"
+    assert classification.unclassified == ()
+
+
+def test_the_live_blocked_set_is_the_one_row_a_gate_actually_blocks(
+    repo_root: Path,
+) -> None:
+    """The BLOCKED half is pinned in a second file, like ``DASHBOARD_MEMBERS``.
+
+    WHY A LITERAL AND NOT A DERIVATION. The whole hazard the partition replaces
+    is a row being unfenced by an edit to prose, and the mirror hazard is a row
+    being FENCED by an edit to the block. A literal here makes either direction
+    a cross-file edit somebody has to make on purpose. The standing limit is the
+    same one ``DASHBOARD_MEMBERS`` records: editing both together.
+
+    Args:
+        repo_root: Repository root.
+    """
+    blocked = dict(scope.gate_classification(repo_root).blocked)
+    rows = frozenset(row.item_id for row in scope.roadmap_rows(repo_root))
+
+    assert blocked == {"CS-913": "CS-G06"}
+    assert frozenset(blocked) <= rows, "a BLOCKED id that is not a live row fences nothing"
+    assert frozenset(blocked) <= scope.gated_ids(repo_root)
+
+
+def test_the_rows_unfenced_by_describe_never_number_are_pinned_as_mentions(
+    repo_root: Path,
+) -> None:
+    """The four rows commit `7fbe529` unfenced are now pinned, not merely unnamed.
+
+    THE HAZARD THIS CLOSES. Those four were unfenced by DELETING their numbers
+    from gate prose, and nothing pinned that they stay unnamed - the next
+    sentence spelling one of them would silently re-fence it. Under the
+    partition they are named AND classified, so they are unfenced by a recorded
+    decision rather than by the absence of evidence.
+
+    Args:
+        repo_root: Repository root.
+    """
+    classification = scope.gate_classification(repo_root)
+    takeable = frozenset(row.item_id for row in scope.rows_for_scope(None, repo_root))
+    pinned = frozenset({"CS-1040", "CS-1044", "CS-1047", "CS-1048"})
+
+    assert pinned <= classification.mentioned
+    assert pinned <= takeable
+    assert pinned & scope.gated_ids(repo_root) == frozenset()
+
+
+def test_a_roadmap_line_under_the_cs_g_series_parses_as_a_row(tmp_path: Path) -> None:
+    """A `CS-Gnn` row is a ROW, not an invisible line.
+
+    THE RESIDUAL THIS CLOSES, MEASURED. The item-line pattern was
+    ``^(CS-[0-9]+) - ``, which excludes the `CS-G` series entirely - so the day
+    a gated item routes out of `docs/GATED.md` into `ROADMAP.md` under its own
+    `CS-G` id, as that file's own header prescribes, the row would be INVISIBLE
+    to the lane rather than takeable. Invisible is the worse failure: a takeable
+    row refuses loudly when something is wrong with it, and a row nobody parses
+    is a row nobody can miss.
+
+    Args:
+        tmp_path: pytest temporary directory.
+    """
+    root = _write_corpus(tmp_path, {})
+    (root / "ROADMAP.md").write_bytes(
+        (
+            "# Roadmap\n"
+            "\n"
+            "## Phase 4 - save reader\n"
+            "\n"
+            "CS-410 - an ordinary row - acceptance: something - tier: 1\n"
+            "CS-G05 - a gated item routed out under its own id - acceptance: it - tier: 2\n"
+        ).encode("ascii")
+    )
+    (root / "docs" / "GATED.md").write_bytes(_gated_text().encode("ascii"))
+
+    parsed = tuple(row.item_id for row in scope.roadmap_rows(root))
+
+    assert parsed == ("CS-410", "CS-G05")
+    assert scope.roadmap_rows(root)[1].phase == "Phase 4"
