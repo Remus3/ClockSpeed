@@ -1677,6 +1677,45 @@ every zero, and a bare zero is not a measurement. If the population is empty, th
 by reporting the population AND the fact that it was looked for, not by an `assert count == 0`
 that would pass on a reader that found nothing at all.
 
+## CS-1052
+
+### Filed 2026-09-14
+
+**SPLIT OUT OF CS-1039 BY ADJUDICATION, AND THE SPLIT IS THE WHOLE POINT.** CS-1039's
+acceptance names three carriers; two are wired and this is the third.
+`mTradingPostLevel` IS declared `SaveGame`, as an `int32` on `AFGTutorialIntroManager`, so
+it CAN be in a save - that half is settled by declaration and needs no re-checking.
+
+**WHAT IS NOT KNOWN IS WHICH RECORD CLASS CARRIES IT.**
+`docs/adr/0016-unlock-arrays-carriers-and-serialized-grammar.md` records a carrier type
+path for every other carrier and NONE for this one. A save is joined on the save-side type
+path, not on the declaring C++ class, so without that measurement there is no key.
+
+**THE REFUSAL THAT CREATED THIS ITEM IS THE BEHAVIOUR TO PRESERVE.** A builder could have
+guessed `AFGTutorialIntroManager` and shipped an arm that passes on every synthetic fixture
+and matches ZERO records on every real save. That is precisely how CS-1039's first
+candidate failed, and it was refused for it. Guessing a key here would reproduce the defect
+in the item created to avoid it.
+
+**THE MEASUREMENT COMES FIRST AND THE ARM COMES SECOND. A SYNTHETIC ARM WRITTEN BEFORE THE
+MEASUREMENT GRADES AN INVENTED CLASS AND IS REFUSED** - it would be green, permanently, and
+wrong. Run the shipped decoder over a real save, observe the type path that actually
+carries the property, record it in ADR 0016 beside the others, and only then write the
+wiring arm against it. If the property does not appear in any readable save, that is a
+RESULT: record it, leave the carrier in `UNLOCK_CARRIERS_UNREAD`, and close this item
+saying so.
+
+**NEEDS THE GAME AND A REAL SAVE**, unlike every other slice in this block. It cannot be
+done on a machine with no install. Nothing measured from a save is ever committed: no save
+file, no header bytes, no account id, no world name - only the observed type path, which is
+publisher-owned asset content.
+
+**RELATED RISK THIS ITEM SHOULD SETTLE WHILE IT IS THERE.** CS-1039's fixtures now parse
+ADR 0016's carrier table at test time. That restored independence from the item note but
+CONCENTRATED dependence on the ADR: it is now the single source for both production keys
+and fixtures, and nothing verifies the ADR against a save. A measurement pass is the
+natural place to close that.
+
 ## CS-1039
 
 ### Filed 2026-09-13
@@ -1704,6 +1743,15 @@ exception or a `repr`. The new types need hand-written `__repr__` rendering leng
 following the `ObjectReference` precedent. `tests/repr_rendering_guard.py` and the
 no-body-byte arm both grade it. Non-negotiables 3, 11 and 12 are unchanged by this item:
 widening what crosses the SAVE seam does not widen what crosses the WIRE.
+
+**CLOSING SCOPE, ADJUDICATED 2026-09-14: TWO CARRIERS OF THREE, AND THAT IS NOT A
+SHORTFALL.** The acceptance names `mCurrentGamePhase`, `mPurchasedSchematics` and
+`mTradingPostLevel`. The first two are wired. The third is re-sited to CS-1052 because ADR
+0016 records NO carrier type path for it: keying it would mean INVENTING a class name,
+which is the exact defect that refused this item's first candidate. The builder's refusal
+to invent one is non-negotiable 7 compliance and was upheld. Rewriting the acceptance to
+drop the clause was REFUSED outright - that is a lie with a timestamp. The clause is not
+dropped, it is re-sited with its evidence bar RAISED to a measurement against a real save.
 
 **HIGHEST-RISK SLICE IN THE SESSION.** It writes the module every layer above depends on
 and CS-913 is open over the same code. It gets a DEDICATED adjudicator before any dependent

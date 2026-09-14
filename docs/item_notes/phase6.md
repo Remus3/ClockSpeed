@@ -796,6 +796,13 @@ be derived from `UnlockState`'s own annotation so the two sides share no constan
 key sets compared in BOTH directions so a field added to one alone is caught. A one-sided
 subset is the floor shape this repo has measured leaking repeatedly.
 
+**TWO DOCSTRINGS ON A PRIVACY INVARIANT ARE NOW FALSE AND THIS ITEM OWNS THEM.**
+`clockspeed/surface/api/world.py` states at two places that it is "the ONE place a
+`type_path` crosses the wire" and calls it "THE ONE DELIBERATE ASYMMETRY". CS-1039 makes a
+second path cross, so both sentences are false. A doc that lies ON a privacy invariant is
+worse than one that lies about a count: the next reader checking whether a new field may be
+published will read it and get the wrong answer.
+
 **DO NOT WIDEN CS-1039 TO COVER THIS.** `clockspeed/surface/` is not on its write-list, the
 candidate is frozen, and the wire-shape question it raises is separately adjudicated. One
 owner per item.
