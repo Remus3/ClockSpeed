@@ -16,10 +16,22 @@ threshold summed over every category is satisfied by its largest member while
 the smallest goes entirely unmeasured - this project has measured that failure.
 ``awesome_sink`` carries two classes and ``foundation`` carries two hundred and
 thirty one, so a pooled count would be decided by the foundations alone.
+
+STRUCTURE AND MEMBERSHIP ARE TWO DIFFERENT ARMS, AND ONE TEST CANNOT BE BOTH.
+Deriving the expectation from the model's own field grades that the declared set
+and the served set are the same set - but subject and oracle are then ONE
+STRUCTURE, so no edit to the measured names can move them apart and a dropped or
+refiled spelling stays green. ``MEASURED_CLASS_SAMPLE`` therefore retypes a
+sample of spellings per category, independently, and
+``test_each_named_class_spelling_lands_in_the_category_the_map_draws_it_as``
+grades membership against it. That is the pattern
+``MEASURED_NON_COAL_GENERATORS`` already proved: an arm whose oracle cannot
+observe the value it names passes for that reason alone.
 """
 
 from __future__ import annotations
 
+import inspect
 import math
 from collections import Counter
 from collections.abc import Mapping
@@ -79,6 +91,136 @@ MEASURED_NON_COAL_GENERATORS: Final = (
     "Build_GeneratorIntegratedBiomass_C",
     "Build_GeneratorNuclear_C",
 )
+
+#: A SAMPLE OF MEASURED SPELLINGS PER CATEGORY, RETYPED HERE AND NEVER READ OFF
+#: THE MODULE. This is the independent oracle for category MEMBERSHIP, and it
+#: exists because the acceptance arm cannot be one: that arm builds its fixture
+#: from ``CATEGORY_OF_CLASS`` and takes its oracle from the same mapping, so
+#: deleting a belt spelling or refiling it under another category moves both
+#: sides together and cannot be seen. Both of those are map defects a reader
+#: notices immediately - a whole belt mark vanishing from the map, or painting
+#: in the pipe layer and making the legend false.
+#:
+#: THE SAMPLE IS NOT THE WHOLE ALLOWLIST AND DOES NOT PRETEND TO BE. It names
+#: the spellings whose absence a reader would see: every conveyor mark, every
+#: pipe spelling, every miner, the coal plant, the sink, and a spread of each
+#: remaining category. Every literal below was checked once against the module's
+#: measured mapping at authoring time; none was invented, and none is derived at
+#: run time.
+#:
+#: ``generator`` reuses :data:`MEASURED_NON_COAL_GENERATORS` rather than retyping
+#: those six a second time - it is already an independent literal list.
+MEASURED_CLASS_SAMPLE: Final[Mapping[str, tuple[str, ...]]] = {
+    footprint.CATEGORY_FOUNDATION: (
+        "Build_Flat_Frame_01_C",
+        "Build_FoundationGlass_01_C",
+        "Build_Foundation_8x1_01_C",
+        "Build_Foundation_8x4_01_C",
+        "Build_Foundation_Concrete_8x4_C",
+        "Build_Foundation_Metal_8x1_C",
+        "Build_InvertedRamp_Metal_8x2_C",
+        "Build_QuarterPipeCorner_01_C",
+    ),
+    footprint.CATEGORY_MACHINE: (
+        "Build_AssemblerMk1_C",
+        "Build_Blender_C",
+        "Build_ConstructorMk1_C",
+        "Build_FoundryMk1_C",
+        "Build_ManufacturerMk1_C",
+        "Build_OilRefinery_C",
+        "Build_Packager_C",
+        "Build_SmelterMk1_C",
+        "Build_WorkBench_C",
+    ),
+    footprint.CATEGORY_MINER: (
+        "Build_FrackingExtractor_C",
+        "Build_FrackingSmasher_C",
+        "Build_MinerMk1_C",
+        "Build_MinerMk2_C",
+        "Build_MinerMk3_C",
+        "Build_OilPump_C",
+        "Build_WaterPump_C",
+    ),
+    footprint.CATEGORY_CONVEYOR: (
+        "Build_ConveyorBeltMk1_C",
+        "Build_ConveyorBeltMk2_C",
+        "Build_ConveyorBeltMk3_C",
+        "Build_ConveyorBeltMk4_C",
+        "Build_ConveyorBeltMk5_C",
+        "Build_ConveyorBeltMk6_C",
+        "Build_ConveyorLiftMk1_C",
+        "Build_ConveyorLiftMk2_C",
+        "Build_ConveyorLiftMk3_C",
+        "Build_ConveyorLiftMk4_C",
+        "Build_ConveyorLiftMk5_C",
+        "Build_ConveyorLiftMk6_C",
+    ),
+    footprint.CATEGORY_PIPE: (
+        "Build_PipelineJunction_Cross_C",
+        "Build_PipelineJunction_T_C",
+        "Build_PipelineMK2_C",
+        "Build_PipelineMK2_NoIndicator_C",
+        "Build_PipelinePumpMk2_C",
+        "Build_PipelinePump_C",
+        "Build_Pipeline_C",
+        "Build_Pipeline_NoIndicator_C",
+        "Build_Valve_C",
+    ),
+    footprint.CATEGORY_WIRING: (
+        "Build_PowerLine_C",
+        "Build_XmassLightsLine_C",
+    ),
+    footprint.CATEGORY_POLE: (
+        "Build_ConveyorPoleStackable_C",
+        "Build_ConveyorPole_C",
+        "Build_PipelineSupport_C",
+        "Build_PowerPoleMk1_C",
+        "Build_PowerPoleMk2_C",
+        "Build_PowerPoleMk3_C",
+        "Build_PowerPoleWall_C",
+        "Build_PowerTowerPlatform_C",
+    ),
+    footprint.CATEGORY_TOWER: (
+        "Build_LookoutTower_C",
+        "Build_PowerTower_C",
+        "Build_RadarTower_C",
+    ),
+    footprint.CATEGORY_COAL_PLANT: ("Build_GeneratorCoal_C",),
+    footprint.CATEGORY_GENERATOR: MEASURED_NON_COAL_GENERATORS,
+    footprint.CATEGORY_CONTAINER: (
+        "Build_CentralStorage_C",
+        "Build_IndustrialTank_C",
+        "Build_PipeStorageTank_C",
+        "Build_StorageContainerMk1_C",
+        "Build_StorageContainerMk2_C",
+        "Build_StoragePlayer_C",
+    ),
+    footprint.CATEGORY_SPECIAL_MACHINE: (
+        "Build_Converter_C",
+        "Build_HadronCollider_C",
+        "Build_HubTerminal_C",
+        "Build_Mam_C",
+        "Build_QuantumEncoder_C",
+        "Build_SpaceElevator_C",
+        "Build_TradingPost_C",
+    ),
+    footprint.CATEGORY_AWESOME_SINK: (
+        "Build_ResourceSinkShop_C",
+        "Build_ResourceSink_C",
+    ),
+}
+
+#: The claim the elevation key USED to make and must never make again: a tie on
+#: every published component is broken by record order, which no consumer holds.
+OVERCLAIMED_TOTALITY: Final = "reproducible from the published rows alone"
+
+#: The claim that is actually true of it, which the module must state instead.
+DECLARED_TIE_LIMIT: Final = "not total over the published rows"
+
+#: The two ranks two byte-identical published rows must come back carrying.
+#: Distinct, so a painter still draws both - but which got which is not
+#: derivable from the rows.
+EXPECTED_TIED_RANKS: Final = (0, 1)
 
 #: How many off-allowlist buildables the skip arm plants. Named so the assertion
 #: states an expectation rather than comparing a number to itself.
@@ -287,6 +429,19 @@ def test_every_published_category_is_reachable_from_a_synthetic_world() -> None:
     over the pool is decided by ``foundation`` alone and would leave
     ``awesome_sink``, with two classes against two hundred and thirty one,
     entirely unmeasured.
+
+    THIS ARM GRADES STRUCTURE AND DELIBERATELY CANNOT GRADE MEMBERSHIP. Its
+    fixture is built from ``CATEGORY_OF_CLASS`` and its oracle is a tally over
+    ``CATEGORY_OF_CLASS``, so subject and oracle are ONE STRUCTURE: deleting a
+    measured spelling removes it from both sides at once, and refiling one moves
+    it on both sides at once. Neither is visible here and neither is meant to
+    be. What this arm grades is that the declared set and the served set are the
+    same set, whatever the names happen to be - which is the defect the
+    acceptance names, and which is why the acceptance asks for a derived
+    expectation. MEMBERSHIP IS GRADED BY
+    ``test_each_named_class_spelling_lands_in_the_category_the_map_draws_it_as``
+    against retyped literals. Do not add a membership claim to this arm; it
+    would be a tautology wherever it was written here.
     """
     model = footprint.footprint_of(world(one_record_per_allowlisted_class()))
 
@@ -533,19 +688,38 @@ def test_a_namespaced_mod_path_reduces_to_the_bare_class_name_before_matching() 
 
 
 def test_every_declared_category_has_at_least_one_measured_class_behind_it() -> None:
-    """No category is advertised with nothing wired to it, checked one at a time.
+    """Neither half of the contract carries a category the other one lacks.
 
     THE ALLOWLIST AND THE DECLARED SET ARE TWO HALVES OF ONE CONTRACT and this
     arm grades the halves against each other WITHOUT building a world at all, so
     a category wired to nothing fails here even if a future change stops
     ``footprint_of`` from ever being reached.
+
+    BOTH HALVES ARE READ FROM ``CLASSES_BY_CATEGORY``, WHICH IS THE ONLY PLACE A
+    MISMATCH IS STILL VISIBLE. The first cut of this arm read its subject from
+    ``CATEGORY_OF_CLASS`` - which is BUILT by iterating ``FOOTPRINT_CATEGORIES``,
+    so its values were a subset of the declared tuple BY CONSTRUCTION and the
+    undeclared-category assertion could not fail for any input whatsoever. A
+    dead assertion is worse than no assertion, because it reads as coverage: a
+    category added to the allowlist and not to the declared tuple drops one
+    hundred percent of its classes into the skip bucket, silently, green.
     """
-    behind = Counter(footprint.CATEGORY_OF_CLASS.values())
-    empty = [category for category in footprint.FOOTPRINT_CATEGORIES if behind[category] == 0]
+    behind = {
+        category: len(class_names)
+        for category, class_names in footprint.CLASSES_BY_CATEGORY.items()
+    }
+
+    empty = [category for category in footprint.FOOTPRINT_CATEGORIES if not behind.get(category)]
     assert empty == []
 
     undeclared = sorted(set(behind) - set(footprint.FOOTPRINT_CATEGORIES))
     assert undeclared == []
+
+    # The flattened lookup is what the matcher actually reads, and it is built
+    # by iterating the DECLARED tuple - so an undeclared category's classes are
+    # absent from it entirely rather than merely mis-keyed.
+    flattened = len(footprint.CATEGORY_OF_CLASS)
+    assert sum(behind.values()) == flattened
 
 
 def test_a_non_coal_generator_is_drawn_and_never_falls_into_the_skip_bucket() -> None:
@@ -619,3 +793,94 @@ def test_no_class_is_filed_under_two_categories() -> None:
     duplicated = sorted({name for name in members if members.count(name) > 1})
     assert duplicated == []
     assert len(footprint.CATEGORY_OF_CLASS) == len(members)
+
+
+def test_each_named_class_spelling_lands_in_the_category_the_map_draws_it_as() -> None:
+    """Retyped spellings are each served under the category named beside them.
+
+    THE MEMBERSHIP ORACLE, AND IT IS INDEPENDENT ON PURPOSE. Every other
+    category arm in this file derives its expectation from the module's own
+    mapping, which is what the acceptance asks for and is also exactly why none
+    of them can see a name change: subject and oracle move together. Two map
+    defects live in that blind spot and both were reproduced as surviving
+    mutants - a belt mark DELETED from the allowlist, which drops every belt of
+    that mark off the map into the skip bucket, and a belt mark REFILED under
+    ``pipe``, which paints it in the wrong layer and makes the legend false.
+
+    ASSERTED PER CATEGORY AND NEVER OVER A POOL. A total over eighty names is
+    carried by the foundations and the conveyors while ``awesome_sink``, with
+    two, goes unmeasured - the pooled-guard failure this project has measured.
+
+    The subject is the SERVED model rather than the mapping, so this grades the
+    whole path a map reader depends on: allowlist, match, category, publication.
+    """
+    unsampled = [
+        category
+        for category in footprint.FOOTPRINT_CATEGORIES
+        if not MEASURED_CLASS_SAMPLE.get(category)
+    ]
+    assert unsampled == []
+
+    sampled = sorted({name for sample in MEASURED_CLASS_SAMPLE.values() for name in sample})
+    model = footprint.footprint_of(
+        world(
+            tuple(
+                actor(class_name, (float(index), 0.0, 0.0))
+                for index, class_name in enumerate(sampled)
+            )
+        )
+    )
+    served = {placed.class_name: placed.category for placed in model.footprints}
+
+    for category in footprint.FOOTPRINT_CATEGORIES:
+        wrong = {
+            class_name: served.get(class_name)
+            for class_name in MEASURED_CLASS_SAMPLE[category]
+            if served.get(class_name) != category
+        }
+        assert wrong == {}, category
+
+
+def test_a_tie_on_every_published_field_is_deterministic_and_not_reproducible() -> None:
+    """Identical rows still rank apart, and the model never claims you can tell why.
+
+    THE RANK IS NOT TOTAL OVER THE PUBLISHED ROWS AND THE DOCSTRING MUST NOT SAY
+    IT IS. Two records of one class at one transform tie on every component the
+    key uses - elevation, category, class name and the two remaining coordinates
+    - because those are all this model publishes and the rows are byte identical
+    in every one of them. The tie is then broken by the record order the sort
+    was handed, which this module deliberately never publishes: an index is on
+    the list of things that never leave it.
+
+    So the true property is DETERMINISM FOR A GIVEN MODEL, not totality. A
+    consumer holding only the published rows cannot recompute which of two
+    identical rows got which rank, and a docstring that promised it could was
+    asserting more than the code delivers.
+    """
+    records = tuple(
+        actor("Build_Foundation_Metal_8x1_C", (0.0, 0.0, 0.0))
+        for _ in range(len(EXPECTED_TIED_RANKS))
+    )
+    first, second = footprint.footprint_of(world(records)).footprints
+
+    published = [
+        (placed.class_name, placed.category, placed.x, placed.y, placed.z, placed.extent)
+        for placed in (first, second)
+    ]
+    assert published[0] == published[1]
+    assert tuple(sorted((first.elevation_order, second.elevation_order))) == EXPECTED_TIED_RANKS
+
+    again = footprint.footprint_of(world(records)).footprints
+    assert tuple(placed.elevation_order for placed in again) == (
+        first.elevation_order,
+        second.elevation_order,
+    )
+
+    # COLLAPSED FIRST. Both claims are wrapped across lines in the module
+    # source, so a substring check against the raw text matches nothing at all
+    # and passes for that reason - a vacuous assertion of exactly the kind this
+    # arm exists to retire. Measured: the banned phrase was green unnormalised.
+    # Case folded for the same reason - this module shouts a claim it wants read.
+    source = " ".join(inspect.getsource(footprint).split()).lower()
+    assert OVERCLAIMED_TOTALITY not in source
+    assert DECLARED_TIE_LIMIT in source

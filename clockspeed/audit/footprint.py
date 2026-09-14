@@ -112,12 +112,20 @@ difference of one foundation's thickness is not a claim this data supports.
 :data:`ELEVATION_MEANING` is carried on the model so the reader of a rank is
 told, rather than left to infer a floor number from an integer.
 
-THE RANK'S TIE-BREAK IS TOTAL ON PURPOSE. Ordering on z alone leaves every
-foundation on one level in an order the dict happened to produce, so two runs
-over one world could paint them differently. The key continues into category,
-class name and the two remaining coordinates, which are exactly the fields this
-model already publishes - so the ordering is reproducible from the published
-rows alone.
+THE RANK'S TIE-BREAK IS DETERMINISTIC, AND IT IS NOT TOTAL OVER THE PUBLISHED
+ROWS. Ordering on z alone leaves every foundation on one level in an order the
+record table happened to carry, so two runs over one world could paint them
+differently. The key therefore continues into category, class name and the two
+remaining coordinates, which are exactly the fields this model already
+publishes, and that separates everything those five fields can separate.
+
+IT DOES NOT SEPARATE EVERYTHING. Two records of one class at one transform are
+identical in all five, because those five are the whole of what this model
+publishes about a row; what breaks that tie is the record order the sort was
+handed, and a record index is on the list of things that never leave this
+module. So a consumer holding the published rows alone cannot recompute which
+of two identical rows ranked first. The delivered property is the narrower one:
+the same model always yields the same ranks.
 
 WATER REGIONS ARE UNAVAILABLE, AND THAT FLAG IS NOT A PLACEHOLDER
 --------------------------------------------------------------------
@@ -752,9 +760,11 @@ class Footprint:
             a null to sniff for, so a consumer branches on a declared capability
             instead of guessing what a null meant.
         elevation_order: This footprint's dense ascending rank by elevation over
-            the whole published population, tie-broken totally. Paint in
-            ascending order and overlapping layers read as layers. NOT a storey
-            number - see :data:`ELEVATION_MEANING`.
+            the whole published population. No two footprints share a rank, but
+            the key that assigns them is deterministic for a given model rather
+            than total over the published rows - see :func:`_elevation_key`.
+            Paint in ascending order and overlapping layers read as layers. NOT
+            a storey number - see :data:`ELEVATION_MEANING`.
     """
 
     class_name: str
@@ -823,8 +833,9 @@ class WorldFootprint:
         """The same footprints, in the order a painter draws them.
 
         Ascending by :attr:`Footprint.elevation_order`, which is already a dense
-        total rank, so this is a reordering and never a re-derivation - a second
-        sort key here would be a second ordering nothing reconciles.
+        rank no two footprints share, so this is a reordering and never a
+        re-derivation - a second sort key here would be a second ordering
+        nothing reconciles.
 
         Returns:
             The footprints, lowest first.
@@ -925,13 +936,22 @@ def _warnings_for(counted: tuple[tuple[str, int], ...]) -> list[WorldWarning]:
 
 
 def _elevation_key(entry: tuple[float, Footprint]) -> tuple[float, str, str, str, str]:
-    """The total ordering a rank is assigned from.
+    """The ordering a rank is assigned from - deterministic, and not a total order.
 
-    TOTAL ON PURPOSE. Ordering on elevation alone leaves every foundation on one
-    level in whatever order the record table happened to carry, so two runs over
-    one world could paint them differently. The key continues into fields this
-    model already publishes, so the ordering is reproducible from the published
-    rows alone rather than from a record index no consumer holds.
+    Ordering on elevation alone leaves every foundation on one level in whatever
+    order the record table happened to carry, so two runs over one world could
+    paint them differently. The key continues into fields this model already
+    publishes, which separates everything those fields can separate.
+
+    IT IS NOT TOTAL OVER THE PUBLISHED ROWS, AND THIS DOCSTRING WILL NOT SAY IT
+    IS. Two records of one class at one transform tie on all five components,
+    because those five are the whole of what this model publishes about a row.
+    The sort is stable, so that tie falls to the record order the caller handed
+    in - which this module never publishes, an index being on the list of what
+    never leaves it. The delivered property is DETERMINISM FOR A GIVEN MODEL:
+    the same model always yields the same ranks, while a consumer holding the
+    rows alone cannot recompute which of two identical rows came first.
+    ``tests/audit/test_footprint.py`` grades both halves of that.
 
     Args:
         entry: The widened elevation and the footprint it belongs to.
