@@ -166,6 +166,45 @@ read as passes while the raw save was live in shipped frames. Filed in harness m
 
 ---
 
+## CS-1060 - RELOCATED 2026-09-14 on closure, from docs/item_notes/phase4-followups-900.md
+
+**CLOSED. The ledger entry dated 2026-09-14 is the record; this is the working note it was
+built from, moved here because `docs/item_notes/` holds live detail for OPEN work only.**
+
+**WHAT THE NOTE GOT RIGHT.** It refused to let the gate be repaired by moving a threshold, and
+it was arithmetic rather than preference: solving the feasibility rule at the then-observed
+spread ratio put the requirement near 320 seconds, roughly 1.6x below where the lane sat.
+The remedy it named - a third shard plus real trimming - is what shipped.
+
+**WHAT IT GOT WRONG, AND IT MATTERS MORE THAN WHAT IT GOT RIGHT.** The note assumed the slow
+runner class was the one a short sample would MISS. A 24-run class model built at adjudication
+time says the opposite: the slow class is about 78 per cent of draws, so a tight cluster at the
+top of the distribution IS the slow class rather than an unsampled one. A session reading this
+note alone would draw the wrong conclusion from three green readings.
+
+
+### Filed 2026-09-14
+
+**THIS IS THE ENABLING ITEM FOR A WALL-CLOCK GATE AND IT DETECTS NOTHING BY ITSELF.**
+Solving the published feasibility rule at the observed spread ratio `N/M = 222/511 =
+0.4345` gives `M'(1 + 0.869) <= 600`, so `M' <= 321`. **A wall-clock gate becomes feasible
+again only if the slow-class worst job reading drops to about 320 seconds**, roughly 1.6x
+below where the lane sits today. That is a third shard plus real trimming, not a tuning
+change, and it fights the leanness rule stated at the top of `.github/workflows/tier1.yml`.
+
+**IT IS FILED SEPARATELY BECAUSE THE RISK IT CARRIES BELONGS TO NOBODY TODAY.** The
+runaway cutoff sits at 10 minutes and CANCELS rather than fails; a cancelled run is
+evidence of nothing and reads to the next session as flakiness. At 511 job-seconds the
+slow class is 89 seconds from that cutoff, and CS-1012's own repair ADDS 20 to 40 seconds
+to the job. Whoever builds CS-1012 first without this one walks the lane into a
+cancellation.
+
+**DO NOT REACH FOR THE CUTOFF.** `tier1.yml` states in capitals that raising it converts a
+runaway detector into a budget, and `tools/drift_guard.py` guard (k) pins it as policy
+rather than reading it as a tunable, so any change up or down is red until the pin moves
+in the same diff with a stated reason. The remedy here is a shorter lane, never a longer
+leash.
+
 ## CS-301 - CLOSED 2026-09-14
 
 ### NOTE - relocated from `docs/item_notes/phase3.md` 2026-09-14

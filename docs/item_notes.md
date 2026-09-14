@@ -277,7 +277,6 @@ a pass - every equality here is satisfied for free by an empty population.
 | CS-1048 | `docs/item_notes/phase5.md` |
 | CS-1061 | `docs/item_notes/phase5.md` |
 | CS-1012 | `docs/item_notes/phase4-followups-900.md` |
-| CS-1060 | `docs/item_notes/phase4-followups-900.md` |
 
 ## Rules every leaf obeys
 

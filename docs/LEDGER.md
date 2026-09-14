@@ -374,6 +374,140 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-09-14 - CS-1060 - CLOSED. Tier 1 went 583 seconds to a worst job of 310, by partition and trimming with no threshold touched - and the clause nearly closed on a reading of the runner pool that was backwards
+
+**WHAT CHANGED.** `.github/workflows/tier1.yml` runs THREE jobs where it ran two. A new `guards`
+job takes the nine heaviest root modules; `fast` keeps every gate step and becomes the catch-all,
+`tests` plus ten `--ignore=`; `save` is untouched. `tests/solve/test_exact.py`'s scaling arm went
+21.1s to 1.02s by moving only the ORACLE's monotonicity check to 24 rows - the implementation's
+fixed-cost claim still measures at 96, so the arm was not weakened to buy the time.
+
+**MEASURED FIRST, AND THE OBVIOUS REPAIR WAS THE WRONG ONE.** The shard was bound by total CPU work
+divided by worker count, not by any single slow file: 607.7 CPU-seconds locally against a 108.7s
+wall, and 607.7 x 3.4 / 4 predicts 517s against the 540s the runner actually spent. So trimming the
+largest test buys a QUARTER of its own cost in wall time. Only more runners move a lane shaped like
+that, which is why the acceptance names partition first.
+
+**M IS THE WORST JOB IN THE LANE, NOT THE JOB NAMED `fast`.** The ROADMAP line said "fast-shard",
+which was shorthand from a session in which `fast` WAS the worst job. The detail file says "the
+slow-class worst job reading" and `.github/workflows/tier1.yml` states a level "bounds the SLOWEST
+SHARD and never their sum". Read literally the lane could satisfy the acceptance while the gate
+stayed infeasible. **So M = 310s, the save shard. Margin against 320 is TEN SECONDS.**
+
+**THE CLASS CAVEAT, STATED AS A PROBABILITY BECAUSE THAT IS ALL IT IS.** The slow runner class was
+never observed directly and three readings alone would NOT have discharged this clause. The merger
+believed the tight 43s spread meant the slow class had been missed. That was BACKWARDS, and an
+adjudicator established it with a 49-reading class model built from 24 recent runs: the slow class
+is roughly 78 per cent of draws, so P(all three readings being fast-class) is about 0.012 for both
+the save and fast shards, and the three save readings sit at the MAXIMUM of a 22-reading
+distribution whose dense band is 258 to 310. Re-measured independently by the merger: 158, 171, 217,
+then nineteen readings from 258 to 310. A tight cluster at the top of that distribution is the slow
+class, not an unsampled one.
+
+**PROVEN BY.** `tests/test_tier1_budget.py::test_the_two_shards_partition_the_suite_with_no_gap_and_no_overlap`
+(count-free for any N despite its name, which is kept because this file cites it and is append-only),
+`::test_a_shard_that_states_no_cutoff_is_named_rather_than_walked_past`,
+`::test_no_shard_names_a_node_id_where_a_path_is_required` and
+`::test_no_selection_narrowing_hides_in_the_pytest_configuration`. Three green runs: 34886320998 at
+ea3591a (255/263/307), 34888489018 at 8362ef4 (218/266/310), 34902397959 at 8af7397 (212/277/306),
+durations read from the jobs API at adjudication time. Partition proven by COLLECTION, not tokens:
+4387 + 1793 + 1539 = 7719 = the single run's 7719.
+
+**NO THRESHOLD MOVED.** `TIER1_BUDGET_SECONDS: '420'` and `TIER1_CEILING_SECONDS: '480'` are
+byte-identical at 7519ed7 and 8af7397, `timeout-minutes: 10` on every job at each, and
+`tools/drift_guard.py` guard (k) PASSes. Verified by an adjudicator with `git show` at four commits
+rather than taken from the merger's report.
+
+**THE LAST TWO ARMS EXIST BECAUSE A REFUTER BROKE THE FIRST FOUR.** The partition arms reasoned about
+TOKENS in a workflow string, and tokens are not collection. Two counter-examples passed every arm:
+a node-id target paired with a byte-identical `--ignore=` ran one test in TWO shards, because
+`--ignore` matches a path and silently no-ops on a node id; and `-m 'not slow'` in `pyproject.toml`
+addopts, with the workflow untouched, left 12 tests running in NO shard. Both were green at 143
+passed. The arms now reach outside the workflow file for exactly these two reasons.
+
+**A NO-OP GUARD FOUND IN THE SAME PASS.** `assert _ORACLE_GROWTH_CHAIN > _SMALL_CHAIN` could not
+fail in any source state, while the one regression its own comment forbade in capitals - restoring
+the constant and reverting this item's trim - was GREEN. Bounded both sides; the revert mutant now
+fails in 20.90s. A comment saying MUST NOT is not a guard.
+
+**CORRECTION TO THE ea3591a COMMIT MESSAGE, which is immutable and wrong.** It claims "no shard count
+is written anywhere". True of `tests/test_tier1_budget.py` and false of the diff: the same commit
+changed `tests/test_queue_loop_ci_specs.py`'s parser control to `{"fast", "save", "guards"}` and
+`CI_TIER1.required` to a three-tuple. Both are defensible - one is an anti-vacuity control, the other
+is what the lane driver must name - but a fourth shard still needs a hand edit at that control with
+no arm failing first.
+
+**A RULING THIS WORK SUPERSEDED FROM INSIDE ITS OWN RANGE.** An adjudicator ruled that
+`tests/solve/test_phase3_gate.py` (87s on the runner, serial child) should be repaired as part of
+this item. It needed no repair: its child runs the whole solve suite, so it had been re-executing the
+CS-302 oracle a second time, and this item's own trim cut it. On ea3591a the gate is no longer in the
+slowest-15, the child is 5.42s serial locally, and a worker sweep is flat at 4.82/4.88/5.10 for
+n=2/4/8. The ruling was sound on the figure it had, which was measured BEFORE the trim landed in the
+commit it was grading. **A verdict covers the SHA it ruled on, and that cuts backwards as well as
+forwards.**
+
+**FILED RATHER THAN FOLDED IN:** CS-1073, and it is a sequencing hazard rather than a nicety - the
+save shard is the binding reading with ten seconds of margin, was never partitioned, and CS-1068 is
+open and grows that directory.
+
+**WORKING NOTE RELOCATED** to `docs/history_notes.md` on closure, carrying a correction of its own
+backwards assumption about which runner class a short sample misses.
+
+### 2026-09-14 - CS-1072 - FILED AND CLOSED IN ONE RECORD. The phase-4 gate's nested child ran serially under a parent holding `-n auto` and crossed its own timeout on the windows leg
+
+**WHY THIS HAS ITS OWN ID INSTEAD OF CLOSING CS-448.** Read as plain text, CS-448's acceptance
+disjunct (b) - "its nested child run is made robust against the contention that breaks it, with the
+mechanism named rather than the timeout raised" - is satisfied word for word by this work. It was
+routed to an adjudicator anyway and the adjudicator refused the reading, correctly. CS-448's own note under
+its heading in `docs/item_notes/phase4.md` fixes the referent of "the contention": "xdist supplies only the
+concurrent creator and deleter - it is NOT CPU contention, and the 42.7s walk happens single-process
+with nothing else running", and the note ends with an explicit "Measure `rootdir` inside a real
+tier-2 job before closing." Two different breakage signatures: CS-448's is `FileNotFoundError` into
+an interrupted collection, this one is the windows leg crossing `_CHILD_TIMEOUT_SECONDS`. Bounding a
+child at four workers does nothing whatsoever to a rootdir that climbs. **AN ACCEPTANCE READ WITHOUT
+ITS NOTE IS HOW AN ITEM CLOSES ON A MECHANISM IT NEVER NAMED.** CS-448 stays open on its rootdir
+measurement, which nobody has taken.
+
+**WHAT CHANGED.** `tests/save/test_phase4_gate.py::_child_pytest_args` appends
+`-n <bounded> --dist loadfile`, with `_CHILD_WORKERS = min(4, max(2, os.cpu_count() or 2))`. No
+timeout moved; `_CHILD_TIMEOUT_SECONDS` is 300 before and after.
+
+**THE CAP IS MEASURED, NOT PREFERRED.** Same tree, same box, `--dist loadfile`, 1197 passed and 96
+skipped at every point: serial 68.98s, `-n 2` 46.68s, `-n 4` 37.72s, `-n 8` 33.41s, `-n 16` 33.96s.
+Sixteen workers are SLOWER than eight - under `loadfile` the critical path is the slowest single
+FILE, and `test_absolute_claims.py`'s top-five durations alone are 29.6s of the 69 serial seconds.
+Four workers take 87.9 per cent of the whole available gain at a quarter of the process count, and
+on the 4-core windows runner the cap does not bind at all. A serial control re-run after the sweep
+read 69.25s against the opening 68.98s, so the box did not drift under the measurement.
+
+**`--dist load` WAS FASTER AND WAS DECLINED.** 32.68s at n=4. `.github/workflows/tier1.yml` runs
+`tests/save` under `loadfile`, so that is the only mode a lane has ever run this directory in. Five
+seconds is not worth learning the difference from a red gate.
+
+**THE CONTENTION IS MEASURED RATHER THAN ASSERTED**, which is the whole point of the item: in a full
+`tests/save` run the child cost 39.41s against 15 competing parent workers, versus 37.37s unopposed.
+That degradation under a filled box is the property the serial child did not have.
+
+**PROVEN BY.** `tests/save/test_phase4_gate.py::test_the_child_run_asks_for_bounded_parallelism_rather_than_auto`,
+killed by four byte-snapshot mutations - dropping `-n`, `-n auto`, uncapping to `os.cpu_count()`, and
+`--dist load` - each landing with a distinct hash and each reddening at the assertion naming its own
+defect. Collected count 1293 before and after; the recursion guard at `test_the_child_run_excludes_this_module_so_the_gate_cannot_recurse`
+still passes, which mattered because xdist could have changed `--collect-only` output and did not.
+Merged file: `tests/save/test_phase4_gate.py`. Runner evidence: tier 2's windows leg failed with
+`subprocess.TimeoutExpired` on 7519ed7 (run 34871376530) and the child reads 220.68s on the ubuntu
+leg of run 34886320998.
+
+**THE ARM DELIBERATELY RESTATES ITS BOUND AS LITERALS** rather than reading `_CHILD_WORKERS`.
+Recomputing the formula would make the arm agree with the subject by construction and grade nothing.
+That is the opposite instinct from the count-free derivation in `tests/test_tier1_budget.py` and both
+are right: one is an oracle, the other is a subject.
+
+**FILED RATHER THAN FOLDED IN:** CS-1070, for the two sibling gates this work did not measure.
+
+**FLAGGED, UNMEASURED, and belonging to CS-448 rather than here:** a four-worker child WIDENS
+CS-448's own race window rather than narrowing it. Its chain needs a concurrent creator and deleter
+of the gate temp paths during a climbed-rootdir collection walk, and the child now has four workers
+where it had one.
 ### 2026-09-14 - CS-869 - CLOSED. The ceiling control's strength is derived from the corpus and its skip is keyed on what the plant moves
 
 **THE DEFECT, AND IT WAS TWO HALVES OF ONE SENTENCE.** The third anti-monotone control in

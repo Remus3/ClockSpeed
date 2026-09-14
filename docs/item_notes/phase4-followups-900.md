@@ -1379,9 +1379,25 @@ only. A CS-600-style Chromium pass over the new panel host is owed. The node
 dependency is new to the Python suite and fails loudly rather than skipping, but
 whether node is on PATH in the tier-2 CI job was not verified here.
 
-**STILL OPEN ON THIS ITEM:** the four panels themselves - registry browser,
-solve bench, warnings list, scope note. The stubs are served and registered and
-render nothing.
+**THE LINE THAT STOOD HERE WAS TRUE ON 2026-09-09 AND IS NOW FALSE.** It said the
+four panels - registry browser, solve bench, warnings list, scope note - were
+stubs that rendered nothing. All four were built, and three more arrived after
+them: `panel_map.js`, `panel_optimize.js` and `panel_power.js`. Seven panels, 263
+to 744 lines each. Corrected 2026-09-14, after a status read off this leaf would
+have reported as unbuilt a surface that ships.
+
+**READ THIS ITEM'S LEDGER ENTRY FOR ITS STATE, NOT THIS SECTION.** The entry
+dated 2026-09-13 is the current one and it is precise: of the acceptance's four
+clauses, two are discharged plainly, the exactness clause was verified by an
+adjudicator who did not write it, and ONE IS UNTESTED. That last one is the whole
+of what keeps CS-962 open - the page must state plainly which of its panels are
+registry-derived and which are world-derived, and name what it cannot show.
+
+**SO THE REMAINING WORK IS THE PAGE DESCRIBING ITSELF, NOT A PANEL.** A session
+picking this up is writing provenance and limits into a page whose panels already
+work, which is a different job from the one this section used to describe. That
+is why the stale line is corrected here rather than deleted: the correction is
+the routing information.
 
 ### OPERATOR DECISIONS ON THIS ITEM - FILED 2026-09-09, do not re-litigate
 
@@ -1932,29 +1948,6 @@ Duration step as the only failing step in the job - runs 34791962600 at 493s, 34
 at 500s and 34830236951 at 511s. The fourth, 34776266752, is a real test failure and is
 not this item's.
 
-## CS-1060
-
-### Filed 2026-09-14
-
-**THIS IS THE ENABLING ITEM FOR A WALL-CLOCK GATE AND IT DETECTS NOTHING BY ITSELF.**
-Solving the published feasibility rule at the observed spread ratio `N/M = 222/511 =
-0.4345` gives `M'(1 + 0.869) <= 600`, so `M' <= 321`. **A wall-clock gate becomes feasible
-again only if the slow-class worst job reading drops to about 320 seconds**, roughly 1.6x
-below where the lane sits today. That is a third shard plus real trimming, not a tuning
-change, and it fights the leanness rule stated at the top of `.github/workflows/tier1.yml`.
-
-**IT IS FILED SEPARATELY BECAUSE THE RISK IT CARRIES BELONGS TO NOBODY TODAY.** The
-runaway cutoff sits at 10 minutes and CANCELS rather than fails; a cancelled run is
-evidence of nothing and reads to the next session as flakiness. At 511 job-seconds the
-slow class is 89 seconds from that cutoff, and CS-1012's own repair ADDS 20 to 40 seconds
-to the job. Whoever builds CS-1012 first without this one walks the lane into a
-cancellation.
-
-**DO NOT REACH FOR THE CUTOFF.** `tier1.yml` states in capitals that raising it converts a
-runaway detector into a budget, and `tools/drift_guard.py` guard (k) pins it as policy
-rather than reading it as a tunable, so any change up or down is red until the pin moves
-in the same diff with a stated reason. The remedy here is a shorter lane, never a longer
-leash.
 ## CS-1067
 
 ### NOTE - filed 2026-09-14 by the CS-302 verifier pass
