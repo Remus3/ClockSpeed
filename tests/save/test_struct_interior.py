@@ -4058,13 +4058,16 @@ def test_a_stricter_shared_ceiling_cannot_improve_this_modules_grade(
         "module chose"
     )
 
-    # THE DIRECTION, AND IT REPLACES AN ASSERTION THAT COULD NOT FIRE - CS-869.
-    # The old line demanded a strict fall in struct sites, sitting directly
-    # below a skip that had already left on the equality, so the only outcome it
-    # could ever have reported was one the skip took first. What cannot be
-    # reached from the skip is a plant that made the shipped walk reach MORE, and
-    # that is what is graded here: a stricter ceiling is a subset of a looser one
-    # in both quantities or the plant is not the thing being measured.
+    # THE DIRECTION, AND IT REPLACES AN ASSERTION THAT COULD NOT REPORT WHAT ITS
+    # OWN MESSAGE NAMED - CS-869. The old line demanded a strict fall in struct
+    # sites and said a failure meant the plant had cost the shipped reader
+    # nothing; it sat directly below a skip that had already left on exactly that
+    # equality, so the case it described was never its to report. THE ONE
+    # DIRECTION IT COULD STILL HAVE REPORTED is a plant that made the shipped
+    # walk find MORE - stated precisely because a verifier corrected the looser
+    # claim that it could not fire at all - and that direction is what is graded
+    # here, in both quantities rather than only in sites: a stricter ceiling is a
+    # subset of a looser one or the plant is not the thing separating the halves.
     assert result.chosen.shipped_degraded <= result.chosen.shipped_pristine, (
         f"a ceiling of {result.planted} left the shipped walk at "
         f"{result.chosen.shipped_degraded} struct sites where it reached "
@@ -4199,6 +4202,23 @@ def test_the_ceiling_controls_strength_is_derived_from_the_corpus() -> None:
             "or below one every payload dies at its first tag, which is a kill and not a "
             "degradation; at or above the observed maximum the plant refuses nothing and "
             "the control measures an absent population"
+        )
+
+    # THE FLOOR IS GRADED HERE, and it is graded because a verifier measured it
+    # UNGRADED: with every median in this arm already at or above the floor,
+    # dropping the clamp out of the derivation survived. A corpus whose middle
+    # payload carries no tag at all is exactly where the clamp is the only thing
+    # standing between a degradation and a kill, and this machine's own corpus
+    # sits on that edge.
+    for shallow_median in (0, 1):
+        clamped = _derive_ceiling_control_tags(
+            max_payload_tags=corpus_max, median_payload_tags=shallow_median
+        )
+        assert clamped == _CEILING_CONTROL_FLOOR, (
+            f"a corpus whose middle payload carries {shallow_median} tags derived a "
+            f"ceiling of {clamped}. At or below one every payload dies at its first tag, "
+            "so the derivation must clamp UP to the floor rather than install a kill and "
+            "let the arm read it as a degradation"
         )
 
     assert _derive_ceiling_control_tags(max_payload_tags=2, median_payload_tags=1) is None, (

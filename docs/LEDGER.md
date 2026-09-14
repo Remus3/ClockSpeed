@@ -401,12 +401,15 @@ into. The arm now ASSERTS the corpus exceeds what it installed, which is the hal
 had nothing checking. `_the_plant_cost_nothing` is the skip, and it forgives only a plant that took
 neither a record nor a site.
 
-**AND ONE ASSERTION THAT COULD NOT FIRE WAS REPLACED RATHER THAN KEPT.** The old strict fall in
-struct sites sat directly below a skip that had already left on that same equality, so its only
-reachable outcome was one the skip took first. Two monotonicity assertions stand there now - a
-stricter ceiling cannot find more sites and cannot open more records - and the anti-monotone site
-check is asked only where a site was actually lost, because demanding one on a corpus whose refusals
-are all struct-free would redden a healthy tree for the shape of its library.
+**AND ONE ASSERTION THAT COULD NOT REPORT WHAT ITS MESSAGE NAMED WAS REPLACED RATHER THAN KEPT.**
+The old strict fall in struct sites said a failure meant the plant had cost the shipped reader
+nothing measurable, and it sat directly below a skip that had already left on exactly that equality,
+so that case was never its to report. IT WAS NOT UNFIREABLE, and the looser claim is corrected here
+rather than left standing: a plant that made the shipped walk find MORE would still have failed it.
+Two monotonicity assertions stand there now and cover that direction in both quantities - a stricter
+ceiling cannot find more sites and cannot open more records - and the anti-monotone site check is
+asked only where a site was actually lost, because demanding one on a corpus whose refusals are all
+struct-free would redden a healthy tree for the shape of its library.
 
 **PROVEN BY.** `tests/save/test_struct_interior.py::test_the_ceiling_controls_skip_forgives_only_a_plant_that_cost_nothing`
 and `::test_the_ceiling_controls_strength_is_derived_from_the_corpus`. Both are SYNTHETIC and
@@ -420,13 +423,19 @@ the two names unchanged: `assert not True` on a plant that refused 3 of 10 recor
 **THE SIBLING SWEEP CAME BACK NEGATIVE, and that is a result rather than an omission.** The other
 two anti-monotone controls live in `tests/save/test_struct_controls.py`. Neither shares the root
 cause: the reader control skips on sites lost inside records that stayed ACCEPTED, which is exactly
-what its plant moves, and the table control's cost assertion has no skip standing in front of it at
-all. Both were read for this, not grepped.
+what its plant moves, and the table control's skips classify POPULATIONS - none of them leaves on the
+quantity its cost assertion tests, which is the property that matters and is narrower than the first
+wording of this line. Both were read for this, not grepped.
 
 **TIER 2, and the live arm was run rather than reasoned about.** The whole
 `tests/save/test_struct_interior.py` module was run against this machine's real save library with
 the derived ceiling installed, and the control arm PASSED rather than skipped - which is the claim
 that matters, since a skip is the failure mode this item exists to remove.
+
+**WHAT THE VERIFIER FOUND AND THIS COMMIT DISCHARGED.** The band floor was ungraded - every median
+the derivation arm exercised already sat at or above it, so removing the clamp SURVIVED as a mutant.
+Two shallow-corpus cases now pin it, which matters because the clamp is the only thing between a
+degradation and a kill on a library whose middle payload carries no tag.
 
 **WHAT IS NOT CLAIMED.** The derived value on any particular machine is a property of that machine's
 library, and this entry deliberately records none as a live figure. The CI verdict for this push is
