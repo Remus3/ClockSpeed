@@ -374,6 +374,76 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-09-13 - CS-1025 - CLOSED. The anti-vacuity needle is unique AND present, and the disjoint constants are the half that does the killing
+
+**WHAT CHANGED.** `tests/surface/test_map.py` gained `served_body`, `assert_needle_occurrences` and
+`assert_unique_needle`, which refuses a needle at count zero and at any count above one, plus a sweep
+arm over all fourteen orientation components and a negative control that grades BOTH refusal
+directions against the REAL served body rather than an invented string. All four orientation constant
+tuples were re-picked as distinct thirty-seconds so that every rendering is unique on the wire; they
+are float32-exact, so they survive the round trip through the real loader unchanged. The class-name
+sibling at `:828-846` moved from membership to an exact count of two rather than being forced to one,
+because both of its hits are the same value - the row field and the per-class tally key.
+
+**PROVEN BY.** `tests/surface/test_map.py::test_every_orientation_needle_is_unique_to_the_value_it_proves`
+and `::test_the_uniqueness_helper_refuses_an_ambiguous_needle_and_an_absent_one`. Merged file:
+`tests/surface/test_map.py`.
+
+**THE FILED ACCEPTANCE WAS INSUFFICIENT AS WORDED, and the correction is recorded here so the next
+reader does not believe the helper alone was the fix.** The clause said a needle must be refused when
+it appears MORE THAN ONCE. After the repair the defeat mode is count ZERO, not count two, so the
+clause as written is satisfiable by an artifact that does not kill the mutant. The delivered arm
+enforces unique AND present. The constants are load-bearing, not cosmetic: with the pre-fix constants
+and the uniqueness helper in place, dropping the rotation from the wire whole leaves the needle at
+count one and the arm GREEN.
+
+**AND IT IS WORSE THAN THAT, measured under mutation rather than argued.** With the pre-fix constants
+the helper makes the PRISTINE tree RED and the mutated tree GREEN - the arm's polarity is inverted, so
+the natural repair for that red is to drop a colliding value off the wire, which is the defect. An arm
+that rewards the defect was one fixture edit away from shipping. Anyone reverting an orientation
+constant to a round value re-arms the inversion, and `EXPECTED_ORIENTATION_COMPONENTS` will not notice
+because it counts the tuple rather than the wire - filed as CS-1036.
+
+**RESIDUALS FILED RATHER THAN FOLDED IN:** CS-1034, CS-1035, CS-1036, CS-1037.
+
+### 2026-09-13 - CS-1020 - CLOSED. The node population grades its own orientation counter, and the separation was measured in both directions
+
+**WHAT CHANGED.** `tests/audit/test_placement.py` gained `POPULATIONS`, `one_placement_world` and
+`placements_in`, and the five non-finite arms are parametrised over the node and built populations
+both. `placements_in` selects `node_placements` against `built_placements`, so no parametrised arm
+hardcodes a collection. One arm was renamed to `..._keeps_the_placement` for population neutrality;
+the rename is pure and nothing else moved with it.
+
+**PROVEN BY.** `tests/audit/test_placement.py::test_a_non_finite_rotation_withholds_the_rotation_and_keeps_the_placement`
+and its four parametrised siblings. Merged file: `tests/audit/test_placement.py`.
+
+**THE MUTANT DIES IN BOTH DIRECTIONS, which nobody had measured before.** Mutating the NODE guard at
+`clockspeed/audit/placement.py:726` to `if False:` fails seven arms, every one a node case. Mutating
+the BUILT guard at `:749` instead fails seven arms, every one a built case. Neither mutation touches
+the other population, so the parametrisation separates exactly what it claims to rather than running
+one assertion twice. Against the pre-repair arms the node mutant survived outright.
+
+**THE BOUNDS ARM'S POPULATION AXIS WAS DECORATIVE AND WAS REPAIRED BEFORE CLOSURE.**
+`test_a_non_finite_orientation_never_widens_the_bounds` asserted only on the box, and `bounds` is fed
+from the shared `triples` list and never from either placement tuple - so it passed with the node
+population emptied outright, measured under a mutation that dropped the node append. It now pins a row
+through `placements_in` first, and reddens on exactly the node axis under that mutation.
+
+**THE 91-ARM FIGURE IN THE FILED ITEM IS UNSOURCED, and is not repeated as measurement.** It appears
+once in the repository, in the `ROADMAP.md` line itself, with no ledger record and no collection
+behind it. The floor measured at closure was 40 arms in `tests/audit/test_placement.py`, over a
+strictly narrower population. The acceptance clause does not depend on it: the clause is that the arms
+are parametrised over both populations and the mutant dies, and both were measured directly.
+
+**THE COORDINATE-AGAINST-ORIENTATION ASYMMETRY IS PRESERVED and was checked for, because normalising
+it would have been the easy way to make a new axis pass.** A non-finite coordinate still skips the
+whole placement; a non-finite rotation or scale still withholds only that block. There is no node
+branch in `_placement_of` to normalise away, and none was introduced.
+
+**THE OTHER NODE COUNTER WAS MEASURED, NOT ASSUMED.** Mutating the node loop's `non_finite` increment
+alone fails four arms, so it was already graded and the slice was correctly not widened.
+
+
 ### 2026-09-13 - CS-962 - NOT A COMPLETION RECORD. Three built answers reached the page, and the acceptance clause about what the page SAYS is untested
 
 **CS-962 STAYS OPEN and this entry does not close it.** Its acceptance has four clauses and this

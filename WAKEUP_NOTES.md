@@ -33,6 +33,31 @@ Keep every entry to that shape. If an item needs a paragraph, it needs its own f
 the line becomes a pointer.
 
 ---
+## Session 92 - 2026-09-13 - two anti-vacuity repairs closed, and the adversaries found the class in four more places
+
+- Shipped: CS-1025 and CS-1020 CLOSED. Detail in docs/LEDGER.md, not here.
+- In flight: nothing. Tree clean, whole suite green at the merge.
+- Decisions: no ADR. One correction recorded inside the CS-1025 ledger entry: the filed
+  acceptance was insufficient as worded - it demanded a needle be refused above count one,
+  while the post-repair defeat mode is count ZERO, so the delivered arm enforces unique AND
+  present and the disjoint constants are load-bearing rather than cosmetic.
+- Surprises: nothing contradicted BOOTSTRAP.md. What did surprise, and it is the finding of
+  the session: with the pre-fix constants the uniqueness helper makes the PRISTINE tree red
+  and the MUTATED tree green. The arm's polarity is inverted, so the natural repair for that
+  red is to drop a colliding value off the wire - which is the defect. An arm that rewards
+  the defect was one fixture edit away from shipping.
+- Failed paths: do not treat a uniqueness helper as the whole of CS-1025's fix - it was
+  measured insufficient alone, in both the reasoning and a run. Do not repeat the "91 arms"
+  figure from CS-1020's filed line as measurement; it appears once in the repository, has no
+  collection behind it, and the floor measured at closure was 40 over a narrower population.
+- Watch: FOUR privacy arms are structurally incapable of failing - `test_health.py` twice,
+  `test_world.py` and `test_registry.py` - because the encoder doubles every backslash and
+  the needle is a raw home-shaped path. A body that genuinely reflects a refused path passes
+  all four. Filed as CS-1034, tier 1. This is the same trap session 91 hit once, in four more
+  places, and it guards non-negotiables 3 and 12.
+- Next action: CS-1034 - give every path-shaped privacy needle an oracle proven potent by a
+  planted positive the arm FINDS, and redden the four arms on a reflecting body.
+
 ## Session 91 - 2026-09-13 - three disjoint tracks merged, and every one of them was refuted before it was right
 
 - Shipped: CS-1008, CS-1011, CS-1013 CLOSED. CS-962 ADVANCED, NOT CLOSED - it stays open on
@@ -80,33 +105,3 @@ the line becomes a pointer.
 - Next action: CS-1008 - `tests/test_queue_loop.py`'s `_drive` injects neither the permit seam nor the
   claim-states seam, so those arms read the LIVE store and flip non-deterministically against a real
   lane. It is tier 1 and it is the last thing reading live state in a suite.
-
-## Session 89 - 2026-09-13 - the dashboard lane's five prerequisites, and five new instances of the class they were built to avoid
-
-- Shipped: CS-1000, CS-992, CS-994, CS-1005 CLOSED. CS-988's sweep landed as a measurement and the
-  item STAYS OPEN. CS-991 and CS-993 merged but STAY OPEN, each blocked on a residual its own slice
-  disclosed. Detail in `docs/LEDGER.md`, not here.
-- In flight: nothing. Tree clean. Eleven worktrees remain and are prunable except
-  `C:/cs-worktrees/cs-lane-queue`, which is live lane infrastructure.
-- Decisions: no ADR. **The operator granted the frozen-file exception on `.githooks/pre-push` and an
-  adjudicator ruled DENY on the EDIT, so the grant is recorded GRANTED AND UNSPENT** - the CS-972
-  shape on the same file. Two grounds: no wait ceiling is both useful and non-hanging, and the only
-  working mechanics move a tier-0 gate's exit-code fidelity into a non-frozen module.
-- Surprises, and it is the session's substance. **FIVE new instances of the CS-988 class were found,
-  every one of them inside a repair built to catch that class**, and one landed in a slice whose
-  brief forbade a floor BY NAME. The class is not caught by knowing about it. What caught all five
-  was measurement: narrow the knob, run the suite, watch it stay green.
-- Surprises, second: **two independent slices rooted worker-side state at the importing file**, so
-  each lane's worker read its own private store and the two lanes were structurally blind to each
-  other. One shipped a claim store where both lanes granted the same row. `lanes.REPO_ROOT` already
-  resolved the indirection and neither used it. The driver-side / worker-side asymmetry is now
-  recorded in the modules themselves.
-- Surprises, third: **an arm written to prove exclusion hardcoded the defect away** by passing the
-  very root the production path derives. Every arm was green, every mutation killed its target, and
-  the feature was inert in production.
-- Failed paths: the frozen-file edit (denied, grounds recorded); `PYTEST_ADDOPTS` injection to reach
-  the hook's pytest (fails open and silent); holding the suite ration across the whole worker cycle
-  (45:1 against the window it protects, and it would undo CS-992).
-- Next action: CS-1009. Establish whether a claim survives the exit of the process that made it.
-
----

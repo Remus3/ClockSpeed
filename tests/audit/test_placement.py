@@ -841,7 +841,18 @@ def test_a_non_finite_orientation_never_widens_the_bounds(population: str) -> No
         scale=(math.inf, math.inf, math.inf),
     )
 
-    bounds = placement.placement_of(model).bounds
+    result = placement.placement_of(model)
+
+    # THE POPULATION AXIS IS NOT DECORATIVE. ``bounds`` is fed from the shared
+    # ``triples`` list and never from either placement tuple, so an arm that
+    # asserted on the box alone passed with THIS population emptied outright -
+    # measured under a mutation that dropped the node append. Pinning the row
+    # first is what makes the [node] and [built] cases independent measurements
+    # rather than the same assertion run twice.
+    rows = placements_in(result, population)
+    assert len(rows) == 1, str(rows)
+
+    bounds = result.bounds
 
     assert bounds is not None
     assert (bounds.x.max_value, bounds.y.max_value, bounds.z.max_value) == ("1.0", "2.0", "3.0")
