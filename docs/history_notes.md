@@ -10388,3 +10388,28 @@ alone.
 **THE WHOLE-WORLD PAIR DOES NOT NEED THE CIRCUIT GRAPH** and is what this item ships. The
 per-circuit split does need it and is a stated stretch, recorded here so a later reader does
 not mistake its absence for an oversight.
+
+## Session 91 - 2026-09-13 - three disjoint tracks merged, and every one of them was refuted before it was right
+
+- Shipped: CS-1008, CS-1011, CS-1013 CLOSED. CS-962 ADVANCED, NOT CLOSED - it stays open on
+  one clause, that the page state which panels are registry-derived and name what it cannot
+  show. Detail in docs/LEDGER.md.
+- In flight: nothing. Tree clean at the release tip, all three worktrees merged and their
+  branches still present for reference.
+- Decisions: no ADR. BOOTSTRAP.md section 7.1 gained `/api/power` under the word "minimum",
+  the third arrival in the shape CS-912 set and CS-977 followed - adjudicated legitimate and
+  proven load-bearing rather than decorative.
+- Surprises: nothing contradicted BOOTSTRAP.md. Three measurement traps did fire, and all
+  three are the reason this session's arms look as they do. A privacy arm's ORACLE WAS BLIND
+  because `{holder!r}` doubles backslashes, so it reported clean on a row carrying an account
+  name. A scoped suite reported green over a population that EXCLUDED the six new untracked
+  files, because every `git ls-files` guard was blind to them - `git add -N` must precede the
+  measurement. And the lane diagnosis's own nominated evidence was refuted: `duration_s` is
+  the driver-cycle clock while the 2.0s liveness grace is a `proc.wait` timeout, so the two
+  cannot be compared, and eleven of the twelve pooled rows were from the WRONG NIGHT.
+- Failed paths: do not rebuild the lane duration argument - it is recorded under a REFUTED
+  heading in the diagnosis with all three of its faults. Do not re-pitch skipping the whole
+  suite in favour of a scoped one for a merge claim; the collision arm that blocked slice A
+  lives in `tests/` and `tests/surface` could never have seen it.
+- Next action: pick up CS-1025 and CS-1020, both tier 1 and both cheap - a defeatable
+  anti-vacuity needle and an ungraded counter line, each with a stated mutant that must die.
