@@ -733,7 +733,7 @@ DISPOSITIONS: Final[Mapping[tuple[str, str], Disposition]] = {
         "::test_degrading_the_record_table_cannot_improve_this_modules_grade",
     ): Disposition(
         RENAMED,
-        "tests/save/test_struct_interior.py"
+        "tests/save/test_struct_controls.py"
         "::test_the_table_control_takes_its_window_from_the_body_not_the_degraded_record",
         "CS-829 cited it live; CS-862 renamed it to the one bit it grades. Not a record defect.",
         2,

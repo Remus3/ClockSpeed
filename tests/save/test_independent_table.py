@@ -1418,7 +1418,7 @@ def _with_the_other_kind(record: objects.ObjectRecord) -> objects.ObjectRecord:
     for the reason :meth:`clockspeed.save.objects.ObjectRecord.with_payload`
     gives: ADR 0007's write gate scans for the NAME ``replace``, and no shipped
     method changes a record's kind, so there is nothing to call instead.
-    ``tests/save/test_struct_interior.py::test_the_table_control_takes_its_window_from_the_body_not_the_degraded_record``
+    ``tests/save/test_struct_controls.py::test_the_table_control_takes_its_window_from_the_body_not_the_degraded_record``
     builds its own relabel the same way.
 
     THE COST OF SPELLING TEN FIELDS is that a field added to
