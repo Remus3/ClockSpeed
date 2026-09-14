@@ -166,6 +166,7 @@ DASHBOARD_MEMBERS = frozenset(
         "CS-1046",
         "CS-1047",
         "CS-1051",
+        "CS-1065",
     }
 )
 

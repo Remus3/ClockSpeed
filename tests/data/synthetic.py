@@ -778,6 +778,11 @@ _RECIPE_ENTRIES: Final = [
         class_path_blob([SYNTHESIZER_PATH, WORKBENCH_PATH]),
     ),
     # The variable-power coefficients live on the RECIPE, not the building.
+    # The pair mirrors the relation ADR 0021 measured on the shipped document:
+    # the constant is the estimated minimum of ACCELERATOR_BUILDING and the
+    # constant plus the factor is its estimated maximum. A pair that did NOT
+    # satisfy that relation would make the cross-check in bounded_draw read as
+    # a standing disagreement on the only variable-power pair in the corpus.
     _recipe_entry(
         ACCELERATED_RECIPE,
         "Accelerated Gadget",
@@ -785,7 +790,7 @@ _RECIPE_ENTRIES: Final = [
         amount_blob([(WIDGET_ITEM, 1)]),
         amount_blob([(GADGET_ITEM, 1)]),
         class_path_blob([ACCELERATOR_PATH]),
-        variable_power=("250.000000", "1.000000"),
+        variable_power=("250.000000", "1250.000000"),
     ),
     # Consumes 2500 litres of the liquid whose descriptor lives in a group
     # outside every short whitelist. Two and a half cubic metres, or 2500 of

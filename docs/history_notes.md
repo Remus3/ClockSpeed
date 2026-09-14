@@ -80,6 +80,17 @@ read as passes while the raw save was live in shipped frames. Filed in harness m
 
 ---
 
+## CS-301 - CLOSED 2026-09-14
+
+### NOTE - relocated from `docs/item_notes/phase3.md` 2026-09-14
+
+The body below is the live note as it stood when the item closed, and it is kept VERBATIM including the part CS-301 measured false. The note said the semantics of the two operands were unmeasured anywhere in this project. They were unmeasured; they were not unmeasurable. ADR 0021 measured them off the shipped headers and corroborated the reading twice against the shipped document, and `docs/LEDGER.md` carries the counts.
+
+
+### NOTE - relocated from `ROADMAP.md` 2026-08-23
+
+NOTE: phase 3 deliberately refused to invent this. The semantics of `mVariablePowerConsumptionConstant` and `mVariablePowerConsumptionFactor` are unmeasured anywhere in this project - the registry only carries them - so `power.py` hands all four operands back verbatim and applies no law (non-negotiable 7). The two uncovered branches are stated honestly in that module rather than implied to be tested: no fixture building declares a base below the reference clock, and no fixture recipe names two producers.
+
 ## Session 85 - relocated from `WAKEUP_NOTES.md` 2026-09-12
 
 ## Session 85 - 2026-09-11 - the operator asked for a map, and the save reader turned out to be the thing in the way

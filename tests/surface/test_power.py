@@ -475,7 +475,11 @@ def test_the_variable_operands_are_served_uncollapsed_and_unmodeled(
     )
     assert inputs["modeled"] is False
     assert inputs["reason"] == direct.reason
-    assert "unmeasured" in str(inputs["reason"])
+    # This endpoint still serves the operands uncollapsed and applies no law -
+    # CS-301 put the law in bounded_draw, and the reason has to name it or a
+    # consumer reads "no law here" as "no law anywhere".
+    assert "no law is applied here" in str(inputs["reason"])
+    assert "bounded_draw" in str(inputs["reason"])
     assert direct.minimum is not None
     assert inputs["minimum"] == contract.rational(direct.minimum)
 

@@ -374,6 +374,160 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-09-14 - CS-301 - CLOSED. The variable-power law was unmeasured, not unmeasurable, and the obvious cross-check was wrong
+
+**WHAT CHANGED.** `clockspeed/solve/power.py` gains `bounded_draw`, which answers the two shapes
+that declare no scalar with two exact `Fraction` bounds at the reference clock. The variable shape
+takes its bounds from the recipe through the law ADR 0021 measured - minimum is the constant,
+maximum is the constant plus the factor - and the struct-range shape reads both bounds off the
+declaration and consults no recipe. Before this, all four of those buildings reported unmodeled and
+contributed nothing to a power plan.
+
+**THE REFUSAL WAS CORRECT AND ITS PREMISE WAS NOT.** The item note said the semantics of
+`mVariablePowerConsumptionConstant` and `mVariablePowerConsumptionFactor` were unmeasured anywhere in
+this project. True when written, and it was read for a year as though it meant unmeasurable. ADR 0020
+had since made the publisher's own headers queryable; the two members carry doc comments stating the
+law in as many words, and `clockspeed/data/assets.py` found them in an index of 8024 reflected
+property declarations. The lesson is the note's shape rather than its content: a refusal recorded
+without the condition that would lift it reads as a permanent verdict.
+
+**THE FIRST IMPLEMENTATION WAS WRONG AND THE DOCUMENT CAUGHT IT.** The obvious cross-check is that
+the recipe's two numbers EQUAL the estimated range declared on the building. That was written,
+tested green against the synthetic corpus, and then measured against the shipped document, where it
+holds on 25 of 25 recipes for one building, 6 of 6 for a second, and 0 of 12 for the third, whose
+recipes carry two distinct bands. The building estimate is the ENVELOPE over its recipes, not any one
+of them: taking the minimum constant and the maximum constant-plus-factor across each building's own
+recipes reproduces its declared range on 3 of 3. So the published check is CONTAINMENT, and it holds
+on 43 of 43 real pairings. It is not vacuous - asked against the pairings the document does not
+declare, it rejects 1705 of 2573.
+
+**WHAT IS STILL NOT PUBLISHED.** No scalar. The instantaneous draw rides `mPowerConsumptionCurve`, a
+`UCurveFloat` asset the docs document does not export, so the cycle average is unknown and
+`BoundedDraw` has no field that could hold one - the same fence `ClockCeiling` carries.
+
+**THE SECOND HALF, MEASURED RATHER THAN ASSUMED.** The item also asked for two unexercised branches
+to be covered. Only one was a behaviour gap. The un-sharded base below the reference clock passed on
+its first run, because `clamp_to_unsharded_base` already handled it and no fixture had ever declared
+a base other than exactly one - a FIXTURE gap, and the test is coverage rather than a fix. The
+two-producer case is real: a recipe naming two producing buildings has no single answer, because the
+operands are per recipe and the envelope they are checked against is per building, and the two
+pairings now return different outcomes in one test.
+
+**PROVEN BY.** `tests/solve/test_power.py`, thirteen new arms, of which the load-bearing ones are
+`test_containment_is_not_an_equality_which_the_shipped_document_refuses` (this is the arm that
+would have shipped the wrong check), `test_a_pair_reaching_past_the_estimate_says_so_rather_than_passing`
+(the anti-vacuity control for the containment arm), `test_the_law_is_read_off_the_recipe_and_never_folded_into_this_module`
+(moves the operand, so a folded literal reddens), `test_a_base_below_the_reference_clock_clamps_the_reference_clock_itself`
+and `test_a_recipe_naming_two_producers_is_bounded_once_per_building`. Merged files:
+`clockspeed/solve/power.py`, `docs/adr/0021-the-variable-power-law.md`, `tests/solve/test_power.py`,
+`tests/data/synthetic.py`, `tests/data/test_registry.py`, `tests/surface/test_power.py`,
+`tests/surface/audit_harness.py`, and the three sweep sites `clockspeed/surface/api/power.py`,
+`clockspeed/surface/web/panel_power.js` and the shape constants in `clockspeed/solve/power.py`.
+
+**THE CORPUS FIXTURE WAS CORRECTED, and that is a change with a blast radius worth naming.**
+`ACCELERATED_RECIPE` carried a factor of 1, which put its bounds at 250 to 251 inside a building
+declaring 250 to 1500 - a pair no shipped entry resembles. It now carries 1250, so the single-recipe
+envelope equals the building estimate exactly as the document does. One assertion elsewhere pinned
+the old value and was updated in the same commit:
+`tests/data/test_registry.py::test_variable_power_coefficients_come_from_the_recipe_not_the_building`.
+
+**SIBLING SWEEP - FIVE SITES, AND THE FIRST PASS FOUND TWO OF THEM.** The root cause was the
+doctrine "the variable-power law is unmeasured" restated outside the module that owns it. The
+producing pass swept the two TEST sites: `tests/surface/audit_harness.py`, whose hand-built body
+asserted a free-form reason string no test compared against the module constant, and
+`tests/surface/test_power.py`, which asserted the substring "unmeasured" in the served reason and
+now asserts the served reason names `bounded_draw`. **The verifier found two PRODUCTION sites that
+pass had missed** - `clockspeed/surface/api/power.py`, whose `_variable` docstring stated the
+semantics had never been measured, and `clockspeed/surface/web/panel_power.js`, whose
+`variableLines` comment carried the same sentence - and re-grepping after that repair found a
+THIRD, inside the owning module itself: `clockspeed/solve/power.py`'s `SHAPE_VARIABLE` constant
+declared "the law is unmeasured" eight lines above the function that now applies it. All five are
+corrected. `clockspeed/audit/balance.py` carries the reason through verbatim rather than restating
+it and needed no edit.
+
+**THE THREE PROSE SITES GOT NO TEST EACH, AND THAT IS STATED RATHER THAN GLOSSED.** They are
+docstring and comment text, and the BEHAVIOUR they describe is already pinned:
+`tests/surface/test_power.py::test_the_variable_operands_are_served_uncollapsed_and_unmodeled`
+asserts the served reason equals the module constant AND names `bounded_draw`, so the wire cannot
+drift back. Nothing mechanically stops the prose drifting again; a repo-wide retired-claim guard
+over this doctrine, of the shape `tests/save/test_world.py::_RETIRED_PROPERTY_CLAIMS` already uses
+for `world.py`, is the durable fix and is NOT filed - it is named here so the next cycle that
+touches this module can see the gap rather than rediscover it.
+
+**TIER 2** - a solve-core module, a published dataclass, and a corpus fixture other suites read.
+
+**FILING THE TWO FOLLOW-UPS COST FOUR RED ARMS, AND EVERY ONE WAS A MECHANISM WORKING.** The
+producing pass ran the modules it touched and they were green; the whole tree was not run until the
+recovering cycle paid tier 2, and it came back `4 failed, 7677 passed`. None of the four was in
+`clockspeed/solve/power.py`. Two were
+`tests/ops/test_lane_scope.py::test_the_declared_scopes_all_validate_against_the_live_roadmap` and
+`::test_the_dashboard_scope_partitions_its_anchor_phase`, because CS-1065 was filed under Phase 6 -
+the dashboard scope's ANCHOR PHASE - and that declaration is a PARTITION rather than a list, so a
+new anchor-phase row that nobody classified reddens by design. CS-1065 is the power endpoint's
+wire, which is what the dashboard power panel consumes, so it is a MEMBER rather than an exclusion;
+the subject is pinned a second time in the test module by `DASHBOARD_MEMBERS` and both files were
+edited together, which is the standing limit that pin documents about itself. The other two were
+`tests/test_docs_citations.py::test_every_markdown_file_carrying_a_citation_is_guarded_or_recorded_unguarded`
+and `::test_the_guarded_set_covers_every_doc_the_bare_path_shape_makes_a_carrier`, because ADR 0021
+carries citations and arrived in neither the guarded set nor `UNGUARDED_DOCS`. It is GUARDED, for
+the reason 0019 and 0020 are: it argues from the recipe members, the module and the sibling ADR it
+names, so a rotted pointer would leave the decision arguing about nothing. Merged for the repair:
+`config/lane_scopes.json`, `tests/ops/test_lane_scope.py`, `tests/test_docs_citations.py`.
+
+**THE REUSABLE PART IS THE ORDER, NOT THE REPAIR.** Filing a follow-up is not a free action on this
+tree. A Phase 6 filing owes `config/lane_scopes.json` AND its second pin, and a new ADR owes the
+citation guard, and neither cost is visible from the module the row is about - which is exactly why
+a cycle that ships a solve-core change and runs only the solve suite reports green and is not.
+
+**THEN REGISTERING THE ADR HIT A HARD BLOCK AND THE DECISION WENT TO AN ADJUDICATOR.** Guarding it
+pushed `tests/test_docs_citations.py` past the 262144-byte ceiling
+`tests/data/test_phase2_gate.py::test_no_file_under_tests_is_large_enough_to_be_a_slice_of_real_game_data`
+enforces, because that file sits 4 bytes under it at HEAD. Four routes disagreed and one of them -
+raising the ceiling - would have weakened a guard that enforces non-negotiable 2 in order to make
+this commit fit, so `CLAUDE.md` section 6.1 sent it to an adjudicator rather than to the operator.
+**RULING: derive the ADR family from disk** rather than listing it, mirroring `_item_notes_leaves`,
+the idiom that same module already owns and whose docstring argues for exactly this case. The
+adjudicator measured the one risk before ruling - three ADRs sat in neither the guarded set nor the
+unguarded record, and deriving the family pulls them under five parametrized arms including two
+anti-vacuity teeth arms - and reported 25 of 25 passing with a known-good control. Re-measured here
+after implementing: `433 passed`, exit 0. **It REFUSED raising the ceiling and REFUSED shaving
+prose**, the latter because for a module whose reasoning is the artifact that is deletion in
+section 4's sense, and `docs/LEDGER.md` already carries CS-1062 for this same failure class.
+
+**THE FIX BOUGHT 470 BYTES, WHICH IS A REPRIEVE AND NOT A FIX, AND THE ENTRY SAYS SO RATHER THAN
+LEAVING IT IN THE CYCLE REPORT.** The adjudicator's runner-up - relocating `DISPOSITIONS` to a
+sibling module for durable headroom - lost only because a 17 KB guard-module split is not a
+power-math row. It is filed as CS-1066 with the 32 KB headroom target and the below-8 KB tripwire,
+so the next approach to that wall arrives as a warning on its own row instead of as a block on
+somebody else's. The seven `ADR_00NN` constants were LEFT IN PLACE as the arrival record for why
+each was guarded on the day it landed; what the derivation supersedes is the decision they argued,
+not the reasoning itself.
+
+**THIS ROW WAS RECOVERED, NOT PRODUCED, IN THE CYCLE THAT COMMITTED IT.** The work above was done
+by a queue-lane cycle that finished the row and died before committing, leaving the whole change
+uncommitted in the lane worktree with its claim still in the store. The next cycle reclaimed the
+row rather than abandoning it, because a tree carrying one row's complete change cannot host a
+second row's commit. The committing cycle verified rather than trusted: it re-derived ADR 0021's
+entire evidence table against the live shipped document independently, and every number reproduced
+exactly - equality 25/25, 6/6 and 0/12; containment 43/43; the envelope reproducing each declared
+range 3/3; 1705 of 2573 mispairings rejected; zero non-Fraction operands; and `bounded_draw`
+agreeing with the hand derivation on all 43 real pairings.
+
+**VERIFIER.** CONFIRM, with corrections, by an agent that produced none of the work. It re-derived
+the same evidence table independently and matched it, ruled both acceptance branches LIVE rather
+than vacuous - the base-below-reference arm trips `clock > base` only because it patches
+`KEY_MAX_POTENTIAL`, no corpus entry having declared a base other than exactly one, and the
+two-producer arm is genuinely the corpus's first, the existing two-path blobs resolving to one
+building because one token is unresolved - and confirmed the corpus fixture's blast radius was
+contained to the single assertion already updated. Its corrections were the missed sweep sites and
+this VERIFIER line itself, both discharged above.
+
+**CI.** Recorded by the driver. This worker did not observe it.
+
+**FILED THIS CYCLE.** Three rows: CS-1064, the balance still counting the now-bounded shapes as
+unmodeled gaps; CS-1065, the power endpoint serving the operands and not the bounds; and CS-1066,
+the citation guard's byte wall, filed by the recovering cycle after the adjudication above.
+
 ### 2026-09-14 - CS-1045 - CLOSED on its acceptance, with two clauses of its PROSE unmet and re-sited
 
 **WHAT CHANGED.** `clockspeed/audit/balance.py` sums the world draw as an exact Fraction over

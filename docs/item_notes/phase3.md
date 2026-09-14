@@ -20,12 +20,6 @@ leaf. That move is what keeps this file live.
 
 ---
 
-## CS-301
-
-### NOTE - relocated from `ROADMAP.md` 2026-08-23
-
-NOTE: phase 3 deliberately refused to invent this. The semantics of `mVariablePowerConsumptionConstant` and `mVariablePowerConsumptionFactor` are unmeasured anywhere in this project - the registry only carries them - so `power.py` hands all four operands back verbatim and applies no law (non-negotiable 7). The two uncovered branches are stated honestly in that module rather than implied to be tested: no fixture building declares a base below the reference clock, and no fixture recipe names two producers.
-
 ## CS-302
 
 ### NOTE - relocated from `ROADMAP.md` 2026-08-23

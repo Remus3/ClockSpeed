@@ -501,9 +501,15 @@ def _variable(inputs: power.VariablePowerInputs) -> dict[str, object]:
 
     Returns:
         The object, keyed by :data:`VARIABLE_KEYS`. The four operands are
-        UNCOLLAPSED. The semantics of the constant and the factor have never
-        been measured by this project, so an interpolation here would produce a
-        confident megawatt figure for the hungriest buildings in the game.
+        UNCOLLAPSED and NO LAW IS APPLIED HERE. ADR 0021 measured the law, and
+        ``clockspeed/solve/power.py`` owns it in ``bounded_draw``, which answers
+        this shape with two exact bounds. This endpoint does not serve those
+        bounds yet - that is CS-1065, and until it does, a consumer reading "no
+        law here" as "no law anywhere" is the failure this paragraph exists to
+        stop. What stays refused either way is a SCALAR: the cycle average rides
+        a power-consumption curve the shipped document does not carry, so an
+        interpolation here would produce a confident megawatt figure for the
+        hungriest buildings in the game.
     """
     return {
         "constant": _optional_rational(inputs.constant),

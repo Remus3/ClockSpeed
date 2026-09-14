@@ -48,7 +48,8 @@
         "CS-909",
         "CS-1046",
         "CS-1047",
-        "CS-1051"
+        "CS-1051",
+        "CS-1065"
       ],
       "excluded": {
         "CS-604": "a docs ownership defect about config/ports.json; touches no surface code",

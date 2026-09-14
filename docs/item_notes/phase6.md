@@ -893,3 +893,16 @@ scale, carried through and labelled ESTIMATED on the page.
 
 **NODES RENDER SHAPE-CODED BY CLASS AND UNLABELLED.** Purity is not derivable and is never
 guessed; where the page shows one it shows an operator annotation and says so on the row.
+
+---
+
+## CS-1065
+
+### NOTE - filed 2026-09-14 under CS-301
+
+`within_estimate` is a TRI-STATE and the null is load-bearing: None means there was no independent
+second source to check against, which is the struct-range shape, where the declaration and the
+estimate are the same two numbers. Collapsing it to a boolean at the wire edge turns "nothing to
+check" into "checked and failed", and the dashboard has no way to tell those apart afterwards. The
+refusal vocabulary ADR 0012 fixed is where the wire form for this belongs; read it before choosing a
+spelling.

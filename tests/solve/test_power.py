@@ -65,7 +65,7 @@ def solve_reg() -> Registry:
     return solve_corpus.solve_registry()
 
 
-def registry_with_building_key(class_name: str, key: str, value: str | None) -> Registry:
+def registry_with_entry_key(class_name: str, key: str, value: str | None) -> Registry:
     # Deliberately a local copy of the helper in tests/data/test_registry.py
     # rather than an import of it. Importing one test module into another makes
     # a collection-order dependency out of twelve lines of corpus patching, and
@@ -205,12 +205,12 @@ def test_the_exponent_is_read_from_data_and_never_folded_into_the_module() -> No
     # Any hardcoded exponent - as a float, as a decimal string, or as an integer
     # pair - produces byte-identical results over both and fails here, and this
     # assertion does not go stale when a balance patch moves the number.
-    shipped = registry_with_building_key(
+    shipped = registry_with_entry_key(
         data_corpus.BLENDER_BUILDING,
         data_corpus.KEY_POWER_EXPONENT,
         solve_corpus.POWER_EXPONENT_TEXT,
     )
-    other = registry_with_building_key(
+    other = registry_with_entry_key(
         data_corpus.BLENDER_BUILDING,
         data_corpus.KEY_POWER_EXPONENT,
         data_corpus.SECOND_EXPONENT,
@@ -323,7 +323,11 @@ def test_shape_three_carries_the_recipe_operands_without_inventing_a_formula(
     assert inputs.factor == recipe.variable_power_factor
     assert inputs.minimum == building.estimated_min_power
     assert inputs.maximum == building.estimated_max_power
-    assert "unmeasured" in inputs.reason
+    # This function still applies no law - that is bounded_draw - so its reason
+    # has to say which function does, or a caller reads "no law here" as "no
+    # law anywhere" and re-invents one.
+    assert "no law is applied here" in inputs.reason
+    assert "bounded_draw" in inputs.reason
 
 
 def test_shape_four_a_declared_maximum_of_zero_is_a_fixed_draw_building(
@@ -422,11 +426,11 @@ def test_the_ceiling_stays_unpublished_even_when_a_slot_count_exists() -> None:
 def test_the_unsharded_base_is_read_from_the_building_and_not_assumed() -> None:
     # The base is a per-building-class document value, so a folded Fraction(1)
     # passes every non-mutating assertion. Only the mutation tells them apart.
-    raised = registry_with_building_key(
+    raised = registry_with_entry_key(
         data_corpus.BLENDER_BUILDING, data_corpus.KEY_MAX_POTENTIAL, "2.000000"
     )
     assert power.clock_ceiling(raised.buildings[data_corpus.BLENDER_BUILDING]).base == Fraction(2)
-    removed = registry_with_building_key(
+    removed = registry_with_entry_key(
         data_corpus.BLENDER_BUILDING, data_corpus.KEY_MAX_POTENTIAL, None
     )
     assert power.clock_ceiling(removed.buildings[data_corpus.BLENDER_BUILDING]).base is None
@@ -606,3 +610,201 @@ def test_the_registry_types_this_module_promises_are_the_ones_it_consumes(
     assert type(building) is Building
     assert type(recipe) is Recipe
     assert isinstance(power.variable_power_inputs(building, recipe).reason, str)
+
+
+# ---------------------------------------------------------------------------
+# CS-301 - the variable-power law, measured rather than invented
+# ---------------------------------------------------------------------------
+
+
+def test_the_variable_power_law_bounds_a_draw_from_the_recipe_operands(
+    data_registry: Registry,
+) -> None:
+    # ADR 0021. The shipped header states the relation in as many words: the
+    # constant is added to the variable draw and reads as a minimum, and the
+    # factor added to the constant reads as a maximum. Neither bound is
+    # invented and neither is collapsed into a scalar.
+    building = data_registry.buildings[data_corpus.ACCELERATOR_BUILDING]
+    recipe = data_registry.recipes[data_corpus.ACCELERATED_RECIPE]
+    constant = recipe.variable_power_constant
+    factor = recipe.variable_power_factor
+    assert constant is not None
+    assert factor is not None
+    bounded = power.bounded_draw(building, recipe)
+    assert bounded.modeled is True
+    assert bounded.shape == power.SHAPE_VARIABLE
+    assert bounded.source == power.SOURCE_RECIPE_LAW
+    assert bounded.minimum == constant
+    assert bounded.maximum == constant + factor
+    assert type(bounded.minimum) is Fraction
+    assert type(bounded.maximum) is Fraction
+
+
+def test_the_law_is_read_off_the_recipe_and_never_folded_into_this_module() -> None:
+    # The corpus pair passes every non-mutating assertion against a folded
+    # constant, exactly as the exponent does. Only moving the operand tells a
+    # read apart from a literal.
+    moved = registry_with_entry_key(
+        data_corpus.ACCELERATED_RECIPE, data_corpus.KEY_VARIABLE_POWER_CONSTANT, "300.000000"
+    )
+    bounded = power.bounded_draw(
+        moved.buildings[data_corpus.ACCELERATOR_BUILDING],
+        moved.recipes[data_corpus.ACCELERATED_RECIPE],
+    )
+    assert bounded.minimum == Fraction(300)
+    assert bounded.maximum == Fraction(300) + Fraction(1250)
+
+
+def test_the_bounds_are_checked_for_containment_in_the_estimate_of_the_building(
+    data_registry: Registry,
+) -> None:
+    # The estimated range on the building is an INDEPENDENT second source, and
+    # ADR 0021 measured it to be the ENVELOPE over the recipes produced there.
+    # So the check is containment: the pair lies inside the envelope.
+    building = data_registry.buildings[data_corpus.ACCELERATOR_BUILDING]
+    recipe = data_registry.recipes[data_corpus.ACCELERATED_RECIPE]
+    assert power.bounded_draw(building, recipe).within_estimate is True
+
+
+def test_a_pair_reaching_past_the_estimate_says_so_rather_than_passing() -> None:
+    # The anti-vacuity control for the arm above: were within_estimate a folded
+    # True, that arm would stay green while the cross-check measured nothing.
+    # The factor here puts the maximum above the declared envelope, which is
+    # what a recipe asked against a building that does not produce it looks
+    # like - measured on the shipped document, containment rejects the
+    # majority of such mispairings.
+    moved = registry_with_entry_key(
+        data_corpus.ACCELERATED_RECIPE, data_corpus.KEY_VARIABLE_POWER_FACTOR, "5000.000000"
+    )
+    bounded = power.bounded_draw(
+        moved.buildings[data_corpus.ACCELERATOR_BUILDING],
+        moved.recipes[data_corpus.ACCELERATED_RECIPE],
+    )
+    assert bounded.within_estimate is False
+    assert bounded.modeled is True, "a disagreement is a reported fact, not a refusal to model"
+
+
+def test_containment_is_not_an_equality_which_the_shipped_document_refuses() -> None:
+    # ADR 0021: equality was the first reading and it fails outright on the
+    # building whose recipes carry two distinct bands. A narrower band inside
+    # the envelope is the NORMAL case and must not be reported as a mismatch.
+    narrow = registry_with_entry_key(
+        data_corpus.ACCELERATED_RECIPE, data_corpus.KEY_VARIABLE_POWER_FACTOR, "250.000000"
+    )
+    building = narrow.buildings[data_corpus.ACCELERATOR_BUILDING]
+    bounded = power.bounded_draw(building, narrow.recipes[data_corpus.ACCELERATED_RECIPE])
+    assert bounded.maximum == Fraction(500)
+    assert bounded.maximum != building.estimated_max_power
+    assert bounded.within_estimate is True
+
+
+def test_a_struct_range_building_is_bounded_from_its_own_declaration(
+    data_registry: Registry,
+) -> None:
+    # The struct shape needs no recipe: the document declares both bounds and
+    # the registry lifted them out of the struct string. They are published
+    # uncollapsed, and no scalar is invented from them.
+    building = data_registry.buildings[data_corpus.RAILCAR_ITEM]
+    bounded = power.bounded_draw(building)
+    assert bounded.modeled is True
+    assert bounded.shape == power.SHAPE_RANGE_ONLY
+    assert bounded.source == power.SOURCE_DECLARED_RANGE
+    assert bounded.minimum == Fraction(25)
+    assert bounded.maximum == Fraction(110)
+    assert bounded.within_estimate is None, "the declaration is the estimate, not a second source"
+
+
+def test_a_variable_power_building_with_no_recipe_is_not_bounded(
+    data_registry: Registry,
+) -> None:
+    building = data_registry.buildings[data_corpus.ACCELERATOR_BUILDING]
+    bounded = power.bounded_draw(building)
+    assert bounded.modeled is False
+    assert bounded.minimum is None
+    assert bounded.maximum is None
+    assert "recipe" in bounded.reason
+
+
+def test_a_fixed_draw_building_is_refused_by_the_bounded_path(
+    data_registry: Registry,
+) -> None:
+    building = data_registry.buildings[data_corpus.SYNTHESIZER_BUILDING]
+    bounded = power.bounded_draw(building)
+    assert bounded.modeled is False
+    assert bounded.shape == power.SHAPE_FIXED
+    assert bounded.minimum is None
+    assert bounded.maximum is None
+
+
+def test_an_undeclared_draw_is_never_bounded_at_zero(data_registry: Registry) -> None:
+    building = data_registry.buildings[data_corpus.CHARGER_BUILDING]
+    bounded = power.bounded_draw(building)
+    assert bounded.modeled is False
+    assert bounded.shape == power.SHAPE_UNDECLARED
+    assert bounded.minimum is None
+    assert bounded.maximum is None
+
+
+def test_an_absent_recipe_operand_refuses_rather_than_defaulting_to_zero() -> None:
+    moved = registry_with_entry_key(
+        data_corpus.ACCELERATED_RECIPE, data_corpus.KEY_VARIABLE_POWER_FACTOR, None
+    )
+    bounded = power.bounded_draw(
+        moved.buildings[data_corpus.ACCELERATOR_BUILDING],
+        moved.recipes[data_corpus.ACCELERATED_RECIPE],
+    )
+    assert bounded.modeled is False
+    assert bounded.maximum is None, "an absent factor is not a factor of zero"
+
+
+def test_every_bounded_draw_the_corpus_produces_is_exact(data_registry: Registry) -> None:
+    for key, building in data_registry.buildings.items():
+        audit_exact(power.bounded_draw(building), path=f"bounded_draw({key})")
+        for recipe_key, recipe in data_registry.recipes.items():
+            audit_exact(
+                power.bounded_draw(building, recipe),
+                path=f"bounded_draw({key}, {recipe_key})",
+            )
+
+
+# ---------------------------------------------------------------------------
+# CS-301 - the two branches no fixture reached
+# ---------------------------------------------------------------------------
+
+
+def test_a_base_below_the_reference_clock_clamps_the_reference_clock_itself() -> None:
+    # Every shipped entry declares a base of exactly one, so the corpus never
+    # reached the branch where even an un-overclocked building is clamped. A
+    # base below the reference clock is the case where a caller treating the
+    # base as a ceiling silently underclocks a building nobody touched.
+    lowered = registry_with_entry_key(
+        data_corpus.BLENDER_BUILDING, data_corpus.KEY_MAX_POTENTIAL, "0.500000"
+    )
+    building = lowered.buildings[data_corpus.BLENDER_BUILDING]
+    assert building.unsharded_clock_base == Fraction(1, 2)
+    clamped = power.clamp_to_unsharded_base(building, power.REFERENCE_CLOCK)
+    assert clamped.clamped is True
+    assert clamped.clock == Fraction(1, 2)
+    assert "un-sharded base" in clamped.reason
+
+
+def test_a_recipe_naming_two_producers_is_bounded_once_per_building() -> None:
+    # The operands are per RECIPE and the estimated range is per BUILDING, so
+    # a recipe with two producers has no single answer. Each pairing is asked
+    # separately and the two disagree - which is the fact a caller that picks
+    # the first producer and calls it the draw cannot see.
+    both = registry_with_entry_key(
+        data_corpus.ACCELERATED_RECIPE,
+        data_corpus.KEY_PRODUCED_IN,
+        data_corpus.class_path_blob([data_corpus.ACCELERATOR_PATH, data_corpus.BLENDER_PATH]),
+    )
+    recipe = both.recipes[data_corpus.ACCELERATED_RECIPE]
+    assert recipe.produced_in == (
+        data_corpus.ACCELERATOR_BUILDING,
+        data_corpus.BLENDER_BUILDING,
+    ), recipe.produced_in
+    variable = power.bounded_draw(both.buildings[data_corpus.ACCELERATOR_BUILDING], recipe)
+    fixed = power.bounded_draw(both.buildings[data_corpus.BLENDER_BUILDING], recipe)
+    assert variable.modeled is True
+    assert fixed.modeled is False, "the same operands do not bound a fixed-draw building"
+    assert fixed.shape == power.SHAPE_FIXED

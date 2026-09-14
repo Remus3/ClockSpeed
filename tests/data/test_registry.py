@@ -552,7 +552,7 @@ def test_variable_power_coefficients_come_from_the_recipe_not_the_building(
     # building finds nothing and yields a flat draw for every recipe.
     accelerated = registry.recipes[ACCELERATED_RECIPE]
     assert accelerated.variable_power_constant == Fraction(250)
-    assert accelerated.variable_power_factor == Fraction(1)
+    assert accelerated.variable_power_factor == Fraction(1250)
 
 
 # ---------------------------------------------------------------------------

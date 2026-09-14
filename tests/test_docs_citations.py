@@ -372,6 +372,29 @@ def _item_notes_leaves() -> tuple[str, ...]:
     return tuple(f"docs/item_notes/{path.name}" for path in sorted(leaves.glob("*.md")))
 
 
+def _adr_docs() -> tuple[str, ...]:
+    """Return every ADR and its index, repo-relative and sorted.
+
+    DERIVED, NOT LISTED, for the reason :func:`_item_notes_leaves` gives about
+    its own family - and adopted here only after that reason was paid for. The
+    family was listed a file at a time until the list had eaten this module's
+    byte budget and a new ADR could not be registered at all. The per-ADR
+    reasoning is kept by the ``ADR_00NN`` constants above as an arrival record;
+    what it argued is now structural, so a new ADR is covered on arrival.
+
+    Returns:
+        Each ADR's repo-relative path, sorted, empty if the family is absent.
+    """
+    family = REPO_ROOT / "docs" / "adr"
+    if not family.is_dir():
+        return ()
+    return tuple(f"docs/adr/{path.name}" for path in sorted(family.glob("*.md")))
+
+
+#: Every ADR, derived from disk. Widens GUARDED_DOCS the way ITEM_NOTES_LEAVES
+#: does, and is recorded beside it in NOT_A_FORGIVENESS for the same reason.
+ADR_DOCS: Final = _adr_docs()
+
 #: The leaves of the item-notes family. `docs/item_notes.md` was ONE file until
 #: 2026-08-25, when it became an index over `docs/item_notes/` with one leaf per
 #: phase; the bodies - and so every citation in them - moved into the leaves.
@@ -396,17 +419,8 @@ GUARDED_DOCS: Final = (
     "ROADMAP.md",
     "docs/GATED.md",
     "WAKEUP_NOTES.md",
-    ADR_0008,
-    ADR_0010,
-    ADR_0011,
-    ADR_0012,
-    ADR_0014,
-    ADR_0015,
-    # CS-913's measurement. Guarded on arrival rather than recorded unguarded:
-    # every citation in it resolves today, and it was authored in the same
-    # session that watched three line pointers rot when an import moved the
-    # lines beneath them.
-    ADR_0016,
+    # THE WHOLE ADR FAMILY, derived rather than listed - see _adr_docs.
+    *ADR_DOCS,
     # Guarded on arrival: every arm it names resolves today, and it exists to be
     # read when the overlay is built rather than rediscovered then.
     HUD_DOCTRINE,
@@ -458,31 +472,10 @@ GUARDED_DOCS: Final = (
     "docs/ARCHITECTURE.md",
     "docs/OPERATIONS.md",
     "docs/upstream_watch.md",
-    # The ADR family. The five ADRs already guarded above got there by naming a
-    # test or a line; these eight name only files - the index, a sibling ADR,
-    # docs/GATED.md, a pinned module - and all of them resolve today. Guarding
-    # the family whole means a new ADR that cites a test is caught by the
-    # boundary contract rather than by whoever notices.
-    "docs/adr/README.md",
-    "docs/adr/0001-adr-process.md",
-    "docs/adr/0003-s4-node-actors-in-save.md",
-    "docs/adr/0005-overclock-ceiling-source.md",
-    "docs/adr/0006-unsharded-clock-base-and-the-ceiling-fence.md",
-    "docs/adr/0007-header-and-chunk-framing-are-version-dependent.md",
-    "docs/adr/0009-inventory-potential-top-level-carries-no-slot-count.md",
-    "docs/adr/0013-electron-licence-gate.md",
     # The one memory leaf left outside the three above. It names the test
     # module its lesson was learned in, and that module is tracked today - the
     # same reason those three are guarded rather than recorded.
     "memory/a-guard-can-be-accepted-and-unscoped.md",
-    # The lane's fork ruling (CS-918). It names the two modules the fork
-    # decision is ABOUT, so the whole point of the record is those two pointers
-    # staying live - an ADR whose subject has been renamed out from under it
-    # argues about nothing.
-    "docs/adr/0017-the-lane-forks-the-shared-loop-modules.md",
-    # Unguarded on arrival 2026-09-13; both argue from what they name.
-    "docs/adr/0019-the-map-underlay-and-the-purity-declaration.md",
-    "docs/adr/0020-shipped-asset-extraction.md",
     "memory/full-authority-adjudicate-do-not-ask.md",
     # The headless queue lane's worker prompt (CS-918). Guarded on arrival
     # rather than recorded, because every path in it resolves today AND because
@@ -2219,6 +2212,7 @@ FORGIVENESS_TABLES: Final[Mapping[str, str]] = {
 NOT_A_FORGIVENESS: Final[Mapping[str, str]] = {
     "GUARDED_DOCS": "widens what is adjudicated; adding to it can only add findings",
     "ITEM_NOTES_LEAVES": "derived from the filesystem, and widens GUARDED_DOCS",
+    "ADR_DOCS": "derived from the filesystem, and widens GUARDED_DOCS",
     "JUDGED_SHAPES": "widens what counts as a citation; adding to it can only add findings",
     "LADDER_RUNGS": "the ladder's rung names, in order",
     "FORGIVENESS_TABLES": "the registry itself, walked by the contract that reads it",

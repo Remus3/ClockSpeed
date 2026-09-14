@@ -347,3 +347,22 @@ with declared dimensions and claim NO orientation and NO origin until one is mea
 **DEPENDS ON:** CS-1039. Phase 6 consumes this for the underlay and its registration -
 see the panel item's `DEPENDS ON` line, which names this item rather than CS-1048 for
 that half.
+
+---
+
+## CS-1064
+
+### NOTE - filed 2026-09-14 under CS-301
+
+The gap kinds `clockspeed/audit/balance.py` publishes are `power.py`'s own shape constants carried
+verbatim, and two of them - `SHAPE_VARIABLE` and `SHAPE_RANGE_ONLY` - are no longer gaps in the sense
+the tally means. They have bounds now. **Do not close this by deleting those two from `GAP_KINDS`**:
+a bounded class still contributes no single number to a scalar total, so dropping it from the tally
+without publishing an interval loses the load entirely and reads as a smaller gap count, which is the
+opposite of what happened. The interval has to exist before the tally changes.
+
+The measurement that makes the second acceptance arm necessary: on the shipped document the three
+variable-power buildings declare ranges of 250 to 1500, 100 to 400 and 0 to 2000, so an interval over
+any world holding one of them has ends that genuinely differ. An arm asserting only that the two ends
+SUM correctly passes on a world where they are equal, and a world where they are equal is a world
+this item changes nothing about.

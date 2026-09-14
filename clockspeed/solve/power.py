@@ -34,21 +34,25 @@ cannot detect - it balances, it sums, and it is silently missing a building.
 2. **A struct range.** One measured entry declares its ``mPowerConsumption`` as
    a ``(Min=...,Max=...)`` struct rather than a decimal. The registry parses the
    bounds into ``estimated_min_power`` / ``estimated_max_power`` and leaves
-   ``power_consumption`` None. Both bounds are published here UNCOLLAPSED and
-   the shape is reported unmodeled: a midpoint, or the maximum taken as the
-   draw, would be a scalar the document never stated.
+   ``power_consumption`` None. :func:`declared_draw` publishes both bounds
+   UNCOLLAPSED and reports no scalar, and :func:`bounded_draw` answers the
+   shape with the two bounds: a midpoint, or the maximum taken as the draw,
+   would be a scalar the document never stated.
 
 3. **Variable power.** Three measured buildings declare ``power_consumption`` of
    exactly ``Fraction(0)`` - a REAL declared zero, not an absent key - and carry
    their true draw on the estimated range PLUS a ``variable_power_constant`` and
    ``variable_power_factor`` that live on the RECIPE rather than on the
-   building. **The semantics of that constant and factor have never been
-   measured by this project.** The registry carries them and nothing interprets
-   them, so this module reports the shape as unmodeled and hands the operands
-   back verbatim (:func:`variable_power_inputs`). Guessing a linear
-   interpolation between the bounds would be inventing a law, and per
-   non-negotiable 7 unknown content is flagged and skipped, never silently
-   wrong.
+   building. **ADR 0021 measured what those two operands mean**, off the
+   shipped header, which states the relation in as many words: the constant is
+   added to the variable draw and reads as its minimum, and the factor added to
+   the constant reads as its maximum. So :func:`bounded_draw` bounds this shape
+   too, and cross-checks the pair against the building's own estimated range on
+   every call. What is still NOT published is a scalar: the instantaneous draw
+   rides a power-consumption curve carried by a separate asset the docs
+   document does not ship, so the cycle average is unmeasured and a midpoint
+   would be the invented number. :func:`variable_power_inputs` remains the
+   uncollapsed view of the four operands with no law applied.
 
 4. **A declared maximum of zero is a FIXED-draw building.** ``is_variable_power``
    is True only when ``estimated_max_power`` is ABOVE zero, so the PRESENCE of
@@ -150,11 +154,15 @@ __all__ = [
     "SHAPE_RANGE_ONLY",
     "SHAPE_UNDECLARED",
     "SHAPE_VARIABLE",
+    "SOURCE_DECLARED_RANGE",
+    "SOURCE_RECIPE_LAW",
+    "BoundedDraw",
     "ClampedClock",
     "ClockCeiling",
     "ClockedDraw",
     "DeclaredDraw",
     "VariablePowerInputs",
+    "bounded_draw",
     "ceiling_reason",
     "clamp_to_unsharded_base",
     "clock_ceiling",
@@ -182,15 +190,32 @@ REFERENCE_CLOCK: Final = Fraction(1)
 #: An ordinary scalar draw. The only shape with a modeled number.
 SHAPE_FIXED: Final = "fixed"
 
-#: A declared Min/Max struct and no scalar. Unmodeled; both bounds published.
+#: A declared Min/Max struct and no scalar. :func:`declared_draw` publishes both
+#: bounds and no number; :func:`bounded_draw` answers it from the declaration.
 SHAPE_RANGE_ONLY: Final = "range-only"
 
 #: A declared scalar of a real zero beside an estimated range above zero, with
-#: the rest of the law on the recipe. Unmodeled - the law is unmeasured.
+#: the rest of the law on the recipe. No SCALAR is modeled - the cycle average
+#: rides a curve the document does not ship - but the LAW is measured, by ADR
+#: 0021, and :func:`bounded_draw` applies it to return two exact bounds.
 SHAPE_VARIABLE: Final = "variable"
 
 #: No readable scalar draw at all. Unmodeled, and NEVER published as zero.
 SHAPE_UNDECLARED: Final = "undeclared"
+
+# ---------------------------------------------------------------------------
+# Where a bounded draw's two numbers came from (ADR 0021)
+# ---------------------------------------------------------------------------
+
+#: The bounds were computed from the recipe's constant and factor through the
+#: variable-power law. The law is per RECIPE, so the same building bounds
+#: differently under a different recipe.
+SOURCE_RECIPE_LAW: Final = "recipe-law"
+
+#: The bounds were read straight off a declared minimum/maximum struct. No law
+#: was applied and no recipe was consulted, because the document states both
+#: numbers itself.
+SOURCE_DECLARED_RANGE: Final = "declared-range"
 
 # ---------------------------------------------------------------------------
 # Clocked-draw outcomes, never collapsed
@@ -227,9 +252,9 @@ _RANGE_ONLY_REASON: Final = (
 )
 
 _VARIABLE_REASON: Final = (
-    "the draw is unmodeled: the declared scalar is a real zero and the true draw is the "
-    "estimated range together with a per-recipe constant and factor whose semantics this "
-    "project has never measured"
+    "no scalar draw is declared: the declared scalar is a real zero and the true draw is a "
+    "range set by a per-recipe constant and factor, so this shape has bounds rather than a "
+    "number - bounded_draw computes them"
 )
 
 _UNDECLARED_REASON: Final = (
@@ -258,9 +283,46 @@ _UNDEFINED_CLOCK_REASON: Final = (
 )
 
 _VARIABLE_INPUTS_REASON: Final = (
-    "the variable-power law is unmeasured: the registry carries the per-recipe constant "
-    "and factor verbatim and nothing in this project interprets them, so the operands are "
-    "handed back uncollapsed and no draw is computed from them"
+    "the operands are handed back uncollapsed and no law is applied here: the per-recipe "
+    "constant and factor are published verbatim for a caller that wants them, and "
+    "bounded_draw is the function that applies the measured law to them"
+)
+
+_BOUNDED_RECIPE_LAW_REASON: Final = (
+    "the draw is bounded by the variable-power law at the reference clock: the recipe "
+    "constant is the minimum and the constant plus the factor is the maximum, as the "
+    "shipped header states - see ADR 0021"
+)
+
+_BOUNDED_DECLARED_RANGE_REASON: Final = (
+    "the draw is bounded by the declared minimum/maximum struct itself, uncollapsed; no "
+    "law was applied and no recipe was consulted, because the document states both numbers"
+)
+
+_BOUNDED_NEEDS_RECIPE_REASON: Final = (
+    "the draw is not bounded here: the variable-power operands live on the recipe rather "
+    "than the building, so a building alone does not determine them - pass the recipe"
+)
+
+_BOUNDED_OPERAND_ABSENT_REASON: Final = (
+    "the draw is not bounded here: the recipe declares no readable constant or no readable "
+    "factor, and an absent operand is not an operand of zero"
+)
+
+_BOUNDED_FIXED_REASON: Final = (
+    "the entry declares a scalar draw, so it has no bounds to compute; draw_at_clock owns "
+    "that shape and returns the number"
+)
+
+_BOUNDED_UNDECLARED_REASON: Final = (
+    "the draw is not bounded: the entry declares neither a scalar nor a range, and absence "
+    "is not zero"
+)
+
+_BOUNDED_RANGE_INCOMPLETE_REASON: Final = (
+    "the draw is not bounded: the entry declares only one end of a range, and the missing "
+    "end is never defaulted - a half-open bound published as a closed one is a draw the "
+    "document never stated"
 )
 
 _CEILING_NO_SLOT_COUNT_REASON: Final = (
@@ -399,10 +461,12 @@ class VariablePowerInputs:
         factor: ``variable_power_factor`` from the RECIPE, or None.
         minimum: The building's estimated minimum draw, or None.
         maximum: The building's estimated maximum draw, or None.
-        modeled: Always False. The semantics of the constant and the factor have
-            never been measured by this project, so there is no law to apply and
-            no draw to compute.
-        reason: One line saying the law is unmeasured.
+        modeled: Always False, and that is a statement about THIS function
+            rather than about the law. The operands are published verbatim
+            here so a caller can render or re-derive them; applying the law to
+            them is :func:`bounded_draw`, which returns two bounds and reports
+            ``modeled`` True.
+        reason: One line saying no law is applied here, and naming what does.
     """
 
     constant: Fraction | None
@@ -410,6 +474,59 @@ class VariablePowerInputs:
     minimum: Fraction | None
     maximum: Fraction | None
     modeled: bool
+    reason: str
+
+
+@dataclass(frozen=True)
+class BoundedDraw:
+    """A draw the module CAN compute, held as two exact bounds and never collapsed.
+
+    This is the answer for the two shapes that have no scalar: variable power,
+    where the bounds come from the recipe through the law ADR 0021 measured,
+    and the declared struct range, where the document states both numbers. The
+    type has no scalar field on purpose, for the same reason
+    :class:`ClockCeiling` has no ceiling field: the average over a production
+    cycle is the integral of a power-consumption curve that the shipped
+    document does not carry, so a midpoint published here would be an invented
+    number in the right units.
+
+    Every bound is AT THE REFERENCE CLOCK. Away from it the same irrational
+    term that :func:`draw_at_clock` defers multiplies both bounds, and this
+    type deliberately does not carry it.
+
+    Attributes:
+        shape: The declared shape this answer is for, from
+            :func:`declared_draw`. Present even when nothing was bounded, so a
+            caller can tell a refusal on a fixed building from one on an
+            undeclared building.
+        minimum: The low bound, or None when nothing was bounded.
+        maximum: The high bound, or None when nothing was bounded.
+        source: :data:`SOURCE_RECIPE_LAW` or :data:`SOURCE_DECLARED_RANGE`, or
+            None when nothing was bounded.
+        modeled: Whether this module computed bounds. False is a refusal with
+            a reason, never a pair of zeroes.
+        within_estimate: Whether both computed bounds lie inside the estimated
+            range declared on the BUILDING - an independent second source.
+            NOT an equality: ADR 0021 measured the building estimate to be the
+            ENVELOPE over every recipe produced in it, so one recipe equals it
+            only when the building has a single band. Equality was the first
+            reading tried and the shipped document refuses it outright - it
+            holds on two of the three variable-power buildings and on none of
+            the twelve recipes of the third. None when there is no second
+            source, which includes the struct shape, where the declaration and
+            the estimate are the same two numbers. False is reported rather
+            than raised: a recipe asked against a building that does not
+            produce it is a caller error the caller can see, not a corrupt
+            document.
+        reason: One line naming the outcome.
+    """
+
+    shape: str
+    minimum: Fraction | None
+    maximum: Fraction | None
+    source: str | None
+    modeled: bool
+    within_estimate: bool | None
     reason: str
 
 
@@ -615,22 +732,157 @@ def clamp_to_unsharded_base(building: Building, clock: Fraction) -> ClampedClock
     return ClampedClock(clock=clock, base=base, clamped=False, reason=_WITHIN_BASE_REASON)
 
 
+def _unbounded(shape: str, reason: str) -> BoundedDraw:
+    """Build the refusal, so no call site can assemble a half-populated one.
+
+    Args:
+        shape: The declared shape the refusal is about.
+        reason: One line naming why nothing was bounded.
+
+    Returns:
+        A :class:`BoundedDraw` with every number absent. Assembling this
+        inline four times is how a zero eventually reaches one of the bound
+        fields, which is the one failure this module refuses to have.
+    """
+    return BoundedDraw(
+        shape=shape,
+        minimum=None,
+        maximum=None,
+        source=None,
+        modeled=False,
+        within_estimate=None,
+        reason=reason,
+    )
+
+
+def _bounded_by_law(building: Building, recipe: Recipe | None) -> BoundedDraw:
+    """Apply the variable-power law to one building-and-recipe pairing.
+
+    Split out of :func:`bounded_draw` so the shape dispatch there stays a flat
+    read of four named shapes rather than a function whose tail is one shape's
+    arithmetic.
+
+    Args:
+        building: The variable-power building. Its estimated range is the
+            independent second source the result is cross-checked against.
+        recipe: The recipe carrying the operands, or None - which is a refusal
+            rather than a default, because the operands are per recipe and a
+            building alone does not determine them.
+
+    Returns:
+        The two bounds at the reference clock with
+        :attr:`BoundedDraw.within_estimate` set, or a refusal naming the
+        missing operand.
+    """
+    if recipe is None:
+        return _unbounded(SHAPE_VARIABLE, _BOUNDED_NEEDS_RECIPE_REASON)
+
+    constant = recipe.variable_power_constant
+    factor = recipe.variable_power_factor
+    if constant is None or factor is None:
+        return _unbounded(SHAPE_VARIABLE, _BOUNDED_OPERAND_ABSENT_REASON)
+
+    minimum = constant
+    maximum = constant + factor
+    estimated_min = building.estimated_min_power
+    estimated_max = building.estimated_max_power
+    # Containment, never equality. The estimated range is the envelope over
+    # every recipe the building produces, so a building with several bands has
+    # no recipe that equals it - see ADR 0021, where equality was measured and
+    # refused.
+    within = (
+        None
+        if estimated_min is None or estimated_max is None
+        else estimated_min <= minimum and maximum <= estimated_max
+    )
+    return BoundedDraw(
+        shape=SHAPE_VARIABLE,
+        minimum=minimum,
+        maximum=maximum,
+        source=SOURCE_RECIPE_LAW,
+        modeled=True,
+        within_estimate=within,
+        reason=_BOUNDED_RECIPE_LAW_REASON,
+    )
+
+
+def bounded_draw(building: Building, recipe: Recipe | None = None) -> BoundedDraw:
+    """Bound the draw of the two shapes that declare no scalar.
+
+    ADR 0021 measured the variable-power law off the shipped header, which
+    states it in as many words: the recipe constant is added to the variable
+    draw and reads as its minimum, and the factor added to the constant reads
+    as its maximum. The reading is corroborated on the shipped document - for
+    every recipe actually produced in a variable-power building, the constant
+    equals that building's estimated minimum and the constant plus the factor
+    lies inside that building's estimated range, which is the ENVELOPE over its
+    recipes - and :attr:`BoundedDraw.within_estimate` re-checks that on every
+    call rather than trusting the ADR.
+
+    What this deliberately does NOT do is publish a scalar. The instantaneous
+    draw is the constant plus the factor times a power-consumption curve, and
+    that curve is a separate asset the docs document does not carry, so the
+    cycle average is still unknown. Two exact bounds are what the data
+    supports; a midpoint would be the invented number this module exists to
+    refuse.
+
+    Args:
+        building: A building as ``build_registry`` published it.
+        recipe: The recipe being run in it. Required for the variable shape,
+            where the operands live on the recipe, and ignored by the struct
+            shape, which declares both bounds itself. A recipe naming several
+            producing buildings has no single answer - ask once per pairing,
+            because the estimated range it is checked against is per building.
+
+    Returns:
+        The bounds at the reference clock, or a refusal naming why. A refusal
+        publishes no number at all: absence is never a zero bound.
+    """
+    declared = declared_draw(building)
+
+    if declared.shape == SHAPE_FIXED:
+        return _unbounded(SHAPE_FIXED, _BOUNDED_FIXED_REASON)
+
+    if declared.shape == SHAPE_UNDECLARED:
+        return _unbounded(SHAPE_UNDECLARED, _BOUNDED_UNDECLARED_REASON)
+
+    if declared.shape == SHAPE_RANGE_ONLY:
+        if declared.minimum is None or declared.maximum is None:
+            return _unbounded(SHAPE_RANGE_ONLY, _BOUNDED_RANGE_INCOMPLETE_REASON)
+        return BoundedDraw(
+            shape=SHAPE_RANGE_ONLY,
+            minimum=declared.minimum,
+            maximum=declared.maximum,
+            source=SOURCE_DECLARED_RANGE,
+            modeled=True,
+            # Not False. There is no independent second source here - the
+            # declaration and the estimate are the same two numbers - and
+            # reporting agreement with itself would read as corroboration.
+            within_estimate=None,
+            reason=_BOUNDED_DECLARED_RANGE_REASON,
+        )
+
+    return _bounded_by_law(building, recipe)
+
+
 def variable_power_inputs(building: Building, recipe: Recipe) -> VariablePowerInputs:
     """Gather the variable-power operands without applying a law to them.
 
     The constant and the factor are per RECIPE while the estimated range is per
     BUILDING, so the operands only exist as a set once both are in hand - which
-    is why this takes a pair. What it deliberately does not do is combine them:
-    their semantics are unmeasured, and an invented interpolation would produce
-    a confident megawatt figure for the hungriest buildings in the game.
+    is why this takes a pair. What it deliberately does not do is combine them.
+    That is :func:`bounded_draw`, which applies the law ADR 0021 measured; this
+    function stays the uncollapsed view, because a caller rendering the four
+    numbers needs them apart and a caller re-deriving the bounds needs to see
+    what they were derived from.
 
     Args:
         building: A building as ``build_registry`` published it.
         recipe: The recipe being run in it.
 
     Returns:
-        The four operands verbatim, ``modeled`` False, and a reason saying the
-        law is unmeasured.
+        The four operands verbatim, ``modeled`` False, and a reason naming
+        :func:`bounded_draw` as the function that applies the law.
     """
     return VariablePowerInputs(
         constant=recipe.variable_power_constant,

@@ -412,10 +412,13 @@
 
   function variableLines(inputs) {
     /*
-      The variable-power operands, with NO LAW APPLIED TO THEM. The semantics of
-      the constant and the factor have never been measured by this project, so
-      combining them here would produce a confident megawatt figure for the
-      hungriest buildings in the game.
+      The variable-power operands, with NO LAW APPLIED HERE. ADR 0021 measured
+      the law, and clockspeed/solve/power.py owns it in bounded_draw, which
+      answers this shape with two exact bounds. This panel does not render those
+      bounds yet - that is CS-1065. What stays refused either way is a SCALAR:
+      the cycle average rides a power-consumption curve the shipped document
+      does not carry, so combining these operands here would produce a confident
+      megawatt figure for the hungriest buildings in the game.
     */
     if (!inputs || typeof inputs !== "object") {
       return [];

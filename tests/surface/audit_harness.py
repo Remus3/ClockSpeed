@@ -729,7 +729,7 @@ def _power_data() -> dict[str, object]:
         "minimum": None,
         "maximum": None,
         "modeled": False,
-        "reason": "the variable-power law is unmeasured",
+        "reason": "no law is applied here; bounded_draw applies it",
     }
     body: dict[str, object] = {
         "building_key": _POWER_BUILDING,

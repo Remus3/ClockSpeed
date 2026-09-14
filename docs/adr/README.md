@@ -89,6 +89,7 @@ Status line to point at the successor and leave every other word of it untouched
 | [0018](0018-the-flip-recreates-the-remote-and-keeps-the-commit-graph.md) | The public flip recreates the remote and keeps the commit graph unrewritten | `accepted` |
 | [0019](0019-the-map-underlay-and-the-purity-declaration.md) | The map underlay, and purity closed by declaration | `accepted` |
 | [0020](0020-shipped-asset-extraction.md) | Shipped-asset extraction, and where each of the four map requirements is recoverable from | `accepted` |
+| [0021](0021-the-variable-power-law.md) | The variable-power law is two bounds, and the building estimate is their envelope | `accepted` |
 
 Slots 0002, 0003 and 0004 were reserved for the three phase-1 spike decisions and have now
 been written, in the order the spikes ran: S8, then S4, then S6. These three are the spikes
@@ -105,6 +106,10 @@ reserved it. Its slug was shortened on filing to keep section 5's short-kebab ru
 stay inside the citation guard's byte ceiling, which had 65 bytes free. Do not open a second
 slot for that subject - the session-85 plan named `0019` for it before `0019` was taken by
 the map-underlay adjudication, and that pointer is stale.
+
+**Slot 0021 was taken and written in one cycle on 2026-09-14 under CS-301.** It is the first
+decision to use the header index ADR 0020 built for a question about MEANING rather than
+about serialization. No slot is reserved ahead of it - take 0022 next.
 
 ---
 
