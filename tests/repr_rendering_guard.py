@@ -198,11 +198,6 @@ EXEMPT: Final[Mapping[str, str]] = {
         "so _listing_problem lifts ONLY errno as a named field and detail is "
         "the fixed line for the code."
     ),
-    "clockspeed/save/world.py::UnlockState": (
-        "Every field holds schematic paths, recipe paths, feature-flag names "
-        "or scanned-resource keys. All are game content. MEASURED: _read_"
-        "unlocks is the only producer and returns EMPTY_UNLOCK_STATE today."
-    ),
     "clockspeed/save/world.py::WorldWarning": (
         "source is a module constant. code, detail AND subject are all "
         "FORWARDED rather than authored here - MEASURED in _carried, "
