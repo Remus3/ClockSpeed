@@ -8,6 +8,16 @@
 # treats as a string terminator and the whole script fails to parse - a fault
 # invisible to anyone reading the file. Use a spaced hyphen for a clause break.
 # tests/test_lane_launcher.py asserts this on the BYTES.
+#
+# EVERY EXIT IS WRITTEN DOWN, AND THAT IS THE WHOLE SHAPE OF THIS FILE.
+# MEASURED across two nights: thirteen cycles left a log holding the "lane
+# start" header and nothing else - 134 bytes, no exit line - and a log that
+# stops after its header cannot be told apart from a worker still running. The
+# header is therefore written BEFORE anything that can refuse, and everything
+# that follows sits inside a try/finally whose finally writes the exit line.
+# tests/test_lane_runner_script.py grades this by RUNNING this script against a
+# PATH with no CLI on it, because a grep for "finally" passes on a script whose
+# try does not enclose the thing that throws.
 param(
   [Parameter(Mandatory)][string]$PromptFile,
   [Parameter(Mandatory)][string]$Cwd,
@@ -34,15 +44,16 @@ $env:ANTHROPIC_API_KEY = $null
 # task still exits and reports rather than hanging forever.
 $env:CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS = "2400000"
 
-$claude = (Get-Command claude -ErrorAction Stop).Source
-Set-Location -LiteralPath "$Cwd"
-
 # THE MODEL COMES FROM ops/loop/config.json, READ VIA $PSScriptRoot AND NOT THE
 # WORKING DIRECTORY. This runner always lives in the MAIN tree, while $Cwd is a
 # fresh worktree checkout that does not carry a gitignored config - reading it
 # relative to the cwd would find nothing on every real fire. A known-good model
 # is set FIRST and every read or parse fault keeps it, because a lane must never
 # fail to spawn over a config read.
+#
+# THIS STAYS AHEAD OF THE HEADER because it cannot throw: it carries its own
+# catch and every fault keeps the fallback. Nothing else above the header can
+# refuse, which is what makes the header reachable on every path.
 $model = "claude-opus-5"
 try {
   $cfgPath = Join-Path $PSScriptRoot "config.json"
@@ -57,20 +68,52 @@ try {
 "lane start $(Get-Date -Format s) cwd=$Cwd model=$model prompt=$PromptFile" |
   Out-File "$Log" -Encoding utf8
 
-# `*>> $Log` WROTE THE WORKER'S OUTPUT AS UTF-16LE. On Windows PowerShell 5.1
-# the redirection operators use the shell's default Unicode encoding, while the
-# header line above is UTF-8. MEASURED on a real 4298-byte lane log: UTF-8 for
-# the first 119 bytes, then UTF-16LE for the remaining 4179 - 2066 NUL bytes in
-# one file. Anything reading it as one encoding got interleaved nulls for the
-# half that mattered.
-#
-# `*>&1 |` merges every stream into the pipeline so Out-File sets the encoding
-# for all of them, which KEEPS the "native stderr must not kill the lane"
-# property above: the streams are still folded into the same file, they are just
-# written as UTF-8 now.
-Get-Content -LiteralPath "$PromptFile" -Raw |
-  & $claude -p --model $model --dangerously-skip-permissions *>&1 |
-  Out-File "$Log" -Append -Encoding utf8
+# A DEFINED WORD RATHER THAN AN EMPTY ONE. An exit line reading "code=" says
+# nothing, and a reader cannot tell it from a truncated write; "none" records
+# that the worker never got far enough to have a code. Same reasoning as the
+# launcher's REASON_UNSPECIFIED.
+$code = "none"
+try {
+  # RESOLVED, NOT ASSUMED, and inside the try. This is a TERMINATING failure -
+  # it used to run above the header, so a box with no CLI on PATH produced no
+  # log at all and the launcher blamed the runner for exiting early.
+  $claude = (Get-Command claude -ErrorAction Stop).Source
 
-"lane exit $(Get-Date -Format s) code=$LASTEXITCODE" |
-  Out-File "$Log" -Append -Encoding utf8
+  # TERMINATING TOO, deliberately. A worker running in the wrong directory is
+  # worse than a lane that refuses: $Cwd is the worktree that keeps a lane off
+  # the main tree, and a non-terminating Set-Location would leave the CLI
+  # running wherever this process happened to start.
+  Set-Location -LiteralPath "$Cwd" -ErrorAction Stop
+
+  # `*>> $Log` WROTE THE WORKER'S OUTPUT AS UTF-16LE. On Windows PowerShell 5.1
+  # the redirection operators use the shell's default Unicode encoding, while
+  # the header line above is UTF-8. MEASURED on a real 4298-byte lane log:
+  # UTF-8 for the first 119 bytes, then UTF-16LE for the remaining 4179 - 2066
+  # NUL bytes in one file. Anything reading it as one encoding got interleaved
+  # nulls for the half that mattered.
+  #
+  # `*>&1 |` merges every stream into the pipeline so Out-File sets the encoding
+  # for all of them, which KEEPS the "native stderr must not kill the lane"
+  # property above: the streams are still folded into the same file, they are
+  # just written as UTF-8 now.
+  Get-Content -LiteralPath "$PromptFile" -Raw |
+    & $claude -p --model $model --dangerously-skip-permissions *>&1 |
+    Out-File "$Log" -Append -Encoding utf8
+
+  $code = $LASTEXITCODE
+} catch {
+  # THE TYPE AND THE ERROR ID, NEVER $_.Exception.Message. An error id is
+  # symbolic - "CommandNotFoundException,Microsoft.PowerShell.Commands.GetCommandCommand"
+  # - and is path-free by construction, while a message routinely embeds the
+  # path it failed on and this log is written unattended (CLAUDE.md
+  # non-negotiable 12). The same rule the Python half obeys in `_fault`.
+  "lane fault $(Get-Date -Format s) type=$($_.Exception.GetType().Name) id=$($_.FullyQualifiedErrorId)" |
+    Out-File "$Log" -Append -Encoding utf8
+} finally {
+  # EVERY PATH OUT, including a terminating fault above. The one death this
+  # cannot cover is TerminateProcess - a taskkill /F unwinds nothing - and that
+  # one is written by whoever fired the kill: see `note_worker_abort` in
+  # ops/loop/lane_launcher.py.
+  "lane exit $(Get-Date -Format s) code=$code" |
+    Out-File "$Log" -Append -Encoding utf8
+}

@@ -1033,3 +1033,167 @@ def test_every_raise_site_keeps_the_reason_code_it_was_reviewed_with() -> None:
         "a raise site no longer carries the reason code it was reviewed with; "
         "re-read the site and update SITE_REASONS deliberately"
     )
+
+
+# ===========================================================================
+# g. The one death a finally cannot cover
+# ===========================================================================
+
+
+@dataclass
+class _HeaderSpawn:
+    """A spawn that leaves the log a REAL runner leaves after its header.
+
+    The point of the fake. ``_Spawn`` writes nothing, so an arm built on it
+    cannot tell "the launcher appended a line" from "the launcher created the
+    whole file", and the defect being graded is specifically a log that ALREADY
+    HAS A HEADER and stops there.
+    """
+
+    header: bytes = b"lane start 2026-01-01T00:00:00 cwd=planted model=planted\n"
+    proc: _FakeProc = field(default_factory=_FakeProc)
+
+    def __call__(self, runner: Path, prompt: Path, cwd: Path, log: Path) -> _FakeProc:
+        """Write the header the runner writes, and start nothing."""
+        del runner, prompt, cwd
+        log.parent.mkdir(parents=True, exist_ok=True)
+        log.write_bytes(self.header)
+        return self.proc
+
+
+def _tail(log: Path) -> str:
+    """The log's last non-empty line, decoded tolerantly of Out-File's BOM.
+
+    Args:
+        log: The log file.
+
+    Returns:
+        The last non-empty line, or an empty string.
+    """
+    if not log.is_file():
+        return ""
+    text = log.read_bytes().decode("utf-8-sig", errors="replace")
+    lines = [line.strip() for line in text.splitlines() if line.strip()]
+    return lines[-1] if lines else ""
+
+
+def test_a_worker_the_launcher_kills_leaves_a_terminal_line_in_its_log(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """THE DEFECT, MEASURED. Thirteen cycles left a 134-byte log.
+
+    ``taskkill /F`` is TerminateProcess: no ``finally`` in the runner unwinds,
+    so the process the launcher kills can never write its own exit line. Whoever
+    fires the kill is therefore the only party that CAN write one, and a log
+    that stops at its header is indistinguishable from a worker still running -
+    which is what made every failing cycle on both recorded nights unreadable.
+    """
+    _, claim = _acquire(tmp_path)
+
+    def refuse(*_args: Any, **_kwargs: Any) -> bool:
+        return False
+
+    monkeypatch.setattr(launcher, "_kill", lambda _pid: None)
+    monkeypatch.setattr(launcher.lanes, "repoint_lane_pid", refuse)
+    spawn = _HeaderSpawn()
+    with pytest.raises(launcher.LaneLaunchError):
+        _launch(tmp_path, spawn, claim["token"])  # type: ignore[arg-type]
+
+    log = tmp_path / "logs" / f"lane_queue_{RUN_ID}.log"
+    ended = _tail(log)
+    assert ended.startswith("lane abort "), f"the log stops without a terminal line: {ended!r}"
+    named = "repoint_refused" in ended
+    assert named, f"the terminal line does not name what refused: {ended!r}"
+
+
+def test_an_abort_note_is_appended_and_never_replaces_the_runners_own_output(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A note that TRUNCATED the log would destroy the diagnosis it exists for.
+
+    The control for the arm above: "the last line names the refusal" is also
+    what a writer that opened the file for truncation would produce, and that
+    writer would throw away everything the worker had already said.
+    """
+    _, claim = _acquire(tmp_path)
+
+    def refuse(*_args: Any, **_kwargs: Any) -> bool:
+        return False
+
+    monkeypatch.setattr(launcher, "_kill", lambda _pid: None)
+    monkeypatch.setattr(launcher.lanes, "repoint_lane_pid", refuse)
+    spawn = _HeaderSpawn()
+    with pytest.raises(launcher.LaneLaunchError):
+        _launch(tmp_path, spawn, claim["token"])  # type: ignore[arg-type]
+
+    log = tmp_path / "logs" / f"lane_queue_{RUN_ID}.log"
+    kept = spawn.header.decode("ascii").strip() in log.read_bytes().decode("utf-8-sig")
+    assert kept, "the abort note overwrote the header the runner had already written"
+
+
+def test_an_abort_note_writes_only_reason_words_the_launcher_itself_holds(
+    tmp_path: Path,
+) -> None:
+    """THE SUBSTITUTION IS THE MECHANISM, not the validation.
+
+    The same rule ``queue_loop._launch_fault`` obeys one seam over, and for the
+    same reason: this line lands in a durable file an operator reads, so the
+    word written is a literal THIS module holds, looked up by index, never the
+    caller's object. A word the launcher does not hold degrades to
+    ``unspecified`` rather than reaching the file.
+    """
+    log = tmp_path / "note.log"
+    # A PATH-SHAPED WORD, assembled rather than written. The literal form of
+    # this string is what `tests/test_scaffold.py` and
+    # `tests/test_assertion_rendering.py` both forbid in an authored file:
+    # pytest renders a failing assertion's sub-expressions itself, so a home
+    # path spelled here reaches a failure report whatever the message says
+    # (CLAUDE.md non-negotiables 3 and 12). What the arm needs is only that
+    # the word carry separators and a drive letter - the characters the
+    # `[a-z_]+` vocabulary cannot express.
+    intruder = "Q:" + chr(92) + "somewhere" + chr(92) + "secret"
+    launcher.note_worker_abort(log, intruder)
+    written = _tail(log)
+    degraded = launcher.REASON_UNSPECIFIED in written
+    assert degraded, f"an unknown word was not degraded: {written!r}"
+    leaked = "somewhere" in written or "secret" in written or "Q:" in written
+    assert leaked is False, "the caller's string reached the log"
+
+
+def test_an_abort_note_creates_a_log_the_runner_never_got_far_enough_to_write(
+    tmp_path: Path,
+) -> None:
+    """A runner killed before its own header leaves NO file, not a short one.
+
+    The launcher cannot assume the runner reached anything, so the note is the
+    whole record in that case rather than an append to one.
+    """
+    log = tmp_path / "never" / "made.log"
+    launcher.note_worker_abort(log, launcher.REASON_RUNNER_EXITED_EARLY)
+    made = log.is_file()
+    assert made, "no log was written for a runner that never wrote one"
+    written = _tail(log)
+    named = launcher.REASON_RUNNER_EXITED_EARLY in written
+    assert named, f"the note does not name the reason: {written!r}"
+
+
+def test_an_abort_note_that_cannot_be_written_is_swallowed(tmp_path: Path) -> None:
+    """A note is DIAGNOSIS. It must never become the failure it was describing.
+
+    This runs on the refusal path, after the lane is released and while a real
+    ``LaneLaunchError`` is propagating. A raise here would replace the launch
+    refusal an operator needs with an unrelated OSError about a log file.
+    """
+    directory = tmp_path / "a-directory"
+    directory.mkdir()
+    launcher.note_worker_abort(directory, launcher.REASON_SPAWN_FAILED)
+
+
+def test_an_abort_note_with_no_log_at_all_is_a_no_op() -> None:
+    """A launch can refuse BEFORE it has decided where the log goes.
+
+    ``command_path`` and ``ensure_worktree`` both run ahead of ``_log_path``, so
+    the refusal handler is reached with no log path at all and must not invent
+    one.
+    """
+    launcher.note_worker_abort(None, launcher.REASON_COMMAND_DOC_MISSING)

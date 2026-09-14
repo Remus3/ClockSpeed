@@ -26,6 +26,14 @@
     "anyway - tools/headless-queue.md section 5 FENCE 1 and FENCE 2."
   ],
   "scopes": {
+    "save-reader": {
+      "description": "The CS-1038 block: the save reader's container-element and world-seam decode gaps, filed together by one review and worked as one unit. AN ENUMERATION, NOT A PARTITION, AND DELIBERATELY SO - '## Phase 4 - save reader' carries 140 takeable rows, so anchoring here would need 138 exclusion entries with written reasons, and an exclusion reason invented to quiet a red is the exact abuse the dashboard scope's reason field exists to prevent. A short named block is graded per member instead: every id here is checked against the live ROADMAP.md for closure, gating, gate-row shape and absence by test_the_declared_scopes_all_validate_against_the_live_roadmap, which iterates every declared scope. CS-1040 is a member of the same review block and is NOT here because it is not a takeable row today; add it when that changes.",
+      "items": [
+        "CS-1038",
+        "CS-1039"
+      ],
+      "excluded": {}
+    },
     "dashboard": {
       "description": "The dashboard surface subject. NOT expressible as a phase filter: it partitions '## Phase 6 - surfaces' and additionally pulls in CS-962, the row that says the dashboard renders nothing a player would act on, which sits in the phase 4 block entirely.",
       "anchor_phase": "Phase 6",
@@ -37,7 +45,9 @@
         "CS-613",
         "CS-618",
         "CS-887",
-        "CS-909"
+        "CS-909",
+        "CS-1046",
+        "CS-1047"
       ],
       "excluded": {
         "CS-604": "a docs ownership defect about config/ports.json; touches no surface code",

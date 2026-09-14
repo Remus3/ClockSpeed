@@ -90,7 +90,27 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from ops.loop import lanes
+# THE REPOSITORY ROOT, PUT ON THE PATH AHEAD OF THE PACKAGE IMPORT BELOW, and
+# it is a measured fix rather than defensive scaffolding. The detached driver
+# runs as `pythonw <repo>/ops/loop/queue_loop.py`, which puts `ops/loop` on
+# `sys.path` and the repository root NOWHERE, and it binds this file BY PATH
+# through `queue_loop._bind`. So the import under this comment is guaranteed to
+# fail on exactly the run that matters and guaranteed never to fail in a suite,
+# every arm of which puts the root on the path itself. MEASURED: one real
+# detached cycle, run to prove the launch path end to end, died here inside
+# `run_loop` before its first acquire - no lane lock, no worker, no JSONL row,
+# and a traceback no operator was awake to read.
+#
+# THE PACKAGE ROUTE, NOT A SECOND FILE-PATH LOADER - that is CS-1000 one file
+# over. `importlib` consults `sys.modules` before it looks for a loader, so a
+# copy a sibling has already published under `ops.loop.lanes` is what this
+# import receives; repairing the path repairs it for every later importer
+# rather than minting one more private copy with its own `_OWNED` table.
+_REPO_ROOT = Path(__file__).resolve().parents[2]
+if str(_REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(_REPO_ROOT))
+
+from ops.loop import lanes  # noqa: E402
 
 #: An item LINE in `ROADMAP.md`: the id at column zero, then the spaced-hyphen
 #: clause break the whole project uses. The file's own prose carries ``CS-nnn -``

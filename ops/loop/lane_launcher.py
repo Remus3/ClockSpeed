@@ -256,6 +256,75 @@ LAUNCH_REASONS = (
 )
 
 
+#: Every word ``note_worker_abort`` will write. THE LAUNCH VOCABULARY AND
+#: NOTHING ELSE, stated as its own name so a future caller reads what the note
+#: accepts rather than inferring it. The driver's own kill - a timeout forty
+#: minutes into a healthy cycle - is a SIBLING of this defect and is NOT wired
+#: here: widening ``LAUNCH_REASONS`` for it would break the AST arm that binds
+#: that tuple one-to-one to this module's raise sites and the equality arm
+#: ``queue_loop.py`` holds against its copy, and a driver kill leaves a large
+#: log plus a ``timeout`` row, not the 134-byte silence this closes.
+ABORT_REASONS = LAUNCH_REASONS
+
+#: How a terminal line written by the KILLER opens. Distinct from the runner's
+#: own ``lane exit`` on purpose: a reader must be able to tell a worker that
+#: finished from one that was terminated where it stood.
+ABORT_PREFIX = "lane abort"
+
+
+def note_worker_abort(log: Any, reason: Any) -> None:
+    """Write the last line a killed worker could not write for itself.
+
+    ``taskkill /F`` is TerminateProcess. No ``finally`` unwinds, no handler
+    runs, and the runner's own exit line is never reached - so the party that
+    FIRED the kill is the only one that can record the death. MEASURED across
+    two nights: thirteen cycles left a log holding the runner's "lane start"
+    header and nothing else, 134 bytes each, and a log that stops at its header
+    cannot be told apart from a worker still running. Every one of those cycles
+    was unreadable after the fact.
+
+    APPENDED IN BINARY, NEVER REWRITTEN. The file may already hold everything
+    the worker managed to say, and that is the diagnosis this note exists to
+    complete rather than replace. Binary because the runner writes the file
+    through ``Out-File -Encoding utf8``, which on Windows PowerShell 5.1 emits a
+    BOM - a text-mode append would re-encode nothing but would let the platform
+    choose a line ending, and this repository has already paid for a file whose
+    two halves carried two encodings.
+
+    THE WORD IS LOOKED UP, NOT RENDERED. ``reason`` is used only to find an
+    index into :data:`ABORT_REASONS`, and what reaches the file is the element
+    at that index - a literal THIS module holds. A caller's object never lands
+    in the log however it spells itself, which is the same mechanism
+    ``queue_loop._launch_fault`` uses one seam over and for the same reason: an
+    exact ``str`` check rather than ``isinstance``, because a subclass can lie
+    about both its comparison and its rendering.
+
+    NEVER RAISES. This runs while a real ``LaneLaunchError`` is propagating and
+    after the lane has already been released. A fault here would replace the
+    refusal an operator needs with an unrelated error about a log file.
+
+    Args:
+        log: Where the worker's log lives, or None when the launch refused
+            before it had decided. None is a real answer and a no-op.
+        reason: A member of :data:`ABORT_REASONS`. Anything else degrades to
+            ``REASON_UNSPECIFIED``, which records "it was aborted and nobody
+            said why" rather than writing a word this module never chose.
+    """
+    if log is None or not str(log).strip():
+        return
+    word = REASON_UNSPECIFIED
+    # EXACT ``str``, not ``isinstance`` - see the docstring.
+    if type(reason) is str and reason in ABORT_REASONS:
+        word = ABORT_REASONS[ABORT_REASONS.index(reason)]
+    stamp = time.strftime("%Y-%m-%dT%H:%M:%S")
+    line = f"{ABORT_PREFIX} {stamp} code=none reason={word}\n"
+    with contextlib.suppress(OSError, ValueError, UnicodeEncodeError):
+        target = Path(str(log))
+        target.parent.mkdir(parents=True, exist_ok=True)
+        with target.open("ab") as handle:
+            handle.write(line.encode("ascii"))
+
+
 class LaneLaunchError(RuntimeError):
     """Anything that stops a lane from starting. Always releases the lane.
 
@@ -622,6 +691,11 @@ def launch_lane(
         LaneLaunchError: Anything at all went wrong. The lane is released first.
     """
     starter = _spawn if spawn is None else spawn
+    # BOUND BEFORE THE TRY, so the refusal handlers can reach it whether or not
+    # the launch got as far as choosing one. A refusal ahead of ``_log_path``
+    # leaves it None, which ``note_worker_abort`` reads as "there is no log to
+    # complete" rather than inventing a path.
+    log: Path | None = None
     try:
         prompt = command_path(lane, root=root)
         worktree = ensure_worktree(lane, base=base, root=root)
@@ -636,11 +710,16 @@ def launch_lane(
             _kill(pid)
             message = "could not re-point the lane lock at the worker"
             raise LaneLaunchError(message, reason=REASON_REPOINT_REFUSED)
-    except LaneLaunchError:
+    except LaneLaunchError as exc:
         lanes.release_lane(token)
+        # AFTER the release, never before. The lane is the thing another cycle
+        # is waiting on; the note is diagnosis, and diagnosis never delays a
+        # release.
+        note_worker_abort(log, exc.reason)
         raise
     except Exception as exc:  # ANY fault at all must free the lane, not only ours
         lanes.release_lane(token)
+        note_worker_abort(log, REASON_UNEXPECTED_FAULT)
         # The TYPE only. This handler catches anything at all, so there is no
         # type whose fields are known to be path-free - and the chained cause
         # still carries the full detail into the traceback for a reader who is

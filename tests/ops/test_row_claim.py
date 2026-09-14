@@ -2291,3 +2291,71 @@ def _derive_cycle_in(checkout: Path) -> str:
     ran = done.returncode == 0
     assert ran, f"the derivation probe did not run - stderr was {done.stderr!r}"
     return done.stdout.strip()
+
+
+# ===========================================================================
+# g. No arm here may write into the LIVE control directory
+# ===========================================================================
+
+
+def test_no_synthetic_checkout_resolves_its_store_inside_the_real_repository(
+    tmp_path: Path,
+) -> None:
+    r"""THE ANTI-VACUITY CONTROL FOR SECTION e, and a live-data guard in its own right.
+
+    WHAT WAS MEASURED. Two `.claim` records were found sitting in this
+    repository's own `ops/loop/control/claims/` directory, naming rows ROW-0001
+    and ROW-0002, carrying `"repo": "C:\Clockspeed"` and worktree fields
+    pointing into a `pytest-of-*` temporary directory. A suite run had claimed
+    rows in the LIVE control plane, and the dead pids it left behind sat there
+    until somebody noticed. A test that writes into the directory a headless
+    lane reads is not a test with a tidy-up problem; it is a test that can stop
+    a lane from taking a row.
+
+    WHY SECTION e CANNOT SEE THIS. Its three assertions are `store_a ==
+    store_b`, `store_a == store_main` and `store_a != here_a`. Every one of them
+    is satisfied when all three checkouts resolve to the REAL repository's
+    store, because that is still one directory and still not the module's own.
+    The arm grades sharing; it cannot grade WHERE.
+
+    TWO CONTROLS, because "the store is under tmp_path" alone is also what a
+    probe printing a constant would produce, and "it is not the live directory"
+    alone is also what comparing against an unreachable path would produce. So
+    the probe must ALSO disagree between the two checkouts about the
+    file-derived root, and the live directory must itself lie outside the
+    scratch tree. Neither leg writes anything into the repository - a control
+    that wrote a probe script into the real checkout would be the very fault
+    this arm exists to catch, and the first cut of it did exactly that.
+
+    Paths are bound to scalars before they are asserted on (CS-850).
+    """
+    main = _checkout(tmp_path, "main", None)
+    lane_a = _checkout(tmp_path, "lane-a", main)
+
+    scratch = str(tmp_path.resolve()).lower()
+    live = str(Path(claims.DEFAULT_ROOT).resolve()).lower()
+
+    for name, checkout in (("main", main), ("lane-a", lane_a)):
+        store, _here = _probe_roots(checkout)
+        resolved = str(Path(store).resolve()).lower()
+        contained = resolved.startswith(scratch)
+        assert contained, f"the {name} checkout roots its claim store outside tmp_path"
+        escaped = resolved != live
+        assert escaped, f"the {name} checkout resolves the LIVE control directory"
+
+    # CONTROL A. The probe reports what it is GIVEN rather than a constant: the
+    # two checkouts must disagree about the file-derived root. Without this leg,
+    # "both answered a tmp path" is also what a probe printing one value would
+    # produce.
+    _store_main, here_main = _probe_roots(main)
+    _store_a, here_a = _probe_roots(lane_a)
+    distinguishes = here_main != here_a
+    assert distinguishes, "the probe cannot tell the two checkouts apart"
+
+    # CONTROL B. The live directory really is reachable and really is outside
+    # the scratch tree, so "escaped" above compares against a directory a
+    # defective derivation would actually land in - not against a path nothing
+    # could ever equal. Read IN THIS PROCESS, from the real checkout, without
+    # writing a probe script into the repository the way `_probe_roots` would.
+    outside = not live.startswith(scratch)
+    assert outside, "the live store is inside tmp_path - the escape assertion is vacuous"
