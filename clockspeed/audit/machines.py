@@ -1,0 +1,491 @@
+"""What each built machine is doing - its recipe, its producing flag, its clock.
+
+WHAT THIS MODULE OWNS
+-----------------------
+One pure function over one ``clockspeed.save.world.WorldModel``, returning a
+frozen :class:`WorldMachines`: one entry per walked record that carries any
+measured machine property. It is the COMPUTATION half of "is this machine
+running and on what", and it lives here because ``clockspeed/surface/`` never
+computes and ``audit/`` is the layer that consumes a whole world model.
+
+It reads no save, no docs file and no install. Its only input is the model.
+
+AN ABSENT VALUE IS NULL AND IS NEVER THE GAME'S DEFAULT
+---------------------------------------------------------
+This is the whole of CS-1041's second acceptance clause and it is not a style
+choice. The game's default clock IS 1, so a reader that substitutes 1 for an
+absent ``mCurrentPotential`` produces an answer indistinguishable from the right
+one on every machine nobody has overclocked, and wrong on exactly the machines
+where the number matters. Non-negotiable 7 names that shape: unknown content is
+flagged and skipped, never silently wrong.
+
+The same collapse wears a bool. ``mIsProducing`` absent is NOT ``False``: false
+means "measured, and it is not producing" and absent means "this reader saw no
+such tag", which is the difference between an idle machine and an unread one.
+Every field on :class:`MachineState` is therefore three-state, and the model
+carries a per-field availability flag so a consumer can ask which case a whole
+world is in without walking the population.
+
+WHAT THE PREMISE ACTUALLY WAS, AND WHAT IT ACTUALLY IS
+--------------------------------------------------------
+CS-1041's item line says ``mCurrentRecipe`` is "decoded and then dropped". That
+is overstated: the per-name value has reached ``RecordProperties.values`` for as
+long as that mapping has existed. What was genuinely missing is the TYPED,
+tag-ordered reference population, which CS-1039 landed as
+``RecordProperties.references``.
+
+This module reads the recipe from THAT population and not from ``values``, and
+the difference is a measured defect rather than a preference.
+``clockspeed/save/objects.py`` ``ObjectReference`` records it: a
+``SoftObjectProperty`` decodes to a ``tuple[str, str]`` indistinguishable from an
+``ObjectProperty``'s, so a consumer recovering references from the value map by
+SHAPE silently takes both type words. The typed population is the one that knows
+which word it came from.
+
+THE RECIPE REFERENCE IS CLASSIFIED BEFORE IT IS PUBLISHED
+------------------------------------------------------------
+ADR 0016 measured that one reference population is entirely ASSET paths joining
+the registry, and CS-1041's own join in ``clockspeed/audit/network.py`` is
+entirely RECORD instance paths. Which population ``mCurrentRecipe`` is in is
+UNMEASURED in this project, and the two carry different obligations: an asset
+path is shipped content, byte-identical on every install, while a record
+instance path is a census of the operator's own factory and is world content
+under non-negotiable 12.
+
+So the value is admitted only when it is structurally a shipped asset path -
+carrying no instance separator, under a root on :data:`RECIPE_ASSET_ROOTS` - and
+is REFUSED AND COUNTED otherwise. The guard fails CLOSED, which is the shape
+``clockspeed/save/world.py`` ``_permitted_asset_path`` already established after
+this repository measured a denylist leaking four times across four green commits.
+A refusal is never silent: :data:`WARN_MACHINES_RECIPE_REFUSED` carries the count.
+
+THE FLOAT-TO-FRACTION BRIDGE, NAMED EXPLICITLY
+------------------------------------------------
+``mCurrentPotential`` is a ``FloatProperty``: ``clockspeed/save/objects.py``
+decodes it as four bytes under ``"<f"``, so what reaches this layer is a float32
+value widened to a Python float. Non-negotiable 6 forbids a float in the solve
+path, and CS-1041's filed acceptance requires no bridge at all - which is the gap
+this module closes rather than inherits.
+
+:func:`exact_from_float32` is that bridge, and the obvious conversion is the
+wrong one. ``Fraction(1.2999999523162842)`` is an EXACT reading of a binary
+approximation and a WRONG reading of the decimal the game wrote; being exact, it
+passes every downstream exactness check unchanged. That is precisely the trap
+``clockspeed/solve/exact.py`` ``to_exact`` refuses a float outright to avoid, and
+refusing here instead of converting would leave the field unpublishable.
+
+The bridge recovers the SHORTEST DECIMAL THAT ROUND-TRIPS THROUGH FLOAT32 and
+hands that STRING to ``Fraction``, so 1.3 comes back as 13/10. A value no float32
+holds is REFUSED rather than approximated: it did not come from a
+``FloatProperty``, so guessing which decimal it meant would be an invention.
+``DoubleProperty`` is a different width and would need its own bridge; this one
+claims nothing about it.
+"""
+
+from __future__ import annotations
+
+import math
+import struct
+from dataclasses import dataclass
+from fractions import Fraction
+from types import MappingProxyType
+from typing import TYPE_CHECKING, Final
+
+from clockspeed.audit.network import names_a_record_instance
+from clockspeed.audit.placement import class_name_of_path
+from clockspeed.save.world import WorldWarning
+
+if TYPE_CHECKING:  # pragma: no cover - import-time typing only
+    from collections.abc import Mapping
+
+    from clockspeed.save.objects import ObjectReference
+    from clockspeed.save.world import RecordProperties, WorldModel
+
+__all__ = [
+    "MACHINE_PROPERTY_NAMES",
+    "PROPERTY_OVERCLOCK",
+    "PROPERTY_PRODUCING",
+    "PROPERTY_RECIPE",
+    "RECIPE_ASSET_ROOTS",
+    "SOURCE_MACHINES",
+    "WARN_MACHINES_NONE_READ",
+    "WARN_MACHINES_OVERCLOCK_REFUSED",
+    "WARN_MACHINES_PAYLOAD_UNREAD",
+    "WARN_MACHINES_RECIPE_REFUSED",
+    "MachineState",
+    "WorldMachines",
+    "exact_from_float32",
+    "machines_of",
+]
+
+#: Which layer noticed a warning raised here, for ``WorldWarning.source``.
+SOURCE_MACHINES: Final = "machines"
+
+#: The producing flag's tag name. A ``BoolProperty``.
+PROPERTY_PRODUCING: Final = "mIsProducing"
+
+#: The current recipe's tag name. An ``ObjectProperty``, read from the TYPED
+#: reference population and never from the value map - see the module docstring.
+PROPERTY_RECIPE: Final = "mCurrentRecipe"
+
+#: The live overclock's tag name. A ``FloatProperty``.
+#: ``docs/adr/0005-overclock-ceiling-source.md`` measured it at five records
+#: across three worlds, and records that ``mPendingPotential`` is its sibling.
+#: THE SIBLING IS NOT READ HERE: no acceptance clause grades it, and a field
+#: nothing grades is a field nothing measures.
+PROPERTY_OVERCLOCK: Final = "mCurrentPotential"
+
+#: The closed vocabulary that decides whether a record is a MACHINE at all.
+#:
+#: THE POPULATION IS PROPERTY-DRIVEN AND NOT CLASS-DRIVEN, ON PURPOSE. A class
+#: allowlist is a second list to keep current, and a machine of a class nobody
+#: listed would be dropped in silence - which is the filter
+#: ``clockspeed/audit/placement.py`` publishes a count for precisely because it
+#: could not avoid one. Here it can be avoided: a record carrying a measured
+#: machine tag IS a machine, whatever its class, and a modded or unmodelled
+#: building is admitted on the same terms as a shipped one.
+MACHINE_PROPERTY_NAMES: Final = frozenset({PROPERTY_PRODUCING, PROPERTY_RECIPE, PROPERTY_OVERCLOCK})
+
+#: Which asset roots a recipe reference MAY be published from. An ALLOWLIST and
+#: never a denylist, on the terms ``clockspeed/save/world.py``
+#: ``UNLOCK_ASSET_ROOTS`` states: this repository has measured a denylist leaking
+#: four times, and only an allowlist of good values held. A ``/Game/...`` path is
+#: shipped content carrying no account id, no world name and no home path.
+RECIPE_ASSET_ROOTS: Final = ("/Game/",)
+
+#: No walked record carried any measured machine property, so the population
+#: below is empty. Flagged rather than reported as a measured zero: the tag names
+#: are seeded from the item filing and ADR 0005 rather than from an occurrence
+#: count this project has taken over a real save for all three, so an empty
+#: result may mean the tags are spelled some way this reader has never seen.
+WARN_MACHINES_NONE_READ: Final = "machines-none-read"
+
+#: This many walked records had a property payload that never read, so whatever
+#: machine state they hold was never available.
+WARN_MACHINES_PAYLOAD_UNREAD: Final = "machines-payload-unread"
+
+#: This many overclock values did not round-trip through float32 and were
+#: refused rather than approximated.
+WARN_MACHINES_OVERCLOCK_REFUSED: Final = "machines-overclock-refused"
+
+#: This many recipe references were not structurally shipped asset paths and
+#: were refused rather than published.
+WARN_MACHINES_RECIPE_REFUSED: Final = "machines-recipe-refused"
+
+#: How many significant decimal digits are ever needed to round-trip a float32.
+#: IEEE 754 binary32 needs at most 9, and the search below stops at the first
+#: precision that round-trips, so the shortest decimal is what gets read.
+_FLOAT32_ROUND_TRIP_DIGITS: Final = 9
+
+#: One fixed line per warning code raised here. Keyed rather than formatted, so
+#: a detail can never be built from something read out of a save - the idiom
+#: ``clockspeed/save/world.py`` established for the same reason.
+_WARNING_DETAIL: Final[Mapping[str, str]] = MappingProxyType(
+    {
+        WARN_MACHINES_NONE_READ: (
+            "no walked record carried any measured machine property, which is not the same"
+            " fact as a world with no machines in it; the three tag names this reader knows"
+            " are seeded from the item filing and from ADR 0005 rather than from an"
+            " occurrence count taken over a real save for all three"
+        ),
+        WARN_MACHINES_PAYLOAD_UNREAD: (
+            "this many walked records had a property payload that never read, so whatever"
+            " machine state they hold was never available; the population below is short by"
+            " whatever those records carry"
+        ),
+        WARN_MACHINES_OVERCLOCK_REFUSED: (
+            "this many overclock values did not round-trip through float32 and were refused"
+            " rather than approximated; a value that did not come from a FloatProperty has"
+            " no authored decimal to recover, and inventing one would be exact and wrong"
+        ),
+        WARN_MACHINES_RECIPE_REFUSED: (
+            "this many recipe references were not structurally shipped asset paths and were"
+            " refused rather than published; a reference naming a record instance is a"
+            " census of the operator's own factory and never crosses this seam"
+        ),
+    }
+)
+
+
+def exact_from_float32(value: object) -> Fraction | None:
+    """One stored float32 as the exact decimal it was authored from, or None.
+
+    NEVER ``Fraction(value)``. That reads the binary approximation exactly and
+    the decimal wrongly, and being exact it is invisible to every downstream
+    exactness check - see the module docstring for why that is the trap rather
+    than the shortcut.
+
+    FOUR REFUSALS, EACH INDEPENDENT. A non-``float`` is refused by TYPE IDENTITY,
+    so a ``bool`` is refused rather than admitted by way of ``int``. A non-finite
+    value is refused, because no decimal names it. A value too large to pack as
+    float32 is refused. And a value that no float32 holds is refused rather than
+    rounded to the nearest one that does: it did not come from a
+    ``FloatProperty``, and choosing a decimal for it would be an invention.
+
+    Args:
+        value: The decoded property value, of any shape.
+
+    Returns:
+        The exact value, or None when this reader will not claim one.
+    """
+    if type(value) is not float:
+        return None
+    if not math.isfinite(value):
+        return None
+    for digits in range(1, _FLOAT32_ROUND_TRIP_DIGITS + 1):
+        text = f"{value:.{digits}g}"
+        try:
+            narrowed = struct.unpack("<f", struct.pack("<f", float(text)))[0]
+        except (OverflowError, ValueError):
+            return None
+        if narrowed == value:
+            return Fraction(text)
+    return None
+
+
+def _permitted_recipe_path(path: str) -> str | None:
+    """One recipe reference value, admitted only if it is a shipped asset path.
+
+    TWO REFUSALS, AND THE ORDER DOES NOT MATTER BECAUSE EACH IS INDEPENDENT. A
+    path naming a record instance is refused, because that is world content. A
+    path under no permitted root is refused, because the list is of what MAY
+    cross rather than of what may not.
+
+    Args:
+        path: The object path half of the decoded reference.
+
+    Returns:
+        The path when it may be published, and None otherwise.
+    """
+    if names_a_record_instance(path):
+        return None
+    if not any(path.startswith(root) for root in RECIPE_ASSET_ROOTS):
+        return None
+    return path
+
+
+@dataclass(frozen=True)
+class MachineState:
+    """One machine's state: what it is, what it makes, whether it is running.
+
+    NO INSTANCE NAME, NO INDEX, NO OFFSET, NO PATH - the position of this entry
+    in :attr:`WorldMachines.machines` is its key, on the terms
+    ``clockspeed/audit/placement.py`` ``Placement`` states.
+
+    EVERY FIELD IS THREE-STATE AND NONE COLLAPSES TO A DEFAULT. None means this
+    reader saw no such tag; it never means the game's default, and it never
+    means zero, false or one.
+
+    Attributes:
+        class_name: The record's actor class, reduced from its type path by
+            ``clockspeed.audit.placement.class_name_of_path``. Publisher content.
+        producing: The decoded ``mIsProducing``, or None when the tag was absent
+            or decoded as something other than a ``bool``. FALSE IS NOT ABSENT -
+            see the module docstring. Admitted by TYPE IDENTITY, so an int 1 is
+            refused rather than coerced.
+        recipe_class_name: The bare class name of the recipe the record names,
+            or None when the tag was absent OR when its value was refused by
+            :func:`_permitted_recipe_path`. Those two are counted apart on the
+            model, because a refusal is a fact and an absence is not.
+        overclock: The decoded ``mCurrentPotential`` as an exact ``Fraction``, or
+            None when the tag was absent OR when :func:`exact_from_float32`
+            refused its value. NEVER 1 FOR AN ABSENT TAG, which is the whole of
+            CS-1041's second acceptance clause -
+            ``tests/audit/test_machines.py::test_an_absent_overclock_is_null_rather_than_one``.
+    """
+
+    class_name: str
+    producing: bool | None
+    recipe_class_name: str | None
+    overclock: Fraction | None
+
+
+@dataclass(frozen=True, repr=False)
+class WorldMachines:
+    """Every machine's state, the per-field availability, and the denominators.
+
+    ``repr`` renders counts and flags only, for the reason
+    ``clockspeed/audit/inventory.py`` ``WorldInventory`` gives.
+
+    Attributes:
+        machines: One entry per walked record carrying any measured machine
+            property, in RECORD INDEX order.
+        producing_available: Whether at least one entry carries a producing
+            flag. A FIELD rather than a derivation a consumer must do by walking
+            the population - the idiom
+            ``clockspeed/audit/placement.py`` ``WorldPlacement.node_semantics_available``
+            established. False over a non-empty population means the tag was
+            never seen, which is a fact about this reader.
+        recipe_available: The same question for the recipe.
+        overclock_available: The same question for the overclock.
+        records_considered: How many walked records had an entry in
+            ``WorldModel.properties``. The denominator the machine count is a
+            fraction of.
+        unread_payload_count: How many of those records' payloads never read,
+            carried verbatim from ``WorldProperties.unread_payload_count`` - the
+            honest denominator its own docstring names.
+        refused_overclock_count: How many overclock values were refused by
+            :func:`exact_from_float32`. Counted rather than dropped: a refusal is
+            not an absence.
+        refused_recipe_count: How many recipe references were refused by
+            :func:`_permitted_recipe_path`, on identical terms.
+        warnings: Everything flagged, in the ``WorldWarning`` idiom.
+    """
+
+    machines: tuple[MachineState, ...]
+    producing_available: bool
+    recipe_available: bool
+    overclock_available: bool
+    records_considered: int
+    unread_payload_count: int
+    refused_overclock_count: int
+    refused_recipe_count: int
+    warnings: tuple[WorldWarning, ...]
+
+    def __repr__(self) -> str:
+        """Render counts and flags, and none that a member could make raise.
+
+        Returns:
+            The safe rendering.
+        """
+        return (
+            f"{type(self).__name__}(machines={len(self.machines)}, "
+            f"producing_available={self.producing_available}, "
+            f"recipe_available={self.recipe_available}, "
+            f"overclock_available={self.overclock_available}, "
+            f"records_considered={self.records_considered}, "
+            f"unread_payload_count={self.unread_payload_count}, "
+            f"refused_overclock_count={self.refused_overclock_count}, "
+            f"refused_recipe_count={self.refused_recipe_count}, "
+            f"warnings={len(self.warnings)})"
+        )
+
+
+def _warning(code: str, count: int = 1) -> WorldWarning:
+    """Build one warning from this module's own fixed detail table.
+
+    Args:
+        code: One of this module's ``WARN_*`` constants.
+        count: How many occurrences it aggregates.
+
+    Returns:
+        The warning.
+    """
+    return WorldWarning(
+        source=SOURCE_MACHINES,
+        code=code,
+        detail=_WARNING_DETAIL[code],
+        count=count,
+    )
+
+
+def _recipe_tag(references: tuple[ObjectReference, ...]) -> ObjectReference | None:
+    """The FIRST reference tag named for the current recipe, or None.
+
+    FIRST rather than only, and the population is a tuple rather than a mapping
+    precisely because two tags may share a name -
+    ``clockspeed/save/world.py`` ``RecordProperties.references`` says so. A
+    record carrying two recipe tags is not a shape this project has measured, so
+    this takes the one the payload wrote first rather than inventing a rule for
+    resolving them.
+
+    Args:
+        references: The record's typed, tag-ordered references.
+
+    Returns:
+        The tag, or None when the record carries none by that name.
+    """
+    for reference in references:
+        if reference.property_name == PROPERTY_RECIPE:
+            return reference
+    return None
+
+
+def _is_machine(entry: RecordProperties) -> bool:
+    """Whether one record carries any measured machine property.
+
+    Args:
+        entry: The record's published properties.
+
+    Returns:
+        True when a measured tag appears in either population.
+    """
+    if not MACHINE_PROPERTY_NAMES.isdisjoint(entry.values):
+        return True
+    return _recipe_tag(entry.references) is not None
+
+
+def machines_of(model: WorldModel) -> WorldMachines:
+    """Read every walked record's machine state out of the world model.
+
+    Args:
+        model: The world model.
+
+    Returns:
+        One :class:`MachineState` per record carrying a measured machine
+        property, with the per-field availability flags, the denominators and
+        the counts of what was refused.
+    """
+    records = model.objects.records
+    states: list[MachineState] = []
+    refused_overclock = 0
+    refused_recipe = 0
+
+    for index in sorted(model.properties.by_record_index):
+        entry = model.properties.by_record_index[index]
+        if not _is_machine(entry):
+            continue
+
+        raw_producing = entry.values.get(PROPERTY_PRODUCING)
+        producing = raw_producing if type(raw_producing) is bool else None
+
+        recipe_class_name = None
+        tag = _recipe_tag(entry.references)
+        if tag is not None:
+            permitted = _permitted_recipe_path(tag.object_path)
+            if permitted is None:
+                refused_recipe += 1
+            else:
+                recipe_class_name = class_name_of_path(permitted)
+
+        overclock = None
+        if PROPERTY_OVERCLOCK in entry.values:
+            overclock = exact_from_float32(entry.values[PROPERTY_OVERCLOCK])
+            if overclock is None:
+                refused_overclock += 1
+
+        states.append(
+            MachineState(
+                class_name=(
+                    class_name_of_path(records[index].type_path) if index < len(records) else ""
+                ),
+                producing=producing,
+                recipe_class_name=recipe_class_name,
+                overclock=overclock,
+            )
+        )
+
+    machines = tuple(states)
+    unread = model.properties.unread_payload_count
+
+    warnings: list[WorldWarning] = []
+    if not machines:
+        warnings.append(_warning(WARN_MACHINES_NONE_READ))
+    if unread:
+        warnings.append(_warning(WARN_MACHINES_PAYLOAD_UNREAD, unread))
+    if refused_overclock:
+        warnings.append(_warning(WARN_MACHINES_OVERCLOCK_REFUSED, refused_overclock))
+    if refused_recipe:
+        warnings.append(_warning(WARN_MACHINES_RECIPE_REFUSED, refused_recipe))
+
+    return WorldMachines(
+        machines=machines,
+        producing_available=any(state.producing is not None for state in machines),
+        recipe_available=any(state.recipe_class_name is not None for state in machines),
+        overclock_available=any(state.overclock is not None for state in machines),
+        records_considered=model.properties.total,
+        unread_payload_count=unread,
+        refused_overclock_count=refused_overclock,
+        refused_recipe_count=refused_recipe,
+        warnings=tuple(warnings),
+    )
