@@ -33,6 +33,63 @@ Keep every entry to that shape. If an item needs a paragraph, it needs its own f
 the line becomes a pointer.
 
 ---
+## Session 95 - 2026-09-14 - CI was red for the RUNNER rather than the tree, and every defect this session shipped was caught by a gate after the targeted suites were green
+
+- Shipped: nothing CLOSED. Three items FILED - CS-1060, CS-1061, CS-1062 - and three
+  filings REPAIRED: CS-1012, CS-1043, CS-1048. Detail in the item notes, not here.
+- In flight: nothing. Tree clean at `c307948`, everything pushed, whole suite green
+  through the pre-push hook at 7668 passed. CI on `c307948` was in progress at close.
+- Decisions: no ADR. One adjudication, recorded in CS-1012's own section where it binds.
+- THE SESSION OPENED ON A RED CI AND THE RED WAS NOT ABOUT THE TREE. Tier 1 failed its
+  duration gate on `8165c35` at 505s against a 480s ceiling. That commit is TWO MARKDOWN
+  FILES. A rerun of the same SHA passed at 289s. Two attempts differing in nothing a
+  commit can express, 222 seconds apart.
+- THE CONTROL THAT SETTLED IT RUNS NO REPO CODE. `Install toolchain` is a pinned pip
+  install with byte-identical input; it moved 7s to 12s across those attempts. A cache-miss
+  explanation was raised against it and CHECKED rather than waved off - both attempts print
+  `Using cached` for the same twelve packages and `Downloading` for the same one.
+- AND THE SAME CONTROL CHOSE THE REPAIR. Toolchain moved 1.714x while the unit step moved
+  1.774x - agreeing to 3.4 per cent. A step that runs none of this repo's code predicts the
+  suite's own slowdown, which is an in-job calibration divisor measured rather than argued.
+- Surprises: CS-1012's OWN PREMISE WAS FALSE. Its line said the spread on one tree is about
+  20s, from a single rerun pair. A second pair reads 23s apart against this one's 222s, so
+  the pool is TWO-CLASS rather than continuously noisy and a sigma-banded threshold grades
+  which class it landed on. The published feasibility rule on M=511, N=222 returns an EMPTY
+  window: wall-clock gating is INFEASIBLE at this lane length, not mis-tuned. That is
+  CS-1060, and CS-1012 cannot be built before it.
+- Surprises, second, AND IT IS THE REUSABLE ONE: THE INDEX SAID THE OPPOSITE OF THE RULE.
+  `docs/item_notes.md` routed the `CS-10nn` block to `phase4.md`. The membership rule sends
+  every phase 4 ID at 900 or higher to the `CS-9nn` leaf, which that leaf's own header
+  states and which every existing `CS-105x` row already did. One sentence disagreed with
+  the code, with the leaf and with its own table - and a session that checked the phase
+  carefully still got the leaf wrong by trusting it. A restated rule is a rule that drifts.
+- THE PRE-PUSH GATE BLOCKED ONCE AND IT WAS RIGHT, and the targeted runs were green on the
+  same tree: the citation suites and the drift guard both passed the misrouted sections.
+  Only `test_every_section_sits_in_the_leaf_the_membership_rule_names` saw it. THE HARNESS
+  REPORTED EXIT CODE 0 FOR THAT BLOCKED PUSH - fifth measurement across two sessions, now
+  in harness memory. Read the log the command wrote and confirm the remote SHA moved.
+- THE CITATION GUARD CAUGHT FOUR OF MY OWN CITATIONS AND WAS RIGHT FOUR TIMES: a future
+  test name binding nowhere, a line pointer at a tracked module, a module that does not
+  exist yet, and a gitignored artifact. All four were repaired by REPHRASING - not one
+  disposition entry, not one ceiling raise, because `tests/test_docs_citations.py` still
+  has four bytes free.
+- Failed paths: do not keep CS-1048's registration clause with the annotation half. The
+  item note at HEAD proposed exactly that on the grounds `WorldBounds` exists, which it
+  does - but the transform's subject is the underlay's own grid, so the clause has no
+  subject without the raster either. It went to CS-1061 with the fog.
+- Watch - `docs/item_notes.md` reached 16338 of 16384 bytes THIS SESSION, 46 free, and was
+  trimmed back to 134 only by shortening this session's own addition. That is a reprieve,
+  not a repair. The next session to file an item cannot add its routing row without
+  unrelated surgery first. CS-1062 carries it.
+- Watch, second - `ROADMAP.md` is at 201 percent of its soft budget, up from 196.
+- Watch, third - TEN stale agent worktrees remain, still reading as merged because a
+  worktree's HEAD is its base while work sits uncommitted. Classify by content.
+- Next action: confirm CI on `c307948`, then CS-1062 FIRST - the index relocation - because
+  every other item in flight needs to file a routing row and cannot. After it, CS-1043 and
+  CS-1048 are both repaired and dispatchable; they still force `docs/ARCHITECTURE.md` and
+  still run in sequence with a merger doc-sync, never beside each other. CS-1061 opens on
+  an ADJUDICATED SEAM DECISION and no file is scaffolded before that ruling.
+
 ## Session 94 - 2026-09-14 - five items closed, eight filed, and every defect that mattered was found by a gate or a mutation rather than by a green suite
 
 - Shipped: CS-1039, CS-1054, CS-1041, CS-1042 and CS-1045 CLOSED. Detail in `docs/LEDGER.md`,
@@ -160,44 +217,3 @@ the line becomes a pointer.
 - Next action: CS-1042 - the uncollected set is the live records carrying transforms MINUS the
   collectable pairs CS-1038 now carries up, a SUBTRACTION and not a lookup, and the two halves
   of a pair are not both always present.
-
-## Session 92 - 2026-09-13 - two anti-vacuity repairs closed, and the adversaries found the class in four more places
-
-- Shipped: CS-1025 and CS-1020 CLOSED. Detail in docs/LEDGER.md, not here.
-- In flight: nothing. Tree clean, whole suite green at the merge.
-- Decisions: no ADR. One correction recorded inside the CS-1025 ledger entry: the filed
-  acceptance was insufficient as worded - it demanded a needle be refused above count one,
-  while the post-repair defeat mode is count ZERO, so the delivered arm enforces unique AND
-  present and the disjoint constants are load-bearing rather than cosmetic.
-- Surprises: nothing contradicted BOOTSTRAP.md. What did surprise, and it is the finding of
-  the session: with the pre-fix constants the uniqueness helper makes the PRISTINE tree red
-  and the MUTATED tree green. The arm's polarity is inverted, so the natural repair for that
-  red is to drop a colliding value off the wire - which is the defect. An arm that rewards
-  the defect was one fixture edit away from shipping.
-- Failed paths: do not treat a uniqueness helper as the whole of CS-1025's fix - it was
-  measured insufficient alone, in both the reasoning and a run. Do not repeat the "91 arms"
-  figure from CS-1020's filed line as measurement; it appears once in the repository, has no
-  collection behind it, and the floor measured at closure was 40 over a narrower population.
-- Watch: FOUR privacy arms are structurally incapable of failing - `test_health.py` twice,
-  `test_world.py` and `test_registry.py` - because the encoder doubles every backslash and
-  the needle is a raw home-shaped path. A body that genuinely reflects a refused path passes
-  all four. Filed as CS-1034, tier 1. This is the same trap session 91 hit once, in four more
-  places, and it guards non-negotiables 3 and 12.
-- CI WENT RED AND THEN GREEN ACROSS A DOC-ONLY COMMIT, WHICH IS THE POINT. The tip e2aff7a
-  is GREEN - both jobs success. The commit before it, 9378975, was RED. Run 34791962600 on 9378975
-  failed ONLY the "Duration against the budget" step: tier 1 took 491s against a 480s
-  ceiling and a 420s budget. Every other step passed - character-set gate, ruff check,
-  format check, doc budgets, drift guard, markdown links, type check AND unit tests. The
-  ceiling was NOT raised; CS-1012's line forbids that by name. The measurement is worth
-  more than the red: the same gate took 355s on 73f4e36 one session earlier and 493s and
-  470s on the CS-1009 tree, so the observed spread on this workflow is now 355s to 493s -
-  about 140 seconds, far wider than the roughly 20s spread CS-1012 was filed with. A
-  ceiling 60s above budget cannot survive that spread whatever the tree does, which is
-  evidence for the runner-side hypothesis CS-1012 already names as the first to test.
-  THE STRONGEST POINT IS THE PAIR: 9378975 failed the gate and e2aff7a passed it, and the
-  two differ by ONE DOC-ONLY COMMIT that adds no test and no code. A gate whose verdict
-  flips across a change that cannot affect runtime is measuring the runner, not the tree.
-  Do not read the green tip as the problem having gone away.
-- Next action: CS-1034 - give every path-shaped privacy needle an oracle proven potent by a
-  planted positive the arm FINDS, and redden the four arms on a reflecting body.
-
