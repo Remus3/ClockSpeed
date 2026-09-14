@@ -203,6 +203,12 @@ created by the same habit of declaring an absence with a constant.
 
 ### Filed 2026-09-13
 
+**REPAIRED 2026-09-14 (session 95).** The acceptance now NAMES the constant into
+existence: it reads "reddens when the budget moves - which REQUIRES that budget to be a
+NAMED `Fraction` constant in the new module, because a literal at the site makes this
+clause unreddenable". The trap below is what the repair closes; it is kept because the
+reasoning is what stops the next filing from repeating it.
+
 **THE HOLE IS AT THE BOTTOM.** `clockspeed/data/registry.py` excludes `FGSchematic` from the
 modelled groups and `clockspeed/progress/` holds a docstring and a seam comment and no code
 at all, so the project cannot name one milestone, its cost, its tier, or a space-elevator
@@ -235,6 +241,15 @@ every-machine-at-full-clock assumption is named ON THE MODEL rather than in a co
 ## CS-1048
 
 ### Filed 2026-09-13
+
+**SPLIT 2026-09-14 (session 95), AND THE SPLIT LINE IS NOT WHERE THIS NOTE PROPOSED IT.**
+The fog raster and the whole underlay - including the registration clause this note wanted
+to keep here - moved to CS-1061. What remains in CS-1048 is the ANNOTATION half alone:
+an annotated purity is never reported as derived, the annotation round-trips keyed by
+instance name, and its published provenance reads operator rather than measured. Its
+write-list narrows to a NEW `annotations` module under `clockspeed/advisor/` and a NEW
+`tests/advisor/` package. The reasoning for moving the registration with the raster is recorded in
+CS-1061's own section, not repeated here.
 
 **TWO OPERATOR REQUIREMENTS DIED THIS SESSION AND THIS ITEM IS THE HONEST SUBSTITUTE FOR
 BOTH.** Node purity is structurally absent from every save - closed by declaration at
@@ -282,3 +297,53 @@ wire - a row publishes the annotation and the node's INDEX in the served populat
 same substitution the world properties model already makes. It **writes atomically**
 (non-negotiable 5); it is the first thing in this session's plan that writes a file another
 process may read.
+## CS-1061
+
+### Filed 2026-09-14, split out of CS-1048
+
+**ITS SUBJECT IS ABSENT FROM THE CODE, AND THAT WAS VERIFIED RATHER THAN INHERITED.**
+`mFogOfWarRawData` has ZERO hits in any `.py` file in the primary checkout. Its only
+non-doc hit anywhere is a GENERATED header-index artifact under the gitignored `data/`
+directory of a stale agent worktree - the artifact of the 2026-09-13 probe that proved the raster is exactly a 1024
+by 1024 byte square. **The structural proof was real; it simply never landed in a
+module.** A shipped reader does not exist and the raster does not cross the save seam.
+
+**THE FENCE IS DELIBERATE AND IT IS GRADED.** `clockspeed/save/world.py` states that
+neither published type declares a `bytes` or a `Path` field, and gives the reason: a
+retained payload is the one thing no higher layer may hold. It is asserted by
+`tests/save/test_world.py::test_no_published_world_type_annotates_a_carrier_field`. A
+1024 by 1024 raster is 1048576 bytes of exactly that. So this is not an oversight to
+route around.
+
+**THE SEAM QUESTION COMES FIRST AND IT IS A DESIGN DECISION, NOT AN IMPLEMENTATION.**
+Either the raster is carried by a published type that is not a world property value, or
+the fence is amended for this one carrier with a named reason and its arm updated in the
+same diff. **IT IS NEVER QUIETLY WIDENED.** Route the choice to an adjudicator before any
+file is scaffolded.
+
+**DO NOT INJECT SYNTHETIC BYTES PAST THE SEAM AND CALL IT MEASURED.** An arm over bytes
+handed straight to the underlay module grades the fixture and says nothing about any
+save. That is the shape session 94 caught reading zero records on every real save while
+3153 tests stayed green.
+
+**WHY THE REGISTRATION HALF CAME WITH IT RATHER THAN STAYING IN CS-1048.** The item note
+at HEAD proposed keeping the bounds clause in CS-1048 on the grounds that `WorldBounds`
+exists and is reachable - true, `clockspeed/audit/placement.py::WorldBounds` via
+`WorldPlacement.bounds`. But the transform's whole SUBJECT is the underlay's own grid, so
+without the raster that clause has nothing to register either. Splitting there would have
+left CS-1048 carrying a second clause with no subject, which is the defect being repaired
+rather than a smaller version of it.
+
+**THE REGISTRATION FENCE SURVIVES THE SPLIT INTACT.** `WorldBounds` bounds THIS world's
+placements and moves every time the operator builds anything, so a transform fitted to it
+drifts under their own hands and must NEVER be built. The honest registration is the
+raster's own fixed square grid plus a config-overridable world origin and scale, DECLARED
+estimated. The arm must redden if a bounds field is read at all.
+
+**ASSUMED, NOT MEASURED:** that the raster is spatial rather than an opaque blob that
+happens to be that size. The structural proof shows only its LENGTH. Publish it as bytes
+with declared dimensions and claim NO orientation and NO origin until one is measured.
+
+**DEPENDS ON:** CS-1039. Phase 6 consumes this for the underlay and its registration -
+see the panel item's `DEPENDS ON` line, which names this item rather than CS-1048 for
+that half.

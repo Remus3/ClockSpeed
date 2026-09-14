@@ -859,7 +859,7 @@ three-way total-set guard: a new panel file must appear in all three at once or 
 red. Splitting the render would put the same three files in two write-lists, which is a
 merge conflict already.
 
-**DEPENDS ON:** CS-1046 for the bodies, and CS-1048 for the underlay and the annotation
+**DEPENDS ON:** CS-1046 for the bodies, CS-1061 for the underlay, and CS-1048 for the annotation
 provenance. **TIER 2, NO GAME NEEDED** - canned bodies bound to the endpoints' own key
 tuples.
 
@@ -888,7 +888,7 @@ unbound canned keys makes it worse. The item must SAY which it did.
 
 **THE UNDERLAY IS NEVER REGISTERED AGAINST `WorldBounds`.** That box bounds THIS world's
 placements and moves every time the operator builds anything, so a transform fitted to it
-drifts under the operator's own hands. Registration is CS-1048's declared config origin and
+drifts under the operator's own hands. Registration is CS-1061's declared config origin and
 scale, carried through and labelled ESTIMATED on the page.
 
 **NODES RENDER SHAPE-CODED BY CLASS AND UNLABELLED.** Purity is not derivable and is never
