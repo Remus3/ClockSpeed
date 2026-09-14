@@ -374,6 +374,104 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-09-14 - CS-828 - MEASUREMENT RECORD. THE ITEM STAYS OPEN. The trailing run's floor was arithmetic and is now a decoded field, and the remainder is filed as CS-1068
+
+**THIS ENTRY DOES NOT CLOSE CS-828.** Its clause asks for the run's contents on EVERY payload of
+the (10,36), (13,42) and (14,52) pairs, and what shipped reads the field the run OPENS with and
+nothing past it. The line stays in `ROADMAP.md` with its acceptance word for word as it stood.
+CS-1068 owns the remainder and is filed in the same commit.
+
+**WHAT WAS WRONG, AND IT WAS A CLAIM RATHER THAN A CRASH.**
+`UNMEASURED_PAYLOAD_REGIONS["trailing_run"]` recorded the region as wholly opaque: a 4-byte floor
+OBSERVED as `declared_end - terminator_end`, with whether that floor is one field or the head of a
+longer structure explicitly not claimed and no reading of the interior offered at all. Nothing in
+the walk had ever looked at a byte of it.
+
+**WHAT CHANGED.** `clockspeed/save/objects.py` gains `TrailingRun`, `read_trailing_run`,
+`TRAILING_RUN_PAIRS`, `TRAILING_RUN_LEAD_BYTES` and `TRAILING_RUN_LEAD_MEASURED_VALUE`. The run is
+read INSIDE `_walk_payload` at the terminator branch, which is the only frame that has both the
+terminator's end and the declared end, so no second walk exists to drift out of step with the
+first. It reaches callers on `PropertyResult.trailing_run`, carrying the decoded lead and
+`unread` - the width of everything past the field, kept as a number on every result so the open
+region stays visible rather than becoming absent. `TRAILING_RUN_PAIRS` is DERIVED as
+`MEASURED_BODY_LAYOUTS - COMPLETE_TYPE_NAME_PAIRS` rather than transcribed, so a new measured pair
+joins the graded population instead of sitting outside it.
+
+**WHAT WAS MEASURED THIS RUN, on this machine's library, by the shipped sweep.** 129775 payloads of
+the three pairs reached a property terminator; 129775 of them yielded a run carrying a lead field,
+and the lead read 0 on 129775 of 129775. 111702 have nothing past the field and are now completely
+read; 18073 carry unread bytes past it and are CS-1068. Per pair the split is (10,36) 73582 read of
+77263, (13,42) 16767 of 23046, (14,52) 21353 of 29466. Zero sweep failures. These are counts from
+this run and are not restated anywhere a guard would have to re-derive them - the test recomputes
+them on every run.
+
+**THE DENOMINATOR IS TAKEN FROM THE WALK AND NOT FROM THE READER UNDER TEST**, and that is what
+makes the arms killable. A payload counted as terminated is one whose `read_properties` did not
+raise `WARN_UNPARSED_PROPERTY_PAYLOAD`; counting instead the payloads that came back WITH a run
+would let a reader returning None for a whole class shrink numerator and denominator together and
+stay green. That exact mutant was run and is recorded below.
+
+**PROVEN BY.** `tests/save/test_trailing_run.py`, fifteen collected arms, both halves. The library half is
+skip-if-absent and reports COUNTS ONLY - no path, no class path, no decoded string, every discovery
+call inside the `try` so no frame holding the platform account id can unwind.
+`test_the_lead_field_is_read_out_of_the_bytes_rather_than_inferred` is the control against a
+constant-returning reader, and its fixture lead is deliberately non-zero because the whole library
+reads zero. `test_the_walk_carries_the_run_onto_the_result` is parametrized over both record kinds,
+because a correct reader nothing calls reads nothing.
+`test_every_payload_that_terminates_yields_a_lead_field`,
+`test_the_lead_field_reads_zero_on_every_payload_of_the_three_pairs` and
+`test_both_halves_of_the_partition_are_populated_on_every_pair` are the library claims, with
+`test_the_sweep_reaches_every_pair_this_item_covers` as their non-vacuity control. Both library
+claims subtract from `terminated`, which the sweep takes from the WALK.
+`test_the_region_entry_no_longer_calls_the_floor_unread` holds the shipped table against the
+reading by SYMBOL NAME, so renaming the reader without updating the record is red.
+
+**THREE MUTANTS, EACH KILLED, AND THE THIRD IS THE ONE THAT MATTERED.** A constant `lead=0` was
+killed by the non-zero synthetic fixture and both plumbing arms. A constant `unread=0` was killed by
+the partition-population arm. `read_trailing_run` returning None for every run wider than the field
+was killed by `test_every_payload_that_terminates_carries_a_lead_field` - and that arm was VACUOUS
+against this mutant in the first draft, where the sweep took its denominator from the reader. The
+independent denominator was added because of it.
+
+**SIBLING SWEEP: NONE FOUND, AND THE SEARCH IS STATED SO THE ABSENCE IS READABLE.** The root cause
+is a region recorded as arithmetic rather than read, and the other two entries in that table are
+not the same case: `StructProperty`'s interior is CS-829 with its own fences, and `TextProperty` is
+10 instances of one declared size. `PAYLOAD_TAG_LEAD_BYTES` is already a read field.
+
+**TIER 2** - a public dataclass and reader added to the save engine, and a new field on
+`PropertyResult`, which is a public return shape. Merged files: `clockspeed/save/objects.py`,
+`tests/save/test_trailing_run.py`. Suite this run: see the cycle's own row; `python -m ruff check .`
+exit 0 and `python -m ruff format --check .` exit 0.
+
+**THE VERIFIER PASS RETURNED CONFIRMED WITH CORRECTIONS, AND THE CORRECTIONS ARE IN THIS COMMIT
+RATHER THAN DEFERRED.** An agent that did not produce the work graded the SHIPPED-PARTIAL claim
+against the clause and confirmed it: the acceptance is genuinely unmet, the ROADMAP line is
+unchanged, CS-1068 does not collide, the denominator is independent, and privacy, topology and the
+fences are clean. It found four defects in the first draft and all four are repaired here:
+
+- **THE FLOOR'S PRESENCE IS STILL ARITHMETIC AND A LIVE FILE SAID OTHERWISE.** The item note
+  claimed the floor was no longer arithmetic. `read_trailing_run` returns a lead exactly when the
+  run is at least `TRAILING_RUN_LEAD_BYTES` wide, and that width is `declared_end - terminator_end`,
+  so the field's VALUE is read and its PRESENCE is not. The note and the arm's docstring now say
+  which half is which, because the unmet half is precisely what CS-828 still asks for.
+- **AN ARM THAT GRADED NOTHING IS REMOVED RATHER THAN REWORDED.**
+  `test_the_partition_of_read_against_unread_is_exhaustive` asserted an identity that the tally's
+  own if/else makes unfalsifiable - no third exit, so no reader could move the sum. Removed with its
+  claim, the way `ReferenceResolution`'s constant-True self-check was.
+- **AN ARM TOOK ITS DENOMINATOR FROM THE READER UNDER TEST.** The zero-lead arm subtracted
+  `zero_lead` from `with_lead`, both of them the reader's output, so a reader declining every lead
+  emptied both sides and passed. It now subtracts from `terminated`. PROVEN BY A FOURTH MUTANT run
+  after the repair: a reader returning `lead=None` everywhere reddens that arm, and did not before.
+- **A DEAD MEASUREMENT IS REMOVED.** `_RunSweep.widths` was tallied and read by no arm, which looks
+  like coverage from the outside and is not.
+
+The sentinel `_run_of_record` returned also typed as `TrailingRun | None | object`, which collapses
+to `object`; it returns an explicit pair now.
+
+**CI IS RECORDED BY THE LANE DRIVER AND WAS NOT OBSERVED BY THIS WORKER.**
+
+---
+
 ### 2026-09-14 - CS-302 - CLOSED. The refusal diagnosis cost one full elimination per row, and it was measured at live scale before it was replaced
 
 **WHAT THE MEASUREMENT FOUND.** `ratio._name_unsatisfiable_item` recovered the name of the

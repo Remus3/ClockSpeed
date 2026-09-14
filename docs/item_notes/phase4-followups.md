@@ -74,6 +74,49 @@ one. Do not restate it as a defect in the body walk.
 **DO NOT close this by widening the declared-length step.** Stepping over a region is what
 makes the body walk exact today; the question is what the region CONTAINS, and a step is not a
 reading.
+
+### Partial ship recorded 2026-09-14 - the lead field reads, the remainder does not
+
+**THE ITEM STAYS OPEN AND ITS ACCEPTANCE IS UNCHANGED.** The clause asks for the run's
+contents on EVERY payload of the three pairs. What shipped reads the field the run OPENS
+with on every payload of those pairs, and nothing past it. That is a narrowing, not a
+close, and `docs/LEDGER.md` records it as a measurement rather than a closure.
+
+**WHAT IS NOW READ.** `clockspeed/save/objects.read_trailing_run` decodes the int32 at the
+run's first byte and reports it on `PropertyResult.trailing_run`, with everything past it
+carried as `TrailingRun.unread`. The old sentence in `UNMEASURED_PAYLOAD_REGIONS` - that
+whether the 4-byte floor is one field or the head of a longer structure is not claimed,
+and that no reading of the interior is offered - is answered for the payloads whose run IS
+that field, and `tests/save/test_trailing_run.py` holds the entry against the reading so
+the two cannot drift apart.
+
+**THE FLOOR'S VALUE IS READ. ITS PRESENCE IS STILL ARITHMETIC, AND SAYING SO IS THE WHOLE
+POINT OF THIS PARAGRAPH.** A first draft of this block claimed the floor was no longer
+arithmetic at all, and a verifier refuted it on the day it was written. What is true:
+`read_trailing_run` returns a lead exactly when the run is at least `TRAILING_RUN_LEAD_BYTES`
+wide, and that width is still `declared_end - terminator_end`. So the field's VALUE is
+decoded from the bytes and its PRESENCE is the subtraction the clause names. **DO NOT READ
+THIS ITEM AS HALF-ARITHMETIC-FREE** - the arithmetic half is exactly what is left open.
+
+**WHAT IS GENUINELY STRONGER THAN BEFORE** is that the denominator the library arms grade
+against is taken from the WALK - a payload that did not raise the unparsed-payload warning
+- and not from the reader, so a reader that declined a whole class cannot shrink numerator
+and denominator together. That is a property of the TEST, not of the reading, and it is
+what makes the measurement above worth anything.
+
+**WHAT REMAINS, AND WHY IT IS A SEPARATE ROW RATHER THAN THE REST OF THIS ONE.** The
+remainder is class-keyed rather than pair-keyed: one class writes a count prefix and that
+many records, another writes length-prefixed reference strings, another writes neither. It
+is CS-1068, and its note carries the fence that matters - a partition of the remainder
+that sums to the declared end closes by arithmetic and cannot fail, which is the defect
+that refuted CS-830 after it had merged.
+
+**DO NOT CLOSE THIS ITEM ON THE STRENGTH OF THE LEAD FIELD.** The clause says every
+payload and it means the whole run. Reading four bytes of it universally is progress on
+the clause and is not the clause. If a later session wants the item to close on a narrower
+population than it names, that is a re-wording and needs its own record - not a reading of
+this block.
+
 ## CS-829
 
 ### Relocated 2026-09-12 from `docs/GATED.md` by session 86

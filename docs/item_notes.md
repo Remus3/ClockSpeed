@@ -140,6 +140,7 @@ a pass - every equality here is satisfied for free by an empty population.
 | CS-609 | `docs/item_notes/phase6.md` |
 | CS-1065 | `docs/item_notes/phase6.md` |
 | CS-1067 | `docs/item_notes/phase4-followups-900.md` |
+| CS-1068 | `docs/item_notes/phase4-followups-900.md` |
 | CS-614 | `docs/item_notes/phase6.md` |
 | CS-615 | `docs/item_notes/phase6.md` |
 | CS-616 | `docs/item_notes/phase6.md` |

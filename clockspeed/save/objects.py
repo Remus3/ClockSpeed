@@ -302,6 +302,7 @@ __all__ = [
     "RecordIndex",
     "ReferenceResolution",
     "StructValue",
+    "TrailingRun",
     "Transform",
     "UnknownClass",
     "UnsupportedBodyLayoutError",
@@ -315,6 +316,7 @@ __all__ = [
     "parse_object_headers",
     "parse_properties",
     "read_properties",
+    "read_trailing_run",
     "resolve_references",
     "uses_complete_type_name",
 ]
@@ -1379,6 +1381,13 @@ class PropertyResult:
             DECODER CANNOT SHRINK, on the same terms as ``reference_tag_count``:
             an equality asserted over "the ones that decoded" holds by
             construction, and this is the population it has to stand in.
+        trailing_run: The run between this payload's property terminator and
+            its declared final byte, with the field it opens with READ - CS-828.
+            None on a payload whose walk never reached a terminator, which is
+            every payload of a pair outside :data:`TRAILING_RUN_PAIRS`. NOT
+            WORLD CONTENT: three integers off the framing, carrying no string
+            and no decoded value, which is why it is rendered in ``repr``
+            below rather than withheld the way ``properties`` is.
     """
 
     properties: Mapping[str, object]
@@ -1392,6 +1401,7 @@ class PropertyResult:
     undecoded_reference_count: int = 0
     struct_interiors: tuple[StructValue, ...] = ()
     struct_tag_count: int = 0
+    trailing_run: TrailingRun | None = None
 
     def __repr__(self) -> str:
         """Render counts and flags, and withhold every string.
@@ -1409,7 +1419,8 @@ class PropertyResult:
             f"reference_tag_count={self.reference_tag_count}, "
             f"undecoded_reference_count={self.undecoded_reference_count}, "
             f"struct_interiors={len(self.struct_interiors)}, "
-            f"struct_tag_count={self.struct_tag_count})"
+            f"struct_tag_count={self.struct_tag_count}, "
+            f"trailing_run={self.trailing_run})"
         )
 
 
@@ -4274,18 +4285,30 @@ UNMEASURED_PAYLOAD_REGIONS: Final[Mapping[str, str]] = MappingProxyType(
     {
         "trailing_run": (
             "the run between a payload's property terminator and its declared "
-            "final byte. It is UNIVERSAL ACROSS THE THREE PAIRS THIS GRAMMAR "
-            "READS - not one of their payloads ends at its terminator - while "
-            "(14,60) reaches no terminator at all, so it has no such run and is "
-            "scoped out of CS-828 and into CS-G05. Its width is 4 on the large "
-            "majority and "
+            "final byte, NARROWED BY CS-828 RATHER THAN CLOSED. It is "
+            "UNIVERSAL ACROSS THE THREE PAIRS THIS GRAMMAR READS - not one of "
+            "their payloads ends at its terminator - while (14,60) reaches no "
+            "terminator at all, so it has no such run and is scoped out of "
+            "CS-828 and into CS-G05. Its width is 4 on the large majority and "
             "variable above that, spanning 4 to 5008 bytes on the (10,36) and "
             "(13,42) pairs and 4 to 1053802 on (14,52), across roughly 235 "
-            "distinct widths per pair. A 4-byte floor holding on every payload "
-            "of those three pairs is the one regularity - (14,60) has no such "
-            "run at all; whether it is one field or "
-            "the head of a longer structure is NOT claimed, and no reading of "
-            "its interior is offered. This is the region that keeps the PROPERTY "
+            "distinct widths per pair. WHAT IS NOW READ: the run OPENS WITH A "
+            "LEAD FIELD, an int32 decoded out of the bytes by read_trailing_run "
+            "and reported on PropertyResult.trailing_run, and the old 4-byte "
+            "floor is that field rather than an arithmetic residue. The "
+            "question the floor left open - whether it is one field or the head "
+            "of a longer structure - is answered for the payloads whose run IS "
+            "the field and nothing else, and those are the large majority. "
+            "WHAT IS STILL UNMEASURED: every byte past that field, carried as "
+            "TrailingRun.unread. It is keyed by the record's CLASS rather than "
+            "by its pair - measured, not assumed - so no single grammar reads "
+            "it and no partition of it closes by arithmetic; that is the "
+            "defect which refuted CS-830 after it had merged and the reason "
+            "the remainder is left open here instead of being apportioned. "
+            "NO FIGURE ABOVE IS RESTATED IN ANY TEST: "
+            "tests/save/test_trailing_run.py derives the population from this "
+            "module's own TRAILING_RUN_PAIRS on every run and reports COUNTS "
+            "ONLY. This is the region that keeps the PROPERTY "
             "walk terminator-exact rather than boundary-exact. The BODY walk is "
             "boundary-exact and is a different question - conflating the two put a "
             "false sentence in a tracked file on 2026-08-23"
@@ -4696,6 +4719,32 @@ COMPLETE_TYPE_NAME_PAIRS: Final[frozenset[tuple[int, int]]] = frozenset({(HEADER
 #: The opaque run between a payload's head and its first tag, on the pairs
 #: above. Zero everywhere else, which is why the legacy reader never had one.
 PAYLOAD_TAG_LEAD_BYTES: Final = 1
+
+#: THE PAIRS WHOSE PAYLOADS CARRY A TRAILING RUN AT ALL - CS-828, and DERIVED
+#: rather than transcribed so it cannot drift out of step with either set it is
+#: built from. A pair reaches the run only by reaching a property terminator,
+#: and the complete-type-name pair reaches no terminator under any grammar this
+#: module ships, so it has no such run and is scoped out of CS-828 and into
+#: CS-G05. Adding a measured layout puts its pair in here automatically, which
+#: is the point: a new pair joins the population the library arms grade instead
+#: of being quietly outside it.
+TRAILING_RUN_PAIRS: Final[frozenset[tuple[int, int]]] = (
+    MEASURED_BODY_LAYOUTS - COMPLETE_TYPE_NAME_PAIRS
+)
+
+#: How wide the trailing run's LEAD FIELD is. The run is longer than this on a
+#: minority of payloads and never shorter on any real one - see
+#: :data:`UNMEASURED_PAYLOAD_REGIONS`.
+TRAILING_RUN_LEAD_BYTES: Final = INT32_SIZE
+
+#: What that field CARRIES across this project's whole library - measured, on
+#: every payload of every pair in :data:`TRAILING_RUN_PAIRS`, by
+#: ``tests/save/test_trailing_run.py``. A NAME FOR A MEASUREMENT, NOT A
+#: CONSTRAINT: :func:`read_trailing_run` reads the bytes and never compares
+#: against this, so a corpus that carries a different value reports it rather
+#: than being refused. The arm that grades the measurement is what would go
+#: red, which is where a surprise belongs.
+TRAILING_RUN_LEAD_MEASURED_VALUE: Final = 0
 
 #: The flags byte's measured bits. NAMED because a bare hex literal at a use
 #: site is a bit nobody can hold a table against.
@@ -6020,6 +6069,77 @@ def _decode_value(  # noqa: PLR0913
     return _decode_text_value(body, type_word, at, size)
 
 
+@dataclass(frozen=True)
+class TrailingRun:
+    """The run between a payload's property terminator and its declared end.
+
+    THE DEFAULT ``repr`` IS KEPT, and that is a decision rather than an
+    omission. :class:`ObjectRecord` and :class:`PropertyResult` hand-write one
+    to withhold the strings they carry; every field here is an integer read out
+    of the framing, there is no string to withhold, and a hand-written repr
+    that rendered the same three integers would be ceremony claiming a control.
+
+    WHAT ``unread`` IS FOR. It is the width of the region CS-828 leaves open,
+    carried as a number on every result so a consumer reads the remainder as an
+    open figure rather than an absent one. A reading that grows moves it down;
+    a reading that silently dropped a region would move it down too, which is
+    why ``tests/save/test_trailing_run.py`` grades the partition against the
+    denominator rather than the remainder.
+
+    Attributes:
+        width: How many bytes the whole run occupies. OBSERVED as the declared
+            end less the terminator's end - the one figure CS-828 names as the
+            thing not to stop at.
+        lead: The int32 the run OPENS with, READ out of the bytes, or None when
+            the run is too short to hold the field. Absent on no payload of any
+            real save measured so far, and reported rather than assumed.
+        unread: How many bytes sit past the lead field that nothing reads. Zero
+            on the population whose run IS the field and nothing else.
+    """
+
+    width: int
+    lead: int | None
+    unread: int
+
+
+def read_trailing_run(body: bytes, terminator_end: int, end: int) -> TrailingRun | None:
+    """Read the run that follows a payload's property terminator.
+
+    WHAT THIS ADVANCES OVER THE RECORD IT REPLACES - CS-828. The run was
+    recorded as wholly opaque, with a 4-byte floor OBSERVED as
+    ``end - terminator_end`` and no reading of its interior offered at all.
+    This reads the field the run OPENS with, out of the bytes, on every payload
+    that has one. It does NOT close the region: everything past that field is
+    class-keyed extra data this module still does not read, and ``unread``
+    carries its width so that stays visible.
+
+    NOTHING HERE RAISES. A run too short for the field, a run reaching past the
+    buffer and a terminator sitting past the declared end are all REPORTED -
+    the first as a run with no lead, the other two as no run at all. That is
+    non-negotiable 7 rather than leniency: a payload whose framing disagrees is
+    flagged and skipped, and a reader that raised here would make a malformed
+    save fatal for the whole walk.
+
+    Args:
+        body: The decompressed body.
+        terminator_end: The first byte past the payload's terminator.
+        end: The first byte past the payload.
+
+    Returns:
+        The run, or None when the run is not addressable inside ``body``.
+    """
+    width = end - terminator_end
+    if width < 0 or terminator_end < 0 or end > len(body):
+        return None
+    if width < TRAILING_RUN_LEAD_BYTES:
+        return TrailingRun(width=width, lead=None, unread=width)
+    return TrailingRun(
+        width=width,
+        lead=struct.unpack_from("<i", body, terminator_end)[0],
+        unread=width - TRAILING_RUN_LEAD_BYTES,
+    )
+
+
 def _decode_payload(
     body: bytes, at: int, end: int
 ) -> tuple[dict[str, object], int, int, bool] | None:
@@ -6082,6 +6202,10 @@ class _PayloadWalk:
             THE DENOMINATOR THE DECODER CANNOT SHRINK, on the same terms as
             ``reference_tags``: counting only what decoded would let a form this
             module does not read leave the population instead of being reported.
+        trailing_run: The run past the terminator - CS-828. Present only on a
+            walk that TERMINATED, because a walk that broke never found the
+            terminator the run is measured from, and inventing one from the
+            declared end would report a region nobody located.
     """
 
     properties: dict[str, object]
@@ -6093,6 +6217,7 @@ class _PayloadWalk:
     undecoded_references: int
     struct_interiors: tuple[StructValue, ...] = ()
     struct_tags: int = 0
+    trailing_run: TrailingRun | None = None
 
     def __repr__(self) -> str:
         """Render counts only, and withhold every string.
@@ -6244,6 +6369,12 @@ def _walk_payload(
         if name is None:
             return None
         if name[0] == _PAYLOAD_TERMINATOR:
+            # THE RUN IS READ HERE BECAUSE HERE IS WHERE THE TERMINATOR'S END
+            # EXISTS - CS-828. Every other frame has the declared end and not
+            # the terminator, so a reader placed anywhere else would have to
+            # re-walk the payload to find the one boundary it needs, and two
+            # walks over one payload is how a second reading drifts out of step
+            # with the first.
             return _PayloadWalk(
                 properties=decoded,
                 unmeasured=unmeasured,
@@ -6254,6 +6385,7 @@ def _walk_payload(
                 undecoded_references=undecoded_references,
                 struct_interiors=tuple(struct_interiors),
                 struct_tags=struct_tags,
+                trailing_run=read_trailing_run(body, name[1], end),
             )
         # BOTH GRAMMARS' TAG HEADERS COME BACK THROUGH ONE CALL - CS-G05.
         # :func:`_read_tag_and_words` says why the divergence lives there and
@@ -6558,6 +6690,7 @@ def read_properties(
         references=walked.references,
         reference_tag_count=walked.reference_tags,
         undecoded_reference_count=walked.undecoded_references,
+        trailing_run=walked.trailing_run,
         struct_interiors=walked.struct_interiors,
         struct_tag_count=walked.struct_tags,
     )
