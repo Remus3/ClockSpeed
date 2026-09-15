@@ -2601,12 +2601,16 @@ def test_the_child_run_excludes_this_module_so_the_gate_cannot_recurse() -> None
 #: opens with PYTHON's own ``-m``, and a scan over the whole list would read the
 #: module flag as pytest's marker expression and refuse a correct command.
 #:
-#: ``-p`` IS DELIBERATELY ABSENT, unlike the vocabulary
-#: `tests/test_tier1_budget.py` scans a CI shard with. This command carries
+#: ``-p`` IS NOT HERE BECAUSE IT IS GRADED BY VALUE INSTEAD, and that is a
+#: judgement rather than an omission (CS-1073). This command carries
 #: ``-p no:cacheprovider`` on purpose - the child must not write a cache into
-#: the parent's rootdir - and a shared list would have to special-case it, which
-#: is how a list stops grading. What that costs is stated rather than hidden: a
-#: ``-p no:...`` disabling a collection plugin would pass here.
+#: the parent's rootdir - so a flat ban would refuse the shipped command, and a
+#: flat permission would let any other plugin be disabled. MEASURED on this box:
+#: ``-p no:unittest`` silently drops ``unittest.TestCase`` collection, three
+#: collected becoming two passed, exit 0. tests/save carries no TestCase today,
+#: so that one is latent rather than live - but tier 1 no longer runs this gate,
+#: which raises the stakes on every remaining way it can quietly collect less.
+#: :data:`_CHILD_PERMITTED_PLUGIN_ARGUMENTS` is the allowlist that settles it.
 _CHILD_NARROWING_FLAGS: Final = (
     "-k",
     "-m",
@@ -2628,6 +2632,18 @@ _CHILD_NARROWING_FLAGS: Final = (
 #: after ``--dist`` - and the target check below would report a narrowing that
 #: is not there.
 _CHILD_VALUE_FLAGS: Final = ("-n", "--dist", "-p", "-k", "-m", "--deselect", "--maxfail")
+
+#: The only ``-p`` arguments this command may carry. AN ALLOWLIST, for the
+#: reason `tests/test_tier1_budget.py` records beside its own: a rule phrased as
+#: "not the bad ones" is a list somebody has to keep complete, and this
+#: repository has already measured one defect wearing four different fields
+#: across four green commits before an allowlist of good values held it.
+_CHILD_PERMITTED_PLUGIN_ARGUMENTS: Final = ("no:cacheprovider",)
+
+#: The plugin flag, named once. Also the reason the scan below binds its loop
+#: variable to `word` rather than `token`: ruff's S105 reads a comparison
+#: against anything called `token` as a hardcoded credential.
+_PLUGIN_FLAG: Final = "-p"
 
 
 def _child_targets(args: list[str]) -> list[str]:
@@ -2687,6 +2703,19 @@ def _child_narrowings(args: list[str]) -> list[str]:
     after = args[args.index("pytest") + 1 :] if "pytest" in args else args
     selectors = [token for token in after if token.split("=", 1)[0] in _CHILD_NARROWING_FLAGS]
     found.extend(f"the child passes the selector {token!r}" for token in selectors)
+
+    plugins = [
+        after[index + 1]
+        for index, word in enumerate(after)
+        if word == _PLUGIN_FLAG and index + 1 < len(after)
+    ]
+    found.extend(
+        f"the child disables the plugin {argument!r}"
+        for argument in plugins
+        if argument not in _CHILD_PERMITTED_PLUGIN_ARGUMENTS
+    )
+    if len(plugins) != after.count(_PLUGIN_FLAG):
+        found.append("the child writes a bare -p with no argument after it")
 
     return sorted(found)
 
@@ -2759,6 +2788,18 @@ def test_a_narrowed_child_command_is_named_rather_than_walked_past() -> None:
         "a name expression": [*shipped, "-k", "not header"],
         # Collection only, which makes every assertion about a run vacuous.
         "collection only": [*shipped, "--collect-only"],
+        # A plugin disabled by name. MEASURED: `-p no:unittest` drops
+        # `unittest.TestCase` collection and still exits 0, so the summary line
+        # is identical whether the tests ran or were never seen.
+        "a disabled plugin": [*shipped, "-p", "no:unittest"],
+        # The permitted plugin argument swapped for another, which a rule
+        # phrased as "-p is fine" would wave through.
+        "the permitted -p retargeted": [
+            "no:unittest" if word in _CHILD_PERMITTED_PLUGIN_ARGUMENTS else word for word in shipped
+        ],
+        # A bare -p with nothing after it, which the scan above would otherwise
+        # read as a flag carrying no argument and therefore no narrowing.
+        "a bare -p": [*shipped, "-p"],
     }
 
     escaped: list[str] = []
