@@ -374,6 +374,97 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-09-15 - CS-1083 - CLOSED. The world-token privacy check stopped degrading to silence, and the repair's first cut hollowed the arms it was supposed to protect
+
+**THE DEFECT.** `tools/precommit_gate.py`'s `<pii:world>` check reported a skip and then
+TRUNCATED its own population when the save listing exceeded a 24-file cap, and `emit` still
+returned 0. `Report.skip` appends only to `skipped` and `emit` returns 0 whenever
+`diagnostics` is empty, so nothing on the skip channel could reach the exit status. The live
+library held 28 files against that cap, so the check that exists for non-negotiables 11 and
+12 HAD NOT RUN on any commit made while the library was over it - including four made in
+session 97. The PASS line was read as evidence the check ran, twice.
+
+**THE REMEDY IS COVERAGE FIRST, FAIL-CLOSED SECOND, which is the order the grant preferred.**
+`MAX_SAVE_HEADER_FILES` is now derived from `MAX_SAVE_ROOT_ENTRIES` rather than being a
+separate smaller number, so the header scan reads every save the listing retains and cannot
+block on its own bookkeeping. Past that bound the gate FAILS CLOSED and names it. Four bounds
+now reach the exit status: the file cap, the aggregate header budget, the save-root entry cap,
+and the per-directory retention and examination bounds.
+
+**PROVEN IN PRODUCTION, NOT ONLY IN THE SUITE.** Run by the merger on this box against the
+live library, same file both times:
+
+    base      precommit_gate: PASS - 1 checked, 1 skipped, 0 blocking
+              skipped  <pii:world>  -  more save files than the 24-file cap
+    repaired  precommit_gate: PASS - 1 checked, 0 skipped, 0 blocking
+
+and the merge commit itself printed `PASS - 4 checked, 0 skipped, 0 blocking`.
+
+**THE FEASIBILITY THE GRANT LEFT UNPROVEN WAS MEASURED BEFORE ANY CODE WAS WRITTEN.** Reading
+the WHOLE population through the gate's own reader: 28 of 28 headers, 0 unreadable, 0.0025
+seconds total, slowest single read 0.0002 seconds - about 1971 times inside the aggregate
+budget. That is what made fail-closed safe to ship: on this box it will essentially never
+fire, and a gate that failed closed here would block every commit.
+
+**THE FIRST CUT WAS REFUTED, AND THE REFUTATION IS THE MOST IMPORTANT THING IN THIS RECORD.**
+Making coverage failures exit non-zero HOLLOWED the CS-436 fail-open regression arms. Their
+fixture then exited 1 unconditionally, and the coverage diagnostic's own reason ends "so a
+world token from an older save is not matchable" - so `returncode == 1` and
+`"world token" in stderr` were both satisfied WITH WORLD-TOKEN DETECTION COMPLETELY
+DESTROYED. Measured: with the token read replaced by a bare header read, the two arms
+reported 2 passed, exit 0. Their docstrings say "This is the shape the adversary used to pin
+the fail-open". The control that had made them potent -
+`test_an_over_cap_directory_does_not_stop_the_gate_starting`, which asserted exit 0 for a
+clean file under the same fixture - was inverted by this very change.
+
+**THE REPAIR SEPARATES LEAK FROM COVERAGE BY IDENTITY, NEVER BY SUBSTRING.** A leak is
+reported against the checked unit's label at a real line and column; the coverage report is
+against `<pii:world>` at 0:0. Label, position and reason are all asserted, and each arm also
+asserts the coverage report IS present, so an arm that stopped crossing the bound reddens
+rather than passing under the cap. Neither arm was weakened and neither was deleted.
+
+**THE ENUMERATION IS WHY THIS CLOSED RATHER THAN LOOPED, and it found one the adversary had
+not.** All 18 arms over the over-bound fixtures were swept against five mutants. THREE were
+affected: the two the adversary named, and
+`test_a_world_name_in_the_newest_save_past_the_entry_cap_is_still_blocked`, which was HALF
+hollowed - its exit-code claim went vacuous while its substring claim still bound. The other
+fifteen assert on the stdout skip channel or on the account-id and world-name channels and
+were untouched. **A mutation applied as a pair grades the pair, never each half** - the same
+lesson CS-1081 recorded one directory over, arrived at twice in one session by two different
+routes.
+
+**VERIFIED BY THE MERGER INDEPENDENTLY OF THE BUILDER'S REPORT.** Pristine floor 3 passed,
+exit 0. With token detection destroyed the two token arms go RED and the world-name arm
+correctly stays green, because a token-channel mutation is not its subject. The gate was
+restored from a byte snapshot and its sha256 verified equal after every run.
+
+**WHAT WAS DECLINED, DELIBERATELY, AND IS NOW FILED AS CS-1087.** An unreadable header stays a
+NON-blocking skip. Non-negotiable 7 says unknown content is flagged and skipped, never fatal,
+and blocking on an unparseable save would wedge the gate permanently on a file non-negotiable
+1 forbids it to remove, and intermittently on every autosave in flight. An adversary ruled the
+declination SOUND but recorded that the residue is real: a leaked token carried only by a
+corrupt save still reaches a silent PASS. That residue had no item; it does now.
+
+**MERGED FILES.** `tools/precommit_gate.py` under the recorded section 6 grant, plus
+`tests/test_precommit_gate.py`, `tests/toolpath_guard.py` and `tests/test_docs_citations.py`.
+The last two were outside the slice's declared write-list and were reported rather than folded
+in silently. `tests/toolpath_guard.py` is two moved line numbers with byte-identical reason
+strings. `tests/test_docs_citations.py` is a genuine LOOSENING: two digest-anchored pins
+became two `NO_TARGET` forgiveness records. Both pins were ALREADY WRONG at the base commit -
+verified independently, line 704 held the header budget constant and 1802 a docstring line,
+neither matching the prose that cited them - the guard's own message forbids re-cutting a
+digest and names adjudication as the route, and the forgiveness budget is unchanged at two out
+and two in. Sound, and recorded as a loosening anyway.
+
+**A SIZE-GATE TRAP THIS SHIPPED IS FILED AS CS-1088 RATHER THAN LEFT IN A COMMIT MESSAGE.**
+`tests/test_docs_citations.py` is now 262123 bytes against a 262144-byte ceiling. TWENTY-ONE
+bytes. The next adjudicated disposition reddens that gate.
+
+**GATES.** `tests/test_precommit_gate.py` 145 passed. Full suite in three foreground chunks
+whose partition was checked rather than assumed - 1561, 724 and 5496 passed with 7 skipped,
+7788 items, exactly the count a single-command run collected. `ruff check`, `ruff format
+--check` and `mypy` all clean.
+
 ### 2026-09-15 - CS-1062 - CLOSED. The routing index came off its ceiling by relocation, and the arm now reddens on APPROACH rather than on arrival
 
 **THE STATE THIS CLOSED.** `docs/item_notes.md` was 16373 bytes against a 16384-byte
