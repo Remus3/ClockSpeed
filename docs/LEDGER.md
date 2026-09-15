@@ -392,6 +392,11 @@ that module's own passing count.
 | 1 | 160 | 223 | 276 | guards 276 |
 | 2 | 149 | 286 | 282 | fast 286 |
 | 3 | 160 | 295 | 275 | fast 295 |
+| 4 | 164 | 264 | 295 | guards 295 |
+
+READING 4 IS ON THE CLOSING COMMIT RATHER THAN THE SHIPPING ONE and it CORRECTS the
+sentence below: across four readings the worst job is `fast` twice and `guards` twice,
+both peaking at 295. The worst job is not stably one job, which is CS-1084.
 
 **THE WORST JOB IS `fast`, NOT `save`, WHICH IS WHAT THE AMENDED CLAUSE PREDICTED.** The
 save shard is now the LEAST of the three on every reading and its own spread is 11
