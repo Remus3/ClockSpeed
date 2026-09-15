@@ -194,7 +194,10 @@ touches the 23529.
   CS-868, CS-869, CS-870 and CS-871 joined the PREP set the same day - the first three from
   an adversarial pass that REFUTED CS-863's two arms, the fourth from the adjudication of
   CS-866. They are the harness that will grade the DRAIN half when the gate clears, and
-  every one of them is worth doing before it does.
+  every one of them is worth doing before it does. THREE OF THAT FOUR HAVE SINCE CLOSED -
+  CS-868, CS-869 and CS-870, each with its own entry in `docs/LEDGER.md` - so CS-871 is the
+  only one of them still OPEN. The sentence above records when they JOINED the set, not
+  what is left in it.
 - CS-862, CS-863 and CS-866 are done - see `docs/LEDGER.md`, INCLUDING THE CORRECTIONS.
   CS-862's record is corrected twice and CS-863's once, and all three corrections narrow
   what the arms are shown to grade rather than widening it. Read the corrections before

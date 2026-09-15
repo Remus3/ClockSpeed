@@ -3641,6 +3641,23 @@ def _classify_graded_population(
 #: again, so nothing here picks one.
 _CEILING_CONTROL_FLOOR: Final = 2
 
+#: CS-870's MUTANT SEAM, and it is a seam rather than an edit to the file on disk
+#: for the reason :class:`_EarlyTerminator` states next door: the harness Bash
+#: timeout KILLS rather than unwinds, so a mutation applied to a tracked file can
+#: outlive the run that made it and poison every later measurement.
+#:
+#: WHEN False, :func:`_run_ceiling_control` SKIPS the restore it owes after each
+#: measured record and returns with the module still degraded. That is the exact
+#: mutation CS-870 was filed over: the trailing ``_install_ceiling(original)``
+#: deleted from the record loop, which a direct call proved leaves the shipped
+#: ceiling replaced by the control's own value while the arm reported 1 passed
+#: EXIT 0.
+#:
+#: NEVER False OUTSIDE
+#: :func:`test_skipping_the_ceiling_controls_own_restore_reddens_the_revert_assertion`,
+#: which arms it through the fixture so a raise still restores it at teardown.
+_CEILING_CONTROL_RESTORES: bool = True
+
 
 @dataclass
 class _CeilingCounts:
@@ -3848,6 +3865,11 @@ def _run_ceiling_control(original: int, planted: int) -> _CeilingResult | None:
     anti-monotone control went vacuous and said so in a reason line nobody was
     reading. The table control at least went red about it.
 
+    THE RESTORE AFTER EACH MEASURED RECORD IS THIS FUNCTION'S OWN OBLIGATION and
+    is graded as one - CS-870. It is skippable through
+    :data:`_CEILING_CONTROL_RESTORES`, which exists only so the arm that grades
+    the obligation can mutate it in process rather than on disk.
+
     Args:
         original: The shipped ceiling, restored around each planted measurement.
         planted: The ceiling to install while the plant is armed, DERIVED from
@@ -3894,7 +3916,12 @@ def _run_ceiling_control(original: int, planted: int) -> _CeilingResult | None:
             _install_ceiling(planted)
             planted_reads += 1
             _fold_ceiling_control(body, record, mine[index], counts, degraded=True)
-            _install_ceiling(original)
+            # THE RESTORE THIS CONTROL OWES, AND THE ONE THING IT USED TO BE ABLE
+            # TO SKIP UNGRADED - CS-870. It is read through the module attribute
+            # rather than captured once, so the seam can be armed by the fixture
+            # in the arm below.
+            if _CEILING_CONTROL_RESTORES:
+                _install_ceiling(original)
     graded, set_aside_pairs, set_aside_records = _grade_the_pair_this_module_can_read(by_pair)
     return _CeilingResult(
         pairs=len(by_pair),
@@ -3932,6 +3959,14 @@ def test_a_stricter_shared_ceiling_cannot_improve_this_modules_grade(
     THE PLANT IS ASSERTED TO HAVE LANDED, TO HAVE FIRED AND TO HAVE BEEN
     REVERTED, because a plant that never applied and one that was survived
     produce identical output.
+
+    THE REVERT CLAUSE IS GRADED AGAINST THE CONTROL AND IT USED TO BE GRADED
+    AGAINST THE FIXTURE - CS-870. The control installs the ceiling itself, so the
+    reading that decides the clause is taken BEFORE ``monkeypatch.undo()``; a
+    reading taken after it is a statement about ``monkeypatch``. What proves the
+    clause has teeth is
+    :func:`test_skipping_the_ceiling_controls_own_restore_reddens_the_revert_assertion`,
+    which arms :data:`_CEILING_CONTROL_RESTORES` and requires this arm to redden.
 
     NO EVIDENCE IS A SKIP, so this opens with the shared sweep guard for the
     reason
@@ -3974,13 +4009,31 @@ def test_a_stricter_shared_ceiling_cannot_improve_this_modules_grade(
 
     result = _run_ceiling_control(original, planted)
 
-    # THE REVERT IS ASSERTED BEFORE ANY SKIP CAN LEAVE, and the ordering is the
-    # repair rather than a tidy-up: a skip taken while the module is still
+    # WHAT THE CONTROL LEFT, READ BEFORE `monkeypatch` CAN ANSWER FOR IT - CS-870.
+    # The old form read the module only AFTER `undo()` and then asserted it held
+    # the shipped value, which is a statement about `monkeypatch` and cannot fail
+    # while `monkeypatch` works. The control installs the ceiling ITSELF and owes
+    # the restore itself, so the evidence has to be taken before the fixture's net
+    # closes - and `monkeypatch` had saved this very value, so there was no reading
+    # after `undo()` that could ever have differed.
+    left_by_the_control = objects._MAX_TAGS_PER_PAYLOAD  # noqa: SLF001
+
+    # THE UNDO STILL COMES BEFORE ANY SKIP CAN LEAVE, and the ordering is the
+    # earlier repair rather than a tidy-up: a skip taken while the module is still
     # planted would leave the revert unchecked on exactly the corpora that skip.
+    # It also runs before the assertion below, so a control that DID leave the
+    # module degraded is reported on a tree this fixture has already repaired.
     monkeypatch.undo()
+    assert left_by_the_control == original, (
+        f"the shared tag ceiling was NOT restored by the control, which returned with "
+        f"{left_by_the_control} installed rather than the shipped {original}. Every later "
+        "measurement in this process would be taken against a degraded module, and the "
+        "fixture's own teardown hides that rather than reporting it"
+    )
     assert original == objects._MAX_TAGS_PER_PAYLOAD, (  # noqa: SLF001
-        "the shared tag ceiling was NOT restored, so every later measurement in this "
-        "process is taken against a degraded module"
+        "the fixture's undo did not restore the shared tag ceiling. THIS IS THE NET, NOT "
+        "THE GRADE - the line above is what grades the control; this one fails only if "
+        "`monkeypatch` itself stopped working"
     )
 
     if result is None:
@@ -4093,6 +4146,84 @@ def test_a_stricter_shared_ceiling_cannot_improve_this_modules_grade(
             f"{result.chosen.independent_degraded}. THE CHECK IS STILL ANTI-MONOTONE: "
             "the population shrank with the constant instead of the grade going red"
         )
+
+
+def test_skipping_the_ceiling_controls_own_restore_reddens_the_revert_assertion(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """CS-870 - the revert is graded against the CONTROL, not against `monkeypatch`.
+
+    THE DEFECT THIS PINS. The arm above read the shipped ceiling only AFTER
+    ``monkeypatch.undo()`` had already restored it, and then asserted it was the
+    shipped value. That assertion cannot fail while ``monkeypatch`` works,
+    whatever :func:`_run_ceiling_control` left installed - so the control's own
+    restore was ungraded, and the item records a direct call proving the control
+    really can return with the module degraded and the arm still report 1 passed
+    EXIT 0.
+
+    THE TWO LEGS, and neither is the other's evidence. The FLOOR runs the control
+    unmutated and requires it to leave the shipped ceiling installed, which is
+    what makes the mutation below a real change of behaviour rather than a change
+    of nothing. The TEETH arm the seam and require the arm above to go RED - and
+    to go red on the REVERT assertion specifically, which is what ``match``
+    pins, because an arm reddening somewhere else would prove nothing about this
+    clause.
+
+    THE FLOOR ALSO ASSERTS THE CONTROL MEASURED SOMETHING. A run that folded no
+    save arms nothing, and the seam would then leave the shipped ceiling in place
+    by accident; that case reaches the teeth leg as DID NOT RAISE, which is a red
+    rather than a false green, and the floor names it directly rather than leaving
+    it to be inferred.
+
+    THE SEAM IS ARMED THROUGH THE FIXTURE so a raise between the arming and the
+    teardown still restores it, and the ceiling itself is restored in a ``finally``
+    on top of that - the arm under test installs a ceiling on a SHIPPED module, so
+    a leak here is a leak into every later measurement in this process.
+
+    NO EVIDENCE IS A SKIP, on the same terms as its subject: the arm above opens
+    with :func:`_sweep_or_skip` and may skip before the control ever runs, and that
+    ``Skipped`` propagates through this arm unchanged rather than being reported as
+    a missing red.
+    """
+    sweep = _sweep_or_skip()
+    planted = _derive_ceiling_control_tags(
+        max_payload_tags=sweep.max_payload_tags,
+        median_payload_tags=sweep.median_payload_tags,
+    )
+    if planted is None:
+        pytest.skip(
+            "no ceiling this corpus admits is both a degradation and not a kill, so the "
+            "arm under test skips before its control runs and there is no restore to grade"
+        )
+    original = objects._MAX_TAGS_PER_PAYLOAD  # noqa: SLF001
+    try:
+        floor = _run_ceiling_control(original, planted)
+        if floor is None:
+            pytest.skip(
+                "no save library on this machine - the control has nothing to plant and "
+                "nothing to restore"
+            )
+        assert floor.planted_reads > 0, (
+            "the unmutated control armed the plant for no measurement at all, so it had "
+            "no restore to owe and the mutation below would change nothing. A skipped "
+            "restore and a restore that was never reached are the same output"
+        )
+        left_unmutated = objects._MAX_TAGS_PER_PAYLOAD  # noqa: SLF001
+        assert left_unmutated == original, (
+            f"the UNMUTATED control returned with the shared tag ceiling at "
+            f"{left_unmutated} rather than the shipped {original}, so the mutation below "
+            "is not what degrades the module and the red it produces would be the "
+            "control's own defect rather than the seam's"
+        )
+
+        monkeypatch.setattr(sys.modules[__name__], "_CEILING_CONTROL_RESTORES", False)
+        with (
+            pytest.MonkeyPatch.context() as inner,
+            pytest.raises(AssertionError, match="was NOT restored"),
+        ):
+            test_a_stricter_shared_ceiling_cannot_improve_this_modules_grade(inner)
+    finally:
+        _install_ceiling(original)
 
 
 def test_the_ceiling_controls_skip_forgives_only_a_plant_that_cost_nothing() -> None:

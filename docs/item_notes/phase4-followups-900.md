@@ -2062,3 +2062,37 @@ whether any of them was a reader rather than a width.
 a grading apparatus that cannot see a reading it did not expect - one through a module
 boundary, one through a cache. Shipping either alone is a partial and is recorded as one.
 
+## CS-1074
+
+### NOTE - filed 2026-09-14 by the queue lane from the CS-870 verifier pass, MEASURED BEFORE FILING
+
+**THE ARM IS `tests/save/test_struct_controls.py::test_degrading_the_shipped_tag_reader_cannot_improve_this_modules_grade`.**
+Its docstring says four things are asserted, the fourth being that the revert LANDED. The
+line that is meant to carry it reads `objects._payload_text` after `monkeypatch.undo()` and
+asserts it is the original, under the message "the shipped reader was NOT restored, so every
+later measurement in this process is taken against a degraded module".
+
+**WHY THIS IS NOT CS-870 AND THE DISTINCTION IS THE WHOLE ITEM.** CS-870's arm had a control
+that installed and restored the ceiling ITSELF, so there was a real obligation going
+ungraded and a real defect route - a control returning degraded. Here there is not: that
+module holds exactly one `monkeypatch.setattr`, nothing else writes `objects._payload_text`,
+and neither `_run_degradation_control` nor `_run_table_degradation_control` touches a
+shipped attribute. So no restore is owed by anything except the fixture, and the assertion
+is a NET rather than a grade. **DO NOT FILE THIS AS AN UNGRADED DEFECT ROUTE** - it is a
+message claiming more than its subject can fail on.
+
+**WHAT MAKES IT WORTH A ROW RATHER THAN A COMMENT.** Next door, that exact wording is what
+let CS-870's clause read as covered for three sessions. A message that names a consequence
+the assertion cannot detect is the thing an adversary has to re-derive from scratch every
+time, because the prose answers the question the code does not.
+
+**THE TWO HONEST ENDINGS, and the acceptance admits either.** Either the arm gains a reading
+the fixture does not supply and the message keeps its claim - which requires something in
+that module to own a restore, and nothing does today, so this is the weaker option - or the
+message is narrowed to what a fixture teardown proves and the docstring's fourth assertion
+is restated as the net it is. CS-870's repair took the second route for its own net line and
+left the first to the control it actually grades.
+
+**DO NOT REPAIR THIS BY DELETING THE ASSERTION.** A net that cannot fail is still worth
+running; what is wrong is the sentence, and an arm that reddens when the two claims are
+swapped is what the clause asks for.

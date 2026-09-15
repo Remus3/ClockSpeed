@@ -1364,26 +1364,6 @@ to skip it. Both have been tried and both are recorded as wrong. It is a request
 the per-word residue in evidence that does not depend on which saves the operator's library
 happens to hold at the moment the suite runs.
 
-## CS-870
-
-### Filed 2026-08-31 (session 53), from the same pass
-
-**THE REVERT ASSERTION GRADES `monkeypatch`, NOT THE CONTROL.** In
-`test_a_stricter_shared_ceiling_cannot_improve_this_modules_grade`, `monkeypatch.undo()`
-restores the value `monkeypatch.setattr` saved, and the next line asserts that value is
-what the module now carries. It cannot fail while `monkeypatch` works, whatever
-`_run_ceiling_control` did.
-
-**AND THE CONTROL REALLY CAN LEAVE THE MODULE DEGRADED.** Proven by direct call rather than
-by the mutant alone: with the trailing `_install_ceiling(original)` deleted from the
-control's record loop, a direct call leaves the ceiling installed at the control's own
-value instead of the shipped one, and the arm still reports 1 passed EXIT 0. The docstring
-claiming the plant is asserted to have landed, fired and been reverted is two thirds true.
-
-**WHY IT MATTERS BEYOND THE ARM.** A control that leaves a shipped constant degraded
-poisons every later measurement in the same process. `monkeypatch` happens to save the
-session here, which is exactly why the arm cannot notice that it is doing all the work.
-
 ## CS-871
 
 ### Filed 2026-08-31 (session 53), from the CS-866 adjudication

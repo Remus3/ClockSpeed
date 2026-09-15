@@ -374,6 +374,150 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-09-14 - CS-870 - CLOSED. The revert clause is graded against the control, and the fixture that used to answer for it is now named as the net rather than the grade
+
+**THE DEFECT.** `tests/save/test_struct_interior.py::test_a_stricter_shared_ceiling_cannot_improve_this_modules_grade`
+claimed to assert that its plant had been reverted. It read
+`objects._MAX_TAGS_PER_PAYLOAD` only AFTER `monkeypatch.undo()`, and the `setattr` that
+registered that undo had written the shipped value back over itself - so the assertion
+compared a value monkeypatch had just restored against the same value, and could not fail
+while monkeypatch worked. `_run_ceiling_control` installs and restores the ceiling ITSELF,
+so the obligation the clause names belonged to the control and nothing graded it.
+
+**ROOT CAUSE, and it is the ORDER of two lines rather than either line.** Evidence about a
+restore the control owes has to be taken before the fixture's net closes. Once `undo()` has
+run there is no reading left that could differ.
+
+**WHAT CHANGED.** `left_by_the_control` is read immediately after the control returns and
+before `undo()`, and that reading is what the revert assertion grades. The post-undo
+assertion is kept and its message now says what it is - the net, failing only if
+`monkeypatch` itself stopped working. `_run_ceiling_control` grew one mutant seam,
+`_CEILING_CONTROL_RESTORES`, guarding the trailing `_install_ceiling(original)` in its
+record loop; at its default the path is behaviourally identical to the unconditional line
+it replaced. The seam is in process and never on disk for the reason `_EarlyTerminator`
+states next door: the harness Bash timeout kills rather than unwinds, so a mutation applied
+to a tracked file can outlive the run that made it.
+
+**PROVEN BY** `tests/save/test_struct_interior.py::test_skipping_the_ceiling_controls_own_restore_reddens_the_revert_assertion`.
+It arms the seam through the fixture and requires the arm above to raise, matching on the
+revert message so an arm reddening elsewhere proves nothing. It runs a PRISTINE FLOOR first
+- the unmutated control leaves the shipped ceiling installed and `planted_reads` is above
+zero - because a restore that was skipped and a restore that was never reached are the same
+output. Merged file: `tests/save/test_struct_interior.py`.
+
+**THE FAILING TEST CAME FIRST and its failure line is the defect stated exactly.** With the
+seam added and the arm's reading still taken after `undo()`, the new arm reported
+`Failed: DID NOT RAISE <class 'AssertionError'>` at its `pytest.raises` line, exit 1. Both
+floor legs passed in that run, so the red was the missing grade and not the corpus.
+
+**THE MUTATION'S ONLY OBSERVABLE EFFECT IS THE CEILING LEFT AT RETURN, and that is the
+whole defect rather than a weakness in the mutant.** The record loop installs the shipped
+ceiling at its TOP as well, so skipping the trailing restore changes no measurement inside
+the loop; what it changes is the state the control hands back, which is exactly what the
+item filed - a control that returns degraded poisons every later measurement in the same
+process while the arm reports 1 passed EXIT 0.
+
+**SIBLING SWEEP - THE SHAPE IS SHARED AND THE DEFECT ROUTE IS NOT.** `monkeypatch.undo()`
+appears at eight sites under `tests/`. Only
+`tests/save/test_struct_controls.py::test_degrading_the_shipped_tag_reader_cannot_improve_this_modules_grade`
+shares the textual form, and it is left alone on measurement: that module holds exactly one
+`monkeypatch.setattr` and no other write to `objects._payload_text`, and neither
+`_run_degradation_control` nor `_run_table_degradation_control` touches a shipped
+attribute, so no control-owned restore exists there for an assertion to grade. The route
+this item repairs requires a helper that toggles a shipped attribute itself, and
+`_install_ceiling` is the only such helper in `tests/` that runs in the test process -
+`tests/data/test_phase2_gate.py::_PROBE_REFUSE` is a second textual `setattr` on a shipped
+module and is not a candidate, because that constant is a source string executed in a fresh
+child interpreter that exits.
+
+**WHAT IS FILED RATHER THAN FIXED.** CS-1074 - `test_struct_controls.py`'s own revert
+assertion is only a net and its message still presents as the grade. That is prose against
+a different arm and is outside this row.
+
+**TIER 2, AND EVERY FIGURE HERE WAS OBSERVED BY THE CYCLE THAT WROTE THE LINE CARRYING IT.**
+The SHIPPING cycle ran `python -m pytest tests/save/test_struct_interior.py -q` and read
+`40 passed in 64.07s (0:01:04)`, exit 0, zero skipped; and the two arms alone,
+`2 passed, 38 deselected in 39.52s`, exit 0. Its verifier re-ran the module independently
+and read `40 passed in 62.23s (0:01:02)`, exit 0, with the `-rs` section EMPTY - which is
+the reading that matters, because an arm that skips proves nothing and this module has
+seventeen siblings that skip on a corpus without a library. The verifier also measured the
+new arm's MARGINAL cost by difference - subject arm alone `1 passed in 29.80s`, both arms
+`2 passed in 38.91s`, so 9.11 seconds. That lands on `tests/save`, the shard CS-1073
+records as the lane's binding reading with a ten-second margin. NOTHING GOES RED FOR IT -
+`tests/test_tier1_budget.py` warns rather than fails and the budget it pins is not that
+figure - but the margin CS-1073 was filed over is now substantially spent, and the next
+save-side row inherits that.
+
+**THIS ROW WAS AUTHORED BY ONE CYCLE, PREPARED BY A SECOND, AND SHIPPED BY A THIRD, and
+the chain is recorded here because the ledger is the only thing a later session reads.**
+The AUTHORING cycle wrote every line of the work and the first draft of this entry, then
+ended before its commit. A SECOND cycle reclaimed the row, dispatched a verifier of its
+own and rewrote this paragraph and the one below - and then ALSO ended before its commit,
+leaving both narrating passes nothing surviving could attest to. The THIRD cycle found the
+claim RECLAIMABLE on the pid probe exactly as `ops/loop/claims.py` documents, reclaimed
+CS-870, dispatched its own verifier, replaced every unattested reading with one it read
+itself, and shipped. It produced none of the work, which is why it was free to grade it.
+**THE COUNT IS A FLOOR, NOT A TOTAL** - a reclaim overwrites the claim record and
+`ops/loop/control/` keeps no history, so the shipping cycle's verifier could confirm that
+at least one reclaim had occurred but could not re-derive how many cycles died. Three is
+what the surviving evidence names.
+
+**THE CONSEQUENCE FOR THE DRIVER'S SCOPE CHECK, stated rather than left to be noticed:**
+the permit is computed before a cycle starts, from a tree whose `ROADMAP.md` had already
+lost this line in the AUTHORING cycle's uncommitted diff, so the shipping cycle's row
+reads as one this lane was not permitted to take. It was permitted - the line is present
+at base `11f37d2`, the row carries no closure record there, and
+`claims.try_claim_row('CS-870', ...)` returned `ok: true`. This is the computed permit
+being blind to an uncommitted tree rather than a lane taking a row out of scope, and the
+same will be true of any row a crashed cycle leaves half-applied.
+
+**VERIFIER: CONFIRM**, by an agent that produced none of it, dispatched by the SHIPPING
+cycle against a FROZEN working tree at base `11f37d2` - `git status --porcelain` at eight
+modified files and no untracked file, and `git diff | sha256sum` at
+`02101ab36a20fd814213f1218b4a07a40b9d0d320827041ad013cd0f4dc299da`, both read at the start
+AND at the end of the pass and IDENTICAL, so the verdict is about a state that existed.
+It re-derived the mutant by DIRECT CALL in a throwaway process rather than taking the
+claim: with the seam armed the control returned leaving the planted ceiling installed at
+2, with it at the default the shipped 16384, and `planted_reads` at 210576 in BOTH legs
+over 28 folded saves. That identity is the load-bearing reading - it is independent proof
+that the mutation changes NO measurement inside the loop and changes ONLY the state handed
+back, which is the defect as filed. It confirmed the raise lands at the revert assertion
+itself rather than elsewhere, and that `was NOT restored` names exactly one assertion
+message in this module. It re-read the pre-change form at `11f37d2` and confirmed the old
+assertion was structurally unfailable: the `setattr` saved the value bound to `original`,
+so no post-`undo()` reading could ever have differed. It re-derived the sibling sweep at
+EIGHT call sites, confirmed `_install_ceiling` is the only in-process shipped-attribute
+writer under `tests/`, and confirmed CS-1074 absent at `11f37d2` and filed consistently in
+all three owner files.
+
+**IT RAISED NO BLOCKING FINDING AND SIX NON-BLOCKING ONES, AND THREE OF THOSE WERE AGAINST
+THIS ENTRY.** They were right and this revision is the repair: a clause claiming a reading
+was `observed by the cycle that committed this` when nothing had committed it; a
+`VERIFIER: CONFIRM` paragraph narrating the second cycle's pass, which no surviving agent
+attests to; and a crash narrative naming two cycles where the entry's own contents implied
+at least three. Every figure above is now one the shipping cycle or its own verifier read.
+The other three are out of row and left alone: `ROADMAP.md` over its doc budget, which is
+pre-existing and which this diff makes one line shorter; the nine-second cost, which is
+declared above rather than hidden; and a `:class:` role this diff ADDS at
+`tests/save/test_struct_interior.py` naming `_EarlyTerminator`, which is defined in
+`tests/save/test_struct_controls.py`. That last one is a third instance of a shape already
+present at HEAD twice in the same neighbourhood, and CS-871's acceptance covers `:func:`
+and `:data:` only, so no guard will ever see it - recorded here rather than filed, because
+widening CS-871's clause is CS-871's business and not this row's.
+
+**WHAT NO SURVIVING AGENT CAN ATTEST TO, NAMED RATHER THAN DROPPED.** The authoring
+cycle's own account of the failing-test-first order - the new arm reporting
+`Failed: DID NOT RAISE <class 'AssertionError'>` at its `pytest.raises` line, exit 1, with
+both floor legs passing - is reported here as THAT CYCLE'S CLAIM. Reproducing it requires
+mutating the tree the verifier was forbidden to touch, so it is unverified rather than
+refuted. The same applies to the two dead cycles' timing figures, which are not carried
+forward at all. The bounded-refutation rule is satisfied by the single pass the shipping
+cycle dispatched and observed; the earlier passes are not counted, because nothing that
+survived them can say what they read.
+
+**CI IS RECORDED BY THE DRIVER AND WAS NOT OBSERVED BY THIS WORKER.** `ops/loop/queue_loop.py`
+resolves the pushed head and writes the verdict into this cycle's row.
+
 ### 2026-09-14 - CS-1060 - CLOSED. Tier 1 went 583 seconds to a worst job of 310, by partition and trimming with no threshold touched - and the clause nearly closed on a reading of the runner pool that was backwards
 
 **WHAT CHANGED.** `.github/workflows/tier1.yml` runs THREE jobs where it ran two. A new `guards`
