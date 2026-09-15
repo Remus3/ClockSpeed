@@ -1118,6 +1118,47 @@ def test_a_classification_line_outside_the_sentinels_classifies_nothing(
     assert scope.gated_ids(root) == frozenset({"CS-410", "CS-470"})
 
 
+def test_prose_that_quotes_a_sentinel_does_not_open_the_block(
+    tmp_path: Path,
+) -> None:
+    """THE SENTINEL IS MATCHED WHOLE, NEVER AS A SUBSTRING.
+
+    `docs/GATED.md` is the file most likely to DOCUMENT this mechanism, and a
+    sentence naming the BEGIN sentinel is the obvious way to document it. If the
+    match were a containment test rather than an equality, that sentence would
+    OPEN the block over ordinary prose, and the next line spelled like a
+    classification would unfence a genuinely blocked row - fail-open, silently,
+    in the one file whose whole job is to fence rows.
+
+    THIS IS THE SIBLING LEVER OF
+    ``test_a_classification_line_outside_the_sentinels_classifies_nothing`` AND
+    IT IS A SEPARATE ARM BECAUSE IT DIED SEPARATELY. That arm was repaired to
+    plant parser-matching lines around the sentinels, and an adversary then
+    turned both ``stripped == _CLASSIFY_BEGIN`` and the END comparison into
+    ``in`` tests and watched the WHOLE of `tests/ops` stay at 146 passed,
+    exit 0. Containment and equality are two levers and one plant cannot reach
+    both.
+
+    Args:
+        tmp_path: pytest temporary directory.
+    """
+    root = _write_corpus(tmp_path, {})
+    quoting = (
+        _GATE_PROSE
+        + "\nThe classifier opens at "
+        + _BEGIN
+        + " and this sentence is prose.\n"
+        + "gate: CS-410 MENTIONED\n"
+    )
+    (root / "docs" / "GATED.md").write_bytes(quoting.encode("ascii"))
+
+    classification = scope.gate_classification(root)
+
+    assert classification.mentioned == frozenset()
+    assert classification.unclassified == ("CS-410", "CS-470")
+    assert scope.gated_ids(root) == frozenset({"CS-410", "CS-470"})
+
+
 def test_the_live_gated_file_classifies_every_id_its_own_scan_finds(
     repo_root: Path,
 ) -> None:
