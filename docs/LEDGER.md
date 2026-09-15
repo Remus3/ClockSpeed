@@ -374,6 +374,58 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-09-15 - CS-1073 - CLOSED. Tier 1 stops re-running the save suite inside itself, and the three readings name a DIFFERENT job as worst
+
+**THE MECHANISM.** The tier-1 save shard no longer executes
+`tests/save/test_phase4_gate.py::test_the_save_suite_passes_with_no_install_and_no_save`.
+The module did not move: the pre-push hook collected it at `7771 passed, 7 skipped` on the
+commit that shipped this, and both tier-2 `full suite` legs still run it.
+
+**CLAUSE (a), PROVEN BY COLLECTED COUNT RATHER THAN BY READING THE WORKFLOW.** The save
+shard went `1454 passed, 105 skipped` to `1212 passed, 101 skipped` - 242 fewer, which is
+that module's own passing count.
+
+**CLAUSE (e), THREE RUNS ON ONE TREE, JOB WALL IN SECONDS.**
+
+| reading | save | fast | guards | worst |
+|---|---|---|---|---|
+| 1 | 160 | 223 | 276 | guards 276 |
+| 2 | 149 | 286 | 282 | fast 286 |
+| 3 | 160 | 295 | 275 | fast 295 |
+
+**THE WORST JOB IS `fast`, NOT `save`, WHICH IS WHAT THE AMENDED CLAUSE PREDICTED.** The
+save shard is now the LEAST of the three on every reading and its own spread is 11
+seconds. `fast` carries a 72-SECOND SPREAD ACROSS A BYTE-IDENTICAL TREE - 223 to 295 - so
+the lane's worst reading is a distribution rather than a number, exactly as CS-1060 found
+and exactly why it forbade tuning a threshold against one sample.
+
+**WHAT THIS BOUGHT, STATED HONESTLY AND SMALLER THAN PREDICTED.** The save shard fell 308
+to about 156. The LANE's worst reading fell only 308 to 295, because `fast` was always
+close behind and now sets the figure. Margin against the 320 figure went from about 12
+seconds to about 25. THE ADJUDICATION PREDICTED ABOUT 235 SECONDS OF HEADROOM AND THAT WAS
+WRONG: it read the 220-second test as the critical path, which is the four-worker answer,
+and the runner has TWO workers - so the shard was bound by TOTAL CPU OVER WORKERS and
+removing 220 CPU-seconds from about 572 halved the job instead of collapsing it. The
+predicted 65-second pytest step measured 141.
+
+**THE ITEM'S PURPOSE IS NEVERTHELESS SERVED, AND THIS IS THE CLAUSE THAT MATTERED.**
+CS-1073 existed so CS-1068 could not spend the margin by growing `tests/save`. That growth
+now lands ONLY on the save shard, which holds about 164 seconds of headroom, instead of
+landing twice - once in the shard and once inside a nested child that re-ran the whole
+directory. The save-side growth path is defended. The lane's remaining margin is bound by
+`fast`, which CS-1068 does not touch, and that is CS-1084 rather than this item.
+
+**W IS NOW READ RATHER THAN INFERRED: 2.** A one-line `nproc` plus `os.cpu_count()` echo
+rode along in the save job and both printed 2 on its first execution. Every prior lane
+measurement inferred the worker count from a model fitted to the run it was explaining,
+which was circular by its author's own admission. It is measured now.
+
+**THE RULE THAT SHIPPED WAS THE SECOND ONE.** The first was refuted by an adversary after
+its author had watched four reds - see the preceding CS-1073 entry, which stands as
+written. Containment against tier 2's bare `tests` target covered every path beneath it;
+the shipped rule is an allowlist of (path, item id) permissions, conjunctive with a
+tier-2 cross-check that applies the whole narrowing vocabulary to the tier-2 side.
+
 ### 2026-09-15 - CS-1073 - NOT A COMPLETION RECORD. The partition remedy was refuted by probe, the replacement rule was refuted by an adversary, and the item stays OPEN pending runner readings
 
 **WHAT MERGED.** `.github/workflows/tier1.yml`, `tests/test_tier1_budget.py`,

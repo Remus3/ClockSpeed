@@ -33,6 +33,49 @@ Keep every entry to that shape. If an item needs a paragraph, it needs its own f
 the line becomes a pointer.
 
 ---
+## Session 97 - 2026-09-15 - CS-1073 closed on a remedy its own acceptance did not contain, and BOTH slices this session were refuted by the adversarial pass after every targeted suite was green
+
+- Shipped: CS-1073 CLOSED. CS-1081, CS-1082, CS-1083 and CS-1084 filed. CS-G06 NOT
+  discharged - a discharge was built and discarded unmerged. Detail in `docs/LEDGER.md`.
+- In flight: nothing. `main` clean and pushed, whole suite green through the pre-push hook
+  at 7771 passed 7 skipped, tier 1 green on three separate attempts.
+- TWO OF TWO SLICES WERE REFUTED, AND IN BOTH CASES EVERY TARGETED SUITE, EVERY GATE AND
+  THE BUILDER'S OWN WATCHED REDS WERE GREEN ON THE DEFECT. This is the session's main
+  result. The adversarial pass is the only thing that caught either.
+- THE MERGER'S OWN CONCLUSION WAS THE FIRST THING OVERTURNED. CS-G06 asks for a PROGRESSED
+  world in `corpus/`; the merger measured non-empty unlock state and called it discharged.
+  After CS-G05's decoder repair EVERY world decodes non-empty, so the measurement
+  distinguished nothing. `.gitignore` labels `/corpus/` the pinned reference world's
+  snapshot, the save is byte-identical to one still in the live library, and the session 96
+  handoff said "development-world save" in plain words. Three cheap checks would each have
+  caught it and none was run before a 45-minute slice was dispatched.
+- A CORRECT FIXTURE DOES NOT MAKE A LIVE ARM, MEASURED AGAIN. CS-1073's first tier-2 rule
+  permitted a deletion when a required tier-2 job named a CONTAINING target. Tier 2 runs
+  bare `tests`, so every path beneath it was covered and the rule could refuse nothing it
+  would ever face. `--ignore=tests/save` then left the whole directory in NO tier-1 shard
+  with all 47 arms green, RED at base. The tell was in the author's own evidence: its
+  potency plant had to be spelled `tools/...`. The shipped rule is an allowlist.
+- A LOCAL PROFILE OF A CI SHARD IS INVALID AND LOOKS AUTHORITATIVE. The first profile ran
+  where the save library exists, read `1559 passed, 0 skipped`, and was dominated by a
+  256.89s census that SKIPS on the runner. A partition was computed from it by exact
+  subset-sum to 0.0000 per cent imbalance, optimising a file CI never runs. The second
+  profile counts only because an injected environment reproduced CI's `1454 passed, 105
+  skipped` and then matched all SIXTEEN per-file skip groups, not just the total.
+- Surprises: the adjudication's own arithmetic was wrong by about 2x. It predicted ~65s of
+  pytest and ~235s of headroom by reading the 220s test as the critical path - the
+  FOUR-worker answer. W is 2, now READ from the runner rather than modelled, and the shard
+  was bound by total CPU over workers, so the step measured 141s. The lane's worst reading
+  fell only 308 to 295 because `fast` was always close behind.
+- Failed paths: do not re-attempt the CS-G06 discharge on unlock-state counts. Do not
+  re-pitch containment as the tier-1 deletion rule. Do not profile the save shard without
+  the injected-environment control.
+- Next action: CS-1081 FIRST. It is a LIVE fail-open lever in `main` - the arm that claims
+  to prove a classification line outside the sentinels classifies nothing plants a line
+  carrying no `gate: ` prefix, so `_CLASSIFY_LINE` never matches it and the arm passes with
+  the containment guard DELETED. Nine mutants confirmed it on both trees at 45 passed exit
+  0. It is unrelated to either slice and it is the only item filed this session that is a
+  defect in shipped behaviour rather than in a measurement or a clause.
+
 ## Session 96 - 2026-09-14 - tier 1 went 583s to a worst job of 310s, and every defect that shipped was caught by a gate or an adversary AFTER the targeted suites were green
 
 - Shipped: CS-1060 CLOSED by adjudication, CS-1072 FILED AND CLOSED in one record. CS-1070,
@@ -129,77 +172,3 @@ the line becomes a pointer.
   CS-1048 are both repaired and dispatchable; they still force `docs/ARCHITECTURE.md` and
   still run in sequence with a merger doc-sync, never beside each other. CS-1061 opens on
   an ADJUDICATED SEAM DECISION and no file is scaffolded before that ruling.
-
-## Session 94 - 2026-09-14 - five items closed, eight filed, and every defect that mattered was found by a gate or a mutation rather than by a green suite
-
-- Shipped: CS-1039, CS-1054, CS-1041, CS-1042 and CS-1045 CLOSED. Detail in `docs/LEDGER.md`,
-  not here. Eight items FILED - CS-1051 through CS-1059 - every one found by doing the work.
-- In flight: nothing. Tree clean at `1b652b0`, everything pushed. CI green on `d24fd39`; the
-  run on `1b652b0` was in progress at close and is the first thing to confirm.
-- Decisions: no ADR. Four adjudications, each recorded where it binds. The wire may carry a
-  GAME ASSET path - shipped content identical on every install, and the surface already
-  published class paths on that justification - but guarded at the save seam by an ALLOWLIST,
-  because `ObjectReference.object_path` is also the join key against a record's instance name
-  and nothing structurally separates the two. `mTradingPostLevel` was RE-SITED to CS-1052 with
-  its evidence bar raised rather than dropped from CS-1039's acceptance; rewriting an
-  acceptance to match a delivery was refused by name.
-- Surprises, and it is the finding of the session: THE WHOLE SUITE RAN GREEN - 3153 tests -
-  OVER A READER THAT MATCHED ZERO RECORDS ON EVERY REAL SAVE. CS-1039's first candidate keyed
-  the unlock carriers on C++ DECLARING class names taken from the shipped headers. A save is
-  joined on the SAVE-SIDE type path, which UE writes without the A/U prefix and spells
-  `BP_*_C` for a blueprint carrier. Not one key matched. Every synthetic arm passed.
-- Surprises, second, AND THE REASONING ERROR IS THE REUSABLE PART: the wrong keys came from a
-  note THIS SESSION wrote, which also said DO NOT RE-VERIFY. ADR 0016 was found to carry two
-  false statements and that was taken as licence to prefer the headers over it wholesale. It
-  is not. A header answers WHAT C++ DECLARES; a save answers WHAT IS IN THE FILE. **A document
-  with false statements in it is not a document with no true measurements in it.**
-- Surprises, third: THE SUITE WAS UNDER-MEASURING THE SAVE FORMAT THE OPERATOR PLAYS ON. A
-  test-side tag walk expressed the legacy grammar only and read ZERO sites across all 80801
-  records of version pair (60,14), which the shipped reader reads correctly at 400 of 400
-  sampled records - and it reported that as EVIDENCE DESTROYED. A test oracle blind to a
-  format accuses production loudly. A control had also silently degraded to a SKIP for the
-  same cause. CS-1056 carries the unmeasured half forward.
-- Surprises, fourth: a control PASSED inside the pre-push run and FAILED on the same commit,
-  clean tree, 25 minutes later. One autosave landing between them changed WHICH version pair
-  was graded, by a 3538-record margin. The operator plays while sessions run: a library-backed
-  RED must be re-checked against the base commit before it is blamed on the work in hand, and
-  a library-backed GREEN is evidence only about the library that existed when it ran.
-- TWO BUILDERS REFUSED AN INSTRUCTION AND WERE RIGHT BOTH TIMES. One declined to invent a
-  carrier key where the ADR records none - the exact defect that had refused its own first
-  candidate. The other, handed a defect in its own merged work, wrote a tracer from scratch,
-  proved its module called `copy_for_read` ZERO times, and refused to repair it; the writer was
-  a `clockspeed.surface` process up 24 hours. That guard infers authorship from a wall-clock
-  directory delta and is CS-1055 - and the write tracer its own message tells you to run DOES
-  NOT EXIST in this repo.
-- THREE MASKED CLAUSES, each found by mutation and none by review: a guard whose separator
-  check was shadowed by its root check, a recipe-path refusal shadowed the same way, and a
-  conservation arm that stayed green under a confident-zero mutant because zero gaps still
-  conserves. If removing a check leaves every arm green, an earlier check is refusing the
-  fixture first and your clause is graded by nothing.
-- THE PRE-PUSH GATE BLOCKED FOUR TIMES AND ALL FOUR REFUSALS WERE CORRECT, and not one fault
-  was visible to any targeted run: a closed item still declared in a lane scope, a citation
-  broken across a line wrap reading as a truncated symbol, a redundant assertion mypy called
-  unreachable, and a test file 10274 bytes over the ceiling that guards against a real-save
-  slice being committed. The harness reported "exit code 0" for every one of those blocked
-  pushes - read the log the command wrote, never the notification.
-- Failed paths: do not re-file CS-1042 as blocked on a missing seam - collectables have crossed
-  it all along via the NESTED `ObjectTable`, and the check that said otherwise read only
-  `WorldModel`'s own field list. Do not raise the 262144-byte ceiling on any file under
-  `tests/` - it is the only mechanical thing between this repo and a committed save.
-- Watch - ANCHORING A NEW ROADMAP LINE ON A NEIGHBOURING ID INHERITS THAT ID'S PHASE. Done
-  twice this session, caught twice by the membership rule. Anchor on the phase heading.
-- Watch, second - `tests/test_docs_citations.py` has FOUR BYTES free and it has stopped being
-  a warning: it forced a worse split of `test_struct_interior.py` because the clean three-way
-  seam needed one dispositions entry that did not fit. That is CS-1057. `ROADMAP.md` is at 195
-  percent of its soft budget and `docs/item_notes.md` hit its ceiling mid-session and needed a
-  relocate to keep filing.
-- Watch, third - TEN stale agent worktrees at eight distinct SHAs. Every one reads as merged
-  because a worktree's HEAD is its base while work sits uncommitted. Classify by content; do
-  not prune on that signal, and never delete the one the shell is standing in.
-- Next action: confirm CI on `1b652b0`, then repair the CS-1043 and CS-1048 FILINGS before
-  dispatching either - CS-1048's fog half has no subject in the code at all
-  (`mFogOfWarRawData` has zero hits in any shipped module and `RecordProperties` forbids the
-  bytes it needs), and CS-1043's budget-constant clause cannot redden while the constant is a
-  literal. CS-1043 and CS-1048 are also the two that force `docs/ARCHITECTURE.md`, so they run
-  in sequence with a merger doc-sync, never beside each other.
-
