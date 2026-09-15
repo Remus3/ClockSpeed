@@ -668,7 +668,7 @@ what the plan exists to withhold.
 **S6 - Gate items 3, 5 and 6.** Licence audit against CONVENTIONS 14 over
 `pyproject.toml` and `shell/package.json`; `README.md` gets an outsider from zero
 to a first result; all doc cross-references resolve. **Gate item 6 needs a tool
-BUILT - it does not exist.** `tools/drift_guard.py` has `_link_targets` and
+BUILT - it does not exist.** `tools/drift_guard.py` has `link_targets` and
 `_citation_findings`, but they are called only from `guard_memory` and scoped to
 `memory/`. Nothing resolves markdown links in `docs/`, `CLAUDE.md`, `README.md`
 or `ROADMAP.md`. Budget a build, not a run.

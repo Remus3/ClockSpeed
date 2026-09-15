@@ -2181,3 +2181,76 @@ repair must keep it that way.
 **DO NOT CLOSE THIS BY DELETING THE SHORT CIRCUIT AND WIDENING THE FLOOR TO ABSORB THE NOISE.** A
 guard that reports correct prose is a guard somebody switches off, which is the finding
 `tests/test_docs_citations.py` records about itself in six numbered traps.
+
+
+## CS-1078
+
+### Filed 2026-09-14 (queue lane), from the CS-892 verifier pass, MEASURED BEFORE FILING
+
+**BOTH HALVES WERE MEASURED BY THE VERIFIER, NOT REASONED FROM THE SOURCE.** It confirmed
+CS-892 and then reported these two as residuals it explicitly did not refute on, because
+neither touches the clause CS-892 was graded against. They are filed rather than repaired
+in place for exactly that reason: the row that was open asked for one owner and got one.
+
+**HALF ONE - THE DUPLICATION EXTRACTOR READS ONE ASSIGNMENT FORM.**
+`tests/test_memory_sync_link_derivation.py::_compiled_literals_of_text` walks
+`ast.parse(text).body` and skips every node that is not an `ast.Assign`. An annotated
+assignment is an `ast.AnnAssign`, a different node type, so `_X: Final = re.compile(...)`
+declares a pattern the extractor reports nothing about. That spelling is not hypothetical
+here - `tests/surface/test_acceptance.py::_BACKTICKED` is written as
+`_BACKTICKED: Final = re.compile(...)`,
+so it is the form this repo's own modules already prefer for a module-level constant.
+
+**HALF TWO - THE WALK IS HELD ONLY BY THE DERIVATION BENEATH IT.** The verifier built a
+`tools/memory_sync.py` that re-declares the transitive-through-index walk while still
+calling `drift_guard.link_targets`, and ran the arms against it: `7 passed`, exit 0. That
+mutant is a genuine second copy of the walk. It survives because CS-892's clause proves
+through a link shape taught to ONE COPY of the DERIVATION, and the mutant leaves exactly
+one derivation - so the clause is satisfied while the duplication it was filed against has
+partly grown back. The AST arm does not catch it either, because a duplicated walk carries
+no regex literal.
+
+**WHY THE SECOND HALF IS THE SHARPER ONE.** The first is a blind spot in an extractor and
+is repaired by reading one more node type. The second is a clause that cannot see its own
+subject: the drift class CS-892 removed was TWO THINGS duplicated - the patterns and the
+walk over them - and the arms that survived it grade only the first. A future session
+reading the CS-892 entry will reasonably believe both are held.
+
+**THE PLANT IS ALREADY WRITTEN AND MUST NOT BE RE-ARGUED.** The verifier's mutant is the
+positive control for the second arm: re-declare the walk in `tools/memory_sync.py`, keep
+the `drift_guard.link_targets` call, and require the suite to redden. An arm that cannot
+kill that exact mutant has not closed this row, whatever else it proves.
+
+**DO NOT CLOSE THIS BY ASSERTING A NAME.** `memory_sync.reachability is
+drift_guard.reachable_from_index` is a spelling measure and reports a clean verdict about
+the wrong question the moment a name moves - the same reason CS-892's own arms were written
+behaviourally. `tests/test_memory_sync_link_derivation.py`'s module docstring records that
+choice and the reasoning behind it.
+
+
+## CS-1079
+
+### Filed 2026-09-14 (queue lane), from the CS-892 wrap, MEASURED not argued
+
+**WHAT WAS MEASURED.** `tools/doc_budget.py` and drift guard (a) both report this leaf over
+its soft budget. It was already over at the commit this cycle branched from - the CS-892
+wrap grew it further by appending the CS-1078 section, which is a legitimate append to the
+leaf the routing table names, not the cause. No number is restated here: read both the size
+and the budget from the tool, which is the only place either is owned.
+
+**WHY IT IS FILED RATHER THAN LEFT TO THE WARN.** `ROADMAP.md`'s own size section states the
+rule this leaf inherits: the WARN prints loudly and exits 0, so it fails no CI, and a warn
+nobody acts on enforces nothing. `ROADMAP.md` has CS-971 for exactly that reason. This leaf
+has nobody, so every phase 4 cycle that files a follow-up grows an unowned over-budget file
+and the guard says so into a log nothing reads.
+
+**THE SPLIT AXIS IS ALREADY WRONG AND THAT IS PART OF THE ROW.** The leaf table in
+`docs/item_notes.md` routes this leaf as "ROADMAP `Phase 4`, ID in the `CS-9nn` block", but the routing table
+sends CS-1067 through CS-1078 here too - four-digit ids the declared rule does not describe.
+So the leaf is over budget AND its stated selector no longer matches its contents, and a
+relocation that splits on the declared axis would move nothing. Any split has to restate the
+axis in `docs/item_notes.md` at the same time.
+
+**RELOCATE, NEVER DELETE.** A body is moved verbatim to a new leaf with the routing table
+updated in the same commit, per the rules block in `docs/item_notes.md`. Nothing in this
+leaf is summarised, trimmed or re-ordered on the way out.

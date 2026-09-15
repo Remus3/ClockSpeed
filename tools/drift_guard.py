@@ -567,7 +567,7 @@ _MAX_FENCE_INDENT = 3
 _URL_SCHEME = re.compile(r"^[A-Za-z][A-Za-z0-9+.-]*:")
 
 
-def _link_targets(text: str) -> set[str]:
+def link_targets(text: str) -> set[str]:
     """Every token that can COUNT AS AN INDEX ENTRY, backticked spans included.
 
     This is the REACHABILITY extractor and it is deliberately generous: an
@@ -611,7 +611,7 @@ def _strip_inline_code(line: str) -> str:
     spans, this module's own docstrings carry that token twice, and CS-890's
     lesson is a likely new memory leaf whose natural phrasing quotes it inline.
     The module knew about backtick spans on the reachability side all along -
-    ``_link_targets`` harvests them deliberately - and was blind to them here.
+    ``link_targets`` harvests them deliberately - and was blind to them here.
 
     A span opens on a run of N backticks and closes on the next run of EXACTLY
     N, per CommonMark. An unmatched run is literal text and is left alone.
@@ -743,8 +743,8 @@ def _outside_code(text: str) -> tuple[str, bool]:
 def _citation_targets(body: str) -> list[tuple[str, str]]:
     """Wikilink and markdown-link targets in an ALREADY code-blanked body.
 
-    DELIBERATELY NARROWER THAN ``_link_targets``, AND THAT IS THE WHOLE POINT.
-    ``_link_targets`` also harvests every backticked span, which is right for
+    DELIBERATELY NARROWER THAN ``link_targets``, AND THAT IS THE WHOLE POINT.
+    ``link_targets`` also harvests every backticked span, which is right for
     reachability - see its docstring - and catastrophic for resolution. The
     index today carries ``assert count == 0`` and ``git commit -F`` in
     backticks; a resolution check built on that extractor would demand both
@@ -856,8 +856,28 @@ def _citation_findings(
     return checked, findings, unterminated_files
 
 
-def _reachable_from_index(memory_dir: Path, index: Path, skips: list[Skip]) -> set[str]:
-    """Tokens reachable from the index, transitively through INDEX_*.md files."""
+def reachable_from_index(
+    memory_dir: Path, index: Path, skips: list[Skip] | None = None
+) -> set[str]:
+    """Tokens reachable from the index, transitively through INDEX_*.md files.
+
+    PUBLIC BECAUSE `tools/memory_sync.py` CONSUMES IT - CS-892. That file used
+    to declare its own copy of this walk and of `link_targets` beneath it,
+    byte-identical to these and maintained by nobody, so CS-890's repair of the
+    guard's copy never reached it. One owner, one consumer, and the arms that
+    hold the seam live in `tests/test_memory_sync_link_derivation.py`.
+
+    Args:
+        memory_dir: The memory store's directory.
+        index: The index file the walk starts from.
+        skips: Where an unreadable index is recorded, when the caller keeps a
+            skip list. OPTIONAL rather than required: a consumer that reports
+            no skips would otherwise have to invent a list to throw away, and
+            the guard's own callers still pass theirs.
+
+    Returns:
+        Every lowercased token reachable from the index.
+    """
     reachable: set[str] = set()
     frontier = [index]
     visited: set[str] = set()
@@ -870,9 +890,12 @@ def _reachable_from_index(memory_dir: Path, index: Path, skips: list[Skip]) -> s
         try:
             text = current.read_text(encoding="utf-8", errors="replace")
         except OSError as exc:
-            skips.append({"path": current.name, "reason": f"unreadable index: {_exc_text(exc)}"})
+            if skips is not None:
+                skips.append(
+                    {"path": current.name, "reason": f"unreadable index: {_exc_text(exc)}"}
+                )
             continue
-        for token in _link_targets(text):
+        for token in link_targets(text):
             reachable.add(token)
             if token.startswith("index_"):
                 candidate = memory_dir / f"{token}.md"
@@ -932,7 +955,7 @@ def guard_memory(root: Path) -> tuple[Guard, list[Skip]]:
         detail.extend(f"  unreachable: {_rel(root, leaf)}" for leaf in leaves)
         return _guard("b", name, "FAIL" if leaves else "WARN", detail), skips
 
-    reachable = _reachable_from_index(memory_dir, index, skips)
+    reachable = reachable_from_index(memory_dir, index, skips)
     unreachable = [leaf for leaf in leaves if leaf.stem.lower() not in reachable]
     detail.append(
         "reachable from MEMORY.md (transitively through INDEX_*.md): "

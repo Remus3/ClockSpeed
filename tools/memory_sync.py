@@ -48,6 +48,16 @@ import re
 import sys
 from pathlib import Path
 
+# CS-910 and CS-892. Run as a bare script and also loaded BY PATH by the suite,
+# so this directory cannot be assumed on sys.path. The BARE module name is
+# required: `tools` carries no __init__.py, so spelling it `tools.drift_guard`
+# hands mypy the same file under two module names and it refuses the run.
+_TOOLS_DIR = Path(__file__).resolve().parent
+if str(_TOOLS_DIR) not in sys.path:
+    sys.path.insert(0, str(_TOOLS_DIR))
+
+import drift_guard  # noqa: E402
+
 VALID_TYPES = ("user", "feedback", "project", "reference")
 
 # What a real implementation must assert before it may report success. Printed
@@ -165,24 +175,21 @@ def validate_leaf(path: Path) -> list[str]:
 
 
 # --- reachability -----------------------------------------------------------
-
-_WIKILINK = re.compile(r"\[\[([^\]|#]+)")
-_MDLINK = re.compile(r"\]\(([^)\s]+)")
-_BACKTICK = re.compile(r"`([^`\n]+)`")
-
-
-def _link_targets(text: str) -> set[str]:
-    tokens: set[str] = set()
-    for pattern in (_WIKILINK, _MDLINK, _BACKTICK):
-        for match in pattern.finditer(text):
-            raw = match.group(1).strip().split("#", 1)[0].replace("\\", "/").rstrip("/")
-            if not raw:
-                continue
-            stem = raw.rsplit("/", 1)[-1]
-            if stem.lower().endswith(".md"):
-                stem = stem[:-3]
-            tokens.add(stem.lower())
-    return tokens
+#
+# THE WALK AND ITS LINK DERIVATION ARE NOT DECLARED HERE - CS-892. This file used
+# to carry its own `_WIKILINK`, `_MDLINK` and `_BACKTICK` patterns, its own
+# `_link_targets` and its own transitive-through-index walk, all byte-identical
+# to `tools/drift_guard.py`'s. CS-890 repaired the guard's copy; this file was on
+# no slice's write-list and so kept an unrepaired twin that nothing compared. The
+# copies agreed on the day that was filed, which is exactly what made it a drift
+# risk rather than a live defect: the next edit to either would land in one copy
+# and the two would disagree in silence.
+#
+# DO NOT RE-DECLARE EITHER ONE HERE, not even "just the patterns". The guard owns
+# the derivation and this tool consumes it, and
+# `tests/test_memory_sync_link_derivation.py` reddens on a second copy - one arm
+# teaches a link shape to the owner alone and asserts it reaches this walk, and
+# another asserts no regex literal is declared in both files.
 
 
 def reachability(memory_dir: Path, leaves: list[Path]) -> tuple[list[Path], str]:
@@ -191,25 +198,7 @@ def reachability(memory_dir: Path, leaves: list[Path]) -> tuple[list[Path], str]
     if not index.is_file():
         return list(leaves), "memory/MEMORY.md is ABSENT - nothing to be reachable from"
 
-    reachable: set[str] = set()
-    frontier = [index]
-    visited: set[str] = set()
-    while frontier:
-        current = frontier.pop()
-        key = current.name.lower()
-        if key in visited:
-            continue
-        visited.add(key)
-        try:
-            text = current.read_text(encoding="utf-8", errors="replace")
-        except OSError:
-            continue
-        for token in _link_targets(text):
-            reachable.add(token)
-            if token.startswith("index_"):
-                candidate = memory_dir / f"{token}.md"
-                if candidate.is_file():
-                    frontier.append(candidate)
+    reachable = drift_guard.reachable_from_index(memory_dir, index)
     return [leaf for leaf in leaves if leaf.stem.lower() not in reachable], ""
 
 

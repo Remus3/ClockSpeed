@@ -1768,7 +1768,7 @@ def test_the_real_memory_store_passes_the_memory_guard_on_a_non_empty_population
 def test_a_dangling_wikilink_inside_a_leaf_reddens_the_memory_guard(tmp_path: Path) -> None:
     """The filed CS-890 fault: a leaf cites a note that does not exist.
 
-    ``_reachable_from_index`` never opens an ordinary leaf, so before this
+    ``reachable_from_index`` never opens an ordinary leaf, so before this
     change the plant below was invisible and the guard reported PASS.
     """
     root = memory_copy(tmp_path)
@@ -1917,7 +1917,7 @@ def test_a_backticked_code_span_in_the_index_is_not_resolved_as_a_citation(
 ) -> None:
     """THE TRAP, graded directly rather than left to the pristine control.
 
-    ``_link_targets`` harvests backticked spans, which is correct for
+    ``link_targets`` harvests backticked spans, which is correct for
     reachability and wrong for resolution. The index carries at least two
     backticked spans that are code, not filenames; a routing check built on
     that extractor manufactures a finding per span. This arm plants a third,

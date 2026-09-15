@@ -420,6 +420,132 @@ independently of its owner.
 **THE GATE CAUGHT THE COMMIT, NOT JUST THE FILE.** The first commit attempt was refused by
 the `commit-msg` hook for an 82-character subject against a 72 limit. Recorded because a
 tier-0 gate refusing a merger's own commit is the gate working.
+### 2026-09-14 - CS-892 - CLOSED. The link derivation and the index walk have ONE owner, and the memory sync tool consumes them instead of carrying an unrepaired twin
+
+**THE DEFECT.** `tools/drift_guard.py` and `tools/memory_sync.py` each declared their own
+`_WIKILINK`, `_MDLINK` and `_BACKTICK` patterns, their own `_link_targets` over those three,
+and their own transitive-through-index reachability walk. The three pattern literals were
+byte-identical across the two files. CS-890 repaired the GUARD's copy; the sync tool was on no
+slice's write-list, so its copy was never reached and nothing in the tree compared the two.
+
+**THE ROOT CAUSE, and why the copies AGREEING was the danger rather than the defence.** On the
+day CS-892 was filed the two copies still answered alike, so no test could have caught anything
+by comparing outputs. What had changed is that they had stopped being maintained together while
+remaining textually similar enough to read as a pair. The next edit to either pattern set lands
+in one copy and the two disagree in silence. The sharper half: the file a session actually runs
+to sync its memory was the unrepaired one, so a reader who knew CS-890 had landed would
+reasonably assume the store's link handling was correct everywhere.
+
+**WHICH BRANCH OF THE ACCEPTANCE WAS TAKEN, AND WHY THE STRONGER ONE WAS AVAILABLE HERE.** The
+clause allows either an agreement assertion or a single owner. CS-885 kept four copies of the
+path-free `OSError` clone and made them compare on every run, because the clearance that makes a
+copy safe there is structurally same-module - collapsing to a shared owner would have dropped
+every live site from `closed-pathless` to `unproven`. No such clearance exists over the link
+derivation: nothing in the tree grades it by the module it is defined in. So the reason that
+forced four copies to stay four does not reach this case, and one owner was taken. An agreement
+assertion only DETECTS the drift class; an owner REMOVES it.
+
+**WHAT CHANGED.** `tools/drift_guard.py` renamed `_link_targets` to `link_targets` and
+`_reachable_from_index` to `reachable_from_index`, the latter taking its `skips` list as optional
+so a consumer that reports no skips need not invent a list to discard - the guard's own callers
+still pass theirs. `tools/memory_sync.py` deleted all three patterns, its `_link_targets` and its
+walk, and now calls `drift_guard.reachable_from_index`. It imports the guard by BARE module name
+after inserting `tools/` on `sys.path`, because `tools` carries no `__init__.py` and the dotted
+spelling would hand mypy the same file under two module names. A comment at the deletion site
+forbids re-declaring either one, "not even just the patterns".
+
+**HOW THE ARMS ARE WRITTEN, AND WHY NOT BY NAME.** An arm asserting
+`memory_sync.link_targets is drift_guard.link_targets` would be a spelling measure and would
+report a clean verdict about the wrong question the moment a name moved. The arms are
+behavioural and structural: a recording spy proves the sync walk RUNS through the guard's
+derivation; a link shape TAUGHT to the guard alone is asserted to reach the sync tool's answer -
+that is the acceptance clause's own arm; and an AST pass proves no regex literal is declared in
+both files. The AST pass carries a planted positive, because an extractor blind to its subject
+reports an empty intersection for that reason alone.
+
+**PROVEN BY.** `tests/test_memory_sync_link_derivation.py`, seven arms:
+`test_a_shape_taught_to_the_owner_alone_reaches_the_sync_walk` (the acceptance arm),
+`test_the_walk_runs_through_the_guards_own_derivation`,
+`test_no_regex_literal_is_declared_in_both_tools`,
+`test_the_duplication_extractor_sees_a_planted_duplicate` (its anti-vacuity partner),
+`test_the_owner_is_the_tracked_guard_and_not_a_third_copy`,
+`test_the_three_link_shapes_still_reach_a_leaf` and
+`test_an_unindexed_leaf_is_still_reported_unreachable`. Merged files: `tools/drift_guard.py`,
+`tools/memory_sync.py`, `tests/test_memory_sync_link_derivation.py`,
+`tests/data/test_drift_guard_data.py`, `docs/item_notes/phase7.md`.
+
+**THE PRE-CHANGE CONTROL, RUN OUT OF TREE SO NOTHING WAS RESTORED OVER LIVE WORK.**
+`git show HEAD:` copies of both tools were written to a scratch directory beside a copy of the
+arm file and pytest was run there: `4 failed, 3 passed in 0.16s`, exit 1. The four that redden
+are the four that name the defect, and the duplication arm quotes all three shared literals
+verbatim in its message. The two that pass on the pre-change code are the preserved-behaviour
+regressions, which is correct - they are not evidence of the defect and were never meant to be.
+
+**SIBLING SWEEP - NO SIBLING.** A repo-wide grep for the three pattern names, `link_targets` and
+either spelling of the walk finds no third copy in a tool. The remaining hits are
+`_TEST_WIKILINK` and `_TEST_MDLINK` in `tests/data/test_drift_guard_data.py`, which are a
+deliberately independent oracle in the guard's own tests rather than a copy of the subject, and
+`_BACKTICKED` in `tests/surface/test_acceptance.py` and `tests/test_architecture_attributions.py`,
+which extract module paths and are a different subject.
+
+**TIER 2, and why.** A tool's private symbol became public and a second tool now depends on it
+at import time. `python -m mypy` with no explicit target - an explicit target replaces config
+discovery and would not have read `tests/` at all - reported `Success: no issues found in 241
+source files`. The whole suite is paid by the pre-push hook.
+
+**COUNTS OBSERVED THIS RUN, not carried from any other run or any agent's report.**
+`python -m pytest tests/test_memory_sync_link_derivation.py -q` gave `7 passed in 0.10s`, exit 0.
+`python -m pytest tests/data/test_drift_guard_data.py tests/test_memory_sync_link_derivation.py -q`
+gave `77 passed in 2.56s`, exit 0. `python -m pytest tests/test_exception_rendering.py -q` - the
+only other module that reaches `memory_sync` - gave `35 passed in 19.32s`, exit 0.
+`python -m ruff check .` printed `All checks passed!` and `python -m ruff format --check .`
+printed `241 files already formatted`.
+
+**THE LIVE TOOLS WERE RUN, NOT ONLY THEIR TESTS.** `python tools/drift_guard.py` exited 0 with
+guard (b) `memory reachability PASS`, and `python tools/memory_sync.py` exited 0 both from the
+repo root and from a foreign working directory - the second run is the one that grades the
+`sys.path` insertion, because a bare-script invocation is how a session actually calls it.
+
+**THIS ROW WAS INHERITED, AND THE CYCLE THAT BUILT IT DID NOT FINISH.** The implementation and
+the arms were found uncommitted in the lane worktree, left by a cycle that died after moving the
+docs and before writing this entry - so the roadmap line and the routing-table row were already
+gone while no closure record existed, and `ops/loop/scope.py`, which reads the worktree's
+`ROADMAP.md`, no longer offered the row at all. The driver's own permit reads the MAIN checkout,
+where the line was still present, so reclaiming the row was in scope. Every measurement above was
+re-run against the inherited tree rather than taken from the transcript that produced it.
+
+**THE CI VERDICT FOR THIS PUSH IS RECORDED BY THE LANE DRIVER AND WAS NOT OBSERVED BY THIS
+WORKER.**
+
+**VERIFIER: CONFIRMED**, by a `verifier` agent that produced no part of this change and edited
+nothing - it re-ran every command above for itself and reported `7 passed in 0.14s` exit 0 on the
+arms, `105 passed in 26.46s` exit 0 over the two neighbouring modules, `1509 passed in 298.76s`
+exit 0 over twelve further guard and doc-topology modules, and the same ruff, format and mypy
+results. It also ran the two evidences this worker did not: a known-good NEGATIVE control proving
+the acceptance arm's `unreachable == []` genuinely depends on the taught shape reaching the sync
+walk, and a POST-change second-copy mutant - a `memory_sync` that re-declares the walk and
+early-binds `link_targets`, carrying no regex literal so the AST arm is blind to it - which the
+behavioural arm killed, `2 failed, 5 passed`. It compared the reachable token sets of the HEAD and
+candidate tools over the real store in separate processes: 23 tokens each, symmetric difference
+empty.
+
+**TWO RESIDUALS THE VERIFIER MEASURED AND DID NOT REFUTE ON, RECORDED HERE RATHER THAN LEFT IN A
+TRANSCRIPT.** First, the AST extractor matches `ast.Assign` only, so a re-duplication spelled
+`_X: Final = re.compile(...)` is invisible to `test_no_regex_literal_is_declared_in_both_tools`.
+Second, a mutant that duplicates only the WALK while still consuming the owner's `link_targets`
+survives all seven arms, measured at `7 passed`, exit 0 - the acceptance clause proves through a
+link shape taught to ONE copy, and under that mutant there is only one derivation, so the clause
+is not the thing that fails. Neither touches the clause this row was graded against and neither
+is grounds to hold the row. Both are FILED AS CS-1078.
+
+**ALSO FILED THIS CYCLE - CS-1079.** The wrap measured that
+`docs/item_notes/phase4-followups-900.md` was ALREADY over its soft doc budget at the commit
+this cycle branched from, and that no row owns that condition the way CS-971 owns it for
+`ROADMAP.md`. Appending the CS-1078 section grew it further. The same row carries the second
+half the wrap measured: `docs/item_notes.md` routes that leaf by the `CS-9nn` block while the
+routing table sends four-digit ids there too, so a split on the declared selector would move
+nothing. Neither guard went red - guard (a) and `tools/doc_budget.py` both exited 0 on a WARN -
+and no number is restated here, because the tool owns both.
 
 ### 2026-09-14 - CS-871 - CLOSED. A Sphinx role in a tests module now resolves against a real namespace, and the five that resolved against nothing are repaired
 
