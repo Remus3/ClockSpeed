@@ -2394,7 +2394,7 @@ def literal_pin_problems(source: str, name: str) -> list[str]:
     expression MENTIONS the table it bounds, which is the whole attack against
     a ceiling over a table. A pin over a FILE has no table to mention:
     ``_ROT_PATH: len(bare_path_problems(answered))`` computed at import time,
-    or any call at all, would make :data:`ARCHIVE_ROT` agree with the
+    or any call at all, would make :data:`tests.test_archive_rot.ARCHIVE_ROT` agree with the
     derivation by construction and leave NO NUMBER in the diff to query. So the
     question asked here is not provenance but SHAPE - every value must be an
     integer somebody typed.
@@ -5249,7 +5249,7 @@ def test_each_named_leg_of_the_bare_path_shape_is_load_bearing(
 ) -> None:
     """THE TWO LEGS THE SHAPE'S OWN COMMENT NAMES, and neither was graded.
 
-    VERIFIED: deleting the leading-dot leg from :data:`_FIRST_SEGMENT` killed
+    VERIFIED: deleting the leading-dot leg from :data:`tests.bare_path_guard._FIRST_SEGMENT` killed
     ZERO arms and silently removed 27 live sites - every workflow and
     harness-configuration citation. Dropping ``yml`` killed zero arms and
     removed eight more. A comment explaining why a leg exists is not a check

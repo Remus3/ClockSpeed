@@ -8,9 +8,10 @@ count spent against a typed integer. The measurement is derivation and lives in
 moved out of a file with 1483 bytes left under the ceiling
 ``tests/data/test_phase2_gate.py`` holds every file in ``tests/`` to.
 
-THE EXEMPTION ITSELF DID NOT MOVE, DELIBERATELY. :data:`UNGUARDED_DOCS`, the
-path it names and the cardinality pin over it are the citation guard's own
-subject, and one of the arms over them is cited by ``docs/LEDGER.md`` as a
+THE EXEMPTION ITSELF DID NOT MOVE, DELIBERATELY.
+:data:`tests.test_docs_citations.UNGUARDED_DOCS`, the path it names and the
+cardinality pin over it are the citation guard's own subject, and one of the
+arms over them is cited by ``docs/LEDGER.md`` as a
 ``path::name`` pointer. The boundary is drawn on SUBJECT - what the exemption
 HIDES, against what it IS - and it happens to cost no citation.
 
@@ -133,13 +134,14 @@ _CYCLE_MODULE_FLOOR: Final = 4
 #: THAN ASSERTED. Every arm's finding count against the archive, recorded as a
 #: typed integer. OVER a number is rot nobody has looked at; UNDER it is a pin
 #: left slack after the archive shrank, which is banked room for an append. The
-#: idiom is :func:`forgiveness_budget_problems`' and :func:`decline_budget_problems`',
+#: idiom is :func:`tests.test_docs_citations.forgiveness_budget_problems`' and
+#: :func:`tests.bare_path_guard.decline_budget_problems`',
 #: and so is the reason it is spent EXACTLY. DECLARED HERE RATHER THAN WITH THE
 #: DERIVATION, because the registry walk requires a bounded table's contract to
 #: be defined by the module that holds the table - which is what keeps a pin
 #: and the arm that defends it from drifting into different files.
 #:
-#: PER ARM, NEVER POOLED, for the doctrine :func:`decline_budget_problems`
+#: PER ARM, NEVER POOLED, for the doctrine :func:`tests.bare_path_guard.decline_budget_problems`
 #: states: a threshold summed over a population is met by its strongest member
 #: while the weakest goes unmeasured. Pooled, a pointer whose target line went
 #: blank would move from :data:`_ROT_FORM` to :data:`_ROT_EMPTY` and the total
@@ -438,8 +440,8 @@ def test_the_deep_archives_rot_is_measured_and_pinned_per_arm(
     finding count is spent against a typed integer. OVER is rot that arrived
     after the last person looked. UNDER is a pin left slack once the archive
     shrank, which is banked room for an append nobody would have to defend -
-    the direction :func:`forgiveness_budget_problems` learnt to check the hard
-    way.
+    the direction :func:`tests.test_docs_citations.forgiveness_budget_problems`
+    learnt to check the hard way.
 
     IT IS WIDER THAN THE CLAUSE, WHICH IS THE POINT. The clause asks that the
     members the reason does not cover be recorded individually. Telling those
@@ -617,7 +619,7 @@ _REBOUND_PIN_SOURCE: Final = (
 def test_the_archive_rot_pin_is_typed_rather_than_computed_from_what_it_measures() -> None:
     """THE PERMANENT DISARM, AND FOR THIS PIN IT IS ONE LINE.
 
-    :func:`derived_bound_problems` closes the same attack against a ceiling
+    :func:`tests.bare_path_guard.derived_bound_problems` closes the same attack against a ceiling
     over a TABLE - it reports a bound whose expression mentions the table it
     bounds. :data:`ARCHIVE_ROT` bounds a FILE, so there is no registered name
     for that walk to see: a value written as a call would make the pin agree
@@ -743,7 +745,7 @@ def test_every_module_in_this_split_imports_first_without_a_cycle() -> None:
 
     THE POPULATION IS DERIVED FROM THE IMPORT STATEMENTS rather than listed. A
     hand-list is right the day it is written and short the day a fourth module
-    joins - the identical fault :func:`namespace_closure` exists to avoid one
+    joins - the identical fault :func:`tests.bare_path_guard.namespace_closure` exists to avoid one
     level up. The floor under it is what keeps a derivation that returned one
     module from reading as a clean answer about a cycle nobody entered.
     """

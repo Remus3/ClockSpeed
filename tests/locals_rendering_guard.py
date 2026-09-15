@@ -87,17 +87,15 @@ THAN RESPELT, so the two channels cannot drift into two opinions about the same
 wrapper; a second list of the same kind of thing in a second file is CS-433's
 defect.
 
-THE WALK ITSELF IS NOT BORROWED, AND THE ONE DIFFERENCE IS THE POINT.
-:func:`flows_into` decides whether a read reaches the expression a local is
-BOUND to; CS-850's :func:`_reaches_unmasked` decides whether it reaches an
-expression pytest RENDERS. They agree everywhere except at a call's ARGUMENT
-position: the rewriter reprs a call's arguments as well as its result, so
-``helper(sweep.words)`` renders the words on that channel whatever ``helper``
-returns - while a LOCAL bound from it holds only the result. See
+THE WALK ITSELF IS NOT BORROWED, AND THE ONE DIFFERENCE IS THE POINT. :func:`flows_into` decides
+whether a read reaches the expression a local is BOUND to; CS-850's
+:func:`tests.assertion_rendering_guard._reaches_unmasked` decides whether it reaches an expression
+pytest RENDERS. They agree everywhere except at a call's ARGUMENT position: the rewriter reprs a
+call's arguments as well as its result, so ``helper(sweep.words)`` renders the words on that channel
+whatever ``helper`` returns - while a LOCAL bound from it holds only the result. See
 :func:`_argument_carries` for the measurement, and
-``test_the_two_channels_agree_except_at_a_call_argument`` for the pin, which
-runs the borrowed walk beside this one on every run so a change over there is
-visible here rather than silent.
+``test_the_two_channels_agree_except_at_a_call_argument`` for the pin, which runs the borrowed walk
+beside this one on every run so a change over there is visible here rather than silent.
 
 THREE SHAPES THAT MUST NOT BE FLAGGED, and this half is load-bearing.
 

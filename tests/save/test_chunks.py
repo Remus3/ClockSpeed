@@ -616,7 +616,7 @@ def test_the_chunk_count_ceiling_is_enforced(monkeypatch: pytest.MonkeyPatch) ->
 
 
 def test_a_compressed_size_of_zero_is_refused_so_the_walk_cannot_stall() -> None:
-    """The guarantee that makes :func:`iter_frames` terminate.
+    """The guarantee that makes :func:`clockspeed.save.chunks.iter_frames` terminate.
 
     A frame declaring zero compressed bytes would leave the walk offset
     unchanged and spin forever. It is refused in the frame read, which is what

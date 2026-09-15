@@ -10609,3 +10609,42 @@ not mistake its absence for an oversight.
   Do not read the green tip as the problem having gone away.
 - Next action: CS-1034 - give every path-shaped privacy needle an oracle proven potent by a
   planted positive the arm FINDS, and redden the four arms on a reflecting body.
+
+## CS-871 - item section, CLOSED and relocated from `docs/item_notes/phase4-followups-850.md` 2026-09-14
+
+**THE SECOND RESIDUE THIS SECTION CARRIED DID NOT CLOSE WITH THE ITEM.** The
+`_bodies_no_dynamic_case_may_reuse` disjointness is still described rather than
+asserted; it is CS-1076 and its acceptance is written there. Nothing in the
+paragraph below is evidence about the present tree.
+
+### Filed 2026-08-31 (session 53), from the CS-866 adjudication
+
+**A DEAD CROSS-REFERENCE SHIPPED INSIDE THE COMMIT THAT REPAIRS THAT FAULT CLASS, AND NO
+GUARD SAW IT.** Two `:func:` roles in `tests/save/test_independent_table.py` named a function
+bound nowhere. An adjudicator found them by reading; nothing mechanical did. They are FIXED -
+this item is the GAP, not the instance.
+
+**WHY NOTHING CAUGHT IT.** `tests/test_docs_citations.py` matches the shape
+`<path>.py::<name>`. A Sphinx role written `:func:` with the symbol in backticks is a
+different shape and no judged pattern covers it. The guard's population is also the tracked
+DOCS; a role inside a test module is not in it at all.
+
+**THIS IS THE SAME FAULT CLASS SESSION 52 WAS BITTEN BY, ONE LAYER OVER.** There, a
+subagent's paraphrase of an arm name reached a note and the citation guard DID catch it,
+because it was written in the shape the guard reads. Here the identifier was wrong in a
+shape the guard does not read. The lesson is that the guard grades a SPELLING, not the
+property, and the property is that every identifier written down resolves.
+
+**THE SECOND RESIDUE THIS ITEM CARRIES.** `_bodies_no_dynamic_case_may_reuse` enumerates
+only the bodies THIS module builds, while `tests/save/test_struct_interior.py` calls
+`independent_table.independent_records` at four sites in the same process. The adjudicator
+measured that all four hand over real decompressed save bodies and that the guard's set and
+the dynamic set have ZERO overlap, so no collision exists today - and NOTHING ASSERTS EITHER
+FACT. The prose has been narrowed to the module scope the guard measures; the assertion has
+not been written. A real body is a save's whole world and a synthetic fixture is a few
+hundred bytes, so the honest form is probably a size floor rather than an enumeration.
+
+**DO NOT REPAIR THIS BY WIDENING THE DOC CITATION REGEX ALONE.** The role shape is one
+spelling of the same property; a guard that learns `:func:` and stops has bought one
+spelling, which is exactly the finding CS-864 records about the seam arms and CS-868 records
+about `_shared_tag_symbols`. Resolve the symbol against the module's own symbol table.

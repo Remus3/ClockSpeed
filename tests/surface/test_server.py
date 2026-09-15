@@ -1649,10 +1649,10 @@ def test_both_refusal_raise_sites_are_cleared_by_the_census_that_owns_the_questi
     CS-857's first conjunct is about, rather than a private re-derivation that
     could agree with the census while measuring something else.
 
-    :data:`CLOSED_SUPPRESSED` is the census's ONE POSITIVE clearance, and it is
-    structural - the interpreter sets ``__suppress_context__`` and the raise
-    constructs a class the module itself declares. It is deliberately not
-    ``unproven``, which would be an absence of evidence rather than a clearance.
+    :data:`tests.chained_cause_guard.CLOSED_SUPPRESSED` is the census's ONE POSITIVE clearance, and
+    it is structural - the interpreter sets ``__suppress_context__`` and the raise constructs a
+    class the module itself declares. It is deliberately not ``unproven``, which would be an absence
+    of evidence rather than a clearance.
     """
     graded = {
         site.key: chained_cause_guard.classify(site)

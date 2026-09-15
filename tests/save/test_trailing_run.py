@@ -507,7 +507,7 @@ def test_every_payload_that_terminates_yields_a_lead_field() -> None:
     **WHAT THIS ARM DOES NOT SAY, stated here because a draft of it did say the
     stronger thing and the stronger thing is false.** It does NOT say the
     field's PRESENCE has stopped being arithmetic. ``read_trailing_run`` returns
-    a lead exactly when the run is at least :data:`TRAILING_RUN_LEAD_BYTES`
+    a lead exactly when the run is at least :data:`clockspeed.save.objects.TRAILING_RUN_LEAD_BYTES`
     wide, and that width is still ``declared_end - terminator_end`` - the
     subtraction CS-828's clause names. The field's VALUE is read from the bytes;
     its presence is not, and that half of the clause is unmet.

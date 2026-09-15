@@ -39,18 +39,16 @@ it lands in its own derived subject set and is planted into like every other
 importer. Under the abolished rule this would have been a module grading
 immunity from inside the immune set.
 
-AND THE CLEARANCE ITSELF CARRIED CS-888'S SHAPE ONE LEVEL DOWN, which an
-adjudicator measured against the first repair rather than reading. Abolishing
-import-immunity moved ``tests/pathless_clone_guard.py`` into :data:`EXEMPT`,
-and the record was keyed by MODULE PATH ALONE - so a reason written about the
-``_slot`` mirror silently forgave any further cause read that module ever
-gained. Measured: the identical four-line plant went unreported in BOTH
-recorded modules while being named at once in every other. Immunity earned by
-holding a reason about something else is the same fault as immunity earned by
-importing a name. Each entry now records HOW MANY sites it answers, the shape
-``tests/test_docs_citations.py`` already uses for its ``Disposition`` table,
-and ``test_a_second_cause_read_in_an_already_exempt_module_is_reported`` is the
-arm that keeps it honest.
+AND THE CLEARANCE ITSELF CARRIED CS-888'S SHAPE ONE LEVEL DOWN, which an adjudicator measured
+against the first repair rather than reading. Abolishing import-immunity moved
+``tests/pathless_clone_guard.py`` into :data:`tests.chained_exemption_guard.EXEMPT`, and the record
+was keyed by MODULE PATH ALONE - so a reason written about the ``_slot`` mirror silently forgave any
+further cause read that module ever gained. Measured: the identical four-line plant went unreported
+in BOTH recorded modules while being named at once in every other. Immunity earned by holding a
+reason about something else is the same fault as immunity earned by importing a name. Each entry now
+records HOW MANY sites it answers, the shape ``tests/test_docs_citations.py`` already uses for its
+``Disposition`` table, and ``test_a_second_cause_read_in_an_already_exempt_module_is_reported`` is
+the arm that keeps it honest.
 
 THE CENSUS ARMS THEMSELVES ARE STILL NOT IN THE POPULATION AT ALL. They read
 ``__cause__`` on live exceptions, which is measurement rather than adjudication,

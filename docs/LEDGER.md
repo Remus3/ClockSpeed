@@ -374,6 +374,72 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-09-14 - CS-871 - CLOSED. A Sphinx role in a tests module now resolves against a real namespace, and the five that resolved against nothing are repaired
+
+**THE DEFECT.** `tests/test_docs_citations.py` grades the shape `<path>.py::<name>` over the
+tracked DOCS. A cross reference written as a Sphinx role - the symbol in backticks behind
+`:func:` or `:data:` - is a different SPELLING of the same property and lives inside test
+modules, which that population does not contain at all. Two `:func:` roles naming a function
+bound nowhere shipped inside the commit that repaired that fault class, and an adjudicator found
+them by reading.
+
+**WHAT CHANGED.** `tests/sphinx_role_guard.py` resolves every graded role against the citing
+module's own namespace - module scope from
+`tests.test_docs_citations.module_scope_names`, which is IMPORTED rather than transcribed, widened
+by every nested definition and every import-bound name - and resolves a dotted target against the
+module it names, longest prefix first. `tests/test_sphinx_roles.py` holds the arms.
+
+**PROVEN BY.** `tests/test_sphinx_roles.py::test_no_tests_module_names_an_unresolvable_symbol` is
+the clause. `::test_a_planted_dead_role_reddens` and
+`::test_a_planted_dead_role_reddens_in_every_graded_spelling` are the mutation, planted into the
+REAL text of a real module rather than a toy string; `::test_the_planted_subject_is_clean_without_the_plant`
+is its control, without which the plant proves nothing. `::test_the_graded_population_is_not_empty`
+and `::test_the_number_of_graded_spellings_is_pinned` are the anti-vacuity pair. Merged files:
+`tests/sphinx_role_guard.py`, `tests/test_sphinx_roles.py`, and eighteen tests modules whose roles
+were repaired.
+
+**THE SIBLING SWEEP, and it is the substance of the change rather than a tail.** The walk reported
+58 unresolved roles on first run. FIVE named a symbol bound nowhere in the repository - a renamed
+floor constant, a truncated test name, a test renamed from `_vacuous` to `_degenerate`, and two
+constants that had become functions - and each was repaired to the live symbol with its role kind
+corrected where the kind had changed too. The remaining 53 named a real symbol in another module
+and were QUALIFIED with it. Three of the 58 were in the guard's own new test module and were
+removed by assembling role text at run time, because a module inside the graded population cannot
+spell a deliberately dead fixture in its own source.
+
+**THE FENCE THIS ITEM CARRIED WAS HONOURED RATHER THAN ARGUED AWAY.** Its section forbade buying
+one spelling. The corpus contains six, and `ROLE_DISPOSITIONS` declares all six: three are GRADED
+and three carry a reason naming CS-1075. `::test_every_role_spelling_in_the_corpus_is_declared`
+asserts the corpus vocabulary EQUALS the table's keys in both directions, so a seventh spelling
+reddens rather than passing unread, and `::test_an_ungraded_spelling_carries_a_reason` refuses a
+reason with no item id behind it. The clause named two spellings; three are graded.
+
+**WHAT THE VERIFIER REFUTED AND WHAT WAS DONE ABOUT IT.** The pass returned CONFIRM on the clause
+after re-deriving both halves with its own stronger resolver, and filed eight non-blocking
+findings. Five were repaired in this commit: two paragraph merges the line-length reflow had
+created - one of which buried a NEVER-False safety directive mid-block in
+`tests/save/test_struct_interior.py` - a lost column in the bare-path rung table, a count in
+CS-1075's prose that did not re-derive, and a call-site attribution in CS-1076 that predated a
+module split. One was a design defect too large for this row and is CS-1077: a dotted target whose
+HEAD is bound locally is accepted whole, so the tail is never checked, which means the guard's own
+recommended repair shape can move a role out of the checked population. The refutation pass proved
+the corpus is nonetheless clean at those sites with an independent resolver. One was a coupled
+oracle - every arm read the graded set from the table, so demoting a spelling would have taken the
+arms with it - and `GRADED_SPELLING_COUNT` now pins it.
+
+**TIER 2, PAID.** Whole suite on the tree that shipped: `7753 passed, 7 skipped, 7 warnings in
+470.66s (0:07:50)`, exit 0, read from a file rather than a pipe. An earlier run on the
+pre-verifier tree reported `7752 passed, 7 skipped, 7 warnings in 483.35s (0:08:03)`, exit 0; the
+extra test is the spelling-count pin added after the verdict. `python -m ruff check .` clean and
+`python -m ruff format --check .` clean. The verifier's own scoped run of the new module reported
+`15 passed in 12.79s`, exit 0; the arm added afterwards brings it to 16.
+
+**CI IS RECORDED BY THE LANE DRIVER AND WAS NOT OBSERVED BY THIS WORKER.**
+
+**FILED THIS CYCLE.** CS-1075 (the three ungraded spellings), CS-1076 (the disjointness residue
+this item's section carried and its acceptance never named), CS-1077 (the short-circuited dotted
+tail).
+
 ### 2026-09-14 - CS-870 - CLOSED. The revert clause is graded against the control, and the fixture that used to answer for it is now named as the net rather than the grade
 
 **THE DEFECT.** `tests/save/test_struct_interior.py::test_a_stricter_shared_ceiling_cannot_improve_this_modules_grade`

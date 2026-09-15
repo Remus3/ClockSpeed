@@ -848,7 +848,7 @@ def test_a_shell_string_spawner_is_judged_by_its_first_word(source: str) -> None
     ``os.system`` and ``getoutput`` hand a COMMAND to a shell rather than an
     argv to CreateProcess, and the shell resolves the first word the same way.
     Neither shape is used in this tree today, so without this arm the whole
-    :data:`toolpath_guard.OS_SPAWNERS` table would be declared and never
+    :data:`tests.toolpath_guard.OS_SPAWNERS` table would be declared and never
     exercised - a rule that grades nothing until the day it has to, which is the
     day it is discovered not to work.
     """

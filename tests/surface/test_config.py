@@ -540,19 +540,18 @@ RECORD_NEEDLE: Final = "10000000000000002"
 #: for the reason every other probe in this tree is bounded.
 DRIVER_TIMEOUT_SECONDS: Final = 120
 
-#: A one-shot program that drives :func:`allocated_port` and lets the failure
-#: reach the DEFAULT EXCEPTHOOK - the renderer CS-857 is actually about. Passed
-#: with ``-c`` so nothing is written to disk, and handed the repository root
-#: explicitly rather than inheriting a working directory, so the arm does not
-#: depend on where the suite was invoked from.
+#: A one-shot program that drives :func:`clockspeed.surface.config.allocated_port` and lets the
+#: failure reach the DEFAULT EXCEPTHOOK - the renderer CS-857 is actually about. Passed with ``-c``
+#: so nothing is written to disk, and handed the repository root explicitly rather than inheriting a
+#: working directory, so the arm does not depend on where the suite was invoked from.
 #:
 #: THE EXCEPTHOOK RATHER THAN ``traceback.format_exception``, and that is not a
-#: stylistic preference. Formatting a caught exception inside the test process
-#: renders an absolute path per frame and ends in ``str(exc)``, which is the
-#: channel ``tests/test_exception_rendering.py`` exists to keep out of this tree
-#: - an arm proving that nothing leaks must not leak in order to prove it.
-#: Letting a subprocess die is also the stronger evidence, because it measures
-#: the real renderer instead of a stand-in for it.
+#: stylistic preference.
+#: Formatting a caught exception inside the test process renders an absolute path per frame and ends
+#: in ``str(exc)``, which is the channel ``tests/test_exception_rendering.py`` exists to keep out of
+#: this tree - an arm proving that nothing leaks must not leak in order to prove it. Letting a
+#: subprocess die is also the stronger evidence, because it measures the real renderer instead of a
+#: stand-in for it.
 RECORD_SITE_DRIVER: Final = (
     "import sys\n"
     "from pathlib import Path\n"

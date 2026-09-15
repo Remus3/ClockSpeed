@@ -2096,3 +2096,88 @@ left the first to the control it actually grades.
 **DO NOT REPAIR THIS BY DELETING THE ASSERTION.** A net that cannot fail is still worth
 running; what is wrong is the sentence, and an arm that reddens when the two claims are
 swapped is what the clause asks for.
+
+
+## CS-1075
+
+### Filed 2026-09-14 (queue lane), from the CS-871 close
+
+**THE THREE UNGRADED SPELLINGS ARE DECLARED, NOT FORGOTTEN, AND THE DECLARATION IS
+MACHINE-CHECKED.** `tests/test_sphinx_roles.py::test_every_role_spelling_in_the_corpus_is_declared`
+asserts the corpus's role vocabulary EQUALS the keys of `ROLE_DISPOSITIONS`, so a seventh
+spelling reddens rather than passing unread, and
+`test_an_ungraded_spelling_carries_a_reason` asserts every ungraded entry names an item id.
+This row is that id.
+
+**WHY THEY WERE NOT GRADED WITH THE OTHER THREE, and it is a resolution difference rather
+than an appetite one.** `:func:`, `:data:` and `:class:` all name something a module's own
+namespace can bind, so one resolver answers all three and CS-871 shipped it. `:attr:` and
+`:meth:` name a member of a CLASS, and the class is not in the role text - it is in the
+context the role sits in, which means resolving one needs the enclosing class rather than
+the enclosing module. `:mod:` names a module, so its resolution is a file test rather than
+a namespace lookup.
+
+**DO NOT CLOSE THIS BY WIDENING THE GRADED SET AND POINTING THE SAME RESOLVER AT IT.** A
+module-scope lookup applied to `:attr:` forgives every attribute whose name happens to
+collide with a module-level binding and reports every other one dead. Both halves of that
+are wrong and the second is what gets a guard switched off.
+
+**THE CLOSE IS VISIBLE IN THE TABLE ITSELF.** An entry moving from a reason string to
+`GRADED` is what this row buys; rewording the reason is not.
+
+## CS-1076
+
+### Filed 2026-09-14 (queue lane), carried out of the CS-871 section on its close
+
+**THIS IS THE SECOND RESIDUE CS-871 CARRIED AND ITS ACCEPTANCE IS NOT CS-871's.** That
+item's clause was about Sphinx roles; this one is about a guard's population. Filing it
+here is what keeps the CS-871 close honest rather than silently dropping half a section.
+
+**WHAT AN ADJUDICATOR MEASURED, and the measurement is the reason this is a risk rather
+than a bug.** `_bodies_no_dynamic_case_may_reuse` enumerates only the bodies its own
+module builds. `independent_table.independent_records` is called at four sites in the same
+process, and they are NOT all in one file: two sit in `tests/save/test_struct_interior.py`
+and two in `tests/save/test_struct_controls.py`. The residue was written before that module
+split and named only the first, so a close that greps one file covers half the population.
+All four hand over real decompressed save bodies, and the guard's set and the dynamic set
+have ZERO overlap - so nothing collides today, and NOTHING ASSERTS EITHER FACT.
+
+**THE PROSE WAS NARROWED WHEN CS-871 WAS FILED; THE ASSERTION WAS NOT WRITTEN.** So the
+present state is a correct sentence with no arm behind it, which is precisely the shape
+CS-871 existed to stop one layer up.
+
+**A SIZE FLOOR IS PROBABLY THE HONEST SHAPE.** A real body is a save's whole world and a
+synthetic fixture is a few hundred bytes, so the two populations are separated by orders
+of magnitude rather than by a name. An enumeration would have to be re-derived every time
+a call site moves, which is the hand-list fault this project has measured repeatedly.
+
+**DO NOT CLOSE THIS ON THE ZERO-OVERLAP MEASUREMENT.** That number was true when an
+adjudicator took it and says nothing about the next session. The clause asks for an arm.
+
+
+## CS-1077
+
+### Filed 2026-09-14 (queue lane), from the CS-871 verifier pass
+
+**THE DEFECT, AS MEASURED RATHER THAN AS REASONED.** A refutation pass rewrote every occurrence
+of `objects._read_tag_header` in `tests/save/test_byte_order_status.py` to a name bound nowhere in
+the repository, in memory, and `unresolved_roles` returned an empty list. The control - the same
+dead name written WITHOUT the `objects.` head - was reported. So the guard's coverage of a dotted
+target is decided by whether its head happens to be bound locally, which is not a property anybody
+chose.
+
+**WHY IT IS WORSE THAN AN ORDINARY GAP.** `tests/sphinx_role_guard.py` tells a reader to repair an
+unresolved role by QUALIFYING it. Qualifying with a locally imported head is exactly the move that
+takes the role out of the checked population. The recommended repair reduces coverage.
+
+**THE TWO HALVES ARE ONE ROW AND SPLITTING THEM SHIPS A RED TREE.** `dotted_target_resolves`
+resolves a prefix by looking for a FILE under the repository root, so a stdlib head answers False.
+Today that is harmless because every such role sits in a module that imports its head and the short
+circuit rescues it - two defects cancelling. Remove the short circuit alone and the corpus reports a
+finding on every correct stdlib-headed role. The refutation pass counted the short-circuited
+population at 124 sites and separately proved none of them is dead, so the corpus is clean and the
+repair must keep it that way.
+
+**DO NOT CLOSE THIS BY DELETING THE SHORT CIRCUIT AND WIDENING THE FLOOR TO ABSORB THE NOISE.** A
+guard that reports correct prose is a guard somebody switches off, which is the finding
+`tests/test_docs_citations.py` records about itself in six numbered traps.

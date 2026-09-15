@@ -84,7 +84,7 @@ literals that appear nowhere else in this module, and
 two sets are EQUAL - not a superset, and not one-file-per-package, both of which
 a shrink can satisfy. No config change at any level can shrink the corpus without
 that arm dying, because the two derivations would have to be wrong the SAME way.
-:func:`test_the_independent_walk_is_not_vacuous` puts the floor on the WALK
+:func:`test_the_independent_walk_is_not_degenerate` puts the floor on the WALK
 rather than on the sweep, so an empty-set equality cannot pass either. The
 honest residual, stated rather than left to be found: a mutation that edits BOTH
 spellings identically survives, and no single-edit mutation does.
@@ -291,7 +291,7 @@ that reason rather than because of the distributive skip, and one "legal subset"
 sentence had neither a count-noun pair nor an authority token and was doubly
 vacuous. The vacuous sentence was deleted; the other two were extended with an
 authority reference, which departs from the live text on purpose; and every
-member of :data:`LEGAL_SUBSET_SENTENCES` and :data:`DISTRIBUTIVE_PHRASES` now
+member of :func:`lifted_subset_sentences` and :func:`lifted_distributive_sentences` now
 carries a paired arm asserting that it DOES fire once the one feature holding it
 green is removed. Three of seventeen arms silently unable to fail is the
 pooled-guard shape, where a population's weakest members go unmeasured while the

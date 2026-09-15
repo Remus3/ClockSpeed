@@ -26,10 +26,10 @@ it would be in the module it came from. RELOCATION IS THE SAME EVASION AS
 NAMING, and a file split is the door that opens it.
 
 THE IMPORT BACK INTO THE MODULE THAT JUDGES IS ABSOLUTE AND IT IS LOAD-BEARING.
-:func:`sibling_imports` reads import STATEMENTS out of source and keeps the ones
-naming a module under the tests package; a relative ``from . import x`` produces
-no such name and is a disclosed hole in that walk. Everything below is imported
-by its dotted path for that reason and not for taste.
+:func:`tests.bare_path_guard.sibling_imports` reads import STATEMENTS out of source and keeps the
+ones naming a module under the tests package; a relative ``from . import x`` produces no such name
+and is a disclosed hole in that walk. Everything below is imported by its dotted path for that
+reason and not for taste.
 """
 
 from __future__ import annotations
@@ -142,7 +142,7 @@ def archive_rot(
 ) -> dict[str, int]:
     """Run every arm the module that judges has against the deep archive, and COUNT.
 
-    THE EXEMPTION'S POPULATION, DERIVED. :data:`UNGUARDED_DOCS` takes the
+    THE EXEMPTION'S POPULATION, DERIVED. :data:`tests.test_docs_citations.UNGUARDED_DOCS` takes the
     archive out of every live arm, so until this function existed the size of
     what that bought was unmeasured - and an exemption whose population nobody
     measures is how a reason that was true of two sites ends up covering
@@ -181,7 +181,7 @@ def archive_rot(
         roots_of_source: R1's candidate set.
 
     Returns:
-        One count per arm, keyed by the :data:`ARCHIVE_ROT` names.
+        One count per arm, keyed by the :data:`tests.test_archive_rot.ARCHIVE_ROT` names.
     """
     line_counts = {path: len(lines) for path, lines in file_lines.items()}
     ranged, _declined = line_pointer_problems(text, line_counts)

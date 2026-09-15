@@ -95,9 +95,10 @@ REPO_ROOT: Final = Path(__file__).resolve().parents[1]
 #
 # THE SECOND PRICE, WHICH THE FIRST BUILD DID NOT STATE AT ALL. The extension
 # alternation below is a HAND-MAINTAINED SUFFIX LIST - the very boundary
-# :func:`line_pointer_carriers` records at length as the wrong one, because
-# "the next extension to start carrying a pointer joins the unguarded set in
-# silence". That was fixed on the CARRIER side and the identical list then
+# :func:`tests.test_docs_citations.line_pointer_carriers` records at length as
+# the wrong one, because "the next extension to start carrying a pointer joins
+# the unguarded set in silence". That was fixed on the CARRIER side and the
+# identical list then
 # shipped on the CITED side unmentioned.
 #
 # THE RESIDUAL, MEASURED: 86 backticked sites in exactly this shape fall outside
@@ -109,8 +110,9 @@ REPO_ROOT: Final = Path(__file__).resolve().parents[1]
 # WIDENING WAS MEASURED AND DEFERRED, NOT DISMISSED: it moves the population
 # from 2009 sites to 2095 with the reported rung still EMPTY, at a cost of four
 # new disclosure rows. It is not taken here because it also widens what
-# :func:`carries_a_citation` answers, which moves the guarded-set boundary, and
-# a repair slice that grows the adjudicated population is doing two jobs.
+# :func:`tests.test_docs_citations.carries_a_citation` answers, which moves the
+# guarded-set boundary, and a repair slice that grows the adjudicated population
+# is doing two jobs.
 #
 # A NON-LEADING SEGMENT MAY NOT START WITH A DOT, which refuses "..", and that
 # is a mechanism rather than tidiness. `git check-ignore` FATALS on a path that
@@ -123,7 +125,7 @@ REPO_ROOT: Final = Path(__file__).resolve().parents[1]
 # THE FIRST SEGMENT MAY, because `.github/workflows/tier1.yml` is a real
 # citation and a pattern anchored on an alphanumeric drops the dot and then
 # reports a path that does not exist - the same measurement that shaped
-# :data:`LINE_POINTER_RE`.
+# :data:`tests.test_docs_citations.LINE_POINTER_RE`.
 #
 # NO NESTED QUANTIFIER OVER OVERLAPPING CLASSES. Each repetition must begin
 # with "/" and each segment with a character no other alternative accepts, so
@@ -153,7 +155,9 @@ BARE_PATH_RE: Final = re.compile(
 #   R3   its first segment is not a tracked top-level entry          DECLINED
 #   R4   the site sits in a Python string literal that is NOT a docstring
 #                                                                    DECLINED
-#   R5   the site is recorded in :data:`BARE_PATH_REASONS`           FORGIVEN
+#   R5   the site is recorded in
+#        :data:`tests.test_docs_citations.BARE_PATH_REASONS`
+#                                                                    FORGIVEN
 #        otherwise                                                   REPORTED
 #
 # WHY EACH DECLINE IS PRINCIPLED RATHER THAN CONVENIENT. A decline that is
@@ -212,7 +216,7 @@ BARE_PATH_RE: Final = re.compile(
 # literal, is INVISIBLE to this arm. So each rung's live membership is pinned
 # below and asserted in BOTH directions: appending to a disclosure makes it
 # DISAGREE with what the ladder derives and reddens, exactly as
-# :data:`UNFORBIDDEN_LINE_POINTERS` does.
+# :data:`tests.test_docs_citations.UNFORBIDDEN_LINE_POINTERS` does.
 #
 # AND EACH DISCLOSURE IS ALSO BUDGETED, because "nothing can be added to one to
 # buy silence" was the first build's claim and it was FALSE. The two-way pin
@@ -417,7 +421,7 @@ def bare_path_sites(carriers: Mapping[str, str]) -> list[BarePathSite]:
     """Every bare-path spelling in every carrier, with its identity attached.
 
     THE POPULATION IS THE CALLER'S, injected rather than derived here, so the
-    live arm can hand it :func:`line_pointer_carriers` - the boundary a
+    live arm can hand it :func:`tests.test_docs_citations.line_pointer_carriers` - the boundary a
     contract already asserts - instead of this section growing a second
     population that is a second thing to rot.
 
@@ -735,12 +739,11 @@ def pinned_rung_problems(
 ) -> list[str]:
     """One decline rung's live membership against its pinned disclosure.
 
-    BOTH DIRECTIONS, for :data:`UNVERIFIED_LINE_POINTERS`' reason. A site the
-    rung now declines that nothing discloses is a new invisibility; a disclosed
-    site the rung no longer declines is a record that has outlived what it
-    described. Appending an entry nobody argued for fails the second direction
-    immediately, which is what makes this a disclosure rather than a permission
-    list - there is nothing to gain by adding to it.
+    BOTH DIRECTIONS, for :data:`tests.test_docs_citations.UNVERIFIED_LINE_POINTERS`' reason. A site
+    the rung now declines that nothing discloses is a new invisibility; a disclosed site the rung no
+    longer declines is a record that has outlived what it described. Appending an entry nobody
+    argued for fails the second direction immediately, which is what makes this a disclosure rather
+    than a permission list - there is nothing to gain by adding to it.
 
     Args:
         answered: The ladder's output.
@@ -837,13 +840,13 @@ def graded_floor_names(source: str) -> frozenset[str]:
 def floor_problems(what: str, measured: int, floor: int) -> list[str]:
     """One non-vacuity floor, checked - and the CHECK is the point.
 
-    A floor exists so ``assert not problems`` cannot read as an answer when
-    nothing was measured. EVERY ONE OF THEM WAS ITSELF GRADED BY NOTHING.
-    VERIFIED: setting :data:`BARE_PATH_POPULATION_FLOOR`,
-    :data:`_ARCHITECTURE_SUFFIX_FLOOR` or :data:`_SELF_SPELLED_FLOOR` to ZERO
-    left the whole module green, which restores exactly the defect each exists
-    to prevent in a one-character diff. A floor compared inline cannot be posed
-    a question; hoisted into a function, a control can ask whether the LIVE
+    A floor exists so ``assert not problems`` cannot read as an answer when nothing was measured.
+    EVERY ONE OF THEM WAS ITSELF GRADED BY NOTHING. VERIFIED: setting
+    :data:`tests.test_docs_citations.BARE_PATH_POPULATION_FLOOR`,
+    :data:`tests.test_docs_citations._ARCHITECTURE_RESOLVED_FLOOR` or
+    :data:`tests.test_docs_citations._SELF_SPELLED_FLOOR` to ZERO left the whole module green, which
+    restores exactly the defect each exists to prevent in a one-character diff. A floor compared
+    inline cannot be posed a question; hoisted into a function, a control can ask whether the LIVE
     number rejects an empty measurement - which a floor of zero cannot pass.
 
     Args:
@@ -877,12 +880,11 @@ def decline_budget_problems(
     pinned in agreement and the suite green. One dead citation, one row, no
     argument, no ceiling.
 
-    THE ASYMMETRY IS THE FINDING RATHER THAN THE HOLE. A dead citation spelled
-    in full costs a :data:`BARE_PATH_REASONS` entry PLUS a ceiling raise. THE
-    SAME CITATION ONE SEGMENT SHORTER lands on a decline rung and cost one
-    unbudgeted row - so THE CHEAPER SPELLING WAS THE LESS GUARDED ONE, and the
-    module map already spells six paths the short way. A guard whose price falls
-    as the citation gets vaguer is pointed backwards.
+    THE ASYMMETRY IS THE FINDING RATHER THAN THE HOLE. A dead citation spelled in full costs a
+    :data:`tests.test_docs_citations.BARE_PATH_REASONS` entry PLUS a ceiling raise. THE SAME
+    CITATION ONE SEGMENT SHORTER lands on a decline rung and cost one unbudgeted row - so THE
+    CHEAPER SPELLING WAS THE LESS GUARDED ONE, and the module map already spells six paths the short
+    way. A guard whose price falls as the citation gets vaguer is pointed backwards.
 
     A CEILING PER RUNG, NEVER A POOLED ONE, for the doctrine
     :func:`bare_path_budget_problems` cites: a threshold summed over a
@@ -928,15 +930,15 @@ def bare_path_budget_problems(
     would let a line-pointer repair bank room for a bare-path append, and each
     table's own repair progress would stop being visible.
 
-    AND IT COULD NOT HAVE BEEN POOLED ANYWAY, which is worth recording because
-    it was the first thing tried. :func:`forgiveness_budget_problems` counts a
-    disposition only when its key matches :data:`LINE_POINTER_RE`, so a
-    bare-path key spends NOTHING - it would have been silenceable the day it
-    shipped, which is precisely the CS-889 round-one defect reproduced inside
-    the module repaired for it. :func:`citation_sites` fails the same way one
-    step over: it dispatches on key SPELLING and falls through to an arm
-    demanding a `test_` prefix, so a bare-path key in :data:`DISPOSITIONS`
-    would count zero sites and report itself stale on arrival.
+    AND IT COULD NOT HAVE BEEN POOLED ANYWAY, which is worth recording because it was the first
+    thing tried. :func:`tests.test_docs_citations.forgiveness_budget_problems` counts a disposition
+    only when its key matches :data:`tests.test_docs_citations.LINE_POINTER_RE`, so a bare-path key
+    spends NOTHING - it would have been silenceable the day it shipped, which is precisely the
+    CS-889 round-one defect reproduced inside the module repaired for it.
+    :func:`tests.test_docs_citations.citation_sites` fails the same way one step over: it dispatches
+    on key SPELLING and falls through to an arm demanding a `test_` prefix, so a bare-path key in
+    :data:`tests.test_docs_citations.DISPOSITIONS` would count zero sites and report itself stale on
+    arrival.
 
     Args:
         reasons: The recorded answers.
@@ -944,7 +946,7 @@ def bare_path_budget_problems(
 
     Returns:
         One line per direction that has drifted, in
-        :func:`forgiveness_budget_problems`' shape and for its reasons.
+        :func:`tests.test_docs_citations.forgiveness_budget_problems`' shape and for its reasons.
     """
     spent = len(reasons)
     if spent > ceiling:
@@ -1127,11 +1129,10 @@ def module_patterns(namespace: Mapping[str, object]) -> dict[str, re.Pattern[str
     }
 
 
-#: The package every module in the walked population belongs to. A DOTTED
-#: PREFIX rather than a directory literal, joined into a path only at call time
-#: by :func:`module_file`, for the reason :func:`bare_path` gives about its own
-#: assembly - a path spelled whole in this file is a citation this family's arm
-#: then reads back.
+#: The package every module in the walked population belongs to. A DOTTED PREFIX rather than a
+#: directory literal, joined into a path only at call time by :func:`module_file`, for the reason
+#: :func:`tests.test_docs_citations.bare_path` gives about its own assembly - a path spelled whole
+#: in this file is a citation this family's arm then reads back.
 TESTS_PACKAGE: Final = "tests"
 
 

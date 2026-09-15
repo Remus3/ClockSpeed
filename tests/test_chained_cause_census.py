@@ -3122,7 +3122,7 @@ def test_the_residual_two_denominator_records_what_it_could_not_follow() -> None
 # THE CHILD'S STDERR NEVER BECOMES A FIELD, A MESSAGE OR A LOCAL. It carries an
 # absolute frame path per stack level, so it is reduced to booleans and counts
 # the moment it is read - the same rule ``tests/surface/test_server.py``
-# already obeys with :class:`ChildRendering`, for the reason CLAUDE.md
+# already obeys with :class:`tests.surface.test_server.ChildRendering`, for the reason CLAUDE.md
 # non-negotiable 12 gives.
 # ---------------------------------------------------------------------------
 

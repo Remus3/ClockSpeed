@@ -491,10 +491,10 @@ class _TableControlResult:
     """The library reduced to the one version pair the control grades.
 
     THE PAIR ITSELF NEVER LEAVES :func:`_run_table_degradation_control`.
-    :class:`_SaveShape` states the rule this follows: a version pair is reduced
-    to counts before it reaches anything a repr can render - not because a build
-    number is personal data, but because "only counts leave" stops holding the
-    first time it is argued case by case.
+    :class:`tests.save.test_struct_interior._SaveShape` states the rule this follows: a version pair
+    is reduced to counts before it reaches anything a repr can render - not because a build number
+    is personal data, but because "only counts leave" stops holding the first time it is argued case
+    by case.
 
     Attributes:
         pairs: How many distinct version pairs parsed into a record table.
@@ -601,7 +601,7 @@ def _run_table_degradation_control() -> _TableControlResult | None:
     KEY ORDER, A TRAP THIS REPO HAS ALREADY PAID FOR.
     ``objects.BODY_LAYOUT_BY_PAIR`` is keyed ``(header_version, save_version)``
     while the key here is ``(save_version, header_version)``, matching
-    :class:`_SaveShape`. Neither is ever indexed with the other.
+    :class:`tests.save.test_struct_interior._SaveShape`. Neither is ever indexed with the other.
 
     Returns:
         The reduction, or None when NO save library is reachable at all - which

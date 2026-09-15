@@ -2045,12 +2045,11 @@ def test_the_widening_does_not_flag_a_module_that_only_names_a_primitive(
     this guard's keying note records, and it would put a library-reach
     declaration on every forced-failure test in the package.
 
-    THE VOCABULARY HALF IS THE SAME RISK IN THIS MODULE'S OWN SHAPE. A primitive
-    name inside a tuple or a dict literal must not bind an alias, or every reach
-    declaration in this package - they are dicts keyed by function name - and
-    every primitive constant resolves to a primitive and the guard flags
-    everything. That bound is stated in :func:`_resolves_by_string` and this is
-    what holds it.
+    THE VOCABULARY HALF IS THE SAME RISK IN THIS MODULE'S OWN SHAPE. A primitive name inside a tuple
+    or a dict literal must not bind an alias, or every reach declaration in this package - they are
+    dicts keyed by function name - and every primitive constant resolves to a primitive and the
+    guard flags everything. That bound is stated in
+    :func:`tests.save.reach_guard._resolves_by_string` and this is what holds it.
 
     The companion is present so the guard is not vacuous, and it is the ONLY
     function either verdict may name.
@@ -2080,7 +2079,9 @@ _REQUIRED_PERSONAL_DATA_WORDS: Final = frozenset(
 
 
 def test_a_primitive_name_inside_a_collection_literal_binds_no_alias() -> None:
-    """THE BOUND :func:`_resolves_by_string` STATES, asserted of the predicate itself.
+    """THE BOUND THE PREDICATE STATES, asserted of the predicate itself.
+
+    The predicate is :func:`tests.save.reach_guard._resolves_by_string`.
 
     The parametrized control below claimed to hold this, and a refutation pass
     measured it INERT: widening ``_resolves_by_string`` to WALK each argument

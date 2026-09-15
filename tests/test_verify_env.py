@@ -1035,7 +1035,7 @@ def toolchain_which(present: set[str], root: Path) -> Callable[..., str | None]:
         root: The directory the planted executables are reported in.
 
     Returns:
-        A stand-in for :func:`toolpath.resolve_tool`.
+        A stand-in for :func:`tools.toolpath.resolve_tool`.
     """
 
     def which(name: str, *_args: object, **_kwargs: object) -> str | None:
@@ -1224,7 +1224,7 @@ def _record_every_spawn(monkeypatch: pytest.MonkeyPatch) -> list[list[str]]:
 
     IT DRIVES ``collect_rows``, WHICH IS WHAT ``main`` CALLS. That is the repair:
     naming individual row builders is how the previous arm came to miss
-    :func:`_hard_rows` entirely, so nothing here picks a function - a spawn added
+    :func:`scripts.verify_env._hard_rows` entirely, so nothing here picks a function - a spawn added
     anywhere beneath the entry point is seen without this file being touched.
 
     THE PORT PROBE IS STUBBED AND NOTHING ELSE IS. It binds twenty loopback

@@ -1380,7 +1380,7 @@ class _SaveCensus:
     know whether it is stating a property or a coincidence.
 
     So every count an arm needs is kept PER SAVE, and
-    :func:`test_the_site_equality_survives_every_legitimate_subset` re-asserts
+    :func:`test_the_site_equality_survives_every_legitimate_subset_of_this_library` re-asserts
     the equality over every leave-one-out subset, every single save alone and
     every version pair alone. A property survives all of them; a fitted number
     does not survive the first.
@@ -3573,7 +3573,7 @@ def _classify_graded_population(
     A PURE FUNCTION OF FOUR INTEGERS, DELIBERATELY, so both directions of the
     distinction this item exists for are gradeable with no game, no save and no
     library - see
-    :func:`test_a_changed_corpus_and_destroyed_evidence_are_not_the_same_verdict`.
+    :func:`tests.save.test_struct_controls.test_a_changed_corpus_and_destroyed_evidence_are_not_the_same_verdict`.
     The live arms below then do nothing but route on what it returns.
 
     THE ORDER OF THE TESTS IS THE DISTINCTION. A corpus that gained a pair this
@@ -3620,8 +3620,9 @@ def _classify_graded_population(
 #
 # THE PLANT IS THE CONSTANT ITSELF AND NOT A FUNCTION, which is the whole point:
 # a control that patched a reader would be the first control again. It is
-# applied IN PROCESS and never on disk, for the reason :class:`_EarlyTerminator`
-# states - the harness Bash timeout KILLS rather than unwinds, so a ``finally``
+# applied IN PROCESS and never on disk, for the reason
+# :class:`tests.save.test_struct_controls._EarlyTerminator` states - the harness
+# Bash timeout KILLS rather than unwinds, so a ``finally``
 # that would restore a mutated file never runs.
 # ---------------------------------------------------------------------------
 
@@ -3641,21 +3642,20 @@ def _classify_graded_population(
 #: again, so nothing here picks one.
 _CEILING_CONTROL_FLOOR: Final = 2
 
-#: CS-870's MUTANT SEAM, and it is a seam rather than an edit to the file on disk
-#: for the reason :class:`_EarlyTerminator` states next door: the harness Bash
-#: timeout KILLS rather than unwinds, so a mutation applied to a tracked file can
-#: outlive the run that made it and poison every later measurement.
+#: CS-870's MUTANT SEAM, and it is a seam rather than an edit to the file on disk for the reason
+#: :class:`tests.save.test_struct_controls._EarlyTerminator` states next door: the harness Bash
+#: timeout KILLS rather than unwinds, so a mutation applied to a tracked file can outlive the run
+#: that made it and poison every later measurement.
 #:
-#: WHEN False, :func:`_run_ceiling_control` SKIPS the restore it owes after each
-#: measured record and returns with the module still degraded. That is the exact
-#: mutation CS-870 was filed over: the trailing ``_install_ceiling(original)``
-#: deleted from the record loop, which a direct call proved leaves the shipped
-#: ceiling replaced by the control's own value while the arm reported 1 passed
-#: EXIT 0.
+#: WHEN False, :func:`_run_ceiling_control` SKIPS
+#: the restore it owes after each measured record and returns with the module still degraded. That
+#: is the exact mutation CS-870 was filed over: the trailing ``_install_ceiling(original)`` deleted
+#: from the record loop, which a direct call proved leaves the shipped ceiling replaced by the
+#: control's own value while the arm reported 1 passed EXIT 0.
 #:
 #: NEVER False OUTSIDE
-#: :func:`test_skipping_the_ceiling_controls_own_restore_reddens_the_revert_assertion`,
-#: which arms it through the fixture so a raise still restores it at teardown.
+#: :func:`test_skipping_the_ceiling_controls_own_restore_reddens_the_revert_assertion`, which arms
+#: it through the fixture so a raise still restores it at teardown.
 _CEILING_CONTROL_RESTORES: bool = True
 
 
@@ -3704,7 +3704,7 @@ class _CeilingResult:
         saves: Saves this run folded - part of CS-1054's corpus statement.
         set_aside_pairs: Pairs excluded from the choice by the declared
             complete-type-name grammar. See the block above
-            :class:`_TableControlResult`.
+            :class:`tests.save.test_struct_controls._TableControlResult`.
         set_aside_records: Records those pairs carried.
         set_aside_sites: Struct sites this module's own reading found in them,
             asserted at zero on the same terms as the table control.
@@ -3841,17 +3841,16 @@ def _run_ceiling_control(original: int, planted: int) -> _CeilingResult | None:
     """Read each save ONCE, measure every record TWICE, and grade ONE pair.
 
     EACH SAVE IS READ ONCE AND MEASURED TWICE, for the reason
-    :func:`_run_degradation_control` states: the operator plays this game while
-    a session runs, so re-reading the library between the two passes races a
-    real autosave and reports the difference as a defect.
+    :func:`tests.save.test_struct_controls._run_degradation_control` states: the operator plays this
+    game while a session runs, so re-reading the library between the two passes races a real
+    autosave and reports the difference as a defect.
 
-    THE PLANT IS PAIR-SHAPED BY THE REDUCTION AND NOT BY THE ARMING, which is
-    the construction :func:`_run_table_degradation_control` uses and for the
-    same reason: a save carries exactly one version pair, so a pair's tally is
-    exactly what planting that pair alone would have produced. A plant armed for
-    the whole library instead is caught by the shape guards - ``partial_saves``,
-    ``contested_pairs`` - and walking past those guards is what makes a
-    pair-shaped plant the one worth grading.
+    THE PLANT IS PAIR-SHAPED BY THE REDUCTION AND NOT BY THE ARMING, which is the construction
+    :func:`tests.save.test_struct_controls._run_table_degradation_control` uses and for the same
+    reason: a save carries exactly one version pair, so a pair's tally is exactly what planting that
+    pair alone would have produced. A plant armed for the whole library instead is caught by the
+    shape guards - ``partial_saves``, ``contested_pairs`` - and walking past those guards is what
+    makes a pair-shaped plant the one worth grading.
 
     THE GRADED PAIR IS DERIVED AND NOT TRANSCRIBED: the pair carrying the most
     records of those that parsed AND whose payload grammar this module's own
@@ -3970,7 +3969,7 @@ def test_a_stricter_shared_ceiling_cannot_improve_this_modules_grade(
 
     NO EVIDENCE IS A SKIP, so this opens with the shared sweep guard for the
     reason
-    :func:`test_degrading_the_shipped_tag_reader_cannot_improve_this_modules_grade`
+    :func:`tests.save.test_struct_controls.test_degrading_the_shipped_tag_reader_cannot_improve_this_modules_grade`
     records: an arm reaching the library past that guard goes RED on a corpus
     where seventeen of its siblings SKIP, and autosave rotation alone reaches
     that corpus.

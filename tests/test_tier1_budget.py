@@ -2870,7 +2870,7 @@ def test_the_guard_record_reddens_on_an_overridden_level_not_merely_the_helper(
 ) -> None:
     """CS-896 - a reader nothing calls is a reader that grades nothing.
 
-    The arms above call :func:`_tier1_effective_levels` directly, so deleting
+    The arms above call :func:`tools.drift_guard._tier1_effective_levels` directly, so deleting
     its CALL SITE inside the guard would leave every one of them green while the
     guard went blind again - which is the precise shape of the defect they were
     written for. This one goes through the guard's public record instead, so the
