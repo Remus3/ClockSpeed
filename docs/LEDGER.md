@@ -374,6 +374,74 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-09-15 - CS-1082 - CLOSED. CS-913's control clause is replaced, and the control was never supposed to be a WORLD
+
+**THE ORIGINAL CLAUSE SELECTED A POPULATION THAT CANNOT EXIST.** CS-913 named "the pinned
+development world used as the CONTROL that must stay empty rather than as the subject". After
+CS-G05's decoder repair nothing in the live library is empty, so the clause picks nothing and
+anything graded against it passes for that reason alone.
+
+**AND THE EMPTINESS WAS NEVER THE DEEPER FAULT.** An adjudicator that produced none of this
+work ruled the clause defective from the START, independent of emptiness: CS-913's own
+acceptance grades the subject "by a synthetic `PropertyMap` so the suite still runs with no
+game installed", and a control that is a LIVE WORLD is ungradeable by that same suite.
+`CLAUDE.md` section 7 settles that fixtures are synthetic and that the rule suite must run on
+a machine with no game installed. So the clause named a control no arm could ever evaluate -
+decorative before CS-G05, and decorative AND empty after it. This item is therefore not "find
+a new control world". **The control was never supposed to be a world.**
+
+**THE SWEEP THAT REFUTED THE ORIGINAL, MEASURED FIRST HAND FOR THIS RECORD.** Every save file
+under the save root, grouped to one save per distinct world token, read through the SHIPPED
+decoder. Counts only - no token, no world name, no save filename, no path.
+
+| world | purchased schematics | recipes | game phase set | decodes empty |
+|---|---|---|---|---|
+| 1 | 7 | 26 | yes | NO |
+| 2 | 6 | 22 | yes | NO |
+| 3 | 249 | 648 | no | NO |
+
+28 save files, 3 distinct world tokens, 0 unreadable headers, and **0 of 3 decode empty
+unlock state**. The decoder SEPARATES all three: three distinct schematic counts and three
+distinct recipe counts.
+
+**THE HANDED-OVER FIGURE WAS NOT REPRODUCED AND THE CLAUSE DOES NOT REST ON IT.** Session 97
+recorded the least progressed world at 8 schematics and 37 recipes; this sweep reads 6 and 22.
+The operator plays while sessions run, so a library-backed number is a reading and not a
+constant. The replacement clause was deliberately designed to depend on NO live count.
+
+**AN OBSERVATION RECORDED FOR WHOEVER TAKES CS-913, NOT A DEFECT CLAIM.** The MOST progressed
+world is the one whose `current_game_phase` reads unset, while both least progressed worlds
+have it. That may be the absent-array rule working correctly on a carrier the save does not
+write, or it may be a gap in the phase read. It is not diagnosed here.
+
+**THE REPLACEMENT CLAUSE IS ON CS-913's LINE IN `ROADMAP.md`.** It is synthetic and
+DIFFERENTIAL: two payloads at different progression over the same carriers, the lesser a
+strict subset of the greater, decoding to different and correctly ordered collections and
+different phase assets, plus a DECOY payload carrying a carrier property name on a NON-carrier
+class that must contribute nothing. A reader that returns a constant, ignores content, or
+matches a property name without its owning class each fails an arm.
+
+**WHY THE ABSENT-ARRAY ARM IS KEPT BUT IS NOT THE CONTROL, WHICH IS THE SHARPEST FINDING HERE.**
+`tests/save/test_world.py::test_an_absent_unlock_array_is_an_empty_set_rather_than_an_error`
+asserts that every unlock collection is empty on both world shapes. **A reader returning
+`EMPTY_UNLOCK_STATE` unconditionally - which is CS-913's own defect - passes every assertion
+in it.** A control the defect survives is not a control. The arm stays, because ADR 0004's
+absent-array rule is load-bearing, but it is explicitly demoted out of the control role.
+
+**A SIBLING DEFECT WAS FOUND WHILE DOING THIS AND IS FILED AS CS-1085 RATHER THAN FIXED HERE.**
+`test_no_unlock_field_is_ever_fabricated` states that `_read_unlocks` "returns the empty
+constant with no read of its own". CS-1039 gave that function two arguments and three
+carriers, and `UnlockState`'s own docstring opens "NO LONGER EMPTY ON EVERY PATH - CS-1039".
+
+**CS-G06 IS NOT TOUCHED AND CS-913 STAYS BLOCKED ON IT.** The clause asserts only difference
+and ordering between two SYNTHETIC inputs and never reads a live count, so it does not reopen
+the discharge that was refuted and discarded unmerged in session 97.
+
+**COMMON-MODE RISK, RECORDED RATHER THAN CLOSED.** `docs/adr/0016` is the sole source for the
+carrier table that both the reader and any new fixture derive from, so a synthetic fixture
+built from it cannot detect that the table itself is wrong. That is exactly what CS-G06's one
+live agreement check exists to cover, and it stays undischarged.
+
 ### 2026-09-15 - CS-1084 - CLOSED, and its acceptance was AMENDED under CLAUDE.md section 8 first, because the clause it was filed with is unfalsifiable
 
 **THE CLAUSE THAT COULD NEVER BE DISCHARGED.** CS-1084 required the lane's bound to be
