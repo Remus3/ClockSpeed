@@ -1086,11 +1086,30 @@ def test_a_classification_line_outside_the_sentinels_classifies_nothing(
     unfence a row, or quoting the mechanism inside this file would switch it off
     - the same fenced-block trap `.githooks/commit-msg` already records.
 
+    THE PLANTED LINES ARE SPELLED THE WAY THE PARSER READS THEM, ``gate: `` AND
+    ALL, and that prefix is the whole arm. A first cut spelled them ``CS-410
+    MENTIONED`` with no prefix, which ``_CLASSIFY_LINE`` never matches ANYWHERE,
+    so the containment was graded by nothing: deleting the ``if not inside``
+    guard from ``gate_classification`` left this module at 45 passed, exit 0.
+    The lines also ABUT the sentinels, one immediately above BEGIN and one
+    immediately below END, because near the block and inside it is the whole
+    distinction under test.
+
     Args:
         tmp_path: pytest temporary directory.
     """
     root = _write_corpus(tmp_path, {})
-    (root / "docs" / "GATED.md").write_bytes((_GATE_PROSE + "\nCS-410 MENTIONED\n").encode("ascii"))
+    abutting = (
+        _GATE_PROSE
+        + "\ngate: CS-410 MENTIONED\n"
+        + "```\n"
+        + _BEGIN
+        + "\n"
+        + _END
+        + "\n```\n"
+        + "gate: CS-470 MENTIONED\n"
+    )
+    (root / "docs" / "GATED.md").write_bytes(abutting.encode("ascii"))
 
     classification = scope.gate_classification(root)
 
