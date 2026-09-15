@@ -24,6 +24,61 @@ Where current truth actually lives:
 | Commands and runbooks | `docs/OPERATIONS.md` |
 
 
+## Session 93 - RELOCATED 2026-09-14 from `WAKEUP_NOTES.md`, which keeps the last three sessions
+
+- Shipped: CS-1038, CS-1040, CS-1044 and CS-1049 CLOSED. The lane-start repair closed with NO
+  id and was allocated CS-1050 at closure, so it has exactly one owner file. Detail in
+  `docs/LEDGER.md`, not here.
+- NOTE ON THE SESSION NUMBER, because it is a genuine conflict and was not resolved by
+  picking: the operator named this session 85 in the closing brief. `WAKEUP_NOTES.md`'s own
+  sequence ran 90, 91, 92, and `docs/history_notes.md` already holds a Session 85 dated
+  2026-09-11. Writing 85 would have put two different sessions under one number, so this
+  entry takes the successor of the file's own sequence and the conflict is recorded here
+  rather than silently decided.
+- In flight: nothing. Tree clean at `0ade931`, everything pushed.
+- Decisions: ADR 0019 was adjudicated this session and is already committed - read it there,
+  it is not restated here. Two rulings ride with it. FIRST, the map underlay: the map ships
+  as a schematic ground plane with NO underlay. The save's fog-of-war raster - 1024x1024,
+  proved structurally - may become a toggled layer ONLY after held-out containment of built
+  placements, a sign-flip negative control that reddens, and cross-save invariance. Do NOT
+  re-pitch a screen-captured or OBS-captured underlay as shipped data; an underlay registered
+  to `WorldBounds`, which moves whenever the operator builds; or a fitted transform accepted
+  on visual plausibility with no negative control. SECOND, node purity is NOT obtainable and
+  is REPLACED rather than approximated: nodes plot unlabelled and shape-coded by class, and
+  purity may become an OPERATOR ANNOTATION keyed by instance name. It is never presented as a
+  measurement. CS-1040's ledger entry carries the declaration evidence that closes it.
+- Surprises, and it is the finding of the session: THE PRE-PUSH GATE BLOCKED THE BATCH TWICE
+  AND BOTH REFUSALS WERE CORRECT, and neither fault was visible to any targeted run. The
+  first: the new classification block put an id at COLUMN ZERO, which is HEAD POSITION, so the
+  work-item scan read it as an entry head it could not parse and reported UNACCOUNTED. That is
+  a classifier that blinds the scan to itself - the file gets cleaner-looking by being less
+  readable. The second: a correction record named an OPEN item in its HEAD without saying it
+  was not a closure, which gave one id two owner files. A whole-suite gate caught both; every
+  scoped run this session was green across both.
+- Surprises, second: THE HARNESS REPORTED "exit code 0" FOR A BACKGROUNDED RUN WHOSE OWN LOG
+  RECORDED `PYTEST_EXIT=1`. No exit code arriving from OUTSIDE the command is evidence about
+  the command. Read the log the command wrote.
+- Surprises, third: TWO subagents reported a slice GREEN and then corrected themselves to RED
+  on a later read of their own logs. The correction came from the log, not from the claim.
+- Watch - BYTE CEILINGS ARE NEARLY SPENT AND WANT A DELIBERATE RELOCATE, NOT A TRIM.
+  `tests/test_docs_citations.py` has 4 bytes free under its ratchet. `docs/item_notes.md` has
+  26 bytes free under its 16 KB budget. `ROADMAP.md` is at 193 percent of its 60 KB soft
+  budget even after this session's closed rows came out. The next filing of any size hits one
+  of the three. Relocate, never delete.
+- Watch, second: FIVE line pointers had drifted and NOT ONE was re-cut at its new offset. Each
+  was located by recomputing the frozen line's digest across the file and then converted to
+  its ENCLOSING SYMBOL, which is what stops the next edit re-breaking it. One of the five had
+  named the WRONG DECLARATION FROM BIRTH rather than merely going stale, so a pointer that
+  resolves is not evidence the pointer was ever right.
+- Failed paths: do not re-pitch narrowing the gated scan to headings or to a declared field -
+  it is the denylist shape this project has measured leaking four times, and it fails OPEN on
+  CS-G06. Do not re-pitch rewriting gate prose to unfence a row; that lever is now pinned shut
+  by explicit MENTIONED entries. Do not re-derive node purity from a miner's rate or from a
+  class name; CS-1040 closed it BY DECLARATION and the ledger records the specifier.
+- Next action: CS-1042 - the uncollected set is the live records carrying transforms MINUS the
+  collectable pairs CS-1038 now carries up, a SUBTRACTION and not a lookup, and the two halves
+  of a pair are not both always present.
+
 ## CS-870 - item section, CLOSED and relocated from `docs/item_notes/phase4-followups-850.md` 2026-09-14
 
 ### Filed 2026-08-31 (session 53), from the same pass

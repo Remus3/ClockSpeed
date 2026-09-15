@@ -374,6 +374,53 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-09-14 - CS-1078 - FILED AND CLOSED IN ONE RECORD. The public face of the repo was refreshed, and the brief to remove self-deprecation introduced three overclaims doing it
+
+**WHAT CHANGED.** `README.md` rewritten for public presentation: thesis and a rendered advice
+sample above the fold, an at-a-glance table, an honest built / built-not-wired / next split,
+then differentiators, privacy, install and direction. GitHub About description rewritten to
+lead with what the project IS rather than a property. Topic tags swapped at the 20-tag cap -
+`git-hooks` (dev process, no product search value) and `rational-arithmetic` (a near-duplicate
+of `exact-arithmetic` spending a capped slot twice) out; `satisfactory-calculator` and
+`recipe-calculator` in, those being what a player actually types. The homepage link, which
+pointed at `docs/adr/`, was cleared: a folder of architecture decision records is a confusing
+first click for a public visitor.
+
+**THE FAILURE MODE IS THE RECORD HERE. Removing an apology is not the same edit as removing
+the fact it was apologising for.** A UI/UX audit ran the 5-phase ritual before commit and
+returned BLOCKED on three overclaims the rewrite had introduced, every one of them created by
+deleting an honest disclosure along with its apologetic tone:
+
+1. `clockspeed/progress/` and `clockspeed/advisor/` were listed under one "In progress"
+   heading beside `clockspeed/audit/`. Measured: ZERO defs or classes between the first two,
+   which are a single `__init__.py` of pure docstring, against 92 in `audit/`. The empty two
+   were borrowing the full one's credibility. Split into "Built, not yet wired" and "Next",
+   with the 501 stated as a designed answer rather than an absence.
+2. "restricted to recipes you have unlocked" implied the tool reads unlocks from the save.
+   It cannot. `OptimizeRequest.unlocked` is a REQUIRED caller input and `clockspeed/solve/
+   optimize.py` says why in terms - the model that would answer it is the same unbuilt phase
+   5 as defect 1.
+3. "there is nothing for a log, a fixture or a test to leak" was FALSE and contradicted
+   non-negotiable 12. `clockspeed/save/header.py::reveal_strings` with
+   `reveal_personal_data=True` returns `save_name`, `map_options` and `session_name` in
+   plaintext. An absolute privacy promise a reader can falsify by opening one file is worse
+   for trust than the accurate one, and the real mitigations - no field on the ordinary path,
+   explicit opt-in, repr withheld - are stronger than the overclaim was.
+
+**VERIFY IT.** `python tools/precommit_gate.py --files README.md` PASS; an independent byte
+scan with a planted-em-dash control reports 0 bytes above 0x7E, 0 CR, 0 tabs. Every relative
+link resolves on disk. `tests/test_docs_citations.py` 381 passed. Merged file: `README.md`.
+
+**DOC TOPOLOGY HOLDS.** CLAUDE.md section 4 bars README from CONTAINING roadmap, not from
+LINKING to it. The Direction section states outsider-facing capability state and delegates
+every item id, tier and acceptance clause to the owner files. No `CS-` identifier appears in
+`README.md`, and no measured number is restated in prose, so nothing there can drift
+independently of its owner.
+
+**THE GATE CAUGHT THE COMMIT, NOT JUST THE FILE.** The first commit attempt was refused by
+the `commit-msg` hook for an 82-character subject against a 72 limit. Recorded because a
+tier-0 gate refusing a merger's own commit is the gate working.
+
 ### 2026-09-14 - CS-871 - CLOSED. A Sphinx role in a tests module now resolves against a real namespace, and the five that resolved against nothing are repaired
 
 **THE DEFECT.** `tests/test_docs_citations.py` grades the shape `<path>.py::<name>` over the
