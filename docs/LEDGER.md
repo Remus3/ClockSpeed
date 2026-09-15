@@ -374,7 +374,19 @@ machine-checked artifact that produces it.
 
 ## Entries
 
-### 2026-09-14 - CS-1078 - FILED AND CLOSED IN ONE RECORD. The public face of the repo was refreshed, and the brief to remove self-deprecation introduced three overclaims doing it
+### 2026-09-14 - CS-1080 - FILED AND CLOSED IN ONE RECORD. The public face of the repo was refreshed, and the brief to remove self-deprecation introduced three overclaims doing it
+
+**THIS ENTRY WAS CS-1078 UNTIL THE MERGE, AND THE COLLISION IS THE RECORD.** The headless
+lane filed its own CS-1078 and CS-1079 in a commit that was in flight while this session
+allocated from the same high-water mark. `tools/drift_guard.py` guard (i) caught it at merge -
+"CS-1078 is owned by 2 files" - and the lane's claim is first by wall clock and is cited by the
+CS-892 entry, so the lane keeps the id and this record moved to CS-1080. **THE COMMIT MESSAGE
+ON c41db70 SAYS CS-1078 AND IS IMMUTABLE AND WRONG; this line is the correction.** The failure
+is already written down in this repository - `docs/item_notes/phase4-followups-900.md` under
+CS-962 records TWO AGENTS ALLOCATING FROM ONE HIGH-WATER MARK IN PARALLEL WILL COLLIDE, and the
+remedy it names is that the id comes from the dispatch rather than from the worker. A session
+running beside a live lane is the same shape as two agents, and neither this session nor the
+lane took an id from a dispatch.
 
 **WHAT CHANGED.** `README.md` rewritten for public presentation: thesis and a rendered advice
 sample above the fold, an at-a-glance table, an honest built / built-not-wired / next split,
