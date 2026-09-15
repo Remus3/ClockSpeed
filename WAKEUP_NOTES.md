@@ -33,6 +33,53 @@ Keep every entry to that shape. If an item needs a paragraph, it needs its own f
 the line becomes a pointer.
 
 ---
+## Session 98 - 2026-09-15 - five items closed, and THREE of them were arms that named a lever they could not move
+
+- Shipped: CS-1081, CS-1084, CS-1082, CS-1062 and CS-1083 CLOSED. CS-1085, CS-1086,
+  CS-1087 and CS-1088 filed. `main` at c090bc5, clean and pushed, whole suite green
+  through the pre-push hook at 7788 passed 7 skipped.
+- In flight: tier 1 CI on c090bc5 was IN PROGRESS at session end. Read it first.
+- THE SESSION'S ONE RESULT: THREE SEPARATE ARMS WERE GRADING NOTHING, each found by a
+  different route, and in every case the arm's STATED purpose was intact while its
+  discriminating power was gone. CS-1081's fixture planted a line the parser could never
+  match. CS-1082's control asserted emptiness, which the very defect it guards against
+  satisfies. CS-1083's arms asserted `exit 1` plus a substring that the NEW coverage
+  diagnostic also produces. Targeted suites were green on all three.
+- A MUTATION APPLIED AS A PAIR GRADES THE PAIR, NEVER EACH HALF. Reached TWICE by
+  different routes. On CS-1081 an adversary changed both sentinel comparisons together,
+  the BEGIN arm caught the pair, and `==` to `in` on END ALONE still read 46 passed exit 0.
+  On CS-1083 the same shape hid a THIRD half-hollowed arm that only the full 18-arm
+  enumeration found. Sweep each half separately or the pair's death is the pair's alibi.
+- THE 320 SECOND FIGURE BINDS NOTHING AND CS-1073's MARGIN SENTENCE IS MEASURED AGAINST IT.
+  The live tier-1 levels are 420 warn, 480 fail, 600 cancel, PER SHARD. 320 is the
+  feasibility precondition for a wall-clock gate nobody has built, and
+  `docs/history_notes.md` says in its own words that the item owning it "DETECTS NOTHING BY
+  ITSELF". M = 295 against 480 is 185 seconds clear.
+- MY OWN FIRST PASS AT THE CI DISTRIBUTION WAS WRONG TWICE AND AN ADJUDICATOR CAUGHT BOTH.
+  Reading all 54 runs made the lane look catastrophic - those readings are the TWO-shard
+  era where `fast` carried the modules now in `guards`. Then my 13-run figure of 310 was a
+  PRE-CS-1073 save reading, and save is no longer a worst-job candidate at all. SEGMENT BY
+  WORKFLOW GENERATION BEFORE QUOTING ANY CI DISTRIBUTION.
+- RUNNER CLASS IS NOT OBSERVABLE. The jobs API gives `labels: [ubuntu-latest]` and an
+  ephemeral `runner_name` with no machine identity. Any acceptance requiring readings that
+  span both classes is unfalsifiable and must be retired, not satisfied.
+- THE HANDOFF'S SWEEP FIGURES DID NOT REPRODUCE. Session 97 recorded the least progressed
+  world at 8 schematics and 37 recipes; first-hand it reads 6 and 22. The operator plays
+  while sessions run, so a library-backed number is a READING, not a constant. Build
+  clauses that depend on no live count.
+- TWO SIZE GATES ARE NOW NEAR-BLOCKERS OF THE SAME SHAPE - a hand-maintained table that
+  grows one row per event, living in the file that reads it. `docs/item_notes.md` hit
+  ELEVEN bytes free (CS-1062, closed, now 79 per cent with an approach arm at 90).
+  `tests/test_docs_citations.py` is at TWENTY-ONE bytes free (CS-1088, open).
+- CS-971 IS BLOCKED BEHIND CS-1086 AND THE HANDOFF ORDER DID NOT KNOW THAT. Post-CS-1062
+  headroom is about 32 index rows; CS-971 would create up to 51. Do CS-1086 first or
+  relocate as you go.
+- A GATE THAT DEGRADED TO SILENCE NOW SPEAKS. Every commit before CS-1083 printed
+  `skipped <pii:world>` and `PASS`; the merge commit printed `PASS - 4 checked, 0 skipped`.
+  The privacy check for non-negotiables 11 and 12 had not run on any commit made while the
+  library was over the 24-file cap.
+
+
 ## Session 97 - 2026-09-15 - CS-1073 closed on a remedy its own acceptance did not contain, and BOTH slices this session were refuted by the adversarial pass after every targeted suite was green
 
 - Shipped: CS-1073 CLOSED. CS-1081, CS-1082, CS-1083 and CS-1084 filed. CS-G06 NOT
@@ -115,60 +162,3 @@ the line becomes a pointer.
 - Doc budgets are now BLOCKING rather than warning: the item-notes leaf had 1115 bytes free
   before CS-1060's closed note was relocated, and `docs/item_notes.md` has about 70. CS-1062
   and CS-971 own these and the next filing session hits the wall.
-
-## Session 95 - 2026-09-14 - CI was red for the RUNNER rather than the tree, and every defect this session shipped was caught by a gate after the targeted suites were green
-
-- Shipped: nothing CLOSED. Three items FILED - CS-1060, CS-1061, CS-1062 - and three
-  filings REPAIRED: CS-1012, CS-1043, CS-1048. Detail in the item notes, not here.
-- In flight: nothing. Tree clean at `c307948`, everything pushed, whole suite green
-  through the pre-push hook at 7668 passed. CI on `c307948` was in progress at close.
-- Decisions: no ADR. One adjudication, recorded in CS-1012's own section where it binds.
-- THE SESSION OPENED ON A RED CI AND THE RED WAS NOT ABOUT THE TREE. Tier 1 failed its
-  duration gate on `8165c35` at 505s against a 480s ceiling. That commit is TWO MARKDOWN
-  FILES. A rerun of the same SHA passed at 289s. Two attempts differing in nothing a
-  commit can express, 222 seconds apart.
-- THE CONTROL THAT SETTLED IT RUNS NO REPO CODE. `Install toolchain` is a pinned pip
-  install with byte-identical input; it moved 7s to 12s across those attempts. A cache-miss
-  explanation was raised against it and CHECKED rather than waved off - both attempts print
-  `Using cached` for the same twelve packages and `Downloading` for the same one.
-- AND THE SAME CONTROL CHOSE THE REPAIR. Toolchain moved 1.714x while the unit step moved
-  1.774x - agreeing to 3.4 per cent. A step that runs none of this repo's code predicts the
-  suite's own slowdown, which is an in-job calibration divisor measured rather than argued.
-- Surprises: CS-1012's OWN PREMISE WAS FALSE. Its line said the spread on one tree is about
-  20s, from a single rerun pair. A second pair reads 23s apart against this one's 222s, so
-  the pool is TWO-CLASS rather than continuously noisy and a sigma-banded threshold grades
-  which class it landed on. The published feasibility rule on M=511, N=222 returns an EMPTY
-  window: wall-clock gating is INFEASIBLE at this lane length, not mis-tuned. That is
-  CS-1060, and CS-1012 cannot be built before it.
-- Surprises, second, AND IT IS THE REUSABLE ONE: THE INDEX SAID THE OPPOSITE OF THE RULE.
-  `docs/item_notes.md` routed the `CS-10nn` block to `phase4.md`. The membership rule sends
-  every phase 4 ID at 900 or higher to the `CS-9nn` leaf, which that leaf's own header
-  states and which every existing `CS-105x` row already did. One sentence disagreed with
-  the code, with the leaf and with its own table - and a session that checked the phase
-  carefully still got the leaf wrong by trusting it. A restated rule is a rule that drifts.
-- THE PRE-PUSH GATE BLOCKED ONCE AND IT WAS RIGHT, and the targeted runs were green on the
-  same tree: the citation suites and the drift guard both passed the misrouted sections.
-  Only `test_every_section_sits_in_the_leaf_the_membership_rule_names` saw it. THE HARNESS
-  REPORTED EXIT CODE 0 FOR THAT BLOCKED PUSH - fifth measurement across two sessions, now
-  in harness memory. Read the log the command wrote and confirm the remote SHA moved.
-- THE CITATION GUARD CAUGHT FOUR OF MY OWN CITATIONS AND WAS RIGHT FOUR TIMES: a future
-  test name binding nowhere, a line pointer at a tracked module, a module that does not
-  exist yet, and a gitignored artifact. All four were repaired by REPHRASING - not one
-  disposition entry, not one ceiling raise, because `tests/test_docs_citations.py` still
-  has four bytes free.
-- Failed paths: do not keep CS-1048's registration clause with the annotation half. The
-  item note at HEAD proposed exactly that on the grounds `WorldBounds` exists, which it
-  does - but the transform's subject is the underlay's own grid, so the clause has no
-  subject without the raster either. It went to CS-1061 with the fog.
-- Watch - `docs/item_notes.md` reached 16338 of 16384 bytes THIS SESSION, 46 free, and was
-  trimmed back to 134 only by shortening this session's own addition. That is a reprieve,
-  not a repair. The next session to file an item cannot add its routing row without
-  unrelated surgery first. CS-1062 carries it.
-- Watch, second - `ROADMAP.md` is at 201 percent of its soft budget, up from 196.
-- Watch, third - TEN stale agent worktrees remain, still reading as merged because a
-  worktree's HEAD is its base while work sits uncommitted. Classify by content.
-- Next action: confirm CI on `c307948`, then CS-1062 FIRST - the index relocation - because
-  every other item in flight needs to file a routing row and cannot. After it, CS-1043 and
-  CS-1048 are both repaired and dispatchable; they still force `docs/ARCHITECTURE.md` and
-  still run in sequence with a merger doc-sync, never beside each other. CS-1061 opens on
-  an ADJUDICATED SEAM DECISION and no file is scaffolded before that ruling.

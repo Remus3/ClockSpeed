@@ -10815,3 +10815,65 @@ about `_shared_tag_symbols`. Resolve the symbol against the module's own symbol 
   bytes it needs), and CS-1043's budget-constant clause cannot redden while the constant is a
   literal. CS-1043 and CS-1048 are also the two that force `docs/ARCHITECTURE.md`, so they run
   in sequence with a merger doc-sync, never beside each other.
+
+## Session 95 wakeup note - RELOCATED 2026-09-15 from `WAKEUP_NOTES.md`
+
+Relocated whole, not summarised, when session 98 added its entry and that file keeps
+the last two to three sessions only. Nothing was deleted.
+
+## Session 95 - 2026-09-14 - CI was red for the RUNNER rather than the tree, and every defect this session shipped was caught by a gate after the targeted suites were green
+
+- Shipped: nothing CLOSED. Three items FILED - CS-1060, CS-1061, CS-1062 - and three
+  filings REPAIRED: CS-1012, CS-1043, CS-1048. Detail in the item notes, not here.
+- In flight: nothing. Tree clean at `c307948`, everything pushed, whole suite green
+  through the pre-push hook at 7668 passed. CI on `c307948` was in progress at close.
+- Decisions: no ADR. One adjudication, recorded in CS-1012's own section where it binds.
+- THE SESSION OPENED ON A RED CI AND THE RED WAS NOT ABOUT THE TREE. Tier 1 failed its
+  duration gate on `8165c35` at 505s against a 480s ceiling. That commit is TWO MARKDOWN
+  FILES. A rerun of the same SHA passed at 289s. Two attempts differing in nothing a
+  commit can express, 222 seconds apart.
+- THE CONTROL THAT SETTLED IT RUNS NO REPO CODE. `Install toolchain` is a pinned pip
+  install with byte-identical input; it moved 7s to 12s across those attempts. A cache-miss
+  explanation was raised against it and CHECKED rather than waved off - both attempts print
+  `Using cached` for the same twelve packages and `Downloading` for the same one.
+- AND THE SAME CONTROL CHOSE THE REPAIR. Toolchain moved 1.714x while the unit step moved
+  1.774x - agreeing to 3.4 per cent. A step that runs none of this repo's code predicts the
+  suite's own slowdown, which is an in-job calibration divisor measured rather than argued.
+- Surprises: CS-1012's OWN PREMISE WAS FALSE. Its line said the spread on one tree is about
+  20s, from a single rerun pair. A second pair reads 23s apart against this one's 222s, so
+  the pool is TWO-CLASS rather than continuously noisy and a sigma-banded threshold grades
+  which class it landed on. The published feasibility rule on M=511, N=222 returns an EMPTY
+  window: wall-clock gating is INFEASIBLE at this lane length, not mis-tuned. That is
+  CS-1060, and CS-1012 cannot be built before it.
+- Surprises, second, AND IT IS THE REUSABLE ONE: THE INDEX SAID THE OPPOSITE OF THE RULE.
+  `docs/item_notes.md` routed the `CS-10nn` block to `phase4.md`. The membership rule sends
+  every phase 4 ID at 900 or higher to the `CS-9nn` leaf, which that leaf's own header
+  states and which every existing `CS-105x` row already did. One sentence disagreed with
+  the code, with the leaf and with its own table - and a session that checked the phase
+  carefully still got the leaf wrong by trusting it. A restated rule is a rule that drifts.
+- THE PRE-PUSH GATE BLOCKED ONCE AND IT WAS RIGHT, and the targeted runs were green on the
+  same tree: the citation suites and the drift guard both passed the misrouted sections.
+  Only `test_every_section_sits_in_the_leaf_the_membership_rule_names` saw it. THE HARNESS
+  REPORTED EXIT CODE 0 FOR THAT BLOCKED PUSH - fifth measurement across two sessions, now
+  in harness memory. Read the log the command wrote and confirm the remote SHA moved.
+- THE CITATION GUARD CAUGHT FOUR OF MY OWN CITATIONS AND WAS RIGHT FOUR TIMES: a future
+  test name binding nowhere, a line pointer at a tracked module, a module that does not
+  exist yet, and a gitignored artifact. All four were repaired by REPHRASING - not one
+  disposition entry, not one ceiling raise, because `tests/test_docs_citations.py` still
+  has four bytes free.
+- Failed paths: do not keep CS-1048's registration clause with the annotation half. The
+  item note at HEAD proposed exactly that on the grounds `WorldBounds` exists, which it
+  does - but the transform's subject is the underlay's own grid, so the clause has no
+  subject without the raster either. It went to CS-1061 with the fog.
+- Watch - `docs/item_notes.md` reached 16338 of 16384 bytes THIS SESSION, 46 free, and was
+  trimmed back to 134 only by shortening this session's own addition. That is a reprieve,
+  not a repair. The next session to file an item cannot add its routing row without
+  unrelated surgery first. CS-1062 carries it.
+- Watch, second - `ROADMAP.md` is at 201 percent of its soft budget, up from 196.
+- Watch, third - TEN stale agent worktrees remain, still reading as merged because a
+  worktree's HEAD is its base while work sits uncommitted. Classify by content.
+- Next action: confirm CI on `c307948`, then CS-1062 FIRST - the index relocation - because
+  every other item in flight needs to file a routing row and cannot. After it, CS-1043 and
+  CS-1048 are both repaired and dispatchable; they still force `docs/ARCHITECTURE.md` and
+  still run in sequence with a merger doc-sync, never beside each other. CS-1061 opens on
+  an ADJUDICATED SEAM DECISION and no file is scaffolded before that ruling.
