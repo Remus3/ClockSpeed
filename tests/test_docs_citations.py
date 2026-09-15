@@ -885,21 +885,15 @@ DISPOSITIONS: Final[Mapping[tuple[str, str], Disposition]] = {
     (LEDGER, line_key("tools/precommit_gate.py", 704)): Disposition(
         NO_TARGET,
         "",
-        "the entry reads that line as a `%`-format exception rendering, but the"
-        " pin's frozen digest held the SAVE_HEADER_BUDGET_SECONDS assignment -"
-        " prose and landing ALREADY disagreed at d9398e6, so the site was"
-        " unexamined exactly as the pin claimed. CS-1083 moved that constant"
-        " down the file; no declaration the entry describes is nameable, so no"
-        " target is assigned.",
+        "prose and digest ALREADY disagreed at d9398e6 - the digest held the"
+        " save-header budget constant. CS-1083 moved it; nothing is nameable.",
         1,
     ),
     (LEDGER, line_key("tools/precommit_gate.py", 1802)): Disposition(
         NO_TARGET,
         "",
-        "the entry reads that line as the gate traceback the detector measures;"
-        " the pin's digest held a stage_for_lint docstring line about in-place"
-        " ruff staging. The two already disagreed at d9398e6, and CS-1083 moved"
-        " that docstring further down. Nothing to redirect to.",
+        "prose and digest ALREADY disagreed at d9398e6 - the digest held a"
+        " stage_for_lint docstring line. CS-1083 moved it; nothing to name.",
         1,
     ),
     (LEDGER, line_key("tests/test_precommit_gate.py", 1174)): Disposition(
