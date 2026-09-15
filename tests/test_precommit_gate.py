@@ -2854,20 +2854,90 @@ def over_cap_save_root(tmp_path_factory: pytest.TempPathFactory) -> Path:
     return make_over_cap_save_root(tmp_path_factory.mktemp("overcap"), OVER_CAP_WORLD_TOKEN)
 
 
+# --------------------------------------------------------------------------
+# CS-1083 - a LEAK diagnostic is told from a COVERAGE diagnostic by IDENTITY
+# --------------------------------------------------------------------------
+#
+# THE HOLLOWING THIS CLOSES WAS MEASURED, not anticipated. CS-1083 made a
+# TRUNCATED world-token population a blocking diagnostic, so under the
+# over-bound fixtures below the gate now exits 1 on EVERY run, clean file or
+# not - and that diagnostic's own reason ends "...so a world token from an
+# older save is not matchable". `returncode == 1` plus `"world token" in
+# stderr`, which is what the two CS-436 fail-open arms asserted, is therefore
+# satisfied with ZERO detection. Against a mutant replacing
+# `found.append(read_header(path).world_token)` with a bare `read_header(path)`
+# - world-token detection from headers destroyed outright - both arms reported
+# `2 passed`, exit 0.
+#
+# WHAT MADE THEM POTENT BEFORE was a control that no longer holds: a clean file
+# under the SAME fixture used to exit 0, so exit 1 could only come from a
+# match. CS-1083 inverted that control, and the arms keyed on it did not notice
+# because nothing they asserted changed.
+#
+# THE SEPARATION IS BY IDENTITY AND NOT BY SUBSTRING, because a substring is
+# what failed. A leak is reported against the CHECKED UNIT's label at a real
+# line and column; the coverage report is reported against PII_WORLD_LABEL at
+# 0:0. Both tests are applied and the reason is excluded as well, so neither a
+# relabelled coverage report nor a reworded one can be counted as detection.
+
+#: The gate's own label for a world-value coverage reduction. Spelled here
+#: rather than imported, so the oracle is not the module under test.
+PII_WORLD_LABEL = "<pii:world>"
+
+#: The opening words of the CS-1083 coverage diagnostic's reason. It is NOT a
+#: report that anything was found in a file.
+COVERAGE_DIAGNOSTIC = "the world-token check did not cover"
+
+
+def leak_diagnostics(stderr: str, subject: str) -> list[str]:
+    """The diagnostic lines reporting `subject` found IN A CHECKED FILE.
+
+    Args:
+        stderr: The gate's stderr, or a `git commit` attempt's stderr.
+        subject: "world token" or "world name" - the phrase the gate's own
+            blocking reason uses for that class.
+
+    Returns:
+        Every line that is a LEAK report. Empty means the gate detected
+        nothing, whatever its exit code says.
+    """
+    found = []
+    for line in stderr.splitlines():
+        if ": PII " not in line or subject not in line:
+            continue
+        if COVERAGE_DIAGNOSTIC in line:
+            continue
+        if line.startswith(PII_WORLD_LABEL + ":") or ":0:0: PII " in line:
+            continue
+        found.append(line)
+    return found
+
+
 def test_a_token_in_the_newest_save_past_the_entry_cap_is_still_blocked(
     over_cap_save_root: Path, tmp_path: Path
 ) -> None:
-    """The fail-open, at the unit rung. Past the cap the token must still match."""
+    """The fail-open, at the unit rung. Past the cap the token must still match.
+
+    GRADED ON THE LEAK DIAGNOSTIC'S IDENTITY, never on the exit code. Under
+    this fixture CS-1083's coverage diagnostic blocks unconditionally, so exit
+    1 says nothing here at all - see leak_diagnostics above for the mutant that
+    measured this arm passing with detection destroyed.
+    """
     env = base_env(tmp_path)
     env["CLOCKSPEED_SAVE_ROOT"] = str(over_cap_save_root)
 
     target = write(tmp_path / "ledger.md", "keyed by " + OVER_CAP_WORLD_TOKEN + "\n")
     result = run_gate("--files", str(target), env=env)
 
-    assert result.returncode == 1, "FAIL-OPEN: the gate passed a staged world token\n" + (
-        result.stdout + result.stderr
-    )
-    assert "world token" in result.stderr, result.stderr
+    leaks = leak_diagnostics(result.stderr, "world token")
+    assert leaks, "FAIL-OPEN: no world-token LEAK was reported\n" + (result.stdout + result.stderr)
+    # THE ANTI-VACUITY FRONT. This fixture is over the bound by construction,
+    # so the coverage report must be here too. An arm that stopped seeing it
+    # has stopped exercising the condition it is named for and would be
+    # discriminating nothing - it would pass on an under-cap fixture, which
+    # is exactly the shape CS-1083 exists to forbid.
+    assert COVERAGE_DIAGNOSTIC in result.stderr, result.stderr
+    assert result.returncode == 1, result.stdout + result.stderr
 
 
 def test_a_world_name_in_the_newest_save_past_the_entry_cap_is_still_blocked(
@@ -2887,10 +2957,15 @@ def test_a_world_name_in_the_newest_save_past_the_entry_cap_is_still_blocked(
     target = write(tmp_path / "world.md", "played " + OVER_CAP_SAVE_STEM + " tonight\n")
     result = run_gate("--files", str(target), env=env)
 
-    assert result.returncode == 1, "FAIL-OPEN: the gate passed a staged world name\n" + (
-        result.stdout + result.stderr
-    )
-    assert "world name" in result.stderr, result.stderr
+    # Same identity test as the token sibling. This arm was hollowed only
+    # HALF way - the coverage reason names the token subject and never the
+    # name one, so the substring still bound - but its exit-code assertion
+    # went vacuous with the rest, and a reworded coverage reason would
+    # finish the job. Graded on the leak line either way.
+    leaks = leak_diagnostics(result.stderr, "world name")
+    assert leaks, "FAIL-OPEN: no world-name LEAK was reported\n" + (result.stdout + result.stderr)
+    assert COVERAGE_DIAGNOSTIC in result.stderr, result.stderr
+    assert result.returncode == 1, result.stdout + result.stderr
 
 
 def test_an_over_cap_listing_reports_the_truncation(
@@ -2975,8 +3050,12 @@ def test_a_token_past_the_entry_cap_is_blocked_by_a_real_commit(
     after = git("rev-parse", "HEAD", cwd=hooked_repo).stdout.strip()
     combined = attempt.stdout + attempt.stderr
 
+    leaks = leak_diagnostics(attempt.stderr, "world token")
     assert attempt.returncode != 0, "FAIL-OPEN: the commit LANDED\n" + combined
-    assert "world token" in attempt.stderr, combined
+    assert leaks, (
+        "FAIL-OPEN: the commit was refused for COVERAGE and not for the token\n" + combined
+    )
+    assert COVERAGE_DIAGNOSTIC in attempt.stderr, combined
     assert after == before, "HEAD MOVED - the commit was not blocked"
     assert str(tmp_path) not in combined, combined
 
