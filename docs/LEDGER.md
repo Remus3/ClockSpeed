@@ -374,6 +374,86 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-09-15 - CS-1084 - CLOSED, and its acceptance was AMENDED under CLAUDE.md section 8 first, because the clause it was filed with is unfalsifiable
+
+**THE CLAUSE THAT COULD NEVER BE DISCHARGED.** CS-1084 required the lane's bound to be
+"established from readings that SPAN both classes rather than from a mean". RUNNER CLASS IS
+NOT OBSERVABLE BY ANY INSTRUMENT THIS PROJECT HAS. Probed directly against the jobs API on
+run 35023124376: every job reports `labels` of `ubuntu-latest` and nothing else, and
+`runner_name` is an ephemeral per-job id carrying no machine identity. A clause whose input
+cannot be measured can only ever be discharged by a FITTED MODEL, and
+`docs/history_notes.md` already records one such model being read backwards - a note assumed
+the slow class was the one a short sample would miss, and a later model said the opposite.
+Ground truth beats the document, so the clause is retired rather than satisfied.
+
+**THE AMENDED ACCEPTANCE, IN FULL.** The lane's ceiling is bounded by M, the maximum over
+ALL tier-1 jobs of that job's own observed wall clock, never by a named job, established from
+at least ten readings per candidate job on an unchanged shard workload and graded against
+`TIER1_CEILING_SECONDS`, which is the level that FAILS. A job whose observed maximum sits
+below the lane maximum by more than one lane spread is not a candidate. Runner class is NOT
+an input. The 321 figure is a feasibility precondition for a future wall-clock gate and is
+NOT a live bound.
+
+**321 BINDS NOTHING THAT EXISTS, WHICH IS THE CORRECTION THAT MATTERS MOST.**
+`docs/history_notes.md` says so in its own words - that item "DETECTS NOTHING BY ITSELF" and
+is the ENABLING item for a wall-clock gate nobody has built. The levels that exist are per
+shard and `.github/workflows/tier1.yml` states that a level bounds the SLOWEST SHARD and
+never their sum: 420 warns, 480 fails, 600 cancels. So the "about 25 seconds of margin"
+CS-1084 was filed over is margin against a precondition, not against a bound, and breaching
+it costs nothing until that gate exists. **THIS ALSO CORRECTS THE CS-1073 ENTRY ABOVE**,
+whose sentence "Margin against the 320 figure went from about 12 seconds to about 25"
+measures against the same non-bound. This file is append-only, so that sentence stands and
+this record corrects it.
+
+**THE MEASUREMENT, AND THE TWO POPULATIONS THAT HAD TO BE EXCLUDED BEFORE IT MEANT ANYTHING.**
+Every successful tier-1 run on main, job wall clock from the jobs API.
+
+- The guard shard exists in only 13 runs, ea3591a and newer. Older runs carry TWO jobs, and
+  their `fast` readings - up to 484 - are a job that carried the nine modules now in
+  `guards`. Counting those makes today's lane look catastrophic and they are not evidence
+  about it. One of them, at 471, PASSED: the 420 budget warned and did not fail, exactly as
+  designed.
+- Within the 13, every save reading at or above 283 predates CS-1073. Post-CS-1073 save is
+  155, 160, 161 and 164, so save is no longer a worst-job CANDIDATE at all. A first pass of
+  this measurement quoted a lane maximum of 310 and a margin of 11 seconds; that 310 was a
+  stale save reading and the figure is wrong.
+
+On unchanged workloads: `fast` 13 readings, 175 to 295. `guards` 13 readings, 153 to 295.
+
+| bound | what it does | worst reading against it |
+|---|---|---|
+| 321 | feasibility precondition, enforces nothing | 295, and it binds nothing |
+| 420 | warns, per shard | 295, zero of 13 over |
+| 480 | FAILS, per shard | 295, zero of 13 over, 185 seconds clear |
+| 600 | cancels, policy | zero of 13 over |
+
+**THE INSTRUMENT WAS CROSS-CHECKED, BECAUSE EVERY NUMBER ABOVE CAME FROM ONE OF THEM.** The
+jobs API wall clock spans queue-to-start and post-step upload; the figure that actually
+grades 420 and 480 is the job's OWN elapsed, computed in the workflow. On the `fast` job of
+run 35023124376 the API span reads 287 seconds and the job's own report step printed
+`tier 1 took 283s - within budget (budget 420s, ceiling 480s)`. Four seconds apart, with the
+API reading HIGH, so every margin in this record is conservative.
+
+**DISCHARGED AT d9398e6.** M = 295 against a failing ceiling of 480.
+
+**DO NOT, EACH WITH ITS FENCE.**
+
+- Do not raise 420, 480 or `timeout-minutes`. `tier1.yml` states in capitals that raising the
+  cutoff converts a runaway detector into a budget, `tools/drift_guard.py` guard (k) ratchets
+  it both directions, and CS-1060 and CS-1084 both say a raised ceiling is not a remedy.
+- Do not close a lane-duration item by re-running until a number is liked. CS-1060.
+- Do not cite the 54-run `fast` range or any pre-CS-1073 save reading. Different workloads.
+- Do not add a fourth shard or a second interpreter to buy margin against 321. The leanness
+  rule at the top of `tier1.yml`, metered minutes, and 321 binds nothing.
+- Do not write a premise naming one job as the worst. Over the 13 three-shard runs it was
+  save 7, fast 4 and guards 2. Session 97 recorded this as "fast twice and guards twice" from
+  four readings; the shape holds on thirteen, the attribution does not.
+
+**RESIDUAL, STATED RATHER THAN CLOSED.** `fast`'s four newest readings - 282, 287, 264 and
+295 - sit at the top of its thirteen-reading band. Noise or growth is unresolved and five
+more readings on a stable tree settle it. The 480 ceiling catches it either way, which is why
+this is a residual and not a gate.
+
 ### 2026-09-15 - CS-1083 - NOT A COMPLETION RECORD. NOTHING CLOSED. CS-1083 STAYS OPEN. This is the section 6 frozen-file GRANT, recorded before the edit
 
 **WHAT IS GRANTED.** Permission to modify `tools/precommit_gate.py`, which `CLAUDE.md`
