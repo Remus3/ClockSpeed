@@ -2596,6 +2596,225 @@ def test_the_child_run_excludes_this_module_so_the_gate_cannot_recurse() -> None
         )
 
 
+#: Every flag that makes pytest collect LESS than its targets name, scanned
+#: AFTER the literal ``pytest`` token. That boundary is not a detail: this argv
+#: opens with PYTHON's own ``-m``, and a scan over the whole list would read the
+#: module flag as pytest's marker expression and refuse a correct command.
+#:
+#: ``-p`` IS NOT HERE BECAUSE IT IS GRADED BY VALUE INSTEAD, and that is a
+#: judgement rather than an omission (CS-1073). This command carries
+#: ``-p no:cacheprovider`` on purpose - the child must not write a cache into
+#: the parent's rootdir - so a flat ban would refuse the shipped command, and a
+#: flat permission would let any other plugin be disabled. MEASURED on this box:
+#: ``-p no:unittest`` silently drops ``unittest.TestCase`` collection, three
+#: collected becoming two passed, exit 0. tests/save carries no TestCase today,
+#: so that one is latent rather than live - but tier 1 no longer runs this gate,
+#: which raises the stakes on every remaining way it can quietly collect less.
+#: :data:`_CHILD_PERMITTED_PLUGIN_ARGUMENTS` is the allowlist that settles it.
+_CHILD_NARROWING_FLAGS: Final = (
+    "-k",
+    "-m",
+    "--deselect",
+    "--ignore-glob",
+    "--maxfail",
+    "-x",
+    "--exitfirst",
+    "--lf",
+    "--ff",
+    "--last-failed",
+    "--failed-first",
+    "--co",
+    "--collect-only",
+)
+
+#: The flags in this command that take their value as the NEXT token. Without
+#: them the value reads as a positional target - ``4`` after ``-n``, ``loadfile``
+#: after ``--dist`` - and the target check below would report a narrowing that
+#: is not there.
+_CHILD_VALUE_FLAGS: Final = ("-n", "--dist", "-p", "-k", "-m", "--deselect", "--maxfail")
+
+#: The only ``-p`` arguments this command may carry. AN ALLOWLIST, for the
+#: reason `tests/test_tier1_budget.py` records beside its own: a rule phrased as
+#: "not the bad ones" is a list somebody has to keep complete, and this
+#: repository has already measured one defect wearing four different fields
+#: across four green commits before an allowlist of good values held it.
+_CHILD_PERMITTED_PLUGIN_ARGUMENTS: Final = ("no:cacheprovider",)
+
+#: The plugin flag, named once. Also the reason the scan below binds its loop
+#: variable to `word` rather than `token`: ruff's S105 reads a comparison
+#: against anything called `token` as a hardcoded credential.
+_PLUGIN_FLAG: Final = "-p"
+
+
+def _child_targets(args: list[str]) -> list[str]:
+    """The paths the child hands pytest, with flag values not mistaken for one.
+
+    Args:
+        args: The child's argv after the interpreter.
+
+    Returns:
+        Every positional target, in order.
+    """
+    assert "pytest" in args, f"this command does not invoke pytest: {args}"
+    after = args[args.index("pytest") + 1 :]
+    targets: list[str] = []
+    skip = False
+    for token in after:
+        if skip:
+            skip = False
+            continue
+        if token.startswith("-"):
+            skip = "=" not in token and token in _CHILD_VALUE_FLAGS
+            continue
+        targets.append(token)
+    return targets
+
+
+def _child_narrowings(args: list[str]) -> list[str]:
+    """Every way ``args`` collects less than the whole of ``tests/save``.
+
+    SEPARATED FROM THE ARM THAT USES IT SO IT CAN BE GRADED. An arm that reads
+    the shipped command and finds nothing wrong passes identically whether it
+    asks the right question or no question at all, so the question is lifted out
+    and the arm below hands it commands with known holes.
+
+    THE RECURSION GUARD IS THE ONE PERMITTED EXCLUSION AND IT IS PINNED BY
+    IDENTITY, not merely counted. One ``--ignore=`` naming this module is how
+    the gate avoids launching itself forever; a second one, or a first one
+    naming anything else, is a narrowing whatever it is spelled as.
+
+    Args:
+        args: The child's argv after the interpreter.
+
+    Returns:
+        A sentence per narrowing found, sorted.
+    """
+    found: list[str] = []
+
+    targets = _child_targets(args)
+    if targets != [str(SAVE_TESTS)]:
+        found.append(f"the child targets {targets} rather than [{str(SAVE_TESTS)!r}]")
+
+    permitted = f"--ignore={THIS_MODULE}"
+    excluded = [token for token in args if token.startswith("--ignore=")]
+    if excluded != [permitted]:
+        found.append(f"the child excludes {excluded} rather than [{permitted!r}]")
+
+    after = args[args.index("pytest") + 1 :] if "pytest" in args else args
+    selectors = [token for token in after if token.split("=", 1)[0] in _CHILD_NARROWING_FLAGS]
+    found.extend(f"the child passes the selector {token!r}" for token in selectors)
+
+    plugins = [
+        after[index + 1]
+        for index, word in enumerate(after)
+        if word == _PLUGIN_FLAG and index + 1 < len(after)
+    ]
+    found.extend(
+        f"the child disables the plugin {argument!r}"
+        for argument in plugins
+        if argument not in _CHILD_PERMITTED_PLUGIN_ARGUMENTS
+    )
+    if len(plugins) != after.count(_PLUGIN_FLAG):
+        found.append("the child writes a bare -p with no argument after it")
+
+    return sorted(found)
+
+
+def test_the_child_runs_the_whole_of_the_save_suite_and_not_a_slice_of_it() -> None:
+    """CS-1073 - tier 1 stopped running this module, so its own reach is now the gate.
+
+    THE DELETION THIS ARM EXISTS FOR. `.github/workflows/tier1.yml`'s save shard
+    carries `--ignore=tests/save/test_phase4_gate.py`, because this one test
+    re-runs the whole of tests/save as a nested child and dominated that shard.
+    The measurement, the run it came from and the reasoning are in the workflow,
+    which owns every duration this project states about that lane - repeating
+    one here would make this file a second owner of it. What is left running the
+    gate is `.githooks/pre-push` - on the operator's box, where the game IS
+    installed and a save library DOES exist, which is where its docstring says
+    the value actually is - and tier 2's `full suite`, on both legs of every
+    lane row.
+
+    SO THE REMAINING RISK IS NOT THAT THE GATE STOPS RUNNING. It is that the
+    gate goes on running while quietly covering less: a target pointed at one
+    file or one subdirectory, a second ``--ignore=`` for whatever is slow this
+    month, a marker expression. Every one of those leaves this module green, the
+    parent suite green and the lane green, over a save suite nobody proved clean
+    on a machine with no install and no save. A deletion from tier 1 must not be
+    convertible into a weaker gate here, and that is exactly what this pins.
+    """
+    narrowings = _child_narrowings(_child_pytest_args())
+
+    assert narrowings == [], (
+        f"{narrowings}. The child run is the WHOLE of tests/save minus this module and "
+        "nothing else: tier 1 no longer runs this gate, so a child that collects less is "
+        "a claim about the save suite that nothing anywhere makes"
+    )
+
+
+def test_a_narrowed_child_command_is_named_rather_than_walked_past() -> None:
+    """CS-1073 - the arm above passes over the shipped command, and only over that.
+
+    It reports the same empty list whether it reads the target, reads a key that
+    does not exist, or reads nothing. So each narrowing is PLANTED IN TURN and
+    the detector is required to name that one - every plant is checked to have
+    actually changed the command first, because a mutation that never applied
+    and a detector that missed it print the same thing.
+
+    IN TURN, AND NOT ONCE. A detector that stopped at the first fault, or that
+    reported only the last, passes a single-mutation grading and then misses the
+    shape nobody thought to try.
+    """
+    shipped = _child_pytest_args()
+    assert _child_narrowings(shipped) == [], (
+        "the shipped command is already narrowed, so a red below attributes to nothing"
+    )
+
+    one_file = str(SAVE_TESTS / "test_header.py")
+    plants: dict[str, list[str]] = {
+        # Pointed at one file of the directory rather than the directory.
+        "a single file": [one_file if token == str(SAVE_TESTS) else token for token in shipped],
+        # Pointed at a subdirectory. Named rather than walked, so a subdirectory
+        # added later cannot quietly become the whole target.
+        "a subdirectory": [
+            str(SAVE_TESTS / "data") if token == str(SAVE_TESTS) else token for token in shipped
+        ],
+        # The target dropped entirely, which leaves pytest collecting rootdir.
+        "no target at all": [token for token in shipped if token != str(SAVE_TESTS)],
+        # A second exclusion beside the recursion guard.
+        "a second ignore": [*shipped, f"--ignore={one_file}"],
+        # A marker expression, which subtracts in total silence.
+        "a marker expression": [*shipped, "-m", "not slow"],
+        # A name expression, the same fault wearing a different flag.
+        "a name expression": [*shipped, "-k", "not header"],
+        # Collection only, which makes every assertion about a run vacuous.
+        "collection only": [*shipped, "--collect-only"],
+        # A plugin disabled by name. MEASURED: `-p no:unittest` drops
+        # `unittest.TestCase` collection and still exits 0, so the summary line
+        # is identical whether the tests ran or were never seen.
+        "a disabled plugin": [*shipped, "-p", "no:unittest"],
+        # The permitted plugin argument swapped for another, which a rule
+        # phrased as "-p is fine" would wave through.
+        "the permitted -p retargeted": [
+            "no:unittest" if word in _CHILD_PERMITTED_PLUGIN_ARGUMENTS else word for word in shipped
+        ],
+        # A bare -p with nothing after it, which the scan above would otherwise
+        # read as a flag carrying no argument and therefore no narrowing.
+        "a bare -p": [*shipped, "-p"],
+    }
+
+    escaped: list[str] = []
+    for case, planted in plants.items():
+        assert planted != shipped, f"{case}: the plant never landed, so it graded nothing"
+        if not _child_narrowings(planted):
+            escaped.append(case)
+
+    assert escaped == [], (
+        f"{escaped} were planted into the child command and the detector named NONE of "
+        "them, so it reports a clean command for one that collects less than the save "
+        "suite"
+    )
+
+
 def test_the_child_run_asks_for_bounded_parallelism_rather_than_auto() -> None:
     """The child is parallel AND capped, and neither half may be lost in silence.
 

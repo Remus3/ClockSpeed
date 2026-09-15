@@ -66,6 +66,7 @@ test on a developer machine cannot stand in for.
 from __future__ import annotations
 
 import ast
+import importlib
 import importlib.util
 import os
 import re
@@ -2004,6 +2005,306 @@ def shard_ignores(tokens: list[str]) -> list[str]:
     return [token for token in after_pytest(tokens) if token.startswith(IGNORE_PREFIX)]
 
 
+#: The lane below this one. A tier-1 shard may DELETE a path from its own run
+#: only while a REQUIRED job of this workflow provably runs it, so this file is
+#: read rather than trusted (CS-1073).
+TIER2_RELATIVE = ".github/workflows/tier2.yml"
+
+#: A matrix job's declared `name:` is a TEMPLATE, and what CI reports is one job
+#: per leg with the expansion substituted in. The driver therefore matches on
+#: the literal PREFIX, and this is what cuts a declared name back to it - the
+#: same reduction `tests/test_queue_loop_ci_specs.py` performs, for the same
+#: reason.
+TEMPLATE_EXPANSION = re.compile(r"\$\{\{[^}]*\}\}")
+
+
+def queue_loop_module() -> Any:
+    """The lane driver, imported for its CI specs and nothing else.
+
+    THE MATCHER SET IS READ FROM THE DRIVER RATHER THAN COPIED HERE. A copy
+    would agree with whatever it was written from forever, and the fact that
+    matters is not "tier 2 declares a job called X" but "the driver WAITS ON X
+    and refuses to ship the row without it". A job the driver does not grade is
+    a job that can be red while the lane goes on shipping, so an ignore
+    justified by such a job is justified by nothing.
+
+    Returns:
+        The imported ``ops.loop.queue_loop`` module.
+    """
+    if str(REPO_ROOT) not in sys.path:  # pragma: no cover - ordering, not logic
+        sys.path.insert(0, str(REPO_ROOT))
+    return importlib.import_module("ops.loop.queue_loop")
+
+
+def required_tier_two_matchers() -> tuple[str, ...]:
+    """Every job-name prefix the driver REQUIRES of tier 2.
+
+    Returns:
+        ``CI_TIER2.required``, verbatim.
+    """
+    driver = queue_loop_module()
+    for spec in driver.CI_SPECS:
+        if spec.workflow == Path(TIER2_RELATIVE).name:
+            required = tuple(spec.required)
+            assert required, (
+                f"the driver requires NO job of {TIER2_RELATIVE}, so nothing there is"
+                " graded and no tier-1 deletion can be justified by it"
+            )
+            return required
+    raise AssertionError(f"the driver declares no CI spec for {TIER2_RELATIVE}")
+
+
+def tier_two_document() -> dict[str, Any]:
+    """The lane below this one, parsed.
+
+    Parsed rather than scanned for the reason :func:`workflow_document` gives:
+    that file documents itself heavily and its comments spell `pytest tests`
+    more than once.
+
+    Returns:
+        The parsed document.
+    """
+    text = (REPO_ROOT / TIER2_RELATIVE).read_text(encoding="utf-8")
+    document = yaml.safe_load(text)
+    assert isinstance(document, dict), f"{TIER2_RELATIVE} did not parse to a mapping"
+    return document
+
+
+def matchable(name: str) -> str:
+    """A declared job name cut back to the literal prefix CI reports.
+
+    Args:
+        name: A job's declared ``name``, templating included.
+
+    Returns:
+        The prefix up to the first ``${{``, or the whole name when there is none.
+    """
+    match = TEMPLATE_EXPANSION.search(name)
+    return name[: match.start()] if match else name
+
+
+def tier_two_pytest_invocations(matchers: tuple[str, ...]) -> list[tuple[str, list[str]]]:
+    """Every pytest command a REQUIRED tier-2 job runs, located.
+
+    THE PARAMETER IS WHY THIS IS A FUNCTION AND NOT A CONSTANT. Handed the real
+    matchers it answers the shipped question; handed a narrower set it answers
+    the question the arms below need in order to grade themselves - a detector
+    that has only ever read a healthy tree is a detector nobody has measured.
+
+    Args:
+        matchers: Job-name prefixes to accept, in the driver's own spelling.
+
+    Returns:
+        (a label naming the job and step, the command split into tokens) for
+        every line of every step of every matching job that invokes pytest.
+    """
+    jobs = tier_two_document().get("jobs")
+    assert isinstance(jobs, dict), f"{TIER2_RELATIVE} declares no jobs mapping"
+
+    found: list[tuple[str, list[str]]] = []
+    for job_id, job in jobs.items():
+        if not isinstance(job, dict):
+            continue
+        declared = matchable(str(job.get("name", job_id)))
+        if not any(declared.startswith(m) or m.startswith(declared) for m in matchers):
+            continue
+        for index, step in enumerate(job.get("steps") or []):
+            if not isinstance(step, dict):
+                continue
+            script = step.get("run")
+            if not isinstance(script, str):
+                continue
+            where = f"{TIER2_RELATIVE} job {job_id!r} step {step.get('name', index)!r}"
+            # LINE BY LINE, because a `run:` block is a SHELL SCRIPT and several
+            # of tier 2's are. A scan over the whole block would read a target
+            # from one line against a pytest on another and invent an invocation
+            # that no shell ever executes.
+            for line in script.splitlines():
+                tokens = line.split()
+                if "pytest" in tokens:
+                    found.append((where, tokens))
+    return found
+
+
+def covered_by(claim: str, path: str) -> bool:
+    """Whether a pytest target ``claim`` collects ``path``.
+
+    The boundary is a `/` rather than a prefix, so a sibling whose name merely
+    starts with the same letters is not read as covered.
+
+    Args:
+        claim: A path handed to pytest as a target or as an ``--ignore=``.
+        path: The path being asked about.
+
+    Returns:
+        True when ``claim`` is ``path`` or a directory containing it.
+    """
+    return path == claim or path.startswith(claim + "/")
+
+
+def run_by_any(invocations: list[tuple[str, list[str]]], path: str) -> bool:
+    """Whether some invocation in ``invocations`` genuinely collects ``path``.
+
+    THIS IS A NECESSARY CONDITION AND NEVER A SUFFICIENT ONE. Read on its own it
+    is a containment test, and a containment test against a job that runs the
+    bare suite root says YES to every path under it - which is a permission that
+    cannot refuse anything a tier-1 shard would ever plausibly write.
+    :data:`PERMITTED_DELETIONS` is what actually grants; this only takes away.
+
+    THE WHOLE NARROWING VOCABULARY IS APPLIED HERE, not just `--ignore=`. An
+    earlier version read the tier-2 targets and its ignores and nothing else,
+    and `-m 'not slow'`, `-k`, `--deselect`, `--ignore-glob=`, `-p no:...` and
+    `--collect-only` each left a deleted module reading as covered by a job that
+    would not have run it. That is the family
+    :func:`test_no_selection_narrowing_hides_in_the_pytest_configuration` exists
+    for, arriving one lane out, so the same vocabulary answers it: an invocation
+    carrying ANY narrowing selector is no cover at all, whatever it targets.
+
+    THE TEMPLATE EXPANSION IS NOT A NARROWING AND IS DELIBERATELY NOT REFUSED.
+    tier 2's full-suite command ends in a `${{ steps.xdist.outputs.args }}` that
+    resolves to `-n auto` or to nothing; neither subtracts a test. A scan that
+    refused every token it could not resolve would refuse the shipped lane.
+
+    Args:
+        invocations: The commands to consider.
+        path: The path being asked about.
+
+    Returns:
+        True when at least one unnarrowed command collects it.
+    """
+    for _where, tokens in invocations:
+        if narrowing_selectors(tokens):
+            continue
+        after = after_pytest(tokens)
+        if any(covered_by(claim, path) for claim in after if is_target(claim)):
+            return True
+    return False
+
+
+def deletion_ignores(
+    shards: dict[str, list[str]], claimed: list[str], catch: str
+) -> dict[str, list[str]]:
+    """Every `--ignore=` that is NOT the partition's own one-per-target bookkeeping.
+
+    The catch-all carries one ignore per other shard's target, and those name
+    paths another tier-1 shard runs: they are how the partition is spelled, not
+    a deletion. ANYTHING ELSE names a path no tier-1 shard runs at all, and that
+    is a deletion from this lane whatever job it is written on.
+
+    RECOGNISED ONLY ON THE CATCH-ALL, deliberately. A non-catch-all shard
+    writing another shard's target as its own ignore is at best a no-op and at
+    worst a second exclusion of a path already excluded once; classifying it as
+    bookkeeping would let it past the governed check for free.
+
+    Args:
+        shards: Every shard's command, by id.
+        claimed: Every target claimed by a non-catch-all shard.
+        catch: The catch-all shard's id.
+
+    Returns:
+        The deleted paths, by shard id, for the shards that delete anything.
+    """
+    wanted = set(claimed)
+    found: dict[str, list[str]] = {}
+    for job_id, tokens in shards.items():
+        paths = [token[len(IGNORE_PREFIX) :] for token in shard_ignores(tokens)]
+        deleted = [path for path in paths if not (job_id == catch and path in wanted)]
+        if deleted:
+            found[job_id] = deleted
+    return found
+
+
+#: THE ONLY PATHS TIER 1 MAY DELETE, each paired with the item that authorised
+#: it. AN ALLOWLIST, AND THE DISTINCTION IS THE WHOLE REPAIR. The first version
+#: of this rule permitted any path a required tier-2 job could be argued to
+#: contain, and a required tier-2 job runs the bare suite root - so it said YES
+#: to `tests`, to `tests/save`, to `tests/solve`, to everything a shard would
+#: ever actually write. It could refuse only paths outside the suite root, which
+#: no tier-1 shard would ever name. An adversarial pass measured what that cost:
+#: a save shard carrying `--ignore=tests/save` - the whole directory, run by NO
+#: tier-1 shard, since the catch-all already ignores it - was GREEN on every arm
+#: in this module while the base commit was RED.
+#:
+#: THIS REPO HAS MEASURED THE GENERAL FORM OF THAT MISTAKE ALREADY: one defect
+#: wore four different fields across four green commits, and only an allowlist
+#: of known-good values held. A containment test is a denylist in disguise.
+#:
+#: THE ITEM ID IS NOT DECORATION. A permission with no item behind it is a
+#: permission nobody has to justify or ever close, so the id is required, its
+#: spelling is checked, and every entry must name a path the lane deletes TODAY
+#: - a standing permission for a path nothing excludes is a hole waiting for
+#: someone to walk into it.
+PERMITTED_DELETIONS: dict[str, str] = {
+    # It re-runs the WHOLE of tests/save as a nested child pytest, targeting the
+    # DIRECTORY rather than the shard, so no arrangement of shards could ever
+    # have contained it. `.githooks/pre-push` and tier 2's `full suite` both
+    # still collect it; the workflow states the measurement.
+    "tests/save/test_phase4_gate.py": "CS-1073",
+}
+
+#: How an item id is spelled. `CLAUDE.md` section 5: ids carry the `CS-` prefix,
+#: are permanent and are never reused.
+ITEM_ID = re.compile(r"^CS-\d+$")
+
+#: What separates a refusal from its reason. Chosen over `:` because a refusal
+#: renders a PATH, and a Windows path carries a drive colon that would split in
+#: the middle of the very thing being named.
+REASON_MARK = " -- "
+
+
+def named_paths(refusals: list[str]) -> list[str]:
+    """The ``"<shard> -> <path>"`` head of each refusal, reason discarded.
+
+    Args:
+        refusals: Lines as :func:`ungoverned_deletions` renders them.
+
+    Returns:
+        The heads, sorted.
+    """
+    return sorted(line.split(REASON_MARK, 1)[0] for line in refusals)
+
+
+def ungoverned_deletions(
+    deletions: dict[str, list[str]],
+    invocations: list[tuple[str, list[str]]],
+    permitted: dict[str, str],
+) -> list[str]:
+    """Every tier-1 deletion the two conditions do not BOTH permit.
+
+    THE CONDITIONS ARE CONJUNCTIVE AND NEITHER IS SUFFICIENT. A path must be on
+    the recorded allowlist AND be provably run by a required tier-2 job. The
+    allowlist alone would let a recorded permission outlive the tier-2 job that
+    made it safe; the tier-2 read alone is the containment hole described on
+    :data:`PERMITTED_DELETIONS`.
+
+    SEPARATED FROM THE ARMS THAT USE IT SO IT CAN BE GRADED, for the reason
+    :func:`jobs_without_a_cutoff` gives: an arm that reads the shipped tree and
+    finds nothing wrong passes identically whether it asks the right question or
+    no question at all. ``permitted`` is a parameter for the same reason - an
+    allowlist the arms cannot vary is an allowlist they cannot measure.
+
+    Args:
+        deletions: The deleted paths, by shard id.
+        invocations: The commands the required tier-2 jobs run.
+        permitted: The recorded permissions, path to item id.
+
+    Returns:
+        ``"<shard> -> <path> -- <reason>"`` for each, sorted.
+    """
+    found: list[str] = []
+    for job_id, paths in deletions.items():
+        for path in paths:
+            head = f"{job_id} -> {path}"
+            if path not in permitted:
+                found.append(f"{head}{REASON_MARK}on no recorded permission")
+            elif not run_by_any(invocations, path):
+                found.append(
+                    f"{head}{REASON_MARK}permitted by {permitted[path]}, but no REQUIRED"
+                    " tier-2 job runs it unnarrowed"
+                )
+    return sorted(found)
+
+
 def test_the_two_shards_partition_the_suite_with_no_gap_and_no_overlap() -> None:
     """CS-896 and CS-1060 - a shard is exactly where a directory stops being tested.
 
@@ -2068,9 +2369,29 @@ def test_the_two_shards_partition_the_suite_with_no_gap_and_no_overlap() -> None
             f"the {job_id!r} shard names {outside}, which are not proper paths under"
             f" {SUITE_ROOT + '/'!r}, so the catch-all cannot exclude them by name"
         )
-        assert ignores[job_id] == [], (
-            f"the {job_id!r} shard excludes {ignores[job_id]}; whatever those name is run"
-            " by NEITHER shard, and both jobs stay green over it"
+        # NARROWING ITSELF "NOT AT ALL" WAS RELAXED BY EXACTLY ONE CLAUSE, AND
+        # THE CLAUSE IS A NAMED PERMISSION RATHER THAN AN ARGUMENT (CS-1073).
+        # The original reading was right about the general case and wrong about
+        # one: an ignore here names a path NEITHER tier-1 shard runs, which is a
+        # gap - UNLESS the path is on :data:`PERMITTED_DELETIONS` by item id AND
+        # a job the lane driver will not ship without provably runs it
+        # unnarrowed. Both, never either.
+        #
+        # THE FIRST ATTEMPT AT THIS CLAUSE ASKED ONLY THE SECOND HALF AND WAS
+        # REFUTED. A required tier-2 job runs the bare suite root, so every path
+        # under `tests/` satisfied it: a save shard carrying `--ignore=tests/save`
+        # - the whole directory, run by no tier-1 shard at all - went GREEN here
+        # while the commit before this one was RED. What the allowlist adds is
+        # the ability to refuse a path tier 2 demonstrably runs.
+        governed = ungoverned_deletions(
+            {job_id: [name[len(IGNORE_PREFIX) :] for name in ignores[job_id]]},
+            tier_two_pytest_invocations(required_tier_two_matchers()),
+            PERMITTED_DELETIONS,
+        )
+        assert governed == [], (
+            f"the {job_id!r} shard excludes {governed}; whatever those name is run by"
+            " NEITHER tier-1 shard, and nothing has recorded a permission for it that a"
+            " REQUIRED tier-2 job still honours, so every lane stays green over it"
         )
 
     # (3) THE CATCH-ALL IGNORES EXACTLY THE UNION OF THE OTHERS' TARGETS.
@@ -2080,11 +2401,28 @@ def test_the_two_shards_partition_the_suite_with_no_gap_and_no_overlap() -> None
         f"{repeated} are claimed by more than one shard, so those tests run twice on"
         " every push and the catch-all's single ignore hides it"
     )
-    assert sorted(ignores[catch]) == sorted(IGNORE_PREFIX + name for name in claimed), (
+    # THE CATCH-ALL'S IGNORES ARE READ IN TWO PARTS SINCE CS-1073, AND THE
+    # EQUALITY BELOW IS UNCHANGED OVER THE FIRST. Bookkeeping ignores - the ones
+    # naming another shard's target - must still be exactly the union of the
+    # claims, one for one. A DELETION ignore is anything else, it is governed by
+    # the tier-2 clause rather than by this equality, and it is subtracted here
+    # so that clause is the only thing that can permit it.
+    bookkeeping = sorted(name for name in ignores[catch] if name[len(IGNORE_PREFIX) :] in claimed)
+    assert bookkeeping == sorted(IGNORE_PREFIX + name for name in claimed), (
         f"the catch-all shard {catch!r} excludes {sorted(ignores[catch])} while the other"
         f" shards claim {sorted(claimed)}. Each claimed target needs exactly one"
         f" {IGNORE_PREFIX!r} on the catch-all: a target without one is run twice, and an"
         " ignore without one is run by nobody"
+    )
+    deleted = ungoverned_deletions(
+        deletion_ignores(shards, claimed, catch),
+        tier_two_pytest_invocations(required_tier_two_matchers()),
+        PERMITTED_DELETIONS,
+    )
+    assert deleted == [], (
+        f"{deleted} are deleted from tier 1 on no recorded permission, or on one no"
+        " REQUIRED tier-2 job still honours, so they are collected by nothing the lane"
+        " waits on"
     )
 
     # (4) NO CLAIMED TARGET SITS INSIDE ANOTHER.
@@ -2116,7 +2454,6 @@ def test_no_shard_narrows_itself_by_any_route_the_ignore_list_cannot_name() -> N
     here rather than absorbed, so the failure says which spelling was written.
     """
     shards = suite_shards()
-    targets = {job_id: shard_targets(tokens) for job_id, tokens in shards.items()}
 
     spaced = sorted(job_id for job_id, tokens in shards.items() if "--ignore" in tokens)
     assert spaced == [], (
@@ -2125,20 +2462,425 @@ def test_no_shard_narrows_itself_by_any_route_the_ignore_list_cannot_name() -> N
         " target, so the partition above would count an exclusion as a claim"
     )
 
-    catch_all = [job_id for job_id, named in targets.items() if named == [SUITE_ROOT]]
-    assert len(catch_all) == 1, f"the catch-all shards are {sorted(catch_all)}"
-    catch = catch_all[0]
+    # THE CATCH-ALL IS NO LONGER LOCATED HERE, AND THAT IS THE HANDOVER BELOW
+    # ARRIVING IN THE CODE. This arm used to permit an ignore only on the
+    # catch-all, so it had to know which shard that was; it now permits an
+    # ignore on any shard and leaves WHICH paths to the partition arm, which
+    # locates the catch-all itself. Two arms deciding the same thing is how one
+    # of them drifts.
 
+    # THE PERMITTED SET IS EVERY SHARD'S OWN `--ignore=` LIST SINCE CS-1073, AND
+    # THAT IS NOT A WIDENING OF WHAT IS ALLOWED. It is a HANDOVER: this arm asks
+    # only whether a shard narrows itself by a route the ignore list cannot
+    # NAME, and the partition arm above now grades the ignore list itself on
+    # every shard - bookkeeping ignores against the claims, deletion ignores
+    # against what a required tier-2 job provably runs. Keeping `[]` here for
+    # the other shards would make the two arms disagree about the same token,
+    # and the one that fails first would be the one nobody could read.
     offending: list[str] = []
     for job_id, tokens in shards.items():
-        permitted = shard_ignores(tokens) if job_id == catch else []
+        permitted = shard_ignores(tokens)
         found = narrowing_selectors(tokens)
         if sorted(found) != sorted(permitted):
             offending.append(f"{job_id} -> {found}")
     assert offending == [], (
-        f"{offending} narrow themselves by a route the partition cannot see. The"
-        f" catch-all may narrow itself only by its {IGNORE_PREFIX!r} list, and no other"
-        " shard may narrow itself at all"
+        f"{offending} narrow themselves by a route the partition cannot see. A shard may"
+        f" narrow itself only by its {IGNORE_PREFIX!r} list, which the partition arm"
+        " grades path by path; every other selector is invisible to it"
+    )
+
+
+def test_the_tier_two_cross_check_reads_the_jobs_and_the_targets_it_claims_to() -> None:
+    """THE KNOWN-GOOD CONTROL. Every clause above is vacuous without it.
+
+    :func:`run_by_any` answers False for everything when the parse finds
+    nothing, and False is the SAFE direction - a deletion would be refused
+    rather than waved through. That makes a broken parse a red lane rather than
+    a silent hole, which is the right way round, and it also makes a broken
+    parse indistinguishable from a healthy one for as long as nothing is
+    deleted. So the parse is required to have found something, here, by name.
+    """
+    matchers = required_tier_two_matchers()
+    invocations = tier_two_pytest_invocations(matchers)
+
+    assert invocations, (
+        f"no REQUIRED job of {TIER2_RELATIVE} was found to invoke pytest at all, so the"
+        f" clause permitting a tier-1 deletion is reading nothing. The matchers are"
+        f" {list(matchers)}"
+    )
+    running_the_root = [
+        where for where, tokens in invocations if SUITE_ROOT in after_pytest(tokens)
+    ]
+    assert running_the_root, (
+        f"no REQUIRED tier-2 job runs the bare {SUITE_ROOT!r} target; the invocations"
+        f" found were {[where for where, _ in invocations]}"
+    )
+
+
+def lane_deletions() -> dict[str, list[str]]:
+    """Every path this lane excludes and no tier-1 shard picks up.
+
+    Returns:
+        The deleted paths, by shard id.
+    """
+    shards = suite_shards()
+    targets = {job_id: shard_targets(tokens) for job_id, tokens in shards.items()}
+    catch_all = [job_id for job_id, named in targets.items() if named == [SUITE_ROOT]]
+    assert len(catch_all) == 1, f"the catch-all shards are {sorted(catch_all)}"
+    catch = catch_all[0]
+    claimed = [name for job_id, named in targets.items() if job_id != catch for name in named]
+    return deletion_ignores(shards, claimed, catch)
+
+
+def test_the_recorded_permissions_are_live_and_each_names_the_item_that_granted_it() -> None:
+    """CS-1073 - an allowlist nobody prunes becomes the hole it replaced.
+
+    THREE PROPERTIES, AND EACH HAS ITS OWN FAILURE MODE. An entry with no item
+    id is a permission nobody has to justify or ever close. An entry naming a
+    path the lane does NOT currently delete is a STANDING permission: the next
+    person to write that ignore gets it for free, with no review and no item,
+    which is precisely the containment hole arriving by a slower route. And an
+    empty allowlist would make every arm below grade nothing.
+
+    THE DIRECTION THAT IS NOT CHECKED, DELIBERATELY. A deletion with no entry is
+    refused by :func:`ungoverned_deletions` rather than here, because that is a
+    statement about the workflow and this arm is a statement about the list.
+    """
+    assert PERMITTED_DELETIONS, (
+        "no deletion is recorded at all, so every arm grading the allowlist below is"
+        " grading an empty question. Delete them rather than leave them passing"
+    )
+
+    malformed = sorted(
+        f"{path} -> {item!r}"
+        for path, item in PERMITTED_DELETIONS.items()
+        if not ITEM_ID.match(item)
+    )
+    assert malformed == [], (
+        f"{malformed} record no item id in the `CS-<number>` spelling CLAUDE.md section 5"
+        " pins. A permission with no item behind it is one nobody has to justify or close"
+    )
+
+    outside = sorted(path for path in PERMITTED_DELETIONS if not is_target(path))
+    assert outside == [], (
+        f"{outside} are recorded as tier-1 deletions but are not under {SUITE_ROOT!r}, so"
+        " no shard could ever have been running them and the entry permits nothing"
+    )
+
+    deleted = {path for paths in lane_deletions().values() for path in paths}
+    stale = sorted(path for path in PERMITTED_DELETIONS if path not in deleted)
+    assert stale == [], (
+        f"{stale} carry a recorded permission and are NOT excluded by any shard today."
+        " A permission for a path nothing deletes is a standing one: whoever writes that"
+        f" ignore next gets it with no item and no review. Remove the entry from"
+        " PERMITTED_DELETIONS when the deletion goes"
+    )
+
+
+def test_every_path_tier_one_deletes_is_recorded_and_still_run_by_a_required_tier_two_job() -> None:
+    """CS-1073 - the rule that lets a tier-1 shard drop a module, stated once.
+
+    A tier-1 shard may carry an `--ignore=` that no other tier-1 shard picks up
+    only while BOTH hold: the path is on :data:`PERMITTED_DELETIONS` against the
+    item that authorised it, AND a job `ops/loop/queue_loop.py` REQUIRES of
+    tier 2 provably runs it unnarrowed.
+
+    REQUIRED IS LOAD-BEARING ON THE SECOND HALF. The driver refuses to ship a
+    lane row without those jobs, so a path they run is a path something waits
+    on; an advisory job, or one the driver does not grade at all, can be red for
+    the rest of the project's life without anything noticing.
+
+    THE ALLOWLIST IS LOAD-BEARING ON THE FIRST, AND IT IS THE HALF AN
+    ADVERSARIAL PASS HAD TO ADD. Read alone, the tier-2 half is a containment
+    test against a job that runs the bare suite root, so it says YES to every
+    path a shard would ever write.
+
+    THIS IS THE SAME CLAUSE THE PARTITION ARM APPLIES, ASKED WHOLE. That arm
+    reaches it through the partition's own bookkeeping and would go red for
+    several other reasons first; this one names the paths and nothing else, so a
+    failure here says exactly which deletion lost its cover.
+    """
+    escaped = ungoverned_deletions(
+        lane_deletions(),
+        tier_two_pytest_invocations(required_tier_two_matchers()),
+        PERMITTED_DELETIONS,
+    )
+
+    assert escaped == [], (
+        f"{escaped}. Either restore them to tier 1, or record the path against the item"
+        f" that authorises it in PERMITTED_DELETIONS and make a REQUIRED job of"
+        f" {TIER2_RELATIVE} collect it unnarrowed"
+    )
+
+
+#: The shapes a tier-1 deletion actually takes, every one of them a path a
+#: REQUIRED tier-2 job demonstrably runs. MEASURED BY AN ADVERSARY AGAINST THE
+#: FIRST VERSION OF THIS RULE, which permitted all four: `tests/save` is the
+#: whole save directory, already excluded by the catch-all, so a save shard
+#: excluding it too leaves the directory running in NO shard; `tests` is the
+#: entire suite. The first rule could refuse only paths OUTSIDE the suite root,
+#: which is to say only paths no tier-1 shard would ever write.
+DELETIONS_THE_LANE_COULD_PLAUSIBLY_WRITE = (
+    SUITE_ROOT,
+    SUITE_ROOT + "/save",
+    SUITE_ROOT + "/solve",
+    SUITE_ROOT + "/advisor",
+)
+
+#: A path NO pytest invocation in either workflow names. Deliberately OUTSIDE
+#: the suite root, so it is refused by the tier-2 half rather than by the
+#: allowlist - which is what makes it usable for grading that half on its own.
+#: It names no file on disk: :func:`run_by_any` compares strings and never
+#: touches the filesystem, so a real path would only invite a reader to check
+#: whether it still exists.
+UNCOVERED_PLANT = "tools/planted_path_no_tier_two_job_collects.py"
+
+#: A borrowed item id for the synthetic allowlists below. NOT a real item, and
+#: spelled so no search for a live id finds it here.
+SYNTHETIC_ITEM = "CS-0"
+
+
+def test_a_deletion_on_no_recorded_permission_is_refused_even_where_tier_two_runs_it() -> None:
+    """CS-1073 - THE REFUTATION THIS ARM EXISTS TO KEEP CLOSED.
+
+    THE FIRST VERSION OF THIS RULE COULD NOT REFUSE ANYTHING IT WOULD EVER FACE.
+    It granted cover whenever a required tier-2 job named a CONTAINING target,
+    and a required tier-2 job runs the bare suite root - so every path under
+    `tests/` was unconditionally governed. An adversary measured the
+    consequence: a save shard carrying `--ignore=tests/save` put the WHOLE save
+    directory in no tier-1 shard, since the catch-all already ignores it, and
+    every zero-argument arm in this module stayed GREEN. The base commit was
+    RED. The extension had made the tree weaker than the thing it extended.
+
+    SO THE PLANTS HERE ARE THE ADVERSARY'S OWN, NOT FRIENDLIER ONES. Each names
+    a path tier 2 demonstrably runs, and each must be refused on the allowlist
+    alone. A rule that can only refuse paths outside the suite root is not a
+    rule about this lane.
+    """
+    invocations = tier_two_pytest_invocations(required_tier_two_matchers())
+    assert invocations, "nothing was parsed, so every plant below would be caught vacuously"
+
+    escaped: list[str] = []
+    for path in DELETIONS_THE_LANE_COULD_PLAUSIBLY_WRITE:
+        assert path not in PERMITTED_DELETIONS, (
+            f"{path} is on the recorded allowlist, so this plant cannot grade the refusal"
+        )
+        assert run_by_any(invocations, path), (
+            f"a REQUIRED tier-2 job does not run {path}, so a refusal below would prove"
+            " nothing about the allowlist - the tier-2 half would have refused it anyway"
+        )
+        if not ungoverned_deletions({"planted": [path]}, invocations, PERMITTED_DELETIONS):
+            escaped.append(path)
+
+    assert escaped == [], (
+        f"{escaped} were planted as tier-1 deletions and permitted. Every one is run by a"
+        " required tier-2 job, so a containment test cannot refuse them; only a recorded"
+        " permission can, and that is the whole point of one"
+    )
+
+
+def test_a_recorded_permission_no_required_tier_two_job_honours_is_still_refused() -> None:
+    """CS-1073 - the two conditions are CONJUNCTIVE, and this grades the second.
+
+    The allowlist alone would let a recorded permission outlive the tier-2 job
+    that made it safe: someone narrows or retargets tier 2, the entry says
+    nothing, and a module runs in no lane at all. So an allowlisted path that no
+    required tier-2 job runs must still be red.
+
+    GRADED WITH A SYNTHETIC ALLOWLIST rather than by editing the real one. The
+    shipped entry is honoured by tier 2 - that is why the tree is green - so
+    proving this half needs a permission the tier-2 read will refuse, and
+    :data:`UNCOVERED_PLANT` is a path outside every tier-2 target.
+    """
+    invocations = tier_two_pytest_invocations(required_tier_two_matchers())
+    assert invocations, "nothing was parsed, so the plant below would be caught vacuously"
+
+    permitted = {UNCOVERED_PLANT: SYNTHETIC_ITEM}
+    refused = ungoverned_deletions({"planted": [UNCOVERED_PLANT]}, invocations, permitted)
+
+    assert named_paths(refused) == [f"planted -> {UNCOVERED_PLANT}"], (
+        f"a recorded permission for {UNCOVERED_PLANT} was honoured while NO required"
+        " tier-2 job runs that path. The allowlist would then be the only condition, and"
+        " an entry nobody revisits would outlive the job that made it safe"
+    )
+
+
+#: Every way a tier-2 job can go on naming the suite root while collecting less
+#: of it. ASSEMBLED FROM :data:`NARROWING_FLAGS` RATHER THAN LISTED, so a flag
+#: added to that vocabulary is graded here without anyone remembering to.
+#:
+#: MEASURED: with the tier-2 side read for its targets and its `--ignore=` only,
+#: EVERY one of these left the shipped deletion reading as covered by a job that
+#: would not have run it. `-p` is in the vocabulary and belongs there - measured
+#: on this box, `-p no:unittest` silently drops `unittest.TestCase` collection
+#: and exits 0 - and tier 2 is now load-bearing for a test tier 1 deleted, which
+#: is exactly where a silent plugin drop costs the most.
+#: What each option-taking narrowing flag is planted WITH. A flag absent from
+#: this mapping takes no value and is planted bare, which is why
+#: `--collect-only` is not here: writing it as `--collect-only=tests` would
+#: grade the token scan against a spelling pytest does not accept.
+NARROWING_PLANT_VALUES = {
+    "-m": "not slow",
+    "-k": "not phase4",
+    "--ignore": SUITE_ROOT,
+    "--ignore-glob": SUITE_ROOT + "/*",
+    "--deselect": SUITE_ROOT,
+    "-p": "no:python",
+    "--maxfail": "1",
+}
+
+
+def narrowing_plants() -> list[tuple[str, list[str]]]:
+    """One planted narrowing per flag in :data:`NARROWING_FLAGS`.
+
+    Returns:
+        (the flag, the tokens to append) for each.
+    """
+    plants: list[tuple[str, list[str]]] = []
+    for flag in NARROWING_FLAGS:
+        value = NARROWING_PLANT_VALUES.get(flag)
+        if value is None:
+            plants.append((flag, [flag]))
+        elif flag.startswith("--"):
+            plants.append((flag, [f"{flag}={value}"]))
+        else:
+            plants.append((flag, [flag, value]))
+    return plants
+
+
+def test_a_narrowed_required_tier_two_job_is_no_cover_at_all() -> None:
+    """CS-1073 - the second hole the adversarial pass found, closed by vocabulary.
+
+    THE TIER-2 SIDE WAS READ FOR ITS TARGETS AND ITS `--ignore=` AND NOTHING
+    ELSE. Nothing anywhere in this repository reads tier2.yml's commands, so a
+    `-m 'not slow'`, a `-k`, a `--deselect`, an `--ignore-glob=` or a
+    `--collect-only` added there subtracted the deleted module from the only
+    lane still running it, in total silence, with every arm green. That is the
+    family `test_no_selection_narrowing_hides_in_the_pytest_configuration`
+    exists for, reintroduced one lane out.
+
+    THE PLANTS ARE DERIVED FROM :data:`NARROWING_FLAGS`, not listed, so the two
+    lanes are read with ONE vocabulary and a flag added to it is graded on both
+    sides without anyone remembering to.
+
+    EACH PLANT IS CHECKED TO HAVE LANDED. A mutation that never applied and a
+    detector that missed it print the same thing.
+    """
+    invocations = tier_two_pytest_invocations(required_tier_two_matchers())
+    assert invocations, "nothing was parsed, so every plant below would be caught vacuously"
+
+    deletions = lane_deletions()
+    assert deletions, "the lane deletes nothing, so there is nothing to lose cover"
+    assert ungoverned_deletions(deletions, invocations, PERMITTED_DELETIONS) == [], (
+        "the shipped tree is already refused, so a red below attributes to nothing"
+    )
+
+    expected = sorted(
+        f"{job_id} -> {path}" for job_id, paths in deletions.items() for path in paths
+    )
+    escaped: list[str] = []
+    for label, appended in narrowing_plants():
+        narrowed = [(where, [*tokens, *appended]) for where, tokens in invocations]
+        assert narrowed != invocations, f"{label}: the plant never landed, so it graded nothing"
+        refused = ungoverned_deletions(deletions, narrowed, PERMITTED_DELETIONS)
+        if named_paths(refused) != expected:
+            escaped.append(f"{label} -> {named_paths(refused)}")
+
+    assert escaped == [], (
+        f"{escaped}. A required tier-2 job carrying any of those selectors collects less"
+        " than its target names, so it cannot be the thing that makes a tier-1 deletion"
+        " safe - and nothing else in this repository reads that file's commands"
+    )
+
+
+def test_a_retargeted_required_tier_two_job_is_no_cover_either() -> None:
+    """CS-1073 - the narrowing scan is not the only way tier 2 can stop covering.
+
+    A job that simply stops NAMING the path collects none of it, with no
+    narrowing selector written anywhere. Graded beside the scan above so neither
+    mechanism can be deleted on the grounds that the other one covers it.
+    """
+    invocations = tier_two_pytest_invocations(required_tier_two_matchers())
+    assert invocations, "nothing was parsed, so the plant below would be caught vacuously"
+    deletions = lane_deletions()
+    assert deletions, "the lane deletes nothing, so there is nothing to lose cover"
+
+    expected = sorted(
+        f"{job_id} -> {path}" for job_id, paths in deletions.items() for path in paths
+    )
+    retargeted = [
+        (where, [token for token in tokens if not is_target(token)])
+        for where, tokens in invocations
+    ]
+    assert retargeted != invocations, "the plant never landed, so it graded nothing"
+
+    refused = ungoverned_deletions(deletions, retargeted, PERMITTED_DELETIONS)
+    assert named_paths(refused) == expected, (
+        "a required tier-2 job that names no target at all was still read as covering the"
+        f" lane's deletions; the refusals were {refused}"
+    )
+
+
+def test_the_permission_is_spent_by_what_the_driver_requires_not_by_what_tier_two_declares() -> (
+    None
+):
+    """CS-1073 - REQUIRED is the load-bearing word, and it is graded as such.
+
+    A job tier 2 merely DECLARES proves nothing. The driver waits on the jobs in
+    ``CI_TIER2.required`` and refuses to ship a row without them; anything else
+    can be skipped, cancelled or red indefinitely while the lane keeps shipping,
+    so a deletion covered only by such a job is covered by nothing.
+
+    MEASURED BY SUBTRACTION rather than argued, and the subtraction is the set
+    the driver does NOT require. Ask the same question with only the unrequired
+    jobs visible, and every deletion must lose its cover; ask it with nothing
+    visible, and the same.
+
+    NOT BY DROPPING ONE MATCHER AT A TIME, and that is deliberate. More than one
+    required job runs the suite root, so removing any single one leaves the
+    deletions still covered - correctly. An arm built on that subtraction would
+    be red over healthy redundancy.
+    """
+    required = required_tier_two_matchers()
+    deletions = lane_deletions()
+    assert deletions, (
+        "the lane deletes nothing, so this arm is grading a shape the workflow does not"
+        " have. Delete the arm rather than leave it passing over an empty question"
+    )
+
+    jobs = tier_two_document().get("jobs")
+    assert isinstance(jobs, dict), f"{TIER2_RELATIVE} declares no jobs mapping"
+    declared = [
+        matchable(str(job.get("name", job_id)))
+        for job_id, job in jobs.items()
+        if isinstance(job, dict)
+    ]
+    unrequired = tuple(
+        name
+        for name in declared
+        if not any(name.startswith(m) or m.startswith(name) for m in required)
+    )
+    assert unrequired, (
+        f"{TIER2_RELATIVE} declares nothing outside the driver's required set {list(required)},"
+        " so this arm cannot tell a required job from a declared one"
+    )
+
+    expected = sorted(
+        f"{job_id} -> {path}" for job_id, paths in deletions.items() for path in paths
+    )
+    thinner = ungoverned_deletions(
+        deletions, tier_two_pytest_invocations(unrequired), PERMITTED_DELETIONS
+    )
+    assert named_paths(thinner) == expected, (
+        f"a deletion stayed covered with only the UNREQUIRED tier-2 jobs {list(unrequired)}"
+        " visible. Those jobs can be red or skipped for the life of the project without the"
+        " driver noticing, so a path only they collect is collected by nothing the lane"
+        " waits on"
+    )
+    blind = ungoverned_deletions(deletions, tier_two_pytest_invocations(()), PERMITTED_DELETIONS)
+    assert named_paths(blind) == expected, (
+        "a deletion stayed covered with NO tier-2 job visible at all, so the cross-check is"
+        " not reading the workflow it claims to"
     )
 
 
