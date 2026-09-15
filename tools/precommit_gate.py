@@ -700,7 +700,27 @@ MAX_SAVE_ROOT_SCAN = 100_000
 # syscalls around this loop - is_dir, iterdir, scandir, stat - are unbounded
 # against the same dead path anyway, so a per-read deadline would narrow that
 # exposure without closing it.
-MAX_SAVE_HEADER_FILES = 24
+#
+# CS-1083 RAISED THE COUNT CAP AND DERIVED IT, rather than removing it. It was
+# 24, the live library on the development box was larger, and every commit made
+# in that state printed `PASS` out of a world-token check that had not run. The
+# grant's clause 2 asked for COVERAGE first and fail-closed only as a fallback,
+# and the measurement behind it settles that coverage is affordable: the whole
+# live population read through this gate's own reader in a small fraction of
+# one percent of the aggregate budget. The number is not restated here - it is
+# in the CS-1083 grant record in docs/LEDGER.md - because a comment holding a
+# measurement goes stale the next time the library grows.
+#
+# IT IS DERIVED FROM MAX_SAVE_ROOT_ENTRIES ON PURPOSE. That constant is how
+# many saves the listing above RETAINS from one directory, so any smaller value
+# here would mean the gate keeps a file and then refuses to read it - blocking
+# on its own bookkeeping rather than on a cost. The bound has not been removed
+# and the budget below keeps its live refusal path (clause 3); what changed is
+# that crossing either one now reaches the exit status instead of printing a
+# skip line under a PASS banner. A save root holding several account
+# directories can still cross this, and when it does the gate FAILS CLOSED and
+# says which bound it crossed, which is the acceptance rather than a defect.
+MAX_SAVE_HEADER_FILES = MAX_SAVE_ROOT_ENTRIES
 SAVE_HEADER_BUDGET_SECONDS = 5.0
 
 # Directory names that sit BESIDE an account directory without being one.
@@ -882,7 +902,9 @@ def _save_root_dirs(report: Report | None) -> tuple[list[Path], bool]:
     return found, False
 
 
-def _report_root_cap(report: Report | None, label: str, subject: str) -> None:
+def _report_root_cap(
+    report: Report | None, label: str, subject: str, *, blocking: bool = False
+) -> None:
     """Say that the save-root entry cap truncated, on ONE caller's channel.
 
     The subject names WHICH check degraded, exactly as _bounded_newest_saves
@@ -901,19 +923,61 @@ def _report_root_cap(report: Report | None, label: str, subject: str) -> None:
     the entry it truncated at would print an account id, which is the value
     this gate exists to keep out of a commit (CLAUDE.md non-negotiables 3
     and 12).
+
+    `blocking` is CS-1083 and it is set by the world-TOKEN caller alone. The
+    grant's clause 4 permits the change in blocking semantics for that one
+    check, so the other two callers of this helper keep the behaviour they had.
     """
-    _report_skip(
-        report,
-        label,
+    why = (
         "save root holds more than %d entries; the listing stopped there, so this "
-        "run did not look for %s past that point" % (MAX_SAVE_ROOT_ENTRIES, subject),
+        "run did not look for %s past that point" % (MAX_SAVE_ROOT_ENTRIES, subject)
     )
+    if blocking:
+        _report_world_token_uncovered(report, why, blocking=True)
+    else:
+        _report_skip(report, label, why)
 
 
 def _report_skip(report: Report | None, label: str, why: str) -> None:
     """Record a skip when there is a report to record it on."""
     if report is not None:
         report.skip(label, why)
+
+
+# The one sentence CS-1083 exists to make true, kept in one place so every
+# uncovered-population diagnostic reads identically. It carries COUNTS and
+# fixed subject words only - never a discovered value - because a diagnostic is
+# printed to a terminal and pasted into issues, which makes it an echo path
+# exactly like a hex dump (CLAUDE.md non-negotiable 12).
+WORLD_SCAN_UNCOVERED_REASON = (
+    "the world-token check did not cover this machine's whole save population, "
+    "so a world token in a staged file would not have been matched: "
+)
+
+
+def _report_world_token_uncovered(report: Report | None, why: str, *, blocking: bool) -> None:
+    """Record a world-token coverage loss on the skip channel and, optionally, block.
+
+    CS-1083. `Report.skip` appends only to `skipped`, and `emit` returns 0
+    whenever `diagnostics` is empty, so before this nothing on the skip channel
+    could reach the exit status: a run whose world-token population was
+    truncated printed its skip line and then `PASS`, and a reviewer read that
+    PASS as evidence the check had run. The skip line is unchanged - it is
+    still what says WHICH bound was crossed - and the diagnostic beside it is
+    what makes checked-and-clean and not-checked stop sharing an exit code.
+
+    `blocking` is False only where a caller is shared with a check the grant
+    did not cover; see _bounded_newest_saves, whose two bounds degrade the
+    world-NAME check on one call path and the world-TOKEN check on the other.
+
+    Args:
+        report: Where to record, or None to discard.
+        why: The skip reason. Counts and fixed subject words only.
+        blocking: Whether this loss also reaches the exit status.
+    """
+    _report_skip(report, PII_WORLD_LABEL, why)
+    if blocking and report is not None:
+        report.add(Diagnostic(PII_WORLD_LABEL, 0, 0, "PII", WORLD_SCAN_UNCOVERED_REASON + why))
 
 
 def discover_account_ids(report: Report | None = None) -> list[str]:
@@ -1140,7 +1204,12 @@ def _entry_is_file(entry: os.DirEntry[str]) -> bool:
 
 
 def _bounded_newest_saves(
-    directory: Path, report: Report | None, subject: str, *, files_only: bool
+    directory: Path,
+    report: Report | None,
+    subject: str,
+    *,
+    files_only: bool,
+    uncovered_blocks: bool = False,
 ) -> list[tuple[str, Path]]:
     """The `.sav` entries in one directory, NEWEST FIRST, bounded twice.
 
@@ -1169,6 +1238,10 @@ def _bounded_newest_saves(
         files_only: Require a regular file. The caller that reads headers does;
             the caller that reads basenames does not, and applying the test
             before the cap keeps the retained count meaningful for both.
+        uncovered_blocks: Whether a truncation here also reaches the exit
+            status (CS-1083). True for the world-TOKEN caller and False for
+            the world-NAME one: the grant's clause 4 permits the change in
+            blocking semantics for the world-token skip and no other.
 
     Returns:
         (name, path) pairs, newest first, tie-broken by name ascending. Empty
@@ -1208,19 +1281,19 @@ def _bounded_newest_saves(
         pass
 
     if overscanned:
-        _report_skip(
+        _report_world_token_uncovered(
             report,
-            PII_WORLD_LABEL,
             "a save directory holds more than %d entries; the listing stopped there, "
             "so a %s past that point is not matchable" % (MAX_SAVE_ROOT_SCAN, subject),
+            blocking=uncovered_blocks,
         )
     if matched > len(kept):
-        _report_skip(
+        _report_world_token_uncovered(
             report,
-            PII_WORLD_LABEL,
             "more than %d save files in one save directory; only the %d most recent "
             "were listed, so a %s from an older save is not matchable"
             % (MAX_SAVE_ROOT_ENTRIES, MAX_SAVE_ROOT_ENTRIES, subject),
+            blocking=uncovered_blocks,
         )
 
     return [
@@ -1342,7 +1415,9 @@ def _save_files(directory: Path, report: Report | None) -> list[Path]:
     """
     return [
         path
-        for _name, path in _bounded_newest_saves(directory, report, "world token", files_only=True)
+        for _name, path in _bounded_newest_saves(
+            directory, report, "world token", files_only=True, uncovered_blocks=True
+        )
     ]
 
 
@@ -1363,6 +1438,28 @@ def _world_tokens_from_headers(report: Report | None) -> tuple[list[str], bool]:
     headers are read. SAVE_HEADER_BUDGET_SECONDS caps the AGGREGATE wall clock
     this scan may spend across the listing and all of those reads. Whichever
     trips says so through the skip channel.
+
+    EVERY BOUND THAT TRUNCATES THIS POPULATION NOW REACHES THE EXIT STATUS
+    (CS-1083), and that is a different claim from "says so". All four of them -
+    the save-root entry cap, the per-directory retention bound, the examination
+    bound and the two above - used to report through the skip channel alone,
+    and `emit` returns 0 whenever `diagnostics` is empty, so a run whose
+    world-token population was cut short printed a skip line and then `PASS`.
+    Not-checked and checked-and-clean shared an exit code, which is the whole
+    of what the hook reads. They no longer do; see
+    _report_world_token_uncovered.
+
+    ONE DEGRADATION IS DELIBERATELY NOT BLOCKING and it is named rather than
+    left to be inferred: an UNREADABLE header. The four bounds are this gate's
+    own choices not to look and every one of them is self-healing - a cap is
+    raised, a budget resets on the next run. A save that will not parse is the
+    file declining to be read, and no amount of effort makes it parse, so
+    blocking there would wedge the commit gate permanently on a corrupt save
+    this gate may never write to or remove (non-negotiable 1) and
+    intermittently on every autosave in flight while the game is running. A bad
+    save is the NORMAL case and never fatal (non-negotiable 7), and a
+    permanently red gate is one that gets bypassed with --no-verify, which buys
+    strictly less than the skip line does.
 
     THE TIME BOUND CANNOT ABORT A READ ALREADY IN FLIGHT. It is tested between
     reads, so one slow open on a hydrating cloud placeholder, a redirected
@@ -1389,7 +1486,7 @@ def _world_tokens_from_headers(report: Report | None) -> tuple[list[str], bool]:
     # and the truncation is reported separately (CS-436).
     root_dirs, truncated = _save_root_dirs(None)
     if truncated:
-        _report_root_cap(report, PII_WORLD_LABEL, "world tokens")
+        _report_root_cap(report, PII_WORLD_LABEL, "world tokens", blocking=True)
 
     try:
         read_header = _load_header_reader()
@@ -1411,11 +1508,11 @@ def _world_tokens_from_headers(report: Report | None) -> tuple[list[str], bool]:
         paths.extend(_save_files(directory, report))
 
     if len(paths) > MAX_SAVE_HEADER_FILES:
-        _report_skip(
+        _report_world_token_uncovered(
             report,
-            PII_WORLD_LABEL,
             "more save files than the %d-file cap; the headers past it were not "
             "read and their tokens are not matchable" % MAX_SAVE_HEADER_FILES,
+            blocking=True,
         )
         paths = paths[:MAX_SAVE_HEADER_FILES]
 
@@ -1428,11 +1525,11 @@ def _world_tokens_from_headers(report: Report | None) -> tuple[list[str], bool]:
             # limit misreported the limit by a factor of two, or as zero. A
             # gate whose own account of a bound is wrong is the false-guarantee
             # class this project rates worse than the bug it describes.
-            _report_skip(
+            _report_world_token_uncovered(
                 report,
-                PII_WORLD_LABEL,
                 "the %g second aggregate save-header budget was spent; the "
                 "remaining headers were not read" % SAVE_HEADER_BUDGET_SECONDS,
+                blocking=True,
             )
             break
         try:
