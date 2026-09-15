@@ -374,6 +374,69 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-09-15 - CS-1062 - CLOSED. The routing index came off its ceiling by relocation, and the arm now reddens on APPROACH rather than on arrival
+
+**THE STATE THIS CLOSED.** `docs/item_notes.md` was 16373 bytes against a 16384-byte
+ceiling. ELEVEN BYTES of headroom. Every filing session has to write a routing row into that
+file, so the next session to file an item could not have added its row without doing
+unrelated surgery first - which is how a rule gets bent instead of a file getting split.
+Session 94 relocated mid-session to keep filing and session 95 spent its last headroom
+correcting one sentence. This session filed CS-1085 as a self-contained line with no index
+row, which is the sanctioned workaround and not the fix.
+
+**WHAT MOVED, VERBATIM AND NOT DELETED.** The whole `## Which leaf an item lands in` section
+- the leaf table and the four paragraphs of seam reasoning - moved to
+`docs/item_notes/leaf-membership-rule.md`, an ANNEX carrying no `## CS-nnn` section, so
+`tools/drift_guard.py` guard (j) neither routes to it nor reads a section out of it. A
+pointer stays in the index. Checked mechanically rather than by eye: every non-blank line of
+the moved block was searched for in both files afterwards and ZERO were missing.
+
+| file | before | after |
+|---|---|---|
+| `docs/item_notes.md` | 16373 bytes, 99.9 per cent | 12938 bytes, 79.0 per cent |
+| `docs/item_notes/leaf-membership-rule.md` | did not exist | 4888 bytes, 4 per cent of the leaf budget |
+
+**THE APPROACH ARM, WHICH IS THE CLAUSE THAT KEEPS THIS CLOSED.**
+`tests/test_doc_budget.py::test_the_routing_index_stays_below_its_approach_band` fails above
+90 per cent of the index budget, well before the file becomes a blocker.
+`tools/doc_budget.py` only WARNS at the ceiling, which is right for a size budget and wrong
+for the one file every filing session must write into. PROVEN POTENT rather than asserted:
+padding the index to 14948 bytes turned the arm RED with
+`docs/item_notes.md is 14948 bytes, past the 14745-byte approach band`, and the index was
+then restored from a byte snapshot with its sha256 verified identical. A second arm pins the
+band strictly inside the budget, because a band equal to the ceiling reddens at the same
+moment and buys nothing. The fraction is a LITERAL, not a share of whatever the file
+currently measures - a bound computed from the thing it bounds is the tautology
+`tests/test_tier1_budget.py` records this project filing twice.
+
+**THIS DOES NOT UNBLOCK CS-971 AND THE RECORD MUST SAY SO.** Headroom from here to the
+approach arm is 1807 bytes, about 32 rows at the width new rows use. CS-971 moves acceptance
+detail into leaves and would create rows for up to 51 currently rowless items, roughly 2856
+bytes, which re-reddens the arm. CS-971 therefore needs CS-1086 first, or it needs to relocate
+again as it goes.
+
+**THE DURABLE FIX WAS ADJUDICATED AND DECLINED FOR NOW, WHICH IS WHY CS-1086 EXISTS.** The
+routing table is 9492 of the index's bytes and gains a row per item, so relocation is a
+reprieve rather than a remedy. An adjudicator tested whether the table is derivable and found
+the leaf half fully derivable - 193 of 193 rows, zero mismatches, zero stale ids, with no
+`CS-8nn` or `CS-10nn` exception surviving. It declined anyway, on two grounds: the table's
+DOMAIN is authored rather than derivable, and deriving it from the leaves would make guard
+(j)'s dangling-row direction compare the leaves against themselves. Recorded as CS-1086 with
+the nine marker disagreements as its first step.
+
+**DO NOT, WITH THE FENCE.** No routing row may be DELETED - the acceptance says relocation,
+and a deleted row is a body nothing can find. `ITEM_NOTES_INDEX_BUDGET` must not be raised;
+`tools/doc_budget.py` argues the 16 KB number where it is defined and the argument is that a
+body must not fit in the index. The index stays the single hop a `ROADMAP.md` line points at,
+because spelling a leaf on an item line is the restated fact this topology exists to prevent.
+Row width must not be shrunk by dropping the `docs/item_notes/` prefix - guard (j) reads the
+path out of the row deliberately.
+
+**MEASURED AFTER THE MOVE.** `tools/drift_guard.py` exit 0, 10 PASS, 1 WARN, 0 FAIL - the
+WARN is the pre-existing doc-budget warning and guard (j) is clean across the move.
+`tests/test_doc_budget.py` 29 passed, exit 0. `ruff check` and `ruff format --check` both
+clean on the touched module.
+
 ### 2026-09-15 - CS-1082 - CLOSED. CS-913's control clause is replaced, and the control was never supposed to be a WORLD
 
 **THE ORIGINAL CLAUSE SELECTED A POPULATION THAT CANNOT EXIST.** CS-913 named "the pinned

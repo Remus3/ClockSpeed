@@ -661,6 +661,60 @@ def test_a_harness_named_directory_carrying_no_marker_is_still_measured(tmp_path
     assert not doc_budget.checkout_boundaries(tmp_path), "nothing here is a checkout root"
 
 
+#: The APPROACH band for the routing index, as a fraction of its own budget.
+#: CS-1062 required an arm that reddens BEFORE the index becomes a blocker, and
+#: the number is a literal here rather than a fraction of whatever the file
+#: currently measures - a bound computed from the thing it bounds is the
+#: tautology `tests/test_tier1_budget.py` records this project filing twice.
+ITEM_NOTES_INDEX_APPROACH = 0.90
+
+
+def test_the_routing_index_stays_below_its_approach_band() -> None:
+    """CS-1062's third clause. The blocker is caught on APPROACH, not on arrival.
+
+    WHY AN ARM AND NOT JUST THE BUDGET. `tools/doc_budget.py` WARNS at the
+    ceiling and does not fail, which is right for a size budget and wrong for
+    this particular file: the index is the one every filing session must write a
+    routing row INTO. It reached ELEVEN bytes of headroom, and at that point the
+    next session to file an item cannot add its row without first doing
+    unrelated surgery under time pressure - which is how a rule gets bent
+    instead of a file getting split. Session 94 relocated mid-session to keep
+    filing and session 95 spent its last headroom correcting one sentence.
+
+    THE REPAIR IS RELOCATION, NEVER DELETION, and never raising the ceiling.
+    `tools/doc_budget.py` argues the 16 KB number where it is defined: a body
+    must not fit in the index. Move a block to an annex under
+    `docs/item_notes/` that carries no `## CS-nnn` section, the way
+    `docs/item_notes/leaf-membership-rule.md` was moved, and leave a pointer.
+
+    THIS ARM REDDENS WHILE THERE IS STILL ROOM TO ACT. That is the mechanism
+    working, not a false alarm.
+    """
+    index = REPO_ROOT / "docs" / "item_notes.md"
+    size = len(index.read_bytes())
+    budget = doc_budget.ITEM_NOTES_INDEX_BUDGET
+    band = int(budget * ITEM_NOTES_INDEX_APPROACH)
+
+    assert size <= band, (
+        "docs/item_notes.md is %d bytes, past the %d-byte approach band "
+        "(%.0f per cent of its %d-byte budget). RELOCATE a block to an annex "
+        "under docs/item_notes/ and leave a pointer. Do NOT delete a routing "
+        "row and do NOT raise the budget." % (size, band, 100 * ITEM_NOTES_INDEX_APPROACH, budget)
+    )
+
+
+def test_the_approach_band_sits_below_the_budget_it_guards() -> None:
+    """The band is only a warning if it is strictly inside the thing it guards.
+
+    An approach band equal to the budget reddens at the same moment the budget
+    does and buys nothing, which is the whole defect CS-1062 filed. Asserted
+    rather than assumed, because the fraction is a literal somebody can edit.
+    """
+    budget = doc_budget.ITEM_NOTES_INDEX_BUDGET
+    assert 0 < ITEM_NOTES_INDEX_APPROACH < 1, ITEM_NOTES_INDEX_APPROACH
+    assert int(budget * ITEM_NOTES_INDEX_APPROACH) < budget
+
+
 def test_no_pruning_criterion_names_a_harness_directory() -> None:
     assert doc_budget.WALK_BOUNDARY.marker == ".git"
     for name in doc_budget.WALK_SKIP_DIRS:
