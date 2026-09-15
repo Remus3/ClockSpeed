@@ -374,6 +374,96 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-09-15 - CS-1073 - NOT A COMPLETION RECORD. The partition remedy was refuted by probe, the replacement rule was refuted by an adversary, and the item stays OPEN pending runner readings
+
+**WHAT MERGED.** `.github/workflows/tier1.yml`, `tests/test_tier1_budget.py`,
+`tests/save/test_phase4_gate.py`. The tier-1 save shard stops executing
+`tests/save/test_phase4_gate.py::test_the_save_suite_passes_with_no_install_and_no_save`.
+The module is not moved: `.githooks/pre-push` and both tier-2 `full suite` legs still
+collect it. New arms are
+`test_every_path_tier_one_deletes_is_recorded_and_still_run_by_a_required_tier_two_job` and
+`test_the_child_runs_the_whole_of_the_save_suite_and_not_a_slice_of_it`.
+
+**THE ITEM IS NOT CLOSED.** Its amended acceptance requires the worst job reading across
+at least three runs, naming which job is worst. That is a runner measurement and nothing
+local can supply it. The predicted fall - the save shard's 285.86 pytest seconds losing
+the 220.38 that one test cost - is ARITHMETIC CARRIED FORWARD FROM ADJUDICATION AND HAS
+NOT BEEN OBSERVED.
+
+**THE ACCEPTANCE WAS AMENDED UNDER CLAUDE.md SECTION 8, AND THE REFUTING FACT IS ONE
+LINE.** `tests/save/test_phase4_gate.py` binds `SAVE_TESTS` to the tests/save DIRECTORY and
+passes that to the nested child, rather than passing the shard's own target. The child therefore re-runs the
+whole directory regardless of how tier 1 arranges its shards, so the original remedy -
+partition the shard - could not defend the margin against CS-1068, which was the item's
+own stated reason for existing. Measured alongside it: every two-way and three-way split
+lands on the same worst shard, so the prize was 15 to 18 net seconds at two workers and
+ZERO at four, bought with a second metered runner.
+
+**A LOCAL PROFILE OF THIS SHARD IS INVALID AND LOOKS AUTHORITATIVE.** The first
+measurement taken this session ran on the development box, where the save library exists.
+It read `1559 passed, 0 skipped` and was dominated by `tests/save/test_properties.py` at
+316 of 318 seconds, of which 256.89 was ONE cursor-width census. On the runner that census
+SKIPS for want of a save library and the file is fourth heaviest. A partition was computed
+from that profile by exact subset-sum to an imbalance of 0.0000 per cent and it optimised
+a file the runner never runs. The second profile only counts because an injected
+environment of four non-existent `CLOCKSPEED_*` paths reproduced CI's `1454 passed, 105
+skipped` EXACTLY, and the merger then checked identity rather than the aggregate: all
+sixteen per-file skip groups match, 105 = 105. Do not profile this shard without that
+control.
+
+**THE FIRST REPLACEMENT RULE WAS REFUTED AFTER ITS AUTHOR WATCHED FOUR REDS.** It
+permitted a tier-1 `--ignore=` when a required tier-2 job named a CONTAINING target. A
+required tier-2 job runs the bare `tests` root, so every path under `tests/` was
+unconditionally covered and the permission could refuse nothing it would ever face. A save
+shard carrying `--ignore=tests/save` left the WHOLE save directory in no tier-1 shard with
+all 47 arms GREEN, where the same shards are RED at the base commit. The tell was present
+and unread: the author's own potency plant had to be spelled `tools/...` because nothing
+under `tests/` could be refused. A CORRECT FIXTURE DOES NOT MAKE A LIVE ARM - what an arm
+grades is the frames its refusal actually ENTERS.
+
+**THE RULE THAT SHIPPED IS AN ALLOWLIST.** `PERMITTED_DELETIONS` maps an exact path to the
+item id that authorised it, one entry today, and the tier-2 cross-check is CONJUNCTIVE
+with it rather than alternative - an allowlisted path that no required tier-2 job runs
+unnarrowed is still red. The full narrowing vocabulary now applies to the TIER-2 side too,
+because `-m`, `-k`, `--deselect`, `--ignore-glob`, `-p no:...` and `--collect-only` each
+left a deleted module reading as covered by a job that would not have run it. Containment
+is a denylist in disguise; this repository has already measured a denylist leaking four
+times across four green commits. The merger re-ran the decisive plant independently: 153
+passed shipped, 3 failed planted, 153 passed restored from a byte snapshot.
+
+**RESIDUAL, NAMED RATHER THAN CLOSED.** Tier 2 runs on schedule, tag and dispatch only, so
+on an ordinary push outside the lane this gate's only defence is the local hook, which
+`--no-verify` bypasses and a fresh clone does not carry.
+
+### 2026-09-15 - CS-G06 - NOT A COMPLETION RECORD. THE GATE WAS NOT DISCHARGED. A discharge was built, adversarially refuted, and DISCARDED UNMERGED
+
+**READ THIS BEFORE CONCLUDING THE GATE IS MET.** `corpus/` now holds a save and the gate's
+unblocking condition reads "the operator placing a snapshot of a progressed world into
+`corpus/`". THAT IS NOT SUFFICIENT AND THIS SESSION GOT IT WRONG. The gate also names the
+pinned development world as the CONTROL that cannot serve, and `.gitignore` declares
+`/corpus/` to be "Snapshot corpus of the pinned reference world as it grows" - so the
+repository's own documented purpose for that directory is the world the gate forbids.
+
+**THE INFERENCE THAT FAILED, BECAUSE IT WILL BE OFFERED AGAIN.** The merger read the
+corpus save through the shipped decoder, measured non-empty unlock state, and concluded a
+progressed world. Non-emptiness distinguishes NOTHING. CS-G05's repair landed the framing
+and grammar fix, and after it every world in the library decodes non-empty unlock state -
+measured this session at three world tokens, the least progressed at 8 purchased schematics
+and 37 recipes. This is the SAME inference-from-a-zero that this file already records as
+refuted once. Aggravating and found only by the adversarial pass: the corpus save is
+byte-identical by sha256 to a save still in the live save directory, and a strictly more
+progressed world exists in that library and was not the one placed.
+
+**WHAT WOULD ACTUALLY SETTLE IT:** an operator-recorded pin of the development world's
+token, masked, or a corpus save whose world token differs from every world in the live
+library. Nothing in the tree can currently tell these worlds apart.
+
+**WHAT THE DISCARDED SLICE DID ESTABLISH,** and it survived five of seven hostile lenses:
+the gate-classification machinery's BLOCKED path is graded by synthetic arms rather than by
+the live row, confirmed by nine mutants run against both trees. Two findings from that pass
+are filed as CS-1081 and CS-1082 and are independent of the discharge. The branch was not
+merged and no fact from it is recorded as settled.
+
 ### 2026-09-14 - CS-1080 - FILED AND CLOSED IN ONE RECORD. The public face of the repo was refreshed, and the brief to remove self-deprecation introduced three overclaims doing it
 
 **THIS ENTRY WAS CS-1078 UNTIL THE MERGE, AND THE COLLISION IS THE RECORD.** The headless
