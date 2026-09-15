@@ -294,13 +294,13 @@ EXEMPTIONS: Final[dict[tuple[str, str, str, int], str]] = {
         " wired clone while wiring nothing, which is the exact failure mode the module's"
         " own docstring calls out as the one that must never be silent."
     ),
-    ("tools/precommit_gate.py", "ruff_command", "which", 1744): (
+    ("tools/precommit_gate.py", "ruff_command", "which", 1841): (
         "FROZEN under CLAUDE.md section 6 - tools/precommit_gate.py is the tier-0"
         " blocking gate and needs an adjudicator grant before any edit. shutil.which was"
         " MEASURED returning a relative current-directory path, so the linter this gate"
         " runs over staged content can be supplied by the tree being committed."
     ),
-    ("tools/precommit_gate.py", "git", "subprocess.run", 2118): (
+    ("tools/precommit_gate.py", "git", "subprocess.run", 2215): (
         "FROZEN under CLAUDE.md section 6 - same file, same route, same grant. The gate"
         " asks git what is staged, so a planted git decides what the gate believes it is"
         " inspecting, which makes this the highest-value of the four to repair once the"

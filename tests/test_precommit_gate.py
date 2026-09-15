@@ -39,6 +39,7 @@ import sys
 import time
 from pathlib import Path
 from types import ModuleType, SimpleNamespace
+from typing import Any
 
 import pytest
 
@@ -2322,25 +2323,39 @@ def test_a_corrupt_save_does_not_stop_a_readable_sibling_from_blocking(
     assert "world token" in result.stderr
 
 
-def test_the_header_scan_is_bounded_by_a_file_cap(tmp_path: Path) -> None:
-    """The bound the grant asked for, proven by crossing it.
+def test_an_over_bound_header_population_blocks_a_real_gate_process(
+    over_cap_save_root: Path, tmp_path: Path
+) -> None:
+    """The bound proven by crossing it, and CS-1083 at the EXIT CODE.
 
     A directory holding hundreds of rotated autosaves must not turn the commit
-    gate into a bulk parser. The cap is read from the gate rather than
-    restated here, so raising it in the module does not leave a stale number
-    in this file (CLAUDE.md section 4).
+    gate into a bulk parser, and the bound that stops it must not be invisible
+    at the exit status. THIS EXACT RUN used to print the truncation line and
+    then `precommit_gate: PASS` and exit 0, which is the whole of CS-1083: a
+    reviewer read that PASS as evidence the world-token check had run.
+
+    It reads the shared over-cap fixture rather than building its own corpus,
+    so crossing the bound costs nothing here, and no number is restated in
+    this file (CLAUDE.md section 4).
+
+    The stderr channel is checked for a leak in the same run. The diagnostic
+    is new text on a channel that is printed to a terminal and pasted into
+    issues, so it is an echo path exactly like the skip line beside it
+    (non-negotiables 3 and 12) and it carries counts and subject words only.
     """
-    cap = load_gate().MAX_SAVE_HEADER_FILES
-    tokens = ["Cap%02dKq2Xn9Tb4Lm6Wz8R" % index for index in range(cap + 2)]
     env = base_env(tmp_path)
-    env["CLOCKSPEED_SAVE_ROOT"] = str(make_header_save_root(tmp_path, *tokens))
+    env["CLOCKSPEED_SAVE_ROOT"] = str(over_cap_save_root)
 
     target = write(tmp_path / "clean.md", "nothing to see\n")
     result = run_gate("--files", str(target), "--list-skipped", env=env)
 
-    assert result.returncode == 0, result.stderr
+    assert result.returncode == 1, result.stdout + result.stderr
+    assert "PASS" not in result.stdout, result.stdout
     assert "<pii:world>" in result.stdout
-    assert "cap" in result.stdout.lower(), result.stdout
+    assert "did not cover this machine's whole save population" in result.stderr, result.stderr
+    for line in result.stderr.splitlines():
+        assert FAKE_ACCOUNT_ID not in line, line
+        assert str(over_cap_save_root) not in line, line
 
 
 # --------------------------------------------------------------------------
@@ -2495,6 +2510,250 @@ def test_a_sub_decisecond_budget_is_reported_as_the_value_it_actually_is(
     assert not any("0.1 second" in why for why in reasons), reasons
 
 
+# ==========================================================================
+# CS-1083 - an UNCOVERED world-token population is visible at the exit status
+# ==========================================================================
+#
+# THE DEFECT. The world-token scan reported a skip and then TRUNCATED its own
+# population whenever a bound tripped, and Report.skip appends only to
+# `skipped` while emit() returns 0 whenever `diagnostics` is empty. Nothing on
+# the skip channel could reach the exit status, so a commit made while the
+# save library sat over the file cap got `precommit_gate: PASS` out of a check
+# that had not run. That is <pii:world>, the check that exists to keep a world
+# token out of a tracked file (CLAUDE.md non-negotiables 11 and 12), and a
+# reviewer reading the PASS line has been told the opposite of the truth.
+#
+# EVERY ARM HERE IS GRADED OVER THE BOUND, never under it. An arm whose
+# fixture sits inside the cap passes for exactly the reason this item exists.
+# Each one therefore asserts a READ COUNT strictly below the file count first,
+# so a fixture that quietly stopped crossing its bound reddens instead of
+# passing. The "must sit below the file cap" assertion in the budget arm above
+# is correct THERE, because that arm is about the budget and needs the cap out
+# of the way; it is the shape that must not be copied down here.
+
+
+def world_token_scan(
+    gate: ModuleType,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    save_root: Path,
+    *,
+    per_read: float = 0.0,
+) -> tuple[CountingReader, Any]:
+    """Run the world-token header scan against one synthetic save root.
+
+    Returns the counted reader, so a caller can prove the population really
+    was truncated, and the report, so it can be put through emit() for the
+    exit status. The bounds are left for the caller to pin: each arm below
+    provokes a DIFFERENT one, and pinning them here would hide which.
+    """
+    monkeypatch.setenv("CLOCKSPEED_SAVE_ROOT", str(save_root))
+    monkeypatch.setenv("CLOCKSPEED_LOCAL_CONFIG", str(tmp_path / "absent-local-config.json"))
+    monkeypatch.delenv("CLOCKSPEED_WORLD_TOKENS", raising=False)
+    monkeypatch.delenv("CLOCKSPEED_ACCOUNT_DIR", raising=False)
+    reader = CountingReader(BUDGET_TOKEN, per_read)
+    monkeypatch.setattr(gate, "_load_header_reader", lambda: reader)
+    report = gate.Report()
+    gate._world_tokens_from_headers(report)  # noqa: SLF001
+    return reader, report
+
+
+def emit_verdict(
+    gate: ModuleType, report: Any, capsys: pytest.CaptureFixture[str]
+) -> tuple[int, str, str]:
+    """The exit status emit() would hand the hook, plus both of its channels."""
+    code = gate.emit(report, False, False)
+    captured = capsys.readouterr()
+    return code, captured.out, captured.err
+
+
+def test_a_world_token_population_over_the_file_cap_reaches_the_exit_status(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """CS-1083's acceptance, graded with the population OVER the cap.
+
+    Three files past the cap, so the scan truncates and the tokens past it are
+    not matchable. Before the repair that state printed its skip line and then
+    `precommit_gate: PASS` and returned 0.
+    """
+    gate = load_gate()
+    cap = 4
+    files = cap + 3
+    monkeypatch.setattr(gate, "MAX_SAVE_HEADER_FILES", cap)
+    reader, report = world_token_scan(
+        gate, tmp_path, monkeypatch, make_empty_save_root(tmp_path, files)
+    )
+
+    assert reader.reads < files, "the fixture did not cross the cap, so this arm is vacuous"
+    code, out, err = emit_verdict(gate, report, capsys)
+    assert code == 1, out
+    assert "PASS" not in out, out
+    assert "BLOCKED" in err, err
+
+
+def test_a_world_token_population_inside_the_file_cap_still_reaches_a_pass(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """The known-good control that makes the arm above a measurement.
+
+    Same seam and same fixture shape, with a population no bound truncates. An
+    implementation that blocks unconditionally satisfies the arm above and
+    reddens here, and without this one there is nothing to tell the two apart.
+    """
+    gate = load_gate()
+    files = 4
+    monkeypatch.setattr(gate, "MAX_SAVE_HEADER_FILES", files * 2)
+    reader, report = world_token_scan(
+        gate, tmp_path, monkeypatch, make_empty_save_root(tmp_path, files)
+    )
+
+    assert reader.reads == files, "the scan stopped early with every bound unspent"
+    code, out, _err = emit_verdict(gate, report, capsys)
+    assert code == 0, out
+    assert "PASS" in out, out
+
+
+def test_the_header_file_cap_admits_every_save_the_listing_retains() -> None:
+    """Clause 2 of the CS-1083 grant: COVER the population, do not fail closed.
+
+    Fail-closed is the fallback, and a fallback that fires on an ordinary save
+    library is a gate that blocks every commit on the box. The header cap must
+    therefore admit at least as many saves as the retention bound keeps, or
+    the gate retains a file it then refuses to read and blocks on its own
+    bookkeeping. The relationship is asserted rather than left to a reader of
+    two adjacent constants, exactly as the scan bound is asserted against the
+    retention bound above, and no number is restated (CLAUDE.md section 4).
+    """
+    gate = load_gate()
+    assert gate.MAX_SAVE_HEADER_FILES >= gate.MAX_SAVE_ROOT_ENTRIES
+
+
+def test_a_spent_header_budget_reaches_the_exit_status(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """The first sibling bound, found by grep rather than named by the item.
+
+    The aggregate budget truncates the same population by a different
+    mechanism and reported it through the same silent channel. Clause 3 of the
+    grant requires this bound to keep a live refusal path, so it is not
+    removed - it is made audible at the exit code.
+    """
+    gate = load_gate()
+    files = 8
+    monkeypatch.setattr(gate, "SAVE_HEADER_BUDGET_SECONDS", 0.15)
+    reader, report = world_token_scan(
+        gate, tmp_path, monkeypatch, make_empty_save_root(tmp_path, files), per_read=0.10
+    )
+
+    assert reader.reads < files, "the budget did not bind, so this arm is vacuous"
+    code, out, _err = emit_verdict(gate, report, capsys)
+    assert code == 1, out
+    assert "PASS" not in out, out
+
+
+def test_a_truncated_account_directory_listing_reaches_the_exit_status(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """The second sibling: the save-root entry cap degrades this check too.
+
+    _save_root_dirs truncating means the gate did not look under a later
+    account directory, so a token there is unmatched. Past that cap an empty
+    result means "not looked for" and never "not there" - which is exactly the
+    state that must not read as PASS.
+    """
+    gate = load_gate()
+    save_root = make_save_root(tmp_path, "account0000", "account1111", "account2222")
+    monkeypatch.setattr(gate, "MAX_SAVE_ROOT_ENTRIES", 1)
+    _reader, report = world_token_scan(gate, tmp_path, monkeypatch, save_root)
+
+    reasons = [why for _label, why in report.skipped]
+    assert any("the listing stopped there" in why for why in reasons), reasons
+    code, out, _err = emit_verdict(gate, report, capsys)
+    assert code == 1, out
+    assert "PASS" not in out, out
+
+
+def test_a_truncated_save_directory_listing_reaches_the_exit_status(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """The third sibling: the per-directory retention bound drops older saves.
+
+    One account directory, so the root listing is untruncated and the only
+    bound in play is the retention one inside _bounded_newest_saves.
+    """
+    gate = load_gate()
+    files = 6
+    monkeypatch.setattr(gate, "MAX_SAVE_ROOT_ENTRIES", 2)
+    reader, report = world_token_scan(
+        gate, tmp_path, monkeypatch, make_empty_save_root(tmp_path, files)
+    )
+
+    assert reader.reads < files, "the retention bound did not truncate, so this arm is vacuous"
+    code, out, _err = emit_verdict(gate, report, capsys)
+    assert code == 1, out
+    assert "PASS" not in out, out
+
+
+def test_an_overscanned_save_directory_reaches_the_exit_status(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """The fourth sibling: the examination bound drops saves it never saw.
+
+    This one is not a retention decision at all - the entries past it were
+    never examined, so the gate cannot even say how many it missed.
+    """
+    gate = load_gate()
+    files = 12
+    monkeypatch.setattr(gate, "MAX_SAVE_ROOT_SCAN", 4)
+    reader, report = world_token_scan(
+        gate, tmp_path, monkeypatch, make_empty_save_root(tmp_path, files)
+    )
+
+    assert reader.reads < files, "the scan bound did not truncate, so this arm is vacuous"
+    reasons = [why for _label, why in report.skipped]
+    assert any("the listing stopped there" in why for why in reasons), reasons
+    code, out, _err = emit_verdict(gate, report, capsys)
+    assert code == 1, out
+    assert "PASS" not in out, out
+
+
+def test_an_unreadable_save_header_stays_a_skip_and_never_blocks(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """The one degradation CS-1083 deliberately did NOT make blocking.
+
+    A half-written autosave is the NORMAL case and never fatal (CLAUDE.md
+    non-negotiable 7). The four bounds above are the gate's OWN choices not to
+    look and every one of them is self-healing - the cap is raised, the budget
+    resets on the next run. An unparseable save is the FILE declining to be
+    read, and no amount of effort makes it parse: blocking there wedges the
+    commit gate permanently on a file the gate may never write to or remove
+    (non-negotiable 1), and intermittently on every autosave in flight while
+    the operator plays. A permanently red gate is a gate that gets bypassed
+    with --no-verify, which buys less than the skip line does. This arm pins
+    the declination so a later change to it has to be deliberate.
+    """
+    gate = load_gate()
+
+    def refuse(path: Path) -> object:  # noqa: ARG001
+        raise ValueError("unparseable")
+
+    monkeypatch.setenv("CLOCKSPEED_SAVE_ROOT", str(make_empty_save_root(tmp_path, 3)))
+    monkeypatch.setenv("CLOCKSPEED_LOCAL_CONFIG", str(tmp_path / "absent-local-config.json"))
+    monkeypatch.delenv("CLOCKSPEED_WORLD_TOKENS", raising=False)
+    monkeypatch.delenv("CLOCKSPEED_ACCOUNT_DIR", raising=False)
+    monkeypatch.setattr(gate, "_load_header_reader", lambda: refuse)
+
+    report = gate.Report()
+    gate._world_tokens_from_headers(report)  # noqa: SLF001
+
+    reasons = [why for _label, why in report.skipped]
+    assert any("could not be parsed" in why for why in reasons), reasons
+    code, out, _err = emit_verdict(gate, report, capsys)
+    assert code == 0, out
+    assert "PASS" in out, out
+
+
 def test_the_package_import_is_function_local_and_never_at_module_scope() -> None:
     """The failure-to-start guarantee, structurally.
 
@@ -2595,20 +2854,90 @@ def over_cap_save_root(tmp_path_factory: pytest.TempPathFactory) -> Path:
     return make_over_cap_save_root(tmp_path_factory.mktemp("overcap"), OVER_CAP_WORLD_TOKEN)
 
 
+# --------------------------------------------------------------------------
+# CS-1083 - a LEAK diagnostic is told from a COVERAGE diagnostic by IDENTITY
+# --------------------------------------------------------------------------
+#
+# THE HOLLOWING THIS CLOSES WAS MEASURED, not anticipated. CS-1083 made a
+# TRUNCATED world-token population a blocking diagnostic, so under the
+# over-bound fixtures below the gate now exits 1 on EVERY run, clean file or
+# not - and that diagnostic's own reason ends "...so a world token from an
+# older save is not matchable". `returncode == 1` plus `"world token" in
+# stderr`, which is what the two CS-436 fail-open arms asserted, is therefore
+# satisfied with ZERO detection. Against a mutant replacing
+# `found.append(read_header(path).world_token)` with a bare `read_header(path)`
+# - world-token detection from headers destroyed outright - both arms reported
+# `2 passed`, exit 0.
+#
+# WHAT MADE THEM POTENT BEFORE was a control that no longer holds: a clean file
+# under the SAME fixture used to exit 0, so exit 1 could only come from a
+# match. CS-1083 inverted that control, and the arms keyed on it did not notice
+# because nothing they asserted changed.
+#
+# THE SEPARATION IS BY IDENTITY AND NOT BY SUBSTRING, because a substring is
+# what failed. A leak is reported against the CHECKED UNIT's label at a real
+# line and column; the coverage report is reported against PII_WORLD_LABEL at
+# 0:0. Both tests are applied and the reason is excluded as well, so neither a
+# relabelled coverage report nor a reworded one can be counted as detection.
+
+#: The gate's own label for a world-value coverage reduction. Spelled here
+#: rather than imported, so the oracle is not the module under test.
+PII_WORLD_LABEL = "<pii:world>"
+
+#: The opening words of the CS-1083 coverage diagnostic's reason. It is NOT a
+#: report that anything was found in a file.
+COVERAGE_DIAGNOSTIC = "the world-token check did not cover"
+
+
+def leak_diagnostics(stderr: str, subject: str) -> list[str]:
+    """The diagnostic lines reporting `subject` found IN A CHECKED FILE.
+
+    Args:
+        stderr: The gate's stderr, or a `git commit` attempt's stderr.
+        subject: "world token" or "world name" - the phrase the gate's own
+            blocking reason uses for that class.
+
+    Returns:
+        Every line that is a LEAK report. Empty means the gate detected
+        nothing, whatever its exit code says.
+    """
+    found = []
+    for line in stderr.splitlines():
+        if ": PII " not in line or subject not in line:
+            continue
+        if COVERAGE_DIAGNOSTIC in line:
+            continue
+        if line.startswith(PII_WORLD_LABEL + ":") or ":0:0: PII " in line:
+            continue
+        found.append(line)
+    return found
+
+
 def test_a_token_in_the_newest_save_past_the_entry_cap_is_still_blocked(
     over_cap_save_root: Path, tmp_path: Path
 ) -> None:
-    """The fail-open, at the unit rung. Past the cap the token must still match."""
+    """The fail-open, at the unit rung. Past the cap the token must still match.
+
+    GRADED ON THE LEAK DIAGNOSTIC'S IDENTITY, never on the exit code. Under
+    this fixture CS-1083's coverage diagnostic blocks unconditionally, so exit
+    1 says nothing here at all - see leak_diagnostics above for the mutant that
+    measured this arm passing with detection destroyed.
+    """
     env = base_env(tmp_path)
     env["CLOCKSPEED_SAVE_ROOT"] = str(over_cap_save_root)
 
     target = write(tmp_path / "ledger.md", "keyed by " + OVER_CAP_WORLD_TOKEN + "\n")
     result = run_gate("--files", str(target), env=env)
 
-    assert result.returncode == 1, "FAIL-OPEN: the gate passed a staged world token\n" + (
-        result.stdout + result.stderr
-    )
-    assert "world token" in result.stderr, result.stderr
+    leaks = leak_diagnostics(result.stderr, "world token")
+    assert leaks, "FAIL-OPEN: no world-token LEAK was reported\n" + (result.stdout + result.stderr)
+    # THE ANTI-VACUITY FRONT. This fixture is over the bound by construction,
+    # so the coverage report must be here too. An arm that stopped seeing it
+    # has stopped exercising the condition it is named for and would be
+    # discriminating nothing - it would pass on an under-cap fixture, which
+    # is exactly the shape CS-1083 exists to forbid.
+    assert COVERAGE_DIAGNOSTIC in result.stderr, result.stderr
+    assert result.returncode == 1, result.stdout + result.stderr
 
 
 def test_a_world_name_in_the_newest_save_past_the_entry_cap_is_still_blocked(
@@ -2628,10 +2957,15 @@ def test_a_world_name_in_the_newest_save_past_the_entry_cap_is_still_blocked(
     target = write(tmp_path / "world.md", "played " + OVER_CAP_SAVE_STEM + " tonight\n")
     result = run_gate("--files", str(target), env=env)
 
-    assert result.returncode == 1, "FAIL-OPEN: the gate passed a staged world name\n" + (
-        result.stdout + result.stderr
-    )
-    assert "world name" in result.stderr, result.stderr
+    # Same identity test as the token sibling. This arm was hollowed only
+    # HALF way - the coverage reason names the token subject and never the
+    # name one, so the substring still bound - but its exit-code assertion
+    # went vacuous with the rest, and a reworded coverage reason would
+    # finish the job. Graded on the leak line either way.
+    leaks = leak_diagnostics(result.stderr, "world name")
+    assert leaks, "FAIL-OPEN: no world-name LEAK was reported\n" + (result.stdout + result.stderr)
+    assert COVERAGE_DIAGNOSTIC in result.stderr, result.stderr
+    assert result.returncode == 1, result.stdout + result.stderr
 
 
 def test_an_over_cap_listing_reports_the_truncation(
@@ -2716,8 +3050,12 @@ def test_a_token_past_the_entry_cap_is_blocked_by_a_real_commit(
     after = git("rev-parse", "HEAD", cwd=hooked_repo).stdout.strip()
     combined = attempt.stdout + attempt.stderr
 
+    leaks = leak_diagnostics(attempt.stderr, "world token")
     assert attempt.returncode != 0, "FAIL-OPEN: the commit LANDED\n" + combined
-    assert "world token" in attempt.stderr, combined
+    assert leaks, (
+        "FAIL-OPEN: the commit was refused for COVERAGE and not for the token\n" + combined
+    )
+    assert COVERAGE_DIAGNOSTIC in attempt.stderr, combined
     assert after == before, "HEAD MOVED - the commit was not blocked"
     assert str(tmp_path) not in combined, combined
 
@@ -2728,9 +3066,17 @@ def test_an_over_cap_directory_does_not_stop_the_gate_starting(
     """The binding condition on the grant: a gate that cannot START does not block.
 
     The control for every test above. A clean file under the same over-cap
-    save root has to PASS, exit 0, and produce no traceback - otherwise the
-    blocking tests could be green because the gate is crashing rather than
+    save root has to produce a rendered verdict with no traceback - otherwise
+    the blocking tests could be green because the gate is crashing rather than
     because it is detecting.
+
+    CS-1083 CHANGED THE EXIT CODE HERE AND CHANGED NOTHING ABOUT THE PROPERTY
+    THIS ARM DEFENDS, and the two are worth keeping apart. The gate still
+    starts, still renders a verdict and still leaves no traceback; what changed
+    is that a world-token population this run TRUNCATED no longer reads as
+    clean at the exit status. The verdict is therefore pinned to the coverage
+    diagnostic and to a count of one, so a crash, a stack trace or an
+    unrelated finding cannot masquerade as the block this expects.
     """
     env = base_env(tmp_path)
     env["CLOCKSPEED_SAVE_ROOT"] = str(over_cap_save_root)
@@ -2738,9 +3084,11 @@ def test_an_over_cap_directory_does_not_stop_the_gate_starting(
     target = write(tmp_path / "clean.md", "nothing to see\n")
     result = run_gate("--files", str(target), env=env)
 
-    assert result.returncode == 0, result.stdout + result.stderr
     assert "Traceback" not in result.stderr, result.stderr
     assert "crashed" not in result.stderr, result.stderr
+    assert result.returncode == 1, result.stdout + result.stderr
+    assert "1 diagnostic(s)" in result.stderr, result.stderr
+    assert "did not cover this machine's whole save population" in result.stderr, result.stderr
 
 
 # --------------------------------------------------------------------------
@@ -2988,7 +3336,11 @@ def test_the_account_cap_truncation_is_reported_with_no_flags_at_all(
     needle = "save root holds more than %d entries" % cap
     lines = [line for line in result.stdout.splitlines() if needle in line]
 
-    assert result.returncode == 0, result.stdout + result.stderr
+    # CS-1083: this run TRUNCATED the world-token population, so it no longer
+    # reads as clean at the exit status. What this arm is about - the
+    # truncation line, flagless, on the channel the hook actually shows -
+    # is unchanged, and it is asserted below.
+    assert result.returncode == 1, result.stdout + result.stderr
     assert lines, result.stdout
     assert any("world name" in line for line in lines), lines
     assert any("world token" in line for line in lines), lines
@@ -3024,9 +3376,13 @@ def test_an_over_cap_account_root_does_not_stop_the_gate_starting(
     """The binding condition on the grant: a gate that cannot START does not block.
 
     The control for every test above. A clean file under the same over-cap
-    save root has to PASS, exit 0, and produce no traceback - otherwise the
-    reporting tests could be green because the gate is crashing rather than
-    because it is reporting.
+    save root has to produce a rendered verdict with no traceback - otherwise
+    the reporting tests could be green because the gate is crashing rather
+    than because it is reporting.
+
+    Same CS-1083 split as the directory-cap sibling above: the gate still
+    starts and still renders, and the truncated world-token population now
+    reaches the exit status instead of printing under a PASS banner.
     """
     env = base_env(tmp_path)
     env["CLOCKSPEED_SAVE_ROOT"] = str(over_cap_account_root)
@@ -3034,9 +3390,11 @@ def test_an_over_cap_account_root_does_not_stop_the_gate_starting(
     target = write(tmp_path / "clean.md", "nothing to see\n")
     result = run_gate("--files", str(target), env=env)
 
-    assert result.returncode == 0, result.stdout + result.stderr
     assert "Traceback" not in result.stderr, result.stderr
     assert "crashed" not in result.stderr, result.stderr
+    assert result.returncode == 1, result.stdout + result.stderr
+    assert "1 diagnostic(s)" in result.stderr, result.stderr
+    assert "did not cover this machine's whole save population" in result.stderr, result.stderr
 
 
 # --------------------------------------------------------------------------
@@ -3228,7 +3586,11 @@ def test_the_cap_report_replaces_the_false_sentence_in_a_real_gate_process(
     needle = "save root holds more than %d entries" % cap
     lines = [line for line in result.stdout.splitlines() if needle in line]
 
-    assert result.returncode == 0, result.stdout + result.stderr
+    # CS-1083: this run TRUNCATED the world-token population, so it no longer
+    # reads as clean at the exit status. What this arm is about - the
+    # truncation line, flagless, on the channel the hook actually shows -
+    # is unchanged, and it is asserted below.
+    assert result.returncode == 1, result.stdout + result.stderr
     assert any("world name" in line for line in lines), result.stdout
     assert any("world token" in line for line in lines), result.stdout
     assert NO_WORLD_NAME_SENTENCE not in result.stdout, result.stdout
@@ -3258,7 +3620,11 @@ def test_the_world_token_cap_report_survives_an_unreachable_package(
     needle = "save root holds more than %d entries" % cap
     lines = [line for line in result.stdout.splitlines() if needle in line]
 
-    assert result.returncode == 0, result.stdout + result.stderr
+    # CS-1083: this run TRUNCATED the world-token population, so it no longer
+    # reads as clean at the exit status. What this arm is about - the
+    # truncation line, flagless, on the channel the hook actually shows -
+    # is unchanged, and it is asserted below.
+    assert result.returncode == 1, result.stdout + result.stderr
     assert "not importable from this checkout" in result.stdout, result.stdout
     assert any("world token" in line for line in lines), result.stdout
 

@@ -882,6 +882,20 @@ DISPOSITIONS: Final[Mapping[tuple[str, str], Disposition]] = {
         " without inventing one.",
         1,
     ),
+    (LEDGER, line_key("tools/precommit_gate.py", 704)): Disposition(
+        NO_TARGET,
+        "",
+        "prose and digest ALREADY disagreed at d9398e6 - the digest held the"
+        " save-header budget constant. CS-1083 moved it; nothing is nameable.",
+        1,
+    ),
+    (LEDGER, line_key("tools/precommit_gate.py", 1802)): Disposition(
+        NO_TARGET,
+        "",
+        "prose and digest ALREADY disagreed at d9398e6 - the digest held a"
+        " stage_for_lint docstring line. CS-1083 moved it; nothing to name.",
+        1,
+    ),
     (LEDGER, line_key("tests/test_precommit_gate.py", 1174)): Disposition(
         NO_TARGET,
         "",
@@ -1086,8 +1100,6 @@ UNVERIFIED_LINE_POINTERS: Final[Mapping[tuple[str, str, int], str]] = {
     ("docs/LEDGER.md", "tools/edit_lint_check.py", 82): "c52969cc5a4b",
     ("docs/LEDGER.md", "tools/edit_lint_check.py", 113): "a7515962ef0b",
     ("docs/LEDGER.md", "tools/precommit_gate.py", 570): "4b165904f3ca",
-    ("docs/LEDGER.md", "tools/precommit_gate.py", 704): "7db8a31d0783",
-    ("docs/LEDGER.md", "tools/precommit_gate.py", 1802): "7545e5808a11",
     ("docs/item_notes/phase4-followups-850.md", "clockspeed/data/locate.py", 39): "0d5e3276442e",
     ("docs/item_notes/phase4-followups-850.md", "clockspeed/data/locate.py", 141): "fa085c760a09",
     ("docs/item_notes/phase4-followups-850.md", "clockspeed/data/locate.py", 187): "53bcd3acffa2",
