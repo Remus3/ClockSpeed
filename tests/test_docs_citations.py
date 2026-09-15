@@ -882,6 +882,26 @@ DISPOSITIONS: Final[Mapping[tuple[str, str], Disposition]] = {
         " without inventing one.",
         1,
     ),
+    (LEDGER, line_key("tools/precommit_gate.py", 704)): Disposition(
+        NO_TARGET,
+        "",
+        "the entry reads that line as a `%`-format exception rendering, but the"
+        " pin's frozen digest held the SAVE_HEADER_BUDGET_SECONDS assignment -"
+        " prose and landing ALREADY disagreed at d9398e6, so the site was"
+        " unexamined exactly as the pin claimed. CS-1083 moved that constant"
+        " down the file; no declaration the entry describes is nameable, so no"
+        " target is assigned.",
+        1,
+    ),
+    (LEDGER, line_key("tools/precommit_gate.py", 1802)): Disposition(
+        NO_TARGET,
+        "",
+        "the entry reads that line as the gate traceback the detector measures;"
+        " the pin's digest held a stage_for_lint docstring line about in-place"
+        " ruff staging. The two already disagreed at d9398e6, and CS-1083 moved"
+        " that docstring further down. Nothing to redirect to.",
+        1,
+    ),
     (LEDGER, line_key("tests/test_precommit_gate.py", 1174)): Disposition(
         NO_TARGET,
         "",
@@ -1086,8 +1106,6 @@ UNVERIFIED_LINE_POINTERS: Final[Mapping[tuple[str, str, int], str]] = {
     ("docs/LEDGER.md", "tools/edit_lint_check.py", 82): "c52969cc5a4b",
     ("docs/LEDGER.md", "tools/edit_lint_check.py", 113): "a7515962ef0b",
     ("docs/LEDGER.md", "tools/precommit_gate.py", 570): "4b165904f3ca",
-    ("docs/LEDGER.md", "tools/precommit_gate.py", 704): "7db8a31d0783",
-    ("docs/LEDGER.md", "tools/precommit_gate.py", 1802): "7545e5808a11",
     ("docs/item_notes/phase4-followups-850.md", "clockspeed/data/locate.py", 39): "0d5e3276442e",
     ("docs/item_notes/phase4-followups-850.md", "clockspeed/data/locate.py", 141): "fa085c760a09",
     ("docs/item_notes/phase4-followups-850.md", "clockspeed/data/locate.py", 187): "53bcd3acffa2",
