@@ -574,11 +574,52 @@ jobs:
       - name: Install toolchain
         run: python -m pip install -e ".[dev]"
 
+      # THE FREE RIDER (CS-1073), AND IT IS A DIAGNOSTIC ECHO RATHER THAN A GATE.
+      # Nothing in this lane, in tools/ or in ops/loop/ may read its value. The
+      # worker count `W` that `-n auto` resolves to is INFERRED in every lane
+      # measurement this project has written down, never read, because `-q`
+      # suppresses the xdist banner that would have stated it. A per-test timing
+      # divided by an assumed W is a number about an assumption. Two spellings,
+      # because they answer different questions on a container: `nproc` reports
+      # the CPUs this process is allowed to use and `os.cpu_count()` reports what
+      # the interpreter xdist runs under actually sees. It costs one line, in a
+      # run that is happening anyway.
+      - name: Runner CPU count
+        run: |
+          nproc
+          python -c "import os;print(os.cpu_count())"
+
       # THE OTHER HALF OF THE PARTITION. Explicit target directory, never a bare
       # recursive invocation from the repo root - CONVENTIONS.md section 7.1.
+      #
+      # THE ONE `--ignore=` IN THIS LANE IS A DELETION, NOT PARTITION BOOKKEEPING,
+      # AND IT IS GOVERNED (CS-1073). Every other ignore in this file sits on the
+      # catch-all and names another shard's target, one for one. This one names a
+      # path NO tier-1 shard runs, and the rule that makes that legal is stated in
+      # tests/test_tier1_budget.py: a tier-1 shard may carry an `--ignore=` only
+      # while a REQUIRED tier-2 job provably runs that path. That arm parses
+      # tier2.yml, cross-checks the job names against ops/loop/queue_loop.py's
+      # CI_TIER2.required, and is RED for an ignore tier 2 does not cover - so
+      # this is not a hole a slow test can be dropped into later.
+      #
+      # MEASURED on run 34925414733 at 578513b: this shard reported
+      # `1454 passed, 105 skipped in 285.86s` and 220.38s of that was the single
+      # module named below. It re-runs the WHOLE of tests/save as a nested child
+      # pytest, so partitioning this shard could never defend the margin - a new
+      # tests/save file enters that child under every shard arrangement.
+      #
+      # WHAT STILL RUNS IT, AND WHERE ITS VALUE ACTUALLY IS. `.githooks/pre-push`
+      # runs a bare `pytest tests` on the operator's box, where the game IS
+      # installed and a save library DOES exist - which is the only environment
+      # that can reproduce the mistake its docstring describes. tier2.yml's
+      # `full suite (${{ matrix.os }})` runs a bare `pytest tests` on both legs on
+      # every lane row. Neither is narrowed here. What this deletion drops is a
+      # subprocess that re-proved, inside an ubuntu runner already running with no
+      # install and no save, exactly what this job demonstrates simultaneously.
       - name: Unit tests
         run: >-
           python -m pytest tests/save -q -n auto --dist loadfile
+          --ignore=tests/save/test_phase4_gate.py
           --durations=15 --durations-min=5.0
 
       - name: Duration against the budget
