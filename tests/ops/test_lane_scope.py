@@ -1159,6 +1159,53 @@ def test_prose_that_quotes_a_sentinel_does_not_open_the_block(
     assert scope.gated_ids(root) == frozenset({"CS-410", "CS-470"})
 
 
+def test_prose_that_quotes_the_end_sentinel_does_not_close_the_block(
+    tmp_path: Path,
+) -> None:
+    """THE OTHER SENTINEL, AND THE OTHER DIRECTION OF FAILURE.
+
+    The two arms above detect OVER-classification: something got classified that
+    should not have been. This one detects UNDER-classification, where the block
+    closes EARLY over a sentence that merely quotes the END sentinel and the
+    real classification lines beneath it are never read. That failure is quieter
+    than the fail-open one and it is not harmless: an id the block no longer
+    classifies falls to UNCLASSIFIED, so a MENTIONED row silently becomes gated
+    and the lane stops serving a row nobody said was blocked.
+
+    IT IS A THIRD ARM BECAUSE THE END SENTINEL SURVIVED THE OTHER TWO. A sweep
+    of the final tree turned ``stripped == _CLASSIFY_END`` into an ``in`` test
+    ON ITS OWN and the module stayed at 46 passed, exit 0 - the BEGIN half of
+    the same edit reddens, the END half did not. An adversary had changed both
+    comparisons together, which hid it: the BEGIN arm caught the pair and
+    nothing was left to catch the half.
+
+    Args:
+        tmp_path: pytest temporary directory.
+    """
+    root = _write_corpus(tmp_path, {})
+    quoting = (
+        _GATE_PROSE
+        + "\n```\n"
+        + _BEGIN
+        + "\n"
+        + "It closes at "
+        + _END
+        + " and this sentence is inside the block.\n"
+        + "gate: CS-470 BLOCKED CS-G01\n"
+        + "gate: CS-410 MENTIONED\n"
+        + _END
+        + "\n```\n"
+    )
+    (root / "docs" / "GATED.md").write_bytes(quoting.encode("ascii"))
+
+    classification = scope.gate_classification(root)
+
+    assert classification.blocked == (("CS-470", "CS-G01"),)
+    assert classification.mentioned == frozenset({"CS-410"})
+    assert classification.unclassified == ()
+    assert scope.gated_ids(root) == frozenset({"CS-470"})
+
+
 def test_the_live_gated_file_classifies_every_id_its_own_scan_finds(
     repo_root: Path,
 ) -> None:
