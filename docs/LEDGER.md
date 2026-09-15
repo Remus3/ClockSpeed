@@ -374,6 +374,123 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-09-15 - CS-1083 - NOT A COMPLETION RECORD. NOTHING CLOSED. CS-1083 STAYS OPEN. This is the section 6 frozen-file GRANT, recorded before the edit
+
+**WHAT IS GRANTED.** Permission to modify `tools/precommit_gate.py`, which `CLAUDE.md`
+section 6 freezes, for the purpose of CS-1083 and nothing else. Granted by an adjudicator
+that produced none of the work, under section 6.1, which moved the grantor off the operator
+and left the route otherwise unchanged.
+
+**THE PREMISE, RE-DERIVED FROM SOURCE RATHER THAN FROM THE TRANSCRIPT THAT RAISED IT.** The
+cap is `MAX_SAVE_HEADER_FILES` and the world-token path reports a skip and then TRUNCATES
+its own population when the listing exceeds it. `Report.skip` appends only to `skipped`, and
+`emit` returns 0 whenever `diagnostics` is empty, so nothing on the skip channel can reach
+the exit status. A skipped `<pii:world>` therefore cannot make this gate non-zero, by
+construction rather than by observation. The live population is 28 save files against a cap
+of 24.
+
+**SCOPE, NARROW, IN CLAUSES.**
+
+1. May change: the world-token coverage path, and whatever `emit` or `main` needs so that an
+   UNCOVERED world-token population is distinguishable at the exit status.
+2. The preferred remedy is to COVER the whole population, not to fail closed. Attempt it
+   first.
+3. The file-count cap may be raised or replaced by a cost-shaped bound. It may NOT be
+   silently removed - some bound must remain and `SAVE_HEADER_BUDGET_SECONDS` must keep a
+   live refusal path, because CS-425 and CS-436 already reverted one bound removal.
+4. Fail-closed is permitted only as the fallback when coverage is impossible, and only for
+   the world-token skip. No other skip's blocking semantics may change.
+5. Must NOT change: a skip line never printing the value it skipped, the never-fail-to-start
+   property, the `PASS` banner being the last line, or the ruff bands.
+
+**THE ADJUDICATION'S ONE UNPROVEN CLAUSE IS NOW MEASURED, AND IT SETTLES THE DIRECTION.** The
+grant preferred coverage but recorded that nothing measured the per-file header read cost, so
+clause 2's feasibility was unproven and clause 4 might have had to carry the item. Measured
+on this box against the live library, through the gate's own reader: 28 of 28 headers read, 0
+unreadable, 0.0025 seconds TOTAL, slowest single read 0.0002 seconds. That is about 1971
+times inside the aggregate budget. The cap is not buying what its own comment says it buys,
+and the fail-closed fallback is very unlikely ever to fire - which is what makes clause 4
+safe to ship at all, since a gate that fails closed on this box would block every commit on
+it.
+
+**THE DOCTRINE THIS SITS UNDER, WHICH IS NOT NEW.** `PII_WORLD_LABEL` is already a
+`COVERAGE_SKIP_LABEL`, and CS-209 made those print with no flag at all because the hook
+passes none - a reduction in the gate's own detection that nobody is ever shown is a silent
+hole under `CONVENTIONS.md` section 15.1. CS-1083 is that same argument one level down: the
+reduction is visible at the console and still silent at the exit code.
+
+**A VACUITY TRAP IS ALREADY IN THE SUITE AND THE IMPLEMENTER MUST NOT REPEAT IT.**
+`tests/test_precommit_gate.py` carries an arm asserting that its fixture "must sit below the
+file cap". An arm built that way passes for exactly the reason CS-1083 exists, so the
+acceptance requires the new arm to be graded with the population OVER the cap.
+
+**NO PERSONAL DATA IS IN THIS RECORD.** Counts and seconds only - no world name, save
+filename, account id or home path, per non-negotiables 3, 11 and 12.
+
+### 2026-09-15 - CS-1081 - CLOSED. The containment arm now grades its own lever, and two more levers beside it turned out to be open
+
+**THE DEFECT.** `tests/ops/test_lane_scope.py::test_a_classification_line_outside_the_sentinels_classifies_nothing`
+planted its line spelled `CS-410 MENTIONED`, with no `gate: ` prefix. `_CLASSIFY_LINE` in
+`ops/loop/scope.py` requires that prefix, so the planted line matched the parser NOWHERE -
+inside the sentinels or outside them, with the containment guard present or deleted. The arm
+passed on the strength of a line the parser was never going to read. `docs/history_notes.md`
+recorded this lever as pinned shut; it was not pinned.
+
+**PROVEN BY PLANT, NOT BY ARGUMENT.** Deleting `if not inside: continue` from
+`gate_classification` left the module at 45 passed, exit 0. After the repair the same
+deletion reddens, and the failing line is the containment assertion itself rather than a
+neighbour carrying the verdict.
+
+**THE REPAIR.** The fixture plants lines the parser genuinely matches, and they ABUT the
+sentinels - one immediately above BEGIN, one immediately below END - around an empty
+classification block, because near the block and inside it is the distinction under test.
+Both planted lines are load-bearing and that was measured by dropping each in turn: with only
+the above-BEGIN line the END mutant goes green, and with only the below-END line the
+initial-value mutant goes green.
+
+**THE REFUTATION PASS FOUND A SECOND LEVER, AND THE SWEEP THAT FOLLOWED FOUND A THIRD.**
+Turning both `stripped == _CLASSIFY_BEGIN` and the END comparison into `in` tests left the
+WHOLE of `tests/ops` at 146 passed, exit 0 - the substring form of the fenced-block trap this
+arm's own docstring cites. The CS-1081 plant cannot reach it, because that plant sits AROUND
+the sentinels and so cares nothing for how a sentinel is RECOGNISED.
+
+Then the two comparisons were swept SEPARATELY rather than as the pair the adversary changed,
+and that is what exposed the third: with the BEGIN arm in place, `== to in` on END ALONE was
+still 46 passed, exit 0. The pair reddened only through its BEGIN half. **A mutation applied
+as a pair grades the pair, never each half**, and neither existing fixture carried a line
+CONTAINING the END sentinel without being equal to it, so substring and equality behaved
+identically on both.
+
+**THE THIRD ARM ALSO CLOSES THE ONE-SIDEDNESS THE ADVERSARY RECORDED AS RESIDUAL.** The first
+two arms detect OVER-classification only: a `gate_classification` that classified nothing
+anywhere satisfied every assertion in both.
+`test_prose_that_quotes_the_end_sentinel_does_not_close_the_block` reddens when the block
+closes EARLY and real classification lines go unread, which silently turns a MENTIONED row
+into a gated one and stops the lane serving a row nobody said was blocked.
+
+**SIX MUTANTS, PRISTINE FLOOR FIRST, ALL AGAINST THE FINAL TREE.** Every mutation was
+asserted to have landed on disk before its run, because a mutant that never applied and one
+that survived print the same thing.
+
+| mutant | `tests/ops/test_lane_scope.py` | caught by |
+|---|---|---|
+| pristine | 47 passed, exit 0 | - |
+| `if not inside: continue` deleted | 2 failed, 45 passed | outside-sentinels, quotes-BEGIN |
+| `inside = False` to `True` at END | 1 failed, 46 passed | outside-sentinels |
+| initial `inside = False` to `True` | 2 failed, 45 passed | outside-sentinels, quotes-BEGIN |
+| `==` to `in` on BEGIN | 1 failed, 46 passed | quotes-BEGIN |
+| `==` to `in` on END | 1 failed, 46 passed | quotes-END |
+
+**MERGED FILE.** `tests/ops/test_lane_scope.py`, and that file alone.
+`tests/ops` is 148 passed, exit 0. `ops/loop/scope.py` was mutated only to measure, restored
+from a byte snapshot rather than from git - which would have discarded the uncommitted repair
+- and its sha256 verified against that snapshot after every restore.
+
+**THE PLANTS ARE ORDINARY INPUTS, WHICH IS THE POINT.** A prose sentence quoting the BEGIN
+sentinel is not an exotic value: `docs/GATED.md` is the file most likely to DOCUMENT this
+mechanism, and the session that closed CS-1073 recorded that when a plant needs an exotic
+value to trigger, the thing to ask is what the ORDINARY values do.
+
 ### 2026-09-15 - CS-1073 - CLOSED. Tier 1 stops re-running the save suite inside itself, and the three readings name a DIFFERENT job as worst
 
 **THE MECHANISM.** The tier-1 save shard no longer executes
