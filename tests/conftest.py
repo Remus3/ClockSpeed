@@ -169,16 +169,16 @@ _SNIFF_BYTES = 8192
 
 
 def run_git(root: Path, *args: str) -> subprocess.CompletedProcess[bytes] | None:
-    """Run a git subcommand in ``root``: None when git is missing, RED when it hangs.
+    """Run a git subcommand in ``root``: None when git is missing, RED when it cannot run.
 
     Public because test modules import it: git alone answers "would this path be
-    committed" and "is this path ignored". PATH resolves the program, since an
-    absolute tool path hardcodes a machine layout (CONVENTIONS.md section 10).
+    committed" and "is this path ignored". PATH resolves the program (CONVENTIONS.md 10).
 
-    A TIMEOUT IS RED, NEVER A SKIP (CS-1116). Callers skip on None, so only an
-    ``OSError`` - no program to start - returns it. A hang FAILS, and a non-zero
-    exit is returned for the caller to judge. The hang is planted in
-    tests/test_conftest_run_git.py.
+    A HANG OR A START FAULT IS RED, NEVER A SKIP (CS-1116, CS-1118). Callers skip on
+    None, so only ``FileNotFoundError`` - no program by that name - returns it. A hang
+    FAILS, so does a program that is there but will not start (a directory, a data
+    file), naming the error by field and never the object, which carries the path. A
+    non-zero exit is returned for the caller to judge. tests/test_conftest_run_git.py.
     """
     proc: subprocess.CompletedProcess[bytes] | None = None
     try:
@@ -188,14 +188,14 @@ def run_git(root: Path, *args: str) -> subprocess.CompletedProcess[bytes] | None
             timeout=RUN_GIT_TIMEOUT_SECONDS,
             check=False,
         )
-    except subprocess.TimeoutExpired:
-        proc = None  # failed BELOW the handler, so the red chains no exception
-    except OSError:
+    except subprocess.TimeoutExpired:  # failed BELOW the handler, so the red chains nothing
+        fault = f"TIMED OUT after {RUN_GIT_TIMEOUT_SECONDS}s"
+    except FileNotFoundError:
         return None
+    except OSError as error:
+        fault = f"could not START ({type(error).__name__}, errno {error.errno})"
     if proc is None:
-        subcommand = args[0] if args else "(no subcommand)"
-        message = f"git {subcommand} TIMED OUT after {RUN_GIT_TIMEOUT_SECONDS}s - never a skip"
-        pytest.fail(message)
+        pytest.fail(f"git {args[0] if args else '(no subcommand)'} {fault} - never a skip")
     return proc
 
 

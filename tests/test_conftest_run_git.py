@@ -20,11 +20,12 @@ SKIPPED rather than red, which is the very defect under test.
 
 from __future__ import annotations
 
+import errno
 import os
 import sys
 import time
 from pathlib import Path
-from typing import Final
+from typing import Final, NoReturn
 
 import pytest
 
@@ -155,3 +156,126 @@ def test_the_real_run_git_program_is_git_resolved_from_path() -> None:
     """The seam the plant swaps defaults to bare ``git``, never an absolute path."""
     program = conftest.RUN_GIT_PROGRAM
     assert program == ("git",), f"run_git's default program is {program!r}, not bare git"
+
+
+# ---------------------------------------------------------------------------
+# CS-1118 - a git that cannot START is RED; only a MISSING program returns None
+#
+# ``run_git`` returned None on ANY ``OSError``, so a program that exists but
+# cannot be started read exactly like git not being installed, and every caller
+# skipped. Measured on Windows: a missing program raises ``FileNotFoundError``
+# (winerror 2), a directory raises ``PermissionError`` (winerror 5) and a plain
+# data file raises a bare ``OSError`` (winerror 193). On POSIX a directory and a
+# file without the executable bit both raise ``PermissionError``. Only the first
+# of those is "no git".
+# ---------------------------------------------------------------------------
+
+#: The words the red carries, so a start fault is told apart from a timeout.
+START_FAULT_WORDS: Final = "could not START"
+
+#: The permission bits the planted data file carries: readable, never executable.
+NOT_EXECUTABLE_MODE: Final = 0o644
+
+
+def _start_outcome(root: Path) -> tuple[str, str, bool]:
+    """Run ``run_git`` once and report its outcome, message and whether the red chained.
+
+    Returns:
+        ``(outcome, message, chained)`` where outcome is one of ``failed``,
+        ``skipped``, ``returned-none`` or ``returned``, and chained is True when
+        a failure carries a chained exception - which pytest renders whole, path
+        and all, beside the field-built message.
+    """
+    try:
+        proc = conftest.run_git(root, "init", "--quiet")
+    except pytest.fail.Exception as failure:
+        chained = failure.__context__ is not None or failure.__cause__ is not None
+        return "failed", _outcome_text(failure), chained
+    except pytest.skip.Exception as skipped:
+        return "skipped", _outcome_text(skipped), False
+    return ("returned-none" if proc is None else "returned"), "", False
+
+
+def _assert_start_fault_is_red(root: Path, planted: Path) -> None:
+    """The planted program FAILS, says why by field, names no path and chains nothing."""
+    outcome, message, chained = _start_outcome(root)
+    assert outcome == "failed", f"a git that cannot start ended {outcome}, not failed"
+    assert START_FAULT_WORDS in message, "the failure does not say git could not start"
+    names_the_path = str(planted) in message or planted.name in message
+    assert not names_the_path, "the failure renders the planted program path"
+    assert not chained, "the failure chains the OSError, which renders it whole"
+
+
+def test_a_run_git_program_that_is_a_directory_fails_rather_than_skips(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """CS-1118 PLANT. A program path that is a real directory FAILS; it is not "no git"."""
+    survivors = _strip_repo_pointers(monkeypatch)
+    assert survivors == [], f"repository-locating variables survived the strip: {survivors}"
+    planted = tmp_path / "cs1118-directory-program"
+    planted.mkdir()
+    monkeypatch.setattr(conftest, "RUN_GIT_PROGRAM", (str(planted),))
+    _assert_start_fault_is_red(tmp_path, planted)
+
+
+def test_a_run_git_program_that_is_not_executable_fails_rather_than_skips(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """CS-1118 PLANT. A data file with no executable bit FAILS, on every platform."""
+    survivors = _strip_repo_pointers(monkeypatch)
+    assert survivors == [], f"repository-locating variables survived the strip: {survivors}"
+    planted = tmp_path / "cs1118-data-program.txt"
+    planted.write_bytes(b"not a program\n")
+    planted.chmod(NOT_EXECUTABLE_MODE)
+    monkeypatch.setattr(conftest, "RUN_GIT_PROGRAM", (str(planted),))
+    _assert_start_fault_is_red(tmp_path, planted)
+
+
+def test_a_start_fault_carrying_its_path_renders_no_path(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """CS-1118 PLANT. The red is built from fields, so a path the error carries never shows.
+
+    Measured on Windows, a start fault from ``subprocess`` carries NO filename, so
+    the two plants above cannot see a message that renders one - the oracle would
+    be blind to its subject here and live only on POSIX, where the program path
+    rides in ``filename``. This arm raises the POSIX shape on every platform.
+    """
+    survivors = _strip_repo_pointers(monkeypatch)
+    assert survivors == [], f"repository-locating variables survived the strip: {survivors}"
+    planted = tmp_path / "cs1118-path-carrying-program"
+    fault = PermissionError(errno.EACCES, "Permission denied", str(planted))
+    carries_path = fault.filename == str(planted)
+    assert carries_path, "the planted start fault does not carry the program path"
+
+    def refuse_to_start(*_args: object, **_kwargs: object) -> NoReturn:
+        raise fault
+
+    monkeypatch.setattr(conftest.subprocess, "run", refuse_to_start)
+    _assert_start_fault_is_red(tmp_path, planted)
+
+
+def test_a_run_git_program_under_a_missing_directory_still_returns_none(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """ANTI-NARROWING CONTROL. A program whose parent does not exist is missing, so None.
+
+    The bare-name missing program is graded above; this is the absolute-path
+    spelling of the same absence, which must not be swept into the red.
+    """
+    survivors = _strip_repo_pointers(monkeypatch)
+    assert survivors == [], f"repository-locating variables survived the strip: {survivors}"
+    planted = tmp_path / "cs1118-absent-directory" / "cs1118-absent-program"
+    monkeypatch.setattr(conftest, "RUN_GIT_PROGRAM", (str(planted),))
+    outcome, _, _ = _start_outcome(tmp_path)
+    assert outcome == "returned-none", f"a missing program ended {outcome}, not returned-none"
+
+
+def test_the_real_git_still_runs_through_run_git(tmp_path: Path) -> None:
+    """ANTI-NARROWING CONTROL. The unplanted program starts and answers, never red or None."""
+    proc = conftest.run_git(tmp_path, "--version")
+    assert proc is not None, "the real git returned None, so git reads as missing"
+    code = proc.returncode
+    assert code == 0, f"the real git --version exited {code}"
+    answered = proc.stdout.decode("ascii", "replace").startswith("git version")
+    assert answered, "the real git --version did not answer with its version"
