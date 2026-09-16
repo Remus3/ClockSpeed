@@ -10946,3 +10946,48 @@ the last two to three sessions only. Nothing was deleted.
   CS-1048 are both repaired and dispatchable; they still force `docs/ARCHITECTURE.md` and
   still run in sequence with a merger doc-sync, never beside each other. CS-1061 opens on
   an ADJUDICATED SEAM DECISION and no file is scaffolded before that ruling.
+
+---
+
+## Session 97 - 2026-09-15 - CS-1073 closed on a remedy its own acceptance did not contain, and BOTH slices this session were refuted by the adversarial pass after every targeted suite was green
+
+- Shipped: CS-1073 CLOSED. CS-1081, CS-1082, CS-1083 and CS-1084 filed. CS-G06 NOT
+  discharged - a discharge was built and discarded unmerged. Detail in `docs/LEDGER.md`.
+- In flight: nothing. `main` clean and pushed, whole suite green through the pre-push hook
+  at 7771 passed 7 skipped, tier 1 green on three separate attempts.
+- TWO OF TWO SLICES WERE REFUTED, AND IN BOTH CASES EVERY TARGETED SUITE, EVERY GATE AND
+  THE BUILDER'S OWN WATCHED REDS WERE GREEN ON THE DEFECT. This is the session's main
+  result. The adversarial pass is the only thing that caught either.
+- THE MERGER'S OWN CONCLUSION WAS THE FIRST THING OVERTURNED. CS-G06 asks for a PROGRESSED
+  world in `corpus/`; the merger measured non-empty unlock state and called it discharged.
+  After CS-G05's decoder repair EVERY world decodes non-empty, so the measurement
+  distinguished nothing. `.gitignore` labels `/corpus/` the pinned reference world's
+  snapshot, the save is byte-identical to one still in the live library, and the session 96
+  handoff said "development-world save" in plain words. Three cheap checks would each have
+  caught it and none was run before a 45-minute slice was dispatched.
+- A CORRECT FIXTURE DOES NOT MAKE A LIVE ARM, MEASURED AGAIN. CS-1073's first tier-2 rule
+  permitted a deletion when a required tier-2 job named a CONTAINING target. Tier 2 runs
+  bare `tests`, so every path beneath it was covered and the rule could refuse nothing it
+  would ever face. `--ignore=tests/save` then left the whole directory in NO tier-1 shard
+  with all 47 arms green, RED at base. The tell was in the author's own evidence: its
+  potency plant had to be spelled `tools/...`. The shipped rule is an allowlist.
+- A LOCAL PROFILE OF A CI SHARD IS INVALID AND LOOKS AUTHORITATIVE. The first profile ran
+  where the save library exists, read `1559 passed, 0 skipped`, and was dominated by a
+  256.89s census that SKIPS on the runner. A partition was computed from it by exact
+  subset-sum to 0.0000 per cent imbalance, optimising a file CI never runs. The second
+  profile counts only because an injected environment reproduced CI's `1454 passed, 105
+  skipped` and then matched all SIXTEEN per-file skip groups, not just the total.
+- Surprises: the adjudication's own arithmetic was wrong by about 2x. It predicted ~65s of
+  pytest and ~235s of headroom by reading the 220s test as the critical path - the
+  FOUR-worker answer. W is 2, now READ from the runner rather than modelled, and the shard
+  was bound by total CPU over workers, so the step measured 141s. The lane's worst reading
+  fell only 308 to 295 because `fast` was always close behind.
+- Failed paths: do not re-attempt the CS-G06 discharge on unlock-state counts. Do not
+  re-pitch containment as the tier-1 deletion rule. Do not profile the save shard without
+  the injected-environment control.
+- Next action: CS-1081 FIRST. It is a LIVE fail-open lever in `main` - the arm that claims
+  to prove a classification line outside the sentinels classifies nothing plants a line
+  carrying no `gate: ` prefix, so `_CLASSIFY_LINE` never matches it and the arm passes with
+  the containment guard DELETED. Nine mutants confirmed it on both trees at 45 passed exit
+  0. It is unrelated to either slice and it is the only item filed this session that is a
+  defect in shipped behaviour rather than in a measurement or a clause.

@@ -33,6 +33,85 @@ Keep every entry to that shape. If an item needs a paragraph, it needs its own f
 the line becomes a pointer.
 
 ---
+## Session 100 - 2026-09-15/16 - CS-1093, CS-1086's domain half, CS-1087
+
+**CLOSED.** CS-1093 - the 7-bit walk names every offending module rather than the
+first, the count bound to a scalar so pytest's rewriting cannot render the
+population. CS-1087 - a world token carried only by an unparseable header is
+matchable WITHOUT parsing that header, by scanning the FRAMING the engine writes
+around it.
+
+**DISCHARGED, NOT CLOSED.** CS-1086's domain half. All nine `detail:`-field
+disagreements resolved under ONE rule rather than nine judgements: the field is
+present exactly when the item has a routing row AND a section in the leaf that
+row names. Both directions now measure zero. What remains open is deriving the
+leaf half. This unblocks CS-971's blocker by half.
+
+**FILED.** CS-1095 (BACKLOG, the inbox watcher `--strict` flip), CS-1096 (the
+bounds enumeration nothing grades), CS-1097 (the save-name false positive),
+CS-1098 archify, CS-1099 context-mode, CS-1100 the skills pack.
+
+**GRANTS RECORDED BEFORE THE EDIT.** Two, both in `docs/LEDGER.md`. CS-1087's
+frozen-file grant for `tools/precommit_gate.py`, with `.githooks/pre-commit`
+DENIED because the hook maps every non-zero status to BLOCKED, which is the wedge
+the item forbids. And the console-flash grant for the same file, operator-granted
+and recorded AS A DEPARTURE from section 6.1's adjudicator route so no later agent
+cites it as precedent.
+
+### What the graders changed, which is the session's real result
+
+CS-1087's shipped fix is materially different from the one first written, and
+every difference came from an agent that did not produce the work.
+
+- An ADJUDICATOR sent the first cut back: a bound truncated the world-token
+  population without reaching the exit status - CS-1083's defect class recurring
+  inside CS-1087's own fix.
+- An ADVERSARY found the cap SILENTLY LOSING REAL TOKENS two ways: it counted raw
+  hits BEFORE de-duplication, so a value repeated to the cap followed by a
+  DIFFERENT value discarded the second; and `hits` was shared across both
+  framings, so a full narrow population starved the wide scan entirely.
+- The same adversary broke clause 6: `scan_framed_tokens` bound the prefix BARE -
+  the first bare holder of a save prefix in the module - and the arm claiming
+  otherwise monkeypatched THE VERY FUNCTION HOLDING THE BUFFER, so it was blind by
+  construction.
+- On RE-GRADE it caught the repair to the bounds sentence PRESERVING the off-by-one:
+  "All four" over five became "All FIVE" over six. Incrementing was mistaken for
+  correcting because nothing grades that sentence. CS-1096 files the arm.
+
+### Process findings that cost real time
+
+- A NARROWED DEFINITION EMPTIES THE POPULATION. Measuring CS-1086's marker by its
+  TARGET string instead of its FIELD POSITION gave 8 disagreements against the
+  filed 9. The filed count was right and reproduces at every commit since filing;
+  the missing member was CS-1026, whose field points at prose. Keep the count in an
+  acceptance - it is the anti-narrowing control - and enumerate the roster beside
+  it, because ids go absent where a count miscounts. Memory written.
+- THE WHOLE SUITE CAUGHT WHAT THE SCOPED SUITE COULD NOT. Three failures landed
+  after the CS-1087 merge, in `tests/test_toolpath.py` and
+  `tests/test_assertion_rendering.py`, both outside the scope the merger gave the
+  builder. One was a PII LEAK IN THE ARM THAT PROVED THE READER ALIVE: asserting on
+  `read_header(readable).world_token` renders a field whose class withholds it. A
+  change to a file as widely referenced as the gate needs the WHOLE suite before
+  the merge, not after.
+- A LINE-PINNED REFERENCE BROKE THREE TIMES IN ONE SESSION - the docs-citation
+  guard rejected six line pointers in a ledger entry the merger wrote, and two
+  toolpath exemptions went stale when the gate grew 233 lines. Cite by SYMBOL.
+- TWO RUNNERS LIED ABOUT A SUITE. One reported exit code 0 over `3 failed`; another
+  died silently at 98 per cent with no verdict and zero surviving processes. Write
+  `PYTEST_EXIT=` INTO the log and read the log, never the status line.
+- `Path.write_text` and the harness heredoc both corrupt payloads - the heredoc
+  collapses `\n` inside a quoted body. Write payload scripts with the Write tool.
+
+### Measured, and worth keeping
+
+On the live library this run: 31 save files, ONE unreadable header, and it
+recovered NOTHING - it is the truncated-before-the-identifier shape. CS-1083 cited
+0 of 28; the grant ordered the re-measure and this is it. So CS-1087's coverage
+limb is 0-for-1 on real data today. That is a floor on the item's value, not a
+defect in it.
+
+---
+
 ## Session 99 - 2026-09-15 - the handoff's single next action was the FOURTH filing over one wall, and the clause guarding it forbade its own remedy
 
 - Shipped: CS-1085 and CS-1066 CLOSED on their own work; CS-1057 and CS-1088 CLOSED AS
@@ -136,47 +215,3 @@ the line becomes a pointer.
   `skipped <pii:world>` and `PASS`; the merge commit printed `PASS - 4 checked, 0 skipped`.
   The privacy check for non-negotiables 11 and 12 had not run on any commit made while the
   library was over the 24-file cap.
-
-
-## Session 97 - 2026-09-15 - CS-1073 closed on a remedy its own acceptance did not contain, and BOTH slices this session were refuted by the adversarial pass after every targeted suite was green
-
-- Shipped: CS-1073 CLOSED. CS-1081, CS-1082, CS-1083 and CS-1084 filed. CS-G06 NOT
-  discharged - a discharge was built and discarded unmerged. Detail in `docs/LEDGER.md`.
-- In flight: nothing. `main` clean and pushed, whole suite green through the pre-push hook
-  at 7771 passed 7 skipped, tier 1 green on three separate attempts.
-- TWO OF TWO SLICES WERE REFUTED, AND IN BOTH CASES EVERY TARGETED SUITE, EVERY GATE AND
-  THE BUILDER'S OWN WATCHED REDS WERE GREEN ON THE DEFECT. This is the session's main
-  result. The adversarial pass is the only thing that caught either.
-- THE MERGER'S OWN CONCLUSION WAS THE FIRST THING OVERTURNED. CS-G06 asks for a PROGRESSED
-  world in `corpus/`; the merger measured non-empty unlock state and called it discharged.
-  After CS-G05's decoder repair EVERY world decodes non-empty, so the measurement
-  distinguished nothing. `.gitignore` labels `/corpus/` the pinned reference world's
-  snapshot, the save is byte-identical to one still in the live library, and the session 96
-  handoff said "development-world save" in plain words. Three cheap checks would each have
-  caught it and none was run before a 45-minute slice was dispatched.
-- A CORRECT FIXTURE DOES NOT MAKE A LIVE ARM, MEASURED AGAIN. CS-1073's first tier-2 rule
-  permitted a deletion when a required tier-2 job named a CONTAINING target. Tier 2 runs
-  bare `tests`, so every path beneath it was covered and the rule could refuse nothing it
-  would ever face. `--ignore=tests/save` then left the whole directory in NO tier-1 shard
-  with all 47 arms green, RED at base. The tell was in the author's own evidence: its
-  potency plant had to be spelled `tools/...`. The shipped rule is an allowlist.
-- A LOCAL PROFILE OF A CI SHARD IS INVALID AND LOOKS AUTHORITATIVE. The first profile ran
-  where the save library exists, read `1559 passed, 0 skipped`, and was dominated by a
-  256.89s census that SKIPS on the runner. A partition was computed from it by exact
-  subset-sum to 0.0000 per cent imbalance, optimising a file CI never runs. The second
-  profile counts only because an injected environment reproduced CI's `1454 passed, 105
-  skipped` and then matched all SIXTEEN per-file skip groups, not just the total.
-- Surprises: the adjudication's own arithmetic was wrong by about 2x. It predicted ~65s of
-  pytest and ~235s of headroom by reading the 220s test as the critical path - the
-  FOUR-worker answer. W is 2, now READ from the runner rather than modelled, and the shard
-  was bound by total CPU over workers, so the step measured 141s. The lane's worst reading
-  fell only 308 to 295 because `fast` was always close behind.
-- Failed paths: do not re-attempt the CS-G06 discharge on unlock-state counts. Do not
-  re-pitch containment as the tier-1 deletion rule. Do not profile the save shard without
-  the injected-environment control.
-- Next action: CS-1081 FIRST. It is a LIVE fail-open lever in `main` - the arm that claims
-  to prove a classification line outside the sentinels classifies nothing plants a line
-  carrying no `gate: ` prefix, so `_CLASSIFY_LINE` never matches it and the arm passes with
-  the containment guard DELETED. Nine mutants confirmed it on both trees at 45 passed exit
-  0. It is unrelated to either slice and it is the only item filed this session that is a
-  defect in shipped behaviour rather than in a measurement or a clause.
