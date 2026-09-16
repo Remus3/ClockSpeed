@@ -117,6 +117,58 @@ the clause and is not the clause. If a later session wants the item to close on 
 population than it names, that is a re-wording and needs its own record - not a reading of
 this block.
 
+### Second partial ship recorded 2026-09-16 - the reference-pair class reads, two shapes remain
+
+**THE ITEM STAYS OPEN AND ITS ACCEPTANCE IS UNCHANGED.** This is the third reading of the
+run and the second one recorded here as a measurement rather than a closure. What shipped
+reads the remainder of ONE further derived class set - the one whose remainder is TWO
+OBJECT REFERENCES - and nothing else.
+
+**WHAT IS NOW READ.** `clockspeed/save/objects.read_reference_pair` walks four
+length-prefixed strings as two references and reports them on `TrailingRun.references`,
+with `unread` falling by the width they consumed.
+`derive_reference_pair_classes` picks the carrying classes off the body being read.
+
+**THE PROSE CS-1068 LEFT BEHIND WAS MEASURED AND IS HALF FALSE, AND THAT IS THE MOST
+REUSABLE THING THIS CYCLE PRODUCED.** Its ledger entry describes this shape as two
+references "followed by a 24-byte tail". Across this project's library the tail is present
+on ONE schema and ABSENT on two others, which write the same two references and stop. The
+partition is exact, with no payload on either side crossing over, and it is corroborated
+by a second signal from a different source: every tail-bearing record lacks the two
+wire-geometry properties and every tail-free record carries them - the newer schema moved
+that geometry out of the run and into properties. **A READER BUILT FROM THAT SENTENCE
+WOULD HAVE OVER-READ EVERY TAIL-FREE PAYLOAD BY THE WIDTH `REFERENCE_PAIR_TAIL_BYTES`
+NAMES** - the figure lives in `clockspeed/save/objects.py` and is not restated here. Do
+not take a prose
+description of a region in this tree as a specification for a reader; re-measure it.
+
+**SO THE FORM IS DERIVED, NOT TRANSCRIBED, AND NOT VERSION-KEYED EITHER.** A class is
+admitted only when EVERY one of its remainder-bearing records in that body reads at the
+SAME tail width. That consistency requirement is the anti-vacuity property: a reader
+taking each record at whichever width happened to fit would admit any mixture, which is
+arithmetic wearing a derivation's clothes. A version table would have worked on today's
+library and would have been a transcription, which CS-829's note forbids by name.
+
+**THE WEAKEST CASE, STATED RATHER THAN ROUNDED UP, because an adversary found it and a
+caveat said in a cycle report is not a caveat in the artifact.** The consistency
+requirement contributes NOTHING when a class has exactly ONE remainder-bearing record in
+the body: one record agrees with itself, and the class is admitted at whichever of the two
+widths that record read at. The READING is still not vacuous there - the four prefixes must
+walk exactly onto the derived landing point and empty strings are refused, so a run that is
+not a pair still derives nothing - but the FORM, at n=1, is as good as observed. On this
+project's library the carrier's n is in the thousands, so nothing shipped rests on it. A
+later cycle strengthening this should require a floor on n rather than re-deriving the
+consistency rule, which already holds.
+
+**WHAT REMAINS, AND IT IS CS-1119 RATHER THAN THE REST OF THIS ONE.** Two shapes, neither
+reachable by this grammar. The first is a four-byte all-zero residual that is
+BYTE-IDENTICAL to an empty item list - CS-1068's root cause seen from the other side, and
+the reason it cannot be closed by trying harder. The second is one class whose remainder
+is a large nested structure that nothing in the run describes.
+
+**DO NOT CLOSE THIS ITEM ON THE STRENGTH OF THE REFERENCE PAIR.** The same sentence as the
+block above, for the same reason. The clause says every payload of the three pairs.
+
 ## CS-829
 
 ### Relocated 2026-09-12 from `docs/GATED.md` by session 86

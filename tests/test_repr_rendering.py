@@ -167,6 +167,7 @@ RECORDED_POPULATION: tuple[str, ...] = (
     "clockspeed/save/objects.py::PropertyResult",
     "clockspeed/save/objects.py::RecordIndex",
     "clockspeed/save/objects.py::ReferenceResolution",
+    "clockspeed/save/objects.py::RunReference",
     "clockspeed/save/objects.py::StructValue",
     "clockspeed/save/objects.py::UnknownClass",
     "clockspeed/save/objects.py::_Cursor",
