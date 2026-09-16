@@ -22,6 +22,8 @@ from __future__ import annotations
 
 import errno
 import os
+import shutil
+import subprocess
 import sys
 import time
 from pathlib import Path
@@ -279,3 +281,48 @@ def test_the_real_git_still_runs_through_run_git(tmp_path: Path) -> None:
     assert code == 0, f"the real git --version exited {code}"
     answered = proc.stdout.decode("ascii", "replace").startswith("git version")
     assert answered, "the real git --version did not answer with its version"
+
+
+# ---------------------------------------------------------------------------
+# CS-1120 - a program PATH RESOLVES that still raises ``FileNotFoundError`` is RED
+#
+# ``FileNotFoundError`` alone was read as "no git". MEASURED: on POSIX a wrapper
+# whose ``#!`` interpreter is missing raises it (errno 2) though the wrapper is
+# there, and on Windows so does an extensionless program name that resolves only
+# through PATHEXT to a ``.cmd`` - ``shutil.which`` finds it, CreateProcess does
+# not. Both are a git that is present and will not start.
+# ---------------------------------------------------------------------------
+
+
+def _resolvable_unstartable_program(root: Path) -> Path:
+    """Plant a program PATH lookup resolves and the OS refuses to start with ENOENT.
+
+    Returns:
+        The program path to hand ``run_git``.
+    """
+    if os.name == "nt":
+        (root / "cs1120-wrapper.cmd").write_bytes(b"@echo off\r\n")
+        return root / "cs1120-wrapper"
+    wrapper = root / "cs1120-wrapper"
+    wrapper.write_bytes(b"#!" + str(root / "cs1120-no-such-interpreter").encode() + b"\n")
+    wrapper.chmod(EXECUTABLE_MODE)
+    return wrapper
+
+
+#: The permission bits the planted wrapper carries: executable by its owner.
+EXECUTABLE_MODE: Final = 0o755
+
+
+def test_a_resolvable_program_that_raises_not_found_fails_rather_than_skips(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """CS-1120 PLANT. The program is there and cannot start, so it is not "no git"."""
+    survivors = _strip_repo_pointers(monkeypatch)
+    assert survivors == [], f"repository-locating variables survived the strip: {survivors}"
+    planted = _resolvable_unstartable_program(tmp_path)
+    resolved = shutil.which(str(planted))
+    assert resolved is not None, "control: PATH lookup does not resolve the planted program"
+    with pytest.raises(FileNotFoundError):
+        subprocess.run([str(planted), "--version"], capture_output=True, check=False)
+    monkeypatch.setattr(conftest, "RUN_GIT_PROGRAM", (str(planted),))
+    _assert_start_fault_is_red(tmp_path, planted)

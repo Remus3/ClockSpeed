@@ -2807,13 +2807,14 @@ def test_the_base_fixture_passes_every_guard_and_is_clean(
     assert (repo / ROADMAP_RELATIVE).is_file()
 
 
-def test_an_unreadable_roadmap_as_the_only_non_pass_guard_is_not_clean(
+def test_an_unreadable_roadmap_warns_all_four_markdown_readers_and_is_not_clean(
     repo: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
     """The CS-1113 acceptance arm, through main() on BOTH output paths.
 
-    ROADMAP.md is made unreadable and no guard FAILS, so could-not-look WARNs
-    are the only non-PASS guards on the tree. CS-1117: that is no longer guard
+    ROADMAP.md is made unreadable and no guard FAILS, so its four could-not-look
+    WARNs are the only non-PASS guards on the tree - CS-1120 renamed the arm,
+    whose old name still said guard (j) was the ONLY one. CS-1117: that is no longer guard
     (j) alone - (c), (g) and (k) read the same file and now say so - and the
     fault is a REAL exclusive handle, because a directory swapped in under the
     name is guard (a)'s NOT A FILE FAIL, which would carry the verdict itself.
@@ -2976,7 +2977,9 @@ def test_a_refused_item_notes_read_makes_the_run_ungraded(
     # A refused DIRECTORY also hides the leaves guard (a) budgets, so guard (a)
     # is a second could-not-look WARN there; a refused leaf still stats. A
     # refused LEAF is a markdown file guards (c), (g) and (k) read (CS-1117).
-    expected = MARKDOWN_READERS if target == "leaf" else ["a", "j"]
+    # CS-1120: the walk hands a directory it cannot list to (c), (g) and (k)
+    # too, so the refused directory is NOT LISTED to all three.
+    expected = MARKDOWN_READERS if target == "leaf" else ["a", "c", "g", "j", "k"]
     assert non_pass(report) == dict.fromkeys(expected, "WARN"), report["guards"]
     assert report["verdict"] == "UNGRADED"
     assert code != 0, "a run that could not read the item-notes family exited 0"
@@ -3009,6 +3012,7 @@ def test_a_refused_memory_directory_makes_the_run_ungraded(
     """Guard (b) never reports ``leaves: 0`` PASS over a store it could not list.
 
     Guard (a) loses the same leaves, so both WARN, and neither is advisory.
+    CS-1120: the walk hands the unlisted store to (c), (g) and (k), which WARN too.
     """
     memory = repo / "memory"
     (memory / "a-leaf.md").write_text("# A leaf\n", encoding="utf-8")
@@ -3023,11 +3027,14 @@ def test_a_refused_memory_directory_makes_the_run_ungraded(
             list(memory.iterdir())
         code, report = run_main(capsys)
 
-    assert non_pass(report) == {"a": "WARN", "b": "WARN"}, report["guards"]
+    expected = ["a", "b", "c", "g", "k"]
+    assert non_pass(report) == dict.fromkeys(expected, "WARN"), report["guards"]
     assert report["verdict"] == "UNGRADED"
     assert code != 0
-    for each in ("a", "b"):
+    for each in expected:
         assert guard_of(report, each)["advisory"] is False, each
+    for each in ("c", "g", "k"):
+        assert "memory/ NOT LISTED" in _detail(guard_of(report, each)), each
     detail = guard_of(report, "b")["detail"]
     assert "memory/ NOT LISTED" in "\n".join(detail), detail
 
@@ -3472,3 +3479,335 @@ def test_an_unreadable_file_is_a_tier1_guard_warn(repo: Path) -> None:
     assert guard["advisory"] is False, rendered
     assert "zz-cs1117/b_module.py NOT READ" in rendered, rendered
     assert any(skip["path"] == "zz-cs1117/b_module.py" for skip in skips), skips
+
+
+# ---------------------------------------------------------------------------
+# CS-1120 - the residues CS-1117 left: a listed LINK whose target is gone, a
+# directory the walk could not list, and a memory routing file that could not
+# be read. Each was a could-not-look that read as absent, as nothing, or as a
+# different defect. Every fault below is REAL - a link on disk, an exclusive
+# handle or a mode of zero - never a stub.
+# ---------------------------------------------------------------------------
+
+
+def dangling_link(path: Path) -> str:
+    """Replace ``path`` with a REAL link whose target does not exist.
+
+    A symbolic link where this account may create one - MEASURED to work on the
+    Windows development account and on POSIX. Where Windows refuses it, a
+    directory junction to a removed directory is the same fault to an lstat:
+    present, while a stat and a read say nothing is there. SKIPPED only where
+    neither can be made, and the reason says so.
+
+    Args:
+        path: The file to replace. It need not exist.
+
+    Returns:
+        ``"symlink"`` or ``"junction"``, whichever was made.
+    """
+    path.unlink(missing_ok=True)
+    target = path.with_name(f"{path.name}-cs1120-gone")
+    kind = "symlink"
+    try:
+        path.symlink_to(target)
+    except OSError as refused_link:
+        if sys.platform != "win32":
+            pytest.skip(f"this account cannot create a symbolic link: {refused_link.strerror}")
+        import _winapi  # noqa: PLC0415 - Windows-only
+
+        target.mkdir()
+        try:
+            _winapi.CreateJunction(str(target), str(path))
+        except OSError as refused_junction:
+            target.rmdir()
+            pytest.skip(
+                "this account can create neither a symbolic link nor a junction: "
+                f"{refused_link.strerror}; {refused_junction.strerror}"
+            )
+        target.rmdir()
+        kind = "junction"
+    path.lstat()
+    assert not path.exists(), "control: the link is not dangling"
+    assert not target.exists(), "control: the link target still exists"
+    return kind
+
+
+def _assert_not_absent(skips: list[Any], relative: str, kind: str) -> None:
+    """The link's skip is recorded once, and never under the absent label."""
+    reasons = [skip["reason"] for skip in skips if skip["path"] == relative]
+    assert len(reasons) == 1, skips
+    assert not reasons[0].startswith(drift_guard.ABSENT_WHEN_READ), reasons
+    if kind == "symlink":
+        assert reasons[0].startswith(drift_guard.DANGLING_WHEN_READ), reasons
+
+
+def test_a_dangling_link_is_a_charset_warn_never_absent(tmp_path: Path) -> None:
+    """CS-1120 (a) for guard (c): the listed link is NOT READ, and listed stays 2."""
+    files = _charset_tree(tmp_path)
+    kind = dangling_link(files[1])
+
+    guard, skips = drift_guard.guard_charset(tmp_path, files, "test enumeration")
+
+    rendered = _detail(guard)
+    assert guard["status"] == "WARN", rendered
+    assert guard["advisory"] is False, rendered
+    assert "b_module.py NOT READ" in rendered, rendered
+    assert "text files checked: 1" in guard["detail"], rendered
+    assert "text files listed: 2" in guard["detail"], rendered
+    _assert_not_absent(skips, "b_module.py", kind)
+
+
+def test_a_dangling_link_is_a_dated_guard_warn_never_absent(tmp_path: Path) -> None:
+    """CS-1120 (a), the guard (g) sibling of the charset site."""
+    files = _charset_tree(tmp_path)
+    kind = dangling_link(files[0])
+
+    guard, skips = drift_guard.guard_dated(tmp_path, files)
+
+    rendered = _detail(guard)
+    assert guard["status"] == "WARN", rendered
+    assert guard["advisory"] is False, rendered
+    assert "a-note.md NOT READ" in rendered, rendered
+    _assert_not_absent(skips, "a-note.md", kind)
+
+
+def test_a_dangling_link_is_a_tier1_guard_warn_never_absent(repo: Path) -> None:
+    """CS-1120 (a), the guard (k) sibling of the charset site."""
+    files = _charset_tree(repo / "zz-cs1120")
+    kind = dangling_link(files[1])
+    everything, _source, _skips = drift_guard.enumerate_files(repo)
+
+    guard, skips = drift_guard.guard_tier1_budget(repo, everything)
+
+    rendered = _detail(guard)
+    assert guard["status"] == "WARN", rendered
+    assert guard["advisory"] is False, rendered
+    assert "zz-cs1120/b_module.py NOT READ" in rendered, rendered
+    _assert_not_absent(skips, "zz-cs1120/b_module.py", kind)
+
+
+def test_a_dangling_link_makes_the_run_ungraded(
+    repo: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Through main(): the link is read by (c), (g) and (k), and none is CLEAN or advisory."""
+    link = repo / "zz-cs1120-link.md"
+    link.write_text("# clean\n", encoding="utf-8")
+    code, report = run_main(capsys)
+    assert (report["verdict"], code) == ("CLEAN", 0), "control: the planted tree is not clean"
+
+    dangling_link(link)
+    code, report = run_main(capsys)
+
+    readers = ["c", "g", "k"]
+    assert non_pass(report) == dict.fromkeys(readers, "WARN"), report["guards"]
+    assert (report["verdict"], code != 0) == ("UNGRADED", True)
+    for each in readers:
+        assert guard_of(report, each)["advisory"] is False, each
+
+
+def _tracked_tree(root: Path, monkeypatch: pytest.MonkeyPatch) -> list[Path]:
+    """The charset tree, staged in a REAL throwaway index so enumeration takes the git path."""
+    from tests import conftest  # noqa: PLC0415 - the one git runner the suite owns
+    from tests.git_env import REPO_LOCATING  # noqa: PLC0415
+
+    for name in [key for key in os.environ if key.upper() in REPO_LOCATING]:
+        monkeypatch.delenv(name)
+    files = _charset_tree(root)
+    for args in (("init", "--quiet"), ("add", "--", "a-note.md", "b_module.py")):
+        proc = conftest.run_git(root, *args)
+        if proc is None:
+            pytest.skip("git is not installed, so no index can be built")
+        assert proc.returncode == 0, f"control: git {args[0]} exited {proc.returncode}"
+    return files
+
+
+def test_a_tracked_dangling_link_is_listed_and_read_never_dropped(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """CS-1120 (a) at enumeration: an index entry an lstat finds is handed to the readers.
+
+    It was skipped as "in the git index but not on disk", so the charset guard
+    never saw it: listed fell from 2 to 1 and the verdict was PASS.
+    """
+    files = _tracked_tree(tmp_path, monkeypatch)
+    kind = dangling_link(files[1])
+
+    listed, source, _skips = drift_guard.enumerate_files(tmp_path)
+    guard, skips = drift_guard.guard_charset(tmp_path, listed, source)
+
+    rendered = _detail(guard)
+    assert source.startswith("git ls-files"), source
+    assert files[1] in listed, listed
+    assert guard["status"] == "WARN", rendered
+    assert "b_module.py NOT READ" in rendered, rendered
+    assert "text files listed: 2" in guard["detail"], rendered
+    _assert_not_absent(skips, "b_module.py", kind)
+
+
+def test_a_tracked_file_that_is_really_gone_is_still_only_a_skip(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The anti-narrowing control: nothing on disk is not a could-not-look."""
+    files = _tracked_tree(tmp_path, monkeypatch)
+    files[1].unlink()
+
+    listed, source, skips = drift_guard.enumerate_files(tmp_path)
+    guard, _guard_skips = drift_guard.guard_charset(tmp_path, listed, source)
+
+    rendered = _detail(guard)
+    assert source.startswith("git ls-files"), source
+    assert files[1] not in listed, listed
+    assert guard["status"] == "PASS", rendered
+    assert "NOT READ" not in rendered, rendered
+    assert {"path": "b_module.py", "reason": "in the git index but not on disk"} in skips
+
+
+def _walk_tree(root: Path) -> Path:
+    """A clean top-level file and a subdirectory holding a markdown and a module."""
+    root.mkdir(parents=True, exist_ok=True)
+    (root / "top.md").write_text("# clean\n", encoding="utf-8")
+    below = root / "zz-cs1120-dir"
+    below.mkdir()
+    (below / "a-note.md").write_text("# clean\n", encoding="utf-8")
+    (below / "b_module.py").write_text("VALUE = 1\n", encoding="utf-8")
+    return below
+
+
+def test_an_unlistable_directory_in_the_walk_is_a_charset_warn(tmp_path: Path) -> None:
+    """CS-1120 (c): the walk recorded a skip and the guard said PASS over files never listed."""
+    root = tmp_path / "walked"
+    below = _walk_tree(root)
+    files, source, _skips = drift_guard.enumerate_files(root)
+    before, _before_skips = drift_guard.guard_charset(root, files, source)
+    assert source.startswith("directory walk"), source
+    assert before["status"] == "PASS", _detail(before)
+    assert "text files listed: 3" in before["detail"], _detail(before)
+
+    with refused(below):
+        with pytest.raises(PermissionError):
+            list(below.iterdir())
+        files, source, _skips = drift_guard.enumerate_files(root)
+        guard, _guard_skips = drift_guard.guard_charset(root, files, source)
+
+    rendered = _detail(guard)
+    assert guard["status"] == "WARN", rendered
+    assert guard["advisory"] is False, rendered
+    assert "zz-cs1120-dir/ NOT LISTED" in rendered, rendered
+    assert "text files listed: 1" in guard["detail"], rendered
+
+
+def test_an_unlistable_directory_makes_the_run_ungraded(
+    repo: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Through main(): (c), (g) and (k) each read the walked population, so each says so.
+
+    MEASURED before the fix: guard (a) alone was UNGRADED here, because
+    doc_budget walks the root for nested budgeted files and names what it could
+    not list. The three guards that read every listed file said PASS.
+    """
+    below = _walk_tree(repo)
+    code, report = run_main(capsys)
+    assert (report["verdict"], code) == ("CLEAN", 0), "control: the planted tree is not clean"
+
+    with refused(below):
+        code, report = run_main(capsys)
+
+    readers = ["c", "g", "k"]
+    assert non_pass(report) == dict.fromkeys(["a", *readers], "WARN"), report["guards"]
+    assert (report["verdict"], code != 0) == ("UNGRADED", True)
+    for each in readers:
+        assert guard_of(report, each)["advisory"] is False, each
+        assert "zz-cs1120-dir/ NOT LISTED" in _detail(guard_of(report, each)), each
+
+
+def test_an_unreadable_memory_index_is_a_warn_never_unreachable_leaves(tmp_path: Path) -> None:
+    """CS-1120 (c): a refused MEMORY.md read as every leaf UNREACHABLE - a FAIL naming drift.
+
+    Nothing was unreachable; the routing table was never read. That is
+    could-not-look, and reachability is ungraded rather than failed.
+    """
+    root = memory_copy(tmp_path)
+    index = root / "memory" / "MEMORY.md"
+    status, rendered = memory_verdict(root)
+    assert status == "PASS", rendered
+
+    with refused(index):
+        assert index.is_file(), "control: the refused index no longer stats as a file"
+        guard, _skips = drift_guard.guard_memory(root)
+
+    rendered = _detail(guard)
+    assert guard["status"] == "WARN", rendered
+    assert guard["advisory"] is False, rendered
+    assert "UNREACHABLE" not in rendered, rendered
+    assert "memory/MEMORY.md NOT READ" in rendered, rendered
+    assert "reachability NOT GRADED" in rendered, rendered
+
+
+def test_an_unreadable_routing_child_is_a_warn_never_unreachable_leaves(tmp_path: Path) -> None:
+    """The INDEX_*.md sibling: a refused child hid the leaves only it routes to."""
+    root = memory_copy(tmp_path)
+    memory = root / "memory"
+    child = memory / "INDEX_zz_cs1120.md"
+    leaf = memory / "zz-cs1120-routed-leaf.md"
+    assert not child.exists(), "the plant names a real routing file"
+    assert not leaf.exists(), "the plant names a real leaf"
+    leaf.write_text("# Routed\n\nSee [the index](MEMORY.md).\n", encoding="utf-8", newline="\n")
+    child.write_text("# Child\n\n- [Routed](zz-cs1120-routed-leaf.md)\n", "utf-8", newline="\n")
+    index = memory / "MEMORY.md"
+    index.write_text(
+        index.read_text(encoding="utf-8") + "- [Child](INDEX_zz_cs1120.md)\n", "utf-8", newline="\n"
+    )
+    status, rendered = memory_verdict(root)
+    assert status == "PASS", rendered
+
+    with refused(child):
+        guard, _skips = drift_guard.guard_memory(root)
+
+    rendered = _detail(guard)
+    assert guard["status"] == "WARN", rendered
+    assert guard["advisory"] is False, rendered
+    assert "UNREACHABLE" not in rendered, rendered
+    assert "memory/INDEX_zz_cs1120.md NOT READ" in rendered, rendered
+
+
+def test_a_leaf_nothing_routes_to_is_still_unreachable_beside_a_read_index(
+    tmp_path: Path,
+) -> None:
+    """The anti-narrowing control: a readable index still FAILS an unrouted leaf."""
+    root = memory_copy(tmp_path)
+    orphan = root / "memory" / "zz-cs1120-orphan.md"
+    orphan.write_text("# Orphan\n", encoding="utf-8", newline="\n")
+
+    status, rendered = memory_verdict(root)
+
+    assert status == "FAIL", rendered
+    assert "UNREACHABLE" in rendered, rendered
+    assert "memory/zz-cs1120-orphan.md" in rendered, rendered
+    assert "NOT GRADED" not in rendered, rendered
+
+
+#: CS-1120 (b) - what reading a directory raises, MEASURED: ``IsADirectoryError``
+#: on POSIX, and ``PermissionError`` (errno 13) on Windows.
+DIRECTORY_READ_ERROR = PermissionError if os.name == "nt" else IsADirectoryError
+
+
+def test_a_directory_in_roadmaps_place_is_a_guard_j_could_not_look_warn(repo: Path) -> None:
+    """CS-1120 (b): guard (j)'s directory read path, graded at the guard.
+
+    CS-1117 moved the driver-level arm to an exclusive handle, because a
+    directory under the name is guard (a)'s NOT A FILE FAIL. That left guard
+    (j)'s read of a directory unexercised on POSIX, so it is graded here, where
+    guard (a) is not in the frame.
+    """
+    roadmap = repo / ROADMAP_RELATIVE
+    swap_for_directory(roadmap)
+    with pytest.raises(DIRECTORY_READ_ERROR):
+        roadmap.read_text(encoding="utf-8")
+
+    guard, skips = drift_guard.guard_index(repo)
+
+    rendered = _detail(guard)
+    assert guard["status"] == "WARN", rendered
+    assert guard["advisory"] is False, rendered
+    assert f"{ROADMAP_RELATIVE} NOT READ" in rendered, rendered
+    assert any(skip["path"] == ROADMAP_RELATIVE for skip in skips), skips
