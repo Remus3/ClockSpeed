@@ -374,6 +374,56 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-09-15 - moon-sync stage 4 item 9 - NOT A COMPLETION RECORD. NOTHING CLOSED. This is the section 6 frozen-file GRANT for the console-flash change, recorded before the edit
+
+**WHAT IS GRANTED.** Permission to modify `tools/precommit_gate.py`, which `CLAUDE.md`
+section 6 freezes, for the single purpose of suppressing the console flash at its spawn
+sites, and nothing else.
+
+**WHO GRANTED IT, AND THE DEPARTURE FROM THE USUAL ROUTE, STATED RATHER THAN LEFT TO BE
+NOTICED.** The operator granted this directly, in session 100. Section 6.1 moved the
+grantor off the operator and onto an adjudicator, so this is a departure from the standing
+route. It is recorded as one. The operator owns that rule and may act inside it; what
+would be wrong is a future agent citing this entry as precedent for routing a frozen-file
+proposal to the operator by default. Section 6.1 is unchanged: the default grantor is
+still an adjudicator, and an agent still grants itself nothing.
+
+**SCOPE, IN CLAUSES.**
+
+1. May change: the three spawn sites in `tools/precommit_gate.py`, and nothing else in the
+   file. Verified against THIS tree by symbol rather than by the line numbers the
+   originating plan carried, because that plan measured a different tree on a different
+   day and makes no claim about this one. The three are `run_ruff_format`, `run_ruff` and
+   `git`. There are exactly three; a fourth appearing later is outside this grant.
+2. THE FLAG MUST BE PLATFORM GUARDED, and this clause is the reason the grant is worth
+   reading. `subprocess.CREATE_NO_WINDOW` EXISTS ONLY ON WINDOWS - measured this session,
+   `hasattr(subprocess, "CREATE_NO_WINDOW")` is True on win32 - and `tier1.yml` runs on
+   `ubuntu-latest`. An unguarded `creationflags=subprocess.CREATE_NO_WINDOW` raises
+   `AttributeError` on the runner, which does not merely redden a test: it makes a tier-0
+   gate FAIL TO START, and `_load_header_reader`'s own docstring in this same file names
+   that as "the one failure a gate must not have" - a gate that cannot start does not
+   block. Pass the flag through a value that is 0 off Windows, and add an arm that proves
+   the non-Windows path spawns successfully with no flag.
+3. MEASURE BEFORE AND AFTER, on a claim of the same kind the originating plan itself rates
+   probable-with-n-of-1. The flash is the thing being removed; if it cannot be observed
+   before the change, the change cannot be shown to have removed it. Record what was
+   observed, or record that it could not be observed and that the change is uniformity
+   only. Do not write a completion record that asserts a flash was fixed on the strength
+   of the flag being present.
+4. MUST NOT CHANGE, and this is the explicit exclusion the originating plan carries: the
+   interpreter token in `.claude/settings.json`, which is separately frozen. It is measured
+   that `python.exe` there does NOT flash under the harness and that swapping it CREATES a
+   flash rather than removing one. This grant covers no edit to that file.
+5. Must not change, carried forward from the CS-1087 grant in this same file: the `PASS`
+   banner and ITS FORMAT, which `.githooks/pre-commit` pins with an anchored pattern; the
+   documented exit-code contract; and the blocking semantics of any check.
+
+**WHY IT IS RECORDED NOW RATHER THAN WHEN THE EDIT IS MADE.** Section 6 requires the grant
+to precede the edit, and the edit belongs to the next session's moon-sync adoption slice.
+Recording it here spares that slice a round trip and fixes the scope while the measurement
+behind clause 2 is fresh. Nothing is edited by this entry.
+
+
 ### 2026-09-15 - CS-1093 - CLOSED. The 7-bit walk names every offending module rather than the first
 
 **WHAT CHANGED.** `test_every_module_this_split_created_is_seven_bit_ascii` in
