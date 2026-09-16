@@ -92,12 +92,12 @@ RUFF_TIMEOUT = 90
 # does not block, which is the one failure a gate must not have.
 # creationflags=0 is the documented no-op on every platform.
 #
-# THIS IS UNIFORMITY, NOT A PROVEN REPAIR. A positive control on
-# 2026-09-15 confirmed the detector and the flag - both unflagged spawns
-# under a windowless parent produced a console-window event and the
-# flagged one produced none - but that this gate is the SOURCE of any
-# flash the operator has seen stays probable at n=1. Section 6 frozen-file
-# grant for this edit: docs/LEDGER.md, commit b283fee.
+# THIS IS UNIFORMITY, NOT A PROVEN REPAIR. CREATE_NO_WINDOW is the
+# documented mechanism for suppressing that window, and carrying it at
+# every spawn here makes the file uniform in it. No measurement of this
+# gate's own flash is cited, because none is on record: attributing the
+# flash the operator reported to THIS gate is PROBABLE at n=1 and is
+# unverified here. Section 6 frozen-file grant: commit b283fee.
 NO_WINDOW = getattr(subprocess, "CREATE_NO_WINDOW", 0)
 
 

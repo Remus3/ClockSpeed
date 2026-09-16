@@ -4609,13 +4609,12 @@ def test_an_unimportable_token_scanner_is_reported_once_and_never_blocks(
 #
 # WHAT THIS IS AND WHAT IT IS NOT. Every console-subsystem CHILD of a windowless
 # parent - a pythonw process, or a hook running under the desktop harness -
-# flashes a console window unless the spawn carries CREATE_NO_WINDOW. A positive
-# control on 2026-09-15 passed on all three arms: both unflagged spawns under a
-# windowless parent produced a console-window event and the flagged spawn
-# produced none, which confirms the DETECTOR and the FLAG. It does NOT confirm
-# that this gate is the source of any flash the operator has seen - attribution
-# stays PROBABLE at n=1 - so the flag here is UNIFORMITY, not a proven repair,
-# and nothing below asserts that a flash was fixed.
+# flashes a console window unless the spawn carries CREATE_NO_WINDOW. That is
+# the documented mechanism, and carrying the flag at every spawn in the gate
+# makes the file uniform in it. No measurement of this gate's own flash is
+# cited, because none is on record: attributing the flash the operator reported
+# to THIS gate is PROBABLE at n=1 and is unverified here. So the flag is
+# UNIFORMITY, not a proven repair, and nothing below asserts a flash was fixed.
 #
 # THE FAILURE THESE ARMS EXIST TO PREVENT is not a missing flag. It is an
 # AttributeError: subprocess.CREATE_NO_WINDOW exists only on Windows and tier1
@@ -4655,57 +4654,227 @@ print(json.dumps({
 """
 
 
-def _gate_spawn_calls() -> dict[str, ast.Call]:
-    """Map every subprocess.run call site in the gate to its enclosing function.
+# Every spawning entry point on the subprocess module. An ALLOWLIST OF GOOD,
+# not a denylist of the one shape this file happens to use today. A denylist in
+# this tree has leaked four times across four green commits, and the shape a
+# later edit reaches for is always the one nobody enumerated. Popen, call,
+# check_call and check_output each spawn a console-subsystem child and each
+# accept creationflags, so each is graded exactly as run is.
+SPAWN_ENTRY_POINTS = frozenset({"run", "Popen", "call", "check_call", "check_output"})
 
-    Graded as a SET by the caller, deliberately. A threshold met by the
-    strongest member leaves the weakest unmeasured, so "at least one site
-    carries the flag" is exactly the shape that lets a fourth spawn be added
-    later with no flag and no red.
+# The label carried by a spawn that sits outside every function. Deliberately
+# not a valid identifier, so it can never collide with a real function name and
+# can never be misread as one in the roster assertion's failure text.
+MODULE_SCOPE = "<module>"
+
+# The pinned roster of spawn sites, and its size stated BESIDE it rather than
+# derived from it. On this project ids go absent exactly where a count
+# miscounts, so a bare set-equality that quietly lost a member to a walk bug
+# would read as a pass. Both are updated deliberately or not at all.
+GATE_SPAWN_SITES = frozenset({"run_ruff_format", "run_ruff", "git"})
+GATE_SPAWN_SITE_COUNT = 3
+
+
+def _gate_subprocess_import_shape(source: bytes | None = None) -> None:
+    """Refuse every subprocess import shape the spawn walk cannot attribute.
+
+    `from subprocess import run as _run` puts a spawn behind a bare Name that
+    resolves only by reading the import back, and `import subprocess as sp`
+    moves the module itself behind another name. An import shape that cannot
+    be graded is one that must be FORBIDDEN: the alternative is an enumerator
+    that silently stops covering the file the day someone edits the import
+    line, with nothing red to say so.
     """
-    tree = ast.parse(GATE.read_bytes())
+    tree = ast.parse(GATE.read_bytes() if source is None else source)
+    for node in ast.walk(tree):
+        if isinstance(node, ast.ImportFrom) and node.module == "subprocess":
+            names = ", ".join(alias.name for alias in node.names)
+            raise AssertionError(
+                "subprocess must be imported as a plain module, never as "
+                f"`from subprocess import {names}` - a spawn behind a bare "
+                "name is not attributable to the module by this walk"
+            )
+        if isinstance(node, ast.Import):
+            for alias in node.names:
+                if alias.name == "subprocess" and alias.asname is not None:
+                    raise AssertionError(
+                        f"subprocess is aliased to {alias.asname}; this walk "
+                        "grades `subprocess.<entry point>` and nothing else"
+                    )
+
+
+def _gate_spawn_calls(source: bytes | None = None) -> dict[str, ast.Call]:
+    """Map every subprocess spawn in the gate to its enclosing scope label.
+
+    Three properties, each load-bearing, each proven against a planted
+    counter-example below rather than assumed:
+
+      1. The walk covers the WHOLE module. A spawn at module scope, or inside
+         a class, is labelled and returned - not skipped for the accident of
+         living outside a FunctionDef body.
+      2. The entry point is matched against SPAWN_ENTRY_POINTS, so Popen and
+         check_output are seen exactly as readily as run.
+      3. The import shape is refused up front, so the one spawn shape this
+         walk provably cannot attribute cannot enter the file at all.
+
+    Graded as a SET by the caller. A threshold met by the strongest member
+    leaves the weakest unmeasured, so "at least one site carries the flag" is
+    exactly the shape that lets a fourth spawn be added later with no flag and
+    no red.
+    """
+    _gate_subprocess_import_shape(source)
+    tree = ast.parse(GATE.read_bytes() if source is None else source)
     sites: dict[str, ast.Call] = {}
-    for function in ast.walk(tree):
-        if not isinstance(function, ast.FunctionDef):
-            continue
-        for node in ast.walk(function):
-            if not isinstance(node, ast.Call):
+
+    def is_spawn(func: ast.expr) -> bool:
+        return (
+            isinstance(func, ast.Attribute)
+            and func.attr in SPAWN_ENTRY_POINTS
+            and isinstance(func.value, ast.Name)
+            and func.value.id == "subprocess"
+        )
+
+    def walk(node: ast.AST, label: str) -> None:
+        for child in ast.iter_child_nodes(node):
+            if isinstance(child, ast.FunctionDef | ast.AsyncFunctionDef | ast.ClassDef):
+                inner = child.name if label == MODULE_SCOPE else f"{label}.{child.name}"
+                walk(child, inner)
                 continue
-            func = node.func
-            if (
-                isinstance(func, ast.Attribute)
-                and func.attr == "run"
-                and isinstance(func.value, ast.Name)
-                and func.value.id == "subprocess"
-            ):
-                assert function.name not in sites, (
-                    f"{function.name} spawns twice, so the map would hide one site"
-                )
-                sites[function.name] = node
+            if isinstance(child, ast.Call) and is_spawn(child.func):
+                assert label not in sites, f"{label} spawns twice, so the map would hide one site"
+                sites[label] = child
+            walk(child, label)
+
+    walk(tree, MODULE_SCOPE)
     return sites
 
 
-def test_every_spawn_site_in_the_gate_carries_the_no_window_flag() -> None:
-    """Graded as a SET over all three sites, never as a count or a threshold.
+def _unflagged_spawn_sites(sites: dict[str, ast.Call]) -> set[str]:
+    """Labels whose creationflags is not the BARE name NO_WINDOW.
 
-    The set membership is the anti-narrowing control: a FOURTH spawn added
-    later without the flag reddens this by appearing in the unflagged set,
-    and a site renamed or removed reddens it by leaving the expected set.
+    The VALUE is graded, never the presence of the name. An expression that
+    merely CONTAINS NO_WINDOW - `NO_WINDOW & 0`, `NO_WINDOW if x else 0` -
+    evaluates to 0 on Windows and flashes, so a name-presence check calls a
+    flashing spawn flagged. A spawn carrying no creationflags at all, or more
+    than one, is unflagged for the same reason: nothing conforming is pinned.
     """
-    sites = _gate_spawn_calls()
-    assert set(sites) == {"run_ruff_format", "run_ruff", "git"}, sorted(sites)
-
-    unflagged = set()
+    unflagged: set[str] = set()
     for name, call in sites.items():
-        keywords = {kw.arg for kw in call.keywords if kw.arg is not None}
-        if "creationflags" not in keywords:
+        flags = [kw.value for kw in call.keywords if kw.arg == "creationflags"]
+        if len(flags) != 1:
             unflagged.add(name)
             continue
-        value = next(kw.value for kw in call.keywords if kw.arg == "creationflags")
-        names = {node.id for node in ast.walk(value) if isinstance(node, ast.Name)}
-        if "NO_WINDOW" not in names:
+        value = flags[0]
+        if not (isinstance(value, ast.Name) and value.id == "NO_WINDOW"):
             unflagged.add(name)
+    return unflagged
+
+
+def test_every_spawn_site_in_the_gate_carries_the_no_window_flag() -> None:
+    """Graded as a SET over all three sites, and by VALUE, never by name.
+
+    Two anti-narrowing controls sit here on purpose:
+
+      - The roster is pinned as a set AND its size asserted beside it against
+        a literal. On this project ids go absent exactly where a count
+        miscounts, so a bare set-equality that quietly lost a member to a walk
+        bug would read as a pass.
+      - creationflags is graded through _unflagged_spawn_sites, which demands
+        the bare name and rejects any expression merely containing it.
+
+    A FOURTH spawn added later without the flag reddens this by appearing in
+    the unflagged set; a spawn at module scope or inside a class reddens it by
+    joining the roster under a label the roster does not hold; a Popen or a
+    check_output reddens it the same way; a site renamed or removed reddens it
+    by leaving the expected set. Each of those is measured, not asserted:
+    test_the_spawn_walk_sees_every_shape_a_later_edit_could_reach_for and
+    test_creationflags_is_graded_by_value_and_never_by_the_name_appearing are
+    this arm's positive controls, and without them a blind enumerator would
+    pass here for the reason that it found nothing.
+    """
+    sites = _gate_spawn_calls()
+    assert set(sites) == set(GATE_SPAWN_SITES), sorted(sites)
+    assert len(sites) == GATE_SPAWN_SITE_COUNT, sorted(sites)
+    unflagged = _unflagged_spawn_sites(sites)
     assert unflagged == set(), sorted(unflagged)
+
+
+def test_the_spawn_walk_sees_every_shape_a_later_edit_could_reach_for() -> None:
+    """The enumerator's positive control, kept in the file, not measured once.
+
+    An arm whose enumerator is blind to a shape passes for that reason alone,
+    and the blindness is invisible from the pass. Every fixture below is a
+    counter-example the ORIGINAL enumerator returned EMPTY for - measured
+    2026-09-16 against scratch copies of the gate, five shapes green where
+    they should have been red - which is why the control lives here now
+    instead of in a transcript.
+    """
+    for entry_point in sorted(SPAWN_ENTRY_POINTS):
+        source = b"import subprocess\ndef f():\n    subprocess.%s([])\n" % (
+            entry_point.encode("ascii"),
+        )
+        assert set(_gate_spawn_calls(source)) == {"f"}, entry_point
+
+    nested = b"import subprocess\nclass C:\n    def f(self):\n        subprocess.run([])\n"
+    assert set(_gate_spawn_calls(nested)) == {"C.f"}, "a spawn inside a class is unseen"
+
+    at_module = b"import subprocess\nsubprocess.run([])\n"
+    assert set(_gate_spawn_calls(at_module)) == {MODULE_SCOPE}, "a module spawn is unseen"
+
+    aliased = b"from subprocess import run as _run\ndef f():\n    _run([])\n"
+    with pytest.raises(AssertionError, match="plain module"):
+        _gate_spawn_calls(aliased)
+
+    renamed = b"import subprocess as sp\ndef f():\n    sp.run([])\n"
+    with pytest.raises(AssertionError, match="aliased to sp"):
+        _gate_spawn_calls(renamed)
+
+    # The floor. Without it every assertion above could be satisfied by an
+    # enumerator that returns its argument's scope labels and never looks at
+    # a call at all.
+    inert = b"import subprocess\ndef f():\n    return subprocess\n"
+    assert _gate_spawn_calls(inert) == {}, "a non-spawn is counted as a spawn"
+
+
+def test_creationflags_is_graded_by_value_and_never_by_the_name_appearing() -> None:
+    """The value control. NO_WINDOW & 0 is 0 on Windows and flashes.
+
+    The original arm collected every ast.Name inside the creationflags
+    expression and asked whether NO_WINDOW was among them, so each rejected
+    fixture below passed it. The bare-name demand is what closes that, and
+    the conforming fixture at the end is the known-good control that keeps
+    the demand from being satisfied by rejecting everything.
+    """
+    head = b"import subprocess\nNO_WINDOW = 0\ndef f():\n    subprocess.run([], "
+    rejected = (
+        b"creationflags=NO_WINDOW & 0)\n",
+        b"creationflags=NO_WINDOW if True else 0)\n",
+        b"creationflags=(NO_WINDOW, 0)[1])\n",
+        b"creationflags=0)\n",
+        b"creationflags=subprocess.CREATE" + b"_NO_WINDOW)\n",
+        b"check=True)\n",
+    )
+    for tail in rejected:
+        sites = _gate_spawn_calls(head + tail)
+        assert set(sites) == {"f"}, tail
+        assert _unflagged_spawn_sites(sites) == {"f"}, tail
+
+    conforming = b"creationflags=NO_WINDOW)\n"
+    sites = _gate_spawn_calls(head + conforming)
+    assert set(sites) == {"f"}, conforming
+    assert _unflagged_spawn_sites(sites) == set(), conforming
+
+
+def test_the_gate_imports_subprocess_in_the_one_attributable_shape() -> None:
+    """The import shape is its own arm, because the whole walk rests on it.
+
+    Stated separately from the spawn roster so that a future edit changing
+    only the import line fails with the reason, rather than with an empty
+    roster that reads like the file lost its spawns.
+    """
+    _gate_subprocess_import_shape()
+    source = GATE.read_text(encoding="utf-8")
+    assert "\nimport subprocess\n" in source, "the plain module import is gone"
 
 
 def test_the_flag_is_read_through_getattr_and_never_as_a_bare_attribute() -> None:
