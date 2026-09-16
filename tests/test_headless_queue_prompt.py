@@ -122,6 +122,19 @@ def missing(text: str, required: tuple[tuple[str, str], ...]) -> list[str]:
     return [label for label, pattern in required if re.search(pattern, text, re.IGNORECASE) is None]
 
 
+def present(text: str, forbidden: tuple[tuple[str, str], ...]) -> list[str]:
+    """Which forbidden spellings the text DOES carry - the mirror of `missing`.
+
+    Args:
+        text: The document under test.
+        forbidden: `(label, pattern)` pairs, case-insensitive.
+
+    Returns:
+        The labels whose pattern matched, in the order given.
+    """
+    return [label for label, pattern in forbidden if re.search(pattern, text, re.IGNORECASE)]
+
+
 # --- The properties, one tuple per rule ------------------------------------
 #
 # Each entry is (label, pattern). The label is prose for the failure message.
@@ -180,6 +193,21 @@ ONE_ROW_PER_CYCLE: Final = (("one row, then exit", r"\bone\s+row\b"),)
 #: The drained sentinel, as a whole path.
 DRAINED: Final = (("the sentinel path", re.escape(DRAINED_SENTINEL)),)
 
+#: CS-1104. A lane cycle SURFACES the cross-repo channel and never answers it.
+#: The driver computes the proof; these tokens pin what the worker is TOLD. The
+#: pure-read command is pinned by module, because the watcher's own entry point
+#: writes its data files and its acknowledging mode marks items seen. The scope
+#: sentence is two tokens, not one span, so each clause fails by name.
+SURFACE_NEVER_REPLY: Final = (
+    ("the channel is named", r"moon_sync_inbox"),
+    ("the pure-read surface the worker runs", r"python\s+-m\s+ops\.loop\.inbox_surface"),
+    ("surfacing never acknowledges", r"surfacing\s+never\s+acknowledges"),
+    ("composing a note is excluded", r"\bcompos(e|ing)\b[^.]{0,80}\bdeliver"),
+    ("out of scope for a lane cycle", r"out\s+of\s+scope\s+for\s+a\s+lane\s+cycle"),
+    ("a blind look is UNMEASURED, never zero", r"inbox:\s+UNMEASURED"),
+    ("the wrap banner carries an inbox line", r"(?m)^\s+inbox:\s+<"),
+)
+
 #: EVERY RULE, NAMED ONCE. Both parametrized arms read this rather than each
 #: spelling its own list: a rule present in one decorator and absent from the
 #: other would be a live arm with no control, or a control grading nothing, and
@@ -192,6 +220,7 @@ RULES: Final = (
     ("the push gate is neither changed nor bypassed", PUSH_GATE),
     ("one row per cycle", ONE_ROW_PER_CYCLE),
     ("the drained sentinel", DRAINED),
+    ("the channel is surfaced, never answered", SURFACE_NEVER_REPLY),
 )
 
 #: THE LABEL SET OF EVERY RULE, PINNED IN BOTH DIRECTIONS. Without this the
@@ -238,7 +267,38 @@ RULE_LABELS: Final = {
     ),
     "one row per cycle": frozenset({"one row, then exit"}),
     "the drained sentinel": frozenset({"the sentinel path"}),
+    "the channel is surfaced, never answered": frozenset(
+        {
+            "the channel is named",
+            "the pure-read surface the worker runs",
+            "surfacing never acknowledges",
+            "composing a note is excluded",
+            "out of scope for a lane cycle",
+            "a blind look is UNMEASURED, never zero",
+            "the wrap banner carries an inbox line",
+        }
+    ),
 }
+
+#: CS-1104, THE OTHER HALF: spellings the prompt must NEVER carry. A prompt that
+#: names the sender, the acknowledging flag or the writing watcher is one reword
+#: away from instructing a lane to use them. Pinned by label in both directions,
+#: for the reason RULE_LABELS gives.
+FORBIDDEN: Final = (
+    ("the acknowledging flag", r"--ack\b"),
+    ("the outbound sender", r"outbound_send"),
+    ("the outbound gate", r"outbound_gate"),
+    ("the watcher whose entry point writes", r"inbox_watch"),
+)
+
+FORBIDDEN_LABELS: Final = frozenset(
+    {
+        "the acknowledging flag",
+        "the outbound sender",
+        "the outbound gate",
+        "the watcher whose entry point writes",
+    }
+)
 
 #: One case per TOKEN, derived from :data:`RULES` rather than sampled. A sampled
 #: hand-list leaves the tokens it omits ungraded, and the omitted one is the one
@@ -460,3 +520,37 @@ def test_no_rule_can_be_narrowed_by_deleting_one_of_its_tokens() -> None:
         "reword the PROMPT to satisfy it, never the guard to excuse it. If one was added "
         "on purpose, add it to RULE_LABELS in the same edit."
     )
+
+
+def test_the_worker_prompt_carries_no_forbidden_channel_spelling(prompt_text: str) -> None:
+    """CS-1104: the prompt never names the sender, the ack flag or the writing watcher."""
+    found = present(prompt_text, FORBIDDEN)
+
+    assert found == [], f"{PROMPT_PATH} carries {found}; a lane cycle surfaces and never replies"
+
+
+def test_a_document_carrying_every_forbidden_spelling_is_reported_for_each() -> None:
+    """NEGATIVE CONTROL: the arm above reads a clean file, so the predicate must be seen to fire.
+
+    Each spelling sits on its own line so that no one pattern's match can stand
+    in for another's.
+    """
+    dirty = (
+        "python tools/inbox_watch.py --ack\n"
+        "then run tools/outbound_send.py\n"
+        "after tools/outbound_gate.py grades it\n"
+    )
+
+    assert present(dirty, FORBIDDEN) == [label for label, _pattern in FORBIDDEN]
+
+
+def test_a_clean_document_carries_no_forbidden_spelling() -> None:
+    """The other half: the predicate does not fire on the words the prompt DOES use."""
+    clean = "surfacing never acknowledges; run python -m ops.loop.inbox_surface.\n"
+
+    assert present(clean, FORBIDDEN) == []
+
+
+def test_the_forbidden_table_matches_its_pin() -> None:
+    """Deleting a forbidden spelling to green the arm above is caught here."""
+    assert frozenset(label for label, _pattern in FORBIDDEN) == FORBIDDEN_LABELS

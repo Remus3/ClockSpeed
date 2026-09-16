@@ -697,6 +697,10 @@ _LAZY = {
     # printed text. See `ClaimWatch` and the `scope` field of a cycle record.
     "scope": ("ops.loop.scope", "cs_loop_scope", "scope.py"),
     "claims": ("ops.loop.claims", "cs_loop_claims", "claims.py"),
+    # CS-1104. The channel surface: a PURE READ of the main tree's
+    # `moon_sync_inbox/`, carried into every cycle row as `inbox`. It never
+    # acknowledges and never replies - see `_surface_inbox`.
+    "inbox_surface": ("ops.loop.inbox_surface", "cs_loop_inbox_surface", "inbox_surface.py"),
 }
 
 
@@ -2317,6 +2321,40 @@ def _await_death(pid, started, *, alive, stranger, kill_grace_s, poll_s, sleep, 
         sleep(step)
 
 
+#: The fallback token when the surface module itself cannot be bound. The
+#: watcher's spelling, restated ONLY for the case where that module is the thing
+#: that failed to load.
+INBOX_UNMEASURED = "UNMEASURED"
+
+
+def _surface_inbox(cycle, worktree, *, surface=None, emit=_emit) -> dict:
+    """Surface the channel for one cycle, print its line, and hand back the fact.
+
+    CS-1104. SURFACING, NEVER REPLYING: the surface lists the main tree's
+    `moon_sync_inbox/` and writes nothing - no acknowledgement, no report, no
+    note. The fact rides on this cycle's own ledger row and on ONE driver line,
+    and goes into no other tree. The driver computes it, so it is evidence a
+    worker's banner can never be: a banner is prose a model wrote.
+
+    NEVER RAISES. A surface that cannot bind or faults becomes `UNMEASURED`
+    carrying the exception CLASS name only, because a night must never end over
+    an instrument, and an exception message is an echo path.
+
+    THE LINE DOES NOT START `queue-loop cycle`, deliberately: an operator counts
+    a night down the left margin by that prefix, and so do the arms grading it.
+    """
+    try:
+        mod = _mod("inbox_surface")
+        fact = (mod.surface if surface is None else surface)(worktree)
+        text = mod.line(fact)
+    except Exception as exc:  # DELIBERATE: the surface is an instrument
+        reason = f"the inbox surface could not run ({type(exc).__name__})"
+        fact = {"unread": INBOX_UNMEASURED, "names": [], "more": 0, "reason": reason}
+        text = f"inbox: {INBOX_UNMEASURED} ({reason})"
+    emit(f"queue-loop inbox (cycle {cycle}): {text.removeprefix('inbox: ')}")
+    return fact
+
+
 def run_cycle(  # noqa: PLR0913, PLR0912, PLR0915 - see THE SEAMS ARE THE POINT
     cycle: int,
     *,
@@ -2337,6 +2375,8 @@ def run_cycle(  # noqa: PLR0913, PLR0912, PLR0915 - see THE SEAMS ARE THE POINT
     stranger=None,
     kill=_taskkill,
     observe=_noop,
+    surface=None,
+    emit=_emit,
     sleep=time.sleep,
     clock=time.time,
     monotonic=time.monotonic,
@@ -2396,6 +2436,9 @@ def run_cycle(  # noqa: PLR0913, PLR0912, PLR0915 - see THE SEAMS ARE THE POINT
             "duration_s": round(ended_at - started_at, 3),
             "outcome": outcome,
             "detail": detail,
+            # CS-1104. Taken when the row is built, on EVERY outcome, so a
+            # refused or failed cycle still says what was waiting in the channel.
+            "inbox": _surface_inbox(cycle, worktree, surface=surface, emit=emit),
         }
 
     # ---- claim, retrying while the lane is legitimately held elsewhere
@@ -2563,6 +2606,7 @@ def run_loop(  # noqa: PLR0913, PLR0912, PLR0915 - see THE SEAMS ARE THE POINT
     claim_states=None,
     claim_root=None,
     hold=None,
+    surface=None,
     sleep=time.sleep,
     clock=time.time,
     monotonic=time.monotonic,
@@ -2675,6 +2719,8 @@ def run_loop(  # noqa: PLR0913, PLR0912, PLR0915 - see THE SEAMS ARE THE POINT
                 stranger=stranger,
                 kill=kill,
                 observe=watch.sample,
+                surface=surface,
+                emit=emit,
                 sleep=sleep,
                 clock=clock,
                 monotonic=monotonic,
@@ -2696,6 +2742,9 @@ def run_loop(  # noqa: PLR0913, PLR0912, PLR0915 - see THE SEAMS ARE THE POINT
                 "duration_s": round(ended_at - started_at, 3),
                 "outcome": OUTCOME_ERROR,
                 "detail": _fault(exc)[:400],
+                # CS-1104. `run_cycle` surfaces only when it builds its own row,
+                # which a raise skips, so this row surfaces here - once.
+                "inbox": _surface_inbox(cycle, worktree, surface=surface, emit=emit),
             }
 
         # ---- THE DRIVER-OWNED WAITS, before the append so ONE row carries
