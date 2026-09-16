@@ -702,6 +702,9 @@ NOTE: phase 3 deliberately refused to invent this. The semantics of `mVariablePo
   wiring would have fired, failed and said nothing. A GRANT IS PERMISSION, NOT
   AN INSTRUCTION. The claim was corrected instead - which this ledger already
   recorded twice, under CS-928 and CS-931, and the proposal cited neither.
+  SUPERSEDED BY CS-1095: the watcher now returns 0 on the no-channel path, so
+  the exit-code premise above no longer holds. CS-1101 re-derived the refusal
+  on a reason that does, recorded in `tests/test_session_start_wiring.py`.
 
 - THE CHANNEL HALF WAS SENT. One note, 3712 bytes, to four sibling inboxes,
   operator-authorised, bytes checked for ASCII and personal data BEFORE the send
@@ -9527,6 +9530,9 @@ every worktree. **DO NOT RE-PITCH tracking the wiring on the argument that it
 makes the CLAUDE.md row true - it does not, and the measurement is above.** If
 someone wants the tracked hook anyway, the thing to fix FIRST is that a clone
 has no channel, and that is a different item.
+SUPERSEDED BY CS-1095: the exit code above is retired - the watcher returns 0 on
+every default path now, so a tracked hook would speak - and CS-1101 re-derived
+the refusal without it, in `tests/test_session_start_wiring.py`.
 
 **WHAT REMAINS, and it is the only thing.** The property was published to
 sibling repositories on the channel. Those are outbound notes this repository

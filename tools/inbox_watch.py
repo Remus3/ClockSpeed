@@ -26,10 +26,14 @@ WORKING COPY, NOT OF THIS REPOSITORY.** A fresh clone and every worktree run no
 watcher at all - the same status `core.hooksPath` has, and stated here because
 the design points above describe what the hook does WHERE IT IS WIRED and were
 read twice as a claim about the repository. Tracking the wiring was proposed,
-granted as a frozen-file edit and then refused on measurement: `moon_sync_inbox/`
-is itself gitignored, so a clone has no channel, this tool answers that with
-exit 3, and a `SessionStart` hook exiting non-zero has its stdout dropped. The
-tracked hook would have fired, failed and said nothing.
+granted as a frozen-file edit and then refused on a measurement CS-1095 has
+since retired: the no-channel code was non-zero then, which the refusal argued
+would cost the hook its stdout - a client property no test here grades.
+Today this tool answers that state with exit 0 and an `UNMEASURED` banner,
+and the refusal was re-derived under
+CS-1101 on the reason that still holds: `moon_sync_inbox/` is gitignored and
+this tool resolves its root from its own file, so in a clone or a worktree a
+tracked hook could only announce that the channel is absent.
 `tests/test_session_start_wiring.py` is what keeps the published claim and the
 shipped wiring from drifting apart a third time.
 
