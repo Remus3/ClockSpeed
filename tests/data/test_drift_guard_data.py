@@ -55,6 +55,7 @@ a stray fixture string can never be mistaken for a real item in a grep.
 
 from __future__ import annotations
 
+import contextlib
 import errno
 import importlib.util
 import json
@@ -64,6 +65,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+from collections.abc import Iterator
 from pathlib import Path
 from types import ModuleType
 from typing import Any
@@ -235,6 +237,9 @@ ROADMAP_RELATIVE = "ROADMAP.md"
 ITEM_NOTES_INDEX_RELATIVE = "docs/item_notes.md"
 ITEM_NOTES_LEAF_RELATIVE = "docs/item_notes/phase7.md"
 TIER1_WORKFLOW_RELATIVE = ".github/workflows/tier1.yml"
+# CS-1115 - a budgeted file guard (a) must measure. Guard (a) now reports an
+# absent one as could-not-look, so the base tree has to carry it.
+UPSTREAM_WATCH_RELATIVE = "docs/upstream_watch.md"
 
 _ITEM_NOTES_ROADMAP = """# Fake roadmap for the drift guard tests
 
@@ -276,6 +281,10 @@ def make_repo(root: Path, *, with_pin: bool = True) -> Path:
     the real tier 1 workflow - copied, like the pin, because guard (k) pins its
     levels to the recorded values and a hand-written lane would restate them.
 
+    CS-1115 - AND EVERY BUDGETED FILE GUARD (a) MUST MEASURE. An absent one is a
+    size never measured, so it is could-not-look too; the tree carries a small
+    docs/upstream_watch.md for that reason alone.
+
     Args:
         root: Directory to build in.
         with_pin: Whether to place a copy of the real version module, pin and
@@ -315,7 +324,80 @@ def make_repo(root: Path, *, with_pin: bool = True) -> Path:
     workflow = root / TIER1_WORKFLOW_RELATIVE
     workflow.parent.mkdir(parents=True, exist_ok=True)
     shutil.copyfile(REPO_ROOT / TIER1_WORKFLOW_RELATIVE, workflow)
+    (root / UPSTREAM_WATCH_RELATIVE).write_text("# Fake upstream watch list\n", encoding="utf-8")
     return root
+
+
+@contextlib.contextmanager
+def refused(path: Path) -> Iterator[None]:
+    """Hold a REAL operating-system read fault on a file or a directory.
+
+    CS-1115, following CS-1104's ``_unlistable``. On Windows an EXCLUSIVE handle
+    (share mode zero) on the path itself, so a read or a listing meets a real
+    sharing violation while a stat still answers. MEASURED there: a deny ACE
+    did NOT stop this elevated account, so it is not used. Elsewhere a mode of
+    zero, with a control that the bits really cleared. No stub - the whole read
+    path meets the fault.
+
+    SKIPPED ONLY where no fault can be manufactured: a POSIX account the mode
+    does not bind (root reads a mode-zero file). The skip reason says so, and
+    the Windows branch never skips.
+
+    Args:
+        path: The file or directory to refuse.
+
+    Yields:
+        None, while the fault holds.
+    """
+    if os.name == "nt":
+        import ctypes  # noqa: PLC0415 - Windows-only
+        from ctypes import wintypes  # noqa: PLC0415 - Windows-only
+
+        kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+        kernel32.CreateFileW.restype = wintypes.HANDLE
+        kernel32.CreateFileW.argtypes = [
+            wintypes.LPCWSTR,
+            wintypes.DWORD,
+            wintypes.DWORD,
+            wintypes.LPVOID,
+            wintypes.DWORD,
+            wintypes.DWORD,
+            wintypes.HANDLE,
+        ]
+        generic_read, no_sharing, open_existing = 0x80000000, 0, 3
+        normal, backup_semantics = 0x80, 0x02000000
+        flags = backup_semantics if path.is_dir() else normal
+        handle = kernel32.CreateFileW(
+            str(path), generic_read, no_sharing, None, open_existing, flags, None
+        )
+        assert handle not in (None, wintypes.HANDLE(-1).value), "control: no exclusive handle"
+        try:
+            yield
+        finally:
+            kernel32.CloseHandle(handle)
+        return
+    mode = path.stat().st_mode
+    path.chmod(0)
+    landed = path.stat().st_mode & 0o777
+    try:
+        if path.is_dir():
+            list(path.iterdir())
+        else:
+            path.read_bytes()
+    except PermissionError:
+        binds = True
+    else:
+        binds = False
+    if landed or not binds:
+        path.chmod(mode)
+    assert not landed, "control: the mode did not drop to zero"
+    if not binds:
+        euid = getattr(os, "geteuid", lambda: "unknown")()
+        pytest.skip(f"a mode of zero does not refuse a read to euid {euid}")
+    try:
+        yield
+    finally:
+        path.chmod(mode)
 
 
 def pin_path(root: Path) -> Path:
@@ -2549,7 +2631,10 @@ def test_an_unresolvable_git_yields_no_files_rather_than_spawning(
 #
 # EVERY PLANT BELOW IS THE ONLY NON-PASS GUARD ON ITS TREE, and the arm asserts
 # that before it asserts the verdict. A plant that also reddened a second guard
-# would make a non-zero exit code a statement about that guard instead.
+# would make a non-zero exit code a statement about that guard instead. The one
+# exception is named in ALSO_UNGRADED: a removed memory index is ALSO a budgeted
+# file guard (a) could not measure (CS-1115), and both WARNs are asserted
+# non-advisory, so neither can carry the verdict for the other.
 
 #: Every guard the driver registers. Spelled out so a guard that silently drops
 #: out of the run is a red floor rather than one fewer thing that has to PASS.
@@ -2649,9 +2734,14 @@ def _plant_nothing_enumerated(_root: Path, monkeypatch: pytest.MonkeyPatch) -> N
     monkeypatch.setattr(drift_guard, "enumerate_files", lambda _root: ([], "no files", []))
 
 
+def _plant_budgeted_file_absent(root: Path, _monkeypatch: pytest.MonkeyPatch) -> None:
+    (root / UPSTREAM_WATCH_RELATIVE).unlink()
+
+
 #: One plant per could-not-look WARN site the driver can reach with no other
 #: guard going non-PASS, keyed by the guard it makes WARN.
 COULD_NOT_LOOK_PLANTS = {
+    "a-budgeted-file-absent": ("a", _plant_budgeted_file_absent),
     "b-memory-absent": ("b", _plant_memory_absent),
     "b-memory-index-absent": ("b", _plant_memory_index_absent),
     "c-nothing-checked": ("c", _plant_nothing_enumerated),
@@ -2666,6 +2756,14 @@ COULD_NOT_LOOK_PLANTS = {
     "j-empty-family": ("j", _plant_empty_family),
     "j-roadmap-unreadable": ("j", _plant_roadmap_unreadable),
     "k-workflow-absent": ("k", _plant_workflow_absent),
+}
+
+#: CS-1115 - the plants that ALSO leave a budgeted file unmeasured, so guard (a)
+#: is a second could-not-look WARN on the same tree. Named per plant, so any
+#: OTHER guard joining a plant's run is still red, and both flags are asserted.
+ALSO_UNGRADED = {
+    "b-memory-absent": ["a"],
+    "b-memory-index-absent": ["a"],
 }
 
 
@@ -2718,13 +2816,15 @@ def test_every_could_not_look_warn_makes_the_run_ungraded(
     """The sibling sweep: every WARN site meaning "never read" blocks CLEAN."""
     guard_id, apply = COULD_NOT_LOOK_PLANTS[plant]
     apply(repo, monkeypatch)
+    expected = sorted([guard_id, *ALSO_UNGRADED.get(plant, [])])
 
     code, report = run_main(capsys)
-    assert non_pass(report) == {guard_id: "WARN"}, report["guards"]
+    assert non_pass(report) == dict.fromkeys(expected, "WARN"), report["guards"]
     assert report["verdict"] == "UNGRADED"
     assert code != 0
-    assert report["ungraded"] == [guard_id]
-    assert guard_of(report, guard_id)["advisory"] is False
+    assert sorted(report["ungraded"]) == expected
+    for each in expected:
+        assert guard_of(report, each)["advisory"] is False, each
 
 
 @pytest.mark.parametrize("site", ["absent", "unreadable"])
@@ -2743,6 +2843,114 @@ def test_the_frozen_guard_could_not_look_sites_are_not_advisory(repo: Path, site
     guard, _skips = drift_guard.guard_frozen(repo)
     assert guard["status"] == "WARN", guard["detail"]
     assert guard["advisory"] is False
+
+
+# --- CS-1115 - guard (a) measured every budgeted file, or says which it did not
+
+
+def test_an_absent_budgeted_file_is_named_and_never_advisory(repo: Path) -> None:
+    """A budgeted file that must exist and does not was never measured.
+
+    Guard (a) used to put it on the skip list and PASS, while its advisory
+    comment claimed every budgeted file was MEASURED. Guard (f), (b) and (j)
+    happen to catch CLAUDE.md, MEMORY.md, ROADMAP.md and the index going
+    missing, but nothing else reads docs/upstream_watch.md - so the fixture
+    below was a clean run over a file nobody had measured.
+    """
+    (repo / UPSTREAM_WATCH_RELATIVE).unlink()
+
+    guard, skips = drift_guard.guard_budgets(repo)
+    rendered = "\n".join(guard["detail"])
+    assert guard["status"] == "WARN", rendered
+    assert guard["advisory"] is False, rendered
+    assert UPSTREAM_WATCH_RELATIVE in rendered, rendered
+    assert any(skip["path"] == UPSTREAM_WATCH_RELATIVE for skip in skips), skips
+
+
+def test_an_absent_budgeted_file_beside_a_soft_overshoot_is_still_not_advisory(
+    repo: Path,
+) -> None:
+    """A soft finding on another file must not launder the unmeasured one."""
+    _plant_roadmap_over_its_soft_budget(repo)
+    (repo / UPSTREAM_WATCH_RELATIVE).unlink()
+
+    guard, _skips = drift_guard.guard_budgets(repo)
+    rendered = "\n".join(guard["detail"])
+    assert guard["status"] == "WARN", rendered
+    assert guard["advisory"] is False, rendered
+    assert ROADMAP_RELATIVE in rendered, "the soft overshoot vanished from the detail"
+
+
+def test_an_absent_measured_when_present_file_is_not_a_finding(repo: Path) -> None:
+    """The control: CLAUDE.local.md is budgeted only WHEN PRESENT, by doc_budget's own rule.
+
+    The real tree and a fresh clone both lack it, so reporting its absence as
+    could-not-look would make every CI run UNGRADED.
+    """
+    doc_budget = drift_guard._load_doc_budget()  # noqa: SLF001 - the budget's own owner
+    optional = "CLAUDE.local.md"
+    assert optional in doc_budget.AUTOLOADED_EXPLICIT, "the control names no budgeted file"
+    assert not (repo / optional).exists(), "control: the fixture carries the optional file"
+
+    guard, skips = drift_guard.guard_budgets(repo)
+    assert guard["status"] == "PASS", guard["detail"]
+    assert any(skip["path"] == optional for skip in skips), skips
+
+
+def test_a_present_but_unmeasurable_optional_file_is_not_advisory(repo: Path) -> None:
+    """Present-but-unmeasurable is not absent: a dangling link stats as missing, lstats as there."""
+    optional = repo / "CLAUDE.local.md"
+    try:
+        optional.symlink_to(repo / "a-target-that-does-not-exist.md")
+    except OSError as exc:
+        pytest.skip(f"this account cannot create a symbolic link: {exc.strerror}")
+    assert optional.is_symlink(), "control: the link was not created"
+    assert not optional.exists(), "control: the link is not dangling"
+
+    guard, _skips = drift_guard.guard_budgets(repo)
+    rendered = "\n".join(guard["detail"])
+    assert guard["status"] == "WARN", rendered
+    assert guard["advisory"] is False, rendered
+    assert "CLAUDE.local.md" in rendered, rendered
+
+
+# --- CS-1115 - an item-notes leaf or leaf directory that EXISTS but cannot be read
+
+
+@pytest.mark.parametrize("target", ["leaf", "leaf-directory"])
+def test_a_refused_item_notes_read_makes_the_run_ungraded(
+    repo: Path, capsys: pytest.CaptureFixture[str], target: str
+) -> None:
+    """A real read fault under docs/item_notes/ is could-not-look, through main().
+
+    Before CS-1115 the leaf was skipped silently and its routed item read as a
+    row with no section - a FAIL naming the wrong defect. The directory case
+    was the same shape one level up: a refused listing globbed as zero leaves.
+    """
+    leaf = repo / ITEM_NOTES_LEAF_RELATIVE
+    path = leaf if target == "leaf" else leaf.parent
+    named = path.relative_to(repo).as_posix()
+
+    with refused(path):
+        assert leaf.parent.is_dir(), "control: the leaf directory no longer stats"
+        if target == "leaf":
+            assert leaf.is_file(), "control: the refused leaf no longer stats as a file"
+            with pytest.raises(PermissionError):
+                leaf.read_bytes()
+        else:
+            with pytest.raises(PermissionError):
+                list(path.iterdir())
+        code, report = run_main(capsys)
+
+    assert non_pass(report) == {"j": "WARN"}, report["guards"]
+    assert report["verdict"] == "UNGRADED"
+    assert code != 0, "a run that could not read the item-notes family exited 0"
+    assert report["ungraded"] == ["j"]
+    guard = guard_of(report, "j")
+    assert guard["advisory"] is False
+    # The path AND the verdict word, never the path alone: "docs/item_notes"
+    # is a prefix of the index path every detail block already prints.
+    assert any(f"{named} NOT READ" in line for line in guard["detail"]), guard["detail"]
 
 
 def _plant_roadmap_over_its_soft_budget(root: Path) -> None:
