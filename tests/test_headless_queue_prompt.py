@@ -33,6 +33,7 @@ since a file the inventory misses is a file every repo-wide sweep silently skips
 
 from __future__ import annotations
 
+import hashlib
 import re
 from pathlib import Path
 from typing import Final
@@ -122,6 +123,19 @@ def missing(text: str, required: tuple[tuple[str, str], ...]) -> list[str]:
     return [label for label, pattern in required if re.search(pattern, text, re.IGNORECASE) is None]
 
 
+def present(text: str, forbidden: tuple[tuple[str, str], ...]) -> list[str]:
+    """Which forbidden spellings the text DOES carry - the mirror of `missing`.
+
+    Args:
+        text: The document under test.
+        forbidden: `(label, pattern)` pairs, case-insensitive.
+
+    Returns:
+        The labels whose pattern matched, in the order given.
+    """
+    return [label for label, pattern in forbidden if re.search(pattern, text, re.IGNORECASE)]
+
+
 # --- The properties, one tuple per rule ------------------------------------
 #
 # Each entry is (label, pattern). The label is prose for the failure message.
@@ -180,6 +194,19 @@ ONE_ROW_PER_CYCLE: Final = (("one row, then exit", r"\bone\s+row\b"),)
 #: The drained sentinel, as a whole path.
 DRAINED: Final = (("the sentinel path", re.escape(DRAINED_SENTINEL)),)
 
+#: CS-1104. A lane cycle SURFACES the cross-repo channel and never answers it.
+#: The driver computes the proof; these tokens pin what the worker is TOLD. The
+#: pure-read command is pinned by module, because the watcher's own entry point
+#: writes its data files and its acknowledging mode marks items seen. The scope
+#: sentence is two tokens, not one span, so each clause fails by name.
+SURFACE_NEVER_REPLY: Final = (
+    ("the channel is named", r"moon_sync_inbox"),
+    ("the driver surfaces it, not the worker", r"driver\s+surfaces"),
+    ("surfacing never acknowledges", r"surfacing\s+never\s+acknowledges"),
+    ("composing a note is excluded", r"\bcompos(e|ing)\b[^.]{0,80}\bdeliver"),
+    ("out of scope for a lane cycle", r"out\s+of\s+scope\s+for\s+a\s+lane\s+cycle"),
+)
+
 #: EVERY RULE, NAMED ONCE. Both parametrized arms read this rather than each
 #: spelling its own list: a rule present in one decorator and absent from the
 #: other would be a live arm with no control, or a control grading nothing, and
@@ -192,6 +219,7 @@ RULES: Final = (
     ("the push gate is neither changed nor bypassed", PUSH_GATE),
     ("one row per cycle", ONE_ROW_PER_CYCLE),
     ("the drained sentinel", DRAINED),
+    ("the channel is surfaced, never answered", SURFACE_NEVER_REPLY),
 )
 
 #: THE LABEL SET OF EVERY RULE, PINNED IN BOTH DIRECTIONS. Without this the
@@ -238,7 +266,40 @@ RULE_LABELS: Final = {
     ),
     "one row per cycle": frozenset({"one row, then exit"}),
     "the drained sentinel": frozenset({"the sentinel path"}),
+    "the channel is surfaced, never answered": frozenset(
+        {
+            "the channel is named",
+            "the driver surfaces it, not the worker",
+            "surfacing never acknowledges",
+            "composing a note is excluded",
+            "out of scope for a lane cycle",
+        }
+    ),
 }
+
+#: CS-1104, THE OTHER HALF: spellings the prompt must NEVER carry. A prompt that
+#: names the sender, the acknowledging flag or the writing watcher is one reword
+#: away from instructing a lane to use them. Pinned by label in both directions,
+#: for the reason RULE_LABELS gives.
+FORBIDDEN: Final = (
+    ("the acknowledging flag", r"--ack\b"),
+    ("the outbound sender", r"outbound_send"),
+    ("the outbound gate", r"outbound_gate"),
+    ("the watcher whose entry point writes", r"inbox_watch"),
+    ("the surface, which is the driver's to run", r"inbox_surface"),
+    ("a banner line that feeds sibling names to the model", r"(?m)^\s*inbox:"),
+)
+
+FORBIDDEN_LABELS: Final = frozenset(
+    {
+        "the acknowledging flag",
+        "the outbound sender",
+        "the outbound gate",
+        "the watcher whose entry point writes",
+        "the surface, which is the driver's to run",
+        "a banner line that feeds sibling names to the model",
+    }
+)
 
 #: One case per TOKEN, derived from :data:`RULES` rather than sampled. A sampled
 #: hand-list leaves the tokens it omits ungraded, and the omitted one is the one
@@ -460,3 +521,223 @@ def test_no_rule_can_be_narrowed_by_deleting_one_of_its_tokens() -> None:
         "reword the PROMPT to satisfy it, never the guard to excuse it. If one was added "
         "on purpose, add it to RULE_LABELS in the same edit."
     )
+
+
+def test_the_worker_prompt_carries_no_forbidden_channel_spelling(prompt_text: str) -> None:
+    """CS-1104: the prompt never names the sender, the ack flag or the writing watcher."""
+    found = present(prompt_text, FORBIDDEN)
+
+    assert found == [], f"{PROMPT_PATH} carries {found}; a lane cycle surfaces and never replies"
+
+
+def test_a_document_carrying_every_forbidden_spelling_is_reported_for_each() -> None:
+    """NEGATIVE CONTROL: the arm above reads a clean file, so the predicate must be seen to fire.
+
+    Each spelling sits on its own line so that no one pattern's match can stand
+    in for another's.
+    """
+    dirty = (
+        "python tools/inbox_watch.py --ack\n"
+        "then run tools/outbound_send.py\n"
+        "after tools/outbound_gate.py grades it\n"
+        "then python -m ops.loop.inbox_surface\n"
+        "  inbox: 3 names\n"
+    )
+
+    assert present(dirty, FORBIDDEN) == [label for label, _pattern in FORBIDDEN]
+
+
+def test_a_clean_document_carries_no_forbidden_spelling() -> None:
+    """The other half: the predicate does not fire on the words the prompt DOES use."""
+    clean = "surfacing never acknowledges; the driver surfaces the channel.\n"
+
+    assert present(clean, FORBIDDEN) == []
+
+
+def test_the_forbidden_table_matches_its_pin() -> None:
+    """Deleting a forbidden spelling to green the arm above is caught here."""
+    assert frozenset(label for label, _pattern in FORBIDDEN) == FORBIDDEN_LABELS
+
+
+# --- CS-1104: the channel block is PINNED BYTE-EXACT, and its tokens may live
+# --- nowhere else in the prompt.
+#
+# WHY A PIN AND NOT KEYWORDS. Two refutation rounds beat keyword arms with
+# paraphrase - "never skipping one" satisfied a negation check, and "you list
+# that directory" named none of the words it was graded on. Prompt text is not
+# the mechanism (the driver arms and the reach walk in
+# tests/ops/test_lane_inbox_surface.py are); what CAN be guaranteed about prose
+# is that it does not change without a deliberate, reviewed re-pin. So the block
+# is hashed, and the channel's vocabulary is an ALLOWLIST: it may occur inside
+# the pinned block and nowhere else.
+
+#: The step that carries the channel fence. Bounded by its own marker and the
+#: next blank line or heading.
+CHANNEL_STEP: Final = "**4f."
+
+#: sha256 of the pinned block's ASCII bytes, LF line endings.
+CHANNEL_BLOCK_SHA256: Final = "037f90a19546754c6c1d495b9a421798ddebd559e60e04eff40fe15e62e3042d"
+
+#: The message every pin failure carries.
+REPIN_MESSAGE: Final = (
+    "this block is pinned by CS-1104; any change needs a deliberate re-pin reviewed "
+    "against the never-reply fence"
+)
+
+#: The channel vocabulary, one pattern per token. Case-insensitive; each may occur
+#: ONLY in the block. Its own contents are pinned below, because an allowlist
+#: whose vocabulary can shrink silently is a guard that can be narrowed to fit.
+CHANNEL_VOCABULARY: Final = (
+    r"inbox",
+    r"acknowledg",
+    r"--ack",
+    r"\brepl(y|ies|ied|ying)\b",
+    r"outbound",
+)
+
+#: sha256 of the vocabulary, sorted and joined by LF.
+CHANNEL_VOCABULARY_SHA256: Final = (
+    "dbc33db15b3057f3192b23917048a634cdabf8d33d8bb4c4a8dc6165e0f68044"
+)
+
+#: One spelling each token must match. NOT the pinned block: two of the tokens
+#: (`--ack`, `outbound`) are words the block must never carry - `--ack` is on the
+#: FORBIDDEN list above and naming either to a full-authority worker is the
+#: injection surface W4 removed - so "occurs in the block" would force the prompt
+#: to teach the very spellings the fence exists to keep out of it. A witness per
+#: token makes a token that can never match just as visible.
+CHANNEL_WITNESSES: Final = {
+    r"inbox": "moon_sync_inbox/",
+    r"acknowledg": "Surfacing never acknowledges",
+    r"--ack": "tools/inbox_watch.py --ack",
+    r"\brepl(y|ies|ied|ying)\b": "the decision to reply",
+    r"outbound": "tools/outbound_send.py",
+}
+
+CHANNEL_TOKENS: Final = re.compile("|".join(CHANNEL_VOCABULARY), re.IGNORECASE)
+
+
+def channel_block(text: str) -> str:
+    """The block opened by :data:`CHANNEL_STEP`, up to the next blank line or heading."""
+    start = text.find(CHANNEL_STEP)
+    if start < 0:
+        return ""
+    rest = text[start:]
+    end = re.search(r"\n\s*\n|\n#", rest)
+    return rest if end is None else rest[: end.start()]
+
+
+def block_digest(text: str) -> str:
+    """The sha256 of the channel block's ASCII bytes."""
+    return hashlib.sha256(channel_block(text).encode("ascii")).hexdigest()
+
+
+def stray_channel_tokens(text: str) -> list[str]:
+    """Every channel token occurring OUTSIDE the channel block, as `line N: token`."""
+    block = channel_block(text)
+    begin = text.find(block) if block else -1
+    end = begin + len(block)
+    found = []
+    for match in CHANNEL_TOKENS.finditer(text):
+        if begin <= match.start() < end and block:
+            continue
+        line = text.count("\n", 0, match.start()) + 1
+        found.append(f"line {line}: {match.group(0)}")
+    return found
+
+
+def test_the_channel_block_is_pinned_byte_exact(prompt_text: str) -> None:
+    """CS-1104: step 4f is byte-identical to its reviewed pin."""
+    block = channel_block(prompt_text)
+
+    assert block.startswith(CHANNEL_STEP), f"no channel block found - {REPIN_MESSAGE}"
+    assert block_digest(prompt_text) == CHANNEL_BLOCK_SHA256, REPIN_MESSAGE
+
+
+def test_the_channel_vocabulary_occurs_only_inside_the_pinned_block(prompt_text: str) -> None:
+    """CS-1104: inbox, acknowledge, --ack, reply and outbound are allowed in the block alone."""
+    stray = stray_channel_tokens(prompt_text)
+
+    assert stray == [], f"channel vocabulary outside the pinned block: {stray} - {REPIN_MESSAGE}"
+
+
+def test_control_the_pin_extracts_the_block_that_carries_the_fence(prompt_text: str) -> None:
+    """POSITIVE CONTROL: the hashed bytes are the fence, not an empty or a neighbouring span."""
+    block = channel_block(prompt_text)
+
+    assert "Surfacing never" in block, block
+    assert "out of scope for a lane cycle" in block, block
+    assert CHANNEL_TOKENS.search(block), "the pinned block carries none of the vocabulary"
+
+
+def test_control_a_token_outside_the_block_is_reported_and_inside_is_not() -> None:
+    """NEGATIVE AND POSITIVE CONTROL for the allowlist, on one synthetic document."""
+    doc = (
+        "## 4\n\n**4f. Channel.** Surfacing never acknowledges the inbox.\n\n"
+        "Acknowledge and answer each item, never skipping one.\n"
+    )
+
+    assert stray_channel_tokens(doc) == ["line 5: Acknowledg"], stray_channel_tokens(doc)
+    assert stray_channel_tokens(doc.split("\n\nAcknowledge", maxsplit=1)[0] + "\n") == []
+
+
+#: A sentence about the channel ...
+CHANNEL_NOUN: Final = re.compile(
+    r"moon_sync_inbox|\bchannel\b|\binbox\b|\bnotes?\b|\bitems?\b|\bsibling", re.IGNORECASE
+)
+#: ... that names an acknowledging or replying act ...
+REPLY_VERB: Final = re.compile(
+    r"\backnowledg\w*|\brepl(y|ies|ied|ying)\b|\banswer\w*|\brespond\w*|\bcompos\w*"
+    r"|\bdeliver\w*|\bsend\w*|\bmark\w*\s+\w+\s+seen\b",
+    re.IGNORECASE,
+)
+#: ... must carry a negation, or it is an instruction to do the act. KEPT beside
+#: the pin because it reaches verbs the token allowlist does not name (answer,
+#: respond, compose, deliver, send) OUTSIDE the block; inside it the pin rules.
+NEGATION: Final = re.compile(
+    r"\bnever\b|\bnot\b|\bno\b|\bnothing\b|\bnor\b|out\s+of\s+scope|n't\b", re.IGNORECASE
+)
+
+
+def sentences(text: str) -> list[str]:
+    """The text as whitespace-normalised sentences, split at . ; : and ! and ?."""
+    flat = " ".join(text.split())
+    return [part for part in re.split(r"(?<=[.;:!?])\s+", flat) if part]
+
+
+def reply_instructions(text: str) -> list[str]:
+    """Every sentence that names the channel and an ack or reply act WITHOUT a negation."""
+    return [
+        p
+        for p in sentences(text)
+        if CHANNEL_NOUN.search(p) and REPLY_VERB.search(p) and not NEGATION.search(p)
+    ]
+
+
+def test_no_sentence_in_the_prompt_instructs_an_ack_or_a_reply(prompt_text: str) -> None:
+    """Anywhere in the prompt, a channel sentence naming an ack or reply act is negated."""
+    assert reply_instructions(prompt_text) == []
+
+
+def test_control_an_unnegated_reply_order_is_reported_and_a_negated_one_is_not() -> None:
+    """NEGATIVE AND POSITIVE CONTROL for the instruction predicate."""
+    assert reply_instructions("Answer any item that asks for a reply.")
+    assert reply_instructions("Composing a note is out of scope for a lane cycle.") == []
+
+
+def test_the_channel_vocabulary_is_pinned() -> None:
+    """CS-1104: the allowlist's own tokens cannot be dropped or reworded unnoticed."""
+    joined = "\n".join(sorted(CHANNEL_VOCABULARY)).encode("ascii")
+
+    assert hashlib.sha256(joined).hexdigest() == CHANNEL_VOCABULARY_SHA256, (
+        "the channel vocabulary is pinned by CS-1104; shrinking the vocabulary needs a "
+        "deliberate re-pin"
+    )
+
+
+def test_every_channel_token_matches_its_witness() -> None:
+    """CS-1104: each token has a witness and matches it, so no token is dead on arrival."""
+    assert set(CHANNEL_WITNESSES) == set(CHANNEL_VOCABULARY), "a token has no witness"
+    dead = [t for t in CHANNEL_VOCABULARY if not re.search(t, CHANNEL_WITNESSES[t], re.IGNORECASE)]
+
+    assert dead == [], f"channel tokens that match nothing: {dead}"
