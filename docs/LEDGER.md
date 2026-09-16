@@ -374,6 +374,62 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-09-16 - CS-1103 - CLOSED. A blind inbox read no longer writes, and no longer invents a withdrawal
+
+**WHAT CHANGED.** An inbox directory that EXISTS but cannot be LISTED made
+`deliverables()` swallow the `OSError` and return an EMPTY LIST, so every caller received
+"there is nothing there" for "I could not look". CS-1095 repaired only the READING half.
+The two WRITE halves were live until this entry.
+
+**THE TWO DEFECTS, MEASURED IN THIS TREE** against a synthetic inbox holding one live note
+and one honest prior acknowledgement, not inferred from a sibling's report:
+
+- the withdrawal derivation reported `1 WITHDRAWN` and named the note that never left. A
+  withdrawal is the ONE inbox event with no on-disk artifact left to check it against, so
+  nothing downstream could refute a fabricated one.
+- `--ack` rewrote the seen store from that note's digest to exactly `{"seen": []}` while
+  printing `acknowledged 0 item(s)`. That is destruction of the durable state the tool
+  exists to keep, triggered by a permission bit.
+
+**WHO FOUND IT.** A sibling tree, which reproduced CS's own published finding six under a
+REAL access-control denial - something this tree could only simulate - measured it as THREE
+defects where CS had published one, and sent the result unprompted. Its sentence is the one
+worth keeping: A BLIND READ IS RECOVERABLE; A BLIND READ THAT WRITES IS NOT.
+
+**FIVE CALL SITES, where the merger's reproduction had found two.** `notes_in`,
+`unread_items`, `withdrawn_items`, `render` and the `--ack` path in `main`, plus two
+further logging calls that would have escaped as a traceback.
+
+**TWO DESIGN POINTS THAT ARE THE REASON THIS HOLDS.** `InboxUnreadableError` is
+deliberately NOT an `OSError` subclass - every `OSError` handler in the module would have
+swallowed it again, reinstating the defect through the repair. And `inbox_blind_reason` was
+DELETED rather than fixed: it re-probed the directory AFTER the listing had already
+returned, so the two could disagree and the wrong one would win. `EXIT_BLIND_INBOX = 4` now
+separates "here and unreadable" from "never here".
+
+**GRADED BY MUTANTS, NOT BY ASSERTIONS. Nine mutants, nine killed, zero survivors**, each
+guard mutated individually - because the sibling added four guards and its FOURTH survived
+at exit 0 over a path its arms never entered, and a guard nothing grades is not a guard.
+Two of the nine are process-boundary pins: the same sibling lost a suppression mutant
+across its ENTIRE 240-arm suite because the code sat where only a real child process could
+reach it. This tree is safe there only because `__main__` is one line, and nothing graded
+that it stays one line. Now something does, by PARSING the block rather than grepping it.
+
+**Verification:** `tools/inbox_watch.py`, proven by
+`tests/test_inbox_watch.py::test_an_unlistable_inbox_makes_ack_refuse_and_write_nothing`,
+`::test_the_withdrawal_derivation_refuses_rather_than_deriving_from_nothing`,
+`::test_the_enumerator_refuses_rather_than_returning_an_empty_listing`,
+`::test_the_main_guard_carries_no_logic_beyond_dispatching_to_main` and
+`::test_the_module_run_as_a_child_process_reaches_stdout_and_exits_zero`.
+The original reproduction was re-run against the merged tree: the fabricated withdrawal is
+gone, the acknowledgement refuses, and the watermark survives BYTE-IDENTICAL to the honest
+acknowledgement.
+
+**NOT VERIFIED:** no real access-control denial was attempted here. The fault is
+manufactured by scoping a monkeypatch to one directory, so nothing in this entry is
+evidence about how a genuine denial surfaces on this machine. The sibling measured that
+half and reports it is host-token dependent.
+
 ### 2026-09-16 - CS-1095 addendum - NOT A COMPLETION RECORD. The section 14 licence gate, RUN against the vendored doc after the fact, and CLEARED
 
 **WHY THIS ENTRY EXISTS.** `docs/CHANNEL.md` was vendored on a direct operator

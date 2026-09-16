@@ -33,6 +33,58 @@ Keep every entry to that shape. If an item needs a paragraph, it needs its own f
 the line becomes a pointer.
 
 ---
+## Session 101 - 2026-09-16 - the moon-sync adoption, and three of three slices refuted before merge
+
+CLOSED: CS-1095 (the cross-repo channel contract, all nine items of the operator's
+adoption instruction), CS-1103 (a blind inbox read that wrote).
+FILED: CS-1101, CS-1102, CS-1103, CS-1104.
+
+**EVERY SLICE WAS REFUTED ON ITS FIRST PASS. THREE OF THREE.** Not one survived its
+adversary, and none of the findings was a matter of taste - each was measured. The
+spawn-site arm's own docstring claimed a property it did not have, and five spawn shapes
+passed it blind including one whose expression evaluates to zero. Arm 7 of the channel pin
+did not grade the table it names as the grammar's vector source: a flipped verdict and two
+swapped vectors both passed. The watcher's highest-consequence invariant - SHOWING NEVER
+ACKNOWLEDGES - was graded one layer below the door the hook enters, so an acknowledgement
+added at the entry point survived a green suite.
+
+**ONE SHIPPED DEFECT, FOUND BY AN ADVERSARY AND BY NO ARM.** An inbox that exists but
+cannot be listed printed the affirmative clean line with notes sitting in it. A sibling
+then reproduced it under a real access-control denial, found it was THREE defects rather
+than one, and the two CS had missed were the WRITE halves - a fabricated withdrawal, and
+an acknowledgement that erased the watermark. That became CS-1103.
+
+**THE WHOLE SUITE CAUGHT WHAT SCOPED SUITES COULD NOT, THREE TIMES, AND IT WAS RUN BEFORE
+THE PUSH FOR THAT REASON.** Session 100 recorded the opposite ordering as a merger error.
+Two stale toolpath exemptions, an unbounded subprocess child, and one arm that was
+NON-DETERMINISTIC ACROSS CHECKOUTS.
+
+**THE ARM THAT PASSED WHERE IT WAS WRITTEN AND FAILED WHERE IT WAS MERGED.** Arm 6 recorded
+a gitignored directory as non-resolving - true in a worktree, false in the primary
+checkout. Existence is the wrong property to assert about a gitignored path; being IGNORED
+is the right one. THE TRAILING SLASH ON THAT CHECK IS LOAD-BEARING: the rule is a
+directory-only pattern, so `git check-ignore` without the slash answers from the filesystem
+and reproduces the defect it was written to remove. Measured 5 of 5 each way.
+
+**THE HARNESS REPORTED EXIT 0 OVER A RED SUITE TWICE.** Both times the log said
+`PYTEST_EXIT=1`. The log is the evidence; the notification is not.
+
+**THE CHANNEL ROUND: four notes out, four replies back, full reciprocity.** Both published
+findings reproduced in every tree holding the core. Two divergences came back that neither
+side would have found alone, and BOTH structural arms of the portable core now differ
+materially between trees that ported the same prose - which is a statement about porting by
+description, not about two arms.
+
+**TWO CONCESSIONS MADE TO THIS TREE, not by it.** The "not urgent while the digest pin
+holds" framing is FALSE for any tree porting the arms without the document. And a sibling
+refused the same document at its licence gate for naming no licence - a refusal that
+applied to this copy, because THIS TREE HAD SKIPPED ITS OWN SECTION 14 GATE. It has now
+been run, trap by trap, and CLEARED. The lesson filed with it: AN OPERATOR INSTRUCTION
+MOVES THE DECISION, NOT THE GATE.
+
+**A LINE-PIN FAMILY WENT STALE FOR THE SECOND TIME IN TWO SESSIONS**, moved by an edit
+ABOVE a site rather than at it. Re-cited by symbol where possible; CS-1102 carries the rest.
+
 ## Session 100 - 2026-09-15/16 - CS-1093, CS-1086's domain half, CS-1087
 
 **CLOSED.** CS-1093 - the 7-bit walk names every offending module rather than the
@@ -169,49 +221,3 @@ defect in it.
   SOUND under non-negotiable 7.
 
 ---
-
-## Session 98 - 2026-09-15 - five items closed, and THREE of them were arms that named a lever they could not move
-
-- Shipped: CS-1081, CS-1084, CS-1082, CS-1062 and CS-1083 CLOSED. CS-1085, CS-1086,
-  CS-1087 and CS-1088 filed. `main` at c090bc5, clean and pushed, whole suite green
-  through the pre-push hook at 7788 passed 7 skipped.
-- In flight: tier 1 CI on c090bc5 was IN PROGRESS at session end. Read it first.
-- THE SESSION'S ONE RESULT: THREE SEPARATE ARMS WERE GRADING NOTHING, each found by a
-  different route, and in every case the arm's STATED purpose was intact while its
-  discriminating power was gone. CS-1081's fixture planted a line the parser could never
-  match. CS-1082's control asserted emptiness, which the very defect it guards against
-  satisfies. CS-1083's arms asserted `exit 1` plus a substring that the NEW coverage
-  diagnostic also produces. Targeted suites were green on all three.
-- A MUTATION APPLIED AS A PAIR GRADES THE PAIR, NEVER EACH HALF. Reached TWICE by
-  different routes. On CS-1081 an adversary changed both sentinel comparisons together,
-  the BEGIN arm caught the pair, and `==` to `in` on END ALONE still read 46 passed exit 0.
-  On CS-1083 the same shape hid a THIRD half-hollowed arm that only the full 18-arm
-  enumeration found. Sweep each half separately or the pair's death is the pair's alibi.
-- THE 320 SECOND FIGURE BINDS NOTHING AND CS-1073's MARGIN SENTENCE IS MEASURED AGAINST IT.
-  The live tier-1 levels are 420 warn, 480 fail, 600 cancel, PER SHARD. 320 is the
-  feasibility precondition for a wall-clock gate nobody has built, and
-  `docs/history_notes.md` says in its own words that the item owning it "DETECTS NOTHING BY
-  ITSELF". M = 295 against 480 is 185 seconds clear.
-- MY OWN FIRST PASS AT THE CI DISTRIBUTION WAS WRONG TWICE AND AN ADJUDICATOR CAUGHT BOTH.
-  Reading all 54 runs made the lane look catastrophic - those readings are the TWO-shard
-  era where `fast` carried the modules now in `guards`. Then my 13-run figure of 310 was a
-  PRE-CS-1073 save reading, and save is no longer a worst-job candidate at all. SEGMENT BY
-  WORKFLOW GENERATION BEFORE QUOTING ANY CI DISTRIBUTION.
-- RUNNER CLASS IS NOT OBSERVABLE. The jobs API gives `labels: [ubuntu-latest]` and an
-  ephemeral `runner_name` with no machine identity. Any acceptance requiring readings that
-  span both classes is unfalsifiable and must be retired, not satisfied.
-- THE HANDOFF'S SWEEP FIGURES DID NOT REPRODUCE. Session 97 recorded the least progressed
-  world at 8 schematics and 37 recipes; first-hand it reads 6 and 22. The operator plays
-  while sessions run, so a library-backed number is a READING, not a constant. Build
-  clauses that depend on no live count.
-- TWO SIZE GATES ARE NOW NEAR-BLOCKERS OF THE SAME SHAPE - a hand-maintained table that
-  grows one row per event, living in the file that reads it. `docs/item_notes.md` hit
-  ELEVEN bytes free (CS-1062, closed, now 79 per cent with an approach arm at 90).
-  `tests/test_docs_citations.py` is at TWENTY-ONE bytes free (CS-1088, open).
-- CS-971 IS BLOCKED BEHIND CS-1086 AND THE HANDOFF ORDER DID NOT KNOW THAT. Post-CS-1062
-  headroom is about 32 index rows; CS-971 would create up to 51. Do CS-1086 first or
-  relocate as you go.
-- A GATE THAT DEGRADED TO SILENCE NOW SPEAKS. Every commit before CS-1083 printed
-  `skipped <pii:world>` and `PASS`; the merge commit printed `PASS - 4 checked, 0 skipped`.
-  The privacy check for non-negotiables 11 and 12 had not run on any commit made while the
-  library was over the 24-file cap.

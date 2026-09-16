@@ -55,17 +55,32 @@ $env:CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS = "2400000"
 # catch and every fault keeps the fallback. Nothing else above the header can
 # refuse, which is what makes the header reachable on every path.
 $model = "claude-opus-5"
+
+# THE EFFORT IS RESOLVED THE SAME WAY AND VALIDATED HARDER, and the asymmetry is
+# deliberate. An unrecognised --model is rejected by the CLI, so a bad one fails
+# loudly. An unrecognised --effort is NOT: measured 2026-09-16, the CLI prints
+# "Unknown --effort value ... ignoring it and using the default effort" and runs
+# on. A typo would therefore produce a lane running at DEFAULT effort while the
+# header line below recorded the value nobody applied - a log that lies about
+# the run it describes. So the value is checked against the five documented
+# levels here, and anything else falls back rather than travelling to the CLI.
+$effort = "high"
+$validEfforts = @("low", "medium", "high", "xhigh", "max")
 try {
   $cfgPath = Join-Path $PSScriptRoot "config.json"
   if (Test-Path -LiteralPath $cfgPath) {
     $cfg = Get-Content -LiteralPath $cfgPath -Raw | ConvertFrom-Json
     if ($cfg.executor_model) { $model = [string]$cfg.executor_model }
+    if ($cfg.executor_effort) {
+      $wanted = ([string]$cfg.executor_effort).Trim().ToLowerInvariant()
+      if ($validEfforts -contains $wanted) { $effort = $wanted }
+    }
   }
 } catch {
-  # Any read or parse fault keeps the fallback model set above.
+  # Any read or parse fault keeps the fallback model and effort set above.
 }
 
-"lane start $(Get-Date -Format s) cwd=$Cwd model=$model prompt=$PromptFile" |
+"lane start $(Get-Date -Format s) cwd=$Cwd model=$model effort=$effort prompt=$PromptFile" |
   Out-File "$Log" -Encoding utf8
 
 # A DEFINED WORD RATHER THAN AN EMPTY ONE. An exit line reading "code=" says
@@ -97,7 +112,7 @@ try {
   # property above: the streams are still folded into the same file, they are
   # just written as UTF-8 now.
   Get-Content -LiteralPath "$PromptFile" -Raw |
-    & $claude -p --model $model --dangerously-skip-permissions *>&1 |
+    & $claude -p --model $model --effort $effort --dangerously-skip-permissions *>&1 |
     Out-File "$Log" -Append -Encoding utf8
 
   $code = $LASTEXITCODE
