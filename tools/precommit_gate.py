@@ -1338,8 +1338,13 @@ def _world_names_from_saves(directory: Path, report: Report | None) -> list[str]
 def _load_header_reader() -> object:
     """Import the save-header reader LAZILY, and never at module scope.
 
-    THIS FUNCTION IS THE ENTIRE RISK OF CS-403, so the reasoning lives here
-    rather than in a document that will drift away from it.
+    THIS FUNCTION CARRIES THE WHOLE OF CS-403's IMPORT RISK, so the reasoning
+    lives here rather than in a document that will drift away from it. It is no
+    longer the only importer in the file: _load_token_scanner below imports the
+    non-parsing scan out of the same module for the CS-1087 fallback, and it is
+    a SEPARATE function rather than a second return value from this one so that
+    a caller - or a test - replacing one leaves the other exactly as it was.
+    The reasoning below applies to both, and is not repeated there.
 
     The seam direction is fine and was settled by reading the line rather than
     by assuming: docs/ARCHITECTURE.md prohibits clockspeed/ importing tools/,
@@ -1384,6 +1389,45 @@ def _load_header_reader() -> object:
     return read_header
 
 
+def _load_token_scanner() -> object:
+    """Import the NON-PARSING token scan lazily, for the CS-1087 fallback.
+
+    A SEPARATE FUNCTION FROM _load_header_reader, deliberately. The two are
+    reached at different moments - the reader on every run, this one only once
+    a header has already refused to parse - and a test that replaces one must
+    not silently replace the other. Everything _load_header_reader says about
+    why the import is function-local, why the path insertion is needed and why
+    failure is an ordinary skip applies here unchanged.
+
+    WHAT IT IMPORTS IS NOT A SECOND PARSER. ``scan_world_tokens`` dispatches on
+    no version, decodes no field and invents no offset; it opens READ ONLY and
+    reads the same bounded prefix ``read_header`` does, and it lives in
+    clockspeed/save/header.py beside the framing it depends on, so this gate
+    still holds no format knowledge of its own.
+
+    Returns:
+        The ``scan_world_tokens`` callable.
+
+    Raises:
+        BaseException: Whatever the import raised. Callers catch it; nothing is
+            handled here, because a partial recovery would hide which of the
+            several failure modes actually occurred.
+    """
+    root = str(_repo_root())
+    inserted = root not in sys.path
+    if inserted:
+        sys.path.insert(0, root)
+    try:
+        # Suppressed for the reason _load_header_reader states at length:
+        # hoisting this to module scope is the one edit these functions exist
+        # to prevent.
+        from clockspeed.save.header import scan_world_tokens  # noqa: PLC0415
+    finally:
+        if inserted and root in sys.path:
+            sys.path.remove(root)
+    return scan_world_tokens
+
+
 def _save_files(directory: Path, report: Report | None) -> list[Path]:
     """The `.sav` paths in one directory. READ-ONLY, name-listing only.
 
@@ -1425,9 +1469,14 @@ def _world_tokens_from_headers(report: Report | None) -> tuple[list[str], bool]:
     """Read world tokens out of the save headers under the save root.
 
     CS-403, and it closes the gap the docstring below used to record as an
-    honest limit. No second parser was grown here: this calls the one in
-    clockspeed/save/header.py, which reads a bounded prefix, opens READ ONLY,
-    and steps over the personal-data strings rather than decoding them.
+    honest limit. No second parser was grown here, and that claim survives
+    CS-1087's fallback rather than standing beside it unexamined: both routes
+    call into clockspeed/save/header.py, which reads a bounded prefix and opens
+    READ ONLY. The first is the parser, which steps over the personal-data
+    strings rather than decoding them. The second is a SHAPE SCAN that
+    dispatches on no version, decodes no field and invents no offset - it lives
+    beside the framing it depends on, for the same reason the parser is not
+    here, so this file still holds no format knowledge of its own.
 
     EVERY failure mode is a skip and none of them is fatal. The reader may be
     unimportable, the save root may be absent, a `.sav` may be truncated,
@@ -1453,13 +1502,25 @@ def _world_tokens_from_headers(report: Report | None) -> tuple[list[str], bool]:
     left to be inferred: an UNREADABLE header. The four bounds are this gate's
     own choices not to look and every one of them is self-healing - a cap is
     raised, a budget resets on the next run. A save that will not parse is the
-    file declining to be read, and no amount of effort makes it parse, so
-    blocking there would wedge the commit gate permanently on a corrupt save
-    this gate may never write to or remove (non-negotiable 1) and
-    intermittently on every autosave in flight while the game is running. A bad
-    save is the NORMAL case and never fatal (non-negotiable 7), and a
-    permanently red gate is one that gets bypassed with --no-verify, which buys
-    strictly less than the skip line does.
+    file declining to be read, so blocking there would wedge the commit gate
+    permanently on a corrupt save this gate may never write to or remove
+    (non-negotiable 1) and intermittently on every autosave in flight while the
+    game is running. A bad save is the NORMAL case and never fatal
+    (non-negotiable 7), and a permanently red gate is one that gets bypassed
+    with --no-verify, which buys strictly less than the skip line does.
+
+    THE DECLINATION TO BLOCK IS UNCHANGED; THE ARGUMENT UNDER IT IS NOT.
+    CS-1087: the TOKEN no longer needs the header to parse. A refusal usually
+    happens at the version prologue, before a single string is read, so the
+    identifier is still framed in the bytes exactly as it was written - and a
+    bounded raw scan that dispatches on no version can recover it. So a
+    recovered token joins the blocklist and is matchable, and the sentence that
+    stood here - that no amount of effort makes the file parse - is true about
+    PARSING and was never the point. WHAT REMAINS UNCOVERED, stated rather than
+    implied: a header truncated or overwritten before the identifier carries no
+    framed token at any offset, and a file that cannot be opened at all yields
+    no bytes to scan. Those are floors rather than holes - no means available
+    to this gate reads bytes that are not there - and neither one blocks.
 
     THE TIME BOUND CANNOT ABORT A READ ALREADY IN FLIGHT. It is tested between
     reads, so one slow open on a hydrating cloud placeholder, a redirected
@@ -1518,6 +1579,10 @@ def _world_tokens_from_headers(report: Report | None) -> tuple[list[str], bool]:
 
     found: list[str] = []
     unreadable = 0
+    recovered = 0
+    unscannable = 0
+    scanner: object | None = None
+    scanner_unavailable = False
     for path in paths:
         if time.monotonic() - started > SAVE_HEADER_BUDGET_SECONDS:
             # "%g" and not "%.1f". The old format rendered a 0.05 second budget
@@ -1534,6 +1599,7 @@ def _world_tokens_from_headers(report: Report | None) -> tuple[list[str], bool]:
             break
         try:
             found.append(read_header(path).world_token)  # type: ignore[operator]
+            continue
         except BaseException:
             # A bad save is the NORMAL case, never fatal (non-negotiable 7).
             # The exception text is NOT rendered. Every header exception in
@@ -1542,14 +1608,92 @@ def _world_tokens_from_headers(report: Report | None) -> tuple[list[str], bool]:
             # filename it would name embeds the world name.
             unreadable += 1
 
-    if unreadable:
+        # CS-1087, and it runs INSIDE the same loop on the same `started`
+        # clock deliberately: the aggregate budget tested at the top of this
+        # iteration is the only one there is, and a second budget for the
+        # fallback would be a second thing to drift away from the first.
+        if scanner is None and not scanner_unavailable:
+            try:
+                scanner = _load_token_scanner()
+            except BaseException:
+                # The same failure _load_header_reader's caller treats as an
+                # ordinary skip, for the same reason - except that the reader
+                # imported a moment ago, so reaching here means the module went
+                # away mid-run. Recorded, never fatal.
+                scanner_unavailable = True
+        if scanner is None:
+            unscannable += 1
+            continue
+        try:
+            # The scanner returns SHAPE-RESTRICTED values only and the raw
+            # prefix never crosses back into this frame - see the CS-963 scrub
+            # in scan_world_tokens, which is why the scan lives there and not
+            # here (non-negotiable 12).
+            candidates = scanner(path)  # type: ignore[operator]
+        except BaseException:
+            # No bytes at all: the file could not be opened for even a raw
+            # read. A floor rather than a hole, and still not a block.
+            unscannable += 1
+            continue
+        if candidates:
+            found.extend(candidates)
+            recovered += 1
+
+    _report_unparseable_headers(report, unreadable, recovered, unscannable)
+    return found, truncated
+
+
+def _report_unparseable_headers(
+    report: Report | None, unreadable: int, recovered: int, unscannable: int
+) -> None:
+    """Say what happened to each unparseable header, in three separate lines.
+
+    ONE LINE FOR THREE OUTCOMES WOULD RECREATE CS-209-B. "their tokens are not
+    matchable" is a FALSE statement about a header whose token this run
+    recovered, and a false sentence is rated worse here than silence. So the
+    population is split by what was actually obtained: recovered without
+    parsing, parsed nowhere and carrying nothing of the shape, or not readable
+    even as raw bytes.
+
+    NONE OF THEM BLOCKS. Every one goes through _report_skip, which appends to
+    `skipped` alone and can therefore never reach the exit status - that is the
+    CS-1083 declination, unchanged (non-negotiables 1 and 7).
+
+    NO LINE CARRIES A VALUE. Each renders a COUNT and the fixed world label,
+    which is the whole of what the grant's clause 7 requires and what the
+    regression arm in tests/test_precommit_gate.py asserts.
+
+    Args:
+        report: The report, or None.
+        unreadable: How many headers refused to parse.
+        recovered: How many of those yielded a token to the raw scan.
+        unscannable: How many of those could not be read for a raw scan at all.
+    """
+    if recovered:
         _report_skip(
             report,
             PII_WORLD_LABEL,
             "%d save header(s) under the save root could not be parsed; their "
-            "tokens are not matchable" % unreadable,
+            "world tokens were recovered from the raw header prefix without "
+            "parsing it and ARE matchable" % recovered,
         )
-    return found, truncated
+    empty = unreadable - recovered - unscannable
+    if empty:
+        _report_skip(
+            report,
+            PII_WORLD_LABEL,
+            "%d save header(s) under the save root could not be parsed and "
+            "carry no framed world token in the bounded prefix, so their "
+            "tokens are not matchable" % empty,
+        )
+    if unscannable:
+        _report_skip(
+            report,
+            PII_WORLD_LABEL,
+            "%d save header(s) under the save root could not be parsed and "
+            "could not be read for a raw scan either, so their tokens are not "
+            "matchable" % unscannable,
+        )
 
 
 def discover_world_tokens(report: Report | None = None) -> list[str]:
@@ -1560,7 +1704,11 @@ def discover_world_tokens(report: Report | None = None) -> list[str]:
       1. CLOCKSPEED_WORLD_TOKENS, comma separated.
       2. "world_tokens" in config/local.json, which is gitignored.
       3. The save HEADERS under the save root, read through the parser in
-         clockspeed/save/header.py.
+         clockspeed/save/header.py - and, for a header that REFUSES to parse,
+         through the non-parsing shape scan in that same module (CS-1087).
+         Both routes end in the same list and every value from either one is
+         put through _matchable below, so a recovered token is a matcher on
+         exactly the terms a parsed one is.
 
     Source 3 is CS-403 and it is what makes an UNDECLARED token matchable. It
     replaces the honest limit this docstring used to record - that a token

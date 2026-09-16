@@ -756,9 +756,14 @@ class _Cursor:
     def string(self, field: str) -> str:
         """Read and DECODE a length-prefixed string.
 
-        Only called for fields this module is allowed to return: the map name,
-        which is a game constant, and the identifier. Everything else goes
-        through :meth:`skip_string`.
+        THE CURSOR calls this for exactly two fields - the map name, which is a
+        game constant, and the identifier. Everything else goes through
+        :meth:`skip_string`. That is a statement about this class and NOT about
+        the module's whole return surface: :func:`scan_framed_tokens` also
+        yields strings out of a header, without going through a cursor at all.
+        It widens nothing, because what it returns is shape-restricted before
+        it is ever decoded - see its own docstring - but a reader should not be
+        left to reconcile the two sentences on their own.
 
         Args:
             field: The field being read.
@@ -995,6 +1000,196 @@ def read_header(path: Path | str) -> SaveHeader:
     except BaseException:
         del data
         raise
+
+
+# ---------------------------------------------------------------------------
+# The non-parsing scan - CS-1087
+# ---------------------------------------------------------------------------
+#
+# WHY A SECOND WAY TO REACH THE IDENTIFIER EXISTS AT ALL, AND WHY IT IS NOT A
+# SECOND PARSER. A header that refuses to parse still holds its bytes, and the
+# identifier is one of them: the refusal usually happens at the version
+# prologue, BEFORE a single string is read, so the whole string block is
+# untouched on disk. The commit gate's world-token blocklist needs the VALUE
+# and nothing else about the file - it never needs a layout, a version or an
+# offset - and a token it cannot obtain is a token that commits.
+#
+# So the functions below dispatch on no version, decode no field, invent no
+# offset and promise no seam. They look for one SHAPE, in the two framings
+# ``_Cursor._string_extent`` already admits, and return only values that match
+# it. They live HERE rather than in the caller for two reasons: the framing
+# they depend on is this module's measurement, and this module is the one that
+# already scrubs a bounded save prefix out of its frames on the way out
+# (CS-963). A scan bound in the caller's frame would reproduce that defect one
+# level up, in a file whose own traceback cannot be honestly redacted.
+#
+# THIS WIDENS NOTHING ABOUT WHAT THE MODULE RETURNS. The values are
+# shape-restricted before they exist as strings - exactly
+# :data:`WORLD_TOKEN_LENGTH` characters drawn from :data:`TOKEN_ALPHABET`, then
+# a null terminator - so no options string, session name, save name or map name
+# can leave through here. The options string cannot even come close: it carries
+# ``?`` and ``=``, which are outside the alphabet. A display name of exactly 22
+# characters with no space or punctuation COULD match, and that is stated
+# rather than hidden - it is personal data too, and the only consequence of
+# matching is that the gate refuses to commit it.
+
+#: The base64url alphabet the measured identifier is drawn from. A character
+#: outside it disqualifies a candidate outright, which is what keeps this a
+#: shape match rather than a string scrape.
+# S105 is suppressed with its code rather than blanket-ignored, because a bare
+# suppression is itself banned. Bandit sees a long opaque literal and reads it
+# as a secret; this is the base64url ALPHABET, public knowledge, and it holds
+# no value at all.
+TOKEN_ALPHABET: Final = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_"  # noqa: S105
+
+#: The alphabet as raw byte values, so the scan never decodes to test.
+_TOKEN_BYTES: Final = frozenset(TOKEN_ALPHABET.encode("ascii"))
+
+#: The two length prefixes a :data:`WORLD_TOKEN_LENGTH` string can carry.
+#: POSITIVE is a byte count INCLUDING the one-byte terminator; NEGATIVE is a
+#: UTF-16-LE CHARACTER count including its two-byte terminator. Both are the
+#: framing ``_Cursor._string_extent`` reads, spelled here as the literal bytes
+#: a scan can search for rather than re-derived per offset.
+_NARROW_COUNT_PREFIX: Final = struct.pack("<i", WORLD_TOKEN_LENGTH + 1)
+_WIDE_COUNT_PREFIX: Final = struct.pack("<i", -(WORLD_TOKEN_LENGTH + 1))
+
+#: How many candidates one buffer may yield. A save prefix carries ONE
+#: identifier, so a buffer producing more than this is not a save header and
+#: the scan stops rather than walking an untrusted file to its end. This is a
+#: per-buffer shape bound and NOT a time or file budget: the gate's aggregate
+#: wall clock and its file cap are the caller's, unchanged, and no second
+#: budget is introduced here to drift away from them.
+MAX_SCANNED_TOKENS: Final = 16
+
+
+def _framed_token_at(data: bytes, start: int, stride: int) -> str | None:
+    """The token framed at ``start``, or None if what is there is not one.
+
+    Args:
+        data: The buffer being scanned.
+        start: The offset of the first payload byte, just past the count.
+        stride: 1 for the narrow framing, :data:`UTF16_CHAR_SIZE` for the wide
+            one. It is also the terminator width, because the two are the same
+            number in both framings.
+
+    Returns:
+        The decoded candidate, or None. Nothing outside the alphabet is ever
+        decoded, so a non-candidate never becomes a Python string at all.
+    """
+    end = start + WORLD_TOKEN_LENGTH * stride
+    if end + stride > len(data):
+        return None
+    for index in range(start, end, stride):
+        if data[index] not in _TOKEN_BYTES:
+            return None
+        # The wide framing's high byte must be zero for an alphabet character.
+        # Without this a two-byte sequence whose LOW byte happens to be
+        # alphabet would pass, which is a scrape and not a shape match.
+        if stride == UTF16_CHAR_SIZE and data[index + 1] != 0:
+            return None
+    if data[end : end + stride] != bytes(stride):
+        return None
+    return data[start:end:stride].decode("ascii")
+
+
+def scan_framed_tokens(data: bytes) -> tuple[str, ...]:
+    """Find identifier-SHAPED framed strings in a buffer, parsing nothing.
+
+    THE MATCH IS THE FRAMING PLUS THE SHAPE, not a search for a run of
+    characters. A candidate must carry the int32 count the module's own string
+    framing would write for a :data:`WORLD_TOKEN_LENGTH` string, then exactly
+    that many characters from :data:`TOKEN_ALPHABET`, then the terminator that
+    count implies. A bare 22-character run in the middle of a file matches
+    nothing, and neither does a 21- or 23-character framed one.
+
+    UNMEASURED, AND LABELLED RATHER THAN ASSUMED: every header in the measured
+    library frames its identifier with a POSITIVE count, so the wide framing
+    below has never been seen on a real save. It is handled because
+    ``_Cursor._string_extent`` admits it and a scan that ignored it would be
+    making a claim about real files that no probe supports.
+
+    Args:
+        data: The bytes to scan. A bounded prefix in every caller here, and
+            never decoded except where the shape already matched.
+
+    Returns:
+        The candidates, in file order, de-duplicated, at most
+        :data:`MAX_SCANNED_TOKENS` of them.
+    """
+    hits: list[tuple[int, str]] = []
+    for prefix, stride in ((_NARROW_COUNT_PREFIX, 1), (_WIDE_COUNT_PREFIX, UTF16_CHAR_SIZE)):
+        at = data.find(prefix)
+        while at != -1 and len(hits) < MAX_SCANNED_TOKENS:
+            candidate = _framed_token_at(data, at + INT32_SIZE, stride)
+            if candidate is not None:
+                hits.append((at, candidate))
+            at = data.find(prefix, at + 1)
+    found: list[str] = []
+    seen: set[str] = set()
+    # Sorted by OFFSET, because the two framings are searched one after the
+    # other and file order is what the docstring promises. A caller comparing
+    # two runs of this function over the same bytes would otherwise be reading
+    # an order that depends on which framing happened to be scanned first.
+    for _at, candidate in sorted(hits):
+        if candidate in seen:
+            continue
+        seen.add(candidate)
+        found.append(candidate)
+    return tuple(found)
+
+
+def scan_world_tokens(path: Path | str) -> tuple[str, ...]:
+    """Recover identifier-shaped values from a file WITHOUT parsing it.
+
+    THIS IS FOR A HEADER THAT WILL NOT PARSE and for nothing else. A file that
+    parses has :func:`read_header`, which returns the identifier the layout
+    says is the identifier; this one returns everything of that SHAPE and
+    cannot tell the caller which of them the layout would have chosen. A
+    caller that used it on a parseable file would be preferring a guess to a
+    measurement.
+
+    Opens for READ ONLY and reads at most :data:`MAX_HEADER_BYTES`, which are
+    the same access and the same bound :func:`read_header` already takes
+    (non-negotiable 1 forbids WRITING to a save, never reading one).
+
+    THE PREFIX IS SCRUBBED ON BOTH PATHS. This frame binds a bounded prefix of
+    the file, which is precisely the personal-data-bearing region - the header
+    strings are at the front - and a caller that chains an exception through
+    here puts this frame in a rendered traceback. The unbind is unconditional
+    rather than an unwind guard, so there is no later-added return path that
+    forgets it (CS-963, non-negotiable 12).
+
+    Args:
+        path: The file to read.
+
+    Returns:
+        The candidates, in file order, possibly empty. An empty result is the
+        honest answer for a file truncated before the identifier or
+        overwritten wholesale: there is nothing of this shape at any offset.
+
+    Raises:
+        HeaderReadError: The file could not be opened or read. The path is
+            redacted and the original OSError is dropped rather than chained,
+            because its message quotes the filename and a save filename embeds
+            the world name.
+    """
+    target = Path(path)
+    try:
+        with target.open("rb") as handle:
+            data = handle.read(MAX_HEADER_BYTES)
+    except OSError as error:
+        raise HeaderReadError(
+            reason=REASON_FILE_UNREADABLE,
+            redacted_path=redact(target),
+            errno=error.errno,
+        ) from None
+    try:
+        found = scan_framed_tokens(data)
+    except BaseException:
+        del data
+        raise
+    del data
+    return found
 
 
 def reveal_strings(data: bytes, *, reveal_personal_data: bool = False) -> HeaderStrings:
