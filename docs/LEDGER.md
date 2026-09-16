@@ -421,6 +421,95 @@ its own, and a WARN as the only non-PASS guard leaves the script's overall resul
 `::test_an_unreadable_roadmap_is_a_warn_never_a_pass` and
 `::test_the_real_tree_routed_count_matches_an_independent_count`.
 
+### 2026-09-16 - CS-894 - CLOSED. Two guard legs that could be deleted without a single arm noticing now each have an arm that dies
+
+**WHAT CHANGED.** `tests/test_chained_exemption_guard.py` gains five arms. Two grade
+`chained_exemption_guard.stale_exemptions` in both directions against a PLANTED record - a
+recorded reason for a module that adjudicates nothing must be reported, and a reason for a
+module the live population holds must not be. Two grade
+`chained_exemption_guard.defers_to_owner`: the live importer set the flagship immunity arm
+derives is asserted non-empty, and the detector is put to a MINIMAL PAIR built in the arm -
+the non-deferring plant with the owner import spliced in, against that plant unchanged.
+Merged file: `tests/test_chained_exemption_guard.py`. No shipped module changed - the defect
+was in the grading apparatus, not in the guard.
+
+**THE FIRST DRAFT OF THAT ARM GRADED THE TWO MODULE-LEVEL PLANTS AND THE VERIFIER REFUTED
+IT, correctly and on a sentence rather than on behaviour.** `PLANTED_DEFERRING` and
+`PLANTED_ADJUDICATOR` are both real detector plants and they differ in their docstring,
+their whole `scan` body and their return expression as well as in the census import, so the
+arm's claim that they "differ only by the census import" was false - a claim this module's
+own header had already carried since CS-888, ungraded, after the arm that once tested it
+dropped the deferring plant. The arm was not vacuous, because `defers_to_owner` walks
+`Import` and `ImportFrom` alone, but a detector keyed on any of the other three differences
+would have survived it. The repair composes the positive from the negative plus an import
+built out of `guard.OWNER_MODULE`, so the pair is minimal by construction and follows an
+owner rename, and asserts the splice landed before grading on it. `PLANTED_DEFERRING` is
+still asserted positive as the live-shaped case.
+
+**THE DEFECT, RE-MEASURED THIS CYCLE RATHER THAN TAKEN FROM THE FILING.** Before the arms
+existed, `stale_exemptions` replaced by an empty return and `defers_to_owner` forced False
+each left the module at `19 passed`, exit 0. The filing's measurement of 0 red of 19 on
+both legs reproduced exactly.
+
+**ROOT CAUSE.** Each leg's only consumer asserted a live ZERO. `stale_exemptions`' consumer
+asserts the live tree carries no stale reason, which a leg returning nothing at all
+satisfies; `defers_to_owner`'s consumer derives a subject set and carries a synthetic member
+so it is never vacuous, which is exactly what let the LIVE half of the derivation return
+nothing while the arm stayed green. This is the shape
+`memory/an-empty-population-satisfies-every-zero.md` records.
+
+**PROVEN BY** a mutation battery of five legs, run one process per leg with the attribute
+replaced in-process before `pytest.main`, so nothing was mutated on disk:
+
+| leg | before the arms | after |
+|---|---|---|
+| pristine | `19 passed`, exit 0 | `24 passed`, exit 0 |
+| `stale_exemptions` -> `()` | `19 passed`, exit 0 | `1 failed, 23 passed`, exit 1 |
+| `stale_exemptions` -> every recorded key | not run | `2 failed, 22 passed`, exit 1 |
+| `defers_to_owner` -> False | `19 passed`, exit 0 | `2 failed, 22 passed`, exit 1 |
+| `defers_to_owner` -> True | not run | `2 failed, 22 passed`, exit 1 |
+
+The arms by name:
+`test_a_reason_for_a_module_that_left_the_population_is_reported`,
+`test_a_reason_for_a_module_still_in_the_population_is_not_reported`,
+`test_the_live_subject_set_of_the_immunity_arm_is_not_empty`,
+`test_the_owner_import_detector_answers_both_ways_on_planted_sources`.
+
+**BOTH DIRECTIONS WERE MUTATED ON PURPOSE, because a one-directional arm is met by a
+constant.** A leg reporting every key it is handed satisfies the positive arm, and a
+detector answering True for everything satisfies the non-empty arm while making the subject
+set the whole tracked tree. The two reversed legs are what close that, and each kills an arm
+this item added.
+
+**SIBLING SWEEP - SIX OTHER PUBLIC HELPERS WERE MUTATED AND ONE SURVIVED.**
+`static_cause_reads` (11 red), `unrecorded` (6 red), `classify` (6 red),
+`adjudicators_in_sources` (11 red) and `miscounted` (1 red) each already had an arm that
+dies. `describe` did not: emptied, the module stayed at `23 passed`, exit 0. It is the same
+root cause - a leg reached only from a failure path, so a green run never runs it - and it
+was swept here rather than filed, by
+`test_the_failure_renderer_names_the_module_and_every_line_it_is_given`. With that arm the
+emptied renderer reports `1 failed, 23 passed`, exit 1.
+
+**ITS FAILURE MODE IS NARROWER THAN THE TWO LEGS' AND THE ARM IS SIZED TO THAT.** A renderer
+that drops a module or a line degrades a message rather than missing a finding, so it gets
+one arm pinning that a reported site is traceable to a module and a line, not a battery.
+
+**NO COUNT IS PINNED IN THE NEW ARMS.** The live importer set is asserted non-empty rather
+than equal to its measured size: the set is derived every run precisely so a new importer
+joins it without an edit, and `docs/history_notes.md` under CS-894 records the size measured
+in session 60. Pinning it here would put a measured number in a second place to drift.
+
+**TWO SALVAGED DRAFTS OF THIS ARM EXISTED AND NEITHER WAS USED.** `salvage/cs894-defers-arm`
+and `salvage/cs894-defers-alt` are preserved tags carrying contradictory arms, recorded in
+the item section now in `docs/history_notes.md`. The disagreement between them is settled by
+the measurement above rather than by either draft: the live importer set is not empty, so
+the alternative draft's claim that no live module defers is false on this tree.
+
+**TIER 2**, because the edited file is enumerated by the repo-wide guards rather than read
+only by its own module.
+
+**CI IS RECORDED BY THE DRIVER AND WAS NOT OBSERVED BY THIS WORKER.**
+
 ### 2026-09-16 - CS-1110 - CLOSED. The killed lane cycles' unfinished CS-893 work was discarded after a byte snapshot, and the lane worktree is clean at main
 
 **WHAT CHANGED.** The lane worktree held uncommitted, red, incomplete CS-893 work from three

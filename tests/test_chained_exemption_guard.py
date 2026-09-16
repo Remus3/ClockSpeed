@@ -315,6 +315,58 @@ def test_the_recorded_module_is_in_the_population_it_is_recorded_for() -> None:
     assert not stale, f"exemption(s) outlived the code they describe: {stale}"
 
 
+def test_a_reason_for_a_module_that_left_the_population_is_reported() -> None:
+    """CS-894 - the stale leg carries a planted positive, not a live zero.
+
+    THE ARM ABOVE IS SATISFIED BY A LEG THAT REPORTS NOTHING AT ALL. It asserts
+    the live tree is clean, and a clean tree is what an empty return also looks
+    like; measured before this arm existed, :func:`guard.stale_exemptions`
+    replaced by an empty return left every arm in this module green. That is
+    the shape ``memory/an-empty-population-satisfies-every-zero.md`` records,
+    and its sibling :func:`guard.miscounted` was given a fabricated positive in
+    the same commit while this leg was not.
+
+    THE PLANT IS A RECORDED REASON FOR A MODULE THAT DOES NOT EXIST, so no live
+    finding is depended on and the subject cannot drift when the tree does. Its
+    absence from the population is ASSERTED rather than assumed, because a plant
+    that accidentally names a live adjudicator is a plant the leg is right to
+    stay silent about.
+    """
+    live = guard.adjudicators()
+    departed = "tests/planted_departed_adjudicator.py"
+
+    assert departed not in {site.module for site in live}, (
+        f"the plant {departed} is a live adjudicator, so the leg is right to "
+        f"stay silent and this arm proves nothing"
+    )
+
+    stale = guard.stale_exemptions(live, {departed: guard.Exemption(sites=1, why="planted")})
+
+    assert stale == (departed,), (
+        f"a recorded reason for a module that adjudicates nothing went "
+        f"unreported; stale_exemptions() answered {stale}"
+    )
+
+
+def test_a_reason_for_a_module_still_in_the_population_is_not_reported() -> None:
+    """CS-894 - the negative direction of the same leg.
+
+    Without this, the positive above is met by a leg that reports every key it
+    is handed. Graded on a record naming a module the live population DOES
+    hold, so the two arms together pin both answers rather than one.
+    """
+    live = guard.adjudicators()
+    assert live, "the population is empty, so this arm grades nothing"
+    resident = sorted(site.module for site in live)[0]
+
+    stale = guard.stale_exemptions(live, {resident: guard.Exemption(sites=1, why="planted")})
+
+    assert stale == (), (
+        f"{resident} still adjudicates and its recorded reason was reported "
+        f"stale anyway; stale_exemptions() answered {stale}"
+    )
+
+
 def test_the_population_holds_the_mirroring_module_and_nothing_unaccounted_for() -> None:
     """CS-888 - the population is pinned, and the mirror is in it.
 
@@ -388,6 +440,107 @@ def test_importing_the_owner_confers_no_immunity_from_the_sweep() -> None:
         f"{count} of {len(targets)} module(s) hold blanket immunity from the "
         f"chaining-adjudicator population for the mere act of importing "
         f"{guard.OWNER}; an identical planted cause read is invisible in each: {missed}"
+    )
+
+
+def test_the_live_subject_set_of_the_immunity_arm_is_not_empty() -> None:
+    """CS-894 - the derived subject set is asserted, not assumed.
+
+    THE ARM ABOVE DERIVES ITS SUBJECTS LIVE AND CARRIES A SYNTHETIC ONE SO IT
+    IS NEVER VACUOUS. That is what stops it passing over nothing - and it is
+    also what lets it pass while the LIVE half of the derivation returns
+    nothing: measured before this arm existed, :func:`guard.defers_to_owner`
+    forced False left every arm in this module green, the subject set having
+    silently degraded to its one synthetic member.
+
+    NO COUNT IS PINNED HERE, DELIBERATELY. The set is derived every run
+    precisely so a seventh importer joins it without an edit, and pinning its
+    size would put a measured number in a second place to drift. Non-empty is
+    the property the flagship arm actually depends on.
+    """
+    sources = dict(guard.tracked_sources())
+    importers = sorted(
+        module for module, source in sources.items() if guard.defers_to_owner(ast.parse(source))
+    )
+
+    count = len(importers)
+    assert count > 0, (
+        "no tracked module imports the census, so "
+        "test_importing_the_owner_confers_no_immunity_from_the_sweep grades "
+        "its synthetic subject alone and the live derivation is unmeasured"
+    )
+
+
+def test_the_owner_import_detector_answers_both_ways_on_planted_sources() -> None:
+    """CS-894 - the planted positive for the subject derivation itself.
+
+    The arm above reddens when the detector answers False for everything, and
+    a detector answering True for everything would satisfy it just as well
+    while making the subject set the whole tracked tree.
+
+    THE PAIR IS BUILT HERE RATHER THAN TAKEN FROM THE TWO MODULE CONSTANTS, and
+    the difference matters enough that a verifier refuted the first draft of
+    this arm over it. :data:`PLANTED_DEFERRING` and :data:`PLANTED_ADJUDICATOR`
+    are both real detector plants and they differ in their docstring, their
+    whole ``scan`` body and their return expression as well as in the import.
+    Only one of those differences is one :func:`guard.defers_to_owner` can
+    READ - it walks ``Import`` and ``ImportFrom`` and nothing else - but an arm
+    graded on that pair is satisfied by any detector keyed on the other three,
+    so the positive here is :data:`PLANTED_ADJUDICATOR` with the owner import
+    SPLICED IN and nothing else changed. The import is composed from
+    :data:`guard.OWNER_MODULE`, so renaming the owner moves the plant with it
+    instead of leaving a plant that imports a module nobody has.
+    """
+    negative = PLANTED_ADJUDICATOR
+    positive = negative.replace(
+        "import ast\n",
+        f"import ast\n\nfrom tests import {guard.OWNER_MODULE}\n",
+        1,
+    )
+
+    assert positive != negative, "the splice landed nowhere, so the pair is one source twice"
+
+    assert guard.defers_to_owner(ast.parse(positive)), (
+        "the planted module differs from its twin by the census import alone "
+        "and the detector did not see it"
+    )
+    assert not guard.defers_to_owner(ast.parse(negative)), (
+        "the planted module imports no census and the detector claimed it did"
+    )
+    assert guard.defers_to_owner(ast.parse(PLANTED_DEFERRING)), (
+        "the live-shaped deferring plant imports the census and the detector did not see it"
+    )
+
+
+def test_the_failure_renderer_names_the_module_and_every_line_it_is_given() -> None:
+    """CS-894 sibling sweep - the renderer is exercised on a green run too.
+
+    :func:`guard.describe` builds the text every finding here is reported
+    THROUGH, and it is reached only when an arm is already failing - so on a
+    green tree nothing runs it. Measured alongside the two legs this item
+    names: the renderer replaced by an empty string left every arm in this
+    module green, which is the same "deleted without a single arm noticing"
+    shape and is swept here rather than filed.
+
+    ITS FAILURE MODE IS A DEGRADED MESSAGE RATHER THAN A MISSED FINDING, which
+    is why it is one arm and not three. What the arm pins is that a reported
+    site can be traced back to a module and a line - a renderer that drops
+    either turns every finding in this file into an unactionable one.
+    """
+    sites = guard.adjudicators_in_sources({"planted/rendered.py": PLANTED_ADJUDICATOR})
+
+    assert len(sites) == 1, f"the plant yielded {len(sites)} adjudicator(s), expected 1"
+
+    rendered = guard.describe(sites)
+
+    assert sites[0].module in rendered, (
+        f"the renderer dropped the module of the site it was given: {rendered!r}"
+    )
+    missing = [line for line in sites[0].lines if str(line) not in rendered]
+    count = len(missing)
+    assert count == 0, (
+        f"the renderer dropped {count} of the {len(sites[0].lines)} line(s) it "
+        f"was given: {rendered!r}"
     )
 
 
