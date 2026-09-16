@@ -45,6 +45,11 @@ from pathlib import Path
 import pytest
 from ops.loop import lane_launcher, queue_loop
 
+# CS-1104 - the live-channel audit, AUTOUSE by import: any test here that lists or
+# opens `moon_sync_inbox/` or its seen store fails at teardown. One owner of the
+# hook, in tests/test_queue_loop.py; tests/ops has no conftest to share it through.
+from tests.test_queue_loop import channel_audit  # noqa: F401
+
 #: Long enough for two cycles that spawn nothing, short enough that a wedged
 #: probe is a failure rather than a hang.
 _PROBE_TIMEOUT_S = 300

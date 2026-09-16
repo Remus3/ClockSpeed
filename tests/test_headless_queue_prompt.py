@@ -33,6 +33,7 @@ since a file the inventory misses is a file every repo-wide sweep silently skips
 
 from __future__ import annotations
 
+import hashlib
 import re
 from pathlib import Path
 from typing import Final
@@ -558,19 +559,100 @@ def test_the_forbidden_table_matches_its_pin() -> None:
     assert frozenset(label for label, _pattern in FORBIDDEN) == FORBIDDEN_LABELS
 
 
-# --- CS-1104 W3: the fence sentences are BOUND to their paragraph, and nothing
-# --- anywhere in the prompt instructs an acknowledgement or a reply.
+# --- CS-1104: the channel block is PINNED BYTE-EXACT, and its tokens may live
+# --- nowhere else in the prompt.
+#
+# WHY A PIN AND NOT KEYWORDS. Two refutation rounds beat keyword arms with
+# paraphrase - "never skipping one" satisfied a negation check, and "you list
+# that directory" named none of the words it was graded on. Prompt text is not
+# the mechanism (the driver arms and the reach walk in
+# tests/ops/test_lane_inbox_surface.py are); what CAN be guaranteed about prose
+# is that it does not change without a deliberate, reviewed re-pin. So the block
+# is hashed, and the channel's vocabulary is an ALLOWLIST: it may occur inside
+# the pinned block and nowhere else.
 
-#: The paragraph that carries the channel fence. Found by its step marker, so a
-#: keyword surviving in some other paragraph does not satisfy the binding.
+#: The step that carries the channel fence. Bounded by its own marker and the
+#: next blank line or heading.
 CHANNEL_STEP: Final = "**4f."
 
-#: Words that turn a sentence into a REPORT of a claim rather than the claim. A
-#: fence sentence carrying one of them is a retired draft wearing the keywords.
-HEDGES: Final = re.compile(
-    r"\b(draft|retired|claimed|older|formerly|used\s+to|no\s+longer|superseded|once\s+said)\b",
-    re.IGNORECASE,
+#: sha256 of the pinned block's ASCII bytes, LF line endings.
+CHANNEL_BLOCK_SHA256: Final = "037f90a19546754c6c1d495b9a421798ddebd559e60e04eff40fe15e62e3042d"
+
+#: The message every pin failure carries.
+REPIN_MESSAGE: Final = (
+    "this block is pinned by CS-1104; any change needs a deliberate re-pin reviewed "
+    "against the never-reply fence"
 )
+
+#: The channel vocabulary. Case-insensitive; each may occur ONLY in the block.
+CHANNEL_TOKENS: Final = re.compile(
+    r"inbox|acknowledg|--ack|\brepl(y|ies|ied|ying)\b|outbound", re.IGNORECASE
+)
+
+
+def channel_block(text: str) -> str:
+    """The block opened by :data:`CHANNEL_STEP`, up to the next blank line or heading."""
+    start = text.find(CHANNEL_STEP)
+    if start < 0:
+        return ""
+    rest = text[start:]
+    end = re.search(r"\n\s*\n|\n#", rest)
+    return rest if end is None else rest[: end.start()]
+
+
+def block_digest(text: str) -> str:
+    """The sha256 of the channel block's ASCII bytes."""
+    return hashlib.sha256(channel_block(text).encode("ascii")).hexdigest()
+
+
+def stray_channel_tokens(text: str) -> list[str]:
+    """Every channel token occurring OUTSIDE the channel block, as `line N: token`."""
+    block = channel_block(text)
+    begin = text.find(block) if block else -1
+    end = begin + len(block)
+    found = []
+    for match in CHANNEL_TOKENS.finditer(text):
+        if begin <= match.start() < end and block:
+            continue
+        line = text.count("\n", 0, match.start()) + 1
+        found.append(f"line {line}: {match.group(0)}")
+    return found
+
+
+def test_the_channel_block_is_pinned_byte_exact(prompt_text: str) -> None:
+    """CS-1104: step 4f is byte-identical to its reviewed pin."""
+    block = channel_block(prompt_text)
+
+    assert block.startswith(CHANNEL_STEP), f"no channel block found - {REPIN_MESSAGE}"
+    assert block_digest(prompt_text) == CHANNEL_BLOCK_SHA256, REPIN_MESSAGE
+
+
+def test_the_channel_vocabulary_occurs_only_inside_the_pinned_block(prompt_text: str) -> None:
+    """CS-1104: inbox, acknowledge, --ack, reply and outbound are allowed in the block alone."""
+    stray = stray_channel_tokens(prompt_text)
+
+    assert stray == [], f"channel vocabulary outside the pinned block: {stray} - {REPIN_MESSAGE}"
+
+
+def test_control_the_pin_extracts_the_block_that_carries_the_fence(prompt_text: str) -> None:
+    """POSITIVE CONTROL: the hashed bytes are the fence, not an empty or a neighbouring span."""
+    block = channel_block(prompt_text)
+
+    assert "Surfacing never" in block, block
+    assert "out of scope for a lane cycle" in block, block
+    assert CHANNEL_TOKENS.search(block), "the pinned block carries none of the vocabulary"
+
+
+def test_control_a_token_outside_the_block_is_reported_and_inside_is_not() -> None:
+    """NEGATIVE AND POSITIVE CONTROL for the allowlist, on one synthetic document."""
+    doc = (
+        "## 4\n\n**4f. Channel.** Surfacing never acknowledges the inbox.\n\n"
+        "Acknowledge and answer each item, never skipping one.\n"
+    )
+
+    assert stray_channel_tokens(doc) == ["line 5: Acknowledg"], stray_channel_tokens(doc)
+    assert stray_channel_tokens(doc.split("\n\nAcknowledge", maxsplit=1)[0] + "\n") == []
+
 
 #: A sentence about the channel ...
 CHANNEL_NOUN: Final = re.compile(
@@ -582,7 +664,9 @@ REPLY_VERB: Final = re.compile(
     r"|\bdeliver\w*|\bsend\w*|\bmark\w*\s+\w+\s+seen\b",
     re.IGNORECASE,
 )
-#: ... must carry a negation, or it is an instruction to do the act.
+#: ... must carry a negation, or it is an instruction to do the act. KEPT beside
+#: the pin because it reaches verbs the token allowlist does not name (answer,
+#: respond, compose, deliver, send) OUTSIDE the block; inside it the pin rules.
 NEGATION: Final = re.compile(
     r"\bnever\b|\bnot\b|\bno\b|\bnothing\b|\bnor\b|out\s+of\s+scope|n't\b", re.IGNORECASE
 )
@@ -594,44 +678,6 @@ def sentences(text: str) -> list[str]:
     return [part for part in re.split(r"(?<=[.;:!?])\s+", flat) if part]
 
 
-def channel_paragraph(text: str) -> str:
-    """The paragraph opened by :data:`CHANNEL_STEP`, up to the next blank line or heading."""
-    start = text.find(CHANNEL_STEP)
-    if start < 0:
-        return ""
-    rest = text[start:]
-    end = re.search(r"\n\s*\n|\n#", rest)
-    return rest if end is None else rest[: end.start()]
-
-
-def binding_faults(text: str) -> list[str]:
-    """Why the channel fence is NOT stated as live sentences of its own paragraph.
-
-    Returns:
-        Empty when the paragraph has a sentence OPENING with "Surfacing never
-        acknowledges" and a sentence OPENING with "Composing" that places the act
-        out of scope for a lane cycle, neither of them hedged.
-    """
-    paragraph = channel_paragraph(text)
-    if not paragraph:
-        return ["no channel step paragraph"]
-    faults: list[str] = []
-    parts = sentences(paragraph)
-    ack = [p for p in parts if re.match(r"surfacing\s+never\s+acknowledges\b", p, re.IGNORECASE)]
-    scope = [
-        p
-        for p in parts
-        if re.match(r"composing\b", p, re.IGNORECASE)
-        and re.search(r"out\s+of\s+scope\s+for\s+a\s+lane\s+cycle", p, re.IGNORECASE)
-    ]
-    if not ack:
-        faults.append("no sentence opens with the never-acknowledges fence")
-    if not scope:
-        faults.append("no sentence opens with the composing-is-out-of-scope fence")
-    faults += [f"hedged fence sentence: {p!r}" for p in ack + scope if HEDGES.search(p)]
-    return faults
-
-
 def reply_instructions(text: str) -> list[str]:
     """Every sentence that names the channel and an ack or reply act WITHOUT a negation."""
     return [
@@ -641,38 +687,12 @@ def reply_instructions(text: str) -> list[str]:
     ]
 
 
-#: The measured M6 mutant: an instruction to acknowledge and reply, with the fence
-#: keywords kept alive inside a sentence that reports them as a retired draft.
-RETIRED_DRAFT: Final = (
-    "**4f. The cross-repo channel.** Acknowledge each item once you have surfaced it, and "
-    "answer any item that asks for a reply. An older draft claimed surfacing never "
-    "acknowledges and that composing a reply was not something to deliver; that draft "
-    "called it out of scope for a lane cycle, and it is retired.\n\nNext paragraph.\n"
-)
-
-
-def test_the_channel_fence_is_bound_to_its_own_paragraph(prompt_text: str) -> None:
-    """W3: the fence sentences open their own sentences inside step 4f, unhedged."""
-    assert binding_faults(prompt_text) == []
-
-
 def test_no_sentence_in_the_prompt_instructs_an_ack_or_a_reply(prompt_text: str) -> None:
-    """W3: anywhere in the prompt, a channel sentence naming an ack or reply act is negated."""
+    """Anywhere in the prompt, a channel sentence naming an ack or reply act is negated."""
     assert reply_instructions(prompt_text) == []
 
 
-def test_control_a_retired_draft_fails_both_channel_predicates() -> None:
-    """NEGATIVE CONTROL: the measured M6 text is reported by BOTH predicates above."""
-    assert binding_faults(RETIRED_DRAFT), "the binding predicate passed a retired draft"
-    assert reply_instructions(RETIRED_DRAFT), "the instruction predicate missed the ack order"
-
-
-def test_control_the_live_fence_shape_passes_both_channel_predicates() -> None:
-    """POSITIVE CONTROL: a minimal correct paragraph is reported for nothing."""
-    good = (
-        "**4f. The channel.** The driver surfaces moon_sync_inbox/ into its ledger. "
-        "Surfacing never acknowledges: nothing marks an item seen. Composing, grading or "
-        "delivering a note is out of scope for a lane cycle.\n\nNext.\n"
-    )
-    assert binding_faults(good) == []
-    assert reply_instructions(good) == []
+def test_control_an_unnegated_reply_order_is_reported_and_a_negated_one_is_not() -> None:
+    """NEGATIVE AND POSITIVE CONTROL for the instruction predicate."""
+    assert reply_instructions("Answer any item that asks for a reply.")
+    assert reply_instructions("Composing a note is out of scope for a lane cycle.") == []

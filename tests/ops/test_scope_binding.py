@@ -57,6 +57,11 @@ if str(ROOT) not in sys.path:
 # unmeasured and the run green - CONVENTIONS.md section 7.2.
 from ops.loop import claims, lanes, queue_loop, scope  # noqa: E402
 
+# CS-1104 - the live-channel audit, AUTOUSE by import: any test here that lists or
+# opens `moon_sync_inbox/` or its seen store fails at teardown. One owner of the
+# hook, in tests/test_queue_loop.py; tests/ops has no conftest to share it through.
+from tests.test_queue_loop import channel_audit  # noqa: E402, F401
+
 # ---------------------------------------------------------------------------
 # Synthetic corpus. Hand-authored and deliberately NOT a slice of the live docs
 # - CLAUDE.md section 7 settles that fixtures are synthetic.
