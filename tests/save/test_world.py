@@ -830,20 +830,66 @@ def test_the_empty_unlock_state_says_the_grammar_is_unmeasured() -> None:
 
 
 def test_no_unlock_field_is_ever_fabricated() -> None:
-    """The fence. Every unlock collection is empty because nothing reads one today.
+    """The fence. Every published unlock value traces to a carrier in the input.
 
-    ``world._read_unlocks`` is the only producer of the published state and
-    returns the empty constant with no read of its own, so there is no path by
-    which a purchased schematic could have arrived. A non-empty collection here
-    would mean an invented one.
+    THE RATIONALE THIS ARM SHIPPED WITH WAS FALSE AND IS RESTATED HERE FROM THE
+    SOURCE - CS-1085. It said ``world._read_unlocks`` "is the only producer of
+    the published state and returns the empty constant with no read of its own,
+    so there is no path by which a purchased schematic could have arrived".
+    CS-1039 gave that function a record table and a
+    :class:`~clockspeed.save.world.WorldProperties`, and it now walks every
+    record, matches the owning class and property name together against
+    :data:`~clockspeed.save.world.UNLOCK_CARRIERS`, and publishes what the
+    matched payloads carried. There IS such a path, so the fence has to GRADE
+    it rather than deny it exists.
+
+    EMPTINESS OVER A CARRIER-FREE POPULATION PROVES NOTHING, which is the whole
+    reason for the second half. Every fixture in ``_LOADABLE_FIXTURES`` happens
+    to carry no unlock carrier, so a decoder that returned
+    :data:`~clockspeed.save.world.EMPTY_UNLOCK_STATE` unconditionally - the
+    CS-913 defect - satisfied every assertion the first half makes and this arm
+    passed it. The two halves separate the two directions a fabrication fence
+    must hold at once: nothing may APPEAR that the input did not carry, and
+    nothing the input DID carry may vanish, because a decoder that publishes
+    the empty constant regardless fabricates an ANSWER rather than a value.
+
+    THE EXPECTED STATE IS COMPARED WHOLE rather than field by field, so a
+    carrier landing on a field the input never fed - scanned resources, a
+    feature flag, a trading post level, all of them still unread per
+    :data:`~clockspeed.save.world.UNLOCK_CARRIERS_UNREAD` - reddens here too.
+
+    EVERY COMPARISON IS BOUND TO A BOOL BEFORE IT IS ASSERTED, and that is not
+    style. ``UnlockState.__repr__`` renders counts only for non-negotiable 12,
+    but pytest's assertion rewriting does not go through it: handed two
+    dataclasses it drills into the DIFFERING ATTRIBUTES and prints the object
+    paths inside them, which was MEASURED while building this arm. Binding the
+    comparison first leaves the rewriter a bare name to render, so the failure
+    text is this function's own message and nothing else.
     """
     for fixture in _LOADABLE_FIXTURES:
-        unlocks = _load_flat(fixture.blob).unlocks
-        assert not unlocks.purchased_schematics
-        assert not unlocks.recipes
-        assert not unlocks.scanned_resources
-        assert not unlocks.feature_flags
-        assert unlocks.is_empty
+        published = _load_flat(fixture.blob).unlocks
+        nothing_appeared = published == world.EMPTY_UNLOCK_STATE
+        assert nothing_appeared, (
+            f"{fixture.name} carries no unlock carrier and published a value "
+            "anyway, so the reader invented one"
+        )
+
+    carried = world.UnlockState(
+        purchased_schematics=frozenset(_PURCHASED_PATHS),
+        recipes=frozenset(_RECIPE_PATHS),
+        current_game_phase=_GAME_PHASE_ASSET,
+        feature_flags=MappingProxyType({}),
+        scanned_resources=frozenset(),
+        trading_post_level=None,
+    )
+    published = world.load_world_from_bytes(_carrier_blob(_carrier_records())).unlocks
+
+    exactly_what_was_carried = published == carried
+    assert exactly_what_was_carried, (
+        "the state read from a carrier-bearing world is not exactly what that "
+        "world carried: an extra value is a fabrication, and a missing one is "
+        "a decoder publishing the empty constant regardless of its input"
+    )
 
 
 # ---------------------------------------------------------------------------

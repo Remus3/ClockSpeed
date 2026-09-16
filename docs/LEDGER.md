@@ -374,6 +374,132 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-09-15 - CS-1085 - the fabrication fence now grades the population it names
+
+**THE RATIONALE HAD SHIPPED FALSE AND THE ARM HAD STOPPED DISCRIMINATING.**
+`tests/save/test_world.py::test_no_unlock_field_is_ever_fabricated` said
+`clockspeed/save/world.py::_read_unlocks` "returns the empty constant with no read of its
+own, so there is no path by which a purchased schematic could have arrived". CS-1039 had
+already given that function a record table and a `WorldProperties`, three carriers in
+`UNLOCK_CARRIERS`, and a walk over every record. The path it denied exists.
+
+**THE PREMISE WAS MEASURED, NOT ARGUED.** Planting the CS-913 defect - `_read_unlocks`
+returning `EMPTY_UNLOCK_STATE` unconditionally - left the SHIPPED arm at 1 passed, exit 0.
+Every fixture in `_LOADABLE_FIXTURES` happens to carry no carrier, so an arm asserting only
+emptiness was satisfied by the very decoder it was written to catch.
+
+**THE FENCE NOW HOLDS BOTH DIRECTIONS.** Nothing may APPEAR that the input did not carry,
+and nothing the input DID carry may vanish. The second half loads a carrier-bearing world
+and compares the published `UnlockState` whole against what that world carried.
+
+**GRADED BY AN ADVERSARY THAT DID NOT BUILD IT.** Each of the six fields was mutated ALONE
+and conditionally, so only the carrier-bearing half could catch it: purchased_schematics,
+recipes, current_game_phase, feature_flags, scanned_resources and trading_post_level each
+reddened, as did the unconditional-empty plant. Seven mutants, seven deaths on the arm's own
+assertion rather than on an exception. A recording spy proved the `UNLOCK_CARRIERS` branch is
+ENTERED rather than assumed - a correct fixture does not make a live arm. The first half was
+checked for regression against the four assertions it replaced and is strictly stronger or
+equal, never weaker.
+
+**EVERY COMPARISON IS BOUND TO A BOOL BEFORE IT IS ASSERTED, and that is non-negotiable 12
+rather than style.** `UnlockState.__repr__` renders counts only, but pytest's assertion
+rewriting does not go through it: handed two dataclasses it drills into the differing
+attributes and prints the object paths inside them. That was measured while building the arm,
+against a first cut whose docstring claimed the opposite - the same stale-rationale shape this
+item exists to repair, arriving inside its own repair.
+
+**A BOUND THIS RECORD DOES NOT CROSS.** The carrier fixture's fidelity to what the game
+actually writes is not established here and cannot be: non-negotiable 11 forbids a save in a
+fixture directory, so the arm grades the decoder against hand-authored synthetic carriers. If
+the fixture encoded a carrier the game never writes, every mutant would still redden and the
+arm would still be grading a fiction. `docs/adr/0016-unlock-arrays-carriers-and-serialized-grammar.md`
+is where that grammar is argued.
+
+Merged file: `tests/save/test_world.py`. Test name:
+`test_no_unlock_field_is_ever_fabricated`. Suites: `tests/save` 1561 passed exit 0;
+`tests/save/test_world.py` 136 passed exit 0.
+
+### 2026-09-15 - CS-1057, CS-1088 - CLOSED AS SUPERSEDED by CS-1066, which carries their surviving clauses
+
+**THREE ITEMS WERE FILED AGAINST ONE WALL AND NONE OF THEM KNEW IT.** CS-1057, CS-1066 and
+CS-1088 all name `tests/test_docs_citations.py` against the `_MAX_TEST_FILE_BYTES` ceiling in
+`tests/data/test_phase2_gate.py`, each filed at a different reading of the same headroom as the
+file grew. Three open items over one defect is three chances to ship three partial relocations,
+and the second one to land would have to undo the first. An adjudicator that produced none of
+this work ruled under `CLAUDE.md` section 6.1 that CS-1066 is the CARRIER and these two close
+against it. Their ids are retired and are never reused.
+
+**THE CLAUSE THAT SURVIVES, NAMED RATHER THAN ASSUMED.** CS-1057's "with every arm still
+collected and the count asserted equal before and after" is NOT dropped by this close - it is
+carried verbatim into CS-1066's amended acceptance as "the collected-arm count is asserted EQUAL
+before and after". This is recorded because a superseding close that silently drops a clause is
+how a clause dies: the id goes away, the reader assumes the carrier covers everything, and the
+one requirement the carrier never had is the one nobody notices missing. CS-1057's "the ceiling
+is NOT raised" survives the same way, and so does CS-1088's "under 80 percent" and its approach
+arm above 90 percent.
+
+**WHAT VERIFIES THIS INDEPENDENTLY.** The relocation itself is CS-1066's to prove and is NOT
+claimed here - nothing about `tests/test_docs_citations.py` has moved. What this record closes is
+the DUPLICATION. Merged file: `ROADMAP.md`, from which both item lines are removed so that
+`tools/drift_guard.py` guard (i), work-item ownership, sees each id in exactly one owner file -
+this one. The surviving carrier line is CS-1066's in `ROADMAP.md`.
+
+**A SEAM THIS RECORD OPENS AND LEAVES UNDISCHARGED.** CS-1057 carries per-item detail at
+`docs/item_notes/phase4-followups-900.md`, routed from `docs/item_notes.md`. A closed item's
+detail belongs in `docs/history_notes.md`, and
+`tests/data/test_item_notes_index.py::test_every_section_sits_in_the_leaf_the_membership_rule_names` reddens on
+a body with no OPEN line. Those three files were outside this slice's write-list and the
+relocation is NOT done. This is stated as open rather than rounded down.
+
+### 2026-09-15 - CS-1066 - NOT A COMPLETION RECORD. CS-1066 STAYS OPEN as the carrier, and its acceptance was AMENDED under CLAUDE.md section 8
+
+**WHY AN AMENDMENT RATHER THAN A THIRD FILING.** CS-1066 was filed when the module had 4 bytes
+of headroom and it wrote its remedy against that reading: "at least 32768 bytes of headroom
+afterwards", plus "a new arm reddens when headroom drops below 8192 bytes". Two later items
+measured the same wall and wrote the same remedy in percentage terms. Ground truth beats the
+document, so the reconciled acceptance is recorded here and the ROADMAP line carries it.
+
+**THE AMENDED ACCEPTANCE, IN FULL.** The disposition and pin tables are RELOCATED to a new
+sibling module under `tests/`, with every consumer following; `tests/test_docs_citations.py`
+lands under 80 percent of the ceiling; the ceiling is NOT raised; the collected-arm count is
+asserted EQUAL before and after; the forgiveness budget still spends EXACTLY; and an approach arm
+reddens above 90 percent.
+
+**TWO CLAUSES ARE STRUCK, AND THE STRIKING IS THE PART THAT HAD TO BE WRITTEN DOWN.**
+
+- The "at least 32768 bytes of headroom afterwards" clause is SUBSUMED by "under 80 percent".
+  One expression of one requirement, in the units the guard already reports.
+- The "arm reddens when headroom drops below 8192 bytes" trigger is REPLACED by the single 90
+  percent trigger. Two live triggers for one guard is precisely the drift `CLAUDE.md` section 4
+  forbids - two owners for one number, drifting apart the first time either is tuned - and the
+  90 percent trigger is strictly tighter than the byte figure it replaces, so nothing this guard
+  used to catch escapes it.
+
+**WHAT IS NOT CLAIMED.** No relocation has happened. `tests/test_docs_citations.py` is unchanged
+by this record and the acceptance above is undischarged. Merged file: `ROADMAP.md`.
+
+### 2026-09-15 - CS-898 - NOT A COMPLETION RECORD. CS-898 STAYS OPEN, NARROWED, with one half of its acceptance struck as discharged
+
+**THE HALF THAT IS STRUCK.** CS-898's acceptance offered an either-or - the gate distinguishes a
+slice of real game data from a large hand-authored module, OR its stated claim is corrected to
+what it actually promises - and then appended "and the tree is kept under it by a stated policy"
+to the second branch. That trailing clause is DISCHARGED by CS-1066's approach arm, which is the
+stated policy: an arm that reddens above 90 percent is what keeping the tree under the ceiling
+looks like as a machine check rather than as prose. It is struck from CS-898 so that one
+requirement has one owner.
+
+**WHAT REMAINS OPEN, STATED SO IT CANNOT BE READ AS CLOSED.** The falsified-basis question - the
+ceiling claims to distinguish a committed slice of real game data from a large hand-authored
+module and does not - and the arm that catches a planted oversize non-authored artifact. Neither
+is touched by CS-1066. An adjudicator that produced none of this work ruled the narrowing under
+`CLAUDE.md` section 6.1. Merged file: `ROADMAP.md`.
+
+**THE THREE ITEMS THE SAME RULING FILED.** `tests/save/test_struct_interior.py`,
+`tests/save/test_properties.py` and `tests/save/test_world.py` each sit above the approach band
+of the same ceiling and are filed as CS-1089, CS-1090 and CS-1091 in `ROADMAP.md`, one per file,
+each tier 1, so the approach arm's baseline table has an item id per row rather than a population
+whose worst member is unmeasured. The byte readings stay with the arm that owns them.
+
 ### 2026-09-15 - CS-1083 - CLOSED. The world-token privacy check stopped degrading to silence, and the repair's first cut hollowed the arms it was supposed to protect
 
 **THE DEFECT.** `tools/precommit_gate.py`'s `<pii:world>` check reported a skip and then

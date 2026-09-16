@@ -78,6 +78,35 @@ Where current truth actually lives:
 - Next action: CS-1042 - the uncollected set is the live records carrying transforms MINUS the
   collectable pairs CS-1038 now carries up, a SUBTRACTION and not a lookup, and the two halves
   of a pair are not both always present.
+## CS-1057 - item section, CLOSED and relocated from `docs/item_notes/phase4-followups-900.md` 2026-09-15
+
+### Filed 2026-09-14
+
+**THIS CEILING IS NOT A STYLE RULE AND MUST NOT BE RAISED.** It exists so a slice of REAL
+GAME DATA cannot be committed disguised as hand-authored synthetic material - non-negotiables
+2 and 11. Raising it, or exempting a file from it, removes the only mechanical check between
+this repo and a committed save. Every repair below is a RELOCATE.
+
+**IT HAS STOPPED BEING A WARNING AND STARTED COSTING WORK.** On 2026-09-14 the clean seam for
+splitting `tests/save/test_struct_interior.py` was three anti-monotone controls moving to a
+sibling. Moving the third required ONE new `DISPOSITIONS` entry here, because its arm is
+cited by path in append-only `docs/LEDGER.md`. That single entry took this file from 262140
+to 263039 and failed the identical gate. Repairing one file broke another, so the two-control
+split shipped instead - a worse seam chosen by a byte count rather than by the structure.
+
+**FOUR BYTES IS ONE COMMENT LINE.** Any session that adds a disposition, a per-doc arm, or a
+sentence of explanation to this module turns the whole suite red, and the failure will look
+like whatever that session was doing rather than like this.
+
+**THE ARM COUNT IS THE THING TO PROTECT.** Assert the collected count equal before and after
+the relocation. A module that silently collects fewer tests is the shape this project has
+measured as a gate that skips its checks and still reports PASS.
+
+**DO NOT TRIM PROSE TO BUY BYTES.** The docstrings in this module record why each guard
+exists and what defeated its predecessor. Deleting them to fit is exactly the trade CLAUDE.md
+refuses when it says relocate, never delete - the budget exists to protect that content, not
+to ration it.
+
 ## CS-892 - item section, CLOSED and relocated from `docs/item_notes/phase4-followups-850.md` 2026-09-14
 
 Closed by the entry of the same id in `docs/LEDGER.md`. The duplication this section
