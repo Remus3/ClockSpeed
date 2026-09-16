@@ -374,6 +374,56 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-09-16 - CS-1095 addendum - NOT A COMPLETION RECORD. The section 14 licence gate, RUN against the vendored doc after the fact, and CLEARED
+
+**WHY THIS ENTRY EXISTS.** `docs/CHANNEL.md` was vendored on a direct operator
+instruction and this tree's own `CONVENTIONS.md` section 14 gate was NEVER RUN against
+it. That gap was found by a SIBLING rather than here: LL refused the same file at its own
+licence gate on 2026-09-15 for naming no licence, no holder and no repository, and that
+refusal applied to this copy exactly as it applied to the original. The sending tree
+conceded the omission plainly - it had named a commit and called the tree public, and
+public is a VISIBILITY, not a GRANT.
+
+**THE GATE WAS RUN HERE, TRAP BY TRAP, AGAINST THE SOURCE REPOSITORY'S OWN FILES** rather
+than against the sending tree's summary of them. Section 14's first trap is that a repo
+can contradict itself and one source alone gives the wrong answer, so a summary could not
+have discharged it.
+
+- TRAP 1, self-contradiction: NONE. `LICENSE`, the README licence paragraph and `NOTICE`
+  agree. The `LICENSE` carries a SCOPE OF THIS LICENSE block stating the grant covers the
+  source code and the authored documentation, naming "the Markdown that describes them",
+  and carving out only the third-party data under `data/`. `docs/CHANNEL.md` is authored
+  documentation and is not under `data/`. The scope block states that it CONTROLS where a
+  data file and the licence appear to conflict.
+- TRAP 2, a holder who cannot relicense: NOT PRESENT. One holder, `Moonbeam`, named in
+  both `LICENSE` and `NOTICE`, and the sending tree wrote the doc's bytes itself.
+- TRAP 3, a licence naming NOBODY: NOT PRESENT. The copyright line is RENDERED, not a
+  template: `Copyright 2026 Moonbeam` at `LICENSE` line 189. Read the line, not the name.
+- TRAP 4, truncation: NOT PRESENT. 219 lines, the warranty clause present.
+- TRAP 5, source-available: NOT PRESENT. Zero occurrences of Elastic, BUSL or an
+  all-rights-reserved reservation in `LICENSE` or the README.
+
+**VERDICT: CLEARED FOR VENDORING.** Apache-2.0 is permissive and one-way compatible with
+this tree's outbound licence.
+
+**THE OBLIGATION THAT SURVIVES THE CLEARANCE**, because a permissive licence is not an
+absent one. Apache-2.0 section 4 asks a redistributor to retain the attribution. The
+vendored file is BYTE-PINNED and carries no notice of its own, and this tree may not add
+one to it - so the attribution is recorded in the section 4 topology row, which is
+auto-loaded every turn, and here. There are no changes to state: the copy is byte-identical
+and its digest is pinned by an arm.
+
+**STATED RATHER THAN LEFT TO BE NOTICED: the named holder is also this repository's own
+commit identity.** The same operator owns both trees. That is not an exemption from the
+gate and it did not shorten it - the gate was run as if the holder were a stranger, which
+is the only way its result means anything - but a reader who spotted it later and found it
+unmentioned would be right to discount the verdict.
+
+**WHAT THIS ENTRY DOES NOT CLOSE.** Nothing. CS-1095 is already closed above; this records
+a gate that should have run before that entry and did not. The lesson belongs with the
+record: an operator instruction moves the DECISION, not the GATE, and this tree ran the
+vendoring without noticing it had skipped one of its own.
+
 ### 2026-09-16 - CS-1095 - the cross-repo channel contract adopted, the doc vendored and pinned, and the console-flash flag guarded
 
 **WHAT CLOSED.** All nine items of the operator's moon-sync adoption instruction,
