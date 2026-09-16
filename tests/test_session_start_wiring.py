@@ -42,9 +42,9 @@ branch was taken instead, which is also what `docs/LEDGER.md` records for
 CS-931, the same defect one tool earlier.
 
 THAT REASON IS RETIRED AND THE REFUSAL WAS RE-DERIVED WITHOUT IT (CS-1101).
-CS-1095 made every default path of the watcher return 0, keeping the old codes
-behind `--strict`, so today the tool answers that state with exit 0 and prints
-its `UNMEASURED` banner - a tracked hook WOULD speak. The refusal still holds,
+CS-1095 made every default path of the watcher return 0. The old codes moved
+behind `--strict`. So today the tool answers that state with exit 0 and
+prints its `UNMEASURED` banner - a tracked hook WOULD speak. The refusal still holds,
 on a different reason: the watcher resolves its root from its own file, and the
 channel exists only in the one working copy that is already wired locally. In a
 fresh clone and in every worktree - the default session shape here - a tracked
@@ -88,7 +88,7 @@ import subprocess
 import sys
 import tarfile
 from pathlib import Path
-from typing import Final
+from typing import Final, NamedTuple
 
 import pytest
 
@@ -330,7 +330,9 @@ CLAIM_PATTERN: Final = re.compile(
 #: EVERY exit code a docstring states, in any sentence shape. `CLAIM_PATTERN`
 #: only LOCATES the claim; grading reads every code this one matches, so a
 #: sentence stating a contradicting code cannot sit beside a decoy written in
-#: the anchored shape and pass.
+#: the anchored shape and pass. Each code is graded by the SENTENCE it sits in:
+#: one naming `--strict` against the measured strict return, any other against
+#: the measured default return.
 CODE_PATTERN: Final = re.compile(
     r"\b(?:exit(?:s|ed|ing)?|return(?:s|ed|ing)?|code)\s+(?:with\s+)?"
     r"(?:(?:exit\s+)?code\s+)?(\d+)\b",
@@ -372,33 +374,88 @@ def _all_stated_codes(text: str) -> list[int]:
     return [int(match.group(1)) for match in CODE_PATTERN.finditer(text)]
 
 
+#: Why a code about something other than the watcher is still red, carried in
+#: the assertion so the next author is told rather than left to guess.
+GRADING_RULE: Final = (
+    "every exit code a live docstring states is read as a claim about the watcher's"
+    " no-channel return: a code in a sentence naming --strict is graded against the"
+    " measured --strict return, every other code against the measured default return."
+    " A code about something else (e.g. a hook that exits 2 blocks) is red too - write"
+    " it without the number."
+)
+
+
+def _misgraded_codes(text: str, default: int, strict: int) -> list[str]:
+    """Each stated code that disagrees with the return its sentence is graded against.
+
+    Prose only - the two returns are passed in, measured by the caller.
+    """
+    wrong: list[str] = []
+    for sentence in re.split(r"(?<=[.!?])\s+", " ".join(text.split())):
+        mode, expected = ("--strict", strict) if "--strict" in sentence else ("default", default)
+        wrong.extend(
+            f"{code} (graded against the {mode} return {expected})"
+            for code in _all_stated_codes(sentence)
+            if code != expected
+        )
+    return wrong
+
+
 def _module_docstring(path: Path) -> str:
     """The module docstring of `path`, parsed from source and never imported."""
     return ast.get_docstring(ast.parse(path.read_text(encoding="utf-8"))) or ""
 
 
-def _decoy_channel(cwd: Path) -> Path:
-    """A tree that DOES hold a channel, used as the working directory of a run."""
-    (cwd / "moon_sync_inbox").mkdir(parents=True)
-    (cwd / "moon_sync_inbox" / "cs1101-decoy.md").write_text("decoy\n", encoding="ascii")
-    return cwd
+def _decoy_checkout(tree: Path, repo_root: Path) -> Path:
+    """A tree shaped like the main checkout: a channel holding one note, and the tool."""
+    (tree / "moon_sync_inbox").mkdir(parents=True)
+    (tree / "moon_sync_inbox" / f"cs1101-decoy-{tree.name}.md").write_text(
+        "decoy\n", encoding="ascii"
+    )
+    (tree / "tools").mkdir()
+    (tree / WATCHED_TOOL).write_bytes((repo_root / WATCHED_TOOL).read_bytes())
+    return tree
 
 
-def _run_like_the_hook(
-    root: Path, repo_root: Path, cwd: Path, *extra: str
-) -> subprocess.CompletedProcess[str]:
+class HookLayout(NamedTuple):
+    """Where one probe run's watcher lives, where it starts, and what sits above it."""
+
+    root: Path
+    cwd: Path
+    ancestor: Path
+
+
+def _hook_layout(base: Path, repo_root: Path) -> HookLayout:
+    """Mirror a worktree nested under a main checkout that HAS the channel.
+
+    `root` - the tree whose `tools/` holds the watcher copy and no channel - is
+    placed at `.claude/worktrees/<name>` under `ancestor`, a decoy checkout with
+    a channel and the tool, exactly as this repository's worktrees sit under
+    the one working copy that holds `moon_sync_inbox/`. `cwd` is a SECOND decoy
+    checkout beside neither. A watcher that walked up from its file, or that
+    resolved or walked up from its working directory, finds a channel.
+    """
+    ancestor = _decoy_checkout(base / "ancestor", repo_root)
+    root = ancestor / ".claude" / "worktrees" / "cs1101-copy"
+    (root / "tools").mkdir(parents=True)
+    (root / WATCHED_TOOL).write_bytes((repo_root / WATCHED_TOOL).read_bytes())
+    cwd = _decoy_checkout(base / "cwd", repo_root)
+    return HookLayout(root=root, cwd=cwd, ancestor=ancestor)
+
+
+def _run_like_the_hook(layout: HookLayout, *extra: str) -> subprocess.CompletedProcess[str]:
     """Run the watcher as the SessionStart hook does, from a tree with no channel.
 
-    ACROSS A PROCESS BOUNDARY, on a byte-identical copy of the watcher placed
-    in `root`'s `tools/` and nothing else. The copy is what isolates the run:
-    the watcher resolves its root from its OWN file, so running the real file
-    would read and write the real checkout, invocation log included.
+    ACROSS A PROCESS BOUNDARY, on a byte-identical copy of the watcher in
+    `layout.root`. The copy is what isolates the run: the watcher resolves its
+    root from its OWN file, so running the real file would read and write the
+    real checkout, invocation log included.
 
-    THE WORKING DIRECTORY IS A DIFFERENT TREE THAT HOLDS A CHANNEL. That is the
-    CS-952 refusal's stated reason made observable: a watcher that resolved its
-    root from the cwd would find the decoy channel and write under it, and the
-    control arm goes red on either. So the copy is named by ABSOLUTE path
-    rather than by the hook's relative `tools/inbox_watch.py`, which is the one
+    EVERY OTHER TREE IN REACH HOLDS A CHANNEL - the ancestor the copy is nested
+    under and the working directory it is started from. That is the CS-952
+    refusal's stated reason made observable, and `_hook_layout` says which
+    resolutions each decoy catches. The copy is named by ABSOLUTE path rather
+    than by the hook's relative `tools/inbox_watch.py`, which is the one
     departure from `HOOK_COMMAND`, and it is the departure the check needs.
 
     `sys.executable` stands in for the hook's bare `python`, deliberately: the
@@ -406,16 +463,14 @@ def _run_like_the_hook(
     a given client is outside this repository - the module docstring already
     names it as not covered.
     """
-    tool_copy = root / WATCHED_TOOL
-    tool_copy.parent.mkdir(parents=True, exist_ok=True)
-    tool_copy.write_bytes((repo_root / WATCHED_TOOL).read_bytes())
-    assert not (root / "moon_sync_inbox").exists()
-    assert (cwd / "moon_sync_inbox").is_dir()
+    assert not (layout.root / "moon_sync_inbox").exists()
+    assert (layout.cwd / "moon_sync_inbox").is_dir()
+    assert (layout.ancestor / "moon_sync_inbox").is_dir()
     command = HOOK_COMMAND.split()
     assert command == ["python", WATCHED_TOOL]
     return subprocess.run(
-        [sys.executable, str(tool_copy), *extra],
-        cwd=cwd,
+        [sys.executable, str(layout.root / WATCHED_TOOL), *extra],
+        cwd=layout.cwd,
         input=_HOOK_PAYLOAD,
         capture_output=True,
         text=True,
@@ -424,15 +479,27 @@ def _run_like_the_hook(
     )
 
 
+class HookRuns(NamedTuple):
+    """The default run and the `--strict` run, each in its own layout."""
+
+    default: HookLayout
+    default_run: subprocess.CompletedProcess[str]
+    strict: HookLayout
+    strict_run: subprocess.CompletedProcess[str]
+
+
 @pytest.fixture(scope="module")
-def hook_run(
-    tmp_path_factory: pytest.TempPathFactory,
-) -> tuple[Path, Path, subprocess.CompletedProcess[str]]:
-    """One no-channel run, from a decoy cwd, shared by the arms that read it."""
+def hook_run(tmp_path_factory: pytest.TempPathFactory) -> HookRuns:
+    """One default and one `--strict` no-channel run, shared by the arms that read them."""
     repo = Path(__file__).resolve().parent.parent
-    root = tmp_path_factory.mktemp("cs1101-nochannel")
-    cwd = _decoy_channel(tmp_path_factory.mktemp("cs1101-decoy"))
-    return root, cwd, _run_like_the_hook(root, repo, cwd)
+    default = _hook_layout(tmp_path_factory.mktemp("cs1101-default"), repo)
+    strict = _hook_layout(tmp_path_factory.mktemp("cs1101-strict"), repo)
+    return HookRuns(
+        default=default,
+        default_run=_run_like_the_hook(default),
+        strict=strict,
+        strict_run=_run_like_the_hook(strict, "--strict"),
+    )
 
 
 def test_the_claim_extractor_sees_one_code_none_and_a_retired_mention() -> None:
@@ -452,48 +519,53 @@ def test_the_claim_extractor_sees_one_code_none_and_a_retired_mention() -> None:
     ]
     assert _all_stated_codes("it RETURNS 0, and exit code 4 under --strict") == [0, 4]
     assert _all_stated_codes("a hook exiting non-zero loses its stdout") == []
+    true_strict = "It exits 0. Under `--strict` the no-channel state still exits 3."
+    assert _misgraded_codes(true_strict, default=0, strict=3) == []
+    assert _misgraded_codes("Under `--strict` it exits 7.", default=0, strict=3) != []
+    assert _misgraded_codes("A hook that exits 2 blocks.", default=0, strict=3) != []
 
 
 def test_the_probe_enters_the_no_channel_path_under_an_isolated_root(
-    hook_run: tuple[Path, Path, subprocess.CompletedProcess[str]],
-    repo_root: Path,
-    tmp_path: Path,
+    hook_run: HookRuns,
 ) -> None:
     """CONTROL on the BEHAVIOUR side, and the arm that sees FILE-LOCATION resolution.
 
-    The run must be the no-channel run - it says so, and `--strict` on the
-    same tree tells it apart from a quiet channel. It is started from a cwd
-    that DOES hold a channel, so it only reports no channel, and only logs
-    under its own root and nothing under the cwd, while the watcher resolves
-    its root from its own file - the fact the CS-952 refusal now rests on.
+    The run must be the no-channel run - it says so, and `--strict` tells it
+    apart from a quiet channel. It is nested under an ancestor that holds a
+    channel and started from a cwd that holds one, so it only reports no
+    channel, and only logs under its own root, while the watcher resolves its
+    root from its own file and nothing else - the fact the CS-952 refusal now
+    rests on. Walking up from the file, or resolving from the cwd, is red.
     """
     # Every observation is bound to a scalar BEFORE it is asserted. pytest
     # renders an asserted expression independently of the message, and a
     # CompletedProcess carries the interpreter's absolute path, which is a home
     # directory on this machine.
-    root, cwd, result = hook_run
+    layout, result = hook_run.default, hook_run.default_run
     says_unmeasured = "UNMEASURED" in result.stdout
     says_no_channel = "no moon_sync_inbox/ directory" in result.stdout
-    names_the_decoy = "cs1101-decoy" in result.stdout
-    logged_under_root = (root / "data" / "inbox_watch_invocations.log").is_file()
-    wrote_under_cwd = (cwd / "data").exists()
+    names_a_decoy = "cs1101-decoy" in result.stdout
+    logged_under_root = (layout.root / "data" / "inbox_watch_invocations.log").is_file()
+    wrote_under_cwd = (layout.cwd / "data").exists()
+    wrote_under_ancestor = (layout.ancestor / "data").exists()
     assert says_unmeasured, "the run did not report UNMEASURED"
     assert says_no_channel, "the run did not report a missing channel"
-    assert not names_the_decoy, "the run listed the working directory's channel"
+    assert not names_a_decoy, "the run listed a channel from its cwd or an ancestor"
     assert logged_under_root, "the invocation log is not under the watcher's own root"
     assert not wrote_under_cwd, "the watcher wrote under its working directory"
-    strict_cwd = _decoy_channel(tmp_path / "cwd")
-    strict = _run_like_the_hook(tmp_path / "root", repo_root, strict_cwd, "--strict")
-    strict_code = strict.returncode
-    strict_unmeasured = "UNMEASURED" in strict.stdout
+    assert not wrote_under_ancestor, "the watcher wrote under an ancestor checkout"
+    strict_code = hook_run.strict_run.returncode
+    strict_unmeasured = "UNMEASURED" in hook_run.strict_run.stdout
+    strict_names_a_decoy = "cs1101-decoy" in hook_run.strict_run.stdout
     assert strict_code != 0, "--strict did not distinguish the no-channel state"
     assert strict_unmeasured, "--strict did not report UNMEASURED"
+    assert not strict_names_a_decoy, "--strict listed a channel from its cwd or an ancestor"
 
 
 @pytest.mark.parametrize("relpath", LIVE_CLAIM_FILES)
 def test_each_live_docstring_states_the_exit_code_the_hook_actually_gets(
     relpath: str,
-    hook_run: tuple[Path, Path, subprocess.CompletedProcess[str]],
+    hook_run: HookRuns,
     repo_root: Path,
 ) -> None:
     """THE LOAD-BEARING CS-1101 ARM. Every code the docstring states is the real one.
@@ -501,19 +573,18 @@ def test_each_live_docstring_states_the_exit_code_the_hook_actually_gets(
     The prose side reads only the docstring; the behaviour side only runs the
     watcher. EXACTLY ONE anchored claim is required, so a docstring that drops
     the number is red rather than vacuously green; and EVERY exit code the
-    docstring states in any shape must equal the returned code, so a
-    contradicting sentence beside a correct decoy is red too.
+    docstring states in any shape is graded per `GRADING_RULE` against a
+    MEASURED return, so a contradicting sentence beside a correct decoy is red
+    and a true sentence about `--strict` is not.
     """
     docstring = _module_docstring(repo_root / relpath)
-    stated = _stated_exit_codes(docstring)
-    returned = hook_run[2].returncode
-    assert len(stated) == 1, f"{relpath} states {len(stated)} anchored exit codes, not 1"
-    contradicting = [code for code in _all_stated_codes(docstring) if code != returned]
-    disagreement = (
-        f"{relpath}: stated_exit={stated[0]} contradicting={contradicting} returned_exit={returned}"
-    )
-    assert stated[0] == returned, disagreement
-    assert contradicting == [], disagreement
+    anchored = len(_stated_exit_codes(docstring))
+    default = hook_run.default_run.returncode
+    strict = hook_run.strict_run.returncode
+    misgraded = _misgraded_codes(docstring, default=default, strict=strict)
+    assert anchored == 1, f"{relpath} states {anchored} anchored exit codes, not 1"
+    disagreement = f"{relpath}: misgraded={misgraded}. Rule: {GRADING_RULE}"
+    assert misgraded == [], disagreement
 
 
 def test_each_archive_copy_of_the_premise_carries_its_supersession_note(
