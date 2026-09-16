@@ -642,6 +642,23 @@ def test_a_row_with_no_section_in_a_read_leaf_still_fails_beside_an_unread_one(
     assert "  CS-701 routed to" not in rendered, rendered
 
 
+def test_a_directory_carrying_a_leaf_name_is_its_own_finding_not_a_read_failure(
+    family: Path,
+) -> None:
+    """A directory named like a leaf is a tree shape the family forbids - graded, not unread.
+
+    Reading it raises, and CS-1115's first cut reported that as an unreadable
+    leaf and made the run UNGRADED, which names the wrong defect.
+    """
+    (family / LEAF_DIR_RELATIVE / "phase9.md").mkdir()
+
+    status, rendered = _run(family)
+
+    assert status == "FAIL", rendered
+    assert f"{LEAF_DIR_RELATIVE}/phase9.md is a directory, not a leaf" in rendered, rendered
+    assert "NOT READ" not in rendered, rendered
+
+
 def test_an_unlistable_leaf_directory_is_a_warn_never_a_fail(family: Path) -> None:
     """The sibling one level up: a refused listing globbed as zero leaves, silently."""
     leaf_dir = family / LEAF_DIR_RELATIVE

@@ -2942,15 +2942,86 @@ def test_a_refused_item_notes_read_makes_the_run_ungraded(
                 list(path.iterdir())
         code, report = run_main(capsys)
 
-    assert non_pass(report) == {"j": "WARN"}, report["guards"]
+    # A refused DIRECTORY also hides the leaves guard (a) budgets, so guard (a)
+    # is a second could-not-look WARN there; a refused leaf still stats.
+    expected = ["j"] if target == "leaf" else ["a", "j"]
+    assert non_pass(report) == dict.fromkeys(expected, "WARN"), report["guards"]
     assert report["verdict"] == "UNGRADED"
     assert code != 0, "a run that could not read the item-notes family exited 0"
-    assert report["ungraded"] == ["j"]
+    assert sorted(report["ungraded"]) == expected
+    for each in expected:
+        assert guard_of(report, each)["advisory"] is False, each
     guard = guard_of(report, "j")
-    assert guard["advisory"] is False
     # The path AND the verdict word, never the path alone: "docs/item_notes"
     # is a prefix of the index path every detail block already prints.
     assert any(f"{named} NOT READ" in line for line in guard["detail"]), guard["detail"]
+
+
+def test_a_refused_item_notes_directory_makes_guard_a_itself_warn(repo: Path) -> None:
+    """Guard (a) on its own, so guard (j) cannot be what saves the verdict."""
+    leaf_dir = repo / ITEM_NOTES_LEAF_RELATIVE.rsplit("/", 1)[0]
+
+    with refused(leaf_dir):
+        guard, skips = drift_guard.guard_budgets(repo)
+
+    rendered = "\n".join(guard["detail"])
+    assert guard["status"] == "WARN", rendered
+    assert guard["advisory"] is False, rendered
+    assert "NOT LISTED docs/item_notes/" in rendered, rendered
+    assert any(skip["path"] == "docs/item_notes/" for skip in skips), skips
+
+
+def test_a_refused_memory_directory_makes_the_run_ungraded(
+    repo: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Guard (b) never reports ``leaves: 0`` PASS over a store it could not list.
+
+    Guard (a) loses the same leaves, so both WARN, and neither is advisory.
+    """
+    memory = repo / "memory"
+    (memory / "a-leaf.md").write_text("# A leaf\n", encoding="utf-8")
+    index = memory / "MEMORY.md"
+    index.write_text(index.read_text(encoding="utf-8") + "- [A leaf](a-leaf.md)\n", "utf-8")
+    code, report = run_main(capsys)
+    assert (report["verdict"], code) == ("CLEAN", 0), "control: the leaf tree is not clean"
+
+    with refused(memory):
+        assert memory.is_dir(), "control: the refused store no longer stats"
+        with pytest.raises(PermissionError):
+            list(memory.iterdir())
+        code, report = run_main(capsys)
+
+    assert non_pass(report) == {"a": "WARN", "b": "WARN"}, report["guards"]
+    assert report["verdict"] == "UNGRADED"
+    assert code != 0
+    for each in ("a", "b"):
+        assert guard_of(report, each)["advisory"] is False, each
+    detail = guard_of(report, "b")["detail"]
+    assert "memory/ NOT LISTED" in "\n".join(detail), detail
+
+
+def test_a_refused_frozen_glob_directory_is_not_a_pass(repo: Path) -> None:
+    """Guard (f) globbed `.githooks/*` and a refused listing read as 0 files matching."""
+    claude = repo / "CLAUDE.md"
+    claude.write_text(
+        claude.read_text(encoding="utf-8").replace("- `LICENSE`\n", "- `LICENSE`\n- `hooks/*`\n"),
+        encoding="utf-8",
+    )
+    hooks = repo / "hooks"
+    hooks.mkdir()
+    (hooks / "pre-commit").write_text("#!/bin/sh\n", encoding="utf-8")
+    before, _skips = drift_guard.guard_frozen(repo)
+    assert before["status"] == "PASS", before["detail"]
+    assert any("hooks/* -> 1 file(s)" in line for line in before["detail"]), before["detail"]
+
+    with refused(hooks):
+        guard, skips = drift_guard.guard_frozen(repo)
+
+    rendered = "\n".join(guard["detail"])
+    assert guard["status"] == "WARN", rendered
+    assert guard["advisory"] is False, rendered
+    assert "hooks/* -> NOT LISTED" in rendered, rendered
+    assert any(skip["path"] == "hooks" for skip in skips), skips
 
 
 def _plant_roadmap_over_its_soft_budget(root: Path) -> None:

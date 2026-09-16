@@ -25,6 +25,11 @@ A missing file is reported as MISSING and is NOT a failure here. Whether a file
 that should exist does exist is doc topology, which is tools/drift_guard.py
 guard (d). This tool answers only "is what exists inside its budget".
 
+A directory that refuses a listing is reported as UNLISTED (CS-1115): its
+budgeted files were never seen, so the verdict reads INCOMPLETE, never PASS.
+The exit code still moves on a HARD failure only; tools/drift_guard.py guard (a)
+is what makes such a run UNGRADED.
+
 THE POPULATION IS STATED, NOT GLOBBED (CS-475). WALKED_ROOTS names every root
 this tool walks and WALK_BOUNDARY names the rule that stops the walk, both as
 data carrying their own reasons, and both are printed. That is not tidiness:
@@ -57,7 +62,7 @@ import json
 import os
 import subprocess
 import sys
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from pathlib import Path
 from types import MappingProxyType
@@ -132,6 +137,11 @@ ITEM_NOTES_LEAF_BUDGET = 128 * KB
 # a weak signal for that and it is not the primary control - but it is a free
 # one, and it points at the right file.
 UPSTREAM_WATCH_BUDGET = 16 * KB
+
+#: CS-1115 - the status of a row naming a DIRECTORY whose listing was refused.
+#: Its budgeted files were never seen, so it is neither absent nor inside
+#: budget, and the verdict reads INCOMPLETE rather than PASS over it.
+UNLISTED = "UNLISTED"
 
 RELOCATE_GUIDANCE = (
     "RELOCATE, DO NOT DELETE - move detail to a sub-index (INDEX_<domain>.md) or "
@@ -386,7 +396,9 @@ def _is_registered_worktree(path: Path, facts: GitFacts) -> bool:
     return resolved in facts.worktrees
 
 
-def _walk(root: Path, walked: WalkedRoot, facts: GitFacts) -> tuple[list[Path], list[Path]]:
+def _walk(
+    root: Path, walked: WalkedRoot, facts: GitFacts
+) -> tuple[list[Path], list[Path], list[Path]]:
     """Collect ``walked.filename`` under one declared root.
 
     Args:
@@ -396,17 +408,23 @@ def _walk(root: Path, walked: WalkedRoot, facts: GitFacts) -> tuple[list[Path], 
             .git marker has been removed by an in-progress teardown.
 
     Returns:
-        The matching files, and the directories the walk refused to enter
-        because they are checkout roots of their own. The second list is
-        REPORTED rather than discarded, so a reader can see what was left out
-        instead of taking the count on trust.
+        The matching files, the directories the walk refused to enter because
+        they are checkout roots of their own, and the directories it could not
+        list. The second and third lists are REPORTED rather than discarded, so
+        a reader can see what was left out instead of taking the count on trust.
     """
     base = _base_of(root, walked)
     wanted = walked.filename.lower()
     matches: list[Path] = []
     stopped: list[Path] = []
+    refused: list[Path] = []
 
-    for current, dirnames, filenames in os.walk(base):
+    def record(exc: OSError) -> None:
+        # CS-1115. os.walk DISCARDS a refused listing unless told otherwise, so
+        # a budgeted file behind one vanished from the population silently.
+        refused.append(Path(exc.filename) if exc.filename else base)
+
+    for current, dirnames, filenames in os.walk(base, onerror=record):
         here = Path(current)
         kept: list[str] = []
         for name in sorted(dirnames):
@@ -423,7 +441,7 @@ def _walk(root: Path, walked: WalkedRoot, facts: GitFacts) -> tuple[list[Path], 
         dirnames[:] = kept
         matches.extend(here / name for name in filenames if name.lower() == wanted)
 
-    return sorted(matches), sorted(stopped)
+    return sorted(matches), sorted(stopped), sorted(refused)
 
 
 @dataclass(frozen=True)
@@ -521,12 +539,15 @@ class Survey:
             silently dropped.
         index_available: False when git could not answer, in which case
             membership fell back to the boundary marker alone.
+        unlisted: Directories under a walked root whose listing was refused,
+            so whatever budgeted file they hold was never seen (CS-1115).
     """
 
     files: tuple[Path, ...]
     boundaries: tuple[str, ...]
     excluded: tuple[str, ...]
     index_available: bool
+    unlisted: tuple[str, ...] = ()
 
 
 def survey(root: Path | None = None, facts: GitFacts | None = None) -> Survey:
@@ -547,10 +568,12 @@ def survey(root: Path | None = None, facts: GitFacts | None = None) -> Survey:
     files: list[Path] = []
     boundaries: list[str] = []
     excluded: list[str] = []
+    unlisted: list[str] = []
 
     for walked in WALKED_ROOTS:
-        matches, stopped = _walk(root, walked, facts)
+        matches, stopped, refused = _walk(root, walked, facts)
         boundaries.extend(_display(root, path) for path in stopped)
+        unlisted.extend(_display(root, path) for path in refused)
         for path in matches:
             shown = _display(root, path)
             if facts.available and shown.lower() not in facts.members:
@@ -563,6 +586,7 @@ def survey(root: Path | None = None, facts: GitFacts | None = None) -> Survey:
         boundaries=tuple(sorted(boundaries)),
         excluded=tuple(sorted(excluded)),
         index_available=facts.available,
+        unlisted=tuple(sorted(unlisted)),
     )
 
 
@@ -597,11 +621,25 @@ def checkout_boundaries(root: Path | None = None) -> list[dict]:
     return [{"path": shown, "marker": WALK_BOUNDARY.marker} for shown in survey(root).boundaries]
 
 
-def _memory_leaves(root: Path) -> list[Path]:
-    memory = root / "memory"
-    if not memory.is_dir():
+def _markdown_in(directory: Path) -> list[Path]:
+    """Return every ``*.md`` entry of a directory, RAISING on a refused listing.
+
+    CS-1115. ``glob`` swallows a refused listing and yields nothing, so a
+    budgeted population behind it vanished while the verdict still read PASS.
+    ``iterdir`` raises instead, and the caller turns that into a reported row.
+    An absent directory is still an empty population, as before.
+
+    Raises:
+        OSError: When the directory exists and cannot be listed.
+    """
+    if not directory.is_dir():
         return []
-    return sorted(path for path in memory.glob("*.md") if path.name != "MEMORY.md")
+    return sorted(path for path in directory.iterdir() if path.match("*.md"))
+
+
+def _memory_leaves(root: Path) -> list[Path]:
+    """Return every memory leaf. Raises OSError on a refused listing."""
+    return [path for path in _markdown_in(root / "memory") if path.name != "MEMORY.md"]
 
 
 def _item_notes_leaves(root: Path) -> list[Path]:
@@ -610,11 +648,35 @@ def _item_notes_leaves(root: Path) -> list[Path]:
     DERIVED, never listed. A hand-maintained list of leaf names would let a new
     leaf join the tree unmeasured, which is the failure this tool's own
     population statement exists to refuse.
+
+    Raises:
+        OSError: When the directory exists and cannot be listed.
     """
-    leaves = root / "docs" / "item_notes"
-    if not leaves.is_dir():
-        return []
-    return sorted(leaves.glob("*.md"))
+    return _markdown_in(root / "docs" / "item_notes")
+
+
+def _unlisted_entry(shown: str, budget: int, severity: str, rule: str) -> dict:
+    """A row for a DIRECTORY whose budgeted files could not be enumerated."""
+    return {
+        "file": shown.rstrip("/") + "/",
+        "rule": rule,
+        "severity": severity,
+        "budget_bytes": budget,
+        "actual_bytes": None,
+        "status": UNLISTED,
+        "guidance": "",
+    }
+
+
+def _leaf_rows(
+    root: Path, lister: Callable[[Path], list[Path]], directory: str, budget: int, rule: str
+) -> list[dict]:
+    """Measure every leaf a lister finds, or report the directory it could not list."""
+    try:
+        leaves = lister(root)
+    except OSError:
+        return [_unlisted_entry(directory, budget, "WARN", rule)]
+    return [_entry(root, leaf, budget, "WARN", rule) for leaf in leaves]
 
 
 def _size(path: Path) -> int | None:
@@ -662,6 +724,7 @@ def evaluate(root: Path | None = None, observed: Survey | None = None) -> list[d
             invocation to ONE git query rather than one per consumer.
     """
     root = root or repo_root()
+    observed = observed if observed is not None else survey(root)
     claude_md = root / "CLAUDE.md"
     rows = [_entry(root, claude_md, CLAUDE_BUDGET, "HARD", "CLAUDE.md")]
 
@@ -670,13 +733,14 @@ def evaluate(root: Path | None = None, observed: Survey | None = None) -> list[d
         for path in _autoloaded_files(root, observed)
         if path != claude_md
     )
+    rows.extend(
+        _unlisted_entry(shown, AUTOLOADED_BUDGET, "HARD", "auto-loaded file")
+        for shown in observed.unlisted
+    )
     rows.append(
         _entry(root, root / "memory" / "MEMORY.md", MEMORY_INDEX_BUDGET, "HARD", "memory index")
     )
-    rows.extend(
-        _entry(root, leaf, MEMORY_LEAF_BUDGET, "WARN", "memory leaf")
-        for leaf in _memory_leaves(root)
-    )
+    rows.extend(_leaf_rows(root, _memory_leaves, "memory", MEMORY_LEAF_BUDGET, "memory leaf"))
     rows.append(_entry(root, root / "ROADMAP.md", ROADMAP_BUDGET, "WARN", "ROADMAP.md"))
     rows.append(
         _entry(
@@ -688,8 +752,9 @@ def evaluate(root: Path | None = None, observed: Survey | None = None) -> list[d
         )
     )
     rows.extend(
-        _entry(root, leaf, ITEM_NOTES_LEAF_BUDGET, "WARN", "item-notes leaf")
-        for leaf in _item_notes_leaves(root)
+        _leaf_rows(
+            root, _item_notes_leaves, "docs/item_notes", ITEM_NOTES_LEAF_BUDGET, "item-notes leaf"
+        )
     )
     rows.append(
         _entry(
@@ -711,6 +776,11 @@ def hard_failures(rows: list[dict]) -> list[dict]:
 def soft_failures(rows: list[dict]) -> list[dict]:
     """Return the rows that breach a warn-level budget."""
     return [row for row in rows if row["status"] == "OVER" and row["severity"] == "WARN"]
+
+
+def unlisted_directories(rows: list[dict]) -> list[str]:
+    """Return each directory a row reports as not listed, once, in order (CS-1115)."""
+    return list(dict.fromkeys(row["file"] for row in rows if row["status"] == UNLISTED))
 
 
 def _fmt_kb(value: int) -> str:
@@ -815,16 +885,33 @@ def render(rows: list[dict], observed: Survey | None = None) -> list[str]:
         )
         out.extend(f"  {row['file']}" for row in missing)
 
+    unlisted = unlisted_directories(rows)
+    if unlisted:
+        out.extend(
+            [
+                "",
+                "NOT LISTED (the directory refused a listing - the budgeted files in it "
+                "were never seen, so no count below covers them):",
+            ]
+        )
+        out.extend(f"  {shown}" for shown in unlisted)
+
     hard = hard_failures(rows)
     warn = soft_failures(rows)
-    measured = sum(1 for row in rows if row["status"] != "MISSING")
+    measured = sum(1 for row in rows if row["status"] not in ("MISSING", UNLISTED))
     out.append("")
     out.append(
         f"measured: {measured}    over budget: {len(over)} "
-        f"(HARD {len(hard)}, WARN {len(warn)})    absent: {len(missing)}"
+        f"(HARD {len(hard)}, WARN {len(warn)})    absent: {len(missing)}    "
+        f"not listed: {len(unlisted)}"
     )
     if hard:
         out.append(f"VERDICT: FAIL - {len(hard)} hard budget failure(s)")
+    elif unlisted:
+        out.append(
+            f"VERDICT: INCOMPLETE - {len(unlisted)} director(ies) could not be listed, "
+            "so this run cannot say every budgeted file is inside its budget"
+        )
     elif warn:
         out.append(f"VERDICT: WARN - {len(warn)} soft budget failure(s), relocate pass due")
     else:
@@ -849,8 +936,9 @@ def main(argv: list[str] | None = None) -> int:
     hard = hard_failures(rows)
     warn = soft_failures(rows)
 
+    unlisted = unlisted_directories(rows)
     if args.json:
-        verdict = "FAIL" if hard else ("WARN" if warn else "PASS")
+        verdict = "FAIL" if hard else ("INCOMPLETE" if unlisted else ("WARN" if warn else "PASS"))
         print(
             json.dumps(
                 {
@@ -884,6 +972,7 @@ def main(argv: list[str] | None = None) -> int:
                     "rows": rows,
                     "hard_failures": [row["file"] for row in hard],
                     "warnings": [row["file"] for row in warn],
+                    "unlisted": unlisted,
                     "verdict": verdict,
                 },
                 indent=2,
