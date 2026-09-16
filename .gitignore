@@ -298,3 +298,8 @@ desktop.ini
 # accessibility snapshots into the repo root; they are artifacts of a run, never
 # content, and one reached a commit through `git add -A` before this line existed.
 /.playwright-mcp/
+
+# Session scratch under docs/. Working notes a slice needs while it runs -
+# a classification table, a spec draft - that must never become a tracked doc
+# and must never enter the doc-topology ownership table.
+docs/_scratch/

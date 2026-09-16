@@ -374,6 +374,150 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-09-15 - CS-1093 - CLOSED. The 7-bit walk names every offending module rather than the first
+
+**WHAT CHANGED.** `test_every_module_this_split_created_is_seven_bit_ascii` in
+`tests/test_bare_path_citations.py` asserted INSIDE its `for path in paths` loop, so the
+first module carrying a byte above the 7-bit range short-circuited the walk and every
+later offender stayed invisible until that one was repaired. That is the pooled-guard
+shape this project has filed before: a guard that reports one member of a failing
+population teaches the reader the damage is smaller than it is. The arm now collects
+every offender and asserts once on the collected set. The missing-file case was folded
+into the same collection rather than left as a second in-loop assert, which would have
+re-introduced the short-circuit by another door.
+
+**THE SCALAR BINDING IS THE POINT, NOT A STYLE CHOICE.** pytest's assertion rewriting
+renders the asserted EXPRESSION independently of the message, so `assert not offenders`
+prints the list whatever the message says - measured on the pre-repair arm, which printed
+`assert not [195, 169]`. The count is bound to a plain scalar first and the assert reads
+`offending_modules == 0`, so the rewriter renders `assert 2 == 0` and the names reach the
+report only through the authored message.
+
+**HOW TO VERIFY IT INDEPENDENTLY.** Append a non-ASCII byte to BOTH
+`tests/archive_rot_guard.py` and `tests/bare_path_guard.py`, then run
+`python -m pytest tests/test_bare_path_citations.py -k seven_bit`. The failure names BOTH
+modules and renders `assert 2 == 0`. Snapshot the two files first and restore from the
+snapshot, never with `git checkout`, which would discard uncommitted work. The plant
+REPORTS rather than crashing because the walk reads bytes and never decodes, so no
+UnicodeDecodeError can destroy the fixture - the failure mode that killed an equivalent
+plant earlier in this project.
+
+**WHAT IS NOT CLAIMED.** The walked population is the modules this split created, seven of
+them, and not the whole tests tree. Widening it was not in the acceptance and was not done.
+
+
+### 2026-09-15 - CS-1087 - NOT A COMPLETION RECORD. NOTHING CLOSED. CS-1087 STAYS OPEN. This is the section 6 frozen-file GRANT, recorded before the edit
+
+**WHAT IS GRANTED.** Permission to modify `tools/precommit_gate.py`, which `CLAUDE.md`
+section 6 freezes, for the purpose of CS-1087 and nothing else. Permission to modify
+`.githooks/pre-commit` is DENIED on this route; the conditions for a later grant are stated
+below. Granted by an adjudicator that produced none of the work, under section 6.1, which
+moved the grantor off the operator and left the route otherwise unchanged.
+
+**THE PREMISE, RE-DERIVED FROM SOURCE RATHER THAN FROM THE ROADMAP LINE THAT RAISED IT.**
+`_world_tokens_from_headers` counts an unparseable header into `unreadable` and reports it
+through `_report_skip` alone and never through
+`_report_world_token_uncovered`, whose `blocking=True` arm is what CS-1083 added. `emit`
+returns 0 whenever `diagnostics` is empty, so that skip cannot reach the exit status by
+construction. The declination was adjudicated SOUND and is not being reversed: the module
+docstring's own paragraph - "ONE DEGRADATION IS DELIBERATELY NOT BLOCKING" - states the
+reason, and it is non-negotiables 1 and 7.
+
+**SCOPE, NARROW, IN CLAUSES. The numbering mirrors the CS-1083 grant, whose clauses 1-5
+are the precedent here.**
+
+1. May change: the world-token discovery path, `_world_tokens_from_headers` and helpers it
+   calls, for the sole purpose of making a token carried only by an unparseable header
+   matchable WITHOUT parsing that header. Nothing else in the file.
+2. THE PREFERRED REMEDY IS THE FIRST LIMB OF THE ACCEPTANCE - matchability without
+   parsing - NOT the exit-status limb. Attempt it first. This is CS-1083 clause 2's shape:
+   cover, do not signal.
+3. A RAW-BYTE FALLBACK SCAN OF A BOUNDED PREFIX OF A `.sav` IS PERMITTED, and the read is
+   not a new class of access. The gate already opens save files: `_world_tokens_from_headers`
+   calls the header reader, and `read_header` in `clockspeed/save/header.py` does
+   `target.open("rb")` and reads at most `MAX_HEADER_BYTES`. Non-negotiable 1 forbids
+   WRITING to the save directory and to the install; it has never forbidden reading, and
+   `_save_root_dirs` already says so for the listing.
+   The fallback opens `"rb"`, never any write or append mode, never `os.remove`, never a
+   rename, never a temp file beside the save.
+4. THE FALLBACK IS BOUNDED BY THE SAME CONSTANTS THAT ALREADY BOUND THE HEADER SCAN, and
+   this is mandatory rather than advisory. It runs inside the same
+   `SAVE_HEADER_BUDGET_SECONDS` aggregate wall clock, tested at the same point in the same
+   loop, on the same `started` clock; it reads at most `MAX_HEADER_BYTES` per file; and it
+   examines only files already admitted by `MAX_SAVE_HEADER_FILES`, itself derived from
+   `MAX_SAVE_ROOT_ENTRIES`. No new budget constant is introduced, because a second budget
+   is a second thing to drift. Per CS-1083 clause 3, no existing bound may be silently
+   removed and `SAVE_HEADER_BUDGET_SECONDS` keeps a live refusal path.
+5. THE HARVEST IS IDENTITY-CONSTRAINED, NEVER A GENERAL STRING SCRAPE. A candidate enters
+   the blocklist only if it passes the token's own measured shape - `WORLD_TOKEN_LENGTH` in
+   `clockspeed/save/header.py`, which `_warnings_for` in that module enforces - and
+   then `_matchable` against `MIN_WORLD_TOKEN_CHARS` and `GENERIC_ACCOUNT_NAMES`, exactly
+   as a parsed token does today. A scrape that admits arbitrary runs would add engine
+   strings to a whole-word blocklist, and because clause 7 forbids ever naming the value,
+   the operator gets an UNCLEARABLE false positive whose only remedy is `--no-verify` -
+   which is the wedge this item exists to avoid, arriving by a different door.
+6. THE RAW PREFIX IS SCRUBBED ON EVERY PATH, INCLUDING THE UNWIND. This is the one
+   genuinely NEW exposure and the clause that matters most. Today the gate NEVER holds raw
+   save bytes in a frame of its own: it delegates to `clockspeed/save/header.py`, whose
+   CS-963 scrub inside `read_header` deletes the buffer before re-raising, with the comment "this
+   frame holds a bounded PREFIX of the file, which is precisely the personal-data-bearing
+   region". A fallback that binds that prefix inside `tools/precommit_gate.py` reproduces
+   that defect one level up, in a file whose module docstring already states that a
+   traceback cannot be honestly redacted and that `CLOCKSPEED_CRASH_TRACEBACK=1` reveals
+   one. The fallback therefore mirrors the CS-963 shape: `del` the buffer on the exception
+   path, and never store it on an object that outlives the call.
+7. NO DIAGNOSTIC, SKIP, COUNT LINE OR EXCEPTION MAY RENDER A SCANNED VALUE, and the
+   existing design already holds this - MEASURED rather than assumed. `check_pii` builds
+   its `Diagnostic` with a CONSTANT reason; `_discovered_rules` states the rule
+   and its four reasons carry no value, the world-token one being "a world token
+   for this machine appears";
+   `_matchable`'s reasons never contain the value; skip lines render
+   `display_label` plus the reason and the world label is a non-path label
+   returned unchanged; checked lines render label, origin and byte count; every
+   exception text routes through `safe_exc_text`. ADDING RAW BYTES TO THE
+   BLOCKLIST THEREFORE CREATES NO ECHO PATH THAT DOES NOT ALREADY EXIST - the exposure is
+   clause 6's frame, not the blocklist. A regression arm asserts this rather than leaving
+   it to a reader: for a planted candidate value, no byte of it appears in stdout, in
+   stderr, or in the rendered text of any diagnostic or skip.
+8. Must NOT change, carrying CS-1083 clause 5 forward unaltered and adding two: a skip line
+   never printing the value it skipped; the never-fail-to-start property; the `PASS` banner
+   being the last line AND ITS FORMAT, because `.githooks/pre-commit` pins that format with
+   an anchored `case` pattern and a format change drags a second frozen file in; the gate's
+   documented exit-code contract, "0 pass, 1 block. Nothing else"; and the blocking
+   semantics of every skip other than the world-token one.
+
+**WHY `.githooks/pre-commit` IS DENIED.** The second limb of the acceptance - a distinct
+exit status - cannot be taken without it and cannot be taken safely with it. The hook maps
+every non-zero status to BLOCKED and exits with it, so a third status BLOCKS until the
+unreadable file is gone, on a file the gate may not remove (non-negotiable 1) and
+intermittently on every autosave in flight (non-negotiable 7). Making that status advisory
+means teaching a tier-0 hook that some non-zero exits do not block, which creates a class
+of gate failure that no longer refuses - the CS-703 and CS-823 failure mode restated, in a
+file whose whole body is the record of closing it. WHAT WOULD HAVE TO BE TRUE FOR A GRANT:
+clause 2's route measured INFEASIBLE - that is, a token carried only by an unparseable
+header is shown unrecoverable from the raw prefix under clauses 4 and 5 - and the advisory
+status shown, by a planted unrun and a planted truncated gate, not to weaken the CS-823
+banner proof. Route back through an adjudicator with that measurement; do not assume this
+denial.
+
+**THE ARM IS GRADED AGAINST A REAL UNREADABLE HEADER, WHICH IS THE ACCEPTANCE AND NOT A
+DETAIL.** CS-1083's own record shows why: its first cut HOLLOWED the CS-436 arms, which
+then passed with world-token detection completely destroyed. A suppressed or monkeypatched
+reader reproduces that exactly - it proves the code path was entered and nothing about
+whether a token was recovered. The fixture is a synthetic `.sav` whose header genuinely
+does not parse, carrying a synthetic token of the measured length, in a temporary save root
+the test owns. No real save, no fixture directory, no committed bytes (non-negotiable 11).
+
+**THE UNPROVEN CLAUSE, NAMED SO IT IS NOT MISTAKEN FOR A MEASURED ONE.** Nothing here
+measures that a token IS recoverable from the raw prefix of a header that fails to parse -
+that depends on where the parse fails, and a file truncated before the identifier carries
+no token at any offset. Clause 2 may therefore turn out to cover only part of the
+population, and the residue after this item is that part. Separately, the single
+measurement that makes the whole design safe - 0 of 28 headers unreadable - is one sample
+from one day; re-measure on the live library before shipping rather than citing CS-1083's
+number.
+
+
 ### 2026-09-15 - CS-1066 - the citation tables relocated, and the module comes off its ceiling
 
 **TWENTY-ONE BYTES OF HEADROOM, AND THE WALL HAD ALREADY COST WORK.**
