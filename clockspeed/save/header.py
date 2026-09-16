@@ -1023,15 +1023,28 @@ def read_header(path: Path | str) -> SaveHeader:
 # (CS-963). A scan bound in the caller's frame would reproduce that defect one
 # level up, in a file whose own traceback cannot be honestly redacted.
 #
-# THIS WIDENS NOTHING ABOUT WHAT THE MODULE RETURNS. The values are
-# shape-restricted before they exist as strings - exactly
-# :data:`WORLD_TOKEN_LENGTH` characters drawn from :data:`TOKEN_ALPHABET`, then
-# a null terminator - so no options string, session name, save name or map name
-# can leave through here. The options string cannot even come close: it carries
-# ``?`` and ``=``, which are outside the alphabet. A display name of exactly 22
-# characters with no space or punctuation COULD match, and that is stated
-# rather than hidden - it is personal data too, and the only consequence of
-# matching is that the gate refuses to commit it.
+# WHAT THIS CAN AND CANNOT RETURN. The values are shape-restricted before they
+# exist as strings - exactly :data:`WORLD_TOKEN_LENGTH` characters drawn from
+# :data:`TOKEN_ALPHABET`, then a null terminator. The options string cannot come
+# close: it carries ``?`` and ``=``, which are outside the alphabet, and the
+# measured map name is a game constant of another length. SHAPE ALONE DOES NOT
+# EXCLUDE A PLAYER-CHOSEN STRING, though, and the earlier wording here claimed
+# it did. A save name, a session name or a display name of exactly 22 alphabet
+# characters is framed identically to the identifier.
+#
+# THE SAVE NAME IS EXCLUDED BY POSITION (CS-1097). On header 14 it is the FIRST
+# string of the string block, and the string block starts at
+# :data:`FIRST_STRING_SLOT_OFFSET` on every measured header version, because
+# the prologue before it is the same three int32 fields on 10, 13 and 14. The
+# identifier is the LAST string, after the fixed block, and sits in that slot
+# on no measured layout. So a candidate framed at that offset is refused before
+# it is decoded and before it spends a slot of the candidate cap.
+#
+# THE RESIDUE, stated rather than hidden. A SESSION NAME or a display name of
+# exactly 22 alphabet characters sits at a variable offset and is still
+# admitted; an unmeasured future layout that put the identifier at slot 0
+# would be missed; and damage that shifted the prologue would move slot 0. A
+# false admission only ever widens what the gate REFUSES to commit.
 
 #: The base64url alphabet the measured identifier is drawn from. A character
 #: outside it disqualifies a candidate outright, which is what keeps this a
@@ -1067,6 +1080,17 @@ _WIDE_COUNT_PREFIX: Final = struct.pack("<i", -(WORLD_TOKEN_LENGTH + 1))
 #: shapes. A caller is told when the cap truncates, because a bound that
 #: silently shrinks a blocklist is a fail-open.
 MAX_SCANNED_TOKENS: Final = 16
+
+#: The int32 fields of the version prologue ``_version_prologue`` reads before
+#: the string block: header version, save version, build changelist. MEASURED
+#: identical on header versions 10, 13 and 14 (BOOTSTRAP.md section 2.4).
+_PROLOGUE_INT32_FIELDS: Final = 3
+
+#: The file offset of the FIRST string slot - the save name on header 14, the
+#: map name on 10 and 13 - on every measured header version. The scan refuses a
+#: candidate framed here (CS-1097), because the identifier is never slot 0 and
+#: a player-chosen save name of the identifier's shape always is.
+FIRST_STRING_SLOT_OFFSET: Final = _PROLOGUE_INT32_FIELDS * INT32_SIZE
 
 
 def _framed_token_at(data: bytes, start: int, stride: int) -> str | None:
@@ -1109,6 +1133,13 @@ def scan_framed_tokens(data: bytes) -> tuple[tuple[str, ...], bool]:
     count implies. A bare 22-character run in the middle of a file matches
     nothing, and neither does a 21- or 23-character framed one.
 
+    THE FIRST STRING SLOT IS NEVER A CANDIDATE. A count prefix starting at
+    :data:`FIRST_STRING_SLOT_OFFSET` is skipped in both framings, undecoded and
+    uncounted against the cap: on header 14 that slot holds the player-chosen
+    save name, and on no measured layout does it hold the identifier. The
+    offset is file-anchored, which holds because every caller here passes a
+    prefix read from offset zero.
+
     UNMEASURED, AND LABELLED RATHER THAN ASSUMED: every header in the measured
     library frames its identifier with a POSITIVE count, so the wide framing
     below has never been seen on a real save. It is handled because
@@ -1143,6 +1174,12 @@ def scan_framed_tokens(data: bytes) -> tuple[tuple[str, ...], bool]:
             admitted: set[str] = set()
             at = data.find(prefix)
             while at != -1:
+                # Slot 0 is refused BEFORE it is decoded and BEFORE the cap is
+                # tested, so a save name never becomes a string and never
+                # spends a slot a genuine identifier later needs (CS-1097).
+                if at == FIRST_STRING_SLOT_OFFSET:
+                    at = data.find(prefix, at + 1)
+                    continue
                 candidate = _framed_token_at(data, at + INT32_SIZE, stride)
                 # The cap is tested against DISTINCT values, so a value
                 # repeated to the cap cannot hide a different one behind it.
