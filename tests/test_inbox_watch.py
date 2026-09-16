@@ -22,6 +22,7 @@ import os
 import re
 import subprocess
 import sys
+from collections.abc import Iterator
 from pathlib import Path
 from types import ModuleType
 from typing import Final
@@ -101,6 +102,41 @@ def test_listing_does_not_mark_a_note_seen(repo: Path) -> None:
         " that started and never looked would silence a note nobody read."
     )
     assert not seen_path(repo).exists(), "listing wrote to the acknowledged store"
+
+
+def test_a_listing_run_of_main_never_writes_the_seen_store(repo: Path) -> None:
+    """The same promise as the arm above, GRADED WHERE THE HOOK ACTUALLY ENTERS.
+
+    The arm above calls `render`. The SessionStart hook calls `main`, and every
+    other arm for this promise calls `render` too - so a `save_seen` added to
+    `main`'s listing path left the whole suite green while a second session
+    stopped seeing the note. This is the tool's single highest-consequence
+    promise, and it was graded one layer below the only caller that matters.
+
+    Both halves are here because they fail differently: a first run must leave
+    NO store, and a later run must leave an EXISTING one byte-for-byte alone -
+    a rewrite that happened to reproduce the same keys would pass the first
+    half while still proving the listing path writes.
+    """
+    args = ["--root", str(repo), "--source", "startup", "--session-id", "a1"]
+    note(repo, "2026-01-01-0900-from-RC-topic.md")
+
+    inbox_watch.main(args)
+
+    assert not seen_path(repo).exists(), (
+        "a listing run of main() created the acknowledged store. Showing must"
+        " never acknowledge: the next session would be told nothing."
+    )
+
+    inbox_watch.main(["--ack", *args])
+    before = seen_path(repo).read_bytes()
+    note(repo, "2026-01-02-0900-from-RC-second.md")
+
+    inbox_watch.main(args)
+
+    assert seen_path(repo).read_bytes() == before, (
+        "a listing run of main() rewrote the acknowledged store"
+    )
 
 
 def test_a_note_with_an_older_mtime_is_still_unread_after_an_ack(repo: Path) -> None:
@@ -934,19 +970,34 @@ def test_a_hostile_source_cannot_forge_a_log_line() -> None:
     assert " " not in forged
 
 
-def test_the_log_carries_no_note_name_and_no_digest(repo: Path) -> None:
+def test_the_log_carries_no_note_name_and_no_digest(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     """A log is an echo path. Names are sender prose; keys carry digests.
 
     CLAUDE.md non-negotiable 12 counts log lines as echo paths, and the same
     reasoning that keeps a digest out of the banner keeps it out of here.
+
+    THE SESSION FIELD IS EXCLUDED BY NAME, NOT BY LUCK. A harness session id is
+    a UUID and its last group is twelve hex characters, so a bare
+    `[0-9a-f]{12}` sweep over the whole line fires on production-shaped input -
+    and this arm was green only because its fixture logged `session=unknown`.
+    The fixture below supplies a real UUID precisely so that a sweep which
+    cannot tell the two fields apart is RED here, and the field is asserted
+    present so that dropping it is not how this arm goes green.
     """
+    session = "9f1c2d3e-4b5a-6c7d-8e9f-0a1b2c3d4e5f"
+    payload = json.dumps({"hook_event_name": "SessionStart", "source": "startup"})
+    monkeypatch.setattr(inbox_watch, "read_hook_payload", lambda *_a, **_k: payload)
     note(repo, "from-XX-secret-world-name.md")
-    inbox_watch.main(["--root", str(repo)])
+    inbox_watch.main(["--root", str(repo), "--session-id", session])
 
-    body = log_path(repo).read_text(encoding="utf-8")
+    line = log_lines(repo)[-1]
+    elsewhere = " ".join(f for f in line.split(" ") if not f.startswith("session="))
 
-    assert "secret-world-name" not in body
-    assert not re.search(r"[0-9a-f]{12}", body)
+    assert f"session={session}" in line, "the session field is not in the line this arm searches"
+    assert "secret-world-name" not in line, "a note name reached the log"
+    assert not re.search(r"[0-9a-f]{12}", elsewhere), f"a digest-shaped run reached the log: {line}"
 
 
 #: Literal fixture size for the cap arm. DELIBERATELY NOT DERIVED FROM
@@ -1179,6 +1230,93 @@ def test_an_undigestible_item_is_unmeasured_and_never_clean(
     assert CLEAN_MARKER not in banner, "an undigestible item read as clean"
 
 
+def deny_listing(monkeypatch: pytest.MonkeyPatch, target: Path) -> None:
+    """Make exactly ONE directory refuse to be listed.
+
+    MANUFACTURED, NOT WAITED FOR. The real fault is an ACL denying
+    FILE_LIST_DIRECTORY on a sibling's drop, or an offline placeholder
+    directory, and neither is something a test can arrange portably. Scoped to
+    the one path so that the seen store, the report and the log all still read
+    normally - a blanket denial would take the whole run down and prove nothing
+    about this path in particular.
+    """
+    real = Path.iterdir
+
+    def guarded(self: Path) -> Iterator[Path]:
+        if self == target:
+            message = "access is denied"
+            raise OSError(message)
+        return real(self)
+
+    monkeypatch.setattr(Path, "iterdir", guarded)
+
+
+def test_an_inbox_that_cannot_be_listed_is_unmeasured_and_never_clean(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Blind path (d), and the one this tool shipped without.
+
+    An inbox that EXISTS but cannot be LISTED made `deliverables` return the
+    empty list, which is byte-for-byte the shape of an empty channel. The
+    affirmative clean line then printed over a note sitting right there - the
+    exact failure clause 3 exists to refuse, in the tool whose own docstring
+    already says a blind path is never clean.
+    """
+    note(repo, "2026-01-01-0900-from-RC-topic.md")
+    deny_listing(monkeypatch, repo / INBOX_DIRNAME)
+
+    banner, _ = inbox_watch.render(repo / INBOX_DIRNAME, seen_path(repo))
+
+    assert UNMEASURED_MARKER in banner, "an unlistable inbox did not say it measured nothing"
+    assert CLEAN_MARKER not in banner, "an unlistable inbox read as clean"
+
+
+def test_a_listable_inbox_is_not_reported_as_unlistable(repo: Path) -> None:
+    """The negative control for the arm above, without which it is vacuous.
+
+    An arm that only asserts UNMEASURED is present is met by printing it on
+    every run. This is the same channel, the same call, and nothing denied.
+    """
+    banner, _ = inbox_watch.render(repo / INBOX_DIRNAME, seen_path(repo))
+
+    assert UNMEASURED_MARKER not in banner, "a listable inbox was reported as unmeasured"
+    assert CLEAN_MARKER in banner, "the control did not reach the clean line at all"
+
+
+def test_a_seen_store_that_cannot_be_opened_is_unmeasured_and_never_clean(repo: Path) -> None:
+    """Blind path (b), the OSError leg - separately ungraded until now.
+
+    `seen_blind_reason` has three legs and the suite only ever entered one of
+    them. Forcing this leg to return the empty string left the suite green,
+    which means the leg was decorative. A DIRECTORY where the store belongs
+    exists, so it is not absence, and it cannot be opened, so it is not merely
+    malformed.
+    """
+    seen_path(repo).parent.mkdir(parents=True, exist_ok=True)
+    seen_path(repo).mkdir()
+
+    banner, _ = inbox_watch.render(repo / INBOX_DIRNAME, seen_path(repo))
+
+    assert UNMEASURED_MARKER in banner, "a store that cannot be opened read as measured"
+    assert CLEAN_MARKER not in banner, "a store that cannot be opened read as clean"
+
+
+def test_a_seen_store_without_a_seen_list_is_unmeasured_and_never_clean(repo: Path) -> None:
+    """Blind path (b), the wrong-shape leg - the third and last of the three.
+
+    VALID JSON THAT SAYS NOTHING. `load_seen` fails open to the empty set here
+    exactly as it does on a parse error, so this run does not know what it has
+    already shown, and an empty inbox would otherwise print the clean line.
+    """
+    seen_path(repo).parent.mkdir(parents=True, exist_ok=True)
+    seen_path(repo).write_text('{"acknowledged": []}', encoding="ascii", newline="\n")
+
+    banner, _ = inbox_watch.render(repo / INBOX_DIRNAME, seen_path(repo))
+
+    assert UNMEASURED_MARKER in banner, "a store holding no seen list read as measured"
+    assert CLEAN_MARKER not in banner, "a store holding no seen list read as clean"
+
+
 # --- clause 4: the transcript is capped and the remainder is on disk ---------
 #
 # THE FIXTURE SIZE IS A LITERAL AND IS NOT DERIVED FROM THE CAP. RSC measured
@@ -1202,15 +1340,23 @@ LOG_FIELDS: Final = 6
 
 
 def plant_over_cap(repo: Path) -> None:
-    """Plant CAP_FIXTURE_ITEMS long-named notes with distinct, ordered mtimes.
+    """Plant CAP_FIXTURE_ITEMS long-named notes whose NAME ORDER OPPOSES MTIME.
 
     The mtimes are set explicitly rather than left to the filesystem, because a
     coarse timestamp would make "the ten newest" a tie of 178 and the arm below
     would then be grading the sort's tie-break instead of its key.
+
+    AND THEY RUN BACKWARDS AGAINST THE NAME. When the two orders agree, the arm
+    that claims to grade the mtime key cannot see its own subject: a cap sorting
+    by DISPLAY selects exactly the same ten, so the mutation the arm exists to
+    kill passes it. Index 0 is therefore the NEWEST and index 177 the oldest,
+    which makes the two keys pick disjoint sets. A real channel looks like this
+    whenever a sender's names do not happen to sort by arrival - a renamed
+    note, a re-dated one, a sibling with its own naming scheme.
     """
     for index in range(CAP_FIXTURE_ITEMS):
         name = f"2026-01-01-{index:04d}-from-RC-" + ("y" * 90) + ".md"
-        note(repo, name, mtime=1_000_000_000 + index)
+        note(repo, name, mtime=1_000_000_000 + (CAP_FIXTURE_ITEMS - 1 - index))
 
 
 def test_the_transcript_lists_ten_names_and_points_at_the_rest(repo: Path) -> None:
@@ -1236,6 +1382,11 @@ def test_the_ten_that_are_listed_are_the_newest(repo: Path) -> None:
 
     Sorting by name and taking ten looks identical in the count arm above while
     showing the ten oldest deliveries - the least likely to matter.
+
+    THE FIXTURE'S NAME ORDER OPPOSES ITS MTIME ORDER, which is the only reason
+    this arm can see its subject at all. Index 0 is the newest, so the ten this
+    arm demands are 0-9 and the ten a display sort would show are 168-177: two
+    disjoint sets, and a mutation from one key to the other is red here.
     """
     plant_over_cap(repo)
 
@@ -1243,9 +1394,7 @@ def test_the_ten_that_are_listed_are_the_newest(repo: Path) -> None:
 
     listed = quoted_names(banner)
     indices = sorted(int(line.split("2026-01-01-")[1][:4]) for line in listed)
-    assert indices == list(range(CAP_FIXTURE_ITEMS - CAP_EXPECTED, CAP_FIXTURE_ITEMS)), (
-        "the listed names are not the ten newest"
-    )
+    assert indices == list(range(CAP_EXPECTED)), "the listed names are not the ten newest"
 
 
 def test_the_report_holds_every_name_the_transcript_dropped(repo: Path) -> None:
@@ -1398,18 +1547,38 @@ def test_a_hostile_session_id_cannot_forge_a_log_line(
 # --- clause 6: there is no per-session suppression record -------------------
 
 
-def test_the_twin_session_start_print_is_never_deduplicated(repo: Path) -> None:
+def test_the_twin_session_start_print_is_never_deduplicated(
+    repo: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
     """TWO PRINTS ARE TWO REAL SESSIONS and suppressing the second hides one.
 
     This tree has no per-prompt hook to consume a suppression record, so a
     "reported" marker could only ever silence a session that had not yet been
     told anything. The arm is what stops one being added later by someone
     reading the twin print as a bug.
+
+    RUN THROUGH `main`, AND OVER STDOUT. Calling `render` twice grades a pure
+    function that has nowhere to keep a record: a marker consulted in `main`
+    left that shape green while the second real session received zero bytes of
+    banner. A record can only live where the side effects live, so the arm has
+    to enter where the hook enters and read what the hook reads.
+
+    THE SESSION ID IS HELD CONSTANT so that a marker keyed by session and a
+    marker keyed by nothing are both red here. A session-keyed one is the
+    likelier mistake - the twin print this arm is named for is one session
+    firing twice - and it is exactly the one a differing id would let through.
     """
+    args = ["--root", str(repo), "--source", "startup", "--session-id", "a1"]
     note(repo, "2026-01-01-0900-from-RC-topic.md")
 
-    first, _ = inbox_watch.render(repo / INBOX_DIRNAME, seen_path(repo))
-    second, _ = inbox_watch.render(repo / INBOX_DIRNAME, seen_path(repo))
+    inbox_watch.main(args)
+    first = capsys.readouterr().out
+    inbox_watch.main(args)
+    second = capsys.readouterr().out
 
+    assert "from-RC-topic" in first, "the first session start was not told at all"
+    assert "from-RC-topic" in second, (
+        "the second session start was not told at all. A suppression record"
+        " silences a session that has been told nothing."
+    )
     assert first == second, "the second session start was told something different"
-    assert "from-RC-topic" in second, "the second session start was not told at all"

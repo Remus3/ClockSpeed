@@ -129,11 +129,14 @@ code here and each one has a measured reason:
   nothing when healthy is indistinguishable from a watcher that is dead, and
   this tree has no other liveness evidence for the hook.
 
-  A BLIND PATH IS `UNMEASURED` AND IS NEVER CLEAN. No inbox, an unreadable seen
-  store, and an item that could not be digested each emit their own line and
-  none of them may emit the clean line. An empty inbox plus a corrupt store
-  printed the affirmative line before this item: a check that examined nothing
-  reporting success, in the tool written to refuse exactly that.
+  A BLIND PATH IS `UNMEASURED` AND IS NEVER CLEAN. No inbox, AN INBOX THAT
+  EXISTS BUT CANNOT BE LISTED, an unreadable seen store, and an item that could
+  not be digested each emit their own line and none of them may emit the clean
+  line. An empty inbox plus a corrupt store printed the affirmative line before
+  this item: a check that examined nothing reporting success, in the tool
+  written to refuse exactly that. The unlistable inbox shipped in that same
+  state one commit longer - `deliverables` swallowed the `OSError` and returned
+  the empty list, which is indistinguishable from an empty channel.
 
   THE TRANSCRIPT LISTS THE TEN NEWEST AND POINTS AT THE REST. The remainder is
   written to `data/inbox_report.txt` ATOMICALLY AND BEFORE STDOUT, so the
@@ -649,6 +652,34 @@ def load_seen(seen_path: Path) -> set[str]:
     return {e for e in entries if isinstance(e, str)}
 
 
+def inbox_blind_reason(inbox: Path) -> str:
+    """Why the channel could not be listed, or the empty string (CS-1095).
+
+    THE FOURTH BLIND PATH, and the one this tool shipped without. `deliverables`
+    swallows an `OSError` from `iterdir` and returns the empty list - which is
+    byte-for-byte the shape of an empty channel, so an inbox that EXISTS but
+    cannot be LISTED printed the affirmative clean line over notes sitting in
+    it. That is the exact failure the clause above refuses, and it is reachable:
+    an ACL denying FILE_LIST_DIRECTORY on a sibling's drop, or an offline
+    placeholder directory.
+
+    ABSENCE IS NOT BLINDNESS here either. No directory at all is its own state
+    and `render` names it separately, so this reports only on a directory that
+    is present and unreadable.
+
+    Returns:
+        A short reason for the report, or "" when the channel listed or is not
+        there at all.
+    """
+    if not inbox.is_dir():
+        return ""
+    try:
+        next(iter(inbox.iterdir()), None)
+    except OSError:
+        return "it could not be listed"
+    return ""
+
+
 def seen_blind_reason(seen_path: Path) -> str:
     """Why the seen store could not be read, or the empty string (CS-1095).
 
@@ -791,16 +822,21 @@ def write_report(
     return True
 
 
-def blind_lines(present: Sequence[Deliverable], seen_path: Path) -> list[str]:
+def blind_lines(inbox: Path, present: Sequence[Deliverable], seen_path: Path) -> list[str]:
     """One UNMEASURED line per blind path (CS-1095).
 
     A BLIND WATCHER MUST NEVER READ AS CLEAN. Each of these is a state in which
     the run does not know what it failed to see, and each one is separately
-    invisible: an unreadable store fails open to the empty set, and an item
-    that cannot be digested is already forced into the listing but says nothing
-    about the fact that it is unkeyable.
+    invisible: an inbox that cannot be listed yields the same empty list an
+    empty one does, an unreadable store fails open to the empty set, and an
+    item that cannot be digested is already forced into the listing but says
+    nothing about the fact that it is unkeyable.
     """
     lines = []
+    listing = inbox_blind_reason(inbox)
+    if listing:
+        lines.append(f"  {UNMEASURED}: the {INBOX_DIRNAME}/ directory is here but {listing},")
+        lines.append("  so this run does not know what is sitting in it.")
     reason = seen_blind_reason(seen_path)
     if reason:
         lines.append(f"  {UNMEASURED}: the seen store exists but {reason}, so this run")
@@ -866,7 +902,7 @@ def render(inbox: Path, seen_path: Path, report_path: Path | None = None) -> tup
     present = deliverables(inbox)
     pending = unread_items(inbox, seen_path)
     gone = withdrawn_items(inbox, seen_path)
-    blind = blind_lines(present, seen_path)
+    blind = blind_lines(inbox, present, seen_path)
     if not pending and not gone and not blind:
         return (
             f"{TOOL_NAME}: no unread items ({len(present)} in the inbox, all acknowledged).\n",
