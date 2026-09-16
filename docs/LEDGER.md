@@ -471,9 +471,20 @@ bytes; 15819 payloads outside the derived class, of which 0 were touched; no fai
 **TIER 2 AND THE SUITE THAT PAID IT.** Save-reader core algorithm. The module trio
 `tests/save/test_trailing_run.py`, `tests/save/test_item_list.py` and
 `tests/save/test_reference_pair.py` reported `62 passed in 141.59s (0:02:21)`, exit 0. The
-whole tree, run last on the tree that was committed, reported
-`8233 passed, 7 skipped, 8 warnings in 595.34s (0:09:55)`, exit 0. `python -m ruff check .`
-and `ruff format --check` both clean.
+whole tree reported `8233 passed, 7 skipped, 8 warnings in 595.34s (0:09:55)`, exit 0 on
+the pre-rebase tree, and `8266 passed, 7 skipped, 8 warnings in 502.46s (0:08:22)`, exit 0,
+re-run AFTER the rebase - the binding reading, because a rebase lands the change on someone
+else's tree and a suite that passed before it proves nothing about the merged result.
+`python -m ruff check .` and `ruff format --check` clean on both.
+
+**THE FILED ID COLLIDED AND WAS RENUMBERED AT THE REBASE, which is worth a sentence because
+it is the failure the id recipe warns about and it happened.** This cycle derived CS-1117 as
+the next free id after its fetch. While it worked, another lane filed CS-1117 and CS-1118 and
+pushed first, so the id was re-derived on the rebased tree and this cycle's row is **CS-1119**
+everywhere it is named. The commit subject line of the merged commit still reads CS-1117 in
+its body; the ROW is CS-1119 and this entry is what settles it. Nothing is renamed in the
+other lane's entries - one legitimate upstream mention of CS-1117 was caught and restored
+after a too-broad rename touched it.
 
 **FOUR ARMS ELSEWHERE WENT RED ON THE FIRST WHOLE-TREE RUN AND ARE REPAIRED RATHER THAN
 FORGIVEN, because each was the guard doing its job.** `RunReference` entered the graded
