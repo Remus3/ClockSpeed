@@ -4289,7 +4289,15 @@ def test_a_token_carried_only_by_an_unparseable_header_is_still_matchable(
         "the plant did not DEGRADE one file - either it parsed after all, or it "
         "killed the reader for the sibling too, which makes this arm vacuous"
     )
-    assert read_header(readable).world_token == HEADER_WORLD_TOKEN
+    # Bound to a scalar BEFORE the assert, and not merely described in a
+    # message: pytest reprs the sub-expressions of the TEST independently of
+    # the message, so asserting on the attribute itself renders a field whose
+    # class ships a __repr__ to WITHHOLD it (non-negotiables 11 and 12).
+    sibling_token_matches = read_header(readable).world_token == HEADER_WORLD_TOKEN
+    assert sibling_token_matches, (
+        "the parseable sibling did not read back its own token, so this arm cannot "
+        "tell a live reader from a dead one"
+    )
 
     env = base_env(tmp_path)
     env["CLOCKSPEED_SAVE_ROOT"] = str(save_root)
