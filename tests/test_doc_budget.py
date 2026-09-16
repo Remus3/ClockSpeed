@@ -1068,3 +1068,73 @@ def test_json_mode_reports_an_unlisted_directory_as_incomplete(
     assert payload["verdict"] == "INCOMPLETE", payload["verdict"]
     assert set(payload["unlisted"]) == {"memory/"}, payload
     assert code == 0, "the CLI still exits non-zero on a HARD failure only"
+
+
+# ---------------------------------------------------------------------------
+# CS-1117 - a DIRECTORY carrying a budgeted file's name is not a 0 byte file
+#
+# ``_entry`` took ``stat().st_size`` of whatever answered, and a directory
+# answers - so a directory named like a leaf printed as an OK 0.0 KB row, and
+# the verdict counted it measured and inside budget.
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "relative", ["memory/zz-cs1117-dir.md", "docs/item_notes/zz-cs1117-dir.md", "ROADMAP.md"]
+)
+def test_a_directory_carrying_a_budgeted_name_is_its_own_finding(
+    tmp_path: Path, relative: str
+) -> None:
+    """Never OK, never measured, and named under its own heading."""
+    (tmp_path / "CLAUDE.md").write_text("# root" + NEWLINE, encoding="ascii")
+    (tmp_path / "memory").mkdir()
+    (tmp_path / "memory" / "MEMORY.md").write_text("# index" + NEWLINE, encoding="ascii")
+    (tmp_path / relative).mkdir(parents=True)
+
+    rows = doc_budget.evaluate(tmp_path)
+    text = NEWLINE.join(doc_budget.render(rows))
+    matching = [row for row in rows if row["file"] == relative]
+
+    # Graded first with symbols the pre-fix module has (non-negotiable 9).
+    assert len(matching) == 1, rows
+    assert matching[0]["status"] != "OK", matching
+    assert matching[0]["actual_bytes"] is None, matching
+    assert "VERDICT: PASS" not in text, text
+    assert matching[0]["status"] == doc_budget.NOT_A_FILE, matching
+    assert doc_budget.not_files(rows) == [relative], rows
+    assert f"  {relative}" in text.split("NOT A FILE (")[1], text
+    assert "VERDICT: NOT A FILE" in text, text
+
+
+def test_an_absent_budgeted_file_is_still_missing_not_a_directory(tmp_path: Path) -> None:
+    """The anti-narrowing control: absent stays MISSING, and a real file stays OK."""
+    (tmp_path / "CLAUDE.md").write_text("# root" + NEWLINE, encoding="ascii")
+    (tmp_path / "memory").mkdir()
+    (tmp_path / "memory" / "MEMORY.md").write_text("# index" + NEWLINE, encoding="ascii")
+
+    rows = doc_budget.evaluate(tmp_path)
+    by_file = {row["file"]: row["status"] for row in rows}
+
+    assert by_file["ROADMAP.md"] == "MISSING", by_file
+    assert by_file["CLAUDE.md"] == "OK", by_file
+    assert by_file["memory/MEMORY.md"] == "OK", by_file
+    assert doc_budget.not_files(rows) == [], rows
+    assert "VERDICT: PASS" in NEWLINE.join(doc_budget.render(rows))
+
+
+def test_json_mode_reports_a_directory_carrying_a_budgeted_name(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """The machine-readable verdict names the finding; the exit code still moves on HARD only."""
+    (tmp_path / "CLAUDE.md").write_text("# root" + NEWLINE, encoding="ascii")
+    (tmp_path / "memory").mkdir()
+    (tmp_path / "memory" / "MEMORY.md").write_text("# index" + NEWLINE, encoding="ascii")
+    (tmp_path / "memory" / "zz-cs1117-dir.md").mkdir()
+    monkeypatch.setattr(doc_budget, "repo_root", lambda: tmp_path)
+
+    code = doc_budget.main(["--json"])
+    payload = json.loads(capsys.readouterr().out)
+
+    assert payload["verdict"] == "NOT_A_FILE", payload["verdict"]
+    assert payload["not_files"] == ["memory/zz-cs1117-dir.md"], payload
+    assert code == 0, "the CLI still exits non-zero on a HARD failure only"

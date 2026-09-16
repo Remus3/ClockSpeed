@@ -547,9 +547,16 @@ def _classify(path: Path) -> tuple[bool, str]:
 # --- guard c: character set -------------------------------------------------
 
 
+#: CS-1117 - the prefix of a skip reason for a listed file that was gone by the
+#: time it was read. It is not a could-not-look: nothing is there to grade.
+ABSENT_WHEN_READ = "absent when read"
+
+
 def _ascii_violations(path: Path) -> tuple[list[str], str]:
     try:
         data = path.read_bytes()
+    except FileNotFoundError as exc:
+        return [], f"{ABSENT_WHEN_READ}: {_exc_text(exc)}"
     except OSError as exc:
         return [], f"unreadable: {_exc_text(exc)}"
     line = 1
@@ -573,6 +580,9 @@ def guard_charset(root: Path, files: list[Path], source: str) -> tuple[Guard, li
     skips: list[Skip] = []
     checked = 0
     offenders: list[str] = []
+    # CS-1117 - a text file that EXISTS and cannot be read is could-not-look.
+    # It was a bare skip, so the guard said PASS over bytes nobody had seen.
+    unread: list[str] = []
     for path in files:
         ok, reason = _classify(path)
         if not ok:
@@ -581,17 +591,27 @@ def guard_charset(root: Path, files: list[Path], source: str) -> tuple[Guard, li
         hits, error = _ascii_violations(path)
         if error:
             skips.append({"path": _rel(root, path), "reason": error})
+            if not error.startswith(ABSENT_WHEN_READ):
+                unread.append(_rel(root, path))
             continue
         checked += 1
         if hits:
             offenders.append(f"{_rel(root, path)} -> {'; '.join(hits)}")
 
     name = "character set (7-bit ASCII)"
-    detail = [f"enumeration: {source}", f"text files checked: {checked}"]
+    detail = [
+        f"enumeration: {source}",
+        f"text files checked: {checked}",
+        f"text files listed: {checked + len(unread)}",
+    ]
+    detail.extend(f"{relative} NOT READ - its bytes were never checked" for relative in unread)
     if offenders:
         detail.append(f"non-ASCII or control bytes in {len(offenders)} file(s):")
         detail.extend(f"  {line}" for line in offenders)
         return _guard("c", name, "FAIL", detail), skips
+    if unread:
+        detail.append("NOT A PASS - a listed text file was never read")
+        return _guard("c", name, "WARN", detail), skips
     if checked == 0:
         detail.append("nothing was checked - this guard proved nothing on this run")
         return _guard("c", name, "WARN", detail), skips
@@ -865,9 +885,37 @@ def _citation_resolves(memory_dir: Path, kind: str, raw: str) -> bool:
     return not target.lower().endswith(".md") and (memory_dir / f"{target}.md").is_file()
 
 
+def _unresolved_shape(memory_dir: Path, kind: str, raw: str) -> str:
+    """Name what an unresolved citation's target IS, for its finding (CS-1117).
+
+    A target that is a directory used to read "does not exist", which sends
+    the reader looking for a missing file while a directory sits in its place.
+
+    Args:
+        memory_dir: The directory every citation is resolved relative to.
+        kind: "wikilink" or "link".
+        raw: The target exactly as written.
+
+    Returns:
+        The clause completing "cites X, which ...".
+    """
+    target = raw.split("#", 1)[0].strip().replace("\\", "/")
+    candidates = [memory_dir / f"{target}.md"] if kind == "wikilink" else [memory_dir / target]
+    if kind != "wikilink" and not target.lower().endswith(".md"):
+        candidates.append(memory_dir / f"{target}.md")
+    for candidate in candidates:
+        try:
+            present = candidate.exists()
+        except OSError:
+            continue
+        if present:
+            return "is a directory, not a file" if candidate.is_dir() else "is not a regular file"
+    return "does not exist"
+
+
 def _citation_findings(
     root: Path, memory_dir: Path, paths: list[Path], skips: list[Skip]
-) -> tuple[int, list[str], list[str]]:
+) -> tuple[int, list[str], list[str], list[str]]:
     """Resolve every citation in ``paths``.
 
     AN UNTERMINATED FENCE IS A FINDING, NOT A SKIP. It was a skip, and that
@@ -886,19 +934,24 @@ def _citation_findings(
         skips: Skip records, appended to for anything unreadable.
 
     Returns:
-        ``(citations checked, findings, files with an unterminated fence)``.
-        The count is returned so a green verdict can state the population it
-        covers - an empty population satisfies every zero, and a guard that
-        checked nothing must not read the same as one that checked sixty.
+        ``(citations checked, findings, files with an unterminated fence,
+        files not read)``. The count is returned so a green verdict can state
+        the population it covers - an empty population satisfies every zero,
+        and a guard that checked nothing must not read the same as one that
+        checked sixty. CS-1117: the files not read are returned for the same
+        reason - the count covers only the files that were, and a leaf that
+        could not be read made "62 of 62" quietly become "60 of 60" at PASS.
     """
     checked = 0
     findings: list[str] = []
     unterminated_files: list[str] = []
+    unread: list[str] = []
     for path in paths:
         try:
             text = path.read_text(encoding="utf-8", errors="replace")
         except OSError as exc:
             skips.append({"path": path.name, "reason": f"unreadable memory file: {_exc_text(exc)}"})
+            unread.append(_rel(root, path))
             continue
         body, unterminated = _outside_code(text)
         if unterminated:
@@ -907,8 +960,9 @@ def _citation_findings(
             checked += 1
             if not _citation_resolves(memory_dir, kind, raw):
                 quoted = f"[[{raw}]]" if kind == "wikilink" else f"]({raw})"
-                findings.append(f"{_rel(root, path)} cites {quoted}, which does not exist")
-    return checked, findings, unterminated_files
+                shape = _unresolved_shape(memory_dir, kind, raw)
+                findings.append(f"{_rel(root, path)} cites {quoted}, which {shape}")
+    return checked, findings, unterminated_files, unread
 
 
 def reachable_from_index(
@@ -1009,6 +1063,14 @@ def guard_memory(root: Path) -> tuple[Guard, list[Skip]]:
             {"path": "memory/", "reason": f"not listed ({_exc_text(exc)}) - no leaf was graded"}
         )
         return _guard("b", name, "WARN", ["memory/ NOT LISTED - reachability unevaluated"]), skips
+    # CS-1117 - A DIRECTORY CARRYING A LEAF NAME IS NOT A LEAF. It was listed as
+    # one, its read failed silently, and a citation to it said "does not exist".
+    # It is a tree shape the store forbids, graded as its own finding - never a
+    # read failure, which would make the run UNGRADED and name the wrong defect.
+    not_leaves = [
+        f"{_rel(root, path)} is a directory, not a leaf" for path in leaves if path.is_dir()
+    ]
+    leaves = [path for path in leaves if not path.is_dir()]
     detail = [f"leaves: {len(leaves)}"]
 
     if not index.is_file():
@@ -1029,20 +1091,37 @@ def guard_memory(root: Path) -> tuple[Guard, list[Skip]]:
 
     routing = [index, *(leaf for leaf in leaves if leaf.name.lower().startswith("index_"))]
     ordinary = [leaf for leaf in leaves if not leaf.name.lower().startswith("index_")]
-    routes_checked, dangling_routes, routes_open = _citation_findings(
+    routes_checked, dangling_routes, routes_open, routes_unread = _citation_findings(
         root, memory_dir, routing, skips
     )
-    refs_checked, dangling_refs, refs_open = _citation_findings(root, memory_dir, ordinary, skips)
+    refs_checked, dangling_refs, refs_open, refs_unread = _citation_findings(
+        root, memory_dir, ordinary, skips
+    )
+    # CS-1117 - each count names the LISTED population it was taken over, so a
+    # leaf that could not be read shows as a shortfall rather than a smaller
+    # total that reads exactly like a smaller store.
     detail.append(
         f"index citations resolved (outside code): "
-        f"{routes_checked - len(dangling_routes)} of {routes_checked}"
+        f"{routes_checked - len(dangling_routes)} of {routes_checked}, "
+        f"in {len(routing) - len(routes_unread)} of {len(routing)} listed routing files"
     )
     detail.append(
         f"leaf citations resolved (outside code): "
-        f"{refs_checked - len(dangling_refs)} of {refs_checked}"
+        f"{refs_checked - len(dangling_refs)} of {refs_checked}, "
+        f"in {len(ordinary) - len(refs_unread)} of {len(ordinary)} listed leaves"
+    )
+    unread = routes_unread + refs_unread
+    detail.extend(
+        f"{relative} NOT READ - its citations are not in the counts above" for relative in unread
     )
 
     sections = (
+        (
+            not_leaves,
+            "A DIRECTORY CARRIES A LEAF NAME:",
+            "A memory leaf is a file. Rename or remove the directory; do NOT put a "
+            "file inside it to satisfy a citation.",
+        ),
         (
             [_rel(root, leaf) for leaf in unreachable],
             "UNREACHABLE - this is DRIFT, not a style point:",
@@ -1081,6 +1160,11 @@ def guard_memory(root: Path) -> tuple[Guard, list[Skip]]:
             detail.append(remedy)
     if failed:
         return _guard("b", name, "FAIL", detail), skips
+    if unread:
+        # CS-1117 - NOT ADVISORY: a leaf that exists and was not read is
+        # could-not-look, and its citations were never resolved.
+        detail.append("NOT A PASS - a listed memory file was never read")
+        return _guard("b", name, "WARN", detail), skips
     return _guard("b", name, "PASS", detail), skips
 
 
@@ -1762,6 +1846,32 @@ def read_status_declaration(text: str) -> str | None:
     return match.group(1) if match else None
 
 
+def _read_markdown(root: Path, path: Path, skips: list[Skip], unread: list[str]) -> str | None:
+    """Read one markdown file for guard (g), recording why when it cannot be.
+
+    CS-1117: a file gone by the time it is read is a skip and nothing more; a
+    file that exists and refuses the read is also appended to ``unread``,
+    which makes the guard a could-not-look WARN rather than a PASS.
+
+    Args:
+        root: The repository root under audit.
+        path: The markdown file.
+        skips: Skip records, appended to in place.
+        unread: Repo-relative paths that exist and could not be read.
+
+    Returns:
+        The text, or None when it was not read.
+    """
+    try:
+        return path.read_text(encoding="utf-8", errors="replace")
+    except FileNotFoundError as exc:
+        skips.append({"path": _rel(root, path), "reason": f"{ABSENT_WHEN_READ}: {_exc_text(exc)}"})
+    except OSError as exc:
+        skips.append({"path": _rel(root, path), "reason": f"unreadable markdown: {_exc_text(exc)}"})
+        unread.append(_rel(root, path))
+    return None
+
+
 def guard_dated(root: Path, files: list[Path]) -> tuple[Guard, list[Skip]]:
     """Classify every dated heading. FAILS on one that fits neither idiom.
 
@@ -1777,16 +1887,14 @@ def guard_dated(root: Path, files: list[Path]) -> tuple[Guard, list[Skip]]:
     unclassified: list[str] = []
     historical_in_live: list[str] = []
     undeclared: list[str] = []
+    # CS-1117 - the guard (c) sibling: an unread markdown file was a bare skip.
+    unread: list[str] = []
     scanned = 0
     for path in files:
         if path.suffix.lower() not in (".md", ".markdown"):
             continue
-        try:
-            text = path.read_text(encoding="utf-8", errors="replace")
-        except OSError as exc:
-            skips.append(
-                {"path": _rel(root, path), "reason": f"unreadable markdown: {_exc_text(exc)}"}
-            )
+        text = _read_markdown(root, path, skips, unread)
+        if text is None:
             continue
         scanned += 1
         headings = dated_headings(text)
@@ -1807,6 +1915,9 @@ def guard_dated(root: Path, files: list[Path]) -> tuple[Guard, list[Skip]]:
                 historical_in_live.append(record)
 
     detail = _dated_detail(scanned, classified)
+    detail.extend(
+        f"{relative} NOT READ - its headings were never classified" for relative in unread
+    )
     if undeclared:
         detail.append(
             "DRIFT - files carrying dated headings that declare no section status. This "
@@ -1841,9 +1952,11 @@ def guard_dated(root: Path, files: list[Path]) -> tuple[Guard, list[Skip]]:
             "never by which answer clears the check, and do NOT delete the date:"
         )
         detail.extend(f"  {item}" for item in unclassified)
-    if undeclared or historical_in_live or unclassified:
-        return _guard("g", "dated sections", "FAIL", detail), skips
-    return _guard("g", "dated sections", "PASS", detail), skips
+    drifted = bool(undeclared or historical_in_live or unclassified)
+    if unread and not drifted:
+        detail.append("NOT A PASS - a listed markdown file was never read")
+    status = "FAIL" if drifted else ("WARN" if unread else "PASS")
+    return _guard("g", "dated sections", status, detail), skips
 
 
 def _dated_detail(scanned: int, classified: dict[str, list[str]]) -> list[str]:
@@ -1891,7 +2004,15 @@ def guard_budgets(root: Path) -> tuple[Guard, list[Skip]]:
     rows = doc_budget.evaluate(root)
     hard = doc_budget.hard_failures(rows)
     warn = doc_budget.soft_failures(rows)
-    measured = [row for row in rows if row["status"] not in ("MISSING", doc_budget.UNLISTED)]
+    measured = [
+        row
+        for row in rows
+        if row["status"] not in ("MISSING", doc_budget.UNLISTED, doc_budget.NOT_A_FILE)
+    ]
+    # CS-1117 - a directory carrying a budgeted name was measured as a 0 byte
+    # file inside budget. It is a tree shape the budget table forbids: a FAIL
+    # here, never a could-not-look, and never left to another guard to catch.
+    not_files = doc_budget.not_files(rows)
     missing = [row for row in rows if row["status"] == "MISSING"]
     skips.extend(
         {"path": row["file"], "reason": "budgeted file absent - size not measured"}
@@ -1921,7 +2042,11 @@ def guard_budgets(root: Path) -> tuple[Guard, list[Skip]]:
         else f"  NOT MEASURED {relative}: a budgeted file that must exist has no size"
         for relative in unmeasured
     )
-    if hard:
+    detail.extend(
+        f"  NOT A FILE {relative}: a directory carries a budgeted file's name"
+        for relative in not_files
+    )
+    if hard or not_files:
         return _guard("a", name, "FAIL", detail), skips
     if unmeasured:
         # CS-1115 - NOT ADVISORY. A budgeted file that must exist and was not
@@ -3756,7 +3881,7 @@ def _tier1_restatements(text: str) -> list[tuple[int, str]]:
 
 def _tier1_second_owners(
     root: Path, files: list[Path], skips: list[Skip]
-) -> tuple[list[str], int, int]:
+) -> tuple[list[str], int, int, list[str]]:
     """Scan the tracked tree for a second statement of the lane's target.
 
     Args:
@@ -3765,11 +3890,13 @@ def _tier1_second_owners(
         skips: Skip records, appended to in place.
 
     Returns:
-        (one record per restatement, files graded, files declined).
+        (one record per restatement, files graded, files declined, files that
+        exist and could not be read - CS-1117, the guard (c) sibling).
     """
     found: list[str] = []
     graded = 0
     declined = 0
+    unread: list[str] = []
     for path in files:
         relative = _rel(root, path)
         if relative == TIER1_WORKFLOW_RELATIVE:
@@ -3779,8 +3906,12 @@ def _tier1_second_owners(
             continue
         try:
             text = path.read_text(encoding="utf-8", errors="replace")
+        except FileNotFoundError as exc:
+            skips.append({"path": relative, "reason": f"{ABSENT_WHEN_READ}: {_exc_text(exc)}"})
+            continue
         except OSError as exc:
             skips.append({"path": relative, "reason": f"unreadable: {_exc_text(exc)}"})
+            unread.append(relative)
             continue
         hits = _tier1_restatements(text)
         narrative = _tier1_narrative_reason(relative)
@@ -3796,7 +3927,7 @@ def _tier1_second_owners(
             continue
         graded += 1
         found.extend(f"{relative}:{number}  {line}" for number, line in hits)
-    return found, graded, declined
+    return found, graded, declined, unread
 
 
 def _tier1_ratchet_problem(level: str, stated: int, recorded: int) -> str | None:
@@ -3945,15 +4076,22 @@ def guard_tier1_budget(
                 f"which reports nothing. The ceiling is the level that moves"
             )
 
-    found, graded, declined = _tier1_second_owners(root, files, skips)
+    found, graded, declined, unread = _tier1_second_owners(root, files, skips)
     detail.append(f"graded {graded} tracked file(s) for a second statement of the target")
     detail.append(f"declined {declined} file(s) of the append-only record - see the skip list")
+    detail.extend(
+        f"{relative} NOT READ - never scanned for a second statement" for relative in unread
+    )
     if found:
         problems.append("these state a tier 1 duration target and the workflow already owns it:")
         problems.extend(f"  {item}" for item in found)
 
     if problems:
         return _guard("k", name, "FAIL", [*detail, "DRIFT:", *problems]), skips
+    if unread:
+        # CS-1117 - NOT ADVISORY: a file never scanned may hold the restatement.
+        detail.append("NOT A PASS - a listed text file was never read")
+        return _guard("k", name, "WARN", detail), skips
     return _guard("k", name, "PASS", detail), skips
 
 

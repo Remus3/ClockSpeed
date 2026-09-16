@@ -65,7 +65,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from pathlib import Path
 from types import ModuleType
 from typing import Any
@@ -2631,10 +2631,11 @@ def test_an_unresolvable_git_yields_no_files_rather_than_spawning(
 #
 # EVERY PLANT BELOW IS THE ONLY NON-PASS GUARD ON ITS TREE, and the arm asserts
 # that before it asserts the verdict. A plant that also reddened a second guard
-# would make a non-zero exit code a statement about that guard instead. The one
-# exception is named in ALSO_UNGRADED: a removed memory index is ALSO a budgeted
-# file guard (a) could not measure (CS-1115), and both WARNs are asserted
-# non-advisory, so neither can carry the verdict for the other.
+# would make a non-zero exit code a statement about that guard instead. The
+# exceptions are named in ALSO_UNGRADED: a removed memory index is ALSO a budgeted
+# file guard (a) could not measure (CS-1115), an unreadable markdown file is ALSO
+# unread by guards (c), (g) and (k) (CS-1117), and every WARN is asserted
+# non-advisory, so none can carry the verdict for another.
 
 #: Every guard the driver registers. Spelled out so a guard that silently drops
 #: out of the run is a red floor rather than one fewer thing that has to PASS.
@@ -2708,8 +2709,13 @@ def _plant_owner_files_empty(root: Path, _monkeypatch: pytest.MonkeyPatch) -> No
         (root / relative).write_text("# nothing here\n", encoding="utf-8")
 
 
-def _plant_index_unreadable(root: Path, _monkeypatch: pytest.MonkeyPatch) -> None:
-    swap_for_directory(root / ITEM_NOTES_INDEX_RELATIVE)
+def _plant_index_unreadable(
+    root: Path, _monkeypatch: pytest.MonkeyPatch
+) -> contextlib.AbstractContextManager[None]:
+    # CS-1117 - a REAL read fault, held for the run. A directory swapped in
+    # under the index's name is now guard (a)'s NOT A FILE FAIL, a different
+    # defect, so it can no longer stand in for an unreadable file.
+    return refused(root / ITEM_NOTES_INDEX_RELATIVE)
 
 
 def _plant_leaf_directory_absent(root: Path, _monkeypatch: pytest.MonkeyPatch) -> None:
@@ -2722,8 +2728,11 @@ def _plant_empty_family(root: Path, _monkeypatch: pytest.MonkeyPatch) -> None:
     (root / ITEM_NOTES_LEAF_RELATIVE).write_text("# Fake leaf, no sections\n", encoding="utf-8")
 
 
-def _plant_roadmap_unreadable(root: Path, _monkeypatch: pytest.MonkeyPatch) -> None:
-    swap_for_directory(root / ROADMAP_RELATIVE)
+def _plant_roadmap_unreadable(
+    root: Path, _monkeypatch: pytest.MonkeyPatch
+) -> contextlib.AbstractContextManager[None]:
+    # CS-1117 - a real read fault, for the reason given on the index plant.
+    return refused(root / ROADMAP_RELATIVE)
 
 
 def _plant_workflow_absent(root: Path, _monkeypatch: pytest.MonkeyPatch) -> None:
@@ -2739,8 +2748,14 @@ def _plant_budgeted_file_absent(root: Path, _monkeypatch: pytest.MonkeyPatch) ->
 
 
 #: One plant per could-not-look WARN site the driver can reach with no other
-#: guard going non-PASS, keyed by the guard it makes WARN.
-COULD_NOT_LOOK_PLANTS = {
+#: guard going non-PASS, keyed by the guard it makes WARN. A plant returns the
+#: context manager holding its fault when the fault is a live handle (CS-1117).
+COULD_NOT_LOOK_PLANTS: dict[
+    str,
+    tuple[
+        str, Callable[[Path, pytest.MonkeyPatch], contextlib.AbstractContextManager[None] | None]
+    ],
+] = {
     "a-budgeted-file-absent": ("a", _plant_budgeted_file_absent),
     "b-memory-absent": ("b", _plant_memory_absent),
     "b-memory-index-absent": ("b", _plant_memory_index_absent),
@@ -2761,10 +2776,19 @@ COULD_NOT_LOOK_PLANTS = {
 #: CS-1115 - the plants that ALSO leave a budgeted file unmeasured, so guard (a)
 #: is a second could-not-look WARN on the same tree. Named per plant, so any
 #: OTHER guard joining a plant's run is still red, and both flags are asserted.
+#:
+#: CS-1117 - and the plants that hold a REAL read fault on a markdown file, which
+#: guards (c), (g) and (k) each read and now each report as could-not-look. No
+#: FAIL joins them, so the verdict still rests on the non-advisory flag alone.
 ALSO_UNGRADED = {
     "b-memory-absent": ["a"],
     "b-memory-index-absent": ["a"],
+    "j-index-unreadable": ["c", "g", "k"],
+    "j-roadmap-unreadable": ["c", "g", "k"],
 }
+
+#: The readers of one refused markdown file on the base fixture (CS-1117).
+MARKDOWN_READERS = ["c", "g", "j", "k"]
 
 
 def test_the_base_fixture_passes_every_guard_and_is_clean(
@@ -2788,21 +2812,25 @@ def test_an_unreadable_roadmap_as_the_only_non_pass_guard_is_not_clean(
 ) -> None:
     """The CS-1113 acceptance arm, through main() on BOTH output paths.
 
-    ROADMAP.md is made unreadable and every other guard still passes, so guard
-    (j)'s could-not-look WARN is the only non-PASS guard on the tree.
+    ROADMAP.md is made unreadable and no guard FAILS, so could-not-look WARNs
+    are the only non-PASS guards on the tree. CS-1117: that is no longer guard
+    (j) alone - (c), (g) and (k) read the same file and now say so - and the
+    fault is a REAL exclusive handle, because a directory swapped in under the
+    name is guard (a)'s NOT A FILE FAIL, which would carry the verdict itself.
     """
-    swap_for_directory(repo / ROADMAP_RELATIVE)
+    with refused(repo / ROADMAP_RELATIVE):
+        code, report = run_main(capsys)
+        text_code = drift_guard.main([])
+        printed = capsys.readouterr().out.splitlines()
 
-    code, report = run_main(capsys)
-    assert non_pass(report) == {"j": "WARN"}, report["guards"]
+    assert non_pass(report) == dict.fromkeys(MARKDOWN_READERS, "WARN"), report["guards"]
     assert report["verdict"] == "UNGRADED"
     assert code != 0, "a run that could not read ROADMAP.md exited 0"
-    assert report["ungraded"] == ["j"]
+    assert report["ungraded"] == MARKDOWN_READERS
     assert report["drift"] == []
-    assert guard_of(report, "j")["advisory"] is False
+    for each in MARKDOWN_READERS:
+        assert guard_of(report, each)["advisory"] is False, each
 
-    text_code = drift_guard.main([])
-    printed = capsys.readouterr().out.splitlines()
     verdicts = [line for line in printed if line.startswith("VERDICT:")]
     assert text_code != 0, "the text path exited 0 over an unread ROADMAP.md"
     assert len(verdicts) == 1, verdicts
@@ -2815,10 +2843,13 @@ def test_every_could_not_look_warn_makes_the_run_ungraded(
 ) -> None:
     """The sibling sweep: every WARN site meaning "never read" blocks CLEAN."""
     guard_id, apply = COULD_NOT_LOOK_PLANTS[plant]
-    apply(repo, monkeypatch)
     expected = sorted([guard_id, *ALSO_UNGRADED.get(plant, [])])
 
-    code, report = run_main(capsys)
+    with contextlib.ExitStack() as held:
+        fault = apply(repo, monkeypatch)
+        if fault is not None:
+            held.enter_context(fault)
+        code, report = run_main(capsys)
     assert non_pass(report) == dict.fromkeys(expected, "WARN"), report["guards"]
     assert report["verdict"] == "UNGRADED"
     assert code != 0
@@ -2943,8 +2974,9 @@ def test_a_refused_item_notes_read_makes_the_run_ungraded(
         code, report = run_main(capsys)
 
     # A refused DIRECTORY also hides the leaves guard (a) budgets, so guard (a)
-    # is a second could-not-look WARN there; a refused leaf still stats.
-    expected = ["j"] if target == "leaf" else ["a", "j"]
+    # is a second could-not-look WARN there; a refused leaf still stats. A
+    # refused LEAF is a markdown file guards (c), (g) and (k) read (CS-1117).
+    expected = MARKDOWN_READERS if target == "leaf" else ["a", "j"]
     assert non_pass(report) == dict.fromkeys(expected, "WARN"), report["guards"]
     assert report["verdict"] == "UNGRADED"
     assert code != 0, "a run that could not read the item-notes family exited 0"
@@ -3115,3 +3147,328 @@ def test_the_real_tree_soft_warnings_still_exit_zero() -> None:
     assert unread == [], f"the real tree carries could-not-look WARNs in {unread}"
     assert (report["verdict"], as_json.returncode) == ("CLEAN", 0)
     assert text.returncode == 0, "python tools/drift_guard.py exited non-zero on the real tree"
+
+
+# ---------------------------------------------------------------------------
+# CS-1117 - four could-not-look residuals CS-1115 left behind
+#
+# Guard (c) skipped a file it could not read and still said PASS. Guard (b)
+# skipped an unreadable leaf and still said PASS while its citation count
+# quietly shrank. Guard (a) measured a DIRECTORY carrying a budgeted name as a
+# 0 byte file inside budget. Guard (b) called an indexed directory-named leaf
+# "does not exist". Every read fault below is REAL - `refused` - and every arm
+# carries a control that the unfaulted tree is graded exactly as before.
+# ---------------------------------------------------------------------------
+
+
+def _detail(guard: dict[str, Any]) -> str:
+    return "\n".join(guard["detail"])
+
+
+def _charset_tree(root: Path) -> list[Path]:
+    """Two authored text files, both clean, and nothing else."""
+    root.mkdir(parents=True, exist_ok=True)
+    first = root / "a-note.md"
+    first.write_text("# clean\n", encoding="utf-8")
+    second = root / "b_module.py"
+    second.write_text("VALUE = 1\n", encoding="utf-8")
+    return [first, second]
+
+
+def test_an_unreadable_file_is_a_charset_warn_naming_it_never_a_silent_skip(
+    tmp_path: Path,
+) -> None:
+    """The CS-1117 acceptance arm for guard (c): WARN, not advisory, the file named."""
+    files = _charset_tree(tmp_path)
+    before, _skips = drift_guard.guard_charset(tmp_path, files, "test enumeration")
+    assert before["status"] == "PASS", _detail(before)
+    assert "text files checked: 2" in before["detail"], _detail(before)
+
+    with refused(files[1]):
+        assert files[1].is_file(), "control: the refused file no longer stats as a file"
+        with pytest.raises(PermissionError):
+            files[1].read_bytes()
+        guard, skips = drift_guard.guard_charset(tmp_path, files, "test enumeration")
+
+    rendered = _detail(guard)
+    assert guard["status"] == "WARN", rendered
+    assert guard["advisory"] is False, rendered
+    assert "b_module.py NOT READ" in rendered, rendered
+    assert "text files checked: 1" in guard["detail"], rendered
+    assert "text files listed: 2" in guard["detail"], rendered
+    assert any(skip["path"] == "b_module.py" for skip in skips), skips
+
+
+def test_an_unreadable_file_does_not_hide_a_charset_violation_that_was_read(
+    tmp_path: Path,
+) -> None:
+    """The fault narrows what is graded; it never pardons a byte that WAS read."""
+    files = _charset_tree(tmp_path)
+    files[0].write_bytes(b"# not clean \xe2\x80\x94\n")
+
+    with refused(files[1]):
+        guard, _skips = drift_guard.guard_charset(tmp_path, files, "test enumeration")
+
+    rendered = _detail(guard)
+    assert guard["status"] == "FAIL", rendered
+    assert "a-note.md -> line 1" in rendered, rendered
+    assert "b_module.py NOT READ" in rendered, rendered
+
+
+def test_a_file_gone_before_the_charset_read_is_absent_not_unreadable(tmp_path: Path) -> None:
+    """The anti-narrowing control: a file that is not there is not an unread file."""
+    files = _charset_tree(tmp_path)
+    files[1].unlink()
+
+    guard, skips = drift_guard.guard_charset(tmp_path, files, "test enumeration")
+
+    rendered = _detail(guard)
+    assert guard["status"] == "PASS", rendered
+    assert "NOT READ" not in rendered, rendered
+    reasons = [skip["reason"] for skip in skips if skip["path"] == "b_module.py"]
+    assert len(reasons) == 1, skips
+    assert reasons[0].startswith("absent"), reasons
+
+
+def test_an_unreadable_tracked_file_makes_the_run_ungraded(
+    repo: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Through main() on both output paths: one unread .py file is never CLEAN.
+
+    Guard (k) reads the same text population for a second statement of the
+    lane's target, so it is the second could-not-look WARN (its CS-1117
+    sibling); no other guard reads a module under tools/.
+    """
+    planted = repo / "tools" / "zz_cs1117_plant.py"
+    planted.parent.mkdir(parents=True, exist_ok=True)
+    planted.write_text("VALUE = 1\n", encoding="utf-8")
+    code, report = run_main(capsys)
+    assert (report["verdict"], code) == ("CLEAN", 0), "control: the planted tree is not clean"
+
+    with refused(planted):
+        code, report = run_main(capsys)
+        text_code = drift_guard.main([])
+        printed = capsys.readouterr().out.splitlines()
+
+    assert non_pass(report) == {"c": "WARN", "k": "WARN"}, report["guards"]
+    assert report["verdict"] == "UNGRADED"
+    assert code != 0
+    assert sorted(report["ungraded"]) == ["c", "k"]
+    assert text_code != 0, "the text path exited 0 over an unread file"
+    verdicts = [line for line in printed if line.startswith("VERDICT:")]
+    assert verdicts, printed
+    assert verdicts[0].startswith("VERDICT: UNGRADED"), verdicts
+
+
+def test_the_real_tree_charset_population_is_every_listed_text_file() -> None:
+    """The anti-narrowing control on the REAL tree: checked equals listed, nothing unread.
+
+    The unread partition is new, so the one thing it must never do on a healthy
+    tree is move a file out of the checked count.
+    """
+    files, source, _skips = drift_guard.enumerate_files(REPO_ROOT)
+    text = [path for path in files if drift_guard._classify(path)[0]]  # noqa: SLF001
+    guard, _guard_skips = drift_guard.guard_charset(REPO_ROOT, files, source)
+
+    rendered = _detail(guard)
+    assert len(text) > 1, "the real tree lists no text file, so this control grades nothing"
+    assert f"text files checked: {len(text)}" in guard["detail"], rendered
+    assert f"text files listed: {len(text)}" in guard["detail"], rendered
+    assert "NOT READ" not in rendered, rendered
+
+
+def _ordinary_leaves(memory: Path) -> list[Path]:
+    """Every leaf that is not MEMORY.md or an INDEX_*.md routing file, sorted."""
+    return [
+        path
+        for path in sorted(memory.glob("*.md"))
+        if path.name != "MEMORY.md" and not path.name.lower().startswith("index_")
+    ]
+
+
+def _cited_leaf(memory: Path, avoid: Path | None = None) -> tuple[Path, int]:
+    """The first ordinary leaf carrying a citation, and how many it carries."""
+    for path in _ordinary_leaves(memory):
+        if path == avoid:
+            continue
+        excluded = {(k, t) for name, k, t in KNOWN_IN_CODE_TOKENS if name == path.name}
+        count = len(raw_citations(path) - excluded)
+        if count:
+            return path, count
+    message = "no ordinary leaf carries a citation"
+    raise AssertionError(message)
+
+
+def test_an_unreadable_memory_leaf_is_a_warn_and_the_population_says_so(tmp_path: Path) -> None:
+    """The CS-1117 acceptance arm for guard (b): WARN, and the count names what it covers.
+
+    MEASURED before the fix on the real store: 62 of 62 fell to 60 of 60 and
+    the guard still said PASS.
+    """
+    root = memory_copy(tmp_path)
+    memory = root / "memory"
+    ordinary = _ordinary_leaves(memory)
+    index_expected, leaf_expected = expected_citation_counts(memory)
+    leaf, carried = _cited_leaf(memory)
+    status, rendered = memory_verdict(root)
+    assert status == "PASS", rendered
+    assert reported_citation_counts(rendered) == (index_expected, leaf_expected), rendered
+
+    with refused(leaf):
+        assert leaf.is_file(), "control: the refused leaf no longer stats as a file"
+        with pytest.raises(PermissionError):
+            leaf.read_bytes()
+        guard, skips = drift_guard.guard_memory(root)
+
+    rendered = _detail(guard)
+    assert guard["status"] == "WARN", rendered
+    assert guard["advisory"] is False, rendered
+    assert f"memory/{leaf.name} NOT READ" in rendered, rendered
+    assert reported_citation_counts(rendered) == (index_expected, leaf_expected - carried)
+    assert f"in {len(ordinary) - 1} of {len(ordinary)} listed leaves" in rendered, rendered
+    assert any(skip["path"] == leaf.name for skip in skips), skips
+
+
+def test_the_real_memory_population_states_every_listed_leaf_as_read(tmp_path: Path) -> None:
+    """The anti-narrowing control: an unfaulted store reads every leaf it lists."""
+    root = memory_copy(tmp_path)
+    memory = root / "memory"
+    ordinary = _ordinary_leaves(memory)
+    routing = [path for path in memory.glob("*.md") if path not in ordinary]
+
+    status, rendered = memory_verdict(root)
+
+    assert status == "PASS", rendered
+    assert f"in {len(ordinary)} of {len(ordinary)} listed leaves" in rendered, rendered
+    assert f"in {len(routing)} of {len(routing)} listed routing files" in rendered, rendered
+    assert reported_citation_counts(rendered) == expected_citation_counts(memory)
+    assert "NOT READ" not in rendered, rendered
+
+
+def test_an_unreadable_memory_leaf_does_not_hide_a_dangling_citation_elsewhere(
+    tmp_path: Path,
+) -> None:
+    """A FAIL on a leaf that was read still wins, and the unread leaf is still named."""
+    root = memory_copy(tmp_path)
+    memory = root / "memory"
+    assert not (memory / f"{GHOST_LEAF}.md").exists(), "the plant names a real file"
+    planted = plant(root, f"\nThe lesson is owned by [[{GHOST_LEAF}]].\n")
+    leaf, _carried = _cited_leaf(memory, avoid=planted)
+
+    with refused(leaf):
+        status, rendered = memory_verdict(root)
+
+    assert status == "FAIL", rendered
+    assert f"[[{GHOST_LEAF}]], which does not exist" in rendered, rendered
+    assert f"memory/{leaf.name} NOT READ" in rendered, rendered
+
+
+def test_an_unreadable_memory_leaf_makes_the_run_ungraded(
+    repo: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Through main(): every guard that reads the leaf WARNs, and none is advisory.
+
+    Guard (a) only stats the leaf, and a stat still answers under the fault, so
+    it stays PASS; (c), (g) and (k) read it and are its siblings.
+    """
+    memory = repo / "memory"
+    leaf = memory / "a-leaf.md"
+    leaf.write_text("# A leaf\n\nSee [the index](MEMORY.md).\n", encoding="utf-8")
+    index = memory / "MEMORY.md"
+    index.write_text(index.read_text(encoding="utf-8") + "- [A leaf](a-leaf.md)\n", "utf-8")
+    code, report = run_main(capsys)
+    assert (report["verdict"], code) == ("CLEAN", 0), "control: the leaf tree is not clean"
+
+    with refused(leaf):
+        code, report = run_main(capsys)
+
+    assert non_pass(report) == dict.fromkeys(["b", "c", "g", "k"], "WARN"), report["guards"]
+    assert report["verdict"] == "UNGRADED"
+    assert code != 0
+    for each in ("b", "c", "g", "k"):
+        assert guard_of(report, each)["advisory"] is False, each
+
+
+@pytest.mark.parametrize(
+    ("citation", "quoted"),
+    [
+        ("- [Z](zz-cs1117-dir.md)\n", "](zz-cs1117-dir.md)"),
+        ("- [[zz-cs1117-dir]]\n", "[[zz-cs1117-dir]]"),
+    ],
+)
+def test_an_indexed_directory_carrying_a_leaf_name_is_named_as_a_directory(
+    repo: Path, citation: str, quoted: str
+) -> None:
+    """Guard (b) names the defect that is there: a directory, never a missing file.
+
+    The control beside it is a genuinely absent target, which must still read
+    "does not exist" - so the new wording cannot swallow the old finding.
+    """
+    memory = repo / "memory"
+    (memory / "zz-cs1117-dir.md").mkdir()
+    index = memory / "MEMORY.md"
+    ghost = f"{GHOST_LEAF}.md"
+    assert not (memory / ghost).exists(), "the control names a real file"
+    index.write_text(
+        index.read_text(encoding="utf-8") + citation + f"- [G]({ghost})\n", encoding="utf-8"
+    )
+
+    guard, _skips = drift_guard.guard_memory(repo)
+
+    rendered = _detail(guard)
+    assert guard["status"] == "FAIL", rendered
+    assert f"cites {quoted}, which is a directory, not a file" in rendered, rendered
+    assert "memory/zz-cs1117-dir.md is a directory, not a leaf" in rendered, rendered
+    assert f"cites ]({ghost}), which does not exist" in rendered, rendered
+    assert "zz-cs1117-dir]], which does not exist" not in rendered, rendered
+    assert "zz-cs1117-dir.md), which does not exist" not in rendered, rendered
+    assert "NOT READ" not in rendered, rendered
+
+
+def test_a_directory_carrying_a_budgeted_name_fails_guard_a(
+    repo: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Guard (a) measured a directory as a 0 byte file inside budget and said PASS."""
+    swap_for_directory(repo / UPSTREAM_WATCH_RELATIVE)
+
+    guard, _skips = drift_guard.guard_budgets(repo)
+    rendered = _detail(guard)
+    assert guard["status"] == "FAIL", rendered
+    assert f"NOT A FILE {UPSTREAM_WATCH_RELATIVE}" in rendered, rendered
+
+    code, report = run_main(capsys)
+    assert non_pass(report) == {"a": "FAIL"}, report["guards"]
+    assert (report["verdict"], code != 0) == ("DRIFT", True)
+
+
+def test_an_unreadable_markdown_file_is_a_dated_guard_warn(tmp_path: Path) -> None:
+    """The guard (g) sibling of the charset residual - an unread file was a bare skip."""
+    files = _charset_tree(tmp_path)
+    before, _skips = drift_guard.guard_dated(tmp_path, files)
+    assert before["status"] == "PASS", _detail(before)
+
+    with refused(files[0]):
+        guard, skips = drift_guard.guard_dated(tmp_path, files)
+
+    rendered = _detail(guard)
+    assert guard["status"] == "WARN", rendered
+    assert guard["advisory"] is False, rendered
+    assert "a-note.md NOT READ" in rendered, rendered
+    assert any(skip["path"] == "a-note.md" for skip in skips), skips
+
+
+def test_an_unreadable_file_is_a_tier1_guard_warn(repo: Path) -> None:
+    """The guard (k) sibling: its second-owner scan skipped an unread file and passed."""
+    files = _charset_tree(repo / "zz-cs1117")
+    everything, _source, _skips = drift_guard.enumerate_files(repo)
+    before, _before_skips = drift_guard.guard_tier1_budget(repo, everything)
+    assert before["status"] == "PASS", _detail(before)
+
+    with refused(files[1]):
+        guard, skips = drift_guard.guard_tier1_budget(repo, everything)
+
+    rendered = _detail(guard)
+    assert guard["status"] == "WARN", rendered
+    assert guard["advisory"] is False, rendered
+    assert "zz-cs1117/b_module.py NOT READ" in rendered, rendered
+    assert any(skip["path"] == "zz-cs1117/b_module.py" for skip in skips), skips
