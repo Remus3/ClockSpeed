@@ -374,6 +374,108 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-09-16 - CS-1101 - CLOSED. The CS-952 refusal is re-derived on a reason that still holds, and the exit code it once argued from is graded against the watcher
+
+**WHAT CHANGED.** CS-1095 made `tools/inbox_watch.py` return 0 on the no-channel path, which
+retired the stated reason the CS-952 tracked-`SessionStart`-hook branch was refused: that the
+watcher exited 3 there and a hook exiting non-zero loses its stdout. The refusal read as a
+measurement and nothing graded it. `tests/test_session_start_wiring.py` now runs the watcher's
+no-channel path under an isolated root that is a real git checkout, and grades every exit code
+the live docstrings state - `--strict` included - against the code the watcher actually
+returns, reading the claim from the prose and the behaviour from the process, neither side
+reading what it grades. It also grades that each archive copy of the old premise carries its
+supersession note. The module docstrings of that test and of `tools/inbox_watch.py` were
+corrected, and `docs/history_notes.md` carries supersession notes on its copies.
+
+**THE REFUSAL STILL HOLDS, ON A NEW REASON.** The watcher resolves its root from its own file
+location and `moon_sync_inbox/` is gitignored, so a tracked hook in a clone or a worktree could
+only ever announce that the channel is absent. The old reason is retired; the conclusion is not.
+
+**REFUTED THREE TIMES BEFORE IT HELD, and every refutation was a green suite.**
+
+- At efceb10: the probe rooted itself at the cwd, which is not how the watcher finds its root,
+  and a decoy sentence restating the retired exit code passed the claim extractor.
+- At 2587fcf: the probe found its root by walking up from the cwd, still not the watcher's rule,
+  and a true `--strict` claim produced a FALSE RED.
+- At 7c92a8a: a watcher mutated to resolve its root through git - top-level from the cwd, the
+  common dir from the file, the common dir from the cwd (G1, G2, G3) - or from
+  `CLAUDE_PROJECT_DIR` left the arm green, because the decoy trees were not real git checkouts
+  and the variable was not controlled. ea16bc5 builds real git decoys and sets it.
+- At ea16bc5 (merged as 798c0e0): NOT REFUTED. Every root-resolution mutant, the decoy sentence
+  and a false `--strict` code redden the arm; the true `--strict` claim stays green.
+
+**SUPERSESSION, PER ADJUDICATOR RULING Q7.** The 2026-09-08 CS-952 entry in this file, headed
+"NOT A COMPLETION RECORD. A frozen-file grant was issued and deliberately NOT SPENT", quotes an
+adversary stating that `tools/inbox_watch.py` answers the no-channel state with EXIT 3 and that
+tracked wiring would therefore fire, fail and say nothing. That premise is SUPERSEDED: since
+CS-1095 the watcher returns 0 on that path unless `--strict` is asked for. The old entry is not
+edited, because this file is append-only; this paragraph is its correction. Its other half - that
+a hook exiting non-zero loses its stdout - is a client property no test here grades, and the
+module that still states it as a measurement is filed as CS-1107.
+
+**Verification:** `python -m pytest tests/test_session_start_wiring.py -q`. Load-bearing arms:
+`tests/test_session_start_wiring.py::test_each_live_docstring_states_the_exit_code_the_hook_actually_gets`,
+`::test_the_probe_enters_the_no_channel_path_under_an_isolated_root` and
+`::test_each_archive_copy_of_the_premise_carries_its_supersession_note`. Merged files:
+`tests/test_session_start_wiring.py`, `tools/inbox_watch.py`, `docs/history_notes.md`.
+
+**NOT CLOSED HERE:** CS-1107 - the stdout claim is still stated as measured in
+`tools/inbox_watch.py`, and `_git` in the test SKIPS on a git timeout rather than failing.
+
+### 2026-09-16 - CS-1096 - CLOSED. The world-token bound count is read from the code, not from the sentence that states it
+
+**WHAT CHANGED.** `tests/test_world_token_bound_count.py` is new. Its code reader walks
+`_world_tokens_from_headers` in `tools/precommit_gate.py` through the syntax tree only and
+collects every BLOCKING PRODUCTION - a call of `_report_world_token_uncovered` whose `blocking`
+resolves True, any `Diagnostic(...)` construction, any use of the blocking reason text - keyed
+by its CALL PATH from the target, so one helper reached from two call sites is two productions.
+Its prose reader keeps string and comment tokens only, and grades every spelled total against
+the code count. A numeral in a body comment is refused unless a justified entry in the test's
+`_COMMENT_ALLOWLIST` clears it, and the red names the CS-1096 numeral rule rather than
+presenting as a bound mismatch. A non-call reference to the sink or to `Diagnostic` - an alias,
+a lookup by string name - is REFUSED rather than followed.
+
+**THE FROZEN FILE.** `tools/precommit_gate.py` moved under the grant recorded in the entry
+directly below, committed at dc88c08 BEFORE the edit, and nowhere else: the two comment lines
+that grant names, reworded to state no total. `git diff --numstat dc88c08 ee51dce --
+tools/precommit_gate.py` reads `2 2`, and an adversary that did not make the edit verified it
+byte-scoped to the grant.
+
+**REFUTED TWICE BEFORE IT HELD, and both refutations were green suites.**
+
+- At d57c9f8: an inline `report.add` of a blocking diagnostic, an alias or a nested call of the
+  sink, and a body comment reading "the remaining four" were each planted and each left the arm
+  GREEN. The phrase that got through is why the repair refuses numerals in body comments behind
+  an allowlist instead of growing a phrase denylist.
+- At 634f700: a SECOND call of a shared reporting helper counted ONCE, because productions were
+  keyed by the helper-internal line; and the numeral ban's red read as a bound mismatch, which
+  sends a maintainer to the wrong repair.
+- An adjudicator that authored none of the candidate then ruled scope at 634f700: key
+  productions by call path with a mutation arm (F1); keep the numeral ban and make its message
+  name the rule (F4); accept F2, F3 and F5 as DOCUMENTED LIMITS rather than repairs, F3 and F5
+  to be filed; and set a stop condition for the next adversary.
+- At 78da8a2 (merged as ee51dce): NOT REFUTED against that stop condition - the frozen file
+  byte-identical to the granted state, the file's suite green by its own run and exit code, the
+  pristine count agreeing with every prose total, a second blocking call of the shared helper
+  reddening, a planted "one file at a time" reddening with the new message, and the module
+  docstring naming F2, F3 and F5.
+
+**DOCUMENTED LIMITS, stated in the test's module docstring and NOT closed by this entry.**
+
+- F2: an alias, a `sys.modules` lookup or any indirect reach to an INTERMEDIATE helper is
+  neither followed nor refused. Accepted as obfuscation rather than a plausible maintainer
+  shape - whoever can obfuscate the frozen file can also edit this unfrozen test. Not filed.
+- F3, filed as CS-1105: the arm counts REPORTING SITES, not truncation CONDITIONS.
+- F5, filed as CS-1106: the allowlisted phrase "the one deliberate non-blocking degradation"
+  states a total over a population nothing grades.
+
+**Verification:** `python -m pytest tests/test_world_token_bound_count.py -q`. Load-bearing arms:
+`tests/test_world_token_bound_count.py::test_the_bound_prose_agrees_with_the_code`,
+`::test_a_planted_blocking_bound_reddens_the_arm`,
+`::test_a_second_call_of_a_shared_reporting_helper_reddens_the_arm` and
+`::test_a_numeral_in_a_comment_names_the_rule_it_broke`. Merged files:
+`tests/test_world_token_bound_count.py`, `tools/precommit_gate.py`.
+
 ### 2026-09-16 - CS-1096 - A FROZEN-FILE GRANT, GRANTED BY AN ADJUDICATOR BEFORE THE EDIT. Scope is two comment lines in tools/precommit_gate.py and nothing else
 
 **GRANTOR.** An adjudicator agent that produced none of the CS-1096 work, under CLAUDE.md
