@@ -374,6 +374,61 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-09-15 - CS-1087 - CLOSED. A token carried only by an unparseable header is matchable without parsing it
+
+**WHAT CHANGED.** `clockspeed/save/header.py` gained `scan_framed_tokens` and
+`scan_world_tokens`: a bounded raw-byte scan that recovers a world token from the FRAMING
+the engine writes around it - a length prefix, `WORLD_TOKEN_LENGTH` characters of the
+token alphabet, a terminator - without parsing the header at all. `tools/precommit_gate.py`
+calls it when `read_header` refuses, inside the SAME `SAVE_HEADER_BUDGET_SECONDS` clock on
+the same `started` value, reading at most `MAX_HEADER_BYTES`, over only the files
+`MAX_SAVE_HEADER_FILES` already admitted. Recovered candidates pass through the same
+`_matchable` filter a parsed token does. The frozen-file GRANT recorded before the edit
+binds all of this; its clause 2 preferred exactly this limb of the acceptance, and the
+exit-status limb was DENIED because `.githooks/pre-commit` maps every non-zero status to
+BLOCKED, which is the wedge the item forbids.
+
+**HOW TO VERIFY IT INDEPENDENTLY.** Build a synthetic save, corrupt the version prologue,
+and drive the gate's real discovery: `read_header` refuses with
+`UnsupportedHeaderVersionError` and `scan_world_tokens` returns the token. Overwrite the
+same file wholesale and the scan returns nothing. The arms are graded with an unreadable
+header ACTUALLY PRESENT beside a parseable sibling, on leak IDENTITY and never on the exit
+code, and the reader is proven ALIVE - exactly one header reported unparseable, both
+tokens leaking.
+
+**WHAT THE GRADERS CHANGED, because the first cut was not the shipped one.** An
+adjudicator sent the candidate back and an adversary refuted three further claims. The
+candidate cap counted raw hits BEFORE de-duplication, so one value repeated to the cap
+followed by a DIFFERENT value discarded the second; and `hits` was shared across both
+framings, so a full narrow population starved the wide scan entirely. Both lost real
+tokens. The cap now counts DISTINCT values with a per-framing budget, and its truncation
+reaches the exit status BLOCKING with an anti-hollowing control that fails if the scan is
+disabled. Separately, `scan_framed_tokens` bound the prefix BARE in its own frame - the
+first bare holder of a save prefix in the module, where the parse path leaves only dotted
+holders - and the arm claiming otherwise was blind to it BY CONSTRUCTION, monkeypatching
+the very function that held the buffer. It now scrubs on its own unwind and the arm
+refuses through a shipped inner function.
+
+**THE RESIDUE, MEASURED AND NOT GLOSSED.** Recovery is 4 of 4 tokens PRESENT in the bytes,
+but only 4 of 9 unreadable SHAPES. Five carry no recoverable token: truncated before the
+identifier, truncated mid-identifier, overwritten wholesale, zero-byte, and a file that
+cannot be opened at all. A sixth shape recovers nothing though the characters ARE on disk -
+the identifier is intact behind a DAMAGED COUNT PREFIX, so the framing the scan keys on is
+gone. On the live library this run: 31 files, 1 unreadable, and that one recovered NOTHING -
+it is the truncated-before-the-identifier case. So the coverage limb is 0-for-1 on real
+data today, which is a floor on this item's value and not a defect in it. CS-1083's cited
+0-of-28 was re-measured as ordered by the grant and is now 1 of 31.
+
+**ONE LABELLED RESIDUAL IN THE NEW BLOCKING PATH.** It differs in KIND from the five bounds
+beside it: those trip on how many files the operator has, while this one trips on the
+CONTENT of a single file the gate may never remove (non-negotiable 1), and its reason names
+neither the value (grant clause 7) nor the file. If it ever fired, the only escape would be
+`--no-verify` - the wedge this item exists to avoid, arriving by another door. Measured
+probability is effectively nil: a real header carries about ten strings, and 16 DISTINCT
+framed candidates of the measured length inside the byte bound is unreachable for random or
+compressed bytes. It is recorded because it is a real difference, not because it is likely.
+
+
 ### 2026-09-15 - moon-sync stage 4 item 9 - NOT A COMPLETION RECORD. NOTHING CLOSED. This is the section 6 frozen-file GRANT for the console-flash change, recorded before the edit
 
 **WHAT IS GRANTED.** Permission to modify `tools/precommit_gate.py`, which `CLAUDE.md`

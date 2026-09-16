@@ -1115,10 +1115,6 @@ def scan_framed_tokens(data: bytes) -> tuple[tuple[str, ...], bool]:
     ``_Cursor._string_extent`` admits it and a scan that ignored it would be
     making a claim about real files that no probe supports.
 
-    Args:
-        data: The bytes to scan. A bounded prefix in every caller here, and
-            never decoded except where the shape already matched.
-
     THE BUFFER IS SCRUBBED OUT OF THIS FRAME ON THE UNWIND. It is the CALLER's
     bounded prefix and this frame binds it BARE - an undotted local that a
     locals-showing renderer prints verbatim, which the sweep in

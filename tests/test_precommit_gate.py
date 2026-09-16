@@ -2727,7 +2727,7 @@ def test_an_unreadable_save_header_stays_a_skip_and_never_blocks(
     """The one degradation CS-1083 deliberately did NOT make blocking.
 
     A half-written autosave is the NORMAL case and never fatal (CLAUDE.md
-    non-negotiable 7). The four bounds above are the gate's OWN choices not to
+    non-negotiable 7). The six bounds above are the gate's OWN choices not to
     look and every one of them is self-healing - the cap is raised, the budget
     resets on the next run. An unparseable save is the FILE declining to be
     read: blocking there wedges the commit gate permanently on a file the

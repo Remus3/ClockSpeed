@@ -1489,10 +1489,10 @@ def _world_tokens_from_headers(report: Report | None) -> tuple[list[str], bool]:
     trips says so through the skip channel.
 
     EVERY BOUND THAT TRUNCATES THIS POPULATION NOW REACHES THE EXIT STATUS
-    (CS-1083), and that is a different claim from "says so". All FIVE of them -
+    (CS-1083), and that is a different claim from "says so". All SIX of them -
     the save-root entry cap, the per-directory retention bound, the examination
     bound, the two above, and CS-1087's per-framing candidate cap on the raw
-    scan - reach it. The first four used to report through the skip channel alone,
+    scan - reach it. The first five used to report through the skip channel alone,
     and `emit` returns 0 whenever `diagnostics` is empty, so a run whose
     world-token population was cut short printed a skip line and then `PASS`.
     Not-checked and checked-and-clean shared an exit code, which is the whole
@@ -1500,7 +1500,7 @@ def _world_tokens_from_headers(report: Report | None) -> tuple[list[str], bool]:
     _report_world_token_uncovered.
 
     ONE DEGRADATION IS DELIBERATELY NOT BLOCKING and it is named rather than
-    left to be inferred: an UNREADABLE header. The four bounds are this gate's
+    left to be inferred: an UNREADABLE header. The six bounds are this gate's
     own choices not to look and every one of them is self-healing - a cap is
     raised, a budget resets on the next run. A save that will not parse is the
     file declining to be read, so blocking there would wedge the commit gate
