@@ -110,6 +110,13 @@ BACKTICKED = re.compile(r"`([^`\n]+)`")
 #: match. Arm 6's second half asserts the doc carries none of these at all.
 FILE_LINE = re.compile(r"[\w.\-/]+\.[A-Za-z]{1,5}:\d+")
 
+#: Seconds allowed for the one child this module spawns. An unbounded child
+#: cannot fail the arm that owns it - it burns the whole job budget until the
+#: lane is cancelled, which is evidence of nothing (CS-896). check-ignore reads
+#: the ignore rules and answers without touching the working tree, so this is a
+#: ceiling on a hang rather than a budget the call is expected to approach.
+CHECK_IGNORE_TIMEOUT = 30
+
 #: Repo-relative paths the doc names that DO NOT resolve here, each with the
 #: reason, and each checked in BOTH directions by arm 6: a member that starts
 #: resolving is as much a finding as a non-member that stops.
@@ -515,6 +522,7 @@ def test_every_repo_relative_path_resolves_and_no_file_line_is_cited() -> None:
             cwd=REPO_ROOT,
             capture_output=True,
             check=False,
+            timeout=CHECK_IGNORE_TIMEOUT,
         )
         assert ignored.returncode == 0, (
             f"{token} is recorded as checkout-dependent because it is "
