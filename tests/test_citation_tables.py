@@ -358,6 +358,13 @@ DISPOSITIONS: Final[Mapping[tuple[str, str], Disposition]] = {
         1,
     ),
     # --- the bare-identifier arm, which sees what a path scanner cannot.
+    (LEDGER, "test_an_unreadable_roadmap_as_the_only_non_pass_guard_is_not_clean"): Disposition(
+        RENAMED,
+        "tests/data/test_drift_guard_data.py"
+        "::test_an_unreadable_roadmap_warns_all_four_markdown_readers_and_is_not_clean",
+        "the CS-1117 closure cites the name it had; CS-1120 renamed it for its four WARNs.",
+        1,
+    ),
     (LEDGER, "test_the_header_scan_advertises_no_bound_it_cannot_enforce"): Disposition(
         RENAMED,
         "tests/test_precommit_gate.py"
@@ -942,7 +949,14 @@ UNVERIFIED_LINE_POINTERS: Final[Mapping[tuple[str, str, int], str]] = {
 #: running this module's own resolver against the corpus after the move rather
 #: than counted by eye - two earlier estimates of the same quantity, made by
 #: reading the diff, were 6 names and 3 names and neither was right.
-FORGIVEN_LINE_POINTER_CEILING: Final = 54
+#:
+#: 54 TO 55 WHEN CS-1120 RENAMED A TEST THE CS-1117 CLOSURE CITES. The CS-1120
+#: acceptance ordered the stale arm name corrected, and the ledger is append-only, so
+#: the CS-1117 record keeps the name it had when written. One RENAMED row with a live
+#: target, checked in three directions like the MOVED five above - not the unverifiable
+#: NO_TARGET kind. The alternative, keeping a misdescribing test name so a record
+#: resolves, would trade a true name for a green guard.
+FORGIVEN_LINE_POINTER_CEILING: Final = 55
 
 
 #: R2's live membership, DISCLOSED. Every entry is a citation at a path this
