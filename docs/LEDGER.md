@@ -452,6 +452,7 @@ the repo root on the tree that was committed and reported, verbatim,
 `8101 passed, 7 skipped, 7 warnings in 586.55s (0:09:46)` at exit code 0. The run before the
 `test_repr_rendering.py` repair is not that run and is not cited as one. The CI verdict is recorded
 by the driver and was not observed by this worker.
+
 ### 2026-09-16 - CS-1111 - CLOSED. The launcher arms see the shapes CI could not, the settings env blocks and the cycle budget
 
 **WHAT CHANGED.** The static arm in `tests/ops/test_lane_background_tasks.py` now reddens on the
