@@ -33,6 +33,52 @@ Keep every entry to that shape. If an item needs a paragraph, it needs its own f
 the line becomes a pointer.
 
 ---
+## Session 102 - 2026-09-16 - the lane was killing its own suite, and adversaries refuted nearly every first pass
+
+- Shipped: CLOSED by the main session, each through builder, adversary on a distinct lens,
+  repair loop, then a verifier or a stop-condition pass: CS-1096, CS-1101, CS-1102, CS-1104,
+  CS-1110, CS-1086, CS-1097, CS-1107, CS-1111, CS-1113, CS-1115, CS-1116, CS-1109. CLOSED
+  by the headless lane: CS-894 (649ed65), CS-1068 (69b77a8). FILED: CS-1105 through
+  CS-1118, several of them closed in the same session. Detail in `docs/LEDGER.md`.
+- **CS-1108 IS MERGED BUT NOT CLOSED ON RECORD.** The launcher fix landed at 925329d and
+  CS-1111 closed the gaps its arms left, yet the CS-1108 item line still stands in
+  `ROADMAP.md` and `docs/LEDGER.md` carries no CS-1108 entry. Nothing here closes it - its
+  acceptance has not been graded by an agent that did not build it.
+- **THE BIG FINDING: EVERY LANE CYCLE SINCE 2026-09-06 THAT BACKGROUNDED ITS SUITE WAS
+  KILLED.** `claude -p` kills background shells about five seconds after the final reply,
+  and `CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS` covers subagents only. CS-1108 disables
+  background tasks and raises the Bash timeout in `ops/loop/run_lane.ps1`; the first cycles
+  relaunched under it committed with `ci=success`. CS-1110 discarded the killed cycles'
+  CS-893 work after a hash-checked snapshot under the gitignored `data/lane-snapshots/`;
+  CS-893 stays open and the test half of that snapshot still applies to main.
+- **FROZEN-FILE GRANT RECORDED BEFORE THE EDIT.** CS-1096's two comment lines in
+  `tools/precommit_gate.py`, granted by an adjudicator and committed at dc88c08 ahead of the
+  change.
+- Decisions (adjudicated, no ADR): CS-1086 KEEP-AND-CHECK the routing table, with removal
+  filed as CS-1112 and sequenced before CS-971. CS-1110 DISCARD over SALVAGE. The stale
+  dead-pid claim records were left for `try_claim_row` to clear, because a hand release is
+  a no-op. CS-1104's merger ruled prompt-paraphrase evasions out of scope.
+- Surprises: **THE ADVERSARY REFUTED A GREEN FIRST PASS ON NEARLY EVERY SLICE** - CS-1101
+  and CS-1104 three times each, CS-1096 twice. **REPO-WIDE GUARDS CAUGHT WHAT SCOPED SUITES
+  DID NOT** - exception rendering, liveness, bare mypy, and the assertion-rendering echo
+  guard on ubuntu - so the whole suite ran before every push.
+- CI reds and causes: 0dbf309, a cmd.exe control not skipped on ubuntu (fixed at c6a41f3);
+  c1d7517, a synthetic `class Runner:` string matched the CI runner account name in the echo
+  guard (fixed at 3ff40e1). Both green after the fix.
+- Failed paths: removing the routing table outright (a planner's proposal, rejected by
+  adjudication - see CS-1112); salvaging the killed lane's CS-893 diff (red, and its
+  ROADMAP hunk allocated an id main had since given to another item).
+- In flight: one `queue` lane under the fixed launcher, reading the channel through CS-1104
+  (driver line `queue-loop inbox (cycle N): ...`). Inbox: nothing unread, nothing owed, as
+  printed by `tools/inbox_watch.py` when these notes were written. Many
+  `.claude/worktrees/agent-*` from this session are merged; none removed - classify by
+  content before pruning.
+- STILL OPEN worth naming: CS-971 (behind CS-1112 and CS-1079), CS-1079, CS-1098, CS-1099
+  and CS-1100 (with the CS-1098 licence fence), CS-1105, CS-1106, CS-1112, CS-1114,
+  CS-1117, CS-1118, and CS-1108's record.
+- Next action: send CS-1108's acceptance to a verifier that did not build it; on a pass,
+  write its `docs/LEDGER.md` entry and remove its `ROADMAP.md` line in one commit.
+
 ## Session 101 - 2026-09-16 - the moon-sync adoption, and three of three slices refuted before merge
 
 CLOSED: CS-1095 (the cross-repo channel contract, all nine items of the operator's
@@ -161,63 +207,3 @@ recovered NOTHING - it is the truncated-before-the-identifier shape. CS-1083 cit
 0 of 28; the grant ordered the re-measure and this is it. So CS-1087's coverage
 limb is 0-for-1 on real data today. That is a floor on the item's value, not a
 defect in it.
-
----
-
-## Session 99 - 2026-09-15 - the handoff's single next action was the FOURTH filing over one wall, and the clause guarding it forbade its own remedy
-
-- Shipped: CS-1085 and CS-1066 CLOSED on their own work; CS-1057 and CS-1088 CLOSED AS
-  SUPERSEDED; CS-898 NARROWED. CS-1089, CS-1090, CS-1091, CS-1092, CS-1093 and CS-1094
-  filed. `main` at 1471779, clean and pushed, whole suite green through the pre-push hook
-  and again at `/done` - 7791 passed, 7 skipped, exit 0, `python -m mypy` exit 0.
-- In flight: nothing. Tree clean, local equals origin.
-- THE SESSION'S ONE RESULT: `tests/test_docs_citations.py` came off its ceiling, 100 per
-  cent to 73.94, headroom 21 bytes to about 68000. The ceiling was NOT raised, no
-  disposition row deleted, no pin forgiven.
-- THE HANDOFF'S SINGLE NEXT ACTION WAS NOT SAFE TO DISPATCH AS WRITTEN. CS-1088 was the
-  FOURTH open filing over one file and one ceiling - CS-1057, CS-1066, CS-1088 and
-  CS-898 - and two of them carried DIFFERENT triggers for the same guard, 96.875 per cent
-  against 90. Grepping the roadmap for siblings before dispatching an item cost minutes
-  and saved building the wrong guard twice.
-- AN ACCEPTANCE CLAUSE FORBADE ITS OWN REMEDY. "Collected-arm count EQUAL before and
-  after" is unreachable for ANY relocation into a new file, because a census arm is
-  parametrized over the tracked-module population and gains one node for any new module.
-  AMENDED under CLAUDE.md section 8 to a full node-id comparison in both directions,
-  which is strictly stronger: a simultaneous loss and gain passes a scalar and fails it.
-- A LEDGER SENTENCE WENT STALE INSIDE THE COMMIT THAT CARRIED IT. A slice recorded
-  CS-1057's detail relocation as an undischarged seam because those files were off its
-  write-list; the merger discharged it minutes later in the same commit. The file is
-  append-only so the sentence stands, and it had ALREADY MISLED AN ADJUDICATOR before the
-  correction was written. A slice that leaves a seam must have its record checked by
-  whoever closes the seam.
-- ESTIMATES LOST TO MEASUREMENT THREE TIMES. Dead citations: a planner said 6 names over
-  8 sites, an adjudicator said 3 over 4 after filtering to uppercase names and missing
-  three FUNCTION citations, and the in-slice measurement was 5 over 7. Self-spelled
-  sites: estimated 60 to 28, measured 60 to 37. NEVER carry a count across a slice
-  boundary - the acceptance now says so in words.
-- A TREE-WIDE GUARD SHIPS RED, and that is the finding not the obstacle. The approach
-  band was red on THREE files the item never touched, at 99.9, 95.9 and 95.0 per cent.
-  The answer was a baseline residual pinned in BOTH directions with a spelled shrink-only
-  ceiling and an item id per row, not a hand-list of one - a hand-list of one is a
-  threshold met by its strongest member.
-- A PLANT KILLED INSTEAD OF DEGRADING, found by mutation and not by review. A non-ASCII
-  byte planted to prove the ASCII arm raised an unnamed `UnicodeDecodeError` that
-  destroyed the `closure` fixture, so the arm DIED rather than reporting.
-  `namespace_closure` now decodes with `errors="replace"`.
-- THE HARNESS WRITES CRLF THROUGH `Path.write_text`. A relocation script silently
-  converted three tracked docs to CRLF. It was caught by BYTE ARITHMETIC - the routing
-  index grew 203 bytes while a row was being REMOVED - not by a CR check, because
-  `grep -c $'\r'` returns the TOTAL line count on a pure-LF file and reads as "all CRLF"
-  either way. Pass `newline="\n"` and assert on the bytes.
-- Decisions: no ADR recorded. Two acceptances amended under CLAUDE.md section 8 - CS-1066's
-  collected-count clause, and CS-1088's approach-arm clause folded into it. CS-898's
-  stated-policy half struck as discharged.
-- Surprises: no spike contradicted `BOOTSTRAP.md`.
-- Failed paths: none abandoned. The widening of `derived_bound_problems` to `ast.Attribute`
-  was adjudicated PERMITTED rather than a breach of "the same guard", because the clause
-  names the guard's IDENTITY and its two-way property, not its node-type set.
-- Next action: work CS-1087 - the unreadable-header residue CS-1083 declined. Do NOT
-  close it by simply making an unreadable header block; that declination was adjudicated
-  SOUND under non-negotiable 7.
-
----

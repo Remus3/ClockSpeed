@@ -11157,3 +11157,63 @@ the last two to three sessions only. Nothing was deleted.
   `skipped <pii:world>` and `PASS`; the merge commit printed `PASS - 4 checked, 0 skipped`.
   The privacy check for non-negotiables 11 and 12 had not run on any commit made while the
   library was over the 24-file cap.
+
+<!-- Relocated from WAKEUP_NOTES.md on 2026-09-16 by the session 102 /done ritual. RELOCATE, DO NOT DELETE - the budget exists to protect this detail, not to discard it. -->
+
+## Session 99 - 2026-09-15 - the handoff's single next action was the FOURTH filing over one wall, and the clause guarding it forbade its own remedy
+
+- Shipped: CS-1085 and CS-1066 CLOSED on their own work; CS-1057 and CS-1088 CLOSED AS
+  SUPERSEDED; CS-898 NARROWED. CS-1089, CS-1090, CS-1091, CS-1092, CS-1093 and CS-1094
+  filed. `main` at 1471779, clean and pushed, whole suite green through the pre-push hook
+  and again at `/done` - 7791 passed, 7 skipped, exit 0, `python -m mypy` exit 0.
+- In flight: nothing. Tree clean, local equals origin.
+- THE SESSION'S ONE RESULT: `tests/test_docs_citations.py` came off its ceiling, 100 per
+  cent to 73.94, headroom 21 bytes to about 68000. The ceiling was NOT raised, no
+  disposition row deleted, no pin forgiven.
+- THE HANDOFF'S SINGLE NEXT ACTION WAS NOT SAFE TO DISPATCH AS WRITTEN. CS-1088 was the
+  FOURTH open filing over one file and one ceiling - CS-1057, CS-1066, CS-1088 and
+  CS-898 - and two of them carried DIFFERENT triggers for the same guard, 96.875 per cent
+  against 90. Grepping the roadmap for siblings before dispatching an item cost minutes
+  and saved building the wrong guard twice.
+- AN ACCEPTANCE CLAUSE FORBADE ITS OWN REMEDY. "Collected-arm count EQUAL before and
+  after" is unreachable for ANY relocation into a new file, because a census arm is
+  parametrized over the tracked-module population and gains one node for any new module.
+  AMENDED under CLAUDE.md section 8 to a full node-id comparison in both directions,
+  which is strictly stronger: a simultaneous loss and gain passes a scalar and fails it.
+- A LEDGER SENTENCE WENT STALE INSIDE THE COMMIT THAT CARRIED IT. A slice recorded
+  CS-1057's detail relocation as an undischarged seam because those files were off its
+  write-list; the merger discharged it minutes later in the same commit. The file is
+  append-only so the sentence stands, and it had ALREADY MISLED AN ADJUDICATOR before the
+  correction was written. A slice that leaves a seam must have its record checked by
+  whoever closes the seam.
+- ESTIMATES LOST TO MEASUREMENT THREE TIMES. Dead citations: a planner said 6 names over
+  8 sites, an adjudicator said 3 over 4 after filtering to uppercase names and missing
+  three FUNCTION citations, and the in-slice measurement was 5 over 7. Self-spelled
+  sites: estimated 60 to 28, measured 60 to 37. NEVER carry a count across a slice
+  boundary - the acceptance now says so in words.
+- A TREE-WIDE GUARD SHIPS RED, and that is the finding not the obstacle. The approach
+  band was red on THREE files the item never touched, at 99.9, 95.9 and 95.0 per cent.
+  The answer was a baseline residual pinned in BOTH directions with a spelled shrink-only
+  ceiling and an item id per row, not a hand-list of one - a hand-list of one is a
+  threshold met by its strongest member.
+- A PLANT KILLED INSTEAD OF DEGRADING, found by mutation and not by review. A non-ASCII
+  byte planted to prove the ASCII arm raised an unnamed `UnicodeDecodeError` that
+  destroyed the `closure` fixture, so the arm DIED rather than reporting.
+  `namespace_closure` now decodes with `errors="replace"`.
+- THE HARNESS WRITES CRLF THROUGH `Path.write_text`. A relocation script silently
+  converted three tracked docs to CRLF. It was caught by BYTE ARITHMETIC - the routing
+  index grew 203 bytes while a row was being REMOVED - not by a CR check, because
+  `grep -c $'\r'` returns the TOTAL line count on a pure-LF file and reads as "all CRLF"
+  either way. Pass `newline="\n"` and assert on the bytes.
+- Decisions: no ADR recorded. Two acceptances amended under CLAUDE.md section 8 - CS-1066's
+  collected-count clause, and CS-1088's approach-arm clause folded into it. CS-898's
+  stated-policy half struck as discharged.
+- Surprises: no spike contradicted `BOOTSTRAP.md`.
+- Failed paths: none abandoned. The widening of `derived_bound_problems` to `ast.Attribute`
+  was adjudicated PERMITTED rather than a breach of "the same guard", because the clause
+  names the guard's IDENTITY and its two-way property, not its node-type set.
+- Next action: work CS-1087 - the unreadable-header residue CS-1083 declined. Do NOT
+  close it by simply making an unreadable header block; that declination was adjudicated
+  SOUND under non-negotiable 7.
+
+---
