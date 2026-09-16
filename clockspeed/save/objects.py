@@ -196,7 +196,7 @@ format.
 from __future__ import annotations
 
 import struct
-from collections.abc import Container, Mapping
+from collections.abc import Collection, Container, Iterable, Mapping
 from dataclasses import dataclass
 from types import MappingProxyType
 from typing import Final
@@ -290,6 +290,8 @@ __all__ = [
     "Collectable",
     "ContainerElement",
     "ContainerValue",
+    "ItemList",
+    "ItemListEntry",
     "ObjectBudgetExceededError",
     "ObjectError",
     "ObjectFormatError",
@@ -311,10 +313,12 @@ __all__ = [
     "classify_unresolved",
     "container_candidate_words",
     "decode_struct_interior",
+    "derive_item_list_classes",
     "index_records",
     "parse_body",
     "parse_object_headers",
     "parse_properties",
+    "read_item_list",
     "read_properties",
     "read_trailing_run",
     "resolve_references",
@@ -4305,6 +4309,16 @@ UNMEASURED_PAYLOAD_REGIONS: Final[Mapping[str, str]] = MappingProxyType(
             "it and no partition of it closes by arithmetic; that is the "
             "defect which refuted CS-830 after it had merged and the reason "
             "the remainder is left open here instead of being apportioned. "
+            "NARROWED AGAIN BY CS-1068, ON ONE DERIVED CLASS SET AND NOWHERE "
+            "ELSE: where the remainder is a COUNT-PREFIXED ITEM LIST it is read "
+            "by read_item_list, whose every width comes from the count prefix, "
+            "the per-entry length prefixes and two shipped fixed-width "
+            "constants and never from the declared end, and the classes that "
+            "carry one are picked off the body at read time by "
+            "derive_item_list_classes rather than transcribed. On those "
+            "classes' payloads unread falls to zero and the list is reported "
+            "as TrailingRun.items; on every other class the remainder is "
+            "exactly as open as it was. "
             "NO FIGURE ABOVE IS RESTATED IN ANY TEST: "
             "tests/save/test_trailing_run.py derives the population from this "
             "module's own TRAILING_RUN_PAIRS on every run and reports COUNTS "
@@ -4745,6 +4759,22 @@ TRAILING_RUN_LEAD_BYTES: Final = INT32_SIZE
 #: than being refused. The arm that grades the measurement is what would go
 #: red, which is where a surprise belongs.
 TRAILING_RUN_LEAD_MEASURED_VALUE: Final = 0
+
+#: The fixed-width field each item-list entry OPENS with - CS-1068. It reads
+#: zero on every entry of this project's library and is carried rather than
+#: interpreted, the same way :attr:`ObjectReference.level_reference` is.
+ITEM_LIST_ENTRY_HEAD_BYTES: Final = INT32_SIZE
+
+#: The fixed-width field each item-list entry CLOSES with. DERIVED BY SOLVING
+#: RATHER THAN ASSUMED: it is the only width in 0..32 under which every entry of
+#: every list in this project's library walks exactly onto its declared end, and
+#: ``tests/save/test_item_list.py`` re-derives the walk on every run.
+ITEM_LIST_ENTRY_TAIL_BYTES: Final = 12
+
+#: The ceiling :func:`read_item_list` refuses a count above. A REFUSAL, NOT A
+#: CLAIM about how long a real list is - a corrupt prefix must not be able to
+#: drive an unbounded walk, and nothing compares a corpus count against this.
+MAX_ITEM_LIST_ENTRIES: Final = 4096
 
 #: The flags byte's measured bits. NAMED because a bare hex literal at a use
 #: site is a bit nobody can hold a table against.
@@ -6069,6 +6099,145 @@ def _decode_value(  # noqa: PLR0913
     return _decode_text_value(body, type_word, at, size)
 
 
+@dataclass(frozen=True, repr=False)
+class ItemListEntry:
+    """One entry of a count-prefixed item list - CS-1068.
+
+    ``repr`` is hand written and withholds the class path, for the reason given
+    on :class:`ObjectReference`: the path is read out of the player's world and
+    a repr is an echo path (non-negotiable 12).
+
+    Attributes:
+        item_class: The entry's class path, as the run spells it. WORLD
+            CONTENT. Carried rather than interpreted - this module states no
+            relation between it and any record's ``type_path``.
+    """
+
+    item_class: str
+
+    def __repr__(self) -> str:
+        """Render the length only, and withhold the path.
+
+        Returns:
+            The safe rendering.
+        """
+        return f"{type(self).__name__}(item_class_len={len(self.item_class)})"
+
+
+@dataclass(frozen=True, repr=False)
+class ItemList:
+    """A whole count-prefixed item list, and the width its prefixes describe.
+
+    WHY ``width`` IS CARRIED RATHER THAN RECOMPUTED BY A CONSUMER. It is the
+    one figure CS-1068's clause is about: it is summed from the count prefix,
+    each entry's own length prefix and two shipped constants, and it is NEVER
+    ``declared_end - at``. A consumer recomputing it from the payload's declared
+    end would be doing the arithmetic partition that refuted CS-830, so the
+    derived figure travels with the reading.
+
+    Attributes:
+        declared_count: The count the prefix carries. The number of entries the
+            walk then read is ``len(entries)`` and the two agree by
+            construction - a walk that could not read that many entries yields
+            no list at all.
+        entries: The entries, in the order the run writes them.
+        width: How many bytes the list occupies, DERIVED from the prefixes.
+    """
+
+    declared_count: int
+    entries: tuple[ItemListEntry, ...]
+    width: int
+
+    def __repr__(self) -> str:
+        """Render counts and widths only.
+
+        Returns:
+            The safe rendering.
+        """
+        return (
+            f"{type(self).__name__}(declared_count={self.declared_count}, "
+            f"entries={len(self.entries)}, width={self.width})"
+        )
+
+
+def _walk_item_entries(
+    body: bytes, at: int, end: int, declared: int
+) -> tuple[tuple[ItemListEntry, ...], int] | None:
+    """Walk ``declared`` item-list entries, or refuse.
+
+    SEPARATE FROM :func:`read_item_list` so that the reader's own refusals stay
+    readable as a list rather than as a nest - the walk has four ways to refuse
+    and the reader has three, and putting the seven in one frame made neither
+    set legible.
+
+    Args:
+        body: The decompressed body.
+        at: The first entry's first byte.
+        end: The first byte past the payload.
+        declared: How many entries the count prefix declared.
+
+    Returns:
+        The entries and the offset past the last one, or None.
+    """
+    entries: list[ItemListEntry] = []
+    cursor = at
+    for _ in range(declared):
+        if cursor + ITEM_LIST_ENTRY_HEAD_BYTES > end:
+            return None
+        step = _payload_text(body, cursor + ITEM_LIST_ENTRY_HEAD_BYTES, end)
+        # AN EMPTY PATH IS REFUSED, and not for tidiness: four zero bytes read
+        # as an empty string would make any run of zeroes read as entries.
+        if step is None or not step[0]:
+            return None
+        cursor = step[1] + ITEM_LIST_ENTRY_TAIL_BYTES
+        if cursor > end:
+            return None
+        entries.append(ItemListEntry(item_class=step[0]))
+    return (tuple(entries), cursor)
+
+
+def read_item_list(body: bytes, at: int, end: int) -> ItemList | None:
+    """Read a count-prefixed item list out of a payload's trailing remainder.
+
+    **EVERY WIDTH HERE COMES OUT OF THE BYTES - CS-1068's WHOLE CLAUSE.** The
+    count prefix says how many entries follow; each entry's own length prefix
+    says how wide its class path is; the two fixed-width fields are shipped
+    constants. ``end`` is a BOUND and a VALIDATION and is never a source of
+    width: the walk refuses rather than stretching to reach it, which is what
+    makes the reading falsifiable. A partition taking its width from ``end``
+    would close on every payload and could not fail - the defect that refuted
+    CS-830 after it had merged - and
+    ``tests/save/test_item_list.py`` holds an arm that reddens on exactly that
+    swap.
+
+    NOTHING HERE RAISES. A corrupt count, a length prefix reaching past the
+    payload and a walk that does not land on ``end`` are all REPORTED as no
+    list, per non-negotiable 7.
+
+    THE CLASS THE RUN BELONGS TO IS NOT AN INPUT, and cannot be: an empty list
+    is four zero bytes and so is an unrelated class's whole remainder, so the
+    bytes alone never say whether a run IS a list. :func:`derive_item_list_classes`
+    is what answers that, and it answers it from the corpus.
+
+    Args:
+        body: The decompressed body.
+        at: The remainder's first byte.
+        end: The first byte past the payload.
+
+    Returns:
+        The list, or None when the run is not one.
+    """
+    if at < 0 or end > len(body) or at + INT32_SIZE > end:
+        return None
+    (declared,) = struct.unpack_from("<i", body, at)
+    if declared < 0 or declared > MAX_ITEM_LIST_ENTRIES:
+        return None
+    walked = _walk_item_entries(body, at + INT32_SIZE, end, declared)
+    if walked is None or walked[1] != end:
+        return None
+    return ItemList(declared_count=declared, entries=walked[0], width=walked[1] - at)
+
+
 @dataclass(frozen=True)
 class TrailingRun:
     """The run between a payload's property terminator and its declared end.
@@ -6094,12 +6263,19 @@ class TrailingRun:
             the run is too short to hold the field. Absent on no payload of any
             real save measured so far, and reported rather than assumed.
         unread: How many bytes sit past the lead field that nothing reads. Zero
-            on the population whose run IS the field and nothing else.
+            on the population whose run IS the field and nothing else, and zero
+            on a derived carrier whose remainder :attr:`items` read - CS-1068.
+        items: The count-prefixed item list the remainder carried, or None. It
+            is present only when the record's class was named by
+            :func:`derive_item_list_classes` AND the bytes then read as one:
+            naming a class does not zero its remainder, which is what keeps the
+            vocabulary a gate on the reading rather than the reading itself.
     """
 
     width: int
     lead: int | None
     unread: int
+    items: ItemList | None = None
 
 
 def read_trailing_run(body: bytes, terminator_end: int, end: int) -> TrailingRun | None:
@@ -6483,6 +6659,94 @@ def _as_reference(property_name: str, value: object) -> ObjectReference | None:
 # ---------------------------------------------------------------------------
 
 
+def _run_with_item_list(
+    body: bytes,
+    record: ObjectRecord,
+    run: TrailingRun | None,
+    item_list_classes: Collection[str],
+) -> TrailingRun | None:
+    """Read the run's remainder as an item list when the class carries one.
+
+    THE VOCABULARY IS A GATE ON THE READING AND NEVER THE READING ITSELF. A
+    class named here whose bytes do not read comes back exactly as CS-828 left
+    it, so a derivation that named everything would close nothing. That is what
+    keeps `and nowhere else` a measurement rather than a definition.
+
+    Args:
+        body: The decompressed body.
+        record: The record the run came from.
+        run: The run the walk read, or None.
+        item_list_classes: The class names derived as carriers.
+
+    Returns:
+        The run, with its remainder read when it read.
+    """
+    if run is None or run.lead is None or not run.unread:
+        return run
+    if class_name_of(record.type_path) not in item_list_classes:
+        return run
+    end = record.body_offset + record.body_length
+    items = read_item_list(body, end - run.unread, end)
+    if items is None:
+        return run
+    return TrailingRun(width=run.width, lead=run.lead, unread=run.unread - items.width, items=items)
+
+
+def derive_item_list_classes(
+    body: bytes,
+    records: Iterable[ObjectRecord],
+    *,
+    save_version: int | None = None,
+    header_version: int | None = None,
+) -> frozenset[str]:
+    """Pick the classes whose trailing remainder is a count-prefixed item list.
+
+    **DERIVED FROM THE CORPUS, NEVER TRANSCRIBED - CS-1068's second clause.** A
+    hand-maintained vocabulary of game content is the thing that rots, and
+    CS-829's note forbids that shape by name. A class earns its place here by
+    DEMONSTRATING the grammar inside the very body being read: one of its
+    records must carry a NON-EMPTY list that walks exactly onto its declared
+    end. A body that stops carrying one derives nothing and says so, rather
+    than going quietly green.
+
+    WHY DEMONSTRATION RATHER THAN A SUCCESSFUL PARSE. An EMPTY list is four zero
+    bytes, and so is the whole remainder of several classes that carry no list
+    at all - they are byte-identical, so a class admitted on a parse that
+    succeeded would admit every one of them and the reading would fall to zero
+    everywhere. A non-empty list cannot be produced by accident: its count
+    prefix, its per-entry length prefixes and its fixed fields have to agree
+    with each other AND land on the declared end.
+
+    THIS IS THE SECOND WALK OVER THE BODY AND THAT IS INHERENT. The vocabulary
+    is a property of the body as a whole and no per-record reader can hold it,
+    which is exactly the sense in which the remainder is class-keyed.
+
+    Args:
+        body: The decompressed body.
+        records: The records to derive from - a body's whole table.
+        save_version: The save version the body was walked on, or None.
+        header_version: The header version the body was walked on, or None.
+
+    Returns:
+        The carrier class names.
+    """
+    derived: set[str] = set()
+    for record in records:
+        if not record.body_length or class_name_of(record.type_path) in derived:
+            continue
+        result = read_properties(
+            body, record, save_version=save_version, header_version=header_version
+        )
+        run = result.trailing_run
+        if run is None or run.lead is None or not run.unread:
+            continue
+        end = record.body_offset + record.body_length
+        items = read_item_list(body, end - run.unread, end)
+        if items is not None and items.declared_count:
+            derived.add(class_name_of(record.type_path))
+    return frozenset(derived)
+
+
 def read_properties(
     body: bytes,
     record: ObjectRecord,
@@ -6490,6 +6754,7 @@ def read_properties(
     *,
     save_version: int | None = None,
     header_version: int | None = None,
+    item_list_classes: Collection[str] = (),
 ) -> PropertyResult:
     """Decode one record's measured properties and report what was skipped.
 
@@ -6557,6 +6822,10 @@ def read_properties(
             OPTIONAL, and defaulted so that "no map" is the shape a caller
             falls into rather than one it has to construct. It drives the
             resolution report alone and never the decode.
+
+        item_list_classes: Class names derived as item-list carriers by
+            :func:`derive_item_list_classes`. DEFAULTED EMPTY so that adding
+            this reading could not change what any existing caller reads.
 
     Returns:
         What resolved, what did not, and why.
@@ -6690,7 +6959,7 @@ def read_properties(
         references=walked.references,
         reference_tag_count=walked.reference_tags,
         undecoded_reference_count=walked.undecoded_references,
-        trailing_run=walked.trailing_run,
+        trailing_run=_run_with_item_list(body, record, walked.trailing_run, item_list_classes),
         struct_interiors=walked.struct_interiors,
         struct_tag_count=walked.struct_tags,
     )

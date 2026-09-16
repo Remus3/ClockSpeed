@@ -158,6 +158,7 @@ RECORDED_POPULATION: tuple[str, ...] = (
     "clockspeed/save/objects.py::Collectable",
     "clockspeed/save/objects.py::ContainerElement",
     "clockspeed/save/objects.py::ContainerValue",
+    "clockspeed/save/objects.py::ItemListEntry",
     "clockspeed/save/objects.py::ObjectError",
     "clockspeed/save/objects.py::ObjectRecord",
     "clockspeed/save/objects.py::ObjectReference",

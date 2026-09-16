@@ -374,6 +374,84 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-09-16 - CS-1068 - CLOSED. One class's trailing remainder is read from its own prefixes, and the classes are picked off the corpus
+
+**WHAT CHANGED.** `clockspeed/save/objects.py` gained `read_item_list`, which reads a
+count-prefixed item list out of the region CS-828 left carried as `TrailingRun.unread`, and
+`derive_item_list_classes`, which picks the classes that carry one off the body being read.
+`read_properties` takes the derived vocabulary as `item_list_classes` and reports the list as
+`TrailingRun.items`, with `unread` falling by the width the list consumed. The region entry in
+`UNMEASURED_PAYLOAD_REGIONS["trailing_run"]` records the narrowing and names both functions, so the
+shipped table and the reading cannot drift apart.
+
+**THE DEFECT.** CS-828 read the int32 the run opens with and nothing past it. The remainder is
+class-keyed rather than pair-keyed, so no single grammar reads it, and its width is whatever the
+bytes are - which means any partition of it sums to the declared end and no reading of it could have
+failed. That is the defect that refuted CS-830 after it had merged, and it is why the clause asked
+for a width derived from something self-describing inside the run.
+
+**ROOT CAUSE, AND WHY THE VOCABULARY HAD TO BE DERIVED RATHER THAN DISPATCHED ON THE BYTES.** An
+EMPTY item list is four zero bytes, and so is the entire remainder of several classes that carry no
+list at all. The two are byte-identical, so no grammar reading the run alone can tell them apart: a
+reader admitting a run because it parsed would zero the remainder of every one of those classes, and
+`and nowhere else` would be false. A class earns its place in the vocabulary by DEMONSTRATING the
+grammar - one of its records in the same body must carry a NON-EMPTY list whose count prefix,
+per-entry length prefixes and fixed fields agree with each other and land on the declared end. That
+cannot happen by accident, and a body that stops carrying one derives nothing rather than going
+quietly green.
+
+**WHERE EVERY WIDTH COMES FROM.** The count prefix says how many entries follow; each entry's own
+length prefix says how wide its class path is; `ITEM_LIST_ENTRY_HEAD_BYTES` and
+`ITEM_LIST_ENTRY_TAIL_BYTES` are shipped constants, the tail width DERIVED by solving rather than
+assumed - it is the only width in 0..32 under which every entry of every list in this project's
+library walks exactly onto its declared end. The declared end is a BOUND and a VALIDATION and never
+a source of width: the walk refuses rather than stretching to reach it.
+
+**THE ARM THE CLAUSE NAMES.**
+`tests/save/test_item_list.py::test_the_width_is_derived_from_the_prefixes_and_not_from_the_declared_end`
+offers the same bytes twice - once with the declared end where the prefixes say it is, once with it
+moved out past them. The first reads and the second is REFUSED, which is exactly the outcome that
+inverts when the derivation is swapped for `end - at`; that forbidden reading is spelled out in the
+module as `_width_from_observation` so the swap is a one-line change rather than a thought
+experiment. `test_a_declared_count_short_of_the_entries_written_is_refused` is its twin from the
+other side: the bytes fill the run either way and only a prefix-driven walk notices.
+
+**THE SIBLING SWEEP.** The remainder's other shapes were measured on the corpus before any code was
+written and are NOT swept here, because they do not share this root cause. One class's remainder
+reads as two length-prefixed object references followed by a 24-byte tail that nothing in the run
+describes; another is a large nested structure. Reading either by the width left over would be the
+CS-830 defect again. They stay carried as `unread` and CS-828 stays open over them.
+
+**WHAT REMAINS OPEN.** CS-828's clause asks for the run's contents on EVERY payload of the three
+pairs and this reads one derived class set's. That item is unchanged and is not closed by this one.
+
+**VERIFICATION.** `tests/save/test_item_list.py`. Nineteen of its arms need no game install and are
+where the reader's own grading lives; three are skip-if-absent library arms reporting COUNTS ONLY -
+`test_the_corpus_derives_at_least_one_carrier` (the non-vacuity control),
+`test_the_remainder_falls_to_zero_on_every_derived_carrier_payload` and
+`test_the_remainder_falls_to_zero_nowhere_else`; one more,
+`test_every_library_reaching_function_here_is_declared`, is a claim about this module's SOURCE and
+never skips. The sweep observed on this machine this run: 3 derived carrier classes, 3116 carrier
+payloads of which 0 still carry unread bytes, 14957 payloads outside the derived set of which 0 were
+zeroed, and no failures. `tests/save/test_trailing_run.py` still passes unchanged, which is the
+control that CS-828's own reading was not disturbed.
+`tests/test_repr_rendering.py::RECORDED_POPULATION` gained `ItemListEntry`, which is how that arm
+records a new string-carrying class as withholding rather than letting one enter grading unnoticed.
+
+**WHAT THE VERIFIER MEASURED THAT THIS ENTRY COULD NOT CLAIM FOR ITSELF.** An independent pass that
+did not produce the work ran three mutants of the reader. Taking the width from the declared end and
+dropping the exact-landing check killed five arms; dropping only the landing check killed two;
+writing `width = end - at` while KEEPING the landing check killed none and is an EQUIVALENT mutant
+rather than a survivor, because the check makes the two expressions provably equal at that line.
+Removing the vocabulary gate from `_run_with_item_list` zeroed 15323 of 18073 non-carrier payloads
+and turned two library arms red, which is what makes `and nowhere else` a measurement rather than a
+definition.
+
+**TIER 2** - a save-engine reader and a change to a public signature. The whole tree was run from
+the repo root on the tree that was committed and reported, verbatim,
+`8101 passed, 7 skipped, 7 warnings in 586.55s (0:09:46)` at exit code 0. The run before the
+`test_repr_rendering.py` repair is not that run and is not cited as one. The CI verdict is recorded
+by the driver and was not observed by this worker.
 ### 2026-09-16 - CS-1111 - CLOSED. The launcher arms see the shapes CI could not, the settings env blocks and the cycle budget
 
 **WHAT CHANGED.** The static arm in `tests/ops/test_lane_background_tasks.py` now reddens on the

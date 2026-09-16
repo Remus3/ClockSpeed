@@ -118,6 +118,56 @@ Where current truth actually lives:
 - Next action: CS-1042 - the uncollected set is the live records carrying transforms MINUS the
   collectable pairs CS-1038 now carries up, a SUBTRACTION and not a lookup, and the two halves
   of a pair are not both always present.
+
+---
+
+## CS-1068 - item section, CLOSED and relocated from `docs/item_notes/phase4-followups-900.md` 2026-09-16
+
+### Filed 2026-09-14 as the residual of CS-828's partial ship
+
+**WHAT CS-828 SHIPPED AND WHAT IT LEFT.** `read_trailing_run` reads the int32 the run
+OPENS with, out of the bytes, on every payload of every pair in `TRAILING_RUN_PAIRS`, and
+`TrailingRun.unread` carries the width of everything past it. On the large majority of
+payloads that remainder is zero and the run is fully read. On the rest it is not, and this
+item owns the rest. The counts are not restated here - `tests/save/test_trailing_run.py`
+derives them on every run and `docs/LEDGER.md` records what was observed the day it
+shipped.
+
+**THE REMAINDER IS CLASS-KEYED, AND THAT IS THE WHOLE DIFFICULTY.** It is not keyed by the
+version pair, so no single grammar reads it: one class writes a count prefix followed by
+that many records, another writes a pair of length-prefixed strings, another writes
+neither. **DO NOT PROPOSE A PAIR-WIDE GRAMMAR FOR IT.** A reading that dispatched on the
+version pair would have to be right for every class at once, and the corpus already
+falsifies that.
+
+**THE FENCE THAT MATTERS MOST, AND IT IS THE ONE THAT REFUTED CS-830 AFTER IT HAD MERGED.**
+The remainder's width is whatever the bytes are, so ANY partition of it closes by
+arithmetic and no reading of it could have failed. A slice that splits the remainder into
+named regions summing to `declared_end - terminator_end` has measured nothing, however
+many tests it ships. The acceptance therefore asks for a reading whose width comes from
+something SELF-DESCRIBING inside the run - a count prefix, or a length-prefixed string -
+and asks for an arm that reddens when that derivation is swapped for the observed width.
+**A SLICE THAT CANNOT SHOW THAT ARM RED HAS NOT MET THE CLAUSE.**
+
+**THE CLASS IS DERIVED, NEVER TRANSCRIBED.** This project has recorded repeatedly that a
+hand-maintained vocabulary of game content is the thing that rots, and CS-829's own note
+forbids exactly this shape of transcription. Pick the class off the corpus at test time
+the way `tests/save/test_struct_interior.py` derives its struct vocabulary, so a corpus
+that stops carrying it says so rather than going quietly green.
+
+**SCOPE IS ONE CLASS, DELIBERATELY.** The clause asks for `unread` to fall to zero on
+exactly one derived class's payloads and nowhere else. That is a bounded row that can ship
+in a cycle and a measurable step, and the "and nowhere else" half is what stops a reader
+that returns zero for everything from passing. Widening it to every class at once is how
+this becomes the item that absorbs a night and ships nothing.
+
+**NOT THE STRUCT INTERIOR AND NOT THE (14,60) PAIR.** `StructProperty`'s interior is
+CS-829 and carries its own six fences. The (14,60) pair reaches no property terminator at
+all, so it has no trailing run to read and stays scoped into CS-G05; `TRAILING_RUN_PAIRS`
+is derived so that the pair cannot drift into this item's population by editing a list.
+
+---
+
 ## CS-894 - item section, CLOSED and relocated from `docs/item_notes/phase4-followups-850.md` 2026-09-16
 
 ### SWEEP RESULT - MEASURED 2026-09-04 (session 60), and a drafted arm already exists
