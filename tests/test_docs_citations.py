@@ -494,6 +494,15 @@ ITEM_NOTES_LEAVES: Final = _item_notes_leaves()
 GUARDED_DOCS: Final = (
     LEDGER,
     "ROADMAP.md",
+    # docs/CHANNEL.md is a VENDORED file, byte-identical across five repositories
+    # and pinned by tests/test_channel_doc.py. It carries one bare repo-relative
+    # path, which makes it a carrier under BARE_PATH_RE - so it is GUARDED here
+    # rather than recorded UNGUARDED. That direction is forced, not chosen: an
+    # exemption would be a disposition about a file this tree may not edit, and
+    # the one path it names resolves, so there is nothing to forgive. If a future
+    # re-pin lands a path that does NOT resolve, this guard is the thing that must
+    # fail - never the doc that must change.
+    "docs/CHANNEL.md",
     "docs/GATED.md",
     "WAKEUP_NOTES.md",
     # THE WHOLE ADR FAMILY, derived rather than listed - see _adr_docs.

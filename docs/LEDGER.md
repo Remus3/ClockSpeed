@@ -16243,8 +16243,10 @@ verdict, not that the hooks fire - that end-to-end proof remains session 3's.
 ### 2026-08-14 - CS-208 - Frozen-file grant DENIED, and the item is refuted by measurement rather than deferred
 Verification: adjudicated under `CLAUDE.md` section 6 by an agent that authored no part of
 the proposal and did not find the original defect. The grant sought an edit to
-`tools/precommit_gate.py:570` (`MIN_ACCOUNT_NAME_CHARS = 3`), through which world names route
-at `:852` and account names at `:960`. DENIED, and the denial rests on measurements that
+`tools/precommit_gate.py`'s `MIN_ACCOUNT_NAME_CHARS`, through which world names route in
+`discover_world_names` and account names in `current_account_names`. Cited by SYMBOL:
+this sentence carried three LINE pins and all three went stale the first time an edit
+landed above them - an edit above a line cannot invalidate a symbol. DENIED, and the denial rests on measurements that
 refute the item's own premise rather than on a judgement call.
 MEASURED, values never printed, lengths only: 16 distinct matchable world names are
 discoverable on this machine, the shortest being 4 characters. A floor of 4 drops nothing; a

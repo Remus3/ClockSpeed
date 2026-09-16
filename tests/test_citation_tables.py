@@ -740,7 +740,6 @@ UNVERIFIED_LINE_POINTERS: Final[Mapping[tuple[str, str, int], str]] = {
     ("docs/LEDGER.md", "scripts/install_hooks.py", 310): "4facec475176",
     ("docs/LEDGER.md", "tools/edit_lint_check.py", 82): "c52969cc5a4b",
     ("docs/LEDGER.md", "tools/edit_lint_check.py", 113): "a7515962ef0b",
-    ("docs/LEDGER.md", "tools/precommit_gate.py", 570): "4b165904f3ca",
     ("docs/item_notes/phase4-followups-850.md", "clockspeed/data/locate.py", 39): "0d5e3276442e",
     ("docs/item_notes/phase4-followups-850.md", "clockspeed/data/locate.py", 141): "fa085c760a09",
     ("docs/item_notes/phase4-followups-850.md", "clockspeed/data/locate.py", 187): "53bcd3acffa2",
@@ -943,7 +942,7 @@ UNVERIFIED_LINE_POINTERS: Final[Mapping[tuple[str, str, int], str]] = {
 #: running this module's own resolver against the corpus after the move rather
 #: than counted by eye - two earlier estimates of the same quantity, made by
 #: reading the diff, were 6 names and 3 names and neither was right.
-FORGIVEN_LINE_POINTER_CEILING: Final = 55
+FORGIVEN_LINE_POINTER_CEILING: Final = 54
 
 
 #: R2's live membership, DISCLOSED. Every entry is a citation at a path this
@@ -966,6 +965,7 @@ DECLINED_AS_DECLARED_UNTRACKED: Final[Mapping[tuple[str, str, str], int]] = {
     ): 1,
     ("ROADMAP.md", "config/local.json", "## Phase 4 - save reader"): 1,
     ("clockspeed/solve/optimize.py", "config/local.json", ""): 1,
+    ("tools/inbox_watch.py", "data/inbox_report.txt", ""): 1,
     (
         "clockspeed/surface/providers.py",
         "config/local.json",
@@ -1138,7 +1138,23 @@ DECLINED_AS_A_FIXTURE_LITERAL: Final[Mapping[tuple[str, str, str], int]] = {
 #: row is bought for the leaf that carries the finding: if that diagnosis
 #: relocates to `docs/history_notes.md` the row REFUNDS and the ceiling comes
 #: back down to 13.
-DECLARED_UNTRACKED_CEILING: Final = 14
+#: 14 TO 15 FOR CS-1095'S OVER-CAP REPORT, AND THE REASON IS WHY THE ROW
+#: CANNOT BE REPOINTED. `tools/inbox_watch.py` names the report it writes,
+#: because the cross-repo watcher contract requires the over-cap pointer line
+#: to name the file it wrote, and the watcher writes that file ATOMICALLY
+#: BEFORE stdout so the pointer can never name an absent one. The report lives
+#: under the generated-artifact directory the ignore rules already exclude, so
+#: it will never be tracked - which is the whole of what puts it on this rung,
+#: the same standing the local configuration row has. Repointing it would mean
+#: the transcript names a file the reader cannot find, which is the defect that
+#: clause of the contract exists to prevent. The row REFUNDS and the ceiling
+#: returns to 14 if the report ever stops being named in the transcript.
+#:
+#: NOTE FOR THE NEXT EDITOR OF THIS BLOCK: do not spell an untracked path in
+#: this comment. The first draft cited two and the guard counted its own
+#: disclosure as two fresh declines, because this table is part of the corpus
+#: it describes. Name the rung and the symbol, never the path.
+DECLARED_UNTRACKED_CEILING: Final = 15
 #: 9 TO 6 WHEN CS-928 DELETED THE THREE FALSE ADVISOR ATTRIBUTIONS. Six
 #: `docs/ARCHITECTURE.md` rows left the rung and three arrived from the guard
 #: that now asserts those files absent, so the disclosure holds six rows and the
