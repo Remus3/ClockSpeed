@@ -32,6 +32,7 @@ from __future__ import annotations
 
 import ast
 import importlib.util
+import json
 import os
 import shutil
 import subprocess
@@ -4599,3 +4600,173 @@ def test_an_unimportable_token_scanner_is_reported_once_and_never_blocks(
     code, out, _err = emit_verdict(gate, report, capsys)
     assert code == 0, out
     assert "PASS" in out, out
+
+
+# --------------------------------------------------------------------------
+# CS-1095 - the console flash, and the platform guard that keeps the gate
+# able to START on a non-Windows runner
+# --------------------------------------------------------------------------
+#
+# WHAT THIS IS AND WHAT IT IS NOT. Every console-subsystem CHILD of a windowless
+# parent - a pythonw process, or a hook running under the desktop harness -
+# flashes a console window unless the spawn carries CREATE_NO_WINDOW. A positive
+# control on 2026-09-15 passed on all three arms: both unflagged spawns under a
+# windowless parent produced a console-window event and the flagged spawn
+# produced none, which confirms the DETECTOR and the FLAG. It does NOT confirm
+# that this gate is the source of any flash the operator has seen - attribution
+# stays PROBABLE at n=1 - so the flag here is UNIFORMITY, not a proven repair,
+# and nothing below asserts that a flash was fixed.
+#
+# THE FAILURE THESE ARMS EXIST TO PREVENT is not a missing flag. It is an
+# AttributeError: subprocess.CREATE_NO_WINDOW exists only on Windows and tier1
+# runs on ubuntu-latest, so an unguarded reference would make a tier-0 gate FAIL
+# TO START, which _load_header_reader's own docstring names as the one failure a
+# gate must not have. Recorded as the load-bearing clause of the section 6
+# frozen-file grant at b283fee.
+
+# The child that proves the non-Windows path. It runs in a SEPARATE interpreter
+# because the absence has to exist before the gate module is executed, and this
+# box will never supply that absence on its own - win32 always has the
+# attribute, so an arm that merely ran here would pass for that reason alone and
+# measure nothing. The child DELETES the attribute, ASSERTS the deletion took,
+# and only then loads the gate and makes a real spawn through it.
+NO_WINDOW_ABSENT_CHILD = """
+import importlib.util
+import json
+import subprocess
+import sys
+
+before = hasattr(subprocess, "CREATE_NO_WINDOW")
+if before:
+    del subprocess.CREATE_NO_WINDOW
+assert not hasattr(subprocess, "CREATE_NO_WINDOW"), "the deletion did not take"
+
+spec = importlib.util.spec_from_file_location("gate_no_window_absent", sys.argv[1])
+module = importlib.util.module_from_spec(spec)
+sys.modules["gate_no_window_absent"] = module
+spec.loader.exec_module(module)
+
+out = module.git(["rev-parse", "--is-inside-work-tree"], cwd=sys.argv[2])
+print(json.dumps({
+    "attribute_was_present_before_deletion": before,
+    "no_window": module.NO_WINDOW,
+    "git_stdout": out.decode("utf-8", "replace").strip(),
+}))
+"""
+
+
+def _gate_spawn_calls() -> dict[str, ast.Call]:
+    """Map every subprocess.run call site in the gate to its enclosing function.
+
+    Graded as a SET by the caller, deliberately. A threshold met by the
+    strongest member leaves the weakest unmeasured, so "at least one site
+    carries the flag" is exactly the shape that lets a fourth spawn be added
+    later with no flag and no red.
+    """
+    tree = ast.parse(GATE.read_bytes())
+    sites: dict[str, ast.Call] = {}
+    for function in ast.walk(tree):
+        if not isinstance(function, ast.FunctionDef):
+            continue
+        for node in ast.walk(function):
+            if not isinstance(node, ast.Call):
+                continue
+            func = node.func
+            if (
+                isinstance(func, ast.Attribute)
+                and func.attr == "run"
+                and isinstance(func.value, ast.Name)
+                and func.value.id == "subprocess"
+            ):
+                assert function.name not in sites, (
+                    f"{function.name} spawns twice, so the map would hide one site"
+                )
+                sites[function.name] = node
+    return sites
+
+
+def test_every_spawn_site_in_the_gate_carries_the_no_window_flag() -> None:
+    """Graded as a SET over all three sites, never as a count or a threshold.
+
+    The set membership is the anti-narrowing control: a FOURTH spawn added
+    later without the flag reddens this by appearing in the unflagged set,
+    and a site renamed or removed reddens it by leaving the expected set.
+    """
+    sites = _gate_spawn_calls()
+    assert set(sites) == {"run_ruff_format", "run_ruff", "git"}, sorted(sites)
+
+    unflagged = set()
+    for name, call in sites.items():
+        keywords = {kw.arg for kw in call.keywords if kw.arg is not None}
+        if "creationflags" not in keywords:
+            unflagged.add(name)
+            continue
+        value = next(kw.value for kw in call.keywords if kw.arg == "creationflags")
+        names = {node.id for node in ast.walk(value) if isinstance(node, ast.Name)}
+        if "NO_WINDOW" not in names:
+            unflagged.add(name)
+    assert unflagged == set(), sorted(unflagged)
+
+
+def test_the_flag_is_read_through_getattr_and_never_as_a_bare_attribute() -> None:
+    """The guard itself, asserted structurally against the module source.
+
+    subprocess.CREATE_NO_WINDOW spelled directly at module scope raises
+    AttributeError on ubuntu-latest at IMPORT time, so the gate would not
+    start at all and every other arm in this file would be reporting on a
+    module that never loaded. Asserted here rather than left to the runner,
+    because this box cannot produce that failure.
+    """
+    source = GATE.read_text(encoding="utf-8")
+    bare = "subprocess." + "CREATE_NO_WINDOW"
+    guarded = 'getattr(subprocess, "' + "CREATE_NO_WINDOW" + '", 0)'
+    assert guarded in source, "the flag is not read through a defaulted getattr"
+    for line in source.splitlines():
+        if bare in line and guarded not in line:
+            raise AssertionError(f"unguarded flag reference: {line.strip()}")
+
+
+def test_the_gate_starts_and_spawns_when_the_flag_attribute_is_absent() -> None:
+    """The non-Windows path, with the absence SIMULATED rather than waited for.
+
+    On this box hasattr(subprocess, "CREATE_NO_WINDOW") is always True, so an
+    arm that relied on the platform to supply the absence would pass without
+    ever entering the frame it names. The child deletes the attribute, asserts
+    the deletion took, THEN loads the gate and makes a real git spawn through
+    it - so what is graded is that the module executes, that the flag degrades
+    to the documented no-op 0, and that a child still runs.
+    """
+    proc = subprocess.run(
+        [sys.executable, "-c", NO_WINDOW_ABSENT_CHILD, str(GATE), str(REPO_ROOT)],
+        capture_output=True,
+        text=True,
+        timeout=120,
+        check=False,
+    )
+    assert proc.returncode == 0, proc.stderr
+    result = json.loads(proc.stdout.strip().splitlines()[-1])
+
+    # The known-good control. Without it a child on a platform that never had
+    # the attribute would report success having deleted nothing, and the arm
+    # would be a statement about no state at all.
+    if sys.platform == "win32":
+        assert result["attribute_was_present_before_deletion"] is True, result
+
+    assert result["no_window"] == 0, result
+    assert result["git_stdout"] == "true", result
+
+
+def test_the_gate_still_starts_with_the_flag_in_place() -> None:
+    """A gate that cannot start does not block, so start-up is its own arm.
+
+    --help is the cheapest invocation that executes the whole module body,
+    including the flag derivation, without doing any work.
+    """
+    proc = subprocess.run(
+        [sys.executable, str(GATE), "--help"],
+        capture_output=True,
+        text=True,
+        timeout=120,
+        check=False,
+    )
+    assert proc.returncode == 0, proc.stderr

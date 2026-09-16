@@ -81,6 +81,25 @@ MAX_CONTENT_BYTES = 4 * 1024 * 1024
 GIT_TIMEOUT = 60
 RUFF_TIMEOUT = 90
 
+# Console-flash suppression, applied at every spawn in this file. A
+# console-subsystem CHILD of a windowless parent - a pythonw process, or a
+# hook running under the desktop harness - flashes a console window unless
+# its spawn carries CREATE_NO_WINDOW.
+#
+# READ THROUGH getattr BECAUSE THE ATTRIBUTE EXISTS ONLY ON WINDOWS and
+# tier1 runs on ubuntu-latest. Spelled bare it would raise AttributeError
+# at IMPORT, leaving this gate unable to START - a gate that cannot start
+# does not block, which is the one failure a gate must not have.
+# creationflags=0 is the documented no-op on every platform.
+#
+# THIS IS UNIFORMITY, NOT A PROVEN REPAIR. A positive control on
+# 2026-09-15 confirmed the detector and the flag - both unflagged spawns
+# under a windowless parent produced a console-window event and the
+# flagged one produced none - but that this gate is the SOURCE of any
+# flash the operator has seen stays probable at n=1. Section 6 frozen-file
+# grant for this edit: docs/LEDGER.md, commit b283fee.
+NO_WINDOW = getattr(subprocess, "CREATE_NO_WINDOW", 0)
+
 
 # --------------------------------------------------------------------------
 # Diagnostics
@@ -2219,7 +2238,13 @@ def run_ruff_format(
         # after the PASS banner that hook requires as the LAST LINE. MEASURED:
         # ruff format --check writes both "Would reformat:" and its summary to
         # STDOUT, with stderr empty, so stdout is the channel that had to be caught.
-        proc = subprocess.run(argv, capture_output=True, timeout=RUFF_TIMEOUT, check=False)
+        proc = subprocess.run(
+            argv,
+            capture_output=True,
+            timeout=RUFF_TIMEOUT,
+            check=False,
+            creationflags=NO_WINDOW,
+        )
     except (OSError, subprocess.SubprocessError) as exc:
         report.notes.append(
             "ruff format: could not be run (%s) - format check skipped, not blocking"
@@ -2298,7 +2323,13 @@ def run_ruff(units: list[Unit], report: Report, root: Path | None = None) -> Non
             *paths,
         ]
         try:
-            proc = subprocess.run(argv, capture_output=True, timeout=RUFF_TIMEOUT, check=False)
+            proc = subprocess.run(
+                argv,
+                capture_output=True,
+                timeout=RUFF_TIMEOUT,
+                check=False,
+                creationflags=NO_WINDOW,
+            )
         except (OSError, subprocess.SubprocessError) as exc:
             report.notes.append(
                 "ruff: could not be run (%s) - lint skipped, not blocking" % (safe_exc_text(exc),)
@@ -2415,6 +2446,7 @@ def git(args: list[str], cwd: str | None = None) -> bytes:
             cwd=cwd,
             timeout=GIT_TIMEOUT,
             check=False,
+            creationflags=NO_WINDOW,
         )
     except (OSError, subprocess.SubprocessError) as exc:
         raise git_run_error(args, exc) from exc
