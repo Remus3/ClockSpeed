@@ -34,13 +34,27 @@ proves it: a repository whose only wiring is untracked reads as UNWIRED.
 WHICH BRANCH THIS REPOSITORY TOOK, AND THE MEASUREMENT THAT DECIDED IT. The
 tracking branch was proposed, and an adjudicator granted the frozen-file edit
 with conditions. AN ADVERSARIAL PASS THEN REFUTED THE PREMISE and the grant was
-NOT SPENT. The measurement: `moon_sync_inbox/` is itself gitignored, so a fresh
-clone has no channel to read, and the tool answers that state with exit 3. A
-`SessionStart` hook that exits non-zero does not get its stdout injected, so the
-tracked wiring would have fired, failed and said nothing - moving the published
-claim from FALSE to false in a harder-to-see way, at the cost of a frozen-file
-exception. The correction branch was taken instead, which is also what
-`docs/LEDGER.md` records for CS-931, the same defect one tool earlier.
+NOT SPENT. The measurement then: `moon_sync_inbox/` is itself gitignored, so a
+fresh clone has no channel to read; the tool gave that state a non-zero code,
+and a `SessionStart` hook that exits non-zero does not get its stdout injected,
+so the tracked wiring would have fired, failed and said nothing. The correction
+branch was taken instead, which is also what `docs/LEDGER.md` records for
+CS-931, the same defect one tool earlier.
+
+THAT REASON IS RETIRED AND THE REFUSAL WAS RE-DERIVED WITHOUT IT (CS-1101).
+CS-1095 made every default path of the watcher return 0, keeping the old codes
+behind `--strict`, so today the tool answers that state with exit 0 and prints
+its `UNMEASURED` banner - a tracked hook WOULD speak. The refusal still holds,
+on a different reason: the watcher resolves its root from its own file, and the
+channel exists only in the one working copy that is already wired locally. In a
+fresh clone and in every worktree - the default session shape here - a tracked
+hook could only ever announce that the channel is absent. It would surface no
+item the local wiring does not, at the cost of a frozen-file exception. Giving a
+clone or a worktree a channel to read is a different item, and is the thing to
+do before tracking the wiring is worth re-pitching.
+`test_each_live_docstring_states_the_exit_code_the_hook_actually_gets` runs the
+watcher as the hook does and grades the code stated above against the code it
+returns, so this paragraph cannot go stale a second time without going red.
 
 THIS GUARD READS HEAD, NOT THE WORKING TREE AND NOT THE INDEX, and the cost of
 that is stated rather than discovered. A clone materialises HEAD, so HEAD is the
@@ -67,9 +81,14 @@ WHAT THIS DELIBERATELY DOES NOT COVER, stated rather than left silent.
 
 from __future__ import annotations
 
+import ast
 import json
+import re
+import subprocess
+import sys
 import tarfile
 from pathlib import Path
+from typing import Final
 
 import pytest
 
@@ -295,15 +314,159 @@ def test_a_clean_checkout_wires_what_the_tooling_map_claims(
     assert (not claimed) or wired, disagreement
 
 
+# ---------------------------------------------------------------------------
+# CS-1101 - the refusal's stated exit code is graded against the real return.
+# ---------------------------------------------------------------------------
+
+#: The sentence shape both live docstrings use to state what the watcher
+#: returns in a tree with no channel. It is deliberately the shape the ORIGINAL
+#: false sentence had, so the arm read the stale copies at the SHA it was
+#: written against, and a history mention of a retired code is written in a
+#: different shape precisely so that it is not mistaken for the current claim.
+CLAIM_PATTERN: Final = re.compile(
+    r"answers\s+that(?:\s+state)?\s+with\s+exit\s+(\d+)", re.IGNORECASE
+)
+
+#: The two live docstrings that argue the CS-952 refusal from the exit code.
+LIVE_CLAIM_FILES: Final = ("tests/test_session_start_wiring.py", WATCHED_TOOL)
+
+#: The deep archive holding dated copies of the same premise. Annotated beside
+#: each copy, never rewritten - it is a record of what was measured at the time.
+ARCHIVE_FILE: Final = "docs/history_notes.md"
+
+#: The annotation every archive copy of the premise must carry in its paragraph.
+SUPERSESSION_MARKER: Final = "SUPERSEDED BY CS-1095"
+
+#: The hook's command line, shared with `_wiring_document` so the controls and
+#: the CS-1101 probe cannot describe two different hooks.
+HOOK_COMMAND: Final = "python " + WATCHED_TOOL
+
+#: A SessionStart payload, so the watcher reads its labels and never waits on
+#: a stdin that does not close.
+_HOOK_PAYLOAD: Final = json.dumps(
+    {"hook_event_name": "SessionStart", "source": "startup", "session_id": "cs1101-probe"}
+)
+
+
+def _stated_exit_codes(text: str) -> list[int]:
+    """Every exit code `text` states for the no-channel state, in order.
+
+    Reads PROSE ONLY. It never imports or runs the watcher, so it cannot learn
+    the answer from the thing it is being compared with.
+    """
+    return [int(match.group(1)) for match in CLAIM_PATTERN.finditer(text)]
+
+
+def _module_docstring(path: Path) -> str:
+    """The module docstring of `path`, parsed from source and never imported."""
+    return ast.get_docstring(ast.parse(path.read_text(encoding="utf-8"))) or ""
+
+
+def _run_like_the_hook(
+    root: Path, repo_root: Path, *extra: str
+) -> subprocess.CompletedProcess[str]:
+    """Run the watcher the way the SessionStart hook does, in a tree with no channel.
+
+    ACROSS A PROCESS BOUNDARY, with the hook's own command line taken from
+    `_wiring_document`, from the root of a tree whose `tools/` holds a
+    byte-identical copy of the watcher and nothing else. The copy is what makes
+    the root isolated: the watcher resolves its root from its OWN file, so a
+    run of the real file would read and write the real checkout - including the
+    invocation log - instead of this temporary one.
+    """
+    tool_copy = root / WATCHED_TOOL
+    tool_copy.parent.mkdir(parents=True, exist_ok=True)
+    tool_copy.write_bytes((repo_root / WATCHED_TOOL).read_bytes())
+    assert not (root / "moon_sync_inbox").exists()
+    command = HOOK_COMMAND.split()
+    assert command[0] == "python"
+    return subprocess.run(
+        [sys.executable, *command[1:], *extra],
+        cwd=root,
+        input=_HOOK_PAYLOAD,
+        capture_output=True,
+        text=True,
+        check=False,
+        timeout=60,
+    )
+
+
+@pytest.fixture(scope="module")
+def hook_run(
+    tmp_path_factory: pytest.TempPathFactory,
+) -> tuple[Path, subprocess.CompletedProcess[str]]:
+    """One no-channel run shared by the arms that read its exit code."""
+    repo = Path(__file__).resolve().parent.parent
+    root = tmp_path_factory.mktemp("cs1101-nochannel")
+    return root, _run_like_the_hook(root, repo)
+
+
+def test_the_claim_extractor_sees_one_code_none_and_a_retired_mention() -> None:
+    """CONTROL on the PROSE side. The extractor must be able to return red inputs.
+
+    A docstring that states no code must come back empty, so the live arm can
+    refuse it rather than pass it; and a history mention written in the other
+    shape must not be read as a second, current claim.
+    """
+    assert _stated_exit_codes("the tool answers that state with exit 3, and") == [3]
+    assert _stated_exit_codes("this tool answers that\n  with exit 0") == [0]
+    assert _stated_exit_codes("the refusal was right and says why") == []
+    assert _stated_exit_codes("the exit 3 it carried before CS-1095") == []
+
+
+def test_the_probe_enters_the_no_channel_path_under_an_isolated_root(
+    hook_run: tuple[Path, subprocess.CompletedProcess[str]], repo_root: Path, tmp_path: Path
+) -> None:
+    """CONTROL on the BEHAVIOUR side, and the discharge of the log-location risk.
+
+    The run must be the no-channel run - it says so, and `--strict` on the
+    same tree tells it apart from a quiet channel - and its invocation log must
+    land under the temporary root, which is only true if the copy isolated it.
+    """
+    root, result = hook_run
+    assert "UNMEASURED" in result.stdout, result.stderr
+    assert "moon_sync_inbox/" in result.stdout, result.stderr
+    assert (root / "data" / "inbox_watch_invocations.log").is_file()
+    strict = _run_like_the_hook(tmp_path, repo_root, "--strict")
+    assert strict.returncode != 0, strict.stderr
+    assert "UNMEASURED" in strict.stdout, strict.stderr
+
+
+@pytest.mark.parametrize("relpath", LIVE_CLAIM_FILES)
+def test_each_live_docstring_states_the_exit_code_the_hook_actually_gets(
+    relpath: str, hook_run: tuple[Path, subprocess.CompletedProcess[str]], repo_root: Path
+) -> None:
+    """THE LOAD-BEARING CS-1101 ARM. The stated code and the returned code agree.
+
+    The prose side reads only the docstring; the behaviour side only runs the
+    watcher. EXACTLY ONE stated code is required, so a docstring that drops the
+    number - or states two - is red rather than vacuously green.
+    """
+    stated = _stated_exit_codes(_module_docstring(repo_root / relpath))
+    _, result = hook_run
+    assert len(stated) == 1, f"{relpath} states {len(stated)} no-channel exit codes, not 1"
+    disagreement = f"{relpath}: stated_exit={stated[0]} returned_exit={result.returncode}"
+    assert stated[0] == result.returncode, disagreement
+
+
+def test_each_archive_copy_of_the_premise_carries_its_supersession_note(
+    repo_root: Path,
+) -> None:
+    """The archive keeps its dated copies, and each one says it was superseded.
+
+    Presence only, per paragraph. At least one copy must be found, so an
+    extractor that stopped matching reads red instead of passing on nothing.
+    """
+    text = (repo_root / ARCHIVE_FILE).read_text(encoding="utf-8")
+    copies = [para for para in text.split("\n\n") if _stated_exit_codes(para)]
+    unannotated = sum(1 for para in copies if SUPERSESSION_MARKER not in para)
+    assert copies, f"no copy of the premise found in {ARCHIVE_FILE}"
+    assert unannotated == 0, f"{unannotated} of {len(copies)} archive copies lack the note"
+
+
 def _wiring_document() -> dict[str, object]:
     """The settings shape that declares the watcher's SessionStart hook."""
-    return {
-        "hooks": {
-            "SessionStart": [
-                {"hooks": [{"type": "command", "command": "python tools/inbox_watch.py"}]}
-            ]
-        }
-    }
+    return {"hooks": {"SessionStart": [{"hooks": [{"type": "command", "command": HOOK_COMMAND}]}]}}
 
 
 def _scratch_repo(root: Path) -> Path:
