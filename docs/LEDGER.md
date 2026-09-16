@@ -374,6 +374,74 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-09-16 - CS-1117 - CLOSED. An unread file or a directory leaf is never a silent PASS
+
+**WHAT CHANGED.** Guard (c) and guard (b) in `tools/drift_guard.py` now report a file or memory
+leaf that exists and cannot be read as a non-advisory WARN, so the verdict is UNGRADED. Each count
+is stated against the LISTED population, in the form "in 20 of 21 listed leaves" or "388 checked /
+389 listed", so a shrinking denominator can no longer read as full coverage. `tools/doc_budget.py`
+reports a directory carrying a budgeted name as NOT A FILE - `not_files` in the JSON and verdict
+`NOT_A_FILE` - and still exits non-zero only on HARD; tier1 reads only its exit code, and guard (a)
+FAILS on that directory. Guard (b) names a directory-named leaf, or a directory-named citation
+target, as a directory; a missing target still reads "does not exist". Guards (g) and (k) had the
+same silent skip and got the same fix. Merged files: `tools/drift_guard.py`, `tools/doc_budget.py`,
+`tests/data/test_drift_guard_data.py`, `tests/test_doc_budget.py`.
+
+**PROVEN BY.** `tests/data/test_drift_guard_data.py::test_an_unreadable_file_is_a_charset_warn_naming_it_never_a_silent_skip`,
+`::test_an_unreadable_memory_leaf_is_a_warn_and_the_population_says_so`,
+`::test_an_indexed_directory_carrying_a_leaf_name_is_named_as_a_directory`,
+`::test_a_directory_carrying_a_budgeted_name_fails_guard_a`,
+`::test_an_unreadable_markdown_file_is_a_dated_guard_warn` and
+`::test_an_unreadable_file_is_a_tier1_guard_warn`; and
+`tests/test_doc_budget.py::test_a_directory_carrying_a_budgeted_name_is_its_own_finding` and
+`::test_json_mode_reports_a_directory_carrying_a_budgeted_name`. The real-tree population controls
+are `::test_the_real_tree_charset_population_is_every_listed_text_file` and
+`::test_the_real_memory_population_states_every_listed_leaf_as_read`.
+
+**THREE EXISTING ARMS MOVED, AND NO ASSERTION WAS LOOSENED.** Three CS-1113 and CS-1115 arms made a
+file unreadable by swapping a directory in under its name. That is now guard (a)'s NOT A FILE FAIL,
+which would carry the verdict by itself, so each now holds a REAL exclusive handle instead.
+
+**HISTORY.** Builder tip 6c09393, merged at 2448203. The adversary found it NOT REFUTED at 6c09393.
+The verdict JSON on the real tree was identical to bdf2035's.
+
+**WEAKNESSES, filed as CS-1120** together with CS-1118's. The "absent when read" label is decided by
+error type alone, so a tracked dangling symlink is labelled absent and the run stays CLEAN with one
+entry fewer read than listed. Moving the directory-substitution arms to exclusive handles means
+guard (j)'s `IsADirectoryError` path on ubuntu is no longer exercised, and
+`::test_an_unreadable_roadmap_as_the_only_non_pass_guard_is_not_clean` now misdescribes its four
+WARNs. On POSIX the no-tree walk still drops an unreadable directory silently, and an unreadable
+`memory/MEMORY.md` reads as unreachable leaves.
+
+**VERIFY.** `python -m pytest tests/data/test_drift_guard_data.py tests/data/test_item_notes_index.py tests/test_doc_budget.py -q`.
+
+### 2026-09-16 - CS-1118 - CLOSED. Only a missing git reads as no git
+
+**WHAT CHANGED.** `run_git` in `tests/conftest.py` returns None only on `FileNotFoundError`. Every
+other start failure FAILS - a `PermissionError` when the program path is a directory, or a bare
+`OSError` with winerror 193 when it is a data file. The failure names the error type and errno,
+chains nothing, and is rendered field by field rather than from the error object. `run_git` and
+`tests/conftest.py` keep their line counts, so the `tests/test_archive_rot.py` pin still holds.
+Merged files: `tests/conftest.py`, `tests/test_conftest_run_git.py`.
+
+**PROVEN BY.** `tests/test_conftest_run_git.py::test_a_run_git_program_that_is_a_directory_fails_rather_than_skips`,
+`::test_a_run_git_program_that_is_not_executable_fails_rather_than_skips` and
+`::test_a_start_fault_carrying_its_path_renders_no_path`, which plants an error carrying a path and
+proves no path is rendered. Controls: `::test_a_run_git_program_under_a_missing_directory_still_returns_none`
+and `::test_the_real_git_still_runs_through_run_git`. Collected counts are identical across all 16
+caller and scoped files, except the five new arms in `tests/test_conftest_run_git.py`.
+
+**HISTORY.** Builder tip b3e9f99, merged at b1bb249. ADVERSARY, cross-platform lens - NOT REFUTED.
+Reverting to a broad `OSError`, catching nothing, rendering the error object and dropping the
+`FileNotFoundError` branch all went red. A `.cmd`-only git on Windows still reads as missing, as it
+did before.
+
+**WEAKNESS, filed as CS-1120.** On POSIX, a git wrapper whose `#!` interpreter is missing raises
+`FileNotFoundError` and so reads as "no git". The docstring's "no program by that name" is not true
+there.
+
+**VERIFY.** `python -m pytest tests/test_conftest_run_git.py tests/test_archive_rot.py -q`.
+
 ### 2026-09-16 - CS-1108 - CLOSED. The lane launcher disables background tasks, so a cycle's suite is no longer killed after the final reply
 
 **WHAT CHANGED.** `ops/loop/run_lane.ps1` sets `CLAUDE_CODE_DISABLE_BACKGROUND_TASKS=1` and raises
