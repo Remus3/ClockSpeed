@@ -861,14 +861,23 @@ def test_every_hook_stdout_claim_in_the_watcher_is_an_approved_ungraded_sentence
     assert found == sorted(allowed), f"{relpath}: a claim site is duplicated"
 
 
+def _outcome_text(outcome: BaseException) -> str:
+    """The message a test outcome carries, read from its named field, never the object."""
+    text = getattr(outcome, "msg", None)
+    if isinstance(text, str):
+        return text
+    first = outcome.args[0] if outcome.args else ""
+    return first if isinstance(first, str) else ""
+
+
 def _git_outcome(tree: Path, env: dict[str, str], *args: str) -> tuple[str, str]:
     """Run `_git` and report how it ended - passed, failed or skipped - with the message."""
     try:
         _git(tree, env, *args)
     except (AssertionError, pytest.fail.Exception) as failure:
-        return "failed", str(failure)
+        return "failed", _outcome_text(failure)
     except pytest.skip.Exception as skipped:
-        return "skipped", str(skipped)
+        return "skipped", _outcome_text(skipped)
     return "passed", ""
 
 
