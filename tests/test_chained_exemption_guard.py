@@ -45,10 +45,20 @@ against the first repair rather than reading. Abolishing import-immunity moved
 was keyed by MODULE PATH ALONE - so a reason written about the ``_slot`` mirror silently forgave any
 further cause read that module ever gained. Measured: the identical four-line plant went unreported
 in BOTH recorded modules while being named at once in every other. Immunity earned by holding a
-reason about something else is the same fault as immunity earned by importing a name. Each entry now
-records HOW MANY sites it answers, the shape ``tests/test_docs_citations.py`` already uses for its
-``Disposition`` table, and ``test_a_second_cause_read_in_an_already_exempt_module_is_reported`` is
-the arm that keeps it honest.
+reason about something else is the same fault as immunity earned by importing a name. Each entry
+records WHICH reads it answers, and the arm that keeps it honest is
+``test_a_second_cause_read_in_an_already_exempt_module_is_reported``.
+
+AND THE FIRST REPAIR FOR THAT WAS A COUNT, WHICH ANSWERS HOW MANY AND NEVER WHICH - CS-893. A count
+is blind to a COMPENSATING SWAP: delete one recorded read and add an unrelated adjudicating one in
+the same edit, and the cardinality is unchanged while the new read rides under a reason written
+about the old one. An adversary demonstrated it on the live tree and
+``test_a_compensating_swap_that_keeps_the_count_is_reported`` reproduces it here, over BOTH recorded
+modules, against the LIVE record. Each entry now answers an IDENTITY per read -
+``qualname::receiver``, the shape ``Site.key`` and ``Copy.key`` in this tree already use - kept as a
+multiset, so the cardinality the count carried is carried too and nothing the old key caught is
+lost. The identical fault in the ``Disposition`` table ``tests/test_citation_tables.py`` owns is
+unrepaired and is filed as CS-1121.
 
 THE CENSUS ARMS THEMSELVES ARE STILL NOT IN THE POPULATION AT ALL. They read
 ``__cause__`` on live exceptions, which is measurement rather than adjudication,
@@ -58,6 +68,7 @@ and the separation between the two names is what keeps them out.
 from __future__ import annotations
 
 import ast
+from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import Final
 
@@ -323,7 +334,7 @@ def test_a_reason_for_a_module_that_left_the_population_is_reported() -> None:
     like; measured before this arm existed, :func:`guard.stale_exemptions`
     replaced by an empty return left every arm in this module green. That is
     the shape ``memory/an-empty-population-satisfies-every-zero.md`` records,
-    and its sibling :func:`guard.miscounted` was given a fabricated positive in
+    and its sibling :func:`guard.mismatched` was given a fabricated positive in
     the same commit while this leg was not.
 
     THE PLANT IS A RECORDED REASON FOR A MODULE THAT DOES NOT EXIST, so no live
@@ -340,7 +351,9 @@ def test_a_reason_for_a_module_that_left_the_population_is_reported() -> None:
         f"stay silent and this arm proves nothing"
     )
 
-    stale = guard.stale_exemptions(live, {departed: guard.Exemption(sites=1, why="planted")})
+    planted = guard.Exemption(reads=("planted::node",), why="planted")
+
+    stale = guard.stale_exemptions(live, {departed: planted})
 
     assert stale == (departed,), (
         f"a recorded reason for a module that adjudicates nothing went "
@@ -359,7 +372,9 @@ def test_a_reason_for_a_module_still_in_the_population_is_not_reported() -> None
     assert live, "the population is empty, so this arm grades nothing"
     resident = sorted(site.module for site in live)[0]
 
-    stale = guard.stale_exemptions(live, {resident: guard.Exemption(sites=1, why="planted")})
+    planted = guard.Exemption(reads=("planted::node",), why="planted")
+
+    stale = guard.stale_exemptions(live, {resident: planted})
 
     assert stale == (), (
         f"{resident} still adjudicates and its recorded reason was reported "
@@ -723,21 +738,38 @@ def test_a_second_cause_read_in_an_already_exempt_module_is_reported() -> None:
     )
 
 
-def test_the_recorded_site_counts_match_the_live_tree() -> None:
+def test_the_recorded_reads_are_the_ones_the_live_tree_has() -> None:
     """Every entry answers exactly the reads its module actually has."""
-    off = guard.miscounted(guard.adjudicators())
+    off = guard.mismatched(guard.adjudicators())
 
     assert not off, (
-        "exemption entr(ies) record a site count the live tree does not have; "
-        f"re-derive the count and check the reason still covers every read: {off}"
+        "exemption entr(ies) answer reads the live tree does not have, or miss "
+        f"reads it does; re-derive them and check the reason still covers each: {off}"
     )
 
 
-def test_a_recorded_count_that_no_longer_matches_is_reported_both_ways() -> None:
-    """The count is checked in BOTH directions, proven on fabricated records.
+def _perturbed(delta: int) -> Mapping[str, guard.Exemption]:
+    """The live record with one read added to, or removed from, every entry.
 
-    A count that only ever reddens upward would let an entry keep answering
-    reads that are gone, which is the silent widening
+    Args:
+        delta: 1 to append an identity nothing live carries, -1 to drop the
+            first answered read.
+
+    Returns:
+        The fabricated record.
+    """
+    fabricated = {}
+    for module, entry in guard.EXEMPT.items():
+        reads = (*entry.reads, "fabricated::absent") if delta == 1 else entry.reads[1:]
+        fabricated[module] = guard.Exemption(why=entry.why, reads=reads)
+    return fabricated
+
+
+def test_a_recorded_read_set_that_no_longer_matches_is_reported_both_ways() -> None:
+    """The record is checked in BOTH directions, proven on fabricated records.
+
+    A comparison that only ever reddens on an ARRIVAL would let an entry keep
+    answering reads that are gone, which is the silent widening
     :func:`guard.stale_exemptions` catches one step later, once the module has
     left the population entirely.
 
@@ -745,32 +777,88 @@ def test_a_recorded_count_that_no_longer_matches_is_reported_both_ways() -> None
     comparison itself rather than the sweep that feeds it.
     """
     population = guard.adjudicators()
-    verdicts = []
-    for delta in (1, -1):
-        fabricated = {
-            module: guard.Exemption(why=entry.why, sites=entry.sites + delta)
-            for module, entry in guard.EXEMPT.items()
-        }
-        verdicts.append((delta, guard.miscounted(population, fabricated)))
+    verdicts = [(delta, guard.mismatched(population, _perturbed(delta))) for delta in (1, -1)]
 
     silent = [delta for delta, found in verdicts if not found]
     assert not silent, (
-        "a recorded site count that does not match the live tree went unreported "
-        f"for delta(s) {silent}, so the count is checked in one direction only"
+        "a recorded read set that does not match the live tree went unreported "
+        f"for delta(s) {silent}, so the record is checked in one direction only"
     )
 
     still_cleared = [
-        delta
-        for delta, _ in verdicts
-        if not guard.unrecorded(
-            population,
-            {
-                module: guard.Exemption(why=entry.why, sites=entry.sites + delta)
-                for module, entry in guard.EXEMPT.items()
-            },
-        )
+        delta for delta, _ in verdicts if not guard.unrecorded(population, _perturbed(delta))
     ]
     assert not still_cleared, (
-        "a module whose recorded count no longer matches was still CLEARED for "
-        f"delta(s) {still_cleared}; miscounted() reported it but classify() did not act"
+        "a module whose recorded reads no longer match was still CLEARED for "
+        f"delta(s) {still_cleared}; mismatched() reported it but classify() did not act"
+    )
+
+
+def _swap_one_cause_read(source: str, lines: Sequence[int]) -> str:
+    """Rewrite the first recorded cause read into a read of another field.
+
+    The rewrite is textual and touches ONE line, so the module still parses and
+    every other read on it is left exactly as written. ``exc`` is chosen because
+    :func:`guard.static_cause_reads` matches on the field NAME, so the rewritten
+    attribute leaves the population while the statement around it does not move.
+
+    Args:
+        source: The module source.
+        lines: The recorded read lines, ascending.
+
+    Returns:
+        The source with one fewer static cause read.
+    """
+    rows = source.splitlines(keepends=True)
+    index = lines[0] - 1
+    rows[index] = rows[index].replace(f".{guard.CAUSE_FIELD}", ".exc", 1)
+    return "".join(rows)
+
+
+def test_a_compensating_swap_that_keeps_the_count_is_reported() -> None:
+    """CS-893 - a reason answers IDENTIFIED reads, never a cardinality.
+
+    A COUNT SAYS HOW MANY READS A REASON FORGIVES AND NEVER WHICH. Delete one
+    recorded read and add an unrelated adjudicating one in the same edit, and
+    the cardinality is unchanged - so the verdict stays ``recorded`` and a read
+    nobody adjudicated rides under a reason written about something else. That
+    is CS-888's own thesis one level down from the site count that answered it.
+
+    THE PLANT IS THE SWAP RATHER THAN THE APPEND, and the arm above is what
+    makes the difference legible: it appends alone, which a count DOES catch.
+    Here the append is paid for by a deletion, and the count cannot see it.
+
+    GRADED AGAINST THE LIVE RECORD rather than an empty one, because an empty
+    record reports every module whatever the clearance rule is and would prove
+    nothing about this one. The parity control asserts the count really is
+    unchanged, so the arm cannot pass because the swap failed to balance.
+    """
+    sources = dict(guard.tracked_sources())
+    live = {site.module: site for site in guard.adjudicators_in_sources(sources)}
+    absorbed: list[str] = []
+    unbalanced: list[str] = []
+    for module in sorted(guard.EXEMPT):
+        before = live[module]
+        swapped = dict(sources)
+        swapped[module] = _swap_one_cause_read(sources[module], before.lines) + APPENDED_CAUSE_READ
+        after = {site.module: site for site in guard.adjudicators_in_sources(swapped)}[module]
+        if len(after.lines) != len(before.lines):
+            unbalanced.append(f"{module}: {len(before.lines)} -> {len(after.lines)}")
+            continue
+        reported = {
+            entry.split(":", 1)[0]
+            for entry in guard.unrecorded(guard.adjudicators_in_sources(swapped))
+        }
+        if module not in reported:
+            absorbed.append(module)
+
+    assert not unbalanced, (
+        "the swap did not preserve the read count, so this arm would grade a "
+        f"plain append rather than a compensating swap: {unbalanced}"
+    )
+    count = len(absorbed)
+    assert count == 0, (
+        f"{count} recorded module(s) absorbed a COMPENSATING SWAP - one recorded "
+        "read deleted and an unrelated adjudicating one added - with the site "
+        f"count unchanged, so the reason answers a cardinality: {absorbed}"
     )

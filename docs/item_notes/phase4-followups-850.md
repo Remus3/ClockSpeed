@@ -1364,50 +1364,6 @@ to skip it. Both have been tried and both are recorded as wrong. It is a request
 the per-word residue in evidence that does not depend on which saves the operator's library
 happens to hold at the moment the suite runs.
 
-## CS-893
-
-### NOTE - filed 2026-09-03 (session 59) by the merger, from the CS-888 adversary, REPRODUCED BEFORE FILING
-
-**A COUNT IS NOT AN IDENTITY.** CS-888's residual repair keyed each `EXEMPT` entry to a
-site count so that a SECOND cause read in an already-recorded module reddens. It does.
-What it cannot see is a COMPENSATING SWAP: delete one recorded read and add an unrelated
-adjudicating one in the same edit, and the cardinality is unchanged.
-
-**DEMONSTRATED, NOT ARGUED.** An adversary dropped a semantically inert conjunct from one
-detector in `tests/test_verify_env.py` and appended a brand-new static cause read. The
-guard's verdict stayed `recorded`, live sites 3 against recorded 3, with `unrecorded`,
-`miscounted` and `stale_exemptions` all empty, the population pin green, the sibling scope
-probe green, and ZERO reds across all 32 of that module's own arms. An unadjudicated
-chaining adjudicator now rides under a reason written about something else.
-
-**THIS IS CS-888's OWN THESIS ONE LEVEL DOWN, AND THE RESIDUAL COMMIT SAYS SO ITSELF.**
-Its `Exemption.sites` docstring condemns "a reason written for one adjudicated read
-silently forgives every further read that module ever gains". Against a strictly
-increasing count that is now implemented; against a compensating deletion it is not
-implemented at all.
-
-**THE FAULT IS INHERITED FROM THE CITED PRECEDENT.** `tests/test_docs_citations.py`'s
-`Disposition` uses the same count key with the same docstring reasoning, so it has the
-identical property. Whatever shape closes this should be considered for both.
-
-**THE CHEAPEST CLOSURE NAMED BY THE ADVERSARY IS NOT LINE NUMBERS** - correctly rejected as
-churn, which is CS-889's whole subject - but a normalised fingerprint of each answered
-read, the enclosing qualified function name. `Site.key` and `Copy.key` in this same tree
-already use exactly that, for exactly this reason.
-
-**THE OWNER IS OUT OF SCOPE HERE AND THAT IS DELIBERATE.** `tests/chained_cause_guard.py`
-holds blanket, unlimited-site immunity with no count pin. The item text is scoped to
-modules that buy immunity by importing, so the owner sits outside the clause - but the
-argument against module-keying applies to it unchallenged and nobody has answered it.
-
-### RELOCATED 2026-09-06 from the ROADMAP item line, for the CS-926 budget pass
-
-The headline this item carried before its line was cut to the one-liner the
-`ROADMAP.md` header asks for. Relocated verbatim, never deleted:
-
-an `EXEMPT` site count answers HOW MANY reads a reason forgives, never WHICH, so a compensating swap leaving the count unchanged is silent across every leg
-
-
 ## CS-895
 
 ### NOTE - filed 2026-09-03 (session 59) by the merger, from the CS-890 adversary, MEASURED
