@@ -60,6 +60,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import stat
 import subprocess
 import sys
 from collections.abc import Callable, Mapping
@@ -142,6 +143,12 @@ UPSTREAM_WATCH_BUDGET = 16 * KB
 #: Its budgeted files were never seen, so it is neither absent nor inside
 #: budget, and the verdict reads INCOMPLETE rather than PASS over it.
 UNLISTED = "UNLISTED"
+
+#: CS-1117 - the status of a row whose budgeted name is carried by something
+#: that is not a regular file, a directory in practice. A directory answers a
+#: stat, so it used to print as an OK 0.0 KB row counted as measured. It is a
+#: finding of its own: nothing was measured, and nothing is merely absent.
+NOT_A_FILE = "NOT A FILE"
 
 RELOCATE_GUIDANCE = (
     "RELOCATE, DO NOT DELETE - move detail to a sub-index (INDEX_<domain>.md) or "
@@ -679,11 +686,15 @@ def _leaf_rows(
     return [_entry(root, leaf, budget, "WARN", rule) for leaf in leaves]
 
 
-def _size(path: Path) -> int | None:
+def _size(path: Path) -> int | str | None:
+    """The size of a regular file, NOT_A_FILE for anything else, None when absent."""
     try:
-        return path.stat().st_size
+        observed = path.stat()
     except OSError:
         return None
+    if not stat.S_ISREG(observed.st_mode):
+        return NOT_A_FILE
+    return observed.st_size
 
 
 def _display(root: Path, path: Path) -> str:
@@ -697,6 +708,9 @@ def _entry(root: Path, path: Path, budget: int, severity: str, rule: str) -> dic
     actual = _size(path)
     if actual is None:
         status = "MISSING"
+    elif isinstance(actual, str):
+        status = actual
+        actual = None
     elif actual < budget:
         status = "OK"
     else:
@@ -781,6 +795,11 @@ def soft_failures(rows: list[dict]) -> list[dict]:
 def unlisted_directories(rows: list[dict]) -> list[str]:
     """Return each directory a row reports as not listed, once, in order (CS-1115)."""
     return list(dict.fromkeys(row["file"] for row in rows if row["status"] == UNLISTED))
+
+
+def not_files(rows: list[dict]) -> list[str]:
+    """Return each budgeted name carried by something that is not a file, once (CS-1117)."""
+    return list(dict.fromkeys(row["file"] for row in rows if row["status"] == NOT_A_FILE))
 
 
 def _fmt_kb(value: int) -> str:
@@ -896,17 +915,33 @@ def render(rows: list[dict], observed: Survey | None = None) -> list[str]:
         )
         out.extend(f"  {shown}" for shown in unlisted)
 
+    shapes = not_files(rows)
+    if shapes:
+        out.extend(
+            [
+                "",
+                "NOT A FILE (a directory carries a budgeted file's name - nothing was "
+                "measured, and it is not merely absent; rename or remove it):",
+            ]
+        )
+        out.extend(f"  {shown}" for shown in shapes)
+
     hard = hard_failures(rows)
     warn = soft_failures(rows)
-    measured = sum(1 for row in rows if row["status"] not in ("MISSING", UNLISTED))
+    measured = sum(1 for row in rows if row["status"] not in ("MISSING", UNLISTED, NOT_A_FILE))
     out.append("")
     out.append(
         f"measured: {measured}    over budget: {len(over)} "
         f"(HARD {len(hard)}, WARN {len(warn)})    absent: {len(missing)}    "
-        f"not listed: {len(unlisted)}"
+        f"not listed: {len(unlisted)}    not a file: {len(shapes)}"
     )
     if hard:
         out.append(f"VERDICT: FAIL - {len(hard)} hard budget failure(s)")
+    elif shapes:
+        out.append(
+            f"VERDICT: NOT A FILE - {len(shapes)} budgeted name(s) carried by a directory, "
+            "so this run cannot say every budgeted file is inside its budget"
+        )
     elif unlisted:
         out.append(
             f"VERDICT: INCOMPLETE - {len(unlisted)} director(ies) could not be listed, "
@@ -937,8 +972,16 @@ def main(argv: list[str] | None = None) -> int:
     warn = soft_failures(rows)
 
     unlisted = unlisted_directories(rows)
+    shapes = not_files(rows)
     if args.json:
-        verdict = "FAIL" if hard else ("INCOMPLETE" if unlisted else ("WARN" if warn else "PASS"))
+        if hard:
+            verdict = "FAIL"
+        elif shapes:
+            verdict = "NOT_A_FILE"
+        elif unlisted:
+            verdict = "INCOMPLETE"
+        else:
+            verdict = "WARN" if warn else "PASS"
         print(
             json.dumps(
                 {
@@ -973,6 +1016,7 @@ def main(argv: list[str] | None = None) -> int:
                     "hard_failures": [row["file"] for row in hard],
                     "warnings": [row["file"] for row in warn],
                     "unlisted": unlisted,
+                    "not_files": shapes,
                     "verdict": verdict,
                 },
                 indent=2,
