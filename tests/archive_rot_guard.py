@@ -39,6 +39,12 @@ from typing import Final
 
 from tests.bare_path_guard import bare_path_ladder, bare_path_problems, bare_path_sites
 
+# THE DEEP ARCHIVE'S PATH, TAKEN FROM THE MODULE THAT OWNS IT (CS-1066). It is
+# imported at the TOP rather than at the foot with the rest, because
+# `tests/test_citation_tables.py` imports nothing from this family - the name is
+# reachable here without entering the cycle the foot import below exists for.
+from tests.test_citation_tables import DEEP_ARCHIVE
+
 # CS-897 - AN EXEMPTION'S REASON MUST BE TRUE OF EVERY MEMBER, AND THAT ONE IS
 # NOT. The reason UNGUARDED_DOCS records for the deep archive once described a
 # pointer spelled INSIDE a citation-guard detail block whose subject is that
@@ -142,7 +148,7 @@ def archive_rot(
 ) -> dict[str, int]:
     """Run every arm the module that judges has against the deep archive, and COUNT.
 
-    THE EXEMPTION'S POPULATION, DERIVED. :data:`tests.test_docs_citations.UNGUARDED_DOCS` takes the
+    THE EXEMPTION'S POPULATION, DERIVED. :data:`tests.test_citation_tables.UNGUARDED_DOCS` takes the
     archive out of every live arm, so until this function existed the size of
     what that bought was unmeasured - and an exemption whose population nobody
     measures is how a reason that was true of two sites ends up covering
@@ -244,7 +250,6 @@ NOT_A_FORGIVENESS: Final[Mapping[str, str]] = {
 # reached. E402 is answered by that, not waved through, and every function above
 # resolves these names at CALL time - by which point the statement has run.
 from tests.test_docs_citations import (  # noqa: E402
-    DEEP_ARCHIVE,
     JUDGED_SHAPES,
     bare_name_problems,
     line_pointer_content_problems,

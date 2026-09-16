@@ -9,7 +9,7 @@ moved out of a file with 1483 bytes left under the ceiling
 ``tests/data/test_phase2_gate.py`` holds every file in ``tests/`` to.
 
 THE EXEMPTION ITSELF DID NOT MOVE, DELIBERATELY.
-:data:`tests.test_docs_citations.UNGUARDED_DOCS`, the path it names and the
+:data:`tests.test_citation_tables.UNGUARDED_DOCS`, the path it names and the
 cardinality pin over it are the citation guard's own subject, and one of the
 arms over them is cited by ``docs/LEDGER.md`` as a
 ``path::name`` pointer. The boundary is drawn on SUBJECT - what the exemption
@@ -17,7 +17,7 @@ HIDES, against what it IS - and it happens to cost no citation.
 
 HOW THIS MODULE READS THE ONE IT SPLIT FROM. A name that is not a container is
 imported plainly; a CONTAINER is read through the module object instead, as
-``test_docs_citations.UNGUARDED_DOCS``. That is not style. An imported container
+``test_citation_tables.UNGUARDED_DOCS``. That is not style. An imported container
 lands in this module's ``globals()`` and the registry walk then demands a row for
 it HERE, which would either duplicate a record that already exists one file over
 or, worse, invite a second one that disagrees with it. One owner, one row.
@@ -40,7 +40,7 @@ from typing import Final
 
 import pytest
 
-from tests import archive_rot_guard, test_docs_citations
+from tests import archive_rot_guard, test_citation_tables, test_docs_citations
 from tests.archive_rot_guard import (
     _ARCHIVE_HEADER_LINES,
     _ARCHIVE_SITE_FLOOR,
@@ -62,39 +62,41 @@ from tests.bare_path_guard import (
     graded_floor_names,
     sibling_imports,
 )
-from tests.test_docs_citations import (
-    _BARE_PLANT_LEAF,
-    _PLANTED_DEAD_NAME,
+from tests.test_citation_tables import (
     DEEP_ARCHIVE,
     NEWLINE,
     bare_path,
     line_key,
-    literal_pin_problems,
     scoped_text,
 )
-from tests.test_docs_citations import (
+from tests.test_citation_tables import (
     file_lines as _file_lines,
+)
+from tests.test_citation_tables import (
+    line_pointer_carriers as _line_pointer_carriers,
+)
+from tests.test_citation_tables import (
+    live_source_roots as _live_source_roots,
+)
+from tests.test_citation_tables import (
+    markdown_texts as _markdown_texts,
+)
+from tests.test_citation_tables import (
+    module_basenames as _module_basenames,
+)
+from tests.test_citation_tables import (
+    sources as _sources,
+)
+from tests.test_citation_tables import (
+    tracked as _tracked,
+)
+from tests.test_docs_citations import (
+    _BARE_PLANT_LEAF,
+    _PLANTED_DEAD_NAME,
+    literal_pin_problems,
 )
 from tests.test_docs_citations import (
     known_names as _known_names,
-)
-from tests.test_docs_citations import (
-    line_pointer_carriers as _line_pointer_carriers,
-)
-from tests.test_docs_citations import (
-    live_source_roots as _live_source_roots,
-)
-from tests.test_docs_citations import (
-    markdown_texts as _markdown_texts,
-)
-from tests.test_docs_citations import (
-    module_basenames as _module_basenames,
-)
-from tests.test_docs_citations import (
-    sources as _sources,
-)
-from tests.test_docs_citations import (
-    tracked as _tracked,
 )
 
 # THE CORPUS FIXTURES, REBOUND UNDER THE NAMES PYTEST RESOLVES THEM BY. pytest
@@ -134,7 +136,7 @@ _CYCLE_MODULE_FLOOR: Final = 4
 #: THAN ASSERTED. Every arm's finding count against the archive, recorded as a
 #: typed integer. OVER a number is rot nobody has looked at; UNDER it is a pin
 #: left slack after the archive shrank, which is banked room for an append. The
-#: idiom is :func:`tests.test_docs_citations.forgiveness_budget_problems`' and
+#: idiom is :func:`tests.test_citation_tables.forgiveness_budget_problems`' and
 #: :func:`tests.bare_path_guard.decline_budget_problems`',
 #: and so is the reason it is spent EXACTLY. DECLARED HERE RATHER THAN WITH THE
 #: DERIVATION, because the registry walk requires a bounded table's contract to
@@ -307,8 +309,24 @@ _CYCLE_MODULE_FLOOR: Final = 4
 #: which is the stated exemption. The alternative - keeping a dead private symbol
 #: alive so an archived sentence stays green - would let the deep archive dictate
 #: the shape of shipped code, which is the opposite of what this pin is for.
+#:
+#: `_ROT_CITATION` 6 TO 7, 2026-09-15 BY CS-1066, AND THE SITE WAS IDENTIFIED
+#: BEFORE THE PIN MOVED. The archive spells five `tests/test_docs_citations.py`
+#: path-and-symbol citations; four still resolve and the fifth,
+#: `tests/test_docs_citations.py::UNGUARDED_DOCS`, does not, because CS-1066
+#: relocated that table to `tests/test_citation_tables.py`. The archive's sentence
+#: was TRUE WHEN WRITTEN and the file is exempt precisely because its pointers rot
+#: by construction, so the pin moves rather than the sentence.
+#:
+#: IT IS NOT ANSWERED TWICE, which is the property the pooled-versus-per-arm
+#: argument above turns on. The guarded corpus answers the SAME relocation with
+#: five MOVED rows in `tests/test_citation_tables.py::DISPOSITIONS`, and none of
+#: them is keyed on the deep archive - :func:`archive_rot` passes every table
+#: EMPTY, so a row there would silence nothing here anyway, and the contract
+#: below asserts that no live forgiveness table has started answering an archive
+#: site. One relocation, two arms, two numbers that each moved by what it saw.
 ARCHIVE_ROT: Final[Mapping[str, int]] = {
-    _ROT_CITATION: 6,
+    _ROT_CITATION: 7,
     _ROT_RANGE: 0,
     _ROT_EMPTY: 3,
     _ROT_NAME: 3,
@@ -420,7 +438,7 @@ def test_the_deep_archive_exemption_rests_on_the_claim_its_own_header_makes(
     reads as a reason. What is removed is an exemption whose GROUND has
     silently gone away.
     """
-    recorded = test_docs_citations.UNGUARDED_DOCS[DEEP_ARCHIVE]
+    recorded = test_citation_tables.UNGUARDED_DOCS[DEEP_ARCHIVE]
     header = NEWLINE.join(archive_text.split(NEWLINE)[:_ARCHIVE_HEADER_LINES])
 
     assert ARCHIVE_HEADER_CLAIMS, "the anchor set is empty, so both legs below check nothing"
@@ -456,7 +474,7 @@ def test_the_deep_archives_rot_is_measured_and_pinned_per_arm(
     finding count is spent against a typed integer. OVER is rot that arrived
     after the last person looked. UNDER is a pin left slack once the archive
     shrank, which is banked room for an append nobody would have to defend -
-    the direction :func:`tests.test_docs_citations.forgiveness_budget_problems`
+    the direction :func:`tests.test_citation_tables.forgiveness_budget_problems`
     learnt to check the hard way.
 
     IT IS WIDER THAN THE CLAUSE, WHICH IS THE POINT. The clause asks that the
@@ -474,7 +492,7 @@ def test_the_deep_archives_rot_is_measured_and_pinned_per_arm(
     the whole thing being compensated for - and must still spell sites above a
     floor.
     """
-    assert DEEP_ARCHIVE in test_docs_citations.UNGUARDED_DOCS, (
+    assert DEEP_ARCHIVE in test_citation_tables.UNGUARDED_DOCS, (
         f"{DEEP_ARCHIVE} is no longer recorded unguarded, so it is adjudicated like any"
         " other doc and this pin is a second, unneeded population."
     )
@@ -491,19 +509,24 @@ def test_the_deep_archives_rot_is_measured_and_pinned_per_arm(
     )
 
     assert not short, NEWLINE.join(short) + " The sweep has stopped reading the archive."
-    # THE REGISTRY WALKED IS THE ONE THAT WAS ALWAYS WALKED: the module this arm
-    # was split out of, read through its module object rather than through the
-    # name, so the split moved the arm and not the population. THE RESIDUAL IS
-    # DISCLOSED: a tuple-keyed forgiveness declared in THIS module would go
-    # unread here. There is exactly one table here, ARCHIVE_ROT, and it is keyed
-    # by the arm names rather than by a carrier - so widening the walk
-    # would change no verdict today, and doing it inside a slice whose job is a
-    # file split would be doing two jobs.
-    parent = vars(test_docs_citations)
+    # THE REGISTRY WALKED IS EVERY MODULE THAT REGISTERS ONE, read through the
+    # module objects rather than through their names, so a relocation moves the
+    # arm and not the population. IT USED TO BE ONE MODULE, and CS-1066 is why
+    # it is not: that split moved seven of the eight registered tables into
+    # `tests/test_citation_tables.py`, and a walk naming a single module would
+    # have followed the arm's original subject into a namespace holding one row
+    # while the seven it was written to read moved out from under it - a clean
+    # answer about almost nothing. THE RESIDUAL IS STILL DISCLOSED: a
+    # tuple-keyed forgiveness declared in THIS module would go unread here.
+    # There is exactly one table here, ARCHIVE_ROT, and it is keyed by the arm
+    # names rather than by a carrier - so widening the walk would change no
+    # verdict today.
+    registrars = (test_docs_citations, test_citation_tables)
+    registered = [(module, name) for module in registrars for name in module.FORGIVENESS_TABLES]
     tupled = [
-        name
-        for name in test_docs_citations.FORGIVENESS_TABLES
-        if any(isinstance(key, tuple) for key in parent[name])
+        f"{module.__name__}.{name}"
+        for module, name in registered
+        if any(isinstance(key, tuple) for key in vars(module)[name])
     ]
 
     assert tupled, (
@@ -511,9 +534,9 @@ def test_the_deep_archives_rot_is_measured_and_pinned_per_arm(
         " nothing and its clean answer would be about no table at all"
     )
     keyed = sorted(
-        f"  {name} answers a site carried by the archive: {key}"
-        for name in test_docs_citations.FORGIVENESS_TABLES
-        for key in parent[name]
+        f"  {module.__name__}.{name} answers a site carried by the archive: {key}"
+        for module, name in registered
+        for key in vars(module)[name]
         if isinstance(key, tuple) and key and key[0] == DEEP_ARCHIVE
     )
 

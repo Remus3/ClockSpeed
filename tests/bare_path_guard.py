@@ -156,7 +156,7 @@ BARE_PATH_RE: Final = re.compile(
 #   R4   the site sits in a Python string literal that is NOT a docstring
 #                                                                    DECLINED
 #   R5   the site is recorded in
-#        :data:`tests.test_docs_citations.BARE_PATH_REASONS`
+#        :data:`tests.test_citation_tables.BARE_PATH_REASONS`
 #                                                                    FORGIVEN
 #        otherwise                                                   REPORTED
 #
@@ -739,7 +739,7 @@ def pinned_rung_problems(
 ) -> list[str]:
     """One decline rung's live membership against its pinned disclosure.
 
-    BOTH DIRECTIONS, for :data:`tests.test_docs_citations.UNVERIFIED_LINE_POINTERS`' reason. A site
+    BOTH DIRECTIONS, for :data:`tests.test_citation_tables.UNVERIFIED_LINE_POINTERS`' reason. A site
     the rung now declines that nothing discloses is a new invisibility; a disclosed site the rung no
     longer declines is a record that has outlived what it described. Appending an entry nobody
     argued for fails the second direction immediately, which is what makes this a disclosure rather
@@ -881,7 +881,7 @@ def decline_budget_problems(
     argument, no ceiling.
 
     THE ASYMMETRY IS THE FINDING RATHER THAN THE HOLE. A dead citation spelled in full costs a
-    :data:`tests.test_docs_citations.BARE_PATH_REASONS` entry PLUS a ceiling raise. THE SAME
+    :data:`tests.test_citation_tables.BARE_PATH_REASONS` entry PLUS a ceiling raise. THE SAME
     CITATION ONE SEGMENT SHORTER lands on a decline rung and cost one unbudgeted row - so THE
     CHEAPER SPELLING WAS THE LESS GUARDED ONE, and the module map already spells six paths the short
     way. A guard whose price falls as the citation gets vaguer is pointed backwards.
@@ -937,7 +937,8 @@ def bare_path_budget_problems(
     CS-889 round-one defect reproduced inside the module repaired for it.
     :func:`tests.test_docs_citations.citation_sites` fails the same way one step over: it dispatches
     on key SPELLING and falls through to an arm demanding a `test_` prefix, so a bare-path key in
-    :data:`tests.test_docs_citations.DISPOSITIONS` would count zero sites and report itself stale on
+    :data:`tests.test_citation_tables.DISPOSITIONS` would count zero sites and report itself stale
+    on
     arrival.
 
     Args:
@@ -966,6 +967,35 @@ def bare_path_budget_problems(
     return []
 
 
+def _table_spellings(node: ast.AST) -> tuple[str, ...]:
+    """Every way one expression node can NAME a registered forgiveness table.
+
+    TWO SPELLINGS, AND THE SECOND ONLY BECAME WRITABLE WHEN THE FAMILY SPLIT.
+    While a table and the ceiling that bounds it lived in one file, the
+    tautology could only be ``len(TABLE)`` - an :class:`ast.Name`. A table
+    relocated into a sibling module is spelled ``len(tables.TABLE)``, an
+    :class:`ast.Attribute`, and a filter on ``Name`` alone reports a confident
+    zero about it. That is the relocation evasion this family has already
+    closed twice one level up, arriving inside the bound check itself.
+
+    THE ATTRIBUTE'S OWNER IS NOT READ, DELIBERATELY. What is being detected is a
+    bound whose value expression MENTIONS what it bounds, and the registered
+    name is the attribute half however the module alias is spelled - requiring a
+    particular alias would be the naming rule the container walk already refuted.
+
+    Args:
+        node: One node from the walk of a module-scope assignment's value.
+
+    Returns:
+        The names this node spells, empty for a node that spells none.
+    """
+    if isinstance(node, ast.Name):
+        return (node.id,)
+    if isinstance(node, ast.Attribute):
+        return (node.attr,)
+    return ()
+
+
 def derived_bound_problems(source: str, tables: Iterable[str]) -> list[str]:
     """Every module-scope constant COMPUTED FROM a table it is supposed to bound.
 
@@ -981,6 +1011,9 @@ def derived_bound_problems(source: str, tables: Iterable[str]) -> list[str]:
     arguments, so they prove the arithmetic and say nothing about where the live
     constant came from - and by import time it is just an int, so provenance has
     to be read out of the SOURCE.
+
+    BOTH SPELLINGS OF A TABLE ARE READ - see :func:`_table_spellings`, which is
+    what keeps a file split from making the disarm writable again one dot wider.
 
     THE POPULATION IS EVERY MODULE-SCOPE ASSIGNMENT, not a naming convention: a
     rule walking names ending in ``_CEILING`` is the open-ended filter this
@@ -1015,9 +1048,10 @@ def derived_bound_problems(source: str, tables: Iterable[str]) -> list[str]:
             continue
         read = sorted(
             {
-                name.id
-                for name in ast.walk(node.value)
-                if isinstance(name, ast.Name) and name.id in bounded
+                spelled
+                for node_read in ast.walk(node.value)
+                for spelled in _table_spellings(node_read)
+                if spelled in bounded
             }
         )
         if not read:
@@ -1222,7 +1256,18 @@ def namespace_closure(roots: Iterable[str]) -> dict[str, Mapping[str, object]]:
         if dotted in found:
             continue
         found[dotted] = vars(importlib.import_module(dotted))
-        pending.extend(sibling_imports(module_file(dotted).read_text(encoding="ascii")))
+        # DECODED PERMISSIVELY, AND THE REASON IS A MEASURED PLANT RATHER THAN
+        # CAUTION. A strict ascii read RAISES on the first byte above the range,
+        # and it raises HERE - inside the derivation every arm in
+        # `tests/test_bare_path_citations.py` depends on - so one planted byte
+        # took the whole module down with a UnicodeDecodeError naming a byte
+        # OFFSET and no file. The arm whose entire subject is that byte then
+        # never ran. A replacement character cannot invent or hide an import,
+        # because an import statement is ascii by construction, so reachability
+        # is unchanged; what changes is that the finding reaches the arm that
+        # can NAME the file instead of killing every arm that cannot.
+        text = module_file(dotted).read_bytes().decode("ascii", errors="replace")
+        pending.extend(sibling_imports(text))
     return found
 
 

@@ -374,6 +374,88 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-09-15 - CS-1066 - the citation tables relocated, and the module comes off its ceiling
+
+**TWENTY-ONE BYTES OF HEADROOM, AND THE WALL HAD ALREADY COST WORK.**
+`tests/test_docs_citations.py` sat at the 262144-byte ceiling
+`tests/data/test_phase2_gate.py::test_no_file_under_tests_is_large_enough_to_be_a_slice_of_real_game_data`
+enforces. The disposition and pin tables are now in `tests/test_citation_tables.py`,
+and the module is under the reconciled 80 percent clause. The ceiling was NOT raised, no
+disposition row was deleted, and no pin was forgiven.
+
+**THE ACCEPTANCE'S COLLECTED-COUNT CLAUSE IS AMENDED UNDER CLAUDE.md SECTION 8.** It
+required the collected-arm count EQUAL before and after. That is unreachable for ANY
+relocation into a new file:
+`tests/test_chained_cause_census.py::test_every_censused_module_attaches_no_note_to_an_exception`
+is parametrized over the tracked-module population, so it gains exactly one node for any
+new tracked module. A clause that forbids the only remedy the item mandates selects an
+outcome that cannot exist, which is the same ground CS-1084 and CS-1082 were amended on.
+THE REPLACEMENT, and it is strictly stronger than the scalar it replaces: the sorted
+collected node-id list is captured before and after; every id present before is present
+after, EXCEPT where its identifier was deliberately relocated or reparametrized and each
+such id is named one for one in the record; every id added after is accounted for by a
+stated cause; and a COUNT is not sufficient evidence in either direction. A simultaneous
+loss and gain satisfies the scalar and fails this.
+
+**THE FULL NODE-ID DIFF, which is what the replacement clause asks for.** Six arms moved
+to the new module keeping their identifiers exactly. One parameter id changed as
+`_WALKED_MODULE_FLOOR` went 4 to 7. One node was added, the census arm above, parametrized
+on the new module. No arm was lost.
+
+**THE SPLIT CREATED AN EVASION AND THE GUARD WAS WIDENED TO MATCH.** A ceiling in one
+module computed from a table in another is spelled `len(tables.BARE_PATH_REASONS)`, an
+`ast.Attribute`, and `derived_bound_problems` walked `ast.Name` only - so the split made
+that spelling reachable for the first time. The widening was watched failing first with
+ZERO findings before it was written. An adjudicator ruled the widening satisfies "the same
+guard with its two-way check intact" because the clause names the guard's IDENTITY and its
+two-way property rather than its node-type set, and declining would have SHRUNK reach.
+
+**FIVE MOVED ROWS OVER SEVEN SITES, MEASURED IN SLICE.** Relocating a symbol kills the
+docs citations naming it, because `module_scope_names` walks `ClassDef`, `AnnAssign` and
+`Assign` and never `ImportFrom`, so a re-import does not rescue a citation, and
+`docs/LEDGER.md` is append-only so the entries cannot be edited. Every added row is `MOVED`
+with a target that resolves; zero `NO_TARGET`, zero `DELIBERATE`, and
+`UNVERIFIED_LINE_POINTERS` did not grow. `FORGIVEN_LINE_POINTER_CEILING` rose by exactly
+the five, and the budget still spends EXACTLY. A planner estimated six names over eight
+sites and an adjudicator three over four; both were estimates and the in-slice measurement
+beat them.
+
+**A PLANT KILLED INSTEAD OF DEGRADING, and that was found by mutation rather than by
+review.** A non-ASCII byte planted to prove the ASCII arm raised an unnamed
+`UnicodeDecodeError` that destroyed the `closure` fixture, so the arm died rather than
+reporting. `namespace_closure` now decodes with `errors="replace"`. The decoded text feeds
+only `sibling_imports`, and an import statement carrying a non-ASCII byte is not valid
+source, so the replacement cannot mask a finding.
+
+**GRADED BY AGENTS THAT DID NOT BUILD IT.** A refutation pass ran seven lenses and
+returned NOT REFUTED: the cross-module container walk names an unregistered container in
+EITHER module by module name; the widened guard yields exactly one finding on the
+attribute spelling where the pre-widening code yields zero; the new module's 39 self-spelled
+paths ARE judged, proven by planting an unresolvable one; the self-spelled arm's third leg
+is still bought by its single record; the forgiveness budget reddens on a fabricated sixth
+row and on a repointed target; the ASCII arm names rather than dies in all three walked
+modules; and the Sphinx role guard genuinely resolves through the re-export.
+
+**A CORRECTION THIS RECORD OWES AN EARLIER ONE IN THIS SAME SESSION.** The CS-1057 and
+CS-1088 supersession entry above says CS-1057's detail relocation is NOT done and states
+it as an open seam. IT WAS DISCHARGED IN THE SAME COMMIT THAT CARRIED THAT ENTRY: the
+CS-1057 section now sits in `docs/history_notes.md`, its routing row is gone from
+`docs/item_notes.md`, its body is gone from `docs/item_notes/phase4-followups-900.md`, and
+`tests/data/test_item_notes_index.py::test_every_section_sits_in_the_leaf_the_membership_rule_names`
+passes. The sentence was written by the slice that could not reach those files and was true
+when written. This file is append-only, so that sentence stands and this record corrects
+it - and it had already misled an adjudicator in this session, which is why the correction
+is spelled rather than left to a reader.
+
+Merged files: `tests/test_citation_tables.py` (new), `tests/test_docs_citations.py`,
+`tests/test_archive_rot.py`, `tests/archive_rot_guard.py`, `tests/bare_path_guard.py`,
+`tests/test_bare_path_citations.py`, `tests/data/test_phase2_gate.py`. Test names:
+`test_no_recorded_bound_is_computed_from_the_table_it_bounds`,
+`test_every_container_in_every_walked_module_is_answered_by_its_own_registries`,
+`test_the_forgiveness_budget_is_spent_exactly_and_cannot_grow`. The band residual row for
+`tests/test_docs_citations.py` is retired and `_TEST_FILE_BAND_RESIDUAL_CEILING` came down
+with it, in the same change.
+
 ### 2026-09-15 - CS-1085 - the fabrication fence now grades the population it names
 
 **THE RATIONALE HAD SHIPPED FALSE AND THE ARM HAD STOPPED DISCRIMINATING.**

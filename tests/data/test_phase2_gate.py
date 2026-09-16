@@ -961,14 +961,22 @@ _TEST_FILE_BAND_RESIDUAL: dict[str, str] = {
     "tests/save/test_struct_interior.py": "CS-1089",
     "tests/save/test_properties.py": "CS-1090",
     "tests/save/test_world.py": "CS-1091",
-    "tests/test_docs_citations.py": "CS-1066",
 }
 
 #: THE RATCHET. The number of rows the residual may hold, SPELLED as an integer
 #: and never `len(_TEST_FILE_BAND_RESIDUAL)` - a budget computed from the table
 #: it budgets forgives every append in advance, which is the same tautology the
 #: band fraction above refuses. It only ever comes DOWN.
-_TEST_FILE_BAND_RESIDUAL_CEILING = 4
+#:
+#: 4 TO 3, 2026-09-15 BY CS-1066, AND IT IS THE RATCHET WORKING RATHER THAN A
+#: NUMBER BEING TYPED. `tests/test_docs_citations.py` was the row this table was
+#: filed with at 100.0 per cent of the ceiling; that item RELOCATED its
+#: disposition and pin tables, their budgets and the contracts that spend them
+#: into `tests/test_citation_tables.py`, and the file now measures well under the
+#: approach band. The row goes with the repair and the ceiling goes with the row:
+#: leaving either behind is the banked room the STALE and RATCHET legs above
+#: exist to refuse, and they redden on doing exactly one of the two.
+_TEST_FILE_BAND_RESIDUAL_CEILING = 3
 
 
 def _approach_band_problems() -> list[str]:

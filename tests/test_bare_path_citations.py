@@ -72,7 +72,13 @@ WALK_ROOT: Final = __name__
 #: the family they describe rather than whatever the import graph happened to
 #: return. A FLOOR rather than a pin: a fourth derivation module should not spend
 #: an adjudication, and losing one must redden.
-_WALKED_MODULE_FLOOR: Final = 4
+#:
+#: 4 TO 7, 2026-09-15 BY CS-1066. The floor had gone slack by three: the live
+#: closure already reached six modules while this said four, and CS-1066 adds a
+#: seventh by splitting the tables out of the module that judges. A floor three
+#: under what the walk reaches absorbs the loss of three modules in silence,
+#: which is the one loss it exists to catch.
+_WALKED_MODULE_FLOOR: Final = 7
 
 #: Every module the closure reaches that is NOT part of this family, and why.
 #: RECORDED RATHER THAN FILTERED, for the reason the unguarded-doc record exists:
@@ -434,12 +440,35 @@ def test_every_floor_this_module_uses_is_one_this_arm_grades() -> None:
     assert not stale, f"graded floors this module no longer uses as floors: {stale}"
 
 
-def test_every_module_this_split_created_is_seven_bit_ascii() -> None:
-    """Non-negotiable 4, on both halves of the split rather than assumed of them."""
-    guard = Path(bare_path_guard.__file__)
+def test_every_module_this_split_created_is_seven_bit_ascii(
+    closure: Mapping[str, Mapping[str, object]],
+) -> None:
+    """Non-negotiable 4, on every module the split created rather than on two.
 
-    assert guard.is_file(), "the module this one is paired with is not on disk"
-    for path in (Path(__file__), guard):
+    IT WAS A HAND-LIST OF TWO AND THE FAMILY KEPT GROWING. The arm spelled this
+    file and the module it was paired with, which was right the day it was
+    written and short the day a third file arrived - CS-1066's, which relocated
+    the tables. A list of the modules to check is the identical fault to a list
+    of the tables to bound, and this module exists to say so.
+
+    THE POPULATION IS THE WALKED CLOSURE, derived from the import graph like
+    every other arm here, and FLOORED for the reason each of them is: reading a
+    file's bytes and finding none too high is byte-identical to reading no files
+    at all.
+    """
+    paths = sorted(
+        Path(str(namespace["__file__"]))
+        for namespace in closure.values()
+        if namespace.get("__file__")
+    )
+    short = floor_problems("modules read for 7-bit bytes", len(paths), _WALKED_MODULE_FLOOR)
+
+    assert not short, "\n".join(short) + (
+        " The derivation has stopped naming the files the closure reaches, so a module"
+        " carrying a byte above the range would be read by nothing."
+    )
+    for path in paths:
+        assert path.is_file(), f"{path.name} is in the closure and not on disk"
         raw = path.read_bytes()
 
         assert not [byte for byte in raw if byte > test_docs_citations.HIGHEST_ASCII], (
