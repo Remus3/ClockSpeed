@@ -374,6 +374,25 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-09-16 - CS-1096 - A FROZEN-FILE GRANT, GRANTED BY AN ADJUDICATOR BEFORE THE EDIT. Scope is two comment lines in tools/precommit_gate.py and nothing else
+
+**GRANTOR.** An adjudicator agent that produced none of the CS-1096 work, under CLAUDE.md
+section 6 as amended by section 6.1. Recorded here BEFORE any byte of the frozen file moves.
+
+**SCOPE, VERBATIM FROM THE RULING.** `tools/precommit_gate.py` lines 1656 and 1663 only,
+comment text only. 1656 becomes
+`# belongs with the other truncating bounds, not the unreadable-header skip.` and 1663
+becomes `# BLOCKING, and it is one more bound to reach the exit status rather`. Same indent,
+7-bit ASCII, LF endings, 2843 lines total, no other byte changed. Proof of scope is
+`git diff --numstat` reading `2 2` on that file, with `ruff format --check` and
+`ruff check` clean.
+
+**WHY GRANTED.** The alternative - an arm grading only the docstring - was DENIED because it
+leaves two known-false count sentences ("the other four", "the fifth bound") against six
+blocking bounds, which the CS-1096 row itself names. The replacement wording states no
+total, so a seventh bound cannot make it false again. No behaviour changes and no line
+number moves, so CS-1102's roster and every ledger line citation stay valid.
+
 ### 2026-09-16 - CS-1103 - CLOSED. A blind inbox read no longer writes, and no longer invents a withdrawal
 
 **WHAT CHANGED.** An inbox directory that EXISTS but cannot be LISTED made
