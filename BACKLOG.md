@@ -241,16 +241,3 @@ the tree and still exits 0.**
   companion, the dashboard, or an audit pass over a real world - or when a real load is
   measured against a machine with less headroom than the development box. Until then this
   is a measured fact and not a defect, and it must not be optimised on speculation.
-
-CS-1095 - the inbox watcher still returns a non-zero exit code on its crashed path, which
-  the cross-repo channel convention now asks every sibling tree to retire: a watcher returns
-  0 on every path and the outcome travels in stdout, with the old codes kept behind a new
-  `--strict` arm. Filed from an FYI note that arrived 2026-09-15 and requests no reply; the
-  suggestion is a sibling repo's, not this tree's own measurement, so it is recorded here
-  rather than acted on. The risky half is the suite: two arms assert the exit codes today,
-  and flipping the return without moving those assertions into `--strict` IN THE SAME CHANGE
-  turns them green for the wrong reason.
-  CONDITIONAL TRIGGER: this tree vendors the sibling repo's channel-conventions
-  document named in that note, or otherwise records agreement to the watcher
-  contract. Until then nothing in the convention binds here, and the current
-  exit-3 path is a working failure signal rather than a defect.
