@@ -144,6 +144,28 @@ code here and each one has a measured reason:
   pointer becomes an UNMEASURED line, because entries that reached neither the
   transcript nor the disk have not been shown and must not be counted as shown.
 
+A BLIND READ IS RECOVERABLE; A BLIND READ THAT WRITES IS NOT (CS-1103).
+That framing came from the sibling that measured this same three-defect shape
+in its own watcher against a real ACL denial. The clause above repaired the
+LISTING half of the unlistable channel and stopped there, so two paths kept
+acting on "the channel is empty" for a channel nobody had read:
+
+  THE WITHDRAWAL DERIVATION FABRICATED. It asks which acknowledged names are
+  absent from the present listing, and an empty listing makes every one of
+  them absent - so the banner announced one withdrawal per acknowledged item,
+  naming notes that were sitting in the inbox the whole time. A withdrawal is
+  the ONE inbox event with no on-disk artifact left to check it against, so
+  nothing downstream can catch a fabricated one.
+
+  THE ACKNOWLEDGE PATH DESTROYED. It rewrites the store from the current
+  listing, so an empty listing rewrote a live watermark to an empty seen list
+  and printed a success line naming zero items while doing it. That is the
+  durable state this whole tool exists to keep, erased by a permission bit.
+
+The enumerator therefore RAISES `InboxUnreadableError` rather than returning the
+empty list, every caller either renders that state or refuses, and no caller
+writes anything on it.
+
 WHAT THE CONTRACT DELIBERATELY DOES NOT ADD is a "reported" or per-session
 suppression record. This tree has no per-prompt hook to consume one, and the
 twin session-start print that looks like a duplicate is TWO REAL SESSIONS - so
@@ -246,6 +268,35 @@ _FILE_ATTRIBUTE_REPARSE_POINT: Final = 0x400
 EXIT_NOTHING_UNREAD: Final = 0
 EXIT_UNREAD: Final = 0
 EXIT_NO_INBOX: Final = 3
+
+#: The channel is HERE and this run could not list it (CS-1103). Its own code,
+#: because the two states call for opposite responses: a clone that never had
+#: the channel is ordinary, and a run blind to a channel it does have is not.
+EXIT_BLIND_INBOX: Final = 4
+
+
+class InboxUnreadableError(Exception):
+    """The channel is present and this run could not list it (CS-1103).
+
+    DELIBERATELY NOT AN `OSError` SUBCLASS. Every `OSError` handler in this
+    module exists so that ONE unreadable item cannot take the whole report
+    down, and each of them would have swallowed this too - which is exactly
+    how the defect got here. A distinct base makes the blind case impossible
+    to drop by accident.
+
+    IT CARRIES A REASON AND NEVER A PATH. An exception message is an echo path
+    under CLAUDE.md non-negotiable 12 and an absolute path here would name a
+    home directory, so the reason is a short fixed phrase the banner prints.
+
+    Attributes:
+        reason: Why the listing did not happen, phrased to follow "the
+            directory is here but ...".
+    """
+
+    def __init__(self, reason: str = "it could not be listed") -> None:
+        """Record the reason, phrased to follow "the directory is here but"."""
+        super().__init__(reason)
+        self.reason = reason
 
 
 @dataclass(frozen=True)
@@ -617,19 +668,35 @@ def deliverables(inbox: Path) -> list[Deliverable]:
 
     An empty subdirectory IS reported. It is a delivery that arrived carrying
     nothing, which is its own state and is not the same as no delivery.
+
+    "I COULD NOT LOOK" IS NOT "THERE IS NOTHING THERE" (CS-1103). This used to
+    swallow the `OSError` and return the empty list, which is byte-for-byte
+    the shape of an empty channel - so every caller downstream acted on an
+    emptiness nobody had measured. ABSENCE still returns the empty list,
+    because a channel that is not here is a state `render` names separately
+    and is not blindness.
+
+    Raises:
+        InboxUnreadableError: The directory is present and could not be listed.
     """
     if not inbox.is_dir():
         return []
     try:
         entries = sorted(inbox.iterdir())
-    except OSError:
-        return []
+    except OSError as blind:
+        raise InboxUnreadableError from blind
     found = [classify(path) for path in entries]
     return sorted(found, key=lambda d: (KIND_ORDER.index(d.kind), d.display))
 
 
 def notes_in(inbox: Path) -> list[str]:
-    """The DISPLAY of every NOTE in the inbox, sorted."""
+    """The DISPLAY of every NOTE in the inbox, sorted.
+
+    Raises:
+        InboxUnreadableError: The channel is present and could not be listed. It
+            PROPAGATES rather than degrading to the empty list, because "no
+            notes" is a claim this run has no basis for.
+    """
     return [d.display for d in deliverables(inbox) if d.kind == KIND_NOTE]
 
 
@@ -650,34 +717,6 @@ def load_seen(seen_path: Path) -> set[str]:
     if not isinstance(entries, list):
         return set()
     return {e for e in entries if isinstance(e, str)}
-
-
-def inbox_blind_reason(inbox: Path) -> str:
-    """Why the channel could not be listed, or the empty string (CS-1095).
-
-    THE FOURTH BLIND PATH, and the one this tool shipped without. `deliverables`
-    swallows an `OSError` from `iterdir` and returns the empty list - which is
-    byte-for-byte the shape of an empty channel, so an inbox that EXISTS but
-    cannot be LISTED printed the affirmative clean line over notes sitting in
-    it. That is the exact failure the clause above refuses, and it is reachable:
-    an ACL denying FILE_LIST_DIRECTORY on a sibling's drop, or an offline
-    placeholder directory.
-
-    ABSENCE IS NOT BLINDNESS here either. No directory at all is its own state
-    and `render` names it separately, so this reports only on a directory that
-    is present and unreadable.
-
-    Returns:
-        A short reason for the report, or "" when the channel listed or is not
-        there at all.
-    """
-    if not inbox.is_dir():
-        return ""
-    try:
-        next(iter(inbox.iterdir()), None)
-    except OSError:
-        return "it could not be listed"
-    return ""
 
 
 def seen_blind_reason(seen_path: Path) -> str:
@@ -716,13 +755,23 @@ def save_seen(seen_path: Path, seen: set[str]) -> None:
 
 
 def unread_items(inbox: Path, seen_path: Path) -> list[Deliverable]:
-    """Every deliverable that is unacknowledged OR could not be digested."""
+    """Every deliverable that is unacknowledged OR could not be digested.
+
+    Raises:
+        InboxUnreadableError: The channel is present and could not be listed. An
+            empty unread list from a channel this run never read is the
+            silence the whole tool exists to refuse.
+    """
     seen = load_seen(seen_path)
     return [d for d in deliverables(inbox) if d.forced or d.key not in seen]
 
 
 def unread(inbox: Path, seen_path: Path) -> list[str]:
-    """The DISPLAY names of the unread deliverables. Never a key."""
+    """The DISPLAY names of the unread deliverables. Never a key.
+
+    Raises:
+        InboxUnreadableError: Propagated, for the reason `unread_items` gives.
+    """
     return [d.display for d in unread_items(inbox, seen_path)]
 
 
@@ -754,8 +803,20 @@ def withdrawn_items(inbox: Path, seen_path: Path) -> list[Deliverable]:
     moves the key while the item is still sitting there, and reporting that as
     a withdrawal would be false. A rename does surface here, because from the
     inbox's point of view the old name genuinely left.
+
+    Raises:
+        InboxUnreadableError: The channel is present and could not be listed. THE
+            REFUSAL IS THE POINT (CS-1103): this derivation reads absence from
+            the listing, so an empty listing fabricates one withdrawal per
+            acknowledged item - and a withdrawal is the one inbox event with
+            no on-disk artifact left to check it against, so a fabricated one
+            is uncatchable everywhere downstream.
     """
-    present = {_key_parts(d.key) for d in deliverables(inbox)}
+    try:
+        present = {_key_parts(d.key) for d in deliverables(inbox)}
+    except InboxUnreadableError as blind:
+        message = "a withdrawal cannot be derived from a listing that did not happen"
+        raise InboxUnreadableError(message) from blind
     gone = [key for key in load_seen(seen_path) if _key_parts(key) not in present]
     items = []
     for key in gone:
@@ -822,21 +883,23 @@ def write_report(
     return True
 
 
-def blind_lines(inbox: Path, present: Sequence[Deliverable], seen_path: Path) -> list[str]:
-    """One UNMEASURED line per blind path (CS-1095).
+def blind_lines(present: Sequence[Deliverable], seen_path: Path) -> list[str]:
+    """One UNMEASURED line per blind path REACHED FROM A LISTING (CS-1095).
 
     A BLIND WATCHER MUST NEVER READ AS CLEAN. Each of these is a state in which
     the run does not know what it failed to see, and each one is separately
-    invisible: an inbox that cannot be listed yields the same empty list an
-    empty one does, an unreadable store fails open to the empty set, and an
-    item that cannot be digested is already forced into the listing but says
+    invisible: an unreadable store fails open to the empty set, and an item
+    that cannot be digested is already forced into the listing but says
     nothing about the fact that it is unkeyable.
+
+    THE UNLISTABLE CHANNEL IS NOT AMONG THEM ANY MORE, and that is deliberate
+    (CS-1103). It used to be a SECOND probe of the same directory, run after
+    the listing had already returned - so the two could disagree, and the one
+    that mattered was the one that had silently succeeded. The enumerator now
+    raises, `render` renders that state before it ever reaches these lines,
+    and there is exactly one mechanism to drop.
     """
     lines = []
-    listing = inbox_blind_reason(inbox)
-    if listing:
-        lines.append(f"  {UNMEASURED}: the {INBOX_DIRNAME}/ directory is here but {listing},")
-        lines.append("  so this run does not know what is sitting in it.")
     reason = seen_blind_reason(seen_path)
     if reason:
         lines.append(f"  {UNMEASURED}: the seen store exists but {reason}, so this run")
@@ -870,6 +933,37 @@ def capped(
     )
 
 
+def blind_banner(reason: str, seen_path: Path) -> str:
+    """The banner for a channel that is here and could not be listed (CS-1103).
+
+    IT NAMES WHAT IT DID NOT DO, not only what it could not see. The section a
+    reader expects - the withdrawal list - is simply absent on this path, and
+    an absent section is read as "there were none". Saying the derivation was
+    REFUSED is what stops a reader supplying that conclusion themselves, and
+    it is the honest one: an item missing from a listing that never happened
+    is not an item that left.
+
+    THE SEEN STORE IS STILL PROBED, because the two blindnesses compound. A
+    run that can read neither the channel nor its own record of the channel
+    knows strictly less than one that can read the record, and a banner that
+    reported only the louder fault would hide that.
+    """
+    lines = [
+        f"{TOOL_NAME}: {UNMEASURED} - the {INBOX_DIRNAME}/ directory is here but {reason}.",
+        "  This is NOT 'nothing unread' - this run has not seen the channel and",
+        "  has shown you none of it.",
+        f"  {UNMEASURED}: no withdrawal was derived. Every acknowledged item reads",
+        "  as gone when the listing is empty, so deriving one here would invent",
+        "  one per item and nothing downstream could refute it.",
+    ]
+    reason_store = seen_blind_reason(seen_path)
+    if reason_store:
+        lines.append(f"  {UNMEASURED}: the seen store exists but {reason_store}, so this run")
+        lines.append("  cannot tell what it has already shown either.")
+    lines.append("  Acknowledging is refused while the channel cannot be listed.")
+    return "\n".join(lines) + "\n"
+
+
 def render(inbox: Path, seen_path: Path, report_path: Path | None = None) -> tuple[str, int]:
     """The session-start banner, and the exit code that goes with it.
 
@@ -899,10 +993,16 @@ def render(inbox: Path, seen_path: Path, report_path: Path | None = None) -> tup
             EXIT_NO_INBOX,
         )
 
-    present = deliverables(inbox)
-    pending = unread_items(inbox, seen_path)
-    gone = withdrawn_items(inbox, seen_path)
-    blind = blind_lines(inbox, present, seen_path)
+    try:
+        present = deliverables(inbox)
+        pending = unread_items(inbox, seen_path)
+        gone = withdrawn_items(inbox, seen_path)
+    except InboxUnreadableError as blind_channel:
+        # NOTHING BELOW THIS LINE MAY RUN. Every count under it is derived
+        # from a listing that did not happen, and the withdrawal section is
+        # derived from its ABSENCE - which is the fabrication (CS-1103).
+        return blind_banner(blind_channel.reason, seen_path), EXIT_BLIND_INBOX
+    blind = blind_lines(present, seen_path)
     if not pending and not gone and not blind:
         return (
             f"{TOOL_NAME}: no unread items ({len(present)} in the inbox, all acknowledged).\n",
@@ -1036,7 +1136,24 @@ def main(argv: Sequence[str] | None = None) -> int:
                 f"{TOOL_NAME}: {UNMEASURED} - nothing was examined, so nothing was stored.\n"
             )
             return EXIT_NO_INBOX if args.strict else 0
-        present = deliverables(inbox)
+        try:
+            present = deliverables(inbox)
+        except InboxUnreadableError as blind_channel:
+            # A BLIND READ IS RECOVERABLE; A BLIND READ THAT WRITES IS NOT.
+            # The rewrite below is unconditional, so an empty listing replaces
+            # a live watermark with an empty seen list - the durable state
+            # this tool exists to keep, destroyed by a permission bit. NOTHING
+            # IS WRITTEN HERE: not the store, not the report, and not the
+            # invocation log, because a log line claiming an acknowledgement
+            # is the same false record one line shorter. No success line is
+            # printed either, for the reason the refusal above is not one.
+            sys.stderr.write(
+                f"{TOOL_NAME}: refusing to acknowledge - the {INBOX_DIRNAME}/"
+                f" directory is here but {blind_channel.reason}.\n"
+                f"{TOOL_NAME}: {UNMEASURED} - nothing was examined, so nothing"
+                " was stored.\n"
+            )
+            return EXIT_BLIND_INBOX if args.strict else 0
         # REWRITTEN FROM THE CURRENT LISTING, NOT UNIONED. A key that has left
         # the inbox drops out, so the store cannot grow without bound as notes
         # are renamed, edited or archived.
@@ -1061,13 +1178,27 @@ def main(argv: Sequence[str] | None = None) -> int:
     # ordering is the promise the pointer line makes, and it is why rendering
     # and printing are two statements rather than one.
     banner, strict_code = render(inbox, seen_path, report_path)
+    # TWO MORE CALL SITES, AND THEY ARE BELOW THE ONE THE BANNER USED (CS-1103).
+    # A repair that stopped at `render` would let the refusal escape as a
+    # traceback here and cost the hook the whole banner - the original failure
+    # in full. The counts a blind run cannot measure are NOT written as zeroes:
+    # zero and zero is exactly what a healthy, fully acknowledged channel
+    # files, so the mode carries the fault instead.
+    try:
+        mode, pending, gone = (
+            "list",
+            len(unread_items(inbox, seen_path)),
+            len(withdrawn_items(inbox, seen_path)),
+        )
+    except InboxUnreadableError:
+        mode, pending, gone = f"list-{UNMEASURED.lower()}", 0, 0
     append_invocation(
         log_path,
-        mode="list",
+        mode=mode,
         source=source,
         session=session,
-        unread=len(unread_items(inbox, seen_path)),
-        withdrawn=len(withdrawn_items(inbox, seen_path)),
+        unread=pending,
+        withdrawn=gone,
     )
     sys.stdout.write(banner)
     return strict_code if args.strict else 0
