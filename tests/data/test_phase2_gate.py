@@ -947,6 +947,142 @@ def test_no_file_under_tests_is_large_enough_to_be_a_slice_of_real_game_data() -
     )
 
 
+#: The APPROACH band for the tests-tree size ceiling, as a fraction of that
+#: ceiling. A plain FLOAT LITERAL, and never a fraction of whatever the largest
+#: file currently measures - a bound computed from the thing it bounds is the
+#: tautology `tests/test_doc_budget.py` records this project filing twice.
+_TEST_FILE_APPROACH = 0.90
+
+#: THE BASELINE RESIDUAL: repo-relative path -> the item id that retires the row.
+#: NOT an exemption list. Each row is a filed piece of work, and the arm below
+#: pins the table in BOTH directions, so relocating a file FORCES the row out
+#: and the ceiling down in the same change.
+_TEST_FILE_BAND_RESIDUAL: dict[str, str] = {
+    "tests/save/test_struct_interior.py": "CS-1089",
+    "tests/save/test_properties.py": "CS-1090",
+    "tests/save/test_world.py": "CS-1091",
+    "tests/test_docs_citations.py": "CS-1066",
+}
+
+#: THE RATCHET. The number of rows the residual may hold, SPELLED as an integer
+#: and never `len(_TEST_FILE_BAND_RESIDUAL)` - a budget computed from the table
+#: it budgets forgives every append in advance, which is the same tautology the
+#: band fraction above refuses. It only ever comes DOWN.
+_TEST_FILE_BAND_RESIDUAL_CEILING = 4
+
+
+def _approach_band_problems() -> list[str]:
+    """Every way the tests-tree approach band has drifted, one line each.
+
+    Four directions, because a one-way check is an exemption list wearing a
+    ratchet's clothes:
+
+    * a file past the band with NO row is an UNBUDGETED regression;
+    * a row naming a file back UNDER the band is STALE, so repairing a file
+      forces the row out and the ceiling down rather than leaving slack behind;
+    * a row naming a file that does not exist is a MISSING pin, which is how a
+      rename launders a row into permanent cover;
+    * a row count that is not the spelled ceiling is the RATCHET, over it or
+      under it.
+
+    Returns:
+        One line per drifted direction. Empty when the tree is clean.
+    """
+    band = int(_MAX_TEST_FILE_BYTES * _TEST_FILE_APPROACH)
+    measured = {
+        path.relative_to(REPO_ROOT).as_posix(): path.stat().st_size for path in _test_tree_files()
+    }
+    problems: list[str] = []
+
+    for name, size in sorted(measured.items()):
+        if size > band and name not in _TEST_FILE_BAND_RESIDUAL:
+            problems.append(
+                f"UNBUDGETED: {name} is {size} bytes, "
+                f"{100 * size / _MAX_TEST_FILE_BYTES:.1f} per cent of the "
+                f"{_MAX_TEST_FILE_BYTES}-byte ceiling and past the {band}-byte approach "
+                "band. RELOCATE a block of arms into a sibling module under tests/. Do "
+                "NOT delete an arm and do NOT raise the ceiling."
+            )
+
+    for name, item in sorted(_TEST_FILE_BAND_RESIDUAL.items()):
+        if name not in measured:
+            problems.append(
+                f"MISSING: the residual row {name} -> {item} names a file that is not in "
+                "the tree. A renamed or deleted file leaves its row standing as cover for "
+                "whatever takes the name next. Repoint the row or drop it and lower the "
+                "ceiling in the same change."
+            )
+        elif measured[name] <= band:
+            problems.append(
+                f"STALE: the residual row {name} -> {item} names a file that now measures "
+                f"{measured[name]} bytes, back under the {band}-byte band. Drop the row "
+                "and lower the ceiling by one in the same change - a repair that leaves "
+                "its row behind is banked room for the next regression."
+            )
+
+    recorded = len(_TEST_FILE_BAND_RESIDUAL)
+    if recorded > _TEST_FILE_BAND_RESIDUAL_CEILING:
+        problems.append(
+            f"RATCHET: {recorded} residual rows against a ceiling of "
+            f"{_TEST_FILE_BAND_RESIDUAL_CEILING}. A row was added. That is a finding to "
+            "argue, not a line to type: RELOCATE a block of arms into a sibling module "
+            "under tests/, or raise the ceiling in this same change and file the item. Do "
+            "NOT delete an arm and do NOT raise the size ceiling."
+        )
+    elif recorded < _TEST_FILE_BAND_RESIDUAL_CEILING:
+        problems.append(
+            f"RATCHET: {recorded} residual rows against a ceiling of "
+            f"{_TEST_FILE_BAND_RESIDUAL_CEILING}. A file was repaired and the ceiling was "
+            f"not lowered to match. Lower it to {recorded} - a slack ceiling is banked "
+            "room for an append nobody will have to defend."
+        )
+
+    return problems
+
+
+def test_every_file_under_tests_near_the_size_ceiling_is_budgeted_and_pinned() -> None:
+    """The size ceiling is caught on APPROACH, and every forgiveness is a filed item.
+
+    WHY AN ARM AND NOT JUST THE CEILING.
+    ``test_no_file_under_tests_is_large_enough_to_be_a_slice_of_real_game_data``
+    reddens the moment a file passes 256 KB, and at that moment the session that
+    tripped it cannot add the arm it came to add without first doing unrelated
+    surgery under time pressure - which is how a gate gets bent instead of a
+    file getting split. This one reddens while there is still room to act.
+
+    THE REPAIR IS RELOCATION, NEVER DELETION, and never raising the ceiling.
+    ``_MAX_TEST_FILE_BYTES`` argues its own number where it is defined: it
+    separates hand-authored material from a slice of real game data, and moving
+    it moves that line. Split a block of arms into a sibling module under
+    ``tests/`` and let it import the fixtures it needs.
+
+    THE RESIDUAL IS NOT AN EXEMPTION LIST. Each row names the item that retires
+    it, the table is pinned in both directions, and the count is ratcheted, so
+    the only cheap move left - appending a row - shows up in the diff as a
+    number somebody has to defend.
+    """
+    problems = _approach_band_problems()
+    report = "\n  ".join(problems)
+    drifted = bool(problems)
+    assert not drifted, (
+        f"the tests-tree approach band at {100 * _TEST_FILE_APPROACH:.0f} per cent of "
+        f"{_MAX_TEST_FILE_BYTES} bytes has drifted:\n  {report}"
+    )
+
+
+def test_the_tests_tree_approach_band_sits_below_the_ceiling_it_guards() -> None:
+    """The band is only a warning if it is strictly inside the thing it guards.
+
+    A band equal to the ceiling reddens at the same moment the ceiling does and
+    buys nothing, which is the whole defect this pair exists to close. Asserted
+    rather than assumed, because the fraction is a literal somebody can edit -
+    and the second leg keeps holding if ``_MAX_TEST_FILE_BYTES`` is respelled,
+    since it reads the constant rather than restating ``256 * 1024``.
+    """
+    assert 0 < _TEST_FILE_APPROACH < 1, _TEST_FILE_APPROACH
+    assert int(_MAX_TEST_FILE_BYTES * _TEST_FILE_APPROACH) < _MAX_TEST_FILE_BYTES
+
+
 def test_the_synthetic_corpus_names_no_install_path_and_no_account_id() -> None:
     """The corpus holds no install path, no account id and no pointer at the shipped file.
 
