@@ -42,7 +42,39 @@ $env:ANTHROPIC_API_KEY = $null
 # committed nothing - a whole pass lost. Forty minutes is ample for this
 # repository's suite plus a re-read, while staying bounded so a truly wedged
 # task still exits and reports rather than hanging forever.
+#
+# KEPT AFTER CS-1108 AS DEFENCE IN DEPTH, not because the switch below needs it.
+# With background tasks disabled a subagent runs in the foreground and this cap
+# is moot. It stays because the disable switch could not be tied to its gate in
+# the CLI statically - it was proved only by a probe - so if a later CLI ignored
+# the switch, background subagents would still be waited for rather than killed.
 $env:CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS = "2400000"
+
+# CS-1108 - NOTHING THE WORKER RUNS IS BACKGROUNDED, AND A LONG COMMAND SURVIVES.
+# MEASURED 2026-09-16 on the lane's own CLI: the ceiling above covers background
+# SUBAGENTS and workflows only. A background SHELL is killed about five seconds
+# after the final reply - the CLI's debug line reads "print wind-down: killing
+# background shell ... after 5000ms grace". Every cycle that backgrounded a suite
+# and then ended its turn lost it; three cycles in one day ended commit=no with
+# their suite logs stopping at 8% and 20%.
+#
+# THE SWITCH removes run_in_background from the Bash and subagent tools, so a
+# command runs in the foreground to completion. Probed: a 45-second command that
+# the default kills completed with the switch set.
+#
+# THE TIMEOUTS ARE ITS REQUIRED COMPANION, or the fix trades one kill for another:
+# a foreground Bash call is capped at ten minutes by default, while a whole-tree
+# run was measured from 8:49 to about fifteen minutes and the frozen pre-push
+# hook runs the whole suite. Forty minutes covers the slow end more than twice
+# over and stays bounded, so a wedged command still dies and the cycle reports.
+# Probed with all three set: an eleven-minute foreground command completed, exit 0.
+# The effective ceiling is the larger of the two timeouts, so both are raised.
+#
+# ALL SET BEFORE THE INVOCATION, IN THIS PROCESS, which the CLI child inherits.
+# tests/ops/test_lane_background_tasks.py reads the child's environment by value.
+$env:CLAUDE_CODE_DISABLE_BACKGROUND_TASKS = "1"
+$env:BASH_MAX_TIMEOUT_MS = "2400000"
+$env:BASH_DEFAULT_TIMEOUT_MS = "2400000"
 
 # THE MODEL COMES FROM ops/loop/config.json, READ VIA $PSScriptRoot AND NOT THE
 # WORKING DIRECTORY. This runner always lives in the MAIN tree, while $Cwd is a

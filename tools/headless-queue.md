@@ -75,6 +75,17 @@ worker sitting in a poll loop is burning the operator's night for nothing.
 saying the CI verdict is recorded by the driver and was not observed by you. Never claim a
 green you did not read.
 
+**BACKGROUND TASKS ARE DISABLED BY THE LAUNCHER, so nothing you run is ever backgrounded.**
+`ops/loop/run_lane.ps1` sets `CLAUDE_CODE_DISABLE_BACKGROUND_TASKS=1` before it starts
+you, so `run_in_background` is not offered to you or to any subagent. That is a
+mechanism, not advice (CS-1108): in a headless run a background shell is KILLED about
+as soon as your turn ends, so a suite started that way and left running at the end of the
+turn never finished, and whole cycles ended with nothing committed. **A long command runs
+in the foreground with an explicit timeout.** Pass the Bash tool's `timeout` at the ceiling
+the launcher raises through `BASH_MAX_TIMEOUT_MS`, and read that value in the launcher
+rather than trusting a number restated here. Sitting through a local run is yours, because
+it happens inside the cycle; only the CI wait belongs to the driver.
+
 ---
 
 ## 3. ONE ROW PER CYCLE. This is the lane's defining constraint.
@@ -509,9 +520,10 @@ reasons that both bind:
 **So expect your push to take a long time and do NOT read that as a hang.** It runs in the
 tens of minutes and it grows with the suite - CS-906's item line owns the measurement and
 this sentence deliberately does not restate it. A push that looks stuck is usually the suite
-running; a short timeout on it reads like a hung credential dialog and is not one. Budget
-generously and background it rather than killing it, because a killed process skips its
-cleanup and can leave the tree in a state the next cycle inherits.
+running; a short timeout on it reads like a hung credential dialog and is not one. Run it
+in the foreground with an explicit timeout at the launcher's raised ceiling - section 2
+says why nothing can be run any other way - and never kill it early, because a killed
+process skips its cleanup and can leave the tree in a state the next cycle inherits.
 
 **7c. NEVER ASSERT GREEN FROM A TRUNCATED LOG.** A crashed parallel run leaves no summary
 line at all, and `grep -c FAILED` over that log returns 0 - which reads exactly like green.
@@ -699,7 +711,7 @@ clean and `git stash list` empty.
 8. **A caveat said in the cycle report is not a caveat in the artifact.** A qualification you
    state while working and omit from the ledger entry did not survive the cycle - the ledger
    is the only thing the next cycle reads.
-9. **A verifier needs a FROZEN tree, and so does your own suite run.** A background suite
+9. **A verifier needs a FROZEN tree, and so does your own suite run.** A suite run
    that straddles an edit reports on a tree that no longer exists. Finish editing, then run,
    then leave the tree alone until it returns.
 10. **The operator plays the game while you work**, so a library-backed failure can change
