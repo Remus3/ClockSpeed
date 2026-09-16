@@ -352,8 +352,10 @@ def test_control_the_dump_observes_an_inherited_poison(tmp_path: Path) -> None:
 
     Without it, a dump that never captured the environment and a runner that
     set every value correctly would both leave the arm below with nothing to
-    report.
+    report. It drives the stub through cmd.exe, so it runs exactly where the
+    runtime arm it controls runs (CS-1111 owns the ubuntu gap).
     """
+    _powershell()
     shim_dir, dump = _stub(tmp_path)
     comspec = str(Path(_system_dir()) / "cmd.exe")
     subprocess.run(
