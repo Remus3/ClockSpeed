@@ -374,6 +374,137 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-09-16 - CS-1095 - the cross-repo channel contract adopted, the doc vendored and pinned, and the console-flash flag guarded
+
+**WHAT CLOSED.** All nine items of the operator's moon-sync adoption instruction,
+merged from three disjoint slices that wrote to non-overlapping files.
+
+`tools/inbox_watch.py` now returns 0 on every path, with the old codes behind a new
+`--strict` flag. The two arms that asserted `EXIT_NO_INBOX` -
+`test_a_missing_inbox_is_its_own_state_and_not_nothing_unread` and
+`test_ack_refuses_when_there_is_no_inbox` - each now assert BOTH returns in the SAME
+commit as the flip, so neither can pass by having stopped looking. Four blind paths
+carry `UNMEASURED` and are each asserted NOT to carry the clean line. The listing caps
+at 10 names with a report written atomically BEFORE stdout. The session id is logged
+through the same allowlist sanitiser the source label uses. No reported record was
+added: this tree has no per-prompt hook to consume one and its twin session-start
+print is two REAL sessions.
+
+`docs/CHANNEL.md` is vendored byte-identical - 20633 bytes, zero CR, sha256
+`899f6eb9...05f4c6b` re-hashed from this disk by two routes - and pinned by
+`tests/test_channel_doc.py`. The sending tree's own gate module was NOT vendored; it
+hard-imports tooling this tree does not have.
+
+`tools/precommit_gate.py` carries the no-window creation flag at `run_ruff_format`,
+`run_ruff` and `git`, under the frozen-file grant already recorded at `b283fee`. The
+flag is read through a defaulted lookup that is 0 off Windows, because the attribute
+exists only on Windows and tier1 runs on ubuntu, where a bare reference would make a
+tier-0 gate FAIL TO START.
+
+**THE ADVERSARIES EARNED THEIR DISPATCH. EVERY SLICE WAS REFUTED.** Three of three
+came back with blocking findings, each measured rather than argued, and each repaired
+before the merge.
+
+The spawn-site arm claimed in its own docstring that a fourth spawn would redden it.
+FALSE: five shapes passed it blind, including `creationflags=NO_WINDOW & 0`, because
+it graded the presence of the NAME and never the VALUE. A false guarantee on a tier-0
+path is worse than the defect it claims to exclude. It is now an allowlist over every
+spawning entry point, walking the whole module, refusing the aliased import outright -
+an import shape that cannot be resolved is one that must be forbidden.
+
+Arm 7 of the channel pin did not grade the table it names as the grammar's test-vector
+source: a flipped verdict, two swapped vectors and four blanked columns all passed. It
+now pins every cell with a row count asserted before the content compare.
+
+The watcher's clause-5 and clause-6 arms exercised `render`, while the hook enters at
+`main`. An acknowledgement and a suppression record added at `main` both survived a
+green suite. Both arms moved to the entry point the hook actually uses.
+
+**THE SHIPPED DEFECT, found by an adversary and not by any arm.** `deliverables()`
+swallowed an `OSError` from its directory iteration, so an inbox that EXISTS but cannot
+be LISTED rendered `no unread items (0 in the inbox, all acknowledged)` with notes
+sitting in it. That is the exact state the contract's clause 3 exists to refuse, and
+the module's own docstring already stated the rule it was breaking.
+
+**THE WHOLE SUITE CAUGHT WHAT THE SCOPED SUITES COULD NOT, THREE TIMES, AND IT WAS RUN
+BEFORE THE PUSH FOR THAT REASON.** The previous session recorded the opposite ordering
+as a merger error. Two stale toolpath exemptions (filed as CS-1102), an unbounded
+subprocess child in a new arm, and one non-deterministic arm.
+
+**THE ARM THAT PASSED WHERE IT WAS WRITTEN AND FAILED WHERE IT WAS MERGED.** Arm 6
+recorded the inbox directory as a path that does not resolve. True in a worktree, FALSE
+in the primary checkout: a gitignored directory exists exactly where somebody created
+it, and a worktree never did. Existence is the wrong property to assert about a
+gitignored path. Being IGNORED is the right one, and it is identical in both.
+
+THE TRAILING SLASH ON THAT CHECK IS LOAD-BEARING AND WAS MEASURED. The rule is a
+directory-only pattern, and git can only tell a pathspec names a directory from the
+slash or from the path being on disk - strip it and `check-ignore` answers from the
+filesystem, reproducing the defect it was written to remove. Measured 5 of 5 runs each
+way: without the slash, ignored in the primary and NOT ignored in a worktree; with it,
+ignored in both. The module was re-run in BOTH checkouts rather than the one the merger
+was standing in.
+
+**TWO LINE-PIN FAMILIES WENT STALE FOR THE SECOND TIME IN TWO SESSIONS**, both moved by
+an edit ABOVE a site rather than at it. A ledger sentence carried three pins into the
+pre-commit gate and is re-cited by SYMBOL; its grandfathered row is retired and the
+forgiveness ceiling refunded from 55 to 54. The toolpath exemptions are keyed by line
+and cannot be re-keyed without reworking the guard, so the numbers are corrected and
+the class is filed as CS-1102.
+
+**THE OUTBOUND HALF.** Four notes were delivered into the four sibling inboxes, each
+graded by `tools/outbound_gate.py` BEFORE any destination was resolved and each
+re-hashed at its destination: a REVIEW carrying seven findings, a reply answering two
+sibling REVIEWs, and a CORRECTION withdrawing this session's own published claim about
+arm 6 once the merge proved it false in a primary checkout. CS-1098's bare "MIT" is
+WITHDRAWN on a sibling measurement this tree has NOT reproduced, recorded as a reason
+to run the licence gate rather than as a verdict this tree may cite.
+
+**THE ROUND CAME BACK 4 OF 4, AND BOTH FINDINGS REPRODUCED IN EVERY TREE THAT HOLDS THE
+CORE.** Two divergences were measured against this tree and both are worth more than the
+agreement. LW's arm 7 catches two mutations this one misses and misses the one this one
+catches - LW drops row 0 unconditionally, while this arm destructures the separator and
+ASSERTS it, and independently pins the body row count, so it holds both the deleted and the
+duplicated case already. RSC reported that a spaced token is SHATTERED into invented tokens
+rather than dropped; measured here it is DROPPED, because this extractor captures a
+backticked span whole. So BOTH structural arms of the portable core have now been shown to
+differ materially between trees that ported the same prose - 2 for 2, which says more about
+the core than either divergence.
+
+TWO CONCESSIONS, recorded because they were made to this tree rather than by it. LW is
+right that the "not urgent while the digest pin holds" framing is FALSE for any tree that
+ports the arms WITHOUT vendoring the document, where arm 7 is the whole protection - the
+urgency is a property of the ADOPTER. And LL refused the same document at ITS licence gate
+for naming no licence, holder or repository; that refusal applies to THIS copy too. This
+tree vendored on a direct operator instruction and did NOT run its own licence gate against
+it. That is a governance difference, disclosed rather than inferred, and the gap was found
+by LL's answer rather than by this tree.
+
+RC's lead finding - a fresh clone has NO gate, because core.hooksPath is local config and
+is not cloned - is CONFIRMED and already stood in `CLAUDE.md` section 2.2 before the round.
+RC's extension of it to every new WORKTREE is REFUTED here, measured end to end with a
+negative control proven capable of passing: a clone gets a new git directory with empty
+local config, a worktree SHARES the common one, so the setting survives. The generalisation
+has a free variable - it holds only because this tree's hooks path is stored ABSOLUTE.
+
+**WHAT REMAINS UNVERIFIED.** The console-flash attribution is still PROBABLE at n=1 and
+this edit is uniformity, not a proven repair - the flashing process is the top-level
+interpreter the harness spawns, and this gate's children inherit a console that parent
+already owns. The vendored doc's behaviour under any tree's guards but this one is
+unmeasured. No licence gate has been run against the vendored document, or against any of
+the three third-party candidates this tree filed items for.
+
+**Suite:** 7879 passed, 7 skipped, exit 0 on the merged tree, read from a log rather
+than from an exit code - the harness reported exit 0 over a red run twice in this session.
+
+**Tests:** `tests/test_inbox_watch.py` (73 arms to 78), `tests/test_channel_doc.py`,
+`tests/test_precommit_gate.py`, `tests/test_docs_citations.py`,
+`tests/test_citation_tables.py`, `tests/test_toolpath.py`,
+`tests/test_subprocess_timeouts.py`.
+
+**Files:** `tools/inbox_watch.py`, `tools/precommit_gate.py`, `docs/CHANNEL.md`,
+`CLAUDE.md`, `CONVENTIONS.md`, `tests/toolpath_guard.py`, plus the test modules above.
+
 ### 2026-09-15 - CS-1087 - CLOSED. A token carried only by an unparseable header is matchable without parsing it
 
 **WHAT CHANGED.** `clockspeed/save/header.py` gained `scan_framed_tokens` and
