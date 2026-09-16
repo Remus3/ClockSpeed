@@ -2043,8 +2043,12 @@ def test_the_same_commit_is_blocked_without_the_exclusion(
 # importing tools/ and NOT the reverse, and tools/drift_guard.py already
 # lazily imports clockspeed.data.* and records that direction as correct.
 
-# 22 characters, the measured token length, assembled rather than spelled out
-# and existing on no real machine.
+# Assembled rather than spelled out, and existing on no real machine. It is 21
+# characters and NOT the measured 22, which the comment here used to claim -
+# measured against len() rather than re-read. Nothing in the parsed route cares:
+# the header carries an identifier of any length and flags an unmeasured one
+# rather than refusing it. The CS-1087 arms at the end of this file need the
+# exact length and spell their own token for that reason.
 HEADER_WORLD_TOKEN = "Hdr7Kq" + "2Xn9Tb" + "4Lm6Wz" + "8Rc"
 
 # The .sav basename the synthetic save is written under. Deliberately NOT a
@@ -2726,12 +2730,21 @@ def test_an_unreadable_save_header_stays_a_skip_and_never_blocks(
     non-negotiable 7). The four bounds above are the gate's OWN choices not to
     look and every one of them is self-healing - the cap is raised, the budget
     resets on the next run. An unparseable save is the FILE declining to be
-    read, and no amount of effort makes it parse: blocking there wedges the
-    commit gate permanently on a file the gate may never write to or remove
+    read: blocking there wedges the commit gate permanently on a file the
+    gate may never write to or remove
     (non-negotiable 1), and intermittently on every autosave in flight while
     the operator plays. A permanently red gate is a gate that gets bypassed
     with --no-verify, which buys less than the skip line does. This arm pins
     the declination so a later change to it has to be deliberate.
+
+    WHAT IT NO LONGER ARGUES, after CS-1087: that no amount of effort makes
+    the file parse. That is still true of PARSING and is beside the point -
+    the TOKEN is recoverable from the raw prefix without parsing anything, and
+    a recovered one blocks. This fixture is empty files, so there is nothing
+    of the identifier's shape at any offset in them and nothing is recovered;
+    the declination is what stays pinned here, not the argument under it. The
+    recovery itself is graded against a real byte-corrupt save at the end of
+    this file.
     """
     gate = load_gate()
 
@@ -4141,3 +4154,440 @@ def test_the_format_prefix_names_files_and_never_decides_the_verdict(
 
     formats = [diag for diag in report.diagnostics if diag.code == "FORMAT"]
     assert formats, "a reworded prefix silently disarmed the format check"
+
+
+# --------------------------------------------------------------------------
+# CS-1087 - a world token carried ONLY by a header that will not parse
+# --------------------------------------------------------------------------
+#
+# THE FIXTURE IS A REAL BYTE-CORRUPT SAVE ON DISK and never a suppressed or a
+# monkeypatched reader. CS-1083's first cut HOLLOWED the CS-436 arms and they
+# passed with world-token detection destroyed outright, because a patched
+# reader proves a code path was entered and proves nothing about whether a
+# token was recovered. Every arm below points a real gate process at a real
+# temporary save root and grades what came back out of it.
+#
+# THE GRADE IS THE LEAK DIAGNOSTIC'S IDENTITY, never the exit code, for the
+# reason leak_diagnostics above records: under a fixture that also trips a
+# coverage report, exit 1 is satisfied with zero detection.
+
+#: 22 characters, the measured token length, carried ONLY by the unparseable
+#: save. Assembled rather than spelled out, and existing on no real machine.
+CORRUPT_HEADER_WORLD_TOKEN = "Crp5Jd" + "3Vx8Ns" + "6Bt2Qw" + "9Ly7"
+
+#: The `.sav` basename the unparseable save is written under. It sorts BEFORE
+#: the readable sibling's basename, so the file that will not parse is reached
+#: first and a scan that abandoned the rest cannot hide behind the ordering.
+CORRUPT_SAVE_STEM = "Aard" + "vark"
+
+#: The header version no measured layout exists for. Spelled here rather than
+#: imported from the parser, so the oracle is not the module under test.
+UNSUPPORTED_HEADER_VERSION = 99
+
+#: The bytes the existing corrupt fixture uses: a file carrying no framed
+#: string at all, and therefore no recoverable token at any offset. This is
+#: the honest residue of CS-1087 rather than a case it covers.
+NOTHING_FRAMED = b"\x00\xff" * 64
+
+
+def unparseable_save_bytes(world_token: str) -> bytes:
+    """A save carrying `world_token` whose header genuinely does not parse.
+
+    EXACTLY ONE FIELD IS MUTATED. The leading int32 is the header version and
+    99 has no measured layout, so the parser refuses BEFORE a single string is
+    read - which is precisely the population CS-1083 declined to cover. Every
+    other byte is the builder's own output, so the identifier is still framed
+    the way a real one is.
+    """
+    import struct  # noqa: PLC0415
+
+    body = synthetic_save_bytes(world_token)
+    return struct.pack("<i", UNSUPPORTED_HEADER_VERSION) + body[4:]
+
+
+def count_prefix_corrupt_save_bytes(world_token: str) -> bytes:
+    """A save whose identifier CHARACTERS survive but whose count prefix does not.
+
+    THE FIFTH RESIDUE SHAPE, built rather than described. The 22 characters sit
+    at a known offset, intact, and the int32 that frames them is overwritten -
+    so a scan that matches on the FRAMING cannot see a value that is genuinely
+    on disk. That is a true residue rather than a floor: the bytes are there.
+    """
+    import struct  # noqa: PLC0415
+
+    from tests.save import synthetic  # noqa: PLC0415
+
+    blob = unparseable_save_bytes(world_token)
+    framed = synthetic.fstring(world_token)
+    at = blob.index(framed)
+    damaged = blob[:at] + struct.pack("<i", 7) + blob[at + 4 :]
+    assert len(damaged) == len(blob)
+    return damaged
+
+
+def make_mixed_header_save_root(tmp_path: Path, corrupt: bytes) -> Path:
+    """A save root holding one PARSEABLE save and one that will not parse.
+
+    The sibling is the known-good control. A plant that killed the reader
+    outright, or a scan that died on the first refusal, takes the sibling's
+    token down with it and every arm below reddens.
+    """
+    save_root = make_header_save_root(tmp_path, HEADER_WORLD_TOKEN)
+    (save_root / FAKE_ACCOUNT_ID / (CORRUPT_SAVE_STEM + ".sav")).write_bytes(corrupt)
+    return save_root
+
+
+def parse_refusals(save_root: Path) -> list[str]:
+    """The `.sav` basenames under `save_root` the REAL reader refuses.
+
+    The reader is driven directly, in this process, so the arms below can
+    state which files parse rather than assuming it. That is the half that
+    proves the reader is ALIVE: a fixture whose every file refuses would make
+    "the corrupt one was skipped" unfalsifiable.
+    """
+    from clockspeed.save.header import read_header  # noqa: PLC0415
+
+    refused = []
+    for path in sorted((save_root / FAKE_ACCOUNT_ID).glob("*.sav")):
+        try:
+            read_header(path)
+        except BaseException:  # every refusal counts here, whatever it is
+            refused.append(path.name)
+    return refused
+
+
+def unparseable_skip_reasons(stdout: str) -> list[str]:
+    """Every skip line reporting a header that could not be parsed."""
+    return [line for line in stdout.splitlines() if "could not be parsed" in line]
+
+
+def test_a_token_carried_only_by_an_unparseable_header_is_still_matchable(
+    tmp_path: Path,
+) -> None:
+    """CS-1087, graded with an unreadable header ACTUALLY PRESENT on disk.
+
+    The token is in a `.sav` whose header the real reader refuses, and in no
+    other place: base_env clears CLOCKSPEED_WORLD_TOKENS and points the local
+    config at a path that does not exist, so the only route from that file to
+    a diagnostic is a scan that does not need the header to parse.
+
+    THE READER IS PROVEN ALIVE RATHER THAN ASSUMED, which is what separates
+    "this one file was refused" from "the scan died" and from "the plant
+    killed the reader outright". Three independent halves say so: the reader
+    refuses the corrupt path and RETURNS the sibling's token in this process;
+    the gate reports exactly ONE unparseable header and not two; and the
+    sibling's own leak is still reported beside the recovered one.
+    """
+    save_root = make_mixed_header_save_root(
+        tmp_path, unparseable_save_bytes(CORRUPT_HEADER_WORLD_TOKEN)
+    )
+    readable = save_root / FAKE_ACCOUNT_ID / (HEADER_SAVE_STEM + ".sav")
+
+    from clockspeed.save.header import read_header  # noqa: PLC0415
+
+    assert parse_refusals(save_root) == [CORRUPT_SAVE_STEM + ".sav"], (
+        "the plant did not DEGRADE one file - either it parsed after all, or it "
+        "killed the reader for the sibling too, which makes this arm vacuous"
+    )
+    assert read_header(readable).world_token == HEADER_WORLD_TOKEN
+
+    env = base_env(tmp_path)
+    env["CLOCKSPEED_SAVE_ROOT"] = str(save_root)
+    corrupt_target = write(tmp_path / "from-the-corrupt-save.md", CORRUPT_HEADER_WORLD_TOKEN + "\n")
+    readable_target = write(tmp_path / "from-the-readable-save.md", HEADER_WORLD_TOKEN + "\n")
+
+    result = run_gate(
+        "--list-skipped", "--files", str(corrupt_target), str(readable_target), env=env
+    )
+
+    leaks = leak_diagnostics(result.stderr, "world token")
+    assert any(corrupt_target.name in line for line in leaks), (
+        "FAIL-OPEN: the token carried only by the unparseable header was not "
+        "reported as a leak\n" + result.stdout + result.stderr
+    )
+    assert any(readable_target.name in line for line in leaks), (
+        "the READABLE sibling's token stopped being reported, so the scan did "
+        "not degrade one file - it took the whole header source down\n" + result.stderr
+    )
+    reasons = unparseable_skip_reasons(result.stdout)
+    assert len(reasons) == 1, reasons
+    assert PII_WORLD_LABEL in reasons[0], reasons
+    assert "1 save header(s)" in reasons[0], reasons
+    assert "not matchable" not in reasons[0], (
+        "the skip line still says the token is not matchable, which is now a "
+        "false statement about a token this run recovered: " + reasons[0]
+    )
+    assert "crashed" not in result.stderr, result.stderr
+
+
+def test_no_channel_renders_a_token_recovered_from_a_raw_header_prefix(
+    tmp_path: Path,
+) -> None:
+    """The grant's clause 7 as a regression arm rather than as a reader's duty.
+
+    The recovery binds raw save bytes, and the one thing that must never
+    follow from that is the VALUE reaching a channel a human reads or pastes
+    into an issue (non-negotiable 12). No byte of the recovered token may
+    appear in stdout, in stderr, in a skip line or in any diagnostic.
+
+    NON-VACUOUS BY CONSTRUCTION: the same run's leak diagnostic proves the
+    gate knew the value, so "it never printed it" cannot be satisfied by
+    never having had it.
+    """
+    save_root = make_mixed_header_save_root(
+        tmp_path, unparseable_save_bytes(CORRUPT_HEADER_WORLD_TOKEN)
+    )
+    env = base_env(tmp_path)
+    env["CLOCKSPEED_SAVE_ROOT"] = str(save_root)
+    target = write(tmp_path / "from-the-corrupt-save.md", CORRUPT_HEADER_WORLD_TOKEN + "\n")
+
+    result = run_gate("--list-skipped", "--verbose", "--files", str(target), env=env)
+
+    assert leak_diagnostics(result.stderr, "world token"), (
+        "nothing was recovered, so this arm measures silence rather than "
+        "restraint\n" + result.stdout + result.stderr
+    )
+    assert CORRUPT_HEADER_WORLD_TOKEN not in result.stdout, result.stdout
+    assert CORRUPT_HEADER_WORLD_TOKEN not in result.stderr, result.stderr
+    for line in result.stderr.splitlines():
+        assert FAKE_ACCOUNT_ID not in line, line
+        assert str(save_root) not in line, line
+
+
+@pytest.mark.parametrize(
+    "plant",
+    [
+        pytest.param(NOTHING_FRAMED, id="overwritten wholesale"),
+        pytest.param(
+            count_prefix_corrupt_save_bytes(CORRUPT_HEADER_WORLD_TOKEN),
+            id="identifier intact behind a damaged count prefix",
+        ),
+    ],
+)
+def test_an_unparseable_header_with_no_framed_token_recovers_nothing_and_never_blocks(
+    plant: bytes,
+    tmp_path: Path,
+) -> None:
+    """THE RESIDUE, pinned as a positive fact rather than left unstated.
+
+    TWO SHAPES, AND THEY ARE NOT THE SAME KIND OF GAP. Overwritten bytes hold
+    nothing of the identifier at any offset, so no means available to this
+    gate could read a value that is not there - a floor. A damaged COUNT
+    PREFIX is different and the earlier wording here was simply false about
+    it: the 22 characters are intact on disk at a known offset, and this
+    route misses them because it matches on the FRAMING. That is the honest
+    residue of CS-1087 and it is named rather than rounded down to "nothing
+    to recover".
+
+    What must hold for both is the CS-1083 declination: the run says what it
+    could not do and does NOT block, because a gate that refuses on a corrupt
+    save it may never remove (non-negotiable 1) is one that gets bypassed
+    with --no-verify.
+    """
+    save_root = make_mixed_header_save_root(tmp_path, plant)
+    env = base_env(tmp_path)
+    env["CLOCKSPEED_SAVE_ROOT"] = str(save_root)
+    target = write(tmp_path / "clean.md", "nothing to see\n")
+
+    result = run_gate("--list-skipped", "--files", str(target), env=env)
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert "PASS" in result.stdout, result.stdout
+    reasons = unparseable_skip_reasons(result.stdout)
+    assert len(reasons) == 1, reasons
+    assert "no framed world token" in reasons[0], reasons
+    assert "not matchable" in reasons[0], reasons
+    assert "crashed" not in result.stderr, result.stderr
+
+
+# --------------------------------------------------------------------------
+# CS-1087 - the scan's own cap, and the three skip lines it can print
+# --------------------------------------------------------------------------
+#
+# The candidate cap is the FIFTH bound that truncates this population, and it
+# is blocking for the reason the other four are: a cap is the gate's own
+# choice not to look and it is self-healing. The singular non-blocking
+# degradation is a FILE declining to be read, and that is unchanged.
+
+
+def framed_tokens(count: int) -> bytes:
+    """`count` DISTINCT identifier-shaped framed strings, builder-encoded.
+
+    tests/save/synthetic.py is the repository's one encoder of this framing,
+    so the fixture drives it rather than hand-packing a second opinion.
+    """
+    from tests.save import synthetic  # noqa: PLC0415
+
+    return b"".join(synthetic.fstring("ClockspeedCapTokens%03d" % index) for index in range(count))
+
+
+def scan_cap() -> int:
+    """The scan's per-framing candidate cap, read from the module that owns it.
+
+    Restating the number here would be a second copy to drift (CLAUDE.md
+    section 4), and a fixture that guessed it would stop crossing the bound
+    the day it changed.
+    """
+    from clockspeed.save.header import MAX_SCANNED_TOKENS  # noqa: PLC0415
+
+    return int(MAX_SCANNED_TOKENS)
+
+
+def save_root_with_candidates(tmp_path: Path, count: int) -> Path:
+    """A save root whose one save will not parse and holds `count` candidates."""
+    save_root = make_save_root(tmp_path, FAKE_ACCOUNT_ID)
+    blob = unparseable_save_bytes(CORRUPT_HEADER_WORLD_TOKEN) + framed_tokens(count)
+    (save_root / FAKE_ACCOUNT_ID / (CORRUPT_SAVE_STEM + ".sav")).write_bytes(blob)
+    return save_root
+
+
+def test_a_candidate_cap_truncation_reaches_the_exit_status(tmp_path: Path) -> None:
+    """The fifth bound, graded by CROSSING it and at the EXIT CODE.
+
+    A prefix holding more identifier-shaped candidates than the scan admits
+    leaves some of them unread, so a world token in a staged file might not
+    have been matched - which is precisely the state CS-1083 refuses to let
+    end in `PASS`. The reason carries no value and no number.
+    """
+    env = base_env(tmp_path)
+    env["CLOCKSPEED_SAVE_ROOT"] = str(save_root_with_candidates(tmp_path, scan_cap() + 3))
+    target = write(tmp_path / "clean.md", "nothing to see\n")
+
+    result = run_gate("--list-skipped", "--files", str(target), env=env)
+
+    assert result.returncode == 1, result.stdout + result.stderr
+    assert "PASS" not in result.stdout, result.stdout
+    assert "did not cover this machine's whole save population" in result.stderr, result.stderr
+    assert "than the scan cap admits" in result.stderr, result.stderr
+    for line in result.stderr.splitlines():
+        assert FAKE_ACCOUNT_ID not in line, line
+        assert "ClockspeedCapToken" not in line, line
+
+
+def test_a_candidate_population_inside_the_cap_passes_and_still_matches(
+    tmp_path: Path,
+) -> None:
+    """THE CONTROL, and it is what stops the arm above hollowing.
+
+    Without it, a scan that reported truncation unconditionally - or one that
+    recovered nothing at all and blocked on principle - would satisfy every
+    assertion up there. Under the cap the run must reach `PASS` and exit 0 on
+    a clean file, AND the token must still be matchable in the same fixture.
+    CS-1083's first cut passed with detection destroyed for want of exactly
+    this pairing.
+    """
+    save_root = str(save_root_with_candidates(tmp_path, 3))
+    env = base_env(tmp_path)
+    env["CLOCKSPEED_SAVE_ROOT"] = save_root
+
+    clean = write(tmp_path / "clean.md", "nothing to see\n")
+    quiet = run_gate("--list-skipped", "--files", str(clean), env=env)
+
+    assert quiet.returncode == 0, quiet.stdout + quiet.stderr
+    assert "PASS" in quiet.stdout, quiet.stdout
+    assert "than the scan cap admits" not in quiet.stderr, quiet.stderr
+
+    leaky = write(tmp_path / "ledger.md", CORRUPT_HEADER_WORLD_TOKEN + "\n")
+    blocked = run_gate("--files", str(leaky), env=env)
+
+    assert leak_diagnostics(blocked.stderr, "world token"), (
+        "nothing was matched under the cap, so the arm above blocks on a scan "
+        "that recovers nothing\n" + blocked.stdout + blocked.stderr
+    )
+
+
+def test_the_lazy_token_scanner_recovers_a_real_unparseable_header(tmp_path: Path) -> None:
+    """_load_token_scanner, driven rather than asserted about.
+
+    An arm that only checked the import resolved would pass against a loader
+    that returned the PARSER by the wrong name - which recovers nothing from
+    an unparseable file and would silently turn the fallback off. So the
+    callable this function hands back is put to work on a real byte-corrupt
+    save and its answer is graded.
+    """
+    gate = load_gate()
+    corrupt = tmp_path / "Unparseable.sav"
+    corrupt.write_bytes(unparseable_save_bytes(CORRUPT_HEADER_WORLD_TOKEN))
+
+    scanner = gate._load_token_scanner()  # noqa: SLF001
+    candidates, truncated = scanner(corrupt)
+
+    assert candidates == (CORRUPT_HEADER_WORLD_TOKEN,), candidates
+    assert truncated is False
+
+
+def test_a_header_that_cannot_be_scanned_either_is_a_skip_and_never_blocks(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """The floor: no parse AND no raw read. Reported, and still not blocking.
+
+    A file the gate cannot open for even a raw read is the same class as one
+    that will not parse - the FILE declining to be read - so it stays out of
+    the exit status (non-negotiables 1 and 7). What it must not do is share a
+    sentence with the recovered case, which is the CS-209-B shape: the line
+    has to say a raw scan was attempted and could not read the bytes.
+    """
+    gate = load_gate()
+
+    def refuse(path: Path) -> object:  # noqa: ARG001
+        raise ValueError("unparseable")
+
+    def refuse_scan(path: Path) -> object:  # noqa: ARG001
+        raise OSError("unreadable")
+
+    monkeypatch.setenv("CLOCKSPEED_SAVE_ROOT", str(make_empty_save_root(tmp_path, 3)))
+    monkeypatch.setenv("CLOCKSPEED_LOCAL_CONFIG", str(tmp_path / "absent-local-config.json"))
+    monkeypatch.delenv("CLOCKSPEED_WORLD_TOKENS", raising=False)
+    monkeypatch.delenv("CLOCKSPEED_ACCOUNT_DIR", raising=False)
+    monkeypatch.setattr(gate, "_load_header_reader", lambda: refuse)
+    monkeypatch.setattr(gate, "_load_token_scanner", lambda: refuse_scan)
+
+    report = gate.Report()
+    gate._world_tokens_from_headers(report)  # noqa: SLF001
+
+    reasons = [why for _label, why in report.skipped]
+    assert any("could not be read for a raw scan either" in why for why in reasons), reasons
+    assert any("3 save header(s)" in why for why in reasons), reasons
+    code, out, _err = emit_verdict(gate, report, capsys)
+    assert code == 0, out
+    assert "PASS" in out, out
+
+
+def test_an_unimportable_token_scanner_is_reported_once_and_never_blocks(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """The scanner import failing mid-run, which is _load_header_reader's own case.
+
+    A gate that cannot start does not block, so an import failure is an
+    ordinary skip here exactly as it is for the reader. THE LOADER IS TRIED
+    ONCE and not once per file: three unparseable saves must not mean three
+    import attempts, and the call count is asserted rather than assumed,
+    because a retry loop over a broken import is how a gate turns a bad save
+    directory into a slow one.
+    """
+    gate = load_gate()
+    attempts = []
+
+    def refuse(path: Path) -> object:  # noqa: ARG001
+        raise ValueError("unparseable")
+
+    def refuse_import() -> object:
+        attempts.append(1)
+        raise ImportError("the package went away mid-run")
+
+    monkeypatch.setenv("CLOCKSPEED_SAVE_ROOT", str(make_empty_save_root(tmp_path, 3)))
+    monkeypatch.setenv("CLOCKSPEED_LOCAL_CONFIG", str(tmp_path / "absent-local-config.json"))
+    monkeypatch.delenv("CLOCKSPEED_WORLD_TOKENS", raising=False)
+    monkeypatch.delenv("CLOCKSPEED_ACCOUNT_DIR", raising=False)
+    monkeypatch.setattr(gate, "_load_header_reader", lambda: refuse)
+    monkeypatch.setattr(gate, "_load_token_scanner", refuse_import)
+
+    report = gate.Report()
+    gate._world_tokens_from_headers(report)  # noqa: SLF001
+
+    assert len(attempts) == 1, attempts
+    reasons = [why for _label, why in report.skipped]
+    assert any("could not be read for a raw scan either" in why for why in reasons), reasons
+    code, out, _err = emit_verdict(gate, report, capsys)
+    assert code == 0, out
+    assert "PASS" in out, out
