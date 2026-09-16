@@ -374,6 +374,83 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-09-16 - CS-1109 - CLOSED. An exemption key names the Python scope a spawn runs in, not the bare function name
+
+**WHAT CHANGED.** The function part of the CS-1102 toolpath exemption key in
+`tests/toolpath_guard.py` is now shaped like a Python qualname: `Class.method`,
+`outer.<locals>.inner`, and `<body>` for a call in a class body. A call evaluated at DEFINITION
+time - in a decorator, a default, an annotation, a base or a class keyword - is keyed to the
+ENCLOSING scope, which is `<module>` at top level. Merged files: `tests/toolpath_guard.py`,
+`tests/test_toolpath.py`.
+
+**PROVEN BY.** `tests/test_toolpath.py::test_a_method_and_a_nested_function_are_keyed_by_qualified_name`,
+`::test_what_a_def_evaluates_at_definition_is_keyed_to_the_enclosing_scope`,
+`::test_a_class_body_does_not_key_as_a_function_of_the_same_name`,
+`::test_an_exempted_spawn_moved_into_a_same_named_scope_reddens_the_guard` and
+`::test_an_import_time_spawn_beside_an_exempted_function_reddens_the_guard`.
+
+**HISTORY.** REFUTED at 8ef52ff: a spawn moved into `run_git`'s default argument or its decorator
+inherited the `run_git` exemption, and class-body and nested-def keys collided. The tip 7531858
+keys definition-time calls to the enclosing scope. A verifier CONFIRMED 7531858 on disk against
+the whole-tree guard arms. Plants in a default, a decorator, a method, a nested def, a class body
+and an annotation all went red. The comment blocks above all four exempted sites stayed green, and
+the CS-1102 migrate plant still goes red.
+
+**VERIFY.** `python -m pytest tests/test_toolpath.py -q`.
+
+### 2026-09-16 - CS-1115 - CLOSED. An unreadable leaf or a refused listing is never CLEAN, and a missing budgeted file is named
+
+**WHAT CHANGED.** Guard (j)'s section reader and both leaf listers in `tools/doc_budget.py` now
+list with `iterdir`. An unreadable leaf or a refused listing is a non-advisory WARN, so the verdict
+is UNGRADED. `tools/doc_budget.py` gained UNLISTED rows and an INCOMPLETE status. It still exits
+non-zero only on HARD, and CI and every documented command pair it with `tools/drift_guard.py`.
+The `os.walk` sites and guard (f)'s frozen-pattern glob got the same fix. A directory named like a
+leaf is its own FAIL. Guard (a) now reports a missing budgeted file; `CLAUDE.local.md` and the
+nested `CLAUDE.md` under the `.claude` directory stay optional, checked by `lstat`. The arms use real exclusive-handle faults,
+not mocks. Merged files: `tools/drift_guard.py`, `tools/doc_budget.py`,
+`tests/data/test_drift_guard_data.py`, `tests/data/test_item_notes_index.py`,
+`tests/test_doc_budget.py`.
+
+**PROVEN BY.** `tests/data/test_item_notes_index.py::test_an_unreadable_leaf_is_a_warn_naming_it_never_a_silent_skip`,
+`::test_an_unlistable_leaf_directory_is_a_warn_never_a_fail`,
+`::test_a_directory_carrying_a_leaf_name_is_its_own_finding_not_a_read_failure`;
+`tests/data/test_drift_guard_data.py::test_a_refused_memory_directory_makes_the_run_ungraded`,
+`::test_a_refused_frozen_glob_directory_is_not_a_pass`,
+`::test_an_absent_budgeted_file_is_named_and_never_advisory`; and
+`tests/test_doc_budget.py::test_a_refused_leaf_directory_is_an_unlisted_row`,
+`::test_json_mode_reports_an_unlisted_directory_as_incomplete`.
+
+**HISTORY.** REFUTED at 515e8c5. With `memory/` locked, `tools/drift_guard.py` in a fresh worktree
+said CLEAN and exited 0 while 21 leaves were silently dropped by the `doc_budget` globs. The tip
+614511c fixed that. The adversary found it NOT REFUTED at 614511c: the verdict JSON on the real
+tree was identical to d78dcfd's.
+
+**WEAKNESSES, filed as CS-1117.** Guard (c) skips an unreadable file without a word, so it says
+PASS and CLEAN. A locked memory leaf leaves guard (b) at PASS while its citation count quietly
+shrinks (62 of 62 became 60 of 60). `tools/doc_budget.py` reports a directory named `dir.md` as an
+OK 0.0 KB leaf. Guard (b) says an indexed directory-named leaf "does not exist".
+
+**VERIFY.** `python -m pytest tests/data/test_drift_guard_data.py tests/data/test_item_notes_index.py tests/test_doc_budget.py -q`.
+
+### 2026-09-16 - CS-1116 - CLOSED. A hung git fails a conftest caller instead of skipping it
+
+**WHAT CHANGED.** `run_git` in `tests/conftest.py` now FAILS when git times out. A missing git binary
+still returns None. `run_git` kept its line count, because `tests/test_archive_rot.py` pins a line
+in that file. Every caller collects the same number of tests as before. Merged files:
+`tests/conftest.py`, `tests/test_conftest_run_git.py`.
+
+**PROVEN BY.** `tests/test_conftest_run_git.py::test_a_git_timeout_in_run_git_fails_rather_than_skips`,
+its control `::test_the_run_git_plant_is_what_runs_and_a_missing_git_still_returns_none`, and
+`::test_the_real_run_git_program_is_git_resolved_from_path`.
+
+**ADVERSARY - NOT REFUTED at 69210ee.** Every caller collected byte-identical output, the stub was
+restored under `-n 2`, and five mutants went red. WEAKNESS, filed as CS-1118: `run_git` returns
+None on ANY `OSError`, including a `PermissionError` when the program path is a directory. A git
+that fails to START therefore reads as "no git", and `tests/test_hook_file_mode.py` line 56 then
+returns `{}` without a word.
+
+**VERIFY.** `python -m pytest tests/test_conftest_run_git.py tests/test_archive_rot.py -q`.
+
 ### 2026-09-16 - CS-1068 - CLOSED. One class's trailing remainder is read from its own prefixes, and the classes are picked off the corpus
 
 **WHAT CHANGED.** `clockspeed/save/objects.py` gained `read_item_list`, which reads a
