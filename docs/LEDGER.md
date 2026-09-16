@@ -374,6 +374,91 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-09-16 - CS-1114 - CLOSED. The save-name skip fails safe, and a false positive is never traded for a leak
+
+**WHAT CHANGED.** The raw-prefix scan in `clockspeed/save/header.py` skips the offset-12 string slot
+only for the exact measured header version that carries a save name at offset 12, and only behind a
+plausible version prologue. Any other version, and any other prefix, is scanned in full. A version
+sweep arm over -64..4095 goes red when the parser accepts a version the anchors do not cover. The
+session name has no fixed offset, so it is not skipped: it stays a MEASURED ACCEPTED FALSE POSITIVE,
+pinned by an arm. Merged files: `clockspeed/save/header.py`, `tests/save/test_scan_slot_zero.py`,
+`tests/test_save_name_not_a_token.py`.
+
+**PROVEN BY.** `tests/save/test_scan_slot_zero.py::test_every_header_version_the_parser_accepts_is_covered_by_the_anchors`,
+`::test_no_version_the_parser_refuses_ever_skips_slot_zero`,
+`::test_a_candidate_at_slot_zero_behind_a_plausible_prologue_is_refused`,
+`::test_a_token_at_offset_12_behind_a_non_prologue_prefix_is_admitted`,
+`::test_a_token_in_the_session_slot_of_a_between_layouts_version_is_found`,
+`::test_a_token_in_the_session_slot_of_a_higher_version_is_found`,
+`::test_a_token_reached_by_an_oversize_options_count_is_found`,
+`::test_a_session_name_is_still_admitted_and_the_token_is_found_in_every_layout` and
+`::test_a_save_name_behind_an_unmeasured_version_is_an_accepted_false_positive`; and
+`tests/test_save_name_not_a_token.py::test_a_token_in_a_guessed_session_slot_is_still_blocklisted`
+and `::test_a_token_at_offset_12_behind_a_non_prologue_prefix_is_still_blocklisted`.
+
+**HISTORY - SECURITY.** Builder tips 742cdfc then f511a05, merged at 432a9cd. The first tip, 742cdfc,
+added a session-slot skip that walked the header in parser order, and an offset-12 skip for any
+version `>= 14`. A security adversary showed it DROPPED a world token from the blocklist in three
+synthetic refused headers that 25cd5c2 caught: an unmeasured version 12, a version 15, and a v14
+header whose oversize options count chained into the token. That is a privacy leak introduced by a
+false-positive fix. f511a05 drops the walk and skips slot 0 on measured versions only.
+
+**MERGER RULING, fenced so it is not re-argued.** The scan is a fail-safe blocklist, and it runs only
+on headers the parser refuses. A false positive costs a manual unblock. A false negative leaks
+personal data. Never trade the second for the first.
+
+**STOP-CONDITION ADVERSARY - NOT REFUTED.** It swept 5544 synthetic refused headers at f511a05
+against 25cd5c2. It found no case that 25cd5c2 caught and f511a05 silently missed, except the 12
+already-accepted CS-1097 v14 offset-12 residue cases.
+
+**WEAKNESS, recorded rather than filed.** In 888 of those cases the unskipped offset-12 decoy takes
+a cap slot. Every one of them reports `truncated=True`, and the gate blocks on that, so it fails
+safe - but the decoy still costs a slot.
+
+**VERIFY.** `python -m pytest tests/save/test_scan_slot_zero.py tests/test_save_name_not_a_token.py -q`.
+
+### 2026-09-16 - CS-1120 - CLOSED. Dangling links and unlistable trees are never clean
+
+**WHAT CHANGED.** All four residues were fixed in code, and none was accepted as a limit. Merged
+files: `tools/drift_guard.py`, `tests/conftest.py`, `tests/data/test_drift_guard_data.py`,
+`tests/test_conftest_run_git.py`.
+
+- (a) A link that is listed but dangling (lstat succeeds, stat fails) is its own non-advisory NOT
+  READ in guards (c), (g) and (k). The git-index path passes such links to those guards.
+- (b) Guard (j)'s path for a directory in `ROADMAP.md`'s place is covered again. It raises
+  `IsADirectoryError` on POSIX and `PermissionError` on Windows, both measured. The stale arm is
+  renamed for its four WARNs.
+- (c) The no-commit walk passes an unlistable directory to (c), (g) and (k) as NOT LISTED. An
+  unreadable `memory/MEMORY.md` or `INDEX_*.md` makes reachability NOT GRADED (UNGRADED) instead of
+  FAIL.
+- (d) `run_git` returns None only when `shutil.which` also cannot find git.
+
+**PROVEN BY.** `tests/data/test_drift_guard_data.py::test_a_dangling_link_is_a_charset_warn_never_absent`,
+`::test_a_dangling_link_is_a_dated_guard_warn_never_absent`,
+`::test_a_dangling_link_is_a_tier1_guard_warn_never_absent`,
+`::test_a_dangling_link_makes_the_run_ungraded`,
+`::test_a_tracked_dangling_link_is_listed_and_read_never_dropped`,
+`::test_a_directory_in_roadmaps_place_is_a_guard_j_could_not_look_warn`,
+`::test_an_unreadable_roadmap_warns_all_four_markdown_readers_and_is_not_clean`,
+`::test_an_unlistable_directory_in_the_walk_is_a_charset_warn`,
+`::test_an_unlistable_directory_makes_the_run_ungraded`,
+`::test_an_unreadable_memory_index_is_a_warn_never_unreachable_leaves` and
+`::test_an_unreadable_routing_child_is_a_warn_never_unreachable_leaves`; and
+`tests/test_conftest_run_git.py::test_a_resolvable_program_that_raises_not_found_fails_rather_than_skips`.
+The controls are `tests/data/test_drift_guard_data.py::test_a_tracked_file_that_is_really_gone_is_still_only_a_skip`
+and `::test_a_leaf_nothing_routes_to_is_still_unreachable_beside_a_read_index`.
+
+**HISTORY.** Builder tip 9efd02c, merged at 58f1ba1. ADVERSARY - NOT REFUTED. The tracked tree holds
+no symlinks. A locked `memory/MEMORY.md` reads UNGRADED with exit 1. No assertion was loosened, and
+the archive pin holds.
+
+**WEAKNESS, recorded rather than filed.** On Windows, a git that exists only as `git.cmd` is found
+by `shutil.which` through PATHEXT but cannot start without a shell. `run_git` callers now FAIL on it
+instead of skipping. That is consistent with the start-fault rule, but it reaches wider than residue
+(d) asked.
+
+**VERIFY.** `python -m pytest tests/data/test_drift_guard_data.py tests/test_conftest_run_git.py -q`.
+
 ### 2026-09-16 - CS-1117 - CLOSED. An unread file or a directory leaf is never a silent PASS
 
 **WHAT CHANGED.** Guard (c) and guard (b) in `tools/drift_guard.py` now report a file or memory
