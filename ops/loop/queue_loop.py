@@ -2345,7 +2345,7 @@ def _surface_inbox(cycle, worktree, *, surface=None, emit=_emit) -> dict:
     """
     try:
         mod = _mod("inbox_surface")
-        fact = (mod.surface if surface is None else surface)(worktree)
+        fact: dict = (mod.surface if surface is None else surface)(worktree)
         text = mod.line(fact)
     except Exception as exc:  # DELIBERATE: the surface is an instrument
         reason = f"the inbox surface could not run ({type(exc).__name__})"
