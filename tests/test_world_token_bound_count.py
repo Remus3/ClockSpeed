@@ -241,7 +241,9 @@ def indirect_references(source: str) -> list[str]:
             name = node.attr
         elif isinstance(node, ast.Constant) and isinstance(node.value, str):
             name = node.value
-        if name in watched:
+        # isinstance narrows for the type checker only: a non-None name was read
+        # from a Name, Attribute or Constant, each of which is an ast.expr.
+        if name in watched and isinstance(node, ast.expr):
             problems.append(
                 "%s is referenced without being called at line %d" % (name, node.lineno)
             )
@@ -296,8 +298,8 @@ def analyse_code(source: str) -> tuple[set[Site], list[str]]:
             sites.add((*at[0], (node.lineno, node.col_offset)))
         if isinstance(node, ast.Call):
             in_diagnostic = visit_call(node, env, at) or in_diagnostic
-        for child in children:
-            walk_node(child, env, at, in_diagnostic=in_diagnostic)
+        for nested in children:
+            walk_node(nested, env, at, in_diagnostic=in_diagnostic)
 
     def visit_call(node: ast.Call, env: dict[str, object], at: Where) -> bool:
         """Record what one call produces; True when it constructs a Diagnostic."""

@@ -278,7 +278,8 @@ def _surface_module() -> Any:
     try:
         return importlib.import_module("ops.loop.inbox_surface")
     except ModuleNotFoundError as missing:
-        pytest.fail(f"ops/loop/inbox_surface.py does not exist - nothing surfaces ({missing})")
+        # The named FIELD, never the exception object - an echo path (CLAUDE.md 12).
+        pytest.fail(f"ops/loop/inbox_surface.py does not exist - nothing surfaces ({missing.name})")
 
 
 def _inbox_lines(text: str) -> list[str]:
@@ -1126,6 +1127,12 @@ def _unlistable(directory: Path) -> Iterator[None]:
     else:
         mode = directory.stat().st_mode
         directory.chmod(0)
+        # CONTROL, as on Windows: the fault really landed. Restore before failing,
+        # so a refused chmod never strands an unreadable directory behind it.
+        landed = directory.stat().st_mode & 0o777
+        if landed:
+            directory.chmod(mode)
+        assert not landed, "control: the mode did not drop to zero"
         try:
             yield
         finally:
