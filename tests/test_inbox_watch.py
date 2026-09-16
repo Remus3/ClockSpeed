@@ -22,6 +22,7 @@ import os
 import re
 import subprocess
 import sys
+from collections.abc import Iterator
 from pathlib import Path
 from types import ModuleType
 from typing import Final
@@ -103,6 +104,41 @@ def test_listing_does_not_mark_a_note_seen(repo: Path) -> None:
     assert not seen_path(repo).exists(), "listing wrote to the acknowledged store"
 
 
+def test_a_listing_run_of_main_never_writes_the_seen_store(repo: Path) -> None:
+    """The same promise as the arm above, GRADED WHERE THE HOOK ACTUALLY ENTERS.
+
+    The arm above calls `render`. The SessionStart hook calls `main`, and every
+    other arm for this promise calls `render` too - so a `save_seen` added to
+    `main`'s listing path left the whole suite green while a second session
+    stopped seeing the note. This is the tool's single highest-consequence
+    promise, and it was graded one layer below the only caller that matters.
+
+    Both halves are here because they fail differently: a first run must leave
+    NO store, and a later run must leave an EXISTING one byte-for-byte alone -
+    a rewrite that happened to reproduce the same keys would pass the first
+    half while still proving the listing path writes.
+    """
+    args = ["--root", str(repo), "--source", "startup", "--session-id", "a1"]
+    note(repo, "2026-01-01-0900-from-RC-topic.md")
+
+    inbox_watch.main(args)
+
+    assert not seen_path(repo).exists(), (
+        "a listing run of main() created the acknowledged store. Showing must"
+        " never acknowledge: the next session would be told nothing."
+    )
+
+    inbox_watch.main(["--ack", *args])
+    before = seen_path(repo).read_bytes()
+    note(repo, "2026-01-02-0900-from-RC-second.md")
+
+    inbox_watch.main(args)
+
+    assert seen_path(repo).read_bytes() == before, (
+        "a listing run of main() rewrote the acknowledged store"
+    )
+
+
 def test_a_note_with_an_older_mtime_is_still_unread_after_an_ack(repo: Path) -> None:
     """THE WATERMARK TRAP. A filename set catches this; a high-water mark does not."""
     note(repo, "2026-01-02-1200-from-RC-newer.md", mtime=2_000_000_000)
@@ -124,18 +160,48 @@ def test_a_note_with_an_older_mtime_is_still_unread_after_an_ack(repo: Path) -> 
 
 
 def test_a_missing_inbox_is_its_own_state_and_not_nothing_unread(tmp_path: Path) -> None:
-    banner, code = inbox_watch.render(tmp_path / INBOX_DIRNAME, tmp_path / SEEN_RELPATH)
-    assert code == inbox_watch.EXIT_NO_INBOX
+    """BOTH RETURNS ARE HELD HERE, and that is the point of the arm (CS-1095).
+
+    The contract flipped this path to 0 so that a SessionStart hook keeps its
+    stdout. An arm that simply deleted its exit-code assertion would have gone
+    green for having stopped looking, so the default AND the --strict route are
+    asserted together: the state is still its own state, it is just no longer
+    announced by a code the harness reads as failure and discards.
+    """
+    banner, strict_code = inbox_watch.render(tmp_path / INBOX_DIRNAME, tmp_path / SEEN_RELPATH)
+
+    assert inbox_watch.main(["--root", str(tmp_path)]) == 0, (
+        "a missing channel still exits non-zero, so the banner below is dropped"
+    )
+    assert inbox_watch.main(["--root", str(tmp_path), "--strict"]) == inbox_watch.EXIT_NO_INBOX, (
+        "--strict no longer carries the old code, so a machine caller cannot"
+        " tell a missing channel from a quiet one"
+    )
+    assert strict_code == inbox_watch.EXIT_NO_INBOX
     assert "NOT 'nothing unread'" in banner, (
         "a missing channel reported as 'nothing unread' is a check that examined"
         " nothing reporting success"
     )
 
 
-def test_ack_refuses_when_there_is_no_inbox(tmp_path: Path) -> None:
-    code = inbox_watch.main(["--ack", "--root", str(tmp_path)])
-    assert code == inbox_watch.EXIT_NO_INBOX
-    assert not (tmp_path / SEEN_RELPATH).exists()
+def test_ack_refuses_when_there_is_no_inbox(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """The refusal is about the STORE, not about the exit code (CS-1095).
+
+    What must not happen is a store written for a channel that is not there.
+    Both returns are asserted for the same reason as the arm above: moving the
+    old code behind --strict without holding the default would let this arm
+    pass by having stopped looking at either one.
+    """
+    default_code = inbox_watch.main(["--ack", "--root", str(tmp_path)])
+    refusal = capsys.readouterr().err
+    strict_code = inbox_watch.main(["--ack", "--root", str(tmp_path), "--strict"])
+
+    assert default_code == 0, "a refused ack still exits non-zero"
+    assert strict_code == inbox_watch.EXIT_NO_INBOX, "--strict lost the old code"
+    assert not (tmp_path / SEEN_RELPATH).exists(), "a store was written for a channel that is gone"
+    assert "UNMEASURED" in refusal, "the refusal did not say that nothing was examined"
 
 
 # --- the acknowledged store -------------------------------------------------
@@ -904,19 +970,34 @@ def test_a_hostile_source_cannot_forge_a_log_line() -> None:
     assert " " not in forged
 
 
-def test_the_log_carries_no_note_name_and_no_digest(repo: Path) -> None:
+def test_the_log_carries_no_note_name_and_no_digest(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     """A log is an echo path. Names are sender prose; keys carry digests.
 
     CLAUDE.md non-negotiable 12 counts log lines as echo paths, and the same
     reasoning that keeps a digest out of the banner keeps it out of here.
+
+    THE SESSION FIELD IS EXCLUDED BY NAME, NOT BY LUCK. A harness session id is
+    a UUID and its last group is twelve hex characters, so a bare
+    `[0-9a-f]{12}` sweep over the whole line fires on production-shaped input -
+    and this arm was green only because its fixture logged `session=unknown`.
+    The fixture below supplies a real UUID precisely so that a sweep which
+    cannot tell the two fields apart is RED here, and the field is asserted
+    present so that dropping it is not how this arm goes green.
     """
+    session = "9f1c2d3e-4b5a-6c7d-8e9f-0a1b2c3d4e5f"
+    payload = json.dumps({"hook_event_name": "SessionStart", "source": "startup"})
+    monkeypatch.setattr(inbox_watch, "read_hook_payload", lambda *_a, **_k: payload)
     note(repo, "from-XX-secret-world-name.md")
-    inbox_watch.main(["--root", str(repo)])
+    inbox_watch.main(["--root", str(repo), "--session-id", session])
 
-    body = log_path(repo).read_text(encoding="utf-8")
+    line = log_lines(repo)[-1]
+    elsewhere = " ".join(f for f in line.split(" ") if not f.startswith("session="))
 
-    assert "secret-world-name" not in body
-    assert not re.search(r"[0-9a-f]{12}", body)
+    assert f"session={session}" in line, "the session field is not in the line this arm searches"
+    assert "secret-world-name" not in line, "a note name reached the log"
+    assert not re.search(r"[0-9a-f]{12}", elsewhere), f"a digest-shaped run reached the log: {line}"
 
 
 #: Literal fixture size for the cap arm. DELIBERATELY NOT DERIVED FROM
@@ -981,3 +1062,523 @@ def test_the_invocation_log_is_ignored_by_git() -> None:
     assert result.returncode == 0, (
         f"git does not ignore {inbox_watch.LOG_RELPATH}: {result.stdout}{result.stderr}"
     )
+
+
+# --- CS-1095 the cross-repo watcher contract -------------------------------
+#
+# WHAT CHANGED AND WHY, because the exit-code half of this is the edit most
+# likely to go green for the wrong reason. Adopted by operator instruction on
+# 2026-09-16 across the repositories on this channel:
+#
+#   EVERY PATH OF main() RETURNS 0. A SessionStart hook that exits non-zero has
+#   its stdout DROPPED, so the one state this tool most needs to announce - the
+#   channel is not here - was the one state it announced to nobody. The old
+#   code survives behind --strict for a caller that wants a machine verdict.
+#
+#   A BLIND PATH MUST NEVER READ AS CLEAN. Three of them - no inbox, an
+#   unreadable seen store, an item that could not be digested - each emit a
+#   line carrying UNMEASURED, and none of them may emit the affirmative clean
+#   line. An empty inbox plus a corrupt store printed "no unread items (0 in
+#   the inbox, all acknowledged)" before this item: a check that examined
+#   nothing reporting success, in the tool written to refuse exactly that.
+#
+#   THE LISTING IS CAPPED AT TEN AND THE REMAINDER IS WRITTEN TO A FILE. The
+#   file is written BEFORE stdout, so the pointer line can never name a file
+#   that is not there; when the write fails the pointer becomes an UNMEASURED
+#   line, because entries that reached neither the transcript nor the disk have
+#   not been shown and must not be counted as shown.
+
+#: The literal the banner must carry on a blind path.
+UNMEASURED_MARKER: Final[str] = "UNMEASURED"
+
+#: The affirmative clean line's distinguishing text. A blind path asserts its
+#: ABSENCE; the liveness arm asserts the whole line, verbatim.
+CLEAN_MARKER: Final[str] = "no unread items"
+
+#: The report path as a POSIX string, written out as a LITERAL rather than read
+#: from the module. The pointer line hands this exact text to a reader, so the
+#: thing worth grading is the string that reaches the transcript - a constant
+#: asserted against itself would stay green if both moved together.
+REPORT_POSIX: Final[str] = "data/inbox_report.txt"
+
+
+def report_path(repo: Path) -> Path:
+    return repo / "data" / "inbox_report.txt"
+
+
+def quoted_names(banner: str) -> list[str]:
+    """Every name the banner actually lists. Names are printed quoted."""
+    return [line for line in banner.splitlines() if line.startswith('  "')]
+
+
+# --- clause 1: every path returns 0, and the old code lives behind --strict --
+
+
+def test_a_listing_returns_zero_on_every_path_so_a_hook_keeps_its_stdout(
+    repo: Path, tmp_path: Path
+) -> None:
+    """The reason the flip exists, held as one arm over all three listing states.
+
+    A SessionStart hook that exits non-zero does not get its stdout injected.
+    Under the old contract the missing-inbox banner was written and then thrown
+    away by the harness, so the loudest state this tool has was the only one
+    nobody could read.
+    """
+    empty = inbox_watch.main(["--root", str(repo)])
+    note(repo, "2026-01-01-0900-from-RC-topic.md")
+    unread_run = inbox_watch.main(["--root", str(repo)])
+    missing = inbox_watch.main(["--root", str(tmp_path / "nowhere")])
+
+    assert (empty, unread_run, missing) == (0, 0, 0)
+
+
+def test_strict_is_what_a_machine_asks_for_and_it_still_carries_the_old_code(
+    tmp_path: Path,
+) -> None:
+    """--strict is the ONLY surviving route to the old exit code.
+
+    Kept because a caller that wants a verdict rather than a banner - a gate, a
+    script - has no other way to tell "the channel is not here" from "the
+    channel is here and quiet", and the two must never collapse.
+    """
+    strict = inbox_watch.main(["--root", str(tmp_path / "nowhere"), "--strict"])
+
+    assert strict == inbox_watch.EXIT_NO_INBOX
+
+
+# --- clause 2: the affirmative clean line is this tree's liveness evidence ---
+
+
+def test_a_clean_run_still_prints_the_short_affirmative_line(repo: Path) -> None:
+    """A watcher that prints nothing when healthy is a dead watcher's twin.
+
+    Asserted VERBATIM and in full. The line is liveness evidence, so shortening
+    it, lengthening it or restructuring it are all regressions, and only an
+    equality holds all three.
+    """
+    note(repo, "2026-01-01-0900-from-RC-topic.md")
+    inbox_watch.main(["--ack", "--root", str(repo)])
+
+    banner, code = inbox_watch.render(repo / INBOX_DIRNAME, seen_path(repo))
+
+    assert banner == "inbox_watch: no unread items (1 in the inbox, all acknowledged).\n"
+    assert code == 0
+
+
+# --- clause 3: a blind path is UNMEASURED and is never clean -----------------
+
+
+def test_a_missing_inbox_is_unmeasured_and_never_clean(tmp_path: Path) -> None:
+    """Blind path (a). No channel means nothing was examined."""
+    banner, _ = inbox_watch.render(tmp_path / INBOX_DIRNAME, tmp_path / SEEN_RELPATH)
+
+    assert UNMEASURED_MARKER in banner, "a missing channel did not say it measured nothing"
+    assert CLEAN_MARKER not in banner, "a blind path read as clean"
+
+
+def test_an_unreadable_seen_store_is_unmeasured_and_never_clean(repo: Path) -> None:
+    """Blind path (b), in the shape that actually printed a clean line.
+
+    An EMPTY inbox plus a store nobody can read. The store fails open to the
+    empty set, so nothing is unread, so the affirmative line printed - and the
+    one fact the run had was that it could not read its own store.
+    """
+    seen_path(repo).parent.mkdir(parents=True, exist_ok=True)
+    seen_path(repo).write_text("{ this is not json", encoding="ascii", newline="\n")
+
+    banner, _ = inbox_watch.render(repo / INBOX_DIRNAME, seen_path(repo))
+
+    assert UNMEASURED_MARKER in banner, "an unreadable store was not reported as unmeasured"
+    assert CLEAN_MARKER not in banner, "an unreadable store read as clean"
+
+
+def test_a_store_that_is_merely_absent_is_not_unmeasured(repo: Path) -> None:
+    """The negative control, without which the arm above is vacuous.
+
+    An arm that only asserts UNMEASURED is present is met by printing it
+    every time, and the marker then means nothing. A first run has no store at
+    all. That is not blindness, it is a store that has not been written yet.
+    """
+    banner, _ = inbox_watch.render(repo / INBOX_DIRNAME, seen_path(repo))
+
+    assert UNMEASURED_MARKER not in banner, "an absent store was reported as unmeasured"
+    assert CLEAN_MARKER in banner, "the control did not reach the clean line at all"
+
+
+def test_an_undigestible_item_is_unmeasured_and_never_clean(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Blind path (c). That the item cannot be keyed is its own line.
+
+    ACKNOWLEDGED FIRST, deliberately: that is the path on which the clean line
+    could come back. If a forced item ever stopped being forced, the ack would
+    silence it, the inbox would read as fully acknowledged, and this arm goes
+    red on both assertions at once.
+    """
+    note(repo, "2026-01-01-0900-from-RC-topic.md")
+
+    def refuse(_path: Path) -> tuple[str, int]:
+        message = "locked by another process"
+        raise OSError(message)
+
+    monkeypatch.setattr(inbox_watch, "file_digest", refuse)
+    inbox_watch.main(["--ack", "--root", str(repo)])
+
+    banner, _ = inbox_watch.render(repo / INBOX_DIRNAME, seen_path(repo))
+
+    assert UNMEASURED_MARKER in banner, "an item that could not be digested read as measured"
+    assert CLEAN_MARKER not in banner, "an undigestible item read as clean"
+
+
+def deny_listing(monkeypatch: pytest.MonkeyPatch, target: Path) -> None:
+    """Make exactly ONE directory refuse to be listed.
+
+    MANUFACTURED, NOT WAITED FOR. The real fault is an ACL denying
+    FILE_LIST_DIRECTORY on a sibling's drop, or an offline placeholder
+    directory, and neither is something a test can arrange portably. Scoped to
+    the one path so that the seen store, the report and the log all still read
+    normally - a blanket denial would take the whole run down and prove nothing
+    about this path in particular.
+    """
+    real = Path.iterdir
+
+    def guarded(self: Path) -> Iterator[Path]:
+        if self == target:
+            message = "access is denied"
+            raise OSError(message)
+        return real(self)
+
+    monkeypatch.setattr(Path, "iterdir", guarded)
+
+
+def test_an_inbox_that_cannot_be_listed_is_unmeasured_and_never_clean(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Blind path (d), and the one this tool shipped without.
+
+    An inbox that EXISTS but cannot be LISTED made `deliverables` return the
+    empty list, which is byte-for-byte the shape of an empty channel. The
+    affirmative clean line then printed over a note sitting right there - the
+    exact failure clause 3 exists to refuse, in the tool whose own docstring
+    already says a blind path is never clean.
+    """
+    note(repo, "2026-01-01-0900-from-RC-topic.md")
+    deny_listing(monkeypatch, repo / INBOX_DIRNAME)
+
+    banner, _ = inbox_watch.render(repo / INBOX_DIRNAME, seen_path(repo))
+
+    assert UNMEASURED_MARKER in banner, "an unlistable inbox did not say it measured nothing"
+    assert CLEAN_MARKER not in banner, "an unlistable inbox read as clean"
+
+
+def test_a_listable_inbox_is_not_reported_as_unlistable(repo: Path) -> None:
+    """The negative control for the arm above, without which it is vacuous.
+
+    An arm that only asserts UNMEASURED is present is met by printing it on
+    every run. This is the same channel, the same call, and nothing denied.
+    """
+    banner, _ = inbox_watch.render(repo / INBOX_DIRNAME, seen_path(repo))
+
+    assert UNMEASURED_MARKER not in banner, "a listable inbox was reported as unmeasured"
+    assert CLEAN_MARKER in banner, "the control did not reach the clean line at all"
+
+
+def test_a_seen_store_that_cannot_be_opened_is_unmeasured_and_never_clean(repo: Path) -> None:
+    """Blind path (b), the OSError leg - separately ungraded until now.
+
+    `seen_blind_reason` has three legs and the suite only ever entered one of
+    them. Forcing this leg to return the empty string left the suite green,
+    which means the leg was decorative. A DIRECTORY where the store belongs
+    exists, so it is not absence, and it cannot be opened, so it is not merely
+    malformed.
+    """
+    seen_path(repo).parent.mkdir(parents=True, exist_ok=True)
+    seen_path(repo).mkdir()
+
+    banner, _ = inbox_watch.render(repo / INBOX_DIRNAME, seen_path(repo))
+
+    assert UNMEASURED_MARKER in banner, "a store that cannot be opened read as measured"
+    assert CLEAN_MARKER not in banner, "a store that cannot be opened read as clean"
+
+
+def test_a_seen_store_without_a_seen_list_is_unmeasured_and_never_clean(repo: Path) -> None:
+    """Blind path (b), the wrong-shape leg - the third and last of the three.
+
+    VALID JSON THAT SAYS NOTHING. `load_seen` fails open to the empty set here
+    exactly as it does on a parse error, so this run does not know what it has
+    already shown, and an empty inbox would otherwise print the clean line.
+    """
+    seen_path(repo).parent.mkdir(parents=True, exist_ok=True)
+    seen_path(repo).write_text('{"acknowledged": []}', encoding="ascii", newline="\n")
+
+    banner, _ = inbox_watch.render(repo / INBOX_DIRNAME, seen_path(repo))
+
+    assert UNMEASURED_MARKER in banner, "a store holding no seen list read as measured"
+    assert CLEAN_MARKER not in banner, "a store holding no seen list read as clean"
+
+
+# --- clause 4: the transcript is capped and the remainder is on disk ---------
+#
+# THE FIXTURE SIZE IS A LITERAL AND IS NOT DERIVED FROM THE CAP. RSC measured
+# the cost of the other way on 2026-09-07: an arm sized `constant + 5` met a
+# mutation setting that constant to 10**9 and began writing a billion files. A
+# fixture whose size is derived from the value under test is an amplifier for
+# whatever that value becomes.
+
+#: Items planted for the cap arm. A channel that delivered 49 files in one drop
+#: can deliver this many; the number is arbitrary and fixed.
+CAP_FIXTURE_ITEMS: Final = 178
+
+#: The transcript cap, written here as an INDEPENDENT literal rather than read
+#: from the module. A constant asserted against itself proves nothing; asserted
+#: against a literal written down separately it is a bound.
+CAP_EXPECTED: Final = 10
+
+#: Space-separated fields in one invocation log line: the stamp, the mode, the
+#: source, the session, the unread count and the withdrawn count.
+LOG_FIELDS: Final = 6
+
+
+def plant_over_cap(repo: Path) -> None:
+    """Plant CAP_FIXTURE_ITEMS long-named notes whose NAME ORDER OPPOSES MTIME.
+
+    The mtimes are set explicitly rather than left to the filesystem, because a
+    coarse timestamp would make "the ten newest" a tie of 178 and the arm below
+    would then be grading the sort's tie-break instead of its key.
+
+    AND THEY RUN BACKWARDS AGAINST THE NAME. When the two orders agree, the arm
+    that claims to grade the mtime key cannot see its own subject: a cap sorting
+    by DISPLAY selects exactly the same ten, so the mutation the arm exists to
+    kill passes it. Index 0 is therefore the NEWEST and index 177 the oldest,
+    which makes the two keys pick disjoint sets. A real channel looks like this
+    whenever a sender's names do not happen to sort by arrival - a renamed
+    note, a re-dated one, a sibling with its own naming scheme.
+    """
+    for index in range(CAP_FIXTURE_ITEMS):
+        name = f"2026-01-01-{index:04d}-from-RC-" + ("y" * 90) + ".md"
+        note(repo, name, mtime=1_000_000_000 + (CAP_FIXTURE_ITEMS - 1 - index))
+
+
+def test_the_transcript_lists_ten_names_and_points_at_the_rest(repo: Path) -> None:
+    """A wall of 178 names is not a report anybody reads.
+
+    Three things are graded together because they are one promise: exactly ten
+    names in the transcript, a pointer that names the remainder honestly, and
+    the file that pointer names ALREADY ON DISK.
+    """
+    plant_over_cap(repo)
+
+    banner, _ = inbox_watch.render(repo / INBOX_DIRNAME, seen_path(repo))
+
+    listed = len(quoted_names(banner))
+    assert listed == CAP_EXPECTED, f"the transcript listed {listed} names"
+    assert f"+168 more - {REPORT_POSIX}" in banner, "the pointer line is missing or misshapen"
+    assert report_path(repo).is_file(), "the pointer named a file that is not there"
+    assert str(CAP_FIXTURE_ITEMS) in banner, "the banner hid the true unread count"
+
+
+def test_the_ten_that_are_listed_are_the_newest(repo: Path) -> None:
+    """The cap keeps the NEWEST, which a name sort silently drops.
+
+    Sorting by name and taking ten looks identical in the count arm above while
+    showing the ten oldest deliveries - the least likely to matter.
+
+    THE FIXTURE'S NAME ORDER OPPOSES ITS MTIME ORDER, which is the only reason
+    this arm can see its subject at all. Index 0 is the newest, so the ten this
+    arm demands are 0-9 and the ten a display sort would show are 168-177: two
+    disjoint sets, and a mutation from one key to the other is red here.
+    """
+    plant_over_cap(repo)
+
+    banner, _ = inbox_watch.render(repo / INBOX_DIRNAME, seen_path(repo))
+
+    listed = quoted_names(banner)
+    indices = sorted(int(line.split("2026-01-01-")[1][:4]) for line in listed)
+    assert indices == list(range(CAP_EXPECTED)), "the listed names are not the ten newest"
+
+
+def test_the_report_holds_every_name_the_transcript_dropped(repo: Path) -> None:
+    """The pointer is only honest if the file it names is complete."""
+    plant_over_cap(repo)
+
+    inbox_watch.render(repo / INBOX_DIRNAME, seen_path(repo))
+
+    body = report_path(repo).read_text(encoding="utf-8")
+    missing = [
+        index
+        for index in range(CAP_FIXTURE_ITEMS)
+        if f"2026-01-01-{index:04d}-from-RC-" not in body
+    ]
+    assert missing == [], f"the report dropped {len(missing)} item(s) the transcript also dropped"
+
+
+def test_the_report_is_on_disk_before_a_byte_reaches_stdout(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A RECORDING SPY, because the ORDERING itself is the property.
+
+    A later existence check cannot see it: asserting that the file exists
+    after main() returns is met by writing it last, and a reader who acts on
+    the pointer acts DURING the session, not after the process exits.
+    """
+    plant_over_cap(repo)
+    target = report_path(repo)
+    existed: list[bool] = []
+
+    class Recorder:
+        def write(self, text: str) -> int:
+            existed.append(target.is_file())
+            return len(text)
+
+        def flush(self) -> None:
+            return None
+
+    monkeypatch.setattr(inbox_watch.sys, "stdout", Recorder())
+    inbox_watch.main(["--root", str(repo)])
+
+    assert existed, "nothing was written to stdout at all"
+    assert all(existed), "the banner named the report before the report existed"
+
+
+def test_a_report_that_cannot_be_written_becomes_unmeasured_not_a_pointer(
+    repo: Path,
+) -> None:
+    """Entries that reached neither the transcript nor the disk are NOT shown.
+
+    The failure this refuses is the tidy one: printing the pointer anyway, at
+    which point 168 deliverables are accounted for by a line naming a file that
+    does not exist, and the run reads as complete.
+    """
+    plant_over_cap(repo)
+    report_path(repo).mkdir(parents=True)
+
+    banner, _ = inbox_watch.render(repo / INBOX_DIRNAME, seen_path(repo))
+
+    assert UNMEASURED_MARKER in banner, "a failed report write was not reported as unmeasured"
+    assert f"+168 more - {REPORT_POSIX}" not in banner, (
+        "the pointer named a file that was never written"
+    )
+    assert len(quoted_names(banner)) == CAP_EXPECTED, "the cap moved when the report write failed"
+
+
+def test_an_inbox_under_the_cap_is_listed_in_full_and_writes_no_pointer(repo: Path) -> None:
+    """The negative control for the cap. Ten or fewer is the ordinary case."""
+    for index in range(CAP_EXPECTED):
+        note(repo, f"2026-01-01-{index:04d}-from-RC-topic.md")
+
+    banner, _ = inbox_watch.render(repo / INBOX_DIRNAME, seen_path(repo))
+
+    assert len(quoted_names(banner)) == CAP_EXPECTED
+    assert "more - " not in banner, "a pointer was printed for an inbox that was listed in full"
+
+
+def test_the_report_file_is_ignored_by_git() -> None:
+    """Ask git about the LITERAL path the pointer hands a reader.
+
+    Clause 7 of the contract says .gitignore needs no edit because /data/
+    already covers this. That is a claim about this repository's .gitignore,
+    so it is asserted rather than assumed - and it is asserted against the
+    string in the banner, not against a constant that could move with it.
+    """
+    result = subprocess.run(
+        ["git", "check-ignore", "-v", REPORT_POSIX],
+        capture_output=True,
+        text=True,
+        cwd=REPO_ROOT,
+        check=False,
+        timeout=60,
+    )
+
+    assert result.returncode == 0, (
+        f"git does not ignore {REPORT_POSIX}: {result.stdout}{result.stderr}"
+    )
+
+
+# --- clause 5: the session id, sanitised like the source token --------------
+
+
+def test_the_log_records_the_session_id_from_the_hook_payload(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """WHICH SESSION FIRED is what a log of firings cannot otherwise answer.
+
+    Two lines a minute apart are one session that cleared or two sessions that
+    started, and the invocation log exists precisely to settle questions of
+    that shape by measurement rather than by argument.
+    """
+    payload = '{"hook_event_name":"SessionStart","source":"clear","session_id":"ab12-cd34"}'
+    monkeypatch.setattr(inbox_watch, "read_hook_payload", lambda *_a, **_k: payload)
+
+    inbox_watch.main(["--root", str(repo)])
+
+    line = log_lines(repo)[-1]
+    assert "session=ab12-cd34" in line
+    assert "source=clear" in line, "the source leg regressed while the session leg was added"
+
+
+def test_a_missing_session_id_is_recorded_as_unknown_rather_than_invented(repo: Path) -> None:
+    """FAILS OPEN, like the source token. "Not established" is an honest line."""
+    inbox_watch.main(["--root", str(repo), "--source", "startup"])
+
+    assert "session=unknown" in log_lines(repo)[-1]
+
+
+def test_a_hostile_session_id_cannot_forge_a_log_line(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Built to match test_a_hostile_source_cannot_forge_a_log_line.
+
+    The payload is external input and it lands in a log a human reads. A
+    newline inside the field forges a whole entry; a space forges a field.
+    """
+    hostile = json.dumps(
+        {"source": "clear", "session_id": "aa\n2026-01-01T00:00:00Z mode=ack source=startup"}
+    )
+    monkeypatch.setattr(inbox_watch, "read_hook_payload", lambda *_a, **_k: hostile)
+
+    inbox_watch.main(["--root", str(repo)])
+
+    lines = log_lines(repo)
+    assert len(lines) == 1, "a crafted session id forged a whole log line"
+    assert "mode=ack" not in lines[0], "a crafted session id forged a field"
+    assert len(lines[0].split(" ")) == LOG_FIELDS, f"the log line grew fields: {lines[0]!r}"
+
+
+# --- clause 6: there is no per-session suppression record -------------------
+
+
+def test_the_twin_session_start_print_is_never_deduplicated(
+    repo: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """TWO PRINTS ARE TWO REAL SESSIONS and suppressing the second hides one.
+
+    This tree has no per-prompt hook to consume a suppression record, so a
+    "reported" marker could only ever silence a session that had not yet been
+    told anything. The arm is what stops one being added later by someone
+    reading the twin print as a bug.
+
+    RUN THROUGH `main`, AND OVER STDOUT. Calling `render` twice grades a pure
+    function that has nowhere to keep a record: a marker consulted in `main`
+    left that shape green while the second real session received zero bytes of
+    banner. A record can only live where the side effects live, so the arm has
+    to enter where the hook enters and read what the hook reads.
+
+    THE SESSION ID IS HELD CONSTANT so that a marker keyed by session and a
+    marker keyed by nothing are both red here. A session-keyed one is the
+    likelier mistake - the twin print this arm is named for is one session
+    firing twice - and it is exactly the one a differing id would let through.
+    """
+    args = ["--root", str(repo), "--source", "startup", "--session-id", "a1"]
+    note(repo, "2026-01-01-0900-from-RC-topic.md")
+
+    inbox_watch.main(args)
+    first = capsys.readouterr().out
+    inbox_watch.main(args)
+    second = capsys.readouterr().out
+
+    assert "from-RC-topic" in first, "the first session start was not told at all"
+    assert "from-RC-topic" in second, (
+        "the second session start was not told at all. A suppression record"
+        " silences a session that has been told nothing."
+    )
+    assert first == second, "the second session start was told something different"
