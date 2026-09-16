@@ -1653,14 +1653,14 @@ def _world_tokens_from_headers(report: Report | None) -> tuple[list[str], bool]:
             unscannable += 1
             continue
         # The scan's own cap is a BOUND THAT TRUNCATES THIS POPULATION, so it
-        # belongs with the other four and not with the unreadable-header skip.
+        # belongs with the other truncating bounds, not the unreadable-header skip.
         scan_capped = scan_capped or capped
         if candidates:
             found.extend(candidates)
             recovered += 1
 
     if scan_capped:
-        # BLOCKING, and it is the fifth bound to reach the exit status rather
+        # BLOCKING, and it is one more bound to reach the exit status rather
         # than a new exception to CS-1083's rule. A cap is this gate's OWN
         # choice not to look and it is self-healing - it is raised, or the file
         # that tripped it goes away - which is exactly the class CS-1083 made
