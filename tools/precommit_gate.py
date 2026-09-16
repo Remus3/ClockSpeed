@@ -1489,9 +1489,10 @@ def _world_tokens_from_headers(report: Report | None) -> tuple[list[str], bool]:
     trips says so through the skip channel.
 
     EVERY BOUND THAT TRUNCATES THIS POPULATION NOW REACHES THE EXIT STATUS
-    (CS-1083), and that is a different claim from "says so". All four of them -
+    (CS-1083), and that is a different claim from "says so". All FIVE of them -
     the save-root entry cap, the per-directory retention bound, the examination
-    bound and the two above - used to report through the skip channel alone,
+    bound, the two above, and CS-1087's per-framing candidate cap on the raw
+    scan - reach it. The first four used to report through the skip channel alone,
     and `emit` returns 0 whenever `diagnostics` is empty, so a run whose
     world-token population was cut short printed a skip line and then `PASS`.
     Not-checked and checked-and-clean shared an exit code, which is the whole
@@ -1517,10 +1518,14 @@ def _world_tokens_from_headers(report: Report | None) -> tuple[list[str], bool]:
     recovered token joins the blocklist and is matchable, and the sentence that
     stood here - that no amount of effort makes the file parse - is true about
     PARSING and was never the point. WHAT REMAINS UNCOVERED, stated rather than
-    implied: a header truncated or overwritten before the identifier carries no
-    framed token at any offset, and a file that cannot be opened at all yields
-    no bytes to scan. Those are floors rather than holes - no means available
-    to this gate reads bytes that are not there - and neither one blocks.
+    implied, in three shapes: a header truncated or overwritten before the
+    identifier carries no framed token at any offset; a header whose int32
+    COUNT PREFIX is damaged while the 22 identifier characters survive intact
+    frames nothing, so a scan that matches on the framing cannot see it; and a
+    file that cannot be opened at all yields no bytes to scan. The first and
+    third are floors - no means available to this gate reads bytes that are not
+    there. The second is a genuine residue: the value IS on disk and this route
+    does not reach it. None of the three blocks.
 
     THE TIME BOUND CANNOT ABORT A READ ALREADY IN FLIGHT. It is tested between
     reads, so one slow open on a hydrating cloud placeholder, a redirected
@@ -1581,6 +1586,7 @@ def _world_tokens_from_headers(report: Report | None) -> tuple[list[str], bool]:
     unreadable = 0
     recovered = 0
     unscannable = 0
+    scan_capped = False
     scanner: object | None = None
     scanner_unavailable = False
     for path in paths:
@@ -1612,15 +1618,7 @@ def _world_tokens_from_headers(report: Report | None) -> tuple[list[str], bool]:
         # clock deliberately: the aggregate budget tested at the top of this
         # iteration is the only one there is, and a second budget for the
         # fallback would be a second thing to drift away from the first.
-        if scanner is None and not scanner_unavailable:
-            try:
-                scanner = _load_token_scanner()
-            except BaseException:
-                # The same failure _load_header_reader's caller treats as an
-                # ordinary skip, for the same reason - except that the reader
-                # imported a moment ago, so reaching here means the module went
-                # away mid-run. Recorded, never fatal.
-                scanner_unavailable = True
+        scanner, scanner_unavailable = _token_scanner_once(scanner, scanner_unavailable)
         if scanner is None:
             unscannable += 1
             continue
@@ -1629,18 +1627,69 @@ def _world_tokens_from_headers(report: Report | None) -> tuple[list[str], bool]:
             # prefix never crosses back into this frame - see the CS-963 scrub
             # in scan_world_tokens, which is why the scan lives there and not
             # here (non-negotiable 12).
-            candidates = scanner(path)  # type: ignore[operator]
+            candidates, capped = scanner(path)  # type: ignore[operator, misc]
         except BaseException:
             # No bytes at all: the file could not be opened for even a raw
             # read. A floor rather than a hole, and still not a block.
             unscannable += 1
             continue
+        # The scan's own cap is a BOUND THAT TRUNCATES THIS POPULATION, so it
+        # belongs with the other four and not with the unreadable-header skip.
+        scan_capped = scan_capped or capped
         if candidates:
             found.extend(candidates)
             recovered += 1
 
+    if scan_capped:
+        # BLOCKING, and it is the fifth bound to reach the exit status rather
+        # than a new exception to CS-1083's rule. A cap is this gate's OWN
+        # choice not to look and it is self-healing - it is raised, or the file
+        # that tripped it goes away - which is exactly the class CS-1083 made
+        # blocking. The one deliberate non-blocking degradation stays what it
+        # was: a FILE declining to be read.
+        #
+        # THE REASON NAMES THE CAP AND NOT ITS VALUE. The number lives in
+        # clockspeed/save/header.py, and restating it here would be a second
+        # copy to drift; a discovered value could not be rendered at all
+        # (non-negotiable 12).
+        _report_world_token_uncovered(
+            report,
+            "a save header prefix held more identifier-shaped candidates than "
+            "the scan cap admits; the ones past it were not read and their "
+            "tokens are not matchable",
+            blocking=True,
+        )
     _report_unparseable_headers(report, unreadable, recovered, unscannable)
     return found, truncated
+
+
+def _token_scanner_once(scanner: object | None, unavailable: bool) -> tuple[object | None, bool]:
+    """Load the token scanner AT MOST ONCE per run, and never fail on it.
+
+    ONCE, not once per file. A directory of unparseable saves must not become a
+    directory of import attempts: a retry loop over a broken import turns a bad
+    save directory into a slow gate, and the loop this is called from is
+    already inside a wall-clock budget it would then eat.
+
+    The import failing is an ordinary skip, exactly as it is for
+    _load_header_reader and for the same reason - a gate that cannot start does
+    not block. BaseException rather than Exception, because a mid-edit module
+    that calls sys.exit() at import time raises SystemExit and letting that
+    through would end the gate with the wrong status.
+
+    Args:
+        scanner: The scanner already loaded, or None.
+        unavailable: Whether a previous attempt in this run already failed.
+
+    Returns:
+        ``(scanner or None, unavailable)``. Never raises.
+    """
+    if scanner is not None or unavailable:
+        return scanner, unavailable
+    try:
+        return _load_token_scanner(), False
+    except BaseException:
+        return None, True
 
 
 def _report_unparseable_headers(

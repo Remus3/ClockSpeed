@@ -4205,6 +4205,26 @@ def unparseable_save_bytes(world_token: str) -> bytes:
     return struct.pack("<i", UNSUPPORTED_HEADER_VERSION) + body[4:]
 
 
+def count_prefix_corrupt_save_bytes(world_token: str) -> bytes:
+    """A save whose identifier CHARACTERS survive but whose count prefix does not.
+
+    THE FIFTH RESIDUE SHAPE, built rather than described. The 22 characters sit
+    at a known offset, intact, and the int32 that frames them is overwritten -
+    so a scan that matches on the FRAMING cannot see a value that is genuinely
+    on disk. That is a true residue rather than a floor: the bytes are there.
+    """
+    import struct  # noqa: PLC0415
+
+    from tests.save import synthetic  # noqa: PLC0415
+
+    blob = unparseable_save_bytes(world_token)
+    framed = synthetic.fstring(world_token)
+    at = blob.index(framed)
+    damaged = blob[:at] + struct.pack("<i", 7) + blob[at + 4 :]
+    assert len(damaged) == len(blob)
+    return damaged
+
+
 def make_mixed_header_save_root(tmp_path: Path, corrupt: bytes) -> Path:
     """A save root holding one PARSEABLE save and one that will not parse.
 
@@ -4334,19 +4354,37 @@ def test_no_channel_renders_a_token_recovered_from_a_raw_header_prefix(
         assert str(save_root) not in line, line
 
 
+@pytest.mark.parametrize(
+    "plant",
+    [
+        pytest.param(NOTHING_FRAMED, id="overwritten wholesale"),
+        pytest.param(
+            count_prefix_corrupt_save_bytes(CORRUPT_HEADER_WORLD_TOKEN),
+            id="identifier intact behind a damaged count prefix",
+        ),
+    ],
+)
 def test_an_unparseable_header_with_no_framed_token_recovers_nothing_and_never_blocks(
+    plant: bytes,
     tmp_path: Path,
 ) -> None:
     """THE RESIDUE, pinned as a positive fact rather than left unstated.
 
-    A header whose bytes carry no framed identifier at all - truncated before
-    the field, or overwritten wholesale - has no token to recover at any
-    offset, and this route does not reach it. What must still hold is the
-    CS-1083 declination: the run says what it could not do and does NOT
-    block, because a gate that refuses on a corrupt save it may never remove
-    (non-negotiable 1) is one that gets bypassed with --no-verify.
+    TWO SHAPES, AND THEY ARE NOT THE SAME KIND OF GAP. Overwritten bytes hold
+    nothing of the identifier at any offset, so no means available to this
+    gate could read a value that is not there - a floor. A damaged COUNT
+    PREFIX is different and the earlier wording here was simply false about
+    it: the 22 characters are intact on disk at a known offset, and this
+    route misses them because it matches on the FRAMING. That is the honest
+    residue of CS-1087 and it is named rather than rounded down to "nothing
+    to recover".
+
+    What must hold for both is the CS-1083 declination: the run says what it
+    could not do and does NOT block, because a gate that refuses on a corrupt
+    save it may never remove (non-negotiable 1) is one that gets bypassed
+    with --no-verify.
     """
-    save_root = make_mixed_header_save_root(tmp_path, NOTHING_FRAMED)
+    save_root = make_mixed_header_save_root(tmp_path, plant)
     env = base_env(tmp_path)
     env["CLOCKSPEED_SAVE_ROOT"] = str(save_root)
     target = write(tmp_path / "clean.md", "nothing to see\n")
@@ -4360,3 +4398,196 @@ def test_an_unparseable_header_with_no_framed_token_recovers_nothing_and_never_b
     assert "no framed world token" in reasons[0], reasons
     assert "not matchable" in reasons[0], reasons
     assert "crashed" not in result.stderr, result.stderr
+
+
+# --------------------------------------------------------------------------
+# CS-1087 - the scan's own cap, and the three skip lines it can print
+# --------------------------------------------------------------------------
+#
+# The candidate cap is the FIFTH bound that truncates this population, and it
+# is blocking for the reason the other four are: a cap is the gate's own
+# choice not to look and it is self-healing. The singular non-blocking
+# degradation is a FILE declining to be read, and that is unchanged.
+
+
+def framed_tokens(count: int) -> bytes:
+    """`count` DISTINCT identifier-shaped framed strings, builder-encoded.
+
+    tests/save/synthetic.py is the repository's one encoder of this framing,
+    so the fixture drives it rather than hand-packing a second opinion.
+    """
+    from tests.save import synthetic  # noqa: PLC0415
+
+    return b"".join(synthetic.fstring("ClockspeedCapTokens%03d" % index) for index in range(count))
+
+
+def scan_cap() -> int:
+    """The scan's per-framing candidate cap, read from the module that owns it.
+
+    Restating the number here would be a second copy to drift (CLAUDE.md
+    section 4), and a fixture that guessed it would stop crossing the bound
+    the day it changed.
+    """
+    from clockspeed.save.header import MAX_SCANNED_TOKENS  # noqa: PLC0415
+
+    return int(MAX_SCANNED_TOKENS)
+
+
+def save_root_with_candidates(tmp_path: Path, count: int) -> Path:
+    """A save root whose one save will not parse and holds `count` candidates."""
+    save_root = make_save_root(tmp_path, FAKE_ACCOUNT_ID)
+    blob = unparseable_save_bytes(CORRUPT_HEADER_WORLD_TOKEN) + framed_tokens(count)
+    (save_root / FAKE_ACCOUNT_ID / (CORRUPT_SAVE_STEM + ".sav")).write_bytes(blob)
+    return save_root
+
+
+def test_a_candidate_cap_truncation_reaches_the_exit_status(tmp_path: Path) -> None:
+    """The fifth bound, graded by CROSSING it and at the EXIT CODE.
+
+    A prefix holding more identifier-shaped candidates than the scan admits
+    leaves some of them unread, so a world token in a staged file might not
+    have been matched - which is precisely the state CS-1083 refuses to let
+    end in `PASS`. The reason carries no value and no number.
+    """
+    env = base_env(tmp_path)
+    env["CLOCKSPEED_SAVE_ROOT"] = str(save_root_with_candidates(tmp_path, scan_cap() + 3))
+    target = write(tmp_path / "clean.md", "nothing to see\n")
+
+    result = run_gate("--list-skipped", "--files", str(target), env=env)
+
+    assert result.returncode == 1, result.stdout + result.stderr
+    assert "PASS" not in result.stdout, result.stdout
+    assert "did not cover this machine's whole save population" in result.stderr, result.stderr
+    assert "than the scan cap admits" in result.stderr, result.stderr
+    for line in result.stderr.splitlines():
+        assert FAKE_ACCOUNT_ID not in line, line
+        assert "ClockspeedCapToken" not in line, line
+
+
+def test_a_candidate_population_inside_the_cap_passes_and_still_matches(
+    tmp_path: Path,
+) -> None:
+    """THE CONTROL, and it is what stops the arm above hollowing.
+
+    Without it, a scan that reported truncation unconditionally - or one that
+    recovered nothing at all and blocked on principle - would satisfy every
+    assertion up there. Under the cap the run must reach `PASS` and exit 0 on
+    a clean file, AND the token must still be matchable in the same fixture.
+    CS-1083's first cut passed with detection destroyed for want of exactly
+    this pairing.
+    """
+    save_root = str(save_root_with_candidates(tmp_path, 3))
+    env = base_env(tmp_path)
+    env["CLOCKSPEED_SAVE_ROOT"] = save_root
+
+    clean = write(tmp_path / "clean.md", "nothing to see\n")
+    quiet = run_gate("--list-skipped", "--files", str(clean), env=env)
+
+    assert quiet.returncode == 0, quiet.stdout + quiet.stderr
+    assert "PASS" in quiet.stdout, quiet.stdout
+    assert "than the scan cap admits" not in quiet.stderr, quiet.stderr
+
+    leaky = write(tmp_path / "ledger.md", CORRUPT_HEADER_WORLD_TOKEN + "\n")
+    blocked = run_gate("--files", str(leaky), env=env)
+
+    assert leak_diagnostics(blocked.stderr, "world token"), (
+        "nothing was matched under the cap, so the arm above blocks on a scan "
+        "that recovers nothing\n" + blocked.stdout + blocked.stderr
+    )
+
+
+def test_the_lazy_token_scanner_recovers_a_real_unparseable_header(tmp_path: Path) -> None:
+    """_load_token_scanner, driven rather than asserted about.
+
+    An arm that only checked the import resolved would pass against a loader
+    that returned the PARSER by the wrong name - which recovers nothing from
+    an unparseable file and would silently turn the fallback off. So the
+    callable this function hands back is put to work on a real byte-corrupt
+    save and its answer is graded.
+    """
+    gate = load_gate()
+    corrupt = tmp_path / "Unparseable.sav"
+    corrupt.write_bytes(unparseable_save_bytes(CORRUPT_HEADER_WORLD_TOKEN))
+
+    scanner = gate._load_token_scanner()  # noqa: SLF001
+    candidates, truncated = scanner(corrupt)
+
+    assert candidates == (CORRUPT_HEADER_WORLD_TOKEN,), candidates
+    assert truncated is False
+
+
+def test_a_header_that_cannot_be_scanned_either_is_a_skip_and_never_blocks(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """The floor: no parse AND no raw read. Reported, and still not blocking.
+
+    A file the gate cannot open for even a raw read is the same class as one
+    that will not parse - the FILE declining to be read - so it stays out of
+    the exit status (non-negotiables 1 and 7). What it must not do is share a
+    sentence with the recovered case, which is the CS-209-B shape: the line
+    has to say a raw scan was attempted and could not read the bytes.
+    """
+    gate = load_gate()
+
+    def refuse(path: Path) -> object:  # noqa: ARG001
+        raise ValueError("unparseable")
+
+    def refuse_scan(path: Path) -> object:  # noqa: ARG001
+        raise OSError("unreadable")
+
+    monkeypatch.setenv("CLOCKSPEED_SAVE_ROOT", str(make_empty_save_root(tmp_path, 3)))
+    monkeypatch.setenv("CLOCKSPEED_LOCAL_CONFIG", str(tmp_path / "absent-local-config.json"))
+    monkeypatch.delenv("CLOCKSPEED_WORLD_TOKENS", raising=False)
+    monkeypatch.delenv("CLOCKSPEED_ACCOUNT_DIR", raising=False)
+    monkeypatch.setattr(gate, "_load_header_reader", lambda: refuse)
+    monkeypatch.setattr(gate, "_load_token_scanner", lambda: refuse_scan)
+
+    report = gate.Report()
+    gate._world_tokens_from_headers(report)  # noqa: SLF001
+
+    reasons = [why for _label, why in report.skipped]
+    assert any("could not be read for a raw scan either" in why for why in reasons), reasons
+    assert any("3 save header(s)" in why for why in reasons), reasons
+    code, out, _err = emit_verdict(gate, report, capsys)
+    assert code == 0, out
+    assert "PASS" in out, out
+
+
+def test_an_unimportable_token_scanner_is_reported_once_and_never_blocks(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """The scanner import failing mid-run, which is _load_header_reader's own case.
+
+    A gate that cannot start does not block, so an import failure is an
+    ordinary skip here exactly as it is for the reader. THE LOADER IS TRIED
+    ONCE and not once per file: three unparseable saves must not mean three
+    import attempts, and the call count is asserted rather than assumed,
+    because a retry loop over a broken import is how a gate turns a bad save
+    directory into a slow one.
+    """
+    gate = load_gate()
+    attempts = []
+
+    def refuse(path: Path) -> object:  # noqa: ARG001
+        raise ValueError("unparseable")
+
+    def refuse_import() -> object:
+        attempts.append(1)
+        raise ImportError("the package went away mid-run")
+
+    monkeypatch.setenv("CLOCKSPEED_SAVE_ROOT", str(make_empty_save_root(tmp_path, 3)))
+    monkeypatch.setenv("CLOCKSPEED_LOCAL_CONFIG", str(tmp_path / "absent-local-config.json"))
+    monkeypatch.delenv("CLOCKSPEED_WORLD_TOKENS", raising=False)
+    monkeypatch.delenv("CLOCKSPEED_ACCOUNT_DIR", raising=False)
+    monkeypatch.setattr(gate, "_load_header_reader", lambda: refuse)
+    monkeypatch.setattr(gate, "_load_token_scanner", refuse_import)
+
+    report = gate.Report()
+    gate._world_tokens_from_headers(report)  # noqa: SLF001
+
+    assert len(attempts) == 1, attempts
+    reasons = [why for _label, why in report.skipped]
+    assert any("could not be read for a raw scan either" in why for why in reasons), reasons
+    code, out, _err = emit_verdict(gate, report, capsys)
+    assert code == 0, out
+    assert "PASS" in out, out

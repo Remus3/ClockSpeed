@@ -1699,11 +1699,22 @@ def _framed(text: str, *, wide: bool = False) -> bytes:
     return synthetic.fstring(text, wide=wide)
 
 
+def _scanned(blob: bytes) -> tuple[str, ...]:
+    """The candidates alone, for the arms whose subject is the SHAPE match.
+
+    The scan returns its truncation flag beside them, and the arms that grade
+    the cap read that flag directly rather than through here - an arm that
+    dropped it silently would be the fail-open the flag exists to report.
+    """
+    tokens, _truncated = header_module.scan_framed_tokens(blob)
+    return tokens
+
+
 def test_a_framed_identifier_is_recovered_without_parsing_anything() -> None:
     """The shape match, at its floor: framing plus alphabet plus terminator."""
     blob = b"\x11\x22\x33" + _framed(SCAN_TOKEN) + b"\x44\x55"
 
-    assert header_module.scan_framed_tokens(blob) == (SCAN_TOKEN,)
+    assert _scanned(blob) == (SCAN_TOKEN,)
 
 
 @pytest.mark.parametrize(
@@ -1724,7 +1735,7 @@ def test_what_is_not_an_identifier_is_never_a_candidate(label: str, blob: bytes)
     must come back empty. The length arms are the ones that matter most: a
     scan matching "22 or so" characters is a scrape wearing a shape's clothes.
     """
-    assert header_module.scan_framed_tokens(blob) == (), label
+    assert _scanned(blob) == (), label
 
 
 def test_the_wide_framing_is_recovered_too() -> None:
@@ -1737,7 +1748,7 @@ def test_the_wide_framing_is_recovered_too() -> None:
     """
     blob = b"\x99" + _framed(SCAN_TOKEN, wide=True) + b"\x99"
 
-    assert header_module.scan_framed_tokens(blob) == (SCAN_TOKEN,)
+    assert _scanned(blob) == (SCAN_TOKEN,)
 
 
 def test_a_buffer_with_no_framed_string_yields_nothing() -> None:
@@ -1747,7 +1758,7 @@ def test_a_buffer_with_no_framed_string_yields_nothing() -> None:
     of the identifier's shape is in them at any offset, and the honest answer
     is an empty result rather than a guess.
     """
-    assert header_module.scan_framed_tokens(b"\x00\xff" * 64) == ()
+    assert _scanned(b"\x00\xff" * 64) == ()
 
 
 @pytest.mark.parametrize("length", [0, 1, TOKEN_LENGTH - 1, TOKEN_LENGTH, TOKEN_LENGTH + 1, 40])
@@ -1763,8 +1774,8 @@ def test_an_options_shaped_string_is_never_a_candidate(length: int) -> None:
     """
     text = (OPTIONS_TEXT * 3)[:length]
 
-    assert header_module.scan_framed_tokens(_framed(text)) == ()
-    assert header_module.scan_framed_tokens(_framed(text, wide=True)) == ()
+    assert _scanned(_framed(text)) == ()
+    assert _scanned(_framed(text, wide=True)) == ()
 
 
 def test_the_per_buffer_candidate_cap_is_a_bound_that_is_crossed() -> None:
@@ -1772,15 +1783,67 @@ def test_the_per_buffer_candidate_cap_is_a_bound_that_is_crossed() -> None:
 
     A test that planted fewer candidates than the cap would pass against an
     unbounded scan, which is the shape that grades nothing.
+
+    THE FLAG IS GRADED BESIDE THE COUNT. A cap that silently shrinks the
+    caller's blocklist is a fail-open, so the scan has to SAY it truncated -
+    and the under-cap control below is what stops this arm passing against a
+    scan that reports truncation unconditionally.
     """
     cap = header_module.MAX_SCANNED_TOKENS
     planted = cap + 4
     blob = b"".join(_framed("ClockspeedScanTokens%02d" % index) for index in range(planted))
 
-    found = header_module.scan_framed_tokens(blob)
+    found, truncated = header_module.scan_framed_tokens(blob)
 
     assert cap < planted, "the fixture does not cross the bound, so this arm is vacuous"
     assert len(found) == cap, len(found)
+    assert truncated is True
+
+    under = b"".join(_framed("ClockspeedScanTokens%02d" % index) for index in range(cap - 1))
+    found_under, truncated_under = header_module.scan_framed_tokens(under)
+
+    assert len(found_under) == cap - 1
+    assert truncated_under is False, "the flag is unconditional, so it says nothing"
+
+
+def test_one_value_repeated_to_the_cap_never_hides_a_different_one() -> None:
+    """A MEASURED loss: the cap counted occurrences rather than values.
+
+    A real save prefix can repeat a string, and the cap was spent on the
+    repeats - so a DIFFERENT token further down the buffer was dropped and the
+    gate never saw it. The defence for the old shape argued about identifiers
+    while the code bounded occurrences, which is the class of docstring this
+    project treats as worse than silence.
+    """
+    cap = header_module.MAX_SCANNED_TOKENS
+    repeated = "ClockspeedRepeatTokenA"
+    distinct = "ClockspeedDistinctTokB"
+    blob = _framed(repeated) * (cap + 4) + _framed(distinct)
+
+    found, truncated = header_module.scan_framed_tokens(blob)
+
+    assert found == (repeated, distinct), found
+    assert truncated is False
+
+
+def test_a_narrow_framed_buffer_never_spends_the_wide_framing_budget() -> None:
+    """The second MEASURED loss: one budget shared across both framings.
+
+    Sixteen narrow candidates used to exhaust the single budget, so the wide
+    framing was never scanned at all and a wide-framed token was lost outright
+    - a total miss rather than a truncation, and the flag would not have said
+    so either. Each framing carries its own budget now.
+    """
+    cap = header_module.MAX_SCANNED_TOKENS
+    wide_only = "ClockspeedWideFramedTk"
+    blob = b"".join(_framed("ClockspeedScanTokens%02d" % index) for index in range(cap))
+    blob += _framed(wide_only, wide=True)
+
+    found, truncated = header_module.scan_framed_tokens(blob)
+
+    assert wide_only in found, found
+    assert len(found) == cap + 1
+    assert truncated is False
 
 
 def test_candidates_come_back_in_file_order_and_once_each() -> None:
@@ -1789,7 +1852,7 @@ def test_candidates_come_back_in_file_order_and_once_each() -> None:
     second = "ClockspeedScanTokens42"
     blob = _framed(second) + _framed(first) + _framed(second)
 
-    assert header_module.scan_framed_tokens(blob) == (second, first)
+    assert _scanned(blob) == (second, first)
 
 
 def test_an_identifier_survives_a_header_the_parser_refuses(tmp_path: Path) -> None:
@@ -1813,7 +1876,7 @@ def test_an_identifier_survives_a_header_the_parser_refuses(tmp_path: Path) -> N
     with pytest.raises(UnsupportedHeaderVersionError):
         read_header(target)
 
-    assert header_module.scan_world_tokens(target) == (SCAN_TOKEN,)
+    assert header_module.scan_world_tokens(target) == ((SCAN_TOKEN,), False)
 
 
 def test_scan_world_tokens_redacts_the_path_of_a_file_it_cannot_open(tmp_path: Path) -> None:
@@ -1847,10 +1910,18 @@ def test_the_scanned_prefix_is_in_no_frame_when_the_scan_unwinds(
     redacted. So the one thing that must hold is that an exception unwinding
     through this frame leaves no local holding those bytes.
 
+    THE FAILURE IS DRIVEN THROUGH A SHIPPED INNER FRAME, and that is the whole
+    repair. This arm used to replace ``scan_framed_tokens`` itself, which
+    removed the one frame that BINDS the buffer - so the oracle could not
+    observe its own subject and reported clean while ``scan_framed_tokens``
+    held the prefix BARE. Refusing inside ``_framed_token_at`` leaves both
+    shipped frames on the traceback, and the sweep grades BARE holders, which
+    is what tests/save/test_properties.py calls a leak outright.
+
     THE SWEEP IS FRONTED BY A KNOWN-GOOD CONTROL, because a negative
     measurement from a sweep that cannot see anything is worth nothing: the
     same needle, in the same file, IS found in a shipped frame when the parser
-    refuses it, and only then is the scanner's own frame asserted clean.
+    refuses it, and only then are the scanner's own frames asserted clean.
     """
     blob = synthetic.build_header(options=MARKER_OPTIONS)
     needle = MARKER_OPTIONS.encode("ascii")
@@ -1864,16 +1935,23 @@ def test_the_scanned_prefix_is_in_no_frame_when_the_scan_unwinds(
         "below measures nothing at all"
     )
 
-    def explode(_data: bytes) -> tuple[str, ...]:
-        raise RuntimeError("the scan refused")
+    def explode(_data: bytes, _start: int, _stride: int) -> str | None:
+        raise RuntimeError("the shape check refused")
 
-    monkeypatch.setattr(header_module, "scan_framed_tokens", explode)
+    monkeypatch.setattr(header_module, "_framed_token_at", explode)
 
     with pytest.raises(RuntimeError) as caught:
         header_module.scan_world_tokens(target)
     raised = caught.value
 
     entered = test_properties._shipped_frame_names(raised)  # noqa: SLF001
-    assert "scan_world_tokens" in entered, sorted(entered)
+    for frame in ("scan_world_tokens", "scan_framed_tokens"):
+        assert frame in entered, sorted(entered)
     held = test_properties._structural_holders(raised, needle)  # noqa: SLF001
-    assert "scan_world_tokens" not in held, held
+    bare = test_properties._bare_holders(held)  # noqa: SLF001
+    assert not bare, (
+        "a shipped frame local IS the save prefix across this unwind. On a real "
+        "save that prefix is the options string - the platform, the account id "
+        f"and the player display name (non-negotiable 12): {bare}"
+    )
+    assert not held, held

@@ -1053,12 +1053,19 @@ _TOKEN_BYTES: Final = frozenset(TOKEN_ALPHABET.encode("ascii"))
 _NARROW_COUNT_PREFIX: Final = struct.pack("<i", WORLD_TOKEN_LENGTH + 1)
 _WIDE_COUNT_PREFIX: Final = struct.pack("<i", -(WORLD_TOKEN_LENGTH + 1))
 
-#: How many candidates one buffer may yield. A save prefix carries ONE
-#: identifier, so a buffer producing more than this is not a save header and
-#: the scan stops rather than walking an untrusted file to its end. This is a
-#: per-buffer shape bound and NOT a time or file budget: the gate's aggregate
-#: wall clock and its file cap are the caller's, unchanged, and no second
-#: budget is introduced here to drift away from them.
+#: How many DISTINCT candidates one buffer may yield, PER FRAMING. What it
+#: bounds is the size of the caller's blocklist and nothing else: the WALK is
+#: already bounded by :data:`MAX_HEADER_BYTES`, so a buffer cannot cost more
+#: work than that however many hits it holds, and the gate's aggregate wall
+#: clock and its file cap are the caller's, unchanged.
+#:
+#: IT COUNTS AFTER DE-DUPLICATION AND PER FRAMING, and both halves are
+#: repairs of a measured loss rather than taste. Counting raw hits let one
+#: value repeated to the cap hide a DIFFERENT value behind it, and a single
+#: shared budget let a narrow-framed buffer spend the whole of it before the
+#: wide framing was scanned at all - so a real token was dropped in both
+#: shapes. A caller is told when the cap truncates, because a bound that
+#: silently shrinks a blocklist is a fail-open.
 MAX_SCANNED_TOKENS: Final = 16
 
 
@@ -1092,7 +1099,7 @@ def _framed_token_at(data: bytes, start: int, stride: int) -> str | None:
     return data[start:end:stride].decode("ascii")
 
 
-def scan_framed_tokens(data: bytes) -> tuple[str, ...]:
+def scan_framed_tokens(data: bytes) -> tuple[tuple[str, ...], bool]:
     """Find identifier-SHAPED framed strings in a buffer, parsing nothing.
 
     THE MATCH IS THE FRAMING PLUS THE SHAPE, not a search for a run of
@@ -1112,18 +1119,48 @@ def scan_framed_tokens(data: bytes) -> tuple[str, ...]:
         data: The bytes to scan. A bounded prefix in every caller here, and
             never decoded except where the shape already matched.
 
+    THE BUFFER IS SCRUBBED OUT OF THIS FRAME ON THE UNWIND. It is the CALLER's
+    bounded prefix and this frame binds it BARE - an undotted local that a
+    locals-showing renderer prints verbatim, which the sweep in
+    tests/save/test_properties.py rates the worst kind of holder there is. The
+    parse path never had one: a refusal there leaves the bytes reachable only
+    through a cursor attribute. Without the unbind below, this function was the
+    first frame in the module to hold a save prefix bare across a raise
+    (CS-963, non-negotiable 12).
+
+    Args:
+        data: The bytes to scan. A bounded prefix in every caller here, and
+            never decoded except where the shape already matched.
+
     Returns:
-        The candidates, in file order, de-duplicated, at most
-        :data:`MAX_SCANNED_TOKENS` of them.
+        ``(candidates, truncated)``. The candidates are in file order and
+        de-duplicated; ``truncated`` says the per-framing cap stopped the scan
+        with candidates still unexamined, so the result is a SUBSET and the
+        caller owes its own user that fact.
     """
     hits: list[tuple[int, str]] = []
-    for prefix, stride in ((_NARROW_COUNT_PREFIX, 1), (_WIDE_COUNT_PREFIX, UTF16_CHAR_SIZE)):
-        at = data.find(prefix)
-        while at != -1 and len(hits) < MAX_SCANNED_TOKENS:
-            candidate = _framed_token_at(data, at + INT32_SIZE, stride)
-            if candidate is not None:
-                hits.append((at, candidate))
-            at = data.find(prefix, at + 1)
+    truncated = False
+    try:
+        for prefix, stride in ((_NARROW_COUNT_PREFIX, 1), (_WIDE_COUNT_PREFIX, UTF16_CHAR_SIZE)):
+            # A budget PER FRAMING. Shared, a narrow-framed buffer could spend
+            # the whole of it and the wide framing would never be scanned.
+            admitted: set[str] = set()
+            at = data.find(prefix)
+            while at != -1:
+                candidate = _framed_token_at(data, at + INT32_SIZE, stride)
+                # The cap is tested against DISTINCT values, so a value
+                # repeated to the cap cannot hide a different one behind it.
+                if candidate is not None and candidate not in admitted:
+                    if len(admitted) >= MAX_SCANNED_TOKENS:
+                        truncated = True
+                        break
+                    admitted.add(candidate)
+                    hits.append((at, candidate))
+                at = data.find(prefix, at + 1)
+    except BaseException:
+        del data
+        raise
+    del data
     found: list[str] = []
     seen: set[str] = set()
     # Sorted by OFFSET, because the two framings are searched one after the
@@ -1135,10 +1172,10 @@ def scan_framed_tokens(data: bytes) -> tuple[str, ...]:
             continue
         seen.add(candidate)
         found.append(candidate)
-    return tuple(found)
+    return tuple(found), truncated
 
 
-def scan_world_tokens(path: Path | str) -> tuple[str, ...]:
+def scan_world_tokens(path: Path | str) -> tuple[tuple[str, ...], bool]:
     """Recover identifier-shaped values from a file WITHOUT parsing it.
 
     THIS IS FOR A HEADER THAT WILL NOT PARSE and for nothing else. A file that
@@ -1163,9 +1200,11 @@ def scan_world_tokens(path: Path | str) -> tuple[str, ...]:
         path: The file to read.
 
     Returns:
-        The candidates, in file order, possibly empty. An empty result is the
-        honest answer for a file truncated before the identifier or
-        overwritten wholesale: there is nothing of this shape at any offset.
+        ``(candidates, truncated)``, exactly as :func:`scan_framed_tokens`
+        returns them. An empty candidate tuple is the honest answer for a file
+        with nothing of this shape in its prefix - truncated or overwritten
+        before the identifier, or carrying the characters with a damaged count
+        prefix, which frames nothing this scan can find.
 
     Raises:
         HeaderReadError: The file could not be opened or read. The path is
@@ -1184,12 +1223,12 @@ def scan_world_tokens(path: Path | str) -> tuple[str, ...]:
             errno=error.errno,
         ) from None
     try:
-        found = scan_framed_tokens(data)
+        result = scan_framed_tokens(data)
     except BaseException:
         del data
         raise
     del data
-    return found
+    return result
 
 
 def reveal_strings(data: bytes, *, reveal_personal_data: bool = False) -> HeaderStrings:
