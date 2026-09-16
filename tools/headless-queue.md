@@ -84,7 +84,11 @@ turn never finished, and whole cycles ended with nothing committed. **A long com
 in the foreground with an explicit timeout.** Pass the Bash tool's `timeout` at the ceiling
 the launcher raises through `BASH_MAX_TIMEOUT_MS`, and read that value in the launcher
 rather than trusting a number restated here. Sitting through a local run is yours, because
-it happens inside the cycle; only the CI wait belongs to the driver.
+it happens inside the cycle; only the CI wait belongs to the driver. **Never detach a command
+at the shell level either:** no trailing `&`, no `nohup`, `setsid` or `disown`, no
+`Start-Process`, no `start /b`. The launcher's switch removes the tool's parameter, not the
+shell's own ways to let a child outlive the call, and a detached child is killed when your
+turn ends or is left running over a tree the next cycle inherits.
 
 ---
 

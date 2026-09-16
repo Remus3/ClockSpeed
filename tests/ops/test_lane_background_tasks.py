@@ -27,22 +27,40 @@ worker exposed. So every value is checked against an ALLOWLIST of good values
   ``claude`` that dumps the environment it was handed. The runner's own process
   is seeded with POISONED values, so a runner that fails to set a variable
   before the invocation shows the poison, never an inherited good value;
-- a STATIC arm parses the runner for the one active assignment of each name
-  and its position before the ``& $claude`` line, which runs everywhere.
+- a STATIC arm lexes the runner for the one accepted assignment of each name
+  at script scope before the ``& $claude`` line, which runs everywhere.
 
 THE PROMPT IS BOUND TO THE LAUNCHER in one arm, so the two cannot drift apart:
 the variable the prompt names as the reason nothing is backgrounded is the same
 variable the static arm finds set to an allowlisted value.
+
+CS-1111 CLOSES FOUR GAPS THOSE ARMS LEFT.
+
+1. Tier1 CI is ubuntu-only, where the runtime arm skips, and the static arm
+   alone passed six bad plants. The static arm is now a small LEXER: an
+   assignment is accepted only at script scope (no open bracket, string,
+   here-string or comment), not continued from the line above, and a statement
+   before the invocation that reaches the environment any other way reddens.
+   Each plant is written to disk and graded by the static arm everywhere, and
+   on Windows the runtime arm first proves each plant really is bad.
+2. The CLI copies a settings file's ``env`` block over the process env, so a
+   tracked settings file is read and a differing value reddens.
+3. The prompt's foreground-only statement forbids shell-level detaching.
+4. The launcher's Bash timeout is tied to the driver's cycle budget.
 
 PATHS ARE BOUND TO SCALARS BEFORE THEY ARE ASSERTED ON (CS-850).
 """
 
 from __future__ import annotations
 
+import ast
+import json
 import os
 import re
 import subprocess
 import sys
+from collections.abc import Mapping
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Final
 
@@ -59,6 +77,7 @@ from toolpath import resolve_tool  # noqa: E402
 
 RUNNER_SOURCE: Final = REPO_ROOT / "ops" / "loop" / "run_lane.ps1"
 PROMPT_SOURCE: Final = REPO_ROOT / "tools" / "headless-queue.md"
+DRIVER_SOURCE: Final = REPO_ROOT / "ops" / "loop" / "queue_loop.py"
 
 DISABLE_VAR: Final = "CLAUDE_CODE_DISABLE_BACKGROUND_TASKS"
 MAX_TIMEOUT_VAR: Final = "BASH_MAX_TIMEOUT_MS"
@@ -68,13 +87,22 @@ CEILING_VAR: Final = "CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS"
 #: The ONE good value of the disable switch.
 GOOD_DISABLE_VALUES: Final = frozenset({"1"})
 
-#: A timeout must cover a whole-tree run with margin: runs were measured from
-#: 8:49 up to about fifteen minutes, so the floor is twice the slow end.
-TIMEOUT_FLOOR_MS: Final = 30 * 60 * 1000
+#: The slow end of a whole-tree run: runs were measured from 8:49 up to about
+#: fifteen minutes. The one place this figure lives in this file.
+MEASURED_SLOW_RUN_S: Final = 15 * 60
+
+#: How many slow runs a timeout must cover.
+RUN_MARGIN: Final = 2
+
+#: A timeout must cover a whole-tree run with margin: twice the slow end.
+TIMEOUT_FLOOR_MS: Final = RUN_MARGIN * MEASURED_SLOW_RUN_S * 1000
 
 #: And stay bounded, so a genuinely wedged command still dies and the cycle
 #: reports rather than holding the lane for the rest of the night.
 TIMEOUT_CAP_MS: Final = 60 * 60 * 1000
+
+#: The driver's constant for one worker cycle's kill budget, found by NAME.
+CYCLE_BUDGET_NAME: Final = "DEFAULT_CYCLE_TIMEOUT_S"
 
 #: A positive decimal integer spelled plainly - no sign, no exponent, no space.
 _DECIMAL: Final = re.compile(r"[1-9][0-9]*")
@@ -99,8 +127,6 @@ _CHILD_TIMEOUT_S: Final = 120.0
 #: The invocation line: the call operator applied to the resolved CLI.
 _INVOCATION: Final = re.compile(r"&\s*\$claude\b", re.IGNORECASE)
 
-_BLOCK_COMMENT: Final = re.compile(r"<#.*?#>", re.DOTALL)
-
 
 def value_fault(name: str, value: str | None) -> str | None:
     """Whether one variable's value is on its allowlist.
@@ -123,17 +149,215 @@ def value_fault(name: str, value: str | None) -> str | None:
     return None
 
 
-def _active_lines(text: str) -> list[str]:
-    """The script's lines with comments blanked, line numbers preserved.
+# ===========================================================================
+# The lexer - just enough PowerShell to know what is code at script scope
+# ===========================================================================
+
+
+@dataclass(frozen=True)
+class ScriptLine:
+    """One source line as the static arm sees it.
+
+    Attributes:
+        visible: The line with comments blanked; string bodies are kept.
+        code: The line with comments AND every string body blanked.
+        top: Whether the line begins at script scope - inside no open bracket,
+            string, here-string or block comment.
+    """
+
+    visible: str
+    code: str
+    top: bool
+
+
+#: A ``#`` starts a comment only where a token can start.
+_TOKEN_START: Final = frozenset(" \t\r\n;|&(){}[],=")
+
+_HERE_CLOSERS: Final = {"here_dq": '"@', "here_sq": "'@"}
+
+
+class _Lexer:
+    """The state behind ``lex_script``, with one small handler per mode."""
+
+    def __init__(self, text: str) -> None:
+        self.text = text
+        self.i = 0
+        self.stack: list[str] = ["code"]
+        self.subs: list[int] = []
+        self.depth = 0
+        self.visible: list[str] = []
+        self.code: list[str] = []
+        self.tops: list[bool] = []
+
+    def emit(self, seen: str, as_code: str | None = None) -> None:
+        """Consume ``seen``, recording it as visible and as ``as_code``."""
+        self.visible.append(seen)
+        self.code.append(seen if as_code is None else as_code)
+        self.i += len(seen)
+
+    def blank(self, width: int = 1) -> None:
+        """Consume comment characters, blank in both views."""
+        self.visible.append(" " * width)
+        self.code.append(" " * width)
+        self.i += width
+
+    def run(self) -> list[ScriptLine]:
+        """Lex the whole text.
+
+        Returns:
+            One entry per source line.
+        """
+        handlers = {
+            "line": self.comment_line,
+            "block": self.comment_block,
+            "here_dq": self.here,
+            "here_sq": self.here,
+            "sq": self.single,
+            "dq": self.double,
+            "code": self.code_char,
+            "sub": self.code_char,
+        }
+        line_start = True
+        while self.i < len(self.text):
+            if line_start:
+                line_start = False
+                self.start_line()
+            elif self.text[self.i] == "\n":
+                if self.stack[-1] == "line":
+                    self.stack.pop()
+                self.emit("\n")
+                line_start = True
+            else:
+                handlers[self.stack[-1]]()
+        seen_lines = "".join(self.visible).split("\n")
+        code_lines = "".join(self.code).split("\n")
+        tops = self.tops + [False] * (len(seen_lines) - len(self.tops))
+        return [
+            ScriptLine(visible=v, code=c, top=t)
+            for v, c, t in zip(seen_lines, code_lines, tops, strict=True)
+        ]
+
+    def start_line(self) -> None:
+        """Record whether the line begins at script scope; close a here-string."""
+        self.tops.append(len(self.stack) == 1 and self.depth == 0)
+        closer = _HERE_CLOSERS.get(self.stack[-1])
+        if closer is not None and self.text.startswith(closer, self.i):
+            self.stack.pop()
+            self.emit(closer)
+
+    def comment_line(self) -> None:
+        """Inside a ``#`` comment, which the newline closes."""
+        self.blank()
+
+    def comment_block(self) -> None:
+        """Inside a ``<# ... #>`` comment."""
+        if self.text.startswith("#>", self.i):
+            self.stack.pop()
+            self.blank(2)
+        else:
+            self.blank()
+
+    def here(self) -> None:
+        """Inside a here-string body, which only a line-leading closer ends."""
+        self.emit(self.text[self.i], " ")
+
+    def single(self) -> None:
+        """Inside a single-quoted string, where ``''`` is a literal quote."""
+        t, i = self.text, self.i
+        if t.startswith("''", i):
+            self.emit("''", "  ")
+        elif t[i] == "'":
+            self.stack.pop()
+            self.emit("'")
+        else:
+            self.emit(t[i], " ")
+
+    def double(self) -> None:
+        """Inside a double-quoted string: escapes, ``""`` and ``$(...)``."""
+        t, i = self.text, self.i
+        if t[i] == "`" and t[i + 1 : i + 2] not in ("", "\n"):
+            self.emit(t[i : i + 2], "  ")
+        elif t.startswith('""', i):
+            self.emit('""', "  ")
+        elif t[i] == '"':
+            self.stack.pop()
+            self.emit('"')
+        elif t.startswith("$(", i):
+            self.stack.append("sub")
+            self.subs.append(0)
+            self.emit("$(")
+        else:
+            self.emit(t[i], " ")
+
+    def code_char(self) -> None:
+        """Code, at script level or inside a string's ``$(...)``."""
+        if not self.open_context():
+            self.bracket()
+
+    def open_context(self) -> bool:
+        """Open a comment, string or here-string, or consume an escape.
+
+        Returns:
+            Whether anything was consumed.
+        """
+        t, i = self.text, self.i
+        opened: str | None = None
+        if t.startswith("<#", i):
+            opened = "block"
+        elif t[i] == "#" and (t[i - 1] if i else "\n") in _TOKEN_START:
+            opened = "line"
+        elif t.startswith(('@"', "@'"), i) and not t[i + 2 :].split("\n", 1)[0].strip():
+            opened = "here_dq" if t[i + 1] == '"' else "here_sq"
+        elif t[i] in "\"'":
+            opened = "dq" if t[i] == '"' else "sq"
+        elif t[i] == "`" and t[i + 1 : i + 2] not in ("", "\n"):
+            self.emit(t[i : i + 2])
+            return True
+        if opened is None:
+            return False
+        self.stack.append(opened)
+        if opened == "block":
+            self.blank(2)
+        elif opened == "line":
+            self.blank()
+        else:
+            self.emit(t[i : i + (2 if opened.startswith("here") else 1)])
+        return True
+
+    def bracket(self) -> None:
+        """Consume one code character, tracking bracket depth."""
+        ch = self.text[self.i]
+        if self.stack[-1] == "sub":
+            if ch == ")" and self.subs[-1] == 0:
+                self.stack.pop()
+                self.subs.pop()
+            elif ch in "()":
+                self.subs[-1] += 1 if ch == "(" else -1
+        elif ch in "({[":
+            self.depth += 1
+        elif ch in ")}]":
+            self.depth -= 1
+        self.emit(ch)
+
+
+def lex_script(text: str) -> list[ScriptLine]:
+    """Split a PowerShell source into lines that know their own context.
+
+    Not a full parser, and it does not need to be one: the static arm accepts an
+    assignment only when this lexer says it is plain code at script scope, so a
+    construct the lexer misreads makes an assignment UNaccepted - the arm fails
+    closed. The states tracked are the ones a plant has used to hide an
+    assignment from a line-based reader: brackets (an ``if`` body, a function
+    body, a script block), single- and double-quoted strings that span lines,
+    here-strings, block comments, and ``$(...)`` inside a double-quoted string.
 
     Args:
         text: The PowerShell source.
 
     Returns:
-        One entry per source line; a comment line or block becomes empty.
+        One entry per source line.
     """
-    blanked = _BLOCK_COMMENT.sub(lambda m: "\n" * m.group(0).count("\n"), text)
-    return ["" if line.lstrip().startswith("#") else line for line in blanked.splitlines()]
+    return _Lexer(text).run()
 
 
 def _assignment(name: str) -> re.Pattern[str]:
@@ -146,19 +370,205 @@ def _assignment(name: str) -> re.Pattern[str]:
         A pattern whose group 1 is the double-quoted value.
     """
     return re.compile(
-        r"\s*\$env:" + re.escape(name) + r'\s*=\s*"([^"$`]*)"\s*(?:#.*)?',
+        r"\s*\$env:" + re.escape(name) + r'\s*=\s*"([^"$`]*)"\s*',
         re.IGNORECASE,
     )
+
+
+#: A line whose code ends like this carries its statement onto the next line.
+_CONTINUATION: Final = re.compile(r"(?:[`|,=+*/%!&<>.\-]|-[A-Za-z]+)$")
+
+#: The environment drive reached as ``$env:NAME`` with a literal, whole name.
+_ENV_LITERAL: Final = re.compile(
+    r"\$env:[A-Za-z_][A-Za-z0-9_]*(?![A-Za-z0-9_*?\[:])", re.IGNORECASE
+)
+
+_ENV_DRIVE: Final = re.compile(r"env:", re.IGNORECASE)
+
+#: The classes and providers that reach the environment without the drive.
+_ENV_CLASSES: Final = re.compile(r"environment|scriptblock", re.IGNORECASE)
+
+#: Commands, with their aliases, that can change the environment by a name the
+#: text never spells whole - an item or variable mutation, or evaluating text.
+_MUTATING_COMMANDS: Final = (
+    "Remove-Item",
+    "ri",
+    "rm",
+    "rmdir",
+    "rd",
+    "del",
+    "erase",
+    "Clear-Item",
+    "cli",
+    "Set-Item",
+    "si",
+    "New-Item",
+    "ni",
+    "Rename-Item",
+    "rni",
+    "ren",
+    "Move-Item",
+    "mi",
+    "move",
+    "mv",
+    "Copy-Item",
+    "cpi",
+    "cp",
+    "copy",
+    "Remove-ItemProperty",
+    "rp",
+    "Set-ItemProperty",
+    "sp",
+    "Clear-ItemProperty",
+    "clp",
+    "New-ItemProperty",
+    "Set-Content",
+    "sc",
+    "Add-Content",
+    "ac",
+    "Clear-Content",
+    "clc",
+    "Remove-Variable",
+    "rv",
+    "Clear-Variable",
+    "clv",
+    "Set-Variable",
+    "sv",
+    "New-Variable",
+    "nv",
+    "New-PSDrive",
+    "ndr",
+    "mount",
+    "Invoke-Expression",
+    "iex",
+    "Invoke-Command",
+    "icm",
+    "Invoke-Item",
+    "ii",
+    "Start-Job",
+    "sajb",
+    "Import-Module",
+    "ipmo",
+)
+_MUTATING: Final = re.compile(
+    r"(?<![\w$-])(?:" + "|".join(re.escape(c) for c in _MUTATING_COMMANDS) + r")(?![\w-])",
+    re.IGNORECASE,
+)
+
+#: A call operator or a dot-source runs code this lexer cannot read.
+_INDIRECT_CALL: Final = re.compile(r"&|\.Invoke\s*\(|(?:^|[;{(|])\s*\.\s", re.IGNORECASE)
+
+
+def _continued(lines: list[ScriptLine], at: int) -> bool:
+    """Whether the statement on line ``at`` began on an earlier line.
+
+    Args:
+        lines: The lexed script.
+        at: The line index.
+
+    Returns:
+        True when the nearest earlier line with code ends in a continuation.
+    """
+    for j in range(at - 1, -1, -1):
+        tail = lines[j].code.rstrip()
+        if tail:
+            return _CONTINUATION.search(tail) is not None
+    return False
+
+
+def _unmodeled_statements(lines: list[ScriptLine], invoked_at: int) -> list[int]:
+    """Lines before the child starts that reach the environment an unmodeled way.
+
+    Args:
+        lines: The lexed script.
+        invoked_at: The invocation's line index.
+
+    Returns:
+        One-based line numbers, in order.
+    """
+    found: list[int] = []
+    for index, line in enumerate(lines[: invoked_at + 1]):
+        drive = any(
+            m.start() == 0 or _ENV_LITERAL.match(line.visible, m.start() - 1) is None
+            for m in _ENV_DRIVE.finditer(line.visible)
+        )
+        indirect = index < invoked_at and _INDIRECT_CALL.search(line.code) is not None
+        if drive or indirect or _ENV_CLASSES.search(line.visible) or _MUTATING.search(line.code):
+            found.append(index + 1)
+    return found
+
+
+def _static_scan(text: str) -> tuple[list[str], dict[str, str]]:
+    """The static arm's faults, and every value it accepted.
+
+    Args:
+        text: The PowerShell source.
+
+    Returns:
+        The faults, and the accepted value of each variable that had one.
+    """
+    lines = lex_script(text)
+    invocations = [i for i, line in enumerate(lines) if _INVOCATION.search(line.code)]
+    if len(invocations) != 1:
+        return ["the invocation line is not exactly one"], {}
+    invoked_at = invocations[0]
+    unmodeled = _unmodeled_statements(lines, invoked_at)
+    faults: list[str] = []
+    values: dict[str, str] = {}
+    for name in REQUIRED_VARS:
+        if unmodeled:
+            faults.append(
+                f"{name}: a statement before the invocation reaches the environment "
+                f"in a way this arm does not model (lines {unmodeled})"
+            )
+        mention = re.compile(re.escape(name), re.IGNORECASE)
+        shape = _assignment(name)
+        mentions = [i for i, line in enumerate(lines) if mention.search(line.visible)]
+        accepted = [
+            (i, match)
+            for i in mentions
+            if lines[i].top
+            and not _continued(lines, i)
+            and (match := shape.fullmatch(lines[i].visible)) is not None
+        ]
+        if len(accepted) != len(mentions):
+            faults.append(f"{name}: a line mentions it outside an accepted script-scope assignment")
+            continue
+        if len(accepted) != 1:
+            faults.append(f"{name}: not exactly one active assignment")
+            continue
+        at, match = accepted[0]
+        if at >= invoked_at:
+            faults.append(f"{name}: assigned after the invocation")
+            continue
+        value = match.group(1)
+        values[name] = value
+        fault = value_fault(name, value)
+        if fault:
+            faults.append(fault)
+    return faults, values
 
 
 def static_env_faults(text: str) -> list[str]:
     """Every reason the runner's source would hand the child a bad environment.
 
-    An ALLOWLIST OF SHAPES as well as of values: an active line may mention a
-    required name only as its one double-quoted assignment, placed before the
-    single invocation. Any other active mention - a second assignment, a
-    removal, an unquoted value - is a fault, because it can change what the
-    child receives in a way this parser does not model.
+    AN ALLOWLIST OF SHAPES as well as of values. A line may mention a required
+    name only as its one double-quoted assignment, at script scope, not continued
+    from the line above, before the single invocation. And no statement before
+    the invocation may reach the environment any other way - through the drive
+    with a wildcard or a built-up name, the Environment class, a mutating item or
+    variable command, or code evaluated from text - because each can change what
+    the child receives by a name the text never spells whole.
+
+    FAIL-SAFE BRITTLENESS, ACCEPTED ON PURPOSE. The arm reddens on some edits
+    that are harmless: a ``2>&1`` before the invocation (the call-operator leg
+    sees the ``&``), the word "environment" inside a ``Write-Host`` string, a
+    ``Remove-Item`` on an unrelated path, and a single-quoted value. Each is a
+    false RED, never a false green. (A trailing ``#`` comment on an assignment
+    was measured ACCEPTED - the lexer blanks it to spaces, which the accepted
+    shape allows - so it is not on this list.) The repair is to spell the
+    launcher edit in the accepted shape, not to widen a leg, because every leg
+    is the only one that catches at least one real plant.
 
     Args:
         text: The PowerShell source.
@@ -166,32 +576,19 @@ def static_env_faults(text: str) -> list[str]:
     Returns:
         The faults, empty when the environment is good.
     """
-    lines = _active_lines(text)
-    invocations = [i for i, line in enumerate(lines) if _INVOCATION.search(line)]
-    if len(invocations) != 1:
-        return ["the invocation line is not exactly one"]
-    invoked_at = invocations[0]
-    faults: list[str] = []
-    for name in REQUIRED_VARS:
-        mention = re.compile(re.escape(name), re.IGNORECASE)
-        shape = _assignment(name)
-        mentions = [i for i, line in enumerate(lines) if mention.search(line)]
-        assigned = [(i, shape.fullmatch(lines[i])) for i in mentions]
-        odd = [i for i, match in assigned if match is None]
-        if odd:
-            faults.append(f"{name}: an active line mentions it in an unaccepted shape")
-            continue
-        if len(assigned) != 1:
-            faults.append(f"{name}: not exactly one active assignment")
-            continue
-        at, match = assigned[0]
-        if at >= invoked_at:
-            faults.append(f"{name}: assigned after the invocation")
-            continue
-        fault = value_fault(name, match.group(1) if match else None)
-        if fault:
-            faults.append(fault)
-    return faults
+    return _static_scan(text)[0]
+
+
+def launcher_env_values(text: str) -> dict[str, str]:
+    """The value the runner's source accepts for each variable it sets.
+
+    Args:
+        text: The PowerShell source.
+
+    Returns:
+        The accepted values by variable name.
+    """
+    return _static_scan(text)[1]
 
 
 # ===========================================================================
@@ -347,13 +744,62 @@ def _read_dump(dump: Path) -> dict[str, str]:
     return seen
 
 
+def _child_env_faults(runner: Path, tmp_path: Path) -> list[str]:
+    """Run a runner under Windows PowerShell and grade the stub's environment.
+
+    Args:
+        runner: The runner script to run.
+        tmp_path: The test's scratch directory.
+
+    Returns:
+        The allowlist faults in the environment the stub received.
+    """
+    shell = _powershell()
+    shim_dir, dump = _stub(tmp_path)
+    prompt = tmp_path / "prompt.md"
+    prompt.write_bytes(b"# a prompt the stub never reads\n")
+    cwd = tmp_path / "tree"
+    cwd.mkdir(exist_ok=True)
+    log = tmp_path / "lane.log"
+    subprocess.run(
+        [
+            shell,
+            "-NoProfile",
+            "-ExecutionPolicy",
+            "Bypass",
+            "-File",
+            str(runner),
+            "-PromptFile",
+            str(prompt),
+            "-Cwd",
+            str(cwd),
+            "-Log",
+            str(log),
+        ],
+        capture_output=True,
+        check=False,
+        timeout=_CHILD_TIMEOUT_S,
+        env=_poisoned_env(shim_dir),
+    )
+    ran = dump.is_file()
+    assert ran, "the stub never ran - the arm grades nothing"
+    tail = log.read_bytes().decode("utf-8-sig", errors="replace").strip().splitlines()[-1]
+    coded = f"code={SHIM_EXIT_CODE}" in tail
+    assert coded, "the runner's exit line does not carry the stub's code"
+    seen = _read_dump(dump)
+    return [
+        fault for name in REQUIRED_VARS if (fault := value_fault(name, seen.get(name))) is not None
+    ]
+
+
 def test_control_the_dump_observes_an_inherited_poison(tmp_path: Path) -> None:
     """The known-good control: an un-overridden variable arrives as its poison.
 
     Without it, a dump that never captured the environment and a runner that
     set every value correctly would both leave the arm below with nothing to
     report. It drives the stub through cmd.exe, so it runs exactly where the
-    runtime arm it controls runs (CS-1111 owns the ubuntu gap).
+    runtime arm it controls runs; the static arm and its on-disk plants carry
+    the property on every other platform (CS-1111).
     """
     _powershell()
     shim_dir, dump = _stub(tmp_path)
@@ -374,48 +820,459 @@ def test_control_the_dump_observes_an_inherited_poison(tmp_path: Path) -> None:
 
 def test_the_child_receives_an_allowlisted_environment(tmp_path: Path) -> None:
     """THE RUNTIME ARM: run the real runner, read the stub's own environment."""
-    shell = _powershell()
-    shim_dir, dump = _stub(tmp_path)
-    prompt = tmp_path / "prompt.md"
-    prompt.write_bytes(b"# a prompt the stub never reads\n")
-    cwd = tmp_path / "tree"
-    cwd.mkdir()
-    log = tmp_path / "lane.log"
-    subprocess.run(
-        [
-            shell,
-            "-NoProfile",
-            "-ExecutionPolicy",
-            "Bypass",
-            "-File",
-            str(RUNNER_SOURCE),
-            "-PromptFile",
-            str(prompt),
-            "-Cwd",
-            str(cwd),
-            "-Log",
-            str(log),
-        ],
-        capture_output=True,
-        check=False,
-        timeout=_CHILD_TIMEOUT_S,
-        env=_poisoned_env(shim_dir),
-    )
-    ran = dump.is_file()
-    assert ran, "the stub never ran - the arm grades nothing"
-    tail = log.read_bytes().decode("utf-8-sig", errors="replace").strip().splitlines()[-1]
-    coded = f"code={SHIM_EXIT_CODE}" in tail
-    assert coded, "the runner's exit line does not carry the stub's code"
-
-    seen = _read_dump(dump)
-    faults = [
-        fault for name in REQUIRED_VARS if (fault := value_fault(name, seen.get(name))) is not None
-    ]
+    faults = _child_env_faults(RUNNER_SOURCE, tmp_path)
     assert faults == [], f"the child's environment is not allowlisted: {faults}"
 
 
 # ===========================================================================
-# c. The prompt, bound to the launcher
+# c. CS-1111 gap 1 - bad plants, written to disk, reddened by the static arm
+# ===========================================================================
+
+_ANCHOR_DISABLE: Final = '$env:CLAUDE_CODE_DISABLE_BACKGROUND_TASKS = "1"\n'
+
+
+@dataclass(frozen=True)
+class Plant:
+    """One bad edit to the real runner.
+
+    Attributes:
+        anchor: The runner text the edit replaces, once - or None to INSERT the
+            replacement immediately before the statement that starts the CLI.
+            An undoing plant is inserted there rather than after some named
+            assignment, so it runs after every assignment in ANY order: a plant
+            placed after one assignment that a behaviour-neutral reorder moves
+            below it is undone by that assignment and proves nothing.
+        replacement: What replaces the anchor, or what is inserted.
+        target: A variable the plant leaves bad, which a fault must name.
+    """
+
+    anchor: str | None
+    replacement: str
+    target: str
+
+
+#: The six shapes the runtime arm caught and the old static arm passed, then
+#: more of the same family: each hides or undoes an assignment while the
+#: variable's name still reads correctly on a line of its own, or never appears.
+#: Every leg of the static arm is the ONLY leg that catches at least one plant -
+#: the lexer's scope (if-false, function, here-string, multiline string), the
+#: continuation (backtick), the mutating commands (built-up name), the
+#: Environment class, the drive (provider intrinsics) and the call operator.
+PLANTS: Final = {
+    "if-false": Plant(_ANCHOR_DISABLE, "if ($false) {\n" + _ANCHOR_DISABLE + "}\n", DISABLE_VAR),
+    "uncalled-function": Plant(
+        _ANCHOR_DISABLE, "function Set-LaneSwitch {\n" + _ANCHOR_DISABLE + "}\n", DISABLE_VAR
+    ),
+    "here-string": Plant(_ANCHOR_DISABLE, '$unused = @"\n' + _ANCHOR_DISABLE + '"@\n', DISABLE_VAR),
+    "wildcard-remove": Plant(
+        None,
+        "Remove-Item Env:CLAUDE_CODE_DISABLE_BACKGROUND_T*\n",
+        DISABLE_VAR,
+    ),
+    "built-name-remove": Plant(
+        None,
+        '$lane = "CLAUDE_CODE_DISABLE_" + "BACKGROUND_TASKS"\n'
+        + 'Remove-Item -LiteralPath ("En" + "v:" + $lane)\n',
+        DISABLE_VAR,
+    ),
+    "wildcard-timeout": Plant(None, "Remove-Item Env:BASH_*_TIMEOUT_MS\n", MAX_TIMEOUT_VAR),
+    "set-environment-variable": Plant(
+        None,
+        "[Environment]::SetEnvironmentVariable("
+        + '"CLAUDE_CODE_DISABLE_" + "BACKGROUND_TASKS", "0")\n',
+        DISABLE_VAR,
+    ),
+    "backtick-continuation": Plant(
+        _ANCHOR_DISABLE, "Write-Output `\n" + _ANCHOR_DISABLE, DISABLE_VAR
+    ),
+    "multiline-string": Plant(
+        _ANCHOR_DISABLE, "$null = '\n" + _ANCHOR_DISABLE + "'\n", DISABLE_VAR
+    ),
+    "provider-intrinsics-remove": Plant(
+        None,
+        "$ExecutionContext.InvokeProvider.Item.Remove("
+        + '"Env:CLAUDE_CODE_DISABLE_BACKGROUND_T*", $false)\n',
+        DISABLE_VAR,
+    ),
+    "call-operator-remove": Plant(
+        None,
+        '& ("Remove-" + "Item") ("En" + "v:CLAUDE_CODE_DISABLE_BACKGROUND_T*")\n',
+        DISABLE_VAR,
+    ),
+}
+
+
+def insert_before_invocation(text: str, block: str) -> str:
+    """Insert ``block`` on its own lines just before the statement starting the CLI.
+
+    The statement is the invocation line walked back over every line it
+    continues - the prompt is piped in from the line above - so the block never
+    lands inside the pipeline.
+
+    Args:
+        text: The PowerShell source.
+        block: Whole lines to insert, newline-terminated.
+
+    Returns:
+        The source with the block inserted, or unchanged when there is not
+        exactly one invocation.
+    """
+    lines = lex_script(text)
+    invocations = [i for i, line in enumerate(lines) if _INVOCATION.search(line.code)]
+    if len(invocations) != 1:
+        return text
+    at = invocations[0]
+    while at > 0 and _continued(lines, at):
+        at -= 1
+        while at > 0 and not lines[at].code.strip():
+            at -= 1
+    source = text.splitlines(keepends=True)
+    return "".join([*source[:at], block, *source[at:]])
+
+
+#: The launcher's three CS-1108 assignments, whose order a reorder permutes.
+_REORDERED_VARS: Final = (DISABLE_VAR, MAX_TIMEOUT_VAR, DEFAULT_TIMEOUT_VAR)
+
+
+def _base_runner(base: str) -> str:
+    """The runner text a plant is applied to.
+
+    Args:
+        base: ``real`` for the runner as it is, or ``reordered`` for the same
+            runner with its three assignments' lines reversed in place,
+            WHATEVER order they are in on disk - no behaviour change, so every
+            plant must stay bad and caught on it too.
+
+    Returns:
+        The runner's text.
+    """
+    text = RUNNER_SOURCE.read_bytes().decode("ascii")
+    if base == "real":
+        return text
+    source = text.splitlines(keepends=True)
+    shapes = [_assignment(name) for name in _REORDERED_VARS]
+    at = [i for i, line in enumerate(source) if any(s.fullmatch(line) for s in shapes)]
+    assert len(at) == len(_REORDERED_VARS), "the three assignments are not each one line"
+    moved = [source[i] for i in reversed(at)]
+    for i, line in zip(at, moved, strict=True):
+        source[i] = line
+    reordered = "".join(source)
+    applied = reordered != text
+    assert applied, "the reorder never applied"
+    return reordered
+
+
+#: Both bases every plant is graded on.
+BASES: Final = ("real", "reordered")
+
+
+def _write_plant(kind: str, base: str, tmp_path: Path) -> Path:
+    """A runner with one plant applied, written to disk as bytes.
+
+    Args:
+        kind: The plant's key.
+        base: Which runner text to plant into, see ``_base_runner``.
+        tmp_path: The test's scratch directory.
+
+    Returns:
+        The planted runner's path.
+    """
+    plant = PLANTS[kind]
+    text = _base_runner(base)
+    if plant.anchor is None:
+        mutated = insert_before_invocation(text, plant.replacement)
+    else:
+        mutated = text.replace(plant.anchor, plant.replacement, 1)
+    applied = mutated != text
+    assert applied, f"the {kind} plant never applied"
+    planted = tmp_path / "planted" / "run_lane.ps1"
+    planted.parent.mkdir(parents=True, exist_ok=True)
+    planted.write_bytes(mutated.encode("ascii"))
+    return planted
+
+
+@pytest.mark.parametrize("base", BASES)
+def test_control_the_unplanted_runner_on_disk_stays_green(base: str, tmp_path: Path) -> None:
+    """The pristine floor: the same write path with no plant is reported for nothing."""
+    copied = tmp_path / "pristine" / "run_lane.ps1"
+    copied.parent.mkdir()
+    copied.write_bytes(_base_runner(base).encode("ascii"))
+    faults = static_env_faults(copied.read_bytes().decode("ascii"))
+    assert faults == []
+
+
+def test_control_the_reordered_runner_hands_the_child_a_good_environment(
+    tmp_path: Path,
+) -> None:
+    """The reorder is behaviour-neutral, so a plant failing on it is the plant's fault."""
+    copied = tmp_path / "pristine" / "run_lane.ps1"
+    copied.parent.mkdir()
+    copied.write_bytes(_base_runner("reordered").encode("ascii"))
+    faults = _child_env_faults(copied, tmp_path)
+    assert faults == []
+
+
+@pytest.mark.parametrize("base", BASES)
+@pytest.mark.parametrize("kind", sorted(PLANTS))
+def test_control_each_plant_is_bad_at_runtime(kind: str, base: str, tmp_path: Path) -> None:
+    """A plant the child never feels would make the arm below vacuous.
+
+    Runs only where the runtime arm runs; its job is to prove, on a Windows
+    box, that every plant the static arm must redden really does hand the
+    child a bad environment.
+    """
+    _powershell()
+    planted = _write_plant(kind, base, tmp_path)
+    faults = _child_env_faults(planted, tmp_path)
+    assert faults != [], f"the {kind} plant left the child's environment good"
+
+
+@pytest.mark.parametrize("base", BASES)
+@pytest.mark.parametrize("kind", sorted(PLANTS))
+def test_the_static_arm_reddens_on_each_plant(kind: str, base: str, tmp_path: Path) -> None:
+    """GAP 1: the static arm alone catches each plant, on every platform."""
+    planted = _write_plant(kind, base, tmp_path)
+    faults = static_env_faults(planted.read_bytes().decode("ascii"))
+    target = PLANTS[kind].target
+    named = any(fault.startswith(target) for fault in faults)
+    assert named, f"the {kind} plant was not reported against {target}: {faults}"
+
+
+# ===========================================================================
+# d. CS-1111 gap 2 - a tracked settings file cannot override the launcher
+# ===========================================================================
+
+#: Every settings file the CLI could load from this tree, at any depth.
+SETTINGS_PATHSPEC: Final = ":(glob)**/.claude/settings*.json"
+
+#: The project settings file, which is tracked on every checkout.
+PROJECT_SETTINGS: Final = ".claude/settings.json"
+
+
+def tracked_settings_files() -> list[str]:
+    """Every TRACKED settings file, POSIX-separated.
+
+    Tracked only, by design: an untracked local file is per-machine and is not
+    what a fresh lane worktree checks out.
+
+    Returns:
+        The repository-relative paths, sorted.
+    """
+    git = resolve_tool("git")
+    assert git is not None, "git could not be resolved from PATH"
+    out = subprocess.run(
+        [git, "ls-files", "-z", "--", SETTINGS_PATHSPEC],
+        capture_output=True,
+        check=True,
+        cwd=REPO_ROOT,
+        timeout=_CHILD_TIMEOUT_S,
+    ).stdout
+    return sorted(p.decode("utf-8").replace("\\", "/") for p in out.split(b"\0") if p)
+
+
+def settings_env_faults(label: str, settings: object, launcher: Mapping[str, str]) -> list[str]:
+    """Every launcher variable a settings file's ``env`` block would override.
+
+    Args:
+        label: The file's repository-relative path, for the fault text.
+        settings: The parsed settings document.
+        launcher: The value the launcher sets for each variable.
+
+    Returns:
+        The faults. Values are never echoed - a settings file can carry secrets.
+    """
+    if not isinstance(settings, dict):
+        return [f"{label}: not a JSON object"]
+    env = settings.get("env")
+    if env is None:
+        return []
+    if not isinstance(env, dict):
+        return [f"{label}: its env block is not an object"]
+    faults: list[str] = []
+    for key, value in env.items():
+        # Windows compares environment names without case, so the CLI's copy
+        # of a lower-cased key overrides the launcher's variable all the same.
+        name = str(key).upper()
+        if name in launcher and value != launcher[name]:
+            faults.append(f"{label}: env {name} is not the launcher's value")
+    return faults
+
+
+def test_control_the_settings_enumeration_finds_the_project_file() -> None:
+    """Without it an enumeration that found nothing would grade nothing, green."""
+    found = tracked_settings_files()
+    has_project = PROJECT_SETTINGS in found
+    assert has_project, "the tracked settings enumeration missed the project file"
+
+
+@pytest.mark.parametrize(
+    ("env", "reported"),
+    [
+        ({}, set()),
+        ({"PYTHONUTF8": "1"}, set()),
+        ({DISABLE_VAR: "1"}, set()),
+        ({DISABLE_VAR: "0"}, {DISABLE_VAR}),
+        ({MAX_TIMEOUT_VAR: "600000"}, {MAX_TIMEOUT_VAR}),
+        ({DEFAULT_TIMEOUT_VAR: 2400000}, {DEFAULT_TIMEOUT_VAR}),
+        ({DISABLE_VAR.lower(): "0"}, {DISABLE_VAR}),
+        ({CEILING_VAR: ""}, {CEILING_VAR}),
+    ],
+)
+def test_control_a_settings_value_that_is_not_the_launchers_is_reported(
+    env: dict[str, object], reported: set[str]
+) -> None:
+    launcher = {
+        DISABLE_VAR: "1",
+        MAX_TIMEOUT_VAR: "2400000",
+        DEFAULT_TIMEOUT_VAR: "2400000",
+        CEILING_VAR: "2400000",
+    }
+    faults = settings_env_faults("planted.json", {"env": env}, launcher)
+    named = {name for name in REQUIRED_VARS if any(name in fault for fault in faults)}
+    assert named == reported
+
+
+def test_control_a_malformed_env_block_is_reported() -> None:
+    faults = settings_env_faults("planted.json", {"env": ["not", "an", "object"]}, {})
+    assert faults != []
+
+
+def test_no_tracked_settings_file_overrides_the_launcher() -> None:
+    """GAP 2: the CLI copies a settings ``env`` block over the process env."""
+    launcher = launcher_env_values(RUNNER_SOURCE.read_bytes().decode("ascii"))
+    set_by_launcher = sorted(launcher)
+    assert set_by_launcher == sorted(REQUIRED_VARS)
+    faults: list[str] = []
+    for rel in tracked_settings_files():
+        document = json.loads((REPO_ROOT / rel).read_bytes().decode("utf-8"))
+        faults += settings_env_faults(rel, document, launcher)
+    assert faults == [], f"a tracked settings file overrides the launcher: {faults}"
+
+
+# ===========================================================================
+# e. CS-1111 gap 4 - the Bash timeout against the driver's suite wedge limit
+# ===========================================================================
+
+
+def module_int_constant(source: str, name: str) -> int | None:
+    """A module-level integer constant, found by name in Python source.
+
+    Args:
+        source: The module's source.
+        name: The constant's name.
+
+    Returns:
+        Its value when exactly one top-level assignment binds it to an integer
+        literal, else None.
+    """
+    values: list[ast.expr | None] = []
+    for node in ast.parse(source).body:
+        assigned = isinstance(node, ast.Assign) and any(
+            isinstance(target, ast.Name) and target.id == name for target in node.targets
+        )
+        annotated = (
+            isinstance(node, ast.AnnAssign)
+            and isinstance(node.target, ast.Name)
+            and node.target.id == name
+        )
+        if isinstance(node, ast.Assign | ast.AnnAssign) and (assigned or annotated):
+            values.append(node.value)
+    if len(values) != 1:
+        return None
+    value = values[0]
+    if isinstance(value, ast.Constant) and type(value.value) is int:
+        return value.value
+    return None
+
+
+def timeout_relation_faults(bash_ms: int, cycle_budget_s: int) -> list[str]:
+    """Whether a Bash timeout covers the expected suite run and ends inside the cycle.
+
+    Args:
+        bash_ms: The launcher's Bash timeout, in milliseconds.
+        cycle_budget_s: The driver's kill budget for one worker cycle, in seconds.
+
+    Returns:
+        The faults, empty when the relation holds.
+    """
+    expected_ms = RUN_MARGIN * MEASURED_SLOW_RUN_S * 1000
+    budget_ms = cycle_budget_s * 1000
+    faults: list[str] = []
+    if budget_ms <= expected_ms:
+        faults.append("the cycle budget does not exceed the expected suite run with margin")
+    if bash_ms < expected_ms:
+        faults.append("the Bash timeout does not cover the expected suite run with margin")
+    if bash_ms >= budget_ms:
+        faults.append("the Bash timeout does not end inside the driver's cycle budget")
+    return faults
+
+
+@pytest.mark.parametrize(
+    ("bash_ms", "budget_s", "good"),
+    [
+        (2_400_000, 14400, True),
+        (RUN_MARGIN * MEASURED_SLOW_RUN_S * 1000, 14400, True),
+        (14400 * 1000 - 1, 14400, True),
+        (RUN_MARGIN * MEASURED_SLOW_RUN_S * 1000 - 1, 14400, False),
+        (14400 * 1000, 14400, False),
+        (2_400_000, 2400, False),
+        (1_800_000, 1800, False),
+    ],
+)
+def test_control_the_timeout_relation(bash_ms: int, budget_s: int, good: bool) -> None:
+    faults = timeout_relation_faults(bash_ms, budget_s)
+    assert (faults == []) is good
+
+
+#: A literal the constant finder must return unchanged.
+_PROBE_LITERAL: Final = 5400
+
+
+def test_control_the_suite_limit_is_found_only_as_one_integer_literal() -> None:
+    assert module_int_constant(f"X_S = {_PROBE_LITERAL}\n", "X_S") == _PROBE_LITERAL
+    assert module_int_constant(f"X_S: int = {_PROBE_LITERAL}\n", "X_S") == _PROBE_LITERAL
+    assert module_int_constant("X_S = 2 * 2700\n", "X_S") is None
+    assert module_int_constant("X_S = 5400\nX_S = 60\n", "X_S") is None
+    assert module_int_constant("X_S = True\n", "X_S") is None
+    assert module_int_constant("Y_S = 5400\n", "X_S") is None
+
+
+def test_the_bash_timeout_covers_the_suite_run_and_ends_inside_the_cycle() -> None:
+    """GAP 4: both numbers derived from their owners, and the relation asserted.
+
+    THE LOWER BOUND, ``timeout >= RUN_MARGIN * expected run``. A foreground Bash
+    call is killed at its timeout, so a timeout that does not cover a whole
+    suite run with margin brings the CS-1108 kill back by another route: the
+    suite dies mid-run and the cycle commits nothing. The expected run is the
+    measured slow end, because no driver constant states the work itself.
+
+    THE UPPER BOUND, ``timeout < the driver's cycle budget``, and this is the
+    direction that needs saying. What bounds a worker's Bash call from outside
+    is ``DEFAULT_CYCLE_TIMEOUT_S``, the budget past which the driver hard-kills
+    the whole worker - a kill that unwinds nothing and writes no cycle report.
+    ``DEFAULT_SUITE_TIMEOUT_S`` is NOT that envelope: it bounds the suite the
+    DRIVER itself runs, never a call the worker makes, so an earlier draft of
+    this arm tied the timeout to the wrong process. A Bash timeout at or past
+    the cycle budget lets one wedged call ride into the driver's kill; strictly
+    inside it, the CLI kills the call first, the call returns, and the worker
+    still reports. The chain also checks the budget itself exceeds the expected
+    run with margin, so a lowered budget cannot slide under the timeout.
+    """
+    budget_s = module_int_constant(DRIVER_SOURCE.read_bytes().decode("utf-8"), CYCLE_BUDGET_NAME)
+    assert budget_s is not None, f"{CYCLE_BUDGET_NAME} is not one integer literal"
+    launcher = launcher_env_values(RUNNER_SOURCE.read_bytes().decode("ascii"))
+    faults: list[str] = []
+    for name in (MAX_TIMEOUT_VAR, DEFAULT_TIMEOUT_VAR):
+        value = launcher.get(name)
+        if value is None or _DECIMAL.fullmatch(value) is None:
+            faults.append(f"{name}: the launcher sets no plain integer")
+            continue
+        faults += [f"{name}: {f}" for f in timeout_relation_faults(int(value), budget_s)]
+    assert faults == [], f"the Bash timeout and the cycle budget disagree: {faults}"
+
+
+# ===========================================================================
+# f. The prompt, bound to the launcher
 # ===========================================================================
 
 #: The ONLY prompt lines allowed to say "background", exactly. A new line that
@@ -489,6 +1346,117 @@ def test_the_prompt_names_the_switch_the_launcher_actually_sets(prompt_text: str
     runner = RUNNER_SOURCE.read_bytes().decode("ascii")
     faults = [f for f in static_env_faults(runner) if f.startswith((DISABLE_VAR, MAX_TIMEOUT_VAR))]
     assert faults == [], f"the prompt names a switch the launcher does not set: {faults}"
+
+
+# ---------------------------------------------------------------------------
+# CS-1111 gap 3 - the foreground-only statement forbids shell-level detaching
+# ---------------------------------------------------------------------------
+
+#: The sentence that makes the paragraph the foreground-only statement.
+_FOREGROUND_STATEMENT: Final = re.compile(r"A\s+long\s+command\s+runs\s+in\s+the\s+foreground")
+
+#: What that paragraph must forbid, token by token. The switch removes the
+#: tool's parameter only; each of these detaches a child at the shell level.
+DETACH_TOKENS: Final = (
+    ("the prohibition itself", r"\*\*Never\s+detach\s+a\s+command\s+at\s+the\s+shell\s+level"),
+    ("a trailing ampersand", r"trailing\s+`&`"),
+    ("nohup", r"`nohup`"),
+    ("Start-Process", r"`Start-Process`"),
+    ("start /b", r"`start\s+/b`"),
+)
+
+
+def foreground_paragraph_spans(text: str) -> list[tuple[int, int]]:
+    """The spans of every paragraph that says a long command runs in the foreground.
+
+    Args:
+        text: The prompt.
+
+    Returns:
+        ``(start, end)`` offsets, one per matching blank-line-delimited paragraph.
+    """
+    spans: list[tuple[int, int]] = []
+    start = 0
+    for gap in re.finditer(r"\n[ \t]*\n", text):
+        spans.append((start, gap.start()))
+        start = gap.end()
+    spans.append((start, len(text)))
+    return [(a, b) for a, b in spans if _FOREGROUND_STATEMENT.search(text[a:b])]
+
+
+def detach_faults(text: str) -> list[str]:
+    """What the foreground-only statement fails to forbid.
+
+    Scoped to the ONE paragraph that says a long command runs in the
+    foreground, so the tokens appearing anywhere else in the prompt do not count.
+
+    Args:
+        text: The prompt.
+
+    Returns:
+        The missing labels, or a single fault when there is no one statement.
+    """
+    spans = foreground_paragraph_spans(text)
+    if len(spans) != 1:
+        return ["the foreground-only statement is not exactly one paragraph"]
+    paragraph = text[spans[0][0] : spans[0][1]]
+    return [label for label, pattern in DETACH_TOKENS if not re.search(pattern, paragraph)]
+
+
+def _rewrapped(text: str) -> str:
+    """The prompt with the foreground paragraph's line breaks moved.
+
+    Args:
+        text: The prompt.
+
+    Returns:
+        The prompt with that paragraph re-flowed onto lines of a different width.
+    """
+    spans = foreground_paragraph_spans(text)
+    assert len(spans) == 1, "the foreground-only statement is not exactly one paragraph"
+    a, b = spans[0]
+    words = text[a:b].split()
+    flowed = "\n".join(" ".join(words[i : i + 7]) for i in range(0, len(words), 7))
+    return text[:a] + flowed + text[b:]
+
+
+@pytest.mark.parametrize("wrap", ["as-is", "rewrapped"])
+def test_control_a_statement_without_the_detach_prohibition_is_reported(
+    prompt_text: str, wrap: str
+) -> None:
+    """Mutation on the real prompt: cut the prohibition and every token is missing.
+
+    Bound by STRUCTURE, not by a literal: the cut starts where the prohibition
+    pattern matches inside the one foreground paragraph and runs to that
+    paragraph's end, so re-flowing the paragraph moves nothing the control needs.
+    """
+    text = prompt_text if wrap == "as-is" else _rewrapped(prompt_text)
+    whole = detach_faults(text)
+    assert whole == [], f"the {wrap} prompt does not forbid: {whole}"
+    a, b = foreground_paragraph_spans(text)[0]
+    prohibition = re.search(DETACH_TOKENS[0][1], text[a:b])
+    found = prohibition is not None
+    assert found, "the prohibition is not in the foreground paragraph"
+    cut_at = a + (prohibition.start() if prohibition else 0)
+    cut = text[:cut_at] + text[b:]
+    faults = detach_faults(cut)
+    assert faults == [label for label, _pattern in DETACH_TOKENS]
+
+
+def test_control_detach_tokens_elsewhere_do_not_count() -> None:
+    doc = (
+        "A long command runs in the foreground with an explicit timeout.\n\n"
+        "**Never detach a command at the shell level either:** no trailing `&`, "
+        "no `nohup`, no `Start-Process`, no `start /b`.\n"
+    )
+    faults = detach_faults(doc)
+    assert faults == [label for label, _pattern in DETACH_TOKENS]
+
+
+def test_the_foreground_statement_forbids_shell_level_detaching(prompt_text: str) -> None:
+    """GAP 3: the switch removes ``run_in_background``, not a shell's own detach."""
+    faults = detach_faults(prompt_text)
+    assert faults == [], f"the foreground-only statement does not forbid: {faults}"
 
 
 @pytest.fixture(scope="module")
