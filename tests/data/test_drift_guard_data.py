@@ -61,6 +61,7 @@ import json
 import os
 import re
 import shutil
+import subprocess
 import sys
 import tempfile
 from pathlib import Path
@@ -227,15 +228,53 @@ _PORTS_JSON = {
     "reserved": [],
 }
 
+# The item-notes family guard (j) grades, and the tier 1 lane guard (k) grades.
+# Spelled here rather than imported from the guard, so a moved path is a red
+# fixture instead of a fixture that follows the guard wherever it goes.
+ROADMAP_RELATIVE = "ROADMAP.md"
+ITEM_NOTES_INDEX_RELATIVE = "docs/item_notes.md"
+ITEM_NOTES_LEAF_RELATIVE = "docs/item_notes/phase7.md"
+TIER1_WORKFLOW_RELATIVE = ".github/workflows/tier1.yml"
+
+_ITEM_NOTES_ROADMAP = """# Fake roadmap for the drift guard tests
+
+## Phase 7 - a synthetic phase
+
+CS-904 - a synthetic routed item - acceptance: none - tier: 1 - detail: `docs/item_notes.md`
+"""
+
+_ITEM_NOTES_INDEX = """# Fake item-notes index
+
+| Item | Leaf |
+|---|---|
+| CS-904 | `docs/item_notes/phase7.md` |
+"""
+
+_ITEM_NOTES_LEAF = """# Fake item-notes leaf
+
+## CS-904
+
+Synthetic detail.
+"""
+
 
 def make_repo(root: Path, *, with_pin: bool = True) -> Path:
-    """Build the smallest tree every drift guard reports PASS or WARN on.
+    """Build the smallest tree EVERY drift guard reports PASS on.
 
     Guards (a) through (g) each need something in the tree, and any one of them
     failing would make an exit-code assertion about guard (h) meaningless. So
     the tree carries a budgeted CLAUDE.md with a frozen-file section, a
     CONVENTIONS section 2 ownership table naming one file that exists, a memory
     index with no leaves, and a fully covered port band.
+
+    CS-1113 - AND GUARDS (i), (j) AND (k) PASS TOO, NOT WARN. A WARN meaning
+    "could not look" now makes the overall result UNGRADED and the exit code
+    non-zero, so a tree that left those three unread would be red before any
+    plant and every exit-code transcript below would prove nothing. The tree
+    therefore also carries the synthetic work-item doctrine and owner files, a
+    one-item item-notes family routed from a synthetic ROADMAP.md, and a copy of
+    the real tier 1 workflow - copied, like the pin, because guard (k) pins its
+    levels to the recorded values and a hand-written lane would restate them.
 
     Args:
         root: Directory to build in.
@@ -258,6 +297,24 @@ def make_repo(root: Path, *, with_pin: bool = True) -> Path:
         target = pin_path(root)
         target.parent.mkdir(parents=True, exist_ok=True)
         shutil.copyfile(VERSION_SOURCE, target)
+    (root / "CLAUDE.md").write_text(_WORK_ITEM_CLAUDE_MD, encoding="utf-8")
+    for state, body in (
+        ("OPEN", _WORK_ITEM_OPEN),
+        ("ASPIRATIONAL", _WORK_ITEM_ASPIRATIONAL),
+        ("GATED", _WORK_ITEM_GATED),
+        ("CLOSED", _WORK_ITEM_CLOSED),
+    ):
+        path = root / WORK_ITEM_OWNERS[state]
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(body, encoding="utf-8")
+    (root / ROADMAP_RELATIVE).write_text(_ITEM_NOTES_ROADMAP, encoding="utf-8")
+    leaf = root / ITEM_NOTES_LEAF_RELATIVE
+    leaf.parent.mkdir(parents=True, exist_ok=True)
+    leaf.write_text(_ITEM_NOTES_LEAF, encoding="utf-8")
+    (root / ITEM_NOTES_INDEX_RELATIVE).write_text(_ITEM_NOTES_INDEX, encoding="utf-8")
+    workflow = root / TIER1_WORKFLOW_RELATIVE
+    workflow.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copyfile(REPO_ROOT / TIER1_WORKFLOW_RELATIVE, workflow)
     return root
 
 
@@ -513,7 +570,10 @@ def test_an_absent_pin_warns_rather_than_failing(
 
     code, report = run_main(capsys)
     assert guard_of(report)["status"] == "WARN"
-    assert code == 0
+    # CS-1113 - an absent pin is a pin nobody checked, so the run is UNGRADED:
+    # never DRIFT, and never CLEAN.
+    assert report["verdict"] == "UNGRADED"
+    assert code != 0
     assert any("version.py" in skip["path"] for skip in report["skipped"])
 
 
@@ -834,24 +894,16 @@ def make_work_item_repo(root: Path) -> Path:
     the grant-before-closure sequence - the shape that has to stay green.
     CS-903 is closed only. CS-G91 is gated only.
 
+    Since CS-1113 :func:`make_repo` builds exactly this tree, because every
+    guard has to PASS on the base fixture; the name is kept for the arms below.
+
     Args:
         root: Directory to build in.
 
     Returns:
         ``root``, for chaining.
     """
-    make_repo(root)
-    (root / "CLAUDE.md").write_text(_WORK_ITEM_CLAUDE_MD, encoding="utf-8")
-    for state, body in (
-        ("OPEN", _WORK_ITEM_OPEN),
-        ("ASPIRATIONAL", _WORK_ITEM_ASPIRATIONAL),
-        ("GATED", _WORK_ITEM_GATED),
-        ("CLOSED", _WORK_ITEM_CLOSED),
-    ):
-        path = root / WORK_ITEM_OWNERS[state]
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(body, encoding="utf-8")
-    return root
+    return make_repo(root)
 
 
 @pytest.fixture
@@ -1056,14 +1108,22 @@ def test_a_tree_with_no_owner_file_declaration_warns_rather_than_passing(
 ) -> None:
     """An empty scan says so instead of reporting a green.
 
-    The guard-(h) fixture writes a CLAUDE.md with no work-item sentence in it,
-    so this is the vacuous case arriving by itself rather than being staged.
+    Staged by writing a CLAUDE.md with no work-item sentence in it: since
+    CS-1113 the base fixture carries the sentence, because a guard left unread
+    there would make every exit code in this module UNGRADED before any plant.
+
+    NOT DRIFT, AND NOT CLEAN EITHER (CS-1113). Nothing was scanned, so the run
+    cannot say the tree is clean - the exit code is non-zero and the verdict
+    names the class, while the drift list stays empty.
     """
+    (repo / "CLAUDE.md").write_text(_CLAUDE_MD, encoding="utf-8")
     code, report = run_main(capsys)
     guard = guard_of(report, WORK_ITEM_GUARD_ID)
 
     assert guard["status"] == "WARN"
-    assert code == 0, "a tree with nothing to scan is not DRIFT"
+    assert report["verdict"] == "UNGRADED", "a tree with nothing to scan is not DRIFT"
+    assert report["drift"] == []
+    assert code != 0, "a tree with nothing to scan is not CLEAN either"
     assert any(drift_guard.WORK_ITEM_ANCHOR in skip["reason"] for skip in report["skipped"]), (
         "a guard that scanned nothing has to appear in the skip list saying why"
     )
@@ -2472,3 +2532,307 @@ def test_an_unresolvable_git_yields_no_files_rather_than_spawning(
 
     assert answer == []
     assert spawned == [], "the guard spawned something after the resolver refused"
+
+
+# ---------------------------------------------------------------------------
+# CS-1113 (b) - a WARN that means "could not look" is never CLEAN
+# ---------------------------------------------------------------------------
+#
+# A WARN carried two meanings and the overall verdict read them as one: a soft
+# finding on input that WAS read (a doc over its soft budget, a port with no
+# record) and an input that was never read at all. As the only non-PASS guard,
+# either one left the exit code 0 and the JSON verdict CLEAN - the
+# could-not-look-reads-as-clean class. The meaning is now an explicit flag SET AT
+# THE WARN SITE: ``advisory`` is an allowlist of the soft findings, and every
+# other WARN makes the run UNGRADED with a non-zero exit code. A text match on a
+# detail message is never how the two are told apart.
+#
+# EVERY PLANT BELOW IS THE ONLY NON-PASS GUARD ON ITS TREE, and the arm asserts
+# that before it asserts the verdict. A plant that also reddened a second guard
+# would make a non-zero exit code a statement about that guard instead.
+
+#: Every guard the driver registers. Spelled out so a guard that silently drops
+#: out of the run is a red floor rather than one fewer thing that has to PASS.
+ALL_GUARD_IDS = ["a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k"]
+
+
+def swap_for_directory(path: Path) -> None:
+    """Replace a file with a directory of the same name, so reading it raises.
+
+    The adversary on CS-1086 made ROADMAP.md unreadable this way; a directory
+    raises OSError on read on every platform, where a permission bit does not.
+
+    Args:
+        path: The file to swap.
+    """
+    path.unlink()
+    path.mkdir()
+    assert path.is_dir(), "the swap did not apply, so nothing was made unreadable"
+
+
+def non_pass(report: dict[str, Any]) -> dict[str, str]:
+    """Return guard id mapped to status for every guard that did not PASS.
+
+    Args:
+        report: The parsed JSON report.
+
+    Returns:
+        The non-PASS guards.
+    """
+    return {guard["id"]: guard["status"] for guard in report["guards"] if guard["status"] != "PASS"}
+
+
+def _plant_memory_absent(root: Path, _monkeypatch: pytest.MonkeyPatch) -> None:
+    shutil.rmtree(root / "memory")
+
+
+def _plant_memory_index_absent(root: Path, _monkeypatch: pytest.MonkeyPatch) -> None:
+    (root / "memory" / "MEMORY.md").unlink()
+
+
+def _plant_conventions_unparseable(root: Path, _monkeypatch: pytest.MonkeyPatch) -> None:
+    (root / "CONVENTIONS.md").write_text("# Fake conventions, no section 2\n", encoding="utf-8")
+
+
+def _plant_no_frozen_section(root: Path, _monkeypatch: pytest.MonkeyPatch) -> None:
+    claude = root / "CLAUDE.md"
+    text = claude.read_text(encoding="utf-8")
+    cut = text.split("## 6. Frozen files")[0]
+    assert cut != text, "the frozen section was not removed, so this plants nothing"
+    claude.write_text(cut, encoding="utf-8")
+
+
+def _plant_pin_absent(root: Path, _monkeypatch: pytest.MonkeyPatch) -> None:
+    pin_path(root).unlink()
+
+
+def _plant_pin_not_importable(_root: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    def refuse() -> Any:
+        message = "a synthetic import failure"
+        raise ImportError(message)
+
+    monkeypatch.setattr(drift_guard, "_load_pin_support", refuse)
+
+
+def _plant_no_owner_declaration(root: Path, _monkeypatch: pytest.MonkeyPatch) -> None:
+    (root / "CLAUDE.md").write_text(_CLAUDE_MD, encoding="utf-8")
+
+
+def _plant_owner_files_empty(root: Path, _monkeypatch: pytest.MonkeyPatch) -> None:
+    for relative in WORK_ITEM_OWNERS.values():
+        (root / relative).write_text("# nothing here\n", encoding="utf-8")
+
+
+def _plant_index_unreadable(root: Path, _monkeypatch: pytest.MonkeyPatch) -> None:
+    swap_for_directory(root / ITEM_NOTES_INDEX_RELATIVE)
+
+
+def _plant_leaf_directory_absent(root: Path, _monkeypatch: pytest.MonkeyPatch) -> None:
+    shutil.rmtree(root / ITEM_NOTES_LEAF_RELATIVE.rsplit("/", 1)[0])
+
+
+def _plant_empty_family(root: Path, _monkeypatch: pytest.MonkeyPatch) -> None:
+    (root / ROADMAP_RELATIVE).write_text("# Fake roadmap, nothing routed\n", encoding="utf-8")
+    (root / ITEM_NOTES_INDEX_RELATIVE).write_text("# Fake index, no rows\n", encoding="utf-8")
+    (root / ITEM_NOTES_LEAF_RELATIVE).write_text("# Fake leaf, no sections\n", encoding="utf-8")
+
+
+def _plant_roadmap_unreadable(root: Path, _monkeypatch: pytest.MonkeyPatch) -> None:
+    swap_for_directory(root / ROADMAP_RELATIVE)
+
+
+def _plant_workflow_absent(root: Path, _monkeypatch: pytest.MonkeyPatch) -> None:
+    (root / TIER1_WORKFLOW_RELATIVE).unlink()
+
+
+def _plant_nothing_enumerated(_root: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(drift_guard, "enumerate_files", lambda _root: ([], "no files", []))
+
+
+#: One plant per could-not-look WARN site the driver can reach with no other
+#: guard going non-PASS, keyed by the guard it makes WARN.
+COULD_NOT_LOOK_PLANTS = {
+    "b-memory-absent": ("b", _plant_memory_absent),
+    "b-memory-index-absent": ("b", _plant_memory_index_absent),
+    "c-nothing-checked": ("c", _plant_nothing_enumerated),
+    "d-conventions-unparseable": ("d", _plant_conventions_unparseable),
+    "f-no-frozen-section": ("f", _plant_no_frozen_section),
+    "h-pin-absent": ("h", _plant_pin_absent),
+    "h-pin-not-importable": ("h", _plant_pin_not_importable),
+    "i-no-owner-declaration": ("i", _plant_no_owner_declaration),
+    "i-owner-files-empty": ("i", _plant_owner_files_empty),
+    "j-index-unreadable": ("j", _plant_index_unreadable),
+    "j-leaf-directory-absent": ("j", _plant_leaf_directory_absent),
+    "j-empty-family": ("j", _plant_empty_family),
+    "j-roadmap-unreadable": ("j", _plant_roadmap_unreadable),
+    "k-workflow-absent": ("k", _plant_workflow_absent),
+}
+
+
+def test_the_base_fixture_passes_every_guard_and_is_clean(
+    repo: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """The floor under every plant below: nothing is non-PASS before planting.
+
+    Without it, a plant's non-zero exit code could belong to a guard the
+    fixture never satisfied.
+    """
+    code, report = run_main(capsys)
+    assert [guard["id"] for guard in report["guards"]] == ALL_GUARD_IDS
+    assert non_pass(report) == {}, report["guards"]
+    assert (report["verdict"], code) == ("CLEAN", 0)
+    assert report["ungraded"] == []
+    assert (repo / ROADMAP_RELATIVE).is_file()
+
+
+def test_an_unreadable_roadmap_as_the_only_non_pass_guard_is_not_clean(
+    repo: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """The CS-1113 acceptance arm, through main() on BOTH output paths.
+
+    ROADMAP.md is made unreadable and every other guard still passes, so guard
+    (j)'s could-not-look WARN is the only non-PASS guard on the tree.
+    """
+    swap_for_directory(repo / ROADMAP_RELATIVE)
+
+    code, report = run_main(capsys)
+    assert non_pass(report) == {"j": "WARN"}, report["guards"]
+    assert report["verdict"] == "UNGRADED"
+    assert code != 0, "a run that could not read ROADMAP.md exited 0"
+    assert report["ungraded"] == ["j"]
+    assert report["drift"] == []
+    assert guard_of(report, "j")["advisory"] is False
+
+    text_code = drift_guard.main([])
+    printed = capsys.readouterr().out.splitlines()
+    verdicts = [line for line in printed if line.startswith("VERDICT:")]
+    assert text_code != 0, "the text path exited 0 over an unread ROADMAP.md"
+    assert len(verdicts) == 1, verdicts
+    assert verdicts[0].startswith("VERDICT: UNGRADED"), verdicts
+
+
+@pytest.mark.parametrize("plant", sorted(COULD_NOT_LOOK_PLANTS))
+def test_every_could_not_look_warn_makes_the_run_ungraded(
+    repo: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], plant: str
+) -> None:
+    """The sibling sweep: every WARN site meaning "never read" blocks CLEAN."""
+    guard_id, apply = COULD_NOT_LOOK_PLANTS[plant]
+    apply(repo, monkeypatch)
+
+    code, report = run_main(capsys)
+    assert non_pass(report) == {guard_id: "WARN"}, report["guards"]
+    assert report["verdict"] == "UNGRADED"
+    assert code != 0
+    assert report["ungraded"] == [guard_id]
+    assert guard_of(report, guard_id)["advisory"] is False
+
+
+@pytest.mark.parametrize("site", ["absent", "unreadable"])
+def test_the_frozen_guard_could_not_look_sites_are_not_advisory(repo: Path, site: str) -> None:
+    """Guard (f)'s two sites a driver-level plant cannot isolate.
+
+    Removing CLAUDE.md also reddens guard (d), whose ownership table names it,
+    so these two are graded at the guard: the flag is what the driver reads.
+    """
+    claude = repo / "CLAUDE.md"
+    if site == "absent":
+        claude.unlink()
+    else:
+        swap_for_directory(claude)
+
+    guard, _skips = drift_guard.guard_frozen(repo)
+    assert guard["status"] == "WARN", guard["detail"]
+    assert guard["advisory"] is False
+
+
+def _plant_roadmap_over_its_soft_budget(root: Path) -> None:
+    doc_budget = drift_guard._load_doc_budget()  # noqa: SLF001 - the budget's own owner
+    roadmap = root / ROADMAP_RELATIVE
+    text = roadmap.read_text(encoding="utf-8")
+    line = "Padding for the soft budget plant, carrying no item and no date.\n"
+    repeats = doc_budget.ROADMAP_BUDGET // len(line) + 1
+    roadmap.write_text(text + line * repeats, encoding="utf-8", newline="\n")
+    assert roadmap.stat().st_size > doc_budget.ROADMAP_BUDGET, "the plant is under the budget"
+
+
+def _plant_port_with_no_record(root: Path) -> None:
+    ports = root / "config" / "ports.json"
+    payload = json.loads(ports.read_text(encoding="utf-8"))
+    payload["band"]["end"] = payload["band"]["end"] + 1
+    ports.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+
+
+#: The allowlist, from the other side: every soft WARN that reads real input.
+ADVISORY_PLANTS = {
+    "a-soft-budget": ("a", _plant_roadmap_over_its_soft_budget),
+    "e-port-with-no-record": ("e", _plant_port_with_no_record),
+}
+
+
+@pytest.mark.parametrize("plant", sorted(ADVISORY_PLANTS))
+def test_an_advisory_warn_as_the_only_non_pass_guard_stays_clean(
+    repo: Path, capsys: pytest.CaptureFixture[str], plant: str
+) -> None:
+    """The control in the other direction: a soft finding never turns into a failure.
+
+    Asserted on the flag AND on both output paths, so a verdict that ignored
+    the flag and passed every WARN would still redden the sweep above.
+    """
+    guard_id, apply = ADVISORY_PLANTS[plant]
+    apply(repo)
+
+    code, report = run_main(capsys)
+    assert non_pass(report) == {guard_id: "WARN"}, report["guards"]
+    assert (report["verdict"], code) == ("CLEAN", 0)
+    assert report["ungraded"] == []
+    assert guard_of(report, guard_id)["advisory"] is True
+
+    text_code = drift_guard.main([])
+    printed = capsys.readouterr().out.splitlines()
+    verdicts = [line for line in printed if line.startswith("VERDICT:")]
+    assert text_code == 0
+    assert verdicts, printed
+    assert verdicts[0].startswith("VERDICT: CLEAN with warnings"), verdicts
+
+
+def test_an_advisory_flag_on_anything_but_a_warn_is_refused() -> None:
+    """A PASS or a FAIL marked advisory is a contradiction, so it cannot be built."""
+    for status in ("PASS", "FAIL"):
+        with pytest.raises(ValueError, match="advisory"):
+            drift_guard._guard("x", "a synthetic guard", status, [], advisory=True)  # noqa: SLF001
+
+
+def test_the_real_tree_soft_warnings_still_exit_zero() -> None:
+    """The control on the REAL tree, through the command CI runs.
+
+    The real tree carries soft budget overshoots today. They must stay
+    advisory: ``python tools/drift_guard.py`` exits 0 and ``--json`` reports
+    CLEAN. Any WARN on the real tree is asserted advisory BY ITS FLAG - a
+    could-not-look WARN here would be exactly the defect CS-1113 closed.
+    DISCLOSED: if the real tree ever carries no WARN at all, this arm still
+    grades the exit code but no longer grades a soft warning; the synthetic
+    advisory arms above carry that half regardless.
+    """
+    command = [sys.executable, "-B", str(DRIFT_GUARD_SOURCE)]
+    text = subprocess.run(
+        command, capture_output=True, text=True, timeout=600, check=False, cwd=REPO_ROOT
+    )
+    as_json = subprocess.run(
+        [*command, "--json"],
+        capture_output=True,
+        text=True,
+        timeout=600,
+        check=False,
+        cwd=REPO_ROOT,
+    )
+    report = json.loads(as_json.stdout)
+    failed = [guard["id"] for guard in report["guards"] if guard["status"] == "FAIL"]
+    unread = [
+        guard["id"]
+        for guard in report["guards"]
+        if guard["status"] == "WARN" and guard.get("advisory") is not True
+    ]
+    assert failed == [], f"the real tree carries DRIFT in {failed}, so this control grades nothing"
+    assert unread == [], f"the real tree carries could-not-look WARNs in {unread}"
+    assert (report["verdict"], as_json.returncode) == ("CLEAN", 0)
+    assert text.returncode == 0, "python tools/drift_guard.py exited non-zero on the real tree"

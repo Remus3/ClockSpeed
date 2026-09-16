@@ -378,11 +378,13 @@ def test_a_routed_item_with_no_section_in_its_computed_leaf_is_red(tmp_path: Pat
 
     status, rendered = _run(tmp_path)
     assert status == "FAIL", rendered
+    # CS-1113 - the check that used to print "has no section in" was retired as
+    # provably covered, so the line that names this plant is the covering one.
     assert (
-        f"  CS-850 has no section in {LEAF_DIR_RELATIVE}/phase4-followups-850.md "
-        f"(derived from {ROADMAP_RELATIVE} Phase 4), its section is in "
+        f"  CS-850 routed to {LEAF_DIR_RELATIVE}/phase4-followups-850.md, detail is in "
         f"{LEAF_DIR_RELATIVE}/phase4-followups.md"
     ) in rendered.splitlines(), rendered
+    assert RETIRED_NO_SECTION_LINE not in rendered, rendered
 
 
 def test_a_detail_field_with_no_row_is_red(family: Path) -> None:
@@ -399,10 +401,7 @@ def test_a_detail_field_with_no_row_is_red(family: Path) -> None:
     assert status == "FAIL", rendered
     lines = rendered.splitlines()
     assert "  CS-702 carries a trailing detail: field and no routing row" in lines, rendered
-    assert (
-        f"  CS-702 has no section in {LEAF_DIR_RELATIVE}/phase7.md "
-        f"(derived from {ROADMAP_RELATIVE} Phase 7)"
-    ) in lines, rendered
+    assert RETIRED_NO_SECTION_LINE not in rendered, rendered
 
 
 def test_a_row_with_no_detail_field_is_red(family: Path) -> None:
@@ -510,6 +509,58 @@ def test_a_second_detail_spelling_on_a_routed_line_is_red(family: Path) -> None:
     lines = rendered.splitlines()
     assert "  CS-701 spells detail: again before its trailing field" in lines, rendered
     assert f"detail: spellings on routed lines in {ROADMAP_RELATIVE}: 4" in lines, rendered
+
+
+# ---------------------------------------------------------------------------
+# CS-1113 (a) - the "no section in its derived leaf" check was RETIRED
+#
+# It could never be the reason for a FAIL: every state it saw is also seen by
+# no_row, dangling, misrouted or wrong_leaf (the proof is recorded beside the
+# retirement in tools/drift_guard.py). A plant that ONLY it caught would have
+# kept it; none exists, so the arm below enumerates EVERY state a routed item's
+# row and section can be in relative to its derived leaf and asserts the VERDICT
+# on each - not a message - so deleting any one covering check reddens a combo.
+# ---------------------------------------------------------------------------
+
+#: The phrase only the retired check ever printed. Held here, not imported, so a
+#: re-added check is visible to this module rather than agreed with by it.
+RETIRED_NO_SECTION_LINE = "has no section in"
+
+#: Where a row or a section can sit relative to CS-701's derived leaf, phase7.md.
+_PLACES = {"absent": None, "derived": "phase7.md", "elsewhere": "phase4.md"}
+
+
+@pytest.mark.parametrize("section_at", sorted(_PLACES))
+@pytest.mark.parametrize("row_at", sorted(_PLACES))
+def test_every_state_the_retired_no_section_check_saw_still_fails(
+    tmp_path: Path, row_at: str, section_at: str
+) -> None:
+    """Row and section of a routed item, each absent, in its derived leaf, or elsewhere.
+
+    CS-401 is a fully consistent control item in every combination, so the
+    family is never empty and a FAIL is never about anything but CS-701. Only
+    (derived, derived) agrees with the derivation, and it must PASS - which is
+    what stops this arm passing on a guard that simply fails everything.
+    """
+    row_leaf = _PLACES[row_at]
+    section_leaf = _PLACES[section_at]
+    leaves: dict[str, list[str]] = {"phase4.md": ["CS-401"], "phase7.md": []}
+    if section_leaf is not None:
+        leaves[section_leaf].append("CS-701")
+    rows = [("CS-401", "phase4.md")]
+    if row_leaf is not None:
+        rows.append(("CS-701", row_leaf))
+    _build(tmp_path, leaves, rows)
+    _write_roadmap(tmp_path, {"4": [_item_line("CS-401")], "7": [_item_line("CS-701")]})
+
+    status, rendered = _run(tmp_path)
+
+    agrees = row_at == "derived" and section_at == "derived"
+    assert status == ("PASS" if agrees else "FAIL"), rendered
+    if not agrees:
+        named = [line for line in rendered.splitlines() if line.startswith("  CS-701 ")]
+        assert named, f"the FAIL named no line for the planted item: {rendered}"
+    assert RETIRED_NO_SECTION_LINE not in rendered, rendered
 
 
 def test_an_unreadable_roadmap_is_a_warn_never_a_pass(family: Path) -> None:
