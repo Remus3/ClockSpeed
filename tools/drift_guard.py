@@ -482,6 +482,11 @@ def _walk(root: Path) -> tuple[list[Path], list[Skip]]:
             skips.append(
                 {"path": _rel(root, current), "reason": f"unreadable directory: {_exc_text(exc)}"}
             )
+            # CS-1120 - HANDED OVER, NEVER DROPPED. A skip alone left every file
+            # reader saying PASS over a population nobody had listed; as a
+            # listed entry, each reader names it NOT LISTED and says WARN.
+            if current != root:
+                files.append(current)
             continue
         for entry in entries:
             try:
@@ -523,7 +528,10 @@ def enumerate_files(root: Path) -> tuple[list[Path], str, list[Skip]]:
         files = []
         for relative in tracked:
             path = root / relative
-            if path.is_file():
+            if path.is_file() or (_lstat_answers(path) and not path.is_dir()):
+                # CS-1120 - a dangling link is not a file to a stat and IS on
+                # disk to an lstat. It was skipped here as not on disk, so no
+                # reader ever met it; the readers now name it NOT READ.
                 files.append(path)
             else:
                 skips.append({"path": relative, "reason": "in the git index but not on disk"})
@@ -551,12 +559,74 @@ def _classify(path: Path) -> tuple[bool, str]:
 #: time it was read. It is not a could-not-look: nothing is there to grade.
 ABSENT_WHEN_READ = "absent when read"
 
+#: CS-1120 - the prefix of a skip reason for a listed entry whose read found
+#: nothing while an lstat still finds the entry: a link whose target is gone.
+#: Something IS there, so it is could-not-look and never ``ABSENT_WHEN_READ``.
+DANGLING_WHEN_READ = "dangling link when read"
+
+#: CS-1120 - what a file reader says about a directory it was handed, which
+#: only the walk does, and only for one it could not list.
+UNLISTED_CONSEQUENCE = "NOT LISTED - the files under it were never enumerated or read"
+
+
+def _lstat_answers(path: Path) -> bool:
+    """True when an lstat finds the entry itself, whatever it points at.
+
+    Args:
+        path: The entry.
+
+    Returns:
+        Whether something is there without following a link.
+    """
+    try:
+        path.lstat()
+    except OSError:
+        return False
+    return True
+
+
+def _not_found_reason(path: Path, exc: OSError) -> str:
+    """The skip reason for a read that raised ``FileNotFoundError`` - CS-1120.
+
+    The error type alone said "absent", and a dangling link raises it too. Only
+    an entry an lstat cannot find either is absent.
+
+    Args:
+        path: The entry whose read failed.
+        exc: The error the read raised.
+
+    Returns:
+        A reason starting ``ABSENT_WHEN_READ`` or ``DANGLING_WHEN_READ``.
+    """
+    label = DANGLING_WHEN_READ if _lstat_answers(path) else ABSENT_WHEN_READ
+    return f"{label}: {_exc_text(exc)}"
+
+
+def _split_unlisted(root: Path, files: list[Path]) -> tuple[list[Path], list[str]]:
+    """Separate the directories a file reader was handed from the files - CS-1120.
+
+    Args:
+        root: The repository root under audit.
+        files: The enumerated candidate files.
+
+    Returns:
+        (the entries that are not directories, the repo-relative directories).
+    """
+    kept: list[Path] = []
+    unlisted: list[str] = []
+    for path in files:
+        if path.is_dir():
+            unlisted.append(_rel(root, path))
+        else:
+            kept.append(path)
+    return kept, unlisted
+
 
 def _ascii_violations(path: Path) -> tuple[list[str], str]:
     try:
         data = path.read_bytes()
     except FileNotFoundError as exc:
-        return [], f"{ABSENT_WHEN_READ}: {_exc_text(exc)}"
+        return [], _not_found_reason(path, exc)
     except OSError as exc:
         return [], f"unreadable: {_exc_text(exc)}"
     line = 1
@@ -583,6 +653,7 @@ def guard_charset(root: Path, files: list[Path], source: str) -> tuple[Guard, li
     # CS-1117 - a text file that EXISTS and cannot be read is could-not-look.
     # It was a bare skip, so the guard said PASS over bytes nobody had seen.
     unread: list[str] = []
+    files, unlisted = _split_unlisted(root, files)
     for path in files:
         ok, reason = _classify(path)
         if not ok:
@@ -605,11 +676,12 @@ def guard_charset(root: Path, files: list[Path], source: str) -> tuple[Guard, li
         f"text files listed: {checked + len(unread)}",
     ]
     detail.extend(f"{relative} NOT READ - its bytes were never checked" for relative in unread)
+    detail.extend(f"{relative}/ {UNLISTED_CONSEQUENCE}" for relative in unlisted)
     if offenders:
         detail.append(f"non-ASCII or control bytes in {len(offenders)} file(s):")
         detail.extend(f"  {line}" for line in offenders)
         return _guard("c", name, "FAIL", detail), skips
-    if unread:
+    if unread or unlisted:
         detail.append("NOT A PASS - a listed text file was never read")
         return _guard("c", name, "WARN", detail), skips
     if checked == 0:
@@ -1082,12 +1154,25 @@ def guard_memory(root: Path) -> tuple[Guard, list[Skip]]:
         detail.extend(f"  unreachable: {_rel(root, leaf)}" for leaf in leaves)
         return _guard("b", name, "FAIL" if leaves else "WARN", detail), skips
 
+    walk_skips = len(skips)
     reachable = reachable_from_index(memory_dir, index, skips)
-    unreachable = [leaf for leaf in leaves if leaf.stem.lower() not in reachable]
-    detail.append(
-        "reachable from MEMORY.md (transitively through INDEX_*.md): "
-        f"{len(leaves) - len(unreachable)}"
-    )
+    # CS-1120 - A ROUTING FILE THE WALK COULD NOT READ GRADES NO LEAF. Its
+    # routes were never followed, so every leaf behind it read as UNREACHABLE:
+    # a FAIL naming drift over a store nobody had looked at. Reachability is
+    # ungraded instead, and the unread routing file is named below.
+    walk_unread = [_rel(root, memory_dir / skip["path"]) for skip in skips[walk_skips:]]
+    if walk_unread:
+        unreachable: list[Path] = []
+        detail.append(
+            "reachability NOT GRADED - a routing file was not read, so no leaf is "
+            "called unreachable"
+        )
+    else:
+        unreachable = [leaf for leaf in leaves if leaf.stem.lower() not in reachable]
+        detail.append(
+            "reachable from MEMORY.md (transitively through INDEX_*.md): "
+            f"{len(leaves) - len(unreachable)}"
+        )
 
     routing = [index, *(leaf for leaf in leaves if leaf.name.lower().startswith("index_"))]
     ordinary = [leaf for leaf in leaves if not leaf.name.lower().startswith("index_")]
@@ -1111,6 +1196,7 @@ def guard_memory(root: Path) -> tuple[Guard, list[Skip]]:
         f"in {len(ordinary) - len(refs_unread)} of {len(ordinary)} listed leaves"
     )
     unread = routes_unread + refs_unread
+    unread.extend(relative for relative in walk_unread if relative not in unread)
     detail.extend(
         f"{relative} NOT READ - its citations are not in the counts above" for relative in unread
     )
@@ -1865,7 +1951,10 @@ def _read_markdown(root: Path, path: Path, skips: list[Skip], unread: list[str])
     try:
         return path.read_text(encoding="utf-8", errors="replace")
     except FileNotFoundError as exc:
-        skips.append({"path": _rel(root, path), "reason": f"{ABSENT_WHEN_READ}: {_exc_text(exc)}"})
+        reason = _not_found_reason(path, exc)
+        skips.append({"path": _rel(root, path), "reason": reason})
+        if not reason.startswith(ABSENT_WHEN_READ):
+            unread.append(_rel(root, path))
     except OSError as exc:
         skips.append({"path": _rel(root, path), "reason": f"unreadable markdown: {_exc_text(exc)}"})
         unread.append(_rel(root, path))
@@ -1890,6 +1979,7 @@ def guard_dated(root: Path, files: list[Path]) -> tuple[Guard, list[Skip]]:
     # CS-1117 - the guard (c) sibling: an unread markdown file was a bare skip.
     unread: list[str] = []
     scanned = 0
+    files, unlisted = _split_unlisted(root, files)
     for path in files:
         if path.suffix.lower() not in (".md", ".markdown"):
             continue
@@ -1918,6 +2008,7 @@ def guard_dated(root: Path, files: list[Path]) -> tuple[Guard, list[Skip]]:
     detail.extend(
         f"{relative} NOT READ - its headings were never classified" for relative in unread
     )
+    detail.extend(f"{relative}/ {UNLISTED_CONSEQUENCE}" for relative in unlisted)
     if undeclared:
         detail.append(
             "DRIFT - files carrying dated headings that declare no section status. This "
@@ -1953,9 +2044,9 @@ def guard_dated(root: Path, files: list[Path]) -> tuple[Guard, list[Skip]]:
         )
         detail.extend(f"  {item}" for item in unclassified)
     drifted = bool(undeclared or historical_in_live or unclassified)
-    if unread and not drifted:
+    if (unread or unlisted) and not drifted:
         detail.append("NOT A PASS - a listed markdown file was never read")
-    status = "FAIL" if drifted else ("WARN" if unread else "PASS")
+    status = "FAIL" if drifted else ("WARN" if unread or unlisted else "PASS")
     return _guard("g", "dated sections", status, detail), skips
 
 
@@ -3907,7 +3998,10 @@ def _tier1_second_owners(
         try:
             text = path.read_text(encoding="utf-8", errors="replace")
         except FileNotFoundError as exc:
-            skips.append({"path": relative, "reason": f"{ABSENT_WHEN_READ}: {_exc_text(exc)}"})
+            reason = _not_found_reason(path, exc)
+            skips.append({"path": relative, "reason": reason})
+            if not reason.startswith(ABSENT_WHEN_READ):
+                unread.append(relative)
             continue
         except OSError as exc:
             skips.append({"path": relative, "reason": f"unreadable: {_exc_text(exc)}"})
@@ -4076,19 +4170,21 @@ def guard_tier1_budget(
                 f"which reports nothing. The ceiling is the level that moves"
             )
 
+    files, unlisted = _split_unlisted(root, files)
     found, graded, declined, unread = _tier1_second_owners(root, files, skips)
     detail.append(f"graded {graded} tracked file(s) for a second statement of the target")
     detail.append(f"declined {declined} file(s) of the append-only record - see the skip list")
     detail.extend(
         f"{relative} NOT READ - never scanned for a second statement" for relative in unread
     )
+    detail.extend(f"{relative}/ {UNLISTED_CONSEQUENCE}" for relative in unlisted)
     if found:
         problems.append("these state a tier 1 duration target and the workflow already owns it:")
         problems.extend(f"  {item}" for item in found)
 
     if problems:
         return _guard("k", name, "FAIL", [*detail, "DRIFT:", *problems]), skips
-    if unread:
+    if unread or unlisted:
         # CS-1117 - NOT ADVISORY: a file never scanned may hold the restatement.
         detail.append("NOT A PASS - a listed text file was never read")
         return _guard("k", name, "WARN", detail), skips

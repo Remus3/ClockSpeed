@@ -21,11 +21,10 @@ carried was restated from a roadmap note, was already wrong when it was
 written, and drifts every time a test is added - CLAUDE.md section 4. A
 per-module fix would be one edit per module that the next module escapes;
 this is a property of the harness, so the harness is where it is fixed. The
-grading for it lives in tests/test_tmp_path_privacy.py, which runs real pytest
-subprocesses and scans their real output, because the subject is what pytest
-prints rather than what any function returns - and, for the one property no
-subprocess can observe, runs a repointing failure and its victim inside a
-single session.
+grading for it lives in tests/test_tmp_path_privacy.py, which runs real pytest subprocesses
+and scans their real output, because the subject is what pytest prints rather than what
+any function returns - and, for the one property no subprocess can observe, runs a
+repointing failure and its victim inside a single session.
 
 WHAT THIS REDACTOR COVERS, AND WHAT IT DELIBERATELY DOES NOT. Two of the four
 personal-data classes CLAUDE.md names are COVERED here - a home path and the
@@ -69,6 +68,7 @@ import contextlib
 import getpass
 import os
 import re
+import shutil
 import subprocess
 import tempfile
 from collections.abc import Callable, Generator, Mapping
@@ -174,11 +174,11 @@ def run_git(root: Path, *args: str) -> subprocess.CompletedProcess[bytes] | None
     Public because test modules import it: git alone answers "would this path be
     committed" and "is this path ignored". PATH resolves the program (CONVENTIONS.md 10).
 
-    A HANG OR A START FAULT IS RED, NEVER A SKIP (CS-1116, CS-1118). Callers skip on
-    None, so only ``FileNotFoundError`` - no program by that name - returns it. A hang
-    FAILS, so does a program that is there but will not start (a directory, a data
-    file), naming the error by field and never the object, which carries the path. A
-    non-zero exit is returned for the caller to judge. tests/test_conftest_run_git.py.
+    A HANG OR A START FAULT IS RED, NEVER A SKIP (CS-1116, CS-1118, CS-1120). Callers skip
+    on None, so only a program no PATH lookup resolves returns it; one that resolves and
+    still raises ``FileNotFoundError`` (a missing #! interpreter) FAILS, as do a hang and a
+    directory or data file, named by error field and never the object, which carries the
+    path. A non-zero exit is returned for the caller to judge. tests/test_conftest_run_git.py.
     """
     proc: subprocess.CompletedProcess[bytes] | None = None
     try:
@@ -190,9 +190,9 @@ def run_git(root: Path, *args: str) -> subprocess.CompletedProcess[bytes] | None
         )
     except subprocess.TimeoutExpired:  # failed BELOW the handler, so the red chains nothing
         fault = f"TIMED OUT after {RUN_GIT_TIMEOUT_SECONDS}s"
-    except FileNotFoundError:
-        return None
-    except OSError as error:
+    except OSError as error:  # CS-1120 - not found AND unresolvable is the only "no git"
+        if isinstance(error, FileNotFoundError) and shutil.which(RUN_GIT_PROGRAM[0]) is None:
+            return None
         fault = f"could not START ({type(error).__name__}, errno {error.errno})"
     if proc is None:
         pytest.fail(f"git {args[0] if args else '(no subcommand)'} {fault} - never a skip")
