@@ -374,6 +374,137 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-09-16 - CS-1119 - NOT A COMPLETION RECORD. NOTHING CLOSED. CS-1119 IS FILED AND UNSTARTED. Two trailing-run remainder shapes that the reference-pair grammar cannot reach
+
+**CS-1119 IS A FILING RECORD AND DOES NOT CLOSE IT.** It was filed by the same cycle that
+shipped CS-828's reference-pair narrowing, as the remainder that narrowing does not reach.
+The row and its acceptance are in `ROADMAP.md`.
+
+**WHY IT IS A SEPARATE ROW RATHER THAN THE REST OF CS-828.** Neither shape shares the
+reference pair's root cause, so neither is a sibling to sweep. The first is a four-byte
+all-zero residual BYTE-IDENTICAL to an empty item list - CS-1068's root cause seen from
+the other side, and unreachable by any reading of the run alone rather than merely unread.
+The second is one class whose remainder is a large nested structure nothing in the run
+describes. Reading either by the width left over would be the CS-830 defect again.
+
+### 2026-09-16 - CS-828 - NOT A COMPLETION RECORD. NOTHING CLOSED. CS-828 STAYS OPEN. A second derived class set's trailing remainder reads from its own prefixes, and the tail turned out not to be a suffix
+
+**THE ITEM STAYS OPEN AND ITS ACCEPTANCE IS UNCHANGED.** The clause asks for the run's
+contents on EVERY payload of the (10,36), (13,42) and (14,52) pairs. This reads one further
+derived class set's and files the rest. That is a narrowing recorded as a measurement, and
+it is the second one on this item - the first is the 2026-09-14 lead-field entry.
+
+**WHAT CHANGED.** `clockspeed/save/objects.py` gained `read_reference_pair`, which reads
+TWO OBJECT REFERENCES out of the region CS-828 and CS-1068 left carried as
+`TrailingRun.unread`, and `derive_reference_pair_classes`, which picks the classes that
+carry one off the body being read AND derives which of two forms that body writes.
+`read_properties` takes the derived vocabulary as `reference_pair_classes` and reports the
+pair as `TrailingRun.references`, with `unread` falling by the width it consumed. The
+region entry in `UNMEASURED_PAYLOAD_REGIONS["trailing_run"]` records the narrowing and
+names both functions, so the shipped table and the reading cannot drift apart. Merged
+files: `clockspeed/save/objects.py`, `tests/save/test_reference_pair.py`,
+`docs/item_notes/phase4-followups.md`, `ROADMAP.md`.
+
+**THE MEASUREMENT THAT MATTERS MOST, because a prose description in this tree was the
+input and it was half false.** CS-1068's own entry describes this shape as two references
+"followed by a 24-byte tail that nothing in the run describes". Measured across this
+project's library, the tail is written by ONE schema and NOT by two others, which write the
+same two references and stop. The partition is exact and no payload crosses it, and it is
+corroborated by an independent second signal - every tail-bearing record lacks the two
+wire-geometry properties and every tail-free record carries them, so the newer schema moved
+that geometry out of the run and into properties. **A READER BUILT FROM THAT SENTENCE WOULD
+HAVE OVER-READ EVERY TAIL-FREE PAYLOAD BY 24 BYTES.** The transferable finding is the
+general one: a prose description of an unmeasured region in this tree is a hypothesis, and
+CS-828's own note already says a filed citation is a hypothesis until re-probed.
+
+**WHERE EVERY WIDTH COMES FROM.** Each of the four strings' own length prefixes says how
+wide it is. The tail is one of the two widths `REFERENCE_PAIR_TAIL_WIDTHS` allows, and that
+set is DERIVED by solving rather than assumed - across the whole library the bytes left
+after the four prefixes take exactly two values, so the non-zero one is the only width
+under which those payloads walk exactly onto their declared end. The declared end is a
+BOUND and a VALIDATION and never a source of width: the walk refuses rather than stretching
+to reach it.
+
+**ROOT CAUSE OF THE DERIVATION'S SHAPE, AND WHY A VERSION TABLE WAS DECLINED.** Keying the
+form on the version pair would have worked on today's library and would have been a
+TRANSCRIPTION, which CS-829's note forbids by name. Instead a class is admitted only when
+EVERY one of its remainder-bearing records in that body reads at the SAME tail width. That
+consistency requirement is the anti-vacuity property: a reader taking each record at
+whichever width happened to fit would admit any mixture, which is arithmetic wearing a
+derivation's clothes.
+
+**THE ARM THE CLAUSE NAMES.**
+`tests/save/test_reference_pair.py::test_the_width_is_derived_from_the_prefixes_and_not_from_the_declared_end`
+offers the same bytes twice - once with the declared end where the prefixes say it is, once
+moved out past them. The first reads and the second is REFUSED, and `_width_from_observation`
+spells the forbidden reading out in the module so the swap is a one-line change rather than
+a thought experiment. `test_a_class_whose_records_disagree_about_the_form_derives_nothing`
+is the anti-vacuity twin, and `test_the_corpus_derives_more_than_one_tail_form` is what
+makes the per-body derivation worth having rather than ceremony over a constant.
+
+**THREE MUTATIONS, EACH ASSERTED TO HAVE LANDED BEFORE ITS RUN, AND EACH KILLED.** Taking
+the tail width from `end - walked[1]` killed five arms including the one the clause names;
+admitting empty strings killed the arm holding sixteen zero bytes not to be four empty
+strings; dropping the per-class consistency requirement killed the anti-vacuity arm. The
+pristine bytes were restored from a byte snapshot rather than from git after each, and the
+file's digest was re-read each time to prove the restore.
+
+**THE SIBLING SWEEP.** The remainder's other shapes were measured on the corpus BEFORE any
+code was written and are NOT swept here, because they do not share this root cause: a
+four-byte all-zero residual byte-identical to an empty item list, and one class whose
+remainder is a large nested structure. Filed as CS-1119.
+
+**VERIFICATION.** `tests/save/test_reference_pair.py`, 25 arms, of which 21 need no game
+install and are where the reader's own grading lives; four are skip-if-absent library arms
+reporting COUNTS ONLY -
+`test_the_corpus_derives_at_least_one_carrier` (the non-vacuity control),
+`test_the_corpus_derives_more_than_one_tail_form`,
+`test_every_derived_carrier_payload_has_its_remainder_read` and
+`test_no_payload_outside_the_derived_classes_is_touched`. On the machine this ran on the
+library was present and all four RAN rather than skipping - the module reported
+`24 passed in 44.59s`, exit 0, with no skip count.
+
+**THE COUNTS OBSERVED THIS RUN, from the sweep itself rather than carried forward.** One
+carrier class derived; two tail forms; 2254 carrier payloads, of which 0 still carry unread
+bytes; 15819 payloads outside the derived class, of which 0 were touched; no failures.
+
+**TIER 2 AND THE SUITE THAT PAID IT.** Save-reader core algorithm. The module trio
+`tests/save/test_trailing_run.py`, `tests/save/test_item_list.py` and
+`tests/save/test_reference_pair.py` reported `62 passed in 141.59s (0:02:21)`, exit 0. The
+whole tree, run last on the tree that was committed, reported
+`8233 passed, 7 skipped, 8 warnings in 595.34s (0:09:55)`, exit 0. `python -m ruff check .`
+and `ruff format --check` both clean.
+
+**FOUR ARMS ELSEWHERE WENT RED ON THE FIRST WHOLE-TREE RUN AND ARE REPAIRED RATHER THAN
+FORGIVEN, because each was the guard doing its job.** `RunReference` entered the graded
+repr population and is now recorded there, so its withholding is asserted in both
+directions. A Sphinx role in the new test module named a symbol unqualified. And the
+work-item guard refused the CS-1119 filing entry below: its heading declared FILED, a
+verdict the guard's vocabulary does not carry, and its body's `NOT A COMPLETION RECORD`
+sat in a clause that named no id - so the phrase bound to nothing and the id read as
+closed-while-open. The heading now carries the declaration in the same clause as the id.
+The fourth was the phase-2 gate, which runs the data-layer suite as a subprocess and was
+red only because those guard arms were.
+
+**THE VERIFIER PASS, AND THE FOUR CORRECTIONS IT FORCED.** One pass, by an agent that did
+not produce the work, graded against the ROADMAP clause and the item-note fences. Verdict
+CONFIRMED WITH CORRECTIONS, all four repaired before the commit rather than filed: the new
+test module was intent-to-add rather than staged, so the pre-commit gate would have graded
+ZERO of its lines and passed vacuously; the item note restated the tail width in prose in a
+file that does not own it; the pair's repr renders a COUNT of its references and therefore
+could not see a member that leaked, so a second arm reprs the member itself; and the
+derivation's weakest case was undisclosed. That last one is recorded in the item note in as
+many words: the per-class consistency requirement contributes NOTHING at n=1, where one
+record agrees with itself. The READING is still falsifiable there, the FORM is not, and on
+this library the carrier's n is in the thousands - so it is a stated limit rather than a
+defect in what shipped.
+
+**WHAT THE VERIFIER EXPLICITLY DID NOT GRADE, carried rather than rounded up:** the
+whole-tree run, which it was told not to repeat, and the three mutations, which its
+read-only contract forbids it to reproduce.
+
+**THE CI VERDICT IS RECORDED BY THE DRIVER AND WAS NOT OBSERVED BY THIS WORKER.**
+
 ### 2026-09-16 - CS-1109 - CLOSED. An exemption key names the Python scope a spawn runs in, not the bare function name
 
 **WHAT CHANGED.** The function part of the CS-1102 toolpath exemption key in

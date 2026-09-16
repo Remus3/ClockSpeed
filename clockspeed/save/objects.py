@@ -302,7 +302,9 @@ __all__ = [
     "ObjectWarning",
     "PropertyResult",
     "RecordIndex",
+    "ReferencePair",
     "ReferenceResolution",
+    "RunReference",
     "StructValue",
     "TrailingRun",
     "Transform",
@@ -314,12 +316,14 @@ __all__ = [
     "container_candidate_words",
     "decode_struct_interior",
     "derive_item_list_classes",
+    "derive_reference_pair_classes",
     "index_records",
     "parse_body",
     "parse_object_headers",
     "parse_properties",
     "read_item_list",
     "read_properties",
+    "read_reference_pair",
     "read_trailing_run",
     "resolve_references",
     "uses_complete_type_name",
@@ -4319,6 +4323,23 @@ UNMEASURED_PAYLOAD_REGIONS: Final[Mapping[str, str]] = MappingProxyType(
             "classes' payloads unread falls to zero and the list is reported "
             "as TrailingRun.items; on every other class the remainder is "
             "exactly as open as it was. "
+            "NARROWED AGAIN BY CS-828, ON A SECOND DERIVED CLASS SET AND "
+            "NOWHERE ELSE: where the remainder is TWO OBJECT REFERENCES it is "
+            "read by read_reference_pair, whose four widths come from the "
+            "strings' own length prefixes and whose tail is one of the two "
+            "widths REFERENCE_PAIR_TAIL_WIDTHS allows, never the leftover. THE "
+            "TAIL IS NOT AN UNCONDITIONAL SUFFIX - one schema in this library "
+            "writes it and two write the same two references and stop - so "
+            "derive_reference_pair_classes derives the FORM as well as the "
+            "membership, from the body, and admits a class only when every one "
+            "of its remainder-bearing records reads at the SAME width. On "
+            "those classes' payloads unread falls to zero and the pair is "
+            "reported as TrailingRun.references. "
+            "WHAT REMAINS AFTER THAT, and it is CS-1119 rather than this "
+            "entry: a four-byte all-zero residual that is byte-identical to an "
+            "empty item list and so cannot be told from one by any reading of "
+            "the run, and one class whose remainder is a large nested "
+            "structure that nothing in the run describes. "
             "NO FIGURE ABOVE IS RESTATED IN ANY TEST: "
             "tests/save/test_trailing_run.py derives the population from this "
             "module's own TRAILING_RUN_PAIRS on every run and reports COUNTS "
@@ -4775,6 +4796,38 @@ ITEM_LIST_ENTRY_TAIL_BYTES: Final = 12
 #: CLAIM about how long a real list is - a corrupt prefix must not be able to
 #: drive an unbounded walk, and nothing compares a corpus count against this.
 MAX_ITEM_LIST_ENTRIES: Final = 4096
+
+#: How many object references the pair shape writes - CS-828. Two, and the
+#: number is a name for a measurement rather than a limit: a remainder carrying
+#: one or three walks to a different place and is refused.
+REFERENCE_PAIR_COUNT: Final = 2
+
+#: How many length-prefixed strings that is. Each reference writes a level
+#: reference and an object path, exactly as :class:`ObjectReference` carries one.
+REFERENCE_PAIR_STRINGS: Final = REFERENCE_PAIR_COUNT * 2
+
+#: The fixed-width tail one schema writes after the two references. DERIVED BY
+#: SOLVING RATHER THAN ASSUMED: across this project's library the bytes left
+#: after the four prefixes take exactly two values, zero and this one, over
+#: every payload of every carrying class - so this is the only non-zero width
+#: under which those payloads walk exactly onto their declared end.
+#:
+#: ITS PRESENCE IS NOT A PROPERTY OF THE RUN, and a reader that treated it as an
+#: unconditional suffix would OVER-READ. One schema in the library writes it and
+#: two write the same two references and stop, which is why
+#: :func:`derive_reference_pair_classes` derives the form from the body rather
+#: than from a version table or from ``end - at``.
+REFERENCE_PAIR_TAIL_BYTES: Final = 24
+
+#: The tail widths a body may derive. A CLOSED SET, and that is the fence: a
+#: width taken from whatever was left over is the CS-830 defect, because every
+#: remainder then reads and no reading could fail.
+REFERENCE_PAIR_TAIL_WIDTHS: Final[tuple[int, ...]] = (0, REFERENCE_PAIR_TAIL_BYTES)
+
+#: The default vocabulary :func:`read_properties` reads with. EMPTY, so a caller
+#: that has not derived reads exactly what CS-828 left, and shared rather than
+#: rebuilt so the default is not a new object on every call.
+_NO_REFERENCE_PAIR_CLASSES: Final[Mapping[str, int]] = MappingProxyType({})
 
 #: The flags byte's measured bits. NAMED because a bare hex literal at a use
 #: site is a bit nobody can hold a table against.
@@ -6239,6 +6292,138 @@ def read_item_list(body: bytes, at: int, end: int) -> ItemList | None:
 
 
 @dataclass(frozen=True)
+class RunReference:
+    """One object reference read out of a payload's trailing remainder.
+
+    THE SAME TWO STRINGS :class:`ObjectReference` CARRIES, and deliberately a
+    separate type rather than that one. That class is keyed by the PROPERTY that
+    held the reference; a reference in the trailing run belongs to no property,
+    so reusing it would have forced an invented property name into the model.
+
+    THE ``repr`` IS HAND-WRITTEN AND WITHHOLDS BOTH STRINGS. An object path read
+    out of a save is game content (non-negotiable 2) and an exception rendering
+    one is an echo path (non-negotiable 12), so the rendering reports widths.
+
+    Attributes:
+        level_reference: The level the reference names, carried rather than
+            interpreted.
+        object_path: The object the reference names.
+    """
+
+    level_reference: str
+    object_path: str
+
+    def __repr__(self) -> str:
+        """Render widths only.
+
+        Returns:
+            The safe rendering.
+        """
+        return (
+            f"{type(self).__name__}(level_reference={len(self.level_reference)} chars, "
+            f"object_path={len(self.object_path)} chars)"
+        )
+
+
+@dataclass(frozen=True)
+class ReferencePair:
+    """The two object references a payload's trailing remainder can carry.
+
+    Attributes:
+        references: The references, in the order the run writes them.
+        tail_bytes: How wide a tail followed them - one of
+            :data:`REFERENCE_PAIR_TAIL_WIDTHS`, and never a leftover.
+        width: How many bytes the pair occupies, DERIVED from the prefixes plus
+            that tail.
+    """
+
+    references: tuple[RunReference, ...]
+    tail_bytes: int
+    width: int
+
+    def __repr__(self) -> str:
+        """Render counts and widths only.
+
+        Returns:
+            The safe rendering.
+        """
+        return (
+            f"{type(self).__name__}(references={len(self.references)}, "
+            f"tail_bytes={self.tail_bytes}, width={self.width})"
+        )
+
+
+def _walk_run_references(
+    body: bytes, at: int, end: int
+) -> tuple[tuple[RunReference, ...], int] | None:
+    """Walk the pair's four length-prefixed strings, or refuse.
+
+    AN EMPTY STRING IS REFUSED, and not for tidiness: four zero bytes read as an
+    empty string would make any run of zeroes read as a reference pair, which is
+    the same trap :func:`_walk_item_entries` refuses an empty path for.
+
+    Args:
+        body: The decompressed body.
+        at: The remainder's first byte.
+        end: The first byte past the payload.
+
+    Returns:
+        The references and the offset past the last one, or None.
+    """
+    texts: list[str] = []
+    cursor = at
+    for _ in range(REFERENCE_PAIR_STRINGS):
+        step = _payload_text(body, cursor, end)
+        if step is None or not step[0]:
+            return None
+        texts.append(step[0])
+        cursor = step[1]
+    pairs = tuple(
+        RunReference(level_reference=texts[index], object_path=texts[index + 1])
+        for index in range(0, REFERENCE_PAIR_STRINGS, 2)
+    )
+    return (pairs, cursor)
+
+
+def read_reference_pair(body: bytes, at: int, end: int, *, tail_bytes: int) -> ReferencePair | None:
+    """Read two object references out of a payload's trailing remainder - CS-828.
+
+    **EVERY WIDTH HERE COMES OUT OF THE BYTES OR OUT OF A SHIPPED CONSTANT.**
+    Each string's own length prefix says how wide it is, and ``tail_bytes`` is
+    one of :data:`REFERENCE_PAIR_TAIL_WIDTHS` rather than whatever was left
+    over. ``end`` is a BOUND and a VALIDATION and is never a source of width:
+    the walk refuses rather than stretching to reach it, which is what makes
+    the reading falsifiable. A partition taking its width from ``end`` would
+    close on every payload and could not fail - the defect that refuted CS-830
+    after it had merged - and ``tests/save/test_reference_pair.py`` holds an arm
+    that reddens on exactly that swap.
+
+    NOTHING HERE RAISES. A length prefix reaching past the payload, an empty
+    string where the corpus writes a path, and a walk that does not land on
+    ``end`` are all REPORTED as no pair, per non-negotiable 7.
+
+    THE FORM IS NOT AN INPUT THE BYTES SUPPLY. Whether a body's carrying class
+    writes the tail is a property of the schema rather than of the run, and
+    :func:`derive_reference_pair_classes` is what answers it - from the body.
+
+    Args:
+        body: The decompressed body.
+        at: The remainder's first byte.
+        end: The first byte past the payload.
+        tail_bytes: The tail width to require after the references.
+
+    Returns:
+        The pair, or None when the run is not one at that width.
+    """
+    if at < 0 or end > len(body) or tail_bytes not in REFERENCE_PAIR_TAIL_WIDTHS:
+        return None
+    walked = _walk_run_references(body, at, end)
+    if walked is None or walked[1] + tail_bytes != end:
+        return None
+    return ReferencePair(references=walked[0], tail_bytes=tail_bytes, width=end - at)
+
+
+@dataclass(frozen=True)
 class TrailingRun:
     """The run between a payload's property terminator and its declared end.
 
@@ -6270,12 +6455,18 @@ class TrailingRun:
             :func:`derive_item_list_classes` AND the bytes then read as one:
             naming a class does not zero its remainder, which is what keeps the
             vocabulary a gate on the reading rather than the reading itself.
+        references: The two object references the remainder carried, or None -
+            CS-828. Present under the same rule :attr:`items` is present under:
+            the record's class was named by
+            :func:`derive_reference_pair_classes` AND the bytes then read as a
+            pair at the width that derivation derived for the body.
     """
 
     width: int
     lead: int | None
     unread: int
     items: ItemList | None = None
+    references: ReferencePair | None = None
 
 
 def read_trailing_run(body: bytes, terminator_end: int, end: int) -> TrailingRun | None:
@@ -6692,6 +6883,47 @@ def _run_with_item_list(
     return TrailingRun(width=run.width, lead=run.lead, unread=run.unread - items.width, items=items)
 
 
+def _run_with_reference_pair(
+    body: bytes,
+    record: ObjectRecord,
+    run: TrailingRun | None,
+    reference_pair_classes: Mapping[str, int],
+) -> TrailingRun | None:
+    """Read the run's remainder as an object-reference pair when its class carries one.
+
+    THE VOCABULARY IS A GATE ON THE READING AND NEVER THE READING ITSELF, exactly
+    as in :func:`_run_with_item_list`. A class named here whose bytes do not read
+    at the derived width comes back exactly as CS-828 left it, so a derivation
+    that named everything would close nothing. That is what keeps `and nowhere
+    else` a measurement rather than a definition.
+
+    Args:
+        body: The decompressed body.
+        record: The record the run came from.
+        run: The run the walk read, or None.
+        reference_pair_classes: Each derived carrier class to its tail width.
+
+    Returns:
+        The run, with its remainder read when it read.
+    """
+    if run is None or run.lead is None or not run.unread:
+        return run
+    tail_bytes = reference_pair_classes.get(class_name_of(record.type_path))
+    if tail_bytes is None:
+        return run
+    end = record.body_offset + record.body_length
+    pair = read_reference_pair(body, end - run.unread, end, tail_bytes=tail_bytes)
+    if pair is None:
+        return run
+    return TrailingRun(
+        width=run.width,
+        lead=run.lead,
+        unread=run.unread - pair.width,
+        items=run.items,
+        references=pair,
+    )
+
+
 def derive_item_list_classes(
     body: bytes,
     records: Iterable[ObjectRecord],
@@ -6747,6 +6979,89 @@ def derive_item_list_classes(
     return frozenset(derived)
 
 
+def _reference_pair_width_of(body: bytes, at: int, end: int) -> int | None:
+    """Which of the allowed tail widths this remainder reads at, if any.
+
+    AT MOST ONE CAN MATCH and that is structural rather than lucky: the walk
+    over the four prefixes is deterministic and lands on ONE cursor, so exactly
+    one tail width can carry that cursor onto ``end``.
+
+    Args:
+        body: The decompressed body.
+        at: The remainder's first byte.
+        end: The first byte past the payload.
+
+    Returns:
+        The width, or None when the remainder is not a pair at any of them.
+    """
+    for tail_bytes in REFERENCE_PAIR_TAIL_WIDTHS:
+        if read_reference_pair(body, at, end, tail_bytes=tail_bytes) is not None:
+            return tail_bytes
+    return None
+
+
+def derive_reference_pair_classes(
+    body: bytes,
+    records: Iterable[ObjectRecord],
+    *,
+    save_version: int | None = None,
+    header_version: int | None = None,
+) -> Mapping[str, int]:
+    """Pick the classes whose trailing remainder is two object references - CS-828.
+
+    **DERIVED FROM THE CORPUS, NEVER TRANSCRIBED**, for the reason
+    :func:`derive_item_list_classes` is: a hand-maintained vocabulary of game
+    content is the thing that rots, and CS-829's note forbids that shape by
+    name. It answers the FORM as well as the membership, because the tail is not
+    an unconditional suffix - measured on this project's library one schema
+    writes it and two write the same two references and stop.
+
+    **A CLASS EARNS ITS PLACE BY BEING CONSISTENT, AND THAT IS THE ANTI-VACUITY
+    PROPERTY.** Every remainder-bearing record of the class in this body must
+    read as a pair, and all of them at the SAME tail width. A reader taking each
+    record at whichever width happened to fit would admit every mixture, which is
+    arithmetic wearing a derivation's clothes: one class writes one form per
+    body, or it writes a form this reader does not know and derives nothing.
+
+    A body that stops carrying the shape therefore says so by deriving nothing,
+    rather than going quietly green.
+
+    THIS IS A SECOND WALK OVER THE BODY AND THAT IS INHERENT. The form is a
+    property of the body as a whole and no per-record reader can hold it, which
+    is exactly the sense in which the remainder is class-keyed.
+
+    Args:
+        body: The decompressed body.
+        records: The records to derive from - a body's whole table.
+        save_version: The save version the body was walked on, or None.
+        header_version: The header version the body was walked on, or None.
+
+    Returns:
+        Each carrier class name to the tail width its records agree on.
+    """
+    widths: dict[str, set[int | None]] = {}
+    for record in records:
+        if not record.body_length:
+            continue
+        result = read_properties(
+            body, record, save_version=save_version, header_version=header_version
+        )
+        run = result.trailing_run
+        if run is None or run.lead is None or not run.unread:
+            continue
+        end = record.body_offset + record.body_length
+        seen = widths.setdefault(class_name_of(record.type_path), set())
+        seen.add(_reference_pair_width_of(body, end - run.unread, end))
+    derived: dict[str, int] = {}
+    for name, seen in widths.items():
+        if len(seen) != 1:
+            continue
+        only = next(iter(seen))
+        if only is not None:
+            derived[name] = only
+    return MappingProxyType(derived)
+
+
 def read_properties(
     body: bytes,
     record: ObjectRecord,
@@ -6755,6 +7070,7 @@ def read_properties(
     save_version: int | None = None,
     header_version: int | None = None,
     item_list_classes: Collection[str] = (),
+    reference_pair_classes: Mapping[str, int] = _NO_REFERENCE_PAIR_CLASSES,
 ) -> PropertyResult:
     """Decode one record's measured properties and report what was skipped.
 
@@ -6826,6 +7142,10 @@ def read_properties(
         item_list_classes: Class names derived as item-list carriers by
             :func:`derive_item_list_classes`. DEFAULTED EMPTY so that adding
             this reading could not change what any existing caller reads.
+        reference_pair_classes: Each class name derived as a reference-pair
+            carrier to the tail width its records agree on, from
+            :func:`derive_reference_pair_classes`. DEFAULTED EMPTY for the same
+            reason, so a caller that has not derived reads what CS-828 left.
 
     Returns:
         What resolved, what did not, and why.
@@ -6959,7 +7279,12 @@ def read_properties(
         references=walked.references,
         reference_tag_count=walked.reference_tags,
         undecoded_reference_count=walked.undecoded_references,
-        trailing_run=_run_with_item_list(body, record, walked.trailing_run, item_list_classes),
+        trailing_run=_run_with_reference_pair(
+            body,
+            record,
+            _run_with_item_list(body, record, walked.trailing_run, item_list_classes),
+            reference_pair_classes,
+        ),
         struct_interiors=walked.struct_interiors,
         struct_tag_count=walked.struct_tags,
     )
