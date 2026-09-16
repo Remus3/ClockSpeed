@@ -374,6 +374,31 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-09-16 - CS-1110 - CLOSED. The killed lane cycles' unfinished CS-893 work was discarded after a byte snapshot, and the lane worktree is clean at main
+
+**WHAT CHANGED.** The lane worktree held uncommitted, red, incomplete CS-893 work from three
+cycles killed by the CS-1108 defect: seven files, +542/-128, a ledger entry still carrying
+`RUN2_PLACEHOLDER`, a ROADMAP edit allocating CS-1105 (since allocated on main to a different
+item), and a diff whose ledger hunk no longer applies to main. An adjudicator that produced
+none of it ruled DISCARD over SALVAGE: salvage would commit red work and renumber a colliding
+id, while the test half of the snapshot still applies cleanly to main for whoever next takes
+CS-893.
+
+**HOW.** The diff was snapshotted to the gitignored
+`data/lane-snapshots/cs893-uncommitted-2026-09-16.diff` (sha256
+`3c405344c778c2d337396046cb710e9f4a85ea1c28eff17244057ca0c9fa7713`), the live diff's hash was
+checked equal to the snapshot's BEFORE `git reset --hard`, and the worktree was then
+fast-forwarded to origin/main at 0dbf309 with an empty `git status --porcelain`.
+
+**CLAIMS LEFT IN PLACE, ON PURPOSE.** The four stale claim records (CS-301, CS-870, CS-892,
+CS-893) name dead pids. `ops/loop/claims.py` rates a dead-pid record RECLAIMABLE,
+`takeable_rows` drops only HELD rows, `release_claim` would return False for them, and the
+next `try_claim_row` clears them. Releasing by hand would have been a no-op.
+
+**CS-893 STAYS OPEN.** Nothing about the row was decided; only its abandoned attempt was.
+
+**VERIFY.** `git -C <lane worktree> status --porcelain` prints nothing and its HEAD equals main.
+
 ### 2026-09-16 - CS-1104 - CLOSED. A lane cycle surfaces the cross-repo channel, and nothing on the lane path can answer it
 
 **WHAT CHANGED.** New `ops/loop/inbox_surface.py` measures the channel from the DRIVER, not the
