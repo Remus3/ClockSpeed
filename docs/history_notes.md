@@ -118,6 +118,68 @@ Where current truth actually lives:
 - Next action: CS-1042 - the uncollected set is the live records carrying transforms MINUS the
   collectable pairs CS-1038 now carries up, a SUBTRACTION and not a lookup, and the two halves
   of a pair are not both always present.
+## CS-894 - item section, CLOSED and relocated from `docs/item_notes/phase4-followups-850.md` 2026-09-16
+
+### SWEEP RESULT - MEASURED 2026-09-04 (session 60), and a drafted arm already exists
+
+**THE LIVE SUBJECT SET IS SEVEN, SO THIS CLAUSE IS SATISFIABLE.** The acceptance asks that
+"the live subject set is asserted non-empty" and nobody had measured it. Derived by running
+the shipped `defers_to_owner` over every tracked module: SEVEN return True -
+`tests/exception_message_guard.py`, `tests/pathless_clone_guard.py`,
+`tests/surface/test_server.py`, `tests/test_chained_cause_census.py`,
+`tests/test_chained_exemption_guard.py`, `tests/test_exception_messages.py` and
+`tests/test_pathless_clone_agreement.py`. The clause needs no rewrite.
+
+**READ THE DOCSTRING BEFORE BUILDING, BECAUSE THE NAME MISLEADS.** `defers_to_owner` means
+"imports the census" and CS-888 abolished it as a clearance. It decides NOTHING about the
+population any more; it is kept to DERIVE PLANT SUBJECTS, so the sibling arm can append an
+identical static cause read to each of the seven and assert every one is reported. That is
+what "the flagship arm's live subject derivation" means here.
+
+**TWO AGENTS ALREADY DRAFTED THIS ARM AND NEITHER LANDED.** Found by sweeping worktrees for
+uncommitted work, not by working this item. Both are preserved as tags, because their
+content sat UNCOMMITTED and no branch ref protected it:
+
+- `salvage/cs894-defers-arm` carries an arm asserting that every live deferring module
+  actually defers - the shape this clause wants.
+- `salvage/cs894-defers-alt` carries a contradictory arm asserting that NO live module
+  defers, so a plant is the only proof. **That one is refuted by the measurement above**, or
+  was true at its 2026-09-01 base and the set has grown since. Do not take it on trust; it
+  is preserved so the disagreement is visible rather than lost.
+
+Two agents splitting on the same question, with the tree able to settle it and neither
+having asked, is the reason the number above is recorded here rather than re-derived a
+third time.
+
+### NOTE - filed 2026-09-03 (session 59) by the merger, from the CS-888 adversary, MEASURED TWICE INDEPENDENTLY
+
+**TWO LEGS SURVIVE FUNCTIONALLY AND ARE GRADED BY NOTHING.** An in-process mutation battery
+over all 19 arms of `tests/test_chained_exemption_guard.py`:
+
+- `stale_exemptions()` replaced by an empty return - **0 red of 19**.
+- `defers_to_owner()` forced to False - **0 red of 19**.
+
+The merger reproduced the first independently, monkeypatching the function and re-running
+the module: 19 passed, exit 0. A leg that can be deleted without a single arm noticing is
+not a checked direction.
+
+**WHY EACH MATTERS, SEPARATELY.** `stale_exemptions` is the arm that catches an exemption
+outliving the code it describes - the module's own docstring calls that "a silent widening:
+the next module to take that path inherits a reason nobody wrote for it". Its only consumer
+asserts it is empty on the live tree and carries no planted positive, which is exactly the
+shape `memory/an-empty-population-satisfies-every-zero.md` records. Its sibling
+`miscounted` DID get a fabricated positive in the same commit; this one did not.
+
+`defers_to_owner` is the live subject derivation for the flagship immunity arm. Force it
+False and the arm silently degrades to its one synthetic subject while still passing.
+Nothing asserts the live importer set is non-empty. **The acceptance clause CS-888 closed
+on says "a planted cause read in a LIVE immune module" - that term can go unmeasured with
+no signal**, which is why this is filed rather than left as a note on a closed item.
+
+**PRE-EXISTING, NOT A REGRESSION.** Both hold at `a5738fe` too. What CS-888 changed is that
+its docstring now advertises each entry as "CHECKED IN THREE DIRECTIONS" while one of the
+three is itself unchecked, so the claim outran the arms.
+
 ## CS-1057 - item section, CLOSED and relocated from `docs/item_notes/phase4-followups-900.md` 2026-09-15
 
 ### Filed 2026-09-14
