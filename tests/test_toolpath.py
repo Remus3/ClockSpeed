@@ -927,7 +927,7 @@ def test_what_a_def_evaluates_at_definition_is_keyed_to_the_enclosing_scope() ->
 def test_a_class_body_does_not_key_as_a_function_of_the_same_name() -> None:
     """A spawn in ``class run_git:`` body and one in ``def run_git():`` are two keys.
 
-    So are ``def Runner(): def run_git()`` and ``class Runner: def run_git()`` -
+    So are ``def Outer(): def run_git()`` and ``class Outer: def run_git()`` -
     the nested function carries ``<locals>`` exactly as Python's own qualname does.
     """
     source = (
@@ -936,10 +936,10 @@ def test_a_class_body_does_not_key_as_a_function_of_the_same_name() -> None:
         "    subprocess.run(['git', 'a'])\n"
         "class run_git:\n"
         "    probe = subprocess.run(['git', 'b'])\n"
-        "def Runner():\n"
+        "def Outer():\n"
         "    def run_git():\n"
         "        subprocess.run(['git', 'c'])\n"
-        "class Runner:\n"
+        "class Outer:\n"
         "    def run_git(self):\n"
         "        subprocess.run(['git', 'd'])\n"
     )
@@ -953,8 +953,8 @@ def test_a_class_body_does_not_key_as_a_function_of_the_same_name() -> None:
     assert keyed == [
         ("run_git", 1),
         ("run_git.<body>", 1),
-        ("Runner.<locals>.run_git", 1),
-        ("Runner.run_git", 1),
+        ("Outer.<locals>.run_git", 1),
+        ("Outer.run_git", 1),
     ], keyed
 
 

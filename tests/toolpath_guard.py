@@ -748,7 +748,7 @@ class _Census(ast.NodeVisitor):
         QUALIFIED, NOT BARE (CS-1109), and spelled the way Python's own
         ``__qualname__`` spells it. A module-level function keeps its bare name,
         a method is ``Class.method`` and a nested function ``outer.<locals>.inner``
-        - so ``def Runner(): def run_git()`` and ``class Runner: def run_git()``
+        - so ``def Outer(): def run_git()`` and ``class Outer: def run_git()``
         are two keys. A call directly in a class BODY answers
         ``Class.<body>``, which no function name can spell, so ``class run_git:``
         never keys as ``def run_git():``. MEASURED with a bare name: a spawn moved
