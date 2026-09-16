@@ -1032,19 +1032,23 @@ def read_header(path: Path | str) -> SaveHeader:
 # it did. A save name, a session name or a display name of exactly 22 alphabet
 # characters is framed identically to the identifier.
 #
-# THE SAVE NAME IS EXCLUDED BY POSITION (CS-1097). On header 14 it is the FIRST
-# string of the string block, and the string block starts at
-# :data:`FIRST_STRING_SLOT_OFFSET` on every measured header version, because
-# the prologue before it is the same three int32 fields on 10, 13 and 14. The
-# identifier is the LAST string, after the fixed block, and sits in that slot
-# on no measured layout. So a candidate framed at that offset is refused before
-# it is decoded and before it spends a slot of the candidate cap.
+# THE SAVE NAME IS EXCLUDED BY POSITION, AND ONLY ON EVIDENCE (CS-1097,
+# CS-1114). On header 14 the save name is the FIRST string of the string
+# block, which starts at :data:`FIRST_STRING_SLOT_OFFSET` on every measured
+# header version because the prologue before it is the same three int32 fields
+# on 10, 13 and 14. The identifier is the LAST string, after the fixed block.
+# An offset alone is no evidence, because the scan exists precisely for bytes
+# the parser refuses: :func:`_personal_slot_offsets` reads the three prologue
+# fields out of the same bytes and requires a MEASURED save-name header version
+# and plausible save version and changelist. An unmeasured version never skips.
 #
-# THE RESIDUE, stated rather than hidden. A SESSION NAME or a display name of
-# exactly 22 alphabet characters sits at a variable offset and is still
-# admitted; an unmeasured future layout that put the identifier at slot 0
-# would be missed; and damage that shifted the prologue would move slot 0. A
-# false admission only ever widens what the gate REFUSES to commit.
+# THE RULE THAT DECIDES EVERY RESIDUE. This scan is a fail-safe blocklist that
+# runs only on refused headers. A false positive costs a manual unblock; a false
+# negative leaks personal data. So a SESSION NAME of exactly 22 alphabet
+# characters is admitted - a measured, accepted false positive, reasoned in
+# :func:`scan_framed_tokens` - and so is a save name behind an unmeasured
+# header version. What remains unexcluded only ever widens what the gate
+# REFUSES to commit.
 
 #: The base64url alphabet the measured identifier is drawn from. A character
 #: outside it disqualifies a candidate outright, which is what keeps this a
@@ -1088,9 +1092,79 @@ _PROLOGUE_INT32_FIELDS: Final = 3
 
 #: The file offset of the FIRST string slot - the save name on header 14, the
 #: map name on 10 and 13 - on every measured header version. The scan refuses a
-#: candidate framed here (CS-1097), because the identifier is never slot 0 and
-#: a player-chosen save name of the identifier's shape always is.
+#: candidate framed here (CS-1097) only behind a plausible prologue whose header
+#: version is a MEASURED save-name layout (CS-1114).
 FIRST_STRING_SLOT_OFFSET: Final = _PROLOGUE_INT32_FIELDS * INT32_SIZE
+
+#: The header versions whose MEASURED layout puts a save name at
+#: :data:`FIRST_STRING_SLOT_OFFSET`, derived from the parser's own table: the
+#: versions it supports that its string-block dispatch gives a save name to. An
+#: unmeasured version - higher or lower - is never in it, because reading a
+#: refused header as the newest known layout is the guess ADR 0007 forbids and
+#: here it would drop a token from the blocklist rather than admit a name.
+_SAVE_NAME_HEADER_VERSIONS: Final = frozenset(
+    version for version in SUPPORTED_HEADER_VERSIONS if version >= HEADER_VERSION_WITH_SAVE_NAME
+)
+
+#: The largest save version a prologue may declare and still count as evidence.
+#: A BOUND, NOT A MEASUREMENT: sixteen bits of headroom over every measured
+#: value. Erring outside it refuses nothing, which only widens what the gate
+#: refuses to commit.
+_PLAUSIBLE_SAVE_VERSION_CEILING: Final = 0xFFFF
+
+#: The smallest plausible save version: the oldest one measured.
+_MIN_PLAUSIBLE_SAVE_VERSION: Final = min(save for _header, save in MEASURED_VERSION_PAIRS)
+
+
+def _plausible_prologue(header_version: int, save_version: int, build_changelist: int) -> bool:
+    """Whether three leading int32 fields are evidence of a save name at slot 0.
+
+    Args:
+        header_version: The first field.
+        save_version: The second field.
+        build_changelist: The third field.
+
+    Returns:
+        True only if the header version is a measured save-name layout and the
+        other two fields are inside their plausible ranges.
+    """
+    return (
+        header_version in _SAVE_NAME_HEADER_VERSIONS
+        and _MIN_PLAUSIBLE_SAVE_VERSION <= save_version <= _PLAUSIBLE_SAVE_VERSION_CEILING
+        and build_changelist >= 0
+    )
+
+
+def _personal_slot_offsets(data: bytes) -> frozenset[int]:
+    """The count-prefix offset of the save-name slot, on evidence, or nothing.
+
+    THE EVIDENCE IS READ FROM THE SAME BYTES: the three prologue fields must
+    pass :func:`_plausible_prologue`. Nothing else is ever refused. In
+    particular there is NO session-name slot here - see
+    :func:`scan_framed_tokens` for why that false positive is accepted.
+
+    The buffer is scrubbed out of this frame on the unwind exactly as
+    :func:`scan_framed_tokens` scrubs it (CS-963).
+
+    Args:
+        data: The buffer being scanned, anchored at file offset zero.
+
+    Returns:
+        ``{FIRST_STRING_SLOT_OFFSET}`` or the empty set.
+    """
+    try:
+        if len(data) < FIRST_STRING_SLOT_OFFSET:
+            return frozenset()
+        header_version, save_version, build_changelist = struct.unpack_from(
+            "<" + "i" * _PROLOGUE_INT32_FIELDS, data, 0
+        )
+    except BaseException:
+        del data
+        raise
+    del data
+    if not _plausible_prologue(header_version, save_version, build_changelist):
+        return frozenset()
+    return frozenset({FIRST_STRING_SLOT_OFFSET})
 
 
 def _framed_token_at(data: bytes, start: int, stride: int) -> str | None:
@@ -1133,12 +1207,24 @@ def scan_framed_tokens(data: bytes) -> tuple[tuple[str, ...], bool]:
     count implies. A bare 22-character run in the middle of a file matches
     nothing, and neither does a 21- or 23-character framed one.
 
-    THE FIRST STRING SLOT IS NEVER A CANDIDATE. A count prefix starting at
-    :data:`FIRST_STRING_SLOT_OFFSET` is skipped in both framings, undecoded and
-    uncounted against the cap: on header 14 that slot holds the player-chosen
-    save name, and on no measured layout does it hold the identifier. The
-    offset is file-anchored, which holds because every caller here passes a
-    prefix read from offset zero.
+    THE SAVE-NAME SLOT IS NEVER A CANDIDATE, ON EVIDENCE. A count prefix at the
+    offset :func:`_personal_slot_offsets` returns is skipped in both framings,
+    undecoded and uncounted against the cap: behind a plausible prologue of a
+    MEASURED save-name header version that slot holds the player-chosen save
+    name, and on no measured layout does it hold the identifier. Behind any
+    other bytes - including an unmeasured header version - offset 12 is an
+    ordinary candidate. The offset is file-anchored, which holds because every
+    caller here passes a prefix read from offset zero.
+
+    A 22-CHARACTER SESSION NAME IS A MEASURED, ACCEPTED FALSE POSITIVE (CS-1114).
+    It has no fixed offset: finding it means walking the string chain, and a
+    walk trusts a layout the parser has just refused. One was built and
+    refuted - it dropped a genuine token in three synthetic layouts (an
+    unmeasured version between layouts, one above them, and an options count
+    that spanned to the identifier). This scan runs only on refused headers and
+    feeds a blocklist, so an admitted session name costs a manual unblock while
+    a dropped token leaks personal data; the second is never traded for the
+    first.
 
     UNMEASURED, AND LABELLED RATHER THAN ASSUMED: every header in the measured
     library frames its identifier with a POSITIVE count, so the wide framing
@@ -1168,16 +1254,18 @@ def scan_framed_tokens(data: bytes) -> tuple[tuple[str, ...], bool]:
     hits: list[tuple[int, str]] = []
     truncated = False
     try:
+        refused = _personal_slot_offsets(data)
         for prefix, stride in ((_NARROW_COUNT_PREFIX, 1), (_WIDE_COUNT_PREFIX, UTF16_CHAR_SIZE)):
             # A budget PER FRAMING. Shared, a narrow-framed buffer could spend
             # the whole of it and the wide framing would never be scanned.
             admitted: set[str] = set()
             at = data.find(prefix)
             while at != -1:
-                # Slot 0 is refused BEFORE it is decoded and BEFORE the cap is
-                # tested, so a save name never becomes a string and never
-                # spends a slot a genuine identifier later needs (CS-1097).
-                if at == FIRST_STRING_SLOT_OFFSET:
+                # The save-name slot is refused BEFORE it is decoded and BEFORE
+                # the cap is tested, so a save name never becomes a string and
+                # never spends a slot a genuine identifier later needs
+                # (CS-1097, CS-1114).
+                if at in refused:
                     at = data.find(prefix, at + 1)
                     continue
                 candidate = _framed_token_at(data, at + INT32_SIZE, stride)
