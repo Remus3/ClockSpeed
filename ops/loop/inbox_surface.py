@@ -168,12 +168,17 @@ def line(fact: dict) -> str:
     """One `inbox:` line for a fact - the form the driver prints and the worker copies.
 
     Every name is JSON-quoted, so a name that looks like an instruction or holds
-    a quote reads as the quoted data it is.
+    a quote reads as the quoted data it is, and a control character in one is
+    escaped rather than printed - the line can never be split into two.
     """
     unread = fact.get("unread", UNMEASURED)
     head = f"{LINE_PREFIX} {unread}"
     if unread == UNMEASURED or not isinstance(unread, int):
-        head = f"{LINE_PREFIX} {UNMEASURED} ({fact.get('reason') or 'no reason recorded'})"
+        # ESCAPED, like every name: a reason can carry a phrase that is not this
+        # module's own, and a line break inside it would forge a second driver
+        # line for anything tailing the log.
+        reason = inbox_watch.safe_display(str(fact.get("reason") or "no reason recorded"))
+        head = f"{LINE_PREFIX} {UNMEASURED} ({reason})"
     names = fact.get("names") or []
     if names:
         head += " (" + ", ".join(json.dumps(str(name)) for name in names) + ")"

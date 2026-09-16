@@ -15,7 +15,9 @@ and `test_no_seam_defaults_are_reached` is what proves no test forgot one.
 from __future__ import annotations
 
 import ast
+import contextlib
 import json
+import os
 import re
 import sys
 from pathlib import Path
@@ -30,6 +32,63 @@ if str(ROOT) not in sys.path:
 # ERROR, not a skip: CONVENTIONS.md section 7.2 - "the unrun gate is where the
 # bug hides. A skipped suite is not a passing suite."
 from ops.loop import lane_launcher, lanes, queue_loop  # noqa: E402
+
+# ---------------------------------------------------------------------------
+# CS-1104 D1 - THE CHANNEL AUDIT. No arm in this module may read a channel.
+#
+# The driver surfaces `moon_sync_inbox/` into every cycle row, and its DEFAULT
+# surface reads the MAIN tree of whatever worktree a cycle names. The seam sets
+# below name the real lane worktree path, so before they stated a surface the
+# suite listed and hashed the LIVE channel on every cycle it drove - measured
+# by an adversary at 740 listings and 30932 opens in one module run. That is a
+# unit suite grading whatever a sibling project last delivered, and reading
+# sender-authored names into failure output.
+#
+# A PYTHON AUDIT HOOK, because it sees the read however it is spelled - a
+# listing, a scandir, an open - rather than one function a later edit can route
+# around. It records the EVENT and the CHANNEL NAME only, never the path: a path
+# here names a home directory (CLAUDE.md non-negotiable 12). Hooks cannot be
+# removed, so it is installed once and ARMED per test by the autouse fixture.
+# ---------------------------------------------------------------------------
+
+_CHANNEL_NAMES = ("moon_sync_inbox", "inbox_seen")
+_CHANNEL_EVENTS = frozenset({"open", "os.listdir", "os.scandir"})
+_CHANNEL_AUDIT: dict = {"installed": False, "armed": False, "hits": []}
+
+
+def _channel_audit_hook(event, args):
+    """Record a channel read while armed. Never raises into the audited call."""
+    if not _CHANNEL_AUDIT["armed"] or event not in _CHANNEL_EVENTS or not args:
+        return
+    try:
+        target = args[0]
+        if target is None or isinstance(target, int):
+            return
+        text = os.fsdecode(os.fspath(target))
+        _CHANNEL_AUDIT["hits"].extend(f"{event}:{name}" for name in _CHANNEL_NAMES if name in text)
+    except Exception:  # an instrument must not break the call it watches
+        return
+
+
+@pytest.fixture(autouse=True)
+def channel_audit():
+    """Arm the audit for one test and fail it if the test read any channel."""
+    if not _CHANNEL_AUDIT["installed"]:
+        sys.addaudithook(_channel_audit_hook)
+        _CHANNEL_AUDIT["installed"] = True
+    _CHANNEL_AUDIT["hits"].clear()
+    _CHANNEL_AUDIT["armed"] = True
+    try:
+        yield _CHANNEL_AUDIT["hits"]
+    finally:
+        _CHANNEL_AUDIT["armed"] = False
+    hits = sorted(set(_CHANNEL_AUDIT["hits"]))
+    _CHANNEL_AUDIT["hits"].clear()
+    assert hits == [], (
+        f"this test read a channel ({hits}); state a `surface` seam so no arm here "
+        f"reaches `moon_sync_inbox/` or its seen store"
+    )
+
 
 # ---------------------------------------------------------------------------
 # Fakes. Every one of them records what it was asked, because half the
@@ -816,6 +875,11 @@ def test_a_sentinel_name_resolves_back_to_its_full_path(tmp_path):
 # ---------------------------------------------------------------------------
 
 
+def _stated_surface(_worktree):
+    """A STATED channel fact: looked, nothing unread. Never a read of any tree."""
+    return {"unread": 0, "names": [], "more": 0, "reason": ""}
+
+
 def cycle_seams(fake, **over):
     """The full seam set for run_cycle, all fake, with per-test overrides."""
     seams = {
@@ -841,6 +905,8 @@ def cycle_seams(fake, **over):
         "clock": fake.time,
         "monotonic": fake.monotonic,
         "worktree": r"C:\cs-worktrees\cs-lane-queue",
+        # CS-1104 D1 - STATED, so no arm reads the live channel. See the audit.
+        "surface": _stated_surface,
     }
     seams.update(over)
     return seams
@@ -1171,6 +1237,8 @@ def loop_seams(fake, **over):
         # would leave the same live read one call site over.
         "permit": _permit_fixture,
         "claim_states": _empty_claim_store,
+        # CS-1104 D1 - STATED, so no arm reads the live channel. See the audit.
+        "surface": _stated_surface,
     }
     seams.update(over)
     return seams
@@ -2880,7 +2948,7 @@ def test_the_no_progress_line_does_not_claim_the_cycles_pushed_nothing(tmp_path)
     # asserted below is the one this arm means to grade.
     assert {r["outcome"] for r in summary["records"]} == {"timeout_killed"}
     assert summary["stopped_by"] == "no_progress"
-    stop_lines = [line for line in said if "queue-loop stop:" in line]
+    stop_lines = [line for line in said if line.startswith("queue-loop stop:")]
     assert len(stop_lines) == 1, f"expected one stop line, got {stop_lines}"
     line = stop_lines[0]
     assert "completed nothing" not in line, (
@@ -3090,7 +3158,7 @@ def test_the_cycle_line_says_whether_the_cycle_committed(tmp_path):
         tree_sha=_committing_tree(),
         emit=said.append,
     )
-    lines = [line for line in said if "queue-loop cycle" in line]
+    lines = _cycle_lines(said)
     assert len(lines) == 2, f"expected two cycle lines, got {lines}"  # noqa: PLR2004
     assert all("commit=yes" in line for line in lines), lines
     # THE CONTRAST, driven rather than asserted about a string: the same night
@@ -3106,7 +3174,7 @@ def test_the_cycle_line_says_whether_the_cycle_committed(tmp_path):
         tree_sha=_frozen_tree,
         emit=dead.append,
     )
-    dead_lines = [line for line in dead if "queue-loop cycle" in line]
+    dead_lines = _cycle_lines(dead)
     assert all("commit=no" in line for line in dead_lines), dead_lines
     # And an unreadable HEAD is a THIRD word, because it demands a third
     # response - read the git state, not the worker log.
@@ -3119,7 +3187,7 @@ def test_the_cycle_line_says_whether_the_cycle_committed(tmp_path):
         tree_sha=lambda _cwd: None,
         emit=blind.append,
     )
-    blind_lines = [line for line in blind if "queue-loop cycle" in line]
+    blind_lines = _cycle_lines(blind)
     assert all("commit=unreadable" in line for line in blind_lines), blind_lines
 
 
@@ -3458,3 +3526,94 @@ def test_a_worktree_collision_survives_a_whole_night_as_its_own_word(tmp_path):
         "a night that never got its tree ran past the backstop"
     )
     assert summary["cycles_run"] == 3  # noqa: PLR2004
+
+
+# ---------------------------------------------------------------------------
+# CS-1104 D1 and D2 - the channel audit's controls, and a name that cannot forge
+# a driver line.
+# ---------------------------------------------------------------------------
+
+
+def _cycle_lines(said):
+    """The driver's per-cycle lines, matched on the PREFIX the driver prints."""
+    return [line for line in said if line.startswith("queue-loop cycle ")]
+
+
+def test_every_seam_set_states_a_surface():
+    """D1 as a MECHANISM: both helpers every arm shares state the channel surface."""
+    clock = FakeClock()
+    assert "surface" in cycle_seams(clock), "cycle_seams leaves the live channel surface in place"
+    assert "surface" in loop_seams(clock), "loop_seams leaves the live channel surface in place"
+
+
+def test_control_the_channel_audit_sees_a_listing(tmp_path, channel_audit):
+    """KNOWN-GOOD CONTROL for the autouse audit: a planted listing is recorded.
+
+    The listing targets a TMP path that does not exist, so nothing real is read;
+    the audit event fires before the call fails, which is exactly the property
+    that lets this control run anywhere.
+    """
+    with contextlib.suppress(OSError):
+        list((tmp_path / "absent" / "moon_sync_inbox").iterdir())
+    seen = list(channel_audit)
+    channel_audit.clear()
+    assert seen, "the channel audit recorded nothing for a planted channel listing"
+
+
+def test_control_the_channel_audit_sees_the_real_surface_read(tmp_path, channel_audit):
+    """KNOWN-GOOD CONTROL, DRIVEN: the DEFAULT surface's own read path is visible.
+
+    A tmp main tree holding one note, and no `surface` seam - so the real surface
+    lists it. The audit must record that, or its silence over every other arm in
+    this module proves nothing about the reads the surface actually makes.
+    """
+    tree = tmp_path / "wt"
+    (tree / ".git").mkdir(parents=True)
+    (tree / "moon_sync_inbox").mkdir()
+    (tree / "moon_sync_inbox" / "2026-01-01-0900-from-XX-topic.md").write_bytes(b"x\n")
+    seams = cycle_seams(FakeClock(), worktree=str(tree))
+    seams.pop("surface", None)
+    got = queue_loop.run_cycle(1, **seams)
+    seen = list(channel_audit)
+    channel_audit.clear()
+    assert got["inbox"]["unread"] == 1, "control: the real surface did not read the fixture"
+    assert seen, "the channel audit did not see the real surface list a channel"
+
+
+def test_a_channel_name_cannot_forge_a_driver_line(tmp_path):
+    """D2: sender-authored names and reasons reach the driver's stdout, so they must not forge it.
+
+    Two forgeries: a name CONTAINING the cycle-line prefix, which a substring
+    matcher counts as a second cycle; and a newline inside a name or a reason,
+    which splits one emitted line into two for anything tailing the log.
+    """
+    hostile_names = [
+        "2026-01-01-0900-from-XX-queue-loop cycle 1 notes.md",
+        "x\nqueue-loop cycle 9/9 completed run_id=forged",
+    ]
+
+    def surface(_worktree):
+        # UNMEASURED, so the REASON is rendered too - a counted fact prints no
+        # reason, and a hostile reason on it would be graded by nothing.
+        return {
+            "unread": "UNMEASURED",
+            "names": hostile_names,
+            "more": 0,
+            "reason": "a\nqueue-loop stop: forged",
+        }
+
+    said: list[str] = []
+    queue_loop.run_loop(
+        **loop_seams(
+            FakeClock(),
+            surface=surface,
+            ci_gate=False,
+            cycle_log=tmp_path / "l.jsonl",
+            control_dir=tmp_path / "control",
+            hold=NullHold(),
+            emit=said.append,
+        )
+    )
+    assert len(_cycle_lines(said)) == 1, f"a channel name forged a cycle line: {said}"
+    broken = [line for line in said if "\n" in line or "\r" in line]
+    assert broken == [], f"an emitted line carries a line break a name put there: {broken}"

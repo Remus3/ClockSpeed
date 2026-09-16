@@ -200,12 +200,10 @@ DRAINED: Final = (("the sentinel path", re.escape(DRAINED_SENTINEL)),)
 #: sentence is two tokens, not one span, so each clause fails by name.
 SURFACE_NEVER_REPLY: Final = (
     ("the channel is named", r"moon_sync_inbox"),
-    ("the pure-read surface the worker runs", r"python\s+-m\s+ops\.loop\.inbox_surface"),
+    ("the driver surfaces it, not the worker", r"driver\s+surfaces"),
     ("surfacing never acknowledges", r"surfacing\s+never\s+acknowledges"),
     ("composing a note is excluded", r"\bcompos(e|ing)\b[^.]{0,80}\bdeliver"),
     ("out of scope for a lane cycle", r"out\s+of\s+scope\s+for\s+a\s+lane\s+cycle"),
-    ("a blind look is UNMEASURED, never zero", r"inbox:\s+UNMEASURED"),
-    ("the wrap banner carries an inbox line", r"(?m)^\s+inbox:\s+<"),
 )
 
 #: EVERY RULE, NAMED ONCE. Both parametrized arms read this rather than each
@@ -270,12 +268,10 @@ RULE_LABELS: Final = {
     "the channel is surfaced, never answered": frozenset(
         {
             "the channel is named",
-            "the pure-read surface the worker runs",
+            "the driver surfaces it, not the worker",
             "surfacing never acknowledges",
             "composing a note is excluded",
             "out of scope for a lane cycle",
-            "a blind look is UNMEASURED, never zero",
-            "the wrap banner carries an inbox line",
         }
     ),
 }
@@ -289,6 +285,8 @@ FORBIDDEN: Final = (
     ("the outbound sender", r"outbound_send"),
     ("the outbound gate", r"outbound_gate"),
     ("the watcher whose entry point writes", r"inbox_watch"),
+    ("the surface, which is the driver's to run", r"inbox_surface"),
+    ("a banner line that feeds sibling names to the model", r"(?m)^\s*inbox:"),
 )
 
 FORBIDDEN_LABELS: Final = frozenset(
@@ -297,6 +295,8 @@ FORBIDDEN_LABELS: Final = frozenset(
         "the outbound sender",
         "the outbound gate",
         "the watcher whose entry point writes",
+        "the surface, which is the driver's to run",
+        "a banner line that feeds sibling names to the model",
     }
 )
 
@@ -539,6 +539,8 @@ def test_a_document_carrying_every_forbidden_spelling_is_reported_for_each() -> 
         "python tools/inbox_watch.py --ack\n"
         "then run tools/outbound_send.py\n"
         "after tools/outbound_gate.py grades it\n"
+        "then python -m ops.loop.inbox_surface\n"
+        "  inbox: 3 names\n"
     )
 
     assert present(dirty, FORBIDDEN) == [label for label, _pattern in FORBIDDEN]
@@ -546,7 +548,7 @@ def test_a_document_carrying_every_forbidden_spelling_is_reported_for_each() -> 
 
 def test_a_clean_document_carries_no_forbidden_spelling() -> None:
     """The other half: the predicate does not fire on the words the prompt DOES use."""
-    clean = "surfacing never acknowledges; run python -m ops.loop.inbox_surface.\n"
+    clean = "surfacing never acknowledges; the driver surfaces the channel.\n"
 
     assert present(clean, FORBIDDEN) == []
 
@@ -554,3 +556,123 @@ def test_a_clean_document_carries_no_forbidden_spelling() -> None:
 def test_the_forbidden_table_matches_its_pin() -> None:
     """Deleting a forbidden spelling to green the arm above is caught here."""
     assert frozenset(label for label, _pattern in FORBIDDEN) == FORBIDDEN_LABELS
+
+
+# --- CS-1104 W3: the fence sentences are BOUND to their paragraph, and nothing
+# --- anywhere in the prompt instructs an acknowledgement or a reply.
+
+#: The paragraph that carries the channel fence. Found by its step marker, so a
+#: keyword surviving in some other paragraph does not satisfy the binding.
+CHANNEL_STEP: Final = "**4f."
+
+#: Words that turn a sentence into a REPORT of a claim rather than the claim. A
+#: fence sentence carrying one of them is a retired draft wearing the keywords.
+HEDGES: Final = re.compile(
+    r"\b(draft|retired|claimed|older|formerly|used\s+to|no\s+longer|superseded|once\s+said)\b",
+    re.IGNORECASE,
+)
+
+#: A sentence about the channel ...
+CHANNEL_NOUN: Final = re.compile(
+    r"moon_sync_inbox|\bchannel\b|\binbox\b|\bnotes?\b|\bitems?\b|\bsibling", re.IGNORECASE
+)
+#: ... that names an acknowledging or replying act ...
+REPLY_VERB: Final = re.compile(
+    r"\backnowledg\w*|\brepl(y|ies|ied|ying)\b|\banswer\w*|\brespond\w*|\bcompos\w*"
+    r"|\bdeliver\w*|\bsend\w*|\bmark\w*\s+\w+\s+seen\b",
+    re.IGNORECASE,
+)
+#: ... must carry a negation, or it is an instruction to do the act.
+NEGATION: Final = re.compile(
+    r"\bnever\b|\bnot\b|\bno\b|\bnothing\b|\bnor\b|out\s+of\s+scope|n't\b", re.IGNORECASE
+)
+
+
+def sentences(text: str) -> list[str]:
+    """The text as whitespace-normalised sentences, split at . ; : and ! and ?."""
+    flat = " ".join(text.split())
+    return [part for part in re.split(r"(?<=[.;:!?])\s+", flat) if part]
+
+
+def channel_paragraph(text: str) -> str:
+    """The paragraph opened by :data:`CHANNEL_STEP`, up to the next blank line or heading."""
+    start = text.find(CHANNEL_STEP)
+    if start < 0:
+        return ""
+    rest = text[start:]
+    end = re.search(r"\n\s*\n|\n#", rest)
+    return rest if end is None else rest[: end.start()]
+
+
+def binding_faults(text: str) -> list[str]:
+    """Why the channel fence is NOT stated as live sentences of its own paragraph.
+
+    Returns:
+        Empty when the paragraph has a sentence OPENING with "Surfacing never
+        acknowledges" and a sentence OPENING with "Composing" that places the act
+        out of scope for a lane cycle, neither of them hedged.
+    """
+    paragraph = channel_paragraph(text)
+    if not paragraph:
+        return ["no channel step paragraph"]
+    faults: list[str] = []
+    parts = sentences(paragraph)
+    ack = [p for p in parts if re.match(r"surfacing\s+never\s+acknowledges\b", p, re.IGNORECASE)]
+    scope = [
+        p
+        for p in parts
+        if re.match(r"composing\b", p, re.IGNORECASE)
+        and re.search(r"out\s+of\s+scope\s+for\s+a\s+lane\s+cycle", p, re.IGNORECASE)
+    ]
+    if not ack:
+        faults.append("no sentence opens with the never-acknowledges fence")
+    if not scope:
+        faults.append("no sentence opens with the composing-is-out-of-scope fence")
+    faults += [f"hedged fence sentence: {p!r}" for p in ack + scope if HEDGES.search(p)]
+    return faults
+
+
+def reply_instructions(text: str) -> list[str]:
+    """Every sentence that names the channel and an ack or reply act WITHOUT a negation."""
+    return [
+        p
+        for p in sentences(text)
+        if CHANNEL_NOUN.search(p) and REPLY_VERB.search(p) and not NEGATION.search(p)
+    ]
+
+
+#: The measured M6 mutant: an instruction to acknowledge and reply, with the fence
+#: keywords kept alive inside a sentence that reports them as a retired draft.
+RETIRED_DRAFT: Final = (
+    "**4f. The cross-repo channel.** Acknowledge each item once you have surfaced it, and "
+    "answer any item that asks for a reply. An older draft claimed surfacing never "
+    "acknowledges and that composing a reply was not something to deliver; that draft "
+    "called it out of scope for a lane cycle, and it is retired.\n\nNext paragraph.\n"
+)
+
+
+def test_the_channel_fence_is_bound_to_its_own_paragraph(prompt_text: str) -> None:
+    """W3: the fence sentences open their own sentences inside step 4f, unhedged."""
+    assert binding_faults(prompt_text) == []
+
+
+def test_no_sentence_in_the_prompt_instructs_an_ack_or_a_reply(prompt_text: str) -> None:
+    """W3: anywhere in the prompt, a channel sentence naming an ack or reply act is negated."""
+    assert reply_instructions(prompt_text) == []
+
+
+def test_control_a_retired_draft_fails_both_channel_predicates() -> None:
+    """NEGATIVE CONTROL: the measured M6 text is reported by BOTH predicates above."""
+    assert binding_faults(RETIRED_DRAFT), "the binding predicate passed a retired draft"
+    assert reply_instructions(RETIRED_DRAFT), "the instruction predicate missed the ack order"
+
+
+def test_control_the_live_fence_shape_passes_both_channel_predicates() -> None:
+    """POSITIVE CONTROL: a minimal correct paragraph is reported for nothing."""
+    good = (
+        "**4f. The channel.** The driver surfaces moon_sync_inbox/ into its ledger. "
+        "Surfacing never acknowledges: nothing marks an item seen. Composing, grading or "
+        "delivering a note is out of scope for a lane cycle.\n\nNext.\n"
+    )
+    assert binding_faults(good) == []
+    assert reply_instructions(good) == []

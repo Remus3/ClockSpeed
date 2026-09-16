@@ -2438,6 +2438,16 @@ def run_cycle(  # noqa: PLR0913, PLR0912, PLR0915 - see THE SEAMS ARE THE POINT
             "detail": detail,
             # CS-1104. Taken when the row is built, on EVERY outcome, so a
             # refused or failed cycle still says what was waiting in the channel.
+            #
+            # NAMES INTO A LOG, KNOWINGLY, AND ONLY HERE. CS-701 records that
+            # note filenames carry sibling codes and can collide with a world
+            # name, which is why the watcher's own invocation log carries counts
+            # only. The CS-1104 acceptance REQUIRES the count AND the names in
+            # this lane's ledger, which is gitignored under ops/loop/reports/.
+            # So every name is the watcher's escaped `display` - printable ASCII,
+            # length-capped, a bare top-level entry name with no path component -
+            # and no reason carries a path. Graded by `test_w5_ledger_names_are_`
+            # `escaped_with_no_path_component` in tests/ops/test_lane_inbox_surface.py.
             "inbox": _surface_inbox(cycle, worktree, surface=surface, emit=emit),
         }
 
@@ -2743,7 +2753,9 @@ def run_loop(  # noqa: PLR0913, PLR0912, PLR0915 - see THE SEAMS ARE THE POINT
                 "outcome": OUTCOME_ERROR,
                 "detail": _fault(exc)[:400],
                 # CS-1104. `run_cycle` surfaces only when it builds its own row,
-                # which a raise skips, so this row surfaces here - once.
+                # which a raise skips, so this row surfaces here - once. Names in
+                # this gitignored ledger are required by the CS-1104 acceptance
+                # and bounded for CS-701 - see the note in `run_cycle._record`.
                 "inbox": _surface_inbox(cycle, worktree, surface=surface, emit=emit),
             }
 
