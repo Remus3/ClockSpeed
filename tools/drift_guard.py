@@ -998,7 +998,17 @@ def guard_memory(root: Path) -> tuple[Guard, list[Skip]]:
         return _guard("b", name, "WARN", ["memory/ does not exist yet"]), skips
 
     index = memory_dir / "MEMORY.md"
-    leaves = sorted(path for path in memory_dir.glob("*.md") if path.name != "MEMORY.md")
+    # CS-1115 - iterdir, never glob: glob swallows a refused listing, and the
+    # store then read as `leaves: 0` PASS over leaves nobody had looked at.
+    try:
+        leaves = sorted(
+            path for path in memory_dir.iterdir() if path.match("*.md") and path.name != "MEMORY.md"
+        )
+    except OSError as exc:
+        skips.append(
+            {"path": "memory/", "reason": f"not listed ({_exc_text(exc)}) - no leaf was graded"}
+        )
+        return _guard("b", name, "WARN", ["memory/ NOT LISTED - reachability unevaluated"]), skips
     detail = [f"leaves: {len(leaves)}"]
 
     if not index.is_file():
@@ -1288,10 +1298,39 @@ def _frozen_patterns(section: list[str]) -> list[str]:
     return patterns
 
 
-def _frozen_detail(root: Path, patterns: list[str]) -> list[str]:
+def _glob_base(pattern: str) -> str:
+    """Return the fixed directory a glob pattern starts from, "" for the root."""
+    fixed: list[str] = []
+    for part in pattern.split("/")[:-1]:
+        if any(char in part for char in "*?["):
+            break
+        fixed.append(part)
+    return "/".join(fixed)
+
+
+def _frozen_detail(root: Path, patterns: list[str], skips: list[Skip] | None = None) -> list[str]:
+    """Render one line per frozen pattern, recording any directory it could not list.
+
+    CS-1115 - ``glob`` swallows a refused listing and reported "0 file(s) match"
+    over a directory nobody looked into. The pattern's FIXED base directory is
+    listed first, and a refusal is a line saying so plus a skip record. DISCLOSED
+    LIMIT: a refusal deeper than the fixed base, under a wildcard component, is
+    still invisible to the glob that follows.
+    """
     detail: list[str] = []
     for pattern in patterns:
         if any(char in pattern for char in "*?["):
+            base = _glob_base(pattern)
+            try:
+                if (root / base).is_dir():
+                    list((root / base).iterdir())
+            except OSError as exc:
+                if skips is not None:
+                    skips.append(
+                        {"path": base, "reason": f"not listed ({_exc_text(exc)}) - pattern unread"}
+                    )
+                detail.append(f"  {pattern} -> NOT LISTED")
+                continue
             try:
                 matches = sorted(_rel(root, p) for p in root.glob(pattern) if p.is_file())
             except (OSError, ValueError):
@@ -1331,13 +1370,19 @@ def guard_frozen(root: Path) -> tuple[Guard, list[Skip]]:
 
     patterns = _frozen_patterns(section)
     detail = ["these require explicit operator approval to modify (CLAUDE.md frozen list):"]
-    detail.extend(_frozen_detail(root, patterns))
+    listed_skips = len(skips)
+    detail.extend(_frozen_detail(root, patterns, skips))
     if not patterns:
         detail.append("  (section found but it holds no backticked entries)")
     detail.append(
         "This guard never fails. Enforcement is the adjudicator route plus a ledger "
         "grant, not a file check."
     )
+    if len(skips) > listed_skips:
+        # CS-1115 - NOT ADVISORY: a frozen pattern whose directory was never
+        # listed is could-not-look, whatever the guard's never-fails rule says.
+        detail.append("NOT A PASS - a frozen pattern's directory could not be listed")
+        return _guard("f", name, "WARN", detail), skips
     return _guard("f", name, "PASS", detail), skips
 
 
@@ -1846,12 +1891,21 @@ def guard_budgets(root: Path) -> tuple[Guard, list[Skip]]:
     rows = doc_budget.evaluate(root)
     hard = doc_budget.hard_failures(rows)
     warn = doc_budget.soft_failures(rows)
-    measured = [row for row in rows if row["status"] != "MISSING"]
+    measured = [row for row in rows if row["status"] not in ("MISSING", doc_budget.UNLISTED)]
     missing = [row for row in rows if row["status"] == "MISSING"]
     skips.extend(
         {"path": row["file"], "reason": "budgeted file absent - size not measured"}
         for row in missing
     )
+    unmeasured = [row["file"] for row in missing if not _budget_absence_is_legitimate(root, row)]
+    # CS-1115 - a directory that refused its listing hides every budgeted file
+    # in it. doc_budget reports it as a row rather than globbing it away.
+    unlisted = doc_budget.unlisted_directories(rows)
+    skips.extend(
+        {"path": shown, "reason": "directory not listed - the budgeted files in it were never seen"}
+        for shown in unlisted
+    )
+    unmeasured.extend(unlisted)
 
     detail = [f"measured {len(measured)} file(s), {len(missing)} absent"]
     detail.extend(
@@ -1861,13 +1915,60 @@ def guard_budgets(root: Path) -> tuple[Guard, list[Skip]]:
     )
     if hard or warn:
         detail.append(f"  {doc_budget.RELOCATE_GUIDANCE}")
+    detail.extend(
+        f"  NOT LISTED {relative}: the budgeted files in it were never seen"
+        if relative in unlisted
+        else f"  NOT MEASURED {relative}: a budgeted file that must exist has no size"
+        for relative in unmeasured
+    )
     if hard:
         return _guard("a", name, "FAIL", detail), skips
+    if unmeasured:
+        # CS-1115 - NOT ADVISORY. A budgeted file that must exist and was not
+        # measured is could-not-look. Guards (b), (f) and (j) happen to catch
+        # MEMORY.md, CLAUDE.md, ROADMAP.md and the index going missing, but no
+        # other guard reads docs/upstream_watch.md, and a per-file argument that
+        # some other guard covers each case is exactly the argument that drifts.
+        detail.append("NOT A PASS - a budgeted file was never measured")
+        return _guard("a", name, "WARN", detail), skips
     if warn:
-        # ADVISORY (CS-1113): every budgeted file was MEASURED; a soft budget
-        # overshoot is doc_budget's WARN severity, which exits 0 by its own rule.
+        # ADVISORY (CS-1113): every budgeted file that must exist was MEASURED -
+        # an unmeasured one returned above - and an absent one is only ever a
+        # file doc_budget measures WHEN PRESENT. A soft budget overshoot is
+        # doc_budget's WARN severity, which exits 0 by its own rule.
         return _guard("a", name, "WARN", detail, advisory=True), skips
     return _guard("a", name, "PASS", detail), skips
+
+
+def _budget_absence_is_legitimate(root: Path, row: dict[str, Any]) -> bool:
+    """True when a MISSING budget row is a file measured only when present, and absent.
+
+    doc_budget measures CLAUDE.local.md and .claude/CLAUDE.md WHEN PRESENT
+    (its AUTOLOADED_EXPLICIT, less CLAUDE.md itself), and a fresh clone carries
+    neither. Every other budgeted file must exist - a derived leaf was found by
+    a listing, so its MISSING means it could not be measured. An optional file
+    counts as absent only when an lstat says nothing is there: a dangling link
+    stats as missing while it IS present, and present-but-unmeasurable is
+    could-not-look.
+
+    Args:
+        root: The repository root under audit.
+        row: One doc_budget row whose status is MISSING.
+
+    Returns:
+        Whether the absence is legitimate rather than an unmeasured file.
+    """
+    doc_budget = _load_doc_budget()
+    optional = set(doc_budget.AUTOLOADED_EXPLICIT) - {"CLAUDE.md"}
+    if row["file"] not in optional:
+        return False
+    try:
+        (root / row["file"]).lstat()
+    except (FileNotFoundError, NotADirectoryError):
+        return True
+    except OSError:
+        return False
+    return False
 
 
 # --- guard h: version pin ---------------------------------------------------
@@ -2996,23 +3097,50 @@ def item_notes_routing(text: str) -> dict[str, str]:
     return {match.group(1): match.group(2) for match in _ITEM_NOTES_ROW.finditer(text)}
 
 
-def item_notes_sections(root: Path) -> tuple[dict[str, str], list[str]]:
-    """Return item id mapped to the leaf holding it, plus ids found twice.
+def item_notes_sections(
+    root: Path,
+) -> tuple[dict[str, str], list[str], dict[str, str], list[str]]:
+    """Return item id mapped to the leaf holding it, ids found twice, and what was not read.
+
+    CS-1115 - A LEAF THAT EXISTS AND CANNOT BE READ IS NEVER DROPPED. It used to
+    be skipped with a bare ``continue``, so its sections vanished and its routed
+    items read as rows with no section: a could-not-look reported as a different
+    defect. The directory listing is the same shape one level up - ``glob``
+    swallows a refused listing and yields nothing - so it is listed with
+    ``iterdir``, which raises.
+
+    A DIRECTORY CARRYING A LEAF NAME IS NOT A LEAF. Reading it raises too, but
+    that is a tree shape the family forbids - graded, and reported as its own
+    finding - never a read failure that makes the run UNGRADED.
 
     Args:
         root: The repository root under audit.
 
     Returns:
-        (item id mapped to repo-relative leaf path, duplicated ids).
+        (item id mapped to repo-relative leaf path, duplicated ids, repo-relative
+        path mapped to the reason it was not read - the leaf directory itself
+        when it could not be listed, else each leaf that could not be read -
+        and the repo-relative paths of directories carrying a leaf name).
     """
     found: dict[str, str] = {}
     duplicated: list[str] = []
+    unread: dict[str, str] = {}
+    not_leaves: list[str] = []
     leaf_dir = root / ITEM_NOTES_LEAF_DIR_RELATIVE
-    for leaf in sorted(leaf_dir.glob("*.md")):
+    try:
+        leaves = sorted(path for path in leaf_dir.iterdir() if path.match("*.md"))
+    except OSError as exc:
+        unread[ITEM_NOTES_LEAF_DIR_RELATIVE] = _exc_text(exc)
+        return found, duplicated, unread, not_leaves
+    for leaf in leaves:
         relative = f"{ITEM_NOTES_LEAF_DIR_RELATIVE}/{leaf.name}"
+        if leaf.is_dir():
+            not_leaves.append(relative)
+            continue
         try:
             text = leaf.read_text(encoding="utf-8", errors="replace")
-        except OSError:
+        except OSError as exc:
+            unread[relative] = _exc_text(exc)
             continue
         for match in _ITEM_NOTES_SECTION.finditer(text):
             item = match.group(1)
@@ -3020,7 +3148,77 @@ def item_notes_sections(root: Path) -> tuple[dict[str, str], list[str]]:
                 duplicated.append(f"{item} in {found[item]} and {relative}")
                 continue
             found[item] = relative
-    return found, duplicated
+    return found, duplicated, unread, not_leaves
+
+
+def _item_notes_section_problems(
+    bodies: list[str],
+    duplicated: list[str],
+    sections: dict[str, str],
+    routed: dict[str, str],
+    unread: dict[str, str],
+    not_leaves: list[str],
+) -> list[str]:
+    """Return guard (j)'s findings from the index and the leaves it read.
+
+    Args:
+        bodies: Item ids whose section sits in the index itself.
+        duplicated: Ids found in more than one leaf, already rendered.
+        sections: Item id mapped to the leaf that holds its section.
+        routed: Item id mapped to the leaf its routing row names.
+        unread: Repo-relative path mapped to why it was not read.
+        not_leaves: Directories under the family carrying a leaf name.
+
+    Returns:
+        The rendered problem lines, empty when there are none.
+    """
+    problems: list[str] = [
+        f"  {relative} is a directory, not a leaf - a leaf is one markdown file per phase"
+        for relative in not_leaves
+    ]
+    if problems:
+        problems.insert(0, "these carry a leaf name and are not leaf files:")
+    if bodies:
+        problems.append(
+            "the index carries item bodies, which are invisible to a reader following "
+            "the routing table - move them to the leaf the membership rule names:"
+        )
+        problems.extend(
+            f"  {ITEM_NOTES_INDEX_RELATIVE} holds a section for {item}" for item in bodies
+        )
+
+    if duplicated:
+        problems.append("an item carries detail in more than one leaf:")
+        problems.extend(f"  {row}" for row in duplicated)
+
+    unrouted = sorted(set(sections) - set(routed))
+    if unrouted:
+        problems.append("these carry detail no routing row names, so nothing can find them:")
+        problems.extend(f"  {item} in {sections[item]}" for item in unrouted)
+
+    # CS-1115. A row routed INTO a leaf that was not read may have its section
+    # there, so it is ungraded rather than dangling. A row routed to a leaf that
+    # WAS read is still red: were its section in the unread leaf, it would be
+    # misrouted. An unlisted leaf directory leaves every row ungraded.
+    dangling = sorted(
+        item
+        for item in set(routed) - set(sections)
+        if ITEM_NOTES_LEAF_DIR_RELATIVE not in unread and routed[item] not in unread
+    )
+    if dangling:
+        problems.append("these are routed to a section that does not exist:")
+        problems.extend(f"  {item} routed to {routed[item]}" for item in dangling)
+
+    misrouted = sorted(
+        item for item in set(routed) & set(sections) if routed[item] != sections[item]
+    )
+    if misrouted:
+        problems.append("these are routed to the wrong leaf:")
+        problems.extend(
+            f"  {item} routed to {routed[item]}, detail is in {sections[item]}"
+            for item in misrouted
+        )
+    return problems
 
 
 def guard_index(root: Path) -> tuple[Guard, list[Skip]]:
@@ -3059,12 +3257,20 @@ def guard_index(root: Path) -> tuple[Guard, list[Skip]]:
 
     bodies = [match.group(1) for match in _ITEM_NOTES_SECTION.finditer(index_text)]
     routed = item_notes_routing(index_text)
-    sections, duplicated = item_notes_sections(root)
+    sections, duplicated, unread, not_leaves = item_notes_sections(root)
 
     detail = [
         f"routing rows in {ITEM_NOTES_INDEX_RELATIVE}: {len(routed)}",
         f"sections under {ITEM_NOTES_LEAF_DIR_RELATIVE}/: {len(sections)}",
     ]
+    skips.extend(
+        {"path": relative, "reason": f"not read ({reason}) - its sections were not graded"}
+        for relative, reason in unread.items()
+    )
+    detail.extend(
+        f"{relative} NOT READ - no row routed into it was graded against a section"
+        for relative in unread
+    )
 
     roadmap_text = _read_item_notes_roadmap(root, skips, detail)
     domain = item_notes_domain(roadmap_text) if roadmap_text is not None else {}
@@ -3089,49 +3295,23 @@ def guard_index(root: Path) -> tuple[Guard, list[Skip]]:
         detail.append("NOTHING TO GRADE - an empty family is a skip, never a pass")
         return _guard("j", name, "WARN", detail), skips
 
-    problems: list[str] = []
-    if bodies:
-        problems.append(
-            "the index carries item bodies, which are invisible to a reader following "
-            "the routing table - move them to the leaf the membership rule names:"
-        )
-        problems.extend(
-            f"  {ITEM_NOTES_INDEX_RELATIVE} holds a section for {item}" for item in bodies
-        )
-
-    if duplicated:
-        problems.append("an item carries detail in more than one leaf:")
-        problems.extend(f"  {row}" for row in duplicated)
-
-    unrouted = sorted(set(sections) - set(routed))
-    if unrouted:
-        problems.append("these carry detail no routing row names, so nothing can find them:")
-        problems.extend(f"  {item} in {sections[item]}" for item in unrouted)
-
-    dangling = sorted(set(routed) - set(sections))
-    if dangling:
-        problems.append("these are routed to a section that does not exist:")
-        problems.extend(f"  {item} routed to {routed[item]}" for item in dangling)
-
-    misrouted = sorted(
-        item for item in set(routed) & set(sections) if routed[item] != sections[item]
+    problems = _item_notes_section_problems(
+        bodies, duplicated, sections, routed, unread, not_leaves
     )
-    if misrouted:
-        problems.append("these are routed to the wrong leaf:")
-        problems.extend(
-            f"  {item} routed to {routed[item]}, detail is in {sections[item]}"
-            for item in misrouted
-        )
-
     if roadmap_text is not None:
         problems.extend(_item_notes_derivation_problems(routed, domain, fields))
 
     if problems:
         return _guard("j", name, "FAIL", detail + problems), skips
 
+    # Both are could-not-look, so neither WARN is advisory (CS-1113, CS-1115).
+    not_graded = []
     if roadmap_text is None:
-        detail.append("NOT A PASS - the derivation the rows are checked against was never read")
-        return _guard("j", name, "WARN", detail), skips
+        not_graded.append("NOT A PASS - the derivation the rows are checked against was never read")
+    if unread:
+        not_graded.append("NOT A PASS - part of the leaf family was never read")
+    if not_graded:
+        return _guard("j", name, "WARN", detail + not_graded), skips
 
     detail.append(f"every routed item resolves to its own section across {len(sections)} id(s)")
     return _guard("j", name, "PASS", detail), skips

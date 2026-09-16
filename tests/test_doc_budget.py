@@ -972,3 +972,99 @@ def test_an_unresolvable_git_answers_none_rather_than_spawning(
 
     assert answer is None
     assert spawned == [], "the module spawned something after the resolver refused"
+
+
+# ---------------------------------------------------------------------------
+# CS-1115 - a directory the tool could not LIST is reported, never globbed away
+#
+# ``glob`` and ``os.walk`` both swallow a refused listing and yield nothing, so
+# a budgeted population behind a refused directory vanished from the table and
+# the count, and the verdict still said every measured file was inside budget.
+# Every fault here is REAL - an exclusive Windows handle, or a mode of zero -
+# held by the drift guard suite's ``refused``, never a stub.
+# ---------------------------------------------------------------------------
+
+
+def _unlisted(rows: list[dict]) -> list[str]:
+    """The files of every row whose directory could not be listed."""
+    return sorted(row["file"] for row in rows if row["status"] == doc_budget.UNLISTED)
+
+
+@pytest.mark.parametrize(
+    ("directory", "leaf"),
+    [("memory", "a-leaf.md"), ("docs/item_notes", "phase7.md")],
+)
+def test_a_refused_leaf_directory_is_an_unlisted_row(
+    tmp_path: Path, directory: str, leaf: str
+) -> None:
+    """The leaves cannot be counted, so the DIRECTORY is the row, and the verdict says so."""
+    from tests.data.test_drift_guard_data import refused  # noqa: PLC0415 - one fault helper
+
+    (tmp_path / "CLAUDE.md").write_text("# root" + NEWLINE, encoding="ascii")
+    folder = tmp_path / directory
+    folder.mkdir(parents=True)
+    (folder / leaf).write_text("# a leaf" + NEWLINE, encoding="ascii")
+    assert f"{directory}/{leaf}" in _population(tmp_path), "control: the leaf is not measured"
+
+    with refused(folder):
+        with pytest.raises(PermissionError):
+            list(folder.iterdir())
+        rows = doc_budget.evaluate(tmp_path)
+        text = NEWLINE.join(doc_budget.render(rows))
+
+    # Graded first with symbols the pre-fix module has, so it fails on the
+    # silent drop rather than on a missing attribute (non-negotiable 9).
+    assert "VERDICT: PASS" not in text, text
+    # TWO populations sit behind this one directory - its leaves, and any nested
+    # CLAUDE.md the walk would have collected - so it may carry a row for each.
+    assert set(_unlisted(rows)) == {f"{directory}/"}, rows
+    leaf_rules = {"memory": "memory leaf", "docs/item_notes": "item-notes leaf"}
+    assert [
+        row["file"]
+        for row in rows
+        if row["status"] == doc_budget.UNLISTED and row["rule"] == leaf_rules[directory]
+    ] == [f"{directory}/"], rows
+    assert f"{directory}/{leaf}" not in [row["file"] for row in rows]
+    assert "VERDICT: INCOMPLETE" in text, text
+    assert "VERDICT: PASS" not in text, text
+
+
+def test_a_refused_directory_under_a_walked_root_is_an_unlisted_row(tmp_path: Path) -> None:
+    """The os.walk sibling: a nested CLAUDE.md behind a refused listing was dropped silently."""
+    from tests.data.test_drift_guard_data import refused  # noqa: PLC0415 - one fault helper
+
+    (tmp_path / "CLAUDE.md").write_text("# root" + NEWLINE, encoding="ascii")
+    carried = tmp_path / "subsystem"
+    carried.mkdir()
+    (carried / "CLAUDE.md").write_text("# carried by this tree" + NEWLINE, encoding="ascii")
+    assert "subsystem/CLAUDE.md" in _population(tmp_path), "control: the nested file is unmeasured"
+
+    with refused(carried):
+        observed = doc_budget.survey(tmp_path)
+        rows = doc_budget.evaluate(tmp_path, observed)
+
+    assert "subsystem/" in [row["file"] for row in rows], "the refused directory vanished"
+    assert observed.unlisted == ("subsystem",), observed
+    assert _unlisted(rows) == ["subsystem/"], rows
+    assert [row["severity"] for row in rows if row["file"] == "subsystem/"] == ["HARD"]
+
+
+def test_json_mode_reports_an_unlisted_directory_as_incomplete(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """The machine-readable verdict is never PASS over a directory nobody listed."""
+    from tests.data.test_drift_guard_data import refused  # noqa: PLC0415 - one fault helper
+
+    (tmp_path / "CLAUDE.md").write_text("# root" + NEWLINE, encoding="ascii")
+    memory = tmp_path / "memory"
+    memory.mkdir()
+    (memory / "MEMORY.md").write_text("# index" + NEWLINE, encoding="ascii")
+    monkeypatch.setattr(doc_budget, "repo_root", lambda: tmp_path)
+
+    with refused(memory):
+        code = doc_budget.main(["--json"])
+    payload = json.loads(capsys.readouterr().out)
+
+    assert payload["verdict"] == "INCOMPLETE", payload["verdict"]
+    assert set(payload["unlisted"]) == {"memory/"}, payload
+    assert code == 0, "the CLI still exits non-zero on a HARD failure only"

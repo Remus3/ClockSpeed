@@ -32,6 +32,8 @@ from types import ModuleType
 
 import pytest
 
+from tests.data.test_drift_guard_data import refused
+
 REPO_ROOT = Path(__file__).resolve().parents[2]
 DRIFT_GUARD_SOURCE = REPO_ROOT / "tools" / "drift_guard.py"
 
@@ -570,6 +572,108 @@ def test_an_unreadable_roadmap_is_a_warn_never_a_pass(family: Path) -> None:
     guard, skips = drift_guard.guard_index(family)
     assert guard["status"] == "WARN", "\n".join(guard["detail"])
     assert any(skip["path"] == ROADMAP_RELATIVE for skip in skips), skips
+
+
+# ---------------------------------------------------------------------------
+# CS-1115 - a leaf that EXISTS but cannot be read is could-not-look, not absent
+#
+# `item_notes_sections` caught OSError on a leaf and CONTINUED, so the leaf's
+# sections vanished and its routed items read as rows with no section. Every
+# fault below is REAL - an exclusive Windows handle, or a mode of zero - held
+# by `refused`, which a stub cannot stand in for: a stub is a statement about
+# the stub, while this is the whole read path meeting the operating system.
+# ---------------------------------------------------------------------------
+
+
+def test_an_unreadable_leaf_is_a_warn_naming_it_never_a_silent_skip(family: Path) -> None:
+    """The CS-1115 acceptance arm, at the guard: WARN, not advisory, the leaf named."""
+    leaf = family / LEAF_DIR_RELATIVE / "phase7.md"
+    relative = f"{LEAF_DIR_RELATIVE}/phase7.md"
+
+    with refused(leaf):
+        assert leaf.is_file(), "control: the refused leaf no longer stats as a file"
+        with pytest.raises(PermissionError):
+            leaf.read_bytes()
+        guard, skips = drift_guard.guard_index(family)
+
+    rendered = "\n".join(guard["detail"])
+    assert guard["status"] == "WARN", rendered
+    assert guard["advisory"] is False, rendered
+    assert f"{relative} NOT READ" in rendered, rendered
+    assert any(skip["path"] == relative for skip in skips), skips
+    assert "CS-701" not in rendered, "a row routed to the unread leaf was graded as dangling"
+
+
+def test_an_unreadable_leaf_does_not_hide_drift_in_a_leaf_that_was_read(family: Path) -> None:
+    """The fault narrows what is graded; it never pardons what WAS read."""
+    phase4 = family / LEAF_DIR_RELATIVE / "phase4.md"
+    phase4.write_text(
+        phase4.read_text(encoding="utf-8") + "## CS-403\n\nUnrouted.\n", encoding="utf-8"
+    )
+
+    with refused(family / LEAF_DIR_RELATIVE / "phase7.md"):
+        status, rendered = _run(family)
+
+    assert status == "FAIL", rendered
+    assert "CS-403" in rendered
+    assert f"{LEAF_DIR_RELATIVE}/phase7.md NOT READ" in rendered, rendered
+
+
+def test_a_row_with_no_section_in_a_read_leaf_still_fails_beside_an_unread_one(
+    tmp_path: Path,
+) -> None:
+    """Only rows routed TO the unread leaf go ungraded; a dangling row elsewhere is red.
+
+    The derivation agrees with every row here, so the dangling check is the
+    only thing that can make this FAIL.
+    """
+    _build(
+        tmp_path,
+        {"phase4.md": ["CS-401"], "phase7.md": ["CS-701"]},
+        [("CS-401", "phase4.md"), ("CS-402", "phase4.md"), ("CS-701", "phase7.md")],
+    )
+    assert _run(tmp_path)[0] == "FAIL", "control: the dangling row is not red with nothing refused"
+
+    with refused(tmp_path / LEAF_DIR_RELATIVE / "phase7.md"):
+        status, rendered = _run(tmp_path)
+
+    assert status == "FAIL", rendered
+    assert "  CS-402 routed to" in rendered, rendered
+    assert "  CS-701 routed to" not in rendered, rendered
+
+
+def test_a_directory_carrying_a_leaf_name_is_its_own_finding_not_a_read_failure(
+    family: Path,
+) -> None:
+    """A directory named like a leaf is a tree shape the family forbids - graded, not unread.
+
+    Reading it raises, and CS-1115's first cut reported that as an unreadable
+    leaf and made the run UNGRADED, which names the wrong defect.
+    """
+    (family / LEAF_DIR_RELATIVE / "phase9.md").mkdir()
+
+    status, rendered = _run(family)
+
+    assert status == "FAIL", rendered
+    assert f"{LEAF_DIR_RELATIVE}/phase9.md is a directory, not a leaf" in rendered, rendered
+    assert "NOT READ" not in rendered, rendered
+
+
+def test_an_unlistable_leaf_directory_is_a_warn_never_a_fail(family: Path) -> None:
+    """The sibling one level up: a refused listing globbed as zero leaves, silently."""
+    leaf_dir = family / LEAF_DIR_RELATIVE
+
+    with refused(leaf_dir):
+        assert leaf_dir.is_dir(), "control: the refused directory no longer stats"
+        with pytest.raises(PermissionError):
+            list(leaf_dir.iterdir())
+        guard, skips = drift_guard.guard_index(family)
+
+    rendered = "\n".join(guard["detail"])
+    assert guard["status"] == "WARN", rendered
+    assert guard["advisory"] is False, rendered
+    assert f"{LEAF_DIR_RELATIVE} NOT READ" in rendered, rendered
+    assert any(skip["path"] == LEAF_DIR_RELATIVE for skip in skips), skips
 
 
 # ---------------------------------------------------------------------------
