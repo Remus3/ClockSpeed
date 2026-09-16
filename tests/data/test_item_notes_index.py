@@ -117,14 +117,67 @@ _LEAF_HEAD = """# Clockspeed - live per-item detail, {leaf}
 """
 
 
+ROADMAP_RELATIVE = "ROADMAP.md"
+
+
+def _item_line(item: str, detail: str | None = "`docs/item_notes.md`") -> str:
+    """Return one synthetic ROADMAP item line.
+
+    Args:
+        item: The item id.
+        detail: The trailing detail field's target, or None for a line with no field.
+
+    Returns:
+        The line, newline-terminated.
+    """
+    line = f"{item} - a headline - acceptance: a condition - tier: 2"
+    if detail is not None:
+        line += f" - detail: {detail}"
+    return line + "\n"
+
+
+def _roadmap(phases: dict[str, list[str]]) -> str:
+    """Return a synthetic ROADMAP.md whose phase headings file the given lines.
+
+    Args:
+        phases: Phase digit mapped to the ready-made item lines filed under it.
+
+    Returns:
+        The file text.
+    """
+    body = "# Roadmap - OPEN work only\n\nCS-nnn - <one line> - tier: <0|1|2>\n\n"
+    for digit, lines in phases.items():
+        body += f"## Phase {digit} - a phase\n\n" + "".join(lines) + "\n"
+    return body
+
+
+def _write_roadmap(root: Path, phases: dict[str, list[str]]) -> None:
+    """Write a synthetic ROADMAP.md under ``root``.
+
+    Args:
+        root: The fabricated repository root.
+        phases: Phase digit mapped to the item lines filed under it.
+    """
+    (root / ROADMAP_RELATIVE).write_text(_roadmap(phases), encoding="utf-8")
+
+
 def _build(root: Path, leaves: dict[str, list[str]], rows: list[tuple[str, str]]) -> None:
     """Write a synthetic index plus leaves under ``root``.
+
+    A ROADMAP.md routing every row's item is written too, filed under the phase
+    its leaf name spells, so a well-formed family agrees with the derivation.
+    A test planting a ROADMAP disagreement overwrites it afterwards.
 
     Args:
         root: The fabricated repository root.
         leaves: Leaf filename mapped to the item ids its sections carry.
         rows: The routing rows to write, as (item, leaf filename).
     """
+    phases: dict[str, list[str]] = {}
+    for item, leaf in rows:
+        digit = leaf.removeprefix("phase")[0]
+        phases.setdefault(digit, []).append(_item_line(item))
+    _write_roadmap(root, phases)
     leaf_dir = root / LEAF_DIR_RELATIVE
     leaf_dir.mkdir(parents=True, exist_ok=True)
     for leaf, items in leaves.items():
@@ -249,6 +302,226 @@ def test_a_missing_leaf_directory_is_a_skip_rather_than_a_failure(tmp_path: Path
 
 
 # ---------------------------------------------------------------------------
+# CS-1086 - every row is checked against a DERIVATION from ROADMAP.md
+#
+# The table is kept (the CS-1062 fence) and graded against inputs other than
+# itself: the leaf from ROADMAP's phase heading plus the ID block rule, the row
+# set from the TRAILING detail field of each item line. Each arm below is a
+# disagreement the pre-CS-1086 guard could not see, because it never read
+# ROADMAP.md - so every one of them passed there.
+# ---------------------------------------------------------------------------
+
+
+def _count_line(rendered: str) -> str:
+    """Return the guard's routed-count detail line, or '' when it has none."""
+    for line in rendered.splitlines():
+        if line.startswith(f"routed items in {ROADMAP_RELATIVE}"):
+            return line
+    return ""
+
+
+@pytest.mark.parametrize(
+    ("item", "phase", "want"),
+    [
+        ("CS-501", "4", "phase4.md"),
+        ("CS-799", "4", "phase4.md"),
+        ("CS-800", "4", "phase4-followups.md"),
+        ("CS-849", "4", "phase4-followups.md"),
+        ("CS-850", "4", "phase4-followups-850.md"),
+        ("CS-899", "4", "phase4-followups-850.md"),
+        ("CS-900", "4", "phase4-followups-900.md"),
+        ("CS-1086", "4", "phase4-followups-900.md"),
+        ("CS-950", "5", "phase5.md"),
+        ("CS-701", "7", "phase7.md"),
+    ],
+)
+def test_the_leaf_rule_has_a_code_owner_at_every_seam(item: str, phase: str, want: str) -> None:
+    """The block rule, as a LITERAL table rather than a second copy of the arithmetic.
+
+    Both sides of every seam are pinned, so moving a seam by one ID reddens here.
+    """
+    assert drift_guard.item_notes_leaf(item, phase) == f"{LEAF_DIR_RELATIVE}/{want}"
+
+
+def test_a_row_agreeing_with_its_section_but_not_the_derivation_is_red(tmp_path: Path) -> None:
+    """The row and the section agree with EACH OTHER and both disagree with ROADMAP.
+
+    Row-versus-section equality is satisfied, so only the derivation can see it.
+    """
+    _build(
+        tmp_path,
+        {"phase4.md": ["CS-401", "CS-701"]},
+        [("CS-401", "phase4.md"), ("CS-701", "phase4.md")],
+    )
+    _write_roadmap(tmp_path, {"4": [_item_line("CS-401")], "7": [_item_line("CS-701")]})
+
+    status, rendered = _run(tmp_path)
+    assert status == "FAIL", rendered
+    assert (
+        f"  CS-701 routed to {LEAF_DIR_RELATIVE}/phase4.md, {ROADMAP_RELATIVE} Phase 7 "
+        f"derives {LEAF_DIR_RELATIVE}/phase7.md"
+    ) in rendered.splitlines(), rendered
+
+
+def test_a_routed_item_with_no_section_in_its_computed_leaf_is_red(tmp_path: Path) -> None:
+    """The row names the derived leaf; the section sits one seam away.
+
+    A section in ANY leaf is not enough - it must be in the leaf the rule computes,
+    which is the file a reader following the rule opens.
+    """
+    _build(
+        tmp_path,
+        {"phase4-followups.md": ["CS-850"]},
+        [("CS-850", "phase4-followups-850.md")],
+    )
+    _write_roadmap(tmp_path, {"4": [_item_line("CS-850")]})
+
+    status, rendered = _run(tmp_path)
+    assert status == "FAIL", rendered
+    assert (
+        f"  CS-850 has no section in {LEAF_DIR_RELATIVE}/phase4-followups-850.md "
+        f"(derived from {ROADMAP_RELATIVE} Phase 4), its section is in "
+        f"{LEAF_DIR_RELATIVE}/phase4-followups.md"
+    ) in rendered.splitlines(), rendered
+
+
+def test_a_detail_field_with_no_row_is_red(family: Path) -> None:
+    """ROADMAP says the item carries detail; the table does not route it."""
+    _write_roadmap(
+        family,
+        {
+            "4": [_item_line("CS-401"), _item_line("CS-402")],
+            "7": [_item_line("CS-701"), _item_line("CS-702")],
+        },
+    )
+
+    status, rendered = _run(family)
+    assert status == "FAIL", rendered
+    lines = rendered.splitlines()
+    assert "  CS-702 carries a trailing detail: field and no routing row" in lines, rendered
+    assert (
+        f"  CS-702 has no section in {LEAF_DIR_RELATIVE}/phase7.md "
+        f"(derived from {ROADMAP_RELATIVE} Phase 7)"
+    ) in lines, rendered
+
+
+def test_a_row_with_no_detail_field_is_red(family: Path) -> None:
+    """The other direction: the table routes an item whose ROADMAP line carries no field."""
+    _write_roadmap(
+        family,
+        {
+            "4": [_item_line("CS-401"), _item_line("CS-402")],
+            "7": [_item_line("CS-701", detail=None)],
+        },
+    )
+
+    status, rendered = _run(family)
+    assert status == "FAIL", rendered
+    assert "  CS-701 has a routing row and no trailing detail: field" in rendered.splitlines(), (
+        rendered
+    )
+
+
+def test_the_detail_field_is_found_by_position_not_by_its_target(family: Path) -> None:
+    """A trailing field whose target is NOT the index still routes the item.
+
+    Matching the target narrows the population until it empties - measured
+    doing that to CS-1026 - so an unusual target is exactly the member to keep.
+    """
+    _write_roadmap(
+        family,
+        {
+            "4": [_item_line("CS-401"), _item_line("CS-402")],
+            "7": [_item_line("CS-701"), _item_line("CS-703", detail="see the phase leaf")],
+        },
+    )
+
+    status, rendered = _run(family)
+    assert status == "FAIL", rendered
+    assert (
+        "  CS-703 carries a trailing detail: field and no routing row" in rendered.splitlines()
+    ), rendered
+
+
+def test_a_detail_spelling_mid_line_does_not_route_the_item(family: Path) -> None:
+    """The paired negative: the marker is a POSITION, so mid-line prose is not a field.
+
+    The count line is the anti-narrowing control in the other direction - it
+    must equal the trailing population exactly, never the substring population.
+    """
+    mid_line = (
+        "CS-704 - a headline - detail: `docs/item_notes.md` - acceptance: a condition - tier: 2\n"
+    )
+    _write_roadmap(
+        family,
+        {
+            "4": [_item_line("CS-401"), _item_line("CS-402")],
+            "7": [_item_line("CS-701"), mid_line],
+        },
+    )
+
+    status, rendered = _run(family)
+    assert status == "PASS", rendered
+    assert "CS-704" not in rendered, rendered
+    assert _count_line(rendered) == f"routed items in {ROADMAP_RELATIVE}: 3", rendered
+
+
+def test_a_detail_field_naming_a_leaf_other_than_the_derived_one_is_red(family: Path) -> None:
+    """Located by POSITION, then its TARGET must agree with the row.
+
+    The index (the one hop ROADMAP.md prescribes) and the derived leaf itself
+    both agree; any other target sends a reader somewhere the rule does not.
+    CS-401 names its derived leaf and is the in-arm control that must stay silent.
+    """
+    _write_roadmap(
+        family,
+        {
+            "4": [_item_line("CS-401", detail="`docs/item_notes/phase4.md`"), _item_line("CS-402")],
+            "7": [_item_line("CS-701", detail="`docs/item_notes/phase4.md`")],
+        },
+    )
+
+    status, rendered = _run(family)
+    assert status == "FAIL", rendered
+    lines = rendered.splitlines()
+    assert (
+        f"  CS-701 detail: field names {LEAF_DIR_RELATIVE}/phase4.md, the rule derives "
+        f"{LEAF_DIR_RELATIVE}/phase7.md and the index is {INDEX_RELATIVE}"
+    ) in lines, rendered
+    assert not [line for line in lines if line.startswith("  CS-401")], rendered
+
+
+def test_a_second_detail_spelling_on_a_routed_line_is_red(family: Path) -> None:
+    """A routed line spelling detail: twice carries two fields that can disagree.
+
+    The spellings count is the control that sees it even where no id is named.
+    """
+    doubled = (
+        "CS-701 - a headline - detail: `docs/item_notes/phase4.md` - "
+        "acceptance: a condition - tier: 2 - detail: `docs/item_notes.md`\n"
+    )
+    _write_roadmap(
+        family,
+        {"4": [_item_line("CS-401"), _item_line("CS-402")], "7": [doubled]},
+    )
+
+    status, rendered = _run(family)
+    assert status == "FAIL", rendered
+    lines = rendered.splitlines()
+    assert "  CS-701 spells detail: again before its trailing field" in lines, rendered
+    assert f"detail: spellings on routed lines in {ROADMAP_RELATIVE}: 4" in lines, rendered
+
+
+def test_an_unreadable_roadmap_is_a_warn_never_a_pass(family: Path) -> None:
+    """Could-not-look must not read as clean: the rows were never checked."""
+    (family / ROADMAP_RELATIVE).unlink()
+
+    guard, skips = drift_guard.guard_index(family)
+    assert guard["status"] == "WARN", "\n".join(guard["detail"])
+    assert any(skip["path"] == ROADMAP_RELATIVE for skip in skips), skips
+
+
+# ---------------------------------------------------------------------------
 # The green half - the REAL tree is the control and must be green, unedited
 # ---------------------------------------------------------------------------
 
@@ -338,6 +611,33 @@ def test_every_section_sits_in_the_leaf_the_membership_rule_names() -> None:
         "moves to docs/history_notes.md, not to a leaf:\n" + "\n".join(orphaned)
     )
     assert not misplaced, "\n".join(misplaced)
+
+
+def test_the_real_tree_routed_count_matches_an_independent_count() -> None:
+    """The anti-narrowing control on the REAL tree.
+
+    The guard's routed count must equal a test-side count of ROADMAP item lines
+    whose LAST field is a detail field, and both must equal the rows and the
+    sections. A narrowed domain shows up as a short count AND as enumerated ids.
+    DISCLOSED BLIND SPOT: every real field names the same target, so this arm
+    cannot see a target-matching narrowing; the synthetic position arms carry that.
+    """
+    trailing: set[str] = set()
+    for line in (REPO_ROOT / ROADMAP_RELATIVE).read_text(encoding="utf-8").splitlines():
+        item = _ROADMAP_ITEM.match(line)
+        if item and line.rsplit(" - ", 1)[-1].startswith("detail:"):
+            trailing.add(item.group(1))
+    sections = _real_sections()
+    assert trailing, "ROADMAP.md carries no trailing detail field - this control proves nothing"
+
+    _status, rendered = _run(REPO_ROOT)
+    assert _count_line(rendered) == f"routed items in {ROADMAP_RELATIVE}: {len(trailing)}", rendered
+    spellings = f"detail: spellings on routed lines in {ROADMAP_RELATIVE}: {len(trailing)}"
+    assert spellings in rendered.splitlines(), rendered
+    assert trailing == set(sections), (
+        f"detail field, no section: {sorted(trailing - set(sections))}; "
+        f"section, no detail field: {sorted(set(sections) - trailing)}"
+    )
 
 
 def test_the_index_holds_no_item_body() -> None:
