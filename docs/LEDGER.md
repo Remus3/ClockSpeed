@@ -374,6 +374,89 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-09-16 - CS-1111 - CLOSED. The launcher arms see the shapes CI could not, the settings env blocks and the cycle budget
+
+**WHAT CHANGED.** The static arm in `tests/ops/test_lane_background_tasks.py` now reddens on the
+six plants tier1's ubuntu leg could not see - a set inside `if ($false)`, an uncalled function, a
+here-string, a wildcard `Remove-Item Env:*`, a removal by built-up name and a wildcard timeout -
+plus five more shapes. Every tracked `.claude/settings*.json` `env` block is graded against the
+launcher's values for `CLAUDE_CODE_DISABLE_BACKGROUND_TASKS` and `BASH_MAX_TIMEOUT_MS` without
+printing a value. `tools/headless-queue.md`'s foreground paragraph forbids a trailing `&`,
+`nohup`, `setsid`/`disown`, `Start-Process` and `start /b`, with an arm. The timeout arm binds
+its lower bound to twice the measured slow suite run and its upper bound to
+`DEFAULT_CYCLE_TIMEOUT_S`, read by name. Merged files: `tests/ops/test_lane_background_tasks.py`,
+`tools/headless-queue.md`.
+
+**PROVEN BY.** `tests/ops/test_lane_background_tasks.py::test_the_static_arm_reddens_on_each_plant`,
+`::test_no_tracked_settings_file_overrides_the_launcher`,
+`::test_the_foreground_statement_forbids_shell_level_detaching` and
+`::test_the_bash_timeout_covers_the_suite_run_and_ends_inside_the_cycle`, each fronted by a
+control arm.
+
+**REFUTED ONCE, THEN REPAIRED.** An adversary REFUTED 0844b59: reordering the launcher's three
+assignments made five runtime plant controls red on Windows, because the plants anchored on the
+LAST assignment; the upper timeout bound was bound to the driver-only `DEFAULT_SUITE_TIMEOUT_S`;
+and the prompt control keyed on a literal. Repaired at e30d2ff. A verifier CONFIRMED e30d2ff: all
+six assignment orders green, every plant-by-order run red, and a non-nt simulation with the
+static arms live.
+
+**FAIL-SAFE BRITTLENESS, RECORDED SO IT IS NOT READ AS A DEFECT.** The static arm reddens on
+harmless shapes too - a `2>&1`, the word "environment" inside a `Write-Host` string, a
+`Remove-Item` on an unrelated path, a single-quoted value - and reflowing the whole prompt
+paragraph reddens because its first lines sit on an exact-line allowlist. Each errs toward red.
+
+**VERIFY.** `python -m pytest tests/ops/test_lane_background_tasks.py -q`.
+
+### 2026-09-16 - CS-1113 - CLOSED. A could-not-look WARN is never CLEAN, and the no-section check is retired with its proof
+
+**WHAT CHANGED.** (a) Guard (j)'s "routed item has no section in its computed leaf" check in
+`tools/drift_guard.py` is REMOVED: no plant exists that only it catches. A proof comment in the
+guard records why, and an arm drives every state the retired check saw through nine placements.
+(b) Every WARN now carries `advisory`. Only guard (a)'s soft budget overshoot and guard (e)'s
+unrecorded port are advisory; any other WARN makes the verdict UNGRADED, exits 1, and adds an
+`ungraded` list to `--json`. All seventeen WARN sites are classified. The existing tier1
+`drift_guard` step stays CLEAN on the real tree and on a fresh checkout.
+`tests/test_dated_headings.py` now builds its tree with `make_repo`. Merged files:
+`tools/drift_guard.py`, `tests/data/test_drift_guard_data.py`,
+`tests/data/test_item_notes_index.py`, `tests/test_dated_headings.py`.
+
+**PROVEN BY.** `tests/data/test_drift_guard_data.py::test_every_could_not_look_warn_makes_the_run_ungraded`,
+`::test_an_advisory_warn_as_the_only_non_pass_guard_stays_clean`,
+`::test_the_real_tree_soft_warnings_still_exit_zero`, and
+`tests/data/test_item_notes_index.py::test_every_state_the_retired_no_section_check_saw_still_fails`.
+
+**ADVERSARY - NOT REFUTED at 54393fb.** Real-tree plants - a section moved, duplicated, its id
+typo'd, and moved together with its row - all still FAIL without the retired check. WEAKNESS,
+filed as CS-1115: guard (a)'s comment "every budgeted file was MEASURED" is false, because a
+missing budgeted file joins the skip list instead (other guards caught the cases tried); and
+`item_notes_sections` silently skips an unreadable leaf.
+
+**VERIFY.** `python -m pytest tests/data/test_drift_guard_data.py tests/data/test_item_notes_index.py tests/test_dated_headings.py -q`.
+
+### 2026-09-16 - CS-1107 - CLOSED. The hook-stdout-dropped claim is ungraded everywhere it is stated, and a hung git fails
+
+**WHAT CHANGED.** Every live site in `tools/inbox_watch.py` and `tests/test_inbox_watch.py` that
+stated as measured that a failing `SessionStart` hook has its stdout dropped now calls it
+UNGRADED and names its source. An exact-sentence allowlist arm in
+`tests/test_session_start_wiring.py` pins those sites. Grading the claim at the process boundary
+was not taken because it cannot be done here: the only reader of hook stdout is the Claude
+client. `_git` in that test now FAILS on `TimeoutExpired` and skips only when no git binary can be
+started. Merged files: `tools/inbox_watch.py`, `tests/test_inbox_watch.py`,
+`tests/test_session_start_wiring.py`.
+
+**PROVEN BY.** `tests/test_session_start_wiring.py::test_every_hook_stdout_claim_in_the_watcher_is_an_approved_ungraded_sentence`,
+`::test_the_claim_site_locator_sees_a_docstring_a_help_string_and_a_comment`,
+`::test_a_git_timeout_in_a_decoy_tree_fails_rather_than_skips` and its control
+`::test_the_git_plant_is_what_runs_and_a_missing_git_still_skips`.
+
+**ADVERSARY - NOT REFUTED at 3cc934b.** WEAKNESS: a new sentence making the claim in different
+words - "the client discards what a failing hook prints" - is not seen by the allowlist arm.
+`docs/CHANNEL.md` still states the claim, but that file is vendored and byte-pinned, so it is out
+of scope. The sibling could-not-look-reads-as-skipped site, `run_git` in `tests/conftest.py`, is
+filed as CS-1116.
+
+**VERIFY.** `python -m pytest tests/test_session_start_wiring.py tests/test_inbox_watch.py -q`.
+
 ### 2026-09-16 - CS-1097 - CLOSED. A save name at the first string slot is no longer admitted as a world-token candidate
 
 **WHAT CHANGED.** `clockspeed/save/header.py`'s raw-prefix scan - the fallback
