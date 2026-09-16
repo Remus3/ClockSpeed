@@ -374,6 +374,74 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-09-16 - CS-1104 - CLOSED. A lane cycle surfaces the cross-repo channel, and nothing on the lane path can answer it
+
+**WHAT CHANGED.** New `ops/loop/inbox_surface.py` measures the channel from the DRIVER, not the
+worker. `ops/loop/queue_loop.py` records a driver-computed `inbox` field in the cycle record, in
+the printed cycle line and in the lane ledger row. The field is UNMEASURED with a stated reason -
+never 0 - when no channel resolves, when the channel is a file, when the listing faults, or when
+the seen store yields no seen set. Surfacing never writes, a tree with no seen store included. A
+reach arm with a positive control shows no lane path reaches the outbound sender.
+`tools/headless-queue.md` step 4f is byte-pinned, the channel vocabulary is allowlisted to that
+block, and the token list itself is pinned. The live-channel audit covers `tests/test_queue_loop.py`
+and three `tests/ops` files. Merged files: `ops/loop/inbox_surface.py`, `ops/loop/queue_loop.py`,
+`tools/headless-queue.md`, `tests/ops/test_lane_inbox_surface.py`,
+`tests/test_headless_queue_prompt.py`, `tests/test_queue_loop.py`.
+
+**REFUTED THREE TIMES BEFORE IT HELD, and every refutation was a green suite.**
+
+- At 7465cb2, by two lenses. Correctness: a conditional ack with no store, a subprocess `--ack`,
+  the driver preferring the worker's banner over its own measurement, a channel that is a file and
+  a real PermissionError both read as 0, a store whose only fault was invalid JSON left blind, and
+  prompt keyword evasion. Hermeticity: 66 of 144 `tests/test_queue_loop.py` tests read the live
+  channel, a note name forged a cycle line, and a full-authority worker read sibling-controlled
+  names.
+- At c579349: a paraphrase in the prompt evaded the fence.
+- At 8c030be: the token list the allowlist grades by was itself unguarded.
+- At 2de81bf (merged as 33bdc91): CONFIRMED by a verifier.
+
+**SCOPE RULING.** The merger's stop condition ruled prompt-paraphrase evasions OUT of scope: the
+driver arms and the reach arms are the mechanism, and a prose fence is not. Adjudicator rulings
+Q1-Q3 were recorded in the session's untracked scratchpad, not in a tracked file.
+
+**Verification:** `python -m pytest tests/ops/test_lane_inbox_surface.py tests/test_headless_queue_prompt.py tests/test_queue_loop.py -q`.
+Load-bearing arms:
+`tests/ops/test_lane_inbox_surface.py::test_a2_no_channel_directory_is_unmeasured_never_zero`,
+`::test_w1_a_channel_that_is_a_file_is_unmeasured`,
+`::test_w2_every_store_that_yields_no_seen_set_is_unmeasured`,
+`::test_d3_a_no_store_tree_is_read_twice_identically_and_never_written`,
+`::test_d4_a_lying_worker_banner_never_replaces_the_driver_measurement`,
+`::test_a6_no_lane_module_reaches_the_outbound_sender`,
+`tests/test_headless_queue_prompt.py::test_the_channel_block_is_pinned_byte_exact`,
+`::test_the_channel_vocabulary_is_pinned` and
+`tests/test_queue_loop.py::test_a_channel_name_cannot_forge_a_driver_line`.
+
+### 2026-09-16 - CS-1102 - CLOSED. A toolpath exemption is keyed by what it excuses, not by the line it sits on
+
+**WHAT CHANGED.** The exemption roster in `tests/toolpath_guard.py` is keyed by
+(path, function, callee, program, ordinal) instead of a line number, so an edit above an exempted
+spawn moves no arm. A program that folds to no literal keys as None, and no row matches it.
+Merged files: `tests/toolpath_guard.py`, `tests/test_toolpath.py`.
+
+**REFUTED ONCE BEFORE IT HELD.** At 4762214 the key carried no program: once the reviewed spawn was
+removed, the exemption migrated to a new unreviewed spawn in the same function, and an in-place
+`git` to `curl` swap stayed green. At 90fe84e (merged as ede4fa8): NOT REFUTED, with plants on
+disk - a comment block above all four exempted sites stayed green; a new spawn, a second spawn above
+and below, a migration, a swap, a rename and a fifth row with a literal budget all reddened.
+
+**DOCUMENTED RESIDUALS.** An identical-key replacement - removing the reviewed `git` spawn and
+adding `git push --force` in the same function - is indistinguishable by construction, because no
+part of the key reads arguments. The function part of the key is the bare name: a spawn moved into
+a same-named class method was caught only by a test helper refusing duplicate names, not by the
+guard. Filed as CS-1109.
+
+**Verification:** `python -m pytest tests/test_toolpath.py -q`. Load-bearing arms:
+`tests/test_toolpath.py::test_an_edit_above_an_exempted_spawn_moves_no_arm`,
+`::test_a_spawn_replacing_an_exempted_one_does_not_inherit_its_exemption`,
+`::test_a_program_swapped_in_place_at_an_exempted_site_reddens`,
+`::test_a_comment_block_above_every_exempted_site_moves_no_arm` and
+`::test_an_unresolved_program_is_a_key_no_row_can_carry`.
+
 ### 2026-09-16 - CS-1101 - CLOSED. The CS-952 refusal is re-derived on a reason that still holds, and the exit code it once argued from is graded against the watcher
 
 **WHAT CHANGED.** CS-1095 made `tools/inbox_watch.py` return 0 on the no-channel path, which
