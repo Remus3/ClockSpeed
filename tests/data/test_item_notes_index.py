@@ -466,6 +466,52 @@ def test_a_detail_spelling_mid_line_does_not_route_the_item(family: Path) -> Non
     assert _count_line(rendered) == f"routed items in {ROADMAP_RELATIVE}: 3", rendered
 
 
+def test_a_detail_field_naming_a_leaf_other_than_the_derived_one_is_red(family: Path) -> None:
+    """Located by POSITION, then its TARGET must agree with the row.
+
+    The index (the one hop ROADMAP.md prescribes) and the derived leaf itself
+    both agree; any other target sends a reader somewhere the rule does not.
+    CS-401 names its derived leaf and is the in-arm control that must stay silent.
+    """
+    _write_roadmap(
+        family,
+        {
+            "4": [_item_line("CS-401", detail="`docs/item_notes/phase4.md`"), _item_line("CS-402")],
+            "7": [_item_line("CS-701", detail="`docs/item_notes/phase4.md`")],
+        },
+    )
+
+    status, rendered = _run(family)
+    assert status == "FAIL", rendered
+    lines = rendered.splitlines()
+    assert (
+        f"  CS-701 detail: field names {LEAF_DIR_RELATIVE}/phase4.md, the rule derives "
+        f"{LEAF_DIR_RELATIVE}/phase7.md and the index is {INDEX_RELATIVE}"
+    ) in lines, rendered
+    assert not [line for line in lines if line.startswith("  CS-401")], rendered
+
+
+def test_a_second_detail_spelling_on_a_routed_line_is_red(family: Path) -> None:
+    """A routed line spelling detail: twice carries two fields that can disagree.
+
+    The spellings count is the control that sees it even where no id is named.
+    """
+    doubled = (
+        "CS-701 - a headline - detail: `docs/item_notes/phase4.md` - "
+        "acceptance: a condition - tier: 2 - detail: `docs/item_notes.md`\n"
+    )
+    _write_roadmap(
+        family,
+        {"4": [_item_line("CS-401"), _item_line("CS-402")], "7": [doubled]},
+    )
+
+    status, rendered = _run(family)
+    assert status == "FAIL", rendered
+    lines = rendered.splitlines()
+    assert "  CS-701 spells detail: again before its trailing field" in lines, rendered
+    assert f"detail: spellings on routed lines in {ROADMAP_RELATIVE}: 4" in lines, rendered
+
+
 def test_an_unreadable_roadmap_is_a_warn_never_a_pass(family: Path) -> None:
     """Could-not-look must not read as clean: the rows were never checked."""
     (family / ROADMAP_RELATIVE).unlink()
@@ -586,6 +632,8 @@ def test_the_real_tree_routed_count_matches_an_independent_count() -> None:
 
     _status, rendered = _run(REPO_ROOT)
     assert _count_line(rendered) == f"routed items in {ROADMAP_RELATIVE}: {len(trailing)}", rendered
+    spellings = f"detail: spellings on routed lines in {ROADMAP_RELATIVE}: {len(trailing)}"
+    assert spellings in rendered.splitlines(), rendered
     assert trailing == set(sections), (
         f"detail field, no section: {sorted(trailing - set(sections))}; "
         f"section, no detail field: {sorted(set(sections) - trailing)}"

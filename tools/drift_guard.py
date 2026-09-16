@@ -2709,18 +2709,17 @@ _ITEM_NOTES_SECOND_BLOCK_FIRST = 900
 _ITEM_NOTES_NUMBERED = re.compile(r"CS-(\d+)")
 
 
-def item_notes_domain(roadmap_text: str) -> dict[str, str | None]:
-    """Return every ROADMAP item carrying a TRAILING detail field, with its phase.
+def _roadmap_detail_lines(roadmap_text: str) -> list[tuple[str, str | None, str, str]]:
+    """Return every ROADMAP item line whose LAST field is a detail field.
 
     Args:
         roadmap_text: ROADMAP.md's text.
 
     Returns:
-        Item id mapped to the digit of the Phase heading filing it, or None when
-        no Phase heading governs the line.
+        (item id, Phase heading digit or None, the whole line, its last field).
     """
     phase: str | None = None
-    domain: dict[str, str | None] = {}
+    found: list[tuple[str, str | None, str, str]] = []
     for line in roadmap_text.splitlines():
         heading = _ROADMAP_PHASE_HEADING.match(line)
         if heading:
@@ -2734,8 +2733,43 @@ def item_notes_domain(roadmap_text: str) -> dict[str, str | None]:
             continue
         last_field = line.rstrip().rsplit(_ROADMAP_FIELD_SEPARATOR, 1)[-1]
         if last_field.startswith(_ROADMAP_DETAIL_FIELD):
-            domain[item.group(1)] = phase
-    return domain
+            found.append((item.group(1), phase, line, last_field))
+    return found
+
+
+def item_notes_domain(roadmap_text: str) -> dict[str, str | None]:
+    """Return every ROADMAP item carrying a TRAILING detail field, with its phase.
+
+    Args:
+        roadmap_text: ROADMAP.md's text.
+
+    Returns:
+        Item id mapped to the digit of the Phase heading filing it, or None when
+        no Phase heading governs the line.
+    """
+    return {item: phase for item, phase, _line, _last in _roadmap_detail_lines(roadmap_text)}
+
+
+def item_notes_detail_fields(roadmap_text: str) -> dict[str, tuple[str, int]]:
+    """Return each routed item's trailing-field TARGET and its detail: spelling count.
+
+    The field is LOCATED by position; only then is its target read, so an unusual
+    target is graded rather than dropped from the population.
+
+    Args:
+        roadmap_text: ROADMAP.md's text.
+
+    Returns:
+        Item id mapped to (target with backticks stripped, times the whole line
+        spells detail:). A count above one is a second field that can disagree.
+    """
+    return {
+        item: (
+            last[len(_ROADMAP_DETAIL_FIELD) :].strip().strip("`"),
+            line.count(_ROADMAP_DETAIL_FIELD),
+        )
+        for item, _phase, line, last in _roadmap_detail_lines(roadmap_text)
+    }
 
 
 def item_notes_leaf(item: str, phase: str) -> str:
@@ -2767,6 +2801,7 @@ def _item_notes_derivation_problems(
     routed: dict[str, str],
     sections: dict[str, str],
     domain: dict[str, str | None],
+    fields: dict[str, tuple[str, int]],
 ) -> list[str]:
     """Grade the rows and the sections against the ROADMAP derivation.
 
@@ -2774,6 +2809,7 @@ def _item_notes_derivation_problems(
         routed: Item id mapped to the leaf its routing row names.
         sections: Item id mapped to the leaf holding its section.
         domain: Item id mapped to its ROADMAP phase digit, trailing fields only.
+        fields: Item id mapped to (trailing field target, detail: spelling count).
 
     Returns:
         Problem lines, empty when every row agrees with the derivation.
@@ -2815,6 +2851,28 @@ def _item_notes_derivation_problems(
             f"  {item} routed to {routed[item]}, {roadmap} Phase {derived[item][0]} "
             f"derives {derived[item][1]}"
             for item in wrong_leaf
+        )
+
+    # The located field must AGREE with the row: it names the index (the one hop
+    # ROADMAP.md prescribes) or the derived leaf itself, and nothing else.
+    wrong_target = sorted(
+        item
+        for item in derived
+        if item in fields and fields[item][0] not in (ITEM_NOTES_INDEX_RELATIVE, derived[item][1])
+    )
+    if wrong_target:
+        problems.append("these detail: fields name neither the index nor the derived leaf:")
+        problems.extend(
+            f"  {item} detail: field names {fields[item][0]}, the rule derives "
+            f"{derived[item][1]} and the index is {ITEM_NOTES_INDEX_RELATIVE}"
+            for item in wrong_target
+        )
+
+    doubled = sorted(item for item, (_target, count) in fields.items() if count > 1)
+    if doubled:
+        problems.append("these routed lines spell detail: more than once:")
+        problems.extend(
+            f"  {item} spells detail: again before its trailing field" for item in doubled
         )
 
     no_section = sorted(item for item in derived if sections.get(item) != derived[item][1])
@@ -2942,8 +3000,13 @@ def guard_index(root: Path) -> tuple[Guard, list[Skip]]:
 
     roadmap_text = _read_item_notes_roadmap(root, skips, detail)
     domain = item_notes_domain(roadmap_text) if roadmap_text is not None else {}
+    fields = item_notes_detail_fields(roadmap_text) if roadmap_text is not None else {}
     if roadmap_text is not None:
         detail.append(f"routed items in {ITEM_NOTES_ROADMAP_RELATIVE}: {len(domain)}")
+        spellings = sum(count for _target, count in fields.values())
+        detail.append(
+            f"detail: spellings on routed lines in {ITEM_NOTES_ROADMAP_RELATIVE}: {spellings}"
+        )
 
     if not routed and not sections and not domain:
         skips.append(
@@ -2993,7 +3056,7 @@ def guard_index(root: Path) -> tuple[Guard, list[Skip]]:
         )
 
     if roadmap_text is not None:
-        problems.extend(_item_notes_derivation_problems(routed, sections, domain))
+        problems.extend(_item_notes_derivation_problems(routed, sections, domain, fields))
 
     if problems:
         return _guard("j", name, "FAIL", detail + problems), skips
