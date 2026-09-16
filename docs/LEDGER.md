@@ -374,6 +374,36 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-09-16 - CS-1108 - CLOSED. The lane launcher disables background tasks, so a cycle's suite is no longer killed after the final reply
+
+**WHAT CHANGED.** `ops/loop/run_lane.ps1` sets `CLAUDE_CODE_DISABLE_BACKGROUND_TASKS=1` and raises
+`BASH_MAX_TIMEOUT_MS` and `BASH_DEFAULT_TIMEOUT_MS` before the `claude` invocation, so a worker's
+whole-suite run stays in the foreground inside the raised Bash timeout. `tools/headless-queue.md` no
+longer instructs backgrounding, and its arm binds the prompt to the switch the launcher sets. Merged
+files: `ops/loop/run_lane.ps1`, `tools/headless-queue.md`, `tests/ops/test_lane_background_tasks.py`.
+
+**PROVEN BY.** `tests/ops/test_lane_background_tasks.py::test_the_child_receives_an_allowlisted_environment`
+(the runtime arm: the REAL runner under a stub `claude` that dumps the environment it receives),
+`::test_the_runner_hands_the_child_an_allowlisted_environment` (the static arm),
+`::test_the_prompt_never_tells_the_worker_to_background_anything` and
+`::test_the_prompt_names_the_switch_the_launcher_actually_sets`.
+
+**HISTORY.** Builder commit 3491540, merged at 925329d. The adversary found it NOT REFUTED at
+3491540: the runtime arm reddened on all nine plants - an `if($false)` guard, an uncalled function,
+a user-scope `SetEnvironmentVariable`, a `Remove-Item` before the invocation, a child scope, a
+wildcard `Remove-Item`, a here-string, a built-up variable name and a wildcard timeout. The launcher
+`Popen` and `queue_loop` build no `env=`, and the CLI binary obeys the switch for both its Bash and
+its PowerShell tools. CI follow-up c6a41f3 skips the cmd.exe control where its runtime arm skips,
+after tier1 went red on 0dbf309. A merger probe before the fix: an 11-minute foreground Bash call
+completed inside `claude -p` with background tasks disabled and the timeout raised. Real-system
+evidence: after relaunch the lane's first two cycles both ended `commit=yes ci=success`, where three
+earlier cycles that day ended `commit=no` with their suite logs stopped part-way. The closure was
+not recorded at merge; this entry records it.
+
+**WEAKNESSES, filed as CS-1111** and since closed - see its entry below.
+
+**VERIFY.** `python -m pytest tests/ops/test_lane_background_tasks.py -q`.
+
 ### 2026-09-16 - CS-1109 - CLOSED. An exemption key names the Python scope a spawn runs in, not the bare function name
 
 **WHAT CHANGED.** The function part of the CS-1102 toolpath exemption key in

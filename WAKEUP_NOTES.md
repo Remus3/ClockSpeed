@@ -40,10 +40,9 @@ the line becomes a pointer.
   CS-1110, CS-1086, CS-1097, CS-1107, CS-1111, CS-1113, CS-1115, CS-1116, CS-1109. CLOSED
   by the headless lane: CS-894 (649ed65), CS-1068 (69b77a8). FILED: CS-1105 through
   CS-1118, several of them closed in the same session. Detail in `docs/LEDGER.md`.
-- **CS-1108 IS MERGED BUT NOT CLOSED ON RECORD.** The launcher fix landed at 925329d and
-  CS-1111 closed the gaps its arms left, yet the CS-1108 item line still stands in
-  `ROADMAP.md` and `docs/LEDGER.md` carries no CS-1108 entry. Nothing here closes it - its
-  acceptance has not been graded by an agent that did not build it.
+- **CS-1108 IS CLOSED.** It WAS graded - adversary NOT REFUTED at 3491540, merged at
+  925329d, CI follow-up c6a41f3 - but the merger never recorded the closure. Recorded after
+  the session: its `docs/LEDGER.md` entry is written and its `ROADMAP.md` line removed.
 - **THE BIG FINDING: EVERY LANE CYCLE SINCE 2026-09-06 THAT BACKGROUNDED ITS SUITE WAS
   KILLED.** `claude -p` kills background shells about five seconds after the final reply,
   and `CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS` covers subagents only. CS-1108 disables
@@ -75,9 +74,9 @@ the line becomes a pointer.
   content before pruning.
 - STILL OPEN worth naming: CS-971 (behind CS-1112 and CS-1079), CS-1079, CS-1098, CS-1099
   and CS-1100 (with the CS-1098 licence fence), CS-1105, CS-1106, CS-1112, CS-1114,
-  CS-1117, CS-1118, and CS-1108's record.
-- Next action: send CS-1108's acceptance to a verifier that did not build it; on a pass,
-  write its `docs/LEDGER.md` entry and remove its `ROADMAP.md` line in one commit.
+  CS-1117 and CS-1118.
+- Next action: the lane keeps draining under the fixed launcher; the main session takes
+  CS-1117, CS-1118, CS-1105 and CS-1106, CS-1114, then CS-1112 -> CS-1079 -> CS-971.
 
 ## Session 101 - 2026-09-16 - the moon-sync adoption, and three of three slices refuted before merge
 
