@@ -280,6 +280,13 @@ EXEMPTION_REASON_MINIMUM: Final = 60
 # rows, so "the remainder is the frozen four" is exactly the inference this
 # comment must not invite. Read ungraded() and the runtime arms before claiming
 # a remainder, and re-derive it rather than quoting a prior claim.
+# THESE ROWS ARE KEYED BY LINE, AND THAT KEY GOES STALE ON AN EDIT ABOVE THE
+# SITE RATHER THAN AT IT. Measured twice now: the CS-1087 gate change and then
+# the CS-1095 console-flash constant each moved two of these rows without
+# touching a spawn, and both times the arm reported the exemption stale and the
+# finding live - the correct verdicts from a key that cannot tell an edit above
+# a site from a change to it. The function and callee halves of the key are
+# already stable; only the integer is not. CS-1102 carries re-keying them.
 EXEMPTIONS: Final[dict[tuple[str, str, str, int], str]] = {
     ("scripts/install_hooks.py", "run_git", "subprocess.run", 119): (
         "FROZEN under CLAUDE.md section 6 - scripts/install_hooks.py needs an adjudicator"
@@ -294,13 +301,13 @@ EXEMPTIONS: Final[dict[tuple[str, str, str, int], str]] = {
         " wired clone while wiring nothing, which is the exact failure mode the module's"
         " own docstring calls out as the one that must never be silent."
     ),
-    ("tools/precommit_gate.py", "ruff_command", "which", 2038): (
+    ("tools/precommit_gate.py", "ruff_command", "which", 2057): (
         "FROZEN under CLAUDE.md section 6 - tools/precommit_gate.py is the tier-0"
         " blocking gate and needs an adjudicator grant before any edit. shutil.which was"
         " MEASURED returning a relative current-directory path, so the linter this gate"
         " runs over staged content can be supplied by the tree being committed."
     ),
-    ("tools/precommit_gate.py", "git", "subprocess.run", 2412): (
+    ("tools/precommit_gate.py", "git", "subprocess.run", 2443): (
         "FROZEN under CLAUDE.md section 6 - same file, same route, same grant. The gate"
         " asks git what is staged, so a planted git decides what the gate believes it is"
         " inspecting, which makes this the highest-value of the four to repair once the"

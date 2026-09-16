@@ -37,6 +37,7 @@ from __future__ import annotations
 
 import hashlib
 import re
+import subprocess
 import sys
 from pathlib import Path
 
@@ -112,12 +113,29 @@ FILE_LINE = re.compile(r"[\w.\-/]+\.[A-Za-z]{1,5}:\d+")
 #: Repo-relative paths the doc names that DO NOT resolve here, each with the
 #: reason, and each checked in BOTH directions by arm 6: a member that starts
 #: resolving is as much a finding as a non-member that stops.
-UNRESOLVED_REPO_PATHS = {
+UNRESOLVED_REPO_PATHS: dict[str, str] = {}
+
+#: Repo-relative paths whose PRESENCE IS A PROPERTY OF THE CHECKOUT AND NOT OF
+#: THE REPOSITORY, so neither resolving nor failing to resolve is a finding.
+#:
+#: THIS ROSTER EXISTS BECAUSE THE FIRST VERSION OF ARM 6 SHIPPED A RED. It
+#: recorded the inbox directory as a non-resolver, which is what a worktree
+#: measures - the arm was built and graded in one, and a worktree is a fresh
+#: checkout that never created a gitignored directory. The PRIMARY checkout has
+#: one, because that is where notes actually arrive. So the arm passed where it
+#: was written and failed where it was merged, and the roster was not wrong so
+#: much as asking the wrong question.
+#:
+#: EXISTENCE IS THE WRONG PROPERTY TO ASSERT ABOUT A GITIGNORED PATH. Being
+#: IGNORED is the right one: it is a fact about the repository, it is identical
+#: in a worktree and in the primary tree, and it is what the document is
+#: actually claiming when it says a clone has no channel. The arm asserts that
+#: instead, and says nothing about whether the directory happens to be there.
+CHECKOUT_DEPENDENT_REPO_PATHS = {
     "moon_sync_inbox/": (
-        "gitignored at /moon_sync_inbox/, so it is absent from a fresh clone "
-        "and from every worktree. The document says this about itself in its "
-        "own header and again in section 5 property 5, which is why the arm "
-        "records it rather than resolving it."
+        "gitignored at /moon_sync_inbox/, so it exists in the primary checkout "
+        "where notes arrive and in no worktree. The document says this about "
+        "itself in its own header and again in section 5 property 5."
     ),
 }
 
@@ -478,7 +496,35 @@ def test_every_repo_relative_path_resolves_and_no_file_line_is_cited() -> None:
         f"populations, so nothing grades it: {sorted(set(bare))}"
     )
 
-    missing = sorted(t for t in repo_relative if not (REPO_ROOT / t.rstrip("/")).exists())
+    # A gitignored path is asked whether git IGNORES it, never whether it is on
+    # disk - the second answer differs between the primary checkout and a
+    # worktree and would make this arm report on the checkout it happens to run
+    # in. git check-ignore exits 0 when the path IS ignored.
+    #
+    # THE TRAILING SLASH IS LOAD-BEARING AND WAS MEASURED, NOT ASSUMED. The
+    # ignore rule is /moon_sync_inbox/, a DIRECTORY-ONLY pattern, and git can
+    # only tell that a pathspec names a directory from the trailing slash or
+    # from the path existing on disk. Strip the slash and check-ignore answers
+    # from the filesystem instead of the rules: measured 5 of 5 runs exit 1 in a
+    # worktree, where the directory is absent, and exit 0 in the primary, where
+    # it is not - which is the exact checkout-dependence this arm exists to
+    # remove. With the slash kept it is 0 in both.
+    for token, reason in CHECKOUT_DEPENDENT_REPO_PATHS.items():
+        ignored = subprocess.run(
+            ["git", "check-ignore", "-q", token],
+            cwd=REPO_ROOT,
+            capture_output=True,
+            check=False,
+        )
+        assert ignored.returncode == 0, (
+            f"{token} is recorded as checkout-dependent because it is "
+            f"gitignored - {reason} - but git does not ignore it here, so its "
+            "presence has become a real finding rather than an artifact of "
+            "which checkout is running this arm"
+        )
+
+    graded = [t for t in repo_relative if t not in CHECKOUT_DEPENDENT_REPO_PATHS]
+    missing = sorted(t for t in graded if not (REPO_ROOT / t.rstrip("/")).exists())
     assert missing == sorted(UNRESOLVED_REPO_PATHS), (
         "the set of repo-relative paths the vendored doc names that do not "
         "resolve in this tree has changed. Each non-resolving member needs a "
@@ -486,7 +532,7 @@ def test_every_repo_relative_path_resolves_and_no_file_line_is_cited() -> None:
         f"measured={missing} recorded={sorted(UNRESOLVED_REPO_PATHS)}"
     )
 
-    resolved = [t for t in repo_relative if t not in UNRESOLVED_REPO_PATHS]
+    resolved = [t for t in graded if t not in UNRESOLVED_REPO_PATHS]
     assert resolved == RESOLVED_REPO_PATHS, (
         "the repo-relative paths the vendored doc names that DO resolve here "
         "have changed. This population is one self-reference by construction, "
