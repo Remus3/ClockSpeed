@@ -46,7 +46,7 @@ CS-1111 CLOSES FOUR GAPS THOSE ARMS LEFT.
 2. The CLI copies a settings file's ``env`` block over the process env, so a
    tracked settings file is read and a differing value reddens.
 3. The prompt's foreground-only statement forbids shell-level detaching.
-4. The launcher's Bash timeout is tied to the driver's suite wedge limit.
+4. The launcher's Bash timeout is tied to the driver's cycle budget.
 
 PATHS ARE BOUND TO SCALARS BEFORE THEY ARE ASSERTED ON (CS-850).
 """
@@ -101,8 +101,8 @@ TIMEOUT_FLOOR_MS: Final = RUN_MARGIN * MEASURED_SLOW_RUN_S * 1000
 #: reports rather than holding the lane for the rest of the night.
 TIMEOUT_CAP_MS: Final = 60 * 60 * 1000
 
-#: The driver's constant for the local suite's wedge limit, found by NAME.
-SUITE_LIMIT_NAME: Final = "DEFAULT_SUITE_TIMEOUT_S"
+#: The driver's constant for one worker cycle's kill budget, found by NAME.
+CYCLE_BUDGET_NAME: Final = "DEFAULT_CYCLE_TIMEOUT_S"
 
 #: A positive decimal integer spelled plainly - no sign, no exponent, no space.
 _DECIMAL: Final = re.compile(r"[1-9][0-9]*")
@@ -560,6 +560,16 @@ def static_env_faults(text: str) -> list[str]:
     variable command, or code evaluated from text - because each can change what
     the child receives by a name the text never spells whole.
 
+    FAIL-SAFE BRITTLENESS, ACCEPTED ON PURPOSE. The arm reddens on some edits
+    that are harmless: a ``2>&1`` before the invocation (the call-operator leg
+    sees the ``&``), the word "environment" inside a ``Write-Host`` string, a
+    ``Remove-Item`` on an unrelated path, and a single-quoted value. Each is a
+    false RED, never a false green. (A trailing ``#`` comment on an assignment
+    was measured ACCEPTED - the lexer blanks it to spaces, which the accepted
+    shape allows - so it is not on this list.) The repair is to spell the
+    launcher edit in the accepted shape, not to widen a leg, because every leg
+    is the only one that catches at least one real plant.
+
     Args:
         text: The PowerShell source.
 
@@ -819,7 +829,6 @@ def test_the_child_receives_an_allowlisted_environment(tmp_path: Path) -> None:
 # ===========================================================================
 
 _ANCHOR_DISABLE: Final = '$env:CLAUDE_CODE_DISABLE_BACKGROUND_TASKS = "1"\n'
-_ANCHOR_LAST: Final = '$env:BASH_DEFAULT_TIMEOUT_MS = "2400000"\n'
 
 
 @dataclass(frozen=True)
@@ -827,12 +836,17 @@ class Plant:
     """One bad edit to the real runner.
 
     Attributes:
-        anchor: The runner text the edit replaces, once.
-        replacement: What replaces it.
+        anchor: The runner text the edit replaces, once - or None to INSERT the
+            replacement immediately before the statement that starts the CLI.
+            An undoing plant is inserted there rather than after some named
+            assignment, so it runs after every assignment in ANY order: a plant
+            placed after one assignment that a behaviour-neutral reorder moves
+            below it is undone by that assignment and proves nothing.
+        replacement: What replaces the anchor, or what is inserted.
         target: A variable the plant leaves bad, which a fault must name.
     """
 
-    anchor: str
+    anchor: str | None
     replacement: str
     target: str
 
@@ -851,24 +865,20 @@ PLANTS: Final = {
     ),
     "here-string": Plant(_ANCHOR_DISABLE, '$unused = @"\n' + _ANCHOR_DISABLE + '"@\n', DISABLE_VAR),
     "wildcard-remove": Plant(
-        _ANCHOR_LAST,
-        _ANCHOR_LAST + "Remove-Item Env:CLAUDE_CODE_DISABLE_BACKGROUND_T*\n",
+        None,
+        "Remove-Item Env:CLAUDE_CODE_DISABLE_BACKGROUND_T*\n",
         DISABLE_VAR,
     ),
     "built-name-remove": Plant(
-        _ANCHOR_LAST,
-        _ANCHOR_LAST
-        + '$lane = "CLAUDE_CODE_DISABLE_" + "BACKGROUND_TASKS"\n'
+        None,
+        '$lane = "CLAUDE_CODE_DISABLE_" + "BACKGROUND_TASKS"\n'
         + 'Remove-Item -LiteralPath ("En" + "v:" + $lane)\n',
         DISABLE_VAR,
     ),
-    "wildcard-timeout": Plant(
-        _ANCHOR_LAST, _ANCHOR_LAST + "Remove-Item Env:BASH_*_TIMEOUT_MS\n", MAX_TIMEOUT_VAR
-    ),
+    "wildcard-timeout": Plant(None, "Remove-Item Env:BASH_*_TIMEOUT_MS\n", MAX_TIMEOUT_VAR),
     "set-environment-variable": Plant(
-        _ANCHOR_LAST,
-        _ANCHOR_LAST
-        + "[Environment]::SetEnvironmentVariable("
+        None,
+        "[Environment]::SetEnvironmentVariable("
         + '"CLAUDE_CODE_DISABLE_" + "BACKGROUND_TASKS", "0")\n',
         DISABLE_VAR,
     ),
@@ -879,33 +889,100 @@ PLANTS: Final = {
         _ANCHOR_DISABLE, "$null = '\n" + _ANCHOR_DISABLE + "'\n", DISABLE_VAR
     ),
     "provider-intrinsics-remove": Plant(
-        _ANCHOR_LAST,
-        _ANCHOR_LAST
-        + "$ExecutionContext.InvokeProvider.Item.Remove("
+        None,
+        "$ExecutionContext.InvokeProvider.Item.Remove("
         + '"Env:CLAUDE_CODE_DISABLE_BACKGROUND_T*", $false)\n',
         DISABLE_VAR,
     ),
     "call-operator-remove": Plant(
-        _ANCHOR_LAST,
-        _ANCHOR_LAST + '& ("Remove-" + "Item") ("En" + "v:CLAUDE_CODE_DISABLE_BACKGROUND_T*")\n',
+        None,
+        '& ("Remove-" + "Item") ("En" + "v:CLAUDE_CODE_DISABLE_BACKGROUND_T*")\n',
         DISABLE_VAR,
     ),
 }
 
 
-def _write_plant(kind: str, tmp_path: Path) -> Path:
-    """The real runner with one plant applied, written to disk as bytes.
+def insert_before_invocation(text: str, block: str) -> str:
+    """Insert ``block`` on its own lines just before the statement starting the CLI.
+
+    The statement is the invocation line walked back over every line it
+    continues - the prompt is piped in from the line above - so the block never
+    lands inside the pipeline.
+
+    Args:
+        text: The PowerShell source.
+        block: Whole lines to insert, newline-terminated.
+
+    Returns:
+        The source with the block inserted, or unchanged when there is not
+        exactly one invocation.
+    """
+    lines = lex_script(text)
+    invocations = [i for i, line in enumerate(lines) if _INVOCATION.search(line.code)]
+    if len(invocations) != 1:
+        return text
+    at = invocations[0]
+    while at > 0 and _continued(lines, at):
+        at -= 1
+        while at > 0 and not lines[at].code.strip():
+            at -= 1
+    source = text.splitlines(keepends=True)
+    return "".join([*source[:at], block, *source[at:]])
+
+
+#: The launcher's three CS-1108 assignments, whose order a reorder permutes.
+_REORDERED_VARS: Final = (DISABLE_VAR, MAX_TIMEOUT_VAR, DEFAULT_TIMEOUT_VAR)
+
+
+def _base_runner(base: str) -> str:
+    """The runner text a plant is applied to.
+
+    Args:
+        base: ``real`` for the runner as it is, or ``reordered`` for the same
+            runner with its three assignments' lines reversed in place,
+            WHATEVER order they are in on disk - no behaviour change, so every
+            plant must stay bad and caught on it too.
+
+    Returns:
+        The runner's text.
+    """
+    text = RUNNER_SOURCE.read_bytes().decode("ascii")
+    if base == "real":
+        return text
+    source = text.splitlines(keepends=True)
+    shapes = [_assignment(name) for name in _REORDERED_VARS]
+    at = [i for i, line in enumerate(source) if any(s.fullmatch(line) for s in shapes)]
+    assert len(at) == len(_REORDERED_VARS), "the three assignments are not each one line"
+    moved = [source[i] for i in reversed(at)]
+    for i, line in zip(at, moved, strict=True):
+        source[i] = line
+    reordered = "".join(source)
+    applied = reordered != text
+    assert applied, "the reorder never applied"
+    return reordered
+
+
+#: Both bases every plant is graded on.
+BASES: Final = ("real", "reordered")
+
+
+def _write_plant(kind: str, base: str, tmp_path: Path) -> Path:
+    """A runner with one plant applied, written to disk as bytes.
 
     Args:
         kind: The plant's key.
+        base: Which runner text to plant into, see ``_base_runner``.
         tmp_path: The test's scratch directory.
 
     Returns:
         The planted runner's path.
     """
     plant = PLANTS[kind]
-    text = RUNNER_SOURCE.read_bytes().decode("ascii")
-    mutated = text.replace(plant.anchor, plant.replacement, 1)
+    text = _base_runner(base)
+    if plant.anchor is None:
+        mutated = insert_before_invocation(text, plant.replacement)
+    else:
+        mutated = text.replace(plant.anchor, plant.replacement, 1)
     applied = mutated != text
     assert applied, f"the {kind} plant never applied"
     planted = tmp_path / "planted" / "run_lane.ps1"
@@ -914,17 +991,30 @@ def _write_plant(kind: str, tmp_path: Path) -> Path:
     return planted
 
 
-def test_control_the_real_runner_copied_to_disk_stays_green(tmp_path: Path) -> None:
+@pytest.mark.parametrize("base", BASES)
+def test_control_the_unplanted_runner_on_disk_stays_green(base: str, tmp_path: Path) -> None:
     """The pristine floor: the same write path with no plant is reported for nothing."""
     copied = tmp_path / "pristine" / "run_lane.ps1"
     copied.parent.mkdir()
-    copied.write_bytes(RUNNER_SOURCE.read_bytes())
+    copied.write_bytes(_base_runner(base).encode("ascii"))
     faults = static_env_faults(copied.read_bytes().decode("ascii"))
     assert faults == []
 
 
+def test_control_the_reordered_runner_hands_the_child_a_good_environment(
+    tmp_path: Path,
+) -> None:
+    """The reorder is behaviour-neutral, so a plant failing on it is the plant's fault."""
+    copied = tmp_path / "pristine" / "run_lane.ps1"
+    copied.parent.mkdir()
+    copied.write_bytes(_base_runner("reordered").encode("ascii"))
+    faults = _child_env_faults(copied, tmp_path)
+    assert faults == []
+
+
+@pytest.mark.parametrize("base", BASES)
 @pytest.mark.parametrize("kind", sorted(PLANTS))
-def test_control_each_plant_is_bad_at_runtime(kind: str, tmp_path: Path) -> None:
+def test_control_each_plant_is_bad_at_runtime(kind: str, base: str, tmp_path: Path) -> None:
     """A plant the child never feels would make the arm below vacuous.
 
     Runs only where the runtime arm runs; its job is to prove, on a Windows
@@ -932,15 +1022,16 @@ def test_control_each_plant_is_bad_at_runtime(kind: str, tmp_path: Path) -> None
     child a bad environment.
     """
     _powershell()
-    planted = _write_plant(kind, tmp_path)
+    planted = _write_plant(kind, base, tmp_path)
     faults = _child_env_faults(planted, tmp_path)
     assert faults != [], f"the {kind} plant left the child's environment good"
 
 
+@pytest.mark.parametrize("base", BASES)
 @pytest.mark.parametrize("kind", sorted(PLANTS))
-def test_the_static_arm_reddens_on_each_plant(kind: str, tmp_path: Path) -> None:
+def test_the_static_arm_reddens_on_each_plant(kind: str, base: str, tmp_path: Path) -> None:
     """GAP 1: the static arm alone catches each plant, on every platform."""
-    planted = _write_plant(kind, tmp_path)
+    planted = _write_plant(kind, base, tmp_path)
     faults = static_env_faults(planted.read_bytes().decode("ascii"))
     target = PLANTS[kind].target
     named = any(fault.startswith(target) for fault in faults)
@@ -1094,42 +1185,42 @@ def module_int_constant(source: str, name: str) -> int | None:
     return None
 
 
-def timeout_relation_faults(bash_ms: int, suite_limit_s: int) -> list[str]:
-    """Whether a Bash timeout sits between the expected suite run and the wedge limit.
+def timeout_relation_faults(bash_ms: int, cycle_budget_s: int) -> list[str]:
+    """Whether a Bash timeout covers the expected suite run and ends inside the cycle.
 
     Args:
         bash_ms: The launcher's Bash timeout, in milliseconds.
-        suite_limit_s: The driver's local-suite wedge limit, in seconds.
+        cycle_budget_s: The driver's kill budget for one worker cycle, in seconds.
 
     Returns:
         The faults, empty when the relation holds.
     """
     expected_ms = RUN_MARGIN * MEASURED_SLOW_RUN_S * 1000
-    limit_ms = suite_limit_s * 1000
+    budget_ms = cycle_budget_s * 1000
     faults: list[str] = []
-    if limit_ms < expected_ms:
-        faults.append("the suite wedge limit does not cover the expected run with margin")
+    if budget_ms <= expected_ms:
+        faults.append("the cycle budget does not exceed the expected suite run with margin")
     if bash_ms < expected_ms:
         faults.append("the Bash timeout does not cover the expected suite run with margin")
-    if bash_ms > limit_ms:
-        faults.append("the Bash timeout outlives the driver's suite wedge limit")
+    if bash_ms >= budget_ms:
+        faults.append("the Bash timeout does not end inside the driver's cycle budget")
     return faults
 
 
 @pytest.mark.parametrize(
-    ("bash_ms", "limit_s", "good"),
+    ("bash_ms", "budget_s", "good"),
     [
-        (2_400_000, 5400, True),
-        (RUN_MARGIN * MEASURED_SLOW_RUN_S * 1000, 5400, True),
-        (5400 * 1000, 5400, True),
-        (RUN_MARGIN * MEASURED_SLOW_RUN_S * 1000 - 1, 5400, False),
-        (5400 * 1000 + 1, 5400, False),
-        (2_400_000, 1800, False),
-        (1_000_000, 1500, False),
+        (2_400_000, 14400, True),
+        (RUN_MARGIN * MEASURED_SLOW_RUN_S * 1000, 14400, True),
+        (14400 * 1000 - 1, 14400, True),
+        (RUN_MARGIN * MEASURED_SLOW_RUN_S * 1000 - 1, 14400, False),
+        (14400 * 1000, 14400, False),
+        (2_400_000, 2400, False),
+        (1_800_000, 1800, False),
     ],
 )
-def test_control_the_timeout_relation(bash_ms: int, limit_s: int, good: bool) -> None:
-    faults = timeout_relation_faults(bash_ms, limit_s)
+def test_control_the_timeout_relation(bash_ms: int, budget_s: int, good: bool) -> None:
+    faults = timeout_relation_faults(bash_ms, budget_s)
     assert (faults == []) is good
 
 
@@ -1146,31 +1237,29 @@ def test_control_the_suite_limit_is_found_only_as_one_integer_literal() -> None:
     assert module_int_constant("Y_S = 5400\n", "X_S") is None
 
 
-def test_the_bash_timeout_exceeds_the_expected_suite_run_within_the_wedge_limit() -> None:
+def test_the_bash_timeout_covers_the_suite_run_and_ends_inside_the_cycle() -> None:
     """GAP 4: both numbers derived from their owners, and the relation asserted.
 
     THE LOWER BOUND, ``timeout >= RUN_MARGIN * expected run``. A foreground Bash
     call is killed at its timeout, so a timeout that does not cover a whole
     suite run with margin brings the CS-1108 kill back by another route: the
     suite dies mid-run and the cycle commits nothing. The expected run is the
-    measured slow end, because the driver's constant is a wedge ceiling and says
-    only "tens of minutes" about the work it bounds.
+    measured slow end, because no driver constant states the work itself.
 
-    THE UPPER BOUND, ``timeout <= the driver's wedge limit``, and this is the
-    direction that needs saying. The driver names ``DEFAULT_SUITE_TIMEOUT_S`` as
-    the point past which a local suite run is a WEDGE, not work. A worker's
-    foreground call allowed to outlive that point would hold a run the driver
-    itself has already classified as wedged, spending the cycle's budget on it
-    and ending in the driver's hard kill, which writes no cycle report. Keeping
-    the Bash timeout at or below the limit means the CLI kills a wedged command
-    first, the call returns, and the worker still reports. The same chain also
-    checks that the limit itself covers the expected run with margin, so a
-    lowered limit cannot slide under the timeout unnoticed.
+    THE UPPER BOUND, ``timeout < the driver's cycle budget``, and this is the
+    direction that needs saying. What bounds a worker's Bash call from outside
+    is ``DEFAULT_CYCLE_TIMEOUT_S``, the budget past which the driver hard-kills
+    the whole worker - a kill that unwinds nothing and writes no cycle report.
+    ``DEFAULT_SUITE_TIMEOUT_S`` is NOT that envelope: it bounds the suite the
+    DRIVER itself runs, never a call the worker makes, so an earlier draft of
+    this arm tied the timeout to the wrong process. A Bash timeout at or past
+    the cycle budget lets one wedged call ride into the driver's kill; strictly
+    inside it, the CLI kills the call first, the call returns, and the worker
+    still reports. The chain also checks the budget itself exceeds the expected
+    run with margin, so a lowered budget cannot slide under the timeout.
     """
-    suite_limit_s = module_int_constant(
-        DRIVER_SOURCE.read_bytes().decode("utf-8"), SUITE_LIMIT_NAME
-    )
-    assert suite_limit_s is not None, f"{SUITE_LIMIT_NAME} is not one integer literal"
+    budget_s = module_int_constant(DRIVER_SOURCE.read_bytes().decode("utf-8"), CYCLE_BUDGET_NAME)
+    assert budget_s is not None, f"{CYCLE_BUDGET_NAME} is not one integer literal"
     launcher = launcher_env_values(RUNNER_SOURCE.read_bytes().decode("ascii"))
     faults: list[str] = []
     for name in (MAX_TIMEOUT_VAR, DEFAULT_TIMEOUT_VAR):
@@ -1178,8 +1267,8 @@ def test_the_bash_timeout_exceeds_the_expected_suite_run_within_the_wedge_limit(
         if value is None or _DECIMAL.fullmatch(value) is None:
             faults.append(f"{name}: the launcher sets no plain integer")
             continue
-        faults += [f"{name}: {f}" for f in timeout_relation_faults(int(value), suite_limit_s)]
-    assert faults == [], f"the Bash timeout and the suite wedge limit disagree: {faults}"
+        faults += [f"{name}: {f}" for f in timeout_relation_faults(int(value), budget_s)]
+    assert faults == [], f"the Bash timeout and the cycle budget disagree: {faults}"
 
 
 # ===========================================================================
@@ -1277,6 +1366,24 @@ DETACH_TOKENS: Final = (
 )
 
 
+def foreground_paragraph_spans(text: str) -> list[tuple[int, int]]:
+    """The spans of every paragraph that says a long command runs in the foreground.
+
+    Args:
+        text: The prompt.
+
+    Returns:
+        ``(start, end)`` offsets, one per matching blank-line-delimited paragraph.
+    """
+    spans: list[tuple[int, int]] = []
+    start = 0
+    for gap in re.finditer(r"\n[ \t]*\n", text):
+        spans.append((start, gap.start()))
+        start = gap.end()
+    spans.append((start, len(text)))
+    return [(a, b) for a, b in spans if _FOREGROUND_STATEMENT.search(text[a:b])]
+
+
 def detach_faults(text: str) -> list[str]:
     """What the foreground-only statement fails to forbid.
 
@@ -1289,21 +1396,49 @@ def detach_faults(text: str) -> list[str]:
     Returns:
         The missing labels, or a single fault when there is no one statement.
     """
-    paragraphs = [p for p in re.split(r"\n[ \t]*\n", text) if _FOREGROUND_STATEMENT.search(p)]
-    if len(paragraphs) != 1:
+    spans = foreground_paragraph_spans(text)
+    if len(spans) != 1:
         return ["the foreground-only statement is not exactly one paragraph"]
-    return [label for label, pattern in DETACH_TOKENS if not re.search(pattern, paragraphs[0])]
+    paragraph = text[spans[0][0] : spans[0][1]]
+    return [label for label, pattern in DETACH_TOKENS if not re.search(pattern, paragraph)]
 
 
+def _rewrapped(text: str) -> str:
+    """The prompt with the foreground paragraph's line breaks moved.
+
+    Args:
+        text: The prompt.
+
+    Returns:
+        The prompt with that paragraph re-flowed onto lines of a different width.
+    """
+    spans = foreground_paragraph_spans(text)
+    assert len(spans) == 1, "the foreground-only statement is not exactly one paragraph"
+    a, b = spans[0]
+    words = text[a:b].split()
+    flowed = "\n".join(" ".join(words[i : i + 7]) for i in range(0, len(words), 7))
+    return text[:a] + flowed + text[b:]
+
+
+@pytest.mark.parametrize("wrap", ["as-is", "rewrapped"])
 def test_control_a_statement_without_the_detach_prohibition_is_reported(
-    prompt_text: str,
+    prompt_text: str, wrap: str
 ) -> None:
-    """Mutation on the real prompt: cut the prohibition and every token is missing."""
-    at = prompt_text.find("**Never detach a command")
-    found = at >= 0
-    assert found, "the prohibition sentence is not in the prompt"
-    end = prompt_text.find("\n\n", at)
-    cut = prompt_text[:at] + prompt_text[end:]
+    """Mutation on the real prompt: cut the prohibition and every token is missing.
+
+    Bound by STRUCTURE, not by a literal: the cut starts where the prohibition
+    pattern matches inside the one foreground paragraph and runs to that
+    paragraph's end, so re-flowing the paragraph moves nothing the control needs.
+    """
+    text = prompt_text if wrap == "as-is" else _rewrapped(prompt_text)
+    whole = detach_faults(text)
+    assert whole == [], f"the {wrap} prompt does not forbid: {whole}"
+    a, b = foreground_paragraph_spans(text)[0]
+    prohibition = re.search(DETACH_TOKENS[0][1], text[a:b])
+    found = prohibition is not None
+    assert found, "the prohibition is not in the foreground paragraph"
+    cut_at = a + (prohibition.start() if prohibition else 0)
+    cut = text[:cut_at] + text[b:]
     faults = detach_faults(cut)
     assert faults == [label for label, _pattern in DETACH_TOKENS]
 
