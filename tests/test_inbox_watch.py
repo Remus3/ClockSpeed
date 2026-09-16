@@ -16,6 +16,7 @@ THE ARMS THAT MATTER ARE THE TWO THAT ENCODE A REASON, not the happy path:
 
 from __future__ import annotations
 
+import ast
 import importlib.util
 import json
 import os
@@ -1582,3 +1583,349 @@ def test_the_twin_session_start_print_is_never_deduplicated(
         " silences a session that has been told nothing."
     )
     assert first == second, "the second session start was told something different"
+
+
+# --- CS-1103 a blind read is recoverable; a blind read that WRITES is not ----
+#
+# THE THREE DEFECTS THIS ENCODES WERE MEASURED IN THIS TREE, against a
+# synthetic inbox holding one live note with an honest acknowledgement already
+# recorded. Only the FIRST of the three had ever been repaired:
+#
+#   1. The listing printed its UNMEASURED line correctly. That half was fine
+#      and the arms above still hold it.
+#
+#   2. THE WITHDRAWAL DERIVATION FABRICATED A WITHDRAWAL. The enumerator
+#      swallowed the OSError and returned the empty list, so every
+#      acknowledged key read as gone and the banner announced 1 WITHDRAWN,
+#      naming the note that was sitting in the inbox the whole time. A
+#      withdrawal is the ONE inbox event with no on-disk artifact left to
+#      check it against, so nothing downstream can catch a fabricated one.
+#
+#   3. THE ACKNOWLEDGE PATH ERASED THE WATERMARK. --ack rewrote the store from
+#      the live note's digest to an empty seen list and printed "acknowledged
+#      0 item(s)" while doing it. That is destruction of the durable state the
+#      whole tool exists to keep, triggered by a permission bit.
+#
+# A sibling on this channel measured the identical three-defect shape in its
+# own watcher against a REAL ACL denial, and its framing is the one held here:
+# A BLIND READ IS RECOVERABLE; A BLIND READ THAT WRITES IS NOT.
+#
+# THE DENIAL IS MANUFACTURED, per `deny_listing` above. A real ACL denial is
+# host-token dependent and would skip or pass unevenly on this machine, and an
+# arm that cannot make its own fault is an arm that grades whatever the host
+# felt like doing.
+
+
+def test_the_enumerator_refuses_rather_than_returning_an_empty_listing(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Two different facts arrived as THE SAME VALUE, the empty list.
+
+    Both were the empty list, so every caller downstream acted on "nothing
+    there" for a channel it had never read. The disposition has to be one a
+    caller cannot confuse by accident, and it is deliberately NOT an OSError:
+    every OSError handler in the module exists to keep ONE unreadable item
+    from taking the report down, and each of them would swallow this again.
+
+    THE EMPTY CONTROL IS THE ARM'S SUBJECT. Asserting only that the denied
+    channel raises says nothing about whether the two states are distinct -
+    a module that raised on every listing would pass that half.
+    """
+    note(repo, "2026-01-01-0900-from-RC-topic.md")
+    empty = repo / "an-empty-channel"
+    empty.mkdir()
+
+    assert inbox_watch.deliverables(empty) == [], "the control channel is not actually empty"
+    assert not issubclass(inbox_watch.InboxUnreadableError, OSError), (
+        "the blind disposition is an OSError, so every handler written to"
+        " tolerate one unreadable ITEM swallows the unreadable CHANNEL too"
+    )
+
+    deny_listing(monkeypatch, repo / INBOX_DIRNAME)
+
+    with pytest.raises(inbox_watch.InboxUnreadableError):
+        inbox_watch.deliverables(repo / INBOX_DIRNAME)
+
+
+def test_every_other_caller_of_the_enumerator_refuses_too(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """THE CALL SITES THE BANNER REPRODUCTION NEVER REACHED.
+
+    `notes_in`, `unread_items` and `unread` each returned an empty list for an
+    unreadable channel exactly as the enumerator did, and not one of them sits
+    on the path the measured banner walks. A repair that fixed only the two
+    measured paths would leave three more ways back to the same answer.
+    """
+    note(repo, "a.md")
+    inbox = repo / INBOX_DIRNAME
+    store = seen_path(repo)
+    deny_listing(monkeypatch, inbox)
+
+    with pytest.raises(inbox_watch.InboxUnreadableError):
+        inbox_watch.notes_in(inbox)
+    with pytest.raises(inbox_watch.InboxUnreadableError):
+        inbox_watch.unread_items(inbox, store)
+    with pytest.raises(inbox_watch.InboxUnreadableError):
+        inbox_watch.unread(inbox, store)
+
+
+def test_the_withdrawal_derivation_refuses_rather_than_deriving_from_nothing(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A withdrawal derived from a listing that did not happen is invented.
+
+    The derivation asks which acknowledged names are absent from the present
+    listing. An empty listing makes EVERY acknowledged name absent, so the
+    count of fabricated withdrawals is exactly the size of the store - and a
+    withdrawal leaves no artifact behind, so no later check can refute one.
+
+    The live control runs first: the same call, the same store, nothing
+    denied, and no withdrawal reported.
+    """
+    note(repo, "a.md")
+    inbox_watch.main(["--ack", "--root", str(repo)])
+
+    assert inbox_watch.withdrawn_items(repo / INBOX_DIRNAME, seen_path(repo)) == [], (
+        "the control reported a withdrawal for a note that never left"
+    )
+    assert inbox_watch.load_seen(seen_path(repo)), "the store is empty, so nothing could be faked"
+
+    deny_listing(monkeypatch, repo / INBOX_DIRNAME)
+
+    with pytest.raises(inbox_watch.InboxUnreadableError):
+        inbox_watch.withdrawn_items(repo / INBOX_DIRNAME, seen_path(repo))
+
+
+def test_an_unlistable_inbox_never_reports_a_withdrawal(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The banner half of the fabrication, at the layer that renders it."""
+    note(repo, "2026-01-01-0900-from-RC-topic.md")
+    inbox_watch.main(["--ack", "--root", str(repo)])
+    deny_listing(monkeypatch, repo / INBOX_DIRNAME)
+
+    banner, _ = inbox_watch.render(repo / INBOX_DIRNAME, seen_path(repo))
+
+    assert UNMEASURED_MARKER in banner, "the blind listing line regressed"
+    assert CLEAN_MARKER not in banner, "a blind run read as clean"
+    assert "WITHDRAWN" not in banner, (
+        "a run that could not list the channel reported a withdrawal, and it"
+        " named the note that never left the inbox"
+    )
+    assert "from-RC-topic" not in banner, "the live note was named as having gone"
+
+
+def test_a_blind_listing_run_of_main_prints_the_banner_and_invents_no_withdrawal(
+    repo: Path, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """GRADED WHERE THE HOOK ENTERS, which is `main` and not `render`.
+
+    `main` calls the enumerator twice more AFTER rendering, to count what it
+    writes to the invocation log. Those are two more call sites, and a repair
+    that stopped at `render` leaves them reading an empty listing - or, once
+    the enumerator refuses, lets the refusal escape as a traceback and costs
+    the hook the entire banner, which is the original seven-hour failure back
+    in full.
+    """
+    note(repo, "2026-01-01-0900-from-RC-topic.md")
+    inbox_watch.main(["--ack", "--root", str(repo)])
+    capsys.readouterr()
+    deny_listing(monkeypatch, repo / INBOX_DIRNAME)
+
+    code = inbox_watch.main(["--root", str(repo)])
+    banner = capsys.readouterr().out
+
+    assert code == 0, "a blind listing run exits non-zero, so a hook drops the banner"
+    assert UNMEASURED_MARKER in banner, "the blind run did not say it measured nothing"
+    assert CLEAN_MARKER not in banner, "a blind run read as clean"
+    assert "WITHDRAWN" not in banner, "a blind run of main fabricated a withdrawal"
+
+
+def test_a_blind_listing_run_logs_no_count_it_did_not_measure(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Zero and zero is what a healthy, fully acknowledged channel writes.
+
+    A blind run writing the same two numbers files a false record of a healthy
+    run, in the one artifact kept so that "did this fire, and what did it see"
+    is answered by measurement rather than by argument.
+    """
+    note(repo, "a.md")
+    inbox_watch.main(["--ack", "--root", str(repo)])
+    healthy = log_lines(repo)[-1]
+    deny_listing(monkeypatch, repo / INBOX_DIRNAME)
+
+    inbox_watch.main(["--root", str(repo)])
+
+    blind = log_lines(repo)[-1]
+    assert "unread=1" in healthy, "the control did not record a measured count at all"
+    assert UNMEASURED_MARKER.lower() in blind, (
+        f"a blind run filed an ordinary listing record: {blind!r}"
+    )
+    assert len(blind.split(" ")) == LOG_FIELDS, f"the blind record grew fields: {blind!r}"
+
+
+def test_an_unlistable_inbox_makes_ack_refuse_and_write_nothing(
+    repo: Path, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """THE DESTRUCTIVE HALF. A blind read that writes is not recoverable.
+
+    Measured before this arm existed: --ack rewrote the store from the live
+    note's digest to an empty seen list and printed a success line naming zero
+    items. The next run then had no watermark at all.
+
+    THE BYTES ARE ASSERTED, AND SO IS THE TIMESTAMP. A rewrite that happened
+    to reproduce the same bytes is still a write - it proves the refusal is
+    not there - and only the mtime can see it.
+    """
+    note(repo, "2026-01-01-0900-from-RC-topic.md")
+    inbox_watch.main(["--ack", "--root", str(repo)])
+    before = seen_path(repo).read_bytes()
+    before_ns = seen_path(repo).stat().st_mtime_ns
+    capsys.readouterr()
+    deny_listing(monkeypatch, repo / INBOX_DIRNAME)
+
+    code = inbox_watch.main(["--ack", "--root", str(repo)])
+    captured = capsys.readouterr()
+
+    assert seen_path(repo).read_bytes() == before, (
+        "a blind acknowledgement rewrote the store over the live note's digest"
+    )
+    assert seen_path(repo).stat().st_mtime_ns == before_ns, (
+        "the store was rewritten with identical bytes, which is still a write"
+    )
+    assert "acknowledged" not in captured.out, "a refused acknowledgement printed a success line"
+    assert UNMEASURED_MARKER in captured.err, "the refusal did not say that nothing was examined"
+    assert code == 0, "a refused ack exits non-zero, so a hook loses its stdout"
+
+
+def test_strict_distinguishes_an_unlistable_channel_from_an_absent_one(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A machine caller must not read "here and unreadable" as "not here".
+
+    The two states call for opposite responses: one is a clone that never had
+    the channel, the other is a run blind to a channel it does have. They
+    shared one exit code, so --strict could not tell them apart either.
+    """
+    absent = inbox_watch.main(["--root", str(repo / "nowhere"), "--strict"])
+    deny_listing(monkeypatch, repo / INBOX_DIRNAME)
+
+    blind = inbox_watch.main(["--root", str(repo), "--strict"])
+
+    assert absent == inbox_watch.EXIT_NO_INBOX, "the absent-channel code moved"
+    assert blind == inbox_watch.EXIT_BLIND_INBOX, "an unlistable channel carries no code of its own"
+    assert blind != absent, "an unlistable channel is reported as an absent one"
+
+
+# --- CS-1103 the process boundary, which no in-process arm can cross ---------
+#
+# THE GAP THIS CLOSES. Every other arm in this module calls `main` in the test
+# interpreter, so anything living in the `if __name__ == "__main__":` block is
+# unreachable from the suite by construction. A sibling found a suppression
+# that survived its ENTIRE 240-arm suite sitting exactly there. This tree is
+# structurally safe today - that block is one statement - and nothing graded
+# that it stays one.
+#
+# The three subprocess arms already here all run `git check-ignore`; not one
+# launches this watcher as a child.
+
+
+def run_watcher(repo: Path, *args: str) -> subprocess.CompletedProcess[str]:
+    """Run the watcher AS A CHILD PROCESS, the way the hook runs it.
+
+    Both labels are supplied so the child never reads stdin: the payload read
+    is bounded by a timeout, and a whole second per run buys this arm nothing.
+    """
+    return subprocess.run(
+        [
+            sys.executable,
+            str(WATCH_SOURCE),
+            "--root",
+            str(repo),
+            "--source",
+            "startup",
+            "--session-id",
+            "c1",
+            *args,
+        ],
+        capture_output=True,
+        text=True,
+        cwd=REPO_ROOT,
+        check=False,
+        timeout=120,
+        stdin=subprocess.DEVNULL,
+    )
+
+
+def test_the_module_run_as_a_child_process_reaches_stdout_and_exits_zero(repo: Path) -> None:
+    """TWO RUNS AGAINST ONE ROOT, AND THE SHARED STORE IS THE ARM.
+
+    The sibling's first attempt at this arm gave each run its own runtime
+    directory, so the second run never saw the first one's state and the arm
+    passed against the live defect. A fixture that excludes the defect cannot
+    fail. Here the acknowledgement the first child writes is the only reason
+    the second child's line can read as clean, so the shared state is graded
+    rather than assumed.
+    """
+    note(repo, "2026-01-01-0900-from-RC-topic.md")
+
+    first = run_watcher(repo, "--ack")
+    second = run_watcher(repo)
+
+    assert first.returncode == 0, f"the ack child exited {first.returncode}: {first.stderr}"
+    assert "acknowledged 1 item(s)" in first.stdout, f"the ack child said {first.stdout!r}"
+    assert second.returncode == 0, f"the listing child exited {second.returncode}: {second.stderr}"
+    assert second.stdout == "inbox_watch: no unread items (1 in the inbox, all acknowledged).\n", (
+        "the second child did not read the store the first one wrote, so the"
+        f" two runs shared no state and this arm graded nothing: {second.stdout!r}"
+    )
+
+
+def main_guard(source: str) -> ast.If:
+    """The module's `if __name__ == "__main__":` block, PARSED and not grepped.
+
+    Raises:
+        AssertionError: The module does not carry exactly one such block.
+    """
+    tree = ast.parse(source)
+    guards = [
+        node
+        for node in tree.body
+        if isinstance(node, ast.If)
+        and isinstance(node.test, ast.Compare)
+        and isinstance(node.test.left, ast.Name)
+        and node.test.left.id == "__name__"
+    ]
+    assert len(guards) == 1, f"the module carries {len(guards)} __main__ guards, not one"
+    return guards[0]
+
+
+def test_the_main_guard_carries_no_logic_beyond_dispatching_to_main() -> None:
+    """A future edit that moves logic above `main()` must REDDEN, not vanish.
+
+    PARSED, NEVER GREPPED. An arm searching the source for the dispatch line
+    is green on a file that also does five other things in that block, which
+    is the entire failure it would claim to catch.
+    """
+    guard = main_guard(WATCH_SOURCE.read_text(encoding="utf-8"))
+
+    assert guard.orelse == [], "the script-only block grew an else branch"
+    assert len(guard.body) == 1, (
+        f"the script-only block carries {len(guard.body)} statements. Logic here"
+        " runs only as a child process, where no in-process arm can see it."
+    )
+    (statement,) = guard.body
+    assert isinstance(statement, ast.Raise), "the block no longer dispatches by raising"
+    raised = statement.exc
+    assert isinstance(raised, ast.Call), "the block raises something it did not call"
+    assert isinstance(raised.func, ast.Name), "the block raises an attribute, not a bare name"
+    assert raised.func.id == "SystemExit", "the block raises something other than SystemExit"
+    (dispatched,) = raised.args
+    assert isinstance(dispatched, ast.Call), "the exit status is not a call at all"
+    assert isinstance(dispatched.func, ast.Name), "the dispatch target is not a bare name"
+    assert dispatched.func.id == "main", "the block dispatches to something other than main()"
+    assert (dispatched.args, dispatched.keywords) == ([], []), (
+        "the block passes arguments of its own, which no in-process arm sees"
+    )
