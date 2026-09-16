@@ -455,6 +455,29 @@ def test_every_module_this_split_created_is_seven_bit_ascii(
     every other arm here, and FLOORED for the reason each of them is: reading a
     file's bytes and finding none too high is byte-identical to reading no files
     at all.
+
+    AND IT REPORTS THE WHOLE FAILING POPULATION, NOT ITS FIRST MEMBER. CS-1093:
+    the check used to assert INSIDE the loop, so two modules carrying a high byte
+    named only the first and left the second invisible until the first was
+    repaired. A guard that reports one member of a failing population teaches the
+    reader the damage is smaller than it is, which is the pooled shape this
+    project has filed before - so every offender is collected and the arm asserts
+    once, and the missing-file case is collected beside it rather than left as a
+    second in-loop assert that would short-circuit the walk all over again.
+
+    THE ASSERTED EXPRESSION IS A COUNT AND THE POPULATION IS IN THE MESSAGE.
+    pytest rewrites ``assert TEST, MESSAGE`` and renders the sub-expressions of
+    TEST with their own reprs, independently of MESSAGE - so ``assert not
+    offenders`` would print the list whatever the message said, and the rendering
+    nobody controls is the one a reader would end up reading.
+    ``tests/assertion_rendering_guard`` carries that mechanism in full and names
+    this remedy: reduce the aggregate to a plain scalar BEFORE the assert, so the
+    rendered expression holds a number and nothing else.
+
+    THE BYTES ARE NEVER DECODED. ``read_bytes`` is what this reads by, because a
+    module carrying a byte above the range is exactly the module a decode could
+    raise on - and an arm that dies on its first offender reports no population
+    at all, which is the fault above wearing a traceback.
     """
     paths = sorted(
         Path(str(namespace["__file__"]))
@@ -467,10 +490,20 @@ def test_every_module_this_split_created_is_seven_bit_ascii(
         " The derivation has stopped naming the files the closure reaches, so a module"
         " carrying a byte above the range would be read by nothing."
     )
+    offenders: list[str] = []
     for path in paths:
-        assert path.is_file(), f"{path.name} is in the closure and not on disk"
-        raw = path.read_bytes()
-
-        assert not [byte for byte in raw if byte > test_docs_citations.HIGHEST_ASCII], (
-            f"{path.name} carries a byte above the 7-bit range"
+        if not path.is_file():
+            offenders.append(f"{path.name} is in the closure and not on disk")
+            continue
+        high = sorted(
+            {byte for byte in path.read_bytes() if byte > test_docs_citations.HIGHEST_ASCII}
         )
+        if high:
+            offenders.append(f"{path.name} carries bytes above the 7-bit range: {high}")
+    report = "\n  ".join(offenders)
+    offending_modules = len(offenders)
+
+    assert offending_modules == 0, (
+        f"{offending_modules} of {len(paths)} walked modules break non-negotiable 4,"
+        f" and every one of them is named here rather than only the first:\n  {report}"
+    )
