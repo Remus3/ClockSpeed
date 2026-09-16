@@ -47,7 +47,9 @@ Guards, in the order they are reported:
                          record forgives only the ids it names. Anything the
                          scan could not read is UNACCOUNTED and red.
 
-Exits non-zero on any DRIFT.
+Exits non-zero on any DRIFT, and on any UNGRADED guard - a WARN meaning an input
+was never read (CS-1113). Only a WARN its site marks advisory, a soft finding on
+input that WAS read, leaves the verdict CLEAN.
 
 WHY THE SKIP LIST PRINTS EVERY RUN, NOT ONLY WHEN VERBOSE:
 CONVENTIONS 15.1 names the failure class - "a guard can be green while
@@ -381,8 +383,61 @@ def _rel(root: Path, path: Path) -> str:
         return path.as_posix()
 
 
-def _guard(guard_id: str, name: str, status: str, detail: list[str]) -> Guard:
-    return {"id": guard_id, "name": name, "status": status, "detail": detail}
+# CS-1113 - WHAT A WARN MEANS IS SET WHERE THE WARN IS ISSUED. A WARN carried two
+# meanings and the overall verdict read them as one: a SOFT finding on input the
+# guard did read (a doc over its soft budget, a port with no record) and an input
+# the guard NEVER READ. As the only non-PASS guard either one exited 0 and printed
+# CLEAN, so could-not-look read as clean. The meaning is now a flag on the record,
+# and it is an ALLOWLIST: a WARN is advisory only where its site passes
+# advisory=True, and every other WARN makes the run UNGRADED and non-zero. A new
+# WARN site therefore fails closed. Telling the two apart by matching the detail
+# text is exactly what this replaces, and must not come back.
+VERDICT_DRIFT = "DRIFT"
+VERDICT_UNGRADED = "UNGRADED"
+VERDICT_CLEAN = "CLEAN"
+
+
+def _guard(
+    guard_id: str, name: str, status: str, detail: list[str], *, advisory: bool = False
+) -> Guard:
+    if advisory and status != "WARN":
+        message = f"guard {guard_id}: only a WARN can be advisory, not a {status}"
+        raise ValueError(message)
+    return {
+        "id": guard_id,
+        "name": name,
+        "status": status,
+        "detail": detail,
+        "advisory": advisory,
+    }
+
+
+def ungraded_guards(guards: list[Guard]) -> list[Guard]:
+    """Return every WARN that is not on the advisory allowlist.
+
+    Args:
+        guards: The guard records of one run.
+
+    Returns:
+        The guards whose WARN means their input was never read.
+    """
+    return [guard for guard in guards if guard["status"] == "WARN" and not guard["advisory"]]
+
+
+def overall_verdict(guards: list[Guard]) -> str:
+    """Return DRIFT on any FAIL, UNGRADED on any non-advisory WARN, else CLEAN.
+
+    Args:
+        guards: The guard records of one run.
+
+    Returns:
+        The verdict. Only CLEAN exits 0.
+    """
+    if any(guard["status"] == "FAIL" for guard in guards):
+        return VERDICT_DRIFT
+    if ungraded_guards(guards):
+        return VERDICT_UNGRADED
+    return VERDICT_CLEAN
 
 
 # --- file enumeration -------------------------------------------------------
@@ -1196,7 +1251,9 @@ def guard_ports(root: Path) -> tuple[Guard, list[Skip]]:
         detail.extend(f"  {problem}" for problem in problems)
         return _guard("e", name, "FAIL", detail), skips
     if uncovered:
-        return _guard("e", name, "WARN", detail), skips
+        # ADVISORY (CS-1113): the record WAS read and parsed; an unrecorded port
+        # is a soft finding about it, not a record nobody looked at.
+        return _guard("e", name, "WARN", detail, advisory=True), skips
     return _guard("e", name, "PASS", detail), skips
 
 
@@ -1248,7 +1305,11 @@ def _frozen_detail(root: Path, patterns: list[str]) -> list[str]:
 
 
 def guard_frozen(root: Path) -> tuple[Guard, list[Skip]]:
-    """Report the frozen-file list out of CLAUDE.md. Never fails."""
+    """Report the frozen-file list out of CLAUDE.md. Never fails.
+
+    Its WARNs mean the list was never read, so they are not advisory: the guard
+    never FAILS, and a run that could not read it is still UNGRADED (CS-1113).
+    """
     skips: list[Skip] = []
     name = "frozen files (report only)"
     path = root / "CLAUDE.md"
@@ -1803,7 +1864,9 @@ def guard_budgets(root: Path) -> tuple[Guard, list[Skip]]:
     if hard:
         return _guard("a", name, "FAIL", detail), skips
     if warn:
-        return _guard("a", name, "WARN", detail), skips
+        # ADVISORY (CS-1113): every budgeted file was MEASURED; a soft budget
+        # overshoot is doc_budget's WARN severity, which exits 0 by its own rule.
+        return _guard("a", name, "WARN", detail, advisory=True), skips
     return _guard("a", name, "PASS", detail), skips
 
 
@@ -2799,15 +2862,16 @@ def item_notes_leaf(item: str, phase: str) -> str:
 
 def _item_notes_derivation_problems(
     routed: dict[str, str],
-    sections: dict[str, str],
     domain: dict[str, str | None],
     fields: dict[str, tuple[str, int]],
 ) -> list[str]:
-    """Grade the rows and the sections against the ROADMAP derivation.
+    """Grade the rows against the ROADMAP derivation.
+
+    The sections are graded against the rows in guard_index itself; see the
+    CS-1113 note at the end of this function for why that covers the derivation.
 
     Args:
         routed: Item id mapped to the leaf its routing row names.
-        sections: Item id mapped to the leaf holding its section.
         domain: Item id mapped to its ROADMAP phase digit, trailing fields only.
         fields: Item id mapped to (trailing field target, detail: spelling count).
 
@@ -2875,16 +2939,20 @@ def _item_notes_derivation_problems(
             f"  {item} spells detail: again before its trailing field" for item in doubled
         )
 
-    no_section = sorted(item for item in derived if sections.get(item) != derived[item][1])
-    if no_section:
-        problems.append("these routed items have no section in the leaf the rule derives:")
-        for item in no_section:
-            phase, leaf = derived[item]
-            line = f"  {item} has no section in {leaf} (derived from {roadmap} Phase {phase})"
-            if item in sections:
-                line += f", its section is in {sections[item]}"
-            problems.append(line)
-
+    # CS-1113 - THE "NO SECTION IN ITS DERIVED LEAF" CHECK WAS RETIRED, BECAUSE NO
+    # STATE EXISTS THAT ONLY IT CAN FAIL. It FAILED an item in `derived` whose
+    # section is not in the derived leaf. Take any such item:
+    #   - no routing row:                    no_row above FAILS (derived is in domain);
+    #   - a row, no section anywhere:        guard_index's dangling check FAILS;
+    #   - a row, a section in another leaf:  the row either differs from the section
+    #     (guard_index's misrouted check FAILS) or equals it, and then it differs
+    #     from the derived leaf (wrong_leaf above FAILS).
+    # Every case is covered, over the same `routed` and `sections` values, so the
+    # check could never be the reason for a verdict - every mutant deleting it was
+    # caught only by a test asserting its exact message. It is not replaced: the
+    # arm test_every_state_the_retired_no_section_check_saw_still_fails in
+    # tests/data/test_item_notes_index.py asserts the FAIL VERDICT on every row
+    # and section placement, so deleting any one covering check reddens it.
     return problems
 
 
@@ -3056,7 +3124,7 @@ def guard_index(root: Path) -> tuple[Guard, list[Skip]]:
         )
 
     if roadmap_text is not None:
-        problems.extend(_item_notes_derivation_problems(routed, sections, domain, fields))
+        problems.extend(_item_notes_derivation_problems(routed, domain, fields))
 
     if problems:
         return _guard("j", name, "FAIL", detail + problems), skips
@@ -3809,6 +3877,7 @@ def render(guards: list[Guard], skips: list[Skip], source: str, root: Path) -> l
 
     failed = [guard for guard in guards if guard["status"] == "FAIL"]
     warned = [guard for guard in guards if guard["status"] == "WARN"]
+    ungraded = ungraded_guards(guards)
     passed = sum(1 for guard in guards if guard["status"] == "PASS")
     out.append("")
     out.append(
@@ -3817,7 +3886,13 @@ def render(guards: list[Guard], skips: list[Skip], source: str, root: Path) -> l
     )
     if failed:
         named = ", ".join(f"{guard['name']} ({guard['id']})" for guard in failed)
-        out.append(f"VERDICT: DRIFT - {named}")
+        out.append(f"VERDICT: {VERDICT_DRIFT} - {named}")
+    elif ungraded:
+        named = ", ".join(f"{guard['name']} ({guard['id']})" for guard in ungraded)
+        out.append(
+            f"VERDICT: {VERDICT_UNGRADED} - an input was never read, so this run cannot "
+            f"say the tree is clean - {named}"
+        )
     elif warned:
         named = ", ".join(f"{guard['name']} ({guard['id']})" for guard in warned)
         out.append(f"VERDICT: CLEAN with warnings - {named}")
@@ -3830,7 +3905,7 @@ def main(argv: list[str] | None = None) -> int:
     """Run every guard and print the result. Returns the process exit code."""
     parser = argparse.ArgumentParser(
         description="Run every Clockspeed drift guard and report one consolidated verdict. "
-        "Exits non-zero on any DRIFT. Always prints what it skipped."
+        "Exits non-zero on any DRIFT and on any UNGRADED guard. Always prints what it skipped."
     )
     parser.add_argument("--json", action="store_true", help="emit machine-readable JSON")
     parser.add_argument(
@@ -3846,6 +3921,7 @@ def main(argv: list[str] | None = None) -> int:
 
     guards, skips, source = run_all(root)
     failed = [guard for guard in guards if guard["status"] == "FAIL"]
+    verdict = overall_verdict(guards)
 
     if args.json:
         print(
@@ -3856,7 +3932,8 @@ def main(argv: list[str] | None = None) -> int:
                     "guards": guards,
                     "skipped": skips,
                     "drift": [guard["id"] for guard in failed],
-                    "verdict": "DRIFT" if failed else "CLEAN",
+                    "ungraded": [guard["id"] for guard in ungraded_guards(guards)],
+                    "verdict": verdict,
                 },
                 indent=2,
             )
@@ -3864,7 +3941,7 @@ def main(argv: list[str] | None = None) -> int:
     else:
         print("\n".join(render(guards, skips, source, root)))
 
-    return 1 if failed else 0
+    return 0 if verdict == VERDICT_CLEAN else 1
 
 
 if __name__ == "__main__":

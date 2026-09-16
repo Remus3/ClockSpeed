@@ -70,12 +70,13 @@ from __future__ import annotations
 import importlib.util
 import json
 import re
-import shutil
 import sys
 from pathlib import Path
 from typing import Any
 
 import pytest
+
+from tests.data.test_drift_guard_data import make_repo, no_install
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 DRIFT_GUARD_SOURCE = REPO_ROOT / "tools" / "drift_guard.py"
@@ -170,9 +171,12 @@ def tracked_dated_headings() -> list[tuple[str, int, str]]:
 def clean_tree(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     """A tree the whole driver reports CLEAN, so a later red is attributable.
 
-    Only the port record is copied in. Guard (e) is the one guard that FAILS
-    outright on an absent file rather than warning, and a red on a tree that
-    was never green attributes to nothing.
+    CS-1113 - EVERY GUARD PASSES ON IT, NOT MERELY "NONE FAILS". A WARN meaning
+    an input was never read now makes the run UNGRADED and the exit code
+    non-zero, so the old tree - a port record and nothing else - was never green
+    and a red on it attributed to nothing. The tree is built by the one helper
+    that owns the all-PASS synthetic repository, shared rather than copied, and
+    no install is resolvable so guard (h) grades the same way on every machine.
 
     Args:
         tmp_path: pytest temporary directory.
@@ -181,9 +185,8 @@ def clean_tree(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     Returns:
         The synthetic repository root, with the driver pointed at it.
     """
-    root = tmp_path / "tree"
-    (root / "config").mkdir(parents=True)
-    shutil.copyfile(REPO_ROOT / "config" / "ports.json", root / "config" / "ports.json")
+    root = make_repo(tmp_path / "tree")
+    no_install(monkeypatch, tmp_path)
     (root / "live.md").write_bytes(LIVE_HEADER.encode("ascii"))
     (root / "hist.md").write_bytes(HISTORICAL_HEADER.encode("ascii"))
     monkeypatch.setattr(drift_guard, "repo_root", lambda: root)
