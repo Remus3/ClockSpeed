@@ -448,10 +448,13 @@ and turned two library arms red, which is what makes `and nowhere else` a measur
 definition.
 
 **TIER 2** - a save-engine reader and a change to a public signature. The whole tree was run from
-the repo root on the tree that was committed and reported, verbatim,
-`8101 passed, 7 skipped, 7 warnings in 586.55s (0:09:46)` at exit code 0. The run before the
-`test_repr_rendering.py` repair is not that run and is not cited as one. The CI verdict is recorded
-by the driver and was not observed by this worker.
+the repo root TWICE, and only the second is cited as evidence about what shipped. Before the rebase
+onto ten commits of `origin/main` it reported `8101 passed, 7 skipped, 7 warnings in 586.55s
+(0:09:46)` at exit code 0; ON THE REBASED TREE, which is the one this entry ships with, it reported
+`8208 passed, 7 skipped, 8 warnings in 440.40s (0:07:20)` at exit code 0. A suite that passed before
+a rebase proves nothing about the merged result, which is why the first figure is recorded and not
+relied on. The run before the `test_repr_rendering.py` repair is a third run and is cited as no
+evidence at all. The CI verdict is recorded by the driver and was not observed by this worker.
 
 ### 2026-09-16 - CS-1111 - CLOSED. The launcher arms see the shapes CI could not, the settings env blocks and the cycle budget
 
