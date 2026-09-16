@@ -11,8 +11,11 @@ This arm grades it, and the two sides never read what they grade:
 - The CODE reader walks the syntax tree only. From `_world_tokens_from_headers`
   it follows calls into module-level functions of the same source, binds the
   arguments it can resolve, honours an `if <parameter>:` guard whose value is
-  bound, and collects every distinct call site of
-  `_report_world_token_uncovered` whose `blocking` resolves to True. It never
+  bound, walks nested functions and lambdas, and collects every distinct
+  BLOCKING PRODUCTION: a call of `_report_world_token_uncovered` whose
+  `blocking` resolves True, any `Diagnostic(...)` construction, and any use of
+  the blocking reason text. Module-wide, it REFUSES any reference to the helper
+  or to `Diagnostic` that is not a call, so an alias cannot hide one. It never
   looks at a docstring or a comment.
 - The PROSE reader tokenizes the function's source range and keeps STRING and
   COMMENT tokens only. It never looks at a call, a name or a keyword.
@@ -25,11 +28,14 @@ What the prose side grades:
    them is self-healing" is distributive, and it sits in this very docstring.
 2. The list that "All N of them" introduces has as many members as the code
    count, with a member of the shape "the N above" expanded to N.
-3. The function-body comments carry NO spelled total at all (adjudicated Q4):
-   a total in a comment is a second copy of the number to drift, which is the
-   exact defect this row was filed for. An ARRIVAL ordinal ("the Nth bound")
-   is history rather than a total and stays true when a later bound lands, so
-   it is only held to not exceed the code count.
+3. The function-body comments carry NO count at all (adjudicated Q4): a total
+   in a comment is a second copy of the number to drift, which is the exact
+   defect this row was filed for. This is an ALLOWLIST - any cardinal, digits
+   or a number word, is red unless a justified form in _COMMENT_ALLOWLIST
+   masks it - because a denylist of total phrasings let "the remaining four"
+   through. An ARRIVAL ordinal ("the Nth bound") is not a cardinal; it is
+   history that stays true when a later bound lands, so it is only held to
+   not exceed the code count.
 
 UNGRADED by design (adjudicated Q5): "The first five used to report through
 the skip channel alone". It is a historical fact about which bounds predated
@@ -50,11 +56,15 @@ import re
 import tokenize
 from pathlib import Path
 
+import pytest
+
 REPO_ROOT = Path(__file__).resolve().parents[1]
 GATE = REPO_ROOT / "tools" / "precommit_gate.py"
 
 TARGET = "_world_tokens_from_headers"
 SINK = "_report_world_token_uncovered"
+DIAGNOSTIC = "Diagnostic"
+REASON = "WORLD_SCAN_UNCOVERED_REASON"
 
 _CARDINALS = {
     "one": 1,
@@ -93,6 +103,7 @@ _ORDINALS = {
     "twelfth": 12,
 }
 _NUM = r"(\d+|" + "|".join(_CARDINALS) + r")"
+_NUM_WORD_OR_DIGITS = r"\b" + _NUM + r"\b"
 
 # A spelled TOTAL. Each pattern yields the total it asserts; "the other N"
 # asserts N plus the one being described.
@@ -154,17 +165,84 @@ def _bind(func: ast.FunctionDef, call: ast.Call, env: dict[str, object]) -> dict
     return bound
 
 
-def blocking_bound_sites(source: str) -> set[tuple[int, int]]:
-    """Every (line, col) call site of the sink that blocks, reachable from TARGET.
+def _called_name(call: ast.Call) -> str | None:
+    """The bare name a call invokes, whether spelled `f(...)` or `x.f(...)`."""
+    if isinstance(call.func, ast.Name):
+        return call.func.id
+    if isinstance(call.func, ast.Attribute):
+        return call.func.attr
+    return None
 
-    Raises AssertionError when a reached sink call has a `blocking` the walk
-    cannot resolve - an arm that silently skips what it cannot read grades
-    less than it claims.
+
+def _params(node: ast.FunctionDef | ast.AsyncFunctionDef | ast.Lambda) -> set[str]:
+    args = node.args
+    names = {a.arg for a in [*args.posonlyargs, *args.args, *args.kwonlyargs]}
+    names.update(a.arg for a in (args.vararg, args.kwarg) if a is not None)
+    return names
+
+
+def _annotation_node_ids(tree: ast.AST) -> set[int]:
+    """Every node that sits inside a type annotation, where a name is not a use."""
+    roots: list[ast.AST] = []
+    for node in ast.walk(tree):
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and node.returns:
+            roots.append(node.returns)
+        if isinstance(node, ast.arg) and node.annotation is not None:
+            roots.append(node.annotation)
+        if isinstance(node, ast.AnnAssign):
+            roots.append(node.annotation)
+    return {id(inner) for root in roots for inner in ast.walk(root)}
+
+
+def indirect_references(source: str) -> list[str]:
+    """Module-wide refusals: the sink or Diagnostic reached by anything but a call.
+
+    An alias (`f = SINK`), a rebinding, an argument pass or a lookup by string
+    name would let a blocking production hide from the call walk below, so
+    each is REFUSED rather than followed - following aliases is a denylist of
+    spellings, and refusing every non-call reference is an allowlist of one.
+    """
+    tree = ast.parse(source)
+    watched = {SINK, DIAGNOSTIC}
+    call_funcs = {id(node.func) for node in ast.walk(tree) if isinstance(node, ast.Call)}
+    annotations = _annotation_node_ids(tree)
+    problems: list[str] = []
+    for node in ast.walk(tree):
+        if id(node) in call_funcs or id(node) in annotations:
+            continue
+        name = None
+        if isinstance(node, ast.Name):
+            name = node.id
+        elif isinstance(node, ast.Attribute):
+            name = node.attr
+        elif isinstance(node, ast.Constant) and isinstance(node.value, str):
+            name = node.value
+        if name in watched:
+            problems.append(
+                "%s is referenced without being called at line %d" % (name, node.lineno)
+            )
+    return problems
+
+
+def analyse_code(source: str) -> tuple[set[tuple[int, int]], list[str]]:
+    """Blocking productions reachable from TARGET, plus what the walk could not read.
+
+    A BLOCKING PRODUCTION is any of: a call of the sink whose `blocking`
+    resolves True; a `Diagnostic(...)` construction, since every diagnostic on
+    a report reaches the exit status; and a use of the blocking reason text
+    outside a `Diagnostic(...)` it already counted. The sink's own body is
+    never walked, so its one internal construction is not counted again.
+
+    Nested functions, lambdas and classes inside a reached function are walked
+    whether or not anything calls them - an uncalled nested producer counts,
+    which fails closed. A reached sink call whose `blocking` cannot be resolved
+    is returned as a problem rather than skipped.
     """
     tree = ast.parse(source)
     functions = {node.name: node for node in tree.body if isinstance(node, ast.FunctionDef)}
     assert TARGET in functions, "the gate no longer defines " + TARGET
     sites: set[tuple[int, int]] = set()
+    problems: list[str] = []
     visited: set[tuple[str, tuple[tuple[str, str], ...]]] = set()
 
     def walk_function(name: str, env: dict[str, object]) -> None:
@@ -173,38 +251,59 @@ def blocking_bound_sites(source: str) -> set[tuple[int, int]]:
             return
         visited.add(key)
         for statement in functions[name].body:
-            walk_node(statement, env)
+            walk_node(statement, env, in_diagnostic=False)
 
-    def walk_node(node: ast.AST, env: dict[str, object]) -> None:
-        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.Lambda, ast.ClassDef)):
+    def walk_node(node: ast.AST, env: dict[str, object], *, in_diagnostic: bool) -> None:
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.Lambda)):
+            inner = {k: v for k, v in env.items() if k not in _params(node)}
+            body = node.body if isinstance(node.body, list) else [node.body]
+            for child in body:
+                walk_node(child, inner, in_diagnostic=in_diagnostic)
             return
         if isinstance(node, ast.If):
             guard = _resolve(node.test, env)
-            walk_node(node.test, env)
+            walk_node(node.test, env, in_diagnostic=in_diagnostic)
             if guard is _UNKNOWN or guard:
                 for child in node.body:
-                    walk_node(child, env)
+                    walk_node(child, env, in_diagnostic=in_diagnostic)
             if guard is _UNKNOWN or not guard:
                 for child in node.orelse:
-                    walk_node(child, env)
+                    walk_node(child, env, in_diagnostic=in_diagnostic)
             return
-        if isinstance(node, ast.Call) and isinstance(node.func, ast.Name):
-            callee = node.func.id
-            if callee == SINK:
-                value = next(
-                    (_resolve(k.value, env) for k in node.keywords if k.arg == "blocking"),
-                    _UNKNOWN,
-                )
-                assert value is not _UNKNOWN, "unresolvable blocking at line %d" % node.lineno
-                if value is True:
-                    sites.add((node.lineno, node.col_offset))
-            elif callee in functions and callee != TARGET:
-                walk_function(callee, _bind(functions[callee], node, env))
+        if isinstance(node, ast.Name) and node.id == REASON and not in_diagnostic:
+            sites.add((node.lineno, node.col_offset))
+        if isinstance(node, ast.Call):
+            in_diagnostic = visit_call(node, env) or in_diagnostic
         for child in ast.iter_child_nodes(node):
-            walk_node(child, env)
+            walk_node(child, env, in_diagnostic=in_diagnostic)
+
+    def visit_call(node: ast.Call, env: dict[str, object]) -> bool:
+        """Record what one call produces; True when it constructs a Diagnostic."""
+        callee = _called_name(node)
+        if callee == SINK:
+            value = next(
+                (_resolve(k.value, env) for k in node.keywords if k.arg == "blocking"),
+                _UNKNOWN,
+            )
+            if value is _UNKNOWN:
+                problems.append("unresolvable blocking at line %d" % node.lineno)
+            elif value is True:
+                sites.add((node.lineno, node.col_offset))
+            return False
+        if callee == DIAGNOSTIC:
+            sites.add((node.lineno, node.col_offset))
+            return True
+        if isinstance(node.func, ast.Name) and callee in functions and callee != TARGET:
+            walk_function(callee, _bind(functions[callee], node, env))
+        return False
 
     walk_function(TARGET, {})
-    return sites
+    return sites, problems
+
+
+def blocking_bound_sites(source: str) -> set[tuple[int, int]]:
+    """Every (line, col) blocking production reachable from TARGET."""
+    return analyse_code(source)[0]
 
 
 # --------------------------------------------------------------------------
@@ -254,6 +353,44 @@ def spelled_totals(text: str) -> list[tuple[str, int]]:
     ]
 
 
+_CARDINAL = re.compile(_NUM_WORD_OR_DIGITS, re.IGNORECASE)
+
+# The ALLOWLIST for numerals in body comments. Anything a cardinal appears in
+# that is not masked by one of these is red, whatever it is next to - a
+# denylist of total phrasings leaked on its first adversarial pass. Each entry
+# is a form that cannot state how many bounds there are:
+_COMMENT_ALLOWLIST: tuple[re.Pattern[str], ...] = tuple(
+    re.compile(pattern, re.IGNORECASE)
+    for pattern in (
+        # An item id names a row, not a quantity.
+        r"\bCS-\d+\b",
+        # A CLAUDE.md rule number names a rule, not a quantity.
+        r"\bnon-negotiables? \d+\b",
+        # A pronoun standing for "budget" after a decimal literal. Listed
+        # BEFORE the decimal entry, which would otherwise mask its anchor.
+        r"\b\d+\.\d+ second one\b",
+        # A decimal literal is a time value quoted from a format example.
+        r"\b\d+\.\d+\b",
+        # A ratio between two renderings of one budget.
+        r"\ba factor of two\b",
+        # A pronoun: the aggregate budget is the only one there is.
+        r"\bthe only one there is\b",
+        # Counts the NON-blocking degradations, a different population.
+        r"\bthe one deliberate non-blocking degradation\b",
+        # The granted CS-1096 wording: an increment, never a total.
+        r"\bit is one more bound\b",
+    )
+)
+
+
+def unallowed_cardinals(comment: str) -> list[str]:
+    """Every cardinal (digits, or a number word) left after the allowlist masks."""
+    masked = comment
+    for pattern in _COMMENT_ALLOWLIST:
+        masked = pattern.sub(lambda match: " " * len(match.group(0)), masked)
+    return [match.group(0) for match in _CARDINAL.finditer(masked)]
+
+
 def listed_members(docstring: str) -> int | None:
     """How many bounds the "All N of them - ... - reach" list names, or None."""
     match = _LIST_INTRO.search(_normalise(docstring))
@@ -274,7 +411,9 @@ def listed_members(docstring: str) -> int | None:
 
 def mismatches(source: str) -> list[str]:
     """Every disagreement between the prose and the code, empty when they agree."""
-    count = len(blocking_bound_sites(source))
+    sites, code_problems = analyse_code(source)
+    code_problems = code_problems + indirect_references(source)
+    count = len(sites)
     docstring, comments = target_prose(source)
     problems: list[str] = []
 
@@ -291,9 +430,12 @@ def mismatches(source: str) -> list[str]:
     elif listed != count:
         problems.append("the docstring list names %d bounds; the code has %d" % (listed, count))
 
+    problems.extend(code_problems)
     for comment in comments:
-        for phrase, total in spelled_totals(comment):
-            problems.append("body comment %r spells a total (%d)" % (phrase, total))
+        problems.extend(
+            "body comment %r carries a count %r outside the allowlist" % (comment, word)
+            for word in unallowed_cardinals(comment)
+        )
         problems.extend(
             "body comment %r exceeds %d bounds" % (match.group(0), count)
             for match in _ORDINAL_BOUND.finditer(comment)
@@ -315,9 +457,9 @@ def test_the_bound_prose_agrees_with_the_code() -> None:
 _ANCHOR = "    started = time.monotonic()\n"
 
 
-def _plant_in_target(source: str, line: str) -> str:
+def _plant_in_target(source: str, *lines: str) -> str:
     assert source.count(_ANCHOR) == 1, "the plant anchor is not unique"
-    mutant = source.replace(_ANCHOR, _ANCHOR + "    " + line + "\n")
+    mutant = source.replace(_ANCHOR, _ANCHOR + "".join("    " + line + "\n" for line in lines))
     assert mutant != source, "the plant did not apply"
     return mutant
 
@@ -383,5 +525,83 @@ def test_a_total_restated_in_a_body_comment_reddens_the_arm() -> None:
 
 
 def test_the_historical_first_five_sentence_is_not_graded() -> None:
-    """Q5: the arrival history of the first bounds is not a total."""
-    assert spelled_totals("The first five used to report through the skip channel alone") == []
+    """Q5: the arrival history of the first bounds is not a total.
+
+    It lives in the DOCSTRING, which is graded by total phrasing; the
+    body-comment allowlist does not apply there. Asserting the sentence is
+    present keeps this arm from passing because the sentence moved.
+    """
+    history = "The first five used to report through the skip channel alone"
+    docstring, _ = target_prose(gate_source())
+    assert history in _normalise(docstring)
+    assert spelled_totals(history) == []
+
+
+def test_an_inline_blocking_diagnostic_reddens_the_arm() -> None:
+    """A blocking bound done INLINE, without the helper, is still a bound.
+
+    The arm counts blocking PRODUCTION, not calls to one helper name: a direct
+    `report.add` of the uncovered-population diagnostic reaches the exit status
+    exactly as the helper does.
+    """
+    pristine = gate_source()
+    mutant = _plant_in_target(
+        pristine,
+        'report.add(Diagnostic(PII_WORLD_LABEL, 0, 0, "PII", WORLD_SCAN_UNCOVERED_REASON))',
+    )
+    assert mismatches(mutant) != []
+
+
+def test_a_local_alias_of_the_sink_reddens_the_arm() -> None:
+    """Calling the helper through a local name must not hide the call."""
+    pristine = gate_source()
+    mutant = _plant_in_target(
+        pristine, "_alias = " + SINK, '_alias(report, "planted", blocking=True)'
+    )
+    assert mismatches(mutant) != []
+
+
+def test_a_lookup_of_the_sink_by_string_name_reddens_the_arm() -> None:
+    """A getattr by name is an alias the call walk cannot see, so it is refused."""
+    pristine = gate_source()
+    mutant = _plant_in_target(
+        pristine, 'getattr(sys.modules[__name__], "' + SINK + '")(report, "p", blocking=True)'
+    )
+    assert mismatches(mutant) != []
+
+
+def test_a_sink_call_inside_a_nested_function_reddens_the_arm() -> None:
+    """A nested def inside the target is part of the target."""
+    pristine = gate_source()
+    mutant = _plant_in_target(
+        pristine,
+        "def _inner() -> None:",
+        "    " + SINK + '(report, "planted", blocking=True)',
+        "_inner()",
+    )
+    assert mismatches(mutant) != []
+
+
+def test_a_sink_call_inside_a_lambda_reddens_the_arm() -> None:
+    """A lambda inside the target is part of the target."""
+    pristine = gate_source()
+    mutant = _plant_in_target(
+        pristine, "(lambda: " + SINK + '(report, "planted", blocking=True))()'
+    )
+    assert mismatches(mutant) != []
+
+
+@pytest.mark.parametrize(
+    "comment",
+    [
+        "# belongs with the remaining four and not with the skip.",
+        "# the 6 caps that truncate this population",
+        "# a pair of bounds, then three more",
+        "# there are seven now",
+    ],
+)
+def test_any_cardinal_in_a_body_comment_reddens_the_arm(comment: str) -> None:
+    """The comment check is an ALLOWLIST: a count in any phrasing is red."""
+    pristine = gate_source()
+    mutant = _plant_in_target(pristine, comment)
+    assert mismatches(mutant) != []
