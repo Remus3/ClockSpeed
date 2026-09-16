@@ -36,10 +36,12 @@ tracking branch was proposed, and an adjudicator granted the frozen-file edit
 with conditions. AN ADVERSARIAL PASS THEN REFUTED THE PREMISE and the grant was
 NOT SPENT. The measurement then: `moon_sync_inbox/` is itself gitignored, so a
 fresh clone has no channel to read; the tool gave that state a non-zero code,
-and a `SessionStart` hook that exits non-zero does not get its stdout injected,
-so the tracked wiring would have fired, failed and said nothing. The correction
-branch was taken instead, which is also what `docs/LEDGER.md` records for
-CS-931, the same defect one tool earlier.
+which the refusal argued would cost a `SessionStart` hook its stdout, so the
+tracked wiring would have fired, failed and said nothing. What a client does
+with a hook's stdout is a property of the client, not of this repository, and
+no test here grades it. The correction branch was taken instead, which is
+also what `docs/LEDGER.md` records for CS-931, the same defect one tool
+earlier.
 
 THAT REASON IS RETIRED AND THE REFUSAL WAS RE-DERIVED WITHOUT IT (CS-1101).
 CS-1095 made every default path of the watcher return 0. The old codes moved
@@ -93,6 +95,7 @@ from typing import Final, NamedTuple
 import pytest
 
 from tests.conftest import run_git
+from tests.git_env import REPO_LOCATING, scrubbed_env
 
 #: The tool whose firing property the tooling map publishes.
 WATCHED_TOOL = "tools/inbox_watch.py"
@@ -406,41 +409,90 @@ def _module_docstring(path: Path) -> str:
     return ast.get_docstring(ast.parse(path.read_text(encoding="utf-8"))) or ""
 
 
-def _decoy_checkout(tree: Path, repo_root: Path) -> Path:
-    """A tree shaped like the main checkout: a channel holding one note, and the tool."""
+def _isolated_git_env(base: Path) -> dict[str, str]:
+    """This process's environment with git cut off from every real repository.
+
+    Repository-locating variables are removed through `tests/git_env.py` - a
+    push from a worktree exports `GIT_DIR`, and a git child that inherits it
+    acts on the real repository. The user's global and system configuration
+    are replaced by an empty file, so no operator setting shapes the decoys.
+    The scrub is ASSERTED rather than trusted, upper-cased, because Windows
+    folds environment keys and a mixed-case pop removes nothing.
+    """
+    empty = base / "gitconfig-empty"
+    empty.write_text("", encoding="ascii")
+    env = scrubbed_env()
+    env["GIT_CONFIG_GLOBAL"] = str(empty)
+    env["GIT_CONFIG_NOSYSTEM"] = "1"
+    survivors = sorted(key for key in env if key.upper() in REPO_LOCATING)
+    assert survivors == [], f"repository-locating variables survived the scrub: {survivors}"
+    return env
+
+
+def _git(cwd: Path, env: dict[str, str], *args: str) -> None:
+    """Run one git command in a decoy tree, or skip when git is not installed."""
+    try:
+        proc = subprocess.run(
+            ["git", "-c", "user.name=probe", "-c", "user.email=probe@invalid", *args],
+            cwd=cwd,
+            env=env,
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=120,
+        )
+    except (OSError, subprocess.SubprocessError):
+        pytest.skip("git is unavailable, so the decoy checkouts cannot be built")
+    code = proc.returncode
+    assert code == 0, f"git {args[0]} failed in a decoy tree with exit {code}"
+
+
+def _decoy_checkout(tree: Path, repo_root: Path, env: dict[str, str]) -> Path:
+    """A REAL git checkout shaped like the main one: a channel with a note, and the tool."""
     (tree / "moon_sync_inbox").mkdir(parents=True)
     (tree / "moon_sync_inbox" / f"cs1101-decoy-{tree.name}.md").write_text(
         "decoy\n", encoding="ascii"
     )
     (tree / "tools").mkdir()
     (tree / WATCHED_TOOL).write_bytes((repo_root / WATCHED_TOOL).read_bytes())
+    _git(tree, env, "init", "--quiet")
+    _git(tree, env, "add", WATCHED_TOOL)
+    _git(tree, env, "commit", "--quiet", "--no-verify", "-m", "decoy")
     return tree
 
 
 class HookLayout(NamedTuple):
-    """Where one probe run's watcher lives, where it starts, and what sits above it."""
+    """Where one probe run's watcher lives, where it starts, what sits above it."""
 
     root: Path
     cwd: Path
     ancestor: Path
+    env: dict[str, str]
 
 
 def _hook_layout(base: Path, repo_root: Path) -> HookLayout:
     """Mirror a worktree nested under a main checkout that HAS the channel.
 
-    `root` - the tree whose `tools/` holds the watcher copy and no channel - is
-    placed at `.claude/worktrees/<name>` under `ancestor`, a decoy checkout with
-    a channel and the tool, exactly as this repository's worktrees sit under
-    the one working copy that holds `moon_sync_inbox/`. `cwd` is a SECOND decoy
-    checkout beside neither. A watcher that walked up from its file, or that
-    resolved or walked up from its working directory, finds a channel.
+    `ancestor` is a real git checkout holding a channel and the tool. `root` is
+    a real `git worktree add` of it at `.claude/worktrees/<name>`, which is
+    exactly how this repository's worktrees sit under the one working copy that
+    holds `moon_sync_inbox/` - the channel is untracked, so the worktree has
+    none. `cwd` is a SECOND real checkout holding a channel and the tool.
+
+    NO GIT COMMAND RUNS INSIDE A REAL REPOSITORY. The base is asserted to have
+    no `.git` above it before anything is built, and every command gets the
+    isolated environment.
     """
-    ancestor = _decoy_checkout(base / "ancestor", repo_root)
+    outer = [parent for parent in base.resolve().parents if (parent / ".git").exists()]
+    assert outer == [], "the decoy base sits inside a git repository"
+    env = _isolated_git_env(base)
+    ancestor = _decoy_checkout(base / "ancestor", repo_root, env)
     root = ancestor / ".claude" / "worktrees" / "cs1101-copy"
-    (root / "tools").mkdir(parents=True)
+    _git(ancestor, env, "worktree", "add", "--detach", "--quiet", str(root), "HEAD")
+    # Byte-identical whatever checkout filter git applied.
     (root / WATCHED_TOOL).write_bytes((repo_root / WATCHED_TOOL).read_bytes())
-    cwd = _decoy_checkout(base / "cwd", repo_root)
-    return HookLayout(root=root, cwd=cwd, ancestor=ancestor)
+    cwd = _decoy_checkout(base / "cwd", repo_root, env)
+    return HookLayout(root=root, cwd=cwd, ancestor=ancestor, env=env)
 
 
 def _run_like_the_hook(layout: HookLayout, *extra: str) -> subprocess.CompletedProcess[str]:
@@ -451,11 +503,12 @@ def _run_like_the_hook(layout: HookLayout, *extra: str) -> subprocess.CompletedP
     root from its OWN file, so running the real file would read and write the
     real checkout, invocation log included.
 
-    EVERY OTHER TREE IN REACH HOLDS A CHANNEL - the ancestor the copy is nested
-    under and the working directory it is started from. That is the CS-952
-    refusal's stated reason made observable, and `_hook_layout` says which
-    resolutions each decoy catches. The copy is named by ABSOLUTE path rather
-    than by the hook's relative `tools/inbox_watch.py`, which is the one
+    EVERY OTHER ROOT IN REACH HOLDS A CHANNEL - the ancestor the copy is a git
+    worktree of, the working directory it is started from (itself a git
+    checkout), and `CLAUDE_PROJECT_DIR`, which the child is given pointing at
+    the ancestor. That is the CS-952 refusal's stated reason made observable.
+    The copy is named by ABSOLUTE path rather than by the hook's relative
+    `tools/inbox_watch.py`, which is the one
     departure from `HOOK_COMMAND`, and it is the departure the check needs.
 
     `sys.executable` stands in for the hook's bare `python`, deliberately: the
@@ -464,13 +517,21 @@ def _run_like_the_hook(layout: HookLayout, *extra: str) -> subprocess.CompletedP
     names it as not covered.
     """
     assert not (layout.root / "moon_sync_inbox").exists()
+    assert (layout.root / ".git").is_file(), "the copy is not in a git worktree"
     assert (layout.cwd / "moon_sync_inbox").is_dir()
+    assert (layout.cwd / ".git").is_dir()
     assert (layout.ancestor / "moon_sync_inbox").is_dir()
+    assert (layout.ancestor / ".git").is_dir()
     command = HOOK_COMMAND.split()
     assert command == ["python", WATCHED_TOOL]
+    child = dict(layout.env)
+    child["CLAUDE_PROJECT_DIR"] = str(layout.ancestor)
+    survivors = sorted(key for key in child if key.upper() in REPO_LOCATING)
+    assert survivors == [], f"repository-locating variables reached the child: {survivors}"
     return subprocess.run(
         [sys.executable, str(layout.root / WATCHED_TOOL), *extra],
         cwd=layout.cwd,
+        env=child,
         input=_HOOK_PAYLOAD,
         capture_output=True,
         text=True,
@@ -535,7 +596,13 @@ def test_the_probe_enters_the_no_channel_path_under_an_isolated_root(
     channel and started from a cwd that holds one, so it only reports no
     channel, and only logs under its own root, while the watcher resolves its
     root from its own file and nothing else - the fact the CS-952 refusal now
-    rests on. Walking up from the file, or resolving from the cwd, is red.
+    rests on. Red for a root taken from, or walked up from, the file's
+    ancestry or the cwd; from `git rev-parse` (top level or common dir) run in
+    either; or from `CLAUDE_PROJECT_DIR`.
+
+    DOCUMENTED LIMIT, not a gap left for later repair: a resolution that
+    consults none of those four sources - a hardcoded path, a config file, a
+    registry key, some other environment variable - is not seen by this arm.
     """
     # Every observation is bound to a scalar BEFORE it is asserted. pytest
     # renders an asserted expression independently of the message, and a
