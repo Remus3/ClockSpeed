@@ -530,8 +530,8 @@ def test_every_exemption_states_a_reason_rather_than_a_word() -> None:
     cost more to type than it is worth.
     """
     thin = sorted(
-        f"{path} {callee} #{ordinal} in {function}()"
-        for (path, function, callee, ordinal), reason in EXEMPTIONS.items()
+        f"{path} {callee} program={program} #{ordinal} in {function}()"
+        for (path, function, callee, program, ordinal), reason in EXEMPTIONS.items()
         if len(reason) < EXEMPTION_REASON_MINIMUM
     )
 
@@ -592,7 +592,7 @@ def test_the_frozen_check_reads_the_list_and_not_the_whole_document() -> None:
         f"{decoy} is mentioned by CLAUDE.md and is NOT in its frozen list, so a"
         " check that accepts it is reading the document rather than the list"
     )
-    planted = {(decoy, "planted", "subprocess.run", 1): "a reason that does not apply"}
+    planted = {(decoy, "planted", "subprocess.run", "git", 1): "a reason that does not apply"}
     assert len(unfrozen_exemptions(planted)) == 1, (
         "an exemption naming a non-frozen file was not reported, so the table's"
         " justification is still unchecked"
@@ -661,34 +661,56 @@ def _exempted_sites(source: str) -> list[ProgramSite]:
     ]
 
 
-def _exempted_spawn_statement(source: str) -> ast.stmt:
-    """The simple statement holding the exempted spawn, located by AST and never by line.
+def _spawn_statement(source: str, function: str, callee: str) -> ast.stmt:
+    """The simple statement holding one exempted site, located by AST and never by line.
+
+    Args:
+        source: The module text.
+        function: The enclosing function the exemption names.
+        callee: The callee the exemption names. Matched on its last dotted
+            segment as well, because ``from shutil import which`` is spelled
+            ``which`` at the call and recorded ``which`` by the census.
 
     Returns:
-        The one Assign or Expr inside the exempted function whose expression
-        calls the exempted callee.
+        The one Assign or Expr inside ``function`` whose expression calls ``callee``.
     """
     tree = ast.parse(source)
     functions = [
         node
         for node in ast.walk(tree)
-        if isinstance(node, ast.FunctionDef) and node.name == EXEMPTED_FUNCTION
+        if isinstance(node, ast.FunctionDef) and node.name == function
     ]
-    assert len(functions) == 1, f"{EXEMPTED_FUNCTION} is defined {len(functions)} time(s)"
+    assert len(functions) == 1, f"{function} is defined {len(functions)} time(s)"
+    spellings = {callee, callee.rpartition(".")[2]}
     statements = [
         node
         for node in ast.walk(functions[0])
         if isinstance(node, ast.Assign | ast.Expr)
         and any(
-            isinstance(call, ast.Call) and ast.unparse(call.func) == EXEMPTED_CALLEE
+            isinstance(call, ast.Call) and ast.unparse(call.func) in spellings
             for call in ast.walk(node)
         )
     ]
     assert len(statements) == 1, (
-        f"{EXEMPTED_FUNCTION} holds {len(statements)} statement(s) calling {EXEMPTED_CALLEE},"
+        f"{function} holds {len(statements)} statement(s) calling {callee},"
         " so the plant has no single site to stand above"
     )
     return statements[0]
+
+
+def _exempted_spawn_statement(source: str) -> ast.stmt:
+    """The statement holding the ``run_git`` spawn the plants are made against."""
+    return _spawn_statement(source, EXEMPTED_FUNCTION, EXEMPTED_CALLEE)
+
+
+def _rewrite_statement(source: str, statement: ast.stmt, old: str, new: str) -> str:
+    """``source`` with ``old`` replaced by ``new`` inside ``statement``'s lines only."""
+    kept = source.splitlines(keepends=True)
+    first, last = statement.lineno - 1, statement.end_lineno or statement.lineno
+    body = "".join(kept[first:last])
+    occurrences = body.count(old)
+    assert occurrences == 1, f"the rewrite needle occurs {occurrences} time(s) in the statement"
+    return "".join(kept[:first]) + body.replace(old, new) + "".join(kept[last:])
 
 
 def _insert_lines(source: str, before: int, lines: tuple[str, ...], indent: int) -> str:
@@ -751,6 +773,79 @@ def test_a_second_spawn_inside_an_exempted_function_still_reddens(position: str)
     assert (len(live), in_function, stale) == (1, 1, 0), describe(live)
 
 
+#: The spawn that replaces the reviewed one in the migration plants. A program the
+#: roster has never argued for, so no row may excuse it.
+MIGRATED_SPAWN: Final = 'subprocess.run(["curl", "cs1102"], check=False)'
+
+
+@pytest.mark.parametrize("position", ["above", "below"])
+def test_a_spawn_replacing_an_exempted_one_does_not_inherit_its_exemption(position: str) -> None:
+    """The reviewed git spawn goes, an unreviewed curl spawn arrives in the same edit.
+
+    REFUTED at 4762214 by an adversary: the key omitted the PROGRAM, so once the
+    reviewed spawn left, the new one took ordinal 1 and inherited the row. The
+    row argued for ``git``; it must not excuse anything else.
+    """
+    pristine = _pristine_exempted_source()
+    statement = _exempted_spawn_statement(pristine)
+    migrated = _rewrite_statement(pristine, statement, f"{EXEMPTED_CALLEE}(", "cs1102_runner(")
+    line = statement.lineno if position == "above" else (statement.end_lineno or 0) + 1
+    planted = _insert_lines(migrated, line, (MIGRATED_SPAWN,), statement.col_offset)
+    programs = sorted(site.program for site in _exempted_sites(planted))
+    assert programs == ["curl"], f"the plant left programs {programs} in {EXEMPTED_FUNCTION}"
+
+    census = _census_with(EXEMPTED_PATH, planted)
+    live = [site.program for site in findings(census)]
+    stale = len(stale_exemptions(census))
+
+    assert (live, stale) == (["curl"], 1), describe(findings(census))
+
+
+def test_a_program_swapped_in_place_at_an_exempted_site_reddens() -> None:
+    """Same function, same callee, same ordinal, same LINE - a different program."""
+    pristine = _pristine_exempted_source()
+    statement = _exempted_spawn_statement(pristine)
+    planted = _rewrite_statement(pristine, statement, '"git"', '"curl"')
+    programs = [site.program for site in _exempted_sites(planted)]
+    assert programs == ["curl"], f"the swap left programs {programs} in {EXEMPTED_FUNCTION}"
+
+    census = _census_with(EXEMPTED_PATH, planted)
+    live = [site.program for site in findings(census)]
+    stale = len(stale_exemptions(census))
+
+    assert (live, stale) == (["curl"], 1), describe(findings(census))
+
+
+@pytest.mark.parametrize("row", sorted(EXEMPTIONS), ids=lambda row: f"{row[1]}-{row[2]}")
+def test_a_comment_block_above_every_exempted_site_moves_no_arm(
+    row: tuple[str, str, str, str, int],
+) -> None:
+    """The first half of CS-1102 for all four rows, not only the one the plants favour."""
+    path, function, callee = row[0], row[1], row[2]
+    pristine = (REPO_ROOT / path).read_text(encoding="utf-8")
+    statement = _spawn_statement(pristine, function, callee)
+    planted = _insert_lines(pristine, statement.lineno, COMMENT_BLOCK, statement.col_offset)
+    assert planted != pristine, "the plant did not land"
+
+    census = _census_with(path, planted)
+    problems = [str(site) for site in findings(census)] + stale_exemptions(census)
+
+    assert problems == [], "\n".join(problems)
+
+
+def test_an_unresolved_program_is_a_key_no_row_can_carry() -> None:
+    """A resolver fed a NAME folds to no literal, and its key must match no row by accident."""
+    sites = scan_source(
+        "tools/synthetic.py", "import shutil\ndef f(name):\n    return shutil.which(name)\n"
+    )
+    keys = [site.key for site in sites if site.finding]
+    carried = [key[3] for key in keys]
+    rows = [row[3] for row in EXEMPTIONS]
+
+    assert carried == [None], f"an unresolved program keyed as {carried}"
+    assert all(isinstance(program, str) and program for program in rows), rows
+
+
 def test_a_new_spawn_in_another_function_of_an_exempted_file_still_reddens() -> None:
     """The same control where the new site shares the file and nothing else."""
     pristine = _pristine_exempted_source()
@@ -786,7 +881,7 @@ def test_a_row_matching_more_than_one_live_site_is_reported() -> None:
     census = _census_with(EXEMPTED_PATH, pristine) + scan_source(EXEMPTED_PATH, pristine)
 
     problems = stale_exemptions(census)
-    rows = sum(1 for (path, _f, _c, _o) in EXEMPTIONS if path == EXEMPTED_PATH)
+    rows = sum(1 for (path, _f, _c, _p, _o) in EXEMPTIONS if path == EXEMPTED_PATH)
 
     assert rows >= 1, f"no exemption row names {EXEMPTED_PATH}, so this arm grades nothing"
     assert len(problems) == rows, "\n".join(problems)
