@@ -374,6 +374,34 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-09-16 - CS-1097 - CLOSED. A save name at the first string slot is no longer admitted as a world-token candidate
+
+**WHAT CHANGED.** `clockspeed/save/header.py`'s raw-prefix scan - the fallback
+`tools/precommit_gate.py` runs only on a `.sav` in the save root whose header will not parse -
+admitted any length-framed string of the token's shape, including the player-chosen save name
+that every measured header carries as its FIRST string. The scan now skips a candidate whose
+length prefix sits at `FIRST_STRING_SLOT_OFFSET` (three `INT32_SIZE` version fields, anchored by
+a test against the real parser on header versions 10, 13 and 14), in both string encodings,
+BEFORE decoding and BEFORE the 16-candidate cap is counted. The comment that claimed a save
+name could not get through was false and is rewritten. No frozen file was touched: the gate
+only imports the scan, so no grant was needed and the CS-1096 bound count is unchanged.
+
+**RED FIRST.** 12 failed at ec0c7f4 for the right reason - the slot-0 save name admitted in
+both encodings, the identifier pushed past the cap by a refused slot, and the save name
+reaching the gate's blocklist. Mutants killed on disk: no exclusion, offsets 8/11/13/16,
+one-encoding-only, exclusion after the cap, reject-everything and return-empty (the
+anti-narrowing control - both redden the genuine-token arms), drop-first-candidate.
+
+**ADVERSARY - SECURITY LENS - NOT REFUTED at 42d277a.** The skip keys on raw offset alone,
+unavoidably, because the scan exists for versions the parser refuses. Staged files are only
+matched against the blocklist, never scanned for framed strings, so no staged-file hole opens.
+A cap overflow still fails closed. RESIDUE, filed as CS-1114: a token framed at offset 12 in
+an unparseable `.sav` is no longer blocklisted (no measured layout puts it there), a future
+header with a four-field prologue brings the false positive back, and a 22-character SESSION
+name, which has no fixed offset, is still admitted.
+
+**VERIFY.** `python -m pytest tests/test_save_name_not_a_token.py tests/save/test_scan_slot_zero.py tests/save/test_header.py -q`.
+
 ### 2026-09-16 - CS-1086 - CLOSED. Routing rows are graded against a leaf derived from ROADMAP.md, and the table is kept
 
 **WHAT CHANGED.** `tools/drift_guard.py` guard (j) now reads `ROADMAP.md` and derives each
