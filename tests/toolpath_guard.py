@@ -96,7 +96,7 @@ import ast
 import re
 import subprocess
 import sys
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Final
 
@@ -252,10 +252,14 @@ EXEMPTION_REASON_MINIMUM: Final = 60
 
 # EXEMPTIONS - graded sites that are not going to be repaired here, and why.
 #
-# Keyed by (repo-relative path, enclosing function, callee, LINE). The line is
-# in the key on purpose: without it one row blankets every same-callee site in
-# that function. A line that moves reddens the staleness arm below, which is a
-# loud false refusal and the direction this project prefers.
+# Keyed by (repo-relative path, enclosing function, callee, ORDINAL). The
+# ordinal is the site's 1-based position among the FINDING sites in that same
+# function making that same callee, in the order the walk meets them - see
+# ProgramSite.ordinal. It is in the key on purpose: without a discriminator one
+# row blankets every same-callee site in that function, so a second spawn
+# planted beside an exempted one would be excused with it. Each row must answer
+# EXACTLY one live site; one answering none is stale and one answering two is
+# reported by name, both by stale_exemptions below.
 #
 # EVERY ROW HERE IS A FROZEN FILE, AND THAT CLAIM IS NOW CHECKED AGAINST THE
 # LIST. CLAUDE.md section 6 lists scripts/install_hooks.py and
@@ -280,34 +284,37 @@ EXEMPTION_REASON_MINIMUM: Final = 60
 # rows, so "the remainder is the frozen four" is exactly the inference this
 # comment must not invite. Read ungraded() and the runtime arms before claiming
 # a remainder, and re-derive it rather than quoting a prior claim.
-# THESE ROWS ARE KEYED BY LINE, AND THAT KEY GOES STALE ON AN EDIT ABOVE THE
-# SITE RATHER THAN AT IT. Measured twice now: the CS-1087 gate change and then
-# the CS-1095 console-flash constant each moved two of these rows without
-# touching a spawn, and both times the arm reported the exemption stale and the
-# finding live - the correct verdicts from a key that cannot tell an edit above
-# a site from a change to it. The function and callee halves of the key are
-# already stable; only the integer is not. CS-1102 carries re-keying them.
+# THESE ROWS WERE KEYED BY LINE, AND THAT KEY WENT STALE ON AN EDIT ABOVE THE
+# SITE RATHER THAN AT IT. Measured twice: the CS-1087 gate change and then the
+# CS-1095 console-flash constant each moved two of these rows without touching a
+# spawn, and both times the arm reported the exemption stale and the finding
+# live - the correct verdicts from a key that cannot tell an edit above a site
+# from a change to it. CS-1102 replaced the integer with the ordinal. THE KNOWN
+# RESIDUE, stated rather than hidden: a new same-callee spawn planted ABOVE an
+# exempted one in the same function takes the lower ordinal, so the row excuses
+# the plant and the original is reported instead. Still red - it names the
+# other site. tests/test_toolpath.py plants both directions.
 EXEMPTIONS: Final[dict[tuple[str, str, str, int], str]] = {
-    ("scripts/install_hooks.py", "run_git", "subprocess.run", 119): (
+    ("scripts/install_hooks.py", "run_git", "subprocess.run", 1): (
         "FROZEN under CLAUDE.md section 6 - scripts/install_hooks.py needs an adjudicator"
         " grant recorded in docs/LEDGER.md before any edit, and no agent grants itself"
         " one. The defect is present and unrepaired: this is the installer a fresh clone"
         " runs before any protection exists, so the current directory it inherits is"
         " whatever the operator was standing in."
     ),
-    ("scripts/install_hooks.py", "run_git_optional", "subprocess.run", 308): (
+    ("scripts/install_hooks.py", "run_git_optional", "subprocess.run", 1): (
         "FROZEN under CLAUDE.md section 6 - same route and same grant as the sibling site"
         " above. This one writes core.hooksPath, so a planted git here would report a"
         " wired clone while wiring nothing, which is the exact failure mode the module's"
         " own docstring calls out as the one that must never be silent."
     ),
-    ("tools/precommit_gate.py", "ruff_command", "which", 2057): (
+    ("tools/precommit_gate.py", "ruff_command", "which", 1): (
         "FROZEN under CLAUDE.md section 6 - tools/precommit_gate.py is the tier-0"
         " blocking gate and needs an adjudicator grant before any edit. shutil.which was"
         " MEASURED returning a relative current-directory path, so the linter this gate"
         " runs over staged content can be supplied by the tree being committed."
     ),
-    ("tools/precommit_gate.py", "git", "subprocess.run", 2443): (
+    ("tools/precommit_gate.py", "git", "subprocess.run", 1): (
         "FROZEN under CLAUDE.md section 6 - same file, same route, same grant. The gate"
         " asks git what is staged, so a planted git decides what the gate believes it is"
         " inspecting, which makes this the highest-value of the four to repair once the"
@@ -331,6 +338,12 @@ class ProgramSite:
     function: str
     program: str
     verdict: str
+    #: The 1-based position of this site among the FINDING sites in the same
+    #: path, function and callee, in walk order; 0 for a site that is not a
+    #: finding. LINE-FREE ON PURPOSE (CS-1102): an edit above the site moves
+    #: ``lineno`` and leaves this alone, while a second same-callee finding in
+    #: the same function takes the next ordinal and so a key of its own.
+    ordinal: int = 0
 
     @property
     def routed(self) -> bool:
@@ -349,8 +362,8 @@ class ProgramSite:
 
     @property
     def key(self) -> tuple[str, str, str, int]:
-        """The exemption key for this site, line number included."""
-        return (self.path, self.function, self.callee, self.lineno)
+        """The exemption key for this site - the ordinal, and never the line."""
+        return (self.path, self.function, self.callee, self.ordinal)
 
     def __str__(self) -> str:
         """Render as `path:line  callee` inside `function`, with the verdict."""
@@ -736,7 +749,16 @@ def scan_source(path: str, source: str) -> list[ProgramSite]:
     tree = ast.parse(source)
     census = _Census(path, tree)
     census.visit(tree)
-    return census.sites
+    counted: dict[tuple[str, str], int] = {}
+    numbered: list[ProgramSite] = []
+    for site in census.sites:
+        if site.finding:
+            slot = (site.function, site.callee)
+            counted[slot] = counted.get(slot, 0) + 1
+            numbered.append(replace(site, ordinal=counted[slot]))
+        else:
+            numbered.append(site)
+    return numbered
 
 
 def graded_python_files() -> list[str]:
@@ -801,23 +823,39 @@ def describe(sites: list[ProgramSite]) -> str:
 
 
 def stale_exemptions(sites: list[ProgramSite]) -> list[str]:
-    """Exemption rows naming a site the census did not find.
+    """Exemption rows that do not answer EXACTLY one live finding.
 
     A row that no longer matches anything is a forgiveness with nothing left to
-    forgive, and it will silently absorb the next site that lands on that key.
+    forgive, and it will silently absorb the next site that lands on that key. A
+    row that matches MORE than one excuses a site nobody argued for, which is
+    the same defect from the other side, so it is reported by name too.
 
     Args:
         sites: The whole census.
 
     Returns:
-        One line per stale row.
+        One line per row matching zero or several live findings. A row carries
+        no line, so a matched site's live ``path:line`` is rendered instead.
     """
-    live = {site.key for site in sites if site.finding}
-    return [
-        f"{path}:{line} {callee} in {function}() is exempted and is not a live finding"
-        for (path, function, callee, line) in sorted(EXEMPTIONS)
-        if (path, function, callee, line) not in live
-    ]
+    live: dict[tuple[str, str, str, int], list[ProgramSite]] = {}
+    for site in sites:
+        if site.finding:
+            live.setdefault(site.key, []).append(site)
+    problems: list[str] = []
+    for key in sorted(EXEMPTIONS):
+        path, function, callee, ordinal = key
+        matched = live.get(key, [])
+        if not matched:
+            problems.append(
+                f"{path} {callee} #{ordinal} in {function}() is exempted and is not a live finding"
+            )
+        elif len(matched) > 1:
+            where = ", ".join(f"{site.path}:{site.lineno}" for site in matched)
+            problems.append(
+                f"{path} {callee} #{ordinal} in {function}() is exempted and matches"
+                f" {len(matched)} live findings, not one: {where}"
+            )
+    return problems
 
 
 def frozen_files() -> list[str]:
@@ -907,7 +945,7 @@ def unfrozen_exemptions(pinned: dict[tuple[str, str, str, int], str]) -> list[st
     entries = frozen_files()
     return [
         f"{path} is exempted as FROZEN and is not in CLAUDE.md's frozen-file list"
-        for path in sorted({path for (path, _f, _c, _l) in pinned})
+        for path in sorted({path for (path, _f, _c, _o) in pinned})
         if not is_frozen(path, entries)
     ]
 

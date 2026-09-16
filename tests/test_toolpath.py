@@ -68,6 +68,7 @@ from tests.toolpath_guard import (  # noqa: E402
     SPAWN_ROOTS,
     SPELLED_PATH,
     VERDICTS,
+    ProgramSite,
     describe,
     exemption_budget_problems,
     findings,
@@ -529,8 +530,8 @@ def test_every_exemption_states_a_reason_rather_than_a_word() -> None:
     cost more to type than it is worth.
     """
     thin = sorted(
-        f"{path}:{line} {callee} in {function}()"
-        for (path, function, callee, line), reason in EXEMPTIONS.items()
+        f"{path} {callee} #{ordinal} in {function}()"
+        for (path, function, callee, ordinal), reason in EXEMPTIONS.items()
         if len(reason) < EXEMPTION_REASON_MINIMUM
     )
 
@@ -615,6 +616,202 @@ def test_the_frozen_list_covers_the_hook_directory_it_freezes() -> None:
     assert not is_frozen("tools/toolpath.py", entries), (
         "an unrelated file matched the frozen list, so the glob is too greedy"
     )
+
+
+# ---------------------------------------------------------------------------
+# CS-1102 - the exemption key survives an edit ABOVE a site and still grades one AT it
+# ---------------------------------------------------------------------------
+
+#: The exempted file the plants are made against. FROZEN, so every plant below
+#: happens in memory through scan_source and the file on disk is only read.
+EXEMPTED_PATH: Final = "scripts/install_hooks.py"
+
+#: The exempted function inside it, and the callee its exempted spawn makes.
+EXEMPTED_FUNCTION: Final = "run_git"
+EXEMPTED_CALLEE: Final = "subprocess.run"
+
+#: The block planted above the exempted spawn. Comments only, so the edit moves
+#: the site without changing it - which is the whole of what the acceptance asks.
+COMMENT_BLOCK: Final = (
+    "# CS-1102 plant - a comment block above the exempted spawn.",
+    "# It changes no statement, no callee and no program.",
+    "# It moves every line below it down by the length of this block.",
+    "# A key that carries the line reads that move as a new site.",
+    "# A key that does not carry it must leave every arm green.",
+)
+
+#: A NEW unexempted spawn, planted as a statement in the exempted function.
+PLANTED_SPAWN: Final = 'subprocess.run(["git", "cs1102"], timeout=1)'
+
+#: The name a planted function takes. Nothing in the tree defines it.
+PLANTED_FUNCTION: Final = "cs1102_planted"
+
+
+def _pristine_exempted_source() -> str:
+    """The exempted file's real text, read and never written."""
+    return (REPO_ROOT / EXEMPTED_PATH).read_text(encoding="utf-8")
+
+
+def _exempted_sites(source: str) -> list[ProgramSite]:
+    """The finding sites in the exempted function that make the exempted callee."""
+    return [
+        site
+        for site in scan_source(EXEMPTED_PATH, source)
+        if site.finding and site.function == EXEMPTED_FUNCTION and site.callee == EXEMPTED_CALLEE
+    ]
+
+
+def _exempted_spawn_statement(source: str) -> ast.stmt:
+    """The simple statement holding the exempted spawn, located by AST and never by line.
+
+    Returns:
+        The one Assign or Expr inside the exempted function whose expression
+        calls the exempted callee.
+    """
+    tree = ast.parse(source)
+    functions = [
+        node
+        for node in ast.walk(tree)
+        if isinstance(node, ast.FunctionDef) and node.name == EXEMPTED_FUNCTION
+    ]
+    assert len(functions) == 1, f"{EXEMPTED_FUNCTION} is defined {len(functions)} time(s)"
+    statements = [
+        node
+        for node in ast.walk(functions[0])
+        if isinstance(node, ast.Assign | ast.Expr)
+        and any(
+            isinstance(call, ast.Call) and ast.unparse(call.func) == EXEMPTED_CALLEE
+            for call in ast.walk(node)
+        )
+    ]
+    assert len(statements) == 1, (
+        f"{EXEMPTED_FUNCTION} holds {len(statements)} statement(s) calling {EXEMPTED_CALLEE},"
+        " so the plant has no single site to stand above"
+    )
+    return statements[0]
+
+
+def _insert_lines(source: str, before: int, lines: tuple[str, ...], indent: int) -> str:
+    """``source`` with ``lines`` inserted above 1-based line ``before`` at ``indent``."""
+    kept = source.splitlines(keepends=True)
+    block = "".join(f"{' ' * indent}{line}\n" for line in lines)
+    return "".join(kept[: before - 1]) + block + "".join(kept[before - 1 :])
+
+
+def _census_with(path: str, source: str) -> list[ProgramSite]:
+    """The real census of every other file, with ``path`` graded from ``source``."""
+    return [site for site in scan_repository() if site.path != path] + scan_source(path, source)
+
+
+def test_an_edit_above_an_exempted_spawn_moves_no_arm() -> None:
+    """The first half of CS-1102: a site that MOVED is not a site that CHANGED.
+
+    Measured twice before this arm existed - an edit above two spawn sites, and
+    each time the exemption reported stale and the finding reported live.
+    """
+    pristine = _pristine_exempted_source()
+    statement = _exempted_spawn_statement(pristine)
+    planted = _insert_lines(pristine, statement.lineno, COMMENT_BLOCK, statement.col_offset)
+
+    before = [site.lineno for site in _exempted_sites(pristine)]
+    after = [site.lineno for site in _exempted_sites(planted)]
+    assert len(before) == 1, f"the pristine file holds {len(before)} exempted site(s), not 1"
+    moved = after[0] - before[0] if len(after) == 1 else None
+    assert moved == len(COMMENT_BLOCK), f"the plant moved the site by {moved} line(s)"
+
+    census = _census_with(EXEMPTED_PATH, planted)
+    problems = [str(site) for site in findings(census)] + stale_exemptions(census)
+
+    assert problems == [], (
+        f"{len(problems)} arm(s) moved on an edit that changed no site:\n" + "\n".join(problems)
+    )
+
+
+@pytest.mark.parametrize("position", ["above", "below"])
+def test_a_second_spawn_inside_an_exempted_function_still_reddens(position: str) -> None:
+    """The anti-narrowing control: a key loose enough to survive a shift must still grade.
+
+    Same path, same function, same callee - the only thing that tells the
+    planted spawn from the exempted one is that there are now two of them. At
+    most one may be excused. ABOVE is the known residue: the exemption may
+    excuse the plant and report the original, which is still red.
+    """
+    pristine = _pristine_exempted_source()
+    statement = _exempted_spawn_statement(pristine)
+    line = statement.lineno if position == "above" else (statement.end_lineno or 0) + 1
+    planted = _insert_lines(pristine, line, (PLANTED_SPAWN,), statement.col_offset)
+    spawned = len(_exempted_sites(planted)) - len(_exempted_sites(pristine))
+    assert spawned == 1, f"the plant added {spawned} site(s) to {EXEMPTED_FUNCTION}, not 1"
+
+    census = _census_with(EXEMPTED_PATH, planted)
+    live = findings(census)
+    in_function = sum(1 for site in live if site.function == EXEMPTED_FUNCTION)
+    stale = len(stale_exemptions(census))
+
+    assert (len(live), in_function, stale) == (1, 1, 0), describe(live)
+
+
+def test_a_new_spawn_in_another_function_of_an_exempted_file_still_reddens() -> None:
+    """The same control where the new site shares the file and nothing else."""
+    pristine = _pristine_exempted_source()
+    planted = (
+        pristine.rstrip("\r\n") + f"\n\n\ndef {PLANTED_FUNCTION}() -> None:\n    {PLANTED_SPAWN}\n"
+    )
+
+    live = findings(_census_with(EXEMPTED_PATH, planted))
+    named = [site.function for site in live]
+
+    assert named == [PLANTED_FUNCTION], describe(live)
+
+
+def test_a_change_at_an_exempted_site_reports_the_exemption_stale() -> None:
+    """The staleness arm still fires when the site itself changes, not merely moves."""
+    pristine = _pristine_exempted_source()
+    needle = f"def {EXEMPTED_FUNCTION}("
+    occurrences = pristine.count(needle)
+    assert occurrences == 1, f"the rename needle occurs {occurrences} time(s)"
+    planted = pristine.replace(needle, f"def {PLANTED_FUNCTION}(")
+
+    census = _census_with(EXEMPTED_PATH, planted)
+    stale = stale_exemptions(census)
+    named = [site.function for site in findings(census)]
+
+    assert (len(stale), named) == (1, [PLANTED_FUNCTION]), "\n".join(stale)
+    assert f" {EXEMPTED_FUNCTION}()" in stale[0], stale[0]
+
+
+def test_a_row_matching_more_than_one_live_site_is_reported() -> None:
+    """Each row must answer EXACTLY one site. A row that answers two is not stale and not fine."""
+    pristine = _pristine_exempted_source()
+    census = _census_with(EXEMPTED_PATH, pristine) + scan_source(EXEMPTED_PATH, pristine)
+
+    problems = stale_exemptions(census)
+    rows = sum(1 for (path, _f, _c, _o) in EXEMPTIONS if path == EXEMPTED_PATH)
+
+    assert rows >= 1, f"no exemption row names {EXEMPTED_PATH}, so this arm grades nothing"
+    assert len(problems) == rows, "\n".join(problems)
+
+
+def test_the_exemption_budget_is_typed_by_hand() -> None:
+    """The budget is an integer LITERAL, never derived from the roster's own length."""
+    tree = ast.parse((REPO_ROOT / "tests" / "toolpath_guard.py").read_text(encoding="utf-8"))
+    values = [
+        node.value
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Assign | ast.AnnAssign)
+        and any(
+            isinstance(target, ast.Name) and target.id == "EXEMPTION_BUDGET"
+            for target in (node.targets if isinstance(node, ast.Assign) else [node.target])
+        )
+    ]
+    literal = [
+        isinstance(value, ast.Constant)
+        and isinstance(value.value, int)
+        and not isinstance(value.value, bool)
+        for value in values
+    ]
+
+    assert literal == [True], f"EXEMPTION_BUDGET is assigned {len(values)} time(s): {literal}"
 
 
 def test_the_ungraded_remainder_lies_entirely_outside_the_spawn_roots() -> None:
