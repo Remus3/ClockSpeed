@@ -84,11 +84,13 @@ WHAT THIS DELIBERATELY DOES NOT COVER, stated rather than left silent.
 from __future__ import annotations
 
 import ast
+import io
 import json
 import re
 import subprocess
 import sys
 import tarfile
+import tokenize
 from pathlib import Path
 from typing import Final, NamedTuple
 
@@ -429,20 +431,46 @@ def _isolated_git_env(base: Path) -> dict[str, str]:
     return env
 
 
+#: The program `_git` runs, read at CALL time so the CS-1107 plant can swap in a
+#: child that hangs. Never an absolute path - PATH resolves it.
+GIT_PROGRAM: Final[tuple[str, ...]] = ("git",)
+
+#: Seconds `_git` waits for one decoy-tree git command, read at CALL time so the
+#: CS-1107 plant can shrink it.
+GIT_TIMEOUT_SECONDS: Final[float] = 120
+
+
 def _git(cwd: Path, env: dict[str, str], *args: str) -> None:
-    """Run one git command in a decoy tree, or skip when git is not installed."""
+    """Run one git command in a decoy tree, or skip when git is not installed.
+
+    A TIMEOUT IS RED, NEVER A SKIP (CS-1107). `subprocess.SubprocessError` once
+    sent a hung git down the not-installed skip, so the CS-1101 arms stopped
+    grading without a red. Only an `OSError` - no program to start - skips;
+    `test_a_git_timeout_in_a_decoy_tree_fails_rather_than_skips` plants the hang.
+    """
+    proc: subprocess.CompletedProcess[str] | None = None
     try:
         proc = subprocess.run(
-            ["git", "-c", "user.name=probe", "-c", "user.email=probe@invalid", *args],
+            [*GIT_PROGRAM, "-c", "user.name=probe", "-c", "user.email=probe@invalid", *args],
             cwd=cwd,
             env=env,
             capture_output=True,
             text=True,
             check=False,
-            timeout=120,
+            timeout=GIT_TIMEOUT_SECONDS,
         )
-    except (OSError, subprocess.SubprocessError):
+    except subprocess.TimeoutExpired:
+        # Bound outside the handler, so the red carries no chained exception
+        # and no rendered command line.
+        proc = None
+    except OSError:
         pytest.skip("git is unavailable, so the decoy checkouts cannot be built")
+    timed_out = proc is None
+    assert not timed_out, (
+        f"git {args[0]} TIMED OUT in a decoy tree after {GIT_TIMEOUT_SECONDS}s -"
+        " a hung git is a failure, never a skip"
+    )
+    assert proc is not None
     code = proc.returncode
     assert code == 0, f"git {args[0]} failed in a decoy tree with exit {code}"
 
@@ -667,6 +695,223 @@ def test_each_archive_copy_of_the_premise_carries_its_supersession_note(
     unannotated = sum(1 for para in copies if SUPERSESSION_MARKER not in para)
     assert copies, f"no copy of the premise found in {ARCHIVE_FILE}"
     assert unannotated == 0, f"{unannotated} of {len(copies)} archive copies lack the note"
+
+
+# ---------------------------------------------------------------------------
+# CS-1107 - the hook-stdout claim is stated as UNGRADED, and a hung git is red.
+# ---------------------------------------------------------------------------
+#
+# WHY THE STDOUT CLAIM IS REWORDED RATHER THAN GRADED, decided by measurement.
+# The claim is about what the CONSUMER of a `SessionStart` hook does with the
+# stdout of a hook that exits non-zero. The only process boundary this
+# repository owns is the watcher's own exit, which the CS-1101 arm already
+# grades. The consumer is the Claude client: no module in this tree consumes a
+# hook's stdout (every `SessionStart` mention under `tools/` and `tests/` is a
+# hook or a test of one), the client is not part of this repository, and the
+# tier-2 CI workflow installs no client at all - and driving one would put a
+# model session in a test. So the claim is carried as the CS-1095 contract's
+# premise and marked UNGRADED at every site, and the arm below holds that.
+
+#: A sentence of watcher prose is a HOOK-STDOUT CLAIM SITE when it names a hook
+#: and matches this. It LOCATES only; nothing is graded by the words it matches.
+HOOK_OUTPUT_LOCATOR: Final = re.compile(r"\b(?:stdout|non-zero|output)\b", re.IGNORECASE)
+
+#: The contract clause every approved sentence ends its UNGRADED marking with.
+_UNGRADED: Final = "UNGRADED, a client property no test here grades"
+
+#: The approved assertion-message form in `tests/test_inbox_watch.py`.
+_CONTRACT_SAYS: Final = (
+    " exits non-zero, and the CS-1095 contract says a hook then loses its stdout - " + _UNGRADED
+)
+
+#: THE ALLOWLIST, per scanned file. Every claim site in a file's prose -
+#: docstrings, string literals and comments - must be EXACTLY one of that
+#: file's sentences, and the located sites must equal the list as a multiset.
+#: A site reworded to assert the claim as measured is not on the list and is
+#: red; a site reworded out of the locator's reach leaves an entry unmatched and
+#: is red too, which is the anti-narrowing count.
+_WATCHER_APPROVED: Final = (
+    # Module docstring, the CS-952 paragraph.
+    "Tracking the wiring was proposed, granted as a frozen-file edit and then"
+    " refused on a premise CS-1095 has since retired: the no-channel code was"
+    " non-zero then, which the refusal argued would cost the hook its stdout -"
+    " UNGRADED, a client property no test here grades.",
+    # Module docstring, the CS-1095 contract clause.
+    "A `SessionStart` hook that exits non-zero has its stdout dropped, says the"
+    " CS-1095 contract - UNGRADED, a client property no test here grades, carried"
+    " as that contract's premise and never as a measurement of this tree.",
+    # `main()` docstring, Returns.
+    "A `SessionStart` hook that exits non-zero has its stdout dropped, says the"
+    " CS-1095 contract - UNGRADED, a client property no test here grades - and on"
+    " that premise a non-zero code would silence the missing-channel banner, the"
+    " loudest thing this tool has to say, in exactly the tree that needed it.",
+    # `--strict` help text.
+    "For a gate or a script; a SessionStart hook must NOT use it, because the"
+    " CS-1095 contract says a non-zero exit costs a hook its stdout - UNGRADED, a"
+    " client property no test here grades.",
+)
+
+_INBOX_TESTS_APPROVED: Final = (
+    # The missing-inbox arm's docstring.
+    "The contract flipped this path to 0 because it says a SessionStart hook that"
+    " exits non-zero loses its stdout - " + _UNGRADED + ".",
+    # The missing-inbox, blind-listing and refused-ack assertion messages.
+    "a missing channel still" + _CONTRACT_SAYS,
+    "a blind listing run" + _CONTRACT_SAYS,
+    "a refused ack" + _CONTRACT_SAYS,
+    # The CS-1095 contract comment block.
+    "A SessionStart hook that exits non-zero has its stdout dropped, says the CS-1095"
+    " contract - " + _UNGRADED + ".",
+    # The every-path-returns-0 arm's docstring.
+    "A SessionStart hook that exits non-zero does not get its stdout injected, says"
+    " the CS-1095 contract - " + _UNGRADED + ".",
+)
+
+APPROVED_HOOK_STDOUT_SENTENCES: Final[dict[str, tuple[str, ...]]] = {
+    WATCHED_TOOL: _WATCHER_APPROVED,
+    "tests/test_inbox_watch.py": _INBOX_TESTS_APPROVED,
+}
+
+#: Every approved sentence in any file, for the controls.
+_ALL_APPROVED: Final = frozenset(
+    s for group in APPROVED_HOOK_STDOUT_SENTENCES.values() for s in group
+)
+
+
+def _prose_chunks(source: str) -> list[str]:
+    """Every string literal and every run of adjacent comment lines in `source`.
+
+    Read from the syntax tree and the token stream, never by importing, so an
+    implicitly concatenated help string arrives as the one string argparse sees.
+    """
+    chunks = [
+        node.value
+        for node in ast.walk(ast.parse(source))
+        if isinstance(node, ast.Constant) and isinstance(node.value, str)
+    ]
+    block: list[str] = []
+    layout = {tokenize.NL, tokenize.NEWLINE, tokenize.INDENT, tokenize.DEDENT}
+    for token in tokenize.generate_tokens(io.StringIO(source).readline):
+        if token.type == tokenize.COMMENT:
+            block.append(token.string.lstrip("#"))
+        elif token.type not in layout and block:
+            chunks.append(" ".join(block))
+            block = []
+    if block:
+        chunks.append(" ".join(block))
+    return chunks
+
+
+def _hook_stdout_sentences(source: str) -> list[str]:
+    """Every whitespace-normalised prose sentence of `source` that is a claim site."""
+    sentences = [
+        sentence
+        for chunk in _prose_chunks(source)
+        for sentence in re.split(r"(?<=[.!?])\s+", " ".join(chunk.split()))
+    ]
+    return [s for s in sentences if "hook" in s.lower() and HOOK_OUTPUT_LOCATOR.search(s)]
+
+
+def test_the_claim_site_locator_sees_a_docstring_a_help_string_and_a_comment() -> None:
+    """CONTROL. The locator must find a measured wording in all three prose forms.
+
+    The pre-CS-1107 wording is planted once as a docstring, once split across an
+    implicitly concatenated help string and once as a comment block, and each
+    copy must be located and must be off the allowlist - otherwise the live arm
+    could pass by seeing nothing.
+    """
+    measured = "A `SessionStart` hook that exits non-zero has its stdout DROPPED, so it is lost."
+    source = (
+        f'"""{measured}"""\n'
+        'HELP = ("A hook must not use it, because a"\n'
+        '    " non-zero exit costs the hook its stdout.")\n'
+        "# A hook that exits non-zero\n# has its stdout DROPPED.\nX = 1\n"
+    )
+    planted_sites = 3
+    found = _hook_stdout_sentences(source)
+    approved = [sentence for sentence in found if sentence in _ALL_APPROVED]
+    assert len(found) == planted_sites, f"located {len(found)} planted claim sites, not 3"
+    assert approved == [], "a planted measured wording read as approved"
+    control = f'"""{_WATCHER_APPROVED[0]} The rest."""\n'
+    assert _hook_stdout_sentences(control) == [_WATCHER_APPROVED[0]]
+
+
+@pytest.mark.parametrize("relpath", sorted(APPROVED_HOOK_STDOUT_SENTENCES))
+def test_every_hook_stdout_claim_in_the_watcher_is_an_approved_ungraded_sentence(
+    relpath: str,
+    repo_root: Path,
+) -> None:
+    """THE LOAD-BEARING CS-1107 PROSE ARM. The claim is UNGRADED at every site.
+
+    Scans the watcher and its test module. Allowlist, not denylist: every
+    located site must be one of that file's approved sentences, and the located
+    sites must equal that file's list exactly, multiplicity included.
+
+    DOCUMENTED LIMIT: a NEW sentence restating the claim without naming a hook,
+    or without any word the locator matches, is not located. An EXISTING site
+    rewritten that way is red, because its approved entry then goes unmatched.
+    """
+    allowed = APPROVED_HOOK_STDOUT_SENTENCES[relpath]
+    source = (repo_root / relpath).read_text(encoding="utf-8")
+    found = sorted(_hook_stdout_sentences(source))
+    unapproved = [sentence for sentence in found if sentence not in allowed]
+    unmatched = sorted(set(allowed) - set(found))
+    assert unapproved == [], f"{relpath}: claim sites not on the allowlist: {unapproved}"
+    assert unmatched == [], f"{relpath}: approved sentences not found: {unmatched}"
+    assert found == sorted(allowed), f"{relpath}: a claim site is duplicated"
+
+
+def _git_outcome(tree: Path, env: dict[str, str], *args: str) -> tuple[str, str]:
+    """Run `_git` and report how it ended - passed, failed or skipped - with the message."""
+    try:
+        _git(tree, env, *args)
+    except (AssertionError, pytest.fail.Exception) as failure:
+        return "failed", str(failure)
+    except pytest.skip.Exception as skipped:
+        return "skipped", str(skipped)
+    return "passed", ""
+
+
+def test_a_git_timeout_in_a_decoy_tree_fails_rather_than_skips(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """CS-1107 PLANT. A hung git is RED, never read as git not being installed.
+
+    The plant swaps `_git`'s program for an interpreter that sleeps far past a
+    shrunken timeout. It runs in a temporary directory under the scrubbed
+    environment, so no real repository is reachable. The outcome is caught
+    explicitly: a skip escaping into pytest would turn this arm SKIPPED, not red.
+    """
+    env = _isolated_git_env(tmp_path)
+    module = sys.modules[__name__]
+    monkeypatch.setattr(module, "GIT_TIMEOUT_SECONDS", 2.0)
+    monkeypatch.setattr(
+        module, "GIT_PROGRAM", (sys.executable, "-c", "import time; time.sleep(30)")
+    )
+    outcome, message = _git_outcome(tmp_path, env, "init")
+    assert outcome == "failed", f"a planted git timeout ended {outcome}, not failed"
+    assert "TIMED OUT" in message, "the failure does not say the git command timed out"
+
+
+def test_the_git_plant_is_what_runs_and_a_missing_git_still_skips(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """CONTROLS for the plant. The swapped program is really run, and absence still skips.
+
+    A child exiting 3 must fail with that code, which real `git init` in an
+    empty directory would not - so the plant cannot pass by being ignored. A
+    program that does not exist must SKIP, because git not being installed is
+    still a skip; only a hang moved to red.
+    """
+    env = _isolated_git_env(tmp_path)
+    module = sys.modules[__name__]
+    monkeypatch.setattr(module, "GIT_PROGRAM", (sys.executable, "-c", "raise SystemExit(3)"))
+    exit_outcome, exit_message = _git_outcome(tmp_path, env, "init")
+    monkeypatch.setattr(module, "GIT_PROGRAM", ("cs1107-no-such-git-program",))
+    missing_outcome, _ = _git_outcome(tmp_path, env, "init")
+    assert exit_outcome == "failed", f"a planted exit 3 ended {exit_outcome}"
+    assert "exit 3" in exit_message, "the planted program was not the one that ran"
+    assert missing_outcome == "skipped", f"a missing git ended {missing_outcome}, not skipped"
 
 
 def _wiring_document() -> dict[str, object]:

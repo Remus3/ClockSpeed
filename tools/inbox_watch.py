@@ -26,9 +26,9 @@ WORKING COPY, NOT OF THIS REPOSITORY.** A fresh clone and every worktree run no
 watcher at all - the same status `core.hooksPath` has, and stated here because
 the design points above describe what the hook does WHERE IT IS WIRED and were
 read twice as a claim about the repository. Tracking the wiring was proposed,
-granted as a frozen-file edit and then refused on a measurement CS-1095 has
+granted as a frozen-file edit and then refused on a premise CS-1095 has
 since retired: the no-channel code was non-zero then, which the refusal argued
-would cost the hook its stdout - a client property no test here grades.
+would cost the hook its stdout - UNGRADED, a client property no test here grades.
 Today this tool answers that state with exit 0 and an `UNMEASURED` banner,
 and the refusal was re-derived under
 CS-1101 on the reason that still holds: `moon_sync_inbox/` is gitignored and
@@ -119,13 +119,15 @@ filename into anything tracked.
 
 THE CROSS-REPO WATCHER CONTRACT (CS-1095), adopted by operator instruction on
 2026-09-16 across the repositories on this channel. Four of its clauses changed
-code here and each one has a measured reason:
+code here, and each reason below says whether this tree measured it:
 
   EVERY PATH OF `main()` RETURNS 0. A `SessionStart` hook that exits non-zero
-  has its stdout DROPPED, so the state this tool most needs to announce - the
-  channel is not here - was the one state it announced to nobody. That is the
-  same measurement that refused the tracked-wiring branch in CS-952, and the
-  branch it now removes the premise from. The old code survives behind
+  has its stdout dropped, says the CS-1095 contract - UNGRADED, a client
+  property no test here grades, carried as that contract's premise and never as
+  a measurement of this tree. On that premise the state this tool most needs to
+  announce - the channel is not here - was the one state it announced to
+  nobody. The CS-952 refusal argued from the same premise, and CS-1101
+  re-derived that refusal without it. The old code survives behind
   `--strict`, which is how a gate or a script still tells a missing channel
   from a quiet one.
 
@@ -1064,9 +1066,11 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     Returns:
         0 ON EVERY PATH unless `--strict` was asked for (CS-1095). A
-        `SessionStart` hook that exits non-zero has its stdout dropped, which
-        silenced the missing-channel banner - the loudest thing this tool has
-        to say - in exactly the tree that needed it. The state itself is still
+        `SessionStart` hook that exits non-zero has its stdout dropped, says
+        the CS-1095 contract - UNGRADED, a client property no test here
+        grades - and on that premise a non-zero code would silence the
+        missing-channel banner, the loudest thing this tool has to say, in
+        exactly the tree that needed it. The state itself is still
         distinguished, in the banner and behind `--strict`.
     """
     parser = argparse.ArgumentParser(
@@ -1105,8 +1109,9 @@ def main(argv: Sequence[str] | None = None) -> int:
         action="store_true",
         help=(
             "Return a code that distinguishes the states instead of 0. For a"
-            " gate or a script; a SessionStart hook must NOT use it, because a"
-            " non-zero exit costs the hook its stdout."
+            " gate or a script; a SessionStart hook must NOT use it, because the"
+            " CS-1095 contract says a non-zero exit costs a hook its stdout -"
+            " UNGRADED, a client property no test here grades."
         ),
     )
     parser.add_argument(
