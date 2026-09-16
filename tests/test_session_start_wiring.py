@@ -327,6 +327,16 @@ CLAIM_PATTERN: Final = re.compile(
     r"answers\s+that(?:\s+state)?\s+with\s+exit\s+(\d+)", re.IGNORECASE
 )
 
+#: EVERY exit code a docstring states, in any sentence shape. `CLAIM_PATTERN`
+#: only LOCATES the claim; grading reads every code this one matches, so a
+#: sentence stating a contradicting code cannot sit beside a decoy written in
+#: the anchored shape and pass.
+CODE_PATTERN: Final = re.compile(
+    r"\b(?:exit(?:s|ed|ing)?|return(?:s|ed|ing)?|code)\s+(?:with\s+)?"
+    r"(?:(?:exit\s+)?code\s+)?(\d+)\b",
+    re.IGNORECASE,
+)
+
 #: The two live docstrings that argue the CS-952 refusal from the exit code.
 LIVE_CLAIM_FILES: Final = ("tests/test_session_start_wiring.py", WATCHED_TOOL)
 
@@ -357,32 +367,55 @@ def _stated_exit_codes(text: str) -> list[int]:
     return [int(match.group(1)) for match in CLAIM_PATTERN.finditer(text)]
 
 
+def _all_stated_codes(text: str) -> list[int]:
+    """Every exit code `text` states in any shape, in order. Prose only."""
+    return [int(match.group(1)) for match in CODE_PATTERN.finditer(text)]
+
+
 def _module_docstring(path: Path) -> str:
     """The module docstring of `path`, parsed from source and never imported."""
     return ast.get_docstring(ast.parse(path.read_text(encoding="utf-8"))) or ""
 
 
-def _run_like_the_hook(
-    root: Path, repo_root: Path, *extra: str
-) -> subprocess.CompletedProcess[str]:
-    """Run the watcher the way the SessionStart hook does, in a tree with no channel.
+def _decoy_channel(cwd: Path) -> Path:
+    """A tree that DOES hold a channel, used as the working directory of a run."""
+    (cwd / "moon_sync_inbox").mkdir(parents=True)
+    (cwd / "moon_sync_inbox" / "cs1101-decoy.md").write_text("decoy\n", encoding="ascii")
+    return cwd
 
-    ACROSS A PROCESS BOUNDARY, with the hook's own command line taken from
-    `_wiring_document`, from the root of a tree whose `tools/` holds a
-    byte-identical copy of the watcher and nothing else. The copy is what makes
-    the root isolated: the watcher resolves its root from its OWN file, so a
-    run of the real file would read and write the real checkout - including the
-    invocation log - instead of this temporary one.
+
+def _run_like_the_hook(
+    root: Path, repo_root: Path, cwd: Path, *extra: str
+) -> subprocess.CompletedProcess[str]:
+    """Run the watcher as the SessionStart hook does, from a tree with no channel.
+
+    ACROSS A PROCESS BOUNDARY, on a byte-identical copy of the watcher placed
+    in `root`'s `tools/` and nothing else. The copy is what isolates the run:
+    the watcher resolves its root from its OWN file, so running the real file
+    would read and write the real checkout, invocation log included.
+
+    THE WORKING DIRECTORY IS A DIFFERENT TREE THAT HOLDS A CHANNEL. That is the
+    CS-952 refusal's stated reason made observable: a watcher that resolved its
+    root from the cwd would find the decoy channel and write under it, and the
+    control arm goes red on either. So the copy is named by ABSOLUTE path
+    rather than by the hook's relative `tools/inbox_watch.py`, which is the one
+    departure from `HOOK_COMMAND`, and it is the departure the check needs.
+
+    `sys.executable` stands in for the hook's bare `python`, deliberately: the
+    subject is what the watcher returns, and which interpreter PATH resolves on
+    a given client is outside this repository - the module docstring already
+    names it as not covered.
     """
     tool_copy = root / WATCHED_TOOL
     tool_copy.parent.mkdir(parents=True, exist_ok=True)
     tool_copy.write_bytes((repo_root / WATCHED_TOOL).read_bytes())
     assert not (root / "moon_sync_inbox").exists()
+    assert (cwd / "moon_sync_inbox").is_dir()
     command = HOOK_COMMAND.split()
-    assert command[0] == "python"
+    assert command == ["python", WATCHED_TOOL]
     return subprocess.run(
-        [sys.executable, *command[1:], *extra],
-        cwd=root,
+        [sys.executable, str(tool_copy), *extra],
+        cwd=cwd,
         input=_HOOK_PAYLOAD,
         capture_output=True,
         text=True,
@@ -394,11 +427,12 @@ def _run_like_the_hook(
 @pytest.fixture(scope="module")
 def hook_run(
     tmp_path_factory: pytest.TempPathFactory,
-) -> tuple[Path, subprocess.CompletedProcess[str]]:
-    """One no-channel run shared by the arms that read its exit code."""
+) -> tuple[Path, Path, subprocess.CompletedProcess[str]]:
+    """One no-channel run, from a decoy cwd, shared by the arms that read it."""
     repo = Path(__file__).resolve().parent.parent
     root = tmp_path_factory.mktemp("cs1101-nochannel")
-    return root, _run_like_the_hook(root, repo)
+    cwd = _decoy_channel(tmp_path_factory.mktemp("cs1101-decoy"))
+    return root, cwd, _run_like_the_hook(root, repo, cwd)
 
 
 def test_the_claim_extractor_sees_one_code_none_and_a_retired_mention() -> None:
@@ -412,41 +446,74 @@ def test_the_claim_extractor_sees_one_code_none_and_a_retired_mention() -> None:
     assert _stated_exit_codes("this tool answers that\n  with exit 0") == [0]
     assert _stated_exit_codes("the refusal was right and says why") == []
     assert _stated_exit_codes("the exit 3 it carried before CS-1095") == []
+    assert _all_stated_codes("still exits 3 there. A quiet one answers that with exit 0.") == [
+        3,
+        0,
+    ]
+    assert _all_stated_codes("it RETURNS 0, and exit code 4 under --strict") == [0, 4]
+    assert _all_stated_codes("a hook exiting non-zero loses its stdout") == []
 
 
 def test_the_probe_enters_the_no_channel_path_under_an_isolated_root(
-    hook_run: tuple[Path, subprocess.CompletedProcess[str]], repo_root: Path, tmp_path: Path
+    hook_run: tuple[Path, Path, subprocess.CompletedProcess[str]],
+    repo_root: Path,
+    tmp_path: Path,
 ) -> None:
-    """CONTROL on the BEHAVIOUR side, and the discharge of the log-location risk.
+    """CONTROL on the BEHAVIOUR side, and the arm that sees FILE-LOCATION resolution.
 
     The run must be the no-channel run - it says so, and `--strict` on the
-    same tree tells it apart from a quiet channel - and its invocation log must
-    land under the temporary root, which is only true if the copy isolated it.
+    same tree tells it apart from a quiet channel. It is started from a cwd
+    that DOES hold a channel, so it only reports no channel, and only logs
+    under its own root and nothing under the cwd, while the watcher resolves
+    its root from its own file - the fact the CS-952 refusal now rests on.
     """
-    root, result = hook_run
-    assert "UNMEASURED" in result.stdout, result.stderr
-    assert "moon_sync_inbox/" in result.stdout, result.stderr
-    assert (root / "data" / "inbox_watch_invocations.log").is_file()
-    strict = _run_like_the_hook(tmp_path, repo_root, "--strict")
-    assert strict.returncode != 0, strict.stderr
-    assert "UNMEASURED" in strict.stdout, strict.stderr
+    # Every observation is bound to a scalar BEFORE it is asserted. pytest
+    # renders an asserted expression independently of the message, and a
+    # CompletedProcess carries the interpreter's absolute path, which is a home
+    # directory on this machine.
+    root, cwd, result = hook_run
+    says_unmeasured = "UNMEASURED" in result.stdout
+    says_no_channel = "no moon_sync_inbox/ directory" in result.stdout
+    names_the_decoy = "cs1101-decoy" in result.stdout
+    logged_under_root = (root / "data" / "inbox_watch_invocations.log").is_file()
+    wrote_under_cwd = (cwd / "data").exists()
+    assert says_unmeasured, "the run did not report UNMEASURED"
+    assert says_no_channel, "the run did not report a missing channel"
+    assert not names_the_decoy, "the run listed the working directory's channel"
+    assert logged_under_root, "the invocation log is not under the watcher's own root"
+    assert not wrote_under_cwd, "the watcher wrote under its working directory"
+    strict_cwd = _decoy_channel(tmp_path / "cwd")
+    strict = _run_like_the_hook(tmp_path / "root", repo_root, strict_cwd, "--strict")
+    strict_code = strict.returncode
+    strict_unmeasured = "UNMEASURED" in strict.stdout
+    assert strict_code != 0, "--strict did not distinguish the no-channel state"
+    assert strict_unmeasured, "--strict did not report UNMEASURED"
 
 
 @pytest.mark.parametrize("relpath", LIVE_CLAIM_FILES)
 def test_each_live_docstring_states_the_exit_code_the_hook_actually_gets(
-    relpath: str, hook_run: tuple[Path, subprocess.CompletedProcess[str]], repo_root: Path
+    relpath: str,
+    hook_run: tuple[Path, Path, subprocess.CompletedProcess[str]],
+    repo_root: Path,
 ) -> None:
-    """THE LOAD-BEARING CS-1101 ARM. The stated code and the returned code agree.
+    """THE LOAD-BEARING CS-1101 ARM. Every code the docstring states is the real one.
 
     The prose side reads only the docstring; the behaviour side only runs the
-    watcher. EXACTLY ONE stated code is required, so a docstring that drops the
-    number - or states two - is red rather than vacuously green.
+    watcher. EXACTLY ONE anchored claim is required, so a docstring that drops
+    the number is red rather than vacuously green; and EVERY exit code the
+    docstring states in any shape must equal the returned code, so a
+    contradicting sentence beside a correct decoy is red too.
     """
-    stated = _stated_exit_codes(_module_docstring(repo_root / relpath))
-    _, result = hook_run
-    assert len(stated) == 1, f"{relpath} states {len(stated)} no-channel exit codes, not 1"
-    disagreement = f"{relpath}: stated_exit={stated[0]} returned_exit={result.returncode}"
-    assert stated[0] == result.returncode, disagreement
+    docstring = _module_docstring(repo_root / relpath)
+    stated = _stated_exit_codes(docstring)
+    returned = hook_run[2].returncode
+    assert len(stated) == 1, f"{relpath} states {len(stated)} anchored exit codes, not 1"
+    contradicting = [code for code in _all_stated_codes(docstring) if code != returned]
+    disagreement = (
+        f"{relpath}: stated_exit={stated[0]} contradicting={contradicting} returned_exit={returned}"
+    )
+    assert stated[0] == returned, disagreement
+    assert contradicting == [], disagreement
 
 
 def test_each_archive_copy_of_the_premise_carries_its_supersession_note(
