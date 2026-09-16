@@ -34,9 +34,10 @@ bytes of headroom; nothing was deleted. An item's leaf follows from the phase he
 
 ## Routing table
 
-Derived from the leaves, checked in BOTH directions by `tools/drift_guard.py` guard (j):
-a routed item with no section, a section with no row, and a row naming the wrong leaf are
-each a FAIL. A family holding NO row and NO section is a WARN carrying a skip record, not
+Hand-written, NOT derived, so `tools/drift_guard.py` guard (j) checks it against the leaves
+AND a derivation from `ROADMAP.md`: a routed item with no section in its derived leaf, a
+section with no row, a row naming a leaf its phase heading and ID block do not derive, and
+a row disagreeing with its item line's trailing `detail:` field are each a FAIL. A family holding NO row and NO section is a WARN carrying a skip record, not
 a pass - every equality here is satisfied for free by an empty population.
 
 | Item | Leaf |
