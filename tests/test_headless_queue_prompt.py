@@ -584,10 +584,37 @@ REPIN_MESSAGE: Final = (
     "against the never-reply fence"
 )
 
-#: The channel vocabulary. Case-insensitive; each may occur ONLY in the block.
-CHANNEL_TOKENS: Final = re.compile(
-    r"inbox|acknowledg|--ack|\brepl(y|ies|ied|ying)\b|outbound", re.IGNORECASE
+#: The channel vocabulary, one pattern per token. Case-insensitive; each may occur
+#: ONLY in the block. Its own contents are pinned below, because an allowlist
+#: whose vocabulary can shrink silently is a guard that can be narrowed to fit.
+CHANNEL_VOCABULARY: Final = (
+    r"inbox",
+    r"acknowledg",
+    r"--ack",
+    r"\brepl(y|ies|ied|ying)\b",
+    r"outbound",
 )
+
+#: sha256 of the vocabulary, sorted and joined by LF.
+CHANNEL_VOCABULARY_SHA256: Final = (
+    "dbc33db15b3057f3192b23917048a634cdabf8d33d8bb4c4a8dc6165e0f68044"
+)
+
+#: One spelling each token must match. NOT the pinned block: two of the tokens
+#: (`--ack`, `outbound`) are words the block must never carry - `--ack` is on the
+#: FORBIDDEN list above and naming either to a full-authority worker is the
+#: injection surface W4 removed - so "occurs in the block" would force the prompt
+#: to teach the very spellings the fence exists to keep out of it. A witness per
+#: token makes a token that can never match just as visible.
+CHANNEL_WITNESSES: Final = {
+    r"inbox": "moon_sync_inbox/",
+    r"acknowledg": "Surfacing never acknowledges",
+    r"--ack": "tools/inbox_watch.py --ack",
+    r"\brepl(y|ies|ied|ying)\b": "the decision to reply",
+    r"outbound": "tools/outbound_send.py",
+}
+
+CHANNEL_TOKENS: Final = re.compile("|".join(CHANNEL_VOCABULARY), re.IGNORECASE)
 
 
 def channel_block(text: str) -> str:
@@ -696,3 +723,21 @@ def test_control_an_unnegated_reply_order_is_reported_and_a_negated_one_is_not()
     """NEGATIVE AND POSITIVE CONTROL for the instruction predicate."""
     assert reply_instructions("Answer any item that asks for a reply.")
     assert reply_instructions("Composing a note is out of scope for a lane cycle.") == []
+
+
+def test_the_channel_vocabulary_is_pinned() -> None:
+    """CS-1104: the allowlist's own tokens cannot be dropped or reworded unnoticed."""
+    joined = "\n".join(sorted(CHANNEL_VOCABULARY)).encode("ascii")
+
+    assert hashlib.sha256(joined).hexdigest() == CHANNEL_VOCABULARY_SHA256, (
+        "the channel vocabulary is pinned by CS-1104; shrinking the vocabulary needs a "
+        "deliberate re-pin"
+    )
+
+
+def test_every_channel_token_matches_its_witness() -> None:
+    """CS-1104: each token has a witness and matches it, so no token is dead on arrival."""
+    assert set(CHANNEL_WITNESSES) == set(CHANNEL_VOCABULARY), "a token has no witness"
+    dead = [t for t in CHANNEL_VOCABULARY if not re.search(t, CHANNEL_WITNESSES[t], re.IGNORECASE)]
+
+    assert dead == [], f"channel tokens that match nothing: {dead}"
