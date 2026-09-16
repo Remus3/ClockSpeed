@@ -846,6 +846,128 @@ def test_an_unresolved_program_is_a_key_no_row_can_carry() -> None:
     assert all(isinstance(program, str) and program for program in rows), rows
 
 
+# ---------------------------------------------------------------------------
+# CS-1109 - the function part of the key is QUALIFIED, and the guard says so itself
+# ---------------------------------------------------------------------------
+
+#: The class and the outer function the CS-1109 plants move the exempted spawn into.
+PLANTED_CLASS: Final = "Cs1109Planted"
+PLANTED_OUTER: Final = "cs1109_outer"
+
+#: What the exempted spawn's call is renamed to where it used to stand, so the
+#: module-level function of the same name survives the plant and holds no spawn.
+PLANTED_RUNNER: Final = "cs1109_runner("
+
+
+def test_a_method_and_a_nested_function_are_keyed_by_qualified_name() -> None:
+    """Three same-named functions in three scopes are three keys, not one key thrice.
+
+    A module-level function keeps its BARE name, which is what every live row
+    carries; a method is ``Class.method`` and a nested function ``outer.inner``.
+    Each is the first finding in its own scope, so each takes ordinal 1.
+    """
+    source = (
+        "import subprocess\n"
+        "def f():\n"
+        "    subprocess.run(['git', 'a'])\n"
+        "class C:\n"
+        "    def f(self):\n"
+        "        subprocess.run(['git', 'b'])\n"
+        "def outer():\n"
+        "    def f():\n"
+        "        subprocess.run(['git', 'c'])\n"
+    )
+
+    keyed = [
+        (site.function, site.ordinal)
+        for site in scan_source("tools/synthetic.py", source)
+        if site.finding
+    ]
+
+    assert keyed == [("f", 1), ("C.f", 1), ("outer.f", 1)], keyed
+
+
+def _moved_into_same_named_scope(pristine: str, shape: str) -> str:
+    """The exempted ``run_git`` spawn MOVED into a same-named method or nested function.
+
+    The module-level ``run_git`` stays, its spawn renamed to a non-spawn, so the
+    tree then defines ``run_git`` TWICE - the exact shape the duplicate-name
+    helper refuses. The statement is located on the PRISTINE source, where the
+    name is still unique, and nothing below touches the planted one with it.
+    """
+    tree = ast.parse(pristine)
+    owners = [
+        node
+        for node in tree.body
+        if isinstance(node, ast.FunctionDef) and node.name == EXEMPTED_FUNCTION
+    ]
+    assert len(owners) == 1, f"{EXEMPTED_FUNCTION} is defined {len(owners)} time(s) at module level"
+    statements = [
+        node
+        for node in ast.walk(owners[0])
+        if isinstance(node, ast.Assign | ast.Expr)
+        and any(
+            isinstance(call, ast.Call) and ast.unparse(call.func) == EXEMPTED_CALLEE
+            for call in ast.walk(node)
+        )
+    ]
+    assert len(statements) == 1, f"{len(statements)} spawn statement(s) in {EXEMPTED_FUNCTION}"
+    statement = statements[0]
+    kept = pristine.splitlines(keepends=True)
+    body = kept[statement.lineno - 1 : statement.end_lineno or statement.lineno]
+    moved = "".join(f"{' ' * 8}{line[statement.col_offset :]}" for line in body)
+    remaining = _rewrite_statement(pristine, statement, f"{EXEMPTED_CALLEE}(", PLANTED_RUNNER)
+    opener = f"class {PLANTED_CLASS}:" if shape == "method" else f"def {PLANTED_OUTER}() -> None:"
+    signature = "self, args, cwd=None" if shape == "method" else "args, cwd=None"
+    return (
+        remaining.rstrip("\r\n")
+        + f"\n\n\n{opener}\n    def {EXEMPTED_FUNCTION}({signature}):\n{moved}"
+    )
+
+
+@pytest.mark.parametrize("shape", ["method", "nested"])
+def test_an_exempted_spawn_moved_into_a_same_named_scope_reddens_the_guard(
+    shape: str, tmp_path: Path
+) -> None:
+    """CS-1109: the GUARD reddens, with the duplicate-name helper out of the path.
+
+    Under a bare-name key the moved spawn keyed exactly as the reviewed one did,
+    so the row excused it and :func:`findings` and :func:`stale_exemptions` both
+    stayed empty - the only thing that would have noticed was
+    ``_spawn_statement`` refusing a name defined twice, a test helper and not the
+    guard. The plant is WRITTEN TO DISK and read back, and the verdict comes from
+    the guard's own two functions alone. The helper is then called on the planted
+    file to prove it IS the refusal that used to stand in for the guard.
+    """
+    planted = _moved_into_same_named_scope(_pristine_exempted_source(), shape)
+    target = tmp_path / EXEMPTED_PATH
+    target.parent.mkdir(parents=True)
+    target.write_bytes(planted.encode("ascii"))
+    on_disk = target.read_bytes().decode("ascii")
+    landed = on_disk == planted and on_disk != _pristine_exempted_source()
+    assert landed, "the plant did not land on disk"
+
+    moved = [
+        site
+        for site in scan_source(EXEMPTED_PATH, on_disk)
+        if site.finding
+        and site.callee == EXEMPTED_CALLEE
+        and site.function.rpartition(".")[2] == EXEMPTED_FUNCTION
+    ]
+    assert [site.program for site in moved] == ["git"], "the plant moved no single git spawn"
+
+    census = _census_with(EXEMPTED_PATH, on_disk)
+    live = [site.function for site in findings(census)]
+    stale = stale_exemptions(census)
+    outer = PLANTED_CLASS if shape == "method" else PLANTED_OUTER
+
+    assert (live, len(stale)) == ([f"{outer}.{EXEMPTED_FUNCTION}"], 1), describe(findings(census))
+    assert f" {EXEMPTED_FUNCTION}()" in stale[0], stale[0]
+
+    with pytest.raises(AssertionError):
+        _exempted_spawn_statement(on_disk)
+
+
 def test_a_new_spawn_in_another_function_of_an_exempted_file_still_reddens() -> None:
     """The same control where the new site shares the file and nothing else."""
     pristine = _pristine_exempted_source()

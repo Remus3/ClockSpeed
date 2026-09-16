@@ -252,7 +252,13 @@ EXEMPTION_REASON_MINIMUM: Final = 60
 
 # EXEMPTIONS - graded sites that are not going to be repaired here, and why.
 #
-# Keyed by (repo-relative path, enclosing function, callee, PROGRAM, ORDINAL).
+# Keyed by (repo-relative path, QUALIFIED enclosing function, callee, PROGRAM,
+# ORDINAL). The function part is dotted - Class.method, outer.inner - and bare
+# only at module level, which is where all four rows sit. MEASURED with a bare
+# name (CS-1109): the reviewed spawn moved into a same-named method of a new
+# class keyed identically, the row excused it, and findings() and
+# stale_exemptions() both came back empty; only a test helper refusing a name
+# defined twice noticed, and that helper is not the guard.
 # The PROGRAM is the literal the fold reached - the row argues for THAT program
 # and excuses no other. MEASURED without it (an adversary, at 4762214): replace
 # the reviewed git spawn with a non-spawn and add a curl spawn in the same edit,
@@ -342,6 +348,10 @@ class ProgramSite:
     path: str
     lineno: int
     callee: str
+    #: The QUALIFIED name of the enclosing scope - ``run_git`` at module level,
+    #: ``Class.method`` for a method, ``outer.inner`` for a nested function, and
+    #: :data:`MODULE_SCOPE` outside any. CS-1109: a bare name let a spawn moved
+    #: into a same-named method key exactly as the reviewed one did.
     function: str
     program: str
     verdict: str
@@ -526,7 +536,11 @@ class _Census(ast.NodeVisitor):
             tree, CURDIR_RESOLVER_MODULE, frozenset(CURDIR_RESOLVERS)
         )
         self._resolver_modules = _module_aliases(tree, CURDIR_RESOLVER_MODULE)
-        self._scopes: list[tuple[str, ast.AST]] = [(MODULE_SCOPE, tree)]
+        # The FOLD scope and the NAME are two stacks on purpose. A class body is
+        # not a scope a method's call can see bindings from, so a class never
+        # joins the fold stack - but it DOES qualify the name (CS-1109).
+        self._scopes: list[ast.AST] = [tree]
+        self._names: list[str] = []
 
     # -- callee classification ------------------------------------------------
 
@@ -704,10 +718,29 @@ class _Census(ast.NodeVisitor):
 
     # -- the walk -------------------------------------------------------------
 
+    def _qualified(self) -> str:
+        """The dotted name of the scope the walk stands in, or the module marker.
+
+        QUALIFIED, NOT BARE (CS-1109). A module-level function keeps its bare
+        name, a method is ``Class.method`` and a nested function is
+        ``outer.inner``. A call directly in a class body answers the class's own
+        dotted name. The bare name keyed a spawn MOVED into a same-named method
+        exactly as it keyed the reviewed one, so the row excused it.
+        """
+        return ".".join(self._names) if self._names else MODULE_SCOPE
+
     def _enter(self, node: ast.AST, name: str) -> None:
-        self._scopes.append((name, node))
+        self._names.append(name)
+        self._scopes.append(node)
         self.generic_visit(node)
         self._scopes.pop()
+        self._names.pop()
+
+    def visit_ClassDef(self, node: ast.ClassDef) -> None:
+        """A class qualifies the names inside it and is NOT a fold scope."""
+        self._names.append(node.name)
+        self.generic_visit(node)
+        self._names.pop()
 
     def visit_FunctionDef(self, node: ast.FunctionDef) -> None:
         """Record the enclosing function so a site can name where it sits."""
@@ -719,7 +752,7 @@ class _Census(ast.NodeVisitor):
 
     def visit_Call(self, node: ast.Call) -> None:
         """Record a spawn's program, or a call to a current-directory resolver."""
-        function_name, scope = self._scopes[-1]
+        function_name, scope = self._qualified(), self._scopes[-1]
 
         resolver = self._resolver_callee(node)
         if resolver is not None:
