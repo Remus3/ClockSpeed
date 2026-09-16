@@ -413,7 +413,13 @@ cheap enough to run on every push and tier 2 runs on a schedule rather than per 
   output does not mojibake.
 - **Never hardcode a machine name, a user account id, or an absolute home path** into a
   tracked file. Auto-detect at runtime. These are both PII and a drift source.
-- Use a windowless interpreter for background daemons so no console flashes.
+- **A console flash is the creation flag's doing, not the interpreter's.** A
+  windowless interpreter is still the right parent for a background daemon - but it
+  does not remove a flash, because a windowless parent gives its console children a
+  FRESH console, so the flash MOVES rather than disappears. The no-window creation flag
+  on the SPAWN is the lever. Measured twice: a sibling tree's positive control, and this
+  tree's operator swapping the interpreter token in a hook command, which CREATED a
+  flash rather than removing one. `docs/CHANNEL.md` section 7 owns the full statement.
 
 ---
 

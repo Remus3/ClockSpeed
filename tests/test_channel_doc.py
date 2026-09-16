@@ -153,8 +153,36 @@ SYNTHETIC_MARKER = "example-topic"
 #: file, written unexpanded in the doc on purpose (its section 8 invariant 1).
 NON_REPO_PATHS = {"%LOCALAPPDATA%\\moonsync\\status.md"}
 
+#: Repo-relative paths the doc names that DO resolve here, pinned to the exact
+#: measured value rather than to a non-empty test.
+#:
+#: CS-1095 REPAIR: this population is a SINGLE SELF-REFERENCE - the document
+#: naming its own path - because the repo-relative population is exactly two
+#: tokens and the other is the recorded non-resolver above. The arm's former
+#: ``assert resolved`` anti-vacuity guard was therefore satisfied by a fact arm
+#: 1 already proves, and could never fire. An honest narrow pin beats a guard
+#: advertising a property it cannot hold; do NOT manufacture a second resolving
+#: path to make one look alive.
+RESOLVED_REPO_PATHS = ["docs/CHANNEL.md"]
+
 # ---------------------------------------------------------------------------
 # Arm 7's table.
+#
+# CS-1095 REPAIR. The arm graded the table's SHAPE and not its CONTENT: column
+# count, row count, the Shape column, verdict MEMBERSHIP and a backticked
+# column 0 - never four of the seven columns. Replayed over mutated text it
+# measured GREEN on a garbled PRIMARY vector, a garbled Variant A vector, a
+# swapped pair of vectors, a PRIMARY verdict flipped ADMIT to REFUSE, and all
+# four responder columns blanked on every row. Only a deleted separator row
+# reddened it.
+#
+# The blast radius is NOT today - arm 2's digest reddens on any byte change
+# now. It is the CHANNEL_VERSION 2 re-pin, when the digest legitimately moves
+# and a hand-copied table is most likely to be mangled. That is the one moment
+# this arm is ever load-bearing, so the roster below pins every cell.
+#
+# TABLE_ROWS is kept BESIDE the roster as its size and asserted against it: on
+# this project a member goes absent exactly where a count miscounts.
 # ---------------------------------------------------------------------------
 
 TABLE_HEADING = "### Filename grammar table"
@@ -162,6 +190,48 @@ TABLE_COLUMNS = 7
 TABLE_ROWS = 4
 TABLE_SHAPES = ("PRIMARY", "Variant A", "Variant B", "Variant C")
 TABLE_VERDICTS = frozenset({"ADMIT", "REFUSE"})
+
+#: Every cell of every body row, in file order, exactly as the vendored bytes
+#: spell them - vector, the RC gate 6 verdict, the four responder columns, and
+#: the shape. Transcribed from this tree's own disk at the pinned digest.
+TABLE_VECTORS = (
+    (
+        "`2026-09-15-0930-from-RC-FYI-example-topic.md`",
+        "ADMIT",
+        "routes",
+        "any entry",
+        "no responder",
+        "no responder",
+        "PRIMARY",
+    ),
+    (
+        "`2026-09-15-from-RC-FYI-example-topic.md`",
+        "REFUSE",
+        "routes",
+        "any entry",
+        "no responder",
+        "no responder",
+        "Variant A",
+    ),
+    (
+        "`from-RC-2026-09-15-0930-FYI-example-topic.md`",
+        "REFUSE",
+        "zero destinations",
+        "any entry",
+        "no responder",
+        "no responder",
+        "Variant B",
+    ),
+    (
+        "`2026-09-15-0930-from-RC-FYI-example-topic.txt`",
+        "REFUSE",
+        "routes",
+        "any entry",
+        "no responder",
+        "no responder",
+        "Variant C",
+    ),
+)
 
 
 def _read_bytes() -> bytes:
@@ -347,8 +417,27 @@ def test_no_heading_carries_a_date() -> None:
 
 
 def test_every_repo_relative_path_resolves_and_no_file_line_is_cited() -> None:
+    """Grade the document's filesystem citations, both halves.
+
+    THE RESOLVING HALF CARRIES NO INDEPENDENT EVIDENCE, and this arm says so
+    rather than advertising a property it cannot hold. The repo-relative
+    population is exactly two tokens - the document's own path and the recorded
+    non-resolver ``moon_sync_inbox/`` - so what resolves is the document naming
+    ITSELF, which arm 1 already proves. See :data:`RESOLVED_REPO_PATHS`.
+
+    THE ARM'S LIVE CONTENT is its other legs: the no-``file:line`` leg, the
+    three separately counted bare-name populations, the non-resolver roster
+    checked in both directions, and the unbackticked leg.
+    """
     # Arm 6, both halves measured. The second half is what lets this tree's
     # docs-citation guard have nothing to say about the document.
+    #
+    # TWO MEASURED NARROWINGS of the population built below, recorded (CS-1095)
+    # so a future re-pin sees them rather than rediscovering them:
+    #   - :func:`_looks_like_a_path` drops any token containing a SPACE, so a
+    #     backticked path with a space in it is invisible to this arm.
+    #   - :data:`BACKTICKED` refuses a newline inside a token, so a path
+    #     wrapped across a line break is invisible to it too.
     text = _read_text()
 
     pointers = FILE_LINE.findall(text)
@@ -398,9 +487,11 @@ def test_every_repo_relative_path_resolves_and_no_file_line_is_cited() -> None:
     )
 
     resolved = [t for t in repo_relative if t not in UNRESOLVED_REPO_PATHS]
-    assert resolved, (
-        "every repo-relative path the doc names is exempt, so the resolving "
-        "half of this arm proved nothing. The arm is vacuous."
+    assert resolved == RESOLVED_REPO_PATHS, (
+        "the repo-relative paths the vendored doc names that DO resolve here "
+        "have changed. This population is one self-reference by construction, "
+        "so a new member means the document now points at something else in "
+        f"this tree. measured={resolved} pinned={RESOLVED_REPO_PATHS}"
     )
 
     # The unbackticked leg. The doc quotes every path it names; asserting that
@@ -454,4 +545,21 @@ def test_the_filename_variant_table_is_present_and_parses() -> None:
     )
     assert all(row[0].startswith("`") and row[0].endswith("`") for row in body), (
         f"a vector is not spelled as a literal filename: {[row[0] for row in body]}"
+    )
+
+    # THE CONTENT PIN, and the reason the shape checks above are not enough.
+    # The roster's size is asserted against TABLE_ROWS first, so a roster that
+    # lost a member cannot quietly agree with a table that lost the same one.
+    assert len(TABLE_VECTORS) == TABLE_ROWS, (
+        f"the pinned roster holds {len(TABLE_VECTORS)} vectors while TABLE_ROWS "
+        f"says {TABLE_ROWS}; the roster and its size have drifted apart"
+    )
+    measured = [tuple(row) for row in body]
+    assert measured == list(TABLE_VECTORS), (
+        "the filename grammar table's CONTENT has moved off the pin. The table "
+        "is the grammar's only test-vector source, so a mangled vector, a "
+        "swapped pair or a flipped verdict changes what the channel's grammar "
+        "is tested against with nothing else to catch it. Do NOT edit the "
+        "document to get past this - see arm 2. "
+        f"measured={measured} pinned={list(TABLE_VECTORS)}"
     )
