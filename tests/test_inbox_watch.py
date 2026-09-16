@@ -163,16 +163,18 @@ def test_a_note_with_an_older_mtime_is_still_unread_after_an_ack(repo: Path) -> 
 def test_a_missing_inbox_is_its_own_state_and_not_nothing_unread(tmp_path: Path) -> None:
     """BOTH RETURNS ARE HELD HERE, and that is the point of the arm (CS-1095).
 
-    The contract flipped this path to 0 so that a SessionStart hook keeps its
-    stdout. An arm that simply deleted its exit-code assertion would have gone
+    The contract flipped this path to 0 because it says a SessionStart hook that
+    exits non-zero loses its stdout - UNGRADED, a client property no test here
+    grades. An arm that simply deleted its exit-code assertion would have gone
     green for having stopped looking, so the default AND the --strict route are
     asserted together: the state is still its own state, it is just no longer
-    announced by a code the harness reads as failure and discards.
+    announced by a non-zero code.
     """
     banner, strict_code = inbox_watch.render(tmp_path / INBOX_DIRNAME, tmp_path / SEEN_RELPATH)
 
     assert inbox_watch.main(["--root", str(tmp_path)]) == 0, (
-        "a missing channel still exits non-zero, so the banner below is dropped"
+        "a missing channel still exits non-zero, and the CS-1095 contract says a hook"
+        " then loses its stdout - UNGRADED, a client property no test here grades"
     )
     assert inbox_watch.main(["--root", str(tmp_path), "--strict"]) == inbox_watch.EXIT_NO_INBOX, (
         "--strict no longer carries the old code, so a machine caller cannot"
@@ -1072,8 +1074,10 @@ def test_the_invocation_log_is_ignored_by_git() -> None:
 # 2026-09-16 across the repositories on this channel:
 #
 #   EVERY PATH OF main() RETURNS 0. A SessionStart hook that exits non-zero has
-#   its stdout DROPPED, so the one state this tool most needs to announce - the
-#   channel is not here - was the one state it announced to nobody. The old
+#   its stdout dropped, says the CS-1095 contract - UNGRADED, a client property
+#   no test here grades. On that premise the one state this tool most needs to
+#   announce - the channel is not here - was the one state it announced to
+#   nobody. The old
 #   code survives behind --strict for a caller that wants a machine verdict.
 #
 #   A BLIND PATH MUST NEVER READ AS CLEAN. Three of them - no inbox, an
@@ -1115,15 +1119,16 @@ def quoted_names(banner: str) -> list[str]:
 # --- clause 1: every path returns 0, and the old code lives behind --strict --
 
 
-def test_a_listing_returns_zero_on_every_path_so_a_hook_keeps_its_stdout(
+def test_a_listing_returns_zero_on_every_path_as_the_contract_requires(
     repo: Path, tmp_path: Path
 ) -> None:
     """The reason the flip exists, held as one arm over all three listing states.
 
-    A SessionStart hook that exits non-zero does not get its stdout injected.
-    Under the old contract the missing-inbox banner was written and then thrown
-    away by the harness, so the loudest state this tool has was the only one
-    nobody could read.
+    A SessionStart hook that exits non-zero does not get its stdout injected,
+    says the CS-1095 contract - UNGRADED, a client property no test here grades.
+    On that premise the missing-inbox banner under the old code was written and
+    then never read, so the loudest state this tool has was the only one nobody
+    could read.
     """
     empty = inbox_watch.main(["--root", str(repo)])
     note(repo, "2026-01-01-0900-from-RC-topic.md")
@@ -1736,7 +1741,10 @@ def test_a_blind_listing_run_of_main_prints_the_banner_and_invents_no_withdrawal
     code = inbox_watch.main(["--root", str(repo)])
     banner = capsys.readouterr().out
 
-    assert code == 0, "a blind listing run exits non-zero, so a hook drops the banner"
+    assert code == 0, (
+        "a blind listing run exits non-zero, and the CS-1095 contract says a hook"
+        " then loses its stdout - UNGRADED, a client property no test here grades"
+    )
     assert UNMEASURED_MARKER in banner, "the blind run did not say it measured nothing"
     assert CLEAN_MARKER not in banner, "a blind run read as clean"
     assert "WITHDRAWN" not in banner, "a blind run of main fabricated a withdrawal"
@@ -1797,7 +1805,10 @@ def test_an_unlistable_inbox_makes_ack_refuse_and_write_nothing(
     )
     assert "acknowledged" not in captured.out, "a refused acknowledgement printed a success line"
     assert UNMEASURED_MARKER in captured.err, "the refusal did not say that nothing was examined"
-    assert code == 0, "a refused ack exits non-zero, so a hook loses its stdout"
+    assert code == 0, (
+        "a refused ack exits non-zero, and the CS-1095 contract says a hook"
+        " then loses its stdout - UNGRADED, a client property no test here grades"
+    )
 
 
 def test_strict_distinguishes_an_unlistable_channel_from_an_absent_one(

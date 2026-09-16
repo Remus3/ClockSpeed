@@ -716,12 +716,21 @@ def test_each_archive_copy_of_the_premise_carries_its_supersession_note(
 #: and matches this. It LOCATES only; nothing is graded by the words it matches.
 HOOK_OUTPUT_LOCATOR: Final = re.compile(r"\b(?:stdout|non-zero|output)\b", re.IGNORECASE)
 
-#: THE ALLOWLIST. Every claim site in the watcher's prose - docstrings, string
-#: literals and comments - must be EXACTLY one of these sentences, and each one
-#: must be present exactly once. A site reworded to assert the claim as measured
-#: is not on the list and is red; a site reworded out of the locator's reach
-#: leaves an entry unmatched and is red too, which is the anti-narrowing count.
-APPROVED_HOOK_STDOUT_SENTENCES: Final = (
+#: The contract clause every approved sentence ends its UNGRADED marking with.
+_UNGRADED: Final = "UNGRADED, a client property no test here grades"
+
+#: The approved assertion-message form in `tests/test_inbox_watch.py`.
+_CONTRACT_SAYS: Final = (
+    " exits non-zero, and the CS-1095 contract says a hook then loses its stdout - " + _UNGRADED
+)
+
+#: THE ALLOWLIST, per scanned file. Every claim site in a file's prose -
+#: docstrings, string literals and comments - must be EXACTLY one of that
+#: file's sentences, and the located sites must equal the list as a multiset.
+#: A site reworded to assert the claim as measured is not on the list and is
+#: red; a site reworded out of the locator's reach leaves an entry unmatched and
+#: is red too, which is the anti-narrowing count.
+_WATCHER_APPROVED: Final = (
     # Module docstring, the CS-952 paragraph.
     "Tracking the wiring was proposed, granted as a frozen-file edit and then"
     " refused on a premise CS-1095 has since retired: the no-channel code was"
@@ -740,6 +749,32 @@ APPROVED_HOOK_STDOUT_SENTENCES: Final = (
     "For a gate or a script; a SessionStart hook must NOT use it, because the"
     " CS-1095 contract says a non-zero exit costs a hook its stdout - UNGRADED, a"
     " client property no test here grades.",
+)
+
+_INBOX_TESTS_APPROVED: Final = (
+    # The missing-inbox arm's docstring.
+    "The contract flipped this path to 0 because it says a SessionStart hook that"
+    " exits non-zero loses its stdout - " + _UNGRADED + ".",
+    # The missing-inbox, blind-listing and refused-ack assertion messages.
+    "a missing channel still" + _CONTRACT_SAYS,
+    "a blind listing run" + _CONTRACT_SAYS,
+    "a refused ack" + _CONTRACT_SAYS,
+    # The CS-1095 contract comment block.
+    "A SessionStart hook that exits non-zero has its stdout dropped, says the CS-1095"
+    " contract - " + _UNGRADED + ".",
+    # The every-path-returns-0 arm's docstring.
+    "A SessionStart hook that exits non-zero does not get its stdout injected, says"
+    " the CS-1095 contract - " + _UNGRADED + ".",
+)
+
+APPROVED_HOOK_STDOUT_SENTENCES: Final[dict[str, tuple[str, ...]]] = {
+    WATCHED_TOOL: _WATCHER_APPROVED,
+    "tests/test_inbox_watch.py": _INBOX_TESTS_APPROVED,
+}
+
+#: Every approved sentence in any file, for the controls.
+_ALL_APPROVED: Final = frozenset(
+    s for group in APPROVED_HOOK_STDOUT_SENTENCES.values() for s in group
 )
 
 
@@ -794,32 +829,36 @@ def test_the_claim_site_locator_sees_a_docstring_a_help_string_and_a_comment() -
     )
     planted_sites = 3
     found = _hook_stdout_sentences(source)
-    approved = [sentence for sentence in found if sentence in APPROVED_HOOK_STDOUT_SENTENCES]
+    approved = [sentence for sentence in found if sentence in _ALL_APPROVED]
     assert len(found) == planted_sites, f"located {len(found)} planted claim sites, not 3"
     assert approved == [], "a planted measured wording read as approved"
-    control = f'"""{APPROVED_HOOK_STDOUT_SENTENCES[0]} The rest."""\n'
-    assert _hook_stdout_sentences(control) == [APPROVED_HOOK_STDOUT_SENTENCES[0]]
+    control = f'"""{_WATCHER_APPROVED[0]} The rest."""\n'
+    assert _hook_stdout_sentences(control) == [_WATCHER_APPROVED[0]]
 
 
+@pytest.mark.parametrize("relpath", sorted(APPROVED_HOOK_STDOUT_SENTENCES))
 def test_every_hook_stdout_claim_in_the_watcher_is_an_approved_ungraded_sentence(
+    relpath: str,
     repo_root: Path,
 ) -> None:
     """THE LOAD-BEARING CS-1107 PROSE ARM. The claim is UNGRADED at every site.
 
-    Allowlist, not denylist: every located site must be an approved sentence,
-    and every approved sentence must be located exactly once.
+    Scans the watcher and its test module. Allowlist, not denylist: every
+    located site must be one of that file's approved sentences, and the located
+    sites must equal that file's list exactly, multiplicity included.
 
     DOCUMENTED LIMIT: a NEW sentence restating the claim without naming a hook,
     or without any word the locator matches, is not located. An EXISTING site
     rewritten that way is red, because its approved entry then goes unmatched.
     """
-    source = (repo_root / WATCHED_TOOL).read_text(encoding="utf-8")
+    allowed = APPROVED_HOOK_STDOUT_SENTENCES[relpath]
+    source = (repo_root / relpath).read_text(encoding="utf-8")
     found = sorted(_hook_stdout_sentences(source))
-    unapproved = [sentence for sentence in found if sentence not in APPROVED_HOOK_STDOUT_SENTENCES]
-    unmatched = sorted(set(APPROVED_HOOK_STDOUT_SENTENCES) - set(found))
-    assert unapproved == [], f"{WATCHED_TOOL}: claim sites not on the allowlist: {unapproved}"
-    assert unmatched == [], f"{WATCHED_TOOL}: approved sentences not found: {unmatched}"
-    assert found == sorted(APPROVED_HOOK_STDOUT_SENTENCES), "a claim site is duplicated"
+    unapproved = [sentence for sentence in found if sentence not in allowed]
+    unmatched = sorted(set(allowed) - set(found))
+    assert unapproved == [], f"{relpath}: claim sites not on the allowlist: {unapproved}"
+    assert unmatched == [], f"{relpath}: approved sentences not found: {unmatched}"
+    assert found == sorted(allowed), f"{relpath}: a claim site is duplicated"
 
 
 def _git_outcome(tree: Path, env: dict[str, str], *args: str) -> tuple[str, str]:
