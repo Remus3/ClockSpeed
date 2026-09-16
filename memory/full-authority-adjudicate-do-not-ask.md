@@ -1,3 +1,10 @@
+---
+name: full-authority-adjudicate-do-not-ask
+description: Full authority is granted by default in every session shape, so a blocked decision goes to an adjudicator and never to the operator - it removes the operator from the approval path and removes nothing else.
+metadata:
+  type: feedback
+---
+
 # Full authority is granted - adjudicate, do not ask
 
 **Filed 2026-09-13 by operator directive, session 85. Applies to EVERY session shape from

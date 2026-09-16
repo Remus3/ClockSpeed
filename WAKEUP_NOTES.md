@@ -33,6 +33,64 @@ Keep every entry to that shape. If an item needs a paragraph, it needs its own f
 the line becomes a pointer.
 
 ---
+## Session 99 - 2026-09-15 - the handoff's single next action was the FOURTH filing over one wall, and the clause guarding it forbade its own remedy
+
+- Shipped: CS-1085 and CS-1066 CLOSED on their own work; CS-1057 and CS-1088 CLOSED AS
+  SUPERSEDED; CS-898 NARROWED. CS-1089, CS-1090, CS-1091, CS-1092, CS-1093 and CS-1094
+  filed. `main` at 1471779, clean and pushed, whole suite green through the pre-push hook
+  and again at `/done` - 7791 passed, 7 skipped, exit 0, `python -m mypy` exit 0.
+- In flight: nothing. Tree clean, local equals origin.
+- THE SESSION'S ONE RESULT: `tests/test_docs_citations.py` came off its ceiling, 100 per
+  cent to 73.94, headroom 21 bytes to about 68000. The ceiling was NOT raised, no
+  disposition row deleted, no pin forgiven.
+- THE HANDOFF'S SINGLE NEXT ACTION WAS NOT SAFE TO DISPATCH AS WRITTEN. CS-1088 was the
+  FOURTH open filing over one file and one ceiling - CS-1057, CS-1066, CS-1088 and
+  CS-898 - and two of them carried DIFFERENT triggers for the same guard, 96.875 per cent
+  against 90. Grepping the roadmap for siblings before dispatching an item cost minutes
+  and saved building the wrong guard twice.
+- AN ACCEPTANCE CLAUSE FORBADE ITS OWN REMEDY. "Collected-arm count EQUAL before and
+  after" is unreachable for ANY relocation into a new file, because a census arm is
+  parametrized over the tracked-module population and gains one node for any new module.
+  AMENDED under CLAUDE.md section 8 to a full node-id comparison in both directions,
+  which is strictly stronger: a simultaneous loss and gain passes a scalar and fails it.
+- A LEDGER SENTENCE WENT STALE INSIDE THE COMMIT THAT CARRIED IT. A slice recorded
+  CS-1057's detail relocation as an undischarged seam because those files were off its
+  write-list; the merger discharged it minutes later in the same commit. The file is
+  append-only so the sentence stands, and it had ALREADY MISLED AN ADJUDICATOR before the
+  correction was written. A slice that leaves a seam must have its record checked by
+  whoever closes the seam.
+- ESTIMATES LOST TO MEASUREMENT THREE TIMES. Dead citations: a planner said 6 names over
+  8 sites, an adjudicator said 3 over 4 after filtering to uppercase names and missing
+  three FUNCTION citations, and the in-slice measurement was 5 over 7. Self-spelled
+  sites: estimated 60 to 28, measured 60 to 37. NEVER carry a count across a slice
+  boundary - the acceptance now says so in words.
+- A TREE-WIDE GUARD SHIPS RED, and that is the finding not the obstacle. The approach
+  band was red on THREE files the item never touched, at 99.9, 95.9 and 95.0 per cent.
+  The answer was a baseline residual pinned in BOTH directions with a spelled shrink-only
+  ceiling and an item id per row, not a hand-list of one - a hand-list of one is a
+  threshold met by its strongest member.
+- A PLANT KILLED INSTEAD OF DEGRADING, found by mutation and not by review. A non-ASCII
+  byte planted to prove the ASCII arm raised an unnamed `UnicodeDecodeError` that
+  destroyed the `closure` fixture, so the arm DIED rather than reporting.
+  `namespace_closure` now decodes with `errors="replace"`.
+- THE HARNESS WRITES CRLF THROUGH `Path.write_text`. A relocation script silently
+  converted three tracked docs to CRLF. It was caught by BYTE ARITHMETIC - the routing
+  index grew 203 bytes while a row was being REMOVED - not by a CR check, because
+  `grep -c $'\r'` returns the TOTAL line count on a pure-LF file and reads as "all CRLF"
+  either way. Pass `newline="\n"` and assert on the bytes.
+- Decisions: no ADR recorded. Two acceptances amended under CLAUDE.md section 8 - CS-1066's
+  collected-count clause, and CS-1088's approach-arm clause folded into it. CS-898's
+  stated-policy half struck as discharged.
+- Surprises: no spike contradicted `BOOTSTRAP.md`.
+- Failed paths: none abandoned. The widening of `derived_bound_problems` to `ast.Attribute`
+  was adjudicated PERMITTED rather than a breach of "the same guard", because the clause
+  names the guard's IDENTITY and its two-way property, not its node-type set.
+- Next action: work CS-1087 - the unreadable-header residue CS-1083 declined. Do NOT
+  close it by simply making an unreadable header block; that declination was adjudicated
+  SOUND under non-negotiable 7.
+
+---
+
 ## Session 98 - 2026-09-15 - five items closed, and THREE of them were arms that named a lever they could not move
 
 - Shipped: CS-1081, CS-1084, CS-1082, CS-1062 and CS-1083 CLOSED. CS-1085, CS-1086,
@@ -122,43 +180,3 @@ the line becomes a pointer.
   the containment guard DELETED. Nine mutants confirmed it on both trees at 45 passed exit
   0. It is unrelated to either slice and it is the only item filed this session that is a
   defect in shipped behaviour rather than in a measurement or a clause.
-
-## Session 96 - 2026-09-14 - tier 1 went 583s to a worst job of 310s, and every defect that shipped was caught by a gate or an adversary AFTER the targeted suites were green
-
-- Shipped: CS-1060 CLOSED by adjudication, CS-1072 FILED AND CLOSED in one record. CS-1070,
-  CS-1071 and CS-1073 filed. Detail in `docs/LEDGER.md`, not here.
-- THE MEASUREMENT KILLED THE OBVIOUS REPAIR. Tier 1's fast shard was bound by TOTAL CPU
-  divided by worker count, not by any one slow file - 607.7 CPU-seconds against a 108.7s
-  wall, and `607.7 x 3.4 / 4` predicted 517s against the 540s the runner spent. So trimming
-  the largest test buys a QUARTER of its own cost in wall time. A third shard was the only
-  lever, which is what CS-1060 said and why it forbade tuning a threshold.
-- READ THE CLASS POLARITY BEFORE JUDGING A SPREAD. The merger believed three readings
-  spanning 43s meant the slow runner class had been missed. BACKWARDS: a 49-reading class
-  model puts the slow class at about 78 per cent of draws, so a tight cluster at the TOP of
-  the distribution IS the slow class. Three readings alone would NOT have discharged the
-  clause and the ledger entry says so.
-- A VERDICT CUTS BACKWARDS AS WELL AS FORWARDS. An adjudicator ruled that
-  `tests/solve/test_phase3_gate.py` be repaired inside CS-1060 on an 87s runner figure. That
-  figure was measured BEFORE the CS-302 trim landed in the same commit it was grading. The
-  gate now falls out of the slowest-15 by itself and the child sweep is flat at n=2/4/8. NO
-  CHANGE WAS MADE, and that is the result. Re-check a ruling's own range, not just later
-  commits.
-- THE TOKEN ARMS COULD NOT SEE COLLECTION. Two counter-examples passed every partition arm
-  at 143 green: a node-id target paired with a byte-identical `--ignore=` ran one test in TWO
-  shards, because `--ignore` matches a path and silently no-ops on a node id; and a
-  `-m 'not slow'` in pyproject addopts, workflow untouched, left 12 tests in NO shard. Both
-  found by an adversary after a green suite, a green CI run and four green slices.
-- A COMMENT SAYING MUST NOT IS NOT A GUARD. `assert _ORACLE_GROWTH_CHAIN > _SMALL_CHAIN`
-  could not fail in any source state, while the one regression its own comment forbade in
-  capitals - reverting CS-1060's trim - was GREEN.
-- REMOVING AN APOLOGY IS NOT THE SAME EDIT AS REMOVING THE FACT IT APOLOGISED FOR. The
-  README rewrite was briefed to drop self-deprecation and introduced THREE overclaims doing
-  it, all caught by a UI/UX audit before commit. Worst: `clockspeed/progress/` and
-  `advisor/` were listed beside `audit/` under one heading, and the empty two - ZERO defs
-  between them against 92 - borrowed the full one's credibility.
-- THE SAVE SHARD IS NOW THE BINDING READING at 306-310s against the 320s figure CS-1060
-  closed on. It was never partitioned. CS-1073 must land BEFORE CS-1068, which is open and
-  grows that directory. TEN SECONDS OF MARGIN.
-- Doc budgets are now BLOCKING rather than warning: the item-notes leaf had 1115 bytes free
-  before CS-1060's closed note was relocated, and `docs/item_notes.md` has about 70. CS-1062
-  and CS-971 own these and the next filing session hits the wall.

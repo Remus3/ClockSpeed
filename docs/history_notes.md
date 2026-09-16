@@ -24,6 +24,46 @@ Where current truth actually lives:
 | Commands and runbooks | `docs/OPERATIONS.md` |
 
 
+## Session 96 - RELOCATED 2026-09-15 from `WAKEUP_NOTES.md`, which keeps the last three sessions
+
+- Shipped: CS-1060 CLOSED by adjudication, CS-1072 FILED AND CLOSED in one record. CS-1070,
+  CS-1071 and CS-1073 filed. Detail in `docs/LEDGER.md`, not here.
+- THE MEASUREMENT KILLED THE OBVIOUS REPAIR. Tier 1's fast shard was bound by TOTAL CPU
+  divided by worker count, not by any one slow file - 607.7 CPU-seconds against a 108.7s
+  wall, and `607.7 x 3.4 / 4` predicted 517s against the 540s the runner spent. So trimming
+  the largest test buys a QUARTER of its own cost in wall time. A third shard was the only
+  lever, which is what CS-1060 said and why it forbade tuning a threshold.
+- READ THE CLASS POLARITY BEFORE JUDGING A SPREAD. The merger believed three readings
+  spanning 43s meant the slow runner class had been missed. BACKWARDS: a 49-reading class
+  model puts the slow class at about 78 per cent of draws, so a tight cluster at the TOP of
+  the distribution IS the slow class. Three readings alone would NOT have discharged the
+  clause and the ledger entry says so.
+- A VERDICT CUTS BACKWARDS AS WELL AS FORWARDS. An adjudicator ruled that
+  `tests/solve/test_phase3_gate.py` be repaired inside CS-1060 on an 87s runner figure. That
+  figure was measured BEFORE the CS-302 trim landed in the same commit it was grading. The
+  gate now falls out of the slowest-15 by itself and the child sweep is flat at n=2/4/8. NO
+  CHANGE WAS MADE, and that is the result. Re-check a ruling's own range, not just later
+  commits.
+- THE TOKEN ARMS COULD NOT SEE COLLECTION. Two counter-examples passed every partition arm
+  at 143 green: a node-id target paired with a byte-identical `--ignore=` ran one test in TWO
+  shards, because `--ignore` matches a path and silently no-ops on a node id; and a
+  `-m 'not slow'` in pyproject addopts, workflow untouched, left 12 tests in NO shard. Both
+  found by an adversary after a green suite, a green CI run and four green slices.
+- A COMMENT SAYING MUST NOT IS NOT A GUARD. `assert _ORACLE_GROWTH_CHAIN > _SMALL_CHAIN`
+  could not fail in any source state, while the one regression its own comment forbade in
+  capitals - reverting CS-1060's trim - was GREEN.
+- REMOVING AN APOLOGY IS NOT THE SAME EDIT AS REMOVING THE FACT IT APOLOGISED FOR. The
+  README rewrite was briefed to drop self-deprecation and introduced THREE overclaims doing
+  it, all caught by a UI/UX audit before commit. Worst: `clockspeed/progress/` and
+  `advisor/` were listed beside `audit/` under one heading, and the empty two - ZERO defs
+  between them against 92 - borrowed the full one's credibility.
+- THE SAVE SHARD IS NOW THE BINDING READING at 306-310s against the 320s figure CS-1060
+  closed on. It was never partitioned. CS-1073 must land BEFORE CS-1068, which is open and
+  grows that directory. TEN SECONDS OF MARGIN.
+- Doc budgets are now BLOCKING rather than warning: the item-notes leaf had 1115 bytes free
+  before CS-1060's closed note was relocated, and `docs/item_notes.md` has about 70. CS-1062
+  and CS-971 own these and the next filing session hits the wall.
+
 ## Session 93 - RELOCATED 2026-09-14 from `WAKEUP_NOTES.md`, which keeps the last three sessions
 
 - Shipped: CS-1038, CS-1040, CS-1044 and CS-1049 CLOSED. The lane-start repair closed with NO
