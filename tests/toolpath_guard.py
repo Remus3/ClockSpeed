@@ -221,6 +221,17 @@ DIRECTORY_MARKERS: Final = ("/", "\\", ":")
 
 MODULE_SCOPE: Final = "<module>"
 
+#: The qualified-name markers (CS-1109). ``<locals>`` separates a function from
+#: a definition nested in it, as ``__qualname__`` does; ``<body>`` names a call
+#: made directly in a class body. Neither is a legal identifier, so neither can
+#: collide with a spelled name.
+LOCALS_MARKER: Final = "<locals>"
+CLASS_BODY_MARKER: Final = "<body>"
+
+#: The two kinds of frame the qualified name is built from.
+FUNCTION_FRAME: Final = "function"
+CLASS_FRAME: Final = "class"
+
 #: How far a name is followed through other names before the fold gives up. A
 #: bound rather than a cycle check alone, so a pathological chain cannot make the
 #: census quadratic; the cycle check below is what makes it terminate.
@@ -252,7 +263,23 @@ EXEMPTION_REASON_MINIMUM: Final = 60
 
 # EXEMPTIONS - graded sites that are not going to be repaired here, and why.
 #
-# Keyed by (repo-relative path, enclosing function, callee, PROGRAM, ORDINAL).
+# Keyed by (repo-relative path, QUALIFIED enclosing function, callee, PROGRAM,
+# ORDINAL). The function part is dotted - Class.method, outer.<locals>.inner,
+# Class.<body> - and bare only at module level, which is where all four rows
+# sit. MEASURED with a bare name (CS-1109): the reviewed spawn moved into a
+# same-named method of a new class keyed identically, the row excused it, and
+# findings() and stale_exemptions() both came back empty; only a test helper
+# refusing a name defined twice noticed, and that helper is not the guard.
+# REFUTED once more at 8ef52ff: a spawn in a parameter default or a decorator of
+# run_git runs at import in the ENCLOSING scope and still keyed run_git. It now
+# keys to the scope that runs it - see _Census._visit_definition_time.
+#
+# KNOWN LIMITS OF THE FUNCTION PART, stated rather than hidden. A lambda is not
+# a frame, so a spawn in a lambda body keys as the scope that holds the lambda.
+# Two definitions of the SAME qualified name in one scope - a redefinition -
+# share the key and are told apart only by ordinal. And, as CS-1102 records, no
+# part of the key reads arguments, so an identical-program replacement in the
+# same function is indistinguishable by construction.
 # The PROGRAM is the literal the fold reached - the row argues for THAT program
 # and excuses no other. MEASURED without it (an adversary, at 4762214): replace
 # the reviewed git spawn with a non-spawn and add a curl spawn in the same edit,
@@ -342,6 +369,13 @@ class ProgramSite:
     path: str
     lineno: int
     callee: str
+    #: The QUALIFIED name of the enclosing scope - ``run_git`` at module level,
+    #: ``Class.method`` for a method, ``outer.<locals>.inner`` for a nested
+    #: function, ``Class.<body>`` for a class body, and :data:`MODULE_SCOPE`
+    #: outside any. What a definition evaluates before its body - decorators,
+    #: defaults, annotations, bases - keys to the ENCLOSING scope. CS-1109: a
+    #: bare name let a spawn moved into a same-named method key exactly as the
+    #: reviewed one did.
     function: str
     program: str
     verdict: str
@@ -526,7 +560,11 @@ class _Census(ast.NodeVisitor):
             tree, CURDIR_RESOLVER_MODULE, frozenset(CURDIR_RESOLVERS)
         )
         self._resolver_modules = _module_aliases(tree, CURDIR_RESOLVER_MODULE)
-        self._scopes: list[tuple[str, ast.AST]] = [(MODULE_SCOPE, tree)]
+        # The FOLD scope and the NAME are two stacks on purpose. A class body is
+        # not a scope a method's call can see bindings from, so a class never
+        # joins the fold stack - but it DOES qualify the name (CS-1109).
+        self._scopes: list[ast.AST] = [tree]
+        self._frames: list[tuple[str, str]] = []
 
     # -- callee classification ------------------------------------------------
 
@@ -704,22 +742,87 @@ class _Census(ast.NodeVisitor):
 
     # -- the walk -------------------------------------------------------------
 
-    def _enter(self, node: ast.AST, name: str) -> None:
-        self._scopes.append((name, node))
-        self.generic_visit(node)
+    def _qualified(self) -> str:
+        """The key form of the scope the walk stands in.
+
+        QUALIFIED, NOT BARE (CS-1109), and spelled the way Python's own
+        ``__qualname__`` spells it. A module-level function keeps its bare name,
+        a method is ``Class.method`` and a nested function ``outer.<locals>.inner``
+        - so ``def Runner(): def run_git()`` and ``class Runner: def run_git()``
+        are two keys. A call directly in a class BODY answers
+        ``Class.<body>``, which no function name can spell, so ``class run_git:``
+        never keys as ``def run_git():``. MEASURED with a bare name: a spawn moved
+        into a same-named method keyed exactly as the reviewed one, and the row
+        excused it.
+        """
+        if not self._frames:
+            return MODULE_SCOPE
+        qualname, kind = self._frames[-1]
+        return f"{qualname}.{CLASS_BODY_MARKER}" if kind == CLASS_FRAME else qualname
+
+    def _child_name(self, name: str) -> str:
+        """The qualified name a definition called ``name`` takes where the walk stands."""
+        if not self._frames:
+            return name
+        qualname, kind = self._frames[-1]
+        if kind == FUNCTION_FRAME:
+            return f"{qualname}.{LOCALS_MARKER}.{name}"
+        return f"{qualname}.{name}"
+
+    def _visit_definition_time(
+        self, node: ast.FunctionDef | ast.AsyncFunctionDef | ast.ClassDef
+    ) -> None:
+        """Walk what a ``def`` or ``class`` statement evaluates BEFORE its body exists.
+
+        Decorators, parameter defaults, annotations, a return annotation, and a
+        class's bases and keywords all run in the ENCLOSING scope, at the moment
+        the statement executes - at import, for a module-level definition.
+        REFUTED at 8ef52ff: walked inside the definition, ``def run_git(...,
+        _probe=<spawn>)`` and ``@wrap(<spawn>)`` keyed as ``run_git`` and
+        inherited the reviewed row while the reviewed body held no spawn at all.
+        """
+        for decorator in node.decorator_list:
+            self.visit(decorator)
+        if isinstance(node, ast.ClassDef):
+            for base in node.bases:
+                self.visit(base)
+            for keyword in node.keywords:
+                self.visit(keyword)
+        else:
+            self.visit(node.args)
+            if node.returns is not None:
+                self.visit(node.returns)
+        for parameter in getattr(node, "type_params", ()):
+            self.visit(parameter)
+
+    def _enter_function(self, node: ast.FunctionDef | ast.AsyncFunctionDef) -> None:
+        self._visit_definition_time(node)
+        self._frames.append((self._child_name(node.name), FUNCTION_FRAME))
+        self._scopes.append(node)
+        for statement in node.body:
+            self.visit(statement)
         self._scopes.pop()
+        self._frames.pop()
+
+    def visit_ClassDef(self, node: ast.ClassDef) -> None:
+        """A class qualifies the names inside it and is NOT a fold scope."""
+        self._visit_definition_time(node)
+        self._frames.append((self._child_name(node.name), CLASS_FRAME))
+        for statement in node.body:
+            self.visit(statement)
+        self._frames.pop()
 
     def visit_FunctionDef(self, node: ast.FunctionDef) -> None:
         """Record the enclosing function so a site can name where it sits."""
-        self._enter(node, node.name)
+        self._enter_function(node)
 
     def visit_AsyncFunctionDef(self, node: ast.AsyncFunctionDef) -> None:
         """Async functions scope exactly as ordinary ones do."""
-        self._enter(node, node.name)
+        self._enter_function(node)
 
     def visit_Call(self, node: ast.Call) -> None:
         """Record a spawn's program, or a call to a current-directory resolver."""
-        function_name, scope = self._scopes[-1]
+        function_name, scope = self._qualified(), self._scopes[-1]
 
         resolver = self._resolver_callee(node)
         if resolver is not None:
