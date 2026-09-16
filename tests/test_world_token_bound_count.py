@@ -14,9 +14,27 @@ This arm grades it, and the two sides never read what they grade:
   bound, walks nested functions and lambdas, and collects every distinct
   BLOCKING PRODUCTION: a call of `_report_world_token_uncovered` whose
   `blocking` resolves True, any `Diagnostic(...)` construction, and any use of
-  the blocking reason text. Module-wide, it REFUSES any reference to the helper
-  or to `Diagnostic` that is not a call, so an alias cannot hide one. It never
-  looks at a docstring or a comment.
+  the blocking reason text. A production is keyed by its CALL PATH from the
+  target, so one helper reached from two call sites is two productions.
+  Module-wide, it REFUSES any reference to `_report_world_token_uncovered` or
+  to `Diagnostic` that is not a call, so an alias of THOSE TWO cannot hide a
+  production. It never looks at a docstring or a comment.
+
+KNOWN LIMITS, stated rather than implied (adjudicated after the second
+refutation):
+
+- F2: an alias, a `sys.modules` lookup or any indirect reach to an
+  INTERMEDIATE helper (for example `_report_root_cap`) is not followed and not
+  refused. Only direct calls by bare name are walked. Accepted as obfuscation
+  rather than a plausible maintainer shape.
+- F3, filed as CS-1105: the arm counts REPORTING SITES, not truncation
+  conditions. A cap that only ORs into `scan_capped` beside an existing
+  report, or any cap inside clockspeed/save/header.py's scanner, adds no
+  reporting site and is not counted.
+- F5, filed as CS-1106: the allowlisted comment phrase "the one deliberate
+  non-blocking degradation" states a total over a population this arm does
+  not grade, and it may be false - the unimportable-reader skip and
+  unscannable files are non-blocking too. Correcting it needs a new grant.
 - The PROSE reader tokenizes the function's source range and keeps STRING and
   COMMENT tokens only. It never looks at a call, a name or a keyword.
 
@@ -144,6 +162,12 @@ def _resolve(node: ast.expr | None, env: dict[str, object]) -> object:
 
 _UNKNOWN = object()
 
+# A production's identity: the chain of (line, col) call sites from TARGET down
+# to the producing node, so one helper line reached twice is two productions.
+Site = tuple[tuple[int, int], ...]
+# Where a walk stands: the call path so far and the stack of function names.
+Where = tuple[Site, tuple[str, ...]]
+
 
 def _bind(func: ast.FunctionDef, call: ast.Call, env: dict[str, object]) -> dict[str, object]:
     """Bind a call's resolvable arguments to the callee's parameter names."""
@@ -224,7 +248,7 @@ def indirect_references(source: str) -> list[str]:
     return problems
 
 
-def analyse_code(source: str) -> tuple[set[tuple[int, int]], list[str]]:
+def analyse_code(source: str) -> tuple[set[Site], list[str]]:
     """Blocking productions reachable from TARGET, plus what the walk could not read.
 
     A BLOCKING PRODUCTION is any of: a call of the sink whose `blocking`
@@ -241,45 +265,44 @@ def analyse_code(source: str) -> tuple[set[tuple[int, int]], list[str]]:
     tree = ast.parse(source)
     functions = {node.name: node for node in tree.body if isinstance(node, ast.FunctionDef)}
     assert TARGET in functions, "the gate no longer defines " + TARGET
-    sites: set[tuple[int, int]] = set()
+    sites: set[Site] = set()
     problems: list[str] = []
-    visited: set[tuple[str, tuple[tuple[str, str], ...]]] = set()
 
-    def walk_function(name: str, env: dict[str, object]) -> None:
-        key = (name, tuple(sorted((k, repr(v)) for k, v in env.items())))
-        if key in visited:
+    def walk_function(
+        name: str, env: dict[str, object], path: Site, stack: tuple[str, ...]
+    ) -> None:
+        # The recursion guard is the live call STACK, never a visited set: a
+        # visited set keyed on the callee collapses two call sites of one
+        # helper into one production, which is the F1 defect.
+        if name in stack:
             return
-        visited.add(key)
         for statement in functions[name].body:
-            walk_node(statement, env, in_diagnostic=False)
+            walk_node(statement, env, (path, (*stack, name)), in_diagnostic=False)
 
-    def walk_node(node: ast.AST, env: dict[str, object], *, in_diagnostic: bool) -> None:
+    def walk_node(node: ast.AST, env: dict[str, object], at: Where, *, in_diagnostic: bool) -> None:
         if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.Lambda)):
             inner = {k: v for k, v in env.items() if k not in _params(node)}
             body = node.body if isinstance(node.body, list) else [node.body]
             for child in body:
-                walk_node(child, inner, in_diagnostic=in_diagnostic)
+                walk_node(child, inner, at, in_diagnostic=in_diagnostic)
             return
+        children: list[ast.AST] = list(ast.iter_child_nodes(node))
         if isinstance(node, ast.If):
             guard = _resolve(node.test, env)
-            walk_node(node.test, env, in_diagnostic=in_diagnostic)
-            if guard is _UNKNOWN or guard:
-                for child in node.body:
-                    walk_node(child, env, in_diagnostic=in_diagnostic)
-            if guard is _UNKNOWN or not guard:
-                for child in node.orelse:
-                    walk_node(child, env, in_diagnostic=in_diagnostic)
-            return
+            children = [node.test]
+            children += node.body if guard is _UNKNOWN or guard else []
+            children += node.orelse if guard is _UNKNOWN or not guard else []
         if isinstance(node, ast.Name) and node.id == REASON and not in_diagnostic:
-            sites.add((node.lineno, node.col_offset))
+            sites.add((*at[0], (node.lineno, node.col_offset)))
         if isinstance(node, ast.Call):
-            in_diagnostic = visit_call(node, env) or in_diagnostic
-        for child in ast.iter_child_nodes(node):
-            walk_node(child, env, in_diagnostic=in_diagnostic)
+            in_diagnostic = visit_call(node, env, at) or in_diagnostic
+        for child in children:
+            walk_node(child, env, at, in_diagnostic=in_diagnostic)
 
-    def visit_call(node: ast.Call, env: dict[str, object]) -> bool:
+    def visit_call(node: ast.Call, env: dict[str, object], at: Where) -> bool:
         """Record what one call produces; True when it constructs a Diagnostic."""
         callee = _called_name(node)
+        site = (*at[0], (node.lineno, node.col_offset))
         if callee == SINK:
             value = next(
                 (_resolve(k.value, env) for k in node.keywords if k.arg == "blocking"),
@@ -288,21 +311,21 @@ def analyse_code(source: str) -> tuple[set[tuple[int, int]], list[str]]:
             if value is _UNKNOWN:
                 problems.append("unresolvable blocking at line %d" % node.lineno)
             elif value is True:
-                sites.add((node.lineno, node.col_offset))
+                sites.add(site)
             return False
         if callee == DIAGNOSTIC:
-            sites.add((node.lineno, node.col_offset))
+            sites.add(site)
             return True
-        if isinstance(node.func, ast.Name) and callee in functions and callee != TARGET:
-            walk_function(callee, _bind(functions[callee], node, env))
+        if isinstance(node.func, ast.Name) and callee in functions:
+            walk_function(callee, _bind(functions[callee], node, env), site, at[1])
         return False
 
-    walk_function(TARGET, {})
+    walk_function(TARGET, {}, (), ())
     return sites, problems
 
 
-def blocking_bound_sites(source: str) -> set[tuple[int, int]]:
-    """Every (line, col) blocking production reachable from TARGET."""
+def blocking_bound_sites(source: str) -> set[Site]:
+    """Every blocking production reachable from TARGET, keyed by its call path."""
     return analyse_code(source)[0]
 
 
@@ -375,7 +398,8 @@ _COMMENT_ALLOWLIST: tuple[re.Pattern[str], ...] = tuple(
         r"\ba factor of two\b",
         # A pronoun: the aggregate budget is the only one there is.
         r"\bthe only one there is\b",
-        # Counts the NON-blocking degradations, a different population.
+        # Counts the NON-blocking degradations, a different population. That
+        # total is UNGRADED and possibly false - CS-1106, see the module docstring.
         r"\bthe one deliberate non-blocking degradation\b",
         # The granted CS-1096 wording: an increment, never a total.
         r"\bit is one more bound\b",
@@ -433,7 +457,10 @@ def mismatches(source: str) -> list[str]:
     problems.extend(code_problems)
     for comment in comments:
         problems.extend(
-            "body comment %r carries a count %r outside the allowlist" % (comment, word)
+            "CS-1096 Q4 numeral rule, not a bound-count mismatch: body comment %r "
+            "carries the numeral %r, and no body comment of %s may carry one. If it "
+            "states no bound total, add a justified entry to _COMMENT_ALLOWLIST in "
+            "tests/test_world_token_bound_count.py" % (comment, word, TARGET)
             for word in unallowed_cardinals(comment)
         )
         problems.extend(
@@ -605,3 +632,36 @@ def test_any_cardinal_in_a_body_comment_reddens_the_arm(comment: str) -> None:
     pristine = gate_source()
     mutant = _plant_in_target(pristine, comment)
     assert mismatches(mutant) != []
+
+
+def test_a_second_call_of_a_shared_reporting_helper_reddens_the_arm() -> None:
+    """Productions are keyed by CALL PATH, not by the line inside the helper.
+
+    A second `_report_root_cap(..., blocking=True)` in the target reaches the
+    same sink line inside the helper as the first one does, so a count keyed
+    by that line saw one production where there are two.
+    """
+    pristine = gate_source()
+    mutant = _plant_in_target(
+        pristine, '_report_root_cap(report, PII_WORLD_LABEL, "declared dirs", blocking=True)'
+    )
+    assert len(blocking_bound_sites(mutant)) == len(blocking_bound_sites(pristine)) + 1
+    assert mismatches(mutant) != []
+
+
+def test_a_numeral_in_a_comment_names_the_rule_it_broke() -> None:
+    """A numeral-rule red says what it is and where to clear it (adjudicated F4).
+
+    "one file at a time" states no bound total, so the message must not read as
+    a bound-count mismatch: it names the CS-1096 Q4 numeral rule, this test
+    file, and _COMMENT_ALLOWLIST as the place a justified entry goes.
+    """
+    pristine = gate_source()
+    mutant = _plant_in_target(pristine, "# one file at a time")
+    problems = mismatches(mutant)
+    assert problems != []
+    message = "\n".join(problems)
+    assert "CS-1096 Q4 numeral rule" in message
+    assert "not a bound-count mismatch" in message
+    assert "tests/test_world_token_bound_count.py" in message
+    assert "_COMMENT_ALLOWLIST" in message
