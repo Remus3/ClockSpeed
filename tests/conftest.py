@@ -169,34 +169,34 @@ _SNIFF_BYTES = 8192
 
 
 def run_git(root: Path, *args: str) -> subprocess.CompletedProcess[bytes] | None:
-    """Run a git subcommand in ``root``, or return None if git is unusable.
+    """Run a git subcommand in ``root``: None when git is missing, RED when it hangs.
 
-    Public because test modules import it: git is the only tool that can
-    answer "would this path be committed" and "is this path ignored", and both
-    questions are asserted on in tests/test_scaffold.py.
+    Public because test modules import it: git alone answers "would this path be
+    committed" and "is this path ignored". PATH resolves the program, since an
+    absolute tool path hardcodes a machine layout (CONVENTIONS.md section 10).
 
-    The executable is resolved from PATH rather than from an absolute path.
-    That is required, not lazy: an absolute tool path in a tracked file
-    hardcodes a machine layout (CONVENTIONS.md section 10).
-
-    Args:
-        root: Directory to run git in.
-        *args: Arguments after the ``git -C <root>`` prefix.
-
-    Returns:
-        The completed process, or None if git is missing or timed out. A
-        non-zero exit is returned rather than swallowed so the caller can
-        decide whether it matters.
+    A TIMEOUT IS RED, NEVER A SKIP (CS-1116). Callers skip on None, so only an
+    ``OSError`` - no program to start - returns it. A hang FAILS, and a non-zero
+    exit is returned for the caller to judge. The hang is planted in
+    tests/test_conftest_run_git.py.
     """
+    proc: subprocess.CompletedProcess[bytes] | None = None
     try:
-        return subprocess.run(
-            ["git", "-C", str(root), *args],
+        proc = subprocess.run(
+            [*RUN_GIT_PROGRAM, "-C", str(root), *args],
             capture_output=True,
-            timeout=120,
+            timeout=RUN_GIT_TIMEOUT_SECONDS,
             check=False,
         )
-    except (OSError, subprocess.SubprocessError):
+    except subprocess.TimeoutExpired:
+        proc = None  # failed BELOW the handler, so the red chains no exception
+    except OSError:
         return None
+    if proc is None:
+        subcommand = args[0] if args else "(no subcommand)"
+        message = f"git {subcommand} TIMED OUT after {RUN_GIT_TIMEOUT_SECONDS}s - never a skip"
+        pytest.fail(message)
+    return proc
 
 
 def _git_inventory(root: Path) -> list[Path] | None:
@@ -1031,3 +1031,20 @@ def _the_live_copies_directory_is_left_as_it_was_found() -> Generator[None]:
         f"the suite added {after - before} real-save copies to the live copies "
         f"directory; run the write tracer to attribute them"
     )
+
+
+# ---------------------------------------------------------------------------
+# CS-1116 - the program and the bound ``run_git`` spawns with
+#
+# APPENDED AT THE FOOT FOR THE SAME REASON THE SCRUB ABOVE IS: the deep archive
+# pins line numbers into this module. Both are module globals read at CALL time,
+# so tests/test_conftest_run_git.py can swap in a child that hangs past a
+# shrunken bound, and position costs nothing.
+# ---------------------------------------------------------------------------
+
+#: The program ``run_git`` runs. Never an absolute path - PATH resolves it
+#: (CONVENTIONS.md section 10).
+RUN_GIT_PROGRAM: tuple[str, ...] = ("git",)
+
+#: Seconds ``run_git`` waits for one git command (CS-896 bound).
+RUN_GIT_TIMEOUT_SECONDS: float = 120
