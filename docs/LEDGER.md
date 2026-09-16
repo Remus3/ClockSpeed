@@ -374,6 +374,53 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-09-16 - CS-1086 - CLOSED. Routing rows are graded against a leaf derived from ROADMAP.md, and the table is kept
+
+**WHAT CHANGED.** `tools/drift_guard.py` guard (j) now reads `ROADMAP.md` and derives each
+routed item's leaf from its phase heading plus the ID block rule. It FAILS a routing-table row
+whose leaf differs from the derived one, and FAILS a routed item with no section in its derived
+leaf. It checks table rows against item lines' TRAILING `detail:` field in both directions,
+locating the field by POSITION and never by its target string, with a spelling count as the
+anti-narrowing control. It FAILS a trailing field whose target is neither `docs/item_notes.md`
+nor the derived leaf, and FAILS a routed line spelling the field twice. An unreadable
+`ROADMAP.md` is a WARN, never a PASS. In `docs/item_notes.md` one prose paragraph was
+rewritten to describe the check; no table row changed (the merge diff touches none). Merged
+files: `tools/drift_guard.py`, `tests/data/test_item_notes_index.py`, `docs/item_notes.md`.
+
+**KEEP-AND-CHECK, NOT REMOVE - and the reason is recorded so it is not re-pitched as a
+shortcut.** A planner proposed REMOVING the routing table outright. An adjudicator that produced
+neither proposal REJECTED that: the item's acceptance speaks of rows; `CLAUDE.md` section 4 and
+the byte-pinned lane prompt `tools/headless-queue.md` both name the table; and CS-1062's
+single-hop fence stands. It ruled KEEP-AND-CHECK. Removal is now filed as its own item, CS-1112,
+whose acceptance begins with a recorded ruling superseding that fence.
+
+**AN UNRECORDED CLAIM, NOW GRADED.** The planner found that the session-100 "domain half
+discharged" claim in the CS-1086 item line had no ledger record and no test behind it. This
+slice grades it: the row-versus-trailing-field check in both directions is that test.
+
+**ADVERSARY AND VERIFIER.** An adversary pinned at 337632c on the real tree returned NOT
+REFUTED: a row moved across a phase heading, a section deleted, a row plus its section moved
+across the CS-849/CS-850 and CS-899/CS-900 seams, a new item line with no row, a row with no
+item line, and an unreadable `ROADMAP.md` by a directory swap and by an exclusive handle - all
+caught. Its weakness A, a wrong trailing target that passed, was repaired at 870e32c, and a
+verifier CONFIRMED 870e32c. Merged as 7c14d84.
+
+**RESIDUALS FILED, NOT CLOSED HERE.** CS-1113: the no-section check never changes a verdict on
+its own, and a WARN as the only non-PASS guard leaves the script's overall result CLEAN.
+
+**Verification:** `python -m pytest tests/data/test_item_notes_index.py -q`. Load-bearing arms:
+`tests/data/test_item_notes_index.py::test_the_leaf_rule_has_a_code_owner_at_every_seam`,
+`::test_a_row_agreeing_with_its_section_but_not_the_derivation_is_red`,
+`::test_a_routed_item_with_no_section_in_its_computed_leaf_is_red`,
+`::test_a_detail_field_with_no_row_is_red`,
+`::test_a_row_with_no_detail_field_is_red`,
+`::test_the_detail_field_is_found_by_position_not_by_its_target`,
+`::test_a_detail_spelling_mid_line_does_not_route_the_item`,
+`::test_a_detail_field_naming_a_leaf_other_than_the_derived_one_is_red`,
+`::test_a_second_detail_spelling_on_a_routed_line_is_red`,
+`::test_an_unreadable_roadmap_is_a_warn_never_a_pass` and
+`::test_the_real_tree_routed_count_matches_an_independent_count`.
+
 ### 2026-09-16 - CS-1110 - CLOSED. The killed lane cycles' unfinished CS-893 work was discarded after a byte snapshot, and the lane worktree is clean at main
 
 **WHAT CHANGED.** The lane worktree held uncommitted, red, incomplete CS-893 work from three
