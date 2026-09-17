@@ -3594,10 +3594,42 @@ _HEADLINE_TAIL_CHARS = "`*_\"'.,!?()[]"
 
 #: A clause boundary in the FILED headline, read two ways: the matched text ends with one
 #: of these, or the next token is one of the separators below.
-_HEADLINE_BREAK_CHARS = (":", ";", "-")
-_HEADLINE_SEPARATOR_TOKENS = frozenset(
+_HEADLINE_BREAK_CHARS = (":", ";")
+
+#: A DASH THAT SEPARATES IS THE SPACED HYPHEN, and nothing else. Reading any token that
+#: merely STARTS with a dash as a clause opener admitted every flag - a title stopping
+#: before ``-B`` or ``--no-header`` read as complete when it had stopped mid-clause.
+_HEADLINE_SEPARATOR_DASH = "-"
+
+#: The words that open a new clause, so a title may stop before one. Pinned in both
+#: directions by `tests/data/test_item_notes_index.py`, with one arm per member and a
+#: control over a word outside it, so neither shrinking nor growing this set is silent.
+HEADLINE_SEPARATOR_TOKENS = frozenset(
     {"and", "but", "or", "so", "because", "while", "although", "which", "then", "however"}
 )
+
+#: A SHORTENED TITLE MUST STILL MAKE A CLAIM. CS-969's title was one backticked symbol -
+#: a subject with no predicate - because the filed headline's next token was "and". A
+#: title is a claim when it carries at least this many tokens, of which at least this many
+#: are PLAIN WORDS: letters (with an apostrophe or hyphen inside) rather than a backticked
+#: symbol, a path or a number.
+_MIN_TITLE_TOKENS = 5
+_MIN_TITLE_PLAIN_WORDS = 3
+_PLAIN_WORD = re.compile(r"^[a-z]+(?:['-][a-z]+)*$")
+
+#: A CONJUNCTION IS THE WEAKEST BOUNDARY THERE IS, and it was accepted unconditionally:
+#: measured on this tree, most cut titles stopped before one, and eight of them were
+#: fragments - a bare symbol, a noun phrase, an adjective, half a quotation. So a stop
+#: before a conjunction carries a heavier bar than a stop at punctuation does.
+_BOUNDARY_PUNCTUATION = "punctuation"
+_BOUNDARY_CONJUNCTION = "conjunction"
+_MIN_CONJUNCTION_TOKENS = 8
+_MIN_CONJUNCTION_PLAIN_WORDS = 5
+
+#: A cut that lands inside a code span or a quotation leaves it open, which is exactly
+#: testable by counting the delimiter. The apostrophe is NOT counted - English uses it
+#: inside words - so only the backtick and the double quote are graded.
+_HEADLINE_DELIMITERS = (("`", "an unclosed backtick span"), ('"', "an unclosed quotation"))
 
 #: A SECONDARY check under the token rule: a title ending on one of these is a sentence
 #: broken off, whatever it was cut from. Pinned in both directions by
@@ -3715,29 +3747,38 @@ def headline_tokens(text: str) -> list[tuple[str, str]]:
     return pairs
 
 
-def _headline_boundary(filed: list[tuple[str, str]], taken: int) -> bool:
-    """Whether the filed headline's remainder after ``taken`` tokens starts a new clause.
+def _headline_boundary(filed: list[tuple[str, str]], taken: int) -> str:
+    """How the filed headline's remainder after ``taken`` tokens opens a new clause.
 
     Args:
         filed: The filed headline's token pairs.
         taken: How many of them the line's headline reproduced.
 
     Returns:
-        True when the text stops at a clause boundary.
+        ``_BOUNDARY_PUNCTUATION`` for a colon, semicolon or spaced hyphen,
+        ``_BOUNDARY_CONJUNCTION`` for a separator word, and ``""`` for no boundary.
     """
+    if not 0 < taken < len(filed):
+        return ""
     ended = filed[taken - 1][0].rstrip(_HEADLINE_TAIL_CHARS)
-    if ended.endswith((":", ";")):
-        return True
+    if ended.endswith(_HEADLINE_BREAK_CHARS):
+        return _BOUNDARY_PUNCTUATION
     following = filed[taken]
-    return following[0].startswith(_HEADLINE_BREAK_CHARS) or (
-        following[1] in _HEADLINE_SEPARATOR_TOKENS
-    )
+    if following[0] == _HEADLINE_SEPARATOR_DASH:
+        return _BOUNDARY_PUNCTUATION
+    if following[1] in HEADLINE_SEPARATOR_TOKENS:
+        return _BOUNDARY_CONJUNCTION
+    return ""
 
 
-def _headline_derivation_faults(
+def headline_derivation_faults(
     item: str, tokens: list[tuple[str, str]], filed: list[tuple[str, str]]
 ) -> list[str]:
     """Grade one line headline against the headline its section files.
+
+    EVERY INDEX HERE IS GUARDED, because a guard that raises takes all eleven verdicts
+    down with it - non-negotiable 7. An empty token list on either side is a FAULT, never
+    an exception, and the caller reports the same fault before reaching this function.
 
     Args:
         item: The item id, for the message.
@@ -3749,15 +3790,32 @@ def _headline_derivation_faults(
     """
     spelled = [normalised for _raw, normalised in tokens]
     original = [normalised for _raw, normalised in filed]
-    if spelled != original[: len(spelled)]:
-        return [f"  {item} carries a headline that is not a prefix of its filed full headline"]
-    if len(spelled) == len(original):
-        return []
-    if not _headline_boundary(filed, len(spelled)):
-        return [f"  {item} carries a headline cut part-way through its filed full headline"]
-    if spelled[-1] in HEADLINE_DANGLING_WORDS:
-        return [f'  {item} has a headline ending on the dangling word "{spelled[-1]}"']
-    return []
+    plain = sum(1 for word in spelled if _PLAIN_WORD.match(word))
+    written = " ".join(raw for raw, _normalised in tokens)
+    unclosed = [name for mark, name in _HEADLINE_DELIMITERS if written.count(mark) % 2]
+    boundary = _headline_boundary(filed, len(spelled)) if spelled and original else ""
+    fault: str | None = None
+    if not spelled:
+        fault = f"  {item} has a headline that normalises to nothing"
+    elif not original:
+        fault = f"  {item} files a full headline that normalises to nothing"
+    elif spelled != original[: len(spelled)]:
+        fault = f"  {item} carries a headline that is not a prefix of its filed full headline"
+    elif len(spelled) == len(original):
+        fault = None
+    elif not boundary:
+        fault = f"  {item} carries a headline cut part-way through its filed full headline"
+    elif unclosed:
+        fault = f"  {item} carries a title ending inside {unclosed[0]}"
+    elif spelled[-1] in HEADLINE_DANGLING_WORDS:
+        fault = f'  {item} has a headline ending on the dangling word "{spelled[-1]}"'
+    elif len(spelled) < _MIN_TITLE_TOKENS or plain < _MIN_TITLE_PLAIN_WORDS:
+        fault = f"  {item} carries a title too short to state a claim"
+    elif boundary == _BOUNDARY_CONJUNCTION and (
+        len(spelled) < _MIN_CONJUNCTION_TOKENS or plain < _MIN_CONJUNCTION_PLAIN_WORDS
+    ):
+        fault = f"  {item} carries a title too short to stop before a conjunction"
+    return [fault] if fault is not None else []
 
 
 def item_notes_headline_problems(
@@ -3776,6 +3834,9 @@ def item_notes_headline_problems(
     for item, headline in headlines.items():
         filed = item_notes_headline_texts(section_texts.get(item, ""))
         tokens = headline_tokens(headline)
+        if not tokens:
+            faults.append(f"  {item} has a headline that normalises to nothing")
+            continue
         if len(filed) > 1:
             faults.append(f"  {item} carries {len(filed)} full headline headings in its section")
             continue
@@ -3784,7 +3845,7 @@ def item_notes_headline_problems(
         if not filed[0]:
             faults.append(f"  {item} has a full headline heading with no text under it")
             continue
-        faults.extend(_headline_derivation_faults(item, tokens, headline_tokens(filed[0])))
+        faults.extend(headline_derivation_faults(item, tokens, headline_tokens(filed[0])))
     if not faults:
         return []
     return [

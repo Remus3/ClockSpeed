@@ -854,7 +854,10 @@ def test_a_line_headline_that_stops_at_a_clause_break_of_the_filed_one_passes(
     family: Path,
 ) -> None:
     """The floor: a COMPLETE short title that happens to be a prefix is not a truncation."""
-    _file_full_headline(family, "phase4.md", "CS-401", "a headline: and then the measurement")
+    _set_line_headline(family, "CS-401", "a headline that states a claim")
+    _file_full_headline(
+        family, "phase4.md", "CS-401", "a headline that states a claim: and then the measurement"
+    )
 
     status, rendered = _run(family)
     assert status == "PASS", rendered
@@ -886,16 +889,19 @@ def test_two_full_headline_headings_in_one_section_is_red(family: Path) -> None:
 #: The filed headline every token-wise plant below is graded against. It carries a clause
 #: break at the colon and a separator token at "and", which are the only two places a short
 #: title may stop.
-_FILED = "the suite is outside every ration and cannot be brought inside one: the reason follows"
+_FILED = (
+    "the suite is outside every ration the driver applies and cannot be brought inside "
+    "one: the reason follows"
+)
 
 #: The adversary's inputs against d63e573, each one character away from a caught cut. Every
 #: one of them is the filed headline stopped MID-CLAUSE, however it is dressed.
 _MID_CLAUSE_TITLES = (
-    "the suite is outside every ration and cannot be brought",
-    "the suite is outside every ration and cannot be brought inside.",
-    "the suite is outside every ration and cannot be brought,",
-    "The suite is outside every ration and cannot be brought:",
-    "the suite is outside every  ration and cannot be brought",
+    "the suite is outside every ration the driver applies and cannot be brought",
+    "the suite is outside every ration the driver applies and cannot be brought inside.",
+    "the suite is outside every ration the driver applies and cannot be brought,",
+    "The suite is outside every ration the driver applies and cannot be brought:",
+    "the suite is outside every  ration the driver applies and cannot be brought",
 )
 
 
@@ -914,9 +920,236 @@ def test_a_headline_stopped_mid_clause_is_red_however_it_is_dressed(
     ), rendered
 
 
+#: Every line headline that TRIMS TO NOTHING. The first build indexed an empty token list
+#: and raised, which took all eleven guards down with it - non-negotiable 7 says unknown
+#: content is flagged and skipped, never fatal.
+_EMPTY_TITLES = ("(...)", "()", "**", "...", "``", "")
+
+
+@pytest.mark.parametrize("title", _EMPTY_TITLES)
+def test_a_headline_that_normalises_to_nothing_is_reported_never_raised(
+    family: Path, title: str
+) -> None:
+    """The guard must RUN and report, so the other ten guards still get their verdict."""
+    _set_line_headline(family, "CS-401", title)
+    _file_full_headline(family, "phase4.md", "CS-401", f"{title} the rest of the sentence")
+
+    status, rendered = _run(family)
+    assert status == "FAIL", rendered
+    assert "  CS-401 has a headline that normalises to nothing" in rendered.splitlines(), rendered
+
+
+def test_a_filed_headline_that_normalises_to_nothing_is_reported(family: Path) -> None:
+    """The other side of the same fault: the FILED text is markup and no words."""
+    _set_line_headline(family, "CS-401", "a headline that states a claim")
+    _file_full_headline(family, "phase4.md", "CS-401", "()")
+
+    status, rendered = _run(family)
+    assert status == "FAIL", rendered
+    assert "  CS-401 files a full headline that normalises to nothing" in (rendered.splitlines()), (
+        rendered
+    )
+
+
+def test_the_derivation_helper_refuses_an_empty_token_list_directly() -> None:
+    """The inner guard, reached directly, because the caller's early return hides it.
+
+    Both layers exist deliberately: the caller reports the fault, and this one stops the
+    helper indexing ``[-1]`` on an empty list if a future caller forgets. A guard that
+    raises takes all eleven verdicts down with it, which non-negotiable 7 forbids.
+    """
+    faults = drift_guard.headline_derivation_faults("CS-401", [], [("word", "word")])
+    assert faults == ["  CS-401 has a headline that normalises to nothing"], faults
+
+
+def test_a_malformed_headline_does_not_abort_the_guard_run(family: Path) -> None:
+    """The whole-tool arm: a malformed row is one FAIL among eleven verdicts, not a crash."""
+    _set_line_headline(family, "CS-401", "()")
+
+    guard, _skips = drift_guard.guard_index(family)
+    assert guard["status"] == "FAIL", guard
+    assert guard["id"] == GUARD_ID, guard
+
+
+def test_a_prefix_is_compared_token_wise_not_as_a_joined_string(family: Path) -> None:
+    """A word that is a string-prefix of a longer word is NOT the same token.
+
+    The joined-string spelling of this check passes "the guard refuse" against "the guard
+    refuses", which is a different claim wearing five of the same characters.
+    """
+    _set_line_headline(family, "CS-401", "the guard refuse")
+    _file_full_headline(family, "phase4.md", "CS-401", "the guard refuses: a near miss")
+
+    status, rendered = _run(family)
+    assert status == "FAIL", rendered
+    assert "  CS-401 carries a headline that is not a prefix of its filed full headline" in (
+        rendered.splitlines()
+    ), rendered
+
+
+#: The clause openers, PINNED as a literal here as well as read from the module, so neither
+#: shrinking the set nor growing it is silent.
+_SEPARATOR_TOKENS = frozenset(
+    {"and", "but", "or", "so", "because", "while", "although", "which", "then", "however"}
+)
+
+
+def test_the_clause_opener_vocabulary_is_pinned_in_both_directions() -> None:
+    """A member added or removed in either copy is a disagreement."""
+    assert drift_guard.HEADLINE_SEPARATOR_TOKENS == _SEPARATOR_TOKENS
+
+
+@pytest.mark.parametrize("word", sorted(_SEPARATOR_TOKENS))
+def test_every_clause_opener_lets_a_title_stop_before_it(family: Path, word: str) -> None:
+    """One arm per member: remove one and the title before it reads as a mid-clause cut."""
+    _set_line_headline(
+        family, "CS-401", "the driver refuses a second claim while the first one runs"
+    )
+    _file_full_headline(
+        family,
+        "phase4.md",
+        "CS-401",
+        f"the driver refuses a second claim while the first one runs {word} says why",
+    )
+
+    status, rendered = _run(family)
+    assert status == "PASS", rendered
+
+
+def test_a_word_outside_the_opener_vocabulary_does_not_open_a_clause(family: Path) -> None:
+    """The control: without it, every member's arm would pass for a reason of its own."""
+    _set_line_headline(
+        family, "CS-401", "the driver refuses a second claim while the first one runs"
+    )
+    _file_full_headline(
+        family,
+        "phase4.md",
+        "CS-401",
+        "the driver refuses a second claim while the first one runs banana says why",
+    )
+
+    status, rendered = _run(family)
+    assert status == "FAIL", rendered
+    assert "  CS-401 carries a headline cut part-way through its filed full headline" in (
+        rendered.splitlines()
+    ), rendered
+
+
+@pytest.mark.parametrize("flag", ["-B", "--no-header"])
+def test_a_flag_token_does_not_open_a_clause(family: Path, flag: str) -> None:
+    """A dash that separates is the spaced hyphen; a dash on a flag is part of the word."""
+    _set_line_headline(family, "CS-401", "the driver passes the flag")
+    _file_full_headline(
+        family, "phase4.md", "CS-401", f"the driver passes the flag {flag} so nothing is cached"
+    )
+
+    status, rendered = _run(family)
+    assert status == "FAIL", rendered
+    assert "  CS-401 carries a headline cut part-way through its filed full headline" in (
+        rendered.splitlines()
+    ), rendered
+
+
+def test_a_spaced_hyphen_does_open_a_clause(family: Path) -> None:
+    """The control for the flag arms above."""
+    _set_line_headline(family, "CS-401", "the driver passes the flag")
+    _file_full_headline(
+        family, "phase4.md", "CS-401", "the driver passes the flag - and nothing is cached"
+    )
+
+    status, rendered = _run(family)
+    assert status == "PASS", rendered
+
+
+def test_a_title_ending_inside_an_unclosed_backtick_is_red(family: Path) -> None:
+    """CS-1055's shape: the cut landed inside a code span and left it open."""
+    _set_line_headline(family, "CS-401", "the teardown attributes a copy of the workdir to `python")
+    _file_full_headline(
+        family,
+        "phase4.md",
+        "CS-401",
+        "the teardown attributes a copy of the workdir to `python` and says so",
+    )
+
+    status, rendered = _run(family)
+    assert status == "FAIL", rendered
+    assert "  CS-401 carries a title ending inside an unclosed backtick span" in (
+        rendered.splitlines()
+    ), rendered
+
+
+def test_a_title_ending_inside_an_unclosed_quotation_is_red(family: Path) -> None:
+    """CS-1063's shape: the cut landed inside a quotation and left it open."""
+    _set_line_headline(
+        family, "CS-401", 'the tool prints its problems and says they "do not change the exit code'
+    )
+    _file_full_headline(
+        family,
+        "phase4.md",
+        "CS-401",
+        'the tool prints its problems and says they "do not change the exit code" and moves on',
+    )
+
+    status, rendered = _run(family)
+    assert status == "FAIL", rendered
+    assert "  CS-401 carries a title ending inside an unclosed quotation" in (
+        rendered.splitlines()
+    ), rendered
+
+
+def test_a_short_stop_before_a_conjunction_is_red(family: Path) -> None:
+    """A conjunction is the WEAKEST boundary, so it carries the heaviest completeness bar.
+
+    CS-972, CS-955 and CS-1048 each stopped before a conjunction and left a fragment - an
+    adjective, a relative clause and a bare noun phrase - through a rule that accepted any
+    conjunction unconditionally.
+    """
+    _set_line_headline(family, "CS-401", "the gate grades the index")
+    _file_full_headline(
+        family, "phase4.md", "CS-401", "the gate grades the index and commits from it anyway"
+    )
+
+    status, rendered = _run(family)
+    assert status == "FAIL", rendered
+    assert "  CS-401 carries a title too short to stop before a conjunction" in (
+        rendered.splitlines()
+    ), rendered
+
+
+def test_a_long_stop_before_a_conjunction_passes(family: Path) -> None:
+    """The floor under the arm above: the bar is weight of evidence, not a ban."""
+    _set_line_headline(
+        family, "CS-401", "the pre-commit gate grades the index at hook time every run"
+    )
+    _file_full_headline(
+        family,
+        "phase4.md",
+        "CS-401",
+        "the pre-commit gate grades the index at hook time every run and says so",
+    )
+
+    status, rendered = _run(family)
+    assert status == "PASS", rendered
+
+
+def test_a_title_with_no_claim_in_it_is_red(family: Path) -> None:
+    """CS-969's shape: a backticked symbol alone, stopping at the first "and"."""
+    _set_line_headline(family, "CS-401", "`clockspeed/save/objects.py::_payload_text`")
+    _file_full_headline(
+        family,
+        "phase4.md",
+        "CS-401",
+        "`clockspeed/save/objects.py::_payload_text` and its sibling carry a live branch",
+    )
+
+    status, rendered = _run(family)
+    assert status == "FAIL", rendered
+    assert "  CS-401 carries a title too short to state a claim" in rendered.splitlines(), rendered
+
+
 def test_a_headline_stopping_at_a_separator_token_passes(family: Path) -> None:
     """The floor: stopping before "and" is stopping at a clause boundary."""
-    _set_line_headline(family, "CS-401", "the suite is outside every ration")
+    _set_line_headline(family, "CS-401", "the suite is outside every ration the driver applies")
     _file_full_headline(family, "phase4.md", "CS-401", _FILED)
 
     status, rendered = _run(family)
