@@ -194,8 +194,13 @@ class Enumeration:
         self.problems: list[str] = []
         self.traced: set[tuple[str, str, str]] = set()
         self.returned: set[tuple[str, str]] = set()
+        # The gate REPORTING CALL each condition reaches the exit status through,
+        # so an arm that silences one report can derive which rows it silences.
+        self.reports: dict[tuple[str, str, int, int, str], list[ast.Call]] = {}
+        self.current: ast.Call | None = None
         self.reached = [name for name in reached_functions(gate_source) if name != SINK]
         self._walk_gate()
+        self.problems = list(dict.fromkeys(self.problems))
 
     # -- helpers -----------------------------------------------------------
 
@@ -250,9 +255,11 @@ class Enumeration:
             getattr(span, "end_col_offset", 0) or 0,
             literal,
         )
-        self.found[
-            (tag, func, getattr(node, "lineno", 0), getattr(node, "col_offset", 0), text)
-        ] = disarm
+        position = (tag, func, getattr(node, "lineno", 0), getattr(node, "col_offset", 0), text)
+        self.found[position] = disarm
+        routes = self.reports.setdefault(position, [])
+        if self.current is not None and all(call is not self.current for call in routes):
+            routes.append(self.current)
 
     # -- the gate seed -----------------------------------------------------
 
@@ -279,6 +286,11 @@ class Enumeration:
                 continue
             func = functions[name]
             for call in self._reporting_calls(func, reporters):
+                # Traced afresh per reporting call, so a flag reached from two
+                # reports is recorded against both rather than the first alone.
+                self.current = call
+                self.traced.clear()
+                self.returned.clear()
                 chain = self._chain(call)
                 deciding = [if_node for if_node, test in chain if not _is_routing(test)]
                 if deciding:
@@ -487,6 +499,15 @@ class Enumeration:
     def keys(self) -> Counter[Key]:
         """The conditions found, as a multiset of (module, function, condition text)."""
         return Counter((tag, func, text) for tag, func, _line, _col, text in self.found)
+
+    def routes(self, key: Key) -> list[ast.Call]:
+        """Every gate reporting call a condition key reaches the exit status through."""
+        return [
+            call
+            for (tag, func, line, col, text), calls in self.reports.items()
+            if (tag, func, text) == key
+            for call in calls
+        ]
 
     def disarms(self, key: Key) -> list[Disarm]:
         """Every disarm span recorded under one condition key."""
@@ -951,44 +972,116 @@ _HEADER_CALLER_FLAGS = "files_only=True, uncovered_blocks=True"
 _SINK_BLOCKS = "    if blocking and report is not None:\n"
 
 
+def _lines_of(source: str, anchor: str) -> range:
+    """The 1-based line numbers an anchor occupies in a source."""
+    assert source.count(anchor) == 1, "the anchor is not unique"
+    first = source[: source.index(anchor)].count("\n") + 1
+    return range(first, first + anchor.rstrip("\n").count("\n") + 1)
+
+
+def _report_spans_anchor(call: ast.Call, source: str, anchor: str) -> bool:
+    """The reporting call's own source lines hold the mutated text."""
+    lines = _lines_of(source, anchor)
+    return call.lineno <= lines.start and lines.stop - 1 <= (call.end_lineno or call.lineno)
+
+
+def _report_blocks_on_a_flipped_keyword(call: ast.Call, source: str, anchor: str) -> bool:
+    """The reporting call's `blocking` is a name the mutated call site passes."""
+    del source
+    flipped = set(re.findall(r"(\w+)=True", anchor))
+    return any(
+        keyword.arg == "blocking"
+        and isinstance(keyword.value, ast.Name)
+        and keyword.value.id in flipped
+        for keyword in call.keywords
+    )
+
+
+def _every_report(call: ast.Call, source: str, anchor: str) -> bool:
+    """The sink itself stops blocking, so every reporting call is silenced."""
+    del call, source, anchor
+    return True
+
+
+def silenced_rows(anchor: str, reaches: Callable[[ast.Call, str, str], bool]) -> set[Key]:
+    """The rows whose condition reaches the exit status only through silenced reports.
+
+    DERIVED FROM THE ENUMERATION, never a literal: a row is silenced when every
+    reporting call its condition routes through satisfies `reaches`, so adding
+    a correct row for a new condition needs no second hand edit here.
+    """
+    gate = _text(GATE)
+    enumeration = Enumeration(gate, _text(HEADER))
+    silenced: set[Key] = set()
+    for case in CONDITION_TABLE:
+        routes = enumeration.routes(case.key)
+        assert routes, "the row %r routes through no reporting call" % (case.key,)
+        if all(reaches(call, gate, anchor) for call in routes):
+            silenced.add(case.key)
+    return silenced
+
+
 @pytest.mark.parametrize(
-    ("old", "new", "markers"),
+    ("old", "new", "reaches"),
     [
         (
             _SCAN_CAP_REPORT,
             _SCAN_CAP_REPORT.replace("blocking=True", "blocking=False"),
-            {"than the scan cap admits"},
+            _report_spans_anchor,
         ),
         (
             _HEADER_CALLER_FLAGS,
             "files_only=True, uncovered_blocks=False",
-            {"a save directory holds more than", "save files in one save directory; only the"},
+            _report_blocks_on_a_flipped_keyword,
         ),
-        (_SINK_BLOCKS, "    if False:\n", {case.marker for case in CONDITION_TABLE}),
+        (_SINK_BLOCKS, "    if False:\n", _every_report),
     ],
     ids=["scan-cap-non-blocking", "token-caller-non-blocking", "sink-never-blocks"],
 )
 def test_a_truncation_made_non_blocking_reddens_its_case(
     old: str,
     new: str,
-    markers: set[str],
+    reaches: Callable[[ast.Call, str, str], bool],
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """A condition that still truncates but no longer blocks fails its behavioural case.
 
     Every OTHER case keeps blocking on the same mutant, so the red is the
-    mutation's and not the fixture's.
+    mutation's and not the fixture's. Which rows go quiet is read from the
+    enumeration's routes, and at least one must.
     """
+    silenced = silenced_rows(old, reaches)
+    assert silenced, "the mutation silences no row, so the arm grades nothing"
     mutant = load_gate(_swap(_text(GATE), old, new), name="cs1105_gate_mutant")
     try:
         for index, case in enumerate(CONDITION_TABLE):
             status, _reasons = drive(mutant, case.arrange, tmp_path / str(index), monkeypatch)
-            expected = 0 if case.marker in markers else 1
+            expected = 0 if case.key in silenced else 1
             assert status == expected, case.marker
             monkeypatch.undo()
     finally:
         sys.modules.pop("cs1105_gate_mutant", None)
+
+
+def _row(arrange: Callable[[ModuleType, Path, pytest.MonkeyPatch], None]) -> Case:
+    """The table row built on one arrangement - unique by table_problems, never an index."""
+    (row,) = [case for case in CONDITION_TABLE if case.arrange is arrange]
+    return row
+
+
+def test_the_silenced_rows_are_the_measured_ones() -> None:
+    """Anti-vacuity for the derivation: the routes name the rows each report carries.
+
+    Pinned as KEYS of the current table, not markers, and graded by subset so a
+    correct new row routed through the same report does not red this arm.
+    """
+    assert _row(_arrange_scan_cap).key in silenced_rows(_SCAN_CAP_REPORT, _report_spans_anchor)
+    assert _row(_arrange_root_cap).key not in silenced_rows(_SCAN_CAP_REPORT, _report_spans_anchor)
+    flipped = silenced_rows(_HEADER_CALLER_FLAGS, _report_blocks_on_a_flipped_keyword)
+    assert {_row(_arrange_examination).key, _row(_arrange_retention).key} <= flipped
+    assert _row(_arrange_file_cap).key not in flipped
+    assert silenced_rows(_SINK_BLOCKS, _every_report) == {c.key for c in CONDITION_TABLE}
 
 
 # --------------------------------------------------------------------------
@@ -1056,7 +1149,7 @@ def test_a_row_whose_arrangement_trips_a_neighbour_fails_its_control(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """A LIVE condition given a neighbour's fixture still blocks disarmed, and is red."""
-    borrowed = Case(CONDITION_TABLE[3].key, CONDITION_TABLE[5].marker, _arrange_scan_cap)
+    borrowed = Case(_row(_arrange_file_cap).key, _row(_arrange_scan_cap).marker, _arrange_scan_cap)
     problems = case_problems(borrowed, _text(GATE), _text(HEADER), tmp_path, monkeypatch)
     assert any("still blocks with its own condition disarmed" in p for p in problems), problems
 
@@ -1095,16 +1188,23 @@ def _wrapped_table() -> tuple[tuple[Case, ...], Case, Case]:
             "_save_root_dirs",
             "index >= MAX_SAVE_ROOT_ENTRIES // 2 / index >= MAX_SAVE_ROOT_ENTRIES",
         ),
-        CONDITION_TABLE[0].marker,
-        CONDITION_TABLE[0].arrange,
+        _row(_arrange_root_cap).marker,
+        _arrange_root_cap,
     )
-    assert CONDITION_TABLE[0].arrange is _arrange_root_cap
     borrowed = Case(
         ("gate", "_save_root_dirs", "index >= MAX_SAVE_ROOT_ENTRIES // 2"),
         "the listing stopped there",
         _arrange_root_cap_borrowed,
     )
-    return (root_row, borrowed, *CONDITION_TABLE[1:]), root_row, borrowed
+    return (
+        (
+            root_row,
+            borrowed,
+            *(case for case in CONDITION_TABLE if case.arrange is not _arrange_root_cap),
+        ),
+        root_row,
+        borrowed,
+    )
 
 
 def test_the_wrapped_plant_is_graded_by_its_table() -> None:
