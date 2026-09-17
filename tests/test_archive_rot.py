@@ -248,6 +248,27 @@ _CYCLE_MODULE_FLOOR: Final = 4
 #: names the item-notes INDEX, which is live, and the body below it says which leaf
 #: the section sat in - and an avoidable site is removed rather than pinned. A pin bumped for
 #: rot that did not have to exist is an exemption widened by convenience.
+#: `_ROT_EMPTY` 3 TO 2 AND `_ROT_FORM` 15 TO 16, 2026-09-16 BY CS-898, AND IT IS
+#: ONE POINTER RATHER THAN TWO FINDINGS - the same shape as the 2026-09-13 bump
+#: above, in the same direction. The archive names a line of
+#: `tests/data/test_phase2_gate.py` meaning the docstring of the generated-pin
+#: stripper. CS-898 added ONE import line near the top of that module, so every
+#: line below shifted by one and the pointer stopped landing on the blank line
+#: inside that docstring and started landing on its summary line. NO NEW ROT
+#: ARRIVED, nothing in the archive was edited by the bump, and the total across
+#: the two arms is unmoved at eighteen.
+#:
+#: THE RELOCATION IN THE SAME CHANGE ADDED NO SITE, which was checked rather than
+#: assumed: CS-898's item section moved into the archive carrying a bare path at
+#: `tests/data/test_phase2_gate.py` and a relocation heading naming the leaf it
+#: came from, both of which resolve, and `_ROT_PATH` did not move.
+#:
+#: THE RECORDED REASON COVERS THIS SITE, on the same check the two bumps before
+#: it applied. The archive declares `Section status: HISTORICAL` and that it holds
+#: nothing current, so the citation was RIGHT WHEN WRITTEN and the module moved
+#: underneath it - rot by construction, which is the stated exemption. Repairing
+#: it would mean editing a record of what a past session measured.
+#:
 #: `_ROT_EMPTY` 4 TO 3 AND `_ROT_FORM` 14 TO 15, 2026-09-13, AND IT IS ONE
 #: POINTER RATHER THAN TWO FINDINGS. The archive names a line of
 #: `tests/save/test_absolute_claims.py` meaning the fenced-prose arm's clause
@@ -328,10 +349,10 @@ _CYCLE_MODULE_FLOOR: Final = 4
 ARCHIVE_ROT: Final[Mapping[str, int]] = {
     _ROT_CITATION: 7,
     _ROT_RANGE: 0,
-    _ROT_EMPTY: 3,
+    _ROT_EMPTY: 2,
     _ROT_NAME: 3,
     _ROT_PATH: 6,
-    _ROT_FORM: 15,
+    _ROT_FORM: 16,
 }
 
 

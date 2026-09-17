@@ -121,6 +121,37 @@ Where current truth actually lives:
 
 ---
 
+## CS-898 - item section, CLOSED and relocated from `docs/item_notes/phase4-followups-850.md` 2026-09-16
+
+### NOTE - filed 2026-09-04 (session 60) by the merger, MEASURED ON THE TREE
+
+**A GUARD'S STATED CLAIM ABOUT ITSELF IS NOW FALSE.** `tests/data/test_phase2_gate.py`
+carries the sentence that its ceiling was chosen "without ever tripping on ordinary test
+code". Ordinary test code tripped it this session: a repair took one module to 273753 bytes
+against the 262144 ceiling, and the module had to be split to land.
+
+**THE TREE IS ALREADY CLOSE BEHIND, MEASURED THIS SESSION.**
+
+| per cent of ceiling | bytes | file |
+|---|---|---|
+| 96 | 252153 | `tests/save/test_struct_interior.py` |
+| 86 | 227135 | `tests/test_docs_citations.py` after the split |
+| 78 | 206953 | `tests/test_chained_cause_census.py` |
+
+So the next substantial addition to the first of those trips the same gate, and the
+splitting remedy is a per-module fix for a tree-wide trend.
+
+**DO NOT CLOSE THIS BY RAISING THE CEILING.** The gate is a BOOTSTRAP.md section 12 control
+and its own docstring says the crudeness is the point: it is "the one check that catches a
+trimmed real docs file dropped in 'just for tests', which no content assertion would catch
+because a real slice parses perfectly". Raising it to fit code launders a data-hygiene
+guard for a code-size reason, and that was refused once already this session.
+
+**THE TWO HONEST ROUTES.** Either the gate learns to distinguish a slice of real game data
+from a large hand-authored module - it already has a sibling that judges by suffix, so
+authored-ness is not unmeasurable - or the claim is corrected to what the gate actually
+promises and the tree is kept under it by a stated splitting policy rather than by luck.
+
 ## CS-895 - item section, CLOSED and relocated from `docs/item_notes/phase4-followups-850.md` 2026-09-16
 
 ### NOTE - filed 2026-09-03 (session 59) by the merger, from the CS-890 adversary, MEASURED

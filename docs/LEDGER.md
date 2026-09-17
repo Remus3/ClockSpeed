@@ -374,6 +374,86 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-09-16 - CS-898 - CLOSED. The tests-tree size ceiling stopped claiming a separation it never performed, and the predicate is now reachable over planted material
+
+**THE DEFECT.** The comment over `_MAX_TEST_FILE_BYTES` in `tests/data/test_phase2_gate.py`
+claimed a ceiling well above the largest authored file and well below a real data slice
+separated the two "without ever tripping on ordinary test code". Ordinary test code tripped it,
+which is what filed this item. The same separation claim was restated a second time, in the
+docstring of `test_every_file_under_tests_near_the_size_ceiling_is_budgeted_and_pinned`, so the
+falsified basis had two carriers rather than one.
+
+**WHICH BRANCH OF THE NARROWED ACCEPTANCE WAS TAKEN, AND WHY THE OTHER WAS NOT.** The
+2026-09-15 narrowing offered either a gate that distinguishes a slice of real game data from a
+large hand-authored module, or a stated claim corrected to what the number actually promises.
+The correction branch was taken. The distinguishing branch was examined and declined on a
+measured ground rather than on effort: every route to it runs through the same constant that
+CS-1066's approach band, its residual table and its ratchet are all computed from, so exempting
+authored source from the ceiling would empty that residual, force the ratchet to zero and make a
+shipped control vacuous - closing this row by dismantling another one. The alternative shape, a
+second and tighter ceiling for non-authored suffixes, needs a number argued from something other
+than the population it bounds, which is the tautology this module refuses twice in its own
+comments. That is a ruling and is not this cycle's to make.
+
+**WHAT THE CEILING PROMISES NOW.** No file under `tests/` exceeds the number, whatever wrote it.
+That is enough for the move `BOOTSTRAP.md` section 8.1 fences off - a trimmed real docs file
+dropped in "just for tests", which no content assertion catches because a real slice parses
+perfectly. It is explicitly NOT a claim that authored code stays clear of it, and the comment now
+says authored code reaching the ceiling is an expected event whose designed answer is the
+approach band and relocation, never a raise.
+
+**THE ARM, AND WHY IT PLANTS OUTSIDE THE REPOSITORY.** `_oversized_over_the_ceiling` is the
+predicate factored out of the real-tree arm and given a root, so
+`test_the_size_ceiling_still_catches_a_planted_oversize_non_authored_artifact` can run it over an
+oversize JSON artifact it writes into `tmp_path`. Planting the same file under `tests/` would
+redden `test_no_file_under_tests_is_large_enough_to_be_a_slice_of_real_game_data` in the same
+run, so the arm would prove its point by breaking its neighbour.
+
+**IT IS MUTATION-PROVEN IN BOTH DIRECTIONS AND EACH MUTATION WAS ASSERTED TO HAVE LANDED.**
+Defeating the size comparison reddens the arm, and so does a predicate that returns every path
+it is handed - the under-ceiling control is what kills the second one, so the arm says the
+ceiling DISCRIMINATES rather than merely complains. Both mutations were re-read off disk before
+the run was believed, and the module was restored byte-identically afterwards.
+
+**SIBLING SWEEP, WITH THE CYCLE'S OWN COUNT CORRECTED BY ITS VERIFIER.** A tree-wide sweep for
+the separation wording found both carriers inside `tests/data/test_phase2_gate.py` and no third.
+The cycle then reported two further modules quoting the ceiling in a DIFFERENT and true form -
+`tests/archive_rot_guard.py` and `tests/bare_path_guard.py` - and the verifier measured four:
+`tests/test_citation_tables.py` and `tests/save/test_struct_controls.py` carry the same true
+wording. All four were READ and left alone: they say the ceiling holds every file under `tests/`
+and is not raised to fit prose, which are statements about what it does rather than restatements
+of the separation it does not perform. The undercount was in this entry, not in the sweep.
+
+**WHAT THE VERIFIER FOUND THAT THIS ROW DOES NOT CLOSE, filed rather than absorbed.** The arm
+proves the ceiling CATCHES an oversize artifact and says nothing about WHERE it sits: a `>` to
+`>=` mutant of the comparison survives, while three other mutants of the same line redden. That
+is a property of the arm rather than of the acceptance clause, which asks only that a planted
+oversize artifact still be caught. It is CS-1123 in `ROADMAP.md`, filed in this same change with
+the verifier's planted sizes recorded on its line.
+
+**TESTS.** `tests/data/test_phase2_gate.py::test_the_size_ceiling_still_catches_a_planted_oversize_non_authored_artifact`
+is new; `test_no_file_under_tests_is_large_enough_to_be_a_slice_of_real_game_data` and
+`test_every_file_under_tests_near_the_size_ceiling_is_budgeted_and_pinned` are unchanged in
+behaviour. Merged file: `tests/data/test_phase2_gate.py`.
+
+**THE COLLATERAL WAS A PIN BUMP, AND IT IS ONE POINTER RATHER THAN TWO FINDINGS.** The new
+import this change adds near the top of `tests/data/test_phase2_gate.py` shifted every line below
+it by one, and a line pointer in `docs/history_notes.md` at that module stopped landing on a blank
+line inside a docstring and started landing on its summary line. `_ROT_EMPTY` and `_ROT_FORM` in
+`tests/test_archive_rot.py` moved by one in opposite directions with the total across the two arms
+unmoved, which is the 2026-09-13 bump's shape repeating; the site was READ, the recorded
+HISTORICAL exemption was re-checked against it, and the reason is written beside the pins. The
+relocation of CS-898's own section into the archive added no site, checked rather than assumed -
+`_ROT_PATH` did not move.
+
+**TIER 2, PAID LOCALLY AND READ OFF A FILE.** `python -m pytest tests -q -n auto --dist loadfile`
+- the spelling `.githooks/pre-push` executes - reported `8394 passed, 7 skipped, 8 warnings in
+398.68s (0:06:38)`, exit 0. `python -m ruff check .` clean and `python -m ruff format --check .`
+reported every file already formatted. `python tools/drift_guard.py` exited 0.
+
+**THE CI VERDICT IS THE DRIVER'S.** This worker did not observe a CI run and claims no green it
+did not read.
+
 ### 2026-09-16 - CS-1098 - CLOSED. DECLINED as a tool, a scope change and not a gate clearing, and the idea is re-filed as our own renderer with zero copied bytes
 
 **RULING - THE ADJUDICATOR'S LEDGER SENTENCE, VERBATIM.** "CS-1098 DECLINED, scope change not gate
