@@ -24,305 +24,6 @@ to `docs/history_notes.md`; they are never dropped.
 Newest entry goes directly under the `## Entries` heading. Each entry is:
 
 ```
-### 2026-09-13 - CS-1005 - CLOSED. The scope and the claim store were both correct and nothing in the driver path imported either
-
-**WHAT CHANGED.** `ops/loop/queue_loop.py` now binds the row a cycle works to the row the lane may
-work. `scope.lane_permit` computes the permitted ids BEFORE the cycle, so a cycle that closes its own
-row cannot read as out-of-scope. `ClaimWatch` samples inside the poll loop as well as after the wait,
-and the in-loop sample is load-bearing: a compliant worker releases at the wrap, so a post-cycle read
-learns nothing from exactly the cycles that behaved. Binding is by set membership, the verdict is
-written on every cycle, and the roll-up refuses `ok` when a row was worked outside the permit.
-
-**PROVEN BY.** `tests/ops/test_scope_binding.py::test_a_row_outside_the_permit_reaches_the_record_and_refuses_the_roll_up`,
-killed by four independent mutations including the checkout-local rooting that defeated two other
-slices today. Merged files: `ops/loop/queue_loop.py`, `ops/loop/scope.py`.
-
-**CLAIMS RATHER THAN COMMITS ARE THE SOURCE, and the reason is recorded so it is not simplified
-later:** a worker fast-forwards its tree, so a sibling lane's commits land in the same revision
-range. A claim record carries its lane; a commit does not.
-
-**WHAT REMAINS PROSE, stated as plainly as the defect was.** A cycle that never claims cannot be
-checked: it records itself unobserved and does NOT refuse `ok`. That clause was declined on
-measurement rather than omitted - no worker claims today, so taking it would report every cycle of
-every night unbound on the night it shipped. Filed as part of CS-1009's territory.
-
-### 2026-09-13 - CS-992 - CLOSED. A second lane can start, and one lane still excludes itself
-
-**WHAT CHANGED.** The roster carries more than one lane, the driver mutex name is DERIVED per lane
-rather than the box-wide constant, and the lock slot varies per lane. Merged files:
-`ops/loop/lanes.py`, `ops/loop/queue_loop.py`, `ops/loop/launch_queue_loop.ps1`.
-
-**PROVEN BY.** `tests/ops/test_multi_lane.py::test_a_roster_insertion_cannot_hide_a_live_holder`.
-The merger reproduced the pre-repair defect against the pre-repair candidate as a control - roster
-insertion made `lane_state` read FREE while a live worker held the slot, and a second claim
-succeeded - and the same probe on the repair reads RUNNING and refuses.
-
-**THREE DEFECTS WERE FOUND AND FIXED BEFORE THIS CLOSED, each worth its fence.** The first cut
-FOLDED lane names, so two distinct lanes collapsed onto one mutex - the defect the item exists to
-prevent, arriving through the sanitiser; closed with a digest of the raw name. The second keyed lock
-slots POSITIONALLY by roster index, so inserting a lane at the front re-pointed every slot; a lock is
-now resolved by the lane its payload RECORDS. And scoping the mutex by repo token introduced a SAFETY
-REGRESSION the acceptance never asked for - two clones at different paths got disjoint mutexes AND
-disjoint locks while both pointed at one checkout, which the old box-wide constant had prevented by
-accident. A box-wide guard keyed on the working directory alone now sits inside the per-lane one.
-
-**A CORRECTED CLAIM.** An arm named for driver exclusion asserted the OPPOSITE of Win32: mutex
-ownership is per-THREAD, so the same-thread nesting it measured was a statement about the stand-in,
-which is stricter than the primitive. It now runs over the real mutex on two threads.
-
-**UNVERIFIED, labelled rather than rounded up:** cross-PROCESS exclusion on the derived names.
-
-### 2026-09-13 - CS-994 - CLOSED. A lane can be pointed at a declared, validated subject
-
-**WHAT CHANGED.** `ops/loop/scope.py` computes the rows a lane may take from a declared scope in
-`config/lane_scopes.json`, re-graded against the live `ROADMAP.md`, `docs/GATED.md` and
-`docs/LEDGER.md` on EVERY read, so a hand-maintained id list cannot silently drift. A member that has
-closed, is gated, is a phase gate or is absent refuses loudly and names itself. The dashboard scope
-serves exactly its eight rows with the phase-6 gate row excluded, and the unscoped path now names
-what it fenced out instead of dropping it silently.
-
-**PROVEN BY.** `tests/ops/test_lane_scope.py::test_the_dashboard_scope_partitions_its_anchor_phase`
-and `::test_a_scope_naming_an_untakeable_id_refuses_and_names_it`. The merger verified all four
-refusal classes independently against a temp root with planted faults, fronted by a control proving
-the members were actually parsed.
-
-**THE FIRST CUT WAS INSTANCE ELEVEN OF CS-988 AND THE FENCE IS THE POINT.** An arm NAMED
-"is exactly the rows" asserted a subset plus a floor over the phase count. Narrowing the declaration
-from eight ids to two left the suite at 18 passed exit 0 while the lane served a quarter of its
-queue. **A floor was forbidden in that slice's brief BY NAME and it landed anyway** - which is the
-transferable finding: this class is not caught by knowing about it. The repair deletes the floor for
-a partition of the anchor phase plus a second pin in a different file, and the partition ALONE was
-measured insufficient.
-
-**ALSO CORRECTED.** The ledger closure reader matched space-separated ids only, so a comma-separated
-CLOSED heading matched nothing and left both rows takeable - degrading to SILENTLY OPEN, not to the
-loud refusal its own note claimed.
-
-### 2026-09-13 - CS-1000 - CLOSED. The lane completed exactly one row per launch, and the cause was not in the lane
-
-**WHAT CHANGED.** `ops/loop/queue_loop.py` and `ops/loop/lane_launcher.py` publish their by-path
-module load under the canonical dotted name, so one `lanes` module exists per process.
-
-**THE DIAGNOSIS, from the driver's own report file rather than from a read.** Across two independent
-nights cycle 1 completed both times and EVERY subsequent cycle failed in 2.1 to 3.2 s. The detached
-driver runs the script by path, so `ops/loop` is on `sys.path` and the repo root is not,
-`import ops.loop.lanes` fails, and the two files each fell back to a by-path load under a DIFFERENT
-private name - two module objects, two ownership maps. Cycle 1's re-point landed in one, the release
-consulted the other, refused, and the launcher killed the worker it had just spawned. That is why
-every failed log ended at the header with no exit line.
-
-**PROVEN BY.** `tests/ops/test_queue_lane_relaunch.py::test_two_consecutive_lane_cycles_both_reach_a_spawned_worker`.
-The merger confirmed with its own probe calling the real binders: two modules and two maps on the
-unfixed tree in both load orderings, one of each on the fix, with a control asserting the dotted
-import was genuinely unavailable.
-
-**A FILED CLAIM WAS FALSE AND IS CORRECTED RATHER THAN DROPPED.** CS-1000 was filed claiming the
-driver discards the launch reason code. That shipped in CS-970 1h40m BEFORE the last driver row, so
-the rows cited as evidence were written by stale code. A decayed artifact read as current behaviour.
-
-**UNVERIFIED:** no real second-night worker was spawned; the arm fakes the spawn seam.
-
-### 2026-09-13 - CS-991 - NOT A COMPLETION RECORD. CS-991 STAYS OPEN, BLOCKED ON CS-1009. The claim store is built and its headline claim is in doubt under real use
-
-**CS-991 STAYS OPEN and this entry does not close it.** Its acceptance says a row taken by one lane
-is not takeable by another FOR THE LIFE OF THAT CYCLE. CS-1009 questions exactly that: the store
-decides HELD against the pid recorded in the claim, and an LLM worker reaches python through a fresh
-subprocess per call, so the claiming process exits immediately and the record reads RECLAIMABLE from
-that moment. The arms pass; the calling convention may defeat them.
-
-**WHAT MERGED.** `ops/loop/claims.py` keys claims by the ROW ID, never by queue index, line number or
-slot - those reorder on every close, and a record keyed by one would re-point when a row above it
-closed. A claim is resolved by the row its payload RECORDS, not by its file name. Proven by
-`tests/ops/test_row_claim.py::test_a_second_lane_offered_the_same_queue_takes_a_different_row` and
-`::test_a_crashed_cycle_does_not_release_its_claim`, the latter using `os._exit` so no `finally`,
-`atexit` or `__exit__` runs.
-
-**THE FIRST CUT SHIPPED A DEFECT WORSE THAN NO FEATURE, and the arm that should have caught it
-assumed it away.** The store rooted itself at the importing FILE, and each lane's worker runs in its
-OWN checkout, so the two lanes read different directories and were structurally blind to each other -
-an adversary reproduced both lanes holding one row across two real processes. The arm written to
-prove exclusion had passed an explicit shared root, so it could never see a defect that IS the root.
-`lanes.REPO_ROOT` already resolved the indirection and the store now uses it. The merger verified
-from a REAL git worktree, which is stronger than the arm, whose checkouts are synthetic.
-
-**THE DRIVER-SIDE / WORKER-SIDE ASYMMETRY IS THE GENERAL LESSON** and is recorded in the module:
-driver-side state may use the checkout because the driver runs from the main tree; WORKER-side state
-may not, because each lane worker runs in its own worktree. Two independent slices got this wrong in
-one session.
-
-### 2026-09-13 - CS-988 - NOT A COMPLETION RECORD. NOTHING CLOSED. CS-988 STAYS OPEN. The criterion swept the whole population and the band is seventeen, not four
-
-**CS-988 STAYS OPEN.** The sweep is a measurement, not a repair, and the seventeen instances it
-confirms are unrepaired.
-
-**WHAT WAS MEASURED.** The settled criterion was applied ON DISK to all 193 file-and-name pairs, the
-population re-derived by an independent AST scan returning 193 across 49 files. Leg 1 compared
-collect-only counts: 93 reduced the arm count, 43 did not, 48 could not be sliced, 9 were deferred.
-Leg 2 ran 93 against a guard set derived per candidate. **SEVENTEEN instances, 32 DEFENDED, 44
-INDETERMINATE** - the last left unranked rather than argued into a band. Per-site detail is in
-`docs/item_notes/cs988-sweep-record.md`, a declared departure from one-leaf-per-phase recorded in the
-routing table.
-
-**THREE FINDINGS WORTH MORE THAN THE COUNT.** The four instances on file reproduce, but the two
-DERIVED ones reconcile only at an offset of one: the prior pass's narrowing kept TWO members and the
-record did not say so. The obvious grep for the guard population gets it BACKWARDS - an `open` audit
-shows six nominated modules read nine files or fewer while three it never nominated read all 143. And
-**the backstop grades NONE of the seventeen**: six of those modules carry an equality arm, but none
-is wired to the knob that moved, proven by the run rather than argued.
-
-**A WARNING THAT MUST NOT BE READ THE OTHER WAY.** Three DEFENDED verdicts rest on a non-emptiness
-floor over a two or three member knob, so they are defended BY ARITHMETIC rather than by design - the
-same guard over a five-member population would pass the narrowing in silence. Correct under the
-criterion, and NOT evidence that a floor works.
-
-**THE CLASS REACHED FIVE NEW INSTANCES THIS SESSION, all inside repairs built to catch it:** the
-backstop guard's loop breadth (eight), an expectation taken from the population's own expression
-(nine), a converse leg's breadth (ten), a scope arm named for an equality that asserted a subset plus
-a floor (eleven), and lock slots keyed positionally by roster index (twelve).
-
-### 2026-09-13 - CS-993 - A FROZEN-FILE GRANT, GRANTED BY THE OPERATOR AND LEFT UNSPENT. Nothing was edited under it, and the reason is recorded so neither the grant nor the route it covers is re-pitched
-
-**CS-993 STAYS OPEN and this entry does not close it.** Its acceptance says two lanes cannot run a
-suite simultaneously, and two of the three pytest invocations in a cycle remain outside the ration -
-including the only one that forks. What merged is the driver-side half, and the detection route that
-addresses the remaining harm is filed as CS-1007.
-
-**THE GRANT EXISTS AND IS NOT SPENT.** The operator granted the exception on
-`.githooks/pre-push` in as many words. An adjudicator that wrote no part of CS-993, the hook or
-either prior grant then ruled DENY on the EDIT, and the grant is recorded here GRANTED AND UNSPENT
-rather than quietly dropped. That is the CS-972 shape on this same file: a grant issued, no edit ever
-made, because conditions could not be honestly met. **A grant is permission, not a design.**
-
-**THE GAP IS REAL AND WAS VERIFIED, not taken on the requester's word.** The hook's pytest
-invocation carries `-n auto --dist loadfile` and is the ONLY xdist run in a lane cycle. CS-993
-therefore covers none of the runs that fork, which is the mechanism the defect statement names. The
-requester reported that honestly and routed the proposal rather than taking the edit.
-
-**GROUND ONE - NO CEILING VALUE IS BOTH USEFUL AND SAFE.** A hook that waits usefully must wait at
-least one suite; at the shipped ceiling constant it would wait three hours. The hook's OWN header
-already rules on that scenario in as many words - a hung gate reads as a wedged suite and gets killed
-rather than diagnosed, which is worse than either answer. A ceiling short enough to be safe on an
-operator's interactive push falls through unrationed on essentially every real collision, making the
-ration decorative. The hook cannot tell a lane push from an interactive one: it reads exactly one
-environment variable, and CS-972's record already ruled that adding another IS ITSELF a frozen edit.
-
-**GROUND TWO - THE ONLY WORKING MECHANICS ARE FROZEN-FILE LAUNDERING.** `sh` cannot hold a Python
-context manager across a later command. The split form - acquire, run, release - records the
-ACQUIRING process's pid, which is dead before pytest starts, so the slot reads reclaimable at once
-and the next lane takes it: it would ration nothing while logging that it did. The only shape that
-works inserts a wrapper between the gate and pytest, and the hook's own prose names that shape as the
-CS-703 mechanism that turns all three tier-0 gates into no-ops. It would also move the gate's
-exit-code fidelity into a NON-FROZEN module editable without any grant at all. Disqualifying on its
-own.
-
-**NAMED AND REJECTED SO IT IS NOT RE-PITCHED AS CHEAP.** Injecting a ration plugin through
-`PYTEST_ADDOPTS` in the worker's environment reaches the hook's pytest with no frozen byte changed.
-It is rejected: it fails OPEN AND SILENT if the variable is lost anywhere along the driver, worker,
-git and hook chain, which is precisely the defect the ration exists to close, and it adds an
-environment-variable disarm surface to a tier-0 gate.
-
-**THE ROUTE THAT IS TAKEN INSTEAD IS DETECTION IN THE DRIVER, NOT PREVENTION IN THE GATE.** The harm
-is not the overlap; it is an unattended lane writing a green it did not earn. The driver already
-writes its ration verdict on every cycle and already refuses the cycle roll-up on an unrationed step.
-Extending that to OBSERVE whether a foreign suite ran during the window it already polls converts an
-unearned green into a re-run, costs no wait, hangs no push, and needs no grant. Filed as CS-1007.
-
-**A FALSE CLAIM IN THE MERGED CODE WAS CORRECTED IN THE SAME CHANGE.** `ration`'s module docstring
-quoted its coverage as one of three invocations as though that were unconditional. It holds only when
-the driver is asked for a local suite; the flag defaults to false, so on a default night the driver
-issues no suite and the ration covers zero of the two invocations that do run. The conditional was
-written correctly at the call site and wrongly in the summary, which is the half a reader sees.
-
-**ONE THING CS-993 MAKES WORSE, NARROWLY AND IN THE FAIL-CLOSED DIRECTION**, recorded rather than
-smoothed over: an unrationed but green suite now sets the cycle row not-ok, an outcome that did not
-exist before. That is the intended trade - an unmeasurable run should not read as an earned one - but
-it is a new way for a night to report failure.
-
-### 2026-09-05 - CS-909 - MEASUREMENT RECORD. The companion ran for the first time in the project's history, and the round that shipped it was REFUTED on five counts including a local code-execution vector
-
-**CS-909 STAYS OPEN and this entry does not close it.** Section 8.5 of
-`docs/OPERATIONS.md` now exists to hold its manual half, and one of its six checks
-is still unrun.
-
-**What shipped.** A desktop shortcut that starts the dashboard if nothing answers,
-opens the frameless companion against it, and keeps a system-tray presence where
-closing hides and Quit stops only what that launch started. Merged files:
-`shell/lib/supervisor.js`, `shell/lib/tray.js`, `shell/main.js`,
-`scripts/make_shortcut.py`, `docs/adr/0015-the-shell-may-start-the-surface.md`.
-Verified by `tests/shell/test_shell_assets.py::test_main_consumes_every_seam_it_was_given`,
-`::test_close_does_not_permanently_disable_persistence`,
-`shell/test/supervisor.test.js` and `shell/test/tray.test.js`.
-
-**IT HAD NEVER BEEN EXECUTED.** `shell/node_modules` did not exist at session
-start and every check in `docs/OPERATIONS.md` section 8.3 read `NOT RUN`. Five of
-six are now filled; check 6, deferral on a non-dashboard host, is not.
-
-**A RUNBOOK DEFECT MEASURED, NOT REASONED.** The pinned Electron ships NO `scripts`
-block, so `npm install` completes in about half a second having fetched no binary
-and exits 0. The runtime downloads lazily on the first `require`. Section 8.1 said
-otherwise and now does not.
-
-**FIVE REFUTATIONS OF THE FIRST ROUND, by one adjudicator and three adversaries
-that wrote none of it.** Each is repaired in `8777a89`.
-
-1. **A local code-execution vector.** `main.js` spawned the bare name `python`
-   with the repository root as the child's working directory. libuv searches that
-   directory BEFORE PATH; the root grants Modify to Authenticated Users on this
-   machine; the spawn hides its window and discards its output. The suppressing
-   environment variable is set at neither machine nor user scope, so an Explorer
-   launch has the search live - a first test came back clean only because a shell
-   had set it for itself.
-2. **A zombie.** With no tray, close correctly meant close, `window-all-closed`
-   fired with quitting false, and merely HAVING registered that listener
-   suppressed the default quit - leaving a process with no window, no tray and a
-   live dashboard it had started.
-3. **The tray guard tested the wrong proposition.** `new Tray()` handed an image
-   that decodes to nothing does NOT throw; it returns an ordinary non-null Tray
-   with an invisible icon.
-4. **No single-instance lock.** Two launches produced two windows and two tray
-   icons, and two writers on one `window-state.json` whose fixed-name partial file
-   is opened truncating - an interleave publishes a zero-byte state file over a
-   good one, falsifying `shell/lib/state.js`'s own atomicity header.
-5. **The wiring arms did not grade.** Fifteen mutations, THIRTEEN SURVIVED. A seam
-   was satisfiable from a string literal, from dead code, and both lib modules
-   could be replaced by local fakes and never loaded while every arm stayed green.
-   The only kill was a behaviour-preserving reformat.
-
-**THE REPAIR BRIEF WAS ITSELF REFUTED, and the spike wins.** It asserted that
-`shutil.which` excludes the current directory, making `scripts/make_cert.py` the
-safe precedent. Measured on the pinned interpreter with the guard absent, it
-returned a RELATIVE path to a planted file in the current directory. `make_cert.py`
-carries the same exposure. Filed as **CS-910** rather than fixed inside a slice
-that did not own it.
-
-**A MEASUREMENT IN THE SOURCE THAT DID NOT REPRODUCE.** `PROBE_ATTEMPT_CEILING`
-carried a recorded 2.217s-2.227s cold start and reasoned a margin from it. Measured
-through the actually shipped path - electron, `net`, `waitForSurface` verbatim - it
-is 0.46s to 0.53s, every sample answering on the first attempt. The ten-millisecond
-spread over five samples was the signature of a fixed constant, not a process
-start. The margin at the old ceiling was about twenty times, not the four and a
-half claimed. The comment now separates measured from judged.
-
-**A DECISION, RECORDED SO IT IS NOT RE-ARGUED.** The health probe uses electron's
-`net` rather than node's `https`. With a `ca` option holding the pinned certificate
-`https` works under stock node and FAILS under electron, which builds its node
-against BoringSSL: every probe returned `UNABLE_TO_VERIFY_LEAF_SIGNATURE` while the
-surface was demonstrably listening. Going through `net` also deletes a second trust
-decision rather than moving it - net requests reach `setCertificateVerifyProc`, so
-the probe and the page are pinned by one answer from `shell/lib/trust.js`. An
-adversary confirmed the pin against an impostor certificate on the same host, and
-separately confirmed that probing BEFORE the proc is installed poisons the network
-service's verdict cache so the proc never fires. That ordering is load-bearing and
-is graded by nothing.
-
-**A CORRECTION THIS ENTRY OWES TO `8210a3c`'s OWN MESSAGE.** That message states
-that section 8.3 checks 1 to 5 were observed. The file at that commit records only
-checks 1 and 3; checks 2, 4 and 5 were genuinely observed but never written down.
-`docs/GATED.md` names recording an unrun check as a result a failure class, and a
-commit message claiming a file says something it does not is that failure wearing a
-different hat. The tracked note at `docs/item_notes/phase6.md` was correct
-throughout. Repaired in `8777a89`.
-
 ### YYYY-MM-DD - <ITEM-ID> - <one line: what closed>
 Verification: <pointer>
 ```
@@ -5428,6 +5129,220 @@ by anything the crashed cycle does.
 
 **WHAT REMAINS.** The residuals are CS-1009's and are listed there. CS-1006's restore sliver in
 `_reclaim` is untouched and still measured by nothing.
+
+### 2026-09-13 - CS-1005 - CLOSED. The scope and the claim store were both correct and nothing in the driver path imported either
+
+**WHAT CHANGED.** `ops/loop/queue_loop.py` now binds the row a cycle works to the row the lane may
+work. `scope.lane_permit` computes the permitted ids BEFORE the cycle, so a cycle that closes its own
+row cannot read as out-of-scope. `ClaimWatch` samples inside the poll loop as well as after the wait,
+and the in-loop sample is load-bearing: a compliant worker releases at the wrap, so a post-cycle read
+learns nothing from exactly the cycles that behaved. Binding is by set membership, the verdict is
+written on every cycle, and the roll-up refuses `ok` when a row was worked outside the permit.
+
+**PROVEN BY.** `tests/ops/test_scope_binding.py::test_a_row_outside_the_permit_reaches_the_record_and_refuses_the_roll_up`,
+killed by four independent mutations including the checkout-local rooting that defeated two other
+slices today. Merged files: `ops/loop/queue_loop.py`, `ops/loop/scope.py`.
+
+**CLAIMS RATHER THAN COMMITS ARE THE SOURCE, and the reason is recorded so it is not simplified
+later:** a worker fast-forwards its tree, so a sibling lane's commits land in the same revision
+range. A claim record carries its lane; a commit does not.
+
+**WHAT REMAINS PROSE, stated as plainly as the defect was.** A cycle that never claims cannot be
+checked: it records itself unobserved and does NOT refuse `ok`. That clause was declined on
+measurement rather than omitted - no worker claims today, so taking it would report every cycle of
+every night unbound on the night it shipped. Filed as part of CS-1009's territory.
+
+### 2026-09-13 - CS-992 - CLOSED. A second lane can start, and one lane still excludes itself
+
+**WHAT CHANGED.** The roster carries more than one lane, the driver mutex name is DERIVED per lane
+rather than the box-wide constant, and the lock slot varies per lane. Merged files:
+`ops/loop/lanes.py`, `ops/loop/queue_loop.py`, `ops/loop/launch_queue_loop.ps1`.
+
+**PROVEN BY.** `tests/ops/test_multi_lane.py::test_a_roster_insertion_cannot_hide_a_live_holder`.
+The merger reproduced the pre-repair defect against the pre-repair candidate as a control - roster
+insertion made `lane_state` read FREE while a live worker held the slot, and a second claim
+succeeded - and the same probe on the repair reads RUNNING and refuses.
+
+**THREE DEFECTS WERE FOUND AND FIXED BEFORE THIS CLOSED, each worth its fence.** The first cut
+FOLDED lane names, so two distinct lanes collapsed onto one mutex - the defect the item exists to
+prevent, arriving through the sanitiser; closed with a digest of the raw name. The second keyed lock
+slots POSITIONALLY by roster index, so inserting a lane at the front re-pointed every slot; a lock is
+now resolved by the lane its payload RECORDS. And scoping the mutex by repo token introduced a SAFETY
+REGRESSION the acceptance never asked for - two clones at different paths got disjoint mutexes AND
+disjoint locks while both pointed at one checkout, which the old box-wide constant had prevented by
+accident. A box-wide guard keyed on the working directory alone now sits inside the per-lane one.
+
+**A CORRECTED CLAIM.** An arm named for driver exclusion asserted the OPPOSITE of Win32: mutex
+ownership is per-THREAD, so the same-thread nesting it measured was a statement about the stand-in,
+which is stricter than the primitive. It now runs over the real mutex on two threads.
+
+**UNVERIFIED, labelled rather than rounded up:** cross-PROCESS exclusion on the derived names.
+
+### 2026-09-13 - CS-994 - CLOSED. A lane can be pointed at a declared, validated subject
+
+**WHAT CHANGED.** `ops/loop/scope.py` computes the rows a lane may take from a declared scope in
+`config/lane_scopes.json`, re-graded against the live `ROADMAP.md`, `docs/GATED.md` and
+`docs/LEDGER.md` on EVERY read, so a hand-maintained id list cannot silently drift. A member that has
+closed, is gated, is a phase gate or is absent refuses loudly and names itself. The dashboard scope
+serves exactly its eight rows with the phase-6 gate row excluded, and the unscoped path now names
+what it fenced out instead of dropping it silently.
+
+**PROVEN BY.** `tests/ops/test_lane_scope.py::test_the_dashboard_scope_partitions_its_anchor_phase`
+and `::test_a_scope_naming_an_untakeable_id_refuses_and_names_it`. The merger verified all four
+refusal classes independently against a temp root with planted faults, fronted by a control proving
+the members were actually parsed.
+
+**THE FIRST CUT WAS INSTANCE ELEVEN OF CS-988 AND THE FENCE IS THE POINT.** An arm NAMED
+"is exactly the rows" asserted a subset plus a floor over the phase count. Narrowing the declaration
+from eight ids to two left the suite at 18 passed exit 0 while the lane served a quarter of its
+queue. **A floor was forbidden in that slice's brief BY NAME and it landed anyway** - which is the
+transferable finding: this class is not caught by knowing about it. The repair deletes the floor for
+a partition of the anchor phase plus a second pin in a different file, and the partition ALONE was
+measured insufficient.
+
+**ALSO CORRECTED.** The ledger closure reader matched space-separated ids only, so a comma-separated
+CLOSED heading matched nothing and left both rows takeable - degrading to SILENTLY OPEN, not to the
+loud refusal its own note claimed.
+
+### 2026-09-13 - CS-1000 - CLOSED. The lane completed exactly one row per launch, and the cause was not in the lane
+
+**WHAT CHANGED.** `ops/loop/queue_loop.py` and `ops/loop/lane_launcher.py` publish their by-path
+module load under the canonical dotted name, so one `lanes` module exists per process.
+
+**THE DIAGNOSIS, from the driver's own report file rather than from a read.** Across two independent
+nights cycle 1 completed both times and EVERY subsequent cycle failed in 2.1 to 3.2 s. The detached
+driver runs the script by path, so `ops/loop` is on `sys.path` and the repo root is not,
+`import ops.loop.lanes` fails, and the two files each fell back to a by-path load under a DIFFERENT
+private name - two module objects, two ownership maps. Cycle 1's re-point landed in one, the release
+consulted the other, refused, and the launcher killed the worker it had just spawned. That is why
+every failed log ended at the header with no exit line.
+
+**PROVEN BY.** `tests/ops/test_queue_lane_relaunch.py::test_two_consecutive_lane_cycles_both_reach_a_spawned_worker`.
+The merger confirmed with its own probe calling the real binders: two modules and two maps on the
+unfixed tree in both load orderings, one of each on the fix, with a control asserting the dotted
+import was genuinely unavailable.
+
+**A FILED CLAIM WAS FALSE AND IS CORRECTED RATHER THAN DROPPED.** CS-1000 was filed claiming the
+driver discards the launch reason code. That shipped in CS-970 1h40m BEFORE the last driver row, so
+the rows cited as evidence were written by stale code. A decayed artifact read as current behaviour.
+
+**UNVERIFIED:** no real second-night worker was spawned; the arm fakes the spawn seam.
+
+### 2026-09-13 - CS-991 - NOT A COMPLETION RECORD. CS-991 STAYS OPEN, BLOCKED ON CS-1009. The claim store is built and its headline claim is in doubt under real use
+
+**CS-991 STAYS OPEN and this entry does not close it.** Its acceptance says a row taken by one lane
+is not takeable by another FOR THE LIFE OF THAT CYCLE. CS-1009 questions exactly that: the store
+decides HELD against the pid recorded in the claim, and an LLM worker reaches python through a fresh
+subprocess per call, so the claiming process exits immediately and the record reads RECLAIMABLE from
+that moment. The arms pass; the calling convention may defeat them.
+
+**WHAT MERGED.** `ops/loop/claims.py` keys claims by the ROW ID, never by queue index, line number or
+slot - those reorder on every close, and a record keyed by one would re-point when a row above it
+closed. A claim is resolved by the row its payload RECORDS, not by its file name. Proven by
+`tests/ops/test_row_claim.py::test_a_second_lane_offered_the_same_queue_takes_a_different_row` and
+`::test_a_crashed_cycle_does_not_release_its_claim`, the latter using `os._exit` so no `finally`,
+`atexit` or `__exit__` runs.
+
+**THE FIRST CUT SHIPPED A DEFECT WORSE THAN NO FEATURE, and the arm that should have caught it
+assumed it away.** The store rooted itself at the importing FILE, and each lane's worker runs in its
+OWN checkout, so the two lanes read different directories and were structurally blind to each other -
+an adversary reproduced both lanes holding one row across two real processes. The arm written to
+prove exclusion had passed an explicit shared root, so it could never see a defect that IS the root.
+`lanes.REPO_ROOT` already resolved the indirection and the store now uses it. The merger verified
+from a REAL git worktree, which is stronger than the arm, whose checkouts are synthetic.
+
+**THE DRIVER-SIDE / WORKER-SIDE ASYMMETRY IS THE GENERAL LESSON** and is recorded in the module:
+driver-side state may use the checkout because the driver runs from the main tree; WORKER-side state
+may not, because each lane worker runs in its own worktree. Two independent slices got this wrong in
+one session.
+
+### 2026-09-13 - CS-988 - NOT A COMPLETION RECORD. NOTHING CLOSED. CS-988 STAYS OPEN. The criterion swept the whole population and the band is seventeen, not four
+
+**CS-988 STAYS OPEN.** The sweep is a measurement, not a repair, and the seventeen instances it
+confirms are unrepaired.
+
+**WHAT WAS MEASURED.** The settled criterion was applied ON DISK to all 193 file-and-name pairs, the
+population re-derived by an independent AST scan returning 193 across 49 files. Leg 1 compared
+collect-only counts: 93 reduced the arm count, 43 did not, 48 could not be sliced, 9 were deferred.
+Leg 2 ran 93 against a guard set derived per candidate. **SEVENTEEN instances, 32 DEFENDED, 44
+INDETERMINATE** - the last left unranked rather than argued into a band. Per-site detail is in
+`docs/item_notes/cs988-sweep-record.md`, a declared departure from one-leaf-per-phase recorded in the
+routing table.
+
+**THREE FINDINGS WORTH MORE THAN THE COUNT.** The four instances on file reproduce, but the two
+DERIVED ones reconcile only at an offset of one: the prior pass's narrowing kept TWO members and the
+record did not say so. The obvious grep for the guard population gets it BACKWARDS - an `open` audit
+shows six nominated modules read nine files or fewer while three it never nominated read all 143. And
+**the backstop grades NONE of the seventeen**: six of those modules carry an equality arm, but none
+is wired to the knob that moved, proven by the run rather than argued.
+
+**A WARNING THAT MUST NOT BE READ THE OTHER WAY.** Three DEFENDED verdicts rest on a non-emptiness
+floor over a two or three member knob, so they are defended BY ARITHMETIC rather than by design - the
+same guard over a five-member population would pass the narrowing in silence. Correct under the
+criterion, and NOT evidence that a floor works.
+
+**THE CLASS REACHED FIVE NEW INSTANCES THIS SESSION, all inside repairs built to catch it:** the
+backstop guard's loop breadth (eight), an expectation taken from the population's own expression
+(nine), a converse leg's breadth (ten), a scope arm named for an equality that asserted a subset plus
+a floor (eleven), and lock slots keyed positionally by roster index (twelve).
+
+### 2026-09-13 - CS-993 - A FROZEN-FILE GRANT, GRANTED BY THE OPERATOR AND LEFT UNSPENT. Nothing was edited under it, and the reason is recorded so neither the grant nor the route it covers is re-pitched
+
+**CS-993 STAYS OPEN and this entry does not close it.** Its acceptance says two lanes cannot run a
+suite simultaneously, and two of the three pytest invocations in a cycle remain outside the ration -
+including the only one that forks. What merged is the driver-side half, and the detection route that
+addresses the remaining harm is filed as CS-1007.
+
+**THE GRANT EXISTS AND IS NOT SPENT.** The operator granted the exception on
+`.githooks/pre-push` in as many words. An adjudicator that wrote no part of CS-993, the hook or
+either prior grant then ruled DENY on the EDIT, and the grant is recorded here GRANTED AND UNSPENT
+rather than quietly dropped. That is the CS-972 shape on this same file: a grant issued, no edit ever
+made, because conditions could not be honestly met. **A grant is permission, not a design.**
+
+**THE GAP IS REAL AND WAS VERIFIED, not taken on the requester's word.** The hook's pytest
+invocation carries `-n auto --dist loadfile` and is the ONLY xdist run in a lane cycle. CS-993
+therefore covers none of the runs that fork, which is the mechanism the defect statement names. The
+requester reported that honestly and routed the proposal rather than taking the edit.
+
+**GROUND ONE - NO CEILING VALUE IS BOTH USEFUL AND SAFE.** A hook that waits usefully must wait at
+least one suite; at the shipped ceiling constant it would wait three hours. The hook's OWN header
+already rules on that scenario in as many words - a hung gate reads as a wedged suite and gets killed
+rather than diagnosed, which is worse than either answer. A ceiling short enough to be safe on an
+operator's interactive push falls through unrationed on essentially every real collision, making the
+ration decorative. The hook cannot tell a lane push from an interactive one: it reads exactly one
+environment variable, and CS-972's record already ruled that adding another IS ITSELF a frozen edit.
+
+**GROUND TWO - THE ONLY WORKING MECHANICS ARE FROZEN-FILE LAUNDERING.** `sh` cannot hold a Python
+context manager across a later command. The split form - acquire, run, release - records the
+ACQUIRING process's pid, which is dead before pytest starts, so the slot reads reclaimable at once
+and the next lane takes it: it would ration nothing while logging that it did. The only shape that
+works inserts a wrapper between the gate and pytest, and the hook's own prose names that shape as the
+CS-703 mechanism that turns all three tier-0 gates into no-ops. It would also move the gate's
+exit-code fidelity into a NON-FROZEN module editable without any grant at all. Disqualifying on its
+own.
+
+**NAMED AND REJECTED SO IT IS NOT RE-PITCHED AS CHEAP.** Injecting a ration plugin through
+`PYTEST_ADDOPTS` in the worker's environment reaches the hook's pytest with no frozen byte changed.
+It is rejected: it fails OPEN AND SILENT if the variable is lost anywhere along the driver, worker,
+git and hook chain, which is precisely the defect the ration exists to close, and it adds an
+environment-variable disarm surface to a tier-0 gate.
+
+**THE ROUTE THAT IS TAKEN INSTEAD IS DETECTION IN THE DRIVER, NOT PREVENTION IN THE GATE.** The harm
+is not the overlap; it is an unattended lane writing a green it did not earn. The driver already
+writes its ration verdict on every cycle and already refuses the cycle roll-up on an unrationed step.
+Extending that to OBSERVE whether a foreign suite ran during the window it already polls converts an
+unearned green into a re-run, costs no wait, hangs no push, and needs no grant. Filed as CS-1007.
+
+**A FALSE CLAIM IN THE MERGED CODE WAS CORRECTED IN THE SAME CHANGE.** `ration`'s module docstring
+quoted its coverage as one of three invocations as though that were unconditional. It holds only when
+the driver is asked for a local suite; the flag defaults to false, so on a default night the driver
+issues no suite and the ration covers zero of the two invocations that do run. The conditional was
+written correctly at the call site and wrongly in the summary, which is the half a reader sees.
+
+**ONE THING CS-993 MAKES WORSE, NARROWLY AND IN THE FAIL-CLOSED DIRECTION**, recorded rather than
+smoothed over: an unrationed but green suite now sets the cycle row not-ok, an outcome that did not
+exist before. That is the intended trade - an unmeasurable run should not read as an earned one - but
+it is a new way for a night to report failure.
 
 ### 2026-09-13 - CS-988 - NOT A COMPLETION RECORD. NOTHING CLOSED. CS-988 STAYS OPEN. The arm-count backstop's own omission knob is repaired, and the first cut of that repair was itself instance six
 
@@ -10775,6 +10690,91 @@ carries it with a weaker trigger. Neither is closed by this entry.
 
 Verification: `(cd shell && node --test)` - 315 tests, 315 pass, 0 fail, observed by the
 merger rather than reported. See `shell/test/state.test.js`.
+
+### 2026-09-05 - CS-909 - MEASUREMENT RECORD. The companion ran for the first time in the project's history, and the round that shipped it was REFUTED on five counts including a local code-execution vector
+
+**CS-909 STAYS OPEN and this entry does not close it.** Section 8.5 of
+`docs/OPERATIONS.md` now exists to hold its manual half, and one of its six checks
+is still unrun.
+
+**What shipped.** A desktop shortcut that starts the dashboard if nothing answers,
+opens the frameless companion against it, and keeps a system-tray presence where
+closing hides and Quit stops only what that launch started. Merged files:
+`shell/lib/supervisor.js`, `shell/lib/tray.js`, `shell/main.js`,
+`scripts/make_shortcut.py`, `docs/adr/0015-the-shell-may-start-the-surface.md`.
+Verified by `tests/shell/test_shell_assets.py::test_main_consumes_every_seam_it_was_given`,
+`::test_close_does_not_permanently_disable_persistence`,
+`shell/test/supervisor.test.js` and `shell/test/tray.test.js`.
+
+**IT HAD NEVER BEEN EXECUTED.** `shell/node_modules` did not exist at session
+start and every check in `docs/OPERATIONS.md` section 8.3 read `NOT RUN`. Five of
+six are now filled; check 6, deferral on a non-dashboard host, is not.
+
+**A RUNBOOK DEFECT MEASURED, NOT REASONED.** The pinned Electron ships NO `scripts`
+block, so `npm install` completes in about half a second having fetched no binary
+and exits 0. The runtime downloads lazily on the first `require`. Section 8.1 said
+otherwise and now does not.
+
+**FIVE REFUTATIONS OF THE FIRST ROUND, by one adjudicator and three adversaries
+that wrote none of it.** Each is repaired in `8777a89`.
+
+1. **A local code-execution vector.** `main.js` spawned the bare name `python`
+   with the repository root as the child's working directory. libuv searches that
+   directory BEFORE PATH; the root grants Modify to Authenticated Users on this
+   machine; the spawn hides its window and discards its output. The suppressing
+   environment variable is set at neither machine nor user scope, so an Explorer
+   launch has the search live - a first test came back clean only because a shell
+   had set it for itself.
+2. **A zombie.** With no tray, close correctly meant close, `window-all-closed`
+   fired with quitting false, and merely HAVING registered that listener
+   suppressed the default quit - leaving a process with no window, no tray and a
+   live dashboard it had started.
+3. **The tray guard tested the wrong proposition.** `new Tray()` handed an image
+   that decodes to nothing does NOT throw; it returns an ordinary non-null Tray
+   with an invisible icon.
+4. **No single-instance lock.** Two launches produced two windows and two tray
+   icons, and two writers on one `window-state.json` whose fixed-name partial file
+   is opened truncating - an interleave publishes a zero-byte state file over a
+   good one, falsifying `shell/lib/state.js`'s own atomicity header.
+5. **The wiring arms did not grade.** Fifteen mutations, THIRTEEN SURVIVED. A seam
+   was satisfiable from a string literal, from dead code, and both lib modules
+   could be replaced by local fakes and never loaded while every arm stayed green.
+   The only kill was a behaviour-preserving reformat.
+
+**THE REPAIR BRIEF WAS ITSELF REFUTED, and the spike wins.** It asserted that
+`shutil.which` excludes the current directory, making `scripts/make_cert.py` the
+safe precedent. Measured on the pinned interpreter with the guard absent, it
+returned a RELATIVE path to a planted file in the current directory. `make_cert.py`
+carries the same exposure. Filed as **CS-910** rather than fixed inside a slice
+that did not own it.
+
+**A MEASUREMENT IN THE SOURCE THAT DID NOT REPRODUCE.** `PROBE_ATTEMPT_CEILING`
+carried a recorded 2.217s-2.227s cold start and reasoned a margin from it. Measured
+through the actually shipped path - electron, `net`, `waitForSurface` verbatim - it
+is 0.46s to 0.53s, every sample answering on the first attempt. The ten-millisecond
+spread over five samples was the signature of a fixed constant, not a process
+start. The margin at the old ceiling was about twenty times, not the four and a
+half claimed. The comment now separates measured from judged.
+
+**A DECISION, RECORDED SO IT IS NOT RE-ARGUED.** The health probe uses electron's
+`net` rather than node's `https`. With a `ca` option holding the pinned certificate
+`https` works under stock node and FAILS under electron, which builds its node
+against BoringSSL: every probe returned `UNABLE_TO_VERIFY_LEAF_SIGNATURE` while the
+surface was demonstrably listening. Going through `net` also deletes a second trust
+decision rather than moving it - net requests reach `setCertificateVerifyProc`, so
+the probe and the page are pinned by one answer from `shell/lib/trust.js`. An
+adversary confirmed the pin against an impostor certificate on the same host, and
+separately confirmed that probing BEFORE the proc is installed poisons the network
+service's verdict cache so the proc never fires. That ordering is load-bearing and
+is graded by nothing.
+
+**A CORRECTION THIS ENTRY OWES TO `8210a3c`'s OWN MESSAGE.** That message states
+that section 8.3 checks 1 to 5 were observed. The file at that commit records only
+checks 1 and 3; checks 2, 4 and 5 were genuinely observed but never written down.
+`docs/GATED.md` names recording an unrun check as a result a failure class, and a
+commit message claiming a file says something it does not is that failure wearing a
+different hat. The tracked note at `docs/item_notes/phase6.md` was correct
+throughout. Repaired in `8777a89`.
 
 ### 2026-09-05 - CS-896 - MEASUREMENT RECORD. The mechanism shipped and PROVED ITSELF ON ITS FIRST REAL RUN by reporting the lane OVER BUDGET, and the same reading shows no valid ceiling exists at this lane's cost
 Verification: tier 1 run 33981934085 on `38f9599`, step `Duration against the budget`, which

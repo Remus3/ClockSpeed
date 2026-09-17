@@ -571,7 +571,9 @@ siblings sharing the root cause with a test for each.
 **Every fact has exactly ONE owner file. Other files link to it; they never restate it. A
 restated fact is a fact that will drift.**
 
-- **`docs/LEDGER.md`** gets the completion record, newest-first. **Cite the item id, the
+- **`docs/LEDGER.md`** gets the completion record, newest-first, directly under the
+  `## Entries` heading - never inside the `## Entry shape` template block above it, which
+  holds the template alone (`tests/test_ledger_entry_shape.py`). **Cite the item id, the
   merged file and the TEST NAME** - not a slice sha, which often does not survive a
   cherry-pick. Write the defect, the root cause, the sibling sweep result, the tests by
   name, the tier you paid, the verifier verdict, and the exact counts you observed this run.
