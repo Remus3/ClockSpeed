@@ -438,7 +438,13 @@ function wirePersistence(win, directory, persistedAlwaysOnTop) {
   // The close handler below therefore returns BEFORE touching it on the hide
   // path. Nothing else in this file writes it.
 
-  const persist = () => {
+  // CS-1124 - EVERY CALLER NAMES ITS RENAME BUDGET. save() blocks this thread
+  // while a held state file is retried. The debounced save runs behind a live
+  // window and can afford state.RENAME_DEADLINE_MS; the two close paths below
+  // run while the operator waits for the window to go, and pass
+  // state.RENAME_CLOSE_DEADLINE_MS so a stuck file cannot hold a close longer
+  // than the old retry loop already did.
+  const persist = (renameDeadlineMs) => {
     try {
       // getNormalBounds rather than getBounds: while a window is maximized or
       // minimized, getBounds reports the maximized rectangle, and remembering
@@ -451,7 +457,7 @@ function wirePersistence(win, directory, persistedAlwaysOnTop) {
         width: bounds.width,
         height: bounds.height,
         alwaysOnTop: persistedAlwaysOnTop,
-      });
+      }, { renameDeadlineMs });
     } catch {
       // A window that cannot write its position is a window that opens
       // somewhere unremarkable next time. That is a far better outcome than a
@@ -470,7 +476,7 @@ function wirePersistence(win, directory, persistedAlwaysOnTop) {
     }
     timer = setTimeout(() => {
       timer = null;
-      persist();
+      persist(state.RENAME_DEADLINE_MS);
     }, PERSIST_DEBOUNCE_MS);
   };
 
@@ -502,14 +508,14 @@ function wirePersistence(win, directory, persistedAlwaysOnTop) {
       // The position is still written on this path: an operator may leave it
       // hidden for days and never quit at all, and a hidden window that forgot
       // where it was is the same defect as a closed one that did.
-      persist();
+      persist(state.RENAME_CLOSE_DEADLINE_MS);
       event.preventDefault();
       win.hide();
       return;
     }
 
     closing = true;
-    persist();
+    persist(state.RENAME_CLOSE_DEADLINE_MS);
   });
 }
 
