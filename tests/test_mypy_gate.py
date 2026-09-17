@@ -417,25 +417,45 @@ def _uncovered_within(
     }
 
 
-# The ONLY ambient variables a mypy subprocess here inherits (CS-1125): what the
-# interpreter needs to START on Windows and on Linux, and nothing mypy reads to
-# decide what it reports. An ALLOWLIST, because the denylist it replaced leaked:
-# it dropped PYTHONPATH and MYPY* and still passed FORCE_COLOR, which mypy reads
-# as the fallback for MYPY_FORCE_COLOR, and PYTHONIOENCODING, which re-encodes
-# every byte mypy prints. The set mypy and its interpreter read is open-ended -
-# mypy spawns a child interpreter over os.environ and expands $VARIABLES inside
-# config values - so no denylist can be shown complete, and an allowlist fails
-# LOUD (mypy cannot start, every arm reddens) where a denylist fails as an empty
-# parse.
-#   Windows start-up: SYSTEMROOT (CPython's random seeding and sockets), WINDIR,
-#     SYSTEMDRIVE, COMSPEC, PATHEXT; per-user dirs so a user-site mypy imports:
-#     USERPROFILE, HOMEDRIVE, HOMEPATH, APPDATA, LOCALAPPDATA.
-#   Both: PATH, and the temporary directory mypy's workers may use: TEMP, TMP.
-#   POSIX start-up: HOME (user site), TMPDIR, LANG, LC_ALL, LC_CTYPE, and
-#     LD_LIBRARY_PATH for a shared-library interpreter build.
+# WHAT A MYPY SUBPROCESS HERE IS CONTROLLED BY (CS-1125). Three mechanisms, and
+# each closes a leak that was measured, not imagined:
+#
+# 1. AN ALLOWLIST of inherited variables. The denylist it replaced dropped
+#    PYTHONPATH and MYPY* and still passed FORCE_COLOR, which mypy reads as the
+#    fallback for MYPY_FORCE_COLOR, and PYTHONIOENCODING, which re-encodes every
+#    byte mypy prints. What mypy and its interpreter read is open-ended - mypy
+#    starts a child interpreter over os.environ and expands $VARIABLES inside
+#    config values - so no denylist can be shown complete, and a missing
+#    allowlist entry fails LOUD (mypy cannot start) where a denylist leak fails
+#    as an empty parse.
+# 2. PINS laid over it (``_PINNED_ENVIRONMENT``). PYTHONNOUSERSITE=1, because
+#    a .pth file in the per-user site directory runs at interpreter start and
+#    put a throwaway project on the search path mypy builds from its child
+#    interpreter's sys.path. Pinned in the ENVIRONMENT rather than passed as
+#    `python -s`, because every interpreter mypy itself starts inherits the
+#    environment and none inherits the flag. A per-user-installed mypy therefore
+#    cannot import here - every arm reddens, which is the loud failure intended.
+#    PYTHONIOENCODING=utf-8, because the output is decoded as UTF-8 here.
+# 3. AN EXPLICIT CONFIG on every run (``_run_mypy`` has no default for it).
+#    With no config beside the project, mypy falls back to ~/.mypy.ini or
+#    ~/.config/mypy/config, located through home variables kept below.
+#
+# DELIBERATELY KEPT, AND WHY - the interpreter needs these to start or to
+# resolve its own paths, and each reader that could turn one into a leak is shut
+# by mechanism 2 or 3 above:
+#   Windows: SYSTEMROOT (CPython's random seeding and sockets), WINDIR,
+#     SYSTEMDRIVE, COMSPEC, PATHEXT.
+#   Both: PATH; TEMP and TMP for temporary files.
+#   Home, for `~` expansion (mypy expands it in cache and config paths, and on
+#     Windows an unset USERPROFILE leaves `~` literal): HOME, USERPROFILE,
+#     HOMEDRIVE, HOMEPATH. Their other readers - the per-user site and the
+#     per-user config - are mechanisms 2 and 3.
+#   POSIX: TMPDIR, LANG, LC_ALL, LC_CTYPE, and LD_LIBRARY_PATH for a
+#     shared-library interpreter build.
+# NOT kept: APPDATA and LOCALAPPDATA, whose only reader on this path was the
+# per-user site directory.
 _INHERITED_FOR_STARTUP: frozenset[str] = frozenset(
     {
-        "APPDATA",
         "COMSPEC",
         "HOME",
         "HOMEDRIVE",
@@ -444,7 +464,6 @@ _INHERITED_FOR_STARTUP: frozenset[str] = frozenset(
         "LC_ALL",
         "LC_CTYPE",
         "LD_LIBRARY_PATH",
-        "LOCALAPPDATA",
         "PATH",
         "PATHEXT",
         "SYSTEMDRIVE",
@@ -457,9 +476,7 @@ _INHERITED_FOR_STARTUP: frozenset[str] = frozenset(
     }
 )
 
-# Set rather than inherited. mypy's output is decoded as UTF-8 in this process,
-# so the child is told to write UTF-8 instead of whatever its locale picks.
-_PINNED_ENVIRONMENT: dict[str, str] = {"PYTHONIOENCODING": "utf-8"}
+_PINNED_ENVIRONMENT: dict[str, str] = {"PYTHONIOENCODING": "utf-8", "PYTHONNOUSERSITE": "1"}
 
 
 def _controlled_environment(ambient: Mapping[str, str] | None = None) -> dict[str, str]:
@@ -470,7 +487,8 @@ def _controlled_environment(ambient: Mapping[str, str] | None = None) -> dict[st
     ``PYTHONPATH=.`` a throwaway project landed on mypy's search path and mypy
     printed Success over a real error; under ``FORCE_COLOR=1`` every line
     carried ANSI escapes no parser here matches. So nothing is inherited except
-    ``_INHERITED_FOR_STARTUP``, and ``_PINNED_ENVIRONMENT`` is laid over it.
+    ``_INHERITED_FOR_STARTUP``, and ``_PINNED_ENVIRONMENT`` is laid over it. The
+    comment above that set says what each kept variable is for.
 
     Matched CASE-INSENSITIVELY: on Windows ``dict(os.environ)`` upper-cases its
     keys, but a mapping built any other way need not. A kept variable keeps
@@ -489,7 +507,7 @@ def _controlled_environment(ambient: Mapping[str, str] | None = None) -> dict[st
 
 def _run_mypy(
     *args: str,
-    config: Path | None = None,
+    config: Path,
     cache: Path | None = None,
     cwd: Path | None = None,
     env: Mapping[str, str] | None = None,
@@ -503,7 +521,9 @@ def _run_mypy(
 
     Args:
         *args: Trailing mypy arguments, usually target paths.
-        config: Optional config file to use instead of pyproject.toml.
+        config: The config file mypy reads. REQUIRED, with no default: a run
+            left to discover one falls back to a per-user config whenever no
+            project config sits beside it (CS-1125).
         cache: Optional cache directory, so a generated config never writes
             into the repository's own incremental cache.
         cwd: Optional working directory, defaulting to the repository root.
@@ -518,9 +538,7 @@ def _run_mypy(
     Raises:
         UnicodeDecodeError: mypy wrote a stream that is not UTF-8.
     """
-    command = [sys.executable, "-m", "mypy", "--no-pretty"]
-    if config is not None:
-        command += ["--config-file", str(config)]
+    command = [sys.executable, "-m", "mypy", "--no-pretty", "--config-file", str(config)]
     if cache is not None:
         command += ["--cache-dir", str(cache)]
     command += list(args)
@@ -613,7 +631,7 @@ def _measure_gaps(
         The completed process.
     """
     targets = [str(entry) for entry in _mypy_config(root)["files"]]
-    return _run_mypy(*targets, *gaps, cache=cache, cwd=root)
+    return _run_mypy(*targets, *gaps, config=root / "pyproject.toml", cache=cache, cwd=root)
 
 
 def _gap_count_mismatches(
@@ -733,7 +751,7 @@ def repo_wide_mypy() -> subprocess.CompletedProcess[str]:
     Returns:
         The completed process.
     """
-    return _run_mypy()
+    return _run_mypy(config=REPO_ROOT / "pyproject.toml")
 
 
 class _SyntheticGap(NamedTuple):
@@ -793,7 +811,7 @@ def synthetic_gap(tmp_path_factory: pytest.TempPathFactory) -> _SyntheticGap:
     )
 
     gap = "orphan/broken.py"
-    gate = _run_mypy(cache=root / "gate_cache", cwd=root)
+    gate = _run_mypy(config=root / "pyproject.toml", cache=root / "gate_cache", cwd=root)
     measured = _measure_gaps([gap], root=root, cache=root / "measure_cache")
     return _SyntheticGap(
         root=root,
@@ -1067,7 +1085,7 @@ def test_the_oracle_reproduces_the_real_runs_discovered_set(tmp_path: Path) -> N
     # it lists the DISCOVERED set, so it agrees with the oracle rather than
     # with the larger reported-on set.
     report_dir = tmp_path / "report"
-    _run_mypy("--linecount-report", str(report_dir))
+    _run_mypy("--linecount-report", str(report_dir), config=REPO_ROOT / "pyproject.toml")
     lines = (report_dir / "linecount.txt").read_text(encoding="utf-8").splitlines()
     # Four count columns then the module name; the first row is the "total".
     real = {
@@ -1270,6 +1288,7 @@ def test_the_controlled_environment_is_an_allowlist_in_any_case() -> None:
     ambient = {
         "Path": "kept",
         "SystemRoot": "kept",
+        "AppData": "dropped",
         "PythonPath": ".",
         "mypypath": ".",
         "force_color": "1",
@@ -1283,20 +1302,117 @@ def test_the_controlled_environment_is_an_allowlist_in_any_case() -> None:
     }
 
 
+def _hostile_home(root: Path) -> dict[str, str]:
+    """Build a fake user home that plants a mypy config, and name its variables.
+
+    Every per-user config location mypy falls back to when no project config is
+    found carries ``ignore_errors = True``, so a run that reads any of them
+    reports Success over a real error.
+
+    Args:
+        root: Directory to build the fake home under.
+
+    Returns:
+        The variables that point a process at that home, on Windows and POSIX.
+    """
+    home = root / "hostile_home"
+    planted = "[mypy]\nignore_errors = True\n"
+    for config in (home / ".mypy.ini", home / ".config" / "mypy" / "config"):
+        config.parent.mkdir(parents=True, exist_ok=True)
+        config.write_text(planted, encoding="utf-8")
+    return {
+        "HOME": str(home),
+        "USERPROFILE": str(home),
+        "XDG_CONFIG_HOME": str(home / ".config"),
+        "APPDATA": str(home / "AppData" / "Roaming"),
+    }
+
+
 @pytest.mark.slow
-def test_a_non_ascii_path_in_mypy_output_decodes_under_the_pin(tmp_path: Path) -> None:
-    # The PYTHONIOENCODING pin is load-bearing, not decoration. Measured on
-    # Windows: without it the child writes a non-ASCII path in the locale's
-    # code page and this process's UTF-8 decode raises. A UTF-8 locale makes
-    # the two agree without the pin, so there this arm cannot tell them apart.
+def test_a_non_ascii_path_decodes_and_no_user_config_reaches_the_run(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # Two controls, one project, because both bite only a project with no config
+    # file of its own beside it.
+    #
+    # THE PYTHONIOENCODING PIN. Measured on Windows: without it the child writes
+    # a non-ASCII path in the locale's code page and this process's UTF-8
+    # decode raises. A UTF-8 locale agrees without the pin, so there this arm
+    # cannot tell them apart.
+    #
+    # THE EXPLICIT CONFIG. With no config beside the project, mypy falls back to
+    # a per-user one - ~/.mypy.ini, ~/.config/mypy/config - and the home
+    # variables that locate it are ones the interpreter keeps. A real
+    # ~/.mypy.ini with ignore_errors turned this arm into Success over an error.
     project = tmp_path / "throwaway"
     (project / "src").mkdir(parents=True)
-    module = "caf\u00e9"
+    module = "caf" + chr(0xE9)
     (project / "src" / f"{module}.py").write_text("x: int = 'not a number'\n", encoding="utf-8")
+    home = _hostile_home(tmp_path)
 
-    result = _run_mypy("src", cache=tmp_path / "cache", cwd=project)
+    # ANTI-VACUITY: the planted home really is read by a run that names no config.
+    discovering = subprocess.run(
+        [sys.executable, "-m", "mypy", "--no-pretty", "--cache-dir", str(tmp_path / "c0"), "src"],
+        cwd=project,
+        env={**_controlled_environment(), **home},
+        capture_output=True,
+        check=False,
+    ).stdout.decode("utf-8")
+    assert _errors_by_file(discovering) == {}, f"the planted config was not read:\n{discovering}"
+
+    # The run names a config that is NOT beside the project, so dropping the
+    # name would leave mypy discovering - and finding the planted home.
+    config = tmp_path / "named_config" / "mypy.ini"
+    config.parent.mkdir()
+    config.write_text("[mypy]\n", encoding="utf-8")
+    for name, value in home.items():
+        monkeypatch.setenv(name, value)
+    result = _run_mypy("src", config=config, cache=tmp_path / "cache", cwd=project)
 
     assert _errors_by_file(result.stdout) == {f"src/{module}.py": 1}, result.stdout
+
+
+@pytest.mark.slow
+def test_a_planted_user_site_cannot_reach_the_exclusion_arm(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # A .pth file in the per-user site-packages directory is executed at
+    # interpreter start, and mypy builds its search path from a child
+    # interpreter's sys.path. One naming the throwaway project's src put the
+    # excluded leaf on that path: Success over a real error, the CS-1125
+    # symptom again, located through APPDATA on Windows and HOME on POSIX.
+    # HOME stays inherited, so on POSIX only the PYTHONNOUSERSITE pin holds;
+    # the direct half below plants APPDATA over the pins too, so the pin is
+    # proven on Windows as well rather than the allowlist standing in for it.
+    project = tmp_path / "throwaway"
+    config = _build_exclusion_project(project)
+    home = _hostile_home(tmp_path)
+    hostile = {**_controlled_environment(), **home}
+    user_site = (
+        subprocess.run(
+            [sys.executable, "-c", "import site; print(site.getusersitepackages())"],
+            env=hostile,
+            capture_output=True,
+            check=True,
+        )
+        .stdout.decode("utf-8")
+        .strip()
+    )
+    Path(user_site).mkdir(parents=True)
+    (Path(user_site) / "cs1125_plant.pth").write_text(f"{project / 'src'}\n", encoding="utf-8")
+
+    # ANTI-VACUITY: with the user site enabled, the plant really breaks the arm.
+    enabled = {name: value for name, value in hostile.items() if name.upper() != "PYTHONNOUSERSITE"}
+    with pytest.raises(AssertionError):
+        _run_exclusion_arm(project, config, tmp_path / "enabled_cache", env=enabled)
+
+    # The controls hold with the hostile home planted directly over them...
+    _run_exclusion_arm(project, config, tmp_path / "direct_cache", env=hostile)
+
+    # ...and when it is merely ambient.
+    for name, value in home.items():
+        monkeypatch.setenv(name, value)
+    _run_exclusion_arm(project, config, tmp_path / "ambient_cache")
 
 
 def test_the_importers_of_the_environment_verifier_are_recorded(repo_files: list[Path]) -> None:
