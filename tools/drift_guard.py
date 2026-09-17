@@ -803,6 +803,132 @@ def _strip_inline_code(line: str) -> str:
     return "".join(out)
 
 
+#: A blockquote marker: up to three spaces, ">", and one OPTIONAL following
+#: space that is part of the marker rather than of the content. Applied
+#: repeatedly, so nesting is counted rather than assumed to be one deep.
+_BLOCKQUOTE_MARKER = re.compile(r"^ {0,3}> ?")
+
+#: A list item marker: a bullet, or up to nine digits and a delimiter, then the
+#: spaces that separate it from the item's content. The CONTENT COLUMN this
+#: yields is what every indent inside the item is measured against - it is the
+#: whole reason this module has a container model at all (CS-895).
+_LIST_MARKER = re.compile(r"^(?P<marker>[-+*]|\d{1,9}[.)])(?P<space> *)(?P<rest>.*)$")
+
+#: An indented code block opens at four columns past its container's content
+#: column. The same four is what separates one from ordinary list content, and
+#: getting that distinction wrong is silent - see ``_outside_code``.
+_INDENTED_CODE_INDENT = 4
+
+#: CommonMark gives a marker followed by more than four spaces, or by nothing,
+#: a content column one past the marker rather than at the text.
+_MAX_MARKER_PADDING = 4
+
+
+def _strip_blockquote(line: str) -> tuple[str, int]:
+    """Peel every blockquote marker off one line and count them.
+
+    Args:
+        line: One raw line.
+
+    Returns:
+        ``(remainder, depth)`` - the line with its markers removed, and how
+        many were removed.
+    """
+    depth = 0
+    rest = line
+    while True:
+        match = _BLOCKQUOTE_MARKER.match(rest)
+        if match is None:
+            return rest, depth
+        rest = rest[match.end() :]
+        depth += 1
+
+
+def _list_content_column(stripped: str, indent: int) -> int | None:
+    """The content column a list marker opens, or ``None`` if it is not one.
+
+    Args:
+        stripped: The line with its indentation already removed.
+        indent: How many columns of indentation were removed.
+
+    Returns:
+        The column at which the item's content begins, or ``None``.
+    """
+    match = _LIST_MARKER.match(stripped)
+    if match is None:
+        return None
+    marker = match.group("marker")
+    padding = len(match.group("space"))
+    if padding == 0 and match.group("rest"):
+        # "-word" is not a list item; the marker needs whitespace after it.
+        return None
+    if padding == 0 or padding > _MAX_MARKER_PADDING or not match.group("rest"):
+        padding = 1
+    return indent + len(marker) + padding
+
+
+def _fence_step(
+    rest: str, run: str, depth: int, indent: int, fence_depth: int, fence_column: int
+) -> tuple[str, bool]:
+    """Advance an OPEN fence by one line.
+
+    A FENCE DOES NOT OUTLIVE ITS CONTAINER. A line at a shallower blockquote
+    depth, or at a lesser indent than the column the fence opened in, ends the
+    container and so ends the fence - CommonMark gives a fenced block no lazy
+    continuation. That is the same standing choice P3 records in
+    ``_outside_code``: erring toward CLOSING loses a little strictness and
+    cannot swallow a file.
+
+    Args:
+        rest: The line with its blockquote markers already peeled off.
+        run: The open fence's delimiter run.
+        depth: The line's blockquote depth.
+        indent: The line's indentation, measured after the peel.
+        fence_depth: The blockquote depth the fence opened at.
+        fence_column: The container content column the fence opened at.
+
+    Returns:
+        ``(run, consumed)`` - the still-open run or the empty string, and
+        whether this line belongs to the fence and is therefore blanked here.
+        A line that ended the container is NOT consumed: it is reprocessed as
+        ordinary content by the caller.
+    """
+    if depth < fence_depth or indent < fence_column:
+        return "", False
+    match = _FENCE_LINE.match(rest)
+    if (
+        match is not None
+        and match.group("run")[0] == run[0]
+        and len(match.group("run")) >= len(run)
+        and not match.group("info").strip()
+    ):
+        return "", True
+    return run, True
+
+
+def _fence_opener(stripped: str, relative: int) -> str | None:
+    """The delimiter run this line opens a fence with, or ``None``.
+
+    Args:
+        stripped: The line with blockquote markers and indentation removed.
+        relative: The line's indent measured against its container's content
+            column, which is what the three-space opener cap applies to.
+
+    Returns:
+        The opening run, or ``None`` if the line opens no fence.
+    """
+    if relative > _MAX_FENCE_INDENT:
+        return None
+    match = _FENCE_LINE.match(stripped)
+    if match is None:
+        return None
+    found = match.group("run")
+    if found[0] == "`" and "`" in match.group("info"):
+        # A backtick run whose info string holds a backtick is inline code.
+        return None
+    return found
+
+
 def _outside_code(text: str) -> tuple[str, bool]:
     """Blank every CODE region - fenced blocks and inline spans alike.
 
@@ -831,27 +957,43 @@ def _outside_code(text: str) -> tuple[str, bool]:
     applied to openers only. This errs toward CLOSING a fence, which loses a
     little strictness and cannot swallow a file.
 
-    STATED RESIDUALS - THIS MODEL IS LINE-ORIENTED AND HAS NO CONTAINER MODEL.
-    Markdown containers are not tracked, so a fence is not recognised as
-    belonging to a list item or a blockquote, and an indented code block is
-    not recognised at all. Three shapes are therefore still reported as
-    dangling citations when they are code. They are recorded here with their
-    exact inputs, and pinned by name in the test module, rather than guessed
-    at - a wrong container model would trade this loud failure for a SILENT
-    one, which is the worse of the two:
+    CS-895 - THERE IS NOW A CONTAINER MODEL, AND P1, P2 AND P4 ARE CLOSED BY IT.
+    Blockquote markers are peeled off each line and counted, list items push
+    their CONTENT COLUMN onto a stack, and every indent this function cares
+    about - the opener cap, and the four columns that open an indented code
+    block - is measured against the innermost open container rather than
+    against the document margin. The three shapes that used to be reported as
+    dangling citations when they are code now read as code:
 
-      P1  a fenced block inside a NESTED list item, where the fence is
-          indented four spaces and so is never seen as an opener:
-          "- outer" / "  - inner" / "" / "    ```" / "    [[x]]" / "    ```"
-      P2  a fenced block inside a BLOCKQUOTE, where every line is prefixed
-          "> " and the fence never starts the line:
-          "> ```" / "> [[x]]" / "> ```"
-      P4  a top-level FOUR-SPACE INDENTED code block, which uses no fence at
-          all: "" / "    [[x]]" / "    key = 1"
+      P1  a fenced block inside a NESTED list item, indented four spaces,
+          which is zero against the inner item's content column.
+      P2  a fenced block inside a BLOCKQUOTE, whose "> " prefix is stripped
+          before the fence scan rather than hiding the fence from it.
+      P4  a FOUR-SPACE INDENTED code block, which uses no fence at all.
 
-    A multi-line inline span - a run of backticks opened on one line and
-    closed on the next - is a fourth residual, for the same reason: spans are
-    matched within a line.
+    THE HALF OF P4 THAT GOES SILENTLY WRONG IS THE HALF THE COLUMN STACK
+    EXISTS FOR, and it is the reason this was not guessed at earlier. Four
+    spaces from the margin is a code block; four spaces inside a list item
+    whose content column is two is ORDINARY CONTENT, and excluding it would
+    drop a real citation with nothing to notice afterwards. Measuring against
+    the container is what tells the two apart, and
+    ``test_four_spaces_inside_a_list_item_is_content_and_not_a_code_block``
+    is the arm that fails if it stops doing so. The blank-line requirement is
+    the same defence in the other direction: an indented line may not
+    interrupt a paragraph, so wrapped prose a writer happened to indent is not
+    silently swallowed.
+
+    A FENCE DOES NOT OUTLIVE ITS CONTAINER. A line at a shallower blockquote
+    depth, or at a lesser indent than the column its fence opened in, closes
+    that fence - CommonMark gives a fenced block no lazy continuation. This is
+    the same standing choice P3 records: erring toward CLOSING loses a little
+    strictness and cannot swallow a file.
+
+    STATED RESIDUALS. A multi-line inline span - a run of backticks opened on
+    one line and closed on the next - is still read as literal text, because
+    spans are matched within a line. Setext headings, HTML blocks and link
+    reference definitions are not modelled as containers either; none of them
+    can hide a fence, so none of them changes what is blanked.
 
     Args:
         text: The markdown source.
@@ -865,25 +1007,56 @@ def _outside_code(text: str) -> tuple[str, bool]:
     """
     kept: list[str] = []
     run = ""
+    fence_depth = 0
+    fence_column = 0
+    columns: list[int] = []
+    code_base: int | None = None
+    prev_blank = True
     for line in text.splitlines():
-        match = _FENCE_LINE.match(line)
-        if match is None:
-            kept.append("" if run else _strip_inline_code(line))
+        rest, depth = _strip_blockquote(line)
+        stripped = rest.lstrip(" ")
+        indent = len(rest) - len(stripped)
+
+        if not stripped:
+            kept.append("")
+            prev_blank = True
             continue
-        found = match.group("run")
-        info = match.group("info")
-        if not run:
-            if len(match.group("indent")) > _MAX_FENCE_INDENT or (found[0] == "`" and "`" in info):
-                # Too deeply indented to open a fence, or a backtick run whose
-                # info string holds a backtick - which makes it inline code.
-                kept.append(_strip_inline_code(line))
+
+        if run:
+            run, consumed = _fence_step(rest, run, depth, indent, fence_depth, fence_column)
+            if consumed:
+                kept.append("")
                 continue
-            run = found
+
+        if code_base is not None:
+            if indent - code_base >= _INDENTED_CODE_INDENT:
+                kept.append("")
+                prev_blank = False
+                continue
+            code_base = None
+
+        while columns and indent < columns[-1]:
+            columns.pop()
+        base = columns[-1] if columns else 0
+        relative = indent - base
+
+        if prev_blank and relative >= _INDENTED_CODE_INDENT:
+            code_base = base
+            kept.append("")
+            prev_blank = False
+            continue
+
+        prev_blank = False
+        found = _fence_opener(stripped, relative)
+        if found is not None:
+            run, fence_depth, fence_column = found, depth, base
             kept.append("")
             continue
-        if found[0] == run[0] and len(found) >= len(run) and not info.strip():
-            run = ""
-        kept.append("")
+
+        column = _list_content_column(stripped, indent)
+        if column is not None:
+            columns.append(column)
+        kept.append(_strip_inline_code(line))
     return "\n".join(kept), bool(run)
 
 

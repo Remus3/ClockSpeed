@@ -460,6 +460,94 @@ None of the three states a total. Proof of scope: `git diff --numstat` reads `3 
 and nothing else changes; `ruff format --check` and `ruff check .` clean. The CS-1096 limit F5
 and its `_COMMENT_ALLOWLIST` entry retire with the arm that grades the derived set.
 
+### 2026-09-16 - CS-895 - CLOSED. The memory citation guard now has a container model, and the three pinned residuals are inverted
+
+**THE DEFECT.** Guard (b)'s code scanner was line-oriented with no container model, so three
+shapes read as prose and had their contents resolved as citations. The failure direction is a
+FALSE POSITIVE and guard (b) runs in the pre-commit and pre-push path, so each shape did not
+merely mislead a reader - it would have BLOCKED EVERY COMMIT AND PUSH in the repository until
+the document was rewritten. CS-890 recorded all three rather than guessing at them, because a
+wrong container model trades a loud failure for a silent one.
+
+**THE ROOT CAUSE, WHICH IS ONE THING AND NOT THREE.** Every indent the scanner tested was
+measured against the DOCUMENT MARGIN. P1's fence sits four columns in because a nested list
+item put it there; P2's fence never starts its line because a blockquote marker precedes it;
+P4 has no fence at all and is defined purely by an indent. All three are the same missing
+fact - the column the innermost open container's content begins at.
+
+**WHAT CHANGED.** `tools/drift_guard.py`: `_strip_blockquote` peels and counts blockquote
+markers, `_list_content_column` derives the content column a list marker opens, and
+`_outside_code` carries a stack of open columns. The opener cap and the four columns that
+open an indented code block are both measured against the innermost container rather than the
+margin. `_fence_step` advances an open fence and ENDS IT WITH ITS CONTAINER - a line at a
+shallower blockquote depth or a lesser indent closes the fence, which is the same erring-
+toward-closing choice P3 already recorded, and it is what stops the model swallowing a file.
+
+**THE HALF THAT GOES SILENTLY WRONG, AND THE ARM THAT OWNS IT.** Four spaces from the margin
+is a code block; four spaces inside a list item whose content column is two is ORDINARY
+CONTENT. A model that excluded the second drops a real citation with nothing to notice
+afterwards, which is strictly worse than the loud failure being repaired.
+`test_four_spaces_inside_a_list_item_is_content_and_not_a_code_block` fails the moment that
+distinction stops being made, and `test_an_indented_line_may_not_interrupt_a_paragraph` holds
+the other half of the same rule.
+
+**PROVEN BY**, in `tests/data/test_drift_guard_data.py` - the three inverted arms
+`test_a_fence_inside_a_nested_list_item_is_recognised`,
+`test_a_fence_inside_a_blockquote_is_recognised` and
+`test_a_four_space_indented_code_block_is_recognised`, each of which was watched failing
+first against the unrepaired scanner with a dangling `[[tool.mypy.overrides]]` named in the
+verdict; plus five anti-vacuity controls, every one of which plants a DANGLING target the
+exclusion must not reach and asserts the guard still reddens AND still names it:
+`test_four_spaces_inside_a_list_item_is_content_and_not_a_code_block`,
+`test_an_indented_line_may_not_interrupt_a_paragraph`,
+`test_a_dangling_link_beside_a_blockquote_fence_still_reddens`,
+`test_a_dangling_link_in_a_list_item_beside_a_fence_still_reddens` and
+`test_a_list_item_closes_its_containers_when_the_indent_falls_back`. The five pass BEFORE the
+repair as well as after, which is what makes them controls rather than arms. Merged file:
+`tools/drift_guard.py`.
+
+**THE CENSUS THAT BOUNDS THE SILENT DIRECTION, because the arms above grade shapes rather than
+the corpus.** The old and new scanners were run side by side over all 91 tracked markdown
+files and their resolved citation sets compared per file: 0 files differ, 0 citations lost, 0
+gained, and no file's unterminated-fence answer changed. The comparison is NOT blind to its
+subject - run against a planted P1 shape the same code reports the wikilink as lost, so a
+difference in the corpus would have been seen. This corroborates the item note's
+"NO LIVE INSTANCE TODAY" by measurement rather than by re-reading it.
+
+**WHAT REMAINS, STATED RATHER THAN ROUNDED UP.** A multi-line inline span - a backtick run
+opened on one line and closed on the next - is still read as literal text, because spans are
+matched within a line. It was a stated residual before this item and is one after it; CS-895's
+acceptance names the three container shapes and nothing else. Setext headings, HTML blocks and
+link reference definitions are not modelled either, and none of them can hide a fence.
+
+**TIER 2** - the guard runs in the pre-commit and pre-push path of every commit in the
+repository. The whole tree was run once on the frozen candidate, written to a file and read
+back: `8362 passed, 5 skipped, 12 deselected, 8 warnings in 1592.88s (0:26:32)`, pytest exit
+0. `python -m ruff check .` clean, `python -m ruff format --check .` clean. THE CI VERDICT IS
+RECORDED BY THE LANE DRIVER AND WAS NOT OBSERVED BY THE WORKER THAT WROTE THIS ENTRY.
+
+**VERIFIER: CONFIRM**, one pass, by an agent that did not produce the work, graded against the
+acceptance clause and the item's own fence. It re-derived the census from scratch rather than
+rerunning the author's - 91 files, 112 citations under HEAD and 112 under the candidate, 0
+files differing - and built 62 adversarial shapes of its own: ordered markers, list depths one
+to three, nested and lazily continued blockquotes, thematic breaks, setext headings, tables,
+hanging indents, tabs, HTML blocks and link reference definitions. Every divergence it found
+was a CORRECT CommonMark exclusion, and it applied three in-memory mutants to prove the
+controls kill.
+
+**TWO MEASURED GAINS NOBODY ASKED FOR, recorded because they change behaviour.** An unclosed
+fence inside a list item or a blockquote no longer swallows the rest of the file: `_fence_step`
+ends it with its container. That is the erring-toward-closing rule paying for itself.
+
+**ONE CONTROL IS WEAKER THAN ITS OWN DOCSTRING, and this is recorded rather than rounded up
+because a caveat said in a cycle report is not a caveat in the artifact.**
+`test_a_list_item_closes_its_containers_when_the_indent_falls_back` SURVIVES a mutant that
+removes the column-stack pop entirely. Its plant returns to the document margin, where a stale
+container column yields a NEGATIVE relative indent and so still fails the code-block test - the
+arm reaches its verdict by a route that does not need the pop. The other four controls each
+kill their own mutant. A later cycle strengthening this should plant at an indent BETWEEN the
+stale column and the margin, where a missing pop changes the answer.
+
 ### 2026-09-16 - CS-1114 - CLOSED. The save-name skip fails safe, and a false positive is never traded for a leak
 
 **WHAT CHANGED.** The raw-prefix scan in `clockspeed/save/header.py` skips the offset-12 string slot
