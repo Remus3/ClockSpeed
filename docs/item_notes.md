@@ -75,9 +75,13 @@ pointer that still names `docs/history_notes.md` names a block genuinely still t
 unbuilt path is a dead citation to `tests/test_docs_citations.py`, whose only routes are
 ratcheted budgets.
 
-**A pointer inside a body saying "this file" means the leaf that body sits in.** Every
-one of those was measured before the 2026-08-25 split and every one is a self-reference
-into its own section, so the split falsified none of them.
+**A pointer inside a body saying "this file" or "this leaf" means the leaf that body was
+FILED in** - which is the leaf it sits in unless a later relocation moved the body between
+leaves, because a relocated body is never edited to follow its new home. Every "this file"
+pointer was measured before the 2026-08-25 split and every one is a self-reference into its
+own section, so that split falsified none of them. **CS-1079's relocation DID move one:**
+the CS-1079 section says "this leaf" meaning `docs/item_notes/phase4-followups-900.md`,
+where it was filed, although it now sits in `docs/item_notes/phase4-followups-1000.md`.
 
 `docs/upstream_watch.md` owns the CS-486 upstream watch list, which is a standing watch
 rather than per-item detail, and CS-486's section points at it.

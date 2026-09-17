@@ -3315,14 +3315,17 @@ _ITEM_NOTES_TABLE_FRAME = re.compile(r"^\|\s*Leaf\s*\|\s*Holds\s*\|\s*$|^\|[-:| 
 # four-digit IDs its selector never named and went over budget with no row
 # owning them. The top leaf now spells its own floor, ", ID at or above CS-n",
 # and every block row is bounded by the block it names.
+#
+# A LEADING ZERO IS REFUSED in every id and block number. `CS-01000` would parse
+# to the same range while no reader or search for `CS-1000` finds the spelling.
 _RULE_ANNEX = "ANNEX, not a phase leaf - "
 _RULE_GRAMMAR = re.compile(
     r"ROADMAP `Phase (?P<phase>\d+)`"
     r"(?:"
-    r", ID BELOW the `CS-(?P<below_block>\d+)nn` block"
-    r"|, ID in the `CS-(?P<in_block>\d+)nn` block"
-    r"(?: below CS-(?P<below_id>\d+)| at or above CS-(?P<at_or_above>\d+))?"
-    r"|, ID at or above CS-(?P<floor>\d+)"
+    r", ID BELOW the `CS-(?P<below_block>[1-9]\d*)nn` block"
+    r"|, ID in the `CS-(?P<in_block>[1-9]\d*)nn` block"
+    r"(?: below CS-(?P<below_id>[1-9]\d*)| at or above CS-(?P<at_or_above>[1-9]\d*))?"
+    r"|, ID at or above CS-(?P<floor>[1-9]\d*)"
     r")?"
 )
 _ITEM_NOTES_BLOCK_WIDTH = 100

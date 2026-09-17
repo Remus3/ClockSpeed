@@ -864,8 +864,104 @@ _RESIDUE_PLANTS = [
     ),
 ]
 
+# CS-1079 repair. EVERY PLANT ABOVE APPENDS JUNK AT THE END, so a grammar
+# loosened at the START or in the MIDDLE of a clause - a case-insensitive
+# keyword, a run of whitespace, a space after `CS-` - survived all of them. Each
+# row form is perturbed below at its start, its keyword, its spacing, its `CS-`
+# joint and its number. A LEADING ZERO IS REFUSED rather than read as the same
+# id: `CS-01000` is a spelling no reader or search for `CS-1000` finds.
+#
+# Each entry is (anchor, the anchor perturbed, leaf, the residue it leaves).
+_P4 = "ROADMAP `Phase 4`"
+_LOOSENING = [
+    # The phase-only form.
+    ("ROADMAP `Phase 5` |", "ROADMAP  `Phase 5` |", "phase5.md", "ROADMAP  `Phase 5`"),
+    ("ROADMAP `Phase 5` |", "roadmap `Phase 5` |", "phase5.md", "roadmap `Phase 5`"),
+    ("ROADMAP `Phase 5` |", "ROADMAP `phase 5` |", "phase5.md", "ROADMAP `phase 5`"),
+    # ", ID BELOW the `CS-nnn` block".
+    *(
+        (f"{_P4}, ID BELOW the `CS-8nn` block |", f"{_P4}{clause} |", "phase4.md", clause)
+        for clause in (
+            ",  ID BELOW the `CS-8nn` block",
+            ", ID below the `CS-8nn` block",
+            ", ID BELOW the  `CS-8nn` block",
+            ", ID BELOW the `CS- 8nn` block",
+            ", ID BELOW the `CS-08nn` block",
+        )
+    ),
+    # ", ID in the `CS-nnn` block below CS-n" - the block clause, then its narrowing.
+    *(
+        (
+            "`CS-8nn` block below CS-850 |",
+            f"{perturbed} |",
+            "phase4-followups.md",
+            residue,
+        )
+        for perturbed, residue in (
+            ("`CS-8nn` block below  CS-850", " below  CS-850"),
+            ("`CS-8nn` block BELOW CS-850", " BELOW CS-850"),
+            ("`CS-8nn` block below CS- 850", " below CS- 850"),
+            ("`CS-8nn` block below CS-0850", " below CS-0850"),
+        )
+    ),
+    *(
+        (
+            f"{_P4}, ID in the `CS-8nn` block below CS-850 |",
+            f"{_P4}{clause} |",
+            "phase4-followups.md",
+            clause,
+        )
+        for clause in (
+            ", ID IN the `CS-8nn` block below CS-850",
+            ", ID in the `CS- 8nn` block below CS-850",
+            ", ID in the `CS-08nn` block below CS-850",
+        )
+    ),
+    # ", ID in the `CS-nnn` block at or above CS-n".
+    *(
+        (
+            "`CS-8nn` block at or above CS-850 |",
+            f"`CS-8nn` block{residue} |",
+            "phase4-followups-850.md",
+            residue,
+        )
+        for residue in (
+            " at or  above CS-850",
+            " AT or above CS-850",
+            " at or above CS- 850",
+            " at or above CS-0850",
+        )
+    ),
+    # ", ID in the `CS-nnn` block" alone.
+    *(
+        (
+            f"{_P4}, ID in the `CS-9nn` block |",
+            f"{_P4}{clause} |",
+            "phase4-followups-900.md",
+            clause,
+        )
+        for clause in (
+            ", ID in  the `CS-9nn` block",
+            ", ID in the `CS-09nn` block",
+        )
+    ),
+    # CS-1079's floor form, ", ID at or above CS-n".
+    *(
+        (f"{_P4}, ID at or above CS-1000 |", f"{_P4}{clause} |", "phase4-followups-1000.md", clause)
+        for clause in (
+            ",  ID at or above CS-1000",
+            ",ID at or above CS-1000",
+            ", id at or above CS-1000",
+            ", ID at  or above CS-1000",
+            ", ID at or above CS- 1000",
+            ", ID at or above cs-1000",
+            ", ID at or above CS-01000",
+        )
+    ),
+]
 
-@pytest.mark.parametrize(("old", "new", "leaf", "residue"), _RESIDUE_PLANTS)
+
+@pytest.mark.parametrize(("old", "new", "leaf", "residue"), _RESIDUE_PLANTS + _LOOSENING)
 def test_a_rule_row_clause_outside_the_grammar_is_red(
     family: Path, old: str, new: str, leaf: str, residue: str
 ) -> None:

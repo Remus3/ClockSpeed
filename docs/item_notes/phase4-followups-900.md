@@ -1583,4 +1583,3 @@ population FIRST and decide after.
 every zero, and a bare zero is not a measurement. If the population is empty, the item closes
 by reporting the population AND the fact that it was looked for, not by an `assert count == 0`
 that would pass on a reader that found nothing at all.
-

@@ -12,11 +12,9 @@ membership rule in `docs/item_notes.md` spells that floor rather than a block. I
 obeys. Read the index for the leaf membership rule routing every OPEN item, the verbatim
 rule, and what this family never contains. Do not restate any of it here.
 
-**Relocated for CS-1079, verbatim.** Every section below stood in
+**Relocated for CS-1079.** Every section below stood in
 `docs/item_notes/phase4-followups-900.md`, in the order it stood there, until that leaf
-went over its soft doc budget holding IDs its own selector did not name. RELOCATED, NOT
-EDITED - so a pointer inside a body saying "this file" was written about that leaf, and
-still means the section it sits in.
+went over its soft doc budget holding IDs its own selector did not name.
 
 ---
 
