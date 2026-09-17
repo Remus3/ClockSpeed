@@ -1245,10 +1245,20 @@ def derived_bound_problems(source: str, tables: Iterable[str]) -> list[str]:
     no registered name and passes. Closing that means resolving call graphs. The
     one-line version is what costs nothing to write and therefore what arrives.
 
+    THE POPULATION IS THE CALLER'S, AND BOTH HALVES OF A REGISTRY PAIR ARE
+    LEGITIMATE. The offence named here is a bound whose value expression mentions
+    WHAT IT BOUNDS, which is indifferent to whether the subject forgives
+    anything - a table recorded in :data:`NOT_A_FORGIVENESS` is still bounded by a
+    ceiling, and ``tests/test_bare_path_citations.py`` passes both halves for
+    exactly that reason. Widening the population at the call site is how that
+    ceiling is reached; moving the table across the pair would buy the same reach
+    by asserting something false about what it forgives.
+
     Args:
         source: This module's own text.
-        tables: The names of the registered forgiveness tables, from
-            :data:`FORGIVENESS_TABLES`.
+        tables: The names to look for. Every caller reading one half of a
+            registry pair passes :data:`FORGIVENESS_TABLES`; a caller whose
+            bounded table forgives nothing passes both halves.
 
     Returns:
         One line per module-scope assignment that reads one of them.

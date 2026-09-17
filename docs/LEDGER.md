@@ -75,6 +75,80 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-09-17 - CS-1128 - CLOSED. The separate-guard ceiling is reachable by the tautology check
+
+**THE DEFECT, AND IT WAS MEASURED RATHER THAN ARGUED.** `_SEPARATE_GUARD_CEILING: Final = 1`
+bounds `tests.test_bare_path_citations.NOT_A_CITATION_GUARD` in both directions - `<=` against
+a slack ceiling and `==` against a spent one. Spelling it
+`_SEPARATE_GUARD_CEILING: Final = len(NOT_A_CITATION_GUARD)` satisfies both forever, so excusing
+a second module from the citation walk costs one row and NO NUMBER IN THE DIFF. That line was
+planted in the live file and the three citation-family modules were run: `412 passed`, exit 0.
+The instrument that refuses exactly this, `tests.bare_path_guard.derived_bound_problems`, already
+existed and simply never read that source.
+
+**THE ROOT CAUSE IS A POPULATION, NOT A MISSING ARM.** Every live caller of that function passes
+names out of a module's `FORGIVENESS_TABLES`, and `NOT_A_CITATION_GUARD` sits in the OTHER half
+of the registry pair, recorded as forgiving no citation. `tests/test_bare_path_citations.py`'s
+own `FORGIVENESS_TABLES` is empty, so a caller over that source reading only that half would
+have had nothing to look for and would have reported a confident zero.
+
+**THE FIX WIDENS THE POPULATION AT THE CALL SITE AND DOES NOT MOVE THE TABLE**, which is the
+fence the item's acceptance states and the route CS-1127 took for a different table. Moving
+`NOT_A_CITATION_GUARD` into `FORGIVENESS_TABLES` would buy reach by asserting that the table
+forgives citations. It does not: it excuses a MODULE from the walk, and its recorded reason says
+so. A claim about what a table forgives is argued, never typed to satisfy a checker. What the
+function names as the offence is a bound whose value expression mentions WHAT IT BOUNDS, and that
+is indifferent to whether the subject forgives anything - a table that forgives nothing is still
+bounded, and this ceiling is that case.
+
+**WHAT MERGED.** `tests/test_bare_path_citations.py` gains
+`test_the_separate_guard_ceiling_is_not_derived_from_the_table_it_bounds`, which reads this
+module's own source and passes `{**FORGIVENESS_TABLES, **NOT_A_FORGIVENESS}` as the names to look
+for - DERIVED from the module's declared registry pair rather than the hand-typed
+`["NOT_A_CITATION_GUARD"]` the subprocess-timeout arm uses, because a typed list is right the day
+it is written and silently short the day a second bounded table lands beside it.
+`tests/bare_path_guard.py`'s `derived_bound_problems` has its stated contract corrected in the
+same commit: its `Args` said the names come from `FORGIVENESS_TABLES`, which this caller makes
+false, and a restated contract nobody updates is the drift this tree's doc rule exists for.
+
+**THREE LEGS, AND THE THIRD IS WHAT MAKES THE FIRST TWO WORTH ANYTHING.** The bare spelling
+planted onto the real source must yield exactly one finding naming the constant; the attribute
+spelling `len(bare_path_guard.NOT_A_CITATION_GUARD)` must yield exactly one, closing the
+relocation evasion BEFORE a file split makes it writable rather than after, as this family has
+had to do three times one level up; and the live source as it stands must yield none.
+
+**THE SIBLING SWEEP RETURNED EMPTY AND THE SWEEP IS MECHANICAL RATHER THAN READ.** Two passes over
+the family - `tests/test_docs_citations.py`, `tests/test_citation_tables.py`,
+`tests/bare_path_guard.py`, `tests/test_bare_path_citations.py`, `tests/test_subprocess_timeouts.py`
+and `tests/test_archive_rot.py`. The first matched every `len(TABLE) <op> CONSTANT` comparison and
+returned the two lines of the row in flight and nothing else. The second matched every
+`*_budget_problems(TABLE, CEILING)` call site and resolved each table against the registry that
+holds it: `NON_CITATION_PATTERNS` and `BARE_PATH_REASONS` are in a `FORGIVENESS_TABLES` the live
+arm reads, and `EXEMPTIONS` declares no registry pair but carries its own caller passing its name.
+**THE ONE NEAR-HIT, DISCLOSED RATHER THAN ROUNDED AWAY:** `ARCHIVE_ROT` is a forgiveness table in
+a source no `derived_bound_problems` caller reads, so a tautology over it would be invisible - but
+it is bounded by `len(ARCHIVE_ROT) >= judged`, a value derived from the walk, and there is no typed
+constant over it to disarm. No bound, no tautology, different shape. It is disclosed here and not
+swept.
+
+**THE FAILING TEST CAME FIRST AND WAS WATCHED RED FOR THE RIGHT REASON.** With the tautology still
+planted in the live file, the new arm reported two findings where it requires one - the live line
+and the planted append - at `assert 2 == 1`. Reverting only the assignment, the module reads
+11 passed, exit 0, up from the 10 it held before.
+
+**PROVEN BY.**
+`tests/test_bare_path_citations.py::test_the_separate_guard_ceiling_is_not_derived_from_the_table_it_bounds`.
+
+**TIER AND EVIDENCE.** Tier 2 - the change edits `tests/bare_path_guard.py`, which four test
+modules import, and adds a contract the class-level registry walk grades. Whole suite this run,
+written to a file and read back: `8569 passed, 5 skipped, 8 warnings in 613.00s (0:10:13)`,
+exit 0, `-m "not slow" -n auto`. THAT READING GRADED THE TREE LESS THIS PARAGRAPH'S OWN FIGURES,
+which is the only whole-suite citation obtainable without regress and is said rather than
+rounded away; the run before it, over the same code with the earlier prose, read the identical
+counts at a different duration. `python -m ruff check .` - "All checks passed!".
+`python -m ruff format --check .` - "261 files already formatted".
+
+**THE CI VERDICT IS RECORDED BY THE LANE DRIVER AND WAS NOT OBSERVED BY THIS WORKER.**
 ### 2026-09-17 - CS-1079 - CLOSED. The CS-9nn leaf is under budget by relocation, and a floor row owns every phase 4 id at CS-1000 or above
 
 **WHAT CHANGED.** `docs/item_notes/phase4-followups-900.md` was over its soft budget holding

@@ -54,6 +54,7 @@ import pytest
 from tests import bare_path_guard, test_docs_citations
 from tests.bare_path_guard import (
     REGISTRY_NAMES,
+    derived_bound_problems,
     floor_problems,
     graded_floor_names,
     module_patterns,
@@ -61,6 +62,7 @@ from tests.bare_path_guard import (
     registry_problems,
     sibling_imports,
 )
+from tests.test_citation_tables import NEWLINE
 
 #: The one module the walk starts from. DERIVED FROM THE INTERPRETER rather than
 #: spelled, so the root cannot drift from the file it names, and a single root
@@ -406,6 +408,69 @@ def test_the_separate_guard_record_is_pinned_in_both_directions_and_budgeted(
     )
     for dotted, why in sorted(NOT_A_CITATION_GUARD.items()):
         assert why.strip(), f"{dotted} is excused and states no reason"
+
+
+def test_the_separate_guard_ceiling_is_not_derived_from_the_table_it_bounds() -> None:
+    """THE PERMANENT DISARM, ONE LINE, AND THIS FILE WAS OUT OF ITS REACH.
+
+    ``_SEPARATE_GUARD_CEILING: Final = len(NOT_A_CITATION_GUARD)`` makes both
+    directions of the budget above true by construction - the ``<=`` and the
+    ``==`` alike - so excusing a second module costs a row and NO NUMBER IN THE
+    DIFF. MEASURED with that line planted in this very file: 412 passed, exit 0.
+    The arm that refuses it, :func:`tests.bare_path_guard.derived_bound_problems`,
+    already existed and simply never read this source.
+
+    WHY IT COULD NOT, AND WHY THE ANSWER IS NOT TO RE-REGISTER THE TABLE. Every
+    other caller passes names out of ``FORGIVENESS_TABLES``, and
+    ``NOT_A_CITATION_GUARD`` sits in the OTHER half of the pair, recorded as
+    forgiving no citation. Moving it across would buy reach by asserting the
+    table forgives citations, which is false - it excuses a MODULE from the walk
+    - and a claim about what a table forgives is argued, never typed to satisfy
+    a checker. So the population is widened instead: the offence the function
+    names is a bound whose value expression mentions WHAT IT BOUNDS, and that is
+    indifferent to whether the subject forgives anything. A table that forgives
+    nothing is still bounded, and this ceiling is exactly that case.
+
+    THE NAMES ARE DERIVED FROM THIS MODULE'S OWN REGISTRY PAIR, not typed. A
+    hand-written ``["NOT_A_CITATION_GUARD"]`` is right the day it is written and
+    silently short the day a second bounded table lands beside it - the identical
+    fault this module's header refuses for the list of modules to walk.
+
+    BOTH SPELLINGS, BECAUSE A FILE SPLIT IS WHAT MAKES THE SECOND ONE WRITABLE.
+    While the table sits here the tautology can only be a bare name; relocated
+    into a sibling it is ``len(bare_path_guard.NOT_A_CITATION_GUARD)``, and that
+    is the relocation evasion this family has now closed three times one level
+    up. It is closed here before the split rather than after it.
+    """
+    here = Path(__file__).read_text(encoding="ascii")
+    bounded = {**FORGIVENESS_TABLES, **NOT_A_FORGIVENESS}
+
+    tautology = here + f"{NEWLINE}_SEPARATE_GUARD_CEILING = len(NOT_A_CITATION_GUARD){NEWLINE}"
+    planted = derived_bound_problems(tautology, bounded)
+
+    assert len(planted) == 1, (
+        f"a ceiling computed from the table it bounds was not the single finding: {planted}"
+    )
+    assert "_SEPARATE_GUARD_CEILING" in planted[0], (
+        f"the finding does not name the constant it is about: {planted[0]}"
+    )
+
+    qualified = here + (
+        f"{NEWLINE}_SEPARATE_GUARD_CEILING = len(bare_path_guard.NOT_A_CITATION_GUARD){NEWLINE}"
+    )
+    reached = derived_bound_problems(qualified, bounded)
+
+    assert len(reached) == 1, (
+        "a ceiling computed from a table held one module over was not the single"
+        f" finding: {reached}. A walk that reads only a bare name is blind to every"
+        " tautology a file split makes writable."
+    )
+    assert "_SEPARATE_GUARD_CEILING" in reached[0]
+
+    assert not derived_bound_problems(here, bounded), (
+        "a bound in this module is computed from its own subject:"
+        f" {derived_bound_problems(here, bounded)}"
+    )
 
 
 @pytest.mark.parametrize(
