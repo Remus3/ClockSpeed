@@ -107,8 +107,8 @@ discriminates - CS-959 to the lower leaf, CS-960 through CS-999 to the upper, CS
 
 **HOW IT WAS GRADED - REFUTED TWICE.** Round one refuted it on an incomplete sweep of what the move
 falsified and on an arm reported as narrowly insensitive. Round two refuted the repair on a docstring
-that claimed a differentiator it did not have. The arm is the substantive story: the original
-`test_a_code_cs9nn_seam_moved_away_from_the_table_is_red` monkeypatched the very constant it claimed
+that claimed a differentiator it did not have. The arm is the substantive story: the RETIRED
+code-direction seam arm monkeypatched the very constant it claimed
 to bind, so it was structurally blind to the shipped value and killed 0 of 9 plants. It was replaced
 by an arm that leaves the constant alone and plants the edit a person would actually make - merging
 the two CS-9nn rows back into one pre-split block row - which kills 13 of 13 non-no-op mutants, stays
