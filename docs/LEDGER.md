@@ -141,14 +141,16 @@ and the planted append - at `assert 2 == 1`. Reverting only the assignment, the 
 
 **TIER AND EVIDENCE.** Tier 2 - the change edits `tests/bare_path_guard.py`, which four test
 modules import, and adds a contract the class-level registry walk grades. Whole suite this run,
-written to a file and read back: `8569 passed, 5 skipped, 8 warnings in 613.00s (0:10:13)`,
-exit 0, `-m "not slow" -n auto`. THAT READING GRADED THE TREE LESS THIS PARAGRAPH'S OWN FIGURES,
-which is the only whole-suite citation obtainable without regress and is said rather than
-rounded away; the run before it, over the same code with the earlier prose, read the identical
-counts at a different duration. `python -m ruff check .` - "All checks passed!".
+written to a file and read back ON THE REBASED TREE, which is the one that ships:
+`8646 passed, 5 skipped, 8 warnings in 554.65s (0:09:14)`, exit 0, `-m "not slow" -n auto`.
+THAT READING GRADED THE TREE LESS THIS PARAGRAPH'S OWN FIGURES, which is the only whole-suite
+citation obtainable without regress and is said rather than rounded away. The pre-rebase run
+over the same four files read `8569 passed, 5 skipped` - the 77-test difference is the six
+commits this change was rebased onto, not anything of this cycle's. `python -m ruff check .` - "All checks passed!".
 `python -m ruff format --check .` - "261 files already formatted".
 
 **THE CI VERDICT IS RECORDED BY THE LANE DRIVER AND WAS NOT OBSERVED BY THIS WORKER.**
+
 ### 2026-09-17 - CS-1079 - CLOSED. The CS-9nn leaf is under budget by relocation, and a floor row owns every phase 4 id at CS-1000 or above
 
 **WHAT CHANGED.** `docs/item_notes/phase4-followups-900.md` was over its soft budget holding
