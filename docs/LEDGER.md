@@ -221,6 +221,16 @@ WHAT THIS ITEM IS NOT, restated from its own section so a later cycle does not r
 not a benchmarking harness and it is not CodSpeed. It records readings a human or a session
 already took.
 
+A `not slow` WHOLE-TREE RUN DOES NOT RUN THE MYPY GATE, AND THIS CYCLE PAID FOR THAT TWICE.
+`test_the_bare_repo_wide_invocation_reports_no_errors` in `tests/test_mypy_gate.py` is marked
+`slow`, so `-m "not slow"` deselects the only arm that runs mypy over the whole repository. Two
+`no-any-return` findings in this cycle's own test module were therefore invisible to three green
+whole-tree runs and surfaced in the pre-push hook, which passes no marker filter. The hook
+BLOCKED and nothing was pushed - the mechanism worked. The lesson is about the evidence, not the
+hook: a run reported green under `-m "not slow"` says nothing about the type gate, so a cycle
+adding a file runs `python -m mypy` bare before it believes its own suite result. The repair and
+this paragraph landed in a second commit on the same row.
+
 CI: recorded by the driver in its own cycle row, and NOT observed by this worker.
 
 ### 2026-09-17 - CS-917 - MEASUREMENT RECORD. THE ITEM STAYS OPEN. The lane's growth per commit and its run-to-run jitter are measured; the ordering guarantee is unmet and filed as CS-1133

@@ -71,7 +71,8 @@ def tool() -> ModuleType:
 
 @pytest.fixture(scope="module")
 def tracked() -> dict[str, Any]:
-    return json.loads(RECORD_SOURCE.read_text(encoding="utf-8"))
+    record: dict[str, Any] = json.loads(RECORD_SOURCE.read_text(encoding="utf-8"))
+    return record
 
 
 def test_the_tool_and_the_record_are_both_present() -> None:
@@ -183,7 +184,8 @@ def test_the_two_escape_values_are_accepted_and_nothing_else_is(
 def _graded_in(tool: ModuleType, root: Path, record: dict[str, Any]) -> list[str]:
     (root / "tools").mkdir(exist_ok=True)
     (root / "tools" / "measurements.json").write_text(json.dumps(record), encoding="utf-8")
-    return tool.grade_tree(root)
+    offences: list[str] = tool.grade_tree(root)
+    return offences
 
 
 def test_a_source_citation_must_name_a_file_that_exists(
