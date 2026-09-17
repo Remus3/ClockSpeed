@@ -24,57 +24,6 @@ to `docs/history_notes.md`; they are never dropped.
 Newest entry goes directly under the `## Entries` heading. Each entry is:
 
 ```
-### 2026-09-17 - CS-930 - CLOSED. Build cost is reachable from a Building through a graded seam, and the join was one token spelling away from being silently short
-
-**WHAT CHANGED.** `clockspeed/data/registry.py` gained the join the item named: `BuildCost`,
-`build_gun_recipes`, `build_cost` and `buildings_without_build_cost`. A buildable's cost is read off
-the build-gun recipe whose single product is that buildable's DESCRIPTOR - `Build_X_C` takes
-`Desc_X_C`, and a key that is already a descriptor takes itself, which is a measured case rather than
-a fallback. `BUILD_GUN_MARKER` is the substring, not either transcription, for the reason below.
-Merged files: `clockspeed/data/registry.py`, `tests/data/test_build_cost.py`.
-
-**THE ACCEPTANCE CLAUSE TAKEN WAS THE FIRST BRANCH.** Build cost is reachable from a Building
-through a graded seam, so nothing was withdrawn from `BOOTSTRAP.md`. The 2026-09-06 correction
-appended beside this item's filing already recorded that the data exists; this entry does not restate
-it.
-
-**THE DEFECT THE MEASUREMENT FOUND, and it was in the probe rather than in the tree.** The pinned
-build ships TWO build-gun producer spellings: the common one on 549 recipes and a second on exactly
-one, `Recipe_SpaceElevator_C`. A first probe written for this item transcribed the common spelling
-alone. It measured one recipe short and a join one building short, and the miss was
-indistinguishable from a buildable the game ships no cost for - the shape of a silent wrong answer,
-not of a crash. Matching the marker reproduces the leaf's own figures exactly: 550 build-gun recipes,
-545 carrying ingredients, and 65 of 68 modelled buildings joined.
-
-**THE THREE THAT DO NOT JOIN ARE FLAGGED, NEVER PRICED AT ZERO.** Two buildables share one
-descriptor the document ships under a third name, and one carries no build-gun recipe at all.
-`build_cost` returns None for those and `buildings_without_build_cost` enumerates them, so a caller
-computing a total knows which members it could not price (non-negotiable 7). Publishing an empty
-cost would be the confident-zero trap `Building.power_consumption` documents at length.
-
-**PROVEN BY.** `tests/data/test_build_cost.py`, 14 arms. Twelve build their Registry from material
-hand-authored in that file and need no install; two read the real document, skip explicitly where
-there is none, and report counts only. Two mutations were planted and both reddened rather than
-surviving: narrowing the exemption set by one name fails
-`test_every_modelled_building_joins_a_build_cost_or_is_declared_exempt` on the real install, and
-reverting `BUILD_GUN_MARKER` to the common transcription fails five arms including that one and
-`test_the_second_build_gun_token_spelling_is_not_lost`. The second mutation is the one that matters -
-it proves the real-install arm reads the install rather than passing because it cannot see its
-subject.
-
-**WHAT WAS NOT TAKEN, and it is not a scope cut.** The acceptance says reachable FROM A BUILDING.
-Aggregating a cost over a solved production tree is the consumer's arithmetic and belongs in
-`solve/`, not in a data-layer selector - putting it here would invert the seam discipline in
-CLAUDE.md section 2.1. **AND NO OPEN ROW TRACKS THAT AGGREGATION, which is stated here rather than
-justified away:** `BOOTSTRAP.md` pillar 1 promises the output, and a pillar is an unbuilt promise
-rather than a tracked row. The CS-930 verifier raised exactly that, and whoever builds the tree
-solve should file it rather than assume this entry covered it.
-
-**TIER 2** - a public interface addition in the data layer.
-
-**COUNTS OBSERVED THIS RUN** are quoted in the cycle's own wrap banner rather than here, because a
-count in prose is a lie with a timestamp on it.
-
 ### 2026-09-13 - CS-1005 - CLOSED. The scope and the claim store were both correct and nothing in the driver path imported either
 
 **WHAT CHANGED.** `ops/loop/queue_loop.py` now binds the row a cycle works to the row the lane may
@@ -424,6 +373,57 @@ machine-checked artifact that produces it.
 ---
 
 ## Entries
+
+### 2026-09-17 - CS-930 - CLOSED. Build cost is reachable from a Building through a graded seam, and the join was one token spelling away from being silently short
+
+**WHAT CHANGED.** `clockspeed/data/registry.py` gained the join the item named: `BuildCost`,
+`build_gun_recipes`, `build_cost` and `buildings_without_build_cost`. A buildable's cost is read off
+the build-gun recipe whose single product is that buildable's DESCRIPTOR - `Build_X_C` takes
+`Desc_X_C`, and a key that is already a descriptor takes itself, which is a measured case rather than
+a fallback. `BUILD_GUN_MARKER` is the substring, not either transcription, for the reason below.
+Merged files: `clockspeed/data/registry.py`, `tests/data/test_build_cost.py`.
+
+**THE ACCEPTANCE CLAUSE TAKEN WAS THE FIRST BRANCH.** Build cost is reachable from a Building
+through a graded seam, so nothing was withdrawn from `BOOTSTRAP.md`. The 2026-09-06 correction
+appended beside this item's filing already recorded that the data exists; this entry does not restate
+it.
+
+**THE DEFECT THE MEASUREMENT FOUND, and it was in the probe rather than in the tree.** The pinned
+build ships TWO build-gun producer spellings: the common one on 549 recipes and a second on exactly
+one, `Recipe_SpaceElevator_C`. A first probe written for this item transcribed the common spelling
+alone. It measured one recipe short and a join one building short, and the miss was
+indistinguishable from a buildable the game ships no cost for - the shape of a silent wrong answer,
+not of a crash. Matching the marker reproduces the leaf's own figures exactly: 550 build-gun recipes,
+545 carrying ingredients, and 65 of 68 modelled buildings joined.
+
+**THE THREE THAT DO NOT JOIN ARE FLAGGED, NEVER PRICED AT ZERO.** Two buildables share one
+descriptor the document ships under a third name, and one carries no build-gun recipe at all.
+`build_cost` returns None for those and `buildings_without_build_cost` enumerates them, so a caller
+computing a total knows which members it could not price (non-negotiable 7). Publishing an empty
+cost would be the confident-zero trap `Building.power_consumption` documents at length.
+
+**PROVEN BY.** `tests/data/test_build_cost.py`, 14 arms. Twelve build their Registry from material
+hand-authored in that file and need no install; two read the real document, skip explicitly where
+there is none, and report counts only. Two mutations were planted and both reddened rather than
+surviving: narrowing the exemption set by one name fails
+`test_every_modelled_building_joins_a_build_cost_or_is_declared_exempt` on the real install, and
+reverting `BUILD_GUN_MARKER` to the common transcription fails five arms including that one and
+`test_the_second_build_gun_token_spelling_is_not_lost`. The second mutation is the one that matters -
+it proves the real-install arm reads the install rather than passing because it cannot see its
+subject.
+
+**WHAT WAS NOT TAKEN, and it is not a scope cut.** The acceptance says reachable FROM A BUILDING.
+Aggregating a cost over a solved production tree is the consumer's arithmetic and belongs in
+`solve/`, not in a data-layer selector - putting it here would invert the seam discipline in
+CLAUDE.md section 2.1. **AND NO OPEN ROW TRACKS THAT AGGREGATION, which is stated here rather than
+justified away:** `BOOTSTRAP.md` pillar 1 promises the output, and a pillar is an unbuilt promise
+rather than a tracked row. The CS-930 verifier raised exactly that, and whoever builds the tree
+solve should file it rather than assume this entry covered it.
+
+**TIER 2** - a public interface addition in the data layer.
+
+**COUNTS OBSERVED THIS RUN** are quoted in the cycle's own wrap banner rather than here, because a
+count in prose is a lie with a timestamp on it.
 
 ### 2026-09-17 - SESSION 102 - NOT A COMPLETION RECORD. NOTHING CLOSED. Tier1 and tier2 went red on the CS-1124 slice's merge, once for a CI account token in a comment and once for a test that graded real elapsed time
 
