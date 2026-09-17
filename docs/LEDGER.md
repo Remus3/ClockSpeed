@@ -13446,6 +13446,12 @@ byte sweep of the diff. An EARLIER whole-tree run over the pre-sweep tree read
 `8511 passed, 5 skipped, 16 deselected` at exit 0; it is named here only so the one-test
 difference between the two is the sweep's own arm and not something unexplained.
 
+**AND ONCE MORE AFTER THE REBASE, because a suite that passed pre-rebase proves nothing about
+the merged result.** Five commits from other lanes landed on `origin/main` while this row was
+worked, and the same whole-tree command on the rebased tree reads
+`8524 passed, 5 skipped, 16 deselected, 8 warnings in 1631.62s (0:27:11)`, exit **0**. The
+twelve-test difference from the reading above is those lanes' arms arriving, not this row's.
+
 **CI is recorded by the lane driver and was NOT observed by this worker.**
 
 
