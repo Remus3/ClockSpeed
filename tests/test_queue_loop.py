@@ -1255,7 +1255,10 @@ def test_the_driver_waits_between_cycles_and_the_next_cycle_cannot_start_first(t
     the INTERLEAVING, not the presence of a call.
     """
     order: list[str] = []
-    shas = iter(["sha0", "sha1", "sha1", "sha2", "sha2", "sha3"])
+    # CS-919 - THE PAIR, because the driver now declines to grade a tip the
+    # lane tree never held and an arm about the ORDER of waits needs waits to
+    # happen at all.
+    head_sha, tree_sha = _lane_push()
     clock = FakeClock()
 
     def launch(_lane, **_kw):
@@ -1272,7 +1275,8 @@ def test_the_driver_waits_between_cycles_and_the_next_cycle_cannot_start_first(t
             max_cycles=3,
             launch=launch,
             wait=wait,
-            head_sha=lambda: next(shas),
+            head_sha=head_sha,
+            tree_sha=tree_sha,
             ci_gate=True,
             cycle_log=tmp_path / "l.jsonl",
             control_dir=tmp_path / "control",
@@ -1339,6 +1343,100 @@ def test_a_cycle_that_pushed_nothing_is_recorded_as_no_push_and_is_not_ok(tmp_pa
     )
 
 
+def test_a_foreign_sha_landing_in_the_window_is_unattributable_and_grades_nothing(tmp_path):
+    """CS-919 - THE MEASURED DEFECT, reproduced: a neighbour's push graded as ours.
+
+    MEASURED on CS-918's first real cycle. The worker committed NOTHING - it
+    left ten files uncommitted in the lane worktree - while another session on
+    the same box pushed `f80b95af7e2e`. The driver saw `origin/main` move,
+    attributed it to the cycle, waited out tier1, dispatched a tier2 run and
+    waited 1105.9 seconds for it. The row recorded `"ci": {"verdict":
+    "success"}` against a sha the lane never produced.
+
+    IT FAILS IN BOTH DIRECTIONS AND IS SILENT IN BOTH. A neighbour's green is
+    written into this lane's ledger as though the lane had earned it, and a
+    neighbour's RED stops the night under `ci_red`, blaming a worker that
+    pushed nothing.
+
+    THE PROPERTY IS ATTRIBUTION, NOT WINDOW WIDTH. The window is the whole
+    cycle by design and narrowing it trades a large silent error for a smaller
+    one, so the arm drives a sha that the LANE TREE never held and requires
+    that the driver decline to grade it. `waits == []` is the load-bearing
+    half: a verdict word with the wait still dispatched would have paid the
+    1105.9 seconds this item was filed over.
+    """
+    waits: list[str] = []
+    clock = FakeClock()
+    shas = iter(["pre-sha", "foreign-sha"])
+    trees = iter(["pre-tree", "ours-sha"])
+    summary = queue_loop.run_loop(
+        **loop_seams(
+            clock,
+            head_sha=lambda: next(shas),
+            tree_sha=lambda _cwd: next(trees),
+            ci_gate=True,
+            wait=lambda sha, **_kw: waits.append(sha),
+            cycle_log=tmp_path / "l.jsonl",
+            control_dir=tmp_path / "control",
+            hold=NullHold(),
+        )
+    )
+    row = summary["records"][0]
+    assert waits == [], (
+        "a sha the lane never produced must be graded by NOBODY - dispatching the"
+        f" wait is what cost 1105.9 seconds on the measured cycle: {waits}"
+    )
+    assert row["ci"]["verdict"] == queue_loop.CI_UNATTRIBUTABLE
+    assert row["ci"]["sha"] == "foreign-sha", (
+        "the row must still NAME the sha it declined to grade, or an operator"
+        " reading it cannot tell which push it was"
+    )
+    assert row["ok"] is False, "a cycle with no CI evidence of its own is not good news"
+    assert summary["stopped_by"] == queue_loop.STOPPED_BY_MAX_CYCLES, (
+        "a foreign push is not a broken branch and must not stop the night"
+    )
+
+
+def test_a_sha_the_lane_itself_produced_is_still_graded(tmp_path):
+    """THE CONTROL, and the arm above is worthless without it.
+
+    A driver that answered `unattributable` to everything would pass the
+    refutation arm and grade no night at all. The lane HEAD and the remote tip
+    agree here - which is what a worker pushing its own commit to `main`
+    leaves behind - so the verdict must be the real one.
+    """
+    waits: list[str] = []
+    clock = FakeClock()
+    shas = iter(["pre-sha", "ours-sha"])
+    trees = iter(["pre-tree", "ours-sha"])
+
+    def wait(sha, **_kw):
+        waits.append(sha)
+        return {
+            "verdict": queue_loop.CI_SUCCESS,
+            "workflows": [],
+            "sha": sha,
+            "waited_s": 1.0,
+        }
+
+    summary = queue_loop.run_loop(
+        **loop_seams(
+            clock,
+            head_sha=lambda: next(shas),
+            tree_sha=lambda _cwd: next(trees),
+            ci_gate=True,
+            wait=wait,
+            cycle_log=tmp_path / "l.jsonl",
+            control_dir=tmp_path / "control",
+            hold=NullHold(),
+        )
+    )
+    row = summary["records"][0]
+    assert waits == ["ours-sha"], f"the lane's own push must still be graded: {waits}"
+    assert row["ci"]["verdict"] == queue_loop.CI_SUCCESS
+    assert row["ok"] is True
+
+
 def test_a_gate_that_did_not_run_leaves_an_absent_ci_key(tmp_path):
     """A PRESERVED GUARD, not a new one.
 
@@ -1382,11 +1480,12 @@ def test_one_cycle_writes_exactly_one_jsonl_row_carrying_its_verdict(tmp_path):
     """ACCEPTANCE 1, in unit form."""
     log = tmp_path / "queue_loop.jsonl"
     clock = FakeClock()
-    shas = iter(["before", "after"])
+    head_sha, tree_sha = _lane_push()  # CS-919 - a tip this lane produced
     queue_loop.run_loop(
         **loop_seams(
             clock,
-            head_sha=lambda: next(shas),
+            head_sha=head_sha,
+            tree_sha=tree_sha,
             ci_gate=True,
             wait=lambda sha, **_kw: {
                 "verdict": queue_loop.CI_SUCCESS,
@@ -1529,13 +1628,14 @@ def test_a_sentinel_present_before_cycle_one_runs_zero_cycles(tmp_path):
 
 def test_ci_going_red_stops_the_night(tmp_path):
     clock = FakeClock()
-    shas = iter(["a", "b", "c", "d"])
+    head_sha, tree_sha = _lane_push()  # CS-919 - a tip this lane produced
     summary = queue_loop.run_loop(
         **loop_seams(
             clock,
             max_cycles=4,
             ci_gate=True,
-            head_sha=lambda: next(shas),
+            head_sha=head_sha,
+            tree_sha=tree_sha,
             wait=lambda sha, **_kw: {
                 "verdict": queue_loop.CI_FAILURE,
                 "workflows": [],
@@ -1553,13 +1653,14 @@ def test_ci_going_red_stops_the_night(tmp_path):
 
 def test_a_cancelled_ci_run_is_recorded_but_does_not_stop_the_night(tmp_path):
     clock = FakeClock()
-    shas = iter(["a", "b", "c", "d", "e", "f"])
+    head_sha, tree_sha = _lane_push()  # CS-919 - a tip this lane produced
     summary = queue_loop.run_loop(
         **loop_seams(
             clock,
             max_cycles=TWO_CYCLES,
             ci_gate=True,
-            head_sha=lambda: next(shas),
+            head_sha=head_sha,
+            tree_sha=tree_sha,
             wait=lambda sha, **_kw: {
                 "verdict": queue_loop.CI_CANCELLED,
                 "workflows": [],
@@ -1573,6 +1674,13 @@ def test_a_cancelled_ci_run_is_recorded_but_does_not_stop_the_night(tmp_path):
     )
     assert summary["cycles_run"] == TWO_CYCLES
     assert summary["stopped_by"] == queue_loop.STOPPED_BY_MAX_CYCLES
+    # CS-919 - THE FIXTURE CONTROL. Without it this arm passes on a night that
+    # graded NOTHING: `unattributable` does not stop a night either, so a
+    # driver declining every sha would have satisfied both lines above while
+    # the cancelled verdict this arm is named for never reached a row.
+    assert [r["ci"]["verdict"] for r in summary["records"]] == [
+        queue_loop.CI_CANCELLED
+    ] * TWO_CYCLES
 
 
 def test_a_worker_surviving_its_kill_stops_the_night(tmp_path):
@@ -2572,6 +2680,46 @@ def _moving_ref():
     return head_sha
 
 
+def _lane_push():
+    """CS-919 - the (head_sha, tree_sha) PAIR a worker pushing to `main` leaves.
+
+    THE TWO SEAMS MUST AGREE AND THE OLD FIXTURES COULD NOT. `_moving_ref` and
+    `_committing_tree` each walk their own counter, so every arm built from the
+    pair drove a remote tip the lane tree never held - which is the CS-919
+    defect itself, standing in for a healthy night. That was harmless while the
+    driver graded whatever the tip said; it stops being harmless the moment the
+    driver checks. An arm that wants a GRADED cycle has to drive a tip the lane
+    produced, and that is what this returns.
+
+    THE ADVANCE HAPPENS ON THE POST READ, which is the second of the two tree
+    reads in a cycle - the driver reads the lane HEAD before and after. So the
+    pre reads see the previous tip and the post reads see the new one, exactly
+    as a real worker committing once per cycle leaves it, and `head_sha` simply
+    answers wherever the tip is now.
+
+    DELIBERATELY NOT A THIRD COUNTER. The tip is written in exactly one place
+    and BOTH closures read that one cell, so an arm cannot end up asserting
+    against a tip no reading produced. The read counter is separate only
+    because it is a different type, and nothing reads it but `tree_sha`.
+
+    Returns:
+        `(head_sha, tree_sha)`, shaped like the two seams of the same names.
+    """
+    state: dict[str, int] = {"reads": 0}
+    tip = ["sha-0"]
+
+    def tree_sha(_cwd):
+        state["reads"] += 1
+        if state["reads"] % 2 == 0:
+            tip[0] = f"sha-{state['reads'] // 2}"
+        return tip[0]
+
+    def head_sha():
+        return tip[0]
+
+    return head_sha, tree_sha
+
+
 def _ci_success(sha, **_kw):
     """Grade every pushed sha green.
 
@@ -2697,12 +2845,14 @@ def test_completed_cycles_that_commit_nothing_cannot_run_the_full_budget(tmp_pat
 
 def test_completed_cycles_that_push_run_the_whole_budget(tmp_path):
     """THE CONTROL. A counter that stops a night which DID ship is worse."""
+    head_sha, tree_sha = _lane_push()  # CS-919 - a tip this lane produced
     summary = _drive(
         tmp_path,
         [_DONE] * 5,
         budget=5,
         ci_gate=True,
-        head_sha=_moving_ref(),
+        head_sha=head_sha,
+        tree_sha=tree_sha,
         wait=_ci_success,
     )
     assert [r["ok"] for r in summary["records"]] == [True] * 5
@@ -2797,8 +2947,17 @@ def test_a_one_cycle_night_that_accomplished_nothing_does_not_exit_zero(
 
 def test_a_one_cycle_night_that_shipped_exits_zero(tmp_path, monkeypatch):
     """THE CONTROL. One good cycle is a good night, and must stay exit 0."""
+    # CS-919 - the pair, because a night that "shipped" has to be one the
+    # driver could attribute; `_moving_ref` alone drives a foreign push.
+    head_sha, tree_sha = _lane_push()
     summary = _drive(
-        tmp_path, [_DONE], budget=1, ci_gate=True, head_sha=_moving_ref(), wait=_ci_success
+        tmp_path,
+        [_DONE],
+        budget=1,
+        ci_gate=True,
+        head_sha=head_sha,
+        tree_sha=tree_sha,
+        wait=_ci_success,
     )
     assert summary["records"][0]["ok"] is True
     assert _exit_for(monkeypatch, summary) == 0
@@ -3017,10 +3176,29 @@ def test_a_foreign_push_is_not_this_lane_s_progress(tmp_path, monkeypatch):
     """`origin/main` moved, but not because of us - and `ok` cannot tell.
 
     Somebody else pushed while this lane committed nothing. The remote ref
-    moved on every cycle, so the gate graded a sha that was never ours, the
-    verdict is `success` and the roll-up says `ok: true` - which is precisely
-    why reading `ok` was the wrong question. The rows stay as they are; the
-    NIGHT must still be scored as having shipped nothing.
+    moved on every cycle, and the NIGHT must still be scored as having shipped
+    nothing - which is the property this arm owns and which is unchanged.
+
+    CS-919 MOVED THE FIXTURE CONTROL AND THE MOVE IS THE FINDING. When this
+    arm was written the gate graded the stranger's sha, so the rows read
+    `verdict: success` and `ok: true` and the control asserted exactly that -
+    the sharp edge being that the counter had to catch a night whose every row
+    looked healthy. The driver no longer grades a sha the lane cannot show it
+    produced, so those same rows now read `unattributable` and `ok: false`.
+    AND THE MOVE COST THIS ARM ITS SECOND PROPERTY, MEASURED RATHER THAN
+    REASONED ABOUT. A first draft of this paragraph claimed the arm was not
+    weakened, because `_is_progress` reads `commit.advanced` and never reads
+    `ok`. An adversary refuted that and the mutation was run both ways:
+    `_is_progress` rewritten to `bool(record.get("ok"))` is KILLED by this arm
+    at the parent commit and SURVIVES it here, because the rows it drives now
+    carry `ok: False` and an `ok`-reading counter reaches `no_progress` by the
+    wrong route. The night-scoring property this arm OWNS is intact - it still
+    asserts `no_progress`, three cycles and exit 9 - and that mutant is still
+    killed by `test_a_night_committing_to_the_lane_branch_runs_its_whole_budget`,
+    `test_an_unreadable_lane_head_degrades_to_no_progress` and
+    `test_a_lane_head_read_that_raises_cannot_kill_the_night`. What this arm no
+    longer supplies is a FOURTH kill on the same mutant. Do not restore the old
+    sentence: it was false about this tree.
     """
     summary = _drive(
         tmp_path,
@@ -3031,11 +3209,11 @@ def test_a_foreign_push_is_not_this_lane_s_progress(tmp_path, monkeypatch):
         wait=_ci_success,
         tree_sha=_frozen_tree,
     )
-    # THE FIXTURE CONTROL, and the sharp edge of this arm: every row really is
-    # ok and green. An arm whose rows were already `ok: false` would pass for
-    # the old reason and observe nothing.
-    assert [r["ok"] for r in summary["records"]] == [True] * 3
-    assert [r["ci"]["verdict"] for r in summary["records"]] == ["success"] * 3
+    # THE FIXTURE CONTROL. Every row really did complete and really does name
+    # the foreign sha it declined to grade, so this arm still drives the case
+    # it is named for rather than a fixture that stopped reproducing.
+    assert [r["ci"]["verdict"] for r in summary["records"]] == [queue_loop.CI_UNATTRIBUTABLE] * 3
+    assert [r["ok"] for r in summary["records"]] == [False] * 3
     assert summary["stopped_by"] == "no_progress"
     assert summary["cycles_run"] == 3  # noqa: PLR2004
     assert _exit_for(monkeypatch, summary) == 9  # noqa: PLR2004

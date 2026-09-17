@@ -121,6 +121,86 @@ Where current truth actually lives:
 
 ---
 
+## CS-919 - item section, CLOSED and relocated from `docs/item_notes/phase4-followups-900.md` 2026-09-17
+
+
+**Filed 2026-09-06 by the merger, out of CS-918's first real cycle.** Read that closure
+entry in `docs/LEDGER.md` first - this item exists because of something the cycle did, not
+because of something someone thought might happen.
+
+### WHAT WAS MEASURED
+
+The driver reads `origin/main` before the cycle and again after it, and treats a change as
+"our worker pushed". On the first real cycle the worker committed NOTHING - it left ten
+files uncommitted in the lane worktree - while another session on the same box pushed
+`f80b95af7e2e`. The driver saw the ref move, attributed it to the cycle, waited out tier1,
+**dispatched a tier2 run**, and waited 1105.9 seconds for it. The row records
+`"ci": {"verdict": "success"}` against a sha the lane never produced.
+
+### WHY THIS IS WORSE THAN IT LOOKS
+
+It is silent, and it fails in BOTH directions. A neighbour's green is written into this
+lane's ledger as though the lane had earned it - and a neighbour's RED would stop the night
+under `ci_red`, blaming a worker that pushed nothing. Neither shows up as an error; both
+read as ordinary rows. The ledger is the only durable record of a night, so a row that
+cites the wrong sha is worse than a row that cites none.
+
+### WHAT IS NOT THE FIX
+
+**Do not narrow the window.** The window is the whole cycle - tens of minutes by design -
+and any attempt to shrink it trades a large silent error for a smaller silent error.
+
+**Do not assume one lane per box.** That is the assumption that produced this. The operator
+runs several projects' sessions concurrently on this machine; the measurement above is that
+configuration behaving normally, not an anomaly.
+
+### THE SHAPE OF AN ANSWER
+
+The lane can know what its own worker produced without asking the remote: the worker commits
+in a worktree the driver owns the path of, so the driver can read `lane/queue`'s tip before
+and after and compare THAT, or read the reflog of the branch it launched into. A sha the
+lane cannot attribute to itself must record `unattributable` and grade nothing - an absent
+verdict is a real answer, and it is the one CS-918's own driver already gives when the
+remote cannot be resolved.
+
+### THE ARM THAT PROVES IT
+
+Redden on a FOREIGN sha landing between the two reads. A test that only checks the happy
+path would have passed on the shipped code, because the shipped code is correct whenever
+nobody else pushes - which is every run on an idle box and no run on this one.
+
+
+## CS-898 - item section, CLOSED and relocated from `docs/item_notes/phase4-followups-850.md` 2026-09-16
+
+### NOTE - filed 2026-09-04 (session 60) by the merger, MEASURED ON THE TREE
+
+**A GUARD'S STATED CLAIM ABOUT ITSELF IS NOW FALSE.** `tests/data/test_phase2_gate.py`
+carries the sentence that its ceiling was chosen "without ever tripping on ordinary test
+code". Ordinary test code tripped it this session: a repair took one module to 273753 bytes
+against the 262144 ceiling, and the module had to be split to land.
+
+**THE TREE IS ALREADY CLOSE BEHIND, MEASURED THIS SESSION.**
+
+| per cent of ceiling | bytes | file |
+|---|---|---|
+| 96 | 252153 | `tests/save/test_struct_interior.py` |
+| 86 | 227135 | `tests/test_docs_citations.py` after the split |
+| 78 | 206953 | `tests/test_chained_cause_census.py` |
+
+So the next substantial addition to the first of those trips the same gate, and the
+splitting remedy is a per-module fix for a tree-wide trend.
+
+**DO NOT CLOSE THIS BY RAISING THE CEILING.** The gate is a BOOTSTRAP.md section 12 control
+and its own docstring says the crudeness is the point: it is "the one check that catches a
+trimmed real docs file dropped in 'just for tests', which no content assertion would catch
+because a real slice parses perfectly". Raising it to fit code launders a data-hygiene
+guard for a code-size reason, and that was refused once already this session.
+
+**THE TWO HONEST ROUTES.** Either the gate learns to distinguish a slice of real game data
+from a large hand-authored module - it already has a sibling that judges by suffix, so
+authored-ness is not unmeasurable - or the claim is corrected to what the gate actually
+promises and the tree is kept under it by a stated splitting policy rather than by luck.
+
 ## CS-895 - item section, CLOSED and relocated from `docs/item_notes/phase4-followups-850.md` 2026-09-16
 
 ### NOTE - filed 2026-09-03 (session 59) by the merger, from the CS-890 adversary, MEASURED

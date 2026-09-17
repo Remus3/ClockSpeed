@@ -46,13 +46,6 @@ the first: a consumer actually needs to follow a component to its parent.**
 
 ## CI and toolchain
 
-- `actions/checkout@v4` and `actions/setup-python@v5` target Node 20, which GitHub has
-  deprecated; the runner currently FORCES them onto Node 24 and prints a warning on every
-  run, so nothing is broken and the warning is the only signal - eight pin sites across
-  `.github/workflows/tier1.yml` and `.github/workflows/tier2.yml`, and neither file is on
-  the frozen list, so no adjudicator grant is needed - conditional on the forcing being
-  withdrawn, or on the warning becoming a failure.
-
 - Nothing reddens if the `/moon_sync_inbox/` line is removed from `.gitignore`: the
   cross-project channel would go back to untracked and visible, and only the
   pre-commit gate's PII arm would stand between a sibling's note and a commit - which

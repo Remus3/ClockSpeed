@@ -374,6 +374,237 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-09-17 - CS-990 - CORRECTS THE ENTRY BELOW, SAME DAY, BEFORE THE PUSH. The threshold was a conclusion and one of the four was wrong, so the record is now per major
+
+**WHAT THE ENTRY BELOW GOT WRONG, IN ITS OWN WORDS.** It says "Both workflows move to the
+majors that ship on Node 24" and "all four bumps are runtime-only majors". Both sentences are
+FALSE for one of the four. `actions/upload-artifact@v5` declares `runs.using: node20` in its
+own `action.yml`; that action's first Node 24 major is v6. Every sibling's same-numbered bump
+did move to Node 24, and reasoning from that pattern is exactly how the wrong figure was
+written. The tier-2 workflow is now pinned at `actions/upload-artifact@v6`.
+
+**THE VERIFIER REFUTED IT AND THE SUITE DID NOT, WHICH IS THE POINT.** All nine arms were
+green, `ruff` clean, `mypy` clean, and the headline arm reported no offence - because the
+oracle it consulted was wrong, not because the tree was clean. A shipped table that nothing
+verifies against reality is the same defect this item was filed about, one level up: a
+version fact whose support window is owned by nobody.
+
+**SO THE TABLE'S SHAPE CHANGED, NOT JUST ITS CONTENTS.** `RUNTIME_SUPPORTED_FROM` held one
+integer per action - the lowest major whose runtime was current. That integer is a
+CONCLUSION, and it answered for majors nobody had measured, including the one it was wrong
+about. `OBSERVED_RUNTIMES` records `runs.using` PER MAJOR as that major's own `action.yml`
+declares it, with the probe command in the module docstring. A pinned major the record
+carries no reading for is now a LOUD offence in its own right, held by
+`test_a_major_the_record_carries_no_reading_for_is_a_loud_offence`. An observation can be
+re-taken; a threshold can only be re-argued.
+
+**THE SECOND FINDING WAS AN ORACLE BLIND TO ITS OWN SUBJECT, and this project has now
+measured that shape twice.** The independence proof filtered candidate module constants by
+`isinstance(value, str | int | dict | tuple)`. A compiled `re.Pattern` is none of those, so
+the ONE module constant an enumeration actually reads was invisible and the assertion
+"enumeration two reads no module constant" passed BECAUSE the oracle could not see it. The
+proof now takes every module-level name, follows each enumeration into the names it reaches
+for, and compares the resulting literal CLOSURES - so factoring a shared pattern into a
+helper no longer defeats it. `test_the_independence_proof_can_see_the_constant_each_enumeration_reads`
+is its anti-vacuity bound and pins both distinguishing constants in place: the step-reference
+word must be in enumeration one's closure and absent from enumeration two's, and enumeration
+two's pattern must be visible to the proof at all.
+
+**AND THE TWO ENUMERATIONS NOW SHARE NO CALLEE EITHER.** Both previously called one helper
+that carried the `@` literal. Each returns raw references now and `to_pin` builds outside
+both, so the claim in the item line holds transitively rather than only at the top level.
+
+**PROVEN BY** `tests/test_action_runtimes.py`, eleven arms. The nine the entry below names,
+except that the unknown-action arm is renamed for the record's new shape and is now
+`test_an_action_the_record_does_not_name_is_a_loud_offence` - so the name the entry below
+cites for it is dead and this sentence is its disposition. Added:
+`test_a_major_the_record_carries_no_reading_for_is_a_loud_offence` and
+`test_the_independence_proof_can_see_the_constant_each_enumeration_reads`. Merged files:
+`tools/action_runtimes.py`, `tests/test_action_runtimes.py`, `.github/workflows/tier2.yml`,
+`docs/LEDGER.md`.
+
+**RE-MEASURED THIS CYCLE, against each action's own `action.yml` at each tag:** checkout v3
+node16, v4 node20, v5 node24, v6 node24; setup-python v3 node16, v4 node16, v5 node20, v6
+node24; setup-node v3 node16, v4 node20, v5 node24, v6 node24; upload-artifact v4 node20, v5
+node20, v6 node24, v7 node24. Those readings are the shipped record, not a restatement of it -
+`OBSERVED_RUNTIMES` is where they live and this paragraph exists to say when they were taken.
+
+**THE BOUND ON THIS ENTRY.** One refutation round was spent and this is its repair. A second
+refutation of the same claim files a new row rather than starting another round.
+
+### 2026-09-17 - CS-990 - CLOSED. Every action pin names a supported runtime, over a population derived twice from the workflow files
+
+**THE DEFECT.** Every action pin in both tracked workflows named a major whose Node 20 runtime
+GitHub has deprecated. Nothing was red and nothing would have been: the runner does not fail a
+job over a retired runtime, it force-runs the action on the current Node and prints a warning.
+So the upgrade was being applied by GitHub rather than by this project, and the day it broke
+would have been the day the fallback was withdrawn rather than a day this project chose.
+
+**THE ROOT CAUSE, WHICH IS NOT THE PINS.** No mechanism owned the question. The pins were
+correct when written and went stale silently, and the only record of the problem was an
+aspirational `BACKLOG.md` line whose own count had already drifted - it said eight pin sites
+and the derivation measured fifteen. A count restated in prose is a lie with a timestamp on
+it, and this one was the proof.
+
+**WHAT CHANGED.** `tools/action_runtimes.py` grades every pin by the runtime its major ships,
+against `RUNTIME_SUPPORTED_FROM`. Both tracked workflows move to the majors that ship on Node
+24. The `BACKLOG.md` entry is removed: it is superseded by a shipped guard, and leaving it
+would restate a fact this ledger and that tool now own.
+
+**THE POPULATION IS DERIVED, AND DERIVED TWICE.** `pins_by_parse` asks PyYAML what the step
+reference key resolves to, at any depth. `pins_by_scan` recognises a pin by the owner/repo@ref
+shape alone and names no key at all. The arms compare them as MULTISETS, so one pin present in
+either reading and not the other reddens, and a duplicate cannot go missing. **A floor over
+the pin count is forbidden here by the item line by name - it is the CS-988 shape, met by its
+strongest member - and none was used.**
+
+**AGREEMENT BETWEEN TWO READINGS THAT CANNOT DISAGREE IS NOT EVIDENCE, so independence is
+PROVEN rather than claimed.** `test_the_two_enumerations_share_no_constant` parses both
+functions' ASTs, fails on any literal they hold in common, and fails again if either reaches
+for a module-level constant the other could share. A comment asserting independence is worth
+nothing the first time somebody factors a shared pattern out of the two.
+
+**THE TABLE IS LISTED AND THAT IS DELIBERATE, so the arm is loud where it is blind.** No test
+here reaches the network, so the runtime table is a shipped constant. An action the table does
+not name is an OFFENCE rather than a pass, and so is a ref carrying no major version - a sha
+or a branch names no runtime. A table that waves through what it does not recognise fails in
+the permissive direction and would forgive a real deprecation forever with nothing red.
+
+**PROVEN BY** `tests/test_action_runtimes.py`, nine arms:
+`test_no_tracked_workflow_pins_a_deprecated_runtime` is the headline and it was RED before the
+bump, naming all fifteen pins;
+`test_the_graded_population_is_not_empty` is its anti-vacuity bound, because an empty
+population satisfies every equality above for free;
+`test_the_two_enumerations_agree_as_multisets`;
+`test_the_two_enumerations_share_no_constant`;
+`test_a_planted_deprecated_pin_reddens_the_grade`;
+`test_a_pin_in_a_second_workflow_is_graded_too`;
+the unknown-action arm, renamed by the entry above;
+`test_a_ref_carrying_no_major_version_is_a_loud_offence`;
+`test_both_enumerations_see_a_planted_pin`, which is what shows neither reading is a no-op.
+Merged files: `tools/action_runtimes.py`, `tests/test_action_runtimes.py`,
+`.github/workflows/tier1.yml`, `.github/workflows/tier2.yml`, `BACKLOG.md`.
+
+**THE FIRST CUT BROKE THE REPO-WIDE MYPY GATE AND THE LOCAL ARMS WERE ALL GREEN WHILE IT
+DID.** `tools/` carries no `__init__.py` - it is a directory of entry-point scripts - so an
+import spelled as a package member makes mypy discover the same source under two module names
+and `python -m mypy` bare exits 2 on a duplicate, taking two further arms in that module down
+with it. `python -m pytest tests/test_action_runtimes.py` was green throughout. The idiom this
+tree already had is a by-path `spec_from_file_location` load, and `tests/test_action_runtimes.py`
+now uses it and says why in the loader's own docstring. **A module-scoped suite run is not
+evidence about a repo-wide gate**, which is the reusable half of this.
+
+**THE SIBLING SWEEP.** The root cause is a version pin whose support window is owned by
+nobody. Every such pin in this tree is an action pin, and the grader globs the workflow
+DIRECTORY for `.yml` and `.yaml` rather than naming a file, so a third workflow added later is
+graded on the day it lands. No sibling outside that directory was found.
+
+**WHAT THIS CYCLE CANNOT PROVE AND DOES NOT CLAIM.** That the new majors run green on the
+runner. Every runner here is GitHub-hosted, so the minimum-runner-version condition
+`actions/checkout@v5` carries is met, and all four bumps are runtime-only majors - but this
+worker does not observe CI and did not read a run. The CI verdict for this push is recorded by
+the driver.
+
+**THE TIER AND THE COUNTS OBSERVED THIS RUN** are in the wrap banner for this cycle rather
+than restated here.
+
+### 2026-09-17 - CS-919 - CLOSED. A sha the lane cannot show it produced is recorded `unattributable` and graded by nobody
+
+**THE DEFECT, MEASURED RATHER THAN ANTICIPATED.** On CS-918's first real cycle the worker
+committed nothing - it left ten files uncommitted in the lane worktree - while another
+session on the same box pushed `f80b95af7e2e`. `ops/loop/queue_loop.py` read `origin/main`
+before and after the cycle, saw the ref move, attributed it to the cycle, waited out tier1,
+dispatched a tier2 run and waited 1105.9 seconds for it. The row recorded
+`"ci": {"verdict": "success"}` against a sha the lane never produced. It failed in BOTH
+directions and silently in both: a neighbour's green was written into this lane's ledger as
+though the lane had earned it, and a neighbour's RED would have stopped the night under
+`ci_red`, blaming a worker that pushed nothing.
+
+**WHAT CHANGED.** `run_loop` grades the post-cycle remote tip only when it EQUALS the lane
+worktree's own post-cycle HEAD, which is the only sha this driver knows the lane produced.
+Any other moved tip - a stranger's push, or a stranger's commit landing on top of ours -
+gets `verdict="unattributable"`, the five-key shape the `no-push` and `unavailable` branches
+already write, and NO wait is dispatched. An unreadable lane HEAD lands in the same branch,
+which is the same direction `record["commit"]` already defaults in.
+
+**THE READING WAS ALREADY IN HAND, so the repair costs no git call.** `post_tree` is read
+above for the progress counter, unconditionally and before the CI block, and the two
+consumers now share one reading rather than two that can disagree.
+
+**NOT A NARROWER WINDOW, and the item's note forbids that by name.** The window is the whole
+cycle by design; shrinking it trades a large silent error for a smaller silent one. The
+repair reads no clock at all.
+
+**`unattributable` IS A SEPARATE WORD FROM `no-push` ON PURPOSE.** The two send an operator
+to different places - `no-push` means the ref stood still and the worker log holds the
+answer; `unattributable` means somebody pushed and it was not provably us, which is a fact
+about the BOX. It joins `_CI_ROLLUP_BAD` for the reason `no-push` is already there - a cycle
+with no CI evidence of its own is not good news - and it is NOT a hard stop, because a
+neighbour pushing is not a broken branch and must not end the night.
+
+**PROVEN BY.** `tests/test_queue_loop.py::test_a_foreign_sha_landing_in_the_window_is_unattributable_and_grades_nothing`,
+which drives a tip the lane tree never held and requires both that the verdict word is
+written AND that `waits == []` - a verdict with the wait still dispatched would have paid the
+1105.9 seconds this item was filed over. Its control is
+`tests/test_queue_loop.py::test_a_sha_the_lane_itself_produced_is_still_graded`, without
+which a driver answering `unattributable` to everything would pass.
+
+**THE SIBLING SWEEP, AND IT IS THE MOST REUSABLE THING THIS CYCLE PRODUCED.** Six existing
+arms reddened, and not one of them was a behaviour regression - every one was a FIXTURE
+driving the CS-919 defect while standing in for a healthy night. `_moving_ref` and
+`_committing_tree` each walk their OWN counter, so the remote tip and the lane HEAD never
+agreed in any arm built from the pair. That was invisible while the driver graded whatever
+the tip said. `_lane_push` is the repair: one piece of state, advanced on the POST tree read,
+answered by both seams. Rewired arms -
+`test_the_driver_waits_between_cycles_and_the_next_cycle_cannot_start_first`,
+`test_one_cycle_writes_exactly_one_jsonl_row_carrying_its_verdict`,
+`test_ci_going_red_stops_the_night`,
+`test_a_cancelled_ci_run_is_recorded_but_does_not_stop_the_night`,
+`test_completed_cycles_that_push_run_the_whole_budget`,
+`test_a_one_cycle_night_that_shipped_exits_zero`.
+
+**ONE ARM WAS PASSING FOR THE WRONG REASON AND ONLY THE SWEEP FOUND IT.**
+`test_a_cancelled_ci_run_is_recorded_but_does_not_stop_the_night` asserted only `cycles_run`
+and `stopped_by`, and `unattributable` does not stop a night either - so it stayed green on a
+night that graded NOTHING, with the cancelled verdict it is named for never reaching a row. It
+now pins the verdict per row.
+
+**AND `test_a_foreign_push_is_not_this_lane_s_progress` MOVED ITS CONTROL RATHER THAN LOSING
+IT.** That arm's sharp edge was that the counter had to catch a night whose every row looked
+healthy - `verdict: success`, `ok: true`. Those same rows now read `unattributable` and
+`ok: false`, which is the second half of the same defect.
+
+**AND THAT MOVE COST THAT ARM A MUTANT KILL, WHICH THE FIRST DRAFT OF THIS ENTRY DENIED.**
+The draft claimed the arm was not weakened, on the grounds that `_is_progress` reads
+`commit.advanced` and never reads `ok`. THE VERIFIER REFUTED IT AND THE MUTATION WAS THEN
+RUN BOTH WAYS by the merger, in two scratch copies, never in the tree: `_is_progress`
+rewritten to `bool(record.get("ok"))` is killed by FOUR arms at `5ae7d72` and by THREE here,
+and `test_a_foreign_push_is_not_this_lane_s_progress` is the one that dropped out - its rows
+now carry `ok: False`, so an `ok`-reading counter reaches `no_progress` by the wrong route
+and the arm cannot tell. The property that arm OWNS is intact and still asserted -
+`no_progress`, three cycles, exit 9 - and the mutant is still killed by
+`test_a_night_committing_to_the_lane_branch_runs_its_whole_budget`,
+`test_an_unreadable_lane_head_degrades_to_no_progress` and
+`test_a_lane_head_read_that_raises_cannot_kill_the_night`. What was lost is a fourth kill on
+one mutant, and it is recorded here rather than rounded up, because a caveat said in a cycle
+report is not a caveat in the artifact.
+
+**TIER 2** - the driver's core and a widened verdict vocabulary. Suite run this cycle, whole
+tree and NOT `-m "not slow"`: `8396 passed, 7 skipped, 8 warnings in 1557.26s (0:25:57)`, exit 0, read back from a file rather than a pipe.
+
+**WHAT THAT RUN DOES AND DOES NOT COVER, said here because a suite run that straddles an
+edit reports on a tree that no longer exists.** It was taken on the frozen candidate BEFORE
+the verifier's refutation was repaired. The repair edited two things and only two - one test
+DOCSTRING and the paragraph above it in this file - so what re-ran afterwards was scoped:
+`tests/test_queue_loop.py`, `tests/ops`, and the three doc-guard modules
+`tests/test_docs_citations.py`, `tests/test_citation_tables.py` and
+`tests/test_archive_rot.py`, `835 passed in 57.14s`, exit 0, plus `tools/drift_guard.py`
+CLEAN. The whole tree over the COMMITTED bytes is paid by `.githooks/pre-push`, which this
+push did not bypass. `python -m ruff check .` clean,
+`ruff format --check` clean. Merged files: `ops/loop/queue_loop.py`, `tests/test_queue_loop.py`.
+
+**CI IS RECORDED BY THE DRIVER AND WAS NOT OBSERVED BY THIS WORKER.**
+
 ### 2026-09-16 - SESSION 102 - NOT A COMPLETION RECORD. NOTHING CLOSED. TIER2 WINDOWS PROBE TIMEOUT - the clean-checkout probe ran its suite SERIAL and was cancelled at its own limit three times, and the lane stopped itself twice on the reds
 
 **THE LANE STOPPED TWICE, BOTH TIMES RECORDING `stopped_by=ci_red`.** Neither stop was the
@@ -408,6 +639,86 @@ full suite 21.1 minutes. tier1 on the same tree success. The lane was relaunched
 land within roughly eight minutes of a 30-minute limit while the suite is still growing, and a
 cancelled job reads to the lane as `ci_red` and stops it. That headroom, and a disposition for
 the two Windows-only failures above, is CS-1124.
+
+### 2026-09-16 - CS-898 - CLOSED. The tests-tree size ceiling stopped claiming a separation it never performed, and the predicate is now reachable over planted material
+
+**THE DEFECT.** The comment over `_MAX_TEST_FILE_BYTES` in `tests/data/test_phase2_gate.py`
+claimed a ceiling well above the largest authored file and well below a real data slice
+separated the two "without ever tripping on ordinary test code". Ordinary test code tripped it,
+which is what filed this item. The same separation claim was restated a second time, in the
+docstring of `test_every_file_under_tests_near_the_size_ceiling_is_budgeted_and_pinned`, so the
+falsified basis had two carriers rather than one.
+
+**WHICH BRANCH OF THE NARROWED ACCEPTANCE WAS TAKEN, AND WHY THE OTHER WAS NOT.** The
+2026-09-15 narrowing offered either a gate that distinguishes a slice of real game data from a
+large hand-authored module, or a stated claim corrected to what the number actually promises.
+The correction branch was taken. The distinguishing branch was examined and declined on a
+measured ground rather than on effort: every route to it runs through the same constant that
+CS-1066's approach band, its residual table and its ratchet are all computed from, so exempting
+authored source from the ceiling would empty that residual, force the ratchet to zero and make a
+shipped control vacuous - closing this row by dismantling another one. The alternative shape, a
+second and tighter ceiling for non-authored suffixes, needs a number argued from something other
+than the population it bounds, which is the tautology this module refuses twice in its own
+comments. That is a ruling and is not this cycle's to make.
+
+**WHAT THE CEILING PROMISES NOW.** No file under `tests/` exceeds the number, whatever wrote it.
+That is enough for the move `BOOTSTRAP.md` section 8.1 fences off - a trimmed real docs file
+dropped in "just for tests", which no content assertion catches because a real slice parses
+perfectly. It is explicitly NOT a claim that authored code stays clear of it, and the comment now
+says authored code reaching the ceiling is an expected event whose designed answer is the
+approach band and relocation, never a raise.
+
+**THE ARM, AND WHY IT PLANTS OUTSIDE THE REPOSITORY.** `_oversized_over_the_ceiling` is the
+predicate factored out of the real-tree arm and given a root, so
+`test_the_size_ceiling_still_catches_a_planted_oversize_non_authored_artifact` can run it over an
+oversize JSON artifact it writes into `tmp_path`. Planting the same file under `tests/` would
+redden `test_no_file_under_tests_is_large_enough_to_be_a_slice_of_real_game_data` in the same
+run, so the arm would prove its point by breaking its neighbour.
+
+**IT IS MUTATION-PROVEN IN BOTH DIRECTIONS AND EACH MUTATION WAS ASSERTED TO HAVE LANDED.**
+Defeating the size comparison reddens the arm, and so does a predicate that returns every path
+it is handed - the under-ceiling control is what kills the second one, so the arm says the
+ceiling DISCRIMINATES rather than merely complains. Both mutations were re-read off disk before
+the run was believed, and the module was restored byte-identically afterwards.
+
+**SIBLING SWEEP, WITH THE CYCLE'S OWN COUNT CORRECTED BY ITS VERIFIER.** A tree-wide sweep for
+the separation wording found both carriers inside `tests/data/test_phase2_gate.py` and no third.
+The cycle then reported two further modules quoting the ceiling in a DIFFERENT and true form -
+`tests/archive_rot_guard.py` and `tests/bare_path_guard.py` - and the verifier measured four:
+`tests/test_citation_tables.py` and `tests/save/test_struct_controls.py` carry the same true
+wording. All four were READ and left alone: they say the ceiling holds every file under `tests/`
+and is not raised to fit prose, which are statements about what it does rather than restatements
+of the separation it does not perform. The undercount was in this entry, not in the sweep.
+
+**WHAT THE VERIFIER FOUND THAT THIS ROW DOES NOT CLOSE, filed rather than absorbed.** The arm
+proves the ceiling CATCHES an oversize artifact and says nothing about WHERE it sits: a `>` to
+`>=` mutant of the comparison survives, while three other mutants of the same line redden. That
+is a property of the arm rather than of the acceptance clause, which asks only that a planted
+oversize artifact still be caught. It is CS-1123 in `ROADMAP.md`, filed in this same change with
+the verifier's planted sizes recorded on its line.
+
+**TESTS.** `tests/data/test_phase2_gate.py::test_the_size_ceiling_still_catches_a_planted_oversize_non_authored_artifact`
+is new; `test_no_file_under_tests_is_large_enough_to_be_a_slice_of_real_game_data` and
+`test_every_file_under_tests_near_the_size_ceiling_is_budgeted_and_pinned` are unchanged in
+behaviour. Merged file: `tests/data/test_phase2_gate.py`.
+
+**THE COLLATERAL WAS A PIN BUMP, AND IT IS ONE POINTER RATHER THAN TWO FINDINGS.** The new
+import this change adds near the top of `tests/data/test_phase2_gate.py` shifted every line below
+it by one, and a line pointer in `docs/history_notes.md` at that module stopped landing on a blank
+line inside a docstring and started landing on its summary line. `_ROT_EMPTY` and `_ROT_FORM` in
+`tests/test_archive_rot.py` moved by one in opposite directions with the total across the two arms
+unmoved, which is the 2026-09-13 bump's shape repeating; the site was READ, the recorded
+HISTORICAL exemption was re-checked against it, and the reason is written beside the pins. The
+relocation of CS-898's own section into the archive added no site, checked rather than assumed -
+`_ROT_PATH` did not move.
+
+**TIER 2, PAID LOCALLY AND READ OFF A FILE.** `python -m pytest tests -q -n auto --dist loadfile`
+- the spelling `.githooks/pre-push` executes - reported `8394 passed, 7 skipped, 8 warnings in
+398.68s (0:06:38)`, exit 0. `python -m ruff check .` clean and `python -m ruff format --check .`
+reported every file already formatted. `python tools/drift_guard.py` exited 0.
+
+**THE CI VERDICT IS THE DRIVER'S.** This worker did not observe a CI run and claims no green it
+did not read.
 
 ### 2026-09-16 - CS-1098 - CLOSED. DECLINED as a tool, a scope change and not a gate clearing, and the idea is re-filed as our own renderer with zero copied bytes
 

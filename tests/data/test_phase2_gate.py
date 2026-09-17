@@ -45,6 +45,7 @@ import os
 import re
 import subprocess
 import sys
+from collections.abc import Iterable
 from functools import cache
 from pathlib import Path
 
@@ -894,10 +895,24 @@ def test_no_data_layer_source_carries_an_account_id_shaped_digit_run(module: str
 _FORBIDDEN_FIXTURE_SUFFIXES = frozenset({".sav", ".usmap"})
 _LOCALE_FILE = re.compile(r"^[a-z]{2}-[A-Za-z]{2,4}\.json$")
 
-# The shipped docs file is roughly ten megabytes. Every hand-authored module
-# under tests/ is two orders of magnitude smaller, so a ceiling well above the
-# largest authored file and well below a real data slice separates the two
-# without ever tripping on ordinary test code.
+# THE STATED BASIS OF THIS CEILING WAS FALSIFIED AND CS-898 CORRECTED IT TO WHAT
+# THE NUMBER ACTUALLY PROMISES. The sentence that stood here said a ceiling well
+# above the largest authored file and well below a real data slice separated the
+# two "without ever tripping on ordinary test code". Ordinary test code tripped
+# it: a repair took one module past this number and the module had to be split to
+# land. The reading lives with the item note and is not restated here.
+#
+# WHAT IT PROMISES NOW, WHICH IS LESS AND IS TRUE: no file under tests/ exceeds
+# this many bytes, whatever wrote it. That is enough for the move BOOTSTRAP.md
+# section 8.1 fences off - a trimmed real docs file dropped in "just for tests",
+# which no content assertion would catch because a real slice parses perfectly.
+# It is NOT a claim that authored code stays clear of the ceiling on its own.
+#
+# SO AUTHORED CODE REACHING IT IS AN EXPECTED EVENT WITH A DESIGNED ANSWER rather
+# than a sign the number is wrong: the approach band below reddens at 90 per cent
+# while there is still room to act, and the repair is RELOCATION into a sibling
+# module. Raising the ceiling to fit code launders a data-hygiene control for a
+# code-size reason and is refused.
 _MAX_TEST_FILE_BYTES = 256 * 1024
 
 
@@ -928,23 +943,82 @@ def test_no_fixture_is_a_save_a_usmap_or_a_shipped_locale_file() -> None:
     assert not offenders, f"publisher-owned or personal-data artifacts under tests/: {offenders}"
 
 
+def _oversized_over_the_ceiling(paths: Iterable[Path], root: Path) -> list[str]:
+    """Every path past the size ceiling, one report line each.
+
+    Factored out of the arm below by CS-898 so the predicate can be run over
+    material an arm PLANTS rather than only over the real tree. An oversize
+    file written into ``tests/`` to prove the ceiling works would redden the
+    arm below in the same run, so planting needs a root that is not this
+    repository.
+
+    Args:
+        paths: Files to measure.
+        root: Directory the report lines are rendered relative to.
+
+    Returns:
+        One ``<path> (<size> bytes)`` line per file over the ceiling, in the
+        order the paths were given. Empty when none is over it.
+    """
+    return [
+        f"{path.relative_to(root).as_posix()} ({path.stat().st_size} bytes)"
+        for path in paths
+        if path.stat().st_size > _MAX_TEST_FILE_BYTES
+    ]
+
+
 def test_no_file_under_tests_is_large_enough_to_be_a_slice_of_real_game_data() -> None:
-    """Every fixture is small enough to be hand-authored rather than extracted.
+    """No file under tests/ is large enough to hide a slice of real game data.
 
     A size ceiling is crude and that is the point: it is the one check that
     catches a trimmed real docs file dropped in "just for tests", which is
     the specific move BOOTSTRAP.md section 8.1 fences off and which no
     content assertion would catch because a real slice parses perfectly.
+
+    IT DOES NOT CLASSIFY WHAT WROTE A FILE, and CS-898 corrected the comment
+    over ``_MAX_TEST_FILE_BYTES`` that said it did. A large hand-authored
+    module reddens this arm exactly as an extracted slice would; the approach
+    band is what gives authored code somewhere to land before that happens.
     """
-    oversized = [
-        f"{path.relative_to(REPO_ROOT).as_posix()} ({path.stat().st_size} bytes)"
-        for path in _test_tree_files()
-        if path.stat().st_size > _MAX_TEST_FILE_BYTES
-    ]
+    oversized = _oversized_over_the_ceiling(_test_tree_files(), REPO_ROOT)
     assert not oversized, (
         f"files under tests/ exceed {_MAX_TEST_FILE_BYTES} bytes, which is too large to be "
         f"hand-authored synthetic material: {oversized}"
     )
+
+
+def test_the_size_ceiling_still_catches_a_planted_oversize_non_authored_artifact(
+    tmp_path: Path,
+) -> None:
+    """A planted oversize artifact is caught, and an under-ceiling sibling is not.
+
+    CS-898. The comment above ``_MAX_TEST_FILE_BYTES`` used to claim the number
+    separated hand-authored modules from a slice of real game data "without ever
+    tripping on ordinary test code", and ordinary test code tripped it. Correcting
+    that claim is a prose edit, and a prose edit is exactly the change that can
+    quietly take the guard with it - so this arm grades the PREDICATE rather than
+    the sentence, over material it plants itself.
+
+    IT IS PLANTED OUTSIDE ``tests/`` ON PURPOSE. An oversize file written into the
+    real tree would redden
+    ``test_no_file_under_tests_is_large_enough_to_be_a_slice_of_real_game_data``
+    in the same run, so the arm would be proving its point by breaking its
+    neighbour. The predicate takes its root, which is what makes planting
+    possible at all.
+
+    THE UNDER-CEILING CONTROL IS THE ANTI-VACUITY LEG. A predicate that returned
+    every path it was handed would satisfy a bare non-empty assertion and fail
+    this one, so the pair says the ceiling DISCRIMINATES rather than merely
+    complains.
+    """
+    planted = tmp_path / "FactoryGame.json"
+    planted.write_bytes(b'{"NativeClass":"' + b"A" * (_MAX_TEST_FILE_BYTES + 1) + b'"}')
+    control = tmp_path / "synthetic_registry.json"
+    control.write_bytes(b'{"NativeClass":"' + b"A" * 16 + b'"}')
+
+    caught = _oversized_over_the_ceiling([planted, control], tmp_path)
+
+    assert caught == [f"FactoryGame.json ({planted.stat().st_size} bytes)"], caught
 
 
 #: The APPROACH band for the tests-tree size ceiling, as a fraction of that
@@ -1059,10 +1133,12 @@ def test_every_file_under_tests_near_the_size_ceiling_is_budgeted_and_pinned() -
     file getting split. This one reddens while there is still room to act.
 
     THE REPAIR IS RELOCATION, NEVER DELETION, and never raising the ceiling.
-    ``_MAX_TEST_FILE_BYTES`` argues its own number where it is defined: it
-    separates hand-authored material from a slice of real game data, and moving
-    it moves that line. Split a block of arms into a sibling module under
-    ``tests/`` and let it import the fixtures it needs.
+    ``_MAX_TEST_FILE_BYTES`` argues its own number where it is defined, and
+    CS-898 corrected what that argument claims: the ceiling BOUNDS every file
+    under ``tests/`` rather than separating authored material from extracted
+    material, so moving it moves a data-hygiene bound and nothing else. Split a
+    block of arms into a sibling module under ``tests/`` and let it import the
+    fixtures it needs.
 
     THE RESIDUAL IS NOT AN EXEMPTION LIST. Each row names the item that retires
     it, the table is pinned in both directions, and the count is ratcheted, so
