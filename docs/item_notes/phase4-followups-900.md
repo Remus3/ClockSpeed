@@ -259,52 +259,6 @@ and are not the complaint.
 
 ---
 
-## CS-930
-
-
-### FILED 2026-09-06 (session 70). THE PREMISE THAT SENT THE PROBE WAS REFUTED, AND SO WAS THE LEDGER
-
-The session-69 handoff asked whether the shipped docs file exposes build cost at
-all, and warned that if it does not, `BOOTSTRAP.md` carries an unlabelled
-assumption and CLAUDE.md section 8 applies. **It does expose it.** The item that
-remains is a join, not an acquisition.
-
-### WHAT WAS MEASURED, against the real install
-
-- **There is no `mBuildCost` key. Zero occurrences.** That naive lookup is what
-  made this look absent, and it is why the earlier note was written.
-- Build cost is carried on the BUILD GUN RECIPES. Of 872 `FGRecipe` entries,
-  550 name a build gun in `mProducedIn` and **545 carry a non-empty
-  `mIngredients`**. `Recipe_ConstructorMk1_C` inputs are reinforced iron plate
-  x2 and cable x8 - that is the Constructor's build cost.
-- **It is already inside this project's registry.** A real build yields
-  items=750, recipes=872, buildings=68, and all 550 build recipes are present as
-  `Recipe` objects with `inputs` populated, tagged
-  `unresolved_produced_in=('BP_BuildGun_C',)`, which `clockspeed/data/registry.py`
-  already names as a tolerated token.
-- **`clockspeed/data/registry.py::automated_recipes` returns 291 and filters all
-  550 out.** Correct for its purpose, and the reason they are invisible
-  downstream.
-- **65 of 68** modelled Buildings have a build recipe whose output joins by
-  `Desc_` to `Build_` substitution. The three that do not are part of the item.
-
-### THE EXISTING RECORD IS WRONG AND MUST NOT BE INHERITED
-
-the CS-922 entry in `docs/LEDGER.md` states build "COST DATA DOES NOT EXIST AT ALL" and that
-"the docs extractor never reads one". The first clause is FALSE and the second
-is FALSE - the extractor reads `KEY_INGREDIENTS` for all 872 recipes including
-all 550 build recipes. Only "`Building` has no cost field" is true.
-
-The ledger is append-only, so that entry is not edited; a correction is appended
-beside the CS-930 filing rather than written over it.
-
-### WHAT THIS ITEM IS NOT
-
-It is not a data-acquisition problem and must not be scoped as one. It is a join
-plus an aggregation over data already loaded. Do not re-pitch extracting build
-cost from a wiki or any community source - `CLAUDE.md` section 7 settles that,
-and the data is on disk anyway.
-
 ## CS-936
 
 ### FILED 2026-09-07 (session 71)
