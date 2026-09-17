@@ -32,10 +32,11 @@ mapping has one owner and this file only reports it:
 
 | Leaf | Holds |
 |---|---|
-| `docs/item_notes/phase4.md` | ROADMAP `Phase 4`, ID BELOW the `CS-8nn` block. NOT the `CS-10nn` block - the rule sends every phase 4 ID at 900 or higher to the `CS-9nn` leaf |
+| `docs/item_notes/phase4.md` | ROADMAP `Phase 4`, ID BELOW the `CS-8nn` block |
 | `docs/item_notes/phase4-followups.md` | ROADMAP `Phase 4`, ID in the `CS-8nn` block below CS-850 |
 | `docs/item_notes/phase4-followups-850.md` | ROADMAP `Phase 4`, ID in the `CS-8nn` block at or above CS-850 |
 | `docs/item_notes/phase4-followups-900.md` | ROADMAP `Phase 4`, ID in the `CS-9nn` block |
+| `docs/item_notes/phase4-followups-1000.md` | ROADMAP `Phase 4`, ID at or above CS-1000 |
 | `docs/item_notes/phase5.md` | ROADMAP `Phase 5` |
 | `docs/item_notes/phase6.md` | ROADMAP `Phase 6` |
 | `docs/item_notes/phase7.md` | ROADMAP `Phase 7` |

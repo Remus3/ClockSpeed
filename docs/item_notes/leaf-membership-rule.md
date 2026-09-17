@@ -17,7 +17,7 @@ below stood in `docs/item_notes.md` before the move.
 
 **The leaf table moved back to `docs/item_notes.md` by CS-1112, verbatim** - read it there.
 
-**Phase 4 is four leaves and no seam is arbitrary.** `CS-8nn` is the follow-up
+**Phase 4 is five leaves and no seam is arbitrary.** `CS-8nn` is the follow-up
 block, created because `CS-4nn` filled up at 98 of 100 - operator decision 2026-08-21,
 recorded in `ROADMAP.md`. An ID therefore still says which phase it came from, and
 membership needs no judgement. The `CS-8nn` block then split again at CS-850, and the
@@ -48,7 +48,18 @@ per cent of its size budget with no closed sections left to relocate. The split 
 the population; it does not shrink it. **Closure is still the only designed shrink**, and
 a leaf that fills has the same remedy this one had.
 
-**`CS-10nn` TOOK NO LEAF OF ITS OWN, AND THAT IS A DECISION RATHER THAN AN OMISSION.**
-The earlier seams exist because a block FILLED UP. The phase leaves now holding the first
-`CS-10nn` sections are inside their budgets, so the block routes by PHASE like every other
-id and a fourth phase-4 leaf would be a seam nobody decided.
+**UNTIL CS-1079, `CS-10nn` TOOK NO LEAF OF ITS OWN, AND THAT WAS A DECISION RATHER THAN AN
+OMISSION.** The earlier seams exist because a block FILLED UP. The phase leaves now holding
+the first `CS-10nn` sections are inside their budgets, so the block routes by PHASE like
+every other id and a fourth phase-4 leaf would be a seam nobody decided.
+
+**CS-1079 DECIDED THAT SEAM: PHASE 4 IDS AT CS-1000 OR ABOVE ARE THEIR OWN LEAF.** The
+paragraph above held for every phase EXCEPT phase 4, where the `CS-9nn` leaf was an
+open-ended floor: its row read as the block while a clause on the `phase4.md` row sent
+every higher id there too. That leaf then went over its soft doc budget holding ids its
+own selector did not name, so a split on the declared selector would have moved nothing.
+The seam sits at CS-1000 because it is the first id that selector did not describe, and
+the new leaf's row spells a FLOOR - `ID at or above CS-1000` - rather than a block, so
+`CS-11nn` needs no further decision. The "sends up" clause went with it: the grammar in
+`tools/drift_guard.py` no longer carries it, and every block row is bounded by its block.
+Every other phase still routes by phase alone.
