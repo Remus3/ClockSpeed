@@ -1137,6 +1137,54 @@ def bare_path_budget_problems(
     return []
 
 
+def non_citation_budget_problems(
+    patterns: Sequence[re.Pattern[str]],
+    ceiling: int,
+) -> list[str]:
+    """THE NON-CITATION DECLARATION'S RATCHET, and it is the one this family lacked.
+
+    WHAT THE TWO-WAY PIN ALREADY BOUGHT, so the number is not sold as more than
+    it is. :data:`tests.test_docs_citations.NON_CITATION_PATTERNS` is checked in
+    BOTH directions against the patterns the family compiles: a row naming a
+    pattern no module compiles reddens, and a compiled pattern in neither table
+    reddens. That catches a row added ALONE.
+
+    WHAT IT DID NOT BUY, WHICH IS THE PURCHASE THIS BOUNDS. A row added TOGETHER
+    WITH the pattern it describes leaves both directions satisfied and the suite
+    green - the same pair :func:`decline_budget_problems` exists for, one family
+    over. So a future pattern that IS a citation shape could be declared not one
+    in a single row carrying no number to query.
+
+    A NUMBER SOMEBODY TYPED, NOT A DERIVED ONE. The ceiling is a literal the
+    diff carries; :func:`derived_bound_problems` refuses the ``len(TABLE)``
+    spelling that would make both directions true by construction.
+
+    Args:
+        patterns: The patterns declared not to be citation shapes.
+        ceiling: The recorded budget.
+
+    Returns:
+        One line per direction that has drifted, in
+        :func:`bare_path_budget_problems`' shape and for its reasons.
+    """
+    spent = len(patterns)
+    if spent > ceiling:
+        return [
+            f"{spent} non-citation pattern declarations recorded against a ceiling of"
+            f" {ceiling}. A pattern was declared not to be a citation shape. That is a"
+            " finding to argue, not a line to type: judge it as a citation shape, or"
+            " raise the ceiling in this same change and say why in the record."
+        ]
+    if spent < ceiling:
+        return [
+            f"{spent} non-citation pattern declarations recorded against a ceiling of"
+            f" {ceiling}. A declaration was withdrawn and the ceiling was not lowered"
+            f" to match. Lower it to {spent} - a slack ceiling is banked room for an"
+            " append nobody will have to defend."
+        ]
+    return []
+
+
 def _table_spellings(node: ast.AST) -> tuple[str, ...]:
     """Every way one expression node can NAME a registered forgiveness table.
 

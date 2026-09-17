@@ -75,6 +75,84 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-09-17 - CS-1127 - CLOSED. The non-citation declaration spends a budget, and the tautology fence over it is armed
+
+**THE DEFECT.** `tests.test_docs_citations.NON_CITATION_PATTERNS` declares which compiled
+patterns in the citation family are NOT citation shapes, and it was the one escape route in
+that family with no number on it. `BARE_PATH_REASON_CEILING`, `DECLARED_ABSENT_CEILING`,
+`FIXTURE_LITERAL_CEILING`, `UNTRACKED_ROOT_CEILING` and `DECLARED_UNTRACKED_CEILING` all
+exist; nothing bounded this one.
+
+**THE ROOT CAUSE, WHICH IS NOT "IT WAS FORGOTTEN".** The table was registered in that
+module's `NOT_A_FORGIVENESS` with the reason that the boundary contract checks it in BOTH
+directions, so a row that stops describing a compiled pattern reddens. That reason is TRUE
+and it is not a bound. The two-way pin catches a row added ALONE; it leaves both directions
+satisfied when a row arrives TOGETHER WITH the pattern it describes, and that pair is the
+whole purchase - a pattern that IS a citation shape declared not one, in a single row with
+no number to query. It is the same asymmetry `decline_budget_problems` was built for one
+family over.
+
+**THE CLOSE IS THE FIRST BRANCH OF THE ACCEPTANCE, NOT THE SECOND.** The table now spends a
+budget. The item's own note required whoever took it to answer the counter-case first - that
+a ceiling of one which must be raised to two is a number with no independent meaning - and
+the answer is a MECHANISM rather than doctrine: the identical instrument at the identical
+size is already live and green over a one-row table at
+`tests.test_bare_path_citations._SEPARATE_GUARD_CEILING`, and the value is spent EXACTLY, so
+the slack direction refuses banked room in the other direction too.
+
+**WHAT MERGED.** `tests/bare_path_guard.py` gains `non_citation_budget_problems`, mirroring
+`bare_path_budget_problems` in both directions and in its message shape.
+`tests/test_docs_citations.py` gains `NON_CITATION_PATTERN_CEILING`, a literal int beside the
+table it bounds, and MOVES `NON_CITATION_PATTERNS` from that module's `NOT_A_FORGIVENESS` to
+its `FORGIVENESS_TABLES`, bound by the live arm named below.
+
+**THE MOVE IS WHAT ARMS THE FENCE THE NOTE STATES IN CAPITALS, and it is the most reusable
+thing this cycle produced.** `derived_bound_problems` reports a ceiling computed from its own
+subject only for a table the REGISTRY names, so a ceiling spelled
+`len(NON_CITATION_PATTERNS)` beside an unregistered table would have been INVISIBLE to
+`test_no_recorded_bound_is_computed_from_the_table_it_bounds` - the budget would have been
+disarmable in one line, which is the defect that arm exists for. The registration and the
+ceiling are separable edits, so the arm below asserts the registration rather than assuming
+it. The `NOT_A_FORGIVENESS` row was deleted in the same change; a name in both registries is
+refused by `tests.bare_path_guard.registry_problems`.
+
+**THE SIBLING SWEEP RETURNED EMPTY AND THE PATTERN IS PROVEN TO MATCH.** The sweep read every
+`NOT_A_FORGIVENESS` row in the citation family for any other row justified by a two-way pin
+rather than by a number: 30 rows, contributed by `tests/test_docs_citations.py`,
+`tests/test_bare_path_citations.py`, `tests/test_citation_tables.py` and
+`tests/bare_path_guard.py`. `tests/save/test_oracle_citations.py` was read and declares no
+such registry at all, so it contributes NONE - said plainly because a first draft of this
+paragraph listed it as one of five contributing modules and the verifier measured that
+false. The family is the set boundary doing the work here; the archive-rot modules carry
+seven further rows and are outside it. **THE ONE NEAR-HIT, DISCLOSED RATHER THAN ROUNDED
+AWAY:** `tests.test_bare_path_citations.NOT_A_FORGIVENESS`'s `REGISTRY_NAMES` row mentions a
+pin. Reading it, the pin is what that table IS rather than a bound standing in for a number,
+so it is not this defect's shape. `_SEPARATE_GUARD_CEILING` carries the same registry residual this
+entry closes - its table stays in `NOT_A_FORGIVENESS`, so the tautology check cannot see its
+ceiling either - but it HAS a number, so it is a different defect and it is FILED as CS-1128
+rather than swept here.
+
+**PROVEN BY.** `tests/test_docs_citations.py::test_the_non_citation_pattern_budget_is_spent_exactly_and_cannot_grow`
+is the live arm and the registered contract;
+`::test_appending_a_non_citation_pattern_spends_its_budget` is the adversary's move against a
+synthetic budget in both directions;
+`::test_the_non_citation_pattern_ceiling_is_visible_to_the_derived_bound_check` asserts the
+registration and plants the tautology.
+
+**THE FAILING TEST CAME FIRST AND BOTH DIRECTIONS WERE WATCHED RED ON THE LIVE TABLE.** With
+the ceiling at 0: "1 non-citation pattern declarations recorded against a ceiling of 0. A
+pattern was declared not to be a citation shape." With it at 2: "1 non-citation pattern
+declarations recorded against a ceiling of 2. ... Lower it to 1". It settles at 1.
+
+**TIER AND EVIDENCE.** Tier 2 - the change moves a registry entry two modules read and adds a
+contract the class-level registry walk grades. Whole suite, this run, written to a file and
+read back: see the run line recorded with this cycle. `python -m ruff check .` - "All checks
+passed!". `python -m ruff format --check` on both edited files - "2 files already formatted".
+`python -m mypy` - "Success: no issues found in 261 source files".
+
+**CI.** Recorded by the lane driver from the pushed head. NOT observed by the worker that
+wrote this entry.
+
 ### 2026-09-17 - CS-1112 - CLOSED. The per-item routing rows are gone, and the leaf membership rule in the index is the single hop from an item id to its leaf
 
 **WHAT CHANGED (merge 6ec3d62, tips 8d13134 -> de3df31).** The 184 per-item routing rows were

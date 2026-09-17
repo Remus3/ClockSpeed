@@ -24,6 +24,45 @@ Where current truth actually lives:
 | Commands and runbooks | `docs/OPERATIONS.md` |
 
 
+## CS-1127 - item section, CLOSED and relocated from `docs/item_notes/phase4-followups-900.md` 2026-09-17
+
+**Moved here from `docs/item_notes/phase4-followups-900.md` when the item closed.**
+The closure record is in `docs/LEDGER.md`.
+
+### FILED 2026-09-17 by the queue lane cycle that closed CS-899, from that cycle's verifier
+
+**THE VERIFIER RETURNED CONFIRM ON CS-899 AND NAMED THIS SEPARATELY**, which is why it is a
+row rather than a repair inside that cycle: it is not the same root cause as the defect
+CS-899 shipped, and the bounded-refutation rule files what is not proven rather than
+growing the round.
+
+**WHAT IS TRUE.** CS-899 widened
+`tests.test_bare_path_citations.test_every_pattern_in_every_walked_module_is_a_judged_shape`
+so that a compiled pattern may be declared a NON-CITATION shape instead of a judged one, in
+`tests.test_docs_citations.NON_CITATION_PATTERNS`. That table IS checked in both directions -
+a row naming a pattern the family no longer compiles reddens - and it is registered in that
+module's `NOT_A_FORGIVENESS`. What it has that every other escape route in this family does
+NOT have is a CEILING. `BARE_PATH_REASON_CEILING`, `DECLARED_ABSENT_CEILING`,
+`FIXTURE_LITERAL_CEILING`, `UNTRACKED_ROOT_CEILING` and `DECLARED_UNTRACKED_CEILING` all
+exist; nothing bounds this one.
+
+**WHY THAT MATTERS RATHER THAN BEING TIDINESS**, and the module states the reason itself: the
+two-way pin catches a row added ALONE and cannot catch a row added TOGETHER WITH the thing it
+describes, and that pair is exactly the purchase. A future pattern that IS a citation shape
+can be declared a non-citation one with a single row and no number.
+
+**THE HONEST COUNTER-CASE, WHICH IS WHY THE ACCEPTANCE HAS A SECOND BRANCH.** A ceiling on
+this table bounds how many patterns may be declared non-citation shapes, and that population
+is not obviously the kind a ceiling suits - it grows only when the family compiles a new
+pattern, which is already a diff somebody defends, and a ceiling of one that must be raised
+to two is a number with no independent meaning. Whoever takes this must answer that before
+adding a constant, and if the answer is that the table cannot carry a defensible number, the
+close is the second branch - name the MECHANISM that makes it safe, not the doctrine.
+
+**DO NOT CLOSE THIS BY DERIVING THE CEILING FROM THE TABLE.**
+`tests.test_docs_citations.test_no_recorded_bound_is_computed_from_the_table_it_bounds`
+already refuses that shape by name, and it would make every future row free.
+
 ## Session 96 - RELOCATED 2026-09-15 from `WAKEUP_NOTES.md`, which keeps the last three sessions
 
 - Shipped: CS-1060 CLOSED by adjudication, CS-1072 FILED AND CLOSED in one record. CS-1070,

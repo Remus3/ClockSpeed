@@ -280,6 +280,7 @@ from tests.bare_path_guard import (
     graded_floor_names,
     module_containers,
     module_patterns,
+    non_citation_budget_problems,
     pinned_rung_problems,
     source_roots,
     stale_declaration_problems,
@@ -644,12 +645,30 @@ JUDGED_SHAPES: Final = (CITATION_RE, LINE_POINTER_RE, BARE_RE, ELIDED_RE, BARE_P
 #: row for a pattern the family no longer compiles reddens exactly as an
 #: undeclared pattern does.
 #:
+#: AND THE PIN IS NOT THE WHOLE BOUND, WHICH IS WHAT CS-1127 MEASURED. Both
+#: directions stay satisfied when a row arrives TOGETHER WITH the pattern it
+#: describes, and that pair is the purchase: a pattern that IS a citation shape
+#: declared not one, in a single row carrying no number. The row costs
+#: :data:`NON_CITATION_PATTERN_CEILING` as well now.
+#:
 #: THE RENAMING EVASION IS WORTH STATING because it is the cheap way past the
 #: contract and it is forbidden here: :func:`tests.bare_path_guard.module_patterns`
 #: reads the ``_RE`` suffix, so a pattern named anything else is invisible to
 #: the walk entirely. A pattern this family judges by is named ``_RE`` and is
 #: then declared in one of these two tables. Nowhere else.
 NON_CITATION_PATTERNS: Final = (ABSENT_DECLARATION_RE,)
+
+#: THE RECORDED BUDGET FOR THE TABLE ABOVE. An integer somebody typed, so
+#: declaring a SECOND pattern not to be a citation shape is a number in the diff
+#: rather than a row - which is the half the two-way pin above cannot reach, for
+#: the reason :func:`tests.bare_path_guard.non_citation_budget_problems` states:
+#: a row added TOGETHER WITH the pattern it describes satisfies both directions.
+#:
+#: ONE IS NOT A PLACEHOLDER SIZE. The identical instrument at the identical size
+#: is already live over a one-row table -
+#: :data:`tests.test_bare_path_citations._SEPARATE_GUARD_CEILING` - and the
+#: value is spent EXACTLY, so the slack direction refuses banked room too.
+NON_CITATION_PATTERN_CEILING: Final = 1
 
 
 #: The pointers the forbid rule DOES NOT reach, pinned so the hole stays
@@ -1208,11 +1227,19 @@ BARE_PATH_POPULATION_FLOOR: Final = 1900
 #: :func:`tests.bare_path_guard.registry_problems` requires a bounded table's
 #: contract to be a callable that module defines - so the seven relocated tables
 #: took their budgets and their contracts with them to
-#: `tests/test_citation_tables.py`, and are registered there. The one that stays
-#: is the one whose contract cannot travel: it reads the `live_line_pointers`
-#: fixture, derived by :func:`line_pointer_sites` in this file, and the
-#: dependency between the two modules runs ONE WAY on purpose.
+#: `tests/test_citation_tables.py`, and are registered there. TWO STAY, and for
+#: the same reason rather than two: each one's contract cannot travel.
+#: `UNFORBIDDEN_LINE_POINTERS` reads the `live_line_pointers` fixture, derived
+#: by :func:`line_pointer_sites` in this file, and the dependency between the
+#: two modules runs ONE WAY on purpose. :data:`NON_CITATION_PATTERNS` is read
+#: by the carrier boundary in this module and named in the walk that grades it,
+#: so a budget held one module over would be a bound on a table its own
+#: registry does not hold - which :func:`tests.bare_path_guard.registry_problems`
+#: refuses by name.
 FORGIVENESS_TABLES: Final[Mapping[str, str]] = {
+    "NON_CITATION_PATTERNS": (
+        "test_the_non_citation_pattern_budget_is_spent_exactly_and_cannot_grow"
+    ),
     "UNFORBIDDEN_LINE_POINTERS": (
         "test_the_unforbidden_line_pointer_residual_is_pinned_in_both_directions"
     ),
@@ -1228,11 +1255,6 @@ NOT_A_FORGIVENESS: Final[Mapping[str, str]] = {
     "ITEM_NOTES_LEAVES": "derived from the filesystem, and widens GUARDED_DOCS",
     "ADR_DOCS": "derived from the filesystem, and widens GUARDED_DOCS",
     "JUDGED_SHAPES": "widens what counts as a citation; adding to it can only add findings",
-    "NON_CITATION_PATTERNS": (
-        "declares which patterns are NOT citation shapes, and the boundary contract"
-        " checks it in both directions, so a row that stops describing a compiled"
-        " pattern reddens rather than forgiving the next one"
-    ),
     "LADDER_RUNGS": "the ladder's rung names, in order",
     "FORGIVENESS_TABLES": "the registry itself, walked by the contract that reads it",
     "NOT_A_FORGIVENESS": "the registry itself, walked by the contract that reads it",
@@ -4001,6 +4023,62 @@ def test_appending_to_a_decline_disclosure_spends_its_budget() -> None:
 
     assert len(slack) == 1, "a slack disclosure ceiling was accepted"
     assert "Lower it to 0" in slack[0]
+
+
+def test_the_non_citation_pattern_budget_is_spent_exactly_and_cannot_grow() -> None:
+    """THE SIXTH BUDGET, and the escape route this family shipped without one.
+
+    The two-way pin above catches a row added ALONE. This catches the pair -
+    a pattern compiled and declared a non-citation shape in the same change,
+    which left every direction satisfied and carried no number to query.
+    """
+    problems = non_citation_budget_problems(NON_CITATION_PATTERNS, NON_CITATION_PATTERN_CEILING)
+
+    assert not problems, NEWLINE.join(problems)
+
+
+def test_appending_a_non_citation_pattern_spends_its_budget() -> None:
+    """The adversary's move against a synthetic budget, and the slack direction too."""
+    one = (re.compile("a"),)
+
+    assert non_citation_budget_problems(one, 1) == []
+
+    appended = (*one, re.compile("b"))
+    grown = non_citation_budget_problems(appended, 1)
+
+    assert len(grown) == 1, "an appended non-citation declaration was absorbed by the budget"
+    assert "2 non-citation pattern declarations recorded against a ceiling of 1" in grown[0]
+
+    slack = non_citation_budget_problems((), 2)
+
+    assert len(slack) == 1, "a slack non-citation ceiling was accepted"
+    assert "Lower it to 0" in slack[0]
+
+
+def test_the_non_citation_pattern_ceiling_is_visible_to_the_derived_bound_check() -> None:
+    """A BUDGET THE TAUTOLOGY CHECK CANNOT SEE IS A BUDGET THAT DISARMS IN ONE LINE.
+
+    :func:`derived_bound_problems` reports a ceiling computed from its own
+    subject only for a table the REGISTRY names, so registering the table is
+    what arms the fence CS-1127's note states in capitals. Asserted here rather
+    than assumed, because the registration and the ceiling are separable edits.
+    """
+    here = Path(__file__).read_text(encoding="ascii")
+    bounded = {**tables.FORGIVENESS_TABLES, **FORGIVENESS_TABLES}
+
+    assert "NON_CITATION_PATTERNS" in bounded, (
+        "the table is not registered as bounded, so a ceiling derived from it is unguarded"
+    )
+
+    tautology = (
+        here + f"{NEWLINE}NON_CITATION_PATTERN_CEILING = len(NON_CITATION_PATTERNS){NEWLINE}"
+    )
+    planted = derived_bound_problems(tautology, bounded)
+
+    assert len(planted) == 1, (
+        f"a non-citation ceiling computed from its own table was not the single finding: {planted}"
+    )
+    assert "NON_CITATION_PATTERN_CEILING" in planted[0]
 
 
 @pytest.mark.parametrize(
