@@ -217,6 +217,65 @@ a machine-readable record in which each reading carries its own receipt (metric,
 
 ## CS-917
 
+### Partial ship recorded 2026-09-17 - the growth and the figure are measured, the ordering is not met
+
+**THE ITEM STAYS OPEN AND ITS ACCEPTANCE IS UNCHANGED.** What shipped is the
+measurement the clause asks for and the criterion it demands. What is NOT met is
+the clause's last conjunct - that the band not be narrower than the figure - and
+that half is CS-1133, filed with the arithmetic that makes it a ruling rather
+than a choice of numbers.
+
+**WHAT IS NOW MEASURED.** `tools/tier1_growth.py` grades a tracked record,
+`tools/tier1_readings.json`, refreshed BY HAND from `gh` the way
+`tools/tier2_headroom.py` refreshes its own. Per job it derives the growth in
+seconds per commit over a stated window, the jitter, and the verdict against the
+band. Every figure lives in the tool and the record; none is restated here or in
+`docs/LEDGER.md` beyond the counts that entry observed. `/drift-guard` runs it,
+so a session sees the report rather than having to think to ask for it.
+
+**THE CRITERION IS A MAX CONSECUTIVE STEP AND THE CHOICE IS THE WHOLE ANSWER TO
+THIS ITEM'S CLAUSE.** The clause demands a criterion that does not assume one
+normal distribution over a heterogeneous runner pool. A max step between
+consecutive readings is an observed difference: no variance, quantile or fitted
+spread enters it, so the pool's shape cannot make it move the wrong way the way
+the tolerance bound recorded above did at n=3 and n=4. And it is the figure the
+ORDERING actually turns on - what defeats warn-before-red is one run-to-run jump
+wider than the band, not the series range, which conflates growth with jitter and
+is the figure three re-derivations were falsified on.
+
+**THE TIE WAS THE REAL TRAP AND IT IS THE MOST REUSABLE THING THIS CYCLE
+PRODUCED.** Two runs of one job can start in the SAME SECOND - a batched push -
+and the API reports one `started_at` for both. Their order is not a fact, and the
+first build of the figure sorted by `started_at` alone: breaking that tie one way
+gave a figure 28 seconds smaller than the other, and BOTH were under the stated
+ratchet on the first reading and over it on the second. A figure that moves with
+a stable sort is not a measurement. The shipped rule groups readings sharing a
+`started_at` and takes the widest step available under ANY ordering of each
+group, which is deterministic and never understates. **DO NOT "simplify" this
+back to a plain consecutive difference over a sorted list** - that is the defect,
+not a tidier spelling of the fix.
+
+**A READING IS A SUCCESSFUL JOB AND NOTHING ELSE.** Tier 1 runs pytest with
+`-x`, so a failing job stops at its first failure and its duration is a lower
+bound. Admitting failures would UNDERSTATE the worst reading and the jitter
+both - the shipped record holds failures at both ends of the scale, some almost
+instant and some near a full run - and an understated figure makes the ordering
+verdict read green for the wrong reason.
+
+**WHAT IS PINNED TWO WAYS, AND WHY THE UNMET SET IS RECORDED RATHER THAN FIXED.**
+The set of jobs whose band is narrower than their jitter is a literal in the tool
+and a literal in `tests/test_tier1_growth.py`, compared against the computed set.
+It is a TWO-WAY ratchet: a job degrading into it is red at once, and a job
+improving out of it is red too, which forces the literal down rather than letting
+a met condition sit unrecorded. That is the mechanism this item was filed to
+build - growth visible before it is fatal - and it is why the unmet half can be
+recorded honestly instead of being hidden behind a green exit code.
+
+**DO NOT CLOSE THIS ITEM ON THE STRENGTH OF THE MEASUREMENT.** The clause's last
+conjunct is unmet and CS-1133 owns it. If a later session wants this item to
+close on the measurement alone, that is a re-wording of the clause and needs its
+own record - not a reading of this block.
+
 
 ### THE ACCEPTANCE CLAUSE HAD A HOLE AND NOW CARRIES THE ORDERING - MEASURED 2026-09-06 (session 65)
 

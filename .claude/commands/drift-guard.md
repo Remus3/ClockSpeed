@@ -16,6 +16,12 @@ a guard you did not run.
 - [ ] `python tools/drift_guard.py` - exit code: ____
 - [ ] `python tools/doc_budget.py` - exit code: ____
 - [ ] `python tools/facts_probe.py` - exit code: ____ (the live-state fact set)
+- [ ] `python tools/tier1_growth.py` - exit code: ____ (the tier 1 lane's growth per
+      commit and whether each job's warn band still covers its own jitter. READ THE
+      REPORT, not only the exit code: a job printed as BAND NARROWER THAN JITTER can
+      reach the ceiling without ever having warned, and the exit code stays 0 while
+      that stands - CS-1133 owns the remainder. Offline; `--refresh` re-takes the
+      record from `gh` and is the only part that touches the network)
 - [ ] `python scripts/verify_env.py` - exit code: ____ (interpreter, toolchain, paths, ports)
 - [ ] `python tools/precommit_gate.py --staged` - exit code: ____ (character set and secrets)
 - [ ] `python tools/memory_sync.py` if any source doc changed - exit code: ____

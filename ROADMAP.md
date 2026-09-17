@@ -143,6 +143,7 @@ CS-1123 - the CS-898 planting arm proves the tests-tree size ceiling CATCHES an 
 CS-1089 - `tests/save/test_struct_interior.py` sits above the approach band of the `_MAX_TEST_FILE_BYTES` ceiling in `tests/data/test_phase2_gate.py` - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
 CS-1090 - `tests/save/test_properties.py` sits above the approach band of the `_MAX_TEST_FILE_BYTES` ceiling in `tests/data/test_phase2_gate.py` - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
 CS-1091 - `tests/save/test_world.py` sits above the approach band of the `_MAX_TEST_FILE_BYTES` ceiling in `tests/data/test_phase2_gate.py` - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
+CS-1133 - the tier 1 fast shard's warn band is narrower than its own run-to-run jitter - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 
 CS-962 - the dashboard is a SELF-DIAGNOSTIC rather than a player's tool: it renders its own health, its own route table, six world version scalars, five counts and the unmodelled-class list - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-976 - the four panel modules are classic scripts sharing ONE global with `app.js`, and three of them scope themselves - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`

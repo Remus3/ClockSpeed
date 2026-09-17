@@ -808,3 +808,58 @@ the leaf is under its ceiling with headroom a filing pass cannot exhaust in one 
 ### Full headline
 
 `docs/item_notes/phase4-followups-900.md` sits just under its item-notes leaf ceiling after CS-971 moved every acceptance clause into the leaves - MEASURED 2026-09-17 by `tools/doc_budget.py`, which reports the leaf as its worst OK row - so the next filing pass tips it OVER and the session that files a routine follow-up pays for a split it did not cause, which is the condition CS-1079 was filed for and closed by relocating at a block seam
+
+---
+
+## CS-1133
+
+### Filed 2026-09-17 by the CS-917 cycle, from that item's own measurement
+
+**THIS IS THE HALF OF CS-917 THAT CANNOT BE SHIPPED, AND IT IS A FEASIBILITY
+RESULT RATHER THAN AN UNFINISHED BUILD.** CS-917 asks that the warn band not be
+narrower than the noise figure it is derived from, so a warn is reachable before
+a red. `tools/tier1_growth.py` now measures that figure per job and reports the
+verdict; the figure and every reading behind it live in `tools/tier1_readings.json`
+and are restated nowhere. For two of the three jobs the band covers the figure.
+For the fast shard it does not, and `ORDERING_UNMET` in the tool names it.
+
+**WHY NO CHOICE OF LEVELS FIXES IT, which is the part a later session will want
+to re-pitch.** Write `M` for the job's worst reading, `N` for its jitter, `B` and
+`C` for the budget and the ceiling, and the job's `timeout-minutes` as the cutoff.
+CS-896's leaf derives the three requirements - no false warn needs `B >= M`, a
+warn before a red needs `C - B >= N`, and a red rather than a cancel needs
+`C + N <= cutoff`. At this job's measured `M` and `N`, read from the tool rather
+than transcribed here, the window `[M, cutoff - 2N]` is EMPTY. So the remainder is
+not a better pair of numbers and any cycle that goes looking for one is repeating
+a measurement already taken.
+
+**AND THE LEVELS ARE RATCHETED ANYWAY.** Guard (k) of `tools/drift_guard.py` pins
+the budget, the ceiling and the cutoff in BOTH directions, and `.github/workflows/`
+is not on the frozen list but the ratchet is a deliberate fence - CS-1060's comment
+block in the workflow records that the ceiling was NOT raised when the fast shard
+passed it, and that raising a level to meet a slow lane is the move CS-896 exists
+to refuse. **DO NOT close this item by moving a level.** Two of the three moves are
+blocked by arithmetic and the third is blocked by a ruling.
+
+**SO THE ONLY ROUTES LEFT, and both are outside this row's own hands.** Reduce the
+fast shard's run-to-run jitter, which is a property of the runner pool this project
+does not own and of the work the shard does - CS-900 owns the concentration half.
+Or raise the cutoff, which is an operator ruling against CS-896's stated refusal
+and needs its own record. A cycle that wants neither should leave this row alone:
+the condition is MEASURED and REPORTED today, and a reported unmet condition is
+worth more than a synthetic close.
+
+**WHAT WOULD MAKE THIS CLOSABLE WITHOUT EITHER.** A warn that does not live in the
+gap between two level constants - for instance a per-job comparison against that
+job's own recent readings rather than against a tree-wide budget. That is a design
+change to the reporting step in the workflow and it is not this row as filed; if a
+session builds it, file it as its own row and say plainly that CS-1133's clause was
+answered by removing the band rather than by widening it.
+
+### Acceptance
+
+every tier 1 job's warn band covers that job's own jitter figure, with the figure derived by the criterion `tools/tier1_growth.py` already ships and the levels moved only under a recorded ruling, proven by `ORDERING_UNMET` in that tool being EMPTY over a refreshed record and by the two-way arm in `tests/test_tier1_growth.py` that reddens when it is not
+
+### Full headline
+
+the tier 1 fast shard's warn band is narrower than its own run-to-run jitter - MEASURED 2026-09-17 by `tools/tier1_growth.py` over the readings in `tools/tier1_readings.json` - so a rising reading on that job can reach the ceiling without ever having landed in the band, and the feasible window over the budget, the ceiling and the cutoff is EMPTY at that job's worst reading and jitter, which makes it a ruling or a jitter reduction rather than a choice of numbers
