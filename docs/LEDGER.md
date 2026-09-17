@@ -374,6 +374,36 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-09-16 - CS-1106 - NOT A COMPLETION RECORD. CS-1106 STAYS OPEN. A FROZEN-FILE GRANT, GRANTED BY AN ADJUDICATOR BEFORE THE EDIT. Scope is three docstring or comment lines in tools/precommit_gate.py and nothing else
+
+**GRANTOR.** An adjudicator agent that produced none of the CS-1106 work, under CLAUDE.md
+section 6 as amended by section 6.1, pinned at ea944a2. Recorded here BEFORE any byte of the
+frozen file moves.
+
+**WHY.** Two prose sites claim the world-token scan path has exactly ONE deliberate
+non-blocking degradation (the docstring beginning `ONE DEGRADATION IS DELIBERATELY NOT
+BLOCKING` and the comment `The one deliberate non-blocking degradation`). The adjudicator read
+all ten measured sites at ea944a2 - `local_config` (two returns of an empty mapping),
+`_save_root_dirs` (save root unreadable is a skip), `_entry_mtime` and `_entry_is_file` (stat
+failure returns a default), `_bounded_newest_saves` (a failed listing keeps a partial result),
+`_world_tokens_from_headers` (unimportable reader skipped; unreadable header and unscannable
+file counted, and both counts end in skips), `_token_scanner_once` (unimportable scanner) - and
+each degrades without blocking. The total is false. Keeping it and allowlisting it under the
+CS-1096 numeral rule was REJECTED: CS-1106 exists to remove a false total.
+
+**SCOPE, VERBATIM FROM THE RULING.** Anchored on the original line text at ea944a2; indentation
+kept, 7-bit ASCII, LF, 2843 lines, only text inside a docstring or comment changes:
+- line 1521 `ONE DEGRADATION IS DELIBERATELY NOT BLOCKING and it is named rather than` becomes
+  `AN UNREADABLE HEADER IS DELIBERATELY NOT BLOCKING, and it is not the only`
+- line 1522 `left to be inferred: an UNREADABLE header. The six bounds are this gate's` becomes
+  `failure to look that is not blocking (EVERY failure mode above). The six bounds are this gate's`
+- line 1667 `# blocking. The one deliberate non-blocking degradation stays what it` becomes
+  `# blocking. The unreadable-header skip stays non-blocking, as it`
+
+None of the three states a total. Proof of scope: `git diff --numstat` reads `3 3` on that file
+and nothing else changes; `ruff format --check` and `ruff check .` clean. The CS-1096 limit F5
+and its `_COMMENT_ALLOWLIST` entry retire with the arm that grades the derived set.
+
 ### 2026-09-16 - CS-1114 - CLOSED. The save-name skip fails safe, and a false positive is never traded for a leak
 
 **WHAT CHANGED.** The raw-prefix scan in `clockspeed/save/header.py` skips the offset-12 string slot
