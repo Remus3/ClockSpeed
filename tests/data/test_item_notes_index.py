@@ -1402,8 +1402,12 @@ def test_a_table_cs9nn_seam_moved_away_from_the_code_is_red(family: Path) -> Non
     The seam inside the CS-9nn block is the one seam that is NOT a block
     boundary, so nothing about the block's shape would catch it drifting. Both
     rows are moved together, which is what a hand edit to the table would do -
-    a reader following the table would then find CS-965's section in a leaf the
-    table says holds CS-970 and up.
+    a reader following the planted table would be sent to the CS-900 leaf for
+    CS-965, whose section sits in the CS-960 leaf.
+
+    THIS ARM AND ITS CODE-DIRECTION PARTNER BELOW ARE ONE ASSERTION REACHED BY
+    TWO ROUTES. The measurement, and what separates them, is recorded in that
+    partner's docstring; neither arm grades a seam mutant the other misses.
     """
     _replace_in_index(family, "`CS-9nn` block below CS-960 |", "`CS-9nn` block below CS-970 |")
     _replace_in_index(
@@ -1429,16 +1433,28 @@ def test_the_shipped_cs9nn_seam_is_found_when_the_table_stops_bounding_it(family
     1001) plus dropping the constant from the probe tuple, it reported exit 0 on
     all nine. An oracle that cannot observe its subject passes FOR THAT REASON.
 
-    The plant here is the edit a person would actually make - MERGING THE TWO
-    CS-9nn ROWS BACK INTO THE ONE PRE-CS-1132 BLOCK ROW and forgetting the code
-    - and it is not its table-direction partner repeated. That partner moves the
-    table's boundary to another id, so table and code each generate a probe at
-    the other's seam and either one finds the disagreement. Here the table stops
-    bounding inside the block ENTIRELY, so its rows yield probes only at 900 and
-    1000 and the seam is reachable by exactly one route: the probe
-    ``_item_notes_rule_probes`` derives from the code constant itself. That is
-    why this arm, and not its partner, dies when the constant is dropped from
-    that tuple.
+    The plant is the edit a person would actually make - MERGING THE TWO CS-9nn
+    ROWS BACK INTO THE ONE PRE-CS-1132 BLOCK ROW and forgetting the code. With
+    the table no longer bounding anything inside the block, its rows yield
+    probes only at 900 and 1000, and the seam is reached by the probe
+    ``_item_notes_rule_probes`` derives from the code constant.
+
+    THIS ARM AND ITS TABLE-DIRECTION PARTNER ARE ONE ASSERTION REACHED BY TWO
+    ROUTES, AND NEITHER IS INDEPENDENTLY LOAD-BEARING. Both expect a
+    byte-identical line, produced by that same code-derived probe. MEASURED over
+    the eight seam values above, over dropping the constant from the probe
+    tuple, and over widening ``_ITEM_NOTES_BLOCK_WIDTH``: every one of the ten
+    kills BOTH arms or neither - the tuple mutant included. AN EARLIER VERSION
+    OF THIS DOCSTRING SAID THIS ARM ALONE DIED ON THAT MUTANT. That was never
+    measured and it is false. The pair is kept for the table-direction and
+    code-direction framing, not because either grades what the other misses.
+
+    THE ONE MUTANT THAT SEPARATES THEM IS GRAMMATICAL AND NOT ABOUT THE SEAM.
+    Making the id clause mandatory in ``_RULE_GRAMMAR`` - deleting the ``?``
+    after its below / at-or-above group - reddens this arm and leaves the
+    partner green, because this plant's row is the only one of the two using the
+    bare ", ID in the `CS-Nnn` block" form. That is grammar coverage, recorded
+    here rather than dressed up as the reason the pair exists.
 
     Both halves of the expected line are written from THIS module's hand-typed
     constants, so a shipped seam that moves renders a different id and a
