@@ -328,9 +328,27 @@ jobs:
         run: python tools/memory_sync.py
 
       # --- And finally: does the suite run in a clone nobody prepared? ---
+      #
+      # THE WHOLE SUITE, NOT A SUBSET, because this step is not a duplicate of
+      # job 1. It is the only lane that runs the suite AFTER the bootstrap, so
+      # it is the only one where an environment-shaped arm takes its wired
+      # branch - tests/test_make_cert.py names this job as the one that does.
+      #
+      # `-n auto`, THE SAME PARALLELISM AS JOB 1. This step ran serially until
+      # three consecutive windows-latest legs were CANCELLED at this job's
+      # 30-minute cutoff (runs 35163459856, 35173614671, 35177278852, the last
+      # at 98 per cent with nothing failed). Measured over 30 tier2 runs
+      # 2026-09-01..2026-09-17: the serial step here was slower than job 1's
+      # `-n auto` step on windows-latest in 26 of 30 same-tree pairings. On
+      # ubuntu-latest the pairing is mixed, and the flag is applied to both
+      # legs anyway so this invocation stays identical to job 1's.
+      # The cutoff is NOT raised: it is a runaway detector, and the suite's
+      # growth is the signal it exists to surface. pytest-xdist comes from the
+      # clone's own `.[dev]` extra installed above - no extra install here, so
+      # a clone whose pyproject lost it goes red rather than quietly serial.
       - name: Suite in the fresh clone
         working-directory: probe
-        run: python -m pytest tests -q
+        run: python -m pytest tests -q -n auto
 
       # =====================================================================
       # CS-924 - HOOK FIRING, END TO END. The step every other assertion in
