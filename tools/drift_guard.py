@@ -3316,19 +3316,27 @@ _ITEM_NOTES_TABLE_FRAME = re.compile(r"^\|\s*Leaf\s*\|\s*Holds\s*\|\s*$|^\|[-:| 
 # owning them. The top leaf now spells its own floor, ", ID at or above CS-n",
 # and every block row is bounded by the block it names.
 #
-# A LEADING ZERO IS REFUSED in every id NUMBER. `CS-01000` would parse to the
-# same range while no reader or search for `CS-1000` finds the spelling. A BLOCK
-# number may be a bare 0, because `CS-0nn` is the real name of CS-001 to CS-007's
-# block; `CS-00nn` and `CS-08nn` are still refused.
+# AN ID IS ACCEPTED ONLY IN ITS CANONICAL SPELLING, as `ROADMAP.md` and
+# `docs/LEDGER.md` spell every id: three digits, zero-padded below 1000
+# (`CS-005`), and no leading zero at four or more digits (`CS-1000`). `CS-5`,
+# `CS-05`, `CS-0005` and `CS-01000` would parse to a real range while no reader
+# or search for the canonical id finds the spelling. A BLOCK number may be a
+# bare 0, because `CS-0nn` is the real name of CS-001 to CS-007's block;
+# `CS-00nn` and `CS-08nn` are still refused. The four-or-more-digit branch is
+# tried FIRST and the three-digit branch may not be followed by a digit, so
+# `CS-1000` is never read as `CS-100` and `CS-0850` is refused as a whole clause
+# rather than read as `CS-085` with a `0` of residue.
 _RULE_ANNEX = "ANNEX, not a phase leaf - "
 _RULE_BLOCK = r"(?:0|[1-9]\d*)"
+_RULE_ID = r"(?:[1-9]\d{3,}|\d{3}(?!\d))"
 _RULE_GRAMMAR = re.compile(
     r"ROADMAP `Phase (?P<phase>\d+)`"
     r"(?:"
     r", ID BELOW the `CS-(?P<below_block>" + _RULE_BLOCK + r")nn` block"
     r"|, ID in the `CS-(?P<in_block>" + _RULE_BLOCK + r")nn` block"
-    r"(?: below CS-(?P<below_id>[1-9]\d*)| at or above CS-(?P<at_or_above>[1-9]\d*))?"
-    r"|, ID at or above CS-(?P<floor>[1-9]\d*)"
+    r"(?: below CS-(?P<below_id>" + _RULE_ID + r")"
+    r"| at or above CS-(?P<at_or_above>" + _RULE_ID + r"))?"
+    r"|, ID at or above CS-(?P<floor>" + _RULE_ID + r")"
     r")?"
 )
 _ITEM_NOTES_BLOCK_WIDTH = 100

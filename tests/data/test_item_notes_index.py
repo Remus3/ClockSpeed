@@ -993,12 +993,56 @@ def test_a_rule_row_clause_outside_the_grammar_is_red(
 
 
 #: `CS-0nn` is the real block name of CS-001 to CS-007, so a zero BLOCK is a
-#: spelling the grammar accepts - in both block forms - while a zero-led id is not.
+#: spelling the grammar accepts - in both block forms. Its ids are spelled
+#: zero-padded to three digits, `CS-005`, and that is the spelling a row uses.
 _ZERO_BLOCK_ROWS = [
     ("ROADMAP `Phase 5`, ID in the `CS-0nn` block", 0, 100),
     ("ROADMAP `Phase 5`, ID BELOW the `CS-0nn` block", 0, 0),
-    ("ROADMAP `Phase 5`, ID in the `CS-0nn` block below CS-5", 0, 5),
+    ("ROADMAP `Phase 5`, ID in the `CS-0nn` block below CS-005", 0, 5),
 ]
+
+#: CS-1079 pass 3. The CANONICAL id spelling, measured over `ROADMAP.md` and
+#: `docs/LEDGER.md`: three digits, zero-padded below 1000, and no leading zero at
+#: four or more digits. Every id-bearing clause accepts exactly that.
+_CANONICAL_IDS = ["005", "099", "900", "1000", "10000"]
+_NON_CANONICAL_IDS = ["5", "05", "0005", "01000"]
+_ID_CLAUSES = [
+    ("ID in the `CS-0nn` block below CS-{id}", lambda n: (0, min(100, n))),
+    ("ID in the `CS-0nn` block at or above CS-{id}", lambda n: (n, 100)),
+    ("ID at or above CS-{id}", lambda n: (n, None)),
+]
+
+
+def _parse_one(holds: str) -> tuple[list, list[str]]:
+    """Parse a one-row leaf table carrying ``holds`` for an existing leaf."""
+    text = (
+        f"{drift_guard.ITEM_NOTES_RULE_HEADING}\n\n| Leaf | Holds |\n|---|---|\n"
+        f"| `docs/item_notes/phase5.md` | {holds} |\n"
+    )
+    return drift_guard.item_notes_rule_rows(text)
+
+
+@pytest.mark.parametrize("clause", [c for c, _ in _ID_CLAUSES])
+@pytest.mark.parametrize("spelled", _CANONICAL_IDS)
+def test_a_canonical_id_spelling_parses_in_every_id_clause(clause: str, spelled: str) -> None:
+    """CS-005 and CS-10000 both parse, in every clause that carries an id."""
+    bounds = dict(_ID_CLAUSES)[clause](int(spelled))
+    rules, problems = _parse_one("ROADMAP `Phase 5`, " + clause.format(id=spelled))
+    assert not problems, problems
+    assert [(rule.phase, rule.low, rule.high) for rule in rules] == [("5", *bounds)]
+
+
+@pytest.mark.parametrize("clause", [c for c, _ in _ID_CLAUSES])
+@pytest.mark.parametrize("spelled", _NON_CANONICAL_IDS)
+def test_a_non_canonical_id_spelling_is_refused_in_every_id_clause(
+    clause: str, spelled: str
+) -> None:
+    """CS-5, CS-05, CS-0005 and CS-01000 are spellings no reader or search finds."""
+    rules, problems = _parse_one("ROADMAP `Phase 5`, " + clause.format(id=spelled))
+    assert rules == [], rules
+    problem_count = len(problems)
+    assert problem_count == 1, problems
+    assert "unparsed residue in rule row" in problems[0], problems
 
 
 @pytest.mark.parametrize(("holds", "low", "high"), _ZERO_BLOCK_ROWS)
@@ -1017,12 +1061,12 @@ def test_the_cs_0nn_block_spelling_parses(holds: str, low: int, high: int) -> No
     "holds",
     [
         "ROADMAP `Phase 5`, ID in the `CS-00nn` block",
-        "ROADMAP `Phase 5`, ID in the `CS-0nn` block below CS-05",
+        "ROADMAP `Phase 5`, ID BELOW the `CS-00nn` block",
         "ROADMAP `Phase 5`, ID at or above CS-0",
     ],
 )
 def test_a_zero_led_id_beside_the_cs_0nn_block_is_refused(holds: str) -> None:
-    """CS-1079 pass 2. Accepting `CS-0nn` must not re-admit `CS-00nn`, `CS-05` or `CS-0`."""
+    """CS-1079 pass 2. Accepting `CS-0nn` must not re-admit `CS-00nn` or `CS-0`."""
     text = (
         f"{drift_guard.ITEM_NOTES_RULE_HEADING}\n\n| Leaf | Holds |\n|---|---|\n"
         f"| `docs/item_notes/phase5.md` | {holds} |\n"
