@@ -75,6 +75,41 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-09-17 - CS-1126 - CLOSED. No dated record sits outside the Entries section, and the lane prompt names Entries as the insertion anchor
+
+**WHAT CHANGED.** Eight records stranded inside the `## Entry shape` example code block - the
+records for CS-1005, CS-992, CS-994, CS-1000, CS-991, CS-988, CS-993 (a frozen-file grant) and
+the CS-909 measurement record - were relocated to their newest-first positions under `## Entries`. The sha256 of each
+record is unchanged, the file's line count is unchanged, and the diff carries no other hunk; an
+adversary verified all three. The CS-930 record that exposed the defect was moved by hand in the
+commit that filed this item, so it is not one of the eight. Merged files: `docs/LEDGER.md`,
+`tests/test_ledger_entry_shape.py`, `tests/test_citation_tables.py`, `tools/headless-queue.md`.
+
+**THE GUARD.** `tests/test_ledger_entry_shape.py::test_no_dated_record_sits_outside_the_entries_section`
+FAILS on a dated `### YYYY-MM-DD - ` heading anywhere outside `## Entries` - inside the shape block,
+just after its fence, or before the Entries heading - for any id, SESSION records included. It is
+plant-proven by `test_a_record_planted_inside_the_shape_block_is_reported`,
+`test_a_counterfeit_entries_heading_inside_the_fence_does_not_launder_a_plant` and
+`test_a_record_in_the_preamble_or_a_later_section_is_reported`, with
+`test_a_record_planted_under_entries_is_not_reported` as the negative control.
+
+**THE LANE PROMPT.** The ledger-insertion sentence in `tools/headless-queue.md`, outside the step 4f
+that CS-1104 byte-pins, names `## Entries` as the anchor and is bound to the guard by
+`test_the_lane_prompt_names_the_entries_heading_as_the_insertion_anchor`.
+
+**A DEAD CITATION THE MOVE EXPOSED, and it was not introduced here.** CS-909 cites a test that
+8777a89 renamed; moving the record into the guarded corpus made the citation visible. It is
+answered with one RENAMED disposition in `tests/test_citation_tables.py` whose target is live -
+`tests/shell/test_shell_assets.py::test_main_consumes_the_seam_it_was_given` - rather than by an
+edit to the append-only record. `FORGIVEN_LINE_POINTER_CEILING` rose 55 -> 56, GRANTED by an
+adjudicator as the same kind as the 54 -> 55 raise.
+
+**ADVERSARY: NOT REFUTED. WEAKNESS RECORDED, NOT REPAIRED:** a heading with a leading space, or
+with a double space after `###`, is not seen by the arm.
+A planted one of either spelling would pass.
+
+**TIER 2.** Merge 0abd490, tip eb2ed9a.
+
 ### 2026-09-17 - CS-930 - CLOSED. Build cost is reachable from a Building through a graded seam, and the join was one token spelling away from being silently short
 
 **WHAT CHANGED.** `clockspeed/data/registry.py` gained the join the item named: `BuildCost`,
