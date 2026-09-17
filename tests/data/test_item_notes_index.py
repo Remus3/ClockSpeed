@@ -866,19 +866,31 @@ _RESIDUE_PLANTS = [
 
 # CS-1079 repair. EVERY PLANT ABOVE APPENDS JUNK AT THE END, so a grammar
 # loosened at the START or in the MIDDLE of a clause - a case-insensitive
-# keyword, a run of whitespace, a space after `CS-` - survived all of them. Each
-# row form is perturbed below at its start, its keyword, its spacing, its `CS-`
-# joint and its number. A LEADING ZERO IS REFUSED rather than read as the same
-# id: `CS-01000` is a spelling no reader or search for `CS-1000` finds.
+# keyword, a run of whitespace, a space after `CS-` - survived all of them.
+#
+# WHAT THIS COVERS IS ONE POSITION PER PERTURBATION, NOT EVERY POSITION. Each
+# comment below names the exact spots its form is perturbed at. A keyword, a
+# space or a case change anywhere ELSE in a row is not planted here, so a grammar
+# loosened only at an unplanted spot still passes this arm - the older forms'
+# mid-row looseness is a separate row, not this one. CS-1079's floor form is
+# planted at the most spots, and those plants kill the M8 and M12 mutants that
+# loosen its comma, its keyword case, its word spacing and its `CS-` joint.
+#
+# A LEADING ZERO IS REFUSED in an id NUMBER rather than read as the same id:
+# `CS-01000` is a spelling no reader or search for `CS-1000` finds. The BLOCK
+# spelling `CS-0nn` is the one real zero-led name and stays accepted.
 #
 # Each entry is (anchor, the anchor perturbed, leaf, the residue it leaves).
 _P4 = "ROADMAP `Phase 4`"
 _LOOSENING = [
-    # The phase-only form.
+    # The phase-only form: a doubled space after ROADMAP, ROADMAP lowercased, Phase
+    # lowercased.
     ("ROADMAP `Phase 5` |", "ROADMAP  `Phase 5` |", "phase5.md", "ROADMAP  `Phase 5`"),
     ("ROADMAP `Phase 5` |", "roadmap `Phase 5` |", "phase5.md", "roadmap `Phase 5`"),
     ("ROADMAP `Phase 5` |", "ROADMAP `phase 5` |", "phase5.md", "ROADMAP `phase 5`"),
-    # ", ID BELOW the `CS-nnn` block".
+    # ", ID BELOW the `CS-nnn` block": a doubled space after the comma, BELOW
+    # lowercased, a doubled space before the backtick, a space after CS-, a
+    # zero-led block other than `CS-0nn`.
     *(
         (f"{_P4}, ID BELOW the `CS-8nn` block |", f"{_P4}{clause} |", "phase4.md", clause)
         for clause in (
@@ -889,7 +901,9 @@ _LOOSENING = [
             ", ID BELOW the `CS-08nn` block",
         )
     ),
-    # ", ID in the `CS-nnn` block below CS-n" - the block clause, then its narrowing.
+    # ", ID in the `CS-nnn` block below CS-n": in the narrowing, a doubled space
+    # before CS-, below uppercased, a space after CS-, a leading zero in the id;
+    # in the block clause, IN uppercased, a space after CS-, a zero-led block.
     *(
         (
             "`CS-8nn` block below CS-850 |",
@@ -917,7 +931,8 @@ _LOOSENING = [
             ", ID in the `CS-08nn` block below CS-850",
         )
     ),
-    # ", ID in the `CS-nnn` block at or above CS-n".
+    # ", ID in the `CS-nnn` block at or above CS-n": a doubled space between or and
+    # above, at uppercased, a space after CS-, a leading zero in the id.
     *(
         (
             "`CS-8nn` block at or above CS-850 |",
@@ -932,7 +947,7 @@ _LOOSENING = [
             " at or above CS-0850",
         )
     ),
-    # ", ID in the `CS-nnn` block" alone.
+    # ", ID in the `CS-nnn` block" alone: a doubled space after in, a zero-led block.
     *(
         (
             f"{_P4}, ID in the `CS-9nn` block |",
@@ -945,7 +960,9 @@ _LOOSENING = [
             ", ID in the `CS-09nn` block",
         )
     ),
-    # CS-1079's floor form, ", ID at or above CS-n".
+    # CS-1079's floor form, ", ID at or above CS-n": a doubled space and no space
+    # after the comma, ID lowercased, a doubled space after at, a space after CS-,
+    # CS lowercased, a leading zero in the id.
     *(
         (f"{_P4}, ID at or above CS-1000 |", f"{_P4}{clause} |", "phase4-followups-1000.md", clause)
         for clause in (
@@ -973,6 +990,48 @@ def test_a_rule_row_clause_outside_the_grammar_is_red(
     assert (
         f"  {LEAF_DIR_RELATIVE}/{leaf}: unparsed residue in rule row - {residue!r}"
     ) in rendered.splitlines(), rendered
+
+
+#: `CS-0nn` is the real block name of CS-001 to CS-007, so a zero BLOCK is a
+#: spelling the grammar accepts - in both block forms - while a zero-led id is not.
+_ZERO_BLOCK_ROWS = [
+    ("ROADMAP `Phase 5`, ID in the `CS-0nn` block", 0, 100),
+    ("ROADMAP `Phase 5`, ID BELOW the `CS-0nn` block", 0, 0),
+    ("ROADMAP `Phase 5`, ID in the `CS-0nn` block below CS-5", 0, 5),
+]
+
+
+@pytest.mark.parametrize(("holds", "low", "high"), _ZERO_BLOCK_ROWS)
+def test_the_cs_0nn_block_spelling_parses(holds: str, low: int, high: int) -> None:
+    """CS-1079 pass 2. The leading-zero refusal is for id NUMBERS, never the `CS-0nn` block."""
+    text = (
+        f"{drift_guard.ITEM_NOTES_RULE_HEADING}\n\n| Leaf | Holds |\n|---|---|\n"
+        f"| `docs/item_notes/phase5.md` | {holds} |\n"
+    )
+    rules, problems = drift_guard.item_notes_rule_rows(text)
+    assert not problems, problems
+    assert [(rule.phase, rule.low, rule.high) for rule in rules] == [("5", low, high)]
+
+
+@pytest.mark.parametrize(
+    "holds",
+    [
+        "ROADMAP `Phase 5`, ID in the `CS-00nn` block",
+        "ROADMAP `Phase 5`, ID in the `CS-0nn` block below CS-05",
+        "ROADMAP `Phase 5`, ID at or above CS-0",
+    ],
+)
+def test_a_zero_led_id_beside_the_cs_0nn_block_is_refused(holds: str) -> None:
+    """CS-1079 pass 2. Accepting `CS-0nn` must not re-admit `CS-00nn`, `CS-05` or `CS-0`."""
+    text = (
+        f"{drift_guard.ITEM_NOTES_RULE_HEADING}\n\n| Leaf | Holds |\n|---|---|\n"
+        f"| `docs/item_notes/phase5.md` | {holds} |\n"
+    )
+    rules, problems = drift_guard.item_notes_rule_rows(text)
+    assert rules == [], rules
+    problem_count = len(problems)
+    assert problem_count == 1, problems
+    assert "unparsed residue in rule row" in problems[0], problems
 
 
 def test_an_annex_row_outside_the_grammar_is_red(family: Path) -> None:

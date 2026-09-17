@@ -75,13 +75,20 @@ pointer that still names `docs/history_notes.md` names a block genuinely still t
 unbuilt path is a dead citation to `tests/test_docs_citations.py`, whose only routes are
 ratcheted budgets.
 
-**A pointer inside a body saying "this file" or "this leaf" means the leaf that body was
-FILED in** - which is the leaf it sits in unless a later relocation moved the body between
-leaves, because a relocated body is never edited to follow its new home. Every "this file"
-pointer was measured before the 2026-08-25 split and every one is a self-reference into its
-own section, so that split falsified none of them. **CS-1079's relocation DID move one:**
-the CS-1079 section says "this leaf" meaning `docs/item_notes/phase4-followups-900.md`,
-where it was filed, although it now sits in `docs/item_notes/phase4-followups-1000.md`.
+**A "this file" or "this leaf" inside a body is read in context, and it is not always a
+leaf.** Measured over every leaf body for CS-1079, each one is one of three things. A
+pointer to a named block - "this file under **CS-nnn - detail**" - names that block in the
+`CS-nnn` section of the leaf the body sits in. A bare "this file" or "this leaf" names that
+same leaf. Or it names a file the surrounding paragraphs of the body name themselves - a
+hook config, a script, or a doc the item once lived in. A relocated body is never edited
+to follow its new home, so a relocation can break the first two kinds.
+
+**TWO BODIES CARRY SUCH A POINTER THAT NO LONGER RESOLVES, AND BOTH ARE VERBATIM-LOCKED.**
+CS-805 in `docs/item_notes/phase4-followups.md` names "this file under **CS-492 -
+detail**", but that block sits in CS-492's section in `docs/item_notes/phase4.md`. The
+CS-1079 section says "this leaf" meaning `docs/item_notes/phase4-followups-900.md`, where
+it was filed, although it now sits in `docs/item_notes/phase4-followups-1000.md`. A later
+relocation that breaks another names it here.
 
 `docs/upstream_watch.md` owns the CS-486 upstream watch list, which is a standing watch
 rather than per-item detail, and CS-486's section points at it.

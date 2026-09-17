@@ -14,24 +14,15 @@ routing row without doing unrelated surgery first. RELOCATED, NOT DELETED - ever
 the NEXT SECTION stood in `docs/item_notes.md` before the move, with exactly two later
 exceptions, both made by CS-1112 when it moved the leaf table back to the index: that
 section's heading, which read `## Which leaf an item lands in`, and its first line, the
-pointer to where the table went. **Two of that section's statements no longer hold** - that
-phase 4 is four leaves, and that `CS-10nn` took no leaf of its own. They are left as they
-stood, and the section after it, written for CS-1079 and not covered by this promise, says
-what replaced them.
+pointer to where the table went. **Two of its paragraphs are no longer there:** CS-1079
+made them false - one said phase 4 is four leaves, one that `CS-10nn` took no leaf of its
+own - and moved them verbatim to `docs/history_notes.md` under `CS-1079 - retired prose`.
+The section after it, written for CS-1079 and not covered by this promise, carries what
+replaced them.
 
 ## Why the seams sit where they do
 
 **The leaf table moved back to `docs/item_notes.md` by CS-1112, verbatim** - read it there.
-
-**Phase 4 is four leaves and no seam is arbitrary.** `CS-8nn` is the follow-up
-block, created because `CS-4nn` filled up at 98 of 100 - operator decision 2026-08-21,
-recorded in `ROADMAP.md`. An ID therefore still says which phase it came from, and
-membership needs no judgement. The `CS-8nn` block then split again at CS-850, and the
-reasoning - including why the seam sits there rather than at CS-830 or CS-840 - is in
-`docs/adr/0011-the-cs-8nn-follow-up-leaf-splits-at-cs-850.md`. `CS-501` is the one
-stated exception: it predates the block, keeps its ID, and `ROADMAP.md` files it under
-phase 4, so it sits in `phase4.md`. A phase with no OPEN item carrying detail has no
-leaf, which is why phase 6 had none until its first sections were written.
 
 **`CS-9nn` IS THE THIRD SEAM AND IT IS A BLOCK BOUNDARY, NOT A SIZE SPLIT.** `CS-8nn`
 filled up at 100 of 100, measured 2026-09-05, so the next block was opened by operator
@@ -54,60 +45,35 @@ per cent of its size budget with no closed sections left to relocate. The split 
 the population; it does not shrink it. **Closure is still the only designed shrink**, and
 a leaf that fills has the same remedy this one had.
 
-**`CS-10nn` TOOK NO LEAF OF ITS OWN, AND THAT IS A DECISION RATHER THAN AN OMISSION.**
-The earlier seams exist because a block FILLED UP. The phase leaves now holding the first
-`CS-10nn` sections are inside their budgets, so the block routes by PHASE like every other
-id and a fourth phase-4 leaf would be a seam nobody decided.
-
 ## What CS-1079 changed
 
-**Written for CS-1079, not relocated.** It supersedes two statements in the section above.
+**Written for CS-1079, not relocated.** It replaces the two paragraphs CS-1079 retired from
+the section above.
 
-**PHASE 4 IS NOW FIVE LEAVES: PHASE 4 IDS AT CS-1000 OR ABOVE ARE THEIR OWN LEAF.** Before
-CS-1079 the `CS-9nn` leaf was an open-ended floor: its row read as the block while a clause
-on the `phase4.md` row sent every higher phase 4 id there too. That leaf then went over its
-soft doc budget holding ids its own selector did not name, so a split on the declared
-selector would have moved nothing. The seam sits at CS-1000 because that is the first id
-that selector did not describe. The new leaf's row spells a FLOOR - `ID at or above
-CS-1000` - rather than a block, so `CS-11nn` needs no further decision. The "sends up"
-clause went with it: the closed grammar in `tools/drift_guard.py` no longer carries it,
-every block row is bounded by its block, and a leading zero in an id or block number is
-refused. The paragraph above on `CS-10nn` therefore no longer holds for phase 4; every
-other phase still routes by phase alone.
+**Phase 4 is five leaves and no seam is arbitrary.** `CS-8nn` is the follow-up block,
+created because `CS-4nn` filled up at 98 of 100 - operator decision 2026-08-21, recorded in
+`ROADMAP.md`. An ID therefore still says which phase it came from, and membership needs no
+judgement. The `CS-8nn` block then split again at CS-850, and the reasoning - including why
+the seam sits there rather than at CS-830 or CS-840 - is in
+`docs/adr/0011-the-cs-8nn-follow-up-leaf-splits-at-cs-850.md`. `CS-501` is the one stated
+exception: it predates the block, keeps its ID, and `ROADMAP.md` files it under phase 4, so
+it sits in `phase4.md`. A phase with no OPEN item carrying detail has no leaf, which is why
+phase 6 had none until its first sections were written.
 
-**HELD UNTIL CS-1079, RELOCATED VERBATIM.** The record below is every paragraph of prose
-CS-1079 removed or rewrote, byte for byte, in this order: the two header paragraphs of
-`docs/item_notes/phase4-followups-900.md`, the `phase4.md` row retired from the leaf table
-in `docs/item_notes.md`, that file's rule on "this file" pointers, and this file's own
-CS-1062 promise paragraph. It is a record, not a rule. Every sentence in it describes the
-tree before CS-1079; "this leaf" and "THIS leaf" in it mean
-`docs/item_notes/phase4-followups-900.md`, and "this file" in the last paragraph means this
-annex.
+**PHASE 4 IDS AT CS-1000 OR ABOVE ARE THEIR OWN LEAF.** Before CS-1079 the `CS-9nn` leaf was
+an open-ended floor: its row read as the block while a clause on the `phase4.md` row sent
+every higher phase 4 id there too. That leaf then went over its soft doc budget holding ids
+its own selector did not name, so a split on the declared selector would have moved
+nothing. The seam sits at CS-1000 because that is the first id that selector did not
+describe. The new leaf's row spells a FLOOR - `ID at or above CS-1000` - rather than a
+block, so `CS-11nn` needs no further decision. The "sends up" clause went with it: the
+closed grammar in `tools/drift_guard.py` no longer carries it, every block row is bounded
+by its block, and a leading zero in an id number is refused while the `CS-0nn` block
+spelling is accepted.
 
-```text
-**THIS LEAF HOLDS THE `CS-9nn` BLOCK AND EVERYTHING ABOVE IT.** The membership rule in
-`tests/data/test_item_notes_index.py` routes every phase 4 ID at 900 OR HIGHER here, so
-the four-digit IDs live in this leaf too and the `9nn` in its name is a floor rather than
-a range. Its siblings
-`docs/item_notes/phase4-followups.md` and `docs/item_notes/phase4-followups-850.md` hold
-CS-800 to CS-849 and CS-850 to CS-899 respectively. **NEITHER SIBLING NAME SPELLS ITS
-RANGE HONESTLY**, so trust this sentence and the leaf membership rule in `docs/item_notes.md`,
-never a filename.
+**IN EVERY OTHER PHASE `CS-10nn` TAKES NO LEAF OF ITS OWN, AND THAT IS A DECISION RATHER
+THAN AN OMISSION.** The earlier seams exist because a block FILLED UP. The phase leaves
+outside phase 4 holding `CS-10nn` sections are inside their budgets, so there the block
+routes by PHASE like every other id, and a further leaf would be a seam nobody decided.
 
-**What lands in THIS leaf.** Every OPEN item `ROADMAP.md` files under its `Phase 4`
-heading whose ID is 900 or above. That block exists because `CS-8nn` filled up at
-100 of 100, measured 2026-09-05. Operator decision 2026-09-05. The block was never closed
-at `CS-999`, and the code that routes IDs has always read it as an open-ended floor - so
-`CS-9nn` filling up needs no fourth leaf and no decision.
-
-| `docs/item_notes/phase4.md` | ROADMAP `Phase 4`, ID BELOW the `CS-8nn` block. NOT the `CS-10nn` block - the rule sends every phase 4 ID at 900 or higher to the `CS-9nn` leaf |
-
-**A pointer inside a body saying "this file" means the leaf that body sits in.** Every
-one of those was measured before the 2026-08-25 split and every one is a self-reference
-into its own section, so the split falsified none of them.
-
-**Relocated 2026-09-15 for CS-1062, verbatim.** The index had ELEVEN BYTES of headroom
-against its 16384-byte ceiling, so the next session to file an item could not add its
-routing row without doing unrelated surgery first. RELOCATED, NOT DELETED - every word
-below stood in `docs/item_notes.md` before the move.
-```
+**The prose CS-1079 retired is in `docs/history_notes.md`** under `CS-1079 - retired prose`.
