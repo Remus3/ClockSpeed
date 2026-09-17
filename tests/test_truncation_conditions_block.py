@@ -19,11 +19,17 @@ the two halves answer different questions:
   passes only on exit 1 with exactly one diagnostic naming the case's own
   bound, AND only if the SAME arrangement run against a source with THAT
   condition alone disarmed exits 0. The disarm is derived from the node the
-  enumeration found - its deciding `if` test replaced by the constant that
-  skips it, or the flag value itself replaced by `False` - never hand-named,
-  so a case cannot pass on a neighbour's report or on a condition that never
-  fires (CS-1105 refutation of 0350bcb: a dead cap sharing the scan cap's
-  arrangement and marker passed). No two cases may share a marker, by
+  enumeration found - the test of the INNERMOST `if` directly guarding the
+  flag binding, the truncation return or the report, whatever that test is
+  (a threshold, a flag, an `is None`), replaced by the constant that skips
+  it; or, with no guard, the flag value itself replaced by `False` - never
+  hand-named, so a case cannot pass on a neighbour's report or on a condition
+  that never fires (refutation of 0350bcb: a dead cap sharing the scan cap's
+  arrangement and marker passed). NEIGHBOUR PRESERVATION: under each case's
+  disarm, EVERY OTHER case's arrangement must still block on its own reason,
+  so a disarm that also switches off a neighbour is red and names both
+  (refutation of c6c417e: skipping flag tests picked an outer `if` wrapping
+  the root cap too, and a borrowed row passed). No two cases may share a marker, by
   substring, or an arrangement function. A control on the same fixture shape
   with no cap tripped must exit 0. Driving
   `main` itself would add git and the lint subprocess and no coverage of this
@@ -72,6 +78,13 @@ KNOWN LIMITS, stated rather than implied:
   refused as a problem rather than followed.
 - The CS-1096 limit F2 applies unchanged: an alias or an indirect reach to a
   helper is not followed.
+- STOP CONDITION, adjudicated after the second refutation: the disarm is ONE
+  replacement of one guarding test or one flag value. Cap shapes that could
+  only be disarmed by refactoring the gate's control flow beyond a single new
+  nested cap - a cap folded into a loop bound or a slice, two caps sharing
+  one guard and one binding, a cap expressed as an early `continue` - are
+  documented limits here, not further repairs. Neighbour preservation reads
+  only the neighbours the table holds.
 
 The mutation arms feed MODIFIED SOURCE TEXT to the enumeration, and a gate
 module built from modified text to the behavioural cases. The files on disk
@@ -210,11 +223,13 @@ class Enumeration:
     ) -> None:
         """Record one condition: the non-routing tests around `at`, keyed by a node.
 
-        The DISARM is the deciding expression: the value itself when one was
-        named (`off`), else the innermost non-routing `if` test, replaced by
-        the constant that skips the branch holding `at`.
+        The DISARM is the value itself when one was named (`off`), else the
+        test of the INNERMOST `if` guarding `at` - routing or not, so an outer
+        `if` that also guards a neighbour is never chosen - replaced by the
+        constant that skips the branch holding `at`.
         """
-        chain = [(if_node, test) for if_node, test in self._chain(at) if not _is_routing(test)]
+        guards = self._chain(at)
+        chain = [(if_node, test) for if_node, test in guards if not _is_routing(test)]
         texts = [ast.unparse(test) for _if, test in chain]
         if extra is not None:
             texts.append(extra)
@@ -222,8 +237,8 @@ class Enumeration:
         text = " / ".join(texts) or "<unconditional>"
         if off is not None:
             span, literal = off, "False"
-        elif chain:
-            if_node, test = chain[-1]
+        elif guards:
+            if_node, test = guards[-1]
             span, literal = if_node.test, "False" if test is if_node.test else "True"
         else:
             span, literal = at, "False"
@@ -710,8 +725,13 @@ def case_problems(
     header_source: str,
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
+    cases: tuple[Case, ...] = CONDITION_TABLE,
 ) -> list[str]:
-    """A case DISCRIMINATES: it blocks on its own reason, and stops blocking disarmed."""
+    """A case DISCRIMINATES: it blocks on its own reason, and stops blocking disarmed.
+
+    Its disarm must also PRESERVE every neighbour: each other case in `cases`,
+    run under the same disarmed sources, still blocks on its own reason.
+    """
     enumeration = Enumeration(gate_source, header_source)
     spans = enumeration.disarms(case.key)
     if len(spans) != 1:
@@ -737,6 +757,19 @@ def case_problems(
             "CS-1105: case %r still blocks with its own condition disarmed, so it does "
             "not prove that condition blocks: exit %d, %r" % (case.key, status, reasons)
         )
+    for index, neighbour in enumerate(cases):
+        if neighbour is case:
+            continue
+        monkeypatch.undo()
+        status, reasons = _verdict(
+            off_gate, off_header, neighbour.arrange, tmp_path / ("neighbour%d" % index), monkeypatch
+        )
+        if status != 1 or len(reasons) != 1 or neighbour.marker not in reasons[0]:
+            problems.append(
+                "CS-1105: disarming case %r also silences neighbour %r: exit %d, %r"
+                % (case.key, neighbour.key, status, reasons)
+            )
+    monkeypatch.undo()
     return problems
 
 
@@ -801,6 +834,7 @@ def test_each_truncation_condition_blocks(
     """Tripped alone it blocks on its own reason; with it alone disarmed, it does not."""
     del pristine_gate
     problems = case_problems(case, _text(GATE), _text(HEADER), tmp_path, monkeypatch)
+    assert case in CONDITION_TABLE
     assert problems == [], "\n".join(problems)
 
 
@@ -1001,9 +1035,21 @@ def test_a_truncation_flag_read_before_its_overwrite_is_live() -> None:
 def test_the_adversary_row_fails_its_discriminating_control(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """The row's arrangement blocks through the EXISTING scan cap, so it cannot pass."""
-    problems = case_problems(_SHARED_ROW, _text(GATE), _dead_cap_header(), tmp_path, monkeypatch)
-    assert problems != []
+    """The row's arrangement blocks through the EXISTING scan cap, so it cannot pass.
+
+    The DEAD plant matches no live condition, so that half stops at the count.
+    The LIVE twin - the same cap with no overwrite - matches exactly one, so
+    the disarm control RUNS, and the assertion is on the message only a
+    disarmed run that still blocked can produce.
+    """
+    dead = case_problems(_SHARED_ROW, _text(GATE), _dead_cap_header(), tmp_path / "d", monkeypatch)
+    assert any("has 0 enumerated conditions" in problem for problem in dead), dead
+
+    live_cap = "    if len(data) > MAX_HEADER_BYTES // 2:\n        truncated = True\n"
+    live_header = _plant(_text(HEADER), _TRUNCATED_INIT, live_cap)
+    assert Enumeration(_text(GATE), live_header).disarms(_SHARED_ROW.key) != []
+    live = case_problems(_SHARED_ROW, _text(GATE), live_header, tmp_path / "l", monkeypatch)
+    assert any("still blocks with its own condition disarmed" in p for p in live), live
 
 
 def test_a_row_whose_arrangement_trips_a_neighbour_fails_its_control(
@@ -1013,3 +1059,87 @@ def test_a_row_whose_arrangement_trips_a_neighbour_fails_its_control(
     borrowed = Case(CONDITION_TABLE[3].key, CONDITION_TABLE[5].marker, _arrange_scan_cap)
     problems = case_problems(borrowed, _text(GATE), _text(HEADER), tmp_path, monkeypatch)
     assert any("still blocks with its own condition disarmed" in p for p in problems), problems
+
+
+# --------------------------------------------------------------------------
+# CS-1105 refutation of c6c417e - an outer `if` wrapping a neighbour cap.
+# --------------------------------------------------------------------------
+
+_ROOT_LOOP = (
+    "        for index, entry in enumerate(sorted(root.iterdir(), key=lambda item: item.name)):\n"
+    "            if index >= MAX_SAVE_ROOT_ENTRIES:\n"
+    "                return found, True\n"
+)
+_ROOT_LOOP_WRAPPED = (
+    "        strict = False\n"
+    "        for index, entry in enumerate(sorted(root.iterdir(), key=lambda item: item.name)):\n"
+    "            if index >= MAX_SAVE_ROOT_ENTRIES // 2:\n"
+    "                if index >= MAX_SAVE_ROOT_ENTRIES:\n"
+    "                    return found, True\n"
+    "                if strict:\n"
+    "                    return found, True\n"
+)
+
+
+def _arrange_root_cap_borrowed(
+    gate: ModuleType, root: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The root cap's fixture under another name - blocks only through the root cap."""
+    _arrange_root_cap(gate, root, monkeypatch)
+
+
+def _wrapped_table() -> tuple[tuple[Case, ...], Case, Case]:
+    root_row = Case(
+        (
+            "gate",
+            "_save_root_dirs",
+            "index >= MAX_SAVE_ROOT_ENTRIES // 2 / index >= MAX_SAVE_ROOT_ENTRIES",
+        ),
+        CONDITION_TABLE[0].marker,
+        CONDITION_TABLE[0].arrange,
+    )
+    assert CONDITION_TABLE[0].arrange is _arrange_root_cap
+    borrowed = Case(
+        ("gate", "_save_root_dirs", "index >= MAX_SAVE_ROOT_ENTRIES // 2"),
+        "the listing stopped there",
+        _arrange_root_cap_borrowed,
+    )
+    return (root_row, borrowed, *CONDITION_TABLE[1:]), root_row, borrowed
+
+
+def test_the_wrapped_plant_is_graded_by_its_table() -> None:
+    """Anti-vacuity: the plant and its table agree, so only the controls can red it."""
+    gate = _swap(_text(GATE), _ROOT_LOOP, _ROOT_LOOP_WRAPPED)
+    table, _root_row, _borrowed = _wrapped_table()
+    assert condition_problems(gate, _text(HEADER), table) == []
+
+
+def test_the_disarm_is_the_innermost_guard_even_a_flag_test() -> None:
+    """The borrowed row's disarm is `if strict:`, never the outer threshold `if`."""
+    gate = _swap(_text(GATE), _ROOT_LOOP, _ROOT_LOOP_WRAPPED)
+    _table, _root_row, borrowed = _wrapped_table()
+    (span,) = Enumeration(gate, _text(HEADER)).disarms(borrowed.key)
+    assert gate.splitlines()[span.line - 1][span.col : span.end_col] == "strict"
+
+
+def test_a_borrowed_row_under_an_outer_guard_is_red(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Its own disarm leaves it blocking through the root cap: not discriminating."""
+    gate = _swap(_text(GATE), _ROOT_LOOP, _ROOT_LOOP_WRAPPED)
+    table, _root_row, borrowed = _wrapped_table()
+    problems = case_problems(borrowed, gate, _text(HEADER), tmp_path, monkeypatch, table)
+    assert any("still blocks with its own condition disarmed" in p for p in problems), problems
+
+
+def test_a_disarm_that_silences_a_neighbour_is_red(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """NEIGHBOUR PRESERVATION: the root row's disarm switches the borrowed row off too."""
+    gate = _swap(_text(GATE), _ROOT_LOOP, _ROOT_LOOP_WRAPPED)
+    table, root_row, borrowed = _wrapped_table()
+    problems = case_problems(root_row, gate, _text(HEADER), tmp_path, monkeypatch, table)
+    assert any(
+        "also silences neighbour" in p and repr(root_row.key) in p and repr(borrowed.key) in p
+        for p in problems
+    ), problems
