@@ -1,0 +1,77 @@
+{
+  "total_count": 3,
+  "jobs": [
+    {
+      "id": 105135979162,
+      "run_id": 35201160041,
+      "workflow_name": "tier2",
+      "head_branch": "main",
+      "run_url": "https://api.github.com/repos/example-owner/example-repo/actions/runs/35201160041",
+      "run_attempt": 1,
+      "node_id": "CR_example",
+      "head_sha": "7fde21f3ee616701a8a83cc9cba8c9268a15f56f",
+      "url": "https://api.github.com/repos/example-owner/example-repo/actions/jobs/105135979162",
+      "html_url": "https://github.com/example-owner/example-repo/actions/runs/35201160041/job/105135979162",
+      "status": "completed",
+      "conclusion": "success",
+      "created_at": "2026-09-17T08:42:52Z",
+      "started_at": "2026-09-17T08:42:55Z",
+      "completed_at": "2026-09-17T09:06:27Z",
+      "name": "full suite (windows-latest)",
+      "steps": [
+        {
+          "name": "Full test suite",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 6,
+          "started_at": "2026-09-17T08:45:10Z",
+          "completed_at": "2026-09-17T09:06:20Z"
+        }
+      ],
+      "check_run_url": "https://api.github.com/repos/example-owner/example-repo/check-runs/105135979162",
+      "labels": ["windows-latest"]
+    },
+    {
+      "id": 105135979170,
+      "run_id": 35201160041,
+      "workflow_name": "tier2",
+      "head_branch": "main",
+      "run_url": "https://api.github.com/repos/example-owner/example-repo/actions/runs/35201160041",
+      "run_attempt": 1,
+      "node_id": "CR_example",
+      "head_sha": "7fde21f3ee616701a8a83cc9cba8c9268a15f56f",
+      "url": "https://api.github.com/repos/example-owner/example-repo/actions/jobs/105135979170",
+      "html_url": "https://github.com/example-owner/example-repo/actions/runs/35201160041/job/105135979170",
+      "status": "completed",
+      "conclusion": "cancelled",
+      "created_at": "2026-09-17T08:42:52Z",
+      "started_at": "2026-09-17T08:42:54Z",
+      "completed_at": "2026-09-17T09:13:06Z",
+      "name": "clean-checkout probe (windows-latest)",
+      "steps": [],
+      "check_run_url": "https://api.github.com/repos/example-owner/example-repo/check-runs/105135979170",
+      "labels": ["windows-latest"]
+    },
+    {
+      "id": 105135979171,
+      "run_id": 35201160041,
+      "workflow_name": "tier2",
+      "head_branch": "main",
+      "run_url": "https://api.github.com/repos/example-owner/example-repo/actions/runs/35201160041",
+      "run_attempt": 1,
+      "node_id": "CR_example",
+      "head_sha": "7fde21f3ee616701a8a83cc9cba8c9268a15f56f",
+      "url": "https://api.github.com/repos/example-owner/example-repo/actions/jobs/105135979171",
+      "html_url": "https://github.com/example-owner/example-repo/actions/runs/35201160041/job/105135979171",
+      "status": "in_progress",
+      "conclusion": null,
+      "created_at": "2026-09-17T08:42:52Z",
+      "started_at": "2026-09-17T08:42:55Z",
+      "completed_at": null,
+      "name": "shell suite (ubuntu-latest)",
+      "steps": [],
+      "check_run_url": "https://api.github.com/repos/example-owner/example-repo/check-runs/105135979171",
+      "labels": ["ubuntu-latest"]
+    }
+  ]
+}
