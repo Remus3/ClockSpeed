@@ -425,6 +425,115 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-09-17 - CS-939 - CLOSED. The tracked tree and every reachable blob are swept with the gate's own rules, and the arm's first run reported the module that owns it
+
+**THE DEFECT.** `tools/precommit_gate.py` runs over STAGED bytes or over explicitly named
+files. It can only ever see what is CHANGING NOW, so anything that landed before it was
+wired is invisible to it forever - nothing re-reads what already landed. A sibling project
+on the channel measured that class in its own tree: a live token tracked from its initial
+commit for 133 days, green on every working-tree check.
+
+**WHAT SHIPPED.** `tests/secret_sweep_guard.py` derives two populations and scans them;
+`tests/test_secret_sweep.py` holds the arms and the controls. Merged files:
+`tests/secret_sweep_guard.py`, `tests/test_secret_sweep.py`.
+
+- THE TRACKED TREE, read from the working tree through `git ls-files`.
+- EVERY REACHABLE BLOB, walked with `git rev-list --objects --all` and streamed out of one
+  `git cat-file --batch` process. This is the only population that sees a credential a
+  later commit removed.
+
+**THE DETECTOR IS IMPORTED AND THE ARM PROVES IT BY SUBSTITUTION RATHER THAN BY PROSE.**
+`test_the_sweep_reads_the_gates_own_pattern_list` replaces `SECRET_PATTERNS` on the gate
+module with a rule that matches an ordinary word and requires the verdict to follow it. A
+copy of the list inside the test family would survive that replacement and report the same
+answer, which is exactly the failure the clause names. The ADMISSION rule is imported too -
+`classify_for_read` and `accept_bytes` decide what is scanned - so the sweep reports only
+things a commit could actually have been blocked for, and the arm named below for it
+pins both directions of that on one call.
+
+**THE GATE IS LOADED BY PATH, NOT IMPORTED AS `tools.precommit_gate`, and that is
+mechanical rather than stylistic.** `tools/` carries no `__init__.py`, so a package import
+puts the same source under two module names and the repo-wide mypy gate refuses the whole
+tree with `Source file found twice under different module names` before checking anything
+else. Measured in this cycle: the first draft did exactly that.
+`tests/test_precommit_gate.py::load_gate` makes the same choice for the same reason, and this module registers under a DISTINCT name
+so neither copy can be monkeypatched out from under the other.
+
+**THE ARM'S FIRST RUN REPORTED THE MODULE THAT OWNS IT, AND THAT IS THE STRONGEST EVIDENCE
+IN THIS ENTRY.** Three call sites in `tests/test_secret_sweep.py` spelled a field name, an
+equals sign and a quote next to each other while building a fixture - the gate's
+quoted-literal rule exactly - and the live arm reported all three. They now go through
+`planted_line`, which takes the field name as a PARAMETER so the shape never occurs in
+source. A guard whose first act is to redden on its own author is a guard with teeth.
+
+**THE SYNTHETIC FIXTURE THAT MUST NOT REDDEN IS A MECHANISM, NOT A FORGIVENESS TABLE.**
+Nothing anywhere forgives this file. The fixture is ASSEMBLED from fragments and never
+spelled - this tree's oldest answer to the same question, and the one
+`tools/outbound_gate.py::CANARY_CREDENTIAL` already uses. The joined value matches the AWS
+rule; the source line that builds it matches nothing. So a real credential added to the
+fixture file would redden the live arm exactly as it would in any other file.
+
+**THE SIBLING SWEEP IS THE CHARSET RULE, SWEPT RATHER THAN FILED.** It shares the root
+cause exactly - a check that reads only what is changing now cannot see a byte that already
+landed - so `check_charset` is run over both populations with its own arms and its own
+discriminating control. CLAUDE.md non-negotiable 4 is the rule it answers. The PII rule is
+the same class and is NOT swept: its matchers are derived from the machine's own save
+directory, so a tracked-tree arm over them would report a different population on every box
+and could not run at all where no game is installed.
+
+**A SHA THAT IS COUNTED AND NOT READ IS THE FAILURE THIS DESIGN GUARDS AGAINST.** A reader
+that quietly drops an object produces a report byte-identical to a clean one, so
+`blob_findings` RAISES on an object the reader did not yield.
+`test_a_blob_the_reader_never_yields_is_a_failure_rather_than_a_pass` pins it.
+
+**WHAT THIS COSTS AND WHERE, MEASURED THIS CYCLE RATHER THAN ESTIMATED.** The module runs
+in roughly a minute on a full-history checkout, and effectively all of it is the history
+leg: the tracked tree is a few hundred files and a few seconds, while the reachable-blob
+population on this box is three thousand objects and hundreds of megabytes. THE COST DOES
+NOT LAND ON TIER 1. `actions/checkout@v5` defaults to depth 1, so every tier-1 job and
+tier2's `suite` job reach the tip tree only and the blob population collapses to roughly
+the tracked one. The full walk is paid where history exists: the pre-push hook, and tier
+2's `clean-checkout-probe`, which sets `fetch-depth: 0` and carries a 30-minute budget.
+That placement was chosen against CS-896, whose note records the tier-1 fast shard sitting
+inside the noise band of its own cutoff; adding a minute there would have been a knowing
+regression.
+
+**ON A SHALLOW CHECKOUT THE HISTORY LEG IS THE TIP TREE AND NOTHING MORE.** That is stated
+rather than rounded up. The population is whatever the checkout reaches, and the
+anti-vacuity arm pins that it is never smaller than the tracked tree - so a walk that
+returned nothing fails rather than rendering clean.
+
+**THE LIVE MEASUREMENT.** Zero findings on both rules and both populations - every tracked
+file, and every blob reachable from every ref on this worktree. NO POPULATION SIZE IS
+WRITTEN HERE, deliberately: both counts move with the next commit, and a figure in prose is
+a lie with a timestamp on it. The arms pin ZERO findings, so they cannot go stale; the
+anti-vacuity arms pin the POPULATION instead, because a sweep of nothing and a sweep that
+found nothing render the same way, and the verifier re-derived both populations
+independently and found the scanned set equal to the tracked set with nothing declined.
+
+**TESTS.** `tests/test_secret_sweep.py` - 13 arms.
+`test_a_planted_credential_in_a_tracked_file_is_reported`,
+`test_the_assembled_spelling_of_the_same_credential_is_not_reported`,
+`test_the_sweep_reads_the_gates_own_pattern_list`,
+`test_an_item_the_gate_itself_would_decline_is_not_scanned`,
+`test_a_planted_non_ascii_byte_is_reported`, `test_a_planted_blob_is_reported`,
+`test_a_blob_the_reader_never_yields_is_a_failure_rather_than_a_pass`,
+`test_no_tracked_file_carries_a_credential_the_gate_would_block`,
+`test_no_tracked_file_carries_a_byte_outside_the_charset_rule`,
+`test_every_tracked_python_and_markdown_file_is_actually_scanned`,
+`test_no_reachable_blob_carries_a_credential_the_gate_would_block`,
+`test_no_reachable_blob_carries_a_byte_outside_the_charset_rule`,
+`test_the_blob_population_covers_at_least_the_tracked_tree`.
+
+**TIER 2 PAID, AND THE VERDICT IS QUOTED RATHER THAN SUMMARISED.** `python -m pytest tests
+-q -n auto` from the repo root, written to a file and read back:
+`8518 passed, 7 skipped, 8 warnings in 493.42s (0:08:13)`, exit 0. `python -m ruff check .`
+reported `All checks passed!`; `python -m ruff format --check .` reported all files already
+formatted; the repo-wide `python -m mypy` reported `Success: no issues found in 260 source
+files`. CI IS RECORDED BY THE LANE DRIVER AND WAS NOT OBSERVED BY THE WORKER THAT WROTE
+THIS. The only tree change after that run is this paragraph and the closure bookkeeping
+around it; the pre-push hook's own whole-suite run is what graded the final tree.
+
 ### 2026-09-17 - CS-1124 - CLOSED. Every tier2 job reddens at 4/5 of its own timeout, and the Windows state save retries to a monotonic deadline
 
 **WHAT CHANGED, GUARD HALF (merge d605bec, tips eed2eed -> 120477a).**

@@ -179,7 +179,6 @@ a pass - every equality here is satisfied for free by an empty population.
 | CS-962 | `docs/item_notes/phase4-followups-900.md` |
 | CS-937 | `docs/item_notes/phase4-followups-900.md` |
 | CS-938 | `docs/item_notes/phase4-followups-900.md` |
-| CS-939 | `docs/item_notes/phase4-followups-900.md` |
 | CS-909 | `docs/item_notes/phase6.md` |
 | CS-910 | `docs/item_notes/phase6.md` |
 | CS-988 | `docs/item_notes/phase6.md` |
