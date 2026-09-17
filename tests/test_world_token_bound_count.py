@@ -31,12 +31,30 @@ refutation):
   conditions. A cap that only ORs into `scan_capped` beside an existing
   report, or any cap inside clockspeed/save/header.py's scanner, adds no
   reporting site and is not counted.
-- F5, filed as CS-1106: the allowlisted comment phrase "the one deliberate
-  non-blocking degradation" states a total over a population this arm does
-  not grade, and it may be false - the unimportable-reader skip and
-  unscannable files are non-blocking too. Correcting it needs a new grant.
+- CS-1106 retired F5. The NON-BLOCKING population is now read from the code
+  too: every exception handler reached from the target that neither re-raises
+  nor makes a blocking production, and every `suppress(...)` call, keyed by
+  call path. Any spelled total over that population, in the docstring or the
+  body comments, is graded against it, and the allowlist entry that used to
+  clear "the one deliberate non-blocking degradation" is gone. A handler is
+  BLOCKING only when a top-level statement of its body, reached before any
+  return, continue or break, raises or makes a blocking production with no
+  short-circuit in it; a raise under an `if`, a loop or a `try` leaves the
+  handler counted. Beside the graded totals, every sentence in the docstring or
+  comments of every function the scan reaches that pairs a blocking or
+  degradation word with a count word (digits, one to twenty, single, sole,
+  lone, only, unique) is red unless _BLOCKING_SENTENCE_ALLOWLIST masks it -
+  an allowlist, because a phrase denylist missed "the lone" and "nonblocking".
+  Limits: a swallow shaped as an early return or a `continue` with no handler
+  (an absent save root, an unresolvable declared directory) is NOT counted; a
+  handler that raises through a helper it calls is counted as swallowing; a
+  top-level call of a helper that blocks only on an unresolved branch is read
+  as blocking; and a helper passed BY REFERENCE (`map(_helper, ...)`, a
+  callback argument) is not walked at all, for handlers or for prose.
 - The PROSE reader tokenizes the function's source range and keeps STRING and
-  COMMENT tokens only. It never looks at a call, a name or a keyword.
+  COMMENT tokens only. It never looks at a call, a name or a keyword. The
+  CS-1106 count-word rule reads each reached function's docstring through
+  `ast.get_docstring` and its comments from tokens.
 
 What the prose side grades:
 
@@ -83,6 +101,7 @@ TARGET = "_world_tokens_from_headers"
 SINK = "_report_world_token_uncovered"
 DIAGNOSTIC = "Diagnostic"
 REASON = "WORLD_SCAN_UNCOVERED_REASON"
+SUPPRESS = "suppress"
 
 _CARDINALS = {
     "one": 1,
@@ -251,7 +270,49 @@ def indirect_references(source: str) -> list[str]:
 
 
 def analyse_code(source: str) -> tuple[set[Site], list[str]]:
-    """Blocking productions reachable from TARGET, plus what the walk could not read.
+    """Blocking productions reachable from TARGET, plus what the walk could not read."""
+    sites, problems, _degradations = walk_target(source)
+    return sites, problems
+
+
+# A statement with no nested body, so a production inside it happens whenever
+# the statement runs. A compound statement (if, try, a loop, with, match) may
+# skip its production, so it never makes a handler blocking - fail closed.
+_SIMPLE_STATEMENTS = (ast.Expr, ast.Assign, ast.AugAssign, ast.AnnAssign, ast.Return)
+# Expression shapes that may skip part of a simple statement.
+_SHORT_CIRCUITS = (ast.IfExp, ast.BoolOp, ast.Lambda, ast.comprehension, ast.NamedExpr)
+
+
+def _handler_blocks(body: list[ast.stmt], produced: list[bool]) -> bool:
+    """Whether a handler body UNCONDITIONALLY raises or blocks (CS-1106).
+
+    Only top-level statements are read, in order, and only until the first
+    return, continue or break - a raise after those is unreachable. A raise, or
+    a simple statement that made a blocking production with no short-circuit
+    inside it, blocks. Anything nested under if, try, a loop or with does not.
+    """
+    for child, made in zip(body, produced, strict=True):
+        simple_production = (
+            isinstance(child, _SIMPLE_STATEMENTS)
+            and made
+            and not any(isinstance(n, _SHORT_CIRCUITS) for n in ast.walk(child))
+        )
+        if isinstance(child, ast.Raise) or simple_production:
+            return True
+        if isinstance(child, (ast.Return, ast.Continue, ast.Break)):
+            return False
+    return False
+
+
+def walk_target(source: str) -> tuple[set[Site], list[str], set[Site]]:
+    """Blocking productions, unreadable spots and NON-BLOCKING DEGRADATIONS.
+
+    A NON-BLOCKING DEGRADATION (CS-1106) is a place where a failure to look is
+    absorbed without reaching the exit status: an `except` handler that
+    neither re-raises nor makes a blocking production while it is walked, or
+    a `suppress(...)` call. Every such handler counts, whatever it returns -
+    fail closed - and each is keyed by its call path exactly as a production
+    is.
 
     A BLOCKING PRODUCTION is any of: a call of the sink whose `blocking`
     resolves True; a `Diagnostic(...)` construction, since every diagnostic on
@@ -269,6 +330,7 @@ def analyse_code(source: str) -> tuple[set[Site], list[str]]:
     assert TARGET in functions, "the gate no longer defines " + TARGET
     sites: set[Site] = set()
     problems: list[str] = []
+    degradations: set[Site] = set()
 
     def walk_function(
         name: str, env: dict[str, object], path: Site, stack: tuple[str, ...]
@@ -281,12 +343,24 @@ def analyse_code(source: str) -> tuple[set[Site], list[str]]:
         for statement in functions[name].body:
             walk_node(statement, env, (path, (*stack, name)), in_diagnostic=False)
 
+    def produces(child: ast.AST, env: dict[str, object], at: Where, in_diagnostic: bool) -> bool:
+        before = len(sites)
+        walk_node(child, env, at, in_diagnostic=in_diagnostic)
+        return len(sites) > before
+
     def walk_node(node: ast.AST, env: dict[str, object], at: Where, *, in_diagnostic: bool) -> None:
         if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.Lambda)):
             inner = {k: v for k, v in env.items() if k not in _params(node)}
             body = node.body if isinstance(node.body, list) else [node.body]
             for child in body:
                 walk_node(child, inner, at, in_diagnostic=in_diagnostic)
+            return
+        if isinstance(node, ast.ExceptHandler):
+            # Every statement is walked, so a production anywhere still counts
+            # as a bound; only an UNCONDITIONAL one makes the handler blocking.
+            produced = [produces(child, env, at, in_diagnostic) for child in node.body]
+            if not _handler_blocks(node.body, produced):
+                degradations.add((*at[0], (node.lineno, node.col_offset)))
             return
         children: list[ast.AST] = list(ast.iter_child_nodes(node))
         if isinstance(node, ast.If):
@@ -318,12 +392,19 @@ def analyse_code(source: str) -> tuple[set[Site], list[str]]:
         if callee == DIAGNOSTIC:
             sites.add(site)
             return True
+        if callee == SUPPRESS:
+            degradations.add(site)
         if isinstance(node.func, ast.Name) and callee in functions:
             walk_function(callee, _bind(functions[callee], node, env), site, at[1])
         return False
 
     walk_function(TARGET, {}, (), ())
-    return sites, problems
+    return sites, problems, degradations
+
+
+def non_blocking_degradation_sites(source: str) -> set[Site]:
+    """Every non-blocking degradation reachable from TARGET, keyed by call path."""
+    return walk_target(source)[2]
 
 
 def blocking_bound_sites(source: str) -> set[Site]:
@@ -400,9 +481,6 @@ _COMMENT_ALLOWLIST: tuple[re.Pattern[str], ...] = tuple(
         r"\ba factor of two\b",
         # A pronoun: the aggregate budget is the only one there is.
         r"\bthe only one there is\b",
-        # Counts the NON-blocking degradations, a different population. That
-        # total is UNGRADED and possibly false - CS-1106, see the module docstring.
-        r"\bthe one deliberate non-blocking degradation\b",
         # The granted CS-1096 wording: an increment, never a total.
         r"\bit is one more bound\b",
     )
@@ -471,6 +549,254 @@ def mismatches(source: str) -> list[str]:
             if _ORDINALS[match.group(1).lower()] > count
         )
     return problems
+
+
+# A spelled total over the NON-BLOCKING population (CS-1106). "not the only
+# non-blocking degradation" is a denial of a total, not a total, so it is
+# excluded by the lookbehind rather than graded as one.
+_NON_BLOCKING_TOTALS: tuple[re.Pattern[str], ...] = (
+    re.compile(r"\b" + _NUM + r"\s+(?:\w+\s+){0,2}non-blocking\s+degradations?\b", re.IGNORECASE),
+    re.compile(
+        r"\b" + _NUM + r"\s+degradations?\s+(?:is|are)\s+(?:\w+\s+){0,2}not\s+blocking\b",
+        re.IGNORECASE,
+    ),
+)
+_SOLE_NON_BLOCKING = re.compile(
+    r"(?<!not the )\b(?:only|sole|singular|single)\s+(?:\w+\s+){0,2}non-blocking\s+degradation\b",
+    re.IGNORECASE,
+)
+
+
+def spelled_non_blocking_totals(text: str) -> list[tuple[str, int]]:
+    """Every total a piece of prose spells over the non-blocking population."""
+    flat = _normalise(text)
+    found = [
+        (match.group(0), _number(match.group(1)))
+        for pattern in _NON_BLOCKING_TOTALS
+        for match in pattern.finditer(flat)
+    ]
+    found += [(match.group(0), 1) for match in _SOLE_NON_BLOCKING.finditer(flat)]
+    return found
+
+
+def non_blocking_mismatches(source: str) -> list[str]:
+    """CS-1106 in full: graded totals, the count-word rule and helper counts."""
+    return (
+        non_blocking_total_mismatches(source)
+        + blocking_count_sentences(source)
+        + helper_count_mismatches(source)
+    )
+
+
+def non_blocking_total_mismatches(source: str) -> list[str]:
+    """CS-1106: every non-blocking total in the target's prose against the code.
+
+    The docstring and the body comments are each read as one text, so a total
+    wrapped across two comment lines is still seen. No total at all is GREEN:
+    prose that states no count cannot drift from one, which is the shape the
+    CS-1096 grant chose for the bound count too.
+    """
+    count = len(non_blocking_degradation_sites(source))
+    docstring, comments = target_prose(source)
+    return [
+        "%s %r says %d non-blocking degradation(s); the code reaches %d"
+        % (where, phrase, total, count)
+        for where, text in (("docstring", docstring), ("body comment", " ".join(comments)))
+        for phrase, total in spelled_non_blocking_totals(text)
+        if total != count
+    ]
+
+
+def reached_functions(source: str) -> list[str]:
+    """TARGET and every module-level function it reaches by a bare-name call.
+
+    Guards are NOT honoured here: a function reached on any branch has its prose
+    read, which fails closed. A helper passed by reference is not followed (see
+    the module docstring).
+    """
+    tree = ast.parse(source)
+    functions = {node.name: node for node in tree.body if isinstance(node, ast.FunctionDef)}
+    order: list[str] = []
+    pending = [TARGET]
+    while pending:
+        name = pending.pop(0)
+        if name in order:
+            continue
+        order.append(name)
+        pending.extend(
+            node.func.id
+            for node in ast.walk(functions[name])
+            if isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Name)
+            and node.func.id in functions
+        )
+    return order
+
+
+def function_prose(source: str, name: str) -> tuple[str, str]:
+    """One function's docstring and its comments joined into one text."""
+    tree = ast.parse(source)
+    node = next(n for n in tree.body if isinstance(n, ast.FunctionDef) and n.name == name)
+    docstring = ast.get_docstring(node, clean=True) or ""
+    lines = source.splitlines(keepends=True)[node.lineno - 1 : node.end_lineno]
+    comments = [
+        token.string.lstrip("#").strip()
+        for token in tokenize.generate_tokens(io.StringIO("".join(lines)).readline)
+        if token.type == tokenize.COMMENT
+    ]
+    return docstring, " ".join(comments)
+
+
+_BLOCKING_WORD = re.compile(
+    r"\b(?:non-?blocking|blocking|blocks?|blocked|degradations?|degrade[sd]?|degrading)\b",
+    re.IGNORECASE,
+)
+_COUNT_WORD = re.compile(
+    r"\b(?:\d+|" + "|".join(_CARDINALS) + r"|single|sole|lone|only|unique)\b", re.IGNORECASE
+)
+_SENTENCE_END = re.compile(r"(?<=[.!?;])\s+")
+
+# The ALLOWLIST for a count word in a sentence about blocking or degradation,
+# in the prose of every scan function. Each entry masks a form that states no
+# total over the blocking or non-blocking population, and says why.
+_BLOCKING_SENTENCE_ALLOWLIST: tuple[re.Pattern[str], ...] = tuple(
+    re.compile(pattern, re.IGNORECASE)
+    for pattern in (
+        # An item id names a row, not a quantity.
+        r"\bCS-\d+\b",
+        # A CLAUDE.md rule number names a rule, not a quantity.
+        r"\bnon-negotiables? \d+(?: and \d+)?\b",
+        # A grant clause number names a clause, not a quantity.
+        r"\bclause \d+\b",
+        # A DENIAL of a total: it says there are others and states no count.
+        r"\bnot the only failure to look\b",
+        # The granted CS-1096 wording: an increment, never a total.
+        r"\bit is one more bound\b",
+        # A superlative idiom about gates in general, not a count of sites.
+        r"\bthe one failure a gate must not have\b",
+        # Restrictive "only" qualifying a condition, not a count.
+        r"\bFalse only where\b",
+        # Pronouns: "that one check", "the world-NAME one", "one call path ...
+        # the other" each name a single thing already identified in the sentence.
+        r"\bthat one check\b",
+        r"\bthe world-NAME one\b",
+        r"\bon one call path\b",
+        # Counts of the uncovered SHAPES of an unreadable header, enumerated
+        # inline in the same paragraph. No code population exists to grade them
+        # against, and they are shapes of a file, not blocking sites.
+        r"\bNone of the three blocks\b",
+        # CALLER and per-helper BOUND counts. Each is GRADED against the code by
+        # test_the_allowlisted_helper_counts_agree_with_the_code, so an entry
+        # here is not an exemption from grading.
+        r"\bThree callers consume this listing\b",
+        r"\bthe other two callers of this helper\b",
+        r"\bwhose two bounds degrade\b",
+    )
+)
+
+# The graded helper counts the allowlist above names: (phrase, the function
+# whose docstring carries it, what is counted, and the offset "other" adds).
+_HELPER_COUNT_CLAIMS: tuple[tuple[re.Pattern[str], str, str, str, int], ...] = (
+    (
+        re.compile(r"\b" + _NUM + r" callers consume this listing\b", re.IGNORECASE),
+        "_save_root_dirs",
+        "callers",
+        "_save_root_dirs",
+        0,
+    ),
+    (
+        re.compile(r"\bthe other " + _NUM + r" callers of this helper\b", re.IGNORECASE),
+        "_report_root_cap",
+        "callers",
+        "_report_root_cap",
+        1,
+    ),
+    (
+        re.compile(r"\bwhose " + _NUM + r" bounds degrade\b", re.IGNORECASE),
+        SINK,
+        "sink calls in",
+        "_bounded_newest_saves",
+        0,
+    ),
+)
+
+
+def helper_count_mismatches(source: str) -> list[str]:
+    """Every allowlisted helper count checked against the syntax tree."""
+    tree = ast.parse(source)
+    functions = {node.name: node for node in tree.body if isinstance(node, ast.FunctionDef)}
+    problems: list[str] = []
+    for pattern, carrier, kind, subject, extra in _HELPER_COUNT_CLAIMS:
+        docstring = _normalise(ast.get_docstring(functions[carrier]) or "")
+        match = pattern.search(docstring)
+        if match is None:
+            problems.append("%s no longer carries %r" % (carrier, pattern.pattern))
+            continue
+        if kind == "callers":
+            actual = sum(
+                1
+                for node in functions.values()
+                if node.name != subject
+                and any(
+                    isinstance(n, ast.Call)
+                    and isinstance(n.func, ast.Name)
+                    and n.func.id == subject
+                    for n in ast.walk(node)
+                )
+            )
+        else:
+            actual = sum(
+                1
+                for n in ast.walk(functions[subject])
+                if isinstance(n, ast.Call) and _called_name(n) == SINK
+            )
+        claimed = _number(match.group(1)) + extra
+        if claimed != actual:
+            problems.append(
+                "%s says %r (%d); the code has %d %s %s"
+                % (carrier, match.group(0), claimed, actual, kind, subject)
+            )
+    return problems
+
+
+def blocking_count_sentences(source: str) -> list[str]:
+    """Every scan-function sentence pairing a blocking word with a count word."""
+    problems: list[str] = []
+    for name in reached_functions(source):
+        for where, text in zip(
+            ("docstring", "comments"), function_prose(source, name), strict=True
+        ):
+            for sentence in _SENTENCE_END.split(_normalise(text)):
+                if _BLOCKING_WORD.search(sentence) is None:
+                    continue
+                masked = sentence
+                for pattern in _BLOCKING_SENTENCE_ALLOWLIST:
+                    masked = pattern.sub(lambda match: " " * len(match.group(0)), masked)
+                problems.extend(
+                    "CS-1106 count-word rule: %s %s sentence %r carries %r beside a "
+                    "blocking or degradation word. If it states no total, add a justified "
+                    "entry to _BLOCKING_SENTENCE_ALLOWLIST in "
+                    "tests/test_world_token_bound_count.py" % (name, where, sentence, word.group(0))
+                    for word in _COUNT_WORD.finditer(masked)
+                )
+    return problems
+
+
+def test_the_non_blocking_total_agrees_with_the_code() -> None:
+    """CS-1106: a total over the non-blocking degradations matches the code."""
+    problems = non_blocking_mismatches(gate_source())
+    assert problems == [], "\n".join(problems)
+
+
+def test_the_non_blocking_walk_reaches_the_target_and_its_helpers() -> None:
+    """Anti-vacuity: the set holds handlers in the target AND behind a call.
+
+    A walk that never left the target, or never entered it, would grade a
+    total against the wrong population and could agree with a false sentence.
+    """
+    degradations = non_blocking_degradation_sites(gate_source())
+    assert any(len(path) == 1 for path in degradations)
+    assert any(len(path) > 1 for path in degradations)
 
 
 def test_the_bound_prose_agrees_with_the_code() -> None:
@@ -667,3 +993,209 @@ def test_a_numeral_in_a_comment_names_the_rule_it_broke() -> None:
     assert "not a bound-count mismatch" in message
     assert "tests/test_world_token_bound_count.py" in message
     assert "_COMMENT_ALLOWLIST" in message
+
+
+# --------------------------------------------------------------------------
+# CS-1106 mutation arms - the non-blocking population, in memory only.
+# --------------------------------------------------------------------------
+
+_DOCSTRING_ANCHOR = "    Returns:\n        The tokens read, unfiltered,"
+
+
+def _plant_in_docstring(source: str, sentence: str) -> str:
+    assert source.count(_DOCSTRING_ANCHOR) == 1, "the docstring anchor is not unique"
+    mutant = source.replace(_DOCSTRING_ANCHOR, "    " + sentence + "\n\n" + _DOCSTRING_ANCHOR)
+    assert mutant != source, "the plant did not apply"
+    return mutant
+
+
+def _without_non_blocking_totals(source: str) -> str:
+    """The source with every non-blocking total in the target's prose neutralised.
+
+    The mutation arms below need a pristine baseline that is GREEN on this
+    arm whatever the frozen file currently says, so a verdict reads the effect
+    of the plant alone. Each total's cardinal is replaced by "some", which the
+    patterns do not read, and the rewrite asserts it removed every total.
+    """
+    docstring, comments = target_prose(source)
+    mutant = source
+    for text in (docstring, *comments):
+        for phrase, _total in spelled_non_blocking_totals(text):
+            word = phrase.split()[0]
+            mutant = mutant.replace(phrase, "some" + phrase[len(word) :])
+    assert all(
+        spelled_non_blocking_totals(text) == []
+        for text in (target_prose(mutant)[0], " ".join(target_prose(mutant)[1]))
+    ), "a non-blocking total survived the neutralising rewrite"
+    return mutant
+
+
+def test_a_false_non_blocking_total_in_a_body_comment_reddens_the_arm() -> None:
+    """The CS-1106 sentence shape, planted, is red against the code count."""
+    pristine = _without_non_blocking_totals(gate_source())
+    assert non_blocking_mismatches(pristine) == []
+    count = len(non_blocking_degradation_sites(pristine))
+    mutant = _plant_in_target(
+        pristine, "# the %d deliberate non-blocking degradations" % (count + 1)
+    )
+    assert non_blocking_mismatches(mutant) != []
+
+
+def test_a_false_sole_non_blocking_claim_in_the_docstring_reddens_the_arm() -> None:
+    """A sole-claim ("The only non-blocking degradation") asserts a total of one."""
+    pristine = _without_non_blocking_totals(gate_source())
+    assert len(non_blocking_degradation_sites(pristine)) != 1
+    mutant = _plant_in_docstring(pristine, "The only non-blocking degradation is a bad file.")
+    assert non_blocking_mismatches(mutant) != []
+
+
+def test_a_denied_sole_claim_is_not_a_total() -> None:
+    """A denial ("not the only non-blocking degradation") states no total."""
+    assert spelled_non_blocking_totals("it is not the only non-blocking degradation") == []
+
+
+def test_a_true_non_blocking_total_stays_green() -> None:
+    """The arm grades against the CODE, so a total equal to the count is green."""
+    pristine = _without_non_blocking_totals(gate_source())
+    count = len(non_blocking_degradation_sites(pristine))
+    mutant = _plant_in_docstring(pristine, "%d DEGRADATIONS ARE NOT BLOCKING." % count)
+    assert spelled_non_blocking_totals(target_prose(mutant)[0]) != []
+    assert non_blocking_total_mismatches(mutant) == []
+    # A TRUE total is still a second copy of a number to drift, so the
+    # count-word allowlist refuses it all the same.
+    assert blocking_count_sentences(mutant) != []
+
+
+def test_a_planted_swallowing_handler_is_one_more_degradation() -> None:
+    """A new `except` that absorbs a failure raises the code count by one."""
+    pristine = gate_source()
+    mutant = _plant_in_target(pristine, "try:", "    pass", "except OSError:", "    pass")
+    after = non_blocking_degradation_sites(mutant)
+    assert len(after) == len(non_blocking_degradation_sites(pristine)) + 1
+
+
+def test_a_planted_suppress_is_one_more_degradation() -> None:
+    """`with suppress(...)` swallows without a handler node, and still counts."""
+    pristine = gate_source()
+    mutant = _plant_in_target(pristine, "with suppress(OSError):", "    pass")
+    after = non_blocking_degradation_sites(mutant)
+    assert len(after) == len(non_blocking_degradation_sites(pristine)) + 1
+
+
+@pytest.mark.parametrize(
+    "handler_body",
+    [
+        ["    raise"],
+        ["    " + SINK + '(report, "planted", blocking=True)'],
+    ],
+)
+def test_a_handler_that_raises_or_blocks_is_not_a_degradation(handler_body: list[str]) -> None:
+    """Re-raising, or reaching the exit status, is not a non-blocking swallow."""
+    pristine = gate_source()
+    mutant = _plant_in_target(pristine, "try:", "    pass", "except OSError:", *handler_body)
+    assert len(non_blocking_degradation_sites(mutant)) == len(
+        non_blocking_degradation_sites(pristine)
+    )
+
+
+def test_a_swallowing_handler_the_scan_never_reaches_is_not_counted() -> None:
+    """A handler in a function the target never calls is another population."""
+    pristine = gate_source()
+    unreached = (
+        "def _cs1106_unreached():\n    try:\n        pass\n    except OSError:\n        pass\n"
+    )
+    mutant = pristine + "\n\n" + unreached
+    assert mutant != pristine
+    assert len(non_blocking_degradation_sites(mutant)) == len(
+        non_blocking_degradation_sites(pristine)
+    )
+
+
+# --------------------------------------------------------------------------
+# CS-1106 refutation at bc80c66 - reachability of a raise, and count words.
+# --------------------------------------------------------------------------
+
+_ENTRY_IS_FILE_HANDLER = (
+    "        return entry.is_file()\n    except OSError:\n        return False\n"
+)
+
+
+@pytest.mark.parametrize(
+    "guarded_raise",
+    [
+        ("if exc.errno is None:", "    raise"),
+        ("if False:", "    raise"),
+    ],
+)
+def test_a_conditional_raise_leaves_a_handler_non_blocking(
+    guarded_raise: tuple[str, str],
+) -> None:
+    """A raise under an `if` does not make a handler blocking (fail closed).
+
+    The handler still returns a default on the ordinary path, so the failure to
+    look is still absorbed. Only a raise or a blocking report that is a TOP-LEVEL
+    statement of the handler body, reached before any return, removes a site.
+    """
+    pristine = gate_source()
+    assert pristine.count(_ENTRY_IS_FILE_HANDLER) == 1, "the handler anchor is not unique"
+    planted = "".join("        " + line + "\n" for line in guarded_raise)
+    mutant = pristine.replace(
+        _ENTRY_IS_FILE_HANDLER,
+        "        return entry.is_file()\n    except OSError as exc:\n"
+        + planted
+        + "        return False\n",
+    )
+    assert mutant != pristine, "the plant did not apply"
+    assert len(non_blocking_degradation_sites(mutant)) == len(
+        non_blocking_degradation_sites(pristine)
+    )
+
+
+def test_a_raise_after_a_return_leaves_a_handler_non_blocking() -> None:
+    """An unreachable top-level raise after a return blocks nothing."""
+    pristine = gate_source()
+    mutant = pristine.replace(
+        _ENTRY_IS_FILE_HANDLER,
+        _ENTRY_IS_FILE_HANDLER.replace("return False\n", "return False\n        raise\n"),
+    )
+    assert mutant != pristine, "the plant did not apply"
+    assert len(non_blocking_degradation_sites(mutant)) == len(
+        non_blocking_degradation_sites(pristine)
+    )
+
+
+@pytest.mark.parametrize(
+    "sentence",
+    [
+        "Only one degradation here is not blocking.",
+        "A single non-blocking skip remains.",
+        "The sole degradation is a bad file.",
+        "The lone degradation that does not block is a bad file.",
+        "One nonblocking degradation remains.",
+    ],
+)
+def test_a_count_word_beside_blocking_prose_reddens_the_arm(sentence: str) -> None:
+    """ALLOWLIST, not a phrase denylist: a count word in a blocking sentence is red."""
+    pristine = gate_source()
+    assert non_blocking_mismatches(pristine) == []
+    mutant = _plant_in_docstring(pristine, sentence)
+    assert non_blocking_mismatches(mutant) != []
+
+
+def test_a_count_word_beside_blocking_prose_in_a_comment_reddens_the_arm() -> None:
+    """The same rule reads body comments, wrapped across lines."""
+    pristine = gate_source()
+    mutant = _plant_in_target(pristine, "# the lone degradation that", "# does not block")
+    assert non_blocking_mismatches(mutant) != []
+
+
+def test_an_allowlisted_helper_count_is_still_graded() -> None:
+    """An allowlist entry for a helper count is not an exemption from grading."""
+    pristine = gate_source()
+    assert helper_count_mismatches(pristine) == []
+    old = "whose two bounds degrade"
+    assert pristine.count(old) == 1, "the helper-count anchor is not unique"
+    mutant = pristine.replace(old, "whose three bounds degrade")
+    assert mutant != pristine
+    assert helper_count_mismatches(mutant) != []
+    assert non_blocking_mismatches(mutant) != []

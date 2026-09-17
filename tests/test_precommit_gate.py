@@ -4413,10 +4413,10 @@ def test_an_unparseable_header_with_no_framed_token_recovers_nothing_and_never_b
 # CS-1087 - the scan's own cap, and the three skip lines it can print
 # --------------------------------------------------------------------------
 #
-# The candidate cap is the FIFTH bound that truncates this population, and it
-# is blocking for the reason the other four are: a cap is the gate's own
-# choice not to look and it is self-healing. The singular non-blocking
-# degradation is a FILE declining to be read, and that is unchanged.
+# The candidate cap is one more bound that truncates this population, and it
+# is blocking for the reason the other truncating bounds are: a cap is the
+# gate's own choice not to look and it is self-healing. A FILE declining to be
+# read stays a non-blocking skip, and that is unchanged.
 
 
 def framed_tokens(count: int) -> bytes:

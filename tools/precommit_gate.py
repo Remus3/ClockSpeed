@@ -1518,8 +1518,8 @@ def _world_tokens_from_headers(report: Report | None) -> tuple[list[str], bool]:
     of what the hook reads. They no longer do; see
     _report_world_token_uncovered.
 
-    ONE DEGRADATION IS DELIBERATELY NOT BLOCKING and it is named rather than
-    left to be inferred: an UNREADABLE header. The six bounds are this gate's
+    AN UNREADABLE HEADER IS DELIBERATELY NOT BLOCKING, and it is not the only
+    failure to look that is not blocking (EVERY failure mode above). The six bounds are this gate's
     own choices not to look and every one of them is self-healing - a cap is
     raised, a budget resets on the next run. A save that will not parse is the
     file declining to be read, so blocking there would wedge the commit gate
@@ -1664,7 +1664,7 @@ def _world_tokens_from_headers(report: Report | None) -> tuple[list[str], bool]:
         # than a new exception to CS-1083's rule. A cap is this gate's OWN
         # choice not to look and it is self-healing - it is raised, or the file
         # that tripped it goes away - which is exactly the class CS-1083 made
-        # blocking. The one deliberate non-blocking degradation stays what it
+        # blocking. The unreadable-header skip stays non-blocking, as it
         # was: a FILE declining to be read.
         #
         # THE REASON NAMES THE CAP AND NOT ITS VALUE. The number lives in
