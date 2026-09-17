@@ -1021,6 +1021,81 @@ def test_the_size_ceiling_still_catches_a_planted_oversize_non_authored_artifact
     assert caught == [f"FactoryGame.json ({planted.stat().st_size} bytes)"], caught
 
 
+def _write_a_file_of_exactly(path: Path, size: int) -> Path:
+    """Write a plausible-looking JSON artifact measuring exactly ``size`` bytes.
+
+    The caller passes a size DERIVED from ``_MAX_TEST_FILE_BYTES`` rather than
+    spelled, which is the whole point of the boundary arm below: a spelled
+    262144 would keep agreeing with itself if the constant were respelled, and
+    the ceiling would have moved out from under the proof.
+
+    NO GUARD CLAUSE, ON PURPOSE. A ``size`` smaller than the wrapper makes the
+    filler count negative, ``b"A" * -1`` is empty, and the file then measures
+    the wrapper rather than what was asked for - which the caller's own
+    measurement leg reddens on. A raise here would be a second failure channel
+    for a condition the arm already grades.
+
+    Args:
+        path: File to write. Any parent must already exist.
+        size: Exact byte count the written file is meant to measure.
+
+    Returns:
+        ``path``, so a caller can bind and measure in one line.
+    """
+    prefix = b'{"NativeClass":"'
+    suffix = b'"}'
+    path.write_bytes(prefix + b"A" * (size - len(prefix) - len(suffix)) + suffix)
+    return path
+
+
+def test_the_size_ceiling_admits_its_own_byte_and_refuses_the_one_above_it(
+    tmp_path: Path,
+) -> None:
+    """The ceiling sits exactly where ``_MAX_TEST_FILE_BYTES`` says it sits.
+
+    CS-1123, and the arm above is WHY it was needed rather than a duplicate of
+    it. That arm plants a file 19 bytes past the ceiling against a 34-byte
+    control, so it proves the predicate DISCRIMINATES over a gap of a quarter
+    of a megabyte and says nothing about where inside that gap the line falls.
+    The CS-898 verifier measured the consequence: planting ``>=`` for ``>`` left
+    it GREEN while three other mutants of the same comparison reddened, so the
+    boundary itself was unguarded.
+
+    THREE SIZES, EACH DERIVED FROM THE CONSTANT, CATCH THE OFF-BY-ONE IN EITHER
+    DIRECTION. A file OF exactly the ceiling is admitted, the byte above it is
+    refused, and the byte below it is admitted. Shifting the comparison down by
+    one - ``>=`` - catches the exact-ceiling file and reddens the expectation;
+    shifting it up by one - ``> _MAX_TEST_FILE_BYTES + 1`` - stops catching the
+    over-by-one file and reddens it too.
+
+    THE TWO ADMITTED FILES ARE THE ANTI-VACUITY LEG AT THE SAME SIZES. A
+    predicate that reported every path it was handed would satisfy a bare
+    non-empty assertion and fail this one, and it would fail it at the boundary
+    rather than a quarter of a megabyte away from it.
+
+    IT PLANTS OUTSIDE ``tests/`` for the reason the arm above states: a file at
+    or over the ceiling inside the real tree would redden
+    ``test_no_file_under_tests_is_large_enough_to_be_a_slice_of_real_game_data``
+    in the same run.
+    """
+    under = _write_a_file_of_exactly(tmp_path / "under_by_one.json", _MAX_TEST_FILE_BYTES - 1)
+    at = _write_a_file_of_exactly(tmp_path / "at_the_ceiling.json", _MAX_TEST_FILE_BYTES)
+    over = _write_a_file_of_exactly(tmp_path / "over_by_one.json", _MAX_TEST_FILE_BYTES + 1)
+
+    measured = [path.stat().st_size for path in (under, at, over)]
+    expected_sizes = [
+        _MAX_TEST_FILE_BYTES - 1,
+        _MAX_TEST_FILE_BYTES,
+        _MAX_TEST_FILE_BYTES + 1,
+    ]
+    assert measured == expected_sizes, measured
+
+    caught = _oversized_over_the_ceiling([under, at, over], tmp_path)
+    expected_caught = [f"over_by_one.json ({_MAX_TEST_FILE_BYTES + 1} bytes)"]
+
+    assert caught == expected_caught, caught
+
+
 #: The APPROACH band for the tests-tree size ceiling, as a fraction of that
 #: ceiling. A plain FLOAT LITERAL, and never a fraction of whatever the largest
 #: file currently measures - a bound computed from the thing it bounds is the

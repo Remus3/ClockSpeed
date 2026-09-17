@@ -75,6 +75,47 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-09-17 - CS-1123 - CLOSED. The tests-tree size ceiling is graded AT the ceiling, so an off-by-one in either direction reddens
+
+**WHAT CHANGED.** `tests/data/test_phase2_gate.py` proved only that the tests-tree size ceiling
+CATCHES an oversize artifact and said nothing about WHERE that ceiling sits. MEASURED 2026-09-16 by
+the CS-898 verifier: planting `>` as `>=` in `_oversized_over_the_ceiling` left
+`test_the_size_ceiling_still_catches_a_planted_oversize_non_authored_artifact` GREEN at a planted
+size of 262163 bytes against an under-ceiling control of 34, while three other mutants of the same
+comparison all reddened. The gap is structural - a planting arm that observes only far above and far
+below the threshold cannot see the threshold move by one. A new arm now grades three files measured
+at `_MAX_TEST_FILE_BYTES - 1`, EXACTLY `_MAX_TEST_FILE_BYTES`, and `_MAX_TEST_FILE_BYTES + 1`, with
+every size, padding length and expected report line DERIVED from the constant rather than spelled.
+
+**TESTS.** The exact-ceiling file is the observation point that closes both directions: shifting the
+comparison down (`>=`) reports it and reddens the arm; shifting it up (`> _MAX_TEST_FILE_BYTES + 1`)
+stops reporting the over-by-one file and reddens the arm. The same arm at the same sizes stays GREEN
+unmutated, which is the anti-vacuity control. Respelling the constant leaves the arm green, which is
+the structural proof that the sizes derive - a spelled `262144` would have reddened there.
+
+**HOW IT WAS GRADED.** Builder, then a read-only adversary on the frozen candidate SHA in its own
+detached checkout, whose assigned job was to walk past the rule. It reproduced all four of the
+builder's mutation results independently and planted 17 mutants in total, purging every `__pycache__`
+before and after each run and re-reading the file to assert each mutation landed. Every pure shift of
+the threshold died - `>=`, `> 1 + M`, `> M - 2`, `<`, `<=`, `!=`, `==`, a constant-true and a
+constant-false predicate, an operand swap, a writer off-by-one and a writer no-op. It also confirmed
+by an independent probe outside the arm's own assertion that the three planted files measure exactly
+262143, 262144 and 262145 bytes on disk, so the arm is not vacuous, and that the verdict tracks real
+`st_size` rather than a constant, so the oracle is not blind to its subject. Verdict: NOT REFUTED.
+
+**MEASURED, NOT FIXED.** The adversary found three mutants of `_oversized_over_the_ceiling` that
+survive the whole module green and that CS-1123's wording does not reach: bounding the predicate as a
+BAND (`M < size < 4 * M`), so an artifact far above the ceiling escapes silently; rendering the
+report line from `path.name` instead of the path relative to the root, so the nested-path contract is
+ungraded; and filtering the tree listing that feeds the real guard, whose input no arm supplies. Each
+is killed by a concrete value, so all three are surviving mutants rather than equivalent ones. Filed
+as their own row rather than widened into this one.
+
+Verification: `python -m pytest tests/data/test_phase2_gate.py -q` is green (51 arms); then plant
+`>=` for `>` in `_oversized_over_the_ceiling`, clear every `__pycache__`, and re-run - the new
+exact-ceiling arm fails with the exact-ceiling file newly reported, while the CS-898 arm alone still
+passes. Restore from a byte snapshot, never with `git checkout`.
+
 ### 2026-09-17 - CS-1125 - CLOSED. The mypy gate's arms run under an environment they build, not the one they inherit
 
 **WHAT CHANGED.** `tests/test_mypy_gate.py` built its throwaway projects correctly and then ran

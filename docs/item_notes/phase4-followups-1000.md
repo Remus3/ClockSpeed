@@ -729,16 +729,6 @@ a forgiveness answers IDENTIFIED citation sites rather than a cardinality, with 
 
 the `Disposition` table `tests/test_citation_tables.py` owns keys each recorded forgiveness by a SITE COUNT, so it answers how many dead citations a record forgives and never which - the same fault CS-893 repaired in `tests/chained_exemption_guard.py`, inherited from this table as its cited precedent
 
-## CS-1123
-
-### Acceptance
-
-a file measuring EXACTLY `_MAX_TEST_FILE_BYTES` is graded, so the off-by-one in either direction is caught, proven by the `>=` mutant reddening and by an anti-vacuity control at the same sizes that stays green unmutated, and the sizes are taken from the constant rather than spelled
-
-### Full headline
-
-the CS-898 planting arm proves the tests-tree size ceiling CATCHES an oversize artifact and says nothing about WHERE the ceiling sits, so the boundary is unguarded - MEASURED 2026-09-16 by the CS-898 verifier, which planted `>` in `tests/data/test_phase2_gate.py::_oversized_over_the_ceiling` as `>=` and watched `test_the_size_ceiling_still_catches_a_planted_oversize_non_authored_artifact` stay GREEN at a planted size of 262163 bytes against an under-ceiling control of 34, while three other mutants of the same comparison all reddened
-
 ## CS-1089
 
 ### Acceptance
@@ -808,3 +798,17 @@ the leaf is under its ceiling with headroom a filing pass cannot exhaust in one 
 ### Full headline
 
 `docs/item_notes/phase4-followups-900.md` sits just under its item-notes leaf ceiling after CS-971 moved every acceptance clause into the leaves - MEASURED 2026-09-17 by `tools/doc_budget.py`, which reports the leaf as its worst OK row - so the next filing pass tips it OVER and the session that files a routine follow-up pays for a split it did not cause, which is the condition CS-1079 was filed for and closed by relocating at a block seam
+
+---
+
+## CS-1133
+
+### Filed 2026-09-17 by the CS-1123 merge, from that item's adversary
+
+### Acceptance
+
+each of the three surviving mutants is killed by an arm that grades the thing it perturbs - the predicate at a size far above the ceiling, the report line for a file in a NESTED directory rather than a flat one, and the tree listing the real guard is handed rather than one an arm supplies - proven by each mutant reddening its own arm and by an anti-vacuity control at the same inputs that stays green unmutated, with every size and every path derived rather than spelled
+
+### Full headline
+
+`_oversized_over_the_ceiling` in `tests/data/test_phase2_gate.py` is closed only at its lower edge, so three mutants survive the whole module green - MEASURED 2026-09-17 by the CS-1123 adversary across 17 plants: bounding the predicate as a BAND rather than a floor lets an artifact far above the ceiling escape silently, because no arm plants higher than the ceiling plus 19 bytes; rendering the report line from the file name instead of the path taken relative to the root leaves the nested-path contract ungraded, because both planting arms build their files flat in a temporary directory; and filtering the tree listing that feeds the real guard is unseen, because both arms supply their own lists and neither exercises the listing the guard is actually handed - each is killed by a concrete value, so all three are surviving mutants rather than equivalent ones

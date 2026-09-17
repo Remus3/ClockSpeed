@@ -139,7 +139,7 @@ CS-1131 - guard (i) is blind to an id that exists in NO state - acceptance: in d
 CS-1132 - `docs/item_notes/phase4-followups-900.md` sits just under its item-notes leaf ceiling after CS-971 moved every acceptance clause into the leaves - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
 CS-1119 - two trailing-run remainder shapes are left after CS-828's reference-pair reading and neither is derivable by that grammar - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1121 - the `Disposition` table `tests/test_citation_tables.py` owns keys each recorded forgiveness by a SITE COUNT - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
-CS-1123 - the CS-898 planting arm proves the tests-tree size ceiling CATCHES an oversize artifact and says nothing about WHERE the ceiling sits - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
+CS-1133 - `_oversized_over_the_ceiling` in `tests/data/test_phase2_gate.py` is closed only at its lower edge - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
 CS-1089 - `tests/save/test_struct_interior.py` sits above the approach band of the `_MAX_TEST_FILE_BYTES` ceiling in `tests/data/test_phase2_gate.py` - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
 CS-1090 - `tests/save/test_properties.py` sits above the approach band of the `_MAX_TEST_FILE_BYTES` ceiling in `tests/data/test_phase2_gate.py` - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
 CS-1091 - `tests/save/test_world.py` sits above the approach band of the `_MAX_TEST_FILE_BYTES` ceiling in `tests/data/test_phase2_gate.py` - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
