@@ -2488,60 +2488,43 @@ def test_a_fence_closed_at_a_deeper_indent_than_it_opened(tmp_path: Path) -> Non
     )
 
 
-def test_residual_a_fence_inside_a_nested_list_item_is_not_recognised(
-    tmp_path: Path,
-) -> None:
-    """RESIDUAL P1 - pinned, not fixed. Needs a container model.
+def test_a_fence_inside_a_nested_list_item_is_recognised(tmp_path: Path) -> None:
+    """P1 - was a pinned residual, fixed by CS-895's container model.
 
-    The fence is indented four spaces because it sits in a nested list item,
-    and four spaces is past the opener cap, so it never opens. The token
-    inside is then read as prose and reported as a dangling citation.
-
-    Fixing this needs to know the list item's content column, which this
-    line-oriented model does not track. This arm asserts the CURRENT wrong
-    behaviour so the residual cannot be forgotten, and so that whoever fixes
-    it is forced to come here and say so.
+    The fence is indented four spaces because it sits in a nested list item.
+    A line-oriented model measures that four against the document margin, past
+    the three-space opener cap, so the fence never opened and the token inside
+    was read as prose and reported as a dangling citation. The indent is now
+    measured against the ENCLOSING ITEM'S CONTENT COLUMN, where it is zero.
     """
     root = memory_copy(tmp_path)
     plant(root, "\n- outer\n  - inner\n\n    ```\n    [[tool.mypy.overrides]]\n    ```\n")
 
     status, rendered = memory_verdict(root)
-    assert status == "FAIL", (
-        "P1 now passes - the residual is fixed. Update the residual table in "
-        f"``_outside_code`` and in this section, then invert this arm:\n{rendered}"
-    )
-    assert "tool.mypy.overrides" in rendered, "P1 failed for some other reason than the residual"
+    assert status == "PASS", f"a fence inside a nested list item was not recognised:\n{rendered}"
 
 
-def test_residual_a_fence_inside_a_blockquote_is_not_recognised(tmp_path: Path) -> None:
-    """RESIDUAL P2 - pinned, not fixed. Needs a container model.
+def test_a_fence_inside_a_blockquote_is_recognised(tmp_path: Path) -> None:
+    """P2 - was a pinned residual, fixed by CS-895's container model.
 
-    Every line carries a "> " prefix, so the fence never starts its line and
-    is never seen. Stripping blockquote markers is not obviously cheap to get
-    right - nesting and lazy continuation both bear on it - and guessing would
-    trade this loud failure for a silent one.
+    Every line carries a "> " prefix, so the fence never started its line and
+    was never seen. Blockquote markers are now stripped before the fence scan.
     """
     root = memory_copy(tmp_path)
     plant(root, "\n> quoting a note:\n>\n> ```\n> [[tool.mypy.overrides]]\n> ```\n")
 
     status, rendered = memory_verdict(root)
-    assert status == "FAIL", (
-        "P2 now passes - the residual is fixed. Update the residual table in "
-        f"``_outside_code`` and in this section, then invert this arm:\n{rendered}"
-    )
-    assert "tool.mypy.overrides" in rendered, "P2 failed for some other reason than the residual"
+    assert status == "PASS", f"a fence inside a blockquote was not recognised:\n{rendered}"
 
 
-def test_residual_a_four_space_indented_code_block_is_not_recognised(
-    tmp_path: Path,
-) -> None:
-    """RESIDUAL P4 - pinned, not fixed, and the most tempting one to guess at.
+def test_a_four_space_indented_code_block_is_recognised(tmp_path: Path) -> None:
+    """P4 - was a pinned residual, fixed by CS-895's container model.
 
-    An indented code block uses no fence at all. Recognising one means knowing
-    it may not interrupt a paragraph, and that four spaces inside a list item
-    is list CONTENT rather than code. Getting that second half wrong would
-    silently exclude real citations in list items - a dangling link nobody is
-    told about. That is strictly worse than the loud failure pinned here.
+    An indented code block uses no fence at all, so nothing in a fence-only
+    model could ever see it. It is now recognised by indent measured against
+    the enclosing container, which is what keeps it distinct from list
+    content - see the control below, which is the half that goes SILENTLY
+    wrong if it is guessed at.
     """
     root = memory_copy(tmp_path)
     plant(
@@ -2550,11 +2533,122 @@ def test_residual_a_four_space_indented_code_block_is_not_recognised(
     )
 
     status, rendered = memory_verdict(root)
+    assert status == "PASS", f"an indented code block was not recognised:\n{rendered}"
+
+
+# --- the anti-vacuity controls for the three above --------------------------
+#
+# Each arm above is satisfied by BLANKING MORE, and blanking more is the
+# failure direction that is silent: a citation dropped on the floor is a
+# dangling link nobody is told about. Every control below plants a DANGLING
+# target in a position the exclusion must not reach, and asserts the guard
+# still reddens AND still names it.
+
+
+def test_four_spaces_inside_a_list_item_is_content_and_not_a_code_block(
+    tmp_path: Path,
+) -> None:
+    """THE CONTROL P4's RESIDUAL DOCSTRING NAMED AS THE SILENT WAY TO GET IT WRONG.
+
+    Four spaces from the margin is an indented code block at top level and is
+    ordinary CONTENT inside a list item whose marker put the content column at
+    two. A model measuring indent against the document margin excludes this
+    citation and reports PASS over a dangling link. There is no loud failure
+    to notice afterwards, which is why this arm exists.
+    """
+    root = memory_copy(tmp_path)
+    plant(root, f"\n- outer\n\n    See [[{GHOST_LEAF}]] - still item content.\n")
+
+    status, rendered = memory_verdict(root)
     assert status == "FAIL", (
-        "P4 now passes - the residual is fixed. Update the residual table in "
-        f"``_outside_code`` and in this section, then invert this arm:\n{rendered}"
+        "four-space-indented text inside a list item was excluded as a code block "
+        f"and the guard said {status}:\n{rendered}"
     )
-    assert "tool.mypy.overrides" in rendered, "P4 failed for some other reason than the residual"
+    assert GHOST_LEAF in rendered, "the guard failed without naming the dangling target"
+
+
+def test_an_indented_line_may_not_interrupt_a_paragraph(tmp_path: Path) -> None:
+    """An indented code block cannot start inside a paragraph, per CommonMark.
+
+    Without the blank-line requirement, any wrapped prose line a writer happens
+    to indent becomes code and its citations vanish. The plant is one paragraph
+    whose second line is indented four spaces.
+    """
+    root = memory_copy(tmp_path)
+    plant(root, f"\nA paragraph runs on\n    and cites [[{GHOST_LEAF}]] on its indented line.\n")
+
+    status, rendered = memory_verdict(root)
+    assert status == "FAIL", (
+        "an indented continuation line interrupted a paragraph as a code block "
+        f"and the guard said {status}:\n{rendered}"
+    )
+    assert GHOST_LEAF in rendered, "the guard failed without naming the dangling target"
+
+
+def test_a_dangling_link_beside_a_blockquote_fence_still_reddens(tmp_path: Path) -> None:
+    """The blockquote exclusion is scoped to the fence, not to the quote.
+
+    Blanking every line carrying a "> " prefix would pass P2's arm above and
+    drop every citation any quoted note ever makes.
+    """
+    root = memory_copy(tmp_path)
+    plant(
+        root,
+        f"\n> quoting a note that cites [[{GHOST_LEAF}]]:\n>\n"
+        "> ```\n> [[tool.mypy.overrides]]\n> ```\n",
+    )
+
+    status, rendered = memory_verdict(root)
+    assert status == "FAIL", (
+        f"a dangling wikilink in blockquote PROSE was excluded with the quoted fence "
+        f"and the guard said {status}:\n{rendered}"
+    )
+    assert GHOST_LEAF in rendered, "the guard failed without naming the dangling target"
+
+
+def test_a_dangling_link_in_a_list_item_beside_a_fence_still_reddens(tmp_path: Path) -> None:
+    """The list-item exclusion is scoped to the fence, not to the item.
+
+    Blanking an item on sight of a fence anywhere in it would pass P1's arm
+    above and drop the citations of every list that quotes code.
+    """
+    root = memory_copy(tmp_path)
+    plant(
+        root,
+        f"\n- outer\n  - inner cites [[{GHOST_LEAF}]]\n\n"
+        "    ```\n    [[tool.mypy.overrides]]\n    ```\n",
+    )
+
+    status, rendered = memory_verdict(root)
+    assert status == "FAIL", (
+        f"a dangling wikilink in list-item PROSE was excluded with the item's fence "
+        f"and the guard said {status}:\n{rendered}"
+    )
+    assert GHOST_LEAF in rendered, "the guard failed without naming the dangling target"
+
+
+def test_a_list_item_closes_its_containers_when_the_indent_falls_back(tmp_path: Path) -> None:
+    """A container's columns must not outlive it, or the margin drifts right.
+
+    After a nested item at content column four, prose returning to the margin
+    is outside both items. A model that never popped its column stack would
+    keep measuring against four and would read this top-level indented block
+    as ordinary prose - or, with the sign the other way, read margin prose as
+    code. The plant returns to the margin and then cites a ghost.
+    """
+    root = memory_copy(tmp_path)
+    plant(
+        root,
+        "\n- outer\n  - inner\n\n    ```\n    [[tool.mypy.overrides]]\n    ```\n\n"
+        f"Back at the margin, [[{GHOST_LEAF}]].\n",
+    )
+
+    status, rendered = memory_verdict(root)
+    assert status == "FAIL", (
+        f"a citation at the margin after a nested list was lost with the list "
+        f"and the guard said {status}:\n{rendered}"
+    )
+    assert GHOST_LEAF in rendered, "the guard failed without naming the dangling target"
 
 
 # ---------------------------------------------------------------------------

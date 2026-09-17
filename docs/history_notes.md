@@ -121,6 +121,47 @@ Where current truth actually lives:
 
 ---
 
+## CS-895 - item section, CLOSED and relocated from `docs/item_notes/phase4-followups-850.md` 2026-09-16
+
+### NOTE - filed 2026-09-03 (session 59) by the merger, from the CS-890 adversary, MEASURED
+
+**THE EXCLUSION IS SPELLED "CODE" BUT THE MODEL IS LINE-ORIENTED.** CS-890 closed with the
+fence scanner handling CommonMark fences and inline code spans. It has NO CONTAINER MODEL,
+so three shapes still read as prose and their contents are resolved as citations:
+
+- a fenced block inside a nested list item,
+- a fenced block inside a blockquote,
+- a top-level four-space indented code block.
+
+**THE FAILURE DIRECTION IS A FALSE POSITIVE, WHICH IS THE EXPENSIVE ONE HERE.** Each makes
+guard (b) report correct content as a dangling citation, and guard (b) runs in the
+pre-commit and pre-push path - so the shape does not merely mislead a reader, it BLOCKS
+EVERY COMMIT AND PUSH in the repository until the document is rewritten.
+
+**NOT GUESSED AT, DELIBERATELY.** No reference CommonMark parser is installed in this
+interpreter - `markdown_it`, `commonmark`, `mistune`, `markdown` and `marko` are all
+absent - so the container rules could not be settled against an implementation. Writing a
+container model from the spec text alone would have traded a loud, reproducible failure for
+a silent misreading, which is the CS-890 round-one fault. The three inputs are recorded with
+their exact reproducers instead.
+
+**EACH CARRIES A PINNED ARM ASSERTING THE CURRENT WRONG BEHAVIOUR**, so a future fix FAILS
+its own arm and forces this table to be updated rather than drifting away from it. That is
+the mechanism that makes this a recorded residual rather than a silent one.
+
+**NO LIVE INSTANCE TODAY.** The store carries none of the three shapes. This is latent, and
+the trigger is ordinary: the natural way to write a memory leaf ABOUT CS-890 quotes a
+bracketed identifier, and `tools/drift_guard.py` already carries that token twice in its own
+docstrings.
+
+**CLOSED 2026-09-16 by CS-895's own repair - see `docs/LEDGER.md`.** The container model
+landed in `tools/drift_guard.py` and the three arms this section pinned are inverted. The
+block above is preserved as it stood, so "NO LIVE INSTANCE TODAY" reads as the state at
+filing rather than as a current claim - the ledger entry records the census that re-measured
+it at close.
+
+---
+
 ## CS-893 - item section, CLOSED and relocated from `docs/item_notes/phase4-followups-850.md` 2026-09-16
 
 ### NOTE - filed 2026-09-03 (session 59) by the merger, from the CS-888 adversary, REPRODUCED BEFORE FILING
