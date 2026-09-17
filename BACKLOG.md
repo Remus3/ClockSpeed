@@ -241,3 +241,18 @@ the tree and still exits 0.**
   companion, the dashboard, or an audit pass over a real world - or when a real load is
   measured against a machine with less headroom than the development box. Until then this
   is a measured fact and not a defect, and it must not be optimised on speculation.
+
+## External agent tooling - ideas kept from the CS-1099 and CS-1100 declines, filed 2026-09-16
+
+The declines themselves are recorded in `docs/LEDGER.md`. Nothing here is started early.
+
+- Revisit `context-mode`, declined with nothing installed - TRIGGER: upstream ships a
+  project-scoped, network-free mode, with no writes to user-level Claude configuration, no npm
+  registry call on start and no platform-bridge egress; the section 14 gate and the install checks
+  are then re-run at a new pinned SHA, never inherited from the decline record.
+- An own-words voice-rules skill - the idea observed in the declined pack's plainspoken and
+  writing-for-humans skills, ZERO bytes copied, bounded by `CLAUDE.md` section 2.3 and
+  non-negotiable 4 - TRIGGER: a `CLAUDE.md` section 4 owner row for it lands first.
+- A Windows media-ingest skill - the idea observed in the declined pack's ingest skill, which is
+  macOS-only, ZERO bytes copied - TRIGGER: a work item needs audio or video turned into a text
+  note on this machine, and a `CLAUDE.md` section 4 owner row for it lands first.

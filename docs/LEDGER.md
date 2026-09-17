@@ -374,6 +374,168 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-09-16 - CS-1098 - CLOSED. DECLINED as a tool, a scope change and not a gate clearing, and the idea is re-filed as our own renderer with zero copied bytes
+
+**RULING - THE ADJUDICATOR'S LEDGER SENTENCE, VERBATIM.** "CS-1098 DECLINED, scope change not gate
+clearing. Gate run at archify@72c750bb: MIT, two holders (tt-a1i 2026, Cocoon AI 2025); brand-free
+output NONE-NC but embeds MIT viewer code without notice plus OFL font. Refused on CLAUDE.md s7 Node
+fence. Re-implementation filed as CS-1122."
+
+**PIN.** tt-a1i/archify at 72c750bb070d95171dbb2244e5b62b1b7da69c12, retrieved 2026-09-16 and
+frozen before any gate agent was dispatched. The adjudicator produced none of the work it ruled on.
+
+**GATE - `CONVENTIONS.md` section 14, RUN.** Two researcher gates read the upstream through a
+SUMMARISING fetch - A1 the licence traps, A2 the payload and what reaches generated output - and an
+adversary then re-checked their claims against RAW BYTES with positive controls. What stands after
+that pass:
+
+- LICENSE is MIT with TWO copyright holders, tt-a1i (2026) and Cocoon AI (2025).
+- The repository is NOT MIT throughout. Lines 37-39 of its THIRD_PARTY_NOTICES.md name the Jenkins
+  mark CC-BY-SA-3.0, the Rust mark CC-BY-SA-4.0 and the Vue mark CC-BY-NC-SA-4.0; lines 53-62 name
+  JetBrains Mono under SIL OFL-1.1.
+- The viewer template every generated page is built from, archify/assets/template.html, is 774866
+  bytes, carries no brand-mark data, and contains "MIT License" 0 times - so archify's MIT viewer
+  code reaches every generated page with no MIT notice beside it.
+- The JetBrains Mono subsets reach every generated page under OFL-1.1. Lines 80-82 of the font's
+  OFL.txt carry the licence's document exemption.
+- Brand marks are conditional: the gate at archify/renderers/shared/brand-marks.mjs:461 emits a
+  mark only when a diagram node sets `brand`. Brand-free output therefore carries no NC byte.
+
+**ADVERSARY CORRECTIONS.** A1's proposed condition (2) - committed HTML keeps the OFL text AND the
+archify MIT notice - is REFUTED: there is no archify MIT notice in the output to keep. A1's
+brand-mark citation, a single-fetch reading of lines 555-577, and its short path are corrected to
+the gate at archify/renderers/shared/brand-marks.mjs:461. The raw-byte reads of the template and of
+the OFL document exemption supply what A2's summarised fetch left unread.
+
+**THE CS-1098 FENCE HOLDS.** The bare "MIT" the ROADMAP row once asserted was WITHDRAWN earlier on
+2026-09-16 on a sibling measurement this tree had not reproduced, and it is NOT restored by this
+record. The MIT finding above is this tree's own gate reading the LICENSE bytes at the pin; it names
+two holders, and it sits beside the finding that the repository is not MIT throughout. No later
+record may cite archify as "MIT" on the strength of a badge.
+
+**WHY DECLINED.** Refused on the `CLAUDE.md` section 7 settled decision that Node exists solely for
+the Electron shell: the renderer is Node, so a dev-time install would be a second Node use. The
+output finding weighs the same way - a committed diagram would republish MIT viewer code without its
+notice and an OFL font inside this tree. This record closes the item as a recorded SCOPE CHANGE and
+never as a gate clearing. Nothing was installed. No update-check arm, IR, diagram or drift arm was
+built under this id, and the section 14 reading above clears nothing for vendoring.
+
+**RE-IMPLEMENTATION.** The idea - a committed architecture diagram graded for drift against the
+module map `docs/ARCHITECTURE.md` owns - is filed in `ROADMAP.md` as CS-1122, tier 3: our own Python
+renderer, system font stack, no third-party marks, no Node, and zero bytes copied from archify.
+
+**VERIFY.** Upstream, at the pinned SHA: the two copyright lines of LICENSE, THIRD_PARTY_NOTICES.md
+lines 37-39 and 53-62, and a raw count of "MIT License" over archify/assets/template.html. In this
+tree: no `ROADMAP.md` line heads with this id, and `python tools/drift_guard.py` reports guard (i)
+PASS.
+
+### 2026-09-16 - CS-1099 - CLOSED. DECLINED - ELv2 refuses vendoring, the install is refused on machine-wide writes and egress, and nothing was installed
+
+**RULING - THE ADJUDICATOR'S LEDGER SENTENCE, VERBATIM.** "CS-1099 DECLINED. Gate at
+context-mode@5bca294: ELv2 (Mert Koseoglu), vendoring refused. Install refused: non-atomic ~/.claude
+writes (machine-wide), npm registry calls per start, platform-bridge egress of session events and
+git remote, output truncation in the verification path. Nothing installed, no frozen-file grant."
+
+**PIN.** mksglu/context-mode at 5bca2948959a7fb538e895d9a032c1a19b8685a5, retrieved 2026-09-16.
+
+**GATE - `CONVENTIONS.md` section 14, RUN.** Researcher gate A3 read the upstream through a
+SUMMARISING fetch. LICENSE is Elastic License 2.0, and package.json and the plugin manifest both
+say Elastic-2.0; the copyright holder is Mert Koseoglu. Trap 5 applies - source-available, not open
+source - so VENDORING IS REFUSED, and no ELv2 byte is tracked.
+
+**THE INSTALL IS REFUSED, and the grounds are the four in the sentence above.** Adversary B2
+re-read the pinned source as RAW BYTES and cited these sites for them: start.mjs:197, :217, :412
+and :607; scripts/heal-installed-plugins.mjs:174; the claude-code adapter at lines 210, 554, 617
+and 652; src/server.ts:783 and :4956; hooks/ensure-deps.mjs:75; hooks/platform-bridge.mjs:190 and
+:286; hooks/sessionstart.mjs:341-356. Which site carries which ground was not transcribed into this
+record, so re-read the sites rather than infer a mapping from file names.
+
+**ADVERSARY CORRECTIONS.** A3 MISSED writes and egress that B2 found at the sites above; A3's
+account of the hook and settings writes and of the registry call was incomplete. A3 had left what
+`insight` sends UNRESOLVED; B2 measured that it only opens a browser tab.
+
+**WHY IT MATTERS HERE.** Writes under the user-level Claude configuration change every project
+session on this machine, not this repository alone. Egress contradicts `CLAUDE.md` section 1. A
+layer that truncates tool output in the verification path destroys exactly the count-shaped
+evidence this tree's rules depend on.
+
+**NOTHING INSTALLED, NO GRANT.** No frozen-file grant was requested or recorded, and
+`.claude/settings.json` was not touched.
+
+**VERIFY.** Re-read the cited sites at the pinned SHA. In this tree: no `ROADMAP.md` line heads with
+this id, and `git log -- .claude/settings.json` shows no commit for it.
+
+### 2026-09-16 - CS-1100 - CLOSED. DECLINED wholesale for copying and cleared for reading, with the per-skill table and the row's diagnose drift recorded
+
+**RULING - THE ADJUDICATOR'S LEDGER SENTENCE, VERBATIM.** "CS-1100 DECLINED wholesale. Gate at
+skills@a9317e03: MIT (Tim Harris) but 18/23 skills adapt Pocock/Tan/Chen MIT and forint573
+Apache-2.0 work with no retained notices - not vendor-safe. Per-skill table follows. Row cited a
+nonexistent `diagnose` incumbent; row drift, no skill created."
+
+**PIN.** timharris707/skills at a9317e03733da7f54b5da0eaa8edcb2697495cf5, retrieved 2026-09-16.
+
+**GATE - `CONVENTIONS.md` section 14, RUN.** REFUSED for copying any file; CLEARED for reading.
+LICENSE.md and both plugin manifests say MIT, copyright Tim Harris. Trap 2 fails: skills adapt
+other authors' MIT and Apache-2.0 work, several near-verbatim, with no retained notice.
+
+**WHAT THE RAW-BYTE ADVERSARY RE-CHECKED, AND WHAT IT DID NOT.** Stated plainly: the gate A4 table
+below, including every disposition, every overlap reason and the five-bucket grouping the ROADMAP
+row used, came from a SUMMARISING fetch and was NOT re-checked against raw bytes. The adversary
+re-checked only these, and corrected three of them:
+
+- the licence reading above;
+- the provenance count - CORRECTED from 17 to 18 skills carrying third-party material, with 19
+  citing another author's work;
+- the absence of any NOTICE file across the FULL tree - the listing was not truncated this time,
+  1092 entries, where A4's listing had been;
+- OFL fonts shipped without the OFL text - the advisory-board fonts A4 named, and ALSO
+  site/src/fonts/JetBrainsMono-*.ttf;
+- what setup writes;
+- advisory-board's --repo snapshot, where line 97 of its grounding.py includes untracked files that
+  are not ignored - so a snapshot can carry exactly the local material non-negotiables 3, 11 and 12
+  keep on this machine.
+
+**PER-SKILL TABLE (from gate A4's summarising fetch).**
+
+| Skill | Disposition | Reason |
+|---|---|---|
+| setup | DECLINE | writes CLAUDE.md, the frozen .claude/settings.json and .gitignore; creates gh labels |
+| advisory-board | DECLINE | egress to Codex, Gemini and Grok; --repo snapshot; embedded fonts without OFL text |
+| router | DECLINE | overlaps `CLAUDE.md` section 2.2 |
+| domain-memory | DECLINE | overlaps `memory/` and `docs/adr/` |
+| orchestrate | DECLINE | overlaps orchestrated-run |
+| adversarial-review | DECLINE | overlaps orchestrated-run |
+| implement | DECLINE | overlaps tdd |
+| diagnose | DECLINE | overlaps root-cause-fix; no diagnose skill exists in this tree |
+| blast-radius | DECLINE | overlaps root-cause-fix |
+| handoff | DECLINE | overlaps done, and adds a SessionStart hook |
+| research | DECLINE | overlaps the researcher agent |
+| show-me-your-work | DECLINE | overlaps `docs/LEDGER.md` |
+| grilling | DECLINE | asks the operator, against `CLAUDE.md` section 6.1 |
+| decision-map | DECLINE | creates gh issues |
+| to-tickets | DECLINE | creates gh issues |
+| prototype | DECLINE | third-party sites, .env and CI secrets |
+| wizard | DECLINE | third-party sites, .env and CI secrets |
+| codebase-review | DECLINE | overlaps audit |
+| ingest | DECLINE to copy; idea to `BACKLOG.md` | macOS-only (yt-dlp, gh, uvx mlx-whisper, osascript); no incumbent |
+| plainspoken | DECLINE to copy; idea to `BACKLOG.md` | no incumbent; bounded by `CLAUDE.md` section 2.3 and rule 4 |
+| writing-for-humans | DECLINE to copy; idea to `BACKLOG.md` | no incumbent; same bound as plainspoken |
+| writing-for-agents | DECLINE | no reason beyond the disposition was recorded by A4 |
+| huh | DECLINE | no reason beyond the disposition was recorded by A4 |
+
+**THE ROW DRIFT.** The ROADMAP row named `diagnose` among this tree's incumbent skills. `.claude/commands/`
+holds audit, done, drift-guard, insights, orchestrated-run, root-cause-fix, sync-docs, tdd and
+weekly-hygiene, and there is no `.claude/skills/` directory. The row was wrong; no skill was created
+to make it true.
+
+**NOTHING COPIED.** No file from the pack entered this tree. The three surviving ideas are one line
+each in `BACKLOG.md`, each to be written in this tree's own words with zero bytes copied, and each
+needing a `CLAUDE.md` section 4 owner row before anything is installed.
+
+**VERIFY.** Re-read LICENSE.md and the adapted-from lines at the pinned SHA. In this tree: list
+`.claude/commands/`, confirm no `ROADMAP.md` line heads with this id, and run
+`python tools/drift_guard.py` for guard (i).
+
 ### 2026-09-16 - CS-1106 - CLOSED. No prose in the world-token scan path states a false total of non-blocking degradations, and a stated total is graded against the code
 
 **WHAT CHANGED.** The two prose sites in `tools/precommit_gate.py` that claimed the world-token scan
