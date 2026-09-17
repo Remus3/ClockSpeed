@@ -661,6 +661,17 @@ test("real concurrent writers never publish an empty or truncated state file", a
 // DEADLINE rather than to an attempt count: the save survives a hold that fits
 // the deadline, and a hold that never ends still fails loudly and in bounded
 // time, without ever publishing through a non-atomic path.
+//
+// THE DEADLINE ARMS RUN ON A FAKE CLOCK, NOT ON THE WALL. MEASURED on
+// ubuntu-latest CI: the close-deadline arm, graded on real elapsed time,
+// observed 869ms against a 750ms envelope on a loaded host - the loop was right
+// and the measurement was the machine. Every arm below that grades WHEN the
+// loop stops therefore replaces state.clock, the one seam renameWithRetry reads
+// its monotonic time and takes its pause through. The fake pause advances the
+// fake clock by exactly what it was asked for, so "gave up at the deadline" and
+// "never slept past it" are exact equalities rather than tolerances. ONE arm at
+// the end keeps the real clock, with a generous bound, to prove the real pause
+// is still wired.
 
 /** Replace fs.renameSync for the duration of fn, always restoring it. */
 function withRename(fake, fn) {
@@ -679,6 +690,114 @@ function sharingViolation(code) {
   return err;
 }
 
+/** Where the fake clock starts. Nonzero, so a loop that reads 0 is not flattered. */
+const FAKE_CLOCK_ORIGIN_MS = 1000;
+
+// A loop that has lost its deadline would spin forever against a fake pause
+// that costs no real time. Past this many pauses the fake refuses, so such a
+// defect is a fast red rather than a hung suite.
+const FAKE_RUNAWAY_SLEEPS = 10000;
+
+/** Clock reads tolerated beyond two per pause before the fake calls it a runaway. */
+const FAKE_READ_SLACK = 8;
+
+/**
+ * Run fn(clock) with state.clock faked, always restoring the real one.
+ *
+ * clock.ms is the fake monotonic time; clock.sleeps records every pause the
+ * module asked for, in order. A pause that is not a positive finite number is
+ * refused, which is how a loop that sleeps with a negative remainder shows.
+ */
+function withFakeClock(fn) {
+  const seam = state.clock;
+  assert.ok(
+    seam !== null && typeof seam === "object" && typeof seam.now === "function" && typeof seam.sleep === "function",
+    "state.js exposes no clock seam with now and sleep",
+  );
+  const realNow = seam.now;
+  const realSleep = seam.sleep;
+  const clock = { ms: FAKE_CLOCK_ORIGIN_MS, sleeps: [], reads: 0 };
+  seam.now = () => {
+    // A loop reads the clock about once per pause. One that keeps reading while
+    // the fake pause is never taken - because it pauses some other way - would
+    // otherwise wait out real time against a clock that never moves.
+    clock.reads += 1;
+    if (clock.reads > 2 * clock.sleeps.length + FAKE_READ_SLACK) {
+      const err = new Error("s1124 fake clock: read repeatedly without a pause through the seam");
+      err.code = "S1124_RUNAWAY";
+      throw err;
+    }
+    return clock.ms;
+  };
+  seam.sleep = (milliseconds) => {
+    if (!(Number.isFinite(milliseconds) && milliseconds > 0)) {
+      throw new Error(`s1124 fake clock: asked to sleep ${milliseconds}ms`);
+    }
+    if (clock.sleeps.length >= FAKE_RUNAWAY_SLEEPS) {
+      const err = new Error("s1124 fake clock: the retry loop never reached its deadline");
+      err.code = "S1124_RUNAWAY";
+      throw err;
+    }
+    clock.sleeps.push(milliseconds);
+    clock.ms += milliseconds;
+  };
+  try {
+    fn(clock);
+  } finally {
+    seam.now = realNow;
+    seam.sleep = realSleep;
+  }
+  return clock;
+}
+
+/**
+ * Assert a recorded pause sequence is a capped doubling backoff filling the deadline.
+ *
+ * The constants are not restated: the first pause and the cap are read off the
+ * sequence itself, and what is graded is the SHAPE - each pause double the one
+ * before up to the largest, only the last clipped short, and the pauses summing
+ * to the deadline exactly, so the loop neither stopped early nor slept past it.
+ */
+function assertCappedBackoff(sleeps, deadlineMs) {
+  const count = sleeps.length;
+  assert.ok(count >= 2, `only ${count} pause(s) before the deadline`);
+  const cap = Math.max(...sleeps);
+  const first = sleeps[0];
+  assert.ok(first < cap, `the backoff started at ${first}ms, already at its ${cap}ms cap`);
+  assert.ok(cap < deadlineMs, `the ${cap}ms cap does not probe inside the ${deadlineMs}ms deadline`);
+  const offBy = [];
+  for (let i = 1; i < count - 1; i += 1) {
+    if (sleeps[i] !== Math.min(sleeps[i - 1] * 2, cap)) {
+      offBy.push(i);
+    }
+  }
+  assert.deepEqual(offBy, [], `pauses not doubling to the cap at positions ${offBy.join(", ")}: ${sleeps.join(", ")}`);
+  const last = sleeps[count - 1];
+  const unclipped = Math.min(sleeps[count - 2] * 2, cap);
+  assert.ok(last <= unclipped, `the last pause ${last}ms exceeded the backoff's ${unclipped}ms`);
+  const total = sleeps.reduce((sum, ms) => sum + ms, 0);
+  assert.equal(total, deadlineMs, `the pauses summed to ${total}ms against a ${deadlineMs}ms deadline`);
+}
+
+/** Run fn on the fake clock with every rename refused, recording when each attempt came. */
+function underFakePermanentHold(fn) {
+  let caught = null;
+  const attemptsAt = [];
+  const clock = withFakeClock((fake) => {
+    withRename(() => {
+      attemptsAt.push(fake.ms);
+      throw sharingViolation("EPERM");
+    }, () => {
+      try {
+        fn();
+      } catch (err) {
+        caught = err;
+      }
+    });
+  });
+  return { caught, attemptsAt, clock };
+}
+
 test("a rename refused more times than the old attempt count still commits", () => {
   const dir = tempDir();
   save(dir, GOOD);
@@ -686,17 +805,23 @@ test("a rename refused more times than the old attempt count still commits", () 
   // Ten refusals: twice the five attempts the CI failure ran under.
   const REFUSALS = 10;
   let calls = 0;
-  withRename((real, from, to) => {
-    calls += 1;
-    if (calls <= REFUSALS) {
-      throw sharingViolation("EPERM");
-    }
-    return real(from, to);
-  }, () => save(dir, WRITER_A));
+  const clock = withFakeClock(() => {
+    withRename((real, from, to) => {
+      calls += 1;
+      if (calls <= REFUSALS) {
+        throw sharingViolation("EPERM");
+      }
+      return real(from, to);
+    }, () => save(dir, WRITER_A));
+  });
 
   // Anti-vacuity: the fake fired every refusal and then let the real rename run.
   const observed = calls;
   assert.equal(observed, REFUSALS + 1, `renameSync was called ${observed} times`);
+  const paused = clock.sleeps.length;
+  assert.equal(paused, REFUSALS, `the loop paused ${paused} times through the clock seam for ${REFUSALS} refusals`);
+  const waited = clock.ms - FAKE_CLOCK_ORIGIN_MS;
+  assert.ok(waited < state.RENAME_DEADLINE_MS, `ten refusals cost ${waited}ms, past the deadline`);
   assert.deepEqual(load(dir), WRITER_A);
   assert.deepEqual(partialsIn(dir), [], "a committed save left its stage behind");
 });
@@ -705,60 +830,60 @@ test("a handle held past the old retry window but inside the deadline is waited 
   const dir = tempDir();
   save(dir, GOOD);
 
-  // A holder that keeps the file for HOLD_MS of wall time, whatever the retry
+  // A holder that keeps the file for HOLD_MS of clock time, whatever the retry
   // cadence. The old loop's last attempt came about 500ms after the first.
+  const OLD_RETRY_WINDOW_MS = 500;
   const HOLD_MS = 1200;
   let firstCall = null;
   let refusals = 0;
-  withRename((real, from, to) => {
-    const now = Date.now();
-    if (firstCall === null) {
-      firstCall = now;
-    }
-    if (now - firstCall < HOLD_MS) {
-      refusals += 1;
-      // Alternate the codes a Windows sharing violation surfaces as.
-      throw sharingViolation(refusals % 2 === 0 ? "EACCES" : "EPERM");
-    }
-    return real(from, to);
-  }, () => save(dir, WRITER_B));
+  let publishedAt = null;
+  withFakeClock((clock) => {
+    withRename((real, from, to) => {
+      if (firstCall === null) {
+        firstCall = clock.ms;
+      }
+      if (clock.ms - firstCall < HOLD_MS) {
+        refusals += 1;
+        // Alternate the codes a Windows sharing violation surfaces as.
+        throw sharingViolation(refusals % 2 === 0 ? "EACCES" : "EPERM");
+      }
+      publishedAt = clock.ms - firstCall;
+      return real(from, to);
+    }, () => save(dir, WRITER_B));
+  });
 
   const refused = refusals;
-  assert.ok(refused > 0, "the fake holder never refused a rename, so this arm measured nothing");
+  assert.ok(refused > 5, `the holder refused only ${refused} renames, no more than the old attempt count`);
+  assert.notEqual(publishedAt, null, "the rename never went through");
+  assert.ok(publishedAt >= HOLD_MS, `published ${publishedAt}ms in, before the ${HOLD_MS}ms hold ended`);
+  assert.ok(publishedAt < state.RENAME_DEADLINE_MS, `published ${publishedAt}ms in, past the deadline`);
   assert.deepEqual(load(dir), WRITER_B);
-  // The hold is only meaningful if it fits the deadline with headroom.
+  // The hold is only meaningful if it outlasts the old window and fits the deadline.
+  assert.ok(HOLD_MS > OLD_RETRY_WINDOW_MS, `hold ${HOLD_MS}ms does not outlast the old ${OLD_RETRY_WINDOW_MS}ms window`);
   assert.ok(HOLD_MS < state.RENAME_DEADLINE_MS, `hold ${HOLD_MS}ms does not fit the deadline ${state.RENAME_DEADLINE_MS}ms`);
 });
 
-test("a rename held past the deadline fails loudly, in bounded time", () => {
+test("a rename held past the deadline fails loudly, at the deadline and not after it", () => {
   const dir = tempDir();
   save(dir, GOOD);
   const before = fs.readFileSync(statePath(dir));
-
-  let calls = 0;
-  let caught = null;
-  const started = Date.now();
-  withRename(() => {
-    calls += 1;
-    throw sharingViolation("EPERM");
-  }, () => {
-    try {
-      save(dir, WRITER_A);
-    } catch (err) {
-      caught = err;
-    }
-  });
-  const elapsed = Date.now() - started;
   const deadline = state.RENAME_DEADLINE_MS;
-
-  assert.notEqual(caught, null, "a rename that never succeeds must not report success");
-  assert.equal(caught.code, "EPERM", `the rename's own error must surface - code was ${caught && caught.code}`);
   assert.ok(Number.isInteger(deadline) && deadline > 0, `RENAME_DEADLINE_MS was ${deadline}`);
-  // Waited the whole deadline (less clock granularity), and not unboundedly.
-  assert.ok(elapsed >= deadline - 50, `gave up after ${elapsed}ms, before the ${deadline}ms deadline`);
-  assert.ok(elapsed < deadline + 2000, `took ${elapsed}ms against a ${deadline}ms deadline`);
-  const attempts = calls;
+
+  const run = underFakePermanentHold(() => save(dir, WRITER_A));
+
+  assert.notEqual(run.caught, null, "a rename that never succeeds must not report success");
+  assert.equal(run.caught.code, "EPERM", `the rename's own error must surface - code was ${run.caught && run.caught.code}`);
+  const attempts = run.attemptsAt.length;
+  const paused = run.clock.sleeps.length;
   assert.ok(attempts > 5, `only ${attempts} attempts inside the deadline`);
+  // One attempt before each pause, and a final one at the deadline itself.
+  assert.equal(attempts, paused + 1, `${attempts} attempts around ${paused} pauses`);
+  const lastAt = run.attemptsAt[attempts - 1] - FAKE_CLOCK_ORIGIN_MS;
+  assert.equal(lastAt, deadline, `the final attempt came ${lastAt}ms in, not at the ${deadline}ms deadline`);
+  const gaveUpAt = run.clock.ms - FAKE_CLOCK_ORIGIN_MS;
+  assert.equal(gaveUpAt, deadline, `gave up ${gaveUpAt}ms in against a ${deadline}ms deadline`);
+  assertCappedBackoff(run.clock.sleeps, deadline);
   // Nothing about the failure reached the published file.
   assert.deepEqual(fs.readFileSync(statePath(dir)), before, "a failed commit changed the published file");
   // And the failed save cleaned up after itself rather than orphaning a stage
@@ -812,15 +937,17 @@ test("a failed commit never falls back to writing the state file in place", () =
     assert.ok(controlHits >= 1, "the spy did not see a planted in-place write, so it would see nothing");
     hits.length = 0;
 
-    withRename(() => {
-      renames += 1;
-      throw sharingViolation("EBUSY");
-    }, () => {
-      try {
-        save(dir, WRITER_B);
-      } catch (err) {
-        caught = err;
-      }
+    withFakeClock(() => {
+      withRename(() => {
+        renames += 1;
+        throw sharingViolation("EBUSY");
+      }, () => {
+        try {
+          save(dir, WRITER_B);
+        } catch (err) {
+          caught = err;
+        }
+      });
     });
   } finally {
     for (const [name, real] of saved) {
@@ -830,7 +957,7 @@ test("a failed commit never falls back to writing the state file in place", () =
 
   const renameCalls = renames;
   const found = hits.join(", ") || "none";
-  assert.ok(renameCalls > 0, "the rename fake never fired, so this arm measured nothing");
+  assert.ok(renameCalls > 1, "the rename fake never fired a retry, so this arm measured nothing");
   assert.notEqual(caught, null, "a rename that never succeeds must not report success");
   assert.equal(hits.length, 0, `non-atomic calls on the state file: ${found}`);
   const after = fs.readFileSync(target);
@@ -843,44 +970,28 @@ test("a non-transient rename fault is raised at once, never waited out", () => {
   save(dir, GOOD);
 
   let calls = 0;
-  const started = Date.now();
-  assert.throws(
-    () => withRename(() => {
+  let caught = null;
+  const clock = withFakeClock(() => {
+    withRename(() => {
       calls += 1;
       throw sharingViolation("EXDEV");
-    }, () => save(dir, WRITER_A)),
-    (err) => err.code === "EXDEV",
-  );
-  const elapsed = Date.now() - started;
+    }, () => {
+      try {
+        save(dir, WRITER_A);
+      } catch (err) {
+        caught = err;
+      }
+    });
+  });
+  assert.notEqual(caught, null, "a rename that failed outright reported success");
+  assert.equal(caught.code, "EXDEV", `the rename's own error must surface - code was ${caught.code}`);
   const attempts = calls;
   assert.equal(attempts, 1, `a non-transient fault was retried ${attempts} times`);
-  assert.ok(elapsed < 1000, `a non-transient fault took ${elapsed}ms to surface`);
+  const paused = clock.sleeps.length;
+  assert.equal(paused, 0, `a non-transient fault paused ${paused} times before surfacing`);
   assert.deepEqual(load(dir), GOOD);
   assert.deepEqual(partialsIn(dir), [], "a save that failed on a non-transient fault left its stage behind");
 });
-
-/** Milliseconds on a clock no wall-clock step can move. */
-function monotonicMs() {
-  return Number(process.hrtime.bigint()) / 1e6;
-}
-
-/** Run fn with every rename refused, returning the error and the monotonic time taken. */
-function underPermanentHold(fn) {
-  let caught = null;
-  let calls = 0;
-  const started = monotonicMs();
-  withRename(() => {
-    calls += 1;
-    throw sharingViolation("EPERM");
-  }, () => {
-    try {
-      fn();
-    } catch (err) {
-      caught = err;
-    }
-  });
-  return { caught, calls, elapsed: monotonicMs() - started };
-}
 
 test("the rename deadline holds when the wall clock steps backwards", () => {
   const dir = tempDir();
@@ -889,25 +1000,38 @@ test("the rename deadline holds when the wall clock steps backwards", () => {
   // MEASURED by the CS-1124 adversary: with the deadline read off Date.now, a
   // wall clock stepped back 5s after the first read made save() block for about
   // 7s against a 2s deadline. A clock sync or a DST-free manual set can do that
-  // on a real machine. Here every read after the first is 5s in the past.
+  // on a real machine. Here every read once the step is planted is 5s back. The
+  // monotonic clock is the fake one, and the fake pause does not move Date.now,
+  // so a loop that took its deadline off the wall clock never reaches it and
+  // runs into the fake clock's runaway refusal instead.
+  //
+  // The fake clock cannot see WHICH clock the real seam reads, so that half is
+  // graded directly and without waiting: the real state.clock.now, read across
+  // the same 5s backward step, must not go backwards.
+  const STEP_BACK_MS = 5000;
   const realNow = Date.now;
-  let reads = 0;
-  Date.now = () => {
-    reads += 1;
-    return reads === 1 ? realNow() : realNow() - 5000;
-  };
+  const wallBefore = realNow();
+  const seamBefore = state.clock.now();
+  Date.now = () => realNow() - STEP_BACK_MS;
   let run;
+  let wallAfter;
+  let seamAfter;
   try {
-    run = underPermanentHold(() => save(dir, WRITER_A));
+    wallAfter = Date.now();
+    seamAfter = state.clock.now();
+    run = underFakePermanentHold(() => save(dir, WRITER_A));
   } finally {
     Date.now = realNow;
   }
 
-  const elapsed = Math.round(run.elapsed);
+  // Known-good control: the step really moved the wall clock backwards.
+  assert.ok(wallAfter < wallBefore, "the planted wall clock did not step backwards, so this arm measured nothing");
+  assert.ok(seamAfter >= seamBefore, `the real clock seam went back ${seamBefore - seamAfter}ms with the wall clock`);
   const deadline = state.RENAME_DEADLINE_MS;
   assert.notEqual(run.caught, null, "a rename that never succeeds must not report success");
-  assert.equal(run.caught.code, "EPERM");
-  assert.ok(elapsed < deadline + 1500, `a backward clock step stretched a ${deadline}ms deadline to ${elapsed}ms`);
+  assert.equal(run.caught.code, "EPERM", `a backward clock step changed how the save failed: ${run.caught.code}`);
+  const gaveUpAt = run.clock.ms - FAKE_CLOCK_ORIGIN_MS;
+  assert.equal(gaveUpAt, deadline, `a backward clock step moved a ${deadline}ms deadline to ${gaveUpAt}ms`);
   assert.deepEqual(load(dir), GOOD);
 });
 
@@ -923,14 +1047,62 @@ test("a save given the close deadline blocks no longer than the old envelope", (
   assert.ok(Number.isInteger(closeDeadline) && closeDeadline > 0, `RENAME_CLOSE_DEADLINE_MS was ${closeDeadline}`);
   assert.ok(closeDeadline < state.RENAME_DEADLINE_MS, "the close deadline is not shorter than the background one");
 
-  const run = underPermanentHold(() => save(dir, WRITER_A, { renameDeadlineMs: closeDeadline }));
+  const run = underFakePermanentHold(() => save(dir, WRITER_A, { renameDeadlineMs: closeDeadline }));
 
-  const elapsed = Math.round(run.elapsed);
   assert.notEqual(run.caught, null, "a rename that never succeeds must not report success");
   assert.equal(run.caught.code, "EPERM");
-  assert.ok(elapsed >= closeDeadline - 50, `gave up after ${elapsed}ms, before the ${closeDeadline}ms close deadline`);
-  assert.ok(elapsed < OLD_CLOSE_ENVELOPE_MS, `the close path blocked ${elapsed}ms, past the old ${OLD_CLOSE_ENVELOPE_MS}ms envelope`);
+  const blocked = run.clock.ms - FAKE_CLOCK_ORIGIN_MS;
+  assert.equal(blocked, closeDeadline, `the close path gave up ${blocked}ms in, not at its ${closeDeadline}ms deadline`);
+  assert.ok(blocked < OLD_CLOSE_ENVELOPE_MS, `the close path blocked ${blocked}ms, past the old ${OLD_CLOSE_ENVELOPE_MS}ms envelope`);
+  assertCappedBackoff(run.clock.sleeps, closeDeadline);
+  const lastAt = run.attemptsAt[run.attemptsAt.length - 1] - FAKE_CLOCK_ORIGIN_MS;
+  assert.equal(lastAt, closeDeadline, `the final close-path attempt came ${lastAt}ms in`);
   assert.deepEqual(partialsIn(dir), [], "a failed close-path save left its stage behind");
+  assert.deepEqual(load(dir), GOOD);
+});
+
+/** Milliseconds on a clock no wall-clock step can move. */
+function monotonicMs() {
+  return Number(process.hrtime.bigint()) / 1e6;
+}
+
+test("the real clock and the real pause are wired - a smoke arm, bounded generously", () => {
+  // The ONE arm on real time. It grades wiring, not timing: the arms above
+  // replace state.clock, so without this a seam whose real pause did nothing
+  // would pass them all. A no-op pause spins thousands of attempts inside the
+  // deadline; a real one makes a handful. The upper bound is four deadlines
+  // wide because a loaded CI host is slow, and slowness only ever LOWERS the
+  // attempt count, so neither bound here is load-sensitive in the failing
+  // direction.
+  const dir = tempDir();
+  save(dir, GOOD);
+  const closeDeadline = state.RENAME_CLOSE_DEADLINE_MS;
+  const GENEROUS_ATTEMPTS = 50;
+
+  let caught = null;
+  let calls = 0;
+  const started = monotonicMs();
+  withRename(() => {
+    calls += 1;
+    // Past the generous count the holder lets go with a fault the loop cannot
+    // wait out, so a loop that has lost its deadline is a fast red, not a hang.
+    throw sharingViolation(calls < GENEROUS_ATTEMPTS ? "EPERM" : "EXDEV");
+  }, () => {
+    try {
+      save(dir, WRITER_A, { renameDeadlineMs: closeDeadline });
+    } catch (err) {
+      caught = err;
+    }
+  });
+  const elapsed = Math.round(monotonicMs() - started);
+
+  assert.notEqual(caught, null, "a rename that never succeeds must not report success");
+  assert.equal(caught.code, "EPERM");
+  const attempts = calls;
+  assert.ok(attempts > 1, `the real loop made ${attempts} attempt(s), so it never retried`);
+  assert.ok(attempts < GENEROUS_ATTEMPTS, `${attempts} attempts in ${elapsed}ms - the real pause is not pausing`);
+  assert.ok(elapsed >= closeDeadline - 50, `gave up after ${elapsed}ms, before the ${closeDeadline}ms deadline`);
+  assert.ok(elapsed < closeDeadline * 4, `the real loop took ${elapsed}ms against a ${closeDeadline}ms deadline`);
   assert.deepEqual(load(dir), GOOD);
 });
 

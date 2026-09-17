@@ -118,7 +118,7 @@ const DEFAULTS = Object.freeze({
 // 250ms before giving up. MEASURED on windows-latest CI: that budget lost to a
 // held handle on 2 of 240 concurrent saves in the 768f2b8 tier2 run and 1 of
 // 240 in scheduled run 35201300783, each as "save failed with EPERM". How long
-// the runner's holder actually keeps the file is NOT measured - only that it
+// the CI host's holder actually keeps the file is NOT measured - only that it
 // sometimes outlasts half a second. The deadline is therefore four times the
 // window that lost, and the backoff starts short and doubles to a cap, so a
 // brief hold costs milliseconds while a long one is still probed every
@@ -145,7 +145,7 @@ const RENAME_BACKOFF_CAP_MS = 200;
 
 /** Milliseconds on a clock that a wall-clock step cannot move. */
 function monotonicMs() {
-  return performance.now();
+  return clock.now();
 }
 
 /** The caller's rename budget, or the background default. Refuses a bad one loudly. */
@@ -189,6 +189,19 @@ function sleepSync(milliseconds) {
   Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, milliseconds);
 }
 
+// THE RETRY LOOP'S TIME AND PAUSE, AS ONE REPLACEABLE SEAM. renameWithRetry
+// reads the monotonic clock and takes its pause ONLY through this object, so a
+// test can put a fake clock here whose pause advances it exactly - and grade
+// "stopped at the deadline, never slept past it" as an equality instead of as
+// real elapsed milliseconds. MEASURED on ubuntu-latest CI: graded on real
+// time, a correct loop blocked 869ms against a 750ms envelope on a loaded
+// host. Both members are read at call time, never captured, so a replacement
+// takes effect on the next save. Nothing in the shipped app replaces them.
+const clock = {
+  now: () => performance.now(),
+  sleep: (milliseconds) => sleepSync(milliseconds),
+};
+
 /**
  * Rename, waiting out a transient Windows sharing violation until a deadline.
  *
@@ -217,7 +230,7 @@ function renameWithRetry(from, to, deadlineMs, superseded) {
       if (remaining <= 0) {
         throw err;
       }
-      sleepSync(Math.min(pause, remaining));
+      clock.sleep(Math.min(pause, remaining));
       pause = Math.min(pause * 2, RENAME_BACKOFF_CAP_MS);
       if (superseded()) {
         return false;
@@ -684,6 +697,7 @@ module.exports = {
   PARTIAL_STALE_MS,
   RENAME_DEADLINE_MS,
   RENAME_CLOSE_DEADLINE_MS,
+  clock,
   SCHEMA_VERSION,
   DEFAULTS,
   MIN_WIDTH,
