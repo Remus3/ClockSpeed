@@ -79,6 +79,7 @@ import contextlib
 import io
 import os
 import re
+import shutil
 import subprocess
 import sys
 import tomllib
@@ -1183,6 +1184,54 @@ def _resolve_plant(plant: Mapping[str, str], project: Path) -> dict[str, str]:
     return {name: paths.get(token, token) for name, token in plant.items()}
 
 
+@pytest.fixture(scope="session")
+def warm_mypy_cache(tmp_path_factory: pytest.TempPathFactory) -> Path:
+    """A mypy cache holding only what a one-empty-module project builds.
+
+    THE COST IT REMOVES. A cold mypy run spends most of its time building the
+    standard library - measured locally at 1.07s cold against 0.29s from a warm
+    copy - and the CS-1125 environment arms make dozens of runs, all of them in
+    the tier-1 guard shard, which runs this module on one worker.
+
+    WHY IT CANNOT HIDE A HAZARD. It is built under the controlled environment
+    from a project whose only module is empty, so it holds no module any arm
+    checks: every leaf, trunk and planted module is built fresh in every run.
+    And no run shares it - each gets a PRIVATE copy through ``_seeded_cache`` -
+    so nothing one run records can reach another. The anti-vacuity arms run on
+    seeded copies too, so a hazard a warm cache masked would turn them red.
+
+    Args:
+        tmp_path_factory: pytest's session-scoped temporary directory factory.
+
+    Returns:
+        The warm cache directory. Never pass it to a run directly.
+    """
+    root = tmp_path_factory.mktemp("warm_mypy_cache")
+    project = root / "project"
+    (project / "src").mkdir(parents=True)
+    (project / "src" / "empty.py").write_text("", encoding="utf-8")
+    config = project / "mypy.ini"
+    config.write_text("[mypy]\nfiles = src\n", encoding="utf-8")
+    cache = root / "cache"
+    warmed = _run_mypy(config=config, cache=cache, cwd=project)
+    assert warmed.returncode == 0, f"the cache warm-up run failed:\n{warmed.stdout}{warmed.stderr}"
+    return cache
+
+
+def _seeded_cache(warm: Path, destination: Path) -> Path:
+    """Give one mypy run a private copy of the warm cache.
+
+    Args:
+        warm: The ``warm_mypy_cache`` fixture's directory.
+        destination: Where this run's cache lives; must not exist yet.
+
+    Returns:
+        ``destination``, now holding the copy.
+    """
+    shutil.copytree(warm, destination)
+    return destination
+
+
 def _run_exclusion_arm(
     project: Path, config: Path, cache: Path, env: Mapping[str, str] | None = None
 ) -> None:
@@ -1226,7 +1275,10 @@ def test_exclude_filters_discovery_and_does_not_contain_errors(tmp_path: Path) -
 @pytest.mark.slow
 @pytest.mark.parametrize("plant", _AMBIENT_PARAMS)
 def test_the_exclusion_arm_does_not_report_on_the_ambient_environment(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, plant: dict[str, str]
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    plant: dict[str, str],
+    warm_mypy_cache: Path,
 ) -> None:
     # CS-1125. The arm above once INHERITED its environment: run as
     # `PYTHONPATH=.`, mypy put the throwaway project on its search path,
@@ -1241,13 +1293,16 @@ def test_the_exclusion_arm_does_not_report_on_the_ambient_environment(
         monkeypatch.setenv(variable, value)
         assert os.environ.get(variable) == value, f"the ambient {variable} was never planted"
 
-    _run_exclusion_arm(project, config, tmp_path / "cache")
+    _run_exclusion_arm(project, config, _seeded_cache(warm_mypy_cache, tmp_path / "cache"))
 
 
 @pytest.mark.slow
 @pytest.mark.parametrize("plant", _AMBIENT_PARAMS)
 def test_the_exclusion_arm_reddens_when_discovery_stops_filtering(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, plant: dict[str, str]
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    plant: dict[str, str],
+    warm_mypy_cache: Path,
 ) -> None:
     # THE CONTROL. Controlling the environment must not have made the arm blind:
     # with an `exclude` that matches nothing, discovery genuinely stops
@@ -1261,7 +1316,9 @@ def test_the_exclusion_arm_reddens_when_discovery_stops_filtering(
     for variable, value in _resolve_plant(plant, project).items():
         monkeypatch.setenv(variable, value)
 
-    result = _run_mypy(config=config, cache=tmp_path / "cache", cwd=project)
+    result = _run_mypy(
+        config=config, cache=_seeded_cache(warm_mypy_cache, tmp_path / "cache"), cwd=project
+    )
 
     assert _reported_file_count(result.stdout) == _UNFILTERED_SOURCE_COUNT, (
         f"the mutated exclude still filtered discovery:\n{result.stdout}"
@@ -1273,7 +1330,7 @@ def test_the_exclusion_arm_reddens_when_discovery_stops_filtering(
 @pytest.mark.slow
 @pytest.mark.parametrize("plant", _LIVE_AMBIENT_PARAMS)
 def test_each_planted_variable_really_breaks_the_exclusion_arm(
-    tmp_path: Path, plant: dict[str, str]
+    tmp_path: Path, plant: dict[str, str], warm_mypy_cache: Path
 ) -> None:
     # ANTI-VACUITY for the ambient arm. A planted value mypy happens to ignore
     # would keep that arm green without controlling anything, so each variable
@@ -1287,11 +1344,18 @@ def test_each_planted_variable_really_breaks_the_exclusion_arm(
     project = tmp_path / "throwaway"
     config = _build_exclusion_project(project)
 
-    _run_exclusion_arm(project, config, tmp_path / "clean_cache", env=_controlled_environment())
+    _run_exclusion_arm(
+        project,
+        config,
+        _seeded_cache(warm_mypy_cache, tmp_path / "clean_cache"),
+        env=_controlled_environment(),
+    )
 
     planted = {**_controlled_environment(), **_resolve_plant(plant, project)}
     with pytest.raises((AssertionError, UnicodeDecodeError)):
-        _run_exclusion_arm(project, config, tmp_path / "planted_cache", env=planted)
+        _run_exclusion_arm(
+            project, config, _seeded_cache(warm_mypy_cache, tmp_path / "planted_cache"), env=planted
+        )
 
 
 def test_the_controlled_environment_is_an_allowlist_in_any_case() -> None:
@@ -1343,7 +1407,7 @@ def _hostile_home(root: Path) -> dict[str, str]:
 
 @pytest.mark.slow
 def test_a_non_ascii_path_decodes_and_no_user_config_reaches_the_run(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, warm_mypy_cache: Path
 ) -> None:
     # Two controls, one project, because both bite only a project with no config
     # file of its own beside it.
@@ -1365,7 +1429,15 @@ def test_a_non_ascii_path_decodes_and_no_user_config_reaches_the_run(
 
     # ANTI-VACUITY: the planted home really is read by a run that names no config.
     discovering = subprocess.run(
-        [sys.executable, "-m", "mypy", "--no-pretty", "--cache-dir", str(tmp_path / "c0"), "src"],
+        [
+            sys.executable,
+            "-m",
+            "mypy",
+            "--no-pretty",
+            "--cache-dir",
+            str(_seeded_cache(warm_mypy_cache, tmp_path / "c0")),
+            "src",
+        ],
         cwd=project,
         env={**_controlled_environment(), **home},
         capture_output=True,
@@ -1380,14 +1452,16 @@ def test_a_non_ascii_path_decodes_and_no_user_config_reaches_the_run(
     config.write_text("[mypy]\n", encoding="utf-8")
     for name, value in home.items():
         monkeypatch.setenv(name, value)
-    result = _run_mypy("src", config=config, cache=tmp_path / "cache", cwd=project)
+    result = _run_mypy(
+        "src", config=config, cache=_seeded_cache(warm_mypy_cache, tmp_path / "cache"), cwd=project
+    )
 
     assert _errors_by_file(result.stdout) == {f"src/{module}.py": 1}, result.stdout
 
 
 @pytest.mark.slow
 def test_a_planted_user_site_cannot_reach_the_exclusion_arm(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, warm_mypy_cache: Path
 ) -> None:
     # A .pth file in the per-user site-packages directory is executed at
     # interpreter start, and mypy builds its search path from a child
@@ -1417,15 +1491,19 @@ def test_a_planted_user_site_cannot_reach_the_exclusion_arm(
     # ANTI-VACUITY: with the user site enabled, the plant really breaks the arm.
     enabled = {name: value for name, value in hostile.items() if name.upper() != "PYTHONNOUSERSITE"}
     with pytest.raises(AssertionError):
-        _run_exclusion_arm(project, config, tmp_path / "enabled_cache", env=enabled)
+        _run_exclusion_arm(
+            project, config, _seeded_cache(warm_mypy_cache, tmp_path / "enabled_cache"), env=enabled
+        )
 
     # The controls hold with the hostile home planted directly over them...
-    _run_exclusion_arm(project, config, tmp_path / "direct_cache", env=hostile)
+    _run_exclusion_arm(
+        project, config, _seeded_cache(warm_mypy_cache, tmp_path / "direct_cache"), env=hostile
+    )
 
     # ...and when it is merely ambient.
     for name, value in home.items():
         monkeypatch.setenv(name, value)
-    _run_exclusion_arm(project, config, tmp_path / "ambient_cache")
+    _run_exclusion_arm(project, config, _seeded_cache(warm_mypy_cache, tmp_path / "ambient_cache"))
 
 
 def test_the_importers_of_the_environment_verifier_are_recorded(repo_files: list[Path]) -> None:
