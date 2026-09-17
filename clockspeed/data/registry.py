@@ -1707,3 +1707,131 @@ def automated_recipes(registry: Registry) -> tuple[Recipe, ...]:
         The automated recipes, in registry order.
     """
     return tuple(recipe for recipe in registry.recipes.values() if recipe.produced_in)
+
+
+#: The substring every measured build-gun producer token carries. It is a
+#: MARKER rather than a transcription on purpose: the pinned build ships
+#: ``BP_BuildGun_C`` on 549 recipes and ``FGBuildGun`` on exactly one, and a
+#: selector written against the common spelling alone loses that recipe and
+#: reports the building it costs as one the game ships no cost for. CS-930
+#: measured that miss before the seam below was written.
+BUILD_GUN_MARKER: Final = "BuildGun"
+
+#: The class-name prefix a modeled buildable usually carries.
+BUILDABLE_PREFIX: Final = "Build_"
+
+#: The class-name prefix the building DESCRIPTOR carries - the item a build-gun
+#: recipe actually produces.
+DESCRIPTOR_PREFIX: Final = "Desc_"
+
+
+@dataclass(frozen=True)
+class BuildCost:
+    """What one buildable costs to place, and where that came from.
+
+    Attributes:
+        building_key: The modeled buildable's ClassName.
+        recipe_key: The build-gun recipe the cost was read off. Carried rather
+            than discarded so a caller can cite the join instead of asserting
+            it - the descriptor entry holds no pointer back to the buildable,
+            so this seam is a name join and its provenance is the only thing
+            that makes it auditable.
+        ingredients: The recipe's ingredient side verbatim, in source order,
+            with exact Fraction amounts.
+    """
+
+    building_key: str
+    recipe_key: str
+    ingredients: tuple[RecipeIO, ...]
+
+
+def _descriptor_key(building_key: str) -> str:
+    """Name the descriptor a build-gun recipe would produce for a buildable.
+
+    ``Build_X_C`` takes ``Desc_X_C``. Anything else takes ITSELF, and that
+    branch is measured rather than a fallback: two modeled buildables carry
+    neither prefix, and one of them is already spelled ``Desc_`` with a recipe
+    producing exactly that key. The other reaches nothing, which is the honest
+    answer - the document ships no build recipe for it under any spelling.
+
+    Args:
+        building_key: The modeled buildable's ClassName.
+
+    Returns:
+        The product ClassName to look for.
+    """
+    if building_key.startswith(BUILDABLE_PREFIX):
+        return DESCRIPTOR_PREFIX + building_key[len(BUILDABLE_PREFIX) :]
+    return building_key
+
+
+def build_gun_recipes(registry: Registry) -> tuple[Recipe, ...]:
+    """Select the recipes placed with the build gun rather than by a machine.
+
+    The filter is on the UNRESOLVED producer tokens, because the build gun is
+    not a modeled building and never resolves. It is the complement of
+    :func:`automated_recipes` in practice - no measured build-gun recipe also
+    names a modeled producer - but it is not defined as one: a recipe naming
+    both would be automated AND buildable, and defining this by subtraction
+    would silently pick a side.
+
+    Args:
+        registry: The built registry.
+
+    Returns:
+        The build-gun recipes, in registry order.
+
+    """
+    return tuple(
+        recipe
+        for recipe in registry.recipes.values()
+        if any(BUILD_GUN_MARKER in token for token in recipe.unresolved_produced_in)
+    )
+
+
+def build_cost(registry: Registry, building_key: str) -> BuildCost | None:
+    """Read what a modeled buildable costs to place.
+
+    Args:
+        registry: The built registry.
+        building_key: A ClassName that MUST name a modeled building.
+
+    Returns:
+        The cost, or None when no build-gun recipe produces this buildable's
+        descriptor. None is not an empty cost and must never be rendered as a
+        free building: the measured misses are a descriptor shipped under a
+        third name and a buildable the document carries no build recipe for,
+        and neither means the game charges nothing.
+
+    Raises:
+        KeyError: If ``building_key`` names no modeled building. That is a
+            different answer from "no cost known" and does not share its
+            return value.
+    """
+    if building_key not in registry.buildings:
+        raise KeyError(building_key)
+    wanted = _descriptor_key(building_key)
+    for recipe in build_gun_recipes(registry):
+        if any(product.item_key == wanted for product in recipe.outputs):
+            return BuildCost(
+                building_key=building_key,
+                recipe_key=recipe.key,
+                ingredients=recipe.inputs,
+            )
+    return None
+
+
+def buildings_without_build_cost(registry: Registry) -> tuple[str, ...]:
+    """List the modeled buildables no build-gun recipe reaches.
+
+    This is the flag half of :func:`build_cost` (non-negotiable 7): a caller
+    that wants a total has to know which members it could not price, and a
+    None returned one at a time is easy to swallow silently.
+
+    Args:
+        registry: The built registry.
+
+    Returns:
+        The unpriced buildables' ClassNames, in registry order.
+    """
+    return tuple(key for key in registry.buildings if build_cost(registry, key) is None)
