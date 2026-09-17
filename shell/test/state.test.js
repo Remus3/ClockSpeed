@@ -536,7 +536,7 @@ test("a second writer's staging cannot empty a first writer's staged payload", (
   assert.deepEqual(JSON.parse(published.toString("utf8")), WRITER_A);
 });
 
-test("a whole save by a second writer leaves a first writer's stage committable", () => {
+test("a whole save by a second writer leaves a first writer's older stage to abandon, not to fail", () => {
   const dir = tempDir();
   save(dir, GOOD);
 
@@ -545,10 +545,18 @@ test("a whole save by a second writer leaves a first writer's stage committable"
   save(dir, WRITER_B);
   // A's stage must still be A's. Under the fixed name B had renamed it away and
   // this commit failed with ENOENT - a code deliberately not retried, because a
-  // rename with no source never becomes possible by waiting.
-  commitPartial(dir, stagedA);
+  // rename with no source never becomes possible by waiting. So the commit must
+  // not throw.
+  //
+  // CS-1124 - BUT A IS OLDER THAN WHAT B ALREADY PUBLISHED, and publishing it
+  // now would put a stale window position over a newer one. The stage is
+  // abandoned instead: the commit reports null, the newer payload stays, and
+  // the stage file is removed rather than orphaned.
+  const committed = commitPartial(dir, stagedA);
 
-  assert.deepEqual(load(dir), WRITER_A);
+  assert.equal(committed, null, "an older stage was published over a newer save");
+  assert.deepEqual(load(dir), WRITER_B);
+  assert.deepEqual(partialsIn(dir), [], "the abandoned stage was left behind");
 });
 
 // A standalone writer, run as its own OS process so the concurrency is real
@@ -639,6 +647,474 @@ test("real concurrent writers never publish an empty or truncated state file", a
   const finalKeys = Object.keys(JSON.parse(fs.readFileSync(path.join(dir, STATE_FILENAME), "utf8"))).sort();
   assert.deepEqual(finalKeys, [...STATE_KEYS].sort());
   assert.deepEqual(partialsIn(dir), [], "concurrent saves left staging files behind");
+});
+
+// --- CS-1124: a rename held by another handle is waited out BY TIME ---------
+//
+// MEASURED on windows-latest CI: the arm above failed with "save failed with
+// EPERM" - 2 of 240 saves on the 768f2b8 tier2 run and 1 of 240 on scheduled
+// run 35201300783 - under a retry of five attempts with a linear 50ms pause,
+// which gave up roughly half a second after the first refusal. A handle held a
+// little longer than that (a scanner, an indexer, a concurrent reader) turned a
+// sharing violation into a failed save. These arms fake that holder at the
+// seam the module actually calls, fs.renameSync, and hold the module to a
+// DEADLINE rather than to an attempt count: the save survives a hold that fits
+// the deadline, and a hold that never ends still fails loudly and in bounded
+// time, without ever publishing through a non-atomic path.
+
+/** Replace fs.renameSync for the duration of fn, always restoring it. */
+function withRename(fake, fn) {
+  const real = fs.renameSync;
+  fs.renameSync = (from, to) => fake(real, from, to);
+  try {
+    return fn();
+  } finally {
+    fs.renameSync = real;
+  }
+}
+
+function sharingViolation(code) {
+  const err = new Error(`s1124 injected: ${code} - the target is held by another handle`);
+  err.code = code;
+  return err;
+}
+
+test("a rename refused more times than the old attempt count still commits", () => {
+  const dir = tempDir();
+  save(dir, GOOD);
+
+  // Ten refusals: twice the five attempts the CI failure ran under.
+  const REFUSALS = 10;
+  let calls = 0;
+  withRename((real, from, to) => {
+    calls += 1;
+    if (calls <= REFUSALS) {
+      throw sharingViolation("EPERM");
+    }
+    return real(from, to);
+  }, () => save(dir, WRITER_A));
+
+  // Anti-vacuity: the fake fired every refusal and then let the real rename run.
+  const observed = calls;
+  assert.equal(observed, REFUSALS + 1, `renameSync was called ${observed} times`);
+  assert.deepEqual(load(dir), WRITER_A);
+  assert.deepEqual(partialsIn(dir), [], "a committed save left its stage behind");
+});
+
+test("a handle held past the old retry window but inside the deadline is waited out", () => {
+  const dir = tempDir();
+  save(dir, GOOD);
+
+  // A holder that keeps the file for HOLD_MS of wall time, whatever the retry
+  // cadence. The old loop's last attempt came about 500ms after the first.
+  const HOLD_MS = 1200;
+  let firstCall = null;
+  let refusals = 0;
+  withRename((real, from, to) => {
+    const now = Date.now();
+    if (firstCall === null) {
+      firstCall = now;
+    }
+    if (now - firstCall < HOLD_MS) {
+      refusals += 1;
+      // Alternate the codes a Windows sharing violation surfaces as.
+      throw sharingViolation(refusals % 2 === 0 ? "EACCES" : "EPERM");
+    }
+    return real(from, to);
+  }, () => save(dir, WRITER_B));
+
+  const refused = refusals;
+  assert.ok(refused > 0, "the fake holder never refused a rename, so this arm measured nothing");
+  assert.deepEqual(load(dir), WRITER_B);
+  // The hold is only meaningful if it fits the deadline with headroom.
+  assert.ok(HOLD_MS < state.RENAME_DEADLINE_MS, `hold ${HOLD_MS}ms does not fit the deadline ${state.RENAME_DEADLINE_MS}ms`);
+});
+
+test("a rename held past the deadline fails loudly, in bounded time", () => {
+  const dir = tempDir();
+  save(dir, GOOD);
+  const before = fs.readFileSync(statePath(dir));
+
+  let calls = 0;
+  let caught = null;
+  const started = Date.now();
+  withRename(() => {
+    calls += 1;
+    throw sharingViolation("EPERM");
+  }, () => {
+    try {
+      save(dir, WRITER_A);
+    } catch (err) {
+      caught = err;
+    }
+  });
+  const elapsed = Date.now() - started;
+  const deadline = state.RENAME_DEADLINE_MS;
+
+  assert.notEqual(caught, null, "a rename that never succeeds must not report success");
+  assert.equal(caught.code, "EPERM", `the rename's own error must surface - code was ${caught && caught.code}`);
+  assert.ok(Number.isInteger(deadline) && deadline > 0, `RENAME_DEADLINE_MS was ${deadline}`);
+  // Waited the whole deadline (less clock granularity), and not unboundedly.
+  assert.ok(elapsed >= deadline - 50, `gave up after ${elapsed}ms, before the ${deadline}ms deadline`);
+  assert.ok(elapsed < deadline + 2000, `took ${elapsed}ms against a ${deadline}ms deadline`);
+  const attempts = calls;
+  assert.ok(attempts > 5, `only ${attempts} attempts inside the deadline`);
+  // Nothing about the failure reached the published file.
+  assert.deepEqual(fs.readFileSync(statePath(dir)), before, "a failed commit changed the published file");
+  // And the failed save cleaned up after itself rather than orphaning a stage
+  // for the next minute's sweep.
+  assert.deepEqual(partialsIn(dir), [], "a save that failed at the deadline left its stage behind");
+});
+
+test("a failed commit never falls back to writing the state file in place", () => {
+  const dir = tempDir();
+  save(dir, GOOD);
+  const target = path.resolve(statePath(dir));
+  const before = fs.readFileSync(target);
+
+  // Every synchronous fs call that could put bytes at, or remove, the target
+  // path without a rename. A path argument resolving to the target is a
+  // non-atomic write path, whatever the reason it was taken.
+  const MUTATORS = [
+    ["writeFileSync", [0]],
+    ["appendFileSync", [0]],
+    ["openSync", [0]],
+    ["truncateSync", [0]],
+    ["copyFileSync", [1]],
+    ["cpSync", [1]],
+    ["unlinkSync", [0]],
+    ["rmSync", [0]],
+    ["createWriteStream", [0]],
+  ];
+  const hits = [];
+  const saved = new Map();
+  const onTarget = (value) => typeof value === "string" && path.resolve(value) === target;
+  for (const [name, positions] of MUTATORS) {
+    const real = fs[name];
+    saved.set(name, real);
+    fs[name] = (...args) => {
+      if (positions.some((i) => onTarget(args[i]))) {
+        hits.push(name);
+      }
+      return real(...args);
+    };
+  }
+
+  let renames = 0;
+  let caught = null;
+  try {
+    // Known-good control: the spy records a direct write to the target. The
+    // same bytes go back, so the control itself changes nothing.
+    fs.writeFileSync(target, before);
+    // At least one: fs.writeFileSync on a path reaches fs.openSync internally,
+    // so a single planted write can register twice.
+    const controlHits = hits.length;
+    assert.ok(controlHits >= 1, "the spy did not see a planted in-place write, so it would see nothing");
+    hits.length = 0;
+
+    withRename(() => {
+      renames += 1;
+      throw sharingViolation("EBUSY");
+    }, () => {
+      try {
+        save(dir, WRITER_B);
+      } catch (err) {
+        caught = err;
+      }
+    });
+  } finally {
+    for (const [name, real] of saved) {
+      fs[name] = real;
+    }
+  }
+
+  const renameCalls = renames;
+  const found = hits.join(", ") || "none";
+  assert.ok(renameCalls > 0, "the rename fake never fired, so this arm measured nothing");
+  assert.notEqual(caught, null, "a rename that never succeeds must not report success");
+  assert.equal(hits.length, 0, `non-atomic calls on the state file: ${found}`);
+  const after = fs.readFileSync(target);
+  assert.deepEqual(after, before, "the published state file changed without a rename");
+  assert.notEqual(after.length, 0, "the published state file is empty");
+});
+
+test("a non-transient rename fault is raised at once, never waited out", () => {
+  const dir = tempDir();
+  save(dir, GOOD);
+
+  let calls = 0;
+  const started = Date.now();
+  assert.throws(
+    () => withRename(() => {
+      calls += 1;
+      throw sharingViolation("EXDEV");
+    }, () => save(dir, WRITER_A)),
+    (err) => err.code === "EXDEV",
+  );
+  const elapsed = Date.now() - started;
+  const attempts = calls;
+  assert.equal(attempts, 1, `a non-transient fault was retried ${attempts} times`);
+  assert.ok(elapsed < 1000, `a non-transient fault took ${elapsed}ms to surface`);
+  assert.deepEqual(load(dir), GOOD);
+  assert.deepEqual(partialsIn(dir), [], "a save that failed on a non-transient fault left its stage behind");
+});
+
+/** Milliseconds on a clock no wall-clock step can move. */
+function monotonicMs() {
+  return Number(process.hrtime.bigint()) / 1e6;
+}
+
+/** Run fn with every rename refused, returning the error and the monotonic time taken. */
+function underPermanentHold(fn) {
+  let caught = null;
+  let calls = 0;
+  const started = monotonicMs();
+  withRename(() => {
+    calls += 1;
+    throw sharingViolation("EPERM");
+  }, () => {
+    try {
+      fn();
+    } catch (err) {
+      caught = err;
+    }
+  });
+  return { caught, calls, elapsed: monotonicMs() - started };
+}
+
+test("the rename deadline holds when the wall clock steps backwards", () => {
+  const dir = tempDir();
+  save(dir, GOOD);
+
+  // MEASURED by the CS-1124 adversary: with the deadline read off Date.now, a
+  // wall clock stepped back 5s after the first read made save() block for about
+  // 7s against a 2s deadline. A clock sync or a DST-free manual set can do that
+  // on a real machine. Here every read after the first is 5s in the past.
+  const realNow = Date.now;
+  let reads = 0;
+  Date.now = () => {
+    reads += 1;
+    return reads === 1 ? realNow() : realNow() - 5000;
+  };
+  let run;
+  try {
+    run = underPermanentHold(() => save(dir, WRITER_A));
+  } finally {
+    Date.now = realNow;
+  }
+
+  const elapsed = Math.round(run.elapsed);
+  const deadline = state.RENAME_DEADLINE_MS;
+  assert.notEqual(run.caught, null, "a rename that never succeeds must not report success");
+  assert.equal(run.caught.code, "EPERM");
+  assert.ok(elapsed < deadline + 1500, `a backward clock step stretched a ${deadline}ms deadline to ${elapsed}ms`);
+  assert.deepEqual(load(dir), GOOD);
+});
+
+// The close path's budget. The loop CS-1124 replaced blocked a failing save for
+// at most five pauses of 50, 100, 150, 200 and 250ms - 750ms in all - and the
+// window close waited on it. The close path must not block longer than that.
+const OLD_CLOSE_ENVELOPE_MS = 750;
+
+test("a save given the close deadline blocks no longer than the old envelope", () => {
+  const dir = tempDir();
+  save(dir, GOOD);
+  const closeDeadline = state.RENAME_CLOSE_DEADLINE_MS;
+  assert.ok(Number.isInteger(closeDeadline) && closeDeadline > 0, `RENAME_CLOSE_DEADLINE_MS was ${closeDeadline}`);
+  assert.ok(closeDeadline < state.RENAME_DEADLINE_MS, "the close deadline is not shorter than the background one");
+
+  const run = underPermanentHold(() => save(dir, WRITER_A, { renameDeadlineMs: closeDeadline }));
+
+  const elapsed = Math.round(run.elapsed);
+  assert.notEqual(run.caught, null, "a rename that never succeeds must not report success");
+  assert.equal(run.caught.code, "EPERM");
+  assert.ok(elapsed >= closeDeadline - 50, `gave up after ${elapsed}ms, before the ${closeDeadline}ms close deadline`);
+  assert.ok(elapsed < OLD_CLOSE_ENVELOPE_MS, `the close path blocked ${elapsed}ms, past the old ${OLD_CLOSE_ENVELOPE_MS}ms envelope`);
+  assert.deepEqual(partialsIn(dir), [], "a failed close-path save left its stage behind");
+  assert.deepEqual(load(dir), GOOD);
+});
+
+test("a rename deadline outside the background budget is refused before any write", () => {
+  const dir = tempDir();
+  save(dir, GOOD);
+  for (const junk of [-1, 1.5, "500", null, Number.NaN, state.RENAME_DEADLINE_MS + 1]) {
+    assert.throws(
+      () => save(dir, WRITER_A, { renameDeadlineMs: junk }),
+      /renameDeadlineMs/,
+      `${String(junk)} was accepted as a rename deadline`,
+    );
+  }
+  assert.deepEqual(load(dir), GOOD);
+  assert.deepEqual(partialsIn(dir), [], "a refused deadline still staged a payload");
+});
+
+test("main.js gives both close paths the close deadline and the delayed save the full one", () => {
+  const source = fs.readFileSync(path.join(__dirname, "..", "main.js"), "utf8");
+
+  // The persist helper must forward its deadline to save.
+  const helper = source.indexOf("const persist = (renameDeadlineMs) => {");
+  assert.notEqual(helper, -1, "persist does not take a rename deadline");
+  const helperEnd = source.indexOf("\n  };", helper);
+  assert.ok(
+    /state\.save\([\s\S]*\{\s*renameDeadlineMs\s*\}\s*\)/.test(source.slice(helper, helperEnd)),
+    "persist does not pass its rename deadline to state.save",
+  );
+
+  // Every call site names its budget. A bare persist() would take the default
+  // and let the close path block for the full background deadline.
+  const calls = [...source.matchAll(/\bpersist\(([^)]*)\)/g)].map((m) => ({ at: m.index, arg: m[1].trim() }));
+  const bare = calls.filter((c) => c.arg === "").length;
+  assert.equal(bare, 0, `${bare} persist() call(s) name no rename deadline`);
+
+  const closeAt = source.indexOf('win.on("close", (event) => {');
+  assert.notEqual(closeAt, -1, "the close handler was not found");
+  const closeEnd = source.indexOf("\n  });", closeAt);
+  const inClose = calls.filter((c) => c.at > closeAt && c.at < closeEnd);
+  const outside = calls.filter((c) => c.at < closeAt || c.at > closeEnd);
+  const closeArgs = inClose.map((c) => c.arg);
+  const otherArgs = outside.map((c) => c.arg);
+  assert.deepEqual(
+    closeArgs,
+    ["state.RENAME_CLOSE_DEADLINE_MS", "state.RENAME_CLOSE_DEADLINE_MS"],
+    "the hide path and the quit path must both persist with the close deadline",
+  );
+  assert.deepEqual(otherArgs, ["state.RENAME_DEADLINE_MS"], "the debounced save must persist with the full deadline");
+});
+
+test("a rename refused while a newer writer publishes is abandoned, not published over it", () => {
+  const dir = tempDir();
+  save(dir, GOOD);
+  const target = statePath(dir);
+
+  // Writer A staged ten seconds ago. The fake refuses A's first rename and, in
+  // that same moment, lets another process's newer payload land on the target -
+  // the interleave the adversary measured, where A's retry then won 2 of 3.
+  const stagedA = writePartial(dir, WRITER_A);
+  const tenSecondsAgo = (Date.now() - 10000) / 1000;
+  fs.utimesSync(stagedA, tenSecondsAgo, tenSecondsAgo);
+  const newer = path.join(dir, "s1124-other-writer.tmp");
+  fs.writeFileSync(newer, `${JSON.stringify(WRITER_B)}\n`, "utf8");
+
+  let renamesOfA = 0;
+  const committed = withRename((real, from, to) => {
+    if (from === stagedA) {
+      renamesOfA += 1;
+      if (renamesOfA === 1) {
+        real(newer, target);
+        throw sharingViolation("EPERM");
+      }
+    }
+    return real(from, to);
+  }, () => commitPartial(dir, stagedA));
+
+  const attemptsOfA = renamesOfA;
+  assert.equal(attemptsOfA, 1, `A's stale stage was renamed ${attemptsOfA} times after a newer publish`);
+  assert.equal(committed, null, "a stale commit reported that it published");
+  assert.deepEqual(load(dir), WRITER_B);
+  assert.deepEqual(partialsIn(dir), [], "the abandoned stage was left behind");
+});
+
+test("a rename refused while an OLDER payload lands still publishes its own", () => {
+  // The control for the arm above. What lands during the retry was staged
+  // BEFORE A, so A is the newer payload and must win - a check that abandoned
+  // on any change at all would lose the newest position instead.
+  const dir = tempDir();
+  save(dir, GOOD);
+  const target = statePath(dir);
+
+  const stagedA = writePartial(dir, WRITER_A);
+  const tenSecondsAgo = (Date.now() - 10000) / 1000;
+  fs.utimesSync(stagedA, tenSecondsAgo, tenSecondsAgo);
+  const older = path.join(dir, "s1124-other-writer.tmp");
+  fs.writeFileSync(older, `${JSON.stringify(WRITER_B)}\n`, "utf8");
+  const twentySecondsAgo = (Date.now() - 20000) / 1000;
+  fs.utimesSync(older, twentySecondsAgo, twentySecondsAgo);
+
+  let renamesOfA = 0;
+  const committed = withRename((real, from, to) => {
+    if (from === stagedA) {
+      renamesOfA += 1;
+      if (renamesOfA === 1) {
+        real(older, target);
+        throw sharingViolation("EPERM");
+      }
+    }
+    return real(from, to);
+  }, () => commitPartial(dir, stagedA));
+
+  const attemptsOfA = renamesOfA;
+  assert.equal(attemptsOfA, 2, `A was renamed ${attemptsOfA} times`);
+  assert.notEqual(committed, null, "a newer stage was abandoned in favour of an older payload");
+  assert.deepEqual(load(dir), WRITER_A);
+});
+
+test("an older stage this instance publishes during a newer stage's retry never drops the newer one", () => {
+  // MEASURED by the CS-1124 verifier: the newer stage B is backdated 5s, as a
+  // wall clock stepped back between the two stages would leave it, and the
+  // older stage A from the SAME module instance commits while B is refused. B
+  // then compared timestamps, found A's later, and dropped itself - so the
+  // older position won. Within one instance the sequence already orders the
+  // two, and a timestamp must not overrule it.
+  const dir = tempDir();
+  save(dir, GOOD);
+
+  const stagedA = writePartial(dir, WRITER_A);
+  const stagedB = writePartial(dir, WRITER_B);
+  const fiveSecondsAgo = (Date.now() - 5000) / 1000;
+  fs.utimesSync(stagedB, fiveSecondsAgo, fiveSecondsAgo);
+
+  let refusalsOfB = 0;
+  let publishedA = null;
+  const committedB = withRename((real, from, to) => {
+    if (from === stagedB && refusalsOfB < 2) {
+      refusalsOfB += 1;
+      if (refusalsOfB === 2) {
+        // The older stage commits through the real rename while B waits.
+        const fake = fs.renameSync;
+        fs.renameSync = real;
+        try {
+          publishedA = commitPartial(dir, stagedA);
+        } finally {
+          fs.renameSync = fake;
+        }
+      }
+      throw sharingViolation("EPERM");
+    }
+    return real(from, to);
+  }, () => commitPartial(dir, stagedB));
+
+  const refused = refusalsOfB;
+  assert.equal(refused, 2, `B was refused ${refused} times`);
+  assert.notEqual(publishedA, null, "the interleave never published the older stage, so it tested nothing");
+  assert.notEqual(committedB, null, "the newer stage was dropped in favour of an older one");
+  assert.deepEqual(load(dir), WRITER_B);
+  assert.deepEqual(partialsIn(dir), [], "a stage was left behind");
+});
+
+test("a published file stamped in the future never blocks later saves", () => {
+  // The staleness check compares timestamps, so a wall clock stepped back after
+  // a save leaves a state file that looks newer than every stage to come. That
+  // must not abandon them all - the check applies only to a file that CHANGED
+  // while this commit was retrying, which a stale timestamp alone never does.
+  const dir = tempDir();
+  save(dir, GOOD);
+  const anHourAhead = (Date.now() + 3600 * 1000) / 1000;
+  fs.utimesSync(statePath(dir), anHourAhead, anHourAhead);
+
+  assert.notEqual(save(dir, WRITER_A), null, "an uncontended save was abandoned");
+  assert.deepEqual(load(dir), WRITER_A);
+
+  fs.utimesSync(statePath(dir), anHourAhead, anHourAhead);
+  let calls = 0;
+  const committed = withRename((real, from, to) => {
+    calls += 1;
+    if (calls === 1) {
+      throw sharingViolation("EBUSY");
+    }
+    return real(from, to);
+  }, () => save(dir, WRITER_B));
+  assert.notEqual(committed, null, "a contended save was abandoned over an unchanged future-stamped file");
+  assert.deepEqual(load(dir), WRITER_B);
 });
 
 // --- CS-911: the fix must not reintroduce its own fault class ---------------

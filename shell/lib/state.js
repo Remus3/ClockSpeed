@@ -48,11 +48,12 @@
 // than mutating one it read, so last-rename-wins loses no update that was not
 // already stale.
 //
-// The bounded rename retry matches the idiom already used at
+// The bounded rename retry began as the idiom used at
 // clockspeed/save/workdir.py::_replace_with_retry - on Windows a scanner or an
 // indexer can hold a handle on a file closed microseconds ago, and the rename
-// then fails with a sharing violation that a short retry turns into a
-// completed write.
+// then fails with a sharing violation that a retry turns into a completed
+// write. CS-1124 bounds it here by a deadline rather than an attempt count;
+// the reason and the CI measurement sit beside RENAME_DEADLINE_MS below.
 
 const crypto = require("node:crypto");
 const fs = require("node:fs");
@@ -75,9 +76,9 @@ const PARTIAL_SUFFIX = ".partial";
 // under a unique name one would accumulate per crash, forever, in the
 // operator's userData directory. A successful commit therefore clears siblings
 // old enough that no live writer could still own one. The threshold is more
-// than a hundred times the longest a stage can legitimately take - one fsync
-// plus at most 500ms of rename backoff - so sweeping a stage still in flight
-// is not a window this reaches.
+// than twenty times the longest a stage can legitimately take - one fsync plus
+// at most RENAME_DEADLINE_MS of rename retry - so sweeping a stage still in
+// flight is not a window this reaches.
 const PARTIAL_STALE_MS = 60 * 1000;
 
 /** Every key the file may contain, in the order it is written. */
@@ -111,9 +112,53 @@ const DEFAULTS = Object.freeze({
   alwaysOnTop: false,
 });
 
-// Five short attempts with a lengthening pause, matching workdir.py.
-const RENAME_ATTEMPTS = 5;
-const RENAME_BACKOFF_MS = 50;
+// CS-1124 - THE RETRY IS BOUNDED BY TIME, NOT BY AN ATTEMPT COUNT. The loop
+// this replaces made five attempts with a linear 50ms pause, so its last
+// attempt came about 500ms after the first refusal and it then slept a further
+// 250ms before giving up. MEASURED on windows-latest CI: that budget lost to a
+// held handle on 2 of 240 concurrent saves in the 768f2b8 tier2 run and 1 of
+// 240 in scheduled run 35201300783, each as "save failed with EPERM". How long
+// the runner's holder actually keeps the file is NOT measured - only that it
+// sometimes outlasts half a second. The deadline is therefore four times the
+// window that lost, and the backoff starts short and doubles to a cap, so a
+// brief hold costs milliseconds while a long one is still probed every
+// RENAME_BACKOFF_CAP_MS until the deadline. A rename still refused at the
+// deadline raises its own error: a genuinely stuck file fails loudly, and
+// nothing ever falls back to writing the state file in place.
+//
+// THE COST IS BOUNDED AND PAID ONLY ON CONTENTION. save() is synchronous, so a
+// hold that never ends blocks its caller for the deadline and then surfaces as
+// a failed save, which main.js reports and swallows. TWO BUDGETS, because the
+// callers differ. The debounced save runs while the window is live and gets
+// RENAME_DEADLINE_MS. The two close paths - hide, and quit - run while the
+// operator waits on a window that has not yet gone, and get
+// RENAME_CLOSE_DEADLINE_MS: the old loop's own attempt window, which keeps a
+// failing close inside the 750ms that loop already blocked it for.
+//
+// THE DEADLINE IS READ OFF A MONOTONIC CLOCK. MEASURED by the CS-1124
+// adversary: read off Date.now, a wall clock stepped back 5s during a held
+// rename stretched a 2000ms deadline to about 7s.
+const RENAME_DEADLINE_MS = 2000;
+const RENAME_CLOSE_DEADLINE_MS = 500;
+const RENAME_BACKOFF_FIRST_MS = 5;
+const RENAME_BACKOFF_CAP_MS = 200;
+
+/** Milliseconds on a clock that a wall-clock step cannot move. */
+function monotonicMs() {
+  return performance.now();
+}
+
+/** The caller's rename budget, or the background default. Refuses a bad one loudly. */
+function renameDeadlineFrom(options) {
+  if (options === undefined || options === null || !Object.hasOwn(options, "renameDeadlineMs")) {
+    return RENAME_DEADLINE_MS;
+  }
+  const value = options.renameDeadlineMs;
+  if (!Number.isInteger(value) || value < 0 || value > RENAME_DEADLINE_MS) {
+    throw new RangeError(`renameDeadlineMs must be an integer from 0 to ${RENAME_DEADLINE_MS}`);
+  }
+  return value;
+}
 
 // Error codes that mean "somebody else is holding this file right now" and are
 // worth waiting out. Anything else is a real fault and is raised immediately
@@ -144,22 +189,41 @@ function sleepSync(milliseconds) {
   Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, milliseconds);
 }
 
-/** Rename, waiting out a transient Windows sharing violation. */
-function renameWithRetry(from, to) {
-  let last = null;
-  for (let attempt = 0; attempt < RENAME_ATTEMPTS; attempt += 1) {
+/**
+ * Rename, waiting out a transient Windows sharing violation until a deadline.
+ *
+ * Always makes at least one attempt, never sleeps past the deadline, and makes
+ * a final attempt at it - so the time spent is the deadline plus at most one
+ * rename, and the error raised is the last one the rename itself reported.
+ *
+ * superseded() is asked after every pause and before the next attempt. When it
+ * answers true a newer payload has already been published while this one
+ * waited, and the rename is abandoned rather than put over it.
+ *
+ * @returns {boolean} true once published, false when abandoned as superseded.
+ */
+function renameWithRetry(from, to, deadlineMs, superseded) {
+  const deadline = monotonicMs() + deadlineMs;
+  let pause = RENAME_BACKOFF_FIRST_MS;
+  for (;;) {
     try {
       fs.renameSync(from, to);
-      return;
+      return true;
     } catch (err) {
       if (!TRANSIENT_CODES.has(err.code)) {
         throw err;
       }
-      last = err;
-      sleepSync(RENAME_BACKOFF_MS * (attempt + 1));
+      const remaining = deadline - monotonicMs();
+      if (remaining <= 0) {
+        throw err;
+      }
+      sleepSync(Math.min(pause, remaining));
+      pause = Math.min(pause * 2, RENAME_BACKOFF_CAP_MS);
+      if (superseded()) {
+        return false;
+      }
     }
   }
-  throw last || new Error("the window state could not be renamed into place");
 }
 
 /** A usable directory argument, or null. */
@@ -190,8 +254,68 @@ function isPartialFilename(name) {
  */
 function partialPathFor(directory) {
   partialSequence += 1;
-  const unique = `${partialSequence.toString(36)}-${crypto.randomBytes(8).toString("hex")}`;
+  const unique = `${partialSequence.toString(36)}-${INSTANCE_TOKEN}-${crypto.randomBytes(8).toString("hex")}`;
   return path.join(directory, `${PARTIAL_PREFIX}${unique}${PARTIAL_SUFFIX}`);
+}
+
+// CS-1124 - AN OLDER SAVE MUST NOT LAND OVER A NEWER ONE. The sequence above
+// already orders every stage this module instance makes, so it doubles as a
+// generation: the token below marks a stage as this instance's own, and
+// publishedSequence is the newest generation this instance has published. A
+// stage older than that is abandoned rather than committed.
+//
+// ACROSS PROCESSES THERE IS NO SHARED SEQUENCE. In the shipped app the
+// single-instance lock in main.js means there is no second process to race;
+// the cross-process case is still narrowed, not closed, by the retry-time check
+// in commitPartial, which abandons a stage when the published file was
+// REPLACED while this commit waited AND the replacement was staged later.
+const INSTANCE_TOKEN = crypto.randomBytes(6).toString("hex");
+let publishedSequence = 0;
+
+// What the state file looked like straight after this instance last published
+// it. A retry that finds the file replaced by THIS instance's own publish lets
+// the sequence decide and never consults a timestamp: MEASURED by the CS-1124
+// verifier, a newer stage whose mtime a stepped-back clock left earlier dropped
+// itself in favour of an older stage from the same instance. The timestamp
+// comparison is the fallback for a replacement from another instance only, and
+// it NARROWS that case rather than closing it - the same stepped clock can
+// still mislead it there, where no shared sequence exists to overrule it.
+const publishedIdentities = new Map();
+
+/** The generation of a stage this module instance made, or null for any other. */
+function sequenceOf(partialPath) {
+  const name = path.basename(partialPath);
+  const parts = name.slice(PARTIAL_PREFIX.length, name.length - PARTIAL_SUFFIX.length).split("-");
+  if (parts.length !== 3 || parts[1] !== INSTANCE_TOKEN || !/^[0-9a-z]+$/.test(parts[0])) {
+    return null;
+  }
+  return parseInt(parts[0], 36);
+}
+
+/** What identifies the published file right now, or null if there is none. */
+function identityOf(target) {
+  try {
+    const stat = fs.statSync(target);
+    return { ino: stat.ino, size: stat.size, mtimeMs: stat.mtimeMs, ctimeMs: stat.ctimeMs };
+  } catch {
+    return null;
+  }
+}
+
+function sameIdentity(a, b) {
+  return (
+    a !== null && b !== null &&
+    a.ino === b.ino && a.size === b.size && a.mtimeMs === b.mtimeMs && a.ctimeMs === b.ctimeMs
+  );
+}
+
+/** Remove a stage this commit is giving up on. A failure here changes nothing. */
+function discardStage(partialPath) {
+  try {
+    fs.unlinkSync(partialPath);
+  } catch {
+    // Already gone, or held. The minute-old sweep is the backstop.
+  }
 }
 
 /**
@@ -437,8 +561,12 @@ function writePartial(dir, state) {
  *
  * @param {string} dir The directory writePartial was given.
  * @param {string} partialPath Exactly what that writePartial call returned.
+ * @param {object} [options] Optional `renameDeadlineMs`, from 0 to
+ *   RENAME_DEADLINE_MS. The close paths pass RENAME_CLOSE_DEADLINE_MS.
+ * @returns {string|null} The published path, or null when the stage was
+ *   abandoned because a newer payload had already been published.
  */
-function commitPartial(dir, partialPath) {
+function commitPartial(dir, partialPath, options) {
   const directory = directoryOf(dir);
   if (directory === null) {
     throw new Error("no state directory was supplied");
@@ -459,17 +587,82 @@ function commitPartial(dir, partialPath) {
     throw new Error("the staged file does not belong to this state directory");
   }
 
+  const deadlineMs = renameDeadlineFrom(options);
   const target = path.join(directory, STATE_FILENAME);
-  renameWithRetry(partialPath, target);
+
+  const sequence = sequenceOf(partialPath);
+  const olderThanPublished = () => sequence !== null && sequence < publishedSequence;
+  if (olderThanPublished()) {
+    discardStage(partialPath);
+    return null;
+  }
+
+  // The retry-time check, for a writer this instance has no sequence for. It
+  // asks whether the published file was REPLACED since this commit began, and
+  // only then whether the replacement is newer than this stage. A timestamp
+  // alone is never enough: a wall clock stepped back after a save leaves a
+  // state file that looks newer than every stage to come, and comparing
+  // against that unconditionally would abandon them all.
+  let stagedMtimeMs = null;
+  try {
+    stagedMtimeMs = fs.statSync(partialPath).mtimeMs;
+  } catch {
+    // The rename below reports a missing stage in its own words.
+  }
+  const before = identityOf(target);
+  const superseded = () => {
+    if (olderThanPublished()) {
+      return true;
+    }
+    const now = identityOf(target);
+    if (now === null || sameIdentity(now, before)) {
+      return false;
+    }
+    if (sequence !== null && sameIdentity(now, publishedIdentities.get(path.resolve(target)) || null)) {
+      // Replaced by this instance's own publish, which olderThanPublished has
+      // already ordered against this stage. No timestamp may overrule that.
+      return false;
+    }
+    return stagedMtimeMs !== null && now.mtimeMs > stagedMtimeMs;
+  };
+
+  let published;
+  try {
+    published = renameWithRetry(partialPath, target, deadlineMs, superseded);
+  } catch (err) {
+    // A save that failed leaves nothing behind to be swept a minute later.
+    discardStage(partialPath);
+    throw err;
+  }
+  if (!published) {
+    discardStage(partialPath);
+    return null;
+  }
+  if (sequence !== null && sequence > publishedSequence) {
+    publishedSequence = sequence;
+  }
+  // Keyed by directory target, so one instance saving to two directories
+  // cannot mistake one directory's publish for the other's. A replacement from
+  // another writer between the rename and this stat is recorded as ours; the
+  // cost is only that its timestamp is not consulted - last rename wins, which
+  // is where every check here falls back to.
+  publishedIdentities.set(path.resolve(target), identityOf(target));
   // Only once the payload is published. A sweep that ran first could delete a
   // stage this call is about to need.
   sweepStalePartials(directory);
   return target;
 }
 
-/** Persist the window state atomically. */
-function save(dir, state) {
-  return commitPartial(dir, writePartial(dir, state));
+/**
+ * Persist the window state atomically.
+ *
+ * @param {object} [options] Optional `renameDeadlineMs`; see commitPartial.
+ * @returns {string|null} As commitPartial.
+ */
+function save(dir, state, options) {
+  // Validated BEFORE staging, so a bad budget writes nothing at all.
+  renameDeadlineFrom(options);
+  return commitPartial(dir, writePartial(dir, state), options);
 }
 
 module.exports = {
@@ -489,6 +682,8 @@ module.exports = {
   PARTIAL_PREFIX,
   PARTIAL_SUFFIX,
   PARTIAL_STALE_MS,
+  RENAME_DEADLINE_MS,
+  RENAME_CLOSE_DEADLINE_MS,
   SCHEMA_VERSION,
   DEFAULTS,
   MIN_WIDTH,
