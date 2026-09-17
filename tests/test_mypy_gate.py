@@ -126,12 +126,26 @@ _NON_MATCHING_EXCLUDE = r"(^|/)no_such_leaf\.py$"
 # Source files that project's discovery finds when the exclude filters nothing.
 _UNFILTERED_SOURCE_COUNT = 2
 
-# Ambient PYTHONPATH values the exclusion arm is proven against (CS-1125). The
-# repository root is what the item names; the other three are what mypy really
-# trips on, measured - "dot" is the literal `PYTHONPATH=.` and resolves against
-# mypy's working directory, the throwaway project, not against the repo root.
-_AMBIENT_PYTHONPATHS = ("dot", "repo_root", "project_root", "source_root")
-_LIVE_AMBIENT_PYTHONPATHS = ("dot", "project_root", "source_root")
+# Variables planted in the pytest process to prove the exclusion arm does not
+# report on its ambient environment (CS-1125): (id, variable, value token).
+# Measured on this toolchain, every one but the absolute repository root breaks
+# the arm when mypy inherits it. "." is the literal `PYTHONPATH=.` and resolves
+# against mypy's working directory, the throwaway project, not the repo root.
+_AMBIENT_PLANTS = (
+    ("pythonpath_dot", "PYTHONPATH", "."),
+    ("pythonpath_repo_root", "PYTHONPATH", "<repo_root>"),
+    ("pythonpath_project_root", "PYTHONPATH", "<project_root>"),
+    ("pythonpath_source_root", "PYTHONPATH", "<source_root>"),
+    ("force_color", "FORCE_COLOR", "1"),
+    ("pythonioencoding_utf16", "PYTHONIOENCODING", "utf-16"),
+)
+_HARMLESS_PLANTS = frozenset({"pythonpath_repo_root"})
+_AMBIENT_PARAMS = [pytest.param(name, token, id=plant) for plant, name, token in _AMBIENT_PLANTS]
+_LIVE_AMBIENT_PARAMS = [
+    pytest.param(name, token, id=plant)
+    for plant, name, token in _AMBIENT_PLANTS
+    if plant not in _HARMLESS_PLANTS
+]
 
 
 class Gap(NamedTuple):
@@ -403,34 +417,74 @@ def _uncovered_within(
     }
 
 
+# The ONLY ambient variables a mypy subprocess here inherits (CS-1125): what the
+# interpreter needs to START on Windows and on Linux, and nothing mypy reads to
+# decide what it reports. An ALLOWLIST, because the denylist it replaced leaked:
+# it dropped PYTHONPATH and MYPY* and still passed FORCE_COLOR, which mypy reads
+# as the fallback for MYPY_FORCE_COLOR, and PYTHONIOENCODING, which re-encodes
+# every byte mypy prints. The set mypy and its interpreter read is open-ended -
+# mypy spawns a child interpreter over os.environ and expands $VARIABLES inside
+# config values - so no denylist can be shown complete, and an allowlist fails
+# LOUD (mypy cannot start, every arm reddens) where a denylist fails as an empty
+# parse.
+#   Windows start-up: SYSTEMROOT (CPython's random seeding and sockets), WINDIR,
+#     SYSTEMDRIVE, COMSPEC, PATHEXT; per-user dirs so a user-site mypy imports:
+#     USERPROFILE, HOMEDRIVE, HOMEPATH, APPDATA, LOCALAPPDATA.
+#   Both: PATH, and the temporary directory mypy's workers may use: TEMP, TMP.
+#   POSIX start-up: HOME (user site), TMPDIR, LANG, LC_ALL, LC_CTYPE, and
+#     LD_LIBRARY_PATH for a shared-library interpreter build.
+_INHERITED_FOR_STARTUP: frozenset[str] = frozenset(
+    {
+        "APPDATA",
+        "COMSPEC",
+        "HOME",
+        "HOMEDRIVE",
+        "HOMEPATH",
+        "LANG",
+        "LC_ALL",
+        "LC_CTYPE",
+        "LD_LIBRARY_PATH",
+        "LOCALAPPDATA",
+        "PATH",
+        "PATHEXT",
+        "SYSTEMDRIVE",
+        "SYSTEMROOT",
+        "TEMP",
+        "TMP",
+        "TMPDIR",
+        "USERPROFILE",
+        "WINDIR",
+    }
+)
+
+# Set rather than inherited. mypy's output is decoded as UTF-8 in this process,
+# so the child is told to write UTF-8 instead of whatever its locale picks.
+_PINNED_ENVIRONMENT: dict[str, str] = {"PYTHONIOENCODING": "utf-8"}
+
+
 def _controlled_environment(ambient: Mapping[str, str] | None = None) -> dict[str, str]:
     """The environment a mypy subprocess here runs under - controlled, not inherited.
 
-    CS-1125. mypy reads module search paths from its environment, so a run that
-    inherits whatever launched pytest reports on that launcher rather than on
-    the project it was pointed at: under ``PYTHONPATH=.`` a throwaway project
-    landed on mypy's search path, an import stopped resolving to the excluded
-    file beside it, and mypy printed Success over a real error. ``PYTHONPATH``
-    and every ``MYPY``-prefixed variable (``MYPYPATH`` included) are dropped.
-    Everything else is kept, because the interpreter still needs its PATH and
-    its system variables to start at all.
+    CS-1125. A run that inherits whatever launched pytest reports on that
+    launcher rather than on the project it was pointed at: under
+    ``PYTHONPATH=.`` a throwaway project landed on mypy's search path and mypy
+    printed Success over a real error; under ``FORCE_COLOR=1`` every line
+    carried ANSI escapes no parser here matches. So nothing is inherited except
+    ``_INHERITED_FOR_STARTUP``, and ``_PINNED_ENVIRONMENT`` is laid over it.
 
     Matched CASE-INSENSITIVELY: on Windows ``dict(os.environ)`` upper-cases its
-    keys, but a mapping built any other way need not, and dropping only the
-    exact spelling would remove nothing from a mixed-case key.
+    keys, but a mapping built any other way need not. A kept variable keeps
+    its own spelling.
 
     Args:
-        ambient: The environment to filter, defaulting to this process's own.
+        ambient: The environment to draw from, defaulting to this process's own.
 
     Returns:
         A fresh mapping, safe to hand to ``subprocess.run``.
     """
     source = os.environ if ambient is None else ambient
-    return {
-        name: value
-        for name, value in source.items()
-        if name.upper() != "PYTHONPATH" and not name.upper().startswith("MYPY")
-    }
+    kept = {name: value for name, value in source.items() if name.upper() in _INHERITED_FOR_STARTUP}
+    return {**kept, **_PINNED_ENVIRONMENT}
 
 
 def _run_mypy(
@@ -454,12 +508,15 @@ def _run_mypy(
             into the repository's own incremental cache.
         cwd: Optional working directory, defaulting to the repository root.
         env: Optional explicit environment. Omitted, the run gets
-            ``_controlled_environment()``; only the arm proving that an
-            INHERITED environment is hazardous passes one.
+            ``_controlled_environment()``; only the arm proving that a planted
+            variable is hazardous passes one.
 
     Returns:
         The completed process. A non-zero exit is not raised: most tests here
         assert on COVERAGE, and mypy reports its summary on the error path too.
+
+    Raises:
+        UnicodeDecodeError: mypy wrote a stream that is not UTF-8.
     """
     command = [sys.executable, "-m", "mypy", "--no-pretty"]
     if config is not None:
@@ -467,14 +524,22 @@ def _run_mypy(
     if cache is not None:
         command += ["--cache-dir", str(cache)]
     command += list(args)
-    return subprocess.run(
+    # Captured as BYTES and decoded here. With text=True the decode runs in a
+    # reader thread on Windows, and a stream that is not valid text leaves
+    # stdout as None instead of raising where a test can see why.
+    completed = subprocess.run(
         command,
         cwd=cwd or REPO_ROOT,
         env=_controlled_environment() if env is None else dict(env),
         capture_output=True,
-        text=True,
         timeout=900,
         check=False,
+    )
+    return subprocess.CompletedProcess(
+        completed.args,
+        completed.returncode,
+        completed.stdout.decode("utf-8"),
+        completed.stderr.decode("utf-8"),
     )
 
 
@@ -1071,22 +1136,43 @@ def _assert_exclude_filters_discovery_only(result: subprocess.CompletedProcess[s
     )
 
 
-def _ambient_pythonpath(token: str, project: Path) -> str:
-    """Resolve an ambient-PYTHONPATH parameter to the value injected.
+def _plant_value(token: str, project: Path) -> str:
+    """Resolve a planted-variable token to the value planted.
 
     Args:
-        token: One of ``_AMBIENT_PYTHONPATHS``.
-        project: The throwaway project root, which only exists per test.
+        token: A value from ``_AMBIENT_PLANTS``. Path tokens are resolved here
+            because the throwaway project only exists per test; any other token
+            is planted literally.
+        project: The throwaway project root.
 
     Returns:
-        The PYTHONPATH value to plant in the pytest process's own environment.
+        The value to plant in the pytest process's own environment.
     """
     return {
-        "dot": ".",
-        "repo_root": str(REPO_ROOT),
-        "project_root": str(project),
-        "source_root": str(project / "src"),
-    }[token]
+        "<repo_root>": str(REPO_ROOT),
+        "<project_root>": str(project),
+        "<source_root>": str(project / "src"),
+    }.get(token, token)
+
+
+def _run_exclusion_arm(
+    project: Path, config: Path, cache: Path, env: Mapping[str, str] | None = None
+) -> None:
+    """Run mypy over the exclusion project and apply the arm's checks.
+
+    Args:
+        project: The throwaway project root, used as mypy's working directory.
+        config: The project's mypy config.
+        cache: A cache directory private to this run.
+        env: Passed through to ``_run_mypy``.
+
+    Raises:
+        AssertionError: The arm's checks refused the run.
+        UnicodeDecodeError: mypy wrote a stream that is not UTF-8.
+    """
+    _assert_exclude_filters_discovery_only(
+        _run_mypy(config=config, cache=cache, cwd=project, env=env)
+    )
 
 
 @pytest.mark.slow
@@ -1110,41 +1196,41 @@ def test_exclude_filters_discovery_and_does_not_contain_errors(tmp_path: Path) -
 
 
 @pytest.mark.slow
-@pytest.mark.parametrize("ambient", _AMBIENT_PYTHONPATHS)
+@pytest.mark.parametrize(("variable", "token"), _AMBIENT_PARAMS)
 def test_the_exclusion_arm_does_not_report_on_the_ambient_environment(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, ambient: str
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, variable: str, token: str
 ) -> None:
-    # CS-1125. The arm above once INHERITED PYTHONPATH: run as `PYTHONPATH=.`,
-    # mypy put the throwaway project on its search path, `import leaf` stopped
-    # resolving to the excluded file beside it, and the arm failed against an
-    # empty mapping while mypy printed Success. Planted in the pytest PROCESS's
-    # own environment, not a shell variable: MSYS mangles a POSIX path in env.
+    # CS-1125. The arm above once INHERITED its environment: run as
+    # `PYTHONPATH=.`, mypy put the throwaway project on its search path,
+    # `import leaf` stopped resolving to the excluded file beside it, and the arm
+    # failed against an empty mapping while mypy printed Success. FORCE_COLOR=1
+    # and PYTHONIOENCODING=utf-16 break it too, by making the output unparseable.
+    # Planted in the pytest PROCESS's own environment, not a shell variable:
+    # MSYS mangles a POSIX path in env.
     project = tmp_path / "throwaway"
     config = _build_exclusion_project(project)
-    value = _ambient_pythonpath(ambient, project)
-    monkeypatch.setenv("PYTHONPATH", value)
-    assert os.environ.get("PYTHONPATH") == value, "the ambient PYTHONPATH was never planted"
+    value = _plant_value(token, project)
+    monkeypatch.setenv(variable, value)
+    assert os.environ.get(variable) == value, f"the ambient {variable} was never planted"
 
-    result = _run_mypy(config=config, cache=tmp_path / "cache", cwd=project)
-
-    _assert_exclude_filters_discovery_only(result)
+    _run_exclusion_arm(project, config, tmp_path / "cache")
 
 
 @pytest.mark.slow
-@pytest.mark.parametrize("ambient", _AMBIENT_PYTHONPATHS)
+@pytest.mark.parametrize(("variable", "token"), _AMBIENT_PARAMS)
 def test_the_exclusion_arm_reddens_when_discovery_stops_filtering(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, ambient: str
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, variable: str, token: str
 ) -> None:
     # THE CONTROL. Controlling the environment must not have made the arm blind:
     # with an `exclude` that matches nothing, discovery genuinely stops
-    # filtering, and the SAME checks must refuse it under the same ambient
-    # PYTHONPATH the arm above is proven against.
+    # filtering, and the SAME checks must refuse it under the same planted
+    # variable the arm above is proven against.
     project = tmp_path / "throwaway"
     config = _build_exclusion_project(project, exclude=_NON_MATCHING_EXCLUDE)
     written = config.read_text(encoding="utf-8")
     assert _NON_MATCHING_EXCLUDE in written, f"the mutated exclude never landed:\n{written}"
     assert _LEAF_EXCLUDE not in written, f"the original exclude survived:\n{written}"
-    monkeypatch.setenv("PYTHONPATH", _ambient_pythonpath(ambient, project))
+    monkeypatch.setenv(variable, _plant_value(token, project))
 
     result = _run_mypy(config=config, cache=tmp_path / "cache", cwd=project)
 
@@ -1156,37 +1242,61 @@ def test_the_exclusion_arm_reddens_when_discovery_stops_filtering(
 
 
 @pytest.mark.slow
-@pytest.mark.parametrize("ambient", _LIVE_AMBIENT_PYTHONPATHS)
-def test_an_inherited_environment_really_breaks_the_exclusion_arm(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, ambient: str
+@pytest.mark.parametrize(("variable", "token"), _LIVE_AMBIENT_PARAMS)
+def test_each_planted_variable_really_breaks_the_exclusion_arm(
+    tmp_path: Path, variable: str, token: str
 ) -> None:
-    # ANTI-VACUITY for the ambient arm. A planted value that mypy happens to
-    # ignore would keep that arm green without controlling anything, so each
-    # value named live here is shown to break the arm when mypy DOES inherit
-    # the pytest process's environment. The repository root is absent on
-    # purpose: measured on this toolchain, an absolute repo root is harmless.
+    # ANTI-VACUITY for the ambient arm. A planted value mypy happens to ignore
+    # would keep that arm green without controlling anything, so each variable
+    # named live is shown to break the arm when it DOES reach mypy. The rest of
+    # the environment is the controlled one, so the planted variable is the
+    # only difference between the green run and the red one - an inherited
+    # environment carrying some OTHER hazard cannot satisfy this arm for it.
+    # An absolute repository root is absent on purpose: measured harmless.
     project = tmp_path / "throwaway"
     config = _build_exclusion_project(project)
-    monkeypatch.setenv("PYTHONPATH", _ambient_pythonpath(ambient, project))
 
-    result = _run_mypy(config=config, cache=tmp_path / "cache", cwd=project, env=dict(os.environ))
+    _run_exclusion_arm(project, config, tmp_path / "clean_cache", env=_controlled_environment())
 
-    with pytest.raises(AssertionError, match=re.escape("did not report leaf.py's one error")):
-        _assert_exclude_filters_discovery_only(result)
+    planted = {**_controlled_environment(), variable: _plant_value(token, project)}
+    with pytest.raises((AssertionError, UnicodeDecodeError)):
+        _run_exclusion_arm(project, config, tmp_path / "planted_cache", env=planted)
 
 
-def test_the_controlled_environment_strips_search_path_variables_in_any_case() -> None:
+def test_the_controlled_environment_is_an_allowlist_in_any_case() -> None:
     # Case-INSENSITIVE on purpose. On Windows `dict(os.environ)` upper-cases
-    # keys, but a mapping built any other way need not, and popping a
-    # mixed-case key removes nothing.
+    # keys, but a mapping built any other way need not. Anything not named is
+    # dropped, including variables no denylist here ever named.
     ambient = {
+        "Path": "kept",
+        "SystemRoot": "kept",
         "PythonPath": ".",
         "mypypath": ".",
-        "MYPY_FORCE_COLOR": "1",
-        "PATH": "kept",
-        "PYTHONUTF8": "1",
+        "force_color": "1",
+        "PYTHONIOENCODING": "utf-16",
+        "SOME_FUTURE_VARIABLE": "1",
     }
-    assert _controlled_environment(ambient) == {"PATH": "kept", "PYTHONUTF8": "1"}
+    assert _controlled_environment(ambient) == {
+        "Path": "kept",
+        "SystemRoot": "kept",
+        **_PINNED_ENVIRONMENT,
+    }
+
+
+@pytest.mark.slow
+def test_a_non_ascii_path_in_mypy_output_decodes_under_the_pin(tmp_path: Path) -> None:
+    # The PYTHONIOENCODING pin is load-bearing, not decoration. Measured on
+    # Windows: without it the child writes a non-ASCII path in the locale's
+    # code page and this process's UTF-8 decode raises. A UTF-8 locale makes
+    # the two agree without the pin, so there this arm cannot tell them apart.
+    project = tmp_path / "throwaway"
+    (project / "src").mkdir(parents=True)
+    module = "caf\u00e9"
+    (project / "src" / f"{module}.py").write_text("x: int = 'not a number'\n", encoding="utf-8")
+
+    result = _run_mypy("src", cache=tmp_path / "cache", cwd=project)
+
+    assert _errors_by_file(result.stdout) == {f"src/{module}.py": 1}, result.stdout
 
 
 def test_the_importers_of_the_environment_verifier_are_recorded(repo_files: list[Path]) -> None:
