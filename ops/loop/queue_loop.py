@@ -375,6 +375,28 @@ CI_UNKNOWN = "unknown"
 #: conclusion vocabulary is fixed and contains no `no-push`, so the widening is
 #: unreachable; it is recorded here rather than discovered later.
 CI_NO_PUSH = "no-push"
+#: CS-919 - the remote ref MOVED and the lane cannot show it produced the sha
+#: that is now on the tip, so the cycle grades nothing and says so.
+#:
+#: MEASURED, not anticipated. On CS-918's first real cycle the worker committed
+#: nothing while another session on the same box pushed `f80b95af7e2e`; the
+#: driver saw `origin/main` move, attributed it to the cycle, and waited 1105.9
+#: seconds to write that stranger's green into this lane's ledger. It fails in
+#: BOTH directions - a neighbour's RED would have stopped the night under
+#: `ci_red`, blaming a worker that pushed nothing - and neither direction shows
+#: up as an error.
+#:
+#: A SEPARATE WORD FROM `CI_NO_PUSH`, because the two send an operator to
+#: different places. `no-push` means the ref stood still and the worker log is
+#: where the answer is. `unattributable` means somebody pushed and it was not
+#: provably us, which is a fact about the BOX rather than about the worker.
+#: One word carrying both would make a busy night and a dead one identical.
+#:
+#: KNOWN AND ACCEPTED, exactly as `CI_NO_PUSH` records above: `_verdict_for`
+#: reads a GitHub conclusion through `in CI_VERDICTS`, so this widens that
+#: acceptance by one more word. GitHub's conclusion vocabulary is fixed and
+#: contains no `unattributable`, so the widening is unreachable.
+CI_UNATTRIBUTABLE = "unattributable"
 CI_VERDICTS = (
     CI_SUCCESS,
     CI_FAILURE,
@@ -384,6 +406,7 @@ CI_VERDICTS = (
     CI_UNAVAILABLE,
     CI_UNKNOWN,
     CI_NO_PUSH,
+    CI_UNATTRIBUTABLE,
 )
 
 #: Worst-first. The roll-up across workflows returns the WORST verdict seen, so
@@ -396,6 +419,7 @@ _VERDICT_RANK = (
     CI_UNAVAILABLE,
     CI_SKIPPED,
     CI_NO_PUSH,
+    CI_UNATTRIBUTABLE,
     CI_SUCCESS,
 )
 
@@ -407,7 +431,15 @@ _VERDICT_RANK = (
 #: DELIBERATELY NOT WIDENED FURTHER. `CI_UNAVAILABLE` keeps doing exactly what
 #: it does today to `ok` - tightening it is a separate judgement about a
 #: separate condition and is out of scope here.
-_CI_ROLLUP_BAD = (CI_FAILURE, CI_NO_PUSH)
+#:
+#: CS-919 ADDS `CI_UNATTRIBUTABLE` FOR THE REASON `CI_NO_PUSH` IS ALREADY HERE,
+#: and the reason is EVIDENCE rather than blame. A cycle that declined to grade
+#: a sha it cannot attribute has no CI evidence of its own, which is the same
+#: state a no-push cycle is in; calling it ok would restore precisely the
+#: vacuous green this tuple exists to refuse. It is NOT a hard stop - the hard
+#: stop stays keyed on `CI_FAILURE` alone - because a neighbour pushing is not
+#: a broken branch and must not end the night.
+_CI_ROLLUP_BAD = (CI_FAILURE, CI_NO_PUSH, CI_UNATTRIBUTABLE)
 
 #: A GitHub job conclusion that means the job did not pass. `timed_out`,
 #: `action_required` and `startup_failure` are separate words for the same
@@ -2879,6 +2911,42 @@ def run_loop(  # noqa: PLR0913, PLR0912, PLR0915 - see THE SEAMS ARE THE POINT
                     "detail": (
                         f"origin/{CI_REF} did not move, so this cycle pushed "
                         f"nothing and there is no run to wait for"
+                    ),
+                }
+            elif post_sha != post_tree:
+                # CS-919 - THE REF MOVED AND THE LANE CANNOT SHOW IT WAS US.
+                #
+                # THE ONLY SHA THIS DRIVER KNOWS THE LANE PRODUCED is the lane
+                # worktree's own HEAD, which it already reads twice a cycle for
+                # the progress counter. A tip that is not that sha was put there
+                # by somebody else - or by us with a stranger's commit landing on
+                # top, which is the same thing for grading purposes: the run
+                # GitHub will report on is a run over a tree this cycle did not
+                # make. Either way the honest answer is that there is nothing
+                # here this cycle may claim.
+                #
+                # `post_tree` IS ALREADY IN HAND. It is read above for
+                # `record["commit"]`, unconditionally and before this block, so
+                # the attribution costs no extra git call and cannot disagree
+                # with the commit record - one reading, two consumers.
+                #
+                # AN UNREADABLE LANE HEAD LANDS HERE TOO, and that is correct
+                # rather than incidental: `post_tree` is None, no sha can equal
+                # it, and a driver that has lost sight of its own worktree is in
+                # no position to claim a push. That is the same direction
+                # `record["commit"]` defaults in twenty lines above.
+                #
+                # NOT A NARROWER WINDOW. The window is the whole cycle by design
+                # and shrinking it trades a large silent error for a smaller
+                # silent one. This does not read the clock at all.
+                record["ci"] = {
+                    "sha": post_sha,
+                    "verdict": CI_UNATTRIBUTABLE,
+                    "waited_s": 0.0,
+                    "workflows": [],
+                    "detail": (
+                        f"origin/{CI_REF} moved to a sha this lane cannot show it "
+                        f"produced, so this cycle grades nothing"
                     ),
                 }
             else:

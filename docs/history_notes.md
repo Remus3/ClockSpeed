@@ -121,6 +121,55 @@ Where current truth actually lives:
 
 ---
 
+## CS-919 - item section, CLOSED and relocated from `docs/item_notes/phase4-followups-900.md` 2026-09-17
+
+
+**Filed 2026-09-06 by the merger, out of CS-918's first real cycle.** Read that closure
+entry in `docs/LEDGER.md` first - this item exists because of something the cycle did, not
+because of something someone thought might happen.
+
+### WHAT WAS MEASURED
+
+The driver reads `origin/main` before the cycle and again after it, and treats a change as
+"our worker pushed". On the first real cycle the worker committed NOTHING - it left ten
+files uncommitted in the lane worktree - while another session on the same box pushed
+`f80b95af7e2e`. The driver saw the ref move, attributed it to the cycle, waited out tier1,
+**dispatched a tier2 run**, and waited 1105.9 seconds for it. The row records
+`"ci": {"verdict": "success"}` against a sha the lane never produced.
+
+### WHY THIS IS WORSE THAN IT LOOKS
+
+It is silent, and it fails in BOTH directions. A neighbour's green is written into this
+lane's ledger as though the lane had earned it - and a neighbour's RED would stop the night
+under `ci_red`, blaming a worker that pushed nothing. Neither shows up as an error; both
+read as ordinary rows. The ledger is the only durable record of a night, so a row that
+cites the wrong sha is worse than a row that cites none.
+
+### WHAT IS NOT THE FIX
+
+**Do not narrow the window.** The window is the whole cycle - tens of minutes by design -
+and any attempt to shrink it trades a large silent error for a smaller silent error.
+
+**Do not assume one lane per box.** That is the assumption that produced this. The operator
+runs several projects' sessions concurrently on this machine; the measurement above is that
+configuration behaving normally, not an anomaly.
+
+### THE SHAPE OF AN ANSWER
+
+The lane can know what its own worker produced without asking the remote: the worker commits
+in a worktree the driver owns the path of, so the driver can read `lane/queue`'s tip before
+and after and compare THAT, or read the reflog of the branch it launched into. A sha the
+lane cannot attribute to itself must record `unattributable` and grade nothing - an absent
+verdict is a real answer, and it is the one CS-918's own driver already gives when the
+remote cannot be resolved.
+
+### THE ARM THAT PROVES IT
+
+Redden on a FOREIGN sha landing between the two reads. A test that only checks the happy
+path would have passed on the shipped code, because the shipped code is correct whenever
+nobody else pushes - which is every run on an idle box and no run on this one.
+
+
 ## CS-898 - item section, CLOSED and relocated from `docs/item_notes/phase4-followups-850.md` 2026-09-16
 
 ### NOTE - filed 2026-09-04 (session 60) by the merger, MEASURED ON THE TREE

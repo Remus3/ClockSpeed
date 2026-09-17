@@ -374,6 +374,103 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-09-17 - CS-919 - CLOSED. A sha the lane cannot show it produced is recorded `unattributable` and graded by nobody
+
+**THE DEFECT, MEASURED RATHER THAN ANTICIPATED.** On CS-918's first real cycle the worker
+committed nothing - it left ten files uncommitted in the lane worktree - while another
+session on the same box pushed `f80b95af7e2e`. `ops/loop/queue_loop.py` read `origin/main`
+before and after the cycle, saw the ref move, attributed it to the cycle, waited out tier1,
+dispatched a tier2 run and waited 1105.9 seconds for it. The row recorded
+`"ci": {"verdict": "success"}` against a sha the lane never produced. It failed in BOTH
+directions and silently in both: a neighbour's green was written into this lane's ledger as
+though the lane had earned it, and a neighbour's RED would have stopped the night under
+`ci_red`, blaming a worker that pushed nothing.
+
+**WHAT CHANGED.** `run_loop` grades the post-cycle remote tip only when it EQUALS the lane
+worktree's own post-cycle HEAD, which is the only sha this driver knows the lane produced.
+Any other moved tip - a stranger's push, or a stranger's commit landing on top of ours -
+gets `verdict="unattributable"`, the five-key shape the `no-push` and `unavailable` branches
+already write, and NO wait is dispatched. An unreadable lane HEAD lands in the same branch,
+which is the same direction `record["commit"]` already defaults in.
+
+**THE READING WAS ALREADY IN HAND, so the repair costs no git call.** `post_tree` is read
+above for the progress counter, unconditionally and before the CI block, and the two
+consumers now share one reading rather than two that can disagree.
+
+**NOT A NARROWER WINDOW, and the item's note forbids that by name.** The window is the whole
+cycle by design; shrinking it trades a large silent error for a smaller silent one. The
+repair reads no clock at all.
+
+**`unattributable` IS A SEPARATE WORD FROM `no-push` ON PURPOSE.** The two send an operator
+to different places - `no-push` means the ref stood still and the worker log holds the
+answer; `unattributable` means somebody pushed and it was not provably us, which is a fact
+about the BOX. It joins `_CI_ROLLUP_BAD` for the reason `no-push` is already there - a cycle
+with no CI evidence of its own is not good news - and it is NOT a hard stop, because a
+neighbour pushing is not a broken branch and must not end the night.
+
+**PROVEN BY.** `tests/test_queue_loop.py::test_a_foreign_sha_landing_in_the_window_is_unattributable_and_grades_nothing`,
+which drives a tip the lane tree never held and requires both that the verdict word is
+written AND that `waits == []` - a verdict with the wait still dispatched would have paid the
+1105.9 seconds this item was filed over. Its control is
+`tests/test_queue_loop.py::test_a_sha_the_lane_itself_produced_is_still_graded`, without
+which a driver answering `unattributable` to everything would pass.
+
+**THE SIBLING SWEEP, AND IT IS THE MOST REUSABLE THING THIS CYCLE PRODUCED.** Six existing
+arms reddened, and not one of them was a behaviour regression - every one was a FIXTURE
+driving the CS-919 defect while standing in for a healthy night. `_moving_ref` and
+`_committing_tree` each walk their OWN counter, so the remote tip and the lane HEAD never
+agreed in any arm built from the pair. That was invisible while the driver graded whatever
+the tip said. `_lane_push` is the repair: one piece of state, advanced on the POST tree read,
+answered by both seams. Rewired arms -
+`test_the_driver_waits_between_cycles_and_the_next_cycle_cannot_start_first`,
+`test_one_cycle_writes_exactly_one_jsonl_row_carrying_its_verdict`,
+`test_ci_going_red_stops_the_night`,
+`test_a_cancelled_ci_run_is_recorded_but_does_not_stop_the_night`,
+`test_completed_cycles_that_push_run_the_whole_budget`,
+`test_a_one_cycle_night_that_shipped_exits_zero`.
+
+**ONE ARM WAS PASSING FOR THE WRONG REASON AND ONLY THE SWEEP FOUND IT.**
+`test_a_cancelled_ci_run_is_recorded_but_does_not_stop_the_night` asserted only `cycles_run`
+and `stopped_by`, and `unattributable` does not stop a night either - so it stayed green on a
+night that graded NOTHING, with the cancelled verdict it is named for never reaching a row. It
+now pins the verdict per row.
+
+**AND `test_a_foreign_push_is_not_this_lane_s_progress` MOVED ITS CONTROL RATHER THAN LOSING
+IT.** That arm's sharp edge was that the counter had to catch a night whose every row looked
+healthy - `verdict: success`, `ok: true`. Those same rows now read `unattributable` and
+`ok: false`, which is the second half of the same defect.
+
+**AND THAT MOVE COST THAT ARM A MUTANT KILL, WHICH THE FIRST DRAFT OF THIS ENTRY DENIED.**
+The draft claimed the arm was not weakened, on the grounds that `_is_progress` reads
+`commit.advanced` and never reads `ok`. THE VERIFIER REFUTED IT AND THE MUTATION WAS THEN
+RUN BOTH WAYS by the merger, in two scratch copies, never in the tree: `_is_progress`
+rewritten to `bool(record.get("ok"))` is killed by FOUR arms at `5ae7d72` and by THREE here,
+and `test_a_foreign_push_is_not_this_lane_s_progress` is the one that dropped out - its rows
+now carry `ok: False`, so an `ok`-reading counter reaches `no_progress` by the wrong route
+and the arm cannot tell. The property that arm OWNS is intact and still asserted -
+`no_progress`, three cycles, exit 9 - and the mutant is still killed by
+`test_a_night_committing_to_the_lane_branch_runs_its_whole_budget`,
+`test_an_unreadable_lane_head_degrades_to_no_progress` and
+`test_a_lane_head_read_that_raises_cannot_kill_the_night`. What was lost is a fourth kill on
+one mutant, and it is recorded here rather than rounded up, because a caveat said in a cycle
+report is not a caveat in the artifact.
+
+**TIER 2** - the driver's core and a widened verdict vocabulary. Suite run this cycle, whole
+tree and NOT `-m "not slow"`: `8396 passed, 7 skipped, 8 warnings in 1557.26s (0:25:57)`, exit 0, read back from a file rather than a pipe.
+
+**WHAT THAT RUN DOES AND DOES NOT COVER, said here because a suite run that straddles an
+edit reports on a tree that no longer exists.** It was taken on the frozen candidate BEFORE
+the verifier's refutation was repaired. The repair edited two things and only two - one test
+DOCSTRING and the paragraph above it in this file - so what re-ran afterwards was scoped:
+`tests/test_queue_loop.py`, `tests/ops`, and the three doc-guard modules
+`tests/test_docs_citations.py`, `tests/test_citation_tables.py` and
+`tests/test_archive_rot.py`, `835 passed in 57.14s`, exit 0, plus `tools/drift_guard.py`
+CLEAN. The whole tree over the COMMITTED bytes is paid by `.githooks/pre-push`, which this
+push did not bypass. `python -m ruff check .` clean,
+`ruff format --check` clean. Merged files: `ops/loop/queue_loop.py`, `tests/test_queue_loop.py`.
+
+**CI IS RECORDED BY THE DRIVER AND WAS NOT OBSERVED BY THIS WORKER.**
+
 ### 2026-09-16 - CS-898 - CLOSED. The tests-tree size ceiling stopped claiming a separation it never performed, and the predicate is now reachable over planted material
 
 **THE DEFECT.** The comment over `_MAX_TEST_FILE_BYTES` in `tests/data/test_phase2_gate.py`
