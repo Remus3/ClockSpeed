@@ -95,6 +95,11 @@ subprocess-heavy work. Take the measurement on the runner or do not take it.
 
 ---
 
+### Acceptance
+
+the most expensive single test is under a stated share of the step MEASURED ON THE RUNNER, or the concentration is ruled irreducible with the mechanism named per test rather than the share restated, proven by a runner profile taken before and after that reports the share both times
+
+
 ## CS-907
 
 
@@ -130,6 +135,10 @@ The headline this item carried before its line was cut to the one-liner the
 `ROADMAP.md` header asks for. Relocated verbatim, never deleted:
 
 `CONVENTIONS.md` assigns tier-0 pre-push a "fast unit subset" and reserves the full suite with parallelism for tier 2, but the hook runs the whole tests directory while its own header claims it runs the subset, and the sanctioned lever - the registered `slow` marker that `tests/test_scaffold.py` ships a test for - carries 12 tests and is used by nothing
+
+### Acceptance
+
+the hook's stated contract and its behaviour agree, either by selecting a subset or by correcting the stated contract and defending the cost, proven by an arm that goes RED when the two disagree
 
 
 ## CS-920
@@ -201,6 +210,10 @@ The headline this item carried before its line was cut to the one-liner the
 
 every measured number this project makes about ITSELF lives in PROSE and carries its provenance at DOCUMENT scope rather than ROW scope, so a reading cannot be compared with another without a human reading both paragraphs: this session alone published a 3.2x speedup that a paired re-measurement corrected to 2.39x, a worker count of sixteen that is eight, and a shard-specific variance claim that an identical runner pool reproduces one time in three - and CS-917's acceptance asks for a noise figure that SURVIVES ITS OWN NEXT READING, which is a query over a measurement history that does not exist
 
+### Acceptance
+
+a machine-readable record in which each reading carries its own receipt (metric, value, unit, method, worker count, whether the box was contended, date, commit) and CS-917's survives-its-next-reading test is answerable by querying it rather than by reading prose, proven by an arm that reddens when a reading is added without its receipt
+
 
 ## CS-917
 
@@ -259,6 +272,11 @@ and are not the complaint.
 
 ---
 
+### Acceptance
+
+the lane's growth per commit is measured over a stated window and reported somewhere a session will see it, and the warn band is derived from a noise figure that survives its own next reading, proven by a criterion that does not assume one normal distribution over a heterogeneous runner pool, AND the band is not narrower than the noise figure it is derived from, so a warn is reachable before a red
+
+
 ## CS-936
 
 ### FILED 2026-09-07 (session 71)
@@ -274,6 +292,15 @@ the LINE and this file owns the reasoning:
     the settled decision is private first PUBLIC LATER, so an unpushed branch is one `git push --all` from being the thing that publishes it
     acceptance: either the affected history is unreachable from every ref that can be pushed, or the branch is deliberately retained with the retention recorded and a guard that reddens when a pushable ref contains a scrub-era commit, AND the world-name detector is hardened so a four-letter common word cannot manufacture a finding, proven by an arm that reddens on a planted world name in a pushable ref and stays green on the false-positive shape
     tier: 1
+
+### Acceptance
+
+the affected history is unreachable from every pushable ref, or the retention is recorded with a guard that reddens when a pushable ref contains a scrub-era commit, AND the detector is hardened so a four-letter common word cannot manufacture a finding
+
+### Full headline
+
+the 2026-08-14 PII scrub edited the files FORWARD, so three world names it removed remain in earlier blobs - CONTAINED, measured: reachable only from an unpushed local branch and absent from `origin/main`
+
 
 ## CS-937
 
@@ -291,6 +318,15 @@ the LINE and this file owns the reasoning:
     the acceptance must state the discharge condition and be proven by TWO arms, one reddening on a pointer silently retargeted to a different non-blank line and one staying GREEN across a whitespace-only reflow of the target
     tier: 2
 
+### Acceptance
+
+a line pointer is graded against what its own sentence claims the target says, without becoming a prose matcher, proven by two arms - one reddening on a pointer silently retargeted to a different non-blank line, one staying GREEN across a whitespace-only reflow of the target
+
+### Full headline
+
+a line pointer whose only content check is NON-BLANKNESS certifies a pointer that names the wrong rule, and the measured instance was wrong WHEN WRITTEN rather than rotted
+
+
 ## CS-938
 
 ### FILED 2026-09-07 (session 71)
@@ -305,6 +341,15 @@ the LINE and this file owns the reasoning:
     acceptance: the watcher is reachable from a fresh clone through a TRACKED path, or the bootstrap wires it and says so, proven by an arm that reddens when the wiring is absent from every tracked file
     NOTE the obvious fix edits the tracked settings file, which CLAUDE.md section 6 FREEZES, so it needs its own adjudicated grant and must not be taken as covered by the CS-935 grant, which expired on application
     tier: 1
+
+### Acceptance
+
+the watcher is reachable from a fresh clone through a TRACKED path, or the bootstrap wires it and says so, proven by an arm that reddens when the wiring is absent from every tracked file - NOTE the fix edits a frozen file and needs its own grant
+
+### Full headline
+
+the CS-932 inbox watcher is wired ONLY in an untracked file, so a fresh clone runs no watcher and the standing directive to review the channel has no mechanism behind it
+
 
 ## CS-941
 
@@ -363,6 +408,10 @@ REPORTS and never that it STOPS reporting. It was found by running the shipped
 command on the live inbox: report, acknowledge, report again. AN ARM THAT PROVES
 A THING APPEARS IS NOT THE ARM THAT PROVES IT CAN GO AWAY.
 
+### Acceptance
+
+a departure is reported as its own state, compared on the STABLE NAME with the digest stripped, and the ACK prunes the report record too, proven by three arms plus a report-acknowledge-report check
+
 
 ## CS-942
 
@@ -383,6 +432,11 @@ acknowledging stay separate acts, which is already this tool's oldest property.
 The wiring lands in the same frozen settings file as CS-938 and needs the same
 adjudicated grant, so the two travel together.
 
+### Acceptance
+
+a report-only path runs on each operator turn and never advances the seen set, proven by an arm that reddens if it writes to the store and one that reddens when a note planted mid-run goes unreported - NOTE shares the CS-938 frozen-file grant
+
+
 ## CS-943
 
 ### FILED 2026-09-07 (session 72), from reading a sibling's payload rather than from a probe of this tree
@@ -402,6 +456,15 @@ raw exception string never reaches the report. A traceback is payload wearing a
 different hat - it can carry a path, a name, or a byte of a sibling's file into
 the one voice a session has no reason to distrust.
 
+### Acceptance
+
+a write failure is reported and the run continues, and no raw exception string reaches the report, proven by two arms
+
+### Full headline
+
+`save_seen` returns nothing and an `OSError` on write escapes as a traceback out of a session-start hook, so a locked store crashes the watcher and the session surfaces NOTHING
+
+
 ## CS-944
 
 ### FILED 2026-09-07 (session 72), from RC's finding re-measured here
@@ -417,6 +480,15 @@ guard asking "does anything match?" goes falsely RED and announces itself, while
 a guard asking "does everything exist?" goes falsely GREEN and never does. Only
 one of the two directions tells you. A corpus taken from `git ls-files` is
 structurally immune to both.
+
+### Acceptance
+
+the corpus comes from `git ls-files` or excludes registered worktrees, proven by an arm asserting the CORPUS
+
+### Full headline
+
+ten test modules walk the tree with `rglob` and one excludes the worktree directory, so a leftover worktree lets a does-everything-exist guard pass GREEN on the deletion it was written to catch
+
 
 ## CS-945
 
@@ -504,6 +576,14 @@ under 12 characters are not counted at all. And no ref-based test sees UNCOMMITT
 while a session runs. **The item stays OPEN: its acceptance asks for an ARM that reddens
 on an unrecorded branch, and this entry is a measurement, not that arm.**
 
+### Acceptance
+
+a branch holding unpushed work is on a remote or recorded as disposable, proven by an arm that reddens on an unrecorded one
+
+### Full headline
+
+local branches hold single-copy work that is on no remote and one `git branch -D` from loss, and a sibling was told this was fixed - the measured disposition and its method live in the item note, never restated here
+
 
 ## CS-946
 
@@ -525,6 +605,15 @@ repository ROOT PATH as its repo field, a full path containing a space. Under a
 keyed reservation that silently creates a second reservation the day a checkout
 moves, which is exactly how a sibling's rename moved its own reservation.
 
+### Acceptance
+
+a superseding ADR records the reversal, and the lock spells the repo `cs`, proven by an arm that reddens on a path-shaped repo field
+
+### Full headline
+
+charter v4 is ADOPTED and the `cs` lane slot ACCEPTED, reversing ADR-0017 and requiring the short repo key in place of the full path the lane lock writes
+
+
 ## CS-947
 
 ### FILED 2026-09-07 (session 72), on an operator ruling
@@ -543,6 +632,11 @@ section 4 exists to prevent.
 
 The acceptance is FIRING, not declared. A hook proven by its configuration is the
 class of evidence this channel has refuted three times this week.
+
+### Acceptance
+
+the grant is recorded before the edit and the hook is proven FIRING, proven by an arm that runs the declared command
+
 
 ## CS-948
 
@@ -592,6 +686,11 @@ a per-file request is still an outbound payload with the same asymmetric risk.
 The scrub attestation and the planted-leak proof are unchanged. What is gone is
 the deadline.
 
+### Acceptance
+
+a tool emits the payload with a digest manifest and a scrub attestation naming HOW it was verified, CONSUMING CS-957's per-class verdict rather than re-deriving the refusal, and quoting its coverage table as the attestation body, proven by a planted leak
+
+
 ## CS-951
 
 ### FILED 2026-09-07 (session 73), on a measured channel failure
@@ -613,6 +712,15 @@ THE HARD PART IS NOT THE RECORD, IT IS OWNING THE DELIVERY. A record of what
 this repo sent is only as good as the guarantee that every delivery goes through
 the thing that writes it. A hand-run copy leaves no record, and a record with
 holes in it reports a withdrawal that never happened or misses one that did.
+
+### Acceptance
+
+a delivery made from here is recorded, and a later run REPORTS that a recorded delivery is no longer present at its destination, proven by an arm that delivers to a scratch destination, removes it, and goes RED if the run is silent
+
+### Full headline
+
+nobody watches their own OUTBOUND withdrawals, so a drop this repo pulls from a sibling's inbox is invisible to every watcher on the channel including this one - the RECORD half is built by CS-958; what remains is the RECONCILER
+
 
 ## CS-958
 
@@ -1018,6 +1126,15 @@ as a probe would flatten a corrupt one that `load_record` cannot parse.
    ordering fix for one property broke another property of the same function,
    and only an agent asking "what did this change break" found it.
 
+### Acceptance
+
+one tool is the only way a note leaves this machine, it grades the payload with `tools/outbound_gate.py` BEFORE it resolves a destination, it writes nothing without an explicit `--send`, any fault refuses the WHOLE send rather than a subset, and every delivery lands in a record carrying the destination name, a digest, a byte count and the gate's verdict and carrying no payload and no absolute path
+
+### Full headline
+
+the outbound gate graded nothing because nothing called it, and the channel had no sender at all: every delivery this project has ever made was a hand-run script, including the 2026-09-08 correction to four repositories whose only record is a paragraph a human typed
+
+
 ## CS-965
 
 ### FILED 2026-09-10 (session 80) from the CS-963 adversarial pass
@@ -1038,6 +1155,15 @@ quietly inside a repair round is how a settled thing gets unsettled by accident,
 and the argument runs both ways: a byte count is not a platform, an account id or a
 player name, which is what non-negotiable 12 names - but it is derived from the
 player's file and it is a fingerprint. The operator rules; an ADR records it.
+
+### Acceptance
+
+an ADR decides whether a size or an offset derived from a save is disclosure under non-negotiable 12, every one of the four reprs is brought into line with the ruling, and the CS-963 invariant arm grades the ruling rather than only whether a holder renders the planted marker - NOT to be settled by an agent alone, the operator rules
+
+### Full headline
+
+four shipped `__repr__` methods render a QUANTITY derived from the player's save while withholding its bytes: `chunks.DecompressedBody` the decompressed payload's length, `objects.ObjectRecord` a body offset and length, `objects.PropertyName` three string lengths, and `header.SaveHeader` a body offset - each a deliberate CS-852 choice recorded as the SAFE rendering, and CS-963 then removed exactly that kind of disclosure from two new `_Cursor.__repr__` methods on the grounds that a save's size is information `object.__repr__` never emitted, so the tree now states both positions at once and one of them is wrong
+
 
 ## CS-964
 
@@ -1229,6 +1355,15 @@ The NARROW-SUFFICIENT arms still owe the sentence in their own text saying why
 one encoding is enough for the value they plant. Nothing in the seam is
 mutation-graded except the one arm above.
 
+### Acceptance
+
+every planted-marker arm in `tests/save/` is driven at BOTH encodings, or names in its own text why one is sufficient for the value it plants, with a control per arm proving the sweep reddens on the wide spelling when the value IS present, and the fixture builders emit a wide string without a second header builder being written beside the first
+
+### Full headline
+
+every privacy arm in the save layer hunts an ASCII marker inside `repr(value)`, and Unreal writes a header string as UTF-16-LE with a negative count the moment it carries one non-ASCII character - which the fields carrying personal data, a session name and a player display name, routinely do - so the whole population of green verdicts in that layer was measured against an encoding those fields do not use, while a renderer prints the wide bytes legibly; CS-963 pinned the gap at one site in `tests/save/test_header.py::test_the_marker_sweep_is_not_blind_to_a_wide_encoded_header_string` and left the rest
+
+
 ## CS-962
 
 ### SLICE S0 MERGED - the panel seam - MEASURED 2026-09-09 (session 78)
@@ -1313,6 +1448,15 @@ the routing information.
   so a node panel shows placement and class only. This is a new endpoint plus a
   panel, not a UI-only slice, and it is unbuilt.
 
+### Acceptance
+
+a person can look up a recipe and ask what a target rate costs in machines and raw inputs, every rate rendered from the exact `{num,den}` the wire carries with no division anywhere in the render path, the page states plainly which of its panels are registry-derived and which are world-derived and names what it cannot show, and no panel issues its own fetch - proven by an arm per panel against synthetic payloads plus a seam arm that reddens when a panel is served but not registered
+
+### Full headline
+
+the dashboard is a SELF-DIAGNOSTIC rather than a player's tool: it renders its own health, its own route table, six world version scalars, five counts and the unmodelled-class list, and nothing a person playing the game would act on - measured across the whole surface, `/api/registry` is fetched on every refresh and only its HTTP STATUS reaches the DOM so not one item, recipe or building name is ever displayed, `/api/solve` and `/api/optimize` answer 200 against real data and the page never calls them, and `/api/world` serves a warning list the page renders as a bare number
+
+
 ## CS-976
 
 ### FILED 2026-09-11 by the CS-962 merger, from an adjudicated finding
@@ -1348,6 +1492,14 @@ seam's whole premise is that a panel is a plain script the server already
 serves and `index.html` already loads, and `tests/surface/test_server.py` pins
 the static surface by name. A module rewrite is a different item with a
 different blast radius; this one asks only that a collision be detectable.
+
+### Acceptance
+
+an arm loads all four panel modules plus `app.js` into one global and asserts the union of own-property additions contains no duplicate, shown load-bearing by a planted duplicate name that reddens it
+
+### Full headline
+
+the four panel modules are classic scripts sharing ONE global with `app.js`, and three of them scope themselves while `panel_solve.js` publishes twenty-six top-level names into it - no collision exists today, measured by re-deriving both name sets at 098bf1f and finding the intersection empty, but `registerPanel` compares only the panel id, so a fifth panel or a later `app.js` addition redefining a name like `textOf` or `FIELDS` wins by load order and the page says only that one panel did not render
 
 
 ## CS-981
@@ -1437,6 +1589,11 @@ correct behaviour for an empty answer and it is not the answer the operator aske
 acceptance above is written against `/api/map` for that reason - the chain is only finished
 when the panel shows something.
 
+### Acceptance
+
+`CS-829` is moved out of `docs/GATED.md` or re-gated on a condition that is actually outside the repo, with the CS-829 fences carried rather than dropped, and `/api/map` then serves a non-empty `inventory` for the pinned development world graded against a synthetic model
+
+
 ## CS-982
 
 ### Filed 2026-09-11
@@ -1456,6 +1613,11 @@ What would settle it is a tag of that shape whose value can be read back indepen
 a second save carrying more of them. The honest alternative is to record the width as
 unmeasured and refuse it, exactly as the unobserved bit is refused - which costs one
 record's payload and buys a claim that is true.
+
+### Acceptance
+
+the bit that adds an int32 is graded by an arm driving more than the two tags it currently rests on, or its width is recorded as unmeasured and the payload refuses it as an unobserved bit already does
+
 
 ## CS-983
 
@@ -1503,6 +1665,15 @@ contradicts the precondition of that sentence without firing its trigger, since 
 is not closing. Measured 2026-09-12: no guard keys on membership of `docs/GATED.md` at all,
 so nothing mechanical fires today. CS-847 owns that text and this item does not edit it.
 
+### Acceptance
+
+`CS-G05` either carries an acceptance clause and a `ROADMAP.md` line with its body relocated to the leaf `docs/item_notes.md` names, or its status block records a condition that is actually outside this repo and the decided-out declaration is withdrawn, with the vacuous PREP harness `tests/save/test_properties.py::test_save_60_refuses_the_grammar_the_other_pairs_accept` owned either way
+
+### Full headline
+
+`CS-G05` is decided out of `docs/GATED.md` and its body has not moved, so a section asserting it does not meet that file's own membership rule is sitting inside that file
+
+
 ## CS-984
 
 ### Filed 2026-09-12 by the session 86 merger, measured before filing
@@ -1532,6 +1703,11 @@ population with no names is not usable by `clockspeed/audit/` for this purpose.
 `/api/map` serving a non-empty inventory. That needs this seam AND the join above it. Filing
 one item for both would hide a measurable seam change behind an unmeasured join, which is the
 shape `docs/GATED.md` warns about one level up.
+
+### Acceptance
+
+a `StructProperty` interior that `clockspeed/save/objects.py` decodes is reachable from `clockspeed.save.world.WorldModel` with its property NAME attached, so `clockspeed/audit/` can join a building to what it holds, proven by a test that goes RED when an interior the reader decoded is dropped at the seam, and by a real-library arm reporting COUNTS ONLY that the published interior count equals the reader's
+
 
 ## CS-985
 
@@ -1563,6 +1739,11 @@ write tracer, stating the operator is sole copyright holder. NOTHING FROM IT HAS
 RUN OR VENDORED. Vendoring it needs the `CONVENTIONS.md` section 14 licence gate, and that
 gate has not been run. Do not treat the sender's own licence statement as the gate result.
 
+### Acceptance
+
+a test run on a machine WITH a save library leaves the live work directory byte-identical to how it found it, proven by an in-process write tracer that records the nodeid performing each write and counts BYTES rather than opens, with the tracer's own routes proved by a planted specimen and a negative specimen outside every watched root
+
+
 ## CS-986
 
 ### Filed 2026-09-12 by the session 86 merger, from the CS-829 repair round's own stated limit
@@ -1583,3 +1764,109 @@ population FIRST and decide after.
 every zero, and a bare zero is not a measurement. If the population is empty, the item closes
 by reporting the population AND the fact that it was looked for, not by an `assert count == 0`
 that would pass on a reader that found nothing at all.
+
+### Acceptance
+
+the population of such tags is measured over the library and reported as a count, and the interior reader either refuses them or states in a test why admitting them is evidenced, without moving the top-level decoded-value population the CS-829 grammar carry rests on
+
+
+## CS-966
+
+### Acceptance
+
+the two populations are compared STRUCTURALLY rather than by a case table, covering both the marker SET and the keying, proven by two mutants that redden - one adding a marker field to one side only, one planting a duplicate `ClassName` on a power-bearing entry
+
+### Full headline
+
+CS-210's census claims to count the REGISTRY-PUBLISHED buildings, and two independent routes let that population drift from what `clockspeed/data/registry.py` actually publishes without any arm reddening - MEASURED 2026-09-10 by an adversarial lens against the closing tree: (a) the predicate fence `tests/data/test_registry.py::test_the_census_building_predicate_agrees_with_the_registrys` is a seven-case VALUE table, so adding a third marker field to one predicate only is not caught - probed with `mEstimatedMininumPowerConsumption` and it passed; (b) the census counts docs ENTRIES while the registry publishes a `ClassName`-keyed dict, so an entry with a missing or duplicate `ClassName` is counted and never published - on this build the two coincide exactly at 68 so it is latent rather than live
+
+## CS-967
+
+### Acceptance
+
+the parallel whole-tree spelling and its `--dist loadfile` requirement are stated wherever a worker is instructed to run the whole tree, and a test asserts the documented spelling matches the one the hook executes so the two cannot drift
+
+### Full headline
+
+a worker told to pay the whole suite locally reaches for `-n auto` and gets a RED tree that the push hook does not reproduce - MEASURED 2026-09-10 against a green tree: `python -m pytest tests -q -n auto` reported `3 failed, 6184 passed` exit 1, while `-n auto --dist loadfile` - the spelling `.githooks/pre-push` actually executes - reported `6187 passed` exit 0 over the same collection, and all three failures pass serially both in the lane worktree and in a clean worktree at the base commit, so the red is the scheduler and nothing else; the three are one hook-sandbox subprocess test and two same-file tests in `tests/save/test_properties.py` that the default scheduler splits across workers - the reasoning for `--dist loadfile` is recorded ONLY in the hook's own comments, and `tools/headless-queue.md` section 7a gives a whole-tree spelling with no `--dist` guidance at all
+
+## CS-969
+
+### Acceptance
+
+an arm drives the negative-count branch of each reader with a planted non-empty value and asserts what the frame holds at that encoding, and the arm is shown load-bearing by a mutation that removes the branch rather than by its own greenness
+
+### Full headline
+
+`clockspeed/save/objects.py::_payload_text` and `clockspeed/save/objects.py::_Cursor.string` both carry a live negative-count UTF-16-LE branch that NO planted-marker arm in `tests/save/` drives, measured 2026-09-11 by reading the wide spelling back through both readers by hand - so the body-side wide path is exercised only by a probe run outside the suite, and `_payload_text` RETURNS None rather than raising on a decode failure, which means a wide payload string is read and not refused
+
+## CS-972
+
+### Acceptance
+
+the hook refuses, or states loudly, when the working tree does not match the commit being pushed, an arm drives the staged-but-uncommitted case and asserts the refusal, and the arm is shown load-bearing by a mutation that removes the check rather than by its own greenness - NOTE `.githooks/*` is a FROZEN FILE and the grant IS NOW RECORDED in `docs/LEDGER.md` under CS-972, single-use and bound by seventeen conditions - read them before editing, and leaving it unspent is a legitimate outcome
+
+### Full headline
+
+`.githooks/pre-push` grades the WORKING TREE while git ships the COMMIT, so a push made with a dirty or staged-but-uncommitted tree reports a suite result for content that is in no commit at all - measured 2026-09-11: a failed `git commit` went unnoticed, the hook ran the full suite against the repaired working tree, reported 6198 passed, and git pushed the PREVIOUS commit, which fails `tests/test_archive_rot.py`; `origin/main` was red from that commit until it was caught by reading the pushed blob - this is the CS-954 family one level along, and the CS-954 ref-move check cannot catch it because the ref never moved
+
+## CS-974
+
+### Acceptance
+
+only a verdict on a stated ALLOWLIST rolls up as good, an arm sweeps every member of `CI_VERDICTS` and asserts the roll-up for each, and the arm is shown load-bearing by a mutation that widens the allowlist rather than by its own greenness
+
+### Full headline
+
+`ops/loop/queue_loop.py` decides a cycle's `ok` roll-up against `_CI_ROLLUP_BAD`, a DENYLIST of two verdicts, so `cancelled`, `skipped`, `timeout`, `unavailable` and `unknown` all roll up as GOOD - measured 2026-09-11 by sweeping `CI_VERDICTS` through the real `run_loop`: each of the five gives twelve cycles, `ok: true` on every row and exit 0, the same shape the file's own comment calls the defect, fixed for outcomes by the `PRODUCTIVE_OUTCOMES` allowlist and left standing one field over - NOTE the measured counter-reset half of this, where one transient `unavailable` extended a dead night from three cycles to six, was closed incidentally by CS-970's `03bcf1c` because the progress counter no longer reads the `ok` roll-up at all; what remains open is the roll-up itself, which still reports a cancelled, skipped, timed-out, unavailable or unknown CI verdict as a good cycle
+
+## CS-975
+
+### Acceptance
+
+the launcher either waits for the driver and reports its exit code, or records the code where an operator reading the next morning will see it, with an arm driving a non-zero exit and asserting it is surfaced
+
+### Full headline
+
+nothing reads the `queue` driver's exit code, so every number it returns is decorative: `ops/loop/launch_queue_loop.ps1` starts the driver with `Start-Process` and no `-Wait`, then prints its started banner unconditionally, and a repo-wide sweep of `*.ps1`, `*.md`, `*.json` and `*.xml` finds no consumer of the process result - CS-970 added `EXIT_NO_PROGRESS` and `EXIT_UNKNOWN_STOP` specifically so a night that accomplished nothing could not report success, and both are observed by no one, so the driver's own promise that no launcher prints a success banner over a no-op holds only for the stop-sentinel pre-check
+
+## CS-993
+
+### Acceptance
+
+two lanes cannot run a suite simultaneously, the second WAITS rather than failing, and a holder that dies releases rather than wedging the lane, proven by an arm where the second lane's suite step blocks until the first releases and by an arm where a killed holder leaves the ration acquirable
+
+### Full headline
+
+nothing rations the suite step across concurrent lanes, and the failure is already measured on this box rather than predicted: three projects' pytest runs at once reported `3402 passed, 1 error` while 2163 tests never ran, and two parallel xdist suites exhaust the Windows fork budget so the failures surface on unrelated subprocess tests and read as random flakes rather than as resource exhaustion, which means a parallel lane would report a green it did not earn
+
+## CS-995
+
+### Acceptance
+
+dropping any SINGLE key from the converse leg's detection set or from its naming reddens a named arm, with the expectation DERIVED from a source the leg does not itself read and the arm exercising the leg at a breadth ABOVE ONE, proven by a mutation per direction - NEVER by a floor over the finding count, which is the CS-988 shape and is forbidden here by name
+
+### Full headline
+
+the converse leg of `unpinned_eligibility_faults` is itself ungraded for BREADTH in both detection and naming, which is instance eight's shape on the leg added to close instance eight: measured in memory at the guard's own revision, rebinding it so the converse finding names `sorted(unregistered)[:1]` or names no key at all leaves `test_the_eligibility_guard_reports_every_offender_and_not_only_the_first`, `test_the_unpinned_eligibility_guard_reddens_in_every_direction` and `test_every_unpinned_key_is_a_population_this_file_spells_out` ALL PASSING, and narrowing its detection set to `sorted(...)[1:]` leaves all three passing too
+
+## CS-998
+
+### Acceptance
+
+each key in the registry is graded by a per-key equality between its re-derivation and a source the mark does not read, an entry whose callable ignores its own population reddens, and the prose claim is either machine-checked or deleted
+
+### Full headline
+
+`INDEPENDENT_CASE_COUNTS` membership is uncertified: the header asserts that every entry re-derives its size from a DIFFERENT source than the mark reads and that each carries a membership arm asserting the two agree as sets, and NOTHING grades either claim, so the registry is satisfied by `("f","x"): lambda: 2` at one line with only the arm-count backstop noticing and only when 2 is the wrong number that day - this is the same unchecked-justification shape as the comment CS-988 already repaired one registry over, and it is the stated precondition for ever revisiting the rejected ESCAPE-CHANNEL option on the converse leg
+
+## CS-959
+
+### Acceptance
+
+the four files exist and GitHub's own community profile reports every row satisfied while the repository is still PRIVATE, verified by re-reading that profile rather than by listing the files; `SECURITY.md` routes reports through GitHub private vulnerability reporting and carries NO email address, because the operator's address is this repository's commit identity and a sibling has already published it once by accident; `CONTRIBUTING.md` states the non-negotiables a drive-by change would otherwise break - 7-bit ASCII, no lifted datasets from any wiki, never write to the game install or a save, the failing test first - and points at the hook bootstrap in `docs/OPERATIONS.md`, because a fresh clone runs zero protection until someone wires it
+
+### Full headline
+
+GitHub's community-standards checklist for this repository is four of eight, and CS-700 flips it public, which turns every gap from something we can see into something a stranger sees first - MEASURED 2026-09-08 with `gh repo view`: description SET, topics SET at twenty which is GitHub's maximum, README, LICENSE and issue templates all present, and MISSING are `CODE_OF_CONDUCT.md`, `CONTRIBUTING.md`, `SECURITY.md` and a pull request template - raised from a sibling's identical checklist rather than from a probe of this tree, and the same four rows were empty there
+

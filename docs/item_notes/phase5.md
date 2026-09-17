@@ -64,6 +64,10 @@ different region, is not clause 2, and is filed as its own item.
 `clockspeed/advisor/ledger.py` <!-- absent: clockspeed/advisor/ledger.py --> does not exist yet: the ledger treats a world token it has never
 seen as a new world rather than failing.
 
+### Acceptance
+
+every rule has a synthetic-fixture test, the unmet-precondition invariant holds under a property test over generated world states, a card id is stable across a save reload, and tier 3 is generated from the trace and cannot be authored by hand
+
 
 ## Wave 2 - the pre-dispatch spec check, filed 2026-09-14
 
@@ -178,6 +182,15 @@ node DOES NOT EXIST - ADR 0003 found zero occurrences across three worlds and fo
 and the join had to be name-agnostic over the typed reference population instead. Do not
 assume a conveyor names its endpoints by a property either; measure before keying on one.
 
+### Acceptance
+
+a new arm module under `tests/audit/` builds a synthetic world of two machines joined by one conveyor and asserts the published edge set names that pair and no other, reddening when the join is replaced by proximity, and a second arm asserts two generators on one circuit share a circuit id while an unconnected third does not, and BOTH availability flags are derived from whether an edge set was actually built rather than written as literals
+
+### Full headline
+
+nothing can say which belt feeds which machine or which connections share a power circuit: CS-1041's line named both and its acceptance graded neither, and `clockspeed/audit/network.py` therefore hardcodes `belt_topology_available` and `circuit_topology_available` False, which CS-1045 then had to derive its own edge availability from - so two closed items both declare the same absence and no item owns it
+
+
 ## CS-1059
 
 ### Filed 2026-09-14
@@ -198,6 +211,15 @@ is non-negotiable 7.
 only when a production figure was actually computed, and an arm must redden if it is written
 as a literal. This is the same defect CS-1058 carries for the topology flags, and both were
 created by the same habit of declaring an absence with a constant.
+
+### Acceptance
+
+a new arm module under `tests/audit/` asserts generated power is the exact Fraction sum over built generators, that a generator class the registry does not model contributes a NAMED gap rather than a zero exactly as `DrawGap` already refuses to carry one, and that the balance's own `production_available` flag becomes True only when a production figure was actually computed - reddening if it is written as a literal
+
+### Full headline
+
+the power panel is production versus consumption and only consumption exists: CS-1045 delivered the exact world draw but found NO `Building` field and no extractor for generated power anywhere, so it publishes `production_available` False with a warning rather than a zero, and the headline comparison the item promised has one side
+
 
 ## CS-1043
 
@@ -237,6 +259,15 @@ entry is null and never zero.
 
 **NO FLOAT REACHES A RATE.** The two-hour completion budget is held as a `Fraction`, and the
 every-machine-at-full-clock assumption is named ON THE MODEL rather than in a comment.
+
+### Acceptance
+
+a new arm module under `tests/progress/` builds a synthetic schematic document and a synthetic unlock state, asserts each required rate is the exact Fraction cost over budget with no float anywhere, and reddens when the budget moves - which REQUIRES that budget to be a NAMED `Fraction` constant in the new module, because a literal at the site makes this clause unreddenable and that is the CS-1039 vacuity shape by name, and a second new arm module there asserts a phase cost renders machine, miner and resource as distinct keys and that a phase with no cost entry is null rather than zero
+
+### Full headline
+
+`clockspeed/data/registry.py` excludes `FGSchematic` and `clockspeed/progress/` holds no code at all, so the project cannot name one milestone, its cost, its tier or a space elevator phase cost, which is the whole of the milestone requirements panel
+
 
 ## CS-1048
 
@@ -297,6 +328,16 @@ wire - a row publishes the annotation and the node's INDEX in the served populat
 same substitution the world properties model already makes. It **writes atomically**
 (non-negotiable 5); it is the first thing in this session's plan that writes a file another
 process may read.
+
+### Acceptance
+
+a new arm module under `tests/advisor/` asserts an annotated purity is never reported as derived - the annotation round-trips keyed by instance name and its published provenance reads operator rather than measured
+
+### Full headline
+
+node purity is structurally absent from every save and the in-game map is rendered live rather than shipped, so the underlay and the purity variant have no derivation and the only dishonest move available is to invent one, and nothing records an operator's own knowledge of a node - THE FOG AND UNDERLAY HALF WAS SPLIT OUT TO CS-1061 IN SESSION 95 because its subject is absent from the code and its registration clause has nothing to register without it
+
+
 ## CS-1061
 
 ### Filed 2026-09-14, split out of CS-1048
@@ -350,6 +391,15 @@ that half.
 
 ---
 
+### Acceptance
+
+the raster crosses the save seam by whichever route is adjudicated, a new arm module under `tests/audit/` asserts its declared dimensions are derived from its own byte length rather than stated, and asserts the published transform names a config origin and scale rather than any `WorldBounds` field and reddens if a bounds field is read at all - that box bounds THIS world's placements and moves whenever the operator builds, so a transform fitted to it drifts under their hands - and the orientation and origin stay DECLARED ESTIMATED until one is measured
+
+### Full headline
+
+the map underlay has no subject in the code: `mFogOfWarRawData` was proved structurally in a 2026-09-13 probe to be a 1024 by 1024 byte square but has ZERO hits in any shipped module, it does not cross the save seam, and `clockspeed/save/world.py` fences every published world type off `bytes` and `Path` fields with a stated reason - a retained payload is the one thing no higher layer may hold - graded by `tests/save/test_world.py::test_no_published_world_type_annotates_a_carrier_field`, so an arm over synthetic bytes injected past that seam would be a statement about the fixture and never about the save - THE SEAM QUESTION COMES FIRST AND IS A DESIGN DECISION FOR AN ADJUDICATOR, not an implementation: either the raster is carried by a published type that is not a world property value, or the fence is amended for this one carrier with a named reason and its arm updated in the same diff, and IT IS NEVER QUIETLY WIDENED
+
+
 ## CS-1064
 
 ### NOTE - filed 2026-09-14 under CS-301
@@ -366,3 +416,12 @@ variable-power buildings declare ranges of 250 to 1500, 100 to 400 and 0 to 2000
 any world holding one of them has ends that genuinely differ. An arm asserting only that the two ends
 SUM correctly passes on a world where they are equal, and a world where they are equal is a world
 this item changes nothing about.
+
+### Acceptance
+
+the balance publishes a bounded total whose low and high ends are the exact Fraction sums of every bounded contribution, a class that is bounded is no longer counted in the unmodeled-gap tally, and a class that is genuinely unmodeled still is - proven by an arm that reddens when a bounded class is folded back into the gap list and by an arm asserting the two ends DIFFER on a world holding one variable-power building, because equal ends would make the interval unreddenable
+
+### Full headline
+
+`clockspeed/audit/balance.py` still reports every variable-power and struct-range building as an unmodeled DRAW GAP, but CS-301 made both shapes BOUNDED, so the world consumption total drops three of the largest loads in the game while a narrower answer now exists
+

@@ -169,9 +169,9 @@ restated fact is a fact that will drift. This table is the anti-drift control.
 |---|---|---|
 | `CLAUDE.md` | Rules, hard constraints, frozen list, settled decisions, paths, topology | Per-item history, counts, ledger entries |
 | `README.md` | Outsider-facing: what it is, install, run, first result | Internal process, roadmap, session notes |
-| `ROADMAP.md` | OPEN work only - the item LINE alone, with its ID, acceptance and tier | Completed work, aspirational ideas, NOTE bodies |
+| `ROADMAP.md` | OPEN work only - the item LINE alone: its ID, a short headline, the `acceptance: in detail` pointer and the tier | Completed work, aspirational ideas, NOTE bodies, any PART of an acceptance clause |
 | `docs/item_notes.md` | The INDEX over `docs/item_notes/` - the leaf membership rule plus the rules every leaf obeys | Any item body, item lines, a per-item routing row, completion records, history |
-| `docs/item_notes/` | LIVE per-item detail for OPEN work, one leaf per phase, one section per item ID | Item lines, completion records, history, closed items |
+| `docs/item_notes/` | LIVE per-item detail for OPEN work, one leaf per phase, one section per item ID, and the SOLE owner of a pointed-at acceptance clause under its `### Acceptance` heading | Item lines, completion records, history, closed items |
 | `BACKLOG.md` | Aspirational and conditional-trigger items, one line each | Anything currently being worked |
 | `WAKEUP_NOTES.md` | Last two to three sessions at full fidelity | Anything older - archive it |
 | `docs/LEDGER.md` | Append-only, newest-first per-item completion record | Rules, open work |

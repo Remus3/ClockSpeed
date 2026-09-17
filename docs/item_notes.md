@@ -8,8 +8,9 @@ leaves under `docs/item_notes/`.** One leaf per phase, one section per item ID i
 it. A block in a leaf is a LIVE INSTRUCTION: read an item's section BEFORE taking that
 item, and use the leaf membership rule below to find which leaf holds it.
 
-`ROADMAP.md` owns the item LINE and nothing else - the ID, the headline, the acceptance
-criterion and the tier. Its lines point at THIS file rather than at a leaf, deliberately:
+`ROADMAP.md` owns the item LINE and nothing else - the ID, a short headline, the acceptance
+POINTER and the tier. **The acceptance CLAUSE itself is owned HERE**, in the item's section
+under its `### Acceptance` heading, and a clause that sits on the line as well is two owners. Its lines point at THIS file rather than at a leaf, deliberately:
 ROADMAP's own phase headings are the single owner of which phase an item belongs to, and
 repeating that mapping on every item line would be a restated fact with somewhere to
 drift to. One hop through the leaf table below is the cost of keeping one owner.
@@ -20,6 +21,12 @@ external condition blocking a gated item (`docs/GATED.md` owns that), or history
 **When an item CLOSES its section moves to `docs/history_notes.md`**, because at that
 point it IS history - that move is what keeps these files live and that file's header
 true. A closing item's section does NOT move to another leaf.
+
+**EITHER WAY THE SECTION LEAVES ITS LEAF - IT IS NEVER ARCHIVED IN PLACE**, and where the
+closure record in `docs/LEDGER.md` already carries everything the section said, the section
+is DELETED rather than copied: a second copy of a finished record is a second owner, and
+the ledger entry is the one that a future reader is routed to. Filed 2026-09-17 by CS-971,
+on the adjudicator ruling that closed CS-1033 that way.
 
 **THIS FILE HOLDS NO ITEM BODIES.** It carries no `## CS-nnn` section and never will;
 that is asserted by `tools/drift_guard.py` guard (j), not merely intended. A body
@@ -89,6 +96,33 @@ detail**", but that block sits in CS-492's section in `docs/item_notes/phase4.md
 CS-1079 section says "this leaf" meaning `docs/item_notes/phase4-followups-900.md`, where
 it was filed, although it now sits in `docs/item_notes/phase4-followups-1000.md`. A later
 relocation that breaks another names it here.
+
+**A SECTION OWNS ITS ITEM'S ACCEPTANCE CLAUSE, UNDER EXACTLY ONE `### Acceptance` HEADING,
+AND THE CLAUSE UNDER IT IS THE WHOLE CLAUSE.** Filed 2026-09-17 by CS-971, which measured
+the alternative: acceptance cut to fit `ROADMAP.md`'s budget changed what an item required
+wherever the cut landed, and a truncation reads exactly like a clause. `tools/drift_guard.py` guard (j) grades it -
+a line carrying the `in detail` pointer whose section has no acceptance heading, a section
+with two of them, an empty one, and a clause on a line whose section carries a heading are
+each a FAIL. A headline too long for a readable line is cut to a COMPLETE short title and
+the original is filed whole under `### Full headline` in the same section.
+
+**A BODY WRITTEN BEFORE 2026-09-17 THAT SAYS OR REQUIRES THAT AN ITEM CARRIES ITS
+ACCEPTANCE CLAUSE ON ITS `ROADMAP.md` LINE IS READ AS NAMING THE PAIR THAT NOW CARRIES IT:
+the pointer on the line plus the whole clause under that item's `### Acceptance` heading
+here.** Bodies are verbatim-locked, so each sentence stays as written and this rule
+repoints them together rather than editing each. The clause itself moved byte-for-byte, so
+a body saying a clause was carried word for word is still true of the text it names.
+
+**THE RULE ABOVE REPOINTS WHERE THE CLAUSE IS, AND IT CANNOT REPOINT A DEMAND THAT THE
+CLAUSE BE READABLE ON THE LINE ITSELF.** A body requiring that - rather than requiring only
+that the item carry one - is CONTRADICTED by the move, not relocated by it, and no reading
+of it is true. Such a clause is amended on the adjudicator route with the amendment
+recorded in `docs/LEDGER.md`, never by quietly reading it as something else. **CS-1033 was
+the one measured instance** - its acceptance required the item line to carry its own
+acceptance so the roadmap could be read without following a pointer - and it was closed on
+an adjudicator ruling with that clause SUPERSEDED by
+`docs/adr/0022-acceptance-lives-in-the-item-note.md`. Its line and its section are gone and
+its record is the ledger entry, so the instance is named here rather than pointed at.
 
 `docs/upstream_watch.md` owns the CS-486 upstream watch list, which is a standing watch
 rather than per-item detail, and CS-486's section points at it.

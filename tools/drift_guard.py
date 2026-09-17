@@ -3399,6 +3399,462 @@ def _roadmap_detail_lines(roadmap_text: str) -> list[tuple[str, str | None, str,
     return found
 
 
+# CS-971 - AN ITEM'S ACCEPTANCE HAS ONE OWNER. Either the whole clause sits on its
+# ROADMAP line, or the line carries the literal pointer and the whole clause sits
+# under exactly one acceptance heading in the item's section. A clause on the line
+# beside a heading in the section is two owners, and one of them is a truncation:
+# e63668b cut clauses part-way and changed what those items require. The field is
+# found by position - after the first acceptance separator, before the last tier
+# separator - so a clause holding its own spaced hyphens is read whole.
+_ROADMAP_ACCEPTANCE_SEPARATOR = " - acceptance: "
+_ROADMAP_TIER_SEPARATOR = " - tier: "
+ITEM_NOTES_ACCEPTANCE_POINTER = "in detail"
+ITEM_NOTES_ACCEPTANCE_HEADING = "### Acceptance"
+_ANY_MARKDOWN_HEADING = re.compile(r"^#{1,6} ")
+_ITEM_NOTES_ANY_SECTION_END = re.compile(r"(?m)^## ")
+
+
+def roadmap_acceptance_fields(roadmap_text: str) -> dict[str, tuple[str | None, bool]]:
+    """Return every ROADMAP item line's acceptance field and whether it is routed.
+
+    Args:
+        roadmap_text: ROADMAP.md's text.
+
+    Returns:
+        Item id mapped to (the acceptance field's text, or None when the line
+        carries no acceptance field, and whether its LAST field is a detail field).
+    """
+    found: dict[str, tuple[str | None, bool]] = {}
+    for line in roadmap_text.splitlines():
+        item = _ROADMAP_ITEM_LINE.match(line)
+        if item is None:
+            continue
+        routed = (
+            line.rstrip().rsplit(_ROADMAP_FIELD_SEPARATOR, 1)[-1].startswith(_ROADMAP_DETAIL_FIELD)
+        )
+        _head, separator, rest = line.partition(_ROADMAP_ACCEPTANCE_SEPARATOR)
+        clause, tier, _tail = rest.rpartition(_ROADMAP_TIER_SEPARATOR)
+        found[item.group(1)] = (clause if separator and tier else None, routed)
+    return found
+
+
+def item_notes_acceptance_texts(section: str) -> list[str]:
+    """Return the text under each acceptance heading in one section, stripped.
+
+    Args:
+        section: One section's text, from its ``## CS-nnn`` heading to the next.
+
+    Returns:
+        One entry per heading line that IS the acceptance heading, holding the
+        text between it and the next heading of any level.
+    """
+    texts: list[str] = []
+    lines = section.splitlines()
+    for index, line in enumerate(lines):
+        if line.rstrip() != ITEM_NOTES_ACCEPTANCE_HEADING:
+            continue
+        body: list[str] = []
+        for following in lines[index + 1 :]:
+            if _ANY_MARKDOWN_HEADING.match(following):
+                break
+            body.append(following)
+        texts.append("\n".join(body).strip())
+    return texts
+
+
+def item_notes_section_texts(root: Path, sections: dict[str, str]) -> dict[str, str]:
+    """Return each item's section text, read from the leaf that holds it.
+
+    Args:
+        root: The repository root under audit.
+        sections: Item id mapped to the repo-relative leaf holding its section.
+
+    Returns:
+        Item id mapped to its section text. A leaf that cannot be read is left
+        out here; its absence is already graded as an unread leaf.
+    """
+    texts: dict[str, str] = {}
+    leaves: dict[str, str] = {}
+    for item, relative in sections.items():
+        if relative not in leaves:
+            try:
+                leaves[relative] = (root / relative).read_text(encoding="utf-8", errors="replace")
+            except OSError:
+                continue
+        text = leaves[relative]
+        heading = re.search(rf"(?m)^## {re.escape(item)}[ \t]*$", text)
+        if heading is None:
+            continue
+        end = _ITEM_NOTES_ANY_SECTION_END.search(text, heading.end())
+        texts[item] = text[heading.start() : end.start() if end else len(text)]
+    return texts
+
+
+def _normalised_pointer(clause: str) -> str:
+    """Return a clause in the form the pointer is RECOGNISED by, never accepted by.
+
+    Args:
+        clause: The acceptance field's text.
+
+    Returns:
+        Whitespace collapsed, casefolded, trailing sentence punctuation removed.
+    """
+    return " ".join(clause.split()).casefold().rstrip(".!?;:,")
+
+
+def item_notes_acceptance_problems(
+    fields: dict[str, tuple[str | None, bool]], section_texts: dict[str, str]
+) -> list[str]:
+    """Grade that every item's acceptance has exactly one owner.
+
+    Args:
+        fields: What ``roadmap_acceptance_fields`` returned.
+        section_texts: What ``item_notes_section_texts`` returned.
+
+    Returns:
+        One line per fault, under a header line; empty when every item is sound.
+    """
+    faults: list[str] = []
+    for item, (clause, routed) in fields.items():
+        texts = item_notes_acceptance_texts(section_texts.get(item, ""))
+        # CS-971 - A NEAR MISS IS NOT A CLAUSE AND MUST NOT READ AS ONE. `In detail`,
+        # `in detail.` and a doubled space all mean the pointer to a person and none of
+        # them is the pointer, so an exact-equality test left the item with its acceptance
+        # nowhere at all. The normalised form decides WHICH rule applies; the exact
+        # spelling is then required, so the near miss is refused rather than tolerated.
+        pointerish = clause is not None and _normalised_pointer(clause) == (
+            ITEM_NOTES_ACCEPTANCE_POINTER
+        )
+        if clause is None or not clause.strip():
+            faults.append(f"  {item} carries neither an acceptance clause nor the pointer")
+        elif pointerish:
+            if clause != ITEM_NOTES_ACCEPTANCE_POINTER:
+                faults.append(
+                    f'  {item} spells its acceptance field "{clause}", which is not the '
+                    f'acceptance pointer spelling "{ITEM_NOTES_ACCEPTANCE_POINTER}"'
+                )
+            if not routed:
+                faults.append(
+                    f"  {item} points at its section and its line carries no trailing detail field"
+                )
+            if len(texts) != 1:
+                faults.append(
+                    f"  {item} points at its section and it carries {len(texts)} "
+                    "acceptance headings"
+                )
+            elif not texts[0]:
+                faults.append(f"  {item} has an acceptance heading with no text under it")
+        elif texts:
+            faults.append(
+                f"  {item} carries an acceptance clause on its line AND an acceptance heading "
+                "in its section - two owners"
+            )
+    if not faults:
+        return []
+    return [
+        "acceptance ownership - the whole clause on the line, or the pointer "
+        f"`{ITEM_NOTES_ACCEPTANCE_POINTER}` there and one `{ITEM_NOTES_ACCEPTANCE_HEADING}` "
+        "in the section, never both:",
+        *faults,
+    ]
+
+
+# CS-971 - THE HEADLINE HALF, GRADED THE SAME WAY. A headline too long for a line is
+# cut to a COMPLETE SHORT TITLE and the original is filed under the full-headline
+# heading. A title that is instead the filed headline CUT PART-WAY is the acceptance
+# defect wearing a different field, and an adversary drove exactly that through a green
+# tree. The rule, stated so it can be tested:
+#
+#   1. A section carries at most ONE full-headline heading, and its text is non-empty.
+#   2. THE COMPARISON IS TOKEN-WISE, NEVER `startswith`. Both texts are split on
+#      whitespace, each token trimmed of surrounding markup and punctuation and
+#      casefolded. The line's tokens must equal the filed headline's FIRST N tokens; a
+#      headline that is no such prefix FAILS as underived rather than passing unexamined.
+#      That hole was measured: a trailing period, a trailing comma, an appended colon and
+#      a capitalised first letter each walked a mid-clause cut past the first build.
+#   3. When the line stops short, the filed headline's remainder must START A NEW CLAUSE -
+#      the matched text ends in ``:`` or ``;``, or the next token opens with ``-`` or is
+#      one of the separator words. Anything else is a stop mid-clause.
+#   4. A CUT title may not end on a dangling connective. The check is confined to a title
+#      that IS a strict prefix of a filed headline, because a whole headline is its
+#      author's sentence and English strands prepositions: CS-465 ends "the hops the cycle
+#      travels through" and CS-803 "what it closes over", both complete. A cut stopping on
+#      one of those words is a different thing - it stopped inside the clause it came from.
+_ITEM_NOTES_HEADLINE_HEADING = "### Full headline"
+
+#: Stripped off both ends of every token before it is compared, so a trailing comma, a
+#: period, an appended colon or a backticked spelling cannot change what a token IS. The
+#: first build compared raw strings with ``startswith`` and an adversary walked four
+#: different one-character dressings past it.
+_HEADLINE_TRIM_CHARS = "`*_\"'.,;:!?()[]"
+
+#: The same trim MINUS the two characters that ARE the clause boundary, so a filed
+#: headline's colon survives long enough to be read as one.
+_HEADLINE_TAIL_CHARS = "`*_\"'.,!?()[]"
+
+#: A clause boundary in the FILED headline, read two ways: the matched text ends with one
+#: of these, or the next token is one of the separators below.
+_HEADLINE_BREAK_CHARS = (":", ";")
+
+#: A DASH THAT SEPARATES IS THE SPACED HYPHEN, and nothing else. Reading any token that
+#: merely STARTS with a dash as a clause opener admitted every flag - a title stopping
+#: before ``-B`` or ``--no-header`` read as complete when it had stopped mid-clause.
+_HEADLINE_SEPARATOR_DASH = "-"
+
+#: The words that open a new clause, so a title may stop before one. Pinned in both
+#: directions by `tests/data/test_item_notes_index.py`, with one arm per member and a
+#: control over a word outside it, so neither shrinking nor growing this set is silent.
+HEADLINE_SEPARATOR_TOKENS = frozenset(
+    {"and", "but", "or", "so", "because", "while", "although", "which", "then", "however"}
+)
+
+#: A SHORTENED TITLE MUST STILL MAKE A CLAIM. CS-969's title was one backticked symbol -
+#: a subject with no predicate - because the filed headline's next token was "and". A
+#: title is a claim when it carries at least this many tokens, of which at least this many
+#: are PLAIN WORDS: letters (with an apostrophe or hyphen inside) rather than a backticked
+#: symbol, a path or a number.
+_MIN_TITLE_TOKENS = 5
+_MIN_TITLE_PLAIN_WORDS = 3
+_PLAIN_WORD = re.compile(r"^[a-z]+(?:['-][a-z]+)*$")
+
+#: A CONJUNCTION IS THE WEAKEST BOUNDARY THERE IS, and it was accepted unconditionally:
+#: measured on this tree, most cut titles stopped before one, and eight of them were
+#: fragments - a bare symbol, a noun phrase, an adjective, half a quotation. So a stop
+#: before a conjunction carries a heavier bar than a stop at punctuation does.
+_BOUNDARY_PUNCTUATION = "punctuation"
+_BOUNDARY_CONJUNCTION = "conjunction"
+_MIN_CONJUNCTION_TOKENS = 8
+_MIN_CONJUNCTION_PLAIN_WORDS = 5
+
+#: A cut that lands inside a code span or a quotation leaves it open, which is exactly
+#: testable by counting the delimiter. The apostrophe is NOT counted - English uses it
+#: inside words - so only the backtick and the double quote are graded.
+_HEADLINE_DELIMITERS = (("`", "an unclosed backtick span"), ('"', "an unclosed quotation"))
+
+#: A SECONDARY check under the token rule: a title ending on one of these is a sentence
+#: broken off, whatever it was cut from. Pinned in both directions by
+#: `tests/data/test_item_notes_index.py`, with one arm per member so no member sits unkilled.
+#:
+#: THE COPULAS ARE EXEMPT BY MEASUREMENT, not by taste. CS-827's filed headline ends "the
+#: way byte-order's is" and reads as a whole sentence, so "is" and "are" are not evidence
+#: of a cut and are deliberately absent from this set.
+HEADLINE_DANGLING_WORDS = frozenset(
+    {
+        "a",
+        "about",
+        "after",
+        "against",
+        "an",
+        "and",
+        "as",
+        "at",
+        "because",
+        "before",
+        "between",
+        "but",
+        "by",
+        "for",
+        "from",
+        "if",
+        "in",
+        "into",
+        "nor",
+        "of",
+        "on",
+        "onto",
+        "or",
+        "over",
+        "per",
+        "so",
+        "than",
+        "that",
+        "the",
+        "their",
+        "through",
+        "to",
+        "under",
+        "via",
+        "when",
+        "which",
+        "while",
+        "with",
+        "without",
+        "yet",
+    }
+)
+
+
+def roadmap_headlines(roadmap_text: str) -> dict[str, str]:
+    """Return every ROADMAP item line's headline.
+
+    Args:
+        roadmap_text: ROADMAP.md's text.
+
+    Returns:
+        Item id mapped to the text between its id and its first acceptance field, or the
+        rest of the line when it carries no acceptance field.
+    """
+    found: dict[str, str] = {}
+    for line in roadmap_text.splitlines():
+        item = _ROADMAP_ITEM_LINE.match(line)
+        if item is None:
+            continue
+        rest = line[len(item.group(1)) + len(_ROADMAP_FIELD_SEPARATOR) :]
+        found[item.group(1)] = rest.split(_ROADMAP_ACCEPTANCE_SEPARATOR)[0]
+    return found
+
+
+def item_notes_headline_texts(section: str) -> list[str]:
+    """Return the text under each full-headline heading in one section, stripped.
+
+    Args:
+        section: One section's text.
+
+    Returns:
+        One entry per full-headline heading, in the order they appear.
+    """
+    texts: list[str] = []
+    lines = section.splitlines()
+    for index, line in enumerate(lines):
+        if line.rstrip() != _ITEM_NOTES_HEADLINE_HEADING:
+            continue
+        body: list[str] = []
+        for following in lines[index + 1 :]:
+            if _ANY_MARKDOWN_HEADING.match(following):
+                break
+            body.append(following)
+        texts.append("\n".join(body).strip())
+    return texts
+
+
+def headline_tokens(text: str) -> list[tuple[str, str]]:
+    """Return one (raw, normalised) pair per token of ``text``.
+
+    Whitespace is collapsed by the split, each token is trimmed of surrounding markup and
+    punctuation and casefolded, and a token that trims to nothing is dropped.
+
+    Args:
+        text: A headline, filed or on the line.
+
+    Returns:
+        The pairs, in order.
+    """
+    pairs: list[tuple[str, str]] = []
+    for raw in text.split():
+        normalised = raw.strip(_HEADLINE_TRIM_CHARS).casefold()
+        if normalised:
+            pairs.append((raw, normalised))
+    return pairs
+
+
+def _headline_boundary(filed: list[tuple[str, str]], taken: int) -> str:
+    """How the filed headline's remainder after ``taken`` tokens opens a new clause.
+
+    Args:
+        filed: The filed headline's token pairs.
+        taken: How many of them the line's headline reproduced.
+
+    Returns:
+        ``_BOUNDARY_PUNCTUATION`` for a colon, semicolon or spaced hyphen,
+        ``_BOUNDARY_CONJUNCTION`` for a separator word, and ``""`` for no boundary.
+    """
+    if not 0 < taken < len(filed):
+        return ""
+    ended = filed[taken - 1][0].rstrip(_HEADLINE_TAIL_CHARS)
+    if ended.endswith(_HEADLINE_BREAK_CHARS):
+        return _BOUNDARY_PUNCTUATION
+    following = filed[taken]
+    if following[0] == _HEADLINE_SEPARATOR_DASH:
+        return _BOUNDARY_PUNCTUATION
+    if following[1] in HEADLINE_SEPARATOR_TOKENS:
+        return _BOUNDARY_CONJUNCTION
+    return ""
+
+
+def headline_derivation_faults(
+    item: str, tokens: list[tuple[str, str]], filed: list[tuple[str, str]]
+) -> list[str]:
+    """Grade one line headline against the headline its section files.
+
+    EVERY INDEX HERE IS GUARDED, because a guard that raises takes all eleven verdicts
+    down with it - non-negotiable 7. An empty token list on either side is a FAULT, never
+    an exception, and the caller reports the same fault before reaching this function.
+
+    Args:
+        item: The item id, for the message.
+        tokens: The line headline's token pairs.
+        filed: The filed headline's token pairs.
+
+    Returns:
+        Zero or one fault.
+    """
+    spelled = [normalised for _raw, normalised in tokens]
+    original = [normalised for _raw, normalised in filed]
+    plain = sum(1 for word in spelled if _PLAIN_WORD.match(word))
+    written = " ".join(raw for raw, _normalised in tokens)
+    unclosed = [name for mark, name in _HEADLINE_DELIMITERS if written.count(mark) % 2]
+    boundary = _headline_boundary(filed, len(spelled)) if spelled and original else ""
+    fault: str | None = None
+    if not spelled:
+        fault = f"  {item} has a headline that normalises to nothing"
+    elif not original:
+        fault = f"  {item} files a full headline that normalises to nothing"
+    elif spelled != original[: len(spelled)]:
+        fault = f"  {item} carries a headline that is not a prefix of its filed full headline"
+    elif len(spelled) == len(original):
+        fault = None
+    elif not boundary:
+        fault = f"  {item} carries a headline cut part-way through its filed full headline"
+    elif unclosed:
+        fault = f"  {item} carries a title ending inside {unclosed[0]}"
+    elif spelled[-1] in HEADLINE_DANGLING_WORDS:
+        fault = f'  {item} has a headline ending on the dangling word "{spelled[-1]}"'
+    elif len(spelled) < _MIN_TITLE_TOKENS or plain < _MIN_TITLE_PLAIN_WORDS:
+        fault = f"  {item} carries a title too short to state a claim"
+    elif boundary == _BOUNDARY_CONJUNCTION and (
+        len(spelled) < _MIN_CONJUNCTION_TOKENS or plain < _MIN_CONJUNCTION_PLAIN_WORDS
+    ):
+        fault = f"  {item} carries a title too short to stop before a conjunction"
+    return [fault] if fault is not None else []
+
+
+def item_notes_headline_problems(
+    headlines: dict[str, str], section_texts: dict[str, str]
+) -> list[str]:
+    """Grade that no line headline is its filed headline cut part-way.
+
+    Args:
+        headlines: What ``roadmap_headlines`` returned.
+        section_texts: What ``item_notes_section_texts`` returned.
+
+    Returns:
+        One line per fault, under a header line; empty when every headline is sound.
+    """
+    faults: list[str] = []
+    for item, headline in headlines.items():
+        filed = item_notes_headline_texts(section_texts.get(item, ""))
+        tokens = headline_tokens(headline)
+        if not tokens:
+            faults.append(f"  {item} has a headline that normalises to nothing")
+            continue
+        if len(filed) > 1:
+            faults.append(f"  {item} carries {len(filed)} full headline headings in its section")
+            continue
+        if not filed:
+            continue
+        if not filed[0]:
+            faults.append(f"  {item} has a full headline heading with no text under it")
+            continue
+        faults.extend(headline_derivation_faults(item, tokens, headline_tokens(filed[0])))
+    if not faults:
+        return []
+    return [
+        "headline completeness - a short title is COMPLETE, never the filed headline cut "
+        f"part-way, and the original is filed under `{_ITEM_NOTES_HEADLINE_HEADING}`:",
+        *faults,
+    ]
+
+
 def item_notes_domain(roadmap_text: str) -> dict[str, str | None]:
     """Return every ROADMAP item carrying a TRAILING detail field, with its phase.
 
@@ -3956,6 +4412,26 @@ def _item_notes_file_problems(
     return problems
 
 
+def _item_notes_content_problems(
+    root: Path, roadmap_text: str, sections: dict[str, str]
+) -> list[str]:
+    """Grade what each item line SAYS against what its section owns.
+
+    Args:
+        root: The repository root under audit.
+        roadmap_text: ROADMAP.md's text.
+        sections: Item id mapped to the repo-relative leaf holding its section.
+
+    Returns:
+        The acceptance-ownership faults followed by the headline-completeness faults.
+    """
+    section_texts = item_notes_section_texts(root, sections)
+    return [
+        *item_notes_acceptance_problems(roadmap_acceptance_fields(roadmap_text), section_texts),
+        *item_notes_headline_problems(roadmap_headlines(roadmap_text), section_texts),
+    ]
+
+
 def guard_index(root: Path) -> tuple[Guard, list[Skip]]:
     """Assert every routed item resolves, by the leaf membership rule, to its own section.
 
@@ -4017,6 +4493,11 @@ def guard_index(root: Path) -> tuple[Guard, list[Skip]]:
         detail.append(
             f"detail: spellings on routed lines in {ITEM_NOTES_ROADMAP_RELATIVE}: {spellings}"
         )
+        acceptance = roadmap_acceptance_fields(roadmap_text)
+        pointers = sum(
+            1 for clause, _routed in acceptance.values() if clause == ITEM_NOTES_ACCEPTANCE_POINTER
+        )
+        detail.append(f"acceptance pointers on item lines: {pointers}")
 
     if not rows and not sections and not domain:
         skips.append(
@@ -4040,6 +4521,7 @@ def guard_index(root: Path) -> tuple[Guard, list[Skip]]:
         problems.extend(_item_notes_file_problems(index_text, rules, listed))
     if roadmap_text is not None:
         problems.extend(_item_notes_routing_problems(domain, fields, sections, unread))
+        problems.extend(_item_notes_content_problems(root, roadmap_text, sections))
 
     if problems:
         return _guard("j", name, "FAIL", detail + problems), skips

@@ -75,6 +75,63 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-09-17 - CS-971 - CLOSED. An item's acceptance lives in its item-notes section, and the ROADMAP line carries a complete short title and a pointer
+
+**WHAT CHANGED.** `ROADMAP.md` was over its soft budget by more than twice, and no arrangement that
+kept whole acceptance clauses on the lines could fit: the clauses alone outweighed the whole
+budget, measured by `tools/doc_budget.py` on the base commit. An adjudicator ruled that each item's
+WHOLE acceptance moves VERBATIM into its `docs/item_notes/` section, which becomes its sole owner,
+and the line keeps its id, a COMPLETE short title, the literal `acceptance: in detail`, its tier and
+its `detail:` field. The original headline is filed whole in the section under `### Full headline`,
+so every base line reconstructs from the line plus its section - the only addition being the
+`detail:` field on items that had no section before. `CS-443` is the one exception, its clause left
+inline because a citation test pins it to `ROADMAP.md`. The rule is recorded as a decision in
+`docs/adr/0022-acceptance-lives-in-the-item-note.md` and restated as ownership in `CLAUDE.md`
+section 4, `CONVENTIONS.md`, the `ROADMAP.md` header, `docs/item_notes.md` and
+`tools/headless-queue.md`, so a lane worker grades a row against the section rather than the line.
+
+**THE GUARD.** `tools/drift_guard.py` guard (j) now also grades the line shape: every line carries
+either a whole acceptance or the exact pointer spelling; a pointer line's section carries exactly
+one non-empty `### Acceptance`; and a short title must be a token-wise prefix of the filed headline
+that stops at a clause boundary, carries a subject and a claim, closes every backtick and quotation
+it opens, and never ends on a dangling connective. A headline that normalises to nothing is a
+reported FAULT, never an exception - non-negotiable 7.
+
+**TESTS.** `tests/data/test_item_notes_index.py` - the pointer-spelling arms including the
+near-miss spellings, the acceptance-ownership arms, the token-wise prefix arms, one generated arm
+per member of the clause-opener and dangling-connective vocabularies, the unclosed-delimiter arms,
+the claim-bar arms, and the malformed-title arms that prove the guard reports rather than raises.
+
+**HOW IT WAS GRADED.** Builder, then an adjudicated design ruling, four adversary rounds and three
+verifier passes on frozen SHAs. The FIRST design - cutting both headline and acceptance on the line
+- was REJECTED after an adversary measured that cut clauses changed what items required, line after
+line ending on a dangling word. Later rounds refuted: a false count restated in three live files, a
+headline check defeated by one trailing character, an open clause-opener vocabulary, a pointer
+near-miss that left an item with no acceptance anywhere, a crash on a headline that normalised to
+nothing, and eight short titles that were fragments rather than titles. The final verifier confirmed
+every filed headline byte-identical to its base headline, 239 sections against 239 routed lines,
+every planted fault and every guard mutation red, the queue order unchanged, and the file inside its
+budget.
+
+**FILED, NOT FIXED.** The clause a section holds is never compared against what the line carried, so
+a later truncation of a relocated clause is undetectable; guard (i) is blind to an id that exists in
+no state at all; and `docs/item_notes/phase4-followups-900.md` is near its own ceiling, so the next
+filing pass trips it. Each is a row of its own.
+
+### 2026-09-17 - CS-1033 - CLOSED, DELIVERED BY CS-971 WITH ONE CLAUSE SUPERSEDED
+
+**DELIVERED.** Four of the five clauses this item asked for are satisfied by the CS-971 merge: the
+file is inside its budget, its detail is relocated rather than deleted, each line keeps a pointer to
+where its detail went, and there is one documented route from an item to its detail.
+
+**SUPERSEDED, QUOTED VERBATIM:** "the item LINE for each open item still carries its own acceptance
+so the roadmap stays readable without following a pointer". An adjudicator ruled this clause
+foreclosed: the acceptance clauses alone outweigh the whole soft budget, as `tools/doc_budget.py`
+measures on the pre-merge commit, so no arrangement satisfies both this clause and the budget. The
+decision and its fence against re-pitching per-line acceptance are recorded in
+`docs/adr/0022-acceptance-lives-in-the-item-note.md`; this entry is the item's only record, and its
+`ROADMAP.md` line and `docs/item_notes/phase7.md` section are removed rather than copied elsewhere.
+
 ### 2026-09-17 - CS-1128 - CLOSED. The separate-guard ceiling is reachable by the tautology check
 
 **THE DEFECT, AND IT WAS MEASURED RATHER THAN ARGUED.** `_SEPARATE_GUARD_CEILING: Final = 1`

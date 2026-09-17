@@ -25,8 +25,10 @@ This is why this file exists, and it is the one rule you may not reason your way
 **ONE VERIFIER PASS PER ROW, GRADED AGAINST THE ROW'S STATED ACCEPTANCE.**
 
 - The pass is run by an agent that did NOT produce the work.
-- It is graded against the acceptance clause written on the item's line in `ROADMAP.md`,
-  plus any fence in that item's section under `docs/item_notes/`. It is NOT graded against
+- It is graded against the acceptance clause under the item's `### Acceptance` heading in
+  its section under `docs/item_notes/` - the line carries the pointer `acceptance: in
+  detail` and NEVER part of the clause - plus any fence in that section. An item filed with
+  its WHOLE clause on the line is graded against that. It is NOT graded against
   the verifier's taste, its sense of what would be nicer, or a standard nobody wrote down.
 - **If a second pass refutes the same claim again, that claim becomes a FILED row and the
   cycle ships what is proven.** File it with a fresh id (section 6), say plainly in the
@@ -161,7 +163,8 @@ changes that.
 ## 5. The queue, in order, with its fences
 
 **THE QUEUE IS `ROADMAP.md` READ TOP TO BOTTOM.** That file owns the item LINE - the id, the
-headline, the acceptance clause and the tier - and its phase headings give the default
+headline, the acceptance POINTER and the tier, with the clause itself in the item's section
+under `docs/item_notes/` - and its phase headings give the default
 order. Within a phase, the file's own line order is the order. Take the FIRST row, in that
 order, that survives every fence below.
 
@@ -577,7 +580,9 @@ restated fact is a fact that will drift.**
   merged file and the TEST NAME** - not a slice sha, which often does not survive a
   cherry-pick. Write the defect, the root cause, the sibling sweep result, the tests by
   name, the tier you paid, the verifier verdict, and the exact counts you observed this run.
-- **`ROADMAP.md`** gets the item LINE alone - id, headline, acceptance, tier - and a closing
+- **`ROADMAP.md`** gets the item LINE alone - id, a short headline, `acceptance: in detail`,
+  tier - with the acceptance CLAUSE written into the item's section under its
+  `### Acceptance` heading, never split across the two - and a closing
   item's line is removed from it. Write the ledger long and the roadmap short.
 - **`docs/item_notes/`** holds the per-item body, one leaf per phase, routed by the leaf membership rule in
   `docs/item_notes.md`. **When an item closes, its section MOVES to `docs/history_notes.md`

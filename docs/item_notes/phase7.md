@@ -30,6 +30,11 @@ NOTE: filed 2026-08-16 by the CS-427 adversary, which hit it while scanning that
 
 NOTE: filed 2026-08-16 by the CS-427 adversary, which hit it while scanning that slice's diff for leaked personal data and correctly classified it as a PRE-EXISTING FALSE POSITIVE rather than a finding against the slice. Measured: the operator git author line coincides with one 4-character world name on this machine, and it is present identically on `8b3fb9d` and `1009681` - `author-line hits: 1, body hits: 0` on every revision checked. **NOTHING IS LEAKED BY THIS TODAY** - the world name is not disclosed by the author line, the coincidence runs the other way. The problem is mechanical and arrives later: **a world-name-keyed PII scan will trip on EVERY COMMIT IN THE REPO**, and a scan that is red on correct history is a scan someone switches off. CS-700's checklist includes a full-history PII scan across tracked files and commit messages, so settle the exemption rule before that gate runs rather than while it is failing. Note the CS-209 precedent: narrowing a PII blocklist by default to pre-empt a collision was DENIED BY MEASUREMENT, so an exemption here must be a named, recorded exception rather than a shortened matcher.
 
+### Acceptance
+
+the tier-3 PII scan over tracked files AND commit messages runs clean, or the collision is recorded as a known-accepted false positive with the exact matching rule that exempts it
+
+
 ## CS-704
 
 ### NOTE - relocated from `ROADMAP.md` 2026-08-23
@@ -42,6 +47,11 @@ Relocated from `ROADMAP.md` 2026-08-22 (session 31) for budget, not deleted. The
 stays OPEN in `ROADMAP.md`.
 
 filed 2026-08-22 (session 31) by the CS-702 bypass adversary, each route confirmed with a real commit. `git rebase` on BOTH backends, `git am`, `git cherry-pick`, `git revert` and `git commit --no-verify` all land a trailer git itself recognises while the hook stays silent - `git revert` was MISSED by the first enumeration and found later by an adversary, which is worth noting because it is a sequencer sibling of cherry-pick and the list was built by naming routes rather than by asking which hooks each route fires, and an unbootstrapped fresh clone runs no hook at all because `core.hooksPath` is machine-local and is never cloned. Remapping `core.commentChar` or `core.commentString` also defeats the comment-stripping premise. REBASE IS MORE ROUTINE THAN CHERRY-PICK in a worktree-slice workflow, so this class is reachable by accident rather than by evasion. CS-702 is forward-only and single-command by construction; this is the class it cannot cover. A range scan on pre-push or a check on the CI side is the route, and the first **NEEDS A FROZEN-FILE GRANT for `.githooks/pre-push`**.
+
+### Acceptance
+
+a trailer reaching `main` is caught by something that is not the commit-msg hook, proven by replaying a trailer-bearing commit through each named route and asserting each is caught
+
 
 ## CS-811
 
@@ -56,6 +66,11 @@ stays OPEN in `ROADMAP.md`.
 
 filed 2026-08-22 (session 31) by the verifier of the CS-809 repair, MEASURED with proven-landed mutants. The walk is `name.endswith("_RE") and isinstance(value, re.Pattern)` over module globals, so it sees ONE shape; a pattern named without the suffix, held in a dict or a list, compiled at call time, or an arm judging by substring all escape it, and all five were measured green. Its docstring claims it sees anything the module compiles, which is wider than what it enforces. SECOND HALF, same file: `carries_a_citation` decides carrier-hood by SHAPE, so a doc that merely names a tracked test module becomes a carrier and must be guarded or recorded even when nothing in it can rot - 31 currently-clean tracked docs are one pytest-invocation line away, and `docs/OPERATIONS.md` is the likeliest next. That is the intended forcing function but it is an undisclosed recurring hand edit.
 
+### Acceptance
+
+a judging pattern added in any of the five measured escaping shapes turns `tests/test_docs_citations.py` RED, or each escaping shape is recorded with the reason it cannot be caught
+
+
 ## CS-812
 
 ### NOTE - relocated from `ROADMAP.md` 2026-08-23
@@ -68,6 +83,11 @@ Relocated from `ROADMAP.md` 2026-08-22 (session 31) for budget, not deleted. The
 stays OPEN in `ROADMAP.md`.
 
 filed 2026-08-22 (session 31) as the CS-810 repair's disclosed residual plus one PRE-EXISTING defect its verifier found. The arms de-duplicate by name and cannot say which site is new, which is why the site pin sits in a contract test; the consequence is that `bare_name_problems` and `unresolved_citations` return empty on a genuinely new dead citation of a forgiven name. LATENT rather than live - this module is imported by nothing today, measured. SEPARATELY AND PRE-EXISTING, inherited unchanged from `f938062`: a BARE disposition whose forgiven name later becomes LIVE is never reported stale, because the now-resolves-on-its-own branch is gated on the key containing a path separator and so never fires for a bare key. Four bare-keyed entries are affected. Proven by resurrecting a forgiven name as a real def and observing the module stay green.
+
+### Acceptance
+
+an extra site for an already-forgiven citation, and a bare disposition whose name has become live again, are both reported BY THE ARM rather than only by a module-level assertion, or the split is recorded with the reason
+
 
 ## CS-813
 
@@ -151,6 +171,11 @@ FALLING INTO IT: the first probe run for this block used `%s`, reported 70 store
 `verbatim`, and would have refuted a true claim. It is the standing "a probe can validate the
 wrong channel" failure, landing on this item's own written instruction.
 
+### Acceptance
+
+a message whose STORED bytes carry a byte above 0x7E, or a stored subject over the cap, is BLOCKED whichever cleanup mode and commit path git actually uses, proven end to end across the mode-by-path matrix rather than on one path
+
+
 ## CS-814
 
 ### NOTE - relocated from `ROADMAP.md` 2026-08-23
@@ -197,6 +222,11 @@ version of this paragraph wrote that state down; an adversary caught it and was 
 half is still to write the env-echo rule where the next author of a hook will read it, and to
 prove no shipped hook path echoes the environment.
 
+### Acceptance
+
+the rule that a hook or debug path rendering the environment leaks credentials is written where the hooks' authors will read it, and a probe proves no shipped hook path echoes the environment
+
+
 ## CS-815
 
 ### NOTE - relocated from `ROADMAP.md` 2026-08-23
@@ -221,6 +251,11 @@ cannot express a probe: the fix has to live in the tools the JSON names, or in a
 `.claude/settings.json` is on the CLAUDE.md section 6 frozen list, so this needs its own operator
 grant and its own adjudication. It was explicitly OUT of the CS-703 grant and is not claimed closed
 by it.
+
+### Acceptance
+
+such a hook BLOCKS or is loudly reported, proven by pointing it at a program that ignores its arguments
+
 
 ## CS-816
 
@@ -260,6 +295,11 @@ adding it makes the hooks depend on a binary they currently do not need, and `CO
 16 says such findings are version-specific. Whatever ships must FAIL CLOSED on a timeout - a probe
 that times out and then proceeds is the CS-703 defect wearing a clock.
 
+### Acceptance
+
+a hook whose probe does not answer within a bounded time REFUSES rather than hanging, proven with PYTHONINSPECT=1 and a real commit asserting a non-zero exit inside the bound
+
+
 ## CS-817
 
 ### NOTE - relocated from `ROADMAP.md` 2026-08-23
@@ -285,6 +325,11 @@ from the one CS-806 closed.
 LINT SKIPPED rather than blocking - so a resolved python without ruff silently degrades the
 character-set gate's sibling checks rather than refusing.
 
+### Acceptance
+
+a hook whose resolved interpreter cannot import the tools that hook needs REFUSES, proven with an interpreter that is genuinely python and genuinely missing them
+
+
 ## CS-818
 
 ### NOTE - relocated from `ROADMAP.md` 2026-08-23
@@ -307,6 +352,11 @@ and this is its fourth appearance.
 
 The cheap route is for `verify_env` to run the same ladder and report the winner, failing when that
 winner is not the interpreter it just graded.
+
+### Acceptance
+
+it runs the hooks' own ladder and reports the winner, failing when that winner differs from the interpreter it just graded
+
 
 ## CS-820
 
@@ -337,6 +387,11 @@ tracked modules; a broader scan by a different agent reported more. Measuring it
 The module that surfaced it, `tests/test_hook_interpreter_ladder.py`, was fixed in place at
 `CS-703`'s merge by routing the mapping through a carrier whose repr withholds its contents - so the
 instance is closed and the CLASS is this item.
+
+### Acceptance
+
+a forced failure of a test holding such a mapping renders no value matching a credential shape, asserted on COUNTS rather than values
+
 
 ## CS-821
 
@@ -371,6 +426,11 @@ REPLACED.
 it. The stub returns 0, not 5, so the empty-suite guard never runs. Any fix must refuse a run that
 collected nothing whether it reports 5 or 0, rather than trusting the code pytest chose to return.
 
+### Acceptance
+
+a push whose suite did not actually run is BLOCKED, proven with a real python whose `PYTHONPATH` shadows pytest
+
+
 ## CS-822
 
 ### NOTE - relocated from `ROADMAP.md` 2026-08-23
@@ -390,11 +450,21 @@ PRE-EXISTING, unrelated to CS-819, and EXPLICITLY EXCLUDED from that grant so th
 in beside it. Any repair has to permit tab and newline deliberately rather than by omission, which is
 the reason this is its own item rather than a one-character change to a comparison.
 
+### Acceptance
+
+a message carrying a control byte is REJECTED end to end with a real commit, with tab and newline explicitly permitted
+
+
 ## CS-824
 
 ### NOTE - relocated from `ROADMAP.md` 2026-08-23
 
 NOTE: filed 2026-08-22 (session 33) by the CS-823 adjudicator as the SIBLING it found and was told not to widen into. The CS-823 shape does NOT transfer: pytest comes from site-packages, not the working tree, so there is no truncatable file, and the zero-collection case is already refused by the exit-5 guard. What is open is the analogue one level up - pytest exits 0 having run ONE test exactly as it does having run the whole suite, and the hook never reads the count. FROZEN FILE, needs its own grant. Distinct from CS-821, which is about a STUBBED pytest satisfying the presence check; this is about a REAL pytest doing almost nothing.
+
+### Acceptance
+
+the hook reads pytest's own collected/passed count and REFUSES below a floor, proven by a real push against a tests tree cut to a single passing test
+
 
 ## CS-953
 
@@ -419,6 +489,15 @@ checklist and this project is going public. Two further surfaces from the same
 report: a mirror clone DOES fetch `refs/pull/*/head` (531 commits existed on no
 other ref), and deleting a repository deletes its LFS store. The git object
 store is not the whole surface.
+
+### Acceptance
+
+the phase-7 scrub verifies the whole path list against the whole name list rather than a list of paths already known to worry about, proven by a probe over a synthetic history containing a renamed file that goes RED when only HEAD paths are checked
+
+### Full headline
+
+a history scrub keyed on paths as they exist at HEAD leaves every PRE-MOVE path unrenamed, because the filter callback receives each commit's own paths
+
 
 ## CS-700
 
@@ -786,3 +865,238 @@ ref is a defect in the mechanism S10 depends on.
 is deliberate, and it is sound only because S3 and S4 preserve them first.
 Any one may be recovered from the bundle and pushed later, **only after it is
 measured on all six axes in its own right**, one at a time and on the record.
+
+### Acceptance
+
+every item on that checklist passes, including the full-history secret scan, the PII scan across tracked files and commit messages, the third-party license audit, and the clean-checkout probe on a machine that has never seen the project
+
+## CS-955
+
+### Acceptance
+
+either a commit cannot carry an index the gate did not grade, or the hook refuses when the index moves under it, proven by a real commit whose index is advanced mid-hook and which is BLOCKED rather than committed
+
+### Full headline
+
+the pre-commit gate has CS-954's shape one level down: it grades THE INDEX at hook time and git then commits from the index, so a stage that lands while the hook runs is committed ungraded - the window is far narrower than pre-push's suite but the mechanism is identical
+
+## CS-956
+
+### Acceptance
+
+each of the three is measured end to end on a real clone with a positive control proving the instrument can see the opposite answer, and the results are recorded whichever way they fall
+
+### Full headline
+
+three hook properties this project relies on are unmeasured anywhere in it, and CS-952 refused a frozen-file grant on the strength of two of them: whether a hook declared in a TRACKED project settings file fires at all in an untrusted fresh clone, whether a hook's stdout reaches the transcript when it exits NON-ZERO, and whether `python` in a hook command resolves to the toolchain-bearing interpreter, which is guarded for `PreToolUse` and for nothing else
+
+## CS-1014
+
+### Acceptance
+
+an arm drives a path-shaped `pid` through the refusal seam and asserts it reaches neither `detail` nor the written row, and the arm reddens under `return pid`, with a control proving the plant is potent
+
+### Full headline
+
+`queue_loop._holder_pid`'s type guard is ungraded and the mutation `return pid` survives every arm in the file: the guard exists and is correct, but nothing measures it, and `pid` is interpolated bare into the durable JSONL as `(pid {pid})`, so a path-shaped pid off a hand-edited or older lock file reaches the row - this is the same field-by-field shape as the privacy oracle that passed while a row carried an account name, one field over
+
+## CS-1015
+
+### Acceptance
+
+an arm asserts `set(queue_loop._ACQUIRE_REFUSALS)` covers every `refused` word `ops/loop/lanes.py` can emit, DERIVED from lanes rather than restated, reddening when lanes grows or renames one
+
+### Full headline
+
+the lane refusal vocabulary is an unpinned cross-module string contract: `ops/loop/lanes.py` emits `worktree_in_use`, `ops/loop/queue_loop.py` hardcodes the same literal in `_ACQUIRE_REFUSALS`, and four test fakes spell it again, with no import, no shared constant and no contract arm - measured, renaming the word at the emitter alone leaves all 141 queue-loop arms passing, so a coherent rename silently un-fixes CS-1011
+
+## CS-1016
+
+### Acceptance
+
+one arm acquires a lane for real, has a second lane collide on the same worktree, and asserts the WRITTEN row names the fault and the occupying lane, discharging CS-1015 at the same time
+
+### Full headline
+
+no arm drives a real `lanes.try_acquire_lane` worktree collision into `run_cycle`, so the whole CS-1011 proof rests on hand-built dicts and row fidelity against a real refusal is untested end to end - this matters more than an ordinary coverage gap because CS-1011 exists precisely because the row said one thing while the driver decided another
+
+## CS-1017
+
+### Acceptance
+
+the row carries the consumed wait and the reason word, and an arm shows an early exit and a post-grace kill are one field apart in the written row rather than inferred from a total
+
+### Full headline
+
+a lane cycle row records neither the seconds `proc.wait` actually consumed nor the refusal reason, which is why the 2026-09-11 diagnosis had to invent a duration argument that was then refuted: `runner_exited_early` and a post-grace `repoint_refused` kill are indistinguishable in the record, and `duration_s` is the driver cycle clock while the 2.0s liveness grace is measured from the `Popen`, so the two cannot be compared at all
+
+## CS-1018
+
+### Acceptance
+
+the 262.5s gap is attributed to a named cause or the row is shown to be a different failure from the other eleven, with the evidence recorded either way
+
+### Full headline
+
+lane run `62f29b90` on the 2026-09-10 night started 262.5s after its predecessor where every other gap is 47.9 to 70.4s, and left no worker log at all while being the LONGEST failing row at 3.151s - `_log_path` creates only the directory and the runner creates the file, so an absent log does not place the failure before the spawn, and a pre-spawn failure would be the fastest row rather than the slowest
+
+## CS-1019
+
+### Acceptance
+
+a save-layer arm packs a distinct quaternion into an actor record's bytes and asserts the returned `ResourceNode` carries it, reddening when `_node_or_none` substitutes an identity
+
+### Full headline
+
+`clockspeed/save/world.py::_node_or_none`'s rotation and scale carry-through has no arm in its own layer: its only grader is `tests/surface/test_map.py::test_a_node_row_carries_its_own_orientation_off_the_real_parser`, two seams away, and the audit-layer arm is structurally blind to it because it builds `ResourceNode` through a test helper
+
+## CS-1021
+
+### Acceptance
+
+the comments are corrected to say deliberately-not-unit or the values are made unit, and it is decided on the record whether a unit-norm assertion belongs in the save layer's own arms
+
+### Full headline
+
+the rotation constants in `tests/surface/audit_harness.py`, `tests/surface/test_map.py` and `tests/audit/test_placement.py` are NON-UNIT quaternions documented as real factory values: `_MAP_QUARTER_TURNS` calls `(0,0,0.5,0.5)` one of "the four quarter turns about the vertical axis" and "the four spellings a factory actually contains" when its norm-squared is 0.5 and a real quarter turn is `(0,0,+-0.70710678,0.70710678)`, and no arm anywhere asserts unit norm - the shipped code is unaffected because it transcribes and must not normalise, but a panel developed against this fixture is developed against a value the game does not produce
+
+## CS-1022
+
+### Acceptance
+
+`_map_body` is bound to the same two-way guard, proven by a mutant that drops a key from a canned row and fails collection at the named raise
+
+### Full headline
+
+`tests/surface/test_panel_map.py::_map_body` claims to be "shaped exactly as the contract froze it" while carrying 4-key placement rows and no `node_orientation_available`, imports the map endpoint not at all, and binds to neither `PLACEMENT_KEYS` nor `DATA_KEYS` - CS-1013 built `_assert_rows_match` for exactly this drift and left the identical unguarded fixture next door
+
+## CS-1023
+
+### Acceptance
+
+the set is completed or the selection rule is written down and enforced by an arm
+
+### Full headline
+
+`clockspeed/audit/__init__.py` re-exports an arbitrary subset of the placement warning codes: `WARN_PLACEMENT_ORIENTATION_NON_FINITE`, `WARN_NODE_SEMANTICS_UNAVAILABLE` and `WARN_BUILT_CLASS_NOT_PLOTTED` are absent while two siblings are present, and the omission predates CS-1013 - so the package `__init__` is the arbitrary thing rather than any one slice
+
+## CS-1024
+
+### Acceptance
+
+the census reaches every model on the published path, proven by planting a disclosing `str` field on `Placement` and showing the guard reddens
+
+### Full headline
+
+`clockspeed/audit/placement.py::Placement` carries a GENERATED dataclass repr, now rendering six fields, and is invisible to both PII censuses: R1 in `tests/repr_rendering_guard.py` covers only `clockspeed/save/`, and R2 fires only on a `bytes` or `Path` annotation, so `scan_tree()` holds no `Placement` entry at all - no leak today because the six fields are a class name and decimal strings, but this is the one model on the published path whose repr no guard grades, and the next `str` field added there is unmeasured
+
+## CS-1026
+
+### Acceptance
+
+the three are wrapped, proven by a planted-collision arm asserting nothing threw, the panel was NOT marked failed, AND the solve bench built the planted module's field ids - the third clause is what separates a real proof from an arm that passes because the collision silently did nothing; the measured note is reproduced in the CS-1026 ledger citation, which is where it stays - this line carries no routing field because the item has no section
+
+### Full headline
+
+`panel_solve.js`, `panel_map.js` and `panel_scope.js` declare their helpers in the page's SHARED GLOBAL SCOPE while only `panel_registry.js`, `panel_warnings.js`, `panel_optimize.js` and `panel_power.js` are IIFE-wrapped, leaving the unwrapped three one name collision away from a SILENT wrong-render rather than an error: a redeclaration is silent, a mount closes over the binding rather than a snapshot, and `mountPanel`'s `try` only fires on a throw, so the symptom is a normal-looking bench whose request is permanently refused with a message naming the wrong cause
+
+## CS-1027
+
+### Acceptance
+
+both spellings are added to the planted-positive arm and the arm reddens on each, with the tokenizer sweep kept as the independent control
+
+### Full headline
+
+the panel division detectors miss two real spellings: the `DIVISION` pattern in `tests/surface/test_panel_power.py` and `tests/surface/test_panel_optimize.py` fired on 8 of 10 realistic plantings under an adversarial probe and MISSED `x /= y` and `x / -y`, so the arm that enforces non-negotiable 6 in the render path has two holes in its oracle - neither spelling is present today, proven by an independently written JS tokenizer that found zero bare slashes across both panels and `app.js`, so this is an oracle gap rather than a live defect
+
+## CS-1028
+
+### Acceptance
+
+one owner for the routine or a digit-correctness oracle over every copy, proven by a mutant that corrupts a digit and reddens an arm for each panel
+
+### Full headline
+
+`approximateDecimal` now exists in FOUR panel files and only one copy is graded for correctness: `panel_solve.js`'s copy has a digit oracle in `tests/surface/test_panel_solve.py`, while the copies in `panel_registry.js`, `panel_optimize.js` and `panel_power.js` are graded only for "does not divide" and never for "produces the right digits" - so a silently wrong reading aid in the power bench passes today, which is the silently-wrong half of non-negotiable 7 wearing a helper
+
+## CS-1029
+
+### Acceptance
+
+the name states what the arm asserts, and a guard or a review note covers the general case of a renamed assertion keeping its old name
+
+### Full headline
+
+`tests/surface/test_web_assets.py::test_the_page_issues_exactly_one_post_and_no_form` now asserts TWO posts: the docstring was updated when `/api/optimize` gained its door and the FUNCTION NAME was not, so the name states a property the body contradicts and a later reader greps the name rather than reading the body
+
+## CS-1030
+
+### Acceptance
+
+the exponent has ONE owner that the other six cite, or the restatement is placed under a drift guard that reddens when the owner moves
+
+### Full headline
+
+`clockspeed/surface/api/power.py` restates the shipped exponent `1.321929` and its measured float in prose, making a SIXTH tracked copy of a measured number: five modules already do this so it is within precedent rather than a new fault, but CLAUDE.md section 4 says a restated number is a number that will drift and a hardcoded count in a doc is a lie with a timestamp on it
+
+## CS-1031
+
+### Acceptance
+
+every reason in the canned body is read from the module that publishes it, proven by a mutant that changes a published reason and reddens the fixture guard
+
+### Full headline
+
+`tests/surface/audit_harness.py::_power_data` binds ONE reason string to its owner and hand-authors the other four: `ceiling.reason` reads `power.ceiling_reason(None)` while four sibling `reason` values are invented prose, so a panel arm graded against the canned body can pass while the real endpoint says something else - partial binding is the shape CS-1013 was refuted over, one field at a time rather than one row at a time
+
+## CS-1032
+
+### Acceptance
+
+one end-to-end control renders a known panel in a real browser and is compared against the stand-in's verdict for the same payload, with the comparison recorded whichever way it falls, and the stand-in's DIVERGENCES from the browser are enumerated rather than assumed empty
+
+### Full headline
+
+`tests/surface/panel_harness.py`'s DOM stand-in has no known-good browser control anywhere in the repo, and every panel verdict in the project rests on it: all 37 arms added for the optimize and power panels, plus every existing panel arm, run under `drive()` against a stand-in that nothing compares to a real browser, so "the page renders X" is a claim about the stand-in and not about the page - this project has already recorded that the dashboard's self-signed HTTPS defeats automation browsers and that browser-pane resize, focus and default key scrolling are silently faked, which is why the gap is unclosed rather than merely unnoticed
+
+## CS-1034
+
+### Acceptance
+
+every path-shaped privacy needle is asserted through an oracle proven potent by a planted positive that the arm FINDS, and the four arms above redden on a body carrying the reflected path
+
+### Full headline
+
+four anti-leak privacy arms hunt a needle the encoder can never produce: `tests/surface/test_health.py::test_health_answers_200_even_when_a_parameter_it_does_not_accept_arrives` and `::test_a_present_registry_and_world_render_as_words_not_as_what_they_are`, `tests/surface/test_world.py::test_an_unknown_parameter_is_a_400_that_reflects_nothing` and `tests/surface/test_registry.py::test_a_request_naming_a_parameter_is_refused_and_reflects_nothing` each assert a home-shaped path is ABSENT from an encoded body using `needle.encode("ascii") in blob`, but `clockspeed/surface/api/contract.py::encode` is `json.dumps`, which doubles every backslash, so the needle cannot match under any circumstances and a body that genuinely reflects a refused path passes all four - measured, a reflecting body returns True for the not-in assertion - none of the four carries a planted positive, and these guard non-negotiables 3 and 12 - the repo already does it right twice, at `tests/surface/test_registry.py::test_the_body_carries_no_path_shaped_value` which hunts a lone backslash character and `tests/surface/test_map.py::test_an_unknown_parameter_is_a_400_that_reflects_nothing` which uses a JSON-safe canary, so this is a gap and not a limitation
+
+## CS-1035
+
+### Acceptance
+
+the count-carrying raises are graded by an arm that reddens when the count argument is dropped, for the unread raise and the undecoded raise both
+
+### Full headline
+
+`clockspeed/audit/inventory.py` carries CS-1020's ungraded-count shape in the module named beside `placement.py`: `_warning` defaults `count=1` and the two raises inside `inventory_of` pass `unread` and `undecoded`, and NO arm anywhere grades any inventory warning's `.count` - the only arm driving the code, `tests/audit/test_inventory.py::test_the_unread_payload_count_travels_as_the_honest_denominator`, asserts presence alone, so deleting the `unread` argument from that raise takes the served count from 2 to 1 under a fixture where `unread == 2` and the whole suite stays green - the `containers_read` and `undecoded` model FIELDS are properly count-graded by `tests/audit/test_inventory.py::test_the_container_count_actually_read_travels_beside_the_total` and `::test_an_undecoded_container_entry_is_counted_rather_than_dropped`, so the defect is confined to the warning counts
+
+## CS-1036
+
+### Acceptance
+
+both sets are DERIVED - the population set from the `*_placements` fields of `WorldPlacement`, the orientation count from the served rows rather than the constants - each reddening when the shipped model grows, which is the shape CS-1015 already filed for the lane vocabulary
+
+### Full headline
+
+both CS-1025 and CS-1020 enforce their sweeps over a HAND-ENUMERATED population rather than one derived from the shipped model, which is the exact defect class they were filed over: `tests/audit/test_placement.py::POPULATIONS` is the literal pair node and built with nothing binding it to `WorldPlacement`'s own fields, and `tests/surface/test_map.py::EXPECTED_ORIENTATION_COMPONENTS = 14` is asserted against the length of four fixture tuples that exist in no other file - measured, no mutation of shipped code can fail that assertion, so it is a fixture-integrity guard and grades nothing about behaviour - CS-1020 exists precisely because `placement_of` grew a second loop and the test population did not follow it, so a third population would repeat it with every arm green
+
+## CS-1037
+
+### Acceptance
+
+the uniqueness enforcement covers every needle-eligible fixture family rather than the orientation family alone, and the colliding planted pair is either re-picked or documented on the record as safe because its arms compare whole tuples
+
+### Full headline
+
+the fixture collision CS-1025 was filed over survives in two places the repair did not reach: `tests/audit/test_placement.py` still holds, at module level, `PLANTED_ROTATION = (0.5, -0.25, 0.125, 0.8125)` and `PLANTED_SCALE = (2.0, 0.5, -1.5)`, byte-identical to the pre-fix constants and colliding on the same rendering, feeding the membership-based anti-vacuity control inside `test_no_orientation_component_reaches_the_model_as_a_float` where one of seven needles is non-load-bearing; and in `tests/surface/test_map.py` the TRANSLATION components are needle-eligible but unswept, with `BUILT_TRANSLATION[0]` deliberately ambiguous at a count of two - no mutant was found for either, so both are weakened rather than defeated, but a future author writing an anti-vacuity control off a translation walks into the identical trap and the new uniqueness sweep will not see it
+
