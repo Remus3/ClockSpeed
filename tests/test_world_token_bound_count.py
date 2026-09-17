@@ -27,10 +27,12 @@ refutation):
   INTERMEDIATE helper (for example `_report_root_cap`) is not followed and not
   refused. Only direct calls by bare name are walked. Accepted as obfuscation
   rather than a plausible maintainer shape.
-- F3, filed as CS-1105: the arm counts REPORTING SITES, not truncation
-  conditions. A cap that only ORs into `scan_capped` beside an existing
-  report, or any cap inside clockspeed/save/header.py's scanner, adds no
-  reporting site and is not counted.
+- CS-1105 retired F3. This arm still counts REPORTING SITES only, and that is
+  now its whole job: truncation CONDITIONS - a cap that only ORs into
+  `scan_capped`, or one inside clockspeed/save/header.py's scanner - are
+  enumerated and driven to the exit status by
+  tests/test_truncation_conditions_block.py, which reddens on a condition that
+  has no blocking case.
 - CS-1106 retired F5. The NON-BLOCKING population is now read from the code
   too: every exception handler reached from the target that neither re-raises
   nor makes a blocking production, and every `suppress(...)` call, keyed by
