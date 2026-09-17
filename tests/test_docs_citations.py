@@ -252,8 +252,11 @@ import pytest
 from tests import test_citation_tables as tables
 from tests.bare_path_guard import (
     _INTERPRETER_NAMES,
+    ABSENT_DECLARATION_RE,
     AMBIGUOUS_SUFFIX,
     BARE_PATH_RE,
+    DECLARED_ABSENT,
+    DECLARED_ABSENT_BOUND,
     DECLARED_UNTRACKED,
     FIXTURE_LITERAL,
     LADDER_RUNGS,
@@ -279,10 +282,12 @@ from tests.bare_path_guard import (
     module_patterns,
     pinned_rung_problems,
     source_roots,
+    stale_declaration_problems,
 )
 from tests.save import test_oracle_citations as oracle_citations
 from tests.test_citation_tables import (
     DATED_ARCHIVE,
+    DECLARED_ABSENT_CEILING,
     DECLARED_UNTRACKED_CEILING,
     DELIBERATE,
     FIXTURE_LITERAL_CEILING,
@@ -618,6 +623,33 @@ ELIDED_RE: Final = re.compile(r"(?<![A-Za-z0-9_])::(test_[a-z0-9_]{8,})\b")
 # That is what keeps a FUTURE arm from falling out of the boundary the way the
 # elided arm did - the arm and the boundary cannot drift apart quietly.
 JUDGED_SHAPES: Final = (CITATION_RE, LINE_POINTER_RE, BARE_RE, ELIDED_RE, BARE_PATH_RE)
+
+#: THE PATTERNS THIS FAMILY COMPILES THAT ARE NOT CITATION SHAPES, and the
+#: boundary contract reads this beside :data:`JUDGED_SHAPES` rather than
+#: instead of it.
+#:
+#: WHY IT EXISTS. The contract walked every compiled pattern in the family and
+#: required each to be a shape the carrier boundary reads. That was true while
+#: every pattern here ANSWERED the question "does this text cite something". It
+#: stopped being true when CS-899 added a pattern that answers a different
+#: question - whether the author has DECLARED the path on this line absent -
+#: and the two cannot be merged: a doc carrying a declaration and no citation
+#: is not a carrier, and admitting one to :data:`JUDGED_SHAPES` would move the
+#: guarded-set boundary as a side effect of a repair that is not about it.
+#:
+#: WHY IT IS A TABLE RATHER THAN A WIDER RULE. "Not every pattern is a citation
+#: shape" as a sentence forgives every future pattern in silence, which is the
+#: permission-list shape this module exists to refuse. Naming them costs one
+#: row per pattern and the contract checks the table in BOTH directions, so a
+#: row for a pattern the family no longer compiles reddens exactly as an
+#: undeclared pattern does.
+#:
+#: THE RENAMING EVASION IS WORTH STATING because it is the cheap way past the
+#: contract and it is forbidden here: :func:`tests.bare_path_guard.module_patterns`
+#: reads the ``_RE`` suffix, so a pattern named anything else is invisible to
+#: the walk entirely. A pattern this family judges by is named ``_RE`` and is
+#: then declared in one of these two tables. Nowhere else.
+NON_CITATION_PATTERNS: Final = (ABSENT_DECLARATION_RE,)
 
 
 #: The pointers the forbid rule DOES NOT reach, pinned so the hole stays
@@ -1196,6 +1228,11 @@ NOT_A_FORGIVENESS: Final[Mapping[str, str]] = {
     "ITEM_NOTES_LEAVES": "derived from the filesystem, and widens GUARDED_DOCS",
     "ADR_DOCS": "derived from the filesystem, and widens GUARDED_DOCS",
     "JUDGED_SHAPES": "widens what counts as a citation; adding to it can only add findings",
+    "NON_CITATION_PATTERNS": (
+        "declares which patterns are NOT citation shapes, and the boundary contract"
+        " checks it in both directions, so a row that stops describing a compiled"
+        " pattern reddens rather than forgiving the next one"
+    ),
     "LADDER_RUNGS": "the ladder's rung names, in order",
     "FORGIVENESS_TABLES": "the registry itself, walked by the contract that reads it",
     "NOT_A_FORGIVENESS": "the registry itself, walked by the contract that reads it",
@@ -2256,7 +2293,11 @@ def test_every_pattern_this_module_judges_by_also_decides_what_carries_a_citatio
         "this module compiles no pattern named *_RE, so the derivation below "
         "reads an empty set and would pass whatever the boundary ignored"
     )
-    missing = sorted(name for name, value in compiled.items() if value not in JUDGED_SHAPES)
+    missing = sorted(
+        name
+        for name, value in compiled.items()
+        if value not in JUDGED_SHAPES and value not in NON_CITATION_PATTERNS
+    )
     assert not missing, (
         "patterns this module judges by that the boundary contract does not read:\n"
         + "\n".join(f"  {name}" for name in missing)
@@ -2994,6 +3035,34 @@ def test_every_bare_path_in_the_carrier_population_resolves_or_is_recorded(
 
     assert not problems, "bare paths that neither resolve nor carry a reason:\n" + "\n".join(
         f"  {problem}" for problem in problems
+    )
+
+
+def test_no_absence_declaration_in_the_live_tree_has_outlived_its_prose(
+    line_pointer_carriers: Mapping[str, str],
+) -> None:
+    """CS-899's third direction, on the live tree.
+
+    A declaration buys silence for the citation on its own line and for nothing
+    else, so prose that is rewritten takes its declaration with it. This arm is
+    what makes that a property of the TREE rather than of the controls: a
+    declaration left behind by an edit is reported here before anybody notices
+    the sentence around it stopped saying what it said.
+
+    THE POPULATION IS THE SAME ONE THE LADDER JUDGES, injected rather than
+    re-derived, so the two cannot come to disagree about which files are read.
+    """
+    assert line_pointer_carriers, (
+        "the carrier population is empty, so this arm would read no declarations "
+        "and pass whatever it ignored"
+    )
+
+    problems = stale_declaration_problems(line_pointer_carriers)
+
+    assert not problems, (
+        "absence declarations that no longer forgive anything:"
+        + NEWLINE
+        + (NEWLINE.join(f"  {problem}" for problem in problems))
     )
 
 
@@ -3898,6 +3967,7 @@ def test_no_recorded_bound_is_computed_from_the_table_it_bounds() -> None:
         (DECLARED_UNTRACKED, tables.DECLINED_AS_DECLARED_UNTRACKED, DECLARED_UNTRACKED_CEILING),
         (UNTRACKED_ROOT, tables.DECLINED_UNDER_AN_UNTRACKED_ROOT, UNTRACKED_ROOT_CEILING),
         (FIXTURE_LITERAL, tables.DECLINED_AS_A_FIXTURE_LITERAL, FIXTURE_LITERAL_CEILING),
+        (DECLARED_ABSENT, tables.DECLARED_ABSENT_IN_DOC, DECLARED_ABSENT_CEILING),
     ],
 )
 def test_every_decline_disclosure_is_budgeted_and_spent_exactly(
@@ -4067,6 +4137,141 @@ def test_this_test_module_is_seven_bit_ascii() -> None:
 
     assert not [byte for byte in raw if byte > HIGHEST_ASCII], (
         "this module carries a byte above the 7-bit range"
+    )
+
+
+# --- contract 11: CS-899 - discussing-prose in markdown is DECIDED, not forgiven
+
+
+def test_discussing_prose_that_declares_the_absence_is_declined_with_no_record() -> None:
+    """CS-899's acceptance, and the whole of it.
+
+    Planted discussing-prose that DECLARES the absence it is talking about is
+    green with NO entry in any forgiveness table, and the identical prose
+    without the declaration still reports. The declaration is a MECHANISM
+    rather than a recorded forgiveness because it names something the ladder
+    CHECKS on every run - see the arm below for the other direction.
+
+    BOTH HALVES IN ONE ARM, and a verifier is why. The first draft asserted
+    only the green half, which is indistinguishable from a rung that answers
+    EVERYTHING - a `declared_absent` stuck True passes the green half and every
+    other unit arm here, and was caught only at tree level. The negative half
+    below is what makes the green one mean something.
+    """
+    absent = bare_path("docs", "item_notes", "README.md")
+    sentence = f"## Decision\n\nThe family gets no `{absent}` at all."
+    prose = f"{sentence} <!-- absent: {absent} -->\n"
+    sites = bare_path_sites({_SYNTHETIC_DOC: prose})
+
+    declared = bare_path_ladder(sites, [LEDGER], (), {}, ())
+
+    assert len(declared[DECLARED_ABSENT]) == 1, "a declared absence was not answered by its rung"
+    assert bare_path_problems(declared) == [], "declared discussing-prose was reported"
+
+    undeclared = bare_path_ladder(
+        bare_path_sites({_SYNTHETIC_DOC: sentence + "\n"}), [LEDGER], (), {}, ()
+    )
+
+    assert undeclared[DECLARED_ABSENT] == [], "the rung answered prose that declares nothing"
+    assert len(bare_path_problems(undeclared)) == 1, (
+        "the identical prose WITHOUT the declaration was also green, so the rung above "
+        "is answering everything rather than answering the declaration"
+    )
+
+
+def test_a_declared_absence_the_tree_binds_is_reported() -> None:
+    """The other direction, which is what makes the declaration a rule.
+
+    A recorded forgiveness names nothing to check and is spent forever. This
+    declaration is falsifiable by the tree: the moment the path it calls absent
+    becomes tracked, the carrier is REPORTED rather than silently wrong.
+    """
+    live = bare_path("docs", "LEDGER.md")
+    sentence = f"## Decision\n\nThere is no `{live}` here."
+    prose = f"{sentence} <!-- absent: {live} -->\n"
+    sites = bare_path_sites({_SYNTHETIC_DOC: prose})
+
+    bound = bare_path_ladder(sites, [LEDGER], (), {}, ())
+
+    assert len(bound[DECLARED_ABSENT_BOUND]) == 1, "a declaration the tree falsifies was not caught"
+    assert len(bare_path_problems(bound)) == 1, "a false absence declaration was not reported"
+
+    plain = bare_path_ladder(
+        bare_path_sites({_SYNTHETIC_DOC: sentence + "\n"}), [LEDGER], (), {}, ()
+    )
+
+    assert plain[DECLARED_ABSENT_BOUND] == [], (
+        "the rung fired on a line carrying no declaration at all"
+    )
+    assert bare_path_problems(plain) == [], (
+        "the same live path with NO declaration was reported, so the arm above is measuring "
+        "resolution rather than the falsified declaration it claims to measure"
+    )
+
+
+def test_a_declaration_naming_a_path_its_line_does_not_spell_is_reported() -> None:
+    """The third direction: a declaration cannot be left behind by its prose.
+
+    The landmine CS-891's merger asked about and nobody answered. A record in a
+    Python table outlives the sentence it forgives; a declaration on the line
+    cannot, because a line carrying one and no matching spelling is REPORTED.
+    """
+    absent = bare_path("docs", "item_notes", "README.md")
+    stranded = f"## Decision\n\nThe prose moved on. <!-- absent: {absent} -->\n"
+
+    assert stale_declaration_problems({_SYNTHETIC_DOC: stranded}), (
+        "a declaration whose line spells no such citation was accepted"
+    )
+    assert stale_declaration_problems({_SYNTHETIC_DOC: "## Decision\n\nNothing here.\n"}) == []
+
+
+def test_a_declaration_inside_a_fixture_literal_silences_nothing_outside_it() -> None:
+    """The SIBLING of the arm below, and it was found by a verifier rather than here.
+
+    The walk that judges a declaration STALE applies R4; the collection that
+    decides whether a site is declared absent did not. So a declaration written
+    inside a non-docstring string literal silenced a genuinely dead citation
+    spelled OUTSIDE that literal on the same line, and was exempt from the
+    staleness direction besides - two of the three directions, on a shape whose
+    docstring claims all three.
+
+    ONE LINE, TWO CONTEXTS, AST-DECIDABLE, which is the same shape the arm
+    below already had for the walk.
+    """
+    dead = bare_path("docs", _BARE_PLANT_LEAF)
+    line = f'X = "<!-- absent: {dead} -->"  # see `{dead}` for detail\n'
+    owned_root = [bare_path("docs", "LEDGER.md")]
+
+    answered = bare_path_ladder(bare_path_sites({_SYNTHETIC_MODULE: line}), owned_root, (), {}, ())
+
+    assert answered[DECLARED_ABSENT] == [], (
+        "a declaration inside a fixture literal was read as the author declaring an"
+        " absence, so it bought silence for a citation it does not sit with"
+    )
+    assert len(bare_path_problems(answered)) == 1, (
+        "the dead citation outside the literal was silenced by a declaration inside it"
+    )
+
+
+def test_a_declaration_in_a_fixture_literal_is_declined_and_the_same_one_in_prose_is_not() -> None:
+    """R4's teeth again, on the declaration walk rather than on the ladder.
+
+    A control that plants a declaration to prove this walk fires spells that
+    declaration inside a string literal, so a walk that read every line would
+    report the module that proves it works. The partition is AST-decidable and
+    it is the same one R4 already uses, which is why this is not a second rule
+    with a second boundary to rot.
+    """
+    stranded = "<!-- absent: docs/nowhere.md -->"
+    fixture = f'CORPUS = {{"note": "{stranded}"}}\n'
+    prose = f'"""A note saying {stranded} and nothing else."""\n'
+
+    assert stale_declaration_problems({_SYNTHETIC_MODULE: fixture}) == [], (
+        "a declaration inside a non-docstring literal was read as a live one"
+    )
+    assert len(stale_declaration_problems({_SYNTHETIC_MODULE: prose})) == 1, (
+        "the identical declaration in a DOCSTRING was declined, so the walk answers "
+        "fixture data rather than the author talking"
     )
 
 

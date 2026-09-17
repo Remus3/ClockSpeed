@@ -6226,6 +6226,41 @@ Aged out when session 31 landed and `WAKEUP_NOTES.md` keeps only the last three 
 
 <!-- Newest first. Each block: date archived, source file, then the content. -->
 
+<!-- Relocated from docs/item_notes/phase4-followups-850.md on 2026-09-17 by the queue lane cycle that closed CS-899. RELOCATE, DO NOT DELETE - CLAUDE.md section 4. The item is CLOSED; read this as the state it was in, not as a current claim. -->
+
+## CS-899
+
+### NOTE - filed 2026-09-04 (session 60) by the merger, from the CS-891 adjudication, and it is CS-891's UNMET CONJUNCT
+
+**THIS IS THE HALF OF CS-891 THAT DID NOT CLOSE.** CS-891 closed as an honest partial and
+this is what it did not buy: no mechanism distinguishes prose that DISCUSSES a dead path
+from prose that CITES one, in a markdown carrier.
+
+**MEASURED BY THE ADJUDICATOR, NOT ASSERTED.** It planted unambiguous discussing-prose into
+four guarded docs and got FOUR REDS. The module asserts that red as a REQUIREMENT - an arm
+exists whose whole job is to fail when the same prose carries no record, so that the green
+half is a record doing work rather than silence. The arm is therefore red-by-default on
+correct prose and green only where a forgiveness was spent on that exact identity.
+
+**THE PYTHON HALF IS SOLVED AND THAT IS WHY THIS IS TRACTABLE.** The R4 rung partitions a
+Python carrier by AST into author prose and a non-docstring string literal, and on this tree
+the partition is exact. Markdown has no AST and no equivalent was built. So "quoting and
+citing are indistinguishable by shape", which the CS-891 note states in capitals, is FALSE
+in general and TRUE only for markdown.
+
+**A SECOND QUESTION RIDES ON THIS ONE AND IS ALSO UNANSWERED.** Is a forgiveness recorded
+against a carrier that is REWRITTEN EVERY SESSION a correctly-working ratchet reporting that
+the prose left, or a landmine that reddens a future session's push for no defect? CS-891's
+merger demanded that be answered before dispatch. The round's own archive commit removed the
+only churning subject, so the question became moot without being answered, and the shipped
+arm is proven against a record in an immutable ADR and unproven against a record in a
+churning file.
+
+**DO NOT CLOSE THIS WITH A KEYWORD TEST OVER NATURAL LANGUAGE** - a negation detector, a
+"which does not exist" matcher. That is a prose heuristic, it fails SILENTLY in the
+permissive direction, and it forgives a real dead citation forever with nothing red. A loud
+false positive beats a silent forgiveness, which is this module's own recorded doctrine.
+
 ### Archived 2026-08-16 from `WAKEUP_NOTES.md` - session 9 at full fidelity
 
 Aged out when session 12 landed and `WAKEUP_NOTES.md` keeps only the last three sessions.

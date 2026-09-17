@@ -13319,6 +13319,137 @@ derived and printed by the census, never edited, and are now CS-858.
 
 <!-- Newest first. Append new entries immediately below this line. -->
 
+### 2026-09-17 - CS-899 - CLOSED. Markdown discussing-prose is DECIDED by an absence declaration the ladder checks three ways, and three recorded forgivenesses were retired to pay for it
+
+**The defect.** `tests/bare_path_guard.py` R4 partitions a PYTHON carrier by AST into author
+prose and the data a module feeds itself, and on this tree that partition is exact. Markdown
+has no AST and no equivalent was built, so prose that DISCUSSES a dead path - an ADR recording
+that a file is deliberately not created, a phase leaf naming the phase 5 ledger module that
+does not exist yet - was indistinguishable by shape from prose that CITES one. The only
+available answer was a row in `BARE_PATH_REASONS`, and CS-891's adjudicator measured four reds
+on planted discussing-prose. A keyword or negation detector over the sentence had already been
+priced and REFUSED for failing in the permissive direction.
+
+**The root cause, and it is not the markdown parser.** R4 is not reading the sentence - it is
+asking whether the site is DATA the module operates on or the author talking, and that question
+happens to be answerable from a Python parse tree. Markdown carries no such signal anywhere,
+so the missing thing was never a better reader. It was an authored signal the guard could
+check, which is what `.gitignore` is to R2 and a docstring is to R4.
+
+**What shipped.** `tests.bare_path_guard.ABSENT_DECLARATION_RE` reads an HTML comment of the
+form `<!-- absent: <path> -->`, and `BarePathSite.declared_absent` records whether the LINE a
+spelling sits on carries one naming that same path. The ladder answers it at a new rung ABOVE
+R0, `DECLARED_ABSENT`, and it is checked in three directions rather than spent once:
+
+- the path must still be absent, or the site is reported at `DECLARED_ABSENT_BOUND` - a
+  declaration the tree has falsified is a finding and not a resolution, which is why the rung
+  sits above R0 rather than below it;
+- the line must still spell that path as a citation, or `stale_declaration_problems` reports
+  it, so prose that is rewritten cannot leave a declaration behind;
+- it buys silence for ONE path on ONE line and for nothing else.
+
+**That third direction answers the question CS-891's merger demanded before dispatch and
+nobody answered** - whether a forgiveness recorded against a carrier rewritten every session
+is a working ratchet or a landmine. It is answered by construction: a declaration cannot
+outlive its line. The round that asked it lost the only churning subject to an archive commit
+and the question went moot instead.
+
+**The sibling sweep, and it is what makes this a move rather than a widening.** All three of
+the live markdown forgivenesses shared the root cause, so all three were swept: the ADR 0010
+row and the two phase-leaf rows came OFF `BARE_PATH_REASONS`, whose ceiling fell from 4 to 1,
+and onto `DECLARED_ABSENT_IN_DOC` under `DECLARED_ABSENT_CEILING`. The one row that remains is
+the one that is not a markdown carrier at all. The two budgets together say that nothing was
+forgiven twice.
+
+**A SECOND DEFECT THIS CYCLE FOUND IN ITS OWN WORK, and the arm that found it was the live
+one.** The first build of `stale_declaration_problems` read every line of every carrier and
+reported the three controls that plant a declaration to prove the walk fires - each spelling it
+inside an f-string template whose placeholder is not a path at all. The repair is R4 itself
+rather than a second boundary: a declaration inside a Python string literal that is not a
+docstring is a control's fixture, and `test_a_declaration_in_a_fixture_literal_is_declined_and_the_same_one_in_prose_is_not`
+holds both directions.
+
+**One contract had to widen, and it is worth reading because the narrow version was right until
+today.** `test_every_pattern_in_every_walked_module_is_a_judged_shape` required every compiled
+pattern in the family to be a shape the carrier boundary reads. That was true while every
+pattern ANSWERED "does this text cite something". The declaration pattern answers a different
+question, and admitting it to `JUDGED_SHAPES` would have moved the guarded-set boundary as a
+side effect of a repair that is not about it. `NON_CITATION_PATTERNS` declares it instead, and
+the contract now checks that table in BOTH directions - a row for a pattern the family no
+longer compiles reddens exactly as an undeclared pattern does. The renaming evasion is closed
+by the same walk: `module_patterns` reads the `_RE` suffix, so a pattern named anything else is
+invisible, and a pattern this family judges by is named `_RE` and then declared in one of the
+two tables.
+
+**WHAT THIS DOES NOT CLAIM, stated here because a caveat said in a cycle report is not a
+caveat in the artifact.** The mechanism does not INFER intent from a sentence and it was never
+going to - discussing-prose that declares nothing is still REPORTED, exactly as before. What
+changed is that the answer is now an authored, machine-checked, self-falsifying declaration in
+the carrier instead of a row in a Python table that names nothing to check. That is the same
+standing R2 gives `.gitignore` and R4 gives a docstring. A reader who wants the guard to read
+the prose itself is asking for the keyword detector this item's own note refuses by name.
+
+**Tests, by name.** `tests/test_docs_citations.py` -
+`test_discussing_prose_that_declares_the_absence_is_declined_with_no_record` (the acceptance
+clause, and the record table is passed EMPTY),
+`test_a_declared_absence_the_tree_binds_is_reported`,
+`test_a_declaration_naming_a_path_its_line_does_not_spell_is_reported`,
+`test_a_declaration_in_a_fixture_literal_is_declined_and_the_same_one_in_prose_is_not`, and
+`test_no_absence_declaration_in_the_live_tree_has_outlived_its_prose` over the live carrier
+population. `tests/test_citation_tables.py` -
+`test_every_bare_path_decline_rung_is_disclosed_in_both_directions` now parametrized over the
+new rung. `tests/test_docs_citations.py` -
+`test_every_decline_disclosure_is_budgeted_and_spent_exactly` likewise.
+
+**Merged files.** `tests/bare_path_guard.py`, `tests/test_docs_citations.py`,
+`tests/test_citation_tables.py`, `tests/test_bare_path_citations.py`, and the three carriers
+that now declare their own absences - `docs/adr/0010-item-notes-is-an-index-over-per-phase-leaves.md`,
+`docs/item_notes/phase4.md`, `docs/item_notes/phase5.md`.
+
+**Tier 2**, for the public interface: a new rung in `LADDER_RUNGS`, a new public pattern, a new
+field on `BarePathSite`, and a new declared shape every markdown carrier in this repository may
+now use.
+
+**THE VERIFIER PASS, AND IT DID NOT PRODUCE THE WORK.** One pass, on a frozen tree, graded
+against the acceptance clause above and nothing else. **VERDICT: CONFIRM**, with three
+corrections that do not touch the clause. Two shared the root cause of the defect this entry
+already records - R4 applying to declarations - and were SWEPT IN THIS CYCLE rather than
+filed:
+
+- **THE PARTITION WAS APPLIED IN ONE PLACE AND NOT THE OTHER, and the verifier measured it
+  where this cycle did not.** `stale_declaration_problems` filtered fixture literals and
+  `bare_path_sites` did not, so a declaration inside a non-docstring string literal silenced
+  a genuinely dead citation spelled OUTSIDE that literal on the SAME LINE, and was exempt from
+  the staleness direction besides - two of the three directions, on a shape whose docstring
+  claims all three. The repair is `live_declarations`, ONE function with two callers, because
+  two callers asking the same question in two places is the fault this family's own boundary
+  contract exists to refuse. `test_a_declaration_inside_a_fixture_literal_silences_nothing_outside_it`
+  holds it, and it was RED for the right reason before the repair.
+- **THE ACCEPTANCE ARM ASSERTED ONLY ITS GREEN HALF.** Its docstring claimed the identical
+  prose without the declaration still reports; its body asserted no such thing, so a
+  `declared_absent` stuck True would have passed it. Both that arm and the falsified-
+  declaration arm now carry their negative half.
+
+**THE THIRD CORRECTION IS FILED AS CS-1126 AND IS NOT THE SAME ROOT CAUSE.**
+`NON_CITATION_PATTERNS` is checked in both directions and registered, but it is the one escape
+route in this family with NO CEILING on it, against five that have one. The row carries the
+honest counter-case as well: a ceiling on that particular population may not be the right
+instrument, and its acceptance has a second branch for that.
+
+**COUNTS OBSERVED THIS RUN, not carried forward from anywhere and not taken from a subagent.**
+Whole tree, this worktree, over the tree that shipped - the sweep above included -
+`python -m pytest tests -q -m "not slow" -p no:randomly`:
+`8512 passed, 5 skipped, 16 deselected, 8 warnings in 1621.12s (0:27:01)`, exit **0**, read
+back from the log file rather than from a pipe. `python -m ruff check .` clean,
+`python -m ruff format --check .` clean, and every line authored here is 7-bit ASCII by a
+byte sweep of the diff. An EARLIER whole-tree run over the pre-sweep tree read
+`8511 passed, 5 skipped, 16 deselected` at exit 0; it is named here only so the one-test
+difference between the two is the sweep's own arm and not something unexplained.
+
+**CI is recorded by the lane driver and was NOT observed by this worker.**
+
+
+
 ### 2026-08-28 - CS-852 - NOT A COMPLETION RECORD. CS-852 STAYS OPEN. Gap 1 graded rather than recorded, nine false clearances closed, and the four-parser vocabulary split closed by operator ruling
 
 **What merged.** `tests/exception_message_guard.py` grades the MESSAGE-BUILDING code path -

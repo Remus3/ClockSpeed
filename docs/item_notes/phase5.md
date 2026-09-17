@@ -61,7 +61,7 @@ terminator-exact is the PROPERTY walk INSIDE a payload - the trailing run - whic
 different region, is not clause 2, and is filed as its own item.
 
 **ALSO CARRIES A CLAUSE MOVED HERE FROM CS-401**, which could not satisfy it in phase 4 because
-`clockspeed/advisor/ledger.py` does not exist yet: the ledger treats a world token it has never
+`clockspeed/advisor/ledger.py` <!-- absent: clockspeed/advisor/ledger.py --> does not exist yet: the ledger treats a world token it has never
 seen as a new world rather than failing.
 
 

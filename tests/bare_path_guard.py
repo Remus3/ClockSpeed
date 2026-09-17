@@ -131,6 +131,50 @@ REPO_ROOT: Final = Path(__file__).resolve().parents[1]
 # with "/" and each segment with a character no other alternative accepts, so
 # the pattern cannot backtrack exponentially on a near-miss. A guard that hangs
 # on one unlucky line is a guard that gets switched off.
+# CS-899 - THE ABSENCE DECLARATION, AND WHY IT IS A MECHANISM RATHER THAN A
+# FORGIVENESS.
+#
+# THE PROBLEM IT ANSWERS. R4 partitions a PYTHON carrier by AST into author
+# prose and the data a module feeds itself, and on this tree that partition is
+# exact. Markdown has no AST and no equivalent, so prose that DISCUSSES a dead
+# path - an ADR recording that a file is deliberately not created, a phase leaf
+# naming a module phase 5 will build - was indistinguishable by shape from
+# prose that CITES one. The only answer available was an entry in
+# :data:`tests.test_citation_tables.BARE_PATH_REASONS`, and a keyword or
+# negation detector over the sentence was priced and REFUSED for failing in the
+# PERMISSIVE direction.
+#
+# THE DIFFERENCE FROM A RECORDED FORGIVENESS, WHICH IS THE WHOLE CLAIM AND IS
+# NOT A PREFERENCE. This module's own table comment says a ``NO_TARGET`` or
+# ``DELIBERATE`` disposition is the kind that NAMES NOTHING TO CHECK. A
+# declaration names something checked on EVERY run, in three directions:
+#
+#   - the path it calls absent must still be absent, or the site is REPORTED
+#     at :data:`DECLARED_ABSENT_BOUND` - so it cannot be spent once and left;
+#   - the line it sits on must still spell that path as a citation, or
+#     :func:`stale_declaration_problems` reports it - so prose that moves on
+#     cannot leave it behind;
+#   - it buys silence for ONE path on ONE line and for nothing else.
+#
+# AND IT TRAVELS WITH THE SENTENCE, which answers the question CS-891's merger
+# demanded before dispatch and nobody answered: a forgiveness recorded against
+# a carrier that is rewritten every session is a landmine, because the record
+# outlives the prose. A declaration cannot outlive its line.
+#
+# THE PRICE, STATED. A declaration is authored, so an author can write one over
+# a genuinely dead citation. It is not free to do so - the path must be absent
+# AND stay absent AND the line must keep spelling it - but the spelling itself
+# is an assertion by a human, exactly as `.gitignore` is R2's and as a
+# docstring is R4's. What it cannot do is go quiet: every other route to
+# silence here is a row in a table under a ceiling, and this one reddens on its
+# own when the tree moves.
+#
+# THE SHAPE IS AN HTML COMMENT because markdown renders it as nothing, this
+# tree already uses one for machine-and-human metadata in four files, and the
+# path inside it carries NO BACKTICKS - so :data:`BARE_PATH_RE` does not read
+# the declaration itself as a second citation of the same path.
+ABSENT_DECLARATION_RE: Final = re.compile(r"<!--\s*absent:\s*([^\s>]+?)\s*-->")
+
 _FIRST_SEGMENT: Final = r"\.?[A-Za-z0-9_][A-Za-z0-9_.-]*"
 _LATER_SEGMENT: Final = r"[A-Za-z0-9_][A-Za-z0-9_.-]*"
 BARE_PATH_RE: Final = re.compile(
@@ -226,6 +270,14 @@ BARE_PATH_RE: Final = re.compile(
 # entry AND a ceiling raise, so the vaguer spelling was the less guarded one.
 # Every rung here now spends a number somebody has to defend.
 
+#: CS-899's rung, and it sits ABOVE R0 because it is TWO-WAY. Every other rung
+#: asks whether a spelling resolves; this one asks whether a spelling the
+#: carrier DECLARES absent is still absent, and a declaration the tree has
+#: falsified is a finding rather than a resolution. Answering it after R0 would
+#: mean a path that came back read as RESOLVED - green - with the sentence
+#: around it now false and nothing said.
+DECLARED_ABSENT: Final = "Rd declared absent"
+DECLARED_ABSENT_BOUND: Final = "Rd! declared absent but bound"
 RESOLVED_EXACT: Final = "R0 exact"
 RESOLVED_SUFFIX: Final = "R1 unique suffix"
 AMBIGUOUS_SUFFIX: Final = "R1! ambiguous suffix"
@@ -239,6 +291,8 @@ UNRESOLVED: Final = "REPORTED"
 #: by every arm that reads a distribution, so a rung cannot be added to one and
 #: missed by the other.
 LADDER_RUNGS: Final = (
+    DECLARED_ABSENT,
+    DECLARED_ABSENT_BOUND,
     RESOLVED_EXACT,
     RESOLVED_SUFFIX,
     AMBIGUOUS_SUFFIX,
@@ -266,6 +320,11 @@ class BarePathSite:
             literal that is not a docstring. Computed once at collection so the
             ladder stays a pure function of its arguments and a control can
             construct a site without a file behind it.
+        declared_absent: Whether the LINE this spelling sits on also carries an
+            absence declaration naming this same path. Computed at collection
+            for :attr:`in_fixture_literal`'s reason, and DEFAULTED so that
+            every control already constructing a site by hand keeps meaning
+            what it meant.
     """
 
     carrier: str
@@ -274,6 +333,7 @@ class BarePathSite:
     column: int
     anchor: str
     in_fixture_literal: bool
+    declared_absent: bool = False
 
     @property
     def identity(self) -> tuple[str, str, str]:
@@ -417,6 +477,41 @@ def fixture_literal_spans(tree: ast.AST) -> tuple[tuple[int, int, int, int], ...
     return tuple(spans)
 
 
+def live_declarations(
+    raw: str,
+    number: int,
+    spans: Sequence[tuple[int, int, int, int]],
+) -> list[str]:
+    """The absence declarations on one line that the AUTHOR wrote.
+
+    R4, ONE FUNCTION, TWO CALLERS, and it is one function because it was two.
+    :func:`stale_declaration_problems` applied the partition and
+    :func:`bare_path_sites` did not, so a declaration written inside a
+    non-docstring string literal silenced a genuinely dead citation spelled
+    OUTSIDE that literal on the same line, AND was exempt from the staleness
+    direction besides - two of the three directions, on a shape whose docstring
+    claims all three. A verifier measured it; nothing in the round that built
+    it did. Two callers asking the same question in two places is the fault
+    this family's own boundary contract exists to refuse, arriving inside the
+    repair that added the question.
+
+    Args:
+        raw: The line's text.
+        number: Its 1-based line number, for the span test.
+        spans: The carrier's non-docstring string-literal spans, empty for a
+            carrier with no parse tree.
+
+    Returns:
+        Every declared path on the line, in the order written, less the ones
+        sitting inside a fixture literal.
+    """
+    return [
+        match.group(1)
+        for match in ABSENT_DECLARATION_RE.finditer(raw)
+        if not any((sl, sc) <= (number, match.start()) <= (el, ec) for sl, sc, el, ec in spans)
+    ]
+
+
 def bare_path_sites(carriers: Mapping[str, str]) -> list[BarePathSite]:
     """Every bare-path spelling in every carrier, with its identity attached.
 
@@ -443,8 +538,13 @@ def bare_path_sites(carriers: Mapping[str, str]) -> list[BarePathSite]:
                 tree = None
             else:
                 spans = fixture_literal_spans(tree)
+        lines = text.split("\n")
+        declared = [
+            frozenset(live_declarations(raw, number, spans))
+            for number, raw in enumerate(lines, start=1)
+        ]
         starts = [0]
-        for raw in text.split("\n"):
+        for raw in lines:
             starts.append(starts[-1] + len(raw) + 1)
         for match in BARE_PATH_RE.finditer(text):
             offset = match.start(1)
@@ -468,6 +568,7 @@ def bare_path_sites(carriers: Mapping[str, str]) -> list[BarePathSite]:
                     in_fixture_literal=any(
                         (sl, sc) <= (line, column) <= (el, ec) for sl, sc, el, ec in spans
                     ),
+                    declared_absent=match.group(1) in declared[line - 1],
                 )
             )
     return sites
@@ -676,10 +777,14 @@ def bare_path_ladder(
     ignored = set(declared_untracked)
     answered: dict[str, list[BarePathSite]] = {rung: [] for rung in LADDER_RUNGS}
     for site in sites:
+        hits = suffixes.get(site.cited, ())
+        if site.declared_absent:
+            bound = site.cited in exact or bool(hits)
+            answered[DECLARED_ABSENT_BOUND if bound else DECLARED_ABSENT].append(site)
+            continue
         if site.cited in exact:
             answered[RESOLVED_EXACT].append(site)
             continue
-        hits = suffixes.get(site.cited, ())
         if len(hits) == 1:
             answered[RESOLVED_SUFFIX].append(site)
             continue
@@ -700,6 +805,65 @@ def bare_path_ladder(
             continue
         answered[UNRESOLVED].append(site)
     return answered
+
+
+def stale_declaration_problems(carriers: Mapping[str, str]) -> list[str]:
+    """Every absence declaration whose own line no longer spells what it names.
+
+    THE DIRECTION THAT KEEPS A DECLARATION FROM BECOMING A LANDMINE. CS-891's
+    merger demanded an answer to whether a forgiveness recorded against a
+    carrier that is REWRITTEN EVERY SESSION is a working ratchet or a mine that
+    reddens a later push for no defect. The round's own archive commit removed
+    the only churning subject, so the question went moot without being
+    answered.
+
+    It is answered here by construction rather than by argument: a declaration
+    buys silence for the citation ON ITS OWN LINE, so prose that is rewritten
+    takes its declaration with it, and a declaration left behind is REPORTED
+    instead of waiting for a path to die under it.
+
+    THE DECLARED PATH MUST BE SPELLED AS A CITATION, not merely mentioned. The
+    match is against :data:`BARE_PATH_RE`'s captures on that line, so a
+    declaration naming a path the line spells without backticks is stale - the
+    arm forgives exactly the shape it judges and nothing wider.
+
+    R4 APPLIES HERE TOO, AND IT IS THE SAME RULE RATHER THAN A SECOND ONE. A
+    declaration inside a Python string literal that is NOT a docstring is a
+    CONTROL'S FIXTURE - the text an arm feeds this very function to prove it
+    fires - and reading it as a live declaration would make every control that
+    plants one a finding against the module that plants it. MEASURED: the three
+    controls CS-899 shipped were reported by this arm on its first run, each
+    spelling the declaration inside an f-string template whose placeholder is
+    not a path at all. The partition is decided by the parse tree, exactly as
+    the ladder's own R4 is.
+
+    Args:
+        carriers: Carrier path to the text its citations are read from, the
+            same population :func:`bare_path_sites` is given.
+
+    Returns:
+        One line per stale declaration, carrier and line number included.
+    """
+    problems: list[str] = []
+    for carrier in sorted(carriers):
+        text = carriers[carrier]
+        spans: tuple[tuple[int, int, int, int], ...] = ()
+        if carrier.endswith(".py"):
+            try:
+                spans = fixture_literal_spans(ast.parse(text))
+            except SyntaxError:
+                spans = ()
+        for number, raw in enumerate(text.split(chr(10)), start=1):
+            spelled = set(BARE_PATH_RE.findall(raw))
+            for path in live_declarations(raw, number, spans):
+                if path in spelled:
+                    continue
+                problems.append(
+                    f"{carrier}:{number} declares `{path}` absent and its line no longer"
+                    " spells it as a citation, so the declaration is forgiving nothing."
+                    " Move it with the prose or delete it."
+                )
+    return problems
 
 
 def multiplicity(sites: Iterable[BarePathSite]) -> dict[tuple[str, str, str], int]:
@@ -728,6 +892,12 @@ def bare_path_problems(answered: Mapping[str, Sequence[BarePathSite]]) -> list[s
         " owns, and it is not a fixture literal. Repoint it, or record it in"
         " BARE_PATH_REASONS with the reason and raise the ceiling in the same change."
         for site in answered.get(UNRESOLVED, ())
+    ]
+    problems += [
+        f"{site.carrier}:{site.line} -> {site.cited} - the line DECLARES this path"
+        " absent and the tree now binds it, so the sentence around it is false."
+        " Drop the declaration and let the citation resolve, or repoint it."
+        for site in answered.get(DECLARED_ABSENT_BOUND, ())
     ]
     return problems
 

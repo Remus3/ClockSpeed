@@ -227,11 +227,23 @@ def test_every_pattern_in_every_walked_module_is_a_judged_shape(
         " derivation below reads an empty set and would pass whatever it ignored"
     )
     judged = test_docs_citations.JUDGED_SHAPES
-    missing = sorted(name for name, pattern in compiled.items() if pattern not in judged)
+    other = test_docs_citations.NON_CITATION_PATTERNS
+    missing = sorted(
+        name for name, pattern in compiled.items() if pattern not in judged and pattern not in other
+    )
     assert not missing, (
-        "patterns this family judges by that the carrier boundary does not read:\n"
+        "patterns this family judges by that neither table declares:\n"
         + "\n".join(f"  {name}" for name in missing)
-        + "\nAdd it to the judged shapes, or stop judging by it."
+        + "\nAdd it to the judged shapes, declare it a non-citation shape, or stop"
+        " judging by it."
+    )
+    live = set(map(id, compiled.values()))
+    stale = [index for index, pattern in enumerate(other) if id(pattern) not in live]
+    assert not stale, (
+        "NON_CITATION_PATTERNS declares a pattern no module in this family compiles at"
+        f" module scope any more, at index {stale}. The declaration has outlived what it"
+        " described - delete the row rather than leaving it to forgive the next pattern"
+        " that happens to land on it."
     )
 
 
