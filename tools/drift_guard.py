@@ -3361,12 +3361,20 @@ _ROADMAP_ITEM_LINE = re.compile(r"^(CS-G?\d+) - ")
 _ROADMAP_FIELD_SEPARATOR = " - "
 _ROADMAP_DETAIL_FIELD = "detail:"
 
-# The ID block rule, owned here. Phase 4 is five leaves: CS-8nn is the follow-up
-# block (split at CS-850, ADR 0011), CS-9nn is its own leaf, and every phase 4 ID
-# at CS-1000 or above is the four-digit leaf (CS-1079). Every other phase is one leaf.
+# The ID block rule, owned here. Phase 4 is six leaves: CS-8nn is the follow-up
+# block (split at CS-850, ADR 0011), CS-9nn is two leaves (split at CS-960,
+# CS-1132), and every phase 4 ID at CS-1000 or above is the four-digit leaf
+# (CS-1079). Every other phase is one leaf.
+#
+# CS-1132 - THE CS-9nn SEAM SITS AT 960 BECAUSE THAT IS WHERE THE BYTES SIT, not
+# because 960 is a round number. The block's sections were measured before the
+# seam was chosen and 960 is the most even split available: 70808 bytes below it
+# against 51751 above, where the block midpoint CS-950 would have left 41509
+# against 81050 and spent the new leaf's headroom on the day it was created.
 _ITEM_NOTES_FOLLOWUP_FIRST = 800
 _ITEM_NOTES_FOLLOWUP_SEAM = 850
 _ITEM_NOTES_SECOND_BLOCK_FIRST = 900
+_ITEM_NOTES_SECOND_BLOCK_SEAM = 960
 _ITEM_NOTES_THIRD_BLOCK_FIRST = 1000
 _ITEM_NOTES_NUMBERED = re.compile(r"CS-(\d+)")
 
@@ -3913,6 +3921,8 @@ def item_notes_leaf(item: str, phase: str) -> str:
     number = int(numbered.group(1))
     if number >= _ITEM_NOTES_THIRD_BLOCK_FIRST:
         leaf = f"phase4-followups-{_ITEM_NOTES_THIRD_BLOCK_FIRST}.md"
+    elif number >= _ITEM_NOTES_SECOND_BLOCK_SEAM:
+        leaf = f"phase4-followups-{_ITEM_NOTES_SECOND_BLOCK_SEAM}.md"
     elif number >= _ITEM_NOTES_SECOND_BLOCK_FIRST:
         leaf = f"phase4-followups-{_ITEM_NOTES_SECOND_BLOCK_FIRST}.md"
     elif number >= _ITEM_NOTES_FOLLOWUP_SEAM:
@@ -4079,6 +4089,7 @@ def _item_notes_rule_probes(rules: list[ItemNotesRule], phase: str, routed: list
         _ITEM_NOTES_FOLLOWUP_FIRST,
         _ITEM_NOTES_FOLLOWUP_SEAM,
         _ITEM_NOTES_SECOND_BLOCK_FIRST,
+        _ITEM_NOTES_SECOND_BLOCK_SEAM,
         _ITEM_NOTES_THIRD_BLOCK_FIRST,
     ):
         probes.update((seam - 1, seam))
