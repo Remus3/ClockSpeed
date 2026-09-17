@@ -374,6 +374,64 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-09-17 - CS-990 - CORRECTS THE ENTRY BELOW, SAME DAY, BEFORE THE PUSH. The threshold was a conclusion and one of the four was wrong, so the record is now per major
+
+**WHAT THE ENTRY BELOW GOT WRONG, IN ITS OWN WORDS.** It says "Both workflows move to the
+majors that ship on Node 24" and "all four bumps are runtime-only majors". Both sentences are
+FALSE for one of the four. `actions/upload-artifact@v5` declares `runs.using: node20` in its
+own `action.yml`; that action's first Node 24 major is v6. Every sibling's same-numbered bump
+did move to Node 24, and reasoning from that pattern is exactly how the wrong figure was
+written. The tier-2 workflow is now pinned at `actions/upload-artifact@v6`.
+
+**THE VERIFIER REFUTED IT AND THE SUITE DID NOT, WHICH IS THE POINT.** All nine arms were
+green, `ruff` clean, `mypy` clean, and the headline arm reported no offence - because the
+oracle it consulted was wrong, not because the tree was clean. A shipped table that nothing
+verifies against reality is the same defect this item was filed about, one level up: a
+version fact whose support window is owned by nobody.
+
+**SO THE TABLE'S SHAPE CHANGED, NOT JUST ITS CONTENTS.** `RUNTIME_SUPPORTED_FROM` held one
+integer per action - the lowest major whose runtime was current. That integer is a
+CONCLUSION, and it answered for majors nobody had measured, including the one it was wrong
+about. `OBSERVED_RUNTIMES` records `runs.using` PER MAJOR as that major's own `action.yml`
+declares it, with the probe command in the module docstring. A pinned major the record
+carries no reading for is now a LOUD offence in its own right, held by
+`test_a_major_the_record_carries_no_reading_for_is_a_loud_offence`. An observation can be
+re-taken; a threshold can only be re-argued.
+
+**THE SECOND FINDING WAS AN ORACLE BLIND TO ITS OWN SUBJECT, and this project has now
+measured that shape twice.** The independence proof filtered candidate module constants by
+`isinstance(value, str | int | dict | tuple)`. A compiled `re.Pattern` is none of those, so
+the ONE module constant an enumeration actually reads was invisible and the assertion
+"enumeration two reads no module constant" passed BECAUSE the oracle could not see it. The
+proof now takes every module-level name, follows each enumeration into the names it reaches
+for, and compares the resulting literal CLOSURES - so factoring a shared pattern into a
+helper no longer defeats it. `test_the_independence_proof_can_see_the_constant_each_enumeration_reads`
+is its anti-vacuity bound and pins both distinguishing constants in place: the step-reference
+word must be in enumeration one's closure and absent from enumeration two's, and enumeration
+two's pattern must be visible to the proof at all.
+
+**AND THE TWO ENUMERATIONS NOW SHARE NO CALLEE EITHER.** Both previously called one helper
+that carried the `@` literal. Each returns raw references now and `to_pin` builds outside
+both, so the claim in the item line holds transitively rather than only at the top level.
+
+**PROVEN BY** `tests/test_action_runtimes.py`, eleven arms. The nine the entry below names,
+except that the unknown-action arm is renamed for the record's new shape and is now
+`test_an_action_the_record_does_not_name_is_a_loud_offence` - so the name the entry below
+cites for it is dead and this sentence is its disposition. Added:
+`test_a_major_the_record_carries_no_reading_for_is_a_loud_offence` and
+`test_the_independence_proof_can_see_the_constant_each_enumeration_reads`. Merged files:
+`tools/action_runtimes.py`, `tests/test_action_runtimes.py`, `.github/workflows/tier2.yml`,
+`docs/LEDGER.md`.
+
+**RE-MEASURED THIS CYCLE, against each action's own `action.yml` at each tag:** checkout v3
+node16, v4 node20, v5 node24, v6 node24; setup-python v3 node16, v4 node16, v5 node20, v6
+node24; setup-node v3 node16, v4 node20, v5 node24, v6 node24; upload-artifact v4 node20, v5
+node20, v6 node24, v7 node24. Those readings are the shipped record, not a restatement of it -
+`OBSERVED_RUNTIMES` is where they live and this paragraph exists to say when they were taken.
+
+**THE BOUND ON THIS ENTRY.** One refutation round was spent and this is its repair. A second
+refutation of the same claim files a new row rather than starting another round.
+
 ### 2026-09-17 - CS-990 - CLOSED. Every action pin names a supported runtime, over a population derived twice from the workflow files
 
 **THE DEFECT.** Every action pin in both tracked workflows named a major whose Node 20 runtime
@@ -421,7 +479,7 @@ population satisfies every equality above for free;
 `test_the_two_enumerations_share_no_constant`;
 `test_a_planted_deprecated_pin_reddens_the_grade`;
 `test_a_pin_in_a_second_workflow_is_graded_too`;
-`test_an_action_the_table_does_not_name_is_a_loud_offence`;
+the unknown-action arm, renamed by the entry above;
 `test_a_ref_carrying_no_major_version_is_a_loud_offence`;
 `test_both_enumerations_see_a_planted_pin`, which is what shows neither reading is a no-op.
 Merged files: `tools/action_runtimes.py`, `tests/test_action_runtimes.py`,

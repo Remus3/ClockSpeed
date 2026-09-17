@@ -23,6 +23,7 @@ from __future__ import annotations
 import ast
 import importlib.util
 import inspect
+import re
 import sys
 from collections import Counter
 from collections.abc import Callable
@@ -135,44 +136,104 @@ def test_the_two_enumerations_agree_as_multisets() -> None:
     )
 
 
+def _source_tree(function: Callable[..., object]) -> ast.AST:
+    return ast.parse(inspect.getsource(function).lstrip())
+
+
 def _literals(function: Callable[..., object]) -> set[object]:
-    tree = ast.parse(inspect.getsource(function).lstrip())
     return {
         node.value
-        for node in ast.walk(tree)
+        for node in ast.walk(_source_tree(function))
         if isinstance(node, ast.Constant) and node.value is not None
     }
 
 
-def _module_constants_read(function: Callable[..., object]) -> set[str]:
-    module_level = {
-        name
-        for name, value in vars(action_runtimes).items()
-        if not name.startswith("__") and isinstance(value, str | int | dict | tuple)
-    }
-    tree = ast.parse(inspect.getsource(function).lstrip())
+def _module_level_names() -> set[str]:
+    """EVERY module-level name, filtered by NOTHING but the dunders.
+
+    The first cut filtered by type and the filter was the defect: a compiled
+    `re.Pattern` is not a str, int, dict or tuple, so the one module constant an
+    enumeration actually read was invisible and the assertion passed for the wrong
+    reason. An oracle that cannot observe its subject passes BECAUSE it is blind.
+    """
+    return {name for name in vars(action_runtimes) if not name.startswith("__")}
+
+
+def _names_read(function: Callable[..., object]) -> set[str]:
+    """The module-level names this function reads, callees included."""
+    module_level = _module_level_names()
     return {
-        node.id for node in ast.walk(tree) if isinstance(node, ast.Name) and node.id in module_level
+        node.id
+        for node in ast.walk(_source_tree(function))
+        if isinstance(node, ast.Name) and node.id in module_level
     }
+
+
+def _closure_literals(function: Callable[..., object]) -> set[object]:
+    """This function's literals PLUS those of every module-level name it reads.
+
+    Without the second half, factoring a shared pattern into a helper would defeat
+    the whole proof while leaving both function bodies literal-free and disjoint.
+    """
+    found = _literals(function)
+    for name in _names_read(function):
+        target = getattr(action_runtimes, name)
+        if callable(target) and hasattr(target, "__code__"):
+            found |= _literals(target)
+        elif isinstance(target, re.Pattern):
+            found.add(target.pattern)
+        elif isinstance(target, str):
+            found.add(target)
+    return found
 
 
 def test_the_two_enumerations_share_no_constant() -> None:
     """THE CLAIM THE ITEM LINE MAKES, PROVEN OFF THE AST RATHER THAN ASSERTED.
 
-    A comment saying the two derivations are independent is worth nothing once
-    somebody factors a shared pattern out of them. This reads both functions and
-    fails when they hold a literal in common or reach for the same module constant.
+    A comment saying two derivations are independent is worth nothing the first
+    time somebody factors a shared pattern out of them. This reads both functions,
+    follows every module-level name each one reaches for, and fails on any literal
+    or any name the two hold in common.
     """
-    parse_literals = _literals(action_runtimes.pins_by_parse)
-    scan_literals = _literals(action_runtimes.pins_by_scan)
-    shared = parse_literals & scan_literals
+    module_level = _module_level_names()
+    assert module_level, "the module exposes no names, so this proof would be vacuous"
 
-    assert not shared, f"the two enumerations share literals: {sorted(map(repr, shared))}"
-    assert not _module_constants_read(action_runtimes.pins_by_parse), (
-        "enumeration one reads a module constant, which enumeration two could share"
+    parse_literals = _closure_literals(action_runtimes.pins_by_parse)
+    scan_literals = _closure_literals(action_runtimes.pins_by_scan)
+    assert parse_literals, "enumeration one carries no literal, so the proof is vacuous"
+    assert scan_literals, "enumeration two carries no literal, so the proof is vacuous"
+
+    shared_literals = parse_literals & scan_literals
+    assert not shared_literals, (
+        f"the two enumerations share literals: {sorted(map(repr, shared_literals))}"
     )
-    assert not _module_constants_read(action_runtimes.pins_by_scan), (
-        "enumeration two reads a module constant, which enumeration one could share"
+
+    shared_names = _names_read(action_runtimes.pins_by_parse) & _names_read(
+        action_runtimes.pins_by_scan
+    )
+    assert not shared_names, (
+        f"the two enumerations share module-level names: {sorted(shared_names)}"
+    )
+
+
+def test_the_independence_proof_can_see_the_constant_each_enumeration_reads() -> None:
+    """THE BOUND ON THE ARM ABOVE, and it is the arm that refuted the first cut.
+
+    A disjointness check is satisfied for free by an oracle that reads nothing. So
+    this pins the two distinguishing constants in place: enumeration one keys on the
+    step-reference word and enumeration two must not carry it anywhere in its
+    closure, and enumeration two's pattern must actually be visible to the proof.
+    """
+    parse_literals = _closure_literals(action_runtimes.pins_by_parse)
+    scan_literals = _closure_literals(action_runtimes.pins_by_scan)
+
+    assert "uses" in parse_literals, "enumeration one no longer keys on the step word"
+    assert "uses" not in scan_literals, "enumeration two reached for the step word"
+    assert action_runtimes.SLUG_LINE.pattern in scan_literals, (
+        "the proof cannot see the pattern enumeration two is built on"
+    )
+    assert action_runtimes.SLUG_LINE.pattern not in parse_literals, (
+        "enumeration one reached for enumeration two's pattern"
     )
 
 
@@ -204,7 +265,7 @@ def test_a_pin_in_a_second_workflow_is_graded_too(green_tree: Path) -> None:
     )
 
 
-def test_an_action_the_table_does_not_name_is_a_loud_offence(green_tree: Path) -> None:
+def test_an_action_the_record_does_not_name_is_a_loud_offence(green_tree: Path) -> None:
     """NO SILENT FORGIVENESS. An ungraded pin reddens rather than passing.
 
     A table that waves through what it does not recognise fails in the permissive
@@ -229,6 +290,26 @@ def test_a_ref_carrying_no_major_version_is_a_loud_offence(green_tree: Path) -> 
 
     assert any("checkout@main" in offence for offence in found), (
         f"an ungradable ref passed the grade: {found}"
+    )
+
+
+def test_a_major_the_record_carries_no_reading_for_is_a_loud_offence(
+    green_tree: Path,
+) -> None:
+    """AN ACTION THE RECORD NAMES IS NOT A MAJOR THE RECORD HAS READ.
+
+    This is the exact shape that refuted the first cut of this module: a per-action
+    threshold answered for every major of an action it named, including the ones
+    nobody had measured. A per-major record cannot do that, and this arm is what
+    holds it to it.
+    """
+    ahead = GREEN_WORKFLOW.replace("checkout@v5", "checkout@v99")
+    plant(green_tree, "planted.yml", ahead)
+
+    found = action_runtimes.offences(green_tree)
+
+    assert any("checkout@v99" in offence for offence in found), (
+        f"an unmeasured major passed the grade: {found}"
     )
 
 
