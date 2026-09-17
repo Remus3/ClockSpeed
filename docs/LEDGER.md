@@ -459,6 +459,90 @@ instead of skipping. That is consistent with the start-fault rule, but it reache
 
 **VERIFY.** `python -m pytest tests/data/test_drift_guard_data.py tests/test_conftest_run_git.py -q`.
 
+### 2026-09-16 - CS-893 - CLOSED. An `EXEMPT` reason answers identified reads instead of a cardinality, and a compensating swap is reported
+
+**THE DEFECT.** `tests/chained_exemption_guard.Exemption` keyed each recorded reason to a
+SITE COUNT. A count says HOW MANY static cause reads a reason forgives and never WHICH, so
+a COMPENSATING SWAP was silent: delete one recorded read and add an unrelated adjudicating
+one in the same edit, and the cardinality is unchanged while the new read rides under a
+reason written about the old one. That is CS-888's own thesis one level down from the
+repair that answered it.
+
+**REPRODUCED FIRST, ON THE LIVE TREE, AND IT FAILED FOR THE RIGHT REASON.**
+`test_a_compensating_swap_that_keeps_the_count_is_reported` rewrites one recorded read of
+each recorded module into a read of another field and appends the same four-line plant the
+CS-888 arm uses, then grades against the LIVE record. Verbatim first failure: `2 recorded
+module(s) absorbed a COMPENSATING SWAP - one recorded read deleted and an unrelated
+adjudicating one added - with the site count unchanged, so the reason answers a
+cardinality: ['tests/pathless_clone_guard.py', 'tests/test_verify_env.py']`. The arm
+carries a PARITY CONTROL that asserts the swap really did preserve the count, so it cannot
+pass by degenerating into the plain append the older arm already caught.
+
+**THE ROOT CAUSE AND THE FIX.** The key was a cardinality. `Exemption.sites: int` is now
+`Exemption.reads: tuple[str, ...]`, one identity per answered read, and `classify` clears a
+module only when the recorded multiset equals the live one. The identity is
+`qualname::receiver` - the dotted enclosing scope and the expression the cause is read off,
+`ast.unparse`d so reformatting cannot move it - which is the shape `Site.key` in
+`tests/chained_cause_guard.py` and `Copy.key` in `tests/pathless_clone_guard.py` already
+use. A LINE NUMBER WAS DECLINED, and by the adversary that filed the item rather than by
+this cycle: it moves whenever anything above it is edited, which is the churn CS-889 owns.
+
+**AN IDENTITY IS STRICTLY STRONGER THAN THE COUNT IT REPLACES, WHICH IS WHY NOTHING WAS
+TRADED AWAY.** Duplicates are KEPT rather than collapsed, so the multiset still carries the
+cardinality, and a read arriving with no deletion changes it too - the CS-888 arm
+`test_a_second_cause_read_in_an_already_exempt_module_is_reported` is unchanged and still
+green.
+
+**THE BOUNDARY, STATED IN THE ARTIFACT RATHER THAN ONLY HERE, because a caveat said in a
+cycle report is not a caveat in the ledger either.** TWO READS OFF THE SAME RECEIVER IN THE
+SAME SCOPE share one identity, so swapping one for the other is invisible. That is live on
+this tree: every one of `tests/test_verify_env.py`'s reads is `node` inside
+`rendered_exception_lines`. Separating them needs the statement around the read, which is a
+bigger key than this item's clause asks for. `_read_key`'s own docstring carries this.
+
+**SIBLING SWEEP.** `miscounted` is renamed `mismatched` and reports WHICH reads are
+unanswered and which answered reads are absent, in both directions and on a swap that
+balances; its two arms are renamed with it and their fabricated positives now perturb the
+read set rather than the integer. The ONE other case of the same root cause in the tree is
+the `Disposition` table `tests/test_citation_tables.py` owns, which the item's own note
+names as the precedent the count was copied from. It is NOT swept here: its substrate is
+markdown rather than an AST, so an identity has to be derived a different way, and it
+carries dozens of entries, each needing its own measured identities. It is FILED as CS-1121 with
+that reasoning on its line. RE-PROBED CITATION: the note cites that table as living in
+`tests/test_docs_citations.py`; the table now lives in `tests/test_citation_tables.py` and
+the other module imports it.
+
+**MERGED FILES.** `tests/chained_exemption_guard.py`,
+`tests/test_chained_exemption_guard.py`, `ROADMAP.md`, `docs/item_notes.md`,
+`docs/item_notes/phase4-followups-850.md`, `docs/history_notes.md`.
+
+**TESTS BY NAME.** Added: `test_a_compensating_swap_that_keeps_the_count_is_reported`.
+Renamed and re-keyed from the two arms that graded the site count, which no longer exist
+under any name: `test_the_recorded_reads_are_the_ones_the_live_tree_has` and
+`test_a_recorded_read_set_that_no_longer_matches_is_reported_both_ways`. The old names are
+deliberately not spelled here - `tests/test_docs_citations.py` resolves every bare
+identifier a guarded doc names, and a retired test name is a dead one.
+
+**TIER 2**, because the change is to a guard's public interface and to a dataclass two
+other modules' arms construct.
+
+**THE ITEM SECTION MOVED** to `docs/history_notes.md` and the routing row for it is gone
+from `docs/item_notes.md`.
+
+### 2026-09-16 - CS-1121 - NOT A COMPLETION RECORD. NOTHING CLOSED. CS-1121 IS FILED AND UNSTARTED. The citation-disposition table carries CS-893's fault on a different substrate
+
+**CS-1121 IS A FILING RECORD AND DOES NOT CLOSE IT.** It was filed by the cycle that closed
+CS-893, as the one other case in the tree sharing that root cause. The row and its
+acceptance are in `ROADMAP.md`.
+
+**WHY IT IS A SEPARATE ROW RATHER THAN CS-893's SIBLING SWEEP.** The fault is the same - a
+recorded forgiveness keyed by a site COUNT - and CS-893's own note names this table as the
+precedent the count was copied FROM. What differs is everything the repair needs. CS-893's
+identity is derived from an AST, and a doc citation has no scope, no receiver and no parse
+tree to take one from; deriving one from markdown is a different measurement, not the same
+one applied twice. The table also carries dozens of entries, each needing its identities measured
+from the doc rather than transcribed, which is the whole of a cycle on its own.
+
 ### 2026-09-16 - CS-1117 - CLOSED. An unread file or a directory leaf is never a silent PASS
 
 **WHAT CHANGED.** Guard (c) and guard (b) in `tools/drift_guard.py` now report a file or memory

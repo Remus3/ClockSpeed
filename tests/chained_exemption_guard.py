@@ -112,7 +112,7 @@ import ast
 from collections.abc import Iterator, Mapping, Sequence
 from dataclasses import dataclass
 from functools import cache
-from typing import Final
+from typing import Final, cast
 
 from tests.assertion_rendering_guard import REPO_ROOT, tracked_python_files
 
@@ -142,6 +142,30 @@ VERDICT_RECORDED: Final = "recorded"
 VERDICT_UNRECORDED: Final = "unrecorded"
 
 
+#: The qualified name of a read that sits at module level rather than inside a
+#: function or a class. Spelled the way CPython spells it.
+MODULE_SCOPE: Final = "<module>"
+
+
+@dataclass(frozen=True)
+class CauseRead:
+    """One static read of a raise's ``cause`` field.
+
+    Attributes:
+        lineno: Where it is written. Carried for the REPORT only - nothing is
+            keyed on it, because a line number moves whenever anything above it
+            is edited and CS-889 owns that churn.
+        key: The identity, ``qualname::receiver`` - the dotted enclosing
+            scope, :data:`MODULE_SCOPE` at module level, and the expression the
+            cause is read OFF, unparsed so spacing and line breaks cannot move
+            it. Both halves are what :func:`_read_key` derives; its docstring
+            carries what the pair deliberately cannot separate.
+    """
+
+    lineno: int
+    key: str
+
+
 @dataclass(frozen=True)
 class Exemption:
     """One recorded reason for the static cause reads of one module.
@@ -149,24 +173,29 @@ class Exemption:
     Attributes:
         why: The reason. The sibling arm re-measures what it asserts rather
             than trusting the sentence.
-        sites: HOW MANY static cause reads this reason answers. WITHOUT IT THE
-            KEY IS A MODULE PATH AND NOTHING ELSE, so a reason written for one
-            adjudicated read silently forgives every further read that module
-            ever gains. That measured true here: an identical planted cause
-            read appended to EITHER recorded module went unreported, while the
-            same four lines in any other module were named at once. It is
-            CS-888's own shape one level down - immunity earned by holding a
-            reason about something else instead of by importing a name - and it
-            is closed the way ``tests/test_docs_citations.py`` closed the
-            identical fault in its ``Disposition`` table. A COUNT IS THE
-            CHEAPEST KEY THAT CLOSES IT and the only one that does not churn: a
-            line number moves whenever anything above it is edited, and
-            :func:`stale_exemptions` cannot see a second read arrive because
-            the module never leaves the population.
+        reads: WHICH static cause reads this reason answers, as the identity
+            :attr:`CauseRead.key` gives each one, ascending, with duplicates
+            kept. A COUNT WAS THE FIRST KEY HERE AND IT ANSWERED THE WRONG
+            QUESTION - CS-893. It says HOW MANY reads a reason forgives and
+            never WHICH, so a COMPENSATING SWAP is silent: delete one recorded
+            read and add an unrelated adjudicating one in the same edit, and
+            the cardinality is unchanged while an unadjudicated read rides
+            under a reason written about something else. Measured before this
+            repair, on BOTH recorded modules, by
+            ``test_a_compensating_swap_that_keeps_the_count_is_reported``. The
+            same fault in the ``Disposition`` table
+            ``tests/test_citation_tables.py`` owns is unrepaired and is filed
+            as CS-1121.
+            AN IDENTITY IS STRICTLY STRONGER THAN THE COUNT IT REPLACES,
+            because the count is recoverable from it: a read arriving with no
+            deletion changes the multiset too, which is what keeps the older
+            arm honest. It is also churn-free in the way a line number is not -
+            renaming the enclosing function or the receiver is what moves it,
+            and either of those IS a change to what the reason answers.
     """
 
     why: str
-    sites: int
+    reads: tuple[str, ...]
 
 
 #: Reasons for a static cause read outside the owner. AN ENTRY HERE IS NOT A
@@ -175,9 +204,10 @@ class Exemption:
 #:
 #: EACH ENTRY IS CHECKED IN THREE DIRECTIONS, and the third is the one an
 #: exemption table is normally missing. An entry whose module has left the
-#: population fails :func:`stale_exemptions`; an entry whose SITE COUNT no
-#: longer matches the live tree fails :func:`miscounted`, in BOTH directions;
-#: and the property each reason asserts is re-measured by its own probe arm.
+#: population fails :func:`stale_exemptions`; an entry whose ANSWERED READS are
+#: not the live ones fails :func:`mismatched`, in BOTH directions and on a
+#: swap that balances; and the property each reason asserts is re-measured by
+#: its own probe arm.
 #:
 #: NO ENTRY MAY ASSERT THAT A CHAINED CAUSE IS UNRENDERED. That is the claim
 #: CS-857 exists to correct, and it is false: the cause's own text is part of
@@ -186,7 +216,7 @@ class Exemption:
 #: failed, so it is not relied upon - the arm measures instead.
 EXEMPT: Final[Mapping[str, Exemption]] = {
     "tests/pathless_clone_guard.py": Exemption(
-        sites=1,
+        reads=("_slot::node",),
         why=(
             "MIRRORING IS NOT DEFERRING, AND THE MIRROR IS RE-MEASURED. That "
             "module's cause read sits in ``_slot``, whose own docstring says it "
@@ -208,7 +238,11 @@ EXEMPT: Final[Mapping[str, Exemption]] = {
         ),
     ),
     "tests/test_verify_env.py": Exemption(
-        sites=3,
+        reads=(
+            "rendered_exception_lines::node",
+            "rendered_exception_lines::node",
+            "rendered_exception_lines::node",
+        ),
         why=(
             "SCOPED TO THE CAUSE SLOT, AND RE-MEASURED. That module grades a "
             "DIFFERENT channel - whether the exception OBJECT reaches the message "
@@ -237,11 +271,15 @@ class Adjudicator:
 
     Attributes:
         module: Repo-relative path, POSIX separators.
-        lines: Ascending line numbers of the static cause reads.
+        lines: Ascending line numbers of the static cause reads. For the REPORT
+            only - :func:`classify` is keyed on :attr:`reads`.
+        reads: The identity of each read, :attr:`CauseRead.key`, in the same
+            order as :attr:`lines` and with duplicates kept.
     """
 
     module: str
     lines: tuple[int, ...]
+    reads: tuple[str, ...] = ()
 
 
 def _getattr_cause(node: ast.Call) -> bool:
@@ -277,8 +315,76 @@ def _names_cause_field(node: ast.expr) -> bool:
     return False
 
 
-def static_cause_reads(tree: ast.Module) -> tuple[int, ...]:
-    """Line numbers where this module reads a raise's ``cause`` field statically.
+def _receiver(node: ast.expr) -> str:
+    """The expression the cause field is read OFF, as written.
+
+    Args:
+        node: An expression :func:`_names_cause_field` has already accepted.
+
+    Returns:
+        The receiver, unparsed. ``ast.unparse`` normalises spacing and line
+        breaks, so reformatting a read cannot move its identity.
+    """
+    if isinstance(node, ast.Attribute):
+        return ast.unparse(node.value)
+    return ast.unparse(cast(ast.Call, node).args[0])
+
+
+def _read_key(qualname: str, node: ast.expr) -> str:
+    """The identity one static cause read is answered under.
+
+    WHY THESE TWO HALVES AND NOT A LINE NUMBER. CS-889 owns the churn a line
+    number causes - it moves whenever anything above it is edited, so every
+    unrelated edit rewrites the record and the rewrite is unreviewable. The
+    enclosing qualified name and the receiver expression move only when the
+    read itself is moved or rewritten, which is exactly when the reason stops
+    answering it. ``Site.key`` and ``Copy.key`` in this tree are keyed the same
+    way for the same reason.
+
+    WHAT THIS DELIBERATELY CANNOT SEPARATE, stated as a boundary rather than
+    left implied: TWO READS OFF THE SAME RECEIVER IN THE SAME SCOPE are one
+    identity written twice, so swapping one for the other is invisible here.
+    Duplicates are KEPT rather than collapsed, so the multiset still carries
+    the cardinality the count used to carry and such a swap is the only one
+    left. Separating them needs the statement around the read, which is a
+    bigger key than this item asks for.
+
+    Args:
+        qualname: The dotted enclosing scope.
+        node: An expression :func:`_names_cause_field` has already accepted.
+
+    Returns:
+        ``qualname::receiver``.
+    """
+    return f"{qualname}::{_receiver(node)}"
+
+
+def _scoped_cause_reads(node: ast.AST, scope: tuple[str, ...]) -> Iterator[CauseRead]:
+    """Every static cause read under one node, carrying its enclosing scope.
+
+    Recursive rather than :func:`ast.walk` because the scope has to be pushed
+    on the way down; ``ast.walk`` flattens the tree and loses it.
+
+    Args:
+        node: The node to descend from.
+        scope: The enclosing scope names, outermost first.
+
+    Yields:
+        One :class:`CauseRead` per read, in source order within each scope.
+    """
+    for child in ast.iter_child_nodes(node):
+        if isinstance(child, ast.FunctionDef | ast.AsyncFunctionDef | ast.ClassDef):
+            yield from _scoped_cause_reads(child, (*scope, child.name))
+            continue
+        if isinstance(child, ast.expr) and _names_cause_field(child):
+            yield CauseRead(
+                lineno=child.lineno, key=_read_key(".".join(scope) or MODULE_SCOPE, child)
+            )
+        yield from _scoped_cause_reads(child, scope)
+
+
+def cause_reads(tree: ast.Module) -> tuple[CauseRead, ...]:
+    """Every static read of a raise's ``cause`` field in this module.
 
     Matches ``<expr>.cause`` and ``getattr(<expr>, "cause")``. Deliberately does
     NOT match :data:`RUNTIME_CHAIN_ATTR`, which is a live exception's chain link
@@ -288,14 +394,22 @@ def static_cause_reads(tree: ast.Module) -> tuple[int, ...]:
         tree: The parsed module.
 
     Returns:
+        The reads, ordered by line then by identity, duplicates preserved.
+    """
+    found = _scoped_cause_reads(tree, ())
+    return tuple(sorted(found, key=lambda read: (read.lineno, read.key)))
+
+
+def static_cause_reads(tree: ast.Module) -> tuple[int, ...]:
+    """Line numbers where this module reads a raise's ``cause`` field statically.
+
+    Args:
+        tree: The parsed module.
+
+    Returns:
         The line numbers, ascending, with duplicates preserved per node.
     """
-    lines = [
-        node.lineno
-        for node in ast.walk(tree)
-        if isinstance(node, ast.expr) and _names_cause_field(node)
-    ]
-    return tuple(sorted(lines))
+    return tuple(read.lineno for read in cause_reads(tree))
 
 
 def defers_to_owner(tree: ast.Module) -> bool:
@@ -381,10 +495,16 @@ def adjudicators_in_sources(sources: Mapping[str, str]) -> tuple[Adjudicator, ..
     """
     found: list[Adjudicator] = []
     for module in sorted(sources):
-        lines = static_cause_reads(_parse(module, sources[module]))
-        if not lines:
+        reads = cause_reads(_parse(module, sources[module]))
+        if not reads:
             continue
-        found.append(Adjudicator(module=module, lines=lines))
+        found.append(
+            Adjudicator(
+                module=module,
+                lines=tuple(read.lineno for read in reads),
+                reads=tuple(read.key for read in reads),
+            )
+        )
     return tuple(found)
 
 
@@ -427,13 +547,15 @@ def adjudicators() -> tuple[Adjudicator, ...]:
 def classify(site: Adjudicator, exempt: Mapping[str, Exemption] = EXEMPT) -> str:
     """The verdict for one adjudicator.
 
-    A RECORDED VERDICT REQUIRES THE COUNT TO MATCH, and that is the whole of
-    the CS-888 residual repair. Clearing on module membership alone hands a
-    reason written for one read to every read the module later gains, so a
-    module with more cause reads than its entry answers is UNRECORDED - the
-    fail-closed direction. :func:`miscounted` is what says which way the count
-    moved, because "unrecorded" alone would send a reader hunting for a missing
-    entry that is in fact present.
+    A RECORDED VERDICT REQUIRES THE ANSWERED READS TO BE THE LIVE ONES, as a
+    multiset. Clearing on module membership alone hands a reason written for
+    one read to every read the module later gains, which is the CS-888
+    residual; clearing on a COUNT hands it to any read that ARRIVES IN THE SAME
+    EDIT AS A DELETION, which is CS-893 and is what this key closes. Any
+    difference either way is UNRECORDED - the fail-closed direction.
+    :func:`mismatched` is what says WHICH reads moved and in which direction,
+    because "unrecorded" alone would send a reader hunting for a missing entry
+    that is in fact present.
 
     Args:
         site: The adjudicator to grade.
@@ -446,7 +568,7 @@ def classify(site: Adjudicator, exempt: Mapping[str, Exemption] = EXEMPT) -> str
     if site.module == OWNER:
         return VERDICT_OWNER
     recorded = exempt.get(site.module)
-    if recorded is not None and recorded.sites == len(site.lines):
+    if recorded is not None and sorted(recorded.reads) == sorted(site.reads):
         return VERDICT_RECORDED
     return VERDICT_UNRECORDED
 
@@ -470,31 +592,46 @@ def unrecorded(
     )
 
 
-def miscounted(
+def mismatched(
     sites: Sequence[Adjudicator], exempt: Mapping[str, Exemption] = EXEMPT
 ) -> tuple[str, ...]:
-    """Recorded modules whose live read count is not the one on record.
+    """Recorded modules whose live reads are not the ones on record.
 
-    BOTH DIRECTIONS ARE A FINDING. More reads than the entry answers means a
-    read nobody adjudicated is riding on a reason written for another one, and
-    that is the fault this function exists for. FEWER means the entry now
-    answers reads that are gone, which is the same silent widening
-    :func:`stale_exemptions` catches when a module leaves the population
-    outright - caught here one step earlier, while the module is still in it.
+    BOTH DIRECTIONS ARE A FINDING, AND SO IS A SWAP THAT BALANCES. A read the
+    entry does not answer means a read nobody adjudicated is riding on a reason
+    written for another one, and that is the fault this function exists for. An
+    answered read that is GONE means the entry now forgives something absent,
+    the same silent widening :func:`stale_exemptions` catches when a module
+    leaves the population outright - caught here one step earlier, while the
+    module is still in it. A COMPENSATING SWAP is both faults in one edit and
+    was invisible to the site count this replaced - CS-893.
+
+    The comparison is over a MULTISET, so a second read at an identity already
+    answered is UNANSWERED rather than absorbed, and the cardinality the old
+    count carried is carried here too.
 
     Args:
         sites: The adjudicators to grade.
         exempt: The exemption record. Defaults to :data:`EXEMPT`.
 
     Returns:
-        One ``module: recorded N, live M`` entry per mismatch, ordered.
+        One ``module: unanswered [...], absent [...]`` entry per mismatch,
+        ordered.
     """
-    live = {site.module: len(site.lines) for site in sites}
-    return tuple(
-        f"{module}: recorded {entry.sites}, live {live[module]}"
-        for module, entry in sorted(exempt.items())
-        if module in live and entry.sites != live[module]
-    )
+    live = {site.module: site.reads for site in sites}
+    findings: list[str] = []
+    for module, entry in sorted(exempt.items()):
+        if module not in live:
+            continue
+        unanswered = list(live[module])
+        absent = list(entry.reads)
+        for key in list(unanswered):
+            if key in absent:
+                absent.remove(key)
+                unanswered.remove(key)
+        if unanswered or absent:
+            findings.append(f"{module}: unanswered {sorted(unanswered)}, absent {sorted(absent)}")
+    return tuple(findings)
 
 
 def stale_exemptions(
