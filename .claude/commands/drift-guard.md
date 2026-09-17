@@ -22,6 +22,12 @@ a guard you did not run.
       reach the ceiling without ever having warned, and the exit code stays 0 while
       that stands - CS-1133 owns the remainder. Offline; `--refresh` re-takes the
       record from `gh` and is the only part that touches the network)
+- [ ] `python tools/measurement_record.py --survives` - exit code: ____ (every reading this
+      project has taken of ITSELF, each with its own receipt, and CS-917's
+      survives-its-next-reading question answered by query rather than by reading prose.
+      READ THE REPORT: a reading printed `untested` has no later reading to be refuted by
+      yet, and one printed `unproven` rests on a pair whose worker count or load state was
+      never recorded. Offline; it takes no reading and reaches no network)
 - [ ] `python scripts/verify_env.py` - exit code: ____ (interpreter, toolchain, paths, ports)
 - [ ] `python tools/precommit_gate.py --staged` - exit code: ____ (character set and secrets)
 - [ ] `python tools/memory_sync.py` if any source doc changed - exit code: ____

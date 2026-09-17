@@ -940,3 +940,84 @@ each arm binds the shipped VALUE of the constant it grades, proven by every arm 
 ### Full headline
 
 two arms in `tests/data/test_item_notes_index.py` bind only their constant's MEMBERSHIP in the probe tuple and are blind to its VALUE - MEASURED 2026-09-17 by the CS-1132 second repair round and DERIVED from the module's own syntax tree rather than read by eye: of 97 test functions exactly two call `monkeypatch.setattr` and then assert, one patching the `CS-8nn` seam constant and one patching the `CS-1nnn` floor constant, and each killed 1 of 5 plants - GREEN on every plant that moved the value (860, 820, 870 and 899 for the seam; 1100, 900, 1200 and 1050 for the floor) and RED only when the constant was dropped from the probe tuple altogether, with the control GREEN on every row; this is the identical shape CS-1132 found in the `CS-9nn` seam's arm, where it killed 0 of 9 and was replaced by an arm that leaves the shipped constant alone and plants the edit a person would actually make, so the repair pattern is already established in the same module
+## CS-1138
+
+### Filed 2026-09-17 by the CS-920 cycle, from that item's verifier
+
+**THE VERDICT WORD IS NOT DEGRADED BY ITS OWN BASIS.** `survives_next_reading` in
+`tools/measurement_record.py` reports a verdict AND the comparability the pair
+rests on. A pair where both readings carry an escape value agrees about nothing,
+and the query says so - `basis: unproven` - but the verdict still reads
+`survived` or `falsified`. **A ROW LIFTED FROM THAT OUTPUT WITHOUT ITS BASIS
+REPRODUCES EXACTLY THE FAILURE CS-920 WAS FILED ABOUT**, which is a figure quoted
+out of the conditions it was taken under.
+
+**DO NOT FIX IT BY REFUSING THE PAIR.** Refusing would lose the only signal an
+all-escape history has, and the escape values exist precisely so a reading with
+no recorded worker count is KEPT rather than dropped. The fix is in the verdict
+vocabulary: a verdict reached on an unproven basis needs a name of its own that
+carries the qualification into any quotation of it.
+
+**NOT LIVE ON TODAY'S RECORD, AND FILED RATHER THAN REPAIRED FOR THAT REASON.**
+Every bound metric in `tools/measurements.json` holds one reading, so every
+verdict today is `untested` and no unproven verdict is printed at all. It was
+found after the CS-920 candidate was frozen, and a repair landed during a verdict
+is one that verdict cannot discharge.
+
+### Acceptance
+
+a verdict reached on a pair whose basis is not `comparable` carries the qualification IN THE VERDICT rather than only beside it, so quoting the verdict alone cannot drop it, proven by an arm that reddens when an unproven pair yields the same verdict word a comparable pair does
+
+## CS-1139
+
+### Filed 2026-09-17 by the CS-920 cycle, from that item's verifier
+
+**A FABRICATED READING GRADES CLEAN, MEASURED BY AN ADVERSARY RATHER THAN
+REASONED ABOUT.** The verifier added a reading with an invented value, a
+seven-character hex string that is not a commit in this repository, and a source
+citation whose anchor is the single word `the` - and `grade_tree` returned no
+offence. Two checks are weaker than they look: `commit` is matched against a hex
+pattern and never resolved against git, and a source anchor is any substring of
+the cited file, so a one-word anchor matches almost everything.
+
+**THIS IS A CAVEAT ON CS-920 RATHER THAN A DEFECT IN IT, AND THE DISTINCTION IS
+THE ITEM.** CS-920's clause asks that a receipt be CARRIED, and a carried receipt
+is what a fabricated row has. What is not established is that the receipt is
+TRUE. The record's value rests on rows being written honestly, and a machine
+check for honesty is a different property from a machine check for completeness.
+
+**THE OBVIOUS FIX IS HALF WRONG.** Resolving every `commit` against git reddens
+in a shallow CI checkout, which is the same trap `tools/tier1_growth.py` already
+met and answered by skipping on the window rather than per sha - read CS-1134
+before rebuilding that reasoning. An anchor floor is the cheaper half and has no
+such problem.
+
+### Acceptance
+
+a reading whose commit the checkout can place is graded against it and a reading whose anchor is too weak to identify a sentence is refused, with the commit check SKIPPED only where the checkout does not carry the history, proven by an arm that reddens on a planted fabricated reading and a control that stays green on the shipped record
+
+## CS-1140
+
+### Filed 2026-09-17 by the CS-920 cycle, from that item's verifier
+
+**CS-917's FIGURE CAN NEVER REACH A COMPARABLE BASIS AS THINGS STAND.** Every
+tier 1 reading in `tools/measurements.json` carries `workers: "unresolved"`,
+because the lane runs `pytest -n auto` and nothing records what that RESOLVED to.
+`nproc` does not answer it - xdist counts PHYSICAL cores, and this project has
+already published a worker count of sixteen that was eight for exactly that
+reason. So a future pair of tier 1 readings can only ever be graded `unproven`,
+and the survives-next-reading query will never say `comparable` about the very
+metric CS-917 needs it for.
+
+**THE FIX IS UPSTREAM OF THE RECORD AND THAT IS THE WHOLE POINT.** No amount of
+work inside `tools/measurement_record.py` can resolve a number the lane never
+emitted. The lane has to PRINT its resolved worker count where a refresh can read
+it, which makes this a workflow-and-record change rather than a schema one.
+
+**DO NOT CLOSE IT BY INFERRING THE COUNT FROM THE RUNNER'S CORE COUNT.** That is
+the inference that produced the sixteen-for-eight correction, and it is recorded
+in this project's own notes as one of the three readings CS-920 was filed over.
+
+### Acceptance
+
+a tier 1 reading records the worker count the lane ACTUALLY RESOLVED, emitted by the lane itself rather than inferred from a core count, and a pair of such readings grades `comparable` in `tools/measurement_record.py`, proven by an arm over the refreshed record

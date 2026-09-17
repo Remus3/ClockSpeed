@@ -145,6 +145,83 @@ excused; `python -m pytest tests/data/test_item_notes_index.py tests/data/test_d
 is green. To re-check the seam agreement, plant any value other than 960 in
 `_ITEM_NOTES_SECOND_BLOCK_SEAM` and confirm `test_the_shipped_cs9nn_seam_is_found_when_the_table_stops_bounding_it`
 reddens; clear every `__pycache__` first and restore from a byte snapshot rather than `git checkout`.
+### 2026-09-17 - CS-920 - CLOSED. Every measurement this project takes of ITSELF now carries a ROW-scoped receipt, and CS-917's survives-its-next-reading question is answered by query rather than by reading prose
+Verification: `python -m pytest tests/test_measurement_record.py -q` and
+`python tools/measurement_record.py --survives` from the repo root. Merged files:
+`tools/measurement_record.py`, `tools/measurements.json`,
+`tests/test_measurement_record.py`, and one checklist line in
+`.claude/commands/drift-guard.md`.
+
+THE DEFECT. A number this project measures about its own suite, lane or box was published in
+PROSE, and its provenance was DOCUMENT-scoped: the conditions travelled in the surrounding
+paragraph and were left behind the moment the figure was quoted. The item's own section, now in
+`docs/history_notes.md`, names three figures published and corrected in one session - none of them
+a careless reading, each a correct reading whose conditions did not travel with it.
+
+THE SHAPE. `tools/measurements.json` declares each metric ONCE - its kind, its unit, and for a
+BOUND its sense - and holds one row per reading carrying the eight receipt fields the acceptance
+clause names, plus a `source` list and a `superseded_by` link.
+`tools/measurement_record.py` grades it offline and answers the query; it takes no reading and
+reaches no network.
+
+THE ARM THE CLAUSE NAMES is `test_a_reading_missing_any_receipt_field_is_an_offence`, which
+strips each receipt field in turn from the TRACKED record rather than from a fixture, so it
+cannot go stale against the record growing a shape a fixture does not have.
+
+THE ANTI-VACUITY PROPERTY, because a schema with an escape hatch is a schema with none.
+A worker count nobody recorded is `unresolved` and a load state nobody recorded is `unknown`, so
+the reading is KEPT rather than lost - and the price is enforced rather than promised:
+`comparability` never returns `comparable` for a pair resting on one, so a delta drawn across it
+is reported `unproven` instead of as fact. ABSENCE of a field remains an offence.
+
+A CITATION IS AN ANCHOR, NOT A LINE NUMBER, AND THAT IS NOT A STYLE CHOICE. This file is
+append-at-TOP, so a line number into it is stale as soon as the next entry lands and a grader
+over line numbers checks nothing. An anchor is text that must still APPEAR in the cited file, so
+it survives the file growing and reddens when the sentence it names is reworded away - which is
+the event that leaves a number with no provenance at all.
+
+MUTATION-PROVEN TWICE, BY THE MERGER AND INDEPENDENTLY BY THE VERIFIER. Stopping the grader from
+reporting a missing field reddens all eight parametrisations of the acceptance arm; making
+`comparability` always return `comparable` reddens
+`test_a_pair_disagreeing_on_worker_count_cannot_falsify` and
+`test_a_pair_disagreeing_on_load_state_cannot_falsify`. The verifier reproduced the first in its
+own scratch copy from a pristine floor, so the proof does not rest on the author's word.
+
+SIBLING SWEEP. Two tracked records of the same family exist - `tools/tier1_readings.json` and
+`tools/tier2_durations.json` - and both carry a field allowlist already. Neither carries a worker
+count or a load state, which is precisely why every reading derived from them here is seeded
+`workers: "unresolved"`. Widening them belongs to the items that own them; the gap is filed as
+CS-1140 rather than swept in passing.
+
+TIER 2, and the whole tree was run from the repo root, written to a file and read back:
+`8842 passed, 5 skipped, 8 warnings in 412.66s (0:06:52)`, pytest exit 0 - re-run on the
+FINAL tree after the verifier's two repairs and every doc edit, so the counts describe what
+shipped rather than an earlier candidate. `python -m ruff check .`
+and `python -m ruff format --check .` both clean. The verifier re-ran the module itself and
+observed `43 passed in 0.12s` at exit 0.
+
+VERIFIER: CONFIRM on all three conjuncts, with four caveats, by an agent that did not produce the
+work. TWO OF THE FOUR WERE REPAIRED AFTER THE PASS AND WERE NOT RE-GRADED, which is recorded here
+rather than in a cycle report because a caveat said in a cycle report is not a caveat in the
+artifact. (i) `contended: false` on the seeded rows was an inference nobody had written down; the
+rule is now NAMED in the tool - a hosted-runner reading is not contended by the fact that a
+GitHub-hosted runner is a dedicated VM per job, and no other method may claim `false` without a
+citation. (ii) the arm now named `test_the_tool_and_the_record_are_both_present` asserted
+presence while its former name claimed tracking, and it is renamed to what it checks. The other
+two caveats are filed: CS-1138 for a verdict word that is not degraded by its own basis, CS-1139
+for a fabricated reading grading clean.
+
+THE THREE FILED IDS WERE RENUMBERED DURING THE REBASE AND THE COMMIT MESSAGE STILL CARRIES THE
+NUMBERS THEY WERE MINTED WITH. This cycle derived CS-1135, CS-1136 and CS-1137 against a tree
+that was current when it fetched; a sibling lane allocated the same three while this row was
+being worked, and both derivations were correct against what each could see. They are CS-1138,
+CS-1139 and CS-1140 here and in `ROADMAP.md`, and this file is the owner where the two disagree.
+
+WHAT THIS ITEM IS NOT, restated from its own section so a later cycle does not re-pitch it: it is
+not a benchmarking harness and it is not CodSpeed. It records readings a human or a session
+already took.
+
+CI: recorded by the driver in its own cycle row, and NOT observed by this worker.
 
 ### 2026-09-17 - CS-917 - MEASUREMENT RECORD. THE ITEM STAYS OPEN. The lane's growth per commit and its run-to-run jitter are measured; the ordering guarantee is unmet and filed as CS-1133
 
