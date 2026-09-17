@@ -41,7 +41,12 @@ the line becomes a pointer.
   by the headless lane: CS-894 (649ed65), CS-1068 (69b77a8). CLOSED LATER IN THE SESSION:
   CS-1117, CS-1118, CS-1120, CS-1114 and CS-1106 by the main session, CS-893 by the lane
   (768f2b8). FILED: CS-1105 through CS-1118; CS-1119 and
-  CS-1121 by the lane. Detail in `docs/LEDGER.md`.
+  CS-1121 by the lane; CS-1122 and CS-1124 at session end. Detail in `docs/LEDGER.md`.
+- **CS-1098, CS-1099 AND CS-1100 CLOSED AS DECLINES, NOT ADOPTIONS** (9119e6f), adjudicated
+  after four licence gates and three raw-byte adversaries. The archify idea is re-filed as
+  CS-1122, our own Python renderer with zero copied bytes; three conditional ideas went to
+  `BACKLOG.md`. Do not re-open them as tools - the rulings are in `docs/LEDGER.md`.
+- **CS-1106 CLOSED UNDER A FROZEN-FILE GRANT** recorded before the edit (see below).
 - **CS-1108 IS CLOSED.** It WAS graded - adversary NOT REFUTED at 3491540, merged at
   925329d, CI follow-up c6a41f3 - but the merger never recorded the closure. Recorded after
   the session: its `docs/LEDGER.md` entry is written and its `ROADMAP.md` line removed.
@@ -72,8 +77,15 @@ the line becomes a pointer.
   c1d7517, a synthetic `class Runner:` string matched the CI runner account name in the echo
   guard (fixed at 3ff40e1); 645663c, tier1, the memory reachability walk followed `INDEX_*`
   routing children only on a case-insensitive filesystem - pre-existing, exposed by a CS-1120
-  plant (fixed at 0cd4e66, merged at ea944a2). All green after the fix. The lane STOPPED
-  ITSELF on the 645663c red (`stopped_by=ci_red`) and was relaunched after green.
+  plant (fixed at 0cd4e66, merged at ea944a2). The lane STOPPED ITSELF on the 645663c red
+  (`stopped_by=ci_red`) and was relaunched after green.
+- **TIER2 WINDOWS PROBE TIMEOUT - THE LANE'S SECOND `ci_red` STOP.** Tier2 reds on 768f2b8
+  (shell-suite concurrent-writers arm, not reproduced since) and df372f3 (two
+  `tests/surface/test_panel_map.py` node-harness timeouts, passed on rerun), and the Windows
+  clean-checkout probe CANCELLED at 30 minutes three times because its fresh-clone suite ran
+  SERIAL. Fixed at 2ff935c (merge dee994a): that step runs `-n auto`, timeout unchanged, whole
+  suite kept. Dispatched tier2 on dee994a all green; lane relaunched. Detail: the SESSION 102
+  tier2 record in `docs/LEDGER.md`. Headroom is still thin - filed as CS-1124.
 - Failed paths: removing the routing table outright (a planner's proposal, rejected by
   adjudication - see CS-1112); salvaging the killed lane's CS-893 diff (red, and its
   ROADMAP hunk allocated an id main had since given to another item).
@@ -82,10 +94,10 @@ the line becomes a pointer.
   printed by `tools/inbox_watch.py` when these notes were written. Many
   `.claude/worktrees/agent-*` from this session are merged; none removed - classify by
   content before pruning.
-- STILL OPEN worth naming: CS-971 (behind CS-1112 and CS-1079), CS-1079, CS-1098, CS-1099
-  and CS-1100 (with the CS-1098 licence fence), CS-1105, CS-1112, CS-1119 and CS-1121.
+- STILL OPEN worth naming: CS-971 (behind CS-1112 and CS-1079), CS-1079,
+  CS-1105, CS-1112, CS-1119, CS-1121, CS-1122 and CS-1124.
 - Next action: the lane keeps draining under the relaunched launcher; the main session takes
-  CS-1105, then CS-1112 -> CS-1079 -> CS-971.
+  CS-1124 first if tier2 cancels again, else CS-1105, then CS-1112 -> CS-1079 -> CS-971.
 
 ## Session 101 - 2026-09-16 - the moon-sync adoption, and three of three slices refuted before merge
 

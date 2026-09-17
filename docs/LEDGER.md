@@ -374,6 +374,41 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-09-16 - SESSION 102 - NOT A COMPLETION RECORD. NOTHING CLOSED. TIER2 WINDOWS PROBE TIMEOUT - the clean-checkout probe ran its suite SERIAL and was cancelled at its own limit three times, and the lane stopped itself twice on the reds
+
+**THE LANE STOPPED TWICE, BOTH TIMES RECORDING `stopped_by=ci_red`.** Neither stop was the
+lane's own work failing its own acceptance. Both were tier2 verdicts on trees the lane had
+already pushed.
+
+**THE THREE REDS, KEPT SEPARATE BECAUSE THEY HAVE DIFFERENT CAUSES.**
+
+- On 768f2b8, a Windows shell-suite concurrency arm - "real concurrent writers never publish
+  an empty or truncated state file". NOT REPRODUCED SINCE, and it is recorded here unexplained
+  rather than rounded up to runner load.
+- On df372f3, two `tests/surface/test_panel_map.py` node-harness `TimeoutExpired` inside a
+  22.7-minute Windows full-suite run. The same arms passed locally and on the next run.
+- The Windows clean-checkout probe was CANCELLED at its 30-minute `timeout-minutes` on runs
+  35163459856, 35173614671 and 35177278852. A cancellation is not a test failure and it is not
+  a flake: its "Suite in the fresh clone" step ran SERIAL and took 29.4 of the 30 minutes. Green
+  runs of the same step earlier the same day took 15.7 and 25.6 minutes, so the job had been
+  passing on margin, not on headroom.
+
+**THE FIX, AND THE TWO THINGS IT DELIBERATELY DID NOT DO.** 2ff935c, merged at dee994a: the
+probe's "Suite in the fresh clone" step now runs under `-n auto`, the same parallelism job 1
+already had. `timeout-minutes` was NOT raised - raising it would have bought time without
+measuring anything. The whole suite was NOT trimmed out of the probe either, because
+`tests/test_make_cert.py` names that step as the only place the suite runs after the hooks are
+installed, so a narrowed probe would delete the coverage the probe exists for.
+
+**VERIFIED BY A DISPATCHED RUN ON THE MERGE ITSELF, NOT BY THE NEXT SCHEDULED ONE.** tier2 run
+35180515534 on dee994a: all jobs success, Windows clean-checkout probe 22.8 minutes, Windows
+full suite 21.1 minutes. tier1 on the same tree success. The lane was relaunched after that.
+
+**WHAT THE GREEN RUN DOES NOT SETTLE, filed rather than left in prose.** Both Windows jobs now
+land within roughly eight minutes of a 30-minute limit while the suite is still growing, and a
+cancelled job reads to the lane as `ci_red` and stops it. That headroom, and a disposition for
+the two Windows-only failures above, is CS-1124.
+
 ### 2026-09-16 - CS-1098 - CLOSED. DECLINED as a tool, a scope change and not a gate clearing, and the idea is re-filed as our own renderer with zero copied bytes
 
 **RULING - THE ADJUDICATOR'S LEDGER SENTENCE, VERBATIM.** "CS-1098 DECLINED, scope change not gate
