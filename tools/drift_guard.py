@@ -3403,7 +3403,7 @@ def _roadmap_detail_lines(roadmap_text: str) -> list[tuple[str, str | None, str,
 # ROADMAP line, or the line carries the literal pointer and the whole clause sits
 # under exactly one acceptance heading in the item's section. A clause on the line
 # beside a heading in the section is two owners, and one of them is a truncation:
-# e63668b cut clauses part-way and changed what 91 items require. The field is
+# e63668b cut clauses part-way and changed what those items require. The field is
 # found by position - after the first acceptance separator, before the last tier
 # separator - so a clause holding its own spaced hyphens is read whole.
 _ROADMAP_ACCEPTANCE_SEPARATOR = " - acceptance: "
@@ -3530,6 +3530,132 @@ def item_notes_acceptance_problems(
         "acceptance ownership - the whole clause on the line, or the pointer "
         f"`{ITEM_NOTES_ACCEPTANCE_POINTER}` there and one `{ITEM_NOTES_ACCEPTANCE_HEADING}` "
         "in the section, never both:",
+        *faults,
+    ]
+
+
+# CS-971 - THE HEADLINE HALF, GRADED THE SAME WAY. A headline too long for a line is
+# cut to a COMPLETE SHORT TITLE and the original is filed under the full-headline
+# heading. A title that is instead the filed headline CUT PART-WAY is the acceptance
+# defect wearing a different field, and an adversary drove exactly that through a green
+# tree. The rule, stated so it can be tested:
+#
+#   1. A section carries at most ONE full-headline heading, and its text is non-empty.
+#   2. When the line's headline is a STRICT PREFIX of the filed headline, the filed text
+#      must continue with a clause break - ``:``, ``;`` or a spaced hyphen. Continuing
+#      with anything else means the line stopped mid-clause or mid-word.
+#   3. No headline ends on a dangling connective, prefix or not, because a title ending
+#      on "and" or "the" is a sentence broken off whatever it was cut from.
+_ITEM_NOTES_HEADLINE_HEADING = "### Full headline"
+_HEADLINE_CLAUSE_BREAKS = (":", ";", " - ")
+_HEADLINE_DANGLING_WORDS = frozenset(
+    {
+        "a",
+        "an",
+        "and",
+        "as",
+        "at",
+        "because",
+        "but",
+        "by",
+        "for",
+        "from",
+        "in",
+        "of",
+        "on",
+        "or",
+        "so",
+        "than",
+        "that",
+        "the",
+        "their",
+        "to",
+        "which",
+        "while",
+        "with",
+    }
+)
+
+
+def roadmap_headlines(roadmap_text: str) -> dict[str, str]:
+    """Return every ROADMAP item line's headline.
+
+    Args:
+        roadmap_text: ROADMAP.md's text.
+
+    Returns:
+        Item id mapped to the text between its id and its first acceptance field, or the
+        rest of the line when it carries no acceptance field.
+    """
+    found: dict[str, str] = {}
+    for line in roadmap_text.splitlines():
+        item = _ROADMAP_ITEM_LINE.match(line)
+        if item is None:
+            continue
+        rest = line[len(item.group(1)) + len(_ROADMAP_FIELD_SEPARATOR) :]
+        found[item.group(1)] = rest.split(_ROADMAP_ACCEPTANCE_SEPARATOR)[0]
+    return found
+
+
+def item_notes_headline_texts(section: str) -> list[str]:
+    """Return the text under each full-headline heading in one section, stripped.
+
+    Args:
+        section: One section's text.
+
+    Returns:
+        One entry per full-headline heading, in the order they appear.
+    """
+    texts: list[str] = []
+    lines = section.splitlines()
+    for index, line in enumerate(lines):
+        if line.rstrip() != _ITEM_NOTES_HEADLINE_HEADING:
+            continue
+        body: list[str] = []
+        for following in lines[index + 1 :]:
+            if _ANY_MARKDOWN_HEADING.match(following):
+                break
+            body.append(following)
+        texts.append("\n".join(body).strip())
+    return texts
+
+
+def item_notes_headline_problems(
+    headlines: dict[str, str], section_texts: dict[str, str]
+) -> list[str]:
+    """Grade that no line headline is its filed headline cut part-way.
+
+    Args:
+        headlines: What ``roadmap_headlines`` returned.
+        section_texts: What ``item_notes_section_texts`` returned.
+
+    Returns:
+        One line per fault, under a header line; empty when every headline is sound.
+    """
+    faults: list[str] = []
+    for item, headline in headlines.items():
+        filed = item_notes_headline_texts(section_texts.get(item, ""))
+        last = headline.rstrip().rsplit(" ", 1)[-1].strip("`*_,").lower()
+        if last in _HEADLINE_DANGLING_WORDS:
+            faults.append(f'  {item} has a headline ending on the dangling word "{last}"')
+        if len(filed) > 1:
+            faults.append(f"  {item} carries {len(filed)} full headline headings in its section")
+            continue
+        if not filed:
+            continue
+        if not filed[0]:
+            faults.append(f"  {item} has a full headline heading with no text under it")
+            continue
+        rest = filed[0][len(headline) :]
+        if filed[0].startswith(headline) and rest and not rest.startswith(_HEADLINE_CLAUSE_BREAKS):
+            faults.append(
+                f"  {item} carries a headline cut part-way through its filed full headline"
+            )
+    if not faults:
+        return []
+    return [
+        "headline completeness - a short title is COMPLETE, never the filed headline cut "
+        f"part-way, and the original is filed under `{_ITEM_NOTES_HEADLINE_HEADING}`:",
         *faults,
     ]
 
@@ -4091,6 +4217,26 @@ def _item_notes_file_problems(
     return problems
 
 
+def _item_notes_content_problems(
+    root: Path, roadmap_text: str, sections: dict[str, str]
+) -> list[str]:
+    """Grade what each item line SAYS against what its section owns.
+
+    Args:
+        root: The repository root under audit.
+        roadmap_text: ROADMAP.md's text.
+        sections: Item id mapped to the repo-relative leaf holding its section.
+
+    Returns:
+        The acceptance-ownership faults followed by the headline-completeness faults.
+    """
+    section_texts = item_notes_section_texts(root, sections)
+    return [
+        *item_notes_acceptance_problems(roadmap_acceptance_fields(roadmap_text), section_texts),
+        *item_notes_headline_problems(roadmap_headlines(roadmap_text), section_texts),
+    ]
+
+
 def guard_index(root: Path) -> tuple[Guard, list[Skip]]:
     """Assert every routed item resolves, by the leaf membership rule, to its own section.
 
@@ -4180,11 +4326,7 @@ def guard_index(root: Path) -> tuple[Guard, list[Skip]]:
         problems.extend(_item_notes_file_problems(index_text, rules, listed))
     if roadmap_text is not None:
         problems.extend(_item_notes_routing_problems(domain, fields, sections, unread))
-        problems.extend(
-            item_notes_acceptance_problems(
-                roadmap_acceptance_fields(roadmap_text), item_notes_section_texts(root, sections)
-            )
-        )
+        problems.extend(_item_notes_content_problems(root, roadmap_text, sections))
 
     if problems:
         return _guard("j", name, "FAIL", detail + problems), skips

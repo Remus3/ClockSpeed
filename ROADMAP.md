@@ -12,8 +12,8 @@ CS-nnn - <one line> - acceptance: in detail - tier: <0|1|2> - detail: `docs/item
 **THE ACCEPTANCE CLAUSE LIVES IN THE ITEM'S SECTION, UNDER ITS `### Acceptance` HEADING,
 AND THAT SECTION IS ITS SOLE OWNER.** The line carries the literal pointer `in detail` in
 the acceptance field and nothing else about what the item requires. CS-971 measured why: a
-line cut to fit this file's budget changed what 91 items required, because a clause and its
-truncation are indistinguishable once the rest is gone. A clause split across the line and
+line cut to fit this file's budget changed what its item required, item after item, because
+a clause and its truncation are indistinguishable once the rest is gone. A clause split across the line and
 the section is two owners, and `tools/drift_guard.py` guard (j) fails it either way - a
 pointer whose section carries no acceptance, or a clause on a line whose section carries
 one. An item filed with its WHOLE clause on the line is still well-formed; a PART of one
@@ -98,7 +98,7 @@ CS-941 - the watcher is SILENT on a WITHDRAWAL, so a deliverable that leaves the
 CS-942 - the watcher runs only at `SessionStart`, which fires ONCE, so a note arriving mid-session is invisible until the next start - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
 CS-943 - the inbox watcher's seen-store save returns nothing and a write error crashes the session-start hook - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
 CS-944 - a leftover worktree lets a tree-walking existence guard pass green on the deletion it exists to catch - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
-CS-945 - local branches hold single-copy work that is on no remote - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
+CS-945 - local branches hold single-copy work that exists on no remote - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
 CS-946 - charter v4 is adopted and the cs lane slot accepted, reversing ADR-0017 - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
 CS-947 - CAVEMAN ULTRA is ADOPTED and needs an adjudicated grant against the frozen `.claude/settings.json` plus a stated interaction with `CLAUDE.md` 2.3 - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-948 - CS owes a reciprocal verbatim payload and has no manifest producer, and an unscrubbed outbound payload is unrecoverable once sent - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
@@ -112,7 +112,7 @@ CS-971 - `ROADMAP.md` is over its soft doc budget - acceptance: in detail - tier
 CS-972 - the pre-push hook grades the working tree while git ships the commit - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-974 - the queue driver rolls up a cycle's CI verdict against a two-verdict denylist - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-975 - nothing reads the queue driver's exit code, so every number it returns is decorative - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
-CS-993 - nothing rations the suite step across concurrent lanes - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
+CS-993 - no ration covers the suite step across concurrent lanes - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-995 - the converse leg of the unpinned eligibility check is ungraded for breadth - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
 CS-998 - membership of the independent case-count table is uncertified - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
 CS-1001 - the CS-1000 repair rests on exactly one lanes module object per process and nothing asserts it - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
@@ -136,7 +136,7 @@ CS-1076 - the independent table's no-dynamic-case-reuse check enumerates only it
 CS-1077 - the Sphinx role guard accepts a dotted role target whole once its head is a bound name - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1078 - the two arms stopping the memory sync tool regrowing the link derivation each have a blind spelling - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1129 - the leaf membership rule grammar is closed only at the positions its residue plants perturb - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
-CS-1119 - two trailing-run remainder shapes are left after CS-828's reference-pair reading - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
+CS-1119 - two trailing-run remainder shapes survive CS-828's reference-pair reading - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1121 - the citation Disposition table keys each forgiveness by a site count, never by the sites - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1123 - the CS-898 planting arm proves the tests-tree size ceiling fires but not where it sits - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
 CS-1125 - the mypy gate's exclude test reports on the ambient environment rather than on its subject - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
@@ -146,8 +146,8 @@ CS-1091 - `tests/save/test_world.py` sits above the approach band of the `_MAX_T
 
 CS-962 - the dashboard is a self-diagnostic rather than a player's tool - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-976 - the four panel modules share one global with the app script and one publishes 26 names into it - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
-CS-958 - the outbound gate graded nothing because nothing called it, and the channel had no sender - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
-CS-959 - GitHub's community-standards checklist for this repository is four of eight - acceptance: in detail - tier: 2 - NOT a CS-700 step, but a precondition of its irreversible one - detail: `docs/item_notes.md`
+CS-958 - the outbound gate graded nothing because nothing called it, and the channel had no sender at all - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
+CS-959 - GitHub's community-standards checklist for this repository stands at four of eight - acceptance: in detail - tier: 2 - NOT a CS-700 step, but a precondition of its irreversible one - detail: `docs/item_notes.md`
 CS-951 - nobody watches their own outbound withdrawals on the channel - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-877 - no arm enumerates the shell's `insertCSS` call sites, so a second injection is invisible - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-876 - no caller reads the independent oracle's final offset, so a stale reading passes it - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
@@ -243,7 +243,7 @@ CS-807 - No ordinary module gains a reach declaration it does not need - accepta
 CS-808 - the reach and wrap name caches are keyed on a `Path`, so a stale parse answers - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-484 - The local lint gate cannot reproduce CI's unbounded `ruff` pin - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-981 - CS-G05 is discharged and CS-829 is still filed as gated behind it, so the chain that answers "what am I holding" is unrouted - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
-CS-983 - `CS-G05` is decided out of `docs/GATED.md` and its body has not moved - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
+CS-983 - `CS-G05` is decided out of `docs/GATED.md` while its body has not moved - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-984 - a decoded struct interior reaches no consumer, because the world model publishes none - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-985 - the suite writes copies of the operator's real saves into the live `work/saves/` rather than into a temp root - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-986 - a `StructProperty` tag carrying `TAG_FLAG_NATIVE_SERIALIZE` whose interior still decodes as a tag list is unmeasured - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
@@ -324,7 +324,7 @@ CS-824 - `.githooks/pre-push` proves pytest RAN but not that it DID ANY WORK - a
 CS-700 - Phase 7 gate: the tier-3 flip checklist from CONVENTIONS section 17 - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-953 - a history scrub keyed on paths at HEAD leaves every pre-move path unrenamed - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-955 - the pre-commit gate grades the index at hook time, so a stage landing mid-hook commits ungraded - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
-CS-956 - three hook properties this project relies on are unmeasured anywhere in it - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
+CS-956 - three hook properties this project relies on are measured nowhere in it - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1014 - the queue loop's holder-pid type guard is ungraded and its removal survives every arm - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1015 - the lane refusal vocabulary is an unpinned cross-module string contract - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1016 - no arm drives a real lane worktree collision into a cycle end to end - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
@@ -342,7 +342,6 @@ CS-1029 - the web assets one-post test's name states one post while the test now
 CS-1030 - the power endpoint restates the shipped exponent and its measured float in prose - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1031 - the audit harness power data binds one reason string to its owner and hand-authors four - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1032 - the panel harness DOM stand-in has no known-good browser control anywhere in the repo - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
-CS-1033 - `ROADMAP.md` is over its soft budget and has been for some time - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1034 - four anti-leak privacy arms hunt a needle the encoder can never produce - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
 CS-1035 - the audit inventory module carries CS-1020's ungraded-count shape - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
 CS-1036 - CS-1025 and CS-1020 enforce their sweeps over a hand-enumerated population - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`

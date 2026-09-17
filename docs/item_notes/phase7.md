@@ -1060,16 +1060,6 @@ one end-to-end control renders a known panel in a real browser and is compared a
 
 `tests/surface/panel_harness.py`'s DOM stand-in has no known-good browser control anywhere in the repo, and every panel verdict in the project rests on it: all 37 arms added for the optimize and power panels, plus every existing panel arm, run under `drive()` against a stand-in that nothing compares to a real browser, so "the page renders X" is a claim about the stand-in and not about the page - this project has already recorded that the dashboard's self-signed HTTPS defeats automation browsers and that browser-pane resize, focus and default key scrolling are silently faked, which is why the gap is unclosed rather than merely unnoticed
 
-## CS-1033
-
-### Acceptance
-
-the file is under its budget with the detail RELOCATED to a sub-index or a leaf and a one-line pointer left behind, nothing deleted, every relocated item still reachable from a single documented route, and the item LINE for each open item still carries its own acceptance so the roadmap stays readable without following a pointer
-
-### Full headline
-
-`ROADMAP.md` is 105384 bytes against a 61440 byte soft budget and has been over it for some time: it was already 95339 bytes at 9a7e152 before session 91 filed nineteen rows and took it to 105384, so this is a standing debt this session WORSENED by about ten per cent rather than one it created - the doc budget has been printing RELOCATE, DO NOT DELETE on it every run and no item owned the work
-
 ## CS-1034
 
 ### Acceptance

@@ -833,6 +833,78 @@ def test_a_pointer_on_a_line_with_no_detail_field_is_red(tmp_path: Path) -> None
     ), rendered
 
 
+HEADLINE_HEADING = "### Full headline"
+
+
+def _set_line_headline(root: Path, item: str, headline: str) -> None:
+    """Rewrite ``item``'s synthetic line so its headline reads ``headline``."""
+    path = root / ROADMAP_RELATIVE
+    text = path.read_text(encoding="utf-8")
+    old = f"{item} - a headline - acceptance: "
+    assert text.count(old) == 1, f"plant anchor not unique: {old!r}"
+    path.write_text(text.replace(old, f"{item} - {headline} - acceptance: "), encoding="utf-8")
+
+
+def _file_full_headline(root: Path, leaf: str, item: str, headline: str) -> None:
+    """Give ``item``'s synthetic section a filed full headline."""
+    _append_to_section(root, leaf, item, f"{HEADLINE_HEADING}\n\n{headline}\n\n")
+
+
+def test_a_line_headline_that_stops_at_a_clause_break_of_the_filed_one_passes(
+    family: Path,
+) -> None:
+    """The floor: a COMPLETE short title that happens to be a prefix is not a truncation."""
+    _file_full_headline(family, "phase4.md", "CS-401", "a headline: and then the measurement")
+
+    status, rendered = _run(family)
+    assert status == "PASS", rendered
+
+
+def test_an_authored_title_that_is_not_a_prefix_of_the_filed_headline_passes(
+    family: Path,
+) -> None:
+    """A title written fresh is graded on its own ending, not against the original."""
+    _file_full_headline(family, "phase4.md", "CS-401", "an entirely different sentence")
+
+    status, rendered = _run(family)
+    assert status == "PASS", rendered
+
+
+def test_a_line_headline_truncating_the_filed_headline_mid_clause_is_red(family: Path) -> None:
+    """The CS-1012 shape: the line's headline is the filed one cut part-way."""
+    _file_full_headline(family, "phase4.md", "CS-401", "a headline that runs on and on")
+
+    status, rendered = _run(family)
+    assert status == "FAIL", rendered
+    assert "  CS-401 carries a headline cut part-way through its filed full headline" in (
+        rendered.splitlines()
+    ), rendered
+
+
+def test_a_line_headline_ending_on_a_dangling_word_is_red(family: Path) -> None:
+    """A title ending on a connective is a sentence broken off, prefix or not."""
+    _set_line_headline(family, "CS-401", "an entirely different sentence about the")
+    _file_full_headline(family, "phase4.md", "CS-401", "a headline that runs on and on")
+
+    status, rendered = _run(family)
+    assert status == "FAIL", rendered
+    assert '  CS-401 has a headline ending on the dangling word "the"' in (rendered.splitlines()), (
+        rendered
+    )
+
+
+def test_two_full_headline_headings_in_one_section_is_red(family: Path) -> None:
+    """Two filed headlines are two originals, and at most one can be the original."""
+    _file_full_headline(family, "phase4.md", "CS-401", "an entirely different sentence")
+    _file_full_headline(family, "phase4.md", "CS-401", "another entirely different sentence")
+
+    status, rendered = _run(family)
+    assert status == "FAIL", rendered
+    assert "  CS-401 carries 2 full headline headings in its section" in (rendered.splitlines()), (
+        rendered
+    )
+
+
 def test_a_line_with_no_acceptance_field_at_all_is_red(family: Path) -> None:
     """Neither a clause nor the pointer: the item requires nothing anyone can read."""
     path = family / ROADMAP_RELATIVE
@@ -1440,6 +1512,40 @@ def test_the_real_tree_index_is_green() -> None:
     """A proof must stay green when the defect is absent."""
     status, rendered = _run(REPO_ROOT)
     assert status == "PASS", rendered
+
+
+def test_the_adversarys_cut_of_a_real_filed_headline_is_caught() -> None:
+    """The CS-1012 plant, taken from the live pair rather than from a literal.
+
+    An adversary cut CS-1012's line mid-clause against its own filed full headline and the
+    tree stayed green. The cut is rebuilt here from whatever that item's section holds now,
+    so the arm cannot rot into a test about a stale string.
+    """
+    roadmap = (REPO_ROOT / ROADMAP_RELATIVE).read_text(encoding="ascii")
+    headlines = drift_guard.roadmap_headlines(roadmap)
+    sections = {
+        item: leaf
+        for item, leaf in drift_guard.item_notes_sections(REPO_ROOT)[0].items()
+        if item == "CS-1012"
+    }
+    texts = drift_guard.item_notes_section_texts(REPO_ROOT, sections)
+    filed = drift_guard.item_notes_headline_texts(texts["CS-1012"])
+    assert len(filed) == 1, "CS-1012 files no full headline, so this arm measures nothing"
+
+    assert drift_guard.item_notes_headline_problems(headlines, texts) == [], "the live pair"
+
+    cut = filed[0][:100].rsplit(" ", 1)[0]
+    assert filed[0].startswith(cut), "the rebuilt cut is not a prefix of the filed headline"
+    continuation = filed[0][len(cut) :]
+    assert not continuation.startswith((":", ";", " - ")), (
+        "the rebuilt cut stops at a clause break, so it would not plant the defect"
+    )
+    planted = dict(headlines)
+    planted["CS-1012"] = cut
+    problems = drift_guard.item_notes_headline_problems(planted, texts)
+    assert "  CS-1012 carries a headline cut part-way through its filed full headline" in (
+        problems
+    ), problems
 
 
 def test_the_real_tree_moves_acceptance_behind_the_pointer() -> None:

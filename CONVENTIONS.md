@@ -68,9 +68,9 @@ A restated fact is a fact that will drift.
 |---|---|---|
 | `CLAUDE.md` | Rules, hard constraints, frozen list, settled decisions, paths, topology | Per-item history, counts, ledger entries |
 | `README.md` | Outsider-facing: what it is, install, run, first result | Internal process, roadmap, session notes |
-| `ROADMAP.md` | OPEN work only - the item LINE alone, with its ID, acceptance and tier | Completed work, aspirational ideas, NOTE bodies |
+| `ROADMAP.md` | OPEN work only - the item LINE alone: its ID, a short headline, the acceptance POINTER and the tier | Completed work, aspirational ideas, NOTE bodies, any PART of an acceptance clause |
 | `docs/item_notes.md` | The INDEX over `docs/item_notes/` - the leaf membership rule plus the rules every leaf obeys | Any item body, item lines, a per-item routing row, completion records, history |
-| `docs/item_notes/` | LIVE per-item detail for OPEN work, one leaf per phase, one section per item ID | Item lines, completion records, history, closed items |
+| `docs/item_notes/` | LIVE per-item detail for OPEN work, one leaf per phase, one section per item ID, and the SOLE owner of a pointed-at acceptance clause under its `### Acceptance` heading | Item lines, completion records, history, closed items |
 | `BACKLOG.md` | Aspirational and conditional-trigger items, one line each | Anything currently being worked |
 | `docs/LEDGER.md` | Append-only, newest-first per-item completion record | Rules, open work |
 | `docs/ARCHITECTURE.md` | Module map, data flow, seams, ownership | Ops commands, counts |
@@ -156,10 +156,19 @@ Every work item is in exactly one of four states, in exactly one file.
 
 | State | Home | Shape |
 |---|---|---|
-| **OPEN** | `ROADMAP.md` | `<ID> - <one line> - acceptance: <testable condition> - tier: <0/1/2>` |
+| **OPEN** | `ROADMAP.md` | `<ID> - <one line> - acceptance: in detail - tier: <0/1/2> - detail: <the item-notes index>` |
 | **ASPIRATIONAL** | `BACKLOG.md` | One line. No acceptance criteria required. Not scheduled. |
 | **GATED** | `docs/GATED.md` | One line + the exact external condition that unblocks it |
 | **CLOSED** | `docs/LEDGER.md` + a `Settled` line in `CLAUDE.md` if it must never reopen | Newest-first, dated, with a verification pointer |
+
+**AN OPEN ITEM'S ACCEPTANCE CLAUSE HAS ONE OWNER, AND IT IS THE ITEM'S NOTE.** The line
+carries the literal pointer in its acceptance field; the whole clause sits in that item's
+note under a single `### Acceptance` heading. A clause on the line as well is two owners,
+and a PART of a clause on the line is never well-formed - a truncation and a clause read
+the same once the rest is gone, which is how one budget pass silently changed what dozens
+of items required. An item filed with its WHOLE clause on the line is still well-formed;
+the split is what is banned. A headline too long for a readable line is cut to a COMPLETE
+short title, with the original filed whole in the note.
 
 **Prose discipline for all four:** one line per item. If an item needs a paragraph, it
 needs its own file and the line becomes a pointer. Ban narrative in these files - they
