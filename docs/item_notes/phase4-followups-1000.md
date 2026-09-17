@@ -812,3 +812,17 @@ each of the three surviving mutants is killed by an arm that grades the thing it
 ### Full headline
 
 `_oversized_over_the_ceiling` in `tests/data/test_phase2_gate.py` is closed only at its lower edge, so three mutants survive the whole module green - MEASURED 2026-09-17 by the CS-1123 adversary across 17 plants: bounding the predicate as a BAND rather than a floor lets an artifact far above the ceiling escape silently, because no arm plants higher than the ceiling plus 19 bytes; rendering the report line from the file name instead of the path taken relative to the root leaves the nested-path contract ungraded, because both planting arms build their files flat in a temporary directory; and filtering the tree listing that feeds the real guard is unseen, because both arms supply their own lists and neither exercises the listing the guard is actually handed - each is killed by a concrete value, so all three are surviving mutants rather than equivalent ones
+
+---
+
+## CS-1134
+
+### Filed 2026-09-17 by the CS-1132 adversary pass
+
+### Acceptance
+
+a LIVE document that points at an item-notes leaf for an id with no section in that leaf is reported, with the population of pointers DERIVED rather than listed and a pointer distinguished both from a leaf-table RANGE SELECTOR and from a mention of the item that CAUSED a change, proven by an arm that plants such a pointer and goes RED, by an anti-vacuity control over the same bytes that stays green unplanted, and by the check staying SILENT on every one of the eight shapes the 2026-09-17 sweep produced as false positives; `docs/LEDGER.md` is out of scope because its own rule forbids editing a written record, and `docs/history_notes.md` is out of scope because its header declares that nothing in it may be acted on without re-verifying live
+
+### Full headline
+
+no guard grades a live document's pointer into an item-notes leaf, so a live file can route a reader to a section that no longer exists - MEASURED 2026-09-17 twice over: the CS-1132 adversary looked for such a guard across `tools/`, `tests/test_docs_citations.py` and `tests/test_citation_tables.py` and found none, and a derived sweep over every tracked markdown file outside the append-only record then found the live instance, `docs/ARCHITECTURE.md` routing the cost of the second world-body pass to `docs/item_notes/phase4-followups-900.md` under CS-961, dead since that item closed and its section left the family, while `tools/drift_guard.py` exited 0 across 11 guards and 517 citation and liveness arms passed over the same bytes; that pointer is repaired in the CS-1132 merge and the GUARD is what this row owns, because the five further pointers CS-1132's own relocation falsified all sit in files nothing may edit, and the next relocation will falsify more; the sweep that found it also produced eight false positives, every one a leaf-table range selector or a mention of the item that caused a change rather than a pointer at its section, so telling those apart is the part of this row that carries the risk
