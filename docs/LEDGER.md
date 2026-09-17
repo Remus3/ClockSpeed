@@ -75,6 +75,45 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-09-17 - CS-1125 - CLOSED. The mypy gate's arms run under an environment they build, not the one they inherit
+
+**WHAT CHANGED.** `tests/test_mypy_gate.py` built its throwaway projects correctly and then ran
+mypy under whatever the shell handed it, so an inherited variable decided what the arm reported.
+`PYTHONPATH=.` - how this lane and any developer runs the suite from the repo root - resolved the
+trunk module's import away from the excluded leaf beside it, and the exclusion arm failed against an
+empty mapping while mypy printed success. Every mypy run in the file now goes through one helper
+that builds its environment from an ALLOWLIST of what the interpreter needs to start, matched
+without regard to letter case, pins the child's IO encoding, pins the user site directory off, and
+names its config file explicitly so no user or XDG config is discovered. The helper reads raw bytes
+and decodes them in the test's own thread. `subprocess.run` at every site carries the file's own
+runaway cutoff under one name, so the three call sites cannot drift.
+
+**WHY AN ALLOWLIST.** A denylist was the first fix and it leaked twice: `FORCE_COLOR` reaches mypy
+as the fallback its own colour code reads, and `PYTHONIOENCODING` set to a UTF-16 codec breaks the
+output parse. A denylist that must name every variable mypy or its interpreter reads is the shape
+this project has already measured leaking four times.
+
+**TESTS.** Ambient arms that PLANT each hazard and prove it is live: the three `PYTHONPATH`
+spellings, `FORCE_COLOR` together with `TERM` (on POSIX mypy colours only when `setupterm` finds a
+terminfo entry, so the plant carries both), a UTF-16 IO encoding, a `.pth` in the per-user site
+directory located through `site` rather than a hardcoded layout, and a user mypy config planted in
+a fake home and XDG root. Each arm is RED when the environment is inherited and GREEN under the
+controlled one; the discovery control still reddens when mypy genuinely stops filtering discovery.
+A session fixture builds one warm mypy cache from an empty project and every run gets its own copy,
+which halved the arms' local wall time without letting two runs share state.
+
+**HOW IT WAS GRADED.** Builder, four adversary rounds on frozen SHAs, and a real CI reading. The
+rounds refuted, in order: the `FORCE_COLOR` fallback; the per-user site directory and the user
+config; and then ubuntu CI itself, where the `FORCE_COLOR` plant was VACUOUS because the runner
+sets no `TERM` - an arm that proved the hazard on Windows and proved nothing on Linux. The cache
+lens found nothing. The repo-wide subprocess-timeout guard then reddened on CI because the builder's
+scoped runs never ran it; that is the fourth time this session a scoped-only run hid a repo-wide
+guard. Green on both platforms at the merged candidate.
+
+**MEASURED, NOT FIXED.** The tier-1 guard shard now runs over its stated budget and under its
+ceiling with the warm cache already in place, so the shard carrying these arms has little headroom.
+That belongs to the rows that own tier-1 cost and its growth rate, not here.
+
 ### 2026-09-17 - CS-971 - CLOSED. An item's acceptance lives in its item-notes section, and the ROADMAP line carries a complete short title and a pointer
 
 **WHAT CHANGED.** `ROADMAP.md` was over its soft budget by more than twice, and no arrangement that

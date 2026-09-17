@@ -739,16 +739,6 @@ a file measuring EXACTLY `_MAX_TEST_FILE_BYTES` is graded, so the off-by-one in 
 
 the CS-898 planting arm proves the tests-tree size ceiling CATCHES an oversize artifact and says nothing about WHERE the ceiling sits, so the boundary is unguarded - MEASURED 2026-09-16 by the CS-898 verifier, which planted `>` in `tests/data/test_phase2_gate.py::_oversized_over_the_ceiling` as `>=` and watched `test_the_size_ceiling_still_catches_a_planted_oversize_non_authored_artifact` stay GREEN at a planted size of 262163 bytes against an under-ceiling control of 34, while three other mutants of the same comparison all reddened
 
-## CS-1125
-
-### Acceptance
-
-the arm's mypy subprocess runs under an environment the arm CONTROLS rather than inherits, proven by an arm that stays green with `PYTHONPATH` set to the repo root and by a control showing the same arm still reddens when mypy genuinely stops filtering discovery; SUPPRESSING THE SYMPTOM IS FORBIDDEN HERE BY NAME - no xfail, no skipif, no version guard and no tolerance, each of which turns a working gate into one that reports PASS without checking
-
-### Full headline
-
-`tests/test_mypy_gate.py::test_exclude_filters_discovery_and_does_not_contain_errors` reports on the AMBIENT ENVIRONMENT rather than on its subject: it builds a throwaway project in `tmp_path` and runs mypy there, but mypy INHERITS `PYTHONPATH`, so an invocation carrying `PYTHONPATH=.` - which is how this lane and any developer runs the suite from the repo root without an editable install - changes mypy's module search path, the throwaway trunk module's import no longer resolves to the excluded leaf module beside it, and the arm's error-attribution assertion fails against an empty mapping while mypy reports `Success: no issues found in 1 source file` - MEASURED 2026-09-17 in the CS-930 cycle and isolated to one variable: the same arm at the same SHA passes with no `PYTHONPATH` and fails with `PYTHONPATH=.`, on both this worktree and a pristine `git archive HEAD` export, and a direct probe shows mypy 2.1.0 still filters DISCOVERY only, so the arm's recorded reasoning about `exclude` is intact and only its isolation is not - the cost is a FALSE RED that reads exactly like a real gate regression and cost one adjudication round this cycle
-
 ## CS-1089
 
 ### Acceptance

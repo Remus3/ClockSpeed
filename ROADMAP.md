@@ -140,7 +140,6 @@ CS-1132 - `docs/item_notes/phase4-followups-900.md` sits just under its item-not
 CS-1119 - two trailing-run remainder shapes are left after CS-828's reference-pair reading and neither is derivable by that grammar - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1121 - the `Disposition` table `tests/test_citation_tables.py` owns keys each recorded forgiveness by a SITE COUNT - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1123 - the CS-898 planting arm proves the tests-tree size ceiling CATCHES an oversize artifact and says nothing about WHERE the ceiling sits - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
-CS-1125 - `tests/test_mypy_gate.py::test_exclude_filters_discovery_and_does_not_contain_errors` reports on the AMBIENT ENVIRONMENT rather than on its subject - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
 CS-1089 - `tests/save/test_struct_interior.py` sits above the approach band of the `_MAX_TEST_FILE_BYTES` ceiling in `tests/data/test_phase2_gate.py` - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
 CS-1090 - `tests/save/test_properties.py` sits above the approach band of the `_MAX_TEST_FILE_BYTES` ceiling in `tests/data/test_phase2_gate.py` - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
 CS-1091 - `tests/save/test_world.py` sits above the approach band of the `_MAX_TEST_FILE_BYTES` ceiling in `tests/data/test_phase2_gate.py` - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`

@@ -77,7 +77,9 @@ from __future__ import annotations
 
 import contextlib
 import io
+import os
 import re
+import shutil
 import subprocess
 import sys
 import tomllib
@@ -117,6 +119,50 @@ UNMATCHABLE_MODULE = "clockspeed_no_such_module_exists"
 # Zero-based index of the module-name column in mypy's --linecount-report
 # output, which is four whitespace-separated counts followed by the module.
 _LINECOUNT_MODULE_COLUMN = 4
+
+# The exclusion arm's throwaway-project pattern, and a mutant of it that matches
+# nothing - the control that proves the arm still sees discovery stop filtering.
+_LEAF_EXCLUDE = r"(^|/)leaf\.py$"
+_NON_MATCHING_EXCLUDE = r"(^|/)no_such_leaf\.py$"
+# Source files that project's discovery finds when the exclude filters nothing.
+_UNFILTERED_SOURCE_COUNT = 2
+
+# The bound on every mypy subprocess here, named once so the runs this module
+# makes outside ``_run_mypy`` cannot drift from it. Generous on purpose: a
+# cold cache on a loaded runner is slow, and a bound tight enough to trip on
+# that would report a flake as a finding. It is a RUNAWAY cutoff, not a
+# budget - tier 1 owns the budget, and it is minutes below this.
+_MYPY_TIMEOUT_SECONDS = 900
+
+# Hazards planted in the pytest process to prove the exclusion arm does not
+# report on its ambient environment (CS-1125): (id, variables, value tokens).
+# Every one but the absolute repository root breaks the arm when mypy inherits
+# it, and each hazard is COMPLETE on both Windows and POSIX - it names every
+# variable its mechanism needs, so it is not live on one platform only:
+#   PYTHONPATH: mypy builds its search path from its child interpreter's
+#     sys.path on every platform. "." is the literal `PYTHONPATH=.` and resolves
+#     against mypy's working directory, the throwaway project, not the repo root.
+#   FORCE_COLOR plus TERM: FORCE_COLOR only bypasses mypy's isatty check. On
+#     Windows it then emits VT100 escapes unconditionally; on POSIX it calls
+#     curses.setupterm(), which fails with no TERM - measured on ubuntu CI,
+#     where the run then stayed plain. `xterm` is in ncurses-base and carries
+#     every capability mypy asks for (bold, smul, setaf, cup, sgr0).
+#   PYTHONIOENCODING=utf-16: the child's stdout encoding on every platform.
+_AMBIENT_PLANTS: tuple[tuple[str, tuple[tuple[str, str], ...]], ...] = (
+    ("pythonpath_dot", (("PYTHONPATH", "."),)),
+    ("pythonpath_repo_root", (("PYTHONPATH", "<repo_root>"),)),
+    ("pythonpath_project_root", (("PYTHONPATH", "<project_root>"),)),
+    ("pythonpath_source_root", (("PYTHONPATH", "<source_root>"),)),
+    ("force_color", (("FORCE_COLOR", "1"), ("TERM", "xterm"))),
+    ("pythonioencoding_utf16", (("PYTHONIOENCODING", "utf-16"),)),
+)
+_HARMLESS_PLANTS = frozenset({"pythonpath_repo_root"})
+_AMBIENT_PARAMS = [pytest.param(dict(plant), id=name) for name, plant in _AMBIENT_PLANTS]
+_LIVE_AMBIENT_PARAMS = [
+    pytest.param(dict(plant), id=name)
+    for name, plant in _AMBIENT_PLANTS
+    if name not in _HARMLESS_PLANTS
+]
 
 
 class Gap(NamedTuple):
@@ -388,11 +434,100 @@ def _uncovered_within(
     }
 
 
+# WHAT A MYPY SUBPROCESS HERE IS CONTROLLED BY (CS-1125). Three mechanisms, and
+# each closes a leak that was measured, not imagined:
+#
+# 1. AN ALLOWLIST of inherited variables. The denylist it replaced dropped
+#    PYTHONPATH and MYPY* and still passed FORCE_COLOR, which mypy reads as the
+#    fallback for MYPY_FORCE_COLOR, and PYTHONIOENCODING, which re-encodes every
+#    byte mypy prints. What mypy and its interpreter read is open-ended - mypy
+#    starts a child interpreter over os.environ and expands $VARIABLES inside
+#    config values - so no denylist can be shown complete, and a missing
+#    allowlist entry fails LOUD (mypy cannot start) where a denylist leak fails
+#    as an empty parse.
+# 2. PINS laid over it (``_PINNED_ENVIRONMENT``). PYTHONNOUSERSITE=1, because
+#    a .pth file in the per-user site directory runs at interpreter start and
+#    put a throwaway project on the search path mypy builds from its child
+#    interpreter's sys.path. Pinned in the ENVIRONMENT rather than passed as
+#    `python -s`, because every interpreter mypy itself starts inherits the
+#    environment and none inherits the flag. A per-user-installed mypy therefore
+#    cannot import here - every arm reddens, which is the loud failure intended.
+#    PYTHONIOENCODING=utf-8, because the output is decoded as UTF-8 here.
+# 3. AN EXPLICIT CONFIG on every run (``_run_mypy`` has no default for it).
+#    With no config beside the project, mypy falls back to ~/.mypy.ini or
+#    ~/.config/mypy/config, located through home variables kept below.
+#
+# DELIBERATELY KEPT, AND WHY - the interpreter needs these to start or to
+# resolve its own paths, and each reader that could turn one into a leak is shut
+# by mechanism 2 or 3 above:
+#   Windows: SYSTEMROOT (CPython's random seeding and sockets), WINDIR,
+#     SYSTEMDRIVE, COMSPEC, PATHEXT.
+#   Both: PATH; TEMP and TMP for temporary files.
+#   Home, for `~` expansion (mypy expands it in cache and config paths, and on
+#     Windows an unset USERPROFILE leaves `~` literal): HOME, USERPROFILE,
+#     HOMEDRIVE, HOMEPATH. Their other readers - the per-user site and the
+#     per-user config - are mechanisms 2 and 3.
+#   POSIX: TMPDIR, LANG, LC_ALL, LC_CTYPE, and LD_LIBRARY_PATH for a
+#     shared-library interpreter build.
+# NOT kept: APPDATA and LOCALAPPDATA, whose only reader on this path was the
+# per-user site directory.
+_INHERITED_FOR_STARTUP: frozenset[str] = frozenset(
+    {
+        "COMSPEC",
+        "HOME",
+        "HOMEDRIVE",
+        "HOMEPATH",
+        "LANG",
+        "LC_ALL",
+        "LC_CTYPE",
+        "LD_LIBRARY_PATH",
+        "PATH",
+        "PATHEXT",
+        "SYSTEMDRIVE",
+        "SYSTEMROOT",
+        "TEMP",
+        "TMP",
+        "TMPDIR",
+        "USERPROFILE",
+        "WINDIR",
+    }
+)
+
+_PINNED_ENVIRONMENT: dict[str, str] = {"PYTHONIOENCODING": "utf-8", "PYTHONNOUSERSITE": "1"}
+
+
+def _controlled_environment(ambient: Mapping[str, str] | None = None) -> dict[str, str]:
+    """The environment a mypy subprocess here runs under - controlled, not inherited.
+
+    CS-1125. A run that inherits whatever launched pytest reports on that
+    launcher rather than on the project it was pointed at: under
+    ``PYTHONPATH=.`` a throwaway project landed on mypy's search path and mypy
+    printed Success over a real error; under ``FORCE_COLOR=1`` every line
+    carried ANSI escapes no parser here matches. So nothing is inherited except
+    ``_INHERITED_FOR_STARTUP``, and ``_PINNED_ENVIRONMENT`` is laid over it. The
+    comment above that set says what each kept variable is for.
+
+    Matched CASE-INSENSITIVELY: on Windows ``dict(os.environ)`` upper-cases its
+    keys, but a mapping built any other way need not. A kept variable keeps
+    its own spelling.
+
+    Args:
+        ambient: The environment to draw from, defaulting to this process's own.
+
+    Returns:
+        A fresh mapping, safe to hand to ``subprocess.run``.
+    """
+    source = os.environ if ambient is None else ambient
+    kept = {name: value for name, value in source.items() if name.upper() in _INHERITED_FOR_STARTUP}
+    return {**kept, **_PINNED_ENVIRONMENT}
+
+
 def _run_mypy(
     *args: str,
-    config: Path | None = None,
+    config: Path,
     cache: Path | None = None,
     cwd: Path | None = None,
+    env: Mapping[str, str] | None = None,
 ) -> subprocess.CompletedProcess[str]:
     """Run mypy and return the completed process.
 
@@ -403,28 +538,43 @@ def _run_mypy(
 
     Args:
         *args: Trailing mypy arguments, usually target paths.
-        config: Optional config file to use instead of pyproject.toml.
+        config: The config file mypy reads. REQUIRED, with no default: a run
+            left to discover one falls back to a per-user config whenever no
+            project config sits beside it (CS-1125).
         cache: Optional cache directory, so a generated config never writes
             into the repository's own incremental cache.
         cwd: Optional working directory, defaulting to the repository root.
+        env: Optional explicit environment. Omitted, the run gets
+            ``_controlled_environment()``; only the arm proving that a planted
+            variable is hazardous passes one.
 
     Returns:
         The completed process. A non-zero exit is not raised: most tests here
         assert on COVERAGE, and mypy reports its summary on the error path too.
+
+    Raises:
+        UnicodeDecodeError: mypy wrote a stream that is not UTF-8.
     """
-    command = [sys.executable, "-m", "mypy", "--no-pretty"]
-    if config is not None:
-        command += ["--config-file", str(config)]
+    command = [sys.executable, "-m", "mypy", "--no-pretty", "--config-file", str(config)]
     if cache is not None:
         command += ["--cache-dir", str(cache)]
     command += list(args)
-    return subprocess.run(
+    # Captured as BYTES and decoded here. With text=True the decode runs in a
+    # reader thread on Windows, and a stream that is not valid text leaves
+    # stdout as None instead of raising where a test can see why.
+    completed = subprocess.run(
         command,
         cwd=cwd or REPO_ROOT,
+        env=_controlled_environment() if env is None else dict(env),
         capture_output=True,
-        text=True,
-        timeout=900,
+        timeout=_MYPY_TIMEOUT_SECONDS,
         check=False,
+    )
+    return subprocess.CompletedProcess(
+        completed.args,
+        completed.returncode,
+        completed.stdout.decode("utf-8"),
+        completed.stderr.decode("utf-8"),
     )
 
 
@@ -498,7 +648,7 @@ def _measure_gaps(
         The completed process.
     """
     targets = [str(entry) for entry in _mypy_config(root)["files"]]
-    return _run_mypy(*targets, *gaps, cache=cache, cwd=root)
+    return _run_mypy(*targets, *gaps, config=root / "pyproject.toml", cache=cache, cwd=root)
 
 
 def _gap_count_mismatches(
@@ -618,7 +768,7 @@ def repo_wide_mypy() -> subprocess.CompletedProcess[str]:
     Returns:
         The completed process.
     """
-    return _run_mypy()
+    return _run_mypy(config=REPO_ROOT / "pyproject.toml")
 
 
 class _SyntheticGap(NamedTuple):
@@ -678,7 +828,7 @@ def synthetic_gap(tmp_path_factory: pytest.TempPathFactory) -> _SyntheticGap:
     )
 
     gap = "orphan/broken.py"
-    gate = _run_mypy(cache=root / "gate_cache", cwd=root)
+    gate = _run_mypy(config=root / "pyproject.toml", cache=root / "gate_cache", cwd=root)
     measured = _measure_gaps([gap], root=root, cache=root / "measure_cache")
     return _SyntheticGap(
         root=root,
@@ -952,7 +1102,7 @@ def test_the_oracle_reproduces_the_real_runs_discovered_set(tmp_path: Path) -> N
     # it lists the DISCOVERED set, so it agrees with the oracle rather than
     # with the larger reported-on set.
     report_dir = tmp_path / "report"
-    _run_mypy("--linecount-report", str(report_dir))
+    _run_mypy("--linecount-report", str(report_dir), config=REPO_ROOT / "pyproject.toml")
     lines = (report_dir / "linecount.txt").read_text(encoding="utf-8").splitlines()
     # Four count columns then the module name; the first row is the "total".
     real = {
@@ -972,6 +1122,143 @@ def test_the_oracle_reproduces_the_real_runs_discovered_set(tmp_path: Path) -> N
 # ---------------------------------------------------------------------------
 
 
+def _build_exclusion_project(root: Path, exclude: str = _LEAF_EXCLUDE) -> Path:
+    """Write the throwaway project the exclusion arms run mypy against.
+
+    One module, ``leaf``, carries one real error and is named by ``exclude``;
+    a second module, ``trunk``, imports it. Built fresh per arm so no arm can
+    read another arm's cache or config.
+
+    Args:
+        root: The throwaway project root, created here.
+        exclude: The mypy ``exclude`` pattern to write. The control arm passes
+            one that matches nothing, so discovery genuinely stops filtering.
+
+    Returns:
+        The written config file.
+    """
+    source_dir = root / "src"
+    source_dir.mkdir(parents=True)
+    (source_dir / "leaf.py").write_text(
+        "def take(count: int) -> int:\n    return count\n\n\ntake('not a number')\n",
+        encoding="utf-8",
+    )
+    (source_dir / "trunk.py").write_text("import leaf\n\nleaf.take(1)\n", encoding="utf-8")
+    config = root / "mypy.ini"
+    config.write_text(f"[mypy]\nfiles = src\nexclude = {exclude}\n", encoding="utf-8")
+    return config
+
+
+def _assert_exclude_filters_discovery_only(result: subprocess.CompletedProcess[str]) -> None:
+    """The exclusion arm's two checks, shared so its control runs the SAME checks.
+
+    Args:
+        result: A mypy run over the project ``_build_exclusion_project`` wrote.
+
+    Raises:
+        AssertionError: Discovery was not filtered, or leaf.py's error was not
+            attributed to leaf.py.
+    """
+    assert _reported_file_count(result.stdout) == 1, (
+        "the exclusion did not remove leaf.py from DISCOVERY, so this test is "
+        f"not measuring what it claims to.\n{result.stdout}"
+    )
+    assert _errors_by_file(result.stdout) == {"src/leaf.py": 1}, (
+        "mypy did not report leaf.py's one error against leaf.py, so either "
+        "`exclude` now behaves as containment - and the reasoning recorded in "
+        "pyproject.toml and in this module's docstring needs rechecking - or the "
+        f"error is being attributed somewhere else.\n{result.stdout}"
+    )
+
+
+def _resolve_plant(plant: Mapping[str, str], project: Path) -> dict[str, str]:
+    """Resolve a hazard's value tokens to the values planted.
+
+    Args:
+        plant: Variables to value tokens, from ``_AMBIENT_PLANTS``. Path tokens
+            are resolved here because the throwaway project only exists per
+            test; any other token is planted literally.
+        project: The throwaway project root.
+
+    Returns:
+        Variables to the values to plant.
+    """
+    paths = {
+        "<repo_root>": str(REPO_ROOT),
+        "<project_root>": str(project),
+        "<source_root>": str(project / "src"),
+    }
+    return {name: paths.get(token, token) for name, token in plant.items()}
+
+
+@pytest.fixture(scope="session")
+def warm_mypy_cache(tmp_path_factory: pytest.TempPathFactory) -> Path:
+    """A mypy cache holding only what a one-empty-module project builds.
+
+    THE COST IT REMOVES. A cold mypy run spends most of its time building the
+    standard library - measured locally at 1.07s cold against 0.29s from a warm
+    copy - and the CS-1125 environment arms make dozens of runs, all of them in
+    the tier-1 guard shard, which runs this module on one worker.
+
+    WHY IT CANNOT HIDE A HAZARD. It is built under the controlled environment
+    from a project whose only module is empty, so it holds no module any arm
+    checks: every leaf, trunk and planted module is built fresh in every run.
+    And no run shares it - each gets a PRIVATE copy through ``_seeded_cache`` -
+    so nothing one run records can reach another. The anti-vacuity arms run on
+    seeded copies too, so a hazard a warm cache masked would turn them red.
+
+    Args:
+        tmp_path_factory: pytest's session-scoped temporary directory factory.
+
+    Returns:
+        The warm cache directory. Never pass it to a run directly.
+    """
+    root = tmp_path_factory.mktemp("warm_mypy_cache")
+    project = root / "project"
+    (project / "src").mkdir(parents=True)
+    (project / "src" / "empty.py").write_text("", encoding="utf-8")
+    config = project / "mypy.ini"
+    config.write_text("[mypy]\nfiles = src\n", encoding="utf-8")
+    cache = root / "cache"
+    warmed = _run_mypy(config=config, cache=cache, cwd=project)
+    assert warmed.returncode == 0, f"the cache warm-up run failed:\n{warmed.stdout}{warmed.stderr}"
+    return cache
+
+
+def _seeded_cache(warm: Path, destination: Path) -> Path:
+    """Give one mypy run a private copy of the warm cache.
+
+    Args:
+        warm: The ``warm_mypy_cache`` fixture's directory.
+        destination: Where this run's cache lives; must not exist yet.
+
+    Returns:
+        ``destination``, now holding the copy.
+    """
+    shutil.copytree(warm, destination)
+    return destination
+
+
+def _run_exclusion_arm(
+    project: Path, config: Path, cache: Path, env: Mapping[str, str] | None = None
+) -> None:
+    """Run mypy over the exclusion project and apply the arm's checks.
+
+    Args:
+        project: The throwaway project root, used as mypy's working directory.
+        config: The project's mypy config.
+        cache: A cache directory private to this run.
+        env: Passed through to ``_run_mypy``.
+
+    Raises:
+        AssertionError: The arm's checks refused the run.
+        UnicodeDecodeError: mypy wrote a stream that is not UTF-8.
+    """
+    _assert_exclude_filters_discovery_only(
+        _run_mypy(config=config, cache=cache, cwd=project, env=env)
+    )
+
+
 @pytest.mark.slow
 def test_exclude_filters_discovery_and_does_not_contain_errors(tmp_path: Path) -> None:
     # THE CLAIM THE CONFIG COMMENT MAKES, EXECUTED. `exclude` keeps mypy from
@@ -985,31 +1272,247 @@ def test_exclude_filters_discovery_and_does_not_contain_errors(tmp_path: Path) -
     # mypy should be proven against mypy, not against whichever local file
     # happens to be failing this month.
     project = tmp_path / "throwaway"
-    source_dir = project / "src"
-    source_dir.mkdir(parents=True)
-    (source_dir / "leaf.py").write_text(
-        "def take(count: int) -> int:\n    return count\n\n\ntake('not a number')\n",
-        encoding="utf-8",
-    )
-    (source_dir / "trunk.py").write_text("import leaf\n\nleaf.take(1)\n", encoding="utf-8")
-    config = project / "mypy.ini"
-    config.write_text(
-        "[mypy]\nfiles = src\nexclude = (^|/)leaf\\.py$\n",
-        encoding="utf-8",
-    )
+    config = _build_exclusion_project(project)
 
     result = _run_mypy(config=config, cache=tmp_path / "cache", cwd=project)
 
-    assert _reported_file_count(result.stdout) == 1, (
-        "the exclusion did not remove leaf.py from DISCOVERY, so this test is "
-        f"not measuring what it claims to.\n{result.stdout}"
+    _assert_exclude_filters_discovery_only(result)
+
+
+@pytest.mark.slow
+@pytest.mark.parametrize("plant", _AMBIENT_PARAMS)
+def test_the_exclusion_arm_does_not_report_on_the_ambient_environment(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    plant: dict[str, str],
+    warm_mypy_cache: Path,
+) -> None:
+    # CS-1125. The arm above once INHERITED its environment: run as
+    # `PYTHONPATH=.`, mypy put the throwaway project on its search path,
+    # `import leaf` stopped resolving to the excluded file beside it, and the arm
+    # failed against an empty mapping while mypy printed Success. FORCE_COLOR=1
+    # and PYTHONIOENCODING=utf-16 break it too, by making the output unparseable.
+    # Planted in the pytest PROCESS's own environment, not a shell variable:
+    # MSYS mangles a POSIX path in env.
+    project = tmp_path / "throwaway"
+    config = _build_exclusion_project(project)
+    for variable, value in _resolve_plant(plant, project).items():
+        monkeypatch.setenv(variable, value)
+        assert os.environ.get(variable) == value, f"the ambient {variable} was never planted"
+
+    _run_exclusion_arm(project, config, _seeded_cache(warm_mypy_cache, tmp_path / "cache"))
+
+
+@pytest.mark.slow
+@pytest.mark.parametrize("plant", _AMBIENT_PARAMS)
+def test_the_exclusion_arm_reddens_when_discovery_stops_filtering(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    plant: dict[str, str],
+    warm_mypy_cache: Path,
+) -> None:
+    # THE CONTROL. Controlling the environment must not have made the arm blind:
+    # with an `exclude` that matches nothing, discovery genuinely stops
+    # filtering, and the SAME checks must refuse it under the same planted
+    # variable the arm above is proven against.
+    project = tmp_path / "throwaway"
+    config = _build_exclusion_project(project, exclude=_NON_MATCHING_EXCLUDE)
+    written = config.read_text(encoding="utf-8")
+    assert _NON_MATCHING_EXCLUDE in written, f"the mutated exclude never landed:\n{written}"
+    assert _LEAF_EXCLUDE not in written, f"the original exclude survived:\n{written}"
+    for variable, value in _resolve_plant(plant, project).items():
+        monkeypatch.setenv(variable, value)
+
+    result = _run_mypy(
+        config=config, cache=_seeded_cache(warm_mypy_cache, tmp_path / "cache"), cwd=project
     )
-    assert _errors_by_file(result.stdout) == {"src/leaf.py": 1}, (
-        "mypy did not report leaf.py's one error against leaf.py, so either "
-        "`exclude` now behaves as containment - and the reasoning recorded in "
-        "pyproject.toml and in this module's docstring needs rechecking - or the "
-        f"error is being attributed somewhere else.\n{result.stdout}"
+
+    assert _reported_file_count(result.stdout) == _UNFILTERED_SOURCE_COUNT, (
+        f"the mutated exclude still filtered discovery:\n{result.stdout}"
     )
+    with pytest.raises(AssertionError, match=re.escape("did not remove leaf.py from DISCOVERY")):
+        _assert_exclude_filters_discovery_only(result)
+
+
+@pytest.mark.slow
+@pytest.mark.parametrize("plant", _LIVE_AMBIENT_PARAMS)
+def test_each_planted_variable_really_breaks_the_exclusion_arm(
+    tmp_path: Path, plant: dict[str, str], warm_mypy_cache: Path
+) -> None:
+    # ANTI-VACUITY for the ambient arm. A planted value mypy happens to ignore
+    # would keep that arm green without controlling anything, so each variable
+    # named live is shown to break the arm when it DOES reach mypy. The rest of
+    # the environment is the controlled one, so the planted variable is the
+    # only difference between the green run and the red one - an inherited
+    # environment carrying some OTHER hazard cannot satisfy this arm for it.
+    # An absolute repository root is absent on purpose: measured harmless. No
+    # platform is excused: a hazard live on only one platform is an incomplete
+    # plant, and ubuntu CI caught exactly that for FORCE_COLOR without TERM.
+    project = tmp_path / "throwaway"
+    config = _build_exclusion_project(project)
+
+    _run_exclusion_arm(
+        project,
+        config,
+        _seeded_cache(warm_mypy_cache, tmp_path / "clean_cache"),
+        env=_controlled_environment(),
+    )
+
+    planted = {**_controlled_environment(), **_resolve_plant(plant, project)}
+    with pytest.raises((AssertionError, UnicodeDecodeError)):
+        _run_exclusion_arm(
+            project, config, _seeded_cache(warm_mypy_cache, tmp_path / "planted_cache"), env=planted
+        )
+
+
+def test_the_controlled_environment_is_an_allowlist_in_any_case() -> None:
+    # Case-INSENSITIVE on purpose. On Windows `dict(os.environ)` upper-cases
+    # keys, but a mapping built any other way need not. Anything not named is
+    # dropped, including variables no denylist here ever named.
+    ambient = {
+        "Path": "kept",
+        "SystemRoot": "kept",
+        "AppData": "dropped",
+        "PythonPath": ".",
+        "mypypath": ".",
+        "force_color": "1",
+        "PYTHONIOENCODING": "utf-16",
+        "SOME_FUTURE_VARIABLE": "1",
+    }
+    assert _controlled_environment(ambient) == {
+        "Path": "kept",
+        "SystemRoot": "kept",
+        **_PINNED_ENVIRONMENT,
+    }
+
+
+def _hostile_home(root: Path) -> dict[str, str]:
+    """Build a fake user home that plants a mypy config, and name its variables.
+
+    Every per-user config location mypy falls back to when no project config is
+    found carries ``ignore_errors = True``, so a run that reads any of them
+    reports Success over a real error.
+
+    Args:
+        root: Directory to build the fake home under.
+
+    Returns:
+        The variables that point a process at that home, on Windows and POSIX.
+    """
+    home = root / "hostile_home"
+    planted = "[mypy]\nignore_errors = True\n"
+    for config in (home / ".mypy.ini", home / ".config" / "mypy" / "config"):
+        config.parent.mkdir(parents=True, exist_ok=True)
+        config.write_text(planted, encoding="utf-8")
+    return {
+        "HOME": str(home),
+        "USERPROFILE": str(home),
+        "XDG_CONFIG_HOME": str(home / ".config"),
+        "APPDATA": str(home / "AppData" / "Roaming"),
+    }
+
+
+@pytest.mark.slow
+def test_a_non_ascii_path_decodes_and_no_user_config_reaches_the_run(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, warm_mypy_cache: Path
+) -> None:
+    # Two controls, one project, because both bite only a project with no config
+    # file of its own beside it.
+    #
+    # THE PYTHONIOENCODING PIN. Measured on Windows: without it the child writes
+    # a non-ASCII path in the locale's code page and this process's UTF-8
+    # decode raises. A UTF-8 locale agrees without the pin, so there this arm
+    # cannot tell them apart.
+    #
+    # THE EXPLICIT CONFIG. With no config beside the project, mypy falls back to
+    # a per-user one - ~/.mypy.ini, ~/.config/mypy/config - and the home
+    # variables that locate it are ones the interpreter keeps. A real
+    # ~/.mypy.ini with ignore_errors turned this arm into Success over an error.
+    project = tmp_path / "throwaway"
+    (project / "src").mkdir(parents=True)
+    module = "caf" + chr(0xE9)
+    (project / "src" / f"{module}.py").write_text("x: int = 'not a number'\n", encoding="utf-8")
+    home = _hostile_home(tmp_path)
+
+    # ANTI-VACUITY: the planted home really is read by a run that names no config.
+    discovering = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "mypy",
+            "--no-pretty",
+            "--cache-dir",
+            str(_seeded_cache(warm_mypy_cache, tmp_path / "c0")),
+            "src",
+        ],
+        cwd=project,
+        env={**_controlled_environment(), **home},
+        capture_output=True,
+        timeout=_MYPY_TIMEOUT_SECONDS,
+        check=False,
+    ).stdout.decode("utf-8")
+    assert _errors_by_file(discovering) == {}, f"the planted config was not read:\n{discovering}"
+
+    # The run names a config that is NOT beside the project, so dropping the
+    # name would leave mypy discovering - and finding the planted home.
+    config = tmp_path / "named_config" / "mypy.ini"
+    config.parent.mkdir()
+    config.write_text("[mypy]\n", encoding="utf-8")
+    for name, value in home.items():
+        monkeypatch.setenv(name, value)
+    result = _run_mypy(
+        "src", config=config, cache=_seeded_cache(warm_mypy_cache, tmp_path / "cache"), cwd=project
+    )
+
+    assert _errors_by_file(result.stdout) == {f"src/{module}.py": 1}, result.stdout
+
+
+@pytest.mark.slow
+def test_a_planted_user_site_cannot_reach_the_exclusion_arm(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, warm_mypy_cache: Path
+) -> None:
+    # A .pth file in the per-user site-packages directory is executed at
+    # interpreter start, and mypy builds its search path from a child
+    # interpreter's sys.path. One naming the throwaway project's src put the
+    # excluded leaf on that path: Success over a real error, the CS-1125
+    # symptom again, located through APPDATA on Windows and HOME on POSIX.
+    # HOME stays inherited, so on POSIX only the PYTHONNOUSERSITE pin holds;
+    # the direct half below plants APPDATA over the pins too, so the pin is
+    # proven on Windows as well rather than the allowlist standing in for it.
+    project = tmp_path / "throwaway"
+    config = _build_exclusion_project(project)
+    home = _hostile_home(tmp_path)
+    hostile = {**_controlled_environment(), **home}
+    user_site = (
+        subprocess.run(
+            [sys.executable, "-c", "import site; print(site.getusersitepackages())"],
+            env=hostile,
+            capture_output=True,
+            timeout=_MYPY_TIMEOUT_SECONDS,
+            check=True,
+        )
+        .stdout.decode("utf-8")
+        .strip()
+    )
+    Path(user_site).mkdir(parents=True)
+    (Path(user_site) / "cs1125_plant.pth").write_text(f"{project / 'src'}\n", encoding="utf-8")
+
+    # ANTI-VACUITY: with the user site enabled, the plant really breaks the arm.
+    enabled = {name: value for name, value in hostile.items() if name.upper() != "PYTHONNOUSERSITE"}
+    with pytest.raises(AssertionError):
+        _run_exclusion_arm(
+            project, config, _seeded_cache(warm_mypy_cache, tmp_path / "enabled_cache"), env=enabled
+        )
+
+    # The controls hold with the hostile home planted directly over them...
+    _run_exclusion_arm(
+        project, config, _seeded_cache(warm_mypy_cache, tmp_path / "direct_cache"), env=hostile
+    )
+
+    # ...and when it is merely ambient.
+    for name, value in home.items():
+        monkeypatch.setenv(name, value)
+    _run_exclusion_arm(project, config, _seeded_cache(warm_mypy_cache, tmp_path / "ambient_cache"))
 
 
 def test_the_importers_of_the_environment_verifier_are_recorded(repo_files: list[Path]) -> None:
