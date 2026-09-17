@@ -48,11 +48,12 @@
 // than mutating one it read, so last-rename-wins loses no update that was not
 // already stale.
 //
-// The bounded rename retry matches the idiom already used at
+// The bounded rename retry began as the idiom used at
 // clockspeed/save/workdir.py::_replace_with_retry - on Windows a scanner or an
 // indexer can hold a handle on a file closed microseconds ago, and the rename
-// then fails with a sharing violation that a short retry turns into a
-// completed write.
+// then fails with a sharing violation that a retry turns into a completed
+// write. CS-1124 bounds it here by a deadline rather than an attempt count;
+// the reason and the CI measurement sit beside RENAME_DEADLINE_MS below.
 
 const crypto = require("node:crypto");
 const fs = require("node:fs");
@@ -75,9 +76,9 @@ const PARTIAL_SUFFIX = ".partial";
 // under a unique name one would accumulate per crash, forever, in the
 // operator's userData directory. A successful commit therefore clears siblings
 // old enough that no live writer could still own one. The threshold is more
-// than a hundred times the longest a stage can legitimately take - one fsync
-// plus at most 500ms of rename backoff - so sweeping a stage still in flight
-// is not a window this reaches.
+// than twenty times the longest a stage can legitimately take - one fsync plus
+// at most RENAME_DEADLINE_MS of rename retry - so sweeping a stage still in
+// flight is not a window this reaches.
 const PARTIAL_STALE_MS = 60 * 1000;
 
 /** Every key the file may contain, in the order it is written. */
@@ -111,9 +112,27 @@ const DEFAULTS = Object.freeze({
   alwaysOnTop: false,
 });
 
-// Five short attempts with a lengthening pause, matching workdir.py.
-const RENAME_ATTEMPTS = 5;
-const RENAME_BACKOFF_MS = 50;
+// CS-1124 - THE RETRY IS BOUNDED BY TIME, NOT BY AN ATTEMPT COUNT. The loop
+// this replaces made five attempts with a linear 50ms pause, so its last
+// attempt came about 500ms after the first refusal and it then slept a further
+// 250ms before giving up. MEASURED on windows-latest CI: that budget lost to a
+// held handle on 2 of 240 concurrent saves in the 768f2b8 tier2 run and 1 of
+// 240 in scheduled run 35201300783, each as "save failed with EPERM". How long
+// the runner's holder actually keeps the file is NOT measured - only that it
+// sometimes outlasts half a second. The deadline is therefore four times the
+// window that lost, and the backoff starts short and doubles to a cap, so a
+// brief hold costs milliseconds while a long one is still probed every
+// RENAME_BACKOFF_CAP_MS until the deadline. A rename still refused at the
+// deadline raises its own error: a genuinely stuck file fails loudly, and
+// nothing ever falls back to writing the state file in place.
+//
+// THE COST IS BOUNDED AND PAID ONLY ON CONTENTION. save() is synchronous and
+// the shell calls it from a debounced persist, so a hold that never ends blocks
+// that call for at most the deadline and then surfaces as a failed save, which
+// main.js already reports and swallows.
+const RENAME_DEADLINE_MS = 2000;
+const RENAME_BACKOFF_FIRST_MS = 5;
+const RENAME_BACKOFF_CAP_MS = 200;
 
 // Error codes that mean "somebody else is holding this file right now" and are
 // worth waiting out. Anything else is a real fault and is raised immediately
@@ -144,10 +163,17 @@ function sleepSync(milliseconds) {
   Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, milliseconds);
 }
 
-/** Rename, waiting out a transient Windows sharing violation. */
+/**
+ * Rename, waiting out a transient Windows sharing violation until a deadline.
+ *
+ * Always makes at least one attempt, never sleeps past the deadline, and makes
+ * a final attempt at it - so the time spent is the deadline plus at most one
+ * rename, and the error raised is the last one the rename itself reported.
+ */
 function renameWithRetry(from, to) {
-  let last = null;
-  for (let attempt = 0; attempt < RENAME_ATTEMPTS; attempt += 1) {
+  const deadline = Date.now() + RENAME_DEADLINE_MS;
+  let pause = RENAME_BACKOFF_FIRST_MS;
+  for (;;) {
     try {
       fs.renameSync(from, to);
       return;
@@ -155,11 +181,14 @@ function renameWithRetry(from, to) {
       if (!TRANSIENT_CODES.has(err.code)) {
         throw err;
       }
-      last = err;
-      sleepSync(RENAME_BACKOFF_MS * (attempt + 1));
+      const remaining = deadline - Date.now();
+      if (remaining <= 0) {
+        throw err;
+      }
+      sleepSync(Math.min(pause, remaining));
+      pause = Math.min(pause * 2, RENAME_BACKOFF_CAP_MS);
     }
   }
-  throw last || new Error("the window state could not be renamed into place");
 }
 
 /** A usable directory argument, or null. */
@@ -489,6 +518,7 @@ module.exports = {
   PARTIAL_PREFIX,
   PARTIAL_SUFFIX,
   PARTIAL_STALE_MS,
+  RENAME_DEADLINE_MS,
   SCHEMA_VERSION,
   DEFAULTS,
   MIN_WIDTH,

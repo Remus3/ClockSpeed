@@ -641,6 +641,212 @@ test("real concurrent writers never publish an empty or truncated state file", a
   assert.deepEqual(partialsIn(dir), [], "concurrent saves left staging files behind");
 });
 
+// --- CS-1124: a rename held by another handle is waited out BY TIME ---------
+//
+// MEASURED on windows-latest CI: the arm above failed with "save failed with
+// EPERM" - 2 of 240 saves on the 768f2b8 tier2 run and 1 of 240 on scheduled
+// run 35201300783 - under a retry of five attempts with a linear 50ms pause,
+// which gave up roughly half a second after the first refusal. A handle held a
+// little longer than that (a scanner, an indexer, a concurrent reader) turned a
+// sharing violation into a failed save. These arms fake that holder at the
+// seam the module actually calls, fs.renameSync, and hold the module to a
+// DEADLINE rather than to an attempt count: the save survives a hold that fits
+// the deadline, and a hold that never ends still fails loudly and in bounded
+// time, without ever publishing through a non-atomic path.
+
+/** Replace fs.renameSync for the duration of fn, always restoring it. */
+function withRename(fake, fn) {
+  const real = fs.renameSync;
+  fs.renameSync = (from, to) => fake(real, from, to);
+  try {
+    return fn();
+  } finally {
+    fs.renameSync = real;
+  }
+}
+
+function sharingViolation(code) {
+  const err = new Error(`s1124 injected: ${code} - the target is held by another handle`);
+  err.code = code;
+  return err;
+}
+
+test("a rename refused more times than the old attempt count still commits", () => {
+  const dir = tempDir();
+  save(dir, GOOD);
+
+  // Ten refusals: twice the five attempts the CI failure ran under.
+  const REFUSALS = 10;
+  let calls = 0;
+  withRename((real, from, to) => {
+    calls += 1;
+    if (calls <= REFUSALS) {
+      throw sharingViolation("EPERM");
+    }
+    return real(from, to);
+  }, () => save(dir, WRITER_A));
+
+  // Anti-vacuity: the fake fired every refusal and then let the real rename run.
+  const observed = calls;
+  assert.equal(observed, REFUSALS + 1, `renameSync was called ${observed} times`);
+  assert.deepEqual(load(dir), WRITER_A);
+  assert.deepEqual(partialsIn(dir), [], "a committed save left its stage behind");
+});
+
+test("a handle held past the old retry window but inside the deadline is waited out", () => {
+  const dir = tempDir();
+  save(dir, GOOD);
+
+  // A holder that keeps the file for HOLD_MS of wall time, whatever the retry
+  // cadence. The old loop's last attempt came about 500ms after the first.
+  const HOLD_MS = 1200;
+  let firstCall = null;
+  let refusals = 0;
+  withRename((real, from, to) => {
+    const now = Date.now();
+    if (firstCall === null) {
+      firstCall = now;
+    }
+    if (now - firstCall < HOLD_MS) {
+      refusals += 1;
+      // Alternate the codes a Windows sharing violation surfaces as.
+      throw sharingViolation(refusals % 2 === 0 ? "EACCES" : "EPERM");
+    }
+    return real(from, to);
+  }, () => save(dir, WRITER_B));
+
+  const refused = refusals;
+  assert.ok(refused > 0, "the fake holder never refused a rename, so this arm measured nothing");
+  assert.deepEqual(load(dir), WRITER_B);
+  // The hold is only meaningful if it fits the deadline with headroom.
+  assert.ok(HOLD_MS < state.RENAME_DEADLINE_MS, `hold ${HOLD_MS}ms does not fit the deadline ${state.RENAME_DEADLINE_MS}ms`);
+});
+
+test("a rename held past the deadline fails loudly, in bounded time", () => {
+  const dir = tempDir();
+  save(dir, GOOD);
+  const before = fs.readFileSync(statePath(dir));
+
+  let calls = 0;
+  let caught = null;
+  const started = Date.now();
+  withRename(() => {
+    calls += 1;
+    throw sharingViolation("EPERM");
+  }, () => {
+    try {
+      save(dir, WRITER_A);
+    } catch (err) {
+      caught = err;
+    }
+  });
+  const elapsed = Date.now() - started;
+  const deadline = state.RENAME_DEADLINE_MS;
+
+  assert.notEqual(caught, null, "a rename that never succeeds must not report success");
+  assert.equal(caught.code, "EPERM", `the rename's own error must surface - code was ${caught && caught.code}`);
+  assert.ok(Number.isInteger(deadline) && deadline > 0, `RENAME_DEADLINE_MS was ${deadline}`);
+  // Waited the whole deadline (less clock granularity), and not unboundedly.
+  assert.ok(elapsed >= deadline - 50, `gave up after ${elapsed}ms, before the ${deadline}ms deadline`);
+  assert.ok(elapsed < deadline + 2000, `took ${elapsed}ms against a ${deadline}ms deadline`);
+  const attempts = calls;
+  assert.ok(attempts > 5, `only ${attempts} attempts inside the deadline`);
+  // Nothing about the failure reached the published file.
+  assert.deepEqual(fs.readFileSync(statePath(dir)), before, "a failed commit changed the published file");
+});
+
+test("a failed commit never falls back to writing the state file in place", () => {
+  const dir = tempDir();
+  save(dir, GOOD);
+  const target = path.resolve(statePath(dir));
+  const before = fs.readFileSync(target);
+
+  // Every synchronous fs call that could put bytes at, or remove, the target
+  // path without a rename. A path argument resolving to the target is a
+  // non-atomic write path, whatever the reason it was taken.
+  const MUTATORS = [
+    ["writeFileSync", [0]],
+    ["appendFileSync", [0]],
+    ["openSync", [0]],
+    ["truncateSync", [0]],
+    ["copyFileSync", [1]],
+    ["cpSync", [1]],
+    ["unlinkSync", [0]],
+    ["rmSync", [0]],
+    ["createWriteStream", [0]],
+  ];
+  const hits = [];
+  const saved = new Map();
+  const onTarget = (value) => typeof value === "string" && path.resolve(value) === target;
+  for (const [name, positions] of MUTATORS) {
+    const real = fs[name];
+    saved.set(name, real);
+    fs[name] = (...args) => {
+      if (positions.some((i) => onTarget(args[i]))) {
+        hits.push(name);
+      }
+      return real(...args);
+    };
+  }
+
+  let renames = 0;
+  let caught = null;
+  try {
+    // Known-good control: the spy records a direct write to the target. The
+    // same bytes go back, so the control itself changes nothing.
+    fs.writeFileSync(target, before);
+    // At least one: fs.writeFileSync on a path reaches fs.openSync internally,
+    // so a single planted write can register twice.
+    const controlHits = hits.length;
+    assert.ok(controlHits >= 1, "the spy did not see a planted in-place write, so it would see nothing");
+    hits.length = 0;
+
+    withRename(() => {
+      renames += 1;
+      throw sharingViolation("EBUSY");
+    }, () => {
+      try {
+        save(dir, WRITER_B);
+      } catch (err) {
+        caught = err;
+      }
+    });
+  } finally {
+    for (const [name, real] of saved) {
+      fs[name] = real;
+    }
+  }
+
+  const renameCalls = renames;
+  const found = hits.join(", ") || "none";
+  assert.ok(renameCalls > 0, "the rename fake never fired, so this arm measured nothing");
+  assert.notEqual(caught, null, "a rename that never succeeds must not report success");
+  assert.equal(hits.length, 0, `non-atomic calls on the state file: ${found}`);
+  const after = fs.readFileSync(target);
+  assert.deepEqual(after, before, "the published state file changed without a rename");
+  assert.notEqual(after.length, 0, "the published state file is empty");
+});
+
+test("a non-transient rename fault is raised at once, never waited out", () => {
+  const dir = tempDir();
+  save(dir, GOOD);
+
+  let calls = 0;
+  const started = Date.now();
+  assert.throws(
+    () => withRename(() => {
+      calls += 1;
+      throw sharingViolation("EXDEV");
+    }, () => save(dir, WRITER_A)),
+    (err) => err.code === "EXDEV",
+  );
+  const elapsed = Date.now() - started;
+  const attempts = calls;
+  assert.equal(attempts, 1, `a non-transient fault was retried ${attempts} times`);
+  assert.ok(elapsed < 1000, `a non-transient fault took ${elapsed}ms to surface`);
+  assert.deepEqual(load(dir), GOOD);
+});
+
 // --- CS-911: the fix must not reintroduce its own fault class ---------------
 
 test("no two stages ever share a filename", () => {
