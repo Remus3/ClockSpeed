@@ -3292,20 +3292,34 @@ ITEM_NOTES_RULE_HEADING = "## Which leaf an item lands in"
 
 _ITEM_NOTES_SECTION = re.compile(r"(?m)^## (CS-G?\d+)[ \t]*$")
 # A routing row is found by its FIRST CELL alone, so a row of any shape - a
-# well-formed leaf cell or not - is refused. CS-1112 removed them all.
-_ITEM_NOTES_ROUTING_ROW = re.compile(r"(?m)^\|\s*(CS-G?\d+)\s*\|")
+# well-formed leaf cell or not, indented, or its id spelled in backticks or
+# emphasis - is refused. The cell is stripped of every backtick, asterisk,
+# underscore and whitespace character and must then BE an id, not contain one.
+_ITEM_NOTES_ROUTING_ID = re.compile(r"CS-G?\d+")
+_ITEM_NOTES_CELL_DECORATION = re.compile(r"[`*_\s]")
 # A leaf table row: "| `docs/item_notes/<leaf>.md` | <what it holds> |".
 _ITEM_NOTES_RULE_ROW = re.compile(r"^\|\s*`([^`]+)`\s*\|\s*(.*?)\s*\|\s*$")
 # The header and separator lines of that table, which carry no leaf. Routing
 # rows are refused on their own finding, so they are not parsed as rules.
 _ITEM_NOTES_TABLE_FRAME = re.compile(r"^\|\s*Leaf\s*\|\s*Holds\s*\|\s*$|^\|[-:| ]+\|\s*$")
-_RULE_ANNEX = "ANNEX"
-_RULE_PHASE = re.compile(r"^ROADMAP `Phase (\d+)`")
-_RULE_BELOW_BLOCK = re.compile(r"\bID BELOW the `CS-(\d+)nn` block")
-_RULE_IN_BLOCK = re.compile(r"\bID in the `CS-(\d+)nn` block")
-_RULE_BELOW_ID = re.compile(r"\bblock below CS-(\d+)\b")
-_RULE_AT_OR_ABOVE = re.compile(r"\bblock at or above CS-(\d+)\b")
-_RULE_SENDS_UP = re.compile(r"every phase (\d+) ID at (\d+) or higher to the `CS-(\d+)nn` leaf")
+# THE HOLDS CELL GRAMMAR IS CLOSED - AN ALLOWLIST, NEVER A SEARCH. 8d13134 read
+# a row by SEARCHING it for the clauses it knew and silently ignoring the rest,
+# so "ROADMAP `Phase 5`, ID BELOW CS-1000 only" read as the whole phase while a
+# reader following those words finds no leaf for CS-1058. Every cell must now
+# match this grammar to its LAST character; any residue is a FAIL naming it.
+# The forms are exactly the ones the real table uses. A new form is added HERE,
+# with an arm, before a row may spell it.
+_RULE_ANNEX = "ANNEX, not a phase leaf - "
+_RULE_GRAMMAR = re.compile(
+    r"ROADMAP `Phase (?P<phase>\d+)`"
+    r"(?:"
+    r", ID BELOW the `CS-(?P<below_block>\d+)nn` block"
+    r"(?:\. NOT the `CS-(?P<not_block>\d+)nn` block - the rule sends every phase "
+    r"(?P<sends_phase>\d+) ID at (?P<floor>\d+) or higher to the `CS-(?P<sends_block>\d+)nn` leaf)?"
+    r"|, ID in the `CS-(?P<in_block>\d+)nn` block"
+    r"(?: below CS-(?P<below_id>\d+)| at or above CS-(?P<at_or_above>\d+))?"
+    r")?"
+)
 _ITEM_NOTES_BLOCK_WIDTH = 100
 #: A probe far past every block, standing for "and everything above".
 _ITEM_NOTES_FAR_PROBE = 10**6
@@ -3452,52 +3466,72 @@ def _item_notes_table_lines(index_text: str) -> list[str] | None:
     for line in lines[start + 1 :]:
         if _ROADMAP_ANY_HEADING.match(line):
             break
-        if line.startswith("|"):
-            section.append(line)
+        if line.lstrip().startswith("|"):
+            section.append(line.strip())
     return section
 
 
 def _item_notes_parse_rule(
     leaf: str, holds: str
-) -> tuple[ItemNotesRule, tuple[str, int, int] | None] | None:
-    """Parse one phase row's Holds cell into its range, or None when it does not read.
+) -> tuple[ItemNotesRule, tuple[str, int, int] | None, list[str]]:
+    """Parse one phase row's Holds cell COMPLETELY under the closed grammar.
+
+    Args:
+        leaf: The leaf path the row names.
+        holds: The row's Holds cell.
 
     Returns:
-        (the rule, and a "sends up" clause as (phase, floor, block) when the row
-        carries one), or None for a cell the grammar does not read.
+        (the rule, a "sends up" clause as (phase, floor, block) when the row
+        carries one, and problem lines - non-empty whenever any of the cell was
+        left unparsed or a clause contradicts the row it sits in).
     """
-    phase = _RULE_PHASE.match(holds)
-    if phase is None:
-        return None
+    match = _RULE_GRAMMAR.match(holds)
+    residue = holds if match is None else holds[match.end() :]
+    if match is None or residue:
+        return (
+            ItemNotesRule(leaf, "", 0, None),
+            None,
+            [f"  {leaf}: unparsed residue in rule row - {residue!r}"],
+        )
+    phase = match.group("phase")
     low, high = 0, None
-    below_block = _RULE_BELOW_BLOCK.search(holds)
-    in_block = _RULE_IN_BLOCK.search(holds)
-    if below_block and in_block:
-        return None
-    if below_block:
-        high = int(below_block.group(1)) * _ITEM_NOTES_BLOCK_WIDTH
-    if in_block:
-        low = int(in_block.group(1)) * _ITEM_NOTES_BLOCK_WIDTH
+    if match.group("below_block") is not None:
+        high = int(match.group("below_block")) * _ITEM_NOTES_BLOCK_WIDTH
+    if match.group("in_block") is not None:
+        low = int(match.group("in_block")) * _ITEM_NOTES_BLOCK_WIDTH
         high = low + _ITEM_NOTES_BLOCK_WIDTH
-    below_id = _RULE_BELOW_ID.search(holds)
-    if below_id:
-        high = int(below_id.group(1)) if high is None else min(high, int(below_id.group(1)))
-    at_or_above = _RULE_AT_OR_ABOVE.search(holds)
-    if at_or_above:
-        low = max(low, int(at_or_above.group(1)))
-    sends = _RULE_SENDS_UP.search(holds)
-    sends_up = (
-        (sends.group(1), int(sends.group(2)), int(sends.group(3))) if sends is not None else None
-    )
-    return ItemNotesRule(leaf, phase.group(1), low, high), sends_up
+    if match.group("below_id") is not None:
+        high = (
+            int(match.group("below_id"))
+            if high is None
+            else min(high, int(match.group("below_id")))
+        )
+    if match.group("at_or_above") is not None:
+        low = max(low, int(match.group("at_or_above")))
+    problems: list[str] = []
+    sends_up = None
+    if match.group("sends_phase") is not None:
+        floor = int(match.group("floor"))
+        sends_up = (match.group("sends_phase"), floor, int(match.group("sends_block")))
+        if match.group("sends_phase") != phase:
+            problems.append(
+                f"  {leaf}: a Phase {phase} row sends phase {match.group('sends_phase')} IDs"
+            )
+        if int(match.group("not_block")) * _ITEM_NOTES_BLOCK_WIDTH < floor:
+            problems.append(
+                f"  {leaf}: the `CS-{match.group('not_block')}nn` block it excludes lies "
+                f"below the {floor} it sends up"
+            )
+    return ItemNotesRule(leaf, phase, low, high), sends_up, problems
 
 
 def item_notes_rule_rows(index_text: str) -> tuple[list[ItemNotesRule], list[str]]:
     """Parse the index's leaf table into ID ranges, reporting every row it cannot read.
 
     A row is a phase row (``ROADMAP `Phase N```, optionally narrowed by an ID
-    block clause) or an ANNEX row. A row that is neither is a PROBLEM, never a
-    skip: an unread row is a hole in the binding to item_notes_leaf.
+    block clause, parsed to its last character under the closed grammar) or an
+    ANNEX row. Anything else - including any residue after a phase row's clauses
+    - is a PROBLEM, never a skip: an unread clause is a hole in the binding.
 
     Args:
         index_text: The index file's text.
@@ -3516,7 +3550,7 @@ def item_notes_rule_rows(index_text: str) -> tuple[list[ItemNotesRule], list[str
     sends_ups: list[tuple[str, int, int]] = []
     problems: list[str] = []
     for line in table:
-        if _ITEM_NOTES_TABLE_FRAME.match(line) or _ITEM_NOTES_ROUTING_ROW.match(line):
+        if _ITEM_NOTES_TABLE_FRAME.match(line) or _item_notes_routing_row_id(line) is not None:
             continue
         row = _ITEM_NOTES_RULE_ROW.match(line)
         if row is None:
@@ -3525,13 +3559,13 @@ def item_notes_rule_rows(index_text: str) -> tuple[list[ItemNotesRule], list[str
         leaf, holds = row.group(1), row.group(2)
         if holds.startswith(_RULE_ANNEX):
             continue
-        parsed = _item_notes_parse_rule(leaf, holds)
-        if parsed is None:
-            problems.append(f"  {leaf}: unreadable rule row - {holds}")
+        rule, sends_up, rule_problems = _item_notes_parse_rule(leaf, holds)
+        problems.extend(rule_problems)
+        if not rule.phase:
             continue
-        rules.append(parsed[0])
-        if parsed[1] is not None:
-            sends_ups.append(parsed[1])
+        rules.append(rule)
+        if sends_up is not None:
+            sends_ups.append(sends_up)
     for phase, floor, block in sends_ups:
         low = block * _ITEM_NOTES_BLOCK_WIDTH
         targets = [
@@ -3773,7 +3807,24 @@ def item_notes_routing_rows(text: str) -> list[str]:
     Returns:
         Item ids whose row survives. CS-1112 makes any of them a FAIL.
     """
-    return [match.group(1) for match in _ITEM_NOTES_ROUTING_ROW.finditer(text)]
+    return [item for line in text.splitlines() if (item := _item_notes_routing_row_id(line))]
+
+
+def _item_notes_routing_row_id(line: str) -> str | None:
+    """Return the id a markdown table row routes, when its first cell IS an id.
+
+    Args:
+        line: One line of the index, indented or not.
+
+    Returns:
+        The id, or None when the line is not a table row or its first cell,
+        stripped of backticks, asterisks, underscores and whitespace, is not an id.
+    """
+    stripped = line.strip()
+    if not stripped.startswith("|") or stripped.count("|") < 2:  # noqa: PLR2004
+        return None
+    first = _ITEM_NOTES_CELL_DECORATION.sub("", stripped[1:].split("|", 1)[0])
+    return first if _ITEM_NOTES_ROUTING_ID.fullmatch(first) else None
 
 
 def item_notes_sections(

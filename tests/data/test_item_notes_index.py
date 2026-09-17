@@ -369,6 +369,52 @@ def test_a_routing_row_of_any_shape_is_red(family: Path) -> None:
     assert f"  CS-999 has a routing row in {INDEX_RELATIVE}" in rendered.splitlines(), rendered
 
 
+@pytest.mark.parametrize(
+    "row",
+    [
+        "| `CS-904` | somewhere |",
+        "| **CS-904** | somewhere |",
+        "| _CS-904_ | somewhere |",
+        "   | CS-904 | somewhere |",
+        "|CS-904|somewhere|",
+        "| ` **CS-904** ` | somewhere |",
+    ],
+)
+def test_a_routing_row_in_another_spelling_is_red(family: Path, row: str) -> None:
+    """Backticks, emphasis and indentation do not stop a row being a routing row.
+
+    The first cell is stripped of backticks, asterisks, underscores and
+    whitespace before it is compared, so no markdown spelling of an id hides it.
+    """
+    _append_to_index(family, f"\n{row}\n")
+
+    status, rendered = _run(family)
+    assert status == "FAIL", rendered
+    assert f"  CS-904 has a routing row in {INDEX_RELATIVE}" in rendered.splitlines(), rendered
+
+
+def test_a_routing_row_inside_the_leaf_table_is_red_and_not_a_rule(family: Path) -> None:
+    """A spelled-around row planted AMONG the rule rows is a routing row, not a rule row."""
+    phase7 = f"| `{LEAF_DIR_RELATIVE}/phase7.md` | ROADMAP `Phase 7` |\n"
+    _replace_in_index(
+        family, phase7, phase7 + f"  | **`CS-701`** | `{LEAF_DIR_RELATIVE}/phase7.md` |\n"
+    )
+
+    status, rendered = _run(family)
+    assert status == "FAIL", rendered
+    lines = rendered.splitlines()
+    assert f"  CS-701 has a routing row in {INDEX_RELATIVE}" in lines, rendered
+    assert "residue" not in rendered, rendered
+
+
+def test_a_first_cell_that_only_mentions_an_id_is_not_a_routing_row(family: Path) -> None:
+    """The paired control: the WHOLE stripped cell must be an id, not merely contain one."""
+    _append_to_index(family, "\n| see CS-904 | somewhere |\n")
+
+    status, rendered = _run(family)
+    assert status == "PASS", rendered
+
+
 # ---------------------------------------------------------------------------
 # CS-1086 - routing is a DERIVATION from ROADMAP.md, graded against the sections
 #
@@ -730,7 +776,68 @@ def test_an_unparseable_rule_row_is_red(family: Path) -> None:
 
     status, rendered = _run(family)
     assert status == "FAIL", rendered
-    assert f"  {LEAF_DIR_RELATIVE}/phase5.md: unreadable rule row" in rendered, rendered
+    assert (
+        f"  {LEAF_DIR_RELATIVE}/phase5.md: unparsed residue in rule row - 'whatever phase five is'"
+    ) in rendered.splitlines(), rendered
+
+
+#: Rule rows that PASSED at 8d13134: each carries a clause the parser did not
+#: recognise and silently ignored, so the row read as a whole-phase rule while a
+#: reader following its words finds no leaf for some ids. Grammar is an ALLOWLIST.
+_RESIDUE_PLANTS = [
+    (
+        "| `docs/item_notes/phase5.md` | ROADMAP `Phase 5` |",
+        "| `docs/item_notes/phase5.md` | ROADMAP `Phase 5`, ID BELOW CS-1000 only |",
+        "phase5.md",
+        ", ID BELOW CS-1000 only",
+    ),
+    (
+        "| `docs/item_notes/phase6.md` | ROADMAP `Phase 6` |",
+        "| `docs/item_notes/phase6.md` | ROADMAP `Phase 6` except the `CS-9nn` block |",
+        "phase6.md",
+        " except the `CS-9nn` block",
+    ),
+    (
+        "block below CS-850 |",
+        "block below CS-850 or so |",
+        "phase4-followups.md",
+        " or so",
+    ),
+    (
+        "ID in the `CS-9nn` block |",
+        "ID in the `CS-9nn` block, mostly |",
+        "phase4-followups-900.md",
+        ", mostly",
+    ),
+]
+
+
+@pytest.mark.parametrize(("old", "new", "leaf", "residue"), _RESIDUE_PLANTS)
+def test_a_rule_row_clause_outside_the_grammar_is_red(
+    family: Path, old: str, new: str, leaf: str, residue: str
+) -> None:
+    """Every Holds cell must parse COMPLETELY; any unparsed residue is named and red."""
+    _replace_in_index(family, old, new)
+
+    status, rendered = _run(family)
+    assert status == "FAIL", rendered
+    assert (
+        f"  {LEAF_DIR_RELATIVE}/{leaf}: unparsed residue in rule row - {residue!r}"
+    ) in rendered.splitlines(), rendered
+
+
+def test_an_annex_row_outside_the_grammar_is_red(family: Path) -> None:
+    """An ANNEX row has a fixed lead too, so a near-miss is not waved through as an annex."""
+    phase7 = f"| `{LEAF_DIR_RELATIVE}/phase7.md` | ROADMAP `Phase 7` |\n"
+    _replace_in_index(
+        family, phase7, phase7 + f"| `{LEAF_DIR_RELATIVE}/{_ANNEX_NAME}` | ANNEXED |\n"
+    )
+
+    status, rendered = _run(family)
+    assert status == "FAIL", rendered
+    assert (
+        f"  {LEAF_DIR_RELATIVE}/{_ANNEX_NAME}: unparsed residue in rule row - 'ANNEXED'"
+    ) in rendered.splitlines(), rendered
 
 
 def test_an_index_with_no_leaf_table_is_red(family: Path) -> None:
@@ -1104,6 +1211,15 @@ def test_the_lane_prompt_routes_by_the_rule_the_guard_binds() -> None:
     )
     assert "routing table" not in text
     assert "routed by the table" not in text
+
+
+def test_the_annex_row_describes_what_the_annex_now_holds() -> None:
+    """CS-1112 left the rule table here; the annex keeps only the seam reasoning."""
+    text = (REPO_ROOT / INDEX_RELATIVE).read_text(encoding="utf-8")
+    rows = [line for line in text.splitlines() if line.startswith(f"| `{LEAF_DIR_RELATIVE}/leaf-")]
+    assert len(rows) == 1, rows
+    assert "the leaf membership rule itself" not in rows[0], rows[0]
+    assert "seam reasoning" in rows[0], rows[0]
 
 
 def test_the_index_heading_is_the_one_the_guard_parses() -> None:

@@ -41,11 +41,12 @@ mapping has one owner and this file only reports it:
 | `docs/item_notes/phase7.md` | ROADMAP `Phase 7` |
 | `docs/item_notes/cs988-sweep-record.md` | ANNEX, not a phase leaf - CS-988's per-site sweep measurements. A declared departure from one-leaf-per-phase, because it is measurement data for an OPEN item rather than an item body |
 | `docs/item_notes/lane-start-failure-record.md` | ANNEX, not a phase leaf - the read-only diagnosis of the 2026-09-11 lane start failure, feeding CS-1017, CS-1018 and CS-1001. A declared departure, on the same grounds as the row above |
-| `docs/item_notes/leaf-membership-rule.md` | ANNEX, not a phase leaf - the leaf membership rule itself, relocated here by CS-1062. A declared departure on the same grounds as the two rows above: it is routing DOCTRINE rather than an item body |
+| `docs/item_notes/leaf-membership-rule.md` | ANNEX, not a phase leaf - the seam reasoning behind the leaf membership rule in this table, relocated there by CS-1062. A declared departure on the same grounds as the two rows above: it is routing DOCTRINE rather than an item body |
 
 **This table is the single hop, and it is the leaf membership rule.** It moved back here
 VERBATIM from `docs/item_notes/leaf-membership-rule.md` when CS-1112 removed the per-item
-routing rows; the reasoning behind each seam stayed in that annex. An item is ROUTED when
+routing rows, and only the annex's own row was reworded, because it had called the annex
+the rule itself; the reasoning behind each seam stayed in that annex. An item is ROUTED when
 its `ROADMAP.md` line's LAST field is a `detail:` field, and its leaf is the row above
 whose phase and ID range hold it - no per-item row exists, and none may be added.
 
