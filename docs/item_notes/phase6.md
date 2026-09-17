@@ -4,7 +4,7 @@
 text was filed, moved or measured - and never that the section itself is historical.
 
 **This is a leaf of `docs/item_notes.md`**, which owns the index and the rules this
-file obeys. Read the index for the routing table over every OPEN item, the verbatim
+file obeys. Read the index for the leaf membership rule routing every OPEN item, the verbatim
 rule, and what this family never contains. Do not restate any of it here.
 
 **What lands in THIS leaf.** Every OPEN item ROADMAP.md files under its `Phase 6` heading.

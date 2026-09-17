@@ -373,12 +373,49 @@ DISPOSITIONS: Final[Mapping[tuple[str, str], Disposition]] = {
         " item's repair, split it into one case per seam under this name.",
         1,
     ),
+    # --- CS-1112: the item-notes routing rows were removed, so four guard (j)
+    # arms the CS-1086 and CS-1113 closures cite were renamed for what they now
+    # grade. The ledger is append-only, so each record keeps the name it had.
+    (
+        LEDGER,
+        "tests/data/test_item_notes_index.py"
+        "::test_every_state_the_retired_no_section_check_saw_still_fails",
+    ): Disposition(
+        RENAMED,
+        "tests/data/test_item_notes_index.py"
+        "::test_every_placement_of_a_routed_items_section_is_graded",
+        "the CS-1113 closure cites the arm proving the retired check covered; CS-1112"
+        " restored the check with the rows gone and renamed the arm for what it grades.",
+        1,
+    ),
     # --- the bare-identifier arm, which sees what a path scanner cannot.
     (LEDGER, "test_an_unreadable_roadmap_as_the_only_non_pass_guard_is_not_clean"): Disposition(
         RENAMED,
         "tests/data/test_drift_guard_data.py"
         "::test_an_unreadable_roadmap_warns_all_four_markdown_readers_and_is_not_clean",
         "the CS-1117 closure cites the name it had; CS-1120 renamed it for its four WARNs.",
+        1,
+    ),
+    (LEDGER, "test_a_row_agreeing_with_its_section_but_not_the_derivation_is_red"): Disposition(
+        RENAMED,
+        "tests/data/test_item_notes_index.py"
+        "::test_a_section_agreeing_with_a_leftover_row_but_not_the_derivation_is_red",
+        "the CS-1086 closure cites it; CS-1112 removed the rows it planted and renamed it.",
+        1,
+    ),
+    (LEDGER, "test_a_detail_field_with_no_row_is_red"): Disposition(
+        RENAMED,
+        "tests/data/test_item_notes_index.py::test_a_detail_field_with_no_section_is_red",
+        "the CS-1086 closure cites it; CS-1112 removed the rows, so the field is graded"
+        " against the section its derived leaf must hold.",
+        1,
+    ),
+    (LEDGER, "test_a_row_with_no_detail_field_is_red"): Disposition(
+        RENAMED,
+        "tests/data/test_item_notes_index.py"
+        "::test_a_section_whose_line_carries_no_detail_field_is_red",
+        "the CS-1086 closure cites it; CS-1112 removed the rows, so the unrouted"
+        " direction is a section rather than a row.",
         1,
     ),
     (LEDGER, "test_the_header_scan_advertises_no_bound_it_cannot_enforce"): Disposition(
@@ -979,7 +1016,13 @@ UNVERIFIED_LINE_POINTERS: Final[Mapping[tuple[str, str, int], str]] = {
 #: acceptance orders the record's bytes unchanged and the ledger is append-only, so
 #: the pointer cannot be repaired in place. One RENAMED row with a live target,
 #: checked in three directions - the same kind as the 54-to-55 raise, not NO_TARGET.
-FORGIVEN_LINE_POINTER_CEILING: Final = 56
+#:
+#: 56 TO 60 WHEN CS-1112 RENAMED FOUR TESTS THE CS-1086 AND CS-1113 CLOSURES CITE.
+#: The adjudicated removal of the item-notes routing rows made every row-planting
+#: guard (j) arm's name false; the grant ordered them rewritten with no assertion
+#: loosened, and named RENAMED dispositions as the route. Four RENAMED rows with live
+#: targets, checked in three directions - the 54-to-55 kind, not NO_TARGET.
+FORGIVEN_LINE_POINTER_CEILING: Final = 60
 
 
 #: R2's live membership, DISCLOSED. Every entry is a citation at a path this

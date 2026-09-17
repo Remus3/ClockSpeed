@@ -674,12 +674,15 @@ def test_the_routing_index_stays_below_its_approach_band() -> None:
 
     WHY AN ARM AND NOT JUST THE BUDGET. `tools/doc_budget.py` WARNS at the
     ceiling and does not fail, which is right for a size budget and wrong for
-    this particular file: the index is the one every filing session must write a
-    routing row INTO. It reached ELEVEN bytes of headroom, and at that point the
-    next session to file an item cannot add its row without first doing
-    unrelated surgery under time pressure - which is how a rule gets bent
-    instead of a file getting split. Session 94 relocated mid-session to keep
-    filing and session 95 spent its last headroom correcting one sentence.
+    this particular file: the index is the single hop every reader of an item
+    takes, and until CS-1112 every filing session also wrote a routing row INTO
+    it. It reached ELEVEN bytes of headroom, and at that point the next session
+    to file an item could not add its row without first doing unrelated surgery
+    under time pressure - which is how a rule gets bent instead of a file getting
+    split. CS-1112 removed the rows, so the index no longer grows per item; the
+    band stays, because a rule block written here grows it just the same.
+    Session 94 relocated mid-session to keep filing and session 95 spent its
+    last headroom correcting one sentence.
 
     THE REPAIR IS RELOCATION, NEVER DELETION, and never raising the ceiling.
     `tools/doc_budget.py` argues the 16 KB number where it is defined: a body
@@ -698,8 +701,9 @@ def test_the_routing_index_stays_below_its_approach_band() -> None:
     assert size <= band, (
         "docs/item_notes.md is %d bytes, past the %d-byte approach band "
         "(%.0f per cent of its %d-byte budget). RELOCATE a block to an annex "
-        "under docs/item_notes/ and leave a pointer. Do NOT delete a routing "
-        "row and do NOT raise the budget." % (size, band, 100 * ITEM_NOTES_INDEX_APPROACH, budget)
+        "under docs/item_notes/ and leave a pointer. Do NOT delete the leaf "
+        "table, do NOT re-add a routing row, and do NOT raise the budget."
+        % (size, band, 100 * ITEM_NOTES_INDEX_APPROACH, budget)
     )
 
 

@@ -1,10 +1,15 @@
 """Tests for the item-notes index guard (j).
 
 THE CRITERION GUARD (j) GRADES. `docs/item_notes.md` stopped holding item
-bodies on 2026-08-25 and became an index over `docs/item_notes/`. An index is a
-RESTATED FACT - the one thing CLAUDE.md section 4 says will drift - so it is
-machine-checked in BOTH directions: a routed item with no section is red, a
-section with no routing row is red, and a row naming the wrong leaf is red.
+bodies on 2026-08-25 and became an index over `docs/item_notes/`. CS-1112
+removed its per-item routing rows: routing is DERIVED from `ROADMAP.md` - the
+item lines whose LAST field is a detail field, filed under a Phase heading -
+through the leaf membership rule, which the index states as its leaf table and
+`tools/drift_guard.py::item_notes_leaf` owns as code. The guard grades that
+derivation against the sections in BOTH directions: a routed item with no
+section in its derived leaf is red, a section nothing routes is red, a routing
+row left in the index is red, and the index's rule table must agree with the
+code at every seam, in both directions.
 
 THE TWO HALVES ARE GRADED ON DIFFERENT MATERIAL, following the module that
 grades guards (h) and (i). The FIRING half runs on synthetic families built
@@ -100,15 +105,31 @@ drift_guard = _load_drift_guard()
 # A family the guard can be pointed at
 # ---------------------------------------------------------------------------
 
-_INDEX_HEAD = """# Clockspeed - live per-item detail, index
+#: The leaf table's phase rows, spelled here as a FIXTURE rather than read from
+#: the tracked index, so a plant into it never edits the repository.
+_RULE_ROWS = (
+    "| `docs/item_notes/phase4.md` | ROADMAP `Phase 4`, ID BELOW the `CS-8nn` block. NOT the "
+    "`CS-10nn` block - the rule sends every phase 4 ID at 900 or higher to the `CS-9nn` leaf |\n"
+    "| `docs/item_notes/phase4-followups.md` | ROADMAP `Phase 4`, ID in the `CS-8nn` block "
+    "below CS-850 |\n"
+    "| `docs/item_notes/phase4-followups-850.md` | ROADMAP `Phase 4`, ID in the `CS-8nn` block "
+    "at or above CS-850 |\n"
+    "| `docs/item_notes/phase4-followups-900.md` | ROADMAP `Phase 4`, ID in the `CS-9nn` block |\n"
+    "| `docs/item_notes/phase5.md` | ROADMAP `Phase 5` |\n"
+    "| `docs/item_notes/phase6.md` | ROADMAP `Phase 6` |\n"
+    "| `docs/item_notes/phase7.md` | ROADMAP `Phase 7` |\n"
+)
 
-**Section status: LIVE.** A dated heading in this file records provenance.
-
-## Routing table
-
-| Item | Leaf |
-|---|---|
-"""
+_INDEX_HEAD = (
+    "# Clockspeed - live per-item detail, index\n"
+    "\n"
+    "**Section status: LIVE.** A dated heading in this file records provenance.\n"
+    "\n"
+    "## Which leaf an item lands in\n"
+    "\n"
+    "| Leaf | Holds |\n"
+    "|---|---|\n" + _RULE_ROWS + "\n## Rules every leaf obeys\n\nNone here.\n"
+)
 
 _LEAF_HEAD = """# Clockspeed - live per-item detail, {leaf}
 
@@ -163,20 +184,21 @@ def _write_roadmap(root: Path, phases: dict[str, list[str]]) -> None:
     (root / ROADMAP_RELATIVE).write_text(_roadmap(phases), encoding="utf-8")
 
 
-def _build(root: Path, leaves: dict[str, list[str]], rows: list[tuple[str, str]]) -> None:
-    """Write a synthetic index plus leaves under ``root``.
+def _build(root: Path, leaves: dict[str, list[str]], routed: list[tuple[str, str]]) -> None:
+    """Write a synthetic index plus leaves plus the ROADMAP.md that routes them.
 
-    A ROADMAP.md routing every row's item is written too, filed under the phase
-    its leaf name spells, so a well-formed family agrees with the derivation.
-    A test planting a ROADMAP disagreement overwrites it afterwards.
+    The index carries the leaf table and NO routing row. Each routed item gets a
+    ROADMAP line with a trailing detail field, filed under the phase its leaf
+    name spells, so a well-formed family agrees with the derivation. A test
+    planting a ROADMAP disagreement overwrites it afterwards.
 
     Args:
         root: The fabricated repository root.
         leaves: Leaf filename mapped to the item ids its sections carry.
-        rows: The routing rows to write, as (item, leaf filename).
+        routed: The items ROADMAP.md routes, as (item, leaf filename).
     """
     phases: dict[str, list[str]] = {}
-    for item, leaf in rows:
+    for item, leaf in routed:
         digit = leaf.removeprefix("phase")[0]
         phases.setdefault(digit, []).append(_item_line(item))
     _write_roadmap(root, phases)
@@ -187,8 +209,21 @@ def _build(root: Path, leaves: dict[str, list[str]], rows: list[tuple[str, str]]
         for item in items:
             body += f"## {item}\n\nDetail for {item}.\n\n"
         (leaf_dir / leaf).write_text(body, encoding="utf-8")
-    table = "".join(f"| {item} | `{LEAF_DIR_RELATIVE}/{leaf}` |\n" for item, leaf in rows)
-    (root / INDEX_RELATIVE).write_text(_INDEX_HEAD + table, encoding="utf-8")
+    (root / INDEX_RELATIVE).write_text(_INDEX_HEAD, encoding="utf-8")
+
+
+def _append_to_index(root: Path, text: str) -> None:
+    """Append ``text`` to the synthetic index."""
+    index = root / INDEX_RELATIVE
+    index.write_text(index.read_text(encoding="utf-8") + text, encoding="utf-8")
+
+
+def _replace_in_index(root: Path, old: str, new: str) -> None:
+    """Replace exactly one occurrence of ``old`` in the synthetic index."""
+    index = root / INDEX_RELATIVE
+    text = index.read_text(encoding="utf-8")
+    assert text.count(old) == 1, f"plant anchor not unique: {old!r}"
+    index.write_text(text.replace(old, new), encoding="utf-8")
 
 
 def _run(root: Path) -> tuple[str, str]:
@@ -205,6 +240,14 @@ def _run(root: Path) -> tuple[str, str]:
     return guard["status"], "\n".join(guard["detail"])
 
 
+def _no_section(item: str, leaf: str, elsewhere: str | None = None) -> str:
+    """The exact line the restored no-section check prints for ``item``."""
+    line = f"  {item} has no section in {LEAF_DIR_RELATIVE}/{leaf}"
+    if elsewhere is not None:
+        line += f", detail is in {LEAF_DIR_RELATIVE}/{elsewhere}"
+    return line
+
+
 @pytest.fixture
 def family(tmp_path: Path) -> Path:
     """A well-formed two-leaf family that the guard passes."""
@@ -217,7 +260,7 @@ def family(tmp_path: Path) -> Path:
 
 
 # ---------------------------------------------------------------------------
-# The firing half - each plant is one way the index can lie
+# The firing half - each plant is one way the family can lie
 # ---------------------------------------------------------------------------
 
 
@@ -227,52 +270,48 @@ def test_a_well_formed_family_passes(family: Path) -> None:
     assert status == "PASS", rendered
 
 
-def test_a_section_with_no_routing_row_is_red(family: Path) -> None:
-    """A body nobody can find from the index. The commonest way to file wrong."""
+def test_a_section_no_detail_field_routes_is_red(family: Path) -> None:
+    """A body nobody can find by the rule. The commonest way to file wrong."""
     leaf = family / LEAF_DIR_RELATIVE / "phase4.md"
     leaf.write_text(leaf.read_text(encoding="utf-8") + "## CS-403\n\nUnrouted.\n", encoding="utf-8")
 
     status, rendered = _run(family)
     assert status == "FAIL", rendered
-    assert "CS-403" in rendered
+    assert f"  CS-403 in {LEAF_DIR_RELATIVE}/phase4.md" in rendered.splitlines(), rendered
 
 
-def test_a_routing_row_with_no_section_is_red(family: Path) -> None:
-    """The other direction. A row that survives its item's closure."""
-    index = family / INDEX_RELATIVE
-    index.write_text(
-        index.read_text(encoding="utf-8") + f"| CS-499 | `{LEAF_DIR_RELATIVE}/phase4.md` |\n",
-        encoding="utf-8",
+def test_a_routed_item_with_no_section_anywhere_is_red(family: Path) -> None:
+    """The other direction. A detail field that survives its section's removal."""
+    _write_roadmap(
+        family,
+        {
+            "4": [_item_line("CS-401"), _item_line("CS-402"), _item_line("CS-499")],
+            "7": [_item_line("CS-701")],
+        },
     )
 
     status, rendered = _run(family)
     assert status == "FAIL", rendered
-    assert "CS-499" in rendered
+    assert _no_section("CS-499", "phase4.md") in rendered.splitlines(), rendered
 
 
-def test_a_row_naming_the_wrong_leaf_is_red(family: Path) -> None:
-    """Both sets match and the routing is still wrong - set equality alone misses this."""
-    index = family / INDEX_RELATIVE
-    index.write_text(
-        index.read_text(encoding="utf-8").replace(
-            f"| CS-701 | `{LEAF_DIR_RELATIVE}/phase7.md` |",
-            f"| CS-701 | `{LEAF_DIR_RELATIVE}/phase4.md` |",
-        ),
-        encoding="utf-8",
+def test_a_section_in_a_leaf_other_than_the_derived_one_is_red(family: Path) -> None:
+    """Both sets match and the placement is still wrong - set equality alone misses this."""
+    phase4 = family / LEAF_DIR_RELATIVE / "phase4.md"
+    phase7 = family / LEAF_DIR_RELATIVE / "phase7.md"
+    phase7.write_text(_LEAF_HEAD.format(leaf="phase7.md"), encoding="utf-8")
+    phase4.write_text(
+        phase4.read_text(encoding="utf-8") + "## CS-701\n\nMisplaced.\n", encoding="utf-8"
     )
 
     status, rendered = _run(family)
     assert status == "FAIL", rendered
-    assert "CS-701" in rendered
+    assert _no_section("CS-701", "phase7.md", "phase4.md") in rendered.splitlines(), rendered
 
 
 def test_an_item_body_written_into_the_index_is_red(family: Path) -> None:
-    """The index holds no bodies. A body here is invisible to anyone following the table."""
-    index = family / INDEX_RELATIVE
-    index.write_text(
-        index.read_text(encoding="utf-8") + "\n## CS-404\n\nA body in the index.\n",
-        encoding="utf-8",
-    )
+    """The index holds no bodies. A body here is invisible to anyone following the rule."""
+    _append_to_index(family, "\n## CS-404\n\nA body in the index.\n")
 
     status, rendered = _run(family)
     assert status == "FAIL", rendered
@@ -304,13 +343,83 @@ def test_a_missing_leaf_directory_is_a_skip_rather_than_a_failure(tmp_path: Path
 
 
 # ---------------------------------------------------------------------------
-# CS-1086 - every row is checked against a DERIVATION from ROADMAP.md
+# CS-1112 - no routing row may come back
 #
-# The table is kept (the CS-1062 fence) and graded against inputs other than
-# itself: the leaf from ROADMAP's phase heading plus the ID block rule, the row
-# set from the TRAILING detail field of each item line. Each arm below is a
-# disagreement the pre-CS-1086 guard could not see, because it never read
-# ROADMAP.md - so every one of them passed there.
+# The rows were removed because routing is derived. A row re-added by hand is a
+# second owner of the same fact, so it is red even when it AGREES - an agreeing
+# row is exactly the one nobody would notice drifting later.
+# ---------------------------------------------------------------------------
+
+
+def test_a_re_added_routing_row_is_red_even_when_it_agrees(family: Path) -> None:
+    """The one row that agrees with everything is still a second owner."""
+    _append_to_index(family, f"\n| CS-701 | `{LEAF_DIR_RELATIVE}/phase7.md` |\n")
+
+    status, rendered = _run(family)
+    assert status == "FAIL", rendered
+    assert f"  CS-701 has a routing row in {INDEX_RELATIVE}" in rendered.splitlines(), rendered
+
+
+def test_a_routing_row_of_any_shape_is_red(family: Path) -> None:
+    """A row is found by its FIRST cell, never by a well-formed leaf cell."""
+    _append_to_index(family, "\n| CS-999 | somewhere |\n")
+
+    status, rendered = _run(family)
+    assert status == "FAIL", rendered
+    assert f"  CS-999 has a routing row in {INDEX_RELATIVE}" in rendered.splitlines(), rendered
+
+
+@pytest.mark.parametrize(
+    "row",
+    [
+        "| `CS-904` | somewhere |",
+        "| **CS-904** | somewhere |",
+        "| _CS-904_ | somewhere |",
+        "   | CS-904 | somewhere |",
+        "|CS-904|somewhere|",
+        "| ` **CS-904** ` | somewhere |",
+    ],
+)
+def test_a_routing_row_in_another_spelling_is_red(family: Path, row: str) -> None:
+    """Backticks, emphasis and indentation do not stop a row being a routing row.
+
+    The first cell is stripped of backticks, asterisks, underscores and
+    whitespace before it is compared, so no markdown spelling of an id hides it.
+    """
+    _append_to_index(family, f"\n{row}\n")
+
+    status, rendered = _run(family)
+    assert status == "FAIL", rendered
+    assert f"  CS-904 has a routing row in {INDEX_RELATIVE}" in rendered.splitlines(), rendered
+
+
+def test_a_routing_row_inside_the_leaf_table_is_red_and_not_a_rule(family: Path) -> None:
+    """A spelled-around row planted AMONG the rule rows is a routing row, not a rule row."""
+    phase7 = f"| `{LEAF_DIR_RELATIVE}/phase7.md` | ROADMAP `Phase 7` |\n"
+    _replace_in_index(
+        family, phase7, phase7 + f"  | **`CS-701`** | `{LEAF_DIR_RELATIVE}/phase7.md` |\n"
+    )
+
+    status, rendered = _run(family)
+    assert status == "FAIL", rendered
+    lines = rendered.splitlines()
+    assert f"  CS-701 has a routing row in {INDEX_RELATIVE}" in lines, rendered
+    assert "residue" not in rendered, rendered
+
+
+def test_a_first_cell_that_only_mentions_an_id_is_not_a_routing_row(family: Path) -> None:
+    """The paired control: the WHOLE stripped cell must be an id, not merely contain one."""
+    _append_to_index(family, "\n| see CS-904 | somewhere |\n")
+
+    status, rendered = _run(family)
+    assert status == "PASS", rendered
+
+
+# ---------------------------------------------------------------------------
+# CS-1086 - routing is a DERIVATION from ROADMAP.md, graded against the sections
+#
+# The leaf is computed from ROADMAP's phase heading plus the ID block rule, and
+# the routed set from the TRAILING detail field of each item line.
 # ---------------------------------------------------------------------------
 
 
@@ -322,21 +431,22 @@ def _count_line(rendered: str) -> str:
     return ""
 
 
-@pytest.mark.parametrize(
-    ("item", "phase", "want"),
-    [
-        ("CS-501", "4", "phase4.md"),
-        ("CS-799", "4", "phase4.md"),
-        ("CS-800", "4", "phase4-followups.md"),
-        ("CS-849", "4", "phase4-followups.md"),
-        ("CS-850", "4", "phase4-followups-850.md"),
-        ("CS-899", "4", "phase4-followups-850.md"),
-        ("CS-900", "4", "phase4-followups-900.md"),
-        ("CS-1086", "4", "phase4-followups-900.md"),
-        ("CS-950", "5", "phase5.md"),
-        ("CS-701", "7", "phase7.md"),
-    ],
-)
+#: The block rule as a LITERAL table - both sides of every seam.
+_SEAM_CASES = [
+    ("CS-501", "4", "phase4.md"),
+    ("CS-799", "4", "phase4.md"),
+    ("CS-800", "4", "phase4-followups.md"),
+    ("CS-849", "4", "phase4-followups.md"),
+    ("CS-850", "4", "phase4-followups-850.md"),
+    ("CS-899", "4", "phase4-followups-850.md"),
+    ("CS-900", "4", "phase4-followups-900.md"),
+    ("CS-1086", "4", "phase4-followups-900.md"),
+    ("CS-950", "5", "phase5.md"),
+    ("CS-701", "7", "phase7.md"),
+]
+
+
+@pytest.mark.parametrize(("item", "phase", "want"), _SEAM_CASES)
 def test_the_leaf_rule_has_a_code_owner_at_every_seam(item: str, phase: str, want: str) -> None:
     """The block rule, as a LITERAL table rather than a second copy of the arithmetic.
 
@@ -345,69 +455,84 @@ def test_the_leaf_rule_has_a_code_owner_at_every_seam(item: str, phase: str, wan
     assert drift_guard.item_notes_leaf(item, phase) == f"{LEAF_DIR_RELATIVE}/{want}"
 
 
-def test_a_row_agreeing_with_its_section_but_not_the_derivation_is_red(tmp_path: Path) -> None:
+@pytest.mark.parametrize(("item", "phase", "want"), _SEAM_CASES)
+def test_the_real_index_text_alone_resolves_every_seam(item: str, phase: str, want: str) -> None:
+    """The SAME literal table, resolved from the tracked index's text with no code rule.
+
+    This is the single hop a reader takes: `docs/item_notes.md`'s leaf table,
+    read as text, names the leaf. Were the table and the code to disagree at a
+    seam, one of this arm and the code-owner arm above would redden.
+    """
+    text = (REPO_ROOT / INDEX_RELATIVE).read_text(encoding="utf-8")
+    rules, problems = drift_guard.item_notes_rule_rows(text)
+    assert not problems, problems
+    assert drift_guard.item_notes_rule_leaves(rules, item, phase) == [f"{LEAF_DIR_RELATIVE}/{want}"]
+
+
+def test_a_section_agreeing_with_a_leftover_row_but_not_the_derivation_is_red(
+    tmp_path: Path,
+) -> None:
     """The row and the section agree with EACH OTHER and both disagree with ROADMAP.
 
-    Row-versus-section equality is satisfied, so only the derivation can see it.
+    Row-versus-section equality is satisfied, so only the derivation can see it,
+    and the row is its own finding besides.
     """
     _build(
         tmp_path,
         {"phase4.md": ["CS-401", "CS-701"]},
-        [("CS-401", "phase4.md"), ("CS-701", "phase4.md")],
+        [("CS-401", "phase4.md"), ("CS-701", "phase7.md")],
     )
-    _write_roadmap(tmp_path, {"4": [_item_line("CS-401")], "7": [_item_line("CS-701")]})
+    _append_to_index(tmp_path, f"\n| CS-701 | `{LEAF_DIR_RELATIVE}/phase4.md` |\n")
 
     status, rendered = _run(tmp_path)
     assert status == "FAIL", rendered
-    assert (
-        f"  CS-701 routed to {LEAF_DIR_RELATIVE}/phase4.md, {ROADMAP_RELATIVE} Phase 7 "
-        f"derives {LEAF_DIR_RELATIVE}/phase7.md"
-    ) in rendered.splitlines(), rendered
+    lines = rendered.splitlines()
+    assert _no_section("CS-701", "phase7.md", "phase4.md") in lines, rendered
+    assert f"  CS-701 has a routing row in {INDEX_RELATIVE}" in lines, rendered
 
 
 def test_a_routed_item_with_no_section_in_its_computed_leaf_is_red(tmp_path: Path) -> None:
-    """The row names the derived leaf; the section sits one seam away.
+    """The derived leaf is one seam away from where the section sits.
 
     A section in ANY leaf is not enough - it must be in the leaf the rule computes,
-    which is the file a reader following the rule opens.
+    which is the file a reader following the rule opens. CS-1113 retired this
+    check on a proof that leaned on the routing table; with the table gone the
+    proof is false, so the check is restored and its own line is asserted.
     """
-    _build(
-        tmp_path,
-        {"phase4-followups.md": ["CS-850"]},
-        [("CS-850", "phase4-followups-850.md")],
-    )
+    _build(tmp_path, {"phase4-followups.md": ["CS-850"]}, [("CS-850", "phase4.md")])
     _write_roadmap(tmp_path, {"4": [_item_line("CS-850")]})
 
     status, rendered = _run(tmp_path)
     assert status == "FAIL", rendered
-    # CS-1113 - the check that used to print "has no section in" was retired as
-    # provably covered, so the line that names this plant is the covering one.
     assert (
-        f"  CS-850 routed to {LEAF_DIR_RELATIVE}/phase4-followups-850.md, detail is in "
-        f"{LEAF_DIR_RELATIVE}/phase4-followups.md"
-    ) in rendered.splitlines(), rendered
-    assert RETIRED_NO_SECTION_LINE not in rendered, rendered
+        _no_section("CS-850", "phase4-followups-850.md", "phase4-followups.md")
+        in rendered.splitlines()
+    ), rendered
 
 
-def test_a_detail_field_with_no_row_is_red(family: Path) -> None:
-    """ROADMAP says the item carries detail; the table does not route it."""
+def test_a_detail_field_with_no_section_is_red(family: Path) -> None:
+    """ROADMAP routes the item into a leaf that does not even exist yet.
+
+    An absent leaf is not an unread one: nothing was refused, so the item is
+    graded and red rather than skipped.
+    """
     _write_roadmap(
         family,
         {
             "4": [_item_line("CS-401"), _item_line("CS-402")],
-            "7": [_item_line("CS-701"), _item_line("CS-702")],
+            "6": [_item_line("CS-601")],
+            "7": [_item_line("CS-701")],
         },
     )
 
     status, rendered = _run(family)
     assert status == "FAIL", rendered
-    lines = rendered.splitlines()
-    assert "  CS-702 carries a trailing detail: field and no routing row" in lines, rendered
-    assert RETIRED_NO_SECTION_LINE not in rendered, rendered
+    assert _no_section("CS-601", "phase6.md") in rendered.splitlines(), rendered
+    assert "NOT READ" not in rendered, rendered
 
 
-def test_a_row_with_no_detail_field_is_red(family: Path) -> None:
-    """The other direction: the table routes an item whose ROADMAP line carries no field."""
+def test_a_section_whose_line_carries_no_detail_field_is_red(family: Path) -> None:
+    """The other direction: a section exists and its ROADMAP line routes nothing."""
     _write_roadmap(
         family,
         {
@@ -418,9 +543,7 @@ def test_a_row_with_no_detail_field_is_red(family: Path) -> None:
 
     status, rendered = _run(family)
     assert status == "FAIL", rendered
-    assert "  CS-701 has a routing row and no trailing detail: field" in rendered.splitlines(), (
-        rendered
-    )
+    assert f"  CS-701 in {LEAF_DIR_RELATIVE}/phase7.md" in rendered.splitlines(), rendered
 
 
 def test_the_detail_field_is_found_by_position_not_by_its_target(family: Path) -> None:
@@ -439,9 +562,7 @@ def test_the_detail_field_is_found_by_position_not_by_its_target(family: Path) -
 
     status, rendered = _run(family)
     assert status == "FAIL", rendered
-    assert (
-        "  CS-703 carries a trailing detail: field and no routing row" in rendered.splitlines()
-    ), rendered
+    assert _no_section("CS-703", "phase7.md") in rendered.splitlines(), rendered
 
 
 def test_a_detail_spelling_mid_line_does_not_route_the_item(family: Path) -> None:
@@ -468,7 +589,7 @@ def test_a_detail_spelling_mid_line_does_not_route_the_item(family: Path) -> Non
 
 
 def test_a_detail_field_naming_a_leaf_other_than_the_derived_one_is_red(family: Path) -> None:
-    """Located by POSITION, then its TARGET must agree with the row.
+    """Located by POSITION, then its TARGET must agree with the derivation.
 
     The index (the one hop ROADMAP.md prescribes) and the derived leaf itself
     both agree; any other target sends a reader somewhere the rule does not.
@@ -514,59 +635,66 @@ def test_a_second_detail_spelling_on_a_routed_line_is_red(family: Path) -> None:
 
 
 # ---------------------------------------------------------------------------
-# CS-1113 (a) - the "no section in its derived leaf" check was RETIRED
+# CS-1112 - the restored no-section check, over EVERY placement
 #
-# It could never be the reason for a FAIL: every state it saw is also seen by
-# no_row, dangling, misrouted or wrong_leaf (the proof is recorded beside the
-# retirement in tools/drift_guard.py). A plant that ONLY it caught would have
-# kept it; none exists, so the arm below enumerates EVERY state a routed item's
-# row and section can be in relative to its derived leaf and asserts the VERDICT
-# on each - not a message - so deleting any one covering check reddens a combo.
+# CS-1113 retired "routed item has no section in its derived leaf" on a proof
+# that every state it saw was also seen by a row check. The rows are gone, so
+# that proof is false and the check is back. The arm enumerates every state a
+# routed item's ROADMAP line and section can be in and asserts the VERDICT and
+# the naming line on each, so deleting either direction reddens a combination.
 # ---------------------------------------------------------------------------
 
-#: The phrase only the retired check ever printed. Held here, not imported, so a
-#: re-added check is visible to this module rather than agreed with by it.
-RETIRED_NO_SECTION_LINE = "has no section in"
-
-#: Where a row or a section can sit relative to CS-701's derived leaf, phase7.md.
+#: Where a section can sit relative to CS-701's derived leaf, phase7.md.
 _PLACES = {"absent": None, "derived": "phase7.md", "elsewhere": "phase4.md"}
+
+#: What CS-701's ROADMAP line can be: routed (trailing field), unrouted (no
+#: field), or absent (no line at all).
+_LINES = ("routed", "unrouted", "absent")
+
+#: The phrase only the no-section check prints.
+NO_SECTION_LINE = "has no section in"
 
 
 @pytest.mark.parametrize("section_at", sorted(_PLACES))
-@pytest.mark.parametrize("row_at", sorted(_PLACES))
-def test_every_state_the_retired_no_section_check_saw_still_fails(
-    tmp_path: Path, row_at: str, section_at: str
+@pytest.mark.parametrize("line_at", _LINES)
+def test_every_placement_of_a_routed_items_section_is_graded(
+    tmp_path: Path, line_at: str, section_at: str
 ) -> None:
-    """Row and section of a routed item, each absent, in its derived leaf, or elsewhere.
+    """ROADMAP line and section of one item, each in every state it can take.
 
     CS-401 is a fully consistent control item in every combination, so the
     family is never empty and a FAIL is never about anything but CS-701. Only
-    (derived, derived) agrees with the derivation, and it must PASS - which is
-    what stops this arm passing on a guard that simply fails everything.
+    (routed, derived) and an unrouted-or-absent line with no section agree, and
+    both must PASS - which stops this arm passing on a guard that fails everything.
     """
-    row_leaf = _PLACES[row_at]
     section_leaf = _PLACES[section_at]
     leaves: dict[str, list[str]] = {"phase4.md": ["CS-401"], "phase7.md": []}
     if section_leaf is not None:
         leaves[section_leaf].append("CS-701")
-    rows = [("CS-401", "phase4.md")]
-    if row_leaf is not None:
-        rows.append(("CS-701", row_leaf))
-    _build(tmp_path, leaves, rows)
-    _write_roadmap(tmp_path, {"4": [_item_line("CS-401")], "7": [_item_line("CS-701")]})
+    _build(tmp_path, leaves, [("CS-401", "phase4.md")])
+    phases = {"4": [_item_line("CS-401")]}
+    if line_at == "routed":
+        phases["7"] = [_item_line("CS-701")]
+    elif line_at == "unrouted":
+        phases["7"] = [_item_line("CS-701", detail=None)]
+    _write_roadmap(tmp_path, phases)
 
     status, rendered = _run(tmp_path)
 
-    agrees = row_at == "derived" and section_at == "derived"
+    routed = line_at == "routed"
+    agrees = (routed and section_at == "derived") or (not routed and section_at == "absent")
     assert status == ("PASS" if agrees else "FAIL"), rendered
-    if not agrees:
-        named = [line for line in rendered.splitlines() if line.startswith("  CS-701 ")]
-        assert named, f"the FAIL named no line for the planted item: {rendered}"
-    assert RETIRED_NO_SECTION_LINE not in rendered, rendered
+    named = [line for line in rendered.splitlines() if line.startswith("  CS-701 ")]
+    if agrees:
+        assert not named, rendered
+    elif routed:
+        assert [line for line in named if NO_SECTION_LINE in line], rendered
+    else:
+        assert f"  CS-701 in {LEAF_DIR_RELATIVE}/{section_leaf}" in named, rendered
 
 
 def test_an_unreadable_roadmap_is_a_warn_never_a_pass(family: Path) -> None:
-    """Could-not-look must not read as clean: the rows were never checked."""
+    """Could-not-look must not read as clean: nothing was routed."""
     (family / ROADMAP_RELATIVE).unlink()
 
     guard, skips = drift_guard.guard_index(family)
@@ -575,10 +703,201 @@ def test_an_unreadable_roadmap_is_a_warn_never_a_pass(family: Path) -> None:
 
 
 # ---------------------------------------------------------------------------
+# CS-1112 - the index's leaf table is BOUND to item_notes_leaf, both directions
+#
+# The table is what a reader follows; the code is what the guard derives with.
+# Every row's range is probed at both ends and every code seam is probed on
+# both sides, so a seam moved in EITHER copy reddens.
+# ---------------------------------------------------------------------------
+
+
+def test_a_table_seam_moved_away_from_the_code_is_red(family: Path) -> None:
+    """The table says CS-860; the code says CS-850."""
+    _replace_in_index(family, "block below CS-850", "block below CS-860")
+    _replace_in_index(family, "block at or above CS-850", "block at or above CS-860")
+
+    status, rendered = _run(family)
+    assert status == "FAIL", rendered
+    assert (
+        f"  Phase 4 CS-850: the leaf table names {LEAF_DIR_RELATIVE}/phase4-followups.md, "
+        f"item_notes_leaf derives {LEAF_DIR_RELATIVE}/phase4-followups-850.md"
+    ) in rendered.splitlines(), rendered
+
+
+def test_a_code_seam_moved_away_from_the_table_is_red(
+    family: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The other direction: the code moves, the table stays, the probe follows the code."""
+    monkeypatch.setattr(drift_guard, "_ITEM_NOTES_FOLLOWUP_SEAM", 860)
+
+    status, rendered = _run(family)
+    assert status == "FAIL", rendered
+    assert (
+        f"  Phase 4 CS-859: the leaf table names {LEAF_DIR_RELATIVE}/phase4-followups-850.md, "
+        f"item_notes_leaf derives {LEAF_DIR_RELATIVE}/phase4-followups.md"
+    ) in rendered.splitlines(), rendered
+
+
+def test_a_routed_phase_the_table_does_not_cover_is_red(family: Path) -> None:
+    """A phase with a routed item and no rule row resolves to nothing from the index."""
+    _replace_in_index(family, "| `docs/item_notes/phase7.md` | ROADMAP `Phase 7` |\n", "")
+
+    status, rendered = _run(family)
+    assert status == "FAIL", rendered
+    assert (
+        f"  Phase 7 CS-701: the leaf table names 0 leaves, "
+        f"item_notes_leaf derives {LEAF_DIR_RELATIVE}/phase7.md"
+    ) in rendered.splitlines(), rendered
+
+
+def test_a_rule_row_naming_the_wrong_leaf_is_red(family: Path) -> None:
+    """The table routes phase 7 into phase 6's leaf."""
+    _replace_in_index(
+        family,
+        "| `docs/item_notes/phase7.md` | ROADMAP `Phase 7` |",
+        "| `docs/item_notes/phase6.md` | ROADMAP `Phase 7` |",
+    )
+
+    status, rendered = _run(family)
+    assert status == "FAIL", rendered
+    assert (
+        f"  Phase 7 CS-701: the leaf table names {LEAF_DIR_RELATIVE}/phase6.md, "
+        f"item_notes_leaf derives {LEAF_DIR_RELATIVE}/phase7.md"
+    ) in rendered.splitlines(), rendered
+
+
+def test_an_unparseable_rule_row_is_red(family: Path) -> None:
+    """A row the parser cannot read is never skipped - it would be a hole in the binding."""
+    _replace_in_index(
+        family,
+        "| `docs/item_notes/phase5.md` | ROADMAP `Phase 5` |",
+        "| `docs/item_notes/phase5.md` | whatever phase five is |",
+    )
+
+    status, rendered = _run(family)
+    assert status == "FAIL", rendered
+    assert (
+        f"  {LEAF_DIR_RELATIVE}/phase5.md: unparsed residue in rule row - 'whatever phase five is'"
+    ) in rendered.splitlines(), rendered
+
+
+#: Rule rows that PASSED at 8d13134: each carries a clause the parser did not
+#: recognise and silently ignored, so the row read as a whole-phase rule while a
+#: reader following its words finds no leaf for some ids. Grammar is an ALLOWLIST.
+_RESIDUE_PLANTS = [
+    (
+        "| `docs/item_notes/phase5.md` | ROADMAP `Phase 5` |",
+        "| `docs/item_notes/phase5.md` | ROADMAP `Phase 5`, ID BELOW CS-1000 only |",
+        "phase5.md",
+        ", ID BELOW CS-1000 only",
+    ),
+    (
+        "| `docs/item_notes/phase6.md` | ROADMAP `Phase 6` |",
+        "| `docs/item_notes/phase6.md` | ROADMAP `Phase 6` except the `CS-9nn` block |",
+        "phase6.md",
+        " except the `CS-9nn` block",
+    ),
+    (
+        "block below CS-850 |",
+        "block below CS-850 or so |",
+        "phase4-followups.md",
+        " or so",
+    ),
+    (
+        "ID in the `CS-9nn` block |",
+        "ID in the `CS-9nn` block, mostly |",
+        "phase4-followups-900.md",
+        ", mostly",
+    ),
+]
+
+
+@pytest.mark.parametrize(("old", "new", "leaf", "residue"), _RESIDUE_PLANTS)
+def test_a_rule_row_clause_outside_the_grammar_is_red(
+    family: Path, old: str, new: str, leaf: str, residue: str
+) -> None:
+    """Every Holds cell must parse COMPLETELY; any unparsed residue is named and red."""
+    _replace_in_index(family, old, new)
+
+    status, rendered = _run(family)
+    assert status == "FAIL", rendered
+    assert (
+        f"  {LEAF_DIR_RELATIVE}/{leaf}: unparsed residue in rule row - {residue!r}"
+    ) in rendered.splitlines(), rendered
+
+
+def test_an_annex_row_outside_the_grammar_is_red(family: Path) -> None:
+    """An ANNEX row has a fixed lead too, so a near-miss is not waved through as an annex."""
+    phase7 = f"| `{LEAF_DIR_RELATIVE}/phase7.md` | ROADMAP `Phase 7` |\n"
+    _replace_in_index(
+        family, phase7, phase7 + f"| `{LEAF_DIR_RELATIVE}/{_ANNEX_NAME}` | ANNEXED |\n"
+    )
+
+    status, rendered = _run(family)
+    assert status == "FAIL", rendered
+    assert (
+        f"  {LEAF_DIR_RELATIVE}/{_ANNEX_NAME}: unparsed residue in rule row - 'ANNEXED'"
+    ) in rendered.splitlines(), rendered
+
+
+def test_an_index_with_no_leaf_table_is_red(family: Path) -> None:
+    """Routed items and no table: a reader has no hop to take."""
+    _replace_in_index(family, "## Which leaf an item lands in", "## Something else")
+
+    status, rendered = _run(family)
+    assert status == "FAIL", rendered
+    assert f"{INDEX_RELATIVE} carries no leaf table under" in rendered, rendered
+
+
+def test_a_leaf_file_no_table_row_names_is_red(family: Path) -> None:
+    """Both directions over FILES too: a leaf on disk the table never mentions."""
+    (family / LEAF_DIR_RELATIVE / "phase8.md").write_text(
+        _LEAF_HEAD.format(leaf="phase8.md"), encoding="utf-8"
+    )
+
+    status, rendered = _run(family)
+    assert status == "FAIL", rendered
+    assert f"  {LEAF_DIR_RELATIVE}/phase8.md" in rendered.splitlines(), rendered
+
+
+#: A synthetic annex. Its row is composed, never spelled, because the path does
+#: not exist in the tree and a spelled one reads as a fixture literal citation.
+_ANNEX_NAME = "record.md"
+
+
+def _add_annex_row(root: Path) -> None:
+    """Add an ANNEX row for the synthetic annex to the index's leaf table."""
+    phase7 = f"| `{LEAF_DIR_RELATIVE}/phase7.md` | ROADMAP `Phase 7` |\n"
+    annex = f"| `{LEAF_DIR_RELATIVE}/{_ANNEX_NAME}` | ANNEX, not a phase leaf - a record |\n"
+    _replace_in_index(root, phase7, phase7 + annex)
+
+
+def test_an_annex_row_naming_a_file_that_carries_a_section_is_red(family: Path) -> None:
+    """An ANNEX holds no item section; a body there is found by no rule."""
+    _add_annex_row(family)
+    (family / LEAF_DIR_RELATIVE / _ANNEX_NAME).write_text(
+        "## CS-402\n\nA body.\n", encoding="utf-8"
+    )
+
+    status, rendered = _run(family)
+    assert status == "FAIL", rendered
+    assert f"  {LEAF_DIR_RELATIVE}/{_ANNEX_NAME} holds a section for CS-402" in rendered, rendered
+
+
+def test_an_annex_row_with_no_section_passes(family: Path) -> None:
+    """The paired control: a real annex is named by its row and carries no section."""
+    _add_annex_row(family)
+    (family / LEAF_DIR_RELATIVE / _ANNEX_NAME).write_text("# A record\n", encoding="utf-8")
+
+    status, rendered = _run(family)
+    assert status == "PASS", rendered
+
+
+# ---------------------------------------------------------------------------
 # CS-1115 - a leaf that EXISTS but cannot be read is could-not-look, not absent
 #
 # `item_notes_sections` caught OSError on a leaf and CONTINUED, so the leaf's
-# sections vanished and its routed items read as rows with no section. Every
+# sections vanished and its routed items read as items with no section. Every
 # fault below is REAL - an exclusive Windows handle, or a mode of zero - held
 # by `refused`, which a stub cannot stand in for: a stub is a statement about
 # the stub, while this is the whole read path meeting the operating system.
@@ -601,7 +920,7 @@ def test_an_unreadable_leaf_is_a_warn_naming_it_never_a_silent_skip(family: Path
     assert guard["advisory"] is False, rendered
     assert f"{relative} NOT READ" in rendered, rendered
     assert any(skip["path"] == relative for skip in skips), skips
-    assert "CS-701" not in rendered, "a row routed to the unread leaf was graded as dangling"
+    assert "  CS-701" not in rendered, "an item routed to the unread leaf was graded as missing"
 
 
 def test_an_unreadable_leaf_does_not_hide_drift_in_a_leaf_that_was_read(family: Path) -> None:
@@ -619,27 +938,29 @@ def test_an_unreadable_leaf_does_not_hide_drift_in_a_leaf_that_was_read(family: 
     assert f"{LEAF_DIR_RELATIVE}/phase7.md NOT READ" in rendered, rendered
 
 
-def test_a_row_with_no_section_in_a_read_leaf_still_fails_beside_an_unread_one(
+def test_a_routed_item_with_no_section_in_a_read_leaf_still_fails_beside_an_unread_one(
     tmp_path: Path,
 ) -> None:
-    """Only rows routed TO the unread leaf go ungraded; a dangling row elsewhere is red.
+    """Only items derived INTO the unread leaf go ungraded; a missing section elsewhere is red.
 
-    The derivation agrees with every row here, so the dangling check is the
-    only thing that can make this FAIL.
+    The rule table agrees with every routed item here, so the no-section check
+    is the only thing that can make this FAIL.
     """
     _build(
         tmp_path,
         {"phase4.md": ["CS-401"], "phase7.md": ["CS-701"]},
         [("CS-401", "phase4.md"), ("CS-402", "phase4.md"), ("CS-701", "phase7.md")],
     )
-    assert _run(tmp_path)[0] == "FAIL", "control: the dangling row is not red with nothing refused"
+    assert _run(tmp_path)[0] == "FAIL", (
+        "control: the missing section is not red with nothing refused"
+    )
 
     with refused(tmp_path / LEAF_DIR_RELATIVE / "phase7.md"):
         status, rendered = _run(tmp_path)
 
     assert status == "FAIL", rendered
-    assert "  CS-402 routed to" in rendered, rendered
-    assert "  CS-701 routed to" not in rendered, rendered
+    assert _no_section("CS-402", "phase4.md") in rendered.splitlines(), rendered
+    assert "  CS-701 " not in rendered, rendered
 
 
 def test_a_directory_carrying_a_leaf_name_is_its_own_finding_not_a_read_failure(
@@ -705,6 +1026,16 @@ def _real_phases() -> dict[str, str]:
     return out
 
 
+def _real_trailing() -> set[str]:
+    """Return the ROADMAP item ids whose LAST field is a detail field, counted test-side."""
+    trailing: set[str] = set()
+    for line in (REPO_ROOT / ROADMAP_RELATIVE).read_text(encoding="utf-8").splitlines():
+        item = _ROADMAP_ITEM.match(line)
+        if item and line.rsplit(" - ", 1)[-1].startswith("detail:"):
+            trailing.add(item.group(1))
+    return trailing
+
+
 def test_the_real_tree_carries_sections_to_grade() -> None:
     """The floor under both real-tree controls below.
 
@@ -768,20 +1099,48 @@ def test_every_section_sits_in_the_leaf_the_membership_rule_names() -> None:
     assert not misplaced, "\n".join(misplaced)
 
 
+def test_every_real_routed_id_resolves_to_its_section_from_the_index_text_alone() -> None:
+    """The CS-1112 acceptance, on the real tree, with NO call to the code rule.
+
+    Each routed id's leaf is read out of `docs/item_notes.md`'s leaf table as
+    text, and its section must sit in exactly that leaf. The resolved count is
+    held equal to a test-side count of trailing detail fields, so a narrowed
+    population shows as a short count rather than a green arm.
+    """
+    trailing = _real_trailing()
+    phases = _real_phases()
+    sections = _real_sections()
+    rules, problems = drift_guard.item_notes_rule_rows(
+        (REPO_ROOT / INDEX_RELATIVE).read_text(encoding="utf-8")
+    )
+    assert not problems, problems
+    assert trailing, "ROADMAP.md carries no trailing detail field - this arm proves nothing"
+
+    resolved: list[str] = []
+    unresolved: list[str] = []
+    for item in sorted(trailing):
+        digit = phases[item].split()[1]
+        leaves = drift_guard.item_notes_rule_leaves(rules, item, digit)
+        if len(leaves) == 1 and leaves[0] == f"{LEAF_DIR_RELATIVE}/{sections.get(item)}":
+            resolved.append(item)
+        else:
+            unresolved.append(f"{item}: table names {leaves}, section in {sections.get(item)}")
+    resolved_count = len(resolved)
+    trailing_count = len(trailing)
+    assert not unresolved, "\n".join(unresolved)
+    assert resolved_count == trailing_count, "resolved fewer ids than ROADMAP routes"
+
+
 def test_the_real_tree_routed_count_matches_an_independent_count() -> None:
     """The anti-narrowing control on the REAL tree.
 
     The guard's routed count must equal a test-side count of ROADMAP item lines
-    whose LAST field is a detail field, and both must equal the rows and the
-    sections. A narrowed domain shows up as a short count AND as enumerated ids.
+    whose LAST field is a detail field, and both must equal the sections.
+    A narrowed domain shows up as a short count AND as enumerated ids.
     DISCLOSED BLIND SPOT: every real field names the same target, so this arm
     cannot see a target-matching narrowing; the synthetic position arms carry that.
     """
-    trailing: set[str] = set()
-    for line in (REPO_ROOT / ROADMAP_RELATIVE).read_text(encoding="utf-8").splitlines():
-        item = _ROADMAP_ITEM.match(line)
-        if item and line.rsplit(" - ", 1)[-1].startswith("detail:"):
-            trailing.add(item.group(1))
+    trailing = _real_trailing()
     sections = _real_sections()
     assert trailing, "ROADMAP.md carries no trailing detail field - this control proves nothing"
 
@@ -800,3 +1159,72 @@ def test_the_index_holds_no_item_body() -> None:
     text = (REPO_ROOT / INDEX_RELATIVE).read_text(encoding="utf-8")
     found = [mark.group(1) for mark in _SECTION.finditer(text)]
     assert not found, f"{INDEX_RELATIVE} carries item bodies: {found}"
+
+
+def test_the_index_holds_no_routing_row() -> None:
+    """The tracked index, graded directly: CS-1112 removed every row."""
+    text = (REPO_ROOT / INDEX_RELATIVE).read_text(encoding="utf-8")
+    rows = re.findall(r"(?m)^\|\s*(CS-G?\d+)\s*\|", text)
+    assert not rows, f"{INDEX_RELATIVE} carries routing rows: {rows}"
+
+
+# ---------------------------------------------------------------------------
+# CS-1112 - the three descriptions of routing say the same thing as the guard
+#
+# CLAUDE.md section 4, CONVENTIONS.md section 2, and the lane prompt each tell
+# a reader how an item is routed. Each is tied to the guard's own constants, so
+# a guard that renames the rule, or a doc that goes back to a table, reddens.
+# ---------------------------------------------------------------------------
+
+#: The lane prompt states routing twice - step 4c and the doc topology list.
+PROMPT_ROUTING_SITES = 2
+
+_OWNS_CELL = "The INDEX over `docs/item_notes/` - the {rule} plus the rules every leaf obeys"
+
+
+def _topology_row(relative: str) -> str:
+    """Return the `docs/item_notes.md` row of ``relative``'s ownership table."""
+    for line in (REPO_ROOT / relative).read_text(encoding="utf-8").splitlines():
+        if line.startswith(f"| `{INDEX_RELATIVE}` |"):
+            return line
+    return ""
+
+
+@pytest.mark.parametrize("relative", ["CLAUDE.md", "CONVENTIONS.md"])
+def test_the_topology_row_names_the_rule_the_guard_binds(relative: str) -> None:
+    """The Owns cell spells the guard's rule name, and no table of rows."""
+    row = _topology_row(relative)
+    assert row, f"{relative} has no {INDEX_RELATIVE} ownership row"
+    cells = [cell.strip() for cell in row.strip().strip("|").split("|")]
+    assert cells[1] == _OWNS_CELL.format(rule=drift_guard.ITEM_NOTES_RULE_NAME), row
+    assert "routing table" not in row, row
+    assert "per-item routing row" in cells[2], row
+
+
+def test_the_lane_prompt_routes_by_the_rule_the_guard_binds() -> None:
+    """Both prompt sentences name the rule and the index, and no routing table."""
+    text = " ".join((REPO_ROOT / "tools" / "headless-queue.md").read_text(encoding="utf-8").split())
+    phrase = f"by the {drift_guard.ITEM_NOTES_RULE_NAME} in `{INDEX_RELATIVE}`"
+    found = text.count(phrase)
+    assert found == PROMPT_ROUTING_SITES, (
+        f"expected the routing phrase at both sites, found {found}"
+    )
+    assert "routing table" not in text
+    assert "routed by the table" not in text
+
+
+def test_the_annex_row_describes_what_the_annex_now_holds() -> None:
+    """CS-1112 left the rule table here; the annex keeps only the seam reasoning."""
+    text = (REPO_ROOT / INDEX_RELATIVE).read_text(encoding="utf-8")
+    rows = [line for line in text.splitlines() if line.startswith(f"| `{LEAF_DIR_RELATIVE}/leaf-")]
+    assert len(rows) == 1, rows
+    assert "the leaf membership rule itself" not in rows[0], rows[0]
+    assert "seam reasoning" in rows[0], rows[0]
+
+
+def test_the_index_heading_is_the_one_the_guard_parses() -> None:
+    """The guard reads the leaf table under a heading; the tracked index carries it."""
+    text = (REPO_ROOT / INDEX_RELATIVE).read_text(encoding="utf-8")
+    assert f"\n{drift_guard.ITEM_NOTES_RULE_HEADING}\n" in text
+    assert drift_guard.ITEM_NOTES_RULE_NAME in text
+    assert "## Routing table" not in text

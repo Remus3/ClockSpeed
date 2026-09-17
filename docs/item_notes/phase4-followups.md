@@ -6,13 +6,13 @@ text was filed, moved or measured - and never that the section itself is histori
 **THIS LEAF HOLDS CS-800 THROUGH CS-849 AND NOTHING ELSE.** Its sibling
 `docs/item_notes/phase4-followups-850.md` holds CS-850 through CS-899. **THE TWO NAMES
 ARE NOT SYMMETRIC AND THIS ONE DOES NOT SPELL ITS RANGE**, so trust this sentence and the
-routing table in `docs/item_notes.md`, never the filename: an ID at or above CS-850 is in
+leaf membership rule in `docs/item_notes.md`, never the filename: an ID at or above CS-850 is in
 the sibling and is not here. The unsuffixed name was kept deliberately - pointers in
 `WAKEUP_NOTES.md` and `docs/LEDGER.md` already spell it, and renaming to gain a symmetric
 pair would have killed every one of them to buy nothing a sentence cannot buy.
 
 **This is a leaf of `docs/item_notes.md`**, which owns the index and the rules this
-file obeys. Read the index for the routing table over every OPEN item, the verbatim
+file obeys. Read the index for the leaf membership rule routing every OPEN item, the verbatim
 rule, and what this family never contains. Do not restate any of it here.
 
 **What lands in THIS leaf.** Every OPEN item ROADMAP.md files under its `Phase 4` heading whose ID is in

@@ -133,7 +133,7 @@ statement about a tree that no longer exists.
 
 **4c. Read, do not re-derive.** `CLAUDE.md` in full - especially "Non-negotiables", "Frozen
 files", "Session shape" and the whole "Settled - decided, do not re-litigate" block. Then
-`ROADMAP.md` for the item line, then that item's section via the routing table in
+`ROADMAP.md` for the item line, then that item's section, routed by the leaf membership rule in
 `docs/item_notes.md`. **Those sections are live instructions, not background.** Several
 record a wording measured false, a fence against a re-pitch, or a first attempt an
 adversary refuted, and at least one forbids the obvious closure in capital letters.
@@ -579,7 +579,7 @@ restated fact is a fact that will drift.**
   name, the tier you paid, the verifier verdict, and the exact counts you observed this run.
 - **`ROADMAP.md`** gets the item LINE alone - id, headline, acceptance, tier - and a closing
   item's line is removed from it. Write the ledger long and the roadmap short.
-- **`docs/item_notes/`** holds the per-item body, one leaf per phase, routed by the table in
+- **`docs/item_notes/`** holds the per-item body, one leaf per phase, routed by the leaf membership rule in
   `docs/item_notes.md`. **When an item closes, its section MOVES to `docs/history_notes.md`
   with the ledger entry.** That move is what keeps the live files live.
 - **`docs/GATED.md`** for items blocked outside the repo. **`BACKLOG.md`** for aspirational

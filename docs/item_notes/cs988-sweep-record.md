@@ -1,5 +1,5 @@
 <!-- Annex to CS-988 in docs/item_notes/phase6.md. A DECLARED DEPARTURE from the
-one-leaf-per-phase rule in docs/item_notes.md, recorded in the routing table there
+one-leaf-per-phase rule in docs/item_notes.md, recorded in the leaf table there
 and in docs/LEDGER.md rather than made silently. It is per-site MEASUREMENT DATA for
 an OPEN item, not an item body, and it is not archived because docs/_archive/ is
 excluded from search and sections 6 to 8 are the next action's direct input. -->

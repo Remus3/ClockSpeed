@@ -248,11 +248,15 @@ _ITEM_NOTES_ROADMAP = """# Fake roadmap for the drift guard tests
 CS-904 - a synthetic routed item - acceptance: none - tier: 1 - detail: `docs/item_notes.md`
 """
 
+# CS-1112 - the index carries the leaf table and NO routing row; CS-904 is
+# routed by its ROADMAP.md detail field through the one-row rule below.
 _ITEM_NOTES_INDEX = """# Fake item-notes index
 
-| Item | Leaf |
+## Which leaf an item lands in
+
+| Leaf | Holds |
 |---|---|
-| CS-904 | `docs/item_notes/phase7.md` |
+| `docs/item_notes/phase7.md` | ROADMAP `Phase 7` |
 """
 
 _ITEM_NOTES_LEAF = """# Fake item-notes leaf

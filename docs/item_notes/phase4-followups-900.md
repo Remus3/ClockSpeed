@@ -9,11 +9,11 @@ the four-digit IDs live in this leaf too and the `9nn` in its name is a floor ra
 a range. Its siblings
 `docs/item_notes/phase4-followups.md` and `docs/item_notes/phase4-followups-850.md` hold
 CS-800 to CS-849 and CS-850 to CS-899 respectively. **NEITHER SIBLING NAME SPELLS ITS
-RANGE HONESTLY**, so trust this sentence and the routing table in `docs/item_notes.md`,
+RANGE HONESTLY**, so trust this sentence and the leaf membership rule in `docs/item_notes.md`,
 never a filename.
 
 **This is a leaf of `docs/item_notes.md`**, which owns the index and the rules this file
-obeys. Read the index for the routing table over every OPEN item, the verbatim rule, and
+obeys. Read the index for the leaf membership rule routing every OPEN item, the verbatim rule, and
 what this family never contains. Do not restate any of it here.
 
 **What lands in THIS leaf.** Every OPEN item `ROADMAP.md` files under its `Phase 4`

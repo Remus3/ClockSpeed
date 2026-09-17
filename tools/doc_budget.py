@@ -96,10 +96,11 @@ ROADMAP_BUDGET = 60 * KB
 # shrink is an item CLOSING, and four items had merged that session without
 # closing.
 #
-# THE INDEX IS BUDGETED TIGHT, and deliberately so. It carries one routing row
-# per OPEN item plus the family's rules, and it MEASURED 9.1 KB on creation. A
-# row is roughly 45 bytes, so 16 KB holds well over a hundred more items than
-# the tree has - while being nowhere near enough to hold a body. The failure
+# THE INDEX IS BUDGETED TIGHT, and deliberately so. It carried one routing row
+# per OPEN item plus the family's rules, and it MEASURED 9.1 KB on creation;
+# CS-1112 removed the rows, so it now carries the leaf membership rule and the
+# family's rules, and grows with neither the item count nor anything but a new
+# leaf - while 16 KB stays nowhere near enough to hold a body. The failure
 # worth catching on THIS file is someone writing an item's detail here instead
 # of in its leaf, which is also asserted directly by tools/drift_guard.py
 # guard (j); a size warn is a weak second signal for it and a free one.
