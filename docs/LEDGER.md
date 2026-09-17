@@ -75,6 +75,77 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-09-17 - CS-1132 - CLOSED. The CS-9nn leaf splits at CS-960, and the seam has a code owner, a table owner and a reasoning owner that agree
+
+**WHAT CHANGED.** `docs/item_notes/phase4-followups-900.md` was 122559 bytes against a 128 KB
+ceiling - `tools/doc_budget.py` reported it as the family's worst OK row - so the next routine
+filing pass would have tipped it over and charged that session for a split it did not cause. The
+block now splits at CS-960 into `phase4-followups-900.md` (71028 bytes, 54 percent) and a new
+`phase4-followups-960.md` (54338 bytes, 41 percent). The seam was MEASURED before it was chosen:
+CS-950 gives 41509/81050 and CS-965 gives 91032/31527, while CS-960 gives the most even division
+the block offers, falls in an id gap so no section straddles it, and keeps CS-958 in the old leaf,
+which matters because `tests/test_citation_tables.py` pins a key naming that leaf and a heading
+inside CS-958. Unlike the CS-850 and CS-1000 seams this one is NOT a block boundary, and the reason
+is recorded rather than assumed: the `CS-9nn` block is spent - filing runs at CS-11nn - so neither
+half can grow, and balance is the only thing a seam here can buy.
+
+**RECONSTRUCTION, NOT A BYTE COUNT.** A relocation needs a reconstruction proof; the rejected first
+design of CS-971 moved every byte and still changed what items required. The original was read out
+of git's blob at the base SHA and compared span by span: 37 sections to 18 plus 19, none in both,
+none lost, none gained, none duplicated within a leaf, no span differing byte-for-byte, and the
+sha256 of every span concatenated identical on both sides. Byte accounting is stated rather than
+implied - 122559 = preamble 2102 + spans 120457, and the two leaf headers were deliberately
+rewritten, so preamble bytes are NOT conserved and the prover says so. The split is NOT a
+contiguous cut: CS-959 stood last in the base file, after CS-998, and now sits at the end of the
+lower leaf. Relative order within each leaf is preserved.
+
+**THE SEAM HAS THREE OWNERS AND THEY AGREE.** `tools/drift_guard.py` `item_notes_leaf()` owns it as
+code, the leaf table in `docs/item_notes.md` owns it as prose, and `docs/item_notes/leaf-membership-rule.md`
+owns the reasoning; guard (j) FAILS on a code-table disagreement at a seam. After the merge, 242
+sections across every leaf route to the leaf they are actually in, checked against a probe that
+discriminates - CS-959 to the lower leaf, CS-960 through CS-999 to the upper, CS-1000 to the floor.
+
+**HOW IT WAS GRADED - REFUTED TWICE.** Round one refuted it on an incomplete sweep of what the move
+falsified and on an arm reported as narrowly insensitive. Round two refuted the repair on a docstring
+that claimed a differentiator it did not have. The arm is the substantive story: the original
+`test_a_code_cs9nn_seam_moved_away_from_the_table_is_red` monkeypatched the very constant it claimed
+to bind, so it was structurally blind to the shipped value and killed 0 of 9 plants. It was replaced
+by an arm that leaves the constant alone and plants the edit a person would actually make - merging
+the two CS-9nn rows back into one pre-split block row - which kills 13 of 13 non-no-op mutants, stays
+GREEN on the CS-960 no-op, and is shown load-bearing because removing the plant returns the family to
+PASS. Its first docstring then claimed it, and not its partner, dies when the constant is dropped from
+the probe tuple; both die. Eleven mutants found ten that kill both or neither, so the pair is now
+DOCUMENTED as one assertion reached by two routes with neither independently load-bearing, rather
+than carrying a second unmeasured claim. One mutant does separate them - making the id clause
+mandatory in the row grammar - and it is recorded as grammar coverage rather than promoted into the
+differentiator it is not.
+
+**THE SWEEP WAS DERIVED, AND IT BEAT BOTH ADVERSARIES.** The list of restatements the move falsified
+was re-derived over every tracked text file by matching each fact's own vocabulary rather than a site
+list. It found a sixth falsified pointer and two stale claims inside `tests/data/test_item_notes_index.py`
+that no adversary named. What makes it credible is that it caught itself: its first pass searched only
+forward from a leaf path and so could not read `CS-nnn's section under <leaf>`, the spelling
+`docs/GATED.md` uses - it failed to re-find a site already found by hand, and that disagreement is
+what exposed the gap.
+
+**WHAT WAS REPOINTED AND WHAT WAS DELIBERATELY NOT.** `docs/GATED.md` is a live file and its CS-981
+pointer now names the new leaf. The three pointers in `docs/LEDGER.md` and the two in
+`docs/history_notes.md` are NOT edited: this file forbids editing a written record, and that file's
+own header declares nothing in it may be acted on without re-verifying live. This entry is their
+correcting record. No guard grades a pointer of this shape at all, which is filed as CS-1136.
+
+**MEASURED, NOT FIXED.** `docs/item_notes/phase4-followups-850.md` is now the family's worst row at
+86 percent and is the next leaf needing this treatment. Two arms in `tests/data/test_item_notes_index.py`
+carry the same structural blindness the CS-9nn arm had, derived from the module's AST as exactly two
+of 97 test functions, each killing 1 of 5 - filed as CS-1137 rather than repaired inside this slice.
+
+Verification: `python tools/doc_budget.py` reports 38 measured and 0 over budget with both leaves
+present; `python tools/drift_guard.py` is CLEAN at 11 guards with 10 skips and neither new leaf
+excused; `python -m pytest tests/data/test_item_notes_index.py tests/data/test_drift_guard_data.py -q -p no:randomly`
+is green. To re-check the seam agreement, plant any value other than 960 in
+`_ITEM_NOTES_SECOND_BLOCK_SEAM` and confirm `test_the_shipped_cs9nn_seam_is_found_when_the_table_stops_bounding_it`
+reddens; clear every `__pycache__` first and restore from a byte snapshot rather than `git checkout`.
+
 ### 2026-09-17 - CS-917 - MEASUREMENT RECORD. THE ITEM STAYS OPEN. The lane's growth per commit and its run-to-run jitter are measured; the ordering guarantee is unmet and filed as CS-1133
 
 **THE ITEM STAYS OPEN AND ITS ACCEPTANCE IS UNCHANGED.** This entry records a

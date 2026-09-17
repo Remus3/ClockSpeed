@@ -55,8 +55,11 @@ _ROADMAP_ITEM = re.compile(r"^(CS-G?\d+) - ")
 # CS-4nn filled up at 98 of 100, so CS-8nn takes phase-4 residuals (operator
 # decision 2026-08-21). These are the seams docs/item_notes/ splits phase 4 on.
 #
-# THE BLOCK ITSELF THEN SPLIT AT CS-850, so phase 4 is three leaves and there
-# are two seams rather than one. See docs/adr/0011-the-cs-8nn-follow-up-leaf
+# THE BLOCK ITSELF THEN SPLIT AT CS-850, which took phase 4 to three leaves and
+# two seams. It has split twice more since, at CS-1000 (CS-1079) and inside the
+# CS-9nn block at CS-960 (CS-1132) - the count and every seam are in the rule's
+# code owner, tools/drift_guard.py, and are not restated per-constant here. See
+# docs/adr/0011-the-cs-8nn-follow-up-leaf
 # -splits-at-cs-850.md. The follow-up leaf reached 99 per cent of its budget
 # with no closed section left to relocate - the same shape, one level down,
 # that ADR 0010 split docs/item_notes.md for.
@@ -71,15 +74,27 @@ _FOLLOWUP_LEAF_SEAM = 850
 
 # THE SECOND FOLLOW-UP BLOCK. CS-8nn filled up at 100 of 100, measured
 # 2026-09-05, so CS-9nn takes phase-4 residuals from there (operator decision
-# 2026-09-05). Its leaf name is DERIVED from this constant for the same reason
-# the seam above is: a hand-typed name beside a number is two copies of one
-# fact with somewhere to drift to.
+# 2026-09-05). This constant is the block's FLOOR, and since CS-1132 it spells
+# the name of the LOWER of the block's two leaves rather than of one leaf for
+# the whole block. The name is DERIVED from it for the same reason the seam
+# above is derived: a hand-typed name beside a number is two copies of one fact
+# with somewhere to drift to.
 _SECOND_BLOCK_FIRST = 900
+
+# CS-1132 - THE CS-9nn BLOCK IS TWO LEAVES, SPLIT AT CS-960. Unlike every seam
+# above it this one is NOT a block boundary: the block is spent and its leaf had
+# come close enough to the item-notes leaf ceiling that the next filing pass
+# would have tipped it over, so the seam was placed where the bytes were most
+# evenly divided. Derived into the leaf name for the same reason as the others.
+_SECOND_BLOCK_SEAM = 960
 
 # CS-1079 - THE FOUR-DIGIT IDS TOOK A LEAF OF THEIR OWN. The CS-9nn leaf had been
 # an open-ended floor, so it went over its soft doc budget holding IDs its own
 # selector did not name. Every phase 4 ID at CS-1000 or above now sits in the
-# leaf this constant spells, and the CS-9nn leaf holds exactly its block.
+# leaf this constant spells, and no CS-9nn leaf reaches past the block again.
+# WHAT CS-1079 LEFT was ONE leaf for the whole CS-9nn block; CS-1132 then split
+# that into two at _SECOND_BLOCK_SEAM, so "the CS-9nn leaf" is no longer a
+# single thing and this comment does not speak for what either half holds.
 _THIRD_BLOCK_FIRST = 1000
 
 
@@ -119,7 +134,10 @@ _RULE_ROWS = (
     "below CS-850 |\n"
     "| `docs/item_notes/phase4-followups-850.md` | ROADMAP `Phase 4`, ID in the `CS-8nn` block "
     "at or above CS-850 |\n"
-    "| `docs/item_notes/phase4-followups-900.md` | ROADMAP `Phase 4`, ID in the `CS-9nn` block |\n"
+    "| `docs/item_notes/phase4-followups-900.md` | ROADMAP `Phase 4`, ID in the `CS-9nn` block "
+    "below CS-960 |\n"
+    "| `docs/item_notes/phase4-followups-960.md` | ROADMAP `Phase 4`, ID in the `CS-9nn` block "
+    "at or above CS-960 |\n"
     "| `docs/item_notes/phase4-followups-1000.md` | ROADMAP `Phase 4`, ID at or above CS-1000 |\n"
     "| `docs/item_notes/phase5.md` | ROADMAP `Phase 5` |\n"
     "| `docs/item_notes/phase6.md` | ROADMAP `Phase 6` |\n"
@@ -446,7 +464,9 @@ _SEAM_CASES = [
     ("CS-850", "4", "phase4-followups-850.md"),
     ("CS-899", "4", "phase4-followups-850.md"),
     ("CS-900", "4", "phase4-followups-900.md"),
-    ("CS-999", "4", "phase4-followups-900.md"),
+    ("CS-959", "4", "phase4-followups-900.md"),
+    ("CS-960", "4", "phase4-followups-960.md"),
+    ("CS-999", "4", "phase4-followups-960.md"),
     ("CS-1000", "4", "phase4-followups-1000.md"),
     ("CS-1086", "4", "phase4-followups-1000.md"),
     ("CS-1127", "4", "phase4-followups-1000.md"),
@@ -1376,6 +1396,89 @@ def test_a_code_floor_moved_away_from_the_table_is_red(
     ) in rendered.splitlines(), rendered
 
 
+def test_a_table_cs9nn_seam_moved_away_from_the_code_is_red(family: Path) -> None:
+    """CS-1132. The table splits the CS-9nn block at CS-970; the code says CS-960.
+
+    The seam inside the CS-9nn block is the one seam that is NOT a block
+    boundary, so nothing about the block's shape would catch it drifting. Both
+    rows are moved together, which is what a hand edit to the table would do -
+    a reader following the planted table would be sent to the CS-900 leaf for
+    CS-965, whose section sits in the CS-960 leaf.
+
+    THIS ARM AND ITS CODE-DIRECTION PARTNER BELOW ARE ONE ASSERTION REACHED BY
+    TWO ROUTES. The measurement, and what separates them, is recorded in that
+    partner's docstring; neither arm grades a seam mutant the other misses.
+    """
+    _replace_in_index(family, "`CS-9nn` block below CS-960 |", "`CS-9nn` block below CS-970 |")
+    _replace_in_index(
+        family, "`CS-9nn` block at or above CS-960 |", "`CS-9nn` block at or above CS-970 |"
+    )
+
+    status, rendered = _run(family)
+    assert status == "FAIL", rendered
+    assert (
+        f"  Phase 4 CS-{_SECOND_BLOCK_SEAM}: the leaf table names "
+        f"{LEAF_DIR_RELATIVE}/phase4-followups-{_SECOND_BLOCK_FIRST}.md, "
+        f"item_notes_leaf derives {LEAF_DIR_RELATIVE}/phase4-followups-{_SECOND_BLOCK_SEAM}.md"
+    ) in rendered.splitlines(), rendered
+
+
+def test_the_shipped_cs9nn_seam_is_found_when_the_table_stops_bounding_it(family: Path) -> None:
+    """CS-1132. The SHIPPED seam is graded, and only its own probe can find it here.
+
+    THIS ARM REPLACES A MONKEYPATCHING ONE THAT GRADED NOTHING. The retired arm
+    set ``_ITEM_NOTES_SECOND_BLOCK_SEAM`` itself and then asserted on the line
+    that patched value produced, so the shipped value never entered the run at
+    all: MEASURED over eight seam values (970, 950, 961, 965, 999, 900, 1000,
+    1001) plus dropping the constant from the probe tuple, it reported exit 0 on
+    all nine. An oracle that cannot observe its subject passes FOR THAT REASON.
+
+    The plant is the edit a person would actually make - MERGING THE TWO CS-9nn
+    ROWS BACK INTO THE ONE PRE-CS-1132 BLOCK ROW and forgetting the code. With
+    the table no longer bounding anything inside the block, its rows yield
+    probes only at 900 and 1000, and the seam is reached by the probe
+    ``_item_notes_rule_probes`` derives from the code constant.
+
+    THIS ARM AND ITS TABLE-DIRECTION PARTNER ARE ONE ASSERTION REACHED BY TWO
+    ROUTES, AND NEITHER IS INDEPENDENTLY LOAD-BEARING. Both expect a
+    byte-identical line, produced by that same code-derived probe. MEASURED over
+    the eight seam values above, over dropping the constant from the probe
+    tuple, and over widening ``_ITEM_NOTES_BLOCK_WIDTH``: every one of the ten
+    kills BOTH arms or neither - the tuple mutant included. AN EARLIER VERSION
+    OF THIS DOCSTRING SAID THIS ARM ALONE DIED ON THAT MUTANT. That was never
+    measured and it is false. The pair is kept for the table-direction and
+    code-direction framing, not because either grades what the other misses.
+
+    THE ONE MUTANT THAT SEPARATES THEM IS GRAMMATICAL AND NOT ABOUT THE SEAM.
+    Making the id clause mandatory in ``_RULE_GRAMMAR`` - deleting the ``?``
+    after its below / at-or-above group - reddens this arm and leaves the
+    partner green, because this plant's row is the only one of the two using the
+    bare ", ID in the `CS-Nnn` block" form. That is grammar coverage, recorded
+    here rather than dressed up as the reason the pair exists.
+
+    Both halves of the expected line are written from THIS module's hand-typed
+    constants, so a shipped seam that moves renders a different id and a
+    different leaf name and cannot satisfy them.
+    """
+    _replace_in_index(
+        family,
+        f"| `{LEAF_DIR_RELATIVE}/phase4-followups-{_SECOND_BLOCK_FIRST}.md` | ROADMAP "
+        f"`Phase 4`, ID in the `CS-9nn` block below CS-{_SECOND_BLOCK_SEAM} |\n"
+        f"| `{LEAF_DIR_RELATIVE}/phase4-followups-{_SECOND_BLOCK_SEAM}.md` | ROADMAP "
+        f"`Phase 4`, ID in the `CS-9nn` block at or above CS-{_SECOND_BLOCK_SEAM} |\n",
+        f"| `{LEAF_DIR_RELATIVE}/phase4-followups-{_SECOND_BLOCK_FIRST}.md` | ROADMAP "
+        f"`Phase 4`, ID in the `CS-9nn` block |\n",
+    )
+
+    status, rendered = _run(family)
+    assert status == "FAIL", rendered
+    assert (
+        f"  Phase 4 CS-{_SECOND_BLOCK_SEAM}: the leaf table names "
+        f"{LEAF_DIR_RELATIVE}/phase4-followups-{_SECOND_BLOCK_FIRST}.md, "
+        f"item_notes_leaf derives {LEAF_DIR_RELATIVE}/phase4-followups-{_SECOND_BLOCK_SEAM}.md"
+    ) in rendered.splitlines(), rendered
+
+
 def test_a_routed_phase_the_table_does_not_cover_is_red(family: Path) -> None:
     """A phase with a routed item and no rule row resolves to nothing from the index."""
     _replace_in_index(family, "| `docs/item_notes/phase7.md` | ROADMAP `Phase 7` |\n", "")
@@ -1442,9 +1545,15 @@ _RESIDUE_PLANTS = [
         " or so",
     ),
     (
-        "ID in the `CS-9nn` block |",
-        "ID in the `CS-9nn` block, mostly |",
+        "ID in the `CS-9nn` block below CS-960 |",
+        "ID in the `CS-9nn` block below CS-960, mostly |",
         "phase4-followups-900.md",
+        ", mostly",
+    ),
+    (
+        "ID in the `CS-9nn` block at or above CS-960 |",
+        "ID in the `CS-9nn` block at or above CS-960, mostly |",
+        "phase4-followups-960.md",
         ", mostly",
     ),
     (
@@ -1552,10 +1661,10 @@ _LOOSENING = [
     # ", ID in the `CS-nnn` block" alone: a doubled space after in, a zero-led block.
     *(
         (
-            f"{_P4}, ID in the `CS-9nn` block |",
-            f"{_P4}{clause} |",
+            f"{_P4}, ID in the `CS-9nn` block below CS-960 |",
+            f"{_P4}{clause} below CS-960 |",
             "phase4-followups-900.md",
-            clause,
+            f"{clause} below CS-960",
         )
         for clause in (
             ", ID in  the `CS-9nn` block",
@@ -1961,7 +2070,7 @@ def test_every_section_sits_in_the_leaf_the_membership_rule_names() -> None:
     and one stated exception, CS-501, which predates the CS-8nn block and is
     filed under phase 4. Anything else here means a body was hand-placed.
 
-    PHASE 4 IS FIVE LEAVES AND THE RULE STAYS A DERIVATION FROM THE ID. It is
+    PHASE 4 IS SIX LEAVES AND THE RULE STAYS A DERIVATION FROM THE ID. It is
     computable from an item number alone and is deliberately not a table of
     which item lives where: a hand-listed mapping would have to be edited by
     the same hand that misplaces a body, so it would agree with the mistake.
@@ -1983,6 +2092,8 @@ def test_every_section_sits_in_the_leaf_the_membership_rule_names() -> None:
             in_block = _FOLLOWUP_BLOCK_FIRST <= number < _FOLLOWUP_BLOCK_LIMIT
             if number >= _THIRD_BLOCK_FIRST:
                 want = f"phase4-followups-{_THIRD_BLOCK_FIRST}.md"
+            elif number >= _SECOND_BLOCK_SEAM:
+                want = f"phase4-followups-{_SECOND_BLOCK_SEAM}.md"
             elif number >= _SECOND_BLOCK_FIRST:
                 want = f"phase4-followups-{_SECOND_BLOCK_FIRST}.md"
             elif not in_block:

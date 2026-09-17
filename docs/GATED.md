@@ -602,7 +602,8 @@ are CLOSED and their records are in `docs/LEDGER.md` - CS-830 as a NARROWED clos
 after an adversary refuted the first one, CS-831 with an acceptance the operator AMENDED the
 same day. Neither carries an open line in `ROADMAP.md` and neither has ever had a section in
 this file. The correction is recorded in CS-981's line and in its section under
-`docs/item_notes/phase4-followups-900.md`.
+`docs/item_notes/phase4-followups-960.md`, which CS-1132 split out of the CS-9nn leaf
+at CS-960.
 
 **WHAT REMAINS OF CS-G05 ITSELF.** The block below assigns every measured residue to an item
 that is not this one: the unmeasured tag types and the extent disagreements to CS-828 and

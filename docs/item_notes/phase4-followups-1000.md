@@ -5,8 +5,10 @@ text was filed, moved or measured - and never that the section itself is histori
 
 **THIS LEAF HOLDS EVERY PHASE 4 ID AT CS-1000 OR ABOVE.** The `1000` in its name is a
 FLOOR, not a block: `CS-11nn` and every later block land here too, and the leaf
-membership rule in `docs/item_notes.md` spells that floor rather than a block. Its sibling
-`docs/item_notes/phase4-followups-900.md` holds the `CS-9nn` block and nothing above it.
+membership rule in `docs/item_notes.md` spells that floor rather than a block. Its siblings
+`docs/item_notes/phase4-followups-900.md` and `docs/item_notes/phase4-followups-960.md`
+split the `CS-9nn` block between them at CS-960 and neither reaches above it - CS-1132,
+whose reasoning is in `docs/item_notes/leaf-membership-rule.md`.
 
 **This is a leaf of `docs/item_notes.md`**, which owns the index and the rules this file
 obeys. Read the index for the leaf membership rule routing every OPEN item, the verbatim
@@ -785,22 +787,6 @@ an id that has appeared in this tree and now exists in no owner file is reported
 
 guard (i) is blind to an id that exists in NO state - MEASURED 2026-09-17 by the CS-971 verifier: `tools/drift_guard.py` guard (i) grades id COLLISIONS between the four owner files and unaccounted owner files, so an id removed from `ROADMAP.md` with no `docs/LEDGER.md` entry is owned by zero files and the guard stays SILENT, which is exactly the state CS-1033 sat in between its line being deleted and its ledger entry being written, while `docs/item_notes.md` and ADR 0022 both asserted that the ledger entry was its record
 
----
-
-## CS-1132
-
-### Filed 2026-09-17 by the CS-971 merge, from that item's verifier
-
-### Acceptance
-
-the leaf is under its ceiling with headroom a filing pass cannot exhaust in one item, by RELOCATION at a stated seam with every moved body verbatim per the rules block in `docs/item_notes.md`, and the leaf membership rule's selector for each resulting leaf describes the ids it actually holds, proven by a run of the tool and by the rule resolving every id it lists
-
-### Full headline
-
-`docs/item_notes/phase4-followups-900.md` sits just under its item-notes leaf ceiling after CS-971 moved every acceptance clause into the leaves - MEASURED 2026-09-17 by `tools/doc_budget.py`, which reports the leaf as its worst OK row - so the next filing pass tips it OVER and the session that files a routine follow-up pays for a split it did not cause, which is the condition CS-1079 was filed for and closed by relocating at a block seam
-
----
-
 ## CS-1133
 
 ### Filed 2026-09-17 by the CS-917 cycle, from that item's own measurement
@@ -940,3 +926,17 @@ a LIVE document that points at an item-notes leaf for an id with no section in t
 ### Full headline
 
 no guard grades a live document's pointer into an item-notes leaf, so a live file can route a reader to a section that no longer exists - MEASURED 2026-09-17 twice over: the CS-1132 adversary looked for such a guard across `tools/`, `tests/test_docs_citations.py` and `tests/test_citation_tables.py` and found none, and a derived sweep over every tracked markdown file outside the append-only record then found the live instance, `docs/ARCHITECTURE.md` routing the cost of the second world-body pass to `docs/item_notes/phase4-followups-900.md` under CS-961, dead since that item closed and its section left the family, while `tools/drift_guard.py` exited 0 across 11 guards and 517 citation and liveness arms passed over the same bytes; that pointer is repaired in the CS-1132 merge and the GUARD is what this row owns, because the five further pointers CS-1132's own relocation falsified all sit in files nothing may edit, and the next relocation will falsify more; the sweep that found it also produced eight false positives, every one a leaf-table range selector or a mention of the item that caused a change rather than a pointer at its section, so telling those apart is the part of this row that carries the risk
+
+---
+
+## CS-1137
+
+### Filed 2026-09-17 by the CS-1132 second repair round
+
+### Acceptance
+
+each arm binds the shipped VALUE of the constant it grades, proven by every arm in the module that monkeypatches a leaf-rule constant reddening on a plant that MOVES that value - not only on a plant that removes the constant from the probe tuple - with an anti-vacuity control at the same inputs that stays green unmutated, and with the population of such arms DERIVED from the module rather than listed, so a third arm of the same shape cannot be added without the derivation reporting it
+
+### Full headline
+
+two arms in `tests/data/test_item_notes_index.py` bind only their constant's MEMBERSHIP in the probe tuple and are blind to its VALUE - MEASURED 2026-09-17 by the CS-1132 second repair round and DERIVED from the module's own syntax tree rather than read by eye: of 97 test functions exactly two call `monkeypatch.setattr` and then assert, one patching the `CS-8nn` seam constant and one patching the `CS-1nnn` floor constant, and each killed 1 of 5 plants - GREEN on every plant that moved the value (860, 820, 870 and 899 for the seam; 1100, 900, 1200 and 1050 for the floor) and RED only when the constant was dropped from the probe tuple altogether, with the control GREEN on every row; this is the identical shape CS-1132 found in the `CS-9nn` seam's arm, where it killed 0 of 9 and was replaced by an arm that leaves the shipped constant alone and plants the edit a person would actually make, so the repair pattern is already established in the same module
