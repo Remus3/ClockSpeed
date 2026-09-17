@@ -860,16 +860,6 @@ def test_a_line_headline_that_stops_at_a_clause_break_of_the_filed_one_passes(
     assert status == "PASS", rendered
 
 
-def test_an_authored_title_that_is_not_a_prefix_of_the_filed_headline_passes(
-    family: Path,
-) -> None:
-    """A title written fresh is graded on its own ending, not against the original."""
-    _file_full_headline(family, "phase4.md", "CS-401", "an entirely different sentence")
-
-    status, rendered = _run(family)
-    assert status == "PASS", rendered
-
-
 def test_a_line_headline_truncating_the_filed_headline_mid_clause_is_red(family: Path) -> None:
     """The CS-1012 shape: the line's headline is the filed one cut part-way."""
     _file_full_headline(family, "phase4.md", "CS-401", "a headline that runs on and on")
@@ -879,18 +869,6 @@ def test_a_line_headline_truncating_the_filed_headline_mid_clause_is_red(family:
     assert "  CS-401 carries a headline cut part-way through its filed full headline" in (
         rendered.splitlines()
     ), rendered
-
-
-def test_a_line_headline_ending_on_a_dangling_word_is_red(family: Path) -> None:
-    """A title ending on a connective is a sentence broken off, prefix or not."""
-    _set_line_headline(family, "CS-401", "an entirely different sentence about the")
-    _file_full_headline(family, "phase4.md", "CS-401", "a headline that runs on and on")
-
-    status, rendered = _run(family)
-    assert status == "FAIL", rendered
-    assert '  CS-401 has a headline ending on the dangling word "the"' in (rendered.splitlines()), (
-        rendered
-    )
 
 
 def test_two_full_headline_headings_in_one_section_is_red(family: Path) -> None:
@@ -903,6 +881,188 @@ def test_two_full_headline_headings_in_one_section_is_red(family: Path) -> None:
     assert "  CS-401 carries 2 full headline headings in its section" in (rendered.splitlines()), (
         rendered
     )
+
+
+#: The filed headline every token-wise plant below is graded against. It carries a clause
+#: break at the colon and a separator token at "and", which are the only two places a short
+#: title may stop.
+_FILED = "the suite is outside every ration and cannot be brought inside one: the reason follows"
+
+#: The adversary's inputs against d63e573, each one character away from a caught cut. Every
+#: one of them is the filed headline stopped MID-CLAUSE, however it is dressed.
+_MID_CLAUSE_TITLES = (
+    "the suite is outside every ration and cannot be brought",
+    "the suite is outside every ration and cannot be brought inside.",
+    "the suite is outside every ration and cannot be brought,",
+    "The suite is outside every ration and cannot be brought:",
+    "the suite is outside every  ration and cannot be brought",
+)
+
+
+@pytest.mark.parametrize("title", _MID_CLAUSE_TITLES)
+def test_a_headline_stopped_mid_clause_is_red_however_it_is_dressed(
+    family: Path, title: str
+) -> None:
+    """Token-wise, so a comma, a period, a colon or a capital cannot buy a pass."""
+    _set_line_headline(family, "CS-401", title)
+    _file_full_headline(family, "phase4.md", "CS-401", _FILED)
+
+    status, rendered = _run(family)
+    assert status == "FAIL", rendered
+    assert "  CS-401 carries a headline cut part-way through its filed full headline" in (
+        rendered.splitlines()
+    ), rendered
+
+
+def test_a_headline_stopping_at_a_separator_token_passes(family: Path) -> None:
+    """The floor: stopping before "and" is stopping at a clause boundary."""
+    _set_line_headline(family, "CS-401", "the suite is outside every ration")
+    _file_full_headline(family, "phase4.md", "CS-401", _FILED)
+
+    status, rendered = _run(family)
+    assert status == "PASS", rendered
+
+
+def test_a_headline_not_derived_from_the_filed_one_is_red(family: Path) -> None:
+    """The hole: a title that is no prefix at all used to pass unexamined."""
+    _set_line_headline(family, "CS-401", "an entirely different sentence")
+    _file_full_headline(family, "phase4.md", "CS-401", _FILED)
+
+    status, rendered = _run(family)
+    assert status == "FAIL", rendered
+    assert "  CS-401 carries a headline that is not a prefix of its filed full headline" in (
+        rendered.splitlines()
+    ), rendered
+
+
+def test_an_empty_full_headline_heading_is_red(family: Path) -> None:
+    """The mutant that survived: an empty filed headline must fault on its own."""
+    _append_to_section(
+        family, "phase4.md", "CS-401", f"{HEADLINE_HEADING}\n\n### Something else\n\nx\n\n"
+    )
+
+    status, rendered = _run(family)
+    assert status == "FAIL", rendered
+    assert "  CS-401 has a full headline heading with no text under it" in (
+        rendered.splitlines()
+    ), rendered
+
+
+#: The dangling vocabulary, PINNED HERE as a literal as well as parametrised from the
+#: module, so shrinking the frozenset cannot quietly shrink the population that grades it.
+_DANGLING_WORDS = frozenset(
+    {
+        "a",
+        "about",
+        "after",
+        "against",
+        "an",
+        "and",
+        "as",
+        "at",
+        "because",
+        "before",
+        "between",
+        "but",
+        "by",
+        "for",
+        "from",
+        "if",
+        "in",
+        "into",
+        "nor",
+        "of",
+        "on",
+        "onto",
+        "or",
+        "over",
+        "per",
+        "so",
+        "than",
+        "that",
+        "the",
+        "their",
+        "through",
+        "to",
+        "under",
+        "via",
+        "when",
+        "which",
+        "while",
+        "with",
+        "without",
+        "yet",
+    }
+)
+
+
+def test_the_dangling_vocabulary_is_pinned_in_both_directions() -> None:
+    """A member removed from either copy is a disagreement, not a silent narrowing."""
+    assert drift_guard.HEADLINE_DANGLING_WORDS == _DANGLING_WORDS
+
+
+@pytest.mark.parametrize("word", sorted(_DANGLING_WORDS))
+def test_every_dangling_word_reddens_a_cut_that_ends_on_it(family: Path, word: str) -> None:
+    """One arm per member, so no member can sit in the set unkilled.
+
+    The cut stops at a clause boundary - the filed headline continues with "and" - so the
+    ONLY thing this arm can be reddened by is the word the title ends on.
+    """
+    _set_line_headline(family, "CS-401", f"a headline ending {word}")
+    _file_full_headline(family, "phase4.md", "CS-401", f"a headline ending {word} and then more")
+
+    status, rendered = _run(family)
+    assert status == "FAIL", rendered
+    assert f'  CS-401 has a headline ending on the dangling word "{word}"' in (
+        rendered.splitlines()
+    ), rendered
+
+
+def test_a_copula_ending_is_exempt_as_cs_827_measured(family: Path) -> None:
+    """CS-827's real headline ends "the way byte-order's is" and is a whole sentence.
+
+    The copulas are exempt BY MEASUREMENT rather than by taste: that line was filed many
+    sessions before this guard and reads complete, so an "is" or "are" ending is not
+    evidence of a cut.
+    """
+    _set_line_headline(family, "CS-401", "not pinned by literal the way byte-order's is")
+    _file_full_headline(
+        family, "phase4.md", "CS-401", "not pinned by literal the way byte-order's is and more"
+    )
+
+    status, rendered = _run(family)
+    assert status == "PASS", rendered
+
+
+def test_a_whole_headline_ending_on_a_preposition_is_not_a_cut(family: Path) -> None:
+    """CS-465 ends "the hops the cycle travels through" and CS-803 "what it closes over".
+
+    Both are whole sentences that strand a preposition, and neither section files a
+    headline, so the dangling check must not reach them - it grades CUTS.
+    """
+    _set_line_headline(
+        family, "CS-401", "grade the fence against the hops the cycle travels through"
+    )
+
+    status, rendered = _run(family)
+    assert status == "PASS", rendered
+
+
+#: A near-miss pointer spelling: it reads like the pointer to a person and is not the
+#: literal one, so the exact test used to leave the item with no acceptance anywhere.
+_POINTER_NEAR_MISSES = ("In detail", "in detail.", "in  detail")
+
+
+@pytest.mark.parametrize("spelling", _POINTER_NEAR_MISSES)
+def test_a_near_miss_pointer_spelling_is_red(family: Path, spelling: str) -> None:
+    """Both faults fire: the spelling is refused AND the missing acceptance is named."""
+    _point_line_at_section(family, "CS-401", acceptance=spelling)
+
+    status, rendered = _run(family)
+    assert status == "FAIL", rendered
+    lines = rendered.splitlines()
+    assert any("is not the acceptance pointer spelling" in line for line in lines), rendered
+    assert "  CS-401 points at its section and it carries 0 acceptance headings" in lines, rendered
 
 
 def test_a_line_with_no_acceptance_field_at_all_is_red(family: Path) -> None:

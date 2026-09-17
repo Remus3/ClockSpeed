@@ -3490,6 +3490,18 @@ def item_notes_section_texts(root: Path, sections: dict[str, str]) -> dict[str, 
     return texts
 
 
+def _normalised_pointer(clause: str) -> str:
+    """Return a clause in the form the pointer is RECOGNISED by, never accepted by.
+
+    Args:
+        clause: The acceptance field's text.
+
+    Returns:
+        Whitespace collapsed, casefolded, trailing sentence punctuation removed.
+    """
+    return " ".join(clause.split()).casefold().rstrip(".!?;:,")
+
+
 def item_notes_acceptance_problems(
     fields: dict[str, tuple[str | None, bool]], section_texts: dict[str, str]
 ) -> list[str]:
@@ -3505,9 +3517,22 @@ def item_notes_acceptance_problems(
     faults: list[str] = []
     for item, (clause, routed) in fields.items():
         texts = item_notes_acceptance_texts(section_texts.get(item, ""))
+        # CS-971 - A NEAR MISS IS NOT A CLAUSE AND MUST NOT READ AS ONE. `In detail`,
+        # `in detail.` and a doubled space all mean the pointer to a person and none of
+        # them is the pointer, so an exact-equality test left the item with its acceptance
+        # nowhere at all. The normalised form decides WHICH rule applies; the exact
+        # spelling is then required, so the near miss is refused rather than tolerated.
+        pointerish = clause is not None and _normalised_pointer(clause) == (
+            ITEM_NOTES_ACCEPTANCE_POINTER
+        )
         if clause is None or not clause.strip():
             faults.append(f"  {item} carries neither an acceptance clause nor the pointer")
-        elif clause == ITEM_NOTES_ACCEPTANCE_POINTER:
+        elif pointerish:
+            if clause != ITEM_NOTES_ACCEPTANCE_POINTER:
+                faults.append(
+                    f'  {item} spells its acceptance field "{clause}", which is not the '
+                    f'acceptance pointer spelling "{ITEM_NOTES_ACCEPTANCE_POINTER}"'
+                )
             if not routed:
                 faults.append(
                     f"  {item} points at its section and its line carries no trailing detail field"
@@ -3541,38 +3566,88 @@ def item_notes_acceptance_problems(
 # tree. The rule, stated so it can be tested:
 #
 #   1. A section carries at most ONE full-headline heading, and its text is non-empty.
-#   2. When the line's headline is a STRICT PREFIX of the filed headline, the filed text
-#      must continue with a clause break - ``:``, ``;`` or a spaced hyphen. Continuing
-#      with anything else means the line stopped mid-clause or mid-word.
-#   3. No headline ends on a dangling connective, prefix or not, because a title ending
-#      on "and" or "the" is a sentence broken off whatever it was cut from.
+#   2. THE COMPARISON IS TOKEN-WISE, NEVER `startswith`. Both texts are split on
+#      whitespace, each token trimmed of surrounding markup and punctuation and
+#      casefolded. The line's tokens must equal the filed headline's FIRST N tokens; a
+#      headline that is no such prefix FAILS as underived rather than passing unexamined.
+#      That hole was measured: a trailing period, a trailing comma, an appended colon and
+#      a capitalised first letter each walked a mid-clause cut past the first build.
+#   3. When the line stops short, the filed headline's remainder must START A NEW CLAUSE -
+#      the matched text ends in ``:`` or ``;``, or the next token opens with ``-`` or is
+#      one of the separator words. Anything else is a stop mid-clause.
+#   4. A CUT title may not end on a dangling connective. The check is confined to a title
+#      that IS a strict prefix of a filed headline, because a whole headline is its
+#      author's sentence and English strands prepositions: CS-465 ends "the hops the cycle
+#      travels through" and CS-803 "what it closes over", both complete. A cut stopping on
+#      one of those words is a different thing - it stopped inside the clause it came from.
 _ITEM_NOTES_HEADLINE_HEADING = "### Full headline"
-_HEADLINE_CLAUSE_BREAKS = (":", ";", " - ")
-_HEADLINE_DANGLING_WORDS = frozenset(
+
+#: Stripped off both ends of every token before it is compared, so a trailing comma, a
+#: period, an appended colon or a backticked spelling cannot change what a token IS. The
+#: first build compared raw strings with ``startswith`` and an adversary walked four
+#: different one-character dressings past it.
+_HEADLINE_TRIM_CHARS = "`*_\"'.,;:!?()[]"
+
+#: The same trim MINUS the two characters that ARE the clause boundary, so a filed
+#: headline's colon survives long enough to be read as one.
+_HEADLINE_TAIL_CHARS = "`*_\"'.,!?()[]"
+
+#: A clause boundary in the FILED headline, read two ways: the matched text ends with one
+#: of these, or the next token is one of the separators below.
+_HEADLINE_BREAK_CHARS = (":", ";", "-")
+_HEADLINE_SEPARATOR_TOKENS = frozenset(
+    {"and", "but", "or", "so", "because", "while", "although", "which", "then", "however"}
+)
+
+#: A SECONDARY check under the token rule: a title ending on one of these is a sentence
+#: broken off, whatever it was cut from. Pinned in both directions by
+#: `tests/data/test_item_notes_index.py`, with one arm per member so no member sits unkilled.
+#:
+#: THE COPULAS ARE EXEMPT BY MEASUREMENT, not by taste. CS-827's filed headline ends "the
+#: way byte-order's is" and reads as a whole sentence, so "is" and "are" are not evidence
+#: of a cut and are deliberately absent from this set.
+HEADLINE_DANGLING_WORDS = frozenset(
     {
         "a",
+        "about",
+        "after",
+        "against",
         "an",
         "and",
         "as",
         "at",
         "because",
+        "before",
+        "between",
         "but",
         "by",
         "for",
         "from",
+        "if",
         "in",
+        "into",
+        "nor",
         "of",
         "on",
+        "onto",
         "or",
+        "over",
+        "per",
         "so",
         "than",
         "that",
         "the",
         "their",
+        "through",
         "to",
+        "under",
+        "via",
+        "when",
         "which",
         "while",
         "with",
+        "without",
+        "yet",
     }
 )
 
@@ -3620,6 +3695,71 @@ def item_notes_headline_texts(section: str) -> list[str]:
     return texts
 
 
+def headline_tokens(text: str) -> list[tuple[str, str]]:
+    """Return one (raw, normalised) pair per token of ``text``.
+
+    Whitespace is collapsed by the split, each token is trimmed of surrounding markup and
+    punctuation and casefolded, and a token that trims to nothing is dropped.
+
+    Args:
+        text: A headline, filed or on the line.
+
+    Returns:
+        The pairs, in order.
+    """
+    pairs: list[tuple[str, str]] = []
+    for raw in text.split():
+        normalised = raw.strip(_HEADLINE_TRIM_CHARS).casefold()
+        if normalised:
+            pairs.append((raw, normalised))
+    return pairs
+
+
+def _headline_boundary(filed: list[tuple[str, str]], taken: int) -> bool:
+    """Whether the filed headline's remainder after ``taken`` tokens starts a new clause.
+
+    Args:
+        filed: The filed headline's token pairs.
+        taken: How many of them the line's headline reproduced.
+
+    Returns:
+        True when the text stops at a clause boundary.
+    """
+    ended = filed[taken - 1][0].rstrip(_HEADLINE_TAIL_CHARS)
+    if ended.endswith((":", ";")):
+        return True
+    following = filed[taken]
+    return following[0].startswith(_HEADLINE_BREAK_CHARS) or (
+        following[1] in _HEADLINE_SEPARATOR_TOKENS
+    )
+
+
+def _headline_derivation_faults(
+    item: str, tokens: list[tuple[str, str]], filed: list[tuple[str, str]]
+) -> list[str]:
+    """Grade one line headline against the headline its section files.
+
+    Args:
+        item: The item id, for the message.
+        tokens: The line headline's token pairs.
+        filed: The filed headline's token pairs.
+
+    Returns:
+        Zero or one fault.
+    """
+    spelled = [normalised for _raw, normalised in tokens]
+    original = [normalised for _raw, normalised in filed]
+    if spelled != original[: len(spelled)]:
+        return [f"  {item} carries a headline that is not a prefix of its filed full headline"]
+    if len(spelled) == len(original):
+        return []
+    if not _headline_boundary(filed, len(spelled)):
+        return [f"  {item} carries a headline cut part-way through its filed full headline"]
+    if spelled[-1] in HEADLINE_DANGLING_WORDS:
+        return [f'  {item} has a headline ending on the dangling word "{spelled[-1]}"']
+    return []
+
+
 def item_notes_headline_problems(
     headlines: dict[str, str], section_texts: dict[str, str]
 ) -> list[str]:
@@ -3635,9 +3775,7 @@ def item_notes_headline_problems(
     faults: list[str] = []
     for item, headline in headlines.items():
         filed = item_notes_headline_texts(section_texts.get(item, ""))
-        last = headline.rstrip().rsplit(" ", 1)[-1].strip("`*_,").lower()
-        if last in _HEADLINE_DANGLING_WORDS:
-            faults.append(f'  {item} has a headline ending on the dangling word "{last}"')
+        tokens = headline_tokens(headline)
         if len(filed) > 1:
             faults.append(f"  {item} carries {len(filed)} full headline headings in its section")
             continue
@@ -3646,11 +3784,7 @@ def item_notes_headline_problems(
         if not filed[0]:
             faults.append(f"  {item} has a full headline heading with no text under it")
             continue
-        rest = filed[0][len(headline) :]
-        if filed[0].startswith(headline) and rest and not rest.startswith(_HEADLINE_CLAUSE_BREAKS):
-            faults.append(
-                f"  {item} carries a headline cut part-way through its filed full headline"
-            )
+        faults.extend(_headline_derivation_faults(item, tokens, headline_tokens(filed[0])))
     if not faults:
         return []
     return [

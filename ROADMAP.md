@@ -91,64 +91,64 @@ CS-1128 - `_SEPARATE_GUARD_CEILING` bounds a table the derived-bound check canno
 CS-900 - tier 1's cost is concentrated in a few tests, so `-n auto` buys little - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-907 - tier-0 pre-push runs the whole suite while its header claims the sanctioned fast subset - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-920 - this project's own measurements carry provenance at document scope, never row scope - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
-CS-938 - the CS-932 inbox watcher is wired only in an untracked file, so a fresh clone runs no watcher - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
-CS-937 - a line pointer checked only for non-blankness certified a pointer naming the wrong rule - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
-CS-936 - the 2026-08-14 PII scrub edited files forward, so removed world names remain in earlier blobs - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
+CS-938 - the CS-932 inbox watcher is wired ONLY in an untracked file, so a fresh clone runs no watcher - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
+CS-937 - a line pointer whose only content check is NON-BLANKNESS certifies a pointer that names the wrong rule - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
+CS-936 - the 2026-08-14 PII scrub edited the files FORWARD, so three world names it removed remain in earlier blobs - CONTAINED, measured - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
 CS-941 - the watcher is SILENT on a WITHDRAWAL, so a deliverable that leaves the channel simply stops appearing - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
 CS-942 - the watcher runs only at `SessionStart`, which fires ONCE, so a note arriving mid-session is invisible until the next start - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
-CS-943 - the inbox watcher's seen-store save returns nothing and a write error crashes the session-start hook - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
-CS-944 - a leftover worktree lets a tree-walking existence guard pass green on the deletion it exists to catch - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
-CS-945 - local branches hold single-copy work that exists on no remote - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
-CS-946 - charter v4 is adopted and the cs lane slot accepted, reversing ADR-0017 - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
+CS-943 - `save_seen` returns nothing and an `OSError` on write escapes as a traceback out of a session-start hook, so a locked store crashes the watcher - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
+CS-944 - ten test modules walk the tree with `rglob` and one excludes the worktree directory - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
+CS-945 - local branches hold single-copy work that is on no remote and one `git branch -D` from loss, and a sibling was told this was fixed - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
+CS-946 - charter v4 is ADOPTED and the `cs` lane slot ACCEPTED, reversing ADR-0017 - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
 CS-947 - CAVEMAN ULTRA is ADOPTED and needs an adjudicated grant against the frozen `.claude/settings.json` plus a stated interaction with `CLAUDE.md` 2.3 - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-948 - CS owes a reciprocal verbatim payload and has no manifest producer, and an unscrubbed outbound payload is unrecoverable once sent - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
-CS-965 - four shipped repr methods render a quantity derived from the player's save - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
-CS-966 - CS-210's census of registry-published buildings can drift from what the registry actually publishes - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
-CS-967 - a worker running the whole suite locally with -n auto gets a red tree the push hook does not reproduce - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
+CS-965 - four shipped `__repr__` methods render a QUANTITY derived from the player's save while withholding its bytes - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
+CS-966 - CS-210's census claims to count the REGISTRY-PUBLISHED buildings - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
+CS-967 - a worker told to pay the whole suite locally reaches for `-n auto` and gets a RED tree that the push hook does not reproduce - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 
-CS-964 - every save-layer privacy arm hunts an ASCII marker while Unreal writes non-ASCII header strings as UTF-16-LE - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
-CS-969 - two live negative-count UTF-16-LE branches in the save reader are driven by no planted-marker arm - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
-CS-971 - `ROADMAP.md` is over its soft doc budget - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
-CS-972 - the pre-push hook grades the working tree while git ships the commit - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
-CS-974 - the queue driver rolls up a cycle's CI verdict against a two-verdict denylist - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
-CS-975 - nothing reads the queue driver's exit code, so every number it returns is decorative - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
-CS-993 - no ration covers the suite step across concurrent lanes - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
-CS-995 - the converse leg of the unpinned eligibility check is ungraded for breadth - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
-CS-998 - membership of the independent case-count table is uncertified - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
-CS-1001 - the CS-1000 repair rests on exactly one lanes module object per process and nothing asserts it - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
-CS-1002 - the lanes module keeps its ownership entry on a refused release and a refused repoint - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
-CS-1003 - the by-path lane modules are published under dotted names with no parent package loaded - acceptance: in detail - tier: 3 - detail: `docs/item_notes.md`
-CS-1004 - the launch-reason vocabulary is graded by set equality, so a duplicate-valued reason is invisible - acceptance: in detail - tier: 3 - detail: `docs/item_notes.md`
-CS-1006 - the claim store's reclaim still has a restore window a filesystem cannot arbitrate - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
+CS-964 - every privacy arm in the save layer hunts an ASCII marker inside `repr(value)` - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
+CS-969 - `clockspeed/save/objects.py::_payload_text` - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
+CS-971 - `ROADMAP.md` is 69.4 KB against its 60.0 KB soft budget and this session added three more item lines, so `tools/doc_budget.py` reports WARN - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
+CS-972 - `.githooks/pre-push` grades the WORKING TREE while git ships the COMMIT, so a push made with a dirty - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
+CS-974 - `ops/loop/queue_loop.py` decides a cycle's `ok` roll-up against `_CI_ROLLUP_BAD`, a DENYLIST of two verdicts - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
+CS-975 - nothing reads the `queue` driver's exit code, so every number it returns is decorative - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
+CS-993 - nothing rations the suite step across concurrent lanes, and the failure is already measured on this box rather than predicted - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
+CS-995 - the converse leg of `unpinned_eligibility_faults` is itself ungraded for BREADTH in both detection and naming - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
+CS-998 - `INDEPENDENT_CASE_COUNTS` membership is uncertified - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
+CS-1001 - the CS-1000 repair's correctness rests entirely on there being exactly ONE `lanes` module object in a process - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
+CS-1002 - `ops/loop/lanes.py` keeps its ownership entry on a REFUSED release and changes no state on a REFUSED repoint - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
+CS-1003 - `sys.modules.setdefault` publishes the by-path `lanes`, `lane_launcher` and `winmutex` modules under their canonical DOTTED names - acceptance: in detail - tier: 3 - detail: `docs/item_notes.md`
+CS-1004 - the launch-reason vocabulary is graded by SET equality, so a duplicate-VALUED `REASON_*` constant is invisible - acceptance: in detail - tier: 3 - detail: `docs/item_notes.md`
+CS-1006 - `ops/loop/claims.py`'s `_reclaim` still has a RESTORE window a filesystem cannot arbitrate - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1007 - the pre-push hook's xdist suite is outside every ration and cannot be brought inside one - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
-CS-1010 - a lane lock's pid and start-time holder proof fails in both halves together - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
-CS-1012 - tier 1's unit step cost 133 seconds more after CS-1009: 493s against a 480s ceiling and a 420s budget - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
-CS-1063 - the memory sync tool defers frontmatter problems to a drift guard check that does not exist - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
-CS-1092 - the self-spelled citation floor kept its filed value after CS-1066 halved its population - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
-CS-1094 - the derived-bound check in the bare path guard reports only a narrow set of module-scope shapes - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
-CS-1067 - the ratio solver's no-single-row-isolates fallback is reachable and untested through its caller - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
+CS-1010 - a lane lock proves its holder with a (pid, start time) pair, and both halves fail together: `lanes.proc_started` returns None when psutil is absent - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
+CS-1012 - tier 1's unit step cost 133 seconds more after CS-1009 than before it and the duration gate is now marginal rather than comfortable: the step went 316.16s over 5719 tests to 449.16s over 5740, the job total ran 493s against a 480s CEILING and a 420s budget, and a re-run of the IDENTICAL commit came in at 470s - AND THAT 20s FIGURE IS MEASURED FALSE, session 95: two same-tree rerun pairs read 222s and 23s apart, so the runner pool is TWO-CLASS rather than continuously noisy, and the repo's own feasibility arithmetic run on those numbers returns an EMPTY window - wall-clock gating is INFEASIBLE at this lane length rather than mis-tuned, which is a different item and it is CS-1060 - but the growth is NOT attributed and that is the finding rather than a caveat: it is spread evenly across tree-walking sweeps that have nothing to do with the change, `test_locals_rendering` 17.9s to 26.1s, the mypy-gate oracle 16.7s to 25.6s, `test_liveness` 15.8s to 24.6s, `test_toolpath` 8.6s to 11.9s, roughly plus 45 pct each, while the delta added about 85 KB to a multi-megabyte tree and the same suites measured LOCALLY at base and at head differ by under 12s in the noise - the WHOLE suite on this box is FLAT across the same delta - 411.54s at the base commit, 404.19s at the merged tip, both through the pre-push hook - so the 133s exists only on the runner and the first hypothesis to test is the environment rather than the tree, and CS-1009's own arms are 4.2s locally for the whole file and none reaches the CI slowest-15 - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
+CS-1063 - `tools/memory_sync.py` prints FRONTMATTER PROBLEMS and then says they "do not change this exit code - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
+CS-1092 - `_SELF_SPELLED_FLOOR` in `tests/test_docs_citations.py` stayed at its filed value while CS-1066 halved the population it bounds - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
+CS-1094 - `derived_bound_problems` in `tests/bare_path_guard.py` reports a bound computed from the table it bounds only for a module-scope `Assign` - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
+CS-1067 - `ratio._name_unsatisfiable_item`'s no-single-row-isolates fallback is reachable and no test through the caller reaches it - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
 CS-1069 - a reference-count reach derivation is read from two functions' direct attributes, and a graded reading can still be a cache hit - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
-CS-1070 - two test modules run a nested child pytest serially under a parent holding -n auto - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
-CS-1071 - the tier 1 workflow is parsed by two independent hand-rolled readers that never check each other - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
-CS-1074 - the struct controls revert assertion is only a net while its message presents as the grade - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
-CS-1075 - the Sphinx role guard grades three of the six role spellings its corpus contains - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
-CS-1076 - the independent table's no-dynamic-case-reuse check enumerates only its own module's bodies - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
-CS-1077 - the Sphinx role guard accepts a dotted role target whole once its head is a bound name - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
-CS-1078 - the two arms stopping the memory sync tool regrowing the link derivation each have a blind spelling - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
-CS-1129 - the leaf membership rule grammar is closed only at the positions its residue plants perturb - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
-CS-1119 - two trailing-run remainder shapes survive CS-828's reference-pair reading - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
-CS-1121 - the citation Disposition table keys each forgiveness by a site count, never by the sites - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
-CS-1123 - the CS-898 planting arm proves the tests-tree size ceiling fires but not where it sits - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
-CS-1125 - the mypy gate's exclude test reports on the ambient environment rather than on its subject - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
+CS-1070 - `tests/data/test_phase2_gate.py` and `tests/save/test_workdir.py` each run a nested child pytest SERIALLY - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
+CS-1071 - `.github/workflows/tier1.yml` is parsed by TWO independently hand-rolled readers that never check each other - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
+CS-1074 - `test_struct_controls.py`'s revert assertion is only a net and its message presents as the grade, which is the wording CS-870 had to correct next door - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
+CS-1075 - `tests/sphinx_role_guard.py` grades three of the six Sphinx role spellings its corpus contains and DECLARES the other three rather than reading them - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
+CS-1076 - `tests/save/test_independent_table.py::_bodies_no_dynamic_case_may_reuse` enumerates only the bodies its own module builds - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
+CS-1077 - `tests/sphinx_role_guard.py::unresolved_roles` accepts a dotted role target whole as soon as its HEAD is a name the citing module binds - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
+CS-1078 - the two arms that stop `tools/memory_sync.py` re-growing a copy of the link derivation each have a spelling they cannot see, MEASURED by the CS-892 verifier rather than argued - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
+CS-1129 - the leaf membership rule grammar in `tools/drift_guard.py` is closed only at the positions its residue plants perturb - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
+CS-1119 - two trailing-run remainder shapes are left after CS-828's reference-pair reading and neither is derivable by that grammar - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
+CS-1121 - the `Disposition` table `tests/test_citation_tables.py` owns keys each recorded forgiveness by a SITE COUNT - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
+CS-1123 - the CS-898 planting arm proves the tests-tree size ceiling CATCHES an oversize artifact and says nothing about WHERE the ceiling sits - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
+CS-1125 - `tests/test_mypy_gate.py::test_exclude_filters_discovery_and_does_not_contain_errors` reports on the AMBIENT ENVIRONMENT rather than on its subject - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
 CS-1089 - `tests/save/test_struct_interior.py` sits above the approach band of the `_MAX_TEST_FILE_BYTES` ceiling in `tests/data/test_phase2_gate.py` - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
 CS-1090 - `tests/save/test_properties.py` sits above the approach band of the `_MAX_TEST_FILE_BYTES` ceiling in `tests/data/test_phase2_gate.py` - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
 CS-1091 - `tests/save/test_world.py` sits above the approach band of the `_MAX_TEST_FILE_BYTES` ceiling in `tests/data/test_phase2_gate.py` - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
 
-CS-962 - the dashboard is a self-diagnostic rather than a player's tool - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
-CS-976 - the four panel modules share one global with the app script and one publishes 26 names into it - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
+CS-962 - the dashboard is a SELF-DIAGNOSTIC rather than a player's tool: it renders its own health, its own route table, six world version scalars, five counts - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
+CS-976 - the four panel modules are classic scripts sharing ONE global with `app.js`, and three of them scope themselves - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-958 - the outbound gate graded nothing because nothing called it, and the channel had no sender at all - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
-CS-959 - GitHub's community-standards checklist for this repository stands at four of eight - acceptance: in detail - tier: 2 - NOT a CS-700 step, but a precondition of its irreversible one - detail: `docs/item_notes.md`
-CS-951 - nobody watches their own outbound withdrawals on the channel - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
+CS-959 - GitHub's community-standards checklist for this repository is four of eight, and CS-700 flips it public - acceptance: in detail - tier: 2 - NOT a CS-700 step, but a precondition of its irreversible one - detail: `docs/item_notes.md`
+CS-951 - nobody watches their own OUTBOUND withdrawals - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-877 - no arm enumerates the shell's `insertCSS` call sites, so a second injection is invisible - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-876 - no caller reads the independent oracle's final offset, so a stale reading passes it - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-864 - the static seam arms in `tests/save/test_independent_table.py` scan syntax, not reach - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
@@ -243,27 +243,27 @@ CS-807 - No ordinary module gains a reach declaration it does not need - accepta
 CS-808 - the reach and wrap name caches are keyed on a `Path`, so a stale parse answers - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-484 - The local lint gate cannot reproduce CI's unbounded `ruff` pin - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-981 - CS-G05 is discharged and CS-829 is still filed as gated behind it, so the chain that answers "what am I holding" is unrouted - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
-CS-983 - `CS-G05` is decided out of `docs/GATED.md` while its body has not moved - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
+CS-983 - `CS-G05` is decided out of `docs/GATED.md` and its body has not moved - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-984 - a decoded struct interior reaches no consumer, because the world model publishes none - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-985 - the suite writes copies of the operator's real saves into the live `work/saves/` rather than into a temp root - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-986 - a `StructProperty` tag carrying `TAG_FLAG_NATIVE_SERIALIZE` whose interior still decodes as a tag list is unmeasured - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-982 - two bits of the `(14,60)` property tag flags byte are pinned on almost no evidence - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
-CS-1052 - nothing records which save record carries the trading post level, though it is declared SaveGame - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
-CS-1055 - the conftest live-copies teardown infers authorship from a wall-clock count over a shared directory - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
-CS-1056 - the struct interior independent tag walk expressed only the legacy grammar and read zero sites - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
-CS-1053 - ADR 0016 is status proposed and carries two statements already measured false - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
-CS-1122 - our own Python renderer from a hand-authored architecture IR to a static module diagram - acceptance: in detail - tier: 3 - detail: `docs/item_notes.md`
+CS-1052 - `mTradingPostLevel` is declared `SaveGame` on `AFGTutorialIntroManager` so it CAN be in a save - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
+CS-1055 - `tests/conftest.py`'s live-copies teardown infers AUTHORSHIP from a wall-clock before/after count over a directory any process may write to, so a long-running `python - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
+CS-1056 - `tests/save/test_struct_interior.py`'s independent tag walk expressed the LEGACY grammar only - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
+CS-1053 - `docs/adr/0016-unlock-arrays-carriers-and-serialized-grammar.md` is status `proposed`, carries two statements already measured FALSE - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
+CS-1122 - our own Python renderer from a hand-authored architecture IR to a static SVG/HTML module diagram, the re-implementation the CS-1098 decline in `docs/LEDGER.md` filed in place of adopting archify - acceptance: in detail - tier: 3 - detail: `docs/item_notes.md`
 
 
 ## Phase 5 - advisor and audit
 
 CS-500 - Phase 5 gate: trace engine first, then rules, cards, the ledger, then pillars 3 and 4 - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
-CS-1043 - the registry excludes schematics and the progress layer holds no code, so no milestone can be named - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
-CS-1058 - nothing can say which belt feeds which machine or which connections share a power circuit - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
-CS-1059 - the power panel is production versus consumption and only consumption exists - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
-CS-1048 - node purity is absent from every save and the in-game map is rendered live, so neither has a derivation - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
-CS-1061 - the map underlay has no subject in the code - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
-CS-1064 - the audit balance still reports variable-power and struct-range buildings as unmodeled draw gaps - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
+CS-1043 - `clockspeed/data/registry.py` excludes `FGSchematic` and `clockspeed/progress/` holds no code at all - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
+CS-1058 - nothing can say which belt feeds which machine or which connections share a power circuit: CS-1041's line named both - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
+CS-1059 - the power panel is production versus consumption and only consumption exists: CS-1045 delivered the exact world draw but found NO `Building` field - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
+CS-1048 - node purity is structurally absent from every save and the in-game map is rendered live rather than shipped, so the underlay - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
+CS-1061 - the map underlay has no subject in the code: `mFogOfWarRawData` was proved structurally in a 2026-09-13 probe to be a 1024 by 1024 byte square - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
+CS-1064 - `clockspeed/audit/balance.py` still reports every variable-power and struct-range building as an unmodeled DRAW GAP - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 
 ## Phase 6 - surfaces
 
@@ -297,13 +297,13 @@ CS-915 - two guards report zero findings for a reason that is not the absence of
 CS-916 - three separate features are gated on ONE unfiled prerequisite in the published model - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 
 
-CS-988 - a value deciding what a population measures is narrowable at its use site while its floor holds - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
-CS-1046 - the plan and audit endpoints still answer 501 blocked by CS-500 while the layers beneath them exist - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
-CS-1047 - the map draws bare dots with no underlay, category or elevation ordering, and has no plan or power panel - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
+CS-988 - a value that decides what a POPULATION MEASURES is narrowable at its use site while the floor guarding it stays satisfied - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
+CS-1046 - `/api/plan` and `/api/audit` are published in the endpoint table and answer 501 blocked by CS-500 while the layers beneath them now exist - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
+CS-1047 - the map draws bare dots on no underlay with no category, no elevation ordering, no need-vibrance - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 
-CS-1051 - the audit harness hand-builds the published world dict and hardcodes the game phase as an integer - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
+CS-1051 - `tests/surface/audit_harness.py::SYNTHETIC_UNLOCKS` hand-builds the published world dict and hardcodes `current_game_phase` to the integer 2 - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
 
-CS-1065 - the power endpoint serves only the variable power inputs, so the dashboard still reads modeled false - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
+CS-1065 - the power endpoint serves `variable_power_inputs` and nothing else, so a dashboard reading it still sees `modeled` false - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 
 ## Phase 7 - public flip gate
 
@@ -322,27 +322,27 @@ CS-821 - `pre-push` decides pytest is available from an exit code alone - accept
 CS-822 - The commit-msg byte check tests only for bytes ABOVE 0x7E - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-824 - `.githooks/pre-push` proves pytest RAN but not that it DID ANY WORK - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-700 - Phase 7 gate: the tier-3 flip checklist from CONVENTIONS section 17 - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
-CS-953 - a history scrub keyed on paths at HEAD leaves every pre-move path unrenamed - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
-CS-955 - the pre-commit gate grades the index at hook time, so a stage landing mid-hook commits ungraded - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
-CS-956 - three hook properties this project relies on are measured nowhere in it - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
-CS-1014 - the queue loop's holder-pid type guard is ungraded and its removal survives every arm - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
+CS-953 - a history scrub keyed on paths as they exist at HEAD leaves every PRE-MOVE path unrenamed - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
+CS-955 - the pre-commit gate has CS-954's shape one level down: it grades THE INDEX at hook time and git then commits from the index, so a stage that lands - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
+CS-956 - three hook properties this project relies on are unmeasured anywhere in it, and CS-952 refused a frozen-file grant on the strength of two of them - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
+CS-1014 - `queue_loop._holder_pid`'s type guard is ungraded and the mutation `return pid` survives every arm in the file: the guard exists and is correct - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1015 - the lane refusal vocabulary is an unpinned cross-module string contract - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
-CS-1016 - no arm drives a real lane worktree collision into a cycle end to end - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
-CS-1017 - a lane cycle row records neither the seconds the wait consumed nor the refusal reason - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
-CS-1018 - a lane run on the 2026-09-10 night started late and left no worker log - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
-CS-1019 - the world model's node rotation and scale carry-through has no arm in its own layer - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
-CS-1021 - the rotation constants in three test modules are non-unit quaternions documented as real values - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
-CS-1022 - the map panel test body claims the frozen contract shape and binds to neither contract nor endpoint - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
-CS-1023 - the audit package re-exports an arbitrary subset of the placement warning codes - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
-CS-1024 - the audit Placement dataclass carries a generated repr invisible to both PII censuses - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
-CS-1026 - three panel scripts declare their helpers in the page's shared global scope - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
-CS-1027 - the panel division detectors miss two real spellings - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
-CS-1028 - the decimal approximation helper exists in four panel files and only one copy is graded - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
-CS-1029 - the web assets one-post test's name states one post while the test now asserts two - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
-CS-1030 - the power endpoint restates the shipped exponent and its measured float in prose - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
-CS-1031 - the audit harness power data binds one reason string to its owner and hand-authors four - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
-CS-1032 - the panel harness DOM stand-in has no known-good browser control anywhere in the repo - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
+CS-1016 - no arm drives a real `lanes.try_acquire_lane` worktree collision into `run_cycle`, so the whole CS-1011 proof rests on hand-built dicts - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
+CS-1017 - a lane cycle row records neither the seconds `proc.wait` actually consumed nor the refusal reason - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
+CS-1018 - lane run `62f29b90` on the 2026-09-10 night started 262.5s after its predecessor where every other gap is 47.9 to 70.4s, and left no worker log at all - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
+CS-1019 - `clockspeed/save/world.py::_node_or_none`'s rotation and scale carry-through has no arm in its own layer - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
+CS-1021 - the rotation constants in `tests/surface/audit_harness.py`, `tests/surface/test_map.py` - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
+CS-1022 - `tests/surface/test_panel_map.py::_map_body` claims to be "shaped exactly as the contract froze it" while carrying 4-key placement rows - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
+CS-1023 - `clockspeed/audit/__init__.py` re-exports an arbitrary subset of the placement warning codes - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
+CS-1024 - `clockspeed/audit/placement.py::Placement` carries a GENERATED dataclass repr, now rendering six fields, and is invisible to both PII censuses - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
+CS-1026 - `panel_solve.js`, `panel_map.js` and `panel_scope.js` declare their helpers in the page's SHARED GLOBAL SCOPE - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
+CS-1027 - the panel division detectors miss two real spellings: the `DIVISION` pattern in `tests/surface/test_panel_power.py` - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
+CS-1028 - `approximateDecimal` now exists in FOUR panel files and only one copy is graded for correctness - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
+CS-1029 - `tests/surface/test_web_assets.py::test_the_page_issues_exactly_one_post_and_no_form` now asserts TWO posts - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
+CS-1030 - `clockspeed/surface/api/power.py` restates the shipped exponent `1.321929` - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
+CS-1031 - `tests/surface/audit_harness.py::_power_data` binds ONE reason string to its owner and hand-authors the other four - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
+CS-1032 - `tests/surface/panel_harness.py`'s DOM stand-in has no known-good browser control anywhere in the repo - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1034 - four anti-leak privacy arms hunt a needle the encoder can never produce - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
-CS-1035 - the audit inventory module carries CS-1020's ungraded-count shape - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
-CS-1036 - CS-1025 and CS-1020 enforce their sweeps over a hand-enumerated population - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
+CS-1035 - `clockspeed/audit/inventory.py` carries CS-1020's ungraded-count shape in the module named beside `placement.py`: `_warning` defaults `count=1` - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
+CS-1036 - both CS-1025 and CS-1020 enforce their sweeps over a HAND-ENUMERATED population rather than one derived from the shipped model - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1037 - the fixture collision CS-1025 was filed over survives in two places the repair did not reach - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
