@@ -13430,7 +13430,7 @@ filed:
   `declared_absent` stuck True would have passed it. Both that arm and the falsified-
   declaration arm now carry their negative half.
 
-**THE THIRD CORRECTION IS FILED AS CS-1126 AND IS NOT THE SAME ROOT CAUSE.**
+**THE THIRD CORRECTION IS FILED AS CS-1127 AND IS NOT THE SAME ROOT CAUSE.**
 `NON_CITATION_PATTERNS` is checked in both directions and registered, but it is the one escape
 route in this family with NO CEILING on it, against five that have one. The row carries the
 honest counter-case as well: a ceiling on that particular population may not be the right

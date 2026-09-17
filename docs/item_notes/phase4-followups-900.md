@@ -32,7 +32,7 @@ anything was filed**, which is why the range is stated here rather than trusted.
 
 ---
 
-## CS-1126
+## CS-1127
 
 ### FILED 2026-09-17 by the queue lane cycle that closed CS-899, from that cycle's verifier
 
