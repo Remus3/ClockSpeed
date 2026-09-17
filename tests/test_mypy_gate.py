@@ -77,6 +77,7 @@ from __future__ import annotations
 
 import contextlib
 import io
+import os
 import re
 import subprocess
 import sys
@@ -117,6 +118,20 @@ UNMATCHABLE_MODULE = "clockspeed_no_such_module_exists"
 # Zero-based index of the module-name column in mypy's --linecount-report
 # output, which is four whitespace-separated counts followed by the module.
 _LINECOUNT_MODULE_COLUMN = 4
+
+# The exclusion arm's throwaway-project pattern, and a mutant of it that matches
+# nothing - the control that proves the arm still sees discovery stop filtering.
+_LEAF_EXCLUDE = r"(^|/)leaf\.py$"
+_NON_MATCHING_EXCLUDE = r"(^|/)no_such_leaf\.py$"
+# Source files that project's discovery finds when the exclude filters nothing.
+_UNFILTERED_SOURCE_COUNT = 2
+
+# Ambient PYTHONPATH values the exclusion arm is proven against (CS-1125). The
+# repository root is what the item names; the other three are what mypy really
+# trips on, measured - "dot" is the literal `PYTHONPATH=.` and resolves against
+# mypy's working directory, the throwaway project, not against the repo root.
+_AMBIENT_PYTHONPATHS = ("dot", "repo_root", "project_root", "source_root")
+_LIVE_AMBIENT_PYTHONPATHS = ("dot", "project_root", "source_root")
 
 
 class Gap(NamedTuple):
@@ -388,11 +403,42 @@ def _uncovered_within(
     }
 
 
+def _controlled_environment(ambient: Mapping[str, str] | None = None) -> dict[str, str]:
+    """The environment a mypy subprocess here runs under - controlled, not inherited.
+
+    CS-1125. mypy reads module search paths from its environment, so a run that
+    inherits whatever launched pytest reports on that launcher rather than on
+    the project it was pointed at: under ``PYTHONPATH=.`` a throwaway project
+    landed on mypy's search path, an import stopped resolving to the excluded
+    file beside it, and mypy printed Success over a real error. ``PYTHONPATH``
+    and every ``MYPY``-prefixed variable (``MYPYPATH`` included) are dropped.
+    Everything else is kept, because the interpreter still needs its PATH and
+    its system variables to start at all.
+
+    Matched CASE-INSENSITIVELY: on Windows ``dict(os.environ)`` upper-cases its
+    keys, but a mapping built any other way need not, and dropping only the
+    exact spelling would remove nothing from a mixed-case key.
+
+    Args:
+        ambient: The environment to filter, defaulting to this process's own.
+
+    Returns:
+        A fresh mapping, safe to hand to ``subprocess.run``.
+    """
+    source = os.environ if ambient is None else ambient
+    return {
+        name: value
+        for name, value in source.items()
+        if name.upper() != "PYTHONPATH" and not name.upper().startswith("MYPY")
+    }
+
+
 def _run_mypy(
     *args: str,
     config: Path | None = None,
     cache: Path | None = None,
     cwd: Path | None = None,
+    env: Mapping[str, str] | None = None,
 ) -> subprocess.CompletedProcess[str]:
     """Run mypy and return the completed process.
 
@@ -407,6 +453,9 @@ def _run_mypy(
         cache: Optional cache directory, so a generated config never writes
             into the repository's own incremental cache.
         cwd: Optional working directory, defaulting to the repository root.
+        env: Optional explicit environment. Omitted, the run gets
+            ``_controlled_environment()``; only the arm proving that an
+            INHERITED environment is hazardous passes one.
 
     Returns:
         The completed process. A non-zero exit is not raised: most tests here
@@ -421,6 +470,7 @@ def _run_mypy(
     return subprocess.run(
         command,
         cwd=cwd or REPO_ROOT,
+        env=_controlled_environment() if env is None else dict(env),
         capture_output=True,
         text=True,
         timeout=900,
@@ -972,6 +1022,73 @@ def test_the_oracle_reproduces_the_real_runs_discovered_set(tmp_path: Path) -> N
 # ---------------------------------------------------------------------------
 
 
+def _build_exclusion_project(root: Path, exclude: str = _LEAF_EXCLUDE) -> Path:
+    """Write the throwaway project the exclusion arms run mypy against.
+
+    One module, ``leaf``, carries one real error and is named by ``exclude``;
+    a second module, ``trunk``, imports it. Built fresh per arm so no arm can
+    read another arm's cache or config.
+
+    Args:
+        root: The throwaway project root, created here.
+        exclude: The mypy ``exclude`` pattern to write. The control arm passes
+            one that matches nothing, so discovery genuinely stops filtering.
+
+    Returns:
+        The written config file.
+    """
+    source_dir = root / "src"
+    source_dir.mkdir(parents=True)
+    (source_dir / "leaf.py").write_text(
+        "def take(count: int) -> int:\n    return count\n\n\ntake('not a number')\n",
+        encoding="utf-8",
+    )
+    (source_dir / "trunk.py").write_text("import leaf\n\nleaf.take(1)\n", encoding="utf-8")
+    config = root / "mypy.ini"
+    config.write_text(f"[mypy]\nfiles = src\nexclude = {exclude}\n", encoding="utf-8")
+    return config
+
+
+def _assert_exclude_filters_discovery_only(result: subprocess.CompletedProcess[str]) -> None:
+    """The exclusion arm's two checks, shared so its control runs the SAME checks.
+
+    Args:
+        result: A mypy run over the project ``_build_exclusion_project`` wrote.
+
+    Raises:
+        AssertionError: Discovery was not filtered, or leaf.py's error was not
+            attributed to leaf.py.
+    """
+    assert _reported_file_count(result.stdout) == 1, (
+        "the exclusion did not remove leaf.py from DISCOVERY, so this test is "
+        f"not measuring what it claims to.\n{result.stdout}"
+    )
+    assert _errors_by_file(result.stdout) == {"src/leaf.py": 1}, (
+        "mypy did not report leaf.py's one error against leaf.py, so either "
+        "`exclude` now behaves as containment - and the reasoning recorded in "
+        "pyproject.toml and in this module's docstring needs rechecking - or the "
+        f"error is being attributed somewhere else.\n{result.stdout}"
+    )
+
+
+def _ambient_pythonpath(token: str, project: Path) -> str:
+    """Resolve an ambient-PYTHONPATH parameter to the value injected.
+
+    Args:
+        token: One of ``_AMBIENT_PYTHONPATHS``.
+        project: The throwaway project root, which only exists per test.
+
+    Returns:
+        The PYTHONPATH value to plant in the pytest process's own environment.
+    """
+    return {
+        "dot": ".",
+        "repo_root": str(REPO_ROOT),
+        "project_root": str(project),
+        "source_root": str(project / "src"),
+    }[token]
+
+
 @pytest.mark.slow
 def test_exclude_filters_discovery_and_does_not_contain_errors(tmp_path: Path) -> None:
     # THE CLAIM THE CONFIG COMMENT MAKES, EXECUTED. `exclude` keeps mypy from
@@ -985,31 +1102,91 @@ def test_exclude_filters_discovery_and_does_not_contain_errors(tmp_path: Path) -
     # mypy should be proven against mypy, not against whichever local file
     # happens to be failing this month.
     project = tmp_path / "throwaway"
-    source_dir = project / "src"
-    source_dir.mkdir(parents=True)
-    (source_dir / "leaf.py").write_text(
-        "def take(count: int) -> int:\n    return count\n\n\ntake('not a number')\n",
-        encoding="utf-8",
-    )
-    (source_dir / "trunk.py").write_text("import leaf\n\nleaf.take(1)\n", encoding="utf-8")
-    config = project / "mypy.ini"
-    config.write_text(
-        "[mypy]\nfiles = src\nexclude = (^|/)leaf\\.py$\n",
-        encoding="utf-8",
-    )
+    config = _build_exclusion_project(project)
 
     result = _run_mypy(config=config, cache=tmp_path / "cache", cwd=project)
 
-    assert _reported_file_count(result.stdout) == 1, (
-        "the exclusion did not remove leaf.py from DISCOVERY, so this test is "
-        f"not measuring what it claims to.\n{result.stdout}"
+    _assert_exclude_filters_discovery_only(result)
+
+
+@pytest.mark.slow
+@pytest.mark.parametrize("ambient", _AMBIENT_PYTHONPATHS)
+def test_the_exclusion_arm_does_not_report_on_the_ambient_environment(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, ambient: str
+) -> None:
+    # CS-1125. The arm above once INHERITED PYTHONPATH: run as `PYTHONPATH=.`,
+    # mypy put the throwaway project on its search path, `import leaf` stopped
+    # resolving to the excluded file beside it, and the arm failed against an
+    # empty mapping while mypy printed Success. Planted in the pytest PROCESS's
+    # own environment, not a shell variable: MSYS mangles a POSIX path in env.
+    project = tmp_path / "throwaway"
+    config = _build_exclusion_project(project)
+    value = _ambient_pythonpath(ambient, project)
+    monkeypatch.setenv("PYTHONPATH", value)
+    assert os.environ.get("PYTHONPATH") == value, "the ambient PYTHONPATH was never planted"
+
+    result = _run_mypy(config=config, cache=tmp_path / "cache", cwd=project)
+
+    _assert_exclude_filters_discovery_only(result)
+
+
+@pytest.mark.slow
+@pytest.mark.parametrize("ambient", _AMBIENT_PYTHONPATHS)
+def test_the_exclusion_arm_reddens_when_discovery_stops_filtering(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, ambient: str
+) -> None:
+    # THE CONTROL. Controlling the environment must not have made the arm blind:
+    # with an `exclude` that matches nothing, discovery genuinely stops
+    # filtering, and the SAME checks must refuse it under the same ambient
+    # PYTHONPATH the arm above is proven against.
+    project = tmp_path / "throwaway"
+    config = _build_exclusion_project(project, exclude=_NON_MATCHING_EXCLUDE)
+    written = config.read_text(encoding="utf-8")
+    assert _NON_MATCHING_EXCLUDE in written, f"the mutated exclude never landed:\n{written}"
+    assert _LEAF_EXCLUDE not in written, f"the original exclude survived:\n{written}"
+    monkeypatch.setenv("PYTHONPATH", _ambient_pythonpath(ambient, project))
+
+    result = _run_mypy(config=config, cache=tmp_path / "cache", cwd=project)
+
+    assert _reported_file_count(result.stdout) == _UNFILTERED_SOURCE_COUNT, (
+        f"the mutated exclude still filtered discovery:\n{result.stdout}"
     )
-    assert _errors_by_file(result.stdout) == {"src/leaf.py": 1}, (
-        "mypy did not report leaf.py's one error against leaf.py, so either "
-        "`exclude` now behaves as containment - and the reasoning recorded in "
-        "pyproject.toml and in this module's docstring needs rechecking - or the "
-        f"error is being attributed somewhere else.\n{result.stdout}"
-    )
+    with pytest.raises(AssertionError, match=re.escape("did not remove leaf.py from DISCOVERY")):
+        _assert_exclude_filters_discovery_only(result)
+
+
+@pytest.mark.slow
+@pytest.mark.parametrize("ambient", _LIVE_AMBIENT_PYTHONPATHS)
+def test_an_inherited_environment_really_breaks_the_exclusion_arm(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, ambient: str
+) -> None:
+    # ANTI-VACUITY for the ambient arm. A planted value that mypy happens to
+    # ignore would keep that arm green without controlling anything, so each
+    # value named live here is shown to break the arm when mypy DOES inherit
+    # the pytest process's environment. The repository root is absent on
+    # purpose: measured on this toolchain, an absolute repo root is harmless.
+    project = tmp_path / "throwaway"
+    config = _build_exclusion_project(project)
+    monkeypatch.setenv("PYTHONPATH", _ambient_pythonpath(ambient, project))
+
+    result = _run_mypy(config=config, cache=tmp_path / "cache", cwd=project, env=dict(os.environ))
+
+    with pytest.raises(AssertionError, match=re.escape("did not report leaf.py's one error")):
+        _assert_exclude_filters_discovery_only(result)
+
+
+def test_the_controlled_environment_strips_search_path_variables_in_any_case() -> None:
+    # Case-INSENSITIVE on purpose. On Windows `dict(os.environ)` upper-cases
+    # keys, but a mapping built any other way need not, and popping a
+    # mixed-case key removes nothing.
+    ambient = {
+        "PythonPath": ".",
+        "mypypath": ".",
+        "MYPY_FORCE_COLOR": "1",
+        "PATH": "kept",
+        "PYTHONUTF8": "1",
+    }
+    assert _controlled_environment(ambient) == {"PATH": "kept", "PYTHONUTF8": "1"}
 
 
 def test_the_importers_of_the_environment_verifier_are_recorded(repo_files: list[Path]) -> None:
