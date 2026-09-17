@@ -42,6 +42,8 @@ the line becomes a pointer.
   CS-1117, CS-1118, CS-1120, CS-1114 and CS-1106 by the main session, CS-893 by the lane
   (768f2b8). FILED: CS-1105 through CS-1118; CS-1119 and
   CS-1121 by the lane; CS-1122 and CS-1124 at session end. Detail in `docs/LEDGER.md`.
+- CS-1105 CLOSED after the session (4335422): each truncation condition blocks by its own case.
+- CS-1124 CLOSED after the session (e129bb4): tier2 headroom guard at 4/5, state save by deadline.
 - **CS-1098, CS-1099 AND CS-1100 CLOSED AS DECLINES, NOT ADOPTIONS** (9119e6f), adjudicated
   after four licence gates and three raw-byte adversaries. The archify idea is re-filed as
   CS-1122, our own Python renderer with zero copied bytes; three conditional ideas went to
@@ -95,7 +97,7 @@ the line becomes a pointer.
   `.claude/worktrees/agent-*` from this session are merged; none removed - classify by
   content before pruning.
 - STILL OPEN worth naming: CS-971 (behind CS-1112 and CS-1079), CS-1079,
-  CS-1105, CS-1112, CS-1119, CS-1121, CS-1122 and CS-1124.
+  CS-1112, CS-1119, CS-1121 and CS-1122.
 - Next action: the lane keeps draining under the relaunched launcher; the main session takes
   CS-1124 first if tier2 cancels again, else CS-1105, then CS-1112 -> CS-1079 -> CS-971.
 

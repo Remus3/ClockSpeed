@@ -374,6 +374,85 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-09-17 - CS-1124 - CLOSED. Every tier2 job reddens at 4/5 of its own timeout, and the Windows state save retries to a monotonic deadline
+
+**WHAT CHANGED, GUARD HALF (merge d605bec, tips eed2eed -> 120477a).**
+`tools/tier2_headroom.py --refresh` - run BY HAND, never inside pytest - records the last five completed tier2 runs'
+per-job durations in `tools/tier2_durations.json`, six fields per row and no URL or owner field.
+`tests/test_tier2_headroom.py` reddens when any recorded run reaches 4/5 of that job's own
+`timeout-minutes` as READ from `.github/workflows/tier2.yml`, never transcribed; on a job the
+record is missing; and on fewer than three DISTINCT non-skipped runs of positive duration, so one
+run copied three times counts once. Held by
+`tests/test_tier2_headroom.py::test_a_duration_past_the_fraction_turns_the_guard_red`,
+`tests/test_tier2_headroom.py::test_the_control_one_second_under_the_fraction_stays_silent`,
+`tests/test_tier2_headroom.py::test_the_timeout_is_read_from_the_workflow_rather_than_transcribed`
+and `tests/test_tier2_headroom.py::test_one_run_copied_three_times_is_one_run_not_three`.
+Merged files: `tools/tier2_headroom.py`, `tools/tier2_durations.json`,
+`tests/test_tier2_headroom.py`, `tests/tier2_jobs_payload.json`.
+
+**THE BASIS FOR 4/5, RECORDED BESIDE THE FRACTION.** Applied to the recorded history, 4/5 would
+have reddened seven runs before the first probe cancellation. Adversary NOT REFUTED. The record as
+committed puts the Windows full suite and the Windows clean-checkout probe at about 0.78 of their
+30 minutes, so THE NEXT REFRESH IS LIKELY RED. That is the intended early warning, not a defect in
+the guard. DOCUMENTED LIMIT: there is no offline staleness check, because CI checks out shallow and
+cannot date the record against the run history.
+
+**FLAKE DISPOSITION, PANEL MAP.** The `tests/surface/test_panel_map.py` node-harness
+`TimeoutExpired` failures were measured as STALLS at the 60-second limit, not as load - a loaded
+runner finishes late, a stalled harness does not finish. The timeout was left unchanged and the
+measurement is this record.
+
+**FLAKE DISPOSITION, WINDOWS STATE SAVE (merge e129bb4, tips ec0900a -> ce48e7f -> cb28a4c).**
+Runs 35163459856 and 35201300783 failed on a rename refused (EPERM) after the old retry window of
+about 500ms. `shell/lib/state.js` now retries the rename up to a MONOTONIC `performance.now()`
+deadline - 2000ms for a background save, 500ms on both close paths in `shell/main.js` - never
+falls back to a non-atomic write, abandons a stale save that a newer published save has superseded
+and removes its temp file, and leaves no `.partial` behind on failure. Held by
+`shell/test/state.test.js`. Merged files: `shell/lib/state.js`, `shell/main.js`,
+`shell/test/state.test.js`.
+
+**REFUTED ONCE, THEN A VERIFIER FINDING.** The adversary refuted ec0900a four ways: a `Date.now()`
+deadline stretched 2000ms to 7015ms on a clock step; the close path stalled about two seconds; an
+older save overwrote a newer one in two of three trials; and an orphan `.partial` survived.
+Repaired at ce48e7f. The verifier CONFIRMED all seven claims and added one finding - a backdated
+mtime made the abandonment drop the NEWER save - fixed at cb28a4c by ordering this instance's own
+publishes by sequence rather than mtime. DOCUMENTED LIMIT: two SEPARATE module instances under a
+stepped-back wall clock can still drop the newer save; the shipped app's single-instance lock
+prevents a second instance.
+
+**RAISING `timeout-minutes` WAS NOT DONE**, as the acceptance required. No frozen file was touched.
+
+### 2026-09-17 - CS-1105 - CLOSED. Every truncation condition is driven to the blocking exit status by a case of its own, enumerated structurally
+
+**WHAT CHANGED (merge 4335422, tips 0350bcb -> c6c417e -> e725bf4 -> 1cf321f).** The new
+`tests/test_truncation_conditions_block.py` holds one behavioural case per truncation condition,
+each driving the real `discover_world_tokens` plus emit to exit 1 with exactly its own diagnostic.
+A structural AST enumeration across `tools/precommit_gate.py` and `clockspeed/save/header.py` -
+following truncation flags, and rejecting a flag overwritten before it is read within a block -
+must EQUAL the case table, so a new cap that adds no reporting site is still a new row. Each case
+is DISCRIMINATING (disarming only its own innermost guarding test makes it exit 0) and
+NEIGHBOUR-PRESERVING (every other case still blocks under that disarm). No marker or arrangement
+function is shared between rows, and the non-blocking mutation arm DERIVES its marker set from the
+enumeration. The F3 limit the earlier bound-count ruling left in
+`tests/test_world_token_bound_count.py` is retired. Held by
+`tests/test_truncation_conditions_block.py::test_every_truncation_condition_has_a_blocking_case`,
+`tests/test_truncation_conditions_block.py::test_a_header_cap_reddens_the_arm`,
+`tests/test_truncation_conditions_block.py::test_a_disarm_that_silences_a_neighbour_is_red` and
+`tests/test_truncation_conditions_block.py::test_the_silenced_rows_are_the_measured_ones`. Merged
+files: `tests/test_truncation_conditions_block.py`, `tests/test_world_token_bound_count.py`.
+Frozen files untouched.
+
+**REFUTED THREE TIMES BEFORE IT HELD.** At 0350bcb a DEAD header cap borrowing the shared scan-cap
+marker passed. At c6c417e the disarm picked an OUTER `if` that also silenced a neighbour cap. At
+e725bf4 the stop-condition verifier found a correct live cap with its own row falsely red, because
+the marker set was hard-coded. The final verifier CONFIRMED 1cf321f on all seven on-disk claims,
+including the anti-narrowing control.
+
+**MERGER STOP CONDITION, RECORDED SO IT IS NOT RE-ARGUED.** A cap shape that needs a refactor of
+the frozen gate's control flow beyond a single new nested cap is a DOCUMENTED LIMIT, not an open
+defect. Also documented as limits: a cap that sets no flag and makes no report (a plain `break`),
+and a flag bound through a `for` target or a `with ... as` target.
+
 ### 2026-09-17 - CS-990 - CORRECTS THE ENTRY BELOW, SAME DAY, BEFORE THE PUSH. The threshold was a conclusion and one of the four was wrong, so the record is now per major
 
 **WHAT THE ENTRY BELOW GOT WRONG, IN ITS OWN WORDS.** It says "Both workflows move to the
