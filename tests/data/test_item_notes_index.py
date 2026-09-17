@@ -712,6 +712,143 @@ def test_an_unreadable_roadmap_is_a_warn_never_a_pass(family: Path) -> None:
 
 
 # ---------------------------------------------------------------------------
+# CS-971 - an item's acceptance has ONE owner: the whole clause on its line, or
+# the literal pointer on its line and the whole clause under exactly one
+# `### Acceptance` heading in its section. A line cut part-way through its
+# acceptance changed what the item requires, so a clause on the line beside a
+# heading in the section is red - one of the two is a truncation.
+# ---------------------------------------------------------------------------
+
+ACCEPTANCE_POINTER = "in detail"
+ACCEPTANCE_HEADING = "### Acceptance"
+
+
+def _point_line_at_section(root: Path, item: str, acceptance: str = ACCEPTANCE_POINTER) -> None:
+    """Rewrite ``item``'s synthetic line so its acceptance field reads ``acceptance``."""
+    path = root / ROADMAP_RELATIVE
+    text = path.read_text(encoding="utf-8")
+    old = f"{item} - a headline - acceptance: a condition - tier: 2"
+    assert text.count(old) == 1, f"plant anchor not unique: {old!r}"
+    path.write_text(
+        text.replace(old, f"{item} - a headline - acceptance: {acceptance} - tier: 2"),
+        encoding="utf-8",
+    )
+
+
+def _append_to_section(root: Path, leaf: str, item: str, text: str) -> None:
+    """Append ``text`` to the end of ``item``'s synthetic section in ``leaf``."""
+    path = root / LEAF_DIR_RELATIVE / leaf
+    body = path.read_text(encoding="utf-8")
+    old = f"## {item}\n\nDetail for {item}.\n\n"
+    assert body.count(old) == 1, f"plant anchor not unique: {old!r}"
+    path.write_text(body.replace(old, old + text), encoding="utf-8")
+
+
+def test_a_pointer_with_one_acceptance_heading_in_its_section_passes(family: Path) -> None:
+    """The floor under every acceptance plant below: the moved shape is green."""
+    _point_line_at_section(family, "CS-401")
+    _append_to_section(family, "phase4.md", "CS-401", f"{ACCEPTANCE_HEADING}\n\na condition\n\n")
+
+    status, rendered = _run(family)
+    assert status == "PASS", rendered
+    assert "acceptance pointers on item lines: 1" in rendered.splitlines(), rendered
+
+
+def test_a_pointer_whose_section_acceptance_is_deleted_is_red(family: Path) -> None:
+    """The line defers to a section that no longer states what the item requires."""
+    _point_line_at_section(family, "CS-401")
+
+    status, rendered = _run(family)
+    assert status == "FAIL", rendered
+    assert "  CS-401 points at its section and it carries 0 acceptance headings" in (
+        rendered.splitlines()
+    ), rendered
+
+
+def test_a_pointer_whose_acceptance_heading_carries_no_text_is_red(family: Path) -> None:
+    """A heading with nothing under it owns no acceptance."""
+    _point_line_at_section(family, "CS-401")
+    _append_to_section(
+        family, "phase4.md", "CS-401", f"{ACCEPTANCE_HEADING}\n\n### Something else\n\nx\n\n"
+    )
+
+    status, rendered = _run(family)
+    assert status == "FAIL", rendered
+    assert "  CS-401 has an acceptance heading with no text under it" in (rendered.splitlines()), (
+        rendered
+    )
+
+
+def test_two_acceptance_headings_in_one_section_is_red(family: Path) -> None:
+    """Two headings are two owners inside one section."""
+    _point_line_at_section(family, "CS-401")
+    _append_to_section(
+        family,
+        "phase4.md",
+        "CS-401",
+        f"{ACCEPTANCE_HEADING}\n\na condition\n\n{ACCEPTANCE_HEADING}\n\nanother\n\n",
+    )
+
+    status, rendered = _run(family)
+    assert status == "FAIL", rendered
+    assert "  CS-401 points at its section and it carries 2 acceptance headings" in (
+        rendered.splitlines()
+    ), rendered
+
+
+def test_a_line_carrying_a_truncated_acceptance_beside_its_section_acceptance_is_red(
+    family: Path,
+) -> None:
+    """The e63668b shape: part of the clause on the line, the whole in the section."""
+    _point_line_at_section(family, "CS-401", acceptance="a cond")
+    _append_to_section(family, "phase4.md", "CS-401", f"{ACCEPTANCE_HEADING}\n\na condition\n\n")
+
+    status, rendered = _run(family)
+    assert status == "FAIL", rendered
+    assert (
+        "  CS-401 carries an acceptance clause on its line AND an acceptance heading in its "
+        "section - two owners"
+    ) in rendered.splitlines(), rendered
+
+
+def test_a_pointer_on_a_line_with_no_detail_field_is_red(tmp_path: Path) -> None:
+    """A pointer nothing routes points nowhere."""
+    _build(tmp_path, {"phase4.md": ["CS-401"]}, [("CS-401", "phase4.md")])
+    _write_roadmap(
+        tmp_path,
+        {
+            "4": [
+                "CS-401 - a headline - acceptance: in detail - tier: 2 - detail: "
+                "`docs/item_notes.md`\n",
+                "CS-402 - a headline - acceptance: in detail - tier: 2\n",
+            ]
+        },
+    )
+    _append_to_section(tmp_path, "phase4.md", "CS-401", f"{ACCEPTANCE_HEADING}\n\na condition\n\n")
+
+    status, rendered = _run(tmp_path)
+    assert status == "FAIL", rendered
+    assert "  CS-402 points at its section and its line carries no trailing detail field" in (
+        rendered.splitlines()
+    ), rendered
+
+
+def test_a_line_with_no_acceptance_field_at_all_is_red(family: Path) -> None:
+    """Neither a clause nor the pointer: the item requires nothing anyone can read."""
+    path = family / ROADMAP_RELATIVE
+    text = path.read_text(encoding="utf-8")
+    old = "CS-402 - a headline - acceptance: a condition - tier: 2"
+    assert text.count(old) == 1
+    path.write_text(text.replace(old, "CS-402 - a headline - tier: 2"), encoding="utf-8")
+
+    status, rendered = _run(family)
+    assert status == "FAIL", rendered
+    assert "  CS-402 carries neither an acceptance clause nor the pointer" in (
+        rendered.splitlines()
+    ), rendered
+
+
+# ---------------------------------------------------------------------------
 # CS-1112 - the index's leaf table is BOUND to item_notes_leaf, both directions
 #
 # The table is what a reader follows; the code is what the guard derives with.
@@ -1303,6 +1440,19 @@ def test_the_real_tree_index_is_green() -> None:
     """A proof must stay green when the defect is absent."""
     status, rendered = _run(REPO_ROOT)
     assert status == "PASS", rendered
+
+
+def test_the_real_tree_moves_acceptance_behind_the_pointer() -> None:
+    """The floor under the acceptance-ownership half of the green control above.
+
+    Without it, a tree where no line carries the pointer passes that control
+    while the one-owner check grades nothing at all.
+    """
+    status, rendered = _run(REPO_ROOT)
+    counts = [line for line in rendered.splitlines() if line.startswith("acceptance pointers")]
+    assert len(counts) == 1, rendered
+    pointers = int(counts[0].rsplit(": ", 1)[-1])
+    assert pointers > 0, f"no item line carries the acceptance pointer ({status})"
 
 
 def test_every_section_sits_in_the_leaf_the_membership_rule_names() -> None:

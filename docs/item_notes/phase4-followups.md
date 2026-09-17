@@ -169,6 +169,11 @@ is a large nested structure that nothing in the run describes.
 **DO NOT CLOSE THIS ITEM ON THE STRENGTH OF THE REFERENCE PAIR.** The same sentence as the
 block above, for the same reason. The clause says every payload of the three pairs.
 
+### Acceptance
+
+the run's contents are read, or its width is DERIVED from something in the payload rather than OBSERVED as `declared_end - terminator_end`, on every payload of the (10,36), (13,42) and (14,52) pairs, proven by a skip-if-absent real-library test reporting COUNTS ONLY
+
+
 ## CS-829
 
 ### Relocated 2026-09-12 from `docs/GATED.md` by session 86
@@ -301,6 +306,11 @@ header - so the standing instructions live here, where the item now does:
   KILL rather than degrade, so they are recorded UNESTABLISHED rather than safe, and one
   shared width moves nothing at all.
 
+### Acceptance
+
+EVERY record carrying a struct type word the shipped vocabulary names yields a decoded interior, asserted as an EQUALITY over that population and not as a floor, with the vocabulary DERIVED from the library rather than transcribed, proven by a skip-if-absent real-library test reporting COUNTS ONLY
+
+
 ## CS-839
 
 ### NOTE - filed 2026-08-23 by the merger
@@ -329,6 +339,11 @@ machine, not by changing the property. The two honest routes are in the acceptan
 the sets identical, or make the dependency a declared skip that names its requirement. A
 skip that says why is evidence; an assertion failure that says `no /bin/sh on this
 machine` is not.
+
+### Acceptance
+
+the pass/fail SET is identical under Git Bash and PowerShell on one commit, or the dependency is recorded as a shipped SKIP criterion naming what it requires, proven by a test that goes RED when the interpreter cannot resolve the shell and the module reports FAILURES instead of skips
+
 
 ## CS-840
 
@@ -372,6 +387,11 @@ what an outside reader believes about that section's status, which is a semantic
 wearing a formatting hat. Whichever rule survives, it is a ruling about the topology and
 belongs to whoever makes it, not to a sweep.
 
+### Acceptance
+
+the two agree - either the rule carves out that file against a stated criterion, or the file stops dating live headings - proven by a guard arm that FAILS rather than reports, and that goes RED when a section is dated under whichever rule survives
+
+
 ## CS-841
 
 ### NOTE - filed 2026-08-23 by the merger, required by CS-838's grant
@@ -402,6 +422,11 @@ and the first sign of it would be an operator's edit being refused.
 
 **DO NOT ABSORB THIS INTO CS-838.** The grant says so, and the reason is that the repair
 belongs to a file the grant does not cover.
+
+### Acceptance
+
+that path either resolves a config and blocks a genuine format violation, or its skip is visible without `--verbose`, proven by a test that goes RED when a `root` reaches it and arms a blocking check on a non-frozen file with no grant
+
 
 ## CS-843
 
@@ -469,6 +494,11 @@ that the only red the wrong partition produced came from such a fixture. The evi
 to come from somewhere that could have disagreed: the struct's own interior grammar
 (CS-829), an element width the shipped assets state, or a cross-check between the declared
 count and the region that a misdeclaration would break.
+
+### Acceptance
+
+the partition is derived from evidence that could have refuted it, or the shipped record narrows to exactly what the extent buys, proven by a test that goes RED when a deliberately wrong partition is substituted and by the corpus-survives control being deleted in the same change
+
 
 ## CS-844
 
@@ -600,6 +630,10 @@ The headline this item carried before its line was cut to the one-liner the
 
 An owner recorded against a shipped table is checked for the `CS-` PREFIX only, so an id naming no item satisfies every guard and an entry keeps pointing at nothing once its owner closes
 
+### Acceptance
+
+a recorded owner resolves to an item that actually exists in the work-item files, and a closed owner is distinguished from an open one, proven by a test that goes RED for a well-formed id naming no item
+
 
 ## CS-846
 
@@ -726,6 +760,11 @@ it needs a collection hook in `tests/conftest.py`. **The tree also gained 8 `mat
 statements this session**, so the shape the second refutation said scored zero only for want
 of a population now has one.
 
+### Acceptance
+
+every shipped control and every shipped guard is covered by a liveness check or recorded against a stated exemption, with the population DERIVED from the shipped assertions rather than listed, proven by a planted early return that turns a test RED in each of one control and one guard that survive one today
+
+
 ## CS-847
 
 ### NOTE - filed 2026-08-24 by the merger, from the CS-844 widening
@@ -752,6 +791,11 @@ cannot rot and will announce itself if a pattern ever becomes usable.
 binding where the existing guard already reaches it. Do NOT re-pitch widening the guard into
 reading English - that route is refuted in shipped data, not merely untried.
 
+### Acceptance
+
+a hand-off naming an item is held to actionability wherever it is recorded, or the record is relocated into an owner-named binding, proven by a test that goes RED when a hand-off names a CLOSED item, covering the sites that hand off to `CS-G05` today
+
+
 ## CS-848
 
 ### NOTE - filed 2026-08-24 by the merger, from the CS-841 round-three adversary
@@ -773,6 +817,11 @@ that NO in-repo home a one-line predicate can distinguish from a real edit targe
 the guard needs an assertion keyed on the root argument reaching the linter for an arbitrary
 in-source path, rather than on the fate of one file in one directory.
 
+### Acceptance
+
+an arming condition keyed on whether the edited file is gitignored, or on whether it sits under a project source root, turns a test RED, proven by both mutants, and WITHOUT reintroducing the parallel-run contamination the current bait home was chosen to escape
+
+
 ## CS-849
 
 ### NOTE - filed 2026-08-24 by the merger, from the CS-841 round-three adversary
@@ -793,6 +842,11 @@ machine where this was found, so it could not be reproduced there.
 
 **THE WORK DIRECTORY IS PII-BEARING.** It is where save copies live. That is why it is
 gitignored and why its consumers are careful. Anything writing there needs to be as careful.
+
+### Acceptance
+
+running the rule suite on a checkout with no work directory leaves none behind, proven by a test that goes RED when a fixture creates one, with the work-root consumers DERIVED rather than listed
+
 
 ## CS-842
 
@@ -826,6 +880,11 @@ most likely fire on a package docstring nobody associates with this item, becaus
 nearest unfenced modules are boilerplate `__init__.py` files a single future sweep would
 flip.
 
+### Acceptance
+
+deleting the recorded criterion turns a test RED, proven by that deletion, WITHOUT weakening the synthetic control that is currently the only guard against the derivation being replaced by a restatement of the list it is compared against
+
+
 ## CS-832
 
 ### NOTE - relocated from `ROADMAP.md` 2026-08-23
@@ -835,6 +894,11 @@ NOTE: filed 2026-08-23, headline CORRECTED the same day: `Int64Property` is NOT 
 **BOTH CLAUSES OF THAT CORRECTION WERE THEMSELVES MEASURED FALSE 2026-08-23 (session 37), and the cause is CS-830's merge rather than a mis-reading.** The sentence above says `Int64Property` "is named by the `ArrayProperty` entry as an inner type and recorded in `UNMEASURED_PAYLOAD_REGIONS`". Neither holds today. CS-830 PROMOTED the three container words out of that table, so there is no `ArrayProperty` entry left to name anything, and it DELETED the `Int64Property` entry outright. **THAT DELETION WAS FORCED AND IT STANDS.** `tests/save/test_properties.py::test_the_region_table_holds_no_key_nothing_justifies` refuses a key the library does not justify, and the library holds no top-level `Int64Property` tag at all - so an entry there would record a measurement nobody was ever in a position to make. **DO NOT RESTORE THE ENTRY AND DO NOT WEAKEN THAT TEST** to make room for one; that is the disposition an operator ruled on the same day.
 
 **THE CRITERION NOW HAS A HOME THAT IS NOT THAT TABLE**, added by the CS-830 narrowing so this item has a reachable route: `objects.VALUE_READING_CRITERIA` records a type word whose TOP-LEVEL value is declined, against the EVIDENCE that would settle the reading. It is independent of `UNMEASURED_PAYLOAD_REGIONS` by construction - that table records regions the library PRODUCES, this one records a refusal and what would end it - so a word with zero top-level instances can legitimately live in it. `Int64Property` is entered there already, with the criterion phrased as an observation (one top-level tag, of any provenance, read against the element width the arrays already close on) rather than as a sample size. **THIS ITEM'S ACCEPTANCE IS UNCHANGED** and is NOT satisfied by that entry existing: what is still owed is `TextProperty`'s own criterion - its `UNMEASURED_PAYLOAD_REGIONS` entry still turns on an instance count, which is the exact phrasing the acceptance rejects - and the test that goes RED when a criterion is replaced by a sample-size one. **DO NOT CLOSE THIS BY MOVING `TextProperty` ACROSS:** it has real top-level instances, so its region entry is legitimate where it is and the criterion is what needs rewriting, not the table it sits in.
+
+### Acceptance
+
+each is decoded off a real record, or its refusal carries a criterion that names what evidence would settle it rather than how many instances exist, proven by a test that goes RED when that criterion is replaced by a sample-size one
+
 
 ## CS-825
 
@@ -872,6 +936,11 @@ so that finding has never been measured on it. Carrying it across would be the p
 
 **WHAT IS NOT KNOWN AND SHOULD BE MEASURED FIRST:** whether this type's own values can support
 any oracle at all. Derive its population before designing anything.
+
+### Acceptance
+
+the type's entry in `VALUE_BYTE_ORDER_STATUS` records a SETTLED order derived against the real save library, by a status word that MEANS settled, or the corpus is recorded as unable to settle it with the missing ingredient DERIVED in shipped data rather than transcribed from the detail
+
 
 ## CS-826
 
@@ -912,11 +981,21 @@ a singleton, and the module refuses in writing to carry it to any single type: t
 the premise that this format uses one byte order for every int32 field, and the module records
 that premise as an assumption and not a measurement.
 
+### Acceptance
+
+both types' entries in `VALUE_BYTE_ORDER_STATUS` record a SETTLED order derived against the real save library, or the corpus is recorded as unable to settle them with the missing ingredient DERIVED in shipped data
+
+
 ## CS-827
 
 ### NOTE - relocated from `ROADMAP.md` 2026-08-23
 
 NOTE: filed 2026-08-23 by the CS-421 control-validity adversary, reproduced by the merger. Every reader outside `clockspeed/save/objects.py` selects by SYMBOL, so the yardstick moves with the data and the swap is invisible. **THE WORKED EXAMPLE IS ALREADY IN THE TREE AND IS THE POINT OF THE ITEM:** `tests/save/test_byte_order_status.py::test_the_status_words_are_pinned_and_distinct` does exactly this for the byte-order words and its docstring gives the reason - shipping status as DATA means something outside this repository reads the STRING. The evidence words have no such control.
+
+### Acceptance
+
+changing the STRING value of any member of the evidence vocabulary turns a test RED, proven by a mutant that renames one while leaving every symbol reference untouched
+
 
 ## CS-800
 
@@ -954,6 +1033,11 @@ separates `partial(prim)` from `str(SAVE_TESTS)`. Four rounds of tuning arms is 
 that no arm will. **Do not reopen any arm without first splitting the vocabulary into
 callables and values**, which is a change to that function's contract.
 
+### Acceptance
+
+a module serving a locator in any of those shapes, whose consumer calls it, turns a test RED with NO GAME INSTALLED, without flagging a helper serving a computed string or a path constant
+
+
 ## CS-801
 
 ### NOTE - relocated from `ROADMAP.md` 2026-08-23
@@ -968,6 +1052,11 @@ item itself stays OPEN in `ROADMAP.md`.
 CS-801 - A `__getattr__` serving a locator is closed only where it is defined at MODULE scope and consumed in the SAME file - acceptance: a class-level `__getattr__` returning a locator, and a module-level one consumed from a sibling as `other.anything()`, each turn a test RED on a machine with NO GAME INSTALLED - tier: 2
 
 filed 2026-08-21 (session 26) as CS-492's disclosed residual, both measured green and both classed SILENT, so the suite-wide guard never runs on the module at all. A `__getattr__` makes EVERY attribute of its namespace a locator, and neither vocabulary can express that today: `_reaching_attributes` learns the attribute name `__getattr__` itself and stops, and `_reaching_names_of` exports NAMES, so a wildcard cannot cross the module seam as one. Ranked ORDINARY by the pass that found it - a proxy or lazy-attribute class is the ordinary reason to write either. **A fix has to say what a wildcard looks like in a set of names**; the file's own `MODULE_SCOPE_REACH` sentinel is the precedent for a member that is not an identifier.
+
+### Acceptance
+
+a class-level `__getattr__` returning a locator, and a module-level one consumed from a sibling as `other.anything()`, each turn a test RED on a machine with NO GAME INSTALLED
+
 
 ## CS-802
 
@@ -1013,6 +1102,11 @@ the attribute namespace hard enough that a false entry cannot propagate. The sec
 shipped in round six regardless: `_reaching_attributes` now refuses any name in
 `_NOT_LIBRARY_REACH`.
 
+### Acceptance
+
+`setattr(self, _NAME, locate.resolve_save_root)` with `_NAME` a module constant, and `self.__dict__.update(finder=locate.resolve_save_root)`, each turn a test RED on a machine with NO GAME INSTALLED
+
+
 ## CS-803
 
 ### NOTE - relocated from `ROADMAP.md` 2026-08-23
@@ -1027,6 +1121,11 @@ item itself stays OPEN in `ROADMAP.md`.
 CS-803 - A closure built by a nested `def` is not read as serving what it closes over - acceptance: a module whose factory returns a nested function that reaches the library, and whose consumer calls the factory's result, turns a test RED on a machine with NO GAME INSTALLED even when the factory itself is declared - tier: 2
 
 filed 2026-08-21 (session 26) by a refutation pass on CS-492 round two, measured: the consumer HOLDS THE REAL SAVE ROOT and is accepted. `_returned_values` excludes nested definitions deliberately - an inner helper's returns are not the outer function's - so the factory is never a serve. The IDENTICAL idiom spelled with a `lambda` IS caught and names the consumer, which is what makes this one mechanism applied to part of its population rather than a stated bound. Ranked ORDINARY. **Do not close it by deleting the nested-definition exclusion in `_returned_values`** - that exclusion is load-bearing for the opposite case and its reason is in the docstring.
+
+### Acceptance
+
+a module whose factory returns a nested function that reaches the library, and whose consumer calls the factory's result, turns a test RED on a machine with NO GAME INSTALLED even when the factory itself is declared
+
 
 ## CS-804
 
@@ -1068,6 +1167,11 @@ the server hole, not a `__getattr__`-specific one. Whichever item is taken first
 `(finder := locate.resolve_save_root)()` are accepted - `_callee_resolves` has no `ast.Await`
 and no `ast.NamedExpr` arm. The ordinary spellings of both are caught by the inner call.
 
+### Acceptance
+
+an importer reaching through a sibling's server, through a locator the sibling holds on an attribute, or through its declared reaching METHOD, each turn a test RED with NO GAME INSTALLED
+
+
 ## CS-805
 
 ### NOTE - relocated from `ROADMAP.md` 2026-08-23
@@ -1082,6 +1186,11 @@ item itself stays OPEN in `ROADMAP.md`.
 CS-805 - The container-FIELD personal-data shape is not walked as a wrapper, and the footprint is wider than CS-492's detail block records - acceptance: a class holding a save body in a CONTAINER field, and a helper whose return annotation is a container of bodies or of stringified real save paths, each turn a test RED on a machine with NO GAME INSTALLED - tier: 2
 
 filed 2026-08-21 (session 26). This is the PERSONAL-DATA half of the guard, `reach_guard._body_wrapping_classes` and `_returns_personal_data`, not the reach half CS-492 closed, which is why it is a separate item rather than that item's acceptance. Named in this file under **CS-492 - detail** as "ALSO HERE, and NOT contrived". A refutation pass measured all of it open and found one shape the note does not mention: a return annotated `-> list[str]` carrying stringified real save paths passes strict typing and propagates nothing. Measured caught for contrast: `-> bytes` and a `bytes`-typed field.
+
+### Acceptance
+
+a class holding a save body in a CONTAINER field, and a helper returning a container of bodies or of stringified save paths, each turn a test RED with NO GAME INSTALLED
+
 
 ## CS-807
 
@@ -1278,6 +1387,11 @@ instrument with a clean unique kill.
 the guard - and no shipped module goes silent on the build today. Every escape above is
 prospective.
 
+### Acceptance
+
+on a machine with NO GAME INSTALLED, a module-scope `__getattr__` that genuinely serves a locator flags NO function that reaches nothing; the false exemptions the sweep measured in `tests/save/test_oracle_citations.py` and `tests/save/test_absolute_claims.py` are DELETED with both modules still clean; and the object-routed escape routes recorded in the detail block STAY CAUGHT, so the acceptance cannot be met by a guard that accepts everything
+
+
 ## CS-808
 
 ### NOTE - relocated from `ROADMAP.md` 2026-08-23
@@ -1290,3 +1404,8 @@ The headline this item carried before its line was cut to the one-liner the
 `ROADMAP.md` header asks for. Relocated verbatim, never deleted:
 
 `_reaching_names_of` and `_wrapping_names_of` are `@cache`d on a `Path`, so a stale parse answers for a changed file at the same path
+
+### Acceptance
+
+a probe planting two different sibling versions at ONE path gets the SECOND version's answer, with a reproduction recorded either way
+

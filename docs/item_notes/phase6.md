@@ -45,6 +45,10 @@ The headline this item carried before its line was cut to the one-liner the
 
 `_spellings_of()` collapses its spellings where the path carries no backslash, and the detector and the production sweep grade less on the every-push lane with no record where they CONSUME it
 
+### Acceptance
+
+the spellings are derived from what the running platform can actually produce, or the collapse is recorded at the point of use so a reader of a green run knows what went unmeasured
+
 
 ## CS-614
 
@@ -63,6 +67,11 @@ reader of the red therefore investigates the bind path, which is not where the f
 The acceptance asks the arm to count only the threads its own call created, or to
 distinguish a pre-existing one and NAME it - either remedy makes the message true.
 
+### Acceptance
+
+the arm counts only the threads its own call created, or it distinguishes a pre-existing one and names it, proven by an arm that plants a lingering serve_forever thread and fails for a reason naming the plant rather than the bind
+
+
 ## CS-615
 
 ### Relocated from `ROADMAP.md` 2026-09-01
@@ -77,6 +86,11 @@ stays green with 169 of 174 arms gone.
 **THE ACCEPTANCE DELIBERATELY REFUSES A LITERAL.** An expected count written as a number
 in the guard is the same defect one level along - it drifts the first time a suite gains
 an arm. The count has to come from a recorded per-suite declaration.
+
+### Acceptance
+
+a gutted suite reddens, proven by an arm that stubs the suites and fails, with the expected count derived from a recorded per-suite declaration rather than a literal that drifts
+
 
 ## CS-616
 
@@ -98,6 +112,11 @@ one.
 unverifiability is recorded in THIS section. Do not leave one of the three standing on
 the grounds that it is the one that happens to be written most carefully.
 
+### Acceptance
+
+the session-scope question is settled against a running Electron and the three statements reconciled, or the claim is withdrawn from all three places and recorded as unverifiable in the detail
+
+
 ## CS-618
 
 ### Relocated from `ROADMAP.md` 2026-09-01
@@ -111,6 +130,11 @@ regardless of how the value got into the file.
 a CONSTRUCTOR INVARIANT over a CLOSED FAULT SET, so no caller-supplied text reaches a
 message at all. That is the same closed-vocabulary idiom `clockspeed/surface/config.py`
 states, and the acceptance names it so the remedy is not re-derived from scratch.
+
+### Acceptance
+
+no fault string can quote file content, proven by a planted canary arm that reddens when the redaction is removed, matching the closed-vocabulary idiom `clockspeed/surface/config.py` states
+
 
 ## CS-619
 
@@ -134,6 +158,11 @@ the certificate refusal path is not a display concern. The acceptance requires t
 framing to change as part of closing this item, so the ADR stops arguing for a gap that
 is wider than it says.
 
+### Acceptance
+
+the gap is closed for whichever parts are pure, and what remains is recorded in a work-item file rather than only in a CI comment, with ADR 0014 no longer framing the ungraded set as display-bound
+
+
 ## CS-872
 
 ### Relocated from `ROADMAP.md` 2026-09-01
@@ -146,6 +175,12 @@ to scroll the composed page with the band still covering no content. The band is
 REGION THE OS DRAWS OUTSIDE THE WEB CONTENTS, so no headless or in-page harness can
 observe both halves of that condition at once - the scroll is observable in the web
 contents and the band is not. Grading it means running the shell.
+
+### Acceptance
+
+a cold key press scrolls the composed page with the band still covering no content, graded by a REAL ELECTRON RUN and not by a static arm
+
+
 ## CS-887
 
 ### NOTE - filed 2026-09-03 (session 57) by the merger, MEASURED BEFORE FILING, from a CS-882 builder
@@ -183,6 +218,11 @@ port BAND that `config/ports.json` owns. Same file, different owner and differen
 **A THIRD SITE WAS MEASURED AND IS NOT FILED.** `scripts/verify_env.py` also exits 2 on a
 bad flag, but publishes no exit-code table, so nothing collides there today. Recorded so a
 later reader knows it was looked at rather than missed.
+
+### Acceptance
+
+no argparse usage error exits a code the runbook documents as a specific refusal, with the codes DERIVED from the two modules' own declarations rather than restated, proven by an arm that goes RED when a usage error and a documented refusal share a code
+
 
 ## CS-909
 
@@ -243,6 +283,10 @@ arm CAN grade is the supervisor's decisions, and that is exactly why they are li
 `shell/main.js`. Grading the pure half and calling the item done is the failure mode here;
 the run at a real display is not optional.
 
+### Acceptance
+
+one double-click of a generated shortcut opens the companion against a live dashboard whether or not one was already running, and leaves a tray presence where closing the window HIDES it and Quit stops only the dashboard that launch itself started, with the spawn, adopt and stop-what-you-started decisions graded by `node --test` and the tray, the hide and the shortcut graded by a REAL ELECTRON RUN from a real shortcut rather than by a static arm
+
 
 ## CS-910
 
@@ -287,6 +331,10 @@ The headline this item carried before its line was cut to the one-liner the
 
 the tool a script spawns must not be chosen by where the process happens to be standing, and `tools/toolpath.py` now answers that for seven sites - but the item's own acceptance asks it of EVERY external tool this repository spawns and four sites sit in FROZEN files, `scripts/install_hooks.py::run_git` and `::run_git_optional` plus `tools/precommit_gate.py::ruff_command` and `::git`, while `make_cert` and `make_shortcut` delegate their argv to a runtime arm that no census re-derives
 
+### Acceptance
+
+the four frozen sites carry an adjudicator grant recorded in `docs/LEDGER.md` before any edit, every remaining INDIRECT delegation is graded by a runtime arm that observes the argv actually built rather than a counted subset of it, and the 31 ungraded findings under `tests/` are either routed or exempted with a stated reason
+
 
 ## CS-604
 
@@ -296,6 +344,10 @@ The headline this item carried before its line was cut to the one-liner the
 `ROADMAP.md` header asks for. Relocated verbatim, never deleted:
 
 `docs/OPERATIONS.md` restates the base port and the band that `config/ports.json` owns, and the file is absent from `tools/doc_budget.py`'s measured population so neither fault is caught
+
+### Acceptance
+
+no tracked file outside `config/ports.json` spells a port number in the allocated band, proven by a guard that reads the band FROM the record rather than from a literal, and the file is either budgeted or recorded as deliberately unbudgeted
 
 
 ## CS-606
@@ -307,6 +359,10 @@ The headline this item carried before its line was cut to the one-liner the
 
 `clockspeed/surface/__main__.py`'s success path is unexercised because it installs a process-wide SIGINT handler that would replace pytest's, so only its refusal branches are graded
 
+### Acceptance
+
+the serve-and-shut-down path is driven end to end in a subprocess and its exit code read, or the gap is recorded with the reason
+
 
 ## CS-607
 
@@ -316,6 +372,10 @@ The headline this item carried before its line was cut to the one-liner the
 `ROADMAP.md` header asks for. Relocated verbatim, never deleted:
 
 `tests/test_mypy_gate.py::test_the_oracle_reproduces_the_real_runs_discovered_set` fails INTERMITTENTLY in a full-suite run and blocked a real push, while passing every time in isolation
+
+### Acceptance
+
+the arm is green across five consecutive full-suite runs, or the state it depends on is identified and pinned so the arm fails for a stated reason rather than by luck
 
 
 ## CS-610
@@ -327,6 +387,10 @@ The headline this item carried before its line was cut to the one-liner the
 
 `tests/conftest.py` leaves a skip report unredacted because a skip's `longrepr` is a tuple its redactor declines to touch, so a skip reason that ever interpolates a machine value leaks with nothing to catch it
 
+### Acceptance
+
+a planted machine value in a skip reason is redacted or is caught by a guard, proven by an arm that fails when the redaction is removed
+
 
 ## CS-611
 
@@ -336,6 +400,10 @@ The headline this item carried before its line was cut to the one-liner the
 `ROADMAP.md` header asks for. Relocated verbatim, never deleted:
 
 `allow_reuse_address = False` is justified by a Windows measurement, but on POSIX the same setting makes a rebind of the FIXED allocated port fail through the TIME_WAIT window, and every arm binds an ephemeral port so the divergence is graded by nothing
+
+### Acceptance
+
+the fixed-port rebind path is exercised on POSIX, or the divergence is recorded with the reason it cannot be
 
 
 ## CS-612
@@ -347,6 +415,10 @@ The headline this item carried before its line was cut to the one-liner the
 
 `test_the_generated_key_is_restricted_to_this_account` may be tautological on the only platform that runs it, because openssl may already open the key file 0600 and leave `_restrict` doing nothing
 
+### Acceptance
+
+`_restrict` is proven load-bearing by a control that reddens when it is a no-op, or the arm is recorded as grading the artifact rather than the call
+
 
 ## CS-620
 
@@ -356,6 +428,10 @@ The headline this item carried before its line was cut to the one-liner the
 `ROADMAP.md` header asks for. Relocated verbatim, never deleted:
 
 the Node behaviour suite runs only in tier 2, so a `shell/lib` regression merges green and stays invisible until the nightly, while two commit subjects invite the reading that both lanes cover every push
+
+### Acceptance
+
+the Node suite runs on the every-push lane, or the split is recorded where a reader of a green push would find it
 
 
 ## CS-621
@@ -367,6 +443,10 @@ The headline this item carried before its line was cut to the one-liner the
 
 the tier-2 syntax step enumerates `git ls-files -- shell` while the Python guard uses `--cached --others --exclude-standard`, so an untracked `.js` under `shell/` is graded by one gate and skipped by the other
 
+### Acceptance
+
+both gates grade the same population, or the divergence is recorded at both sites with the reason
+
 
 ## CS-622
 
@@ -376,6 +456,10 @@ The headline this item carried before its line was cut to the one-liner the
 `ROADMAP.md` header asks for. Relocated verbatim, never deleted:
 
 the forbidden-token sweep is a substring test over eleven literals, so any string concatenation defeats all eleven at once, and `appendArgument`, `setSSLConfig` and the command-line switch spellings are absent from the table entirely
+
+### Acceptance
+
+the sweep's ceiling is recorded at the point of use, and each named gap is either closed or listed as out of reach with its reason
 
 
 ## CS-623
@@ -387,6 +471,10 @@ The headline this item carried before its line was cut to the one-liner the
 
 two arms grade the same 7-bit-ASCII property with different boundaries: `shell/test/window.test.js` accepts any byte at or below 0x7F while `tests/shell/test_shell_assets.py` caps at 0x7E, so a DEL byte passes the Node lane and reddens the Python one
 
+### Acceptance
+
+one boundary owns the rule and the other reads it, proven by an arm planting DEL that both lanes agree on
+
 
 ## CS-913
 
@@ -396,6 +484,10 @@ The headline this item carried before its line was cut to the one-liner the
 `ROADMAP.md` header asks for. Relocated verbatim, never deleted:
 
 unlock state is EMPTY for every save and the cause filed with it is REFUTED by the code: `clockspeed/save/world.py::_read_unlocks` takes ZERO arguments and returns `EMPTY_UNLOCK_STATE` unconditionally, so the emptiness is a property of the producer rather than of any save, while `clockspeed/save/objects.py::read_properties` is a complete tagged-property decoder with no production caller - the grammar was measured and the plumbing was never built
+
+### Acceptance
+
+`/api/world` reports non-empty unlock state for a save known to carry it, read through the shipped decoder against the six carriers named in `docs/adr/0016-unlock-arrays-carriers-and-serialized-grammar.md`, graded by a synthetic `PropertyMap` so the suite still runs with no game installed, with `UnlockState.current_game_phase` retyped off `int | None` first because the value is an asset reference, and the CONTROL is SYNTHETIC and DIFFERENTIAL rather than a world - two hand-authored `PropertyMap` payloads over the same carriers at different progression, the lesser a strict subset of the greater, decoding to DIFFERENT and correctly ordered `purchased_schematics` and `recipes` and to different `current_game_phase` assets, plus a decoy payload carrying `mPurchasedSchematics` on a NON-carrier class that must contribute nothing, so that a reader returning a constant, ignoring content, or matching a property name without its owning class each fails an arm; the absent-array arm at `tests/save/test_world.py::test_an_absent_unlock_array_is_an_empty_set_rather_than_an_error` is retained but is explicitly NOT the control, because a reader returning `EMPTY_UNLOCK_STATE` unconditionally - which is this item's own defect - passes every assertion in it; whether a real save agrees is an OPERATOR-LOCAL check the suite does not run and that stays gated on `CS-G06` - blocked on `CS-G06`
 
 
 ## CS-914
@@ -407,6 +499,10 @@ The headline this item carried before its line was cut to the one-liner the
 
 `clockspeed/save/workdir.py` stages a copy through a partial whose name is a pure function of the destination and opens the destination truncating, which is the CS-911 shape in Python and reachable on the DEFAULT path: the dashboard is a `ThreadingHTTPServer`, `clockspeed/surface/providers.py` re-reads a world per call with no cache and no request lock, and `work_root()` falls back to a shared `<repo>/work` - MEASURED 31 of 240 concurrent copies failing at realistic save size, and the failure reaches the operator as a fact about their save because `providers.world()` answers None for a missing directory, an empty one and an unparseable save alike; `clockspeed/data/version.py` carries the same shape with a weaker trigger, and neither module has a single concurrency arm
 
+### Acceptance
+
+two concurrent copies neither fail nor publish a truncated file, proven by an arm that interleaves them and reddens on the shipped implementation, the same question answered for `version.py`, and a failure to open the DESTINATION no longer reported as an unreadable SOURCE
+
 
 ## CS-915
 
@@ -417,6 +513,10 @@ The headline this item carried before its line was cut to the one-liner the
 
 two guards report zero findings for a reason that is not the absence of findings: the overlay arm in `tests/surface/test_web_assets.py` declares tokens with `[A-Za-z0-9-]` and compares their values with `[a-z0-9-]`, so an uppercase custom property drifts silently past the check, and `test_the_harness_answers_every_route_it_publishes_as_live` discards the METHOD on both sides, so re-keying every canned answer to `TRACE` leaves it green - both LATENT today and both demonstrated by mutation
 
+### Acceptance
+
+each arm reddens on its demonstrated mutant, with the method carried through from `routes.py` rather than collapsed away
+
 
 ## CS-916
 
@@ -426,6 +526,10 @@ The headline this item carried before its line was cut to the one-liner the
 `ROADMAP.md` header asks for. Relocated verbatim, never deleted:
 
 three separate features are gated on ONE prerequisite and nothing files it: node semantics, where `/api/world` carries 797 placements and says in its own warning that purity and resource type are level defaults a save never writes; icons, which can never be committed because non-negotiable 2 forbids anything extracted from the install and the CSP publishes no `img-src` so every image is blocked today; and a to-scale factory planner, for which `/api/registry` publishes recipes and `is_fluid` but `BUILDING_KEYS` carries only `key` and `display_name` - no footprint, no port count, no port side, no power draw, so not one building can be drawn to scale
+
+### Acceptance
+
+an extraction path reads the shipped assets into gitignored `data/` at first run, is skipped cleanly on a machine with no install, commits nothing it produced, and answers all three questions from one pass with the registry route widened to carry the building geometry
 
 
 ## CS-603
@@ -438,6 +542,10 @@ the line alone. Relocated verbatim, never deleted:
 
 `tests/test_scaffold.py` excludes `clockspeed/surface/web` on a reason that has expired, so the file asserting the package topology now states something false about it
 
+### Acceptance
+
+that directory is either graded as a non-package directory that must exist, or its exclusion carries a reason that is true on the day it is read, and a test fails if the directory is emptied
+
 
 ## CS-608
 
@@ -449,6 +557,10 @@ the line alone. Relocated verbatim, never deleted:
 
 `tests/surface/test_web_assets.py`'s personal-data sweep matches only Windows-shaped paths, so on the every-push lane it grades three of its six shapes while its own control stays green
 
+### Acceptance
+
+every path shape the sweep claims is either matched by a POSIX-shaped planted value or recorded as Windows-only with the reason, and the control fails when a shape is removed
+
 
 ## CS-613
 
@@ -459,6 +571,11 @@ The headline this item carried before its line was cut to the one-liner the
 the line alone. Relocated verbatim, never deleted:
 
 every TLS arm sits behind `cert_pair`, which skips when openssl cannot be run, so a runner without openssl loses the whole TLS path as a skip rather than as a failure
+
+### Acceptance
+
+an absent openssl either fails the surface suite loudly or leaves a stated skip whose reason names what went ungraded
+
 
 ## CS-988
 
@@ -769,6 +886,15 @@ evidence that a floor works.
 
 **THE PER-SITE DATA IS IN `docs/item_notes/cs988-sweep-record.md`** - every instance with its delta and guard set, every DEFENDED verdict with the node id that reddened, and the 44 INDETERMINATE rows listed unranked. That annex is where the next pass starts; do not re-derive the population.
 
+### Acceptance
+
+a population whose size decides what a suite measures is graded by EQUALITY against an independently derived expectation rather than by a floor, and a module's own collected arm count is asserted against a derived expectation so a silent drop cannot pass, proven by a use-site narrowing of a producer that reddens where a floor still holds AND by a planted arm-count drop that reddens
+
+### Full headline
+
+a value that decides what a POPULATION MEASURES is narrowable at its use site while the floor guarding it stays satisfied, and every repair of one instance created a fresh one ONE LEVEL OUT - measured FOUR times inside CS-929 alone: the corpus root, then the anchor introduced to pin the root, then that anchor's use site reachable by string concatenation, then the plant producer's own return statement sliced to `[:3]` against a floor of 3 met exactly - each one silently dropping arms from a green run (476 to 466, and one widening to 478)
+
+
 ## CS-1051
 
 ### Filed 2026-09-14
@@ -814,6 +940,15 @@ added in the re-work, the ADR-table control and the declaring-class arm, are wha
 that hole, and neither existed when the suite went green. A green suite is evidence about
 what the suite can see.
 
+### Acceptance
+
+an arm in `tests/surface/test_world.py` asserts the published value's type is the type `UnlockState` declares for that field, derived from the model's annotation rather than from a literal, and reddens when the harness value and the declared type disagree; and a second arm asserts the harness's key set equals the published key set in BOTH directions so a field added to one and not the other is caught
+
+### Full headline
+
+`tests/surface/audit_harness.py::SYNTHETIC_UNLOCKS` hand-builds the published world dict and hardcodes `current_game_phase` to the integer 2, so the surface suite asserts a type the model does not declare and 1478 arms pass without one of them observing the field's type - the harness is a fixture that drifted off the model it stands in for, and a retype in `save/` changes the wire silently
+
+
 ## CS-1046
 
 ### Filed 2026-09-13
@@ -848,6 +983,15 @@ member only if it also publishes the route naming it, in the same change.
 record index, no byte offset and no path crosses the wire. Uniform refusals - no world is a
 503 with the no-save reason, no registry is a 200 with a named warning rather than a
 refusal, and an unknown parameter is a 400 reflecting NOTHING of what it refused.
+
+### Acceptance
+
+an arm in `tests/surface/test_contract.py` asserts the blocker pattern's four-digit boundary in BOTH directions, a new arm module beside it asserts the served plan key set equals the plan module's own `DATA_KEYS` in both directions and that `contract.encode` accepts the body, and an arm in `tests/surface/test_pending_route_count.py` asserts the unbacked set is the partition complement rather than a literal count
+
+### Full headline
+
+`/api/plan` and `/api/audit` are published in the endpoint table and answer 501 blocked by CS-500 while the layers beneath them now exist, and `clockspeed/surface/api/contract.py`'s `BLOCKER_PATTERN` admits `CS-` followed by exactly three digits, so no item at CS-1000 or above could ever be named by a 501 even if one were needed
+
 
 ## CS-1047
 
@@ -896,6 +1040,15 @@ guessed; where the page shows one it shows an operator annotation and says so on
 
 ---
 
+### Acceptance
+
+an arm in `tests/surface/test_panel_map.py` asserts the class attribute set the panel emits EQUALS the category set the wire declared, derived from the payload rather than a literal, a second arm there asserts a mined node and a bare node differ in an attribute the stand-in DOM can actually observe, and an arm in `tests/surface/test_web_assets.py` asserts a poll whose world token is unchanged issues NO fetch
+
+### Full headline
+
+the map draws bare dots on no underlay with no category, no elevation ordering, no need-vibrance and no mined-versus-unmined distinction, the page has no plan panel and no world power panel, its CSP carries no `img-src` so it could not render an underlay if one existed, and nothing but the header button repaints it
+
+
 ## CS-1065
 
 ### NOTE - filed 2026-09-14 under CS-301
@@ -906,3 +1059,19 @@ estimate are the same two numbers. Collapsing it to a boolean at the wire edge t
 check" into "checked and failed", and the dashboard has no way to tell those apart afterwards. The
 refusal vocabulary ADR 0012 fixed is where the wire form for this belongs; read it before choosing a
 spelling.
+
+### Acceptance
+
+the endpoint publishes the bounded draw beside the operands with both bounds as the wire rational form and `within_estimate` carried through as a tri-state rather than collapsed to a boolean, proven by an arm asserting the served body equals the layer result field for field and by an arm asserting the null case is served as null rather than false
+
+### Full headline
+
+the power endpoint serves `variable_power_inputs` and nothing else, so a dashboard reading it still sees `modeled` false and four loose operands for the three variable-power buildings CS-301 can now bound
+
+
+## CS-600
+
+### Acceptance
+
+the 5-phase visual audit from CONVENTIONS section 13.2 passes before the page is committed
+

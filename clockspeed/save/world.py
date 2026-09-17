@@ -663,8 +663,9 @@ class UnlockState:
             off ``int | None`` by CS-1039 because ADR 0016 measured the value
             to be a top-level ``ObjectProperty`` naming a ``GP_*`` asset and
             measured that no ``Phase``-named property in either readable world
-            decoded to an integer at all. ROADMAP.md's CS-913 line requires the
-            same retype, so this delivery OVERLAPS that item.
+            decoded to an integer at all. CS-913's acceptance, which its own
+            item-notes section owns, requires the same retype, so this delivery
+            OVERLAPS that item.
         feature_flags: Feature-level unlocks as discrete booleans - blueprints,
             building overclock, building efficiency, the map, the customizer.
             Overclock availability is a direct precondition for power and clock

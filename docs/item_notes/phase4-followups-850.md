@@ -172,6 +172,11 @@ sweep. One live finding remains outside the repairing slice's write-list, record
 than repaired. `REPR_RAISING_HOLDERS` is one bidirectionally-pinned allowance, not the
 "0 exemptions" earlier prose implied.
 
+### Acceptance
+
+no shipped assertion can render a save-derived name, a home path or an account directory into a failure report, proven by forcing a representative arm of each guarded module to FAIL and grepping the rendered output for a planted sensitive token, with the population DERIVED from the shipped assertions rather than listed
+
+
 ## CS-851
 
 ### NOTE - filed 2026-08-25 by the merger, from the CS-829 adversary, MEASURED LIVE ON MAIN
@@ -270,6 +275,11 @@ channel; and the caller-frame gap is structural - `-l` renders locals for EVERY 
 traceback, while the scan emits only where an `Assert` sits in the same scope. 10
 live-flagged scopes over 9 modules have no assert in scope, one of them
 `clockspeed/save/world.py`.
+
+### Acceptance
+
+no shipped assertion's enclosing scope holds a save-derived name, a home path or an account directory in a local at the moment it fails, proven by FORCING a representative arm under `--showlocals` and grepping the RENDERED output for a planted token, with the population DERIVED from the shipped bindings rather than listed, and the check STAYING GREEN on a tree that has none
+
 
 ## CS-852
 
@@ -541,6 +551,10 @@ session 58 gave CS-889 and CS-890: the correction goes in a new block, the recor
 was believed at filing stays legible, and the drift is recorded rather than tidied away.
 This staleness was named in three consecutive handoffs before it was written down here.
 
+### Acceptance
+
+every shipped class whose fields can hold save-derived bytes or names either withholds them in its own `__repr__` or is recorded against a stated exemption, with the population DERIVED from the shipped field annotations rather than listed, proven by a test that goes RED for a new dataclass carrying a save-derived field with no redacting `__repr__`
+
 
 ## CS-853
 
@@ -566,6 +580,11 @@ renders zero times" result does not cover.
 synthetic fixtures - never from live findings - and the check must stay green on a tree with
 no such fixture. Three items were refuted in session 39 for proofs that required the defect;
 see `memory/a-proof-can-require-the-defect.md`.
+
+### Acceptance
+
+no shipped fixture returns a value that renders a save-derived name, a home path or an account directory into a failure header, proven by FORCING a representative arm and grepping the rendered HEADER for a planted token, with the population DERIVED from the shipped fixture return annotations, and the check STAYING GREEN on a tree that has none
+
 
 ## CS-855
 
@@ -686,6 +705,10 @@ The headline this item carried before its line was cut to the one-liner the
 
 A caught exception's content reaches a report under DEFAULT flags by chaining, by the rewritten assert and by the callee frame argument, and a guard keyed on `except ... as NAME` grades none of the three because an unnamed handler renders identically
 
+### Acceptance
+
+a forced run UNDER THE CONFIGURED PIPELINE renders no planted PERSONAL-DATA value on any of the three mechanisms, with the named handlers and the hand-off sites DERIVED rather than listed, or each recorded against a stated exemption
+
 
 ## CS-854
 
@@ -712,6 +735,11 @@ is a validation assertion, and
 **DERIVE, DO NOT WORK THE LIST.** Three line numbers in a note are the hand-maintained thing
 this repo records as the thing that rots, and the CS-829 slice found one site the brief had
 not named by sweeping rather than by working its list. Sweep for the SHAPE.
+
+### Acceptance
+
+each of `tests/save/test_container_elements.py::_sweep_one_save`, `tests/save/test_inventory_potential.py::_collect_potential_tags` and `tests/save/test_reference_resolution.py::_second_join` classifies its tag by a byte comparison against a length-prefixed literal derived from the shipped constant, and asserts reader-versus-bytes disagreement is zero in BOTH directions, with the swept population DERIVED from the select-by-reader-word SHAPE rather than transcribed from these three symbols
+
 
 ## CS-857
 
@@ -933,6 +961,11 @@ did not. Treat the module list above as provenance, not as current truth.
 **A BY-PRODUCT DEFECT IS FILED AS CS-880** - the two exemption reasons session 44 corrected
 now misstate the raise form they describe.
 
+### Acceptance
+
+no shipped chained raise renders a home path, an account directory or a save-derived name into a DEFAULT traceback outside pytest, with the chained-raise sites DERIVED rather than listed or each recorded against a stated exemption, and every exemption reason calling the cause "deliberately never rendered" corrected
+
+
 ## CS-858
 
 ### NOTE - filed 2026-08-28 (session 44) by the merger, from the CS-857 census
@@ -1000,6 +1033,11 @@ FROZEN files, and that scope is correct for what it owns. The sites in the UNFRO
 under the same two directories are a different mechanism and are now CS-879, with the leak
 one of them carries filed as CS-878. Do not widen this item to absorb them.
 
+### Acceptance
+
+each of them either carries a stated exemption or is graded by the same runtime measurement `clockspeed/` gets, with the population DERIVED, and the frozen-file route through an adjudicator recorded before any edit
+
+
 ## CS-859
 
 ### NOTE - filed 2026-08-28 (session 44) by the merger, measured before filing
@@ -1021,6 +1059,10 @@ quoted fragment still counts.
 line; that line is not the work. The operator chose on 2026-08-28 to do the rewrite rather
 than only file it, and it was NOT reached in session 44 - the round ended with the
 adversarial pass incomplete. It is unstarted, not half-done.
+
+### Acceptance
+
+the module joins `FENCED_MODULES` in `tests/save/test_absolute_claims.py` and declares `CS420_FENCED`, with every unbacked absolute either deleted, narrowed until the quantifier is gone, or made to name a test that resolves
 
 
 ## CS-860
@@ -1160,6 +1202,11 @@ around it, and it may NEVER rewrite half a spaced name. Both survived the backou
 - they are the shape of the next attempt's acceptance, not scaffolding for the one that was
 withdrawn.
 
+### Acceptance
+
+both classes redact from a forced failure UNDER THE CONFIGURED PIPELINE by a mechanism that does NOT assume its input is a path, with the needle classes DERIVED from what `CLAUDE.md` names as personal data rather than listed, proven by a test that goes RED for each class independently while the pinned counter-examples STAY green - a redaction may never eat the traceback frame around a filename it rewrites, nor rewrite half a spaced name
+
+
 ## CS-861
 
 ### NOTE - filed 2026-08-29 (session 46) by the slice-B builder, MEASURED BEFORE FILING
@@ -1284,6 +1331,11 @@ there - collapsing runs of separators, adding the escaped spelling to the needle
 or matching a normalised form of both sides - is the implementer's call, and the options
 differ in their over-redaction risk.
 
+### Acceptance
+
+every rule the shipped needle builder and the position pass produce fires on the ESCAPED rendering as well as the native and `as_posix` ones, with the rendering set and the rule population both DERIVED from the shipped code rather than transcribed, proven by a test that goes RED for each rule independently when only that rule's escaped spelling is planted, and that STAYS GREEN on a tree where the gap is absent
+
+
 ## CS-864
 
 ### Filed 2026-08-30 (session 50)
@@ -1347,6 +1399,10 @@ The headline this item carried before its line was cut to the one-liner the
 
 the static seam arms in `tests/save/test_independent_table.py` scan syntax rather than reach, so a two-level reach and a `getattr` call escape every one of them
 
+### Acceptance
+
+the arms grade what they claim or their claim is narrowed to what they grade, proven by mutants for the two-level reach and the `getattr` route that each redden
+
 
 ## CS-865
 
@@ -1363,6 +1419,11 @@ that spared the subset also spared a real defect.
 to skip it. Both have been tried and both are recorded as wrong. It is a request to ground
 the per-word residue in evidence that does not depend on which saves the operator's library
 happens to hold at the moment the suite runs.
+
+### Acceptance
+
+the per-word residue is graded against evidence independent of which saves are present, so the bound survives every legitimate subset, proven by the existing subset re-aggregation covering this arm and reddening when a reading word is refused outright
+
 
 ## CS-896
 
@@ -1621,6 +1682,11 @@ Do not attribute the regression from local timings, and do not attribute it to t
 without measuring it - that is a guess with a plausible story attached, which is the shape
 this project keeps filing items about.
 
+### Acceptance
+
+tier 1 completes inside a stated budget and reports its own duration against it, proven by a run that reports the comparison
+
+
 ## CS-876
 
 ### RELOCATED 2026-09-06 from the ROADMAP item line, for the CS-926 budget pass
@@ -1629,6 +1695,10 @@ The headline this item carried before its line was cut to the one-liner the
 `ROADMAP.md` header asks for. Relocated verbatim, never deleted:
 
 the independent oracle in `tests/save/independent_table.py` consumes the trailing body references but no caller reads its final offset, so the pre-CS-867 `int32` reading passes it
+
+### Acceptance
+
+the oracle asserts its own end-of-body position, proven by a mutant restoring the int32 reading that reddens
 
 
 ## CS-877
@@ -1639,3 +1709,8 @@ The headline this item carried before its line was cut to the one-liner the
 `ROADMAP.md` header asks for. Relocated verbatim, never deleted:
 
 no arm enumerates the shell's `insertCSS` call sites, so a second injection or a swapped constant voids `app.css`'s no-clip decision again with every arm green
+
+### Acceptance
+
+the injected sheets are enumerated and graded as a set, proven by an arm that reddens on a planted second injection
+

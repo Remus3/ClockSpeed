@@ -56,6 +56,15 @@ save file, no header bytes, no account id, no world name.
 record of what was wrong; the ADR should say what is true. Do not delete the false lines
 silently - an ADR that quietly loses a claim it once made is a document nobody can audit.
 
+### Acceptance
+
+every carrier type path the ADR records is re-measured by running the shipped decoder over a real save, each false statement is corrected in place with what was measured, the status line moves to `accepted` or states in the ADR why it cannot, and an arm asserts the production key set and the ADR table agree in BOTH directions so a key with no ADR row and an ADR row with no key both redden
+
+### Full headline
+
+`docs/adr/0016-unlock-arrays-carriers-and-serialized-grammar.md` is status `proposed`, carries two statements already measured FALSE - its claim that the decoder has no production caller, contradicted by `clockspeed/save/world.py`, and its claim that the `(14,60)` shape decodes zero property tags, contradicted by `docs/LEDGER.md` - and is now the single source for BOTH the production unlock keys and the fixtures that grade them, so the reader is correct by citation rather than by measurement
+
+
 ## CS-1055
 
 ### Filed 2026-09-14
@@ -91,6 +100,15 @@ the repair.
 redden the guard, and a copy the suite itself makes MUST. One arm each. A guard that only
 proves the first has been relaxed rather than repaired.
 
+### Acceptance
+
+the guard counts copies THIS PROCESS made, by instrumenting `workdir.copy_for_read` rather than by differencing a directory, and an arm asserts a copy written by a concurrent writer during the window does NOT redden it while a copy the suite itself makes DOES, with the tracer shipped rather than re-written per investigation - and the assertion stays a COUNT and never a listing, because a copy is named for the save it came from and rendering those names is non-negotiable 12
+
+### Full headline
+
+`tests/conftest.py`'s live-copies teardown infers AUTHORSHIP from a wall-clock before/after count over a directory any process may write to, so a long-running `python -m clockspeed.surface` holding that workdir gets its copies attributed to whatever suite happens to be running - measured 2026-09-14, a copy landing 4.8 minutes before the check while no suite was running failed a module a purpose-written tracer showed called `workdir.copy_for_read` ZERO times
+
+
 ## CS-1056
 
 ### Filed 2026-09-14
@@ -124,6 +142,15 @@ is a NEW item and must be filed as one rather than repaired here.
 format reports a production gap that does not exist, and it does so LOUDLY - CS-1054's arm
 said evidence destroyed. An oracle must be checked against the formats it claims to cover
 before its verdict about production is believed.
+
+### Acceptance
+
+every module reaching that walk is enumerated from the import graph rather than by hand, each is measured against pair (60,14) for sites-found versus census, and any that reads zero where the shipped reader reads many is repaired or recorded with the reason - and separately `_run_degradation_control` stops POOLING the library, because a pooled figure lets one pair's zero dilute instead of redden, which is the pooled-guard shape already measured here
+
+### Full headline
+
+`tests/save/test_struct_interior.py`'s independent tag walk expressed the LEGACY grammar only and so read zero sites across all 80801 records of version pair (60,14), which the shipped reader reads correctly and which `objects.COMPLETE_TYPE_NAME_PAIRS` declares - CS-1054 repaired that module, and `tests/save/test_decode_oracles.py::_walk_with_the_shipped_reader` carries the same shape for every other module that shares it, so an unknown number of arms may be silently under-measuring the save format the operator actually plays on
+
 
 ## CS-1052
 
@@ -163,6 +190,15 @@ ADR 0016's carrier table at test time. That restored independence from the item 
 CONCENTRATED dependence on the ADR: it is now the single source for both production keys
 and fixtures, and nothing verifies the ADR against a save. A measurement pass is the
 natural place to close that.
+
+### Acceptance
+
+the carrier class is MEASURED by running the shipped decoder over a real save and recording the observed type path in the ADR, and only then an arm in `tests/save/test_world.py` packs it onto a synthetic record of that measured class and asserts the value round-trips and that `UNLOCK_CARRIERS_UNREAD` no longer names it, reddening when the carrier is unwired - a synthetic arm written before the measurement grades an invented class and is REFUSED
+
+### Full headline
+
+`mTradingPostLevel` is declared `SaveGame` on `AFGTutorialIntroManager` so it CAN be in a save, but `docs/adr/0016-unlock-arrays-carriers-and-serialized-grammar.md` records no carrier type path for it, so nothing knows which record class carries it and CS-1039 left it unread rather than invent a key
+
 
 ## CS-1012
 
@@ -244,6 +280,15 @@ Duration step as the only failing step in the job - runs 34791962600 at 493s, 34
 at 500s and 34830236951 at 511s. The fourth, 34776266752, is a real test failure and is
 not this item's.
 
+### Acceptance
+
+the 133 seconds are attributed to a named cause by measurement on the runner rather than locally, with an arm or a probe that reddens when that cause is present and a control that shows it absent, and the gate's ceiling is then set from the MEASURED spread with the evidence recorded - RAISING THE CEILING TO FIT THE CURRENT NUMBER IS FORBIDDEN HERE BY NAME, it is the CS-988 shape applied to a signal rather than a threshold, and a ceiling that is tuned whenever it fires measures nothing
+
+### Full headline
+
+tier 1's unit step cost 133 seconds more after CS-1009 than before it and the duration gate is now marginal rather than comfortable: the step went 316.16s over 5719 tests to 449.16s over 5740, the job total ran 493s against a 480s CEILING and a 420s budget, and a re-run of the IDENTICAL commit came in at 470s - AND THAT 20s FIGURE IS MEASURED FALSE, session 95: two same-tree rerun pairs read 222s and 23s apart, so the runner pool is TWO-CLASS rather than continuously noisy, and the repo's own feasibility arithmetic run on those numbers returns an EMPTY window - wall-clock gating is INFEASIBLE at this lane length rather than mis-tuned, which is a different item and it is CS-1060 - but the growth is NOT attributed and that is the finding rather than a caveat: it is spread evenly across tree-walking sweeps that have nothing to do with the change, `test_locals_rendering` 17.9s to 26.1s, the mypy-gate oracle 16.7s to 25.6s, `test_liveness` 15.8s to 24.6s, `test_toolpath` 8.6s to 11.9s, roughly plus 45 pct each, while the delta added about 85 KB to a multi-megabyte tree and the same suites measured LOCALLY at base and at head differ by under 12s in the noise - the WHOLE suite on this box is FLAT across the same delta - 411.54s at the base commit, 404.19s at the merged tip, both through the pre-push hook - so the 133s exists only on the runner and the first hypothesis to test is the environment rather than the tree, and CS-1009's own arms are 4.2s locally for the whole file and none reaches the CI slowest-15
+
+
 ## CS-1067
 
 ### NOTE - filed 2026-09-14 by the CS-302 verifier pass
@@ -266,6 +311,15 @@ private dataclass directly would exercise the fallback while proving nothing abo
 path a caller actually takes, which is the whole of what is missing. The shape needed is a
 selected recipe set whose balance rows carry two or more INDEPENDENT contradictions, so
 that striking any single row leaves another one standing.
+
+### Acceptance
+
+a test drives `solve_for_targets` to a refusal whose system makes `exact.isolating_rows` return empty and pins the item named, built from a synthetic registry and never from a hand-made `_System`, since the gap is precisely that the CALLER is not exercised
+
+### Full headline
+
+`ratio._name_unsatisfiable_item`'s no-single-row-isolates fallback is reachable and no test through the caller reaches it - a `trace` run over `tests/solve/test_ratio.py` puts ZERO hits on that return while the fast path takes two and the isolating branch four, so the item it names rests on reading the code
+
 
 ## CS-1069
 
@@ -313,6 +367,11 @@ whether any of them was a reader rather than a width.
 a grading apparatus that cannot see a reading it did not expect - one through a module
 boundary, one through a cache. Shipping either alone is a partial and is recorded as one.
 
+### Acceptance
+
+`_shared_reference_symbols` closes over what each pass CALLS rather than over one file plus a transcribed crossing, and `_run_ceiling_control`'s degraded reading cannot be served from the pristine one, proven by a mutant carrying a memo that reddens and by a same-file helper moved behind a call that reddens
+
+
 ## CS-1074
 
 ### NOTE - filed 2026-09-14 by the queue lane from the CS-870 verifier pass, MEASURED BEFORE FILING
@@ -348,6 +407,14 @@ left the first to the control it actually grades.
 running; what is wrong is the sentence, and an arm that reddens when the two claims are
 swapped is what the clause asks for.
 
+### Acceptance
+
+the assertion says which of the two it is, and either a reading the fixture does not supply grades the claim its message makes or the message claims only what a fixture teardown can prove, proven by an arm that reddens when the two are swapped
+
+### Full headline
+
+`test_struct_controls.py`'s revert assertion is only a net and its message presents as the grade, which is the wording CS-870 had to correct next door and the reason its own clause went ungraded for three sessions
+
 
 ## CS-1075
 
@@ -375,6 +442,15 @@ are wrong and the second is what gets a guard switched off.
 
 **THE CLOSE IS VISIBLE IN THE TABLE ITSELF.** An entry moving from a reason string to
 `GRADED` is what this row buys; rewording the reason is not.
+
+### Acceptance
+
+each of the three is resolved by a rule stated for it, with `:attr:` and `:meth:` resolved against the CLASS the role's context names rather than against any module-level binding, proven by a planted dead role per spelling that reddens and by the declared-reason entry for that spelling disappearing from `ROLE_DISPOSITIONS` rather than being reworded
+
+### Full headline
+
+`tests/sphinx_role_guard.py` grades three of the six Sphinx role spellings its corpus contains and DECLARES the other three rather than reading them, so every site spelled `:attr:`, `:meth:` or `:mod:` carries an identifier nothing resolves - the two classes differ in RESOLUTION and not in shape: `:attr:` and `:meth:` name a member of a class, which module-scope resolution cannot answer, and `:mod:` names a module rather than a symbol bound inside one
+
 
 ## CS-1076
 
@@ -405,6 +481,14 @@ a call site moves, which is the hand-list fault this project has measured repeat
 **DO NOT CLOSE THIS ON THE ZERO-OVERLAP MEASUREMENT.** That number was true when an
 adjudicator took it and says nothing about the next session. The clause asks for an arm.
 
+### Acceptance
+
+the disjointness is asserted rather than described, by a criterion that survives a real body being handed to the guarded set - a size floor is the honest shape, because a real body is a save's whole world and a synthetic fixture is a few hundred bytes - proven by an arm that reddens when a dynamic-case body is planted into the enumerated set
+
+### Full headline
+
+`tests/save/test_independent_table.py::_bodies_no_dynamic_case_may_reuse` enumerates only the bodies its own module builds, while `tests/save/test_struct_interior.py` and `tests/save/test_struct_controls.py` together call `independent_table.independent_records` at four sites in the same process - the residue was written before that module split and named only the first file, so a close that greps one of them covers half the population - an adjudicator MEASURED that all four hand over real decompressed save bodies and that the two sets have zero overlap, so no collision exists today and NOTHING ASSERTS EITHER FACT - the prose was narrowed to the module scope the guard measures when CS-871 was filed; the assertion was not written
+
 
 ## CS-1077
 
@@ -432,6 +516,14 @@ repair must keep it that way.
 **DO NOT CLOSE THIS BY DELETING THE SHORT CIRCUIT AND WIDENING THE FLOOR TO ABSORB THE NOISE.** A
 guard that reports correct prose is a guard somebody switches off, which is the finding
 `tests/test_docs_citations.py` records about itself in six numbered traps.
+
+### Acceptance
+
+the tail of a locally-headed dotted target is resolved against the module the head was bound from, an importable non-repository head resolves by attribute lookup rather than by file test, and both are proven by a planted dead tail under a bound head that reddens AND by the shipped corpus staying at zero findings
+
+### Full headline
+
+`tests/sphinx_role_guard.py::unresolved_roles` accepts a dotted role target whole as soon as its HEAD is a name the citing module binds, and never looks at the tail - so `objects._read_tag_header` resolves for any spelling after the dot, measured by a refutation pass that renamed all fourteen occurrences in `tests/save/test_byte_order_status.py` to a symbol bound nowhere and got an empty finding list while the unqualified control was reported - and this is the guard's OWN recommended repair shape turning off its own coverage, because qualifying an unresolved role with an imported head moves it from the checked path to the unchecked one - THE TWO HALVES SHIP TOGETHER OR NEITHER DOES: `dotted_target_resolves` answers False for a head with no file at the repository root, so `ast.parse` and `json.dumps` are resolved TODAY only by the short circuit this row removes, and removing it alone manufactures a finding on every correct stdlib-headed role
 
 
 ## CS-1078
@@ -477,3 +569,217 @@ drift_guard.reachable_from_index` is a spelling measure and reports a clean verd
 the wrong question the moment a name moves - the same reason CS-892's own arms were written
 behaviourally. `tests/test_memory_sync_link_derivation.py`'s module docstring records that
 choice and the reasoning behind it.
+
+### Acceptance
+
+the duplication extractor reads annotated assignments as well as plain ones, proven by a planted `Final`-annotated duplicate that reddens it, AND the walk is held by an arm that reddens on the verifier's exact mutant - a second walk that consumes the owner's derivation - with that mutant PLANTED rather than argued, and neither arm closes this by asserting a name, which is a spelling measure the CS-892 module docstring already rejects
+
+### Full headline
+
+the two arms that stop `tools/memory_sync.py` re-growing a copy of the link derivation each have a spelling they cannot see, MEASURED by the CS-892 verifier rather than argued: `test_no_regex_literal_is_declared_in_both_tools` walks `ast.Assign` alone, so `_X: Final = re.compile(...)` - an `ast.AnnAssign`, and the form this repo's own modules already prefer at `tests/surface/test_acceptance.py::_BACKTICKED` - declares a duplicate the extractor reports nothing about, and separately a `tools/memory_sync.py` that re-declares only the WALK while still calling the owner's `link_targets` survived all seven arms at `7 passed` exit 0, because CS-892's clause proves through a link shape taught to ONE copy of the DERIVATION and that mutant leaves exactly one derivation while being a genuine second copy of the walk
+
+
+## CS-1128
+
+### Acceptance
+
+the ceiling over `tests.test_bare_path_citations.NOT_A_CITATION_GUARD` is reachable by `tests.bare_path_guard.derived_bound_problems`, so spelling it `len(NOT_A_CITATION_GUARD)` is refused rather than silently permanent, proven by an arm that plants that spelling and gets exactly one finding naming the constant; the table is registered in `NOT_A_FORGIVENESS` and that registry is NOT the one `derived_bound_problems` reads, so a bare re-registration moves a claim about what the table forgives and must be argued rather than typed
+
+## CS-1001
+
+### Acceptance
+
+an arm asserts that the set of loaded module objects whose `__file__` resolves to `lanes.py` has exactly one member, derived by walking `sys.modules` rather than by naming the two private names, and reddens when a second object is introduced under any third name - NEVER a floor over the count
+
+### Full headline
+
+the CS-1000 repair's correctness rests entirely on there being exactly ONE `lanes` module object in a process, and NOTHING asserts that: `_OWNED` is written unconditionally on every successful acquire, which is what makes `release_lane`'s and `repoint_lane_pid`'s refusal paths unreachable, so the single-instance property is the load-bearing precondition for a guarantee held BY CONSTRUCTION rather than by a check - the moment a second object maps to `lanes.py` the deleted trigger returns and the lane silently stops looping again, which is exactly how this defect ran for two nights
+
+## CS-1002
+
+### Acceptance
+
+a refused release leaves no ownership entry and a refused repoint either updates state or is proven idempotent, with an arm per site driving the refusal directly rather than through a whole cycle
+
+### Full headline
+
+`ops/loop/lanes.py` keeps its ownership entry on a REFUSED release and changes no state on a REFUSED repoint: `release_lane` returns False at two sites without popping `_OWNED[key]`, and `repoint_lane_pid` returns False at three sites before writing `_OWNED`, so an identical refusal repeats every cycle forever rather than resolving - both are latent while exactly one lanes module exists, because the unconditional write on acquire deletes their trigger, so this item and CS-1001 are the two halves of one guarantee
+
+## CS-1003
+
+### Acceptance
+
+either the parents are bound so the statement form works, or an arm pins that no tracked module uses the statement form for these names, with the consumer population DERIVED by AST rather than grepped
+
+### Full headline
+
+`sys.modules.setdefault` publishes the by-path `lanes`, `lane_launcher` and `winmutex` modules under their canonical DOTTED names while neither `ops` nor `ops.loop` is in `sys.modules`, so a parentless child is bound: `import_module` and `from ops.loop import x` both resolve it, but the STATEMENT form `import ops.loop.lanes` now succeeds silently and then raises `AttributeError: module 'ops' has no attribute 'loop'` at an arbitrary later attribute access, converting a loud `ModuleNotFoundError` into a quiet one - measured unreachable today, all seven consumers using the `from` form and the driver never gaining the repo root, so this is a latent trap rather than a live regression
+
+## CS-1004
+
+### Acceptance
+
+the comparison is over the name-to-value MAPPING or a multiset rather than a set, and reddens on a duplicate-valued constant, proven by an arm that plants one
+
+### Full headline
+
+the launch-reason vocabulary is graded by SET equality, so a duplicate-VALUED `REASON_*` constant is invisible: binding a second name to an existing string leaves both enumerations equal as sets while the two names collapse to one reachable reason, and a reason that should exist but was never declared is invisible to both enumerations because they share one file as ground truth
+
+## CS-1006
+
+### Acceptance
+
+either the restore is made unable to overwrite a claim created after the grade, or the window is proven harmless by an arm that drives the interleaving at the seam rather than by argument, with a control on a separate root proving a reclaim of the record AS GRADED does still remove it - NEVER closed by a floor over a retry count, which is the CS-988 shape and is forbidden here by name after twelve measured instances plus seventeen from the phase-6 sweep
+
+### Full headline
+
+`ops/loop/claims.py`'s `_reclaim` still has a RESTORE window a filesystem cannot arbitrate: the unguarded unlink CS-991 was refuted for is replaced by a RENAME, which exactly one racer can win, and the carried bytes are compared against the ones that were GRADED so a racer whose record was already replaced cannot have a live claim carried away - but a record RESTORED after a failed reclaim can land on top of a claim created in that same moment, because no filesystem offers an atomic compare-and-swap - the sibling window between the rename and the caller's exclusive create is CORRECT by contrast, since the create then refuses the original caller and only one holder survives, so this item is the restore path ALONE - disclosed by the builder rather than found by a grader, recorded in `_reclaim`'s docstring, much narrower than what it replaced, and NOT MEASURED by anything
+
+## CS-1007
+
+### Acceptance
+
+the driver establishes, across the worker-cycle window it already polls, whether a foreign suite ran concurrently, and marks the cycle row unmeasurable when one did, with the observation DERIVED rather than declared and an arm that reddens when a concurrent run is present and the row still reads earned, plus a control proving the same arm passes when no foreign suite ran - NEVER a floor over an overlap count, which is the CS-988 shape and is forbidden here by name
+
+### Full headline
+
+the pre-push hook's xdist suite is outside every ration and cannot be brought inside one: the operator's frozen-file grant on `.githooks/pre-push` was recorded and left UNSPENT because no wait ceiling is both useful and non-hanging, and because the only working mechanics move a tier-0 gate's exit-code fidelity into a non-frozen module - both grounds are in `docs/LEDGER.md` under CS-993 and neither is to be re-litigated, nor is the `PYTEST_ADDOPTS` injection route, which fails open and silent - so the collision is not PREVENTABLE from this repo and the harm must instead be DETECTED: an unattended lane writing a green it did not earn
+
+## CS-1010
+
+### Acceptance
+
+lane liveness is decided by attempting to open the lock's recorded mutex name rather than by probing a pid, with the name DERIVED from the lane and the run id, proven by an arm where the holder dies and the lane reads free with no start time readable anywhere, and by a control where a live holder still reads RUNNING under the same unreadable start time - NEVER by a floor over a lock age, which is the CS-988 shape and is forbidden here by name
+
+### Full headline
+
+a lane lock proves its holder with a (pid, start time) pair, and both halves fail together: `lanes.proc_started` returns None when psutil is absent, which `pyproject.toml` declares optional, and ALSO when the live query raises `psutil.AccessDenied` for a driver running elevated or under a scheduled-task account - measured on this box with psutil present - so `holder_is_a_stranger` waves the case through by design and a lock left by a dead driver whose pid the system reissued reads RUNNING forever, wedging the lane and, since CS-1009 anchored a row's liveness on that lock, wedging every row that lock's cycle claimed - the adjudicator that ruled CS-1009 onto strict delegation named the escape from this as the only behaviour taking NEITHER the wedge nor the double-booking, and it is derivable rather than tuned: `ops/loop/winmutex.py` already holds a kernel named mutex, the operating system releases a dead holder's handle without being asked, and a reissued pid cannot fake one
+
+## CS-1063
+
+### Acceptance
+
+a guard grades every memory leaf's frontmatter and reddens on the leaf named above with that leaf unmodified, the arm covers a missing block AND a malformed one rather than only the first, and `tools/memory_sync.py` either names the guard that actually implements the check or stops naming one
+
+### Full headline
+
+`tools/memory_sync.py` prints FRONTMATTER PROBLEMS and then says they "do not change this exit code, because `tools/drift_guard.py` is the gate that fails on them", and that gate DOES NOT IMPLEMENT THE CHECK - the word frontmatter has zero hits in it and its eleven guards grade character set, the memory partition, doc topology, the port record, frozen files, dated sections, doc budgets, the version pin, work items, item notes and the tier 1 budget, none of them a leaf's opening block - measured 2026-09-14 with both tools exiting 0 on a tree where 1 of 21 memory leaves is invalid: `memory/full-authority-adjudicate-do-not-ask.md` opens with a heading and carries no `---` block at all, so a directive the repo calls binding on every session shape is unreachable to anything that reads leaves by frontmatter - THE INVALID LEAF IS LEFT IN PLACE DELIBERATELY as the reproduction, because repairing it first would hide the gap behind a clean report
+
+## CS-1092
+
+### Acceptance
+
+both floors are re-derived from a measured population minus a small stated margin rather than left at a historical value, and the new module carries a carrier-scoped floor of its own, each proven by a plant that empties the population it bounds and reddens the arm
+
+### Full headline
+
+`_SELF_SPELLED_FLOOR` in `tests/test_docs_citations.py` stayed at its filed value while CS-1066 halved the population it bounds, so the floor now carries enough slack that the arm would pass with most of its subject gone - the identical fault the same slice repaired at `_WALKED_MODULE_FLOOR`, left unrepaired one constant over - AND `tests/test_citation_tables.py` spells bare paths of its own with NO self-infliction arm scoped to it, so its sites are judged only by the pooled population floor, which is a threshold met by its strongest member
+
+## CS-1094
+
+### Acceptance
+
+each named spelling is either caught or DISCLOSED in the guard's own docstring as a stated bound of the mechanism, with an arm per caught spelling planted against the real source in both directions
+
+### Full headline
+
+`derived_bound_problems` in `tests/bare_path_guard.py` reports a bound computed from the table it bounds only for a module-scope `Assign` or `AnnAssign` whose value walk reaches an `ast.Name` or, since CS-1066, an `ast.Attribute` - so `getattr(tables, "X")`, `vars(tables)["X"]`, `tables.__dict__["X"]`, a tuple-unpack target, an `AugAssign`, and ANY assignment not at module scope all still evade it, each confirmed by a refutation pass to evade in the bare-name form too and so PRE-EXISTING rather than created by the split - the docstring discloses the one-hop helper residual and not these
+
+## CS-1070
+
+### Acceptance
+
+each of the two children's cost is measured on the RUNNER rather than locally, a bound is chosen from that measurement or the module is recorded as deliberately unchanged with the number that decided it, and any bound that ships is graded by an arm that reddens on `-n auto` and on an uncapped worker count - SEQUENCING, and it is a hard constraint rather than a preference: `tests/data/` sits in tier 1's CATCH-ALL shard, so landing this while CS-1060's three-reading series is being collected invalidates the series
+
+### Full headline
+
+`tests/data/test_phase2_gate.py` and `tests/save/test_workdir.py` each run a nested child pytest SERIALLY while their parent holds `-n auto`, the same shape that crossed the 300 second child timeout on tier 2's windows leg and was repaired for `tests/save/test_phase4_gate.py` by bounding the child at a measured four workers - neither of these two is measured by anyone, and `test_workdir.py`'s child runs ONE module at 1.21s serial so it may well deserve no change at all, which is the finding rather than a caveat: the repair is per-workload and a shape match is not a reason - NOTE `tests/solve/test_phase3_gate.py` shared this shape at 87s on the runner and needed NO repair, because the CS-302 trim cut the oracle its child re-ran and the gate fell out of the slowest-15 by itself
+
+## CS-1071
+
+### Acceptance
+
+one arm asserts the two readers return the SAME job-id set for the shipped workflow and reddens on a job declared in a shape only one of them parses, with the disagreeing shape PLANTED rather than argued, and the arm names which reader missed it rather than reporting a bare inequality
+
+### Full headline
+
+`.github/workflows/tier1.yml` is parsed by TWO independently hand-rolled readers that never check each other, and both of CS-1060's new guarantees rest on one of them: `every_parsed_job()` in `tests/test_tier1_budget.py` reads full structure and feeds every partition arm, while `declared_job_names()` in `tests/test_queue_loop_ci_specs.py` reads line shape - a job key at two spaces, then its `name:` at four - and feeds the reverse job-to-matcher coverage arm, so a job declared in a shape only ONE of them recognises is invisible to the other and the `{fast, save, guards}` control passes while the partition arm sees two shards - this is a COMMON-MODE risk named by an adjudicator over ea3591a, not a defect observed in the shipped tree, which currently declares all three jobs in a shape both readers accept
+
+## CS-1129
+
+### Acceptance
+
+every row form refuses a doubled space, a case change and a zero-padded number at EVERY token boundary, and an empty or inverted range is a problem, proven by plants generated per boundary rather than listed by hand and by each of the nine recorded loosenings reddening the file
+
+### Full headline
+
+the leaf membership rule grammar in `tools/drift_guard.py` is closed only at the positions its residue plants perturb: MEASURED 2026-09-17 by the CS-1079 re-adversary, nine in-memory loosenings in the MIDDLE of the older row forms (for example `ID BELOW\s+the`, `at\s+or above`, `Phase\s+`, `(?i:ID) in the`) each left `tests/data/test_item_notes_index.py` at 125 passed while accepting a row the pristine grammar refuses; a zero-padded phase number such as `Phase 05` still parses; and the parser accepts an empty or inverted range without a problem (`CS-0nn` block at or above CS-1000 gives low 1000, high 100)
+
+## CS-1119
+
+### Acceptance
+
+EITHER shape is read with every width taken from the bytes or from a shipped constant and never from `declared_end - terminator_end`, with the carrying classes DERIVED off the body rather than transcribed, proven by a skip-if-absent real-library test reporting COUNTS ONLY plus an arm that REFUSES the same bytes when the declared end is moved past what the prefixes describe; a partition of either shape that sums to the declared end closes by arithmetic, cannot fail, and is the defect that refuted CS-830 after it had merged
+
+### Full headline
+
+two trailing-run remainder shapes are left after CS-828's reference-pair reading and neither is derivable by that grammar: a four-byte all-zero residual that is BYTE-IDENTICAL to an empty item list, so no reading of the run can tell a class that carries an empty list from one that carries no list at all (the CS-1068 root cause, restated on the other side); and one class whose remainder is a large nested structure whose width nothing in the run describes
+
+## CS-1121
+
+### Acceptance
+
+a forgiveness answers IDENTIFIED citation sites rather than a cardinality, with each identity DERIVED from the doc rather than transcribed and never keyed on a line number, proven by an arm that reddens on a compensating swap - one forgiven site deleted and a brand-new dead citation of the same name added in the same edit - with an anti-vacuity control showing the arm stays silent when the swap is not made
+
+### Full headline
+
+the `Disposition` table `tests/test_citation_tables.py` owns keys each recorded forgiveness by a SITE COUNT, so it answers how many dead citations a record forgives and never which - the same fault CS-893 repaired in `tests/chained_exemption_guard.py`, inherited from this table as its cited precedent
+
+## CS-1123
+
+### Acceptance
+
+a file measuring EXACTLY `_MAX_TEST_FILE_BYTES` is graded, so the off-by-one in either direction is caught, proven by the `>=` mutant reddening and by an anti-vacuity control at the same sizes that stays green unmutated, and the sizes are taken from the constant rather than spelled
+
+### Full headline
+
+the CS-898 planting arm proves the tests-tree size ceiling CATCHES an oversize artifact and says nothing about WHERE the ceiling sits, so the boundary is unguarded - MEASURED 2026-09-16 by the CS-898 verifier, which planted `>` in `tests/data/test_phase2_gate.py::_oversized_over_the_ceiling` as `>=` and watched `test_the_size_ceiling_still_catches_a_planted_oversize_non_authored_artifact` stay GREEN at a planted size of 262163 bytes against an under-ceiling control of 34, while three other mutants of the same comparison all reddened
+
+## CS-1125
+
+### Acceptance
+
+the arm's mypy subprocess runs under an environment the arm CONTROLS rather than inherits, proven by an arm that stays green with `PYTHONPATH` set to the repo root and by a control showing the same arm still reddens when mypy genuinely stops filtering discovery; SUPPRESSING THE SYMPTOM IS FORBIDDEN HERE BY NAME - no xfail, no skipif, no version guard and no tolerance, each of which turns a working gate into one that reports PASS without checking
+
+### Full headline
+
+`tests/test_mypy_gate.py::test_exclude_filters_discovery_and_does_not_contain_errors` reports on the AMBIENT ENVIRONMENT rather than on its subject: it builds a throwaway project in `tmp_path` and runs mypy there, but mypy INHERITS `PYTHONPATH`, so an invocation carrying `PYTHONPATH=.` - which is how this lane and any developer runs the suite from the repo root without an editable install - changes mypy's module search path, the throwaway trunk module's import no longer resolves to the excluded leaf module beside it, and the arm's error-attribution assertion fails against an empty mapping while mypy reports `Success: no issues found in 1 source file` - MEASURED 2026-09-17 in the CS-930 cycle and isolated to one variable: the same arm at the same SHA passes with no `PYTHONPATH` and fails with `PYTHONPATH=.`, on both this worktree and a pristine `git archive HEAD` export, and a direct probe shows mypy 2.1.0 still filters DISCOVERY only, so the arm's recorded reasoning about `exclude` is intact and only its isolation is not - the cost is a FALSE RED that reads exactly like a real gate regression and cost one adjudication round this cycle
+
+## CS-1089
+
+### Acceptance
+
+the module is brought under 90 percent of that ceiling BY RELOCATION to a sibling under `tests/`, never by deleting an arm and never by raising the ceiling, with the collected-arm count asserted EQUAL before and after, and its row retired from the approach arm's baseline table in `tests/data/test_phase2_gate.py`, which reddens on a stale row
+
+## CS-1090
+
+### Acceptance
+
+the module is brought under 90 percent of that ceiling BY RELOCATION to a sibling under `tests/`, never by deleting an arm and never by raising the ceiling, with the collected-arm count asserted EQUAL before and after, and its row retired from the approach arm's baseline table in `tests/data/test_phase2_gate.py`, which reddens on a stale row
+
+## CS-1091
+
+### Acceptance
+
+the module is brought under 90 percent of that ceiling BY RELOCATION to a sibling under `tests/`, never by deleting an arm and never by raising the ceiling, with the collected-arm count asserted EQUAL before and after, and its row retired from the approach arm's baseline table in `tests/data/test_phase2_gate.py`, which reddens on a stale row
+
+## CS-1122
+
+### Acceptance
+
+a hand-authored IR describing the module map renders through a renderer written in Python in this tree to a committed static SVG/HTML diagram that uses a system font stack and carries no third-party marks, icons or fonts, with no Node anywhere in the build; ZERO BYTES are copied from archify, whose adoption was DECLINED as CS-1098 on the `CLAUDE.md` section 7 Node fence and on its output embedding MIT viewer code without notice plus an OFL font; and a CI drift arm, needing no network and no renderer outside this tree, reddens when the IR's module set stops matching the module map `docs/ARCHITECTURE.md` owns, proven by a planted rename that turns it red
+
+### Full headline
+
+our own Python renderer from a hand-authored architecture IR to a static SVG/HTML module diagram, the re-implementation the CS-1098 decline in `docs/LEDGER.md` filed in place of adopting archify
+

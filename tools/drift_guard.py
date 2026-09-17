@@ -3399,6 +3399,141 @@ def _roadmap_detail_lines(roadmap_text: str) -> list[tuple[str, str | None, str,
     return found
 
 
+# CS-971 - AN ITEM'S ACCEPTANCE HAS ONE OWNER. Either the whole clause sits on its
+# ROADMAP line, or the line carries the literal pointer and the whole clause sits
+# under exactly one acceptance heading in the item's section. A clause on the line
+# beside a heading in the section is two owners, and one of them is a truncation:
+# e63668b cut clauses part-way and changed what 91 items require. The field is
+# found by position - after the first acceptance separator, before the last tier
+# separator - so a clause holding its own spaced hyphens is read whole.
+_ROADMAP_ACCEPTANCE_SEPARATOR = " - acceptance: "
+_ROADMAP_TIER_SEPARATOR = " - tier: "
+ITEM_NOTES_ACCEPTANCE_POINTER = "in detail"
+ITEM_NOTES_ACCEPTANCE_HEADING = "### Acceptance"
+_ANY_MARKDOWN_HEADING = re.compile(r"^#{1,6} ")
+_ITEM_NOTES_ANY_SECTION_END = re.compile(r"(?m)^## ")
+
+
+def roadmap_acceptance_fields(roadmap_text: str) -> dict[str, tuple[str | None, bool]]:
+    """Return every ROADMAP item line's acceptance field and whether it is routed.
+
+    Args:
+        roadmap_text: ROADMAP.md's text.
+
+    Returns:
+        Item id mapped to (the acceptance field's text, or None when the line
+        carries no acceptance field, and whether its LAST field is a detail field).
+    """
+    found: dict[str, tuple[str | None, bool]] = {}
+    for line in roadmap_text.splitlines():
+        item = _ROADMAP_ITEM_LINE.match(line)
+        if item is None:
+            continue
+        routed = (
+            line.rstrip().rsplit(_ROADMAP_FIELD_SEPARATOR, 1)[-1].startswith(_ROADMAP_DETAIL_FIELD)
+        )
+        _head, separator, rest = line.partition(_ROADMAP_ACCEPTANCE_SEPARATOR)
+        clause, tier, _tail = rest.rpartition(_ROADMAP_TIER_SEPARATOR)
+        found[item.group(1)] = (clause if separator and tier else None, routed)
+    return found
+
+
+def item_notes_acceptance_texts(section: str) -> list[str]:
+    """Return the text under each acceptance heading in one section, stripped.
+
+    Args:
+        section: One section's text, from its ``## CS-nnn`` heading to the next.
+
+    Returns:
+        One entry per heading line that IS the acceptance heading, holding the
+        text between it and the next heading of any level.
+    """
+    texts: list[str] = []
+    lines = section.splitlines()
+    for index, line in enumerate(lines):
+        if line.rstrip() != ITEM_NOTES_ACCEPTANCE_HEADING:
+            continue
+        body: list[str] = []
+        for following in lines[index + 1 :]:
+            if _ANY_MARKDOWN_HEADING.match(following):
+                break
+            body.append(following)
+        texts.append("\n".join(body).strip())
+    return texts
+
+
+def item_notes_section_texts(root: Path, sections: dict[str, str]) -> dict[str, str]:
+    """Return each item's section text, read from the leaf that holds it.
+
+    Args:
+        root: The repository root under audit.
+        sections: Item id mapped to the repo-relative leaf holding its section.
+
+    Returns:
+        Item id mapped to its section text. A leaf that cannot be read is left
+        out here; its absence is already graded as an unread leaf.
+    """
+    texts: dict[str, str] = {}
+    leaves: dict[str, str] = {}
+    for item, relative in sections.items():
+        if relative not in leaves:
+            try:
+                leaves[relative] = (root / relative).read_text(encoding="utf-8", errors="replace")
+            except OSError:
+                continue
+        text = leaves[relative]
+        heading = re.search(rf"(?m)^## {re.escape(item)}[ \t]*$", text)
+        if heading is None:
+            continue
+        end = _ITEM_NOTES_ANY_SECTION_END.search(text, heading.end())
+        texts[item] = text[heading.start() : end.start() if end else len(text)]
+    return texts
+
+
+def item_notes_acceptance_problems(
+    fields: dict[str, tuple[str | None, bool]], section_texts: dict[str, str]
+) -> list[str]:
+    """Grade that every item's acceptance has exactly one owner.
+
+    Args:
+        fields: What ``roadmap_acceptance_fields`` returned.
+        section_texts: What ``item_notes_section_texts`` returned.
+
+    Returns:
+        One line per fault, under a header line; empty when every item is sound.
+    """
+    faults: list[str] = []
+    for item, (clause, routed) in fields.items():
+        texts = item_notes_acceptance_texts(section_texts.get(item, ""))
+        if clause is None or not clause.strip():
+            faults.append(f"  {item} carries neither an acceptance clause nor the pointer")
+        elif clause == ITEM_NOTES_ACCEPTANCE_POINTER:
+            if not routed:
+                faults.append(
+                    f"  {item} points at its section and its line carries no trailing detail field"
+                )
+            if len(texts) != 1:
+                faults.append(
+                    f"  {item} points at its section and it carries {len(texts)} "
+                    "acceptance headings"
+                )
+            elif not texts[0]:
+                faults.append(f"  {item} has an acceptance heading with no text under it")
+        elif texts:
+            faults.append(
+                f"  {item} carries an acceptance clause on its line AND an acceptance heading "
+                "in its section - two owners"
+            )
+    if not faults:
+        return []
+    return [
+        "acceptance ownership - the whole clause on the line, or the pointer "
+        f"`{ITEM_NOTES_ACCEPTANCE_POINTER}` there and one `{ITEM_NOTES_ACCEPTANCE_HEADING}` "
+        "in the section, never both:",
+        *faults,
+    ]
+
+
 def item_notes_domain(roadmap_text: str) -> dict[str, str | None]:
     """Return every ROADMAP item carrying a TRAILING detail field, with its phase.
 
@@ -4017,6 +4152,11 @@ def guard_index(root: Path) -> tuple[Guard, list[Skip]]:
         detail.append(
             f"detail: spellings on routed lines in {ITEM_NOTES_ROADMAP_RELATIVE}: {spellings}"
         )
+        acceptance = roadmap_acceptance_fields(roadmap_text)
+        pointers = sum(
+            1 for clause, _routed in acceptance.values() if clause == ITEM_NOTES_ACCEPTANCE_POINTER
+        )
+        detail.append(f"acceptance pointers on item lines: {pointers}")
 
     if not rows and not sections and not domain:
         skips.append(
@@ -4040,6 +4180,11 @@ def guard_index(root: Path) -> tuple[Guard, list[Skip]]:
         problems.extend(_item_notes_file_problems(index_text, rules, listed))
     if roadmap_text is not None:
         problems.extend(_item_notes_routing_problems(domain, fields, sections, unread))
+        problems.extend(
+            item_notes_acceptance_problems(
+                roadmap_acceptance_fields(roadmap_text), item_notes_section_texts(root, sections)
+            )
+        )
 
     if problems:
         return _guard("j", name, "FAIL", detail + problems), skips

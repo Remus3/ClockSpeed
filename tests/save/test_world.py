@@ -5156,8 +5156,9 @@ def test_the_three_measured_carriers_round_trip_into_the_unlock_state() -> None:
     unlock set indistinguishable from a world with nothing unlocked.
 
     THE PHASE IS ASSERTED AS AN ASSET PATH. ``UnlockState.current_game_phase``
-    was retyped off ``int | None`` for this, which ROADMAP.md's CS-913 line
-    independently requires; asserting an integer here would grade the defect.
+    was retyped off ``int | None`` for this, which CS-913's acceptance - owned by
+    that item's own item-notes section - independently requires; asserting an
+    integer here would grade the defect.
     """
     model = world.load_world_from_bytes(_carrier_blob(_carrier_records()))
     unlocks = model.unlocks
