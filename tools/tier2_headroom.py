@@ -30,8 +30,16 @@ repository owner, host labels and step detail; none of it is needed and none of 
 is kept. A row carrying any field not in :data:`RECORD_FIELDS` is an offence, so
 an extra field cannot ride into a tracked file by a later edit either.
 
-STALENESS IS THE STATED PRICE. The record is as recent as its last refresh. The
-suite cannot know a job slowed down since, and nothing here pretends otherwise.
+STALENESS IS THE STATED PRICE, AND NO OFFLINE CHECK OF IT IS SOUND. The record is
+as recent as its last refresh; the suite cannot know a job slowed down since.
+Tying the record to the last commit touching the workflow was examined and NOT
+built, for three reasons: CI checks out shallow, so that commit and the ancestry
+of a recorded head_sha are often absent; a run can only exist AFTER the workflow
+commit it ran is pushed, so every workflow edit would ship this guard red until a
+second commit refreshed the record; and wall-clock age is not deterministic. What
+IS checked offline covers the structural half of staleness: a job added, renamed
+or removed in the workflow is red against the record, and every timeout is read
+live from the workflow rather than from the record.
 """
 
 from __future__ import annotations
@@ -84,7 +92,10 @@ HEADROOM_DENOMINATOR = 5
 HEADROOM = Fraction(HEADROOM_NUMERATOR, HEADROOM_DENOMINATOR)
 
 # A job graded on one or two runs is graded on a sample that says nothing about
-# its spread, so fewer than this many recorded runs is itself an offence.
+# its spread, so fewer than this many SAMPLES is itself an offence. A sample is a
+# DISTINCT run id carrying a job that actually ran: not skipped, and taking more
+# than zero seconds. Counting rows let one run copied three times, or one real
+# run beside two skipped ones, satisfy the floor with a single measurement.
 MINIMUM_RUNS_PER_JOB = 3
 
 # How many completed tier2 runs a refresh records by default.
@@ -231,7 +242,7 @@ def _parse_stamp(value: object) -> datetime | None:
     return datetime.strptime(value, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=UTC)
 
 
-def _row_offence(index: int, entry: object) -> str | tuple[str, int, int]:
+def _row_offence(index: int, entry: object) -> str | tuple[str, int, int, str]:
     """Validate one record row and derive its duration.
 
     Args:
@@ -239,7 +250,7 @@ def _row_offence(index: int, entry: object) -> str | tuple[str, int, int]:
         entry: The row.
 
     Returns:
-        The offence, or (the job name, the run id, the derived seconds).
+        The offence, or (the job name, the run id, the derived seconds, the conclusion).
     """
     if not isinstance(entry, dict):
         return f"record row {index} is not a mapping"
@@ -276,7 +287,7 @@ def _row_offence(index: int, entry: object) -> str | tuple[str, int, int]:
     seconds = int((completed - started).total_seconds())
     if seconds < 0:
         return f"record row {index} ({job!r}) completes before it starts"
-    return str(job), int(run_id), seconds
+    return str(job), int(run_id), seconds, str(entry["conclusion"])
 
 
 def grade(record: object, workflow_text: str) -> list[str]:
@@ -301,13 +312,16 @@ def grade(record: object, workflow_text: str) -> list[str]:
 
     offences: list[str] = []
     durations: dict[str, list[tuple[int, int]]] = {}
+    samples: dict[str, set[int]] = {}
     for index, entry in enumerate(rows):
         verdict = _row_offence(index, entry)
         if isinstance(verdict, str):
             offences.append(verdict)
             continue
-        job, run_id, seconds = verdict
+        job, run_id, seconds, conclusion = verdict
         durations.setdefault(job, []).append((run_id, seconds))
+        if conclusion != "skipped" and seconds > 0:
+            samples.setdefault(job, set()).add(run_id)
 
     offences.extend(
         f"{job}: recorded, but {WORKFLOW_RELATIVE} declares no such job"
@@ -315,9 +329,10 @@ def grade(record: object, workflow_text: str) -> list[str]:
     )
     for job, timeout_minutes in sorted(timeouts.items()):
         runs = durations.get(job, [])
-        if len(runs) < MINIMUM_RUNS_PER_JOB:
+        distinct = len(samples.get(job, set()))
+        if distinct < MINIMUM_RUNS_PER_JOB:
             offences.append(
-                f"{job}: {len(runs)} recorded run(s), fewer than {MINIMUM_RUNS_PER_JOB}; "
+                f"{job}: {distinct} distinct run(s) that ran, fewer than {MINIMUM_RUNS_PER_JOB}; "
                 f"refresh with `python {Path(__file__).name} --refresh`"
             )
             continue

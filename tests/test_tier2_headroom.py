@@ -17,7 +17,8 @@ this suite before any run is cancelled, which is the whole point.
 
 WHAT IS NOT CLAIMED. The record is only as recent as its last refresh; nothing
 here can know a job slowed down since. That staleness is the price of an
-offline suite and is stated rather than hidden.
+offline suite and is stated rather than hidden; the tool's docstring records why
+no offline tie to the last workflow commit is sound.
 """
 
 from __future__ import annotations
@@ -281,6 +282,45 @@ def test_a_record_naming_a_job_the_workflow_does_not_declare_turns_the_guard_red
 def test_a_job_with_too_few_runs_turns_the_guard_red() -> None:
     document = record(runs=EXPECTED_MINIMUM_RUNS - 1)
     assert len(graded(document)) == len(JOBS)
+
+
+def test_one_run_copied_three_times_is_one_run_not_three() -> None:
+    """The floor counts DISTINCT run ids; duplicated rows add no sample."""
+    document = record()
+    audit_first = next(entry for entry in document["jobs"] if entry["job"] == "audit")
+    document["jobs"] = [entry for entry in document["jobs"] if entry["job"] != "audit"]
+    document["jobs"].extend(dict(audit_first) for _ in range(EXPECTED_MINIMUM_RUNS))
+    offences = graded(document)
+    assert len(offences) == 1, offences
+    assert "audit" in offences[0]
+
+
+@pytest.mark.parametrize(
+    ("conclusion", "seconds", "why"),
+    [
+        ("skipped", 5, "a skipped job that still took seconds"),
+        ("success", 0, "a zero-second job that reports success"),
+    ],
+)
+def test_a_row_that_did_not_run_does_not_count_toward_the_floor(
+    conclusion: str, seconds: int, why: str
+) -> None:
+    """Two real runs plus one row that did not run is two samples, below the floor.
+
+    ONE EXCLUSION PER PARAMETER, and that is the point: a single plant carrying
+    both a skipped row and a zero-second row stays red when EITHER exclusion is
+    deleted, so neither was graded on its own. Measured before this split.
+    """
+    document = record()
+    audit_rows = [entry for entry in document["jobs"] if entry["job"] == "audit"]
+    hollow = row("audit", audit_rows[2]["run_id"], seconds)
+    hollow["conclusion"] = conclusion
+    document["jobs"] = [entry for entry in document["jobs"] if entry["job"] != "audit"]
+    document["jobs"].extend([audit_rows[0], audit_rows[1], hollow])
+    offences = graded(document)
+    assert len(offences) == 1, f"{why} counted as a sample: {offences}"
+    assert len(offences) == 1, offences
+    assert "audit" in offences[0]
 
 
 def test_a_workflow_job_without_timeout_minutes_turns_the_guard_red() -> None:
