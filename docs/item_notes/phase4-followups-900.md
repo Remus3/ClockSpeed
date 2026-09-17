@@ -306,21 +306,6 @@ the LINE and this file owns the reasoning:
     NOTE the obvious fix edits the tracked settings file, which CLAUDE.md section 6 FREEZES, so it needs its own adjudicated grant and must not be taken as covered by the CS-935 grant, which expired on application
     tier: 1
 
-## CS-939
-
-### FILED 2026-09-07 (session 71)
-
-The line as first filed, relocated here intact because the ROADMAP owns
-the LINE and this file owns the reasoning:
-
-    CS-939
-    no test sweeps the TRACKED TREE for secrets, so a credential committed before the gate existed is never rescanned
-    `check_secrets` in `tools/precommit_gate.py` runs only over staged bytes or explicitly named files, which means it can only ever see what is changing now and is blind to what already landed
-    this is the class a sibling measured tonight in its own repo: a live token tracked from the initial commit for 133 days, invisible to every working-tree check because nothing ever re-read the tree
-    Clockspeed measured CLEAN on the equivalent sweep this session, but it was measured BY HAND and nothing re-measures it, so the answer is true for today and guarded for no day after
-    acceptance: a suite arm sweeps every tracked file and every reachable blob for the secret patterns the gate already owns, importing that detector rather than restating it, proven by a planted credential in a tracked file that reddens and a synthetic fixture that does not
-    tier: 2
-
 ## CS-941
 
 ### FILED 2026-09-07 (session 72), from a sibling's finding re-measured here
