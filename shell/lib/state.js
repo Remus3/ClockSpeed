@@ -272,6 +272,16 @@ function partialPathFor(directory) {
 const INSTANCE_TOKEN = crypto.randomBytes(6).toString("hex");
 let publishedSequence = 0;
 
+// What the state file looked like straight after this instance last published
+// it. A retry that finds the file replaced by THIS instance's own publish lets
+// the sequence decide and never consults a timestamp: MEASURED by the CS-1124
+// verifier, a newer stage whose mtime a stepped-back clock left earlier dropped
+// itself in favour of an older stage from the same instance. The timestamp
+// comparison is the fallback for a replacement from another instance only, and
+// it NARROWS that case rather than closing it - the same stepped clock can
+// still mislead it there, where no shared sequence exists to overrule it.
+const publishedIdentities = new Map();
+
 /** The generation of a stage this module instance made, or null for any other. */
 function sequenceOf(partialPath) {
   const name = path.basename(partialPath);
@@ -608,6 +618,11 @@ function commitPartial(dir, partialPath, options) {
     if (now === null || sameIdentity(now, before)) {
       return false;
     }
+    if (sequence !== null && sameIdentity(now, publishedIdentities.get(path.resolve(target)) || null)) {
+      // Replaced by this instance's own publish, which olderThanPublished has
+      // already ordered against this stage. No timestamp may overrule that.
+      return false;
+    }
     return stagedMtimeMs !== null && now.mtimeMs > stagedMtimeMs;
   };
 
@@ -626,6 +641,12 @@ function commitPartial(dir, partialPath, options) {
   if (sequence !== null && sequence > publishedSequence) {
     publishedSequence = sequence;
   }
+  // Keyed by directory target, so one instance saving to two directories
+  // cannot mistake one directory's publish for the other's. A replacement from
+  // another writer between the rename and this stat is recorded as ours; the
+  // cost is only that its timestamp is not consulted - last rename wins, which
+  // is where every check here falls back to.
+  publishedIdentities.set(path.resolve(target), identityOf(target));
   // Only once the payload is published. A sweep that ran first could delete a
   // stage this call is about to need.
   sweepStalePartials(directory);

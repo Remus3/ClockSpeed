@@ -1048,6 +1048,49 @@ test("a rename refused while an OLDER payload lands still publishes its own", ()
   assert.deepEqual(load(dir), WRITER_A);
 });
 
+test("an older stage this instance publishes during a newer stage's retry never drops the newer one", () => {
+  // MEASURED by the CS-1124 verifier: the newer stage B is backdated 5s, as a
+  // wall clock stepped back between the two stages would leave it, and the
+  // older stage A from the SAME module instance commits while B is refused. B
+  // then compared timestamps, found A's later, and dropped itself - so the
+  // older position won. Within one instance the sequence already orders the
+  // two, and a timestamp must not overrule it.
+  const dir = tempDir();
+  save(dir, GOOD);
+
+  const stagedA = writePartial(dir, WRITER_A);
+  const stagedB = writePartial(dir, WRITER_B);
+  const fiveSecondsAgo = (Date.now() - 5000) / 1000;
+  fs.utimesSync(stagedB, fiveSecondsAgo, fiveSecondsAgo);
+
+  let refusalsOfB = 0;
+  let publishedA = null;
+  const committedB = withRename((real, from, to) => {
+    if (from === stagedB && refusalsOfB < 2) {
+      refusalsOfB += 1;
+      if (refusalsOfB === 2) {
+        // The older stage commits through the real rename while B waits.
+        const fake = fs.renameSync;
+        fs.renameSync = real;
+        try {
+          publishedA = commitPartial(dir, stagedA);
+        } finally {
+          fs.renameSync = fake;
+        }
+      }
+      throw sharingViolation("EPERM");
+    }
+    return real(from, to);
+  }, () => commitPartial(dir, stagedB));
+
+  const refused = refusalsOfB;
+  assert.equal(refused, 2, `B was refused ${refused} times`);
+  assert.notEqual(publishedA, null, "the interleave never published the older stage, so it tested nothing");
+  assert.notEqual(committedB, null, "the newer stage was dropped in favour of an older one");
+  assert.deepEqual(load(dir), WRITER_B);
+  assert.deepEqual(partialsIn(dir), [], "a stage was left behind");
+});
+
 test("a published file stamped in the future never blocks later saves", () => {
   // The staleness check compares timestamps, so a wall clock stepped back after
   // a save leaves a state file that looks newer than every stage to come. That
