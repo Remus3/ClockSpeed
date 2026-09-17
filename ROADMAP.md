@@ -139,11 +139,13 @@ CS-1131 - guard (i) is blind to an id that exists in NO state - acceptance: in d
 CS-1132 - `docs/item_notes/phase4-followups-900.md` sits just under its item-notes leaf ceiling after CS-971 moved every acceptance clause into the leaves - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
 CS-1119 - two trailing-run remainder shapes are left after CS-828's reference-pair reading and neither is derivable by that grammar - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1121 - the `Disposition` table `tests/test_citation_tables.py` owns keys each recorded forgiveness by a SITE COUNT - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
-CS-1133 - `_oversized_over_the_ceiling` in `tests/data/test_phase2_gate.py` is closed only at its lower edge - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
-CS-1134 - no guard grades a live document's pointer into an item-notes leaf - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
 CS-1089 - `tests/save/test_struct_interior.py` sits above the approach band of the `_MAX_TEST_FILE_BYTES` ceiling in `tests/data/test_phase2_gate.py` - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
 CS-1090 - `tests/save/test_properties.py` sits above the approach band of the `_MAX_TEST_FILE_BYTES` ceiling in `tests/data/test_phase2_gate.py` - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
 CS-1091 - `tests/save/test_world.py` sits above the approach band of the `_MAX_TEST_FILE_BYTES` ceiling in `tests/data/test_phase2_gate.py` - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
+CS-1133 - the tier 1 fast shard's warn band is narrower than its own run-to-run jitter - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
+CS-1134 - the tier 1 jitter figure can UNDERSTATE by two routes the CS-917 verifier found after the candidate was frozen - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
+CS-1135 - `_oversized_over_the_ceiling` in `tests/data/test_phase2_gate.py` is closed only at its lower edge - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
+CS-1136 - no guard grades a live document's pointer into an item-notes leaf - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
 
 CS-962 - the dashboard is a SELF-DIAGNOSTIC rather than a player's tool: it renders its own health, its own route table, six world version scalars, five counts and the unmodelled-class list - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-976 - the four panel modules are classic scripts sharing ONE global with `app.js`, and three of them scope themselves - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`

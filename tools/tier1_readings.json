@@ -1,0 +1,358 @@
+{
+  "window": {
+    "oldest_sha": "d5a9c50b9693d4ade6402dd36e09f64e956bdec6",
+    "newest_sha": "e3169a64770a00fd4484452148a9ef66ac33cb7b",
+    "commits": 30
+  },
+  "commits": {
+    "29dd46bd15b52ad28701f5cf263f4d763af64beb": 11,
+    "437e66fcda3f54bde68f86848c7c06aa1373fbe5": 23,
+    "61dadc9584f492357d47790f2a8bd5d323d38f62": 22,
+    "7a3485e8b77f15581cb4c10165b881b2916eaf55": 9,
+    "85cfb226038a9011efa138f8cd1b9bebf076ea4a": 13,
+    "9d932675daaccc7eeb2f39854c67ff6eb567a68c": 3,
+    "afb195cbd0df778b542cf7ae16e93c87b429d92e": 10,
+    "d5a9c50b9693d4ade6402dd36e09f64e956bdec6": 0,
+    "e18b27a1230e4b0038e69acd8f9b2335154f945c": 8,
+    "e3169a64770a00fd4484452148a9ef66ac33cb7b": 30,
+    "fa175b9a1f973c56341a0cb2603b9b871dc2410e": 14
+  },
+  "jobs": [
+    {
+      "run_id": 35272139652,
+      "head_sha": "e3169a64770a00fd4484452148a9ef66ac33cb7b",
+      "job": "gates, lint, types, tests",
+      "conclusion": "success",
+      "started_at": "2026-09-17T20:39:40Z",
+      "completed_at": "2026-09-17T20:43:40Z"
+    },
+    {
+      "run_id": 35272139652,
+      "head_sha": "e3169a64770a00fd4484452148a9ef66ac33cb7b",
+      "job": "tests (guard shard)",
+      "conclusion": "success",
+      "started_at": "2026-09-17T20:39:39Z",
+      "completed_at": "2026-09-17T20:47:23Z"
+    },
+    {
+      "run_id": 35272139652,
+      "head_sha": "e3169a64770a00fd4484452148a9ef66ac33cb7b",
+      "job": "tests (save shard)",
+      "conclusion": "success",
+      "started_at": "2026-09-17T20:39:40Z",
+      "completed_at": "2026-09-17T20:42:30Z"
+    },
+    {
+      "run_id": 35270555822,
+      "head_sha": "437e66fcda3f54bde68f86848c7c06aa1373fbe5",
+      "job": "tests (guard shard)",
+      "conclusion": "success",
+      "started_at": "2026-09-17T20:23:57Z",
+      "completed_at": "2026-09-17T20:31:14Z"
+    },
+    {
+      "run_id": 35270555822,
+      "head_sha": "437e66fcda3f54bde68f86848c7c06aa1373fbe5",
+      "job": "tests (save shard)",
+      "conclusion": "success",
+      "started_at": "2026-09-17T20:23:56Z",
+      "completed_at": "2026-09-17T20:26:43Z"
+    },
+    {
+      "run_id": 35270555822,
+      "head_sha": "437e66fcda3f54bde68f86848c7c06aa1373fbe5",
+      "job": "gates, lint, types, tests",
+      "conclusion": "success",
+      "started_at": "2026-09-17T20:23:56Z",
+      "completed_at": "2026-09-17T20:30:05Z"
+    },
+    {
+      "run_id": 35270555676,
+      "head_sha": "fa175b9a1f973c56341a0cb2603b9b871dc2410e",
+      "job": "tests (save shard)",
+      "conclusion": "success",
+      "started_at": "2026-09-17T20:23:57Z",
+      "completed_at": "2026-09-17T20:26:09Z"
+    },
+    {
+      "run_id": 35270555676,
+      "head_sha": "fa175b9a1f973c56341a0cb2603b9b871dc2410e",
+      "job": "tests (guard shard)",
+      "conclusion": "success",
+      "started_at": "2026-09-17T20:23:56Z",
+      "completed_at": "2026-09-17T20:31:02Z"
+    },
+    {
+      "run_id": 35270555676,
+      "head_sha": "fa175b9a1f973c56341a0cb2603b9b871dc2410e",
+      "job": "gates, lint, types, tests",
+      "conclusion": "success",
+      "started_at": "2026-09-17T20:23:56Z",
+      "completed_at": "2026-09-17T20:28:43Z"
+    },
+    {
+      "run_id": 35268179519,
+      "head_sha": "61dadc9584f492357d47790f2a8bd5d323d38f62",
+      "job": "tests (guard shard)",
+      "conclusion": "success",
+      "started_at": "2026-09-17T20:00:11Z",
+      "completed_at": "2026-09-17T20:07:41Z"
+    },
+    {
+      "run_id": 35268179519,
+      "head_sha": "61dadc9584f492357d47790f2a8bd5d323d38f62",
+      "job": "gates, lint, types, tests",
+      "conclusion": "success",
+      "started_at": "2026-09-17T20:00:10Z",
+      "completed_at": "2026-09-17T20:07:00Z"
+    },
+    {
+      "run_id": 35268179519,
+      "head_sha": "61dadc9584f492357d47790f2a8bd5d323d38f62",
+      "job": "tests (save shard)",
+      "conclusion": "success",
+      "started_at": "2026-09-17T20:00:10Z",
+      "completed_at": "2026-09-17T20:03:07Z"
+    },
+    {
+      "run_id": 35268179263,
+      "head_sha": "85cfb226038a9011efa138f8cd1b9bebf076ea4a",
+      "job": "tests (save shard)",
+      "conclusion": "success",
+      "started_at": "2026-09-17T20:00:10Z",
+      "completed_at": "2026-09-17T20:02:50Z"
+    },
+    {
+      "run_id": 35268179263,
+      "head_sha": "85cfb226038a9011efa138f8cd1b9bebf076ea4a",
+      "job": "tests (guard shard)",
+      "conclusion": "success",
+      "started_at": "2026-09-17T20:00:12Z",
+      "completed_at": "2026-09-17T20:07:46Z"
+    },
+    {
+      "run_id": 35268179263,
+      "head_sha": "85cfb226038a9011efa138f8cd1b9bebf076ea4a",
+      "job": "gates, lint, types, tests",
+      "conclusion": "failure",
+      "started_at": "2026-09-17T20:00:11Z",
+      "completed_at": "2026-09-17T20:05:16Z"
+    },
+    {
+      "run_id": 35253588779,
+      "head_sha": "1e30696df029744fe101d828bcb25f4670b5ea9f",
+      "job": "tests (guard shard)",
+      "conclusion": "failure",
+      "started_at": "2026-09-17T17:34:43Z",
+      "completed_at": "2026-09-17T17:34:45Z"
+    },
+    {
+      "run_id": 35253588779,
+      "head_sha": "1e30696df029744fe101d828bcb25f4670b5ea9f",
+      "job": "tests (save shard)",
+      "conclusion": "failure",
+      "started_at": "2026-09-17T17:34:43Z",
+      "completed_at": "2026-09-17T17:34:45Z"
+    },
+    {
+      "run_id": 35253588779,
+      "head_sha": "1e30696df029744fe101d828bcb25f4670b5ea9f",
+      "job": "gates, lint, types, tests",
+      "conclusion": "failure",
+      "started_at": "2026-09-17T17:34:43Z",
+      "completed_at": "2026-09-17T17:34:45Z"
+    },
+    {
+      "run_id": 35248090200,
+      "head_sha": "4f6ca05d9f44711200b100d2826b5784bfc81beb",
+      "job": "tests (guard shard)",
+      "conclusion": "failure",
+      "started_at": "2026-09-17T16:41:00Z",
+      "completed_at": "2026-09-17T16:41:03Z"
+    },
+    {
+      "run_id": 35248090200,
+      "head_sha": "4f6ca05d9f44711200b100d2826b5784bfc81beb",
+      "job": "tests (save shard)",
+      "conclusion": "failure",
+      "started_at": "2026-09-17T16:41:00Z",
+      "completed_at": "2026-09-17T16:41:04Z"
+    },
+    {
+      "run_id": 35248090200,
+      "head_sha": "4f6ca05d9f44711200b100d2826b5784bfc81beb",
+      "job": "gates, lint, types, tests",
+      "conclusion": "failure",
+      "started_at": "2026-09-17T16:41:00Z",
+      "completed_at": "2026-09-17T16:41:03Z"
+    },
+    {
+      "run_id": 35248089510,
+      "head_sha": "99f5ea74fdfea99ab9ca9243b882b5c5e4889d49",
+      "job": "tests (save shard)",
+      "conclusion": "failure",
+      "started_at": "2026-09-17T16:40:59Z",
+      "completed_at": "2026-09-17T16:41:01Z"
+    },
+    {
+      "run_id": 35248089510,
+      "head_sha": "99f5ea74fdfea99ab9ca9243b882b5c5e4889d49",
+      "job": "gates, lint, types, tests",
+      "conclusion": "failure",
+      "started_at": "2026-09-17T16:40:59Z",
+      "completed_at": "2026-09-17T16:41:01Z"
+    },
+    {
+      "run_id": 35248089510,
+      "head_sha": "99f5ea74fdfea99ab9ca9243b882b5c5e4889d49",
+      "job": "tests (guard shard)",
+      "conclusion": "failure",
+      "started_at": "2026-09-17T16:40:59Z",
+      "completed_at": "2026-09-17T16:41:01Z"
+    },
+    {
+      "run_id": 35246148337,
+      "head_sha": "29dd46bd15b52ad28701f5cf263f4d763af64beb",
+      "job": "tests (guard shard)",
+      "conclusion": "failure",
+      "started_at": "2026-09-17T16:22:14Z",
+      "completed_at": "2026-09-17T16:29:42Z"
+    },
+    {
+      "run_id": 35246148337,
+      "head_sha": "29dd46bd15b52ad28701f5cf263f4d763af64beb",
+      "job": "gates, lint, types, tests",
+      "conclusion": "failure",
+      "started_at": "2026-09-17T16:22:14Z",
+      "completed_at": "2026-09-17T16:27:52Z"
+    },
+    {
+      "run_id": 35246148337,
+      "head_sha": "29dd46bd15b52ad28701f5cf263f4d763af64beb",
+      "job": "tests (save shard)",
+      "conclusion": "success",
+      "started_at": "2026-09-17T16:22:14Z",
+      "completed_at": "2026-09-17T16:25:00Z"
+    },
+    {
+      "run_id": 35244846167,
+      "head_sha": "afb195cbd0df778b542cf7ae16e93c87b429d92e",
+      "job": "tests (save shard)",
+      "conclusion": "success",
+      "started_at": "2026-09-17T16:09:46Z",
+      "completed_at": "2026-09-17T16:12:37Z"
+    },
+    {
+      "run_id": 35244846167,
+      "head_sha": "afb195cbd0df778b542cf7ae16e93c87b429d92e",
+      "job": "gates, lint, types, tests",
+      "conclusion": "success",
+      "started_at": "2026-09-17T16:09:46Z",
+      "completed_at": "2026-09-17T16:16:21Z"
+    },
+    {
+      "run_id": 35244846167,
+      "head_sha": "afb195cbd0df778b542cf7ae16e93c87b429d92e",
+      "job": "tests (guard shard)",
+      "conclusion": "failure",
+      "started_at": "2026-09-17T16:09:46Z",
+      "completed_at": "2026-09-17T16:17:22Z"
+    },
+    {
+      "run_id": 35244552453,
+      "head_sha": "7a3485e8b77f15581cb4c10165b881b2916eaf55",
+      "job": "tests (save shard)",
+      "conclusion": "success",
+      "started_at": "2026-09-17T16:06:53Z",
+      "completed_at": "2026-09-17T16:09:48Z"
+    },
+    {
+      "run_id": 35244552453,
+      "head_sha": "7a3485e8b77f15581cb4c10165b881b2916eaf55",
+      "job": "gates, lint, types, tests",
+      "conclusion": "success",
+      "started_at": "2026-09-17T16:06:53Z",
+      "completed_at": "2026-09-17T16:11:47Z"
+    },
+    {
+      "run_id": 35244552453,
+      "head_sha": "7a3485e8b77f15581cb4c10165b881b2916eaf55",
+      "job": "tests (guard shard)",
+      "conclusion": "success",
+      "started_at": "2026-09-17T16:06:53Z",
+      "completed_at": "2026-09-17T16:14:10Z"
+    },
+    {
+      "run_id": 35236987336,
+      "head_sha": "e18b27a1230e4b0038e69acd8f9b2335154f945c",
+      "job": "tests (save shard)",
+      "conclusion": "success",
+      "started_at": "2026-09-17T14:57:03Z",
+      "completed_at": "2026-09-17T14:59:57Z"
+    },
+    {
+      "run_id": 35236987336,
+      "head_sha": "e18b27a1230e4b0038e69acd8f9b2335154f945c",
+      "job": "gates, lint, types, tests",
+      "conclusion": "success",
+      "started_at": "2026-09-17T14:57:03Z",
+      "completed_at": "2026-09-17T15:03:27Z"
+    },
+    {
+      "run_id": 35236987336,
+      "head_sha": "e18b27a1230e4b0038e69acd8f9b2335154f945c",
+      "job": "tests (guard shard)",
+      "conclusion": "success",
+      "started_at": "2026-09-17T14:57:03Z",
+      "completed_at": "2026-09-17T15:04:29Z"
+    },
+    {
+      "run_id": 35235917044,
+      "head_sha": "9d932675daaccc7eeb2f39854c67ff6eb567a68c",
+      "job": "tests (save shard)",
+      "conclusion": "success",
+      "started_at": "2026-09-17T14:47:19Z",
+      "completed_at": "2026-09-17T14:50:04Z"
+    },
+    {
+      "run_id": 35235917044,
+      "head_sha": "9d932675daaccc7eeb2f39854c67ff6eb567a68c",
+      "job": "gates, lint, types, tests",
+      "conclusion": "success",
+      "started_at": "2026-09-17T14:47:17Z",
+      "completed_at": "2026-09-17T14:52:17Z"
+    },
+    {
+      "run_id": 35235917044,
+      "head_sha": "9d932675daaccc7eeb2f39854c67ff6eb567a68c",
+      "job": "tests (guard shard)",
+      "conclusion": "success",
+      "started_at": "2026-09-17T14:47:18Z",
+      "completed_at": "2026-09-17T14:54:29Z"
+    },
+    {
+      "run_id": 35228380607,
+      "head_sha": "d5a9c50b9693d4ade6402dd36e09f64e956bdec6",
+      "job": "tests (guard shard)",
+      "conclusion": "success",
+      "started_at": "2026-09-17T13:38:50Z",
+      "completed_at": "2026-09-17T13:46:20Z"
+    },
+    {
+      "run_id": 35228380607,
+      "head_sha": "d5a9c50b9693d4ade6402dd36e09f64e956bdec6",
+      "job": "tests (save shard)",
+      "conclusion": "success",
+      "started_at": "2026-09-17T13:38:50Z",
+      "completed_at": "2026-09-17T13:41:47Z"
+    },
+    {
+      "run_id": 35228380607,
+      "head_sha": "d5a9c50b9693d4ade6402dd36e09f64e956bdec6",
+      "job": "gates, lint, types, tests",
+      "conclusion": "success",
+      "started_at": "2026-09-17T13:38:50Z",
+      "completed_at": "2026-09-17T13:44:45Z"
+    }
+  ]
+}

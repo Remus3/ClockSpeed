@@ -75,6 +75,127 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-09-17 - CS-917 - MEASUREMENT RECORD. THE ITEM STAYS OPEN. The lane's growth per commit and its run-to-run jitter are measured; the ordering guarantee is unmet and filed as CS-1133
+
+**THE ITEM STAYS OPEN AND ITS ACCEPTANCE IS UNCHANGED.** This entry records a
+measurement, not a closure. What is met: the growth per commit is measured over a
+stated window, reported where a session sees it, and the noise figure is derived by
+a criterion that assumes no distribution.
+
+**TWO CONJUNCTS ARE OPEN, NOT ONE, AND THIS ENTRY'S FIRST DRAFT NAMED ONLY THE
+SECOND.** This item's verifier read the clause against the artifact and found the
+narrower reading wrong, so the correction is recorded here rather than left in a
+cycle report. (i) The band is not DERIVED FROM the figure - it is the value CS-1060
+left in the workflow, and the tool reads it rather than sizing it. (ii) The band is
+NARROWER than the figure for one of the three tier 1 jobs. CS-1133 owns BOTH, and its
+acceptance names both; the arithmetic filed with it shows that no choice of levels
+meets (ii) at today's readings.
+
+**AND "SURVIVES ITS OWN NEXT READING" IS A MECHANISM HERE, NOT YET AN OBSERVATION.**
+One record exists. `JITTER_RATCHET_SECONDS` is what makes a wider next reading RED;
+it is not evidence that the figure has already survived one. Saying otherwise would
+be the exact fault the block above this item's clause records - a band sized from a
+figure its own next reading falsified.
+
+**WHAT SHIPPED.** `tools/tier1_growth.py`, a tracked record at
+`tools/tier1_readings.json`, and `tests/test_tier1_growth.py`. Two modes, on the
+`tools/tier2_headroom.py` pattern: the default grades the record offline, and
+`--refresh` re-takes it from `gh` BY HAND and is the only path that touches the
+network. Per job the tool derives the duration from the recorded timestamps, the
+growth in seconds per commit as an exact rational least-squares slope over the
+recorded commit axis, the jitter, and the verdict against the warn band - which it
+reads from the parsed workflow, so no level is transcribed into the tool or the
+record. **CORRECTED BY THIS ITEM'S VERIFIER, which found the sentence above
+overstated in its first draft:** `tests/test_tier1_growth.py` DOES bind the shipped
+pair as its synthetic fixture's levels, deliberately and with the reason written
+beside it, and guard (k) is green over it only because no lane token sits inside
+that guard's window of those lines. The claim that holds is about the tool and the
+record; the tests carry the pair on purpose so a synthetic verdict reads across to
+the real one. `.claude/commands/drift-guard.md` runs the tool, which is the clause's
+"reported somewhere a session will see it".
+
+**THE ROOT CAUSE, AS THE ITEM STATED IT.** CS-896 watches the lane's duration.
+Nothing watched its movement, so the band between the budget and the ceiling was a
+number three re-derivations had each sized from a noise figure their own next
+reading falsified, and nothing in the tree could say whether a red was reachable
+without a warn.
+
+**THE CRITERION, AND WHY IT IS NOT A SPREAD.** The figure is the largest step
+between consecutive readings of one job, not the series range and not a tolerance
+bound. A range conflates growth with jitter; a bound assumes a distribution, and
+this project has measured a byte-identical population at two widely different
+durations and watched a normal bound move the WRONG way as its sample grew. A max
+step is an observed difference, which is what the clause demands over a
+heterogeneous pool.
+
+**THE DEFECT THE FIRST BUILD HAD, CAUGHT BY MEASUREMENT RATHER THAN BY REVIEW.**
+Sorting readings by `started_at` alone left the figure at the mercy of a stable
+sort: the record carries two runs of one job starting in the SAME SECOND - a batched
+push - and the two tiebreaks gave figures 28 seconds apart. Both were below the
+first draft's stated ratchet and one was above the second. The shipped rule groups
+readings sharing a `started_at` and takes the widest step available under any
+ordering of the group, so the figure is deterministic and never understates.
+`test_two_readings_starting_in_the_same_second_do_not_let_a_sort_pick_the_figure`
+holds it, asserting the same figure over both orderings.
+
+**THE SIBLING SWEEP, AND WHY IT IS EMPTY WITH A REASON RATHER THAN UNSEARCHED.**
+The root cause is a threshold pair whose gap nothing grades against the unobserved
+movement of the thing it measures. Tier 2 has no such pair - CS-1124 grades each job
+against a fraction of its own timeout, with no warn band to cover - and
+`tools/doc_budget.py`'s warn and hard levels measure authored file sizes, where a
+crossing is made by an edit rather than by machine noise, so nothing can jump the
+gap unobserved. No third instance exists in the tree.
+
+**TESTS BY NAME.** `tests/test_tier1_growth.py`, 46 arms. The load-bearing ones:
+`test_the_shipped_record_grades_clean_against_the_shipped_workflow`;
+`test_the_ordering_verdict_over_the_shipped_record_equals_the_pinned_set` and
+`test_a_pinned_unmet_set_that_no_longer_matches_is_an_offence_in_both_directions`,
+which are the two-way ratchet;
+`test_two_readings_starting_in_the_same_second_do_not_let_a_sort_pick_the_figure`;
+`test_a_wide_series_range_with_small_steps_is_not_noise` and
+`test_the_figure_is_an_observed_step_and_not_a_bound_from_a_fitted_spread`, which
+hold the criterion against the two figures it replaces;
+`test_the_band_is_read_from_the_workflow_rather_than_transcribed`;
+`test_a_failed_job_is_not_a_reading`;
+`test_the_recorded_commit_distances_agree_with_this_repository`, skip-if-absent,
+which is the anti-transcription arm over the recorded commit axis; and
+`test_a_jitter_past_the_stated_ratchet_turns_the_guard_red` with its control one
+second under.
+
+**TIER 2 PAID.** A new tool, a new tracked record and a new suite arm.
+
+**WHAT THIS WORKER OBSERVED THIS RUN, and every figure is from this run rather than
+carried forward.** `python -m pytest tests -q -m "not slow" -n auto`, written to a file
+and read back: "8797 passed, 5 skipped, 8 warnings in 610.50s (0:10:10)", exit 0. Each skip
+names its own platform reason in the log. `python -m ruff check .`: All checks passed. `python -m ruff
+format --check .`: 263 files already formatted. `python -m mypy`: Success, no issues
+found in 263 source files. `python tools/drift_guard.py`: CLEAN, 11 guards, PASS 11.
+`python tools/doc_budget.py`: PASS. `python tools/tier1_growth.py`: exit 0, with the
+fast shard reported as BAND NARROWER THAN JITTER, which is the unmet half above.
+
+**GUARD (k) REFUSED THE FIRST DRAFT OF THE TESTS AND WAS RIGHT TO.** Two lines
+stated a tier 1 duration outside the workflow - one building a fixture by writing the
+ceiling's declaration out, one in a prose sentence. Both were rewritten rather than
+exempted: the fixture strips the level BY KEY through the tool's own constant, and the
+sentence no longer carries a figure.
+
+**CI IS RECORDED BY THE DRIVER AND WAS NOT OBSERVED BY THIS WORKER.**
+
+**FILED THIS CYCLE.** CS-1133 - the remainder, now naming BOTH open conjuncts, with
+the feasibility arithmetic. CS-1134 - two routes by which the shipped jitter figure
+could understate, found by this item's verifier AFTER the candidate was frozen and
+filed rather than repaired, because a repair landed during a verdict is one that
+verdict cannot discharge. Neither is live on the shipped record.
+
+**THE VERIFIER'S VERDICT.** CONFIRMED WITH CORRECTIONS on all three claims this
+cycle made, by an agent that did not produce the work, against the frozen candidate.
+It re-ran every gate above and re-derived every count; it brute-forced the
+concurrency rule over seven hand cases and four thousand randomised series and found
+no understatement and no order-dependence; it exercised the two-way ratchet in both
+directions; it re-derived all eleven commit distances against git; and it recomputed
+CS-1133's feasibility window independently and found it empty. Its two corrections
+are recorded above, in this entry, rather than left in a cycle report.
+
 ### 2026-09-17 - CS-1123 - CLOSED. The tests-tree size ceiling is graded AT the ceiling, so an off-by-one in either direction reddens
 
 **WHAT CHANGED.** `tests/data/test_phase2_gate.py` proved only that the tests-tree size ceiling
@@ -109,7 +230,10 @@ BAND (`M < size < 4 * M`), so an artifact far above the ceiling escapes silently
 report line from `path.name` instead of the path relative to the root, so the nested-path contract is
 ungraded; and filtering the tree listing that feeds the real guard, whose input no arm supplies. Each
 is killed by a concrete value, so all three are surviving mutants rather than equivalent ones. Filed
-as their own row rather than widened into this one.
+as CS-1135 rather than widened into this one - filed as CS-1133 and RENUMBERED before this
+record landed, because the `queue` lane allocated CS-1133 and CS-1134 for its own CS-917 rows
+from the same next-free scan within the same hour. An id is permanent and never reused, so the
+writer whose row reached `origin/main` first keeps the number.
 
 Verification: `python -m pytest tests/data/test_phase2_gate.py -q` is green (51 arms); then plant
 `>=` for `>` in `_oversized_over_the_ceiling`, clear every `__pycache__`, and re-run - the new
