@@ -126,25 +126,34 @@ _NON_MATCHING_EXCLUDE = r"(^|/)no_such_leaf\.py$"
 # Source files that project's discovery finds when the exclude filters nothing.
 _UNFILTERED_SOURCE_COUNT = 2
 
-# Variables planted in the pytest process to prove the exclusion arm does not
-# report on its ambient environment (CS-1125): (id, variable, value token).
-# Measured on this toolchain, every one but the absolute repository root breaks
-# the arm when mypy inherits it. "." is the literal `PYTHONPATH=.` and resolves
-# against mypy's working directory, the throwaway project, not the repo root.
-_AMBIENT_PLANTS = (
-    ("pythonpath_dot", "PYTHONPATH", "."),
-    ("pythonpath_repo_root", "PYTHONPATH", "<repo_root>"),
-    ("pythonpath_project_root", "PYTHONPATH", "<project_root>"),
-    ("pythonpath_source_root", "PYTHONPATH", "<source_root>"),
-    ("force_color", "FORCE_COLOR", "1"),
-    ("pythonioencoding_utf16", "PYTHONIOENCODING", "utf-16"),
+# Hazards planted in the pytest process to prove the exclusion arm does not
+# report on its ambient environment (CS-1125): (id, variables, value tokens).
+# Every one but the absolute repository root breaks the arm when mypy inherits
+# it, and each hazard is COMPLETE on both Windows and POSIX - it names every
+# variable its mechanism needs, so it is not live on one platform only:
+#   PYTHONPATH: mypy builds its search path from its child interpreter's
+#     sys.path on every platform. "." is the literal `PYTHONPATH=.` and resolves
+#     against mypy's working directory, the throwaway project, not the repo root.
+#   FORCE_COLOR plus TERM: FORCE_COLOR only bypasses mypy's isatty check. On
+#     Windows it then emits VT100 escapes unconditionally; on POSIX it calls
+#     curses.setupterm(), which fails with no TERM - measured on ubuntu CI,
+#     where the run then stayed plain. `xterm` is in ncurses-base and carries
+#     every capability mypy asks for (bold, smul, setaf, cup, sgr0).
+#   PYTHONIOENCODING=utf-16: the child's stdout encoding on every platform.
+_AMBIENT_PLANTS: tuple[tuple[str, tuple[tuple[str, str], ...]], ...] = (
+    ("pythonpath_dot", (("PYTHONPATH", "."),)),
+    ("pythonpath_repo_root", (("PYTHONPATH", "<repo_root>"),)),
+    ("pythonpath_project_root", (("PYTHONPATH", "<project_root>"),)),
+    ("pythonpath_source_root", (("PYTHONPATH", "<source_root>"),)),
+    ("force_color", (("FORCE_COLOR", "1"), ("TERM", "xterm"))),
+    ("pythonioencoding_utf16", (("PYTHONIOENCODING", "utf-16"),)),
 )
 _HARMLESS_PLANTS = frozenset({"pythonpath_repo_root"})
-_AMBIENT_PARAMS = [pytest.param(name, token, id=plant) for plant, name, token in _AMBIENT_PLANTS]
+_AMBIENT_PARAMS = [pytest.param(dict(plant), id=name) for name, plant in _AMBIENT_PLANTS]
 _LIVE_AMBIENT_PARAMS = [
-    pytest.param(name, token, id=plant)
-    for plant, name, token in _AMBIENT_PLANTS
-    if plant not in _HARMLESS_PLANTS
+    pytest.param(dict(plant), id=name)
+    for name, plant in _AMBIENT_PLANTS
+    if name not in _HARMLESS_PLANTS
 ]
 
 
@@ -1154,23 +1163,24 @@ def _assert_exclude_filters_discovery_only(result: subprocess.CompletedProcess[s
     )
 
 
-def _plant_value(token: str, project: Path) -> str:
-    """Resolve a planted-variable token to the value planted.
+def _resolve_plant(plant: Mapping[str, str], project: Path) -> dict[str, str]:
+    """Resolve a hazard's value tokens to the values planted.
 
     Args:
-        token: A value from ``_AMBIENT_PLANTS``. Path tokens are resolved here
-            because the throwaway project only exists per test; any other token
-            is planted literally.
+        plant: Variables to value tokens, from ``_AMBIENT_PLANTS``. Path tokens
+            are resolved here because the throwaway project only exists per
+            test; any other token is planted literally.
         project: The throwaway project root.
 
     Returns:
-        The value to plant in the pytest process's own environment.
+        Variables to the values to plant.
     """
-    return {
+    paths = {
         "<repo_root>": str(REPO_ROOT),
         "<project_root>": str(project),
         "<source_root>": str(project / "src"),
-    }.get(token, token)
+    }
+    return {name: paths.get(token, token) for name, token in plant.items()}
 
 
 def _run_exclusion_arm(
@@ -1214,9 +1224,9 @@ def test_exclude_filters_discovery_and_does_not_contain_errors(tmp_path: Path) -
 
 
 @pytest.mark.slow
-@pytest.mark.parametrize(("variable", "token"), _AMBIENT_PARAMS)
+@pytest.mark.parametrize("plant", _AMBIENT_PARAMS)
 def test_the_exclusion_arm_does_not_report_on_the_ambient_environment(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, variable: str, token: str
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, plant: dict[str, str]
 ) -> None:
     # CS-1125. The arm above once INHERITED its environment: run as
     # `PYTHONPATH=.`, mypy put the throwaway project on its search path,
@@ -1227,17 +1237,17 @@ def test_the_exclusion_arm_does_not_report_on_the_ambient_environment(
     # MSYS mangles a POSIX path in env.
     project = tmp_path / "throwaway"
     config = _build_exclusion_project(project)
-    value = _plant_value(token, project)
-    monkeypatch.setenv(variable, value)
-    assert os.environ.get(variable) == value, f"the ambient {variable} was never planted"
+    for variable, value in _resolve_plant(plant, project).items():
+        monkeypatch.setenv(variable, value)
+        assert os.environ.get(variable) == value, f"the ambient {variable} was never planted"
 
     _run_exclusion_arm(project, config, tmp_path / "cache")
 
 
 @pytest.mark.slow
-@pytest.mark.parametrize(("variable", "token"), _AMBIENT_PARAMS)
+@pytest.mark.parametrize("plant", _AMBIENT_PARAMS)
 def test_the_exclusion_arm_reddens_when_discovery_stops_filtering(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, variable: str, token: str
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, plant: dict[str, str]
 ) -> None:
     # THE CONTROL. Controlling the environment must not have made the arm blind:
     # with an `exclude` that matches nothing, discovery genuinely stops
@@ -1248,7 +1258,8 @@ def test_the_exclusion_arm_reddens_when_discovery_stops_filtering(
     written = config.read_text(encoding="utf-8")
     assert _NON_MATCHING_EXCLUDE in written, f"the mutated exclude never landed:\n{written}"
     assert _LEAF_EXCLUDE not in written, f"the original exclude survived:\n{written}"
-    monkeypatch.setenv(variable, _plant_value(token, project))
+    for variable, value in _resolve_plant(plant, project).items():
+        monkeypatch.setenv(variable, value)
 
     result = _run_mypy(config=config, cache=tmp_path / "cache", cwd=project)
 
@@ -1260,9 +1271,9 @@ def test_the_exclusion_arm_reddens_when_discovery_stops_filtering(
 
 
 @pytest.mark.slow
-@pytest.mark.parametrize(("variable", "token"), _LIVE_AMBIENT_PARAMS)
+@pytest.mark.parametrize("plant", _LIVE_AMBIENT_PARAMS)
 def test_each_planted_variable_really_breaks_the_exclusion_arm(
-    tmp_path: Path, variable: str, token: str
+    tmp_path: Path, plant: dict[str, str]
 ) -> None:
     # ANTI-VACUITY for the ambient arm. A planted value mypy happens to ignore
     # would keep that arm green without controlling anything, so each variable
@@ -1270,13 +1281,15 @@ def test_each_planted_variable_really_breaks_the_exclusion_arm(
     # the environment is the controlled one, so the planted variable is the
     # only difference between the green run and the red one - an inherited
     # environment carrying some OTHER hazard cannot satisfy this arm for it.
-    # An absolute repository root is absent on purpose: measured harmless.
+    # An absolute repository root is absent on purpose: measured harmless. No
+    # platform is excused: a hazard live on only one platform is an incomplete
+    # plant, and ubuntu CI caught exactly that for FORCE_COLOR without TERM.
     project = tmp_path / "throwaway"
     config = _build_exclusion_project(project)
 
     _run_exclusion_arm(project, config, tmp_path / "clean_cache", env=_controlled_environment())
 
-    planted = {**_controlled_environment(), variable: _plant_value(token, project)}
+    planted = {**_controlled_environment(), **_resolve_plant(plant, project)}
     with pytest.raises((AssertionError, UnicodeDecodeError)):
         _run_exclusion_arm(project, config, tmp_path / "planted_cache", env=planted)
 
