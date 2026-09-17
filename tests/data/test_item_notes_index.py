@@ -1019,7 +1019,8 @@ def _parse_one(holds: str) -> tuple[list, list[str]]:
         f"{drift_guard.ITEM_NOTES_RULE_HEADING}\n\n| Leaf | Holds |\n|---|---|\n"
         f"| `docs/item_notes/phase5.md` | {holds} |\n"
     )
-    return drift_guard.item_notes_rule_rows(text)
+    parsed: tuple[list, list[str]] = drift_guard.item_notes_rule_rows(text)
+    return parsed
 
 
 @pytest.mark.parametrize("clause", [c for c, _ in _ID_CLAUSES])
