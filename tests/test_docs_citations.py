@@ -224,6 +224,7 @@ import hashlib
 import re
 import string
 import subprocess
+from collections import Counter
 from collections.abc import Iterable, Mapping, Sequence
 from pathlib import Path
 from typing import Final
@@ -278,6 +279,7 @@ from tests.bare_path_guard import (
     derived_bound_problems,
     floor_problems,
     graded_floor_names,
+    markdown_anchor,
     module_containers,
     module_patterns,
     non_citation_budget_problems,
@@ -772,42 +774,161 @@ def citation_sites(text: str, cited: str) -> int:
 
     Returns:
         The number of occurrences, counted with the same pattern the owning arm
-        judges by, so the count cannot disagree with what the arm sees.
+        judges by, so the count cannot disagree with what the arm sees. A VIEW
+        over :func:`citation_site_offsets` since CS-1121 - the length of what
+        that returns, never a second traversal that could answer differently.
+    """
+    return len(citation_site_offsets(text, cited))
+
+
+def citation_site_offsets(text: str, cited: str) -> list[int]:
+    """WHERE each judged spelling of one citation begins in ``text``.
+
+    THE OWNER OF THE THREE SHAPES, from which both the count and the identity
+    are derived. Keeping one traversal is not tidiness: the count is what the
+    forgiveness table was keyed on until CS-1121 and the identity is what it is
+    keyed on now, and two traversals would let the table's key and the table's
+    audit disagree about the same doc.
+
+    Args:
+        text: The scoped doc text - the same text the arm reads.
+        cited: A full ``path.py::name`` key, a :func:`line_key` pointer key, or
+            a bare identifier key.
+
+    Returns:
+        Ascending character offsets into ``text``, one per judged spelling.
     """
     if "::" in cited:
         path, _, name = cited.partition("::")
-        return sum(1 for found in CITATION_RE.findall(text) if found == (path, name))
+        return [
+            match.start()
+            for match in CITATION_RE.finditer(text)
+            if match.group(1, 2) == (path, name)
+        ]
     pointer = LINE_POINTER_RE.fullmatch(cited)
     if pointer:
         want = (pointer.group(1), pointer.group(2))
-        return sum(1 for found in LINE_POINTER_RE.findall(text) if found == want)
-    return judged_bare_names(text).count(cited)
+        return [
+            match.start() for match in LINE_POINTER_RE.finditer(text) if match.group(1, 2) == want
+        ]
+    return [offset for offset, name in judged_bare_hits(text) if name == cited]
+
+
+def citation_site_anchors(text: str, cited: str) -> tuple[str, ...]:
+    """The heading each judged spelling of ``cited`` sits under, ascending.
+
+    THE READABLE HALF of the identity :data:`tables.DISPOSITIONS` records. The
+    table stores the digest; a failure report renders this, so a mismatch names
+    the entry a human has to go and read rather than twelve hex characters.
+
+    Args:
+        text: The scoped doc text.
+        cited: The disposition key.
+
+    Returns:
+        One heading per site, sorted, duplicates kept.
+    """
+    return tuple(
+        sorted(
+            markdown_anchor(text, text.count(NEWLINE, 0, offset) + 1)
+            for offset in citation_site_offsets(text, cited)
+        )
+    )
+
+
+def citation_site_identities(text: str, cited: str) -> tuple[str, ...]:
+    """WHICH sites of ``cited`` this doc spells, as the identity CS-1121 keys on.
+
+    AN IDENTITY, NOT A CARDINALITY, and that is the whole item. A count is
+    satisfied by ANY set of the same size, so a COMPENSATING SWAP is silent:
+    delete the one adjudicated site and add a brand-new dead citation of the
+    same name in the same edit, and the cardinality never moves while an
+    unadjudicated citation rides under a forgiveness written about a different
+    one. Measured before the repair, on a live ledger entry, by
+    ``test_a_compensating_swap_that_keeps_the_site_count_is_reported``. CS-893
+    repaired the identical fault in ``tests/chained_exemption_guard.py``,
+    whose cited precedent was this very table.
+
+    THE IDENTITY IS THE ENCLOSING HEADING AND NEVER A LINE NUMBER. The ledger
+    is append-only newest-first, so prepending one entry moves every site below
+    it and rewrites nothing under any heading - a line-keyed table would churn
+    on an edit that changed none of what it records. It is the same derivation
+    :attr:`tests.bare_path_guard.BarePathSite.identity` already keys on, reused
+    rather than reinvented.
+
+    A DIGEST RATHER THAN THE HEADING ITSELF, for the reason
+    :data:`tables.UNVERIFIED_LINE_POINTERS` already pays. SEVEN of the live
+    headings spell a bare repo-relative path - three of them naming a FROZEN
+    file, and one naming the very file another entry here cites BY LINE. A
+    table storing them verbatim would seed bare-path sites inside the guard
+    that judges bare paths, which is the fault :func:`line_key` exists to
+    avoid arriving by a third door. :func:`landing_digest` is reused rather
+    than a second hash being written.
+
+    THE COUNT REMAINS RECOVERABLE, which is what keeps the older direction
+    honest: duplicates are kept, so a site arriving with no deletion lengthens
+    the tuple exactly as it used to raise the count.
+
+    WHAT AN ANCHOR CANNOT SEE, disclosed rather than discovered later: two
+    spellings under the SAME heading are two equal identities, so a swap wholly
+    inside one heading is invisible to this. ONE live entry is in that position
+    and ``test_the_one_entry_whose_sites_collapse_to_a_single_anchor_is_named``
+    pins which, in both directions, so the residual cannot quietly grow.
+
+    Args:
+        text: The scoped doc text.
+        cited: The disposition key.
+
+    Returns:
+        One digest per site, sorted, duplicates kept.
+    """
+    return tuple(sorted(landing_digest(anchor) for anchor in citation_site_anchors(text, cited)))
 
 
 def disposition_site_problems(
     texts: Mapping[str, str],
     dispositions: Mapping[tuple[str, str], Disposition],
 ) -> list[str]:
-    """Every recorded disposition whose site count no longer matches its doc.
+    """Every recorded disposition whose IDENTIFIED sites no longer match its doc.
+
+    KEYED ON WHICH, NOT ON HOW MANY, since CS-1121. The predecessor compared
+    cardinalities, which any set of the same size satisfies, so a compensating
+    swap in one edit - one forgiven site deleted, a brand-new dead citation of
+    the same name added - passed in silence with an unadjudicated citation
+    riding under the old forgiveness. Comparing the identity MULTISET reports
+    both halves of that swap: the deleted site as a forgiveness answering
+    nothing, and the arrival as a site nothing forgives.
 
     Args:
         texts: Guarded doc path to its scoped text.
         dispositions: The recorded answers.
 
     Returns:
-        One line per entry whose recorded multiplicity has drifted. MORE sites
-        than recorded is a NEW dead citation arriving under an old forgiveness;
-        FEWER is a record that has outgrown what it answers. Both are the table
-        drifting from the corpus, and the table is only worth what it is
-        checked against.
+        One line per entry whose recorded sites have drifted, in either
+        direction. A site the doc spells that the record does not name is a NEW
+        dead citation arriving under an old forgiveness; a site the record
+        names that the doc no longer spells is a record that has outgrown what
+        it answers. Both are the table drifting from the corpus, and the table
+        is only worth what it is checked against.
     """
     problems: list[str] = []
     for (doc, cited), recorded in sorted(dispositions.items()):
-        found = citation_sites(texts.get(doc, ""), cited)
-        if found != recorded.sites:
-            problems.append(
-                f"{doc} :: {cited} - forgives {recorded.sites} site(s), the doc spells it {found}"
-            )
+        text = texts.get(doc, "")
+        found = citation_site_identities(text, cited)
+        if found == recorded.at:
+            continue
+        # Rendered from the LIVE doc rather than from the record, so the report
+        # names headings a reader can go and open. The record's own side is
+        # digests by construction - see citation_site_identities.
+        anchors = citation_site_anchors(text, cited)
+        arrived = Counter(found) - Counter(recorded.at)
+        departed = Counter(recorded.at) - Counter(found)
+        problems.append(
+            f"{doc} :: {cited} - forgives {len(recorded.at)} identified site(s),"
+            f" the doc spells {len(found)}:"
+            f" {sum(arrived.values())} unforgiven, {sum(departed.values())} unspelled."
+            f" Live sites: {list(anchors)}"
+        )
     return problems
 
 
@@ -1306,10 +1427,46 @@ def judged_bare_names(text: str) -> list[str]:
     Returns:
         The matched identifiers, source order preserved, duplicates included.
     """
-    stripped = CITATION_RE.sub(" ", text)
+    return [name for _offset, name in judged_bare_hits(text)]
+
+
+def judged_bare_hits(text: str) -> list[tuple[int, str]]:
+    """:func:`judged_bare_names`, keeping the offset each match was found at.
+
+    THE OWNER OF THE RULE, and :func:`judged_bare_names` is a VIEW over it
+    rather than a second traversal. CS-1121 needed WHERE each judged spelling
+    sits, not merely how many there are, and the first prototype of that
+    re-implemented the blanking and the two patterns in the module that holds
+    the table. Measured, that copy was wrong on one of nine live keys - it
+    reported three sites where this rule reports one. A second code path
+    computing the same thing is the drift this module spends its whole length
+    refusing; so the offsets are exposed here, beside the patterns, and nothing
+    else reads them.
+
+    BLANKED LENGTH-FOR-LENGTH RATHER THAN TO ONE SPACE, and that is the whole
+    reason this is not a pure extraction. A full citation collapsed to a single
+    space shortens the text, so every offset after it points at the wrong
+    character and any line derived from it names the wrong line. Spaces do not
+    contain a newline and neither does :data:`CITATION_RE`, so the substitution
+    preserves both the length and the line structure of the text it reads.
+    THE JUDGED POPULATION IS UNCHANGED BY IT: both patterns refuse a name
+    preceded by ``:``, ``.`` or a word character, and one space and several are
+    the same character to that lookbehind. Measured across all 57 carriers
+    before the change was kept, not reasoned about - the names this returns
+    compared equal on every one of them.
+
+    Args:
+        text: The scoped doc text.
+
+    Returns:
+        ``(offset, identifier)`` per match, ascending by offset, duplicates
+        included. The offset indexes ``text`` itself, which is what makes it
+        usable for a line - see the blanking note above.
+    """
+    stripped = CITATION_RE.sub(lambda match: " " * len(match.group(0)), text)
     found = [(match.start(), match.group(1)) for match in BARE_RE.finditer(stripped)]
     found += [(match.start(), match.group(1)) for match in ELIDED_RE.finditer(stripped)]
-    return [name for _offset, name in sorted(found)]
+    return sorted(found)
 
 
 def bare_name_problems(
@@ -1768,10 +1925,38 @@ def test_every_recorded_disposition_is_still_in_use(
     )
 
 
+#: The forgiveness CS-1121's proving arm swaps under. ASSEMBLED FROM HALVES
+#: rather than spelled, for :func:`line_key`'s reason - a full ``path::name``
+#: written as one literal in this module is a real, resolvable citation sitting
+#: inside the guard that judges citations. The two halves never sit adjacent in
+#: the source, so no pattern reads them as one.
+#:
+#: PINNED RATHER THAN PICKED AT RUNTIME. An arm that selected "any single-site
+#: entry" would keep passing while quietly changing what it tested, and the
+#: entry it landed on could become the collapsed one below - where the swap is
+#: silent BY CONSTRUCTION and the arm would then be asserting the opposite of
+#: what it reads as. The arm re-derives this entry's sites and asserts there is
+#: exactly one before it swaps anything.
+_SWAP_VICTIM: Final = (
+    bare_path("tests", "save", "test_properties.py")
+    + "::"
+    + "test_every_library_reaching_module_in_the_package_is_declared"
+)
+
+#: What the deleted half of the swap leaves behind. Carries no separator and no
+#: ``test_`` prefix, so nothing reads the hole as a citation of its own.
+_REDACTED_SITE: Final = "REDACTED-FORMER-SITE"
+
+#: The one live entry whose sites share a single heading, so the anchor cannot
+#: tell them apart. A bare key, spelled whole because a bare name is not a
+#: citation shape in Python source - only the ``path::name`` adjacency is.
+_COLLAPSED_ENTRY: Final = "test_the_header_scan_advertises_no_bound_it_cannot_enforce"
+
+
 def test_every_recorded_disposition_covers_exactly_the_sites_it_records(
     line_pointer_carriers: Mapping[str, str],
 ) -> None:
-    """A forgiveness is granted per SITE, not per name, and the count says how many.
+    """A forgiveness is granted per SITE, not per name, and it names WHICH sites.
 
     The table's keys are ``(doc, name)``, so without this a single adjudicated
     dead citation buys silence for every later citation of the same name in the
@@ -1780,11 +1965,17 @@ def test_every_recorded_disposition_covers_exactly_the_sites_it_records(
     on all three. A dead pointer written today is a defect whatever was
     adjudicated about the same name a year ago.
 
+    A COUNT ANSWERED THAT AND ONLY THAT, which is CS-1121. It says how many
+    sites a record forgives and never which, so any set of the same size
+    satisfies it and a COMPENSATING SWAP in one edit is silent. The key is an
+    identity multiset now; the sibling arm below performs the swap on this very
+    table and asserts it reddens.
+
     A LINE NUMBER WOULD HAVE BEEN THE OBVIOUS KEY AND IS THE WRONG ONE. The
     ledger is append-only newest-first, so prepending one entry moves every
     site below it - the same rot that makes trap 3 decline to judge a
-    ``file:line`` pointer into that file. A count moves only when the prose
-    that spells the citation moves.
+    ``file:line`` pointer into that file. The heading a site sits under moves
+    only when the prose that spells the citation moves.
     """
     texts = disposition_texts(line_pointer_carriers)
 
@@ -1794,44 +1985,198 @@ def test_every_recorded_disposition_covers_exactly_the_sites_it_records(
         "DISPOSITIONS no longer matches the docs it forgives:\n"
         + "\n".join(f"  {problem}" for problem in problems)
         + "\nA site that appeared since the record was written is a NEW citation."
-        " Adjudicate it, then update the count."
+        " Adjudicate it, then record the site it sits at."
+    )
+
+
+def test_a_compensating_swap_that_keeps_the_site_count_is_reported(
+    line_pointer_carriers: Mapping[str, str],
+) -> None:
+    """CS-1121'S PROVING ARM, ON THE LIVE TABLE RATHER THAN A FIXTURE.
+
+    THE SWAP IS ONE EDIT WITH TWO HALVES: the single adjudicated site of a real
+    forgiveness is deleted, and a brand-new dead citation of the SAME name is
+    added under a new entry. The cardinality never moves, which is asserted
+    below rather than assumed - so this is a statement about the KEY and not
+    about the size of the edit. Measured against the predecessor before the
+    repair: ``disposition_site_problems`` returned ``[]`` on exactly this edit.
+
+    BOTH HALVES MUST BE REPORTED, because an arm that only noticed the arrival
+    would pass a swap that merely moved a site. The report names the arrived
+    and the departed separately, and both are asserted non-zero.
+    """
+    texts = dict(disposition_texts(line_pointer_carriers))
+    victim = _SWAP_VICTIM
+    original = texts[LEDGER]
+    recorded = tables.DISPOSITIONS[(LEDGER, victim)]
+    before = citation_site_identities(original, victim)
+    assert before == recorded.at, (
+        f"the swap subject's record does not match the live doc, so {victim} cannot"
+        f" evidence anything: recorded {recorded.at}, derived {before}"
+    )
+    assert len(before) == 1, (
+        f"the swap subject must be a SINGLE-site forgiveness or the deletion below is"
+        f" ambiguous, and {victim} spells {len(before)}"
+    )
+
+    swapped = original.replace(victim, _REDACTED_SITE, 1)
+    swapped += f"\n### CS-0000 - an entry nobody adjudicated\n\n- Verification: `{victim}`.\n"
+    after = citation_site_identities(swapped, victim)
+    assert len(after) == len(before), (
+        "the swap did not balance, so a count-keyed table would have caught it and"
+        f" this arm proves nothing about the identity: {before} -> {after}"
+    )
+
+    problems = disposition_site_problems({**texts, LEDGER: swapped}, tables.DISPOSITIONS)
+
+    reported = [problem for problem in problems if victim in problem]
+    assert len(reported) == 1, f"the compensating swap went unreported: {problems}"
+    assert "1 unforgiven, 1 unspelled" in reported[0], (
+        f"both halves of the swap must be named, not just its size: {reported[0]}"
+    )
+
+
+def test_the_same_table_and_corpus_without_the_swap_are_silent(
+    line_pointer_carriers: Mapping[str, str],
+) -> None:
+    """THE ANTI-VACUITY CONTROL FOR THE ARM ABOVE, and it is not ceremony.
+
+    An anti-vacuity guard has INVERTED an arm in this repository before - on a
+    colliding fixture it made the pristine tree red and the mutated one green,
+    so the "repair" would have shipped the defect. The two directions are
+    therefore asserted separately: the unswapped corpus is silent about the
+    swap subject, and the swapped one is not. A red here means the arm above
+    reddens on something other than the swap and says nothing about the key.
+    """
+    texts = disposition_texts(line_pointer_carriers)
+
+    problems = disposition_site_problems(texts, tables.DISPOSITIONS)
+
+    assert [problem for problem in problems if _SWAP_VICTIM in problem] == [], (
+        "the unswapped corpus already reports the swap subject, so the sibling arm's"
+        f" red is not evidence about the compensating swap: {problems}"
+    )
+
+
+def test_the_one_entry_whose_sites_collapse_to_a_single_anchor_is_named(
+    line_pointer_carriers: Mapping[str, str],
+) -> None:
+    """THE DISCLOSED RESIDUAL OF THE ANCHOR IDENTITY, pinned in both directions.
+
+    Two spellings of one citation under the SAME heading are two EQUAL
+    identities, so a compensating swap wholly inside one heading is invisible -
+    at that entry the table is still keyed on a cardinality. Exactly one live
+    entry is in that position. It is named here rather than left to be
+    rediscovered, and the pin fails in both directions: a second entry joining
+    the collapsed set fails, and this one leaving it fails too.
+
+    THE FENCE IS THE POINT. The residual is not repaired by widening the
+    identity - a line number is the only thing that separates two sites under
+    one heading, and CS-889 owns why this table declines to key on one.
+    """
+    texts = disposition_texts(line_pointer_carriers)
+
+    collapsed = sorted(
+        cited
+        for (doc, cited), recorded in tables.DISPOSITIONS.items()
+        if len(set(citation_site_identities(texts.get(doc, ""), cited))) != len(recorded.at)
+    )
+
+    assert collapsed == [_COLLAPSED_ENTRY], (
+        "the set of entries whose sites share one anchor has moved. At such an entry"
+        " a swap inside the heading is silent, so the membership is pinned:"
+        f" {collapsed}"
+    )
+
+
+def test_every_recorded_site_is_one_the_count_arm_also_sees(
+    line_pointer_carriers: Mapping[str, str],
+) -> None:
+    """The identity and the count cannot disagree, because ONE traversal answers both.
+
+    STRUCTURAL TODAY AND ASSERTED ANYWAY, which is worth saying plainly rather
+    than letting this read as a discovery. :func:`citation_sites` is the LENGTH
+    of :func:`citation_site_offsets` and every identity is derived from one of
+    those offsets, so the two cannot differ while that holds.
+
+    WHAT IT BUYS IS THE MOMENT IT STOPS HOLDING, and that is not hypothetical.
+    The first prototype of CS-1121 re-implemented the bare rule in the module
+    that owns the table, because the offsets were not exposed; measured against
+    the owning rule, that copy reported THREE sites where this one reports one,
+    on a live key. A second traversal is the drift, and an arm that fails the
+    instant one reappears is cheaper than rediscovering it.
+
+    GRADED PER ENTRY, NOT POOLED. A summed total is met by its strongest
+    member, so every disagreement is collected by name.
+    """
+    texts = disposition_texts(line_pointer_carriers)
+
+    disagreed = sorted(
+        f"{doc} :: {cited}"
+        for (doc, cited), recorded in tables.DISPOSITIONS.items()
+        if len(citation_site_identities(texts.get(doc, ""), cited))
+        != citation_sites(texts.get(doc, ""), cited)
+    )
+
+    assert disagreed == [], (
+        "the identity derivation and the count arm read different populations, so"
+        " the table's key and the table's audit disagree about the same doc:\n"
+        + "\n".join(f"  {entry}" for entry in disagreed)
     )
 
 
 def test_a_second_site_for_a_forgiven_citation_is_reported() -> None:
-    """The control, in both spellings, so the count is not a decorative field."""
-    bare = ("ROADMAP.md", "test_a_name_that_is_not_bound")
-    full = ("ROADMAP.md", "tests/synthetic/test_planted.py::test_a_name_that_is_not_there")
+    """The control, in both spellings, so the key is not a decorative field.
+
+    THE SECOND SITE SITS UNDER A DIFFERENT HEADING, which is what makes this a
+    statement about the identity rather than about the size. The record answers
+    the first heading; the arrival under the second is reported as UNFORGIVEN
+    while the first stays spelled, so the report distinguishes an addition from
+    a move. A cardinality could not tell those apart.
+    """
+    bare_cited = "test_a_name_that_is_not_bound"
+    full_cited = bare_path("tests", "synthetic", "test_planted.py") + "::" + "test_a_name_thats_out"
+    first = f'## The adjudicated entry\n\ngrep -c "{bare_cited}" x\nsee `{full_cited}`\n'
+    second = f"\n## A later entry nobody adjudicated\n\n{first.partition(NEWLINE * 2)[2]}"
+    once = {"ROADMAP.md": first}
+    twice = {"ROADMAP.md": first + second}
     one_of_each = {
-        bare: Disposition(DELIBERATE, "", "cited to prove it is dead", 1),
-        full: Disposition(NO_TARGET, "", "no test bears this meaning", 1),
+        ("ROADMAP.md", bare_cited): Disposition(
+            DELIBERATE, "", "cited to prove it is dead", citation_site_identities(first, bare_cited)
+        ),
+        ("ROADMAP.md", full_cited): Disposition(
+            NO_TARGET, "", "no test bears this meaning", citation_site_identities(first, full_cited)
+        ),
     }
-    once = {
-        "ROADMAP.md": 'grep -c "test_a_name_that_is_not_bound" x\n'
-        "see `tests/synthetic/test_planted.py::test_a_name_that_is_not_there`\n"
-    }
-    twice = {"ROADMAP.md": once["ROADMAP.md"] * 2}
 
     assert disposition_site_problems(once, one_of_each) == [], (
-        "the recorded count did not match a doc spelling each citation once, so "
-        "the report below proves nothing about a SECOND site"
+        "the record did not match a doc spelling each citation once, so the report"
+        " below proves nothing about a SECOND site"
     )
     reported = disposition_site_problems(twice, one_of_each)
-    assert [line.rpartition(" - ")[2] for line in reported] == [
-        "forgives 1 site(s), the doc spells it 2",
-        "forgives 1 site(s), the doc spells it 2",
-    ], f"a second site went unreported in one spelling: {reported}"
+    # Bound to a scalar before asserting: pytest renders the asserted expression
+    # past the message, and the reports carry the heading text.
+    arrivals = [line for line in reported if "1 unforgiven, 0 unspelled" in line]
+    both_named_an_arrival = len(arrivals) == len(reported) == len(one_of_each)
+    assert both_named_an_arrival, (
+        f"a second site went unreported, or was reported as a move: {reported}"
+    )
 
 
 def test_a_disposition_for_a_citation_that_has_vanished_is_reported() -> None:
     """The other direction: a record that outlived what it answered."""
-    key = ("ROADMAP.md", "test_a_name_that_is_not_bound")
-    table = {key: Disposition(DELIBERATE, "", "cited to prove it is dead", 1)}
+    cited = "test_a_name_that_is_not_bound"
+    spelled = f'## An entry\n\ngrep -c "{cited}" x\n'
+    table = {
+        ("ROADMAP.md", cited): Disposition(
+            DELIBERATE, "", "cited to prove it is dead", citation_site_identities(spelled, cited)
+        )
+    }
 
     problems = disposition_site_problems({"ROADMAP.md": "no pointer here at all\n"}, table)
 
     assert len(problems) == 1, "a record forgiving a citation nothing spells was accepted"
-    assert "the doc spells it 0" in problems[0]
+    assert "0 unforgiven, 1 unspelled" in problems[0], problems[0]
 
 
 def test_every_correctable_disposition_names_a_target_and_the_others_do_not() -> None:
@@ -1849,9 +2194,13 @@ def test_every_correctable_disposition_names_a_target_and_the_others_do_not() ->
                 f"{doc}::{cited} is {recorded.kind} and must name no target"
             )
         assert recorded.why.strip(), f"{doc}::{cited} records no evidence"
-        assert recorded.sites >= 1, (
-            f"{doc}::{cited} forgives {recorded.sites} sites, so it answers nothing"
-            " that is written - delete it, or record the count it covers"
+        assert recorded.at, (
+            f"{doc}::{cited} names no site, so it answers nothing that is written"
+            " - delete it, or record the sites it covers"
+        )
+        assert all(identity.strip() for identity in recorded.at), (
+            f"{doc}::{cited} records an empty identity, which matches a site sitting"
+            " under no heading at all and is never what an adjudication meant"
         )
 
 
@@ -2135,7 +2484,7 @@ def test_a_disposition_keyed_on_the_bare_name_also_forgives_the_elided_site() ->
         "The entry below spends `::test_a_name_that_is_not_bound`.\n"
     )
     key = ("ROADMAP.md", "test_a_name_that_is_not_bound")
-    table = {key: Disposition(DELIBERATE, "", "cited to prove it is dead", 2)}
+    table = {key: Disposition(DELIBERATE, "", "cited to prove it is dead", ())}
 
     assert bare_name_problems("ROADMAP.md", text, [], [], table) == []
     assert len(bare_name_problems("ROADMAP.md", text, [], [], {})) == 1, (
@@ -2463,7 +2812,7 @@ _REDIRECT_KEY: Final = (
 def test_a_disposition_whose_target_resolves_forgives_the_citation() -> None:
     table = {
         _REDIRECT_KEY: Disposition(
-            MOVED, "tests/synthetic/test_planted.py::test_a_real_one", "the target is live", 1
+            MOVED, "tests/synthetic/test_planted.py::test_a_real_one", "the target is live", ()
         )
     }
 
@@ -2474,7 +2823,7 @@ def test_a_disposition_whose_target_stopped_resolving_is_reported() -> None:
     """The mutant that survived until this test was written."""
     table = {
         _REDIRECT_KEY: Disposition(
-            MOVED, "tests/synthetic/test_planted.py::test_gone_now", "the target rotted", 1
+            MOVED, "tests/synthetic/test_planted.py::test_gone_now", "the target rotted", ()
         )
     }
 
@@ -2487,7 +2836,7 @@ def test_a_disposition_whose_target_stopped_resolving_is_reported() -> None:
 def test_a_disposition_whose_target_file_vanished_is_reported() -> None:
     table = {
         _REDIRECT_KEY: Disposition(
-            MOVED, "tests/synthetic/test_deleted.py::test_a_real_one", "the file is gone", 1
+            MOVED, "tests/synthetic/test_deleted.py::test_a_real_one", "the file is gone", ()
         )
     }
 
@@ -2499,8 +2848,8 @@ def test_a_bare_disposition_whose_target_stopped_resolving_is_reported() -> None
     text = 'Verification: `grep -c "test_a_name_that_is_not_bound" x.py`\n'
     key = ("ROADMAP.md", "test_a_name_that_is_not_bound")
 
-    live = {key: Disposition(RENAMED, "tests/x.py::test_a_real_one", "live", 1)}
-    rotted = {key: Disposition(RENAMED, "tests/x.py::test_gone_now", "rotted", 1)}
+    live = {key: Disposition(RENAMED, "tests/x.py::test_a_real_one", "live", ())}
+    rotted = {key: Disposition(RENAMED, "tests/x.py::test_gone_now", "rotted", ())}
 
     assert bare_name_problems("ROADMAP.md", text, ["test_a_real_one"], [], live) == []
     assert len(bare_name_problems("ROADMAP.md", text, ["test_a_real_one"], [], rotted)) == 1
@@ -2513,7 +2862,7 @@ def test_a_no_target_disposition_forgives_without_naming_anything() -> None:
     empty target, which would resolve to nothing and report a defect on a
     citation that was deliberately left unassigned.
     """
-    table = {_REDIRECT_KEY: Disposition(NO_TARGET, "", "no test bears this meaning", 1)}
+    table = {_REDIRECT_KEY: Disposition(NO_TARGET, "", "no test bears this meaning", ())}
 
     assert unresolved_citations("ROADMAP.md", _REDIRECT_TEXT, _CORPUS, table) == []
 
@@ -2687,7 +3036,9 @@ def test_a_grandfathered_pointer_is_forgiven_by_the_forbid_leg_and_not_by_the_ot
 
 def test_a_recorded_redirect_whose_target_resolves_forgives_the_pointer() -> None:
     key = ("ROADMAP.md", line_key(_SYNTHETIC_MODULE, 5))
-    table = {key: Disposition(MOVED, f"{_SYNTHETIC_MODULE}::_live_target", "the target is live", 1)}
+    table = {
+        key: Disposition(MOVED, f"{_SYNTHETIC_MODULE}::_live_target", "the target is live", ())
+    }
     py_sites, other = line_pointer_sites(_planted(_SYNTHETIC_MODULE, 5), _LANDING_CORPUS)
 
     assert line_pointer_content_problems(py_sites, other, _LANDING_SOURCE, table, {}) == ([], [])
@@ -2696,7 +3047,7 @@ def test_a_recorded_redirect_whose_target_resolves_forgives_the_pointer() -> Non
 def test_a_recorded_redirect_whose_target_stopped_resolving_is_reported() -> None:
     """A record that points at nothing forgives nothing, on the new arm too."""
     key = ("ROADMAP.md", line_key(_SYNTHETIC_MODULE, 5))
-    table = {key: Disposition(MOVED, f"{_SYNTHETIC_MODULE}::_gone_now", "the target rotted", 1)}
+    table = {key: Disposition(MOVED, f"{_SYNTHETIC_MODULE}::_gone_now", "the target rotted", ())}
     py_sites, other = line_pointer_sites(_planted(_SYNTHETIC_MODULE, 5), _LANDING_CORPUS)
 
     _empty, forbidden = line_pointer_content_problems(py_sites, other, _LANDING_SOURCE, table, {})
@@ -2708,7 +3059,7 @@ def test_a_recorded_redirect_whose_target_stopped_resolving_is_reported() -> Non
 def test_a_record_forgives_a_blank_landing_that_the_baseline_may_not() -> None:
     """An ADJUDICATED answer silences both legs; that is what adjudication buys."""
     key = ("ROADMAP.md", line_key(_SYNTHETIC_MODULE, 3))
-    table = {key: Disposition(NO_TARGET, "", "the carrier is append-only", 1)}
+    table = {key: Disposition(NO_TARGET, "", "the carrier is append-only", ())}
     py_sites, other = line_pointer_sites(_planted(_SYNTHETIC_MODULE, 3), _LANDING_CORPUS)
 
     assert line_pointer_content_problems(py_sites, other, {}, table, {}) == ([], [])
@@ -2833,13 +3184,13 @@ def test_appending_a_fabricated_disposition_is_itself_a_finding() -> None:
     A ``NO_TARGET`` record names nothing to verify, so no check can call its
     reason false. What the budget removes is adding one SILENTLY.
     """
-    table = {("ROADMAP.md", line_key(_SYNTHETIC_MODULE, 5)): Disposition(NO_TARGET, "", "x", 1)}
+    table = {("ROADMAP.md", line_key(_SYNTHETIC_MODULE, 5)): Disposition(NO_TARGET, "", "x", ())}
 
     assert forgiveness_budget_problems((), table, 1) == []
 
     fabricated = dict(table)
     fabricated[("ROADMAP.md", line_key(_SYNTHETIC_MODULE, 4))] = Disposition(
-        NO_TARGET, "", "looks plausible and answers nothing", 1
+        NO_TARGET, "", "looks plausible and answers nothing", ()
     )
     problems = forgiveness_budget_problems((), fabricated, 1)
 
@@ -3582,11 +3933,15 @@ def test_every_recorded_bare_path_reason_still_answers_the_sites_it_records(
 def test_a_compensating_swap_in_the_bare_path_reasons_is_reported_in_both_directions() -> None:
     """CS-893, ANSWERED RATHER THAN COPIED.
 
-    That item is filed against this module because :attr:`Disposition.sites` is
-    a bare count: delete one recorded site and add an unrelated one in the same
-    edit, and the cardinality is unchanged and the swap is silent. The table
-    below is keyed on an IDENTITY, so the same edit fails twice - the added
-    entry answers nothing and the removed one is reported.
+    That item was filed against this module because the forgiveness table then
+    keyed on a bare count: delete one recorded site and add an unrelated one in
+    the same edit, and the cardinality is unchanged and the swap is silent. The
+    table below is keyed on an IDENTITY, so the same edit fails twice - the
+    added entry answers nothing and the removed one is reported. CS-1121 has
+    since carried the same repair into :data:`tables.DISPOSITIONS`, whose own
+    swap arm is ``test_a_compensating_swap_that_keeps_the_site_count_is_reported``;
+    this one stays because the two tables derive their identities differently
+    and an arm shared between them would prove neither.
 
     THE CARDINALITY IS ASSERTED EQUAL, so the arm is a statement about the KEY
     rather than about the size of the edit.
