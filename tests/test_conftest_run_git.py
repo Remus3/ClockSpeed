@@ -323,6 +323,6 @@ def test_a_resolvable_program_that_raises_not_found_fails_rather_than_skips(
     resolved = shutil.which(str(planted))
     assert resolved is not None, "control: PATH lookup does not resolve the planted program"
     with pytest.raises(FileNotFoundError):
-        subprocess.run([str(planted), "--version"], capture_output=True, check=False)
+        subprocess.run([str(planted), "--version"], capture_output=True, check=False, timeout=30)
     monkeypatch.setattr(conftest, "RUN_GIT_PROGRAM", (str(planted),))
     _assert_start_fault_is_red(tmp_path, planted)
