@@ -16,9 +16,16 @@ the two halves answer different questions:
   the header case crafts a refused header holding one candidate past the
   scanner's own cap - then drives the real `discover_world_tokens` and the
   real `emit`, which is the value `main` returns as the exit status. The case
-  passes only on exit 1 with exactly one diagnostic, and that diagnostic names
-  the case's own bound, so a case cannot pass on a neighbour's report. A
-  control on the same fixture shape with no cap tripped must exit 0. Driving
+  passes only on exit 1 with exactly one diagnostic naming the case's own
+  bound, AND only if the SAME arrangement run against a source with THAT
+  condition alone disarmed exits 0. The disarm is derived from the node the
+  enumeration found - its deciding `if` test replaced by the constant that
+  skips it, or the flag value itself replaced by `False` - never hand-named,
+  so a case cannot pass on a neighbour's report or on a condition that never
+  fires (CS-1105 refutation of 0350bcb: a dead cap sharing the scan cap's
+  arrangement and marker passed). No two cases may share a marker, by
+  substring, or an arrangement function. A control on the same fixture shape
+  with no cap tripped must exit 0. Driving
   `main` itself would add git and the lint subprocess and no coverage of this
   path. Why behavioural at all: only running the code proves a condition
   REACHES the exit status - a data-flow proof would be a second model of the
@@ -46,11 +53,20 @@ WHAT THE ENUMERATION COUNTS, derived from the code rather than a name list:
    clockspeed/save/header.py whose annotation returns `tuple[..., bool]`.
    Anything else bound to a flag - a comparison, `|=` with an expression, a
    `True` constant inside `or` - is a condition keyed by its text. Fail closed.
+4. A flag binding OVERWRITTEN BEFORE ANY READ - a later `flag = False` in the
+   same block or an enclosing `if` or `with` block, with no read and no
+   return, raise, break or continue in between, and no loop or `try` crossed
+   - is not a live condition. It is REFUSED as a problem rather than silently
+   dropped: a dead truncation flag is a cap that truncates and tells nobody.
 
 KNOWN LIMITS, stated rather than implied:
 
 - A cap that sets NO flag and makes NO report - a bare `break` - is a silent
   drop, not a truncation condition in this sense, and is not seen.
+- The dead-binding reading is lexical and conservative: an overwrite reached
+  only across a loop or a `try`, or inside a nested block, is not recognised,
+  so such a binding stays a live condition and its case's disarm control is
+  what grades it.
 - A flag bound through a `for` target, a `with ... as`, an attribute or a
   container is not traced. A flag that enters a function as a PARAMETER is
   refused as a problem rather than followed.
@@ -90,6 +106,18 @@ HEADER_IMPORT = "clockspeed.save.header"
 Key = tuple[str, str, str]
 
 
+@dataclass(frozen=True)
+class Disarm:
+    """Where one condition is switched off: a source span and the literal that skips it."""
+
+    tag: str
+    line: int
+    col: int
+    end_line: int
+    end_col: int
+    literal: str
+
+
 def _text(path: Path) -> str:
     """A source file as text, decoded from bytes so no newline is rewritten."""
     return path.read_bytes().decode("utf-8")
@@ -119,6 +147,10 @@ def _is_routing(test: ast.expr) -> bool:
     return all(isinstance(node, _ROUTING_NODES) for node in ast.walk(test))
 
 
+def _is_false(expr: ast.expr) -> bool:
+    return isinstance(expr, ast.Constant) and expr.value is False
+
+
 def _names(expr: ast.AST) -> Iterator[str]:
     return (node.id for node in ast.walk(expr) if isinstance(node, ast.Name))
 
@@ -145,7 +177,7 @@ class Enumeration:
             for node in ast.walk(tree):
                 for child in ast.iter_child_nodes(node):
                     self.parents[id(child)] = node
-        self.found: set[tuple[str, str, int, int, str]] = set()
+        self.found: dict[tuple[str, str, int, int, str], Disarm] = {}
         self.problems: list[str] = []
         self.traced: set[tuple[str, str, str]] = set()
         self.returned: set[tuple[str, str]] = set()
@@ -174,16 +206,38 @@ class Enumeration:
         at: ast.AST,
         extra: str | None = None,
         keyed_by: ast.AST | None = None,
+        off: ast.AST | None = None,
     ) -> None:
-        """Record one condition: the non-routing tests around `at`, keyed by a node."""
-        texts = [ast.unparse(test) for _if, test in self._chain(at) if not _is_routing(test)]
+        """Record one condition: the non-routing tests around `at`, keyed by a node.
+
+        The DISARM is the deciding expression: the value itself when one was
+        named (`off`), else the innermost non-routing `if` test, replaced by
+        the constant that skips the branch holding `at`.
+        """
+        chain = [(if_node, test) for if_node, test in self._chain(at) if not _is_routing(test)]
+        texts = [ast.unparse(test) for _if, test in chain]
         if extra is not None:
             texts.append(extra)
         node = at if keyed_by is None else keyed_by
         text = " / ".join(texts) or "<unconditional>"
-        self.found.add(
-            (tag, func, getattr(node, "lineno", 0), getattr(node, "col_offset", 0), text)
+        if off is not None:
+            span, literal = off, "False"
+        elif chain:
+            if_node, test = chain[-1]
+            span, literal = if_node.test, "False" if test is if_node.test else "True"
+        else:
+            span, literal = at, "False"
+        disarm = Disarm(
+            tag,
+            getattr(span, "lineno", 0),
+            getattr(span, "col_offset", 0),
+            getattr(span, "end_lineno", 0) or 0,
+            getattr(span, "end_col_offset", 0) or 0,
+            literal,
         )
+        self.found[
+            (tag, func, getattr(node, "lineno", 0), getattr(node, "col_offset", 0), text)
+        ] = disarm
 
     # -- the gate seed -----------------------------------------------------
 
@@ -249,9 +303,9 @@ class Enumeration:
         elif isinstance(expr, ast.Constant) and expr.value is False:
             return
         elif isinstance(expr, ast.Constant) and expr.value is True:
-            self._record(tag, func, at)
+            self._record(tag, func, at, off=None if self._chain(at) else expr)
         else:
-            self._record(tag, func, at, "%s = %s" % (label, ast.unparse(expr)))
+            self._record(tag, func, at, "%s = %s" % (label, ast.unparse(expr)), off=expr)
 
     def _trace(self, tag: str, func: str, flag: str) -> None:
         if (tag, func, flag) in self.traced:
@@ -280,6 +334,13 @@ class Enumeration:
         self, tag: str, func: str, flag: str, target: ast.expr, value: ast.expr, at: ast.AST
     ) -> None:
         if isinstance(target, ast.Name) and target.id == flag:
+            if not _is_false(value) and self._overwritten_before_read(at, flag):
+                self.problems.append(
+                    "CS-1105: %s.%s binds the truncation flag %r at line %d and overwrites "
+                    "it before any read - a dead truncation flag truncates and tells nobody"
+                    % (tag, func, flag, getattr(at, "lineno", 0))
+                )
+                return
             self._flow(tag, func, value, at, flag)
             return
         if not isinstance(target, (ast.Tuple, ast.List)):
@@ -296,6 +357,45 @@ class Enumeration:
                     "%s.%s: the flag %r is unpacked from a shape not followed at line %d"
                     % (tag, func, flag, at.lineno)  # type: ignore[attr-defined]
                 )
+
+    def _block_of(self, statement: ast.AST) -> tuple[ast.AST | None, list[ast.stmt]]:
+        parent = self.parents.get(id(statement))
+        for field in ("body", "orelse", "finalbody"):
+            block = getattr(parent, field, None)
+            if isinstance(block, list) and any(item is statement for item in block):
+                return parent, block
+        return None, []
+
+    def _overwritten_before_read(self, at: ast.AST, flag: str) -> bool:
+        """Whether a flag binding is killed by `flag = False` before anything reads it."""
+        statement: ast.AST = at
+        while True:
+            parent, block = self._block_of(statement)
+            if parent is None:
+                return False
+            index = next(i for i, item in enumerate(block) if item is statement)
+            for later in block[index + 1 :]:
+                if any(
+                    isinstance(node, (ast.Return, ast.Raise, ast.Break, ast.Continue))
+                    or (
+                        isinstance(node, ast.Name)
+                        and node.id == flag
+                        and isinstance(node.ctx, ast.Load)
+                    )
+                    for node in ast.walk(later)
+                ):
+                    return False
+                if (
+                    isinstance(later, ast.Assign)
+                    and len(later.targets) == 1
+                    and isinstance(later.targets[0], ast.Name)
+                    and later.targets[0].id == flag
+                    and _is_false(later.value)
+                ):
+                    return True
+            if not isinstance(parent, (ast.If, ast.With)):
+                return False
+            statement = parent
 
     def _through_call(self, tag: str, func: str, call: ast.Call) -> None:
         """The LAST return element of whatever a call reaches."""
@@ -372,6 +472,14 @@ class Enumeration:
     def keys(self) -> Counter[Key]:
         """The conditions found, as a multiset of (module, function, condition text)."""
         return Counter((tag, func, text) for tag, func, _line, _col, text in self.found)
+
+    def disarms(self, key: Key) -> list[Disarm]:
+        """Every disarm span recorded under one condition key."""
+        return [
+            disarm
+            for (tag, func, _line, _col, text), disarm in self.found.items()
+            if (tag, func, text) == key
+        ]
 
 
 def enumerate_conditions(gate_source: str, header_source: str) -> tuple[Counter[Key], list[str]]:
@@ -549,16 +657,118 @@ def pristine_gate() -> ModuleType:
     return load_gate()
 
 
+def load_header(source: str, name: str = "cs1105_header_variant") -> ModuleType:
+    """The header module built from source text, registered before execution."""
+    module = ModuleType(name)
+    module.__file__ = str(HEADER)
+    sys.modules[name] = module
+    exec(compile(source, str(HEADER), "exec"), module.__dict__)  # noqa: S102
+    return module
+
+
+def disarmed(source: str, disarm: Disarm) -> str:
+    """The source with one condition switched off at the span the enumeration recorded."""
+    lines = source.splitlines(keepends=True)
+    start = sum(len(line) for line in lines[: disarm.line - 1]) + disarm.col
+    end = sum(len(line) for line in lines[: disarm.end_line - 1]) + disarm.end_col
+    assert 0 < start < end <= len(source), "the disarm span is empty"
+    mutant = source[:start] + "(" + disarm.literal + ")" + source[end:]
+    ast.parse(mutant)
+    assert mutant != source, "the disarm did not apply"
+    return mutant
+
+
+def _verdict(
+    gate_source: str,
+    header_source: str,
+    arrange: Callable[[ModuleType, Path, pytest.MonkeyPatch], None],
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> tuple[int, list[str]]:
+    """Drive one arrangement against a gate and a header built from the given text.
+
+    The disk sources go through the gate's REAL loaders. A modified header is
+    handed to the gate by replacing its two loader functions, which is the
+    seam the gate itself documents for a test replacing the reader.
+    """
+    names = ("cs1105_gate_variant", "cs1105_header_variant")
+    try:
+        gate = load_gate() if gate_source == _text(GATE) else load_gate(gate_source, names[0])
+        if header_source != _text(HEADER):
+            header = load_header(header_source, names[1])
+            monkeypatch.setattr(gate, "_load_token_scanner", lambda: header.scan_world_tokens)
+            monkeypatch.setattr(gate, "_load_header_reader", lambda: header.read_header)
+        return drive(gate, arrange, tmp_path, monkeypatch)
+    finally:
+        for name in names:
+            sys.modules.pop(name, None)
+
+
+def case_problems(
+    case: Case,
+    gate_source: str,
+    header_source: str,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> list[str]:
+    """A case DISCRIMINATES: it blocks on its own reason, and stops blocking disarmed."""
+    enumeration = Enumeration(gate_source, header_source)
+    spans = enumeration.disarms(case.key)
+    if len(spans) != 1:
+        return ["CS-1105: case %r has %d enumerated conditions, not one" % (case.key, len(spans))]
+    status, reasons = _verdict(
+        gate_source, header_source, case.arrange, tmp_path / "armed", monkeypatch
+    )
+    problems: list[str] = []
+    if status != 1 or len(reasons) != 1 or case.marker not in reasons[0]:
+        problems.append(
+            "CS-1105: case %r did not block alone on its own reason: exit %d, %r"
+            % (case.key, status, reasons)
+        )
+    span = spans[0]
+    off_gate = disarmed(gate_source, span) if span.tag == "gate" else gate_source
+    off_header = disarmed(header_source, span) if span.tag == "header" else header_source
+    monkeypatch.undo()
+    status, reasons = _verdict(
+        off_gate, off_header, case.arrange, tmp_path / "disarmed", monkeypatch
+    )
+    if status != 0:
+        problems.append(
+            "CS-1105: case %r still blocks with its own condition disarmed, so it does "
+            "not prove that condition blocks: exit %d, %r" % (case.key, status, reasons)
+        )
+    return problems
+
+
+def table_problems(table: tuple[Case, ...]) -> list[str]:
+    """No two cases share a marker (by substring) or an arrangement function."""
+    problems = [
+        "CS-1105: the markers of cases %r and %r overlap" % (a.key, b.key)
+        for i, a in enumerate(table)
+        for j, b in enumerate(table)
+        if i != j and a.marker in b.marker
+    ]
+    problems.extend(
+        "CS-1105: cases %r and %r share the arrangement %s" % (a.key, b.key, a.arrange.__name__)
+        for i, a in enumerate(table)
+        for j, b in enumerate(table)
+        if i < j and a.arrange is b.arrange
+    )
+    return problems
+
+
 # --------------------------------------------------------------------------
 # The arms.
 # --------------------------------------------------------------------------
 
 
-def condition_problems(gate_source: str, header_source: str) -> list[str]:
+def condition_problems(
+    gate_source: str, header_source: str, cases: tuple[Case, ...] = CONDITION_TABLE
+) -> list[str]:
     """Every disagreement between the enumerated conditions and the table."""
     found, problems = enumerate_conditions(gate_source, header_source)
-    table = Counter(case.key for case in CONDITION_TABLE)
-    problems = list(problems)
+    table = Counter(case.key for case in cases)
+    problems = list(problems) + table_problems(cases)
     problems.extend(
         "CS-1105: truncation condition %r reaches the world-token scan and no "
         "CONDITION_TABLE case proves it blocks" % (key,)
@@ -588,11 +798,10 @@ def test_the_enumeration_reaches_both_modules() -> None:
 def test_each_truncation_condition_blocks(
     case: Case, pristine_gate: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """The condition, tripped alone, ends the run at exit 1 on its own reason."""
-    status, reasons = drive(pristine_gate, case.arrange, tmp_path, monkeypatch)
-    assert status == 1, reasons
-    assert len(reasons) == 1, reasons
-    assert case.marker in reasons[0], reasons
+    """Tripped alone it blocks on its own reason; with it alone disarmed, it does not."""
+    del pristine_gate
+    problems = case_problems(case, _text(GATE), _text(HEADER), tmp_path, monkeypatch)
+    assert problems == [], "\n".join(problems)
 
 
 def test_the_quiet_control_passes(
@@ -603,12 +812,10 @@ def test_the_quiet_control_passes(
     assert (status, reasons) == (0, [])
 
 
-def test_the_table_markers_are_distinct() -> None:
-    """A marker shared by two cases would let one case pass on the other's report."""
-    markers = [case.marker for case in CONDITION_TABLE]
-    assert all(a == b or a not in b for a in markers for b in markers), (
-        "a marker is a substring of another"
-    )
+def test_the_table_markers_and_arrangements_are_distinct() -> None:
+    """A shared marker or arrangement would let one case pass on another's report."""
+    problems = table_problems(CONDITION_TABLE)
+    assert problems == [], "\n".join(problems)
 
 
 # --------------------------------------------------------------------------
@@ -748,3 +955,61 @@ def test_a_truncation_made_non_blocking_reddens_its_case(
             monkeypatch.undo()
     finally:
         sys.modules.pop("cs1105_gate_mutant", None)
+
+
+# --------------------------------------------------------------------------
+# CS-1105 refutation of 0350bcb - a dead cap sharing the scan cap's row shape.
+# --------------------------------------------------------------------------
+
+_DEAD_CAP = (
+    "    if len(data) > MAX_HEADER_BYTES // 2:\n"
+    "        truncated = True\n"
+    "        data = data[: MAX_HEADER_BYTES // 2]\n"
+)
+_SHARED_ROW = Case(
+    ("header", "scan_framed_tokens", "len(data) > MAX_HEADER_BYTES // 2"),
+    "than the scan cap admits",
+    _arrange_scan_cap,
+)
+
+
+def _dead_cap_header() -> str:
+    return _swap(_text(HEADER), _TRUNCATED_INIT, _DEAD_CAP + _TRUNCATED_INIT)
+
+
+def test_a_row_reusing_a_marker_and_an_arrangement_is_refused() -> None:
+    """The self-matching distinctness check let the adversary's duplicate row pass."""
+    problems = table_problems((*CONDITION_TABLE, _SHARED_ROW))
+    assert any("markers" in problem for problem in problems), problems
+    assert any("arrangement" in problem for problem in problems), problems
+
+
+def test_a_dead_truncation_flag_is_refused() -> None:
+    """A `truncated = True` overwritten by `truncated = False` before a read is refused."""
+    problems = condition_problems(_text(GATE), _dead_cap_header(), (*CONDITION_TABLE, _SHARED_ROW))
+    assert any("dead truncation flag" in problem for problem in problems), problems
+
+
+def test_a_truncation_flag_read_before_its_overwrite_is_live() -> None:
+    """The control: a read between the binding and the overwrite keeps it a condition."""
+    live = _DEAD_CAP + "    hits.append((0, str(truncated)))\n"
+    header = _swap(_text(HEADER), _TRUNCATED_INIT, "    hits = []\n" + live + _TRUNCATED_INIT)
+    problems = condition_problems(_text(GATE), header)
+    assert not any("dead truncation flag" in problem for problem in problems), problems
+
+
+def test_the_adversary_row_fails_its_discriminating_control(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The row's arrangement blocks through the EXISTING scan cap, so it cannot pass."""
+    problems = case_problems(_SHARED_ROW, _text(GATE), _dead_cap_header(), tmp_path, monkeypatch)
+    assert problems != []
+
+
+def test_a_row_whose_arrangement_trips_a_neighbour_fails_its_control(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A LIVE condition given a neighbour's fixture still blocks disarmed, and is red."""
+    borrowed = Case(CONDITION_TABLE[3].key, CONDITION_TABLE[5].marker, _arrange_scan_cap)
+    problems = case_problems(borrowed, _text(GATE), _text(HEADER), tmp_path, monkeypatch)
+    assert any("still blocks with its own condition disarmed" in p for p in problems), problems
