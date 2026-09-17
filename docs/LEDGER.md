@@ -425,6 +425,37 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-09-17 - SESSION 102 - NOT A COMPLETION RECORD. NOTHING CLOSED. Tier1 and tier2 went red on the CS-1124 slice's merge, once for a CI account token in a comment and once for a test that graded real elapsed time
+
+**THE RED.** tier1 run 35210434772 and tier2 run 35210435082, both on 72e7d46, both failure. Two
+causes, kept separate because they are different classes:
+
+- A comment in `shell/lib/state.js` carried the ubuntu CI account's own name as an ordinary word.
+  `tests/shell/test_shell_assets.py::test_no_shell_file_carries_this_machines_own_identifiers`
+  flags it on CI only, because only there is that name the machine's own. The same class as the
+  c1d7517 red earlier in this session.
+- A close-deadline arm asserted REAL elapsed milliseconds and blocked 869ms, past the old 750ms
+  envelope, on a loaded ubuntu runner. The code under test was not wrong; the arm measured the host.
+
+**THE FIX.** bfb32e4, merged at 2e08639. The comment is reworded. `shell/lib/state.js` exports a
+`clock` seam (`now`, `sleep`) and the retry loop reads time and pauses through it exclusively. The
+deadline arms in `shell/test/state.test.js` run on a fake clock whose pause advances it exactly, and
+grade exact give-up points and the backoff shape - among them "a rename held past the deadline fails
+loudly, at the deadline and not after it" and "the rename deadline holds when the wall clock steps
+backwards". One real-time arm, "the real clock and the real pause are wired - a smoke arm, bounded
+generously", keeps the real pause wired and is bounded at four times the deadline. The fixing session
+reported both mutants - the deadline check removed, the clock seam bypassed - red, and the pre-push
+whole suite green.
+
+**VERIFIED ON THE MERGE ITSELF.** tier1 run 35218221145 on 2e08639 success; dispatched tier2 run
+35218221886 on 2e08639 success in all seven jobs.
+
+**THE LANE.** It stopped itself after five cycles, recording `stopped_by=ci_red`, and was relaunched
+from a clean fast-forwarded worktree after green.
+
+**LESSON.** An elapsed-time assertion in a test is a CI flake by construction. Bound the behaviour on
+an injected clock, and keep at most one real-time smoke arm with a generous multiple of the bound.
+
 ### 2026-09-17 - CS-939 - CLOSED. The tracked tree and every reachable blob are swept with the gate's own rules, and the arm's first run reported the module that owns it
 
 **THE DEFECT.** `tools/precommit_gate.py` runs over STAGED bytes or over explicitly named

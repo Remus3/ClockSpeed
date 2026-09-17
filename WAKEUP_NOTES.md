@@ -44,6 +44,10 @@ the line becomes a pointer.
   CS-1121 by the lane; CS-1122 and CS-1124 at session end. Detail in `docs/LEDGER.md`.
 - CS-1105 CLOSED after the session (4335422): each truncation condition blocks by its own case.
 - CS-1124 CLOSED after the session (e129bb4): tier2 headroom guard at 4/5, state save by deadline.
+- **RED AFTER CS-1124:** tier1 and tier2 red on 72e7d46 - a CI account token in a `shell/lib/state.js`
+  comment, and a deadline arm grading REAL elapsed time on a loaded runner. Fixed at bfb32e4 (merge
+  2e08639): comment reworded, arms on an injected `clock` seam; tier1 and tier2 green on 2e08639; lane
+  stopped (`ci_red`) and relaunched. Record in `docs/LEDGER.md`.
 - **CS-1098, CS-1099 AND CS-1100 CLOSED AS DECLINES, NOT ADOPTIONS** (9119e6f), adjudicated
   after four licence gates and three raw-byte adversaries. The archify idea is re-filed as
   CS-1122, our own Python renderer with zero copied bytes; three conditional ideas went to
@@ -96,10 +100,16 @@ the line becomes a pointer.
   printed by `tools/inbox_watch.py` when these notes were written. Many
   `.claude/worktrees/agent-*` from this session are merged; none removed - classify by
   content before pruning.
-- STILL OPEN worth naming: CS-971 (behind CS-1112 and CS-1079), CS-1079,
-  CS-1112, CS-1119, CS-1121 and CS-1122.
-- Next action: the lane keeps draining under the relaunched launcher; the main session takes
-  CS-1124 first if tier2 cancels again, else CS-1105, then CS-1112 -> CS-1079 -> CS-971.
+- NEXT ACTIONS, in order:
+  1. The `queue` lane keeps draining under the fixed launcher; let it run.
+  2. CS-1112 - FIRST obtain an adjudicator ruling superseding the CS-1062 fence; the change
+     re-pins the byte-pinned lane prompt and the CLAUDE.md section 4 row.
+  3. CS-1079, then CS-971.
+  4. CS-1122 - our own Python renderer, tier 3.
+  5. Lane-filed CS-1119, CS-1121, CS-1123, CS-1125 - all four still OPEN in `ROADMAP.md` when
+     these notes were written; re-check before picking one.
+  6. After the next few tier2 runs, refresh `tools/tier2_durations.json` by hand - the Windows
+     jobs were at about 0.78 of their timeout.
 
 ## Session 101 - 2026-09-16 - the moon-sync adoption, and three of three slices refuted before merge
 
