@@ -137,12 +137,12 @@ jobs:
         run: echo "TIER1_STARTED=$(date +%s)" >> "$GITHUB_ENV"
 
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         # Shallow on purpose. Tier 1 gates the working tree. Full history is
         # tier 3's job (CONVENTIONS.md section 17 item 1 - history is what leaks).
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           # Single version by design - see the leanness note in the header.
           # 3.14 matches the interpreter this project is pinned to; the
@@ -562,10 +562,10 @@ jobs:
         run: echo "TIER1_STARTED=$(date +%s)" >> "$GITHUB_ENV"
 
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: '3.14'
           cache: pip
@@ -755,10 +755,10 @@ jobs:
         run: echo "TIER1_STARTED=$(date +%s)" >> "$GITHUB_ENV"
 
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: '3.14'
           cache: pip

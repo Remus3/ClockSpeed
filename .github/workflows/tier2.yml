@@ -76,10 +76,10 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: '3.14'
           cache: pip
@@ -141,7 +141,7 @@ jobs:
 
     steps:
       - name: Checkout (the source the fresh clone is taken from)
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           path: source
           # Full history so the local clone below is an ordinary clone rather
@@ -149,7 +149,7 @@ jobs:
           fetch-depth: 0
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: '3.14'
           cache: pip
@@ -609,10 +609,10 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: '3.14'
           cache: pip
@@ -637,7 +637,7 @@ jobs:
 
       - name: Upload audit reports
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: tier2-audit-reports
           path: ci-audit-reports/
@@ -689,7 +689,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       # This workflow owns the CI Node version, exactly as it already owns the
       # CI Python version in the jobs above. `shell/package.json` engines is a
@@ -700,7 +700,7 @@ jobs:
       # No `cache:` key on purpose - caching a dependency install that this job
       # deliberately does not perform would only imply one exists.
       - name: Set up Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
           node-version: '24'
 

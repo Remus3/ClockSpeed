@@ -374,6 +374,82 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-09-17 - CS-990 - CLOSED. Every action pin names a supported runtime, over a population derived twice from the workflow files
+
+**THE DEFECT.** Every action pin in both tracked workflows named a major whose Node 20 runtime
+GitHub has deprecated. Nothing was red and nothing would have been: the runner does not fail a
+job over a retired runtime, it force-runs the action on the current Node and prints a warning.
+So the upgrade was being applied by GitHub rather than by this project, and the day it broke
+would have been the day the fallback was withdrawn rather than a day this project chose.
+
+**THE ROOT CAUSE, WHICH IS NOT THE PINS.** No mechanism owned the question. The pins were
+correct when written and went stale silently, and the only record of the problem was an
+aspirational `BACKLOG.md` line whose own count had already drifted - it said eight pin sites
+and the derivation measured fifteen. A count restated in prose is a lie with a timestamp on
+it, and this one was the proof.
+
+**WHAT CHANGED.** `tools/action_runtimes.py` grades every pin by the runtime its major ships,
+against `RUNTIME_SUPPORTED_FROM`. Both tracked workflows move to the majors that ship on Node
+24. The `BACKLOG.md` entry is removed: it is superseded by a shipped guard, and leaving it
+would restate a fact this ledger and that tool now own.
+
+**THE POPULATION IS DERIVED, AND DERIVED TWICE.** `pins_by_parse` asks PyYAML what the step
+reference key resolves to, at any depth. `pins_by_scan` recognises a pin by the owner/repo@ref
+shape alone and names no key at all. The arms compare them as MULTISETS, so one pin present in
+either reading and not the other reddens, and a duplicate cannot go missing. **A floor over
+the pin count is forbidden here by the item line by name - it is the CS-988 shape, met by its
+strongest member - and none was used.**
+
+**AGREEMENT BETWEEN TWO READINGS THAT CANNOT DISAGREE IS NOT EVIDENCE, so independence is
+PROVEN rather than claimed.** `test_the_two_enumerations_share_no_constant` parses both
+functions' ASTs, fails on any literal they hold in common, and fails again if either reaches
+for a module-level constant the other could share. A comment asserting independence is worth
+nothing the first time somebody factors a shared pattern out of the two.
+
+**THE TABLE IS LISTED AND THAT IS DELIBERATE, so the arm is loud where it is blind.** No test
+here reaches the network, so the runtime table is a shipped constant. An action the table does
+not name is an OFFENCE rather than a pass, and so is a ref carrying no major version - a sha
+or a branch names no runtime. A table that waves through what it does not recognise fails in
+the permissive direction and would forgive a real deprecation forever with nothing red.
+
+**PROVEN BY** `tests/test_action_runtimes.py`, nine arms:
+`test_no_tracked_workflow_pins_a_deprecated_runtime` is the headline and it was RED before the
+bump, naming all fifteen pins;
+`test_the_graded_population_is_not_empty` is its anti-vacuity bound, because an empty
+population satisfies every equality above for free;
+`test_the_two_enumerations_agree_as_multisets`;
+`test_the_two_enumerations_share_no_constant`;
+`test_a_planted_deprecated_pin_reddens_the_grade`;
+`test_a_pin_in_a_second_workflow_is_graded_too`;
+`test_an_action_the_table_does_not_name_is_a_loud_offence`;
+`test_a_ref_carrying_no_major_version_is_a_loud_offence`;
+`test_both_enumerations_see_a_planted_pin`, which is what shows neither reading is a no-op.
+Merged files: `tools/action_runtimes.py`, `tests/test_action_runtimes.py`,
+`.github/workflows/tier1.yml`, `.github/workflows/tier2.yml`, `BACKLOG.md`.
+
+**THE FIRST CUT BROKE THE REPO-WIDE MYPY GATE AND THE LOCAL ARMS WERE ALL GREEN WHILE IT
+DID.** `tools/` carries no `__init__.py` - it is a directory of entry-point scripts - so an
+import spelled as a package member makes mypy discover the same source under two module names
+and `python -m mypy` bare exits 2 on a duplicate, taking two further arms in that module down
+with it. `python -m pytest tests/test_action_runtimes.py` was green throughout. The idiom this
+tree already had is a by-path `spec_from_file_location` load, and `tests/test_action_runtimes.py`
+now uses it and says why in the loader's own docstring. **A module-scoped suite run is not
+evidence about a repo-wide gate**, which is the reusable half of this.
+
+**THE SIBLING SWEEP.** The root cause is a version pin whose support window is owned by
+nobody. Every such pin in this tree is an action pin, and the grader globs the workflow
+DIRECTORY for `.yml` and `.yaml` rather than naming a file, so a third workflow added later is
+graded on the day it lands. No sibling outside that directory was found.
+
+**WHAT THIS CYCLE CANNOT PROVE AND DOES NOT CLAIM.** That the new majors run green on the
+runner. Every runner here is GitHub-hosted, so the minimum-runner-version condition
+`actions/checkout@v5` carries is met, and all four bumps are runtime-only majors - but this
+worker does not observe CI and did not read a run. The CI verdict for this push is recorded by
+the driver.
+
+**THE TIER AND THE COUNTS OBSERVED THIS RUN** are in the wrap banner for this cycle rather
+than restated here.
+
 ### 2026-09-17 - CS-919 - CLOSED. A sha the lane cannot show it produced is recorded `unattributable` and graded by nobody
 
 **THE DEFECT, MEASURED RATHER THAN ANTICIPATED.** On CS-918's first real cycle the worker
