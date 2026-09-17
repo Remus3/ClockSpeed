@@ -3770,6 +3770,162 @@ def test_an_unreadable_routing_child_is_a_warn_never_unreachable_leaves(tmp_path
     assert "memory/INDEX_zz_cs1120.md NOT READ" in rendered, rendered
 
 
+#: The routing child the case arms plant, spelled the way a real one is.
+IDXCASE_CHILD = "INDEX_zz_idxcase.md"
+#: The same name as the walk's lowercased token spells it.
+IDXCASE_LOWERED = IDXCASE_CHILD.lower()
+
+
+def _plant_routed_child(tmp_path: Path) -> tuple[Path, Path]:
+    """A copied store whose MEMORY.md routes to a child that alone routes to a leaf.
+
+    Returns:
+        ``(fake repository root, the memory directory)``.
+    """
+    root = memory_copy(tmp_path)
+    memory = root / "memory"
+    child = memory / IDXCASE_CHILD
+    leaf = memory / "zz-idxcase-routed-leaf.md"
+    assert not child.exists(), "the plant names a real routing file"
+    assert not leaf.exists(), "the plant names a real leaf"
+    leaf.write_text("# Routed\n\nSee [the index](MEMORY.md).\n", encoding="utf-8", newline="\n")
+    child.write_text(
+        "# Child\n\n- [Routed](zz-idxcase-routed-leaf.md)\n", encoding="utf-8", newline="\n"
+    )
+    index = memory / "MEMORY.md"
+    index.write_text(
+        index.read_text(encoding="utf-8") + f"- [Child]({IDXCASE_CHILD})\n",
+        encoding="utf-8",
+        newline="\n",
+    )
+    return root, memory
+
+
+def _case_sensitive_lookups(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Make ``Path.is_file`` answer the way a case-sensitive filesystem does.
+
+    CI's ubuntu leg failed the CS-1120 routing-child arm while Windows passed
+    it: the walk built ``memory / "index_zz_cs1120.md"`` from a lowercased
+    token and asked ``is_file()``, which a case-insensitive filesystem answers
+    yes and ext4 answers no. A path is a file here only when its final
+    component is spelled exactly as the directory lists it, so the Linux
+    behaviour reproduces on this machine. Only the name is compared, never a
+    parent, because a temporary root can carry a short 8.3 spelling.
+    """
+    real_is_file = Path.is_file
+
+    def is_file(self: Path, *args: Any, **kwargs: Any) -> bool:
+        try:
+            # os.listdir, not Path.iterdir: arms patch iterdir, never this.
+            spelled = self.name in os.listdir(self.parent)  # noqa: PTH208
+        except OSError:
+            spelled = False
+        return spelled and real_is_file(self, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "is_file", is_file)
+
+
+def test_the_case_sensitive_emulation_refuses_the_lowered_spelling(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Control: the emulation really answers no to the lowered name, yes to the real one."""
+    _root, memory = _plant_routed_child(tmp_path)
+    _case_sensitive_lookups(monkeypatch)
+
+    assert (memory / IDXCASE_CHILD).is_file(), "the real spelling must still be a file"
+    assert not (memory / IDXCASE_LOWERED).is_file(), "the emulation did not bind"
+
+
+def test_a_routing_child_is_followed_where_names_are_case_sensitive(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The ubuntu red, reproduced on any OS: an INDEX_ child's leaves stay reachable."""
+    root, _memory = _plant_routed_child(tmp_path)
+    _case_sensitive_lookups(monkeypatch)
+
+    status, rendered = memory_verdict(root)
+
+    assert "UNREACHABLE" not in rendered, rendered
+    assert status == "PASS", rendered
+
+
+def test_the_walk_reaches_a_childs_leaf_where_names_are_case_sensitive(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The shared walk itself, as `tools/memory_sync.py` consumes it."""
+    _root, memory = _plant_routed_child(tmp_path)
+    _case_sensitive_lookups(monkeypatch)
+
+    reachable = drift_guard.reachable_from_index(memory, memory / "MEMORY.md")
+
+    assert "zz-idxcase-routed-leaf" in reachable, sorted(reachable)
+
+
+def test_two_routing_files_differing_only_by_case_are_a_finding(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A token two entries answer is ambiguous - named, never resolved to one silently.
+
+    On a case-sensitive filesystem the twin is written for real. Where the
+    filesystem cannot hold both spellings, the directory listing is made to
+    carry the twin, which then reads as the same file.
+    """
+    root, memory = _plant_routed_child(tmp_path)
+    twin = memory / IDXCASE_LOWERED
+    if not twin.exists():
+        twin.write_text(
+            "# Twin\n\n- [Routed](zz-idxcase-routed-leaf.md)\n", encoding="utf-8", newline="\n"
+        )
+    else:
+        real_iterdir = Path.iterdir
+
+        def iterdir(self: Path) -> Iterator[Path]:
+            listed = list(real_iterdir(self))
+            if self == memory:
+                listed.append(twin)
+            return iter(listed)
+
+        monkeypatch.setattr(Path, "iterdir", iterdir)
+    names = {path.name for path in memory.iterdir()}
+    assert {IDXCASE_CHILD, IDXCASE_LOWERED} <= names, "control: the twin is not listed"
+
+    status, rendered = memory_verdict(root)
+
+    assert status == "FAIL", rendered
+    assert "DIFFER ONLY BY CASE" in rendered, rendered
+    assert f"memory/{IDXCASE_CHILD}" in rendered, rendered
+    assert f"memory/{IDXCASE_LOWERED}" in rendered, rendered
+    assert "UNREACHABLE" not in rendered, rendered
+
+
+def test_a_memory_listing_the_walk_is_refused_is_a_warn(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The walk lists the directory to find a child; a refused listing grades no leaf."""
+    root, memory = _plant_routed_child(tmp_path)
+    real_iterdir = Path.iterdir
+    listings: list[Path] = []
+
+    def iterdir(self: Path) -> Iterator[Path]:
+        if self == memory:
+            listings.append(self)
+            if len(listings) > 1:
+                raise PermissionError(errno.EACCES, "refused listing")
+        return real_iterdir(self)
+
+    monkeypatch.setattr(Path, "iterdir", iterdir)
+
+    guard, skips = drift_guard.guard_memory(root)
+
+    rendered = _detail(guard)
+    assert len(listings) > 1, "control: the walk never listed the directory"
+    assert guard["status"] == "WARN", rendered
+    assert guard["advisory"] is False, rendered
+    assert "UNREACHABLE" not in rendered, rendered
+    assert "reachability NOT GRADED" in rendered, rendered
+    assert any("not listed" in skip["reason"] for skip in skips), skips
+
+
 def test_a_leaf_nothing_routes_to_is_still_unreachable_beside_a_read_index(
     tmp_path: Path,
 ) -> None:

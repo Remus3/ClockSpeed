@@ -1038,7 +1038,10 @@ def _citation_findings(
 
 
 def reachable_from_index(
-    memory_dir: Path, index: Path, skips: list[Skip] | None = None
+    memory_dir: Path,
+    index: Path,
+    skips: list[Skip] | None = None,
+    ambiguous: list[list[Path]] | None = None,
 ) -> set[str]:
     """Tokens reachable from the index, transitively through INDEX_*.md files.
 
@@ -1055,16 +1058,28 @@ def reachable_from_index(
             skip list. OPTIONAL rather than required: a consumer that reports
             no skips would otherwise have to invent a list to throw away, and
             the guard's own callers still pass theirs.
+        ambiguous: Where a token that two or more directory entries answer
+            is recorded, each set once, when the caller grades that. Every
+            member is still followed - none is picked silently.
 
     Returns:
         Every lowercased token reachable from the index.
+
+    A CHILD IS FOUND BY THE DIRECTORY'S OWN SPELLING, NEVER A BUILT PATH. The
+    walk used to build ``memory_dir / f"{token}.md"`` from the LOWERCASED
+    token and ask ``is_file()``. Windows answered yes for ``INDEX_x.md`` and
+    ext4 answered no, so every INDEX_*.md child was unfollowed on Linux and
+    CI failed a store Windows called clean. The listing is casefolded and
+    compared instead, so the answer no longer depends on the filesystem.
     """
     reachable: set[str] = set()
     frontier = [index]
     visited: set[str] = set()
+    listing: dict[str, list[Path]] | None = None
+    graded: set[str] = set()
     while frontier:
         current = frontier.pop()
-        key = current.name.lower()
+        key = current.name
         if key in visited:
             continue
         visited.add(key)
@@ -1076,13 +1091,49 @@ def reachable_from_index(
                     {"path": current.name, "reason": f"unreadable index: {_exc_text(exc)}"}
                 )
             continue
-        for token in link_targets(text):
+        for token in sorted(link_targets(text)):
             reachable.add(token)
-            if token.startswith("index_"):
-                candidate = memory_dir / f"{token}.md"
-                if candidate.is_file():
-                    frontier.append(candidate)
+            if not token.startswith("index_"):
+                continue
+            if listing is None:
+                try:
+                    listing = _casefold_listing(memory_dir)
+                except OSError as exc:
+                    listing = {}
+                    if skips is not None:
+                        skips.append(
+                            {
+                                "path": "",
+                                "reason": (
+                                    f"memory directory not listed ({_exc_text(exc)}) - "
+                                    "no routing child was followed"
+                                ),
+                            }
+                        )
+            matches = [path for path in listing.get(f"{token}.md".casefold(), []) if path.is_file()]
+            if len(matches) > 1 and ambiguous is not None and token not in graded:
+                graded.add(token)
+                ambiguous.append(sorted(matches))
+            frontier.extend(matches)
     return reachable
+
+
+def _casefold_listing(directory: Path) -> dict[str, list[Path]]:
+    """The directory's entries grouped by casefolded name, in listing spelling.
+
+    Args:
+        directory: The directory to list.
+
+    Returns:
+        Each casefolded name mapped to every entry that folds to it.
+
+    Raises:
+        OSError: The directory could not be listed.
+    """
+    grouped: dict[str, list[Path]] = {}
+    for entry in directory.iterdir():
+        grouped.setdefault(entry.name.casefold(), []).append(entry)
+    return grouped
 
 
 def guard_memory(root: Path) -> tuple[Guard, list[Skip]]:
@@ -1155,7 +1206,8 @@ def guard_memory(root: Path) -> tuple[Guard, list[Skip]]:
         return _guard("b", name, "FAIL" if leaves else "WARN", detail), skips
 
     walk_skips = len(skips)
-    reachable = reachable_from_index(memory_dir, index, skips)
+    ambiguous: list[list[Path]] = []
+    reachable = reachable_from_index(memory_dir, index, skips, ambiguous)
     # CS-1120 - A ROUTING FILE THE WALK COULD NOT READ GRADES NO LEAF. Its
     # routes were never followed, so every leaf behind it read as UNREACHABLE:
     # a FAIL naming drift over a store nobody had looked at. Reachability is
@@ -1207,6 +1259,12 @@ def guard_memory(root: Path) -> tuple[Guard, list[Skip]]:
             "A DIRECTORY CARRIES A LEAF NAME:",
             "A memory leaf is a file. Rename or remove the directory; do NOT put a "
             "file inside it to satisfy a citation.",
+        ),
+        (
+            [" and ".join(_rel(root, path) for path in group) for group in ambiguous],
+            "ROUTING FILES DIFFER ONLY BY CASE - one link names them all:",
+            "A case-insensitive checkout cannot even hold both. Merge them into one "
+            "file; do NOT keep both and let the filesystem decide which is read.",
         ),
         (
             [_rel(root, leaf) for leaf in unreachable],
