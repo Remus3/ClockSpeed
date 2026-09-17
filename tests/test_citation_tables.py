@@ -357,6 +357,22 @@ DISPOSITIONS: Final[Mapping[tuple[str, str], Disposition]] = {
         " than a defect the move introduced.",
         1,
     ),
+    # --- CS-1126: a record the guard had never read. The CS-909 record sat
+    # inside the ledger's `## Entry shape` template block, ABOVE the entries
+    # heading this module scopes the ledger to, so its pointer went unchecked
+    # from the day 8777a89 renamed the test it cites. Relocating the record's
+    # unchanged bytes under `## Entries` put it in scope and the guard found it
+    # on first contact - the same shape as the item-notes relocation above.
+    (
+        LEDGER,
+        "tests/shell/test_shell_assets.py::test_main_consumes_every_seam_it_was_given",
+    ): Disposition(
+        RENAMED,
+        "tests/shell/test_shell_assets.py::test_main_consumes_the_seam_it_was_given",
+        "the CS-909 record cites the single test 8210a3c added; 8777a89, the same"
+        " item's repair, split it into one case per seam under this name.",
+        1,
+    ),
     # --- the bare-identifier arm, which sees what a path scanner cannot.
     (LEDGER, "test_an_unreadable_roadmap_as_the_only_non_pass_guard_is_not_clean"): Disposition(
         RENAMED,
@@ -956,7 +972,14 @@ UNVERIFIED_LINE_POINTERS: Final[Mapping[tuple[str, str, int], str]] = {
 #: target, checked in three directions like the MOVED five above - not the unverifiable
 #: NO_TARGET kind. The alternative, keeping a misdescribing test name so a record
 #: resolves, would trade a true name for a green guard.
-FORGIVEN_LINE_POINTER_CEILING: Final = 55
+#:
+#: 55 TO 56 WHEN CS-1126 MOVED THE CS-909 RECORD UNDER `## Entries`. The record's
+#: pointer had been dead since 8777a89 renamed the test it cites, and nothing saw
+#: it because the record sat in the shape template above the scoped heading. The
+#: acceptance orders the record's bytes unchanged and the ledger is append-only, so
+#: the pointer cannot be repaired in place. One RENAMED row with a live target,
+#: checked in three directions - the same kind as the 54-to-55 raise, not NO_TARGET.
+FORGIVEN_LINE_POINTER_CEILING: Final = 56
 
 
 #: R2's live membership, DISCLOSED. Every entry is a citation at a path this
