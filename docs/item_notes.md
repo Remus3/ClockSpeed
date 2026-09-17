@@ -32,10 +32,11 @@ mapping has one owner and this file only reports it:
 
 | Leaf | Holds |
 |---|---|
-| `docs/item_notes/phase4.md` | ROADMAP `Phase 4`, ID BELOW the `CS-8nn` block. NOT the `CS-10nn` block - the rule sends every phase 4 ID at 900 or higher to the `CS-9nn` leaf |
+| `docs/item_notes/phase4.md` | ROADMAP `Phase 4`, ID BELOW the `CS-8nn` block |
 | `docs/item_notes/phase4-followups.md` | ROADMAP `Phase 4`, ID in the `CS-8nn` block below CS-850 |
 | `docs/item_notes/phase4-followups-850.md` | ROADMAP `Phase 4`, ID in the `CS-8nn` block at or above CS-850 |
 | `docs/item_notes/phase4-followups-900.md` | ROADMAP `Phase 4`, ID in the `CS-9nn` block |
+| `docs/item_notes/phase4-followups-1000.md` | ROADMAP `Phase 4`, ID at or above CS-1000 |
 | `docs/item_notes/phase5.md` | ROADMAP `Phase 5` |
 | `docs/item_notes/phase6.md` | ROADMAP `Phase 6` |
 | `docs/item_notes/phase7.md` | ROADMAP `Phase 7` |
@@ -74,9 +75,20 @@ pointer that still names `docs/history_notes.md` names a block genuinely still t
 unbuilt path is a dead citation to `tests/test_docs_citations.py`, whose only routes are
 ratcheted budgets.
 
-**A pointer inside a body saying "this file" means the leaf that body sits in.** Every
-one of those was measured before the 2026-08-25 split and every one is a self-reference
-into its own section, so the split falsified none of them.
+**A "this file" or "this leaf" inside a body is read in context, and it is not always a
+leaf.** Measured over every leaf body for CS-1079, each one is one of three things. A
+pointer to a named block - "this file under **CS-nnn - detail**" - names that block in the
+`CS-nnn` section of the leaf the body sits in. A bare "this file" or "this leaf" names that
+same leaf. Or it names a file the surrounding paragraphs of the body name themselves - a
+hook config, a script, or a doc the item once lived in. A relocated body is never edited
+to follow its new home, so a relocation can break the first two kinds.
+
+**TWO BODIES CARRY SUCH A POINTER THAT NO LONGER RESOLVES, AND BOTH ARE VERBATIM-LOCKED.**
+CS-805 in `docs/item_notes/phase4-followups.md` names "this file under **CS-492 -
+detail**", but that block sits in CS-492's section in `docs/item_notes/phase4.md`. The
+CS-1079 section says "this leaf" meaning `docs/item_notes/phase4-followups-900.md`, where
+it was filed, although it now sits in `docs/item_notes/phase4-followups-1000.md`. A later
+relocation that breaks another names it here.
 
 `docs/upstream_watch.md` owns the CS-486 upstream watch list, which is a standing watch
 rather than per-item detail, and CS-486's section points at it.

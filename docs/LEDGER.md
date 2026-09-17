@@ -75,6 +75,47 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-09-17 - CS-1079 - CLOSED. The CS-9nn leaf is under budget by relocation, and a floor row owns every phase 4 id at CS-1000 or above
+
+**WHAT CHANGED.** `docs/item_notes/phase4-followups-900.md` was over its soft budget holding
+sections its own rule-table selector did not name - they reached it through an untested "sends
+up" clause on the `phase4.md` row. Every `## CS-` section at CS-1000 or above moved VERBATIM to
+the new leaf `docs/item_notes/phase4-followups-1000.md`, in its original order; the rule table in
+`docs/item_notes.md` gained a floor row ("ID at or above CS-1000") and lost the sends-up clause,
+and guard (j)'s closed grammar in `tools/drift_guard.py` accepts that one new form. Ids in every
+rule row must use the canonical spelling - three digits zero-padded below 1000, no leading zero
+at four or more - so `CS-005` parses and `CS-5`, `CS-05`, `CS-0005` and `CS-01000` are refused.
+The `docs/item_notes.md` rule on "this file" / "this leaf" pointers was false at base and is now
+written from a measurement of all 80 pointers, naming CS-805 and CS-1079 as the two bodies whose
+pointers no longer resolve. Prose the item retired from LIVE files is in `docs/history_notes.md`
+under `CS-1079 - retired prose`. Merged files: `docs/item_notes.md`,
+`docs/item_notes/phase4-followups-900.md`, `docs/item_notes/phase4-followups-1000.md`,
+`docs/item_notes/leaf-membership-rule.md`, `docs/history_notes.md`, `tools/drift_guard.py`,
+`tests/data/test_item_notes_index.py`.
+
+**TESTS.** `tests/data/test_item_notes_index.py` - the floor-row parse and routing arms, the
+start and middle residue plants for every row form (they kill the two surviving floor-form
+mutants), and the canonical id spelling arms including the `CS-0nn` block row at `CS-005`.
+
+**HOW IT WAS GRADED.** Builder, then four adversary rounds on frozen SHAs and a verifier. Round
+one refuted twice (surviving grammar mutants; a false rules sentence, deleted header prose,
+edited relocated text). Round two refuted twice (older-form mid-row looseness; retired prose
+placed in a LIVE annex; the pointer rule still false; `CS-0nn` refused). Round three ran under a
+merger stop condition - only acceptance failures or defects this chain introduced count - and
+found one (`CS-005` refused, `CS-5` accepted). The verifier then confirmed the fix at the frozen
+tip: 41 base sections byte-identical across both leaves, all 184 sections routed only to their
+own leaf, the leaf under budget per `tools/doc_budget.py`, guard (j) PASS, the regex revert
+reddening 9 arms.
+
+**AT MERGE.** The queue lane closed CS-1127 concurrently and relocated its section out of the old
+leaf, while this merge carried a copy into the new leaf; the copy was removed after confirming
+its body stands in `docs/history_notes.md`, and guard (j) went from FAIL to PASS on it.
+
+**FILED, NOT FIXED.** CS-1129 - the older row forms are closed only at the positions the residue
+plants perturb, a zero-padded phase number parses, and an empty or inverted range is not a
+problem. Pre-existing at e18b27a; the bounded-refutation rule filed it rather than growing the
+round.
+
 ### 2026-09-17 - CS-1127 - CLOSED. The non-citation declaration spends a budget, and the tautology fence over it is armed
 
 **THE DEFECT.** `tests.test_docs_citations.NON_CITATION_PATTERNS` declares which compiled

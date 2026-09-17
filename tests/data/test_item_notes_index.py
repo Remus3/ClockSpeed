@@ -76,6 +76,12 @@ _FOLLOWUP_LEAF_SEAM = 850
 # fact with somewhere to drift to.
 _SECOND_BLOCK_FIRST = 900
 
+# CS-1079 - THE FOUR-DIGIT IDS TOOK A LEAF OF THEIR OWN. The CS-9nn leaf had been
+# an open-ended floor, so it went over its soft doc budget holding IDs its own
+# selector did not name. Every phase 4 ID at CS-1000 or above now sits in the
+# leaf this constant spells, and the CS-9nn leaf holds exactly its block.
+_THIRD_BLOCK_FIRST = 1000
+
 
 def _load_drift_guard() -> ModuleType:
     """Load tools/drift_guard.py by path.
@@ -108,13 +114,13 @@ drift_guard = _load_drift_guard()
 #: The leaf table's phase rows, spelled here as a FIXTURE rather than read from
 #: the tracked index, so a plant into it never edits the repository.
 _RULE_ROWS = (
-    "| `docs/item_notes/phase4.md` | ROADMAP `Phase 4`, ID BELOW the `CS-8nn` block. NOT the "
-    "`CS-10nn` block - the rule sends every phase 4 ID at 900 or higher to the `CS-9nn` leaf |\n"
+    "| `docs/item_notes/phase4.md` | ROADMAP `Phase 4`, ID BELOW the `CS-8nn` block |\n"
     "| `docs/item_notes/phase4-followups.md` | ROADMAP `Phase 4`, ID in the `CS-8nn` block "
     "below CS-850 |\n"
     "| `docs/item_notes/phase4-followups-850.md` | ROADMAP `Phase 4`, ID in the `CS-8nn` block "
     "at or above CS-850 |\n"
     "| `docs/item_notes/phase4-followups-900.md` | ROADMAP `Phase 4`, ID in the `CS-9nn` block |\n"
+    "| `docs/item_notes/phase4-followups-1000.md` | ROADMAP `Phase 4`, ID at or above CS-1000 |\n"
     "| `docs/item_notes/phase5.md` | ROADMAP `Phase 5` |\n"
     "| `docs/item_notes/phase6.md` | ROADMAP `Phase 6` |\n"
     "| `docs/item_notes/phase7.md` | ROADMAP `Phase 7` |\n"
@@ -440,7 +446,10 @@ _SEAM_CASES = [
     ("CS-850", "4", "phase4-followups-850.md"),
     ("CS-899", "4", "phase4-followups-850.md"),
     ("CS-900", "4", "phase4-followups-900.md"),
-    ("CS-1086", "4", "phase4-followups-900.md"),
+    ("CS-999", "4", "phase4-followups-900.md"),
+    ("CS-1000", "4", "phase4-followups-1000.md"),
+    ("CS-1086", "4", "phase4-followups-1000.md"),
+    ("CS-1127", "4", "phase4-followups-1000.md"),
     ("CS-950", "5", "phase5.md"),
     ("CS-701", "7", "phase7.md"),
 ]
@@ -738,6 +747,33 @@ def test_a_code_seam_moved_away_from_the_table_is_red(
     ) in rendered.splitlines(), rendered
 
 
+def test_a_table_floor_moved_away_from_the_code_is_red(family: Path) -> None:
+    """CS-1079. The table's open-ended floor says CS-1100; the code says CS-1000."""
+    _replace_in_index(family, "ID at or above CS-1000 |", "ID at or above CS-1100 |")
+
+    status, rendered = _run(family)
+    assert status == "FAIL", rendered
+    assert (
+        f"  Phase 4 CS-1000: the leaf table names 0 leaves, "
+        f"item_notes_leaf derives {LEAF_DIR_RELATIVE}/phase4-followups-{_THIRD_BLOCK_FIRST}.md"
+    ) in rendered.splitlines(), rendered
+
+
+def test_a_code_floor_moved_away_from_the_table_is_red(
+    family: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """CS-1079, the other direction: the code's floor moves, the probe follows it."""
+    monkeypatch.setattr(drift_guard, "_ITEM_NOTES_THIRD_BLOCK_FIRST", 1100)
+
+    status, rendered = _run(family)
+    assert status == "FAIL", rendered
+    assert (
+        f"  Phase 4 CS-1100: the leaf table names "
+        f"{LEAF_DIR_RELATIVE}/phase4-followups-{_THIRD_BLOCK_FIRST}.md, "
+        f"item_notes_leaf derives {LEAF_DIR_RELATIVE}/phase4-followups-1100.md"
+    ) in rendered.splitlines(), rendered
+
+
 def test_a_routed_phase_the_table_does_not_cover_is_red(family: Path) -> None:
     """A phase with a routed item and no rule row resolves to nothing from the index."""
     _replace_in_index(family, "| `docs/item_notes/phase7.md` | ROADMAP `Phase 7` |\n", "")
@@ -809,10 +845,140 @@ _RESIDUE_PLANTS = [
         "phase4-followups-900.md",
         ", mostly",
     ),
+    (
+        "ID at or above CS-1000 |",
+        "ID at or above CS-1000, mostly |",
+        "phase4-followups-1000.md",
+        ", mostly",
+    ),
+    # CS-1079 retired the "sends up" clause with the open-ended CS-9nn leaf it
+    # existed to spell. The closed grammar no longer carries it, so re-spelling
+    # the retired phase4.md row is residue rather than a silent rule.
+    (
+        "ID BELOW the `CS-8nn` block |",
+        "ID BELOW the `CS-8nn` block. NOT the `CS-10nn` block - the rule sends every "
+        "phase 4 ID at 900 or higher to the `CS-9nn` leaf |",
+        "phase4.md",
+        ". NOT the `CS-10nn` block - the rule sends every phase 4 ID at 900 or higher "
+        "to the `CS-9nn` leaf",
+    ),
+]
+
+# CS-1079 repair. EVERY PLANT ABOVE APPENDS JUNK AT THE END, so a grammar
+# loosened at the START or in the MIDDLE of a clause - a case-insensitive
+# keyword, a run of whitespace, a space after `CS-` - survived all of them.
+#
+# WHAT THIS COVERS IS ONE POSITION PER PERTURBATION, NOT EVERY POSITION. Each
+# comment below names the exact spots its form is perturbed at. A keyword, a
+# space or a case change anywhere ELSE in a row is not planted here, so a grammar
+# loosened only at an unplanted spot still passes this arm - the older forms'
+# mid-row looseness is a separate row, not this one. CS-1079's floor form is
+# planted at the most spots, and those plants kill the M8 and M12 mutants that
+# loosen its comma, its keyword case, its word spacing and its `CS-` joint.
+#
+# A LEADING ZERO IS REFUSED in an id NUMBER rather than read as the same id:
+# `CS-01000` is a spelling no reader or search for `CS-1000` finds. The BLOCK
+# spelling `CS-0nn` is the one real zero-led name and stays accepted.
+#
+# Each entry is (anchor, the anchor perturbed, leaf, the residue it leaves).
+_P4 = "ROADMAP `Phase 4`"
+_LOOSENING = [
+    # The phase-only form: a doubled space after ROADMAP, ROADMAP lowercased, Phase
+    # lowercased.
+    ("ROADMAP `Phase 5` |", "ROADMAP  `Phase 5` |", "phase5.md", "ROADMAP  `Phase 5`"),
+    ("ROADMAP `Phase 5` |", "roadmap `Phase 5` |", "phase5.md", "roadmap `Phase 5`"),
+    ("ROADMAP `Phase 5` |", "ROADMAP `phase 5` |", "phase5.md", "ROADMAP `phase 5`"),
+    # ", ID BELOW the `CS-nnn` block": a doubled space after the comma, BELOW
+    # lowercased, a doubled space before the backtick, a space after CS-, a
+    # zero-led block other than `CS-0nn`.
+    *(
+        (f"{_P4}, ID BELOW the `CS-8nn` block |", f"{_P4}{clause} |", "phase4.md", clause)
+        for clause in (
+            ",  ID BELOW the `CS-8nn` block",
+            ", ID below the `CS-8nn` block",
+            ", ID BELOW the  `CS-8nn` block",
+            ", ID BELOW the `CS- 8nn` block",
+            ", ID BELOW the `CS-08nn` block",
+        )
+    ),
+    # ", ID in the `CS-nnn` block below CS-n": in the narrowing, a doubled space
+    # before CS-, below uppercased, a space after CS-, a leading zero in the id;
+    # in the block clause, IN uppercased, a space after CS-, a zero-led block.
+    *(
+        (
+            "`CS-8nn` block below CS-850 |",
+            f"{perturbed} |",
+            "phase4-followups.md",
+            residue,
+        )
+        for perturbed, residue in (
+            ("`CS-8nn` block below  CS-850", " below  CS-850"),
+            ("`CS-8nn` block BELOW CS-850", " BELOW CS-850"),
+            ("`CS-8nn` block below CS- 850", " below CS- 850"),
+            ("`CS-8nn` block below CS-0850", " below CS-0850"),
+        )
+    ),
+    *(
+        (
+            f"{_P4}, ID in the `CS-8nn` block below CS-850 |",
+            f"{_P4}{clause} |",
+            "phase4-followups.md",
+            clause,
+        )
+        for clause in (
+            ", ID IN the `CS-8nn` block below CS-850",
+            ", ID in the `CS- 8nn` block below CS-850",
+            ", ID in the `CS-08nn` block below CS-850",
+        )
+    ),
+    # ", ID in the `CS-nnn` block at or above CS-n": a doubled space between or and
+    # above, at uppercased, a space after CS-, a leading zero in the id.
+    *(
+        (
+            "`CS-8nn` block at or above CS-850 |",
+            f"`CS-8nn` block{residue} |",
+            "phase4-followups-850.md",
+            residue,
+        )
+        for residue in (
+            " at or  above CS-850",
+            " AT or above CS-850",
+            " at or above CS- 850",
+            " at or above CS-0850",
+        )
+    ),
+    # ", ID in the `CS-nnn` block" alone: a doubled space after in, a zero-led block.
+    *(
+        (
+            f"{_P4}, ID in the `CS-9nn` block |",
+            f"{_P4}{clause} |",
+            "phase4-followups-900.md",
+            clause,
+        )
+        for clause in (
+            ", ID in  the `CS-9nn` block",
+            ", ID in the `CS-09nn` block",
+        )
+    ),
+    # CS-1079's floor form, ", ID at or above CS-n": a doubled space and no space
+    # after the comma, ID lowercased, a doubled space after at, a space after CS-,
+    # CS lowercased, a leading zero in the id.
+    *(
+        (f"{_P4}, ID at or above CS-1000 |", f"{_P4}{clause} |", "phase4-followups-1000.md", clause)
+        for clause in (
+            ",  ID at or above CS-1000",
+            ",ID at or above CS-1000",
+            ", id at or above CS-1000",
+            ", ID at  or above CS-1000",
+            ", ID at or above CS- 1000",
+            ", ID at or above cs-1000",
+            ", ID at or above CS-01000",
+        )
+    ),
 ]
 
 
-@pytest.mark.parametrize(("old", "new", "leaf", "residue"), _RESIDUE_PLANTS)
+@pytest.mark.parametrize(("old", "new", "leaf", "residue"), _RESIDUE_PLANTS + _LOOSENING)
 def test_a_rule_row_clause_outside_the_grammar_is_red(
     family: Path, old: str, new: str, leaf: str, residue: str
 ) -> None:
@@ -824,6 +990,92 @@ def test_a_rule_row_clause_outside_the_grammar_is_red(
     assert (
         f"  {LEAF_DIR_RELATIVE}/{leaf}: unparsed residue in rule row - {residue!r}"
     ) in rendered.splitlines(), rendered
+
+
+#: `CS-0nn` is the real block name of CS-001 to CS-007, so a zero BLOCK is a
+#: spelling the grammar accepts - in both block forms. Its ids are spelled
+#: zero-padded to three digits, `CS-005`, and that is the spelling a row uses.
+_ZERO_BLOCK_ROWS = [
+    ("ROADMAP `Phase 5`, ID in the `CS-0nn` block", 0, 100),
+    ("ROADMAP `Phase 5`, ID BELOW the `CS-0nn` block", 0, 0),
+    ("ROADMAP `Phase 5`, ID in the `CS-0nn` block below CS-005", 0, 5),
+]
+
+#: CS-1079 pass 3. The CANONICAL id spelling, measured over `ROADMAP.md` and
+#: `docs/LEDGER.md`: three digits, zero-padded below 1000, and no leading zero at
+#: four or more digits. Every id-bearing clause accepts exactly that.
+_CANONICAL_IDS = ["005", "099", "900", "1000", "10000"]
+_NON_CANONICAL_IDS = ["5", "05", "0005", "01000"]
+_ID_CLAUSES = [
+    ("ID in the `CS-0nn` block below CS-{id}", lambda n: (0, min(100, n))),
+    ("ID in the `CS-0nn` block at or above CS-{id}", lambda n: (n, 100)),
+    ("ID at or above CS-{id}", lambda n: (n, None)),
+]
+
+
+def _parse_one(holds: str) -> tuple[list, list[str]]:
+    """Parse a one-row leaf table carrying ``holds`` for an existing leaf."""
+    text = (
+        f"{drift_guard.ITEM_NOTES_RULE_HEADING}\n\n| Leaf | Holds |\n|---|---|\n"
+        f"| `docs/item_notes/phase5.md` | {holds} |\n"
+    )
+    return drift_guard.item_notes_rule_rows(text)
+
+
+@pytest.mark.parametrize("clause", [c for c, _ in _ID_CLAUSES])
+@pytest.mark.parametrize("spelled", _CANONICAL_IDS)
+def test_a_canonical_id_spelling_parses_in_every_id_clause(clause: str, spelled: str) -> None:
+    """CS-005 and CS-10000 both parse, in every clause that carries an id."""
+    bounds = dict(_ID_CLAUSES)[clause](int(spelled))
+    rules, problems = _parse_one("ROADMAP `Phase 5`, " + clause.format(id=spelled))
+    assert not problems, problems
+    assert [(rule.phase, rule.low, rule.high) for rule in rules] == [("5", *bounds)]
+
+
+@pytest.mark.parametrize("clause", [c for c, _ in _ID_CLAUSES])
+@pytest.mark.parametrize("spelled", _NON_CANONICAL_IDS)
+def test_a_non_canonical_id_spelling_is_refused_in_every_id_clause(
+    clause: str, spelled: str
+) -> None:
+    """CS-5, CS-05, CS-0005 and CS-01000 are spellings no reader or search finds."""
+    rules, problems = _parse_one("ROADMAP `Phase 5`, " + clause.format(id=spelled))
+    assert rules == [], rules
+    problem_count = len(problems)
+    assert problem_count == 1, problems
+    assert "unparsed residue in rule row" in problems[0], problems
+
+
+@pytest.mark.parametrize(("holds", "low", "high"), _ZERO_BLOCK_ROWS)
+def test_the_cs_0nn_block_spelling_parses(holds: str, low: int, high: int) -> None:
+    """CS-1079 pass 2. The leading-zero refusal is for id NUMBERS, never the `CS-0nn` block."""
+    text = (
+        f"{drift_guard.ITEM_NOTES_RULE_HEADING}\n\n| Leaf | Holds |\n|---|---|\n"
+        f"| `docs/item_notes/phase5.md` | {holds} |\n"
+    )
+    rules, problems = drift_guard.item_notes_rule_rows(text)
+    assert not problems, problems
+    assert [(rule.phase, rule.low, rule.high) for rule in rules] == [("5", low, high)]
+
+
+@pytest.mark.parametrize(
+    "holds",
+    [
+        "ROADMAP `Phase 5`, ID in the `CS-00nn` block",
+        "ROADMAP `Phase 5`, ID BELOW the `CS-00nn` block",
+        "ROADMAP `Phase 5`, ID at or above CS-0",
+    ],
+)
+def test_a_zero_led_id_beside_the_cs_0nn_block_is_refused(holds: str) -> None:
+    """CS-1079 pass 2. Accepting `CS-0nn` must not re-admit `CS-00nn` or `CS-0`."""
+    text = (
+        f"{drift_guard.ITEM_NOTES_RULE_HEADING}\n\n| Leaf | Holds |\n|---|---|\n"
+        f"| `docs/item_notes/phase5.md` | {holds} |\n"
+    )
+    rules, problems = drift_guard.item_notes_rule_rows(text)
+    assert rules == [], rules
+    problem_count = len(problems)
+    assert problem_count == 1, problems
+    assert "unparsed residue in rule row" in problems[0], problems
 
 
 def test_an_annex_row_outside_the_grammar_is_red(family: Path) -> None:
@@ -1059,7 +1311,7 @@ def test_every_section_sits_in_the_leaf_the_membership_rule_names() -> None:
     and one stated exception, CS-501, which predates the CS-8nn block and is
     filed under phase 4. Anything else here means a body was hand-placed.
 
-    PHASE 4 IS FOUR LEAVES AND THE RULE STAYS A DERIVATION FROM THE ID. It is
+    PHASE 4 IS FIVE LEAVES AND THE RULE STAYS A DERIVATION FROM THE ID. It is
     computable from an item number alone and is deliberately not a table of
     which item lives where: a hand-listed mapping would have to be edited by
     the same hand that misplaces a body, so it would agree with the mistake.
@@ -1079,7 +1331,9 @@ def test_every_section_sits_in_the_leaf_the_membership_rule_names() -> None:
         if digit == "4":
             number = int(item.split("-")[1])
             in_block = _FOLLOWUP_BLOCK_FIRST <= number < _FOLLOWUP_BLOCK_LIMIT
-            if number >= _SECOND_BLOCK_FIRST:
+            if number >= _THIRD_BLOCK_FIRST:
+                want = f"phase4-followups-{_THIRD_BLOCK_FIRST}.md"
+            elif number >= _SECOND_BLOCK_FIRST:
                 want = f"phase4-followups-{_SECOND_BLOCK_FIRST}.md"
             elif not in_block:
                 want = "phase4.md"
@@ -1129,6 +1383,36 @@ def test_every_real_routed_id_resolves_to_its_section_from_the_index_text_alone(
     trailing_count = len(trailing)
     assert not unresolved, "\n".join(unresolved)
     assert resolved_count == trailing_count, "resolved fewer ids than ROADMAP routes"
+
+
+def test_every_real_leaf_selector_describes_the_ids_its_leaf_holds() -> None:
+    """CS-1079. Each phase row's selector, read as text, names every section its leaf holds.
+
+    The CS-9nn row once read as its block while the leaf also held four-digit IDs
+    through a clause on ANOTHER row, so a split on the declared selector moved
+    nothing. Here each section is resolved from the index text alone, and must
+    resolve to exactly the leaf it sits in; a phase 4 section count of zero
+    proves nothing and is refused.
+    """
+    sections = _real_sections()
+    phases = _real_phases()
+    rules, problems = drift_guard.item_notes_rule_rows(
+        (REPO_ROOT / INDEX_RELATIVE).read_text(encoding="utf-8")
+    )
+    assert not problems, problems
+    phase4 = sorted(item for item in sections if phases.get(item, "").endswith(" 4"))
+    phase4_count = len(phase4)
+    assert phase4_count > 0, "no phase 4 section - this arm proves nothing"
+
+    wrong: list[str] = []
+    for item, leaf in sorted(sections.items()):
+        phase = phases.get(item)
+        if phase is None:
+            continue
+        named = drift_guard.item_notes_rule_leaves(rules, item, phase.split()[1])
+        if named != [f"{LEAF_DIR_RELATIVE}/{leaf}"]:
+            wrong.append(f"{item} sits in {leaf}, its selector names {named}")
+    assert not wrong, "\n".join(wrong)
 
 
 def test_the_real_tree_routed_count_matches_an_independent_count() -> None:

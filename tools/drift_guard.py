@@ -3309,15 +3309,34 @@ _ITEM_NOTES_TABLE_FRAME = re.compile(r"^\|\s*Leaf\s*\|\s*Holds\s*\|\s*$|^\|[-:| 
 # match this grammar to its LAST character; any residue is a FAIL naming it.
 # The forms are exactly the ones the real table uses. A new form is added HERE,
 # with an arm, before a row may spell it.
+#
+# CS-1079 RETIRED THE "SENDS UP" CLAUSE AND ADDED THE OPEN FLOOR. The clause let
+# the phase4.md row stretch the CS-9nn row past its own block, so that leaf held
+# four-digit IDs its selector never named and went over budget with no row
+# owning them. The top leaf now spells its own floor, ", ID at or above CS-n",
+# and every block row is bounded by the block it names.
+#
+# AN ID IS ACCEPTED ONLY IN ITS CANONICAL SPELLING, as `ROADMAP.md` and
+# `docs/LEDGER.md` spell every id: three digits, zero-padded below 1000
+# (`CS-005`), and no leading zero at four or more digits (`CS-1000`). `CS-5`,
+# `CS-05`, `CS-0005` and `CS-01000` would parse to a real range while no reader
+# or search for the canonical id finds the spelling. A BLOCK number may be a
+# bare 0, because `CS-0nn` is the real name of CS-001 to CS-007's block;
+# `CS-00nn` and `CS-08nn` are still refused. The four-or-more-digit branch is
+# tried FIRST and the three-digit branch may not be followed by a digit, so
+# `CS-1000` is never read as `CS-100` and `CS-0850` is refused as a whole clause
+# rather than read as `CS-085` with a `0` of residue.
 _RULE_ANNEX = "ANNEX, not a phase leaf - "
+_RULE_BLOCK = r"(?:0|[1-9]\d*)"
+_RULE_ID = r"(?:[1-9]\d{3,}|\d{3}(?!\d))"
 _RULE_GRAMMAR = re.compile(
     r"ROADMAP `Phase (?P<phase>\d+)`"
     r"(?:"
-    r", ID BELOW the `CS-(?P<below_block>\d+)nn` block"
-    r"(?:\. NOT the `CS-(?P<not_block>\d+)nn` block - the rule sends every phase "
-    r"(?P<sends_phase>\d+) ID at (?P<floor>\d+) or higher to the `CS-(?P<sends_block>\d+)nn` leaf)?"
-    r"|, ID in the `CS-(?P<in_block>\d+)nn` block"
-    r"(?: below CS-(?P<below_id>\d+)| at or above CS-(?P<at_or_above>\d+))?"
+    r", ID BELOW the `CS-(?P<below_block>" + _RULE_BLOCK + r")nn` block"
+    r"|, ID in the `CS-(?P<in_block>" + _RULE_BLOCK + r")nn` block"
+    r"(?: below CS-(?P<below_id>" + _RULE_ID + r")"
+    r"| at or above CS-(?P<at_or_above>" + _RULE_ID + r"))?"
+    r"|, ID at or above CS-(?P<floor>" + _RULE_ID + r")"
     r")?"
 )
 _ITEM_NOTES_BLOCK_WIDTH = 100
@@ -3342,12 +3361,13 @@ _ROADMAP_ITEM_LINE = re.compile(r"^(CS-G?\d+) - ")
 _ROADMAP_FIELD_SEPARATOR = " - "
 _ROADMAP_DETAIL_FIELD = "detail:"
 
-# The ID block rule, owned here. Phase 4 is four leaves: CS-8nn is the follow-up
-# block (split at CS-850, ADR 0011) and every phase 4 ID at CS-900 or above is
-# the CS-9nn block's leaf, CS-10nn included. Every other phase is one leaf.
+# The ID block rule, owned here. Phase 4 is five leaves: CS-8nn is the follow-up
+# block (split at CS-850, ADR 0011), CS-9nn is its own leaf, and every phase 4 ID
+# at CS-1000 or above is the four-digit leaf (CS-1079). Every other phase is one leaf.
 _ITEM_NOTES_FOLLOWUP_FIRST = 800
 _ITEM_NOTES_FOLLOWUP_SEAM = 850
 _ITEM_NOTES_SECOND_BLOCK_FIRST = 900
+_ITEM_NOTES_THIRD_BLOCK_FIRST = 1000
 _ITEM_NOTES_NUMBERED = re.compile(r"CS-(\d+)")
 
 
@@ -3428,7 +3448,9 @@ def item_notes_leaf(item: str, phase: str) -> str:
     if phase != "4" or numbered is None:
         return f"{ITEM_NOTES_LEAF_DIR_RELATIVE}/phase{phase}.md"
     number = int(numbered.group(1))
-    if number >= _ITEM_NOTES_SECOND_BLOCK_FIRST:
+    if number >= _ITEM_NOTES_THIRD_BLOCK_FIRST:
+        leaf = f"phase4-followups-{_ITEM_NOTES_THIRD_BLOCK_FIRST}.md"
+    elif number >= _ITEM_NOTES_SECOND_BLOCK_FIRST:
         leaf = f"phase4-followups-{_ITEM_NOTES_SECOND_BLOCK_FIRST}.md"
     elif number >= _ITEM_NOTES_FOLLOWUP_SEAM:
         leaf = f"phase4-followups-{_ITEM_NOTES_FOLLOWUP_SEAM}.md"
@@ -3471,9 +3493,7 @@ def _item_notes_table_lines(index_text: str) -> list[str] | None:
     return section
 
 
-def _item_notes_parse_rule(
-    leaf: str, holds: str
-) -> tuple[ItemNotesRule, tuple[str, int, int] | None, list[str]]:
+def _item_notes_parse_rule(leaf: str, holds: str) -> tuple[ItemNotesRule, list[str]]:
     """Parse one phase row's Holds cell COMPLETELY under the closed grammar.
 
     Args:
@@ -3481,16 +3501,14 @@ def _item_notes_parse_rule(
         holds: The row's Holds cell.
 
     Returns:
-        (the rule, a "sends up" clause as (phase, floor, block) when the row
-        carries one, and problem lines - non-empty whenever any of the cell was
-        left unparsed or a clause contradicts the row it sits in).
+        (the rule, problem lines - non-empty whenever any of the cell was left
+        unparsed).
     """
     match = _RULE_GRAMMAR.match(holds)
     residue = holds if match is None else holds[match.end() :]
     if match is None or residue:
         return (
             ItemNotesRule(leaf, "", 0, None),
-            None,
             [f"  {leaf}: unparsed residue in rule row - {residue!r}"],
         )
     phase = match.group("phase")
@@ -3508,21 +3526,9 @@ def _item_notes_parse_rule(
         )
     if match.group("at_or_above") is not None:
         low = max(low, int(match.group("at_or_above")))
-    problems: list[str] = []
-    sends_up = None
-    if match.group("sends_phase") is not None:
-        floor = int(match.group("floor"))
-        sends_up = (match.group("sends_phase"), floor, int(match.group("sends_block")))
-        if match.group("sends_phase") != phase:
-            problems.append(
-                f"  {leaf}: a Phase {phase} row sends phase {match.group('sends_phase')} IDs"
-            )
-        if int(match.group("not_block")) * _ITEM_NOTES_BLOCK_WIDTH < floor:
-            problems.append(
-                f"  {leaf}: the `CS-{match.group('not_block')}nn` block it excludes lies "
-                f"below the {floor} it sends up"
-            )
-    return ItemNotesRule(leaf, phase, low, high), sends_up, problems
+    if match.group("floor") is not None:
+        low = int(match.group("floor"))
+    return ItemNotesRule(leaf, phase, low, high), []
 
 
 def item_notes_rule_rows(index_text: str) -> tuple[list[ItemNotesRule], list[str]]:
@@ -3547,7 +3553,6 @@ def item_notes_rule_rows(index_text: str) -> tuple[list[ItemNotesRule], list[str
             f"{ITEM_NOTES_RULE_HEADING!r} - no routed item resolves from the index"
         ]
     rules: list[ItemNotesRule] = []
-    sends_ups: list[tuple[str, int, int]] = []
     problems: list[str] = []
     for line in table:
         if _ITEM_NOTES_TABLE_FRAME.match(line) or _item_notes_routing_row_id(line) is not None:
@@ -3559,27 +3564,11 @@ def item_notes_rule_rows(index_text: str) -> tuple[list[ItemNotesRule], list[str
         leaf, holds = row.group(1), row.group(2)
         if holds.startswith(_RULE_ANNEX):
             continue
-        rule, sends_up, rule_problems = _item_notes_parse_rule(leaf, holds)
+        rule, rule_problems = _item_notes_parse_rule(leaf, holds)
         problems.extend(rule_problems)
         if not rule.phase:
             continue
         rules.append(rule)
-        if sends_up is not None:
-            sends_ups.append(sends_up)
-    for phase, floor, block in sends_ups:
-        low = block * _ITEM_NOTES_BLOCK_WIDTH
-        targets = [
-            index
-            for index, rule in enumerate(rules)
-            if rule.phase == phase and rule.low == low and floor == low
-        ]
-        if len(targets) != 1:
-            problems.append(
-                f"  Phase {phase}: a row sends IDs at {floor} or higher to the `CS-{block}nn` "
-                f"leaf, and {len(targets)} row(s) hold that block from {floor}"
-            )
-            continue
-        rules[targets[0]] = rules[targets[0]]._replace(high=None)
     if not rules and not problems:
         problems.append(f"{ITEM_NOTES_INDEX_RELATIVE}'s leaf table carries no phase row")
     return rules, problems
@@ -3627,6 +3616,7 @@ def _item_notes_rule_probes(rules: list[ItemNotesRule], phase: str, routed: list
         _ITEM_NOTES_FOLLOWUP_FIRST,
         _ITEM_NOTES_FOLLOWUP_SEAM,
         _ITEM_NOTES_SECOND_BLOCK_FIRST,
+        _ITEM_NOTES_THIRD_BLOCK_FIRST,
     ):
         probes.update((seam - 1, seam))
     for rule in rules:

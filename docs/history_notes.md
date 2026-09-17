@@ -24,6 +24,36 @@ Where current truth actually lives:
 | Commands and runbooks | `docs/OPERATIONS.md` |
 
 
+## CS-1079 - item section, CLOSED and relocated from `docs/item_notes/phase4-followups-1000.md` 2026-09-17
+
+**Moved here from `docs/item_notes/phase4-followups-1000.md` when the item closed.**
+The closure record is in `docs/LEDGER.md`.
+
+### Filed 2026-09-14 (queue lane), from the CS-892 wrap, MEASURED not argued
+
+**WHAT WAS MEASURED.** `tools/doc_budget.py` and drift guard (a) both report this leaf over
+its soft budget. It was already over at the commit this cycle branched from - the CS-892
+wrap grew it further by appending the CS-1078 section, which is a legitimate append to the
+leaf the routing table names, not the cause. No number is restated here: read both the size
+and the budget from the tool, which is the only place either is owned.
+
+**WHY IT IS FILED RATHER THAN LEFT TO THE WARN.** `ROADMAP.md`'s own size section states the
+rule this leaf inherits: the WARN prints loudly and exits 0, so it fails no CI, and a warn
+nobody acts on enforces nothing. `ROADMAP.md` has CS-971 for exactly that reason. This leaf
+has nobody, so every phase 4 cycle that files a follow-up grows an unowned over-budget file
+and the guard says so into a log nothing reads.
+
+**THE SPLIT AXIS IS ALREADY WRONG AND THAT IS PART OF THE ROW.** The leaf table in
+`docs/item_notes.md` routes this leaf as "ROADMAP `Phase 4`, ID in the `CS-9nn` block", but the routing table
+sends CS-1067 through CS-1078 here too - four-digit ids the declared rule does not describe.
+So the leaf is over budget AND its stated selector no longer matches its contents, and a
+relocation that splits on the declared axis would move nothing. Any split has to restate the
+axis in `docs/item_notes.md` at the same time.
+
+**RELOCATE, NEVER DELETE.** A body is moved verbatim to a new leaf with the routing table
+updated in the same commit, per the rules block in `docs/item_notes.md`. Nothing in this
+leaf is summarised, trimmed or re-ordered on the way out.
+
 ## CS-1127 - item section, CLOSED and relocated from `docs/item_notes/phase4-followups-900.md` 2026-09-17
 
 **Moved here from `docs/item_notes/phase4-followups-900.md` when the item closed.**
@@ -157,6 +187,67 @@ already refuses that shape by name, and it would make every future row free.
 - Next action: CS-1042 - the uncollected set is the live records carrying transforms MINUS the
   collectable pairs CS-1038 now carries up, a SUBTRACTION and not a lookup, and the two halves
   of a pair are not both always present.
+
+---
+
+## CS-1079 - retired prose, relocated from `docs/item_notes/leaf-membership-rule.md` 2026-09-17
+
+**RETIRED BY CS-1079, NOT CURRENT.** CS-1079 split `docs/item_notes/phase4-followups-900.md`
+at CS-1000 and rewrote the prose that described the split it replaced. The record below is
+every paragraph of DOCS PROSE that CS-1079 removed or rewrote, byte for byte, in this order:
+the two header paragraphs of `docs/item_notes/phase4-followups-900.md`, the `phase4.md` row
+retired from the leaf table in `docs/item_notes.md`, that file's rule on "this file"
+pointers, the CS-1062 promise paragraph of `docs/item_notes/leaf-membership-rule.md`, and
+the two paragraphs of that annex's relocated seam section that CS-1079 made false.
+**It is scoped to docs prose.** The comments and docstrings CS-1079 rewrote in
+`tools/drift_guard.py` and `tests/data/test_item_notes_index.py` are code, and git history
+is their only record. Every sentence below describes the tree before CS-1079; "this leaf"
+and "THIS leaf" in its first two paragraphs mean `docs/item_notes/phase4-followups-900.md`.
+It stood first in `docs/item_notes/leaf-membership-rule.md` and moved here because
+`docs/item_notes/` never holds history. That annex keeps a one-line pointer.
+
+```text
+**THIS LEAF HOLDS THE `CS-9nn` BLOCK AND EVERYTHING ABOVE IT.** The membership rule in
+`tests/data/test_item_notes_index.py` routes every phase 4 ID at 900 OR HIGHER here, so
+the four-digit IDs live in this leaf too and the `9nn` in its name is a floor rather than
+a range. Its siblings
+`docs/item_notes/phase4-followups.md` and `docs/item_notes/phase4-followups-850.md` hold
+CS-800 to CS-849 and CS-850 to CS-899 respectively. **NEITHER SIBLING NAME SPELLS ITS
+RANGE HONESTLY**, so trust this sentence and the leaf membership rule in `docs/item_notes.md`,
+never a filename.
+
+**What lands in THIS leaf.** Every OPEN item `ROADMAP.md` files under its `Phase 4`
+heading whose ID is 900 or above. That block exists because `CS-8nn` filled up at
+100 of 100, measured 2026-09-05. Operator decision 2026-09-05. The block was never closed
+at `CS-999`, and the code that routes IDs has always read it as an open-ended floor - so
+`CS-9nn` filling up needs no fourth leaf and no decision.
+
+| `docs/item_notes/phase4.md` | ROADMAP `Phase 4`, ID BELOW the `CS-8nn` block. NOT the `CS-10nn` block - the rule sends every phase 4 ID at 900 or higher to the `CS-9nn` leaf |
+
+**A pointer inside a body saying "this file" means the leaf that body sits in.** Every
+one of those was measured before the 2026-08-25 split and every one is a self-reference
+into its own section, so the split falsified none of them.
+
+**Relocated 2026-09-15 for CS-1062, verbatim.** The index had ELEVEN BYTES of headroom
+against its 16384-byte ceiling, so the next session to file an item could not add its
+routing row without doing unrelated surgery first. RELOCATED, NOT DELETED - every word
+below stood in `docs/item_notes.md` before the move.
+
+**Phase 4 is four leaves and no seam is arbitrary.** `CS-8nn` is the follow-up
+block, created because `CS-4nn` filled up at 98 of 100 - operator decision 2026-08-21,
+recorded in `ROADMAP.md`. An ID therefore still says which phase it came from, and
+membership needs no judgement. The `CS-8nn` block then split again at CS-850, and the
+reasoning - including why the seam sits there rather than at CS-830 or CS-840 - is in
+`docs/adr/0011-the-cs-8nn-follow-up-leaf-splits-at-cs-850.md`. `CS-501` is the one
+stated exception: it predates the block, keeps its ID, and `ROADMAP.md` files it under
+phase 4, so it sits in `phase4.md`. A phase with no OPEN item carrying detail has no
+leaf, which is why phase 6 had none until its first sections were written.
+
+**`CS-10nn` TOOK NO LEAF OF ITS OWN, AND THAT IS A DECISION RATHER THAN AN OMISSION.**
+The earlier seams exist because a block FILLED UP. The phase leaves now holding the first
+`CS-10nn` sections are inside their budgets, so the block routes by PHASE like every other
+id and a fourth phase-4 leaf would be a seam nobody decided.
+```
 
 ---
 
