@@ -33,6 +33,53 @@ Keep every entry to that shape. If an item needs a paragraph, it needs its own f
 the line becomes a pointer.
 
 ---
+## Session 103 - 2026-09-17 - the acceptance moved off the ROADMAP line, the mypy arms stopped inheriting their environment, and CI stopped starting jobs
+
+- CLOSED BY THE MAIN SESSION, each through builder, adversary on a distinct lens, repair loop,
+  then a verifier or an adjudicated stop condition: CS-1079, CS-971, CS-1033, CS-1125. FILED, NOT
+  FIXED: CS-1129, CS-1130, CS-1131, CS-1132. Detail in `docs/LEDGER.md`, not here.
+- CLOSED BY THE `queue` LANE while this ran: CS-1127, CS-1128. The lane also filed nothing new
+  this session. Both collided with a main-session merge and are recorded under "at merge" in the
+  two merge commits.
+- **THE RULE CHANGE THAT OUTLIVES THE SESSION: AN ITEM'S ACCEPTANCE NOW LIVES IN ITS
+  `docs/item_notes/` SECTION, NOT ON ITS `ROADMAP.md` LINE.** The line carries its id, a COMPLETE
+  short title, the literal `acceptance: in detail`, its tier and its `detail:` field; the original
+  headline is filed in the section under `### Full headline`. `docs/adr/0022-*` is the fence.
+  The arithmetic that forced it: the acceptance clauses alone outweighed the whole soft budget, so
+  no arrangement that kept them on the lines could fit. CS-1033 asked for the opposite and was
+  closed as delivered with that one clause superseded.
+- **THE FIRST CS-971 DESIGN WAS REJECTED AFTER AN ADVERSARY READ THE DIFF, NOT AFTER A GUARD
+  REDDENED.** Cutting the clause at 90 bytes "at a clause break" changed what items required, item
+  after item, and left lines ending on a dangling word. No test in the tree could see it. The
+  lesson is the one CS-1105 already filed: a relocation needs a proof that RECONSTRUCTS the
+  original, not a proof that the bytes went somewhere.
+- **A GUARD WRITTEN IN ONE SESSION WAS DEFEATED FOUR TIMES IN THE SAME SESSION.** The headline
+  check went: literal `startswith` (one trailing character defeats it), then token-wise but
+  crashing on a headline that normalises to nothing (non-negotiable 7), then accepting any cut
+  before a conjunction, then accepting a title with no predicate. Each round was found by an
+  adversary crafting inputs, never by the live tree. A guard is not closed because its arms are
+  green; it is closed when someone has tried to walk past it.
+- **FILING A ROW EXPOSED A DEFECT THE MERGE HAD JUST SHIPPED.** The filed headline was read up to
+  the next HEADING, so the `---` between sections joined it, and CS-1122 - whose line carries its
+  WHOLE filed headline - read as cut part-way the moment it stopped being the last section in its
+  leaf. A section's correctness depended on an unrelated item not being filed after it.
+- **CI STOPPED STARTING JOBS MID-SESSION** - GitHub Actions refused every run for about two hours
+  with "recent account payments have failed or your spending limit needs to be increased". Jobs
+  read as `failure` with no steps, in six seconds. The `queue` lane read those as a red tree and
+  STOPPED ITSELF, which is the behaviour its prompt asks for. Do not diagnose a six-second job
+  failure as a test failure: read the annotation.
+- **UBUNTU PROVED A WINDOWS-GREEN ARM VACUOUS.** The CS-1125 `FORCE_COLOR` plant broke the
+  inheriting run on Windows and proved nothing on Linux, where mypy colours only when `setupterm`
+  finds a terminfo entry and the runner sets no `TERM`. The repair was to make the HAZARD complete
+  (plant `TERM` too), never to guard the platform. Every plant now derives its paths from `site`
+  and `sysconfig` rather than a Windows layout.
+- **A SCOPED-ONLY RUN HID A REPO-WIDE GUARD FOR THE FOURTH TIME.** The subprocess-timeout guard
+  reddened on CI because two new `subprocess.run` calls carried no `timeout=`. Builders now run the
+  whole-tree guard modules before reporting, not just their own file.
+- MEASURED, NOT FIXED: the tier-1 guard shard ran 454s and then 426s against a 420s budget and a
+  480s ceiling, WITH the warm mypy cache in place. It passes and it has almost no headroom left.
+  That belongs to the rows that own tier-1 cost and its growth rate.
+
 ## Session 102 - 2026-09-16/17 - the lane was killing its own suite, adversaries refuted nearly every first pass, and the routing rows came out
 
 - Shipped, CLOSED BY THE MAIN SESSION, each through builder, adversary on a distinct lens, repair
@@ -187,79 +234,3 @@ MOVES THE DECISION, NOT THE GATE.
 **A LINE-PIN FAMILY WENT STALE FOR THE SECOND TIME IN TWO SESSIONS**, moved by an edit
 ABOVE a site rather than at it. Re-cited by symbol where possible; CS-1102 carries the rest.
 
-## Session 100 - 2026-09-15/16 - CS-1093, CS-1086's domain half, CS-1087
-
-**CLOSED.** CS-1093 - the 7-bit walk names every offending module rather than the
-first, the count bound to a scalar so pytest's rewriting cannot render the
-population. CS-1087 - a world token carried only by an unparseable header is
-matchable WITHOUT parsing that header, by scanning the FRAMING the engine writes
-around it.
-
-**DISCHARGED, NOT CLOSED.** CS-1086's domain half. All nine `detail:`-field
-disagreements resolved under ONE rule rather than nine judgements: the field is
-present exactly when the item has a routing row AND a section in the leaf that
-row names. Both directions now measure zero. What remains open is deriving the
-leaf half. This unblocks CS-971's blocker by half.
-
-**FILED.** CS-1095 (BACKLOG, the inbox watcher `--strict` flip), CS-1096 (the
-bounds enumeration nothing grades), CS-1097 (the save-name false positive),
-CS-1098 archify, CS-1099 context-mode, CS-1100 the skills pack.
-
-**GRANTS RECORDED BEFORE THE EDIT.** Two, both in `docs/LEDGER.md`. CS-1087's
-frozen-file grant for `tools/precommit_gate.py`, with `.githooks/pre-commit`
-DENIED because the hook maps every non-zero status to BLOCKED, which is the wedge
-the item forbids. And the console-flash grant for the same file, operator-granted
-and recorded AS A DEPARTURE from section 6.1's adjudicator route so no later agent
-cites it as precedent.
-
-### What the graders changed, which is the session's real result
-
-CS-1087's shipped fix is materially different from the one first written, and
-every difference came from an agent that did not produce the work.
-
-- An ADJUDICATOR sent the first cut back: a bound truncated the world-token
-  population without reaching the exit status - CS-1083's defect class recurring
-  inside CS-1087's own fix.
-- An ADVERSARY found the cap SILENTLY LOSING REAL TOKENS two ways: it counted raw
-  hits BEFORE de-duplication, so a value repeated to the cap followed by a
-  DIFFERENT value discarded the second; and `hits` was shared across both
-  framings, so a full narrow population starved the wide scan entirely.
-- The same adversary broke clause 6: `scan_framed_tokens` bound the prefix BARE -
-  the first bare holder of a save prefix in the module - and the arm claiming
-  otherwise monkeypatched THE VERY FUNCTION HOLDING THE BUFFER, so it was blind by
-  construction.
-- On RE-GRADE it caught the repair to the bounds sentence PRESERVING the off-by-one:
-  "All four" over five became "All FIVE" over six. Incrementing was mistaken for
-  correcting because nothing grades that sentence. CS-1096 files the arm.
-
-### Process findings that cost real time
-
-- A NARROWED DEFINITION EMPTIES THE POPULATION. Measuring CS-1086's marker by its
-  TARGET string instead of its FIELD POSITION gave 8 disagreements against the
-  filed 9. The filed count was right and reproduces at every commit since filing;
-  the missing member was CS-1026, whose field points at prose. Keep the count in an
-  acceptance - it is the anti-narrowing control - and enumerate the roster beside
-  it, because ids go absent where a count miscounts. Memory written.
-- THE WHOLE SUITE CAUGHT WHAT THE SCOPED SUITE COULD NOT. Three failures landed
-  after the CS-1087 merge, in `tests/test_toolpath.py` and
-  `tests/test_assertion_rendering.py`, both outside the scope the merger gave the
-  builder. One was a PII LEAK IN THE ARM THAT PROVED THE READER ALIVE: asserting on
-  `read_header(readable).world_token` renders a field whose class withholds it. A
-  change to a file as widely referenced as the gate needs the WHOLE suite before
-  the merge, not after.
-- A LINE-PINNED REFERENCE BROKE THREE TIMES IN ONE SESSION - the docs-citation
-  guard rejected six line pointers in a ledger entry the merger wrote, and two
-  toolpath exemptions went stale when the gate grew 233 lines. Cite by SYMBOL.
-- TWO RUNNERS LIED ABOUT A SUITE. One reported exit code 0 over `3 failed`; another
-  died silently at 98 per cent with no verdict and zero surviving processes. Write
-  `PYTEST_EXIT=` INTO the log and read the log, never the status line.
-- `Path.write_text` and the harness heredoc both corrupt payloads - the heredoc
-  collapses `\n` inside a quoted body. Write payload scripts with the Write tool.
-
-### Measured, and worth keeping
-
-On the live library this run: 31 save files, ONE unreadable header, and it
-recovered NOTHING - it is the truncated-before-the-identifier shape. CS-1083 cited
-0 of 28; the grant ordered the re-measure and this is it. So CS-1087's coverage
-limb is 0-for-1 on real data today. That is a floor on the item's value, not a
-defect in it.
