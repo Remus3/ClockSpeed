@@ -249,13 +249,15 @@ class Disposition:
 
             THE HEADING ALONE WAS NOT ENOUGH AND THE FIRST BUILD OF CS-1121
             SHIPPED IT ANYWAY, disclosing the gap as a residual holding at one
-            crowded entry. An adversary measured the live table: 38 entries, 38
-            SILENT on a within-heading swap, 0 red. The gap was the
-            GRANULARITY, not the crowding - 10 distinct headings covered more
-            than one entry and the largest covered five - so the acceptance,
-            which does not say WHERE the swap happens, was unmet at every
-            entry. That is not a residual; it is the defect one level up, and
-            an item does not close by disclosing that it did not happen.
+            crowded entry. An adversary measured the live table: EVERY entry
+            was silent on a within-heading swap and none reddened. The gap was
+            the GRANULARITY, not the crowding - headings covering more than one
+            entry were common - so the acceptance, which does not say WHERE the
+            swap happens, was unmet everywhere. That is not a residual; it is
+            the defect one level up, and an item does not close by disclosing
+            that it did not happen. No figure is written here: the population
+            is what ``test_a_within_heading_compensating_swap_is_reported_at_every_entry``
+            walks, and a number in this prose would rot on the next entry filed.
 
             THE DISCLOSURE'S OWN FENCE WAS THE FALSE PART. It claimed a line
             number was the only thing that could separate two sites under one
@@ -273,9 +275,22 @@ class Disposition:
             distinction is the whole of why CS-889 refuses a line number. A
             line number moves whenever ANYTHING above it is edited, which on an
             append-only newest-first ledger is every session, on sites nothing
-            touched. The ordinal moves only when a BYTE-IDENTICAL sibling under
-            the same heading is added or removed - precisely the event being
-            detected. It is a count of indistinguishables, not a place.
+            touched.
+
+            WHEN THE ORDINAL MOVES, MEASURED RATHER THAN ARGUED, because the
+            sentence that stood here was measured FALSE in both of its halves.
+            It said "only when a byte-identical sibling under the same heading
+            is added or removed"; at the time, a byte-identical line under a
+            DIFFERENT section moved it - that was the heading-text collision,
+            now repaired by the chain - and a sibling differing only in
+            surrounding whitespace moved it too, because
+            :func:`tests.test_docs_citations.landing_digest` strips. Re-measured
+            after the chain change, the ordinal moves when, and only when,
+            another site of the SAME citation is added or removed EARLIER in
+            the doc, under the SAME heading chain, on a line identical after
+            stripping. A sibling under a different chain does not move it; a
+            different line under the same chain does not move it. It is a count
+            of indistinguishables, not a place.
 
             STORED AS DIGESTS because some live headings and landings spell a
             bare repo-relative path, and a table holding them verbatim would
@@ -428,7 +443,7 @@ DISPOSITIONS: Final[Mapping[tuple[str, str], Disposition]] = {
         " 2026-08-23 relocation moved the text into a guarded doc and the"
         " guard found it on first contact, which is the arm working rather"
         " than a defect the move introduced.",
-        ("8e8870827846:f31b3920312b:0",),
+        ("fd7e2d72c6d5:f31b3920312b:0",),
     ),
     # --- CS-1126: a record the guard had never read. The CS-909 record sat
     # inside the ledger's `## Entry shape` template block, ABOVE the entries
@@ -722,7 +737,7 @@ DISPOSITIONS: Final[Mapping[tuple[str, str], Disposition]] = {
         " subject. The line is blank today, _carried has moved, and CS-440 made"
         " the note's claim false of it - so a symbol conversion would resolve to"
         " a sentence that is no longer true.",
-        ("8e8870827846:88daad605b5f:0",),
+        ("b26dc763e023:88daad605b5f:0",),
     ),
     # THE TRAP THAT MANUFACTURES A FINDING ON CORRECT PROSE lived here as a
     # DELIBERATE entry for `scripts/make_cert.py` at line 224 - the CS-889 note

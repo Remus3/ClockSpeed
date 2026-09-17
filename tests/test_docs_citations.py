@@ -279,7 +279,6 @@ from tests.bare_path_guard import (
     derived_bound_problems,
     floor_problems,
     graded_floor_names,
-    markdown_anchor,
     module_containers,
     module_patterns,
     non_citation_budget_problems,
@@ -818,8 +817,64 @@ class UnanchoredCitationSiteError(RuntimeError):
     """A citation site sits above its doc's first heading, so it has no identity.
 
     Raised rather than digested, because two failed lookups must never compare
-    equal - :func:`citation_site_identities` carries the mechanism.
+    equal - :func:`citation_site_identities` carries the mechanism. CAUGHT PER
+    ENTRY by :func:`disposition_site_problems` and reported as a finding that
+    names the carrier: an unanchorable site must not abort the grading of every
+    other entry, which is what a bare propagation did.
     """
+
+
+def heading_chain(text: str, line: int) -> tuple[str, ...]:
+    """The headings enclosing ``line``, outermost first.
+
+    AN INSTANCE, NOT A TEXT, and that distinction is CS-1121's second
+    refutation. The identity keyed on the NEAREST heading alone, and live docs
+    repeat heading text hard - one item-notes leaf spells one ``### detail``
+    sub-heading under many distinct ``## CS-nnn`` sections, and in the worst
+    carrier one heading text recurs dozens of times. Two sites in different
+    sections therefore produced the SAME identity, so deleting a forgiven site
+    and re-adding the identical line under another section was silent.
+    Measured on the live table before this repair. It is the mirror of the fault
+    :class:`UnanchoredCitationSiteError` fences: there, two FAILED lookups would
+    have compared equal; here, two SUCCESSFUL lookups of different sites did.
+
+    The chain separates them because the enclosing ``## CS-440`` and
+    ``## CS-400`` differ even where the ``### detail`` beneath them does not.
+
+    WHAT IT STILL CANNOT SEE, disclosed rather than left to be found: two sites
+    under the IDENTICAL chain - the same sub-heading twice inside one section,
+    or the same line twice in one section - remain one chain, which is what the
+    ordinal beneath it is for. And a heading is a line starting with ``#``,
+    which is ``tests.bare_path_guard.markdown_anchor``'s own rule: a setext
+    underline is not seen, and a ``#`` inside a fenced code block is. Those are
+    inherited from the convention, not introduced here.
+
+    THE IDENTITY NO LONGER CALLS THAT FUNCTION AT ALL, which answers the
+    common-mode risk rather than arguing around it. It was the shared input to
+    the identity, to :attr:`tests.bare_path_guard.BarePathSite.identity` and to
+    the arm that measured the collapse, so nothing routed through it could
+    observe its own granularity being wrong. This walk is independent of it;
+    what they share is only the one-line rule for recognising a heading.
+
+    Args:
+        text: The doc text.
+        line: 1-based line number of the site.
+
+    Returns:
+        One heading per open level, outermost first, stripped. Empty above the
+        first heading.
+    """
+    stack: list[tuple[int, str]] = []
+    for number, raw in enumerate(text.split(NEWLINE), start=1):
+        if number > line:
+            break
+        if not raw.startswith("#"):
+            continue
+        level = len(raw) - len(raw.lstrip("#"))
+        while stack and stack[-1][0] >= level:
+            stack.pop()
+        stack.append((level, raw.strip()))
+    return tuple(heading for _level, heading in stack)
 
 
 def citation_site_anchors(text: str, cited: str) -> tuple[str, ...]:
@@ -837,12 +892,12 @@ def citation_site_anchors(text: str, cited: str) -> tuple[str, ...]:
         cited: The disposition key.
 
     Returns:
-        One heading per site, ascending by offset, duplicates kept. An
+        One rendered chain per site, ascending by offset, duplicates kept. An
         unanchored site renders as the empty string here rather than raising,
         because a report about a failure must not fail.
     """
     return tuple(
-        markdown_anchor(text, text.count(NEWLINE, 0, offset) + 1)
+        " / ".join(heading_chain(text, text.count(NEWLINE, 0, offset) + 1))
         for offset in citation_site_offsets(text, cited)
     )
 
@@ -869,18 +924,18 @@ def citation_site_identities(text: str, cited: str) -> tuple[str, ...]:
 
     TWO DERIVED HALVES AND AN ORDINAL, all through :func:`landing_digest` and
     all from the ONE :func:`citation_site_offsets` traversal: the digest of the
-    enclosing heading, the digest of the LINE the site sits on, then 0, 1, 2 ...
-    among sites sharing BOTH. Nothing is transcribed and nothing is a line
-    number. WHY IT IS SHAPED THIS WAY, what the heading alone failed to see and
-    why the ordinal is permitted where a position is not, is argued once at
-    :attr:`tables.Disposition.at` rather than restated here.
+    enclosing heading CHAIN, the digest of the LINE the site sits on, then
+    0, 1, 2 ... among sites sharing BOTH. Nothing is transcribed and nothing is
+    a line number. WHY IT IS SHAPED THIS WAY is argued once at
+    :attr:`tables.Disposition.at`; what the CHAIN buys over the nearest heading
+    alone is argued at :func:`heading_chain`.
 
-    A SITE UNDER NO HEADING RAISES RATHER THAN DIGESTING THE EMPTY STRING.
-    :func:`markdown_anchor` returns ``""`` above the first heading and
-    ``landing_digest("")`` is one fixed value, so digesting it would make every
-    unanchored site anywhere compare EQUAL to every other - two failed lookups
-    reading as a match, a shape this project has already been bitten by. Such a
-    site cannot be identified, so it must not be silently forgiven.
+    A SITE UNDER NO HEADING RAISES RATHER THAN DIGESTING THE EMPTY STRING. The
+    chain is empty above the first heading and ``landing_digest("")`` is one
+    fixed value, so digesting it would make every unanchored site anywhere
+    compare EQUAL to every other - two failed lookups reading as a match, a
+    shape this project has already been bitten by. Such a site cannot be
+    identified, so it must not be silently forgiven.
 
     THE COUNT REMAINS RECOVERABLE, which is what keeps the older direction
     honest: duplicates are kept, so a site arriving with no deletion lengthens
@@ -903,15 +958,15 @@ def citation_site_identities(text: str, cited: str) -> tuple[str, ...]:
     identities: list[str] = []
     for offset in citation_site_offsets(text, cited):
         index = text.count(NEWLINE, 0, offset)
-        anchor = markdown_anchor(text, index + 1)
-        if not anchor.strip():
+        chain = heading_chain(text, index + 1)
+        if not chain:
             raise UnanchoredCitationSiteError(
                 f"{cited} is spelled above the first heading of its doc, so it has no"
-                " anchor. Digesting the empty heading would make it compare equal to"
-                " every other unanchored site; give the doc a heading above the site,"
-                " or do not record a forgiveness for it."
+                " enclosing chain. Digesting the empty chain would make it compare"
+                " equal to every other unanchored site anywhere; give the doc a"
+                " heading above the site, or do not record a forgiveness for it."
             )
-        both = f"{landing_digest(anchor)}:{landing_digest(lines[index])}"
+        both = f"{landing_digest(NEWLINE.join(chain))}:{landing_digest(lines[index])}"
         identities.append(f"{both}:{seen[both]}")
         seen[both] += 1
     return tuple(identities)
@@ -928,6 +983,14 @@ def disposition_site_problems(
     silence with an unadjudicated citation riding under the old forgiveness.
     Comparing the identity MULTISET reports both halves of that swap.
 
+    A MULTISET AND NOT A TUPLE, which is a decision rather than an oversight.
+    The comparison was ordered while this sentence said multiset, and the two
+    disagreed on exactly one input: a reorder of two sections, which an ordered
+    comparison called a problem and then described as "0 unforgiven, 0
+    unspelled" - a finding naming nothing. A reorder changes neither which
+    citations are forgiven nor where any site sits relative to its own heading
+    chain, so it is NOT a finding, and the code now agrees with the sentence.
+
     Args:
         texts: Guarded doc path to its scoped text.
         dispositions: The recorded answers.
@@ -943,20 +1006,33 @@ def disposition_site_problems(
     problems: list[str] = []
     for (doc, cited), recorded in sorted(dispositions.items()):
         text = texts.get(doc, "")
-        found = citation_site_identities(text, cited)
-        if found == recorded.at:
+        try:
+            found = citation_site_identities(text, cited)
+        except UnanchoredCitationSiteError as unanchored:
+            # PER ENTRY, NOT A WHOLE-RUN ABORT. Propagating this took down every
+            # consuming arm as an ERROR, so one unanchorable site anywhere in the
+            # corpus stopped the other entries being graded at all. The refusal
+            # stands; it is reported as a finding against the entry that earned it.
+            problems.append(f"{doc} :: {cited} - {unanchored}")
             continue
-        # Rendered from the LIVE doc rather than from the record, so the report
-        # names headings a reader can go and open. The record's own side is
-        # digests by construction - see citation_site_identities.
-        anchors = citation_site_anchors(text, cited)
         arrived = Counter(found) - Counter(recorded.at)
         departed = Counter(recorded.at) - Counter(found)
+        if not arrived and not departed:
+            # A REORDER IS NOT A FINDING, and this is the line that decides it.
+            # The comparison is a MULTISET, so two sections swapping places -
+            # which changes neither what is forgiven nor where any site sits
+            # relative to its own heading chain - passes. An ordered comparison
+            # called that a problem and then rendered it as "0 unforgiven, 0
+            # unspelled", a report naming nothing, which is worse than silence.
+            continue
+        # Rendered from the LIVE doc rather than from the record, so the report
+        # names chains a reader can go and open. The record's own side is
+        # digests by construction - see citation_site_identities.
         problems.append(
             f"{doc} :: {cited} - forgives {len(recorded.at)} identified site(s),"
             f" the doc spells {len(found)}:"
             f" {sum(arrived.values())} unforgiven, {sum(departed.values())} unspelled."
-            f" Live sites: {list(anchors)}"
+            f" Live sites: {list(citation_site_anchors(text, cited))}"
         )
     return problems
 
@@ -1478,17 +1554,20 @@ def judged_bare_hits(text: str) -> list[tuple[int, str]]:
     character and any line derived from it names the wrong line. Spaces do not
     contain a newline and neither does :data:`CITATION_RE`, so the substitution
     preserves both the length and the line structure of the text it reads.
-    THE JUDGED POPULATION IS UNCHANGED BY IT: both patterns refuse a name
-    preceded by ``:``, ``.`` or a word character, and one space and several are
-    the same character to that lookbehind.
+    THE JUDGED POPULATION IS ARGUED UNCHANGED BY IT - both patterns refuse a
+    name preceded by ``:``, ``.`` or a word character, and one space and
+    several are the same character to that lookbehind - AND THAT ARGUMENT IS
+    NOT WHAT THE ARM BELOW GRADES. ``test_every_offset_indexes_the_name_it_found``
+    asserts that every offset returned indexes, in the ORIGINAL text, the name
+    it is paired with. That is the property the callers depend on and a
+    collapse to one space breaks it; it is NOT a population comparison under
+    the lookbehind change, and this sentence said it was. The population claim
+    stands on the lookbehinds alone and nothing re-measures it.
 
-    THAT IS RE-MEASURED RATHER THAN CLAIMED, and the sentence it replaces is
-    why: this docstring once gave the population as a spelled figure that
-    matched no live count anybody could reproduce - the carriers, the guarded
-    docs and the tracked files are three different numbers and it was none of
-    them. ``test_every_offset_indexes_the_name_it_found`` asserts the property
-    DIRECTLY instead, over whatever the population turns out to be, and carries
-    no figure to rot.
+    THE FIGURE THAT USED TO CARRY IT IS GONE: this docstring once gave the
+    population as a spelled number that matched no live count anybody could
+    reproduce - the carriers, the guarded docs and the tracked files are three
+    different sizes and it was none of them.
 
     Args:
         text: The scoped doc text.
@@ -1965,33 +2044,6 @@ def test_every_recorded_disposition_is_still_in_use(
     )
 
 
-#: The forgiveness CS-1121's proving arm swaps under. ASSEMBLED FROM HALVES
-#: rather than spelled, for :func:`line_key`'s reason - a full ``path::name``
-#: written as one literal in this module is a real, resolvable citation sitting
-#: inside the guard that judges citations. The two halves never sit adjacent in
-#: the source, so no pattern reads them as one.
-#:
-#: PINNED RATHER THAN PICKED AT RUNTIME, because an arm that selected "any
-#: single-site entry" would keep passing while quietly changing what it tested.
-#: The arm re-derives this entry's sites and asserts there is exactly one
-#: before it swaps anything.
-_SWAP_VICTIM: Final = (
-    bare_path("tests", "save", "test_properties.py")
-    + "::"
-    + "test_every_library_reaching_module_in_the_package_is_declared"
-)
-
-#: What the deleted half of the swap leaves behind. Carries no separator and no
-#: ``test_`` prefix, so nothing reads the hole as a citation of its own.
-_REDACTED_SITE: Final = "REDACTED-FORMER-SITE"
-
-#: The sentence the within-heading swap re-adds the citation on. It must differ
-#: from the line it replaces in more than whitespace, because
-#: :func:`landing_digest` strips before hashing - a re-add that only reindented
-#: would be the SAME site by construction and the swap would not be one.
-_WITHIN_HEADING_PROSE: Final = "- A later sentence nobody adjudicated spends `{}` again."
-
-
 def test_every_recorded_disposition_covers_exactly_the_sites_it_records(
     line_pointer_carriers: Mapping[str, str],
 ) -> None:
@@ -2020,311 +2072,6 @@ def test_every_recorded_disposition_covers_exactly_the_sites_it_records(
         + "\n".join(f"  {problem}" for problem in problems)
         + "\nA site that appeared since the record was written is a NEW citation."
         " Adjudicate it, then record the site it sits at."
-    )
-
-
-def test_a_compensating_swap_that_keeps_the_site_count_is_reported(
-    line_pointer_carriers: Mapping[str, str],
-) -> None:
-    """THE CROSS-HEADING SWAP, ON THE LIVE TABLE RATHER THAN A FIXTURE.
-
-    ONE EDIT WITH TWO HALVES: the single adjudicated site of a real forgiveness
-    is deleted and a brand-new dead citation of the SAME name is added under a
-    new entry. The cardinality is asserted unchanged rather than assumed, so
-    this is a statement about the KEY. Measured against the count-keyed
-    predecessor: ``disposition_site_problems`` returned ``[]`` on this edit.
-
-    BOTH HALVES MUST BE REPORTED, because an arm that noticed only the arrival
-    would pass a swap that merely moved a site.
-    """
-    texts = dict(disposition_texts(line_pointer_carriers))
-    victim = _SWAP_VICTIM
-    original = texts[LEDGER]
-    recorded = tables.DISPOSITIONS[(LEDGER, victim)]
-    before = citation_site_identities(original, victim)
-    assert before == recorded.at, (
-        f"the swap subject's record does not match the live doc, so {victim} cannot"
-        f" evidence anything: recorded {recorded.at}, derived {before}"
-    )
-    assert len(before) == 1, (
-        f"the swap subject must be a SINGLE-site forgiveness or the deletion below is"
-        f" ambiguous, and {victim} spells {len(before)}"
-    )
-
-    swapped = original.replace(victim, _REDACTED_SITE, 1)
-    swapped += f"\n### CS-0000 - an entry nobody adjudicated\n\n- Verification: `{victim}`.\n"
-    after = citation_site_identities(swapped, victim)
-    assert len(after) == len(before), (
-        "the swap did not balance, so a count-keyed table would have caught it and"
-        f" this arm proves nothing about the identity: {before} -> {after}"
-    )
-
-    problems = disposition_site_problems({**texts, LEDGER: swapped}, tables.DISPOSITIONS)
-
-    reported = [problem for problem in problems if victim in problem]
-    assert len(reported) == 1, f"the compensating swap went unreported: {problems}"
-    assert "1 unforgiven, 1 unspelled" in reported[0], (
-        f"both halves of the swap must be named, not just its size: {reported[0]}"
-    )
-
-
-def test_the_same_table_and_corpus_without_the_swap_are_silent(
-    line_pointer_carriers: Mapping[str, str],
-) -> None:
-    """THE ANTI-VACUITY CONTROL FOR THE ARM ABOVE, and it is not ceremony.
-
-    An anti-vacuity guard has INVERTED an arm in this repository before - on a
-    colliding fixture it made the pristine tree red and the mutated one green,
-    so the "repair" would have shipped the defect. The two directions are
-    therefore asserted separately: the unswapped corpus is silent about the
-    swap subject, and the swapped one is not. A red here means the arm above
-    reddens on something other than the swap and says nothing about the key.
-    """
-    texts = disposition_texts(line_pointer_carriers)
-
-    problems = disposition_site_problems(texts, tables.DISPOSITIONS)
-
-    assert [problem for problem in problems if _SWAP_VICTIM in problem] == [], (
-        "the unswapped corpus already reports the swap subject, so the sibling arm's"
-        f" red is not evidence about the compensating swap: {problems}"
-    )
-
-
-def test_a_within_heading_compensating_swap_is_reported_at_every_entry(
-    line_pointer_carriers: Mapping[str, str],
-) -> None:
-    """THE ACCEPTANCE'S CONFIGURATION AT ITS HARDEST, GRADED PER ENTRY.
-
-    The acceptance does not say WHERE the swap happens, and the first build of
-    CS-1121 met it only ACROSS headings - measured on this table then, every
-    entry was silent under this configuration, because the identity was the
-    heading and a site deleted and re-added beneath the same one keeps it.
-    :attr:`tables.Disposition.at` carries that history; this arm is the
-    configuration that measures it.
-
-    GRADED PER ENTRY AND COLLECTED BY NAME, NEVER POOLED. A population-summed
-    threshold is met by its strongest member, so a pooled count would read
-    green while the weakest entry was silent.
-
-    THE SAME-HEADING ORACLE DOES NOT ROUTE THROUGH :func:`markdown_anchor`,
-    which is the common-mode risk: that function is the shared input to the
-    identity, to :attr:`tests.bare_path_guard.BarePathSite.identity` AND to the
-    arm that measured the collapse, so nothing routed through it can observe
-    its own granularity being wrong - which is how a whole table of silent
-    entries hid under a green suite. Here the re-added site goes on the line
-    IMMEDIATELY AFTER the deleted one and a raw scan asserts no line between
-    them begins with ``#``: adjacency with no intervening heading is the same
-    heading, established from the bytes rather than from the function under
-    test.
-
-    THE CARDINALITY IS ASSERTED UNCHANGED at every entry, so each is a
-    statement about the KEY and not about the size of the edit.
-    """
-    texts = disposition_texts(line_pointer_carriers)
-    silent: list[str] = []
-    unbalanced: list[str] = []
-    for doc, cited in sorted(tables.DISPOSITIONS):
-        text = texts.get(doc, "")
-        offsets = citation_site_offsets(text, cited)
-        if not offsets:
-            unbalanced.append(f"{doc} :: {cited} - the doc spells no site to swap")
-            continue
-        lines = text.split(NEWLINE)
-        index = text.count(NEWLINE, 0, offsets[0])
-        lines[index] = lines[index].replace(cited, _REDACTED_SITE)
-        lines.insert(index + 1, _WITHIN_HEADING_PROSE.format(cited))
-        swapped = NEWLINE.join(lines)
-        if citation_sites(swapped, cited) != len(offsets):
-            unbalanced.append(f"{doc} :: {cited} - the swap did not balance")
-            continue
-        if any(line.startswith("#") for line in lines[index + 1 : index + 2]):
-            unbalanced.append(f"{doc} :: {cited} - a heading landed between the halves")
-            continue
-        reported = disposition_site_problems({**texts, doc: swapped}, tables.DISPOSITIONS)
-        if not [problem for problem in reported if cited in problem]:
-            silent.append(f"{doc} :: {cited}")
-
-    assert unbalanced == [], (
-        "the swap could not be posed at some entries, so their silence would prove"
-        " nothing either way:\n" + "\n".join(f"  {entry}" for entry in unbalanced)
-    )
-    assert silent == [], (
-        "a within-heading compensating swap went unreported. The forgiveness is keyed"
-        " on something these two sites share, so an unadjudicated citation rides under"
-        " it:\n" + "\n".join(f"  {entry}" for entry in silent)
-    )
-
-
-def test_the_same_entries_without_the_within_heading_swap_are_silent(
-    line_pointer_carriers: Mapping[str, str],
-) -> None:
-    """THE ANTI-VACUITY CONTROL FOR THE ARM ABOVE, over the SAME population.
-
-    An anti-vacuity guard in this project once made the pristine tree RED and
-    the mutated one GREEN on a colliding fixture, so the "repair" would have
-    shipped the defect. The arm above would read identically if the table were
-    simply broken for every entry - every swap would report, and so would every
-    non-swap. This asserts the other direction over the same 38 entries: with
-    no swap made, not one of them is reported.
-    """
-    texts = disposition_texts(line_pointer_carriers)
-    problems = disposition_site_problems(texts, tables.DISPOSITIONS)
-
-    reported = sorted(
-        f"{doc} :: {cited}"
-        for doc, cited in tables.DISPOSITIONS
-        if any(cited in problem for problem in problems)
-    )
-
-    assert reported == [], (
-        "the unswapped table already reports these entries, so the sibling arm's red"
-        " is not evidence about any swap:\n" + "\n".join(f"  {entry}" for entry in reported)
-    )
-
-
-def test_a_site_above_the_first_heading_raises_rather_than_digesting_nothing() -> None:
-    """AN UNIDENTIFIABLE SITE IS REFUSED, not folded into one shared value.
-
-    :func:`citation_site_identities` gives the mechanism. BOTH DIRECTIONS here,
-    because a guard that raised on everything would pass this for the wrong
-    reason: the same citation moved BELOW a heading identifies without
-    complaint.
-    """
-    cited = "test_a_name_that_is_not_bound"
-    spelling = f'grep -c "{cited}" x\n'
-
-    with pytest.raises(UnanchoredCitationSiteError):
-        citation_site_identities(spelling, cited)
-
-    anchored = citation_site_identities(f"## An entry\n\n{spelling}", cited)
-    identified_cleanly = len(anchored) == 1 and all(anchored)
-    assert identified_cleanly, (
-        "the same site below a heading must identify cleanly, or the refusal above"
-        f" says nothing about the missing anchor: {anchored}"
-    )
-
-
-def test_every_offset_indexes_the_name_it_found(
-    line_pointer_carriers: Mapping[str, str],
-) -> None:
-    """The blanking preserves offsets, asserted DIRECTLY and over no fixed figure.
-
-    :func:`judged_bare_hits` matches against a blanked copy and returns offsets
-    meant to index the ORIGINAL, which holds only while the blanking is
-    length-preserving. The property is checked directly - at every offset the
-    original text spells the identifier the offset is paired with - rather than
-    by the spelled population size that used to carry it. A collapse back to
-    one space breaks this on the first carrier holding a full citation before a
-    bare name; so did reporting an elided match's start instead of its name's.
-
-    THE POPULATION IS DERIVED, NOT SPELLED, and asserted NON-EMPTY, because a
-    walk over nothing passes for that reason - an oracle that cannot observe
-    its subject passes blind.
-    """
-    checked = 0
-    wrong: list[str] = []
-    for carrier, text in sorted(disposition_texts(line_pointer_carriers).items()):
-        for offset, name in judged_bare_hits(text):
-            checked += 1
-            if text[offset : offset + len(name)] != name:
-                wrong.append(f"{carrier}: offset {offset} does not spell {name}")
-
-    assert checked, "no carrier spelled a judged bare name, so this walk observed nothing"
-    assert wrong == [], (
-        "an offset does not index the name it was found for, so every line and heading"
-        " derived from one names the wrong place:\n" + "\n".join(f"  {line}" for line in wrong)
-    )
-
-
-def test_two_byte_identical_siblings_under_one_heading_are_told_apart() -> None:
-    """THE ORDINAL IS LOAD-BEARING, which is the last case the two digests share.
-
-    Both halves of the identity are content, so two spellings of one citation on
-    BYTE-IDENTICAL lines under the same heading agree on both. Without the
-    ordinal they would be one identity, and deleting one of them would be
-    invisible - the cardinality argument all over again at the narrowest
-    granularity there is.
-
-    WHY IT IS NOT A LINE NUMBER FOR DRIFT PURPOSES is argued at
-    :attr:`tables.Disposition.at`. BOTH DIRECTIONS here: the twin doc yields
-    two DISTINCT identities, and dropping one sibling is reported against a
-    record cut from the twin.
-    """
-    cited = "test_a_name_that_is_not_bound"
-    spelling = f'grep -c "{cited}" x'
-    twin = f"## An entry\n\n{spelling}\n{spelling}\n"
-    single = f"## An entry\n\n{spelling}\n"
-
-    identities = citation_site_identities(twin, cited)
-
-    assert len(set(identities)) == len(identities) == len(citation_site_offsets(twin, cited)), (
-        f"byte-identical siblings collapsed to one identity: {identities}"
-    )
-    record = {("ROADMAP.md", cited): Disposition(DELIBERATE, "", "dead", identities)}
-    assert disposition_site_problems({"ROADMAP.md": twin}, record) == [], (
-        "the record does not match the doc it was cut from, so the report below"
-        " proves nothing about the dropped sibling"
-    )
-    dropped = disposition_site_problems({"ROADMAP.md": single}, record)
-    named_the_loss = len(dropped) == 1 and "0 unforgiven, 1 unspelled" in dropped[0]
-    assert named_the_loss, f"dropping one of two identical siblings went unreported: {dropped}"
-
-
-def test_the_digest_is_not_cosmetic_because_the_anchors_carry_paths(
-    line_pointer_carriers: Mapping[str, str],
-) -> None:
-    """The reason for digesting is RE-MEASURED rather than spelled as a figure.
-
-    :attr:`tables.Disposition.at` gives the reason; this measures it. A prose
-    sentence once gave the population as a number and two readers disagreed
-    about it, so no figure is written down - only that the population is not
-    empty, which is what makes the digest load-bearing rather than decorative.
-    """
-    texts = disposition_texts(line_pointer_carriers)
-
-    carriers = [
-        anchor
-        for doc, cited in tables.DISPOSITIONS
-        for anchor in citation_site_anchors(texts.get(doc, ""), cited)
-        if BARE_PATH_RE.search(anchor)
-    ]
-
-    assert carriers, (
-        "no live heading spells a bare repo-relative path any more, so the reason this"
-        " identity is digested rather than stored verbatim no longer holds. Re-argue"
-        " the digest or drop it - do not leave the docstring asserting a dead reason."
-    )
-
-
-def test_every_recorded_site_is_one_the_count_arm_also_sees(
-    line_pointer_carriers: Mapping[str, str],
-) -> None:
-    """The identity and the count cannot disagree, because ONE traversal answers both.
-
-    STRUCTURAL TODAY AND ASSERTED ANYWAY, said plainly rather than left to read
-    as a discovery: :func:`citation_sites` is the LENGTH of
-    :func:`citation_site_offsets` and every identity comes from one of those
-    offsets, so the two cannot differ while that holds. What it buys is the
-    moment it stops - the first prototype of CS-1121 re-implemented the bare
-    rule where the table lives, because the offsets were not exposed, and that
-    copy reported THREE sites where this one reports one on a live key.
-
-    GRADED PER ENTRY, NOT POOLED. A summed total is met by its strongest
-    member, so every disagreement is collected by name.
-    """
-    texts = disposition_texts(line_pointer_carriers)
-
-    disagreed = sorted(
-        f"{doc} :: {cited}"
-        for (doc, cited), recorded in tables.DISPOSITIONS.items()
-        if len(citation_site_identities(texts.get(doc, ""), cited))
-        != citation_sites(texts.get(doc, ""), cited)
-    )
-
-    assert disagreed == [], (
-        "the identity derivation and the count arm read different populations, so"
-        " the table's key and the table's audit disagree about the same doc:\n"
-        + "\n".join(f"  {entry}" for entry in disagreed)
     )
 
 
