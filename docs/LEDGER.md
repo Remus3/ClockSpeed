@@ -75,6 +75,88 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-09-17 - CS-1112 - CLOSED. The per-item routing rows are gone, and the leaf membership rule in the index is the single hop from an item id to its leaf
+
+**WHAT CHANGED (merge 6ec3d62, tips 8d13134 -> de3df31).** The 184 per-item routing rows were
+removed from `docs/item_notes.md` - counted as the `| CS-nnn |` rows the merge diff deletes from
+that file. The leaf membership rule table moved back into the index VERBATIM from
+`docs/item_notes/leaf-membership-rule.md`, and it is now the single hop from an item id to its
+leaf: an item is routed when its `ROADMAP.md` line's last field is a `detail:` field, and its leaf
+is the rule row whose phase and ID range hold it. Only the annex's own row was reworded, because it
+had called the annex the rule itself; the seam reasoning stays in that annex behind a one-line
+pointer. The `docs/item_notes.md` row of the topology table in `CLAUDE.md` section 4 and in
+`CONVENTIONS.md` now reads "The INDEX over `docs/item_notes/` - the leaf membership rule plus the
+rules every leaf obeys". Both `tools/headless-queue.md` sentences now say "routed by the leaf
+membership rule in `docs/item_notes.md`"; both sit outside step 4f, so the CS-1104 byte-pinned
+block hash is unchanged. Merged files: `docs/item_notes.md`, every leaf and annex header under
+`docs/item_notes/`, `CLAUDE.md`, `CONVENTIONS.md`, `tools/headless-queue.md`,
+`tools/drift_guard.py`, `tools/doc_budget.py`, `tests/data/test_item_notes_index.py`,
+`tests/data/test_drift_guard_data.py`, `tests/test_citation_tables.py`, `tests/test_doc_budget.py`.
+
+**THE GUARD.** `tools/drift_guard.py` guard (j) now:
+
+- checks derived routed items against sections in BOTH directions - a routed item with no section
+  in its derived leaf, and a section no `detail:` field routes, are each a FAIL;
+- RESTORES the no-section refusal CS-1113 retired. **THIS CORRECTS THE CS-1113 RECORD BELOW, which
+  is append-only and stays as written:** its retirement proof - no plant exists that only that
+  check catches - relied on the routing rows catching the same states, and with the rows gone the
+  proof is FALSE;
+- FAILS any routing row in any spelling - plain, backticked, bold or indented - where a row is
+  routing when its first cell, stripped of backticks, asterisks, underscores and whitespace, is an
+  id;
+- binds the rule table to its code owner `item_notes_leaf` at every range end and seam, in both
+  directions;
+- parses each Holds cell under a CLOSED grammar of the forms the real table uses, to its last
+  character, so unparsed residue FAILS naming the row and the residue; an ANNEX row needs its fixed
+  lead too.
+
+**PROVEN BY.** `tests/data/test_item_notes_index.py::test_a_section_no_detail_field_routes_is_red`,
+`::test_a_detail_field_with_no_section_is_red`,
+`::test_a_routed_item_with_no_section_in_its_computed_leaf_is_red`,
+`::test_every_placement_of_a_routed_items_section_is_graded`,
+`::test_a_re_added_routing_row_is_red_even_when_it_agrees`,
+`::test_a_routing_row_of_any_shape_is_red`,
+`::test_a_routing_row_in_another_spelling_is_red`,
+`::test_the_leaf_rule_has_a_code_owner_at_every_seam`,
+`::test_a_table_seam_moved_away_from_the_code_is_red`,
+`::test_a_code_seam_moved_away_from_the_table_is_red`,
+`::test_a_rule_row_clause_outside_the_grammar_is_red`,
+`::test_an_annex_row_outside_the_grammar_is_red`,
+`::test_the_index_holds_no_routing_row`,
+`::test_every_real_routed_id_resolves_to_its_section_from_the_index_text_alone`,
+`::test_the_topology_row_names_the_rule_the_guard_binds` and
+`::test_the_lane_prompt_routes_by_the_rule_the_guard_binds`.
+
+**RULINGS, each by an adjudicator that produced none of the work.**
+
+- REMOVAL GRANTED ON CONDITIONS, pinned at d5a9c50, SUPERSEDING the CS-1062 no-row-deleted fence
+  that the CS-1086 KEEP-AND-CHECK ruling stood on. The fence's reasons were that a deleted row is a
+  body nothing can find, and that the index must stay the single hop. Both are discharged: the
+  routed set and each item's leaf are derivable from `ROADMAP.md`, and the rule table in the index
+  is the hop.
+- `FORGIVEN_LINE_POINTER_CEILING` 56 -> 60 GRANTED by a second adjudicator, for four RENAMED
+  dispositions in `tests/test_citation_tables.py`: four guard (j) arms the CS-1086 and CS-1113
+  records cite were renamed because their names described routing rows that no longer exist. Each
+  target is live and no assertion was loosened. The append-only records keep the old names.
+
+**HISTORY.** An adversary REFUTED 8d13134 two ways: the rule-table parser silently ignored clauses
+it did not recognise, so a phase 5 row narrowed with "ID BELOW CS-1000 only" still passed while a
+reader following it finds no leaf for a phase 5 item above that bound; and routing rows in other
+spellings passed. Repaired at de3df31. A verifier CONFIRMED all ten claims at de3df31. FAIL-SAFE
+STRICTNESS, recorded rather than filed: a double space inside a Holds cell fails the grammar, so it
+reddens rather than admits.
+
+**CS-1079'S "ROUTING TABLE" CLAUSE NOW MAPS TO THE RULE TABLE.** The CS-1079 item line keeps the
+premise it was filed with. After this change no per-item row exists for "the routing table" to
+name, so that phrase, and "the routing table's selector for each resulting leaf", mean the leaf
+membership rule table in `docs/item_notes.md` and its rows. CS-1112 was sequenced before CS-971;
+CS-971 now waits on CS-1079 alone.
+
+**TIER 2.** Not pushed when this record was written, so no CI run on 6ec3d62 is cited here.
+
+**Verification:** `python -m pytest tests/data/test_item_notes_index.py tests/test_citation_tables.py -q`,
+and guard (j) of `python tools/drift_guard.py`.
+
 ### 2026-09-17 - CS-1126 - CLOSED. No dated record sits outside the Entries section, and the lane prompt names Entries as the insertion anchor
 
 **WHAT CHANGED.** Eight records stranded inside the `## Entry shape` example code block - the

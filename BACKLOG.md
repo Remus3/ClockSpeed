@@ -101,7 +101,7 @@ carry a doc budget.
 **Relocated 2026-08-25, and the record below is left as it was written.** `docs/item_notes.md`
 outgrew its budget and was SPLIT: it is now an INDEX over `docs/item_notes/`, one leaf per
 phase, and the bodies moved into the leaves byte-for-byte. Where the record below says a body
-lives in `docs/item_notes.md`, it lives in the leaf that file's routing table names. The
+lives in `docs/item_notes.md`, it lives in the leaf that file's leaf membership rule names. The
 ruling itself is undisturbed - what it created still owns what it was given.
 
 - **RULED: `ROADMAP.md` structurally at its ceiling.** The answer is not a bigger number -

@@ -583,7 +583,7 @@ parts that live in this file.
 
 **CS-829 IS RELOCATED, NOT CLOSED AND NOT NARROWED.** Its section is gone from this file and
 its body - every fence, verbatim - now sits in `docs/item_notes/phase4-followups.md` under
-CS-829, which is the leaf the routing table in `docs/item_notes.md` names for a Phase 4 item
+CS-829, which is the leaf the leaf membership rule in `docs/item_notes.md` names for a Phase 4 item
 in the `CS-8nn` block below CS-850. Its item LINE is back in `ROADMAP.md` under Phase 4
 carrying the acceptance clause it held before it was gated, WORD FOR WORD. **The clause was
 not rewritten and the population was not narrowed**, because CS-829's own fences say a
