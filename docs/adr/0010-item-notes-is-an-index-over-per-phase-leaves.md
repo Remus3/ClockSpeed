@@ -61,7 +61,7 @@ holds one leaf per phase, one section per item ID.**
 - **The index keeps the path every pointer already names.** Measured 2026-08-25: all 97
   `ROADMAP.md` item lines, two test constants, one tool path, and every doc that points a
   reader at per-item detail name `docs/item_notes.md`. Making the index that file rather
-  than `docs/item_notes/README.md` cost zero pointer churn, and left no window in which a
+  than `docs/item_notes/README.md` cost zero pointer churn, and left no window in which a <!-- absent: docs/item_notes/README.md -->
   stale pointer resolved to nothing.
 - **A `ROADMAP.md` item line points at the index, never at a leaf.** Spelling the leaf on
   each line would restate the item-to-phase mapping 97 times, and a restated fact is a fact

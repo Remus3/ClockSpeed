@@ -120,7 +120,7 @@ NOTE: detail relocated 2026-08-23 for budget to this file under **CS-401 - detai
 Relocated from `ROADMAP.md` 2026-08-23 for budget, not deleted. The item stays OPEN in
 `ROADMAP.md`. This block is a LIVE instruction, not history.
 
-REWRITTEN 2026-08-14. The original acceptance ended "and the ledger treats an unknown token as a new world rather than failing", which is NOT SATISFIABLE IN PHASE 4: the ledger is `clockspeed/advisor/ledger.py`, which is phase 5 and does not exist. That clause moves to CS-500's acceptance, where the ledger exists. What remains here is the half phase 4 can actually prove, and it is the half that matters - the token is stable and the parser tolerates an unseen one.
+REWRITTEN 2026-08-14. The original acceptance ended "and the ledger treats an unknown token as a new world rather than failing", which is NOT SATISFIABLE IN PHASE 4: the ledger is `clockspeed/advisor/ledger.py` <!-- absent: clockspeed/advisor/ledger.py -->, which is phase 5 and does not exist. That clause moves to CS-500's acceptance, where the ledger exists. What remains here is the half phase 4 can actually prove, and it is the half that matters - the token is stable and the parser tolerates an unseen one.
 
 ## CS-439
 

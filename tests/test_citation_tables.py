@@ -53,6 +53,7 @@ from typing import Final
 import pytest
 
 from tests.bare_path_guard import (
+    DECLARED_ABSENT,
     DECLARED_UNTRACKED,
     FIXTURE_LITERAL,
     REPO_ROOT,
@@ -1281,26 +1282,52 @@ FIXTURE_LITERAL_CEILING: Final = 7
 #:   naming it - trades a checked record for vaguer prose. The row lives HERE
 #:   because this file holds the table; the site it answers is still over there,
 #:   which is why its key names that file rather than this one.
-BARE_PATH_REASONS: Final[Mapping[tuple[str, str, str], BarePathReason]] = {
+#: CS-899's rung, disclosed in both directions exactly as the other declines
+#: are, and BUDGETED besides - a decline is invisibility bought for a reason,
+#: and the reason has to be defensible whether it is spelled in a table or in
+#: the carrier.
+#:
+#: WHAT A ROW HERE COSTS, AND WHY IT IS NOT THE SAME PURCHASE AS A FORGIVENESS.
+#: A row can only be added together with a declaration a human wrote into a
+#: tracked doc, and that declaration goes red on its own the moment the path it
+#: calls absent becomes tracked. So this table does not buy permanent silence:
+#: it records which carriers are currently making an absence claim, and the
+#: claim is re-checked against the tree on every run.
+#:
+#: ALL THREE ROWS CAME OFF :data:`BARE_PATH_REASONS` IN THE SAME CHANGE, and
+#: that ceiling fell by three. This is a MOVE rather than a widening, and the
+#: two budgets together say so.
+DECLARED_ABSENT_IN_DOC: Final[Mapping[tuple[str, str, str], int]] = {
     (
         "docs/adr/0010-item-notes-is-an-index-over-per-phase-leaves.md",
         bare_path("docs", "item_notes", "README.md"),
         "## Decision",
-    ): BarePathReason(
-        "QUOTED, NOT CITED. The ADR's decision is that this path is deliberately not"
-        " created, and it names the path in order to record that. Trap 4, in this arm.",
-        1,
-    ),
+    ): 1,
     (
         "docs/item_notes/phase4.md",
         bare_path("clockspeed", "advisor", "ledger.py"),
         "### detail - relocated from `docs/history_notes.md` 2026-08-23",
-    ): BarePathReason("the same planned phase 5 module, named by the leaf that plans it.", 1),
+    ): 1,
     (
         "docs/item_notes/phase5.md",
         bare_path("clockspeed", "advisor", "ledger.py"),
         "### detail - relocated from `docs/history_notes.md` 2026-08-23",
-    ): BarePathReason("the same planned phase 5 module, named by the leaf that plans it.", 1),
+    ): 1,
+}
+
+#: The ceiling on the rung above. Spelled rather than derived, for the reason
+#: :func:`tests.bare_path_guard.derived_bound_problems` enforces on every other
+#: bound in this family.
+DECLARED_ABSENT_CEILING: Final = 3
+
+BARE_PATH_REASONS: Final[Mapping[tuple[str, str, str], BarePathReason]] = {
+    # CS-899 RETIRED THREE ROWS FROM HERE AND DID NOT FORGIVE THEM ELSEWHERE.
+    # All three were markdown discussing-prose - an ADR recording that a path is
+    # deliberately not created, and two leaves naming the phase 5 ledger module
+    # that does not exist yet. Each now DECLARES the absence on its own line and
+    # is answered by the ladder's :data:`tests.bare_path_guard.DECLARED_ABSENT`
+    # rung, which is checked in three directions rather than spent once. What is
+    # left here is the one site that is NOT a markdown carrier.
     # THE CARRIER IS SPELLED AS A PLAIN LITERAL HERE, AND THAT IS THE RIGHT
     # SPELLING AT THIS SITE FOR THE REASON THE OTHER ONE WAS WRONG AT ITS OWN.
     # `tests/test_docs_citations.py` derives its own path rather than spelling
@@ -1331,7 +1358,7 @@ BARE_PATH_REASONS: Final[Mapping[tuple[str, str, str], BarePathReason]] = {
 #: rows that attributed owned capability to three files that do not exist; the
 #: rows are gone and the ceiling comes down with them. The ratchet caught this
 #: itself - the reason table reported all three stale before the number moved.
-BARE_PATH_REASON_CEILING: Final = 4
+BARE_PATH_REASON_CEILING: Final = 1
 
 
 def scoped_text(doc: str, text: str) -> str:
@@ -1676,6 +1703,7 @@ def test_the_bare_path_reason_budget_is_spent_exactly_and_cannot_grow() -> None:
         (DECLARED_UNTRACKED, DECLINED_AS_DECLARED_UNTRACKED),
         (UNTRACKED_ROOT, DECLINED_UNDER_AN_UNTRACKED_ROOT),
         (FIXTURE_LITERAL, DECLINED_AS_A_FIXTURE_LITERAL),
+        (DECLARED_ABSENT, DECLARED_ABSENT_IN_DOC),
     ],
 )
 def test_every_bare_path_decline_rung_is_disclosed_in_both_directions(
@@ -1727,6 +1755,7 @@ FORGIVENESS_TABLES: Final[Mapping[str, str]] = {
     "DECLINED_AS_A_FIXTURE_LITERAL": (
         "test_every_bare_path_decline_rung_is_disclosed_in_both_directions"
     ),
+    "DECLARED_ABSENT_IN_DOC": ("test_every_bare_path_decline_rung_is_disclosed_in_both_directions"),
 }
 
 #: The other half of the same walk: every module-scope container that forgives
