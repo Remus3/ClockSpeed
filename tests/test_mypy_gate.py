@@ -127,6 +127,13 @@ _NON_MATCHING_EXCLUDE = r"(^|/)no_such_leaf\.py$"
 # Source files that project's discovery finds when the exclude filters nothing.
 _UNFILTERED_SOURCE_COUNT = 2
 
+# The bound on every mypy subprocess here, named once so the runs this module
+# makes outside ``_run_mypy`` cannot drift from it. Generous on purpose: a
+# cold cache on a loaded runner is slow, and a bound tight enough to trip on
+# that would report a flake as a finding. It is a RUNAWAY cutoff, not a
+# budget - tier 1 owns the budget, and it is minutes below this.
+_MYPY_TIMEOUT_SECONDS = 900
+
 # Hazards planted in the pytest process to prove the exclusion arm does not
 # report on its ambient environment (CS-1125): (id, variables, value tokens).
 # Every one but the absolute repository root breaks the arm when mypy inherits
@@ -560,7 +567,7 @@ def _run_mypy(
         cwd=cwd or REPO_ROOT,
         env=_controlled_environment() if env is None else dict(env),
         capture_output=True,
-        timeout=900,
+        timeout=_MYPY_TIMEOUT_SECONDS,
         check=False,
     )
     return subprocess.CompletedProcess(
@@ -1441,6 +1448,7 @@ def test_a_non_ascii_path_decodes_and_no_user_config_reaches_the_run(
         cwd=project,
         env={**_controlled_environment(), **home},
         capture_output=True,
+        timeout=_MYPY_TIMEOUT_SECONDS,
         check=False,
     ).stdout.decode("utf-8")
     assert _errors_by_file(discovering) == {}, f"the planted config was not read:\n{discovering}"
@@ -1480,6 +1488,7 @@ def test_a_planted_user_site_cannot_reach_the_exclusion_arm(
             [sys.executable, "-c", "import site; print(site.getusersitepackages())"],
             env=hostile,
             capture_output=True,
+            timeout=_MYPY_TIMEOUT_SECONDS,
             check=True,
         )
         .stdout.decode("utf-8")
