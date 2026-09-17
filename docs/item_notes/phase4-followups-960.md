@@ -20,21 +20,12 @@ rule, and what this family never contains. Do not restate any of it here.
 **What lands in THIS leaf.** Every OPEN item `ROADMAP.md` files under its `Phase 4`
 heading whose ID is in the `CS-9nn` block at or above CS-960.
 
-**THE SEAM IS AT CS-960 BECAUSE THAT IS WHERE THE BYTES SIT, AND IT WAS MEASURED BEFORE IT
-WAS CHOSEN.** Unlike CS-850 and CS-1000 it is NOT a block boundary - the `CS-9nn` block is
-one block, and this is a SIZE split inside it, taken because
-`docs/item_notes/phase4-followups-900.md` had come close enough to its item-notes leaf
-ceiling in `tools/doc_budget.py` that the next filing pass would have tipped it over,
-which is the condition CS-1132 was filed for. Every section of that leaf was measured on
-2026-09-17 before a seam was picked: CS-960 is the most even split the block offers, and
-the block midpoint CS-950 would have left this leaf carrying two thirds of the bytes on
-the day it was created. The figures are in `tools/drift_guard.py` beside the seam
-constant, which OWNS the seam, and are not restated here.
-
-**NO NEW ID ARRIVES IN EITHER HALF, WHICH IS WHY THE SEAM WAS PLACED FOR BALANCE.** The
-`CS-9nn` block is spent and filing has long since moved past it, so neither leaf grows by
-a new section - both grow only as the sections already in them are added to. A seam picked
-to leave room at the top of the block would have bought room nothing was going to use.
+**THE SEAM IS AT CS-960 BECAUSE THAT IS WHERE THE BYTES SIT, AND IT IS THE FIRST SEAM THAT
+IS NOT A BLOCK BOUNDARY.** The reasoning has ONE owner and it is not this header:
+`docs/item_notes/leaf-membership-rule.md`, under `What CS-1132 changed`, which is the
+annex `docs/item_notes.md` names as the owner of why each seam sits where it does. The
+measured figures sit beside the seam constant in `tools/drift_guard.py`. Neither is
+restated here.
 
 **ONE RELOCATED BODY CARRIES A BARE "this leaf" POINTER AND IT STILL RESOLVES.** CS-962's
 section says a status read "off this leaf" would have reported a shipped surface as

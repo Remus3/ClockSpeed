@@ -50,7 +50,9 @@ a leaf that fills has the same remedy this one had.
 **Written for CS-1079, not relocated.** It replaces the two paragraphs CS-1079 retired from
 the section above.
 
-**Phase 4 is five leaves and no seam is arbitrary.** `CS-8nn` is the follow-up block,
+**Phase 4 is six leaves and no seam is arbitrary** - it was five when this paragraph was
+written for CS-1079, and CS-1132 split the `CS-9nn` block in two; the next section is that
+seam's reasoning. `CS-8nn` is the follow-up block,
 created because `CS-4nn` filled up at 98 of 100 - operator decision 2026-08-21, recorded in
 `ROADMAP.md`. An ID therefore still says which phase it came from, and membership needs no
 judgement. The `CS-8nn` block then split again at CS-850, and the reasoning - including why
@@ -77,3 +79,36 @@ outside phase 4 holding `CS-10nn` sections are inside their budgets, so there th
 routes by PHASE like every other id, and a further leaf would be a seam nobody decided.
 
 **The prose CS-1079 retired is in `docs/history_notes.md`** under `CS-1079 - retired prose`.
+
+## What CS-1132 changed
+
+**Written for CS-1132, not relocated.**
+
+**THE `CS-9nn` BLOCK IS TWO LEAVES, SPLIT AT CS-960, AND THIS IS THE FIRST SEAM THAT IS
+NOT A BLOCK BOUNDARY.** Every seam above it exists because a block FILLED UP, so the id
+itself said which side of the seam an item fell on and no judgement was needed. CS-960
+divides ONE block, and the honest name for what decided it is BYTES: the leaf had come
+close enough to its item-notes leaf ceiling in `tools/doc_budget.py` that the next routine
+filing pass would have tipped it over, and the session that filed that item would have
+paid for a split it did not cause. That is the same condition CS-1079 was filed for.
+
+**THE SEAM WAS MEASURED BEFORE IT WAS CHOSEN, NOT DEFENDED AFTER.** Every section of the
+leaf was sized first; CS-960 is the most even division the block offers, and the block
+midpoint CS-950 would have left the upper leaf holding two thirds of the bytes on the day
+it was created. The figures sit beside the seam constant in `tools/drift_guard.py`, which
+OWNS the seam, and are not restated in any leaf.
+
+**BALANCE WAS THE RIGHT THING TO BUY BECAUSE NEITHER HALF GAINS A NEW SECTION.** The
+`CS-9nn` block is spent and filing has long since moved past it, so unlike the `CS-8nn`
+split - where the upper leaf was the one that would grow - neither half here grows except
+as the sections already in it are added to. A seam placed to leave room at the top of the
+block would have bought room nothing was going to use.
+
+**THE TWO LEAF NAMES ARE HONEST AND THE PAIR IS STILL NOT SYMMETRIC.**
+`phase4-followups-900.md` keeps its name and now holds only the block below CS-960, so its
+name reads as a floor that its range no longer reaches to the top of - the same trap the
+`CS-8nn` pair sets, for the same reason: the name is spelled in pointers that already
+exist. Read the leaf table in `docs/item_notes.md`, never a filename.
+
+**CLOSURE IS STILL THE ONLY DESIGNED SHRINK**, and this split divides a population without
+shrinking it, exactly as the 2026-08-25 split did.

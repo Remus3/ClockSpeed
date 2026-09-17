@@ -21,8 +21,8 @@ what this family never contains. Do not restate any of it here.
 **What lands in THIS leaf.** Every OPEN item `ROADMAP.md` files under its `Phase 4`
 heading whose ID is in the `CS-9nn` block BELOW CS-960. That block exists because `CS-8nn`
 filled up at 100 of 100, measured 2026-09-05. Operator decision 2026-09-05. The CS-960
-seam inside it is a SIZE seam rather than a block boundary, and the reasoning is in
-`docs/item_notes/phase4-followups-960.md`.
+seam INSIDE that block is a size seam rather than a block boundary, and its reasoning is
+in `docs/item_notes/leaf-membership-rule.md` under `What CS-1132 changed`.
 
 **CS-901 THROUGH CS-905 ARE NOT ALLOCATABLE, AND THAT IS MEASURED RATHER THAN INHERITED.**
 They are synthetic fixture IDs in the drift-guard test corpus - `tests/data/test_drift_guard_data.py`,
