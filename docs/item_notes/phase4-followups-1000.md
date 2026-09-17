@@ -777,3 +777,44 @@ a hand-authored IR describing the module map renders through a renderer written 
 
 our own Python renderer from a hand-authored architecture IR to a static SVG/HTML module diagram, the re-implementation the CS-1098 decline in `docs/LEDGER.md` filed in place of adopting archify
 
+---
+
+## CS-1130
+
+### Filed 2026-09-17 by the CS-971 merge, from that item's verifier
+
+### Acceptance
+
+a relocated acceptance clause cannot be weakened without a guard reddening, proven by an arm that edits one section's acceptance body and goes RED, and by a control showing an honest reword that preserves the criterion is distinguishable or, if it is not, by a recorded ruling that the check is byte-equality against a pinned record with the pin's own provenance stated
+
+### Full headline
+
+a relocated acceptance clause is never compared against what its line carried, so a later truncation of a section's `### Acceptance` body is undetectable - MEASURED 2026-09-17 by the CS-971 verifier and recorded as a known gap in `docs/adr/0022-acceptance-lives-in-the-item-note.md`: guard (j) grades that a pointer line's section carries exactly one non-empty acceptance and that a short title derives from its filed headline, and nothing grades that the clause itself still says what the line said when it moved, so a later edit that weakens a criterion reads clean - this is the same fault class the CS-971 first design shipped and an adversary caught by reading the diff rather than by a guard
+
+---
+
+## CS-1131
+
+### Filed 2026-09-17 by the CS-971 merge, from that item's verifier
+
+### Acceptance
+
+an id that has appeared in this tree and now exists in no owner file is reported, proven by an arm that deletes a line without a closure record and goes RED, with the population of ids the check knows about derived rather than listed
+
+### Full headline
+
+guard (i) is blind to an id that exists in NO state - MEASURED 2026-09-17 by the CS-971 verifier: `tools/drift_guard.py` guard (i) grades id COLLISIONS between the four owner files and unaccounted owner files, so an id removed from `ROADMAP.md` with no `docs/LEDGER.md` entry is owned by zero files and the guard stays SILENT, which is exactly the state CS-1033 sat in between its line being deleted and its ledger entry being written, while `docs/item_notes.md` and ADR 0022 both asserted that the ledger entry was its record
+
+---
+
+## CS-1132
+
+### Filed 2026-09-17 by the CS-971 merge, from that item's verifier
+
+### Acceptance
+
+the leaf is under its ceiling with headroom a filing pass cannot exhaust in one item, by RELOCATION at a stated seam with every moved body verbatim per the rules block in `docs/item_notes.md`, and the leaf membership rule's selector for each resulting leaf describes the ids it actually holds, proven by a run of the tool and by the rule resolving every id it lists
+
+### Full headline
+
+`docs/item_notes/phase4-followups-900.md` sits just under its item-notes leaf ceiling after CS-971 moved every acceptance clause into the leaves - MEASURED 2026-09-17 by `tools/doc_budget.py`, which reports the leaf as its worst OK row - so the next filing pass tips it OVER and the session that files a routine follow-up pays for a split it did not cause, which is the condition CS-1079 was filed for and closed by relocating at a block seam

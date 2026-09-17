@@ -3411,6 +3411,7 @@ _ROADMAP_TIER_SEPARATOR = " - tier: "
 ITEM_NOTES_ACCEPTANCE_POINTER = "in detail"
 ITEM_NOTES_ACCEPTANCE_HEADING = "### Acceptance"
 _ANY_MARKDOWN_HEADING = re.compile(r"^#{1,6} ")
+_ITEM_NOTES_SECTION_RULE = re.compile(r"^-{3,}[ 	]*$")
 _ITEM_NOTES_ANY_SECTION_END = re.compile(r"(?m)^## ")
 
 
@@ -3721,6 +3722,12 @@ def item_notes_headline_texts(section: str) -> list[str]:
         body: list[str] = []
         for following in lines[index + 1 :]:
             if _ANY_MARKDOWN_HEADING.match(following):
+                break
+            if _ITEM_NOTES_SECTION_RULE.match(following):
+                # A horizontal rule separates one section from the next, so the filed
+                # headline ends there. Without this the rule reads as part of the
+                # headline, and a line carrying the WHOLE filed headline then looks
+                # cut part-way the moment its section stops being the last in its leaf.
                 break
             body.append(following)
         texts.append("\n".join(body).strip())

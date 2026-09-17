@@ -2162,3 +2162,20 @@ def test_the_index_heading_is_the_one_the_guard_parses() -> None:
     assert f"\n{drift_guard.ITEM_NOTES_RULE_HEADING}\n" in text
     assert drift_guard.ITEM_NOTES_RULE_NAME in text
     assert "## Routing table" not in text
+
+
+def test_a_section_rule_does_not_become_part_of_the_filed_headline() -> None:
+    """A separator after a section must not read as the filed headline's tail.
+
+    MEASURED at the CS-971 merge: the extractor read everything up to the next
+    HEADING, so a `---` between sections joined the filed headline. A line
+    carrying the WHOLE filed headline then read as cut part-way - and only for
+    the section that had stopped being the last one in its leaf, which is a
+    fault that appears when an unrelated item is filed.
+    """
+    body = "a renderer written in this tree draws the module map"
+    last = f"## CS-1\n\n### Full headline\n\n{body}\n"
+    followed = f"{last}\n---\n"
+    assert drift_guard.item_notes_headline_texts(last) == [body]
+    assert drift_guard.item_notes_headline_texts(followed) == [body]
+    assert drift_guard.item_notes_headline_problems({"CS-1": body}, {"CS-1": followed}) == []

@@ -134,6 +134,9 @@ CS-1076 - `tests/save/test_independent_table.py::_bodies_no_dynamic_case_may_reu
 CS-1077 - `tests/sphinx_role_guard.py::unresolved_roles` accepts a dotted role target whole as soon as its HEAD is a name the citing module binds - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1078 - the two arms that stop `tools/memory_sync.py` re-growing a copy of the link derivation each have a spelling they cannot see, MEASURED by the CS-892 verifier rather than argued - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1129 - the leaf membership rule grammar in `tools/drift_guard.py` is closed only at the positions its residue plants perturb - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
+CS-1130 - a relocated acceptance clause is never compared against what its line carried, so a later truncation of a section's `### Acceptance` body is undetectable - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
+CS-1131 - guard (i) is blind to an id that exists in NO state - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
+CS-1132 - `docs/item_notes/phase4-followups-900.md` sits just under its item-notes leaf ceiling after CS-971 moved every acceptance clause into the leaves - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
 CS-1119 - two trailing-run remainder shapes are left after CS-828's reference-pair reading and neither is derivable by that grammar - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1121 - the `Disposition` table `tests/test_citation_tables.py` owns keys each recorded forgiveness by a SITE COUNT - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1123 - the CS-898 planting arm proves the tests-tree size ceiling CATCHES an oversize artifact and says nothing about WHERE the ceiling sits - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
