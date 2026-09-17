@@ -5,31 +5,17 @@ text was filed, moved or measured - and never that the section itself is histori
 
 **This file is an ANNEX to `docs/item_notes.md`, not a phase leaf.** It carries no item
 section and no `## CS-nnn` heading, so `tools/drift_guard.py` guard (j) neither routes to
-it nor reads a section out of it. The routing TABLE stays in the index; this file holds the
-rule that explains it.
+it nor reads a section out of it. The leaf table - the leaf membership rule itself - is in
+the index; this file holds the seam reasoning that explains it.
 
 **Relocated 2026-09-15 for CS-1062, verbatim.** The index had ELEVEN BYTES of headroom
 against its 16384-byte ceiling, so the next session to file an item could not add its
 routing row without doing unrelated surgery first. RELOCATED, NOT DELETED - every word
 below stood in `docs/item_notes.md` before the move.
 
-## Which leaf an item lands in
+## Why the seams sit where they do
 
-An item's leaf follows from the phase heading `ROADMAP.md` files it under, so the
-mapping has one owner and this file only reports it:
-
-| Leaf | Holds |
-|---|---|
-| `docs/item_notes/phase4.md` | ROADMAP `Phase 4`, ID BELOW the `CS-8nn` block. NOT the `CS-10nn` block - the rule sends every phase 4 ID at 900 or higher to the `CS-9nn` leaf |
-| `docs/item_notes/phase4-followups.md` | ROADMAP `Phase 4`, ID in the `CS-8nn` block below CS-850 |
-| `docs/item_notes/phase4-followups-850.md` | ROADMAP `Phase 4`, ID in the `CS-8nn` block at or above CS-850 |
-| `docs/item_notes/phase4-followups-900.md` | ROADMAP `Phase 4`, ID in the `CS-9nn` block |
-| `docs/item_notes/phase5.md` | ROADMAP `Phase 5` |
-| `docs/item_notes/phase6.md` | ROADMAP `Phase 6` |
-| `docs/item_notes/phase7.md` | ROADMAP `Phase 7` |
-| `docs/item_notes/cs988-sweep-record.md` | ANNEX, not a phase leaf - CS-988's per-site sweep measurements. A declared departure from one-leaf-per-phase, because it is measurement data for an OPEN item rather than an item body |
-| `docs/item_notes/lane-start-failure-record.md` | ANNEX, not a phase leaf - the read-only diagnosis of the 2026-09-11 lane start failure, feeding CS-1017, CS-1018 and CS-1001. A declared departure, on the same grounds as the row above |
-| `docs/item_notes/leaf-membership-rule.md` | ANNEX, not a phase leaf - the leaf membership rule itself, relocated here by CS-1062. A declared departure on the same grounds as the two rows above: it is routing DOCTRINE rather than an item body |
+**The leaf table moved back to `docs/item_notes.md` by CS-1112, verbatim** - read it there.
 
 **Phase 4 is four leaves and no seam is arbitrary.** `CS-8nn` is the follow-up
 block, created because `CS-4nn` filled up at 98 of 100 - operator decision 2026-08-21,

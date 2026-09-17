@@ -1,6 +1,6 @@
 <!-- Annex to the lane items CS-1017 and CS-1018 in ROADMAP.md, and to CS-1001.
 A DECLARED DEPARTURE from the one-leaf-per-phase rule in docs/item_notes.md, recorded
-in the routing table there rather than made silently, on the precedent
+in the leaf table there rather than made silently, on the precedent
 docs/item_notes/cs988-sweep-record.md set. It is a read-only DIAGNOSIS of a live
 operational failure for OPEN items, not an item body, and it is not archived because
 docs/_archive/ is excluded from search and sections 6 and 7 are the direct input to

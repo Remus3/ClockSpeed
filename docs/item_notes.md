@@ -6,15 +6,15 @@ text was filed, moved or measured - and never that the section itself is histori
 **This file owns the INDEX and the family rules. The per-item bodies live in the
 leaves under `docs/item_notes/`.** One leaf per phase, one section per item ID inside
 it. A block in a leaf is a LIVE INSTRUCTION: read an item's section BEFORE taking that
-item, and use the routing table below to find which leaf holds it.
+item, and use the leaf membership rule below to find which leaf holds it.
 
 `ROADMAP.md` owns the item LINE and nothing else - the ID, the headline, the acceptance
 criterion and the tier. Its lines point at THIS file rather than at a leaf, deliberately:
 ROADMAP's own phase headings are the single owner of which phase an item belongs to, and
 repeating that mapping on every item line would be a restated fact with somewhere to
-drift to. One hop through the table below is the cost of keeping one owner.
+drift to. One hop through the leaf table below is the cost of keeping one owner.
 
-**This family NEVER contains:** the item line itself, a completion record
+**This family NEVER contains:** the item line itself, a per-item routing row, a completion record
 (`docs/LEDGER.md` owns those), an aspirational item (`BACKLOG.md` owns those), the
 external condition blocking a gated item (`docs/GATED.md` owns that), or history.
 **When an item CLOSES its section moves to `docs/history_notes.md`**, because at that
@@ -23,209 +23,38 @@ true. A closing item's section does NOT move to another leaf.
 
 **THIS FILE HOLDS NO ITEM BODIES.** It carries no `## CS-nnn` section and never will;
 that is asserted by `tools/drift_guard.py` guard (j), not merely intended. A body
-written here instead of in its leaf is invisible to every reader who follows the table.
+written here instead of in its leaf is invisible to every reader who follows the rule.
 
 ## Which leaf an item lands in
 
-**The rule and the leaf table live in `docs/item_notes/leaf-membership-rule.md`**, an
-ANNEX carrying no item section. Relocated there by CS-1062 when this index reached eleven
-bytes of headroom; nothing was deleted. An item's leaf follows from the phase heading
-`ROADMAP.md` files it under, so that mapping has one owner and this file only reports it.
+An item's leaf follows from the phase heading `ROADMAP.md` files it under, so the
+mapping has one owner and this file only reports it:
 
-## Routing table
-
-Hand-written, NOT derived, so `tools/drift_guard.py` guard (j) checks it against the leaves
-AND a derivation from `ROADMAP.md`: a routed item with no section in its derived leaf, a
-section with no row, a row naming a leaf its phase heading and ID block do not derive, and
-a row disagreeing with its item line's trailing `detail:` field are each a FAIL. A family holding NO row and NO section is a WARN carrying a skip record, not
-a pass - every equality here is satisfied for free by an empty population.
-
-| Item | Leaf |
+| Leaf | Holds |
 |---|---|
-| CS-400 | `docs/item_notes/phase4.md` |
-| CS-401 | `docs/item_notes/phase4.md` |
-| CS-412 | `docs/item_notes/phase4.md` |
-| CS-425 | `docs/item_notes/phase4.md` |
-| CS-426 | `docs/item_notes/phase4.md` |
-| CS-432 | `docs/item_notes/phase4.md` |
-| CS-439 | `docs/item_notes/phase4.md` |
-| CS-440 | `docs/item_notes/phase4.md` |
-| CS-441 | `docs/item_notes/phase4.md` |
-| CS-443 | `docs/item_notes/phase4.md` |
-| CS-444 | `docs/item_notes/phase4.md` |
-| CS-445 | `docs/item_notes/phase4.md` |
-| CS-446 | `docs/item_notes/phase4.md` |
-| CS-447 | `docs/item_notes/phase4.md` |
-| CS-448 | `docs/item_notes/phase4.md` |
-| CS-449 | `docs/item_notes/phase4.md` |
-| CS-450 | `docs/item_notes/phase4.md` |
-| CS-451 | `docs/item_notes/phase4.md` |
-| CS-452 | `docs/item_notes/phase4.md` |
-| CS-453 | `docs/item_notes/phase4.md` |
-| CS-454 | `docs/item_notes/phase4.md` |
-| CS-455 | `docs/item_notes/phase4.md` |
-| CS-456 | `docs/item_notes/phase4.md` |
-| CS-457 | `docs/item_notes/phase4.md` |
-| CS-458 | `docs/item_notes/phase4.md` |
-| CS-459 | `docs/item_notes/phase4.md` |
-| CS-460 | `docs/item_notes/phase4.md` |
-| CS-461 | `docs/item_notes/phase4.md` |
-| CS-462 | `docs/item_notes/phase4.md` |
-| CS-464 | `docs/item_notes/phase4.md` |
-| CS-465 | `docs/item_notes/phase4.md` |
-| CS-466 | `docs/item_notes/phase4.md` |
-| CS-467 | `docs/item_notes/phase4.md` |
-| CS-468 | `docs/item_notes/phase4.md` |
-| CS-470 | `docs/item_notes/phase4.md` |
-| CS-472 | `docs/item_notes/phase4.md` |
-| CS-473 | `docs/item_notes/phase4.md` |
-| CS-474 | `docs/item_notes/phase4.md` |
-| CS-477 | `docs/item_notes/phase4.md` |
-| CS-479 | `docs/item_notes/phase4.md` |
-| CS-483 | `docs/item_notes/phase4.md` |
-| CS-484 | `docs/item_notes/phase4.md` |
-| CS-488 | `docs/item_notes/phase4.md` |
-| CS-489 | `docs/item_notes/phase4.md` |
-| CS-490 | `docs/item_notes/phase4.md` |
-| CS-492 | `docs/item_notes/phase4.md` |
-| CS-499 | `docs/item_notes/phase4.md` |
-| CS-500 | `docs/item_notes/phase5.md` |
-| CS-1064 | `docs/item_notes/phase5.md` |
-| CS-501 | `docs/item_notes/phase4.md` |
-| CS-609 | `docs/item_notes/phase6.md` |
-| CS-1065 | `docs/item_notes/phase6.md` |
-| CS-1067 | `docs/item_notes/phase4-followups-900.md` |
-| CS-1069 | `docs/item_notes/phase4-followups-900.md` |
-| CS-614 | `docs/item_notes/phase6.md` |
-| CS-615 | `docs/item_notes/phase6.md` |
-| CS-616 | `docs/item_notes/phase6.md` |
-| CS-618 | `docs/item_notes/phase6.md` |
-| CS-619 | `docs/item_notes/phase6.md` |
-| CS-872 | `docs/item_notes/phase6.md` |
-| CS-701 | `docs/item_notes/phase7.md` |
-| CS-704 | `docs/item_notes/phase7.md` |
-| CS-800 | `docs/item_notes/phase4-followups.md` |
-| CS-801 | `docs/item_notes/phase4-followups.md` |
-| CS-802 | `docs/item_notes/phase4-followups.md` |
-| CS-803 | `docs/item_notes/phase4-followups.md` |
-| CS-804 | `docs/item_notes/phase4-followups.md` |
-| CS-805 | `docs/item_notes/phase4-followups.md` |
-| CS-807 | `docs/item_notes/phase4-followups.md` |
-| CS-808 | `docs/item_notes/phase4-followups.md` |
-| CS-811 | `docs/item_notes/phase7.md` |
-| CS-812 | `docs/item_notes/phase7.md` |
-| CS-813 | `docs/item_notes/phase7.md` |
-| CS-814 | `docs/item_notes/phase7.md` |
-| CS-815 | `docs/item_notes/phase7.md` |
-| CS-816 | `docs/item_notes/phase7.md` |
-| CS-817 | `docs/item_notes/phase7.md` |
-| CS-818 | `docs/item_notes/phase7.md` |
-| CS-820 | `docs/item_notes/phase7.md` |
-| CS-821 | `docs/item_notes/phase7.md` |
-| CS-822 | `docs/item_notes/phase7.md` |
-| CS-824 | `docs/item_notes/phase7.md` |
-| CS-953 | `docs/item_notes/phase7.md` |
-| CS-700 | `docs/item_notes/phase7.md` |
-| CS-825 | `docs/item_notes/phase4-followups.md` |
-| CS-826 | `docs/item_notes/phase4-followups.md` |
-| CS-827 | `docs/item_notes/phase4-followups.md` |
-| CS-828 | `docs/item_notes/phase4-followups.md` |
-| CS-829 | `docs/item_notes/phase4-followups.md` |
-| CS-832 | `docs/item_notes/phase4-followups.md` |
-| CS-839 | `docs/item_notes/phase4-followups.md` |
-| CS-840 | `docs/item_notes/phase4-followups.md` |
-| CS-841 | `docs/item_notes/phase4-followups.md` |
-| CS-842 | `docs/item_notes/phase4-followups.md` |
-| CS-843 | `docs/item_notes/phase4-followups.md` |
-| CS-844 | `docs/item_notes/phase4-followups.md` |
-| CS-846 | `docs/item_notes/phase4-followups.md` |
-| CS-847 | `docs/item_notes/phase4-followups.md` |
-| CS-848 | `docs/item_notes/phase4-followups.md` |
-| CS-849 | `docs/item_notes/phase4-followups.md` |
-| CS-850 | `docs/item_notes/phase4-followups-850.md` |
-| CS-851 | `docs/item_notes/phase4-followups-850.md` |
-| CS-852 | `docs/item_notes/phase4-followups-850.md` |
-| CS-853 | `docs/item_notes/phase4-followups-850.md` |
-| CS-854 | `docs/item_notes/phase4-followups-850.md` |
-| CS-855 | `docs/item_notes/phase4-followups-850.md` |
-| CS-857 | `docs/item_notes/phase4-followups-850.md` |
-| CS-858 | `docs/item_notes/phase4-followups-850.md` |
-| CS-859 | `docs/item_notes/phase4-followups-850.md` |
-| CS-860 | `docs/item_notes/phase4-followups-850.md` |
-| CS-861 | `docs/item_notes/phase4-followups-850.md` |
-| CS-864 | `docs/item_notes/phase4-followups-850.md` |
-| CS-865 | `docs/item_notes/phase4-followups-850.md` |
-| CS-887 | `docs/item_notes/phase6.md` |
-| CS-896 | `docs/item_notes/phase4-followups-850.md` |
-| CS-899 | `docs/item_notes/phase4-followups-850.md` |
-| CS-900 | `docs/item_notes/phase4-followups-900.md` |
-| CS-907 | `docs/item_notes/phase4-followups-900.md` |
-| CS-917 | `docs/item_notes/phase4-followups-900.md` |
-| CS-920 | `docs/item_notes/phase4-followups-900.md` |
-| CS-936 | `docs/item_notes/phase4-followups-900.md` |
-| CS-941 | `docs/item_notes/phase4-followups-900.md` |
-| CS-942 | `docs/item_notes/phase4-followups-900.md` |
-| CS-943 | `docs/item_notes/phase4-followups-900.md` |
-| CS-944 | `docs/item_notes/phase4-followups-900.md` |
-| CS-945 | `docs/item_notes/phase4-followups-900.md` |
-| CS-946 | `docs/item_notes/phase4-followups-900.md` |
-| CS-947 | `docs/item_notes/phase4-followups-900.md` |
-| CS-948 | `docs/item_notes/phase4-followups-900.md` |
-| CS-951 | `docs/item_notes/phase4-followups-900.md` |
-| CS-958 | `docs/item_notes/phase4-followups-900.md` |
-| CS-976 | `docs/item_notes/phase4-followups-900.md` |
-| CS-965 | `docs/item_notes/phase4-followups-900.md` |
-| CS-964 | `docs/item_notes/phase4-followups-900.md` |
-| CS-962 | `docs/item_notes/phase4-followups-900.md` |
-| CS-937 | `docs/item_notes/phase4-followups-900.md` |
-| CS-938 | `docs/item_notes/phase4-followups-900.md` |
-| CS-909 | `docs/item_notes/phase6.md` |
-| CS-910 | `docs/item_notes/phase6.md` |
-| CS-988 | `docs/item_notes/phase6.md` |
-| CS-876 | `docs/item_notes/phase4-followups-850.md` |
-| CS-877 | `docs/item_notes/phase4-followups-850.md` |
-| CS-604 | `docs/item_notes/phase6.md` |
-| CS-606 | `docs/item_notes/phase6.md` |
-| CS-607 | `docs/item_notes/phase6.md` |
-| CS-610 | `docs/item_notes/phase6.md` |
-| CS-611 | `docs/item_notes/phase6.md` |
-| CS-612 | `docs/item_notes/phase6.md` |
-| CS-620 | `docs/item_notes/phase6.md` |
-| CS-621 | `docs/item_notes/phase6.md` |
-| CS-622 | `docs/item_notes/phase6.md` |
-| CS-623 | `docs/item_notes/phase6.md` |
-| CS-913 | `docs/item_notes/phase6.md` |
-| CS-914 | `docs/item_notes/phase6.md` |
-| CS-915 | `docs/item_notes/phase6.md` |
-| CS-916 | `docs/item_notes/phase6.md` |
-| CS-981 | `docs/item_notes/phase4-followups-900.md` |
-| CS-982 | `docs/item_notes/phase4-followups-900.md` |
-| CS-983 | `docs/item_notes/phase4-followups-900.md` |
-| CS-984 | `docs/item_notes/phase4-followups-900.md` |
-| CS-985 | `docs/item_notes/phase4-followups-900.md` |
-| CS-986 | `docs/item_notes/phase4-followups-900.md` |
-| CS-603 | `docs/item_notes/phase6.md` |
-| CS-608 | `docs/item_notes/phase6.md` |
-| CS-613 | `docs/item_notes/phase6.md` |
-| CS-1051 | `docs/item_notes/phase6.md` |
-| CS-1052 | `docs/item_notes/phase4-followups-900.md` |
-| CS-1053 | `docs/item_notes/phase4-followups-900.md` |
-| CS-1055 | `docs/item_notes/phase4-followups-900.md` |
-| CS-1056 | `docs/item_notes/phase4-followups-900.md` |
-| CS-1043 | `docs/item_notes/phase5.md` |
-| CS-1058 | `docs/item_notes/phase5.md` |
-| CS-1059 | `docs/item_notes/phase5.md` |
-| CS-1046 | `docs/item_notes/phase6.md` |
-| CS-1047 | `docs/item_notes/phase6.md` |
-| CS-1048 | `docs/item_notes/phase5.md` |
-| CS-1061 | `docs/item_notes/phase5.md` |
-| CS-1012 | `docs/item_notes/phase4-followups-900.md` |
-| CS-1074 | `docs/item_notes/phase4-followups-900.md` |
-| CS-1075 | `docs/item_notes/phase4-followups-900.md` |
-| CS-1076 | `docs/item_notes/phase4-followups-900.md` |
-| CS-1077 | `docs/item_notes/phase4-followups-900.md` |
-| CS-1078 | `docs/item_notes/phase4-followups-900.md` |
-| CS-1079 | `docs/item_notes/phase4-followups-900.md` |
+| `docs/item_notes/phase4.md` | ROADMAP `Phase 4`, ID BELOW the `CS-8nn` block. NOT the `CS-10nn` block - the rule sends every phase 4 ID at 900 or higher to the `CS-9nn` leaf |
+| `docs/item_notes/phase4-followups.md` | ROADMAP `Phase 4`, ID in the `CS-8nn` block below CS-850 |
+| `docs/item_notes/phase4-followups-850.md` | ROADMAP `Phase 4`, ID in the `CS-8nn` block at or above CS-850 |
+| `docs/item_notes/phase4-followups-900.md` | ROADMAP `Phase 4`, ID in the `CS-9nn` block |
+| `docs/item_notes/phase5.md` | ROADMAP `Phase 5` |
+| `docs/item_notes/phase6.md` | ROADMAP `Phase 6` |
+| `docs/item_notes/phase7.md` | ROADMAP `Phase 7` |
+| `docs/item_notes/cs988-sweep-record.md` | ANNEX, not a phase leaf - CS-988's per-site sweep measurements. A declared departure from one-leaf-per-phase, because it is measurement data for an OPEN item rather than an item body |
+| `docs/item_notes/lane-start-failure-record.md` | ANNEX, not a phase leaf - the read-only diagnosis of the 2026-09-11 lane start failure, feeding CS-1017, CS-1018 and CS-1001. A declared departure, on the same grounds as the row above |
+| `docs/item_notes/leaf-membership-rule.md` | ANNEX, not a phase leaf - the leaf membership rule itself, relocated here by CS-1062. A declared departure on the same grounds as the two rows above: it is routing DOCTRINE rather than an item body |
+
+**This table is the single hop, and it is the leaf membership rule.** It moved back here
+VERBATIM from `docs/item_notes/leaf-membership-rule.md` when CS-1112 removed the per-item
+routing rows; the reasoning behind each seam stayed in that annex. An item is ROUTED when
+its `ROADMAP.md` line's LAST field is a `detail:` field, and its leaf is the row above
+whose phase and ID range hold it - no per-item row exists, and none may be added.
+
+`tools/drift_guard.py` guard (j) grades that derivation rather than trusting it: a routed
+item with no section in its derived leaf, a section no `detail:` field routes, a
+`| CS-nnn |` routing row in this file, a leaf file no row names, and any disagreement
+between this table and the rule's code owner at a seam are each a FAIL. A family holding
+NO routed item and NO section is a WARN carrying a skip record, not a pass - every
+equality here is satisfied for free by an empty population.
 
 ## Rules every leaf obeys
 

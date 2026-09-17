@@ -3263,47 +3263,64 @@ def re_extract(root: Path) -> int:
 # --- guard j: item-notes index ----------------------------------------------
 
 # docs/item_notes.md stopped holding item bodies on 2026-08-25 and became an
-# index over docs/item_notes/. THE INDEX IS A RESTATED FACT, which CLAUDE.md
-# section 4 names as the one thing that will drift, so it is checked in both
-# directions rather than trusted: a routed item with no section is red, a
-# section with no routing row is red, and a row naming the wrong leaf is red.
+# index over docs/item_notes/. CS-1112 REMOVED ITS PER-ITEM ROUTING ROWS: an
+# item's leaf is DERIVED - ROADMAP.md routes it (a trailing detail field under a
+# Phase heading) and the leaf membership rule names its leaf. The index states
+# that rule as its leaf table; item_notes_leaf below owns it as code. Every
+# direction is graded rather than trusted: a routed item with no section in its
+# derived leaf is red, a section nothing routes is red, a routing row left in
+# the index is red, and the leaf table must agree with item_notes_leaf.
 #
-# SET EQUALITY ALONE WOULD NOT BE ENOUGH. Two sets can match exactly while a
-# row points at the wrong leaf, which sends a reader to a file that does not
-# hold the block and reads as "the detail was never written" - the same silent
-# shape as a missing body. The destination is compared per item, not pooled.
+# SET EQUALITY ALONE WOULD NOT BE ENOUGH. The routed set and the section set can
+# match exactly while a section sits in the wrong leaf, which sends a reader to
+# a file that does not hold the block and reads as "the detail was never
+# written". The destination is compared per item, not pooled.
 #
 # AN EMPTY FAMILY IS A SKIP, NOT A PASS. Zero routed items and zero sections
 # satisfy every equality below for free. Session 40 recorded six instances of
 # an empty population passing an assertion of zero and being read as evidence,
 # so the empty case is graded explicitly and names itself in the skip list.
-# A HALF-empty family is different and is FAIL: rows routing to nothing, or
-# sections nothing routes to, is drift rather than a wrong root.
 ITEM_NOTES_INDEX_RELATIVE = "docs/item_notes.md"
 ITEM_NOTES_LEAF_DIR_RELATIVE = "docs/item_notes"
 
+#: The name every description of routing uses - CLAUDE.md section 4, CONVENTIONS
+#: section 2 and the lane prompt - pinned against this constant by
+#: tests/data/test_item_notes_index.py, so the prose and the guard cannot part.
+ITEM_NOTES_RULE_NAME = "leaf membership rule"
+#: The index heading the leaf table is read from, and only from.
+ITEM_NOTES_RULE_HEADING = "## Which leaf an item lands in"
+
 _ITEM_NOTES_SECTION = re.compile(r"(?m)^## (CS-G?\d+)[ \t]*$")
-# A routing row: "| CS-nnn | `docs/item_notes/<leaf>.md` |". The leaf is read
-# from the row rather than assumed, so a row naming a path outside the family
-# is reported as the wrong destination instead of quietly matching.
-_ITEM_NOTES_ROW = re.compile(
-    r"(?m)^\|\s*(CS-G?\d+)\s*\|\s*`([^`]+)`\s*\|\s*$",
-)
+# A routing row is found by its FIRST CELL alone, so a row of any shape - a
+# well-formed leaf cell or not - is refused. CS-1112 removed them all.
+_ITEM_NOTES_ROUTING_ROW = re.compile(r"(?m)^\|\s*(CS-G?\d+)\s*\|")
+# A leaf table row: "| `docs/item_notes/<leaf>.md` | <what it holds> |".
+_ITEM_NOTES_RULE_ROW = re.compile(r"^\|\s*`([^`]+)`\s*\|\s*(.*?)\s*\|\s*$")
+# The header and separator lines of that table, which carry no leaf. Routing
+# rows are refused on their own finding, so they are not parsed as rules.
+_ITEM_NOTES_TABLE_FRAME = re.compile(r"^\|\s*Leaf\s*\|\s*Holds\s*\|\s*$|^\|[-:| ]+\|\s*$")
+_RULE_ANNEX = "ANNEX"
+_RULE_PHASE = re.compile(r"^ROADMAP `Phase (\d+)`")
+_RULE_BELOW_BLOCK = re.compile(r"\bID BELOW the `CS-(\d+)nn` block")
+_RULE_IN_BLOCK = re.compile(r"\bID in the `CS-(\d+)nn` block")
+_RULE_BELOW_ID = re.compile(r"\bblock below CS-(\d+)\b")
+_RULE_AT_OR_ABOVE = re.compile(r"\bblock at or above CS-(\d+)\b")
+_RULE_SENDS_UP = re.compile(r"every phase (\d+) ID at (\d+) or higher to the `CS-(\d+)nn` leaf")
+_ITEM_NOTES_BLOCK_WIDTH = 100
+#: A probe far past every block, standing for "and everything above".
+_ITEM_NOTES_FAR_PROBE = 10**6
 
 
-# CS-1086 - THE TABLE IS KEPT AND CHECKED AGAINST A DERIVATION. Row-versus-section
-# equality compares two hand-written artifacts with each other, so a row and a
-# section that are wrong TOGETHER pass it. Both are therefore also graded against
-# ROADMAP.md, which neither of them is: the LEAF is computed from the phase
-# heading an item is filed under plus the ID block rule, and the ROW SET must
-# equal the item lines whose LAST " - " field is a detail field.
+# CS-1086 - ROUTING IS GRADED AGAINST ROADMAP.md, which no leaf is. The LEAF is
+# computed from the phase heading an item is filed under plus the ID block rule,
+# and the ROUTED SET is the item lines whose LAST " - " field is a detail field.
 #
 # THE FIELD IS FOUND BY ITS POSITION, NEVER BY ITS TARGET. Matching the target
 # string narrows the population until it empties, and was measured doing exactly
 # that to CS-1026. The routed count is reported so a narrowing shows as a count.
 #
-# ROADMAP.md UNREADABLE IS A WARN, NEVER A PASS. The rows were not checked
-# against anything but each other, and could-not-look must not read as clean.
+# ROADMAP.md UNREADABLE IS A WARN, NEVER A PASS. Nothing was routed, so no
+# section was graded against anything, and could-not-look must not read as clean.
 ITEM_NOTES_ROADMAP_RELATIVE = "ROADMAP.md"
 _ROADMAP_PHASE_HEADING = re.compile(r"^## Phase (\d+)\b")
 _ROADMAP_ANY_HEADING = re.compile(r"^## ")
@@ -3408,40 +3425,248 @@ def item_notes_leaf(item: str, phase: str) -> str:
     return f"{ITEM_NOTES_LEAF_DIR_RELATIVE}/{leaf}"
 
 
-def _item_notes_derivation_problems(
-    routed: dict[str, str],
-    domain: dict[str, str | None],
-    fields: dict[str, tuple[str, int]],
-) -> list[str]:
-    """Grade the rows against the ROADMAP derivation.
+class ItemNotesRule(NamedTuple):
+    """One phase row of the index's leaf table, as the ID range it claims.
 
-    The sections are graded against the rows in guard_index itself; see the
-    CS-1113 note at the end of this function for why that covers the derivation.
+    Attributes:
+        leaf: The repo-relative leaf path the row names.
+        phase: The ROADMAP Phase digit the row selects.
+        low: The lowest item number the row holds, inclusive.
+        high: The item number the row stops BEFORE, or None for no upper bound.
+    """
 
-    Args:
-        routed: Item id mapped to the leaf its routing row names.
-        domain: Item id mapped to its ROADMAP phase digit, trailing fields only.
-        fields: Item id mapped to (trailing field target, detail: spelling count).
+    leaf: str
+    phase: str
+    low: int
+    high: int | None
+
+
+def _item_notes_table_lines(index_text: str) -> list[str] | None:
+    """Return the table lines under the leaf-table heading, or None with no heading."""
+    lines = index_text.splitlines()
+    try:
+        start = lines.index(ITEM_NOTES_RULE_HEADING)
+    except ValueError:
+        return None
+    section: list[str] = []
+    for line in lines[start + 1 :]:
+        if _ROADMAP_ANY_HEADING.match(line):
+            break
+        if line.startswith("|"):
+            section.append(line)
+    return section
+
+
+def _item_notes_parse_rule(
+    leaf: str, holds: str
+) -> tuple[ItemNotesRule, tuple[str, int, int] | None] | None:
+    """Parse one phase row's Holds cell into its range, or None when it does not read.
 
     Returns:
-        Problem lines, empty when every row agrees with the derivation.
+        (the rule, and a "sends up" clause as (phase, floor, block) when the row
+        carries one), or None for a cell the grammar does not read.
+    """
+    phase = _RULE_PHASE.match(holds)
+    if phase is None:
+        return None
+    low, high = 0, None
+    below_block = _RULE_BELOW_BLOCK.search(holds)
+    in_block = _RULE_IN_BLOCK.search(holds)
+    if below_block and in_block:
+        return None
+    if below_block:
+        high = int(below_block.group(1)) * _ITEM_NOTES_BLOCK_WIDTH
+    if in_block:
+        low = int(in_block.group(1)) * _ITEM_NOTES_BLOCK_WIDTH
+        high = low + _ITEM_NOTES_BLOCK_WIDTH
+    below_id = _RULE_BELOW_ID.search(holds)
+    if below_id:
+        high = int(below_id.group(1)) if high is None else min(high, int(below_id.group(1)))
+    at_or_above = _RULE_AT_OR_ABOVE.search(holds)
+    if at_or_above:
+        low = max(low, int(at_or_above.group(1)))
+    sends = _RULE_SENDS_UP.search(holds)
+    sends_up = (
+        (sends.group(1), int(sends.group(2)), int(sends.group(3))) if sends is not None else None
+    )
+    return ItemNotesRule(leaf, phase.group(1), low, high), sends_up
+
+
+def item_notes_rule_rows(index_text: str) -> tuple[list[ItemNotesRule], list[str]]:
+    """Parse the index's leaf table into ID ranges, reporting every row it cannot read.
+
+    A row is a phase row (``ROADMAP `Phase N```, optionally narrowed by an ID
+    block clause) or an ANNEX row. A row that is neither is a PROBLEM, never a
+    skip: an unread row is a hole in the binding to item_notes_leaf.
+
+    Args:
+        index_text: The index file's text.
+
+    Returns:
+        (the phase rows, problem lines). The annex rows are read by
+        item_notes_annex_rows.
+    """
+    table = _item_notes_table_lines(index_text)
+    if table is None:
+        return [], [
+            f"{ITEM_NOTES_INDEX_RELATIVE} carries no leaf table under "
+            f"{ITEM_NOTES_RULE_HEADING!r} - no routed item resolves from the index"
+        ]
+    rules: list[ItemNotesRule] = []
+    sends_ups: list[tuple[str, int, int]] = []
+    problems: list[str] = []
+    for line in table:
+        if _ITEM_NOTES_TABLE_FRAME.match(line) or _ITEM_NOTES_ROUTING_ROW.match(line):
+            continue
+        row = _ITEM_NOTES_RULE_ROW.match(line)
+        if row is None:
+            problems.append(f"  {line.strip()}: unreadable rule row - no backticked leaf cell")
+            continue
+        leaf, holds = row.group(1), row.group(2)
+        if holds.startswith(_RULE_ANNEX):
+            continue
+        parsed = _item_notes_parse_rule(leaf, holds)
+        if parsed is None:
+            problems.append(f"  {leaf}: unreadable rule row - {holds}")
+            continue
+        rules.append(parsed[0])
+        if parsed[1] is not None:
+            sends_ups.append(parsed[1])
+    for phase, floor, block in sends_ups:
+        low = block * _ITEM_NOTES_BLOCK_WIDTH
+        targets = [
+            index
+            for index, rule in enumerate(rules)
+            if rule.phase == phase and rule.low == low and floor == low
+        ]
+        if len(targets) != 1:
+            problems.append(
+                f"  Phase {phase}: a row sends IDs at {floor} or higher to the `CS-{block}nn` "
+                f"leaf, and {len(targets)} row(s) hold that block from {floor}"
+            )
+            continue
+        rules[targets[0]] = rules[targets[0]]._replace(high=None)
+    if not rules and not problems:
+        problems.append(f"{ITEM_NOTES_INDEX_RELATIVE}'s leaf table carries no phase row")
+    return rules, problems
+
+
+def item_notes_annex_rows(index_text: str) -> list[str]:
+    """Return the leaf paths the index's leaf table marks as ANNEX rows."""
+    annexes: list[str] = []
+    for line in _item_notes_table_lines(index_text) or []:
+        row = _ITEM_NOTES_RULE_ROW.match(line)
+        if row is not None and row.group(2).startswith(_RULE_ANNEX):
+            annexes.append(row.group(1))
+    return annexes
+
+
+def item_notes_rule_leaves(rules: list[ItemNotesRule], item: str, phase: str) -> list[str]:
+    """Return every leaf the parsed leaf table names for an item - the reader's one hop.
+
+    Args:
+        rules: The phase rows from item_notes_rule_rows.
+        item: The item id.
+        phase: The digit of the ROADMAP Phase heading filing it.
+
+    Returns:
+        The leaves whose range holds the item. Exactly one is a resolution.
+    """
+    numbered = _ITEM_NOTES_NUMBERED.fullmatch(item)
+    number = int(numbered.group(1)) if numbered is not None else 0
+    return [
+        rule.leaf
+        for rule in rules
+        if rule.phase == phase and rule.low <= number and (rule.high is None or number < rule.high)
+    ]
+
+
+def _item_notes_rule_probes(rules: list[ItemNotesRule], phase: str, routed: list[int]) -> list[int]:
+    """Return the item numbers the table and the code are compared at, for one phase.
+
+    Both ends of every table range, both sides of every CODE seam - read at call
+    time, so a seam moved in the code moves its probes with it - every routed
+    item's own number, and one probe past every block.
+    """
+    probes = {0, _ITEM_NOTES_FAR_PROBE, *routed}
+    for seam in (
+        _ITEM_NOTES_FOLLOWUP_FIRST,
+        _ITEM_NOTES_FOLLOWUP_SEAM,
+        _ITEM_NOTES_SECOND_BLOCK_FIRST,
+    ):
+        probes.update((seam - 1, seam))
+    for rule in rules:
+        if rule.phase != phase:
+            continue
+        probes.update((rule.low - 1, rule.low))
+        if rule.high is not None:
+            probes.update((rule.high - 1, rule.high))
+    return sorted(probe for probe in probes if probe >= 0)
+
+
+def _item_notes_rule_problems(
+    rules: list[ItemNotesRule], domain: dict[str, str | None]
+) -> tuple[list[str], int]:
+    """Bind the leaf table to item_notes_leaf, both directions, at every probe.
+
+    Args:
+        rules: The phase rows from item_notes_rule_rows.
+        domain: Item id mapped to its ROADMAP phase digit, trailing fields only.
+
+    Returns:
+        (problem lines, the number of probes on which table and code agree).
+    """
+    routed: dict[str, list[int]] = {rule.phase: [] for rule in rules}
+    for item, phase in domain.items():
+        numbered = _ITEM_NOTES_NUMBERED.fullmatch(item)
+        if phase is not None and numbered is not None:
+            routed.setdefault(phase, []).append(int(numbered.group(1)))
+    problems: list[str] = []
+    agreeing = 0
+    for phase in sorted(routed, key=int):
+        for number in _item_notes_rule_probes(rules, phase, routed[phase]):
+            item = f"CS-{number}"
+            named = item_notes_rule_leaves(rules, item, phase)
+            derived = item_notes_leaf(item, phase)
+            if len(named) != 1:
+                problems.append(
+                    f"  Phase {phase} {item}: the leaf table names {len(named)} leaves"
+                    + (f" ({', '.join(named)})" if named else "")
+                    + f", item_notes_leaf derives {derived}"
+                )
+            elif named[0] != derived:
+                problems.append(
+                    f"  Phase {phase} {item}: the leaf table names {named[0]}, "
+                    f"item_notes_leaf derives {derived}"
+                )
+            else:
+                agreeing += 1
+    if problems:
+        problems.insert(
+            0, f"the leaf table in {ITEM_NOTES_INDEX_RELATIVE} disagrees with the code:"
+        )
+    return problems, agreeing
+
+
+def _item_notes_routing_problems(
+    domain: dict[str, str | None],
+    fields: dict[str, tuple[str, int]],
+    sections: dict[str, str],
+    unread: dict[str, str],
+) -> list[str]:
+    """Grade the derived routing against the sections, both directions.
+
+    Args:
+        domain: Item id mapped to its ROADMAP phase digit, trailing fields only.
+        fields: Item id mapped to (trailing field target, detail: spelling count).
+        sections: Item id mapped to the leaf that holds its section.
+        unread: Repo-relative path mapped to why it was not read.
+
+    Returns:
+        Problem lines, empty when every routed item and every section agree.
     """
     roadmap = ITEM_NOTES_ROADMAP_RELATIVE
     problems: list[str] = []
-
-    no_field = sorted(set(routed) - set(domain))
-    if no_field:
-        problems.append(f"routing rows whose {roadmap} line carries no trailing detail: field:")
-        problems.extend(
-            f"  {item} has a routing row and no trailing detail: field" for item in no_field
-        )
-
-    no_row = sorted(set(domain) - set(routed))
-    if no_row:
-        problems.append(f"trailing detail: fields in {roadmap} the routing table does not carry:")
-        problems.extend(
-            f"  {item} carries a trailing detail: field and no routing row" for item in no_row
-        )
 
     unphased = sorted(item for item, phase in domain.items() if phase is None)
     if unphased:
@@ -3449,34 +3674,56 @@ def _item_notes_derivation_problems(
         problems.extend(f"  {item} is filed under no Phase heading" for item in unphased)
 
     derived = {
-        item: (phase, item_notes_leaf(item, phase))
-        for item, phase in domain.items()
-        if phase is not None
+        item: item_notes_leaf(item, phase) for item, phase in domain.items() if phase is not None
     }
 
-    wrong_leaf = sorted(
-        item for item in set(routed) & set(derived) if routed[item] != derived[item][1]
+    # CS-1112 - THE NO-SECTION CHECK IS RESTORED, AND THE CS-1113 PROOF THAT
+    # RETIRED IT IS NOW FALSE. That proof covered every state with a ROUTING ROW
+    # check - no row, a row with no section, a row disagreeing with its section.
+    # The rows are gone, so nothing else can fail a routed item whose section is
+    # absent or sits one seam away: this check is the only thing that does.
+    #
+    # CS-1115. An item derived INTO a leaf that was not read may have its section
+    # there, so it is ungraded rather than missing. An item derived into a leaf
+    # that WAS read is still red: were its section in the unread leaf, it would
+    # be misplaced. An unlisted leaf directory leaves every item ungraded.
+    missing = sorted(
+        item
+        for item, leaf in derived.items()
+        if sections.get(item) != leaf
+        and ITEM_NOTES_LEAF_DIR_RELATIVE not in unread
+        and leaf not in unread
     )
-    if wrong_leaf:
-        problems.append("these rows name a leaf other than the one the membership rule derives:")
+    if missing:
+        problems.append(
+            f"these routed items have no section in the leaf the {ITEM_NOTES_RULE_NAME} derives:"
+        )
         problems.extend(
-            f"  {item} routed to {routed[item]}, {roadmap} Phase {derived[item][0]} "
-            f"derives {derived[item][1]}"
-            for item in wrong_leaf
+            f"  {item} has no section in {derived[item]}"
+            + (f", detail is in {sections[item]}" if item in sections else "")
+            for item in missing
         )
 
-    # The located field must AGREE with the row: it names the index (the one hop
-    # ROADMAP.md prescribes) or the derived leaf itself, and nothing else.
+    unrouted = sorted(set(sections) - set(domain))
+    if unrouted:
+        problems.append(
+            f"these carry detail no trailing detail: field in {roadmap} routes, "
+            "so nothing can find them:"
+        )
+        problems.extend(f"  {item} in {sections[item]}" for item in unrouted)
+
+    # The located field must AGREE with the derivation: it names the index (the
+    # one hop ROADMAP.md prescribes) or the derived leaf itself, and nothing else.
     wrong_target = sorted(
         item
         for item in derived
-        if item in fields and fields[item][0] not in (ITEM_NOTES_INDEX_RELATIVE, derived[item][1])
+        if item in fields and fields[item][0] not in (ITEM_NOTES_INDEX_RELATIVE, derived[item])
     )
     if wrong_target:
         problems.append("these detail: fields name neither the index nor the derived leaf:")
         problems.extend(
             f"  {item} detail: field names {fields[item][0]}, the rule derives "
-            f"{derived[item][1]} and the index is {ITEM_NOTES_INDEX_RELATIVE}"
+            f"{derived[item]} and the index is {ITEM_NOTES_INDEX_RELATIVE}"
             for item in wrong_target
         )
 
@@ -3486,21 +3733,6 @@ def _item_notes_derivation_problems(
         problems.extend(
             f"  {item} spells detail: again before its trailing field" for item in doubled
         )
-
-    # CS-1113 - THE "NO SECTION IN ITS DERIVED LEAF" CHECK WAS RETIRED, BECAUSE NO
-    # STATE EXISTS THAT ONLY IT CAN FAIL. It FAILED an item in `derived` whose
-    # section is not in the derived leaf. Take any such item:
-    #   - no routing row:                    no_row above FAILS (derived is in domain);
-    #   - a row, no section anywhere:        guard_index's dangling check FAILS;
-    #   - a row, a section in another leaf:  the row either differs from the section
-    #     (guard_index's misrouted check FAILS) or equals it, and then it differs
-    #     from the derived leaf (wrong_leaf above FAILS).
-    # Every case is covered, over the same `routed` and `sections` values, so the
-    # check could never be the reason for a verdict - every mutant deleting it was
-    # caught only by a test asserting its exact message. It is not replaced: the
-    # arm test_every_state_the_retired_no_section_check_saw_still_fails in
-    # tests/data/test_item_notes_index.py asserts the FAIL VERDICT on every row
-    # and section placement, so deleting any one covering check reddens it.
     return problems
 
 
@@ -3522,36 +3754,36 @@ def _read_item_notes_roadmap(root: Path, skips: list[Skip], detail: list[str]) -
             {
                 "path": ITEM_NOTES_ROADMAP_RELATIVE,
                 "reason": (
-                    f"not read ({_exc_text(exc)}) - no row was checked against the derivation"
+                    f"not read ({_exc_text(exc)}) - no item was routed, so no section was graded"
                 ),
             }
         )
         detail.append(
-            f"{ITEM_NOTES_ROADMAP_RELATIVE} NOT READ - rows were graded against the leaves only"
+            f"{ITEM_NOTES_ROADMAP_RELATIVE} NOT READ - nothing was routed against the leaves"
         )
         return None
 
 
-def item_notes_routing(text: str) -> dict[str, str]:
-    """Return item id mapped to the leaf path each routing row names.
+def item_notes_routing_rows(text: str) -> list[str]:
+    """Return the item id of every routing row left in the index, in order.
 
     Args:
         text: The index file's text.
 
     Returns:
-        Item id mapped to the repo-relative leaf path written in its row.
+        Item ids whose row survives. CS-1112 makes any of them a FAIL.
     """
-    return {match.group(1): match.group(2) for match in _ITEM_NOTES_ROW.finditer(text)}
+    return [match.group(1) for match in _ITEM_NOTES_ROUTING_ROW.finditer(text)]
 
 
 def item_notes_sections(
     root: Path,
-) -> tuple[dict[str, str], list[str], dict[str, str], list[str]]:
+) -> tuple[dict[str, str], list[str], dict[str, str], list[str], dict[str, list[str]]]:
     """Return item id mapped to the leaf holding it, ids found twice, and what was not read.
 
     CS-1115 - A LEAF THAT EXISTS AND CANNOT BE READ IS NEVER DROPPED. It used to
     be skipped with a bare ``continue``, so its sections vanished and its routed
-    items read as rows with no section: a could-not-look reported as a different
+    items read as items with no section: a could-not-look reported as a different
     defect. The directory listing is the same shape one level up - ``glob``
     swallows a refused listing and yields nothing - so it is listed with
     ``iterdir``, which raises.
@@ -3567,23 +3799,27 @@ def item_notes_sections(
         (item id mapped to repo-relative leaf path, duplicated ids, repo-relative
         path mapped to the reason it was not read - the leaf directory itself
         when it could not be listed, else each leaf that could not be read -
-        and the repo-relative paths of directories carrying a leaf name).
+        the repo-relative paths of directories carrying a leaf name, and every
+        leaf FILE listed, read or not, mapped to the item ids of every section
+        it carries - duplicates included, so no file's sections are hidden).
     """
     found: dict[str, str] = {}
     duplicated: list[str] = []
     unread: dict[str, str] = {}
     not_leaves: list[str] = []
+    listed: dict[str, list[str]] = {}
     leaf_dir = root / ITEM_NOTES_LEAF_DIR_RELATIVE
     try:
         leaves = sorted(path for path in leaf_dir.iterdir() if path.match("*.md"))
     except OSError as exc:
         unread[ITEM_NOTES_LEAF_DIR_RELATIVE] = _exc_text(exc)
-        return found, duplicated, unread, not_leaves
+        return found, duplicated, unread, not_leaves, listed
     for leaf in leaves:
         relative = f"{ITEM_NOTES_LEAF_DIR_RELATIVE}/{leaf.name}"
         if leaf.is_dir():
             not_leaves.append(relative)
             continue
+        listed[relative] = []
         try:
             text = leaf.read_text(encoding="utf-8", errors="replace")
         except OSError as exc:
@@ -3591,29 +3827,26 @@ def item_notes_sections(
             continue
         for match in _ITEM_NOTES_SECTION.finditer(text):
             item = match.group(1)
+            listed[relative].append(item)
             if item in found:
                 duplicated.append(f"{item} in {found[item]} and {relative}")
                 continue
             found[item] = relative
-    return found, duplicated, unread, not_leaves
+    return found, duplicated, unread, not_leaves, listed
 
 
 def _item_notes_section_problems(
     bodies: list[str],
     duplicated: list[str],
-    sections: dict[str, str],
-    routed: dict[str, str],
-    unread: dict[str, str],
+    rows: list[str],
     not_leaves: list[str],
 ) -> list[str]:
-    """Return guard (j)'s findings from the index and the leaves it read.
+    """Return guard (j)'s findings about the index and the family's shape.
 
     Args:
         bodies: Item ids whose section sits in the index itself.
         duplicated: Ids found in more than one leaf, already rendered.
-        sections: Item id mapped to the leaf that holds its section.
-        routed: Item id mapped to the leaf its routing row names.
-        unread: Repo-relative path mapped to why it was not read.
+        rows: Item ids of routing rows left in the index.
         not_leaves: Directories under the family carrying a leaf name.
 
     Returns:
@@ -3628,48 +3861,62 @@ def _item_notes_section_problems(
     if bodies:
         problems.append(
             "the index carries item bodies, which are invisible to a reader following "
-            "the routing table - move them to the leaf the membership rule names:"
+            f"the {ITEM_NOTES_RULE_NAME} - move them to the leaf it names:"
         )
         problems.extend(
             f"  {ITEM_NOTES_INDEX_RELATIVE} holds a section for {item}" for item in bodies
         )
 
+    if rows:
+        problems.append(
+            f"routing rows remain in the index - routing is derived from "
+            f"{ITEM_NOTES_ROADMAP_RELATIVE} by the {ITEM_NOTES_RULE_NAME}, so a row is a "
+            "second owner of the same fact (CS-1112):"
+        )
+        problems.extend(
+            f"  {item} has a routing row in {ITEM_NOTES_INDEX_RELATIVE}" for item in rows
+        )
+
     if duplicated:
         problems.append("an item carries detail in more than one leaf:")
         problems.extend(f"  {row}" for row in duplicated)
+    return problems
 
-    unrouted = sorted(set(sections) - set(routed))
-    if unrouted:
-        problems.append("these carry detail no routing row names, so nothing can find them:")
-        problems.extend(f"  {item} in {sections[item]}" for item in unrouted)
 
-    # CS-1115. A row routed INTO a leaf that was not read may have its section
-    # there, so it is ungraded rather than dangling. A row routed to a leaf that
-    # WAS read is still red: were its section in the unread leaf, it would be
-    # misrouted. An unlisted leaf directory leaves every row ungraded.
-    dangling = sorted(
-        item
-        for item in set(routed) - set(sections)
-        if ITEM_NOTES_LEAF_DIR_RELATIVE not in unread and routed[item] not in unread
-    )
-    if dangling:
-        problems.append("these are routed to a section that does not exist:")
-        problems.extend(f"  {item} routed to {routed[item]}" for item in dangling)
+def _item_notes_file_problems(
+    index_text: str, rules: list[ItemNotesRule], listed: dict[str, list[str]]
+) -> list[str]:
+    """Every leaf FILE is named by a table row, and no ANNEX file carries a section.
 
-    misrouted = sorted(
-        item for item in set(routed) & set(sections) if routed[item] != sections[item]
-    )
-    if misrouted:
-        problems.append("these are routed to the wrong leaf:")
-        problems.extend(
-            f"  {item} routed to {routed[item]}, detail is in {sections[item]}"
-            for item in misrouted
+    Args:
+        index_text: The index file's text.
+        rules: The phase rows from item_notes_rule_rows.
+        listed: Every leaf file listed under the family, mapped to its section ids.
+
+    Returns:
+        Problem lines, empty when the table names every file and annexes hold none.
+    """
+    annexes = item_notes_annex_rows(index_text)
+    named = {rule.leaf for rule in rules} | set(annexes)
+    problems: list[str] = []
+    unnamed = sorted(set(listed) - named)
+    if unnamed:
+        problems.append(
+            "these leaf files are named by no row of the leaf table in "
+            f"{ITEM_NOTES_INDEX_RELATIVE}:"
         )
+        problems.extend(f"  {relative}" for relative in unnamed)
+    in_annex = sorted((relative, item) for relative in annexes for item in listed.get(relative, []))
+    if in_annex:
+        problems.append(
+            "an ANNEX row names a file carrying an item section, which no rule routes to:"
+        )
+        problems.extend(f"  {relative} holds a section for {item}" for relative, item in in_annex)
     return problems
 
 
 def guard_index(root: Path) -> tuple[Guard, list[Skip]]:
-    """Assert the item-notes index routes to exactly the sections that exist.
+    """Assert every routed item resolves, by the leaf membership rule, to its own section.
 
     Args:
         root: The repository root under audit.
@@ -3703,11 +3950,12 @@ def guard_index(root: Path) -> tuple[Guard, list[Skip]]:
         )
 
     bodies = [match.group(1) for match in _ITEM_NOTES_SECTION.finditer(index_text)]
-    routed = item_notes_routing(index_text)
-    sections, duplicated, unread, not_leaves = item_notes_sections(root)
+    rows = item_notes_routing_rows(index_text)
+    rules, rule_parse_problems = item_notes_rule_rows(index_text)
+    sections, duplicated, unread, not_leaves, listed = item_notes_sections(root)
 
     detail = [
-        f"routing rows in {ITEM_NOTES_INDEX_RELATIVE}: {len(routed)}",
+        f"{ITEM_NOTES_RULE_NAME} rows in {ITEM_NOTES_INDEX_RELATIVE}: {len(rules)}",
         f"sections under {ITEM_NOTES_LEAF_DIR_RELATIVE}/: {len(sections)}",
     ]
     skips.extend(
@@ -3715,7 +3963,7 @@ def guard_index(root: Path) -> tuple[Guard, list[Skip]]:
         for relative, reason in unread.items()
     )
     detail.extend(
-        f"{relative} NOT READ - no row routed into it was graded against a section"
+        f"{relative} NOT READ - no item derived into it was graded against a section"
         for relative in unread
     )
 
@@ -3729,12 +3977,12 @@ def guard_index(root: Path) -> tuple[Guard, list[Skip]]:
             f"detail: spellings on routed lines in {ITEM_NOTES_ROADMAP_RELATIVE}: {spellings}"
         )
 
-    if not routed and not sections and not domain:
+    if not rows and not sections and not domain:
         skips.append(
             {
                 "path": ITEM_NOTES_LEAF_DIR_RELATIVE,
                 "reason": (
-                    "the family holds no routing row and no section - every equality "
+                    "the family holds no routed item and no section - every equality "
                     "below is satisfied by an empty population, so nothing was graded"
                 ),
             }
@@ -3742,11 +3990,15 @@ def guard_index(root: Path) -> tuple[Guard, list[Skip]]:
         detail.append("NOTHING TO GRADE - an empty family is a skip, never a pass")
         return _guard("j", name, "WARN", detail), skips
 
-    problems = _item_notes_section_problems(
-        bodies, duplicated, sections, routed, unread, not_leaves
-    )
+    problems = _item_notes_section_problems(bodies, duplicated, rows, not_leaves)
+    rule_problems, agreeing = _item_notes_rule_problems(rules, domain)
+    detail.append(f"leaf table probes agreeing with item_notes_leaf: {agreeing}")
+    problems.extend(rule_parse_problems)
+    problems.extend(rule_problems)
+    if ITEM_NOTES_LEAF_DIR_RELATIVE not in unread:
+        problems.extend(_item_notes_file_problems(index_text, rules, listed))
     if roadmap_text is not None:
-        problems.extend(_item_notes_derivation_problems(routed, domain, fields))
+        problems.extend(_item_notes_routing_problems(domain, fields, sections, unread))
 
     if problems:
         return _guard("j", name, "FAIL", detail + problems), skips
@@ -3754,13 +4006,16 @@ def guard_index(root: Path) -> tuple[Guard, list[Skip]]:
     # Both are could-not-look, so neither WARN is advisory (CS-1113, CS-1115).
     not_graded = []
     if roadmap_text is None:
-        not_graded.append("NOT A PASS - the derivation the rows are checked against was never read")
+        not_graded.append("NOT A PASS - the ROADMAP.md routing was never read")
     if unread:
         not_graded.append("NOT A PASS - part of the leaf family was never read")
     if not_graded:
         return _guard("j", name, "WARN", detail + not_graded), skips
 
-    detail.append(f"every routed item resolves to its own section across {len(sections)} id(s)")
+    detail.append(
+        f"every routed item resolves by the {ITEM_NOTES_RULE_NAME} to its own section "
+        f"across {len(sections)} id(s)"
+    )
     return _guard("j", name, "PASS", detail), skips
 
 
