@@ -78,12 +78,24 @@ machine-checked artifact that produces it.
 ### 2026-09-17 - CS-917 - MEASUREMENT RECORD. THE ITEM STAYS OPEN. The lane's growth per commit and its run-to-run jitter are measured; the ordering guarantee is unmet and filed as CS-1133
 
 **THE ITEM STAYS OPEN AND ITS ACCEPTANCE IS UNCHANGED.** This entry records a
-measurement, not a closure. The clause's first conjuncts are met - the growth per
-commit is measured over a stated window, reported where a session sees it, and the
-noise figure is derived by a criterion that assumes no distribution. Its last
-conjunct - that the band not be narrower than that figure - is NOT met for one of
-the three tier 1 jobs, and CS-1133 is filed with the arithmetic showing no choice of
-levels meets it.
+measurement, not a closure. What is met: the growth per commit is measured over a
+stated window, reported where a session sees it, and the noise figure is derived by
+a criterion that assumes no distribution.
+
+**TWO CONJUNCTS ARE OPEN, NOT ONE, AND THIS ENTRY'S FIRST DRAFT NAMED ONLY THE
+SECOND.** This item's verifier read the clause against the artifact and found the
+narrower reading wrong, so the correction is recorded here rather than left in a
+cycle report. (i) The band is not DERIVED FROM the figure - it is the value CS-1060
+left in the workflow, and the tool reads it rather than sizing it. (ii) The band is
+NARROWER than the figure for one of the three tier 1 jobs. CS-1133 owns BOTH, and its
+acceptance names both; the arithmetic filed with it shows that no choice of levels
+meets (ii) at today's readings.
+
+**AND "SURVIVES ITS OWN NEXT READING" IS A MECHANISM HERE, NOT YET AN OBSERVATION.**
+One record exists. `JITTER_RATCHET_SECONDS` is what makes a wider next reading RED;
+it is not evidence that the figure has already survived one. Saying otherwise would
+be the exact fault the block above this item's clause records - a band sized from a
+figure its own next reading falsified.
 
 **WHAT SHIPPED.** `tools/tier1_growth.py`, a tracked record at
 `tools/tier1_readings.json`, and `tests/test_tier1_growth.py`. Two modes, on the
@@ -92,8 +104,14 @@ levels meets it.
 network. Per job the tool derives the duration from the recorded timestamps, the
 growth in seconds per commit as an exact rational least-squares slope over the
 recorded commit axis, the jitter, and the verdict against the warn band - which it
-reads from the parsed workflow, so no level is transcribed into the tool, the record
-or the tests. `.claude/commands/drift-guard.md` runs it, which is the clause's
+reads from the parsed workflow, so no level is transcribed into the tool or the
+record. **CORRECTED BY THIS ITEM'S VERIFIER, which found the sentence above
+overstated in its first draft:** `tests/test_tier1_growth.py` DOES bind the shipped
+pair as its synthetic fixture's levels, deliberately and with the reason written
+beside it, and guard (k) is green over it only because no lane token sits inside
+that guard's window of those lines. The claim that holds is about the tool and the
+record; the tests carry the pair on purpose so a synthetic verdict reads across to
+the real one. `.claude/commands/drift-guard.md` runs the tool, which is the clause's
 "reported somewhere a session will see it".
 
 **THE ROOT CAUSE, AS THE ITEM STATED IT.** CS-896 watches the lane's duration.
@@ -163,7 +181,20 @@ sentence no longer carries a figure.
 
 **CI IS RECORDED BY THE DRIVER AND WAS NOT OBSERVED BY THIS WORKER.**
 
-**FILED THIS CYCLE.** CS-1133 - the remainder, with the feasibility arithmetic.
+**FILED THIS CYCLE.** CS-1133 - the remainder, now naming BOTH open conjuncts, with
+the feasibility arithmetic. CS-1134 - two routes by which the shipped jitter figure
+could understate, found by this item's verifier AFTER the candidate was frozen and
+filed rather than repaired, because a repair landed during a verdict is one that
+verdict cannot discharge. Neither is live on the shipped record.
+
+**THE VERIFIER'S VERDICT.** CONFIRMED WITH CORRECTIONS on all three claims this
+cycle made, by an agent that did not produce the work, against the frozen candidate.
+It re-ran every gate above and re-derived every count; it brute-forced the
+concurrency rule over seven hand cases and four thousand randomised series and found
+no understatement and no order-dependence; it exercised the two-way ratchet in both
+directions; it re-derived all eleven commit distances against git; and it recomputed
+CS-1133's feasibility window independently and found it empty. Its two corrections
+are recorded above, in this entry, rather than left in a cycle report.
 
 
 ### 2026-09-17 - CS-1125 - CLOSED. The mypy gate's arms run under an environment they build, not the one they inherit

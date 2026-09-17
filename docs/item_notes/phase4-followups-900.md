@@ -220,10 +220,15 @@ a machine-readable record in which each reading carries its own receipt (metric,
 ### Partial ship recorded 2026-09-17 - the growth and the figure are measured, the ordering is not met
 
 **THE ITEM STAYS OPEN AND ITS ACCEPTANCE IS UNCHANGED.** What shipped is the
-measurement the clause asks for and the criterion it demands. What is NOT met is
-the clause's last conjunct - that the band not be narrower than the figure - and
-that half is CS-1133, filed with the arithmetic that makes it a ruling rather
-than a choice of numbers.
+measurement the clause asks for and the criterion it demands. **TWO CONJUNCTS
+REMAIN OPEN AND THIS BLOCK'S FIRST DRAFT NAMED ONLY ONE OF THEM** - this item's
+verifier read the clause against the artifact and refuted the narrower account,
+which is recorded here rather than in a cycle report. (i) The band is not DERIVED
+FROM the figure: it is the value CS-1060 left in the workflow and the tool READS
+it. (ii) The band is NARROWER than the figure for one of the three jobs. CS-1133
+owns both, and the arithmetic filed with it makes (ii) a ruling rather than a
+choice of numbers. **A LATER CYCLE MUST NOT READ (i) AS DISCHARGED BY THE TOOL
+EXISTING** - reading a level is not deriving it.
 
 **WHAT IS NOW MEASURED.** `tools/tier1_growth.py` grades a tracked record,
 `tools/tier1_readings.json`, refreshed BY HAND from `gh` the way
@@ -270,6 +275,16 @@ improving out of it is red too, which forces the literal down rather than lettin
 a met condition sit unrecorded. That is the mechanism this item was filed to
 build - growth visible before it is fatal - and it is why the unmet half can be
 recorded honestly instead of being hidden behind a green exit code.
+
+**TWO WAYS THE SHIPPED FIGURE CAN STILL UNDERSTATE, BOTH FOUND BY THIS ITEM'S
+VERIFIER AND NEITHER LIVE ON TODAY'S RECORD. They are CS-1134, filed rather than
+repaired after the verdict, because a repair the verifier never saw is a repair
+nobody graded.** The reader dedupes by run id, so a job RE-RUN inside one run
+keeps that id and its second attempt's duration is dropped - which could hide a
+step. And the anti-transcription arm skips PER SHA, so a fabricated sha with a
+fabricated distance makes that arm SKIP rather than redden; only a distance edited
+against a commit the checkout carries is caught, and `grade` checks the window's
+two ends rather than every recorded sha.
 
 **DO NOT CLOSE THIS ITEM ON THE STRENGTH OF THE MEASUREMENT.** The clause's last
 conjunct is unmet and CS-1133 owns it. If a later session wants this item to

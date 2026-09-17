@@ -817,8 +817,12 @@ the leaf is under its ceiling with headroom a filing pass cannot exhaust in one 
 
 **THIS IS THE HALF OF CS-917 THAT CANNOT BE SHIPPED, AND IT IS A FEASIBILITY
 RESULT RATHER THAN AN UNFINISHED BUILD.** CS-917 asks that the warn band not be
-narrower than the noise figure it is derived from, so a warn is reachable before
-a red. `tools/tier1_growth.py` now measures that figure per job and reports the
+narrower than the noise figure it is DERIVED FROM, so a warn is reachable before
+a red. **BOTH HALVES OF THAT PHRASE ARE OPEN AND THE CS-917 VERIFIER CORRECTED
+THIS SECTION'S FIRST DRAFT FOR NAMING ONLY THE WIDTH.** The shipped band is the
+value CS-1060 left in the workflow and the tool READS it; no figure sized it.
+Reading a level is not deriving one, and an arm that only compares width would
+certify a band nothing derived. `tools/tier1_growth.py` now measures that figure per job and reports the
 verdict; the figure and every reading behind it live in `tools/tier1_readings.json`
 and are restated nowhere. For two of the three jobs the band covers the figure.
 For the fast shard it does not, and `ORDERING_UNMET` in the tool names it.
@@ -858,8 +862,63 @@ answered by removing the band rather than by widening it.
 
 ### Acceptance
 
-every tier 1 job's warn band covers that job's own jitter figure, with the figure derived by the criterion `tools/tier1_growth.py` already ships and the levels moved only under a recorded ruling, proven by `ORDERING_UNMET` in that tool being EMPTY over a refreshed record and by the two-way arm in `tests/test_tier1_growth.py` that reddens when it is not
+every tier 1 job's warn band is DERIVED FROM that job's own jitter figure rather than read as a standing constant, AND covers it, with the figure derived by the criterion `tools/tier1_growth.py` already ships and any level moved only under a recorded ruling, proven by `ORDERING_UNMET` in that tool being EMPTY over a refreshed record, by the two-way arm in `tests/test_tier1_growth.py` that reddens when it is not, and by an arm that reddens when the band is a constant no figure sized
 
 ### Full headline
 
 the tier 1 fast shard's warn band is narrower than its own run-to-run jitter - MEASURED 2026-09-17 by `tools/tier1_growth.py` over the readings in `tools/tier1_readings.json` - so a rising reading on that job can reach the ceiling without ever having landed in the band, and the feasible window over the budget, the ceiling and the cutoff is EMPTY at that job's worst reading and jitter, which makes it a ruling or a jitter reduction rather than a choice of numbers
+
+---
+
+## CS-1134
+
+### Filed 2026-09-17 by the CS-917 cycle, from that item's verifier
+
+**NEITHER VECTOR IS LIVE ON TODAY'S RECORD AND THAT IS WHY THIS IS A ROW RATHER
+THAN A REPAIR.** Both were found by the CS-917 verifier AFTER the candidate was
+frozen, and repairing them then would have produced a change that verifier never
+saw. Filed, not fixed, on the rule that a repair landed during a verdict is one
+the verdict cannot discharge.
+
+**VECTOR ONE - A RE-RUN ATTEMPT IS DROPPED.** `readings` in
+`tools/tier1_growth.py` keeps one reading per run id, because one run copied
+several times into the record must not satisfy the reading floor several times
+over. But a job RE-RUN inside a single workflow run carries the SAME run id, so
+its second attempt's duration is discarded. If the two attempts differ widely,
+the step between them is invisible and the jitter figure UNDERSTATES the lane's
+movement - which is the one direction that figure must never fail in, because an
+understated figure makes the ordering verdict read green for the wrong reason.
+The shipped record carries no duplicate job-and-run-id pair, so nothing shipped
+rests on it today.
+
+**DO NOT FIX IT BY DROPPING THE DEDUPE.** That reintroduces the defect
+`test_one_run_copied_five_times_is_one_reading_not_five` exists to refuse. The
+fix has to tell a RE-RUN ATTEMPT apart from a COPIED ROW, and the jobs API
+reports an attempt number that the record does not currently keep - so this is a
+record field plus a key change, and the record must be refreshed to carry it.
+
+**VECTOR TWO - THE ANTI-TRANSCRIPTION ARM SKIPS WHERE IT SHOULD REDDEN.**
+`test_the_recorded_commit_distances_agree_with_this_repository` in
+`tests/test_tier1_growth.py` skips PER SHA when the checkout cannot place that
+sha, which is correct for a shallow clone and wrong for a fabricated one: a sha
+that exists nowhere, paired with any distance at all, makes the arm SKIP rather
+than fail. `grade` closes part of the gap - it checks the window's two ends - but
+a mid-series sha is graded against the repository by nothing. So the arm's claim
+is narrower than its name: it catches a distance edited against a commit the
+checkout HAS, and nothing else.
+
+**THE SHAPE OF A FIX, STATED BECAUSE THE OBVIOUS ONE IS WRONG.** Reddening on an
+unplaceable sha breaks the shallow-clone case the skip was written for and would
+ship red in CI. What distinguishes the two is whether the checkout carries the
+WINDOW at all: if it carries the window's oldest commit, it is a full clone and an
+unplaceable mid-series sha is then a fabrication rather than a missing ancestry.
+So the skip belongs once, at the top, on the window - which is already where the
+first probe in that arm looks.
+
+### Acceptance
+
+a job re-run inside one workflow run contributes its own reading rather than being dropped, and a recorded commit distance whose sha the checkout cannot place is RED when the checkout carries the window and SKIPPED only when it does not, proven for each by an arm that reddens on a planted record and a control that stays green on the shipped one
+
+### Full headline
+
+the tier 1 jitter figure can UNDERSTATE by two routes the CS-917 verifier found after the candidate was frozen - `readings` in `tools/tier1_growth.py` drops a job's re-run attempt because it dedupes on the run id a re-run shares, and `test_the_recorded_commit_distances_agree_with_this_repository` skips per sha so a fabricated sha and distance pair makes the anti-transcription arm SKIP rather than redden - neither live on the shipped record, both filed rather than repaired because a repair landed after a verdict is one that verdict cannot discharge
