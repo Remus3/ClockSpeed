@@ -38,8 +38,10 @@ the line becomes a pointer.
 - Shipped: CLOSED by the main session, each through builder, adversary on a distinct lens,
   repair loop, then a verifier or a stop-condition pass: CS-1096, CS-1101, CS-1102, CS-1104,
   CS-1110, CS-1086, CS-1097, CS-1107, CS-1111, CS-1113, CS-1115, CS-1116, CS-1109. CLOSED
-  by the headless lane: CS-894 (649ed65), CS-1068 (69b77a8). FILED: CS-1105 through
-  CS-1118, several of them closed in the same session. Detail in `docs/LEDGER.md`.
+  by the headless lane: CS-894 (649ed65), CS-1068 (69b77a8). CLOSED LATER IN THE SESSION:
+  CS-1117, CS-1118, CS-1120, CS-1114 and CS-1106 by the main session, CS-893 by the lane
+  (768f2b8). FILED: CS-1105 through CS-1118; CS-1119 and
+  CS-1121 by the lane. Detail in `docs/LEDGER.md`.
 - **CS-1108 IS CLOSED.** It WAS graded - adversary NOT REFUTED at 3491540, merged at
   925329d, CI follow-up c6a41f3 - but the merger never recorded the closure. Recorded after
   the session: its `docs/LEDGER.md` entry is written and its `ROADMAP.md` line removed.
@@ -49,10 +51,14 @@ the line becomes a pointer.
   background tasks and raises the Bash timeout in `ops/loop/run_lane.ps1`; the first cycles
   relaunched under it committed with `ci=success`. CS-1110 discarded the killed cycles'
   CS-893 work after a hash-checked snapshot under the gitignored `data/lane-snapshots/`;
-  CS-893 stays open and the test half of that snapshot still applies to main.
+  the lane later closed CS-893 afresh at 768f2b8, so that snapshot is superseded.
 - **FROZEN-FILE GRANT RECORDED BEFORE THE EDIT.** CS-1096's two comment lines in
   `tools/precommit_gate.py`, granted by an adjudicator and committed at dc88c08 ahead of the
-  change.
+  change. CS-1106's three lines, same route, recorded at 4289e5c ahead of the change.
+- **CS-1114 WAS REFUTED AS A PRIVACY LEAK.** Its first tip's false-positive fix dropped a
+  world token from the blocklist in three synthetic refused headers. MERGER RULING, fenced:
+  the scan is a fail-safe blocklist, so a false positive (a manual unblock) is never traded
+  for a false negative (a leak). The repair skips slot 0 on measured versions only.
 - Decisions (adjudicated, no ADR): CS-1086 KEEP-AND-CHECK the routing table, with removal
   filed as CS-1112 and sequenced before CS-971. CS-1110 DISCARD over SALVAGE. The stale
   dead-pid claim records were left for `try_claim_row` to clear, because a hand release is
@@ -60,10 +66,14 @@ the line becomes a pointer.
 - Surprises: **THE ADVERSARY REFUTED A GREEN FIRST PASS ON NEARLY EVERY SLICE** - CS-1101
   and CS-1104 three times each, CS-1096 twice. **REPO-WIDE GUARDS CAUGHT WHAT SCOPED SUITES
   DID NOT** - exception rendering, liveness, bare mypy, and the assertion-rendering echo
-  guard on ubuntu - so the whole suite ran before every push.
+  guard on ubuntu - so the whole suite ran before every push. CS-1106's verifier plants
+  tripped the arm's own anchor checks, which failed closed; ruled a weakness, not a defect.
 - CI reds and causes: 0dbf309, a cmd.exe control not skipped on ubuntu (fixed at c6a41f3);
   c1d7517, a synthetic `class Runner:` string matched the CI runner account name in the echo
-  guard (fixed at 3ff40e1). Both green after the fix.
+  guard (fixed at 3ff40e1); 645663c, tier1, the memory reachability walk followed `INDEX_*`
+  routing children only on a case-insensitive filesystem - pre-existing, exposed by a CS-1120
+  plant (fixed at 0cd4e66, merged at ea944a2). All green after the fix. The lane STOPPED
+  ITSELF on the 645663c red (`stopped_by=ci_red`) and was relaunched after green.
 - Failed paths: removing the routing table outright (a planner's proposal, rejected by
   adjudication - see CS-1112); salvaging the killed lane's CS-893 diff (red, and its
   ROADMAP hunk allocated an id main had since given to another item).
@@ -73,10 +83,9 @@ the line becomes a pointer.
   `.claude/worktrees/agent-*` from this session are merged; none removed - classify by
   content before pruning.
 - STILL OPEN worth naming: CS-971 (behind CS-1112 and CS-1079), CS-1079, CS-1098, CS-1099
-  and CS-1100 (with the CS-1098 licence fence), CS-1105, CS-1106, CS-1112, CS-1114,
-  CS-1117 and CS-1118.
-- Next action: the lane keeps draining under the fixed launcher; the main session takes
-  CS-1117, CS-1118, CS-1105 and CS-1106, CS-1114, then CS-1112 -> CS-1079 -> CS-971.
+  and CS-1100 (with the CS-1098 licence fence), CS-1105, CS-1112, CS-1119 and CS-1121.
+- Next action: the lane keeps draining under the relaunched launcher; the main session takes
+  CS-1105, then CS-1112 -> CS-1079 -> CS-971.
 
 ## Session 101 - 2026-09-16 - the moon-sync adoption, and three of three slices refuted before merge
 

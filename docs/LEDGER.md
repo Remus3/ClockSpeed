@@ -374,6 +374,62 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-09-16 - CS-1106 - CLOSED. No prose in the world-token scan path states a false total of non-blocking degradations, and a stated total is graded against the code
+
+**WHAT CHANGED.** The two prose sites in `tools/precommit_gate.py` that claimed the world-token scan
+path has exactly one deliberate non-blocking degradation were rewritten under the frozen-file grant
+recorded below, and only those three lines moved: numstat `3 3`, byte-exact to the granted text,
+confirmed by an adversary. `tests/test_world_token_bound_count.py` now DERIVES the non-blocking set
+from the code. A handler counts as blocking only when it raises or blocks at the top of its body
+before any return, so anything less fails closed into the non-blocking set. An allowlisted count-word
+rule over the scan functions' docstrings and comments reddens any stated total, including "only one",
+"single", "sole" and "lone". The CS-1096 limit F5 and its allowlist entry are retired. The prose in
+`tests/test_precommit_gate.py` was corrected and no assertion there changed. Merged files:
+`tools/precommit_gate.py`, `tests/test_world_token_bound_count.py`, `tests/test_precommit_gate.py`.
+
+**PROVEN BY.** `tests/test_world_token_bound_count.py::test_the_non_blocking_total_agrees_with_the_code`,
+`::test_a_false_non_blocking_total_in_a_body_comment_reddens_the_arm`,
+`::test_a_false_sole_non_blocking_claim_in_the_docstring_reddens_the_arm`,
+`::test_a_conditional_raise_leaves_a_handler_non_blocking`,
+`::test_a_raise_after_a_return_leaves_a_handler_non_blocking`,
+`::test_a_count_word_beside_blocking_prose_reddens_the_arm` and
+`::test_a_true_non_blocking_total_stays_green`.
+
+**HISTORY.** Grant recorded at 4289e5c, before the edit. Builder tips bc80c66 then 1b2e556, merged at
+309e7eb. The adjudicator read ten non-blocking failure-to-look sites. The first tip was REFUTED on two
+counts: a conditional or unreachable raise anywhere in a handler made the handler count as blocking,
+and the phrase denylist missed "sole", "lone" and "single". 1b2e556 repaired both. VERIFIER at
+1b2e556: the count was correct in every plant - a conditional raise and an unreachable raise after a
+return both kept it at ten - and every phrase plant was red.
+
+**WEAKNESS, recorded rather than filed - MERGER RULING.** The verifier's on-disk plants into the real
+handler also tripped the arm's own in-memory plant-anchor checks, which fail closed with an explicit
+message ("the handler anchor is not unique" or "the plant did not apply"). Any edit to that handler
+needs a frozen-file grant anyway, and it reddens the anchor arms with a message that names itself. It
+is a weakness and not a defect.
+
+**VERIFY.** `python -m pytest tests/test_world_token_bound_count.py tests/test_precommit_gate.py -q`.
+
+### 2026-09-16 - SESSION 102 - NOT A COMPLETION RECORD. NOTHING CLOSED. A tier1 red exposed a memory reachability walk that followed routing children only on a case-insensitive filesystem
+
+**THE RED.** Tier1 CI went red on 645663c. `tools/drift_guard.py`'s memory reachability walk built
+each `INDEX_*` routing child's path from a LOWERCASED link token. A case-insensitive filesystem found
+the file anyway and a case-sensitive one did not, so routing children were followed only where names
+fold. The defect was pre-existing and platform-dependent. A CS-1120 plant exposed it, and nothing in
+CS-1120 introduced it.
+
+**THE FIX.** 0cd4e66, merged at ea944a2. A child is resolved by casefold matching against the
+directory's own entries. Two routing files that fold to the same name are a FAIL and are never
+resolved silently. A refused listing is a WARN. An arm emulates case-sensitive lookup on Windows, and
+it was proven to fail against the old code. Arms:
+`tests/data/test_drift_guard_data.py::test_the_case_sensitive_emulation_refuses_the_lowered_spelling`,
+`::test_a_routing_child_is_followed_where_names_are_case_sensitive`,
+`::test_two_routing_files_differing_only_by_case_are_a_finding` and
+`::test_a_memory_listing_the_walk_is_refused_is_a_warn`.
+
+**THE LANE.** The lane stopped itself on that red, recording `stopped_by=ci_red`. It was relaunched
+after CI went green.
+
 ### 2026-09-16 - CS-1106 - NOT A COMPLETION RECORD. CS-1106 STAYS OPEN. A FROZEN-FILE GRANT, GRANTED BY AN ADJUDICATOR BEFORE THE EDIT. Scope is three docstring or comment lines in tools/precommit_gate.py and nothing else
 
 **GRANTOR.** An adjudicator agent that produced none of the CS-1106 work, under CLAUDE.md
