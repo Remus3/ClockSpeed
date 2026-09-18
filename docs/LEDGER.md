@@ -158,7 +158,19 @@ reach the branch it looked like it was testing.
 `test_a_multi_word_claim_survives_a_respaced_target` pins that branch in both
 directions instead of widening the arm that was already correct.
 
-**TESTS ADDED (9),** all in `tests/test_docs_citations.py`:
+**THE LEG LANDED IN `tests/test_docs_citations.py` AND WAS RELOCATED OUT OF IT, on
+that module's own size guard rather than on taste.** The addition pushed the file to
+94.8 per cent of the tests-tree ceiling, past the approach band, and
+`tests/data/test_phase2_gate.py::test_every_file_under_tests_near_the_size_ceiling_is_budgeted_and_pinned`
+names the remedy in the text it prints: relocate a block of arms, do not delete one and
+do not raise the ceiling. The whole leg - both tables, both contracts, every arm - now
+lives in `tests/test_pointer_claims.py`. THE THREE PATTERNS STAYED BEHIND, and that is
+a mechanism rather than an oversight: the arm holding every `*_RE` name answerable to a
+registry reads its own module's `globals()`, so moving them would move them out from
+under the only walk that counts them, which is the evasion-by-relocation
+`tests/bare_path_guard.py::registry_problems` exists to refuse. They are imported by name.
+
+**TESTS ADDED (9),** all in `tests/test_pointer_claims.py`:
 `test_a_pointer_retargeted_to_a_different_non_blank_line_is_reported` and
 `test_a_whitespace_only_reflow_of_the_target_stays_green` (the two the acceptance
 names), `test_no_line_pointer_contradicts_its_own_citing_sentence`,
@@ -181,8 +193,17 @@ already condemned and would report the same pointer twice.
 
 **SUITE THIS RUN**, read from the file rather than from a pipe:
 `python -m pytest tests -q -m "not slow"` reported
-"8863 passed, 5 skipped, 35 deselected, 8 warnings in 1749.08s (0:29:09)",
-exit 0.
+"8879 passed, 5 skipped, 35 deselected, 8 warnings in 1671.67s (0:27:51)",
+exit 0, on the rebased and relocated tree.
+
+**TWO EARLIER WHOLE-TREE RUNS WERE RED AND BOTH REDS WERE THIS CHANGE, named here
+rather than rounded away.** The first was the size guard above, which is what ordered
+the relocation. The second was
+`tests/test_sphinx_roles.py::test_no_tests_module_names_an_unresolvable_symbol` on an
+unqualified Sphinx role in a comment the relocation carried across a module boundary -
+a role that resolved where it was written and stopped resolving where it landed. Both
+were repaired before this entry was written and the run quoted above is the tree that
+shipped.
 
 **CI: recorded by the driver, not observed by this worker.**
 

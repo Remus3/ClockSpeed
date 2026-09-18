@@ -1069,7 +1069,7 @@ declares itself append-only in its own header, so the pointer cannot be re-cut i
 place, and the repair this project states for a rotted pointer - cite the module by
 name - is unavailable at a workflow file, which has no symbol form. Both routes the
 CS-928 forgiveness grant records are therefore closed here too. The site is carried in
-`tests/test_docs_citations.py::UNVERIFIED_POINTER_CLAIMS` with the defect NAMED, and
+`tests/test_pointer_claims.py::UNVERIFIED_POINTER_CLAIMS` with the defect NAMED, and
 that record pins the landing so the site cannot drift further in silence.
 
 **DO NOT CLOSE THIS BY RE-CUTTING THE DIGEST.** The record's digest exists to redden
