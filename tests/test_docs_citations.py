@@ -821,7 +821,24 @@ class UnanchoredCitationSiteError(RuntimeError):
     ENTRY by :func:`disposition_site_problems` and reported as a finding that
     names the carrier: an unanchorable site must not abort the grading of every
     other entry, which is what a bare propagation did.
+
+    CARRIES A NAMED FIELD BECAUSE THE CATCHER MUST NOT RENDER THE OBJECT.
+    ``tests/test_exception_rendering.py`` sweeps the whole tree for a caught
+    exception formatted whole, on CLAUDE.md non-negotiable 12 - ``str()`` on an
+    OSError appends the path it failed on, which carries the account name - and
+    the rule is enforced by shape rather than by type, so a tree-local exception
+    is swept too. The catcher renders :attr:`line` and writes its own sentence.
     """
+
+    def __init__(self, message: str, line: int) -> None:
+        """Record the message and the 1-based line the unanchored site sits on.
+
+        Args:
+            message: What went wrong, for anyone who raises without catching.
+            line: The 1-based line number of the site that has no chain.
+        """
+        super().__init__(message)
+        self.line = line
 
 
 def heading_chain(text: str, line: int) -> tuple[str, ...]:
@@ -964,7 +981,8 @@ def citation_site_identities(text: str, cited: str) -> tuple[str, ...]:
                 f"{cited} is spelled above the first heading of its doc, so it has no"
                 " enclosing chain. Digesting the empty chain would make it compare"
                 " equal to every other unanchored site anywhere; give the doc a"
-                " heading above the site, or do not record a forgiveness for it."
+                " heading above the site, or do not record a forgiveness for it.",
+                index + 1,
             )
         both = f"{landing_digest(NEWLINE.join(chain))}:{landing_digest(lines[index])}"
         identities.append(f"{both}:{seen[both]}")
@@ -1013,7 +1031,10 @@ def disposition_site_problems(
             # consuming arm as an ERROR, so one unanchorable site anywhere in the
             # corpus stopped the other entries being graded at all. The refusal
             # stands; it is reported as a finding against the entry that earned it.
-            problems.append(f"{doc} :: {cited} - {unanchored}")
+            problems.append(
+                f"{doc} :: {cited} - spelled at line {unanchored.line}, above the"
+                " doc's first heading, so it has no enclosing chain and no identity"
+            )
             continue
         arrived = Counter(found) - Counter(recorded.at)
         departed = Counter(recorded.at) - Counter(found)
