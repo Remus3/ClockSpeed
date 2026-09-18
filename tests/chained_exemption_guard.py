@@ -184,8 +184,9 @@ class Exemption:
             repair, on BOTH recorded modules, by
             ``test_a_compensating_swap_that_keeps_the_count_is_reported``. The
             same fault in the ``Disposition`` table
-            ``tests/test_citation_tables.py`` owns is unrepaired and is filed
-            as CS-1121.
+            ``tests/test_citation_tables.py`` owns was filed as CS-1121 and
+            REPAIRED there on 2026-09-17, by a site identity rather than by
+            this module's qualname shape.
             AN IDENTITY IS STRICTLY STRONGER THAN THE COUNT IT REPLACES,
             because the count is recoverable from it: a read arriving with no
             deletion changes the multiset too, which is what keeps the older

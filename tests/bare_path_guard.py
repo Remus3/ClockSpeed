@@ -340,10 +340,11 @@ class BarePathSite:
         """The key every table in this section is written against.
 
         AN IDENTITY, NOT A COUNT, and CS-893 is filed against this module for
-        getting that wrong one table over. :attr:`Disposition.sites` is a bare
-        count, so a COMPENSATING SWAP - delete one recorded site and add an
-        unrelated one in the same edit - leaves the cardinality unchanged and
-        passes in silence. A set of identities reports both halves of that swap.
+        getting that wrong one table over. The `Disposition` table carried a bare
+        count until CS-1121, so a COMPENSATING SWAP - delete one recorded site
+        and add an unrelated one in the same edit - left the cardinality
+        unchanged and passed in silence. A set of identities reports both halves
+        of that swap. That table now carries site identities of its own.
 
         AN ANCHOR RATHER THAN A LINE, AND THAT WAS MEASURED. Prepending one
         session entry to a markdown file shifts every line below it and rewrites

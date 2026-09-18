@@ -220,30 +220,117 @@ class Disposition:
             verify against.
         why: The evidence, in one line, so the table is auditable without
             re-deriving it.
-        sites: HOW MANY TIMES the doc spells this citation. Without it the key
-            is ``(doc, name)`` and nothing else, so a forgiveness granted for
-            one adjudicated site silently covers a brand-new dead citation of
-            the same name at a NEW site in the same doc - which measured true:
-            three new ledger entries citing already-forgiven names left the
-            whole module green. A count is the cheapest key that closes it and
-            the only one that does not churn, because line numbers move every
-            time an entry is prepended to an append-only file.
+        at: WHICH sites of this citation the forgiveness answers, as the
+            identity :func:`tests.test_docs_citations.citation_site_identities`
+            derives - one per site, in ascending offset order. Each is the
+            digest of the enclosing heading joined to the digest of the LINE
+            the site sits on, plus an ordinal that separates sites sharing
+            BOTH. Neither digest is a line number and neither is transcribed.
+
+            A COUNT WAS THE FIRST KEY HERE AND IT ANSWERED THE WRONG QUESTION -
+            CS-1121. Without any key at all the entry is ``(doc, name)`` and
+            nothing else, so a forgiveness granted for one adjudicated site
+            covers a brand-new dead citation of the same name at a NEW site in
+            the same doc; three planted ledger entries citing already-forgiven
+            names left the whole module green, and the count was the repair.
+            But a count says HOW MANY sites a record forgives and never WHICH,
+            so a COMPENSATING SWAP walks straight through it: delete the one
+            adjudicated site and add a brand-new dead citation of the same name
+            in the same edit, and the cardinality is unchanged. Measured green
+            on a live ledger entry before this repair.
+
+            AN IDENTITY IS STRICTLY STRONGER THAN THE COUNT IT REPLACES,
+            because the count is recoverable from it - duplicates are kept, so
+            a site arriving with no deletion lengthens the tuple exactly as it
+            used to raise the count. It is also churn-free in the way a line
+            number is not: the ledger is append-only newest-first, so
+            prepending an entry moves every site below it while rewriting
+            nothing under any heading, and neither half of this identity moves.
+
+            THE HEADING ALONE WAS NOT ENOUGH AND THE FIRST BUILD OF CS-1121
+            SHIPPED IT ANYWAY, disclosing the gap as a residual holding at one
+            crowded entry. An adversary measured the live table: EVERY entry
+            was silent on a within-heading swap and none reddened. The gap was
+            the GRANULARITY, not the crowding - headings covering more than one
+            entry were common - so the acceptance, which does not say WHERE the
+            swap happens, was unmet everywhere. That is not a residual; it is
+            the defect one level up, and an item does not close by disclosing
+            that it did not happen. No figure is written here: the population
+            is what ``test_a_within_heading_compensating_swap_is_reported_at_every_entry``
+            walks, and a number in this prose would rot on the next entry filed.
+
+            THE DISCLOSURE'S OWN FENCE WAS THE FALSE PART. It claimed a line
+            number was the only thing that could separate two sites under one
+            heading. If that were true the acceptance would be
+            self-contradictory. It is false, and the counter-example already
+            shipped in the module that derives this identity:
+            :func:`tests.test_docs_citations.landing_digest` keys the CS-889
+            pin on the CONTENT of its own landing line - derived, not
+            transcribed, not a position. So the second half of this identity is
+            the digest of the line the site sits on, which moves only when the
+            sentence that spells the citation is rewritten - a change to what
+            the forgiveness answers rather than churn from an edit above.
+
+            THE ORDINAL IS PERMITTED WHERE A POSITION IS NOT, and the
+            distinction is the whole of why CS-889 refuses a line number. A
+            line number moves whenever ANYTHING above it is edited, which on an
+            append-only newest-first ledger is every session, on sites nothing
+            touched.
+
+            WHEN THE ORDINAL MOVES, MEASURED RATHER THAN ARGUED, because the
+            sentence that stood here was measured FALSE in both of its halves.
+            It said "only when a byte-identical sibling under the same heading
+            is added or removed"; at the time, a byte-identical line under a
+            DIFFERENT section moved it - that was the heading-text collision,
+            now repaired by the chain - and a sibling differing only in
+            surrounding whitespace moved it too, because
+            :func:`tests.test_docs_citations.landing_digest` strips. Re-measured
+            after the chain change, the ordinal moves when, and only when,
+            another site of the SAME citation is added or removed EARLIER in
+            the doc, under the SAME heading chain, on a line identical after
+            stripping. A sibling under a different chain does not move it; a
+            different line under the same chain does not move it. It is a count
+            of indistinguishables, not a place.
+
+            STORED AS DIGESTS because some live headings and landings spell a
+            bare repo-relative path, and a table holding them verbatim would
+            seed bare-path sites inside the guard that judges bare paths - the
+            fault :func:`line_key` avoids, arriving by a third door. HOW MANY
+            is deliberately not written anywhere: the sentence that once gave a
+            figure was read two ways by two reviewers who disagreed, which is
+            CLAUDE.md section 4's point about a hardcoded count. The population
+            is re-measured every run instead, by
+            ``test_the_digest_is_not_cosmetic_because_the_anchors_carry_paths``.
+
+            THESE VALUES WERE DERIVED FROM THE TREE, WHICH GRANTS NOTHING NEW.
+            Each records which sites an ALREADY ADJUDICATED count covered, on a
+            corpus that was green when they were cut; no citation is forgiven
+            here that was not forgiven before, and
+            :data:`FORGIVEN_LINE_POINTER_CEILING` is unmoved. That is why
+            deriving them is not the laundering
+            :data:`UNVERIFIED_LINE_POINTERS` refuses for a RESOLVER, which
+            would have derived a claim nobody ever made.
     """
 
     kind: str
     target: str
     why: str
-    sites: int
+    at: tuple[str, ...]
 
 
 # EVERY ENTRY HERE IS CHECKED, IN THREE DIRECTIONS. A MOVED or RENAMED target
 # that stops resolving fails; an entry whose citation no longer appears - or
-# which now resolves on its own - ALSO fails; and an entry whose SITE COUNT no
-# longer matches the doc fails too. That last one is the newest and the one an
-# exemption table is normally missing: without it the key is a name, a name is
-# forgiven forever, and the next dead citation that happens to spell the same
-# name is forgiven on arrival. Every count below is MEASURED from the doc, not
-# asserted about it.
+# which now resolves on its own - ALSO fails; and an entry whose IDENTIFIED
+# SITES no longer match the doc fails too, in BOTH directions and on a swap
+# that balances. That last one is the newest and the one an exemption table is
+# normally missing: without it the key is a name, a name is forgiven forever,
+# and the next dead citation that happens to spell the same name is forgiven on
+# arrival. It was a COUNT until CS-1121, which bought the first half of that
+# and not the second - a count answers how many sites a record forgives and
+# never which, so a compensating swap walked through it. Every identity below
+# is MEASURED from the doc, not asserted about it, and is opaque by
+# construction: see :attr:`Disposition.at` for why the heading is digested
+# rather than spelled.
 DISPOSITIONS: Final[Mapping[tuple[str, str], Disposition]] = {
     # --- class 1: the record was RIGHT when written; CS-495 moved the tests.
     (
@@ -256,7 +343,7 @@ DISPOSITIONS: Final[Mapping[tuple[str, str], Disposition]] = {
         "::test_every_library_reaching_module_in_the_package_is_declared",
         "CS-471 cited test_properties.py; CS-495 relocated the reach-guard"
         " suite. Not a record defect.",
-        1,
+        ("964a53cdbd44:6c97d1e1accd:0",),
     ),
     (
         LEDGER,
@@ -267,7 +354,7 @@ DISPOSITIONS: Final[Mapping[tuple[str, str], Disposition]] = {
         "tests/save/test_reach_guard.py"
         "::test_the_suite_wide_guard_catches_a_module_that_declares_nothing",
         "CS-471 citation, relocated by CS-495. Not a record defect.",
-        1,
+        ("964a53cdbd44:58f358b909de:0",),
     ),
     (
         LEDGER,
@@ -278,7 +365,7 @@ DISPOSITIONS: Final[Mapping[tuple[str, str], Disposition]] = {
         "tests/save/test_reach_guard.py"
         "::test_a_helper_handing_back_a_wrapped_body_is_flagged_as_propagating",
         "CS-471 citation, relocated by CS-495. Not a record defect.",
-        1,
+        ("964a53cdbd44:4aa9c6ef7db6:0",),
     ),
     # STILL CLASS 1 - right when written - but the tree RENAMED rather than moved
     # it. CS-862 retired the name because a green run renders the test NAME and
@@ -295,7 +382,7 @@ DISPOSITIONS: Final[Mapping[tuple[str, str], Disposition]] = {
         "tests/save/test_struct_controls.py"
         "::test_the_table_control_takes_its_window_from_the_body_not_the_degraded_record",
         "CS-829 cited it live; CS-862 renamed it to the one bit it grades. Not a record defect.",
-        2,
+        ("4c77d4206721:b2950d2595d5:0", "6d225e8cb5e8:b2950d2595d5:0"),
     ),
     # --- class 2: WRONG WHEN WRITTEN, one unambiguous live target. Each is
     # corrected by a later ledger record, because this file is append-only.
@@ -308,7 +395,7 @@ DISPOSITIONS: Final[Mapping[tuple[str, str], Disposition]] = {
         "tests/save/test_absolute_claims.py"
         "::test_the_fenced_prose_carries_no_unbacked_absolute_claim",
         "one-word slip, scanned for fenced; the cited name is in no commit in history.",
-        2,
+        ("992a3a12711e:da8cd481b8ef:0", "8538ee7a513d:5fd8cb6f2e26:0"),
     ),
     (
         LEDGER,
@@ -318,7 +405,7 @@ DISPOSITIONS: Final[Mapping[tuple[str, str], Disposition]] = {
         "tests/data/test_registry.py"
         "::test_the_misspelled_game_keys_are_used_verbatim_not_autocorrected",
         "the word game was dropped; the cited name is in no commit in history.",
-        2,
+        ("992a3a12711e:d51811dcb9b0:0", "696eaf45001d:102bd651c318:0"),
     ),
     (
         LEDGER,
@@ -330,7 +417,7 @@ DISPOSITIONS: Final[Mapping[tuple[str, str], Disposition]] = {
         "::test_the_refusal_message_carries_no_raw_account_directory_of_a_non_digit_shape",
         "CS-454 is about the non-digit shape, and the surviving variant"
         " postdates the entry and matches its sentence.",
-        2,
+        ("992a3a12711e:5114b7d97341:0", "12703e0bf652:fbce5d892134:0"),
     ),
     # --- class 3: WRONG WHEN WRITTEN, and NO target may be assigned.
     (
@@ -341,7 +428,7 @@ DISPOSITIONS: Final[Mapping[tuple[str, str], Disposition]] = {
         "",
         "no test bears this meaning: CS-441 records 26 of 46 spliced shapes"
         " still escaping, and stays OPEN.",
-        2,
+        ("992a3a12711e:8754964a9180:0", "5aa8fc50cd75:d05b6850bfeb:0"),
     ),
     (
         ITEM_NOTES_DEAD_POINTER_LEAF,
@@ -356,7 +443,7 @@ DISPOSITIONS: Final[Mapping[tuple[str, str], Disposition]] = {
         " 2026-08-23 relocation moved the text into a guarded doc and the"
         " guard found it on first contact, which is the arm working rather"
         " than a defect the move introduced.",
-        1,
+        ("fd7e2d72c6d5:f31b3920312b:0",),
     ),
     # --- CS-1126: a record the guard had never read. The CS-909 record sat
     # inside the ledger's `## Entry shape` template block, ABOVE the entries
@@ -372,7 +459,7 @@ DISPOSITIONS: Final[Mapping[tuple[str, str], Disposition]] = {
         "tests/shell/test_shell_assets.py::test_main_consumes_the_seam_it_was_given",
         "the CS-909 record cites the single test 8210a3c added; 8777a89, the same"
         " item's repair, split it into one case per seam under this name.",
-        1,
+        ("190b8ab597ab:b25b1e0f814b:0",),
     ),
     # --- CS-1112: the item-notes routing rows were removed, so four guard (j)
     # arms the CS-1086 and CS-1113 closures cite were renamed for what they now
@@ -387,7 +474,7 @@ DISPOSITIONS: Final[Mapping[tuple[str, str], Disposition]] = {
         "::test_every_placement_of_a_routed_items_section_is_graded",
         "the CS-1113 closure cites the arm proving the retired check covered; CS-1112"
         " restored the check with the rows gone and renamed the arm for what it grades.",
-        1,
+        ("031fabe32f28:80a6098be1ff:0",),
     ),
     # --- the bare-identifier arm, which sees what a path scanner cannot.
     (LEDGER, "test_an_unreadable_roadmap_as_the_only_non_pass_guard_is_not_clean"): Disposition(
@@ -395,21 +482,21 @@ DISPOSITIONS: Final[Mapping[tuple[str, str], Disposition]] = {
         "tests/data/test_drift_guard_data.py"
         "::test_an_unreadable_roadmap_warns_all_four_markdown_readers_and_is_not_clean",
         "the CS-1117 closure cites the name it had; CS-1120 renamed it for its four WARNs.",
-        1,
+        ("53375f8f7489:aa4872cfd690:0",),
     ),
     (LEDGER, "test_a_row_agreeing_with_its_section_but_not_the_derivation_is_red"): Disposition(
         RENAMED,
         "tests/data/test_item_notes_index.py"
         "::test_a_section_agreeing_with_a_leftover_row_but_not_the_derivation_is_red",
         "the CS-1086 closure cites it; CS-1112 removed the rows it planted and renamed it.",
-        1,
+        ("c1b91cdc224f:d1130cde5326:0",),
     ),
     (LEDGER, "test_a_detail_field_with_no_row_is_red"): Disposition(
         RENAMED,
         "tests/data/test_item_notes_index.py::test_a_detail_field_with_no_section_is_red",
         "the CS-1086 closure cites it; CS-1112 removed the rows, so the field is graded"
         " against the section its derived leaf must hold.",
-        1,
+        ("c1b91cdc224f:e1104ac37514:0",),
     ),
     (LEDGER, "test_a_row_with_no_detail_field_is_red"): Disposition(
         RENAMED,
@@ -417,14 +504,18 @@ DISPOSITIONS: Final[Mapping[tuple[str, str], Disposition]] = {
         "::test_a_section_whose_line_carries_no_detail_field_is_red",
         "the CS-1086 closure cites it; CS-1112 removed the rows, so the unrouted"
         " direction is a section rather than a row.",
-        1,
+        ("c1b91cdc224f:ecf9260a64a6:0",),
     ),
     (LEDGER, "test_the_header_scan_advertises_no_bound_it_cannot_enforce"): Disposition(
         RENAMED,
         "tests/test_precommit_gate.py"
         "::test_the_header_scan_time_bound_declares_the_scope_it_actually_has",
         "added by ee36d0d, the CS-436 commit, alongside the live sibling the same entry cites.",
-        3,
+        (
+            "992a3a12711e:d4ce758127b5:0",
+            "992a3a12711e:f5544de92a3e:0",
+            "97113dea2f42:f555758fdd2c:0",
+        ),
     ),
     # THE WAKEUP_NOTES.md ENTRY FOR THAT SAME DEAD NAME IS GONE, RETIRED
     # 2026-08-22 (session 33), and it is worth one comment because it is the
@@ -442,14 +533,14 @@ DISPOSITIONS: Final[Mapping[tuple[str, str], Disposition]] = {
         "tests/save/test_absolute_claims.py"
         "::test_the_fenced_prose_carries_no_unbacked_absolute_claim",
         "THE SECOND SITE of the same slip, spent bare inside a grep -c with no path attached.",
-        1,
+        ("97a1f6c81501:c567fffe7439:0",),
     ),
     (LEDGER, "test_no_recorded_gap_is_blocked_by_a_frozen_file"): Disposition(
         DELIBERATE,
         "",
         "the CS-411 correction record cites this name to prove it is DEAD;"
         " grep -c returning 0 IS its evidence.",
-        2,
+        ("3d0cbbc94fe6:e0f37129fd02:0", "e2eaae9436ad:a00197fa42f8:0"),
     ),
     (LEDGER, "test_the_exclusion_is_discovery_only_not_containment"): Disposition(
         DELIBERATE,
@@ -457,7 +548,7 @@ DISPOSITIONS: Final[Mapping[tuple[str, str], Disposition]] = {
         "the SECOND name in that same CS-411 correction, and the reason it needed"
         " an entry only now: it is spelled ONLY in the elided form, so until"
         " ELIDED_RE the guard had never seen it.",
-        2,
+        ("3d0cbbc94fe6:21fdc36a4fbf:0", "e2eaae9436ad:68d9b541dff9:0"),
     ),
     # --- class 4: CS-889. A LINE POINTER whose target the tree has moved out
     # from under it. Keyed by line_key() rather than spelled, because this
@@ -487,7 +578,7 @@ DISPOSITIONS: Final[Mapping[tuple[str, str], Disposition]] = {
         " its frozen digest ALREADY disagreed at 53ac4b5 - the digest held"
         " `def _exc_text(...)` while the sentence describes the import - so the"
         " pin was recording an unexamined site, exactly as it claims to.",
-        1,
+        ("e2eaae9436ad:b81a88324ea7:0",),
     ),
     (LEDGER, line_key("tools/facts_probe.py", 121)): Disposition(
         MOVED,
@@ -497,7 +588,7 @@ DISPOSITIONS: Final[Mapping[tuple[str, str], Disposition]] = {
         " inside _build_string, whose docstring carries the same reasoning the"
         " ledger entry does - the reader lives in scripts/verify_env.py and"
         " stays there.",
-        1,
+        ("e2eaae9436ad:feed734cd609:0",),
     ),
     (LEDGER, line_key("tools/precommit_gate.py", 2311)): Disposition(
         NO_TARGET,
@@ -506,21 +597,21 @@ DISPOSITIONS: Final[Mapping[tuple[str, str], Disposition]] = {
         " report.diagnostics. The line is blank today and its neighbourhood now"
         " holds the label-redaction rule, so no live symbol may be assigned"
         " without inventing one.",
-        1,
+        ("2e34d8e0bd39:cb6d5b7f39cd:0",),
     ),
     (LEDGER, line_key("tools/precommit_gate.py", 704)): Disposition(
         NO_TARGET,
         "",
         "prose and digest ALREADY disagreed at d9398e6 - the digest held the"
         " save-header budget constant. CS-1083 moved it; nothing is nameable.",
-        1,
+        ("396296006455:002005f7ce98:0",),
     ),
     (LEDGER, line_key("tools/precommit_gate.py", 1802)): Disposition(
         NO_TARGET,
         "",
         "prose and digest ALREADY disagreed at d9398e6 - the digest held a"
         " stage_for_lint docstring line. CS-1083 moved it; nothing to name.",
-        1,
+        ("b394c3c9f377:0f1d9cab3a43:0",),
     ),
     (LEDGER, line_key("tests/test_precommit_gate.py", 1174)): Disposition(
         NO_TARGET,
@@ -528,7 +619,7 @@ DISPOSITIONS: Final[Mapping[tuple[str, str], Disposition]] = {
         "the entry reads that line as a SECOND label-shape assertion over"
         " LEAK_MARKER. The line is blank today and the block below it opens an"
         " unrelated CS-202-B section.",
-        1,
+        ("637316b51867:1e4c01de7aea:0",),
     ),
     (LEDGER, line_key("scripts/verify_env.py", 358)): Disposition(
         NO_TARGET,
@@ -536,7 +627,7 @@ DISPOSITIONS: Final[Mapping[tuple[str, str], Disposition]] = {
         "the entry reads that line as a bare str(exc) outside CS-202's stated"
         " shape. The line is blank today and the neighbourhood is the ports"
         " loader.",
-        1,
+        ("396296006455:e8bd2e8a24fb:0",),
     ),
     (LEDGER, line_key("tools/precommit_gate.py", 517)): Disposition(
         NO_TARGET,
@@ -544,7 +635,7 @@ DISPOSITIONS: Final[Mapping[tuple[str, str], Disposition]] = {
         "the entry contrasts that line, as the gate widening what it refuses to"
         " commit, against the resolver's digit filter. The line is a lone"
         " closing bracket today, so it names no declaration to contrast with.",
-        1,
+        ("8309b6af0abd:a8a0f0a25b3f:0",),
     ),
     (LEDGER, line_key("scripts/make_cert.py", 222)): Disposition(
         MOVED,
@@ -552,7 +643,7 @@ DISPOSITIONS: Final[Mapping[tuple[str, str], Disposition]] = {
         "RIGHT WHEN WRITTEN and moved since: the entry says that line chmods the"
         " key 0600 inside _restrict, and the line now sits inside the openssl"
         " argv builder. _restrict is live and is the target the sentence means.",
-        1,
+        ("1c6e39beba48:96ef7d77d36c:0",),
     ),
     # THE ONLY ROW IN THIS TABLE THAT COST A CEILING NOTCH, and the only one so
     # far that ever has. Granted by an adjudicator that authored neither CS-928
@@ -586,7 +677,7 @@ DISPOSITIONS: Final[Mapping[tuple[str, str], Disposition]] = {
         " surviving `solve/ never reads a save` clause under it, and the"
         " paragraph beginning `One rule on this list constrains code that does"
         " not exist yet`.",
-        1,
+        ("0e59d4000faf:9fad20ba61c4:0",),
     ),
     # WRONG FROM BIRTH, NOT MERELY STALE, so it is not re-cut: the text its digest
     # froze is a `_strip_generated_pin` docstring line, never the cited table.
@@ -597,7 +688,7 @@ DISPOSITIONS: Final[Mapping[tuple[str, str], Disposition]] = {
         " version edges into docs_extract. Durable targets, since the dead form"
         " leaves a machine nothing to check: ALLOWED_IMPORTS and the"
         " permitted-neighbours import arm of tests/data/test_phase2_gate.py.",
-        2,
+        ("d8a63e8c575f:aae9ef3973d8:0", "0e59d4000faf:9fad20ba61c4:0"),
     ),
     # CS-210 GREW THE GENERATED PIN, so two sites this append-only file cites
     # slid down. Re-derived this cycle rather than carried: at the pre-change
@@ -617,7 +708,7 @@ DISPOSITIONS: Final[Mapping[tuple[str, str], Disposition]] = {
         " sha256. INTEGRITY_KEY is the live declaration of the field the"
         " sentence is about, and _SHA256_HEX_LENGTH beside it states the length"
         " it asserts.",
-        1,
+        ("8309b6af0abd:a6f195850698:0",),
     ),
     (LEDGER, line_key("clockspeed/data/version.py", 815)): Disposition(
         MOVED,
@@ -627,7 +718,7 @@ DISPOSITIONS: Final[Mapping[tuple[str, str], Disposition]] = {
         " exc:` whose handler names msg, lineno and colno rather than str() on"
         " the object. That handler is still there and is still the only one in"
         " the function, so the enclosing definition names it unambiguously.",
-        1,
+        ("396296006455:e8bd2e8a24fb:0",),
     ),
     # THE ONE THE REPAIR SLICE REFUSED, and the refusal is the strongest
     # evidence in CS-889 for why a wrong-but-resolving pointer is worse than a
@@ -646,7 +737,7 @@ DISPOSITIONS: Final[Mapping[tuple[str, str], Disposition]] = {
         " subject. The line is blank today, _carried has moved, and CS-440 made"
         " the note's claim false of it - so a symbol conversion would resolve to"
         " a sentence that is no longer true.",
-        1,
+        ("b26dc763e023:88daad605b5f:0",),
     ),
     # THE TRAP THAT MANUFACTURES A FINDING ON CORRECT PROSE lived here as a
     # DELIBERATE entry for `scripts/make_cert.py` at line 224 - the CS-889 note
@@ -688,7 +779,7 @@ DISPOSITIONS: Final[Mapping[tuple[str, str], Disposition]] = {
         "tests/test_citation_tables.py::DISPOSITIONS",
         "CS-1066 relocated the disposition and pin tables out of the module that"
         " judges. Not a record defect.",
-        1,
+        ("8436f4052a2a:9a4673332e87:0",),
     ),
     (
         LEDGER,
@@ -698,7 +789,7 @@ DISPOSITIONS: Final[Mapping[tuple[str, str], Disposition]] = {
         "tests/test_citation_tables.py::UNVERIFIED_LINE_POINTERS",
         "CS-1066 relocated the grandfathered pin table with the dispositions it is"
         " budgeted alongside. Not a record defect.",
-        1,
+        ("d8a63e8c575f:e0dd268d8a61:0",),
     ),
     (
         LEDGER,
@@ -708,7 +799,7 @@ DISPOSITIONS: Final[Mapping[tuple[str, str], Disposition]] = {
         "tests/test_citation_tables.py::FORGIVEN_LINE_POINTER_CEILING",
         "CS-1066 moved the ceiling with the two tables it counts, because a budget"
         " and its subject may not live in different files. Not a record defect.",
-        2,
+        ("d8a63e8c575f:c06e418cc49f:0", "8436f4052a2a:10b9f0049a00:0"),
     ),
     (
         LEDGER,
@@ -720,7 +811,7 @@ DISPOSITIONS: Final[Mapping[tuple[str, str], Disposition]] = {
         "::test_the_forgiveness_budget_is_spent_exactly_and_cannot_grow",
         "CS-1066 moved the contract with the tables it bounds, which"
         " tests/bare_path_guard.py::registry_problems requires. Not a record defect.",
-        2,
+        ("ceeba188e71e:be7e0df85f47:0", "8436f4052a2a:c6f3292a07ef:0"),
     ),
     (
         LEDGER,
@@ -730,7 +821,7 @@ DISPOSITIONS: Final[Mapping[tuple[str, str], Disposition]] = {
         "tests/test_citation_tables.py::test_the_deep_archive_is_the_only_doc_left_unguarded",
         "CS-1066 moved the contract with UNGUARDED_DOCS, for the same reason the"
         " budget arm above travelled. Not a record defect.",
-        1,
+        ("18fd50697c39:e127d81b8db9:0",),
     ),
 }
 

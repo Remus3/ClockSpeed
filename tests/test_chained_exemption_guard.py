@@ -57,8 +57,8 @@ about the old one. An adversary demonstrated it on the live tree and
 modules, against the LIVE record. Each entry now answers an IDENTITY per read -
 ``qualname::receiver``, the shape ``Site.key`` and ``Copy.key`` in this tree already use - kept as a
 multiset, so the cardinality the count carried is carried too and nothing the old key caught is
-lost. The identical fault in the ``Disposition`` table ``tests/test_citation_tables.py`` owns is
-unrepaired and is filed as CS-1121.
+lost. The identical fault in the ``Disposition`` table ``tests/test_citation_tables.py`` owns was
+filed as CS-1121 and REPAIRED there on 2026-09-17.
 
 THE CENSUS ARMS THEMSELVES ARE STILL NOT IN THE POPULATION AT ALL. They read
 ``__cause__`` on live exceptions, which is measurement rather than adjudication,
