@@ -33,6 +33,35 @@ Keep every entry to that shape. If an item needs a paragraph, it needs its own f
 the line becomes a pointer.
 
 ---
+## Session 104 - 2026-09-17/18 - three items closed, each refuted at least once, and two writers collided on the same item ids
+
+- Shipped: CS-1123, CS-1132, CS-1121, all closed through builder, adversary on a frozen SHA,
+  repair loop, then an adjudicated stop condition. FILED, NOT FIXED: CS-1135, CS-1136, CS-1137,
+  CS-1141, CS-1142, CS-1143. Detail in `docs/LEDGER.md`, not here.
+- In flight: nothing half-done. The tree is clean, pushed, and the whole suite is green on the
+  merged tip. The `queue` lane ran throughout and closed CS-917's measurement record, CS-920 and
+  CS-937 alongside; its work is merged.
+- Decisions: no ADR recorded. One adjudication: CS-1121 does NOT close on an anchor-granularity
+  identity, ruled Option B on a counter-example in the candidate's own file. Its fence is in the
+  ledger entry, not here.
+- Surprises: the LANE AND THE MAIN SESSION ALLOCATED THE SAME IDS. Both filed CS-1133 and CS-1134
+  for different items within one hour. `ROADMAP.md` auto-merged cleanly with two of each and
+  `tools/drift_guard.py` still exited 0 - guard (i) grades id collisions BETWEEN owner files, and
+  two lines under one id in the SAME file are not that shape. The writer whose row reached
+  `origin/main` first keeps the number; this session renumbered to CS-1135 and CS-1136. Checking
+  the remote before filing caught the second near-collision, where the lane had already taken
+  CS-1138 to CS-1140. No spike contradicted `BOOTSTRAP.md`.
+- Failed paths: a bulk worktree prune driven by a zero-commits-zero-dirty inventory TARGETED BOTH
+  LIVE BUILDER WORKTREES and was stopped only by git's own agent lock - a freshly cut agent tree is
+  indistinguishable from an abandoned one by content. Do not classify worktrees by content alone;
+  exclude this session's agentIds and anything git reports as locked. Separately, a case-SENSITIVE
+  verifying grep produced a false correction that a builder had to push back on with evidence: the
+  string was `Nothing above it`, capital N.
+- Next action: read CI for the pushed tip with the FULL sha, then take CS-1129 - the leaf
+  membership rule grammar - as the next `tools/drift_guard.py` item, since CS-1130 and CS-1131 are
+  in the same file and must run one at a time.
+
+---
 ## Session 103 - 2026-09-17 - the acceptance moved off the ROADMAP line, the mypy arms stopped inheriting their environment, and CI stopped starting jobs
 
 - CLOSED BY THE MAIN SESSION, each through builder, adversary on a distinct lens, repair loop,
@@ -181,56 +210,3 @@ the line becomes a pointer.
      these notes were written; re-check before picking one.
   6. After the next few tier2 runs, refresh `tools/tier2_durations.json` by hand - the Windows
      jobs were at about 0.78 of their timeout, so that refresh is likely red by design.
-
-## Session 101 - 2026-09-16 - the moon-sync adoption, and three of three slices refuted before merge
-
-CLOSED: CS-1095 (the cross-repo channel contract, all nine items of the operator's
-adoption instruction), CS-1103 (a blind inbox read that wrote).
-FILED: CS-1101, CS-1102, CS-1103, CS-1104.
-
-**EVERY SLICE WAS REFUTED ON ITS FIRST PASS. THREE OF THREE.** Not one survived its
-adversary, and none of the findings was a matter of taste - each was measured. The
-spawn-site arm's own docstring claimed a property it did not have, and five spawn shapes
-passed it blind including one whose expression evaluates to zero. Arm 7 of the channel pin
-did not grade the table it names as the grammar's vector source: a flipped verdict and two
-swapped vectors both passed. The watcher's highest-consequence invariant - SHOWING NEVER
-ACKNOWLEDGES - was graded one layer below the door the hook enters, so an acknowledgement
-added at the entry point survived a green suite.
-
-**ONE SHIPPED DEFECT, FOUND BY AN ADVERSARY AND BY NO ARM.** An inbox that exists but
-cannot be listed printed the affirmative clean line with notes sitting in it. A sibling
-then reproduced it under a real access-control denial, found it was THREE defects rather
-than one, and the two CS had missed were the WRITE halves - a fabricated withdrawal, and
-an acknowledgement that erased the watermark. That became CS-1103.
-
-**THE WHOLE SUITE CAUGHT WHAT SCOPED SUITES COULD NOT, THREE TIMES, AND IT WAS RUN BEFORE
-THE PUSH FOR THAT REASON.** Session 100 recorded the opposite ordering as a merger error.
-Two stale toolpath exemptions, an unbounded subprocess child, and one arm that was
-NON-DETERMINISTIC ACROSS CHECKOUTS.
-
-**THE ARM THAT PASSED WHERE IT WAS WRITTEN AND FAILED WHERE IT WAS MERGED.** Arm 6 recorded
-a gitignored directory as non-resolving - true in a worktree, false in the primary
-checkout. Existence is the wrong property to assert about a gitignored path; being IGNORED
-is the right one. THE TRAILING SLASH ON THAT CHECK IS LOAD-BEARING: the rule is a
-directory-only pattern, so `git check-ignore` without the slash answers from the filesystem
-and reproduces the defect it was written to remove. Measured 5 of 5 each way.
-
-**THE HARNESS REPORTED EXIT 0 OVER A RED SUITE TWICE.** Both times the log said
-`PYTEST_EXIT=1`. The log is the evidence; the notification is not.
-
-**THE CHANNEL ROUND: four notes out, four replies back, full reciprocity.** Both published
-findings reproduced in every tree holding the core. Two divergences came back that neither
-side would have found alone, and BOTH structural arms of the portable core now differ
-materially between trees that ported the same prose - which is a statement about porting by
-description, not about two arms.
-
-**TWO CONCESSIONS MADE TO THIS TREE, not by it.** The "not urgent while the digest pin
-holds" framing is FALSE for any tree porting the arms without the document. And a sibling
-refused the same document at its licence gate for naming no licence - a refusal that
-applied to this copy, because THIS TREE HAD SKIPPED ITS OWN SECTION 14 GATE. It has now
-been run, trap by trap, and CLEARED. The lesson filed with it: AN OPERATOR INSTRUCTION
-MOVES THE DECISION, NOT THE GATE.
-
-**A LINE-PIN FAMILY WENT STALE FOR THE SECOND TIME IN TWO SESSIONS**, moved by an edit
-ABOVE a site rather than at it. Re-cited by symbol where possible; CS-1102 carries the rest.
-

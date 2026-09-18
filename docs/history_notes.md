@@ -11799,4 +11799,56 @@ a line pointer is graded against what its own sentence claims the target says, w
 
 a line pointer whose only content check is NON-BLANKNESS certifies a pointer that names the wrong rule, and the measured instance was wrong WHEN WRITTEN rather than rotted
 
+## Pruned session notes - relocated 2026-09-18 by the session 104 /done
 
+## Session 101 - 2026-09-16 - the moon-sync adoption, and three of three slices refuted before merge
+
+CLOSED: CS-1095 (the cross-repo channel contract, all nine items of the operator's
+adoption instruction), CS-1103 (a blind inbox read that wrote).
+FILED: CS-1101, CS-1102, CS-1103, CS-1104.
+
+**EVERY SLICE WAS REFUTED ON ITS FIRST PASS. THREE OF THREE.** Not one survived its
+adversary, and none of the findings was a matter of taste - each was measured. The
+spawn-site arm's own docstring claimed a property it did not have, and five spawn shapes
+passed it blind including one whose expression evaluates to zero. Arm 7 of the channel pin
+did not grade the table it names as the grammar's vector source: a flipped verdict and two
+swapped vectors both passed. The watcher's highest-consequence invariant - SHOWING NEVER
+ACKNOWLEDGES - was graded one layer below the door the hook enters, so an acknowledgement
+added at the entry point survived a green suite.
+
+**ONE SHIPPED DEFECT, FOUND BY AN ADVERSARY AND BY NO ARM.** An inbox that exists but
+cannot be listed printed the affirmative clean line with notes sitting in it. A sibling
+then reproduced it under a real access-control denial, found it was THREE defects rather
+than one, and the two CS had missed were the WRITE halves - a fabricated withdrawal, and
+an acknowledgement that erased the watermark. That became CS-1103.
+
+**THE WHOLE SUITE CAUGHT WHAT SCOPED SUITES COULD NOT, THREE TIMES, AND IT WAS RUN BEFORE
+THE PUSH FOR THAT REASON.** Session 100 recorded the opposite ordering as a merger error.
+Two stale toolpath exemptions, an unbounded subprocess child, and one arm that was
+NON-DETERMINISTIC ACROSS CHECKOUTS.
+
+**THE ARM THAT PASSED WHERE IT WAS WRITTEN AND FAILED WHERE IT WAS MERGED.** Arm 6 recorded
+a gitignored directory as non-resolving - true in a worktree, false in the primary
+checkout. Existence is the wrong property to assert about a gitignored path; being IGNORED
+is the right one. THE TRAILING SLASH ON THAT CHECK IS LOAD-BEARING: the rule is a
+directory-only pattern, so `git check-ignore` without the slash answers from the filesystem
+and reproduces the defect it was written to remove. Measured 5 of 5 each way.
+
+**THE HARNESS REPORTED EXIT 0 OVER A RED SUITE TWICE.** Both times the log said
+`PYTEST_EXIT=1`. The log is the evidence; the notification is not.
+
+**THE CHANNEL ROUND: four notes out, four replies back, full reciprocity.** Both published
+findings reproduced in every tree holding the core. Two divergences came back that neither
+side would have found alone, and BOTH structural arms of the portable core now differ
+materially between trees that ported the same prose - which is a statement about porting by
+description, not about two arms.
+
+**TWO CONCESSIONS MADE TO THIS TREE, not by it.** The "not urgent while the digest pin
+holds" framing is FALSE for any tree porting the arms without the document. And a sibling
+refused the same document at its licence gate for naming no licence - a refusal that
+applied to this copy, because THIS TREE HAD SKIPPED ITS OWN SECTION 14 GATE. It has now
+been run, trap by trap, and CLEARED. The lesson filed with it: AN OPERATOR INSTRUCTION
+MOVES THE DECISION, NOT THE GATE.
+
+**A LINE-PIN FAMILY WENT STALE FOR THE SECOND TIME IN TWO SESSIONS**, moved by an edit
+ABOVE a site rather than at it. Re-cited by symbol where possible; CS-1102 carries the rest.
