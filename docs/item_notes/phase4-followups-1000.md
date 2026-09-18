@@ -1167,3 +1167,68 @@ if that gap fails to land, the repaired arms are refuted by a step whose figure
 does not derive from `TIER1_STARTED` and are green against the shipped step, and
 the windows-latest leg of tier 2 is observed green on a commit carrying this
 change with `.github/workflows/tier1.yml` unmodified
+
+---
+
+## CS-1146
+
+### Filed 2026-09-18 (session 105) by the merger, from CS-1133's own arithmetic
+
+**THE LANE HAS THREE JOBS AND THE REPORT GRADES ONE REQUIREMENT.** CS-896's leaf
+derives three conditions over the levels. Writing `M` for a job's worst reading,
+`N` for its jitter, `B` and `C` for the budget and the ceiling, and the job's
+`timeout-minutes` as the cutoff:
+
+    no false warn      B >= M
+    warn before a red  C - B >= N
+    a red not a cancel C + N <= cutoff
+
+`tools/tier1_growth.py` grades the SECOND and nothing else. The predicate is one
+line - a job is reported when its jitter exceeds the band - and no comparison of
+a job's worst reading against the budget exists anywhere in the tool.
+
+**SO A JOB CAN FAIL THE FIRST CONDITION AND BE REPORTED AS COVERED.** Measured
+2026-09-18 over the readings in `tools/tier1_readings.json`, discarding the
+sub-10s entries that are failed jobs rather than runs:
+
+| job | n | worst | `B >= M` at budget 420 | ceiling 480 minus worst |
+|---|---|---|---|---|
+| gates, lint, types, tests | 11 | 410s | met | 70s |
+| tests (guard shard) | 11 | 464s | **MISSED by 44s** | **16s** |
+| tests (save shard) | 11 | 177s | met | 303s |
+
+The guard shard's jitter is 28s and the band is 60s, so the tool prints `band
+covers it` for that job and moves on. It is nonetheless 16 seconds under the
+ceiling with 28 seconds of measured movement, which is a job that reddens on
+noise alone, and the only report that watches this lane says PASS.
+
+**CORROBORATED ON A LIVE RUN, not only on the record.** Run 35329294306 at
+`d28e4a5`: the fast shard failed at 495s, the guard shard PASSED at 452s, the
+save shard at 163s. The shard that passed was 28s from the ceiling.
+
+**THIS IS NOT CS-1133 AND MUST NOT BE FOLDED INTO IT.** That row is the FAST
+shard failing the SECOND condition, its feasible window is empty, and its
+acceptance is about DERIVING a band from a jitter figure. This row is a
+DIFFERENT job failing a DIFFERENT condition, and the distinguishing fact is that
+CS-1133's remainder is measured and reported while this one is not reported at
+all. A reported unmet condition and a silent one are not the same defect.
+
+**DO NOT CLOSE THIS BY MOVING A LEVEL.** Guard (k) of `tools/drift_guard.py`
+ratchets the budget, the ceiling and the cutoff in BOTH directions, and CS-1133
+records the ruling that raising a level to meet a slow lane is the move CS-896
+exists to refuse. The report is what is missing here, not the numbers.
+
+**AND DO NOT CLOSE IT BY GRADING THE OTHER TWO CONDITIONS AS A PAIR.** A pooled
+verdict over three jobs is met by its strongest member; this repo has already
+measured that shape. Grade each job against each condition and name the job.
+
+---
+
+### Acceptance
+
+`tools/tier1_growth.py` grades a job's worst reading against the budget as a
+verdict distinct from the band-versus-jitter one it already reports, every job is
+graded separately and named in the output rather than pooled into one line, the
+guard shard's present breach of `B >= M` is reported by that tool over the
+shipped record, and a two-way arm in `tests/test_tier1_growth.py` reddens both
+when a breaching job goes unreported and when a compliant one is reported
