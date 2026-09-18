@@ -1093,3 +1093,77 @@ either.
 
 the `docs/LEDGER.md` pointer into `.github/workflows/tier1.yml` either names a line whose content its own sentence claims, or carries an adjudicated record that a guard verifies rather than a digest nobody re-reads, proven by an arm that reddens when the recorded answer stops resolving - and `UNVERIFIED_POINTER_CLAIMS` loses the row rather than keeping it
 
+
+## CS-1145
+
+### FILED 2026-09-18, from the windows-latest leg of tier 2 run 35330059133
+
+**WHAT WENT RED, AND WHAT DID NOT.** One leg of one job:
+`tests/test_tier1_budget.py::test_a_run_inside_the_budget_reports_it_and_succeeds`
+asserted `393 <= 390 + 2` and failed. The ubuntu leg of the same job passed, both
+clean-checkout probes passed and both shell suites passed. NOTHING IN
+`.github/workflows/tier1.yml` WAS WRONG, and this item must not be closed by
+touching it - guard (k) ratchets its levels in both directions for exactly the
+reason that a number moved to quiet a red is a number nobody defended.
+
+**THE MECHANISM.** The report step computes `ELAPSED=$(( $(date +%s) -
+TIER1_STARTED ))`. The arm stages `TIER1_STARTED` as a Python clock read minus
+the duration it wants, then spawns bash. The figure the step reports is therefore
+the staged duration PLUS the wall clock that passed between the harness reading
+its clock and the shell reading its own. On a loaded windows runner that cost
+three seconds; the arm allowed two. The arm was measuring a gap it did not own.
+
+**WHY A BIGGER NUMBER IS THE WRONG REPAIR, AND THIS FILE ALREADY HOLDS THE
+EVIDENCE.** The comment block in `.github/workflows/tier1.yml` records TWO
+derivations of that lane's band that were falsified by the very run offered to
+close them, and CS-1133 and CS-1134 are open about the third. A tolerance is a
+claim about a machine nobody measured. Worse, a wide one stops proving the thing
+the arm exists to prove: the arm's job is to show the reported figure DERIVES
+from the staged start, and a thirty-second window is satisfied by a step that
+ignores the staged start entirely whenever the true figure happens to land inside
+it.
+
+**MEASURING THE GAP LOCALLY PRODUCES THE WRONG ANSWER, WHICH IS THE POINT.** Ten
+readings taken while filing this item reported the staged figure EXACTLY, gap
+zero every time - because this machine was idle. Any constant derived from that
+measurement would have been undersized against CI again, the same way the two
+falsified derivations above were produced from single samples.
+
+**SO THE READING IS BRACKETED RATHER THAN TOLERATED.** The clock is read before
+the spawn and again after it returns. `floor` is monotonic, so the shell's own
+read lies between those two, and the reported figure can be no less than the
+staged duration and no more than `later_read - started`. That is an arithmetic
+fact about the run that just happened, not an estimate of a runner: a slow runner
+WIDENS the bracket instead of breaking it, and on a fast one the bracket closes
+to nothing. `report_with_bounded_reading` in `tests/test_tier1_budget.py` owns it.
+
+**THE ANTI-VACUITY CONTROL IS AN ARM RATHER THAN A ONE-OFF CHECK.**
+`test_a_slow_harness_does_not_push_the_reading_outside_what_the_clock_allows`
+injects the three-second gap CI measured and asserts BOTH that the reading leaves
+the two-second window this item removed AND that the bracket still holds over it.
+Without the first conjunct the arm would be green on an idle machine for the same
+reason the machine is idle, which is the vacuity this repository has filed twice.
+
+**WHAT THE MUTANTS DID, MEASURED, BOTH DIRECTIONS.** Against a step whose
+`ELAPSED` is hardcoded to the figure the within-budget arm stages, the stall arm
+and the over-budget arm are RED and the within-budget arm alone is GREEN - the
+bracket cannot separate a constant from a derivation when the constant equals the
+staged value, and that is why the other two arms stage a different duration and a
+different gap. Against a step reading only `date +%s`, all three are RED. Pristine
+is GREEN before and after each mutation, with the workflow restored from a byte
+snapshot rather than from git.
+
+**WHY TIER 2 ON A TEST-ONLY DIFF.** The close condition is a reading off the live
+lane, not a local module run: the arm was green on every local run of the shape
+that failed in CI.
+
+### Acceptance
+
+the two duration arms in `tests/test_tier1_budget.py` bound the reported figure
+against clocks the arm reads itself around the spawn rather than against any
+fixed allowance, no arm in that module carries a constant tolerance for the
+harness-to-shell gap, an arm reproduces the measured three-second gap and is red
+if that gap fails to land, the repaired arms are refuted by a step whose figure
+does not derive from `TIER1_STARTED` and are green against the shipped step, and
+the windows-latest leg of tier 2 is observed green on a commit carrying this
+change with `.github/workflows/tier1.yml` unmodified

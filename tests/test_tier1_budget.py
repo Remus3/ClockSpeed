@@ -195,6 +195,18 @@ REPORTED_LINE = re.compile(r"tier 1 took (-?\d+)s - ([a-zA-Z ]+) \(")
 #: The sentence every refusal branch of the report step prints.
 REFUSAL = "Refusing to report a duration this job did not measure."
 
+#: The harness-to-shell gap the windows-latest leg of run 35330059133 spent
+#: between staging a start and the step's own clock read, in seconds. It is
+#: the reproduction's STALL and never a tolerance - CS-1145's whole finding is
+#: that no constant is the right bound for this gap.
+CI_MEASURED_STALL = 3
+
+#: The fixed tolerance CS-1145 removed. Kept as the reproduction's own
+#: anti-vacuity control: the stall above must push the reading STRICTLY past
+#: this, or the arm reproduces nothing and passes for that reason.
+SUPERSEDED_TOLERANCE = 2
+
+
 BASH = shutil.which("bash")
 
 #: Seconds allowed for the extracted report step, which is arithmetic and two
@@ -570,6 +582,43 @@ def report_for_elapsed(tmp_path: Path, elapsed: int) -> subprocess.CompletedProc
         The completed process.
     """
     return run_report_step(tmp_path, str(int(time.time()) - elapsed))
+
+
+def report_with_bounded_reading(
+    tmp_path: Path, staged: int, stall: int = 0
+) -> tuple[subprocess.CompletedProcess[str], int]:
+    """Run the report step for ``staged`` seconds and bound what it may report.
+
+    THE BOUND IS ARITHMETIC, NOT A TOLERANCE. The step computes its figure as
+    ``$(date +%s) - TIER1_STARTED``, so the reading is the staged duration PLUS
+    whatever wall clock passed between staging the start and the shell reading
+    its own clock. A fixed allowance for that gap is a guess about the runner,
+    and CS-1145 is the measurement that falsified the guess: the windows-latest
+    leg of run 35330059133 spent three seconds there against a two second
+    window, and nothing about the workflow was wrong.
+
+    SO THE GAP IS BRACKETED RATHER THAN ESTIMATED. The start is computed from a
+    clock read taken before the spawn and the clock is read again after it
+    returns; ``floor`` is monotonic, so the shell's own read lies between those
+    two, and the step can report no less than ``staged`` and no more than the
+    bound returned here. A slower runner WIDENS the bracket instead of breaking
+    it, and on a fast one the bracket closes to nothing - so the arm stays
+    exactly as tight as the run it is measuring, which a constant cannot.
+
+    Args:
+        tmp_path: pytest temporary directory.
+        staged: The duration to stage.
+        stall: Seconds to wait between staging the start and running the step,
+            for the arm that reproduces a loaded runner on an idle machine.
+
+    Returns:
+        (the completed process, the largest reading the staged start explains).
+    """
+    started = int(time.time()) - staged
+    if stall:
+        time.sleep(stall)
+    proc = run_report_step(tmp_path, str(started))
+    return proc, int(time.time()) - started
 
 
 def reported(proc: subprocess.CompletedProcess[str]) -> tuple[int, str]:
@@ -1496,14 +1545,55 @@ def test_the_workflow_cites_the_open_item_that_owns_the_parallel_flag() -> None:
 
 @needs_bash
 def test_a_run_inside_the_budget_reports_it_and_succeeds(tmp_path: Path) -> None:
+    """The reading is bracketed by clocks this arm reads itself (CS-1145).
+
+    It allowed the staged figure plus two seconds, which is a guess about how
+    long the harness takes to reach the step's shell. The gap is now bounded by
+    arithmetic - see :func:`report_with_bounded_reading` - so a loaded runner
+    cannot turn this arm red and a step that ignored the staged start still
+    cannot pass it.
+    """
     staged = staged_budget() - 30
 
-    proc = report_for_elapsed(tmp_path, staged)
+    proc, most = report_with_bounded_reading(tmp_path, staged)
     seconds, verdict = reported(proc)
 
     assert proc.returncode == 0, proc.stdout + proc.stderr
     assert verdict == "within budget", proc.stdout
-    assert staged <= seconds <= staged + 2, f"reported {seconds} for a staged {staged}"
+    assert staged <= seconds <= most, f"reported {seconds} for a staged {staged}, bounded by {most}"
+
+
+@needs_bash
+def test_a_slow_harness_does_not_push_the_reading_outside_what_the_clock_allows(
+    tmp_path: Path,
+) -> None:
+    """THE ARM CS-1145 IS, AND IT IS RED ON THE BOUND IT REPLACED.
+
+    MEASURED: the windows-latest leg of run 35330059133 staged 390 and the step
+    reported 393, against a window that allowed two - so the lane was red for
+    the distance between two clock reads rather than for anything the workflow
+    did, and the ubuntu leg of the same job passed. The stall reproduces that
+    gap on an idle machine, where it is otherwise ZERO: ten readings taken
+    while filing this item all reported the staged figure exactly, which is why
+    a tolerance derived from a developer machine would have been undersized
+    again.
+
+    THE TWO ASSERTIONS ARE THE TWO HALVES OF THE REPAIR, and the first is the
+    anti-vacuity control. Without it a stall that never landed would leave this
+    arm green for the same reason the runner is fast, proving nothing about the
+    bound at all.
+    """
+    staged = staged_budget() - 30
+
+    proc, most = report_with_bounded_reading(tmp_path, staged, stall=CI_MEASURED_STALL)
+    seconds, verdict = reported(proc)
+
+    assert verdict == "within budget", proc.stdout
+    assert seconds > staged + SUPERSEDED_TOLERANCE, (
+        f"the stall never left the window CS-1145 removed, so this arm reproduces"
+        f" nothing: reported {seconds} for a staged {staged}"
+    )
+    assert staged <= seconds <= most, f"reported {seconds} for a staged {staged}, bounded by {most}"
 
 
 @needs_bash
@@ -1512,13 +1602,13 @@ def test_a_run_over_the_budget_warns_and_still_succeeds(tmp_path: Path) -> None:
     staged = staged_budget() + 5
     assert staged <= staged_ceiling(), "the staged duration must sit inside the warn band"
 
-    proc = report_for_elapsed(tmp_path, staged)
+    proc, most = report_with_bounded_reading(tmp_path, staged)
     seconds, verdict = reported(proc)
 
     assert proc.returncode == 0, "over budget turned the lane red:\n" + proc.stdout
     assert verdict == "over budget", proc.stdout
     assert "::warning::" in proc.stdout, f"the breach was not annotated:\n{proc.stdout}"
-    assert staged <= seconds <= staged + 2, f"reported {seconds} for a staged {staged}"
+    assert staged <= seconds <= most, f"reported {seconds} for a staged {staged}, bounded by {most}"
 
 
 @needs_bash
