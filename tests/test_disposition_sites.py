@@ -76,7 +76,8 @@ tracked = _tracked
 
 
 #: The forgiveness CS-1121's proving arm swaps under. ASSEMBLED FROM HALVES
-#: rather than spelled, for :func:`line_key`'s reason - a full ``path::name``
+#: rather than spelled, for the reason :func:`tests.test_citation_tables.line_key`
+#: gives - a full ``path::name``
 #: written as one literal in this module is a real, resolvable citation sitting
 #: inside the guard that judges citations. The two halves never sit adjacent in
 #: the source, so no pattern reads them as one.
@@ -97,7 +98,8 @@ _REDACTED_SITE: Final = "REDACTED-FORMER-SITE"
 
 #: The sentence the within-heading swap re-adds the citation on. It must differ
 #: from the line it replaces in more than whitespace, because
-#: :func:`landing_digest` strips before hashing - a re-add that only reindented
+#: :func:`tests.test_docs_citations.landing_digest` strips before hashing - a
+#: re-add that only reindented
 #: would be the SAME site by construction and the swap would not be one.
 _WITHIN_HEADING_PROSE: Final = "- A later sentence nobody adjudicated spends `{}` again."
 
