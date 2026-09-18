@@ -75,6 +75,47 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-09-18 - CS-900 - MEASUREMENT RECORD. The runner profile before and after the quadratic grading was removed. THE ITEM STAYS OPEN
+
+**WHY A RECORD RATHER THAN A CLOSE.** The acceptance wants the most expensive single
+test under a STATED share, proven by a runner profile taken before and after that
+reports the share both times. This record supplies the profile and both shares. It
+does not supply a stated share - no threshold is declared or enforced anywhere yet,
+and a share nothing grades is a number in prose, which section 4 of `CLAUDE.md`
+forbids. The item stays OPEN for the threshold.
+
+**THE PROFILE, taken on the tier 1 runner itself, job `gates, lint, types, tests`.**
+
+| | run | tip | step | most expensive single test | share |
+|---|---|---|---|---|---|
+| before | 35329294306 | `d28e4a5` | 445s | `test_a_within_heading_compensating_swap_is_reported_at_every_entry` 158.74s | 35.7 per cent |
+| after | 35384058003 | `fe5034b` | 383s | `test_the_derived_population_agrees_with_the_shipped_census` 31.04s | 8.1 per cent |
+
+The arm that was first is now seventh at 21.30s. The job went 495s to 435s and the
+lane went red to green; the ceiling is 480s and was not moved.
+
+**THE LOCAL RATIO DID NOT TRANSFER, WHICH IS THE PART WORTH KEEPING.** On the
+operator's box the arm went 61.70s to 5.79s, a 10.7x reduction, and the module 71.61s
+to 18.50s. On the runner the same change was 158.74s to 21.30s, 7.5x - and the STEP
+fell only 62s against a 137s CPU saving, because `-n auto --dist loadfile` had been
+overlapping that file with other work, so removing it from the critical path returns
+less than it costs. A projection of the runner saving from the local ratio was made
+during this session and was wrong by more than a factor of two in the optimistic
+direction. The builder's flat local delta happened to predict it better. CS-900's own
+note already says a local profile is the wrong instrument; this is a second mechanism
+for that, distinct from the subprocess one it records.
+
+**WHAT THIS DOES NOT SHOW.** It does not show the lane is safe. The fast shard is
+435s against a 420s budget, so it still WARNS, and `tools/tier1_growth.py` measures
+129s of jitter on that job against a 60s band - CS-1133's unmet ordering, unchanged
+by this work. CS-1146 filed the guard shard's own breach the same day.
+
+Verification: `gh run view 35329294306 --log` and `gh run view 35384058003 --log`,
+both filtered to the `Unit tests` step of `gates, lint, types, tests`, carry the
+`slowest 15 durations` blocks the table is read from; the step durations come from
+`gh api repos/Remus3/Clockspeed/actions/runs/<id>/jobs`. Use the FULL sha with
+`gh run list --commit`, since a short sha returns `[]` and exits 0.
+
 ### 2026-09-17 - CS-937 - CLOSED. A line pointer is graded against what its own citing sentence claims of the target
 
 **THE DEFECT.** A `file:line` pointer at a non-Python target was checked in two ways
