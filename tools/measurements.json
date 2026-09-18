@@ -1,0 +1,289 @@
+{
+  "metrics": {
+    "tier1_pytest_step_seconds": {
+      "kind": "observation",
+      "unit": "seconds"
+    },
+    "tier1_nauto_speedup_ratio": {
+      "kind": "observation",
+      "unit": "ratio"
+    },
+    "tier1_tests_passed": {
+      "kind": "observation",
+      "unit": "count"
+    },
+    "tier1_slowest_test_seconds": {
+      "kind": "observation",
+      "unit": "seconds"
+    },
+    "tier1_slowest_test_share_percent": {
+      "kind": "observation",
+      "unit": "percent"
+    },
+    "tier1_jitter_seconds_gates_lint_types_tests": {
+      "kind": "bound",
+      "unit": "seconds",
+      "sense": "upper"
+    },
+    "tier1_jitter_seconds_guard_shard": {
+      "kind": "bound",
+      "unit": "seconds",
+      "sense": "upper"
+    },
+    "tier1_jitter_seconds_save_shard": {
+      "kind": "bound",
+      "unit": "seconds",
+      "sense": "upper"
+    },
+    "tier1_growth_seconds_per_commit_gates_lint_types_tests": {
+      "kind": "observation",
+      "unit": "seconds_per_commit"
+    },
+    "tier1_growth_seconds_per_commit_guard_shard": {
+      "kind": "observation",
+      "unit": "seconds_per_commit"
+    },
+    "tier1_growth_seconds_per_commit_save_shard": {
+      "kind": "observation",
+      "unit": "seconds_per_commit"
+    }
+  },
+  "readings": [
+    {
+      "metric": "tier1_pytest_step_seconds",
+      "value": 541.68,
+      "unit": "seconds",
+      "method": "ci_job",
+      "workers": 1,
+      "contended": false,
+      "date": "2026-09-05",
+      "commit": "c33afca",
+      "source": [
+        "docs/LEDGER.md#samples of the pytest step on a 2-vCPU runner over one byte-identical tree",
+        "docs/LEDGER.md#### 2026-09-05 - CS-906 - FROZEN-FILE GRANT ISSUED WITH THIRTEEN CONDITIONS"
+      ],
+      "superseded_by": null
+    },
+    {
+      "metric": "tier1_pytest_step_seconds",
+      "value": 590.82,
+      "unit": "seconds",
+      "method": "ci_job",
+      "workers": 1,
+      "contended": false,
+      "date": "2026-09-05",
+      "commit": "c33afca",
+      "source": [
+        "docs/LEDGER.md#samples of the pytest step on a 2-vCPU runner over one byte-identical tree",
+        "docs/item_notes/phase4-followups-900.md#run 33972223350 on tree `c33afca`"
+      ],
+      "superseded_by": null
+    },
+    {
+      "metric": "tier1_pytest_step_seconds",
+      "value": 424.18,
+      "unit": "seconds",
+      "method": "ci_job",
+      "workers": "unresolved",
+      "contended": false,
+      "date": "2026-09-05",
+      "commit": "c33afca",
+      "source": [
+        "docs/LEDGER.md#samples of the pytest step on a 2-vCPU runner over one byte-identical tree",
+        "docs/item_notes/phase4-followups-900.md#GitHub `ubuntu-latest`, `nproc` 2"
+      ],
+      "superseded_by": null
+    },
+    {
+      "metric": "tier1_pytest_step_seconds",
+      "value": 475.98,
+      "unit": "seconds",
+      "method": "ci_job",
+      "workers": "unresolved",
+      "contended": false,
+      "date": "2026-09-05",
+      "commit": "c33afca",
+      "source": [
+        "docs/LEDGER.md#samples of the pytest step on a 2-vCPU runner over one byte-identical tree",
+        "docs/item_notes/phase4-followups-900.md#GitHub `ubuntu-latest`, `nproc` 2"
+      ],
+      "superseded_by": null
+    },
+    {
+      "metric": "tier1_pytest_step_seconds",
+      "value": 483.14,
+      "unit": "seconds",
+      "method": "ci_job",
+      "workers": "unresolved",
+      "contended": false,
+      "date": "2026-09-05",
+      "commit": "c33afca",
+      "source": [
+        "docs/LEDGER.md#samples of the pytest step on a 2-vCPU runner over one byte-identical tree",
+        "docs/item_notes/phase4-followups-900.md#GitHub `ubuntu-latest`, `nproc` 2"
+      ],
+      "superseded_by": null
+    },
+    {
+      "metric": "tier1_pytest_step_seconds",
+      "value": 470.67,
+      "unit": "seconds",
+      "method": "ci_job",
+      "workers": "unresolved",
+      "contended": false,
+      "date": "2026-09-05",
+      "commit": "c33afca",
+      "source": [
+        "docs/LEDGER.md#samples of the pytest step on a 2-vCPU runner over one byte-identical tree",
+        "docs/item_notes/phase4-followups-900.md#GitHub `ubuntu-latest`, `nproc` 2"
+      ],
+      "superseded_by": null
+    },
+    {
+      "metric": "tier1_nauto_speedup_ratio",
+      "value": 1.222,
+      "unit": "ratio",
+      "method": "unpaired",
+      "workers": "unresolved",
+      "contended": false,
+      "date": "2026-09-05",
+      "commit": "c33afca",
+      "source": [
+        "docs/LEDGER.md#Mean to mean 1.222x; pessimistic pair 1.121x; flattering pair 1.393x, WHICH MUST NOT BE QUOTED."
+      ],
+      "superseded_by": null
+    },
+    {
+      "metric": "tier1_tests_passed",
+      "value": 4784,
+      "unit": "count",
+      "method": "ci_job",
+      "workers": 1,
+      "contended": false,
+      "date": "2026-09-05",
+      "commit": "c33afca",
+      "source": [
+        "docs/item_notes/phase4-followups-900.md#run 33972223350 on tree `c33afca`"
+      ],
+      "superseded_by": null
+    },
+    {
+      "metric": "tier1_slowest_test_seconds",
+      "value": 111.39,
+      "unit": "seconds",
+      "method": "profile",
+      "workers": 1,
+      "contended": false,
+      "date": "2026-09-05",
+      "commit": "c33afca",
+      "source": [
+        "docs/item_notes/phase4-followups-900.md#| 18.9 per cent | ONE test"
+      ],
+      "superseded_by": null
+    },
+    {
+      "metric": "tier1_slowest_test_share_percent",
+      "value": 18.9,
+      "unit": "percent",
+      "method": "profile",
+      "workers": 1,
+      "contended": false,
+      "date": "2026-09-05",
+      "commit": "c33afca",
+      "source": [
+        "docs/item_notes/phase4-followups-900.md#| 18.9 per cent | ONE test"
+      ],
+      "superseded_by": null
+    },
+    {
+      "metric": "tier1_jitter_seconds_gates_lint_types_tests",
+      "value": 129,
+      "unit": "seconds",
+      "method": "derived",
+      "workers": "unresolved",
+      "contended": false,
+      "date": "2026-09-17",
+      "commit": "e3169a64770a00fd4484452148a9ef66ac33cb7b",
+      "source": [
+        "tools/tier1_growth.py#measure the tier1 lane's growth per commit and grade its warn band",
+        "tools/tier1_readings.json#e3169a64770a00fd4484452148a9ef66ac33cb7b"
+      ],
+      "superseded_by": null
+    },
+    {
+      "metric": "tier1_jitter_seconds_guard_shard",
+      "value": 28,
+      "unit": "seconds",
+      "method": "derived",
+      "workers": "unresolved",
+      "contended": false,
+      "date": "2026-09-17",
+      "commit": "e3169a64770a00fd4484452148a9ef66ac33cb7b",
+      "source": [
+        "tools/tier1_growth.py#measure the tier1 lane's growth per commit and grade its warn band",
+        "tools/tier1_readings.json#e3169a64770a00fd4484452148a9ef66ac33cb7b"
+      ],
+      "superseded_by": null
+    },
+    {
+      "metric": "tier1_jitter_seconds_save_shard",
+      "value": 38,
+      "unit": "seconds",
+      "method": "derived",
+      "workers": "unresolved",
+      "contended": false,
+      "date": "2026-09-17",
+      "commit": "e3169a64770a00fd4484452148a9ef66ac33cb7b",
+      "source": [
+        "tools/tier1_growth.py#measure the tier1 lane's growth per commit and grade its warn band",
+        "tools/tier1_readings.json#e3169a64770a00fd4484452148a9ef66ac33cb7b"
+      ],
+      "superseded_by": null
+    },
+    {
+      "metric": "tier1_growth_seconds_per_commit_gates_lint_types_tests",
+      "value": -1.04,
+      "unit": "seconds_per_commit",
+      "method": "derived",
+      "workers": "unresolved",
+      "contended": false,
+      "date": "2026-09-17",
+      "commit": "e3169a64770a00fd4484452148a9ef66ac33cb7b",
+      "source": [
+        "tools/tier1_growth.py#measure the tier1 lane's growth per commit and grade its warn band",
+        "tools/tier1_readings.json#e3169a64770a00fd4484452148a9ef66ac33cb7b"
+      ],
+      "superseded_by": null
+    },
+    {
+      "metric": "tier1_growth_seconds_per_commit_guard_shard",
+      "value": 0.48,
+      "unit": "seconds_per_commit",
+      "method": "derived",
+      "workers": "unresolved",
+      "contended": false,
+      "date": "2026-09-17",
+      "commit": "e3169a64770a00fd4484452148a9ef66ac33cb7b",
+      "source": [
+        "tools/tier1_growth.py#measure the tier1 lane's growth per commit and grade its warn band",
+        "tools/tier1_readings.json#e3169a64770a00fd4484452148a9ef66ac33cb7b"
+      ],
+      "superseded_by": null
+    },
+    {
+      "metric": "tier1_growth_seconds_per_commit_save_shard",
+      "value": -0.1,
+      "unit": "seconds_per_commit",
+      "method": "derived",
+      "workers": "unresolved",
+      "contended": false,
+      "date": "2026-09-17",
+      "commit": "e3169a64770a00fd4484452148a9ef66ac33cb7b",
+      "source": [
+        "tools/tier1_growth.py#measure the tier1 lane's growth per commit and grade its warn band",
+        "tools/tier1_readings.json#e3169a64770a00fd4484452148a9ef66ac33cb7b"
+      ],
+      "superseded_by": null
+    }
+  ]
+}

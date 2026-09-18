@@ -75,6 +75,63 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-09-17 - CS-1121 - CLOSED. A forgiveness answers WHICH citation sites it forgives, not how many
+
+**WHAT CHANGED.** The `Disposition` table in `tests/test_citation_tables.py` keyed each recorded
+forgiveness by a site COUNT, so it answered how many dead citations a record forgives and never
+which. A count is satisfied by any N sites, so a COMPENSATING SWAP - one forgiven site deleted and
+a brand-new dead citation of the same name added in the same edit - left the cardinality unchanged
+and passed in silence. Each site now carries a DERIVED identity in three parts: the digest of the
+CHAIN of enclosing headings above it, the digest of its own landing line, and an ordinal over sites
+sharing both. Nothing is transcribed, no line number is stored, and `citation_sites` became a view
+(`len(citation_site_offsets(...))`) so the count cannot disagree with the identities it summarises.
+
+**REFUTED THREE TIMES, AND EACH ROUND MOVED THE KEY ONE LEVEL DEEPER.** Round one shipped an
+identity keyed on the nearest enclosing heading and disclosed that a swap wholly inside one heading
+was invisible at ONE live entry. Two independent probes measured 38 entries, 38 SILENT: the
+invisibility was a property of the key, not of one entry - 10 anchors covered more than one entry
+and the largest covered 5 - and the arm advertised as fencing it pinned a different, narrower set.
+An adjudicator ruled the item does not close, on a counter-example 200 lines from the disclosure:
+the same module already keyed a site on the content digest of its own landing line, so the claim
+that only a line number could separate two sites under one heading was false.
+
+Round two replaced the key with a heading digest plus a line digest plus an ordinal, and closed the
+within-heading swap - 38 RED. It was refuted on the mirror of the rule it had just enforced. The
+heading half digested heading TEXT, not a heading INSTANCE, and one carrier spells the same
+sub-heading under 37 distinct item sections. At two live entries a site deleted under one item and
+re-added 147 lines away under another produced a byte-identical identity and reported nothing: two
+SUCCESSFUL lookups of different sites comparing equal, in the same commit that added
+`UnanchoredCitationSiteError` so that two FAILED lookups could not.
+
+Round three identifies the heading INSTANCE by digesting the whole chain of enclosing headings. A
+final adversary re-derived the acceptance from its own probe over all 38 live entries: cross-instance
+swap 38 RED, within-chain swap 38 RED, pristine silent, anti-vacuity control silent, zero false reds,
+and a `stack[-1:]` mutant that reverts the chain to the nearest heading reddens four arms.
+
+**WHAT THE DERIVATION CAUGHT.** Replacing two false spelled figures with derived ones exposed a real
+defect on its first run: `ELIDED_RE` matched from the double colon, so those offsets pointed two
+characters before their identifier. Fixed, with a measured blast radius of zero - across 325 live
+elided hits the derived line index is identical before and after, so no recorded identity and not the
+38-of-38 measurement the adjudication rested on was corrupted.
+
+**RELOCATION, NOT A TRIM.** `tests/test_docs_citations.py` crossed the size guard's 90 percent
+approach band, whose own remedy is relocate and never delete. Thirteen arms moved to a new
+`tests/test_disposition_sites.py`. Arm names were collected on both sides and compared: none dropped,
+none renamed, four added. The three arms `docs/LEDGER.md` cites by name stayed in their own module,
+because moving one would kill its own record inside the guard that judges dead records.
+
+**MEASURED, NOT FIXED.** Three rows filed rather than widened into this one: the per-entry unanchored
+refusal keeps grading the entries after it only by luck of sort order, and a `break` for `continue`
+mutant survives all 430 arms (CS-1141); the ratchet's head sentence states a composition the tables no
+longer have (CS-1142); and the heading chain derives a markdown rule over a carrier population that is
+81 percent non-markdown, with a mature fence-aware parser sitting unused two modules away (CS-1143).
+
+Verification: `python -m pytest tests/test_citation_tables.py tests/test_disposition_sites.py tests/test_docs_citations.py -q`
+is green. To re-check the acceptance, take any recorded entry, delete one forgiven site's line and
+re-insert that identical line under a different `## CS-nnn` section in the same edit: the run reports
+one unforgiven and one unspelled site while the count is unchanged. Reverting `heading_chain` to the
+nearest heading alone reddens four arms.
+
 ### 2026-09-17 - CS-1132 - CLOSED. The CS-9nn leaf splits at CS-960, and the seam has a code owner, a table owner and a reasoning owner that agree
 
 **WHAT CHANGED.** `docs/item_notes/phase4-followups-900.md` was 122559 bytes against a 128 KB
@@ -145,6 +202,93 @@ excused; `python -m pytest tests/data/test_item_notes_index.py tests/data/test_d
 is green. To re-check the seam agreement, plant any value other than 960 in
 `_ITEM_NOTES_SECOND_BLOCK_SEAM` and confirm `test_the_shipped_cs9nn_seam_is_found_when_the_table_stops_bounding_it`
 reddens; clear every `__pycache__` first and restore from a byte snapshot rather than `git checkout`.
+### 2026-09-17 - CS-920 - CLOSED. Every measurement this project takes of ITSELF now carries a ROW-scoped receipt, and CS-917's survives-its-next-reading question is answered by query rather than by reading prose
+Verification: `python -m pytest tests/test_measurement_record.py -q` and
+`python tools/measurement_record.py --survives` from the repo root. Merged files:
+`tools/measurement_record.py`, `tools/measurements.json`,
+`tests/test_measurement_record.py`, and one checklist line in
+`.claude/commands/drift-guard.md`.
+
+THE DEFECT. A number this project measures about its own suite, lane or box was published in
+PROSE, and its provenance was DOCUMENT-scoped: the conditions travelled in the surrounding
+paragraph and were left behind the moment the figure was quoted. The item's own section, now in
+`docs/history_notes.md`, names three figures published and corrected in one session - none of them
+a careless reading, each a correct reading whose conditions did not travel with it.
+
+THE SHAPE. `tools/measurements.json` declares each metric ONCE - its kind, its unit, and for a
+BOUND its sense - and holds one row per reading carrying the eight receipt fields the acceptance
+clause names, plus a `source` list and a `superseded_by` link.
+`tools/measurement_record.py` grades it offline and answers the query; it takes no reading and
+reaches no network.
+
+THE ARM THE CLAUSE NAMES is `test_a_reading_missing_any_receipt_field_is_an_offence`, which
+strips each receipt field in turn from the TRACKED record rather than from a fixture, so it
+cannot go stale against the record growing a shape a fixture does not have.
+
+THE ANTI-VACUITY PROPERTY, because a schema with an escape hatch is a schema with none.
+A worker count nobody recorded is `unresolved` and a load state nobody recorded is `unknown`, so
+the reading is KEPT rather than lost - and the price is enforced rather than promised:
+`comparability` never returns `comparable` for a pair resting on one, so a delta drawn across it
+is reported `unproven` instead of as fact. ABSENCE of a field remains an offence.
+
+A CITATION IS AN ANCHOR, NOT A LINE NUMBER, AND THAT IS NOT A STYLE CHOICE. This file is
+append-at-TOP, so a line number into it is stale as soon as the next entry lands and a grader
+over line numbers checks nothing. An anchor is text that must still APPEAR in the cited file, so
+it survives the file growing and reddens when the sentence it names is reworded away - which is
+the event that leaves a number with no provenance at all.
+
+MUTATION-PROVEN TWICE, BY THE MERGER AND INDEPENDENTLY BY THE VERIFIER. Stopping the grader from
+reporting a missing field reddens all eight parametrisations of the acceptance arm; making
+`comparability` always return `comparable` reddens
+`test_a_pair_disagreeing_on_worker_count_cannot_falsify` and
+`test_a_pair_disagreeing_on_load_state_cannot_falsify`. The verifier reproduced the first in its
+own scratch copy from a pristine floor, so the proof does not rest on the author's word.
+
+SIBLING SWEEP. Two tracked records of the same family exist - `tools/tier1_readings.json` and
+`tools/tier2_durations.json` - and both carry a field allowlist already. Neither carries a worker
+count or a load state, which is precisely why every reading derived from them here is seeded
+`workers: "unresolved"`. Widening them belongs to the items that own them; the gap is filed as
+CS-1140 rather than swept in passing.
+
+TIER 2, and the whole tree was run from the repo root, written to a file and read back:
+`8842 passed, 5 skipped, 8 warnings in 412.66s (0:06:52)`, pytest exit 0 - re-run on the
+FINAL tree after the verifier's two repairs and every doc edit, so the counts describe what
+shipped rather than an earlier candidate. `python -m ruff check .`
+and `python -m ruff format --check .` both clean. The verifier re-ran the module itself and
+observed `43 passed in 0.12s` at exit 0.
+
+VERIFIER: CONFIRM on all three conjuncts, with four caveats, by an agent that did not produce the
+work. TWO OF THE FOUR WERE REPAIRED AFTER THE PASS AND WERE NOT RE-GRADED, which is recorded here
+rather than in a cycle report because a caveat said in a cycle report is not a caveat in the
+artifact. (i) `contended: false` on the seeded rows was an inference nobody had written down; the
+rule is now NAMED in the tool - a hosted-runner reading is not contended by the fact that a
+GitHub-hosted runner is a dedicated VM per job, and no other method may claim `false` without a
+citation. (ii) the arm now named `test_the_tool_and_the_record_are_both_present` asserted
+presence while its former name claimed tracking, and it is renamed to what it checks. The other
+two caveats are filed: CS-1138 for a verdict word that is not degraded by its own basis, CS-1139
+for a fabricated reading grading clean.
+
+THE THREE FILED IDS WERE RENUMBERED DURING THE REBASE AND THE COMMIT MESSAGE STILL CARRIES THE
+NUMBERS THEY WERE MINTED WITH. This cycle derived CS-1135, CS-1136 and CS-1137 against a tree
+that was current when it fetched; a sibling lane allocated the same three while this row was
+being worked, and both derivations were correct against what each could see. They are CS-1138,
+CS-1139 and CS-1140 here and in `ROADMAP.md`, and this file is the owner where the two disagree.
+
+WHAT THIS ITEM IS NOT, restated from its own section so a later cycle does not re-pitch it: it is
+not a benchmarking harness and it is not CodSpeed. It records readings a human or a session
+already took.
+
+A `not slow` WHOLE-TREE RUN DOES NOT RUN THE MYPY GATE, AND THIS CYCLE PAID FOR THAT TWICE.
+`test_the_bare_repo_wide_invocation_reports_no_errors` in `tests/test_mypy_gate.py` is marked
+`slow`, so `-m "not slow"` deselects the only arm that runs mypy over the whole repository. Two
+`no-any-return` findings in this cycle's own test module were therefore invisible to three green
+whole-tree runs and surfaced in the pre-push hook, which passes no marker filter. The hook
+BLOCKED and nothing was pushed - the mechanism worked. The lesson is about the evidence, not the
+hook: a run reported green under `-m "not slow"` says nothing about the type gate, so a cycle
+adding a file runs `python -m mypy` bare before it believes its own suite result. The repair and
+this paragraph landed in a second commit on the same row.
+
+CI: recorded by the driver in its own cycle row, and NOT observed by this worker.
 
 ### 2026-09-17 - CS-917 - MEASUREMENT RECORD. THE ITEM STAYS OPEN. The lane's growth per commit and its run-to-run jitter are measured; the ordering guarantee is unmet and filed as CS-1133
 

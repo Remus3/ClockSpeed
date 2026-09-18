@@ -720,17 +720,6 @@ EITHER shape is read with every width taken from the bytes or from a shipped con
 ### Full headline
 
 two trailing-run remainder shapes are left after CS-828's reference-pair reading and neither is derivable by that grammar: a four-byte all-zero residual that is BYTE-IDENTICAL to an empty item list, so no reading of the run can tell a class that carries an empty list from one that carries no list at all (the CS-1068 root cause, restated on the other side); and one class whose remainder is a large nested structure whose width nothing in the run describes
-
-## CS-1121
-
-### Acceptance
-
-a forgiveness answers IDENTIFIED citation sites rather than a cardinality, with each identity DERIVED from the doc rather than transcribed and never keyed on a line number, proven by an arm that reddens on a compensating swap - one forgiven site deleted and a brand-new dead citation of the same name added in the same edit - with an anti-vacuity control showing the arm stays silent when the swap is not made
-
-### Full headline
-
-the `Disposition` table `tests/test_citation_tables.py` owns keys each recorded forgiveness by a SITE COUNT, so it answers how many dead citations a record forgives and never which - the same fault CS-893 repaired in `tests/chained_exemption_guard.py`, inherited from this table as its cited precedent
-
 ## CS-1089
 
 ### Acceptance
@@ -940,3 +929,126 @@ each arm binds the shipped VALUE of the constant it grades, proven by every arm 
 ### Full headline
 
 two arms in `tests/data/test_item_notes_index.py` bind only their constant's MEMBERSHIP in the probe tuple and are blind to its VALUE - MEASURED 2026-09-17 by the CS-1132 second repair round and DERIVED from the module's own syntax tree rather than read by eye: of 97 test functions exactly two call `monkeypatch.setattr` and then assert, one patching the `CS-8nn` seam constant and one patching the `CS-1nnn` floor constant, and each killed 1 of 5 plants - GREEN on every plant that moved the value (860, 820, 870 and 899 for the seam; 1100, 900, 1200 and 1050 for the floor) and RED only when the constant was dropped from the probe tuple altogether, with the control GREEN on every row; this is the identical shape CS-1132 found in the `CS-9nn` seam's arm, where it killed 0 of 9 and was replaced by an arm that leaves the shipped constant alone and plants the edit a person would actually make, so the repair pattern is already established in the same module
+## CS-1138
+
+### Filed 2026-09-17 by the CS-920 cycle, from that item's verifier
+
+**THE VERDICT WORD IS NOT DEGRADED BY ITS OWN BASIS.** `survives_next_reading` in
+`tools/measurement_record.py` reports a verdict AND the comparability the pair
+rests on. A pair where both readings carry an escape value agrees about nothing,
+and the query says so - `basis: unproven` - but the verdict still reads
+`survived` or `falsified`. **A ROW LIFTED FROM THAT OUTPUT WITHOUT ITS BASIS
+REPRODUCES EXACTLY THE FAILURE CS-920 WAS FILED ABOUT**, which is a figure quoted
+out of the conditions it was taken under.
+
+**DO NOT FIX IT BY REFUSING THE PAIR.** Refusing would lose the only signal an
+all-escape history has, and the escape values exist precisely so a reading with
+no recorded worker count is KEPT rather than dropped. The fix is in the verdict
+vocabulary: a verdict reached on an unproven basis needs a name of its own that
+carries the qualification into any quotation of it.
+
+**NOT LIVE ON TODAY'S RECORD, AND FILED RATHER THAN REPAIRED FOR THAT REASON.**
+Every bound metric in `tools/measurements.json` holds one reading, so every
+verdict today is `untested` and no unproven verdict is printed at all. It was
+found after the CS-920 candidate was frozen, and a repair landed during a verdict
+is one that verdict cannot discharge.
+
+### Acceptance
+
+a verdict reached on a pair whose basis is not `comparable` carries the qualification IN THE VERDICT rather than only beside it, so quoting the verdict alone cannot drop it, proven by an arm that reddens when an unproven pair yields the same verdict word a comparable pair does
+
+## CS-1139
+
+### Filed 2026-09-17 by the CS-920 cycle, from that item's verifier
+
+**A FABRICATED READING GRADES CLEAN, MEASURED BY AN ADVERSARY RATHER THAN
+REASONED ABOUT.** The verifier added a reading with an invented value, a
+seven-character hex string that is not a commit in this repository, and a source
+citation whose anchor is the single word `the` - and `grade_tree` returned no
+offence. Two checks are weaker than they look: `commit` is matched against a hex
+pattern and never resolved against git, and a source anchor is any substring of
+the cited file, so a one-word anchor matches almost everything.
+
+**THIS IS A CAVEAT ON CS-920 RATHER THAN A DEFECT IN IT, AND THE DISTINCTION IS
+THE ITEM.** CS-920's clause asks that a receipt be CARRIED, and a carried receipt
+is what a fabricated row has. What is not established is that the receipt is
+TRUE. The record's value rests on rows being written honestly, and a machine
+check for honesty is a different property from a machine check for completeness.
+
+**THE OBVIOUS FIX IS HALF WRONG.** Resolving every `commit` against git reddens
+in a shallow CI checkout, which is the same trap `tools/tier1_growth.py` already
+met and answered by skipping on the window rather than per sha - read CS-1134
+before rebuilding that reasoning. An anchor floor is the cheaper half and has no
+such problem.
+
+### Acceptance
+
+a reading whose commit the checkout can place is graded against it and a reading whose anchor is too weak to identify a sentence is refused, with the commit check SKIPPED only where the checkout does not carry the history, proven by an arm that reddens on a planted fabricated reading and a control that stays green on the shipped record
+
+## CS-1140
+
+### Filed 2026-09-17 by the CS-920 cycle, from that item's verifier
+
+**CS-917's FIGURE CAN NEVER REACH A COMPARABLE BASIS AS THINGS STAND.** Every
+tier 1 reading in `tools/measurements.json` carries `workers: "unresolved"`,
+because the lane runs `pytest -n auto` and nothing records what that RESOLVED to.
+`nproc` does not answer it - xdist counts PHYSICAL cores, and this project has
+already published a worker count of sixteen that was eight for exactly that
+reason. So a future pair of tier 1 readings can only ever be graded `unproven`,
+and the survives-next-reading query will never say `comparable` about the very
+metric CS-917 needs it for.
+
+**THE FIX IS UPSTREAM OF THE RECORD AND THAT IS THE WHOLE POINT.** No amount of
+work inside `tools/measurement_record.py` can resolve a number the lane never
+emitted. The lane has to PRINT its resolved worker count where a refresh can read
+it, which makes this a workflow-and-record change rather than a schema one.
+
+**DO NOT CLOSE IT BY INFERRING THE COUNT FROM THE RUNNER'S CORE COUNT.** That is
+the inference that produced the sixteen-for-eight correction, and it is recorded
+in this project's own notes as one of the three readings CS-920 was filed over.
+
+### Acceptance
+
+a tier 1 reading records the worker count the lane ACTUALLY RESOLVED, emitted by the lane itself rather than inferred from a core count, and a pair of such readings grades `comparable` in `tools/measurement_record.py`, proven by an arm over the refreshed record
+
+---
+
+## CS-1141
+
+### Filed 2026-09-17 by the CS-1121 close, from that item's final adversary
+
+### Acceptance
+
+a fixture places a DRIFTED entry AFTER the unanchorable one in the order the function actually walks, and asserts BOTH are reported, so swapping `continue` for `break` in the unanchored handler reddens - with a pristine floor showing the same arm green unmutated, and with the ordering dependence made explicit rather than left to `sorted()` putting the healthy entry first
+
+### Full headline
+
+the per-entry unanchored refusal never proves that the entries after it are still graded, so a `break` for `continue` mutant survives every arm - MEASURED 2026-09-17 by the CS-1121 final adversary, which planted that one-token mutation and watched 430 arms pass, exit 0: `test_one_unanchorable_site_does_not_abort_the_other_entries` says in its own words that BOTH directions are graded, the unanchorable entry reported AND the healthy entry beside it still examined, but its two fixture keys sort the healthy entry FIRST, so nothing follows the refusal and the second half is asserted by an absence - a length of one - that holds whether or not the neighbour was ever looked at; the mutant is not equivalent, because under `break` every entry sorted after an unanchorable one goes ungraded, which is precisely the whole-run abort the per-entry refusal replaced
+
+---
+
+## CS-1142
+
+### Filed 2026-09-17 by the CS-1121 close, from that item's final adversary
+
+### Acceptance
+
+the budget comment's stated composition is either re-derived at run time or struck, proven by an arm that reddens when the sum of the two live table lengths disagrees with any figure spelled in that comment block, with an anti-vacuity control showing the arm stays green when they agree
+
+### Full headline
+
+the ratchet's head sentence in `tests/test_citation_tables.py` states a composition the tables no longer have - MEASURED 2026-09-17 by the CS-1121 final adversary: the comment heading the recorded forgiveness budget spells a decomposition into two counts whose sum is 55, while the live tables measure 22 and 38 against a ceiling of 60, and nothing reddens; it is PRE-EXISTING, filed on 2026-09-15 and predating CS-1121, and it sits at the head of a dated append-only ratchet log whose tail records the ceiling walking down through the sixties, so the surrounding history is accurate and only the head sentence is stale - which is the shape `CLAUDE.md` section 4 forbids, a hardcoded count in a doc being a lie with a timestamp on it
+
+---
+
+## CS-1143
+
+### Filed 2026-09-17 by the CS-1121 close, from that item's final adversary
+
+### Acceptance
+
+`heading_chain` either REFUSES a carrier whose file type has no heading syntax or derives a carrier-appropriate anchor for it, proven on a `.py` carrier and a `.json` carrier, and the markdown path blanks code regions through the fence-aware reader `tools/drift_guard.py` already owns rather than a bare `startswith` rule, proven by a fixture whose only column-0 hash sits inside a fenced block and by the live count of such lines in guarded docs falling to zero
+
+### Full headline
+
+the citation site identity derives a markdown heading chain from files that have no headings - MEASURED 2026-09-17 by the CS-1121 final adversary: the carrier population the disposition tables cover is 388 files of which only 74 are markdown, so on 263 of the 314 non-markdown carriers a column-0 hash in a comment is read as a heading and given a level from its run length, while on the other 51 any site raises the unanchored refusal outright; the markdown path is weaker than this tree already is, reading six column-0 hashes inside fenced blocks across three GUARDED docs as headings, two of them at level one so they pop the entire real heading stack, while `tools/drift_guard.py` already owns a CommonMark container reader that handles fences, blockquotes, list content columns and indented blocks and was not reused; today's exposure is zero live corrupted chains and zero live entries on a non-markdown carrier, so this is latent rather than a present fault, and the identity's own docstring discloses the setext and fence gaps while saying nothing about the non-markdown population at all

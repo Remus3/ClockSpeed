@@ -89,7 +89,6 @@ CS-896 - tier 1 CI was cancelled by its runaway cutoff with nothing failing - ac
 CS-917 - tier 1's duration is watched but its GROWTH RATE is owned by nobody - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-900 - tier 1's cost is concentrated in a few tests, so `-n auto` buys little - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-907 - tier-0 pre-push runs the whole suite while its header claims the sanctioned fast subset - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
-CS-920 - this project's own measurements carry provenance at document scope, never row scope - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-938 - the CS-932 inbox watcher is wired ONLY in an untracked file, so a fresh clone runs no watcher - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
 CS-937 - a line pointer whose only content check is NON-BLANKNESS certifies a pointer that names the wrong rule - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-936 - the 2026-08-14 PII scrub edited the files FORWARD, so three world names it removed remain in earlier blobs - CONTAINED, measured - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
@@ -137,7 +136,6 @@ CS-1129 - the leaf membership rule grammar in `tools/drift_guard.py` is closed o
 CS-1130 - a relocated acceptance clause is never compared against what its line carried, so a later truncation of a section's `### Acceptance` body is undetectable - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
 CS-1131 - guard (i) is blind to an id that exists in NO state - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
 CS-1119 - two trailing-run remainder shapes are left after CS-828's reference-pair reading and neither is derivable by that grammar - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
-CS-1121 - the `Disposition` table `tests/test_citation_tables.py` owns keys each recorded forgiveness by a SITE COUNT - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1089 - `tests/save/test_struct_interior.py` sits above the approach band of the `_MAX_TEST_FILE_BYTES` ceiling in `tests/data/test_phase2_gate.py` - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
 CS-1090 - `tests/save/test_properties.py` sits above the approach band of the `_MAX_TEST_FILE_BYTES` ceiling in `tests/data/test_phase2_gate.py` - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
 CS-1091 - `tests/save/test_world.py` sits above the approach band of the `_MAX_TEST_FILE_BYTES` ceiling in `tests/data/test_phase2_gate.py` - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
@@ -146,6 +144,12 @@ CS-1134 - the tier 1 jitter figure can UNDERSTATE by two routes the CS-917 verif
 CS-1135 - `_oversized_over_the_ceiling` in `tests/data/test_phase2_gate.py` is closed only at its lower edge - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
 CS-1136 - no guard grades a live document's pointer into an item-notes leaf - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
 CS-1137 - two arms in `tests/data/test_item_notes_index.py` bind only their constant's MEMBERSHIP in the probe tuple and are blind to its VALUE - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
+CS-1138 - a survives-next-reading verdict reads `survived` on a pair whose basis is `unproven` - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
+CS-1139 - a measurement reading's `commit` is regex-checked and never resolved, so a fabricated reading grades clean - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
+CS-1140 - every tier 1 reading carries an unresolved worker count, so CS-917's figure can never reach a `comparable` basis - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
+CS-1141 - the per-entry unanchored refusal never proves that the entries after it are still graded - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
+CS-1142 - the ratchet's head sentence in `tests/test_citation_tables.py` states a composition the tables no longer have - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
+CS-1143 - the citation site identity derives a markdown heading chain from files that have no headings - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 
 CS-962 - the dashboard is a SELF-DIAGNOSTIC rather than a player's tool: it renders its own health, its own route table, six world version scalars, five counts and the unmodelled-class list - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-976 - the four panel modules are classic scripts sharing ONE global with `app.js`, and three of them scope themselves - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
