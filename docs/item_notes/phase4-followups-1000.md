@@ -1052,3 +1052,44 @@ the ratchet's head sentence in `tests/test_citation_tables.py` states a composit
 ### Full headline
 
 the citation site identity derives a markdown heading chain from files that have no headings - MEASURED 2026-09-17 by the CS-1121 final adversary: the carrier population the disposition tables cover is 388 files of which only 74 are markdown, so on 263 of the 314 non-markdown carriers a column-0 hash in a comment is read as a heading and given a level from its run length, while on the other 51 any site raises the unanchored refusal outright; the markdown path is weaker than this tree already is, reading six column-0 hashes inside fenced blocks across three GUARDED docs as headings, two of them at level one so they pop the entire real heading stack, while `tools/drift_guard.py` already owns a CommonMark container reader that handles fences, blockquotes, list content columns and indented blocks and was not reused; today's exposure is zero live corrupted chains and zero live entries on a non-markdown carrier, so this is latent rather than a present fault, and the identity's own docstring discloses the setext and fence gaps while saying nothing about the non-markdown population at all
+
+## CS-1144
+
+### FILED 2026-09-17 by the queue lane, measured while shipping CS-937
+
+**WHAT THE NEW LEG FOUND ON ITS FIRST LIVE READING.** `docs/LEDGER.md` carries a
+sentence claiming that CI runs mypy bare at a named line of
+`.github/workflows/tier1.yml`. It does not. The workflow grew and that step now sits
+far below the cited line; the cited line holds an unrelated fence check. The pointer
+was RIGHT WHEN WRITTEN and rotted under growth - the opposite of CS-937's measured
+instance, and the reason it is a separate row rather than the rest of that one.
+
+**WHY IT WAS RECORDED RATHER THAN REPAIRED IN THE SAME CYCLE.** `docs/LEDGER.md`
+declares itself append-only in its own header, so the pointer cannot be re-cut in
+place, and the repair this project states for a rotted pointer - cite the module by
+name - is unavailable at a workflow file, which has no symbol form. Both routes the
+CS-928 forgiveness grant records are therefore closed here too. The site is carried in
+`tests/test_docs_citations.py::UNVERIFIED_POINTER_CLAIMS` with the defect NAMED, and
+that record pins the landing so the site cannot drift further in silence.
+
+**DO NOT CLOSE THIS BY RE-CUTTING THE DIGEST.** The record's digest exists to redden
+when the landing moves again. Re-cutting it is how a pin absorbs the defect it was
+built to count, which is the failure `tests/test_citation_tables.py` names for the
+sibling table.
+
+**DO NOT CLOSE IT BY DELETING THE ROW EITHER.** Removing the record without repairing
+the pointer makes the live claim arm red, not green - the row is pinned in both
+directions by `test_the_recorded_pointer_claims_are_pinned_in_both_directions`.
+
+**WHAT A CLOSE PROBABLY LOOKS LIKE, stated as a starting point rather than a
+specification.** Either an appended correcting record that the guard can READ - which
+needs the guard to prefer a later correction over the original sentence, and that is
+a real design question rather than a tweak - or an adjudicated `Disposition`, which
+spends `tests/test_citation_tables.py::FORGIVEN_LINE_POINTER_CEILING` and therefore
+needs the grant the CS-928 entry's fence describes. Measure which before building
+either.
+
+### Acceptance
+
+the `docs/LEDGER.md` pointer into `.github/workflows/tier1.yml` either names a line whose content its own sentence claims, or carries an adjudicated record that a guard verifies rather than a digest nobody re-reads, proven by an arm that reddens when the recorded answer stops resolving - and `UNVERIFIED_POINTER_CLAIMS` loses the row rather than keeping it
+

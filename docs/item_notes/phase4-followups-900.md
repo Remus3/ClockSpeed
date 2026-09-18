@@ -304,31 +304,6 @@ the affected history is unreachable from every pushable ref, or the retention is
 the 2026-08-14 PII scrub edited the files FORWARD, so three world names it removed remain in earlier blobs - CONTAINED, measured: reachable only from an unpushed local branch and absent from `origin/main`
 
 
-## CS-937
-
-### FILED 2026-09-07 (session 71)
-
-The line as first filed, relocated here intact because the ROADMAP owns
-the LINE and this file owns the reasoning:
-
-    CS-937
-    a line-pointer whose only content check is NON-BLANKNESS passes a pointer that names the wrong rule
-    the `tools/` prohibition pointer in `tests/test_precommit_gate.py` named line 144 of `docs/ARCHITECTURE.md` and the guard stayed GREEN, because that line was non-blank and a markdown target is exempt from the forbid leg
-    AND THE POINTER WAS WRONG WHEN WRITTEN RATHER THAN ROTTED, which is the sharper fault and was established by an adjudicator rather than assumed: `git show eeba277` proves that line held the `advisor/` clause on the day the pointer was authored, while the `tools/` rule sat five lines further down, so a live guard certified a citation that never named its own subject, for three weeks
-    a dead pointer is visibly dead and this is not
-    acceptance: a line pointer is graded against what its own sentence CLAIMS the target says, not merely that a line exists there, without becoming a prose-matcher that reddens on correct history
-    the acceptance must state the discharge condition and be proven by TWO arms, one reddening on a pointer silently retargeted to a different non-blank line and one staying GREEN across a whitespace-only reflow of the target
-    tier: 2
-
-### Acceptance
-
-a line pointer is graded against what its own sentence claims the target says, without becoming a prose matcher, proven by two arms - one reddening on a pointer silently retargeted to a different non-blank line, one staying GREEN across a whitespace-only reflow of the target
-
-### Full headline
-
-a line pointer whose only content check is NON-BLANKNESS certifies a pointer that names the wrong rule, and the measured instance was wrong WHEN WRITTEN rather than rotted
-
-
 ## CS-938
 
 ### FILED 2026-09-07 (session 71)

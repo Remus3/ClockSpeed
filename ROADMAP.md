@@ -90,7 +90,6 @@ CS-917 - tier 1's duration is watched but its GROWTH RATE is owned by nobody - a
 CS-900 - tier 1's cost is concentrated in a few tests, so `-n auto` buys little - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-907 - tier-0 pre-push runs the whole suite while its header claims the sanctioned fast subset - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-938 - the CS-932 inbox watcher is wired ONLY in an untracked file, so a fresh clone runs no watcher - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
-CS-937 - a line pointer whose only content check is NON-BLANKNESS certifies a pointer that names the wrong rule - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-936 - the 2026-08-14 PII scrub edited the files FORWARD, so three world names it removed remain in earlier blobs - CONTAINED, measured - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
 CS-941 - the watcher is SILENT on a WITHDRAWAL, so a deliverable that leaves the channel simply stops appearing - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
 CS-942 - the watcher runs only at `SessionStart`, which fires ONCE, so a note arriving mid-session is invisible until the next start - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
@@ -150,6 +149,7 @@ CS-1140 - every tier 1 reading carries an unresolved worker count, so CS-917's f
 CS-1141 - the per-entry unanchored refusal never proves that the entries after it are still graded - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
 CS-1142 - the ratchet's head sentence in `tests/test_citation_tables.py` states a composition the tables no longer have - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
 CS-1143 - the citation site identity derives a markdown heading chain from files that have no headings - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
+CS-1144 - `docs/LEDGER.md` cites `.github/workflows/tier1.yml` by a line the workflow has since grown past, and the carrier is append-only - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
 
 CS-962 - the dashboard is a SELF-DIAGNOSTIC rather than a player's tool: it renders its own health, its own route table, six world version scalars, five counts and the unmodelled-class list - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-976 - the four panel modules are classic scripts sharing ONE global with `app.js`, and three of them scope themselves - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`

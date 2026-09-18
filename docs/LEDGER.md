@@ -75,6 +75,117 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-09-17 - CS-937 - CLOSED. A line pointer is graded against what its own citing sentence claims of the target
+
+**THE DEFECT.** A `file:line` pointer at a non-Python target was checked in two ways
+and neither could see it naming the wrong rule. Leg 1 asks only whether the landing
+carries anything, so a pointer at a real line of the wrong paragraph is green. Leg 2
+refuses the line form outright, but only where a symbol form exists, so every `.md`,
+`.yml` and `.toml` target is exempt from it by construction. The measured instance
+was the `tools/` prohibition pointer in `tests/test_precommit_gate.py`, which named a
+line holding the raw-docs paragraph, stayed green for three weeks, and was WRONG WHEN
+WRITTEN rather than rotted.
+
+**THE ROOT CAUSE, and it is why the repair reads the CARRIER.** Both existing legs
+derive their expectation from the TREE. CS-889 priced a content-anchored resolver and
+refused it in as many words: a pin derived from today's tree freezes whatever each
+pointer currently lands in and ships green on the very defects it was built for. The
+claim is not in the tree - it is in the sentence a person wrote around the pointer. So
+the new leg reads the sentence.
+
+**WHAT SHIPPED.** `tests/test_docs_citations.py` gains `claim_sentence`,
+`claim_tokens`, `carried_by` and `line_pointer_claim_problems`. The sentence a pointer
+sits in is cut at full-stop-plus-whitespace or a blank line, line-leading comment and
+list markers removed. From it, CLAIM TOKENS are taken: backticked spans and bare words
+that carry a slash, a space, or an interior dot or underscore, at least four
+characters, with the target's own path and the carrier's own path STRUCK. The pointer
+passes when the landing line, whitespace collapsed, spells at least one token.
+
+**THE TWO EXCLUSIONS ARE THE CS-899 FENCE.** A sentence citing a file almost always
+spells that file's name, so admitting it would let the file name match the file name
+and forgive every dead pointer into the file at once - the markdown keyword detector
+CS-899 priced and REFUSED for failing in the permissive direction.
+
+**MUTATION-PROVEN ON THE LIVE CORPUS, not only on a fixture.** Retargeting the live
+`tests/test_precommit_gate.py` pointer to the line CS-937 measured as the historical
+defect reports one problem; retargeting it to either neighbouring clause reports one
+too. Pristine, the same reading reports none.
+
+**THE NUMBERS, AND THE LEG IS THIN TODAY - SAYING SO IS THE POINT.** The non-Python
+population is five sites. ONE verifies. One is answered by an existing adjudicated
+`Disposition`. Two DECLINE, because their sentences spell no claim token, and a decline
+is reported and pinned rather than counted as a pass. One CONTRADICTS its sentence and
+is recorded. So the leg grades one site in five today. It is not a broad guard; it is a
+guard that was absent, and its two arms are what the acceptance asked for.
+
+**THE ANTI-VACUITY PROPERTY IS THE DECLINE SET, not the pass count.**
+`POINTER_CLAIM_DECLINES` is pinned in both directions, so a pointer written into prose
+that says nothing about its target is a decision somebody records rather than a hole
+that widens quietly.
+
+**A SIBLING FOUND AND FILED RATHER THAN SWEPT.** `docs/LEDGER.md` cites
+`.github/workflows/tier1.yml` by a line the workflow has grown past. That pointer was
+right when written, the carrier is append-only so it cannot be re-cut, and the
+cite-by-name repair does not exist for a workflow file. It is carried in
+`UNVERIFIED_POINTER_CLAIMS` with the defect NAMED rather than as an unexamined pin -
+`ClaimResidual` requires a `why` and
+`test_every_recorded_pointer_claim_states_what_is_known` reddens on an empty one, which
+is the anti-laundering property the Python leg's bare digest does not have. The repair
+is FILED as CS-1144.
+
+**`NON_CITATION_PATTERN_CEILING` RAISED 1 TO 4, in the same change as the three
+patterns it describes.** `BACKTICK_RE`, `SENTENCE_BREAK_RE` and `LINE_MARKER_RE` judge
+a pointer without deciding what carries a citation. Admitting them to `JUDGED_SHAPES`
+would widen the carrier boundary on the strength of a sentence parser, which is the
+permissive direction this module refuses everywhere else. The ceiling is spent exactly
+at 4 of 4, so no room is banked.
+
+**ONE LIVE FALSE FINDING WAS CAUGHT BEFORE IT SHIPPED, and the control is planted.** A
+bold run in `docs/LEDGER.md` put `NEUTRAL.**` into the vocabulary on the first live
+reading - an ordinary English word wearing a dot - and it reported a finding against a
+line that was never its subject. Markdown emphasis is now struck from a candidate's
+edges and a dot or underscore must be INTERIOR, while a trailing slash survives because
+it is this repository's spelling of a package.
+`test_a_claim_token_is_never_an_ordinary_word_wearing_punctuation` and
+`test_a_directory_token_survives_its_trailing_slash` hold both directions.
+
+**A VERIFIER CORRECTED THE REFLOW ARM AND THE CORRECTION SHIPPED.** The arm the
+acceptance names stays green across a respaced target, but both of its claim tokens are
+single words, so `carried_by`'s whitespace collapse never decided anything there - the
+arm was green under a matcher that did not collapse at all. It still controls against
+the exact-line pin CS-889 refused, which is what the clause asks of it, and it did not
+reach the branch it looked like it was testing.
+`test_a_multi_word_claim_survives_a_respaced_target` pins that branch in both
+directions instead of widening the arm that was already correct.
+
+**TESTS ADDED (9),** all in `tests/test_docs_citations.py`:
+`test_a_pointer_retargeted_to_a_different_non_blank_line_is_reported` and
+`test_a_whitespace_only_reflow_of_the_target_stays_green` (the two the acceptance
+names), `test_no_line_pointer_contradicts_its_own_citing_sentence`,
+`test_the_recorded_pointer_claims_are_pinned_in_both_directions`,
+`test_the_pointer_claim_declines_are_pinned_in_both_directions`,
+`test_every_recorded_pointer_claim_states_what_is_known`,
+`test_a_claim_token_is_never_an_ordinary_word_wearing_punctuation`,
+`test_a_directory_token_survives_its_trailing_slash`,
+`test_a_multi_word_claim_survives_a_respaced_target`.
+
+**TIER 2.** A guard that reads every tracked file is not a local change.
+`python -m ruff check .` - All checks passed. `python -m ruff format --check .` - 265
+files already formatted.
+
+**SIBLING SWEEP.** The root cause is "the expectation is derived from the tree rather
+than from the citer". Swept: the non-Python line-pointer population, which is the whole
+class the forbid leg exempts. NOT swept, and deliberately: the Python half, where leg 2
+already refuses the line form outright, so a claim check there would grade a site
+already condemned and would report the same pointer twice.
+
+**SUITE THIS RUN**, read from the file rather than from a pipe:
+`python -m pytest tests -q -m "not slow"` reported
+"8863 passed, 5 skipped, 35 deselected, 8 warnings in 1749.08s (0:29:09)",
+exit 0.
+
+**CI: recorded by the driver, not observed by this worker.**
+
 ### 2026-09-17 - CS-1121 - CLOSED. A forgiveness answers WHICH citation sites it forgives, not how many
 
 **WHAT CHANGED.** The `Disposition` table in `tests/test_citation_tables.py` keyed each recorded
