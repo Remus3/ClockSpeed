@@ -243,6 +243,34 @@ def test_a_within_heading_compensating_swap_is_reported_at_every_entry(
 
     THE CARDINALITY IS ASSERTED UNCHANGED at every entry, so each is a
     statement about the KEY and not about the size of the edit.
+
+    THE GRADER IS ASKED ABOUT ONE ENTRY, NOT THE WHOLE TABLE, and that is a
+    change in what this arm can OBSERVE as well as in what it costs. The swap
+    perturbs exactly one doc and the arm reads exactly one entry's findings, so
+    :func:`disposition_site_problems` is handed ``{doc: swapped}`` and that
+    single record. It cannot change a verdict: that function loops the table it
+    is given and an entry's verdict is a function of only ``texts.get(doc)`` and
+    that entry's own :attr:`tables.Disposition.at`, with no state carried
+    between iterations.
+
+    WHAT IT DOES CHANGE IS THE FILTER THAT USED TO STAND BEHIND IT. The arm
+    graded the whole table at every swap and then kept ``cited in problem`` - a
+    SUBSTRING test against every line the whole table produced, which a finding
+    belonging to a DIFFERENT entry could satisfy. That is not hypothetical:
+    the table holds one nesting pair, a bare name spelled without its path that
+    sits inside another entry's full ``path::name`` citation, so the wider
+    exposure could have credited one of those two with the other's finding.
+    MEASURED, and the honest result is that it never did: over every swap this
+    arm poses, on the corpus of this commit, the wide grading and the narrow
+    one returned the same verdict at every entry and not one match was a
+    foreign line. So this
+    is a hole closed, NOT a differentiator shown - there is no input in the
+    live corpus that the two exposures answer differently. The filter went with
+    it, because with one entry in, the grader can only return a line about that
+    entry and a filter that cannot fail reads as a check.
+
+    THE COST THIS BOUGHT is measured by the sibling arm below, which is where
+    the call shape is asserted rather than described.
     """
     texts = disposition_texts(line_pointer_carriers)
     # The ONE precondition the adjacency argument rests on, checked once here
@@ -270,8 +298,15 @@ def test_a_within_heading_compensating_swap_is_reported_at_every_entry(
         if citation_sites(swapped, cited) != len(offsets):
             unbalanced.append(f"{doc} :: {cited} - the swap did not balance")
             continue
-        reported = disposition_site_problems({**texts, doc: swapped}, tables.DISPOSITIONS)
-        if not [problem for problem in reported if cited in problem]:
+        # NARROWED TO THE ONE ENTRY THE SWAP PERTURBS, in BOTH arguments. The
+        # grader loops the table it is given and each entry's verdict is a
+        # function of only its own doc text and its own recorded sites, so
+        # handing it the whole table here re-derived a heading chain for EVERY
+        # entry at EVERY swap and threw all but one of them away each time.
+        # The sibling arm below asserts that shape rather than restating a size.
+        entry = {(doc, cited): tables.DISPOSITIONS[(doc, cited)]}
+        reported = disposition_site_problems({doc: swapped}, entry)
+        if not reported:
             silent.append(f"{doc} :: {cited}")
 
     assert unbalanced == [], (
@@ -282,6 +317,67 @@ def test_a_within_heading_compensating_swap_is_reported_at_every_entry(
         "a within-heading compensating swap went unreported. The forgiveness is keyed"
         " on something these two sites share, so an unadjudicated citation rides under"
         " it:\n" + "\n".join(f"  {entry}" for entry in silent)
+    )
+
+
+def test_the_within_heading_arm_grades_one_entry_per_swap(
+    monkeypatch: pytest.MonkeyPatch,
+    line_pointer_carriers: Mapping[str, str],
+) -> None:
+    """THE ARM ABOVE MUST NOT RE-GRADE THE WHOLE TABLE ONCE PER ENTRY.
+
+    A COST DEFECT MEASURED STRUCTURALLY, NOT ON A CLOCK. The arm poses one swap
+    per entry, and each swap perturbs exactly ONE doc while the arm reads
+    exactly ONE entry's findings. Handing the grader the whole table at every
+    iteration therefore derives a heading chain for every entry N times over
+    and discards all but one of them - the arm cost 62.66s against 1.50s to
+    2.89s for every sibling that walks the same table once. A wall-clock
+    assertion would measure the runner rather than the code and would flake, so
+    what is asserted here is the SHAPE of the call: the entries AND the docs
+    handed to the grader across the whole arm, each of which must total the
+    size of the table and not its square. Both halves are recorded because the
+    old call was wide in both - it rebuilt the whole corpus dict as well as
+    re-reading the whole table - and an arm that watched only one of them would
+    pass a repair that narrowed only the other.
+
+    THE SPY MAKES THE ARM'S OWN VERDICT VACUOUS, said plainly. The replacement
+    grader reports a finding for every entry it is given, so the arm's
+    ``silent`` list is empty whatever the corpus says. That is deliberate: this
+    arm is a statement about how many entries and how many docs the grader is
+    asked to read, and nothing else. The arm's verdict is proved by the arm
+    itself and by its anti-vacuity control, both of which run the real grader.
+    """
+    graded: list[int] = []
+    corpora: list[int] = []
+
+    def recording_grader(
+        texts: Mapping[str, str],
+        dispositions: Mapping[tuple[str, str], Disposition],
+    ) -> list[str]:
+        graded.append(len(dispositions))
+        corpora.append(len(texts))
+        return [f"{doc} :: {cited} - recorded by the spy" for doc, cited in dispositions]
+
+    monkeypatch.setitem(globals(), "disposition_site_problems", recording_grader)
+
+    test_a_within_heading_compensating_swap_is_reported_at_every_entry(line_pointer_carriers)
+
+    posed = len(tables.DISPOSITIONS)
+    assert len(graded) == posed, (
+        "the arm did not pose one swap per recorded entry, so the count below says"
+        f" nothing about how wide each grading was: {len(graded)} of {posed}"
+    )
+    assert sum(graded) == posed, (
+        "the arm grades entries it never reads. Each swap perturbs ONE doc and the"
+        " arm consumes ONE entry's findings, so the entries handed to the grader"
+        f" across the arm must total {posed}, not {sum(graded)} - every extra one is"
+        " a heading chain derived over a doc the swap did not touch and a verdict"
+        " thrown away"
+    )
+    assert sum(corpora) == posed, (
+        "the arm hands the grader docs the swap did not perturb. One swap edits ONE"
+        f" doc, so the texts handed over across the arm must total {posed}, not"
+        f" {sum(corpora)} - the surplus is a whole-corpus dict rebuilt at every entry"
     )
 
 
@@ -297,6 +393,13 @@ def test_the_same_entries_without_the_within_heading_swap_are_silent(
     non-swap. This asserts the other direction over the same population, which
     it takes from the table rather than naming a size: with no swap made, not
     one entry is reported.
+
+    THE EXPOSURE HERE IS WIDER THAN THE ARM'S, DELIBERATELY. The arm above now
+    grades one entry at a time; this control still hands the grader the whole
+    table in a single call, which is a SUPERSET - a finding against any entry
+    would appear in ``problems``, and silence there implies silence under any
+    narrowing of it. It is also one walk of the table rather than one per
+    entry, so the wider reading costs nothing.
     """
     texts = disposition_texts(line_pointer_carriers)
     problems = disposition_site_problems(texts, tables.DISPOSITIONS)
