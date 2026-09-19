@@ -75,6 +75,14 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-09-19 - CS-1157 - CLOSED. The harness stops GENERATING the trailer instead of being refused after it does, and the client honouring the keys is measured rather than assumed
+Verification: `.claude/settings.json` and `~/.claude/settings.json` each carry `"attribution": { "commit": "", "pr": "" }` and `"includeCoAuthoredBy": false`; `python -m pytest tests/test_pretooluse_gate.py tests/test_session_start_wiring.py tests/ops/test_lane_background_tasks.py -q -p no:randomly` - 172 passed, exit 0 - those being the three modules that read the frozen file. The grant and its conditions are the record directly below this one, written before the edit as section 6 requires.
+
+THE ADJUDICATOR'S ONE UNVERIFIED RISK IS NOW MEASURED, and it was measured without a restart. It ruled that whether this client version honours either key was UNVERIFIED here and that the sibling running both was n=1. Within the same session, on the tool call immediately after the two files were written, the harness's own injected attribution instruction CHANGED from ordering a `Co-Authored-By` trailer to ordering that no attribution line be added - and the new wording overrides a CLAUDE.md or memory rule asking for one, which is the opposite polarity of the instruction this item exists to stop. So the keys take effect live, in the running session, and the common-mode assumption the adjudicator flagged is discharged rather than inherited.
+
+WHAT THIS DOES AND DOES NOT CHANGE. It does not change whether a trailer can land: `.githooks/commit-msg` already refused one end to end and still does, and that gate remains the primary defence - a settings key is a request to the tool, a gate is a refusal by the repository. What it changes is that the rule is no longer defended by a model reading a memory note and declining a per-session instruction by hand, which is a human-in-the-loop answer to an automated question and fails the first time the note is not read. `docs/GATED.md` CS-G03 clause 3 now names both mechanisms, and records the blanked `attribution.pr` as a deliberate extension past what clause 3 asks for.
+
+
 ### 2026-09-19 - CS-1157 - A FROZEN-FILE GRANT, GRANTED BY AN ADJUDICATOR BEFORE THE EDIT. Scope is two top-level keys in .claude/settings.json and nothing else
 Verification: the ruling is reproducible - re-dispatch an adjudicator on the same proposal against this tree. The grant permits exactly `"attribution": { "commit": "", "pr": "" }` and `"includeCoAuthoredBy": false`, inserted after the `"$schema"` line; no hook, matcher, `env`, `permissions` or `$schema` byte may be touched. CONDITIONS, all carried: LF endings and 7-bit ASCII preserved; this record written before the edit; `tests/test_pretooluse_gate.py`, `tests/test_session_start_wiring.py` and `tests/ops/test_lane_background_tasks.py` re-run after it, those being the three modules that read this file.
 

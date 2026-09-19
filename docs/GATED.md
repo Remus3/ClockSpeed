@@ -397,6 +397,25 @@ Two facts force this, both measured rather than assumed:
    here rather than only in a habit because a trailer is trivial to reintroduce by default
    and impossible to remove later without the rewrite this section exists to avoid.
 
+   **TWO MECHANISMS CARRY THIS CLAUSE, and until CS-1157 only one of them existed.**
+   `.githooks/commit-msg` REFUSES a `co-authored-by` trailer end to end, on a polarity
+   deliberately wider than the rule, and `tests/test_commit_msg_gate.py` drives it - so the
+   trailer has never landed. But refusing is not the same as not generating: the harness
+   injected an attribution instruction into every session, worded as though it superseded
+   earlier guidance, and the only thing between that instruction and a refused commit was a
+   model reading a memory note and declining by hand each time. `.claude/settings.json` now
+   sets `attribution` to blank and `includeCoAuthoredBy` to false, under the frozen-file
+   grant recorded in `docs/LEDGER.md` under CS-1157, and the same two keys are set at user
+   scope so a repository with no settings file on this machine is covered too. BOTH KEYS,
+   because an older client reads only the deprecated one and would reintroduce the trailer
+   silently. The gate stays the primary defence and is not weakened by this: a settings key
+   is a request to the tool and the gate is a refusal by the repository.
+
+   The blanked `attribution.pr` suppresses the PR-body footer as well, which is MORE than
+   this clause asks for. That is a deliberate extension on this clause's own reasoning -
+   publication metadata is trivial to reintroduce and impossible to remove later - and it is
+   written down rather than left to be discovered.
+
 **Therefore the flip has an eighth precondition, additional to the seven above:** the
 published history is generated fresh; the identity it is authored under is chosen
 deliberately at that point rather than inherited from the local git config; and no commit

@@ -1101,27 +1101,6 @@ the uniqueness enforcement covers every needle-eligible fixture family rather th
 the fixture collision CS-1025 was filed over survives in two places the repair did not reach: `tests/audit/test_placement.py` still holds, at module level, `PLANTED_ROTATION = (0.5, -0.25, 0.125, 0.8125)` and `PLANTED_SCALE = (2.0, 0.5, -1.5)`, byte-identical to the pre-fix constants and colliding on the same rendering, feeding the membership-based anti-vacuity control inside `test_no_orientation_component_reaches_the_model_as_a_float` where one of seven needles is non-load-bearing; and in `tests/surface/test_map.py` the TRANSLATION components are needle-eligible but unswept, with `BUILT_TRANSLATION[0]` deliberately ambiguous at a count of two - no mutant was found for either, so both are weakened rather than defeated, but a future author writing an anti-vacuity control off a translation walks into the identical trap and the new uniqueness sweep will not see it
 
 
-## CS-1157
-
-### Acceptance
-
-the harness stops GENERATING the trailer, rather than being refused after it does: both
-attribution keys are set in `.claude/settings.json` under a recorded adjudicator grant, the
-same keys are advised at user scope, and `docs/GATED.md` CS-G03 clause 3 names the settings
-mechanism beside the gate so a reader learns of both
-
-### Full headline
-
-the CS-G03 clause 3 no-trailer rule is enforced only by a gate that REFUSES the trailer and
-by a model declining a per-session instruction to add one: `.githooks/commit-msg` blocks a
-`co-authored-by` trailer end to end and `tests/test_commit_msg_gate.py` drives it, so the
-trailer has never landed - but the harness injects an attribution instruction into EVERY
-session, worded as though it supersedes earlier guidance, and the only thing between that
-instruction and a refused commit is the model reading a memory note and declining by hand
-each time. The sibling repository Lanternlight set `attribution` and `includeCoAuthoredBy`
-in its own settings on 2026-09-06 and does not have the problem; this tree sets neither, at
-repository scope or at user scope
-
 ## CS-1155
 
 ### Acceptance
