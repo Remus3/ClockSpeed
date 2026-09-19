@@ -359,4 +359,3 @@ CS-1035 - `clockspeed/audit/inventory.py` carries CS-1020's ungraded-count shape
 CS-1036 - both CS-1025 and CS-1020 enforce their sweeps over a HAND-ENUMERATED population rather than one derived from the shipped model - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1037 - the fixture collision CS-1025 was filed over survives in two places the repair did not reach - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1155 - `tools/drift_guard.py::_walk` prunes DIRECTORIES and cannot express a file shape, so the walk over this repository returns 5 files `git ls-files` does not - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
-CS-1156 - `tests/conftest.py::redact_personal_data` covers exactly two of the four personal-data classes - a home path and the account name - and no credential class at all, which its own docstring says plainly - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`

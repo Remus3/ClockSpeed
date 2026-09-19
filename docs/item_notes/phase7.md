@@ -1122,24 +1122,3 @@ the walk still hands it to the character-set and secret readers. CS-1153 closed 
 DIRECTORY half deliberately and this is the residue, filed rather than left implied - the
 comment above `WALK_SKIP_ROOT_PATHS` names this item as the owner
 
-## CS-1156
-
-### Acceptance
-
-a credential class is registered in `tests/conftest.py`'s redaction rule set with a control
-that plants a synthetic key-shaped string into a failing test's rendered output and asserts
-the placeholder rather than the string, and `UNCOVERED_CLASSES` states what is still
-uncovered, so the gap is on the record either way
-
-### Full headline
-
-`tests/conftest.py::redact_personal_data` covers exactly two of the four personal-data
-classes - a home path and the account name - and no credential class at all, which its own
-docstring says plainly; but a pytest traceback renders the ARGUMENTS of the frame it crashed
-in, and a `subprocess.run(..., env=...)` frame renders the whole environment dict. Measured
-2026-09-19 in this session's own suite log: a `FileNotFoundError` on `sh` inside
-`tests/test_pre_push_ref_race.py` printed an `sk-ant-` prefixed key in full, beside the home
-path the redactor DID replace, so the redaction that ran is what makes the surviving
-credential look deliberate. Every test log, every CI artifact and every pasted failure is an
-echo path. CLAUDE.md non-negotiable 12 states the same rule for save-header bytes; nothing
-states it for credentials

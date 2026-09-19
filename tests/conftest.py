@@ -739,30 +739,45 @@ _CREDENTIAL_SHAPES: tuple[str, ...] = (
 
 
 def _build_credential_rules() -> tuple[tuple[re.Pattern[str], str], ...]:
-    """Literals first, longest first, then the vendor shapes.
+    """The vendor shapes first, then the literals, longest literal first.
 
-    ORDER IS LOAD-BEARING IN ONE DIRECTION ONLY. A literal that also matches a
-    shape is replaced by whichever runs first and the output is identical, so
-    the order does not decide correctness there. It decides it where a literal
-    is a PREFIX of a longer one, which is why literals are sorted longest
-    first - the same reason `_build_redaction_rules` sorts its home spellings
-    that way.
+    ORDER DECIDES CORRECTNESS, AND THE FIRST BUILD HAD IT BACKWARDS AND SAID SO
+    IN A SENTENCE THAT WAS FALSE. That sentence claimed a value matching both a
+    literal and a shape came out identical either way. It does not, and the
+    counter-example is one an adversary measured rather than one reasoned about:
+    with a listed variable holding ``ghp_`` + twenty ``A``s, against the text
+    ``value=<that token>BBBB end``, LITERALS FIRST replaces exactly the bytes the
+    literal was built from and leaves ``BBBB`` standing beside the placeholder,
+    while SHAPES FIRST matches greedily through the trailing alphanumerics and
+    leaves nothing. Residue beside a placeholder is the worst of the three
+    outcomes: it looks redacted.
+
+    Literals are still sorted longest first, for the reason
+    `_build_redaction_rules` sorts its home spellings that way - a literal that
+    is a PREFIX of a longer one would otherwise cut the longer one in half.
+
+    THE FLOOR IS APPLIED TO THE VALUE THAT IS COMPILED. The first build measured
+    the STRIPPED length and compiled the RAW value, so a padded variable
+    contributed a literal that could never match rendered text - a rule that
+    passes every test by never firing.
 
     Returns:
         ``(pattern, replacement)`` pairs, applied in order. No class tag: these
         rules serve no personal-data class and
         tests/test_report_redaction_classes.py must keep finding none.
     """
-    values = {os.environ.get(name, "") for name in _CREDENTIAL_VARIABLES}
-    literals = sorted(
-        (value for value in values if len(value.strip()) >= _CREDENTIAL_MIN_LITERAL),
-        key=len,
-        reverse=True,
-    )
     rules: list[tuple[re.Pattern[str], str]] = [
-        (re.compile(re.escape(value)), REDACTED_CREDENTIAL) for value in literals
+        (re.compile(shape), REDACTED_CREDENTIAL) for shape in _CREDENTIAL_SHAPES
     ]
-    rules.extend((re.compile(shape), REDACTED_CREDENTIAL) for shape in _CREDENTIAL_SHAPES)
+    values = {os.environ.get(name, "").strip() for name in _CREDENTIAL_VARIABLES}
+    rules.extend(
+        (re.compile(re.escape(value)), REDACTED_CREDENTIAL)
+        for value in sorted(
+            (value for value in values if len(value) >= _CREDENTIAL_MIN_LITERAL),
+            key=len,
+            reverse=True,
+        )
+    )
     return tuple(rules)
 
 
@@ -773,14 +788,45 @@ def _build_credential_rules() -> tuple[tuple[re.Pattern[str], str], ...]:
 _CREDENTIAL_RULES: tuple[tuple[re.Pattern[str], str], ...] = _build_credential_rules()
 
 
+#: WHAT THIS LAYER DOES NOT REACH, REGISTERED RATHER THAN LEFT TO BE
+#: DISCOVERED - the shape :data:`UNCOVERED_CLASSES` established for the
+#: personal-data layer, and for the same reason: a dropped case is a silence,
+#: a stated exemption is a fact the next reader can check.
+#: tests/test_credential_redaction.py asserts each entry is genuinely still
+#: uncovered, so an entry that quietly starts working is a RED too.
+UNCOVERED_SECRETS: Mapping[str, str] = MappingProxyType(
+    {
+        "unlisted-and-unprefixed": (
+            "a secret held in a variable nobody listed AND carrying no vendor "
+            "prefix is reachable by neither rule kind. The two kinds were "
+            "chosen to cover each other's blind spot and this is the residue "
+            "where both are blind at once. Closing it needs entropy detection, "
+            "which on arbitrary report prose is the same too-narrow-and-too-"
+            "greedy knob that backed CS-860's rules out."
+        ),
+        "not-in-the-environment": (
+            "a secret read from a file, a keyring or a service at runtime is "
+            "never a value this module can enumerate, so no literal rule can "
+            "be built from it. Only the vendor shapes can reach one."
+        ),
+        "internal-errors": (
+            "a pytest INTERNALERROR is rendered by pytest itself and not from "
+            "a report object, so no report hook sees it. Collection reports "
+            "ARE reached - see pytest_collectreport below, added when an "
+            "adversary reproduced the original leak at import time."
+        ),
+    }
+)
+
+
 def redact_credentials(text: str) -> str:
     """Replace every credential this module can recognise with a placeholder.
 
     NOT A COMPLETE SECRET FILTER, and it must not be described as one. It
     covers the values of :data:`_CREDENTIAL_VARIABLES` on this machine, and any
-    string carrying one of the vendor prefixes in :data:`_CREDENTIAL_SHAPES`. A
-    secret with no recognisable prefix, held in a variable nobody listed, in a
-    file rather than the environment, is out of reach here.
+    string carrying one of the vendor prefixes in :data:`_CREDENTIAL_SHAPES`.
+    What it does NOT reach is declared in :data:`UNCOVERED_SECRETS`, with a
+    reason on each entry.
 
     Args:
         text: Rendered output.
@@ -926,7 +972,7 @@ def _redacted_crash(longrepr: object) -> _RedactedCrash | None:
     )
 
 
-def _redact_report(report: pytest.TestReport) -> None:
+def _redact_report(report: pytest.TestReport | pytest.CollectReport) -> None:
     """Redact a report's rendered failure and its captured output, in place.
 
     Two channels, both of which a forced failure prints. ``longrepr`` carries
@@ -1005,9 +1051,17 @@ def pytest_runtest_makereport() -> Generator[None, pytest.TestReport, pytest.Tes
     terminal through a parallel worker need the second hook below as well.
 
     NOT reached: pytest's session header, the warnings summary - which pytest
-    builds from its own warning store rather than from a report - collection
-    reports, ``--co`` output, and internal errors. CS-447 owns the session
-    header and the warnings summary.
+    builds from its own warning store rather than from a report - ``--co``
+    output, and internal errors. CS-447 owns the session header and the
+    warnings summary.
+
+    COLLECTION REPORTS WERE ON THAT LIST AND ARE NOT ANY MORE. An adversary
+    reproduced CS-1156's original leak at IMPORT time - the same
+    ``subprocess.run(..., env=...)`` frame, moved to module level - and the
+    planted credential printed three times with no placeholder anywhere,
+    because a collection failure is rendered from a CollectReport that no hook
+    here touched. :func:`pytest_collectreport` below closes it, and it applies
+    the SAME redaction, so the two paths cannot drift apart.
 
     REACHED, and this list was WRONG until an adversary measured it. Output
     from a child process the suite starts IS reached whenever the child writes
@@ -1060,6 +1114,40 @@ def _redact_worker_description(node: Any) -> None:
     cached = getattr(node, "_workerinfocache", None)
     if isinstance(cached, str):
         node._workerinfocache = redact_report(cached)  # noqa: SLF001
+
+
+@pytest.hookimpl(tryfirst=True)
+def pytest_collectreport(report: pytest.CollectReport) -> None:
+    """Redact a COLLECTION failure the same way a test failure is redacted.
+
+    CS-1156. A module that raises at import - which is where a session-scoped
+    probe, a module-level constant or a module-level subprocess call lives -
+    fails during COLLECTION, and pytest renders that from a CollectReport.
+    Nothing here saw one until an adversary planted the original leaking frame
+    at module level and watched the credential print three times.
+
+    It calls the same :func:`_redact_report`, deliberately: a second
+    implementation would be a second thing to keep in step, and the channels a
+    CollectReport carries - ``longrepr`` and ``sections`` - are the two that
+    helper already reads.
+
+    THIS ONE IS NOT A WRAPPER, AND THE RUNTEST HOOK ABOVE IS. The difference is
+    pytest's own: ``pytest_runtest_makereport`` BUILDS a report and a wrapper is
+    how you get at the built one, while ``pytest_collectreport`` is HANDED one
+    and returns nothing. Written as a wrapper it yields the hook's combined
+    result - a list - and the first attribute write raises INTERNALERROR, which
+    is how this was caught. ``tryfirst`` puts it ahead of pytest's own terminal
+    reporter, which is the consumer that renders the text.
+
+    Args:
+        report: The collection report to sanitize in place.
+    """
+    try:
+        _redact_report(report)
+    except Exception as exc:
+        # Fails CLOSED, exactly as the runtest hook does, and for the same
+        # reason: the exception MESSAGE would itself be an echo path.
+        report.longrepr = _REDACTION_FAILED.format(kind=type(exc).__name__)
 
 
 @pytest.hookimpl(tryfirst=True)
