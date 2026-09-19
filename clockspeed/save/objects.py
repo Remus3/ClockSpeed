@@ -302,6 +302,7 @@ __all__ = [
     "ObjectWarning",
     "PropertyResult",
     "RecordIndex",
+    "ReferenceList",
     "ReferencePair",
     "ReferenceResolution",
     "RunReference",
@@ -316,6 +317,7 @@ __all__ = [
     "container_candidate_words",
     "decode_struct_interior",
     "derive_item_list_classes",
+    "derive_reference_list_classes",
     "derive_reference_pair_classes",
     "derive_zero_remainder_classes",
     "index_records",
@@ -324,6 +326,7 @@ __all__ = [
     "parse_properties",
     "read_item_list",
     "read_properties",
+    "read_reference_list",
     "read_reference_pair",
     "read_trailing_run",
     "read_zero_remainder",
@@ -4354,13 +4357,32 @@ UNMEASURED_PAYLOAD_REGIONS: Final[Mapping[str, str]] = MappingProxyType(
             "are byte-identical to one, no reading of the run can tell them "
             "apart, and CS-1119 owns that question. What is read is the VALUE "
             "at a derived landing point, exactly as the lead field is. "
+            "NARROWED AGAIN BY CS-828, ON A FOURTH DERIVED CLASS SET AND "
+            "NOWHERE ELSE: where the remainder is a COUNT-PREFIXED LIST OF "
+            "OBJECT REFERENCES it is read by read_reference_list, whose entry "
+            "count comes out of the bytes, whose string widths come from their "
+            "own length prefixes and whose per-entry scalar is one of the two "
+            "widths REFERENCE_LIST_ENTRY_PREFIX_WIDTHS allows, never the "
+            "leftover. THAT SCALAR IS NOT AN UNCONDITIONAL FIELD - one "
+            "carrying class in this library writes it ahead of every reference "
+            "and two write the reference alone - so "
+            "derive_reference_list_classes derives the FORM as well as the "
+            "membership, from the body, and admits a class only when every one "
+            "of its remainder-bearing records reads at the SAME width AND at "
+            "exactly one of them. A COUNT OF ZERO IS REFUSED, which is how "
+            "this reading declines rather than resolves the collision with the "
+            "zero-valued residual above. On those classes' payloads unread "
+            "falls to zero and the list is reported as "
+            "TrailingRun.reference_list. "
             "WHAT REMAINS AFTER THAT, and it is CS-1119 rather than this "
             "entry: whether that zero-valued residual IS an empty item list or "
             "a class carrying no list at all, which no reading of the run "
             "decides; and a remainder that is a large nested structure nothing "
             "in the run describes, carried by a set of classes CS-1119's note "
             "owns the measurement of - its filed headline calls it one class "
-            "and that characterisation is measured false. "
+            "and that characterisation is measured false. THE RESIDUAL "
+            "POPULATION IS NOT ONE SHAPE EITHER, which is a CS-828 measurement "
+            "filed as CS-1149 rather than restated here. "
             "NO FIGURE ABOVE IS RESTATED IN ANY TEST: "
             "tests/save/test_trailing_run.py derives the population from this "
             "module's own TRAILING_RUN_PAIRS on every run and reports COUNTS "
@@ -4849,6 +4871,32 @@ REFERENCE_PAIR_TAIL_WIDTHS: Final[tuple[int, ...]] = (0, REFERENCE_PAIR_TAIL_BYT
 #: that has not derived reads exactly what CS-828 left, and shared rather than
 #: rebuilt so the default is not a new object on every call.
 _NO_REFERENCE_PAIR_CLASSES: Final[Mapping[str, int]] = MappingProxyType({})
+
+#: How wide the per-entry scalar the PREFIXED form of the reference LIST writes
+#: is - CS-828. One int32, and it is a SHIPPED CONSTANT rather than whatever
+#: was left over: a width taken from ``end - at`` closes on every payload and
+#: no reading of it could fail, which is the defect that refuted CS-830 after
+#: it had merged.
+REFERENCE_LIST_ENTRY_PREFIX_BYTES: Final = INT32_SIZE
+
+#: The per-entry prefix widths a body may derive. A CLOSED SET, for the same
+#: reason :data:`REFERENCE_PAIR_TAIL_WIDTHS` is one. Measured on this project's
+#: library BOTH are written: one carrying class writes the scalar ahead of every
+#: reference and two write the reference alone, so a reader assuming either form
+#: unconditionally would mis-read every body of the other.
+REFERENCE_LIST_ENTRY_PREFIX_WIDTHS: Final[tuple[int, ...]] = (
+    0,
+    REFERENCE_LIST_ENTRY_PREFIX_BYTES,
+)
+
+#: How wide the list's own leading count is. Its VALUE is read out of the bytes
+#: and is the thing that says how many entries follow - the one width in this
+#: shape that the payload supplies rather than the module.
+REFERENCE_LIST_COUNT_BYTES: Final = INT32_SIZE
+
+#: The default vocabulary :func:`read_properties` reads this shape with. EMPTY,
+#: so a caller that has not derived reads exactly what CS-828 left.
+_NO_REFERENCE_LIST_CLASSES: Final[Mapping[str, int]] = MappingProxyType({})
 
 #: How wide the ZERO REMAINDER shape is - CS-828. One int32, and the width is
 #: a SHIPPED CONSTANT rather than whatever was left over: a reader sized by
@@ -6408,6 +6456,30 @@ class ReferencePair:
         )
 
 
+def _walk_one_run_reference(body: bytes, at: int, end: int) -> tuple[RunReference, int] | None:
+    """Walk one reference's two length-prefixed strings, or refuse.
+
+    AN EMPTY STRING IS REFUSED, and not for tidiness: four zero bytes read as an
+    empty string would make any run of zeroes read as a reference, which is the
+    same trap :func:`_walk_item_entries` refuses an empty path for.
+
+    Args:
+        body: The decompressed body.
+        at: The reference's first byte.
+        end: The first byte past the payload.
+
+    Returns:
+        The reference and the offset past it, or None.
+    """
+    level = _payload_text(body, at, end)
+    if level is None or not level[0]:
+        return None
+    path = _payload_text(body, level[1], end)
+    if path is None or not path[0]:
+        return None
+    return (RunReference(level_reference=level[0], object_path=path[0]), path[1])
+
+
 def _walk_run_references(
     body: bytes, at: int, end: int
 ) -> tuple[tuple[RunReference, ...], int] | None:
@@ -6476,6 +6548,125 @@ def read_reference_pair(body: bytes, at: int, end: int, *, tail_bytes: int) -> R
     if walked is None or walked[1] + tail_bytes != end:
         return None
     return ReferencePair(references=walked[0], tail_bytes=tail_bytes, width=end - at)
+
+
+@dataclass(frozen=True)
+class ReferenceList:
+    """A count-prefixed list of object references a trailing remainder carries.
+
+    Attributes:
+        references: The references, in the order the run writes them.
+        entry_prefix_bytes: How wide a scalar preceded each one - one of
+            :data:`REFERENCE_LIST_ENTRY_PREFIX_WIDTHS`, and never a leftover.
+        width: How many bytes the list occupies, DERIVED from the leading
+            count, that prefix width and each string's own length prefix.
+    """
+
+    references: tuple[RunReference, ...]
+    entry_prefix_bytes: int
+    width: int
+
+    def __repr__(self) -> str:
+        """Render counts and widths only.
+
+        Returns:
+            The safe rendering.
+        """
+        return (
+            f"{type(self).__name__}(references={len(self.references)}, "
+            f"entry_prefix_bytes={self.entry_prefix_bytes}, width={self.width})"
+        )
+
+
+def _walk_run_reference_entries(
+    body: bytes, at: int, end: int, *, count: int, prefix: int
+) -> tuple[tuple[RunReference, ...], int] | None:
+    """Walk ``count`` entries of a reference list, or refuse.
+
+    Args:
+        body: The decompressed body.
+        at: The first entry's first byte.
+        end: The first byte past the payload.
+        count: How many entries the list's own prefix said there are.
+        prefix: How wide a scalar precedes each reference.
+
+    Returns:
+        The references and the offset past the last one, or None.
+    """
+    references: list[RunReference] = []
+    cursor = at
+    for _ in range(count):
+        cursor += prefix
+        if cursor > end:
+            return None
+        walked = _walk_one_run_reference(body, cursor, end)
+        if walked is None:
+            return None
+        references.append(walked[0])
+        cursor = walked[1]
+    return (tuple(references), cursor)
+
+
+def read_reference_list(
+    body: bytes, at: int, end: int, *, entry_prefix_bytes: int
+) -> ReferenceList | None:
+    """Read a count-prefixed object-reference list out of a remainder - CS-828.
+
+    **EVERY WIDTH HERE COMES OUT OF THE BYTES OR OUT OF A SHIPPED CONSTANT.**
+    The leading int32 says how many entries follow, each string's own length
+    prefix says how wide it is, and ``entry_prefix_bytes`` is one of
+    :data:`REFERENCE_LIST_ENTRY_PREFIX_WIDTHS` rather than whatever was left
+    over. ``end`` is a BOUND and a VALIDATION and is never a source of width:
+    the walk refuses rather than stretching to reach it, which is what makes
+    the reading falsifiable. A partition taking its width from ``end`` would
+    close on every payload and could not fail - the defect that refuted CS-830
+    after it had merged - and ``tests/save/test_reference_list.py`` holds an arm
+    that reddens on exactly that swap.
+
+    **A COUNT OF ZERO IS REFUSED, AND THAT IS THE COLLISION BEING DECLINED
+    RATHER THAN RESOLVED.** Four zero bytes are an empty count-prefixed list
+    AND an empty string AND the zero-valued residual
+    :func:`read_zero_remainder` reads. Nothing in the run tells those apart -
+    CS-1068's root cause seen from a third side - so this reader claims none of
+    them and requires at least one entry it can walk.
+
+    NOTHING HERE RAISES. A count claiming more entries than the payload holds, a
+    length prefix reaching past it, an empty string where the corpus writes a
+    path, and a walk that does not land on ``end`` are all REPORTED as no list,
+    per non-negotiable 7.
+
+    THE FORM IS NOT AN INPUT THE BYTES SUPPLY. Whether a body's carrying class
+    writes the per-entry scalar is a property of the schema rather than of the
+    run, and :func:`derive_reference_list_classes` is what answers it - from the
+    body.
+
+    Args:
+        body: The decompressed body.
+        at: The remainder's first byte.
+        end: The first byte past the payload.
+        entry_prefix_bytes: The scalar width to require ahead of each reference.
+
+    Returns:
+        The list, or None when the run is not one in that form.
+    """
+    if at < 0 or end > len(body) or entry_prefix_bytes not in REFERENCE_LIST_ENTRY_PREFIX_WIDTHS:
+        return None
+    if end - at < REFERENCE_LIST_COUNT_BYTES:
+        return None
+    count = struct.unpack_from("<i", body, at)[0]
+    entry_floor = entry_prefix_bytes + INT32_SIZE * 2
+    if count <= 0 or count > (end - at - REFERENCE_LIST_COUNT_BYTES) // entry_floor:
+        return None
+    walked = _walk_run_reference_entries(
+        body, at + REFERENCE_LIST_COUNT_BYTES, end, count=count, prefix=entry_prefix_bytes
+    )
+    if walked is None or walked[1] != end:
+        return None
+    return ReferenceList(
+        references=walked[0],
+        entry_prefix_bytes=entry_prefix_bytes,
+        width=end - at,
+    )
 
 
 @dataclass(frozen=True, repr=False)
@@ -6590,6 +6781,11 @@ class TrailingRun:
             the record's class was named by
             :func:`derive_reference_pair_classes` AND the bytes then read as a
             pair at the width that derivation derived for the body.
+        reference_list: The count-prefixed list of object references the
+            remainder carried, or None - CS-828. Present under the same rule
+            :attr:`items` is present under: the record's class was named by
+            :func:`derive_reference_list_classes` AND the bytes then read as a
+            list in the form that derivation derived for the body.
         zero_remainder: The zero-valued int32 the remainder carried, or None
             - CS-828. Present under the same rule the two above are: the
             record's class was named by
@@ -6604,6 +6800,7 @@ class TrailingRun:
     unread: int
     items: ItemList | None = None
     references: ReferencePair | None = None
+    reference_list: ReferenceList | None = None
     zero_remainder: ZeroRemainder | None = None
 
 
@@ -7062,6 +7259,47 @@ def _run_with_reference_pair(
     )
 
 
+def _run_with_reference_list(
+    body: bytes,
+    record: ObjectRecord,
+    run: TrailingRun | None,
+    reference_list_classes: Mapping[str, int],
+) -> TrailingRun | None:
+    """Read the run's remainder as a count-prefixed reference list when its class carries one.
+
+    THE VOCABULARY IS A GATE ON THE READING AND NEVER THE READING ITSELF, exactly
+    as in :func:`_run_with_item_list`. A class named here whose bytes do not read
+    in the derived form comes back exactly as CS-828 left it, so a derivation
+    that named everything would close nothing.
+
+    Args:
+        body: The decompressed body.
+        record: The record the run came from.
+        run: The run the walk read, or None.
+        reference_list_classes: Each derived carrier class to its per-entry width.
+
+    Returns:
+        The run, with its remainder read when it read.
+    """
+    if run is None or run.lead is None or not run.unread:
+        return run
+    entry_prefix_bytes = reference_list_classes.get(class_name_of(record.type_path))
+    if entry_prefix_bytes is None:
+        return run
+    end = record.body_offset + record.body_length
+    read = read_reference_list(body, end - run.unread, end, entry_prefix_bytes=entry_prefix_bytes)
+    if read is None:
+        return run
+    return TrailingRun(
+        width=run.width,
+        lead=run.lead,
+        unread=run.unread - read.width,
+        items=run.items,
+        references=run.references,
+        reference_list=read,
+    )
+
+
 def _run_with_zero_remainder(
     body: bytes,
     record: ObjectRecord,
@@ -7075,9 +7313,12 @@ def _run_with_zero_remainder(
     do not read comes back exactly as CS-828 left it, so a derivation that
     named everything would close nothing.
 
-    IT RUNS LAST OF THE THREE, and the order is load-bearing rather than
-    arbitrary: a remainder an item list or a reference pair already read has
-    ``unread`` at zero and never reaches here, so no region is counted twice.
+    IT RUNS LAST OF THE FOUR, and the order is load-bearing rather than
+    arbitrary: a remainder an item list, a reference pair or a reference list
+    already read has ``unread`` at zero and never reaches here, so no region is
+    counted twice. The ordering is not what keeps this reading off that list's
+    subject either - a zero-valued residual reads a COUNT of zero, which
+    :func:`read_reference_list` refuses outright.
 
     Args:
         body: The decompressed body.
@@ -7102,6 +7343,7 @@ def _run_with_zero_remainder(
         unread=run.unread - read.width,
         items=run.items,
         references=run.references,
+        reference_list=run.reference_list,
         zero_remainder=read,
     )
 
@@ -7244,6 +7486,92 @@ def derive_reference_pair_classes(
     return MappingProxyType(derived)
 
 
+def _reference_list_form_of(body: bytes, at: int, end: int) -> int | None:
+    """Which of the allowed per-entry widths this remainder reads at, if any.
+
+    **MORE THAN ONE MATCH IS REFUSED RATHER THAN RESOLVED BY ORDER, WHICH IS A
+    WEAKER CLAIM THAN :func:`_reference_pair_width_of` CAN MAKE AND IS STATED
+    RATHER THAN ROUNDED UP.** There the string walk is fixed and only the tail
+    moves, so exactly one width can carry one cursor onto ``end``. Here the two
+    forms begin their walks at DIFFERENT offsets, so nothing structural forbids
+    both landing - and taking the first would make the answer a property of the
+    order this module happens to list the widths in.
+
+    Args:
+        body: The decompressed body.
+        at: The remainder's first byte.
+        end: The first byte past the payload.
+
+    Returns:
+        The width, or None when the remainder is not a list at exactly one.
+    """
+    reads = tuple(
+        width
+        for width in REFERENCE_LIST_ENTRY_PREFIX_WIDTHS
+        if read_reference_list(body, at, end, entry_prefix_bytes=width) is not None
+    )
+    return reads[0] if len(reads) == 1 else None
+
+
+def derive_reference_list_classes(
+    body: bytes,
+    records: Iterable[ObjectRecord],
+    *,
+    save_version: int | None = None,
+    header_version: int | None = None,
+) -> Mapping[str, int]:
+    """Pick the classes whose remainder is a count-prefixed reference list - CS-828.
+
+    **DERIVED FROM THE CORPUS, NEVER TRANSCRIBED**, for the reason
+    :func:`derive_item_list_classes` is: a hand-maintained vocabulary of game
+    content is the thing that rots, and CS-829's note forbids that shape by
+    name. It answers the FORM as well as the membership, because the per-entry
+    scalar is not unconditional - measured on this project's library one
+    carrying class writes it ahead of every reference and two write the
+    reference alone.
+
+    **A CLASS EARNS ITS PLACE BY BEING CONSISTENT, AND THAT IS THE ANTI-VACUITY
+    PROPERTY**, exactly as in :func:`derive_reference_pair_classes`. Every
+    remainder-bearing record of the class in this body must read as a list, and
+    all of them at the SAME per-entry width. A reader taking each record at
+    whichever width happened to fit would admit every mixture, which is
+    arithmetic wearing a derivation's clothes.
+
+    A body that stops carrying the shape therefore says so by deriving nothing,
+    rather than going quietly green.
+
+    Args:
+        body: The decompressed body.
+        records: The records to derive from - a body's whole table.
+        save_version: The save version the body was walked on, or None.
+        header_version: The header version the body was walked on, or None.
+
+    Returns:
+        Each carrier class name to the per-entry width its records agree on.
+    """
+    widths: dict[str, set[int | None]] = {}
+    for record in records:
+        if not record.body_length:
+            continue
+        result = read_properties(
+            body, record, save_version=save_version, header_version=header_version
+        )
+        run = result.trailing_run
+        if run is None or run.lead is None or not run.unread:
+            continue
+        end = record.body_offset + record.body_length
+        seen = widths.setdefault(class_name_of(record.type_path), set())
+        seen.add(_reference_list_form_of(body, end - run.unread, end))
+    derived: dict[str, int] = {}
+    for name, seen in widths.items():
+        if len(seen) != 1:
+            continue
+        only = next(iter(seen))
+        if only is not None:
+            derived[name] = only
+    return MappingProxyType(derived)
+
+
 def derive_zero_remainder_classes(
     body: bytes,
     records: Iterable[ObjectRecord],
@@ -7300,7 +7628,7 @@ def derive_zero_remainder_classes(
     return frozenset(name for name, reads in verdicts.items() if reads)
 
 
-def read_properties(
+def read_properties(  # noqa: PLR0913 - one keyword per derived remainder vocabulary is the clearest surface
     body: bytes,
     record: ObjectRecord,
     property_map: PropertyMap | None = None,
@@ -7309,6 +7637,7 @@ def read_properties(
     header_version: int | None = None,
     item_list_classes: Collection[str] = (),
     reference_pair_classes: Mapping[str, int] = _NO_REFERENCE_PAIR_CLASSES,
+    reference_list_classes: Mapping[str, int] = _NO_REFERENCE_LIST_CLASSES,
     zero_remainder_classes: Collection[str] = _NO_ZERO_REMAINDER_CLASSES,
 ) -> PropertyResult:
     """Decode one record's measured properties and report what was skipped.
@@ -7385,6 +7714,10 @@ def read_properties(
             carrier to the tail width its records agree on, from
             :func:`derive_reference_pair_classes`. DEFAULTED EMPTY for the same
             reason, so a caller that has not derived reads what CS-828 left.
+        reference_list_classes: Each class name derived as a reference-LIST
+            carrier to the per-entry prefix width its records agree on, from
+            :func:`derive_reference_list_classes`. DEFAULTED EMPTY for the same
+            reason.
         zero_remainder_classes: Class names derived as zero-remainder carriers
             by :func:`derive_zero_remainder_classes`. DEFAULTED EMPTY for the
             same reason again - and the default is exactly why the library
@@ -7527,11 +7860,16 @@ def read_properties(
         trailing_run=_run_with_zero_remainder(
             body,
             record,
-            _run_with_reference_pair(
+            _run_with_reference_list(
                 body,
                 record,
-                _run_with_item_list(body, record, walked.trailing_run, item_list_classes),
-                reference_pair_classes,
+                _run_with_reference_pair(
+                    body,
+                    record,
+                    _run_with_item_list(body, record, walked.trailing_run, item_list_classes),
+                    reference_pair_classes,
+                ),
+                reference_list_classes,
             ),
             zero_remainder_classes,
         ),

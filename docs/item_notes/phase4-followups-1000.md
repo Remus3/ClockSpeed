@@ -1195,3 +1195,46 @@ own remainder population contradicts, with the corrected characterisation derive
 the library by a skip-if-absent test reporting COUNTS ONLY rather than transcribed
 into prose, and an arm that reddens when the characterisation and the derived
 population disagree
+
+## CS-1149
+
+### Filed 2026-09-19 by the CS-828 cycle, from that item's own measurement
+
+**WHAT IS RECORDED AND WHY IT IS WRONG.** Four blocks of CS-828's note and the
+shipped `UNMEASURED_PAYLOAD_REGIONS` entry describe what is left of the trailing
+run as ONE shape - "a remainder that is a large nested structure nothing in the
+run describes". That sentence was true of the LARGEST shape and was written as
+though it were true of the population. Re-measured this cycle over the three
+pairs CS-828 covers, the residual splits into at least FIVE distinct grammars,
+and the fifth cycle read one of them - a count-prefixed list of object
+references - without touching the nested structure at all. A residual described
+as one shape invites the next cycle to conclude that nothing short of the hard
+one is available, which is the opposite of what the bytes say.
+
+**WHY IT IS A ROW RATHER THAN A PARAGRAPH IN CS-828.** The correction belongs
+wherever the census lives, and no file owns a census today: CS-828's note is
+prose, the region entry is prose, and `tests/save/test_trailing_run.py` reports
+the residual as ONE number per pair with no breakdown. A prose fix would rot the
+same way this one did. **DO NOT CLOSE THIS BY EDITING THE SENTENCE** - a
+sentence is exactly what was wrong.
+
+**WHAT THE CENSUS MUST NOT BECOME.** A per-class table of game content
+transcribed into a tracked file is the shape CS-829's note forbids by name, and
+a class name read out of a save is game content. The census is therefore COUNTS
+ONLY - how many distinct remainder shapes survive and how the residual
+distributes across them - derived off the body on every run and never written
+down. `tests/save/test_reference_list.py` and `tests/save/test_reference_pair.py`
+both show the containment this has to keep.
+
+**RELATED AND NOT THE SAME.** [[CS-1148]] corrects a carrier COUNT inside
+CS-1119's headline. This corrects the claim that the residual is one SHAPE. Both
+were measured by CS-828 cycles and neither subsumes the other.
+
+### Acceptance
+
+the residual population of the trailing run is reported as a breakdown across
+the distinct remainder grammars rather than as one figure, derived off the
+library on every run and proven by a skip-if-absent test reporting COUNTS ONLY
+with no class name in any assertion or message, plus an arm that reddens when a
+prose characterisation of the residual in `clockspeed/save/objects.py` names a
+shape count the derivation does not support

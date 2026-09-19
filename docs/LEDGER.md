@@ -75,6 +75,88 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-09-19 - CS-828 - NOT A COMPLETION RECORD. NOTHING CLOSED. CS-828 STAYS OPEN. The count-prefixed reference list reads, and the residual is measured to be five shapes rather than one
+
+**THE ITEM STAYS OPEN AND ITS ACCEPTANCE IS UNCHANGED.** This is the fifth reading
+recorded against the trailing run and the fourth narrowing filed as a measurement rather
+than a closure. The clause asks for the run's contents on EVERY payload of the (10,36),
+(13,42) and (14,52) pairs; a residual population survives on every one of them, and this
+cycle read none of the shape that carries most of it.
+
+**WHAT SHIPPED.** `clockspeed/save/objects.read_reference_list` reads a trailing
+remainder that opens with an int32 COUNT and carries that many object references, each
+optionally preceded by a fixed-width scalar, reporting them on the new
+`TrailingRun.reference_list` with `unread` falling to zero.
+`derive_reference_list_classes` picks the carrying classes off the body being read and
+answers the FORM with them, and `read_properties` takes the vocabulary as
+`reference_list_classes`, defaulted empty like the three before it and applied after the
+pair and before the zero remainder so a remainder an earlier reading closed is never
+counted twice.
+
+**THE DEFECT, AND IT IS A GRAMMAR THAT WAS NEVER TRIED RATHER THAN ONE THAT FAILED.**
+The four shipped readings between them covered a bare two-reference pair, a
+count-prefixed ITEM list and a four-byte zero residual. A remainder that is a count
+followed by object references matched none of them, so every payload carrying one was
+reported as `unread` - correctly, but as though no grammar in the family reached it.
+
+**WHY IT IS NOT THE CS-830 DEFECT.** That defect is a width taken FROM the observation,
+which closes on every payload and cannot fail. Every width here comes out of the bytes or
+out of a shipped constant: the leading count says how many entries follow, each string's
+own length prefix says how wide it is, and the per-entry scalar is one of the two widths
+`REFERENCE_LIST_ENTRY_PREFIX_WIDTHS` allows. The walk must land EXACTLY on the declared
+end, so a run that is not a list at that form is refused rather than stretched.
+`tests/save/test_reference_list.py::test_the_width_is_derived_from_the_prefixes_and_not_from_the_declared_end`
+is the arm that inverts when the derivation is swapped for the observation.
+
+**THE PER-ENTRY SCALAR IS NOT AN UNCONDITIONAL FIELD.** Measured over this library, one
+carrying class writes it ahead of every reference and two write the reference alone - the
+same shape the reference pair's tail turned out to have. So the FORM is derived per body,
+a class is admitted only when every one of its remainder-bearing records reads at the
+SAME width, and
+`tests/save/test_reference_list.py::test_the_corpus_derives_more_than_one_entry_form`
+reads the expectation off the shipped width set rather than restating it.
+
+**AMBIGUITY IS DECLINED RATHER THAN RESOLVED BY ORDER, AND THIS READER MAKES A WEAKER
+CLAIM THAN `read_reference_pair` DOES.** That reader can argue at most one tail width
+reaches the declared end, because its string walk is fixed and only the tail moves. Here
+the two forms begin their walks at DIFFERENT offsets, so nothing structural forbids both
+landing, and taking the first would make the answer a property of the order the widths
+are listed in. `_reference_list_form_of` returns nothing when more than one width reads.
+`tests/save/test_reference_list.py::test_a_remainder_that_reads_at_both_forms_derives_nothing`
+holds it against a run CONSTRUCTED to read at both, and the SHIPPED reader rather than
+the fixture is what asserts the run is ambiguous - so the arm cannot pass because the
+construction quietly stopped working.
+
+**A COUNT OF ZERO IS REFUSED, WHICH IS A THIRD SIDE OF THE CS-1068 COLLISION.** Four zero
+bytes are an empty count-prefixed list AND an empty string AND the zero-valued residual
+`read_zero_remainder` reads. Nothing in the run tells those apart, so this reader claims
+none of them and requires at least one entry it can walk. The ordering of the four
+readers is NOT what keeps them apart; the refusal is.
+
+**THE SIBLING SWEEP, AND IT IS THE MOST REUSABLE THING THIS CYCLE PRODUCED.** The
+residual was re-measured before any code was written. Four blocks of CS-828's note and
+the shipped `UNMEASURED_PAYLOAD_REGIONS` entry describe what is left as ONE shape, a
+large nested structure. It is at least FIVE distinct grammars on the three pairs this
+item covers, of which the nested one carries the large majority. The reference list was
+picked because it is the one the existing family already had the primitives for; the
+correction to the recorded characterisation is FILED as CS-1149 rather than applied as a
+prose edit, because a prose sentence with no owner is exactly what rotted. The shipped
+region entry now points at that row instead of repeating the false claim.
+
+**WHAT REMAINS OPEN ON CS-828.** The nested structure CS-1119 owns, and the three smaller
+shapes CS-1149's census will name by count. The clause says every payload of the three
+pairs.
+
+**TIER AND EVIDENCE.** Tier 2 - the save-path property reader's public interface widened
+by a keyword and `TrailingRun` grew a field. Tests added: 28 in the new
+`tests/save/test_reference_list.py`, with `tests/save/test_trailing_run.py`'s library
+sweep updated to derive and pass the fourth vocabulary as a REQUIRED keyword, which is
+what stops the CS-828 third-partial-ship defect reappearing on this reading.
+
+**CI IS RECORDED BY THE DRIVER AND WAS NOT OBSERVED BY THIS WORKER**, per the lane's
+section 2. The local counts are quoted in the cycle's wrap banner and were read from a
+file rather than from a pipe.
+
 ### 2026-09-19 - CS-828 - NOT A COMPLETION RECORD. NOTHING CLOSED. CS-828 STAYS OPEN. The zero-valued residual that carried most of the open region is read
 
 **THE ITEM STAYS OPEN AND ITS ACCEPTANCE IS UNCHANGED.** This is the fourth reading

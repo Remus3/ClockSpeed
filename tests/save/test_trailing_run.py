@@ -239,8 +239,9 @@ class _RunSweep:
             every remainder the shipped reader closes.
         partly_read: Of those, how many carry unread bytes past it.
         read_by_derivation: Of those, how many had the remainder PAST the lead
-            read by one of the three derived vocabularies - an item list, a
-            reference pair or a zero remainder. THE ARM OVER THIS FIGURE IS
+            read by one of the four derived vocabularies - an item list, a
+            reference pair, a count-prefixed reference list or a zero
+            remainder. THE ARM OVER THIS FIGURE IS
             WHAT HOLDS THE SWEEP TO
             THE SHIPPED READER: every reading is gated on a vocabulary a caller
             must pass, so a sweep that omits them reads every remainder as
@@ -285,6 +286,7 @@ def _run_of_record(
     header_version: int,
     item_list_classes: Collection[str],
     reference_pair_classes: Mapping[str, int],
+    reference_list_classes: Mapping[str, int],
     zero_remainder_classes: Collection[str],
 ) -> tuple[bool, objects.TrailingRun | None]:
     """Read one record's trailing run, or say the walk never reached one.
@@ -296,7 +298,7 @@ def _run_of_record(
     would let a reader returning None for a whole class shrink the numerator and
     the denominator together and stay green.
 
-    **THE THREE VOCABULARIES ARE REQUIRED KEYWORDS AND CARRY NO DEFAULT, WHICH IS
+    **THE FOUR VOCABULARIES ARE REQUIRED KEYWORDS AND CARRY NO DEFAULT, WHICH IS
     THE POINT OF PASSING THEM AT ALL.** Every remainder reading CS-828 has
     shipped is gated on one, and :func:`objects.read_properties` defaults them
     all to empty - so a caller that simply forgets them gets a reader that declines
@@ -319,6 +321,9 @@ def _run_of_record(
         item_list_classes: The item-list carrier classes derived off this body.
         reference_pair_classes: The reference-pair carrier classes derived off
             this body, each to the tail width that derivation derived.
+        reference_list_classes: The reference-LIST carrier classes derived off
+            this body, each to the per-entry prefix width that derivation
+            derived.
         zero_remainder_classes: The zero-remainder carrier classes derived off
             this body.
 
@@ -336,6 +341,7 @@ def _run_of_record(
         header_version=header_version,
         item_list_classes=item_list_classes,
         reference_pair_classes=reference_pair_classes,
+        reference_list_classes=reference_list_classes,
         zero_remainder_classes=zero_remainder_classes,
     )
     refused = any(
@@ -386,7 +392,12 @@ class _Tally:
         self.with_lead[pair] += 1
         if run.lead == objects.TRAILING_RUN_LEAD_MEASURED_VALUE:
             self.zero_lead[pair] += 1
-        if run.items is not None or run.references is not None or run.zero_remainder is not None:
+        if (
+            run.items is not None
+            or run.references is not None
+            or run.reference_list is not None
+            or run.zero_remainder is not None
+        ):
             self.read_by_derivation[pair] += 1
         if run.unread:
             self.partly_read[pair] += 1
@@ -469,6 +480,12 @@ def _sweep_trailing_runs() -> _RunSweep | None:
                 save_version=parsed.save_version,
                 header_version=parsed.header_version,
             )
+            reference_list_classes = objects.derive_reference_list_classes(
+                body,
+                table.records,
+                save_version=parsed.save_version,
+                header_version=parsed.header_version,
+            )
             zero_remainder_classes = objects.derive_zero_remainder_classes(
                 body,
                 table.records,
@@ -483,6 +500,7 @@ def _sweep_trailing_runs() -> _RunSweep | None:
                     header_version=parsed.header_version,
                     item_list_classes=item_list_classes,
                     reference_pair_classes=reference_pair_classes,
+                    reference_list_classes=reference_list_classes,
                     zero_remainder_classes=zero_remainder_classes,
                 )
                 tally.add(pair, terminated, run)

@@ -278,6 +278,65 @@ close. The cycle that takes CS-1119 should read this block first.
 the three blocks above, for the same reason. The clause says every payload of the three
 pairs, and a residual population survives on every one of them.
 
+### Fifth partial ship recorded 2026-09-19 - the count-prefixed reference list reads, the chain does not
+
+**THE ITEM STAYS OPEN AND ITS ACCEPTANCE IS UNCHANGED.** This is the fifth
+reading of the run and the fourth recorded here as a measurement rather than a
+closure. What shipped reads one further derived class set - the one whose
+remainder is a COUNT followed by that many object references - and nothing else.
+
+**WHAT IS NOW READ.** `clockspeed/save/objects.read_reference_list` reads the
+int32 count the remainder opens with and walks that many entries, each an
+optional fixed-width scalar followed by two length-prefixed strings, and reports
+them on `TrailingRun.reference_list` with `unread` falling to zero.
+`derive_reference_list_classes` picks the carrying classes off the body being
+read and answers the FORM with them. The figures move with the operator library
+and `tests/save/test_trailing_run.py` is their only owner, so none is written
+here.
+
+**THE PER-ENTRY SCALAR IS NOT AN UNCONDITIONAL FIELD, WHICH IS THE SAME LESSON
+THE REFERENCE PAIR'S TAIL TAUGHT AND IS RESTATED BECAUSE IT WAS RE-MEASURED
+RATHER THAN ASSUMED.** Measured over this library one carrying class writes a
+scalar ahead of every reference and two write the reference alone. A reader
+built on either form alone would refuse every body of the other, and one built
+on `declared_end - terminator_end` would read both and could not fail - the
+CS-830 defect. Every width this reader consumes comes from the count, from a
+string's own length prefix, or from `REFERENCE_LIST_ENTRY_PREFIX_WIDTHS`.
+
+**AMBIGUITY IS DECLINED RATHER THAN RESOLVED BY ORDER, AND THIS READER CANNOT
+MAKE THE CLAIM `read_reference_pair` MAKES.** That reader can argue at most one
+tail width reaches the declared end, because its string walk is fixed and only
+the tail moves. Here the two forms begin their walks at DIFFERENT offsets, so
+nothing structural forbids both landing, and taking the first would make the
+answer a property of the order the widths happen to be listed in.
+`_reference_list_form_of` therefore returns nothing when more than one width
+reads, and `tests/save/test_reference_list.py` holds it against a run
+CONSTRUCTED to read at both - the shipped reader, not the fixture, is what
+asserts the run is ambiguous.
+
+**A COUNT OF ZERO IS REFUSED, AND THAT IS A THIRD SIDE OF THE CS-1068
+COLLISION.** Four zero bytes are an empty count-prefixed list AND an empty
+string AND the zero-valued residual `read_zero_remainder` reads. Nothing in the
+run tells those apart, so this reader claims none of them and requires at least
+one entry it can walk. **DO NOT LATER READ THE ORDERING OF THE FOUR READERS AS
+WHAT KEEPS THEM APART** - the refusal is what does, and the ordering only
+guarantees no region is counted twice.
+
+**WHAT REMAINS, AND IT IS NOT ONE SHAPE.** Four blocks above this one - and the
+shipped region entry until this cycle - describe the residual as one shape, a
+large nested structure. Re-measured on the three pairs this item covers, the
+residual splits into at least FIVE distinct grammars, of which the nested one
+carries the large majority and this cycle's reading carried none of it. That
+correction is filed as CS-1149 rather than fixed by editing a sentence, because
+a sentence is what was wrong: no file owns a census of the residual, and the
+library test reports it as one number per pair. CS-1119 still owns reading the
+nested shape itself.
+
+**DO NOT CLOSE THIS ITEM ON THE STRENGTH OF THE REFERENCE LIST.** The same
+sentence as the four blocks above, for the same reason. The clause says every
+payload of the three pairs, and a residual population survives on every one of
+them - larger, this cycle, than what was read.
+
 ### Acceptance
 
 the run's contents are read, or its width is DERIVED from something in the payload rather than OBSERVED as `declared_end - terminator_end`, on every payload of the (10,36), (13,42) and (14,52) pairs, proven by a skip-if-absent real-library test reporting COUNTS ONLY
