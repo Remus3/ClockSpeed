@@ -33,6 +33,35 @@ Keep every entry to that shape. If an item needs a paragraph, it needs its own f
 the line becomes a pointer.
 
 ---
+## Session 107 - 2026-09-19 - an operator-directed machine stray-work sweep, and the one defect it turned up
+
+- Shipped: CS-1154, closed. CS-1153 filed and left OPEN. Detail in `docs/LEDGER.md`, not here.
+- In flight: nothing half-done. The sweep report is delivered to all four sibling inboxes as
+  `2026-09-19-1430-from-CS-REVIEW-e085b4a92ab2-machine-stray-work-sweep.md`; RC merges the five
+  reports and the operator adjudicates before any deletion pass. NOTHING was deleted, moved or
+  renamed anywhere on this box by this session.
+- Decisions: no ADR. The sweep proposed a PRUNE / MOVE / KEEP / UNKNOWN class per row and
+  actioned none of them; that is the operator's call after the merge.
+- Surprises: THE SWEEP FOUND A LIVE DEFECT IN THE SUITE, not in the tree it was inventorying.
+  `git -c core.hooksPath=.githooks push` exports its override through `GIT_CONFIG_PARAMETERS`,
+  every git child inherits it, and a command-line override OUTRANKS repository configuration -
+  so every throwaway repo in `tests/test_precommit_gate.py` lost the `core.hooksPath` it had
+  just set and NO HOOK RAN. The world-name PII arm accepted the commit it exists to block,
+  three pushes running, with `returncode=0` and an EMPTY stderr. The empty stderr is what
+  settled it: that gate prints a PASS line on every run it completes, so silence is a hook that
+  never fired, not a gate that approved. CS-1154 is the repair.
+- Failed paths: the FIRST diagnosis was wrong and the ledger entry says so rather than quietly
+  replacing it. The failure was attributed to a contended box - 21 python and 47 node processes
+  from concurrent sibling sweeps - purely because it did not reproduce standalone. It
+  reproduced three pushes running and never once outside the hook, which contention does not
+  explain. Do not reach for load as an explanation before checking what the hook environment
+  carries. Also measured and discarded: GIT_DIR contamination, both relative and absolute, and
+  `-n auto` over `tests/test_precommit_gate.py` alone. None reproduce it.
+- Next action: read `docs/item_notes/phase7.md` section CS-1153 and prune the gitignored and
+  PII-bearing roots in `tools/drift_guard.py::_walk` by rule rather than by never being reached.
+
+---
+
 ## Session 106 - 2026-09-19 - two rows ran, one closed and one was refuted by an adversary, and the publication gate got its first real closure scan
 
 **CLOSED: CS-1147, CS-1146. REFUTED AND STILL OPEN: CS-900. FILED: CS-1152.**
@@ -195,33 +224,3 @@ operator as "one ordinary run from reddening". The very next tier 1 run had the 
 shard at 230s - less than half its recorded worst. The 464s reading is real and the
 tool's blind spot is real, but the URGENCY was not earned by the evidence, and that
 job's spread is plainly wider than the 28s jitter figure computed for it.
-
-## Session 104 - 2026-09-17/18 - three items closed, each refuted at least once, and two writers collided on the same item ids
-
-- Shipped: CS-1123, CS-1132, CS-1121, all closed through builder, adversary on a frozen SHA,
-  repair loop, then an adjudicated stop condition. FILED, NOT FIXED: CS-1135, CS-1136, CS-1137,
-  CS-1141, CS-1142, CS-1143. Detail in `docs/LEDGER.md`, not here.
-- In flight: nothing half-done. The tree is clean, pushed, and the whole suite is green on the
-  merged tip. The `queue` lane ran throughout and closed CS-917's measurement record, CS-920 and
-  CS-937 alongside; its work is merged.
-- Decisions: no ADR recorded. One adjudication: CS-1121 does NOT close on an anchor-granularity
-  identity, ruled Option B on a counter-example in the candidate's own file. Its fence is in the
-  ledger entry, not here.
-- Surprises: the LANE AND THE MAIN SESSION ALLOCATED THE SAME IDS. Both filed CS-1133 and CS-1134
-  for different items within one hour. `ROADMAP.md` auto-merged cleanly with two of each and
-  `tools/drift_guard.py` still exited 0 - guard (i) grades id collisions BETWEEN owner files, and
-  two lines under one id in the SAME file are not that shape. The writer whose row reached
-  `origin/main` first keeps the number; this session renumbered to CS-1135 and CS-1136. Checking
-  the remote before filing caught the second near-collision, where the lane had already taken
-  CS-1138 to CS-1140. No spike contradicted `BOOTSTRAP.md`.
-- Failed paths: a bulk worktree prune driven by a zero-commits-zero-dirty inventory TARGETED BOTH
-  LIVE BUILDER WORKTREES and was stopped only by git's own agent lock - a freshly cut agent tree is
-  indistinguishable from an abandoned one by content. Do not classify worktrees by content alone;
-  exclude this session's agentIds and anything git reports as locked. Separately, a case-SENSITIVE
-  verifying grep produced a false correction that a builder had to push back on with evidence: the
-  string was `Nothing above it`, capital N.
-- Next action: read CI for the pushed tip with the FULL sha, then take CS-1129 - the leaf
-  membership rule grammar - as the next `tools/drift_guard.py` item, since CS-1130 and CS-1131 are
-  in the same file and must run one at a time.
-
----
