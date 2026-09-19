@@ -57,6 +57,10 @@ the line becomes a pointer.
   explain. Do not reach for load as an explanation before checking what the hook environment
   carries. Also measured and discarded: GIT_DIR contamination, both relative and absolute, and
   `-n auto` over `tests/test_precommit_gate.py` alone. None reproduce it.
+- Process change, operator directive: the handoff is a FILE plus a Desktop shortcut, not a
+  chat fence. `CS-NEXT-SESSION.txt` is tracked at the repo root, rewritten whole by every
+  `/done`, rowed in `CLAUDE.md` section 4 and exempted from tier-1 budget guard (k) for the
+  reason this file is. LL, LW and RC already carried that shape; CS was the one that did not.
 - Next action: read `docs/item_notes/phase7.md` section CS-1153 and prune the gitignored and
   PII-bearing roots in `tools/drift_guard.py::_walk` by rule rather than by never being reached.
 

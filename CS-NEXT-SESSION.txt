@@ -4,23 +4,40 @@ READ FIRST, IN THIS ORDER: CLAUDE.md, memory/MEMORY.md, ROADMAP.md, WAKEUP_NOTES
 (the session 107 entry is the full-fidelity record), docs/ARCHITECTURE.md.
 
 STATE AT HANDOFF
-main = 35b1492, pushed, working tree CLEAN.
+Everything session 107 did is pushed and the working tree was CLEAN at the end.
+This file deliberately does NOT restate the tip SHA: it is committed along with the
+work it describes, so any SHA written here is invalidated by the act of writing it.
+Read the tip live - `git log --oneline -3` - and read CI live with
+`gh run list --branch main --limit 3`.
+
 Suite THIS SESSION, through the pre-push hook, from the repo root with an explicit
-target, twice:
+target, three times:
   pytest tests -q -x -n auto --dist loadfile  ->  9125 passed, 7 skipped, exit 0 (877s)
-  and again on the notes push                 ->  9125 passed, 7 skipped, exit 0 (730s)
-9125 + 7 = 9132 collected. ALWAYS check that identity - a short green is the failure
-mode this project has measured more than once.
-Drift guard exit 0 (11 PASS, 0 WARN, 0 FAIL). doc_budget exit 0 (38 measured, 0 over).
-memory_sync exit 0. ruff check and ruff format --check both clean.
-CI tier1 on 58f7684: SUCCESS, read from `gh run list`. CI tier1 on 35b1492 was
-IN PROGRESS when this session ended - READ ITS STATUS, do not assume it.
+  the notes push                              ->  9125 passed, 7 skipped, exit 0 (730s)
+  the handoff push                            ->  9126 passed, 7 skipped, exit 0 (687s)
+The count went 9125 to 9126 because the tier-1 exemption table gained a parametrized
+member. ALWAYS check that passed + skipped equals collected - a short green is the
+failure mode this project has measured more than once.
+Drift guard exit 0 (11 PASS, 0 WARN, 0 FAIL, 11 skipped paths reported). doc_budget
+exit 0 (38 measured, 0 over). memory_sync exit 0. ruff check and ruff format --check
+both clean.
+CI tier1 was SUCCESS on both 58f7684 and 35b1492, read from `gh run list`. The run for
+the session's final commit had not been read - READ IT, do not assume it.
 
 The box is heavily contended by sibling repo sessions. The pre-push suite normally
 takes about 4 minutes and took 12 to 15 minutes this session.
 
 
 SESSION 107 CLOSED
+
+The handoff mechanism CHANGED this session, by operator directive. This file is it.
+LL, LW and RC each carry <CODE>-NEXT-SESSION.txt at their repo root, tracked, with a
+Desktop .lnk pointing at it, and this repository was the one that did not - its handoff
+was a fenced block in a transcript, which is gone the moment the session is cleared.
+CS-NEXT-SESSION.txt is now tracked at the repo root and rewritten WHOLE by every /done;
+CLAUDE.md section 4 carries its topology row; the Desktop shortcut CS-NEXT-SESSION.lnk
+targets it and step 8 of the ritual now requires confirming that target still resolves.
+Do NOT go back to emitting the prompt only as a chat fence.
 
 CS-1154 - CLOSED. `git -c` exports its overrides through GIT_CONFIG_PARAMETERS, every
 git child inherits it, and a command-line override OUTRANKS repository configuration -
