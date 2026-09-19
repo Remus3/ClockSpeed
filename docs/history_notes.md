@@ -12035,3 +12035,52 @@ change with `.github/workflows/tier1.yml` unmodified
      these notes were written; re-check before picking one.
   6. After the next few tier2 runs, refresh `tools/tier2_durations.json` by hand - the Windows
      jobs were at about 0.78 of their timeout, so that refresh is likely red by design.
+
+---
+
+## 2026-09-19 RELOCATED from WAKEUP_NOTES.md - Session 103 - 2026-09-17 - the acceptance moved off the ROADMAP line, the mypy arms stopped inheriting their environment, and CI stopped starting jobs
+
+- CLOSED BY THE MAIN SESSION, each through builder, adversary on a distinct lens, repair loop,
+  then a verifier or an adjudicated stop condition: CS-1079, CS-971, CS-1033, CS-1125. FILED, NOT
+  FIXED: CS-1129, CS-1130, CS-1131, CS-1132. Detail in `docs/LEDGER.md`, not here.
+- CLOSED BY THE `queue` LANE while this ran: CS-1127, CS-1128. The lane also filed nothing new
+  this session. Both collided with a main-session merge and are recorded under "at merge" in the
+  two merge commits.
+- **THE RULE CHANGE THAT OUTLIVES THE SESSION: AN ITEM'S ACCEPTANCE NOW LIVES IN ITS
+  `docs/item_notes/` SECTION, NOT ON ITS `ROADMAP.md` LINE.** The line carries its id, a COMPLETE
+  short title, the literal `acceptance: in detail`, its tier and its `detail:` field; the original
+  headline is filed in the section under `### Full headline`. `docs/adr/0022-*` is the fence.
+  The arithmetic that forced it: the acceptance clauses alone outweighed the whole soft budget, so
+  no arrangement that kept them on the lines could fit. CS-1033 asked for the opposite and was
+  closed as delivered with that one clause superseded.
+- **THE FIRST CS-971 DESIGN WAS REJECTED AFTER AN ADVERSARY READ THE DIFF, NOT AFTER A GUARD
+  REDDENED.** Cutting the clause at 90 bytes "at a clause break" changed what items required, item
+  after item, and left lines ending on a dangling word. No test in the tree could see it. The
+  lesson is the one CS-1105 already filed: a relocation needs a proof that RECONSTRUCTS the
+  original, not a proof that the bytes went somewhere.
+- **A GUARD WRITTEN IN ONE SESSION WAS DEFEATED FOUR TIMES IN THE SAME SESSION.** The headline
+  check went: literal `startswith` (one trailing character defeats it), then token-wise but
+  crashing on a headline that normalises to nothing (non-negotiable 7), then accepting any cut
+  before a conjunction, then accepting a title with no predicate. Each round was found by an
+  adversary crafting inputs, never by the live tree. A guard is not closed because its arms are
+  green; it is closed when someone has tried to walk past it.
+- **FILING A ROW EXPOSED A DEFECT THE MERGE HAD JUST SHIPPED.** The filed headline was read up to
+  the next HEADING, so the `---` between sections joined it, and CS-1122 - whose line carries its
+  WHOLE filed headline - read as cut part-way the moment it stopped being the last section in its
+  leaf. A section's correctness depended on an unrelated item not being filed after it.
+- **CI STOPPED STARTING JOBS MID-SESSION** - GitHub Actions refused every run for about two hours
+  with "recent account payments have failed or your spending limit needs to be increased". Jobs
+  read as `failure` with no steps, in six seconds. The `queue` lane read those as a red tree and
+  STOPPED ITSELF, which is the behaviour its prompt asks for. Do not diagnose a six-second job
+  failure as a test failure: read the annotation.
+- **UBUNTU PROVED A WINDOWS-GREEN ARM VACUOUS.** The CS-1125 `FORCE_COLOR` plant broke the
+  inheriting run on Windows and proved nothing on Linux, where mypy colours only when `setupterm`
+  finds a terminfo entry and the runner sets no `TERM`. The repair was to make the HAZARD complete
+  (plant `TERM` too), never to guard the platform. Every plant now derives its paths from `site`
+  and `sysconfig` rather than a Windows layout.
+- **A SCOPED-ONLY RUN HID A REPO-WIDE GUARD FOR THE FOURTH TIME.** The subprocess-timeout guard
+  reddened on CI because two new `subprocess.run` calls carried no `timeout=`. Builders now run the
+  whole-tree guard modules before reporting, not just their own file.
+- MEASURED, NOT FIXED: the tier-1 guard shard ran 454s and then 426s against a 420s budget and a
+  480s ceiling, WITH the warm mypy cache in place. It passes and it has almost no headroom left.
+  That belongs to the rows that own tier-1 cost and its growth rate.

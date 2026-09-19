@@ -33,6 +33,81 @@ Keep every entry to that shape. If an item needs a paragraph, it needs its own f
 the line becomes a pointer.
 
 ---
+## Session 106 - 2026-09-19 - two rows ran, one closed and one was refuted by an adversary, and the publication gate got its first real closure scan
+
+**CLOSED: CS-1147, CS-1146. REFUTED AND STILL OPEN: CS-900. FILED: CS-1152.**
+
+**CS-1147 - the ration arm no longer races the child it measures.** The child called
+`ration.release()` and THEN wrote its released marker, so a parent acquiring in that
+window saw two of three protocol signals. Reproduced FIRST by widening the gap to 0.5s,
+which gave the byte-identical CI assertion; the same widening passes after the reorder.
+Then an adversary refuted my own done-claim on the first commit: I had verified teeth with
+a LIVE never-releasing child (red in 124.89s) and called the clause discharged, but the
+CANONICAL mutant - delete the release call, change nothing else - was GREEN in 0.15s both
+before and after. The child EXITED the instant it stopped holding and the ration correctly
+reclaims a dead holder's slot, so nothing in the arm told a release from a death. The child
+now waits for a `parent_done` dismissal written after the measurement, so it is alive across
+the parent's acquire. That mutant now fails in 120.33s. The same pass found a SECOND race of
+the same family: `_await_file` returned the instant a path existed, and `write_text`
+truncates before it writes, so both process arms could read an empty marker and die in
+`int()` with an uncaught ValueError. It waits for a byte now.
+
+**CS-1146 - and session 105's caveat against itself was WRONG ON ITS OWN NUMBER.** That
+caveat de-ranked the row because "the very next tier 1 run had the guard shard at 230s".
+Measured from the jobs API: that run was 413s and the next was 441s. With the record's 11
+readings at 426-464, that is 12 of 13 known readings at or over the 420s budget, spread 38s.
+The caveat's METHOD was right - measure the spread before ranking - and following it
+reversed its own conclusion. `tools/tier1_growth.py` now grades `B >= M` per job as a verdict
+distinct from the band-versus-jitter one, names each job with its own margin, and prints
+BUDGET BREACHED by 44s over the shipped record. No level moved.
+
+**CS-900 SHIPPED ITS TOOL AND STILL FAILED, on an adversary and not on my reading.** Two
+counter-examples. (1) The save shard WARNS at both ends of the profile with the SAME top
+test across four commits that touched only another job, so branch one closes only by
+electing the LOOSER of two stated shares - and the 18.9 per cent concentration that FILED
+the item passes the 50 per cent hard level. A level under which the filed defect passes
+cannot be the level the close rests on. (2) The hard level's derivation was FALSE: the
+`t_max <= T/W` criterion is against the SERIAL TOTAL and the tool divides by the STEP WALL
+CLOCK, which agree only at one worker. Corrected in the docstring, not dropped. `T` is not
+obtainable from a block printing only the top 15 phases over 5s, so that criterion cannot be
+graded by this tool at all.
+
+**THE PUBLICATION GATE GOT ITS FIRST REAL CLOSURE SCAN, and six of seven axes are CLEAR.**
+Over everything reachable from `main`: 1059 commits, 3255 blobs, 461 DISTINCT HISTORICAL
+PATH STRINGS - 42 more than HEAD, which is the half that leaks. No account id, no standalone
+world name, no home paths, no save bytes, no game assets, no `data/` or inbox payload, in
+ANY commit. The one finding is the plan's own credential allowlist drifting against its own
+synthetic canaries, and the plan sentence asserting the real token prefixes return zero is
+now the only carrier of those prefixes. The pre-rewrite safety bundle is taken, lives outside
+the tree, and was graded by RESTORING rather than by verifying.
+
+**PROCESS FINDINGS - MEASURED, DO NOT REDISCOVER.**
+
+- A CONTENDED xdist SUITE REPORTS A SHORT GREEN, NOT A CRASH. Beside a running lane,
+  `-n 4` reported 6407 passed and EXIT 0 while `--collect-only` said 9055 collected: 2641
+  tests silently never ran, no MemoryError, no non-zero exit. The memory note predicted a
+  MemoryError; the real signature this time was a clean short pass. A SERIAL run beside the
+  same lane returned the full 9048. Check the count against a collect, always.
+- THE PATTERN-LANGUAGE TRAP FIRED TWICE BEFORE THE SCAN EVEN STARTED. `git for-each-ref`
+  with a globbed `refs/backup/*` returned 0 where the bare prefix `refs/backup` returned 71,
+  and `git bundle list-heads` reported 242 refs where a bare `git clone` restored 144 and
+  ZERO of the 53 wip refs. A bundle that VERIFIES is not a bundle that RESTORES.
+- THE REPOSITORY'S OWN PII GUARD CAUGHT A PII DEFECT INSIDE PUBLICATION-PREP WORK. The
+  pre-push hook refused the register slice because it rendered a caught exception OBJECT
+  into an f-string, which is an echo path under non-negotiable 12.
+- A NEW TEST MODULE CITED IN A GUARDED DOC READS AS A DEAD BARE PATH until it is at least
+  intent-added, because `tests/test_docs_citations.py` resolves against the tracked file
+  list. It cost a false red once.
+- THE COMMUNITY-PROFILE ENDPOINT READS THE DEFAULT BRANCH ONLY, so a community-health
+  acceptance cannot be graded from a slice branch. Its `issue_template` row reads null even
+  though `.github/ISSUE_TEMPLATE/` exists with two files.
+
+**A CORRECTION I OWE THE RECORD.** I told the operator mid-session that the publication
+decision was "publish from a fresh squashed or orphan history". That is the 2026-08-13
+record. The LATER ruling - CS-700 section 6, 2026-09-08, with ADR 0018 - is that the commit
+graph is KEPT, IDENTITY ALONE is rewritten to the noreply address, the remote is deleted and
+recreated, and `main` alone is pushed. Squash and accept-as-is were both put and DECLINED.
+
 ## Session 105 - 2026-09-18 - both CI lanes were red on COST and on a TIMING TOLERANCE, not on a defect, and an adversary refuted the merger's own diagnosis
 
 **BOTH LANES WERE RED AT HANDOFF AND THE HANDOFF ONLY KNEW ABOUT ONE.** tier 1 had
@@ -150,49 +225,3 @@ job's spread is plainly wider than the 28s jitter figure computed for it.
   in the same file and must run one at a time.
 
 ---
-## Session 103 - 2026-09-17 - the acceptance moved off the ROADMAP line, the mypy arms stopped inheriting their environment, and CI stopped starting jobs
-
-- CLOSED BY THE MAIN SESSION, each through builder, adversary on a distinct lens, repair loop,
-  then a verifier or an adjudicated stop condition: CS-1079, CS-971, CS-1033, CS-1125. FILED, NOT
-  FIXED: CS-1129, CS-1130, CS-1131, CS-1132. Detail in `docs/LEDGER.md`, not here.
-- CLOSED BY THE `queue` LANE while this ran: CS-1127, CS-1128. The lane also filed nothing new
-  this session. Both collided with a main-session merge and are recorded under "at merge" in the
-  two merge commits.
-- **THE RULE CHANGE THAT OUTLIVES THE SESSION: AN ITEM'S ACCEPTANCE NOW LIVES IN ITS
-  `docs/item_notes/` SECTION, NOT ON ITS `ROADMAP.md` LINE.** The line carries its id, a COMPLETE
-  short title, the literal `acceptance: in detail`, its tier and its `detail:` field; the original
-  headline is filed in the section under `### Full headline`. `docs/adr/0022-*` is the fence.
-  The arithmetic that forced it: the acceptance clauses alone outweighed the whole soft budget, so
-  no arrangement that kept them on the lines could fit. CS-1033 asked for the opposite and was
-  closed as delivered with that one clause superseded.
-- **THE FIRST CS-971 DESIGN WAS REJECTED AFTER AN ADVERSARY READ THE DIFF, NOT AFTER A GUARD
-  REDDENED.** Cutting the clause at 90 bytes "at a clause break" changed what items required, item
-  after item, and left lines ending on a dangling word. No test in the tree could see it. The
-  lesson is the one CS-1105 already filed: a relocation needs a proof that RECONSTRUCTS the
-  original, not a proof that the bytes went somewhere.
-- **A GUARD WRITTEN IN ONE SESSION WAS DEFEATED FOUR TIMES IN THE SAME SESSION.** The headline
-  check went: literal `startswith` (one trailing character defeats it), then token-wise but
-  crashing on a headline that normalises to nothing (non-negotiable 7), then accepting any cut
-  before a conjunction, then accepting a title with no predicate. Each round was found by an
-  adversary crafting inputs, never by the live tree. A guard is not closed because its arms are
-  green; it is closed when someone has tried to walk past it.
-- **FILING A ROW EXPOSED A DEFECT THE MERGE HAD JUST SHIPPED.** The filed headline was read up to
-  the next HEADING, so the `---` between sections joined it, and CS-1122 - whose line carries its
-  WHOLE filed headline - read as cut part-way the moment it stopped being the last section in its
-  leaf. A section's correctness depended on an unrelated item not being filed after it.
-- **CI STOPPED STARTING JOBS MID-SESSION** - GitHub Actions refused every run for about two hours
-  with "recent account payments have failed or your spending limit needs to be increased". Jobs
-  read as `failure` with no steps, in six seconds. The `queue` lane read those as a red tree and
-  STOPPED ITSELF, which is the behaviour its prompt asks for. Do not diagnose a six-second job
-  failure as a test failure: read the annotation.
-- **UBUNTU PROVED A WINDOWS-GREEN ARM VACUOUS.** The CS-1125 `FORCE_COLOR` plant broke the
-  inheriting run on Windows and proved nothing on Linux, where mypy colours only when `setupterm`
-  finds a terminfo entry and the runner sets no `TERM`. The repair was to make the HAZARD complete
-  (plant `TERM` too), never to guard the platform. Every plant now derives its paths from `site`
-  and `sysconfig` rather than a Windows layout.
-- **A SCOPED-ONLY RUN HID A REPO-WIDE GUARD FOR THE FOURTH TIME.** The subprocess-timeout guard
-  reddened on CI because two new `subprocess.run` calls carried no `timeout=`. Builders now run the
-  whole-tree guard modules before reporting, not just their own file.
-- MEASURED, NOT FIXED: the tier-1 guard shard ran 454s and then 426s against a 420s budget and a
-  480s ceiling, WITH the warm mypy cache in place. It passes and it has almost no headroom left.
-  That belongs to the rows that own tier-1 cost and its growth rate.
