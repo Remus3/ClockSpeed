@@ -339,6 +339,83 @@ sentence as the four blocks above, for the same reason. The clause says every
 payload of the three pairs, and a residual population survives on every one of
 them - larger, this cycle, than what was read.
 
+### Sixth partial ship recorded 2026-09-19 - the named-transform list reads, the nested structure does not
+
+**THE ITEM STAYS OPEN AND ITS ACCEPTANCE IS UNCHANGED.** This is the sixth
+reading of the run and the fifth recorded here as a measurement rather than a
+closure. What shipped reads one further derived class set - the one whose
+remainder is a COUNT followed by that many NAMED TRANSFORMS - and nothing else.
+
+**WHAT IS NOW READ.** `clockspeed/save/objects.read_transform_list` reads the
+int32 count the remainder opens with and walks that many entries, each a
+length-prefixed NAME followed by `TRANSFORM_LIST_SCALARS` fixed-width scalars
+and one flag byte, and reports them on `TrailingRun.transform_list` with
+`unread` falling to zero. `derive_transform_list_classes` picks the carrying
+classes off the body being read and answers the SCALAR WIDTH with them. The
+figures move with the operator library and `tests/save/test_transform_list.py`
+is their only owner, so none is written here.
+
+**WHAT THE SCALARS DENOTE IS NOT CLAIMED, AND THE RESTRAINT IS THE POINT RATHER
+THAN A GAP.** Their COUNT and their WIDTH are what the walk consumes and both
+are derived; what each one means is a second claim this reading does not carry.
+A draft of this block named them, and the name was a guess dressed as a
+measurement. **DO NOT LATER READ `TransformListEntry.scalars` AS A TRANSFORM OF
+ANY PARTICULAR SHAPE** - the field name says the list is of named transforms
+because that is what the carrier writes, and the tuple says thirteen scalars
+because that is what the bytes hold.
+
+**THE SCALAR WIDTH IS NOT A CONSTANT OF THE FORMAT, WHICH IS THE SAME LESSON THE
+REFERENCE PAIR'S TAIL AND THE REFERENCE LIST'S PER-ENTRY SCALAR BOTH TAUGHT.**
+Measured over this library the carrying class writes the narrow block on one of
+the three pairs and the wide block on the other two. A reader built on either
+width alone would refuse every body of the other, and one built on
+`declared_end - terminator_end` would read both and could not fail - the CS-830
+defect. Every width this reader consumes comes from the count, from a name's own
+length prefix, or from `TRANSFORM_LIST_SCALAR_WIDTHS` and its two companions.
+A version table keyed on the layout would have worked on today's library and
+would have been a transcription, which CS-829's note forbids by name.
+
+**AMBIGUITY IS DECLINED RATHER THAN RESOLVED BY ORDER**, exactly as
+`read_reference_list` declines it and for the same structural reason: the two
+widths make the walk reach each entry's length prefix at DIFFERENT offsets, so
+nothing forbids both landing on the declared end. `_transform_list_width_of`
+returns nothing when more than one width reads, and
+`tests/save/test_transform_list.py` holds it against a run CONSTRUCTED to read
+at both - the shipped reader, not the fixture, is what asserts the run is
+ambiguous.
+
+**A COUNT OF ZERO IS REFUSED, AND THAT IS A FOURTH SIDE OF THE CS-1068
+COLLISION.** Four zero bytes are an empty count-prefixed item list AND an empty
+string AND the zero-valued residual AND an empty list of this shape. Nothing in
+the run tells those apart, so this reader claims none of them.
+
+**THE WEAKEST CASE, STATED RATHER THAN ROUNDED UP, AND IT IS WEAKER HERE THAN ON
+ANY EARLIER READING.** The consistency requirement that admits a class
+contributes nothing when that class has exactly ONE remainder-bearing record in
+the body, and measured on this library TWO of the three pairs are exactly that
+case. So on those two the derived width is as good as OBSERVED, and only the
+third pair's records agree with each other at all. The READING is still not
+vacuous anywhere - the count must be positive, every name must be non-empty and
+the walk must land exactly on the declared end - but a later cycle strengthening
+this should require a floor on n rather than re-deriving the consistency rule.
+
+**THE POPULATION IS SMALL AND IS NOT ROUNDED UP EITHER.** This shape carries a
+small fraction of what the corrected instrument reports open on the three pairs;
+the nested structure still carries the large majority. This cycle read the
+largest residual grammar that was BOTH derivable and free of the disclosure
+problem CS-1150 records, which is a different claim from reading the largest one.
+
+**WHAT REMAINS.** The nested structure CS-1119 owns, plus two shapes this cycle
+measured and declined: one that [[CS-1150]] fences on disclosure grounds, and one
+too narrow for any grammar to claim. [[CS-1149]]'s census still owns the
+breakdown, and [[CS-1151]] records a sentence in the blocks above that this
+cycle measured false.
+
+**DO NOT CLOSE THIS ITEM ON THE STRENGTH OF THE TRANSFORM LIST.** The same
+sentence as the five blocks above, for the same reason. The clause says every
+payload of the three pairs, and a residual population survives on every one of
+them.
+
 ### Acceptance
 
 the run's contents are read, or its width is DERIVED from something in the payload rather than OBSERVED as `declared_end - terminator_end`, on every payload of the (10,36), (13,42) and (14,52) pairs, proven by a skip-if-absent real-library test reporting COUNTS ONLY

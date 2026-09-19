@@ -75,6 +75,98 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-09-19 - CS-828 - NOT A COMPLETION RECORD. NOTHING CLOSED. CS-828 STAYS OPEN. The count-prefixed NAMED-TRANSFORM list reads, and the residual's two remaining non-nested shapes are measured and declined
+
+**THE ITEM STAYS OPEN AND ITS ACCEPTANCE IS UNCHANGED.** This is the sixth reading
+recorded against the trailing run and the fifth narrowing filed as a measurement rather
+than a closure. The clause asks for the run's contents on EVERY payload of the (10,36),
+(13,42) and (14,52) pairs; a residual population survives on every one of them, and this
+cycle read none of the shape that carries most of it.
+
+**WHAT SHIPPED.** `clockspeed/save/objects.read_transform_list` reads a trailing
+remainder that opens with an int32 COUNT and carries that many NAMED TRANSFORMS - each a
+length-prefixed name, then `TRANSFORM_LIST_SCALARS` fixed-width scalars, then one flag
+byte - reporting them on the new `TrailingRun.transform_list` with `unread` falling to
+zero. `derive_transform_list_classes` picks the carrying classes off the body being read
+and answers the SCALAR WIDTH with them, and `read_properties` gained a fifth vocabulary
+keyword defaulting to empty.
+
+**THE DEFECT THIS CLOSES, STATED AS A DEFECT.** The remainder of one derived class set
+was carried as `TrailingRun.unread` on all three pairs - a region the module recorded as
+unread with no grammar offered for it.
+
+**THE ROOT CAUSE.** Not a bug in any reader: the family simply had no reader for this
+shape. The shape was found by re-deriving the residual off the library before a line of
+code was written, which is the order CS-828's own note requires and which every earlier
+cycle on this row has had to repeat.
+
+**WHAT KEEPS IT OFF THE CS-830 DEFECT.** Every width consumed comes from the count, from
+a name's own length prefix, or from a shipped constant; the declared end is a bound and a
+validation, and the walk refuses rather than stretching to reach it.
+`test_a_stretched_declared_end_is_refused_rather_than_read_to` reddens on exactly that
+swap. A count of zero is REFUSED, which is how this reading declines rather than resolves
+the four-way collision with the empty item list, the empty string and the zero-valued
+residual.
+
+**THE SCALAR WIDTH IS DERIVED AND NOT VERSION-KEYED.** Measured on this library the
+carrying class writes the narrow block on one of the three pairs and the wide block on
+the other two, so a reader built on either alone refuses every body of the other. A table
+keyed on the measured layout would have worked today and would have been a transcription,
+which CS-829's note forbids by name. Ambiguity is DECLINED rather than resolved by order:
+`_transform_list_width_of` returns nothing when both widths read, held by
+`test_a_remainder_that_reads_at_both_widths_derives_nothing` against a run constructed to
+read at both.
+
+**THE WEAKEST CASE IS RECORDED RATHER THAN ROUNDED UP, AND IT IS WEAKER HERE THAN ON ANY
+EARLIER READING OF THIS RUN.** The consistency requirement that admits a class
+contributes nothing when the class has exactly ONE remainder-bearing record in the body,
+and on two of the three pairs that is the case. On those two the derived width is as good
+as observed; only the third pair's records agree with each other at all. The reading
+itself is not vacuous anywhere - positive count, non-empty names, exact landing - and a
+later cycle should require a floor on n rather than re-derive the consistency rule.
+
+**THE POPULATION IS SMALL AND THAT IS NOT ROUNDED UP EITHER.** This shape carries a small
+fraction of what the corrected instrument reports open; the nested structure CS-1119 owns
+still carries the large majority. What this cycle read is the largest residual grammar
+that was both derivable and free of the disclosure problem filed below - a different
+claim from reading the largest one.
+
+**THE SIBLING SWEEP, AND IT FOUND NO SIBLING TO SWEEP.** The root cause is a missing
+grammar rather than a defect with variants, so the sweep took the form of a census of
+every other residual shape on the three pairs. Three remain and none shares this root
+cause: the nested structure (CS-1119), one shape whose region carries plaintext platform
+account strings (FILED as CS-1150), and one too narrow for any grammar to claim without
+arithmetic. All three are left exactly as CS-828 left them.
+
+**FILED THIS CYCLE, BOTH FROM THIS CYCLE'S OWN MEASUREMENT.** CS-1150 - a residual
+carrier class's remainder carries plaintext platform account strings, so any reader of
+that region is an echo path under non-negotiable 12; its note names no class, no pair
+distribution and no byte. CS-1151 - CS-828's own NOTE and detail blocks say the (14,60)
+pair reaches a property terminator on NO payload, and walking every save of that pair
+reaches one on a six-figure population; `read_properties` already carries a comment
+saying that claim was a fact about the function rather than about the pair, so the
+correction was made in the code and never reached the note that scopes an open item on
+it. It is FILED rather than edited in place because that sentence is the stated ground
+for scoping CS-828 to three pairs and routing the fourth to CS-G05, and restating two
+items' scope - one of them gated - on one worker's measurement is a ruling, not an edit.
+
+**TIER AND EVIDENCE.** Tier 2 - the save-path property reader's public interface widened
+by a keyword and `TrailingRun` grew a field. Tests added: 42 in the new
+`tests/save/test_transform_list.py`, with `tests/save/test_trailing_run.py`'s library
+sweep updated to derive and pass the fifth vocabulary as a REQUIRED keyword - the shape
+that stops the CS-828 third-partial-ship defect reappearing on this reading - and that
+module's own docstring corrected where it claimed an arm sees more than it does.
+`tests/test_repr_rendering.py`'s recorded population gained the new entry class, which is
+how that guard refuses a save-layer class that neither withholds nor is recorded.
+
+**WHAT REMAINS OPEN ON CS-828.** The nested structure CS-1119 owns, the disclosure-fenced
+shape CS-1150 owns, and one shape no grammar reaches. The clause says every payload of
+the three pairs.
+
+**CI IS RECORDED BY THE DRIVER AND WAS NOT OBSERVED BY THIS WORKER**, per the lane's
+section 2. The local counts are quoted in the cycle's wrap banner and were read from a
+file rather than from a pipe.
+
 ### 2026-09-19 - CS-828 - NOT A COMPLETION RECORD. NOTHING CLOSED. CS-828 STAYS OPEN. The count-prefixed reference list reads, and the residual is measured to be five shapes rather than one
 
 **THE ITEM STAYS OPEN AND ITS ACCEPTANCE IS UNCHANGED.** This is the fifth reading

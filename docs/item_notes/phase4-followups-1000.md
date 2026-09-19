@@ -1239,3 +1239,88 @@ library on every run and proven by a skip-if-absent test reporting COUNTS ONLY
 with no class name in any assertion or message, plus an arm that reddens when a
 prose characterisation of the residual in `clockspeed/save/objects.py` names a
 shape count the derivation does not support
+
+## CS-1150
+
+### Filed 2026-09-19 by the CS-828 cycle, from that item's own measurement
+
+**WHAT WAS MEASURED, AND NOTHING BELOW NAMES IT.** Reading the residual of the
+trailing run across the three pairs CS-828 covers, one carrier class's remainder
+was found to carry PLAINTEXT PLATFORM ACCOUNT STRINGS - the same class of datum
+the save header's options string carries, which non-negotiable 12 requires the
+header parser to redact by default. The class is not named here, the pair
+distribution is not written here, and no byte of it is quoted here, because a
+tracked file naming it would be the leak this row exists to prevent.
+
+**WHY THIS IS A ROW AND NOT A PARAGRAPH IN CS-828.** CS-828's clause asks for
+the run's CONTENTS on every payload of the three pairs. On this class that
+clause and non-negotiable 12 pull in opposite directions: a reader that decoded
+the region and reported it on `TrailingRun` would put account strings into every
+repr, every debug dump, every exception context and every log line that ever
+renders a result - the echo paths non-negotiable 12 enumerates by name. The
+answer is NOT to leave the region unread and unremarked, because a later cycle
+hunting the residual will find the same bytes and read them without knowing.
+
+**WHAT A CLOSE LOOKS LIKE, AND WHAT IT MUST NOT.** Either the region is read
+with the field REDACTED BY DEFAULT behind an explicit opt-in flag, exactly as
+`clockspeed/save/header.py` treats the options string, or it is refused by name
+and the refusal is graded. **DO NOT CLOSE THIS BY DECODING THE REGION INTO A
+PLAIN FIELD** and relying on a hand-written `repr` to withhold it: `CLAUDE.md`
+section 12 lists error messages, debug dumps, hex previews, log lines and
+exception context as echo paths too, and a quiet repr is a promise a later edit
+can withdraw.
+
+**THE CARRIER IS DERIVED, NEVER TRANSCRIBED**, for the reason CS-829's note
+gives - and here the fence is stronger than usual, because a transcribed
+vocabulary would be a tracked file naming the class whose region carries the
+strings.
+
+**RELATED AND NOT THE SAME.** [[CS-1149]] owns the census of the residual's
+shapes. This owns one carrier's disclosure risk, which is a fact about the
+CONTENT rather than about the grammar.
+
+### Acceptance
+
+the residual region that carries platform account strings is either read behind
+a redact-by-default field requiring an explicit opt-in to render, or refused by
+a named refusal, proven by an arm that reddens when a decoded value from that
+region reaches a rendering path - with no class name, no pair distribution and no
+byte of the region in any tracked file, assertion or failure message
+
+## CS-1151
+
+### Filed 2026-09-19 by the CS-828 cycle, from that item's own measurement
+
+**THE SENTENCE, AND WHERE IT LIVES.** CS-828's `NOTE` block and its `detail`
+block both say that the (14,60) pair "reaches a property terminator on NO
+payload", and use that to scope the item to three pairs and route the fourth to
+CS-G05. Re-measured this cycle by walking every save of that pair in the
+operator library, the walk reaches a terminator and reports a lead field on a
+six-figure population of its payloads. The figure is not written here - it moves
+with the library and no prose file may own it.
+
+**THE MODULE ALREADY KNOWS AND THE NOTE DOES NOT, WHICH IS THE WHOLE DEFECT.**
+`clockspeed/save/objects.read_properties` carries a comment saying in as many
+words that a sentence there used to make this claim about the PAIR and that it
+was a fact about the FUNCTION rather than about the pair. So the correction was
+made in the code and never propagated to the note that scopes an open item on
+it.
+
+**WHY IT IS FILED RATHER THAN EDITED IN PLACE.** The sentence is not decoration:
+it is the stated ground for scoping CS-828 to three pairs and for routing the
+fourth to `docs/GATED.md` as CS-G05. Rewriting it inside a cycle that holds
+CS-828 would silently restate the scope of two items, one of them gated, on one
+worker's measurement. **DO NOT CLOSE THIS BY WIDENING CS-828's SCOPE** - whether
+the fourth pair comes back in is CS-G05's question and an operator ruling,
+not a consequence of the sentence being wrong.
+
+**WHAT THIS ROW OWES.** The stale characterisation corrected wherever it is
+stated, and the scope of CS-828 and CS-G05 left exactly where they are unless a
+ruling moves them.
+
+### Acceptance
+
+no live file states that the (14,60) pair reaches a property terminator on no
+payload, the corrected characterisation cites the walk rather than a
+transcription, and `CS-828` and `CS-G05` carry the same scope after the change as
+before it unless a recorded ruling says otherwise

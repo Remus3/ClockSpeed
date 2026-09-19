@@ -239,9 +239,9 @@ class _RunSweep:
             every remainder the shipped reader closes.
         partly_read: Of those, how many carry unread bytes past it.
         read_by_derivation: Of those, how many had the remainder PAST the lead
-            read by one of the four derived vocabularies - an item list, a
-            reference pair, a count-prefixed reference list or a zero
-            remainder. THE ARM OVER THIS FIGURE IS
+            read by one of the five derived vocabularies - an item list, a
+            reference pair, a count-prefixed reference list, a count-prefixed
+            NAMED-TRANSFORM list or a zero remainder. THE ARM OVER THIS FIGURE IS
             WHAT HOLDS THE SWEEP TO
             THE SHIPPED READER: every reading is gated on a vocabulary a caller
             must pass, so a sweep that omits them reads every remainder as
@@ -278,7 +278,7 @@ def _library_save_paths() -> tuple[Path, ...]:
         return ()
 
 
-def _run_of_record(
+def _run_of_record(  # noqa: PLR0913 - one keyword per derived remainder vocabulary is the clearest surface
     body: bytes,
     record: objects.ObjectRecord,
     *,
@@ -287,6 +287,7 @@ def _run_of_record(
     item_list_classes: Collection[str],
     reference_pair_classes: Mapping[str, int],
     reference_list_classes: Mapping[str, int],
+    transform_list_classes: Mapping[str, int],
     zero_remainder_classes: Collection[str],
 ) -> tuple[bool, objects.TrailingRun | None]:
     """Read one record's trailing run, or say the walk never reached one.
@@ -298,7 +299,7 @@ def _run_of_record(
     would let a reader returning None for a whole class shrink the numerator and
     the denominator together and stay green.
 
-    **THE FOUR VOCABULARIES ARE REQUIRED KEYWORDS AND CARRY NO DEFAULT, WHICH IS
+    **THE FIVE VOCABULARIES ARE REQUIRED KEYWORDS AND CARRY NO DEFAULT, WHICH IS
     THE POINT OF PASSING THEM AT ALL.** Every remainder reading CS-828 has
     shipped is gated on one, and :func:`objects.read_properties` defaults them
     all to empty - so a caller that simply forgets them gets a reader that declines
@@ -324,6 +325,8 @@ def _run_of_record(
         reference_list_classes: The reference-LIST carrier classes derived off
             this body, each to the per-entry prefix width that derivation
             derived.
+        transform_list_classes: The NAMED-TRANSFORM list carrier classes derived
+            off this body, each to the scalar width that derivation derived.
         zero_remainder_classes: The zero-remainder carrier classes derived off
             this body.
 
@@ -342,6 +345,7 @@ def _run_of_record(
         item_list_classes=item_list_classes,
         reference_pair_classes=reference_pair_classes,
         reference_list_classes=reference_list_classes,
+        transform_list_classes=transform_list_classes,
         zero_remainder_classes=zero_remainder_classes,
     )
     refused = any(
@@ -396,6 +400,7 @@ class _Tally:
             run.items is not None
             or run.references is not None
             or run.reference_list is not None
+            or run.transform_list is not None
             or run.zero_remainder is not None
         ):
             self.read_by_derivation[pair] += 1
@@ -486,6 +491,12 @@ def _sweep_trailing_runs() -> _RunSweep | None:
                 save_version=parsed.save_version,
                 header_version=parsed.header_version,
             )
+            transform_list_classes = objects.derive_transform_list_classes(
+                body,
+                table.records,
+                save_version=parsed.save_version,
+                header_version=parsed.header_version,
+            )
             zero_remainder_classes = objects.derive_zero_remainder_classes(
                 body,
                 table.records,
@@ -501,6 +512,7 @@ def _sweep_trailing_runs() -> _RunSweep | None:
                     item_list_classes=item_list_classes,
                     reference_pair_classes=reference_pair_classes,
                     reference_list_classes=reference_list_classes,
+                    transform_list_classes=transform_list_classes,
                     zero_remainder_classes=zero_remainder_classes,
                 )
                 tally.add(pair, terminated, run)
@@ -654,9 +666,10 @@ def test_the_sweep_reads_the_remainder_with_the_derived_vocabularies() -> None:
     """THE SWEEP READS WITH THE SHIPPED READER, not with a narrower one - CS-828.
 
     **WHY THIS ARM EXISTS, and it is a defect this module carried rather than a
-    refinement of it.** Three of the four readings CS-828 has shipped - the
-    count-prefixed item list, the object-reference pair and the zero
-    remainder - are gated on a vocabulary the caller passes to
+    refinement of it.** Every reading CS-828 has shipped - the count-prefixed
+    item list, the object-reference pair, the count-prefixed reference list, the
+    count-prefixed NAMED-TRANSFORM list and the zero
+    remainder - is gated on a vocabulary the caller passes to
     :func:`clockspeed.save.objects.read_properties`, derived off the very body
     being read. A sweep that omits them gets a reader that declines every one
     of those remainders, reports each as ``unread``, and so grades a
@@ -672,10 +685,16 @@ def test_the_sweep_reads_the_remainder_with_the_derived_vocabularies() -> None:
 
     IT IS NOT A TAUTOLOGY OF THE BRANCH THAT FEEDS IT, which is the trap
     :class:`_Tally` records having fallen into once. ``read_by_derivation`` is
-    incremented from ``run.items``, ``run.references`` and
-    ``run.zero_remainder`` - three fields
+    incremented from ``run.items``, ``run.references``, ``run.reference_list``,
+    ``run.transform_list`` and ``run.zero_remainder`` - five fields
     :func:`clockspeed.save.objects.read_trailing_run` never sets - so nothing in
     the lead-field path can make this arm true.
+
+    **WHAT IT DOES NOT SEE, STATED RATHER THAN ROUNDED UP.** It counts payloads
+    whose remainder ANY of the five read, so a sweep that dropped ONE vocabulary
+    would still satisfy it on a pair where another reading fires. Each shape's
+    own module holds its own reading: ``tests/save/test_transform_list.py`` is
+    where the fifth one is graded against the library.
     """
     sweep = _sweep_or_skip()
     unread_by_derivation = sum(

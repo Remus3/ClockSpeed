@@ -263,6 +263,8 @@ CS-1053 - `docs/adr/0016-unlock-arrays-carriers-and-serialized-grammar.md` is st
 CS-1122 - our own Python renderer from a hand-authored architecture IR to a static SVG/HTML module diagram, the re-implementation the CS-1098 decline in `docs/LEDGER.md` filed in place of adopting archify - acceptance: in detail - tier: 3 - detail: `docs/item_notes.md`
 CS-1148 - CS-1119's filed headline calls the trailing run's second remainder shape "one class" and it is carried by ten - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
 CS-1149 - the trailing run's residual population is recorded as ONE shape and is measured to be at least five - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
+CS-1150 - one residual carrier class's trailing run carries platform account strings in plaintext, so any reader of that region is an echo path - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
+CS-1151 - CS-828's note says the (14,60) pair reaches a property terminator on NO payload and the walk reaches one on six figures of them - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
 
 
 ## Phase 5 - advisor and audit

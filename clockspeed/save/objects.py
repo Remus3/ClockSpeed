@@ -4374,6 +4374,26 @@ UNMEASURED_PAYLOAD_REGIONS: Final[Mapping[str, str]] = MappingProxyType(
             "zero-valued residual above. On those classes' payloads unread "
             "falls to zero and the list is reported as "
             "TrailingRun.reference_list. "
+            "NARROWED AGAIN BY CS-828, ON A FIFTH DERIVED CLASS SET AND "
+            "NOWHERE ELSE: where the remainder is a COUNT-PREFIXED LIST OF "
+            "NAMED TRANSFORMS it is read by read_transform_list, whose entry "
+            "count comes out of the bytes, whose name widths come from their "
+            "own length prefixes and whose per-entry scalar block is "
+            "TRANSFORM_LIST_SCALARS scalars at one of the two widths "
+            "TRANSFORM_LIST_SCALAR_WIDTHS allows, never the leftover. THAT "
+            "SCALAR WIDTH IS NOT A CONSTANT OF THE FORMAT - the carrying class "
+            "in this library writes the narrow block on one of the three pairs "
+            "and the wide block on the other two - so "
+            "derive_transform_list_classes derives the WIDTH as well as the "
+            "membership, from the body, and admits a class only when every one "
+            "of its remainder-bearing records reads at the SAME width AND at "
+            "exactly one of them. A COUNT OF ZERO IS REFUSED, which is how "
+            "this reading declines rather than resolves the collision with the "
+            "zero-valued residual above. WHAT THE SCALARS DENOTE IS NOT "
+            "CLAIMED: their count and width are what the walk consumes, and a "
+            "wrong name for them would be worse than none. On those classes' "
+            "payloads unread falls to zero and the list is reported as "
+            "TrailingRun.transform_list. "
             "WHAT REMAINS AFTER THAT, and it is CS-1119 rather than this "
             "entry: whether that zero-valued residual IS an empty item list or "
             "a class carrying no list at all, which no reading of the run "
@@ -4931,6 +4951,42 @@ ZERO_REMAINDER_VALUE: Final = 0
 #: The default vocabulary :func:`read_properties` reads this shape with.
 #: EMPTY, so a caller that has not derived reads exactly what CS-828 left.
 _NO_ZERO_REMAINDER_CLASSES: Final[Collection[str]] = frozenset()
+
+#: How wide the NAMED-TRANSFORM list's own leading count is - CS-828. Its VALUE
+#: is read out of the bytes and is the thing that says how many entries follow.
+TRANSFORM_LIST_COUNT_BYTES: Final = INT32_SIZE
+
+#: How many fixed-width scalars each entry writes after its name. A SHIPPED
+#: CONSTANT rather than whatever was left over: a per-entry width taken from
+#: ``end - at`` closes on every payload and no reading of it could fail, which
+#: is the defect that refuted CS-830 after it had merged.
+TRANSFORM_LIST_SCALARS: Final = 13
+
+#: The narrow scalar width, written by the older of the measured layouts.
+TRANSFORM_LIST_FLOAT_SCALAR_BYTES: Final = 4
+
+#: The wide scalar width, written by the newer ones.
+TRANSFORM_LIST_DOUBLE_SCALAR_BYTES: Final = 8
+
+#: The scalar widths a body may derive. A CLOSED SET, for the same reason
+#: :data:`REFERENCE_LIST_ENTRY_PREFIX_WIDTHS` is one. Measured on this project's
+#: library BOTH are written - the carrying class writes the narrow block on one
+#: of the three pairs CS-828 covers and the wide block on the other two - so a
+#: reader assuming either width unconditionally would mis-read every body of the
+#: other.
+TRANSFORM_LIST_SCALAR_WIDTHS: Final[tuple[int, ...]] = (
+    TRANSFORM_LIST_FLOAT_SCALAR_BYTES,
+    TRANSFORM_LIST_DOUBLE_SCALAR_BYTES,
+)
+
+#: How wide the flag byte each entry ends with is. READ AND REPORTED rather
+#: than stepped over: a byte this module skipped would be a byte it had
+#: partitioned by arithmetic.
+TRANSFORM_LIST_ENTRY_FLAG_BYTES: Final = 1
+
+#: The default vocabulary :func:`read_properties` reads this shape with.
+#: EMPTY, so a caller that has not derived reads exactly what CS-828 left.
+_NO_TRANSFORM_LIST_CLASSES: Final[Mapping[str, int]] = MappingProxyType({})
 
 #: The flags byte's measured bits. NAMED because a bare hex literal at a use
 #: site is a bit nobody can hold a table against.
@@ -6744,6 +6800,209 @@ def read_zero_remainder(body: bytes, at: int, end: int) -> ZeroRemainder | None:
     return ZeroRemainder(value=value, width=ZERO_REMAINDER_BYTES)
 
 
+@dataclass(frozen=True, repr=False)
+class TransformListEntry:
+    """One entry of a count-prefixed named-transform list - CS-828.
+
+    ``repr`` is hand written and withholds the name, for the reason given on
+    :class:`ItemListEntry`: the name is read out of the player's world and a
+    repr is an echo path (non-negotiable 12).
+
+    Attributes:
+        name: The entry's name, as the run spells it. WORLD CONTENT. Carried
+            rather than interpreted - this module states no relation between it
+            and any record's ``instance_name``.
+        scalars: The fixed-width scalars the entry writes after its name, in
+            file order. **THEIR MEANING IS NOT CLAIMED HERE.** Their COUNT is
+            :data:`TRANSFORM_LIST_SCALARS` and their width is the one the body
+            derived; what each one denotes is a question this reading does not
+            answer and does not need to.
+        flag: The single byte the entry ends with, READ rather than stepped
+            over. Measured at one value on every entry of this project's
+            library, which is recorded and not relied on - a byte this reader
+            skipped would be a byte it had partitioned by arithmetic.
+    """
+
+    name: str
+    scalars: tuple[float, ...]
+    flag: int
+
+    def __repr__(self) -> str:
+        """Render the lengths only, and withhold the name.
+
+        Returns:
+            The safe rendering.
+        """
+        return (
+            f"{type(self).__name__}(name_len={len(self.name)}, "
+            f"scalars={len(self.scalars)}, flag={self.flag})"
+        )
+
+
+@dataclass(frozen=True, repr=False)
+class TransformList:
+    """A whole count-prefixed named-transform list, and its derived width.
+
+    WHY ``width`` IS CARRIED RATHER THAN RECOMPUTED BY A CONSUMER, for the
+    reason :class:`ItemList` carries one: it is summed from the count prefix,
+    each entry's own length prefix and three shipped constants, and it is NEVER
+    ``declared_end - at``. A consumer recomputing it from the payload's declared
+    end would be doing the arithmetic partition that refuted CS-830.
+
+    Attributes:
+        declared_count: The count the prefix carries. The number of entries the
+            walk then read is ``len(entries)`` and the two agree by
+            construction - a walk that could not read that many yields no list.
+        entries: The entries, in the order the run writes them.
+        scalar_bytes: How wide each scalar was - one of
+            :data:`TRANSFORM_LIST_SCALAR_WIDTHS`, and never a leftover. It
+            travels with the reading because it is a property of the BODY
+            rather than of the format, and a consumer that could not tell which
+            width it got would have to guess.
+        width: How many bytes the list occupies, DERIVED from the prefixes.
+    """
+
+    declared_count: int
+    entries: tuple[TransformListEntry, ...]
+    scalar_bytes: int
+    width: int
+
+    def __repr__(self) -> str:
+        """Render counts and widths only.
+
+        Returns:
+            The safe rendering.
+        """
+        return (
+            f"{type(self).__name__}(declared_count={self.declared_count}, "
+            f"entries={len(self.entries)}, scalar_bytes={self.scalar_bytes}, "
+            f"width={self.width})"
+        )
+
+
+def _walk_transform_entries(
+    body: bytes, at: int, end: int, *, count: int, scalar_width: int
+) -> tuple[tuple[TransformListEntry, ...], int] | None:
+    """Walk ``count`` named-transform entries, or refuse.
+
+    SEPARATE FROM :func:`read_transform_list` for the reason
+    :func:`_walk_item_entries` is separate from its reader - the walk's four
+    refusals and the reader's four read as a list rather than as a nest.
+
+    AN EMPTY NAME IS REFUSED, and not for tidiness: four zero bytes read as an
+    empty string would make any run of zeroes read as an entry, which is the
+    same trap :func:`_walk_one_run_reference` refuses an empty string for.
+
+    Args:
+        body: The decompressed body.
+        at: The first entry's first byte.
+        end: The first byte past the payload.
+        count: How many entries the list's own prefix said there are.
+        scalar_width: How wide each scalar is.
+
+    Returns:
+        The entries and the offset past the last one, or None.
+    """
+    block = TRANSFORM_LIST_SCALARS * scalar_width
+    code = "<f" if scalar_width == TRANSFORM_LIST_FLOAT_SCALAR_BYTES else "<d"
+    entries: list[TransformListEntry] = []
+    cursor = at
+    for _ in range(count):
+        named = _payload_text(body, cursor, end)
+        if named is None or not named[0]:
+            return None
+        after = named[1] + block + TRANSFORM_LIST_ENTRY_FLAG_BYTES
+        if after > end:
+            return None
+        scalars = tuple(
+            struct.unpack_from(code, body, named[1] + index * scalar_width)[0]
+            for index in range(TRANSFORM_LIST_SCALARS)
+        )
+        entries.append(
+            TransformListEntry(
+                name=named[0], scalars=scalars, flag=body[after - TRANSFORM_LIST_ENTRY_FLAG_BYTES]
+            )
+        )
+        cursor = after
+    return (tuple(entries), cursor)
+
+
+def read_transform_list(
+    body: bytes, at: int, end: int, *, scalar_width: int
+) -> TransformList | None:
+    """Read a count-prefixed named-transform list out of a remainder - CS-828.
+
+    **EVERY WIDTH HERE COMES OUT OF THE BYTES OR OUT OF A SHIPPED CONSTANT.**
+    The leading int32 says how many entries follow, each name's own length
+    prefix says how wide it is, the scalar block is
+    :data:`TRANSFORM_LIST_SCALARS` scalars of ``scalar_width`` - one of
+    :data:`TRANSFORM_LIST_SCALAR_WIDTHS` and never whatever was left over - and
+    the flag is :data:`TRANSFORM_LIST_ENTRY_FLAG_BYTES` wide. ``end`` is a BOUND
+    and a VALIDATION and is never a source of width: the walk refuses rather
+    than stretching to reach it, which is what makes the reading falsifiable. A
+    partition taking its width from ``end`` would close on every payload and
+    could not fail - the defect that refuted CS-830 after it had merged - and
+    ``tests/save/test_transform_list.py`` holds an arm that reddens on exactly
+    that swap.
+
+    **A COUNT OF ZERO IS REFUSED, AND THAT IS A FOURTH SIDE OF THE CS-1068
+    COLLISION.** Four zero bytes are an empty count-prefixed item list AND an
+    empty string AND the zero-valued residual :func:`read_zero_remainder` reads
+    AND an empty list of this shape. Nothing in the run tells those apart, so
+    this reader claims none of them and requires at least one entry it can walk.
+
+    **THE SCALARS' MEANING IS NOT CLAIMED AND DOES NOT NEED TO BE.** What CS-828
+    asks for is the run's CONTENTS at a derived landing point. Their count and
+    width are what the walk consumes; naming them would be a second claim this
+    reading does not carry, and a wrong name is worse than none.
+
+    NOTHING HERE RAISES. A count claiming more entries than the payload holds, a
+    length prefix reaching past it, an empty name, a scalar width outside the
+    allowed set and a walk that does not land on ``end`` are all REPORTED as no
+    list, per non-negotiable 7.
+
+    THE WIDTH IS NOT AN INPUT THE BYTES SUPPLY. Which of the two scalar widths a
+    body's carrying class writes is a property of that layout rather than of the
+    run, and :func:`derive_transform_list_classes` is what answers it - from the
+    body.
+
+    Args:
+        body: The decompressed body.
+        at: The remainder's first byte.
+        end: The first byte past the payload.
+        scalar_width: The scalar width to walk each entry's block at.
+
+    Returns:
+        The list, or None when the run is not one in that form.
+    """
+    if at < 0 or end > len(body) or scalar_width not in TRANSFORM_LIST_SCALAR_WIDTHS:
+        return None
+    if end - at < TRANSFORM_LIST_COUNT_BYTES:
+        return None
+    count = struct.unpack_from("<i", body, at)[0]
+    entry_floor = (
+        INT32_SIZE + TRANSFORM_LIST_SCALARS * scalar_width + TRANSFORM_LIST_ENTRY_FLAG_BYTES
+    )
+    if count <= 0 or count > (end - at - TRANSFORM_LIST_COUNT_BYTES) // entry_floor:
+        return None
+    walked = _walk_transform_entries(
+        body, at + TRANSFORM_LIST_COUNT_BYTES, end, count=count, scalar_width=scalar_width
+    )
+    if walked is None or walked[1] != end:
+        return None
+    # THE WIDTH IS THE WALK'S OWN CURSOR AND NOT ``end - at``, THOUGH THE
+    # LANDING CHECK ABOVE HAS JUST MADE THE TWO EQUAL. The sibling readers spell
+    # it the second way and are correct for the same reason; spelling it this
+    # way means the figure stays derived if a later edit ever loosens that
+    # check, rather than silently becoming the observation CS-828 forbids.
+    return TransformList(
+        declared_count=count,
+        entries=walked[0],
+        scalar_bytes=scalar_width,
+        width=walked[1] - at,
+    )
+
+
 @dataclass(frozen=True)
 class TrailingRun:
     """The run between a payload's property terminator and its declared end.
@@ -6793,6 +7052,11 @@ class TrailingRun:
             the shape. IT IS NOT A CLAIM THAT THE REGION IS AN EMPTY ITEM
             LIST, which is byte-identical and which no reading of the run can
             tell apart - CS-1119 owns that question.
+        transform_list: The count-prefixed list of NAMED TRANSFORMS the
+            remainder carried, or None - CS-828. Present under the same rule
+            the three above are: the record's class was named by
+            :func:`derive_transform_list_classes` AND the bytes then read as a
+            list at the scalar width that derivation derived for the body.
     """
 
     width: int
@@ -6802,6 +7066,7 @@ class TrailingRun:
     references: ReferencePair | None = None
     reference_list: ReferenceList | None = None
     zero_remainder: ZeroRemainder | None = None
+    transform_list: TransformList | None = None
 
 
 def read_trailing_run(body: bytes, terminator_end: int, end: int) -> TrailingRun | None:
@@ -7300,6 +7565,48 @@ def _run_with_reference_list(
     )
 
 
+def _run_with_transform_list(
+    body: bytes,
+    record: ObjectRecord,
+    run: TrailingRun | None,
+    transform_list_classes: Mapping[str, int],
+) -> TrailingRun | None:
+    """Read the run's remainder as a count-prefixed named-transform list when its class carries one.
+
+    THE VOCABULARY IS A GATE ON THE READING AND NEVER THE READING ITSELF, exactly
+    as in :func:`_run_with_item_list`. A class named here whose bytes do not read
+    in the derived form comes back exactly as CS-828 left it, so a derivation
+    that named everything would close nothing.
+
+    Args:
+        body: The decompressed body.
+        record: The record the run came from.
+        run: The run the walk read, or None.
+        transform_list_classes: Each derived carrier class to its scalar width.
+
+    Returns:
+        The run, with its remainder read when it read.
+    """
+    if run is None or run.lead is None or not run.unread:
+        return run
+    scalar_width = transform_list_classes.get(class_name_of(record.type_path))
+    if scalar_width is None:
+        return run
+    end = record.body_offset + record.body_length
+    read = read_transform_list(body, end - run.unread, end, scalar_width=scalar_width)
+    if read is None:
+        return run
+    return TrailingRun(
+        width=run.width,
+        lead=run.lead,
+        unread=run.unread - read.width,
+        items=run.items,
+        references=run.references,
+        reference_list=run.reference_list,
+        transform_list=read,
+    )
+
+
 def _run_with_zero_remainder(
     body: bytes,
     record: ObjectRecord,
@@ -7313,12 +7620,13 @@ def _run_with_zero_remainder(
     do not read comes back exactly as CS-828 left it, so a derivation that
     named everything would close nothing.
 
-    IT RUNS LAST OF THE FOUR, and the order is load-bearing rather than
-    arbitrary: a remainder an item list, a reference pair or a reference list
-    already read has ``unread`` at zero and never reaches here, so no region is
-    counted twice. The ordering is not what keeps this reading off that list's
-    subject either - a zero-valued residual reads a COUNT of zero, which
-    :func:`read_reference_list` refuses outright.
+    IT RUNS LAST OF THE FIVE, and the order is load-bearing rather than
+    arbitrary: a remainder an item list, a reference pair, a reference list or a
+    transform list already read has ``unread`` at zero and never reaches here,
+    so no region is counted twice. The ordering is not what keeps this reading
+    off those lists' subject either - a zero-valued residual reads a COUNT of
+    zero, which :func:`read_reference_list` and :func:`read_transform_list` both
+    refuse outright.
 
     Args:
         body: The decompressed body.
@@ -7344,6 +7652,7 @@ def _run_with_zero_remainder(
         items=run.items,
         references=run.references,
         reference_list=run.reference_list,
+        transform_list=run.transform_list,
         zero_remainder=read,
     )
 
@@ -7572,6 +7881,101 @@ def derive_reference_list_classes(
     return MappingProxyType(derived)
 
 
+def _transform_list_width_of(body: bytes, at: int, end: int) -> int | None:
+    """Which of the allowed scalar widths this remainder reads at, if any.
+
+    **MORE THAN ONE MATCH IS REFUSED RATHER THAN RESOLVED BY ORDER**, for the
+    reason :func:`_reference_list_form_of` gives. The two widths make the walk
+    reach each entry's length prefix at DIFFERENT offsets, so nothing structural
+    forbids both landing on ``end`` - and taking the first would make the answer
+    a property of the order this module happens to list the widths in.
+
+    Args:
+        body: The decompressed body.
+        at: The remainder's first byte.
+        end: The first byte past the payload.
+
+    Returns:
+        The width, or None when the remainder is not a list at exactly one.
+    """
+    reads = tuple(
+        width
+        for width in TRANSFORM_LIST_SCALAR_WIDTHS
+        if read_transform_list(body, at, end, scalar_width=width) is not None
+    )
+    return reads[0] if len(reads) == 1 else None
+
+
+def derive_transform_list_classes(
+    body: bytes,
+    records: Iterable[ObjectRecord],
+    *,
+    save_version: int | None = None,
+    header_version: int | None = None,
+) -> Mapping[str, int]:
+    """Pick the classes whose remainder is a count-prefixed named-transform list - CS-828.
+
+    **DERIVED FROM THE CORPUS, NEVER TRANSCRIBED**, for the reason
+    :func:`derive_item_list_classes` is: a hand-maintained vocabulary of game
+    content is the thing that rots, and CS-829's note forbids that shape by
+    name. It answers the SCALAR WIDTH as well as the membership, because the
+    width is not a constant of the format - measured on this project's library
+    the carrying class writes the narrow block on one of the three pairs CS-828
+    covers and the wide block on the other two.
+
+    **AND IT IS NOT VERSION-KEYED EITHER, WHICH IS THE SAME FENCE
+    :func:`derive_reference_pair_classes` STANDS BEHIND.** A table mapping each
+    measured layout to a scalar width would have worked on today's library and
+    would have been a transcription. The width is derived off the body being
+    read, so a body that stops writing the shape derives nothing and says so.
+
+    **A CLASS EARNS ITS PLACE BY BEING CONSISTENT, AND THAT IS THE ANTI-VACUITY
+    PROPERTY.** Every remainder-bearing record of the class in this body must
+    read as a list, and all of them at the SAME width. A reader taking each
+    record at whichever width happened to fit would admit every mixture, which
+    is arithmetic wearing a derivation's clothes.
+
+    **THE WEAKEST CASE, STATED RATHER THAN ROUNDED UP.** The consistency
+    requirement contributes nothing when a class has exactly ONE
+    remainder-bearing record in the body: one record agrees with itself. The
+    READING is still not vacuous there - the count must be positive, every name
+    must be non-empty and the walk must land exactly on the declared end - but
+    the WIDTH, at one record, is as good as observed. Measured on this project's
+    library two of the three pairs CS-828 covers carry exactly one such record,
+    so that is the common case here rather than the corner.
+
+    Args:
+        body: The decompressed body.
+        records: The records to derive from - a body's whole table.
+        save_version: The save version the body was walked on, or None.
+        header_version: The header version the body was walked on, or None.
+
+    Returns:
+        Each carrier class name to the scalar width its records agree on.
+    """
+    widths: dict[str, set[int | None]] = {}
+    for record in records:
+        if not record.body_length:
+            continue
+        result = read_properties(
+            body, record, save_version=save_version, header_version=header_version
+        )
+        run = result.trailing_run
+        if run is None or run.lead is None or not run.unread:
+            continue
+        end = record.body_offset + record.body_length
+        seen = widths.setdefault(class_name_of(record.type_path), set())
+        seen.add(_transform_list_width_of(body, end - run.unread, end))
+    derived: dict[str, int] = {}
+    for name, seen in widths.items():
+        if len(seen) != 1:
+            continue
+        only = next(iter(seen))
+        if only is not None:
+            derived[name] = only
+    return MappingProxyType(derived)
+
+
 def derive_zero_remainder_classes(
     body: bytes,
     records: Iterable[ObjectRecord],
@@ -7638,6 +8042,7 @@ def read_properties(  # noqa: PLR0913 - one keyword per derived remainder vocabu
     item_list_classes: Collection[str] = (),
     reference_pair_classes: Mapping[str, int] = _NO_REFERENCE_PAIR_CLASSES,
     reference_list_classes: Mapping[str, int] = _NO_REFERENCE_LIST_CLASSES,
+    transform_list_classes: Mapping[str, int] = _NO_TRANSFORM_LIST_CLASSES,
     zero_remainder_classes: Collection[str] = _NO_ZERO_REMAINDER_CLASSES,
 ) -> PropertyResult:
     """Decode one record's measured properties and report what was skipped.
@@ -7718,10 +8123,14 @@ def read_properties(  # noqa: PLR0913 - one keyword per derived remainder vocabu
             carrier to the per-entry prefix width its records agree on, from
             :func:`derive_reference_list_classes`. DEFAULTED EMPTY for the same
             reason.
+        transform_list_classes: Each class name derived as a NAMED-TRANSFORM
+            list carrier to the scalar width its records agree on, from
+            :func:`derive_transform_list_classes`. DEFAULTED EMPTY for the same
+            reason.
         zero_remainder_classes: Class names derived as zero-remainder carriers
             by :func:`derive_zero_remainder_classes`. DEFAULTED EMPTY for the
             same reason again - and the default is exactly why the library
-            sweep in ``tests/save/test_trailing_run.py`` takes all three as
+            sweep in ``tests/save/test_trailing_run.py`` takes all of them as
             REQUIRED keywords: a default meaning "read less" is invisible to a
             test that measures only what was read.
 
@@ -7860,16 +8269,21 @@ def read_properties(  # noqa: PLR0913 - one keyword per derived remainder vocabu
         trailing_run=_run_with_zero_remainder(
             body,
             record,
-            _run_with_reference_list(
+            _run_with_transform_list(
                 body,
                 record,
-                _run_with_reference_pair(
+                _run_with_reference_list(
                     body,
                     record,
-                    _run_with_item_list(body, record, walked.trailing_run, item_list_classes),
-                    reference_pair_classes,
+                    _run_with_reference_pair(
+                        body,
+                        record,
+                        _run_with_item_list(body, record, walked.trailing_run, item_list_classes),
+                        reference_pair_classes,
+                    ),
+                    reference_list_classes,
                 ),
-                reference_list_classes,
+                transform_list_classes,
             ),
             zero_remainder_classes,
         ),
