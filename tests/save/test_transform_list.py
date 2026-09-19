@@ -19,9 +19,17 @@ are, each name's own length prefix says how wide it is, the scalar block is
 :data:`clockspeed.save.objects.TRANSFORM_LIST_SCALARS` scalars of one of the
 widths :data:`clockspeed.save.objects.TRANSFORM_LIST_SCALAR_WIDTHS` allows, and
 the flag is :data:`clockspeed.save.objects.TRANSFORM_LIST_ENTRY_FLAG_BYTES` wide.
-The declared end is a BOUND and a VALIDATION and never a source of width, and
-:func:`test_the_width_is_derived_from_the_prefixes_and_not_from_the_declared_end`
-is the arm that goes red when that is swapped.
+The declared end is a BOUND and a VALIDATION and never a source of width.
+
+**WHICH ARM HOLDS THAT, STATED PRECISELY BECAUSE A DRAFT OF THIS PARAGRAPH NAMED
+THE WRONG ONE.** It is
+:func:`test_a_stretched_declared_end_is_refused_rather_than_read_to`, which a
+reader sized by the leftover passes only by reading a region it must refuse. It
+is NOT :func:`test_the_reported_width_is_the_sum_of_its_own_prefixes` - on any
+fixture the reader ACCEPTS, the landing check has already made the derived sum
+and ``end - at`` equal, so swapping one for the other there is an EQUIVALENT
+mutant and no value can kill it. That arm grades the figure a consumer is
+handed; the stretched-end arm grades the refusal.
 
 **THE SCALAR WIDTH IS NOT A CONSTANT OF THE FORMAT, AND A READER THAT ASSUMED
 ONE WOULD MIS-READ EVERY BODY OF THE OTHER.** Measured on this project's library
@@ -347,10 +355,16 @@ def _ambiguous_remainder() -> bytes:
 
 
 @pytest.mark.parametrize("scalar_width", objects.TRANSFORM_LIST_SCALAR_WIDTHS)
-def test_the_width_is_derived_from_the_prefixes_and_not_from_the_declared_end(
+def test_the_reported_width_is_the_sum_of_its_own_prefixes(
     scalar_width: int,
 ) -> None:
-    """The reported width is summed from the fixture's own prefixes.
+    """The reported width equals a second enumeration of the fixture's prefixes.
+
+    IT DOES NOT GRADE THE ANTI-ARITHMETIC PROPERTY and its name no longer says
+    it does. On a fixture the reader accepts, the landing check has made the
+    derived sum and ``end - at`` equal, so a reader spelling the width the
+    forbidden way passes here. The arm that refuses that reader is
+    :func:`test_a_stretched_declared_end_is_refused_rather_than_read_to`.
 
     Args:
         scalar_width: The scalar width under test.
@@ -867,7 +881,9 @@ def test_every_pair_that_derives_a_carrier_also_reads_a_payload() -> None:
     """A derived vocabulary that read nothing would be a gate admitting nobody."""
     sweep = _sweep_or_skip()
 
-    barren = tuple(pair for pair, count in sweep.carriers.items() if count and not sweep.read[pair])
+    barren = tuple(
+        pair for pair, count in sweep.carriers.items() if count and not sweep.read.get(pair, 0)
+    )
 
     assert barren == ()
 

@@ -7935,14 +7935,17 @@ def derive_transform_list_classes(
     record at whichever width happened to fit would admit every mixture, which
     is arithmetic wearing a derivation's clothes.
 
-    **THE WEAKEST CASE, STATED RATHER THAN ROUNDED UP.** The consistency
-    requirement contributes nothing when a class has exactly ONE
-    remainder-bearing record in the body: one record agrees with itself. The
-    READING is still not vacuous there - the count must be positive, every name
-    must be non-empty and the walk must land exactly on the declared end - but
-    the WIDTH, at one record, is as good as observed. Measured on this project's
-    library two of the three pairs CS-828 covers carry exactly one such record,
-    so that is the common case here rather than the corner.
+    **THE WEAKEST CASE, AND ON TODAY'S LIBRARY IT IS THE ONLY CASE.** The
+    consistency requirement contributes nothing when a class has exactly ONE
+    remainder-bearing record in the body: one record agrees with itself. Measured
+    over every body of this project's library, EVERY derived carrier on EVERY one
+    of the three pairs has exactly one - so the requirement refuses nothing here
+    at all, and the WIDTH is as good as observed on all three. A first draft of
+    this paragraph said it was the case on two pairs of three; the cycle's
+    verifier re-derived it per body and measured that false. The READING is still
+    not vacuous - the count must be positive, every name must be non-empty and
+    the walk must land exactly on the declared end - and the requirement is kept
+    because it is what a body carrying several such records would be held to.
 
     Args:
         body: The decompressed body.

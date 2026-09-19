@@ -389,15 +389,18 @@ COLLISION.** Four zero bytes are an empty count-prefixed item list AND an empty
 string AND the zero-valued residual AND an empty list of this shape. Nothing in
 the run tells those apart, so this reader claims none of them.
 
-**THE WEAKEST CASE, STATED RATHER THAN ROUNDED UP, AND IT IS WEAKER HERE THAN ON
-ANY EARLIER READING.** The consistency requirement that admits a class
-contributes nothing when that class has exactly ONE remainder-bearing record in
-the body, and measured on this library TWO of the three pairs are exactly that
-case. So on those two the derived width is as good as OBSERVED, and only the
-third pair's records agree with each other at all. The READING is still not
-vacuous anywhere - the count must be positive, every name must be non-empty and
-the walk must land exactly on the declared end - but a later cycle strengthening
-this should require a floor on n rather than re-deriving the consistency rule.
+**THE WEAKEST CASE, AND IT IS WEAKER HERE THAN ON ANY EARLIER READING OF THIS
+RUN.** The consistency requirement that admits a class contributes nothing when
+that class has exactly ONE remainder-bearing record in the body, and re-derived
+PER BODY over this whole library that is EVERY derived carrier on EVERY one of
+the three pairs. The requirement therefore refuses nothing on this corpus, and
+the derived WIDTH is as good as OBSERVED on all three pairs. **A DRAFT OF THIS
+BLOCK SAID IT HELD ON TWO PAIRS OF THREE AND THAT THE THIRD PAIR'S RECORDS
+AGREED WITH EACH OTHER; the cycle's verifier measured both halves false** and
+they are corrected rather than quietly dropped. What still refuses real input is
+the READING - a positive count, non-empty names and an exact landing, none of
+which the leftover supplies - and a later cycle strengthening this should
+require a floor on n rather than re-deriving the consistency rule.
 
 **THE POPULATION IS SMALL AND IS NOT ROUNDED UP EITHER.** This shape carries a
 small fraction of what the corrected instrument reports open on the three pairs;

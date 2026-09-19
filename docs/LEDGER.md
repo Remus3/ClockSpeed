@@ -120,10 +120,16 @@ read at both.
 **THE WEAKEST CASE IS RECORDED RATHER THAN ROUNDED UP, AND IT IS WEAKER HERE THAN ON ANY
 EARLIER READING OF THIS RUN.** The consistency requirement that admits a class
 contributes nothing when the class has exactly ONE remainder-bearing record in the body,
-and on two of the three pairs that is the case. On those two the derived width is as good
-as observed; only the third pair's records agree with each other at all. The reading
-itself is not vacuous anywhere - positive count, non-empty names, exact landing - and a
-later cycle should require a floor on n rather than re-derive the consistency rule.
+and measured per body over this whole library that is EVERY derived carrier on EVERY one
+of the three pairs. So the requirement refuses nothing on this corpus and the derived
+width is as good as OBSERVED on all three pairs - which is the one thing this reading
+cannot round up, since a width as good as observed is the CS-830 shape at one remove.
+What still refuses real input is the READING: a positive count, non-empty names and an
+exact landing, none of which the leftover can supply. **A DRAFT OF THIS PARAGRAPH SAID
+THE ONE-RECORD CASE HELD ON TWO PAIRS OF THREE AND THAT THE THIRD PAIR'S RECORDS AGREED
+WITH EACH OTHER.** The cycle's verifier re-derived it per body and measured both halves
+false; it is corrected here rather than quietly dropped. A later cycle should require a
+floor on n rather than re-derive the consistency rule.
 
 **THE POPULATION IS SMALL AND THAT IS NOT ROUNDED UP EITHER.** This shape carries a small
 fraction of what the corrected instrument reports open; the nested structure CS-1119 owns
