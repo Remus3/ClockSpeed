@@ -1,0 +1,102 @@
+CLOCKSPEED - CONTINUATION PROMPT, written at end of session 107 (2026-09-19)
+
+READ FIRST, IN THIS ORDER: CLAUDE.md, memory/MEMORY.md, ROADMAP.md, WAKEUP_NOTES.md
+(the session 107 entry is the full-fidelity record), docs/ARCHITECTURE.md.
+
+STATE AT HANDOFF
+main = 35b1492, pushed, working tree CLEAN.
+Suite THIS SESSION, through the pre-push hook, from the repo root with an explicit
+target, twice:
+  pytest tests -q -x -n auto --dist loadfile  ->  9125 passed, 7 skipped, exit 0 (877s)
+  and again on the notes push                 ->  9125 passed, 7 skipped, exit 0 (730s)
+9125 + 7 = 9132 collected. ALWAYS check that identity - a short green is the failure
+mode this project has measured more than once.
+Drift guard exit 0 (11 PASS, 0 WARN, 0 FAIL). doc_budget exit 0 (38 measured, 0 over).
+memory_sync exit 0. ruff check and ruff format --check both clean.
+CI tier1 on 58f7684: SUCCESS, read from `gh run list`. CI tier1 on 35b1492 was
+IN PROGRESS when this session ended - READ ITS STATUS, do not assume it.
+
+The box is heavily contended by sibling repo sessions. The pre-push suite normally
+takes about 4 minutes and took 12 to 15 minutes this session.
+
+
+SESSION 107 CLOSED
+
+CS-1154 - CLOSED. `git -c` exports its overrides through GIT_CONFIG_PARAMETERS, every
+git child inherits it, and a command-line override OUTRANKS repository configuration -
+so every throwaway repo in tests/test_precommit_gate.py lost the core.hooksPath it had
+just set and NO HOOK RAN. The world-name PII arm accepted the commit it exists to
+block, three pushes running, with returncode=0 and an EMPTY stderr. tests/git_env.py
+now scrubs that channel too. Full record in docs/LEDGER.md.
+
+
+SESSION 107 FILED AND LEFT OPEN
+
+CS-1153 - tier 2. tools/drift_guard.py::_walk prunes only WALK_SKIP_DIRS plus, at the
+root level alone, WALK_SKIP_ROOT_DIRS, which is frozenset({"data"}) - one entry.
+.claude/worktrees/ (2038 files, 206 MB), certs/, corpus/, work/ and moon_sync_inbox/
+are in NEITHER set, and the last three are PII-bearing by this repo's own
+classification. It does not fire today only because enumerate_files() prefers the git
+index and falls back to _walk only on an empty one, so the pruning is done by the
+ENUMERATION STRATEGY and nothing states that dependency at _walk itself.
+Acceptance is in docs/item_notes/phase7.md under CS-1153.
+
+
+THE SINGLE NEXT ACTION
+
+Make tools/drift_guard.py::_walk prune those roots by its own rule, with a test that
+drives _walk DIRECTLY against a tree holding a populated .claude/worktrees/ and a
+work/ copy, so the guarantee survives a caller that bypasses enumerate_files.
+tools/doc_budget.py::_walk already carries the correct shape (_is_checkout_root plus
+_is_registered_worktree, CS-1115) - copy it.
+
+
+DO NOT RE-LITIGATE
+
+- The CS-1154 diagnosis. It is NOT a contended box and it is NOT GIT_DIR. Both were
+  measured and discarded: GIT_DIR relative and absolute do not reproduce it, -n auto
+  over tests/test_precommit_gate.py alone does not reproduce it, and it reproduced
+  three pushes running and never once outside the pre-push hook. The proof is one
+  command, and it fails on 82ed8a1 and passes on 58f7684:
+    GIT_CONFIG_PARAMETERS="'core.hooksPath=.githooks'" python -m pytest
+    "tests/test_precommit_gate.py::test_a_staged_world_name_is_blocked_by_a_real_commit" -q
+- GIT_CONFIG_GLOBAL and GIT_CONFIG_SYSTEM are deliberately NOT scrubbed. They cut the
+  operator's own configuration off rather than adding to it, and
+  tests/test_git_env_scrub.py::test_the_scrub_keeps_the_variables_that_isolate_a_fixture
+  pins that. Do not "complete" the scrub by adding them.
+- The machine stray-work sweep is FILED. Do not redo it. Read
+  ~/.claude/projects/C--Clockspeed/memory/machine-stray-work-sweep-baseline.md and the
+  delivered note first, then measure only the deltas.
+
+
+PUSH DISCIPLINE, LEARNED THIS SESSION
+
+- Do NOT push with `git -c core.hooksPath=...`. The hooks are already wired by
+  core.hooksPath in repo config, so a plain `git push` runs them. The -c form is what
+  caused CS-1154, and although the scrub now contains it, the habit buys nothing.
+- Start the push DETACHED (PowerShell Start-Process with redirected output) or a shell
+  timeout kills it mid-run and the partial log reads as a red suite. A killed pytest
+  leaves "exit 1" with no FAILED line anywhere - that is a kill, not a failure.
+- Do not commit while a push is in flight. The CS-954 ref check blocks it.
+
+
+OPEN CHANNEL BUSINESS
+
+No action is required to proceed, but do NOT action the UNKNOWN or MOVE rows alone.
+
+- Session 107 delivered a REVIEW note to LL, LW, RC and RSC:
+  2026-09-19-1430-from-CS-REVIEW-e085b4a92ab2-machine-stray-work-sweep.md
+  RC merges the five reports and the operator adjudicates before any deletion pass.
+  Replies carry e085b4a92ab2 in their slug. Check moon_sync_inbox/ for them; the
+  session-start watcher lists unread items.
+- CS asked siblings to confirm four things: whether C:\_lt.txt, C:\tmp, C:\xnx,
+  C:\Tools, C:\Monster, C:\Ghost Toolbox or C:\ClaudeBackup_20260906 are theirs;
+  whether C:\rm339_dangling.json is RC's; and whether the four CS slice worktrees with
+  commits inside six hours are live agent trees. CS could not answer the last one from
+  mtime and classified none of them prunable.
+
+
+NOTHING CONTRADICTED BOOTSTRAP.md THIS SESSION.
+
+EXTERNAL CONDITIONS BEING WAITED ON: the four sibling replies above, and the tier1 CI
+run for 35b1492.

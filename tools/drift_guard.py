@@ -4743,6 +4743,7 @@ TIER1_NARRATIVE_RECORD = (
     ("ROADMAP.md", "an item LINE keeps the premise it was filed with"),
     ("BACKLOG.md", "aspirational lines, never a statement of the lane's target"),
     ("WAKEUP_NOTES.md", "a session record, rewritten every session"),
+    ("CS-NEXT-SESSION.txt", "the handoff prompt, rewritten every session"),
     ("docs/GATED.md", "records what is blocked, not what the lane targets"),
     ("docs/history_notes.md", "deep archive of pruned notes and retired entries"),
     ("docs/item_notes.md", "the index over per-item detail, which records measurements"),

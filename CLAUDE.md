@@ -174,6 +174,7 @@ restated fact is a fact that will drift. This table is the anti-drift control.
 | `docs/item_notes/` | LIVE per-item detail for OPEN work, one leaf per phase, one section per item ID, and the SOLE owner of a pointed-at acceptance clause under its `### Acceptance` heading | Item lines, completion records, history, closed items |
 | `BACKLOG.md` | Aspirational and conditional-trigger items, one line each | Anything currently being worked |
 | `WAKEUP_NOTES.md` | Last two to three sessions at full fidelity | Anything older - archive it |
+| `CS-NEXT-SESSION.txt` | The handoff prompt a COLD session is started from, rewritten whole every `/done`. Tracked, and the Desktop shortcut `CS-NEXT-SESSION.lnk` points at it - the same shape LL, LW and RC carry | Rules, per-item detail, anything the next session cannot act on immediately |
 | `docs/LEDGER.md` | Append-only, newest-first per-item completion record | Rules, open work |
 | `docs/ARCHITECTURE.md` | Module map, data flow, seams, ownership | Ops commands, counts |
 | `docs/OPERATIONS.md` | Commands, restart, scheduled tasks, runbooks | Architecture, rationale |

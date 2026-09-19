@@ -164,6 +164,7 @@ EXPECTED_NARRATIVE_EXACT = (
     "ROADMAP.md",
     "BACKLOG.md",
     "WAKEUP_NOTES.md",
+    "CS-NEXT-SESSION.txt",
     "docs/GATED.md",
     "docs/history_notes.md",
     "docs/item_notes.md",

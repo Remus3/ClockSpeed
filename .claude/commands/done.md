@@ -91,7 +91,7 @@ Append-only, NEWEST-FIRST, one entry per item:
 - [ ] If it is still running, say so. Do not predict the result.
 - [ ] If it is red, that is the top item of the continuation prompt.
 
-## 8. PRINT THE FULL NEXT-SESSION CONTINUATION PROMPT
+## 8. WRITE `CS-NEXT-SESSION.txt` - THE NEXT-SESSION CONTINUATION PROMPT
 
 **This is not a courtesy. It IS the continuity mechanism. Every session ends with one.**
 Rediscovery - redoing closed work, re-pitching a refuted idea, acting on a stale doc - is
@@ -111,24 +111,30 @@ other context. WHAT GOES IN IT:
       `ROADMAP.md`, `WAKEUP_NOTES.md`, `docs/ARCHITECTURE.md`.
 - [ ] Any external condition being waited on.
 
-**HOW TO EMIT IT: inline, raw, and copy-pastable in one grab.** The operator moves this by
-hand into a cold session. Rendered markdown cannot be moved - the emphasis markers are
-consumed, the list structure becomes the renderer's, and there is no raw source to select.
-So emit the SOURCE, verbatim, inside a fence:
+**HOW TO EMIT IT: A FILE, NOT A CHAT FENCE.** Operator directive, 2026-09-19. LL, LW and
+RC each carry `<CODE>-NEXT-SESSION.txt` at their repo root with a Desktop shortcut pointing
+at it, and this repository was the one that did not. A fence in a transcript is gone the
+moment the session is cleared; a file survives, and the shortcut means the operator opens
+it without finding the session it came from.
 
-- [ ] ONE fenced block, opened and closed with FOUR backticks, and no language tag. Four,
-      not three: the prompt itself contains a three-backtick fence (the uncommitted-branch
-      list), and a three-backtick outer fence is closed by the first inner one, silently
-      truncating every line after it. No language tag - a `bash` tag puts a Run button on it.
-- [ ] That fence is the LAST thing in the message. Nothing after it - no summary, no sign
-      off, no offer to continue. Trailing prose is text the operator has to select around.
-- [ ] Nothing above it either, beyond one line naming what it is.
-- [ ] 7-bit ASCII, per non-negotiable 4. No em-dashes, no smart quotes. A pasted em-dash is
-      how one enters a file in the first place, and this is the most-pasted string the
-      project emits.
-- [ ] Emphasise with CAPS, not `**`. Inside a fence nothing renders, so `**` reaches the
-      operator as two literal asterisks.
-- [ ] One block, whole. Never split across two fences, never summarised in prose first.
+- [ ] WRITE the whole prompt to `CS-NEXT-SESSION.txt` at the REPO ROOT, overwriting it.
+      Whole file, every time - never appended to, never patched. It is a snapshot of one
+      handoff, not a log of several.
+- [ ] It is TRACKED and it is committed with the session's other work. `CLAUDE.md` section 4
+      carries its topology row; `tools/drift_guard.py` exempts it from the tier-1 budget
+      guard under `TIER1_NARRATIVE_RECORD` for the same reason `WAKEUP_NOTES.md` is exempt -
+      it RECORDS a measurement rather than owning one. Adding a second statement of a tier-1
+      duration to any OTHER file still fails guard (k).
+- [ ] 7-bit ASCII and LF, per non-negotiable 4 and the line-ending rule. No em-dashes, no
+      smart quotes. This is the most-pasted string the project emits and a pasted em-dash is
+      how one enters a file in the first place.
+- [ ] Emphasise with CAPS, not `**`. It is read as plain text in Notepad, where `**` is two
+      literal asterisks.
+- [ ] CONFIRM the Desktop shortcut still resolves: `CS-NEXT-SESSION.lnk` must target
+      `C:\Clockspeed\CS-NEXT-SESSION.txt`. A shortcut that lost its target is a handoff that
+      silently stopped being delivered, and nothing else in the ritual would notice.
+- [ ] In the chat, say the PATH in one line and nothing more. Do NOT also paste the prompt
+      into a fence - the transcript is a cost (CLAUDE.md 2.3) and the file is the mechanism.
 
 ## 9. Final report
 
