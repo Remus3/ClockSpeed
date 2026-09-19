@@ -75,6 +75,101 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-09-19 - CS-828 - NOT A COMPLETION RECORD. NOTHING CLOSED. CS-828 STAYS OPEN. The zero-valued residual that carried most of the open region is read
+
+**THE ITEM STAYS OPEN AND ITS ACCEPTANCE IS UNCHANGED.** This is the fourth reading
+recorded against the trailing run and the third narrowing filed as a measurement rather
+than a closure. The clause asks for the run's contents on EVERY payload of the (10,36),
+(13,42) and (14,52) pairs; a residual population survives on every one of them.
+
+**WHAT SHIPPED.** `clockspeed/save/objects.read_zero_remainder` reads a trailing
+remainder that is exactly `ZERO_REMAINDER_BYTES` wide and carries `ZERO_REMAINDER_VALUE`,
+reporting it on the new `TrailingRun.zero_remainder` with `unread` falling to zero.
+`derive_zero_remainder_classes` picks the carrying classes off the body being read, and
+`read_properties` takes the vocabulary as `zero_remainder_classes`, defaulted empty like
+the two before it and applied LAST so a remainder an earlier reading closed is never
+counted twice.
+
+**WHY IT IS NOT THE CS-830 DEFECT - AND THIS PARAGRAPH REPLACES A FIRST DRAFT THE
+CYCLE'S VERIFIER MEASURED FALSE.** That draft said the width alone would still have been
+arithmetic and that the VALUE condition is what makes the reading falsifiable. Both
+halves are wrong. The CS-830 defect is a width taken FROM the observation, which closes
+on every payload; this width is the shipped constant `ZERO_REMAINDER_BYTES`, so every
+residual of any other width is REFUSED - and residuals of many other widths are exactly
+what remains open on all three pairs. **THE WIDTH IS WHAT REFUSES REAL INPUT.**
+
+**THE WEAKEST CASE, STATED RATHER THAN ROUNDED UP, because an adversary measured it and
+a caveat said in a cycle report is not a caveat in the artifact.** The verifier
+re-derived the vocabulary over every body of the library with the value condition
+DELETED and admitted exactly the same classes. On this corpus the condition refuses no
+real record; it is exercised only by the synthetic arms. It is kept because the shape it
+names is a claim about the bytes rather than about arithmetic - a non-zero int32 at the
+same width is a different region and must not be swallowed - and because
+`derive_zero_remainder_classes` carries it, so a class whose records disagree on the
+width OR on the value derives nothing. But nothing shipped here rests on it, and a later
+cycle must not cite it as the anti-arithmetic property.
+
+**WHAT IT DOES NOT CLAIM.** Four zero bytes are byte-identical to an empty
+count-prefixed item list. Nothing here says which the region IS and no reading of the run
+can - CS-1068's root cause seen from the other side, owned by CS-1119. The field is named
+for what is measured, a zero value at a derived landing point, and never for what it
+might mean.
+
+**THE FAILING TESTS CAME FIRST AND FAILED FOR THE RIGHT REASON - OBSERVED IN THE CYCLE,
+NOT RE-DERIVABLE FROM THIS COMMIT, AND SAID THAT WAY BECAUSE THE VERIFIER COULD NOT
+CONFIRM IT.** All fourteen arms of
+`tests/save/test_zero_remainder.py` were written before any implementation and reported
+`AttributeError: module 'clockspeed.save.objects' has no attribute
+'ZERO_REMAINDER_VALUE'`, the same for `read_zero_remainder` and
+`derive_zero_remainder_classes`, and `TypeError: read_properties() got an unexpected
+keyword argument 'zero_remainder_classes'`.
+
+**THE ARMS, BY NAME.** The clause's own arm is
+`test_the_width_is_a_shipped_constant_and_never_the_declared_end` - the same bytes at two
+declared ends, reading at the shipped width and REFUSED when the end is moved past it.
+The anti-vacuity pair is `test_a_non_zero_remainder_at_the_shipped_width_is_refused` and
+`test_a_class_whose_remainder_is_the_shipped_width_but_non_zero_derives_nothing`; the
+per-body consistency rule is `test_a_class_whose_records_disagree_in_width_derives_nothing`
+and `test_one_class_deriving_nothing_leaves_its_neighbour_derived`; the gate-not-reading
+rule is `test_naming_a_class_whose_bytes_do_not_read_closes_nothing` and
+`test_an_underived_class_keeps_its_remainder_unread`.
+
+**THE LIBRARY HALF IS THE EXISTING SWEEP, DELIBERATELY, AND NOT A THIRD ONE.**
+`tests/save/test_trailing_run.py` already walks every save once and reports COUNTS ONLY,
+which is what the clause names; `_run_of_record` now takes the third vocabulary as a
+REQUIRED keyword alongside the other two, `_sweep_trailing_runs` derives it off each body,
+and `_RunSweep.read_by_derivation` counts it. A second full-library walk in the new module
+would have tripled the suite cost to re-measure a population that sweep already reports.
+
+**SIBLING SWEEP - MEASURED, AND IT EXTENDS THE MEASUREMENT THE ENTRY BELOW MADE.** The
+previous entry recorded that `tests/save/test_item_list.py` and
+`tests/save/test_reference_pair.py` each pass their OWN vocabulary and omit the other, and
+that this is harmless only because the two derived carrier sets are DISJOINT across this
+library. That measurement was re-taken this cycle over all THREE derivations on every
+body of the library: no class is named by any two of them. So neither module's `unread`
+figure moves and neither needed a change. **THE CONDITION UNDER WHICH THAT STOPS BEING
+TRUE IS UNCHANGED AND STILL UNENFORCED** - disjointness is a fact about today's derived
+sets, not a constraint anything asserts.
+
+**TIER 2** - a public interface on the save layer grew a parameter and a result field.
+
+**WHAT REMAINS OPEN ON CS-828.** One shape: a remainder that is a large nested structure
+nothing in the run describes. CS-1119 owns reading it and CS-1148 owns the correction to
+the sentence describing it. The disambiguation half of CS-1119 - whether the zero-valued
+residual IS an empty item list or a class carrying no list at all - is NOT discharged by
+this and no reading of the run can discharge it.
+
+**THE OVERLAP WITH CS-1119, STATED FLATLY BECAUSE THE CYCLE'S VERIFIER SHARPENED IT AND
+A SOFTER WORDING WOULD BE THE THING THAT MISLEADS.** That row's ACCEPTANCE is satisfied
+by EITHER of its two shapes being read, and every element of that clause is met by this
+change - the width comes from a shipped constant, the carriers are derived off the body,
+the library test reports counts only, and the moved-declared-end refusal arm exists. What
+is NOT met is the framing in that row's HEADLINE: whether the zero-valued residual is an
+empty item list or a class carrying no list at all is undecided and undecidable from the
+run. **THE ROW IS LEFT OPEN RATHER THAN CLOSED FROM HERE** - one row per cycle, and a row
+this cycle did not claim is not one it may close. The cycle that takes CS-1119 should
+read this entry first and will find most of its clause already standing.
+
 ### 2026-09-19 - CS-828 - NOT A COMPLETION RECORD. NOTHING CLOSED. CS-828 STAYS OPEN. The proof instrument its clause names was sweeping with both shipped remainder readings switched off
 
 **THE ITEM STAYS OPEN AND ITS ACCEPTANCE IS UNCHANGED.** No byte of the run is read this

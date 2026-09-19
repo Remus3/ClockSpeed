@@ -218,6 +218,66 @@ measured layout by eleven. That is a correction to a filed characterisation and 
 filed rather than applied here, because the row that owns the reading owns the
 sentence describing it.
 
+### Fourth partial ship recorded 2026-09-19 - the zero-valued residual reads, the nested structure does not
+
+**THE ITEM STAYS OPEN AND ITS ACCEPTANCE IS UNCHANGED.** This is the fourth reading of
+the run and the third recorded here as a measurement rather than a closure. What shipped
+reads the remainder shape that carried the LARGE MAJORITY of what the corrected
+instrument reported open, and nothing else.
+
+**WHAT IS NOW READ.** `clockspeed/save/objects.read_zero_remainder` reads a remainder
+that is exactly `ZERO_REMAINDER_BYTES` wide and carries `ZERO_REMAINDER_VALUE`, and
+reports it on `TrailingRun.zero_remainder` with `unread` falling to zero.
+`derive_zero_remainder_classes` picks the carrying classes off the body being read.
+The figures move with the operator library and `tests/save/test_trailing_run.py` is
+their only owner, so none is written here.
+
+**THE WIDTH IS WHAT KEEPS THIS OFF THE CS-830 DEFECT, AND A FIRST DRAFT OF THIS BLOCK
+SAID IT WAS THE VALUE.** The cycle's verifier measured that draft false and it is
+corrected rather than quietly dropped. The CS-830 defect is a width taken FROM the
+observation, which closes on every payload and cannot fail. This width is the shipped
+constant `ZERO_REMAINDER_BYTES`, so every residual of another width is REFUSED - and
+residuals of many other widths are exactly what remains open on all three pairs.
+`tests/save/test_zero_remainder.py` holds it through the stretched-end arm CS-828's
+clause names.
+
+**THE WEAKEST CASE, STATED RATHER THAN ROUNDED UP.** The verifier re-derived the
+vocabulary over every body of the library with the VALUE condition deleted and admitted
+exactly the same classes. On this corpus that condition refuses no real record and is
+exercised only by the synthetic arms. It is kept because the shape it names is a claim
+about the bytes and a non-zero int32 at the same width is a different region - and
+`derive_zero_remainder_classes` carries it, so a class disagreeing on width OR on value
+derives nothing. **DO NOT CITE THE VALUE CONDITION AS THE ANTI-ARITHMETIC PROPERTY.**
+
+**WHAT THIS READING DOES NOT CLAIM, AND THE DISCLAIMER IS LOAD-BEARING RATHER THAN
+MODEST.** Four zero bytes are BYTE-IDENTICAL to an empty count-prefixed item list.
+Nothing shipped here says which the region IS, and no reading of the run can: that is
+CS-1068's root cause seen from the other side and CS-1119 owns it. What is read is the
+VALUE at a derived landing point, exactly as the lead field is. **DO NOT LATER READ
+`TrailingRun.zero_remainder` AS A CLAIM THAT THE CLASS CARRIES AN EMPTY LIST** - the
+field name says zero, not empty, for that reason.
+
+**WHAT REMAINS, AND IT IS STILL CS-1119.** One shape: a remainder that is a large nested
+structure nothing in the run describes. It is what the residual population on all three
+pairs is now made of. The correction the block above filed is CS-1148 and it still
+stands - CS-1119's filed headline calls that shape ONE class and it is carried by more -
+and the shipped `UNMEASURED_PAYLOAD_REGIONS` entry now says so too rather than repeating
+the false characterisation.
+
+**WHAT THIS DOES TO CS-1119, SHARPENED BY THE VERIFIER BECAUSE THE SOFTER WORDING WAS THE
+MISLEADING ONE.** That row's ACCEPTANCE is satisfied by EITHER shape being read, and
+every element of it is met by this change: the width is a shipped constant, the carriers
+are derived off the body, the library test reports counts only, and the
+moved-declared-end refusal arm exists. What is NOT met is that row's HEADLINE framing -
+whether the zero-valued residual IS an empty item list or a class carrying no list at all
+is undecided and undecidable from the run. **THE ROW IS LEFT OPEN RATHER THAN CLOSED FROM
+HERE**, because one row per cycle means a row this cycle did not claim is not one it may
+close. The cycle that takes CS-1119 should read this block first.
+
+**DO NOT CLOSE THIS ITEM ON THE STRENGTH OF THE ZERO REMAINDER.** The same sentence as
+the three blocks above, for the same reason. The clause says every payload of the three
+pairs, and a residual population survives on every one of them.
+
 ### Acceptance
 
 the run's contents are read, or its width is DERIVED from something in the payload rather than OBSERVED as `declared_end - terminator_end`, on every payload of the (10,36), (13,42) and (14,52) pairs, proven by a skip-if-absent real-library test reporting COUNTS ONLY

@@ -317,6 +317,7 @@ __all__ = [
     "decode_struct_interior",
     "derive_item_list_classes",
     "derive_reference_pair_classes",
+    "derive_zero_remainder_classes",
     "index_records",
     "parse_body",
     "parse_object_headers",
@@ -325,6 +326,7 @@ __all__ = [
     "read_properties",
     "read_reference_pair",
     "read_trailing_run",
+    "read_zero_remainder",
     "resolve_references",
     "uses_complete_type_name",
 ]
@@ -4335,11 +4337,30 @@ UNMEASURED_PAYLOAD_REGIONS: Final[Mapping[str, str]] = MappingProxyType(
             "of its remainder-bearing records reads at the SAME width. On "
             "those classes' payloads unread falls to zero and the pair is "
             "reported as TrailingRun.references. "
+            "NARROWED AGAIN BY CS-828, ON A THIRD DERIVED CLASS SET AND "
+            "NOWHERE ELSE: where the remainder is exactly one int32 READING "
+            "ZERO it is read by read_zero_remainder, whose width is the "
+            "shipped constant ZERO_REMAINDER_BYTES and never the leftover, "
+            "and which REFUSES a value other than ZERO_REMAINDER_VALUE. THE "
+            "WIDTH IS WHAT REFUSES REAL INPUT - residuals of many other "
+            "widths remain open on all three pairs - and the value condition "
+            "is measured to refuse no record of this library, which is "
+            "recorded at ZERO_REMAINDER_VALUE rather than rounded up. "
+            "derive_zero_remainder_classes admits a class only when every one "
+            "of its remainder-bearing records in that body reads as the shape, "
+            "value included. On those classes' payloads unread falls to zero "
+            "and the reading is reported as TrailingRun.zero_remainder. IT IS "
+            "NOT A CLAIM THAT THE REGION IS AN EMPTY ITEM LIST: those bytes "
+            "are byte-identical to one, no reading of the run can tell them "
+            "apart, and CS-1119 owns that question. What is read is the VALUE "
+            "at a derived landing point, exactly as the lead field is. "
             "WHAT REMAINS AFTER THAT, and it is CS-1119 rather than this "
-            "entry: a four-byte all-zero residual that is byte-identical to an "
-            "empty item list and so cannot be told from one by any reading of "
-            "the run, and one class whose remainder is a large nested "
-            "structure that nothing in the run describes. "
+            "entry: whether that zero-valued residual IS an empty item list or "
+            "a class carrying no list at all, which no reading of the run "
+            "decides; and a remainder that is a large nested structure nothing "
+            "in the run describes, carried by a set of classes CS-1119's note "
+            "owns the measurement of - its filed headline calls it one class "
+            "and that characterisation is measured false. "
             "NO FIGURE ABOVE IS RESTATED IN ANY TEST: "
             "tests/save/test_trailing_run.py derives the population from this "
             "module's own TRAILING_RUN_PAIRS on every run and reports COUNTS "
@@ -4828,6 +4849,40 @@ REFERENCE_PAIR_TAIL_WIDTHS: Final[tuple[int, ...]] = (0, REFERENCE_PAIR_TAIL_BYT
 #: that has not derived reads exactly what CS-828 left, and shared rather than
 #: rebuilt so the default is not a new object on every call.
 _NO_REFERENCE_PAIR_CLASSES: Final[Mapping[str, int]] = MappingProxyType({})
+
+#: How wide the ZERO REMAINDER shape is - CS-828. One int32, and the width is
+#: a SHIPPED CONSTANT rather than whatever was left over: a reader sized by
+#: ``end - at`` closes on every payload and no reading of it could fail, which
+#: is the defect that refuted CS-830 after it had merged.
+ZERO_REMAINDER_BYTES: Final = INT32_SIZE
+
+#: What that field must CARRY for the remainder to read as this shape. Unlike
+#: :data:`TRAILING_RUN_LEAD_MEASURED_VALUE` this IS a constraint and not just a
+#: name for a measurement: the claim being made is that the region is an EMPTY
+#: structure - a zero count or a zero length - so bytes saying otherwise are a
+#: DIFFERENT shape and are refused rather than swallowed.
+#:
+#: **IT IS NOT WHAT MAKES THIS READING FALSIFIABLE, AND AN EARLIER DRAFT OF
+#: THIS COMMENT SAID IT WAS.** A CS-828 verifier re-derived the vocabulary over
+#: the whole library with this condition deleted and admitted exactly the same
+#: classes: on today's corpus the condition refuses NO real record and is
+#: exercised only by the synthetic arms. What refuses real input is the WIDTH,
+#: which is :data:`ZERO_REMAINDER_BYTES` rather than the leftover - every
+#: residual of any other width is declined, and residuals of many other widths
+#: are what remains open on all three pairs. That is the property that keeps
+#: this off the CS-830 defect, because that defect was a width taken FROM the
+#: observation. The value condition is kept because the shape it names is a
+#: claim about the bytes, and its weakest case is written here rather than
+#: rounded up.
+#:
+#: WHAT IT DOES NOT CLAIM. Four zero bytes are BYTE-IDENTICAL to an empty
+#: count-prefixed item list, which is CS-1068's root cause seen from the other
+#: side. Nothing here says which the region IS; CS-1119 owns that question.
+ZERO_REMAINDER_VALUE: Final = 0
+
+#: The default vocabulary :func:`read_properties` reads this shape with.
+#: EMPTY, so a caller that has not derived reads exactly what CS-828 left.
+_NO_ZERO_REMAINDER_CLASSES: Final[Collection[str]] = frozenset()
 
 #: The flags byte's measured bits. NAMED because a bare hex literal at a use
 #: site is a bit nobody can hold a table against.
@@ -6423,6 +6478,81 @@ def read_reference_pair(body: bytes, at: int, end: int, *, tail_bytes: int) -> R
     return ReferencePair(references=walked[0], tail_bytes=tail_bytes, width=end - at)
 
 
+@dataclass(frozen=True, repr=False)
+class ZeroRemainder:
+    """A payload's trailing remainder read as one zero-valued int32 - CS-828.
+
+    **IT SHIPS A HAND-WRITTEN ``__repr__`` THOUGH BOTH ITS FIELDS ARE INTEGERS,
+    AND THAT IS THE CONTRACT RATHER THAN CEREMONY.** The repr guard in
+    ``tests/repr_rendering_guard.py`` treats a save-layer field as disclosing
+    unless every type it names is a scalar or a class that REDACTS ITSELF, and
+    a class redacts itself by shipping one of these. Without it,
+    :class:`TrailingRun` - which keeps its generated repr - enters the graded
+    population the moment it holds a field of this type.
+    :class:`ItemList` and :class:`ReferencePair` are here for the same reason.
+
+    Attributes:
+        value: The int32 READ at the remainder's first byte. Equal to
+            :data:`ZERO_REMAINDER_VALUE` on every reading this shape admits,
+            and carried rather than dropped so a consumer reads a value
+            rather than a promise.
+        width: How many bytes the reading consumed. A SHIPPED CONSTANT and
+            never the observed remainder - see :func:`read_zero_remainder`.
+    """
+
+    value: int
+    width: int
+
+    def __repr__(self) -> str:
+        """Render the value and the width, which is everything it holds.
+
+        Returns:
+            The safe rendering.
+        """
+        return f"{type(self).__name__}(value={self.value}, width={self.width})"
+
+
+def read_zero_remainder(body: bytes, at: int, end: int) -> ZeroRemainder | None:
+    """Read a payload's trailing remainder as one zero-valued int32 - CS-828.
+
+    **THE WIDTH IS A SHIPPED CONSTANT AND THE VALUE COMES OUT OF THE BYTES.**
+    ``end`` is a BOUND and a VALIDATION and is never a source of width: the
+    reading refuses rather than stretching to reach it, which is what makes it
+    falsifiable. A partition taking its width from ``end`` would close on every
+    payload and could not fail - the defect that refuted CS-830 after it had
+    merged - and ``tests/save/test_zero_remainder.py`` holds an arm that
+    reddens on exactly that swap.
+
+    **AND A NON-ZERO VALUE IS REFUSED, WHICH IS THE SECOND HALF OF THE SAME
+    PROPERTY.** A reader consuming four bytes whatever they said would succeed
+    on every four-byte remainder in existence. The claim is that the region is
+    an EMPTY structure, so bytes that say otherwise are a different shape.
+
+    NOTHING HERE RAISES. A region of the wrong width, one reaching past the
+    buffer and one carrying a different value are all REPORTED as no reading,
+    per non-negotiable 7.
+
+    THE CLASS THE RUN BELONGS TO IS NOT AN INPUT, and cannot be: four zero
+    bytes are also an empty item list and also an unrelated class's whole
+    remainder, so the bytes alone never say whether a run IS this shape.
+    :func:`derive_zero_remainder_classes` is what answers that, from the body.
+
+    Args:
+        body: The decompressed body.
+        at: The remainder's first byte.
+        end: The first byte past the payload.
+
+    Returns:
+        The reading, or None when the remainder is not this shape.
+    """
+    if at < 0 or end > len(body) or end - at != ZERO_REMAINDER_BYTES:
+        return None
+    (value,) = struct.unpack_from("<i", body, at)
+    if value != ZERO_REMAINDER_VALUE:
+        return None
+    return ZeroRemainder(value=value, width=ZERO_REMAINDER_BYTES)
+
+
 @dataclass(frozen=True)
 class TrailingRun:
     """The run between a payload's property terminator and its declared end.
@@ -6460,6 +6590,13 @@ class TrailingRun:
             the record's class was named by
             :func:`derive_reference_pair_classes` AND the bytes then read as a
             pair at the width that derivation derived for the body.
+        zero_remainder: The zero-valued int32 the remainder carried, or None
+            - CS-828. Present under the same rule the two above are: the
+            record's class was named by
+            :func:`derive_zero_remainder_classes` AND the bytes then read as
+            the shape. IT IS NOT A CLAIM THAT THE REGION IS AN EMPTY ITEM
+            LIST, which is byte-identical and which no reading of the run can
+            tell apart - CS-1119 owns that question.
     """
 
     width: int
@@ -6467,6 +6604,7 @@ class TrailingRun:
     unread: int
     items: ItemList | None = None
     references: ReferencePair | None = None
+    zero_remainder: ZeroRemainder | None = None
 
 
 def read_trailing_run(body: bytes, terminator_end: int, end: int) -> TrailingRun | None:
@@ -6924,6 +7062,50 @@ def _run_with_reference_pair(
     )
 
 
+def _run_with_zero_remainder(
+    body: bytes,
+    record: ObjectRecord,
+    run: TrailingRun | None,
+    zero_remainder_classes: Collection[str],
+) -> TrailingRun | None:
+    """Read the run's remainder as one zero-valued int32 when its class carries one.
+
+    THE VOCABULARY IS A GATE ON THE READING AND NEVER THE READING ITSELF,
+    exactly as in :func:`_run_with_item_list`. A class named here whose bytes
+    do not read comes back exactly as CS-828 left it, so a derivation that
+    named everything would close nothing.
+
+    IT RUNS LAST OF THE THREE, and the order is load-bearing rather than
+    arbitrary: a remainder an item list or a reference pair already read has
+    ``unread`` at zero and never reaches here, so no region is counted twice.
+
+    Args:
+        body: The decompressed body.
+        record: The record the run came from.
+        run: The run the walk read, or None.
+        zero_remainder_classes: The class names derived as carriers.
+
+    Returns:
+        The run, with its remainder read when it read.
+    """
+    if run is None or run.lead is None or not run.unread:
+        return run
+    if class_name_of(record.type_path) not in zero_remainder_classes:
+        return run
+    end = record.body_offset + record.body_length
+    read = read_zero_remainder(body, end - run.unread, end)
+    if read is None:
+        return run
+    return TrailingRun(
+        width=run.width,
+        lead=run.lead,
+        unread=run.unread - read.width,
+        items=run.items,
+        references=run.references,
+        zero_remainder=read,
+    )
+
+
 def derive_item_list_classes(
     body: bytes,
     records: Iterable[ObjectRecord],
@@ -7062,6 +7244,62 @@ def derive_reference_pair_classes(
     return MappingProxyType(derived)
 
 
+def derive_zero_remainder_classes(
+    body: bytes,
+    records: Iterable[ObjectRecord],
+    *,
+    save_version: int | None = None,
+    header_version: int | None = None,
+) -> Collection[str]:
+    """Pick the classes whose trailing remainder is one zero-valued int32 - CS-828.
+
+    **DERIVED FROM THE CORPUS, NEVER TRANSCRIBED**, for the reason
+    :func:`derive_item_list_classes` is: a hand-maintained vocabulary of game
+    content is the thing that rots, and CS-829's note forbids that shape by
+    name.
+
+    **A CLASS EARNS ITS PLACE BY BEING CONSISTENT, AND THAT IS THE ANTI-VACUITY
+    PROPERTY.** Every remainder-bearing record of the class in this body must
+    read as the shape - the right width AND the right value. One record
+    disagreeing takes the whole class out, so a body that stops carrying the
+    shape says so by deriving nothing rather than going quietly green.
+
+    **THE VALUE IS PART OF THE MEMBERSHIP AND NOT ONLY THE WIDTH.** Agreeing on
+    a width is agreement about arithmetic; four bytes that read zero are a
+    statement the bytes make. A derivation on width alone would admit every
+    class whose leftovers happen to measure four, which is arithmetic wearing a
+    derivation's clothes.
+
+    THIS IS A SECOND WALK OVER THE BODY AND THAT IS INHERENT, exactly as in
+    :func:`derive_reference_pair_classes`: the membership is a property of the
+    body as a whole and no per-record reader can hold it.
+
+    Args:
+        body: The decompressed body.
+        records: The records to derive from - a body's whole table.
+        save_version: The save version the body was walked on, or None.
+        header_version: The header version the body was walked on, or None.
+
+    Returns:
+        The carrier class names.
+    """
+    verdicts: dict[str, bool] = {}
+    for record in records:
+        if not record.body_length:
+            continue
+        result = read_properties(
+            body, record, save_version=save_version, header_version=header_version
+        )
+        run = result.trailing_run
+        if run is None or run.lead is None or not run.unread:
+            continue
+        end = record.body_offset + record.body_length
+        reads = read_zero_remainder(body, end - run.unread, end) is not None
+        name = class_name_of(record.type_path)
+        verdicts[name] = reads and verdicts.get(name, True)
+    return frozenset(name for name, reads in verdicts.items() if reads)
+
+
 def read_properties(
     body: bytes,
     record: ObjectRecord,
@@ -7071,6 +7309,7 @@ def read_properties(
     header_version: int | None = None,
     item_list_classes: Collection[str] = (),
     reference_pair_classes: Mapping[str, int] = _NO_REFERENCE_PAIR_CLASSES,
+    zero_remainder_classes: Collection[str] = _NO_ZERO_REMAINDER_CLASSES,
 ) -> PropertyResult:
     """Decode one record's measured properties and report what was skipped.
 
@@ -7146,6 +7385,12 @@ def read_properties(
             carrier to the tail width its records agree on, from
             :func:`derive_reference_pair_classes`. DEFAULTED EMPTY for the same
             reason, so a caller that has not derived reads what CS-828 left.
+        zero_remainder_classes: Class names derived as zero-remainder carriers
+            by :func:`derive_zero_remainder_classes`. DEFAULTED EMPTY for the
+            same reason again - and the default is exactly why the library
+            sweep in ``tests/save/test_trailing_run.py`` takes all three as
+            REQUIRED keywords: a default meaning "read less" is invisible to a
+            test that measures only what was read.
 
     Returns:
         What resolved, what did not, and why.
@@ -7279,11 +7524,16 @@ def read_properties(
         references=walked.references,
         reference_tag_count=walked.reference_tags,
         undecoded_reference_count=walked.undecoded_references,
-        trailing_run=_run_with_reference_pair(
+        trailing_run=_run_with_zero_remainder(
             body,
             record,
-            _run_with_item_list(body, record, walked.trailing_run, item_list_classes),
-            reference_pair_classes,
+            _run_with_reference_pair(
+                body,
+                record,
+                _run_with_item_list(body, record, walked.trailing_run, item_list_classes),
+                reference_pair_classes,
+            ),
+            zero_remainder_classes,
         ),
         struct_interiors=walked.struct_interiors,
         struct_tag_count=walked.struct_tags,
