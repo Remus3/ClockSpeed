@@ -72,6 +72,14 @@ _CHILD_START_TIMEOUT_S = 60.0
 _CHILD_EXIT_TIMEOUT_S = 60.0
 _POLL_S = 0.02
 
+#: How many times the blocking arm's parent may go round its wait before the
+#: arm calls the child dead. `hold_suite_slot` takes no ceiling here BY
+#: DESIGN - the arm measures an UNBOUNDED wait - so without this a child that
+#: never releases would HANG the arm rather than redden it, and the arm would
+#: stop being evidence about anything. Derived from the child's own 120s
+#: deadline for seeing `go`, so a merely slow runner cannot reach it.
+_MAX_PARENT_WAITS = int(120.0 / _POLL_S)
+
 #: Exit codes the child scripts use to report what went wrong, mapped to what
 #: each one means, so a failure in the child is legible from the parent's
 #: assertion rather than from a log nobody reads. The child spells the integers
@@ -111,11 +119,20 @@ while not Path(go).exists():
     if time.monotonic() > deadline:
         sys.exit(12)
     time.sleep(0.02)
-ration.release(claim["token"], root=root)
+# THE MARKER GOES DOWN BEFORE THE SLOT IS FREED, never after. A parent can
+# acquire the instant `release` returns, so a marker written afterwards
+# leaves a window in which the slot is free and the protocol reads
+# incomplete - a red that names the ration for this script's own
+# ordering. Written first, the marker's presence is IMPLIED by the slot
+# being free, at any runner speed and with no pause anywhere sized to it.
 Path(released).write_text("released", encoding="utf-8")
+ration.release(claim["token"], root=root)
 """
 
-#: The child that takes the slot and then never gives it up. It is KILLED rather
+#: The child that takes the slot and then never gives it up. Its `acquired`
+#: write FOLLOWS its acquire, which is the safe direction: the marker
+#: announces state that is already established, where the released marker
+#: above announces state that is about to be torn down. It is KILLED rather
 #: than asked to stop, which is the whole point: a hard kill skips every
 #: ``finally``, so a ration released only on the way out stays held forever.
 _HOLD_FOREVER = """
@@ -216,7 +233,17 @@ def test_a_waiting_process_enters_the_ration_only_after_the_holder_releases(
         # The ONLY thing that releases the child is the parent's own wait. A
         # ration that did not block never sleeps, never writes `go`, and the
         # child is therefore still holding when the body runs.
-        def release_on_first_wait(seconds: float) -> None:  # noqa: ARG001 - seam shape
+        waits: list[float] = []
+
+        def release_on_first_wait(seconds: float) -> None:
+            waits.append(seconds)
+            if len(waits) > _MAX_PARENT_WAITS:
+                raise AssertionError(
+                    f"the parent went round its wait {len(waits)} times and "
+                    "the slot never came free, so the child never released - "
+                    "reported rather than hung, because an arm that hangs "
+                    "measures nothing"
+                )
             go.write_text("go", encoding="utf-8")
             time.sleep(_POLL_S)
 
