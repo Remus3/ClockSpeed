@@ -643,8 +643,8 @@ def test_the_sweep_reads_the_remainder_with_the_derived_vocabularies() -> None:
     IT IS NOT A TAUTOLOGY OF THE BRANCH THAT FEEDS IT, which is the trap
     :class:`_Tally` records having fallen into once. ``read_by_derivation`` is
     incremented from ``run.items`` and ``run.references`` - two fields
-    :func:`read_trailing_run` never sets - so nothing in the lead-field path can
-    make this arm true.
+    :func:`clockspeed.save.objects.read_trailing_run` never sets - so nothing in
+    the lead-field path can make this arm true.
     """
     sweep = _sweep_or_skip()
     unread_by_derivation = sum(
