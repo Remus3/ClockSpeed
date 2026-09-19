@@ -441,11 +441,16 @@ read. The figures move with the operator library and
 **THIS IS THE WIDEST REGION OF THE RUN AND NOT THE MOST POPULOUS ONE, AND THE
 DIFFERENCE IS THE WHOLE OF WHAT THIS CYCLE CLAIMS.** Every earlier block on this
 item measured its ship in PAYLOADS, which is what CS-828's clause counts. By
-that measure this cycle is the smallest of the seven. By BYTES it is the
-largest: one payload of this project's library carries over a megabyte of this
-shape, twenty-six groups and thousands of instances, and the walk lands exactly
-on its declared end. **DO NOT LET A LATER CYCLE READ THE PAYLOAD COUNT AS THE
-WHOLE STORY IN EITHER DIRECTION** - the clause is counted in payloads and a
+that measure this cycle is the smallest of the seven. What is true by BYTES is
+the narrower claim that this is the widest SINGLE region any of the seven
+readings has read - one payload carrying over a megabyte of this shape,
+twenty-six groups and thousands of instances, walking exactly onto its declared
+end. **A DRAFT OF THIS BLOCK SAID IT WAS THE LARGEST BY TOTAL BYTES AND THE
+CYCLE'S VERIFIER MEASURED THAT FALSE** - the item-list reading has shipped
+several times this cycle's byte count across thousands of payloads, and the
+figure is corrected rather than quietly dropped. **DO NOT LET A LATER CYCLE READ
+THE PAYLOAD COUNT AS THE WHOLE STORY IN EITHER DIRECTION** - the clause is
+counted in payloads and a
 residual survives on all three pairs.
 
 **THE EXTRA-DATA BLOCK IS STEPPED BY ITS OWN DECLARED SIZE, WHICH IS A READING

@@ -95,7 +95,10 @@ defaulting to empty.
 
 **THE DEFECT THIS CLOSES, STATED AS A DEFECT.** The remainder of one derived class set was
 carried as `TrailingRun.unread` - a region the module recorded as unread with no grammar
-offered for it, and the single widest such region in this project's library.
+offered for it, and the widest such region on the three pairs this item covers. **THAT
+SCOPE IS LOAD-BEARING AND A DRAFT OF THIS SENTENCE OMITTED IT**, claiming the widest in
+the library outright; the cycle's verifier measured ten wider unread remainders, all on
+the (14,60) pair this item does not cover and CS-G05 does.
 
 **THE ROOT CAUSE.** Not a bug in any reader: the family had no reader for this shape, and
 a previous cycle's census recorded the class by its EMPTY form alone and characterised it

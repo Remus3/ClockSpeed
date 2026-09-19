@@ -15,8 +15,9 @@ ITSELF.** It writes a fixed block, a length-prefixed reference, a second fixed
 block, a second length-prefixed reference, a two-string object reference and an
 int32 flag - and when that flag is set, a whole further structure whose own
 declared size says how wide it is. So the walk's width comes from the two
-counts, from six length prefixes per instance, from one declared size and from
-three shipped constants, and never from what was left over.
+counts, from four length prefixes per instance - five when the extra-data flag is
+set - from one declared size and from the two shipped fixed blocks, and never
+from what was left over.
 
 **THE WIDTH IS DERIVED, NEVER OBSERVED, AND THAT IS THE WHOLE CLAUSE.** The
 remainder's width is whatever the bytes are, so ANY partition of it sums to the
@@ -298,7 +299,18 @@ def test_a_group_list_reads_its_version_its_groups_and_its_instances() -> None:
 
 
 def test_the_reported_width_is_the_sum_of_its_own_prefixes() -> None:
-    """The width a consumer is handed is the walk's cursor, not ``end - at``."""
+    """The width a consumer is handed is summed from the fixture's own bytes.
+
+    **THIS ARM DOES NOT GRADE THE ANTI-CS-830 PROPERTY AND MUST NOT BE CITED FOR
+    IT.** On any fixture the reader ACCEPTS, the landing check has already made
+    the walk's cursor and ``end - at`` equal, so swapping one spelling for the
+    other is an EQUIVALENT mutant and no value can kill it. A draft of this
+    docstring claimed the arm saw the difference and the cycle's verifier
+    measured that false - the same sentence its sibling module deleted one
+    commit earlier. What grades the refusal is
+    :func:`test_a_stretched_declared_end_is_refused_rather_than_read_to`; what
+    this arm grades is the figure a consumer is handed.
+    """
     remainder = _one_group_list()
     read = _read(remainder)
     assert read is not None
