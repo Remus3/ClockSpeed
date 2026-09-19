@@ -75,6 +75,133 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-09-19 - CS-G03 - GATE MEASUREMENT RECORD. NOT A COMPLETION RECORD. The publishable closure was scanned on seven axes and six are CLEAR
+
+**THE CLOSURE, STATED SO THE NEXT READER CAN REPRODUCE IT.** Everything reachable
+from `main` at `2d3f62d`: 1059 commits, 7766 objects, 3255 blobs, and 461 DISTINCT
+HISTORICAL PATH STRINGS - 42 more than HEAD carries, which is the half that leaks
+and the half CS-953 exists for. Three separate channels were read, not one: blob
+content in utf-8 AND utf-16le, tree PATHS, and the commit object split into its
+identity header and its message body.
+
+| axis | result |
+|---|---|
+| platform account id | CLEAR - 0 blobs, 0 paths, 0 messages, 0 identity headers |
+| world name | CLEAR - 0 standalone occurrences; all 3635 hits are embedded carriers |
+| Windows account and home paths | CLEAR - the 89 `C:/Users/` hits are all placeholders |
+| save files and save-derived artifacts | CLEAR - 0 `.sav` paths, and NO binary blob has ever been on `main` |
+| publisher-owned game data | CLEAR - 0 asset paths, 0 magic-byte hits; the ten largest blobs are all `docs/LEDGER.md` |
+| `data/` and `moon_sync_inbox/` | CLEAR - 0 paths in ALL of history, not merely today |
+| credentials | FINDING - allowlist drift, NOT a leak |
+
+**THE ONE FINDING IS THE PLAN'S OWN ALLOWLIST, AND IT IS NOT A LEAK.** 250 blobs
+hit the credential needles; every carrier is synthetic, headed by
+`tools/outbound_gate.py`'s `CANARY_CREDENTIAL`. Five carrier PATHS are outside the
+six-path allowlist CS-700 recorded, so a literal S1 aborts on its own fixtures.
+
+**AND THE PLAN SENTENCE BECAME ITS OWN CARRIER.** CS-700's text asserts that the
+real prefixes "return 0". At `2d3f62d` each returns 10 blobs - all of them
+`docs/item_notes/phase7.md` at lines 700-701, where the sentence spells the
+prefixes it claims are absent. A recorded measurement that falsifies itself by
+being written down is worth more as a record than as a correction, so it is filed
+here rather than edited there.
+
+**CONTROLS, because a zero with no control is not a measurement.** This session hit
+the pattern-language trap TWICE before the scan even started:
+`git for-each-ref` with a globbed `refs/backup/*` returned 0 where the bare prefix
+`refs/backup` returned 71, and `git bundle list-heads` reported 242 refs where a
+bare `git clone` restored 144. Every axis above carried a positive control in its
+own command family - present token `clockspeed` at 2816 blobs / 103 messages / 71
+paths - and a cross-FAMILY closure control, `rev-list --count` against
+`log --format` against `cat-file --batch-all-objects`.
+
+**S2, the player display name.** Derived through the sanctioned opt-in rather than
+transcribed. The only plaintext display-name field equals the game's DEFAULT
+value on every save on this machine, so the needle is non-discriminating and
+there is no personal display name here to leak. A save renamed and then deleted
+would be invisible to this pass; that limit is the plan's own and is restated
+rather than quietly inherited.
+
+**REACHABILITY.** `git merge-base --is-ancestor archive/local-history main` exits
+1: the retained pre-scrub branch is NOT reachable from `main`, and only `main` is
+to be published. The other 230 local refs are UNKNOWN by design.
+
+**THE PRE-REWRITE BUNDLE IS TAKEN AND IS PROVEN RESTORABLE, not merely
+well-formed.** It lives at `C:\cs-flip-backup\clockspeed-prerewrite-20260919.bundle`, 11 MB, outside the repo tree per S5. All
+71 remote refs were fetched locally first - 13 heads, 53 wip, 5 tags, matching
+`ls-remote` over `refs/*` exactly at 71. S4 was graded by RESTORING rather than by
+verifying: a bare clone took only 144 of 242 refs and ZERO of the wip refs, and
+only a fetch from the bundle with an explicit all-refs refspec restored all 71.
+Every one of the 62 distinct remote SHAs has its object in the restore; 0 missing.
+**This bundle becomes the sole copy of the pre-rewrite graph the moment S7a runs.**
+
+**WHAT THIS RECORD DOES NOT DO.** It runs no rewrite, deletes no remote, pushes
+nothing and changes no visibility. CS-G03 stays gated.
+
+Verification: re-run the closure scan against `main` and compare the seven axis
+rows; verify the bundle and then restore it with an explicit all-refs refspec,
+never a bare clone.
+
+### 2026-09-19 - CS-959 - GATE PREP RECORD. NOT A COMPLETION RECORD. CS-959 STAYS OPEN. The four community-health files a stranger reads now exist, and three of them are guarded
+
+`.github/CONTRIBUTING.md`, `.github/CODE_OF_CONDUCT.md`, `.github/SECURITY.md` and
+`.github/PULL_REQUEST_TEMPLATE.md`, with `tests/test_community_health.py` grading
+them. The load-bearing arm is not existence - it is that every relative link and
+every cited path in them RESOLVES, because a community file pointing at a file
+that is not there is the first defect an outsider hits. Proven non-vacuous by
+planting an unresolvable link and an unresolvable backticked path and watching
+both surface.
+
+**THE CODE OF CONDUCT IS ORIGINAL RATHER THAN CONTRIBUTOR COVENANT 2.1, and the
+reason is a licence gate rather than a preference.** The Covenant is CC BY 4.0;
+vendoring it would have falsified `THIRD_PARTY.md`'s register and would have
+needed a CONVENTIONS section 14 verdict recorded BEFORE the lift. An original
+file avoids the gate entirely.
+
+**IT DOES NOT CLOSE, and the reason is measured rather than assumed.** The GitHub
+community-profile endpoint reads the DEFAULT BRANCH only, so the acceptance's
+"every row satisfied" cannot be graded from a slice. Baseline before merge:
+`health_percentage: 42`, with `code_of_conduct`, `contributing`,
+`pull_request_template` AND `issue_template` all null. The item note's "four of
+eight" is stale. **The `issue_template` row reads null even though
+`.github/ISSUE_TEMPLATE/` exists** with two files, so that row will still be empty
+after these four land and something else is wrong there. The endpoint carries no
+`security_policy` field at all, so that row can only be read from the Community
+Standards page.
+
+### 2026-09-19 - CS-G03 - GATE PREP RECORD. The third-party register stops denying the one thing this tree vendors
+
+**THE DEFECT.** `THIRD_PARTY.md` asserted "Zero files in this repository were
+copied, adapted or derived from an external codebase" and its register carried the
+row naming nothing vendored. `docs/CHANNEL.md` IS vendored, byte-identical from
+the `Remus3/Amberstone` repository under Apache-2.0, sole holder `Moonbeam`, and is
+sha256-pinned by `tests/test_channel_doc.py`. The licence audit gate cannot pass
+against an owner file that denies its only entry, and the Apache-2.0 attribution
+was living in `CLAUDE.md`'s topology row - the wrong owner under section 4.
+
+**A SECOND FALSE NEGATIVE THE SWEEP FOUND.** `docs/hud_doctrine.md`'s own
+provenance section says ADAPTED, NOT LIFTED from a doctrine the operator supplied
+from a different project that "does not share this one's licence". The old
+sentence denied anything had been "copied, ADAPTED or derived", so that was a
+second thing the register was wrong about. It is now an Items-considered row
+labelled NOT A VENDORING, with its unverified half stated rather than absorbed:
+the source is not in this tree, so there is nothing to diff.
+
+**WHAT WAS CHECKED AND FOUND CLEAN**, recorded because a negative that names what
+it looked at is worth more than one that does not: no vendor directory exists;
+zero SPDX headers and zero upstream copyright lines in any source file; Electron
+is a DEPENDENCY CLEARANCE and not a lift, per
+`docs/adr/0013-electron-licence-gate.md`, and `pyproject.toml` already states that
+doctrine; `CONVENTIONS.md` is authored here.
+
+`docs/CHANNEL.md` was not touched - its diff is empty and the byte pin still
+passes at 7 arms.
+
+**A TRAP FOR THE NEXT SLICE, measured here.** `tests/test_docs_citations.py`
+resolves citations against the tracked file list, so a NEW test module cited in a
+guarded doc reads as a dead bare path until it is at least intent-added. It cost a
+false red once in this slice.
+
 ### 2026-09-19 - CS-828 - NOT A COMPLETION RECORD. NOTHING CLOSED. CS-828 STAYS OPEN. The buildable group list reads - the run's widest region, and its smallest payload count
 
 **THE ITEM STAYS OPEN AND ITS ACCEPTANCE IS UNCHANGED.** This is the seventh reading

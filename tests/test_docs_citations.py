@@ -512,6 +512,17 @@ GUARDED_DOCS: Final = (
     "docs/CHANNEL.md",
     "docs/GATED.md",
     "WAKEUP_NOTES.md",
+    # CS-959 - THE THREE COMMUNITY-HEALTH FILES THAT CITE A PATH. They are the
+    # first documents in this tree written FOR AN OUTSIDER, and every path they
+    # name is one a stranger will follow on their first day. A broken pointer in
+    # CONTRIBUTING.md is the defect that costs a contributor before they ever
+    # reach the code, so these are guarded on arrival rather than recorded
+    # UNGUARDED. .github/CODE_OF_CONDUCT.md is absent from this list because it
+    # cites no path at all; it will become a carrier the moment it does, and
+    # this guard is what will say so.
+    ".github/CONTRIBUTING.md",
+    ".github/PULL_REQUEST_TEMPLATE.md",
+    ".github/SECURITY.md",
     # THE WHOLE ADR FAMILY, derived rather than listed - see _adr_docs.
     *ADR_DOCS,
     # Guarded on arrival: every arm it names resolves today, and it exists to be
