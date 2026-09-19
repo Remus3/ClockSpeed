@@ -4065,3 +4065,128 @@ def test_a_directory_in_roadmaps_place_is_a_guard_j_could_not_look_warn(repo: Pa
     assert guard["advisory"] is False, rendered
     assert f"{ROADMAP_RELATIVE} NOT READ" in rendered, rendered
     assert any(skip["path"] == ROADMAP_RELATIVE for skip in skips), skips
+
+
+# --- CS-1153: the walk prunes by its own rule ------------------------------
+#
+# WHY THESE DRIVE _walk DIRECTLY RATHER THAN enumerate_files. The pruning under
+# test was, before CS-1153, done by the ENUMERATION STRATEGY and not by the
+# walk: enumerate_files() prefers the git index, which never lists an ignored
+# path, and falls back to _walk only on an empty index - which on a populated
+# repository never happens. So every arm below calls _walk itself. A test
+# routed through enumerate_files would be green on the defect, because it would
+# never reach the walk at all.
+#
+# WHY THE ASSERTION IS A SET EQUALITY. "the pruned root is absent" passes for
+# the correct walk AND for a walk that collapsed and returned nothing. The
+# equality pins both halves at once: exactly the authored files, and nothing
+# from any pruned subtree.
+
+
+def _cs1153_tree(root: Path) -> None:
+    """A repository-shaped tree carrying one file inside every pruned root.
+
+    Each planted file has a DISTINCT name, so a set equality naming only the
+    authored three fails by naming the intruder rather than by a bare count.
+    """
+    (root / "docs").mkdir(parents=True)
+    (root / "top.md").write_text("# clean\n", encoding="utf-8")
+    (root / "docs" / "deep.md").write_text("# clean\n", encoding="utf-8")
+
+    # Authored, tracked, and INSIDE .claude - so a rule that pruned the whole
+    # of .claude rather than .claude/worktrees fails this arm.
+    (root / ".claude").mkdir()
+    (root / ".claude" / "settings.json").write_text("{}\n", encoding="utf-8")
+
+    # A populated worktrees directory: one child carrying the .git marker a
+    # linked worktree really carries, and one child carrying none. Pruning the
+    # CONTAINER is what covers the second; the marker alone would not.
+    marked = root / ".claude" / "worktrees" / "slice-marked"
+    marked.mkdir(parents=True)
+    (marked / ".git").write_text("gitdir: elsewhere\n", encoding="utf-8")
+    (marked / "worktree_marked.md").write_text("# copy\n", encoding="utf-8")
+    unmarked = root / ".claude" / "worktrees" / "slice-unmarked"
+    unmarked.mkdir(parents=True)
+    (unmarked / "worktree_unmarked.md").write_text("# copy\n", encoding="utf-8")
+
+    for name in ("work", "certs", "corpus", "moon_sync_inbox", "data"):
+        (root / name).mkdir()
+        (root / name / f"{name}_leaf.md").write_text("# local\n", encoding="utf-8")
+
+
+def _walked(root: Path, worktrees: tuple[str, ...] = ()) -> set[str]:
+    """The walk's files as root-relative posix strings.
+
+    ``worktrees`` defaults to EMPTY rather than to None so no arm here spawns
+    git against a tmp_path that is not a checkout: every arm states the
+    registration it wants, and the default is the weakest one.
+    """
+    files, _skips = drift_guard._walk(root, worktrees=worktrees)  # noqa: SLF001
+    return {path.relative_to(root).as_posix() for path in files}
+
+
+def test_the_walk_prunes_the_gitignored_roots_by_its_own_rule(tmp_path: Path) -> None:
+    """CS-1153: _walk, called directly, enters neither .claude/worktrees/ nor work/."""
+    root = tmp_path / "tree"
+    root.mkdir()
+    _cs1153_tree(root)
+
+    assert _walked(root) == {"top.md", "docs/deep.md", ".claude/settings.json"}
+
+
+def test_the_walk_records_every_root_it_pruned(tmp_path: Path) -> None:
+    """CS-1153: pruning is REPORTED, so a reader sees what was left out."""
+    root = tmp_path / "tree"
+    root.mkdir()
+    _cs1153_tree(root)
+
+    _files, skips = drift_guard._walk(root, worktrees=())  # noqa: SLF001
+    pruned = {skip["path"] for skip in skips}
+    assert pruned >= {
+        ".claude/worktrees/",
+        "work/",
+        "certs/",
+        "corpus/",
+        "moon_sync_inbox/",
+        "data/",
+    }, skips
+    assert all(skip["reason"] for skip in skips), skips
+
+
+def test_the_walk_stops_at_a_checkout_root_at_an_unlisted_path(tmp_path: Path) -> None:
+    """CS-1153: the .git marker prunes a checkout no name-based rule covers.
+
+    The harness may put its worktrees anywhere. A directory carrying a .git
+    entry is a checkout of its own and its files belong to THAT tree.
+    """
+    root = tmp_path / "tree"
+    (root / "somewhere" / "nested-clone").mkdir(parents=True)
+    (root / "top.md").write_text("# clean\n", encoding="utf-8")
+    nested = root / "somewhere" / "nested-clone"
+    (nested / ".git").write_text("gitdir: elsewhere\n", encoding="utf-8")
+    (nested / "other_tree.md").write_text("# not ours\n", encoding="utf-8")
+
+    assert _walked(root) == {"top.md"}
+
+
+def test_the_walk_stops_at_a_registered_worktree_whose_marker_is_gone(
+    tmp_path: Path,
+) -> None:
+    """CS-1153: `git worktree remove` deletes the marker BEFORE the files.
+
+    In that window the marker test says nothing and the registration still
+    does, so the registration is the test that holds through a teardown.
+    """
+    root = tmp_path / "tree"
+    (root / "elsewhere" / "torn-down").mkdir(parents=True)
+    (root / "top.md").write_text("# clean\n", encoding="utf-8")
+    teardown = root / "elsewhere" / "torn-down"
+    (teardown / "half_removed.md").write_text("# mid-teardown\n", encoding="utf-8")
+
+    # The control: with no registration, the walk DOES enter it. Without this
+    # arm the arm below passes on a walk that prunes "elsewhere" for some
+    # unrelated reason, and the registration would never be exercised.
+    assert _walked(root) == {"top.md", "elsewhere/torn-down/half_removed.md"}
+
+    registered = (str(teardown.resolve()).lower(),)
+    assert _walked(root, worktrees=registered) == {"top.md"}

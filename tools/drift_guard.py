@@ -73,8 +73,9 @@ import logging
 import re
 import subprocess
 import sys
-from collections.abc import Iterator
+from collections.abc import Iterator, Mapping
 from pathlib import Path
+from types import MappingProxyType
 from typing import Any, NamedTuple
 
 # CS-910. Run as a bare script and also loaded BY PATH by the suite, so this
@@ -113,9 +114,67 @@ WALK_SKIP_DIRS = frozenset(
     }
 )
 
-# Root-level directories holding generated or gitignored content. Not authored,
-# so the character-set guard does not own them.
-WALK_SKIP_ROOT_DIRS = frozenset({"data"})
+# CS-1153 - ROOT-ANCHORED DIRECTORIES THIS TREE DOES NOT AUTHOR, pruned by
+# RELATIVE PATH rather than by bare name. Every entry is a leading-slash
+# directory pattern in this repository's .gitignore, which is the whole rule:
+# the walk is the FALLBACK for an empty git index, and its population should be
+# the one the index would have given. `git ls-files` never lists an ignored
+# path, so a walk that descends into one measures a population no other
+# enumeration strategy produces.
+#
+# WHY A PATH AND NOT A NAME. The set this replaced held bare names tested at
+# the root level alone, so `.claude/worktrees` - the deepest and largest of
+# them, measured at 2038 files and 206 MB on 2026-09-19 - could not be spelled
+# at all. Pruning `.claude` instead would take `.claude/settings.json` and
+# `.claude/agents/` with it, and those are tracked, authored and graded.
+#
+# WHY THE REASON TRAVELS WITH THE ENTRY. So nobody adds one without saying what
+# it is, and so the skip record a reader sees names the reason rather than a
+# single sentence covering entries that do not share one. The three marked
+# PII-BEARING are this repository's own classification - CLAUDE.md section 3,
+# non-negotiables 11 and 12 - not a guess.
+WALK_SKIP_ROOT_PATHS: Mapping[str, str] = MappingProxyType(
+    {
+        "data": "generated artifact directory, gitignored, not authored",
+        ".claude/worktrees": "agent worktrees - other checkouts' copies of this tree",
+        "work": "PII-bearing - save copies made for parsing",
+        "corpus": "PII-bearing - snapshot corpus of the pinned development world",
+        "moon_sync_inbox": "PII-bearing - the cross-project channel, authored elsewhere",
+        "certs": "local-only - generated certificate material",
+        "captures": "local-only - capture artifacts of the game and the player",
+        "screenshots": "local-only - capture artifacts of the game and the player",
+        "run": "local-only - live process state",
+        "logs": "local-only - logs, which can echo parsed header bytes",
+        "var": "local-only - runtime state",
+        "ops/loop/control": "local-only - the headless lane's control plane",
+        "ops/loop/reports": "local-only - the headless lane's per-cycle reports",
+        ".recall": "local-only - the semantic recall mirror, rebuilt from memory/",
+        ".playwright-mcp": "local-only - audit browser scratch output",
+        "gamedata": "publisher-owned - staging copy of install content",
+        "CommunityResources": "publisher-owned - staging copy of install content",
+        "game": "publisher-owned - staging copy of install content",
+    }
+)
+
+#: CS-1153 - the STRUCTURAL half of the rule, which needs no name and no list.
+#: A directory carrying a .git entry is a checkout root of its own - a linked
+#: worktree, a submodule or a nested clone - and its files belong to that
+#: checkout. Stated as a marker rather than as a directory name deliberately:
+#: naming the harness's worktree directory stops holding the day a harness puts
+#: its worktrees somewhere else, and `tools/doc_budget.py` already carries this
+#: shape as WALK_BOUNDARY (CS-1115).
+WALK_BOUNDARY_MARKER = ".git"
+
+BOUNDARY_REASON = (
+    "checkout root of its own - it carries a "
+    f"{WALK_BOUNDARY_MARKER} entry, so its files belong to that tree"
+)
+
+REGISTERED_WORKTREE_REASON = (
+    "git lists this as a linked worktree of this repository. `git worktree "
+    "remove` deletes the marker BEFORE it deletes the files, so in that window "
+    "the registration is the only test that holds"
+)
 
 TEXT_SUFFIXES = frozenset(
     {
@@ -470,7 +529,94 @@ def _git_ls_files(root: Path) -> list[str]:
     return [entry for entry in (proc.stdout or "").split("\x00") if entry]
 
 
-def _walk(root: Path) -> tuple[list[Path], list[Skip]]:
+def _is_checkout_root(path: Path) -> bool:
+    """True when ``path`` is the root of a checkout of its own.
+
+    A linked worktree carries the marker as a FILE holding a gitdir pointer; a
+    plain clone or a submodule carries it as a directory. Both are checkout
+    roots and neither one's files belong to this repository's population, so
+    presence is the test and the kind is not.
+    """
+    try:
+        return (path / WALK_BOUNDARY_MARKER).exists()
+    except OSError:
+        return False
+
+
+def _registered_worktrees(root: Path) -> tuple[str, ...]:
+    """Resolved lowercased paths git lists as linked worktrees, excluding ``root``.
+
+    An empty tuple is the stated degradation, not an error: a tree with no git,
+    an unresolvable git or a directory that is not a checkout all answer the
+    same way, and the walk then prunes by the marker and the path set alone.
+    """
+    git = resolve_tool(GIT_NAME)
+    if git is None:
+        return ()
+    try:
+        proc = subprocess.run(
+            [git, "-C", str(root), "worktree", "list", "--porcelain"],
+            capture_output=True,
+            text=True,
+            timeout=30,
+            check=False,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return ()
+    if proc.returncode != 0:
+        return ()
+    try:
+        here = str(root.resolve()).lower()
+    except OSError:
+        here = str(root).lower()
+    found: list[str] = []
+    for line in (proc.stdout or "").splitlines():
+        if not line.startswith("worktree "):
+            continue
+        raw = line.split(" ", 1)[1].strip()
+        try:
+            resolved = str(Path(raw).resolve()).lower()
+        except OSError:
+            resolved = raw.lower()
+        if resolved != here:
+            found.append(resolved)
+    return tuple(sorted(found))
+
+
+def _is_registered_worktree(path: Path, worktrees: tuple[str, ...]) -> bool:
+    """True when git lists ``path`` as a linked worktree of this repository."""
+    if not worktrees:
+        return False
+    try:
+        resolved = str(path.resolve()).lower()
+    except OSError:
+        resolved = str(path).lower()
+    return resolved in worktrees
+
+
+def _walk(root: Path, *, worktrees: tuple[str, ...] | None = None) -> tuple[list[Path], list[Skip]]:
+    """Enumerate ``root`` by walking it, pruning what this tree does not author.
+
+    CS-1153 - THE PRUNING IS THE WALK'S OWN AND NOT ITS CALLER'S. Before this,
+    every gitignored root above was reachable here and the walk was saved only
+    by ``enumerate_files`` preferring the git index and reaching this function
+    on an empty index alone. Nothing at this function stated that dependency, so
+    a caller arriving directly - or an index lookup that ever failed soft -
+    walked a PII-bearing tree and a full second checkout with no guard.
+
+    Args:
+        root: The tree to walk.
+        worktrees: Resolved lowercased linked-worktree paths. Asked of git once
+            when omitted, so a DIRECT caller is guarded by default; pass a value
+            to drive the teardown window without a real repository.
+
+    Returns:
+        The files found and the skip records naming every directory not entered.
+        Pruning is REPORTED rather than discarded, so a reader sees what was
+        left out instead of taking the count on trust.
+    """
+    if worktrees is None:
+        worktrees = _registered_worktrees(root)
     files: list[Path] = []
     skips: list[Skip] = []
     stack = [root]
@@ -495,22 +641,22 @@ def _walk(root: Path) -> tuple[list[Path], list[Skip]]:
                 continue
             if not is_dir:
                 files.append(entry)
-            elif entry.name in WALK_SKIP_DIRS:
-                skips.append(
-                    {
-                        "path": _rel(root, entry) + "/",
-                        "reason": "excluded directory (tooling or vcs internals)",
-                    }
-                )
-            elif entry.parent == root and entry.name in WALK_SKIP_ROOT_DIRS:
-                skips.append(
-                    {
-                        "path": _rel(root, entry) + "/",
-                        "reason": "generated artifact directory, gitignored, not authored",
-                    }
-                )
+                continue
+            relative = _rel(root, entry)
+            if entry.name in WALK_SKIP_DIRS:
+                reason = "excluded directory (tooling or vcs internals)"
+            elif relative in WALK_SKIP_ROOT_PATHS:
+                reason = WALK_SKIP_ROOT_PATHS[relative]
+            elif _is_registered_worktree(entry, worktrees):
+                # Ordered BEFORE the marker test, not after: during a teardown
+                # the marker is already gone and only this answers.
+                reason = REGISTERED_WORKTREE_REASON
+            elif _is_checkout_root(entry):
+                reason = BOUNDARY_REASON
             else:
                 stack.append(entry)
+                continue
+            skips.append({"path": relative + "/", "reason": reason})
     return files, skips
 
 
