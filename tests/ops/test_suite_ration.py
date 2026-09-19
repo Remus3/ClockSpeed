@@ -61,6 +61,7 @@ from tests.test_queue_loop import channel_audit  # noqa: F401
 SIGNAL_ACQUIRED = "child_acquired"
 SIGNAL_GO = "go"
 SIGNAL_RELEASED = "child_released"
+SIGNAL_DONE = "parent_done"
 
 #: The full set the blocking arm expects to find on disk at the moment its body
 #: enters. Compared against a directory walk, which is a second enumeration.
@@ -76,8 +77,11 @@ _POLL_S = 0.02
 #: arm calls the child dead. `hold_suite_slot` takes no ceiling here BY
 #: DESIGN - the arm measures an UNBOUNDED wait - so without this a child that
 #: never releases would HANG the arm rather than redden it, and the arm would
-#: stop being evidence about anything. Derived from the child's own 120s
-#: deadline for seeing `go`, so a merely slow runner cannot reach it.
+#: stop being evidence about anything. The safety is the seam's own real
+#: `time.sleep(_POLL_S)`: reaching this count takes at least 120s of actual
+#: sleeping whatever the runner is doing, and a child that is merely slow
+#: needs two file operations in that window. It is NOT derived from the
+#: child's `go` deadline - the two clocks measure disjoint intervals.
 _MAX_PARENT_WAITS = int(120.0 / _POLL_S)
 
 #: Exit codes the child scripts use to report what went wrong, mapped to what
@@ -87,6 +91,7 @@ _MAX_PARENT_WAITS = int(120.0 / _POLL_S)
 _CHILD_EXITS = {
     11: "the child was refused the slot nothing was holding",
     12: "the child timed out waiting to be told to release",
+    13: "the child timed out waiting to be told the parent was through",
 }
 
 #: How many distinct clone directories the root-scope arm places, and how many
@@ -106,7 +111,7 @@ import sys
 import time
 from pathlib import Path
 
-repo_root, root, acquired, go, released = sys.argv[1:6]
+repo_root, root, acquired, go, released, done = sys.argv[1:7]
 sys.path.insert(0, repo_root)
 from ops.loop import ration
 
@@ -127,6 +132,16 @@ while not Path(go).exists():
 # being free, at any runner speed and with no pause anywhere sized to it.
 Path(released).write_text("released", encoding="utf-8")
 ration.release(claim["token"], root=root)
+# AND THE CHILD STAYS ALIVE UNTIL DISMISSED. A ration reclaims a DEAD
+# holder's slot, so a child that exits the instant it releases lets the
+# parent in by dying - and an arm that cannot tell a release from a death
+# is green for a child that never released at all. Held open here, the only
+# door into the slot is the release above.
+deadline = time.monotonic() + 120.0
+while not Path(done).exists():
+    if time.monotonic() > deadline:
+        sys.exit(13)
+    time.sleep(0.02)
 """
 
 #: The child that takes the slot and then never gives it up. Its `acquired`
@@ -173,9 +188,14 @@ def _await_file(path: Path, proc: subprocess.Popen) -> None:
 
     A child that died before announcing is reported by its EXIT CODE rather than
     by a timeout, because a timeout says nothing about which of the two failed.
+
+    EXISTENCE IS NOT AN ANNOUNCEMENT. ``write_text`` creates and truncates before
+    it writes, so a path that exists can still be empty, and every caller here
+    goes on to parse what it reads. Waiting for a byte closes that window at the
+    reader rather than asking every writer to be atomic.
     """
     deadline = time.monotonic() + _CHILD_START_TIMEOUT_S
-    while not path.exists():
+    while not (path.exists() and path.stat().st_size > 0):
         code = proc.poll()
         if code is not None:
             why = _CHILD_EXITS.get(code, "the child died for a reason it has no word for")
@@ -194,6 +214,7 @@ def test_a_waiting_process_enters_the_ration_only_after_the_holder_releases(
     acquired = signals / SIGNAL_ACQUIRED
     go = signals / SIGNAL_GO
     released = signals / SIGNAL_RELEASED
+    done = signals / SIGNAL_DONE
     script = _write_child(tmp_path, "hold_then_release.py", _HOLD_THEN_RELEASE)
 
     proc = subprocess.Popen(
@@ -205,6 +226,7 @@ def test_a_waiting_process_enters_the_ration_only_after_the_holder_releases(
             str(acquired),
             str(go),
             str(released),
+            str(done),
         ],
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
@@ -258,6 +280,11 @@ def test_a_waiting_process_enters_the_ration_only_after_the_holder_releases(
         ):
             present_at_entry.extend(sorted(p.name for p in signals.iterdir()))
             holder_at_entry.append(ration.slot_state(root=root)["pid"])
+
+        # The child is still ALIVE and is waiting to be dismissed, which is what
+        # makes the acquire above a release rather than a reclaim. Dismiss it
+        # now that the measurement is taken, so it can exit for `proc.wait`.
+        done.write_text("done", encoding="utf-8")
 
         expected = sorted(BLOCKING_PROTOCOL)
         assert present_at_entry == expected, (

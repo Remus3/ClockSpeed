@@ -75,6 +75,64 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-09-18 - CS-1147 - CLOSED. The ration blocking-protocol arm no longer races the child it measures
+
+**THE DEFECT.** `tests/ops/test_suite_ration.py`'s `_HOLD_THEN_RELEASE` child called
+`ration.release(...)` and THEN wrote its `child_released` marker. Between those two
+statements the slot was FREE and the marker ABSENT, so a parent acquiring in that
+window entered its body having seen two of the three protocol signals and the arm
+failed naming the ration for its own child's ordering. Measured on run 35385454932
+at `ba71cca`, job `clean-checkout probe (windows-latest)`.
+
+**THE REPRODUCTION, BEFORE ANY REPAIR.** Widening the gap to 0.5s made it
+deterministic and produced the byte-identical CI assertion:
+`assert ['child_acquired', 'go'] == ['child_acquired', 'child_released', 'go']`.
+With the marker written FIRST the SAME 0.5s widening passes. `_POLL_S` is
+unchanged at 0.02 and no pre-existing timeout moved - the fix is the statement
+order, and the marker's presence is now implied by the slot being free.
+
+**THE ARM HAD NO TEETH, AND AN ADVERSARY FOUND IT, NOT THE AUTHOR.** The first
+repair was committed claiming the teeth clause discharged on the strength of a
+LIVE never-releasing child failing in 124.89s. An independent refutation pass
+measured the CANONICAL mutant - delete the `release` call, change nothing else -
+and it was GREEN in 0.15s, before the repair and after it. The child EXITED the
+instant it stopped holding, the ration correctly reclaims a dead holder's slot,
+and nothing in the arm distinguished a release from a death. The child now waits
+for a `parent_done` dismissal written after the measurement, so it is ALIVE
+across the parent's acquire and the release is the only door into the slot. That
+same canonical mutant now fails in 120.33s.
+
+**WHAT MAKES THE HANG A RED.** `hold_suite_slot` takes no ceiling in this arm by
+design, so a child that never releases would have HUNG it. The parent's wait seam
+now bounds its own patience at `_MAX_PARENT_WAITS`, whose floor is the seam's own
+real `time.sleep(_POLL_S)` - at least 120s of actual sleeping whatever the runner
+is doing. It is NOT derived from the child's `go` deadline; the first version of
+the comment claimed it was, and the two clocks measure disjoint intervals.
+
+**THE SIBLING SWEEP, LISTED IN FULL AS THE ACCEPTANCE REQUIRES.** The module has
+exactly two child scripts and two parent-side readers of a child marker:
+
+| Site | Ordering | Carried the defect |
+|---|---|---|
+| `_HOLD_THEN_RELEASE`, `child_released` vs `release` | marker announced state about to be TORN DOWN, so it must precede it | YES - this item |
+| `_HOLD_THEN_RELEASE`, `child_acquired` vs `try_acquire` | marker announces state already ESTABLISHED, so following is the safe direction | no |
+| `_HOLD_FOREVER`, `child_acquired` vs `try_acquire` | same safe direction | no |
+| `_await_file` at both call sites | existence vs content | YES, a SECOND family the sweep as filed would have missed |
+
+`_await_file` returned the instant a path existed, and `write_text` creates and
+truncates before it writes, so both process arms could read an empty marker and
+crash in `int(...)` with an uncaught `ValueError` - an error of unknown provenance
+on exactly the contended runner this item was filed from. It now waits for a byte,
+which closes the window at the reader rather than asking every writer to be atomic.
+An explicit 0.3s empty-marker window planted in BOTH children now passes.
+
+Verification: `python -m pytest tests/ops/test_suite_ration.py -q` is 12 passed.
+For the teeth, delete `ration.release(claim["token"], root=root)` from
+`_HOLD_THEN_RELEASE` and re-run the blocking arm: it must FAIL on
+`_MAX_PARENT_WAITS`, taking about two minutes. For the race, insert
+`time.sleep(0.5)` between the child's released-marker write and its release: it
+must still pass.
+
 ### 2026-09-18 - CS-1145 - CLOSED. The tier 1 duration arms bracket the reported figure between clocks they read themselves
 
 **THE DEFECT.** Two arms allowed the staged duration plus a fixed two seconds. The
