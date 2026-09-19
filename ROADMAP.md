@@ -150,7 +150,6 @@ CS-1141 - the per-entry unanchored refusal never proves that the entries after i
 CS-1142 - the ratchet's head sentence in `tests/test_citation_tables.py` states a composition the tables no longer have - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
 CS-1143 - the citation site identity derives a markdown heading chain from files that have no headings - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1144 - `docs/LEDGER.md` cites `.github/workflows/tier1.yml` by a line the workflow has since grown past, and the carrier is append-only - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
-CS-1145 - the tier 1 duration arms bound the reported figure with a fixed two-second tolerance, and the gap they measure across belongs to the runner rather than to them - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1146 - the tier 1 guard shard's worst reading is already 44s past the budget and 16s under the ceiling, and no tool grades that - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1147 - the ration blocking-protocol arm races the child it measures, because the child writes its released marker AFTER freeing the slot - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
 

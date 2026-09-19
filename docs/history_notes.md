@@ -11852,3 +11852,186 @@ MOVES THE DECISION, NOT THE GATE.
 
 **A LINE-PIN FAMILY WENT STALE FOR THE SECOND TIME IN TWO SESSIONS**, moved by an edit
 ABOVE a site rather than at it. Re-cited by symbol where possible; CS-1102 carries the rest.
+
+---
+
+## 2026-09-18 - CS-1145 - RETIRED ITEM SECTION, relocated here when the item closed (session 105)
+
+Relocated from `docs/item_notes/phase4-followups-1000.md` when the item closed.
+The completion record is in `docs/LEDGER.md`. Nothing here is current.
+
+### FILED 2026-09-18, from the windows-latest leg of tier 2 run 35330059133
+
+**WHAT WENT RED, AND WHAT DID NOT.** One leg of one job:
+`tests/test_tier1_budget.py::test_a_run_inside_the_budget_reports_it_and_succeeds`
+asserted `393 <= 390 + 2` and failed. The ubuntu leg of the same job passed, both
+clean-checkout probes passed and both shell suites passed. NOTHING IN
+`.github/workflows/tier1.yml` WAS WRONG, and this item must not be closed by
+touching it - guard (k) ratchets its levels in both directions for exactly the
+reason that a number moved to quiet a red is a number nobody defended.
+
+**THE MECHANISM.** The report step computes `ELAPSED=$(( $(date +%s) -
+TIER1_STARTED ))`. The arm stages `TIER1_STARTED` as a Python clock read minus
+the duration it wants, then spawns bash. The figure the step reports is therefore
+the staged duration PLUS the wall clock that passed between the harness reading
+its clock and the shell reading its own. On a loaded windows runner that cost
+three seconds; the arm allowed two. The arm was measuring a gap it did not own.
+
+**WHY A BIGGER NUMBER IS THE WRONG REPAIR, AND THIS FILE ALREADY HOLDS THE
+EVIDENCE.** The comment block in `.github/workflows/tier1.yml` records TWO
+derivations of that lane's band that were falsified by the very run offered to
+close them, and CS-1133 and CS-1134 are open about the third. A tolerance is a
+claim about a machine nobody measured. Worse, a wide one stops proving the thing
+the arm exists to prove: the arm's job is to show the reported figure DERIVES
+from the staged start, and a thirty-second window is satisfied by a step that
+ignores the staged start entirely whenever the true figure happens to land inside
+it.
+
+**MEASURING THE GAP LOCALLY PRODUCES THE WRONG ANSWER, WHICH IS THE POINT.** Ten
+readings taken while filing this item reported the staged figure EXACTLY, gap
+zero every time - because this machine was idle. Any constant derived from that
+measurement would have been undersized against CI again, the same way the two
+falsified derivations above were produced from single samples.
+
+**SO THE READING IS BRACKETED RATHER THAN TOLERATED.** The clock is read before
+the spawn and again after it returns. `floor` is monotonic, so the shell's own
+read lies between those two, and the reported figure can be no less than the
+staged duration and no more than `later_read - started`. That is an arithmetic
+fact about the run that just happened, not an estimate of a runner: a slow runner
+WIDENS the bracket instead of breaking it, and on a fast one the bracket closes
+to nothing. `report_with_bounded_reading` in `tests/test_tier1_budget.py` owns it.
+
+**THE ANTI-VACUITY CONTROL IS AN ARM RATHER THAN A ONE-OFF CHECK.**
+`test_a_slow_harness_does_not_push_the_reading_outside_what_the_clock_allows`
+injects the three-second gap CI measured and asserts BOTH that the reading leaves
+the two-second window this item removed AND that the bracket still holds over it.
+Without the first conjunct the arm would be green on an idle machine for the same
+reason the machine is idle, which is the vacuity this repository has filed twice.
+
+**WHAT THE MUTANTS DID, MEASURED, BOTH DIRECTIONS.** Against a step whose
+`ELAPSED` is hardcoded to the figure the within-budget arm stages, the stall arm
+and the over-budget arm are RED and the within-budget arm alone is GREEN - the
+bracket cannot separate a constant from a derivation when the constant equals the
+staged value, and that is why the other two arms stage a different duration and a
+different gap. Against a step reading only `date +%s`, all three are RED. Pristine
+is GREEN before and after each mutation, with the workflow restored from a byte
+snapshot rather than from git.
+
+**WHY TIER 2 ON A TEST-ONLY DIFF.** The close condition is a reading off the live
+lane, not a local module run: the arm was green on every local run of the shape
+that failed in CI.
+
+### Acceptance
+
+the two duration arms in `tests/test_tier1_budget.py` bound the reported figure
+against clocks the arm reads itself around the spawn rather than against any
+fixed allowance, no arm in that module carries a constant tolerance for the
+harness-to-shell gap, an arm reproduces the measured three-second gap and is red
+if that gap fails to land, the repaired arms are refuted by a step whose figure
+does not derive from `TIER1_STARTED` and are green against the shipped step, and
+the windows-latest leg of tier 2 is observed green on a commit carrying this
+change with `.github/workflows/tier1.yml` unmodified
+
+---
+
+## Session 102 - 2026-09-16/17 - the lane was killing its own suite, adversaries refuted nearly every first pass, and the routing rows came out
+
+- Shipped, CLOSED BY THE MAIN SESSION, each through builder, adversary on a distinct lens, repair
+  loop, then a verifier or a stop-condition pass: CS-1096, CS-1101, CS-1102, CS-1104, CS-1108,
+  CS-1110, CS-1086, CS-1097, CS-1107, CS-1111, CS-1113, CS-1115, CS-1116, CS-1109, CS-1117,
+  CS-1118, CS-1120, CS-1114, CS-1106, CS-1105, CS-1124, CS-1126, CS-1112. CLOSED AS DECLINES, NOT
+  ADOPTIONS: CS-1098, CS-1099, CS-1100. Detail in `docs/LEDGER.md`, not here.
+- Shipped, CLOSED BY THE `queue` LANE: CS-894 (649ed65), CS-1068 (69b77a8), CS-893 (768f2b8),
+  CS-895 (df372f3), CS-898 (5ae7d72), CS-919 (47ce32e), CS-990 (e5a9a5a, with a same-day
+  correcting record at 7fde21f), CS-930 (10a8777), CS-939 (4e9684a). CS-828 was NARROWED by the
+  lane (5facfd7) and STAYS OPEN.
+- FILED by the main session: CS-1105 through CS-1118, CS-1120, CS-1122, CS-1124, CS-1126. FILED by
+  the lane: CS-1119 (5facfd7), CS-1121 (768f2b8), CS-1123 (5ae7d72), CS-1125 (10a8777).
+- **THE BIG FINDING: EVERY LANE CYCLE SINCE 2026-09-06 THAT BACKGROUNDED ITS SUITE WAS KILLED.**
+  `claude -p` kills background shells about five seconds after the final reply, and
+  `CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS` covers subagents only. CS-1108 disables background tasks
+  and raises the Bash timeouts in `ops/loop/run_lane.ps1`; the first cycles relaunched under it
+  ended `commit=yes ci=success` where three earlier cycles that day ended `commit=no` with their
+  suite logs stopped part-way. Its closure was not recorded at merge and was recorded after
+  (bdf2035). CS-1111 closed the four launcher-arm gaps. CS-1110 DISCARDED the killed cycles'
+  CS-893 work after a hash-checked snapshot under the gitignored `data/lane-snapshots/`; the lane
+  closed CS-893 afresh at 768f2b8, so that snapshot is superseded.
+- **CS-1114 WAS REFUTED AS A PRIVACY LEAK.** Its first tip's false-positive fix dropped a world
+  token from the blocklist in three synthetic refused headers. MERGER RULING, fenced: the scan is a
+  fail-safe blocklist, so a false positive (a manual unblock) is never traded for a false negative
+  (a leak). The repair skips slot 0 on measured versions only; a stop-condition adversary swept
+  synthetic refused headers and found no new miss.
+- **CS-1112 REMOVED THE PER-ITEM ROUTING ROWS.** The leaf membership rule in `docs/item_notes.md`
+  is now the single hop. An adjudicator GRANTED the removal on conditions at d5a9c50, superseding
+  the CS-1062 no-row-deleted fence that CS-1086's KEEP-AND-CHECK ruling (earlier this session)
+  stood on. Guard (j) RESTORES the no-section refusal CS-1113 retired, because CS-1113's
+  retirement proof leaned on the rows and is now false - the CS-1112 record corrects it.
+- Decisions (adjudicated, no ADR): CS-1086 KEEP-AND-CHECK, later superseded by the CS-1112 grant.
+  CS-1110 DISCARD over SALVAGE. Stale dead-pid claim records left for `try_claim_row` to clear,
+  because a hand release is a no-op. CS-1104's merger ruled prompt-paraphrase evasions out of
+  scope. CS-1105's merger ruled a cap shape needing a refactor of the frozen gate's control flow a
+  DOCUMENTED LIMIT. CS-1098, CS-1099 and CS-1100 DECLINED after four licence gates and three
+  raw-byte adversaries; the archify idea is re-filed as CS-1122, our own Python renderer with zero
+  copied bytes, and three conditional ideas went to `BACKLOG.md`. Do not re-open them as tools.
+- FROZEN-FILE GRANTS SPENT, each recorded in `docs/LEDGER.md` BEFORE the edit by an adjudicator:
+  CS-1096, `tools/precommit_gate.py` lines 1656 and 1663, comment text only (recorded at dc88c08);
+  CS-1106, the same file's lines 1521, 1522 and 1667, docstring or comment text only (recorded at
+  4289e5c). No other frozen file moved.
+- `FORGIVEN_LINE_POINTER_CEILING` rose three times, EACH ADJUDICATED, each for RENAMED
+  dispositions with live targets and never for a NO_TARGET: 54 -> 55 for the CS-1120 test rename
+  (6bb04d7); 55 -> 56 for the CS-909 citation CS-1126 exposed (eb2ed9a); 56 -> 60 for the four
+  guard (j) arms CS-1112 renamed (8d13134).
+- CI reds and their causes, each fixed and each recorded:
+  - 0dbf309, tier1: a cmd.exe control not skipped on ubuntu (fixed at c6a41f3).
+  - c1d7517: a synthetic `class Runner:` string matched the CI account name in the echo guard
+    (fixed at 3ff40e1).
+  - 645663c, tier1: the memory reachability walk followed `INDEX_*` routing children by a
+    lowercased name, so only on a case-insensitive filesystem - pre-existing, exposed by a
+    CS-1120 plant (fixed at 0cd4e66, merged at ea944a2).
+  - 768f2b8 and df372f3, tier2: a Windows shell-suite concurrent-writers arm (not reproduced
+    since) and two `tests/surface/test_panel_map.py` node-harness timeouts (measured as stalls,
+    passed on rerun). The Windows clean-checkout probe was CANCELLED at 30 minutes three
+    times because its fresh-clone suite ran SERIAL (fixed at 2ff935c, merge dee994a: `-n auto`,
+    timeout unchanged, whole suite kept).
+  - The Windows state save gave up on an EPERM rename after its old retry window (runs
+    35163459856 and 35201300783); CS-1124 retries to a monotonic deadline.
+  - 72e7d46, tier1 and tier2: the CI account name again, as an ordinary word in a
+    `shell/lib/state.js` comment, and a deadline arm grading REAL elapsed time on a loaded runner
+    (fixed at bfb32e4, merge 2e08639: comment reworded, arms on an injected `clock` seam; tier1
+    and tier2 green on 2e08639).
+- THE LANE'S `ci_red` STOPS, each followed by a relaunch after green: on the 645663c tier1 red;
+  twice on the tier2 reds on 768f2b8 and df372f3; and after five cycles on the red that followed the
+  72e7d46 merge.
+- Surprises and process lessons:
+  - **THE ADVERSARY REFUTED A GREEN FIRST PASS ON NEARLY EVERY SLICE** - CS-1101, CS-1104 and
+    CS-1105 three times each, CS-1096 twice, and CS-1102, CS-1106, CS-1109, CS-1111, CS-1114,
+    CS-1115, CS-1124 and CS-1112 once each.
+  - **THE WHOLE SUITE BEFORE THE PUSH CAUGHT REPO-WIDE GUARDS THE SCOPED SUITES MISSED** -
+    exception rendering, liveness, bare mypy, and the assertion-rendering echo guard on ubuntu.
+  - **AN ELAPSED-TIME ASSERTION IN A TEST IS A FLAKE BY CONSTRUCTION.** Bound behaviour on an
+    injected clock; keep at most one real-time smoke arm with a generous multiple of the bound.
+  - **A LICENCE GATE READ THROUGH A SUMMARISING FETCH MUST BE RE-CHECKED AGAINST RAW BYTES.** A
+    CS-1098 gate proposed keeping an MIT notice that the raw bytes showed the generated output
+    never carries, and the other gate's summarised fetch left the viewer template and the font's
+    document exemption unread; a raw-byte adversary with positive controls corrected both.
+  - CS-1106's verifier plants tripped the arm's own anchor checks, which failed closed; ruled a
+    weakness, not a defect.
+- Failed paths: removing the routing table INSIDE CS-1086 (rejected by adjudication because its
+  acceptance spoke of rows and the CS-1062 fence stood - done properly as CS-1112 once a grant
+  superseded the fence); salvaging the killed lane's CS-893 diff (red, and its ROADMAP hunk
+  allocated an id main had since given to another item); CS-1114's session-slot walk (a leak).
+- In flight: nothing mid-edit. main carries the CS-1112 merge (6ec3d62) and this record, NOT
+  PUSHED when these notes were written, so no CI has run on that tip. The `queue` lane is stopping
+  on its `QUEUE_STOP` sentinel. Inbox: nothing unread, as printed by `tools/inbox_watch.py` when
+  these notes were written. Many `.claude/worktrees/agent-*` from this session are merged; none
+  removed - classify by content before pruning.
+- NEXT ACTIONS, in order:
+  1. Push main and watch tier1 on the tip; dispatch tier2 on it, because CS-1112 touched a guard
+     and the lane prompt.
+  2. Clear `QUEUE_STOP` and relaunch the lane only after that tip is green.
+  3. CS-1079, then CS-971 - CS-1112 is closed, so CS-971 waits on CS-1079 alone.
+  4. CS-1122 - our own Python renderer, tier 3.
+  5. Lane-filed CS-1119, CS-1121, CS-1123, CS-1125 - all four still OPEN in `ROADMAP.md` when
+     these notes were written; re-check before picking one.
+  6. After the next few tier2 runs, refresh `tools/tier2_durations.json` by hand - the Windows
+     jobs were at about 0.78 of their timeout, so that refresh is likely red by design.

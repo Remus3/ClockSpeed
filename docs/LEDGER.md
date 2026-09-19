@@ -75,6 +75,45 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-09-18 - CS-1145 - CLOSED. The tier 1 duration arms bracket the reported figure between clocks they read themselves
+
+**THE DEFECT.** Two arms allowed the staged duration plus a fixed two seconds. The
+step computes its figure as `$(date +%s) - TIER1_STARTED`, so the reading is the
+staged duration PLUS the wall clock between the harness staging the start and the
+shell reading its own clock - a property of the runner, not of the step. The
+windows-latest leg of tier 2 spent three seconds there and the lane went red with
+nothing wrong in the workflow; the ubuntu leg of the same job passed.
+
+**THE REPAIR IS ARITHMETIC RATHER THAN A WIDER NUMBER.** The arm reads the clock
+before the spawn and again after the process returns. `floor` is monotonic, so the
+shell's own read lies between those two, and the reading is bounded below by the
+staged duration and above by the later read. A slower runner WIDENS the bracket
+instead of breaking it; on an idle box it closes to zero slack. No constant sizes
+it, which is the point - CS-1133 and CS-1134 exist because bands in this lane were
+sized by guesswork twice, and a third guess was available and refused here.
+
+**A DISCLOSED LIMIT, recorded because it is not obvious from the code.** The bracket
+alone cannot kill a step that hardcodes a figure equal to the staged value: the
+within-budget arm survives that mutant. The stall arm kills it, and so does the
+over-budget arm, which stages a different duration. The repair is three arms for
+that reason and not because three reads better.
+
+**MEASURED BOTH WAYS BY THE MERGER, not only by the builder.** With the step mutated
+to ignore `TIER1_STARTED`, all three arms go red; pristine, all three pass. The
+mutation was confirmed present at all three call sites before the run, since a
+mutant that never applied is indistinguishable from one that survived. The workflow
+was restored from a byte snapshot and `git status` confirmed clean.
+
+Verification: `tests/test_tier1_budget.py`, arms
+`test_a_run_inside_the_budget_reports_it_and_succeeds`,
+`test_a_slow_harness_does_not_push_the_reading_outside_what_the_clock_allows` and
+`test_a_run_over_the_budget_warns_and_still_succeeds`, all three bounded by the
+helper `report_with_bounded_reading` in the same module. The external conjunct was
+observed on tier 2 run 35385454932 at `ba71cca`, job `full suite (windows-latest)`,
+conclusion success, with `.github/workflows/tier1.yml` unmodified across the whole
+session (`git diff --stat d28e4a5..HEAD -- .github/workflows/tier1.yml` is empty).
+Use the FULL sha with `gh run list --commit`; a short sha returns `[]` and exits 0.
+
 ### 2026-09-18 - CS-900 - MEASUREMENT RECORD. The runner profile before and after the quadratic grading was removed. THE ITEM STAYS OPEN
 
 **WHY A RECORD RATHER THAN A CLOSE.** The acceptance wants the most expensive single
