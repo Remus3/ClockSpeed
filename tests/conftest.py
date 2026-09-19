@@ -369,6 +369,12 @@ REDACTED_HOME = "<redacted-home>"
 #: What a redacted account name renders as.
 REDACTED_USER = "<redacted-user>"
 
+#: CS-1156. What a credential is replaced by. A DISTINCT placeholder rather
+#: than reusing one above, because a reader who sees it must be able to tell
+#: that a secret was removed here and not a home path - the two carry different
+#: consequences and a shared token would flatten them.
+REDACTED_CREDENTIAL = "<redacted-credential>"
+
 #: THE FOUR PERSONAL-DATA CLASSES CLAUDE.md NAMES, one id each, and every rule
 #: below is TAGGED with the one it serves. These ids are not the definition of
 #: what gets redacted - CLAUDE.md is. tests/test_report_redaction_classes.py
@@ -661,6 +667,134 @@ def _seed_redaction_rules() -> tuple[tuple[re.Pattern[str], str, str], ...]:
 _REDACTION_RULES: tuple[tuple[re.Pattern[str], str, str], ...] = _seed_redaction_rules()
 
 
+# --- credentials ------------------------------------------------------------
+#
+# CS-1156 - A SEPARATE LAYER, DELIBERATELY NOT A FIFTH PERSONAL-DATA CLASS. A
+# credential is not personal data: it identifies nobody, it is rotatable, and
+# the consequence of leaking one is unauthorised ACCESS rather than exposure.
+# Folding it into `_REDACTION_RULES` would also have meant editing CLAUDE.md's
+# two class regions and the fingerprint map to admit a class that is not what
+# either region is about. `redact_personal_data` keeps its exact contract and
+# its honest docstring; this layer stands beside it and the render path applies
+# both.
+#
+# THE DEFECT, MEASURED. 2026-09-19: an unrelated `FileNotFoundError` inside
+# `tests/test_pre_push_ref_race.py` made pytest render the frame it crashed in,
+# that frame was a `subprocess.run(..., env=...)` call, and the rendered
+# arguments were the whole environment dict. An `sk-ant-` prefixed admin key
+# printed in full, beside a home path this module DID replace.
+#
+# TWO RULE KINDS, AND THEY COVER DIFFERENT FAILURES.
+#
+#   LITERALS, from named variables. The shape `_build_redaction_rules` already
+#   trusts: a literal cannot over-reach, because it rewrites the exact bytes it
+#   was built from. This is what catches a token with no recognisable prefix -
+#   a bare hex messaging token, say - which no shape rule could ever anchor on
+#   without rewriting every SHA in every traceback.
+#
+#   SHAPES, from VENDOR-ASSIGNED prefixes. This is what catches a credential
+#   arriving under a variable nobody listed, which is the failure a name list
+#   structurally cannot cover. It is NOT the backed-out kind of shape rule: the
+#   two rules `UNCOVERED_CLASSES` records were path-segment character classes
+#   matched against arbitrary prose, measured too narrow and too greedy at once.
+#   These anchor on a literal vendor prefix that does not occur in English, in
+#   a path or in a traceback frame line, and each requires a long run of
+#   credential alphabet after it. The blast radius is a string that already
+#   looks exactly like a key.
+#
+# A FLOOR, BECAUSE AN EMPTY LITERAL MATCHES EVERYWHERE. A variable that is
+# absent, blank or implausibly short contributes NO rule. Without the floor a
+# variable set to "" would compile to a pattern matching at every position and
+# would destroy every report on the machine that set it.
+
+#: Variables whose WHOLE VALUE is a secret on this machine or on CI. Listed by
+#: name rather than sniffed, so adding one is a decision somebody made.
+_CREDENTIAL_VARIABLES: tuple[str, ...] = (
+    "ANTHROPIC_USAGE_KEY",
+    "ANTHROPIC_API_KEY",
+    "ANTHROPIC_AUTH_TOKEN",
+    "ANTHROPIC_ADMIN_KEY",
+    "CLAUDE_CODE_MESSAGING_TOKEN",
+    "CLAUDE_CODE_OAUTH_TOKEN",
+    "GH_TOKEN",
+    "GITHUB_TOKEN",
+    "CODSPEED_TOKEN",
+)
+
+#: The shortest value admitted as a literal rule. Below this a value is more
+#: likely a flag, a mode or a placeholder than a secret, and the cost of a
+#: wrong literal is a mangled report rather than a leak.
+_CREDENTIAL_MIN_LITERAL = 16
+
+#: Vendor-assigned prefixes and the alphabet that follows them. Every entry is
+#: a prefix no English word, path or identifier begins with.
+_CREDENTIAL_SHAPES: tuple[str, ...] = (
+    r"sk-ant-[A-Za-z0-9_\-]{16,}",
+    r"ghp_[A-Za-z0-9]{20,}",
+    r"gho_[A-Za-z0-9]{20,}",
+    r"ghs_[A-Za-z0-9]{20,}",
+    r"ghu_[A-Za-z0-9]{20,}",
+    r"github_pat_[A-Za-z0-9_]{20,}",
+)
+
+
+def _build_credential_rules() -> tuple[tuple[re.Pattern[str], str], ...]:
+    """Literals first, longest first, then the vendor shapes.
+
+    ORDER IS LOAD-BEARING IN ONE DIRECTION ONLY. A literal that also matches a
+    shape is replaced by whichever runs first and the output is identical, so
+    the order does not decide correctness there. It decides it where a literal
+    is a PREFIX of a longer one, which is why literals are sorted longest
+    first - the same reason `_build_redaction_rules` sorts its home spellings
+    that way.
+
+    Returns:
+        ``(pattern, replacement)`` pairs, applied in order. No class tag: these
+        rules serve no personal-data class and
+        tests/test_report_redaction_classes.py must keep finding none.
+    """
+    values = {os.environ.get(name, "") for name in _CREDENTIAL_VARIABLES}
+    literals = sorted(
+        (value for value in values if len(value.strip()) >= _CREDENTIAL_MIN_LITERAL),
+        key=len,
+        reverse=True,
+    )
+    rules: list[tuple[re.Pattern[str], str]] = [
+        (re.compile(re.escape(value)), REDACTED_CREDENTIAL) for value in literals
+    ]
+    rules.extend((re.compile(shape), REDACTED_CREDENTIAL) for shape in _CREDENTIAL_SHAPES)
+    return tuple(rules)
+
+
+#: Built at import, for the reason :func:`_seed_redaction_rules` gives at
+#: length: a rule set built on demand is built from whichever test had last
+#: moved the environment, and the dangerous direction is the one where the real
+#: value drops OUT of the set and stops being redacted for the rest of the run.
+_CREDENTIAL_RULES: tuple[tuple[re.Pattern[str], str], ...] = _build_credential_rules()
+
+
+def redact_credentials(text: str) -> str:
+    """Replace every credential this module can recognise with a placeholder.
+
+    NOT A COMPLETE SECRET FILTER, and it must not be described as one. It
+    covers the values of :data:`_CREDENTIAL_VARIABLES` on this machine, and any
+    string carrying one of the vendor prefixes in :data:`_CREDENTIAL_SHAPES`. A
+    secret with no recognisable prefix, held in a variable nobody listed, in a
+    file rather than the environment, is out of reach here.
+
+    Args:
+        text: Rendered output.
+
+    Returns:
+        The text with recognised credentials replaced. Unchanged text is
+        returned unchanged, which is how a caller tells whether anything was
+        found.
+    """
+    for pattern, replacement in _CREDENTIAL_RULES:
+        text = pattern.sub(replacement, text)
+    return text
+
+
 def redact_personal_data(text: str) -> str:
     """Replace every personal value in ``text`` with a placeholder.
 
@@ -688,6 +822,30 @@ def redact_personal_data(text: str) -> str:
     for pattern, replacement, _class_id in _REDACTION_RULES:
         text = pattern.sub(replacement, text)
     return text
+
+
+def redact_report(text: str) -> str:
+    """Both layers, in the order a rendered report needs them.
+
+    CS-1156 - THE RENDER PATH APPLIES BOTH, AND NEITHER FUNCTION KNOWS ABOUT
+    THE OTHER. `redact_personal_data` keeps its exact contract and its honest
+    docstring about the two classes it covers; `redact_credentials` keeps its
+    own about the secrets it recognises. This is the only place that says a
+    report needs both, so a caller that wants one layer can still ask for it -
+    `tests/test_redaction_scope.py` and the class-grading module both do.
+
+    ORDER. Personal data first, credentials second. A credential is replaced by
+    a fixed placeholder containing no path and no account name, so running the
+    personal layer afterwards would find nothing new; the reverse order is safe
+    too, and the choice is stated rather than left to be inferred.
+
+    Args:
+        text: Rendered output.
+
+    Returns:
+        The text with both classes of value replaced.
+    """
+    return redact_credentials(redact_personal_data(text))
 
 
 class _LineWriter(Protocol):
@@ -762,9 +920,9 @@ def _redacted_crash(longrepr: object) -> _RedactedCrash | None:
     if crash is None:
         return None
     return _RedactedCrash(
-        path=redact_personal_data(str(getattr(crash, "path", ""))),
+        path=redact_report(str(getattr(crash, "path", ""))),
         lineno=int(getattr(crash, "lineno", 0)),
-        message=redact_personal_data(str(getattr(crash, "message", ""))),
+        message=redact_report(str(getattr(crash, "message", ""))),
     )
 
 
@@ -799,9 +957,9 @@ def _redact_report(report: pytest.TestReport) -> None:
     longrepr = report.longrepr
     if longrepr is not None and not isinstance(longrepr, tuple):
         rendered = report.longreprtext
-        redacted = redact_personal_data(rendered)
+        redacted = redact_report(rendered)
         crash_text = str(getattr(longrepr, "reprcrash", "") or "")
-        if redacted != rendered or redact_personal_data(crash_text) != crash_text:
+        if redacted != rendered or redact_report(crash_text) != crash_text:
             # Duck-typed on purpose: pytest declares this attribute as its own
             # TerminalRepr, which lives behind a private module path. Importing
             # it for one annotation would make a rename there an unimportable
@@ -811,7 +969,7 @@ def _redact_report(report: pytest.TestReport) -> None:
             report.longrepr = _RedactedRepr(  # type: ignore[assignment]
                 redacted, _redacted_crash(longrepr)
             )
-    sections = [(name, redact_personal_data(content)) for name, content in report.sections]
+    sections = [(name, redact_report(content)) for name, content in report.sections]
     if sections != report.sections:
         report.sections = sections
 
@@ -898,10 +1056,10 @@ def _redact_worker_description(node: Any) -> None:
     if isinstance(info, dict):
         for key, value in list(info.items()):
             if isinstance(value, str):
-                info[key] = redact_personal_data(value)
+                info[key] = redact_report(value)
     cached = getattr(node, "_workerinfocache", None)
     if isinstance(cached, str):
-        node._workerinfocache = redact_personal_data(cached)  # noqa: SLF001
+        node._workerinfocache = redact_report(cached)  # noqa: SLF001
 
 
 @pytest.hookimpl(tryfirst=True)
