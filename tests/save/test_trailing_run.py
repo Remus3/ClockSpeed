@@ -9,12 +9,20 @@ reading of its interior offered at all. This module grades the first reading of
 it: the run OPENS with an int32 field, and that field's value is read out of the
 bytes rather than inferred from the run's width.
 
-**THE RUN IS NOT THEREBY CLOSED, AND NOTHING HERE SAYS IT IS.** Everything past
-the lead field is still unread, it is class-keyed extra data rather than padding,
-and :data:`clockspeed.save.objects.TrailingRun` carries its width as ``unread``
-precisely so a consumer reads the remainder as an open figure instead of an
-absent one. The population whose run is the lead field ALONE is the part that is
-now completely read; the rest is filed as its own row.
+**THE RUN IS NOT THEREBY CLOSED, AND NOTHING HERE SAYS IT IS.** Part of what
+follows the lead field is still unread, it is class-keyed extra data rather than
+padding, and :data:`clockspeed.save.objects.TrailingRun` carries its width as
+``unread`` precisely so a consumer reads the remainder as an open figure instead
+of an absent one.
+
+**WHAT IS COMPLETELY READ IS WIDER THAN THE LEAD FIELD ALONE, AND THIS PARAGRAPH
+REPLACES A SENTENCE THAT SAID OTHERWISE.** Two further readings have shipped
+against this run since - the count-prefixed item list and the object-reference
+pair - and each closes the remainder of the classes a derivation names off the
+body being read. This module said the lead field was the whole of what closes
+for as long as it swept with those two readings switched OFF, which is the
+defect :func:`test_the_sweep_reads_the_remainder_with_the_derived_vocabularies`
+now holds shut. What remains open is filed as its own row.
 
 THE LIBRARY HALF REPORTS COUNTS ONLY. Every sweep here is contained the way
 ``tests/save/test_properties.py`` contains its own: every step wrapped, every
@@ -32,7 +40,7 @@ skip-if-absent and grades the claim about the WORLD.
 from __future__ import annotations
 
 from collections import Counter
-from collections.abc import Mapping
+from collections.abc import Collection, Mapping
 from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
@@ -223,8 +231,19 @@ class _RunSweep:
             reader under test - see :func:`_run_of_record`.
         with_lead: Of those, how many yielded a run carrying a lead field.
         zero_lead: Of those, how many read the lead as zero.
-        fully_read: Of those, how many have nothing past the lead field.
+        fully_read: Of those, how many have nothing UNREAD past the lead
+            field. NOT the same as having nothing past it at all, and the
+            difference is the whole subject of ``read_by_derivation``: a
+            remainder a derived vocabulary read leaves ``unread`` at zero and
+            lands here, so this population is the lead-field-alone runs PLUS
+            every remainder the shipped reader closes.
         partly_read: Of those, how many carry unread bytes past it.
+        read_by_derivation: Of those, how many had the remainder PAST the lead
+            read by one of the two derived vocabularies - an item list or a
+            reference pair. THE ARM OVER THIS FIGURE IS WHAT HOLDS THE SWEEP TO
+            THE SHIPPED READER: both readings are gated on a vocabulary a caller
+            must pass, so a sweep that omits them reads every remainder as
+            unread and reports a partition no consumer of this module sees.
         failures: The type names of any unexpected failure.
     """
 
@@ -233,6 +252,7 @@ class _RunSweep:
     zero_lead: MappingProxyType
     fully_read: MappingProxyType
     partly_read: MappingProxyType
+    read_by_derivation: MappingProxyType
     failures: tuple[str, ...]
 
 
@@ -262,6 +282,8 @@ def _run_of_record(
     *,
     save_version: int,
     header_version: int,
+    item_list_classes: Collection[str],
+    reference_pair_classes: Mapping[str, int],
 ) -> tuple[bool, objects.TrailingRun | None]:
     """Read one record's trailing run, or say the walk never reached one.
 
@@ -272,11 +294,14 @@ def _run_of_record(
     would let a reader returning None for a whole class shrink the numerator and
     the denominator together and stay green.
 
-    Args:
-        body: The decompressed body.
-        record: The record to read.
-        save_version: The save version the pair names.
-        header_version: The header version the pair names.
+    **THE TWO VOCABULARIES ARE REQUIRED KEYWORDS AND CARRY NO DEFAULT, WHICH IS
+    THE POINT OF PASSING THEM AT ALL.** Both remainder readings CS-828 has
+    shipped are gated on one, and :func:`objects.read_properties` defaults both
+    to empty - so a caller that simply forgets them gets a reader that declines
+    every remainder and reports it as ``unread``, silently. That is the shape
+    this helper carried until the arm named in
+    :func:`test_the_sweep_reads_the_remainder_with_the_derived_vocabularies`
+    measured it. A default here would put the same silence back.
 
     A PAIR RATHER THAN A SENTINEL. An earlier draft returned a module-level
     marker object for the refused case, which typed as ``TrailingRun | None |
@@ -289,6 +314,9 @@ def _run_of_record(
         record: The record to read.
         save_version: The save version the pair names.
         header_version: The header version the pair names.
+        item_list_classes: The item-list carrier classes derived off this body.
+        reference_pair_classes: The reference-pair carrier classes derived off
+            this body, each to the tail width that derivation derived.
 
     Returns:
         (whether the walk reached a terminator, the run the reader returned).
@@ -298,7 +326,12 @@ def _run_of_record(
     if not record.body_length:
         return (False, None)
     result = objects.read_properties(
-        body, record, save_version=save_version, header_version=header_version
+        body,
+        record,
+        save_version=save_version,
+        header_version=header_version,
+        item_list_classes=item_list_classes,
+        reference_pair_classes=reference_pair_classes,
     )
     refused = any(
         warning.code == objects.WARN_UNPARSED_PROPERTY_PAYLOAD for warning in result.warnings
@@ -330,6 +363,7 @@ class _Tally:
         self.zero_lead: Counter[tuple[int, int]] = Counter()
         self.fully_read: Counter[tuple[int, int]] = Counter()
         self.partly_read: Counter[tuple[int, int]] = Counter()
+        self.read_by_derivation: Counter[tuple[int, int]] = Counter()
 
     def add(self, pair: tuple[int, int], terminated: bool, run: objects.TrailingRun | None) -> None:
         """Count one record's outcome.
@@ -347,6 +381,8 @@ class _Tally:
         self.with_lead[pair] += 1
         if run.lead == objects.TRAILING_RUN_LEAD_MEASURED_VALUE:
             self.zero_lead[pair] += 1
+        if run.items is not None or run.references is not None:
+            self.read_by_derivation[pair] += 1
         if run.unread:
             self.partly_read[pair] += 1
         else:
@@ -367,6 +403,7 @@ class _Tally:
             zero_lead=MappingProxyType(dict(self.zero_lead)),
             fully_read=MappingProxyType(dict(self.fully_read)),
             partly_read=MappingProxyType(dict(self.partly_read)),
+            read_by_derivation=MappingProxyType(dict(self.read_by_derivation)),
             failures=tuple(sorted(set(failures))),
         )
 
@@ -411,12 +448,30 @@ def _sweep_trailing_runs() -> _RunSweep | None:
             table = objects.parse_body(
                 body, save_version=parsed.save_version, header_version=parsed.header_version
             )
+            # DERIVED OFF THIS BODY AND NEVER TRANSCRIBED, which is the rule both
+            # readings ship under - a vocabulary carried between saves would be a
+            # hand-maintained list of game content, and a body that stops
+            # demonstrating the grammar must derive nothing and say so.
+            item_list_classes = objects.derive_item_list_classes(
+                body,
+                table.records,
+                save_version=parsed.save_version,
+                header_version=parsed.header_version,
+            )
+            reference_pair_classes = objects.derive_reference_pair_classes(
+                body,
+                table.records,
+                save_version=parsed.save_version,
+                header_version=parsed.header_version,
+            )
             for record in table.records:
                 terminated, run = _run_of_record(
                     body,
                     record,
                     save_version=parsed.save_version,
                     header_version=parsed.header_version,
+                    item_list_classes=item_list_classes,
+                    reference_pair_classes=reference_pair_classes,
                 )
                 tally.add(pair, terminated, run)
         except (Exception, SystemExit) as exc:
@@ -563,3 +618,37 @@ def test_both_halves_of_the_partition_are_populated_on_every_pair() -> None:
     )
 
     assert empty == 0
+
+
+def test_the_sweep_reads_the_remainder_with_the_derived_vocabularies() -> None:
+    """THE SWEEP READS WITH THE SHIPPED READER, not with a narrower one - CS-828.
+
+    **WHY THIS ARM EXISTS, and it is a defect this module carried rather than a
+    refinement of it.** Two of the three readings CS-828 has shipped - the
+    count-prefixed item list and the object-reference pair - are gated on a
+    vocabulary the caller passes to
+    :func:`clockspeed.save.objects.read_properties`, derived off the very body
+    being read. A sweep that omits them gets a reader that declines both
+    remainders, reports every one of them as ``unread``, and so grades a
+    configuration no consumer of the module uses. The counts it published were
+    therefore a claim about a reader that is not the shipped one, and they
+    OVERSTATED the open region.
+
+    WHAT IT ASSERTS is that the remainder was read by a derivation on every pair
+    this item covers - not how often, which is a figure that moves with the
+    library. A sweep that stops passing the vocabularies reddens here on every
+    pair at once, and no count in :class:`_RunSweep` can be moved to satisfy it
+    without the reading actually happening.
+
+    IT IS NOT A TAUTOLOGY OF THE BRANCH THAT FEEDS IT, which is the trap
+    :class:`_Tally` records having fallen into once. ``read_by_derivation`` is
+    incremented from ``run.items`` and ``run.references`` - two fields
+    :func:`read_trailing_run` never sets - so nothing in the lead-field path can
+    make this arm true.
+    """
+    sweep = _sweep_or_skip()
+    unread_by_derivation = sum(
+        1 for pair in objects.TRAILING_RUN_PAIRS if not sweep.read_by_derivation.get(pair, 0)
+    )
+
+    assert unread_by_derivation == 0

@@ -1156,3 +1156,42 @@ graded separately and named in the output rather than pooled into one line, the
 guard shard's present breach of `B >= M` is reported by that tool over the
 shipped record, and a two-way arm in `tests/test_tier1_growth.py` reddens both
 when a breaching job goes unreported and when a compliant one is reported
+
+---
+
+## CS-1148
+
+### Filed 2026-09-19 by the CS-828 instrument repair, from its own re-derivation
+
+**WHAT WAS MEASURED.** CS-828's third partial ship re-derived the remainder population
+past the run's lead field with BOTH shipped remainder readings switched on - which is
+the first reading of that population ever taken with the shipped reader, because the
+sweep had been taking it with them off. CS-1119's `Full headline` describes the second
+of the two remaining shapes as "one class whose remainder is a large nested structure
+whose width nothing in the run describes". On the three pairs CS-828 covers the shape
+is carried by TEN classes, and across every measured body layout by eleven. Four of
+them are one family differing by a size suffix; the remaining six are unrelated to it
+and to each other.
+
+**WHY THE UNDERCOUNT IS NOT COSMETIC.** CS-1119's acceptance requires the carrying
+classes be DERIVED off the body rather than transcribed, and a derivation written
+against a one-class picture has no reason to be shaped for a family plus six
+unrelated carriers. The count is also the anti-vacuity figure for that derivation: a
+deriver that finds one class would look correct against the headline and would be
+missing nine.
+
+**THIS ROW DOES NOT WIDEN CS-1119 AND MUST NOT BE READ AS DOING SO.** It corrects a
+characterisation. The reading of either shape stays CS-1119's, and nothing here rules
+on how that reading should be built.
+
+**RE-DERIVE BEFORE YOU EDIT.** The figure above was taken on one machine's library on
+one day, and the operator plays between cycles; the ten is the finding, the exact
+membership is not pinned here and this row does not pin it.
+
+### Acceptance
+
+CS-1119's `Full headline` no longer states a carrier count that the shipped reader's
+own remainder population contradicts, with the corrected characterisation derived off
+the library by a skip-if-absent test reporting COUNTS ONLY rather than transcribed
+into prose, and an arm that reddens when the characterisation and the derived
+population disagree

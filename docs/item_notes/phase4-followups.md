@@ -169,6 +169,55 @@ is a large nested structure that nothing in the run describes.
 **DO NOT CLOSE THIS ITEM ON THE STRENGTH OF THE REFERENCE PAIR.** The same sentence as the
 block above, for the same reason. The clause says every payload of the three pairs.
 
+### Third partial ship recorded 2026-09-19 - the proof instrument was grading a reader nobody ships
+
+**THE ITEM STAYS OPEN AND ITS ACCEPTANCE IS UNCHANGED.** Nothing new is read out of
+the run this cycle. What changed is the instrument the clause names as its proof:
+`tests/save/test_trailing_run.py`'s library sweep swept with BOTH shipped remainder
+readings switched off, so every figure it published about the open region was a
+claim about a reader configuration no consumer of `clockspeed/save/objects.py` uses.
+
+**THE DEFECT, and it is a seam defect rather than a reading one.** The item-list
+reading and the reference-pair reading are each GATED on a vocabulary the caller
+passes to `read_properties` - `item_list_classes` and `reference_pair_classes` - and
+both parameters DEFAULT TO EMPTY. That default is correct for the module (a caller
+with no derived vocabulary must not have remainders read for it) and it is exactly
+what made the omission silent: the sweep called `read_properties` with neither, got
+a reader that declines every remainder, and counted each one as `unread`. No arm
+could catch it, because every arm in the module read its numbers from that same
+sweep. **A DEFAULT THAT MEANS "READ LESS" IS INVISIBLE TO A TEST THAT MEASURES ONLY
+WHAT WAS READ.**
+
+**THE DIRECTION OF THE ERROR MATTERS AND IS RECORDED RATHER THAN THE FIGURES.** The
+sweep OVERSTATED the open region on every one of the three pairs, and by a wide
+margin on one of them - so the two partial ships recorded above were, on this
+instrument, invisible. The counts themselves are deliberately not written here: they
+move with the operator's library and `tests/save/test_trailing_run.py` is their only
+owner, which is the rule `CLAUDE.md` section 4 states.
+
+**WHAT NOW HOLDS IT SHUT.** `_run_of_record` takes both vocabularies as REQUIRED
+keywords with no default, `_sweep_trailing_runs` derives both off each body it walks
+- never transcribed, never carried between saves - and `_RunSweep.read_by_derivation`
+counts the payloads whose remainder a derivation read.
+`test_the_sweep_reads_the_remainder_with_the_derived_vocabularies` requires that
+count non-zero on every pair this item covers, and it is not a tautology of the
+branch feeding it: `items` and `references` are two fields `read_trailing_run` never
+sets, so nothing in the lead-field path can satisfy it.
+
+**DO NOT READ THIS AS PROGRESS ON THE CLAUSE.** The clause asks for the run's
+contents, and no byte is read this cycle that was not read before it. What is true is
+that the population the clause leaves open is now REPORTED at its real size instead of
+a larger one. A later session that finds the remaining figure smaller than the earlier
+entries imply is reading a corrected instrument, not a regression.
+
+**WHAT THE CORRECTED INSTRUMENT SAYS IS LEFT, re-derived this cycle and NOT taken from
+any filed line.** The remainder past the lead falls into two shapes, and `CS-1119`
+owns reading both. Its filed headline calls the second one "one class"; measured on
+the three pairs this item covers, it is carried by TEN classes, and over every
+measured layout by eleven. That is a correction to a filed characterisation and it is
+filed rather than applied here, because the row that owns the reading owns the
+sentence describing it.
+
 ### Acceptance
 
 the run's contents are read, or its width is DERIVED from something in the payload rather than OBSERVED as `declared_end - terminator_end`, on every payload of the (10,36), (13,42) and (14,52) pairs, proven by a skip-if-absent real-library test reporting COUNTS ONLY

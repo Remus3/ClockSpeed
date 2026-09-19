@@ -75,6 +75,89 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-09-19 - CS-828 - NOT A COMPLETION RECORD. NOTHING CLOSED. CS-828 STAYS OPEN. The proof instrument its clause names was sweeping with both shipped remainder readings switched off
+
+**THE ITEM STAYS OPEN AND ITS ACCEPTANCE IS UNCHANGED.** No byte of the run is read this
+cycle that was not read before it. This is the third narrowing recorded on this item as a
+measurement, and unlike the first two it narrows the INSTRUMENT rather than the region.
+
+**THE DEFECT.** CS-828's acceptance names a skip-if-absent real-library test as its proof.
+That test's sweep - `_run_of_record` in `tests/save/test_trailing_run.py` - called
+`clockspeed.save.objects.read_properties` with neither `item_list_classes` nor
+`reference_pair_classes`. Both parameters default to empty, both remainder readings this
+project has shipped against the run are GATED on them, so the sweep got a reader that
+declined every remainder and counted each one as `unread`. Every arm in the module read its
+numbers from that one sweep, so nothing could see it.
+
+**ROOT CAUSE, stated generally because that is the transferable half.** A default that
+means READ LESS is invisible to a test that measures only what was read. The vocabulary
+default is correct for the module - a caller with no derived vocabulary must not have
+remainders read on its behalf - and it is exactly what made the omission silent in a caller
+that did want them. The two shipped readings had been landing for two cycles into an
+instrument that reported them as if they had not.
+
+**THE DIRECTION OF THE ERROR.** The sweep OVERSTATED the open region on every one of the
+three pairs the clause covers, by a wide margin on one. The figures are deliberately not
+written here: they move with the operator's library, and
+`tests/save/test_trailing_run.py` is their sole owner - `CLAUDE.md` section 4.
+
+**THE FAILING TEST CAME FIRST AND FAILED FOR THE RIGHT REASON.**
+`test_the_sweep_reads_the_remainder_with_the_derived_vocabularies` was written against the
+un-derived sweep and reported `assert 3 == 0` - all three pairs read zero remainders by a
+derivation - before any repair. It is not a tautology of the branch that feeds it:
+`TrailingRun.items` and `TrailingRun.references` are two fields `read_trailing_run` never
+sets, so no lead-field path can satisfy it.
+
+**THE REPAIR.** `_run_of_record` takes both vocabularies as REQUIRED keywords carrying no
+default, so the same omission cannot recur silently; `_sweep_trailing_runs` derives both
+off each body it walks, never transcribed and never carried between saves; and
+`_RunSweep.read_by_derivation` counts the payloads whose remainder a derivation read. Two
+rotted docstrings that the earlier partial ships had falsified were corrected in the same
+change - the module header's claim that the lead field alone is what closes, and
+`fully_read`'s description of its own population.
+
+**SIBLING SWEEP - SEARCHED, AND EMPTY, BUT NOT FOR THE REASON A FIRST DRAFT OF THIS
+PARAGRAPH GAVE.** That draft said three things this item's verifier re-derived as false,
+and they are corrected here rather than quietly dropped. `grep -rn "\.unread\|trailing_run"
+tests/ --include=*.py` does NOT return only `unread_payload_count` sites: it also returns
+`tests/save/test_item_list.py` and `tests/save/test_reference_pair.py`, and BOTH of those
+modules do claim on `TrailingRun.unread` against the library. Nor does either pass both
+vocabularies - each passes its OWN and omits the other, which is the same shape as the
+defect repaired here.
+
+**WHY THEY ARE STILL NOT SIBLINGS, and this is a MEASUREMENT rather than a reading of their
+intent.** The two derived vocabularies are DISJOINT across this project's library: no class
+is named by both derivations, so a module passing one and omitting the other gets, for the
+classes it grades, the same answer it would get passing both. Each is therefore correct on
+its own population by measurement.
+
+**THE CONDITION UNDER WHICH THAT STOPS BEING TRUE, recorded because it is not a property
+either module asserts.** The disjointness is a fact about today's derived carrier sets, not
+a constraint anything enforces. A class that carried BOTH a count-prefixed item list and a
+reference pair would make each of those two modules overstate its own `unread` figure, in
+exactly the way this entry's defect did, and neither module would redden. The
+`unread_payload_count` sites elsewhere are genuinely unrelated - they count payloads the
+WALK refused, which is a different concept.
+
+**FILED, NOT FIXED.** CS-1148 - the corrected instrument's remainder population contradicts
+CS-1119's filed headline, which calls the second remaining shape "one class"; measured on
+the three pairs this item covers it is carried by ten. The row that owns the reading owns
+the sentence describing it, so the correction is filed rather than applied here.
+
+**WHAT REMAINS OPEN ON CS-828.** The clause asks for the run's contents on EVERY payload of
+the (10,36), (13,42) and (14,52) pairs. Two shapes are unread and CS-1119 owns reading both.
+Nothing in this entry is progress on the clause; it is the removal of a false reading of how
+much of the clause was already met.
+
+Merged files: `tests/save/test_trailing_run.py`, `docs/item_notes/phase4-followups.md`,
+`docs/item_notes/phase4-followups-1000.md`, `ROADMAP.md`, `docs/LEDGER.md`.
+
+Verification: `python -m pytest tests/save/test_trailing_run.py -q` on a machine with a save
+library, and read
+`tests/save/test_trailing_run.py::test_the_sweep_reads_the_remainder_with_the_derived_vocabularies`.
+To see the defect, delete the two `_classes` keywords from the `_run_of_record` call in
+`_sweep_trailing_runs` and re-run: that arm alone reddens with `assert 3 == 0`.
+
 ### 2026-09-18 - CS-1147 - CLOSED. The ration blocking-protocol arm no longer races the child it measures
 
 **THE DEFECT.** `tests/ops/test_suite_ration.py`'s `_HOLD_THEN_RELEASE` child called

@@ -261,6 +261,7 @@ CS-1055 - `tests/conftest.py`'s live-copies teardown infers AUTHORSHIP from a wa
 CS-1056 - `tests/save/test_struct_interior.py`'s independent tag walk expressed the LEGACY grammar only - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
 CS-1053 - `docs/adr/0016-unlock-arrays-carriers-and-serialized-grammar.md` is status `proposed`, carries two statements already measured FALSE - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1122 - our own Python renderer from a hand-authored architecture IR to a static SVG/HTML module diagram, the re-implementation the CS-1098 decline in `docs/LEDGER.md` filed in place of adopting archify - acceptance: in detail - tier: 3 - detail: `docs/item_notes.md`
+CS-1148 - CS-1119's filed headline calls the trailing run's second remainder shape "one class" and it is carried by ten - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
 
 
 ## Phase 5 - advisor and audit
