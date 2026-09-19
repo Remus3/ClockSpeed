@@ -1,0 +1,54 @@
+{
+  "runs": [
+    {
+      "run_id": 35329294306,
+      "head_sha": "d28e4a5bbd4781971e73323eb575396cc4f846e1",
+      "label": "before",
+      "profiles": [
+        {
+          "job": "gates, lint, types, tests",
+          "step_seconds": 445,
+          "top_test": "tests/test_disposition_sites.py::test_a_within_heading_compensating_swap_is_reported_at_every_entry",
+          "top_test_centiseconds": 15874
+        },
+        {
+          "job": "tests (guard shard)",
+          "step_seconds": 437,
+          "top_test": "tests/test_liveness.py::test_every_detector_module_is_reached_from_the_graded_population",
+          "top_test_centiseconds": 2984
+        },
+        {
+          "job": "tests (save shard)",
+          "step_seconds": 149,
+          "top_test": "tests/save/test_absolute_claims.py::test_a_module_whose_prose_already_satisfies_the_fence_is_inside_it",
+          "top_test_centiseconds": 3909
+        }
+      ]
+    },
+    {
+      "run_id": 35384058003,
+      "head_sha": "fe5034bf2de547dda2f8712916df6054b2a01649",
+      "label": "after",
+      "profiles": [
+        {
+          "job": "gates, lint, types, tests",
+          "step_seconds": 383,
+          "top_test": "tests/test_handler_exception_rendering.py::test_the_derived_population_agrees_with_the_shipped_census",
+          "top_test_centiseconds": 3104
+        },
+        {
+          "job": "tests (guard shard)",
+          "step_seconds": 434,
+          "top_test": "tests/test_liveness.py::test_every_detector_module_is_reached_from_the_graded_population",
+          "top_test_centiseconds": 3016
+        },
+        {
+          "job": "tests (save shard)",
+          "step_seconds": 140,
+          "top_test": "tests/save/test_absolute_claims.py::test_a_module_whose_prose_already_satisfies_the_fence_is_inside_it",
+          "top_test_centiseconds": 3497
+        }
+      ]
+    }
+  ]
+}
