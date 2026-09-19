@@ -93,10 +93,17 @@ LISTED_VARIABLE = "CODSPEED_TOKEN"
 #: every run. Its presence proves the body was rendered at all.
 RENDERED_BODY_MARKER = "zz-cs1156-no-such-program-zz"
 
-#: A variable every Windows environment carries and no rule here touches. Its
-#: presence proves the ENVIRONMENT DICT reached the report - which is the frame
-#: this item is about, and the thing a shorter traceback would have dropped.
-RENDERED_ENV_MARKER = "ALLUSERSPROFILE"
+#: The name of the frame local the runtime child binds the secret to. Under
+#: ``--showlocals`` pytest renders ``leaked = '...'``, so this marker's
+#: presence proves the CHANNEL THE SECRET TRAVELS THROUGH reached the report,
+#: which is what a control has to prove.
+#:
+#: IT IS NOT AN ENVIRONMENT VARIABLE NAME, AND THAT IS THE REPAIR. The first
+#: build used ALLUSERSPROFILE, which every Windows environment carries and NO
+#: ubuntu runner does, so the control could not hold in CI and tier 1 went red
+#: on a suite that was green on Windows. A control naming a platform-specific
+#: value grades the platform rather than the mechanism.
+RENDERED_LOCAL_MARKER = "leaked"
 
 SUBPROCESS_TIMEOUT = 180
 
@@ -107,7 +114,7 @@ SUBPROCESS_TIMEOUT = 180
 #: ``env={...}`` argument to carry it. pytest TRUNCATES a long dict repr, and a
 #: variable added last falls outside the shown portion - so the arm measured
 #: nothing and passed. The local is rendered in full under ``--showlocals``, and
-#: the env dict is still passed so the ALLUSERSPROFILE control still holds.
+#: the env dict is still passed, because it is what the filed leak rendered.
 CHILD_AT_RUNTIME = """
 import os
 import subprocess
@@ -128,7 +135,7 @@ CHILD_AT_COLLECTION = """
 import os
 
 raise RuntimeError(
-    "zz-cs1156-no-such-program-zz ALLUSERSPROFILE " + os.environ["{variable}"]
+    "zz-cs1156-no-such-program-zz " + os.environ["{variable}"]
 )
 
 
@@ -143,7 +150,7 @@ import os
 
 
 def test_the_captured_output_renders():
-    print("zz-cs1156-no-such-program-zz", os.environ["{variable}"], "ALLUSERSPROFILE")
+    print("zz-cs1156-no-such-program-zz", os.environ["{variable}"])
     raise AssertionError("forced, so the captured section is rendered")
 """
 
@@ -234,10 +241,21 @@ def _tail(rendered: str) -> str:
     return rendered[-1200:]
 
 
-def _assert_the_frame_was_rendered(rendered: str) -> None:
-    """THE CONTROL. Without it every assertion below passes on a child that rendered nothing."""
+def _assert_the_frame_was_rendered(rendered: str, *, local: bool = False) -> None:
+    """THE CONTROL. Without it every assertion below passes on a child that rendered nothing.
+
+    Args:
+        rendered: The child's combined output.
+        local: True for the children that carry the secret in a FRAME LOCAL, so
+            the arm also proves the locals section was rendered. The collection
+            child and the captured-output child carry it in the exception
+            message and in the printed line, and for those the body marker sits
+            in the SAME STRING as the secret - so its presence already proves
+            that channel reached the report.
+    """
     assert RENDERED_BODY_MARKER in rendered, _tail(rendered)
-    assert RENDERED_ENV_MARKER in rendered, _tail(rendered)
+    if local:
+        assert RENDERED_LOCAL_MARKER in rendered, _tail(rendered)
 
 
 @pytest.fixture(scope="module")
@@ -252,12 +270,12 @@ def rendered_key(tmp_path_factory: pytest.TempPathFactory) -> str:
 
 def test_the_env_frame_reached_the_report(rendered_key: str) -> None:
     """THE CONTROL, as an arm of its own so it fails by name when the harness drifts."""
-    _assert_the_frame_was_rendered(rendered_key)
+    _assert_the_frame_was_rendered(rendered_key, local=True)
 
 
 def test_a_planted_key_does_not_survive_a_rendered_env_frame(rendered_key: str) -> None:
     """CS-1156: the exact shape that leaked on 2026-09-19, through the real render path."""
-    _assert_the_frame_was_rendered(rendered_key)
+    _assert_the_frame_was_rendered(rendered_key, local=True)
     assert PLANTED_KEY not in rendered_key, _tail(rendered_key)
 
 
@@ -268,7 +286,7 @@ def test_the_placeholder_is_what_replaced_it(rendered_key: str) -> None:
     stripped: with a real key left in place it passed under a mutant that had
     narrowed the rule so far it no longer matched the planted key at all.
     """
-    _assert_the_frame_was_rendered(rendered_key)
+    _assert_the_frame_was_rendered(rendered_key, local=True)
     assert REDACTED_CREDENTIAL in rendered_key, _tail(rendered_key)
 
 
@@ -281,7 +299,7 @@ def test_a_second_vendor_shape_does_not_survive_either(
         CHILD_AT_RUNTIME.format(variable=UNLISTED_VARIABLE),
         {UNLISTED_VARIABLE: PLANTED_GH_TOKEN},
     )
-    _assert_the_frame_was_rendered(rendered)
+    _assert_the_frame_was_rendered(rendered, local=True)
     assert PLANTED_GH_TOKEN not in rendered, _tail(rendered)
     assert REDACTED_CREDENTIAL in rendered, _tail(rendered)
 
@@ -305,7 +323,7 @@ def test_a_prefixless_secret_in_a_listed_variable_does_not_survive(
         CHILD_AT_RUNTIME.format(variable=LISTED_VARIABLE),
         {LISTED_VARIABLE: PLANTED_BARE_TOKEN},
     )
-    _assert_the_frame_was_rendered(rendered)
+    _assert_the_frame_was_rendered(rendered, local=True)
     assert PLANTED_BARE_TOKEN not in rendered, _tail(rendered)
     assert REDACTED_CREDENTIAL in rendered, _tail(rendered)
 
