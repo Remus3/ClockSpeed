@@ -19,6 +19,15 @@ project reaches the network. `tests/test_tier1_growth.py` grades the tracked
 record offline, so a refresh that captures a wider jump is red in the suite at
 once.
 
+TWO CONDITIONS ARE GRADED, PER JOB, AND THEY ARE NOT INTERCHANGEABLE. Writing
+`M` for a job's worst reading, `N` for its jitter and `B`, `C` for the budget
+and the ceiling, CS-896's leaf asks for `B >= M` (a clean run does not warn) and
+`C - B >= N` (a rise lands in the band before it reaches the ceiling). This tool
+graded only the second until CS-1146, and the shipped guard shard is exactly the
+job that shape misses: its jitter is inside the band while every successful
+reading it has is over the budget. Each job is graded against each condition and
+NAMED - never pooled into one line, which is met by its strongest member.
+
 THE NOISE FIGURE IS A MAX CONSECUTIVE STEP, NOT A SERIES RANGE, AND THAT CHOICE
 IS THE WHOLE ITEM. The condition being graded is that growth is VISIBLE before
 it is FATAL: a rising lane must land in the warn band rather than clearing it in
@@ -150,6 +159,48 @@ MINIMUM_READINGS_PER_JOB = 5
 # that IMPROVES out of it is red too - which forces this literal down rather
 # than letting a met condition sit here unrecorded.
 ORDERING_UNMET = ("gates, lint, types, tests",)
+
+# EVERY JOB WHOSE WORST READING IS ALREADY OVER THE BUDGET, as the shipped
+# record stands - CS-896's FIRST condition, `B >= M`, which nothing in this tool
+# graded until CS-1146.
+#
+# WHY THIS IS A SEPARATE SET AND NOT A FOLD INTO ORDERING_UNMET ABOVE. That set
+# answers "can a rising reading clear the whole band in one jump" - a question
+# about MOVEMENT. This one answers "does a clean run already warn" - a question
+# about LEVEL. The shipped guard shard is the proof they are independent: its
+# jitter is well inside the band, so the ordering verdict calls it covered,
+# while every successful reading it has is over the budget. A tool reporting
+# only the first says that job is fine.
+#
+# ONE ENTRY PER JOB, NEVER A POOLED VERDICT. A single line summed over three
+# jobs is met by its strongest member, and this project has measured that
+# failure; `report` below names each breaching job on its own line for the same
+# reason.
+#
+# THE SET IS A TWO-WAY RATCHET, like the one above. `tests/test_tier1_growth.py`
+# pins it as a literal and compares it to the computed set, so a job that
+# DEGRADES into it is red at once, and a job that IMPROVES out of it is red too.
+# Closing a breach by RAISING the budget is not available: guard (k) of
+# `tools/drift_guard.py` ratchets the budget, the ceiling and the cutoff in both
+# directions, and CS-1133 records the ruling that raising a level to meet a slow
+# lane is the move CS-896 exists to refuse.
+BUDGET_UNMET = ("tests (guard shard)",)
+
+# THE CRASH THRESHOLD, AND WHAT IT IS NOT. A tier1 job that dies on a syntax
+# error or a missing dependency concludes in a couple of seconds, and the
+# shipped record carries several such rows.
+#
+# THIS FIGURE IS NOT THE EXCLUSION RULE. The rule is the recorded CONCLUSION -
+# see `readings` and `READING_CONCLUSION` - because a duration threshold is
+# corrupt in BOTH directions. A crash that happens LATE carries a long duration
+# and would OVERSTATE the worst reading, inventing a breach no successful run
+# supports; and a threshold has to guess where a crash ends and a genuinely fast
+# run begins, while the conclusion field states it outright.
+#
+# It exists only so an arm can CORROBORATE the two rules still agree on the
+# shipped record - every sub-threshold row there is a failed job - and say so
+# the moment a successful row lands beneath it.
+CRASH_SECONDS = 10
 
 RECORD_FIELDS = (
     "run_id",
@@ -519,6 +570,49 @@ def _job_jitter(record: object) -> dict[str, int]:
     return figures
 
 
+def worst_reading(record: object) -> dict[str, int]:
+    """Every job's worst reading - `M` in CS-896's conditions.
+
+    The population is :func:`readings`, so a job that FAILED contributes
+    nothing however long or short it ran. See :data:`CRASH_SECONDS` for why the
+    conclusion decides this rather than a duration threshold.
+
+    Args:
+        record: The parsed record.
+
+    Returns:
+        Job display name to its longest successful run in seconds, skipping
+        any job with no readings at all.
+    """
+    return {
+        job: max(reading.duration for reading in found)
+        for job, found in readings(record).items()
+        if found
+    }
+
+
+def budget_unmet(record: object, workflow_text: str) -> list[str]:
+    """Every job whose worst reading is already over the budget.
+
+    This is CS-896's `B >= M` - "no false warn" - and it is a DIFFERENT verdict
+    from :func:`ordering_unmet`. Equality meets it: a reading landing exactly on
+    the budget does not warn.
+
+    Args:
+        record: The parsed record.
+        workflow_text: The workflow file's text. The budget is READ from it,
+            never transcribed here.
+
+    Returns:
+        The display names, sorted.
+
+    Raises:
+        ValueError: The workflow's levels are unreadable.
+    """
+    budget, _ = declared_levels(workflow_text)
+    return sorted(job for job, worst in worst_reading(record).items() if worst > budget)
+
+
 def ordering_unmet(record: object, workflow_text: str) -> list[str]:
     """Every job whose warn band is narrower than its own jitter.
 
@@ -634,6 +728,7 @@ def grade(
     record: object,
     workflow_text: str,
     unmet: Sequence[str] = ORDERING_UNMET,
+    over_budget: Sequence[str] = BUDGET_UNMET,
 ) -> list[str]:
     """Grade one record against one workflow.
 
@@ -641,6 +736,9 @@ def grade(
         record: The parsed record.
         workflow_text: The workflow file's text.
         unmet: The pinned set of jobs whose band is narrower than their jitter.
+        over_budget: The pinned set of jobs whose worst reading is over the
+            budget. Compared BOTH ways, so an unreported breach and a reported
+            compliance are each an offence.
 
     Returns:
         Every offence, in reading order. Empty means clean.
@@ -695,15 +793,29 @@ def grade(
             f"the pinned unmet set is {expected} but the band of {width}s is narrower "
             f"than the jitter of {computed}"
         )
+
+    breaching = budget_unmet(record, workflow_text)
+    pinned = sorted(set(over_budget) & set(declared))
+    if breaching != pinned:
+        budget, _ = declared_levels(workflow_text)
+        offences.append(
+            f"the pinned over-budget set is {pinned} but the worst reading is over "
+            f"the budget of {budget}s on {breaching}"
+        )
     return offences
 
 
-def grade_tree(root: Path, unmet: Sequence[str] = ORDERING_UNMET) -> list[str]:
+def grade_tree(
+    root: Path,
+    unmet: Sequence[str] = ORDERING_UNMET,
+    over_budget: Sequence[str] = BUDGET_UNMET,
+) -> list[str]:
     """Grade the tracked record of one checkout.
 
     Args:
         root: The repository root.
         unmet: The pinned set, passed through to :func:`grade`.
+        over_budget: The pinned over-budget set, passed through to :func:`grade`.
 
     Returns:
         Every offence. Empty means clean.
@@ -718,7 +830,12 @@ def grade_tree(root: Path, unmet: Sequence[str] = ORDERING_UNMET) -> list[str]:
         record = json.loads(record_path.read_text(encoding="ascii"))
     except (ValueError, UnicodeDecodeError) as failure:
         return [f"{RECORD_RELATIVE} is not readable as ascii JSON: {_detail(failure)}"]
-    return grade(record, workflow_path.read_text(encoding="utf-8"), unmet=unmet)
+    return grade(
+        record,
+        workflow_path.read_text(encoding="utf-8"),
+        unmet=unmet,
+        over_budget=over_budget,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -779,7 +896,16 @@ def report(record: object, workflow_text: str) -> str:
             verdict = f"jitter {figure}s - {covered}"
         growth = "no slope" if slope is None else f"{_seconds(slope)}s per commit"
         worst = max(durations) if durations else 0
-        lines.append(f"  {job}: n={len(durations)}, worst {worst}s, {growth}, {verdict}")
+        # THE SECOND VERDICT, AND IT IS NOT THE ONE BESIDE IT. `verdict` above
+        # grades MOVEMENT against the band; this grades LEVEL against the
+        # budget. Both are printed for every job, named, one line each.
+        if not durations:
+            level = "no reading measured"
+        elif worst > budget:
+            level = f"BUDGET BREACHED by {worst - budget}s"
+        else:
+            level = "budget covers it"
+        lines.append(f"  {job}: n={len(durations)}, worst {worst}s, {growth}, {verdict}, {level}")
     unmet = ordering_unmet(record, workflow_text)
     if unmet:
         lines.append(
@@ -790,6 +916,21 @@ def report(record: object, workflow_text: str) -> str:
         lines.append("  CS-1133 owns that remainder; the levels are ratcheted by guard (k).")
     else:
         lines.append("  ordering: every job's band covers its own jitter.")
+    breaching = budget_unmet(record, workflow_text)
+    if breaching:
+        worst_by = worst_reading(record)
+        lines.append(
+            "  BUDGET UNMET - the worst reading on these jobs is already over the "
+            "budget, so a clean run warns and the warning carries no signal:"
+        )
+        lines.extend(
+            f"    {job} - worst {worst_by[job]}s against a budget of {budget}s, "
+            f"over by {worst_by[job] - budget}s"
+            for job in breaching
+        )
+        lines.append("  CS-1146 owns that remainder; the levels are ratcheted by guard (k).")
+    else:
+        lines.append("  budget: every job's worst reading is inside the budget.")
     return "\n".join(lines) + "\n"
 
 
@@ -994,6 +1135,36 @@ def refresh(
     return target
 
 
+def open_conditions(root: Path) -> list[str]:
+    """Every CS-896 condition currently unmet over one checkout's record.
+
+    Named per job and per condition, never pooled: a summary summed over three
+    jobs is met by its strongest member.
+
+    Args:
+        root: The repository root.
+
+    Returns:
+        One line per unmet (job, condition) pair, empty when all are met. A
+        checkout whose record or workflow is unreadable yields nothing, because
+        :func:`grade_tree` has already reported that as an offence.
+    """
+    try:
+        record = json.loads((root / RECORD_RELATIVE).read_text(encoding="ascii"))
+        workflow_text = (root / WORKFLOW_RELATIVE).read_text(encoding="utf-8")
+        breaching = budget_unmet(record, workflow_text)
+        narrow = ordering_unmet(record, workflow_text)
+    except (OSError, ValueError, UnicodeDecodeError):
+        return []
+    lines = [
+        f"{job!r}: B >= M is unmet - its worst reading is over the budget" for job in breaching
+    ]
+    lines.extend(
+        f"{job!r}: C - B >= N is unmet - its band is narrower than its own jitter" for job in narrow
+    )
+    return lines
+
+
 def main(argv: list[str] | None = None) -> int:
     """Grade the tracked record, optionally refreshing it first.
 
@@ -1049,7 +1220,33 @@ def main(argv: list[str] | None = None) -> int:
         for offence in offences:
             print(f"  - {offence}")
         return 1
-    print("PASS: every job's jitter is inside the stated ratchet and the pinned set holds.")
+
+    # THE EXIT CODE GRADES DRIFT; THE SUMMARY LINE MUST NOT OVERCLAIM IT.
+    #
+    # Two of CS-896's conditions are UNMET over the shipped record and neither
+    # is closable here - the item's own DO-NOT clause refuses raising a level to
+    # meet a slow lane, and guard (k) of `tools/drift_guard.py` ratchets all
+    # three levels in both directions anyway. So a permanently non-zero exit
+    # would only teach a session to ignore this tool, and the exit code keeps
+    # meaning "no NEW drift against the pinned sets".
+    #
+    # What it must not do is print the word PASS over a record carrying a known
+    # breach. CS-1146 was filed because the one report watching this lane said
+    # PASS while a job sat 16s under the ceiling; a summary that still reads
+    # PASS there reproduces the very defect.
+    still_open = open_conditions(root)
+    if still_open:
+        print(
+            "UNMET: no new drift - both pinned sets hold - but this record leaves "
+            f"{len(still_open)} CS-896 condition(s) unmet:"
+        )
+        for condition in still_open:
+            print(f"  - {condition}")
+        return 0
+    print(
+        "PASS: every job's jitter is inside the stated ratchet, and both pinned "
+        "sets - band versus jitter, and worst reading versus budget - hold."
+    )
     return 0
 
 
