@@ -13,12 +13,30 @@ disagree, `CONVENTIONS.md` wins and this file is wrong.
 
 ## Current state
 
-**No third-party source is vendored in this project. Zero files in this repository were
-copied, adapted or derived from an external codebase.**
+**Exactly one file in this repository is vendored: `docs/CHANNEL.md`.** It is a
+byte-identical, unmodified copy of the cross-repo channel conventions document from the
+`Remus3/Amberstone` repository, taken under Apache-2.0 with sole holder `Moonbeam`. The
+vendored-files table below owns that fact and carries the attribution Apache-2.0 section 4
+asks a redistributor to retain - it has to live in a row, because the copy is byte-pinned
+by `tests/test_channel_doc.py` and may not be edited to carry a notice of its own.
 
-That is the current fact, not an aspiration, and it is the state the register starts in.
-It stops being true the moment anything is lifted, and the entry below must be written
-BEFORE the lift, not after.
+**Nothing else in this tree was copied from an external codebase, and one adaptation that
+lifted no text is recorded rather than left silent** - the doctrine behind
+`docs/hud_doctrine.md`. Both are rows below.
+
+Two things that are NOT vendorings, stated because both get mistaken for one:
+
+- **A runtime or development dependency is not a vendoring and gains no row here.** ruff,
+  pytest, mypy, pytest-xdist and PyYAML are named in `pyproject.toml` and no line of their
+  source is in this tree. This register is for LIFTED code.
+- **Electron is a dependency, not a lift.** `shell/` is authored against the documented
+  API rather than seeded from a quickstart template, and its package tree is gitignored,
+  so no Electron-owned text is tracked here. The three-scope licence verdict lives in
+  `docs/adr/0013-electron-licence-gate.md`.
+
+An entry is written BEFORE the lift, not after. The one row below whose gate ran after its
+lift says so in the row, because a late gate that reads like a timely one teaches the
+wrong lesson to the next person who reads the register.
 
 There is also no third-party runtime dependency in the advice path. The optimizer in
 pillar 2 ships dependency-free behind a pluggable interface; an external linear or
@@ -78,16 +96,39 @@ These do not get re-decided per case. They are the answer.
 
 ## Register
 
-One row per item considered. Rows are never deleted - a rejected item stays so the
-rejection is not re-litigated, and `CONVENTIONS.md` section 15.1 warns that a decline
-reason goes stale before the count does, so re-read the row before citing it.
+One row per item. Rows are never deleted - a rejected item stays so the rejection is not
+re-litigated, and `CONVENTIONS.md` section 15.1 warns that a decline reason goes stale
+before the count does, so re-read the row before citing it.
+
+The register is in two tables because the two questions have different answers. The first
+names FILES that sit in this tree and were not authored here, so every row carries a path
+and a live redistribution obligation. The second names items CONSIDERED, which name no
+file in this tree at all. `tests/test_third_party_register.py` grades the first table in
+both directions: a file this tree byte-pins as vendored and does not list here is red, and
+so is a row naming a file the tree no longer tracks.
+
+### Vendored files
+
+| File | Upstream | License read (LICENSE / manifest) | Copyright line names a holder | Verdict | Gate run | Also recorded in |
+|---|---|---|---|---|---|---|
+| `docs/CHANNEL.md` | the cross-repo channel conventions document, taken byte-identical from the `Remus3/Amberstone` repository, whose LICENSE scope block puts authored Markdown inside the grant and carves out only its data tree | **Apache-2.0.** LICENSE, the README licence paragraph and NOTICE agree, and no manifest contradicts them; 219 lines with the warranty clause intact, and no source-available reservation anywhere in them | Yes - `Moonbeam`, sole holder, named in both LICENSE and NOTICE, and rendered rather than left as a template | **CLEARED for vendoring.** Permissive and one-way compatible with this tree's outbound licence. The copy is unmodified, so there are no changes to state. This row IS the retained attribution, because the bytes are pinned by `tests/test_channel_doc.py` and a notice may not be added to them | 2026-09-16, AFTER the lift rather than before it | `docs/LEDGER.md` under CS-1095; `CLAUDE.md` section 4 |
+
+**On that row specifically, and it is the uncomfortable half.** The gate ran five days
+late and only because a sibling project refused the same file at its own gate. An operator
+instruction moves the DECISION, not the GATE. The verdict stands on the source
+repository's own LICENSE, README and NOTICE read trap by trap rather than on the sending
+tree's summary of them, and the named holder is also this repository's own commit
+identity - stated here rather than left to be noticed, because a reader who found that out
+later would be right to discount a verdict that had hidden it.
+
+### Items considered
 
 | Item | Why it was considered | License read (LICENSE / manifest) | Copyright line names a holder | Verdict | Date | Also recorded in |
 |---|---|---|---|---|---|---|
-| (none vendored) | - | - | - | - | - | - |
 | **Asset-parsing library for resource-node extraction** (`BOOTSTRAP.md` section 8.3, the S4 fallback) | If the save file does not carry resource-node actors with transforms, node coordinates must come from the shipped game assets, and that path typically wants an external asset-parsing library | NOT YET READ | NOT YET CHECKED | **PENDING - gate not run. Do not take this dependency until this row is completed.** | - | `docs/GATED.md` |
+| **The source doctrine behind `docs/hud_doctrine.md`** - a UI/UX doctrine the operator supplied from a different project on this machine | The companion and the overlay needed an operating law, and one already existed for a companion-plus-overlay pair | NOT READ, and there is nothing to read: the source is not in this tree and names no repository | NOT CHECKED, same reason | **NOT A VENDORING - adapted, not lifted.** `docs/hud_doctrine.md`'s own Provenance section records what transfers, what does not, and that this repository's settled decisions win where the two disagree, which is the re-implementation path the standing rules above call always-legal. Recorded so the adaptation is not mistaken for authored-here work. UNVERIFIED AND STATED AS SUCH: the claim that no text was lifted rests on that section, since the source is absent from this tree and was never diffed against it | 2026-09-05 | `docs/hud_doctrine.md`, `BACKLOG.md` |
 
-**On that second row specifically.** `BOOTSTRAP.md` section 8.3 makes the sequencing
+**On the asset-parsing row specifically.** `BOOTSTRAP.md` section 8.3 makes the sequencing
 explicit: the library goes through this gate FIRST, and the result is stated explicitly.
 Concretely that means:
 
