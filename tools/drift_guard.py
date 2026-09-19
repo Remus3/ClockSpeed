@@ -114,13 +114,24 @@ WALK_SKIP_DIRS = frozenset(
     }
 )
 
-# CS-1153 - ROOT-ANCHORED DIRECTORIES THIS TREE DOES NOT AUTHOR, pruned by
-# RELATIVE PATH rather than by bare name. Every entry is a leading-slash
-# directory pattern in this repository's .gitignore, which is the whole rule:
-# the walk is the FALLBACK for an empty git index, and its population should be
-# the one the index would have given. `git ls-files` never lists an ignored
-# path, so a walk that descends into one measures a population no other
-# enumeration strategy produces.
+# CS-1153 - DIRECTORIES THIS TREE DOES NOT AUTHOR, pruned by RELATIVE PATH
+# rather than by bare name. Every entry is a DIRECTORY this repository's
+# .gitignore excludes, which is the rule: the walk is the FALLBACK for an empty
+# git index, and its population should be the one the index would have given.
+# `git ls-files` never lists an ignored path, so a walk that descends into one
+# measures a population no other enumeration strategy produces.
+#
+# WHAT THIS SET DOES NOT CLOSE, stated rather than implied. An earlier draft of
+# this comment claimed the set was every leading-slash directory pattern in
+# .gitignore. It is not, and the difference is not cosmetic:
+#   - `/build/` and `/dist/` are leading-slash directory patterns absent from
+#     here because WALK_SKIP_DIRS already prunes them by NAME.
+#   - .gitignore also ignores FILE SHAPES this set structurally cannot express -
+#     `*.log`, `*.local.json`, `/ops/loop/config.json`. Measured 2026-09-19:
+#     the walk over this repository returns 5 files the index does not, and one
+#     of them is a stray `.log`, which .gitignore itself classifies as
+#     potentially PII-bearing. Parity with the index is CS-1155, not this item.
+# tests/data/test_drift_guard_data.py grades every entry here against git.
 #
 # WHY A PATH AND NOT A NAME. The set this replaced held bare names tested at
 # the root level alone, so `.claude/worktrees` - the deepest and largest of
@@ -150,6 +161,7 @@ WALK_SKIP_ROOT_PATHS: Mapping[str, str] = MappingProxyType(
         "ops/loop/reports": "local-only - the headless lane's per-cycle reports",
         ".recall": "local-only - the semantic recall mirror, rebuilt from memory/",
         ".playwright-mcp": "local-only - audit browser scratch output",
+        "docs/_scratch": "local-only - session scratch that must never become a doc",
         "gamedata": "publisher-owned - staging copy of install content",
         "CommunityResources": "publisher-owned - staging copy of install content",
         "game": "publisher-owned - staging copy of install content",
@@ -648,8 +660,14 @@ def _walk(root: Path, *, worktrees: tuple[str, ...] | None = None) -> tuple[list
             elif relative in WALK_SKIP_ROOT_PATHS:
                 reason = WALK_SKIP_ROOT_PATHS[relative]
             elif _is_registered_worktree(entry, worktrees):
-                # Ordered BEFORE the marker test, not after: during a teardown
-                # the marker is already gone and only this answers.
+                # Ordered BEFORE the marker test, and the reason is NOT that the
+                # teardown window needs it - with the marker gone the marker test
+                # answers False either way, so order cannot decide that case. What
+                # order decides is which REASON a worktree that STILL carries its
+                # marker is reported under, and the registration is the more
+                # specific answer. Graded, because an order swap is otherwise a
+                # silent mutant: see the REGISTERED_WORKTREE_REASON arm in
+                # tests/data/test_drift_guard_data.py.
                 reason = REGISTERED_WORKTREE_REASON
             elif _is_checkout_root(entry):
                 reason = BOUNDARY_REASON

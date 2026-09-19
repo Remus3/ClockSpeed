@@ -1101,13 +1101,45 @@ the uniqueness enforcement covers every needle-eligible fixture family rather th
 the fixture collision CS-1025 was filed over survives in two places the repair did not reach: `tests/audit/test_placement.py` still holds, at module level, `PLANTED_ROTATION = (0.5, -0.25, 0.125, 0.8125)` and `PLANTED_SCALE = (2.0, 0.5, -1.5)`, byte-identical to the pre-fix constants and colliding on the same rendering, feeding the membership-based anti-vacuity control inside `test_no_orientation_component_reaches_the_model_as_a_float` where one of seven needles is non-load-bearing; and in `tests/surface/test_map.py` the TRANSLATION components are needle-eligible but unswept, with `BUILT_TRANSLATION[0]` deliberately ambiguous at a count of two - no mutant was found for either, so both are weakened rather than defeated, but a future author writing an anti-vacuity control off a translation walks into the identical trap and the new uniqueness sweep will not see it
 
 
-## CS-1153
+## CS-1155
 
 ### Acceptance
 
-`tools/drift_guard.py::_walk` prunes the gitignored roots it can reach - at minimum `.claude/worktrees/`, `certs/`, `corpus/`, `work/` and `moon_sync_inbox/` - by its own rule rather than by never being reached, and a test drives `_walk` DIRECTLY against a tree holding a populated `.claude/worktrees/` and a `work/` copy and asserts neither is entered, so the guarantee survives a caller that bypasses `enumerate_files`
+the walk's population and the git index's agree on this repository, or every file in the
+difference is named in a record with a reason it is not reachable by a directory rule, and a
+test derives the difference from git rather than from a list, so it cannot go stale
 
 ### Full headline
 
-`tools/drift_guard.py::_walk` prunes only `WALK_SKIP_DIRS` plus, at the root level alone, `WALK_SKIP_ROOT_DIRS`, which is `frozenset({"data"})` - one entry - so `.claude/worktrees/` (2038 files, 206 MB measured 2026-09-19), `certs/`, `corpus/`, `work/` and `moon_sync_inbox/` are all reachable by the walk, and the last three are PII-bearing by this repo's own classification; it does not happen today only because `enumerate_files()` PREFERS the git index via `_git_ls_files(root)` and falls back to `_walk` only when the index yields nothing, which on a populated repo is never, so the pruning is done by the ENUMERATION STRATEGY and nothing states that dependency at `_walk` itself - a future caller reaching `_walk` directly, or an index lookup that ever fails soft, walks a PII tree and a 2038-file worktree copy with no guard, and the sibling walker `tools/doc_budget.py::_walk` already carries the correct shape (`_is_checkout_root` plus `_is_registered_worktree`, CS-1115) so the fix has a model in-tree
+`tools/drift_guard.py::_walk` prunes DIRECTORIES and cannot express a file shape, so the
+walk over this repository returns 5 files `git ls-files` does not: measured 2026-09-19 at
+`a97200d`, they are `.claude/settings.local.json` and a stray root `.log` matched by `*.local.json`
+and `*.log`, two files under `docs/_scratch/` - closed by CS-1153 adding that directory -
+and `/ops/loop/config.json`, which is a FILE pattern. The `.log` is the one that matters:
+`.gitignore` classifies logs as potentially PII-bearing because "logs quote parsed data and
+can echo header bytes", which is the same classification CS-1153 cited as its motive, and
+the walk still hands it to the character-set and secret readers. CS-1153 closed the
+DIRECTORY half deliberately and this is the residue, filed rather than left implied - the
+comment above `WALK_SKIP_ROOT_PATHS` names this item as the owner
 
+## CS-1156
+
+### Acceptance
+
+a credential class is registered in `tests/conftest.py`'s redaction rule set with a control
+that plants a synthetic key-shaped string into a failing test's rendered output and asserts
+the placeholder rather than the string, and `UNCOVERED_CLASSES` states what is still
+uncovered, so the gap is on the record either way
+
+### Full headline
+
+`tests/conftest.py::redact_personal_data` covers exactly two of the four personal-data
+classes - a home path and the account name - and no credential class at all, which its own
+docstring says plainly; but a pytest traceback renders the ARGUMENTS of the frame it crashed
+in, and a `subprocess.run(..., env=...)` frame renders the whole environment dict. Measured
+2026-09-19 in this session's own suite log: a `FileNotFoundError` on `sh` inside
+`tests/test_pre_push_ref_race.py` printed an `sk-ant-` prefixed key in full, beside the home
+path the redactor DID replace, so the redaction that ran is what makes the surviving
+credential look deliberate. Every test log, every CI artifact and every pasted failure is an
+echo path. CLAUDE.md non-negotiable 12 states the same rule for save-header bytes; nothing
+states it for credentials

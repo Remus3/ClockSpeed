@@ -4190,3 +4190,118 @@ def test_the_walk_stops_at_a_registered_worktree_whose_marker_is_gone(
 
     registered = (str(teardown.resolve()).lower(),)
     assert _walked(root, worktrees=registered) == {"top.md"}
+
+
+#: CS-1153 - the floor on WALK_SKIP_ROOT_PATHS, one below the membership the set
+#: shipped with. Named rather than written at the assertion so a future author
+#: moving it has to move a constant with a reason attached.
+_PRUNED_PATH_FLOOR = 18
+
+
+def test_a_registered_worktree_is_named_as_one_even_carrying_its_marker(
+    tmp_path: Path,
+) -> None:
+    """CS-1153: the branch ORDER is graded, not left to a silent mutant.
+
+    A registered worktree that still carries its marker satisfies BOTH tests.
+    Swapping the two branches keeps every file-level assertion green and only
+    flips the reason, so without this arm the order is untested.
+    """
+    root = tmp_path / "tree"
+    linked = root / "inside" / "linked"
+    linked.mkdir(parents=True)
+    (root / "top.md").write_text("# clean\n", encoding="utf-8")
+    (linked / ".git").write_text("gitdir: elsewhere\n", encoding="utf-8")
+    (linked / "theirs.md").write_text("# not ours\n", encoding="utf-8")
+
+    registered = (str(linked.resolve()).lower(),)
+    _files, skips = drift_guard._walk(root, worktrees=registered)  # noqa: SLF001
+    reasons = {skip["path"]: skip["reason"] for skip in skips}
+
+    assert reasons["inside/linked/"] == drift_guard.REGISTERED_WORKTREE_REASON, reasons
+
+
+def test_the_default_asks_git_so_a_direct_caller_is_guarded(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """CS-1153: the ``worktrees is None`` default is the WHOLE POINT of the item.
+
+    Every other arm here passes a registration explicitly, so every other arm
+    stays green when the default is cut to an empty tuple. This one builds a
+    REAL linked worktree, deletes its marker the way `git worktree remove`
+    does, and calls _walk with no argument at all.
+    """
+    from tests import conftest  # noqa: PLC0415 - the one git runner the suite owns
+    from tests.git_env import relocates  # noqa: PLC0415
+
+    for name in [key for key in os.environ if relocates(key)]:
+        monkeypatch.delenv(name)
+
+    root = tmp_path / "main"
+    root.mkdir()
+    (root / "top.md").write_text("# clean\n", encoding="utf-8")
+    setup = (
+        ("init", "--quiet"),
+        ("config", "user.email", "suite@example.invalid"),
+        ("config", "user.name", "suite"),
+        ("config", "commit.gpgsign", "false"),
+        ("add", "--", "top.md"),
+        ("commit", "--quiet", "--no-verify", "-m", "base"),
+        ("worktree", "add", "--quiet", "--detach", "inside/linked"),
+    )
+    for args in setup:
+        proc = conftest.run_git(root, *args)
+        if proc is None:
+            pytest.skip("git is not installed, so no worktree can be registered")
+        assert proc.returncode == 0, f"control: git {args[0]} exited {proc.returncode}"
+
+    linked = root / "inside" / "linked"
+    (linked / "theirs.md").write_text("# not ours\n", encoding="utf-8")
+    # The teardown window: `git worktree remove` deletes the marker BEFORE the
+    # files, and the registration outlives it.
+    (linked / ".git").unlink()
+
+    # The control. With the registration withheld, the walk DOES enter it - so a
+    # green below is the default asking git, and not some unrelated prune.
+    assert "inside/linked/theirs.md" in _walked(root, worktrees=())
+
+    files, _skips = drift_guard._walk(root)  # noqa: SLF001 - NO argument. The point.
+    walked = {path.relative_to(root).as_posix() for path in files}
+    assert walked == {"top.md"}, walked
+
+
+def test_every_pruned_path_is_ignored_by_git_and_tracks_nothing(
+    repo_root: Path,
+) -> None:
+    """CS-1153: the set is graded against git, in the REAL tree, entry by entry.
+
+    A superset assertion over the skip records cannot see an OVER-BROAD prune:
+    widening an entry to `ops` or `shell` - both tracked, authored and graded -
+    leaves every other arm here green. This one asks git, which is the only
+    authority on what this tree owns, and grades the WEAKEST member rather than
+    the population: a single entry that tracks a file fails it.
+    """
+    from tests import conftest  # noqa: PLC0415 - the one git runner the suite owns
+
+    pruned = sorted(drift_guard.WALK_SKIP_ROOT_PATHS)
+    # The anti-vacuity floor. A set narrowed to nothing satisfies every
+    # assertion below by having no member to fail one.
+    assert len(pruned) >= _PRUNED_PATH_FLOOR, pruned
+
+    tracked: dict[str, str] = {}
+    unignored: list[str] = []
+    for relative in pruned:
+        listing = conftest.run_git(repo_root, "ls-files", "--", relative)
+        if listing is None:
+            pytest.skip("git is not installed, so membership cannot be asked")
+        assert listing.returncode == 0, relative
+        if listing.stdout.strip():
+            tracked[relative] = listing.stdout.decode("utf-8", "replace").splitlines()[0]
+        ignored = conftest.run_git(repo_root, "check-ignore", "-q", "--", relative + "/")
+        assert ignored is not None, relative
+        assert ignored.returncode in (0, 1), (relative, ignored.returncode)
+        if ignored.returncode != 0:
+            unignored.append(relative)
+
+    assert tracked == {}, tracked
+    assert unignored == [], unignored
