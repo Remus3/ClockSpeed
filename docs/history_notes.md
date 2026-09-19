@@ -12116,3 +12116,93 @@ change with `.github/workflows/tier1.yml` unmodified
 - MEASURED, NOT FIXED: the tier-1 guard shard ran 454s and then 426s against a 420s budget and a
   480s ceiling, WITH the warm mypy cache in place. It passes and it has almost no headroom left.
   That belongs to the rows that own tier-1 cost and its growth rate.
+
+---
+
+## Session 105 - 2026-09-18 - both CI lanes were red on COST and on a TIMING TOLERANCE, not on a defect, and an adversary refuted the merger's own diagnosis
+
+**BOTH LANES WERE RED AT HANDOFF AND THE HANDOFF ONLY KNEW ABOUT ONE.** tier 1 had
+failed on cost for two consecutive tips. tier 2 had ALSO failed on `d28e4a5` - a run
+was dispatched and never read - with `full suite (windows-latest)` red at
+`tests/test_tier1_budget.py`, `reported 393 for a staged 390`. Reading a dispatched
+run with the FULL sha was the first action and it found a second red lane.
+
+**CS-1145 CLOSED - the duration arms allowed a fixed two seconds for a gap that
+belongs to the runner.** The step computes `$(date +%s) - TIER1_STARTED`, so the
+reading carries the wall clock between the harness staging a start and the shell
+reading its clock. Windows CI spent three seconds there. The arms now BRACKET the
+reading between clocks they read themselves either side of the spawn: `floor` is
+monotonic, so a slower runner widens the bracket instead of breaking it, and no
+constant sizes it. A third guessed band was available and was refused - CS-1133 and
+CS-1134 exist because that guess was made twice already.
+
+**TIER 1 WENT GREEN BY DELETING WORK, NOT BY MOVING A LEVEL.**
+`test_a_within_heading_compensating_swap_is_reported_at_every_entry`, which arrived
+with CS-1121 the session before, posed a swap per entry and handed the WHOLE corpus
+and the WHOLE table to the grader each time, keeping one entry's findings and
+discarding 37. 38 x 38 gradings over 38 x 392 documents to read 38 answers. It is
+handed one document and one entry now. The fast shard went 495s to 435s, then 430s.
+The ceiling was NOT touched; guard (k) ratchets it both ways and CS-1133 records the
+ruling that raising a level to meet a slow lane is the move CS-896 exists to refuse.
+
+**THE ADVERSARY REFUTED THE MERGER AND WAS RIGHT, ON THREE OF FIVE ATTACKS.** The
+merger's record claimed the module-free baseline was 377-391s; that was 2 of 9
+readings already sitting in `tools/tier1_readings.json`, whose true range is
+240-410s. The regression was 85s worst-to-best against a jitter of 129s that
+`tools/tier1_growth.py` measures for that very job - the signal was INSIDE the
+noise, and three post-change samples could not carry the attribution. The mechanism
+survived; the conclusion "returns the lane to green WITH HEADROOM" did not. Corrected
+statement: it returns the lane to its prior MARGINAL state. AN AGREEING NUMBER IS NOT
+A MEASURED ONE - the merger reached its baseline by tabulating the readings it had
+already looked at rather than the record it already had.
+
+**THE LOCAL RATIO DID NOT TRANSFER, AND THE PESSIMISTIC ESTIMATE WON.** Locally the
+arm fell 10.7x (61.70s to 5.79s); on the runner 7.5x (158.74s to 21.30s); and the
+STEP fell only 62s against a 137s CPU saving, because `-n auto --dist loadfile` had
+been overlapping that file with other work. The merger projected ~144s from the local
+ratio and was wrong by more than 2x in the optimistic direction; the builder's flat
+local delta (~57s) predicted the runner (62s) better. CS-900's note already says a
+local profile is the wrong instrument - this is a SECOND mechanism for that, distinct
+from the subprocess one it records. Recorded as a CS-900 MEASUREMENT RECORD; THE ITEM
+STAYS OPEN, because its acceptance also wants a STATED share and no threshold is
+declared or graded anywhere.
+
+**TWO AGENTS ENDED THEIR TURNS WAITING ON A SUITE AND RETURNED A PROMISE.** Both were
+resumed by agentId, never re-dispatched. Both then delivered in full. One of them had
+restarted its own full suite twice because the earlier runs straddled its own edit,
+and froze the tree by md5 for the third - which is the rule applied correctly without
+being told.
+
+**A BUILDER CITED THE WRONG ITEM IN ITS COMMIT SUBJECT** - slice A wrote `CS-1145`,
+which is slice B's row, for work that belongs to CS-900. Caught by the merger at
+merge time by reading the subject rather than trusting it, and amended before the
+merge. A commit subject is a claim like any other.
+
+**THE MERGER'S OWN FILING TRIPPED A GUARD, AND THE PRE-PUSH HOOK CAUGHT IT.** The
+CS-1147 note cited `tests/ops/test_suite_ration.py` by LINE, and
+`test_no_line_pointer_names_a_tracked_python_module_without_a_record` refused it:
+cite the symbol form, which an edit above it cannot invalidate. This is CS-937's
+lesson from the previous session, re-learned by the session that had just read it.
+THE HOOK IS THE REASON IT DID NOT SHIP.
+
+**A `write_text` ON WINDOWS PUT CRLF THROUGH A TRACKED FILE.** `pathlib.write_text`
+uses platform newline translation, so ROADMAP.md came back fully CRLF while git
+normalised the blob and reported the tree clean. Use `newline=""` on every write.
+AND the obvious check is a trap: a grep counting lines that match a CR returns
+the TOTAL line count on a pure-LF file, which invites a fix for absent damage.
+Count the CR LF byte pair in the BYTES instead.
+
+**FILED, NOT FIXED.** CS-1146 - the tier 1 guard shard's worst reading is 464s against
+a 420s budget and 16s under the ceiling, and `tools/tier1_growth.py` grades only ONE of
+CS-896's three conditions (jitter vs band), so it prints PASS for a job that fails
+`B >= M` by 44s. CS-1147 - the ration blocking-protocol arm races the child it
+measures: the child frees the slot and THEN writes its released marker, so a parent
+that acquires in that window legitimately sees no marker. Measured on tier 2 run
+35385454932; `ops/` and `tests/ops/` are untouched since `d28e4a5`, so it is not this
+session's work.
+
+**A CAVEAT THE MERGER PUT IN WRITING AGAINST ITSELF.** CS-1146 was reported to the
+operator as "one ordinary run from reddening". The very next tier 1 run had the guard
+shard at 230s - less than half its recorded worst. The 464s reading is real and the
+tool's blind spot is real, but the URGENCY was not earned by the evidence, and that
+job's spread is plainly wider than the 28s jitter figure computed for it.
