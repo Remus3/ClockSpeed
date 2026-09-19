@@ -64,14 +64,7 @@ def test_the_worker_count_is_read_from_the_workflow_runs_on(workflow_text: str) 
 def test_a_runs_on_the_table_has_no_entry_for_is_refused() -> None:
     """An unmapped runner REFUSES. That refusal is what pins W rather than assuming it."""
     unmapped = (
-        "name: tier1\n"
-        "env:\n"
-        "  TIER1_BUDGET_SECONDS: '420'\n"
-        "  TIER1_CEILING_SECONDS: '480'\n"
-        "jobs:\n"
-        "  only:\n"
-        "    name: only job\n"
-        "    runs-on: moonbase-alpha-64core\n"
+        "name: tier1\njobs:\n  only:\n    name: only job\n    runs-on: moonbase-alpha-64core\n"
     )
     with pytest.raises(ValueError, match="moonbase-alpha-64core") as caught:
         concentration.worker_counts(unmapped)
@@ -80,16 +73,7 @@ def test_a_runs_on_the_table_has_no_entry_for_is_refused() -> None:
 
 def test_a_list_valued_runs_on_is_refused_rather_than_guessed() -> None:
     """A label list is not a runner this table can price, so it refuses too."""
-    listed = (
-        "name: tier1\n"
-        "env:\n"
-        "  TIER1_BUDGET_SECONDS: '420'\n"
-        "  TIER1_CEILING_SECONDS: '480'\n"
-        "jobs:\n"
-        "  only:\n"
-        "    name: only job\n"
-        "    runs-on: [self-hosted, linux]\n"
-    )
+    listed = "name: tier1\njobs:\n  only:\n    name: only job\n    runs-on: [self-hosted, linux]\n"
     with pytest.raises(ValueError, match="not a plain"):
         concentration.worker_counts(listed)
 

@@ -97,6 +97,38 @@ subprocess-heavy work. Take the measurement on the runner or do not take it.
 
 ---
 
+### Recorded 2026-09-19 (session 106) by the merger - the levels now EXIST and branch one is REFUTED
+
+**THE HALF THAT IS DONE.** `tools/tier1_concentration.py` states two derived
+levels and grades them offline against `tools/tier1_concentration.json`, and the
+profile now covers ALL THREE suite-running jobs at both ends rather than only
+`gates, lint, types, tests`. WARN is `(CEILING - BUDGET) / BUDGET` read from the
+parsed workflow; HARD is `1/W` with `W` from `runs-on` through a table that
+REFUSES an unmapped label. Neither level is transcribed into the tool or the
+record, and an arm greps both artifacts for either value. The two figures the
+earlier record states reproduce exactly.
+
+**THE HALF THAT IS NOT, ON AN ADVERSARY'S REFUTATION.**
+
+1. The save shard WARNS at BOTH ends with the SAME top test, and
+   `git rev-list --count d28e4a5..fe5034b` is 4 commits that all touched another
+   job - so the movement is that job's own noise. Branch one closes for it only
+   by electing the LOOSER of two stated shares, and the 18.9 per cent
+   concentration that FILED this item passes the hard level. **That job is now
+   CS-1152, branch two, and CS-900 does not close while it is open.**
+2. The HARD level's first-draft derivation was FALSE: `t_max <= T/W` is against
+   the SERIAL TOTAL and the tool divides by the STEP WALL CLOCK, which agree only
+   at W = 1. Measured false in both directions at W = 2. The correction is in the
+   module docstring, not buried. `T` is not obtainable from a durations block
+   that prints only the top 15 phases over 5s, so **the binding-term criterion
+   cannot be graded by this tool at all** - a better level, or a different
+   instrument, is owed here.
+
+**DO NOT CLOSE THIS BY RESTATING A SHARE.** The acceptance's second branch asks
+for the MECHANISM per test. A share is what the tool already reports.
+
+---
+
 ### Acceptance
 
 the most expensive single test is under a stated share of the step MEASURED ON THE RUNNER, or the concentration is ruled irreducible with the mechanism named per test rather than the share restated, proven by a runner profile taken before and after that reports the share both times

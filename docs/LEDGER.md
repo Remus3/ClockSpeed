@@ -75,6 +75,112 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-09-19 - CS-1146 - CLOSED. Each tier 1 job's worst reading is graded against the budget, and the guard shard's breach is named
+
+**THE DEFECT.** CS-896's leaf derives three conditions over the levels. Writing `M`
+for a job's worst reading, `N` for its jitter, `B` and `C` for the budget and the
+ceiling: `B >= M`, `C - B >= N`, and `C + N <= cutoff`. `tools/tier1_growth.py`
+graded the SECOND and nothing else, so a job could fail the first and be reported
+as covered. The guard shard was that job.
+
+**THE SPREAD, MEASURED BEFORE THE ROW WAS RANKED**, over `tools/tier1_readings.json`,
+successful readings only:
+
+| job | n | min | median | max | range | over the 420s budget |
+|---|---|---|---|---|---|---|
+| gates, lint, types, tests | 11 | 240 | 338 | 410 | 170 | 0 of 11 |
+| tests (guard shard) | 11 | 426 | 448 | 464 | 38 | **11 of 11** |
+| tests (save shard) | 11 | 132 | 170 | 177 | 45 | 0 of 11 |
+
+**AND THE CAVEAT SESSION 105 WROTE AGAINST ITSELF IS ITSELF WRONG ON ITS NUMBER.**
+That caveat de-ranked this row on the grounds that "the very next tier 1 run had
+the guard shard at 230s, less than half its recorded 464s worst". Measured from
+the jobs API this session: run 35408578732 guard shard is **413s**, not 230s, and
+run 35421804038 is **441s**. So 12 of 13 known readings are at or over the budget
+and the spread is 38s, not the wide scatter the caveat supposed. The row was
+under-ranked on a misread figure. The caveat's METHOD was right - measure the
+spread before ranking - and following it reversed its own conclusion.
+
+**WHAT SHIPPED.** A `B >= M` verdict distinct from the band-versus-jitter one,
+each job graded separately and named with its own margin, modelled as a two-way
+pinned set exactly as the pre-existing `ORDERING_UNMET` handles CS-1133's known
+remainder. Over the shipped record the tool prints `BUDGET BREACHED by 44s` for
+the guard shard and never the word `PASS`. `M` is the worst SUCCESSFUL reading:
+a duration threshold is corrupt in both directions, because a crash that dies
+late overstates `M` and a threshold has to guess where a crash ends.
+
+**NO LEVEL WAS MOVED.** `git diff --stat a1e857b..HEAD -- .github/workflows/tier1.yml`
+is empty. Guard (k) ratchets budget, ceiling and cutoff in both directions and
+CS-1133 records the ruling that raising a level to meet a slow lane is the move
+CS-896 exists to refuse.
+
+**AN ADVERSARY ATTACKED IT AND DID NOT REFUTE IT.** Five mutants died, including
+both one-way forms of the two-way arm. Two residuals it named and I am recording
+rather than burying: no CI job and no hook executes this tool - the only
+automated reader is the suite arm, which pins `worst == 464` and `over_by == 44`
+exactly; and `pinned & declared` would silently drop a pinned job the workflow
+stops declaring.
+
+Verification: `python tools/tier1_growth.py` prints a `BUDGET BREACHED by 44s`
+line for `tests (guard shard)` and exits 0. `python -m pytest
+tests/test_tier1_growth.py -q` is 61 passed. The two-way arm is
+`test_a_pinned_budget_set_that_no_longer_matches_is_red_in_both_directions`;
+invert either direction of its set difference and it reddens.
+
+### 2026-09-19 - CS-900 - TOOL AND MEASUREMENT RECORD. NOT A COMPLETION RECORD. CS-900 STAYS OPEN, REFUTED ON BRANCH ONE
+
+**WHAT SHIPPED.** `tools/tier1_concentration.py`, `tools/tier1_concentration.json`
+and `tests/test_tier1_concentration.py` - the first thing in this repository that
+STATES a concentration level and grades it, which is what section 4 requires of a
+measured number and what CS-900's acceptance was missing. Both levels are derived
+and neither is transcribed: WARN is `(CEILING - BUDGET) / BUDGET` read from the
+parsed workflow, HARD is `1/W` with `W` from the job's `runs-on` through a literal
+table that REFUSES an unmapped label rather than defaulting it.
+
+**THE PROFILE NOW COVERS ALL THREE SUITE-RUNNING JOBS, not just the one the
+earlier record carried.** Re-derived from `gh`, not transcribed; the two figures
+the previous record states reproduce exactly.
+
+| job | before, run 35329294306 at `d28e4a5` | after, run 35384058003 at `fe5034b` |
+|---|---|---|
+| gates, lint, types, tests | 158.74s / 445s = 35.67 per cent WARN | 31.04s / 383s = 8.10 per cent CLEAR |
+| tests (guard shard) | 29.84s / 437s = 6.83 per cent CLEAR | 30.16s / 434s = 6.95 per cent CLEAR |
+| tests (save shard) | 39.09s / 149s = 26.23 per cent WARN | 34.97s / 140s = 24.98 per cent WARN |
+
+**WHY IT DOES NOT CLOSE, ON AN ADVERSARY'S REFUTATION AND NOT ON MY OWN READING.**
+
+1. **The save shard WARNS AT BOTH ENDS with the SAME top test**,
+   `tests/save/test_absolute_claims.py::test_a_module_whose_prose_already_satisfies_the_fence_is_inside_it`.
+   Nothing was done to that job between the two runs -
+   `git rev-list --count d28e4a5..fe5034b` is 4 and all four are the other job's
+   repair - so 39.09 to 34.97 is that job's own noise, not a remedy. Branch one
+   would close only by electing the LOOSER of the tool's two stated shares, and a
+   stated share that may be chosen loose enough makes the acceptance
+   self-satisfying. Worse: the 18.9 per cent concentration that FILED this item
+   passes the 50 per cent hard level. A level under which the filed defect passes
+   cannot be the level the close rests on.
+2. **The HARD level's first-draft derivation was FALSE and is corrected in the
+   module docstring rather than quietly dropped.** It claimed the top test stops
+   being the binding term at `t_max <= T/W`; that criterion is against the SERIAL
+   TOTAL, and the tool divides by the STEP WALL CLOCK. The two agree only at
+   W = 1. Measured false in BOTH directions at W = 2 through the module's own
+   `verdict`. `T` is not obtainable here - the step prints only the top 15 phases
+   over 5s - so the binding-term criterion cannot be graded by this tool at all.
+
+**SO WHAT REMAINS ON CS-900** is branch two for the save shard: the concentration
+ruled irreducible with the MECHANISM NAMED PER TEST, which no record anywhere
+carries for that node id. That is now filed as its own row.
+
+**A DISCLOSED LIMIT, recorded rather than buried.** The numerator is a LOWER
+BOUND - phases under 5s never print, and only the top 15 do - so a BREACH can
+never be a parse artefact but a CLEAR can be wrong high, and the tool retains
+nothing that could bound the miss. No arm covers that today.
+
+Verification: `python tools/tier1_concentration.py` prints the six rows above and
+exits 0. `python -m pytest tests/test_tier1_concentration.py -q` is 29 passed.
+The anti-vacuity arm is `test_an_unmeasured_profile_reddens_the_grade`; map
+UNMEASURED to CLEAR in `verdict` and three arms redden.
+
 ### 2026-09-19 - CS-828 - NOT A COMPLETION RECORD. NOTHING CLOSED. CS-828 STAYS OPEN. The count-prefixed NAMED-TRANSFORM list reads, and the residual's two remaining non-nested shapes are measured and declined
 
 **THE ITEM STAYS OPEN AND ITS ACCEPTANCE IS UNCHANGED.** This is the sixth reading

@@ -88,6 +88,7 @@ CS-829 - `StructProperty`'s interior is the largest opaque region by count and i
 CS-896 - tier 1 CI was cancelled by its runaway cutoff with nothing failing - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-917 - tier 1's duration is watched but its GROWTH RATE is owned by nobody - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-900 - tier 1's cost is concentrated in a few tests, so `-n auto` buys little - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
+CS-1152 - the save shard's most expensive test warns at both ends of the CS-900 profile and no mechanism is named for it - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-907 - tier-0 pre-push runs the whole suite while its header claims the sanctioned fast subset - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-938 - the CS-932 inbox watcher is wired ONLY in an untracked file, so a fresh clone runs no watcher - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
 CS-936 - the 2026-08-14 PII scrub edited the files FORWARD, so three world names it removed remain in earlier blobs - CONTAINED, measured - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
@@ -150,7 +151,6 @@ CS-1141 - the per-entry unanchored refusal never proves that the entries after i
 CS-1142 - the ratchet's head sentence in `tests/test_citation_tables.py` states a composition the tables no longer have - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
 CS-1143 - the citation site identity derives a markdown heading chain from files that have no headings - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1144 - `docs/LEDGER.md` cites `.github/workflows/tier1.yml` by a line the workflow has since grown past, and the carrier is append-only - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
-CS-1146 - the tier 1 guard shard's worst reading is already 44s past the budget and 16s under the ceiling, and no tool grades that - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 
 CS-962 - the dashboard is a SELF-DIAGNOSTIC rather than a player's tool: it renders its own health, its own route table, six world version scalars, five counts and the unmodelled-class list - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-976 - the four panel modules are classic scripts sharing ONE global with `app.js`, and three of them scope themselves - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`

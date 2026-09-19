@@ -23,12 +23,33 @@ whatever the lane did last.
 
 TWO LEVELS, BOTH DERIVED, NEITHER FITTED TO TODAY'S READING.
 
-- HARD = 1/W, W being the job's worker count. From the floor above: the top test
-  stops being the binding term exactly at `t_max <= T/W`. Above 1/W the step
-  cannot be shortened by any scheduling of the rest, so the concentration is the
-  lane's length. W is read from the job's `runs-on` through :data:`RUNNER_WORKERS`
-  below, and an entry the table lacks is REFUSED rather than defaulted. That
-  refusal is the whole reason W is pinned instead of assumed.
+- HARD = 1/W, W being the job's worker count, TAKEN AGAINST THE WALL CLOCK.
+
+  A CORRECTION THIS DOCSTRING OWES ITS OWN FIRST DRAFT, measured by an adversary
+  on 2026-09-19. The first draft derived this level from the makespan floor and
+  claimed the top test "stops being the binding term exactly at `t_max <= T/W`".
+  That criterion is against the SERIAL TOTAL `T`; this tool divides by the STEP
+  WALL CLOCK `S`, and the two agree only at W = 1. Both directions were measured
+  false at W = 2 through this module's own `verdict`:
+
+      T=440 t_max=165 S=220 - floor is T/W=220, so the top test is NOT binding,
+                              and this level calls it a BREACH at 75 per cent
+      T=440 t_max=231 S=462 - floor is t_max=231, so the top test IS binding,
+                              and this level calls it a WARN at 50 per cent
+
+  The ratio `S / max(t_max, T/W)` that separates them is 1.64 on this very lane
+  (`docs/item_notes/phase4-followups-900.md` under CS-900), so the gap is not
+  exotic. `T` is not obtainable here - the step prints only the top 15 phases
+  over 5s - so the binding-term criterion CANNOT be graded by this tool, and
+  saying so is why CS-900 stays open rather than closing on this level.
+
+  WHAT THIS LEVEL IS, then, stated for what it does rather than for what the
+  first draft wished it did: a share-of-wall-clock ceiling at 1/W. One test
+  holding more than a 1/W share of the step it runs in is a lane whose length no
+  scheduling of the remainder can bring under that share. W is read from the
+  job's `runs-on` through :data:`RUNNER_WORKERS` below, and an entry the table
+  lacks is REFUSED rather than defaulted. That refusal is the whole reason W is
+  pinned instead of assumed.
 - WARN = (CEILING - BUDGET) / BUDGET, both read from the parsed workflow at run
   time. RATIONALE: that numerator is the entire warn band. A single test costing
   more than the whole band can carry the lane from silent to red on one
