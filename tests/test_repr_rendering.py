@@ -155,6 +155,8 @@ RECORDED_POPULATION: tuple[str, ...] = (
     "clockspeed/save/header.py::SaveHeader",
     "clockspeed/save/header.py::_Cursor",
     "clockspeed/save/objects.py::BodyLayout",
+    "clockspeed/save/objects.py::BuildableGroup",
+    "clockspeed/save/objects.py::BuildableInstance",
     "clockspeed/save/objects.py::Collectable",
     "clockspeed/save/objects.py::ContainerElement",
     "clockspeed/save/objects.py::ContainerValue",

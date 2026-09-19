@@ -419,6 +419,86 @@ sentence as the five blocks above, for the same reason. The clause says every
 payload of the three pairs, and a residual population survives on every one of
 them.
 
+### Seventh partial ship recorded 2026-09-19 - the buildable group list reads, the nested structure does not
+
+**THE ITEM STAYS OPEN AND ITS ACCEPTANCE IS UNCHANGED.** This is the seventh
+reading of the run and the sixth recorded here as a measurement rather than a
+closure. What shipped reads one further derived class set - the one whose
+remainder is a VERSION word, a GROUP COUNT and that many CLASS-KEYED INSTANCE
+GROUPS - and nothing else.
+
+**WHAT IS NOW READ.** `clockspeed/save/objects.read_buildable_group_list` reads
+the version word and the group count the remainder opens with, then walks each
+group as a flag, a length-prefixed class path, an instance count and that many
+instances - each instance two shipped fixed blocks around two length-prefixed
+references, then a two-string object reference, then a flag that says whether a
+further structure follows. It reports the whole thing on
+`TrailingRun.buildable_groups` with `unread` falling to zero.
+`derive_buildable_group_classes` picks the carrying classes off the body being
+read. The figures move with the operator library and
+`tests/save/test_trailing_run.py` is their only owner, so none is written here.
+
+**THIS IS THE WIDEST REGION OF THE RUN AND NOT THE MOST POPULOUS ONE, AND THE
+DIFFERENCE IS THE WHOLE OF WHAT THIS CYCLE CLAIMS.** Every earlier block on this
+item measured its ship in PAYLOADS, which is what CS-828's clause counts. By
+that measure this cycle is the smallest of the seven. By BYTES it is the
+largest: one payload of this project's library carries over a megabyte of this
+shape, twenty-six groups and thousands of instances, and the walk lands exactly
+on its declared end. **DO NOT LET A LATER CYCLE READ THE PAYLOAD COUNT AS THE
+WHOLE STORY IN EITHER DIRECTION** - the clause is counted in payloads and a
+residual survives on all three pairs.
+
+**THE EXTRA-DATA BLOCK IS STEPPED BY ITS OWN DECLARED SIZE, WHICH IS A READING
+AND NOT THE STEP CS-828's `detail` BLOCK FORBIDS.** That block forbids closing
+this item by widening the PAYLOAD's declared-length step, because the payload's
+length is the outer framing the body walk already uses and stepping by it
+answers nothing. The size here is a field INSIDE the region under question,
+read out of the bytes, and it is falsifiable in the way the outer step is not: a
+size that does not put the walk on the next instance makes the whole list refuse
+rather than stretch. What the block CONTAINS is not claimed, and naming it would
+be a second claim this reading does not carry.
+
+**A COUNT OF ZERO IS READ HERE, WHICH THE FOUR SIBLING READERS REFUSE, AND THE
+GATE MOVED RATHER THAN BEING DROPPED.** Those readers refuse a zero count
+because four zero bytes are an empty list AND an empty string AND the
+zero-valued residual. This shape opens with a version word ahead of its count,
+so an empty list is eight bytes - but eight bytes are still eight bytes, and a
+reader admitting them on its own authority would claim any class whose leftovers
+happened to measure eight. `derive_buildable_group_classes` therefore admits a
+class only when one of its records in THAT BODY demonstrates a NON-EMPTY list
+landing exactly on the declared end, which is the rule
+`derive_item_list_classes` already stands on. **THE VISIBLE CONSEQUENCE IS THAT
+MOST PAYLOADS OF THE CARRYING CLASS STAY UNREAD** - their bodies carry no
+populated list to demonstrate with - and that is the intended outcome rather
+than a gap.
+
+**A SENTENCE IN THE BLOCK ABOVE IS MEASURED FALSE AND IS CORRECTED HERE RATHER
+THAN QUIETLY DROPPED.** The sixth block says what remains is the nested
+structure, one shape CS-1150 fences on disclosure grounds, and "one too narrow
+for any grammar to claim". That third shape is the EMPTY form of the grammar
+this cycle read, and the same carrier class also writes the widest populated
+region in the library - which that block did not record. The narrow form was
+described truly and the class was not. The sixth block is left standing as the
+record of what that cycle measured; this paragraph is the correction.
+
+**THE WEAKEST CASE, STATED RATHER THAN ROUNDED UP.** The demonstration rule is
+stronger than the consistency rule the sibling readings use, but on this library
+exactly ONE body demonstrates - so the grammar's populated form is evidenced by
+a single payload, and a class that stopped writing a populated list would take
+the whole reading with it. That is the correct behaviour and it is also the
+thinnest evidence any reading on this run rests on. A later cycle strengthening
+this should look for a second demonstrating body rather than relax the rule.
+
+**WHAT REMAINS.** The nested structure [[CS-1119]] owns, which still carries the
+large majority of the residual population, and the shape [[CS-1150]] fences on
+disclosure grounds. [[CS-1149]]'s census still owns the breakdown and [[CS-1151]]
+still stands.
+
+**DO NOT CLOSE THIS ITEM ON THE STRENGTH OF THE BUILDABLE GROUP LIST.** The same
+sentence as the six blocks above, for the same reason. The clause says every
+payload of the three pairs, and a residual population survives on every one of
+them.
+
 ### Acceptance
 
 the run's contents are read, or its width is DERIVED from something in the payload rather than OBSERVED as `declared_end - terminator_end`, on every payload of the (10,36), (13,42) and (14,52) pairs, proven by a skip-if-absent real-library test reporting COUNTS ONLY

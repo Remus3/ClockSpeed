@@ -316,6 +316,7 @@ __all__ = [
     "classify_unresolved",
     "container_candidate_words",
     "decode_struct_interior",
+    "derive_buildable_group_classes",
     "derive_item_list_classes",
     "derive_reference_list_classes",
     "derive_reference_pair_classes",
@@ -324,6 +325,7 @@ __all__ = [
     "parse_body",
     "parse_object_headers",
     "parse_properties",
+    "read_buildable_group_list",
     "read_item_list",
     "read_properties",
     "read_reference_list",
@@ -4394,6 +4396,27 @@ UNMEASURED_PAYLOAD_REGIONS: Final[Mapping[str, str]] = MappingProxyType(
             "wrong name for them would be worse than none. On those classes' "
             "payloads unread falls to zero and the list is reported as "
             "TrailingRun.transform_list. "
+            "NARROWED AGAIN BY CS-828, ON A SIXTH DERIVED CLASS SET AND "
+            "NOWHERE ELSE, AND THIS ONE IS THE WIDEST REGION RATHER THAN THE "
+            "MOST POPULOUS: where the remainder is a VERSION WORD, a GROUP "
+            "COUNT and that many CLASS-KEYED INSTANCE GROUPS it is read by "
+            "read_buildable_group_list. Every width it consumes comes from "
+            "those two counts, from four length prefixes per instance, from an "
+            "extra-data block's own DECLARED SIZE and from the shipped "
+            "constants BUILDABLE_INSTANCE_HEAD_BYTES and "
+            "BUILDABLE_INSTANCE_MID_BYTES - never the leftover. THE "
+            "EXTRA-DATA BLOCK IS NOT AN UNCONDITIONAL FIELD: a per-instance "
+            "flag says whether it is there, and what it CONTAINS is not "
+            "claimed - its type name and declared size are read and its "
+            "interior is stepped by that size. UNLIKE THE FOUR READERS ABOVE "
+            "THIS ONE ACCEPTS A COUNT OF ZERO, so the anti-vacuity gate is "
+            "moved onto the derivation rather than dropped: "
+            "derive_buildable_group_classes admits a class only when one of "
+            "its records in that body DEMONSTRATES a NON-EMPTY list landing "
+            "exactly on its declared end, and no record of it reads as "
+            "something the reader refuses. On those classes' payloads unread "
+            "falls to zero and the list is reported as "
+            "TrailingRun.buildable_groups. "
             "WHAT REMAINS AFTER THAT, and it is CS-1119 rather than this "
             "entry: whether that zero-valued residual IS an empty item list or "
             "a class carrying no list at all, which no reading of the run "
@@ -4987,6 +5010,63 @@ TRANSFORM_LIST_ENTRY_FLAG_BYTES: Final = 1
 #: The default vocabulary :func:`read_properties` reads this shape with.
 #: EMPTY, so a caller that has not derived reads exactly what CS-828 left.
 _NO_TRANSFORM_LIST_CLASSES: Final[Mapping[str, int]] = MappingProxyType({})
+
+#: How wide the BUILDABLE GROUP LIST's leading version word is - CS-828. Its
+#: VALUE is read out of the bytes and reported; nothing here claims what it
+#: denotes, only that the walk begins past it.
+BUILDABLE_GROUP_LIST_VERSION_BYTES: Final = INT32_SIZE
+
+#: How wide that list's own group count is. Its VALUE says how many groups
+#: follow, which is what drives the walk.
+BUILDABLE_GROUP_LIST_COUNT_BYTES: Final = INT32_SIZE
+
+#: How wide each group's leading flag is. READ AND REPORTED rather than stepped
+#: over: a field this module skipped would be a field it had partitioned by
+#: arithmetic.
+BUILDABLE_GROUP_FLAG_BYTES: Final = INT32_SIZE
+
+#: The fixed block each instance opens with, ahead of its first length-prefixed
+#: reference. A SHIPPED CONSTANT rather than whatever was left over: a width
+#: taken from ``end - at`` closes on every payload and no reading of it could
+#: fail, which is the defect that refuted CS-830 after it had merged.
+BUILDABLE_INSTANCE_HEAD_BYTES: Final = 84
+
+#: The fixed block each instance writes BETWEEN its two length-prefixed
+#: references. A shipped constant for the same reason as the head block.
+BUILDABLE_INSTANCE_MID_BYTES: Final = 69
+
+#: How wide the flag that says whether an instance carries a further declared
+#: structure is. A ZERO here ends the instance; anything else opens the block.
+BUILDABLE_INSTANCE_EXTRA_FLAG_BYTES: Final = INT32_SIZE
+
+#: The word between a set extra-data flag and that block's type name. READ past
+#: rather than interpreted - what it denotes is a second claim this reading does
+#: not carry, and a wrong name is worse than none.
+BUILDABLE_INSTANCE_EXTRA_PAD_BYTES: Final = INT32_SIZE
+
+#: How wide the extra-data block's own DECLARED SIZE is. That size is what the
+#: walk steps the block by, so the width comes out of the bytes rather than out
+#: of the leftover - and a size that does not land the walk on the next instance
+#: makes the whole reading fail rather than stretch.
+BUILDABLE_INSTANCE_EXTRA_SIZE_BYTES: Final = INT32_SIZE
+
+#: The narrowest an instance can be - both fixed blocks, four empty length
+#: prefixes and the flag. Used only to reject a count no remainder could carry
+#: before the walk allocates for it.
+_MINIMUM_BUILDABLE_INSTANCE_BYTES: Final = (
+    BUILDABLE_INSTANCE_HEAD_BYTES
+    + BUILDABLE_INSTANCE_MID_BYTES
+    + INT32_SIZE * 4
+    + BUILDABLE_INSTANCE_EXTRA_FLAG_BYTES
+)
+
+#: The narrowest a group can be - its flag, a one-byte class path and an
+#: instance count of zero. Same use as the instance floor above.
+_MINIMUM_BUILDABLE_GROUP_BYTES: Final = BUILDABLE_GROUP_FLAG_BYTES + INT32_SIZE + 1 + INT32_SIZE
+
+#: The default vocabulary :func:`read_properties` reads this shape with.
+#: EMPTY, so a caller that has not derived reads exactly what CS-828 left.
+_NO_BUILDABLE_GROUP_CLASSES: Final[Collection[str]] = frozenset()
 
 #: The flags byte's measured bits. NAMED because a bare hex literal at a use
 #: site is a bit nobody can hold a table against.
@@ -7003,6 +7083,307 @@ def read_transform_list(
     )
 
 
+@dataclass(frozen=True, repr=False)
+class BuildableInstance:
+    """One instance inside a buildable group - CS-828.
+
+    ``repr`` is hand written and withholds every decoded string, for the reason
+    given on :class:`ItemListEntry`: each one is read out of the player's world
+    and a repr is an echo path (non-negotiable 12).
+
+    Attributes:
+        swatch: The first length-prefixed reference the instance writes, as the
+            run spells it. WORLD CONTENT, carried rather than interpreted.
+        recipe: The second length-prefixed reference, on the same terms.
+        reference_level: The object reference's level string. Empty on every
+            instance that writes no reference, which is most of them.
+        reference_path: The object reference's path string, on the same terms.
+        extra_type: The type name of the further declared structure the
+            instance carries, or None when its flag is unset. **WHAT THAT
+            STRUCTURE CONTAINS IS NOT CLAIMED HERE** - only its own declared
+            size is read, and that is what the walk steps by.
+        extra_bytes: How many bytes that structure DECLARED, or None. The
+            figure comes out of the bytes; it is never ``end`` minus anything.
+        flag: The int32 that says whether the block follows, READ rather than
+            stepped over.
+    """
+
+    swatch: str
+    recipe: str
+    reference_level: str
+    reference_path: str
+    extra_type: str | None
+    extra_bytes: int | None
+    flag: int
+
+    def __repr__(self) -> str:
+        """Render lengths and counts only, and withhold every string.
+
+        Returns:
+            The safe rendering.
+        """
+        return (
+            f"{type(self).__name__}(swatch_len={len(self.swatch)}, "
+            f"recipe_len={len(self.recipe)}, "
+            f"reference_len={len(self.reference_path)}, "
+            f"extra_bytes={self.extra_bytes}, flag={self.flag})"
+        )
+
+
+@dataclass(frozen=True, repr=False)
+class BuildableGroup:
+    """One class-keyed group of instances inside the list - CS-828.
+
+    Attributes:
+        class_path: The length-prefixed path the group is keyed by. WORLD
+            CONTENT, withheld by ``repr``.
+        declared_count: The instance count the group's own prefix carries. The
+            number the walk then read is ``len(instances)`` and the two agree by
+            construction - a walk that could not read that many yields no list.
+        instances: The instances, in the order the run writes them.
+        flag: The int32 the group opens with, READ rather than stepped over.
+    """
+
+    class_path: str
+    declared_count: int
+    instances: tuple[BuildableInstance, ...]
+    flag: int
+
+    def __repr__(self) -> str:
+        """Render counts only.
+
+        Returns:
+            The safe rendering.
+        """
+        return (
+            f"{type(self).__name__}(class_path_len={len(self.class_path)}, "
+            f"declared_count={self.declared_count}, "
+            f"instances={len(self.instances)}, flag={self.flag})"
+        )
+
+
+@dataclass(frozen=True, repr=False)
+class BuildableGroupList:
+    """A whole buildable group list and the width its own prefixes describe.
+
+    WHY ``width`` IS CARRIED RATHER THAN RECOMPUTED BY A CONSUMER, for the
+    reason :class:`ItemList` carries one: it is summed from two counts, four
+    length prefixes per instance, one declared size per carried block and three
+    shipped constants, and it is NEVER ``declared_end - at``. A consumer
+    recomputing it from the payload's declared end would be doing the arithmetic
+    partition that refuted CS-830.
+
+    Attributes:
+        version: The int32 the list opens with, READ and reported. **WHAT IT
+            DENOTES IS NOT CLAIMED** - that it is read rather than skipped is
+            the whole of what this field asserts.
+        declared_count: The group count the prefix carries.
+        groups: The groups, in the order the run writes them.
+        width: How many bytes the list occupies, DERIVED from the prefixes.
+    """
+
+    version: int
+    declared_count: int
+    groups: tuple[BuildableGroup, ...]
+    width: int
+
+    def __repr__(self) -> str:
+        """Render counts and widths only.
+
+        Returns:
+            The safe rendering.
+        """
+        return (
+            f"{type(self).__name__}(version={self.version}, "
+            f"declared_count={self.declared_count}, groups={len(self.groups)}, "
+            f"width={self.width})"
+        )
+
+
+def _walk_one_buildable_instance(  # noqa: PLR0911 - one refusal per field read is the clearest surface
+    body: bytes, at: int, end: int
+) -> tuple[BuildableInstance, int] | None:
+    """Walk one instance, or refuse.
+
+    THE WIDTHS IT CONSUMES ARE TWO SHIPPED BLOCKS, FOUR LENGTH PREFIXES AND -
+    only when the flag is set - one DECLARED SIZE. None of them is ``end`` minus
+    anything, which is what keeps this off the CS-830 defect.
+
+    Args:
+        body: The decompressed body.
+        at: The instance's first byte.
+        end: The first byte past the payload.
+
+    Returns:
+        The instance and the offset past it, or None.
+    """
+    swatch = _payload_text(body, at + BUILDABLE_INSTANCE_HEAD_BYTES, end)
+    if swatch is None:
+        return None
+    recipe = _payload_text(body, swatch[1] + BUILDABLE_INSTANCE_MID_BYTES, end)
+    if recipe is None:
+        return None
+    level = _payload_text(body, recipe[1], end)
+    if level is None:
+        return None
+    reference = _payload_text(body, level[1], end)
+    if reference is None:
+        return None
+    cursor = reference[1]
+    if cursor + BUILDABLE_INSTANCE_EXTRA_FLAG_BYTES > end:
+        return None
+    (flag,) = struct.unpack_from("<i", body, cursor)
+    cursor += BUILDABLE_INSTANCE_EXTRA_FLAG_BYTES
+    extra_type: str | None = None
+    extra_bytes: int | None = None
+    if flag:
+        named = _payload_text(body, cursor + BUILDABLE_INSTANCE_EXTRA_PAD_BYTES, end)
+        if named is None or not named[0]:
+            return None
+        cursor = named[1]
+        if cursor + BUILDABLE_INSTANCE_EXTRA_SIZE_BYTES > end:
+            return None
+        (declared,) = struct.unpack_from("<i", body, cursor)
+        cursor += BUILDABLE_INSTANCE_EXTRA_SIZE_BYTES
+        if declared < 0 or cursor + declared > end:
+            return None
+        cursor += declared
+        extra_type, extra_bytes = named[0], declared
+    return (
+        BuildableInstance(
+            swatch=swatch[0],
+            recipe=recipe[0],
+            reference_level=level[0],
+            reference_path=reference[0],
+            extra_type=extra_type,
+            extra_bytes=extra_bytes,
+            flag=flag,
+        ),
+        cursor,
+    )
+
+
+def _walk_buildable_groups(
+    body: bytes, at: int, end: int, *, count: int
+) -> tuple[tuple[BuildableGroup, ...], int] | None:
+    """Walk ``count`` groups, or refuse.
+
+    SEPARATE FROM :func:`read_buildable_group_list` for the reason
+    :func:`_walk_item_entries` is separate from its reader - the walk's refusals
+    and the reader's read as a list rather than as a nest.
+
+    AN EMPTY CLASS PATH IS REFUSED, and not for tidiness: four zero bytes read
+    as an empty string would make any run of zeroes read as a group, which is
+    the same trap :func:`_walk_one_run_reference` refuses an empty string for.
+
+    Args:
+        body: The decompressed body.
+        at: The first group's first byte.
+        end: The first byte past the payload.
+        count: How many groups the list's own prefix said there are.
+
+    Returns:
+        The groups and the offset past the last one, or None.
+    """
+    groups: list[BuildableGroup] = []
+    cursor = at
+    for _ in range(count):
+        if cursor + BUILDABLE_GROUP_FLAG_BYTES > end:
+            return None
+        (flag,) = struct.unpack_from("<i", body, cursor)
+        named = _payload_text(body, cursor + BUILDABLE_GROUP_FLAG_BYTES, end)
+        if named is None or not named[0]:
+            return None
+        cursor = named[1]
+        if cursor + INT32_SIZE > end:
+            return None
+        (declared,) = struct.unpack_from("<i", body, cursor)
+        cursor += INT32_SIZE
+        if declared < 0 or declared > (end - cursor) // _MINIMUM_BUILDABLE_INSTANCE_BYTES:
+            return None
+        instances: list[BuildableInstance] = []
+        for _ in range(declared):
+            walked = _walk_one_buildable_instance(body, cursor, end)
+            if walked is None:
+                return None
+            instances.append(walked[0])
+            cursor = walked[1]
+        groups.append(
+            BuildableGroup(
+                class_path=named[0],
+                declared_count=declared,
+                instances=tuple(instances),
+                flag=flag,
+            )
+        )
+    return (tuple(groups), cursor)
+
+
+def read_buildable_group_list(body: bytes, at: int, end: int) -> BuildableGroupList | None:
+    """Read a remainder as a version-prefixed list of class-keyed groups - CS-828.
+
+    **EVERY WIDTH HERE COMES OUT OF THE BYTES OR OUT OF A SHIPPED CONSTANT.**
+    The group count says how many groups follow, each group's class path carries
+    its own length prefix and its own instance count, each instance carries four
+    more length prefixes around two shipped fixed blocks, and a carried
+    extra-data block declares its own size. ``end`` is a BOUND and a VALIDATION
+    and is never a source of width: the walk refuses rather than stretching to
+    reach it, which is what makes the reading falsifiable. A partition taking
+    its width from ``end`` would close on every payload and could not fail - the
+    defect that refuted CS-830 after it had merged - and
+    ``tests/save/test_buildable_groups.py`` holds an arm that reddens on exactly
+    that swap.
+
+    **A COUNT OF ZERO IS READ HERE, WHICH THE FOUR SIBLING READERS REFUSE, AND
+    THE GATE MOVED RATHER THAN DISAPPEARED.** Those readers refuse a zero count
+    because four zero bytes are an empty list AND an empty string AND the
+    zero-valued residual, and nothing in the run tells them apart. This shape
+    opens with a VERSION word ahead of its count, so an empty list is eight
+    bytes - but eight bytes are still eight bytes, and admitting them on the
+    reader's own authority would claim any class whose remainder happened to be
+    that wide. :func:`derive_buildable_group_classes` is what holds it: a class
+    earns its place only by DEMONSTRATING a non-empty list in the very body
+    being read.
+
+    **WHAT THE EXTRA-DATA BLOCK CONTAINS IS NOT CLAIMED.** Its type name and its
+    own declared size are read; its interior is stepped over by that size and is
+    not partitioned. Naming what is inside would be a second claim this reading
+    does not carry, and the landing check is what grades the step - a declared
+    size that does not put the walk on the next instance makes the whole list
+    refuse rather than stretch.
+
+    NOTHING HERE RAISES. A count claiming more groups than the payload holds, a
+    length prefix reaching past it, an empty class path, a negative declared
+    size and a walk that does not land on ``end`` are all REPORTED as no list,
+    per non-negotiable 7.
+
+    Args:
+        body: The decompressed body.
+        at: The remainder's first byte.
+        end: The first byte past the payload.
+
+    Returns:
+        The list, or None when the remainder is not one in that form.
+    """
+    head = BUILDABLE_GROUP_LIST_VERSION_BYTES + BUILDABLE_GROUP_LIST_COUNT_BYTES
+    if at < 0 or end > len(body) or end - at < head:
+        return None
+    version, count = struct.unpack_from("<ii", body, at)
+    if count < 0 or count > (end - at - head) // _MINIMUM_BUILDABLE_GROUP_BYTES:
+        return None
+    walked = _walk_buildable_groups(body, at + head, end, count=count)
+    if walked is None or walked[1] != end:
+        return None
+    # THE WIDTH IS THE WALK'S OWN CURSOR AND NOT ``end - at``, for the reason
+    # :func:`read_transform_list` spells it that way.
+    return BuildableGroupList(
+        version=version,
+        declared_count=count,
+        groups=walked[0],
+        width=walked[1] - at,
+    )
+
+
 @dataclass(frozen=True)
 class TrailingRun:
     """The run between a payload's property terminator and its declared end.
@@ -7057,6 +7438,13 @@ class TrailingRun:
             the three above are: the record's class was named by
             :func:`derive_transform_list_classes` AND the bytes then read as a
             list at the scalar width that derivation derived for the body.
+        buildable_groups: The version-prefixed list of class-keyed instance
+            groups the remainder carried, or None - CS-828. Present under the
+            same rule the four above are: the record's class was named by
+            :func:`derive_buildable_group_classes` AND the bytes then read as
+            the shape. It is the WIDEST region of the run this module reads and
+            not the most populous one - one payload of this project's library
+            carries over a megabyte of it.
     """
 
     width: int
@@ -7067,6 +7455,7 @@ class TrailingRun:
     reference_list: ReferenceList | None = None
     zero_remainder: ZeroRemainder | None = None
     transform_list: TransformList | None = None
+    buildable_groups: BuildableGroupList | None = None
 
 
 def read_trailing_run(body: bytes, terminator_end: int, end: int) -> TrailingRun | None:
@@ -7607,6 +7996,49 @@ def _run_with_transform_list(
     )
 
 
+def _run_with_buildable_groups(
+    body: bytes,
+    record: ObjectRecord,
+    run: TrailingRun | None,
+    buildable_group_classes: Collection[str],
+) -> TrailingRun | None:
+    """Read the run's remainder as a buildable group list when its class carries one.
+
+    THE VOCABULARY IS A GATE ON THE READING AND NEVER THE READING ITSELF,
+    exactly as in :func:`_run_with_item_list`. A class named here whose bytes
+    do not read in the derived form comes back exactly as CS-828 left it, so a
+    derivation that named everything would close nothing.
+
+    Args:
+        body: The decompressed body.
+        record: The record the run came from.
+        run: The run the walk read, or None.
+        buildable_group_classes: The class names derived as carriers.
+
+    Returns:
+        The run, with its remainder read when it read.
+    """
+    if run is None or run.lead is None or not run.unread:
+        return run
+    if class_name_of(record.type_path) not in buildable_group_classes:
+        return run
+    end = record.body_offset + record.body_length
+    read = read_buildable_group_list(body, end - run.unread, end)
+    if read is None:
+        return run
+    return TrailingRun(
+        width=run.width,
+        lead=run.lead,
+        unread=run.unread - read.width,
+        items=run.items,
+        references=run.references,
+        reference_list=run.reference_list,
+        zero_remainder=run.zero_remainder,
+        transform_list=run.transform_list,
+        buildable_groups=read,
+    )
+
+
 def _run_with_zero_remainder(
     body: bytes,
     record: ObjectRecord,
@@ -7620,13 +8052,14 @@ def _run_with_zero_remainder(
     do not read comes back exactly as CS-828 left it, so a derivation that
     named everything would close nothing.
 
-    IT RUNS LAST OF THE FIVE, and the order is load-bearing rather than
-    arbitrary: a remainder an item list, a reference pair, a reference list or a
-    transform list already read has ``unread`` at zero and never reaches here,
-    so no region is counted twice. The ordering is not what keeps this reading
-    off those lists' subject either - a zero-valued residual reads a COUNT of
-    zero, which :func:`read_reference_list` and :func:`read_transform_list` both
-    refuse outright.
+    IT RUNS LAST OF THE SIX, and the order is load-bearing rather than
+    arbitrary: a remainder an item list, a reference pair, a reference list, a
+    transform list or a buildable group list already read has ``unread`` at zero
+    and never reaches here, so no region is counted twice. The ordering is not
+    what keeps this reading off those lists' subject either - a zero-valued
+    residual reads a COUNT of zero, which :func:`read_reference_list` and
+    :func:`read_transform_list` both refuse outright, and it is four bytes wide
+    where :func:`read_buildable_group_list` needs at least eight.
 
     Args:
         body: The decompressed body.
@@ -7653,6 +8086,7 @@ def _run_with_zero_remainder(
         references=run.references,
         reference_list=run.reference_list,
         transform_list=run.transform_list,
+        buildable_groups=run.buildable_groups,
         zero_remainder=read,
     )
 
@@ -8035,6 +8469,71 @@ def derive_zero_remainder_classes(
     return frozenset(name for name, reads in verdicts.items() if reads)
 
 
+def derive_buildable_group_classes(
+    body: bytes,
+    records: Iterable[ObjectRecord],
+    *,
+    save_version: int | None = None,
+    header_version: int | None = None,
+) -> Collection[str]:
+    """Pick the classes whose trailing remainder is a buildable group list - CS-828.
+
+    **DERIVED FROM THE CORPUS, NEVER TRANSCRIBED**, for the reason
+    :func:`derive_item_list_classes` is: a hand-maintained vocabulary of game
+    content is the thing that rots, and CS-829's note forbids that shape by
+    name.
+
+    **A CLASS EARNS ITS PLACE BY DEMONSTRATING THE GRAMMAR, AND THAT IS THE
+    ANTI-VACUITY PROPERTY - IT IS NOT MERE CONSISTENCY.** One of the class's
+    records in THIS body must carry a NON-EMPTY list that walks exactly onto its
+    declared end, and no record of it may read as something this reader refuses.
+    The stronger rule is needed here and not on the sibling shapes because this
+    reader ACCEPTS an empty list: eight bytes whose second word is zero would
+    otherwise admit any class whose leftovers happened to measure eight, which
+    is arithmetic wearing a derivation's clothes. A body that stops carrying a
+    populated list derives nothing and says so.
+
+    **SO A BODY CARRYING ONLY EMPTY LISTS READS NONE OF THEM**, and that is the
+    intended outcome rather than a gap. An empty list claims that a region is a
+    structure with no members, and nothing in eight bytes distinguishes that
+    from a class whose remainder is eight bytes of something else. The
+    demonstration is what supplies the missing evidence, and it has to come from
+    the same body because a vocabulary carried between saves is the transcription
+    this project forbids.
+
+    THIS IS A SECOND WALK OVER THE BODY AND THAT IS INHERENT, exactly as in
+    :func:`derive_reference_pair_classes`: the membership is a property of the
+    body as a whole and no per-record reader can hold it.
+
+    Args:
+        body: The decompressed body.
+        records: The records to derive from - a body's whole table.
+        save_version: The save version the body was walked on, or None.
+        header_version: The header version the body was walked on, or None.
+
+    Returns:
+        The carrier class names.
+    """
+    reads: dict[str, bool] = {}
+    shown: set[str] = set()
+    for record in records:
+        if not record.body_length:
+            continue
+        result = read_properties(
+            body, record, save_version=save_version, header_version=header_version
+        )
+        run = result.trailing_run
+        if run is None or run.lead is None or not run.unread:
+            continue
+        end = record.body_offset + record.body_length
+        read = read_buildable_group_list(body, end - run.unread, end)
+        name = class_name_of(record.type_path)
+        reads[name] = read is not None and reads.get(name, True)
+        if read is not None and read.groups:
+            shown.add(name)
+    return frozenset(name for name in shown if reads.get(name, False))
+
+
 def read_properties(  # noqa: PLR0913 - one keyword per derived remainder vocabulary is the clearest surface
     body: bytes,
     record: ObjectRecord,
@@ -8047,6 +8546,7 @@ def read_properties(  # noqa: PLR0913 - one keyword per derived remainder vocabu
     reference_list_classes: Mapping[str, int] = _NO_REFERENCE_LIST_CLASSES,
     transform_list_classes: Mapping[str, int] = _NO_TRANSFORM_LIST_CLASSES,
     zero_remainder_classes: Collection[str] = _NO_ZERO_REMAINDER_CLASSES,
+    buildable_group_classes: Collection[str] = _NO_BUILDABLE_GROUP_CLASSES,
 ) -> PropertyResult:
     """Decode one record's measured properties and report what was skipped.
 
@@ -8130,6 +8630,9 @@ def read_properties(  # noqa: PLR0913 - one keyword per derived remainder vocabu
             list carrier to the scalar width its records agree on, from
             :func:`derive_transform_list_classes`. DEFAULTED EMPTY for the same
             reason.
+        buildable_group_classes: Class names derived as buildable-group-list
+            carriers by :func:`derive_buildable_group_classes`. DEFAULTED EMPTY
+            for the same reason every vocabulary here is.
         zero_remainder_classes: Class names derived as zero-remainder carriers
             by :func:`derive_zero_remainder_classes`. DEFAULTED EMPTY for the
             same reason again - and the default is exactly why the library
@@ -8272,21 +8775,28 @@ def read_properties(  # noqa: PLR0913 - one keyword per derived remainder vocabu
         trailing_run=_run_with_zero_remainder(
             body,
             record,
-            _run_with_transform_list(
+            _run_with_buildable_groups(
                 body,
                 record,
-                _run_with_reference_list(
+                _run_with_transform_list(
                     body,
                     record,
-                    _run_with_reference_pair(
+                    _run_with_reference_list(
                         body,
                         record,
-                        _run_with_item_list(body, record, walked.trailing_run, item_list_classes),
-                        reference_pair_classes,
+                        _run_with_reference_pair(
+                            body,
+                            record,
+                            _run_with_item_list(
+                                body, record, walked.trailing_run, item_list_classes
+                            ),
+                            reference_pair_classes,
+                        ),
+                        reference_list_classes,
                     ),
-                    reference_list_classes,
+                    transform_list_classes,
                 ),
-                transform_list_classes,
+                buildable_group_classes,
             ),
             zero_remainder_classes,
         ),

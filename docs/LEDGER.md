@@ -75,6 +75,97 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-09-19 - CS-828 - NOT A COMPLETION RECORD. NOTHING CLOSED. CS-828 STAYS OPEN. The buildable group list reads - the run's widest region, and its smallest payload count
+
+**THE ITEM STAYS OPEN AND ITS ACCEPTANCE IS UNCHANGED.** This is the seventh reading
+recorded against the trailing run and the sixth narrowing filed as a measurement rather
+than a closure. The clause asks for the run's contents on EVERY payload of the (10,36),
+(13,42) and (14,52) pairs; a residual population survives on every one of them, and this
+cycle read none of the shape that carries most of it.
+
+**WHAT SHIPPED.** `clockspeed/save/objects.read_buildable_group_list` reads a trailing
+remainder that opens with an int32 VERSION word and an int32 GROUP COUNT and carries that
+many class-keyed groups - each a flag, a length-prefixed class path, an instance count and
+that many instances, and each instance two shipped fixed blocks around two length-prefixed
+references, a two-string object reference, a flag, and when that flag is set a further
+structure declaring its own size. It is reported on the new `TrailingRun.buildable_groups`
+with `unread` falling to zero. `derive_buildable_group_classes` picks the carrying classes
+off the body being read, and `read_properties` gained a sixth vocabulary keyword
+defaulting to empty.
+
+**THE DEFECT THIS CLOSES, STATED AS A DEFECT.** The remainder of one derived class set was
+carried as `TrailingRun.unread` - a region the module recorded as unread with no grammar
+offered for it, and the single widest such region in this project's library.
+
+**THE ROOT CAUSE.** Not a bug in any reader: the family had no reader for this shape, and
+a previous cycle's census recorded the class by its EMPTY form alone and characterised it
+as too narrow for any grammar to claim. Re-deriving the residual off the library before
+any code was written found the same class also writing the populated form.
+
+**WHAT KEEPS IT OFF THE CS-830 DEFECT.** Every width consumed comes from the two counts,
+from four length prefixes per instance, from the extra-data block's own declared size, or
+from a shipped constant. The declared end is a bound and a validation and the walk refuses
+rather than stretching to reach it;
+`test_a_stretched_declared_end_is_refused_rather_than_read_to` reddens on exactly that
+swap, and `test_a_list_short_of_its_declared_end_is_refused` holds the other side.
+
+**WHY STEPPING THE EXTRA BLOCK BY ITS DECLARED SIZE IS NOT THE STEP CS-828's NOTE
+FORBIDS.** That note forbids closing the item by widening the PAYLOAD's declared-length
+step - the outer framing the body walk already uses, which answers nothing about what the
+region contains. The size here is a field inside the region under question, read out of
+the bytes, and a size that does not land the walk on the next instance refuses the whole
+list. What the block contains is not claimed.
+
+**A COUNT OF ZERO IS READ HERE AND THE FOUR SIBLING READERS REFUSE ONE, SO THE
+ANTI-VACUITY GATE MOVED RATHER THAN BEING DROPPED.** An empty list of this shape is eight
+bytes rather than four, which is not enough on its own: a reader admitting eight bytes
+would claim any class whose leftovers measured eight.
+`derive_buildable_group_classes` admits a class only when one of its records in that body
+DEMONSTRATES a non-empty list landing exactly on its declared end, which is the rule
+`derive_item_list_classes` already stands on.
+`test_a_body_whose_only_record_carries_an_empty_list_derives_nothing` holds it.
+
+**THE WEAKEST CASE IS RECORDED RATHER THAN ROUNDED UP.** Exactly ONE body of this library
+demonstrates the populated form, so the reading rests on a single payload and a library
+that stopped carrying one would derive nothing. That is the correct behaviour under the
+demonstration rule and it is also the thinnest evidence any reading on this run rests on.
+The visible consequence is that most payloads of the carrying class stay UNREAD, because
+their own bodies carry nothing to demonstrate with.
+
+**A CHARACTERISATION IN THE PREVIOUS CS-828 ENTRY IS MEASURED FALSE AND IS CORRECTED
+HERE.** That entry's sibling sweep listed, among what remains, "one too narrow for any
+grammar to claim without arithmetic". That shape is the EMPTY form of the grammar read
+this cycle, and the same carrier class also writes the widest populated region in the
+library. The narrow form was described truly and the class was not. Per this file's own
+rule the earlier entry stands and this record corrects it.
+
+**THE SIBLING SWEEP, AND IT FOUND NO SIBLING TO SWEEP.** The root cause is a missing
+grammar rather than a defect with variants, so the sweep took the form of a re-census of
+every residual shape on the three pairs, run before and after the change. Two remain and
+neither shares this root cause: the nested structure (CS-1119) and the shape whose region
+carries plaintext platform account strings (CS-1150). Both are left exactly as CS-828 left
+them.
+
+**FILED THIS CYCLE.** None. Every correction this cycle measured belongs to a row that
+already exists.
+
+**TIER AND EVIDENCE.** Tier 2 - the save-path property reader's public interface widened
+by a keyword and `TrailingRun` grew a field. Tests added: 25 in the new
+`tests/save/test_buildable_groups.py`, which reaches no save library at all - a declared
+departure from its five siblings, because `tests/save/test_trailing_run.py`'s sweep
+already grades the library half and a second sweep would re-walk the same saves to report
+the same population under another name. That sweep was updated to derive and pass the
+sixth vocabulary as a REQUIRED keyword, which is the shape that stops the CS-828
+third-partial-ship defect reappearing on this reading.
+`tests/test_repr_rendering.py`'s recorded population gained the two new entry classes,
+which is how that guard refuses a save-layer class that neither withholds nor is recorded.
+
+**WHAT REMAINS OPEN ON CS-828.** The nested structure CS-1119 owns and the
+disclosure-fenced shape CS-1150 owns. The clause says every payload of the three pairs.
+
+**CI IS RECORDED BY THE DRIVER AND WAS NOT OBSERVED BY THIS WORKER**, per the lane's
+section 2. The local counts are quoted in the cycle's wrap banner and were read from a
+file rather than from a pipe.
 ### 2026-09-19 - CS-1146 - CLOSED. Each tier 1 job's worst reading is graded against the budget, and the guard shard's breach is named
 
 **THE DEFECT.** CS-896's leaf derives three conditions over the levels. Writing `M`

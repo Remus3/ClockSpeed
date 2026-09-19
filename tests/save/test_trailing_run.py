@@ -289,6 +289,7 @@ def _run_of_record(  # noqa: PLR0913 - one keyword per derived remainder vocabul
     reference_list_classes: Mapping[str, int],
     transform_list_classes: Mapping[str, int],
     zero_remainder_classes: Collection[str],
+    buildable_group_classes: Collection[str],
 ) -> tuple[bool, objects.TrailingRun | None]:
     """Read one record's trailing run, or say the walk never reached one.
 
@@ -299,7 +300,7 @@ def _run_of_record(  # noqa: PLR0913 - one keyword per derived remainder vocabul
     would let a reader returning None for a whole class shrink the numerator and
     the denominator together and stay green.
 
-    **THE FIVE VOCABULARIES ARE REQUIRED KEYWORDS AND CARRY NO DEFAULT, WHICH IS
+    **THE SIX VOCABULARIES ARE REQUIRED KEYWORDS AND CARRY NO DEFAULT, WHICH IS
     THE POINT OF PASSING THEM AT ALL.** Every remainder reading CS-828 has
     shipped is gated on one, and :func:`objects.read_properties` defaults them
     all to empty - so a caller that simply forgets them gets a reader that declines
@@ -329,6 +330,8 @@ def _run_of_record(  # noqa: PLR0913 - one keyword per derived remainder vocabul
             off this body, each to the scalar width that derivation derived.
         zero_remainder_classes: The zero-remainder carrier classes derived off
             this body.
+        buildable_group_classes: The BUILDABLE GROUP LIST carrier classes
+            derived off this body.
 
     Returns:
         (whether the walk reached a terminator, the run the reader returned).
@@ -347,6 +350,7 @@ def _run_of_record(  # noqa: PLR0913 - one keyword per derived remainder vocabul
         reference_list_classes=reference_list_classes,
         transform_list_classes=transform_list_classes,
         zero_remainder_classes=zero_remainder_classes,
+        buildable_group_classes=buildable_group_classes,
     )
     refused = any(
         warning.code == objects.WARN_UNPARSED_PROPERTY_PAYLOAD for warning in result.warnings
@@ -402,6 +406,7 @@ class _Tally:
             or run.reference_list is not None
             or run.transform_list is not None
             or run.zero_remainder is not None
+            or run.buildable_groups is not None
         ):
             self.read_by_derivation[pair] += 1
         if run.unread:
@@ -503,6 +508,12 @@ def _sweep_trailing_runs() -> _RunSweep | None:
                 save_version=parsed.save_version,
                 header_version=parsed.header_version,
             )
+            buildable_group_classes = objects.derive_buildable_group_classes(
+                body,
+                table.records,
+                save_version=parsed.save_version,
+                header_version=parsed.header_version,
+            )
             for record in table.records:
                 terminated, run = _run_of_record(
                     body,
@@ -514,6 +525,7 @@ def _sweep_trailing_runs() -> _RunSweep | None:
                     reference_list_classes=reference_list_classes,
                     transform_list_classes=transform_list_classes,
                     zero_remainder_classes=zero_remainder_classes,
+                    buildable_group_classes=buildable_group_classes,
                 )
                 tally.add(pair, terminated, run)
         except (Exception, SystemExit) as exc:
