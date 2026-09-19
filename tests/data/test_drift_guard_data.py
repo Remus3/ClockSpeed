@@ -3706,9 +3706,9 @@ def test_a_dangling_link_makes_the_run_ungraded(
 def _tracked_tree(root: Path, monkeypatch: pytest.MonkeyPatch) -> list[Path]:
     """The charset tree, staged in a REAL throwaway index so enumeration takes the git path."""
     from tests import conftest  # noqa: PLC0415 - the one git runner the suite owns
-    from tests.git_env import REPO_LOCATING  # noqa: PLC0415
+    from tests.git_env import relocates  # noqa: PLC0415
 
-    for name in [key for key in os.environ if key.upper() in REPO_LOCATING]:
+    for name in [key for key in os.environ if relocates(key)]:
         monkeypatch.delenv(name)
     files = _charset_tree(root)
     for args in (("init", "--quiet"), ("add", "--", "a-note.md", "b_module.py")):

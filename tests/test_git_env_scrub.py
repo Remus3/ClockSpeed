@@ -181,3 +181,117 @@ def test_a_scrubbed_environment_keeps_a_config_write_inside_its_own_repository(
         "suite that is the shared config every worktree reads, and every commit "
         "made afterwards is attributed to a test fixture."
     )
+
+
+# --------------------------------------------------------------------------
+# CS-1154 - the second channel: config injected by `git -c`
+# --------------------------------------------------------------------------
+
+
+def hooked_throwaway(root: Path) -> Path:
+    """A repo whose REPO-LOCAL core.hooksPath points at a hook that refuses.
+
+    The hook is the oracle. A commit that succeeds here is a commit whose hook
+    never ran, and that is indistinguishable at the exit code from a gate that
+    examined the change and approved it.
+    """
+    root.mkdir()
+    assert plain_git("init", "-q", "-b", "main", cwd=root, env=scrubbed_env()).returncode == 0
+    for key, value in (
+        ("user.email", "gate@example.invalid"),
+        ("user.name", "Gate Test"),
+        ("commit.gpgsign", "false"),
+        ("core.hooksPath", "own-hooks"),
+    ):
+        assert plain_git("config", key, value, cwd=root, env=scrubbed_env()).returncode == 0
+    hooks = root / "own-hooks"
+    hooks.mkdir()
+    hook = hooks / "pre-commit"
+    hook.write_bytes(b"#!/bin/sh\nprintf 'refused by the repo-local hook\n' >&2\nexit 1\n")
+    hook.chmod(0o755)
+    (root / "seed.txt").write_bytes(b"seed\n")
+    assert plain_git("add", "seed.txt", cwd=root, env=scrubbed_env()).returncode == 0
+    seeded = plain_git("commit", "-q", "-m", "seed", "--no-verify", cwd=root, env=scrubbed_env())
+    assert seeded.returncode == 0, seeded.stderr
+    (root / "change.txt").write_bytes(b"change\n")
+    assert plain_git("add", "change.txt", cwd=root, env=scrubbed_env()).returncode == 0
+    return root
+
+
+def test_an_inherited_config_override_really_does_disarm_a_repo_local_hook(
+    tmp_path: Path,
+) -> None:
+    """CONTROL. `git -c` travels to every child as GIT_CONFIG_PARAMETERS.
+
+    It does the damage ON PURPOSE so the arm below is known to be asking a
+    question that has a wrong answer available. A command-line override OUTRANKS
+    repository configuration, so an inherited one re-points core.hooksPath at a
+    directory the throwaway repo does not have and the commit sails through with
+    no hook output on either stream - which reads exactly like a gate that ran
+    and approved.
+    """
+    repo = hooked_throwaway(tmp_path / "throwaway")
+    leaky = scrubbed_env()
+    leaky["GIT_CONFIG_PARAMETERS"] = "'core.hooksPath=absent-hooks'"
+
+    done = plain_git("commit", "-m", "change", cwd=repo, env=leaky)
+
+    assert done.returncode == 0, (
+        "an inherited GIT_CONFIG_PARAMETERS did not disarm the repo-local hook "
+        "on this toolchain, so the arm below cannot distinguish a working scrub "
+        "from a hook that was never armed"
+    )
+    assert "refused by the repo-local hook" not in done.stderr, (
+        "the hook ran anyway, so this control did no damage and proves nothing"
+    )
+
+
+def test_a_scrubbed_environment_leaves_a_repo_local_hook_armed(tmp_path: Path) -> None:
+    """THE ARM. The same commit, through the scrub, must still be refused.
+
+    CS-1154. `git -c core.hooksPath=.githooks push` exports its override to the
+    pre-push hook, the suite inherits it, and every throwaway repo in
+    tests/test_precommit_gate.py loses its hook - so the world-name PII arm
+    accepted a commit it exists to block, three pushes running, with an empty
+    stderr and no diagnostic anywhere.
+    """
+    repo = hooked_throwaway(tmp_path / "throwaway")
+    leaky = scrubbed_env()
+    leaky["GIT_CONFIG_PARAMETERS"] = "'core.hooksPath=absent-hooks'"
+
+    done = plain_git("commit", "-m", "change", cwd=repo, env=scrub(leaky))
+
+    assert done.returncode != 0, (
+        "a repo-local pre-commit hook was disarmed by an inherited command-line "
+        "override that the scrub let through. In the real suite that is every "
+        "gate arm in tests/test_precommit_gate.py reporting PASS over a hook "
+        "that never ran."
+    )
+    assert "refused by the repo-local hook" in done.stderr, done.stderr
+
+
+def test_the_scrub_removes_an_injected_config_override_in_every_spelling() -> None:
+    """The numbered pair form relocates identically and is not one fixed name.
+
+    GIT_CONFIG_COUNT with GIT_CONFIG_KEY_n / GIT_CONFIG_VALUE_n is the same
+    injection channel as GIT_CONFIG_PARAMETERS, so a scrub written as a fixed
+    set of names covers one spelling and leaves the other armed.
+    """
+    planted = {
+        "GIT_CONFIG_PARAMETERS": "'core.hooksPath=x'",
+        "GIT_CONFIG_COUNT": "1",
+        "GIT_CONFIG_KEY_0": "core.hooksPath",
+        "GIT_CONFIG_VALUE_0": "x",
+        "Git_Config_Parameters": "'core.hooksPath=y'",
+        "GIT_CONFIG_GLOBAL": "keep",
+        "GIT_CONFIG_SYSTEM": "keep",
+        "PATH": "keep",
+    }
+
+    scrubbed = scrub(dict(planted))
+
+    assert scrubbed == {
+        "GIT_CONFIG_GLOBAL": "keep",
+        "GIT_CONFIG_SYSTEM": "keep",
+        "PATH": "keep",
+    }, f"the scrub left an injected override behind: {sorted(scrubbed)}"

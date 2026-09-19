@@ -953,7 +953,7 @@ def _scrub_repo_locating_environment() -> None:
     """
     from tests import git_env  # noqa: PLC0415 - see the placement note above
 
-    for name in [key for key in os.environ if key.upper() in git_env.REPO_LOCATING]:
+    for name in [key for key in os.environ if git_env.relocates(key)]:
         del os.environ[name]
 
 

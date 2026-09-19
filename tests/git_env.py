@@ -63,8 +63,45 @@ REPO_LOCATING: Final[frozenset[str]] = frozenset(
 )
 
 
+#: Variables that inject CONFIGURATION rather than a location. ``git -c k=v``
+#: exports its overrides through these, and a command-line override OUTRANKS
+#: repository configuration - so a child that inherits one is configured by a
+#: caller it never heard from. CS-1154 measured the cost: ``git -c
+#: core.hooksPath=.githooks push`` handed that override to the pre-push suite,
+#: every throwaway repo in ``tests/test_precommit_gate.py`` lost its repo-local
+#: hook, and the world-name PII arm accepted the commit it exists to block with
+#: an empty stderr and no diagnostic anywhere.
+#:
+#: ``GIT_CONFIG_GLOBAL`` and ``GIT_CONFIG_SYSTEM`` are deliberately NOT here.
+#: They cut the operator's own configuration off rather than adding to it, and
+#: removing them would undo the isolation this module exists to protect.
+CONFIG_INJECTING: Final[frozenset[str]] = frozenset({"GIT_CONFIG_PARAMETERS", "GIT_CONFIG_COUNT"})
+
+#: The numbered pair form of the same channel. It is a PREFIX rather than a
+#: name, because ``GIT_CONFIG_COUNT=50`` means fifty distinct key names - a
+#: fixed set would cover the first and leave the rest armed.
+CONFIG_INJECTING_PREFIXES: Final[tuple[str, ...]] = ("GIT_CONFIG_KEY_", "GIT_CONFIG_VALUE_")
+
+
+def relocates(name: str) -> bool:
+    """Whether ``name`` points a git child somewhere its caller never named.
+
+    THE COMPARISON IS UPPER-CASED for the reason ``scrub`` states: Windows
+    folds environment keys, so a case-sensitive test measures nothing.
+    """
+    folded = name.upper()
+    if folded in REPO_LOCATING or folded in CONFIG_INJECTING:
+        return True
+    return folded.startswith(CONFIG_INJECTING_PREFIXES)
+
+
 def scrub(env: dict[str, str]) -> dict[str, str]:
-    """Return ``env`` with every repository-locating variable removed.
+    """Return ``env`` with every relocating variable removed.
+
+    Two channels, not one. ``REPO_LOCATING`` moves a child to a different
+    repository; ``CONFIG_INJECTING`` and its numbered prefixes reconfigure the
+    repository the child is already in. Both make a child answer about
+    something its caller never named, and the second one disarms hooks.
 
     THE COMPARISON IS UPPER-CASED, and that is not defensive noise. Windows
     folds environment keys and ``dict(os.environ)`` hands back upper-case ones,
@@ -80,7 +117,7 @@ def scrub(env: dict[str, str]) -> dict[str, str]:
     Returns:
         The same mapping, with the repository-locating variables gone.
     """
-    for name in [key for key in env if key.upper() in REPO_LOCATING]:
+    for name in [key for key in env if relocates(key)]:
         env.pop(name)
     return env
 

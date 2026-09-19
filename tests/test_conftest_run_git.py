@@ -326,3 +326,39 @@ def test_a_resolvable_program_that_raises_not_found_fails_rather_than_skips(
         subprocess.run([str(planted), "--version"], capture_output=True, check=False, timeout=30)
     monkeypatch.setattr(conftest, "RUN_GIT_PROGRAM", (str(planted),))
     _assert_start_fault_is_red(tmp_path, planted)
+
+
+def test_the_collection_time_scrub_removes_an_injected_config_override(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """CS-1154. The scrub conftest runs at COLLECTION must cover both channels.
+
+    This is the one that would have stopped the incident. ``git -c
+    core.hooksPath=.githooks push`` exports the override to the pre-push hook,
+    the whole suite inherits it, and every throwaway repo built afterwards is
+    configured by a caller it never heard from. A command-line override outranks
+    repository configuration, so the throwaway's own hook never runs and the
+    gate arms report success over a hook that was never armed.
+
+    The function is called DIRECTLY rather than re-imported: conftest scrubs at
+    import time, so by the time any test runs the import has already happened
+    and a second import would be a no-op that proves nothing.
+    """
+    from tests import conftest  # noqa: PLC0415 - the module under test here
+
+    monkeypatch.setenv("GIT_CONFIG_PARAMETERS", "'core.hooksPath=absent-hooks'")
+    monkeypatch.setenv("GIT_CONFIG_COUNT", "1")
+    monkeypatch.setenv("GIT_CONFIG_KEY_0", "core.hooksPath")
+    monkeypatch.setenv("GIT_CONFIG_VALUE_0", "absent-hooks")
+    monkeypatch.setenv("GIT_CONFIG_GLOBAL", "isolation-must-survive")
+
+    # SLF001 suppressed rather than worked around: the collection-time scrub is
+    # module-private by design and calling it is the only way to grade it.
+    conftest._scrub_repo_locating_environment()  # noqa: SLF001
+
+    left = sorted(key for key in os.environ if key.upper().startswith("GIT_CONFIG_"))
+    assert left == ["GIT_CONFIG_GLOBAL"], (
+        "the collection-time scrub left an injected config override behind, so "
+        "every throwaway repository built by this suite can be reconfigured by "
+        f"whatever ran it: {left}"
+    )

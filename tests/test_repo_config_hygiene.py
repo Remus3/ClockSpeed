@@ -96,8 +96,10 @@ REPO_LOCATING = frozenset(
 
 def scrubbed_env() -> dict[str, str]:
     """This process's environment with every repository-locating variable gone."""
+    from tests.git_env import relocates  # noqa: PLC0415
+
     env = dict(os.environ)
-    for name in [key for key in env if key.upper() in REPO_LOCATING]:
+    for name in [key for key in env if relocates(key)]:
         env.pop(name)
     return env
 
