@@ -41,9 +41,14 @@ remainder that reads at more than one width instead of taking the first, and
 
 **THE CARRYING CLASSES ARE DERIVED FROM THE CORPUS, NEVER TRANSCRIBED.** A
 hand-written vocabulary of game content is the thing that rots, and CS-829's
-note forbids exactly that shape.
-:func:`test_no_class_vocabulary_is_transcribed_into_the_shipped_reader` holds the
-shipped module to it.
+note forbids exactly that shape. **NO ARM HERE HOLDS THE SHIPPED MODULE TO
+THAT, AND A FIRST DRAFT OF THIS SENTENCE CLAIMED ONE DID** - this cycle's
+verifier measured the claim false and it is corrected rather than quietly
+dropped. What :func:`test_the_shipped_default_vocabulary_is_empty` asserts is
+the weaker thing it can: that the shipped DEFAULT is empty, so a caller that
+has not derived is handed no class at all. A module that added a transcribed
+allowlist beside it would still pass, and until an arm can see one, the fence
+is doctrine rather than a mechanism.
 
 THE LIBRARY HALF REPORTS COUNTS ONLY, contained exactly as
 ``tests/save/test_reference_pair.py`` contains its own: every step wrapped, every
@@ -594,8 +599,14 @@ def test_an_undeclared_vocabulary_leaves_the_remainder_where_cs_828_left_it() ->
     assert result.trailing_run.unread > 0
 
 
-def test_no_class_vocabulary_is_transcribed_into_the_shipped_reader() -> None:
-    """CS-829's note forbids a hand-maintained vocabulary of game content.
+def test_the_shipped_default_vocabulary_is_empty() -> None:
+    """The three shipped names exist and the DEFAULT vocabulary names no class.
+
+    **THIS IS NOT THE NO-TRANSCRIPTION FENCE AND MUST NOT BE CITED AS IT.** It
+    cannot see a hand-written allowlist added beside the default; what it sees
+    is that the default itself is empty, which is what makes `a caller that has
+    not derived reads what CS-828 left` a checked statement rather than a
+    promise.
 
     NEEDS NO SAVE LIBRARY - it is a claim about the shipped module's source.
     """

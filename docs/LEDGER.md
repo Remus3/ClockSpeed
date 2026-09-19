@@ -136,8 +136,10 @@ readers is NOT what keeps them apart; the refusal is.
 **THE SIBLING SWEEP, AND IT IS THE MOST REUSABLE THING THIS CYCLE PRODUCED.** The
 residual was re-measured before any code was written. Four blocks of CS-828's note and
 the shipped `UNMEASURED_PAYLOAD_REGIONS` entry describe what is left as ONE shape, a
-large nested structure. It is at least FIVE distinct grammars on the three pairs this
-item covers, of which the nested one carries the large majority. The reference list was
+large nested structure. It is SEVERAL distinct grammars on the three pairs this item
+covers, of which the nested one carries the large majority. No count is written
+here: this entry is prose, nothing machine-checks it, and CS-1149's acceptance
+is that the breakdown be DERIVED on every run instead. The reference list was
 picked because it is the one the existing family already had the primitives for; the
 correction to the recorded characterisation is FILED as CS-1149 rather than applied as a
 prose edit, because a prose sentence with no owner is exactly what rotted. The shipped

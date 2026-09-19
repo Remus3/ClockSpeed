@@ -1205,8 +1205,9 @@ shipped `UNMEASURED_PAYLOAD_REGIONS` entry describe what is left of the trailing
 run as ONE shape - "a remainder that is a large nested structure nothing in the
 run describes". That sentence was true of the LARGEST shape and was written as
 though it were true of the population. Re-measured this cycle over the three
-pairs CS-828 covers, the residual splits into at least FIVE distinct grammars,
-and the fifth cycle read one of them - a count-prefixed list of object
+pairs CS-828 covers, the residual splits into SEVERAL distinct grammars - the
+count is deliberately not written here, because a figure in prose with no owner
+is precisely the fault this row records - and the fifth cycle read one of them - a count-prefixed list of object
 references - without touching the nested structure at all. A residual described
 as one shape invites the next cycle to conclude that nothing short of the hard
 one is available, which is the opposite of what the bytes say.

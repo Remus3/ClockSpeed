@@ -325,8 +325,10 @@ guarantees no region is counted twice.
 **WHAT REMAINS, AND IT IS NOT ONE SHAPE.** Four blocks above this one - and the
 shipped region entry until this cycle - describe the residual as one shape, a
 large nested structure. Re-measured on the three pairs this item covers, the
-residual splits into at least FIVE distinct grammars, of which the nested one
-carries the large majority and this cycle's reading carried none of it. That
+residual splits into SEVERAL distinct grammars, of which the nested one carries
+the large majority and this cycle's reading carried none of it. The number is
+deliberately not written here - CS-1149 exists because no file owns that census
+and a figure in prose is the thing that rotted. That
 correction is filed as CS-1149 rather than fixed by editing a sentence, because
 a sentence is what was wrong: no file owns a census of the residual, and the
 library test reports it as one number per pair. CS-1119 still owns reading the
