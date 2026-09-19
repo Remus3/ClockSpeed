@@ -1113,9 +1113,9 @@ test derives the difference from git rather than from a list, so it cannot go st
 
 `tools/drift_guard.py::_walk` prunes DIRECTORIES and cannot express a file shape, so the
 walk over this repository returns 5 files `git ls-files` does not: measured 2026-09-19 at
-`a97200d`, they are `.claude/settings.local.json` and a stray root `.log` matched by `*.local.json`
-and `*.log`, two files under `docs/_scratch/` - closed by CS-1153 adding that directory -
-and `/ops/loop/config.json`, which is a FILE pattern. The `.log` is the one that matters:
+`a97200d`, they are a machine-local settings override and a stray root log, matched by the
+`*.local.json` and `*.log` shapes, two files under `docs/_scratch/` - closed by CS-1153
+adding that directory - and the headless lane's own config file, which is a FILE pattern. The `.log` is the one that matters:
 `.gitignore` classifies logs as potentially PII-bearing because "logs quote parsed data and
 can echo header bytes", which is the same classification CS-1153 cited as its motive, and
 the walk still hands it to the character-set and secret readers. CS-1153 closed the
