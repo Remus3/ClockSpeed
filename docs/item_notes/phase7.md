@@ -1100,3 +1100,13 @@ the uniqueness enforcement covers every needle-eligible fixture family rather th
 
 the fixture collision CS-1025 was filed over survives in two places the repair did not reach: `tests/audit/test_placement.py` still holds, at module level, `PLANTED_ROTATION = (0.5, -0.25, 0.125, 0.8125)` and `PLANTED_SCALE = (2.0, 0.5, -1.5)`, byte-identical to the pre-fix constants and colliding on the same rendering, feeding the membership-based anti-vacuity control inside `test_no_orientation_component_reaches_the_model_as_a_float` where one of seven needles is non-load-bearing; and in `tests/surface/test_map.py` the TRANSLATION components are needle-eligible but unswept, with `BUILT_TRANSLATION[0]` deliberately ambiguous at a count of two - no mutant was found for either, so both are weakened rather than defeated, but a future author writing an anti-vacuity control off a translation walks into the identical trap and the new uniqueness sweep will not see it
 
+
+## CS-1153
+
+### Acceptance
+
+`tools/drift_guard.py::_walk` prunes the gitignored roots it can reach - at minimum `.claude/worktrees/`, `certs/`, `corpus/`, `work/` and `moon_sync_inbox/` - by its own rule rather than by never being reached, and a test drives `_walk` DIRECTLY against a tree holding a populated `.claude/worktrees/` and a `work/` copy and asserts neither is entered, so the guarantee survives a caller that bypasses `enumerate_files`
+
+### Full headline
+
+`tools/drift_guard.py:473 _walk()` prunes only `WALK_SKIP_DIRS` plus, at the root level alone, `WALK_SKIP_ROOT_DIRS`, which is `frozenset({"data"})` - one entry - so `.claude/worktrees/` (2038 files, 206 MB measured 2026-09-19), `certs/`, `corpus/`, `work/` and `moon_sync_inbox/` are all reachable by the walk, and the last three are PII-bearing by this repo's own classification; it does not happen today only because `enumerate_files()` PREFERS the git index via `_git_ls_files(root)` and falls back to `_walk` only when the index yields nothing, which on a populated repo is never, so the pruning is done by the ENUMERATION STRATEGY and nothing states that dependency at `_walk` itself - a future caller reaching `_walk` directly, or an index lookup that ever fails soft, walks a PII tree and a 2038-file worktree copy with no guard, and the sibling walker `tools/doc_budget.py:435` already carries the correct shape (`_is_checkout_root` plus `_is_registered_worktree`, CS-1115) so the fix has a model in-tree
