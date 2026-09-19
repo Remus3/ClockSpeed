@@ -61,6 +61,13 @@ out of the `CS-8nn` and `CS-9nn` block names in the prose below. They are classi
 rather than argued away, because the population is whatever the scan LITERALLY finds and
 an exception carved for a cosmetic case is the first hole in an allowlist.
 
+CS-1157 is MENTIONED for a reason worth stating, because it is the first id here that
+names a MECHANISM rather than a number in prose. Clause 3 of CS-G03 cites the frozen-file
+grant that set the two attribution keys, and that grant's id is CS-1157 - a CLOSED item,
+recorded in `docs/LEDGER.md`, blocked by nothing. Dropping the id to keep the scan quiet
+would have cost the traceability the citation exists for, and narrowing the scan is the
+repair this file's own guard forbids.
+
 The four rows carried at the end of the block are MENTIONED here **on purpose and with
 nothing else riding on it**. They are the four that commit `7fbe529` unfenced by deleting
 their numbers from gate prose; naming and classifying them pins that decision in a form a
@@ -95,6 +102,7 @@ gate: CS-1040 MENTIONED
 gate: CS-1044 MENTIONED
 gate: CS-1047 MENTIONED
 gate: CS-1048 MENTIONED
+gate: CS-1157 MENTIONED
 CLOCKSPEED-GATE-CLASSIFICATION END
 ```
 
