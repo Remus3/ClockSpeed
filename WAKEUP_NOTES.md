@@ -69,10 +69,18 @@ the line becomes a pointer.
 - Failed paths: `pytest_collectreport` written as a `hookimpl(wrapper=True)` raises
   INTERNALERROR - that hook is HANDED a report rather than building one, so the yield gives
   the hook's combined result, a list. Use `tryfirst` and mutate in place. Also: a
-  `Start-Process ... -NoNewWindow` suite dies with the tool call that launched it; use
-  `-WindowStyle Hidden` for anything that must outlive the call.
+  `Start-Process ... -NoNewWindow` suite dies with the tool call that launched it, and so
+  does one launched and awaited in the SAME call once the 10-minute cap fires - launch in
+  one call, wait in the next, `-WindowStyle Hidden`.
 
-- Next action: read the tier1 CI status for the pushed tip, then pick the next ROADMAP item.
+- THE ONE THAT COST A CI CYCLE. A CS-1156 control asserted `ALLUSERSPROFILE` appeared in a
+  child report, to prove the environment dict had reached it. That variable exists on every
+  Windows machine and on no ubuntu runner, so the whole suite was green here at 9143 passed
+  and tier 1 went red on three arms for a reason with nothing to do with redaction. A
+  control naming a platform-specific VALUE grades the platform, not the mechanism. The
+  marker is a frame local's NAME now - the channel the secret travels through.
+
+- Next action: pick up CS-1155, whose note already carries a measured reproduction.
 
 ---
 ## Session 107 - 2026-09-19 - an operator-directed machine stray-work sweep, and the one defect it turned up

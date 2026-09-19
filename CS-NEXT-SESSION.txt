@@ -29,9 +29,12 @@ SESSION 108 FILED AND LEFT OPEN:
   the same classification CS-1153 cited as its motive. Acceptance is in
   docs/item_notes/phase7.md under CS-1155.
 
-THE SINGLE NEXT ACTION: read the tier1 CI status for the tip. If it is
-green, pick the next ROADMAP item - CS-1155 is the freshest and has a
-measured reproduction already written into its note.
+THE SINGLE NEXT ACTION: pick up CS-1155. Its note already carries a
+measured reproduction, so the first move is a failing test rather than
+an investigation. Confirm the tier1 status of the tip first anyway -
+session 108's last recorded run was GREEN, but a later push from the
+lane or a sibling may have moved it, and a status you did not read is
+not a status.
 
 DO NOT RE-LITIGATE:
 - THE TRAILER IS SOLVED AT SOURCE. .claude/settings.json (FROZEN, under
@@ -79,6 +82,15 @@ MEASUREMENT TRAPS THIS SESSION MEASURED - THEY WILL BITE AGAIN:
   INTERNALERROR. That hook is HANDED a report rather than building one,
   so the yield gives the hook's combined result - a list. Use tryfirst
   and mutate in place. pytest_runtest_makereport is the wrapper.
+- A CONTROL THAT NAMES A PLATFORM-SPECIFIC VALUE GRADES THE PLATFORM.
+  A CS-1156 arm asserted ALLUSERSPROFILE appeared in a child report, to
+  prove the environment dict had reached it. Every Windows environment
+  carries that variable and NO ubuntu runner does, so the whole-suite
+  run here was green at 9143 passed and tier 1 went red on ubuntu on
+  three arms, for a reason with nothing to do with the mechanism. The
+  marker is the name of a FRAME LOCAL now - the channel the secret
+  actually travels through. Before writing any control, ask which
+  platform its value exists on.
 - A superset assertion over a skip list cannot see an OVER-BROAD prune.
   Grade the weakest member against an independent authority, not the
   population against itself.
@@ -118,5 +130,5 @@ OPEN CHANNEL BUSINESS (no action required to proceed):
 
 NOTHING CONTRADICTED BOOTSTRAP.md THIS SESSION.
 
-EXTERNAL CONDITION BEING WAITED ON: the tier1 CI run for the tip, and
-the sibling replies above.
+EXTERNAL CONDITION BEING WAITED ON: the sibling replies above. The
+tier1 run session 108 pushed came back GREEN and is no longer pending.
