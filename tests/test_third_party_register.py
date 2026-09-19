@@ -199,8 +199,9 @@ def _byte_pinned_paths() -> list[str]:
         except ImportError as exc:  # pragma: no cover - a deleted pin module
             raise AssertionError(
                 f"{module_name} is rostered as the byte pin for a vendored file "
-                f"and cannot be imported: {exc}. A vendored file whose pin has "
-                "gone is not a file that stopped being vendored."
+                f"and cannot be imported - ImportError on {exc.name!r}. A "
+                "vendored file whose pin has gone is not a file that stopped "
+                "being vendored."
             ) from exc
         path = getattr(module, attribute, None)
         assert isinstance(path, Path), (
