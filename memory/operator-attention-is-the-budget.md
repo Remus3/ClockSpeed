@@ -46,3 +46,32 @@ background instead of blocking the main thread. When reporting, lead with what c
 what needs a decision; leave the transcript behind.
 
 Related: [[orchestrated-multi-agent-is-the-default]], [[verification-failure-classes]].
+
+## The main session is the operator's window, not a log
+
+Every session is CAVEMAN-ULTRA in the main transcript. The operator watches several
+projects side by side, so prose there costs attention on both ends and buries the thing
+being decided.
+
+- **The CHECKLIST is BATCHED, not continuous.** Refined by the operator 2026-09-20 after
+  a session emitted one per finding. Print it at exactly three moments: at SESSION START,
+  once at least FOUR tasks have completed since the last one, and as the PRE-FLIGHT of
+  `/done` before clearing. Also print it on demand when the operator OR an agent asks for
+  status - that answer is the checklist, never prose. It carries what is DONE this
+  session, what is STILL OPEN, and what was ADDED or RETRACTED as things moved.
+- **Do NOT narrate an item as it finishes**, and do not write a session review, a summary
+  of what was learned, or commentary on the work. Finishing a task is not an event worth a
+  turn. Let the tool-call labels carry it and fold the result into the next batched
+  checklist.
+- **Every action, bash call, tool call and agent dispatch carries an expected duration in
+  its label**, e.g. `(22m)`. The panel shows elapsed only, so the estimate is the only
+  thing that makes a wait legible.
+- Narration belongs in a tool call's `description` field, which renders as the visible
+  label and costs nothing in the response body. Long findings go to a file, a ledger entry
+  or an item note - never into chat.
+- SUBAGENT FIRST. The main session holds the plan and the seams, not the implementations.
+- Keep the chat session's own context in mind: run `/done` and clear when appropriate,
+  unless running in the background headless lane.
+
+Related: [[full-authority-adjudicate-do-not-ask]],
+[[orchestrated-multi-agent-is-the-default]].

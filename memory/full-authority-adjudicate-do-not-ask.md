@@ -58,3 +58,36 @@ about what happened. Every action, bash call, tool call and agent dispatch carri
 expected duration in its label.
 
 Related: [[operator-attention-is-the-budget]], [[orchestrated-multi-agent-is-the-default]].
+
+## The grant is REAFFIRMED AND WIDENED
+
+**Reaffirmed 2026-09-20 by operator directive, session 110.** The operator restated this
+grant verbatim in substance and asked, a second time, not to have to repeat it. It carries to EVERY session shape for this repository from this point
+forward: interactive, headless, headless laned, headless laned with siblings. Treat a
+further restatement as evidence this file was not read.
+
+**The track record is the argument, and the operator made it explicitly.** Across the five
+sibling projects and thousands of commits, the acceptance rate of the recommended choice
+is close to 100 per cent, and the operator's replies are overwhelmingly continue, go
+ahead, proceed. So the expected value of stopping to ask is near zero and its cost is a
+whole turn of operator attention. ACT ON THE BEST RECOMMENDATION IMMEDIATELY. The operator
+intervenes by typing into the main session, which is always open to them; that is the
+control, not a pre-approval gate.
+
+**Anything phrased as "I will not do this without operator approval" is a defect.** Route
+it to an adjudicator and take the best recommendation in the same turn. This covers
+commits, pushes, frozen files, restarts and sends.
+
+**NOTHING STAYS UNCOMMITTED OR UNPUSHED.** Commit and push as a matter of course. Be smart
+about batching for multi-session work so CI waits overlap with other work rather than
+blocking it - remembering that CI runs only the TIP of a push, so a batch leaves its
+intermediate commits untested.
+
+## The main session is the operator's window, not a log
+
+Output discipline - the batched checklist, the duration labels, subagent-first,
+and what never reaches the transcript - is owned by
+[[operator-attention-is-the-budget]]. It was relocated there when this file hit its
+size budget; nothing was dropped.
+
+Related: [[operator-attention-is-the-budget]], [[orchestrated-multi-agent-is-the-default]].
