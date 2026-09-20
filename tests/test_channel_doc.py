@@ -2,7 +2,7 @@
 """CS-1095 - the vendored cross-repo channel conventions doc, byte-pinned.
 
 ``docs/CHANNEL.md`` is VENDORED, not authored here. The same bytes sit at the
-same relative path in five participating repositories, and the doc's own
+same relative path in five CARRYING repositories, and the doc's own
 section 9 makes the pin a joint act: a byte change without a CHANNEL_VERSION
 bump, or a bump without a re-pin, is red by construction because this module
 binds the two together.
@@ -24,10 +24,19 @@ hard-imports tooling that exists in exactly one repository, so vendoring it
 would import a dependency this tree does not have in order to check a document
 that needs none.
 
+A CARRIER IS NOT A PARTICIPANT, and at CHANNEL_VERSION 2 the two counts stop
+being equal: the roster is SIX and the carrier set is FIVE. SS is on the roster
+and holds no copy of this file, so it re-pins nothing and is waited on by
+nothing. Every count in this module is a CARRIER count - the pin is a fact
+about trees that hold the bytes. They were equal at CHANNEL_VERSION 1, which is
+why the v1 text of this module could say "five" without saying which five it
+meant; that sentence has been made explicit rather than left to be reread
+wrongly at the next bump.
+
 THE DIGEST IS OVER LF-NORMALISED BYTES, not raw bytes, and that is the channel's
 choice rather than this tree's. Not every participant pins markdown to LF in
 its attributes file, so a raw-byte pin would be red in a tree whose working copy
-checks out CRLF even though all five git blobs are identical. This tree DOES
+checks out CRLF even though all five carriers' git blobs are identical. This tree DOES
 pin ``*.md text eol=lf``, which is what makes arm 3 - zero CR bytes - a valid
 arm here; arm 3 asserts that precondition itself rather than assuming it, so
 the arm cannot quietly become a statement about somebody's checkout.
@@ -52,12 +61,12 @@ CHANNEL_DOC = REPO_ROOT / "docs" / "CHANNEL.md"
 #: labelled as a key, a token or a secret: the channel's own convention 1
 #: records that a credential scanner in at least one participating tree
 #: refuses that shape on a 32-plus hex run.
-CHANNEL_DIGEST = "899f6eb957cc26ee25993d83d65d8ca291841fe4eec24a48f729c2dc005f4c6b"
+CHANNEL_DIGEST = "fc22e86eebe93bb247a91f44835257a3fe717a287c4a3184a8e7a7b9a463fb9c"
 
 #: The version the vendored bytes declare. Bound to the digest above by
 #: arm 4 plus arm 2, which is the "red by construction" the doc's section 9
 #: describes.
-CHANNEL_VERSION = 1
+CHANNEL_VERSION = 2
 
 #: The attributes rule arm 3 rests on.
 MARKDOWN_LF_RULE = re.compile(r"^\*\.md\s+text\s+eol=lf\s*$", re.MULTILINE)
@@ -195,7 +204,8 @@ RESOLVED_REPO_PATHS = ["docs/CHANNEL.md"]
 #
 # CS-1095 REPAIR. The arm graded the table's SHAPE and not its CONTENT: column
 # count, row count, the Shape column, verdict MEMBERSHIP and a backticked
-# column 0 - never four of the seven columns. Replayed over mutated text it
+# column 0 - never four of the SEVEN columns the v1 table had. Replayed over
+# mutated text it
 # measured GREEN on a garbled PRIMARY vector, a garbled Variant A vector, a
 # swapped pair of vectors, a PRIMARY verdict flipped ADMIT to REFUSE, and all
 # four responder columns blanked on every row. Only a deleted separator row
@@ -206,19 +216,46 @@ RESOLVED_REPO_PATHS = ["docs/CHANNEL.md"]
 # and a hand-copied table is most likely to be mangled. That is the one moment
 # this arm is ever load-bearing, so the roster below pins every cell.
 #
+# CS-1164: THAT MOMENT ARRIVED and the prediction held. The v2 table gained an
+# eighth column and the roster was re-transcribed whole. Two gaps the CS-1095
+# repair left, both measured at this bump rather than reasoned about:
+#   - The ROSTER's own row width was ungraded. A roster tuple narrowed to seven
+#     cells was caught only by the whole-table diff, which renders the fault as
+#     one absent cell inside a two-thousand-character message. TABLE_VECTOR_WIDTH
+#     below names it instead, in the same beside-the-roster idiom as TABLE_ROWS.
+#   - The HEADER's middle columns were ungraded: the arm read header[0],
+#     header[-1] and the length, so a renamed or reordered responder column was
+#     invisible. At v1 that was cosmetic. At v2 the header IS the carrier
+#     roster, so TABLE_HEADER pins it.
+#
 # TABLE_ROWS is kept BESIDE the roster as its size and asserted against it: on
 # this project a member goes absent exactly where a count miscounts.
 # ---------------------------------------------------------------------------
 
 TABLE_HEADING = "### Filename grammar table"
-TABLE_COLUMNS = 7
+TABLE_COLUMNS = 8
+
+#: The header row verbatim. It is not decoration: columns 1 through 6 name the
+#: grading tree and its responders, so this row is where the table records WHO
+#: the carriers are. SS is the sixth roster member and holds no copy, which is
+#: why its column exists and why every cell under it reads UNMEASURED.
+TABLE_HEADER = ("Example", "RC gate 6", "RSC", "LW", "CS", "LL", "SS", "Shape")
+
+#: The width every pinned roster tuple must have, asserted against the roster
+#: BEFORE the roster is compared to the table - see the CS-1164 note above.
+TABLE_VECTOR_WIDTH = TABLE_COLUMNS
 TABLE_ROWS = 4
 TABLE_SHAPES = ("PRIMARY", "Variant A", "Variant B", "Variant C")
 TABLE_VERDICTS = frozenset({"ADMIT", "REFUSE"})
 
 #: Every cell of every body row, in file order, exactly as the vendored bytes
-#: spell them - vector, the RC gate 6 verdict, the four responder columns, and
+#: spell them - vector, the RC gate 6 verdict, the FIVE responder columns, and
 #: the shape. Transcribed from this tree's own disk at the pinned digest.
+#:
+#: The fifth responder column arrived at CHANNEL_VERSION 2 and is SS's, whose
+#: every cell reads UNMEASURED: SS is a roster PARTICIPANT that carries no copy
+#: of this document, so the table records that its behaviour was never measured
+#: rather than asserting a verdict nobody took.
 TABLE_VECTORS = (
     (
         "`2026-09-15-0930-from-RC-FYI-example-topic.md`",
@@ -227,6 +264,7 @@ TABLE_VECTORS = (
         "any entry",
         "no responder",
         "no responder",
+        "UNMEASURED",
         "PRIMARY",
     ),
     (
@@ -236,6 +274,7 @@ TABLE_VECTORS = (
         "any entry",
         "no responder",
         "no responder",
+        "UNMEASURED",
         "Variant A",
     ),
     (
@@ -245,6 +284,7 @@ TABLE_VECTORS = (
         "any entry",
         "no responder",
         "no responder",
+        "UNMEASURED",
         "Variant B",
     ),
     (
@@ -254,6 +294,7 @@ TABLE_VECTORS = (
         "any entry",
         "no responder",
         "no responder",
+        "UNMEASURED",
         "Variant C",
     ),
 )
@@ -369,7 +410,8 @@ def test_the_lf_normalised_digest_matches_the_pin() -> None:
     assert measured == CHANNEL_DIGEST, (
         "the vendored doc's LF-normalised sha256 has moved off the pin. Do NOT "
         "edit the document to get past this: these bytes are byte-identical in "
-        "five repositories and a local edit makes this tree the one that "
+        "the five CARRYING repositories and a local edit makes this tree the one "
+        "that "
         "disagrees. A genuine channel re-pin arrives as a note naming a new "
         f"CHANNEL_VERSION. measured={measured} pinned={CHANNEL_DIGEST}"
     )
@@ -575,10 +617,14 @@ def test_the_filename_variant_table_is_present_and_parses() -> None:
     assert rows, "the filename grammar table has no rows"
 
     header, separator, *body = rows
-    assert header[0] == "Example", f"the table's first column is {header[0]!r}, not 'Example'"
-    assert header[-1] == "Shape", f"the table's last column is {header[-1]!r}, not 'Shape'"
     assert len(header) == TABLE_COLUMNS, (
         f"the table declares {len(header)} columns, not {TABLE_COLUMNS}: {header}"
+    )
+    assert tuple(header) == TABLE_HEADER, (
+        "the grammar table's header row has moved off the pin. Columns 1 through "
+        "6 name the carriers, so a renamed, reordered or dropped responder column "
+        "silently changes whose verdict every cell below it records. "
+        f"measured={header} pinned={list(TABLE_HEADER)}"
     )
     assert all(set(cell) <= set("-: ") for cell in separator), (
         f"the row under the table header is not a separator: {separator}"
@@ -607,6 +653,13 @@ def test_the_filename_variant_table_is_present_and_parses() -> None:
     assert len(TABLE_VECTORS) == TABLE_ROWS, (
         f"the pinned roster holds {len(TABLE_VECTORS)} vectors while TABLE_ROWS "
         f"says {TABLE_ROWS}; the roster and its size have drifted apart"
+    )
+    ragged = [vector for vector in TABLE_VECTORS if len(vector) != TABLE_VECTOR_WIDTH]
+    assert ragged == [], (
+        f"a PINNED roster tuple is not {TABLE_VECTOR_WIDTH} cells wide. Graded "
+        "here rather than left to the content compare below, which renders a "
+        "dropped cell as one absent entry inside the whole table: "
+        f"{[(len(v), v) for v in ragged]}"
     )
     measured = [tuple(row) for row in body]
     assert measured == list(TABLE_VECTORS), (
