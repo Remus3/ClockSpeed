@@ -41,10 +41,12 @@ from __future__ import annotations
 import importlib.util
 import io
 import json
+import re
+import shlex
 import shutil
 import subprocess
 import sys
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from types import ModuleType
 from typing import Any
 
@@ -639,4 +641,233 @@ def test_the_configured_interpreter_can_actually_be_resolved() -> None:
     assert interpreter, "PreToolUse has no command"
     assert shutil.which(interpreter) is not None, (
         f"settings.json names interpreter {interpreter!r}, which is not on PATH"
+    )
+
+
+# --------------------------------------------------------------------------
+# h. the hook commands find their script from ANY working directory (CS-1159)
+# --------------------------------------------------------------------------
+#
+# MEASURED, not theorised. Once a session's cwd moved to a subdirectory of the
+# repository, every Bash and PowerShell call - in the main session and in four
+# dispatched subagents - was DENIED before it ran, with
+# `can't open file '<cwd>\tools\pretooluse_gate.py'`. The wrapper's fail-open
+# branch cannot help: it lives INSIDE a script the interpreter never opened,
+# and CPython's missing-file status is 2, which the harness reads as a deny.
+#
+# EVERY ARM BELOW IS WORKING-DIRECTORY INDEPENDENT BY CONSTRUCTION. Each one
+# reads the command string out of settings.json, expands `$CLAUDE_PROJECT_DIR`
+# ITSELF, and spawns from tmp_path - a directory that is deliberately NOT the
+# repository root. So they grade the command string's cwd-independence, and
+# they are silent on whether this particular harness expands the variable;
+# that half is an observation, recorded under CS-1159, not an assertion here.
+
+# How many python hook scripts this repository wires. The anchoring arm
+# refuses to report PASS while examining fewer than this - a rename that
+# hid a command from it would otherwise go green having checked nothing.
+PYTHON_HOOK_SCRIPTS = 2
+
+PROJECT_DIR_ANCHOR = "$CLAUDE_PROJECT_DIR"
+FILE_PATHS_PLACEHOLDER = "$CLAUDE_FILE_PATHS"
+
+# An absolute path that names a drive root or a home directory would ALSO make
+# these arms green while violating CLAUDE.md non-negotiable 3. Pinned as data
+# so the anchoring arm refuses that repair rather than rewarding it.
+DRIVE_LETTER_ROOT = re.compile(r"^[A-Za-z]:[\\/]")
+HOME_SEGMENTS = ("/users/", "\\users\\", "/home/", "\\home\\", "%userprofile%", "$home", "~/")
+
+
+def hook_commands(event: str) -> list[str]:
+    """Every command string wired under one hook event, in file order."""
+    config = json.loads(SETTINGS.read_bytes().decode("utf-8"))
+    entries = config["hooks"][event]
+    return [hook["command"] for entry in entries for hook in entry["hooks"]]
+
+
+def resolve_hook_argv(command: str) -> list[str]:
+    """Turn a settings.json hook command into an argv this test can spawn.
+
+    `$CLAUDE_PROJECT_DIR` is expanded HERE, by the test, which is the whole
+    point: the arm then measures the command string, not the harness.
+
+    The interpreter token is resolved separately and falls back to the running
+    interpreter rather than skipping. A skip would report PASS while checking
+    nothing, and the subject of these arms is the SCRIPT path, not the
+    interpreter - which test_the_configured_interpreter_can_actually_be_resolved
+    already owns.
+    """
+    tokens = shlex.split(command, posix=True)
+    assert tokens, f"hook command is empty: {command!r}"
+    resolved = [token.replace(PROJECT_DIR_ANCHOR, str(REPO_ROOT)) for token in tokens]
+    resolved[0] = shutil.which(resolved[0]) or sys.executable
+    reject_unanchored_script(resolved)
+    return resolved
+
+
+def reject_unanchored_script(argv: list[str]) -> None:
+    """Refuse to spawn an argv whose script token is not a real file.
+
+    ANTI-TRAP, and it is not hypothetical - a sibling repository measured it.
+    When the anchor variable is UNSET the path expands with a LEADING SLASH,
+    MSYS rewrites that to the Git install directory, and the interpreter then
+    reports "can't open file" naming somewhere under Program Files. That wears
+    the same status and nearly the same sentence as the working-directory
+    fault these arms exist for, so an arm that did not separate them could
+    report a working fix broken, or a broken one working.
+
+    Here the arms expand the anchor THEMSELVES, so the shape cannot arise from
+    the harness - but a mistyped or unexpanded anchor in settings.json could
+    produce it, and this refuses that rather than reading it as a cwd fault.
+    """
+    script = next((token for token in argv if token.endswith(".py")), "")
+    assert script, f"no python script in the hook argv: {argv}"
+    probe = Path(script) if Path(script).is_absolute() else REPO_ROOT / script
+    assert probe.is_file(), (
+        "the hook's script token does not name a real file, so a spawn would "
+        "produce a can't-open-file that says nothing about the working "
+        "directory. Check the anchor itself before reading the result as a "
+        f"cwd fault: token={script!r} probed={probe}"
+    )
+
+
+def run_hook_argv(argv: list[str], payload: bytes, cwd: Path) -> subprocess.CompletedProcess[str]:
+    """Spawn a resolved hook argv from an explicitly supplied foreign cwd."""
+    proc = subprocess.run(
+        argv,
+        input=payload,
+        capture_output=True,
+        cwd=str(cwd),
+        timeout=TIMEOUT,
+        check=False,
+    )
+    return subprocess.CompletedProcess(
+        proc.args,
+        proc.returncode,
+        proc.stdout.decode("utf-8", "replace"),
+        proc.stderr.decode("utf-8", "replace"),
+    )
+
+
+def test_the_pretooluse_command_opens_its_script_from_a_foreign_cwd(tmp_path: Path) -> None:
+    """The defect, stated as the thing that must not happen.
+
+    ASSERTED ON THE MESSAGE, not on the status. Exit 2 is not self-evidencing
+    here of all places - it is simultaneously CPython's could-not-open-script
+    status and the harness's deny code, so a status-only arm cannot tell a
+    working gate from an absent one. The interpreter names the file, and that
+    name is the evidence.
+    """
+    command = hook_commands("PreToolUse")[0]
+    proc = run_hook_argv(
+        resolve_hook_argv(command),
+        json.dumps(envelope("git status --short")).encode("utf-8"),
+        tmp_path,
+    )
+    assert INTERPRETER_START_FAILURE not in proc.stderr, (
+        "the PreToolUse command resolves its script RELATIVE TO THE WORKING "
+        "DIRECTORY, so from any cwd but the repository root the interpreter "
+        "never opened it - and its status 2 reads as a DENY of every shell "
+        f"call. command={command!r} stderr={proc.stderr.strip()}"
+    )
+    assert proc.returncode == 0, (
+        f"a benign command was not allowed. rc={proc.returncode} "
+        f"stdout={proc.stdout!r} stderr={proc.stderr!r}"
+    )
+
+
+def test_the_anchored_pretooluse_command_passes_and_still_denies(tmp_path: Path) -> None:
+    """Both halves, because either alone is satisfied by a broken hook.
+
+    A command that always exits 0 passes the benign half - and disarms the
+    gate. A command whose script cannot be opened exits 2 on everything and
+    passes the deny half. Only the pair says the script was reached AND ran.
+    """
+    argv = resolve_hook_argv(hook_commands("PreToolUse")[0])
+
+    benign = run_hook_argv(
+        argv, json.dumps(envelope("git status --short")).encode("utf-8"), tmp_path
+    )
+    assert INTERPRETER_START_FAILURE not in benign.stderr, benign.stderr
+    assert benign.returncode == 0, benign.stderr
+    assert "PASS" in benign.stdout, benign.stdout
+
+    violation = run_hook_argv(
+        argv, json.dumps(envelope("echo " + EM_DASH)).encode("utf-8"), tmp_path
+    )
+    assert INTERPRETER_START_FAILURE not in violation.stderr, violation.stderr
+    assert violation.returncode == DENY, (
+        "the anchor silenced the gate: a literal em dash was allowed through "
+        f"with rc={violation.returncode}. stderr={violation.stderr!r}"
+    )
+    assert "CHARSET" in violation.stderr, violation.stderr
+    assert "U+2014" in violation.stderr, violation.stderr
+    assert "DENIED" in violation.stderr, violation.stderr
+
+
+def test_the_posttooluse_command_opens_its_script_from_a_foreign_cwd(tmp_path: Path) -> None:
+    """The twin of the two arms above, for the other hook event.
+
+    It gets its own arm rather than being argued as covered: the two commands
+    are separate strings in separate objects, and a repair that anchored one
+    and not the other is exactly the half-repair this item exists to prevent.
+    """
+    command = hook_commands("PostToolUse")[0]
+    edited = tmp_path / "cs1159_edited.py"
+    edited.write_bytes(b'"""A clean module, so the only finding can be the hook."""\n')
+    argv = [
+        token.replace(FILE_PATHS_PLACEHOLDER, str(edited)) for token in resolve_hook_argv(command)
+    ]
+
+    proc = run_hook_argv(argv, b"", tmp_path)
+    assert INTERPRETER_START_FAILURE not in proc.stderr, (
+        "the PostToolUse command resolves its script RELATIVE TO THE WORKING "
+        f"DIRECTORY. command={command!r} stderr={proc.stderr.strip()}"
+    )
+    assert proc.returncode == 0, (
+        f"a clean edited file was not allowed. rc={proc.returncode} "
+        f"stdout={proc.stdout!r} stderr={proc.stderr!r}"
+    )
+
+
+def test_no_python_hook_command_anywhere_is_cwd_relative() -> None:
+    """Generalised past the two strings this item repaired.
+
+    A third hook added later cannot reintroduce the defect without turning
+    this red, and the second half refuses the other way of going green: a
+    hardcoded absolute path under a drive root or a home directory, which
+    CLAUDE.md non-negotiable 3 forbids outright.
+    """
+    examined: list[str] = []
+    cwd_relative: list[str] = []
+    hardcoded: list[str] = []
+
+    for event in ("PreToolUse", "PostToolUse"):
+        for command in hook_commands(event):
+            for token in shlex.split(command, posix=True):
+                lowered = token.lower()
+                if DRIVE_LETTER_ROOT.match(token) or any(
+                    segment in lowered for segment in HOME_SEGMENTS
+                ):
+                    hardcoded.append(f"{event}: {command}")
+                if not token.endswith(".py"):
+                    continue
+                examined.append(f"{event}: {token}")
+                anchored = (
+                    token.startswith(PROJECT_DIR_ANCHOR) or PurePosixPath(token).is_absolute()
+                )
+                if not anchored:
+                    cwd_relative.append(f"{event}: {command}")
+
+    assert len(examined) >= PYTHON_HOOK_SCRIPTS, (
+        "this arm found fewer than the two python hook commands this "
+        f"repository wires, so it is checking nothing: {examined}"
+    )
+    assert not cwd_relative, (
+        "a python hook script is named relative to the working directory, so "
+        "it vanishes the moment the session cwd moves. Anchor it with "
+        f"{PROJECT_DIR_ANCHOR}: {cwd_relative}"
+    )
+    assert not hardcoded, (
+        "a hook command hardcodes a drive root or a home directory, which "
+        f"CLAUDE.md non-negotiable 3 forbids: {hardcoded}"
     )

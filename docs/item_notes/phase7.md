@@ -1128,3 +1128,52 @@ whether a FILENAME is personal data under this repository's own classification, 
 CLAUDE.md does not say in either direction - if the answer is yes for a `.sav` it is
 arguably yes for every path under a directory named for the player, and the answer belongs
 in an ADR rather than in a redaction call site
+## CS-1160
+
+### Acceptance
+
+the fork record for `ops/loop/winmutex.py` either cites an upstream digest that some file
+on this machine actually carries, or states in the file that the upstream it was forked
+from is GONE and gives the date that was measured - and a test grades the claim rather
+than the string, so a provenance line that has rotted cannot read as green. The test must
+distinguish the two states it can be in: an upstream that is REACHABLE and matches, and an
+upstream that is UNREACHABLE from this tree, which is not a failure. It must NOT assert
+merely that the digest string appears in the file, which is what the two arms present
+today do and is why the rot was invisible.
+
+### Full headline
+
+the fork record for `ops/loop/winmutex.py` cites an UPSTREAM digest no file on this machine carries, and the two arms that mention it assert the string is present rather than that the upstream matches - the constant is
+`UPSTREAM_WINMUTEX_DIGEST = f1b4b011112685efb88616c52752657cf896fbb0993b2d2d264e7b3edde8b4f4`
+at `ops/loop/winmutex.py:15` and `tests/test_lane_lock.py:63`, recorded as the upstream
+this tree forked from, and it matches ZERO files on this machine. Measured 2026-09-20 by a census over
+every reachable copy: 51 copies carry `0b112a4f6bfa88cf5f537f8869225c1821ebfe97428b1e899979797ddd71a61e`,
+14 carry this tree's own fork digest `e0d3ac7d9ba0be16dbe27e95354820393b9bf4edd335c97c98b39dfafb662d3f`,
+and none carries `f1b4b011...`. The carriers moved their shared file and this tree's fork
+record still names the version it was cut from, which no longer exists anywhere to compare
+against. A sixth repository published `0b112a4f...` on the note channel on 2026-09-20 as
+the current shared value, which is what prompted the census.
+
+NO ARM BREAKS, AND THAT IS THE POINT. Nothing hashes the upstream. The two arms that
+mention it - `tests/test_lane_lock.py:817` and `:853` - assert that the digest STRING
+appears in the file's text, which is a presence check on prose. Both stay green while the
+thing the prose describes ceases to exist. This is the same class as a docstring whose
+behavioural claim rotted across a repair: the assertion grades the sentence, not the world
+the sentence is about.
+
+WHAT IS NOT WRONG, recorded so a reader does not go looking for a second defect. The fork
+itself is sound and its own pin is correct: `sha256` of `ops/loop/winmutex.py` computed
+2026-09-20 equals `FORKED_WINMUTEX_DIGEST` at `tests/test_lane_lock.py:877`, and
+`python -m pytest tests/test_lane_lock.py -q` is 59 passed, exit 0. The slots digest is
+also fine and was briefly mis-transcribed during this investigation: `ops/loop/lanes.py:13`
+and `tests/test_lane_lock.py:64` carry `71fa2a683f2eaa04...`, which is BYTE-EQUAL to the
+value the sixth repository published, and byte-equal to the file that repository carries.
+There is no slots divergence to reconcile.
+
+THE DECISION THE FIX MUST TAKE FIRST, and why this is not a one-line digest bump. Bumping
+`UPSTREAM_WINMUTEX_DIGEST` to `0b112a4f...` would be a LIE of a different shape: this tree
+did not fork from that version, it forked from `f1b4b011...`. A fork record is a statement
+about history, not about the present. The candidate answers are to keep the historical
+digest and add a measured note that it is unreachable, or to record both - what it was cut
+from, and what the carriers hold now - and say which is which. ADR 0017 owns the fork
+decision and is where the answer belongs if it changes that decision's basis.

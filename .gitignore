@@ -281,6 +281,16 @@ shell/NVIDIA Corporation/
 # diagnosable fail-closed this repo's PII surfaces choose everywhere else.
 /moon_sync_inbox/
 
+# CS-1161. THE OUTBOX, on the same terms and anchored the same way. It was
+# missing until 2026-09-20, so the half of the channel this tree AUTHORS was
+# the unprotected half: `git check-ignore -q moon_sync_inbox` exited 0 and the
+# outbox exited 1, while `git status` reported `?? moon_sync_outbox/` holding
+# three delivered notes. A sibling filed the anticipatory version of this
+# against an EMPTY directory of its own the day before; this tree was already
+# past that point. Correspondence between checkouts on one machine is not
+# project history, and phase 7 is a public flip.
+/moon_sync_outbox/
+
 
 # ===========================================================================
 # LOCAL-ONLY - OS and editor noise.

@@ -24,6 +24,141 @@ Where current truth actually lives:
 | Commands and runbooks | `docs/OPERATIONS.md` |
 
 
+## CS-1161 - item section, CLOSED and relocated from `docs/item_notes/phase7.md` 2026-09-20
+
+**Moved here from `docs/item_notes/phase7.md` when the item closed.**
+The closure record is in `docs/LEDGER.md`.
+
+## CS-1161
+
+### Acceptance
+
+`moon_sync_outbox/` is covered by a `.gitignore` rule, proven by `git check-ignore -q` EXIT
+CODE with a negative control that a non-ignored sibling path exits 1 in the same run - the
+`-v` form is never parsed, because a sibling measured it exiting 0 with an EMPTY pattern
+column on a trailing-slash argument, which reads as a match and is not one. A test asserts
+the rule covers a path that DOES NOT EXIST yet as well as one that does, so the arm cannot
+be satisfied by an empty directory that git declines to report. The same arm grades every
+channel directory the repository carries, derived rather than hand-enumerated, so a third
+one added later is covered without anyone remembering to add a row.
+
+### Full headline
+
+`moon_sync_outbox/` is untracked AND carries no `.gitignore` rule, so a `git add -A` commits
+cross-repo correspondence into a repository whose phase 7 gate is a public flip. Measured
+2026-09-20 by exit code with a control: `git check-ignore -q moon_sync_inbox` exits 0
+against `.gitignore:282`, and `git check-ignore -q moon_sync_outbox` exits 1. The directory
+is not hypothetical and not empty - it held three delivered notes at the moment this was
+filed, so `git status --porcelain` reports `?? moon_sync_outbox/` today.
+
+THE ASYMMETRY IS THE DEFECT, not the missing line on its own. The INBOX is ignored and the
+OUTBOX is not, which means the half of the channel this tree AUTHORS is the unprotected
+half. Everything in the outbox was written by CS about CS, which is exactly the content a
+public flip most needs to have been a deliberate decision rather than a default.
+
+A SIBLING PREDICTED THIS SHAPE AND CS IS PAST THE POINT IT WARNED ABOUT. LW filed the same
+finding against its own root `worktrees/` on 2026-09-19: invisible to git only because git
+does not report empty directories, and "the moment anything lands in it, it becomes
+untracked content in a public repository with no ignore rule behind it". LL filed the
+identical shape against `.backtest/` and `.claude/worktrees/` the same day. **In all three
+sibling cases the directory was EMPTY and the finding was anticipatory. CS's is populated.**
+The generalisable part is LL's: an orphaned empty directory is reported by exactly ONE of
+the four enumeration commands, so a sweep that runs only `git status --ignored` returns a
+clean bill that is a claim about git's reporting rule rather than about the tree - and once
+the directory fills, the same tree that looked clean starts offering its contents to the
+next `git add -A`.
+
+WHY THE TEST MUST USE A NON-EXISTENT PATH. The arm that would most naturally be written -
+check-ignore against the outbox as it stands - passes for the wrong reason on a machine
+where the directory happens to be absent, because a directory-only rule cannot match a path
+git cannot see is a directory. LW measured that exact false RED in a throwaway repository.
+Grading a path that does not exist, and a path that does, in the same arm is what separates
+the rule's presence from the filesystem's state.
+
+WHAT THIS ITEM IS NOT. It is not a proposal to track the outbox, and not a proposal to
+delete it. The channel's own convention is that both directories are untracked because a
+note is correspondence between checkouts on one machine rather than project history. This
+item makes the untracked half of that convention enforced instead of accidental.
+
+
+## CS-1159 - item section, CLOSED and relocated from `docs/item_notes/phase7.md` 2026-09-20
+
+**Moved here from `docs/item_notes/phase7.md` when the item closed.**
+The closure record is in `docs/LEDGER.md`.
+
+## CS-1159
+
+### Acceptance
+
+every command in `hooks.PreToolUse` and `hooks.PostToolUse` in `.claude/settings.json`
+whose token ends in `.py` resolves from a root that is not the process working directory,
+and a test proves it by spawning that command with `cwd` set to an explicitly supplied
+foreign directory rather than to the runner's own - so the arm reads the same in the
+primary tree, in a worktree and under xdist. The arm that grades the DEFECT asserts on the
+`can't open file` MESSAGE and not on the exit code, because exit 2 is not self-evidencing.
+The arm that grades the REPAIR carries both halves: a benign envelope from that foreign cwd
+exits 0, AND a real violation from the same cwd is still denied - the second half is the
+control, because an anchor that also disarmed the gate would satisfy the first half alone.
+A structural arm generalises past the two strings present today and refuses a hardcoded
+drive-letter root or home-directory segment, so non-negotiable 3 is not traded for
+cwd-independence.
+
+### Full headline
+
+`.claude/settings.json` wires both hook commands by a CWD-RELATIVE path, so a session whose working directory moves loses the gate and, for PreToolUse, every shell - `pythonw tools/pretooluse_gate.py` at line 20
+and `python tools/edit_lint_check.py` at line 32, both resolved off the repository root. Measured 2026-09-20 at `b039a49`:
+after the session cwd moved to `C:\Clockspeed\moon_sync_inbox` while reading the note
+channel, every Bash and PowerShell call in the main session AND in four separately
+dispatched subagents was DENIED before executing, with `can't open file
+'C:\Clockspeed\moon_sync_inbox\tools\pretooluse_gate.py'`. Subagents inherit the session
+cwd, so the blast radius is not the session that moved. The four each lost their shell for
+their whole run and returned explicit UNVERIFIABLE verdicts: between them not one sha256,
+byte count, mtime, `git worktree list`, `git log -S` or `git check-ignore` exit code was
+obtainable. A bare `pwd` was refused, and `cd /c/Clockspeed && <cmd>` was refused too,
+because the hook fires BEFORE the command - so the shell cannot recover itself and
+recovery took a non-shell tool.
+
+It DEFEATS THE WRAPPER'S OWN WRITTEN CONTRACT, which is what makes it a defect rather than
+fail-closed working as designed. `tools/pretooluse_gate.py:29-46` promises exit 0 on the
+wrapper's own error, on the stated grounds that "a convenience layer that bricks every
+shell call is far worse than one that misses, and the commit path is protected by
+.githooks regardless". That branch is UNREACHABLE when the script is never entered:
+CPython's own exit 2 for a missing file reaches the harness first and the harness reads
+hook exit 2 as DENY. Fail-closed here therefore buys zero commit-path safety, because
+`.githooks/*` and `tools/precommit_gate.py` are the authoritative Tier-0 gates and are
+untouched either way.
+
+THE TWO LINES FAIL DIFFERENTLY, and the quieter one is the worse class. Line 20 denies
+loudly. Line 32 did not bite at all, because Edit and Write need no shell and a PostToolUse
+non-zero exit does not deny - so from a stale cwd the lint check simply never runs and
+nothing says so. That is a false guarantee, which this project rates worse than the bug it
+hides, and it is the reason line 32 is inside this item rather than deferred.
+
+A RULE WAS REJECTED AS THE CONTROL, on evidence rather than taste. CLAUDE.md and the
+harness memory index ALREADY carry "Inbox review includes subdirectories ... Never cd into
+one", and it did not prevent this. A control whose cost is unbounded in the blast radius of
+a routine slip is not adequately handled by restating the slip.
+
+FROZEN FILE. `.claude/settings.json` is on the CLAUDE.md section 6 list. The adjudicator
+grant, its scope, the rejected alternatives and the named residual are recorded in
+`docs/LEDGER.md` under CS-1159, filed BEFORE the edit as section 6 requires.
+
+THE RESIDUAL, which the acceptance above deliberately does NOT close. Every strand
+supporting `$CLAUDE_PROJECT_DIR` traces to ONE upstream input, the Claude Code client's
+expansion behaviour, so the sibling repositories using it and the agents proposing it are
+downstream readers rather than independent witnesses. The acceptance arms expand the
+variable THEMSELVES, so they grade the command string's cwd-independence and not whether
+this harness expands it. The harness half is settled only by observation: from a
+deliberately moved cwd, one violating call denied with the gate's OWN stderr - proving the
+script was reached and ran rather than never found - then one benign call that runs.
+
+OUT OF SCOPE, recorded so it is not mistaken for covered. `.claude/settings.local.json`
+carries the identical relative path for its `SessionStart` hook. It is gitignored, so no
+grant reaches it and no tracked test can pin it. Also unmeasured: whether a worktree's
+`$CLAUDE_PROJECT_DIR` resolves to the worktree or to the primary, which decides whether a
+lane session gates against its own tree.
+
+
 ## Session 104 - archived 2026-09-19 from `WAKEUP_NOTES.md`, verbatim
 
 ## Session 104 - 2026-09-17/18 - three items closed, each refuted at least once, and two writers collided on the same item ids

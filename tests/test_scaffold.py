@@ -539,6 +539,21 @@ def test_gitignore_behaves_as_declared(repo_root: Path, git_available: bool) -> 
         "example_world_autosave_0.sav",
         ".env",
         ".mcp.json",
+        # CS-1161. BOTH halves of the note channel, never just the inbox. The
+        # inbox was ignored and the outbox was not, which left the half this
+        # tree AUTHORS as the unprotected one - and `git status` reported
+        # `?? moon_sync_outbox/` with three delivered notes in it. Phase 7 is a
+        # public flip, so correspondence reaching a commit is not a tidiness
+        # fault.
+        #
+        # --no-index IS LOAD-BEARING HERE, and so is the trailing slash. A
+        # directory-only rule cannot match a path git cannot see is a
+        # directory, so without the slash the answer comes from the filesystem
+        # rather than from the rules and the arm reports on whichever checkout
+        # runs it - green in the primary, red in a worktree. Asking about a
+        # path that need not exist is the whole point: it grades the RULE.
+        "moon_sync_inbox/",
+        "moon_sync_outbox/",
     )
     must_not_be_ignored = (
         "pyproject.toml",

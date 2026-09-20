@@ -17,7 +17,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "pythonw tools/pretooluse_gate.py",
+            "command": "pythonw \"$CLAUDE_PROJECT_DIR/tools/pretooluse_gate.py\"",
             "timeout": 20
           }
         ]
@@ -29,7 +29,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python tools/edit_lint_check.py --files \"$CLAUDE_FILE_PATHS\"",
+            "command": "python \"$CLAUDE_PROJECT_DIR/tools/edit_lint_check.py\" --files \"$CLAUDE_FILE_PATHS\"",
             "timeout": 30
           }
         ]
