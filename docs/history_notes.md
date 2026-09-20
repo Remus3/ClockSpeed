@@ -12206,3 +12206,80 @@ operator as "one ordinary run from reddening". The very next tier 1 run had the 
 shard at 230s - less than half its recorded worst. The 464s reading is real and the
 tool's blind spot is real, but the URGENCY was not earned by the evidence, and that
 job's spread is plainly wider than the 28s jitter figure computed for it.
+
+---
+
+## Session 106 - 2026-09-19 - two rows ran, one closed and one was refuted by an adversary, and the publication gate got its first real closure scan
+
+**CLOSED: CS-1147, CS-1146. REFUTED AND STILL OPEN: CS-900. FILED: CS-1152.**
+
+**CS-1147 - the ration arm no longer races the child it measures.** The child called
+`ration.release()` and THEN wrote its released marker, so a parent acquiring in that
+window saw two of three protocol signals. Reproduced FIRST by widening the gap to 0.5s,
+which gave the byte-identical CI assertion; the same widening passes after the reorder.
+Then an adversary refuted my own done-claim on the first commit: I had verified teeth with
+a LIVE never-releasing child (red in 124.89s) and called the clause discharged, but the
+CANONICAL mutant - delete the release call, change nothing else - was GREEN in 0.15s both
+before and after. The child EXITED the instant it stopped holding and the ration correctly
+reclaims a dead holder's slot, so nothing in the arm told a release from a death. The child
+now waits for a `parent_done` dismissal written after the measurement, so it is alive across
+the parent's acquire. That mutant now fails in 120.33s. The same pass found a SECOND race of
+the same family: `_await_file` returned the instant a path existed, and `write_text`
+truncates before it writes, so both process arms could read an empty marker and die in
+`int()` with an uncaught ValueError. It waits for a byte now.
+
+**CS-1146 - and session 105's caveat against itself was WRONG ON ITS OWN NUMBER.** That
+caveat de-ranked the row because "the very next tier 1 run had the guard shard at 230s".
+Measured from the jobs API: that run was 413s and the next was 441s. With the record's 11
+readings at 426-464, that is 12 of 13 known readings at or over the 420s budget, spread 38s.
+The caveat's METHOD was right - measure the spread before ranking - and following it
+reversed its own conclusion. `tools/tier1_growth.py` now grades `B >= M` per job as a verdict
+distinct from the band-versus-jitter one, names each job with its own margin, and prints
+BUDGET BREACHED by 44s over the shipped record. No level moved.
+
+**CS-900 SHIPPED ITS TOOL AND STILL FAILED, on an adversary and not on my reading.** Two
+counter-examples. (1) The save shard WARNS at both ends of the profile with the SAME top
+test across four commits that touched only another job, so branch one closes only by
+electing the LOOSER of two stated shares - and the 18.9 per cent concentration that FILED
+the item passes the 50 per cent hard level. A level under which the filed defect passes
+cannot be the level the close rests on. (2) The hard level's derivation was FALSE: the
+`t_max <= T/W` criterion is against the SERIAL TOTAL and the tool divides by the STEP WALL
+CLOCK, which agree only at one worker. Corrected in the docstring, not dropped. `T` is not
+obtainable from a block printing only the top 15 phases over 5s, so that criterion cannot be
+graded by this tool at all.
+
+**THE PUBLICATION GATE GOT ITS FIRST REAL CLOSURE SCAN, and six of seven axes are CLEAR.**
+Over everything reachable from `main`: 1059 commits, 3255 blobs, 461 DISTINCT HISTORICAL
+PATH STRINGS - 42 more than HEAD, which is the half that leaks. No account id, no standalone
+world name, no home paths, no save bytes, no game assets, no `data/` or inbox payload, in
+ANY commit. The one finding is the plan's own credential allowlist drifting against its own
+synthetic canaries, and the plan sentence asserting the real token prefixes return zero is
+now the only carrier of those prefixes. The pre-rewrite safety bundle is taken, lives outside
+the tree, and was graded by RESTORING rather than by verifying.
+
+**PROCESS FINDINGS - MEASURED, DO NOT REDISCOVER.**
+
+- A CONTENDED xdist SUITE REPORTS A SHORT GREEN, NOT A CRASH. Beside a running lane,
+  `-n 4` reported 6407 passed and EXIT 0 while `--collect-only` said 9055 collected: 2641
+  tests silently never ran, no MemoryError, no non-zero exit. The memory note predicted a
+  MemoryError; the real signature this time was a clean short pass. A SERIAL run beside the
+  same lane returned the full 9048. Check the count against a collect, always.
+- THE PATTERN-LANGUAGE TRAP FIRED TWICE BEFORE THE SCAN EVEN STARTED. `git for-each-ref`
+  with a globbed `refs/backup/*` returned 0 where the bare prefix `refs/backup` returned 71,
+  and `git bundle list-heads` reported 242 refs where a bare `git clone` restored 144 and
+  ZERO of the 53 wip refs. A bundle that VERIFIES is not a bundle that RESTORES.
+- THE REPOSITORY'S OWN PII GUARD CAUGHT A PII DEFECT INSIDE PUBLICATION-PREP WORK. The
+  pre-push hook refused the register slice because it rendered a caught exception OBJECT
+  into an f-string, which is an echo path under non-negotiable 12.
+- A NEW TEST MODULE CITED IN A GUARDED DOC READS AS A DEAD BARE PATH until it is at least
+  intent-added, because `tests/test_docs_citations.py` resolves against the tracked file
+  list. It cost a false red once.
+- THE COMMUNITY-PROFILE ENDPOINT READS THE DEFAULT BRANCH ONLY, so a community-health
+  acceptance cannot be graded from a slice branch. Its `issue_template` row reads null even
+  though `.github/ISSUE_TEMPLATE/` exists with two files.
+
+**A CORRECTION I OWE THE RECORD.** I told the operator mid-session that the publication
+decision was "publish from a fresh squashed or orphan history". That is the 2026-08-13
+record. The LATER ruling - CS-700 section 6, 2026-09-08, with ADR 0018 - is that the commit
+graph is KEPT, IDENTITY ALONE is rewritten to the noreply address, the remote is deleted and
+recreated, and `main` alone is pushed. Squash and accept-as-is were both put and DECLINED.
