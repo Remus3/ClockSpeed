@@ -57,6 +57,7 @@ from __future__ import annotations
 
 import contextlib
 import errno
+import fnmatch
 import importlib.util
 import json
 import os
@@ -67,7 +68,7 @@ import sys
 import tempfile
 from collections.abc import Callable, Iterator
 from pathlib import Path
-from types import ModuleType
+from types import MappingProxyType, ModuleType
 from typing import Any
 
 import pytest
@@ -4114,14 +4115,22 @@ def _cs1153_tree(root: Path) -> None:
         (root / name / f"{name}_leaf.md").write_text("# local\n", encoding="utf-8")
 
 
-def _walked(root: Path, worktrees: tuple[str, ...] = ()) -> set[str]:
+def _walked(
+    root: Path,
+    worktrees: tuple[str, ...] = (),
+    ignored: frozenset[str] | None = frozenset(),
+) -> set[str]:
     """The walk's files as root-relative posix strings.
 
-    ``worktrees`` defaults to EMPTY rather than to None so no arm here spawns
-    git against a tmp_path that is not a checkout: every arm states the
-    registration it wants, and the default is the weakest one.
+    ``worktrees`` and ``ignored`` both default to EMPTY rather than to None so
+    no arm here spawns git against a tmp_path that is not a checkout: every arm
+    states the authority it wants, and the default is the weakest one - the
+    static floor alone, deciding with no git answer at all. Pass ``None`` to
+    let the walk ask git for itself, which only the real-tree arms want.
     """
-    files, _skips = drift_guard._walk(root, worktrees=worktrees)  # noqa: SLF001
+    files, _skips = drift_guard._walk(  # noqa: SLF001
+        root, worktrees=worktrees, ignored=ignored
+    )
     return {path.relative_to(root).as_posix() for path in files}
 
 
@@ -4308,9 +4317,19 @@ def test_every_pruned_path_is_ignored_by_git_and_tracks_nothing(
 
 
 #: CS-1155 - the floor on WALK_SKIP_FILE_PATTERNS, one below the membership the
-#: table shipped with. Named rather than written at the assertion so a future
-#: author moving it has to move a constant with a reason attached.
-_PRUNED_FILE_PATTERN_FLOOR = 3
+#: table shipped with, which is 7. Named rather than written at the assertion so
+#: a future author moving it has to move a constant with a reason attached. An
+#: adversary measured the first version of this constant at 3 against a table of
+#: 3 while this comment claimed "one below": the control was stricter than it
+#: said, which is the same rot as one that is looser.
+_PRUNED_FILE_PATTERN_FLOOR = 6
+
+#: CS-1155 - a SEPARATE floor, on the size of the git index read. It shares no
+#: meaning with the constant above and an adversary found the two conflated: a
+#: threshold of 3 against an observed 428 would let an index read collapse by
+#: ninety-nine percent and still pass, leaving the only arm that is live on CI
+#: grading almost nothing.
+_INDEX_SIZE_FLOOR = 300
 
 
 def _cs1155_tree(root: Path) -> None:
@@ -4417,15 +4436,27 @@ def test_every_pruned_file_pattern_is_ignored_by_git_and_tracks_nothing(
     # assertion below by having no member to fail one.
     assert len(patterns) >= _PRUNED_FILE_PATTERN_FLOOR, patterns
 
+    listing = conftest.run_git(repo_root, "ls-files")
+    if listing is None:
+        pytest.skip("git is not installed, so membership cannot be asked")
+    assert listing.returncode == 0
+    index = [line for line in listing.stdout.decode("utf-8", "replace").splitlines() if line]
+    # The control. An empty index read makes the tracked half below vacuous by
+    # having nothing for a pattern to collide with.
+    assert len(index) >= _INDEX_SIZE_FLOOR, len(index)
+
     tracked: dict[str, str] = {}
     unignored: list[str] = []
     for pattern in patterns:
-        listing = conftest.run_git(repo_root, "ls-files", "--", pattern)
-        if listing is None:
-            pytest.skip("git is not installed, so membership cannot be asked")
-        assert listing.returncode == 0, pattern
-        if listing.stdout.strip():
-            tracked[pattern] = listing.stdout.decode("utf-8", "replace").splitlines()[0]
+        # Matched here rather than by a pathspec, and CASE-INSENSITIVELY. A
+        # pathspec is case-sensitive, so it would miss exactly the divergence
+        # the floor's fnmatchcase choice creates - and an over-broad entry that
+        # collided with `README.MD` rather than `README.md` would read clean.
+        for entry in index:
+            subject = entry if "/" in pattern else entry.rsplit("/", 1)[-1]
+            if fnmatch.fnmatch(subject.lower(), pattern.lower()):
+                tracked[pattern] = entry
+                break
         # A pattern is a shape, and check-ignore wants a path - so ask it about
         # the shortest path the shape describes.
         sample = pattern.replace("*", "sample")
@@ -4470,11 +4501,257 @@ def test_the_walk_reaches_every_tracked_file_in_this_repository(
     }
     # The control. An index read that came back empty would make both
     # differences vacuous, and the MISSING half would grade nothing.
-    assert len(indexed) > _PRUNED_FILE_PATTERN_FLOOR, len(indexed)
+    assert len(indexed) >= _INDEX_SIZE_FLOOR, len(indexed)
 
-    walked = _walked(repo_root, worktrees=drift_guard._registered_worktrees(repo_root))  # noqa: SLF001
+    # ignored=None, so the walk asks git itself - the whole point of the repair.
+    # An adversary measured the worktrees argument here as inert and it is kept
+    # only because a real tree deserves the real value.
+    walked = _walked(
+        repo_root,
+        worktrees=drift_guard._registered_worktrees(repo_root),  # noqa: SLF001
+        ignored=None,
+    )
     missing = sorted(indexed - walked)
     extra = sorted(walked - indexed)
 
     assert missing == [], missing
     assert extra == [], extra
+
+
+def _cs1155_repo(root: Path, ignore_body: str) -> bool:
+    """Build a REAL git repository at ``root`` carrying ``ignore_body``.
+
+    Returns False when git is not installed, so the caller skips rather than
+    asserting against an authority that was never asked.
+    """
+    from tests import conftest  # noqa: PLC0415 - the one git runner the suite owns
+    from tests.git_env import relocates  # noqa: PLC0415
+
+    for name in [key for key in os.environ if relocates(key)]:
+        os.environ.pop(name, None)
+    root.mkdir(parents=True, exist_ok=True)
+    (root / ".gitignore").write_text(ignore_body, encoding="utf-8")
+    for args in (
+        ("init", "--quiet"),
+        ("config", "user.email", "suite@example.invalid"),
+        ("config", "user.name", "suite"),
+        ("config", "commit.gpgsign", "false"),
+    ):
+        proc = conftest.run_git(root, *args)
+        if proc is None:
+            return False
+        assert proc.returncode == 0, f"control: git {args[0]} exited {proc.returncode}"
+    return True
+
+
+def test_the_floor_prunes_a_save_file_shape(tmp_path: Path) -> None:
+    """CS-1155: a .sav is a save file, and CLAUDE.md 11 forbids enumerating one.
+
+    The first version of the file table held three entries - the three that
+    happened to be lying on the development machine's disk on the day it was
+    written. An adversary put a `.sav` beside them and walked it straight
+    through. Its membership is a CLASS now, not a residue: every shape this
+    repository classifies as personal data or credential material.
+    """
+    root = tmp_path / "tree"
+    root.mkdir()
+    (root / "top.md").write_text("# clean\n", encoding="utf-8")
+    (root / "world.sav").write_bytes(b"\x00save\x00")
+    (root / "server.pem").write_text("KEY\n", encoding="utf-8")
+    (root / ".env").write_text("TOKEN=x\n", encoding="utf-8")
+    (root / ".mcp.json").write_text("{}\n", encoding="utf-8")
+
+    # ignored=frozenset() - the FLOOR alone, with git's answer withheld. Without
+    # that this arm would pass on a machine where git happened to answer.
+    assert _walked(root, ignored=frozenset()) == {"top.md"}
+
+
+def test_the_floor_prunes_a_directory_a_shape_names(tmp_path: Path) -> None:
+    """CS-1155: a shape cannot tell a file from a directory, and nor can git.
+
+    `.gitignore`'s `*.log` ignores a directory called `notes.log` and
+    everything under it. The first version of this rule consulted the file half
+    for FILES alone, so an adversary walked `notes.log/inner.txt` through it -
+    the PII class the item was filed over, arriving by the other shape.
+    """
+    root = tmp_path / "tree"
+    (root / "notes.log").mkdir(parents=True)
+    (root / "notes.log" / "inner.txt").write_text("parsed bytes\n", encoding="utf-8")
+    (root / "keep.md").write_text("# clean\n", encoding="utf-8")
+
+    _files, skips = drift_guard._walk(  # noqa: SLF001
+        root, worktrees=(), ignored=frozenset()
+    )
+    reasons = {skip["path"]: skip["reason"] for skip in skips}
+
+    assert _walked(root, ignored=frozenset()) == {"keep.md"}
+    assert reasons["notes.log/"] == drift_guard.WALK_SKIP_FILE_PATTERNS["*.log"], reasons
+
+
+def test_the_floor_is_case_sensitive_so_it_never_grades_the_runner(
+    tmp_path: Path,
+) -> None:
+    """CS-1155: fnmatchcase, not fnmatch, and this is the arm that says so.
+
+    `fnmatch` folds case under the HOST's rules, so the floor's population
+    would differ between this machine and an ubuntu runner for the same tree.
+    A floor whose membership depends on the runner cannot be a floor. The cost
+    is that the floor alone does NOT prune `STRAY.LOG`; git does, where git can
+    be reached, and the arm below grades exactly that.
+
+    An adversary swapped fnmatchcase for fnmatch against the shipped suite and
+    the mutant survived every arm, because every fixture name was lower case.
+    """
+    root = tmp_path / "tree"
+    root.mkdir()
+    (root / "keep.md").write_text("# clean\n", encoding="utf-8")
+    (root / "quiet.log").write_text("lower\n", encoding="utf-8")
+    (root / "STRAY.LOG").write_text("upper\n", encoding="utf-8")
+
+    # The lower-case sibling is the control: a floor that pruned NOTHING would
+    # satisfy the upper-case half below for the wrong reason.
+    assert _walked(root, ignored=frozenset()) == {"keep.md", "STRAY.LOG"}
+
+
+def test_git_decides_case_and_the_walk_follows_it(tmp_path: Path) -> None:
+    """CS-1155: parity is with GIT, which is not the same as a fixed population.
+
+    core.ignorecase is true on a Windows checkout and false on a Linux one, so
+    `STRAY.LOG` is ignored on one and tracked-able on the other. The walk must
+    agree with git on BOTH, which means this arm cannot assert a population -
+    it asserts the AGREEMENT, and asks git which side of it to expect.
+
+    An adversary measured the first version walking `STRAY.LOG` while
+    `git check-ignore` named it ignored, on this machine, with no arm seeing it.
+    """
+    from tests import conftest  # noqa: PLC0415 - the one git runner the suite owns
+
+    root = tmp_path / "repo"
+    if not _cs1155_repo(root, "*.log\n"):
+        pytest.skip("git is not installed, so its answer cannot be asked")
+    (root / "keep.md").write_text("# clean\n", encoding="utf-8")
+    (root / "STRAY.LOG").write_text("upper\n", encoding="utf-8")
+
+    verdict = conftest.run_git(root, "check-ignore", "-q", "--", "STRAY.LOG")
+    assert verdict is not None
+    assert verdict.returncode in (0, 1), verdict.returncode
+    git_ignores_it = verdict.returncode == 0
+
+    walked = _walked(root, ignored=None)
+    assert ("STRAY.LOG" in walked) is not git_ignores_it, (walked, git_ignores_it)
+    # The control. A walk that returned nothing at all would satisfy the line
+    # above whenever git said ignored.
+    assert "keep.md" in walked, walked
+
+
+def test_git_prunes_a_shape_the_floor_does_not_carry(tmp_path: Path) -> None:
+    """CS-1155: the authority is git, and the table is only the floor.
+
+    An adversary's sharpest finding was that a table of shapes copied out of
+    .gitignore is a restatement CLAUDE.md section 4 forbids, and that it can
+    fall arbitrarily far behind its source with every arm still green. The
+    answer is not a longer table. It is to ask git, which answers with no
+    commits at all - the case this walk exists for - and to keep the table as
+    the floor for a tree where git cannot be reached.
+    """
+    root = tmp_path / "repo"
+    if not _cs1155_repo(root, "hoard.txt\nvendored/\n"):
+        pytest.skip("git is not installed, so its answer cannot be asked")
+    (root / "keep.md").write_text("# clean\n", encoding="utf-8")
+    (root / "hoard.txt").write_text("ignored\n", encoding="utf-8")
+    (root / "vendored").mkdir()
+    (root / "vendored" / "theirs.md").write_text("# theirs\n", encoding="utf-8")
+
+    # The control: no shape in the floor names either, so with git's answer
+    # withheld the walk collects both. Without this the arm below passes on a
+    # walk that pruned them for some unrelated reason.
+    assert _walked(root, ignored=frozenset()) == {
+        ".gitignore",
+        "keep.md",
+        "hoard.txt",
+        "vendored/theirs.md",
+    }
+
+    _files, skips = drift_guard._walk(root, worktrees=())  # noqa: SLF001
+    reasons = {skip["path"]: skip["reason"] for skip in skips}
+
+    assert _walked(root, ignored=None) == {".gitignore", "keep.md"}
+    assert reasons["hoard.txt"] == drift_guard.GITIGNORED_REASON, reasons
+    assert reasons["vendored/"] == drift_guard.GITIGNORED_REASON, reasons
+
+
+def test_git_answers_a_repository_with_no_commits(tmp_path: Path) -> None:
+    """CS-1155: the walk is the fallback for an EMPTY INDEX, so this is the case.
+
+    `enumerate_files` reaches the walk only when `git ls-files` came back empty
+    - a scaffold before commit one. If the new authority needed a commit it
+    would answer nothing precisely where it is needed, and the floor would be
+    carrying the whole rule while the docstring claimed otherwise.
+    """
+    from tests import conftest  # noqa: PLC0415 - the one git runner the suite owns
+
+    root = tmp_path / "repo"
+    if not _cs1155_repo(root, "hoard.txt\n"):
+        pytest.skip("git is not installed, so its answer cannot be asked")
+    (root / "hoard.txt").write_text("ignored\n", encoding="utf-8")
+
+    # The control: the index really is empty, which is what makes this the
+    # fallback case rather than an ordinary repository.
+    listing = conftest.run_git(root, "ls-files")
+    assert listing is not None
+    assert listing.stdout.strip() == b"", listing.stdout
+
+    assert drift_guard._git_ignored(root) == frozenset({"hoard.txt"})  # noqa: SLF001
+
+
+def test_git_unreachable_leaves_the_floor_alone_deciding(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """CS-1155: an unreachable git is the git-LESS case, never an error.
+
+    _git_ignored answers with an empty set on all four soft paths, and the walk
+    then prunes by the floor alone. A version that raised, or that treated the
+    empty answer as "nothing is ignored, so collect the save file", would turn
+    a missing tool into a non-negotiable-11 breach.
+    """
+    root = tmp_path / "tree"
+    root.mkdir()
+    (root / "top.md").write_text("# clean\n", encoding="utf-8")
+    (root / "world.sav").write_bytes(b"\x00save\x00")
+
+    monkeypatch.setattr(drift_guard, "resolve_tool", lambda _name: None)
+
+    # The control: with git resolved away, the authority really is silent.
+    assert drift_guard._git_ignored(root) == frozenset()  # noqa: SLF001
+    # ignored=None, so the walk asks - and gets nothing, and prunes anyway.
+    assert _walked(root, ignored=None) == {"top.md"}
+
+
+def test_a_slashed_pattern_carrying_a_wildcard_still_matches(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """CS-1155: the matcher's contract, graded rather than asserted in a comment.
+
+    The first version compared a slashed pattern by string EQUALITY and a
+    comment told a future author there was no third case to get wrong.
+    `.gitignore` already carries one - `/memory/*.db` - which equality would
+    silently never match. No such pattern is in the table today, so the arm
+    installs one: the contract is what is being graded, not the membership.
+    """
+    monkeypatch.setattr(
+        drift_guard,
+        "WALK_SKIP_FILE_PATTERNS",
+        MappingProxyType({"memory/*.db": "local-only - the recall mirror"}),
+    )
+    reason = drift_guard._skip_file_reason(  # noqa: SLF001
+        "memory/recall.db", "recall.db", frozenset()
+    )
+
+    assert reason == "local-only - the recall mirror"
+    # Still anchored: the pattern is a path, not a tail to find anywhere.
+    assert (
+        drift_guard._skip_file_reason(  # noqa: SLF001
+            "vendor/memory/recall.db", "recall.db", frozenset()
+        )
+        is None
+    )

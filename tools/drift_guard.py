@@ -128,10 +128,14 @@ WALK_SKIP_DIRS = frozenset(
 #   - `/build/` and `/dist/` are leading-slash directory patterns absent from
 #     here because WALK_SKIP_DIRS already prunes them by NAME.
 #   - .gitignore also ignores FILE SHAPES this set structurally cannot express -
-#     `*.log`, `*.local.json`, `/ops/loop/config.json`. A set of DIRECTORIES has
-#     no way to say them, so CS-1155 closed that half in a table of its own:
-#     WALK_SKIP_FILE_PATTERNS, below. The two are read at different points of
-#     the walk and neither can cover the other's case.
+#     `*.log`, `*.sav`, `*.local.json`, `/ops/loop/config.json`. A set of
+#     DIRECTORIES has no way to say them, so CS-1155 closed that half: git is
+#     asked directly by `_git_ignored`, and WALK_SKIP_FILE_PATTERNS is the
+#     floor for a tree where git cannot be reached. Note that a SHAPE can name
+#     a directory too - .gitignore's `*.log` ignores a directory called
+#     `notes.log` - so the file floor is consulted for directories as well, and
+#     the two tables are not the clean split an earlier draft of this comment
+#     claimed.
 # tests/data/test_drift_guard_data.py grades every entry here against git.
 #
 # WHY A PATH AND NOT A NAME. The set this replaced held bare names tested at
@@ -169,38 +173,58 @@ WALK_SKIP_ROOT_PATHS: Mapping[str, str] = MappingProxyType(
     }
 )
 
-#: CS-1155 - the FILE half of the walk's own rule. WALK_SKIP_ROOT_PATHS above
-#: prunes DIRECTORIES and cannot express a file SHAPE, so the walk over this
-#: repository returned files `git ls-files` does not: a machine-local settings
-#: override, a stray root log, and the headless lane's own config. The log is
-#: the one that motivated the item - .gitignore classifies logs as potentially
-#: PII-bearing because they quote parsed data and can echo header bytes, which
-#: is the same classification CS-1153 cited as ITS motive, and the walk still
-#: handed one to the character-set and secret readers.
+#: CS-1155 - the FILE FLOOR of the walk's own rule, read when git cannot be
+#: asked. WALK_SKIP_ROOT_PATHS above prunes DIRECTORIES and cannot express a
+#: file SHAPE, so before this the walk over this repository returned files
+#: `git ls-files` does not - a machine-local settings override, a stray root
+#: log, and the headless lane's own config.
 #:
-#: MATCHING MIRRORS .gitignore, deliberately, because .gitignore is the
-#: authority every entry here is graded against by
-#: tests/data/test_drift_guard_data.py:
-#:   - a pattern with NO "/" is a SHAPE and matches a file's NAME at any depth
-#:   - a pattern WITH one is a FILE, anchored at the walk root and compared as
-#:     an exact relative path - never as a tail, so a vendored or nested copy
-#:     at the same sub-path is NOT hidden
-#: Nothing here is a partial path, so there is no third case to get wrong.
+#: WHAT THE HARM ACTUALLY IS, restated after an adversary measured the first
+#: version of this comment and found it false. A `.log` is NOT read by the
+#: character-set guard - `_classify` answers "not an authored text file type"
+#: and `guard_charset` skips it without opening it - and this module has no
+#: secret reader at all; that is `tools/precommit_gate.py`, which does not call
+#: this walk. Two true harms remain. A `.json` IS an authored text type, so
+#: `.claude/settings.local.json` and `ops/loop/config.json` were opened and
+#: read. And a `.sav` is a save file - CLAUDE.md non-negotiables 11 and 12 -
+#: which must not be enumerated at all, let alone named in a rendered report.
+#:
+#: WHY THIS IS A FLOOR AND NOT THE RULE. git is the authority on what this tree
+#: ignores and it answers with no commits at all, so `_git_ignored` below asks
+#: it and the walk prunes what it names. This table restates NOTHING git would
+#: answer differently; it exists for the case where git cannot be reached, and
+#: its membership is therefore PRINCIPLED rather than a copy of .gitignore: one
+#: entry per shape whose CONTENT this repository classifies as personal data or
+#: credential material under CLAUDE.md section 3, plus the one local-only file
+#: the lane writes beside its own tracked code. Copying the other thirty-odd
+#: shapes .gitignore carries would be the restatement CLAUDE.md section 4
+#: forbids, and git already covers them.
+#:
+#: MATCHING, and it is NOT git's: a pattern with no "/" matches a NAME at any
+#: depth, a pattern with one is matched against the whole root-relative path,
+#: both by fnmatchcase. Case-SENSITIVE deliberately, because a floor that read
+#: the host's case rules would prune a different population on each runner;
+#: git, when reachable, decides case by core.ignorecase and the walk follows it
+#: there. So the floor is the narrower of the two and never the wider.
 WALK_SKIP_FILE_PATTERNS: Mapping[str, str] = MappingProxyType(
     {
+        "*.sav": "PII-bearing - a save file carries account and player-name strings",
         "*.log": "PII-bearing - logs quote parsed data and can echo header bytes",
+        "*.pem": "credential material - generated certificate keys",
+        ".env": "credential material - a local environment file",
+        ".mcp.json": "credential material - local tool server configuration",
         "*.local.json": "local-only - a machine-local settings override",
         "ops/loop/config.json": "local-only - the headless lane's model choice, a machine choice",
     }
 )
 
-#: CS-1153 - the STRUCTURAL half of the rule, which needs no name and no list.
-#: A directory carrying a .git entry is a checkout root of its own - a linked
-#: worktree, a submodule or a nested clone - and its files belong to that
-#: checkout. Stated as a marker rather than as a directory name deliberately:
-#: naming the harness's worktree directory stops holding the day a harness puts
-#: its worktrees somewhere else, and `tools/doc_budget.py` already carries this
-#: shape as WALK_BOUNDARY (CS-1115).
+#: CS-1155 - the reason git's own answer carries. Distinct from every reason in
+#: the two static tables, so a skip record says WHICH authority pruned a path.
+GITIGNORED_REASON = (
+    "gitignored - `git ls-files --others --ignored` names it, so no enumeration "
+    "this walk stands in for would have listed it either"
+)
+
 WALK_BOUNDARY_MARKER = ".git"
 
 BOUNDARY_REASON = (
@@ -632,31 +656,99 @@ def _is_registered_worktree(path: Path, worktrees: tuple[str, ...]) -> bool:
     return resolved in worktrees
 
 
-def _skip_file_reason(relative: str, name: str) -> str | None:
-    """Return why ``relative`` is not authored here, or None to keep it.
+def _git_ignored(root: Path) -> frozenset[str]:
+    """Ask git which paths under ``root`` it ignores, as relative posix strings.
 
-    CS-1155. Case-SENSITIVE on every platform, by fnmatchcase rather than
-    fnmatch: fnmatch folds case under the host's rules, so `STRAY.LOG` would be
-    pruned on Windows and walked on ubuntu, and a rule whose population depends
-    on the runner is a rule that grades the runner.
+    CS-1155 - GIT IS THE AUTHORITY AND THE WALK DOES NOT RESTATE IT. The walk
+    stands in for `git ls-files`, so its population should be the one the index
+    would have given, and only git knows that: .gitignore's precedence rules,
+    its negations, the exclude files outside the tree, and core.ignorecase all
+    live there. `--others --ignored --exclude-standard` answers with NO COMMITS
+    AT ALL - it reads the working tree and the exclude files, not the index -
+    which is exactly the case this walk exists for.
 
-    Args:
-        relative: The file's root-relative posix path.
-        name: Its final component, which an unanchored pattern matches.
+    A directory git reports as wholly ignored comes back with a trailing slash
+    and is returned WITHOUT one, so a caller looks a path up the same way
+    whether it is a file or a directory. Nothing inside such a directory is
+    listed individually, which costs nothing: the walk prunes the directory and
+    never reaches its children.
 
     Returns:
-        The reason from WALK_SKIP_FILE_PATTERNS, or None if nothing matched.
+        The ignored paths, or an EMPTY set if git cannot be reached or refuses.
+        Empty is not an error - it is the git-less case, and
+        WALK_SKIP_FILE_PATTERNS plus WALK_SKIP_ROOT_PATHS are the floor there.
+    """
+    # CS-910 - the tool is RESOLVED, never named. See _git_ls_files above for
+    # why a bare "git" in an argv is a current-directory read on Windows.
+    git = resolve_tool(GIT_NAME)
+    if git is None:
+        return frozenset()
+    try:
+        proc = subprocess.run(
+            [
+                git,
+                "-C",
+                str(root),
+                "ls-files",
+                "-z",
+                "--others",
+                "--ignored",
+                "--exclude-standard",
+                "--directory",
+            ],
+            capture_output=True,
+            text=True,
+            timeout=30,
+            check=False,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return frozenset()
+    if proc.returncode != 0:
+        return frozenset()
+    return frozenset(entry.rstrip("/") for entry in (proc.stdout or "").split("\x00") if entry)
+
+
+def _skip_file_reason(relative: str, name: str, ignored: frozenset[str]) -> str | None:
+    """Return why ``relative`` is not authored here, or None to keep it.
+
+    CS-1155. The FLOOR, not the rule - `_git_ignored` is the authority wherever
+    git can be reached, and this runs beside it so a tree with no git is still
+    guarded. Consulted for directories too: .gitignore's `*.log` ignores a
+    directory named `notes.log`, and a shape cannot tell the two apart.
+
+    A pattern with no "/" matches the NAME at any depth; one with a "/" is
+    matched against the whole root-relative path, so `ops/loop/config.json`
+    does not match `vendor/ops/loop/config.json` and a slashed pattern carrying
+    a wildcard - .gitignore has `/memory/*.db` - still works. fnmatchcase, not
+    fnmatch: fnmatch folds case under the HOST's rules, so a floor using it
+    would prune a different population on each runner. Case-sensitivity makes
+    this floor the NARROWER of the two authorities and never the wider - git,
+    where reachable, folds case by core.ignorecase and the walk follows it.
+
+    Args:
+        relative: The entry's root-relative posix path.
+        name: Its final component, which an unanchored pattern matches.
+        ignored: git's own answer, from _git_ignored. Empty when git could not
+            be reached, which leaves the floor alone deciding.
+
+    Returns:
+        The reason it was pruned, or None if neither authority named it. The
+        floor is asked FIRST so its specific reason - which class of thing this
+        is, and under which of CLAUDE.md's rules - survives into the record
+        rather than being flattened to the generic gitignored one.
     """
     for pattern, reason in WALK_SKIP_FILE_PATTERNS.items():
-        if "/" in pattern:
-            if relative == pattern:
-                return reason
-        elif fnmatch.fnmatchcase(name, pattern):
+        subject = relative if "/" in pattern else name
+        if fnmatch.fnmatchcase(subject, pattern):
             return reason
+    if relative in ignored:
+        return GITIGNORED_REASON
     return None
 
 
-def _skip_dir_reason(entry: Path, relative: str, worktrees: tuple[str, ...]) -> str | None:
+def _skip_dir_reason(
+    entry: Path, relative: str, worktrees: tuple[str, ...], ignored: frozenset[str]
+) -> str | None:
     """Return why the directory ``entry`` is not entered, or None to enter it.
 
     The DIRECTORY half of the walk's rule, beside _skip_file_reason above. Kept
@@ -667,14 +759,24 @@ def _skip_dir_reason(entry: Path, relative: str, worktrees: tuple[str, ...]) -> 
         entry: The directory itself, for the two tests that need the path.
         relative: Its root-relative posix path.
         worktrees: Resolved lowercased linked-worktree paths.
+        ignored: git's own answer, from _git_ignored.
 
     Returns:
         The reason it was pruned, or None if nothing pruned it.
     """
     if entry.name in WALK_SKIP_DIRS:
         return "excluded directory (tooling or vcs internals)"
-    if relative in WALK_SKIP_ROOT_PATHS:
-        return WALK_SKIP_ROOT_PATHS[relative]
+    # CS-1155 - A SHAPE CANNOT TELL A FILE FROM A DIRECTORY, AND NEITHER CAN
+    # .gitignore: `*.log` there ignores a directory named `notes.log` and
+    # everything beneath it. An adversary walked one straight through the first
+    # version of this rule, which consulted the file half for files alone. The
+    # same call carries git's answer, so both authorities are asked here in the
+    # order they are asked for a file.
+    named = WALK_SKIP_ROOT_PATHS.get(relative)
+    if named is None:
+        named = _skip_file_reason(relative, entry.name, ignored)
+    if named is not None:
+        return named
     if _is_registered_worktree(entry, worktrees):
         # Ordered BEFORE the marker test, and the reason is NOT that the
         # teardown window needs it - with the marker gone the marker test
@@ -690,7 +792,12 @@ def _skip_dir_reason(entry: Path, relative: str, worktrees: tuple[str, ...]) -> 
     return None
 
 
-def _walk(root: Path, *, worktrees: tuple[str, ...] | None = None) -> tuple[list[Path], list[Skip]]:
+def _walk(
+    root: Path,
+    *,
+    worktrees: tuple[str, ...] | None = None,
+    ignored: frozenset[str] | None = None,
+) -> tuple[list[Path], list[Skip]]:
     """Enumerate ``root`` by walking it, pruning what this tree does not author.
 
     CS-1153 - THE PRUNING IS THE WALK'S OWN AND NOT ITS CALLER'S. Before this,
@@ -700,25 +807,34 @@ def _walk(root: Path, *, worktrees: tuple[str, ...] | None = None) -> tuple[list
     a caller arriving directly - or an index lookup that ever failed soft -
     walked a PII-bearing tree and a full second checkout with no guard.
 
-    CS-1155 - AND THE RULE HAS A FILE HALF. Directory pruning alone left this
-    repository's walk returning files ``git ls-files`` does not, a stray root
-    ``.log`` among them, which .gitignore classifies as potentially PII-bearing.
-    WALK_SKIP_FILE_PATTERNS closes that; the two tables are read at different
-    points below and neither can express the other's case.
+    CS-1155 - AND THE RULE HAS A FILE HALF, WHOSE AUTHORITY IS GIT. Directory
+    pruning alone left this repository's walk returning files ``git ls-files``
+    does not. ``_git_ignored`` asks git, which answers with no commits at all,
+    so parity is a PROPERTY wherever git is reachable rather than a snapshot of
+    whatever happened to be on one disk. WALK_SKIP_FILE_PATTERNS is the floor
+    for a tree where it is not, and it is read for directories too, because a
+    shape like ``*.log`` names a directory as readily as a file.
 
     Args:
         root: The tree to walk.
         worktrees: Resolved lowercased linked-worktree paths. Asked of git once
             when omitted, so a DIRECT caller is guarded by default; pass a value
             to drive the teardown window without a real repository.
+        ignored: git's ignored paths, asked ONCE when omitted for the same
+            reason. Pass an empty set to drive the git-less floor alone, which
+            is the only way to grade the floor on a machine that has git.
 
     Returns:
-        The files found and the skip records naming every directory not entered.
-        Pruning is REPORTED rather than discarded, so a reader sees what was
-        left out instead of taking the count on trust.
+        The files found and the skip records naming everything left out - a
+        directory not entered, its record's path carrying a trailing slash, and
+        since CS-1155 a FILE not collected, whose record carries none. Pruning
+        is REPORTED rather than discarded, so a reader sees what was left out
+        instead of taking the count on trust.
     """
     if worktrees is None:
         worktrees = _registered_worktrees(root)
+    if ignored is None:
+        ignored = _git_ignored(root)
     files: list[Path] = []
     skips: list[Skip] = []
     stack = [root]
@@ -746,13 +862,13 @@ def _walk(root: Path, *, worktrees: tuple[str, ...] | None = None) -> tuple[list
                 # CS-1155 - the record's path carries NO trailing slash, which
                 # is the only thing in a skip record telling a file from a
                 # directory.
-                file_reason = _skip_file_reason(relative, entry.name)
+                file_reason = _skip_file_reason(relative, entry.name, ignored)
                 if file_reason is None:
                     files.append(entry)
                 else:
                     skips.append({"path": relative, "reason": file_reason})
                 continue
-            dir_reason = _skip_dir_reason(entry, relative, worktrees)
+            dir_reason = _skip_dir_reason(entry, relative, worktrees, ignored)
             if dir_reason is None:
                 stack.append(entry)
                 continue
