@@ -119,7 +119,8 @@ because the hook fires BEFORE the command - so the shell cannot recover itself a
 recovery took a non-shell tool.
 
 It DEFEATS THE WRAPPER'S OWN WRITTEN CONTRACT, which is what makes it a defect rather than
-fail-closed working as designed. `tools/pretooluse_gate.py:29-46` promises exit 0 on the
+fail-closed working as designed. The fail-open half of the two-part contract stated in the
+module docstring of `tools/pretooluse_gate.py` promises exit 0 on the
 wrapper's own error, on the stated grounds that "a convenience layer that bricks every
 shell call is far worse than one that misses, and the commit path is protected by
 .githooks regardless". That branch is UNREACHABLE when the script is never entered:

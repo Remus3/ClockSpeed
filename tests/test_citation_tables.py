@@ -679,6 +679,48 @@ DISPOSITIONS: Final[Mapping[tuple[str, str], Disposition]] = {
         " not exist yet`.",
         ("0e59d4000faf:9fad20ba61c4:0",),
     ),
+    # CS-1162: TWO SITES IN ONE CS-1159 GRANT RECORD, BOTH BLANK, and they take
+    # the CS-300/CS-928 route above rather than `UNFORBIDDEN_LINE_POINTERS`. That
+    # table's own comment says blankness is not what it forgives, and it is scoped
+    # to targets with NO symbol form - both of these are tracked Python modules
+    # that have one, so it does not reach them and must not be widened to.
+    #
+    # THE GRANT RECORD ALREADY NAMES BOTH SYMBOLS IN PROSE, which is why the
+    # durable target below is near-transcription rather than adjudication of a
+    # sentence nobody can check: the record says the interpreter token is read by
+    # `_settings_interpreter`, and that the fail-open branch is promised by the
+    # wrapper's own written contract.
+    #
+    # NEITHER RECORDED REPAIR REACHES THEM, on the CS-300 reasoning verbatim.
+    # By-name citation would mean editing a record inside a carrier whose header
+    # forbids editing records, so the correction is a LATER record and these rows
+    # carry the durable target for a human to audit.
+    (LEDGER, line_key("tests/test_pretooluse_gate.py", 599)): Disposition(
+        NO_TARGET,
+        "",
+        "the entry reads that line as the helper that takes the first"
+        " whitespace token of the first PreToolUse command and feeds it to"
+        " shutil.which, which is what makes quoting the interpreter a"
+        " reddening change. The line is blank today. NO_TARGET rather than"
+        " MOVED because the durable target is carried here in full: the"
+        " module-scope helper _settings_interpreter of"
+        " tests/test_pretooluse_gate.py, and the arm named in the same"
+        " sentence, test_the_configured_interpreter_can_actually_be_resolved.",
+        ("656e8b5002da:c9b9c44755dc:0",),
+    ),
+    (LEDGER, line_key("tools/pretooluse_gate.py", 29)): Disposition(
+        NO_TARGET,
+        "",
+        "the entry reads those lines as the wrapper's promise to exit 0 on its"
+        " own error, quoting the fail-open grounds verbatim. The line is blank"
+        " today. NO_TARGET rather than MOVED because the durable target is a"
+        " passage of the MODULE DOCSTRING and not a declaration, so `resolves`"
+        " - which answers only module-scope names - would report any spelling"
+        " of it dead: the section headed THE TWO HALVES OF THE CONTRACT, AND"
+        " WHY THEY POINT OPPOSITE WAYS in tools/pretooluse_gate.py, and the"
+        " FAIL OPEN clause beneath it.",
+        ("656e8b5002da:e1d54b3998fd:0",),
+    ),
     # WRONG FROM BIRTH, NOT MERELY STALE, so it is not re-cut: the text its digest
     # froze is a `_strip_generated_pin` docstring line, never the cited table.
     (LEDGER, line_key("tests/data/test_phase2_gate.py", 775)): Disposition(
@@ -892,6 +934,12 @@ UNVERIFIED_LINE_POINTERS: Final[Mapping[tuple[str, str, int], str]] = {
     ("docs/LEDGER.md", "scripts/install_hooks.py", 310): "4facec475176",
     ("docs/LEDGER.md", "tools/edit_lint_check.py", 82): "c52969cc5a4b",
     ("docs/LEDGER.md", "tools/edit_lint_check.py", 113): "a7515962ef0b",
+    # CS-1162. The CS-1159 grant record contrasts this line - the gate's
+    # placeholder allowlist, which passed a canonical EXAMPLE key and so exposed
+    # a vacuous probe - against the violating string that was denied. It RESOLVES
+    # and is not blank, so leg 1 never saw it; leg 2 refuses the line form, and an
+    # append-only carrier is exactly the case this pin exists for.
+    ("docs/LEDGER.md", "tools/precommit_gate.py", 434): "e727fce51d02",
     ("docs/item_notes/phase4-followups-850.md", "clockspeed/data/locate.py", 39): "0d5e3276442e",
     ("docs/item_notes/phase4-followups-850.md", "clockspeed/data/locate.py", 141): "fa085c760a09",
     ("docs/item_notes/phase4-followups-850.md", "clockspeed/data/locate.py", 187): "53bcd3acffa2",
@@ -1114,7 +1162,29 @@ UNVERIFIED_LINE_POINTERS: Final[Mapping[tuple[str, str, int], str]] = {
 #: guard (j) arm's name false; the grant ordered them rewritten with no assertion
 #: loosened, and named RENAMED dispositions as the route. Four RENAMED rows with live
 #: targets, checked in three directions - the 54-to-55 kind, not NO_TARGET.
-FORGIVEN_LINE_POINTER_CEILING: Final = 60
+#:
+#: 60 TO 63, 2026-09-20 BY CS-1162, AND IT IS A RAISE THIS FILE HAS TO DEFEND.
+#: All three sites are in `docs/LEDGER.md` and all three arrived in ONE session's
+#: CS-1159 records - two blank landings adjudicated as NO_TARGET above, one live
+#: line pointer grandfathered into the pin above. THE HONEST PART OF THE NUMBER
+#: IS THAT IT IS A RECURRENCE AND NOT A NEW GAP: the CS-1159 adjudicator record
+#: already states "a line pointer into a living document is a citation with a
+#: shelf life", and was itself corrected on exactly this before publishing - then
+#: a later record under the same ID did it three more times. The raise is
+#: therefore not the price of a mechanism that was missing; it is the price of
+#: one that was stated and not followed, which is why CS-1162 put the clause in
+#: the Entry-shape row of `docs/LEDGER.md` rather than restating it in prose.
+#:
+#: WHY NONE OF THE THREE IS A REPAIR INSTEAD. The carrier is append-only by its
+#: own header, so no pointer inside a published record can be repointed where it
+#: stands - the CS-300 paragraph above makes the same argument at length. The SIX
+#: sibling pointers found in the same sweep, in `docs/item_notes/phase7.md` under
+#: `## CS-1160`, were repaired by symbol instead and cost NOTHING, because that
+#: file is live and forgiveness there would have been free and therefore wrong.
+#: A seventh in `docs/history_notes.md` was rewritten to symbol form at
+#: relocation time, while it was still repairable, and its archive pin did not
+#: move.
+FORGIVEN_LINE_POINTER_CEILING: Final = 63
 
 
 #: R2's live membership, DISCLOSED. Every entry is a citation at a path this
@@ -1161,6 +1231,15 @@ DECLINED_AS_DECLARED_UNTRACKED: Final[Mapping[tuple[str, str, str], int]] = {
         "docs/item_notes/phase7.md",
         ".claude/settings.local.json",
         "#### 5. CS-952 is sequenced BEFORE the flip and is a hard blocker",
+    ): 1,
+    (
+        "docs/LEDGER.md",
+        ".claude/settings.local.json",
+        "### 2026-09-20 - CS-1159 - FROZEN-FILE GRANT. NOT A COMPLETION RECORD."
+        " NOTHING CLOSED. CS-1159 STAYS OPEN and this entry does not close it."
+        " Granted by an adjudicator BEFORE the edit. Two cwd-relative hook"
+        " commands in `.claude/settings.json` may be anchored to"
+        " `$CLAUDE_PROJECT_DIR`, and nothing else in that file may change",
     ): 1,
     (
         "docs/LEDGER.md",
@@ -1326,7 +1405,20 @@ DECLINED_AS_A_FIXTURE_LITERAL: Final[Mapping[tuple[str, str, str], int]] = {
 #: this comment. The first draft cited two and the guard counted its own
 #: disclosure as two fresh declines, because this table is part of the corpus
 #: it describes. Name the rung and the symbol, never the path.
-DECLARED_UNTRACKED_CEILING: Final = 15
+#:
+#: 15 TO 16 FOR THE CS-1159 GRANT RECORD'S RESIDUE POINTER, 2026-09-20 BY
+#: CS-1162, AND IT IS THE SAME STANDING THE TWO EARLIER `docs/LEDGER.md` ROWS
+#: HAVE. The grant record flags that the SessionStart hook in the same rung's
+#: local settings file carries the identical relative path, is out of scope, and
+#: can never be pinned by a tracked test because the index will never carry it -
+#: which is the rung's whole criterion and the reason the citation is legitimate
+#: rather than dead. It is the residue of the grant, named so a reader does not
+#: have to rediscover it, and there is nowhere else to name it from. The row
+#: REFUNDS and the ceiling returns to 15 if that sentence ever stops naming the
+#: file. Appended TOGETHER WITH the citation it describes would have been the
+#: silent path this budget exists to price; the citation was already in the tree
+#: and red, so this row is the disclosure catching up with it.
+DECLARED_UNTRACKED_CEILING: Final = 16
 #: 9 TO 6 WHEN CS-928 DELETED THE THREE FALSE ADVISOR ATTRIBUTIONS. Six
 #: `docs/ARCHITECTURE.md` rows left the rung and three arrived from the guard
 #: that now asserts those files absent, so the disclosure holds six rows and the

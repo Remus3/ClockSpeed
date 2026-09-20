@@ -1145,7 +1145,8 @@ today do and is why the rot was invisible.
 
 the fork record for `ops/loop/winmutex.py` cites an UPSTREAM digest no file on this machine carries, and the two arms that mention it assert the string is present rather than that the upstream matches - the constant is
 `UPSTREAM_WINMUTEX_DIGEST = f1b4b011112685efb88616c52752657cf896fbb0993b2d2d264e7b3edde8b4f4`
-at `ops/loop/winmutex.py:15` and `tests/test_lane_lock.py:63`, recorded as the upstream
+in the fork-record docstring of `ops/loop/winmutex.py` and at
+`tests/test_lane_lock.py::UPSTREAM_WINMUTEX_DIGEST`, recorded as the upstream
 this tree forked from, and it matches ZERO files on this machine. Measured 2026-09-20 by a census over
 every reachable copy: 51 copies carry `0b112a4f6bfa88cf5f537f8869225c1821ebfe97428b1e899979797ddd71a61e`,
 14 carry this tree's own fork digest `e0d3ac7d9ba0be16dbe27e95354820393b9bf4edd335c97c98b39dfafb662d3f`,
@@ -1155,7 +1156,8 @@ against. A sixth repository published `0b112a4f...` on the note channel on 2026-
 the current shared value, which is what prompted the census.
 
 NO ARM BREAKS, AND THAT IS THE POINT. Nothing hashes the upstream. The two arms that
-mention it - `tests/test_lane_lock.py:817` and `:853` - assert that the digest STRING
+mention it - `tests/test_lane_lock.py::test_the_forked_mutex_wrapper_names_the_upstream_it_forked_from`
+and `::test_the_derived_bucket_records_the_file_it_was_derived_from` - assert that the digest STRING
 appears in the file's text, which is a presence check on prose. Both stay green while the
 thing the prose describes ceases to exist. This is the same class as a docstring whose
 behavioural claim rotted across a repair: the assertion grades the sentence, not the world
@@ -1163,10 +1165,11 @@ the sentence is about.
 
 WHAT IS NOT WRONG, recorded so a reader does not go looking for a second defect. The fork
 itself is sound and its own pin is correct: `sha256` of `ops/loop/winmutex.py` computed
-2026-09-20 equals `FORKED_WINMUTEX_DIGEST` at `tests/test_lane_lock.py:877`, and
+2026-09-20 equals `tests/test_lane_lock.py::FORKED_WINMUTEX_DIGEST`, and
 `python -m pytest tests/test_lane_lock.py -q` is 59 passed, exit 0. The slots digest is
-also fine and was briefly mis-transcribed during this investigation: `ops/loop/lanes.py:13`
-and `tests/test_lane_lock.py:64` carry `71fa2a683f2eaa04...`, which is BYTE-EQUAL to the
+also fine and was briefly mis-transcribed during this investigation: the derivation
+docstring of `ops/loop/lanes.py`
+and `tests/test_lane_lock.py::UPSTREAM_SLOTS_DIGEST` carry `71fa2a683f2eaa04...`, which is BYTE-EQUAL to the
 value the sixth repository published, and byte-equal to the file that repository carries.
 There is no slots divergence to reconcile.
 
