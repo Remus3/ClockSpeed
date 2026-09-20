@@ -4425,8 +4425,8 @@ def test_every_pruned_file_pattern_is_ignored_by_git_and_tracks_nothing(
     """CS-1155: the file table is graded against git, entry by entry.
 
     The weakest member decides, not the population: one pattern matching a
-    tracked file fails this. Widening `*.log` to `*.json`, or anchoring
-    `ops/loop/config.json` one segment shorter, hides authored files from every
+    tracked file fails this. Widening `*.log` to `*.json`, or anchoring the
+    lane's config entry one segment shorter, hides authored files from every
     reader downstream and leaves every synthetic arm above green.
     """
     from tests import conftest  # noqa: PLC0415 - the one git runner the suite owns
@@ -4571,7 +4571,7 @@ def test_the_floor_prunes_a_directory_a_shape_names(tmp_path: Path) -> None:
 
     `.gitignore`'s `*.log` ignores a directory called `notes.log` and
     everything under it. The first version of this rule consulted the file half
-    for FILES alone, so an adversary walked `notes.log/inner.txt` through it -
+    for FILES alone, so an adversary walked a file beneath one through it -
     the PII class the item was filed over, arriving by the other shape.
     """
     root = tmp_path / "tree"

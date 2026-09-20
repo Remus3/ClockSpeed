@@ -185,8 +185,8 @@ WALK_SKIP_ROOT_PATHS: Mapping[str, str] = MappingProxyType(
 #: and `guard_charset` skips it without opening it - and this module has no
 #: secret reader at all; that is `tools/precommit_gate.py`, which does not call
 #: this walk. Two true harms remain. A `.json` IS an authored text type, so
-#: `.claude/settings.local.json` and `ops/loop/config.json` were opened and
-#: read. And a `.sav` is a save file - CLAUDE.md non-negotiables 11 and 12 -
+#: the machine-local settings override and the lane's own config file were
+#: opened and read. And a `.sav` is a save file - CLAUDE.md non-negotiables 11 and 12 -
 #: which must not be enumerated at all, let alone named in a rendered report.
 #:
 #: WHY THIS IS A FLOOR AND NOT THE RULE. git is the authority on what this tree
@@ -717,9 +717,10 @@ def _skip_file_reason(relative: str, name: str, ignored: frozenset[str]) -> str 
     directory named `notes.log`, and a shape cannot tell the two apart.
 
     A pattern with no "/" matches the NAME at any depth; one with a "/" is
-    matched against the whole root-relative path, so `ops/loop/config.json`
-    does not match `vendor/ops/loop/config.json` and a slashed pattern carrying
-    a wildcard - .gitignore has `/memory/*.db` - still works. fnmatchcase, not
+    matched against the whole root-relative path, so the lane's config entry
+    below does not match a same-named file under a vendored tree, and a slashed
+    pattern carrying a wildcard - .gitignore has one naming the recall mirror -
+    still works. fnmatchcase, not
     fnmatch: fnmatch folds case under the HOST's rules, so a floor using it
     would prune a different population on each runner. Case-sensitivity makes
     this floor the NARROWER of the two authorities and never the wider - git,

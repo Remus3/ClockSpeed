@@ -1099,26 +1099,3 @@ the uniqueness enforcement covers every needle-eligible fixture family rather th
 ### Full headline
 
 the fixture collision CS-1025 was filed over survives in two places the repair did not reach: `tests/audit/test_placement.py` still holds, at module level, `PLANTED_ROTATION = (0.5, -0.25, 0.125, 0.8125)` and `PLANTED_SCALE = (2.0, 0.5, -1.5)`, byte-identical to the pre-fix constants and colliding on the same rendering, feeding the membership-based anti-vacuity control inside `test_no_orientation_component_reaches_the_model_as_a_float` where one of seven needles is non-load-bearing; and in `tests/surface/test_map.py` the TRANSLATION components are needle-eligible but unswept, with `BUILT_TRANSLATION[0]` deliberately ambiguous at a count of two - no mutant was found for either, so both are weakened rather than defeated, but a future author writing an anti-vacuity control off a translation walks into the identical trap and the new uniqueness sweep will not see it
-
-
-## CS-1155
-
-### Acceptance
-
-the walk's population and the git index's agree on this repository, or every file in the
-difference is named in a record with a reason it is not reachable by a directory rule, and a
-test derives the difference from git rather than from a list, so it cannot go stale
-
-### Full headline
-
-`tools/drift_guard.py::_walk` prunes DIRECTORIES and cannot express a file shape, so the
-walk over this repository returns 5 files `git ls-files` does not: measured 2026-09-19 at
-`a97200d`, they are a machine-local settings override and a stray root log, matched by the
-`*.local.json` and `*.log` shapes, two files under `docs/_scratch/` - closed by CS-1153
-adding that directory - and the headless lane's own config file, which is a FILE pattern. The `.log` is the one that matters:
-`.gitignore` classifies logs as potentially PII-bearing because "logs quote parsed data and
-can echo header bytes", which is the same classification CS-1153 cited as its motive, and
-the walk still hands it to the character-set and secret readers. CS-1153 closed the
-DIRECTORY half deliberately and this is the residue, filed rather than left implied - the
-comment above `WALK_SKIP_ROOT_PATHS` names this item as the owner
-
