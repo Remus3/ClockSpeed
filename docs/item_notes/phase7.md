@@ -1180,3 +1180,73 @@ about history, not about the present. The candidate answers are to keep the hist
 digest and add a measured note that it is unreachable, or to record both - what it was cut
 from, and what the carriers hold now - and say which is which. ADR 0017 owns the fork
 decision and is where the answer belongs if it changes that decision's basis.
+## CS-1163
+
+### Acceptance
+
+the citation guard sees a BARE continuation pointer - the `` `:NNN` `` form that follows a
+full `path.ext:NNN` citation in the same sentence - or the repository records, in one
+place with a measured count, that it deliberately does not and why. A test plants a bare
+continuation beside a full pointer and asserts the guard's finding count RISES, with a
+control proving the same run still detects the full pointer, so a guard that silently
+stopped matching either form cannot pass. Widening the pattern is acceptable only with a
+route for every site it newly reddens - the count is 67 and the largest carrier is
+append-only - so the acceptance is met by a widened guard PLUS a discharged census, or by
+a recorded declination that names the number.
+
+### Full headline
+
+the citation guard's `LINE_POINTER_RE` requires a full `path.ext:NNN`, so the BARE
+continuation pointer that follows a full citation in the same sentence is invisible to it,
+and 67 of them sit in the corpus today - the form is `` `:NNN` ``. Confirmed by MEASUREMENT rather
+than by reading, 2026-09-20, during CS-1162: the `## CS-1160` section wrote
+a full pointer at `tests/test_lane_lock.py` followed by a bare continuation, and the
+guard reported the full one and NOT the continuation - while the continuation named a
+live arm, `tests/test_lane_lock.py::test_the_derived_bucket_records_the_file_it_was_derived_from`.
+The two offending pointers are NOT reproduced here in their original form, deliberately:
+this section would otherwise carry the defect it describes, which is one of the ways the
+corpus grew the other 67.
+Both were repaired to symbol form under CS-1162, so the instance is gone and the BLIND
+SPOT is not.
+
+THE CENSUS, measured independently of the slice that found it, over every tracked markdown
+file excluding `.git`, the channel directories and worktrees:
+
+    42  docs/LEDGER.md                                   APPEND-ONLY, unrepairable in place
+    11  docs/_scratch/cs1087_spec.md
+     5  docs/history_notes.md                            HISTORICAL, unrepairable in place
+     4  docs/item_notes/lane-start-failure-record.md
+     2  docs/adr/0016-unlock-arrays-carriers-and-serialized-grammar.md
+     1  docs/adr/0005-overclock-ceiling-source.md
+     1  docs/item_notes/phase4-followups-850.md
+     1  docs/item_notes/phase4-followups.md
+    67  TOTAL across 8 files
+
+**WIDENING THE REGEX WITHOUT A ROUTE FOR THOSE 67 CONVERTS A BLIND SPOT INTO AN UNPAYABLE
+BILL**, which is why this is filed rather than fixed inside CS-1162. Forty-seven of the 67
+are in the two carriers whose own rules forbid editing them in place, so they cannot simply
+be repaired the way CS-1162 repaired the live ones. Every `ARCHIVE_ROT` pin would move at
+the same time, and a pin that moves to accommodate rot is the exemption-by-convenience this
+repository has already recorded against itself.
+
+THE NUMBER IS ALSO A CORRECTION. The slice that found the blind spot reported the census as
+41 in the ledger, 5 in the archive and 4 in one item-notes leaf - three files, about 50
+sites. Re-measured here it is 67 across EIGHT files, and the three the slice did not name
+include two ADRs and a scratch spec carrying 11 on its own. A census quoted from the file
+the finder happened to be reading is not a census.
+
+WHY THE FORM EXISTS AT ALL, because the fix is not simply "ban it". The bare continuation
+is a genuine readability idiom - a full citation followed by a bare line number reads
+better than repeating the path - and it is used deliberately in prose written by this project. A widened guard would
+be asking authors to stop writing English. The candidate answers are therefore to widen the
+pattern and require a full citation, to widen it and resolve a bare `:NNN` against the
+nearest preceding path in the same sentence, or to declare the form out of scope with the
+count recorded. The middle option is the only one that keeps the idiom, and it is also the
+one that can mis-attribute when two different paths are cited in one sentence - which needs
+its own arm.
+
+RELATED AND DELIBERATELY NOT CLOSED BY THIS ITEM. CS-1144 is open on line-pointer rot in
+`docs/LEDGER.md` for a different carrier. CS-1162 closed the symbol-citation rule into the
+ledger's Entry-shape table and repaired the live instances. This item is about what the
+guard can SEE, not about what the rule requires.
+
