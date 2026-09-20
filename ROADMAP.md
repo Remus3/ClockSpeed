@@ -358,3 +358,4 @@ CS-1034 - four anti-leak privacy arms hunt a needle the encoder can never produc
 CS-1035 - `clockspeed/audit/inventory.py` carries CS-1020's ungraded-count shape in the module named beside `placement.py`: `_warning` defaults `count=1` - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
 CS-1036 - both CS-1025 and CS-1020 enforce their sweeps over a HAND-ENUMERATED population rather than one derived from the shipped model - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1037 - the fixture collision CS-1025 was filed over survives in two places the repair did not reach - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
+CS-1158 - a pruned save file's FILENAME reaches the rendered skip list and the `--json` payload of `tools/drift_guard.py`, and a save filename carries the world name - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`

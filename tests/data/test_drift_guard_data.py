@@ -69,7 +69,7 @@ import tempfile
 from collections.abc import Callable, Iterator
 from pathlib import Path
 from types import MappingProxyType, ModuleType
-from typing import Any
+from typing import Any, Final
 
 import pytest
 
@@ -4115,22 +4115,25 @@ def _cs1153_tree(root: Path) -> None:
         (root / name / f"{name}_leaf.md").write_text("# local\n", encoding="utf-8")
 
 
+_ASK_GIT: Final = object()
+
+
 def _walked(
     root: Path,
     worktrees: tuple[str, ...] = (),
-    ignored: frozenset[str] | None = frozenset(),
+    ignored: object = None,
 ) -> set[str]:
     """The walk's files as root-relative posix strings.
 
-    ``worktrees`` and ``ignored`` both default to EMPTY rather than to None so
-    no arm here spawns git against a tmp_path that is not a checkout: every arm
-    states the authority it wants, and the default is the weakest one - the
-    static floor alone, deciding with no git answer at all. Pass ``None`` to
-    let the walk ask git for itself, which only the real-tree arms want.
+    ``worktrees`` defaults to EMPTY and ``ignored`` to NONE so no arm here
+    spawns git against a tmp_path that is not a checkout: every arm states the
+    authority it wants, and the default is the weakest one - git unreachable,
+    the static floor alone deciding. Pass ``_ASK_GIT`` to let the walk ask git
+    for itself, and an explicit ``frozenset()`` for the third state, which an
+    adjudicator found load-bearing: git ANSWERING that nothing here is ignored.
     """
-    files, _skips = drift_guard._walk(  # noqa: SLF001
-        root, worktrees=worktrees, ignored=ignored
-    )
+    kwargs = {} if ignored is _ASK_GIT else {"ignored": ignored}
+    files, _skips = drift_guard._walk(root, worktrees=worktrees, **kwargs)  # noqa: SLF001
     return {path.relative_to(root).as_posix() for path in files}
 
 
@@ -4503,13 +4506,13 @@ def test_the_walk_reaches_every_tracked_file_in_this_repository(
     # differences vacuous, and the MISSING half would grade nothing.
     assert len(indexed) >= _INDEX_SIZE_FLOOR, len(indexed)
 
-    # ignored=None, so the walk asks git itself - the whole point of the repair.
+    # _ASK_GIT, so the walk asks git itself - the whole point of the repair.
     # An adversary measured the worktrees argument here as inert and it is kept
     # only because a real tree deserves the real value.
     walked = _walked(
         repo_root,
         worktrees=drift_guard._registered_worktrees(repo_root),  # noqa: SLF001
-        ignored=None,
+        ignored=_ASK_GIT,
     )
     missing = sorted(indexed - walked)
     extra = sorted(walked - indexed)
@@ -4563,7 +4566,7 @@ def test_the_floor_prunes_a_save_file_shape(tmp_path: Path) -> None:
 
     # ignored=frozenset() - the FLOOR alone, with git's answer withheld. Without
     # that this arm would pass on a machine where git happened to answer.
-    assert _walked(root, ignored=frozenset()) == {"top.md"}
+    assert _walked(root, ignored=None) == {"top.md"}
 
 
 def test_the_floor_prunes_a_directory_a_shape_names(tmp_path: Path) -> None:
@@ -4580,11 +4583,11 @@ def test_the_floor_prunes_a_directory_a_shape_names(tmp_path: Path) -> None:
     (root / "keep.md").write_text("# clean\n", encoding="utf-8")
 
     _files, skips = drift_guard._walk(  # noqa: SLF001
-        root, worktrees=(), ignored=frozenset()
+        root, worktrees=(), ignored=None
     )
     reasons = {skip["path"]: skip["reason"] for skip in skips}
 
-    assert _walked(root, ignored=frozenset()) == {"keep.md"}
+    assert _walked(root, ignored=None) == {"keep.md"}
     assert reasons["notes.log/"] == drift_guard.WALK_SKIP_FILE_PATTERNS["*.log"], reasons
 
 
@@ -4610,7 +4613,7 @@ def test_the_floor_is_case_sensitive_so_it_never_grades_the_runner(
 
     # The lower-case sibling is the control: a floor that pruned NOTHING would
     # satisfy the upper-case half below for the wrong reason.
-    assert _walked(root, ignored=frozenset()) == {"keep.md", "STRAY.LOG"}
+    assert _walked(root, ignored=None) == {"keep.md", "STRAY.LOG"}
 
 
 def test_git_decides_case_and_the_walk_follows_it(tmp_path: Path) -> None:
@@ -4637,7 +4640,7 @@ def test_git_decides_case_and_the_walk_follows_it(tmp_path: Path) -> None:
     assert verdict.returncode in (0, 1), verdict.returncode
     git_ignores_it = verdict.returncode == 0
 
-    walked = _walked(root, ignored=None)
+    walked = _walked(root, ignored=_ASK_GIT)
     assert ("STRAY.LOG" in walked) is not git_ignores_it, (walked, git_ignores_it)
     # The control. A walk that returned nothing at all would satisfy the line
     # above whenever git said ignored.
@@ -4665,7 +4668,7 @@ def test_git_prunes_a_shape_the_floor_does_not_carry(tmp_path: Path) -> None:
     # The control: no shape in the floor names either, so with git's answer
     # withheld the walk collects both. Without this the arm below passes on a
     # walk that pruned them for some unrelated reason.
-    assert _walked(root, ignored=frozenset()) == {
+    assert _walked(root, ignored=None) == {
         ".gitignore",
         "keep.md",
         "hoard.txt",
@@ -4675,7 +4678,7 @@ def test_git_prunes_a_shape_the_floor_does_not_carry(tmp_path: Path) -> None:
     _files, skips = drift_guard._walk(root, worktrees=())  # noqa: SLF001
     reasons = {skip["path"]: skip["reason"] for skip in skips}
 
-    assert _walked(root, ignored=None) == {".gitignore", "keep.md"}
+    assert _walked(root, ignored=_ASK_GIT) == {".gitignore", "keep.md"}
     assert reasons["hoard.txt"] == drift_guard.GITIGNORED_REASON, reasons
     assert reasons["vendored/"] == drift_guard.GITIGNORED_REASON, reasons
 
@@ -4722,9 +4725,9 @@ def test_git_unreachable_leaves_the_floor_alone_deciding(
     monkeypatch.setattr(drift_guard, "resolve_tool", lambda _name: None)
 
     # The control: with git resolved away, the authority really is silent.
-    assert drift_guard._git_ignored(root) == frozenset()  # noqa: SLF001
-    # ignored=None, so the walk asks - and gets nothing, and prunes anyway.
-    assert _walked(root, ignored=None) == {"top.md"}
+    assert drift_guard._git_ignored(root) is None  # noqa: SLF001
+    # _ASK_GIT, so the walk asks - and gets nothing, and prunes anyway.
+    assert _walked(root, ignored=_ASK_GIT) == {"top.md"}
 
 
 def test_a_slashed_pattern_carrying_a_wildcard_still_matches(
@@ -4744,14 +4747,112 @@ def test_a_slashed_pattern_carrying_a_wildcard_still_matches(
         MappingProxyType({"memory/*.db": "local-only - the recall mirror"}),
     )
     reason = drift_guard._skip_file_reason(  # noqa: SLF001
-        "memory/recall.db", "recall.db", frozenset()
+        "memory/recall.db", "recall.db", None
     )
 
     assert reason == "local-only - the recall mirror"
     # Still anchored: the pattern is a path, not a tail to find anywhere.
     assert (
         drift_guard._skip_file_reason(  # noqa: SLF001
-            "vendor/memory/recall.db", "recall.db", frozenset()
+            "vendor/memory/recall.db", "recall.db", None
         )
         is None
+    )
+
+
+def test_the_floor_never_overrules_an_answer_git_gave(tmp_path: Path) -> None:
+    """CS-1155: where git ANSWERED, git decides. The adjudicator's finding.
+
+    The first repair consulted the floor first, so on a tree where `build.log`
+    was TRACKED and git ignored nothing, the walk dropped it anyway. That made
+    the sentence the whole design rests on - the table is only the floor for a
+    tree with no git - false, and it is the sentence that answered a section-4
+    restatement objection three adversaries raised.
+
+    An EMPTY answer is still an answer. That is why this arm passes
+    `frozenset()` rather than None, and why _git_ignored returns None for a git
+    it could not ask: collapsing the two is the defect.
+    """
+    root = tmp_path / "tree"
+    root.mkdir()
+    (root / "keep.md").write_text("# clean\n", encoding="utf-8")
+    (root / "build.log").write_text("tracked, despite the shape\n", encoding="utf-8")
+
+    # The control: with git UNREACHABLE the floor does decide, and prunes it.
+    # Without this the arm below passes on a floor that matched nothing at all.
+    assert _walked(root, ignored=None) == {"keep.md"}
+
+    assert _walked(root, ignored=frozenset()) == {"keep.md", "build.log"}
+
+
+def test_the_floor_names_the_class_for_a_path_git_also_named(tmp_path: Path) -> None:
+    """CS-1155: the two authorities COLLIDE here, and the reason identity decides.
+
+    Swapping the two lookups was a silent mutant that survived every arm,
+    because no fixture made both authorities name the same path: the floor arms
+    withheld git, and the git arms used shapes the floor does not carry. The
+    reason is the GROUPING KEY of the rendered skip list, so a swap collapses
+    every personal-data and credential class into one generic bucket.
+    """
+    root = tmp_path / "repo"
+    if not _cs1155_repo(root, "*.log\n*.sav\nhoard.txt\n"):
+        pytest.skip("git is not installed, so its answer cannot be asked")
+    (root / "quiet.log").write_text("both authorities name this\n", encoding="utf-8")
+    (root / "world.sav").write_bytes(b"\x00save\x00")
+    (root / "hoard.txt").write_text("git alone names this\n", encoding="utf-8")
+
+    _files, skips = drift_guard._walk(root, worktrees=())  # noqa: SLF001
+    reasons = {skip["path"]: skip["reason"] for skip in skips}
+
+    # The collision: git names it AND the floor classifies it. The floor's
+    # reason wins, because it says WHICH class and git's says only "ignored".
+    assert reasons["quiet.log"] == drift_guard.WALK_SKIP_FILE_PATTERNS["*.log"], reasons
+    assert reasons["world.sav"] == drift_guard.WALK_SKIP_FILE_PATTERNS["*.sav"], reasons
+    # The control. Without a path git alone names, an implementation that
+    # ignored git entirely would satisfy both lines above.
+    assert reasons["hoard.txt"] == drift_guard.GITIGNORED_REASON, reasons
+
+
+@pytest.mark.parametrize("ignorecase", ["true", "false"])
+def test_git_decides_case_on_either_kind_of_checkout(tmp_path: Path, ignorecase: str) -> None:
+    """CS-1155: the case arm, made live on BOTH runners rather than on this one.
+
+    The unparametrized version asked git what it thought and asserted the walk
+    agreed. On a case-FOLDING checkout that is a real grading. On a
+    case-sensitive one - every ubuntu runner, and tier 1 is ubuntu only - git
+    says not-ignored, the walk keeps the file, and a walk that pruned NOTHING
+    satisfies both the assertion and its own control. An adversary measured
+    exactly that, which is the CS-1156 lesson arriving from the other side: a
+    control can grade the platform by being SATISFIED everywhere but one.
+
+    core.ignorecase is a config value, not a filesystem property, so both arms
+    run on both runners.
+    """
+    from tests import conftest  # noqa: PLC0415 - the one git runner the suite owns
+
+    root = tmp_path / "repo"
+    if not _cs1155_repo(root, "*.log\n"):
+        pytest.skip("git is not installed, so its answer cannot be asked")
+    setting = conftest.run_git(root, "config", "core.ignorecase", ignorecase)
+    assert setting is not None
+    assert setting.returncode == 0, ignorecase
+    (root / "keep.md").write_text("# clean\n", encoding="utf-8")
+    (root / "quiet.log").write_text("lower\n", encoding="utf-8")
+    (root / "STRAY.LOG").write_text("upper\n", encoding="utf-8")
+
+    verdict = conftest.run_git(root, "check-ignore", "-q", "--", "STRAY.LOG")
+    assert verdict is not None
+    assert verdict.returncode in (0, 1), verdict.returncode
+    git_ignores_it = verdict.returncode == 0
+    # The control that the earlier version lacked: this arm only grades
+    # anything if the two settings actually disagree somewhere, so each one
+    # states what it expects of git rather than accepting either answer.
+    assert git_ignores_it is (ignorecase == "true"), (ignorecase, git_ignores_it)
+
+    walked = _walked(root, ignored=_ASK_GIT)
+    assert ("STRAY.LOG" in walked) is not git_ignores_it, (walked, git_ignores_it)
+    # The lower-case sibling is pruned on BOTH settings, so a walk that pruned
+    # nothing cannot satisfy the case-sensitive arm.
+    assert walked == {".gitignore", "keep.md"} | (set() if git_ignores_it else {"STRAY.LOG"}), (
+        walked
     )

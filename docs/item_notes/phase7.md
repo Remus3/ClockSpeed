@@ -1099,3 +1099,32 @@ the uniqueness enforcement covers every needle-eligible fixture family rather th
 ### Full headline
 
 the fixture collision CS-1025 was filed over survives in two places the repair did not reach: `tests/audit/test_placement.py` still holds, at module level, `PLANTED_ROTATION = (0.5, -0.25, 0.125, 0.8125)` and `PLANTED_SCALE = (2.0, 0.5, -1.5)`, byte-identical to the pre-fix constants and colliding on the same rendering, feeding the membership-based anti-vacuity control inside `test_no_orientation_component_reaches_the_model_as_a_float` where one of seven needles is non-load-bearing; and in `tests/surface/test_map.py` the TRANSLATION components are needle-eligible but unswept, with `BUILT_TRANSLATION[0]` deliberately ambiguous at a count of two - no mutant was found for either, so both are weakened rather than defeated, but a future author writing an anti-vacuity control off a translation walks into the identical trap and the new uniqueness sweep will not see it
+
+
+## CS-1158
+
+### Acceptance
+
+no path a skip record carries because it is PII-bearing or credential-bearing reaches a
+rendered report or the `--json` payload in a form that names the artifact, and a test
+plants one of each declared class and asserts the rendered bytes carry no leaf name, with
+a control proving the same run DOES render an ordinary pruned path
+
+### Full headline
+
+a pruned save file's FILENAME reaches the rendered skip list and the `--json` payload of
+`tools/drift_guard.py`, and a save filename carries the world name - CS-1155 made the walk
+prune a save file, but the skip record it appends carries the path, `_skip_lines` prints
+`skip["path"]` on every run rather than only under `--verbose`, and `--json` serialises
+the skip list whole. Measured 2026-09-19 by an
+adjudicator at `efb3753`: a synthetic tree containing a save file rendered its leaf name
+under the `PII-bearing - a save file carries account and player-name strings` heading. A
+save filename carries the WORLD NAME, which CLAUDE.md section 2 puts in the same class as
+the account id, and non-negotiable 3 forbids writing it into a log line. Pruning stopped
+the CONTENT being read and this is the NAME, which is a separate surface; the CS-1155
+comment above `WALK_SKIP_FILE_PATTERNS` declares it rather than claiming otherwise. The
+open question the fix must settle first, and the reason this is not a one-line redaction:
+whether a FILENAME is personal data under this repository's own classification, which
+CLAUDE.md does not say in either direction - if the answer is yes for a `.sav` it is
+arguably yes for every path under a directory named for the player, and the answer belongs
+in an ADR rather than in a redaction call site

@@ -186,8 +186,12 @@ WALK_SKIP_ROOT_PATHS: Mapping[str, str] = MappingProxyType(
 #: secret reader at all; that is `tools/precommit_gate.py`, which does not call
 #: this walk. Two true harms remain. A `.json` IS an authored text type, so
 #: the machine-local settings override and the lane's own config file were
-#: opened and read. And a `.sav` is a save file - CLAUDE.md non-negotiables 11 and 12 -
-#: which must not be enumerated at all, let alone named in a rendered report.
+#: opened and read. And a `.sav` is a save file - CLAUDE.md non-negotiables 11
+#: and 12 - which must not be enumerated and handed to a reader at all. NOT
+#: CLAIMED: an adjudicator measured a pruned save file's FILENAME reaching the
+#: rendered skip list and the --json payload, and a save filename carries the
+#: world name. Pruning stops the CONTENT being read; the name in the report is
+#: a separate surface and a separate item.
 #:
 #: WHY THIS IS A FLOOR AND NOT THE RULE. git is the authority on what this tree
 #: ignores and it answers with no commits at all, so `_git_ignored` below asks
@@ -339,6 +343,20 @@ DATE_PATTERNS = (
 _GUARD_HEADERS = ("GUARD", "NAME", "VERDICT")
 
 Guard = dict[str, Any]
+
+
+class _Unset:
+    """The absence of an argument, where None is itself a meaningful value.
+
+    CS-1155 - `_walk`'s ``ignored`` has three states: a set of paths git named,
+    None for a git that could not be asked, and NOT PASSED for "ask git
+    yourself". A plain None default collapsed the last two, which is how the
+    floor came to overrule an answer git had given.
+    """
+
+
+_UNSET = _Unset()
+
 Skip = dict[str, str]
 
 
@@ -656,7 +674,7 @@ def _is_registered_worktree(path: Path, worktrees: tuple[str, ...]) -> bool:
     return resolved in worktrees
 
 
-def _git_ignored(root: Path) -> frozenset[str]:
+def _git_ignored(root: Path) -> frozenset[str] | None:
     """Ask git which paths under ``root`` it ignores, as relative posix strings.
 
     CS-1155 - GIT IS THE AUTHORITY AND THE WALK DOES NOT RESTATE IT. The walk
@@ -674,15 +692,19 @@ def _git_ignored(root: Path) -> frozenset[str]:
     never reaches its children.
 
     Returns:
-        The ignored paths, or an EMPTY set if git cannot be reached or refuses.
-        Empty is not an error - it is the git-less case, and
-        WALK_SKIP_FILE_PATTERNS plus WALK_SKIP_ROOT_PATHS are the floor there.
+        The ignored paths, or NONE when git could not be asked - unresolvable,
+        raising, or refusing. None and an EMPTY SET are different answers and
+        an adjudicator found the difference load-bearing: empty is git saying
+        "nothing here is ignored", which the floor must not overrule, while
+        None is git saying nothing at all, which is the only case the floor
+        decides. Collapsing the two let the floor drop a TRACKED file with git
+        reachable and answering.
     """
     # CS-910 - the tool is RESOLVED, never named. See _git_ls_files above for
     # why a bare "git" in an argv is a current-directory read on Windows.
     git = resolve_tool(GIT_NAME)
     if git is None:
-        return frozenset()
+        return None
     try:
         proc = subprocess.run(
             [
@@ -702,13 +724,13 @@ def _git_ignored(root: Path) -> frozenset[str]:
             check=False,
         )
     except (OSError, subprocess.SubprocessError):
-        return frozenset()
+        return None
     if proc.returncode != 0:
-        return frozenset()
+        return None
     return frozenset(entry.rstrip("/") for entry in (proc.stdout or "").split("\x00") if entry)
 
 
-def _skip_file_reason(relative: str, name: str, ignored: frozenset[str]) -> str | None:
+def _skip_file_reason(relative: str, name: str, ignored: frozenset[str] | None) -> str | None:
     """Return why ``relative`` is not authored here, or None to keep it.
 
     CS-1155. The FLOOR, not the rule - `_git_ignored` is the authority wherever
@@ -722,33 +744,47 @@ def _skip_file_reason(relative: str, name: str, ignored: frozenset[str]) -> str 
     pattern carrying a wildcard - .gitignore has one naming the recall mirror -
     still works. fnmatchcase, not
     fnmatch: fnmatch folds case under the HOST's rules, so a floor using it
-    would prune a different population on each runner. Case-sensitivity makes
-    this floor the NARROWER of the two authorities and never the wider - git,
-    where reachable, folds case by core.ignorecase and the walk follows it.
+    would prune a different population on each runner. git, where
+    reachable, folds case by core.ignorecase, and the walk follows git rather
+    than this floor.
+
+    WHERE GIT ANSWERED, GIT DECIDES, AND THE FLOOR ONLY NAMES THE CLASS. An
+    adjudicator built a tree where `build.log` was TRACKED and git ignored
+    nothing, and the first version dropped it anyway: the floor was consulted
+    first and so could overrule an answer git had actually given. That made the
+    sentence this design rests on - the table is only the floor for a tree with
+    no git - false, and it is the sentence that answered a section-4
+    restatement objection three adversaries raised. A path git answered about
+    and did not name is KEPT. A path git DID name is looked up in the floor
+    first, so the specific reason - which class of thing this is, under which
+    of CLAUDE.md's rules - survives into the record instead of being flattened
+    to the generic one; swapping that order was otherwise a silent mutant that
+    survived every arm in the file.
 
     Args:
         relative: The entry's root-relative posix path.
         name: Its final component, which an unanchored pattern matches.
-        ignored: git's own answer, from _git_ignored. Empty when git could not
-            be reached, which leaves the floor alone deciding.
+        ignored: git's own answer, from _git_ignored, or NONE when git could
+            not be asked at all - the only case the floor decides alone. An
+            EMPTY set is git saying nothing here is ignored, which is an answer.
 
     Returns:
-        The reason it was pruned, or None if neither authority named it. The
-        floor is asked FIRST so its specific reason - which class of thing this
-        is, and under which of CLAUDE.md's rules - survives into the record
-        rather than being flattened to the generic gitignored one.
+        The reason it was pruned, or None if no authority named it.
     """
+    if ignored is not None and relative not in ignored:
+        return None
     for pattern, reason in WALK_SKIP_FILE_PATTERNS.items():
         subject = relative if "/" in pattern else name
         if fnmatch.fnmatchcase(subject, pattern):
             return reason
-    if relative in ignored:
-        return GITIGNORED_REASON
-    return None
+    return GITIGNORED_REASON if ignored is not None else None
 
 
 def _skip_dir_reason(
-    entry: Path, relative: str, worktrees: tuple[str, ...], ignored: frozenset[str]
+    entry: Path,
+    relative: str,
+    worktrees: tuple[str, ...],
+    ignored: frozenset[str] | None,
 ) -> str | None:
     """Return why the directory ``entry`` is not entered, or None to enter it.
 
@@ -760,7 +796,10 @@ def _skip_dir_reason(
         entry: The directory itself, for the two tests that need the path.
         relative: Its root-relative posix path.
         worktrees: Resolved lowercased linked-worktree paths.
-        ignored: git's own answer, from _git_ignored.
+        ignored: git's own answer, from _git_ignored, or None when git could
+            not be asked. WALK_SKIP_ROOT_PATHS is checked BEFORE it, because
+            those roots are this tree's own classification and must prune a
+            directory git happens not to ignore - a linked worktree, for one.
 
     Returns:
         The reason it was pruned, or None if nothing pruned it.
@@ -797,7 +836,7 @@ def _walk(
     root: Path,
     *,
     worktrees: tuple[str, ...] | None = None,
-    ignored: frozenset[str] | None = None,
+    ignored: frozenset[str] | None | _Unset = _UNSET,
 ) -> tuple[list[Path], list[Skip]]:
     """Enumerate ``root`` by walking it, pruning what this tree does not author.
 
@@ -822,8 +861,10 @@ def _walk(
             when omitted, so a DIRECT caller is guarded by default; pass a value
             to drive the teardown window without a real repository.
         ignored: git's ignored paths, asked ONCE when omitted for the same
-            reason. Pass an empty set to drive the git-less floor alone, which
-            is the only way to grade the floor on a machine that has git.
+            reason. Pass NONE to drive the git-less case - the floor alone
+            deciding - which is the only way to grade the floor on a machine
+            that has git. An empty frozenset is the OTHER thing: git answering
+            that nothing here is ignored, under which the floor prunes nothing.
 
     Returns:
         The files found and the skip records naming everything left out - a
@@ -834,7 +875,7 @@ def _walk(
     """
     if worktrees is None:
         worktrees = _registered_worktrees(root)
-    if ignored is None:
+    if isinstance(ignored, _Unset):
         ignored = _git_ignored(root)
     files: list[Path] = []
     skips: list[Skip] = []
