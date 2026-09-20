@@ -67,6 +67,7 @@ from __future__ import annotations
 
 import argparse
 import contextlib
+import fnmatch
 import hashlib
 import json
 import logging
@@ -127,10 +128,10 @@ WALK_SKIP_DIRS = frozenset(
 #   - `/build/` and `/dist/` are leading-slash directory patterns absent from
 #     here because WALK_SKIP_DIRS already prunes them by NAME.
 #   - .gitignore also ignores FILE SHAPES this set structurally cannot express -
-#     `*.log`, `*.local.json`, `/ops/loop/config.json`. Measured 2026-09-19:
-#     the walk over this repository returns 5 files the index does not, and one
-#     of them is a stray `.log`, which .gitignore itself classifies as
-#     potentially PII-bearing. Parity with the index is CS-1155, not this item.
+#     `*.log`, `*.local.json`, `/ops/loop/config.json`. A set of DIRECTORIES has
+#     no way to say them, so CS-1155 closed that half in a table of its own:
+#     WALK_SKIP_FILE_PATTERNS, below. The two are read at different points of
+#     the walk and neither can cover the other's case.
 # tests/data/test_drift_guard_data.py grades every entry here against git.
 #
 # WHY A PATH AND NOT A NAME. The set this replaced held bare names tested at
@@ -165,6 +166,31 @@ WALK_SKIP_ROOT_PATHS: Mapping[str, str] = MappingProxyType(
         "gamedata": "publisher-owned - staging copy of install content",
         "CommunityResources": "publisher-owned - staging copy of install content",
         "game": "publisher-owned - staging copy of install content",
+    }
+)
+
+#: CS-1155 - the FILE half of the walk's own rule. WALK_SKIP_ROOT_PATHS above
+#: prunes DIRECTORIES and cannot express a file SHAPE, so the walk over this
+#: repository returned files `git ls-files` does not: a machine-local settings
+#: override, a stray root log, and the headless lane's own config. The log is
+#: the one that motivated the item - .gitignore classifies logs as potentially
+#: PII-bearing because they quote parsed data and can echo header bytes, which
+#: is the same classification CS-1153 cited as ITS motive, and the walk still
+#: handed one to the character-set and secret readers.
+#:
+#: MATCHING MIRRORS .gitignore, deliberately, because .gitignore is the
+#: authority every entry here is graded against by
+#: tests/data/test_drift_guard_data.py:
+#:   - a pattern with NO "/" is a SHAPE and matches a file's NAME at any depth
+#:   - a pattern WITH one is a FILE, anchored at the walk root and compared as
+#:     an exact relative path - never as a tail, so a vendored or nested copy
+#:     at the same sub-path is NOT hidden
+#: Nothing here is a partial path, so there is no third case to get wrong.
+WALK_SKIP_FILE_PATTERNS: Mapping[str, str] = MappingProxyType(
+    {
+        "*.log": "PII-bearing - logs quote parsed data and can echo header bytes",
+        "*.local.json": "local-only - a machine-local settings override",
+        "ops/loop/config.json": "local-only - the headless lane's model choice, a machine choice",
     }
 )
 
@@ -606,6 +632,64 @@ def _is_registered_worktree(path: Path, worktrees: tuple[str, ...]) -> bool:
     return resolved in worktrees
 
 
+def _skip_file_reason(relative: str, name: str) -> str | None:
+    """Return why ``relative`` is not authored here, or None to keep it.
+
+    CS-1155. Case-SENSITIVE on every platform, by fnmatchcase rather than
+    fnmatch: fnmatch folds case under the host's rules, so `STRAY.LOG` would be
+    pruned on Windows and walked on ubuntu, and a rule whose population depends
+    on the runner is a rule that grades the runner.
+
+    Args:
+        relative: The file's root-relative posix path.
+        name: Its final component, which an unanchored pattern matches.
+
+    Returns:
+        The reason from WALK_SKIP_FILE_PATTERNS, or None if nothing matched.
+    """
+    for pattern, reason in WALK_SKIP_FILE_PATTERNS.items():
+        if "/" in pattern:
+            if relative == pattern:
+                return reason
+        elif fnmatch.fnmatchcase(name, pattern):
+            return reason
+    return None
+
+
+def _skip_dir_reason(entry: Path, relative: str, worktrees: tuple[str, ...]) -> str | None:
+    """Return why the directory ``entry`` is not entered, or None to enter it.
+
+    The DIRECTORY half of the walk's rule, beside _skip_file_reason above. Kept
+    out of _walk so the two halves read as the pair they are, and so neither
+    grows by hiding inside a loop body that also enumerates.
+
+    Args:
+        entry: The directory itself, for the two tests that need the path.
+        relative: Its root-relative posix path.
+        worktrees: Resolved lowercased linked-worktree paths.
+
+    Returns:
+        The reason it was pruned, or None if nothing pruned it.
+    """
+    if entry.name in WALK_SKIP_DIRS:
+        return "excluded directory (tooling or vcs internals)"
+    if relative in WALK_SKIP_ROOT_PATHS:
+        return WALK_SKIP_ROOT_PATHS[relative]
+    if _is_registered_worktree(entry, worktrees):
+        # Ordered BEFORE the marker test, and the reason is NOT that the
+        # teardown window needs it - with the marker gone the marker test
+        # answers False either way, so order cannot decide that case. What
+        # order decides is which REASON a worktree that STILL carries its
+        # marker is reported under, and the registration is the more specific
+        # answer. Graded, because an order swap is otherwise a silent mutant:
+        # see the REGISTERED_WORKTREE_REASON arm in
+        # tests/data/test_drift_guard_data.py.
+        return REGISTERED_WORKTREE_REASON
+    if _is_checkout_root(entry):
+        return BOUNDARY_REASON
+    return None
+
+
 def _walk(root: Path, *, worktrees: tuple[str, ...] | None = None) -> tuple[list[Path], list[Skip]]:
     """Enumerate ``root`` by walking it, pruning what this tree does not author.
 
@@ -615,6 +699,12 @@ def _walk(root: Path, *, worktrees: tuple[str, ...] | None = None) -> tuple[list
     on an empty index alone. Nothing at this function stated that dependency, so
     a caller arriving directly - or an index lookup that ever failed soft -
     walked a PII-bearing tree and a full second checkout with no guard.
+
+    CS-1155 - AND THE RULE HAS A FILE HALF. Directory pruning alone left this
+    repository's walk returning files ``git ls-files`` does not, a stray root
+    ``.log`` among them, which .gitignore classifies as potentially PII-bearing.
+    WALK_SKIP_FILE_PATTERNS closes that; the two tables are read at different
+    points below and neither can express the other's case.
 
     Args:
         root: The tree to walk.
@@ -651,30 +741,22 @@ def _walk(root: Path, *, worktrees: tuple[str, ...] | None = None) -> tuple[list
                 is_dir = entry.is_dir()
             except OSError:
                 continue
-            if not is_dir:
-                files.append(entry)
-                continue
             relative = _rel(root, entry)
-            if entry.name in WALK_SKIP_DIRS:
-                reason = "excluded directory (tooling or vcs internals)"
-            elif relative in WALK_SKIP_ROOT_PATHS:
-                reason = WALK_SKIP_ROOT_PATHS[relative]
-            elif _is_registered_worktree(entry, worktrees):
-                # Ordered BEFORE the marker test, and the reason is NOT that the
-                # teardown window needs it - with the marker gone the marker test
-                # answers False either way, so order cannot decide that case. What
-                # order decides is which REASON a worktree that STILL carries its
-                # marker is reported under, and the registration is the more
-                # specific answer. Graded, because an order swap is otherwise a
-                # silent mutant: see the REGISTERED_WORKTREE_REASON arm in
-                # tests/data/test_drift_guard_data.py.
-                reason = REGISTERED_WORKTREE_REASON
-            elif _is_checkout_root(entry):
-                reason = BOUNDARY_REASON
-            else:
+            if not is_dir:
+                # CS-1155 - the record's path carries NO trailing slash, which
+                # is the only thing in a skip record telling a file from a
+                # directory.
+                file_reason = _skip_file_reason(relative, entry.name)
+                if file_reason is None:
+                    files.append(entry)
+                else:
+                    skips.append({"path": relative, "reason": file_reason})
+                continue
+            dir_reason = _skip_dir_reason(entry, relative, worktrees)
+            if dir_reason is None:
                 stack.append(entry)
                 continue
-            skips.append({"path": relative + "/", "reason": reason})
+            skips.append({"path": relative + "/", "reason": dir_reason})
     return files, skips
 
 

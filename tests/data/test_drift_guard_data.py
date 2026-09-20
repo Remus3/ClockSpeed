@@ -4305,3 +4305,176 @@ def test_every_pruned_path_is_ignored_by_git_and_tracks_nothing(
 
     assert tracked == {}, tracked
     assert unignored == [], unignored
+
+
+#: CS-1155 - the floor on WALK_SKIP_FILE_PATTERNS, one below the membership the
+#: table shipped with. Named rather than written at the assertion so a future
+#: author moving it has to move a constant with a reason attached.
+_PRUNED_FILE_PATTERN_FLOOR = 3
+
+
+def _cs1155_tree(root: Path) -> None:
+    """A tree carrying one file of every shape the FILE half must prune.
+
+    Authored siblings sit beside each pruned file at the SAME path, so a rule
+    that widened from the shape to its directory - `ops/loop/`, `.claude/` -
+    fails by losing an authored file rather than by a bare count.
+    """
+    (root / "top.md").write_text("# clean\n", encoding="utf-8")
+
+    # Unanchored shapes, at the root and again nested, because a NAME rule that
+    # only fired at depth zero would pass a root-only arm.
+    (root / "adj_node_floor.log").write_text("stack trace\n", encoding="utf-8")
+    (root / ".claude").mkdir()
+    (root / ".claude" / "settings.json").write_text("{}\n", encoding="utf-8")
+    (root / ".claude" / "settings.local.json").write_text("{}\n", encoding="utf-8")
+    (root / "docs").mkdir()
+    (root / "docs" / "deep.md").write_text("# clean\n", encoding="utf-8")
+    (root / "docs" / "nested.log").write_text("stack trace\n", encoding="utf-8")
+
+    # The anchored path, beside the authored file the lane really tracks there.
+    (root / "ops" / "loop").mkdir(parents=True)
+    (root / "ops" / "loop" / "config.json").write_text("{}\n", encoding="utf-8")
+    (root / "ops" / "loop" / "queue_loop.py").write_text("pass\n", encoding="utf-8")
+
+
+def test_the_walk_prunes_a_gitignored_file_shape(tmp_path: Path) -> None:
+    """CS-1155: _walk prunes DIRECTORIES and could not express a file shape.
+
+    The walk over this repository therefore returned files `git ls-files` does
+    not - among them a stray root .log, which .gitignore classifies as
+    potentially PII-bearing for exactly the reason CS-1153 cited as its motive,
+    and which the walk still handed to the character-set and secret readers.
+    """
+    root = tmp_path / "tree"
+    root.mkdir()
+    _cs1155_tree(root)
+
+    assert _walked(root) == {
+        "top.md",
+        "docs/deep.md",
+        ".claude/settings.json",
+        "ops/loop/queue_loop.py",
+    }
+
+
+def test_the_walk_records_every_file_it_pruned_with_a_reason(tmp_path: Path) -> None:
+    """CS-1155: a pruned FILE is reported the way a pruned directory is.
+
+    The record's path carries NO trailing slash, which is the only thing in a
+    skip record that distinguishes a file from a directory.
+    """
+    root = tmp_path / "tree"
+    root.mkdir()
+    _cs1155_tree(root)
+
+    _files, skips = drift_guard._walk(root, worktrees=())  # noqa: SLF001
+    reasons = {skip["path"]: skip["reason"] for skip in skips}
+
+    assert set(reasons) >= {
+        "adj_node_floor.log",
+        "docs/nested.log",
+        ".claude/settings.local.json",
+        "ops/loop/config.json",
+    }, reasons
+    assert all(reasons[path] for path in reasons), reasons
+    assert "adj_node_floor.log/" not in reasons, reasons
+
+
+def test_an_anchored_file_pattern_does_not_match_a_deeper_path(tmp_path: Path) -> None:
+    """CS-1155: an anchored pattern is a FILE, not a suffix to match anywhere.
+
+    `.gitignore` anchors /ops/loop/config.json at the repository root. A
+    matcher comparing only the tail would prune a same-named file under any
+    vendored or nested `ops/loop/`, which this tree does not own the right to
+    hide. The root copy in the same arm is the control: without it a matcher
+    that pruned NOTHING would pass this by pruning nothing.
+    """
+    root = tmp_path / "tree"
+    nested = root / "vendor" / "ops" / "loop"
+    nested.mkdir(parents=True)
+    (nested / "config.json").write_text("{}\n", encoding="utf-8")
+    (root / "ops" / "loop").mkdir(parents=True)
+    (root / "ops" / "loop" / "config.json").write_text("{}\n", encoding="utf-8")
+
+    assert _walked(root) == {"vendor/ops/loop/config.json"}
+
+
+def test_every_pruned_file_pattern_is_ignored_by_git_and_tracks_nothing(
+    repo_root: Path,
+) -> None:
+    """CS-1155: the file table is graded against git, entry by entry.
+
+    The weakest member decides, not the population: one pattern matching a
+    tracked file fails this. Widening `*.log` to `*.json`, or anchoring
+    `ops/loop/config.json` one segment shorter, hides authored files from every
+    reader downstream and leaves every synthetic arm above green.
+    """
+    from tests import conftest  # noqa: PLC0415 - the one git runner the suite owns
+
+    patterns = sorted(drift_guard.WALK_SKIP_FILE_PATTERNS)
+    # The anti-vacuity floor. A table narrowed to nothing satisfies every
+    # assertion below by having no member to fail one.
+    assert len(patterns) >= _PRUNED_FILE_PATTERN_FLOOR, patterns
+
+    tracked: dict[str, str] = {}
+    unignored: list[str] = []
+    for pattern in patterns:
+        listing = conftest.run_git(repo_root, "ls-files", "--", pattern)
+        if listing is None:
+            pytest.skip("git is not installed, so membership cannot be asked")
+        assert listing.returncode == 0, pattern
+        if listing.stdout.strip():
+            tracked[pattern] = listing.stdout.decode("utf-8", "replace").splitlines()[0]
+        # A pattern is a shape, and check-ignore wants a path - so ask it about
+        # the shortest path the shape describes.
+        sample = pattern.replace("*", "sample")
+        ignored = conftest.run_git(repo_root, "check-ignore", "-q", "--", sample)
+        assert ignored is not None, pattern
+        assert ignored.returncode in (0, 1), (pattern, ignored.returncode)
+        if ignored.returncode != 0:
+            unignored.append(pattern)
+
+    assert tracked == {}, tracked
+    assert unignored == [], unignored
+
+
+def test_the_walk_reaches_every_tracked_file_in_this_repository(
+    repo_root: Path,
+) -> None:
+    """CS-1155: the difference is DERIVED from git, so it cannot go stale.
+
+    Two directions, and they fail for opposite reasons.
+
+    MISSING - a tracked file the walk never reached - is an OVER-BROAD rule,
+    and it is live on every platform and in every fresh clone, because tracked
+    files exist everywhere.
+
+    EXTRA - a walked file the index does not carry - is the CS-1155 defect
+    itself. It is only observable where an ignored file is actually on disk, so
+    on a fresh CI checkout this half has nothing to see. It is asserted anyway
+    rather than skipped: the primary tree is where the residue accumulates, and
+    a list written down here instead would be the stale thing this arm exists
+    to avoid.
+    """
+    from tests import conftest  # noqa: PLC0415 - the one git runner the suite owns
+
+    listing = conftest.run_git(repo_root, "ls-files")
+    if listing is None:
+        pytest.skip("git is not installed, so the index cannot be asked")
+    assert listing.returncode == 0
+    indexed = {
+        line
+        for line in listing.stdout.decode("utf-8", "replace").splitlines()
+        if line and (repo_root / line).is_file()
+    }
+    # The control. An index read that came back empty would make both
+    # differences vacuous, and the MISSING half would grade nothing.
+    assert len(indexed) > _PRUNED_FILE_PATTERN_FLOOR, len(indexed)
+
+    walked = _walked(repo_root, worktrees=drift_guard._registered_worktrees(repo_root))  # noqa: SLF001
+    missing = sorted(indexed - walked)
+    extra = sorted(walked - indexed)
+
+    assert missing == [], missing
+    assert extra == [], extra
