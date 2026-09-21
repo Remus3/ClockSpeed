@@ -12419,3 +12419,36 @@ decision was "publish from a fresh squashed or orphan history". That is the 2026
 record. The LATER ruling - CS-700 section 6, 2026-09-08, with ADR 0018 - is that the commit
 graph is KEPT, IDENTITY ALONE is rewritten to the noreply address, the remote is deleted and
 recreated, and `main` alone is pushed. Squash and accept-as-is were both put and DECLINED.
+
+## Session 107 - 2026-09-19 - an operator-directed machine stray-work sweep, and the one defect it turned up
+
+- Shipped: CS-1154, closed. CS-1153 filed and left OPEN. Detail in `docs/LEDGER.md`, not here.
+- In flight: nothing half-done. The sweep report is delivered to all four sibling inboxes as
+  `2026-09-19-1430-from-CS-REVIEW-e085b4a92ab2-machine-stray-work-sweep.md`; RC merges the five
+  reports and the operator adjudicates before any deletion pass. NOTHING was deleted, moved or
+  renamed anywhere on this box by this session.
+- Decisions: no ADR. The sweep proposed a PRUNE / MOVE / KEEP / UNKNOWN class per row and
+  actioned none of them; that is the operator's call after the merge.
+- Surprises: THE SWEEP FOUND A LIVE DEFECT IN THE SUITE, not in the tree it was inventorying.
+  `git -c core.hooksPath=.githooks push` exports its override through `GIT_CONFIG_PARAMETERS`,
+  every git child inherits it, and a command-line override OUTRANKS repository configuration -
+  so every throwaway repo in `tests/test_precommit_gate.py` lost the `core.hooksPath` it had
+  just set and NO HOOK RAN. The world-name PII arm accepted the commit it exists to block,
+  three pushes running, with `returncode=0` and an EMPTY stderr. The empty stderr is what
+  settled it: that gate prints a PASS line on every run it completes, so silence is a hook that
+  never fired, not a gate that approved. CS-1154 is the repair.
+- Failed paths: the FIRST diagnosis was wrong and the ledger entry says so rather than quietly
+  replacing it. The failure was attributed to a contended box - 21 python and 47 node processes
+  from concurrent sibling sweeps - purely because it did not reproduce standalone. It
+  reproduced three pushes running and never once outside the hook, which contention does not
+  explain. Do not reach for load as an explanation before checking what the hook environment
+  carries. Also measured and discarded: GIT_DIR contamination, both relative and absolute, and
+  `-n auto` over `tests/test_precommit_gate.py` alone. None reproduce it.
+- Process change, operator directive: the handoff is a FILE plus a Desktop shortcut, not a
+  chat fence. `CS-NEXT-SESSION.txt` is tracked at the repo root, rewritten whole by every
+  `/done`, rowed in `CLAUDE.md` section 4 and exempted from tier-1 budget guard (k) for the
+  reason this file is. LL, LW and RC already carried that shape; CS was the one that did not.
+- Next action: read `docs/item_notes/phase7.md` section CS-1153 and prune the gitignored and
+  PII-bearing roots in `tools/drift_guard.py::_walk` by rule rather than by never being reached.
+
+---
