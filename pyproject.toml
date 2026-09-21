@@ -151,6 +151,24 @@ line-length = 100
 target-version = "py313"
 src = ["clockspeed", "tests"]
 
+# AN EXCLUSION RUFF DISCOVERS IS NOT AN EXCLUSION RUFF IS HANDED (CS-946).
+# Ruff applies `exclude` while WALKING a directory, but a path named explicitly
+# on the command line overrides it - the documented behaviour, and sensible on
+# its own terms. MEASURED on this tree: `ruff format --check .` reported 277
+# files already formatted and exit 0, while the pre-commit gate, which passes
+# each staged path by name, BLOCKED on ops/loop/slots.py in the same tree and
+# the same minute. Two tools disagreeing about one file is exactly the shape a
+# vendored byte-pin cannot survive, because the only way to satisfy the gate is
+# to rewrite bytes four carrier trees share.
+#
+# `force-exclude` makes an exclusion mean the same thing to both. It is the
+# setting written for hook-driven invocations, and its blast radius here is
+# exactly one entry: this file declares NO top-level `exclude` and no lint
+# `exclude`, so [tool.ruff.format] exclude is the only list it can act on.
+# ADDING A TOP-LEVEL `exclude` LATER WOULD WIDEN THIS SILENTLY - put any new
+# exclusion under the section that owns it, never at the top level.
+force-exclude = true
+
 [tool.ruff.lint]
 # Chosen for rules that catch real bugs rather than rules that enforce taste.
 #
@@ -257,6 +275,38 @@ ignore = [
   "T201",
 ]
 
+# ops/loop/slots.py IS VENDORED BYTE-IDENTICAL AND MAY NOT BE EDITED (CS-946).
+# It is the shared lane-slot protocol the carrier trees coordinate through, so
+# the bytes ARE the interface: a formatting change here is not cosmetic, it
+# breaks byte-identity with every carrier and makes this tree's own digest pin
+# a lie. CLAUDE.md section 4 states the rule for exactly this case - where a
+# guard refuses a vendored file, THE GUARD TAKES THE EXEMPTION, never the file.
+# The same reasoning already applies to docs/CHANNEL.md; this is its first
+# application to a Python file, and it is why the exemption lives here.
+#
+# SCOPED TO THE ONE PATH, NEVER TO A GLOB, and that is load-bearing rather than
+# tidy. "ops/loop/*.py" or a vendored/** directory pattern would absorb
+# whatever arrived next, which is the recorded failure mode of an allowlist
+# that grows into a denylist. A second vendored file takes a second entry and a
+# second reading of its findings.
+#
+# EVERY CODE BELOW WAS MEASURED ON THESE BYTES, not predicted, and each is a
+# property of upstream's code that this tree has no standing to change:
+#   N818     SlotTimeout is the upstream exception name and the carriers catch it
+#   PLR0911  pid_alive has 7 returns - the Windows/POSIX liveness ladder
+#   PLC0415  `import ctypes` sits inside the win32 branch on purpose
+#   N806     PROCESS_QUERY_LIMITED_INFORMATION and STILL_ACTIVE are Win32 names
+#   PLR2004  the bare 87 is ERROR_INVALID_PARAMETER, named in the comment beside it
+#   PTH123   the neutralising write is a builtin open DELIBERATELY - the docstring
+#            records that os.replace onto a reader-held file fails on Windows
+#   SIM105   try/except/pass around a losing unlink, which is the fail-open point
+#   PLR0913  hold() takes the protocol's 10 keyword parameters
+#   S311     random.random is backoff jitter, never a credential
+"ops/loop/slots.py" = [
+  "N818", "PLR0911", "PLC0415", "N806", "PLR2004", "PTH123", "SIM105",
+  "PLR0913", "S311",
+]
+
 [tool.ruff.lint.isort]
 known-first-party = ["clockspeed"]
 
@@ -273,6 +323,18 @@ max-args = 8
 
 [tool.ruff.format]
 quote-style = "double"
+
+# THE FORMATTER IS EXCLUDED FROM THE ONE VENDORED FILE, and only from it
+# (CS-946). `ruff format` would rewrap ops/loop/slots.py's continuation lines,
+# which changes its bytes and therefore its sha256 - the digest four carrier
+# trees and this tree's own pin all agree on. A reformatted shared mutex is a
+# SECOND mutex, so this is a correctness exclusion rather than a style one.
+#
+# format.exclude rather than the top-level [tool.ruff] exclude, deliberately:
+# the narrower key stops the FORMATTER only and leaves the linter reading the
+# file, so the per-file-ignores above stay an explicit, reviewed list of what
+# upstream's code does instead of a blanket "ruff does not look here".
+exclude = ["ops/loop/slots.py"]
 # LF, matching .gitattributes. Content hashes are load-bearing in this project
 # (the game data version pin, BOOTSTRAP.md section 8.1) and a file whose line
 # endings depend on the checkout machine cannot be hashed reliably.
@@ -485,6 +547,28 @@ ignore_missing_imports = true
 # redden the gate over the very absence the code is designed to survive.
 module = ["psutil"]
 ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+# ops/loop/slots.py, VENDORED BYTE-IDENTICAL (CS-946). A block of its own, for
+# the reason the psutil block above states about itself: two exemptions with two
+# reasons read as two blocks, and folding this into a neighbour would silently
+# retire the pin tests/test_mypy_gate.py holds on that neighbour's module list.
+#
+# MEASURED, both of them, and both are upstream's shape rather than a defect:
+#   slots.py:77  `return k32.GetLastError() != 87` - ctypes.windll returns Any,
+#                so the comparison is Any-typed although it is plainly a bool.
+#   slots.py:89  `return json.loads(...)` - json.loads is declared to return Any
+#                and the function is annotated `-> dict`.
+# Either could be fixed in one line by an author with standing to edit the file.
+# This tree has none: the bytes are the protocol four carriers share.
+#
+# ONLY warn_return_any IS RELAXED, and only for this module. The rest of the
+# gate - check_untyped_defs, strict_equality, warn_unreachable and the whole
+# global block - still reads this file. `exclude` is NOT used and must not be:
+# tests/test_mypy_gate.py pins its absence, and it is a DISCOVERY filter that
+# would not contain an error reached through an import anyway.
+module = ["ops.loop.slots"]
+warn_return_any = false
 
 [[tool.mypy.overrides]]
 # Phase 2 rung. The data layer is the seam every other layer consumes, so an

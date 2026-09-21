@@ -2075,12 +2075,27 @@ def ruff_config_args(root: Path | None) -> list[str]:
     back to its defaults, making the hook disagree with CI about which rules
     exist. Passing the repo's config explicitly closes most of that gap.
 
-    Known limitation, stated rather than hidden: per-file-ignores are globs
-    resolved against the project root, so a temp copy never matches
-    `tools/**` or `tests/**`. That makes --staged report MORE advisory style
-    findings than CI would, never fewer, and it cannot change what blocks -
-    the blocking band is RUFF_BLOCKING_PREFIXES, which no per-file-ignore in
-    this project touches.
+    THE CONFIG IS THE PROJECT'S OWN FILE AND NEVER A COPY. A copy beside the
+    staged bytes would drift from the file CI reads, which is the whole thing
+    this argument exists to prevent.
+
+    WHAT THIS ARGUMENT DOES NOT DECIDE, measured with ruff 0.16.3 and recorded
+    here because the previous wording got it wrong: `exclude` and
+    `per-file-ignores` are globs matched against the path RELATIVE TO THE
+    INVOCATION'S WORKING DIRECTORY - not to this config file's location, and
+    not to any absolute path. Handing ruff `--config <project pyproject>` from
+    one directory and a file staged under another therefore resolves every
+    repo-relative glob against a name that cannot match.
+
+    An earlier version of this docstring reassured the reader that the
+    resulting divergence "cannot change what blocks, because the blocking band
+    is RUFF_BLOCKING_PREFIXES". THAT SENTENCE WAS FALSE AND IS RETIRED.
+    `ruff format --check` is a second blocking band and its verdict is a
+    process exit code, so a `[tool.ruff.format] exclude` entry that fails to
+    resolve turns straight into a FORMAT refusal of a file the project has
+    deliberately exempted. run_ruff fixes the resolution rather than the
+    symptom: it stages each unit at its repo-relative path and runs ruff from
+    the staging directory, so every glob matches the name it was written for.
     """
     if root is None:
         return []
@@ -2105,45 +2120,130 @@ def normalized_key(path: str) -> str:
     return os.path.normcase(str(Path(path).resolve()))
 
 
+def relative_key(path: str) -> str:
+    """Case-folded key for a name ruff PRINTED, WITHOUT resolving it.
+
+    normalized_key() cannot be used on ruff's output any more. run_ruff gives
+    ruff a working directory of its own and hands it repo-relative names, so
+    ruff echoes a RELATIVE name back - and resolving a relative name here
+    would resolve it against THE GATE's directory, which is a different one.
+    That silently attributes the finding to whatever happens to sit at that
+    name in the gate's tree, or to nothing at all. normcase plus normpath
+    folds separators and case without touching the filesystem.
+    """
+    return os.path.normcase(os.path.normpath(path))
+
+
+def reported_label(mapping: dict[str, str], reported: str) -> str:
+    """Map a filename ruff printed back to the unit's label, else pass it through.
+
+    TWO KEYS, TRIED IN ONE ORDER, because ruff's two channels do not agree on
+    the shape of a name. `ruff format --check` echoes the argument verbatim -
+    a relative name under the staging directory. `ruff check --output-format
+    json` prints an absolute, fully canonicalised path, with Windows 8.3 short
+    components expanded. The relative key is tried FIRST and is built from the
+    exact string ruff was handed, so a relative name never reaches the
+    resolving key and is never resolved against the gate's own directory.
+    """
+    hit = mapping.get(relative_key(reported))
+    if hit is not None:
+        return hit
+    return mapping.get(normalized_key(reported), reported)
+
+
 def stage_for_lint(
     targets: list[Unit], tmp: Path, report: Report
 ) -> tuple[list[str], dict[str, str]]:
     """Resolve each unit to a path ruff can read, and map it back to its label.
 
     A unit whose checked bytes are exactly what is on disk is linted IN PLACE,
-    so ruff resolves the project config and its per-file-ignores the same way
-    CI does. Only index bytes, which exist nowhere on disk, are staged into
-    the temp directory.
+    at its real absolute path, so ruff reads the file the operator actually
+    has. Only index bytes, which exist nowhere on disk, are staged.
+
+    A STAGED UNIT IS WRITTEN AT ITS REPO-RELATIVE PATH, not at a flat
+    `u0000/<basename>`, and the path handed back is RELATIVE. That pairing is
+    the whole repair (CS-946): run_ruff invokes ruff from the staging
+    directory, and ruff matches `exclude` and `per-file-ignores` globs against
+    the path relative to the invocation's working directory, so a unit staged
+    at `<tmp>/<repo-relative path>` matches exactly the globs the project
+    wrote for `<root>/<repo-relative path>`. A flat basename matches none of
+    them, which silently voided every repo-relative exclusion the project
+    declares - including a `[tool.ruff.format] exclude` entry, whose verdict
+    is a BLOCKING exit code rather than an advisory note.
+
+    THE LABEL IS ATTACKER-ADJACENT DATA. It comes from the index, so a `..`
+    component or an absolute spelling would place the write outside the
+    sandbox. Every staged target is checked for containment under `tmp` and a
+    unit that escapes is REFUSED rather than written, and a label that cannot
+    be expressed repo-relatively at all - an out-of-repo path, which
+    label_for() returns unchanged - falls back to a flat per-unit directory,
+    where no project glob could have matched it anyway.
     """
     mapping: dict[str, str] = {}
     paths: list[str] = []
     copied = 0
+    base = tmp.resolve()
     for index, unit in enumerate(targets):
         if unit.disk_path is not None:
-            mapping[normalized_key(unit.disk_path)] = unit.label
-            paths.append(unit.disk_path)
+            # ABSOLUTE, NOT RESOLVED. The cwd this function's caller picks
+            # must not be able to change WHICH file ruff reads, and a
+            # relative disk_path under a cwd of ruff's own would do exactly
+            # that. .absolute() and not .resolve(): resolving would follow a
+            # junction out of the repository root and strand the path
+            # outside the frame the project's globs are written in.
+            real = str(Path(unit.disk_path).absolute())
+            mapping[normalized_key(real)] = unit.label
+            paths.append(real)
             continue
-        staging = tmp / f"u{index:04d}"
-        staging.mkdir(parents=True, exist_ok=True)
-        copy = staging / PurePosixPath(unit.label.replace("\\", "/")).name
-        copy.write_bytes(unit.data or b"")
-        mapping[normalized_key(str(copy))] = unit.label
-        paths.append(str(copy))
+        parts = PurePosixPath(unit.label.replace("\\", "/")).parts
+        plain = bool(parts) and all(
+            part not in ("", ".", "..", "/") and ":" not in part for part in parts
+        )
+        if plain:
+            target = tmp.joinpath(*parts)
+        else:
+            target = tmp / f"u{index:04d}" / (parts[-1] if parts else "unnamed")
+        resolved = target.resolve()
+        if resolved != base and base not in resolved.parents:
+            report.add(
+                Diagnostic(
+                    unit.label,
+                    0,
+                    0,
+                    "LINT",
+                    "refused to stage this unit for lint: its path escapes the staging directory",
+                )
+            )
+            continue
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_bytes(unit.data or b"")
+        relative = os.path.relpath(str(target), str(tmp))
+        mapping[relative_key(relative)] = unit.label
+        mapping[normalized_key(str(target))] = unit.label
+        paths.append(relative)
         copied += 1
     if copied:
         report.notes.append(
-            f"ruff: {copied} unit(s) linted from a temp copy of the index "
-            "bytes, so project per-file-ignores do not apply to them"
+            f"ruff: {copied} unit(s) linted from a copy of the checked bytes, "
+            "staged at their repo-relative paths so the project's excludes "
+            "and per-file-ignores resolve the way CI resolves them"
         )
     return paths, mapping
 
 
 def record_ruff_findings(findings: list[dict], mapping: dict[str, str], report: Report) -> None:
-    """Split ruff output into the blocking band and advisory style notes."""
+    """Split ruff output into the blocking band and advisory style notes.
+
+    THE NAME LOOKUP GOES THROUGH reported_label AND NEVER THROUGH
+    normalized_key DIRECTLY. run_ruff gives ruff its own working directory, so
+    resolving a printed name here would resolve it against the GATE's
+    directory instead and mis-attribute the finding - which is worse than not
+    attributing it, because it names a real file that has no such defect.
+    """
     style = 0
     for item in findings:
-        filename = normalized_key(str(item.get("filename", "")))
-        label = mapping.get(filename, item.get("filename", "<unknown>"))
+        reported = str(item.get("filename", ""))
+        label = reported_label(mapping, reported) if reported else "<unknown>"
         location = item.get("location") or {}
         row = int(location.get("row") or 0)
         col = int(location.get("column") or 0)
@@ -2174,6 +2274,7 @@ def run_ruff_format(
     mapping: dict[str, str],
     report: Report,
     root: Path | None,
+    cwd: str | None,
 ) -> None:
     """Block a staged file that `ruff format --check` would rewrite.
 
@@ -2212,6 +2313,24 @@ def run_ruff_format(
     the temp staging path and stderr carries the parse failure with the path
     inside it.
 
+    `cwd` IS WHAT MAKES THE PROJECT'S EXCLUSIONS MEAN ANYTHING HERE (CS-946).
+    Ruff matches `[tool.ruff.format] exclude` against the path relative to the
+    INVOCATION'S working directory, so `--config` alone is not enough and
+    neither is `force-exclude = true`: force-exclude decides whether an
+    explicitly named path is subject to the exclusion at all, and cwd decides
+    which name the glob is compared against. run_ruff stages each unit at its
+    repo-relative path and passes the staging directory here, so the two agree.
+    MEASURED with ruff 0.16.3 on the one file this project excludes: exit 0 at
+    its real path from the repository root, exit 1 for the identical bytes
+    under `<tmp>/u0000/`, exit 0 again for the same bytes at `<tmp>/<its
+    repo-relative path>` with cwd set to `<tmp>`, and still exit 1 for a
+    malformed file at a non-excluded path under that same cwd and config.
+
+    THE REPORTED-NAME LOOKUP GOES THROUGH reported_label, which does not
+    resolve. With a cwd of its own, ruff echoes the RELATIVE name it was
+    handed, and resolving that against the gate's directory would attribute
+    the refusal to an unrelated file.
+
     SKIPPED WHEN NO PROJECT CONFIG RESOLVES, which is a mitigation rather than
     a tidiness. MEASURED with ruff 0.15.12 over the 90 tracked .py files: 90 of
     90 are clean WITH this project's config and 75 of 90 would be reformatted
@@ -2243,6 +2362,7 @@ def run_ruff_format(
             capture_output=True,
             timeout=RUFF_TIMEOUT,
             check=False,
+            cwd=cwd,
             creationflags=NO_WINDOW,
         )
     except (OSError, subprocess.SubprocessError) as exc:
@@ -2264,7 +2384,7 @@ def run_ruff_format(
         text = line.strip()
         if text.startswith(RUFF_FORMAT_PREFIX):
             reported = text[len(RUFF_FORMAT_PREFIX) :]
-            named.append(mapping.get(normalized_key(reported), reported))
+            named.append(reported_label(mapping, reported))
     if not named:
         # Exit 1 with nothing attributable STILL BLOCKS. The alternative is a
         # check that goes silent the day ruff rewords one line of output.
@@ -2298,6 +2418,33 @@ def run_ruff(units: list[Unit], report: Report, root: Path | None = None) -> Non
     deliberate and narrow: a gate that refuses every commit on a machine
     without a linter is a gate the operator turns off. Everything else in
     this file fails closed.
+
+    THE WORKING DIRECTORY IS PART OF THE CONFIGURATION (CS-946). Ruff matches
+    `exclude` and `per-file-ignores` globs against the path relative to the
+    invocation's working directory, so WHERE ruff is run from decides which
+    project rules reach it - `--config` names the file and cwd names the frame
+    the file's globs are read in.
+
+    It is derived from the units, never from os.getcwd(), and the three cases
+    are disjoint by construction rather than by luck:
+
+      every unit staged   the staging directory, where stage_for_lint wrote
+                          each unit at its repo-relative path. This is
+                          --staged and tools/edit_lint_check.py.
+      every unit on disk  the repository root, which is the frame CI's own
+                          `ruff format --check .` reads the globs in. This is
+                          --files, whose paths stage_for_lint makes absolute
+                          so the cwd cannot change WHICH file is read.
+      no root resolved    inherited, because there is no frame to choose and
+                          ruff_config_args has already returned empty, so the
+                          format check takes its documented skip anyway.
+
+    A MIXED SET CANNOT BE RESOLVED IN ONE FRAME and so takes the inherited
+    directory rather than a frame that would be wrong for half of it. No mode
+    produces one today - mode_staged sets no disk_path on any unit and
+    mode_files sets one on every unit - and this is written down so that a
+    fourth mode which did would degrade to the old behaviour instead of
+    silently mis-resolving.
     """
     targets = [u for u in units if u.ext == ".py" and u.data is not None]
     if not targets:
@@ -2312,7 +2459,13 @@ def run_ruff(units: list[Unit], report: Report, root: Path | None = None) -> Non
 
     with tempfile.TemporaryDirectory(prefix="clockspeed_gate_") as tmp:
         paths, mapping = stage_for_lint(targets, Path(tmp), report)
-        run_ruff_format(command, paths, mapping, report, root)
+        if all(unit.disk_path is None for unit in targets):
+            cwd: str | None = tmp
+        elif all(unit.disk_path is not None for unit in targets) and root is not None:
+            cwd = str(root)
+        else:
+            cwd = None
+        run_ruff_format(command, paths, mapping, report, root, cwd)
         argv = [
             *command,
             "check",
@@ -2328,6 +2481,7 @@ def run_ruff(units: list[Unit], report: Report, root: Path | None = None) -> Non
                 capture_output=True,
                 timeout=RUFF_TIMEOUT,
                 check=False,
+                cwd=cwd,
                 creationflags=NO_WINDOW,
             )
         except (OSError, subprocess.SubprocessError) as exc:
