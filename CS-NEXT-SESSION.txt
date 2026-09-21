@@ -20,11 +20,23 @@ answered there already.
 THE SINGLE NEXT ACTION
 ================================================================================
 
-CONFIRM CI IS GREEN ON d51870652a1068d410d11d5f0ebec175349f4308, THEN TAKE CS-1166.
+TIER 1 IS OVER ITS CEILING BY 4 SECONDS. FIX THAT BEFORE ANYTHING ELSE.
 
-CI run 35548117721 (tier1, main, push) was IN PROGRESS when session 110 ended. It was not
-predicted and must not be assumed. Read its real status first. If it is red, that is the
-top item and everything below waits.
+MEASURED, not predicted: CI run 35549849346 on 09157e2 FAILED with
+
+    tier 1 took 484s - OVER THE CEILING (budget 420s, ceiling 480s)
+
+It is a DURATION failure, not a test failure - the guard shard's "Duration against
+the budget" step. Every test passed. Session 110 added roughly thirty arms across
+several modules and vendored a file into the tracked-python census, and that is what
+crossed the line.
+
+DO NOT SIMPLY RAISE THE CEILING. It is pinned TWO-WAY at 420/480 and guard (k) binds
+both numbers; moving it is a ratchet decision and belongs to an ADJUDICATOR, with the
+growth attributed first. CS-917 already owns "tier 1's growth rate is owned by nobody"
+and CS-900 owns "tier 1's cost is concentrated in a few tests, so -n auto buys little".
+This is those two items arriving as a red build. Attribute the 484s against the last
+green run before deciding anything.
 
 CS-1166 is next because it is a security guard with a grant already recorded and a fully
 specified acceptance. It needs no adjudication round to start.
@@ -33,11 +45,16 @@ specified acceptance. It needs no adjudication round to start.
 STATE OF THE TREE
 ================================================================================
 
-HEAD            d51870652a1068d410d11d5f0ebec175349f4308
-remote main     identical - push confirmed by git ls-remote, not by an exit code
+HEAD            the tip of main at the end of session 110. Run `git log --oneline -6`
+                rather than trusting a SHA written before the last commit existed.
+remote main     every session-110 commit is pushed EXCEPT the last one or two, which
+                were pushed at the very end - confirm with
+                `git rev-parse HEAD` against `git ls-remote origin main`.
+                A blocked push reports exit 0, so compare the refs, never the code.
 working tree    CLEAN. Nothing half-done, nothing dirty, nothing stashed.
-suite           9188 passed, 7 skipped, exit 0, observed in the pre-push run on this
-                exact tree. All 7 skips are self-declaring platform skips.
+suite           9188 passed, 7 skipped, exit 0 locally on Windows. All 7 skips are
+                self-declaring platform skips. THE LOCAL SUITE BEING GREEN DID NOT
+                PREDICT CI - see THE SINGLE NEXT ACTION.
 mypy            exit 0, 279 source files, no explicit target so config discovery applied
 drift guard     exit 0, 11 PASS, 0 WARN, 0 FAIL, VERDICT CLEAN
 doc budget      exit 0, 38 measured, 0 over budget
@@ -174,7 +191,8 @@ Routing rm339_dangling.json to RC. CS disclaims it and cannot break the RM/RC ti
 EXTERNAL CONDITIONS BEING WAITED ON
 ================================================================================
 
-CI run 35548117721 on d518706 - IN PROGRESS at session end, status NOT known.
+CI is RED on 09157e2 - run 35549849346, tier 1 at 484s against a 480s ceiling.
+  All tests passed; it is the duration guard. See THE SINGLE NEXT ACTION above.
 ROUND B lands 2026-09-22. CS owes NOTHING to those bytes - CS's winmutex.py
   carries zero carrier codes, confirmed by six notes and by CS's own sweep.
 RSC asked CS BY NAME about a defeatable static guard (its 2245 note, section 3).

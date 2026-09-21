@@ -71,8 +71,23 @@ def _channel_audit_hook(event, args):
 
 
 @pytest.fixture(autouse=True)
-def channel_audit():
-    """Arm the audit for one test and fail it if the test read any channel."""
+def channel_audit(tmp_path):  # noqa: ARG001 - requested for its TEARDOWN ORDER, not its value
+    """Arm the audit for one test and fail it if the test read the REAL channel.
+
+    TAKES ``tmp_path`` DELIBERATELY, and the reason is an ordering fact rather
+    than a need for the value. pytest finalizes fixtures in reverse order of
+    setup, so naming ``tmp_path`` here forces it to be set up FIRST and
+    therefore torn down LAST - after this fixture has disarmed. Without that,
+    pytest's own tmp_path cleanup runs while the hook is still armed, and a
+    synthetic ``moon_sync_inbox/`` built under ``tmp_path`` is walked by the
+    DELETION, recording hits the test never made.
+
+    That is not hypothetical. It was invisible until this project set
+    ``tmp_path_retention_policy = "failed"``: under pytest's default of "all"
+    nothing is deleted at teardown, so the cleanup never walked anything and
+    the ordering bug could not fire. A retention setting in a config file
+    reddened a fixture in a module that does not mention it.
+    """
     if not _CHANNEL_AUDIT["installed"]:
         sys.addaudithook(_channel_audit_hook)
         _CHANNEL_AUDIT["installed"] = True
