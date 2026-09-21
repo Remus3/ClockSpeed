@@ -366,6 +366,42 @@ testpaths = ["tests"]
 #                   is visible instead of blending into the dots.
 addopts = "-ra --strict-markers --strict-config"
 
+# TEMP RETENTION, and the two keys are pulling in OPPOSITE directions on purpose.
+# MEASURED on this machine before either was set: a single targeted run of
+# tests/test_doc_budget.py left 440 files and 339 directories behind, and a full
+# -n auto suite run left ~16,000 files and ~280 MB - once per run, retained three
+# runs deep. The shared per-account pytest temp root under %TEMP% held 268,401
+# files
+# across 39 run dirs when this was filed, of which 165,093 (61.5%) carried
+# Clockspeed test-function names. That is this project's own contribution and it
+# is what the POLICY key below removes.
+#
+# tmp_path_retention_policy = "failed"
+#   A PASSING test's tmp_path is not evidence of anything - it is the byproduct
+#   of an assertion that already held. "failed" discards those at teardown and
+#   keeps the tmp_path of every test that failed or errored, which is the only
+#   copy of what a flake actually wrote. This suite is thousands of tests and a
+#   flake's tmp_path is frequently the sole record, so "none" is refused: it
+#   would trade the entire debugging surface for bytes the policy below already
+#   reclaims. THE TRADE IS STATED: a test that PASSES but is under suspicion no
+#   longer leaves its directory behind. Re-run that one test with
+#   `--tmp-path-retention-policy=all` when investigating it.
+#
+# tmp_path_retention_count = 3
+#   DELIBERATELY LEFT AT PYTEST'S DEFAULT rather than dropped to 1, and this is
+#   the key where a smaller number is NOT better. The numbered-run root is
+#   SHARED - it is per-Windows-account, not per-repository, and four other trees
+#   write into the same directory. pytest's cleanup deletes every run dir beyond
+#   `keep` whose lock file is gone, and it does not and cannot check who created
+#   it. MEASURED during the run that set this: one targeted Clockspeed
+#   invocation deleted two run dirs, one of them over a day old, at the default
+#   of 3. Lowering the count does not shrink what THIS project writes; it only
+#   widens how much of OTHER projects' evidence this project's suite destroys
+#   on its way past. The policy key above is the one that reclaims the volume,
+#   so there is no volume argument left to buy that with.
+tmp_path_retention_policy = "failed"
+tmp_path_retention_count = 3
+
 # xfail must be honest: an xfail that starts passing is a finding.
 xfail_strict = true
 
