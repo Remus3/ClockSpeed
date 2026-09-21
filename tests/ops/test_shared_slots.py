@@ -82,6 +82,8 @@ import tomllib
 from pathlib import Path
 from typing import Final
 
+import pytest
+
 #: The repository root, derived from this file's own location rather than from
 #: a literal - an absolute path under a home directory in a tracked file is
 #: forbidden outright (CLAUDE.md non-negotiable 3).
@@ -272,8 +274,25 @@ def test_the_hardcoded_bucket_root_is_the_all_users_data_root_joined_with_the_re
     from ops.loop import slots  # noqa: PLC0415 - deliberately after the presence assertion
 
     program_data = os.environ.get("PROGRAMDATA", "").strip()
-    declared = program_data != ""
-    assert declared is True, "PROGRAMDATA is not set, so the derived root cannot be built"
+    if program_data == "":
+        # PROGRAMDATA is a WINDOWS variable. The vendored file hardcodes an
+        # all-users path under it, so on a platform that has no such variable
+        # there is no derived root to compare the literal against - the equality
+        # this arm exists to check cannot be CONSTRUCTED, let alone fail. Tier 1
+        # runs on ubuntu, where that is the normal case, so asserting the
+        # variable's presence turned a platform fact into a red suite.
+        #
+        # SKIPPED, not silently passed: the divergence this arm guards against is
+        # UNMEASURED on this platform, not absent. It is measured on every
+        # Windows run, which is where the bucket actually lives and where a
+        # divergence could strand Clockspeed in a bucket no carrier is in.
+        pytest.skip(
+            "PROGRAMDATA is unset on this platform, so the all-users root the "
+            "vendored file hardcodes cannot be derived here and the literal has "
+            "nothing to be compared against. The literal-versus-derived "
+            "divergence is UNMEASURED here, not absent - it is measured on every "
+            "Windows run."
+        )
 
     derived = Path(program_data).joinpath(*BUCKET_RELPATH)
     same = str(slots.DEFAULT_ROOT).casefold() == str(derived).casefold()
