@@ -13,16 +13,26 @@ disagree, `CONVENTIONS.md` wins and this file is wrong.
 
 ## Current state
 
-**Exactly one file in this repository is vendored: `docs/CHANNEL.md`.** It is a
-byte-identical, unmodified copy of the cross-repo channel conventions document from the
-`Remus3/Amberstone` repository, taken under Apache-2.0 with sole holder `Moonbeam`. The
-vendored-files table below owns that fact and carries the attribution Apache-2.0 section 4
-asks a redistributor to retain - it has to live in a row, because the copy is byte-pinned
-by `tests/test_channel_doc.py` and may not be edited to carry a notice of its own.
+**The files in this repository that were not authored here are exactly the rows of the
+vendored-files table below**, and that table - not this sentence - is the owner of which
+files those are. Today they are `docs/CHANNEL.md`, `ops/loop/slots.py` and
+`ops/loop/winmutex.py`. The first two are byte-identical, unmodified copies; the third is
+a DECLARED FORK whose own header states what was changed. All three carry the attribution
+Apache-2.0 section 4 asks a redistributor to retain, and it has to live in a row, because
+each copy is byte-pinned by a module in this tree's suite and may not be edited to carry a
+notice of its own.
 
 **Nothing else in this tree was copied from an external codebase, and one adaptation that
 lifted no text is recorded rather than left silent** - the doctrine behind
-`docs/hud_doctrine.md`. Both are rows below.
+`docs/hud_doctrine.md`. All of them are rows below.
+
+A sentence like the one this paragraph replaced - it named a single vendored file, and was
+true the day it was written - is the shape this file fails in. `ops/loop/slots.py` landed
+under CS-946 and made it false, and nothing went red, because the arm that reads this
+document graded a HAND-MAINTAINED roster of pin modules rather than the tree. That roster
+is now DERIVED: every test module here that spells a sha256 is asked which file in the
+tree hashes to it, so a lift reaches the graded population the moment its pin does. The
+residual - a lift with no pin and no row - is CS-1165 and is still open.
 
 Two things that are NOT vendorings, stated because both get mistaken for one:
 
@@ -34,9 +44,10 @@ Two things that are NOT vendorings, stated because both get mistaken for one:
   so no Electron-owned text is tracked here. The three-scope licence verdict lives in
   `docs/adr/0013-electron-licence-gate.md`.
 
-An entry is written BEFORE the lift, not after. The one row below whose gate ran after its
+An entry is written BEFORE the lift, not after. Every row below whose gate ran after its
 lift says so in the row, because a late gate that reads like a timely one teaches the
-wrong lesson to the next person who reads the register.
+wrong lesson to the next person who reads the register. All three vendored rows say it,
+which is a fact about this project's habit rather than about those three files.
 
 There is also no third-party runtime dependency in the advice path. The optimizer in
 pillar 2 ships dependency-free behind a pluggable interface; an external linear or
@@ -112,6 +123,8 @@ so is a row naming a file the tree no longer tracks.
 | File | Upstream | License read (LICENSE / manifest) | Copyright line names a holder | Verdict | Gate run | Also recorded in |
 |---|---|---|---|---|---|---|
 | `docs/CHANNEL.md` | the cross-repo channel conventions document, taken byte-identical from the `Remus3/Amberstone` repository, whose LICENSE scope block puts authored Markdown inside the grant and carves out only its data tree | **Apache-2.0.** LICENSE, the README licence paragraph and NOTICE agree, and no manifest contradicts them; 219 lines with the warranty clause intact, and no source-available reservation anywhere in them | Yes - `Moonbeam`, sole holder, named in both LICENSE and NOTICE, and rendered rather than left as a template | **CLEARED for vendoring.** Permissive and one-way compatible with this tree's outbound licence. The copy is unmodified, so there are no changes to state. This row IS the retained attribution, because the bytes are pinned by `tests/test_channel_doc.py` and a notice may not be added to them | 2026-09-16, AFTER the lift rather than before it | `docs/LEDGER.md` under CS-1095; `CLAUDE.md` section 4 |
+| `ops/loop/slots.py` | the machine-wide slot governor of the headless loop, taken byte-identical from the `Remus3/Legion-Wallpaper` repository, which committed it EARLIEST of the trees on this machine that carry it - the others hold the same bytes at the same relative path, and which of them copied from which is not established here | **Apache-2.0.** The LICENSE is the complete text - all nine sections, `END OF TERMS AND CONDITIONS`, and the Disclaimer of Warranty and Limitation of Liability clauses present and unedited - and the README licence paragraph agrees with it. There is NO package manifest anywhere in that repository, so trap 1 has nothing to contradict the LICENSE with; the README's only carve-out is the image corpus, and loop source is not that | Yes - `Moonbeam`, sole holder, RENDERED in the LICENSE appendix rather than left as a template. No NOTICE, AUTHORS or CONTRIBUTORS file exists there, so no second holder can be inferred | **CLEARED for vendoring.** Permissive and one-way compatible with this tree's outbound licence. The copy is unmodified, so there are no changes to state. This row IS the retained attribution: the bytes are pinned by `tests/ops/test_shared_slots.py` and are byte-identical-by-contract with the other carrier trees, so a notice may not be added to them. STATED RATHER THAN LEFT TO BE NOTICED, twice over: the upstream repository had no LICENSE at all on the day that file was first committed there - it was added five days later - so the grant read is the one covering the repository at the revision these bytes were TAKEN from, which is its current tip, whose tracked copy hashes equal to this one; and the named holder is also this repository's own commit identity | 2026-09-20, AFTER the lift rather than before it, and only because a slice that could not edit this file reported the omission | `docs/item_notes.md` under CS-946 and CS-1165 |
+| `ops/loop/winmutex.py` | the named-mutex wrapper of the same headless loop in the `Remus3/Legion-Wallpaper` repository; this tree's copy is a DECLARED FORK rather than a byte-identical one, and the module's own header is the fork record | **Apache-2.0**, the same LICENSE and README paragraph read for the row above, in the same repository and with no manifest anywhere in it to contradict them | Yes - `Moonbeam`, sole holder, rendered rather than templated, with no NOTICE or AUTHORS file to imply another | **CLEARED, as a MODIFIED lift.** Apache-2.0 section 4 asks a redistributor to carry prominent notices stating that files were changed: the module header does exactly that, naming the two upstream resource constants deleted and the docstring retargeted, and `tests/test_lane_lock.py` pins this tree's own forked bytes. UNVERIFIED AND STATED AS SUCH: the upstream REVISION these bytes were taken from is not identifiable, because the upstream digest the fork header cites matches no file on this machine today - CS-1160 is open on precisely that - so the gate was run against the repository and the path, not against the revision. That is a weaker evidence base than the row above and is recorded as one | 2026-09-20, long AFTER the fork landed, and for the same reason as the row above | `docs/adr/0017-the-lane-forks-the-shared-loop-modules.md` (ADR-0017); `docs/item_notes.md` under CS-1160 and CS-1165 |
 
 **On that row specifically, and it is the uncomfortable half.** The gate ran five days
 late and only because a sibling project refused the same file at its own gate. An operator

@@ -1250,3 +1250,310 @@ RELATED AND DELIBERATELY NOT CLOSED BY THIS ITEM. CS-1144 is open on line-pointe
 ledger's Entry-shape table and repaired the live instances. This item is about what the
 guard can SEE, not about what the rule requires.
 
+
+
+## CS-1165
+
+### Acceptance
+
+a lift that arrives with NO byte pin and NO register row REDDENS an arm, and the arm's
+oracle is not a list anybody maintains. The candidate oracles are a comparison of this
+tree's tracked files against the carrier trees that hold the same paths, or a produced
+provenance manifest that every tracked file has to be accounted for in; whichever is
+chosen, the arm is proven by MUTATION rather than by running green - a file copied in
+from a sibling tree with nothing added anywhere goes RED naming that file, and the same
+arm is green on the tree as it stands
+
+### Full headline
+
+the third-party register's byte-pin roster was hand-maintained, so a lift with no byte
+pin at all and no register row is still invisible - the derivation that replaced the
+roster grades only files something already pins
+
+### FILED 2026-09-20, on a measured defect in the arm that was supposed to catch it
+
+**WHAT WAS MEASURED.** `ops/loop/slots.py` was vendored byte-identical from the headless
+loop of a sibling repository under CS-946, and `THIRD_PARTY.md` went on saying that one
+file in this tree was vendored. Nothing went red. The arm that owned the
+question in `tests/test_third_party_register.py` - since renamed, so it is deliberately
+not named here - read a hand-written `BYTE_PIN_ROSTER` naming one pin module and nothing
+else: an ALLOWLIST wearing a guard's clothes, which can only ever grade the files
+somebody remembered to add. That is the exact complement of the failure case, so the arm
+could never fail for the file that needed it.
+
+**WHAT THE SAME SLICE FIXED, so this item is the residual and not the whole class.** The
+roster is now DERIVED: every test module under `tests/` is scanned for a sha256 literal,
+and each module that spells one is asked which repo-relative `Path` it binds whose bytes
+actually hash to it. The oracle is the BYTES, so a vendoring joins the graded population
+the moment its pin does, and the default for an unregistered pin is RED rather than
+silence. It found `ops/loop/winmutex.py` as well, which no register row had ever named,
+and the register now carries rows for both. The arms are
+`tests/test_third_party_register.py::test_every_byte_pinned_file_is_registered` and
+`tests/test_third_party_register.py::test_every_registered_vendored_file_is_byte_pinned`,
+graded in both directions and each proven by a mutation of the register.
+
+**WHAT IS LEFT, and it is the reason this item exists.** The derivation's oracle is the
+PIN. A file lifted into this tree that nobody pinned AND nobody registered is invisible to
+it, because there is no digest anywhere for its bytes to agree with. Both files found this
+time happened to carry pins written for other reasons - a cross-repo byte-identity contract
+and a fork record - which is luck, not coverage. The register's own gate says an entry is
+written BEFORE the lift; nothing in this tree enforces that, and the two rows filed today
+were both gated after the fact.
+
+**THE SAME SHAPE IS ALREADY ON THE ROADMAP TWICE**, which is why the class matters more
+than the instance: CS-1036 records two sweeps enforced over a HAND-ENUMERATED population
+rather than one derived from the shipped model. A guard whose population is typed by hand
+is green about whatever was typed.
+
+**WHAT WOULD SETTLE IT, and what would not.** Adding a second hand-maintained list of
+expected vendorings would reproduce the defect one file later and must not be accepted as
+the answer. Two oracles are real: a comparison against the sibling trees that carry the
+same relative paths on this machine - which is green-by-skip on a CI runner and so can
+only ever be an advisory second opinion - or a provenance manifest that every tracked file
+must be accounted for in, which is the only form that runs anywhere. The acceptance above
+takes either, and takes neither on a green run alone.
+
+
+## CS-1166
+
+### Acceptance
+
+the vendor-prefixed credential family is caught by a rule that ANCHORS ON THE LITERAL
+PREFIX and never on entropy, and the acceptance is five arms of which two exist to catch
+vacuity. The catch arm drives `tools/precommit_gate.py::check_secrets` over five
+spellings - a bare admin-family token, a bare api-family token, a dict-repr line carrying
+one, the vendor-named environment assignment and its shell-export spelling - with every
+token FRAGMENT-ASSEMBLED in the test rather than written whole, and it must FAIL FIRST on
+all five. The false-positive arm is green BEFORE and AFTER the new rule and its docstring
+must SAY SO in those words, because an arm green in both states that is not labelled is
+how a vacuous test gets counted as coverage. The placeholder arm is measured TWICE - once
+unpatched, once with `PLACEHOLDER_RE` monkeypatched to never match - because without the
+second measurement it passes for the wrong reason. The neighbour arm asserts a positive
+control per EXISTING rule rather than a count, since a count alone passes over a silently
+broken neighbour. And at least two of the four consumers are driven end to end, because
+the grant's justification is the multiplication and an unmeasured multiplication is a
+source read. The new pattern must contain ZERO capturing groups, no path allowlist may be
+added, and the repo-wide sweep must be run with the rule against tracked content BEFORE
+the commit: a non-zero count on pre-existing content means STOP and re-adjudicate, never
+edit the flagged files.
+
+### Full headline
+
+`SECRET_PATTERNS` in `tools/precommit_gate.py` carries no rule anchored on the vendor
+prefix of the credential family that sat in plaintext on this machine, and its coverage of
+that family is ACCIDENTAL and spelling-dependent rather than absent - one list, FOUR
+consumers, so the commit path, the tool-call path, the outbound path and the sweep were
+blind to the same family at the same time
+
+### FILED 2026-09-20, under an adjudicator grant recorded the same day
+
+**THE GRANT IS THE MEASUREMENT.** `tools/precommit_gate.py` is frozen by `CLAUDE.md`
+section 6, so this item exists only because an adjudicator granted the edit BEFORE it, and
+that grant carries the numbers: a bare admin-family token, a bare api-family token, a
+dict-repr line carrying one, a vendor-named environment assignment and its shell-export
+spelling ALL returned NO MATCH from `tools/precommit_gate.py::check_secrets`, while
+GitHub-shaped and AWS-shaped positive controls MATCHED. The scope the grant allows is ONE
+new tuple in `SECRET_PATTERNS`, at most TWO module-level fragment constants beside the
+existing ones, and at most SIX comment lines above the tuple. Nothing else in that file
+may change, and the commit is SEPARATE from the CS-946 lint repair against the same file
+so each grant's blast radius stays auditable and a false-positive storm is revertible on
+its own.
+
+**COVERAGE WAS NOT ZERO. IT WAS ACCIDENTAL, WHICH IS WORSE.** The lowercase quoted
+assignment spelling IS caught, incidentally, by the generic quoted-assignment rule - while
+the vendor-named spelling is not, because that identifier carries no word boundary where
+the generic rule looks for one. The gate's answer therefore depended on which spelling an
+author happened to use, and produced an inconsistent green rather than an honest red. A
+guard that is right about one spelling of a thing and silent about the next is not
+partially covered; it is unreliable in a way no green run reveals.
+
+**ONE LIST, FOUR CONSUMERS.** `check_secrets` is called from the commit gate at two sites,
+from the PreToolUse gate, from the cross-repo outbound gate and from the repo-wide sweep.
+One blind spot in the list is four blind guards, which is the whole basis of the grant and
+the reason the acceptance drives more than one consumer.
+
+**IT WAS NOT CAUSAL, AND THE ITEM SAYS SO.** The files that carried the exposed key were
+never staged, so the gate's population never contained them. This is the COUNTERFACTUAL
+case: the gate would have scored those bytes CLEAN had it seen them. A guard blind by
+construction is a defect whether or not it was the proximate cause on the day. The
+population half - that no control in this tree can see an uncommitted file at all - is
+CS-1168 and is deliberately not fixed here.
+
+**WHY NOT ENTROPY.** `docs/LEDGER.md` already records a false-positive incident where an
+entropy heuristic blocked a real commit on a legitimate game-data identifier. The rule
+anchors on the literal vendor prefix for that reason, and a proposal to reach for entropy
+instead is re-litigating a measured failure.
+
+**THE COMMON-MODE RISK THIS ITEM DOES NOT DISCHARGE.** `PLACEHOLDER_RE` can neuter the new
+rule exactly as it can neuter the ten already there, and the placeholder arm above proves
+only that the new rule survives the allowlist as the allowlist is spelled TODAY. The
+allowlist's own bounds are CS-1169.
+
+
+## CS-1167
+
+### Acceptance
+
+the credential coverage row is earned PER RULE, not per class, and the canary table is
+asserted STRUCTURALLY - an arm iterates `SECRET_PATTERNS` and requires that every rule in
+it has a canary which that rule matches, so a rule added with no canary FAILS AT
+COLLECTION rather than inheriting a neighbour's green. Proven by mutation in both
+directions: removing one canary reddens an arm that NAMES the rule left uncovered, and
+adding a rule with no canary reddens without anyone editing the test. Every canary is
+assembled from fragments in the source and is a synthetic shape, never a copied
+credential and never a value any real service would accept. The outbound verdict must
+REFUSE rather than report measured when any rule's canary fails to match, and a control
+proves the same run still reports measured on the tree as it stands.
+
+### Full headline
+
+`CANARY_CREDENTIAL` in `tools/outbound_gate.py` is a SINGLE literal of one vendor's shape,
+so the credential coverage row reports the entire class MEASURED on the strength of its
+strongest member - the control cannot go red for the other rules in `SECRET_PATTERNS`, and
+every outbound note filed while that held carried the green
+
+### FILED 2026-09-20, out of the plaintext-key incident, as the pooled-guard half
+
+**THE SHAPE, IN THIS REPOSITORY'S OWN RECORDED VOCABULARY.** `tools/outbound_gate.py::scan`
+builds a `tools/outbound_gate.py::Coverage` row for the credential class by driving
+`check_secrets` over one canary and reading whether anything matched. One string, one
+vendor shape, one verdict for a list of ten rules. That is a POOLED GUARD: a
+population-level green satisfied by its strongest member, which this fleet has already
+recorded as a failure class after a summed threshold was met by one member while the
+weakest sat unmeasured. The row does not lie about what it measured; it lies about what
+the measurement covers.
+
+**WHAT IT CANNOT DO.** It cannot go red for a rule whose pattern is deleted, inverted or
+narrowed, unless that rule happens to be the one the single canary is shaped for. The
+credential class could lose most of its rules and the outbound gate would keep printing
+the same measured row. The home-path class in the same function is measured with TWO
+canaries, which is the same defect one notch less severe and is inside this item's scope
+rather than a separate one.
+
+**WHY AN ELEVENTH STRING IS NOT THE FIX.** Adding one more canary for the family CS-1166
+introduces makes the row correct about eleven rules on the day it is written and silently
+wrong the next time somebody adds a twelfth. That is the hand-maintained-roster defect
+this tree has already paid for twice - once in the byte-pin roster that could only grade
+the files somebody remembered to add, and once in a sweep population typed by hand. The
+oracle has to be the LIST, so the population is derived and an unaccompanied rule is red
+by default.
+
+**WHAT IS NOT CLAIMED.** `tools/outbound_gate.py` is NOT frozen, so no section 6 route is
+needed and no grant is cited here. Nothing in this item asserts that a note left this
+machine carrying a credential - the claim is narrower and worse in a different way: the
+notes carried a coverage assurance that was true of one family and asserted of all of
+them.
+
+
+## CS-1168
+
+### Acceptance
+
+the question is SETTLED IN WRITING before any sweep widens, and the settlement names the
+boundary as a RULE rather than as a list of directories. Either outcome closes it: a
+widened sweep, or a recorded declination that states what stays invisible and why. A
+widened sweep must carry an arm that plants a synthetic fragment-assembled credential in
+an uncommitted file INSIDE the boundary and asserts it is DETECTED, a second arm that
+plants one OUTSIDE the boundary and asserts the run reports it as NOT COVERED rather than
+passing silently, and a control proving the same run still detects a staged one - because
+a widened population that quietly stopped reading the old one is a regression wearing a
+feature's clothes. The boundary must not read a sibling tree's files. The cost must be
+MEASURED and recorded, not estimated, and the fleet half must be routed outbound rather
+than implemented here.
+
+### Full headline
+
+every credential-scanning population in this tree is REPO-SCOPED - the commit gate grades
+the staged set and the repo-wide sweep grades the tracked set, so nothing here can see a
+credential sitting in a file that is never committed, which is exactly where the key found
+on this machine sat for ten days
+
+### FILED 2026-09-20, as the population half of the plaintext-key incident
+
+**THE DISTINCTION THAT MAKES THIS THE ONLY DETECTING CONTROL.** CS-1166 makes the rules
+able to recognise the family. CS-1167 makes the coverage row honest about which rules are
+alive. Neither would have found the key, because neither changes WHICH BYTES ARE READ. The
+commit gate's population is the staged set and the sweep's is the tracked set; the exposed
+files were in neither for ten days. Widening the population is the only proposed control
+that would have DETECTED the incident rather than prevented a different one.
+
+**WHY IT IS FILED RATHER THAN DONE.** The obvious fix - point the sweep at the shared
+scratch directory - crosses two lines this tree holds. That directory is not this
+project's: it is shared across the fleet, and a sweep that reads it reads files other
+trees wrote, which collides directly with the rule that a tree does not read a sibling's
+files. And a boundary drawn as a path is a boundary that rots the first time a tool writes
+somewhere else, which is the same defect as an allowlist wearing a guard's clothes. So the
+item has to decide the RULE - what makes a directory in scope - before it decides any
+path.
+
+**THE HALF THAT IS NOT OURS.** A machine-wide credential sweep is a fleet control with one
+owner and several beneficiaries. Implementing it five times, once per repository, produces
+five populations that disagree and five places to forget. The split this item must
+propose: this tree owns the detection RULES and the arms that grade them, and the fleet
+owns the population and the schedule. The outbound half goes to the sync inboxes as a
+note, and this item does not close on the note being sent - only on the boundary being
+written down here.
+
+**THE COST IS REAL AND MUST BE MEASURED.** A tracked-set sweep is bounded by the index. An
+unbounded filesystem walk is not, and this machine has already recorded a runaway process
+filling a disk and a walk that descended into directories it should have stopped at. Any
+widening arrives with a measured runtime and a stated stopping rule, or it does not
+arrive.
+
+
+## CS-1169
+
+### Acceptance
+
+the allowlist's BOUNDS are graded in both directions, and every positive arm carries a
+control. What must stay forgiven: a documented example token of the shape the tree
+deliberately writes into its own docs, asserted green BEFORE and AFTER, with a docstring
+that says the arm is green in both states. What must NOT be forgiven: a synthetic
+fragment-assembled credential shape whose BODY merely contains an allowlisted substring,
+which must be REFUSED. Each refusal arm is measured TWICE - once as shipped, once with
+`PLACEHOLDER_RE` monkeypatched to never match - so an arm that passes because the rule
+under test never fired is distinguishable from one that passes because the allowlist
+correctly declined to fire. The allowlist's membership is enumerated in ONE place and an
+arm fails when a member is added or removed without that enumeration moving, so a widening
+cannot arrive silently.
+
+### Full headline
+
+`PLACEHOLDER_RE` can silently neuter ANY rule in `SECRET_PATTERNS` and has already
+neutered one - it allowlists on substrings as generic as a placeholder word and an angle
+bracket, so a real credential whose body happens to carry one of them passes every rule in
+the list, and nothing in this tree tests its bounds
+
+### FILED 2026-09-20, as the common-mode risk the CS-1166 grant named and excluded
+
+**THE FAILURE MODE IS COMMON-MODE, WHICH IS WHY IT OUTRANKS ITS SIZE.** `check_secrets`
+matches a rule first and then asks `PLACEHOLDER_RE` whether the offending literal is an
+obvious placeholder. A rule can be perfect and still never refuse anything, because the
+allowlist sits downstream of all of them. So the allowlist is not one guard among eleven -
+it is a switch that can turn any of them off, and the only thing deciding which is what a
+real credential happens to contain.
+
+**IT HAS ALREADY FIRED ONCE.** The CS-1166 grant records that a canonical documented
+example key passed the gate and the pass was read as the hook FAILING rather than as the
+allowlist working. That misreading is the tell: when a suppression is untested, a pass and
+a broken guard are indistinguishable at the call site, and this fleet has recorded that
+exact confusion under its own heading.
+
+**NOTHING TESTS IT TODAY, AND THE TWO ITEMS BESIDE IT DO NOT EITHER.** CS-1166's
+placeholder arm measures whether the NEW rule survives the allowlist as the allowlist is
+spelled today - it says nothing about what the allowlist forgives. CS-1167's canaries are
+chosen to match their rules, so they never probe the suppression path at all. The bounds
+are therefore ungraded in a tree that has three separate items touching the file.
+
+**WHY THE CONTROL IS MANDATORY ON EVERY ARM.** An arm asserting that some string is
+REFUSED passes identically whether the allowlist declined it or the rule never matched it
+in the first place. This repository has recorded an oracle that passed because it could
+not observe its own subject, and caught it only with an adversary. Disabling the allowlist
+and re-measuring is the cheapest way to tell the two apart, and an arm without it is
+evidence of nothing.
+
+**WHAT MUST NOT HAPPEN AS THE FIX.** Deleting the allowlist reintroduces a false-positive
+storm on documented examples, which is the reason it exists. Narrowing it by guessing is
+how a guard quietly stops covering what it names. The repair is a stated contract - these
+inputs are forgiven, these are not - with arms on both sides, and any narrowing arrives
+with the census of sites it newly reddens.

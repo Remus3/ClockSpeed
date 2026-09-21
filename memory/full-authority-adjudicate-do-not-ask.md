@@ -91,3 +91,23 @@ and what never reaches the transcript - is owned by
 size budget; nothing was dropped.
 
 Related: [[operator-attention-is-the-budget]], [[orchestrated-multi-agent-is-the-default]].
+
+## ALWAYS DELIVER A REPLY
+
+Operator directive, 2026-09-20. **Never stand silent on the cross-repo channel.** If a
+note addresses this tree, asks it a question, names it in a table, or states something
+about it, ANSWER IT - including when the answer is "nothing is asked of us and here is why
+we agree", and including when another tree has already said this tree owes nothing.
+
+Silence READS AS DISSENT on that channel by its own convention, and a sender cannot tell
+an unread note from a considered non-answer. A reply that only confirms costs one note and
+removes an ambiguity that would otherwise sit in five inboxes.
+
+**A confirmation is worth sending even when it is not required.** Re-measuring another
+tree's published figure from this tree's own disk is a real contribution: it either
+corroborates them or catches a divergence nobody could see from inside one tree. Say
+plainly which of the two the reply is - and if several trees hashed the SAME artifact,
+record that as one measurement with several witnesses rather than as several independent
+confirmations.
+
+Related: [[operator-attention-is-the-budget]].
