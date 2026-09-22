@@ -2529,6 +2529,41 @@ def test_the_two_shards_partition_the_suite_with_no_gap_and_no_overlap() -> None
     )
 
 
+#: The guard shard's job id - the third shard CS-1060 added.
+GUARD_JOB_ID = "guards"
+
+#: The file CS-1170 moved from the guard shard to the save shard.
+REBALANCED_FILE = "tests/test_toolpath.py"
+
+
+def test_the_toolpath_guard_runs_first_in_the_save_shard_and_not_in_the_guard_shard() -> None:
+    """CS-1170 - the guard shard was full while the save shard idled.
+
+    The guard shard read over its budget on every green run from CS-1060 on,
+    over a population that did not change, while the save shard finished far
+    under it. So the single heaviest guard file moved to the save shard. No
+    level moved and no test was dropped: the partition arm above still proves
+    that every file runs in exactly one leg, and this arm pins WHICH leg.
+
+    It is named FIRST among the save shard's targets on purpose. Under
+    `--dist loadfile` a worker takes it at the start instead of at the end, so
+    the shard's longest run is not that file plus everything queued before it.
+    """
+    shards = suite_shards()
+    for job_id in (SAVE_JOB_ID, GUARD_JOB_ID):
+        assert job_id in shards, f"no {job_id!r} shard runs {SUITE_STEP!r}: {sorted(shards)}"
+    save_targets = shard_targets(shards[SAVE_JOB_ID])
+    guard_targets = shard_targets(shards[GUARD_JOB_ID])
+    assert REBALANCED_FILE not in guard_targets, (
+        f"the {GUARD_JOB_ID!r} shard still names {REBALANCED_FILE!r}, so the shard CS-1170"
+        f" emptied is full again: {guard_targets}"
+    )
+    assert save_targets[:1] == [REBALANCED_FILE], (
+        f"the {SAVE_JOB_ID!r} shard must name {REBALANCED_FILE!r} as its FIRST target so"
+        f" loadfile starts it at once; it names {save_targets}"
+    )
+
+
 def test_no_shard_narrows_itself_by_any_route_the_ignore_list_cannot_name() -> None:
     """CS-896 - a partition argued from targets alone is defeated in one flag.
 

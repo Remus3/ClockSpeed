@@ -592,6 +592,12 @@ jobs:
       # THE OTHER HALF OF THE PARTITION. Explicit target directory, never a bare
       # recursive invocation from the repo root - CONVENTIONS.md section 7.1.
       #
+      # IT ALSO CARRIES ONE GUARD FILE, tests/test_toolpath.py, SINCE CS-1170, and
+      # names it FIRST so `--dist loadfile` hands it to a worker at the start
+      # rather than behind everything else queued. The reason is stated at the
+      # guard shard below; the job id and name are unchanged, because the lane
+      # driver and the tracked readings key on them.
+      #
       # THE ONE `--ignore=` IN THIS LANE IS A DELETION, NOT PARTITION BOOKKEEPING,
       # AND IT IS GOVERNED (CS-1073). Every other ignore in this file sits on the
       # catch-all and names another shard's target, one for one. This one names a
@@ -629,7 +635,7 @@ jobs:
       # install and no save, exactly what this job demonstrates simultaneously.
       - name: Unit tests
         run: >-
-          python -m pytest tests/save -q -n auto --dist loadfile
+          python -m pytest tests/test_toolpath.py tests/save -q -n auto --dist loadfile
           --ignore=tests/save/test_phase4_gate.py
           --durations=15 --durations-min=5.0
 
@@ -725,11 +731,20 @@ jobs:
   # a third runner, so the work is PARTITIONED again rather than trimmed: every test
   # that ran before still runs on every push, in one shard or another.
   #
-  # THE BALANCE IS DERIVED, NOT GUESSED, the way the env block above derives its
-  # levels. Measured locally over the whole of the old fast shard: 607.7 CPU seconds
-  # in total. The nine files below are its subprocess-heavy guard and gate modules
-  # and account for 300.3 of that; the catch-all remainder is 307.4. The split is
-  # even to within 7 CPU seconds, so neither shard alone decides the lane.
+  # THE BALANCE WAS DERIVED, NOT GUESSED, AND CS-1170 RE-DERIVED IT FROM CI. The
+  # first split came from a local CPU-second profile of the old fast shard, which
+  # put the guard and gate modules at about half of it. CI then read this shard
+  # over its budget on every green run from its creation on, over a population
+  # that did not change, while the save shard finished far under the same budget -
+  # provenance: runs 35477523123, 35483224674, 35541295571, 35548981254,
+  # 35549849346 and 35551205334. Two workers under loadfile cannot beat half the
+  # shard's total work, so the shard was FULL, not skewed, and reordering inside
+  # it buys nothing. The heaviest file here, tests/test_toolpath.py, therefore
+  # moved to the save shard. No level moved and every test still runs once.
+  #
+  # WHAT IS OWED AFTER IT: the tracked readings are refreshed from the first green
+  # runs after the move, and only then does tools/tier1_growth.py shrink
+  # BUDGET_UNMET - never on a projection.
   #
   # THE PARTITION IS HELD BY tests/test_tier1_budget.py AND IT IS DERIVED FOR ANY N.
   # Exactly one shard runs the bare `tests` target and carries one `--ignore=` per
@@ -777,8 +792,7 @@ jobs:
           tests/test_hook_interpreter_ladder.py tests/test_liveness.py
           tests/test_commit_msg_gate.py tests/test_pre_push_ref_race.py
           tests/test_mypy_gate.py tests/test_docs_citations.py
-          tests/test_toolpath.py tests/test_precommit_gate.py
-          tests/test_chained_cause_census.py
+          tests/test_precommit_gate.py tests/test_chained_cause_census.py
           -q -n auto --dist loadfile
           --durations=15 --durations-min=5.0
 
