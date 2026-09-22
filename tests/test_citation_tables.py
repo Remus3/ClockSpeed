@@ -865,6 +865,20 @@ DISPOSITIONS: Final[Mapping[tuple[str, str], Disposition]] = {
         " budget arm above travelled. Not a record defect.",
         ("18fd50697c39:e127d81b8db9:0",),
     ),
+    # --- class 6: the record was RIGHT when written; CS-1167 RENAMED the symbol.
+    # The single pooled canary became one canary per rule, so the old name has
+    # no one-to-one successor in meaning - but the construction the ledger cites
+    # it for, a credential shape ASSEMBLED FROM FRAGMENTS, is exactly what the
+    # per-rule table holds. RENAMED with a live target, checked every run.
+    (
+        LEDGER,
+        "tools/outbound_gate.py::CANARY_CREDENTIAL",
+    ): Disposition(
+        RENAMED,
+        "tools/outbound_gate.py::CREDENTIAL_CANARIES",
+        "CS-1167 replaced the single canary with one per rule. Not a record defect.",
+        ("ce711a9bd17c:4f5302be7ef4:0",),
+    ),
 }
 
 
@@ -1184,7 +1198,13 @@ UNVERIFIED_LINE_POINTERS: Final[Mapping[tuple[str, str, int], str]] = {
 #: A seventh in `docs/history_notes.md` was rewritten to symbol form at
 #: relocation time, while it was still repairable, and its archive pin did not
 #: move.
-FORGIVEN_LINE_POINTER_CEILING: Final = 63
+#:
+#: RAISED TO 64 BY CS-1167, AND FOR A RENAME RATHER THAN A POINTER. The CS-939
+#: record cites the single outbound canary by path and symbol; CS-1167 replaced
+#: it with one canary per rule, so the citation is right-when-written and dead
+#: now. The carrier is append-only, the live target exists, and the class 6
+#: row in DISPOSITIONS is RENAMED - checked in all three directions every run.
+FORGIVEN_LINE_POINTER_CEILING: Final = 64
 
 
 #: R2's live membership, DISCLOSED. Every entry is a citation at a path this
