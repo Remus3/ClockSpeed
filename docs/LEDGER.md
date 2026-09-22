@@ -75,6 +75,17 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-09-22 - CS-1169 - CLOSED. `PLACEHOLDER_RE` forgives a member only as the whole body, at its start or end, or delimited by non-alphanumerics on both sides - never inside a run of letters and digits
+Verification: `python -m pytest tests/test_cs1169_placeholder_bounds.py tests/test_cs1166_vendor_prefix_secret.py tests/test_precommit_gate.py -q -p no:randomly`. The contract is `tools/precommit_gate.py::PLACEHOLDER_RE` built from `tools/precommit_gate.py::PLACEHOLDER_MEMBERS`, whose twelve members are byte-identical to what the allowlist held before.
+
+WITHIN THE GRANT AND ITS ADDENDUM, both recorded before the edit. The gate diff is 36 lines, 14 ignoring whitespace; every line outside the allowlist and its comment is byte-identical, so `check_secrets` and all eleven rules are untouched. The CS-1166 arm that pinned mid-body suppression was re-tokenised in the same commit as the addendum rules, and the line pointer the ledger held into this file became a MOVED disposition naming the symbol, at no cost to the forgiveness ceiling.
+
+CONDITION PRECEDENT MET: over every tracked file, two raw hits, both forgiven and both the documented sites the ruling named, and none escaping. FAILED FIRST for the right reason: 239 refusal arms red with the gate returning no finding at all, while every forgiveness case and every allowlist-disabled control stayed green.
+
+THE ADVERSARY COULD NOT REFUTE IT, and its mutations landed: reverting the pattern reddened 238 arms, dropping the both-sides-delimited branch 26, dropping the start anchor 26.
+
+WHAT THE CONTRACT STILL FORGIVES, SAID PLAINLY because the grant's residual paragraph named only the edge case. A member delimited by a hyphen, underscore, dot, plus or slash INSIDE a body is forgiven by design, on every rule whose alphabet admits those characters. By measurement a uniform random body trips it at about one in two hundred thousand for the worst rule and zero for the vendor-prefix rule. Two sharper residuals are filed as CS-1174: the delimiter class treats a non-ASCII letter as a delimiter, and no behavioural arm puts a digit beside a member, so a mutant letting digits delimit is killed only by the pattern-text pin.
+
 ### 2026-09-22 - CS-1170 - CLOSED. `tests/test_toolpath.py` moved from the tier 1 guard shard to the save shard, and both shards read under budget on the first CI run after the move
 Verification: `tests/test_tier1_budget.py::test_the_toolpath_guard_runs_first_in_the_save_shard_and_not_in_the_guard_shard` pins the membership, and the no-gap no-overlap partition arm in the same module still proves every file runs in exactly one leg. The acceptance reading is CI run 35739936582, the first on a tip carrying the move: read its `tier 1 took Ns` lines for the guard and save shards.
 

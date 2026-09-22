@@ -1370,63 +1370,6 @@ widening arrives with a measured runtime and a stated stopping rule, or it does 
 arrive.
 
 
-## CS-1169
-
-### Acceptance
-
-the allowlist's BOUNDS are graded in both directions, and every positive arm carries a
-control. What must stay forgiven: a documented example token of the shape the tree
-deliberately writes into its own docs, asserted green BEFORE and AFTER, with a docstring
-that says the arm is green in both states. What must NOT be forgiven: a synthetic
-fragment-assembled credential shape whose BODY merely contains an allowlisted substring,
-which must be REFUSED. Each refusal arm is measured TWICE - once as shipped, once with
-`PLACEHOLDER_RE` monkeypatched to never match - so an arm that passes because the rule
-under test never fired is distinguishable from one that passes because the allowlist
-correctly declined to fire. The allowlist's membership is enumerated in ONE place and an
-arm fails when a member is added or removed without that enumeration moving, so a widening
-cannot arrive silently.
-
-### Full headline
-
-`PLACEHOLDER_RE` can silently neuter ANY rule in `SECRET_PATTERNS` and has already
-neutered one - it allowlists on substrings as generic as a placeholder word and an angle
-bracket, so a real credential whose body happens to carry one of them passes every rule in
-the list, and nothing in this tree tests its bounds
-
-### FILED 2026-09-20, as the common-mode risk the CS-1166 grant named and excluded
-
-**THE FAILURE MODE IS COMMON-MODE, WHICH IS WHY IT OUTRANKS ITS SIZE.** `check_secrets`
-matches a rule first and then asks `PLACEHOLDER_RE` whether the offending literal is an
-obvious placeholder. A rule can be perfect and still never refuse anything, because the
-allowlist sits downstream of all of them. So the allowlist is not one guard among eleven -
-it is a switch that can turn any of them off, and the only thing deciding which is what a
-real credential happens to contain.
-
-**IT HAS ALREADY FIRED ONCE.** The CS-1166 grant records that a canonical documented
-example key passed the gate and the pass was read as the hook FAILING rather than as the
-allowlist working. That misreading is the tell: when a suppression is untested, a pass and
-a broken guard are indistinguishable at the call site, and this fleet has recorded that
-exact confusion under its own heading.
-
-**NOTHING TESTS IT TODAY, AND THE TWO ITEMS BESIDE IT DO NOT EITHER.** CS-1166's
-placeholder arm measures whether the NEW rule survives the allowlist as the allowlist is
-spelled today - it says nothing about what the allowlist forgives. CS-1167's canaries are
-chosen to match their rules, so they never probe the suppression path at all. The bounds
-are therefore ungraded in a tree that has three separate items touching the file.
-
-**WHY THE CONTROL IS MANDATORY ON EVERY ARM.** An arm asserting that some string is
-REFUSED passes identically whether the allowlist declined it or the rule never matched it
-in the first place. This repository has recorded an oracle that passed because it could
-not observe its own subject, and caught it only with an adversary. Disabling the allowlist
-and re-measuring is the cheapest way to tell the two apart, and an arm without it is
-evidence of nothing.
-
-**WHAT MUST NOT HAPPEN AS THE FIX.** Deleting the allowlist reintroduces a false-positive
-storm on documented examples, which is the reason it exists. Narrowing it by guessing is
-how a guard quietly stops covering what it names. The repair is a stated contract - these
-inputs are forgiven, these are not - with arms on both sides, and any narrowing arrives
-with the census of sites it newly reddens.
-
 ## CS-1171
 
 ### Acceptance
@@ -1491,3 +1434,30 @@ family - stays green, because a rule is graded on one example. The first step is
 plant one such narrowing and watch it stay green; if it goes red, record that and narrow
 this item. The echo half is synthetic shapes only, but a captured CI log carrying whole
 credential shapes is exactly what a secret scanner on another tree would flag.
+
+## CS-1174
+
+### Acceptance
+
+the delimiter test in `tools/precommit_gate.py::PLACEHOLDER_RE` classifies a non-ASCII
+letter as part of the run, not as a delimiter, so a member between two such letters is
+REFUSED on every rule whose alphabet admits them; and a behavioural arm puts a digit on
+each side of a member in turn and asserts refusal, so a mutant that lets digits delimit
+is killed by behaviour and not only by the pattern-text pin. Both halves fail first, the
+tracked-content census stays at zero escapes with both documented sites still forgiven,
+and the change arrives under its own adjudicator grant recorded before the edit,
+because the file is frozen.
+
+### Full headline
+
+`PLACEHOLDER_RE` treats a non-ASCII letter as a delimiter, and no behavioural arm puts a
+digit beside a member
+
+### FILED 2026-09-22, from the adversary pass that could not refute CS-1169
+
+Both residuals were measured by that adversary on the frozen candidate. The non-ASCII
+case reaches only the quoted-assignment rule today, because it is the only rule whose
+alphabet admits such a letter, and this project's authored content is 7-bit ASCII by
+rule - so the exposure is content arriving from outside, which is exactly what the
+sweep and the outbound gate read. The digit case is a test-strength gap, not a live
+escape: the shipped pattern refuses a digit-adjacent member today.
