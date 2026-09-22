@@ -164,7 +164,7 @@ SECOND_NOTE_NAME = "note958-second.md"
 
 # METADATA (CS-958 F1). A synthetic credential shape, ASSEMBLED FROM FRAGMENTS
 # so this file does not itself carry one - the same construction the gate uses
-# for its own canary (tools/outbound_gate.py::CANARY_CREDENTIAL). It is a
+# for its own canary (tools/outbound_gate.py::CREDENTIAL_CANARIES). It is a
 # well-formed AWS access key id, which the gate REFUSES in content and which is
 # at the same time a perfectly legal filename and a perfectly legal directory
 # name. That is the whole of F1 in one value: the identical string, refused in

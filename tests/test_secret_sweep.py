@@ -22,7 +22,7 @@ report the same answer, which is the whole failure mode the clause names.
 THE SYNTHETIC FIXTURE THAT MUST NOT REDDEN IS NOT A FORGIVENESS TABLE. This
 tree's oldest answer to "how do you write a credential-shaped fixture into a
 tracked file" is to ASSEMBLE it from fragments and never spell it - see
-``tools/outbound_gate.py::CANARY_CREDENTIAL``. The joined value matches the
+``tools/outbound_gate.py::CREDENTIAL_CANARIES``. The joined value matches the
 gate's AWS rule; the source that builds it matches nothing. So the fixture's
 own source line is the control, and it is a mechanism rather than a recorded
 exception: no entry anywhere forgives this file, and a real credential added to

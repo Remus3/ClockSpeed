@@ -75,6 +75,15 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-09-22 - CS-1167 - CLOSED. The outbound gate's credential coverage row is earned per rule: every `SECRET_PATTERNS` rule must have its own live canary, or the verdict refuses
+Verification: `python -m pytest tests/test_cs1167_credential_canary_coverage.py tests/test_outbound_gate.py -q -p no:randomly`. The mechanism is `tools/outbound_gate.py::credential_canary_gaps` over `tools/outbound_gate.py::CREDENTIAL_CANARIES`, which walks `tools/precommit_gate.py::SECRET_PATTERNS` at run time; `tools/precommit_gate.py` was not touched.
+
+THE POOLED GUARD, RETIRED. `CANARY_CREDENTIAL` was one AWS-shaped literal, so the row read MEASURED on the strength of its strongest member. Failing first, for the right reason: with each rule weakened in turn, ten of eleven still read MEASURED under the old gate, and the one that went unmeasured did not name its rule. A rule is live now only when `check_secrets` reports THAT rule's own reason on its canary AND the same pattern matches with the candidate not suppressed by `PLACEHOLDER_RE`. A canary for a rule that no longer exists is named too. The home-path row moved to the same per-rule shape in the same change.
+
+MUTATION, BOTH DIRECTIONS, by an adversary that did not write it, each mutation asserted applied. A real rule added to `SECRET_PATTERNS` with no canary and no test edit reddens its own parametrized case and the CLI exits 3 naming it. Deleting a canary, making a rule unmatchable, duplicating a reason string, and swapping in a canary of a neighbour's shape each redden and name the rule. The CLI still exits 0 on clean text and 1 on a credential, echoing no value. Every canary is fragment-assembled; the commit gate's own secret check over the changed files found 0 hits.
+
+RESIDUAL, AND FILED RATHER THAN SMOOTHED OVER. One canary per rule cannot see a rule NARROWED so it still matches that one example - an alternation branch dropped, a prefix family removed. That is CS-1172. A failing arm renders a synthetic canary in full through pytest's assert rewriting, which is recorded there as well.
+
 ### 2026-09-22 - CS-1169 - FROZEN-FILE GRANT. NOT A COMPLETION RECORD. NOTHING CLOSED. CS-1169 STAYS OPEN and this entry does not close it. Granted by an adjudicator BEFORE the edit, and BOUNDED to the allowlist's own definition
 Verification: this record is the grant; the repair closes under its own later entry. The measurement is reproducible by importing `tools/precommit_gate.py` at `a29cfdb`, driving `check_secrets` with fragment-assembled synthetic tokens, and re-running each case with `PLACEHOLDER_RE` monkeypatched to never match. Scope is the pattern body of `PLACEHOLDER_RE`, the comment block above it, and at most ONE new module-level constant enumerating its members. At most 30 changed lines in the file. Nothing else in `tools/precommit_gate.py` may change.
 

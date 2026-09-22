@@ -1314,61 +1314,6 @@ must be accounted for in, which is the only form that runs anywhere. The accepta
 takes either, and takes neither on a green run alone.
 
 
-## CS-1167
-
-### Acceptance
-
-the credential coverage row is earned PER RULE, not per class, and the canary table is
-asserted STRUCTURALLY - an arm iterates `SECRET_PATTERNS` and requires that every rule in
-it has a canary which that rule matches, so a rule added with no canary FAILS AT
-COLLECTION rather than inheriting a neighbour's green. Proven by mutation in both
-directions: removing one canary reddens an arm that NAMES the rule left uncovered, and
-adding a rule with no canary reddens without anyone editing the test. Every canary is
-assembled from fragments in the source and is a synthetic shape, never a copied
-credential and never a value any real service would accept. The outbound verdict must
-REFUSE rather than report measured when any rule's canary fails to match, and a control
-proves the same run still reports measured on the tree as it stands.
-
-### Full headline
-
-`CANARY_CREDENTIAL` in `tools/outbound_gate.py` is a SINGLE literal of one vendor's shape,
-so the credential coverage row reports the entire class MEASURED on the strength of its
-strongest member - the control cannot go red for the other rules in `SECRET_PATTERNS`, and
-every outbound note filed while that held carried the green
-
-### FILED 2026-09-20, out of the plaintext-key incident, as the pooled-guard half
-
-**THE SHAPE, IN THIS REPOSITORY'S OWN RECORDED VOCABULARY.** `tools/outbound_gate.py::scan`
-builds a `tools/outbound_gate.py::Coverage` row for the credential class by driving
-`check_secrets` over one canary and reading whether anything matched. One string, one
-vendor shape, one verdict for a list of ten rules. That is a POOLED GUARD: a
-population-level green satisfied by its strongest member, which this fleet has already
-recorded as a failure class after a summed threshold was met by one member while the
-weakest sat unmeasured. The row does not lie about what it measured; it lies about what
-the measurement covers.
-
-**WHAT IT CANNOT DO.** It cannot go red for a rule whose pattern is deleted, inverted or
-narrowed, unless that rule happens to be the one the single canary is shaped for. The
-credential class could lose most of its rules and the outbound gate would keep printing
-the same measured row. The home-path class in the same function is measured with TWO
-canaries, which is the same defect one notch less severe and is inside this item's scope
-rather than a separate one.
-
-**WHY AN ELEVENTH STRING IS NOT THE FIX.** Adding one more canary for the family CS-1166
-introduces makes the row correct about eleven rules on the day it is written and silently
-wrong the next time somebody adds a twelfth. That is the hand-maintained-roster defect
-this tree has already paid for twice - once in the byte-pin roster that could only grade
-the files somebody remembered to add, and once in a sweep population typed by hand. The
-oracle has to be the LIST, so the population is derived and an unaccompanied rule is red
-by default.
-
-**WHAT IS NOT CLAIMED.** `tools/outbound_gate.py` is NOT frozen, so no section 6 route is
-needed and no grant is cited here. Nothing in this item asserts that a note left this
-machine carrying a credential - the claim is narrower and worse in a different way: the
-notes carried a coverage assurance that was true of one family and asserted of all of
-them.
-
-
 ## CS-1168
 
 ### Acceptance
@@ -1516,3 +1461,33 @@ this item rather than building a twin for a gap that is not there.
 **THE METHOD TRAP THE MEASUREMENT HIT.** A first run selected tests with a `-k` keyword
 that skipped the behavioural arms and read green. Select the twin by node id, and read
 the collected count before reading the verdict.
+
+## CS-1172
+
+### Acceptance
+
+every alternation branch and every prefix family inside each `SECRET_PATTERNS` rule has
+its own canary in `tools/outbound_gate.py::CREDENTIAL_CANARIES`, so narrowing a rule by
+dropping one branch reddens an arm that NAMES the rule and the branch. Proven by
+mutation on at least three rules with alternations - removing one branch each - with the
+pristine tree green in the same run as the control. The enumeration of branches is
+DERIVED from the compiled patterns or pinned by an arm that fails when a pattern's
+alternation count changes, never a list someone remembers to extend. Separately, no
+canary arm renders a whole canary value in its failure output: bind the reasons to a
+scalar before asserting, per the recorded assert-rewriting trap, and prove it by
+forcing one arm red and grepping the captured output for the canary.
+
+### Full headline
+
+one canary per secret rule cannot see a rule NARROWED so it still matches that one
+example, and a failing canary arm renders its synthetic value in full
+
+### FILED 2026-09-22, from the adversary pass that could not refute CS-1167
+
+CS-1167 made the coverage row per rule. Its adversary then reasoned, without running it,
+that a rule narrowed to keep matching its single canary - an AWS rule losing one key
+prefix, a GitHub rule losing two of its token prefixes, the vendor-prefix rule losing a
+family - stays green, because a rule is graded on one example. The first step is to
+plant one such narrowing and watch it stay green; if it goes red, record that and narrow
+this item. The echo half is synthetic shapes only, but a captured CI log carrying whole
+credential shapes is exactly what a secret scanner on another tree would flag.
