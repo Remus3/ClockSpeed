@@ -560,6 +560,26 @@ apply, so its PASS is no evidence about what CI's lint step will say.
 guards enumerate through git, so an untracked file is green locally and red on commit. Run
 `git add -N` on anything you created before you trust a repo-wide suite result.
 
+**7f.1 STAMP EVERY PATH YOU ADD, RENAME OR DELETE in `tools/provenance.tsv` (CS-1165).**
+Every tracked or untracked-unignored path needs exactly one row there, and
+`tests/test_provenance_manifest.py` is RED on a path with no row and on a row naming no
+path. The pre-commit gate does not run it, so an unstamped file lands locally and then the
+PUSH refuses - and so does the lane-branch fallback push, which stalls the lane. You are
+your own merger, so you stamp your own paths, one invocation each, and never hand-edit the
+TSV:
+
+- a new file: `python tools/provenance_stamp.py add PATH --class authored --item CS-NNNN`,
+  where CS-NNNN is the item the commit cites. The class is always explicit; `vendored` is
+  refused without a `THIRD_PARTY.md` register row, and this lane never vendors.
+- a rename, AFTER the `git mv`: `python tools/provenance_stamp.py mv OLD NEW`.
+- a delete, AFTER the `git rm`: `python tools/provenance_stamp.py rm PATH`.
+- then `python tools/provenance_stamp.py check` must exit 0. Its list, and the red list of
+  the manifest arm, is your checklist.
+
+If `add` REFUSES a file as a near-duplicate of a vendored one, do not reword the file to
+slip under the threshold - that is a lift, and it is reported, not stamped. Scratch output
+belongs in the scratchpad: an untracked file in the worktree is in the population too.
+
 **7g. TDD, and the order is not negotiable.** The failing test comes FIRST, and it must fail
 for the RIGHT reason - quote the failure line. A test written after the fix proves the fix
 ran, not that the bug existed. Before writing the test, grep to confirm every method, field
@@ -637,13 +657,17 @@ engine change is substantive; a five-file rename is not.
    policy, and its absence is not a defect to file.
 4. Write the message with a file (`git commit -F`) or a single-quoted here-string. Never a
    double-quoted here-string and never a piped string - same root cause as the em-dash rule.
-5. **A green suite before the push**, and the push is what pays the whole-suite hook.
-6. **The ledger entry lands in the SAME COMMIT as the work.** A claim whose record ships
+5. **Every path you added, renamed or deleted is stamped (step 7f.1) in the SAME COMMIT**,
+   and `python tools/provenance_stamp.py check` exits 0 before the push. After a rebase, a
+   conflict in `tools/provenance.tsv` is resolved by taking the other side and re-running
+   `add` for your own paths - never by hand-merging rows.
+6. **A green suite before the push**, and the push is what pays the whole-suite hook.
+7. **The ledger entry lands in the SAME COMMIT as the work.** A claim whose record ships
    separately is a claim that can be reverted away from its evidence.
-7. **Never `--no-verify`. Never skip a hook. Never `push --force`.** Fetch and rebase, then
+8. **Never `--no-verify`. Never skip a hook. Never `push --force`.** Fetch and rebase, then
    re-run the tier's tests on the rebased tree - a rebase can land your change on top of
    someone else's, and a suite that passed pre-rebase proves nothing about the merged result.
-8. If the push is rejected, re-fetch and rebase ONCE more. If it is still rejected, push the
+9. If the push is rejected, re-fetch and rebase ONCE more. If it is still rejected, push the
    lane branch instead, say so plainly with the reason, and continue. Do not loop on a
    contested ref.
 
