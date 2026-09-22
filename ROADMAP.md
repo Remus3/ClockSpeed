@@ -366,3 +366,4 @@ CS-1165 - the third-party register's byte-pin roster was hand-maintained, so a l
 CS-1167 - `CANARY_CREDENTIAL` in `tools/outbound_gate.py` is a SINGLE literal of one vendor's shape, so the credential coverage row reports the entire class MEASURED on the strength of its strongest member - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1168 - every credential-scanning population in this tree is REPO-SCOPED - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1169 - `PLACEHOLDER_RE` can silently neuter ANY rule in `SECRET_PATTERNS` and has already neutered one - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
+CS-1171 - the endpoint `opens no file` guards read source only and have no behavioural twin, so a helper in another module or a runtime-built name defeats them while the suite stays green - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`

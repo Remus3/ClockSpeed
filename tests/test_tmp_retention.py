@@ -1,4 +1,4 @@
-"""CS-1166 - the pytest temp-directory retention settings, pinned.
+"""CS-946 - the pytest temp-directory retention settings, pinned.
 
 WHY AN ARM RATHER THAN A COMMENT. The numbered pytest run root is per-Windows-
 account and NOT per-repository: several trees on this machine write into the

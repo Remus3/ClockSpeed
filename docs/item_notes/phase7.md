@@ -1481,3 +1481,38 @@ storm on documented examples, which is the reason it exists. Narrowing it by gue
 how a guard quietly stops covering what it names. The repair is a stated contract - these
 inputs are forgiven, these are not - with arms on both sides, and any narrowing arrives
 with the census of sites it newly reddens.
+
+## CS-1171
+
+### Acceptance
+
+every endpoint module whose static arm asserts it opens no file - the
+`test_the_endpoint_opens_no_file` arms in `tests/surface/test_health.py`, `test_map.py`,
+`test_world.py` and `test_registry.py` - also has a BEHAVIOURAL twin that drives the
+endpoint with the file-opening builtins and path readers instrumented, and fails naming
+the endpoint when any file is opened during the request. The twin is proved by
+mutation: a plant that opens a file through a helper in another module, and a plant
+that reaches the opener through a runtime-built name, each turn the twin RED while the
+static arm stays green, and the pristine tree is green. The static arms stay; they are
+cheap and catch the direct spelling.
+
+### Full headline
+
+the endpoint `opens no file` guards read source only and have no behavioural twin, so a
+helper in another module or a runtime-built name defeats them while the suite stays green
+
+### FILED 2026-09-22, from CS's own measurement answering a sibling's question
+
+A sibling tree asked every tree whether it had a guard that reads source to assert a
+runtime property, scoped to one function. CS measured its own tree before answering:
+guards that parse source to assert behaviour exist across many modules, and for most of
+the privacy-relevant ones a behavioural canary sweep ALSO exists and went red on the
+plants a static arm missed. The endpoint `opens no file` family is the one class where
+no behavioural twin was found. The defeat was predicted from the same shape as the
+planted ones rather than planted against these arms, so the first step of the repair is
+to plant it and watch the static arm stay green - if it goes red, record that and narrow
+this item rather than building a twin for a gap that is not there.
+
+**THE METHOD TRAP THE MEASUREMENT HIT.** A first run selected tests with a `-k` keyword
+that skipped the behavioural arms and read green. Select the twin by node id, and read
+the collected count before reading the verdict.
