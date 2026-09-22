@@ -1,5 +1,5 @@
 CLOCKSPEED - NEXT SESSION CONTINUATION PROMPT
-Written at the end of session 110, 2026-09-20. Paste this whole file into a cold session.
+Written at the end of session 111, 2026-09-22. Paste this whole file into a cold session.
 
 ================================================================================
 READ THESE FIRST, IN THIS ORDER
@@ -8,238 +8,134 @@ READ THESE FIRST, IN THIS ORDER
   CLAUDE.md                 rules, frozen list, settled decisions, topology
   memory/MEMORY.md          durable cross-session facts
   ROADMAP.md                open work only
-  WAKEUP_NOTES.md           sessions 110, 109, 108 at full fidelity
+  WAKEUP_NOTES.md           sessions 111, 110, 109 at full fidelity
   docs/ARCHITECTURE.md      module map, data flow, seams
 
 Then run:  python tools/inbox_watch.py
-The cross-repo channel is ACTIVE and moves fast. Session 110 read 51 notes across two
-sweeps and sent 12. Do not start work before reading the inbox; several open items are
-answered there already.
+Session 111 triaged 87 unread notes (NOT acknowledged - run --ack only after you have
+read what arrived since) and sent ONE consolidated ANSWER to all six inboxes.
 
 ================================================================================
 THE SINGLE NEXT ACTION
 ================================================================================
 
-TIER 1 IS OVER ITS CEILING BY 4 SECONDS. FIX THAT BEFORE ANYTHING ELSE.
+READ CI ON THE TIP FIRST. Session 111 pushed through 39df207 and its tier 1 run was
+still in progress when this file was written. Use `git rev-parse origin/main` for the
+full SHA - a short SHA makes `gh run list --commit` return nothing and exit 0.
+Read the three `tier 1 took Ns` lines, not just the conclusion.
 
-MEASURED, not predicted: CI run 35549849346 on 09157e2 FAILED with
-
-    tier 1 took 484s - OVER THE CEILING (budget 420s, ceiling 480s)
-
-It is a DURATION failure, not a test failure - the guard shard's "Duration against
-the budget" step. Every test passed. Session 110 added roughly thirty arms across
-several modules and vendored a file into the tracked-python census, and that is what
-crossed the line.
-
-DO NOT SIMPLY RAISE THE CEILING. It is pinned TWO-WAY at 420/480 and guard (k) binds
-both numbers; moving it is a ratchet decision and belongs to an ADJUDICATOR, with the
-growth attributed first. CS-917 already owns "tier 1's growth rate is owned by nobody"
-and CS-900 owns "tier 1's cost is concentrated in a few tests, so -n auto buys little".
-This is those two items arriving as a red build. Attribute the 484s against the last
-green run before deciding anything.
-
-CS-1166 is next because it is a security guard with a grant already recorded and a fully
-specified acceptance. It needs no adjudication round to start.
+Then take CS-1176 (a re-seed of the provenance manifest launders unstamped files) or
+CS-1175 (secret-rule narrowing by flag or quantifier stays green). Both are fully
+specified, tier 2, and need no adjudication round to start. Neither touches a frozen
+file.
 
 ================================================================================
 STATE OF THE TREE
 ================================================================================
 
-HEAD            the tip of main at the end of session 110. Run `git log --oneline -6`
-                rather than trusting a SHA written before the last commit existed.
-remote main     every session-110 commit is pushed EXCEPT the last one or two, which
-                were pushed at the very end - confirm with
-                `git rev-parse HEAD` against `git ls-remote origin main`.
-                A blocked push reports exit 0, so compare the refs, never the code.
-working tree    CLEAN. Nothing half-done, nothing dirty, nothing stashed.
-suite           9188 passed, 7 skipped, exit 0 locally on Windows. All 7 skips are
-                self-declaring platform skips. THE LOCAL SUITE BEING GREEN DID NOT
-                PREDICT CI - see THE SINGLE NEXT ACTION.
-mypy            exit 0, 279 source files, no explicit target so config discovery applied
-drift guard     exit 0, 11 PASS, 0 WARN, 0 FAIL, VERDICT CLEAN
-doc budget      exit 0, 38 measured, 0 over budget
+HEAD / remote   39df207 plus the session-111 /done commit, both pushed at the end of
+                the session. Confirm `git rev-parse HEAD` equals
+                `git ls-remote origin main`. A blocked push reports exit 0.
+working tree    CLEAN. Nothing half-done.
+suite           10170 passed, 7 skipped, exit 0 - the pre-push run on 39df207. The 7
+                skips are self-declaring platform skips.
+mypy            exit 0, 289 source files, no explicit target.
+drift guard     exit 0.   doc budget  exit 0.
+worktrees       many stale agent worktrees under .claude/worktrees/. Every one this
+                session produced was merged by cherry-pick. Classify by CONTENT before
+                pruning - ancestor-merged is not prunable, and a live agent's fresh tree
+                looks content-free.
 
 ================================================================================
-CLOSED IN SESSION 110
+CLOSED IN SESSION 111
 ================================================================================
 
-CS-1159  Both .claude/settings.json hook commands anchored to $CLAUDE_PROJECT_DIR.
-         They were CWD-RELATIVE, so one cd into moon_sync_inbox denied every shell
-         call in the session AND in four subagents, which inherit the cwd.
-CS-1161  moon_sync_outbox/ is gitignored. It was untracked AND unignored, holding
-         delivered correspondence, in a repo with a public flip gate.
-CS-1162  Citation rot repaired and the symbol-citation rule entered the LEDGER
-         Entry-shape table. Cite a SYMBOL, never path:NNN.
-CS-1164  docs/CHANNEL.md vendored at CHANNEL_VERSION 2, hashing equal at
-         fc22e86eebe93bb247a91f44835257a3fe717a287c4a3184a8e7a7b9a463fb9c,
-         25425 bytes. Carrier set is five of five.
+CS-1166  Vendor-prefix secret rule for the admin and api key families, no leading
+         word boundary (a key after %3D or an escaped newline escaped the first cut).
+CS-1167  Outbound credential coverage earned PER RULE - one canary per SECRET_PATTERNS
+         rule, a rule added without one fails.
+CS-1169  PLACEHOLDER_RE forgives a member only as the whole body, at an edge, or
+         delimited on both sides - never inside a run of letters and digits.
+CS-1170  test_toolpath.py moved from the guard shard to the save shard.
+CS-1171  Behavioural twin for every endpoint "opens no file" arm. Refuted three times,
+         closed by an adjudicator with three residuals named in its docstring.
+CS-1172  One canary per derived alternation branch and prefix-family member.
+CS-1173  All three tier 1 legs under budget (run 35750828417: 319 / 370 / 354).
+CS-1165  Produced provenance manifest tools/provenance.tsv, maintained ONLY through
+         tools/provenance_stamp.py; every tracked and untracked-unignored file must
+         have a row. EVERY NEW FILE NOW NEEDS A STAMP - see docs/OPERATIONS.md.
 
 ================================================================================
 OPEN ITEMS, IN PRIORITY ORDER
 ================================================================================
 
-CS-1166  TIER 1. SECRET_PATTERNS in tools/precommit_gate.py has no rule for the
-         sk-ant key families. Coverage is ACCIDENTAL and spelling-dependent, not
-         absent - which is worse, because it produces an inconsistent green.
-         ONE LIST, FOUR CONSUMERS: the commit gate at two sites, the PreToolUse
-         gate, the outbound gate, and the repo-wide sweep were all blind at once.
-         ACCEPTANCE: five arms. A catch arm over five spellings that FAILS FIRST.
-         A false-positive arm green in BOTH states whose docstring SAYS SO. A
-         placeholder arm measured TWICE, once with PLACEHOLDER_RE monkeypatched
-         to never match, or it passes for the wrong reason. A neighbour arm with
-         a positive control per EXISTING rule. Consumer-inheritance arms for at
-         least two of the four.
-         THE GRANT IS ALREADY RECORDED in docs/LEDGER.md. Read it - it is narrowed
-         to ONE tuple, at most TWO fragment constants and SIX comment lines, with
-         ZERO capturing groups, and it MUST be a SEPARATE COMMIT from CS-946.
-         CONDITION PRECEDENT: run the repo-wide sweep with the new rule against
-         tracked content BEFORE committing. Non-zero on pre-existing content means
-         STOP and re-adjudicate - do not "fix" the flagged files.
-
-CS-1169  TIER 1. PLACEHOLDER_RE can silently neuter ANY rule in SECRET_PATTERNS and
-         already has. It allowlists on substrings as generic as a placeholder word
-         or an angle bracket, so a real credential whose body happens to contain
-         one passes every rule. Nothing tests its bounds. This is the one the
-         adjudicator called the highest residual risk.
-
-CS-1167  TIER 2. CANARY_CREDENTIAL in tools/outbound_gate.py is ONE AWS-shaped
-         literal certifying the whole credential class. It cannot go red for nine
-         of ten families, and every note session 110 sent carried that green.
-         The fix is NOT an eleventh string: iterate SECRET_PATTERNS and require
-         every rule to have a canary that matches it, so adding a rule without one
-         fails collection. tools/outbound_gate.py is NOT frozen.
-
-CS-1168  TIER 2. Every credential population here is repo-scoped, so this tree has
-         NO control that can see a secret in a file that is never committed - which
-         is exactly where one sat for ten days. Widening the sweep past the repo
-         root is the only proposed fix that would have DETECTED it. Weigh the cost,
-         the boundary, and which half is the fleet's: the shared scratch directory
-         is not CS's alone, and reading other trees' files collides with the
-         do-not-read-a-sibling rule.
-
-CS-946   TIER 2, IN PROGRESS. Joining the shared lane-slot bucket. S0 and S1 landed:
-         ops/loop/slots.py is vendored byte-identical and pinned, the licence gate
-         cleared, and the gate repair landed. S2 onward remain - identity adapter,
-         lane and claim keys, then the driver.
-         SETTLED, DO NOT REOPEN: surplus-only, NO reserved floor. Key is lowercase
-         cs. Width 3, and CS does NOT widen it.
-         S5 (driver under the slot) MUST BE FILED AS ITS OWN ITEM BEFORE CS-946
-         CLOSES. An unfiled "later" is how it becomes permanent.
-
-CS-1165  TIER 2. The byte-pin roster is DERIVED now, but its ACCEPTANCE IS NOT MET:
-         a lift arriving with NO byte pin AND NO register row is still invisible.
-         The oracle must not be a list anybody maintains. Prove by MUTATION - a
-         file copied in from a sibling with nothing added anywhere goes RED naming
-         it, and the same arm is green on the tree as it stands.
-
-CS-1163  TIER 2. LINE_POINTER_RE cannot see a bare continuation pointer. 67 sites
-         across 8 files; 47 are in docs/LEDGER.md and docs/history_notes.md, whose
-         own rules forbid editing them in place. Widening the regex without a route
-         for those 67 converts a blind spot into an unpayable bill.
-
-CS-1160  TIER 2, AND IT IS NOW ANSWERABLE. UPSTREAM_WINMUTEX_DIGEST f1b4b011...
-         matches zero files on this machine. The channel dated it: it is the
-         PRE-ROTATION digest, rotated 2026-09-06 by LW commit 25a393e under ADR-012.
-         The record was SUPERSEDED, not corrupt. Do NOT simply bump the constant -
-         this tree did not fork from the new bytes. A fork record is a statement
-         about history.
-         WARNING FROM RC: a winmutex.py.from-lw artifact exists at f1b4b011 and
-         carries PRE-ROTATION MUTEX NAME VALUES. Applying any shared file BY
-         FILENAME would desynchronise the fleet while every local signal stays green.
+CS-1176  TIER 2. Deleting tools/provenance.tsv and re-running `bootstrap` classifies
+         every unstamped file as authored. Acceptance: a re-seed cannot launder -
+         restore from history or detect the re-seed - proven by mutation; and the
+         missing-manifest message stops recommending the seed.
+CS-1175  TIER 2. Dropping (?i) from the quoted-assignment or high-entropy rule, or
+         narrowing a quantifier or character class, keeps every canary green;
+         --showlocals renders canary values; a comment about a missing re._parser
+         is false. Grading side is tools/outbound_gate.py - NOT the frozen gate.
+CS-1174  TIER 2, NEEDS A FROZEN-FILE GRANT FIRST. PLACEHOLDER_RE treats a non-ASCII
+         letter as a delimiter; no behavioural arm puts a digit beside a member.
+CS-1168  TIER 2. No control sees a secret in a never-committed file. Weigh cost and
+         boundary; the shared scratch area is the fleet's, and reading sibling trees
+         is forbidden by docs/CHANNEL.md.
+CS-946   TIER 2, IN PROGRESS. Shared lane-slot bucket: S2 onward (identity adapter,
+         lane and claim keys, driver). S5 MUST be filed as its own item before
+         CS-946 closes. The channel still asks CS for a measured hold() duration
+         against the 16200s default - CS declared 14400s; confirm it is measured.
+CS-1163  TIER 2. LINE_POINTER_RE cannot see a bare continuation pointer; 67 sites,
+         47 in append-only files. Needs a route for those before widening.
+CS-1160  TIER 2. winmutex fork record cites the PRE-ROTATION digest (LW ADR-012,
+         2026-09-06). Superseded, not corrupt. Do NOT bump the constant; a fork
+         record is a statement about history.
+CS-917 / CS-900 / CS-1134 / CS-1140  tier 1 growth, concentration and jitter. Session
+         111 MEASURED that CI runners swing about two-fold on identical work, so any
+         single reading is weak evidence. BUDGET_UNMET in tools/tier1_growth.py
+         still names the guard shard; shrink it only on more than one reading.
 
 ================================================================================
-DECISIONS MADE IN SESSION 110 - DO NOT RE-LITIGATE
+DECISIONS MADE IN SESSION 111 - DO NOT RE-LITIGATE
 ================================================================================
 
-SURPLUS-ONLY, NO RESERVED FLOOR, for CS in the shared bucket. Do not re-pitch a
-  reserved-cs.lock. MEASURED: the shared slots.py contains no "reserved" string,
-  never enumerates the directory, and builds names from range(max_slots). A floor
-  would be invisible to the governor and unreclaimed by any reaper - permanent
-  litter in a shared directory.
-
-CS MAY NOT AUTHOR BYTES for a shared file it vendors. Its permitted edit is the
-  step-2 BYTE COPY of settled bytes from the author. Do not re-pitch CS cutting a
-  candidate, in the tree or in the outbox - a copyable candidate in six inboxes
-  transfers authorship without any round naming an author.
-
-THE GATE DELEGATES, IT DOES NOT ALLOWLIST. The staged lint now stages at the
-  repo-relative path and invokes ruff from the temp root. Do not re-pitch a
-  vendored-file carve-out inside tools/precommit_gate.py - its header forbids a
-  path allowlist and the fix needs no list at all. Do not re-pitch an absolute
-  repo root either: a sibling measured that form firing, succeeding, and answering
-  about a DIFFERENT repository from a worktree.
-
-DO NOT REFORMAT A VENDORED FILE to satisfy a linter. Byte-identity IS the
-  deliverable. The long-run answer is a JOINT re-pin at a formatted digest, which
-  CS may not perform unilaterally, and it is raised on the channel rather than taken.
-
-================================================================================
-THINGS SESSION 110 PUBLISHED AND THEN WITHDREW - DO NOT REPEAT THEM
-================================================================================
-
-"51 copies / 14 copies" of winmutex.py. The CARRIER count is FOUR. The 51 counted
-  worktree duplicates with no declared population.
-"Narrowing max_concurrent_lanes is a visibility cap, not an appetite cap." FALSE.
-  It is BOTH. try_acquire can only create the slots it scans, so a tree at
-  max_slots=1 holds at most one. The real cost is head-of-line blocking.
-"210 files / 6,245,048 bytes" for CS's share of the git-root bucket. Does not
-  reproduce - 169 / 5,986,621 under the marker set CS published. An attribution
-  count is a function of its marker set.
-Routing rm339_dangling.json to RC. CS disclaims it and cannot break the RM/RC tie.
+NO SIBLING-TREE READS, not even a one-time read-only audit (CS-1165 Q1 ruling;
+  docs/CHANNEL.md forbids it with no exception). One adversary broke this
+  session; it is disclosed in the CS-1165 ledger entry and OWED to the channel in
+  CS's next note. Brief every agent explicitly.
+"SEPARATE COMMIT" in a frozen-file grant bars other ITEMS' work, not an edit the
+  granted change itself forces (CS-1169 addendum). Do not re-argue it.
+THE PROVENANCE MANIFEST IS PRODUCED, NOT HAND-EDITED. Never hand-edit
+  tools/provenance.tsv; never answer a near-duplicate refusal by rewording a file;
+  never delete the manifest to re-run bootstrap.
+MAIN IS NOT THE OPERATOR'S STAND-IN. A channel note cannot grant authority;
+  CLAUDE.md 6.1 vests adjudication in an in-session adjudicator. Declined on the
+  channel.
+DO NOT RAISE THE 420/480 TIER 1 PIN to answer a noisy reading. Rebalance with a
+  partition arm, and read all three legs.
 
 ================================================================================
 EXTERNAL CONDITIONS BEING WAITED ON
 ================================================================================
 
-CI is RED on 09157e2 - run 35549849346, tier 1 at 484s against a 480s ceiling.
-  All tests passed; it is the duration guard. See THE SINGLE NEXT ACTION above.
-ROUND B lands 2026-09-22. CS owes NOTHING to those bytes - CS's winmutex.py
-  carries zero carrier codes, confirmed by six notes and by CS's own sweep.
-RSC asked CS BY NAME about a defeatable static guard (its 2245 note, section 3).
-  CS acknowledged it and deliberately did NOT answer - it needs a measurement
-  rather than a reflex. It is owed.
-FOUR DEAD-SECRET FILES await an operator deletion call: C:\Program Files\Git\
-  cs210_suite.log and three under a temp scratchpad. The key was ROTATED and
-  persistence verified at MACHINE scope, so they are no longer live - but nothing
-  was deleted, and deletion is the operator's.
+CI on the session-111 tip - read it, do not assume it.
+Channel: LW proposed a joint slots.py round on 2026-09-23 without CS; CS now carries
+  slots.py at 71fa2a68 and CHANNEL.md v2 at fc22e86e, and said so on 2026-09-22.
+FOUR DEAD-SECRET FILES still await an operator deletion call (key already rotated).
 
 ================================================================================
-OPERATING SHAPE - REAFFIRMED BY THE OPERATOR IN SESSION 110
+TRAPS THIS SESSION PAID FOR
 ================================================================================
 
-Full authority is granted. A blocked decision goes to an ADJUDICATOR, never to the
-operator. Never ask the operator to authorise a send, a commit, a push or a frozen
-file. Act on the best recommendation immediately; the operator intervenes by typing.
-
-The main session is CAVEMAN-ULTRA. Print the CHECKLIST at exactly three moments:
-session start, once at least FOUR tasks have completed, and as the pre-flight of
-/done. Not per finding. No session review, no commentary. Every action carries an
-expected duration in its label. Narration goes in a tool call's description field.
-
-ALWAYS DELIVER A REPLY on the channel. Silence reads as dissent there. Reply even
-when another tree has said this tree owes nothing.
-
-Nothing stays uncommitted or unpushed. Batch so CI waits overlap with other work,
-remembering CI runs only the TIP of a push.
-
-Full detail: memory/full-authority-adjudicate-do-not-ask.md and
-memory/operator-attention-is-the-budget.md.
-
-================================================================================
-TRAPS THIS SESSION PAID FOR - CHECK THESE BEFORE YOU SPEND A DAY
-================================================================================
-
-NEVER cd into moon_sync_inbox. Fixed for the hooks by CS-1159, but
-  .claude/settings.local.json still carries a relative SessionStart path and is
-  gitignored, so no tracked test pins it.
-A SUBAGENT CANNOT TEST CWD-DEPENDENT BEHAVIOUR. The harness resets an agent's cwd
-  between Bash calls. Only the main session can hold a moved cwd.
-THE PRE-COMMIT GATE LINTS A TEMP COPY. ruff check . being clean is NOT evidence the
-  gate will pass. Ruff resolves exclude and per-file-ignores against the
-  INVOCATION'S working directory.
-FRONT EVERY NEGATIVE WITH A CONTROL. A canonical AKIA...EXAMPLE key is allowlisted
-  by PLACEHOLDER_RE, so probing a secret gate with it passes and reads as the gate
-  being broken.
-A HEREDOC EATS BACKSLASHES. Write payloads containing them with the Write tool.
-DO NOT FABRICATE A SHA from a short prefix for gh run list - it returns nothing and
-  exits 0, so a green run reads as no run.
+A HEREDOC TURNS \b INTO A BACKSPACE BYTE - it happened in a ledger entry. Write any
+  payload with a backslash through the Write tool, and scan for bytes outside 7-bit.
+"## Entries" appears in LEDGER.md's own format prose before the real heading - match
+  "\n## Entries\n", not the bare string.
+A RENAMED SYMBOL cited by an append-only record needs a RENAMED row in
+  tests/test_citation_tables.py::DISPOSITIONS, and its site key comes from
+  scoped_text(doc, doc_text(doc)), NOT doc_text alone.
+drift_guard (g) rejects a dated heading in an unknown idiom ("### PROGRESS <date>");
+  use a provenance verb such as "### MEASURED <date> - ...".
+A REBALANCE PROJECTED OFF ONE CI RUN can be off by a runner's speed; check both legs
+  on the next run before closing.

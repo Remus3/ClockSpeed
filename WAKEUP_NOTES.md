@@ -33,6 +33,17 @@ Keep every entry to that shape. If an item needs a paragraph, it needs its own f
 the line becomes a pointer.
 
 ---
+## Session 111 - 2026-09-22 - the credential guards got per-rule and per-branch teeth, tier 1 came back under budget on all three legs, and the provenance manifest shipped
+
+- Shipped: CS-1166, CS-1167, CS-1169, CS-1170, CS-1171, CS-1172, CS-1173, CS-1165. Detail in docs/LEDGER.md. Filed and left open: CS-1174, CS-1175, CS-1176. Operator away; run headless end to end.
+- In flight: nothing dirty. Every slice was merged or discarded; stale agent worktrees remain under `.claude/worktrees/` and are content-merged - classify by content before any prune.
+- Decisions: two frozen-file grants for `tools/precommit_gate.py` (CS-1166, CS-1169) plus a CS-1169 ADDENDUM widening the line cap to 36 and ruling that "separate commit" bars other ITEMS' work, not an edit the change itself forces. Adjudicator ruled CS-1165 Q1: NO sibling-tree read, not even a one-time audit - `docs/CHANNEL.md` forbids it and it has no exception. MAIN 2230 asked CS to record MAIN as the operator's stand-in: DECLINED on the channel; a note cannot grant authority.
+- Surprises: the 484s tier 1 breach was RUNNER SPEED, not growth - identical work swings about two-fold between CI runners, and a rebalance projected off a fast runner overshot the next leg (CS-1173 had to be corrected once). CS-1165's first cut met only the branded half; an adjudicator ruled that progress, not closure, because the acceptance names a manifest. The manifest seed read `CS-9nn` as the id `CS-9` and the builder STOPPED rather than hand-edit the row.
+- Surprises: CS-1171 was refuted THREE times - a thread, a first-call cache, sqlite, an import-time data read, and a code object renamed to look frozen - before an adjudicator closed it with three residuals named. A behavioural twin grades what the recorder can see; every round widened what it sees.
+- Failed paths: `\b` before the vendor prefix (a key after `%3D` or an escaped newline escaped it). Excluding import opens by frame NAME (forgeable) - identify import frames by code-object identity. Classifying a pushed citation as a line pointer when it is a renamed symbol - use a RENAMED disposition and read the site key from `scoped_text`, not `doc_text`.
+- Disclosure: one CS-1165 adversary read sibling trees read-only against the Q1 ruling; recorded in the CS-1165 ledger entry, nothing entered a tracked file. It is owed to the channel in the next CS note.
+- Next action: read CI on the tip, then pick CS-1176 (a re-seed launders) or CS-1175 (flag and quantifier narrowing) - both are tier 2 and fully specified.
+
 ## Session 110 - 2026-09-20 - the inbox turned into a credential incident, and four guards that could not fail
 
 Operator directed: read the moon-sync inbox and implement, reply, monitor, loop. Mid-session
@@ -163,55 +174,5 @@ sweep alone.
 
 - Next action: pick up CS-1158. Its note carries the measurement and names the open
   question the fix must settle first.
-
----
-## Session 108 - 2026-09-19 - the walk that pruned by luck, and two secrets-in-the-open the adversaries found on the way
-
-- Shipped: CS-1153, CS-1155 (filed), CS-1156, CS-1157. Detail in docs/LEDGER.md, not here.
-
-- CS-1153 WAS THE FILED NEXT ACTION AND IT WENT AS FILED. `tools/drift_guard.py::_walk`
-  prunes by its own rule now - a relative-path set with a reason per entry, the `.git`
-  boundary marker, and git's worktree registration. The adversarial pass REFUTED the first
-  build on three counts, and the third is the one worth carrying: a SUPERSET assertion over
-  skip records cannot see an OVER-BROAD prune, so widening an entry to `ops` or `shell` -
-  tracked, authored, guard-graded trees - left every arm green. The repair asks git about
-  every entry in the real tree and grades the WEAKEST member.
-
-- THE TRAILER RULE WAS BEING DEFENDED BY HAND, EVERY SESSION, AND NOBODY HAD NOTICED.
-  CS-1157. `.githooks/commit-msg` has always REFUSED a `Co-authored-by` trailer, so one
-  never landed - but the harness injects an attribution instruction into every session, and
-  the only thing between that instruction and a refused commit was a model reading a memory
-  note and declining. Sibling LL set the two settings keys on 2026-09-06 and does not have
-  the problem. Both keys are set now, at repo scope AND user scope, and the effect was
-  MEASURED live: the injected instruction flipped polarity in-session, no restart.
-
-- Decisions: no ADR. One frozen-file grant, adjudicated and recorded in docs/LEDGER.md
-  BEFORE the edit, per CLAUDE.md section 6.
-
-- Surprises: nothing contradicted BOOTSTRAP.md. Three measurement traps did bite, and all
-  three are the kind that make a green mean nothing.
-  (1) A pytest traceback renders a `subprocess.run(env=...)` frame's WHOLE environment dict,
-  and this machine's `sk-ant-` admin key printed in full in a suite log. That is CS-1156.
-  (2) pytest TRUNCATES a long dict repr, so a variable added last falls outside the rendered
-  portion - the first CS-1156 arms planted there and measured nothing while passing.
-  (3) A child pytest whose rootdir sits deep under the home directory renders stdlib frames
-  as RELATIVE paths, so no home path is emitted at all. An arm using the home placeholder as
-  its control was therefore measuring how deep a temp directory happened to be.
-
-- Failed paths: `pytest_collectreport` written as a `hookimpl(wrapper=True)` raises
-  INTERNALERROR - that hook is HANDED a report rather than building one, so the yield gives
-  the hook's combined result, a list. Use `tryfirst` and mutate in place. Also: a
-  `Start-Process ... -NoNewWindow` suite dies with the tool call that launched it, and so
-  does one launched and awaited in the SAME call once the 10-minute cap fires - launch in
-  one call, wait in the next, `-WindowStyle Hidden`.
-
-- THE ONE THAT COST A CI CYCLE. A CS-1156 control asserted `ALLUSERSPROFILE` appeared in a
-  child report, to prove the environment dict had reached it. That variable exists on every
-  Windows machine and on no ubuntu runner, so the whole suite was green here at 9143 passed
-  and tier 1 went red on three arms for a reason with nothing to do with redaction. A
-  control naming a platform-specific VALUE grades the platform, not the mechanism. The
-  marker is a frame local's NAME now - the channel the secret travels through.
-
-- Next action: pick up CS-1155, whose note already carries a measured reproduction.
 
 ---
