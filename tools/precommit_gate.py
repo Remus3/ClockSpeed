@@ -455,6 +455,7 @@ PLACEHOLDER_RE = re.compile(
 # match this very file, and the gate checks its own source.
 _ALNUM_UPPER = "[0-9A-Z]"
 _B64ISH = "[A-Za-z0-9_-]"
+_ANT_PREFIX = "sk" + "-ant-"
 
 SECRET_PATTERNS: list[tuple[re.Pattern[str], str]] = [
     (
@@ -513,6 +514,14 @@ SECRET_PATTERNS: list[tuple[re.Pattern[str], str]] = [
             r")(?![\w=])"
         ),
         "credential assigned a bare high-entropy literal",
+    ),
+    # CS-1166. Anchored on the LITERAL vendor prefix of the admin and api key
+    # families, never on entropy - an entropy heuristic here once blocked a real
+    # commit on a game-data identifier. ZERO capturing groups: check_secrets
+    # takes the last group, and a capture would narrow what PLACEHOLDER_RE sees.
+    (
+        re.compile(r"\b" + _ANT_PREFIX + r"(?:admin|api)\d{2}-" + _B64ISH + "{20,}"),
+        "Anthropic API or admin key (vendor prefix)",
     ),
 ]
 
