@@ -2564,6 +2564,52 @@ def test_the_toolpath_guard_runs_first_in_the_save_shard_and_not_in_the_guard_sh
     )
 
 
+#: The files CS-1173 moved from the catch-all shard to the guard shard.
+REBALANCED_TO_GUARDS = (
+    "tests/test_chained_exemption_guard.py",
+    "tests/test_archive_rot.py",
+    "tests/test_disposition_sites.py",
+    "tests/test_sphinx_roles.py",
+    "tests/test_handler_exception_rendering.py",
+    "tests/test_locals_rendering.py",
+    "tests/test_assertion_rendering.py",
+)
+
+
+def test_the_moved_guard_files_run_in_the_guard_shard_and_not_in_the_catch_all() -> None:
+    """CS-1173 - the catch-all read over its budget once CS-1170 emptied the guard shard.
+
+    CS-1170 moved the guard shard's heaviest file out, and the next CI run left
+    the guard shard far under its budget while the catch-all job, whose pytest
+    step is most of its duration, read over it. So a block of guard-family files
+    from the catch-all's measured head moved to the guard shard. No level moved
+    and no test was dropped: the partition arm above still proves every file
+    runs in exactly one leg, and this arm pins WHICH leg.
+
+    The three rendering files move TOGETHER on purpose. They share `@cache`d
+    helpers in `tests/assertion_rendering_guard.py` and
+    `tests/locals_rendering_guard.py`, so splitting them across shards would pay
+    for those censuses twice.
+    """
+    shards = suite_shards()
+    for job_id in (JOB_ID, GUARD_JOB_ID):
+        assert job_id in shards, f"no {job_id!r} shard runs {SUITE_STEP!r}: {sorted(shards)}"
+    guard_targets = shard_targets(shards[GUARD_JOB_ID])
+    catch_all_ignores = shard_ignores(shards[JOB_ID])
+    not_in_guards = [path for path in REBALANCED_TO_GUARDS if path not in guard_targets]
+    assert not_in_guards == [], (
+        f"the {GUARD_JOB_ID!r} shard does not name {not_in_guards}, so the catch-all"
+        f" CS-1173 relieved is full again: {guard_targets}"
+    )
+    not_ignored = [
+        path for path in REBALANCED_TO_GUARDS if IGNORE_PREFIX + path not in catch_all_ignores
+    ]
+    assert not_ignored == [], (
+        f"the {JOB_ID!r} shard still runs {not_ignored}; a moved file it does not"
+        f" ignore runs twice: {catch_all_ignores}"
+    )
+
+
 def test_no_shard_narrows_itself_by_any_route_the_ignore_list_cannot_name() -> None:
     """CS-896 - a partition argued from targets alone is defeated in one flag.
 

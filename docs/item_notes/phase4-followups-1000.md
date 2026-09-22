@@ -1345,3 +1345,40 @@ instead of re-parsing it per arm - is CS-900 territory and needs its own row.
 ### Acceptance
 
 the guard shard reads under its budget on the first CI run after the move, the save shard stays under the same budget on that run, both read by the lane's own `tier 1 took Ns` line rather than a local profile, and `tests/test_tier1_budget.py` proves every test file runs in exactly one leg of the partition and pins `tests/test_toolpath.py` to the save shard - with no level moved and no test dropped or marked `slow`
+
+---
+
+## CS-1173
+
+### Filed 2026-09-22 by the merger, on the first CI run after CS-1170
+
+**CS-1170 EMPTIED THE GUARD SHARD AND THE CATCH-ALL TOOK THE BREACH.** Run
+35739936582 at a29cfdb, read by the jobs API step timings: the guard shard finished
+far under its budget, the save shard under it, and the catch-all job
+`gates, lint, types, tests` over it, with earlier readings of the same job over it
+too. Its pytest step was nearly the whole job; the character-set, lint, format,
+doc-budget, drift, link and type steps together are a small fixed cost, so only
+the test population can move.
+
+**THE PICK CAME FROM CI, NOT FROM A LOCAL PROFILE ALONE.** Locally
+`tests/test_secret_sweep.py` is the heaviest file in the catch-all by far, but it
+walks every reachable blob, and CI's shallow checkout has almost none, so it never
+reached the head of CI's durations. Seven guard-family files from that head moved
+to the guard shard instead: `tests/test_chained_exemption_guard.py`,
+`tests/test_archive_rot.py`, `tests/test_disposition_sites.py`,
+`tests/test_sphinx_roles.py` and the three rendering guards
+`tests/test_handler_exception_rendering.py`, `tests/test_locals_rendering.py` and
+`tests/test_assertion_rendering.py`. The rendering files move together because they
+share cached censuses. The largest moved file is far under the guard shard's
+share, so loadfile's largest-file floor does not bind.
+
+**DO NOT CLOSE THIS BY MOVING A LEVEL, ADDING A RUNNER OR MARKING TESTS `slow`**,
+for the reasons CS-1170 records. The readings refresh and any `BUDGET_UNMET` or
+`ORDERING_UNMET` change in `tools/tier1_growth.py` wait for the first green runs
+after the move, never a projection.
+
+---
+
+### Acceptance
+
+on the first CI run after the move the catch-all job reads under its budget and the guard shard stays under the same budget, both read by the lane's own `tier 1 took Ns` line rather than a local profile, and `tests/test_tier1_budget.py` proves every test file runs in exactly one leg of the partition and pins the seven moved files to the guard shard - with no level moved and no test dropped or marked `slow`
