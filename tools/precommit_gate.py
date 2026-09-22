@@ -430,23 +430,27 @@ def check_nul(label: str, data: bytes, report: Report) -> None:
 
 # Obvious placeholders. Matched against the offending literal itself, not the
 # whole line: a trailing `# TODO` comment must not excuse a real credential
-# sitting on the same line.
+# sitting on the same line. CS-1169: a member forgives the literal ONLY when it
+# is the whole body, anchors its start or end, or is delimited on both sides by
+# a non-alphanumeric character. Inside an alphanumeric run it forgives nothing -
+# a substring match let a real key carrying one as an infix pass every rule.
+PLACEHOLDER_MEMBERS: tuple[str, ...] = (
+    "CHANGE_?ME",
+    "XXXX",
+    "EXAMPLE",
+    "SAMPLE",
+    "DUMMY",
+    "REDACT",
+    "PLACEHOLDER",
+    "NOT_?A_?SECRET",
+    "TODO",
+    "YOUR[-_]",
+    "<",
+    r"\{\{",
+)
 PLACEHOLDER_RE = re.compile(
-    "|".join(
-        [
-            "CHANGE_?ME",
-            "XXXX",
-            "EXAMPLE",
-            "SAMPLE",
-            "DUMMY",
-            "REDACT",
-            "PLACEHOLDER",
-            "NOT_?A_?SECRET",
-            "TODO",
-            "YOUR[-_]",
-            "<",
-            r"\{\{",
-        ]
+    "^(?:{0})|(?:{0})$|(?<![A-Za-z0-9])(?:{0})(?![A-Za-z0-9])".format(
+        "|".join(PLACEHOLDER_MEMBERS)
     ),
     re.IGNORECASE,
 )

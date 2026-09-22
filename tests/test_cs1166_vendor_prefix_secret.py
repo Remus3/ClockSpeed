@@ -165,13 +165,18 @@ def test_near_miss_lines_score_clean(gate: ModuleType, index: int) -> None:
 # Arm 3 - placeholder, measured twice
 # --------------------------------------------------------------------------
 
-PLACEHOLDER_TOKEN = _PFX + _API + "EXAM" + "PLE" + _BODY
+PLACEHOLDER_TOKEN = _PFX + _API + _BODY + "EXAM" + "PLE"
 
 
 def test_a_placeholder_bodied_token_is_suppressed_as_the_allowlist_stands(
     gate: ModuleType,
 ) -> None:
-    """Measurement one: the documented-example word suppresses the finding."""
+    """Measurement one: the documented-example word suppresses the finding.
+
+    The word ENDS the body. CS-1169 bounded the allowlist so a member forgives
+    only at an edge or between non-alphanumerics; the earlier token carried it
+    as a mid-body infix, which the bounded allowlist correctly refuses.
+    """
     assert NEW_REASON not in reasons(gate, PLACEHOLDER_TOKEN)
 
 
@@ -182,7 +187,8 @@ def test_the_placeholder_token_is_caught_once_the_allowlist_is_disabled(
 
     With ``PLACEHOLDER_RE`` never matching, the rule reports the token - so
     measurement one passed BECAUSE of the allowlist and not because the rule
-    was blind to the token.
+    was blind to the token. The SAME edge-anchored token as measurement one,
+    so the pair stays non-vacuous across the CS-1169 bound.
     """
     monkeypatch.setattr(gate, "PLACEHOLDER_RE", re.compile(r"(?!)"))
     assert NEW_REASON in reasons(gate, PLACEHOLDER_TOKEN)

@@ -590,6 +590,18 @@ DISPOSITIONS: Final[Mapping[tuple[str, str], Disposition]] = {
         " stays there.",
         ("e2eaae9436ad:feed734cd609:0",),
     ),
+    # CS-1169 converted this from a CS-1162 line pin: the CS-1159 grant record
+    # reads the line as the gate's placeholder allowlist, and the CS-1169 member
+    # constant pushed that declaration down. It is still live and nameable.
+    (LEDGER, line_key("tools/precommit_gate.py", 434)): Disposition(
+        MOVED,
+        "tools/precommit_gate.py::PLACEHOLDER_RE",
+        "the CS-1159 grant record contrasts that line - the placeholder"
+        " allowlist that passed a canonical EXAMPLE key - against the denied"
+        " string. CS-1169 added PLACEHOLDER_MEMBERS above it, so the declaration"
+        " moved down; its name is the stable citation.",
+        ("458e6f0c9f53:c199e3edfedf:0",),
+    ),
     (LEDGER, line_key("tools/precommit_gate.py", 2311)): Disposition(
         NO_TARGET,
         "",
@@ -948,12 +960,6 @@ UNVERIFIED_LINE_POINTERS: Final[Mapping[tuple[str, str, int], str]] = {
     ("docs/LEDGER.md", "scripts/install_hooks.py", 310): "4facec475176",
     ("docs/LEDGER.md", "tools/edit_lint_check.py", 82): "c52969cc5a4b",
     ("docs/LEDGER.md", "tools/edit_lint_check.py", 113): "a7515962ef0b",
-    # CS-1162. The CS-1159 grant record contrasts this line - the gate's
-    # placeholder allowlist, which passed a canonical EXAMPLE key and so exposed
-    # a vacuous probe - against the violating string that was denied. It RESOLVES
-    # and is not blank, so leg 1 never saw it; leg 2 refuses the line form, and an
-    # append-only carrier is exactly the case this pin exists for.
-    ("docs/LEDGER.md", "tools/precommit_gate.py", 434): "e727fce51d02",
     ("docs/item_notes/phase4-followups-850.md", "clockspeed/data/locate.py", 39): "0d5e3276442e",
     ("docs/item_notes/phase4-followups-850.md", "clockspeed/data/locate.py", 141): "fa085c760a09",
     ("docs/item_notes/phase4-followups-850.md", "clockspeed/data/locate.py", 187): "53bcd3acffa2",
