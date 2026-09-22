@@ -1313,6 +1313,19 @@ only ever be an advisory second opinion - or a provenance manifest that every tr
 must be accounted for in, which is the only form that runs anywhere. The acceptance above
 takes either, and takes neither on a green run alone.
 
+### MEASURED 2026-09-22 - progress: the branded half is graded, the de-branded half is not
+
+`tests/test_unregistered_lift.py::test_no_unaccounted_file_spells_a_sibling_namespace_marker`
+reddens any tracked or untracked-unignored file that spells a sibling repository's item id
+or resource prefix and is neither registered nor the pin module of a registered file. The
+sibling codes are read at run time from the `docs/CHANNEL.md` roster. Proven by
+`test_a_verbatim_sibling_lift_at_a_fresh_path_is_named`, and by an adjudicator plant of
+`ops/loop/slots.py` at a fresh path, which went red naming it. A copy of
+`ops/loop/winmutex.py` at a fresh path stays GREEN - a lift whose header names no sibling
+is still invisible, so the acceptance is NOT met. The remaining oracle is the
+whole-population provenance manifest the acceptance already names; it is not a list of
+expected vendorings and is not forbidden. The branded arm stays after it lands, because it
+also catches a lift that was entered in the manifest as authored here.
 
 ## CS-1168
 
