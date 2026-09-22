@@ -878,7 +878,9 @@ def test_canary_row_is_derived_not_asserted(
 
     assert weakened_hits == 0, "the substituted rule still matched; the cell is not weakened"
     assert weakened_row.measured is False, "a home-path rule that catches nothing read MEASURED"
-    assert weakened_row.reason == "the rules failed their canary"
+    assert weakened_row.reason == (
+        "the rules failed their canary: PII_WIN_HOME_RE; PII_NIX_HOME_RE"
+    ), "the weakened row did not name both home-path rules"
 
 
 def test_oracle_disagreement_becomes_unattributed(

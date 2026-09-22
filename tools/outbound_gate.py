@@ -178,7 +178,45 @@ WARN_SHORT_CHARS = 5
 #: its own.
 CANARY_WIN_HOME = "C:" + "\\" + "Users" + "\\" + "canary" + "\\" + "file.txt"
 CANARY_NIX_HOME = "/" + "home" + "/canary" + "/file.txt"
-CANARY_CREDENTIAL = "AKIA" + ("Q7" * 8)
+
+#: CS-1167. One canary PER HOME-PATH RULE, keyed by the commit gate's attribute
+#: name, so each rule must match its own canary rather than any rule matching
+#: any canary.
+HOME_CANARIES: tuple[tuple[str, str], ...] = (
+    ("PII_WIN_HOME_RE", CANARY_WIN_HOME),
+    ("PII_NIX_HOME_RE", CANARY_NIX_HOME),
+)
+
+# A synthetic body: mixed case and digits, no placeholder word, never a value
+# any real service would accept.
+_CANARY_BODY = "Q7vR2mZ9"
+
+#: CS-1167. One canary PER SECRET RULE, keyed by the rule's reason string in
+#: `tools/precommit_gate.py::SECRET_PATTERNS`. The credential row used to rest
+#: on ONE vendor-shaped literal, so it read MEASURED while every other rule in
+#: the list could be deleted or narrowed - a pooled guard green on its
+#: strongest member. The POPULATION is the rule list itself, read at run time
+#: by `credential_canary_gaps`, so a rule added there with no entry here makes
+#: the row UNMEASURED by name; adding a string here never extends coverage to a
+#: rule nobody wrote a canary for. Every value is assembled from fragments, so
+#: no line of this file carries a whole credential shape.
+CREDENTIAL_CANARIES: dict[str, str] = {
+    "PEM private key block": "-----BEGIN " + "RSA PRIVATE" + " KEY-----",
+    "PuTTY private key file": "PuTTY-User-" + "Key-File-" + "3",
+    "AWS access key id": "AKIA" + ("Q7" * 8),
+    "GitHub token": "gh" + "p_" + _CANARY_BODY * 3,
+    "GitHub fine-grained personal access token": "github" + "_pat_" + _CANARY_BODY * 3,
+    "Slack token": "xo" + "xb-" + _CANARY_BODY * 2,
+    "Google API key": "AI" + "za" + _CANARY_BODY * 4 + "Q7v",
+    "bearer token": "Bear" + "er " + _CANARY_BODY * 3,
+    "credential assigned a quoted literal of 16 or more characters": (
+        "pass" + "word = " + '"' + _CANARY_BODY * 2 + '"'
+    ),
+    "credential assigned a bare high-entropy literal": "tok" + "en: " + "9f" * 20,
+    "Anthropic API or admin key (vendor prefix)": (
+        "sk" + "-ant-" + "api" + "03-" + _CANARY_BODY * 6
+    ),
+}
 
 TOOL = "outbound-gate"
 
@@ -407,6 +445,55 @@ def _canary_measured(patterns: Iterable[re.Pattern[str]], canaries: Sequence[str
     return all(any(pattern.search(canary) for pattern in patterns) for canary in canaries)
 
 
+def home_canary_gaps(gate: ModuleType) -> list[str]:
+    """The home-path rules, by attribute name, that fail THEIR OWN canary."""
+    return [
+        name
+        for name, canary in HOME_CANARIES
+        if not _canary_measured((getattr(gate, name),), (canary,))
+    ]
+
+
+def credential_canary_gaps(gate: ModuleType) -> list[str]:
+    """Every rule in `gate.SECRET_PATTERNS` with no LIVE canary, in list order.
+
+    CS-1167. The population is the commit gate's rule list, never this
+    module's table: a rule with no canary, or whose canary it no longer flags,
+    is named here. Live means the rule's own reason comes back out of
+    `check_secrets`, so `PLACEHOLDER_RE` suppression is applied exactly as the
+    commit gate applies it, AND that very pattern object matches - a neighbour
+    sharing the reason cannot carry a dead rule. A canary for a rule the list
+    no longer has is named too, marked, because the table has then drifted
+    from what it certifies.
+    """
+    gaps: list[str] = []
+    rules = list(gate.SECRET_PATTERNS)
+    for pattern, reason in rules:
+        canary = CREDENTIAL_CANARIES.get(reason)
+        if canary is None:
+            gaps.append(reason)
+            continue
+        probe = gate.Report()
+        gate.check_secrets("canary", canary, probe)
+        flagged = any(diag.reason == reason for diag in probe.diagnostics)
+        own = any(
+            not gate.PLACEHOLDER_RE.search(match.group(match.lastindex or 0))
+            for match in pattern.finditer(canary)
+        )
+        if not (flagged and own):
+            gaps.append(reason)
+    known = {reason for _, reason in rules}
+    gaps.extend(reason + " (no such rule)" for reason in CREDENTIAL_CANARIES if reason not in known)
+    return gaps
+
+
+def _canary_row(klass: str, gaps: Sequence[str]) -> Coverage:
+    """A canary-derived coverage row that NAMES every uncovered rule."""
+    if not gaps:
+        return Coverage(klass, True, "canary matched")
+    return Coverage(klass, False, "the rules failed their canary: " + "; ".join(gaps))
+
+
 def scan(text: str) -> tuple[list[Finding], list[Finding], list[Coverage]]:
     """Grade `text`. Returns (refusals, warnings, coverage rows).
 
@@ -420,7 +507,7 @@ def scan(text: str) -> tuple[list[Finding], list[Finding], list[Coverage]]:
     matchers = gate.PiiMatchers(report)
     skipped = list(report.skipped)
 
-    home_res = [gate.PII_WIN_HOME_RE, gate.PII_NIX_HOME_RE]
+    home_res = [getattr(gate, name) for name, _ in HOME_CANARIES]
     refusals = _matches(home_res, text, CLASS_HOME_PATH)
     warnings: list[Finding] = []
     suppressed: list[Finding] = []
@@ -474,18 +561,10 @@ def scan(text: str) -> tuple[list[Finding], list[Finding], list[Coverage]]:
     coverage: list[Coverage] = []
     for klass in CLASS_ORDER:
         if klass == CLASS_HOME_PATH:
-            live = _canary_measured(home_res, (CANARY_WIN_HOME, CANARY_NIX_HOME))
-            coverage.append(
-                Coverage(klass, live, "canary matched" if live else "the rules failed their canary")
-            )
+            coverage.append(_canary_row(klass, home_canary_gaps(gate)))
             continue
         if klass == CLASS_CREDENTIAL:
-            probe = gate.Report()
-            gate.check_secrets("canary", CANARY_CREDENTIAL, probe)
-            live = bool(probe.diagnostics)
-            coverage.append(
-                Coverage(klass, live, "canary matched" if live else "the rules failed their canary")
-            )
+            coverage.append(_canary_row(klass, credential_canary_gaps(gate)))
             continue
         values, label, hint = populations[klass]
         if values:
