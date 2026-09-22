@@ -33,12 +33,15 @@ opens a file, and joins it, opened a file during the request.
 THE FIRST CALL IS RECORDED. There is no unrecorded warm-up, so an endpoint that
 opens a file only once and caches the result is caught on the call that did
 it. The one exclusion is the import machinery reading a module's own source,
-bytecode or extension file: an ``open`` event whose immediate Python caller is
-frozen import code running under ``_find_and_load``. The decision is made in
-the hook from the call stack and never from the path, which is not kept. A
-direct ``loader.get_data(...)`` call is NOT under ``_find_and_load`` and is
-recorded, and so is an open made by a module's own top-level code while it is
-imported, whose immediate caller is that module rather than the machinery.
+bytecode or extension file: an ``open`` event reached from ``_find_and_load``
+through frozen import frames ONLY. The decision is made in the hook from the
+call stack and never from the path, which is not kept. The walk outward from
+the opener stops at the first frame that is not frozen import code and records
+the open, so a direct ``loader.get_data(...)`` call from the request path is
+recorded, and so is a data read made by an imported module's OWN top-level
+code - ``__loader__.get_data``, ``pkgutil.get_data``, a plain ``open`` - because
+that module's frame lies between the opener and ``_find_and_load``. An arm per
+endpoint per variant proves each.
 
 THE RECORDER IS PROVED LIVE BY A POSITIVE CONTROL PER ENDPOINT PER CHANNEL: a
 provider that opens a file when the handler asks it for its value, which is an
@@ -51,6 +54,9 @@ NAMED RESIDUAL. A foreign call that opens a file through a library already
 loaded and a function pointer already resolved raises ``ctypes.call_function``,
 which is recorded; a C extension module that opens a file in its own C code
 raises no audit event at all and is invisible to this module by construction.
+A thread the request STARTS BUT DOES NOT JOIN may open a file after the
+recording window closes, and that open is not recorded: the window ends when
+the handler returns, not when every thread it spawned has finished.
 
 NO PATH IS RECORDED. The recorders keep only the fixed channel name, so a
 failure report names the endpoint and the channel and never renders a file
@@ -172,16 +178,24 @@ def _import_machinery_open() -> bool:
     Decided from the call stack alone. Frame 0 is this function and frame 1 the
     hook; frame 2 is the Python frame that called the C opener.
 
+    THE WALK STOPS AT THE FIRST FRAME THAT IS NOT IMPORT MACHINERY. Every frame
+    from the opener's caller outward to ``_find_and_load`` must be frozen import
+    code. A module's own top-level code sits between the two whenever it reads
+    a data file while being imported - through ``__loader__.get_data``,
+    ``pkgutil.get_data`` or ``importlib.resources`` - and that frame is not
+    frozen, so the read is recorded rather than mistaken for the loader reading
+    the module's source.
+
     Returns:
-        True when that caller is frozen import code AND an import is in flight.
+        True only when an unbroken run of frozen import frames links the
+        opener to ``_find_and_load``.
     """
-    caller = sys._getframe(2)  # noqa: SLF001 - the stack is the only non-path evidence
-    if caller.f_code.co_filename not in _FROZEN_IMPORT:
-        return False
-    frame: FrameType | None = caller
+    frame: FrameType | None = sys._getframe(2)  # noqa: SLF001 - the stack is the only non-path evidence
     while frame is not None:
         code = frame.f_code
-        if code.co_filename in _FROZEN_IMPORT and code.co_name == _IMPORT_IN_FLIGHT:
+        if code.co_filename not in _FROZEN_IMPORT:
+            return False
+        if code.co_name == _IMPORT_IN_FLIGHT:
             return True
         frame = frame.f_back
     return False
@@ -554,6 +568,72 @@ def test_a_fresh_import_on_the_first_call_is_not_read_as_an_open(
     assert ran == 1, ran
     opened = len(seen)
     assert opened == 0, template + ": an import was read as an open via " + str(sorted(set(seen)))
+
+
+#: Top-level bodies of a module imported DURING the request, each of which
+#: reads a data file through a loader - and so has frozen loader code as the
+#: opener's immediate caller while ``_find_and_load`` is on the stack.
+_TOP_LEVEL_READS: Final = (
+    ("loader_get_data", "_D = __loader__.get_data(__file__)\n", "__import__"),
+    (
+        "pkgutil_get_data",
+        "import os\nimport pkgutil\n_D = pkgutil.get_data(__name__, os.path.basename(__file__))\n",
+        "__import__",
+    ),
+    ("import_module", "_D = __loader__.get_data(__file__)\n", "import_module"),
+)
+
+#: How many top-level read variants the arm below sweeps.
+EXPECTED_TOP_LEVEL_READS: Final = 3
+
+
+def test_the_top_level_read_population_is_the_size_it_claims() -> None:
+    """A sweep over an empty population is green and grades nothing."""
+    variants = len(_TOP_LEVEL_READS)
+    assert variants == EXPECTED_TOP_LEVEL_READS, variants
+
+
+@pytest.mark.parametrize(("template", "inputs"), _ENDPOINTS, ids=_ENDPOINT_IDS)
+@pytest.mark.parametrize(
+    ("variant", "body", "how"),
+    _TOP_LEVEL_READS,
+    ids=[variant for variant, _, _ in _TOP_LEVEL_READS],
+)
+def test_a_data_read_by_an_imported_module_s_top_level_code_is_recorded(
+    template: str,
+    inputs: Callable[[], tuple[object, object]],
+    variant: str,
+    body: str,
+    how: str,
+    tmp_path: pathlib.Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The import exclusion must not swallow a data read made while importing.
+
+    The module is written BEFORE recording starts, so the only opens inside the
+    window are the import machinery reading its source - excluded - and the
+    module's own top-level read - which must be recorded.
+    """
+    name = "cs1171_top_level_" + variant
+    (tmp_path / (name + ".py")).write_bytes(body.encode("ascii"))
+    monkeypatch.syspath_prepend(str(tmp_path))
+    importlib.invalidate_caches()
+    sys.modules.pop(name, None)
+
+    def effect() -> None:
+        if name in sys.modules:
+            return
+        if how == "import_module":
+            importlib.import_module(name)
+        else:
+            __import__(name)
+
+    try:
+        seen, _statuses = _drive(template, inputs, effect)
+    finally:
+        sys.modules.pop(name, None)
+    recorded = seen.count("audit:open")
+    assert recorded > 0, template + " / " + variant + ": a top-level data read was excluded"
 
 
 def test_the_fresh_import_really_reads_a_file_when_not_excluded() -> None:
