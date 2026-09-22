@@ -88,7 +88,7 @@ import sys
 from dataclasses import dataclass
 from pathlib import Path
 from types import ModuleType
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:  # pragma: no cover - typing only
     from collections.abc import Iterable, Sequence
@@ -217,6 +217,105 @@ CREDENTIAL_CANARIES: dict[str, str] = {
         "sk" + "-ant-" + "api" + "03-" + _CANARY_BODY * 6
     ),
 }
+
+#: CS-1172. One canary PER BRANCH of every rule, keyed by the rule's reason
+#: and then by the branch label `credential_branches` DERIVES from the
+#: compiled pattern. One canary per rule could not see a rule NARROWED so it
+#: still matched that one example: measured, three rules each losing one
+#: branch left every arm green. A branch is an alternative of a `(?:a|b)`
+#: group or one member of a single-position `[ab]` class - the parser folds
+#: `(?:ghp|gho)` into `gh[po]`, so a prefix family is the same thing to it.
+#: A canary counts only if its rule flags it AND the rule with that one branch
+#: removed does not, so each value proves the branch it is filed under. The
+#: labels are derived, never remembered: a branch added upstream with no entry
+#: here, or an entry whose branch is gone, is named by `credential_branch_gaps`.
+_QUOTED_RULE = "credential assigned a quoted literal of 16 or more characters"
+_ENTROPY_RULE = "credential assigned a bare high-entropy literal"
+_ANT_RULE = "Anthropic API or admin key (vendor prefix)"
+_QUOTED_BODY = '"' + _CANARY_BODY * 2 + '"'
+_HEX_BODY = "9f" * 16
+CREDENTIAL_BRANCH_CANARIES: dict[str, dict[str, str]] = {
+    "AWS access key id": {
+        "A(KIA)": "AK" + "IA" + ("Q7" * 8),
+        "A(SIA)": "AS" + "IA" + ("Z9" * 8),
+    },
+    "GitHub token": {
+        "gh[" + member + "]_": "gh" + member + "_" + _CANARY_BODY * 3 for member in "pousr"
+    },
+    "Slack token": {
+        "xox[" + member + "]-": "xo" + "x" + member + "-" + _CANARY_BODY * 2 for member in "abprs"
+    },
+    "bearer token": {
+        "[B]earer": "Bear" + "er " + _CANARY_BODY * 3,
+        "[b]earer": "bear" + "er " + _CANARY_BODY * 3,
+    },
+    _ANT_RULE: {
+        "sk" + "-ant-a(dmin)": "sk" + "-ant-" + "admin" + "01-" + _CANARY_BODY * 4,
+        "sk" + "-ant-a(pi)": "sk" + "-ant-" + "api" + "03-" + _CANARY_BODY * 4,
+    },
+    _QUOTED_RULE: {
+        "(api[_\\-]?keys?)": "api" + "_key = " + _QUOTED_BODY,
+        "api[_]key": "api" + "_key = " + _QUOTED_BODY,
+        "api[\\-]key": "api" + "-key = " + _QUOTED_BODY,
+        "(apikeys?)": "api" + "key = " + _QUOTED_BODY,
+        "(secrets?)": "sec" + "ret = " + _QUOTED_BODY,
+        "(tokens?)": "tok" + "ens = " + _QUOTED_BODY,
+        "(passwords?)": "pass" + "word = " + _QUOTED_BODY,
+        "(passwd)": "pass" + "wd = " + _QUOTED_BODY,
+        "(pwd)": "pw" + "d = " + _QUOTED_BODY,
+        "(access[_\\-]?keys?)": "access" + "keys = " + _QUOTED_BODY,
+        "access[_]key": "access" + "_key = " + _QUOTED_BODY,
+        "access[\\-]key": "access" + "-key = " + _QUOTED_BODY,
+        "(private[_\\-]?keys?)": "private" + "key = " + _QUOTED_BODY,
+        "private[_]key": "private" + "_key = " + _QUOTED_BODY,
+        "private[\\-]key": "private" + "-key = " + _QUOTED_BODY,
+        "(client[_\\-]?secrets?)": "client" + "secret = " + _QUOTED_BODY,
+        "client[_]secret": "client" + "_secret = " + _QUOTED_BODY,
+        "client[\\-]secret": "client" + "-secret = " + _QUOTED_BODY,
+        "(auth[_\\-]?tokens?)": "auth" + "token = " + _QUOTED_BODY,
+        "auth[_]token": "auth" + "_token = " + _QUOTED_BODY,
+        "auth[\\-]token": "auth" + "-token = " + _QUOTED_BODY,
+        "([:=])": "sec" + "ret: " + _QUOTED_BODY,
+        "[:]": "sec" + "ret: " + '"' + _CANARY_BODY * 3 + '"',
+        "[=]": "sec" + "ret = " + '"' + _CANARY_BODY * 3 + '"',
+        "(=>)": "sec" + "ret => " + _QUOTED_BODY,
+        '["]': "tok" + "en = " + '"' + _CANARY_BODY * 2 + "'",
+        "[']": "tok" + "en = " + "'" + _CANARY_BODY * 2 + '"',
+        '["]#2': "tok" + "en = " + "'" + _CANARY_BODY * 3 + '"',
+        "[']#2": "tok" + "en = " + '"' + _CANARY_BODY * 3 + "'",
+    },
+    _ENTROPY_RULE: {
+        "(key)": "key" + ": " + _HEX_BODY,
+        "(token)": "tok" + "en: " + _HEX_BODY,
+        "(secret)": "sec" + "ret: " + _HEX_BODY,
+        "([:=])": "tok" + "en: " + "8e" * 16,
+        "[:]": "tok" + "en: " + "7d" * 16,
+        "[=]": "tok" + "en = " + "7d" * 16,
+        "(=>)": "tok" + "en => " + "6c" * 16,
+        "([A-Fa-f0-9]{32,})": "sec" + "ret: " + "5b" * 17,
+        "((?=[A-Za-z+/]*[0-9][A-Za-z0-9+/]*[0-9])[A-Za-z0-9+/]{40,}={0,2})": (
+            "sec" + "ret: " + _CANARY_BODY * 5
+        ),
+    },
+}
+
+#: CS-1172. Branches no canary CAN prove, because another branch of the same
+#: rule matches every string this one does - removing one leaves the rule's
+#: language unchanged, so it is not a narrowing and no arm should redden.
+#: `apikeys?` is covered whole by `api[_-]?keys?`, whose separator is optional.
+#: The hyphen of `client[_-]?` and `auth[_-]?` is covered by the bare
+#: `secrets?` and `tokens?` branches, because a hyphen is a word boundary and
+#: an underscore is not - MEASURED, their canaries still flag with the hyphen
+#: removed. Each entry is re-measured by `credential_branch_gaps`: a declared
+#: branch whose canary its narrowed rule stops flagging is named, so a
+#: declaration cannot outlive the overlap that justified it.
+CREDENTIAL_EQUIVALENT_BRANCHES: frozenset[tuple[str, str]] = frozenset(
+    {
+        (_QUOTED_RULE, "(apikeys?)"),
+        (_QUOTED_RULE, "client[\\-]secret"),
+        (_QUOTED_RULE, "auth[\\-]token"),
+    }
+)
 
 TOOL = "outbound-gate"
 
@@ -487,6 +586,292 @@ def credential_canary_gaps(gate: ModuleType) -> list[str]:
     return gaps
 
 
+# The standard library's own regex parser and its opcodes, reached by name so no
+# deprecated `sre_parse` import warns on a script run. The branch population is
+# read from the SAME parse `re.compile` performs, so it cannot drift from what
+# the rule matches; if the private API ever moves, `credential_branch_gaps`
+# names every rule underivable rather than calling the row measured.
+_RE_PARSER = importlib.import_module("re._parser")
+_RE_OPS = importlib.import_module("re._constants")
+
+#: What a drifted private parser API can raise; caught so the row degrades to
+#: UNMEASURED by name instead of the gate crashing.
+_PARSE_ERRORS = (re.error, AttributeError, IndexError, KeyError, TypeError, ValueError)
+
+#: One `(opcode, argument)` pair of a parsed regex. The argument's shape depends
+#: on the opcode, which is the private parser's own contract, so it is `Any`.
+_Node = tuple[object, Any]
+
+#: Each repeat opcode and the suffix that selects it after a quantifier.
+_REPEATS = {"MAX_REPEAT": "", "MIN_REPEAT": "?", "POSSESSIVE_REPEAT": "+"}
+_REGEX_SPECIALS = frozenset("\\.^$*+?{}[]|()")
+_CLASS_SPECIALS = frozenset("\\]^-[")
+_CATEGORY_TEXT = {
+    "CATEGORY_DIGIT": "\\d",
+    "CATEGORY_NOT_DIGIT": "\\D",
+    "CATEGORY_SPACE": "\\s",
+    "CATEGORY_NOT_SPACE": "\\S",
+    "CATEGORY_WORD": "\\w",
+    "CATEGORY_NOT_WORD": "\\W",
+}
+_AT_TEXT = {
+    "AT_BOUNDARY": "\\b",
+    "AT_NON_BOUNDARY": "\\B",
+    "AT_BEGINNING": "^",
+    "AT_BEGINNING_STRING": "\\A",
+    "AT_END": "$",
+    "AT_END_STRING": "\\Z",
+}
+
+
+def _char_text(code: int, specials: frozenset[str]) -> str:
+    """One code point as regex source, escaped, never a non-ASCII byte."""
+    char = chr(code)
+    if char == "\n":
+        return "\\n"
+    if not (32 <= code < 127):  # noqa: PLR2004 - the printable ASCII band
+        return "\\x%02x" % code if code < 256 else "\\u%04x" % code  # noqa: PLR2004
+    return "\\" + char if char in specials else char
+
+
+def _class_text(members: Sequence[_Node]) -> str:
+    """A character class as regex source."""
+    parts = []
+    for op, av in members:
+        name = str(op)
+        if name == "NEGATE":
+            parts.append("^")
+        elif name == "LITERAL":
+            parts.append(_char_text(int(av), _CLASS_SPECIALS))
+        elif name == "RANGE":
+            low, high = av
+            parts.append(_char_text(low, _CLASS_SPECIALS) + "-" + _char_text(high, _CLASS_SPECIALS))
+        elif name == "CATEGORY":
+            parts.append(_CATEGORY_TEXT.get(str(av), "?"))
+        else:
+            parts.append("?")
+    return "[" + "".join(parts) + "]"
+
+
+def _repeat_text(low: int, high: int) -> str:
+    """A quantifier as regex source."""
+    unbounded = high == _RE_OPS.MAXREPEAT
+    if (low, unbounded) == (0, True):
+        return "*"
+    if (low, unbounded) == (1, True):
+        return "+"
+    if unbounded:
+        return "{%d,}" % low
+    if (low, high) == (0, 1):
+        return "?"
+    return "{%d}" % low if low == high else "{%d,%d}" % (low, high)
+
+
+def _pattern_text(seq: Iterable[_Node]) -> str:
+    """A parsed sequence rendered back to regex source.
+
+    It names a branch in a coverage row AND is the source a narrowed rule is
+    compiled from, so `credential_branches` proves it round-trips per rule
+    before trusting it. An unknown construct renders as `?`, which cannot
+    round-trip, so a new regex feature upstream makes that rule underivable
+    by name rather than the gate fatal or the row silently measured.
+    """
+    out = []
+    for op, av in seq:
+        name = str(op)
+        if name == "LITERAL":
+            out.append(_char_text(int(av), _REGEX_SPECIALS))
+        elif name == "IN":
+            out.append(_class_text(av))
+        elif name == "ANY":
+            out.append(".")
+        elif name == "FAILURE":
+            out.append("(?!)")
+        elif name == "AT":
+            out.append(_AT_TEXT.get(str(av), "?"))
+        elif name == "BRANCH":
+            out.append("(?:" + "|".join(_pattern_text(alt) for alt in av[1]) + ")")
+        elif name in _REPEATS:
+            low, high, sub = av
+            body = _pattern_text(sub)
+            if len(sub) != 1 or str(sub[0][0]) in _REPEATS:
+                body = "(?:" + body + ")"
+            out.append(body + _repeat_text(low, high) + _REPEATS[name])
+        elif name == "SUBPATTERN":
+            out.append("(" + _pattern_text(av[-1]) + ")")
+        elif name in ("ASSERT", "ASSERT_NOT"):
+            direction, sub = av
+            look = ("?<" if direction < 0 else "?") + ("=" if name == "ASSERT" else "!")
+            out.append("(" + look + _pattern_text(sub) + ")")
+        else:
+            out.append("?")
+    return "".join(out)
+
+
+def _literal_run(items: Sequence[_Node], index: int, step: int, inherited: str) -> str:
+    """The literal characters adjacent to `items[index]`, walking by `step`.
+
+    A run that reaches the edge of its sequence continues into `inherited`,
+    the run the enclosing sequence had at that edge, so `api[_-]?key` labels
+    its class members `api[_]key` rather than a bare `[_]`.
+    """
+    chars: list[str] = []
+    cursor = index + step
+    while 0 <= cursor < len(items) and str(items[cursor][0]) == "LITERAL":
+        chars.append(_char_text(int(items[cursor][1]), _REGEX_SPECIALS))
+        cursor += step
+    edge = not (0 <= cursor < len(items))
+    if step < 0:
+        return (inherited if edge else "") + "".join(reversed(chars))
+    return "".join(chars) + (inherited if edge else "")
+
+
+def _branch_sites(
+    seq: Any, single: bool, before: str, after: str, sites: list[tuple[str, list[object], int]]
+) -> None:
+    """Every branch point under `seq`, in a fixed walk order.
+
+    A site is a list plus an index whose removal drops exactly one branch:
+    one alternative of a BRANCH, or one member of an all-literal class that
+    occupies a single position (`single`), which is how the parser stores a
+    folded prefix family. A negative lookaround is NOT descended: dropping a
+    branch there WIDENS the rule, so it is not a narrowing this arm grades.
+    """
+    items = list(seq)
+    for index, (op, av) in enumerate(items):
+        name = str(op)
+        left = _literal_run(items, index, -1, before)
+        right = _literal_run(items, index, 1, after)
+        if name == "BRANCH":
+            alternatives = av[1]
+            for number, alt in enumerate(alternatives):
+                sites.append((left + "(" + _pattern_text(alt) + ")" + right, alternatives, number))
+            for alt in alternatives:
+                _branch_sites(alt, single, left, right, sites)
+        elif name == "IN":
+            literal = all(str(member_op) == "LITERAL" for member_op, _ in av)
+            if single and literal and len(av) > 1:
+                for number, (_, code) in enumerate(av):
+                    member = _char_text(code, _CLASS_SPECIALS)
+                    sites.append((left + "[" + member + "]" + right, av, number))
+        elif name in _REPEATS:
+            _, high, sub = av
+            _branch_sites(sub, single and high <= 1, left, right, sites)
+        elif name == "SUBPATTERN":
+            _branch_sites(av[-1], single, left, right, sites)
+        elif name == "ATOMIC_GROUP":
+            _branch_sites(av, single, left, right, sites)
+        elif name == "ASSERT":
+            _branch_sites(av[1], single, left, right, sites)
+
+
+def _sites(pattern: re.Pattern[str]) -> list[tuple[str, list[object], int]]:
+    """A fresh parse of `pattern` and its branch sites, labels made unique."""
+    tree = _RE_PARSER.parse(pattern.pattern, pattern.flags)
+    sites: list[tuple[str, list[object], int]] = []
+    _branch_sites(tree, True, "", "", sites)
+    seen: dict[str, int] = {}
+    unique = []
+    for label, holder, number in sites:
+        seen[label] = seen.get(label, 0) + 1
+        named = label if seen[label] == 1 else "%s#%d" % (label, seen[label])
+        unique.append((named, holder, number))
+    return unique
+
+
+def credential_branches(pattern: re.Pattern[str]) -> list[tuple[str, re.Pattern[str]]]:
+    """Every branch of `pattern` as (label, the pattern with that branch removed).
+
+    CS-1172. DERIVED from the compiled pattern's own parse, never listed: the
+    narrowed pattern is compiled from a fresh parse with the one list entry
+    deleted, so it is exactly the rule a maintainer would get by deleting that
+    branch. The narrowed rule is compiled from SOURCE rendered off that tree,
+    so it carries a pattern string and can itself be derived again - which is
+    what a narrowed rule in the commit gate would be. The renderer is proven
+    per rule first: the rendered pristine source must parse back to the very
+    tree it came from, or the rule is refused as underivable. Raises one of
+    `_PARSE_ERRORS` if the parser cannot be read.
+    """
+    tree = _RE_PARSER.parse(pattern.pattern, pattern.flags)
+    rendered = _pattern_text(tree)
+    if repr(_RE_PARSER.parse(rendered, pattern.flags).data) != repr(tree.data):
+        message = "the branch renderer does not reproduce this rule"
+        raise re.error(message)
+    branches = []
+    for position, (label, _, _) in enumerate(_sites(pattern)):
+        fresh = _RE_PARSER.parse(pattern.pattern, pattern.flags)
+        sites: list[tuple[str, list[object], int]] = []
+        _branch_sites(fresh, True, "", "", sites)
+        _, holder, number = sites[position]
+        del holder[number]
+        branches.append((label, re.compile(_pattern_text(fresh), pattern.flags)))
+    return branches
+
+
+def _flags_own(gate: ModuleType, pattern: re.Pattern[str], reason: str, canary: str) -> bool:
+    """Whether `pattern` itself flags `canary` under `reason`, placeholders applied."""
+    probe = gate.Report()
+    gate.check_secrets("canary", canary, probe)
+    flagged = any(diag.reason == reason for diag in probe.diagnostics)
+    return flagged and _matches_unsuppressed(gate, pattern, canary)
+
+
+def _matches_unsuppressed(gate: ModuleType, pattern: re.Pattern[str], canary: str) -> bool:
+    """Whether `pattern` matches `canary` somewhere `PLACEHOLDER_RE` does not forgive."""
+    return any(
+        not gate.PLACEHOLDER_RE.search(match.group(match.lastindex or 0))
+        for match in pattern.finditer(canary)
+    )
+
+
+def credential_branch_gaps(gate: ModuleType) -> list[str]:
+    """Every rule BRANCH with no canary that proves it, named `rule / branch label`.
+
+    CS-1172. For each branch `credential_branches` derives, the canary filed
+    under it must be flagged by its rule through `check_secrets` AND must NOT
+    be matched by the rule with that branch removed - otherwise dropping the
+    branch would leave it green, which is the defect. A branch in
+    `CREDENTIAL_EQUIVALENT_BRANCHES` is held to the reverse, so the declaration
+    is re-measured every run. An entry naming a branch the rule no longer has
+    is named too: that is what a branch dropped upstream looks like from here.
+    Never carries a canary value, only reasons and labels.
+    """
+    gaps: list[str] = []
+    rules = list(gate.SECRET_PATTERNS)
+    for pattern, reason in rules:
+        table = CREDENTIAL_BRANCH_CANARIES.get(reason, {})
+        try:
+            branches = credential_branches(pattern)
+        except _PARSE_ERRORS:
+            gaps.append(reason + " (its branches could not be derived)")
+            continue
+        for label, narrowed in branches:
+            name = reason + " / branch " + label
+            canary = table.get(label)
+            if canary is None:
+                gaps.append(name + " (no canary)")
+            elif not _flags_own(gate, pattern, reason, canary):
+                gaps.append(name + " (its canary is not flagged)")
+            elif (reason, label) in CREDENTIAL_EQUIVALENT_BRANCHES:
+                if not _matches_unsuppressed(gate, narrowed, canary):
+                    gaps.append(name + " (declared equivalent, but its canary proves it)")
+            elif _matches_unsuppressed(gate, narrowed, canary):
+                gaps.append(name + " (its canary is matched without it)")
+        derived = {label for label, _ in branches}
+        for label, canary in table.items():
+            if label in derived:
+                continue
+            lost = "" if _flags_own(gate, pattern, reason, canary) else ", its canary unflagged"
+            gaps.append(reason + " / branch " + label + " (no such branch" + lost + ")")
+    known = {reason for _, reason in rules}
+    gaps.extend(
+        reason + " (branch canaries for no such rule)"
+        for reason in CREDENTIAL_BRANCH_CANARIES
+        if reason not in known
+    )
+    return gaps
+
+
 def _canary_row(klass: str, gaps: Sequence[str]) -> Coverage:
     """A canary-derived coverage row that NAMES every uncovered rule."""
     if not gaps:
@@ -564,7 +949,8 @@ def scan(text: str) -> tuple[list[Finding], list[Finding], list[Coverage]]:
             coverage.append(_canary_row(klass, home_canary_gaps(gate)))
             continue
         if klass == CLASS_CREDENTIAL:
-            coverage.append(_canary_row(klass, credential_canary_gaps(gate)))
+            gaps = credential_canary_gaps(gate) + credential_branch_gaps(gate)
+            coverage.append(_canary_row(klass, gaps))
             continue
         values, label, hint = populations[klass]
         if values:

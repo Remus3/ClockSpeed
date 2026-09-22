@@ -110,10 +110,16 @@ def test_every_secret_rule_has_a_live_canary(reason: str) -> None:
     exactly as the commit gate applies it: a canary suppressed by
     ``PLACEHOLDER_RE`` would not report its reason and fails here.
     """
+    # CS-1172: every verdict is bound to a scalar before it is asserted, because
+    # assertion rewriting renders each call inside an asserted expression -
+    # `secret_reasons(canary)` printed the whole canary when this arm failed.
     canary = OUTBOUND.CREDENTIAL_CANARIES.get(reason)
-    assert canary is not None, "no canary for rule: " + reason
-    assert reason in secret_reasons(canary), "the canary for this rule is not flagged: " + reason
-    assert reason not in OUTBOUND.credential_canary_gaps(GATE), "the gate names it a gap: " + reason
+    present = canary is not None
+    assert present, "no canary for rule: " + reason
+    flagged = reason in secret_reasons(str(canary))
+    assert flagged, "the canary for this rule is not flagged: " + reason
+    named = reason in OUTBOUND.credential_canary_gaps(GATE)
+    assert not named, "the gate names it a gap: " + reason
 
 
 def test_no_canary_names_a_rule_that_does_not_exist() -> None:
@@ -238,5 +244,6 @@ def test_cli_refuses_a_message_carrying_every_canary(tmp_path: Path) -> None:
         for match in re.finditer(r"<pii:credential>  line (\d+) col \d+", proc.stderr.decode())
     }
     assert refused == set(range(1, len(canaries) + 1)), "a canary line was not refused"
-    leaked = [canary for canary in canaries if canary in both]
-    assert leaked == [], "the refusal echoed %d canary value(s)" % len(leaked)
+    # A COUNT, never the list: a failing `leaked == []` would render the values.
+    leaked = sum(1 for canary in canaries if canary in both)
+    assert leaked == 0, "the refusal echoed %d canary value(s)" % leaked
