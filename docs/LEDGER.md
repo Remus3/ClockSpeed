@@ -75,6 +75,13 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-09-22 - CS-1173 - CLOSED. All three tier 1 legs read under the 420s budget on the first CI run after the correction, with no level moved and no test dropped
+Verification: `tests/test_tier1_budget.py::test_the_moved_guard_files_run_in_the_guard_shard_and_not_in_the_catch_all` pins the three-leg membership and the partition arm in the same module proves every file runs in exactly one leg. The acceptance reading is CI run 35750828417, read by the lane's own `tier 1 took Ns` lines for the save shard, the guard shard and the catch-all.
+
+THE FIRST MOVE OVERSHOT, AND THE CAUSE WAS THE RUNNER, NOT THE MOVE. Moving seven files into the guard shard pushed it over budget on run 35746992343. The moved files cost what they had cost in the catch-all; it was the guard shard's OWN files that ran about twice as slow, matching readings from before CS-1170, so the reading the move was projected from had come off a fast runner. The correction handed two files back to the catch-all and one guard file to the save shard, balancing all three legs at a projected margin rather than one.
+
+WHAT THIS DOES NOT CLAIM. Runner speed on this CI swings about two-fold on identical work, so three legs under budget on one run is the acceptance, not a guarantee; the growth and jitter halves remain CS-917, CS-1134 and CS-1140. `BUDGET_UNMET` and the readings file were not shrunk here, because a shrink needs more than one reading and CS-917 owns the ratchet.
+
 ### 2026-09-22 - CS-1172 - CLOSED. Every alternation branch and prefix-family member of every secret rule carries its own canary, derived from the compiled pattern, and no canary arm echoes a canary value
 Verification: `python -m pytest tests/test_cs1172_branch_canaries.py tests/test_cs1167_credential_canary_coverage.py -q -p no:randomly`. The mechanism is `tools/outbound_gate.py::credential_branches` over the stdlib regex parse, graded by `tools/outbound_gate.py::credential_branch_gaps` against `tools/outbound_gate.py::CREDENTIAL_BRANCH_CANARIES`; `tools/precommit_gate.py` was not touched.
 
