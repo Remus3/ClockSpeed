@@ -89,7 +89,6 @@ CS-896 - tier 1 CI was cancelled by its runaway cutoff with nothing failing - ac
 CS-917 - tier 1's duration is watched but its GROWTH RATE is owned by nobody - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-900 - tier 1's cost is concentrated in a few tests, so `-n auto` buys little - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1152 - the save shard's most expensive test warns at both ends of the CS-900 profile and no mechanism is named for it - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
-CS-1170 - the guard shard of tier 1 is full over its budget while the save shard idles, and no item owned its capacity - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
 CS-1173 - the catch-all job of tier 1 reads over its budget once CS-1170 emptied the guard shard - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
 CS-907 - tier-0 pre-push runs the whole suite while its header claims the sanctioned fast subset - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-938 - the CS-932 inbox watcher is wired ONLY in an untracked file, so a fresh clone runs no watcher - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`

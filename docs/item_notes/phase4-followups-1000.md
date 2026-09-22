@@ -1308,46 +1308,6 @@ therefore stronger evidence than a CLEAR, which cuts in this row's favour.
 the mechanism by which `tests/save/test_absolute_claims.py::test_a_module_whose_prose_already_satisfies_the_fence_is_inside_it` costs its share is NAMED in this repository rather than the share restated, the naming cites what the test actually does rather than its duration, and either that cost is reduced with a before-and-after runner profile reporting the save shard's share both times or the concentration is ruled irreducible with that mechanism as the reason - and no level is moved and no test is marked `slow` to reach either outcome
 
 
-## CS-1170
-
-### Filed 2026-09-22 by the merger, on a read-only attribution of the guard shard
-
-**THE GUARD SHARD WAS FULL, NOT REGRESSED, AND NO ITEM OWNED ITS CAPACITY.** It read
-over its budget on every green run since CS-1060 created it, and once over its
-ceiling, while none of its files changed and its collected population held steady.
-The save shard, on the same runs, finished far under the same budget. Provenance:
-runs 35477523123, 35483224674, 35541295571, 35548981254, 35549849346 and
-35551205334, read in full by the lane's own `tier 1 took Ns` lines. CS-1146 MEASURED
-the breach and pinned `BUDGET_UNMET` in `tools/tier1_growth.py`; it fixed nothing,
-and CS-917, CS-900 and CS-1152 own growth, concentration and the save shard's top
-test respectively - none owns reducing this shard.
-
-**WHY A MOVE AND NOT A REORDER.** Two workers under `--dist loadfile` cannot finish
-before half the shard's total work, and the heaviest file was well under that half,
-so the shard was uniformly full: reordering inside it buys nothing.
-`tests/test_toolpath.py` was the heaviest file by a wide margin, so it moved to the
-save shard and is named FIRST there, so loadfile starts it at once.
-
-**DO NOT CLOSE THIS BY MOVING A LEVEL, ADDING A RUNNER OR MARKING TESTS `slow`.**
-The budget, ceiling and cutoff are pinned both ways by guard (k); a fourth shard
-pays a runner to solve what an idle shard already solves; CS-907 fences a subset
-defined by a stopwatch.
-
-**OWED AFTER THE FIRST GREEN RUNS, NOT BEFORE.** Refresh `tools/tier1_readings.json`
-from the first CI runs after the move, then shrink `BUDGET_UNMET` in
-`tools/tier1_growth.py` and its literal in `tests/test_tier1_growth.py`. It is left
-unchanged by the move itself: it shrinks on a fresh reading, never on a projection.
-A further cut - reusing the pristine repository census across the toolpath arms
-instead of re-parsing it per arm - is CS-900 territory and needs its own row.
-
----
-
-### Acceptance
-
-the guard shard reads under its budget on the first CI run after the move, the save shard stays under the same budget on that run, both read by the lane's own `tier 1 took Ns` line rather than a local profile, and `tests/test_tier1_budget.py` proves every test file runs in exactly one leg of the partition and pins `tests/test_toolpath.py` to the save shard - with no level moved and no test dropped or marked `slow`
-
----
-
 ## CS-1173
 
 ### Filed 2026-09-22 by the merger, on the first CI run after CS-1170
