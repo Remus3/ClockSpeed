@@ -34,14 +34,21 @@ THE FIRST CALL IS RECORDED. There is no unrecorded warm-up, so an endpoint that
 opens a file only once and caches the result is caught on the call that did
 it. The one exclusion is the import machinery reading a module's own source,
 bytecode or extension file: an ``open`` event reached from ``_find_and_load``
-through frozen import frames ONLY. The decision is made in the hook from the
-call stack and never from the path, which is not kept. The walk outward from
-the opener stops at the first frame that is not frozen import code and records
-the open, so a direct ``loader.get_data(...)`` call from the request path is
-recorded, and so is a data read made by an imported module's OWN top-level
-code - ``__loader__.get_data``, ``pkgutil.get_data``, a plain ``open`` - because
-that module's frame lies between the opener and ``_find_and_load``. An arm per
-endpoint per variant proves each.
+through import-system frames ONLY. The decision is made in the hook from the
+call stack and never from the path, which is not kept. A frame counts as the
+import system only when its code object IS - by identity - one the live
+``_frozen_importlib`` / ``_frozen_importlib_external`` / ``zipimport`` modules
+define, collected once from their functions, their classes' methods and every
+nested code object; a file name or a function name is never consulted, because
+``compile(src, "<frozen importlib._bootstrap>", ...)`` or
+``code.replace(co_filename=..., co_name="_find_and_load")`` borrows both. The
+walk outward from the opener stops at the first frame that is not import-system
+code and records the open, so a direct ``loader.get_data(...)`` call from the
+request path is recorded, and so is a data read made by an imported module's
+OWN top-level code - ``__loader__.get_data``, ``pkgutil.get_data``, a plain
+``open`` - because that module's frame lies between the opener and
+``_find_and_load``. An arm per endpoint per variant proves each, and a forged
+frame of each kind is a positive control.
 
 THE RECORDER IS PROVED LIVE BY A POSITIVE CONTROL PER ENDPOINT PER CHANNEL: a
 provider that opens a file when the handler asks it for its value, which is an
@@ -50,13 +57,25 @@ every twin below for that reason alone. A NEGATIVE control performs a fresh
 import during the first recorded call and asserts it is NOT recorded, so the
 import exclusion is shown to be what keeps the pristine arms green.
 
-NAMED RESIDUAL. A foreign call that opens a file through a library already
-loaded and a function pointer already resolved raises ``ctypes.call_function``,
-which is recorded; a C extension module that opens a file in its own C code
-raises no audit event at all and is invisible to this module by construction.
-A thread the request STARTS BUT DOES NOT JOIN may open a file after the
-recording window closes, and that open is not recorded: the window ends when
-the handler returns, not when every thread it spawned has finished.
+WHAT THE TWIN GRADES, PRECISELY: the endpoint opens no file OUTSIDE THE IMPORT
+SYSTEM during the request. It does not grade "opens no file at all".
+
+NAMED RESIDUALS.
+
+a. A thread the request STARTS BUT DOES NOT JOIN may open a file after the
+   recording window closes, and that open is not recorded: the window ends
+   when the handler returns, not when every thread it spawned has finished.
+b. ANY FILE MADE INTO A MODULE'S SOURCE IS FORGIVEN AS AN IMPORT. The import
+   system's own read of whatever it has been pointed at is excluded, so a data
+   ``.py`` re-imported on every request (``sys.modules.pop`` then import), a
+   custom ``sys.meta_path`` finder handing a ``SourceFileLoader`` an arbitrary
+   file, or a ``zipimport`` of an archive all read that file unrecorded. The
+   exclusion cannot tell "loading a module" from "reading a file by loading it
+   as a module", because to the import system they are the same act.
+c. A C extension module that opens a file in its own C code raises no audit
+   event at all and is invisible to this module by construction. A foreign
+   call through ``ctypes`` is NOT this residual: it raises
+   ``ctypes.call_function``, which is recorded.
 
 NO PATH IS RECORDED. The recorders keep only the fixed channel name, so a
 failure report names the endpoint and the channel and never renders a file
@@ -77,6 +96,7 @@ import pathlib
 import sqlite3
 import sys
 import threading
+import types
 from typing import TYPE_CHECKING, Final
 
 import pytest
@@ -90,13 +110,13 @@ from tests.surface import test_world as world_fixtures
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterator
-    from types import FrameType
+    from types import CodeType, FrameType
 
 #: The endpoints whose static arm this module twins. Asserted before any sweep.
 EXPECTED_ENDPOINTS: Final = 4
 
 #: The positive controls. Asserted before any sweep.
-EXPECTED_CONTROLS: Final = 11
+EXPECTED_CONTROLS: Final = 13
 
 #: How many recorded requests each drive makes: the first call and a second.
 RECORDED_CALLS: Final = 2
@@ -131,17 +151,82 @@ _FILE_EVENTS: Final = frozenset(
     }
 )
 
-#: The code objects the import machinery runs from.
-_FROZEN_IMPORT: Final = frozenset(
-    {
-        "<frozen importlib._bootstrap>",
-        "<frozen importlib._bootstrap_external>",
-        "<frozen zipimport>",
-    }
+#: The modules the import system runs from. ``_frozen_importlib`` and
+#: ``_frozen_importlib_external`` are the live bootstrap whether or not the
+#: stdlib is frozen - the bootstrap stays frozen under ``-X frozen_modules=off``,
+#: and this module's arms pass under that flag; ``zipimport`` is included when
+#: present. Membership is by the MODULE OBJECT these names resolve to.
+_IMPORT_MODULES: Final = ("_frozen_importlib", "_frozen_importlib_external", "zipimport")
+
+#: The ``__module__`` a class defined by the import system carries. The module
+#: objects are RENAMED to ``importlib._bootstrap`` / ``_bootstrap_external`` once
+#: ``importlib`` is imported, but their classes keep the name they were built
+#: under, so both spellings are homes. A class merely imported into one of these
+#: modules from anywhere else (``builtins``) is not walked.
+_IMPORT_CLASS_HOMES: Final = frozenset(
+    {*_IMPORT_MODULES, "importlib._bootstrap", "importlib._bootstrap_external"}
 )
 
-#: The frame that marks an import in flight.
-_IMPORT_IN_FLIGHT: Final = "_find_and_load"
+
+def _code_objects_of(value: object, into: set[int], held: list[CodeType]) -> None:
+    """Collect the code object of a function, method or descriptor, and nested ones.
+
+    Args:
+        value: A module or class attribute.
+        into: The ids collected so far.
+        held: The code objects themselves, kept alive so no id is ever reused.
+    """
+    target = value
+    if isinstance(target, (staticmethod, classmethod)):
+        target = target.__func__
+    if isinstance(target, property):
+        for accessor in (target.fget, target.fset, target.fdel):
+            if accessor is not None:
+                _code_objects_of(accessor, into, held)
+        return
+    code = getattr(target, "__code__", None)
+    if not isinstance(code, types.CodeType):
+        return
+    pending = [code]
+    while pending:
+        current = pending.pop()
+        if id(current) in into:
+            continue
+        into.add(id(current))
+        held.append(current)
+        pending.extend(const for const in current.co_consts if isinstance(const, types.CodeType))
+
+
+def _import_code_ids() -> tuple[frozenset[int], int, tuple[CodeType, ...]]:
+    """Every code object the import system runs, by IDENTITY, and ``_find_and_load``'s.
+
+    Built once, from the live module objects - never from a file or function
+    NAME, which any code can borrow with ``compile(..., filename)`` or
+    ``code.replace(co_filename=..., co_name=...)``.
+
+    Returns:
+        The ids of every function and method code object in the import modules,
+        the id of ``_find_and_load``'s code, and the code objects themselves.
+    """
+    into: set[int] = set()
+    held: list[CodeType] = []
+    for module_name in _IMPORT_MODULES:
+        module = sys.modules.get(module_name)
+        if module is None:
+            continue
+        for value in vars(module).values():
+            if isinstance(value, type) and value.__module__ in _IMPORT_CLASS_HOMES:
+                for member in vars(value).values():
+                    _code_objects_of(member, into, held)
+            else:
+                _code_objects_of(value, into, held)
+    bootstrap = sys.modules["_frozen_importlib"]
+    in_flight = bootstrap._find_and_load.__code__  # noqa: SLF001 - the one frame that marks an import
+    assert id(in_flight) in into
+    return frozenset(into), id(in_flight), tuple(held)
+
+
+_IMPORT_CODE_IDS, _IMPORT_IN_FLIGHT_ID, _IMPORT_CODE_HELD = _import_code_ids()
 
 
 # ---------------------------------------------------------------------------
@@ -179,23 +264,23 @@ def _import_machinery_open() -> bool:
     hook; frame 2 is the Python frame that called the C opener.
 
     THE WALK STOPS AT THE FIRST FRAME THAT IS NOT IMPORT MACHINERY. Every frame
-    from the opener's caller outward to ``_find_and_load`` must be frozen import
+    from the opener's caller outward to ``_find_and_load`` must be import-system
     code. A module's own top-level code sits between the two whenever it reads
     a data file while being imported - through ``__loader__.get_data``,
     ``pkgutil.get_data`` or ``importlib.resources`` - and that frame is not
-    frozen, so the read is recorded rather than mistaken for the loader reading
+    import-system code, so the read is recorded rather than mistaken for the loader reading
     the module's source.
 
     Returns:
-        True only when an unbroken run of frozen import frames links the
+        True only when an unbroken run of import-system frames links the
         opener to ``_find_and_load``.
     """
     frame: FrameType | None = sys._getframe(2)  # noqa: SLF001 - the stack is the only non-path evidence
     while frame is not None:
-        code = frame.f_code
-        if code.co_filename not in _FROZEN_IMPORT:
+        identity = id(frame.f_code)
+        if identity not in _IMPORT_CODE_IDS:
             return False
-        if code.co_name == _IMPORT_IN_FLIGHT:
+        if identity == _IMPORT_IN_FLIGHT_ID:
             return True
         frame = frame.f_back
     return False
@@ -439,7 +524,7 @@ def _file_io() -> Callable[[], None]:
 
 def _loader_get_data() -> Callable[[], None]:
     # A loader read made directly, NOT under an import - the import exclusion
-    # must not swallow it even though its immediate caller is frozen code.
+    # must not swallow it even though its immediate caller is import-system code.
     def effect() -> None:
         loader = health.__spec__.loader if health.__spec__ is not None else None
         assert loader is not None
@@ -481,6 +566,41 @@ def _foreign_call() -> Callable[[], None]:
     return lambda: ctypes.pythonapi.Py_IsInitialized() and None
 
 
+#: The file name and function name the import machinery's frames carry - the
+#: strings a forgery borrows. Used ONLY to build the forgeries below.
+_FORGED_FILENAME: Final = "<frozen importlib._bootstrap>"
+_FORGED_NAME: Final = "_find_and_load"
+
+#: A function body that opens through the C opener, compiled under a borrowed
+#: frozen file name. ``exec`` of a compiled literal, not of any input.
+_FORGED_SOURCE: Final = (
+    "def " + _FORGED_NAME + "(path):\n"
+    "    import _io\n"
+    "    with _io.open(path, 'rb'):\n"
+    "        pass\n"
+)
+
+
+def _forged_compile() -> Callable[[], None]:
+    # A frame whose file AND function name match the import machinery's, made
+    # by compiling under the borrowed name. Only code-object identity sees it.
+    namespace: dict[str, object] = {}
+    exec(compile(_FORGED_SOURCE, _FORGED_FILENAME, "exec"), namespace)  # noqa: S102 - a literal, the forgery under test
+    forged = namespace[_FORGED_NAME]
+    assert callable(forged)
+    return lambda: forged(_OWN_SOURCE) and None
+
+
+def _forged_replace() -> Callable[[], None]:
+    # The same forgery by rewriting a real function's code object in place.
+    def opener(path: pathlib.Path) -> None:
+        with _io.open(path, "rb"):
+            pass
+
+    opener.__code__ = opener.__code__.replace(co_filename=_FORGED_FILENAME, co_name=_FORGED_NAME)
+    return lambda: opener(_OWN_SOURCE)
+
+
 #: Each control's name, its factory, and the channels that MUST each see it.
 _CONTROLS: Final[tuple[tuple[str, Callable[[], Callable[[], None]], tuple[str, ...]], ...]] = (
     ("builtin", _builtin, ("builtins.open", "audit:open")),
@@ -494,6 +614,8 @@ _CONTROLS: Final[tuple[tuple[str, Callable[[], Callable[[], None]], tuple[str, .
     ("first_call_only", _first_call_only, ("builtins.open", "audit:open")),
     ("sqlite", _sqlite, ("audit:sqlite3.connect",)),
     ("foreign_call", _foreign_call, ("audit:ctypes.call_function",)),
+    ("forged_compile", _forged_compile, ("audit:open",)),
+    ("forged_replace", _forged_replace, ("audit:open",)),
 )
 
 #: A pure stdlib module this module never imports, re-imported fresh by the
@@ -571,7 +693,7 @@ def test_a_fresh_import_on_the_first_call_is_not_read_as_an_open(
 
 
 #: Top-level bodies of a module imported DURING the request, each of which
-#: reads a data file through a loader - and so has frozen loader code as the
+#: reads a data file through a loader - and so has import-system loader code as the
 #: opener's immediate caller while ``_find_and_load`` is on the stack.
 _TOP_LEVEL_READS: Final = (
     ("loader_get_data", "_D = __loader__.get_data(__file__)\n", "__import__"),
