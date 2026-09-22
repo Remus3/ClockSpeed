@@ -671,6 +671,36 @@ def test_add_refuses_an_item_recorded_nowhere(tool: ModuleType, repo: Path) -> N
     assert not _manifest(repo).exists()
 
 
+def _record_a_block_name(repo: Path) -> None:
+    """Make the records spell the block `CS-6nn` and never the id CS-6 itself."""
+    _write(repo, "ROADMAP.md", (ROADMAP_TEXT + "- the CS-6nn block\n").encode())
+    _git(repo, "add", "ROADMAP.md")
+    _commit(repo, "CS-42 - name the CS-6nn block")
+
+
+def test_bootstrap_does_not_read_an_id_out_of_a_block_name(tool: ModuleType, repo: Path) -> None:
+    # Measured on the S3 bootstrap: "Open the CS-9nn block and file CS-900" seeded
+    # a row citing CS-9, an item that does not exist, because the lookahead refused
+    # only a following digit and the records spell `CS-9nn` too.
+    _record_a_block_name(repo)
+    _stage(repo, "lib/block.py", b"x = 'filed when the block opened'\n")
+    _commit(repo, "Open the CS-6nn block and file CS-42")
+    assert _run(tool, repo, "bootstrap") == 0
+    rows = {row[0]: row for row in _rows(repo)}
+    assert rows["lib/block.py"] == ["lib/block.py", "authored", "CS-42", "first-add:CS-42"]
+
+
+def test_add_refuses_an_id_recorded_only_as_a_block_name(tool: ModuleType, repo: Path) -> None:
+    _record_a_block_name(repo)
+    assert (
+        _run(tool, repo, "add", "lib/authored.py", "--class", "authored", "--item", "CS-6")
+        == REFUSED
+    )
+    assert not _manifest(repo).exists()
+    # The control: an id the records do spell whole is accepted on the same tree.
+    assert _run(tool, repo, "add", "lib/authored.py", "--class", "authored", "--item", "CS-42") == 0
+
+
 def test_check_names_a_row_whose_item_is_recorded_nowhere(
     tool: ModuleType, repo: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
@@ -703,7 +733,7 @@ def test_a_blank_line_is_malformed(tool: ModuleType, repo: Path) -> None:
 # than first at pre-push.
 
 ARM_BASIS_RE = r"stamped|first-add:(?:root|CS-[0-9]+)"
-ARM_CITED_RE = r"(?<![A-Za-z0-9])CS-[0-9]+(?![0-9])"
+ARM_CITED_RE = r"(?<![A-Za-z0-9])CS-[0-9]+(?![0-9A-Za-z])"
 
 
 ARM_COLUMNS = 4

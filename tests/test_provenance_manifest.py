@@ -92,7 +92,7 @@ ITEM_RE = re.compile(r"CS-[0-9]+")
 BASIS_RE = re.compile(r"stamped|first-add:(?:root|CS-[0-9]+)")
 
 #: An item id as it is cited in the record files, not glued to a neighbour.
-CITED_RE = re.compile(r"(?<![A-Za-z0-9])CS-[0-9]+(?![0-9])")
+CITED_RE = re.compile(r"(?<![A-Za-z0-9])CS-[0-9]+(?![0-9A-Za-z])")
 
 #: The files an item id must appear in. OPEN work and CLOSED work between them
 #: hold every id this tree has used; measured 2026-09-22, every CS id in a
@@ -630,6 +630,20 @@ def test_an_uncited_item_is_named() -> None:
     assert grade["uncited"] == ["a.py (CS-999999)"]
     rows["a.py"] = Row("authored", "CS-1", "stamped")
     grade = _grade(files, ["a.py"], _render(rows), _register_text(), "CS-1 and CS-9999990")
+    assert grade["uncited"] == [], "the control id on record was still reported"
+
+
+def test_a_block_name_is_not_a_citation_of_its_prefix() -> None:
+    # The record spells a block of ids, `CS-9nn`, and never the id CS-9 itself. A
+    # lookahead that refuses only a following digit read CS-9 out of it, so a row
+    # citing an item that does not exist went green (measured on the S3 bootstrap).
+    rows = {"a.py": Row("authored", "CS-9", "stamped")}
+    files = {"a.py": b"x = 1\n"}
+    record = "the CS-9nn block, and CS-900 filed in it"
+    grade = _grade(files, ["a.py"], _render(rows), _register_text(), record)
+    assert grade["uncited"] == ["a.py (CS-9)"]
+    rows["a.py"] = Row("authored", "CS-900", "stamped")
+    grade = _grade(files, ["a.py"], _render(rows), _register_text(), record)
     assert grade["uncited"] == [], "the control id on record was still reported"
 
 

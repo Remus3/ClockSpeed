@@ -113,7 +113,7 @@ BASIS_RE = re.compile(r"stamped|first-add:(?:root|CS-[0-9]+)")
 #: How an item id is recognised inside prose - a commit subject, ROADMAP.md,
 #: docs/LEDGER.md. The same boundaries the arm uses, so "CS-12" never matches
 #: inside "CS-123" and "XCS-1" is not an id.
-CITED_RE = re.compile(r"(?<![A-Za-z0-9])CS-[0-9]+(?![0-9])")
+CITED_RE = re.compile(r"(?<![A-Za-z0-9])CS-[0-9]+(?![0-9A-Za-z])")
 
 #: The files an item id must appear in. OPEN work lives in the first and
 #: CLOSED work in the second, so a real id is in one of them. This is weak -
