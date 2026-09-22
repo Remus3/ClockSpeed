@@ -19,25 +19,24 @@ read what arrived since) and sent ONE consolidated ANSWER to all six inboxes.
 THE SINGLE NEXT ACTION
 ================================================================================
 
-READ CI ON THE TIP FIRST. Session 111 pushed through 39df207 and its tier 1 run was
-still in progress when this file was written. Use `git rev-parse origin/main` for the
-full SHA - a short SHA makes `gh run list --commit` return nothing and exit 0.
-Read the three `tier 1 took Ns` lines, not just the conclusion.
-
-Then take CS-1176 (a re-seed of the provenance manifest launders unstamped files) or
+TAKE CS-1176 (a re-seed of the provenance manifest launders unstamped files) or
 CS-1175 (secret-rule narrowing by flag or quantifier stays green). Both are fully
 specified, tier 2, and need no adjudication round to start. Neither touches a frozen
 file.
+
+CI IS GREEN ON THE TIP - nothing to diagnose first. Session 111's last run measured all
+three legs under budget. When you do read a run, use `git rev-parse origin/main` for the
+FULL SHA (a short SHA makes `gh run list --commit` return nothing and exit 0) and read
+the three `tier 1 took Ns` lines, not just the conclusion.
 
 ================================================================================
 STATE OF THE TREE
 ================================================================================
 
-HEAD / remote   39df207 plus the session-111 /done commit, both pushed at the end of
-                the session. Confirm `git rev-parse HEAD` equals
-                `git ls-remote origin main`. A blocked push reports exit 0.
+HEAD / remote   0dfd746, pushed, with CI GREEN on it. Confirm `git rev-parse HEAD`
+                equals `git ls-remote origin main`. A blocked push reports exit 0.
 working tree    CLEAN. Nothing half-done.
-suite           10170 passed, 7 skipped, exit 0 - the pre-push run on 39df207. The 7
+suite           10170 passed, 7 skipped, exit 0 - the pre-push run on the tip. The 7
                 skips are self-declaring platform skips.
 mypy            exit 0, 289 source files, no explicit target.
 drift guard     exit 0.   doc budget  exit 0.
@@ -119,7 +118,7 @@ DO NOT RAISE THE 420/480 TIER 1 PIN to answer a noisy reading. Rebalance with a
 EXTERNAL CONDITIONS BEING WAITED ON
 ================================================================================
 
-CI on the session-111 tip - read it, do not assume it.
+CI - green on the session-111 tip, all three tier 1 legs under budget. Nothing owed.
 Channel: LW proposed a joint slots.py round on 2026-09-23 without CS; CS now carries
   slots.py at 71fa2a68 and CHANNEL.md v2 at fc22e86e, and said so on 2026-09-22.
 FOUR DEAD-SECRET FILES still await an operator deletion call (key already rotated).
