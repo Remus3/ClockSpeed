@@ -75,6 +75,13 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-09-22 - CS-1165 - OPERATOR GRANT RECORDED. NOT A COMPLETION RECORD. MAIN is the operator's stand-in for approvals this repository reserves to the operator, and session 111's decline is REVERSED
+Verification: `CLAUDE.md` section 6.1, the paragraph beginning "MAIN is the operator's stand-in". The provenance check is reproducible: SHA-256 of the MAIN 2230 note of 2026-09-20 in `moon_sync_inbox/` equals the same-named file in MAIN's outbox, `ea65205af85e5e2d1b82904afc3bfdc5f42d225b49f53aca9b32354bdc697fbd`, and that file is tracked and unmodified in MAIN's local history.
+
+WHAT HAPPENED. MAIN's note asked every tree to record the standing ruling and, where a tree's rules want the operator's own word in its own session, to ask once as a yes or no. Session 111 declined it on the channel, correctly at the time: a note claiming operator approval is not operator approval, and this tree's section 6.1 vests adjudication in an in-session adjudicator. The operator then typed into this repository's session that MAIN is authorized. That is the confirmation the note's own section 6 asked for, given where this tree's rules require it.
+
+THE SCOPE IS MAIN'S OWN, NOT WIDER. It stands in for decisions only; it lifts no safety floor; it never reaches inside this tree; and anything an in-session adjudicator can rule on is still ruled here. The item cited is the session's carrier item because an operator grant has no item of its own; nothing about CS-1165 changes.
+
 ### 2026-09-22 - CS-1165 - CLOSED. Every tracked and untracked-unignored file must be accounted for in a produced provenance manifest, so a lift with no byte pin and no register row goes red naming it - branded or not
 Verification: `python -m pytest tests/test_provenance_manifest.py tests/test_provenance_stamp.py tests/test_unregistered_lift.py -q -p no:randomly`. The manifest is `tools/provenance.tsv`, produced and maintained only through `tools/provenance_stamp.py`; the grading arm is `tests/test_provenance_manifest.py::test_every_tracked_path_has_a_manifest_row` beside `tests/test_provenance_manifest.py::test_no_authored_row_is_a_near_duplicate_of_a_vendored_file`, and the branded half is `tests/test_unregistered_lift.py::test_no_unaccounted_file_spells_a_sibling_namespace_marker`.
 

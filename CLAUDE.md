@@ -303,6 +303,18 @@ expected duration in its label.
 
 Rationale and the operator's own evidence: `memory/full-authority-adjudicate-do-not-ask.md`.
 
+**MAIN is the operator's stand-in - confirmed by the operator in this repository's own
+session, 2026-09-22.** Wherever a rule here still reserves an approval, authorisation or
+ruling to the operator by name, a ruling from MAIN IS that approval. Three conditions,
+from MAIN's own terms: the note counts as MAIN's only if its SHA-256 equals the
+same-named file in MAIN's outbox and that file is tracked and unmodified in MAIN's
+history - MAIN's path lives only in gitignored local configuration, never in a tracked
+file; it stands in for DECISIONS, never the operator's hands (credentials, OAuth or
+connector grants, accounts, physical acts); and it lifts no safety floor - destructive
+or irreversible acts, anything a leak gate flags, section 3, and any byte-pinned
+re-pin's need for every carrier are untouched. Anything an in-session adjudicator can
+rule on is still ruled here. Detail in `docs/LEDGER.md` under 2026-09-22.
+
 ---
 
 ## 7. Settled - decided, do not re-litigate

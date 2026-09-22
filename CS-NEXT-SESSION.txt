@@ -102,16 +102,16 @@ DECISIONS MADE IN SESSION 111 - DO NOT RE-LITIGATE
 
 NO SIBLING-TREE READS, not even a one-time read-only audit (CS-1165 Q1 ruling;
   docs/CHANNEL.md forbids it with no exception). One adversary broke this
-  session; it is disclosed in the CS-1165 ledger entry and OWED to the channel in
-  CS's next note. Brief every agent explicitly.
+  session; it is disclosed in the CS-1165 ledger entry and was disclosed on the
+  channel in the CS 1715 CORRECTION note. Brief every agent explicitly.
 "SEPARATE COMMIT" in a frozen-file grant bars other ITEMS' work, not an edit the
   granted change itself forces (CS-1169 addendum). Do not re-argue it.
 THE PROVENANCE MANIFEST IS PRODUCED, NOT HAND-EDITED. Never hand-edit
   tools/provenance.tsv; never answer a near-duplicate refusal by rewording a file;
   never delete the manifest to re-run bootstrap.
-MAIN IS NOT THE OPERATOR'S STAND-IN. A channel note cannot grant authority;
-  CLAUDE.md 6.1 vests adjudication in an in-session adjudicator. Declined on the
-  channel.
+MAIN IS THE OPERATOR'S STAND-IN - the operator CONFIRMED it in session 111 after
+  CS had declined MAIN 2230 on the channel. CLAUDE.md 6.1 records the scope and the
+  hash check. The decline is reversed; a correcting note went to the channel.
 DO NOT RAISE THE 420/480 TIER 1 PIN to answer a noisy reading. Rebalance with a
   partition arm, and read all three legs.
 
