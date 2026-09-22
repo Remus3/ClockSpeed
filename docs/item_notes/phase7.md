@@ -1383,71 +1383,6 @@ widening arrives with a measured runtime and a stated stopping rule, or it does 
 arrive.
 
 
-## CS-1171
-
-### Acceptance
-
-every endpoint module whose static arm asserts it opens no file - the
-`test_the_endpoint_opens_no_file` arms in `tests/surface/test_health.py`, `test_map.py`,
-`test_world.py` and `test_registry.py` - also has a BEHAVIOURAL twin that drives the
-endpoint with the file-opening builtins and path readers instrumented, and fails naming
-the endpoint when any file is opened during the request. The twin is proved by
-mutation: a plant that opens a file through a helper in another module, and a plant
-that reaches the opener through a runtime-built name, each turn the twin RED while the
-static arm stays green, and the pristine tree is green. The static arms stay; they are
-cheap and catch the direct spelling.
-
-### Full headline
-
-the endpoint `opens no file` guards read source only and have no behavioural twin, so a
-helper in another module or a runtime-built name defeats them while the suite stays green
-
-### FILED 2026-09-22, from CS's own measurement answering a sibling's question
-
-A sibling tree asked every tree whether it had a guard that reads source to assert a
-runtime property, scoped to one function. CS measured its own tree before answering:
-guards that parse source to assert behaviour exist across many modules, and for most of
-the privacy-relevant ones a behavioural canary sweep ALSO exists and went red on the
-plants a static arm missed. The endpoint `opens no file` family is the one class where
-no behavioural twin was found. The defeat was predicted from the same shape as the
-planted ones rather than planted against these arms, so the first step of the repair is
-to plant it and watch the static arm stay green - if it goes red, record that and narrow
-this item rather than building a twin for a gap that is not there.
-
-**THE METHOD TRAP THE MEASUREMENT HIT.** A first run selected tests with a `-k` keyword
-that skipped the behavioural arms and read green. Select the twin by node id, and read
-the collected count before reading the verdict.
-
-## CS-1172
-
-### Acceptance
-
-every alternation branch and every prefix family inside each `SECRET_PATTERNS` rule has
-its own canary in `tools/outbound_gate.py::CREDENTIAL_CANARIES`, so narrowing a rule by
-dropping one branch reddens an arm that NAMES the rule and the branch. Proven by
-mutation on at least three rules with alternations - removing one branch each - with the
-pristine tree green in the same run as the control. The enumeration of branches is
-DERIVED from the compiled patterns or pinned by an arm that fails when a pattern's
-alternation count changes, never a list someone remembers to extend. Separately, no
-canary arm renders a whole canary value in its failure output: bind the reasons to a
-scalar before asserting, per the recorded assert-rewriting trap, and prove it by
-forcing one arm red and grepping the captured output for the canary.
-
-### Full headline
-
-one canary per secret rule cannot see a rule NARROWED so it still matches that one
-example, and a failing canary arm renders its synthetic value in full
-
-### FILED 2026-09-22, from the adversary pass that could not refute CS-1167
-
-CS-1167 made the coverage row per rule. Its adversary then reasoned, without running it,
-that a rule narrowed to keep matching its single canary - an AWS rule losing one key
-prefix, a GitHub rule losing two of its token prefixes, the vendor-prefix rule losing a
-family - stays green, because a rule is graded on one example. The first step is to
-plant one such narrowing and watch it stay green; if it goes red, record that and narrow
-this item. The echo half is synthetic shapes only, but a captured CI log carrying whole
-credential shapes is exactly what a secret scanner on another tree would flag.
-
 ## CS-1174
 
 ### Acceptance
@@ -1474,3 +1409,32 @@ alphabet admits such a letter, and this project's authored content is 7-bit ASCI
 rule - so the exposure is content arriving from outside, which is exactly what the
 sweep and the outbound gate read. The digit case is a test-strength gap, not a live
 escape: the shipped pattern refuses a digit-adjacent member today.
+
+## CS-1175
+
+### Acceptance
+
+a narrowing of any `SECRET_PATTERNS` rule that is not an alternation branch - dropping
+the case-insensitive flag, dropping or shortening a word-prefix quantifier, raising a
+length quantifier's minimum, or removing a member range from a character class - reddens
+the credential row naming the rule and what narrowed, proven by mutation on at least one
+rule per narrowing kind with the pristine tree green in the same run; OR, where a kind
+cannot be graded by canaries without a hand list, an arm pins each rule's compiled
+flags and quantifier bounds against a DERIVED fingerprint so any change reddens and
+must be re-recorded deliberately. Separately, no canary value renders under
+`--showlocals`, proven by forcing an arm red with that flag and grepping; and the
+comment in `tools/outbound_gate.py` about a missing private regex parser states what
+actually happens, measured.
+
+### Full headline
+
+a secret rule narrowed by its flags, a quantifier or a character class keeps every
+canary green, and `--showlocals` still renders canary values
+
+### FILED 2026-09-22, from the adversary pass that could not refute CS-1172
+
+Measured on the frozen CS-1172 candidate. The most consequential single case is the
+flag: without it the quoted-assignment and high-entropy rules stop catching an
+upper-case assignment spelling, and nothing reddens. The rules live in the frozen
+`tools/precommit_gate.py`, but nothing here requires editing it - the grading side is
+`tools/outbound_gate.py` and the tests.
