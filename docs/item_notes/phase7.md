@@ -1252,81 +1252,6 @@ guard can SEE, not about what the rule requires.
 
 
 
-## CS-1165
-
-### Acceptance
-
-a lift that arrives with NO byte pin and NO register row REDDENS an arm, and the arm's
-oracle is not a list anybody maintains. The candidate oracles are a comparison of this
-tree's tracked files against the carrier trees that hold the same paths, or a produced
-provenance manifest that every tracked file has to be accounted for in; whichever is
-chosen, the arm is proven by MUTATION rather than by running green - a file copied in
-from a sibling tree with nothing added anywhere goes RED naming that file, and the same
-arm is green on the tree as it stands
-
-### Full headline
-
-the third-party register's byte-pin roster was hand-maintained, so a lift with no byte
-pin at all and no register row is still invisible - the derivation that replaced the
-roster grades only files something already pins
-
-### FILED 2026-09-20, on a measured defect in the arm that was supposed to catch it
-
-**WHAT WAS MEASURED.** `ops/loop/slots.py` was vendored byte-identical from the headless
-loop of a sibling repository under CS-946, and `THIRD_PARTY.md` went on saying that one
-file in this tree was vendored. Nothing went red. The arm that owned the
-question in `tests/test_third_party_register.py` - since renamed, so it is deliberately
-not named here - read a hand-written `BYTE_PIN_ROSTER` naming one pin module and nothing
-else: an ALLOWLIST wearing a guard's clothes, which can only ever grade the files
-somebody remembered to add. That is the exact complement of the failure case, so the arm
-could never fail for the file that needed it.
-
-**WHAT THE SAME SLICE FIXED, so this item is the residual and not the whole class.** The
-roster is now DERIVED: every test module under `tests/` is scanned for a sha256 literal,
-and each module that spells one is asked which repo-relative `Path` it binds whose bytes
-actually hash to it. The oracle is the BYTES, so a vendoring joins the graded population
-the moment its pin does, and the default for an unregistered pin is RED rather than
-silence. It found `ops/loop/winmutex.py` as well, which no register row had ever named,
-and the register now carries rows for both. The arms are
-`tests/test_third_party_register.py::test_every_byte_pinned_file_is_registered` and
-`tests/test_third_party_register.py::test_every_registered_vendored_file_is_byte_pinned`,
-graded in both directions and each proven by a mutation of the register.
-
-**WHAT IS LEFT, and it is the reason this item exists.** The derivation's oracle is the
-PIN. A file lifted into this tree that nobody pinned AND nobody registered is invisible to
-it, because there is no digest anywhere for its bytes to agree with. Both files found this
-time happened to carry pins written for other reasons - a cross-repo byte-identity contract
-and a fork record - which is luck, not coverage. The register's own gate says an entry is
-written BEFORE the lift; nothing in this tree enforces that, and the two rows filed today
-were both gated after the fact.
-
-**THE SAME SHAPE IS ALREADY ON THE ROADMAP TWICE**, which is why the class matters more
-than the instance: CS-1036 records two sweeps enforced over a HAND-ENUMERATED population
-rather than one derived from the shipped model. A guard whose population is typed by hand
-is green about whatever was typed.
-
-**WHAT WOULD SETTLE IT, and what would not.** Adding a second hand-maintained list of
-expected vendorings would reproduce the defect one file later and must not be accepted as
-the answer. Two oracles are real: a comparison against the sibling trees that carry the
-same relative paths on this machine - which is green-by-skip on a CI runner and so can
-only ever be an advisory second opinion - or a provenance manifest that every tracked file
-must be accounted for in, which is the only form that runs anywhere. The acceptance above
-takes either, and takes neither on a green run alone.
-
-### MEASURED 2026-09-22 - progress: the branded half is graded, the de-branded half is not
-
-`tests/test_unregistered_lift.py::test_no_unaccounted_file_spells_a_sibling_namespace_marker`
-reddens any tracked or untracked-unignored file that spells a sibling repository's item id
-or resource prefix and is neither registered nor the pin module of a registered file. The
-sibling codes are read at run time from the `docs/CHANNEL.md` roster. Proven by
-`test_a_verbatim_sibling_lift_at_a_fresh_path_is_named`, and by an adjudicator plant of
-`ops/loop/slots.py` at a fresh path, which went red naming it. A copy of
-`ops/loop/winmutex.py` at a fresh path stays GREEN - a lift whose header names no sibling
-is still invisible, so the acceptance is NOT met. The remaining oracle is the
-whole-population provenance manifest the acceptance already names; it is not a list of
-expected vendorings and is not forbidden. The branded arm stays after it lands, because it
-also catches a lift that was entered in the manifest as authored here.
-
 ## CS-1168
 
 ### Acceptance
@@ -1438,3 +1363,27 @@ flag: without it the quoted-assignment and high-entropy rules stop catching an
 upper-case assignment spelling, and nothing reddens. The rules live in the frozen
 `tools/precommit_gate.py`, but nothing here requires editing it - the grading side is
 `tools/outbound_gate.py` and the tests.
+
+## CS-1176
+
+### Acceptance
+
+a re-seed of `tools/provenance.tsv` cannot silently launder an unstamped file into the
+authored class. Either the seed refuses unless it is reconstructing exactly the rows a
+committed manifest already held - so a deleted manifest is restored from history, not
+re-derived - or the arm detects a re-seed by comparing the manifest against its own
+committed predecessor and reddens on any row that was added without the stamp tool's
+basis. Proven by mutation: delete the manifest, commit an unstamped lift, re-run the
+seed, and the suite goes red naming the lift; the pristine tree is green in the same
+run. The missing-manifest error message must stop recommending the seed as the fix.
+
+### Full headline
+
+deleting `tools/provenance.tsv` and re-running the one-time seed classifies every
+unstamped file as authored, and nothing notices a re-seed
+
+### FILED 2026-09-22, from the adversary pass that could not refute CS-1165
+
+The seed refuses once a manifest exists, which is why the gap needs a deletion first.
+The missing-manifest message tells the reader to run the seed, which is the one
+instruction that turns an accident into the laundering path.

@@ -79,6 +79,9 @@ each worktree path is its own key), and the general case that presence is not fi
 | Run all drift guards | `python tools/drift_guard.py` |
 | Check documentation size budgets | `python tools/doc_budget.py` |
 | Mirror markdown memory into the recall store | `python tools/memory_sync.py` |
+| Stamp a NEW tracked file into the provenance manifest | `python tools/provenance_stamp.py add <path> --class authored --item CS-NNNN` |
+| Record a rename or a removal in the manifest | `python tools/provenance_stamp.py mv <old> <new>` / `rm <path>` |
+| Check every tracked file is accounted for | `python tools/provenance_stamp.py check` |
 | Live-state probe (SessionStart injection) | `python tools/facts_probe.py` |
 | Tier 1 tests - one area | `python -m pytest tests/<area> -q` |
 | Tier 2 tests - full suite | `python -m pytest tests -q` |
@@ -93,6 +96,13 @@ token in the same bytes. Text that is about to LEAVE this machine goes to
 `tools/outbound_gate.py`, which answers safe-to-send rather than safe-to-commit and
 returns its own closed exit set - documented in that module's docstring, and never
 restated here.
+
+**Every new tracked file needs a manifest row (CS-1165).** `tools/provenance.tsv` must
+account for every tracked and untracked-unignored file, and `tests/test_provenance_manifest.py` reddens pre-push and CI for any file it does not
+list. Stamp it with the tool in the same commit; never hand-edit the TSV, and never
+answer a near-duplicate refusal by rewording the file - a refusal is the guard doing
+its job. `bootstrap` is a one-time seed that refuses once the manifest exists; deleting
+the manifest to re-run it would classify every unstamped file as authored, so do not.
 
 **Never run a bare recursive test invocation from the repo root.** Always name the target
 directory explicitly. A bare sweep from the root can walk runtime state directories and

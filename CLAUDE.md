@@ -98,6 +98,7 @@ computes. A layer that reaches past its neighbor is a design bug.
 | `tools/facts_probe.py` | Live-state fact set. Run BY HAND from `/drift-guard` and `/sync-docs`; NOT a hook |
 | `tools/inbox_watch.py` | Unread `moon_sync_inbox/` items, payloads included. Listing never acknowledges. Wired ONLY in gitignored local settings, so a fresh clone and every worktree run NO watcher - CS-952 |
 | `tools/memory_sync.py` | Mirrors markdown memory into the recall store, idempotent |
+| `tools/provenance_stamp.py` | Stamps each new tracked file into `tools/provenance.tsv`; the manifest arm reddens any file it lacks - CS-1165 |
 | `tools/dashboard_probe.py` | The SCRIPTED answer to "does the dashboard run". Launch, poll, assert a JSON key and a DOM node, one screenshot, exit code decides |
 | `tools/headless-queue.md` | The `queue` lane worker's prompt. TRACKED, because a worktree is a fresh checkout and carries no gitignored file |
 | `ops/loop/queue_loop.py` | The lane driver. Repeats the one-row worker AND owns every wait, so nothing can cancel a run mid-grade |

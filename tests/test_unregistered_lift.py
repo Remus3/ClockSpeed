@@ -35,8 +35,9 @@ that shape - a fork whose header was retargeted at this project - and a copy of
 it at a fresh path would pass this module green. No content signal inside this
 tree can see such a file; only a comparison against the sibling trees (which
 this suite must never read) or a provenance manifest every tracked file is
-entered in could. This module narrows the CS-1165 class to that de-branded
-residue; it does not close it.
+entered in could. The manifest now exists: ``tests/test_provenance_manifest.py``
+grades the de-branded residue against ``tools/provenance.tsv``, so this module
+is the branded half of CS-1165 and that one the rest.
 """
 
 from __future__ import annotations
