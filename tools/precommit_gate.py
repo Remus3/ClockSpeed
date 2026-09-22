@@ -520,7 +520,7 @@ SECRET_PATTERNS: list[tuple[re.Pattern[str], str]] = [
     # commit on a game-data identifier. ZERO capturing groups: check_secrets
     # takes the last group, and a capture would narrow what PLACEHOLDER_RE sees.
     (
-        re.compile(r"\b" + _ANT_PREFIX + r"(?:admin|api)\d{2}-" + _B64ISH + "{20,}"),
+        re.compile(_ANT_PREFIX + r"(?:admin|api)\d{2}-" + _B64ISH + "{20,}"),
         "Anthropic API or admin key (vendor prefix)",
     ),
 ]

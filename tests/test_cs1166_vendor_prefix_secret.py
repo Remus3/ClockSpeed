@@ -98,6 +98,10 @@ CATCH_SPELLINGS = {
     "dict-repr": repr({"api" + "_key": API_TOKEN}),
     "env-assign": _ENV_NAME + "=" + API_TOKEN,
     "env-export": "export " + _ENV_NAME + "=" + ADMIN_TOKEN,
+    # After a word character, where a leading word boundary would not hold.
+    "url-encoded": "api" + "_key%3D" + API_TOKEN,
+    "json-escaped-newline": "line one" + chr(92) + "n" + ADMIN_TOKEN,
+    "glued-to-name": "KEY" + API_TOKEN,
 }
 
 
@@ -110,8 +114,11 @@ CATCH_SPELLINGS = {
 def test_the_vendor_prefix_rule_catches_every_spelling(gate: ModuleType, spelling: str) -> None:
     """Each of the five spellings is caught BY THE NEW RULE, not incidentally.
 
-    This arm failed on all five before the rule existed - the gate returned no
-    finding at all for any of them.
+    This arm failed on the first five before the rule existed - the gate
+    returned no finding at all for any of them. The last three failed against
+    the first version of the rule, whose leading word boundary could not hold
+    after a word character: a URL-encoded assignment, a JSON-escaped newline
+    and a token glued to a name.
     """
     found = reasons(gate, CATCH_SPELLINGS[spelling])
     assert NEW_REASON in found, spelling + " was not caught by the vendor-prefix rule"
@@ -134,8 +141,6 @@ def test_the_new_rule_has_zero_capturing_groups(gate: ModuleType) -> None:
 
 FALSE_POSITIVE_LINES = [
     "the " + _PFX + " prefix names the family; prose about it is not a key",
-    "task" + "-ant" + "-" + _API + _BODY,
-    "de" + _PFX + _API + _BODY,
     _PFX + _API + "Q7vR2mZ9",
     _PFX + "other" + "01" + "-" + _BODY,
     "KEY: mProductionBoostPowerConsumptionExponent",
@@ -147,9 +152,11 @@ def test_near_miss_lines_score_clean(gate: ModuleType, index: int) -> None:
     """This arm is green BEFORE and AFTER the new rule, by design.
 
     It is NOT evidence the rule works - arm 1 is. It exists so a rule widened
-    to prose, to an embedded word, to a short body, to a different family or
-    to the recorded game-data identifier that once blocked a real commit goes
-    red here rather than on an author's commit.
+    to prose, to a short body, to a different family or to the recorded
+    game-data identifier that once blocked a real commit goes red here rather
+    than on an author's commit. A prefix embedded after a word character is
+    deliberately NOT here: the rule carries no leading boundary, and arm 1
+    requires that spelling to be caught.
     """
     assert reasons(gate, FALSE_POSITIVE_LINES[index]) == []
 
@@ -186,19 +193,23 @@ def test_the_placeholder_token_is_caught_once_the_allowlist_is_disabled(
 # --------------------------------------------------------------------------
 
 _Q = '"'
-NEIGHBOUR_CONTROLS = {
-    "PEM private key block": "-----BEGIN " + "RSA PRIVATE " + "KEY-----",
-    "PuTTY private key file": "PuTTY-User-" + "Key-File-" + "2",
-    "AWS access key id": "AKIA" + ("Q7" * 8),
-    "GitHub token": "ghp" + "_" + ("Q7vR" * 6),
-    "GitHub fine-grained personal access token": "github" + "_pat_" + ("Q7vR" * 6),
-    "Slack token": "xox" + "b-" + ("Q7vR" * 4),
-    "Google API key": "AIza" + ("Q7vR2mZ" * 5),
-    "bearer token": "Bea" + "rer " + ("Q7vR" * 6),
+NEIGHBOUR_CONTROLS: dict[str, tuple[str, ...]] = {
+    "PEM private key block": ("-----BEGIN " + "RSA PRIVATE " + "KEY-----",),
+    "PuTTY private key file": ("PuTTY-User-" + "Key-File-" + "2",),
+    "AWS access key id": ("AKIA" + ("Q7" * 8),),
+    "GitHub token": ("ghp" + "_" + ("Q7vR" * 6),),
+    "GitHub fine-grained personal access token": ("github" + "_pat_" + ("Q7vR" * 6),),
+    "Slack token": ("xox" + "b-" + ("Q7vR" * 4),),
+    "Google API key": ("AIza" + ("Q7vR2mZ" * 5),),
+    "bearer token": ("Bea" + "rer " + ("Q7vR" * 6),),
     "credential assigned a quoted literal of 16 or more characters": (
-        "pass" + "word = " + _Q + ("Q7vR" * 5) + _Q
+        "pass" + "word = " + _Q + ("Q7vR" * 5) + _Q,
     ),
-    "credential assigned a bare high-entropy literal": "session" + "_key=" + ("a1b2" * 10),
+    # Two controls: the hex branch, then the base64-shaped branch.
+    "credential assigned a bare high-entropy literal": (
+        "session" + "_key=" + ("a1b2" * 10),
+        "session" + "_key=" + ("Q7vR2mZ9" * 6),
+    ),
 }
 
 
@@ -208,10 +219,23 @@ def test_every_existing_rule_has_a_named_control(gate: ModuleType) -> None:
     assert existing == set(NEIGHBOUR_CONTROLS)
 
 
-@pytest.mark.parametrize("reason", sorted(NEIGHBOUR_CONTROLS))
-def test_each_existing_rule_still_fires_on_its_own_control(gate: ModuleType, reason: str) -> None:
-    """Per rule, not per count: the named rule itself must report its control."""
-    assert reason in reasons(gate, NEIGHBOUR_CONTROLS[reason])
+NEIGHBOUR_CASES = [
+    (reason, index)
+    for reason in sorted(NEIGHBOUR_CONTROLS)
+    for index in range(len(NEIGHBOUR_CONTROLS[reason]))
+]
+
+
+@pytest.mark.parametrize(("reason", "index"), NEIGHBOUR_CASES)
+def test_each_existing_rule_still_fires_on_its_own_control(
+    gate: ModuleType, reason: str, index: int
+) -> None:
+    """Per rule, not per count: the named rule itself must report its control.
+
+    The high-entropy rule has two branches, hex and base64-shaped, and each
+    carries its own control, so one branch cannot stay green for the other.
+    """
+    assert reason in reasons(gate, NEIGHBOUR_CONTROLS[reason][index])
 
 
 # --------------------------------------------------------------------------
