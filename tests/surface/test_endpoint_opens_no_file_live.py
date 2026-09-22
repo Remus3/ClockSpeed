@@ -8,26 +8,49 @@ an opener reached through a runtime-built name such as
 ``getattr(builtins, "op" + "en")``. Both were planted against a scratch copy
 before this module was written, and the static arms stayed green under both.
 
-This module drives each endpoint's real handler with the file-opening surface
-instrumented, and fails naming the endpoint when anything is opened DURING THE
-REQUEST. Two independent recorders are armed for the request call only:
+This module drives each endpoint through the SAME route table and matcher the
+real server dispatches with - ``routes.build_routes``, ``server.routing`` and
+``server.match_route`` - with the file-opening surface instrumented, and fails
+naming the endpoint when anything is opened DURING THE REQUEST. Two independent
+recorders are armed for the request calls only:
 
 a. WRAPPERS over ``builtins.open``, ``io.open``, ``os.open`` and
    ``pathlib.Path.open`` / ``read_text`` / ``read_bytes``. These name the
    channel an open went through.
-b. AN AUDIT HOOK on the ``open`` event, which CPython raises from the C
-   implementation of every one of those, so a reference to the opener captured
-   before the wrappers were installed (``_io.open``) is still seen.
+b. AN AUDIT HOOK on every file-reaching audit event in :data:`_FILE_EVENTS` -
+   ``open`` (raised from C by every opener above, ``io.FileIO``,
+   ``io.open_code`` and a loader's ``get_data``), ``sqlite3.connect``,
+   ``mmap.__new__``, the ``tempfile`` and ``shutil`` events, the Windows
+   ``_winapi.CreateFile`` event, and the ``ctypes`` foreign-call events. The
+   last are recorded because a direct ``CreateFileW`` through ``ctypes``
+   raises no ``open`` event at all; recording EVERY foreign call is
+   deliberately wider than "opens a file", and the pristine arms show no
+   endpoint makes one.
 
-THE RECORDING IS SCOPED TO ONE HANDLER CALL ON ONE THREAD. The handler is
-called once UNRECORDED first, so a lazy import the request path performs the
-first time it runs - which reads a module file - is spent before recording
-starts rather than read as the endpoint opening a file.
+THE RECORDING IS ARMED ON EVERY THREAD. An endpoint that starts a thread which
+opens a file, and joins it, opened a file during the request.
+
+THE FIRST CALL IS RECORDED. There is no unrecorded warm-up, so an endpoint that
+opens a file only once and caches the result is caught on the call that did
+it. The one exclusion is the import machinery reading a module's own source,
+bytecode or extension file: an ``open`` event whose immediate Python caller is
+frozen import code running under ``_find_and_load``. The decision is made in
+the hook from the call stack and never from the path, which is not kept. A
+direct ``loader.get_data(...)`` call is NOT under ``_find_and_load`` and is
+recorded, and so is an open made by a module's own top-level code while it is
+imported, whose immediate caller is that module rather than the machinery.
 
 THE RECORDER IS PROVED LIVE BY A POSITIVE CONTROL PER ENDPOINT PER CHANNEL: a
 provider that opens a file when the handler asks it for its value, which is an
 open made from inside the request path. A recorder that sees nothing would pass
-every twin below for that reason alone.
+every twin below for that reason alone. A NEGATIVE control performs a fresh
+import during the first recorded call and asserts it is NOT recorded, so the
+import exclusion is shown to be what keeps the pristine arms green.
+
+NAMED RESIDUAL. A foreign call that opens a file through a library already
+loaded and a function pointer already resolved raises ``ctypes.call_function``,
+which is recorded; a C extension module that opens a file in its own C code
+raises no audit event at all and is invisible to this module by construction.
 
 NO PATH IS RECORDED. The recorders keep only the fixed channel name, so a
 failure report names the endpoint and the channel and never renders a file
@@ -40,16 +63,20 @@ from __future__ import annotations
 import _io
 import builtins
 import contextlib
+import ctypes
+import importlib
 import io
 import os
 import pathlib
+import sqlite3
 import sys
 import threading
 from typing import TYPE_CHECKING, Final
 
 import pytest
 
-from clockspeed.surface.api import health, registry, world
+from clockspeed.surface import server
+from clockspeed.surface.api import contract, health, registry, routes, world
 from clockspeed.surface.api import map as map_endpoint
 from tests.solve import synthetic as solve_synthetic
 from tests.surface import test_map as map_fixtures
@@ -57,21 +84,58 @@ from tests.surface import test_world as world_fixtures
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterator
-
-    from clockspeed.surface.api import contract
+    from types import FrameType
 
 #: The endpoints whose static arm this module twins. Asserted before any sweep.
 EXPECTED_ENDPOINTS: Final = 4
 
-#: The channels the positive control opens through. Asserted before any sweep.
-EXPECTED_CONTROLS: Final = 5
+#: The positive controls. Asserted before any sweep.
+EXPECTED_CONTROLS: Final = 11
+
+#: How many recorded requests each drive makes: the first call and a second.
+RECORDED_CALLS: Final = 2
 
 #: The file every control opens: this module's own source, read-only, tracked,
 #: and carrying nothing personal.
 _OWN_SOURCE: Final = pathlib.Path(__file__)
 
-#: The audit event CPython raises for every file open.
-_AUDIT_OPEN: Final = "open"
+#: Every audit event that reaches a file, or that runs foreign code which could.
+_FILE_EVENTS: Final = frozenset(
+    {
+        "open",
+        "sqlite3.connect",
+        "sqlite3.connect/handle",
+        "mmap.__new__",
+        "tempfile.mkstemp",
+        "tempfile.mkdtemp",
+        "shutil.copyfile",
+        "shutil.copymode",
+        "shutil.copystat",
+        "shutil.copytree",
+        "shutil.move",
+        "shutil.rmtree",
+        "shutil.make_archive",
+        "shutil.unpack_archive",
+        "_winapi.CreateFile",
+        "_winapi.CreateNamedPipe",
+        "msvcrt.open_osfhandle",
+        "ctypes.dlopen",
+        "ctypes.dlsym",
+        "ctypes.call_function",
+    }
+)
+
+#: The code objects the import machinery runs from.
+_FROZEN_IMPORT: Final = frozenset(
+    {
+        "<frozen importlib._bootstrap>",
+        "<frozen importlib._bootstrap_external>",
+        "<frozen zipimport>",
+    }
+)
+
+#: The frame that marks an import in flight.
+_IMPORT_IN_FLIGHT: Final = "_find_and_load"
 
 
 # ---------------------------------------------------------------------------
@@ -80,25 +144,47 @@ _AUDIT_OPEN: Final = "open"
 
 
 class _Recorder:
-    """Holds whether recording is armed, on which thread, and what it saw."""
+    """Holds whether recording is armed and what it saw, across every thread."""
 
     def __init__(self) -> None:
         """Start disarmed with nothing seen."""
         self.armed = False
-        self.thread: int | None = None
         self.seen: list[str] = []
+        self.lock = threading.Lock()
 
     def note(self, channel: str) -> None:
-        """Record one open, if armed and on the armed thread.
+        """Record one open, if armed, from whichever thread made it.
 
         Args:
             channel: The fixed channel name. Never a path.
         """
-        if self.armed and threading.get_ident() == self.thread:
-            self.seen.append(channel)
+        if self.armed:
+            with self.lock:
+                self.seen.append(channel)
 
 
 _RECORDER: Final = _Recorder()
+
+
+def _import_machinery_open() -> bool:
+    """Whether the open being audited is the import system loading a module.
+
+    Decided from the call stack alone. Frame 0 is this function and frame 1 the
+    hook; frame 2 is the Python frame that called the C opener.
+
+    Returns:
+        True when that caller is frozen import code AND an import is in flight.
+    """
+    caller = sys._getframe(2)  # noqa: SLF001 - the stack is the only non-path evidence
+    if caller.f_code.co_filename not in _FROZEN_IMPORT:
+        return False
+    frame: FrameType | None = caller
+    while frame is not None:
+        code = frame.f_code
+        if code.co_filename in _FROZEN_IMPORT and code.co_name == _IMPORT_IN_FLIGHT:
+            return True
+        frame = frame.f_back
+    return False
 
 
 def _audit(event: str, _args: tuple[object, ...]) -> None:
@@ -108,8 +194,11 @@ def _audit(event: str, _args: tuple[object, ...]) -> None:
         event: The audit event name.
         _args: The event arguments, which carry the path and are not kept.
     """
-    if event == _AUDIT_OPEN:
-        _RECORDER.note("audit:open")
+    if not _RECORDER.armed or event not in _FILE_EVENTS:
+        return
+    if event == "open" and _import_machinery_open():
+        return
+    _RECORDER.note("audit:" + event)
 
 
 # An audit hook cannot be removed, so it is installed once per process and
@@ -148,7 +237,7 @@ _PATCHED: Final = (
 
 @contextlib.contextmanager
 def _recording() -> Iterator[list[str]]:
-    """Arm both recorders for the body of the block, on this thread only.
+    """Arm both recorders for the body of the block, on every thread.
 
     Yields:
         The live list of channel names seen while armed.
@@ -157,13 +246,11 @@ def _recording() -> Iterator[list[str]]:
     for (owner, name, channel), (_, _, original) in zip(_PATCHED, saved, strict=True):
         setattr(owner, name, _wrap(channel, original))
     _RECORDER.seen = []
-    _RECORDER.thread = threading.get_ident()
     _RECORDER.armed = True
     try:
         yield _RECORDER.seen
     finally:
         _RECORDER.armed = False
-        _RECORDER.thread = None
         for owner, name, original in saved:
             setattr(owner, name, original)
 
@@ -220,38 +307,77 @@ class _Held:
         return self._registry
 
 
-def _health(side_effect: Callable[[], None]) -> contract.Handler:
-    held = _Held(object(), object(), side_effect)
-    return health.make_handler(held, held, {})
+def _health_inputs() -> tuple[object, object]:
+    return world_fixtures.canary_world(), solve_synthetic.solve_registry()
 
 
-def _map(side_effect: Callable[[], None]) -> contract.Handler:
+def _map_inputs() -> tuple[object, object]:
     extractor = map_fixtures.miner_extractor()
-    held = _Held(
-        map_fixtures.canary_world(),
-        map_fixtures.fixture_registry(extractor=extractor),
-        side_effect,
-    )
-    return map_endpoint.make_handler(held, held)  # type: ignore[arg-type]
+    return map_fixtures.canary_world(), map_fixtures.fixture_registry(extractor=extractor)
 
 
-def _world(side_effect: Callable[[], None]) -> contract.Handler:
-    held = _Held(world_fixtures.canary_world(), None, side_effect)
-    return world.make_handler(held)  # type: ignore[arg-type]
+def _world_inputs() -> tuple[object, object]:
+    return world_fixtures.canary_world(), None
 
 
-def _registry(side_effect: Callable[[], None]) -> contract.Handler:
-    held = _Held(None, solve_synthetic.solve_registry(), side_effect)
-    return registry.make_handler(held)  # type: ignore[arg-type]
+def _registry_inputs() -> tuple[object, object]:
+    return None, solve_synthetic.solve_registry()
 
 
-#: Each endpoint's name and the builder of its real handler.
-_ENDPOINTS: Final[tuple[tuple[str, Callable[[Callable[[], None]], contract.Handler]], ...]] = (
-    (health.ENDPOINT, _health),
-    (map_endpoint.ENDPOINT, _map),
-    (world.ENDPOINT, _world),
-    (registry.ENDPOINT, _registry),
+#: Each endpoint's template and the builder of what its providers hold.
+_ENDPOINTS: Final[tuple[tuple[str, Callable[[], tuple[object, object]]], ...]] = (
+    (health.ENDPOINT, _health_inputs),
+    (map_endpoint.ENDPOINT, _map_inputs),
+    (world.ENDPOINT, _world_inputs),
+    (registry.ENDPOINT, _registry_inputs),
 )
+
+
+def _handler_for(
+    template: str, inputs: Callable[[], tuple[object, object]], side_effect: Callable[[], None]
+) -> tuple[contract.Handler, dict[str, str]]:
+    """Resolve an endpoint's handler through the table the real server builds.
+
+    Args:
+        template: The endpoint template, used as the request path.
+        inputs: The builder of what the providers hold.
+        side_effect: What the providers run on every question.
+
+    Returns:
+        The GET handler the server would dispatch to, and the path captures.
+    """
+    world_value, registry_value = inputs()
+    held = _Held(world_value, registry_value, side_effect)
+    table = server.routing(routes.build_routes(held, held))  # type: ignore[arg-type]
+    matched = server.match_route(table, template)
+    assert matched is not None, template + " is not in the server's table"
+    resolved, captured = matched
+    assert resolved == template, template
+    return table[resolved]["GET"], captured
+
+
+def _drive(
+    template: str, inputs: Callable[[], tuple[object, object]], side_effect: Callable[[], None]
+) -> tuple[list[str], list[int]]:
+    """Resolve the handler, then record its FIRST call and a second one.
+
+    Args:
+        template: The endpoint template.
+        inputs: The builder of what the providers hold.
+        side_effect: What the providers run on every question.
+
+    Returns:
+        The channel names seen, and the status of each recorded response.
+    """
+    handler, captured = _handler_for(template, inputs, side_effect)
+    with _recording() as seen:
+        statuses = [handler(dict(captured)).http_status for _ in range(RECORDED_CALLS)]
+    return list(seen), statuses
+
+
+# ---------------------------------------------------------------------------
+# The positive controls - each returns a fresh side effect
+# ---------------------------------------------------------------------------
 
 
 def _open_builtin() -> None:
@@ -259,59 +385,114 @@ def _open_builtin() -> None:
         pass
 
 
-def _open_os() -> None:
-    os.close(os.open(_OWN_SOURCE, os.O_RDONLY))
+def _builtin() -> Callable[[], None]:
+    return _open_builtin
 
 
-def _open_read_text() -> None:
-    _OWN_SOURCE.read_text(encoding="ascii")
+def _os() -> Callable[[], None]:
+    return lambda: os.close(os.open(_OWN_SOURCE, os.O_RDONLY))
 
 
-def _open_runtime_name() -> None:
-    opener = getattr(builtins, "op" + "en")
-    with opener(_OWN_SOURCE, "rb"):
-        pass
+def _read_text() -> Callable[[], None]:
+    def effect() -> None:
+        _OWN_SOURCE.read_text(encoding="ascii")
+
+    return effect
 
 
-def _open_captured() -> None:
+def _runtime_name() -> Callable[[], None]:
+    def effect() -> None:
+        opener = getattr(builtins, "op" + "en")
+        with opener(_OWN_SOURCE, "rb"):
+            pass
+
+    return effect
+
+
+def _captured() -> Callable[[], None]:
     # A reference to the C opener that no wrapper replaces - only the audit
     # hook can see an open made through it.
-    with _io.open(_OWN_SOURCE, "rb"):
-        pass
+    def effect() -> None:
+        with _io.open(_OWN_SOURCE, "rb"):
+            pass
+
+    return effect
 
 
-#: Each control's name, its opener, and the channel that MUST see it.
-_CONTROLS: Final = (
-    ("builtin", _open_builtin, "builtins.open"),
-    ("os", _open_os, "os.open"),
-    ("read_text", _open_read_text, "Path.read_text"),
-    ("runtime_name", _open_runtime_name, "builtins.open"),
-    ("captured", _open_captured, "audit:open"),
+def _file_io() -> Callable[[], None]:
+    return lambda: io.FileIO(_OWN_SOURCE).close()
+
+
+def _loader_get_data() -> Callable[[], None]:
+    # A loader read made directly, NOT under an import - the import exclusion
+    # must not swallow it even though its immediate caller is frozen code.
+    def effect() -> None:
+        loader = health.__spec__.loader if health.__spec__ is not None else None
+        assert loader is not None
+        loader.get_data(health.__file__)  # type: ignore[attr-defined]
+
+    return effect
+
+
+def _thread() -> Callable[[], None]:
+    def effect() -> None:
+        worker = threading.Thread(target=_open_builtin)
+        worker.start()
+        worker.join()
+
+    return effect
+
+
+def _first_call_only() -> Callable[[], None]:
+    done: list[bool] = []
+
+    def effect() -> None:
+        if not done:
+            done.append(True)
+            _open_builtin()
+
+    return effect
+
+
+def _sqlite() -> Callable[[], None]:
+    def effect() -> None:
+        uri = _OWN_SOURCE.as_uri() + "?mode=ro"
+        with contextlib.suppress(sqlite3.Error):
+            sqlite3.connect(uri, uri=True).close()
+
+    return effect
+
+
+def _foreign_call() -> Callable[[], None]:
+    return lambda: ctypes.pythonapi.Py_IsInitialized() and None
+
+
+#: Each control's name, its factory, and the channels that MUST each see it.
+_CONTROLS: Final[tuple[tuple[str, Callable[[], Callable[[], None]], tuple[str, ...]], ...]] = (
+    ("builtin", _builtin, ("builtins.open", "audit:open")),
+    ("os", _os, ("os.open", "audit:open")),
+    ("read_text", _read_text, ("Path.read_text", "audit:open")),
+    ("runtime_name", _runtime_name, ("builtins.open", "audit:open")),
+    ("captured", _captured, ("audit:open",)),
+    ("file_io", _file_io, ("audit:open",)),
+    ("loader_get_data", _loader_get_data, ("audit:open",)),
+    ("thread", _thread, ("builtins.open", "audit:open")),
+    ("first_call_only", _first_call_only, ("builtins.open", "audit:open")),
+    ("sqlite", _sqlite, ("audit:sqlite3.connect",)),
+    ("foreign_call", _foreign_call, ("audit:ctypes.call_function",)),
 )
 
-
-def _drive(
-    build: Callable[[Callable[[], None]], contract.Handler], side_effect: Callable[[], None]
-) -> list[str]:
-    """Build the handler, warm it once unrecorded, then record one request.
-
-    Args:
-        build: The endpoint's handler builder.
-        side_effect: What the provider runs on every question.
-
-    Returns:
-        The channel names seen during the recorded request.
-    """
-    handler = build(side_effect)
-    handler({})
-    with _recording() as seen:
-        handler({})
-    return list(seen)
+#: A pure stdlib module this module never imports, re-imported fresh by the
+#: negative control.
+_FRESH_IMPORT: Final = "colorsys"
 
 
 # ---------------------------------------------------------------------------
 # The arms
 # ---------------------------------------------------------------------------
+
+
+_ENDPOINT_IDS: Final = [template for template, _ in _ENDPOINTS]
 
 
 def test_the_populations_are_the_sizes_this_module_claims() -> None:
@@ -320,38 +501,77 @@ def test_the_populations_are_the_sizes_this_module_claims() -> None:
     assert endpoints == EXPECTED_ENDPOINTS, endpoints
     controls = len(_CONTROLS)
     assert controls == EXPECTED_CONTROLS, controls
-    distinct = len({name for name, _ in _ENDPOINTS})
+    distinct = len(set(_ENDPOINT_IDS))
     assert distinct == EXPECTED_ENDPOINTS, distinct
 
 
-@pytest.mark.parametrize(("name", "build"), _ENDPOINTS, ids=[name for name, _ in _ENDPOINTS])
+@pytest.mark.parametrize(("template", "inputs"), _ENDPOINTS, ids=_ENDPOINT_IDS)
 def test_the_endpoint_opens_no_file_during_a_request(
-    name: str, build: Callable[[Callable[[], None]], contract.Handler]
+    template: str, inputs: Callable[[], tuple[object, object]]
 ) -> None:
-    """The twin. Nothing is opened, through any channel, while the request runs."""
-    seen = _drive(build, _no_open)
+    """The twin. Nothing is opened, on any thread, on the first call or after."""
+    seen, statuses = _drive(template, inputs, _no_open)
+    answered = statuses.count(contract.HTTP_OK)
+    assert answered == RECORDED_CALLS, template + " did not answer 200 on every call"
     opened = len(seen)
     channels = str(sorted(set(seen)))
-    assert opened == 0, name + " opened a file during the request via " + channels
+    assert opened == 0, template + " opened a file during the request via " + channels
 
 
-@pytest.mark.parametrize(("name", "build"), _ENDPOINTS, ids=[name for name, _ in _ENDPOINTS])
+@pytest.mark.parametrize(("template", "inputs"), _ENDPOINTS, ids=_ENDPOINT_IDS)
 @pytest.mark.parametrize(
-    ("control", "opener", "channel"), _CONTROLS, ids=[control for control, _, _ in _CONTROLS]
+    ("control", "factory", "channels"), _CONTROLS, ids=[control for control, _, _ in _CONTROLS]
 )
 def test_the_recorder_sees_an_open_made_from_inside_the_request(
-    name: str,
-    build: Callable[[Callable[[], None]], contract.Handler],
+    template: str,
+    inputs: Callable[[], tuple[object, object]],
     control: str,
-    opener: Callable[[], None],
-    channel: str,
+    factory: Callable[[], Callable[[], None]],
+    channels: tuple[str, ...],
 ) -> None:
     """The positive control. A provider the handler asks opens a file."""
-    seen = _drive(build, opener)
-    through_channel = seen.count(channel)
-    through_audit = seen.count("audit:open")
-    assert through_channel > 0, name + " / " + control + ": the channel recorder saw nothing"
-    assert through_audit > 0, name + " / " + control + ": the audit recorder saw nothing"
+    seen, _statuses = _drive(template, inputs, factory())
+    blind = [channel for channel in channels if seen.count(channel) == 0]
+    missed = len(blind)
+    assert missed == 0, template + " / " + control + ": blind recorder(s) " + str(blind)
+
+
+@pytest.mark.parametrize(("template", "inputs"), _ENDPOINTS, ids=_ENDPOINT_IDS)
+def test_a_fresh_import_on_the_first_call_is_not_read_as_an_open(
+    template: str, inputs: Callable[[], tuple[object, object]]
+) -> None:
+    """The negative control. The import machinery's own reads are excluded."""
+    imported: list[bool] = []
+
+    def effect() -> None:
+        if not imported:
+            imported.append(True)
+            sys.modules.pop(_FRESH_IMPORT, None)
+            importlib.import_module(_FRESH_IMPORT)
+
+    seen, _statuses = _drive(template, inputs, effect)
+    ran = len(imported)
+    assert ran == 1, ran
+    opened = len(seen)
+    assert opened == 0, template + ": an import was read as an open via " + str(sorted(set(seen)))
+
+
+def test_the_fresh_import_really_reads_a_file_when_not_excluded() -> None:
+    """The exclusion is not vacuous: the same import DOES raise an open event."""
+    events: list[str] = []
+
+    def spy(event: str, _args: tuple[object, ...]) -> None:
+        if event == "open" and armed:
+            events.append(event)
+
+    armed = False
+    sys.addaudithook(spy)
+    sys.modules.pop(_FRESH_IMPORT, None)
+    armed = True
+    importlib.import_module(_FRESH_IMPORT)
+    armed = False
+    raised = len(events)
+    assert raised > 0, raised
 
 
 def test_the_recorder_is_disarmed_outside_the_block() -> None:
@@ -361,5 +581,5 @@ def test_the_recorder_is_disarmed_outside_the_block() -> None:
     _open_builtin()
     after = len(seen)
     assert after == 0, after
-    restored = sum(1 for owner, name, _ in _PATCHED if getattr(owner, name).__name__ == "wrapper")
-    assert restored == 0, restored
+    left = sum(1 for owner, name, _ in _PATCHED if getattr(owner, name).__name__ == "wrapper")
+    assert left == 0, left
