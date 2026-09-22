@@ -75,6 +75,17 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-09-22 - CS-1166 - CLOSED. `SECRET_PATTERNS` now carries a rule anchored on the literal vendor prefix of the admin and api key families, with no leading word boundary
+Verification: `python -m pytest tests/test_cs1166_vendor_prefix_secret.py -q -p no:randomly` - the catch arm over eight spellings, the false-positive arm, the placeholder arm measured twice, a positive control per existing rule (two for the high-entropy rule, one per branch), and consumer arms driving the commit gate, the PreToolUse gate, the outbound gate and the sweep. The rule is the `Anthropic API or admin key (vendor prefix)` tuple in `tools/precommit_gate.py::SECRET_PATTERNS`.
+
+WITHIN THE GRANT RECORDED 2026-09-20: one tuple, one fragment constant, four comment lines, zero capturing groups, no path allowlist, no entropy, and a commit separate from CS-946. The condition precedent was run twice, once per commit: the rule over every tracked file found 0 hits, so no pre-existing content was flagged and nothing was re-adjudicated.
+
+FAILED FIRST FOR THE RIGHT REASON: before the rule, 12 of 30 arms were red with the gate returning NO finding - all five spellings, the zero-group arm, the allowlist-disabled placeholder half and all five consumers - while the false-positive arm, the neighbour arm and the allowlist-as-spelled half stayed green as designed.
+
+THE FIRST DRAFT HAD A HOLE AN ADVERSARY FOUND. It led with `\b`, so a key glued to a word character escaped: a URL-encoded `%3D` before it, a JSON-escaped newline before it, or an identifier fused to it. The prefix is distinctive enough to need no boundary, so the boundary was deleted and three catch cases pin it; re-inserting it reddens exactly those three, measured on a mutant whose application was asserted. Two false-positive cases that were the prefix glued after a word character were contradicted by that repair and removed, and the arm's docstring says why.
+
+TWO INDEPENDENT ADVERSARIES (grant scope and vacuity; regex correctness) and a verifier on the repair delta could not refute it. Residual, and owned elsewhere: `PLACEHOLDER_RE` suppresses a realistic key whose body happens to contain a placeholder word - about 0.017 percent of random bodies by measurement - which is CS-1169. Other infixes and the never-committed population are out of this item's scope; the latter is CS-1168.
+
 ### 2026-09-20 - CS-1166 - FROZEN-FILE GRANT. NOT A COMPLETION RECORD. NOTHING CLOSED. CS-1166 STAYS OPEN and this entry does not close it. Granted by an adjudicator BEFORE the edit, and NARROWED from what was asked
 Verification: this record is the grant; the repair closes under its own later entry. The measurement is reproducible by driving `check_secrets` directly with fragment-assembled synthetic tokens and two positive controls. Scope is ONE new tuple in `SECRET_PATTERNS`, at most TWO module-level fragment constants beside the existing ones, and at most SIX comment lines above the tuple. Nothing else in `tools/precommit_gate.py` may change.
 
