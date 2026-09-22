@@ -1332,6 +1332,20 @@ to the guard shard instead: `tests/test_chained_exemption_guard.py`,
 share cached censuses. The largest moved file is far under the guard shard's
 share, so loadfile's largest-file floor does not bind.
 
+**THE FIRST MOVE OVERSHOT, AND THE CORRECTION BALANCES THREE LEGS, NOT TWO.** Run
+35746992343 at 8584af4, the first after the move, put the catch-all well under its
+budget and the guard shard over it. Read test by test, the moved files cost in the
+guard shard what they had cost in the catch-all on run 35739936582; it was the
+guard shard's OWN files - the liveness, mypy-gate and docs-citation heads - that
+ran near twice as slow, matching the pre-CS-1170 runs that CS-1170 cites. So the
+guard reading the move was projected from came off a fast runner, not a shared
+cache split and not loadfile's largest-file floor: one reading is not a baseline.
+The correction handed `tests/test_chained_exemption_guard.py` and
+`tests/test_disposition_sites.py` back to the catch-all and moved
+`tests/test_commit_msg_gate.py` to the save shard, after `tests/test_toolpath.py`,
+so the work spreads over all three legs. The projection it rests on takes each
+leg's per-test speed from run 35746992343 and is a projection until CI reads it.
+
 **DO NOT CLOSE THIS BY MOVING A LEVEL, ADDING A RUNNER OR MARKING TESTS `slow`**,
 for the reasons CS-1170 records. The readings refresh and any `BUDGET_UNMET` or
 `ORDERING_UNMET` change in `tools/tier1_growth.py` wait for the first green runs
@@ -1341,4 +1355,4 @@ after the move, never a projection.
 
 ### Acceptance
 
-on the first CI run after the move the catch-all job reads under its budget and the guard shard stays under the same budget, both read by the lane's own `tier 1 took Ns` line rather than a local profile, and `tests/test_tier1_budget.py` proves every test file runs in exactly one leg of the partition and pins the seven moved files to the guard shard - with no level moved and no test dropped or marked `slow`
+on the first CI run after the move the catch-all job reads under its budget and the guard and save shards stay under the same budget, all three read by the lane's own `tier 1 took Ns` line rather than a local profile, and `tests/test_tier1_budget.py` proves every test file runs in exactly one leg of the partition and pins the five kept files to the guard shard, the two returned files to the catch-all and `tests/test_commit_msg_gate.py` to the save shard - with no level moved and no test dropped or marked `slow`

@@ -2564,16 +2564,23 @@ def test_the_toolpath_guard_runs_first_in_the_save_shard_and_not_in_the_guard_sh
     )
 
 
-#: The files CS-1173 moved from the catch-all shard to the guard shard.
+#: The files CS-1173 moved from the catch-all shard to the guard shard and kept there.
 REBALANCED_TO_GUARDS = (
-    "tests/test_chained_exemption_guard.py",
     "tests/test_archive_rot.py",
-    "tests/test_disposition_sites.py",
     "tests/test_sphinx_roles.py",
     "tests/test_handler_exception_rendering.py",
     "tests/test_locals_rendering.py",
     "tests/test_assertion_rendering.py",
 )
+
+#: The files CS-1173's correction handed back to the catch-all shard.
+RETURNED_TO_CATCH_ALL = (
+    "tests/test_chained_exemption_guard.py",
+    "tests/test_disposition_sites.py",
+)
+
+#: The guard file CS-1173's correction moved to the save shard.
+REBALANCED_TO_SAVE = "tests/test_commit_msg_gate.py"
 
 
 def test_the_moved_guard_files_run_in_the_guard_shard_and_not_in_the_catch_all() -> None:
@@ -2582,19 +2589,27 @@ def test_the_moved_guard_files_run_in_the_guard_shard_and_not_in_the_catch_all()
     CS-1170 moved the guard shard's heaviest file out, and the next CI run left
     the guard shard far under its budget while the catch-all job, whose pytest
     step is most of its duration, read over it. So a block of guard-family files
-    from the catch-all's measured head moved to the guard shard. No level moved
-    and no test was dropped: the partition arm above still proves every file
-    runs in exactly one leg, and this arm pins WHICH leg.
+    from the catch-all's measured head moved to the guard shard.
 
-    The three rendering files move TOGETHER on purpose. They share `@cache`d
+    THE FIRST MOVE OVERSHOT, AND THIS ARM PINS THE CORRECTION. The guard reading
+    it was projected from came off a fast runner: on the run after the move the
+    moved files cost what they had cost in the catch-all, while the guard
+    shard's OWN files ran at the speed every earlier reading shows, and the
+    shard read over its budget. So two moved files went back to the catch-all
+    and one guard file went to the save shard, balancing all three legs rather
+    than two. No level moved and no test was dropped: the partition arm above
+    still proves every file runs in exactly one leg, and this arm pins WHICH leg.
+
+    The three rendering files stay TOGETHER on purpose. They share `@cache`d
     helpers in `tests/assertion_rendering_guard.py` and
     `tests/locals_rendering_guard.py`, so splitting them across shards would pay
     for those censuses twice.
     """
     shards = suite_shards()
-    for job_id in (JOB_ID, GUARD_JOB_ID):
+    for job_id in (JOB_ID, GUARD_JOB_ID, SAVE_JOB_ID):
         assert job_id in shards, f"no {job_id!r} shard runs {SUITE_STEP!r}: {sorted(shards)}"
     guard_targets = shard_targets(shards[GUARD_JOB_ID])
+    save_targets = shard_targets(shards[SAVE_JOB_ID])
     catch_all_ignores = shard_ignores(shards[JOB_ID])
     not_in_guards = [path for path in REBALANCED_TO_GUARDS if path not in guard_targets]
     assert not_in_guards == [], (
@@ -2607,6 +2622,22 @@ def test_the_moved_guard_files_run_in_the_guard_shard_and_not_in_the_catch_all()
     assert not_ignored == [], (
         f"the {JOB_ID!r} shard still runs {not_ignored}; a moved file it does not"
         f" ignore runs twice: {catch_all_ignores}"
+    )
+    still_in_guards = [path for path in RETURNED_TO_CATCH_ALL if path in guard_targets]
+    still_ignored = [
+        path for path in RETURNED_TO_CATCH_ALL if IGNORE_PREFIX + path in catch_all_ignores
+    ]
+    assert (still_in_guards, still_ignored) == ([], []), (
+        f"the files CS-1173 handed back to the {JOB_ID!r} shard are still in the"
+        f" {GUARD_JOB_ID!r} shard {still_in_guards} or still ignored by the catch-all"
+        f" {still_ignored}, so the guard shard CS-1173 overfilled is full again"
+    )
+    assert REBALANCED_TO_SAVE not in guard_targets, (
+        f"the {GUARD_JOB_ID!r} shard still names {REBALANCED_TO_SAVE!r}: {guard_targets}"
+    )
+    assert REBALANCED_TO_SAVE in save_targets[1:], (
+        f"the {SAVE_JOB_ID!r} shard must name {REBALANCED_TO_SAVE!r} after its first"
+        f" target; it names {save_targets}"
     )
 
 

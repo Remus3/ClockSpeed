@@ -408,9 +408,7 @@ jobs:
           --ignore=tests/test_toolpath.py
           --ignore=tests/test_precommit_gate.py
           --ignore=tests/test_chained_cause_census.py
-          --ignore=tests/test_chained_exemption_guard.py
           --ignore=tests/test_archive_rot.py
-          --ignore=tests/test_disposition_sites.py
           --ignore=tests/test_sphinx_roles.py
           --ignore=tests/test_handler_exception_rendering.py
           --ignore=tests/test_locals_rendering.py
@@ -599,11 +597,12 @@ jobs:
       # THE OTHER HALF OF THE PARTITION. Explicit target directory, never a bare
       # recursive invocation from the repo root - CONVENTIONS.md section 7.1.
       #
-      # IT ALSO CARRIES ONE GUARD FILE, tests/test_toolpath.py, SINCE CS-1170, and
-      # names it FIRST so `--dist loadfile` hands it to a worker at the start
-      # rather than behind everything else queued. The reason is stated at the
-      # guard shard below; the job id and name are unchanged, because the lane
-      # driver and the tracked readings key on them.
+      # IT ALSO CARRIES TWO GUARD FILES. tests/test_toolpath.py since CS-1170, named
+      # FIRST so `--dist loadfile` hands it to a worker at the start rather than
+      # behind everything else queued, and tests/test_commit_msg_gate.py since
+      # CS-1173's correction. The reasons are stated at the guard shard below; the
+      # job id and name are unchanged, because the lane driver and the tracked
+      # readings key on them.
       #
       # THE ONE `--ignore=` IN THIS LANE IS A DELETION, NOT PARTITION BOOKKEEPING,
       # AND IT IS GOVERNED (CS-1073). Every other ignore in this file sits on the
@@ -642,7 +641,8 @@ jobs:
       # install and no save, exactly what this job demonstrates simultaneously.
       - name: Unit tests
         run: >-
-          python -m pytest tests/test_toolpath.py tests/save -q -n auto --dist loadfile
+          python -m pytest tests/test_toolpath.py tests/save tests/test_commit_msg_gate.py
+          -q -n auto --dist loadfile
           --ignore=tests/save/test_phase4_gate.py
           --durations=15 --durations-min=5.0
 
@@ -761,6 +761,16 @@ jobs:
   # tests/test_secret_sweep.py looked heaviest, but it walks every reachable blob,
   # and CI's shallow checkout has almost none, so it never reached CI's head.
   #
+  # THAT MOVE OVERSHOT, AND THE CORRECTION BALANCES ALL THREE LEGS. On run
+  # 35746992343, the first after it, the catch-all fell well under its budget and
+  # this shard read over it. The moved files cost there what they had cost in the
+  # catch-all; it was this shard's OWN files that ran slower, at the speed the
+  # pre-CS-1170 runs above show - so the reading the move was projected from came
+  # off a fast runner, and a projection from one reading is not a baseline. So
+  # the chained exemption guard and the disposition-site guard went back to the
+  # catch-all and tests/test_commit_msg_gate.py went to the save shard, spreading
+  # the work over three legs instead of trading it between two.
+  #
   # WHAT IS OWED AFTER IT: the tracked readings are refreshed from the first green
   # runs after the move, and only then does tools/tier1_growth.py shrink
   # BUDGET_UNMET - never on a projection.
@@ -809,11 +819,10 @@ jobs:
         run: >-
           python -m pytest
           tests/test_hook_interpreter_ladder.py tests/test_liveness.py
-          tests/test_commit_msg_gate.py tests/test_pre_push_ref_race.py
+          tests/test_pre_push_ref_race.py
           tests/test_mypy_gate.py tests/test_docs_citations.py
           tests/test_precommit_gate.py tests/test_chained_cause_census.py
-          tests/test_chained_exemption_guard.py tests/test_archive_rot.py
-          tests/test_disposition_sites.py tests/test_sphinx_roles.py
+          tests/test_archive_rot.py tests/test_sphinx_roles.py
           tests/test_handler_exception_rendering.py tests/test_locals_rendering.py
           tests/test_assertion_rendering.py
           -q -n auto --dist loadfile
