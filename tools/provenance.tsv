@@ -316,6 +316,7 @@ tests/surface/test_contract.py	authored	CS-601	first-add:CS-601
 tests/surface/test_endpoint_opens_no_file_live.py	authored	CS-1171	first-add:CS-1171
 tests/surface/test_health.py	authored	CS-601	first-add:CS-601
 tests/surface/test_map.py	authored	CS-977	first-add:CS-977
+tests/surface/test_panel_global_scope.py	authored	CS-1026	stamped
 tests/surface/test_panel_map.py	authored	CS-977	first-add:CS-977
 tests/surface/test_panel_optimize.py	authored	CS-962	first-add:CS-962
 tests/surface/test_panel_power.py	authored	CS-962	first-add:CS-962
