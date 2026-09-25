@@ -61,6 +61,7 @@ from __future__ import annotations
 import ast
 import inspect
 import json
+import math
 from fractions import Fraction
 from types import MappingProxyType
 from typing import TYPE_CHECKING, Final
@@ -75,6 +76,7 @@ from clockspeed.save.header import masked_token
 from clockspeed.surface.api import contract
 from clockspeed.surface.api import map as endpoint
 from tests.save import synthetic
+from tests.surface.audit_harness import _MAP_QUARTER_TURNS
 
 if TYPE_CHECKING:
     from collections.abc import Mapping
@@ -1470,11 +1472,15 @@ def test_every_needle_family_is_unique_to_the_value_it_proves() -> None:
         "scale": BUILT_SCALE + NODE_SCALE,
     }
     needles = [str(part) for parts in families.values() for part in parts]
+    # The class names are needles too (``CLASS_NAME_OCCURRENCES``). They join
+    # the overlap sweep only: a class is served as a tally KEY as well as a row
+    # value, so the exact-value measurements below do not apply to them.
+    overlapping = [*needles, NODE_CLASS, BUILT_CLASS]
 
     clashes = [
         (first, second)
-        for index, first in enumerate(needles)
-        for other, second in enumerate(needles)
+        for index, first in enumerate(overlapping)
+        for other, second in enumerate(overlapping)
         if index != other and first in second
     ]
     assert clashes == [], "needle renderings that equal or contain another: " + str(clashes)
@@ -1490,6 +1496,55 @@ def test_every_needle_family_is_unique_to_the_value_it_proves() -> None:
     assert unexplained == [], "needles served more often than row and bounds explain: " + str(
         unexplained
     )
+
+
+def norm_squared(rotation: tuple[object, ...]) -> Fraction:
+    """A quaternion's norm-squared, exactly.
+
+    Args:
+        rotation: Four components, as floats or as the decimal strings the wire
+            carries.
+
+    Returns:
+        The sum of the squared components, as a Fraction.
+    """
+    return sum((Fraction(str(part)) ** 2 for part in rotation), Fraction(0))
+
+
+#: The only entries of the canned map's rotation cycle that are unit, per the
+#: comment on ``_MAP_QUARTER_TURNS``: the identity and the half turn.
+CANNED_UNIT_ENTRIES: Final = (0, 2)
+
+#: The angles the ``_MAP_QUARTER_TURNS`` comment states for entry 1.
+CANNED_ENTRY_ONE_YAW_DEGREES: Final = 45.0
+CANNED_ENTRY_ONE_ANGLE_DEGREES: Final = 120.0
+
+
+def test_the_canned_rotations_are_unit_exactly_where_the_comments_say() -> None:
+    """CS-1021. Every norm and angle the fixture comments state, measured.
+
+    A comment that calls a value unit, or not, is a claim, and the earlier cut
+    of this one named the wrong entries. Exact arithmetic, so "unit" is an
+    equality rather than a tolerance.
+    """
+    unit = tuple(
+        index for index, rotation in enumerate(_MAP_QUARTER_TURNS) if norm_squared(rotation) == 1
+    )
+    assert unit == CANNED_UNIT_ENTRIES, "unit entries: " + str(unit)
+    halves = [index for index, rotation in enumerate(_MAP_QUARTER_TURNS) if index not in unit]
+    off = [index for index in halves if norm_squared(_MAP_QUARTER_TURNS[index]) != Fraction(1, 2)]
+    assert off == [], "entries whose norm-squared is not one half: " + str(off)
+
+    x, y, z, w = (float(part) for part in _MAP_QUARTER_TURNS[1])
+    yaw = math.degrees(math.atan2(2 * (w * z + x * y), 1 - 2 * (y * y + z * z)))
+    angle = math.degrees(2 * math.acos(w))
+    assert math.isclose(yaw, CANNED_ENTRY_ONE_YAW_DEGREES), "atan2 yaw: " + str(yaw)
+    assert math.isclose(angle, CANNED_ENTRY_ONE_ANGLE_DEGREES), "2 acos(w): " + str(angle)
+
+    unit_after_all = [
+        rotation for rotation in (BUILT_ROTATION, NODE_ROTATION) if norm_squared(rotation) == 1
+    ]
+    assert unit_after_all == [], "a rotation documented as not unit is unit: " + str(unit_after_all)
 
 
 def test_the_uniqueness_helper_refuses_an_ambiguous_needle_and_an_absent_one() -> None:

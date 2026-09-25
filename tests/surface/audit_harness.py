@@ -318,15 +318,19 @@ _MAP_STEP: Final = 7919
 #: array of strings, never numbers - because a panel that parsed a number here
 #: would pass the audit and fail on the live wire.
 #:
-#: DELIBERATELY NOT UNIT, AND NOT FOUR QUARTER TURNS (CS-1021). Only the first
-#: two are unit quaternions: the identity and the half turn. The ``0.5`` pair
-#: has a norm-squared of one half, and a real quarter turn about the vertical
-#: axis is ``0.70710678`` in both of its last two components - a value no short
-#: exact decimal spells. These are chosen for SHAPE and exactness, not realism:
-#: the game does not produce the ``0.5`` spellings, and a panel that derived an
-#: angle from them under a unit-norm formula would read 45 degrees rather than
-#: 90. No panel reads an orientation today. The save layer transcribes and
-#: never normalises, so no unit-norm arm belongs there either (CS-1021's ruling).
+#: DELIBERATELY NOT UNIT, AND NOT FOUR QUARTER TURNS (CS-1021). Only entries 0
+#: and 2 are unit quaternions: the identity and the half turn. Entries 1 and 3,
+#: the ``0.5`` pairs, have a norm-squared of one half, and a real quarter turn
+#: about the vertical axis is ``0.70710678`` in both of its last two components
+#: - a value no short exact decimal spells. These are chosen for SHAPE and
+#: exactness, not realism: the game does not produce the ``0.5`` spellings. A
+#: panel that read entry 1 as a yaw through ``atan2(2(wz + xy), 1 - 2(y^2 +
+#: z^2))`` would get 45 degrees rather than 90; through the rotation-angle
+#: formula ``2 * acos(w)`` it would get 120. No panel reads an orientation
+#: today. The save layer transcribes and never normalises, so no unit-norm arm
+#: belongs there either (CS-1021's ruling).
+#: ``test_the_canned_rotations_are_unit_exactly_where_the_comments_say`` in
+#: ``tests/surface/test_map.py`` pins every number in this paragraph.
 _MAP_QUARTER_TURNS: Final = (
     ("0.0", "0.0", "0.0", "1.0"),
     ("0.0", "0.0", "0.5", "0.5"),

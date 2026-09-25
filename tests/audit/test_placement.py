@@ -19,6 +19,7 @@ import math
 import struct
 from collections.abc import Callable, Mapping
 from dataclasses import fields, is_dataclass
+from fractions import Fraction
 from pathlib import Path
 from typing import Final
 
@@ -1016,6 +1017,15 @@ def test_no_orientation_component_reaches_the_model_as_a_float() -> None:
 
     assert [item for item in walked if type(item) is float] == []
     assert [item for item in reachable(model) if type(item) is float] != []
+
+
+def test_the_planted_rotation_is_not_unit_as_its_comment_says() -> None:
+    """CS-1021. ``PLANTED_ROTATION``'s comment calls it deliberately not unit.
+
+    Exact arithmetic, so the claim is an inequality rather than a tolerance.
+    """
+    norm = sum((Fraction(repr(part)) ** 2 for part in PLANTED_ROTATION), Fraction(0))
+    assert norm != 1, "the planted rotation is unit: " + str(norm)
 
 
 def test_every_planted_needle_is_unique_to_the_value_it_proves() -> None:
