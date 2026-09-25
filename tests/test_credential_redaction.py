@@ -51,6 +51,7 @@ happens to be is a control about nothing.
 from __future__ import annotations
 
 import os
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -154,6 +155,72 @@ def test_the_captured_output_renders():
     raise AssertionError("forced, so the captured section is rendered")
 """
 
+#: CS-820 - the secret through a test PARAMETER, the door the item names:
+#: pytest renders a failing test's ARGUMENTS at the top of its frame, so a test
+#: taking an environment mapping prints the mapping. Two parameter kinds, a
+#: fixture and a parametrize argument, each a whole environment mapping.
+#:
+#: THE PLANTS ARE NAMED TO SORT FIRST, AND THAT IS MEASURED, NOT STYLE. pytest
+#: renders an argument through a repr that SORTS a dict's keys and shows only
+#: the first four, at every verbosity. A plant under a name sorting after the
+#: fourth key never reaches the report and the arm would measure nothing - the
+#: first build of this arm counted zero markers for exactly that reason. The
+#: filed leak was the same mechanism in the other direction: `ANTHROPIC_` keys
+#: sort near the front of a real environment.
+#:
+#: NO VALUE IN THIS SOURCE IS ONE THE PARENT COUNTS. The marker is assembled
+#: from two fragments and the plants are read from the environment, because
+#: pytest prints the SOURCE of the failing function - decorators included - and
+#: a marker spelled whole there would be counted whether or not the arguments
+#: were rendered.
+CHILD_AT_PARAMETER = """
+import os
+
+import pytest
+
+MARKER = "AAAA-zz-cs820-" + "rendered-arg-zz"
+
+
+def mapping():
+    planted = {{name: os.environ[name] for name in {variables!r}}}
+    return {{MARKER: "1", **planted, **os.environ}}
+
+
+@pytest.fixture
+def environment():
+    return mapping()
+
+
+@pytest.mark.parametrize("parameter", [mapping()])
+def test_a_parameter_holds_an_environment_mapping(parameter, environment):
+    raise RuntimeError("zz-cs1156-no-such-program-zz")
+"""
+
+#: The marker CHILD_AT_PARAMETER assembles. Each rendered parameter carries it
+#: once, so two parameters rendered is a count of at least two.
+RENDERED_ARGUMENT_MARKER = "AAAA-zz-cs820-rendered-arg-zz"
+
+#: The unlisted variables CS-820 plants under - two, so two shapes ride in one
+#: mapping and a green is not a statement about one prefix. Both sort after
+#: the marker and before every real variable, for the reason stated beside
+#: CHILD_AT_PARAMETER.
+SORTED_FIRST_VARIABLES = ("AAAA_CS820_KEY_PROBE", "AAAA_CS820_TOKEN_PROBE")
+
+#: Two parameters are rendered - the fixture and the parametrize argument - so
+#: a report that rendered both carries the marker at least this many times.
+RENDERED_PARAMETERS = 2
+
+#: The independent oracle's prefixes: the vendor-assigned ones, typed here and
+#: NOT read from `tests/conftest.py`, whose rules are what is being graded.
+ORACLE_PREFIXES = ("sk-ant-", "ghp_", "gho_", "ghs_", "ghu_", "github_pat_")
+
+#: A credential SHAPE, for counting. The run after the prefix is 8 - half the
+#: shortest floor the redactor's own shapes use - so residue a narrowed rule
+#: leaves standing beside its placeholder still counts.
+CREDENTIAL_SHAPE_ORACLE = re.compile(
+    "(?:" + "|".join(re.escape(prefix) for prefix in ORACLE_PREFIXES) + r")[A-Za-z0-9_\-]{8,}"
+)
+
 
 def _child_environment(plant: dict[str, str]) -> dict[str, str]:
     """This process's environment, stripped of real secrets, plus the plant.
@@ -187,7 +254,14 @@ def _child_environment(plant: dict[str, str]) -> dict[str, str]:
     return environment
 
 
-def _render(root: Path, source: str, plant: dict[str, str]) -> str:
+def _render(
+    root: Path,
+    source: str,
+    plant: dict[str, str],
+    *,
+    redacted: bool = True,
+    flags: tuple[str, ...] = ("--showlocals",),
+) -> str:
     """Run a child pytest that fails, and return its combined output.
 
     Args:
@@ -195,6 +269,16 @@ def _render(root: Path, source: str, plant: dict[str, str]) -> str:
             other's module.
         source: The child module's text.
         plant: Environment variables to set in the child.
+        redacted: False runs the child WITHOUT `tests.conftest` as a plugin, so
+            no report hook redacts anything. Only a hygiene-removed control
+            asks for that - CS-820.
+        flags: Rendering flags for the child. The default binds the secret to a
+            FRAME LOCAL rendered by ``--showlocals``, for the reason stated
+            beside CHILD_AT_RUNTIME: a long env dict repr is truncated and a
+            variable added last falls outside it. The CS-820 arms pass ``-vvv``
+            instead: below that verbosity pytest also cuts a rendered
+            ARGUMENT's repr to a fixed length, and at it only the four-item
+            limit stated beside CHILD_AT_PARAMETER remains.
 
     Returns:
         The child's combined output, exactly as a log or a CI artifact would
@@ -204,14 +288,14 @@ def _render(root: Path, source: str, plant: dict[str, str]) -> str:
     root.mkdir(parents=True, exist_ok=True)
     target = root / "test_cs1156_child.py"
     target.write_text(source, encoding="ascii")
+    plugin = ["-p", "tests.conftest"] if redacted else []
     completed = subprocess.run(
         [
             sys.executable,
             "-m",
             "pytest",
             str(target),
-            "-p",
-            "tests.conftest",
+            *plugin,
             "-p",
             "no:randomly",
             "-p",
@@ -222,10 +306,7 @@ def _render(root: Path, source: str, plant: dict[str, str]) -> str:
             # is the subject, so the arm states the traceback style it grades
             # rather than taking whatever the parent run happened to set.
             "--tb=long",
-            # The secret is bound to a FRAME LOCAL in the runtime child, for the
-            # reason stated beside CHILD_AT_RUNTIME: a long env dict repr is
-            # truncated and a variable added last falls outside it.
-            "--showlocals",
+            *flags,
         ],
         capture_output=True,
         check=False,
@@ -366,6 +447,89 @@ def test_a_credential_does_not_survive_captured_output(
     assert REDACTED_CREDENTIAL in rendered, _tail(rendered)
 
 
+def _parameter_counts(rendered: str) -> tuple[int, int]:
+    """(credential shapes, rendered-argument markers) in one child's output.
+
+    COUNTS, NEVER VALUES, and the output is held only by this frame's
+    argument: the item's own finding is that this class of output leaks, so
+    the check for it must not leak in turn.
+    """
+    return len(CREDENTIAL_SHAPE_ORACLE.findall(rendered)), rendered.count(RENDERED_ARGUMENT_MARKER)
+
+
+@pytest.fixture(scope="module")
+def parameter_counts(tmp_path_factory: pytest.TempPathFactory) -> tuple[int, int, int, int]:
+    """CS-820: shapes and markers for the redacted child, then for the bare one.
+
+    The bare child runs WITHOUT `tests.conftest`, so nothing redacts - the
+    hygiene-removed control. Both children are forced red by the same raise,
+    render arguments uncut by length under ``-vvv``, and plant two vendor shapes
+    under unlisted names, so only the SHAPE rules can reach them.
+
+    SCALARS ONLY LEAVE THIS FIXTURE. A fixture value is a test ARGUMENT, and a
+    failing arm renders its arguments - the very door CS-820 names - so a
+    fixture handing back the child's output would print what it counts.
+
+    Returns:
+        ``(shapes, markers, bare shapes, bare markers)``.
+    """
+    source = CHILD_AT_PARAMETER.format(variables=SORTED_FIRST_VARIABLES)
+    plant = dict(zip(SORTED_FIRST_VARIABLES, (PLANTED_KEY, PLANTED_GH_TOKEN), strict=True))
+    shapes, markers = _parameter_counts(
+        _render(tmp_path_factory.mktemp("cs820_redacted"), source, plant, flags=("-vvv",))
+    )
+    bare_shapes, bare_markers = _parameter_counts(
+        _render(
+            tmp_path_factory.mktemp("cs820_bare"),
+            source,
+            plant,
+            redacted=False,
+            flags=("-vvv",),
+        )
+    )
+    return shapes, markers, bare_shapes, bare_markers
+
+
+def test_both_parameter_kinds_reached_the_report(
+    parameter_counts: tuple[int, int, int, int],
+) -> None:
+    """CS-820's RENDERED-FRAME CONTROL: the fixture and the parametrize argument both rendered.
+
+    Without it a zero below passes on a child whose arguments never reached
+    the report - the same vacuity this file's CS-1156 controls exist to stop.
+    """
+    _, markers, _, bare_markers = parameter_counts
+    assert markers >= RENDERED_PARAMETERS, "rendered parameters, redacted child: %d" % markers
+    assert bare_markers >= RENDERED_PARAMETERS, "rendered parameters, bare child: %d" % bare_markers
+
+
+def test_a_credential_in_a_test_parameter_renders_no_credential_shape(
+    parameter_counts: tuple[int, int, int, int],
+) -> None:
+    """CS-820: a forced failure of a test holding an environment mapping, counted by shape.
+
+    The acceptance asks for COUNTS rather than values, and the count is taken
+    by :data:`CREDENTIAL_SHAPE_ORACLE`, which is typed in this file and not
+    read from the rules it grades. Bound to a scalar before the assertion, so
+    a failure renders a number and nothing else.
+    """
+    shapes, markers, _, _ = parameter_counts
+    assert markers >= RENDERED_PARAMETERS, "rendered parameters: %d" % markers
+    assert shapes == 0, "credential shapes rendered through a test parameter: %d" % shapes
+
+
+def test_the_shape_count_sees_a_parameter_when_redaction_is_removed(
+    parameter_counts: tuple[int, int, int, int],
+) -> None:
+    """CS-820's HYGIENE-REMOVED CONTROL: the same child, no redaction, counts at least one.
+
+    A zero from an oracle that cannot see the plant is a zero about nothing.
+    """
+    _, _, bare_shapes, bare_markers = parameter_counts
+    assert bare_markers >= RENDERED_PARAMETERS, "rendered parameters, bare child: %d" % bare_markers
+    assert bare_shapes >= 1, "shapes the oracle saw with redaction removed: %d" % bare_shapes
+
+
 def test_the_live_environment_holds_no_credential_the_redactor_leaves_standing() -> None:
     """The LIVE arm. The other arms plant; this one reads what this machine carries.
 
@@ -416,7 +580,4 @@ def _looks_like_a_credential(value: str) -> bool:
     the thing it grades agrees with it by construction and can observe nothing.
     """
     lowered = value.strip().lower()
-    return any(
-        lowered.startswith(prefix)
-        for prefix in ("sk-ant-", "ghp_", "gho_", "ghs_", "ghu_", "github_pat_")
-    )
+    return any(lowered.startswith(prefix) for prefix in ORACLE_PREFIXES)
