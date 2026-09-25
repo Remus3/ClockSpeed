@@ -666,8 +666,9 @@ JUDGED_SHAPES: Final = (CITATION_RE, LINE_POINTER_RE, BARE_RE, ELIDED_RE, BARE_P
 #: THE RENAMING EVASION IS WORTH STATING because it is the cheap way past the
 #: contract and it is forbidden here: :func:`tests.bare_path_guard.module_patterns`
 #: reads the ``_RE`` suffix, so a pattern named anything else is invisible to
-#: the walk entirely. A pattern this family judges by is named ``_RE`` and is
-#: then declared in one of these two tables. Nowhere else.
+#: THAT walk. Since CS-811 it is red anyway - :func:`tests.bare_path_guard.held_patterns`
+#: reads every held pattern. A pattern this family judges by is named ``_RE``
+#: and is then declared in one of these two tables. Nowhere else.
 #: A backticked span is the repository's own idiom for a path, an identifier
 #: or a shell line, so it is admitted as one token even when it holds spaces.
 BACKTICK_RE: Final = re.compile(r"`([^`\n]+)`")
@@ -2653,9 +2654,10 @@ def test_every_pattern_this_module_judges_by_also_decides_what_carries_a_citatio
     Fixing the shapes by hand would leave the NEXT arm to fall out of the
     boundary exactly the way the elided arm did - a new pattern is added, an arm
     is taught to read it, and nothing says the boundary must learn it too. So
-    the check is not "are these N there", it is "does anything this module
-    compiles sit outside :data:`JUDGED_SHAPES`". A new ``*_RE`` is red until it
-    is answered one way or the other.
+    the check is not "are these N there", it is "does any module-scope ``*_RE``
+    sit outside :data:`JUDGED_SHAPES`". A new ``*_RE`` is red until it is
+    answered one way or the other. THAT IS ONE SHAPE, and CS-811 measured five
+    escaping it; ``tests/test_citation_guard_shapes.py`` answers each of them.
 
     IT HAS SINCE BEEN COLLECTED ON, which is worth recording because a contract
     written against a hypothetical usually is not. CS-891 added the fifth

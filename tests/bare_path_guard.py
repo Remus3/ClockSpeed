@@ -1376,6 +1376,10 @@ def module_patterns(namespace: Mapping[str, object]) -> dict[str, re.Pattern[str
     boundary contract was written against, and widening it inside a slice whose
     job is a file split would be doing two jobs. THE SPLIT NEITHER WIDENS NOR
     NARROWS IT: the same names answer the same way, in one module or in four.
+    CS-811 CLOSED THE RESIDUAL BESIDE THIS WALK RATHER THAN INSIDE IT:
+    :func:`held_patterns` sees every held pattern, and this stays the narrow
+    walk the NON_CITATION_PATTERNS staleness check needs - a wider one would
+    count that table's own members as live and never call a row stale.
 
     Args:
         namespace: The mapping to walk, normally a module's ``vars()``. Required
@@ -1390,6 +1394,96 @@ def module_patterns(namespace: Mapping[str, object]) -> dict[str, re.Pattern[str
         for name, value in namespace.items()
         if name.endswith("_RE") and isinstance(value, re.Pattern)
     }
+
+
+def held_patterns(namespace: Mapping[str, object]) -> dict[str, re.Pattern[str]]:
+    """Every compiled pattern a namespace HOLDS, under any name and at any depth.
+
+    CS-811 - THE WALK :func:`module_patterns` IS NOT. That one reads a single
+    shape, a module-scope pattern named ``*_RE``, and a pattern named anything
+    else or held inside a module-scope dict or list escaped it; all three were
+    measured green. This reads every module-scope value, and descends into every
+    mapping (keys and values), tuple, list and set it finds, so the three
+    namespace-held shapes are one answer. A pattern compiled at call time is
+    never bound here at all - :func:`regex_call_sites` is its census.
+
+    Args:
+        namespace: The mapping to walk, normally a module's ``vars()``.
+            Required, for the reason :func:`module_containers` states.
+
+    Returns:
+        An access path such as ``NAME``, ``NAME[0]`` or ``NAME['key']`` to the
+        pattern held there. A pattern held twice appears twice.
+    """
+    found: dict[str, re.Pattern[str]] = {}
+    pending: list[tuple[str, object]] = [
+        (name, value) for name, value in namespace.items() if name not in _INTERPRETER_NAMES
+    ]
+    entered: set[int] = set()
+    while pending:
+        where, value = pending.pop()
+        if isinstance(value, re.Pattern):
+            found[where] = value
+            continue
+        if not isinstance(value, (Mapping, AbstractSet, tuple, list)) or id(value) in entered:
+            continue
+        entered.add(id(value))
+        if isinstance(value, Mapping):
+            for key, member in value.items():
+                pending += [(f"{where}[{key!r}]", member), (f"{where}<key {key!r}>", key)]
+        else:
+            pending += [(f"{where}[{index}]", member) for index, member in enumerate(value)]
+    return found
+
+
+def regex_call_sites(source: str) -> dict[str, int]:
+    """How many regex calls a module's source makes, keyed by enclosing scope.
+
+    CS-811 - THE SHAPE NO NAMESPACE WALK CAN SEE. A pattern compiled or matched
+    at call time is never bound at module scope, so :func:`held_patterns` is
+    blind to it by construction. Counting the call sites in the SOURCE is what
+    reaches it, and every spelling is read: ``re.<name>``, the module imported
+    under another name, and a function imported out of it with or without an
+    alias.
+
+    Args:
+        source: A module's text.
+
+    Returns:
+        ``<module>`` for the top level, or the dotted class and function path,
+        to the number of regex calls made there. A scope making none is absent.
+    """
+    functions = {"compile", "search", "match", "fullmatch", "findall", "finditer"}
+    functions |= {"sub", "subn", "split"}
+    tree = ast.parse(source)
+    modules = {"re"}
+    direct: set[str] = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            modules |= {alias.asname or alias.name for alias in node.names if alias.name == "re"}
+        elif isinstance(node, ast.ImportFrom) and node.module == "re":
+            named = [alias for alias in node.names if alias.name in functions]
+            direct |= {alias.asname or alias.name for alias in named}
+    counts: dict[str, int] = {}
+    pending: list[tuple[ast.AST, str]] = [(tree, "<module>")]
+    while pending:
+        node, scope = pending.pop()
+        for child in ast.iter_child_nodes(node):
+            inner = scope
+            if isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+                inner = child.name if scope == "<module>" else f"{scope}.{child.name}"
+            if isinstance(child, ast.Call) and (
+                (isinstance(child.func, ast.Name) and child.func.id in direct)
+                or (
+                    isinstance(child.func, ast.Attribute)
+                    and child.func.attr in functions
+                    and isinstance(child.func.value, ast.Name)
+                    and child.func.value.id in modules
+                )
+            ):
+                counts[scope] = counts.get(scope, 0) + 1
+            pending.append((child, inner))
+    return counts
 
 
 #: The package every module in the walked population belongs to. A DOTTED PREFIX rather than a
