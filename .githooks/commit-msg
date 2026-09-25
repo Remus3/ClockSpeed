@@ -89,29 +89,109 @@ CS_PROBE_PROGRAM='import sys; sys.stdout.write("clockspeed-" + "python-" + "ok")
 CS_PROBE_EXPECTED='clockspeed-python-ok'
 CS_PROBE_EXIT_PROGRAM='import sys; sys.exit(97)'
 CS_PROBE_EXIT_EXPECTED=97
+CS_PROBE_BOUND=10
+CS_PROBE_CAPTURE='cs_o=$("$@"); cs_r=$?; printf "%s" "$cs_o"; exit "$cs_r"'
 
 cs_probe() {
-    # BOTH initialised BEFORE first use. The failure path below renders each of
-    # them, and `set -u` would abort the hook on an unset one instead. The exit
-    # code starts as a WORD rather than a number on purpose: a refusal that never
+    # ALL initialised BEFORE first use. The failure paths below render them,
+    # and `set -u` would abort the hook on an unset one instead. The exit code
+    # starts as a WORD rather than a number on purpose: a refusal that never
     # reached the second half must not be readable as "the candidate returned 0".
     cs_probe_out=""
     cs_probe_code="not reached"
-    if [ -n "${2:-}" ]; then
-        cs_probe_out=$("$1" "$2" -c "$CS_PROBE_PROGRAM" 2>/dev/null </dev/null) || return 1
-    else
-        cs_probe_out=$("$1" -c "$CS_PROBE_PROGRAM" 2>/dev/null </dev/null) || return 1
+    cs_probe_rc="not reached"
+    cs_probe_bound_ok=""
+    # CS-816: EVERY HALF OF THIS PROBE RUNS UNDER A BOUND OF CS_PROBE_BOUND
+    # SECONDS, AND A HALF THAT DOES NOT RETURN INSIDE IT REFUSES THE HOOK.
+    # Three hang shapes were measured, none of them exotic. PYTHONINSPECT=1
+    # goes interactive after the program, because under MSYS /dev/null is the
+    # NUL character device and reports a tty. A candidate that leaves a
+    # background process holding stdout makes a command substitution wait for
+    # that process rather than for the candidate. A wrapper that execs python
+    # with stdin from /dev/null answers every -c program and then spins on a
+    # program handed to it on stdin. The answer is a BOUND rather than an
+    # enumeration of causes, and so the probe also hands the candidate one
+    # program on stdin - the shape commit-msg delivers its checker in - and
+    # grades only that it RETURNS.
+    #
+    # THE BOUND IS ONE LITERAL, byte-identical in the three hooks and never read
+    # from the environment or a config file. Its value is justified against a
+    # cold-start measurement in the closing record of CS-816 in docs/LEDGER.md.
+    #
+    # A TIMED-OUT PROBE NEVER FALLS THROUGH to the next rung. The last rung is
+    # 'py -3', the measured interpreter that carries no toolchain, and a probe
+    # that timed out and then proceeded is the CS-703 no-op wearing a clock. An
+    # ordinary MISMATCH still falls through exactly as it always did.
+    #
+    # THE BOUNDING BINARY IS CHECKED BY BEHAVIOUR, NEVER BY NAME. On Windows,
+    # System32 carries a 'timeout' that is a pause command with unrelated
+    # semantics, behind GNU timeout on PATH. Before any candidate runs, the
+    # binary must pass an ordinary exit status straight through AND return 124
+    # when a short bound expires. Absent, foreign, or never expiring, it refuses
+    # the hook: a probe is never run without a time limit.
+    timeout -k 1 "$CS_PROBE_BOUND" sh -c 'exit 42' </dev/null >/dev/null 2>&1
+    if [ "$?" = 42 ]; then
+        timeout -k 1 0.2 sleep 5 </dev/null >/dev/null 2>&1
+        if [ "$?" = 124 ]; then
+            cs_probe_bound_ok="yes"
+        fi
     fi
-    [ "$cs_probe_out" = "$CS_PROBE_EXPECTED" ] || return 1
-    # THE EXIT-STATUS HALF. $? is captured IMMEDIATELY on the next line, because
-    # any command in between - a `[` included - overwrites it.
-    if [ -n "${2:-}" ]; then
-        "$1" "$2" -c "$CS_PROBE_EXIT_PROGRAM" >/dev/null 2>&1 </dev/null
-        cs_probe_code=$?
-    else
-        "$1" -c "$CS_PROBE_EXIT_PROGRAM" >/dev/null 2>&1 </dev/null
-        cs_probe_code=$?
+    if [ "$cs_probe_bound_ok" != "yes" ]; then
+        die "no working GNU timeout was found, so the interpreter probe cannot be bounded." \
+            "The hook refuses rather than run a probe with no time limit (CS-816)." \
+            "'timeout' is checked by behaviour: it must pass an ordinary exit status" \
+            "through and return 124 when its bound expires. A different program of" \
+            "the same name, such as the Windows pause command, fails that check." \
+            "Fix: put GNU coreutils 'timeout' and 'sleep' first on PATH. Git for" \
+            "Windows ships both in its own usr/bin directory." \
+            "BLOCKED: an unbounded probe is not a passed probe."
     fi
+    # THE CAPTURE RUNS INSIDE THE BOUNDED PROCESS. CS_PROBE_CAPTURE is a small sh
+    # program that takes the candidate's output itself and re-emits it, so the
+    # only processes holding THIS substitution's pipe are ones the bound kills.
+    # Capturing the candidate here directly would let a background process it
+    # left behind hold the pipe after the bounded child exited, and this
+    # substitution would wait on that process with no limit at all.
+    #
+    # THE EXIT STATUS IS GRADED BEFORE THE TOKEN. MEASURED under a 3 second
+    # bound: PYTHONINSPECT=1 returned 124 while the capture already held the
+    # exact token. 124 is the bound expiring, 137 the KILL sent when a candidate
+    # ignored TERM, and 143 a TERM from elsewhere. Each refuses, whatever the
+    # capture holds.
+    cs_probe_out=$(timeout -k 1 "$CS_PROBE_BOUND" sh -c "$CS_PROBE_CAPTURE" \
+        cs_probe "$@" -c "$CS_PROBE_PROGRAM" 2>/dev/null </dev/null)
+    cs_probe_rc=$?
+    if [ "$cs_probe_rc" = 0 ] && [ "$cs_probe_out" = "$CS_PROBE_EXPECTED" ]; then
+        # THE EXIT-STATUS HALF. $? is captured IMMEDIATELY on the next line,
+        # because any command in between - a `[` included - overwrites it.
+        timeout -k 1 "$CS_PROBE_BOUND" sh -c "$CS_PROBE_CAPTURE" \
+            cs_probe "$@" -c "$CS_PROBE_EXIT_PROGRAM" >/dev/null 2>&1 </dev/null
+        cs_probe_rc=$?
+        cs_probe_code=$cs_probe_rc
+        if [ "$cs_probe_code" = "$CS_PROBE_EXIT_EXPECTED" ]; then
+            # THE STDIN HALF grades only that the candidate RETURNS inside the
+            # bound. Its output and its status are deliberately not compared:
+            # this half exists for the hang, and a stricter grade here would
+            # refuse candidates that the two halves above already judge.
+            printf '%s' "$CS_PROBE_PROGRAM" | timeout -k 1 "$CS_PROBE_BOUND" \
+                sh -c "$CS_PROBE_CAPTURE" cs_probe "$@" - >/dev/null 2>&1
+            cs_probe_rc=$?
+        fi
+    fi
+    case "$cs_probe_rc" in
+        124|137|143)
+            die "the interpreter probe did not answer within $CS_PROBE_BOUND seconds." \
+                "Observed status: [$cs_probe_rc] (124 is the bound expiring)." \
+                "A probe that times out REFUSES and never falls through to the next" \
+                "rung: the last rung, 'py -3', is the measured interpreter that" \
+                "carries no toolchain (CS-816)." \
+                "Known causes: PYTHONINSPECT set in the environment; an interpreter" \
+                "wrapper that redirects stdin from /dev/null; a wrapper that leaves a" \
+                "background process holding stdout." \
+                "Unset PYTHONINSPECT, or point CLOCKSPEED_PYTHON at a plain python." \
+                "BLOCKED: an unanswered probe is not a passed probe."
+            ;;
+    esac
     # Compared as STRINGS. Both sides are literal digits here, and `=` cannot
     # raise on a non-numeric value the way `-eq` would.
     [ "$cs_probe_code" = "$CS_PROBE_EXIT_EXPECTED" ]
@@ -126,6 +206,7 @@ cs_python() {
     fi
 }
 
+# >>> CS-818 LADDER BEGIN - resolves CS_PY and CS_PY_ARG; pinned across the hooks.
 if [ -n "${CLOCKSPEED_PYTHON:-}" ]; then
     # SET BUT FAILING IS A HARD FAILURE, NOT A FALL-THROUGH. The old form was
     # one `&&` condition, so a value that failed the probe fell quietly through
@@ -175,6 +256,7 @@ else
         "Set CLOCKSPEED_PYTHON to an interpreter and retry." \
         "The commit is BLOCKED: an unrunnable check is not a passed check."
 fi
+# <<< CS-818 LADDER END
 
 # THE PROGRAM MUST PROVE IT RAN. CS-819.
 #

@@ -356,6 +356,21 @@ def refusal_block(raw: bytes) -> bytes:
     return b"\n".join(collected[:-1])
 
 
+# CS-818's seam: the resolution ladder between two comment-only markers. The
+# only lines inside it allowed to differ per hook are the two closing-voice
+# lines, the same per-hook tail refusal_block drops.
+MARKED_LADDER_BEGIN: Final = b"# >>> CS-818 LADDER BEGIN"
+MARKED_LADDER_END: Final = b"# <<< CS-818 LADDER END\n"
+MARKED_LADDER_RUNGS: Final = (
+    b'if [ -n "${CLOCKSPEED_PYTHON:-}" ]; then',
+    b"elif cs_probe python; then",
+    b"elif cs_probe python3; then",
+    b"elif cs_probe py -3; then",
+)
+MARKED_LADDER_VOICE_LINES: Final = 2
+MARKED_LADDER_VOICE: Final = re.compile(rb'^\s+"The (commit|push) is BLOCKED: ')
+
+
 def run_git(
     box: Sandbox, *args: str, env: dict[str, str] | None = None
 ) -> subprocess.CompletedProcess[str]:
@@ -613,6 +628,30 @@ def test_the_three_hooks_carry_a_byte_identical_probe() -> None:
     distinct = set(blocks.values())
     diverging = sorted(hook for hook, block in blocks.items() if block != blocks[PRE_COMMIT])
     assert len(distinct) == 1, f"the probe is not byte-identical across the hooks: {diverging}"
+
+    # CS-816 grant condition 5: the MARKED LADDER is pinned too, because CS-818
+    # executes it and tools/claude_hook.sh carries it. Each marker must occur
+    # exactly once, the region must hold the whole four-rung chain, and exactly
+    # the two per-hook closing-voice lines are excluded before comparing.
+    ladders: dict[str, bytes] = {}
+    for hook in HOOK_NAMES:
+        raw = (HOOKS_DIR / hook).read_bytes()
+        assert raw.count(MARKED_LADDER_BEGIN) == 1, f"{hook} carries no single ladder BEGIN marker"
+        assert raw.count(MARKED_LADDER_END) == 1, f"{hook} carries no single ladder END marker"
+        region = raw[
+            raw.index(MARKED_LADDER_BEGIN) : raw.index(MARKED_LADDER_END) + len(MARKED_LADDER_END)
+        ]
+        for rung in MARKED_LADDER_RUNGS:
+            assert rung in region, f"{hook}'s marked ladder is missing a rung"
+        lines = region.split(b"\n")
+        voiced = [line for line in lines if MARKED_LADDER_VOICE.match(line)]
+        assert len(voiced) == MARKED_LADDER_VOICE_LINES, (
+            f"{hook}'s ladder has {len(voiced)} closing-voice lines, "
+            f"not {MARKED_LADDER_VOICE_LINES}"
+        )
+        ladders[hook] = b"\n".join(line for line in lines if not MARKED_LADDER_VOICE.match(line))
+    split = sorted(hook for hook, block in ladders.items() if block != ladders[PRE_COMMIT])
+    assert not split, f"the marked ladder is not byte-identical across the hooks: {split}"
 
 
 # --- the defect, one arm per hook -------------------------------------------
