@@ -49,7 +49,11 @@ WITHHELD_CLASSES = ("PII-bearing", "credential material")
 
 # The shapes CS-1158 was filed over. The plant set is derived from the tables;
 # this pins that the derivation still reaches every one of them.
-FILED_SHAPES = frozenset({"*.sav", "*.log", "*.pem", ".env", ".mcp.json"})
+# Repair 3 adds the credential shapes an adjudicator ruled inside the clause:
+# `.gitignore` files them under LOCAL-ONLY, but their CONTENT is key material.
+FILED_SHAPES = frozenset(
+    {"*.sav", "*.log", "*.pem", ".env", ".mcp.json", "*.key", "*.pfx", "*.p12", ".env.*"}
+)
 
 # The control - ADR 0023 rule 5's own examples of a fixed name this repository
 # chose itself, pruned for a `local-only` reason.
@@ -120,12 +124,14 @@ def _plant(root: Path) -> Planted:
             if "*" in pattern
             else [pattern]
         )
-        for leaf in leaves:
+        for n, leaf in enumerate(leaves):
             target = root / shape_dir / leaf
             target.parent.mkdir(parents=True, exist_ok=True)
             target.write_bytes(b"\x00synthetic\x00")
             if "*" in pattern:
-                planted.tokens.append(leaf.split(".")[0])
+                # The token itself, never a split of the leaf: `.env.*` has
+                # an empty first segment, which every text contains.
+                planted.tokens.append(f"zzleaf{index}x{n}")
         (root / shape_dir / "keep.md").write_text("# kept\n", encoding="utf-8")
         planted.tokens.append(shape_dir)
         planted.counts[reason] = planted.counts.get(reason, 0) + len(leaves)
@@ -362,7 +368,10 @@ def _plant_section_shapes(root: Path) -> list[str]:
     (root / "zzsec").mkdir(parents=True, exist_ok=True)
     (root / "zzsec" / "keep.md").write_text("# kept\n", encoding="utf-8")
     leaves = [shape.replace("*", f"zzsec{n}x") for n, shape in enumerate(SECTION_SHAPES)]
-    leaves.append("ZZSECUPPER.SAV")
+    # Upper case of a SECTION-only shape, never of `*.sav`: the file floor folds
+    # case too since repair 3, so an upper `.SAV` would grade the floor, not
+    # the section's own folding.
+    leaves.append("ZZSECUPPER.SAVBACKUP")
     for leaf in leaves:
         (root / "zzsec" / leaf).write_bytes(b"\x00synthetic\x00")
         tokens.append(leaf.split(".")[0].lower())
@@ -469,3 +478,106 @@ def test_a_collapsed_directory_is_withheld_by_shape_or_by_content(
     leaked = sum(1 for top in hidden if top in lines or top in shown or top.rstrip("/") in raw)
     assert leaked == 0, f"{leaked} collapsed directory name(s) rendered"
     assert sum(entry["count"] for entry in report["withheld"]) >= len(hidden), report["withheld"]
+
+
+# ---------------------------------------------------------------------------
+# Repair 3 - every withheld class, in upper case, in every enumeration mode
+# ---------------------------------------------------------------------------
+#
+# An adjudicator measured `ZQ.LOG` and `ZQ.PEM` printing by name with and
+# without git after repair 2 folded case for the `.gitignore` PII section alone:
+# the floor's own withheld shapes still matched case-sensitively. Every class
+# is planted here in upper case, each in its own directory beside a kept file,
+# so the directory token is in every path that could render.
+
+
+def _plant_upper(root: Path) -> list[str]:
+    tokens: list[str] = []
+    for index, pattern in enumerate(sorted(_withheld_file_patterns())):
+        shape_dir = f"zzupper{index}"
+        leaf = pattern.replace("*", f"zzup{index}").upper()
+        (root / shape_dir).mkdir(parents=True)
+        # Clean ASCII on purpose. Under `git-keeps-case` a text-typed shape
+        # (`.MCP.JSON`) is an authored file by git's answer and guard (c) READS
+        # it; a violation there would print the path in that GUARD's detail,
+        # which is a different renderer from the skip list this item grades.
+        (root / shape_dir / leaf).write_bytes(b"synthetic\n")
+        (root / shape_dir / "keep.md").write_text("# kept\n", encoding="utf-8")
+        tokens.append(shape_dir)
+    (root / CONTROL_LOCAL).write_text("{}\n", encoding="utf-8")
+    (root / "top.md").write_text("# clean\n", encoding="utf-8")
+    return tokens
+
+
+@pytest.mark.parametrize("mode", ["no-git", "git-folds-case", "git-keeps-case"])
+def test_every_withheld_class_is_withheld_in_upper_case(
+    mode: str,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """One upper-case plant per withheld floor shape, in all three modes.
+
+    `git-keeps-case` is the Linux runner's setting: git does NOT ignore the
+    upper-case shape, git decides, and the file is WALKED - so a reader's own
+    skip record ("not an authored text file type") carries the path, and only
+    the render seam stands between it and the report.
+    """
+    root = tmp_path / "tree"
+    if mode == "no-git":
+        root.mkdir()
+        _floor_only(monkeypatch)
+    else:
+        if not _real_gitignore_repo(root, monkeypatch):
+            pytest.skip("git is not installed, so its answer cannot be asked")
+        if mode == "git-keeps-case":
+            from tests import conftest  # noqa: PLC0415 - the one git runner the suite owns
+
+            proc = conftest.run_git(root, "config", "core.ignorecase", "false")
+            assert proc is not None
+            assert proc.returncode == 0, "control: core.ignorecase false did not set"
+    tokens = _plant_upper(root)
+    assert len(tokens) >= len(FILED_SHAPES), "control: fewer upper-case plants than shapes"
+    _point_at(monkeypatch, root, tmp_path)
+
+    text = _run(capsys)
+    raw = _run(capsys, "--json")
+    report: dict[str, Any] = json.loads(raw)
+
+    leaked = _leaks(text, tokens) + _leaks(raw, tokens)
+    assert leaked == 0, f"{leaked} upper-case withheld-class name(s) rendered in mode {mode}"
+    assert CONTROL_LOCAL in {skip["path"] for skip in report["skipped"]}, "control vanished"
+
+
+def test_every_withheld_root_is_withheld_in_upper_case_with_git_unreachable(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """The ROOT table folds by the same rule as the file floor.
+
+    An upper-cased withheld root that the walk ENTERED hands its files to the
+    readers, and a non-text file there comes back as a reader's own skip record
+    carrying the path. The plant inside each root is a non-text shape of no
+    withheld class, so only the root's own classification can withhold it.
+    """
+    root = tmp_path / "tree"
+    root.mkdir()
+    _floor_only(monkeypatch)
+    tokens: list[str] = []
+    for index, relative in enumerate(sorted(_withheld_root_paths())):
+        token = f"zzrootup{index}"
+        target = root / relative.upper() / f"{token}.bin"
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_bytes(b"synthetic\n")
+        tokens.append(token)
+    assert tokens, "control: no withheld root to plant"
+    (root / CONTROL_LOCAL).write_text("{}\n", encoding="utf-8")
+    (root / "top.md").write_text("# clean\n", encoding="utf-8")
+    _point_at(monkeypatch, root, tmp_path)
+
+    text = _run(capsys)
+    raw = _run(capsys, "--json")
+    report: dict[str, Any] = json.loads(raw)
+
+    leaked = _leaks(text, tokens) + _leaks(raw, tokens)
+    assert leaked == 0, f"{leaked} name(s) under an upper-cased withheld root rendered"
+    assert CONTROL_LOCAL in {skip["path"] for skip in report["skipped"]}, "control vanished"

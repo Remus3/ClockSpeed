@@ -90,12 +90,22 @@ of paths:
   applies.** AMENDED 2026-09-25 under CS-1158, after an adversary refuted the first
   change: a path skipped only because git ignores it carried no class, and three leaks
   followed. The rule is closed in the same item rather than deferred, three ways:
-  - **The class comes from `.gitignore`, where it is declared.** A pattern `.gitignore`
-    files under its `PII-BEARING` banner gives the path a `PII-bearing` reason, matched
-    case-insensitively as git does on this platform, so a rotated or upper-cased save
-    shape is not left to a floor that restated one spelling of it. A pruned root that
-    `.gitignore` files as PII-bearing carries a PII-bearing reason in the walk's table
-    too, and a test holds the two in agreement.
+  - **The PII class also comes from `.gitignore`, where it is declared.** A pattern
+    `.gitignore` files under its `PII-BEARING` banner gives the path a `PII-bearing`
+    reason, so a rotated save shape is not left to a floor that restated one spelling
+    of it. A pruned root that `.gitignore` files as PII-bearing carries a PII-bearing
+    reason in the walk's table too, and a test holds the two in agreement.
+  - **The credential class comes from THIS ADR's rule, not only from a `.gitignore`
+    section.** `.gitignore` files private keys, key bundles and variant environment
+    files under `LOCAL-ONLY`, which says why they are not tracked, not what their
+    CONTENT is. Rule 3 is about the content, so every shape whose content is key
+    material is `credential material` in the walk's floor whatever section lists it.
+  - **Every class matches CASE-INSENSITIVELY, by one rule applied to every table** -
+    the file floor, the root table and the `.gitignore` section - folded by an explicit
+    lower() that reads no host setting, so every runner prunes and withholds the same
+    population. Where git answers and keeps case, git decides and the file is walked;
+    the render seam then asks the same folded rule of the record's path, so a reader's
+    own skip record cannot print it either.
   - **A directory git collapses to one ignored entry is withheld when it holds a
     PII-bearing or credential file anywhere beneath it** - it locates one, so rule 3
     applies to its name.
@@ -104,9 +114,13 @@ of paths:
     `clockspeed/data/locate.py::redact` already uses - is withheld whatever it was
     skipped for, and counted under its own reason. This is the one shape test, and it
     is the account-id classification itself, not a list of names.
-  **Still not closed, stated rather than implied:** a directory named for the player by a
-  NON-numeric name - a world name, a hex or GUID account token - holding no withheld-class
-  file is indistinguishable by name from any other directory, and renders.
+  **OUTSIDE this ADR's first item, ruled by adjudicator 2026-09-25:** a directory named
+  for the player by a NON-numeric name - a world name, a hex or GUID account token -
+  holding no withheld-class file is indistinguishable by shape from any other directory,
+  and renders. The CS-1158 clause is keyed on a record skipped BECAUSE of its class, and
+  a name cannot be classified by shape without a denylist, so the merger files it as a
+  NEW item: withhold a path component equal to a value this machine can resolve
+  locally, failing closed, never a typed list.
 - **Any other renderer found printing a withheld-class name is a new item**, not a fix
   folded into the change that found it.
 - **Harder:** a reader debugging a pruned save or key file cannot learn WHICH file from

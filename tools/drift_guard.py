@@ -206,10 +206,13 @@ WALK_SKIP_ROOT_PATHS: Mapping[str, str] = MappingProxyType(
 #:
 #: MATCHING, and it is NOT git's: a pattern with no "/" matches a NAME at any
 #: depth, a pattern with one is matched against the whole root-relative path,
-#: both by fnmatchcase. Case-SENSITIVE deliberately, because a floor that read
-#: the host's case rules would prune a different population on each runner;
-#: git, when reachable, decides case by core.ignorecase and the walk follows it
-#: there. So the floor is the narrower of the two and never the wider.
+#: both by `_floor_matches`. CASE-FOLDED, by an explicit lower() on both sides
+#: - CS-1158 repair 3 reversed the CS-1155 choice of case-sensitive matching.
+#: That choice existed so the floor would not read the HOST's case rules, and
+#: fnmatch.fnmatch does read them; lower() does not, so every runner prunes
+#: the same population, and it is the wider one. An adjudicator measured the
+#: narrower floor printing `ZQ.LOG` and `ZQ.PEM` by name. Git, when reachable,
+#: still decides first by core.ignorecase; the floor names the class.
 WALK_SKIP_FILE_PATTERNS: Mapping[str, str] = MappingProxyType(
     {
         "*.sav": "PII-bearing - a save file carries account and player-name strings",
@@ -217,6 +220,14 @@ WALK_SKIP_FILE_PATTERNS: Mapping[str, str] = MappingProxyType(
         "*.pem": "credential material - generated certificate keys",
         ".env": "credential material - a local environment file",
         ".mcp.json": "credential material - local tool server configuration",
+        # CS-1158 repair 3 - the rest of the key material `.gitignore` carries.
+        # It files these under LOCAL-ONLY, but this table's rule is the class
+        # of the CONTENT (ADR 0023), and a private key is credential material
+        # whatever section of `.gitignore` lists it.
+        "*.key": "credential material - a private key",
+        "*.pfx": "credential material - a key and certificate bundle",
+        "*.p12": "credential material - a key and certificate bundle",
+        ".env.*": "credential material - a variant local environment file",
         "*.local.json": "local-only - a machine-local settings override",
         "ops/loop/config.json": "local-only - the headless lane's model choice, a machine choice",
     }
@@ -789,11 +800,9 @@ def _skip_file_reason(
     matched against the whole root-relative path, so the lane's config entry
     below does not match a same-named file under a vendored tree, and a slashed
     pattern carrying a wildcard - .gitignore has one naming the recall mirror -
-    still works. fnmatchcase, not
-    fnmatch: fnmatch folds case under the HOST's rules, so a floor using it
-    would prune a different population on each runner. git, where
-    reachable, folds case by core.ignorecase, and the walk follows git rather
-    than this floor.
+    still works. Case is folded by `_floor_matches`, identically on every
+    runner; git, where reachable, folds case by core.ignorecase, and the walk
+    follows git rather than this floor.
 
     WHERE GIT ANSWERED, GIT DECIDES, AND THE FLOOR ONLY NAMES THE CLASS. An
     adjudicator built a tree where `build.log` was TRACKED and git ignored
@@ -826,13 +835,40 @@ def _skip_file_reason(
     """
     if ignored is not None and relative not in ignored:
         return None
-    for pattern, reason in WALK_SKIP_FILE_PATTERNS.items():
-        subject = relative if "/" in pattern else name
-        if fnmatch.fnmatchcase(subject, pattern):
-            return reason
+    floor = _floor_reason(relative, name)
+    if floor is not None:
+        return floor
     if any(_gitignore_matches(p, relative, name, is_dir=is_dir) for p in pii_patterns):
         return GITIGNORE_PII_REASON
     return GITIGNORED_REASON if ignored is not None else None
+
+
+def _floor_matches(pattern: str, relative: str, name: str) -> bool:
+    """Whether one floor pattern names a path - THE one case rule for both tables.
+
+    CS-1158 repair 3. Folded by lower() on both sides, which reads no host
+    setting, so the population is the same on every runner. A pattern with a
+    "/" is matched against the whole root-relative path, one without against
+    the NAME at any depth.
+    """
+    subject = relative if "/" in pattern else name
+    return fnmatch.fnmatchcase(subject.lower(), pattern.lower())
+
+
+def _floor_reason(relative: str, name: str) -> str | None:
+    """The floor table's reason for a path, case-folded, or None."""
+    for pattern, reason in WALK_SKIP_FILE_PATTERNS.items():
+        if _floor_matches(pattern, relative, name):
+            return reason
+    return None
+
+
+def _root_reason(relative: str) -> str | None:
+    """The root table's reason for a directory, by the same folded rule."""
+    for pattern, reason in WALK_SKIP_ROOT_PATHS.items():
+        if relative.lower() == pattern.lower():
+            return reason
+    return None
 
 
 def _gitignore_pii_patterns(root: Path) -> tuple[str, ...]:
@@ -933,16 +969,6 @@ def _withheld_content(directory: Path, pii_patterns: tuple[str, ...]) -> bool:
                 continue
             relative = entry.relative_to(directory).as_posix()
             reason = _skip_file_reason(relative, entry.name, None, pii_patterns)
-            if reason is None:
-                folded = entry.name.lower()
-                reason = next(
-                    (
-                        r
-                        for pattern, r in WALK_SKIP_FILE_PATTERNS.items()
-                        if "/" not in pattern and fnmatch.fnmatchcase(folded, pattern.lower())
-                    ),
-                    None,
-                )
             if reason is not None and is_withheld(reason):
                 return True
     return False
@@ -983,7 +1009,7 @@ def _skip_dir_reason(
     # version of this rule, which consulted the file half for files alone. The
     # same call carries git's answer, so both authorities are asked here in the
     # order they are asked for a file.
-    named = WALK_SKIP_ROOT_PATHS.get(relative)
+    named = _root_reason(relative)
     if named is None:
         named = _skip_file_reason(relative, entry.name, ignored, pii_patterns, is_dir=True)
     # CS-1158 repair - git collapses a directory whose every entry it ignores
@@ -5895,9 +5921,27 @@ def partition_skips(skips: list[Skip]) -> tuple[list[Skip], dict[str, int]]:
             withheld[reason] = withheld.get(reason, 0) + 1
         elif _names_account_id(skip["path"]):
             withheld[ACCOUNT_ID_PATH_REASON] = withheld.get(ACCOUNT_ID_PATH_REASON, 0) + 1
+        elif (shape := _withheld_shape(skip["path"])) is not None:
+            withheld[shape] = withheld.get(shape, 0) + 1
         else:
             shown.append(skip)
     return shown, withheld
+
+
+def _withheld_shape(path: str) -> str | None:
+    """The withheld-class floor reason a record's PATH carries, or None.
+
+    CS-1158 repair 3 - the render seam's backstop. Where git answers and keeps
+    case (core.ignorecase false, every Linux runner) an upper-case `X.PEM` is
+    not ignored, git decides, the file is WALKED, and a READER's own skip
+    record - "not an authored text file type" - carries its path under a
+    reason of no class. The shape of the path is what says it is key material,
+    so the floor's folded rule is asked here too, and the record is counted
+    under the class reason rather than the reader's.
+    """
+    relative = path.rstrip("/")
+    reason = _floor_reason(relative, relative.rsplit("/", 1)[-1])
+    return reason if reason is not None and is_withheld(reason) else None
 
 
 def _skip_lines(skips: list[Skip]) -> list[str]:

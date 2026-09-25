@@ -4591,19 +4591,21 @@ def test_the_floor_prunes_a_directory_a_shape_names(tmp_path: Path) -> None:
     assert reasons["notes.log/"] == drift_guard.WALK_SKIP_FILE_PATTERNS["*.log"], reasons
 
 
-def test_the_floor_is_case_sensitive_so_it_never_grades_the_runner(
+def test_the_floor_folds_case_the_same_way_on_every_runner(
     tmp_path: Path,
 ) -> None:
-    """CS-1155: fnmatchcase, not fnmatch, and this is the arm that says so.
+    """CS-1155, reversed by CS-1158 repair 3: the floor FOLDS case, host-independently.
 
-    `fnmatch` folds case under the HOST's rules, so the floor's population
-    would differ between this machine and an ubuntu runner for the same tree.
-    A floor whose membership depends on the runner cannot be a floor. The cost
-    is that the floor alone does NOT prune `STRAY.LOG`; git does, where git can
-    be reached, and the arm below grades exactly that.
+    CS-1155 made the floor case-sensitive because `fnmatch` folds case under
+    the HOST's rules, and a floor whose membership depends on the runner cannot
+    be a floor. The cost it accepted - the floor alone did not prune
+    `STRAY.LOG` - turned out to be a leak: an adjudicator measured `ZQ.LOG` and
+    `ZQ.PEM` printing by name with git unreachable. The floor now folds by an
+    explicit lower() on both sides, which reads no host setting, so the
+    population is still the same on every runner and is now the wider one.
 
-    An adversary swapped fnmatchcase for fnmatch against the shipped suite and
-    the mutant survived every arm, because every fixture name was lower case.
+    Live against both regressions: dropping the fold keeps `STRAY.LOG` here,
+    and swapping in `fnmatch` keeps it on every case-sensitive runner.
     """
     root = tmp_path / "tree"
     root.mkdir()
@@ -4611,9 +4613,9 @@ def test_the_floor_is_case_sensitive_so_it_never_grades_the_runner(
     (root / "quiet.log").write_text("lower\n", encoding="utf-8")
     (root / "STRAY.LOG").write_text("upper\n", encoding="utf-8")
 
-    # The lower-case sibling is the control: a floor that pruned NOTHING would
-    # satisfy the upper-case half below for the wrong reason.
-    assert _walked(root, ignored=None) == {"keep.md", "STRAY.LOG"}
+    # keep.md is the control: a floor that pruned EVERYTHING would satisfy the
+    # upper-case half for the wrong reason.
+    assert _walked(root, ignored=None) == {"keep.md"}
 
 
 def test_git_decides_case_and_the_walk_follows_it(tmp_path: Path) -> None:
