@@ -20,9 +20,10 @@ findings in false positives.
 
 THE POPULATION IS DERIVED BY TWO MECHANICAL RULES, NEITHER OF THEM A LIST:
 
-  R1  every generated-repr class under :data:`SAVE_LAYER` - the layer
-      ``docs/ARCHITECTURE.md`` names as the one that reads a save - holding at
-      least one field whose annotation is not provably non-disclosing.
+  R1  every generated-repr class under any :data:`R1_LAYERS` prefix - the
+      layer ``docs/ARCHITECTURE.md`` names as the one that reads a save, and
+      the audit layer whose models are the published path - holding at least
+      one field whose annotation is not provably non-disclosing.
   R2  every generated-repr class anywhere under :data:`SHIPPED_ROOT` holding a
       field annotated with a :data:`CARRIER_TYPES` word.
 
@@ -80,6 +81,28 @@ from tests.assertion_rendering_guard import (
 #: as a path prefix rather than a module list so a new module in the layer is
 #: graded on arrival instead of on somebody remembering to add it.
 SAVE_LAYER: Final = "clockspeed/save/"
+
+#: The layer whose models ARE the published path (CS-1024). Every value the
+#: dashboard serves about a world is one of these models, assembled from the
+#: save layer's model and handed to ``clockspeed/surface/`` to serialise.
+#:
+#: WHY THE AUDIT LAYER AND NOT THE SURFACE LAYER TOO - the rule, stated so it
+#: can be refuted. "Every model on the published path" is read as every model
+#: that CARRIES WORLD CONTENT on its way out: a model assembled from a save.
+#: ``CLAUDE.md`` section 2.1 fixes that ``surface/`` never computes, so every
+#: world-derived value a surface class holds arrived inside a save or audit
+#: model already graded under R1; the surface layer's own dataclasses hold
+#: routes, request parameters, server configuration and the serialised
+#: response mapping built FROM those graded models, and R2 still grades every
+#: one of them for a ``bytes`` or ``Path`` carrier. A surface class that
+#: began CACHING a world value in its own ``str`` field would escape R1 - that
+#: residual is the price of this rule and is named here rather than hidden.
+AUDIT_LAYER: Final = "clockspeed/audit/"
+
+#: Every prefix R1 grades. A tuple so ``str.startswith`` reads it directly, and
+#: so a narrowing is one visible edit that the membership pin in
+#: ``tests/test_repr_rendering.py`` reddens on.
+R1_LAYERS: Final = (SAVE_LAYER, AUDIT_LAYER)
 
 #: Everything shipped. Tests, tools and scripts are not graded here: this item is
 #: about what the PRODUCT renders, and a test that reprs a value is CS-850's and
@@ -207,6 +230,85 @@ EXEMPT: Final[Mapping[str, str]] = {
         "above for HeaderWarning and UsmapWarning and stops being true if "
         "either changes. An earlier wording called code and detail constants, "
         "which an adversary measured false."
+    ),
+}
+
+#: Per-FIELD clearances, keyed like :data:`EXEMPT`, each naming the exact field
+#: set its reason covers (CS-1024).
+#:
+#: WHY FIELDS AND NOT A CLASS. An :data:`EXEMPT` entry clears a class whole, so
+#: a field ADDED to an exempted class after its measurement renders unmeasured -
+#: which is precisely the defect CS-1024 names for ``Placement``. A clearance
+#: here covers only the fields it lists: a class whose graded fields exceed its
+#: cleared set is a finding again, so the next ``str`` field on any of these
+#: models reddens the census until somebody measures it. Every entry was traced
+#: to its construction sites; "ACCEPTED" marks a field that renders save-read
+#: text NOT proven safe, recorded on the ``UnknownClass`` terms above rather
+#: than argued away.
+CLEARED_FIELDS: Final[Mapping[str, tuple[frozenset[str], str]]] = {
+    "clockspeed/audit/balance.py::DrawContribution": (
+        frozenset({"class_name"}),
+        "MEASURED in _classify, reached only from draw_of over the placement "
+        "model's built_counts keys - the closed built allowlist in placement.py. "
+        "No name outside that closed set can reach the field.",
+    ),
+    "clockspeed/audit/balance.py::DrawGap": (
+        frozenset({"class_name", "kind", "reason"}),
+        "class_name on the DrawContribution terms, from built_counts. kind is "
+        "GAP_NO_REGISTRY_ENTRY, GAP_DRAW_INEXACT or a shape word from "
+        "declared_draw; reason is _GAP_REASON or the fixed reason declared_draw "
+        "returns from the solve layer's constant table. Nothing is read from a save.",
+    ),
+    "clockspeed/audit/footprint.py::Footprint": (
+        frozenset({"class_name", "category", "x", "y", "z", "extent"}),
+        "class_name is admitted only as a key of CATEGORY_OF_CLASS and category "
+        "is its value, both closed tables. x, y and z are decimal_string over a "
+        "finite float, digits only. extent is a FootprintExtent, graded here "
+        "on its own entry.",
+    ),
+    "clockspeed/audit/footprint.py::FootprintExtent": (
+        frozenset({"x", "y", "z"}),
+        "Built only by _extent_of from three finite scale components, each "
+        "through decimal_string - a numeric rendering that names nothing.",
+    ),
+    "clockspeed/audit/inventory.py::ItemTotal": (
+        frozenset({"item_key"}),
+        "ACCEPTED DISCLOSURE, NOT PROVEN SAFE. _item_key_of reduces a save-read "
+        "str or reference path with class_name_of_path and validates it against "
+        "no closed set, so an arbitrary string under one of the "
+        "ITEM_KEY_PROPERTY_NAMES renders here. It is the value the inventory "
+        "route serves anyway, so the repr is no wider than the published answer.",
+    ),
+    "clockspeed/audit/machines.py::MachineState": (
+        frozenset({"class_name", "recipe_class_name"}),
+        "recipe_class_name passes _permitted_recipe_path first. class_name is "
+        "ACCEPTED DISCLOSURE, NOT PROVEN SAFE: machines_of reduces the record's "
+        "type_path with class_name_of_path and checks it against no closed set, "
+        "the UnknownClass shape - recorded rather than cleared on a false proof.",
+    ),
+    "clockspeed/audit/network.py::NodeUse": (
+        frozenset({"class_name"}),
+        "Copied from each ResourceNode in model.nodes, whose class_name the save "
+        "layer admits only from its own closed node class set before it builds "
+        "the node at all.",
+    ),
+    "clockspeed/audit/placement.py::AxisBounds": (
+        frozenset({"min_value", "max_value"}),
+        "Built only by _bounds from the finite coordinate triples _placement_of "
+        "kept, each end through decimal_string. Digits only.",
+    ),
+    "clockspeed/audit/placement.py::Placement": (
+        frozenset({"class_name", "x", "y", "z", "rotation", "scale"}),
+        "MEASURED in _placement_of and its two callers. class_name is a "
+        "ResourceNode class name from the save layer's closed node set, or a "
+        "built name admitted only by BUILT_CLASS_ALLOWLIST. x, y and z are "
+        "decimal_string over finite floats; rotation and scale are _rotation_of "
+        "and _scale_of, decimal strings or None. No instance name, no path.",
+    ),
+    "clockspeed/audit/placement.py::WorldBounds": (
+        frozenset({"x", "y", "z"}),
+        "Three AxisBounds and nothing else, each graded here on its own entry, "
+        "so this repr renders exactly what those three render.",
     ),
 }
 
@@ -359,7 +461,7 @@ def candidates_in(module: str, tree: ast.Module, opaque: frozenset[str]) -> list
         One record per class in the population, whatever its grade.
     """
     functions = {**known_functions(), **module_functions(tree)}
-    in_save_layer = module.startswith(SAVE_LAYER)
+    in_r1_layer = module.startswith(R1_LAYERS)
     out: list[ReprCandidate] = []
     for node in ast.walk(tree):
         if not isinstance(node, ast.ClassDef):
@@ -376,7 +478,7 @@ def candidates_in(module: str, tree: ast.Module, opaque: frozenset[str]) -> list
             if is_carrier or not _cannot_disclose(words, opaque):
                 disclosing.append(name)
                 tails.append(f"{name}: {annotation_tail(annotation) or '?'}")
-        by_r1 = in_save_layer and bool(disclosing)
+        by_r1 = in_r1_layer and bool(disclosing)
         by_r2 = bool(carriers)
         if not (by_r1 or by_r2):
             continue
@@ -429,12 +531,49 @@ def scan_tree() -> tuple[tuple[ReprCandidate, ...], tuple[ReprCandidate, ...]]:
         if tree is None:
             continue
         population.extend(candidates_in(relative, tree, opaque))
-    findings = tuple(
-        candidate
-        for candidate in population
-        if candidate.kind in LEAKING_KINDS and candidate.key not in EXEMPT
-    )
+    findings = tuple(candidate for candidate in population if is_finding(candidate))
     return tuple(population), findings
+
+
+def uncleared_fields(
+    candidate: ReprCandidate,
+    cleared: Mapping[str, tuple[frozenset[str], str]] | None = None,
+) -> tuple[str, ...]:
+    """The graded fields of one candidate that no clearance covers.
+
+    Args:
+        candidate: The record.
+        cleared: The per-field record to grade against. Defaults to
+            :data:`CLEARED_FIELDS`; a parameter so the mechanism is gradable.
+
+    Returns:
+        The field names, in declaration order.
+    """
+    record = CLEARED_FIELDS if cleared is None else cleared
+    covered = record[candidate.key][0] if candidate.key in record else frozenset()
+    return tuple(name for name in candidate.graded if name not in covered)
+
+
+def is_finding(
+    candidate: ReprCandidate,
+    cleared: Mapping[str, tuple[frozenset[str], str]] | None = None,
+) -> bool:
+    """Whether one candidate renders a graded field that nothing clears.
+
+    A class-wide :data:`EXEMPT` entry clears the whole class; otherwise EVERY
+    graded field must be covered by the class's :data:`CLEARED_FIELDS` entry,
+    so a field added after the measurement makes the class a finding again.
+
+    Args:
+        candidate: The record.
+        cleared: As for :func:`uncleared_fields`.
+
+    Returns:
+        True for a finding.
+    """
+    if candidate.kind not in LEAKING_KINDS or candidate.key in EXEMPT:
+        return False
+    return bool(uncleared_fields(candidate, cleared))
 
 
 def alternate_rendering_methods() -> tuple[str, ...]:
@@ -566,6 +705,33 @@ def stale_exemptions(record: Mapping[str, str] | None = None) -> tuple[str, ...]
     return tuple(sorted(set(EXEMPT if record is None else record) - needing))
 
 
+def stale_clearances(
+    record: Mapping[str, tuple[frozenset[str], str]] | None = None,
+) -> tuple[str, ...]:
+    """Cleared fields that no longer name a field needing clearance.
+
+    Reported rather than asserted, on the :func:`stale_exemptions` terms: a
+    repaired or removed field leaves its clearance behind, and failing on that
+    would make the proof require the defect.
+
+    Args:
+        record: The clearance record to grade. Defaults to :data:`CLEARED_FIELDS`.
+
+    Returns:
+        ``<key>`` for a key naming no rendering candidate and ``<key>::<field>``
+        for a cleared field the candidate no longer grades, sorted.
+    """
+    population, _ = scan_tree()
+    graded = {c.key: set(c.graded) for c in population if c.kind in LEAKING_KINDS}
+    stale: list[str] = []
+    for key, (names, _reason) in (CLEARED_FIELDS if record is None else record).items():
+        if key not in graded:
+            stale.append(key)
+            continue
+        stale.extend(f"{key}::{name}" for name in names if name not in graded[key])
+    return tuple(sorted(stale))
+
+
 def describe(candidates: tuple[ReprCandidate, ...]) -> str:
     """Render candidates as a report.
 
@@ -585,4 +751,6 @@ def describe(candidates: tuple[ReprCandidate, ...]) -> str:
             f"[{candidate.kind}, {candidate.rule}]"
         )
         lines.extend(f"      {tail}" for tail in candidate.tails)
+        if candidate.key in CLEARED_FIELDS:
+            lines.append(f"      uncleared: {', '.join(uncleared_fields(candidate)) or '-'}")
     return "\n".join(lines)

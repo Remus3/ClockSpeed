@@ -54,15 +54,19 @@ from clockspeed.surface.providers import (
     SaveWorldProvider,
     StaticAssets,
 )
+from tests.assertion_rendering_guard import declared_fields
 from tests.repr_rendering_guard import (
     ALTERNATE_RENDERING_METHODS,
+    AUDIT_LAYER,
     CARRIER_TYPES,
+    CLEARED_FIELDS,
     EXEMPT,
     KIND_DISCLOSED,
     KIND_GENERATED,
     KIND_INHERITED,
     KIND_WITHHELD,
     LEAKING_KINDS,
+    R1_LAYERS,
     REPO_ROOT,
     SAVE_LAYER,
     ReprCandidate,
@@ -70,10 +74,13 @@ from tests.repr_rendering_guard import (
     candidates_in,
     describe,
     exception_rendering_classes,
+    is_finding,
     opaque_class_names,
     scan_tree,
+    stale_clearances,
     stale_exemptions,
     swept_modules,
+    uncleared_fields,
 )
 
 #: A module path inside the graded layer, so R1 fires on a synthetic corpus.
@@ -142,6 +149,25 @@ UNGRADED_EXCEPTION_CHANNEL: tuple[str, ...] = (
 #: ``opaque_class_names``: the population went 43 to 42, one save-layer class
 #: dropped out of grading, and every arm stayed green.
 RECORDED_POPULATION: tuple[str, ...] = (
+    "clockspeed/audit/balance.py::DrawContribution",
+    "clockspeed/audit/balance.py::DrawGap",
+    "clockspeed/audit/balance.py::WorldBalance",
+    "clockspeed/audit/balance.py::WorldDraw",
+    "clockspeed/audit/balance.py::WorldStarvation",
+    "clockspeed/audit/collectibles.py::WorldCollectibles",
+    "clockspeed/audit/footprint.py::Footprint",
+    "clockspeed/audit/footprint.py::FootprintExtent",
+    "clockspeed/audit/footprint.py::WorldFootprint",
+    "clockspeed/audit/inventory.py::ItemTotal",
+    "clockspeed/audit/inventory.py::WorldInventory",
+    "clockspeed/audit/machines.py::MachineState",
+    "clockspeed/audit/machines.py::WorldMachines",
+    "clockspeed/audit/network.py::NodeUse",
+    "clockspeed/audit/network.py::WorldNetwork",
+    "clockspeed/audit/placement.py::AxisBounds",
+    "clockspeed/audit/placement.py::Placement",
+    "clockspeed/audit/placement.py::WorldBounds",
+    "clockspeed/audit/placement.py::WorldPlacement",
     "clockspeed/data/assets.py::ExtractResult",
     "clockspeed/save/chunks.py::ChunkError",
     "clockspeed/save/chunks.py::ChunkFrame",
@@ -392,6 +418,180 @@ def test_a_plain_string_above_the_save_layer_is_not_a_finding() -> None:
     assert found == [], f"R2 over-reached onto a plain str above the save layer: {found}"
 
 
+#: The one model CS-1024 names, graded on its REAL source with a field planted.
+PLACEMENT_MODULE: Final = "clockspeed/audit/placement.py"
+PLACEMENT_KEY: Final = f"{PLACEMENT_MODULE}::Placement"
+
+#: The planted field. Its name is invented, and a ``str`` is the annotation
+#: that R2 is blind to by construction - the whole of CS-1024's complaint.
+PLANTED_FIELD: Final = "planted_cs1024_label"
+
+#: The last declared field of ``Placement``, which the plant is inserted after.
+_PLACEMENT_LAST_FIELD: Final = "    scale: tuple[str, str, str] | None\n"
+
+
+def _placement_source(*, planted: bool) -> str:
+    """The shipped ``placement.py`` source, optionally with one ``str`` field planted.
+
+    THE PLANT NEVER TOUCHES THE FILE. It is made on the text in memory and
+    parsed on the spot, so no arm here can leave the shipped model mutated, and
+    the anchor is asserted unique so the plant cannot land in the wrong class.
+
+    Args:
+        planted: Whether to add :data:`PLANTED_FIELD` to ``Placement``.
+
+    Returns:
+        The source text.
+    """
+    source = (REPO_ROOT / PLACEMENT_MODULE).read_text(encoding="utf-8")
+    if not planted:
+        return source
+    assert source.count(_PLACEMENT_LAST_FIELD) == 1, "the plant anchor is not unique"
+    return source.replace(
+        _PLACEMENT_LAST_FIELD, f"{_PLACEMENT_LAST_FIELD}    {PLANTED_FIELD}: str\n"
+    )
+
+
+def _placement_findings(*, planted: bool) -> list[ReprCandidate]:
+    """Every ``Placement`` finding the guard reports over the real module.
+
+    Args:
+        planted: Whether to grade the planted copy.
+
+    Returns:
+        The findings keyed to ``Placement``.
+    """
+    tree = ast.parse(_placement_source(planted=planted))
+    found = candidates_in(PLACEMENT_MODULE, tree, opaque_class_names())
+    return [c for c in found if c.key == PLACEMENT_KEY and is_finding(c)]
+
+
+def test_a_str_field_planted_on_placement_reddens_the_census() -> None:
+    """CS-1024's REQUIRED PROOF, and the pristine half is its control.
+
+    ``Placement`` carries a GENERATED repr, so any field added to it renders.
+    Before CS-1024 no rule reached it: R1 stopped at the save layer and R2
+    fires only on ``bytes`` or ``Path``, so a planted ``str`` - a world name,
+    an instance name - rendered in full and no arm went red.
+    """
+    tree = ast.parse(_placement_source(planted=True))
+    placement = next(
+        node
+        for node in ast.walk(tree)
+        if isinstance(node, ast.ClassDef) and node.name == "Placement"
+    )
+    applied = PLANTED_FIELD in declared_fields(placement)
+    assert applied, "the plant did not land on Placement, so this arm proves nothing"
+
+    assert _placement_findings(planted=False) == [], "the pristine Placement is already a finding"
+    planted = _placement_findings(planted=True)
+    assert [c.key for c in planted] == [PLACEMENT_KEY], (
+        "a str field planted on Placement is not a finding - the census does not reach it"
+    )
+    assert uncleared_fields(planted[0]) == (PLANTED_FIELD,)
+
+
+def test_a_plain_string_in_the_audit_layer_is_a_finding() -> None:
+    """R1 REACHES THE PUBLISHED PATH, graded on a corpus authored here.
+
+    The mirror of ``test_a_plain_string_above_the_save_layer_is_not_a_finding``:
+    the same ``str`` dataclass that R2 rightly ignores under ``solve/`` is
+    graded under the audit layer, because a model there is what gets served.
+    """
+    source = (
+        "from dataclasses import dataclass\n@dataclass(frozen=True)\nclass Note:\n    label: str\n"
+    )
+    module = f"{AUDIT_LAYER}synthetic_corpus.py"
+    found = candidates_in(module, ast.parse(source), opaque_class_names())
+    leaking = [c for c in found if is_finding(c)]
+    assert [(c.class_name, c.rule) for c in leaking] == [("Note", "R1")]
+
+
+def test_the_audit_layer_is_inside_r1() -> None:
+    """The reach is a stated constant, and narrowing it is one visible edit."""
+    assert SAVE_LAYER in R1_LAYERS
+    assert AUDIT_LAYER in R1_LAYERS
+    swept_audit = [m for m in swept_modules() if m.startswith(AUDIT_LAYER)]
+    assert swept_audit, "the sweep walks no audit module at all"
+
+
+def test_a_field_clearance_covers_only_the_fields_it_names() -> None:
+    """THE MECHANISM CS-1024 ADDS, graded on a record authored here.
+
+    A clearance naming one of two graded fields leaves the class a finding on
+    the other, and a clearance naming both clears it. Without the first half a
+    field added after the measurement would render unmeasured, which is the
+    class-wide exemption's defect wearing a new record.
+    """
+    source = (
+        "from dataclasses import dataclass\n"
+        "@dataclass(frozen=True)\n"
+        "class Pair:\n"
+        "    measured: str\n"
+        "    added_later: str\n"
+    )
+    module = f"{AUDIT_LAYER}synthetic_corpus.py"
+    (pair,) = candidates_in(module, ast.parse(source), opaque_class_names())
+    half = {pair.key: (frozenset({"measured"}), "a reason authored for this arm")}
+    whole = {pair.key: (frozenset({"measured", "added_later"}), "a reason authored here")}
+
+    assert is_finding(pair, {}), "an uncleared str field is not a finding"
+    assert is_finding(pair, half), "a field outside its clearance is not a finding"
+    assert uncleared_fields(pair, half) == ("added_later",)
+    assert not is_finding(pair, whole), "a fully cleared class is still a finding"
+
+
+def test_no_published_path_model_is_exempted_class_wide() -> None:
+    """EVERY AUDIT MODEL IS GRADED PER FIELD, never cleared whole.
+
+    A class-wide :data:`EXEMPT` entry for an audit model would re-open the
+    exact gap CS-1024 closes: the next field added to it renders unmeasured.
+    """
+    whole = sorted(key for key in EXEMPT if key.startswith(AUDIT_LAYER))
+    assert whole == [], f"audit model(s) exempted class-wide: {whole}"
+    population, _ = scan_tree()
+    rendering = sorted(
+        c.key for c in population if c.module.startswith(AUDIT_LAYER) and c.kind in LEAKING_KINDS
+    )
+    assert rendering, "no audit model renders through a generated repr - the census is blind"
+    unrecorded = sorted(set(rendering) - set(CLEARED_FIELDS))
+    assert unrecorded == [], f"rendering audit model(s) with no field clearance: {unrecorded}"
+
+
+def test_every_field_clearance_names_a_class_and_states_a_reason() -> None:
+    """A clearance for nothing grades nothing, and a blank reason is a stamp."""
+    population, _ = scan_tree()
+    known = {c.key for c in population}
+    assert sorted(set(CLEARED_FIELDS) - known) == []
+    empty = sorted(key for key, (names, _reason) in CLEARED_FIELDS.items() if not names)
+    thin = sorted(
+        key
+        for key, (_names, reason) in CLEARED_FIELDS.items()
+        if len(reason.strip()) < MINIMUM_REASON_CHARS
+    )
+    assert empty == [], f"clearance(s) naming no field: {empty}"
+    assert thin == [], f"clearance(s) with no stated reason: {thin}"
+
+
+def test_a_stale_field_clearance_is_reported_rather_than_reddening() -> None:
+    """BOTH DIRECTIONS, on the ``stale_exemptions`` terms, and this one WARNS."""
+    fabricated = {
+        "clockspeed/audit/nowhere.py::NoSuchClass": (frozenset({"x"}), "names nothing"),
+        PLACEMENT_KEY: (frozenset({"class_name", "no_such_field"}), "one real, one not"),
+    }
+    reported = stale_clearances(fabricated)
+    assert reported == (
+        "clockspeed/audit/nowhere.py::NoSuchClass",
+        f"{PLACEMENT_KEY}::no_such_field",
+    ), f"the stale-clearance reporter missed a fabricated entry: {reported}"
+    assert stale_clearances({}) == (), "an empty record cannot be stale"
+
+    stale = stale_clearances()
+    if stale:
+        lines = "\n".join(f"  stale CLEARED_FIELDS entry, remove it: {s!r}" for s in stale)
+        warnings.warn(f"{len(stale)} clearance(s) no longer needed:\n{lines}", stacklevel=1)
+
+
 def test_no_shipped_class_renders_through_an_ungraded_channel() -> None:
     """NO SILENT CAP: ``__str__`` and ``__format__`` are NOT graded here.
 
@@ -519,7 +719,8 @@ def test_every_identifier_an_exemption_cites_exists_in_the_module_it_names() -> 
     """
     identifier = re.compile(r"[A-Za-z_][A-Za-z0-9_]*")
     missing: list[str] = []
-    for key, reason in EXEMPT.items():
+    cited = [*EXEMPT.items(), *((key, reason) for key, (_n, reason) in CLEARED_FIELDS.items())]
+    for key, reason in cited:
         module = key.split("::", 1)[0]
         source = (REPO_ROOT / module).read_text(encoding="utf-8")
         for token in identifier.findall(reason):
