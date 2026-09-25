@@ -1312,6 +1312,11 @@ DECLINED_AS_DECLARED_UNTRACKED: Final[Mapping[tuple[str, str, str], int]] = {
     ("tests/test_outbound_send.py", "data/outbound_deliveries.json", ""): 1,
     ("ops/loop/queue_loop.py", "ops/loop/config.json", ""): 1,
     (
+        "docs/adr/0023-whether-a-filename-is-personal-data.md",
+        "ops/loop/config.json",
+        "## Decision",
+    ): 1,
+    (
         "docs/item_notes/phase4-followups-900.md",
         "data/outbound_deliveries.json",
         "### MEASURED 2026-09-08 (session 76), four adversarial lenses against the REPAIRED sender",
@@ -1537,7 +1542,17 @@ DECLINED_AS_A_FIXTURE_LITERAL: Final[Mapping[tuple[str, str, str], int]] = {
 #: file. The row REFUNDS and the ceiling returns to 16 if that comment ever stops
 #: naming the file. As above, the citation was already in the tree and red when
 #: this row was added; it was not appended together with it.
-DECLARED_UNTRACKED_CEILING: Final = 17
+#:
+#: 17 TO 18 FOR ADR 0023's RULE 5, 2026-09-25 BY CS-1158. Rule 5 names the lane's
+#: machine-local configuration file as its example of a fixed name this
+#: repository chose itself - the class of skipped path whose name RENDERS and so
+#: serves as the renderer's control. The example IS an untracked file by
+#: construction: it is skipped because git ignores it, which is what makes it an
+#: example of rule 5 at all, and there is nothing tracked to repoint it at. Same
+#: standing as the two rows above that name the same file. The row REFUNDS and
+#: the ceiling returns to 17 if the ADR ever stops naming the file. The citation
+#: arrived with the ADR at the CS-1158 merge and was red before this row existed.
+DECLARED_UNTRACKED_CEILING: Final = 18
 #: 9 TO 6 WHEN CS-928 DELETED THE THREE FALSE ADVISOR ATTRIBUTIONS. Six
 #: `docs/ARCHITECTURE.md` rows left the rung and three arrived from the guard
 #: that now asserts those files absent, so the disclosure holds six rows and the
