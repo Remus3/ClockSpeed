@@ -33,7 +33,9 @@ import doc_sweep  # noqa: E402
 from toolpath import resolve_tool  # noqa: E402
 
 GIT_TIMEOUT: Final = 120
-PLANT: Final = "docs/zz-planted-orphan.md"
+#: Built at import time from parts so the literal plant path never appears in this tracked
+#: file - a whole spelling here would count as a reference and hide the orphan (CS-1184).
+PLANT: Final = "/".join(("docs", "zz-planted" + "-orphan.md"))
 
 
 def _git_env() -> dict[str, str]:
