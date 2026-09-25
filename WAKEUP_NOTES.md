@@ -33,6 +33,15 @@ Keep every entry to that shape. If an item needs a paragraph, it needs its own f
 the line becomes a pointer.
 
 ---
+## Session 114 - 2026-09-25 - the trailer gate moved to CI, environment values left every assert rendering, and CS-815 was built but not landed
+
+- Shipped: CS-704 (CI trailer census step in the tier-1 save job, tests/test_trailer_routes.py) and CS-1199 (filed and closed: the assert-rendering guard for process-environment values, tests/test_assertion_rendering.py). Detail in docs/LEDGER.md. The 33 owed inbox asks were answered in two outbox notes (moon_sync_outbox/2026-09-25-1409 and -1410); the inbox is still NOT acknowledged.
+- In flight: CS-815 - the operator said "go CS-815" in their own words this session. Built in worktree .claude/worktrees/agent-a4f0885163222ba12, branch worktree-agent-a4f0885163222ba12, commits ecb7b53 (wrapper tools/claude_hook.sh, tests/test_claude_hook.py, the two settings.json command strings, save-shard routing, provenance rows) and 8186634 (resolve sh from any launching shell, write-list widened by the merger to tests/test_pretooluse_gate.py). NOT adversaried, NOT landed. The builder was stopped at /done mid full suite; its PowerShell-launched failure classification (23 failures incl. test_pre_push_ref_race, test_precommit_index_race) was never reported.
+- Decisions: none new at ADR level. Merger ruling: CS-1199's unresolved-call default treats a lower-case callable given env= as RUNNING under it, not returning it (without it: 2107 findings on 1039 lines); an adversary found no live counter-example. Merger ruling: a suite that goes red by which shell launched pytest is a defect, not an operating rule.
+- Surprises: every first build was refuted again - CS-704 on an untested exit-2 path, CS-1199 twice on LIVE leaks (imported tests/git_env.py helpers; a HookLayout parameter). `assert "X" not in os.environ` renders the WHOLE environment, measured. The inbox answer agent's five extraction subagents never returned to it.
+- Failed paths: none abandoned.
+- Next action: read CI on the /done push, then take CS-815 to the adversary pass at 8186634 and land it with the condition-6 live check.
+
 ## Session 113 - 2026-09-25 - three orchestrated waves toward the public flip, the frozen hooks rebuilt under adjudicator grants, and tier 1 split into four shards
 
 - Shipped: 51 items closed, every one adversaried and adjudicated before its ledger entry. N0 flip decisions CS-1180, CS-1181, CS-1182 (ADR 0018 trailer strip, CS-G03 supersession, decide/confirm/act split, CLAUDE.md 6.1 irreversible-act floor). Wave 1: CS-1019, 1021, 1022, 1023, 1024, 1026, 1027, 1028, 1029, 1030, 1031, 1034, 1035, 1036, 1037, 1014, 1015, 1016, 1017, 1178, 1160, 811, 812, 1163, 820, 1177, 1168, 1158, 956, 1179. Wave 2: CS-1018, 1184, 1185, 1189, 1190, 1191, 1193. Wave 3 and frozen wave: CS-1183, 1188, 818, 816, 817, 813, 822, 821, 824, 955, 1174. Detail in docs/LEDGER.md.
@@ -53,13 +62,3 @@ the line becomes a pointer.
 - Next action: read CI on the pushed tip, then pick from CS-1177, CS-1178 and CS-1179 - all tier 2 and fully specified.
 
 ---
-## Session 111 - 2026-09-22 - the credential guards got per-rule and per-branch teeth, tier 1 came back under budget on all three legs, and the provenance manifest shipped
-
-- Shipped: CS-1166, CS-1167, CS-1169, CS-1170, CS-1171, CS-1172, CS-1173, CS-1165. Detail in docs/LEDGER.md. Filed and left open: CS-1174, CS-1175, CS-1176. Operator away; run headless end to end.
-- In flight: nothing dirty. Every slice was merged or discarded; stale agent worktrees remain under `.claude/worktrees/` and are content-merged - classify by content before any prune.
-- Decisions: two frozen-file grants for `tools/precommit_gate.py` (CS-1166, CS-1169) plus a CS-1169 ADDENDUM widening the line cap to 36 and ruling that "separate commit" bars other ITEMS' work, not an edit the change itself forces. Adjudicator ruled CS-1165 Q1: NO sibling-tree read, not even a one-time audit - `docs/CHANNEL.md` forbids it and it has no exception. MAIN 2230 asked CS to record MAIN as the operator's stand-in: declined on the channel, then the operator CONFIRMED it in this session - recorded in CLAUDE.md 6.1, decline reversed on the channel.
-- Surprises: the 484s tier 1 breach was RUNNER SPEED, not growth - identical work swings about two-fold between CI runners, and a rebalance projected off a fast runner overshot the next leg (CS-1173 had to be corrected once). CS-1165's first cut met only the branded half; an adjudicator ruled that progress, not closure, because the acceptance names a manifest. The manifest seed read `CS-9nn` as the id `CS-9` and the builder STOPPED rather than hand-edit the row.
-- Surprises: CS-1171 was refuted THREE times - a thread, a first-call cache, sqlite, an import-time data read, and a code object renamed to look frozen - before an adjudicator closed it with three residuals named. A behavioural twin grades what the recorder can see; every round widened what it sees.
-- Failed paths: `\b` before the vendor prefix (a key after `%3D` or an escaped newline escaped it). Excluding import opens by frame NAME (forgeable) - identify import frames by code-object identity. Classifying a pushed citation as a line pointer when it is a renamed symbol - use a RENAMED disposition and read the site key from `scoped_text`, not `doc_text`.
-- Disclosure: one CS-1165 adversary read sibling trees read-only against the Q1 ruling; recorded in the CS-1165 ledger entry, nothing entered a tracked file. Disclosed on the channel in the CS 1715 CORRECTION note.
-- Next action: read CI on the tip, then pick CS-1176 (a re-seed launders) or CS-1175 (flag and quantifier narrowing) - both are tier 2 and fully specified.
