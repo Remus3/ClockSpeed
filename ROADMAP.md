@@ -345,3 +345,4 @@ CS-1187 - the clean-checkout probe has never run on a machine that has never see
 CS-1188 - the tracked-file walk arm fails in every linked worktree, because `.git` is a file there - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1189 - the map endpoint serves the save's `ItemTotal.item_key` text verbatim with no closed-vocabulary check - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
 CS-1190 - the CS-700 flip plan does not quiesce other pushers - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
+CS-1191 - under colour output or xdist at `-vv`, the pytest report renders the Windows account name - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`

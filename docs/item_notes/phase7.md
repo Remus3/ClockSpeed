@@ -1294,3 +1294,28 @@ pushes lane branches at its step 9 on un-rewritten history, nor a push from anot
 clone landing after the mirror check before S12. Inside S9 the delete can succeed and
 the recreate fail, or the repository can come up public, and the plan names neither
 state.
+
+## CS-1191
+
+### Acceptance
+
+the render-time redaction in `tests/conftest.py` covers the coloured and the
+xdist-verbose report paths, with an arm that runs a child pytest under
+`--color=yes -n 2 -vv` and asserts zero account-name renderings in its output beyond
+the session header CS-447 declares.
+
+### Full headline
+
+under colour output or xdist at `-vv`, the pytest report renders the Windows account
+name, because the highlighted assertion diff wraps each token in terminal escape
+codes and splits a home path before the personal-data redaction reads it
+
+### FILED 2026-09-25, found by the CS-820 closing adjudicator (session 113)
+
+The adjudicator measured 81 account-name occurrences in the highlighted assertion diff
+of an environment mapping, under `--color=yes -vv` and under `-n 2` with `-vv` or
+`-vvv`, and zero credential shapes. The same count reproduced at base `403e775`, so the
+defect is pre-existing and not introduced by CS-820, whose clause is credential shapes
+only. The miss is in `tests/conftest.py::redact_personal_data`, which reads the text
+after the escape codes have split the path; stripping or tolerating the escape codes
+before it matches is the likely repair.
