@@ -107,6 +107,12 @@ IIFE_CLOSE: Final = "}());"
 #: A JavaScript block comment.
 _BLOCK_COMMENT: Final = re.compile(r"/\*[\s\S]*?\*/")
 
+#: A JavaScript line comment, a string literal of either quoting style, and an
+#: identifier - what :func:`probe_names` blanks and then collects.
+_LINE_COMMENT: Final = re.compile(r"//[^\n]*")
+_STRING_LITERAL: Final = re.compile(r"\"(?:[^\"\\\n]|\\.)*\"|'(?:[^'\\\n]|\\.)*'")
+_IDENTIFIER: Final = re.compile(r"[A-Za-z_$][\w$]*")
+
 #: A classic script tag in ``index.html``, capturing its source.
 _SCRIPT_TAG: Final = re.compile(r'<script src="([^"]+)"')
 
@@ -228,11 +234,14 @@ globalThis.document = {
   activeElement: null
 };
 
-globalThis.window = {
-  addEventListener: function () {
-    return undefined;
-  }
+/*
+  window IS THE GLOBAL OBJECT, as it is in a browser. A separate stub would let
+  a module hang a helper on window from inside its IIFE and pass the census.
+*/
+globalThis.addEventListener = function () {
+  return undefined;
 };
+globalThis.window = globalThis;
 
 /* The page's load-time probes park forever, so nothing repaints behind a run. */
 globalThis.fetch = function () {
@@ -322,6 +331,66 @@ process.stdout.write(
       };
     })
   })
+);
+"""
+
+
+#: A CommonJS harness that takes the census of ONE script in a fresh realm. The
+#: realm's ``window`` is its own global object and ``registerPanel`` is a stub,
+#: which is all a panel module's top level may touch. See :func:`census`.
+CENSUS_SOURCE: Final = r""""use strict";
+
+var fs = require("node:fs");
+var vm = require("node:vm");
+
+var request = JSON.parse(fs.readFileSync(process.argv[2], "utf8"));
+var source = fs.readFileSync(request.script, "utf8");
+
+function realm() {
+  var context = vm.createContext({});
+  vm.runInContext(
+    "globalThis.window = globalThis;" +
+      "globalThis.document = {};" +
+      "globalThis.registerPanel = function () { return true; };",
+    context
+  );
+  return context;
+}
+
+function propertiesOf(context) {
+  return vm.runInContext("Object.getOwnPropertyNames(globalThis)", context);
+}
+
+function bound(context) {
+  /* The names a "let" redeclaration refuses: already bound at script scope. */
+  return request.names.filter(function (name) {
+    try {
+      vm.runInContext("let " + name + ";", context);
+      return false;
+    } catch (failure) {
+      return true;
+    }
+  });
+}
+
+var baseline = bound(realm());
+var loaded = realm();
+var before = propertiesOf(loaded);
+var threw = null;
+try {
+  vm.runInContext(source, loaded);
+} catch (failure) {
+  threw = failure && failure.message ? String(failure.message) : String(failure);
+}
+var added = propertiesOf(loaded).filter(function (name) {
+  return before.indexOf(name) < 0;
+});
+var declared = bound(loaded).filter(function (name) {
+  return baseline.indexOf(name) < 0;
+});
+
+process.stdout.write(
+  JSON.stringify({ threw: threw, added: added.sort(), declared: declared.sort() })
 );
 """
 
@@ -518,20 +587,164 @@ def test_no_panel_module_adds_a_global(tmp_path: Path) -> None:
     total = len(leaks)
     assert total == 0, f"{total} panel module(s) put names in the shared global scope: {leaks}"
 
+    # THE ISOLATED CENSUS TOO, which alone sees a script-scope let, const or
+    # class: the page run above reads global-object properties only.
+    isolated = {path.name: sorted(census(tmp_path, path)) for path in scripts}
+    leaking = {name: found for name, found in isolated.items() if found}
+    count = len(leaking)
+    assert count == 0, f"{count} panel module(s) bind names at script scope: {leaking}"
+
 
 def test_the_global_census_fires_on_a_planted_top_level_helper(tmp_path: Path) -> None:
-    """The census is proved able to see a global, on the same run shape.
+    """Both censuses are proved able to see a global, each on its own run shape.
 
     A census that recorded nothing would pass the arm above on a page full of
-    leaks. The plant declares a table and a helper at top level, and both are
-    named against the plant and against nothing else.
+    leaks. The plant declares a table and a helper at top level and raises a
+    flag through ``globalThis``, and exactly those three are named.
     """
     plant = tmp_path / "planted_leak.js"
     plant.write_bytes(PLANT_SOURCE.encode("ascii"))
+    expected = ["FIELDS", "plantedCollisionLoaded", "vocabularyLine"]
     report = run_page(tmp_path, [plant])
     added = {row["script"]: row["added"] for row in report["loads"]}
-    assert added[plant.name] == ["FIELDS", "plantedCollisionLoaded", "vocabularyLine"], added
+    assert added[plant.name] == expected, added
     assert report["plant_loaded"] is True, report
+    seen = sorted(census(tmp_path, plant))
+    assert seen == expected, seen
+
+
+def probe_names(source: str) -> tuple[str, ...]:
+    """Every identifier in a script's code - the names the lexical probe tries.
+
+    A script-scope binding can only be named by an identifier the script
+    contains, so probing each one covers every binding it could have made.
+
+    Args:
+        source: The script's full text.
+
+    Returns:
+        Each distinct identifier outside comments and string literals, sorted.
+    """
+    code = _STRING_LITERAL.sub(" ", _LINE_COMMENT.sub(" ", _BLOCK_COMMENT.sub(" ", source)))
+    return tuple(sorted(set(_IDENTIFIER.findall(code))))
+
+
+def census(tmp_path: Path, script: Path) -> set[str]:
+    """Every name one script leaves in the shared scope, however it put it there.
+
+    The script runs ALONE in a fresh realm whose ``window`` is its global object.
+    Two readings are unioned: the global-object properties it added - a
+    top-level ``var`` or ``function``, or anything assigned through ``window``
+    or ``globalThis`` - and the script-scope bindings it declared, which a
+    top-level ``let``, ``const`` or ``class`` makes WITHOUT a global property.
+    The second is read by declaring ``let name`` for each identifier in the
+    script: a redeclaration throws exactly when the name is already bound at
+    script scope. The same probe on a realm that never loaded the script is the
+    baseline, so a builtin or a keyword that throws either way is not counted.
+
+    Args:
+        tmp_path: Where the harness and its request are written.
+        script: The script to take the census of.
+
+    Returns:
+        The names the script added.
+
+    Raises:
+        AssertionError: If the script threw on load, since a census of a script
+            that stopped halfway grades only the half that ran.
+    """
+    node = shutil.which("node")
+    if node is None:
+        pytest.fail(
+            "node is not on PATH, so no census was taken. This FAILS rather than "
+            "skipping: a gate that skips its checks reports PASS while measuring nothing."
+        )
+    source = script.read_bytes().decode("ascii")
+    scratch = tmp_path / f"census_{script.name}"
+    scratch.mkdir(parents=True, exist_ok=True)
+    harness = scratch / "census_harness.cjs"
+    harness.write_bytes(CENSUS_SOURCE.encode("ascii"))
+    request = scratch / "census_request.json"
+    request.write_bytes(
+        json.dumps({"script": str(script), "names": list(probe_names(source))}).encode("ascii")
+    )
+    completed = subprocess.run(
+        [node, str(harness), str(request)],
+        capture_output=True,
+        text=True,
+        timeout=NODE_TIMEOUT_SECONDS,
+        check=False,
+    )
+    assert completed.returncode == 0, (
+        f"the census harness exited {completed.returncode}: {completed.stderr.strip()}"
+    )
+    report: Mapping[str, Any] = json.loads(completed.stdout)
+    threw = report["threw"]
+    assert threw is None, f"{script.name} threw on load: {threw}"
+    return set(report["added"]) | set(report["declared"])
+
+
+def _planted_copy(tmp_path: Path, name: str, anchor: str, insert: str) -> Path:
+    """A copy of a shipped module with ``insert`` placed immediately before ``anchor``.
+
+    Args:
+        tmp_path: Where the copy is written.
+        name: The shipped module to copy.
+        anchor: Text that must occur exactly once in the module.
+        insert: The text planted before it.
+
+    Returns:
+        The planted copy's path, under the shipped module's own file name.
+
+    Raises:
+        AssertionError: If the anchor is not there exactly once, in which case
+            the plant never applied and a green run would grade nothing.
+    """
+    source = read_module(name)
+    hits = source.count(anchor)
+    assert hits == 1, f"the plant anchor occurs {hits} time(s) in {name}"
+    planted = source.replace(anchor, insert + anchor, 1)
+    assert insert in planted, "the plant did not apply"
+    target = tmp_path / "planted" / name
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_bytes(planted.encode("ascii"))
+    return target
+
+
+def test_the_census_sees_a_helper_published_on_window(tmp_path: Path) -> None:
+    """A wrapped module that hangs a helper on ``window`` is still a leak.
+
+    ``window`` IS the global object in a browser, so ``window.name = value``
+    from inside an IIFE is exactly the shared-scope binding the wrapper exists
+    to prevent. A harness whose ``window`` were a separate stub would let this
+    through, which is how an adversary refuted the first census.
+    """
+    plant = _planted_copy(
+        tmp_path,
+        SOLVE_MODULE,
+        'registerPanel("solve",',
+        "window.approximateDecimal = approximateDecimal;\n",
+    )
+    seen = sorted(census(tmp_path, plant))
+    assert "approximateDecimal" in seen, seen
+
+
+@pytest.mark.parametrize(
+    "declaration",
+    ["let mapZoomState = 1;\n", "const mapZoomState = 1;\n", "class mapZoomState {}\n"],
+    ids=["let", "const", "class"],
+)
+def test_the_census_sees_a_top_level_lexical_binding(tmp_path: Path, declaration: str) -> None:
+    """A top-level ``let``, ``const`` or ``class`` beside the IIFE is a leak.
+
+    A script-scope lexical binding is shared by every classic script on the
+    page yet is NOT a property of the global object, so a census that lists
+    global properties alone is blind to it - the second way the first census
+    was refuted. Planted before ``panel_map.js``'s wrapper, outside it.
+    """
+    plant = _planted_copy(tmp_path, "panel_map.js", IIFE_OPEN, declaration)
+    seen = sorted(census(tmp_path, plant))
+    assert "mapZoomState" in seen, seen
 
 
 def test_the_census_names_the_helpers_of_an_unwrapped_solve_bench(tmp_path: Path) -> None:
@@ -543,8 +756,7 @@ def test_the_census_names_the_helpers_of_an_unwrapped_solve_bench(tmp_path: Path
     """
     unwrapped = tmp_path / SOLVE_MODULE
     unwrapped.write_bytes(unwrap(read_module(SOLVE_MODULE)).encode("ascii"))
-    report = run_page(tmp_path, [unwrapped])
-    added = set(report["loads"][0]["added"])
+    added = census(tmp_path, unwrapped)
     for name in ("FIELDS", "textOf", "approximateDecimal", "vocabularyLine"):
         assert name in added, f"{name} was not seen leaking from the unwrapped bench: {added}"
 

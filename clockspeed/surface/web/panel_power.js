@@ -45,12 +45,15 @@
 */
 
 /*
-  WRAPPED IN AN IIFE, AS panel_registry.js AND panel_warnings.js ARE. These are
-  classic scripts sharing ONE global scope, and panel_solve.js already declares
-  textOf, addNote, approximateDecimal and a dozen more names this file needs at
-  top level. Declared globally here, the LAST script index.html loads would win
-  every one of them, and a mount closes over the BINDING rather than a snapshot
-  - so another panel would silently start rendering with this file's helpers.
+  WRAPPED IN AN IIFE, AS EVERY PANEL MODULE IS. These are classic scripts
+  sharing ONE global scope, and panel_solve.js uses textOf, addNote,
+  approximateDecimal and a dozen more of the names this file needs - inside its
+  own IIFE since CS-1026, and at top level before it. Declared globally in any
+  two panels, the LAST script index.html loads would win every one of them, and
+  a mount closes over the BINDING rather than a snapshot - so another panel
+  would silently start rendering with this file's helpers.
+  tests/surface/test_panel_global_scope.py takes the census of every panel
+  module's shared-scope names.
 */
 (function () {
   /* The one required parameter, and the two that unlock the rest. */

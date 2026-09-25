@@ -40,14 +40,16 @@
 */
 
 /*
-  WRAPPED IN AN IIFE, AS panel_registry.js AND panel_warnings.js ARE, AND FOR A
-  FAULT THIS FILE WOULD OTHERWISE HAVE CAUSED. These are classic scripts sharing
-  ONE global scope: panel_solve.js declares FIELDS, textOf, addNote,
-  approximateDecimal and a dozen more at top level, and this bench needs the
-  same names. Declared globally here, the LAST script index.html loads would win
-  every one of them - and because a mount closes over the BINDING rather than
-  over a snapshot, the solve bench would then build the optimize bench's fields
-  on the next repaint. Nothing would throw; the page would just be wrong.
+  WRAPPED IN AN IIFE, AS EVERY PANEL MODULE IS, AND FOR A FAULT THIS FILE WOULD
+  OTHERWISE CAUSE. These are classic scripts sharing ONE global scope, and
+  panel_solve.js uses FIELDS, textOf, addNote, approximateDecimal and a dozen
+  more of the names this bench needs - inside its own IIFE since CS-1026, and
+  at top level before it. Declared globally in any two panels, the LAST script
+  index.html loads would win every one of them - and because a mount closes
+  over the BINDING rather than over a snapshot, the solve bench would then
+  build the optimize bench's fields on the next repaint. Nothing would throw;
+  the page would just be wrong. tests/surface/test_panel_global_scope.py takes
+  the census of every panel module's shared-scope names.
 */
 (function () {
   /* --- what the endpoint takes ------------------------------------------- */
