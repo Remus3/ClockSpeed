@@ -244,6 +244,58 @@ def test_anchors_read_atx_setext_and_html_ids_and_skip_fences() -> None:
     assert doc_sweep.anchors(text) == {"title", "setext-heading", "explicit", "title-1"}
 
 
+# --- the CS-1184 repair: headings GitHub anchors, and regions it never renders --
+
+
+def test_a_two_line_setext_heading_is_one_anchor() -> None:
+    # The softbreak renders as a newline, which the character rule drops.
+    assert doc_sweep.anchors("Line one\nLine two\n========\n") == {"line-oneline-two"}
+
+
+def test_a_heading_inside_a_blockquote_or_a_list_item_is_anchored() -> None:
+    # GitHub renders both as h2 elements and anchors every heading element.
+    text = "> ## Quoted\n\n- ## Listed\n\n1. ### Numbered\n\n> Quoted setext\n> ---\n"
+    assert doc_sweep.anchors(text) == {"quoted", "listed", "numbered", "quoted-setext"}
+
+
+def test_a_line_outside_a_quote_is_not_a_setext_underline_for_it() -> None:
+    # The dashes cannot continue the quote lazily; they are a thematic break.
+    assert doc_sweep.anchors("> quote\n---\n") == set()
+
+
+def test_a_list_item_followed_by_dashes_is_not_a_setext_heading() -> None:
+    assert doc_sweep.anchors("- item\n---\n") == set()
+
+
+def test_an_autolink_in_a_heading_keeps_its_text() -> None:
+    assert doc_sweep.Slugger().slug("See <https://x>") == "see-httpsx"
+
+
+def test_an_unpaired_underscore_survives_the_slug() -> None:
+    slugger = doc_sweep.Slugger()
+    assert slugger.slug("The _private prefix") == "the-_private-prefix"
+    assert slugger.slug("A __dunder__ name") == "a-dunder-name"
+
+
+def test_nested_underscore_emphasis_is_unwrapped_to_its_text() -> None:
+    # Renders as <em>outer and <strong>inner</strong> word</em>.
+    assert doc_sweep.Slugger().slug("_outer and __inner__ word_") == "outer-and-inner-word"
+
+
+def test_a_heading_inside_an_html_comment_is_no_anchor() -> None:
+    text = "<!--\n# Hidden\n-->\n# Shown <!-- # also hidden -->\n<!-- # inline hidden -->\n"
+    assert doc_sweep.anchors(text) == {"shown"}
+
+
+def test_yaml_front_matter_is_no_anchor() -> None:
+    text = "---\nname: agent\ndescription: x\n---\n# Real\n"
+    assert doc_sweep.anchors(text) == {"real"}
+
+
+def test_a_comment_opener_inside_a_code_span_is_literal() -> None:
+    assert doc_sweep.anchors("Write `<!--` to open one.\n\n# After\n") == {"after"}
+
+
 # --- the population ----------------------------------------------------------
 
 
@@ -312,6 +364,66 @@ def test_a_link_relative_to_the_referring_file_is_a_reference(make_repo: RepoFac
 def test_a_mention_in_a_code_file_is_a_reference(make_repo: RepoFactory) -> None:
     extra = {"docs/pinned.md": "# Pinned\n", "tools/pin.py": 'DOC = "docs/pinned.md"\n'}
     assert _sweep(make_repo(extra)).findings == []
+
+
+@pytest.mark.parametrize(
+    "hiding",
+    [
+        "\n```\ncat docs/hidden.md\n```\n",
+        "\n~~~~\n[x](docs/hidden.md)\n~~~~\n",
+        "\n<!-- see docs/hidden.md -->\n",
+        "\n<!--\n[x](docs/hidden.md)\n-->\n",
+    ],
+    ids=["backtick-fence", "tilde-fence", "inline-comment", "multiline-comment"],
+)
+def test_a_mention_nobody_can_follow_is_not_a_reference(
+    make_repo: RepoFactory, hiding: str
+) -> None:
+    extra = {"docs/hidden.md": "# Hidden\n", "README.md": BASE_FILES["README.md"] + hiding}
+    assert _kinds(_sweep(make_repo(extra))) == [(doc_sweep.ORPHAN, "docs/hidden.md")]
+
+
+def test_a_mention_after_a_closed_comment_on_its_line_is_a_reference(
+    make_repo: RepoFactory,
+) -> None:
+    extra = {
+        "docs/shown.md": "# Shown\n",
+        "README.md": BASE_FILES["README.md"] + "\n<!--\nx\n--> see `docs/shown.md`\n",
+    }
+    assert _sweep(make_repo(extra)).findings == []
+
+
+def test_an_empty_comment_closes_itself(make_repo: RepoFactory) -> None:
+    # CommonMark closes "<!-->" and "<!--->" at once; the mention after each is visible.
+    extra = {
+        "docs/shown.md": "# Shown\n",
+        "docs/also.md": "# Also\n",
+        "README.md": BASE_FILES["README.md"]
+        + "\n<!--> see `docs/shown.md`\n\n<!---> see `docs/also.md`\n",
+    }
+    assert _sweep(make_repo(extra)).findings == []
+
+
+def test_a_fragment_inside_an_html_comment_is_not_a_link(make_repo: RepoFactory) -> None:
+    extra = {"README.md": BASE_FILES["README.md"] + "\n<!-- [x](docs/guide.md#gone) -->\n"}
+    report = _sweep(make_repo(extra))
+    assert report.findings == []
+    assert report.fragments_checked == 0
+
+
+def test_an_unreferenced_archive_file_is_not_an_orphan(make_repo: RepoFactory) -> None:
+    report = _sweep(make_repo({"docs/_archive/old-2026-01-01.md": "# Old\n"}))
+    assert report.findings == []
+
+
+def test_an_archive_file_is_not_a_root(make_repo: RepoFactory) -> None:
+    extra = {"docs/_archive/old.md": "# Old\n\n[leaf](../leaf.md)\n", "docs/leaf.md": "# Leaf\n"}
+    assert _kinds(_sweep(make_repo(extra))) == [(doc_sweep.UNREACHABLE, "docs/leaf.md")]
+
+
+def test_an_archive_file_still_has_its_anchors_checked(make_repo: RepoFactory) -> None:
+    extra = {"docs/_archive/old.md": "# Old\n\n[x](../guide.md#gone)\n"}
+    assert _kinds(_sweep(make_repo(extra))) == [(doc_sweep.DEAD_ANCHOR, "docs/_archive/old.md")]
 
 
 def test_the_tail_of_a_url_is_not_a_repository_path(make_repo: RepoFactory) -> None:

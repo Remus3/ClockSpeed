@@ -39,7 +39,25 @@ the referring file's directory or relative to the repository root. The rule is
 generous on purpose: this repository cites files in code spans far more often
 than in links, and a file named that way has still been routed to. A file never
 references itself, and :data:`REFERRER_EXCLUDED` names the files whose mentions
-are not references at all. A markdown file that is not live is reported as
+are not references at all.
+
+A MENTION NOBODY CAN FOLLOW IS NOT A REFERENCE. Inside a markdown file, a path
+in a fenced code block or in an HTML comment does not count: the fence renders
+as literal text and the comment does not render at all. Code SPANS still count,
+for the reason above. What is NOT excluded, stated rather than implied: an
+INDENTED code block. Telling one from a list item's indented continuation takes
+a full CommonMark parse, and the error that remains can only hide an orphan,
+never invent one. YAML front matter still counts too - GitHub renders it as a
+visible table. Mentions in tracked files that are not markdown always count.
+
+``docs/_archive/`` IS EXCUSED FROM THIS RULE. ``CLAUDE.md`` section 4 sends dated
+artifacts there, deliberately excluded from search so they never pollute a
+search for current truth - an archived file is SUPPOSED to be referenced by
+nothing live. It is never reported as ORPHAN or UNREACHABLE, and it is NOT a
+root either: a file referenced only from the archive is still reported. Rules
+2, 3 and 5 grade archived files like any other.
+
+A markdown file that is not live, and not archived, is reported as
 
   * ``ORPHAN`` when no other tracked file references it - the acceptance's own
     set, exactly - or
@@ -47,7 +65,8 @@ are not references at all. A markdown file that is not live is reported as
     not live: an island, or a leaf hanging off an orphan.
 
 RULE 2 - DEAD ANCHOR. Every fragment in a markdown link target - inline, image
-or reference definition, outside fenced code and outside code spans - is checked
+or reference definition, outside fenced code, code spans, HTML comments and YAML
+front matter - is checked
 against the anchors of its target when that target is a tracked markdown file.
 The anchors are the heading fragments GitHub generates (:class:`Slugger`) plus
 every HTML ``id`` or ``name`` attribute. Comparison is exact after
@@ -56,13 +75,23 @@ not tracked, or an empty fragment is skipped and counted.
 
 GITHUB'S HEADING RULE, as implemented by :class:`Slugger`: render the heading's
 inline markup to text (code spans keep their content, links and images keep
-their text, HTML tags go, emphasis delimiters go, intraword underscores stay),
-lowercase it, drop every character that is not a letter, digit, mark, connector
-punctuation, space or hyphen, then turn EACH space into one hyphen - so ``a - b``
-is ``a---b``. A slug already issued in the same file gets ``-1``, ``-2`` and so
-on, re-checked against every slug issued so far. The emphasis step is an
-approximation of CommonMark's flanking rules: an underscore run is dropped
-unless a letter or digit stands on both sides of it.
+their text, an autolink keeps its address, HTML tags go, PAIRED underscore
+emphasis delimiters go and an unpaired underscore stays), lowercase it, drop
+every character that is not a letter, digit, mark, connector punctuation, space
+or hyphen, then turn EACH space into one hyphen - so ``a - b`` is ``a---b``. A
+multi-line setext heading's line break is dropped by the same character rule. A
+slug already issued in the same file gets ``-1``, ``-2`` and so on, re-checked
+against every slug issued so far. The emphasis step approximates CommonMark's
+flanking rules: a run of one to three underscores is a delimiter only where a
+matching run closes it and no letter, digit or underscore stands outside either.
+
+WHICH HEADINGS GET AN ANCHOR. GitHub anchors every rendered heading element, so
+an ATX heading counts inside a blockquote or a list item as well as at top
+level, and so does a setext heading whose underline sits at the same blockquote
+depth as its text. A line of dashes under a list item, or under a quote it
+cannot continue, is a thematic break and anchors nothing. Nothing inside a
+fence, an HTML comment or YAML front matter is a heading - none of them render
+as one.
 
 RULE 3 - STALE. ``CLAUDE.md`` section 4 sends dated artifacts to
 ``docs/_archive/``. A tracked markdown file outside that directory is STALE when
@@ -76,7 +105,8 @@ RULE 4 - STALE ALLOWLIST. An entry in :data:`ALLOWLIST` or
 finding, so an excuse cannot outlive the file it excused.
 
 RULE 5 - DEAD URL, ``--urls`` only. Every distinct ``http`` or ``https`` URL in a
-markdown link, an autolink or bare prose, outside fenced code and code spans, is
+markdown link, an autolink or bare prose, outside fenced code, code spans, HTML
+comments and YAML front matter, is
 fetched once; a status of 400 or above, or any error, is a finding. A URL whose
 host is on :data:`NO_FETCH_HOSTS` is never fetched and is counted as skipped.
 
@@ -213,7 +243,17 @@ _HTML_TAG: Final = re.compile(r"<[^>]+>")
 _IMAGE: Final = re.compile(r"!\[([^\]]*)\]\([^)]*\)")
 _LINK: Final = re.compile(r"\[([^\]]*)\](?:\([^)]*\)|\[[^\]]*\])")
 _ESCAPE: Final = re.compile(r"\\([!-/:-@\[-`{-~])")
-_EMPHASIS_UNDERSCORE: Final = re.compile(r"(?<![A-Za-z0-9])_+|_+(?![A-Za-z0-9])")
+_EMPHASIS_UNDERSCORE: Final = re.compile(
+    r"(?<![A-Za-z0-9_])(_{1,3})(?=[^\s_])(.+?)(?<=[^\s_])\1(?![A-Za-z0-9_])"
+)
+_AUTOLINK_ANY: Final = re.compile(r"<([A-Za-z][A-Za-z0-9+.\-]{1,31}:[^<>\s]*|[^<>\s@]+@[^<>\s@]+)>")
+_QUOTE_MARKER: Final = re.compile(r"^ {0,3}> ?")
+_LIST_MARKER: Final = re.compile(r"^ {0,3}(?:[-+*]|\d{1,9}[.)])(?:[ \t]+|$)")
+_THEMATIC_BREAK: Final = re.compile(r"^ {0,3}(?:(?:-[ \t]*){3,}|(?:\*[ \t]*){3,}|(?:_[ \t]*){3,})$")
+_COMMENT_OPEN: Final = "<!--"
+_COMMENT_CLOSE: Final = "-->"
+_FRONT_MATTER_OPEN: Final = "---"
+_FRONT_MATTER_CLOSE: Final = ("---", "...")
 _DATED_NAME: Final = re.compile(r"\d{4}-\d{2}-\d{2}")
 _HISTORICAL: Final = re.compile(r"^\*\*Section status:[ \t]*HISTORICAL\b", re.MULTILINE)
 
@@ -284,8 +324,11 @@ def _render_plain(text: str) -> str:
     parked = _ESCAPE.sub(lambda m: chr(_PARK_BASE + ord(m.group(1))), text)
     parked = _IMAGE.sub(r"\1", parked)
     parked = _LINK.sub(r"\1", parked)
+    parked = _AUTOLINK_ANY.sub(r"\1", parked)
     parked = _HTML_TAG.sub("", parked)
-    parked = _EMPHASIS_UNDERSCORE.sub("", parked)
+    unpaired = ""
+    while unpaired != parked:
+        unpaired, parked = parked, _EMPHASIS_UNDERSCORE.sub(r"\2", parked)
     parked = html.unescape(parked)
     return "".join(
         chr(ord(ch) - _PARK_BASE) if _PARK_BASE <= ord(ch) < _PARK_BASE + 0x80 else ch
@@ -340,26 +383,108 @@ class Slugger:
         return candidate
 
 
-def _outside_fences(text: str) -> Iterator[tuple[int, str]]:
-    """Yield ``(line_number, line)`` for every line outside fenced code.
+def _front_matter_end(lines: Sequence[str]) -> int:
+    """Return how many leading lines are YAML front matter, or 0 when there is none."""
+    if not lines or lines[0].rstrip() != _FRONT_MATTER_OPEN:
+        return 0
+    for index in range(1, len(lines)):
+        if lines[index].rstrip() in _FRONT_MATTER_CLOSE:
+            return index + 1
+    return 0
 
-    A fence opens on a run of three or more backticks or tildes indented at
-    most three spaces, and closes on a run of the same character at least as
-    long, carrying nothing else.
+
+def _blank_comments(line: str, *, open_comment: bool) -> tuple[str, bool]:
+    """Remove HTML comment text from one line.
+
+    An opener inside a code span is literal and opens nothing.
+
+    Args:
+        line: One source line.
+        open_comment: Whether a comment opened on an earlier line is still open.
+
+    Returns:
+        The visible remainder, and whether a comment is still open at its end.
     """
+    spans = [(m.start(), m.end()) for m in _CODE_SPAN.finditer(line)]
+    visible: list[str] = []
+    cursor = 0
+    if open_comment:
+        end = line.find(_COMMENT_CLOSE)
+        if end < 0:
+            return "", True
+        cursor = end + len(_COMMENT_CLOSE)
+    while True:
+        start = line.find(_COMMENT_OPEN, cursor)
+        while start >= 0 and any(a <= start < b for a, b in spans):
+            start = line.find(_COMMENT_OPEN, start + 1)
+        if start < 0:
+            visible.append(line[cursor:])
+            return "".join(visible), False
+        visible.append(line[cursor:start])
+        # From the opener's third character, so the empty comments "<!-->" and
+        # "<!--->" close where CommonMark closes them.
+        end = line.find(_COMMENT_CLOSE, start + 2)
+        if end < 0:
+            return "".join(visible), True
+        cursor = end + len(_COMMENT_CLOSE)
+
+
+def _visible_lines(text: str, *, front_matter: bool) -> Iterator[tuple[int, str]]:
+    """Yield ``(line_number, line)`` for every line a reader can see rendered.
+
+    Fenced code lines are not yielded at all. HTML comment text is blanked out
+    of the lines it touches. A fence opens on a run of three or more backticks
+    or tildes indented at most three spaces, and closes on a run of the same
+    character at least as long, carrying nothing else.
+
+    Args:
+        text: The markdown source.
+        front_matter: Whether YAML front matter lines are yielded too.
+    """
+    lines = text.splitlines()
+    first = 0 if front_matter else _front_matter_end(lines)
     fence: str | None = None
-    for number, line in enumerate(text.splitlines(), 1):
-        match = _FENCE.match(line)
-        if fence is not None:
+    in_comment = False
+    for number, raw in enumerate(lines[first:], first + 1):
+        line = raw
+        if not in_comment and fence is not None:
+            match = _FENCE.match(line)
             run = match.group("run") if match else ""
             closes = bool(match) and run[0] == fence[0] and len(run) >= len(fence)
             if closes and match and not match.group("info").strip():
                 fence = None
             continue
-        if match and len(match.group("indent")) <= _MAX_FENCE_INDENT:
-            fence = match.group("run")
-            continue
+        if not in_comment:
+            match = _FENCE.match(line)
+            if match and len(match.group("indent")) <= _MAX_FENCE_INDENT:
+                fence = match.group("run")
+                continue
+        line, in_comment = _blank_comments(line, open_comment=in_comment)
         yield number, line
+
+
+def _containers(line: str) -> tuple[int, str, str, bool]:
+    """Strip blockquote and list-item markers from the front of one line.
+
+    Returns:
+        The blockquote depth, the line after the quote markers, the line after
+        every marker, and whether a list-item marker was among them.
+    """
+    depth = 0
+    rest = line
+    while quote := _QUOTE_MARKER.match(rest):
+        depth += 1
+        rest = rest[quote.end() :]
+    inner = rest
+    list_item = False
+    while True:
+        if quote := _QUOTE_MARKER.match(rest):
+            rest = rest[quote.end() :]
+        elif item := _LIST_MARKER.match(rest):
+            list_item = True
+            rest = rest[item.end() :]
+        else:
+            return depth, inner, rest, list_item
 
 
 def anchors(text: str) -> set[str]:
@@ -373,25 +498,38 @@ def anchors(text: str) -> set[str]:
     """
     slugger = Slugger()
     found: set[str] = set()
-    previous: str | None = None
+    paragraph: list[str] = []
+    eligible = False
+    paragraph_depth = 0
     last_number = 0
-    for number, line in _outside_fences(text):
+    for number, line in _visible_lines(text, front_matter=False):
         if number != last_number + 1:
-            previous = None
+            paragraph = []
         last_number = number
         found.update(_HTML_ID.findall(line))
-        atx = _ATX.match(line)
+        depth, inner, body, list_item = _containers(line)
+        atx = _ATX.match(body)
         if atx:
             heading = _ATX_CLOSING.sub("", (atx.group(1) or "").strip())
             found.add(slugger.slug(heading))
-            previous = None
+            paragraph = []
             continue
-        if previous is not None and _SETEXT.match(line):
-            found.add(slugger.slug(previous))
-            previous = None
+        if paragraph and eligible and depth == paragraph_depth and _SETEXT.match(inner):
+            found.add(slugger.slug("\n".join(paragraph)))
+            paragraph = []
             continue
-        indented = line.startswith(("    ", "\t"))
-        previous = line.strip() if line.strip() and not indented else None
+        if not body.strip() or _THEMATIC_BREAK.match(inner):
+            paragraph = []
+            continue
+        if not paragraph or depth != paragraph_depth or list_item:
+            if not paragraph and not list_item and body.startswith(("    ", "\t")):
+                continue
+            paragraph = []
+            # A paragraph opened by a list item is never a setext heading's
+            # text: dashes under it are a thematic break.
+            eligible = not list_item
+            paragraph_depth = depth
+        paragraph.append(body.strip())
     return found
 
 
@@ -479,7 +617,12 @@ def _resolve(referrer: str, token: str, markdown: set[str]) -> str | None:
 
 
 def _references(referrer: str, text: str, markdown: set[str]) -> set[str]:
-    """Every tracked markdown file ``text`` names, itself excluded."""
+    """Every tracked markdown file ``text`` names, itself excluded.
+
+    In markdown, only what renders visibly counts - see rule 1.
+    """
+    if referrer.endswith(MARKDOWN_SUFFIX):
+        text = "\n".join(line for _, line in _visible_lines(text, front_matter=True))
     found = {_resolve(referrer, token, markdown) for token in _MD_PATH.findall(text)}
     return {name for name in found if name is not None and name != referrer}
 
@@ -496,7 +639,7 @@ def _stale_entries(table: Mapping[str, str], markdown: set[str]) -> list[str]:
 
 def _link_targets(text: str) -> Iterator[tuple[int, str]]:
     """Yield ``(line, target)`` for every link target outside code."""
-    for number, line in _outside_fences(text):
+    for number, line in _visible_lines(text, front_matter=False):
         bare = _CODE_SPAN.sub("", line)
         for target in _INLINE_LINK.findall(bare):
             yield number, target.strip()
@@ -510,7 +653,7 @@ def _urls(text: str) -> Iterator[tuple[int, str]]:
     for number, target in _link_targets(text):
         if target.lower().startswith(("http://", "https://")):
             yield number, target
-    for number, line in _outside_fences(text):
+    for number, line in _visible_lines(text, front_matter=False):
         bare = _CODE_SPAN.sub("", line)
         for url in _AUTOLINK.findall(bare):
             yield number, url
@@ -574,6 +717,8 @@ def _sweep_reachability(
             live.add(target)
             queue.append(target)
     for name in sorted(markdown - live):
+        if name.startswith(ARCHIVE_PREFIX):
+            continue
         if inbound[name]:
             detail = "referenced only by markdown no root reaches"
             report.findings.append(Finding(UNREACHABLE, name, detail))
