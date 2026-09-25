@@ -336,8 +336,10 @@ def test_the_documented_aws_example_one_character_short_of_the_edge_is_refused(
 # --------------------------------------------------------------------------
 
 #: The shape the compiled pattern takes around the member alternation. Every
-#: member reaches the pattern ONLY through the enumeration.
-_SKELETON = "^M|M$|(?<![A-Za-z0-9])M(?![A-Za-z0-9])"
+#: member reaches the pattern ONLY through the enumeration. CS-1174 widened the
+#: run class from ASCII to Unicode alphanumerics, and
+#: tests/test_cs1174_placeholder_delimiters.py grades that change by behaviour.
+_SKELETON = r"^M|M$|(?<![^\W_])M(?![^\W_])"
 
 
 def test_the_spelling_table_moves_with_the_enumeration(gate: ModuleType) -> None:

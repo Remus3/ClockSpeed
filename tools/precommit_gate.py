@@ -448,9 +448,15 @@ PLACEHOLDER_MEMBERS: tuple[str, ...] = (
     "<",
     r"\{\{",
 )
+# CS-1174: "alphanumeric" above means UNICODE alphanumeric - a word character
+# that is not an underscore, passed in as {1}. The ASCII-only class this replaced
+# read a non-ASCII letter as a delimiter and so forgave a member sitting between
+# two of them. Every ASCII character keeps its old verdict, underscore included,
+# so the change only shrinks what is forgiven. Spelled from fragments, as the
+# secret patterns below are, because this file checks its own source.
 PLACEHOLDER_RE = re.compile(
-    "^(?:{0})|(?:{0})$|(?<![A-Za-z0-9])(?:{0})(?![A-Za-z0-9])".format(
-        "|".join(PLACEHOLDER_MEMBERS)
+    "^(?:{0})|(?:{0})$|(?<!{1})(?:{0})(?!{1})".format(
+        "|".join(PLACEHOLDER_MEMBERS), "[^" + "\\W_]"
     ),
     re.IGNORECASE,
 )
