@@ -1363,25 +1363,26 @@ README.md has never been walked from zero to a first result
 
 Gate item 5. CS-700 S6 names it and no open item performs it.
 
-## CS-1187
+### FILED 2026-09-25, from the wave-2 adjudicator ruling (session 113)
 
-### Acceptance
+**THE NO-GAME HALF OF THIS ACCEPTANCE IS GATED UNDER CS-G08 IN `docs/GATED.md`. THE ITEM
+STAYS OPEN, AND THE CLAUSE ABOVE IS UNCHANGED.** "On a machine with no game installed" needs
+the same disposable environment CS-G08 waits for, and the true run happens there.
 
-in a disposable environment with no prior clone, no hooks path, no user-scope agent
-settings and no project cache (e.g. Windows Sandbox), a fresh clone plus the
-docs/OPERATIONS.md bootstrap yields verify_env exit 0, armed hooks proven by a
-staged violation leaving HEAD unmoved, and a green tier-1 suite.
+The override approximation is ACCEPTED as the vehicle for walking and fixing README now,
+and it does NOT discharge the no-game clause, so this item does not close on it. Its
+conditions: point `CLOCKSPEED_GAME_DIR`, `CLOCKSPEED_SAVE_ROOT` and
+`CLOCKSPEED_ACCOUNT_DIR` at NONEXISTENT paths and `CLOCKSPEED_LOCAL_CONFIG` at a
+nonexistent file - never at empty directories, because `clockspeed/data/locate.py`
+resolves an existing empty directory as FOUND and `scripts/verify_env.py` then prints the
+game install as present, which is a hollow install rather than no game. Record a positive
+control as booleans and resolver labels only, never paths: without the overrides this box
+resolves a game; with them the verify_env game-install and save-root rows read
+not-resolved. The walk record labels the overrides as an approximation outside README,
+not a README step, and records that auto-detection's registry and Steam-library branches
+were never exercised in their no-game state.
 
-### Full headline
-
-the clean-checkout probe has never run on a machine that has never seen the project
-
-### FILED 2026-09-24, from the N0 adjudicator ruling at `599528c`
-
-Gate item 7. CS-700 section 5 records that it FAILS today; CS-938 is one known
-cause, not the probe. The `clean-checkout-probe` job in
-`.github/workflows/tier2.yml` says in its own comment that it is NOT a substitute,
-because a runner is not a machine that has never seen the project.
+`docs/GATED.md` classifies this id MENTIONED, not BLOCKED, so the walk stays takeable.
 
 ## CS-1188
 

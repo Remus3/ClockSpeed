@@ -338,5 +338,4 @@ CS-1158 - a pruned save file's FILENAME reaches the rendered skip list and the `
 CS-1174 - `PLACEHOLDER_RE` treats a non-ASCII letter as a delimiter, and no behavioural arm puts a digit beside a member - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1183 - the seven tier-3 flip checks have no runnable job - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1186 - README.md has never been walked from zero to a first result - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
-CS-1187 - the clean-checkout probe has never run on a machine that has never seen the project - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
 CS-1188 - the tracked-file walk arm fails in every linked worktree, because `.git` is a file there - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
