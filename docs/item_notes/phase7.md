@@ -704,6 +704,80 @@ budgeted here is that, not a link resolver.
 
 **S7 - Gate item 7, and CS-952 closes here.** See section 5.
 
+**S7q - QUIESCE EVERY PUSHER, filed 2026-09-25 by CS-1190.** Runs after S7 and
+before S7a's baseline, and HOLDS THROUGH S12. The lane worker pushes at
+`tools/headless-queue.md` section 10 step 9 - to `main`, or to its lane branch when
+`main` refuses it - on history S7a has not rewritten, and a clone or session the
+flip cannot see can push as well. A push landing after S3 is a ref S9a destroys
+unpreserved; a push landing after S9b is un-rewritten history on the remote S12
+publishes. Nothing here was run when it was filed: these are the method and its
+controls, and the results are recorded at run time in the companion note beside the
+preservation bundle, outside the tree per S5. Four parts, in order, each aborting
+the sequence on a failed or UNMEASURED control:
+
+1. **STOP THE LANE.** Write the box-wide sentinel, the `STOP` entry of
+   `ops/loop/queue_loop.py::STOP_RELPATHS`, into this checkout's control directory.
+   Control: `ops/loop/queue_loop.py::stop_reason` returns that name afterwards. The
+   sentinel is read at a cycle boundary and does not stop a cycle already running
+   (`docs/OPERATIONS.md` section 10.5), and it is read only by drivers of THIS
+   checkout - so it is not by itself the stop. Part 2 is.
+2. **NO DRIVER AND NO WORKER VERIFIED RUNNING, box-wide, in three families.** A live
+   one is waited out - the sentinel makes its cycle the last - or stopped per
+   `docs/OPERATIONS.md` section 10.5, and then all three families re-run in full.
+   - THE PROCESS TABLE: every process whose command line names `queue_loop.py` - a
+     driver, under any interpreter, from any clone - or `run_lane.ps1` - a worker's
+     wrapper, which a killed driver can orphan - read over `Win32_Process`
+     command lines. Expected zero. A python or PowerShell image whose command line
+     cannot be read COUNTS AS A HIT, because an elevated or scheduled driver is
+     exactly what reads that way. Positive control, same pass: a stand-in started
+     first, an interpreter that only sleeps and carries both strings as inert
+     arguments, must be counted - then stopped with `taskkill`, never the
+     PowerShell cmdlet.
+   - THE DRIVER MUTEXES: for every lane in `ops/loop/lanes.py::LANES`,
+     `ops/loop/winmutex.py::hold` with `timeout=0` on
+     `ops/loop/queue_loop.py::driver_mutex` AND on
+     `ops/loop/queue_loop.py::worktree_mutex` of that lane's worktree, released at
+     once. `ops/loop/winmutex.py::MutexTimeout` is a live driver. The worktree
+     mutex is the box-wide half: keyed on the working directory alone, it sees a
+     driver another clone started, which the per-checkout driver mutex cannot. A log
+     line carrying `winmutex: UNSERIALIZED` means the hold ran with no lock -
+     fail-open, or off Windows - so the family measured nothing: UNMEASURED.
+     Positive control, same pass: a stand-in holding one lane's driver mutex
+     through `hold` makes the probe raise `MutexTimeout` on that name.
+   - THE LANE LOCK: `ops/loop/lanes.py::lane_state` for every lane answers FREE or
+     RECLAIMABLE, never RUNNING; it probes the recorded pid and mutates nothing,
+     so it sees a worker whose driver is gone. Positive control, same pass: the
+     same call pointed by its `root` argument at a scratch root holding a lock
+     whose pid is the live stand-in answers RUNNING.
+3. **STOP EVERY OTHER PUSHER AT THE FORGE.** The worktrees of this repository are
+   enumerable - `git worktree list --porcelain` - and each is listed in the note
+   and any session in it ended; other clones and other sessions are NOT
+   enumerable, so no local probe can claim them stopped. The old remote is
+   therefore ARCHIVED, `gh repo archive`, which makes it read-only to every pusher
+   from every checkout. Archiving is reversible, so it is not one of the acts the
+   own-words confirmation covers. Control: the REST read of the repository's
+   `archived` field returns false before and true after; the before read is the
+   positive control that the field is read at all. NOT MEASURED when filed: that
+   an archived repository refuses a push and can still be deleted is the forge's
+   documented behaviour, not a measurement here - part 4 and S9a's precondition
+   catch a push it failed to refuse, and S9a's own reads catch a delete it failed
+   to allow. The archive covers the OLD remote only: from S9b to S12 a push from an
+   unseen clone is not prevented but DETECTED - by S9c, the before-S10 tip check,
+   S11 and the whole-ref-set check before S12 - each before publication.
+4. **RECORD THE REF SET THE QUIESCE FROZE.** Read the old remote's complete ref set
+   in two families - `git ls-remote origin` and the paginated REST refs listing,
+   per correction 1 - which must agree, and compare it with the S3 bundle's. Equal:
+   record it in the note. Different: a push landed between S3 and the quiesce, so
+   S3 and S4 re-run now, and the comparison again.
+
+The quiesce is not re-run by a late-commit restart - it holds throughout, and S9a's
+precondition re-measures it. It lifts only after S12 completes, or when the flip is
+abandoned before S9a - unarchive, then remove the sentinel. After S12, every lane
+worktree is re-cut onto the published `main` before the sentinel is removed, and
+every other checkout re-clones or resets onto it before its next push: a branch cut
+from history S7a did not rewrite, pushed to the published repository, publishes
+exactly the identity and the trailers S7a removed.
+
 **S7a - Rewrite commit identity across every commit on `main`**, per the ruling
 in section 6. No commit count is written here: the census and the count controls
 below measure it at run time, and a count written into this plan is stale by the
@@ -820,6 +894,17 @@ head, at the adjudicated SHA. Before S10 the recreated remote must hold no ref a
 all. A failed tip check HALTS the run at that step: a commit after S8a aborts before
 S9 deletes anything, and a commit after S10 is caught before S12 publishes.
 
+**BEFORE S12, THE WHOLE REF SET AND THE QUIESCE, filed 2026-09-25 by CS-1190.** The
+fresh mirror clone the tip check takes before S12 re-runs S11's full enumeration,
+not its head count alone: exactly one head, at the adjudicated SHA - the non-zero
+positive control in the clone's own family - and zero tags, zero wip and zero of
+every other namespace. A push from a clone S7q could not see, landing on ANY ref
+after S11, is caught here, before publication rather than after it. S9c's
+two-family private assertion, S7q part 1's control and S7q part 2 run on the same
+pass. Any
+failure halts at S12 with the recreated remote private and nothing published, and
+the resume row is read from the table under S9's sub-steps below.
+
 **ONE CONFIRMATION, ONE RUN, ONE SHA - and what a halt leaves behind.** The
 operator's own-words confirmation covers S9 through S12 as one continuous run on the
 one adjudicated SHA. Any halt - a failed control, a failed tip check, a session end -
@@ -840,6 +925,11 @@ resume at the step that halted. If it changed and S10 had already pushed, resume
 S9: delete and recreate the still-private remote, which holds nothing published, so
 S10 again pushes one SHA to an empty remote.
 
+**The halt after S9 is refined into S9's sub-steps, filed 2026-09-25 by CS-1190.**
+The second bullet above is the state S9c's pass leaves; "resume at S9" above means
+S9a against the recreated repository, then S9b and S9c. The sub-steps and the
+measured-state resume table follow S9 below.
+
 **S9 - Delete the remote repository and RECREATE IT PRIVATE.** The first
 irreversible step, and **it requires the operator's explicit go-ahead at the
 moment of running, not this plan's existence.** The recreated repository is
@@ -849,6 +939,80 @@ and strand S11's protections. Immediately before S9, re-confirm (1d) with its
 controls - delete-and-recreate is only free while it holds. The tip check above
 runs first.
 Who decides and who confirms: `docs/GATED.md` CS-G03, "who decides the flip and who performs it" (CS-1182).
+
+**S9's SUB-STEPS, filed 2026-09-25 by CS-1190.** S9 is three acts, and a halt can
+fall between any two. Before S9a, record in the companion note the `node_id` of the
+repository S9a is to delete, read in two families that must agree - the REST
+repository read and the GraphQL `repository { id }` query. The id tells the old
+remote from a recreated one when a halt leaves the name occupied; it goes in the
+note, never in a tracked file.
+
+- **S9a - DELETE.** Precondition, beyond the tip check and (1d): S7q part 1's control
+  and S7q part 2 re-run and pass, and the remote's ref set, read in S7q's two families, equals the
+  set S7q part 4 recorded - on a resume against a recreated repository, the set S9c
+  or S11 last measured. A difference is a push that escaped the quiesce and ABORTS
+  before anything is deleted. Command: `gh repo delete` of exactly the repository
+  whose recorded `node_id` the REST read still returns - never by name alone.
+  Control: afterwards the REST read returns 404 and `git ls-remote` of the remote
+  fails not-found; positive control, same pass and same two families, the same
+  reads against a repository the same credentials can read and which exists,
+  returning 200 and a ref list - so an expired token or a dead network cannot read
+  as deleted. HALT AT S9a: the delete was refused, or its outcome is unknown and
+  the recorded `node_id` still reads back - the old remote is INTACT, private and
+  archived, the "halt before S9" state plus the archive. Resume at S9a. A halt
+  after a delete that took leaves no repository under the name - S9b's halt state.
+- **S9b - RECREATE, PRIVATE AND EMPTY.** Command: `gh repo create` with `--private`
+  and none of `--public`, `--internal`, `--add-readme`, `--license`, `--gitignore`,
+  `--description` or `--homepage` - an initialised repository holds a head before
+  S10, and metadata is re-entered at S11 only once privacy is asserted. Record the
+  new `node_id` as before; it must differ from the one S9a deleted. HALT AT S9b:
+  the REST read returns 404, with S9a's positive control - NO repository holds the
+  name, the old refs exist only in the S3/S4 bundle and the pre-S7a preservation
+  bundle, and nothing is published. Resume at S9b. A repository that exists though
+  the create reported failure is unasserted: resume at S9c, never at S10.
+- **S9c - ASSERT PRIVATE AND EMPTY.** Two families: the authenticated REST read
+  returns `private` true and `visibility` private; and an ANONYMOUS read of the
+  same endpoint, no credential sent, returns 404 - the outsider's view. Positive
+  control for the anonymous family, same pass: the same anonymous request against
+  a repository known to be public returns 200, so a blocked network cannot read as
+  private. Then the before-S10 half of the tip check above: no ref at all. A pass
+  is the "halt after S9, before S10" state. HALT AT S9c, PRIVATE BUT NOT EMPTY: a
+  ref arrived that S10 did not push - a pusher escaped the quiesce, or the create
+  initialised. Nothing is published. Re-run S7q part 1's control and part 2, record the escape,
+  and resume at S9a against THIS repository by its recorded `node_id`. HALT AT
+  S9c, NOT PROVEN PRIVATE: either family reads public, the two disagree, or a
+  positive control failed. All three are the PUBLIC STATE - uncertainty is not
+  privacy.
+
+**THE PUBLIC STATE IS A PUBLICATION EVENT, NOT A RESUMABLE HALT.** S9 exists so that
+S12 is the sole publication, and a repository world-readable for an unmeasured
+window has already broken that for itself: continuing would push the graph into it,
+and flipping it private restores its visibility, not the guarantee. So: (1) S10
+never runs against it. (2) Measure what it exposed before touching it - a mirror
+clone into scratch, per S11, and its metadata. Zero refs, as S9b's empty create
+predicts, means the exposure was the repository's name and existence for the
+window. ANY ref means history was published: it is scanned on S1's axes before
+anything is deleted, because deletion destroys the evidence of what leaked.
+(3) Record the event and its window, creation to deletion, in the companion note,
+and in `docs/LEDGER.md` in the first commit made after the flip completes or is
+abandoned. (4) Take a NEW own-words confirmation that names this state, then S9a
+against this repository by its recorded `node_id`, then S9b and S9c again. A second
+PUBLIC STATE aborts the flip: the create path is not doing what S9b says it does.
+
+**RESUME FROM THE MEASURED STATE, NEVER THE REMEMBERED ONE.** Any resume inside S9
+to S12 first runs S9a's and S9c's reads and a mirror clone per S11, then takes the
+row they land in:
+
+- the recorded old `node_id` reads back - S9a;
+- no repository holds the name - S9b;
+- a repository not proven private by S9c's two families - the PUBLIC STATE;
+- private, holding exactly one head at the adjudicated SHA and nothing else - S11,
+  since S10 had run;
+- private and holding anything else - S9a against it by its recorded `node_id`;
+- private and empty - S10.
+
+Every row still needs the new own-words confirmation the halt rule above requires,
+and if `main` moved the late-commit rule applies first.
 
 **S10 - Push `main` alone, BY SHA.** No `--mirror`, no `--all`, no `--tags`. Push
 the S8a-adjudicated SHA itself - `git push origin <adjudicated-sha>:refs/heads/main`,
