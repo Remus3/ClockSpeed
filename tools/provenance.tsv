@@ -382,6 +382,8 @@ tests/test_handler_exception_rendering.py	authored	CS-855	first-add:CS-855
 tests/test_headless_queue_prompt.py	authored	CS-918	first-add:CS-918
 tests/test_hook_file_mode.py	authored	CS-922	first-add:CS-922
 tests/test_hook_interpreter_ladder.py	authored	CS-703	first-add:CS-703
+tests/test_hook_probe_bound.py	authored	CS-816	stamped
+tests/test_hook_toolchain.py	authored	CS-817	stamped
 tests/test_inbox_watch.py	authored	CS-926	first-add:CS-926
 tests/test_install_hooks.py	authored	CS-925	first-add:CS-925
 tests/test_lane_launcher.py	authored	CS-918	first-add:CS-918
