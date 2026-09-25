@@ -38,6 +38,29 @@ vendored file under an authored row is red whatever it is called. The set of
 
 THE ARMS THAT GRADE THE REAL TREE FAIL, NOT SKIP, WHILE THE MANIFEST IS ABSENT.
 This module therefore ships in the same push as the manifest (CS-1165 S3).
+
+A DELETED MANIFEST IS RESTORED, NEVER RE-SEEDED (CS-1176). Re-running the
+one-time seed after a deletion would classify every unstamped file - a lift
+included - as authored, and every arm above would then be green. Two layers
+close that, chosen so either alone still holds:
+
+* THE SEED REFUSES. ``bootstrap`` refuses whenever any commit on HEAD's history
+  holds the manifest, and points at ``git checkout <rev> -- tools/provenance.tsv``.
+  The missing-manifest red here names that same restore, NEVER the seed, and
+  grades the tree against the restorable manifest so the red names every file
+  that manifest lacks - the lift included.
+* THE ARM DETECTS A RE-SEED. A ``first-add:`` row is only ever written by the
+  seed, so every one the manifest holds must equal a row of the SEED manifest -
+  the manifest in the oldest commit that added it. A re-seed by any means (an
+  older tool, a hand edit) adds ``first-add:`` rows the seed never held and is
+  red naming each. Rows added later carry ``stamped``.
+
+Residuals, stated rather than left to be discovered. The re-seed arm reads
+history, so on a SHALLOW clone - CI's depth-1 checkout - it SKIPS, visibly; the
+full-history pre-push run is where it grades. A hand-written row with basis
+``stamped`` passes it: that is a declaration with a commit on it, graded by the
+near-duplicate arm like any stamp. A branch cut before the manifest existed, or
+a fresh orphan history, holds no seed to compare against or restore from.
 Every other arm grades synthetic manifests - in a throwaway git repository
 under ``tmp_path`` and over an in-memory population read from the real index -
 and each mutant is asserted to have LANDED before its verdict is read.
@@ -54,13 +77,16 @@ from __future__ import annotations
 
 import ast
 import functools
+import importlib.util
 import os
 import re
 import shutil
 import subprocess
+import sys
 from collections.abc import Iterable, Mapping, Sequence
 from fractions import Fraction
 from pathlib import Path
+from types import ModuleType
 from typing import NamedTuple
 
 import pytest
@@ -75,6 +101,12 @@ MANIFEST = REPO_ROOT / MANIFEST_RELATIVE
 
 #: The tool that writes it. Named in every missing-manifest message.
 STAMP_TOOL = "tools/provenance_stamp.py"
+
+#: The tool's source, loaded by the CS-1176 arms to run a REAL seed in a throwaway tree.
+TOOL_SOURCE = REPO_ROOT / STAMP_TOOL
+
+#: The tool's exit code for a refusal.
+REFUSED_EXIT = 2
 
 #: The only two classes a row may carry.
 CLASSES = ("authored", "vendored")
@@ -470,18 +502,184 @@ def _record_text() -> str:
     return "\n".join((REPO_ROOT / name).read_bytes().decode("utf-8") for name in RECORD_FILES)
 
 
+def _git_bytes(root: Path, *args: str) -> subprocess.CompletedProcess[bytes]:
+    """Run git in ``root`` stripped of inherited GIT_ vars, never raising on its exit.
+
+    Args:
+        root: A work tree.
+        *args: The git arguments.
+
+    Returns:
+        The completed child, stdout as bytes.
+    """
+    return subprocess.run(
+        ["git", *args],
+        cwd=root,
+        capture_output=True,
+        check=False,
+        timeout=GIT_TIMEOUT,
+        env=_git_env(),
+    )
+
+
+def _manifest_revisions(root: Path, *extra: str) -> list[str]:
+    """Return the commits on HEAD's history that touch the manifest, newest first.
+
+    Args:
+        root: A work tree.
+        *extra: Further ``git log`` arguments, such as a diff filter.
+
+    Returns:
+        Full SHAs; empty when there is no commit at all.
+    """
+    if _git_bytes(root, "rev-parse", "--verify", "-q", "HEAD").returncode != 0:
+        return []
+    listing = _git_bytes(root, "log", "--format=%H", *extra, "--", MANIFEST_RELATIVE)
+    assert listing.returncode == 0, "git log over the manifest path failed"
+    return listing.stdout.decode("ascii").split()
+
+
+def _committed_blob(root: Path, rev: str) -> bytes | None:
+    """Return the manifest's bytes in commit ``rev``, or None when its tree lacks it.
+
+    Args:
+        root: A work tree.
+        rev: A commit.
+
+    Returns:
+        The blob, or None.
+    """
+    done = _git_bytes(root, "cat-file", "blob", f"{rev}:{MANIFEST_RELATIVE}")
+    return done.stdout if done.returncode == 0 else None
+
+
+def _last_committed_manifest(root: Path) -> tuple[str, bytes] | None:
+    """Return the newest commit whose tree holds the manifest, with its bytes.
+
+    Args:
+        root: A work tree.
+
+    Returns:
+        ``(sha, bytes)``, or None when no commit on this history holds one.
+    """
+    for rev in _manifest_revisions(root):
+        blob = _committed_blob(root, rev)
+        if blob is not None:
+            return rev, blob
+    return None
+
+
+def _seed_manifest(root: Path) -> tuple[str, bytes] | None:
+    """Return the OLDEST commit that added the manifest, with its bytes - the seed.
+
+    Args:
+        root: A work tree.
+
+    Returns:
+        ``(sha, bytes)``, or None when no commit on this history added one.
+    """
+    adds = _manifest_revisions(root, "--diff-filter=A")
+    if not adds:
+        return None
+    blob = _committed_blob(root, adds[-1])
+    assert blob is not None, "a commit that adds the manifest does not hold it"
+    return adds[-1], blob
+
+
+def _is_shallow(root: Path) -> bool:
+    """Return whether ``root`` is a shallow clone, whose history is cut off.
+
+    Args:
+        root: A work tree.
+
+    Returns:
+        True for a shallow clone.
+    """
+    done = _git_bytes(root, "rev-parse", "--is-shallow-repository")
+    assert done.returncode == 0, "git cannot say whether the clone is shallow"
+    return done.stdout.strip() != b"false"
+
+
+def _reseeded_rows(rows: Mapping[str, Row], seed: Mapping[str, Row]) -> list[str]:
+    """Return every ``first-add:`` row the seed manifest does not hold identically.
+
+    Only the one-time seed writes a ``first-add:`` basis, and ``add`` and
+    ``mv`` write ``stamped``, so the set of first-add rows can only SHRINK
+    after the seed. A first-add row the seed lacks - a new path, or an old path
+    whose class or item changed - was written by a re-seed or by hand.
+
+    Args:
+        rows: The manifest's rows.
+        seed: The seed manifest's rows.
+
+    Returns:
+        One ``path (basis)`` entry per offending row, sorted by path bytes.
+    """
+    return [
+        f"{path} ({row.basis})"
+        for path, row in sorted(rows.items(), key=lambda pair: _path_key(pair[0]))
+        if row.basis.startswith("first-add:") and seed.get(path) != row
+    ]
+
+
+def _missing_manifest_message(root: Path) -> str:
+    """Return the red a missing manifest raises: the restore, and what it would name.
+
+    It NEVER recommends the seed (CS-1176): re-running the seed after a
+    deletion is exactly the move that classifies every unstamped file as
+    authored. It grades the tree against the restorable manifest instead, so
+    the red already names every file that manifest lacks.
+
+    Args:
+        root: A work tree.
+
+    Returns:
+        The message.
+    """
+    last = _last_committed_manifest(root)
+    if last is None:
+        return (
+            f"{MANIFEST_RELATIVE} does not exist and no commit on this history holds one. "
+            "Restore it from a full-history clone of this repository; never re-derive it, "
+            "which would classify every unlisted file as authored (CS-1176)."
+        )
+    rev, raw = last
+    rows, _faults = _parse_manifest(raw)
+    unlisted = [
+        path
+        for path in _candidate_paths(root, isolated=True)
+        if path not in rows and path != MANIFEST_RELATIVE
+    ]
+    return (
+        f"{MANIFEST_RELATIVE} does not exist. Restore the committed manifest with "
+        f"`git checkout {rev} -- {MANIFEST_RELATIVE}`; never re-derive it, which would "
+        f"classify every unlisted file as authored (CS-1176). Against that manifest these "
+        f"files have no row: {unlisted}. Classify each with "
+        f"`python {STAMP_TOOL} add PATH --class authored|vendored --item CS-NNNN`."
+    )
+
+
+def _require_manifest(root: Path, manifest: Path) -> bytes:
+    """Return a manifest's bytes, RED when it does not exist.
+
+    Args:
+        root: The work tree the manifest belongs to.
+        manifest: The manifest file.
+
+    Returns:
+        The manifest's bytes.
+    """
+    assert manifest.is_file(), _missing_manifest_message(root)
+    return manifest.read_bytes()
+
+
 def _real_manifest() -> bytes:
     """Return this tree's manifest bytes, RED when it does not exist.
 
     Returns:
         The manifest's bytes.
     """
-    assert MANIFEST.is_file(), (
-        f"{MANIFEST_RELATIVE} does not exist. Every tracked file must have a row "
-        f"in it; produce it once with `python {STAMP_TOOL} bootstrap` and keep it "
-        f"current with `python {STAMP_TOOL} add|mv|rm` (CS-1165)."
-    )
-    return MANIFEST.read_bytes()
+    return _require_manifest(REPO_ROOT, MANIFEST)
 
 
 def _real_grade() -> dict[str, list[str]]:
@@ -647,14 +845,16 @@ def test_a_block_name_is_not_a_citation_of_its_prefix() -> None:
     assert grade["uncited"] == [], "the control id on record was still reported"
 
 
-def test_a_missing_manifest_is_red_naming_the_manifest_and_the_tool(
+def test_a_missing_manifest_is_red_naming_the_restore_and_never_the_seed(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     monkeypatch.setattr(f"{__name__}.MANIFEST", tmp_path / "absent.tsv")
     with pytest.raises(AssertionError) as caught:
         _real_manifest()
-    assert MANIFEST_RELATIVE in str(caught.value)
-    assert STAMP_TOOL in str(caught.value)
+    message = str(caught.value)
+    assert MANIFEST_RELATIVE in message
+    assert f"-- {MANIFEST_RELATIVE}`" in message, "the red does not name the restore"
+    assert "bootstrap" not in message, "the red still recommends the seed (CS-1176)"
 
 
 # --- the metric ---------------------------------------------------------------------------------
@@ -802,6 +1002,190 @@ def test_m2_survives_a_threshold_above_one_so_the_red_is_the_metric(
     # by the metric crossing THRESHOLD, not by an arm that is red about anything.
     _plant_m2(synthetic_repo)
     assert {n: f for n, f in _grade_repo(synthetic_repo, UNREACHABLE).items() if f} == {}
+
+
+def _commit(root: Path, subject: str) -> str:
+    """Commit everything staged in the throwaway tree, hooks off.
+
+    Args:
+        root: The throwaway work tree.
+        subject: The commit subject.
+
+    Returns:
+        The new commit's full SHA.
+    """
+    _git(
+        root,
+        "-c",
+        "user.name=fixture",
+        "-c",
+        "user.email=fixture@example.invalid",
+        "-c",
+        "core.hooksPath=",
+        "commit",
+        "-q",
+        "-m",
+        subject,
+    )
+    return _git(root, "rev-parse", "HEAD").strip()
+
+
+# --- CS-1176: a re-seed cannot launder an unstamped file, graded on a real tool run --------------
+
+#: The CS-1176 lift: a file no vendored file resembles, so no near-duplicate arm
+#: can see it and only the manifest stands between it and the authored class.
+RESEED_LIFT = "pkg/cs1176_lift.py"
+RESEED_LIFT_BYTES = (
+    b'"""A helper nobody stamped."""\n\n\ndef cs1176_lifted_body(value):\n    return value\n'
+)
+
+
+@functools.cache
+def _stamp_tool() -> ModuleType:
+    """Return the stamp tool, loaded from this tree under a name of its own.
+
+    Returns:
+        The ``tools/provenance_stamp.py`` module.
+    """
+    spec = importlib.util.spec_from_file_location("cs1176_arm_provenance_stamp", TOOL_SOURCE)
+    assert spec is not None
+    assert spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
+    spec.loader.exec_module(module)
+    return module
+
+
+def _tool(root: Path, *args: str) -> int:
+    """Run the stamp tool's CLI against ``root``.
+
+    Args:
+        root: The throwaway work tree.
+        *args: The subcommand and its arguments.
+
+    Returns:
+        Its exit code.
+    """
+    code: int = _stamp_tool().main(["--root", str(root), *args])
+    return code
+
+
+@pytest.fixture
+def seeded_repo(tmp_path: Path) -> tuple[Path, str]:
+    """Return a throwaway repository whose manifest the REAL tool seeded, and the seed SHA.
+
+    Args:
+        tmp_path: pytest's per-test directory.
+
+    Returns:
+        The work tree and the full SHA of the commit that added its manifest.
+    """
+    root = tmp_path / "seeded"
+    root.mkdir()
+    _git(root, "init", "-q")
+    for name in [*_listed_paths(_register_text()), "THIRD_PARTY.md"]:
+        (root / name).parent.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(REPO_ROOT / name, root / name)
+    (root / "docs").mkdir(exist_ok=True)
+    (root / "ROADMAP.md").write_bytes(b"# Roadmap\n\n- CS-1165 open\n")
+    (root / "docs" / "LEDGER.md").write_bytes(b"# Ledger\n\n- CS-1165 closed\n")
+    (root / "pkg").mkdir()
+    (root / "pkg" / "alpha.py").write_bytes(b'"""Alpha, written for this synthetic tree."""\n')
+    _git(root, "add", "-A")
+    _commit(root, "CS-1165 - the tree before the seed")
+    assert _tool(root, "bootstrap") == 0, "the real tool would not seed a fresh history"
+    _git(root, "add", "--", MANIFEST_RELATIVE)
+    return root, _commit(root, "CS-1165 - seed the manifest")
+
+
+def _delete_manifest_and_commit_a_lift(root: Path) -> None:
+    """THE CS-1176 MUTATION: delete the manifest in a commit, then commit an unstamped lift.
+
+    Args:
+        root: The throwaway work tree.
+    """
+    _git(root, "rm", "-q", "--", MANIFEST_RELATIVE)
+    _commit(root, "CS-1165 - lose the manifest")
+    (root / RESEED_LIFT).write_bytes(RESEED_LIFT_BYTES)
+    _git(root, "add", "--", RESEED_LIFT)
+    _commit(root, "CS-1165 - a file nobody stamped")
+    assert not (root / MANIFEST_RELATIVE).exists(), "the deletion never landed"
+    assert RESEED_LIFT in _candidate_paths(root, isolated=True), "the lift never landed"
+
+
+def _reseed_findings(root: Path) -> list[str]:
+    """Grade a throwaway tree's manifest against its own seed.
+
+    Args:
+        root: The throwaway work tree.
+
+    Returns:
+        The re-seeded rows.
+    """
+    seed = _seed_manifest(root)
+    assert seed is not None, "no commit on this history adds the manifest"
+    seed_rows, faults = _parse_manifest(seed[1])
+    assert faults == []
+    rows, faults = _parse_manifest(_require_manifest(root, root / MANIFEST_RELATIVE))
+    assert faults == []
+    return _reseeded_rows(rows, seed_rows)
+
+
+def test_cs1176_the_seeded_repo_is_green_pristine(seeded_repo: tuple[Path, str]) -> None:
+    root, seed = seeded_repo
+    assert _seed_manifest(root) == (seed, (root / MANIFEST_RELATIVE).read_bytes())
+    assert {name: found for name, found in _grade_repo(root).items() if found} == {}
+    assert _reseed_findings(root) == []
+    # A file stamped after the seed carries `stamped`, so it is never a re-seed.
+    (root / "pkg" / "later.py").write_bytes(b"x = 'stamped after the seed'\n")
+    assert _tool(root, "add", "pkg/later.py", "--class", "authored", "--item", "CS-1165") == 0
+    assert _reseed_findings(root) == []
+
+
+def test_cs1176_a_reseed_after_a_deletion_is_refused_and_the_red_names_the_lift(
+    seeded_repo: tuple[Path, str],
+) -> None:
+    # THE ACCEPTANCE MUTATION, with the real tool: delete the manifest, commit an
+    # unstamped lift, re-run the seed. The seed refuses, and the red the suite
+    # then shows names the lift and the restore - never the seed.
+    root, seed = seeded_repo
+    _delete_manifest_and_commit_a_lift(root)
+    assert _tool(root, "bootstrap") == REFUSED_EXIT, "the seed re-derived a deleted manifest"
+    assert not (root / MANIFEST_RELATIVE).exists(), "the refused seed wrote a manifest"
+    with pytest.raises(AssertionError) as caught:
+        _require_manifest(root, root / MANIFEST_RELATIVE)
+    message = str(caught.value)
+    assert f"'{RESEED_LIFT}'" in message, "the missing-manifest red does not name the lift"
+    assert f"git checkout {seed} -- {MANIFEST_RELATIVE}" in message
+    assert "bootstrap" not in message
+
+
+def test_cs1176_a_forced_reseed_passes_every_other_arm_but_is_named(
+    seeded_repo: tuple[Path, str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # The second layer, for a re-seed that went round the tool's refusal - an
+    # older tool, or the same rows written by hand. Simulated EXACTLY: the real
+    # bootstrap with only its history lookup blinded.
+    root, _seed = seeded_repo
+    _delete_manifest_and_commit_a_lift(root)
+    monkeypatch.setattr(_stamp_tool(), "last_committed_manifest", lambda _root: None)
+    assert _tool(root, "bootstrap") == 0, "the blinded seed did not run"
+    rows, _faults = _parse_manifest((root / MANIFEST_RELATIVE).read_bytes())
+    assert rows[RESEED_LIFT].klass == "authored", "the re-seed never laundered the lift"
+    assert rows[RESEED_LIFT].basis.startswith("first-add:")
+    # THE GAP IS REAL: every CS-1165 arm is green over the laundered manifest ...
+    assert {name: found for name, found in _grade_repo(root).items() if found} == {}
+    # ... and the re-seed arm names the lift, and only the lift.
+    assert _reseed_findings(root) == [f"{RESEED_LIFT} ({rows[RESEED_LIFT].basis})"]
+
+
+def test_cs1176_a_first_add_row_whose_class_changed_is_named() -> None:
+    seed = {"a.py": Row("vendored", "CS-1", "first-add:root")}
+    assert _reseeded_rows({"a.py": Row("authored", "CS-1", "first-add:root")}, seed) == [
+        "a.py (first-add:root)"
+    ]
+    assert _reseeded_rows({"a.py": Row("vendored", "CS-1", "first-add:root")}, seed) == []
+    assert _reseeded_rows({"b.py": Row("authored", "CS-1", "stamped")}, seed) == []
 
 
 def test_an_ignored_file_is_outside_the_population_and_an_unignored_one_is_in(
@@ -1016,6 +1400,26 @@ def test_the_vendored_rows_equal_the_register() -> None:
 def test_no_authored_row_is_a_near_duplicate_of_a_vendored_file() -> None:
     found = _real_grade()["near_duplicate"]
     assert found == [], f"these authored rows duplicate a vendored file: {found}"
+
+
+def test_no_first_add_row_postdates_the_seed() -> None:
+    # CS-1176, THE RE-SEED ARM on the real tree. Every first-add row must be one
+    # the seed commit wrote; a re-seed adds first-add rows the seed never held.
+    if _is_shallow(REPO_ROOT):
+        pytest.skip(
+            "CS-1176 re-seed arm: a shallow clone holds no seed; the full-history run grades it"
+        )
+    seed = _seed_manifest(REPO_ROOT)
+    assert seed is not None, f"no commit on this history adds {MANIFEST_RELATIVE}"
+    seed_rows, faults = _parse_manifest(seed[1])
+    assert faults == [], f"the seed manifest at {seed[0]} breaks its grammar: {faults}"
+    rows, _faults = _parse_manifest(_real_manifest())
+    reseeded = _reseeded_rows(rows, seed_rows)
+    assert reseeded == [], (
+        f"these first-add rows are not in the seed manifest at {seed[0]}: {reseeded}. A re-seed "
+        f"launders every unstamped file into the authored class; restore the committed "
+        f"manifest and stamp each file with `python {STAMP_TOOL} add` (CS-1176)."
+    )
 
 
 def test_every_cited_item_is_on_record() -> None:

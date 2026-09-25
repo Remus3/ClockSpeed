@@ -618,15 +618,115 @@ def test_check_names_an_authored_near_duplicate(
     assert "vendored_function_number" not in out
 
 
-def test_check_on_a_missing_manifest_names_it_and_the_tool(
+def test_check_on_a_missing_manifest_names_it_and_never_recommends_the_seed(
     tool: ModuleType, repo: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
+    # CS-1176: the old message told the reader to run the seed, which is the
+    # one instruction that turns an accidental deletion into the laundering path.
     capsys.readouterr()
     assert _run(tool, repo, "check") == FOUND
     said = capsys.readouterr()
     text = said.out + said.err
     assert "tools/provenance.tsv" in text
-    assert "provenance_stamp.py" in text
+    assert "bootstrap" not in text
+
+
+# --- CS-1176: a deleted manifest is restored from history, never re-seeded ---
+
+
+def _seed_and_commit(tool: ModuleType, repo: Path) -> str:
+    """Bootstrap the manifest, commit it, and return the seed commit's full SHA."""
+    assert _run(tool, repo, "bootstrap") == 0
+    _git(repo, "add", "tools/provenance.tsv")
+    _commit(repo, "CS-1165 - seed the manifest")
+    return _git(repo, "rev-parse", "HEAD").strip()
+
+
+LIFT = "lib/lifted_helper.py"
+LIFT_BYTES = b"def lifted_helper_body_line_one(argument): return argument\n"
+
+
+def _delete_and_lift(repo: Path) -> None:
+    """THE CS-1176 MUTATION: delete the manifest in a commit, then commit an unstamped lift."""
+    _git(repo, "rm", "-q", "tools/provenance.tsv")
+    _commit(repo, "CS-42 - lose the manifest")
+    _stage(repo, LIFT, LIFT_BYTES)
+    _commit(repo, "CS-42 - a file nobody stamped")
+    assert not _manifest(repo).exists(), "the deletion never landed"
+    assert LIFT in _git(repo, "ls-files", "--", LIFT), "the lift never landed"
+
+
+def test_bootstrap_refuses_once_history_holds_a_manifest(
+    tool: ModuleType, repo: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    seed = _seed_and_commit(tool, repo)
+    _delete_and_lift(repo)
+    capsys.readouterr()
+    assert _run(tool, repo, "bootstrap") == REFUSED
+    said = capsys.readouterr()
+    assert not _manifest(repo).exists(), "the re-seed wrote a manifest"
+    assert _leftovers(repo) == []
+    assert f"git checkout {seed} -- tools/provenance.tsv" in said.err
+    # Following the advice restores exactly the committed rows, and the lift is
+    # then named as unlisted rather than laundered into the authored class. The
+    # throwaway tree has no .gitattributes, so the checkout pins LF as this
+    # repository's own eol=lf attribute does.
+    _git(repo, "-c", "core.autocrlf=false", "checkout", seed, "--", "tools/provenance.tsv")
+    capsys.readouterr()
+    assert _run(tool, repo, "check") == FOUND
+    assert f"UNLISTED: {LIFT}" in capsys.readouterr().out
+
+
+def test_bootstrap_refuses_an_uncommitted_deletion_too(
+    tool: ModuleType, repo: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    seed = _seed_and_commit(tool, repo)
+    _manifest(repo).unlink()
+    capsys.readouterr()
+    assert _run(tool, repo, "bootstrap") == REFUSED
+    assert not _manifest(repo).exists()
+    assert f"git checkout {seed} -- tools/provenance.tsv" in capsys.readouterr().err
+
+
+def test_the_restore_rev_is_the_newest_commit_that_holds_the_manifest(
+    tool: ModuleType, repo: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    _seed_and_commit(tool, repo)
+    _stage(repo, "lib/later.py", b"x = 'stamped after the seed'\n")
+    assert _run(tool, repo, "add", "lib/later.py", "--class", "authored", "--item", "CS-9") == 0
+    _git(repo, "add", "tools/provenance.tsv")
+    _commit(repo, "CS-9 - stamp a later file")
+    newest = _git(repo, "rev-parse", "HEAD").strip()
+    _delete_and_lift(repo)
+    capsys.readouterr()
+    assert _run(tool, repo, "check") == FOUND
+    said = capsys.readouterr()
+    text = said.out + said.err
+    assert f"git checkout {newest} -- tools/provenance.tsv" in text
+    assert "bootstrap" not in text
+
+
+def test_a_writer_over_a_missing_manifest_points_at_the_restore(
+    tool: ModuleType, repo: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    seed = _seed_and_commit(tool, repo)
+    _manifest(repo).unlink()
+    for argv in (("rm", "Zeta.md"), ("mv", "Zeta.md", "Alpha.md")):
+        capsys.readouterr()
+        assert _run(tool, repo, *argv) == REFUSED
+        err = capsys.readouterr().err
+        assert f"git checkout {seed} -- tools/provenance.tsv" in err, argv
+        assert "bootstrap" not in err, argv
+    assert not _manifest(repo).exists()
+
+
+def test_bootstrap_still_seeds_a_history_that_never_held_a_manifest(
+    tool: ModuleType, repo: Path
+) -> None:
+    # The control for the refusal above: the same repository before its first
+    # seed is seeded, so the refusal is caused by the history, not by the tree.
+    assert _git(repo, "log", "--format=%H", "--", "tools/provenance.tsv") == ""
+    assert _run(tool, repo, "bootstrap") == 0
 
 
 # --- bootstrap ------------------------------------------------------------

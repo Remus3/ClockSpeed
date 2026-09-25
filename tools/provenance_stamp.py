@@ -51,6 +51,16 @@ the only writer of many rows and it REFUSES when the manifest already exists, so
 "regenerate everything" - which would stamp every unclassified new file in one
 stroke - cannot be done through this tool at all.
 
+A DELETED MANIFEST IS RESTORED, NEVER RE-SEEDED (CS-1176). ``bootstrap`` also
+refuses whenever any commit on HEAD's history holds the manifest - a deletion,
+committed or not, does not reopen the seed - and every missing-manifest message
+points at ``git checkout <rev> -- tools/provenance.tsv``, where ``<rev>`` is the
+newest commit holding one. It never recommends the seed: re-deriving a deleted
+manifest would classify every unstamped file, a lift included, as authored.
+The arm grades a re-seed made around this refusal separately. Residual: a
+history that never held a manifest - a branch cut before it existed, a fresh
+orphan history - is seeded as a first seed would be.
+
 CLI (``--root`` defaults to this repository; exit 0 done, 1 check found
 something, 2 refused or bad usage)::
 
@@ -217,6 +227,55 @@ def _git(root: Path, *args: str) -> str:
         message = f"git {args[0]} failed with exit {completed.returncode}"
         raise RefusalError(message)
     return completed.stdout
+
+
+def _git_succeeds(root: Path, *args: str) -> bool:
+    """Run git against ``root`` and return whether it exited 0; stdout is discarded.
+
+    Raises:
+        RefusalError: git is absent.
+    """
+    git = resolve_tool("git")
+    if git is None:
+        message = "git is not on PATH; the history cannot be read"
+        raise RefusalError(message)
+    completed = subprocess.run(
+        [git, "-C", str(root), *args],
+        capture_output=True,
+        check=False,
+        timeout=SUBPROCESS_TIMEOUT_SECONDS,
+        env=_child_env(),
+    )
+    return completed.returncode == 0
+
+
+def last_committed_manifest(root: Path) -> str | None:
+    """Return the full SHA of the newest commit on HEAD's history holding the manifest.
+
+    A commit that deleted it is skipped, so the answer is always a commit a
+    ``git checkout <rev> -- tools/provenance.tsv`` can restore from. None when
+    there is no commit at all or none ever held one.
+    """
+    if not _git_succeeds(root, "rev-parse", "--verify", "-q", "HEAD"):
+        return None
+    for rev in _git(root, "log", "--format=%H", "--", MANIFEST_RELATIVE).split():
+        if _git_succeeds(root, "cat-file", "-e", f"{rev}:{MANIFEST_RELATIVE}"):
+            return rev
+    return None
+
+
+def restore_advice(root: Path) -> str:
+    """Return what to do about a missing manifest. It never recommends the seed."""
+    rev = last_committed_manifest(root)
+    if rev is None:
+        return (
+            "no commit on this history holds one; restore it from a full-history clone,"
+            " never re-derive it (CS-1176)"
+        )
+    return (
+        f"restore the committed manifest with `git checkout {rev} -- {MANIFEST_RELATIVE}`;"
+        " never re-derive it, which would classify every unstamped file as authored (CS-1176)"
+    )
 
 
 def _nul_split(text: str) -> set[str]:
@@ -425,7 +484,7 @@ def _load(root: Path, *, required: bool) -> list[Row]:
     manifest = root / MANIFEST_RELATIVE
     if not manifest.is_file():
         if required:
-            message = f"{MANIFEST_RELATIVE} is absent; seed it with `{TOOL_RELATIVE} bootstrap`"
+            message = f"{MANIFEST_RELATIVE} is absent; {restore_advice(root)}"
             raise RefusalError(message)
         return []
     return parse(manifest.read_bytes())
@@ -577,9 +636,7 @@ def cmd_check(root: Path) -> tuple[int, list[str]]:
     """Grade the manifest against the tree. Exit 1 if anything disagrees."""
     manifest = root / MANIFEST_RELATIVE
     if not manifest.is_file():
-        return 1, [
-            f"FAIL: {MANIFEST_RELATIVE} is absent; seed it once with `{TOOL_RELATIVE} bootstrap`"
-        ]
+        return 1, [f"FAIL: {MANIFEST_RELATIVE} is absent; {restore_advice(root)}"]
     rows = parse(manifest.read_bytes())
     found = findings(root, rows)
     if found:
@@ -611,12 +668,24 @@ def first_adds(root: Path) -> dict[str, str]:
 
 
 def cmd_bootstrap(root: Path) -> str:
-    """Seed the manifest once, from full history. Refuses if it exists."""
+    """Seed the manifest once, from full history.
+
+    Refuses if it exists, and refuses if any commit on HEAD's history ever held
+    it (CS-1176): a deleted manifest is restored from that commit, never
+    re-derived, because a re-derivation classifies every unstamped file as
+    authored.
+    """
     if (root / MANIFEST_RELATIVE).exists():
         message = f"{MANIFEST_RELATIVE} exists; bootstrap never overwrites it - use add"
         raise RefusalError(message)
     if _git(root, "rev-parse", "--is-shallow-repository").strip() != "false":
         message = "this is a shallow clone; bootstrap needs the full history"
+        raise RefusalError(message)
+    if last_committed_manifest(root) is not None:
+        message = (
+            f"{MANIFEST_RELATIVE} is held by this history, so bootstrap never re-derives it;"
+            f" {restore_advice(root)}"
+        )
         raise RefusalError(message)
     registered = register_vendored(root)
     present = population(root) - {MANIFEST_RELATIVE}
@@ -675,7 +744,9 @@ def _parser() -> argparse.ArgumentParser:
     remove = sub.add_parser("rm", help="drop the row of a path that has left the tree")
     remove.add_argument("path")
     sub.add_parser("check", help="print unlisted and stale paths; exit 1 if any")
-    sub.add_parser("bootstrap", help="seed the manifest once; refuses if it exists")
+    sub.add_parser(
+        "bootstrap", help="seed the manifest once; refuses if it exists or history holds one"
+    )
     return parser
 
 
