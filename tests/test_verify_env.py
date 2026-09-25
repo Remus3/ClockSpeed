@@ -45,6 +45,8 @@ import ast
 import errno
 import importlib.util
 import json
+import os
+import platform
 import sys
 from collections.abc import Callable
 from pathlib import Path
@@ -1376,6 +1378,18 @@ XDIST_MODULE_NAME = "xdist"
 DEV_EXTRA = "[dev]"
 
 
+def ladder_answer() -> str:
+    """What the hooks' ladder prints when THIS interpreter wins the python rung.
+
+    Built at run time from this process's own executable and prefix, so no path
+    is spelled in this file, and it matches whatever interpreter runs the suite.
+    """
+    exe = os.path.realpath(sys.executable).encode("utf-8", "surrogateescape").hex()
+    prefix = os.path.realpath(sys.prefix).encode("utf-8", "surrogateescape").hex()
+    identity = f"{exe} {prefix} {platform.python_version()}"
+    return f"cs818-rung=python\ncs818-status=0\ncs818-identity={identity}"
+
+
 def parallel_lane_run(importable: set[str], hooks_path: str) -> Callable[..., str | None]:
     """Answer every probe, with the plugin's IMPORT channel split from the rest.
 
@@ -1410,9 +1424,13 @@ def parallel_lane_run(importable: set[str], hooks_path: str) -> Callable[..., st
         # The module probe is [sys.executable, "-m", <name>, "--version"].
         if cmd[:2] == [sys.executable, "-m"]:
             return "canned 1.0" if cmd[2] in importable else None
-        # Every remaining call is a PATH executable answering --version, and it
-        # answers SUCCESSFULLY - a tool missing from PATH is a different subject.
-        return "canned 1.0"
+        # CS-818: the hooks' ladder is [<bash>, "-s"] fed the extracted program.
+        # It answers that THIS interpreter won the python rung, derived at run
+        # time, so the ladder row is satisfied and the exit code stays a
+        # statement about the plugin alone. Every remaining call is a PATH
+        # executable answering --version, and it answers SUCCESSFULLY - a tool
+        # missing from PATH is a different subject.
+        return ladder_answer() if cmd[1:] == ["-s"] else "canned 1.0"
 
     return run
 
@@ -1439,6 +1457,11 @@ def parallel_lane_checkout(
         The checkout root, which is also what repo_root() now answers.
     """
     root = checkout_with_hooks(tmp_path, checkout_name)
+    # CS-818: the ladder row extracts its program from the checkout's own
+    # pre-commit, so the checkout carries the real hook's bytes; the RUN of that
+    # program is answered by parallel_lane_run below.
+    hook = Path(EXPECTED_HOOKS_DIR_NAME) / "pre-commit"
+    (root / hook).write_bytes((REPO_ROOT / hook).read_bytes())
     monkeypatch.setattr(
         verify_env,
         "_run",
@@ -1447,7 +1470,8 @@ def parallel_lane_checkout(
     monkeypatch.setattr(
         verify_env,
         "resolve_tool",
-        toolchain_which({"git", "node", "gh", "openssl", *MODULE_BACKED_TOOLS}, root),
+        # bash is present because the hooks' ladder (CS-818) is a HARD row.
+        toolchain_which({"git", "node", "gh", "openssl", "bash", *MODULE_BACKED_TOOLS}, root),
     )
     monkeypatch.setattr(verify_env, "resolve_game_dir", lambda: (None, "stubbed"))
     monkeypatch.setattr(verify_env, "resolve_save_root", lambda: None)

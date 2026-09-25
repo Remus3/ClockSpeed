@@ -879,8 +879,9 @@ def _grade_ladder(stdout: str) -> dict:
         return _ladder_missing(
             f"{rung} -> {version}, a DIFFERENT interpreter (differs in {' and '.join(differs)})",
             "the hooks gate every commit under the ladder's winner, not under the interpreter "
-            "this table graded - run this script under the winner, or point CLOCKSPEED_PYTHON "
-            "at this interpreter",
+            "this table graded. Either set CLOCKSPEED_PYTHON to this interpreter and re-run, "
+            "or re-run this script under the named rung and install pytest and ruff there "
+            "(scripts/verify_env.py::ladder_row)",
         )
     return _row("HARD", LADDER_ROW_NAME, True, f"{rung} -> {version}, the interpreter graded here")
 
@@ -898,6 +899,22 @@ def ladder_row(root: Path, env: dict[str, str] | None = None) -> dict:
     THE WINNER'S PATH IS NEVER PRINTED. Through the first rung it is the
     CLOCKSPEED_PYTHON value, which the hooks deliberately do not echo; the row
     names the rung, the version and which half of the identity differs.
+
+    WHAT THE OPERATOR DOES WHEN THIS ROW SAYS "A DIFFERENT INTERPRETER". The
+    table above graded the interpreter running this script; the hooks will gate
+    under the rung this row names. Make the two the same, one of two ways:
+
+      1. Keep this interpreter. Set CLOCKSPEED_PYTHON to it - the first rung
+         outranks PATH - and re-run this script; the row must then name
+         CLOCKSPEED_PYTHON and read FOUND.
+      2. Keep the winner. Re-run this script UNDER the named rung (for the
+         python rung, `python scripts/verify_env.py`), so the pytest and ruff
+         rows grade the interpreter the hooks will use; install the toolchain
+         there if those rows read MISSING.
+
+    Never silence the row by removing the winner from PATH alone: the ladder
+    then falls to the next rung, whose last is 'py -3', the measured
+    installation that carries no toolchain (BOOTSTRAP.md section 2.5).
 
     NO BASH, NO LADDER. The hooks run under a POSIX shell, so where none
     resolves they cannot run either, and the row is HARD-missing with that
