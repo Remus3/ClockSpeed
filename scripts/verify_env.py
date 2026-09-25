@@ -182,10 +182,24 @@ def _exc_reason(exc: BaseException) -> str:
     return type(exc).__name__
 
 
-def _run(cmd: list[str], timeout: int = 20) -> str | None:
-    """Run a command and return stripped stdout, or None on any failure."""
+def _run(
+    cmd: list[str], timeout: int = 20, stdin: str | None = None, env: dict | None = None
+) -> str | None:
+    """Run a command and return stripped stdout, or None on any failure.
+
+    ``stdin`` is handed to the child as its input and ``env`` replaces the
+    inherited environment; both default to what every older caller got.
+    """
     try:
-        proc = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout, check=False)
+        proc = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            timeout=timeout,
+            check=False,
+            input=stdin,
+            env=env,
+        )
     except (OSError, subprocess.SubprocessError):
         return None
     if proc.returncode != 0:
@@ -651,6 +665,259 @@ def _module_backed_tool_row(scope: str, name: str) -> dict:
     return _row(scope, name, False, value, "neither importable nor on PATH - install it")
 
 
+# --- CS-818: the hooks' own interpreter ladder --------------------------------
+#
+# THE CS-806 SHAPE ONE DOOR ALONG. Every row above grades sys.executable, the
+# interpreter RUNNING THIS SCRIPT. The hooks never ask it: they resolve their
+# own interpreter through a four-rung ladder, so this table could read PASS
+# while every gate ran under something it never graded.
+#
+# THE LADDER IS EXECUTED FROM THE HOOK'S BYTES, NEVER RE-IMPLEMENTED HERE. A
+# Python copy of the rungs is a second answer to "which python gates a commit"
+# waiting to disagree with the first. What runs is the pre-commit hook's marked
+# region plus the probe it calls, extracted at run time and handed to bash.
+# Only the scaffolding around them - initialising the two variables, a refusal
+# function, and the identity query after the winner is chosen - is written here.
+
+LADDER_HOOK = ".githooks/pre-commit"
+LADDER_BEGIN = "# >>> CS-818 LADDER BEGIN"
+LADDER_END = "# <<< CS-818 LADDER END"
+LADDER_ROW_NAME = "hooks' interpreter ladder"
+
+# THE OUTER BOUND. Every candidate run inside the ladder is already bounded by
+# the hook's own CS_PROBE_BOUND; this bounds the whole run from outside, so a
+# shell that never returns cannot hang this script. It covers four rungs of
+# three bounded halves each plus the identity query, with room to spare.
+LADDER_OUTER_TIMEOUT = 150
+
+# A refusal line from the ladder is the hook's own first die() argument, which
+# is static text. It is redacted and capped anyway, because it is still text a
+# subprocess wrote.
+LADDER_REASON_CAP = 200
+
+# The identity line's field count: executable hex, prefix hex, version.
+_LADDER_IDENTITY_FIELDS = 3
+
+# The winner reports its identity as three space-separated fields: the hex of
+# its resolved executable, the hex of its resolved prefix, and its version. Hex
+# keeps a non-ASCII path intact across whatever code page the pipe uses.
+#
+# THE PROGRAM HOLDS NO SINGLE QUOTE, NO SLASH AND NO COLON. No single quote, so
+# it sits inside one in the shell text; no slash or colon, so an MSYS bash
+# handing it to a native interpreter finds nothing path-shaped to rewrite.
+_LADDER_IDENTITY_PROGRAM = (
+    "import os, platform, sys; "
+    "e = sys.executable; "
+    'x = os.path.realpath(e) if e else ""; '
+    "p = os.path.realpath(sys.prefix); "
+    "v = platform.python_version(); "
+    'sys.stdout.write(x.encode("utf-8", "surrogateescape").hex() + " " + '
+    'p.encode("utf-8", "surrogateescape").hex() + " " + v)'
+)
+
+# The scaffolding. The hook initialises CS_PY and CS_PY_ARG OUTSIDE the marked
+# region, so they are initialised here too. die() replaces the hook's own: it
+# keeps only the first argument, which is the hook's static reason, marks it,
+# and writes it to STDOUT with a zero exit. The run goes through _run, the one
+# spawn funnel, which answers only a clean exit's stdout - so a refusal has to
+# arrive there to be reported at all, and any OTHER non-zero exit still reads
+# as a run that did not complete.
+_LADDER_PREAMBLE = """set -u
+die() {
+    printf 'cs818-refused=%s\\n' "$1"
+    exit 0
+}
+CS_PY=""
+CS_PY_ARG=""
+"""
+
+# After the winner is chosen. The rung is reported by NAME: the variable's
+# VALUE is never printed, exactly as the hooks never echo it. The identity query
+# runs the winner the same way the hook will - resolved by this same shell,
+# under the hook's own bound and capture.
+_LADDER_EPILOGUE = (
+    """cs818_rung="$CS_PY${CS_PY_ARG:+ $CS_PY_ARG}"
+if [ -n "${CLOCKSPEED_PYTHON:-}" ]; then
+    cs818_rung="CLOCKSPEED_PYTHON"
+fi
+printf 'cs818-rung=%s\\n' "$cs818_rung"
+cs818_identity='"""
+    + _LADDER_IDENTITY_PROGRAM
+    + """'
+cs818_out=$(timeout -k 1 "$CS_PROBE_BOUND" sh -c "$CS_PROBE_CAPTURE" \\
+    cs818 "$CS_PY" ${CS_PY_ARG:+"$CS_PY_ARG"} -c "$cs818_identity" 2>/dev/null </dev/null)
+printf 'cs818-status=%s\\n' "$?"
+printf 'cs818-identity=%s\\n' "$cs818_out"
+"""
+)
+
+
+def ladder_program(hook_text: str) -> tuple[str | None, str]:
+    """Build the shell program that runs the hook's own ladder.
+
+    The program is the hook's ``CS_PROBE_*`` assignments, its ``cs_probe``
+    definition and its marked ladder region, byte for byte, between the
+    scaffolding above. Nothing of the ladder is written here.
+
+    Args:
+        hook_text: The pre-commit hook's text.
+
+    Returns:
+        ``(program, "")``, or ``(None, reason)`` when the hook does not carry
+        exactly one marked ladder and one probe definition.
+    """
+    text = hook_text.replace("\r\n", "\n")
+    if text.count(LADDER_BEGIN) != 1 or text.count(LADDER_END) != 1:
+        return None, "the hook does not carry exactly one pair of CS-818 ladder markers"
+    begin = text.index(LADDER_BEGIN)
+    end = text.index(LADDER_END) + len(LADDER_END)
+    if end <= begin:
+        return None, "the hook's CS-818 ladder markers are out of order"
+
+    lines = text.split("\n")
+    constants = [line for line in lines if line.startswith("CS_PROBE_")]
+    probe: list[str] = []
+    inside = False
+    for line in lines:
+        if line.startswith("cs_probe() {"):
+            inside = True
+        if inside:
+            probe.append(line)
+            if line == "}":
+                break
+    if not constants or not probe or probe[-1] != "}":
+        return None, "the hook carries no complete cs_probe definition"
+
+    program = "\n".join([_LADDER_PREAMBLE, *constants, *probe, text[begin:end], _LADDER_EPILOGUE])
+    return program, ""
+
+
+def _ladder_fields(stdout: str) -> dict[str, str]:
+    """Parse the ``cs818-key=value`` lines the epilogue prints."""
+    fields: dict[str, str] = {}
+    for line in stdout.splitlines():
+        key, sep, value = line.partition("=")
+        if sep and key.startswith("cs818-"):
+            fields[key] = value.rstrip("\r")
+    return fields
+
+
+def _identity_key(path: str) -> str:
+    return os.path.normcase(path)
+
+
+def _ladder_missing(value: str, note: str) -> dict:
+    return _row("HARD", LADDER_ROW_NAME, False, value, note)
+
+
+def _run_ladder(root: Path, env: dict[str, str] | None) -> str | dict:
+    """Run the hook's extracted ladder under bash, or answer why it could not run.
+
+    Returns:
+        The run's stdout, or a HARD-missing row naming why no answer came back.
+    """
+    try:
+        hook_text = (root / LADDER_HOOK).read_text(encoding="ascii")
+    except (OSError, UnicodeDecodeError) as exc:
+        return _ladder_missing(f"{LADDER_HOOK} unreadable: {_exc_reason(exc)}", "")
+    program, reason = ladder_program(hook_text)
+    if program is None:
+        return _ladder_missing(reason, "")
+
+    path_value = None
+    if env is not None:
+        path_value = next((v for k, v in env.items() if k.upper() == "PATH"), "")
+    bash = resolve_tool("bash", path_value=path_value)
+    if not bash:
+        return _ladder_missing(
+            "bash not found on PATH - the hooks cannot run either",
+            "the hooks run under a POSIX shell; install Git for Windows or put its bash on PATH",
+        )
+
+    out = _run([bash, "-s"], timeout=LADDER_OUTER_TIMEOUT, stdin=program, env=env)
+    if out is None:
+        return _ladder_missing(
+            f"the ladder did not return cleanly within {LADDER_OUTER_TIMEOUT}s"
+            " - it could not start, timed out, or exited non-zero",
+            "",
+        )
+    return out
+
+
+def _grade_ladder(stdout: str) -> dict:
+    """Grade a finished ladder run's winner against THIS interpreter."""
+    fields = _ladder_fields(stdout)
+    if "cs818-refused" in fields:
+        shown = redact(fields["cs818-refused"].strip())[:LADDER_REASON_CAP]
+        return _ladder_missing(
+            f"the ladder refused: {shown}",
+            "the hooks refuse every commit on this environment too",
+        )
+
+    rung = fields.get("cs818-rung", "")
+    parts = fields.get("cs818-identity", "").split(" ")
+    if not rung or fields.get("cs818-status") != "0" or len(parts) != _LADDER_IDENTITY_FIELDS:
+        return _ladder_missing(
+            f"the ladder chose {rung or 'no rung'} but its winner did not answer "
+            "the identity query",
+            "",
+        )
+    try:
+        winner_exe, winner_prefix = (bytes.fromhex(part).decode("utf-8") for part in parts[:2])
+    except ValueError:
+        return _ladder_missing(f"{rung} answered the identity query unreadably", "")
+    version = parts[2]
+
+    differs = []
+    if not winner_exe or _identity_key(winner_exe) != _identity_key(
+        os.path.realpath(sys.executable)
+    ):
+        differs.append("executable")
+    if _identity_key(winner_prefix) != _identity_key(os.path.realpath(sys.prefix)):
+        differs.append("prefix")
+    if differs:
+        return _ladder_missing(
+            f"{rung} -> {version}, a DIFFERENT interpreter (differs in {' and '.join(differs)})",
+            "the hooks gate every commit under the ladder's winner, not under the interpreter "
+            "this table graded - run this script under the winner, or point CLOCKSPEED_PYTHON "
+            "at this interpreter",
+        )
+    return _row("HARD", LADDER_ROW_NAME, True, f"{rung} -> {version}, the interpreter graded here")
+
+
+def ladder_row(root: Path, env: dict[str, str] | None = None) -> dict:
+    """Run the hooks' own ladder and grade its winner against THIS interpreter.
+
+    "DIFFERS" MEANS A DIFFERENT INTERPRETER, NOT A DIFFERENT NAME. ``py`` and
+    ``python`` can be one interpreter, and one name can be two. The winner is
+    RUN and reports its resolved executable AND its resolved prefix: a POSIX
+    venv's executable is a symlink that resolves to the base binary, so the
+    executable alone would call a venv carrying none of the toolchain "the same
+    interpreter". The prefix is what tells them apart.
+
+    THE WINNER'S PATH IS NEVER PRINTED. Through the first rung it is the
+    CLOCKSPEED_PYTHON value, which the hooks deliberately do not echo; the row
+    names the rung, the version and which half of the identity differs.
+
+    NO BASH, NO LADDER. The hooks run under a POSIX shell, so where none
+    resolves they cannot run either, and the row is HARD-missing with that
+    reason. A ``bash`` that is not the one git uses for its hooks - a WSL
+    launcher earlier on a Windows PATH, say - resolves its own interpreter,
+    which is then graded like any other winner. That case is not measured.
+
+    Args:
+        root: The repository root whose pre-commit hook carries the ladder.
+        env: The environment to run the ladder under, or None for this one.
+
+    Returns:
+        One HARD dependency row.
+    """
+    ran = _run_ladder(root, env)
+    if isinstance(ran, dict):
+        return ran
+    return _grade_ladder(ran)
+
+
 def _hard_rows(root: Path, facts: dict) -> list[dict]:
     version = ".".join(str(part) for part in sys.version_info[:3])
     minimum = ".".join(str(part) for part in MIN_PYTHON)
@@ -765,6 +1032,10 @@ def _hard_rows(root: Path, facts: dict) -> list[dict]:
     )
 
     rows.extend(_module_backed_tool_row("HARD", name) for name in ("pytest", "ruff"))
+
+    # CS-818: the rows above grade THIS interpreter; this one proves it is the
+    # interpreter the hooks will actually gate under.
+    rows.append(ladder_row(root))
     return rows
 
 
