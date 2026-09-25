@@ -121,7 +121,7 @@ hooked or read from memory.
 | **OS** | Windows |
 | **Game** | A local installation, kept current |
 | **Python** | 3.x, at or above the floor `scripts/verify_env.py` asserts |
-| **Also** | `git` and `openssl` |
+| **Also** | `git`, plus `openssl` for `scripts/make_cert.py` only - `scripts/verify_env.py` reports it as SOFT |
 | **Python packages** | `pytest` and `ruff` - `scripts/verify_env.py` counts both as HARD |
 | **Node** | Only for the optional companion window, not for the core |
 
@@ -167,9 +167,17 @@ python -m clockspeed.surface
 ```
 
 Starts the dashboard on the port recorded in `config/ports.json` - the entry under
-`allocations` - bound to this machine only. It takes no arguments: it finds the newest
-save on this machine and serves it. It prints nothing on startup and keeps the terminal
-until you stop it.
+`allocations` - bound to this machine only. With no arguments it finds the newest save on
+this machine and serves it. It prints nothing on startup, then logs one line per request,
+and keeps the terminal until you stop it.
+
+Its options, all optional (`python -m clockspeed.surface --help` lists them):
+
+| Option | Does |
+|---|---|
+| `--port PORT` | Binds this port instead of the recorded one |
+| `--cert-dir CERT_DIR` | Reads the certificate pair from this folder |
+| `--no-world` | Skips looking for a save; `/api/world` then answers 503 |
 
 **First result.** Open `https://localhost:<port>/`, where `<port>` is that
 `allocations` entry. The certificate is self-signed and your system does not trust it,
@@ -179,6 +187,22 @@ dashboard" loads. `https://localhost:<port>/api/health` answers `"status": "ok"`
 A machine with no save and no game still starts and still binds; the absence is reported
 as a status, not an error - `/api/health` reports the registry and the world as `absent`.
 If the port is taken the process exits and names it. No second port is ever tried.
+
+### Pointing it at your game and saves
+
+The install, the save folder and the account folder beneath it are found automatically.
+To point Clockspeed somewhere else, set any of these environment variables before running
+the commands above:
+
+| Variable | Points at |
+|---|---|
+| `CLOCKSPEED_GAME_DIR` | The game install folder, such as `<your game folder>` |
+| `CLOCKSPEED_SAVE_ROOT` | The folder holding the account folders, such as `<your SaveGames folder>` |
+| `CLOCKSPEED_ACCOUNT_DIR` | The one account folder to read - a full path, or a folder name inside the save root |
+| `CLOCKSPEED_LOCAL_CONFIG` | A JSON file whose `game_dir`, `save_root` and `account_dir` keys are read when the matching variable is unset |
+
+A variable naming a folder that does not exist is reported as not found; it does not fall
+back to automatic detection.
 
 ---
 
