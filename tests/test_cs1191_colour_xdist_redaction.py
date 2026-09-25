@@ -58,10 +58,13 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 
 SUBPROCESS_TIMEOUT = 180
 
-#: One Select Graphic Rendition escape, the only kind pytest's highlighter
-#: emits. TYPED HERE, never read from `tests/conftest.py`, whose rules are what
-#: is being graded.
-SGR_ORACLE = re.compile("\x1b\\[[0-9;]*m")
+#: One terminal escape sequence of any kind: a control sequence with any final
+#: byte, an operating-system command ended by BEL or by the string terminator,
+#: and a lone ESC. TYPED HERE, never read from `tests/conftest.py`, whose rules
+#: are what is being graded. Removing every match leaves the VISIBLE text.
+ESCAPE_ORACLE = re.compile(
+    "\x1b\\[[\x30-\x3f]*[\x20-\x2f]*[\x40-\x7e]|\x1b\\][^\x07\x1b]*(?:\x07|\x1b\\\\)|\x1b"
+)
 
 #: The marker the child assembles. Its presence proves the diff was rendered.
 RENDERED_DIFF_MARKER = "AAAA-zz-cs1191-rendered-diff-zz"
@@ -114,6 +117,7 @@ class Counts(NamedTuple):
     """What one child rendered - counts only, never a value."""
 
     renderings: int
+    raw: int
     markers: int
     escapes: int
     header_found: bool
@@ -141,14 +145,15 @@ def _renderings(text: str) -> int:
 
 def _count(output: str) -> Counts:
     """Reduce one child's output to counts. The output never leaves this frame."""
-    visible = SGR_ORACLE.sub("", output).replace("\r", "")
-    lines = visible.split("\n")
+    raw_lines = output.replace("\r", "").split("\n")
+    lines = [ESCAPE_ORACLE.sub("", line) for line in raw_lines]
     end = lines.index("") if "" in lines else len(lines)
     body = "\n".join(lines[end:])
     return Counts(
         renderings=_renderings(body),
+        raw=_renderings("\n".join(raw_lines[end:])),
         markers=body.count(RENDERED_DIFF_MARKER),
-        escapes=len(SGR_ORACLE.findall(output)),
+        escapes=len(ESCAPE_ORACLE.findall(output)),
         header_found="test session starts" in lines[0] if lines else False,
     )
 
@@ -253,35 +258,139 @@ def test_no_account_name_renders_beyond_the_session_header(
     adjudicator also measured, and the plain control.
     """
     renderings = counts[child].renderings
+    raw = counts[child].raw
     assert renderings == 0, "account-name renderings beyond the header: %d" % renderings
+    assert raw == 0, "account-name renderings in the raw bytes beyond the header: %d" % raw
 
 
-#: One escape code as the highlighter emits it around a string token, and the
-#: reset it closes the token with.
-_OPEN = "\x1b[33m"
-_CLOSE = "\x1b[39;49;00m"
+#: THE ADVERSARY'S REGRESSION PAIR against the first repair. A failing test
+#: prints the name followed by erase-line and by a hyperlink's terminator, and
+#: ``-rA`` renders the captured output. The unrepaired rules caught both, and
+#: the first repair printed both whole, because it refused ESC as a boundary.
+CHILD_PRINTED = """
+import getpass
+
+MARKER = "AAAA-zz-cs1191-" + "rendered-diff-zz"
+NAME = getpass.getuser()
 
 
-def _highlighted(value: str) -> str:
-    """``value`` as a string token between highlighter escape codes."""
-    return _OPEN + "'" + _CLOSE + _OPEN + value + _CLOSE + _OPEN + "'" + _CLOSE
+def test_a_printed_name_is_followed_by_a_non_colour_escape():
+    print(MARKER)
+    print("erase:", NAME + "\\x1b[K")
+    print("link:", NAME + "\\x1b]8;;\\x1b\\\\")
+    raise AssertionError("forced, so the captured section is rendered")
+"""
 
 
-def test_a_highlighted_name_is_replaced_and_the_colour_kept() -> None:
-    """The unit shape of the leak, graded without a child.
+@pytest.fixture(scope="module")
+def printed(tmp_path_factory: pytest.TempPathFactory) -> Counts:
+    """The regression-pair child under ``-rA --color=no``. Counts only."""
+    root = tmp_path_factory.mktemp("cs1191_printed")
+    target = root / "test_cs1191_printed.py"
+    target.write_text(CHILD_PRINTED, encoding="ascii")
+    completed = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "pytest",
+            str(target),
+            "-p",
+            "tests.conftest",
+            "-p",
+            "no:randomly",
+            "-p",
+            "no:cacheprovider",
+            "--rootdir",
+            str(root),
+            "-rA",
+            "--color=no",
+        ],
+        capture_output=True,
+        check=False,
+        cwd=str(root),
+        env=_child_environment(),
+        timeout=SUBPROCESS_TIMEOUT,
+    )
+    return _count((completed.stdout + completed.stderr).decode("utf-8", errors="replace"))
 
-    The placeholder must appear, the name must not, and the escape codes that do
-    not sit between the name and its visible neighbours must survive - the
-    repair tolerates colour rather than stripping it.
-    """
+
+def test_a_name_before_a_non_colour_escape_is_redacted_as_at_base(printed: Counts) -> None:
+    """No regression against the unrepaired rules: both printed names are replaced."""
+    markers = printed.markers
+    escapes = printed.escapes
+    renderings = printed.renderings
+    raw = printed.raw
+    assert markers >= 1, "rendered captured-output markers: %d" % markers
+    assert escapes >= BOTH_SIDES, "escape sequences the child printed: %d" % escapes
+    assert renderings == 0, "account-name renderings, visible: %d" % renderings
+    assert raw == 0, "account-name renderings, raw bytes: %d" % raw
+
+
+#: Every escape form the redaction must see through, as a report can carry it.
+ESCAPE_FORMS: dict[str, str] = {
+    "sgr": "\x1b[33m",
+    "colon-sgr": "\x1b[38:5:208m",
+    "erase-line": "\x1b[K",
+    "cursor-right": "\x1b[1C",
+    "reset-then-erase": "\x1b[0m\x1b[K",
+    "osc8-st": "\x1b]8;;\x1b\\",
+    "osc8-bel": "\x1b]8;;http://example.invalid/\x07",
+    "lone-esc": "\x1b",
+}
+
+#: Where the escape sits relative to the name.
+POSITIONS = ("after", "before", "split")
+
+#: Escapes on each side of a name in the keep arm, and the printed pair.
+BOTH_SIDES = 2
+
+#: The control-sequence forms: each ends in a word character, which is the
+#: shape where judging the boundary on raw bytes and on visible text disagree.
+CSI_FORMS = ("sgr", "colon-sgr", "erase-line", "cursor-right", "reset-then-erase")
+
+
+def _placed(name: str, escape: str, position: str) -> str:
+    """``name`` in quotes with ``escape`` after it, before it, or splitting it."""
+    if position == "after":
+        return "'" + name + escape + "'"
+    if position == "before":
+        return "'" + escape + name + "'"
+    half = max(1, len(name) // 2)
+    return "'" + name[:half] + escape + name[half:] + "'"
+
+
+@pytest.mark.parametrize("form", sorted(ESCAPE_FORMS))
+@pytest.mark.parametrize("position", POSITIONS)
+def test_an_escape_beside_or_inside_the_name_does_not_let_it_through(
+    form: str, position: str
+) -> None:
+    """Judged on the visible text; the placeholder lands in the original."""
     for name in _names():
-        rendered = redact_personal_data(_highlighted(name))
-        left = _renderings(SGR_ORACLE.sub("", rendered))
+        rendered = redact_personal_data(_placed(name, ESCAPE_FORMS[form], position))
+        visible = _renderings(ESCAPE_ORACLE.sub("", rendered))
+        raw = _renderings(rendered)
         placed = REDACTED_USER in rendered
-        coloured = rendered.startswith(_OPEN + "'")
-        assert left == 0, "account-name renderings left: %d" % left
+        assert visible == 0, "account-name renderings, visible: %d" % visible
+        assert raw == 0, "account-name renderings, raw: %d" % raw
         assert placed, "no account-name placeholder was rendered"
-        assert coloured, "the colour of the token before the name was lost"
+
+
+@pytest.mark.parametrize("form", CSI_FORMS)
+def test_the_escapes_around_a_redacted_name_are_kept(form: str) -> None:
+    """Only the name's characters go: an escape before it and one after it stay."""
+    escape = ESCAPE_FORMS[form]
+    for name in _names():
+        rendered = redact_personal_data("'" + escape + name + escape + "'")
+        kept = rendered.count(escape)
+        assert kept == BOTH_SIDES, "escapes kept around a redacted name: %d" % kept
+
+
+def test_a_name_inside_a_hyperlink_target_is_redacted_as_at_base() -> None:
+    """The first pass over the text as written still runs, so an invisible name goes too."""
+    for name in _names():
+        link = "\x1b]8;;file:///x/" + name + "\x1b\\" + "link" + "\x1b]8;;\x1b\\"
+        raw = _renderings(redact_personal_data(link))
+        assert raw == 0, "account-name renderings inside a hyperlink target: %d" % raw
 
 
 def test_a_home_path_split_by_escape_codes_is_replaced_whole() -> None:
@@ -289,32 +398,30 @@ def test_a_home_path_split_by_escape_codes_is_replaced_whole() -> None:
     doubled = str(Path.home()).replace("\\", "\\\\")
     pieces = re.split(r"(\\\\|/)", doubled)
     rendered = redact_personal_data(
-        "".join(_OPEN + piece + _CLOSE for piece in pieces if piece) + _OPEN + "sub" + _CLOSE
+        "".join("\x1b[33m" + piece + "\x1b[39;49;00m" for piece in pieces if piece) + "sub"
     )
     placed = REDACTED_HOME in rendered
-    left = _renderings(SGR_ORACLE.sub("", rendered))
+    left = _renderings(ESCAPE_ORACLE.sub("", rendered))
     assert placed, "no home placeholder was rendered for a split home path"
     assert left == 0, "account-name renderings left: %d" % left
 
 
-@pytest.mark.parametrize(
-    "shape",
-    ["x{name}", "{name}x", "9{name}", "{name}_", "_{name}"],
-)
-def test_a_name_inside_a_word_is_left_alone_with_or_without_colour(shape: str) -> None:
-    """The boundary is judged on VISIBLE text, so colour moves nothing a plain run keeps.
+@pytest.mark.parametrize("form", CSI_FORMS)
+@pytest.mark.parametrize("shape", ["x{name}", "9{name}", "_{name}"])
+def test_a_name_glued_to_a_word_is_left_alone_through_an_escape(form: str, shape: str) -> None:
+    """The boundary is judged on VISIBLE text: an escape is not a separator.
 
     A name glued to a word character is not replaced in plain text - the
-    blast-radius limit `tests/conftest.py` states - and an escape code between
-    the two must not change that verdict in either direction.
+    blast-radius limit `tests/conftest.py` states - and a control sequence
+    between the two must not turn it into one.
     """
     for name in _names():
-        plain = shape.format(name=name)
-        head, _, tail = shape.partition("{name}")
-        coloured = _OPEN + head + _CLOSE + _OPEN + name + _CLOSE + _OPEN + tail + _CLOSE
+        head = shape.partition("{name}")[0]
+        plain = head + name
+        escaped = head + ESCAPE_FORMS[form] + name
         plain_moved = redact_personal_data(plain) != plain
-        coloured_moved = redact_personal_data(coloured) != coloured
-        assert plain_moved == coloured_moved, (
-            "colour changed the verdict: plain moved %s, coloured moved %s"
-            % (plain_moved, coloured_moved)
+        escaped_moved = redact_personal_data(escaped) != escaped
+        assert plain_moved == escaped_moved, (
+            "an escape changed the verdict: plain moved %s, escaped moved %s"
+            % (plain_moved, escaped_moved)
         )

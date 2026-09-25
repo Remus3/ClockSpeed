@@ -460,7 +460,7 @@ _PERCENT_ESCAPE = "%[0-9A-Fa-f]{2}"
 #: makes a plain boundary refuse to match inside a quoted path. Each lookaround
 #: is individually fixed-width, which Python's lookbehind requires.
 _NAME_LEFT_BOUNDARY = f"(?:(?<={_PERCENT_ESCAPE})|(?<![0-9A-Za-z_]))"
-_NAME_RIGHT_BOUNDARY = rf"(?=(?:\x1b\[[0-9;]*m)*(?:{_PERCENT_ESCAPE}|(?![0-9A-Za-z_\x1b])))"
+_NAME_RIGHT_BOUNDARY = f"(?:(?={_PERCENT_ESCAPE})|(?![0-9A-Za-z_]))"
 
 #: One backslash. Named so the doubled home spelling below is PRODUCED by
 #: calling ``str.replace`` on an already-derived root rather than written out a
@@ -627,13 +627,13 @@ def _build_redaction_rules() -> tuple[tuple[re.Pattern[str], str, str], ...]:
         for transform in _HOME_SPELLING_TRANSFORMS
     }
     rules: list[tuple[re.Pattern[str], str, str]] = [
-        (re.compile(_colour_tolerant(spelling), re.IGNORECASE), REDACTED_HOME, CLASS_HOME_PATH)
+        (re.compile(re.escape(spelling), re.IGNORECASE), REDACTED_HOME, CLASS_HOME_PATH)
         for spelling in sorted((s for s in spellings if s), key=len, reverse=True)
     ]
     rules.extend(
         (
             re.compile(
-                rf"{_NAME_LEFT_BOUNDARY}{_SGR}*{re.escape(name)}{_NAME_RIGHT_BOUNDARY}",
+                rf"{_NAME_LEFT_BOUNDARY}{re.escape(name)}{_NAME_RIGHT_BOUNDARY}",
                 re.IGNORECASE,
             ),
             REDACTED_USER,
@@ -681,46 +681,84 @@ def _seed_redaction_rules() -> tuple[tuple[re.Pattern[str], str, str], ...]:
     return _build_redaction_rules()
 
 
-#: CS-1191 - ONE TERMINAL COLOUR ESCAPE, as pytest's syntax highlighter emits it
-#: around every token of an assertion diff under ``--color=yes -vv``, and in an
-#: xdist worker's report at ``-vv`` when the controller was given no colour flag.
+#: CS-1191 - ONE TERMINAL ESCAPE SEQUENCE, of any kind a report can carry: a
+#: control sequence with any final byte - colour, the colon form of colour,
+#: erase-line, a cursor move - an operating-system command ended by BEL or by
+#: the string terminator, which is how a hyperlink is opened and closed, and a
+#: lone ESC. None of it is visible text.
 #:
-#: THE DEFECT, MEASURED. A string repr's escape sequences are tokens of their
-#: own, so a doubled home path renders as its separate components with codes
-#: between them and no home spelling matched it. The account name then stood
-#: between a code ending in the letter ``m`` and one starting with ESC, and the
-#: left boundary refused it because that letter is a word character: the name
-#: printed whole, once per token, across an environment mapping's diff.
+#: THE DEFECT, MEASURED. pytest's highlighter wraps every token of a string repr
+#: in colour codes under ``--color=yes -vv``, and an xdist worker does so at
+#: ``-vv`` when the controller was given no colour flag. A repr's escape
+#: sequences are tokens of their own, so a doubled home path rendered as its
+#: components with codes between them and no home spelling matched it, and the
+#: account name stood between a code ending in the letter ``m`` and one
+#: starting with ESC. The left boundary refused it because that letter is a word
+#: character, so the name printed whole, once per token.
 #:
-#: TOLERATED, NOT STRIPPED, so a report keeps its colour. Three places read
-#: past a run of these codes, and each needs ESC to do anything, so ON TEXT
-#: WITHOUT ESC EVERY RULE MATCHES EXACTLY WHAT IT MATCHED BEFORE - which is
-#: the equivalence tests/test_cs1191_colour_xdist_redaction.py grades with a
-#: plain ``--color=no`` child beside the coloured ones:
-#:
-#:   - between the characters of every home spelling, :func:`_colour_tolerant`.
-#:     An account name is one token and is matched as written;
-#:   - in front of an account name, where the run is CONSUMED, so the left
-#:     boundary is judged at the run's start - on the visible character before
-#:     it, exactly as on plain text. The cost is that run's colour: the
-#:     placeholder renders in the colour already set before it;
-#:   - behind an account name, inside :data:`_NAME_RIGHT_BOUNDARY`, which skips
-#:     the run before judging the next visible character. ESC is in that
-#:     boundary's refused class so a backtrack that stops INSIDE the run cannot
-#:     pass it off as a non-word character.
-_SGR = r"(?:\x1b\[[0-9;]*m)"
+#: WHY A SECOND PASS OVER VISIBLE TEXT AND NOT A TOLERANT PATTERN. The first
+#: repair taught the patterns to skip colour codes and put ESC in the right
+#: boundary's refused class, and an adversary measured the regression: a name
+#: followed by ANY OTHER escape - erase-line, a cursor move, a hyperlink's
+#: terminator - printed whole where the unrepaired rules had caught it. So the
+#: rules are left exactly as they were, and :func:`redact_personal_data` runs
+#: each one twice: once over the text as written, which is everything it did
+#: before, and then over the text with every escape sequence removed, where the
+#: boundaries are judged on the characters a reader actually sees. A match there
+#: is replaced in the original - the characters it covers and any escape BETWEEN
+#: them go, and every escape before or after it stays, so the colour does too.
+#: Text without ESC never reaches the second pass, which is the equivalence
+#: tests/test_cs1191_colour_xdist_redaction.py grades with a plain child.
+_ESCAPE_SEQUENCE = re.compile(r"\x1b\[[0-?]*[ -/]*[@-~]|\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)|\x1b")
 
 
-def _colour_tolerant(literal: str) -> str:
-    """``literal`` as a pattern that also matches it with colour escapes between its characters.
+def _visible(text: str) -> tuple[str, list[int]]:
+    """``text`` with every escape sequence removed, and where each kept character came from.
 
     Args:
-        literal: The exact text a rule is built from.
+        text: Rendered output.
 
     Returns:
-        A pattern source matching ``literal`` alone on text without ESC.
+        The visible text, and for each of its characters the index in ``text``
+        it was taken from.
     """
-    return f"{_SGR}*".join(re.escape(character) for character in literal)
+    kept: list[str] = []
+    origin: list[int] = []
+    cursor = 0
+    for sequence in _ESCAPE_SEQUENCE.finditer(text):
+        kept.append(text[cursor : sequence.start()])
+        origin.extend(range(cursor, sequence.start()))
+        cursor = sequence.end()
+    kept.append(text[cursor:])
+    origin.extend(range(cursor, len(text)))
+    return "".join(kept), origin
+
+
+def _sub_visible(pattern: re.Pattern[str], replacement: str, text: str) -> str:
+    """Apply one rule to the visible text of ``text`` and replace what it matched in ``text``.
+
+    Args:
+        pattern: The rule, exactly as it is applied to plain text.
+        replacement: Its placeholder.
+        text: Rendered output carrying at least one ESC.
+
+    Returns:
+        ``text`` with each visible match's characters, and the escapes between
+        them, replaced. Unchanged when nothing matched.
+    """
+    visible, origin = _visible(text)
+    pieces: list[str] = []
+    cursor = 0
+    for match in pattern.finditer(visible):
+        if match.end() == match.start():
+            continue
+        pieces.append(text[cursor : origin[match.start()]])
+        pieces.append(match.expand(replacement))
+        cursor = origin[match.end() - 1] + 1
+    if not pieces:
+        return text
+    pieces.append(text[cursor:])
+    return "".join(pieces)
 
 
 #: Built at import. THIS NAME MUST BE ASSIGNED EXACTLY ONCE, HERE. A second
@@ -933,6 +971,9 @@ def redact_personal_data(text: str) -> str:
     docstring carries the measurement. SO THIS IS NOT A COMPLETE PERSONAL-DATA
     FILTER and must not be described as one.
 
+    CS-1191: each rule runs over the text as written and then, when the text
+    carries ESC, over its visible text - see :data:`_ESCAPE_SEQUENCE`.
+
     Args:
         text: Rendered output.
 
@@ -949,6 +990,8 @@ def redact_personal_data(text: str) -> str:
         raise RuntimeError("the personal-data redaction rule set is empty")
     for pattern, replacement, _class_id in _REDACTION_RULES:
         text = pattern.sub(replacement, text)
+        if "\x1b" in text:
+            text = _sub_visible(pattern, replacement, text)
     return text
 
 
