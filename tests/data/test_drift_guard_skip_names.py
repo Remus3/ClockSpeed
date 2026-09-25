@@ -454,6 +454,9 @@ def test_a_collapsed_directory_is_withheld_by_shape_or_by_content(
         f"{digits}/Thumbs.db": False,
         "zzcoll/zzinner.sav": False,
         "zzdeep/zzmid/zzlow.sav": False,
+        # A SECTION-only shape, which the floor does not carry: the content
+        # search must ask `.gitignore`'s PII-BEARING section too.
+        "zzbakcoll/zzbak.sav.bak": False,
         "zzplain/Thumbs.db": True,
         f"{short}/Thumbs.db": True,
     }
@@ -580,4 +583,47 @@ def test_every_withheld_root_is_withheld_in_upper_case_with_git_unreachable(
 
     leaked = _leaks(text, tokens) + _leaks(raw, tokens)
     assert leaked == 0, f"{leaked} name(s) under an upper-cased withheld root rendered"
+    assert CONTROL_LOCAL in {skip["path"] for skip in report["skipped"]}, "control vanished"
+
+
+def test_a_section_shape_is_withheld_where_git_keeps_case(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Repair 4 - git's case handling must not decide what is withheld.
+
+    With core.ignorecase false, as on the Linux runner, git's own match is
+    case-sensitive: an upper-cased `*.sav.bak` or `*.savbackup` is NOT ignored,
+    git decides, and the file is walked - so a reader's own skip record carries
+    the path. An adjudicator measured both printing. The render seam must ask
+    the tool's own case-folded classification, including the `.gitignore`
+    section's, whatever reason the record carries.
+    """
+    root = tmp_path / "tree"
+    if not _real_gitignore_repo(root, monkeypatch):
+        pytest.skip("git is not installed, so its answer cannot be asked")
+    from tests import conftest  # noqa: PLC0415 - the one git runner the suite owns
+
+    proc = conftest.run_git(root, "config", "core.ignorecase", "false")
+    assert proc is not None
+    assert proc.returncode == 0, "control: core.ignorecase false did not set"
+    tokens = ["zzkeepcase1", "zzkeepcase2"]
+    for token, leaf in zip(tokens, ["ZZKEEPCASE1.SAV.BAK", "zzkeepcase2.SAVBACKUP"], strict=True):
+        (root / f"{token}dir").mkdir()
+        (root / f"{token}dir" / leaf).write_bytes(b"synthetic\n")
+        (root / f"{token}dir" / "keep.md").write_text("# kept\n", encoding="utf-8")
+    ignored_check = conftest.run_git(
+        root, "check-ignore", "-q", "--", "zzkeepcase1dir/ZZKEEPCASE1.SAV.BAK"
+    )
+    assert ignored_check is not None
+    assert ignored_check.returncode == 1, "control: git ignored the upper-case shape anyway"
+    (root / CONTROL_LOCAL).write_text("{}\n", encoding="utf-8")
+    (root / "top.md").write_text("# clean\n", encoding="utf-8")
+    _point_at(monkeypatch, root, tmp_path)
+
+    text = _run(capsys)
+    raw = _run(capsys, "--json")
+    report: dict[str, Any] = json.loads(raw)
+
+    leaked = _leaks(text, tokens) + _leaks(raw, tokens)
+    assert leaked == 0, f"{leaked} section-shape name(s) rendered with git keeping case"
     assert CONTROL_LOCAL in {skip["path"] for skip in report["skipped"]}, "control vanished"

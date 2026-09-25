@@ -5895,7 +5895,9 @@ def is_withheld(reason: str) -> bool:
     return reason.split(" - ", 1)[0] in WITHHELD_REASON_CLASSES
 
 
-def partition_skips(skips: list[Skip]) -> tuple[list[Skip], dict[str, int]]:
+def partition_skips(
+    skips: list[Skip], pii_patterns: tuple[str, ...]
+) -> tuple[list[Skip], dict[str, int]]:
     """Split skip records into those that may name a path and a count per withheld reason.
 
     CS-1158. Both renderers of the skip list - the text report and the --json
@@ -5909,6 +5911,10 @@ def partition_skips(skips: list[Skip]) -> tuple[list[Skip], dict[str, int]]:
 
     Args:
         skips: Every skip record the run produced.
+        pii_patterns: The `.gitignore` PII-BEARING patterns of the tree the
+            records came from, from _gitignore_pii_patterns. REQUIRED rather
+            than defaulted, so a renderer cannot forget the section and fall
+            back to git's own case handling (repair 4).
 
     Returns:
         (the records whose path may render, withheld reason -> record count).
@@ -5921,15 +5927,15 @@ def partition_skips(skips: list[Skip]) -> tuple[list[Skip], dict[str, int]]:
             withheld[reason] = withheld.get(reason, 0) + 1
         elif _names_account_id(skip["path"]):
             withheld[ACCOUNT_ID_PATH_REASON] = withheld.get(ACCOUNT_ID_PATH_REASON, 0) + 1
-        elif (shape := _withheld_shape(skip["path"])) is not None:
+        elif (shape := _withheld_shape(skip["path"], pii_patterns)) is not None:
             withheld[shape] = withheld.get(shape, 0) + 1
         else:
             shown.append(skip)
     return shown, withheld
 
 
-def _withheld_shape(path: str) -> str | None:
-    """The withheld-class floor reason a record's PATH carries, or None.
+def _withheld_shape(path: str, pii_patterns: tuple[str, ...]) -> str | None:
+    """The withheld-class reason a record's PATH carries, or None.
 
     CS-1158 repair 3 - the render seam's backstop. Where git answers and keeps
     case (core.ignorecase false, every Linux runner) an upper-case `X.PEM` is
@@ -5938,13 +5944,25 @@ def _withheld_shape(path: str) -> str | None:
     reason of no class. The shape of the path is what says it is key material,
     so the floor's folded rule is asked here too, and the record is counted
     under the class reason rather than the reader's.
+
+    REPAIR 4 - AND THE `.gitignore` SECTION IS ASKED TOO. With git keeping
+    case, an upper-cased `*.sav.bak` or `*.savbackup` is not ignored either,
+    and neither shape is in the floor. The tool's own case-folded reading of
+    the PII-BEARING section decides here, in every enumeration mode, whatever
+    reason git or a reader gave the record.
     """
     relative = path.rstrip("/")
-    reason = _floor_reason(relative, relative.rsplit("/", 1)[-1])
-    return reason if reason is not None and is_withheld(reason) else None
+    name = relative.rsplit("/", 1)[-1]
+    reason = _floor_reason(relative, name)
+    if reason is not None and is_withheld(reason):
+        return reason
+    is_dir = path.endswith("/")
+    if any(_gitignore_matches(p, relative, name, is_dir=is_dir) for p in pii_patterns):
+        return GITIGNORE_PII_REASON
+    return None
 
 
-def _skip_lines(skips: list[Skip]) -> list[str]:
+def _skip_lines(skips: list[Skip], pii_patterns: tuple[str, ...]) -> list[str]:
     out = [
         "SKIPPED - printed every run, not only when verbose.",
         "A guard can be green while self-excusing (CONVENTIONS 15.1). A green verdict",
@@ -5953,7 +5971,7 @@ def _skip_lines(skips: list[Skip]) -> list[str]:
     if not skips:
         out.append("  (nothing skipped)")
         return out
-    shown, withheld = partition_skips(skips)
+    shown, withheld = partition_skips(skips, pii_patterns)
     collapsed: dict[str, list[str]] = {}
     for skip in shown:
         collapsed.setdefault(skip["reason"], []).append(skip["path"])
@@ -5982,7 +6000,7 @@ def render(guards: list[Guard], skips: list[Skip], source: str, root: Path) -> l
     out.append("")
     out.extend(_detail_lines(guards))
     out.append("")
-    out.extend(_skip_lines(skips))
+    out.extend(_skip_lines(skips, _gitignore_pii_patterns(root)))
 
     failed = [guard for guard in guards if guard["status"] == "FAIL"]
     warned = [guard for guard in guards if guard["status"] == "WARN"]
@@ -6035,7 +6053,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.json:
         # CS-1158 - schema 2: "skipped" carries only the records that may name a
         # path, and "withheld" carries every other one as its reason and count.
-        shown, withheld = partition_skips(skips)
+        shown, withheld = partition_skips(skips, _gitignore_pii_patterns(root))
         print(
             json.dumps(
                 {
