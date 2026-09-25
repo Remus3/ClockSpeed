@@ -82,6 +82,8 @@ it and hand it back.
   care about before trusting a clean exit.
 - "Zero bad rows" is relative to a SET. State the set.
 - A caveat stated in chat is not a caveat in the artifact.
+- A test whose assertion changed must carry a NAME that states what its body now asserts. A
+  docstring updated beside a stale function name leaves the grep-able claim false (CS-1029).
 
 ## Verdict
 
