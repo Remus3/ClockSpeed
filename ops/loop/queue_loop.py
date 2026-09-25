@@ -189,6 +189,7 @@ import re
 import subprocess
 import sys
 import time
+import traceback
 import uuid
 from pathlib import Path
 from types import MappingProxyType
@@ -1114,20 +1115,70 @@ def _emit(line: str) -> None:
     working driver from a hung one.
 
     CS-1018 - THE SAME LINE ALSO GOES TO THIS NIGHT'S OWN LOG, when `main` has
-    opened one (see `night_log`). The redirected stdout is a copy the launcher
-    owns; the night log is the copy the driver owns, and it is never
-    truncated. A write that fails detaches the sink rather than killing the
-    night: losing the human tail must never cost the work.
+    opened one (see `night_log`), there prefixed with its UTC time. The
+    redirected stdout is a copy the launcher owns and is left exactly as it
+    was; the night log is the copy the driver owns, and it is never truncated.
     """
     print(line, flush=True)
-    sink = _NIGHT_SINK["handle"]
+    _night_write(line)
+
+
+class _NightSink:
+    """CS-1018. The one open night log and the clocks its lines are stamped by.
+
+    One module-level instance, mutated rather than rebound, and set ONLY by
+    `night_log`, which restores every field on the way out.
+    """
+
+    def __init__(self) -> None:
+        """No night is open until `night_log` opens one."""
+        self.handle: IO[str] | None = None
+        self.clock = time.time
+        self.monotonic = time.monotonic
+
+
+_NIGHT = _NightSink()
+
+#: What a night log's name is built from, and nothing else: the folded lane,
+#: the UTC start stamp and a run token. No account, world or home path.
+NIGHT_LOG_PREFIX = "queue_loop_night"
+_NIGHT_STAMP = "%Y%m%dT%H%M%SZ"
+#: Every night-log line starts with this, to the millisecond, in UTC. The
+#: 2026-09-10 gap was 262.5s between two cycles and a log whose lines carry no
+#: time cannot even show that a gap happened, let alone where.
+_NIGHT_LINE_STAMP = "%Y-%m-%dT%H:%M:%S"
+_MS_PER_S = 1000
+#: A token that collides is re-minted, never reopened. Eight tries of a fresh
+#: 32-bit token is not a bound anyone reaches; it exists so a broken `mint`
+#: cannot spin forever.
+_NIGHT_MINT_TRIES = 8
+#: Where a traceback frame's file is spelled relative to, so a frame inside
+#: this repository never carries the absolute checkout path.
+_REPO_ROOT = _HERE.parents[1]
+
+
+def _night_stamp(now: float) -> str:
+    """`now` as a UTC ISO-8601 time with milliseconds and a trailing Z."""
+    whole = math.floor(now)
+    millis = min(_MS_PER_S - 1, int((now - whole) * _MS_PER_S))
+    return f"{time.strftime(_NIGHT_LINE_STAMP, time.gmtime(whole))}.{millis:03d}Z"
+
+
+def _night_write(text: str) -> None:
+    """Append one stamped line to the open night log; a no-op when none is open.
+
+    A write that fails detaches the sink rather than killing the night: losing
+    the human tail must never cost the work, and the one line saying so goes
+    to stdout, which the launcher keeps.
+    """
+    sink = _NIGHT.handle
     if sink is None:
         return
     try:
-        sink.write(line + "\n")
+        sink.write(f"{_night_stamp(_NIGHT.clock())} {text}\n")
         sink.flush()
     except (OSError, ValueError) as exc:
-        _NIGHT_SINK["handle"] = None
+        _NIGHT.handle = None
         print(
             f"queue-loop night log: write failed ({type(exc).__name__}) - "
             f"the rest of this night is on stdout only",
@@ -1135,18 +1186,52 @@ def _emit(line: str) -> None:
         )
 
 
-#: CS-1018. The one open night log, or None. A holder rather than a rebound
-#: global, and set ONLY by `night_log`, which restores it on the way out.
-_NIGHT_SINK: dict[str, IO[str] | None] = {"handle": None}
+@contextlib.contextmanager
+def _phase(name: str, cycle: object):
+    """Bracket one wait the driver owns with stamped begin and end markers.
 
-#: What a night log's name is built from, and nothing else: the folded lane,
-#: the UTC start stamp and a run token. No account, world or home path.
-NIGHT_LOG_PREFIX = "queue_loop_night"
-_NIGHT_STAMP = "%Y%m%dT%H%M%SZ"
-#: A token that collides is re-minted, never reopened. Eight tries of a fresh
-#: 32-bit token is not a bound anyone reaches; it exists so a broken `mint`
-#: cannot spin forever.
-_NIGHT_MINT_TRIES = 8
+    NIGHT LOG ONLY - never stdout and never the `emit` seam, so the console
+    tail and every arm that grades emitted lines are exactly as they were. With
+    every wait bracketed, a gap in the night log is either inside a NAMED phase
+    or between two phases, and the second kind is time no driver code path
+    accounts for - the question CS-1018 could not answer.
+    """
+    if _NIGHT.handle is None:
+        yield
+        return
+    began = _NIGHT.monotonic()
+    _night_write(f"queue-loop phase {name} begin cycle={cycle}")
+    how = "raised"
+    try:
+        yield
+        how = "ok"
+    finally:
+        took = _NIGHT.monotonic() - began
+        _night_write(f"queue-loop phase {name} end cycle={cycle} {how} {took:.3f}s")
+
+
+def _frame_file(filename: str) -> str:
+    """A traceback frame's file, relative to the repo or else its bare name.
+
+    Never the absolute path: a checkout, an interpreter or a site-packages
+    directory can sit under a home directory, and that is non-negotiable 3.
+    """
+    try:
+        return Path(filename).resolve().relative_to(_REPO_ROOT).as_posix()
+    except (OSError, ValueError):
+        return Path(filename).name
+
+
+def _frames(exc: BaseException) -> list[str]:
+    """The raised exception's frames as `file:line:function`, and nothing else.
+
+    No source text, no locals and no message: each can carry a path or a
+    player string, and non-negotiable 12 counts exception context as an echo.
+    """
+    return [
+        f"{_frame_file(frame.filename)}:{frame.lineno}:{frame.name}"
+        for frame in traceback.extract_tb(exc.__traceback__)
+    ]
 
 
 def _open_night_log(lane, directory: Path, *, clock, mint) -> tuple[IO[str] | None, str | None]:
@@ -1178,7 +1263,7 @@ def _open_night_log(lane, directory: Path, *, clock, mint) -> tuple[IO[str] | No
 
 
 @contextlib.contextmanager
-def night_log(lane, directory=None, *, clock=time.time, mint=None):
+def night_log(lane, directory=None, *, clock=time.time, monotonic=time.monotonic, mint=None):
     """Hold this night's own log open for the body, and close it after.
 
     CS-1018. The launcher's stdout log was ONE file per lane and
@@ -1188,14 +1273,21 @@ def night_log(lane, directory=None, *, clock=time.time, mint=None):
     keeps its own. Retention is unbounded by design - pruning is a separate,
     filed decision, not something to add silently here.
 
-    A night that RAISES leaves the exception's TYPE as its last line and never
-    its text: `str()` on a caught exception is the personal-data channel
-    non-negotiable 12 closes.
+    Every line is stamped in UTC to the millisecond, and `run_loop` brackets
+    each wait it owns with `_phase` markers, so a gap is attributable to a
+    named phase or shown to sit outside all of them.
+
+    A night that RAISES leaves the exception's TYPE and its frames as
+    `file:line:function` - never its text, its locals or a source line:
+    `str()` on a caught exception is the personal-data channel non-negotiable
+    12 closes. The frames are here so the call site survives even when the
+    launcher's stderr file is bypassed.
 
     Args:
         lane: The lane, folded to an identifier-safe spelling for the name.
         directory: Where the log goes; the reports directory by default.
-        clock: The start-stamp seam.
+        clock: The wall-clock seam - the name's stamp and every line's stamp.
+        monotonic: The seam each phase's elapsed time is measured on.
         mint: The run-token seam, a zero-argument callable returning a string.
 
     Yields:
@@ -1204,8 +1296,8 @@ def night_log(lane, directory=None, *, clock=time.time, mint=None):
     mint = (lambda: uuid.uuid4().hex[:_TOKEN_HEX_SHORT]) if mint is None else mint
     root = REPORTS if directory is None else Path(directory)
     handle, name = _open_night_log(lane, root, clock=clock, mint=mint)
-    previous = _NIGHT_SINK["handle"]
-    _NIGHT_SINK["handle"] = handle
+    previous = (_NIGHT.handle, _NIGHT.clock, _NIGHT.monotonic)
+    _NIGHT.handle, _NIGHT.clock, _NIGHT.monotonic = handle, clock, monotonic
     try:
         if name is None:
             _emit("queue-loop night log: could not be created - this night is on stdout only")
@@ -1214,9 +1306,11 @@ def night_log(lane, directory=None, *, clock=time.time, mint=None):
         yield name
     except BaseException as exc:
         _emit(f"queue-loop night log: the driver raised {type(exc).__name__}")
+        for frame in _frames(exc):
+            _night_write(f"queue-loop night log:   at {frame}")
         raise
     finally:
-        _NIGHT_SINK["handle"] = previous
+        _NIGHT.handle, _NIGHT.clock, _NIGHT.monotonic = previous
         if handle is not None:
             handle.close()
 
@@ -3077,18 +3171,21 @@ def run_loop(  # noqa: PLR0913, PLR0912, PLR0915 - see THE SEAMS ARE THE POINT
         # BEFORE the cycle, unconditionally when the gate is on: the outcome is
         # not knowable in advance, and one `ls-remote` against a multi-hour
         # cycle is not a cost worth optimising.
-        pre_sha = head_sha() if ci_gate else None
+        with _phase("head_sha_pre", cycle):
+            pre_sha = head_sha() if ci_gate else None
         # UNCONDITIONAL, and NOT gated on `ci_gate`. Whether the cycle
         # produced a commit is a question about the worker, not about the
         # CI gate, and a night run with the gate off still has to be
         # stopped when it is accomplishing nothing.
-        pre_tree, pre_why = _lane_head(tree_sha, lane, worktree)
+        with _phase("lane_head_pre", cycle):
+            pre_tree, pre_why = _lane_head(tree_sha, lane, worktree)
         # BEFORE THE CYCLE, AND THE ORDER IS THE MECHANISM. A cycle that closes
         # its row deletes that row from `ROADMAP.md`, so a permit computed
         # afterwards would report the row the worker just finished as one it was
         # never allowed to take. What is graded is what the lane could take when
         # it started.
-        permitted = (permit_for_lane if permit is None else permit)(lane)
+        with _phase("permit", cycle):
+            permitted = (permit_for_lane if permit is None else permit)(lane)
         watch = ClaimWatch(
             lane,
             started_at=started_at,
@@ -3097,31 +3194,32 @@ def run_loop(  # noqa: PLR0913, PLR0912, PLR0915 - see THE SEAMS ARE THE POINT
             clock=clock,
         )
         try:
-            record = run_cycle(
-                cycle,
-                lane=lane,
-                worktree=worktree,
-                repo_root=repo_root,
-                run_id=run_id,
-                poll_s=poll_s,
-                cycle_timeout_s=cycle_timeout_s,
-                kill_grace_s=kill_grace_s,
-                acquire_retries=acquire_retries,
-                acquire_wait_s=acquire_wait_s,
-                acquire=acquire,
-                release=release,
-                launch=launch,
-                alive=alive,
-                proc_started=proc_started,
-                stranger=stranger,
-                kill=kill,
-                observe=watch.sample,
-                surface=surface,
-                emit=emit,
-                sleep=sleep,
-                clock=clock,
-                monotonic=monotonic,
-            )
+            with _phase("run_cycle", cycle):
+                record = run_cycle(
+                    cycle,
+                    lane=lane,
+                    worktree=worktree,
+                    repo_root=repo_root,
+                    run_id=run_id,
+                    poll_s=poll_s,
+                    cycle_timeout_s=cycle_timeout_s,
+                    kill_grace_s=kill_grace_s,
+                    acquire_retries=acquire_retries,
+                    acquire_wait_s=acquire_wait_s,
+                    acquire=acquire,
+                    release=release,
+                    launch=launch,
+                    alive=alive,
+                    proc_started=proc_started,
+                    stranger=stranger,
+                    kill=kill,
+                    observe=watch.sample,
+                    surface=surface,
+                    emit=emit,
+                    sleep=sleep,
+                    clock=clock,
+                    monotonic=monotonic,
+                )
         except Exception as exc:  # DELIBERATE catch-all - see the comment below
             # A night that ends at cycle 3 on ONE unexpected fault is the defect
             # this closes, and the SILENT half was worse: `append_record` is only
@@ -3152,7 +3250,8 @@ def run_loop(  # noqa: PLR0913, PLR0912, PLR0915 - see THE SEAMS ARE THE POINT
         # ---- THE DRIVER-OWNED WAITS, before the append so ONE row carries
         # ---- the cycle and its acceptance together.
         note = ""
-        post_tree, post_why = _lane_head(tree_sha, lane, worktree)
+        with _phase("lane_head_post", cycle):
+            post_tree, post_why = _lane_head(tree_sha, lane, worktree)
         # DID THIS CYCLE PRODUCE A COMMIT - the question the progress
         # counter asks, and deliberately NOT the question `ok` answers.
         #
@@ -3216,22 +3315,25 @@ def run_loop(  # noqa: PLR0913, PLR0912, PLR0915 - see THE SEAMS ARE THE POINT
             # thousands of tests never run, which reaches this ledger as a green
             # nobody earned. The driver waits here, which is where every wait
             # this file owns already happens.
-            run_suite_step(
-                record,
-                lane=lane,
-                worktree=worktree,
-                run_id=run_id,
-                suite=suite,
-                ration=ration,
-                # BENEATH the control directory, so `--control-dir` moves the
-                # ration with the stop sentinels rather than leaving half the
-                # control plane pointed at the real one. The dirname is
-                # `ration.py`'s to spell, not this file's.
-                root=(None if control_dir is None else Path(control_dir) / _mod("ration").DIR_NAME),
-                sleep=sleep,
-                monotonic=monotonic,
-                emit=emit,
-            )
+            with _phase("run_suite_step", cycle):
+                run_suite_step(
+                    record,
+                    lane=lane,
+                    worktree=worktree,
+                    run_id=run_id,
+                    suite=suite,
+                    ration=ration,
+                    # BENEATH the control directory, so `--control-dir` moves the
+                    # ration with the stop sentinels rather than leaving half the
+                    # control plane pointed at the real one. The dirname is
+                    # `ration.py`'s to spell, not this file's.
+                    root=(
+                        None if control_dir is None else Path(control_dir) / _mod("ration").DIR_NAME
+                    ),
+                    sleep=sleep,
+                    monotonic=monotonic,
+                    emit=emit,
+                )
         else:
             # ON EVERY OTHER CYCLE TOO. With `--local-suite` off - the default,
             # and what the launcher produces unless asked - this branch is the
@@ -3240,7 +3342,8 @@ def run_loop(  # noqa: PLR0913, PLR0912, PLR0915 - see THE SEAMS ARE THE POINT
             # protected. Measured: 0 ration entries per cycle under the default.
             record["ration"] = dict(RATION_NO_SUITE)
         if ci_gate and record["outcome"] == OUTCOME_COMPLETED:
-            post_sha = head_sha()
+            with _phase("head_sha_post", cycle):
+                post_sha = head_sha()
             if pre_sha is None or post_sha is None:
                 # A tooling failure, recorded as one. Staying silent here would
                 # make a night with no CI evidence read like a night of greens.
@@ -3308,14 +3411,15 @@ def run_loop(  # noqa: PLR0913, PLR0912, PLR0915 - see THE SEAMS ARE THE POINT
                     ),
                 }
             else:
-                record["ci"] = wait(
-                    post_sha,
-                    budget_s=ci_wait_s,
-                    poll_s=ci_poll_s,
-                    gh=gh,
-                    sleep=sleep,
-                    monotonic=monotonic,
-                )
+                with _phase("ci_wait", cycle):
+                    record["ci"] = wait(
+                        post_sha,
+                        budget_s=ci_wait_s,
+                        poll_s=ci_poll_s,
+                        gh=gh,
+                        sleep=sleep,
+                        monotonic=monotonic,
+                    )
         verdict = record.get("ci")
         if verdict:
             # `+=`, NOT `=`. This used to be the first thing written to the
@@ -3375,7 +3479,8 @@ def run_loop(  # noqa: PLR0913, PLR0912, PLR0915 - see THE SEAMS ARE THE POINT
             # does not start `queue-loop cycle`.
             record["cycle"] = None
         records.append(record)
-        append_record(record, cycle_log, hold=hold, emit=emit)
+        with _phase("append_record", cycle):
+            append_record(record, cycle_log, hold=hold, emit=emit)
         # ONE line per cycle, still. The verdicts ride on it rather than taking
         # lines of their own, because an operator tailing this reads a night by
         # counting cycles down the left margin.
@@ -3412,7 +3517,8 @@ def run_loop(  # noqa: PLR0913, PLR0912, PLR0915 - see THE SEAMS ARE THE POINT
                 f"{usage_refusal_limit} - waiting {USAGE_LIMIT_BACKOFF_S}s in "
                 f"{USAGE_LIMIT_BACKOFF_POLL_S}s polls; the refused run is not a cycle"
             )
-            interrupted = _back_off(sleep, control_dir)
+            with _phase("back_off", cycle):
+                interrupted = _back_off(sleep, control_dir)
             if interrupted:
                 stopped_by = interrupted
                 emit(f"queue-loop stop: {interrupted} present during the back-off")
@@ -3535,7 +3641,8 @@ def run_loop(  # noqa: PLR0913, PLR0912, PLR0915 - see THE SEAMS ARE THE POINT
         # Between cycles only. A settle after the final cycle would just delay
         # the driver's own exit for nothing.
         if cycle < total:
-            sleep(settle_s)
+            with _phase("settle", cycle):
+                sleep(settle_s)
     if stopped_by is None:
         stopped_by = STOPPED_BY_MAX_CYCLES
     # CS-1178 - A REFUSED RUN IS NOT A CYCLE, and the summary says so: the

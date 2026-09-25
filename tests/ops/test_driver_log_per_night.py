@@ -23,9 +23,11 @@ bytes the driver wrote rather than on a marker the test planted.
 from __future__ import annotations
 
 import ast
+import calendar
 import contextlib
 import re
 import sys
+import time
 from pathlib import Path
 from typing import Final
 
@@ -265,3 +267,236 @@ def test_the_sink_is_released_when_the_night_ends(tmp_path, capsys):
     said = capsys.readouterr().out
     assert said == "after the night\n", f"a line after the night did more than print: {said!r}"
     assert "after the night" not in (tmp_path / name).read_text(encoding="utf-8")
+
+
+# ---------------------------------------------------------------------------
+# CS-1018 repair - a kept log that could not answer the question that created
+# the item is not the instrument the item asked for. The 2026-09-10 gap was a
+# PAUSE, so the log must show when each line was written and which of the
+# driver's own waits was open at the time.
+# ---------------------------------------------------------------------------
+
+#: Every night-log line starts with a UTC time to the millisecond.
+LINE_STAMP: Final = re.compile(r"^(\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d\.\d{3})Z (.*)$")
+
+#: The settle a two-cycle fake night sleeps between its cycles, in seconds.
+SETTLE_S: Final = 2.5
+#: A stall no driver code path owns, planted on the cycle-1 console line. The
+#: number is the 2026-09-10 night's unexplained interval.
+STALL_S: Final = 214.7
+
+
+class _FakeClock:
+    """A wall and a monotonic clock that move only when the fake night says so."""
+
+    def __init__(self) -> None:
+        """Start both clocks at a fixed instant."""
+        self.wall = 1_790_000_000.0
+        self.mono = 0.0
+
+    def time(self) -> float:
+        """Wall time - the name stamp and every line stamp."""
+        return self.wall
+
+    def monotonic(self) -> float:
+        """Phase elapsed time."""
+        return self.mono
+
+    def sleep(self, seconds: float) -> None:
+        """Advance both clocks instead of blocking."""
+        self.advance(seconds)
+
+    def advance(self, seconds: float) -> None:
+        """Move both clocks by `seconds`."""
+        self.wall += float(seconds)
+        self.mono += float(seconds)
+
+
+class _NullHold:
+    """The ledger-mutex seam, holding no OS handle."""
+
+    def __call__(self):
+        """Hand back a context manager that holds nothing."""
+        return contextlib.nullcontext()
+
+
+def _fake_night(tmp_path: Path, clock: _FakeClock, emit) -> None:
+    """Two REAL `run_loop` cycles with every external reach replaced by a seam.
+
+    No worker is launched, no `git` or `gh` runs, nothing reads the live
+    roadmap, claim store or inbox, and nothing sleeps for real.
+    """
+    tree = {"n": 0}
+
+    def tree_sha(_cwd):
+        tree["n"] += 1
+        return f"commit-{tree['n']}"
+
+    queue_loop.run_loop(
+        max_cycles=2,
+        settle_s=SETTLE_S,
+        poll_s=1,
+        ci_gate=False,
+        acquire=lambda _lane, **_kw: {"ok": True, "token": "T"},
+        release=lambda _token, **_kw: True,
+        launch=lambda _lane, **_kw: {"pid": 1, "log": "l"},
+        alive=lambda _pid: False,
+        proc_started=lambda _pid: 1.0,
+        stranger=lambda _pid, _s: False,
+        kill=lambda _pid: None,
+        head_sha=lambda: "sha-unchanged",
+        tree_sha=tree_sha,
+        permit=lambda _lane, *_a, **_kw: {
+            "ok": True,
+            "lane_scope": "fixture",
+            "allowed": ("CS-FIXTURE",),
+            "detail": "",
+        },
+        claim_states=lambda _root=None, _now=None: {},
+        surface=lambda _worktree: {"unread": 0, "names": [], "more": 0, "reason": ""},
+        worktree="fixture-lane-worktree",
+        cycle_log=tmp_path / "ledger.jsonl",
+        control_dir=tmp_path / "control",
+        hold=_NullHold(),
+        sleep=clock.sleep,
+        clock=clock.time,
+        monotonic=clock.monotonic,
+        emit=emit,
+    )
+
+
+def _stamped(text: str) -> list[tuple[float, str]]:
+    """Each night-log line as (seconds since the first line, the text after the stamp)."""
+    out = []
+    for line in text.splitlines():
+        found = LINE_STAMP.match(line)
+        assert found, f"a night-log line carries no UTC millisecond stamp: {line!r}"
+        out.append((found.group(1), found.group(2)))
+    first = _seconds(out[0][0])
+    return [(round(_seconds(stamp) - first, 3), said) for stamp, said in out]
+
+
+def _seconds(stamp: str) -> float:
+    whole, millis = stamp.split(".")
+    parsed = time.strptime(whole, "%Y-%m-%dT%H:%M:%S")
+    return calendar.timegm(parsed) + int(millis) / 1000
+
+
+def _at(lines: list[tuple[float, str]], prefix: str) -> tuple[int, float]:
+    hits = [(i, when) for i, (when, said) in enumerate(lines) if said.startswith(prefix)]
+    assert len(hits) == 1, f"{len(hits)} night-log line(s) start with {prefix!r}"
+    return hits[0]
+
+
+def test_every_night_log_line_carries_a_utc_millisecond_stamp(tmp_path):
+    reports = tmp_path / "reports"
+    control = tmp_path / "control"
+    control.mkdir(parents=True)
+    (control / "STOP").write_text("halt", encoding="utf-8")
+    _night(reports, control)
+    logs = _night_logs(reports)
+    assert len(logs) == 1
+    lines = _stamped(logs[0].read_text(encoding="utf-8"))
+    assert any(NIGHT_ONE_SAID in said for _when, said in lines), "the stop line is missing"
+
+
+def test_a_pause_is_attributed_to_the_named_phase_it_happened_in(tmp_path):
+    """A SETTLE shows as the time between its own begin and end markers."""
+    clock = _FakeClock()
+    with queue_loop.night_log(
+        "queue", tmp_path / "reports", clock=clock.time, monotonic=clock.monotonic
+    ) as name:
+        _fake_night(tmp_path, clock, queue_loop._emit)  # noqa: SLF001 - the sink IS the subject
+    assert name is not None
+    lines = _stamped((tmp_path / "reports" / name).read_text(encoding="utf-8"))
+
+    one_at, _ = _at(lines, "queue-loop cycle 1/2 ")
+    two_at, _ = _at(lines, "queue-loop cycle 2/2 ")
+    begin_at, began = _at(lines, "queue-loop phase settle begin cycle=1")
+    end_at, ended = _at(lines, "queue-loop phase settle end cycle=1 ok 2.500s")
+    assert one_at < begin_at < end_at < two_at, "the settle markers do not sit between the cycles"
+    assert ended - began == SETTLE_S, f"the settle's markers are {ended - began}s apart"
+    # EVERY WAIT THE DRIVER OWNS on the path a cycle takes is bracketed.
+    for phase in (
+        "lane_head_pre",
+        "permit",
+        "head_sha_pre",
+        "run_cycle",
+        "lane_head_post",
+        "append_record",
+    ):
+        _at(lines, f"queue-loop phase {phase} begin cycle=1")
+        _at(lines, f"queue-loop phase {phase} end cycle=1 ok")
+
+
+def test_a_pause_outside_every_phase_shows_as_unowned_time(tmp_path):
+    """THE CS-1018 SHAPE: a stall no driver code path accounts for.
+
+    The stall is planted on the cycle-1 console line, which sits between the
+    ledger write and the settle and inside no phase. The log must show the
+    whole of it between one phase's END and the next phase's BEGIN, so a
+    reader can say "no named wait was open" rather than guess.
+    """
+    clock = _FakeClock()
+
+    def stalling_emit(line: str) -> None:
+        queue_loop._emit(line)  # noqa: SLF001 - the sink IS the subject
+        if line.startswith("queue-loop cycle 1/2 "):
+            clock.advance(STALL_S)
+
+    with queue_loop.night_log(
+        "queue", tmp_path / "reports", clock=clock.time, monotonic=clock.monotonic
+    ) as name:
+        _fake_night(tmp_path, clock, stalling_emit)
+    assert name is not None
+    lines = _stamped((tmp_path / "reports" / name).read_text(encoding="utf-8"))
+    ledger_at, ledger_done = _at(lines, "queue-loop phase append_record end cycle=1 ok")
+    settle_at, settle_began = _at(lines, "queue-loop phase settle begin cycle=1")
+    assert settle_began - ledger_done == STALL_S, (
+        f"the stall shows as {settle_began - ledger_done}s between the phases, not {STALL_S}s"
+    )
+    between = [said for _when, said in lines[ledger_at + 1 : settle_at]]
+    assert not [said for said in between if said.startswith("queue-loop phase ")], (
+        f"a phase was open across the unowned stall: {between}"
+    )
+
+
+def test_a_crashed_night_keeps_its_frames_and_never_the_message(tmp_path, monkeypatch):
+    """The call site survives a crash even when the launcher's stderr is bypassed.
+
+    Frames only, as `file:line:function` - no message, no source line, no
+    locals, and no absolute path, because each can carry a home path or a
+    player string.
+    """
+    planted_dir = "planted-home-dir"
+    planted_text = "PLANTED-OS-ERROR-TEXT"
+
+    def _deeper():
+        raise OSError(2, planted_text, f"C:/{planted_dir}/planted-world.sav")
+
+    def _boom(**_kw):
+        _deeper()
+
+    monkeypatch.setattr(queue_loop, "run_loop", _boom)
+    reports = tmp_path / "reports"
+    with pytest.raises(OSError):  # noqa: PT011 - the TYPE is the whole claim
+        _night(reports, tmp_path / "control")
+    logs = _night_logs(reports)
+    assert len(logs) == 1
+    text = logs[0].read_text(encoding="utf-8")
+    frames = [
+        said.removeprefix("queue-loop night log:   at ")
+        for _when, said in _stamped(text)
+        if said.startswith("queue-loop night log:   at ")
+    ]
+    here = "tests/ops/test_driver_log_per_night.py"
+    functions = [frame.rsplit(":", 1)[-1] for frame in frames]
+    assert functions[-2:] == ["_boom", "_deeper"], f"the raise site is not kept: {frames}"
+    assert "_drive" in functions, f"the driver's own frame is not kept: {frames}"
+    shape = re.compile(r"[A-Za-z0-9_./-]+:\d+:[A-Za-z0-9_<>]+")
+    for frame in frames:
+        assert shape.fullmatch(frame), f"a frame carries more than file:line:function: {frame}"
+        assert not re.match(r"[A-Za-z]:|/", frame), f"a frame carries an absolute path: {frame}"
+    assert any(frame.startswith(f"{here}:") for frame in frames), "repo frames are not relative"
+    for planted in (planted_dir, planted_text, "planted-world"):
+        assert planted not in text, "the exception's own text reached the kept log"
