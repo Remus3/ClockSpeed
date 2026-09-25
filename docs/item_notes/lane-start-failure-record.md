@@ -68,10 +68,10 @@ at that moment is the claiming driver's pid, and `os.getpid()` is the same proce
 `repoint_lane_pid` rewrites `record["pid"] = worker` and sets the LAUNCHER's `_OWNED[key]`
 to `(run_id, stamp, worker)`.
 
-**Cycle 1 - the release refuses.** `_identity` (`:990-996`) is `(run_id, ts, pid)`. The
+**Cycle 1 - the release refuses.** `_identity` (`ops/loop/lanes.py::_identity`) is `(run_id, ts, pid)`. The
 driver's own `_OWNED[key]` still holds `(run_id, ts, driver_pid)` from the acquire, while
-the on-disk record now reads `(run_id, ts, worker)`. `release_lane`'s `_is_ours` check at
-`:1094` compares them, they differ, and the release is refused. The lane is never freed.
+the on-disk record now reads `(run_id, ts, worker)`. `release_lane`'s `_is_ours` check, in
+`ops/loop/lanes.py::release_lane`, compares them, they differ, and the release is refused. The lane is never freed.
 
 **Cycle 2 onward - the kill.** The next acquire finds the lock held by a dead worker,
 reclaims it, and rewrites the record with a fresh `run_id`, `ts` and pid, updating the
@@ -123,9 +123,9 @@ excluded. **That argument is wrong three times over and must not be reinstated.*
 
 **It compares two different clocks.** `duration_s` is the DRIVER CYCLE wall clock:
 `ops/loop/queue_loop.py`'s `run_cycle` sets `started_at = clock()` before the acquire loop begins,
-and `:2301` writes `round(ended_at - started_at, 3)` (line numbers at `9a7e152`). The 2.0s
+and the same function writes `round(ended_at - started_at, 3)` (as of `9a7e152`). The 2.0s
 grace is `proc.wait(timeout=_SPAWN_LIVENESS_GRACE_S)` at `ops/loop/lane_launcher.py`'s `_spawn`, at its `proc.wait` on the grace,
-measured from the `subprocess.Popen` at `:513`. A row is `pre_spawn + t_exit + release`, so
+measured from the `subprocess.Popen` in `ops/loop/lane_launcher.py::_spawn`. A row is `pre_spawn + t_exit + release`, so
 a runner exiting at 1.97s produces a row above 2.0s. The inference does not follow.
 
 **Bounded independently, it excludes almost nothing.** The worker log's mtime minus the
@@ -186,7 +186,7 @@ the whole time.
    row - and the only failed cycle with no log file at all. The gap from cycle 7's start to
    its own is **262.5s**, against 47.9 to 70.4s for every other gap in the file. Its absent
    log does NOT place it before the spawn: `_log_path` (`lane_launcher.py`'s `_log_path`) creates
-   only the DIRECTORY at `:458` and returns a path, and the runner creates the file - so
+   only the DIRECTORY and returns a path, and the runner creates the file - so
    "no log" is consistent with a spawn that never got as far as the header. Being the
    slowest row where a pre-spawn failure would be the fastest, it fits the kill model
    rather than contradicting it, but the 262.5s gap is unexplained.

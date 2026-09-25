@@ -431,7 +431,7 @@ class - `instance_name` from `cursor.string` in `clockspeed/save/objects.py::_re
 interpolated into `ObjectFormatError` - while all 51 arms passed and the report was
 BYTE-IDENTICAL to pristine. The nine:
   - a BoolOp fallback `f"{name or 'unnamed'}"` graded `proven-scalar`. **THIS IS LIVE
-    HOUSE STYLE** at `exhaustive.py:173`, `greedy.py:313`, `ratio.py:774` and `:846`;
+    HOUSE STYLE** at `exhaustive.py:173`, `greedy.py:313`, `ratio.py:774` and `ratio.py:846`;
     fed the unedited `ratio.py`, the guard graded `', '.join(...) or '...'` as an
     annotation whose whole value space is numbers and flags.
   - `.format(n=name)`, `self.args = (m,)` and an unbound `Exception.__init__` each found

@@ -1582,7 +1582,8 @@ were measured against round nine, both leaving the receiver rule, the attribute 
 - FIVE-SITE (`_bare_resolves` at every bare-`ast.Name` vocabulary site) and TWO-SITE (only
   `_hands_back_a_primitive`'s bare arm and `_callee_resolves`' bare arm).
 - BOTH take every manufactured-declaration payload to ZERO, including `import stat` plus the
-  exec-bit constants, which is verbatim real repo code at `scripts/install_hooks.py:44` and `:206`.
+  exec-bit constants, which is verbatim real repo code at `scripts/install_hooks.py:44` and in
+  `scripts/install_hooks.py::set_executable`.
 - BOTH cost the SAME TWELVE controls. Narrowing the site count retires NONE of them. The
   mechanism was verified rather than inferred: the patched arm is the ONLY consumer of evidence
   for a bare vocabulary word, so leaving the other arms reading bare names buys nothing.

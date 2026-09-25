@@ -246,6 +246,7 @@ tests/ops/__init__.py	authored	CS-1000	first-add:CS-1000
 tests/ops/test_driver_module_binding.py	authored	CS-1165	first-add:root
 tests/ops/test_lane_background_tasks.py	authored	CS-1108	first-add:CS-1108
 tests/ops/test_lane_inbox_surface.py	authored	CS-1104	first-add:CS-1104
+tests/ops/test_lane_refusal_contract.py	authored	CS-1015	stamped
 tests/ops/test_lane_scope.py	authored	CS-994	first-add:CS-994
 tests/ops/test_multi_lane.py	authored	CS-992	first-add:CS-992
 tests/ops/test_queue_lane_relaunch.py	authored	CS-1000	first-add:CS-1000
@@ -253,6 +254,7 @@ tests/ops/test_row_claim.py	authored	CS-991	first-add:CS-991
 tests/ops/test_scope_binding.py	authored	CS-1005	first-add:CS-1005
 tests/ops/test_shared_slots.py	authored	CS-946	first-add:CS-946
 tests/ops/test_suite_ration.py	authored	CS-993	first-add:CS-993
+tests/ops/test_usage_limit_refusal.py	authored	CS-1178	stamped
 tests/pathless_clone_guard.py	authored	CS-885	first-add:CS-885
 tests/repr_rendering_guard.py	authored	CS-852	first-add:CS-852
 tests/save/__init__.py	authored	CS-1165	first-add:root
@@ -346,6 +348,7 @@ tests/test_chained_cause.py	authored	CS-857	first-add:CS-857
 tests/test_chained_cause_census.py	authored	CS-857	first-add:CS-857
 tests/test_chained_exemption_guard.py	authored	CS-857	first-add:CS-857
 tests/test_channel_doc.py	authored	CS-1095	first-add:CS-1095
+tests/test_citation_guard_shapes.py	authored	CS-811	stamped
 tests/test_citation_tables.py	authored	CS-1066	first-add:CS-1066
 tests/test_commit_msg_gate.py	authored	CS-702	first-add:CS-702
 tests/test_community_health.py	authored	CS-959	first-add:CS-959
