@@ -31,7 +31,7 @@ CI              READ IT FIRST, with the FULL SHA: `gh run list --commit <full sh
 working tree    CLEAN at the /done commit.
 CS-815 WORKTREE .claude/worktrees/agent-a4f0885163222ba12, branch
                 worktree-agent-a4f0885163222ba12, clean, two commits on 9c4ff2a:
-                  ecb7b53  wrapper tools/claude_hook.sh, tests/test_claude_hook.py,
+                  ecb7b53  the wrapper script and its test module,
                            the two .claude/settings.json command strings (worktree copy
                            only), save-shard routing in tier1.yml, provenance rows
                   8186634  resolve sh from any launching shell (tests/test_pretooluse_gate.py
