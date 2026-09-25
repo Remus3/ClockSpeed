@@ -321,24 +321,11 @@ CS-1065 - the power endpoint serves `variable_power_inputs` and nothing else, so
 
 CS-701 - Resolve the collision between the operator git identity and a world name - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-704 - The trailer gate is client-side, and six git commands route around it - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
-CS-813 - The commit-msg pre-filter models a cleanup mode git is not using - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
 CS-814 - Every git hook inherits the session's live API credentials - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
 CS-815 - `.claude/settings.json` hardcodes its interpreter with no probe - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
-CS-816 - The interpreter probe is bounded neither in time nor in output - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
-CS-817 - The interpreter probe asserts PYTHONHOOD but not TOOLCHAIN - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
-CS-818 - `scripts/verify_env.py` never evaluates `CLOCKSPEED_PYTHON` - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
-CS-821 - `pre-push` decides pytest is available from an exit code alone - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
-CS-822 - The commit-msg byte check tests only for bytes ABOVE 0x7E - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
-CS-824 - `.githooks/pre-push` proves pytest RAN but not that it DID ANY WORK - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-700 - Phase 7 gate: the tier-3 flip checklist from CONVENTIONS section 17 - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-953 - a history scrub keyed on paths as they exist at HEAD leaves every PRE-MOVE path unrenamed - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
-CS-955 - the pre-commit gate has CS-954's shape one level down - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1032 - `tests/surface/panel_harness.py`'s DOM stand-in has no known-good browser control anywhere in the repo - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
-CS-1158 - a pruned save file's FILENAME reaches the rendered skip list and the `--json` payload of `tools/drift_guard.py`, and a save filename carries the world name - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
-CS-1174 - `PLACEHOLDER_RE` treats a non-ASCII letter as a delimiter, and no behavioural arm puts a digit beside a member - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
-CS-1183 - the seven tier-3 flip checks have no runnable job - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1186 - README.md has never been walked from zero to a first result - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
-CS-1188 - the tracked-file walk arm fails in every linked worktree, because `.git` is a file there - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
-CS-1193 - tier-1 CI fast shard ran 565s against its 480s ceiling after CS-1177's canary population grew - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
 CS-1194 - drift_guard prints a non-numeric player-named directory that holds no sensitive file - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1195 - on Linux, drift_guard guard (c) can print a text-typed key file's path in its own detail lines - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
