@@ -611,6 +611,39 @@ registerPanel("map", function mountMap(root, data) {
         + spell(item ? item.count : null)
     );
   }
+  /*
+    A WITHHELD TOTAL IS NAMED WHETHER OR NOT ANYTHING ELSE WAS SERVED - CS-1189.
+    /api/map withholds an item total whose key the registry does not name
+    ("item-key-unknown", counted) and every total when there is no registry
+    ("registry-unavailable"). Printing those only beside an EMPTY list made a
+    partial answer look whole: one known row showed and the withheld ones
+    vanished without a word. The code and its count go here, never a key -
+    the wire carries none, and that is the point of withholding it.
+  */
+  for (var heldIndex = 0; heldIndex < warnings.length; heldIndex += 1) {
+    var held = warnings[heldIndex];
+    if (!held) {
+      continue;
+    }
+    if (held.code === "item-key-unknown") {
+      add(
+        haveList,
+        "li",
+        null,
+        "withheld: " + spell(held.count) + " item total(s) whose key the registry does"
+          + " not name (" + String(held.source) + ": " + String(held.code) + ")"
+      );
+    } else if (held.code === "registry-unavailable") {
+      add(
+        haveList,
+        "li",
+        null,
+        "withheld: every item total, because there is no registry to check an item"
+          + " key against (" + String(held.source) + ": " + String(held.code)
+          + " - " + spell(held.count) + ")"
+      );
+    }
+  }
   if (!inventory.length) {
     /*
       AN EMPTY INVENTORY NEEDS ITS REASON FOR THE SAME REASON AN EMPTY

@@ -28,10 +28,16 @@ e. PLACEMENT CLASS NAMES WERE MEASURED WITH THE SAME PLANTS. They do not leak:
    A negative control widens that allowlist in memory and asserts the plant
    then DOES reach the body, so the absence arm is proved able to see one.
 f. ``MachineState.class_name`` BEFORE ANY ROUTE SERVES IT. No surface module
-   imports ``clockspeed.audit.machines`` today. A structural arm fails the day
-   one does and reads ``.class_name`` anywhere but as the argument of
-   ``clockspeed.surface.api.map.closed_key``; planted modules in a temporary
-   copy of the package prove the arm live and prove its control passes.
+   reaches ``clockspeed.audit.machines`` today, so the rule is FAIL CLOSED: any
+   reach at all - a static import in any spelling, relative and star included,
+   ``from clockspeed import audit`` then ``.machines``, a runtime import it
+   cannot show is harmless, ``sys.modules`` - is refused, and the message says
+   to add one sanctioned accessor that applies
+   ``clockspeed.surface.api.map.closed_key``. Following ``class_name`` after
+   the reach was refuted: ``repr``, an f-string, a ``match`` pattern,
+   ``attrgetter`` and a local lookalike of the check all read it unseen.
+   Every probe form is planted in a temporary copy of the package, and a
+   control proves harmless sibling imports are not refused.
 
 NO REAL CONTENT REACHES THIS MODULE. Every string is invented, every save is
 synthetic bytes, and the registry is the hand-built literal
@@ -465,42 +471,45 @@ def test_the_placement_measurement_can_see_a_plant_the_allowlist_admits(
 # f - MachineState.class_name before any route serves it
 # ---------------------------------------------------------------------------
 
-MACHINES_MODULE: Final = "clockspeed.audit.machines"
 #: Spelled rather than read off the function, so this module still COLLECTS
-#: when the function is missing and the arms below fail on their assertions;
+#: when the function is missing and the arms fail on their assertions;
 #: ``test_the_unknown_key_code_is_a_map_code_of_this_modules_own`` binds the two.
 GUARD_NAME: Final = "closed_key"
-GENERIC_WALKERS: Final = frozenset({"asdict", "astuple", "vars", "__dict__", "fields"})
+
+MACHINES_MODULE: Final = "clockspeed.audit.machines"
+AUDIT_PACKAGE: Final = "clockspeed.audit"
+MACHINES_NAME: Final = "machines"
+SURFACE_PACKAGE: Final = "clockspeed.surface"
 SURFACE_ROOT: Final = Path(clockspeed.surface.__file__).resolve().parent
 
+#: What the rule says when it fires. FAIL CLOSED: no route serves a machine
+#: today, so the first one to need it is told where the check lives rather than
+#: left to invent a spelling this rule has not seen.
+REMEDY: Final = (
+    "no clockspeed/surface module may reach " + MACHINES_MODULE + " (CS-1189): add ONE"
+    " sanctioned accessor that passes every MachineState.class_name through"
+    " clockspeed.surface.api.map.closed_key, then admit exactly that module here"
+)
 
-def _imports_machines(tree: ast.AST) -> bool:
-    """Whether a module reaches the machines model by any import spelling.
+#: The calls that import by NAME at runtime. Any one of them is refused unless
+#: its target is a string constant that names neither the machines module nor
+#: the audit package - a computed name cannot be shown to be neither.
+DYNAMIC_IMPORTERS: Final = frozenset(
+    {
+        "import_module",
+        "__import__",
+        "find_spec",
+        "spec_from_file_location",
+        "module_from_spec",
+        "run_module",
+        "run_path",
+        "load_module",
+        "exec_module",
+    }
+)
 
-    Args:
-        tree: The parsed module.
-
-    Returns:
-        True for ``import clockspeed.audit.machines``, ``from clockspeed.audit
-        import machines``, ``from clockspeed.audit.machines import ...`` and a
-        string naming the module (an ``importlib`` call).
-    """
-    for node in ast.walk(tree):
-        if isinstance(node, ast.Import) and any(
-            alias.name == MACHINES_MODULE or alias.name.startswith(MACHINES_MODULE + ".")
-            for alias in node.names
-        ):
-            return True
-        if isinstance(node, ast.ImportFrom):
-            if node.module == MACHINES_MODULE:
-                return True
-            if node.module == "clockspeed.audit" and any(
-                alias.name == "machines" for alias in node.names
-            ):
-                return True
-        if isinstance(node, ast.Constant) and node.value == MACHINES_MODULE:
-            return True
-    return False
+#: Modules whose OBJECT, once bound, reaches the machines model by attribute.
+PARENT_PACKAGES: Final = frozenset({"clockspeed", AUDIT_PACKAGE})
 
 
 def _callee_name(call: ast.Call) -> str | None:
@@ -519,50 +528,173 @@ def _callee_name(call: ast.Call) -> str | None:
     return None
 
 
-def _module_faults(tree: ast.AST) -> list[int]:
-    """Every line where a machines-importing module serves a class name unchecked.
+def _absolute(node: ast.ImportFrom, package: str) -> str:
+    """Resolve an ``ImportFrom``'s module to its absolute dotted name.
+
+    Args:
+        node: The import.
+        package: The package the importing module sits in.
+
+    Returns:
+        The absolute module name the import reads from.
+    """
+    if not node.level:
+        return node.module or ""
+    parts = package.split(".")
+    base = parts[: len(parts) - (node.level - 1)]
+    return ".".join([*base, node.module] if node.module else base)
+
+
+def _reaches_by_import(node: ast.AST, package: str) -> bool:
+    """Whether one static import statement reaches the machines model.
+
+    Args:
+        node: Any node.
+        package: The importing module's package, for a relative import.
+
+    Returns:
+        True for the module itself or anything under it, for ``machines`` or
+        ``*`` taken from the audit package, relative spellings included.
+    """
+    if isinstance(node, ast.Import):
+        return any(
+            alias.name == MACHINES_MODULE or alias.name.startswith(MACHINES_MODULE + ".")
+            for alias in node.names
+        )
+    if isinstance(node, ast.ImportFrom):
+        module = _absolute(node, package)
+        if module == MACHINES_MODULE or module.startswith(MACHINES_MODULE + "."):
+            return True
+        return module == AUDIT_PACKAGE and any(
+            alias.name in {MACHINES_NAME, "*"} for alias in node.names
+        )
+    return False
+
+
+def _binds_a_parent(tree: ast.AST, package: str) -> bool:
+    """Whether a module binds ``clockspeed`` or ``clockspeed.audit`` as an object.
+
+    Args:
+        tree: The parsed module.
+        package: The module's package.
+
+    Returns:
+        True when an attribute named ``machines`` could then be the model.
+    """
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import) and any(
+            alias.name in PARENT_PACKAGES for alias in node.names
+        ):
+            return True
+        if isinstance(node, ast.ImportFrom):
+            module = _absolute(node, package)
+            if module == "clockspeed" and any(alias.name in {"audit", "*"} for alias in node.names):
+                return True
+    return False
+
+
+def _docstring_ids(tree: ast.AST) -> set[int]:
+    """The ids of every bare string statement - docstrings, which run nothing.
 
     Args:
         tree: The parsed module.
 
     Returns:
-        The offending line numbers; empty when the module does not import the
-        machines model at all.
+        The ids of those constants.
     """
-    if not _imports_machines(tree):
-        return []
-    routed: set[int] = set()
-    for node in ast.walk(tree):
-        if isinstance(node, ast.Call) and _callee_name(node) == GUARD_NAME:
-            routed.update(id(arg) for arg in node.args)
-            routed.update(id(keyword.value) for keyword in node.keywords)
-    return sorted(
-        node.lineno
+    return {
+        id(node.value)
         for node in ast.walk(tree)
-        if isinstance(node, (ast.Attribute, ast.Call)) and _is_unchecked(node, routed)
+        if isinstance(node, ast.Expr) and isinstance(node.value, ast.Constant)
+    }
+
+
+def _dynamic_reach(call: ast.Call) -> bool:
+    """Whether one runtime import call could reach the machines model.
+
+    Args:
+        call: A call through a name in :data:`DYNAMIC_IMPORTERS`.
+
+    Returns:
+        True unless its target is a string constant naming neither the model
+        nor the audit package.
+    """
+    if not call.args:
+        return True
+    target = call.args[0]
+    if not (isinstance(target, ast.Constant) and isinstance(target.value, str)):
+        return True
+    return MACHINES_NAME in target.value or target.value.startswith(AUDIT_PACKAGE)
+
+
+def _module_faults(tree: ast.AST, package: str) -> list[int]:
+    """Every line where a surface module reaches the machines model, by any form.
+
+    FAIL CLOSED. The rule does not try to follow ``class_name`` once the model
+    is in hand - ``repr``, an f-string, a ``match`` pattern, ``attrgetter`` and
+    a local lookalike of the check all read it without spelling a checkable
+    call - so it refuses the REACH itself: a static import in any spelling, a
+    runtime import whose name it cannot show is harmless, ``sys.modules``, a
+    ``machines`` attribute off a bound parent package, and any executable
+    string naming the module.
+
+    Args:
+        tree: The parsed module.
+        package: The module's package.
+
+    Returns:
+        The offending line numbers.
+    """
+    parent_bound = _binds_a_parent(tree, package)
+    docstrings = _docstring_ids(tree)
+    return sorted(
+        {
+            getattr(node, "lineno", 0)
+            for node in ast.walk(tree)
+            if _node_reaches(node, package, parent_bound=parent_bound, docstrings=docstrings)
+        }
     )
 
 
-def _is_unchecked(node: ast.Attribute | ast.Call, routed: set[int]) -> bool:
-    """Whether one node reads a machine's class name past the check.
+def _node_reaches(node: ast.AST, package: str, *, parent_bound: bool, docstrings: set[int]) -> bool:
+    """Whether one node is a reach :func:`_module_faults` refuses.
 
     Args:
-        node: An attribute read or a call.
-        routed: The ids of every node passed straight into the check.
+        node: Any node.
+        package: The module's package.
+        parent_bound: Whether the module binds a parent package object.
+        docstrings: The ids of the module's bare string statements.
 
     Returns:
-        True for a ``.class_name`` read not passed straight into the check, a
-        ``getattr`` naming it, a generic dataclass walker, or a ``__dict__``
-        read - the last two dump the field without ever spelling it.
+        True for a refused reach.
     """
+    if _reaches_by_import(node, package):
+        return True
+    if isinstance(node, ast.Call) and _callee_name(node) in DYNAMIC_IMPORTERS:
+        return _dynamic_reach(node)
     if isinstance(node, ast.Attribute):
-        if node.attr == "class_name":
-            return id(node) not in routed
-        return node.attr == "__dict__"
-    callee = _callee_name(node)
-    if callee == "getattr":
-        return any(isinstance(arg, ast.Constant) and arg.value == "class_name" for arg in node.args)
-    return callee in GENERIC_WALKERS
+        if node.attr == "modules" and isinstance(node.value, ast.Name):
+            return node.value.id == "sys"
+        return node.attr == MACHINES_NAME and parent_bound
+    if isinstance(node, ast.Constant) and isinstance(node.value, str):
+        return id(node) not in docstrings and _names_the_model(
+            node.value, parent_bound=parent_bound
+        )
+    return False
+
+
+def _names_the_model(text: str, *, parent_bound: bool) -> bool:
+    """Whether an executable string names the machines model.
+
+    Args:
+        text: The string constant.
+        parent_bound: Whether the module binds a parent package object, so a
+            bare ``"machines"`` can be an attribute name for ``getattr``.
+
+    Returns:
+        True when it does.
+    """
+    return MACHINES_MODULE in text or (text == MACHINES_NAME and parent_bound)
 
 
 def _python_files(root: Path) -> Iterator[Path]:
@@ -578,10 +710,11 @@ def _python_files(root: Path) -> Iterator[Path]:
 
 
 def machine_seam_faults(root: Path) -> tuple[int, list[str]]:
-    """Scan a surface package tree for an unchecked ``MachineState.class_name``.
+    """Scan a surface package tree for any module reaching the machines model.
 
     Args:
-        root: The package directory to scan.
+        root: The package directory to scan, standing for
+            ``clockspeed.surface``.
 
     Returns:
         How many modules were scanned, and one ``relative-path:line`` label per
@@ -591,9 +724,11 @@ def machine_seam_faults(root: Path) -> tuple[int, list[str]]:
     faults: list[str] = []
     for path in _python_files(root):
         scanned += 1
+        relative = path.relative_to(root)
+        package = ".".join([SURFACE_PACKAGE, *relative.parent.parts])
         tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
-        relative = path.relative_to(root).as_posix()
-        faults.extend(relative + ":" + str(line) for line in _module_faults(tree))
+        label = relative.as_posix()
+        faults.extend(label + ":" + str(line) for line in _module_faults(tree, package))
     return scanned, faults
 
 
@@ -614,55 +749,106 @@ def surface_copy(tmp_path: Path) -> Path:
     return target
 
 
-RAW_PLANTS: Final = (
-    "from clockspeed.audit import machines\n\n"
-    "def serve(state: machines.MachineState) -> dict[str, object]:\n"
-    '    return {"class_name": state.class_name}\n',
-    "import clockspeed.audit.machines\n\n"
-    "def serve(state: object) -> object:\n"
-    "    return state.class_name\n",
-    "from clockspeed.audit.machines import MachineState\n\n"
-    "def serve(state: MachineState) -> object:\n"
-    '    return getattr(state, "class_name")\n',
-    "from dataclasses import asdict\n"
-    "from clockspeed.audit.machines import MachineState\n\n"
-    "def serve(state: MachineState) -> object:\n"
-    "    return asdict(state)\n",
-)
-
-
-def test_the_shipped_surface_serves_no_unchecked_machine_class_name() -> None:
-    """The arm that fails the day a route serves MachineState without the check."""
+def test_no_shipped_surface_module_reaches_the_machines_model() -> None:
+    """The arm that fails the day a surface module reaches MachineState at all."""
     scanned, faults = machine_seam_faults(SURFACE_ROOT)
     expected = sum(1 for _ in _python_files(SURFACE_ROOT))
     assert expected > 0, "the surface package holds no module, so this arm grades nothing"
     assert scanned == expected, "modules scanned: " + str(scanned)
-    assert faults == [], "unchecked machine class names: " + ", ".join(faults)
+    assert faults == [], REMEDY + ". Found: " + ", ".join(faults)
 
 
-@pytest.mark.parametrize("source", RAW_PLANTS, ids=("from-audit", "import", "getattr", "asdict"))
-def test_the_machine_seam_arm_finds_a_planted_unchecked_route(
-    surface_copy: Path, source: str
-) -> None:
-    """LIVE: a planted module serving the class name raw is found, in every spelling."""
-    (surface_copy / "api" / "planted_machines.py").write_text(source, encoding="utf-8")
-    _, faults = machine_seam_faults(surface_copy)
-    count = len(faults)
-    assert count == ONE_ROW, "faults found: " + ", ".join(faults)
-    assert faults[0].startswith("api/planted_machines.py:"), faults[0]
-
-
-def test_the_machine_seam_arm_passes_a_planted_route_that_uses_the_check(
+def test_the_machine_seam_rule_admits_what_the_surface_legitimately_does(
     surface_copy: Path,
 ) -> None:
-    """CONTROL: the same planted route, routed through closed_key, is not a fault."""
+    """CONTROL: harmless sibling imports and prose are not refused.
+
+    A sibling audit import, a runtime import of an unrelated module, a
+    ``.machines`` read off a solver step and a docstring naming the module are
+    not faults, so the refusals below are about the reach and nothing else.
+    """
     source = (
-        "from clockspeed.audit import machines\n"
-        "from clockspeed.surface.api import map as endpoint\n\n"
-        "def serve(state: machines.MachineState, vocabulary: object) -> dict[str, object]:\n"
-        '    return {"class_name": endpoint.closed_key(vocabulary, state.class_name)}\n'
+        '"""Mentions ' + MACHINES_MODULE + ' in prose only."""\n\n'
+        "import importlib\n"
+        "from clockspeed.audit import inventory\n\n"
+        "def serve(model: object, step: object) -> object:\n"
+        "    json = importlib.import_module('json')\n"
+        "    return (json, inventory.inventory_of(model), step.machines)\n"
     )
     (surface_copy / "api" / "planted_machines.py").write_text(source, encoding="utf-8")
     scanned, faults = machine_seam_faults(surface_copy)
     assert scanned > 0, "the copy holds no module"
-    assert faults == [], "a checked route was flagged: " + ", ".join(faults)
+    assert faults == [], "a harmless module was flagged: " + ", ".join(faults)
+
+
+_HEAD: Final = "from clockspeed.audit import machines\n\n"
+
+#: Every way a surface module can reach the machines model, one plant each. The
+#: first seven are the adversary's probe forms (repr, f-string, match pattern,
+#: attrgetter, a local fake check, the package import, a concatenated
+#: importlib name); the rest close the neighbouring spellings.
+REACH_PLANTS: Final = {
+    "repr": _HEAD + "def serve(s: object) -> object:\n    return {'m': repr(s)}\n",
+    "fstring": _HEAD + "def serve(s: object) -> object:\n    return {'m': f'{s}'}\n",
+    "match": _HEAD
+    + (
+        "def serve(s: object) -> object:\n"
+        "    match s:\n"
+        "        case machines.MachineState(class_name=c):\n"
+        "            return {'c': c}\n"
+        "    return None\n"
+    ),
+    "attrgetter": _HEAD
+    + (
+        "import operator\n\n"
+        "def serve(s: object) -> object:\n"
+        "    return operator.attrgetter('class_name')(s)\n"
+    ),
+    "fake-check": _HEAD
+    + (
+        "def closed_key(v: object, k: str) -> str:\n"
+        "    return k\n\n"
+        "def serve(s: machines.MachineState) -> object:\n"
+        "    return {'c': closed_key(None, s.class_name)}\n"
+    ),
+    "package-import": (
+        "from clockspeed import audit\n\n"
+        "def serve(model: object) -> object:\n"
+        "    return [m.class_name for m in audit.machines.machines_of(model)]\n"
+    ),
+    "importlib-concat": (
+        "import importlib\n\n"
+        "def serve(model: object) -> object:\n"
+        "    mod = importlib.import_module('clockspeed.audit.' + 'machines')\n"
+        "    return [m.class_name for m in mod.machines_of(model)]\n"
+    ),
+    "dunder-import": (
+        "def serve(model: object) -> object:\n"
+        "    return __import__('clockspeed.audit', fromlist=['mach' + 'ines'])\n"
+    ),
+    "bare-package": (
+        "import clockspeed.audit\n\n"
+        "def serve(model: object) -> object:\n"
+        "    return getattr(clockspeed.audit, 'machines')\n"
+    ),
+    "relative": "from ...audit import machines\n",
+    "star": "from clockspeed.audit import *\n",
+    "sys-modules": (
+        "import sys\n\n"
+        "def serve() -> object:\n"
+        "    return sys.modules['clockspeed.audit.' + 'machines']\n"
+    ),
+    "plain-import": "import clockspeed.audit.machines\n",
+    "from-module": "from clockspeed.audit.machines import MachineState\n",
+}
+
+
+@pytest.mark.parametrize("form", sorted(REACH_PLANTS))
+def test_the_machine_seam_rule_refuses_every_planted_reach(surface_copy: Path, form: str) -> None:
+    """LIVE: each planted module that reaches the machines model is refused."""
+    planted_path = surface_copy / "api" / "planted_machines.py"
+    planted_path.write_text(REACH_PLANTS[form], encoding="utf-8")
+    _, faults = machine_seam_faults(surface_copy)
+    planted = [fault for fault in faults if fault.startswith("api/planted_machines.py:")]
+    assert planted, "the planted " + form + " reach was not refused"
+    assert len(planted) == len(faults), "a shipped module was flagged: " + ", ".join(faults)

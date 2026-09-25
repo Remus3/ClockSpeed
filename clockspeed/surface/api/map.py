@@ -122,16 +122,19 @@ the only direction that cannot publish an account directory. A placement's
 ``class_name`` needs no second check here because ``clockspeed/audit/`` admits
 one only through a closed allowlist of its own - measured, not assumed, in
 ``tests/surface/test_map_vocabulary.py``. ``MachineState.class_name`` is served
-by no route; the same file fails the day a surface module imports
-``clockspeed.audit.machines`` and reads that field other than through
-:func:`closed_key`.
+by no route, and the same file FAILS CLOSED the day any surface module reaches
+``clockspeed.audit.machines`` by any import form: the first route to need it
+adds one sanctioned accessor that passes every class name through
+:func:`closed_key`, and admits exactly that accessor there.
 
 NO WORLD IS 503, NEVER 501, for the reason ``clockspeed/surface/api/world.py``
 states at length: the save layer is written and works, and what is absent is its
 INPUT. A 501 would tell the operator the save reader has not been built. A
-missing REGISTRY is not a refusal at all - the placement, the counts, the bounds
-and the inventory are all still true without one, so the body answers 200 and the
-throughput section says why it is empty.
+missing REGISTRY is not a refusal at all - the placement, the counts and the
+bounds are all still true without one, so the body answers 200, and the
+``registry-unavailable`` warning says why the throughput section is empty and
+why every item total was withheld: with no closed vocabulary no item key can be
+admitted, so the inventory section is empty by refusal, not by measurement.
 """
 
 # SEAM DISCIPLINE (BOOTSTRAP.md section 6).
@@ -704,7 +707,9 @@ def _body(model: WorldModel, registry: Registry | None) -> dict[str, object]:
         model: The world.
         registry: The normalized registry, or None when this machine has no
             install. A missing registry costs the throughput section and the
-            display names and nothing else.
+            whole inventory section - every item total is withheld, because no
+            key can be checked against a vocabulary that is not there - and
+            nothing else: the placements, the tallies and the bounds still ship.
 
     Returns:
         The body, keyed by :data:`DATA_KEYS`.
