@@ -682,17 +682,125 @@ def test_the_doc_sweep_control_adds_a_finding(tmp_path: Path) -> None:
     assert flip.control_doc_sweep(tmp_path)
 
 
-def test_a_doc_sweep_skip_fails_the_check(tmp_path: Path) -> None:
-    """A URL the sweep never fetches is a skip, and a skip fails - never a network call."""
+#: Synthetic stand-ins for the two pinned sets and the repository URL. The arms
+#: pass these, never the tool's real pins, so no arm depends on the live tree.
+WIKI_PIN: Final = "https://synthetic.wiki.gg/wiki/Pinned_Page"
+WIKI_UNPINNED: Final = "https://synthetic.wiki.gg/wiki/Other_Page"
+BADGE_PAGE: Final = "https://forge.example.invalid/owner/repo/actions/workflows/t1.yml"
+BADGE_IMAGE: Final = BADGE_PAGE + "/badge.svg"
+REPO_URL: Final = "https://forge.example.invalid/owner/repo"
+OTHER_DEAD: Final = "https://elsewhere.example.invalid/gone"
+
+
+def pinned_tree(tmp_path: Path, extra: str = "") -> Path:
+    """A tree carrying one badge (link plus image) and the pinned wiki URL."""
+    readme = f"# x\n\n[![t1]({BADGE_IMAGE})]({BADGE_PAGE})\n\nSee <{WIKI_PIN}>.\n{extra}"
     repo = flip.ControlRepo(tmp_path / "docs")
-    repo.commit({"README.md": b"# x\n\nSee <https://example.wiki.gg/wiki/Page>.\n"}, b"x\n")
+    repo.commit({"README.md": readme.encode("ascii")}, b"x\n")
     flip.git(repo.path, ["checkout", "-q", "-f", "main"], env=repo.env)
+    path: Path = repo.path
+    return path
 
-    result = flip.doc_sweep(repo.path)
+
+def sweep_pinned(
+    tree: Path, statuses: dict[str, int], *, wiki: frozenset[str] = frozenset({WIKI_PIN})
+) -> Any:
+    """Check 6 over ``tree`` with a stub fetcher and synthetic pins - never the network."""
+    result = flip.doc_sweep(
+        tree,
+        fetch=lambda url: statuses[url],
+        probe=lambda url: statuses[url],
+        allowlists=({}, {}),
+        no_fetch_pinned=wiki,
+        pre_publication_dead=frozenset({BADGE_PAGE, BADGE_IMAGE}),
+        repository_url=REPO_URL,
+    )
     result.control = True
+    return result
 
-    assert result.skips >= 1
+
+PRIVATE: Final = {BADGE_PAGE: 404, BADGE_IMAGE: 404, REPO_URL: 404}
+
+
+def test_the_pristine_pinned_tree_passes_check_six(tmp_path: Path) -> None:
+    """Both pins hold, each reported by its own count, and nothing else is found."""
+    result = sweep_pinned(pinned_tree(tmp_path), PRIVATE)
+
+    assert result.failures == []
+    assert result.skips == 0
+    assert result.counts["policy-excluded"] == 1
+    assert result.counts["pre-publication-dead"] == len((BADGE_PAGE, BADGE_IMAGE))
+    assert result.passed
+
+
+def test_an_unpinned_no_fetch_url_fails(tmp_path: Path) -> None:
+    """A second wiki URL is outside the exact pin, whatever the count."""
+    result = sweep_pinned(pinned_tree(tmp_path, f"\nAnd <{WIKI_UNPINNED}>.\n"), PRIVATE)
+
+    assert "a no-fetch URL outside the pinned set" in result.failures
     assert not result.passed
+
+
+def test_an_unpinned_dead_url_fails(tmp_path: Path) -> None:
+    """A 404 outside the pre-publication pin is a dead URL, private repository or not."""
+    statuses = {**PRIVATE, OTHER_DEAD: 404}
+    result = sweep_pinned(pinned_tree(tmp_path, f"\nAnd <{OTHER_DEAD}>.\n"), statuses)
+
+    assert "a dead URL outside the pre-publication pin" in result.failures
+    assert not result.passed
+
+
+def test_a_stale_pin_fails(tmp_path: Path) -> None:
+    """A pinned URL the tree no longer carries is a stale excuse."""
+    stale = frozenset({WIKI_PIN, WIKI_UNPINNED})
+    result = sweep_pinned(pinned_tree(tmp_path), PRIVATE, wiki=stale)
+
+    assert "a pinned URL the tree no longer carries" in result.failures
+    assert not result.passed
+
+
+def test_a_pinned_badge_404_fails_once_the_repository_is_public(tmp_path: Path) -> None:
+    """The pin excuses a 404 only while the repository root answers 404 too."""
+    statuses = {**PRIVATE, REPO_URL: 200}
+    result = sweep_pinned(pinned_tree(tmp_path), statuses)
+
+    assert "a dead URL outside the pre-publication pin" in result.failures
+    assert not result.passed
+
+
+def test_a_pinned_url_answering_neither_404_nor_200_fails(tmp_path: Path) -> None:
+    """A pre-publication URL answering 500 is not the state the pin describes."""
+    statuses = {**PRIVATE, BADGE_IMAGE: 500}
+    result = sweep_pinned(pinned_tree(tmp_path), statuses)
+
+    assert "a pre-publication URL answered neither 404 nor 200" in result.failures
+    assert not result.passed
+
+
+def test_a_short_name_repo_path_is_resolved_before_cloning(tmp_path: Path) -> None:
+    """An 8.3 spelling of --repo is resolved once; git never sees it and it is never printed."""
+    if sys.platform != "win32":
+        pytest.skip("8.3 short names exist only on Windows volumes")
+    import ctypes  # noqa: PLC0415 - Windows only
+
+    repo = tmp_path / "a-long-repository-name"
+    sha = work_repo(repo, {"README.md": b"x\n"})
+    buffer = ctypes.create_unicode_buffer(1024)
+    size = ctypes.windll.kernel32.GetShortPathNameW(str(repo), buffer, len(buffer))
+    short = buffer.value if size else ""
+    if not short or short.lower() == str(repo).lower():
+        pytest.skip("this volume generates no 8.3 short names")
+
+    def runner(repo_arg: Path, sha_arg: str, *rest: object) -> list[object]:
+        scratch = rest[1]
+        assert isinstance(scratch, Path)
+        flip.clone_at(repo_arg, sha_arg, scratch / "tree")
+        return [passing()]
+
+    code = flip.main(["HEAD", "--stage", "s8", "--repo", short], runner=runner)
+
+    assert sha
+    assert code == flip.EXIT_PASS
 
 
 # --- check 5: the README walk -------------------------------------------------

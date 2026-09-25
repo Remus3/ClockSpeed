@@ -98,6 +98,29 @@ and 8 are the answer: a green run of the tool is never the gate clearing.
    that an early tier-3 job invites synthetic satisfaction.
 9. **The tool includes the CS-1180 trailer axis** through `tools/trailer_census.py`, the
    S1/S8 executor.
+10. **CHECK 6 PINS TWO EXACT URL SETS AND NOTHING ELSE.** Added 2026-09-25 by the wave-3
+    closing adjudicator, before merge.
+    a. `NO_FETCH_PINNED`: the exact set of distinct URLs on a doc_sweep no-fetch host that
+       the swept tree may carry. Today it holds one member, the wiki.gg Copyrights page URL
+       cited in `docs/LEDGER.md` under CS-485. PERMANENT - CS-485 forbids any automated
+       fetch, a one-off included - so it holds at S1, at S8 and after the flip. A pinned
+       URL is reported "policy-excluded", never "passed", and is not counted in the
+       automated skip count of points 5 and 7.
+    b. `PRE_PUBLICATION_DEAD`: the exact set of distinct own-repository URLs that 404
+       because the repository is not public. Today: the README tier1 workflow page and its
+       badge.svg, both on `README.md`. It excuses a 404 ONLY while an unauthenticated GET
+       of the repository's own root URL also answers 404, measured in the same run. When
+       the repository answers publicly, the pin is inert and a 404 on either URL FAILS. So
+       the pin expires by itself at publication and nobody has to remember to drop it. It
+       is deleted from the tool in the first commit after S12.
+    c. MATCHED BY URL, NEVER BY COUNT. Check 6 knows every skipped and every dead URL by
+       identity. It FAILS on: any skipped or dead URL outside its pin; any skip kind other
+       than no-fetch-host; any pinned URL no longer found in the tree (a stale pin); any
+       `PRE_PUBLICATION_DEAD` URL answering other than 404 or 200.
+    d. REPORTED, NEVER SILENT. The check line prints policy-excluded N and
+       pre-publication-dead N, apart from skips and findings. Point 7's final line names
+       both counts. Point 8's flip record cites the post-S12 re-run in which
+       pre-publication-dead is 0.
 
 ## Consequences
 
