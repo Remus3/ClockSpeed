@@ -163,9 +163,9 @@ _STAGED: list[int] = [0]
 def commit_file(box: Sandbox, env: dict[str, str], suffix: str, content: bytes) -> Commit:
     """Stage a NEW file with ``suffix`` and drive a real, outer-bounded commit."""
     _STAGED[0] += 1
-    payload = box.work / f"staged_{_STAGED[0]}{suffix}"
-    payload.write_bytes(content)
-    staged = run_git(box, "add", payload.name, env=env)
+    name = f"staged_{_STAGED[0]}{suffix}"
+    (box.work / name).write_bytes(content)
+    staged = run_git(box, "add", name, env=env)
     assert staged == 0, "the sandbox change did not stage"
     before = head_of(box, env)
     run = run_bounded(

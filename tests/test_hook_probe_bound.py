@@ -348,9 +348,9 @@ _PAYLOADS: list[int] = [0]
 def commit_attempt(box: Sandbox, env: dict[str, str], content: bytes = CLEAN_CONTENT) -> Attempt:
     """Stage a NEW file and drive a real, outer-bounded ``git commit``."""
     _PAYLOADS[0] += 1
-    payload = box.work / f"payload-{_PAYLOADS[0]}.txt"
-    payload.write_bytes(content)
-    staged = run_git(box, "add", payload.name, env=env)
+    name = f"payload-{_PAYLOADS[0]}.txt"
+    (box.work / name).write_bytes(content)
+    staged = run_git(box, "add", name, env=env)
     assert staged == 0, "the sandbox change did not stage"
     message = box.hooks.parent / "message.txt"
     message.write_bytes(MESSAGE.encode("ascii"))
