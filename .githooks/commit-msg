@@ -2,8 +2,10 @@
 # Clockspeed commit-msg hook - message hygiene (CONVENTIONS.md section 8).
 #
 # Rejects a message that is empty or whitespace only, carries any byte above
-# 0x7E, has a subject line longer than 72 characters, or is a bare placeholder
-# used as the entire subject.
+# 0x7E, carries a control byte other than tab and newline (CS-822; CR included),
+# has a subject line longer than 72 characters, or is a bare placeholder used
+# as the entire subject. Both byte checks run before anything echoes message
+# text, and a control byte is reported by line, column and hex value only.
 #
 # Every check grades the message AS GIT WILL STORE IT, under every cleanup mode
 # this hook cannot rule out (CS-813) - see the note above the leader read.
@@ -362,6 +364,8 @@ NAMED = {
     0x00A0: "U+00A0 non-breaking space",
     0xFEFF: "U+FEFF byte order mark",
 }
+# CS-822: the only control bytes a message may carry, permitted BY NAME.
+PERMITTED_CONTROLS = {0x09: "tab", 0x0A: "newline"}
 # CS-813: git's scissors line, and the leaders core.commentChar=auto picks from.
 CUT = b"------------------------ >8 ------------------------\n"
 AUTO = b"#;@!$%^&|:"
@@ -461,6 +465,19 @@ if offenders:
                 "authored content, commit messages included.",
             )
     fail("non-ASCII byte in the commit message (byte offset %d)" % offenders[0][0])
+
+# CS-822: graded on the handed bytes, which ARE the verbatim image. A CR that
+# every mode in play would trim never reaches here: on -m and -F git trims line
+# ends before this hook unless the mode is verbatim, and verbatim stores the CR.
+for number, line in enumerate(raw.split(b"\n"), 1):
+    for column, byte in enumerate(line, 1):
+        if byte < 0x20 and byte not in PERMITTED_CONTROLS:
+            fail(
+                "control byte in the commit message.",
+                "line %d, column %d: 0x%02X" % (number, column, byte),
+                "Only tab and newline are permitted below 0x20 (CS-822), and a",
+                "carriage return is a control byte: save the message with LF.",
+            )
 
 for mode, lines in images:
     subject = first_line(lines).decode("ascii")
