@@ -235,6 +235,12 @@ the tree and still exits 0.**
   measured against a machine with less headroom than the development box. Until then this
   is a measured fact and not a defect, and it must not be optimised on speculation.
 
+## Lane - driver log retention, filed 2026-09-25
+
+- CS-1192 - the per-night driver logs `ops/loop/queue_loop.py::night_log` writes since
+  CS-1018 are retained without bound, roughly 4 KB a night; add pruning by age or by count
+  - conditional on the log directory growing past 1 MB.
+
 ## External agent tooling - ideas kept from the CS-1099 and CS-1100 declines, filed 2026-09-16
 
 The declines themselves are recorded in `docs/LEDGER.md`. Nothing here is started early.
