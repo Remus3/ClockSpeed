@@ -5,6 +5,9 @@
 # 0x7E, has a subject line longer than 72 characters, or is a bare placeholder
 # used as the entire subject.
 #
+# Every check grades the message AS GIT WILL STORE IT, under every cleanup mode
+# this hook cannot rule out (CS-813) - see the note above the leader read.
+#
 # LF line endings, no BOM - see the note in .githooks/pre-commit.
 #
 # The message file is read as BYTES. The checks live in one inline python
@@ -258,6 +261,47 @@ else
 fi
 # <<< CS-818 LADDER END
 
+# CS-813: THE CHECKS GRADE THE STORED MESSAGE, NOT THE FILE THIS HOOK IS HANDED.
+#
+# git cleans the message AFTER this hook runs, so the file is a prediction of
+# the stored bytes and never the bytes themselves. The old program predicted ONE
+# cleanup mode: it dropped every '#' line and cut at any '#' line carrying '>8'
+# whatever git was about to do, and four leaks followed (docs/item_notes/
+# phase7.md, CS-813). Which mode git will use is only partly observable here: an
+# explicit --cleanup reaches no hook, and neither does -v, which cuts at the
+# scissors line whatever the mode. So the program builds the stored image under
+# EVERY mode it cannot rule out - verbatim, whitespace, and strip under each
+# leader, each whole and each cut at the scissors line - and refuses if ANY
+# image violates. 'scissors' and 'default' add no image: each is one of those.
+#
+# MEASURED on git 2.53: on the -m and -F paths git runs its whitespace pass
+# BEFORE this hook unless the mode is verbatim, and on the editor path it runs
+# nothing. Either way the handed file IS the verbatim image, and every other
+# image is a trim or a cut of it - which is why the byte check reads it whole.
+#
+# THE PATH IS NOT READ. GIT_EDITOR is ':' exactly when no editor ran, but the
+# path could only rule images out, never add one, so grading the union of both
+# paths fails closed and leaves no branch that can fail open.
+#
+# THE COMMENT LEADER IS READ HERE, so the program itself still spawns nothing.
+# core.commentChar and core.commentString are one setting to git and the last
+# one set wins, which is the order --get-regexp prints them in. 'auto' lets git
+# pick per message, so the program models every leader it can pick. '#' is
+# always modelled too: it is git's default, and what a git too old to know
+# core.commentString still uses. Status 1 means neither key is set; any other
+# failure refuses, because an unknown leader cannot be modelled. Bounded like
+# the probe, and its stdout is captured rather than inherited.
+cs_msg_leaders=$(timeout -k 1 "$CS_PROBE_BOUND" git config --get-regexp \
+    '^core\.comment(char|string)$' 2>/dev/null </dev/null)
+cs_msg_leaders_rc=$?
+if [ "$cs_msg_leaders_rc" != 0 ] && [ "$cs_msg_leaders_rc" != 1 ]; then
+    die "could not read the comment leader from git config (status $cs_msg_leaders_rc)." \
+        "git's cleanup depends on it, so the stored message cannot be predicted." \
+        "The commit is BLOCKED: an unrun check is not a passed check."
+fi
+CLOCKSPEED_COMMIT_MSG_LEADERS=$cs_msg_leaders
+export CLOCKSPEED_COMMIT_MSG_LEADERS
+
 # THE PROGRAM MUST PROVE IT RAN. CS-819.
 #
 # THE DEFECT. This hook delivers its whole checking program to the interpreter
@@ -302,6 +346,7 @@ fi
 # returning 124. This program spawns nothing, so it cannot happen today.
 cs_msg_out=""
 cs_msg_out=$(cs_python - "$MSG_FILE" <<'CLOCKSPEED_COMMIT_MSG'
+import os
 import sys
 
 TOOL = "clockspeed commit-msg"
@@ -317,6 +362,9 @@ NAMED = {
     0x00A0: "U+00A0 non-breaking space",
     0xFEFF: "U+FEFF byte order mark",
 }
+# CS-813: git's scissors line, and the leaders core.commentChar=auto picks from.
+CUT = b"------------------------ >8 ------------------------\n"
+AUTO = b"#;@!$%^&|:"
 
 
 def fail(reason, *extra):
@@ -327,33 +375,79 @@ def fail(reason, *extra):
     raise SystemExit(1)
 
 
+def cleaned(text, leader):
+    # git's stripspace: drop leader lines, trim line ends, squeeze blank runs.
+    lines = []
+    gap = False
+    for line in text.split(b"\n"):
+        if leader and line.startswith(leader):
+            continue
+        line = line.rstrip(b" \t\r")
+        if not line:
+            gap = True
+            continue
+        if gap and lines:
+            lines.append(b"")
+        gap = False
+        lines.append(line)
+    return lines
+
+
+def cut(text, leader):
+    # git's wt_status_locate_end: the exact scissors line ends the message.
+    mark = b"\n" + leader + b" " + CUT
+    if text.startswith(mark[1:]):
+        return b""
+    at = text.find(mark)
+    return text if at < 0 else text[: at + 1]
+
+
+def first_line(lines):
+    # The subject as stored: the first line git does not treat as blank, UNTRIMMED.
+    for line in lines:
+        if line.strip(b" \t\r"):
+            return line
+    return b""
+
+
 try:
     with open(sys.argv[1], "rb") as handle:
         raw = handle.read()
 except OSError as exc:
     fail("could not read the commit message file: %s" % exc)
 
-# Strip git's comment lines and everything past a scissors marker, so the
-# template and any --verbose diff are not mistaken for the message.
-kept = []
-for line in raw.split(b"\n"):
-    stripped = line.rstrip(b"\r")
-    if stripped.startswith(b"#"):
-        if b">8" in stripped:
-            break
-        continue
-    kept.append(stripped)
-body = b"\n".join(kept)
+setting = os.environ.get("CLOCKSPEED_COMMIT_MSG_LEADERS")
+if setting is None:
+    fail("the hook did not hand this check the comment leader (CS-813).")
+leaders = [b"#"]
+chosen = b""
+for entry in setting.split("\n"):
+    if entry:
+        chosen = entry.partition(" ")[2].encode("utf-8", "surrogateescape")
+        if not chosen:
+            fail("core.commentChar or core.commentString is set with no value.")
+if chosen:
+    leaders.append(chosen)
+    if chosen.lower() == b"auto":
+        leaders.extend(AUTO[i : i + 1] for i in range(len(AUTO)))
 
-if not body.strip():
+# Every stored image git could produce from this file (see the shell note).
+images = []
+for source, how in [(raw, "")] + [(cut(raw, x), ", cut at the scissors line") for x in leaders]:
+    images.append(("verbatim" + how, source.split(b"\n")))
+    images.append(("whitespace" + how, cleaned(source, None)))
+    for leader in leaders:
+        images.append(("strip" + how, cleaned(source, leader)))
+
+if any(not b"".join(lines).strip() for _mode, lines in images):
     fail(
         "the commit message is empty or whitespace only.",
         "Write a real subject line saying what changed and why.",
     )
 
-offenders = [(i, b) for i, b in enumerate(body) if b > 0x7E]
+offenders = [(i, b) for i, b in enumerate(raw) if b > 0x7E]
 if offenders:
-    text = body.decode("utf-8", "replace")
+    text = raw.decode("utf-8", "replace")
     for number, line in enumerate(text.split("\n"), 1):
         for column, char in enumerate(line, 1):
             point = ord(char)
@@ -368,25 +462,24 @@ if offenders:
             )
     fail("non-ASCII byte in the commit message (byte offset %d)" % offenders[0][0])
 
-subject = ""
-for line in body.decode("ascii").split("\n"):
-    if line.strip():
-        subject = line.strip()
-        break
+for mode, lines in images:
+    subject = first_line(lines).decode("ascii")
+    if len(subject) > LIMIT:
+        fail(
+            "subject line is %d characters; the limit is %d." % (len(subject), LIMIT),
+            "Subject: %s" % subject,
+            "Counted as git would store it under cleanup %s (CS-813)." % mode,
+            "Move the detail into the body, after a blank line.",
+        )
 
-if len(subject) > LIMIT:
-    fail(
-        "subject line is %d characters; the limit is %d." % (len(subject), LIMIT),
-        "Subject: %s" % subject,
-        "Move the detail into the body, after a blank line.",
-    )
-
-if subject.rstrip(".!").strip().lower() in PLACEHOLDERS:
-    fail(
-        "subject %r is a bare placeholder." % subject,
-        "Banned as an entire subject: " + ", ".join(sorted(PLACEHOLDERS)),
-        "Say what changed and why; the log is read by future you.",
-    )
+for _mode, lines in images:
+    subject = first_line(lines).decode("ascii").strip()
+    if subject.rstrip(".!").strip().lower() in PLACEHOLDERS:
+        fail(
+            "subject %r is a bare placeholder." % subject,
+            "Banned as an entire subject: " + ", ".join(sorted(PLACEHOLDERS)),
+            "Say what changed and why; the log is read by future you.",
+        )
 
 # Modelled on git's own trailer parser, not on a string prefix. git finds
 # the separator FIRST and trims the token AFTERWARDS, so "Co-authored-by :"
@@ -396,20 +489,21 @@ if subject.rstrip(".!").strip().lower() in PLACEHOLDERS:
 # simultaneously too narrow to catch the first and too wide to allow the
 # second, which is how this repository came to reject its own examples.
 TRAILER = "co-authored-by"
-for number, line in enumerate(body.decode("ascii").split("\n"), 1):
-    token, separator, _rest = line.partition(":")
-    if separator and token.rstrip().lower() == TRAILER:
-        fail(
-            "co-authorship trailer on line %d of the message body." % number,
-            "Line: %s" % line.strip(),
-            "This repository records NO co-author trailer - not for an agent,",
-            "and not for a human. The rule is in docs/GATED.md; the gate is",
-            "CS-702. The match is name-free ON PURPOSE: a name list would fail",
-            "open on the next harness or model rename.",
-            "TO QUOTE THE SHAPE instead of recording one, INDENT the line by",
-            "one space: git reads no trailer in an indented line, so this gate",
-            "does not either. A token sitting mid-sentence is fine as well.",
-        )
+for _mode, lines in images:
+    for number, line in enumerate(b"\n".join(lines).decode("ascii").split("\n"), 1):
+        token, separator, _rest = line.partition(":")
+        if separator and token.rstrip().lower() == TRAILER:
+            fail(
+                "co-authorship trailer on line %d of the message body." % number,
+                "Line: %s" % line.strip(),
+                "This repository records NO co-author trailer - not for an agent,",
+                "and not for a human. The rule is in docs/GATED.md; the gate is",
+                "CS-702. The match is name-free ON PURPOSE: a name list would fail",
+                "open on the next harness or model rename.",
+                "TO QUOTE THE SHAPE instead of recording one, INDENT the line by",
+                "one space: git reads no trailer in an indented line, so this gate",
+                "does not either. A token sitting mid-sentence is fine as well.",
+            )
 
 # CS-819 completion sentinel. The ONLY thing this program writes to stdout, and
 # it is written here - after every check has had its chance to reject - so that

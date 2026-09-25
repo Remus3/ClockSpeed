@@ -644,32 +644,32 @@ def test_a_commented_out_trailer_does_not_block_the_commit(sandbox: Sandbox) -> 
     assert outcome.accepted, f"a commented-out trailer was blocked:\n{outcome.report}"
 
 
-def test_a_trailer_below_a_scissors_marker_does_not_block_the_commit(sandbox: Sandbox) -> None:
-    """Everything past the scissors marker is out of scope, per narrowing 2.
+def test_a_trailer_below_a_scissors_marker_is_blocked_because_git_stores_it(
+    sandbox: Sandbox,
+) -> None:
+    """A scissors line cuts nothing on the -F path, so the trailer below it is stored.
 
-    THIS ARM PINS A DELIBERATE HOLE, and naming it here is the point. It exists
-    so that `git commit --verbose` does not reject on its own diff: the verbose
-    buffer carries the full patch below this marker, and a CONTEXT line in that
-    patch is rendered with a single leading space - so a diff of any file
-    quoting a trailer would strip to a line starting with the token and reject
-    a commit that carries no trailer at all. This module is such a file.
+    THIS ARM USED TO ASSERT THE ESCAPE AS INTENDED BEHAVIOUR, and CS-813 is the
+    item that flipped it. The old pre-filter stopped reading at the marker on
+    every path. But `--cleanup=scissors` truncates only when the message is to
+    be EDITED, so under `-F` the section survives into the stored commit - and
+    git READS THE SURVIVING LINE AS A TRAILER. Two independent agents measured
+    that: `git log -1 --format='%(trailers:key=Co-authored-by,valueonly)'`
+    returned the value on a commit this arm then asserted was accepted.
 
-    THE COST IS A REAL FAIL-OPEN AND THIS DOCSTRING USED TO UNDERSTATE IT.
-    `--cleanup=scissors` truncates only when the message is to be EDITED, so
-    under `-F` the section survives into the stored commit - and git READS THE
-    SURVIVING LINE AS A TRAILER. Two independent agents measured that:
-    `git log -1 --format='%(trailers:key=Co-authored-by,valueonly)'` returns the
-    value on a commit this arm asserts is accepted. So this arm pins a
-    DISCLOSED HOLE, not a harmless one. It is filed as CS-813 and recorded in
-    `docs/GATED.md`; a rewrite of the pre-filter that closed it was built,
-    refuted for other reasons, and not shipped. Deliberate evasion has easier
-    routes - `--no-verify` bypasses every hook - and that class is CS-704.
+    The hook now grades every stored image it cannot rule out, the uncut one
+    included, so the trailer refuses. A `git commit --verbose` diff below the
+    marker does not trip the same check: every patch line starts with a space,
+    a '+' or a '-', and an indented or prefixed line is not a trailer to git or
+    to this gate (the shape table above).
     """
     outcome = attempt(
         sandbox,
         f"CS-702: scissors arm\n\n{SCISSORS}\nCo-authored-by: Someone <someone@example.invalid>\n",
     )
-    assert outcome.accepted, f"a trailer below the scissors marker was blocked:\n{outcome.report}"
+    assert outcome.blocked_by_the_trailer_check, (
+        f"a trailer git stores below the scissors marker was accepted:\n{outcome.report}"
+    )
 
 
 # --- the accept path --------------------------------------------------------
