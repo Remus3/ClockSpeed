@@ -270,6 +270,7 @@ tests/save/test_header.py	authored	CS-1165	first-add:root
 tests/save/test_independent_table.py	authored	CS-829	first-add:CS-829
 tests/save/test_inventory_potential.py	authored	CS-405	first-add:CS-405
 tests/save/test_item_list.py	authored	CS-1068	first-add:CS-1068
+tests/save/test_node_orientation_carry.py	authored	CS-1019	stamped
 tests/save/test_objects.py	authored	CS-1165	first-add:root
 tests/save/test_oracle_citations.py	authored	CS-420	first-add:CS-420
 tests/save/test_phase4_gate.py	authored	CS-409	first-add:CS-409
@@ -352,6 +353,7 @@ tests/test_cs1167_credential_canary_coverage.py	authored	CS-1167	first-add:CS-11
 tests/test_cs1169_placeholder_bounds.py	authored	CS-1169	first-add:CS-1169
 tests/test_cs1172_branch_canaries.py	authored	CS-1172	first-add:CS-1172
 tests/test_cs1175_rule_narrowing.py	authored	CS-1175	stamped
+tests/test_cs1179_reseed_recovery.py	authored	CS-1179	stamped
 tests/test_dashboard_probe.py	authored	CS-918	first-add:CS-918
 tests/test_dated_headings.py	authored	CS-840	first-add:CS-840
 tests/test_disposition_sites.py	authored	CS-1121	first-add:CS-1121
