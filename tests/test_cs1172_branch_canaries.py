@@ -22,10 +22,12 @@ child run and counts canary values in what it printed.
 from __future__ import annotations
 
 import importlib.util
+import operator
 import os
 import re
 import subprocess
 import sys
+from itertools import chain
 from pathlib import Path
 from types import ModuleType
 
@@ -299,14 +301,22 @@ def file_one_canary_twice(
 ) -> None:
     """File the canary of branch `source` under branch `target` too.
 
-    CS-1175: a helper, so the canary tables are locals of THIS frame and never
-    of the test's, whose locals `--showlocals` renders when it fails.
+    CS-1175: a helper, so the canary tables never reach the test's frame,
+    whose locals `--showlocals` renders when it fails. CS-1177: and no table is
+    bound to a name HERE either, because a helper that raises has its locals
+    rendered too - the new table is built in one expression and handed on.
     """
-    table = dict(OUTBOUND.CREDENTIAL_BRANCH_CANARIES)
-    shared = dict(table[reason])
-    shared[target] = shared[source]
-    table[reason] = shared
-    monkeypatch.setattr(OUTBOUND, "CREDENTIAL_BRANCH_CANARIES", table)
+    monkeypatch.setattr(
+        OUTBOUND,
+        "CREDENTIAL_BRANCH_CANARIES",
+        {
+            **OUTBOUND.CREDENTIAL_BRANCH_CANARIES,
+            reason: {
+                **OUTBOUND.CREDENTIAL_BRANCH_CANARIES[reason],
+                target: OUTBOUND.CREDENTIAL_BRANCH_CANARIES[reason][source],
+            },
+        },
+    )
 
 
 def test_a_canary_another_branch_matches_is_named(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -387,20 +397,27 @@ def test_leaks():
 
 
 def every_canary() -> list[str]:
-    """Every canary value either table carries."""
-    values = list(OUTBOUND.CREDENTIAL_CANARIES.values())
-    for table in OUTBOUND.CREDENTIAL_BRANCH_CANARIES.values():
-        values.extend(table.values())
-    return values
+    """Every canary value either table carries.
+
+    CS-1177: built in one expression, so no value and no table is ever bound
+    to a name of this frame - a helper that raises has its locals rendered.
+    """
+    return [
+        *OUTBOUND.CREDENTIAL_CANARIES.values(),
+        *chain.from_iterable(
+            map(operator.methodcaller("values"), OUTBOUND.CREDENTIAL_BRANCH_CANARIES.values())
+        ),
+    ]
 
 
 def canaries_in(output: str) -> int:
     """How many canary values appear in `output`, counted in THIS frame.
 
     CS-1175: a helper, so the values are never a local of a test frame that
-    `--showlocals` would render if the test failed.
+    `--showlocals` would render if the test failed. CS-1177: nor a local of a
+    generator here - the count maps over the values and names none of them.
     """
-    return sum(output.count(canary) for canary in every_canary())
+    return sum(map(output.count, every_canary()))
 
 
 def child_pytest(tmp_path: Path, args: list[str]) -> tuple[int, str]:

@@ -30,14 +30,18 @@ child run under `--showlocals` and counts canary values in what it printed.
 from __future__ import annotations
 
 import importlib.util
+import operator
 import os
 import re
 import subprocess
 import sys
+from itertools import chain
 from pathlib import Path
 from types import ModuleType
 
 import pytest
+
+from tests.test_canary_population import derived_canary_suites
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 OUTBOUND_PATH = REPO_ROOT / "tools" / "outbound_gate.py"
@@ -480,24 +484,35 @@ def test_holds_a_canary_in_a_local():
     assert size == 0
 """
 
-#: Every suite whose arms read canary values.
-CANARY_SUITES = (
-    "tests/test_cs1167_credential_canary_coverage.py",
-    "tests/test_cs1172_branch_canaries.py",
-    "tests/test_cs1175_rule_narrowing.py",
-)
+#: Every suite whose arms read canary values - DERIVED, never typed. CS-1177
+#: retired the hand-kept tuple this name used to hold: the membership rule and
+#: its derivation live in tests/test_canary_population.py, so a new module that
+#: reads a canary table is run by the forced arm below without an edit here.
+CANARY_SUITES = derived_canary_suites()
 
 
 def canaries_in(output: str) -> int:
     """How many canary values, from either table, appear in `output`.
 
     A helper, so the values never become a local of a test frame that
-    `--showlocals` would render.
+    `--showlocals` would render. CS-1177: and never a named local of THIS
+    frame or of a generator inside it either, since a helper that raises has
+    its locals rendered too - the values only ever live on the stack.
     """
-    count = sum(output.count(value) for value in OUTBOUND.CREDENTIAL_CANARIES.values())
-    for table in OUTBOUND.CREDENTIAL_BRANCH_CANARIES.values():
-        count += sum(output.count(value) for value in table.values())
-    return count
+    return sum(
+        map(
+            output.count,
+            chain(
+                OUTBOUND.CREDENTIAL_CANARIES.values(),
+                chain.from_iterable(
+                    map(
+                        operator.methodcaller("values"),
+                        OUTBOUND.CREDENTIAL_BRANCH_CANARIES.values(),
+                    )
+                ),
+            ),
+        )
+    )
 
 
 def child_pytest(tmp_path: Path, args: list[str]) -> tuple[int, str]:

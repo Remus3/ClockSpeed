@@ -84,10 +84,15 @@ def credential_row(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> object:
     return matching[0]
 
 
-def secret_reasons(text: str) -> list[str]:
-    """Every SECRET reason the commit gate's own pipeline reports for `text`."""
+def secret_reasons(reason: str) -> list[str]:
+    """Every SECRET reason the commit gate's own pipeline reports for this rule's canary.
+
+    CS-1177: it takes the RULE and reads the canary itself, and never binds it.
+    A helper handed the canary holds it as an ARGUMENT, and pytest renders the
+    arguments and locals of a helper that raises, not only of a failing test.
+    """
     report = GATE.Report()
-    GATE.check_secrets("cs1167", text, report)
+    GATE.check_secrets("cs1167", OUTBOUND.CREDENTIAL_CANARIES[reason], report)
     return [diag.reason for diag in report.diagnostics if diag.code == "SECRET"]
 
 
@@ -117,7 +122,7 @@ def test_every_secret_rule_has_a_live_canary(reason: str) -> None:
     # `--showlocals` renders every local of a failing test.
     present = reason in OUTBOUND.CREDENTIAL_CANARIES
     assert present, "no canary for rule: " + reason
-    flagged = reason in secret_reasons(OUTBOUND.CREDENTIAL_CANARIES[reason])
+    flagged = reason in secret_reasons(reason)
     assert flagged, "the canary for this rule is not flagged: " + reason
     named = reason in OUTBOUND.credential_canary_gaps(GATE)
     assert not named, "the gate names it a gap: " + reason
@@ -213,12 +218,14 @@ def test_a_placeholder_suppressed_canary_is_not_live(monkeypatch: pytest.MonkeyP
 def refused_lines(reason: str) -> set[int]:
     """The lines `scan` refuses as credentials in prose carrying this rule's canary.
 
-    A HELPER, so the message is a local of this frame and never of the test's:
-    `--showlocals` renders the locals of a failing test's own frame, and an
-    assertion failing in the test never enters this one. CS-1175.
+    A HELPER, so the message never reaches the test's frame, whose locals
+    `--showlocals` renders when an assertion fails there. CS-1175. And the
+    message is never bound to a name HERE either, because a helper that RAISES
+    has its locals rendered too - CS-1177.
     """
-    message = "Status report.\nsee " + OUTBOUND.CREDENTIAL_CANARIES[reason] + " here\n"
-    refusals, _, _ = OUTBOUND.scan(message)
+    refusals, _, _ = OUTBOUND.scan(
+        "Status report.\nsee " + OUTBOUND.CREDENTIAL_CANARIES[reason] + " here\n"
+    )
     return {f.line for f in refusals if f.klass == OUTBOUND.CLASS_CREDENTIAL}
 
 
@@ -235,18 +242,19 @@ def test_scan_refuses_each_canary_in_a_message(
 def run_cli_over_every_canary(tmp_path: Path) -> tuple[int, set[int], int, int]:
     """Run the CLI on one line per canary: (exit, refused lines, lines, leaked).
 
-    A helper for the same reason as `refused_lines`: the payload and the
-    output carry canaries, so they are locals of this frame only. CS-1175.
+    A helper for the same reason as `refused_lines`, and hygienic for the same
+    reason: no canary, and no payload carrying one, is ever bound to a name of
+    this frame or of a generator inside it, so a raise here renders none -
+    CS-1177. What IS bound is the CLI's output, which carries a canary only when
+    the gate has echoed one, and that is the failure the count below reports.
     """
-    canaries = [OUTBOUND.CREDENTIAL_CANARIES[reason] for reason in RULE_REASONS]
-    payload = "".join("line " + canary + "\n" for canary in canaries)
     env = dict(os.environ)
     env["CLOCKSPEED_SAVE_ROOT"] = str(tmp_path / "absent-save-root")
     env["CLOCKSPEED_LOCAL_CONFIG"] = str(tmp_path / "absent-local-config.json")
     env.pop(OUTBOUND.ENV_OUTBOUND_EXCLUSIONS, None)
     proc = subprocess.run(
         [sys.executable, str(OUTBOUND_PATH)],
-        input=payload.encode("ascii"),
+        input=every_canary_line().encode("ascii"),
         capture_output=True,
         env=env,
         timeout=TIMEOUT,
@@ -258,8 +266,17 @@ def run_cli_over_every_canary(tmp_path: Path) -> tuple[int, set[int], int, int]:
         for match in re.finditer(r"<pii:credential>  line (\d+) col \d+", proc.stderr.decode())
     }
     # A COUNT, never the list: a failing `leaked == []` would render the values.
-    leaked = sum(1 for canary in canaries if canary in both)
-    return proc.returncode, refused, len(canaries), leaked
+    leaked = sum(
+        map(both.__contains__, map(OUTBOUND.CREDENTIAL_CANARIES.__getitem__, RULE_REASONS))
+    )
+    return proc.returncode, refused, len(RULE_REASONS), leaked
+
+
+def every_canary_line() -> str:
+    """One ``line <canary>`` per rule, in rule order, never bound to a name. CS-1177."""
+    return "".join(
+        map("line {}\n".format, map(OUTBOUND.CREDENTIAL_CANARIES.__getitem__, RULE_REASONS))
+    )
 
 
 def test_cli_refuses_a_message_carrying_every_canary(tmp_path: Path) -> None:
