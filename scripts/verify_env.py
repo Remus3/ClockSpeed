@@ -46,6 +46,7 @@ import re
 import socket
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 
 # The bootstrap order in CONVENTIONS.md section 1 runs this script in a FRESH
@@ -675,14 +676,46 @@ def _module_backed_tool_row(scope: str, name: str) -> dict:
 # THE LADDER IS EXECUTED FROM THE HOOK'S BYTES, NEVER RE-IMPLEMENTED HERE. A
 # Python copy of the rungs is a second answer to "which python gates a commit"
 # waiting to disagree with the first. What runs is the pre-commit hook's marked
-# region plus the probe it calls, extracted at run time and handed to bash.
+# region plus the probe it calls, extracted at run time.
 # Only the scaffolding around them - initialising the two variables, a refusal
 # function, and the identity query after the winner is chosen - is written here.
+#
+# GIT RUNS IT, AS A HOOK, SO GIT SUPPLIES THE ENVIRONMENT. The program is
+# installed as the pre-commit hook of a throwaway repository and started with
+# `git hook run`. Looking a shell up on THIS process's PATH was refuted by the
+# M8 adversary: Git for Windows runs hooks under its own shell and puts its own
+# tool directories on the hook's PATH, so a caller PATH naming only git's cmd
+# directory - or putting System32 ahead of git's usr/bin - made this row fail
+# while a real commit ran the hook fine. Asking git to run it removes the need
+# to model what git does, in any version, on any platform.
 
 LADDER_HOOK = ".githooks/pre-commit"
 LADDER_BEGIN = "# >>> CS-818 LADDER BEGIN"
 LADDER_END = "# <<< CS-818 LADDER END"
 LADDER_ROW_NAME = "hooks' interpreter ladder"
+
+# The throwaway repository's hook name, and the file the hook writes its answer
+# to. The file is RELATIVE: git starts a hook in the root of the working tree,
+# so no path is spelled into the program. Git sends a hook's stdout to its own
+# stderr, and _run - the one spawn funnel - answers stdout only, hence a file.
+LADDER_PROBE_HOOK = "pre-commit"
+LADDER_OUTPUT = "cs818.out"
+
+# Git locates a repository from these before it looks at -C, so an inherited
+# one - a pre-push hook exports GIT_DIR - would aim the probe at a real
+# repository. They are removed from the probe's environment and nothing else is.
+_LADDER_GIT_LOCATORS = frozenset(
+    {
+        "GIT_DIR",
+        "GIT_WORK_TREE",
+        "GIT_INDEX_FILE",
+        "GIT_COMMON_DIR",
+        "GIT_OBJECT_DIRECTORY",
+        "GIT_ALTERNATE_OBJECT_DIRECTORIES",
+        "GIT_NAMESPACE",
+        "GIT_PREFIX",
+    }
+)
 
 # THE OUTER BOUND. Every candidate run inside the ladder is already bounded by
 # the hook's own CS_PROBE_BOUND; this bounds the whole run from outside, so a
@@ -718,10 +751,8 @@ _LADDER_IDENTITY_PROGRAM = (
 # The scaffolding. The hook initialises CS_PY and CS_PY_ARG OUTSIDE the marked
 # region, so they are initialised here too. die() replaces the hook's own: it
 # keeps only the first argument, which is the hook's static reason, marks it,
-# and writes it to STDOUT with a zero exit. The run goes through _run, the one
-# spawn funnel, which answers only a clean exit's stdout - so a refusal has to
-# arrive there to be reported at all, and any OTHER non-zero exit still reads
-# as a run that did not complete.
+# and writes it to the probe's output with a zero exit, so a refusal is told
+# apart from a hook that broke.
 _LADDER_PREAMBLE = """set -u
 die() {
     printf 'cs818-refused=%s\\n' "$1"
@@ -810,11 +841,27 @@ def _ladder_missing(value: str, note: str) -> dict:
     return _row("HARD", LADDER_ROW_NAME, False, value, note)
 
 
+def _ladder_undetermined(value: str) -> dict:
+    """SOFT: the environment git gives its hooks could not be determined.
+
+    Never a HARD row. The question is what the hooks WILL do, and a probe that
+    could not ask git has no answer - reading that as a refusal is how the
+    first version of this row reported failures a real commit did not have.
+    """
+    return _row(
+        "SOFT",
+        LADDER_ROW_NAME,
+        False,
+        value,
+        "the hooks' interpreter is UNVERIFIED - attempt a real commit to see what the hook does",
+    )
+
+
 def _run_ladder(root: Path, env: dict[str, str] | None) -> str | dict:
-    """Run the hook's extracted ladder under bash, or answer why it could not run.
+    """Have git run the extracted ladder as a hook, or answer why it could not.
 
     Returns:
-        The run's stdout, or a HARD-missing row naming why no answer came back.
+        The probe hook's output, or a row naming why no answer came back.
     """
     try:
         hook_text = (root / LADDER_HOOK).read_text(encoding="ascii")
@@ -824,24 +871,44 @@ def _run_ladder(root: Path, env: dict[str, str] | None) -> str | dict:
     if program is None:
         return _ladder_missing(reason, "")
 
-    path_value = None
-    if env is not None:
-        path_value = next((v for k, v in env.items() if k.upper() == "PATH"), "")
-    bash = resolve_tool("bash", path_value=path_value)
-    if not bash:
-        return _ladder_missing(
-            "bash not found on PATH - the hooks cannot run either",
-            "the hooks run under a POSIX shell; install Git for Windows or put its bash on PATH",
-        )
+    child = dict(os.environ if env is None else env)
+    for key in [key for key in child if key.upper() in _LADDER_GIT_LOCATORS]:
+        del child[key]
+    path_value = next((v for k, v in child.items() if k.upper() == "PATH"), "")
+    git = resolve_tool("git", path_value=path_value)
+    if not git:
+        return _ladder_undetermined("git not found on PATH - no hook can run to ask")
 
-    out = _run([bash, "-s"], timeout=LADDER_OUTER_TIMEOUT, stdin=program, env=env)
-    if out is None:
-        return _ladder_missing(
-            f"the ladder did not return cleanly within {LADDER_OUTER_TIMEOUT}s"
-            " - it could not start, timed out, or exited non-zero",
-            "",
+    with tempfile.TemporaryDirectory(prefix="cs818-", ignore_cleanup_errors=True) as scratch:
+        repo = Path(scratch) / "repo"
+        hooks = Path(scratch) / "hooks"
+        hooks.mkdir()
+        hook = hooks / LADDER_PROBE_HOOK
+        hook.write_bytes(f"#!/bin/sh\nexec >{LADDER_OUTPUT}\n{program}".encode("ascii"))
+        hook.chmod(0o755)
+        if _run([git, "init", "-q", str(repo)], env=child) is None:
+            return _ladder_undetermined("git could not create a throwaway repository")
+        _run(
+            [
+                git,
+                "-C",
+                str(repo),
+                "-c",
+                f"core.hooksPath={hooks}",
+                "hook",
+                "run",
+                LADDER_PROBE_HOOK,
+            ],
+            timeout=LADDER_OUTER_TIMEOUT,
+            env=child,
         )
-    return out
+        try:
+            return (repo / LADDER_OUTPUT).read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            return _ladder_undetermined(
+                f"git ran no probe hook within {LADDER_OUTER_TIMEOUT}s - `git hook run` is"
+                " unsupported, timed out, or could not start the hook's shell"
+            )
 
 
 def _grade_ladder(stdout: str) -> dict:
@@ -855,11 +922,12 @@ def _grade_ladder(stdout: str) -> dict:
         )
 
     rung = fields.get("cs818-rung", "")
+    if not rung:
+        return _ladder_undetermined("the probe hook ran but reported no winner")
     parts = fields.get("cs818-identity", "").split(" ")
-    if not rung or fields.get("cs818-status") != "0" or len(parts) != _LADDER_IDENTITY_FIELDS:
+    if fields.get("cs818-status") != "0" or len(parts) != _LADDER_IDENTITY_FIELDS:
         return _ladder_missing(
-            f"the ladder chose {rung or 'no rung'} but its winner did not answer "
-            "the identity query",
+            f"the ladder chose {rung} but its winner did not answer the identity query",
             "",
         )
     try:
@@ -916,18 +984,19 @@ def ladder_row(root: Path, env: dict[str, str] | None = None) -> dict:
     then falls to the next rung, whose last is 'py -3', the measured
     installation that carries no toolchain (BOOTSTRAP.md section 2.5).
 
-    NO BASH, NO LADDER. The hooks run under a POSIX shell, so where none
-    resolves they cannot run either, and the row is HARD-missing with that
-    reason. A ``bash`` that is not the one git uses for its hooks - a WSL
-    launcher earlier on a Windows PATH, say - resolves its own interpreter,
-    which is then graded like any other winner. That case is not measured.
+    GIT SUPPLIES THE ENVIRONMENT. The ladder runs as a real hook of a
+    throwaway repository, started by the git this environment resolves, so the
+    shell, the PATH and the ``timeout`` it sees are the ones a real commit's
+    hook sees. When git cannot be asked - absent, too old for ``git hook run``,
+    or unable to start the hook - the row is SOFT and says the interpreter is
+    unverified: an undetermined environment is never reported as a refusal.
 
     Args:
         root: The repository root whose pre-commit hook carries the ladder.
         env: The environment to run the ladder under, or None for this one.
 
     Returns:
-        One HARD dependency row.
+        One dependency row: HARD, or SOFT when git could not be asked.
     """
     ran = _run_ladder(root, env)
     if isinstance(ran, dict):

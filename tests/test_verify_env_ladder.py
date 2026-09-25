@@ -193,31 +193,68 @@ def test_a_missing_hook_is_a_hard_missing_row(tmp_path: Path) -> None:
     assert not row["ok"], "a checkout with no hook reported a winner"
 
 
-def test_absent_bash_is_a_hard_missing_row(monkeypatch: pytest.MonkeyPatch) -> None:
-    """The hooks run under a POSIX shell; with none, they cannot run either."""
+def test_absent_git_is_a_soft_undetermined_row(monkeypatch: pytest.MonkeyPatch) -> None:
+    """With no git to ask, what the hooks would do is UNKNOWN - never a false HARD."""
     real = verify_env.resolve_tool
 
-    def no_bash(name: str, **kwargs: object) -> str | None:
-        return None if name == "bash" else real(name, **kwargs)
+    def no_git(name: str, **kwargs: object) -> str | None:
+        return None if name == "git" else real(name, **kwargs)
 
-    monkeypatch.setattr(verify_env, "resolve_tool", no_bash)
+    monkeypatch.setattr(verify_env, "resolve_tool", no_git)
     row = verify_env.ladder_row(REPO_ROOT, env=_env_without(ENV_NAME))
-    assert row["scope"] == "HARD", "the ladder row is not HARD"
-    assert not row["ok"], "no bash, yet the ladder reported a winner"
-    assert "bash" in row["value"], "the row does not say bash is what is missing"
+    assert row["scope"] == "SOFT", "an undetermined environment was reported HARD"
+    assert not row["ok"], "no git, yet the ladder reported a winner"
+    assert "git" in row["value"], "the row does not say git is what is missing"
 
 
-def test_an_outer_timeout_is_a_hard_missing_row(monkeypatch: pytest.MonkeyPatch) -> None:
-    """The extracted run is bounded from outside too, and expiry is reported."""
+def _hook_run_dir(cmd: list[str]) -> Path | None:
+    """The throwaway repository a ``git -C <repo> ... hook run`` targets, if this is one."""
+    if "hook" not in cmd or "-C" not in cmd:
+        return None
+    return Path(cmd[cmd.index("-C") + 1])
 
-    def expired(*_args: object, **_kwargs: object) -> subprocess.CompletedProcess[str]:
-        raise subprocess.TimeoutExpired(cmd="bash", timeout=1)
+
+def test_an_expired_hook_run_is_bounded_and_soft(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The hook run carries the outer bound, and its expiry is SOFT, not a refusal."""
+    bounds: list[object] = []
+
+    def expired(cmd: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
+        if _hook_run_dir(cmd) is not None:
+            bounds.append(kwargs.get("timeout"))
+            raise subprocess.TimeoutExpired(cmd="git", timeout=1)
+        return subprocess.CompletedProcess(cmd, 0, "", "")
 
     monkeypatch.setattr(verify_env.subprocess, "run", expired)
-    monkeypatch.setattr(verify_env, "resolve_tool", lambda _name, **_kwargs: "bash")
+    monkeypatch.setattr(verify_env, "resolve_tool", lambda _name, **_kwargs: "git")
     row = verify_env.ladder_row(REPO_ROOT, env=_env_without(ENV_NAME))
-    assert not row["ok"], "an expired ladder run reported a winner"
-    assert "did not return" in row["value"], "the row does not name the expiry"
+    bounded = bounds == [verify_env.LADDER_OUTER_TIMEOUT]
+    assert bounded, "the hook run did not carry the outer bound"
+    assert row["scope"] == "SOFT", "an expired hook run was reported HARD"
+    assert not row["ok"], "an expired hook run reported a winner"
+    assert "within" in row["value"], "the row does not name the expiry"
+
+
+def test_an_inherited_git_dir_is_not_passed_to_the_probe(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A pre-push exports GIT_DIR; the probe must never be aimed at a real repository."""
+    seen: list[bool] = []
+
+    def spy(cmd: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
+        env = kwargs.get("env")
+        keys = list(env) if isinstance(env, dict) else []
+        seen.append(any(str(key).upper() == "GIT_DIR" for key in keys))
+        return subprocess.CompletedProcess(cmd, 0, "", "")
+
+    monkeypatch.setattr(verify_env.subprocess, "run", spy)
+    monkeypatch.setattr(verify_env, "resolve_tool", lambda _name, **_kwargs: "git")
+    env = _env_without(ENV_NAME)
+    env["GIT_DIR"] = "zz-cs818-inherited-git-dir-zz"
+    verify_env.ladder_row(REPO_ROOT, env=env)
+    spawned = len(seen)
+    leaked = any(seen)
+    assert spawned >= 1, "no spawn was observed, so this arm graded nothing"
+    assert not leaked, "an inherited GIT_DIR reached the probe's git"
 
 
 def test_the_ladder_row_is_a_hard_row_of_the_table(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -238,17 +275,25 @@ def test_the_ladder_row_is_a_hard_row_of_the_table(monkeypatch: pytest.MonkeyPat
 def _canned_ladder(
     monkeypatch: pytest.MonkeyPatch, executable: str, prefix: str, version: str = "9.9.9"
 ) -> None:
-    """Make the ladder run answer as if ``python`` won with this identity."""
+    """Make the probe hook answer as if ``python`` won with this identity.
 
-    def answered(*_args: object, **_kwargs: object) -> subprocess.CompletedProcess[str]:
-        identity = " ".join(
-            (executable.encode("utf-8").hex(), prefix.encode("utf-8").hex(), version)
-        )
-        stdout = f"cs818-rung=python\ncs818-status=0\ncs818-identity={identity}\n"
-        return subprocess.CompletedProcess(["bash"], 0, stdout, "")
+    ``git init`` is answered without creating anything, so the stub creates the
+    repository directory itself before writing the hook's answer into it.
+    """
+
+    def answered(cmd: list[str], **_kwargs: object) -> subprocess.CompletedProcess[str]:
+        repo = _hook_run_dir(cmd)
+        if repo is not None:
+            identity = " ".join(
+                (executable.encode("utf-8").hex(), prefix.encode("utf-8").hex(), version)
+            )
+            answer = f"cs818-rung=python\ncs818-status=0\ncs818-identity={identity}\n"
+            repo.mkdir(parents=True, exist_ok=True)
+            (repo / verify_env.LADDER_OUTPUT).write_text(answer, encoding="utf-8")
+        return subprocess.CompletedProcess(cmd, 0, "", "")
 
     monkeypatch.setattr(verify_env.subprocess, "run", answered)
-    monkeypatch.setattr(verify_env, "resolve_tool", lambda _name, **_kwargs: "bash")
+    monkeypatch.setattr(verify_env, "resolve_tool", lambda _name, **_kwargs: "git")
 
 
 def test_a_winner_with_this_identity_passes(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -342,3 +387,76 @@ def test_a_refused_variable_fails_with_the_hooks_reason_and_no_value(tmp_path: P
     assert "did not answer the probe" in row["value"], "the hook's own reason is not reported"
     leaked = SYNTHETIC_MISSING_SEGMENT in rendered
     assert not leaked, "the row echoed the CLOCKSPEED_PYTHON value"
+
+
+# --- the environment git gives its hooks, not the caller's -------------------
+#
+# REFUTED BY THE M8 ADVERSARY: the ladder used to be run by a bash looked up on
+# the CALLER's PATH. Git for Windows runs hooks under its own shell and puts its
+# own tool directories on the hook's PATH, so a caller PATH naming only git's
+# cmd directory, or one putting System32 ahead of git's usr/bin, made the row
+# report a failure while a real commit ran the hook fine. Both PATH shapes are
+# built at run time from where git resolves, never spelled.
+
+
+def _git_for_windows_root() -> Path | None:
+    """The Git for Windows install git resolves into, found by its layout."""
+    if os.name != "nt":
+        return None
+    git = verify_env.resolve_tool("git")
+    if git is None:
+        return None
+    for candidate in Path(git).resolve().parents:
+        if (candidate / "cmd").is_dir() and (candidate / "usr" / "bin").is_dir():
+            return candidate
+    return None
+
+
+GIT_ROOT: Final = _git_for_windows_root()
+GIT_SHAPE_SKIP: Final = "these PATH shapes are Git for Windows layouts"
+
+
+def _system_dir() -> Path:
+    system_root = os.environ.get("SYSTEMROOT", "")
+    return Path(system_root) / "System32"
+
+
+def _require_plain_python_here() -> Path:
+    directory = Path(sys.executable).parent
+    plain = directory / "python.exe"
+    if not plain.is_file() or _identity(str(plain)) != _identity(sys.executable):
+        pytest.skip("this interpreter's directory carries no plain 'python' that is this one")
+    return directory
+
+
+def _with_path(path: str) -> dict[str, str]:
+    env = _env_without(ENV_NAME)
+    env[_path_key(env)] = path
+    return env
+
+
+@pytest.mark.skipif(GIT_ROOT is None, reason=GIT_SHAPE_SKIP)
+def test_a_path_naming_only_gits_cmd_directory_still_runs_the_ladder() -> None:
+    assert GIT_ROOT is not None
+    directory = _require_plain_python_here()
+    path = os.pathsep.join((str(GIT_ROOT / "cmd"), str(_system_dir()), str(directory)))
+    row = verify_env.ladder_row(REPO_ROOT, env=_with_path(path))
+    assert row["ok"], "the row failed on a PATH under which git runs the hook fine"
+    assert row["value"].startswith("python "), "the row does not name the python rung"
+
+
+@pytest.mark.skipif(GIT_ROOT is None, reason=GIT_SHAPE_SKIP)
+def test_a_path_with_system32_before_gits_usr_bin_still_runs_the_ladder() -> None:
+    assert GIT_ROOT is not None
+    directory = _require_plain_python_here()
+    path = os.pathsep.join(
+        (
+            str(_system_dir()),
+            str(GIT_ROOT / "usr" / "bin"),
+            str(GIT_ROOT / "cmd"),
+            str(directory),
+        )
+    )
+    row = verify_env.ladder_row(REPO_ROOT, env=_with_path(path))
+    assert row["ok"], "the row failed on a PATH under which git runs the hook fine"
+    assert row["value"].startswith("python "), "the row does not name the python rung"

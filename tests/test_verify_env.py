@@ -1390,6 +1390,20 @@ def ladder_answer() -> str:
     return f"cs818-rung=python\ncs818-status=0\ncs818-identity={identity}"
 
 
+def answer_hook_run(cmd: list[str]) -> None:
+    """Write the ladder's answer where a ``git -C <repo> ... hook run`` would.
+
+    verify_env has git run the ladder as a hook of a throwaway repository and
+    reads the hook's answer from a file in it. ``git init`` is canned here, so
+    the directory is created before the answer is written.
+    """
+    if "hook" not in cmd or "-C" not in cmd:
+        return
+    repo = Path(cmd[cmd.index("-C") + 1])
+    repo.mkdir(parents=True, exist_ok=True)
+    (repo / verify_env.LADDER_OUTPUT).write_text(ladder_answer(), encoding="utf-8")
+
+
 def parallel_lane_run(importable: set[str], hooks_path: str) -> Callable[..., str | None]:
     """Answer every probe, with the plugin's IMPORT channel split from the rest.
 
@@ -1424,13 +1438,14 @@ def parallel_lane_run(importable: set[str], hooks_path: str) -> Callable[..., st
         # The module probe is [sys.executable, "-m", <name>, "--version"].
         if cmd[:2] == [sys.executable, "-m"]:
             return "canned 1.0" if cmd[2] in importable else None
-        # CS-818: the hooks' ladder is [<bash>, "-s"] fed the extracted program.
-        # It answers that THIS interpreter won the python rung, derived at run
+        # CS-818: the hooks' ladder runs as a hook of a throwaway repository.
+        # Its answer says THIS interpreter won the python rung, derived at run
         # time, so the ladder row is satisfied and the exit code stays a
-        # statement about the plugin alone. Every remaining call is a PATH
-        # executable answering --version, and it answers SUCCESSFULLY - a tool
-        # missing from PATH is a different subject.
-        return ladder_answer() if cmd[1:] == ["-s"] else "canned 1.0"
+        # statement about the plugin alone.
+        answer_hook_run(cmd)
+        # Every remaining call is a PATH executable answering --version, and it
+        # answers SUCCESSFULLY - a tool missing from PATH is a different subject.
+        return "canned 1.0"
 
     return run
 
@@ -1470,8 +1485,7 @@ def parallel_lane_checkout(
     monkeypatch.setattr(
         verify_env,
         "resolve_tool",
-        # bash is present because the hooks' ladder (CS-818) is a HARD row.
-        toolchain_which({"git", "node", "gh", "openssl", "bash", *MODULE_BACKED_TOOLS}, root),
+        toolchain_which({"git", "node", "gh", "openssl", *MODULE_BACKED_TOOLS}, root),
     )
     monkeypatch.setattr(verify_env, "resolve_game_dir", lambda: (None, "stubbed"))
     monkeypatch.setattr(verify_env, "resolve_save_root", lambda: None)
