@@ -68,6 +68,13 @@ recorded in `docs/LEDGER.md`, blocked by nothing. Dropping the id to keep the sc
 would have cost the traceability the citation exists for, and narrowing the scan is the
 repair this file's own guard forbids.
 
+CS-700 is MENTIONED because the two notes filed 2026-09-24 at the end of CS-G03 cite it
+as the plan the flip runs, and the dependency runs the other way: CS-G03 waits on
+CS-700, not CS-700 on a gate here. Its irreversible steps S9 and S12 are held by the
+operator confirmation those notes require be typed into this repository's session,
+not by a fence in this file, and MENTIONED leaves the lane's scope exactly as it was
+before the notes named the id.
+
 The four rows carried at the end of the block are MENTIONED here **on purpose and with
 nothing else riding on it**. They are the four that commit `7fbe529` unfenced by deleting
 their numbers from gate prose; naming and classifying them pins that decision in a form a
@@ -81,6 +88,7 @@ gate: CS-9 MENTIONED
 gate: CS-300 MENTIONED
 gate: CS-413 MENTIONED
 gate: CS-501 MENTIONED
+gate: CS-700 MENTIONED
 gate: CS-702 MENTIONED
 gate: CS-703 MENTIONED
 gate: CS-813 MENTIONED
@@ -578,6 +586,36 @@ break on purpose.
 PUBLISHED history, and this section already rules that the published history is generated
 fresh from a squash or an orphan branch, which need not carry them. What the eighteen broke
 was the standing rule and the consequence drawn from it, not the flip.
+
+#### Filed 2026-09-24 (CS-700): ADR 0018 replaces the fresh-history mechanism above
+
+Nothing above is edited. `docs/adr/0018-the-flip-recreates-the-remote-and-keeps-the-commit-graph.md`,
+accepted 2026-09-08, replaced the squash or orphan-branch mechanism of the
+2026-08-13 decision: the remote is deleted and recreated and `main` is pushed
+with its commit graph kept. The eighth precondition's first clause therefore
+reads - the published history is `main` after CS-700 step S7a, which rewrites
+author and committer to the chosen noreply identity and strips every agent
+co-authorship trailer. Its second and third clauses stand unchanged, are
+discharged at S7a, and are proven by the S8 re-scan. The paragraph above holding
+that the eighteen trailer commits do not breach the eighth precondition relied on
+a fresh history and no longer holds - without the S7a strip they would publish.
+Steps and controls: CS-700 in `docs/item_notes/phase7.md`.
+
+#### Filed 2026-09-24 (CS-700): who decides the flip and who performs it
+
+"Operator sign-off" above and in CS-700 S9 is read through `CLAUDE.md` section
+6.1. The DECISION that the gate has cleared is an in-session adjudicator's,
+ruled at a frozen SHA on evidence re-run that session against all eight
+preconditions; a ruling from MAIN may stand in for that decision. The two
+IRREVERSIBLE ACTS - S9, deleting the remote, and S12, making it public - sit
+under the safety floor section 6.1 leaves untouched, so neither an adjudicator
+nor MAIN consents to them: the operator confirms, in their own words typed into
+this repository's session, once, immediately before S9, and that confirmation
+covers S9 through S12 as one run. It lapses if any step's control aborts, if
+the session ends, or if `main` moves past the adjudicated SHA. The session
+agent executes every step; the operator's hands are needed only for a
+credential or scope grant. This confirms a ruled plan and is not a choice put
+to the operator.
 
 ### CS-G04 - Dedicated-server data lane
 

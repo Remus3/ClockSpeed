@@ -134,6 +134,16 @@ the sequencing consequence - every SHA changes, so the preservation bundle must
 be taken and proven restorable BEFORE the rewrite - are in CS-700's plan section
 6 and step S7a. A rewrite undertaken for that reason is not the rewrite this ADR
 rejects, and CS-701 is the same surface already filed.
+AMENDED 2026-09-24 by CS-700: the S7a rewrite also STRIPS the agent co-authorship
+trailer. Eighteen commits on `main` carry one, oldest `e9af2df`, newest `5907d45`,
+one trailer each as the final body line; `docs/GATED.md` CS-G03's eighth
+precondition forbids any in the published history, and measurement 1's six axes
+never looked for one. The strip removes that line and the blank line before it
+and changes nothing else: every other message byte, every tree, every parent
+relationship, every date and the commit count are unchanged, so the graph shape
+this ADR keeps is kept. It is not a rewrite on CONTENT grounds and reopens
+nothing this ADR forecloses; it rides on S7a because S7a already changes every
+SHA, so it costs no additional SHA change.
 
 **Revisit if any stated premise changes.** If `main` acquires a dirty commit
 after `c885879`, measurement 1 is stale and the six-axis pass must be re-run

@@ -724,6 +724,14 @@ Controls: a present token expected in the thousands, a synthetic absent token
 expected at 0 on the same pass, path controls on `.md` and `.py`, a commit
 message control. ABORT on any hit outside the S0 allowlist.
 
+**A SEVENTH AXIS, filed 2026-09-24 by CS-1180 under the ADR 0018 amendment:** the
+trailer-shaped census S7a defines, over the publishable closure. The six axes above
+never looked for an agent co-authorship trailer. S1 runs BEFORE S7a strips them, so
+here its hits ARE the population S7a removes: record that count as S7a's pre-rewrite
+control, ABORT if it is zero, and ABORT on any hit in a commit S7a will not rewrite.
+At S8, after the strip, ABORT on any hit at all; the positive control there is the
+same census over the pre-S7a graph returning the pre-S7a count.
+
 **S2 - Search for the player display name.** Derive it without writing it
 anywhere; report a count, never a value. ABORT on any hit.
 
@@ -752,11 +760,25 @@ BUILT - it does not exist.** `tools/drift_guard.py` has `link_targets` and
 `memory/`. Nothing resolves markdown links in `docs/`, `CLAUDE.md`, `README.md`
 or `ROADMAP.md`. Budget a build, not a run.
 
+**CORRECTED 2026-09-24 by CS-1184: the sentence above saying nothing resolves
+markdown links is FALSE.** `.github/workflows/tier1.yml` step `Markdown link check`,
+present since the first commit `9d24823`, resolves every relative markdown link in
+every tracked `.md` file on every push. It strips fragments, never fetches a URL and
+runs no orphan or staleness sweep. So gate item 6's real gap is narrower: the orphan
+sweep, the staleness sweep and the anchor check, which CS-1184 owns. The build
+budgeted here is that, not a link resolver.
+
 **S7 - Gate item 7, and CS-952 closes here.** See section 5.
 
 **S7a - Rewrite commit identity across all 521 commits**, per the ruling in
-section 6. Author and committer only; messages, trees, paths and dates
-unchanged. Controls: assert the rewritten commit COUNT equals the pre-rewrite
+section 6. Author and committer, plus removal of the agent co-authorship trailer
+line and its preceding blank line (ADR 0018, amended 2026-09-24); trees, paths,
+dates, parent topology and every other message byte unchanged. Added controls:
+the trailer-shaped census (a column-zero line whose trimmed token before the
+first colon folds to `co-authored-by`) returns the pre-rewrite count, non-zero,
+BEFORE and zero AFTER; exactly that many commits have a changed message; and for
+each of them the old message minus the stripped lines equals the new message
+byte for byte. Controls: assert the rewritten commit COUNT equals the pre-rewrite
 count, assert every tree SHA is unchanged commit-for-commit - the rewrite must
 touch identity and nothing else - and assert `git log --format='%ae %ce'` yields
 exactly one address across the whole graph, with a pre-rewrite control showing
@@ -766,7 +788,8 @@ before this runs**, because this step invalidates every SHA the remote holds.
 **S8 - RE-RUN S1 AND S2 IN FULL.** S6, S7 and S7a all change `main`.
 **S1 scanned a tree that no longer exists by push time**, and the first draft
 said so in prose while omitting the step. It costs about 7 seconds. This is the
-last check before anything irreversible.
+last check before anything irreversible. The re-run includes S1's seventh axis,
+the trailer census, which must return zero here.
 
 **S9 - Delete the remote repository and RECREATE IT PRIVATE.** The first
 irreversible step, and **it requires the operator's explicit go-ahead at the
@@ -775,6 +798,10 @@ created PRIVATE and explicitly asserted private before S10, so that S12 stays
 the sole publication event; a repo created public would make S10 the publication
 and strand S11's protections. Immediately before S9, re-confirm (1d) with its
 controls - delete-and-recreate is only free while it holds.
+Who decides and who acts is filed in `docs/GATED.md` CS-G03 under "who decides
+the flip and who performs it" (CS-1182): an in-session adjudicator decides
+readiness at a frozen SHA, and the operator's own typed confirmation, once,
+immediately before S9, covers S9 through S12 as one run.
 
 **S10 - Push `main` alone.** No `--mirror`, no `--all`, no `--tags`.
 
@@ -789,6 +816,9 @@ turn on the security features that were all off, and re-enter by hand the 20
 topics, 10 labels, description and homepage that deletion discarded.
 
 **S12 - Flip visibility. Last, and blocked by section 6.**
+Covered by the operator confirmation taken before S9 (CS-G03, CS-1182), which
+lapses if any step's control aborts, if the session ends, or if `main` moves past
+the adjudicated SHA.
 
 #### 4. What deletion costs, stated so it is chosen and not discovered
 
@@ -1417,3 +1447,187 @@ returned, and the arm is red for good. That is fail-closed, the safe direction, 
 restore advice already says to restore BEFORE editing - but a reader who did not has no
 recorded way out. The adjudicator recorded that the recovery through `rm` and a re-`add`
 is unproven; whether it would itself read as a row postdating the seed is NOT measured.
+
+## CS-1180
+
+### Acceptance
+
+`docs/adr/0018-the-flip-recreates-the-remote-and-keeps-the-commit-graph.md` carries
+the 2026-09-24 amendment folding a trailer strip into S7a, as body text on the
+ADR 0016 precedent; CS-700 step S7a states the strip and its three added controls -
+the trailer-shaped census non-zero before and zero after, exactly that many changed
+messages, and each old message minus the stripped lines byte-equal to the new one;
+S1 carries the census as a seventh axis and S8 re-runs it expecting zero, with the
+pre-S7a count as its positive control; the census definition is worded identically
+wherever it appears; and `tools/drift_guard.py` exits 0 on the result. Running the
+strip is CS-700's, not this item's.
+
+### Full headline
+
+eighteen commits on `main` carry an agent co-authorship trailer that the kept-graph flip would publish
+
+### FILED 2026-09-24, from the N0 adjudicator ruling at `599528c`
+
+The ruling measured the trailer-shaped census at `599528c` and confirmed the
+recon's count: one trailer per commit, each the last body line after a blank
+separator, no merges. A plain body grep returns one more, and that extra commit
+is PROSE naming the trailer, not a trailer - which is why the census is defined
+by position and token rather than by substring.
+
+ADR 0018's measurement 1 and CS-700's S1 share one six-axis needle set, and a
+trailer is on none of the six axes, so every "commit messages clean" claim in
+both was blind to it by construction. The kept-graph decision therefore
+re-exposed trailers the 2026-08-13 operator decision in CS-G03 forbids from the
+published history. Ruled: strip at S7a, because S7a already changes every SHA;
+accepting the trailers was the runner-up and lost to the older, more specific,
+never-withdrawn operator decision.
+
+## CS-1181
+
+### Acceptance
+
+`docs/GATED.md` CS-G03 carries a note appended after its CS-702 section and before
+`### CS-G04`, under a heading led by a provenance verb so guard (g) stays green,
+stating that ADR 0018 replaced the squash or orphan-branch mechanism, how the
+eighth precondition's first clause now reads, that its other two clauses are
+discharged at S7a and proven by the S8 re-scan, and that the paragraph holding the
+trailer commits harmless no longer holds; no dated text above it is edited; and
+`tools/drift_guard.py` exits 0 on the result.
+
+### Full headline
+
+CS-G03 still says the flip ships from a fresh history and never cites ADR 0018
+
+### FILED 2026-09-24, from the N0 adjudicator ruling at `599528c`
+
+CS-G03's 2026-08-13 heading, its eighth precondition and the CS-702 section's
+closing paragraph all rest on a history generated fresh. ADR 0018 retired that
+mechanism on 2026-09-08 and nothing re-read the paragraph, and CS-G03 carried no
+reference to ADR 0018 at all when the ruling probed it. CS-G03 is what a flip
+session reads first, so two owners disagreeing there is the dangerous place for it.
+
+## CS-1182
+
+### Acceptance
+
+`docs/GATED.md` CS-G03 carries a note after the CS-1181 note splitting the flip three
+ways - an in-session adjudicator DECIDES readiness at a frozen SHA on evidence it
+re-runs against all eight preconditions, with a MAIN ruling able to stand in for
+that decision only; the operator CONFIRMS the irreversible acts in their own words
+typed into this repository's session, once, immediately before S9, covering S9
+through S12 and lapsing on an aborted control, a session end or `main` moving past
+the adjudicated SHA; the session agent ACTS, with the operator's hands needed only
+for a credential or scope grant - and CS-700 steps S9 and S12 each carry one line
+pointing at it.
+
+### Full headline
+
+CS-G03 and CS-700 S9 ask for an operator sign-off with no split between deciding the flip and confirming its irreversible acts
+
+### FILED 2026-09-24, from the N0 adjudicator ruling at `599528c`
+
+`CLAUDE.md` section 6.1 routes decisions to an adjudicator and lets MAIN stand in
+for them, but lifts no safety floor for destructive or irreversible acts and never
+stands in for the operator's hands. S9 deletes the remote and S12 makes it public;
+both are irreversible and outward-facing. The runner-up - an adjudicator grant
+alone suffices - lost because the same section names that floor and CS-G03 calls
+its own gate necessary and not sufficient. Whether the operator reads the MAIN
+clause's floor the same way is recorded by the ruling as a residual.
+
+## CS-1183
+
+### Acceptance
+
+one manually dispatched entry point (CI workflow_dispatch or a tools script) runs
+checks 1-7 against a NAMED ref and exits non-zero on any failure; every check
+carries a positive control in its own command family and reports its skip count;
+it never runs on push. It is the S1/S8 executor, so it includes the CS-1180
+trailer axis.
+
+### Full headline
+
+the seven tier-3 flip checks have no runnable job
+
+### FILED 2026-09-24, from the N0 adjudicator ruling at `599528c`
+
+CS-G03's PREP half demands every one of the checks exist as a runnable job long
+before the flip, and no open item built any of them - CS-700 names them only as an
+umbrella, and an umbrella item hides its weakest member. The tail of
+`.github/workflows/tier2.yml` defers tier 3 until phase 7, and phase 7 is now the
+goal, so that deferral has expired.
+
+## CS-1184
+
+### Acceptance
+
+a tool reports every tracked md file reachable from no other tracked file and not
+on a named allowlist, and every fragment matching no heading in its target, each
+proven RED on a synthetic orphan and a synthetic dead anchor; external URLs are
+checked only in the tier-3 job, never on push.
+
+### Full headline
+
+no orphan or staleness sweep and no anchor check over tracked markdown
+
+### FILED 2026-09-24, from the N0 adjudicator ruling at `599528c`
+
+Relative-link resolution is ALREADY covered: `.github/workflows/tier1.yml` step
+`Markdown link check`, present since the first commit, resolves every relative
+markdown link in every tracked `.md` file. It strips fragments, never fetches a URL
+and runs no orphan or staleness sweep. CS-700 S6's sentence saying nothing resolves
+markdown links is false, and the correction is appended beneath it in CS-700. The
+gap this item owns is the narrower remainder of gate item 6.
+
+## CS-1185
+
+### Acceptance
+
+every runtime and dev dependency in pyproject.toml and shell/package.json, direct
+and transitive, has a CONVENTIONS s14 verdict recorded with its copyright LINE
+read; THIRD_PARTY.md matches that set exactly; a check goes RED on a synthetic
+undeclared dependency. ADR 0013 is consumed, not re-derived.
+
+### Full headline
+
+the third-party licence audit covers Electron only
+
+### FILED 2026-09-24, from the N0 adjudicator ruling at `599528c`
+
+CS-G03 records `docs/adr/0013-electron-licence-gate.md` as the audit's first and
+only verdict. CS-700 S6 names the audit as gate item 3 and no open item builds it.
+
+## CS-1186
+
+### Acceptance
+
+an agent given only a fresh clone and README.md, on a machine with no game
+installed, reaches the stated first result using only the commands README gives;
+every deviation is recorded and fixed in README, and the walk is repeated clean.
+
+### Full headline
+
+README.md has never been walked from zero to a first result
+
+### FILED 2026-09-24, from the N0 adjudicator ruling at `599528c`
+
+Gate item 5. CS-700 S6 names it and no open item performs it.
+
+## CS-1187
+
+### Acceptance
+
+in a disposable environment with no prior clone, no hooks path, no user-scope agent
+settings and no project cache (e.g. Windows Sandbox), a fresh clone plus the
+docs/OPERATIONS.md bootstrap yields verify_env exit 0, armed hooks proven by a
+staged violation leaving HEAD unmoved, and a green tier-1 suite.
+
+### Full headline
+
+the clean-checkout probe has never run on a machine that has never seen the project
+
+### FILED 2026-09-24, from the N0 adjudicator ruling at `599528c`
+
+Gate item 7. CS-700 section 5 records that it FAILS today; CS-938 is one known
+cause, not the probe. The `clean-checkout-probe` job in
+`.github/workflows/tier2.yml` says in its own comment that it is NOT a substitute,
+because a runner is not a machine that has never seen the project.

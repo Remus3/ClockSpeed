@@ -366,3 +366,11 @@ CS-1178 - a usage-limit refusal ends a headless queue run in about five seconds,
 CS-1179 - probe the recovery from a delete-edit-restore permanent red in the provenance re-seed arm - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1168 - every credential-scanning population in this tree is REPO-SCOPED - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1174 - `PLACEHOLDER_RE` treats a non-ASCII letter as a delimiter, and no behavioural arm puts a digit beside a member - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
+CS-1180 - eighteen commits on `main` carry an agent co-authorship trailer that the kept-graph flip would publish - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
+CS-1181 - CS-G03 still says the flip ships from a fresh history and never cites ADR 0018 - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
+CS-1182 - CS-G03 and CS-700 S9 ask for an operator sign-off with no split between deciding the flip and confirming its irreversible acts - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
+CS-1183 - the seven tier-3 flip checks have no runnable job - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
+CS-1184 - no orphan or staleness sweep and no anchor check over tracked markdown - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
+CS-1185 - the third-party licence audit covers Electron only - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
+CS-1186 - README.md has never been walked from zero to a first result - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
+CS-1187 - the clean-checkout probe has never run on a machine that has never seen the project - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
