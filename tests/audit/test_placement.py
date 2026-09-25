@@ -56,8 +56,15 @@ IDENTITY_SCALE: Final = (1.0, 1.0, 1.0)
 #: UNIT QUATERNION (CS-1021): the placement model transcribes and never
 #: normalises, so a non-unit value grades that transcription exactly as well as
 #: a unit one would. It is a needle, not an orientation the game produces.
-PLANTED_ROTATION: Final = (0.5, -0.25, 0.125, 0.8125)
-PLANTED_SCALE: Final = (2.0, 0.5, -1.5)
+#:
+#: RE-PICKED UNDER CS-1037, WITH ``PLANTED_SCALE``. The earlier pair shared
+#: ``0.5``, so the float sweep's membership control for one of seven components
+#: was satisfied by the other block. Every component below is now a distinct
+#: multiple of 1/32 with a distinct magnitude, none of whose renderings contains
+#: another - ``test_every_planted_needle_is_unique_to_the_value_it_proves``
+#: measures that rather than trusting it.
+PLANTED_ROTATION: Final = (0.40625, -0.28125, 0.15625, 0.84375)
+PLANTED_SCALE: Final = (2.21875, 0.71875, -1.34375)
 
 #: The component counts each orientation block carries. Named so an arm states
 #: its expectation rather than comparing two collections that are both empty.
@@ -999,13 +1006,38 @@ def test_no_orientation_component_reaches_the_model_as_a_float() -> None:
     components = [item for item in walked if isinstance(item, str)]
 
     # The live control. Every planted component must be present as a STRING, so
-    # a model that dropped the blocks fails here rather than passing below.
+    # a model that dropped the blocks fails here rather than passing below -
+    # and present EXACTLY ONCE (CS-1037), because membership is satisfied by a
+    # sibling: while a rotation and a scale component shared ``0.5``, a model
+    # that dropped that rotation component still passed off the scale.
     planted = tuple(repr(part) for part in (*PLANTED_ROTATION, *PLANTED_SCALE))
-    absent = [part for part in planted if part not in components]
-    assert absent == [], "the sweep found no orientation, so it is vacuous: " + str(absent)
+    miscounted = [part for part in planted if components.count(part) != 1]
+    assert miscounted == [], "planted components absent or ambiguous: " + str(miscounted)
 
     assert [item for item in walked if type(item) is float] == []
     assert [item for item in reachable(model) if type(item) is float] != []
+
+
+def test_every_planted_needle_is_unique_to_the_value_it_proves() -> None:
+    """CS-1037. No planted component may share, or contain, another's rendering.
+
+    Both planted families are swept together, because the collision this repairs
+    was ACROSS them: a rotation component and a scale component rendered the
+    same string. Containment is refused as well as equality, since a control
+    that hunts a substring is satisfied by any rendering that contains it.
+    """
+    families = {"rotation": PLANTED_ROTATION, "scale": PLANTED_SCALE}
+    needles = [(family, repr(part)) for family, parts in families.items() for part in parts]
+    swept = len(needles)
+    assert swept == ROTATION_COMPONENTS + SCALE_COMPONENTS, "needles swept: " + str(swept)
+
+    clashes = [
+        (first, second)
+        for index, (_family, first) in enumerate(needles)
+        for other, (_sibling, second) in enumerate(needles)
+        if index != other and first in second
+    ]
+    assert clashes == [], "planted renderings that equal or contain another: " + str(clashes)
 
 
 def test_widening_the_model_did_not_widen_what_it_withholds() -> None:

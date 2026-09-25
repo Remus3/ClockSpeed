@@ -646,6 +646,32 @@ def served_orientation_components(served: str) -> list[str]:
     return found
 
 
+def served_string_leaves(data: object) -> list[str]:
+    """Every string VALUE in a decoded body, wherever it sits.
+
+    The exact-value count a needle is compared against: a needle whose
+    substring count in the served text exceeds this is contained in some other
+    served string, which is the CS-1025 defeat.
+
+    Args:
+        data: The decoded body.
+
+    Returns:
+        The string values, keys excluded, in walk order.
+    """
+    found: list[str] = []
+    pending: list[object] = [data]
+    while pending:
+        value = pending.pop(0)
+        if isinstance(value, dict):
+            pending.extend(value.values())
+        elif isinstance(value, list):
+            pending.extend(value)
+        elif isinstance(value, str):
+            found.append(value)
+    return found
+
+
 def assert_needle_occurrences(served: str, needle: str, expected: int, reason: str) -> None:
     """Assert a needle appears EXACTLY ``expected`` times in the served body.
 
@@ -1416,6 +1442,53 @@ def test_every_orientation_needle_is_unique_to_the_value_it_proves() -> None:
     ambiguous = [str(part) for part in components if served.count(str(part)) != ONE_OCCURRENCE]
     assert ambiguous == [], "orientation renderings that are not unique on the wire: " + str(
         ambiguous
+    )
+
+
+def test_every_needle_family_is_unique_to_the_value_it_proves() -> None:
+    """CS-1037. The uniqueness rule covers EVERY needle family, not orientation alone.
+
+    The translations are needle-eligible too - an anti-vacuity control drawn
+    from one is exactly as exposed as one drawn from a rotation - and the arm
+    above never swept them. Three measurements, over all three families:
+
+    - No rendering equals or contains another, across families as well as
+      within one. The CS-1025 collision was across two families.
+    - On the wire, a needle's SUBSTRING count equals its EXACT-VALUE count, so
+      no other served string contains it.
+    - Every exact occurrence is EXPLAINED: one in its own row, plus one per
+      bound it sets. That is why a translation appears twice - the bounds echo
+      it - and why ``BUILT_TRANSLATION[0]`` can serve as the helper's planted
+      ambiguity below: its second occurrence is its own value, measured here,
+      rather than a colliding one.
+    """
+    served = served_body()
+    data = json.loads(served)["data"]
+    families = {
+        "translation": NODE_TRANSLATION + BUILT_TRANSLATION,
+        "rotation": BUILT_ROTATION + NODE_ROTATION,
+        "scale": BUILT_SCALE + NODE_SCALE,
+    }
+    needles = [str(part) for parts in families.values() for part in parts]
+
+    clashes = [
+        (first, second)
+        for index, first in enumerate(needles)
+        for other, second in enumerate(needles)
+        if index != other and first in second
+    ]
+    assert clashes == [], "needle renderings that equal or contain another: " + str(clashes)
+
+    exact = served_string_leaves(data)
+    impure = [needle for needle in needles if served.count(needle) != exact.count(needle)]
+    assert impure == [], "needles another served string contains: " + str(impure)
+
+    bounds = list(mapping_of(data, "bounds").values())
+    unexplained = [
+        needle for needle in needles if exact.count(needle) != ONE_OCCURRENCE + bounds.count(needle)
+    ]
+    assert unexplained == [], "needles served more often than row and bounds explain: " + str(
+        unexplained
     )
 
 
