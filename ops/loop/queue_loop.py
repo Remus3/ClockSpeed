@@ -264,6 +264,28 @@ DEFAULT_MAX_CONSECUTIVE_LAUNCH_FAILURES = 3
 #: for each one has no bearing on that.
 DEFAULT_MAX_CONSECUTIVE_UNPRODUCTIVE = 3
 
+#: CS-1178 - THE BACK-OFF AFTER A USAGE-LIMIT REFUSAL, in place of the settle.
+#: A NAMED CONSTANT IN THIS FILE, not a key in `ops/loop/config.json`: that file
+#: is gitignored and machine-local, absent from every worktree, so a value held
+#: there would be a value no arm and no reviewer can see. One hour because the
+#: settle is sized for a push to land and a limit is not: a rolling limit that
+#: lifts within a few hours is retried inside the same night, while a weekly
+#: one costs at most `MAX_CONSECUTIVE_USAGE_REFUSALS` one-turn, zero-cost probes
+#: before the night ends, instead of one refused launch every 45 seconds.
+USAGE_LIMIT_BACKOFF_S = 3600
+#: Consecutive usage-limit refusals before the night ends. The same "one real
+#: refusal plus two chances for it to lift" sizing as the counters above; a
+#: refused run is not a cycle, so without this bound a limit that never lifts
+#: would back off and re-arm for ever.
+MAX_CONSECUTIVE_USAGE_REFUSALS = 3
+#: The HTTP status of a usage-limit refusal, as the run's result reports it in
+#: `api_error_status`.
+USAGE_LIMIT_STATUS = 429
+#: How much of a worker log's END is read for its result. The result line is the
+#: worker's last output, and a bounded tail keeps a multi-megabyte log from
+#: being read whole on the cycle's own path.
+_RESULT_TAIL_BYTES = 64 * 1024
+
 #: THE DRIVER'S OWN COPY of `lane_launcher.LAUNCH_REASONS`, duplicated on
 #: purpose. `_fault`'s structural rule is that this module renders whole only an
 #: exception type IT defines, because it BUILDS that message - and a promise
@@ -557,6 +579,21 @@ OUTCOME_LAUNCH_FAILED = "launch_failed"
 OUTCOME_KILL_FAILED = "timeout_kill_failed"
 #: A fault `run_cycle` did not convert into an outcome of its own.
 OUTCOME_ERROR = "error"
+#: CS-1178 - REFUSED, NOT RUN. The worker was launched and the account refused
+#: it before it did any work: an error flag, an `api_error_status` of 429, and
+#: no evidence of work - at most one turn, no cost. Distinct from `completed`,
+#: which is a run that happened, and from a crashed executor, which leaves no
+#: result at all and so still reads as `completed`: the driver cannot see why a
+#: worker with no result stopped, and does not invent a reason it cannot observe.
+#: NOT A CYCLE - `run_loop` backs off and refunds it rather than spending the
+#: night's budget on it.
+OUTCOME_USAGE_REFUSED = "usage_refused"
+#: The row's own wording for a refused run - a literal, because nothing the
+#: worker wrote is rendered into the durable row.
+_USAGE_REFUSED_DETAIL = (
+    "REFUSED, NOT RUN - the run's result carries api_error_status 429 with no "
+    "evidence of work; not counted as a cycle"
+)
 
 #: THE OUTCOMES THAT COUNT AS A CYCLE HAVING HAPPENED - an ALLOWLIST, and the
 #: allowlist is the mechanism. The invariant is "no sequence of outcomes in
@@ -590,6 +627,10 @@ STOPPED_BY_SUITE_RED = "suite_red"
 #: This one fires on a MIXED night that completes nothing - the pattern neither
 #: specific counter can see, because each keeps resetting the other.
 STOPPED_BY_NO_PROGRESS = "no_progress"
+#: CS-1178. Its own word, not `consecutive_launch_failures`: a lane that cannot
+#: start is a fault in this tree, and a usage limit is the account saying no -
+#: the first is repaired here, the second is waited out.
+STOPPED_BY_USAGE_LIMIT = "usage_limit"
 
 #: Process exit codes, distinct on purpose: a launcher and any future scheduled
 #: task can only tell "ran the night" from "refused to start" by the number.
@@ -603,6 +644,7 @@ EXIT_SUITE_RED = 7  # the driver's own local suite went red
 EXIT_CONSECUTIVE_LAUNCH_FAILURES = 8  # the lane refused to start, over and over
 EXIT_NO_PROGRESS = 9  # cycles happened and none of them shipped
 EXIT_UNKNOWN_STOP = 10  # a stop word in no table - never read one as success
+EXIT_USAGE_LIMIT = 11  # the account refused every run until the back-off gave up
 
 
 #: The row's own wording for an unreadable lane HEAD. A CONSTANT because
@@ -2353,6 +2395,94 @@ def _await_death(pid, started, *, alive, stranger, kill_grace_s, poll_s, sleep, 
         sleep(step)
 
 
+def _worker_result(log: object) -> dict | None:
+    """The worker's RESULT object, read off the END of its log, or None.
+
+    CS-1178. The driver's only other channel to a worker is its pid, and a pid
+    cannot say why the process stopped. The run's result can: a headless run
+    asked for JSON output emits it as one object with `"type": "result"`, and
+    `ops/loop/run_lane.ps1` appends everything the run emits to this log.
+
+    DORMANT UNTIL THE RUNNER ASKS FOR IT. The runner as it stands invokes the
+    run with its default TEXT output, which carries no result object, so every
+    real log answers None here and every real refusal still reads as a run that
+    happened. This reader and `_is_usage_refusal` are the driver's half; the
+    runner's half - requesting JSON output - is outside this module.
+
+    READ, NEVER RENDERED. What this returns is used only to CLASSIFY - see
+    `_is_usage_refusal` - and no field of it is copied into a row, because the
+    log is worker-authored text that can carry a path.
+
+    NEVER RAISES, and reads only an ABSOLUTE path: the real launcher returns
+    one, and a relative placeholder from an injected fake must not make the
+    driver read whatever sits in its working directory. A missing, unreadable,
+    empty or garbled log answers None, which the caller treats as a run that
+    happened - the status quo, and the side to err on.
+
+    Args:
+        log: The `log` field of the launcher's answer. Any object.
+
+    Returns:
+        The LAST result object in the log's final `_RESULT_TAIL_BYTES`, or None.
+    """
+    if type(log) is not str or not log.strip():
+        return None
+    path = Path(log)
+    if not path.is_absolute():
+        return None
+    try:
+        with path.open("rb") as fh:
+            fh.seek(0, os.SEEK_END)
+            size = fh.tell()
+            fh.seek(max(0, size - _RESULT_TAIL_BYTES))
+            tail = fh.read()
+    except OSError:
+        return None
+    text = tail.decode("utf-8", errors="replace")
+    for line in reversed(text.splitlines()):
+        candidate = line.strip().lstrip("\ufeff")
+        if not candidate.startswith("{"):
+            continue
+        try:
+            parsed = json.loads(candidate)
+        except ValueError:
+            continue
+        if type(parsed) is dict and parsed.get("type") == "result":
+            return parsed
+    return None
+
+
+def _is_usage_refusal(result: object) -> bool:
+    """True when a run's result is a USAGE-LIMIT REFUSAL rather than a run.
+
+    THE SHAPE, field by field: the error flag set, an `api_error_status` of
+    exactly `USAGE_LIMIT_STATUS` as an int, and NO EVIDENCE OF WORK - at most
+    one turn and no cost. The work fields are DISQUALIFIERS when present rather
+    than requirements, so a result that omits one is still read by the fields it
+    does carry; but a 429 that arrived after real turns or real cost is a run
+    that happened and was then throttled, and work may be on disk, so it is
+    never relabelled as one that did not run.
+
+    Exact types throughout: `True` is an int and `"429"` is not a status.
+
+    Args:
+        result: What `_worker_result` answered. Any object.
+
+    Returns:
+        True only for the refusal's shape.
+    """
+    if type(result) is not dict or result.get("is_error") is not True:
+        return False
+    status = result.get("api_error_status")
+    if type(status) is not int or status != USAGE_LIMIT_STATUS:
+        return False
+    turns = result.get("num_turns")
+    if turns is not None and (type(turns) is not int or turns > 1):
+        return False
+    cost = result.get("total_cost_usd")
+    return cost is None or (type(cost) in (int, float) and cost == 0)
+
+
 #: The fallback token when the surface module itself cannot be bound. The
 #: watcher's spelling, restated ONLY for the case where that module is the thing
 #: that failed to load.
@@ -2408,6 +2538,7 @@ def run_cycle(  # noqa: PLR0913, PLR0912, PLR0915 - see THE SEAMS ARE THE POINT
     kill=_taskkill,
     observe=_noop,
     surface=None,
+    result_of=_worker_result,
     emit=_emit,
     sleep=time.sleep,
     clock=time.time,
@@ -2596,6 +2727,12 @@ def run_cycle(  # noqa: PLR0913, PLR0912, PLR0915 - see THE SEAMS ARE THE POINT
                 # looked at, and a cycle nobody looked at must not read like one
                 # that was checked and found clean.
                 observe()
+                # CS-1178 - DID IT RUN AT ALL. Only a worker that EXITED on its
+                # own is asked: a killed one is a run that happened, whatever
+                # its log says. A refusal's row carries this module's literal,
+                # never the result it was read off.
+                if outcome == OUTCOME_COMPLETED and _is_usage_refusal(result_of(run.get("log"))):
+                    outcome, detail = OUTCOME_USAGE_REFUSED, _USAGE_REFUSED_DETAIL
     finally:
         # Every path, including an exception nobody predicted. The release runs
         # BEFORE that exception escapes, because a driver that dies holding the
@@ -2708,7 +2845,15 @@ def run_loop(  # noqa: PLR0913, PLR0912, PLR0915 - see THE SEAMS ARE THE POINT
     consecutive_unproductive = 0
     unproductive_limit = max(1, int(max_consecutive_unproductive))
     total = max(0, int(max_cycles))
-    for cycle in range(1, total + 1):
+    consecutive_usage_refusals = 0
+    usage_refusal_limit = max(1, int(MAX_CONSECUTIVE_USAGE_REFUSALS))
+    # A `while`, not a `for`, because CS-1178 REFUNDS a refused run: the cycle
+    # number is decremented before the loop comes round again, which a `range`
+    # cannot express. Bounded all the same - every refund is one of at most
+    # `usage_refusal_limit - 1` consecutive ones, and any other outcome spends.
+    cycle = 0
+    while cycle < total:
+        cycle += 1
         reason = stop_reason(control_dir)
         if reason:
             stopped_by = reason
@@ -3020,6 +3165,30 @@ def run_loop(  # noqa: PLR0913, PLR0912, PLR0915 - see THE SEAMS ARE THE POINT
             f"{record['duration_s']}s{note} {record['detail']}".rstrip()
         )
 
+        # CS-1178 - A REFUSED RUN IS NOT A CYCLE, AND THE DRIVER BACKS OFF.
+        # Checked BEFORE the counters below, so a refusal neither advances the
+        # launch-failure or no-progress counters nor resets them: it is not a
+        # judgement on this tree. Its row is already written above - the
+        # refusal is recorded, not hidden.
+        if record["outcome"] == OUTCOME_USAGE_REFUSED:
+            consecutive_usage_refusals += 1
+            if consecutive_usage_refusals >= usage_refusal_limit:
+                stopped_by = STOPPED_BY_USAGE_LIMIT
+                emit(
+                    f"queue-loop stop: {consecutive_usage_refusals} consecutive usage "
+                    f"limit refusals - not re-arming against a limit that has not lifted"
+                )
+                break
+            emit(
+                f"queue-loop backoff: usage limit refusal {consecutive_usage_refusals}/"
+                f"{usage_refusal_limit} - sleeping {USAGE_LIMIT_BACKOFF_S}s, and the "
+                f"refused run does not spend cycle {cycle}"
+            )
+            sleep(USAGE_LIMIT_BACKOFF_S)
+            cycle -= 1
+            continue
+        consecutive_usage_refusals = 0
+
         if verdict and verdict["verdict"] == CI_FAILURE:
             # HARD STOP, and the only CI verdict that is one. Every further
             # cycle would push another row on top of a break nobody is
@@ -3155,6 +3324,7 @@ _STOP_EXIT = {
     STOPPED_BY_NO_PROGRESS: EXIT_NO_PROGRESS,
     STOPPED_BY_CI_RED: EXIT_CI_RED,
     STOPPED_BY_SUITE_RED: EXIT_SUITE_RED,
+    STOPPED_BY_USAGE_LIMIT: EXIT_USAGE_LIMIT,
 }
 
 #: THE CLOSED SET OF WORDS PERMITTED TO EXIT 0 - and it is closed because the
