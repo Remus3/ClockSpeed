@@ -75,6 +75,15 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-09-25 - CS-955 - FROZEN-FILE GRANT ADDENDUM. NOT A COMPLETION RECORD. NOTHING CLOSED. CS-955 STAYS OPEN. Granted by an adjudicator BEFORE the edit, widening G-955 on `.githooks/pre-commit` to the index-snapshot route
+Verification: this record is the grant addendum; CS-955 closes under its own later entry. The adjudicator wrote none of the work and may not close it. Refuted candidate `1d533fe`: an index entry removed while the gate ran and restored before the second listing (ABA) was never seen, and the file committed ungraded.
+
+SCOPE, ADDED. File: `.githooks/pre-commit` ONLY; `tools/precommit_gate.py` stays DENIED for CS-955. Permitted: after the CS-818 ladder, an EXIT trap plus a HUP/INT/TERM trap that exits, removing only the snapshot of this run; a `mktemp` snapshot whose name starts `cs-precommit-index.` inside `git rev-parse --absolute-git-dir`; a `cp` of `$GIT_INDEX_FILE` (else `git rev-parse --git-path index`) into it; a snapshot listing before the gate, replacing the live one; the gate capture changed ONLY to export `GIT_INDEX_FILE` to the snapshot INSIDE its command-substitution subshell; after the gate-ran proof, refuse unless the snapshot re-listing, the pre-gate snapshot listing and the live listing are identical `git ls-files -s` output; comments. FORBIDDEN: any index-writing command against either file, a prefix assignment on the `cs_python` function call, a snapshot outside the git dir, a glob sweep. Every byte-identical region of the original G-955 grant stays byte-identical.
+
+CONDITIONS. The original G-955 conditions stand. Added: the test stand-in receives the live index path from the test, not the hook; an ABA arm, a write-to-snapshot arm, a worktree-only violation arm under `-a` and pathspec with the real gate, a no-snapshot-left arm on every exit path, and a snapshot-location arm, each across plain, `-a` and pathspec with a committing control; mutants (gate reads live index, source is `.git/index`, compare removed, trap removed, export leaks to the parent, snapshot under TMP) each asserted applied and killed; windows and ubuntu skip counts read; the closing entry states the SIGTERM-mid-gate measurement.
+
+BLAST RADIUS. Every commit in every worktree. Failures are loud refusals; the silent failure (grading the live index again) is what the mutants must kill. DECLARED: the window after the last listing of the hook, and a snapshot left in the git dir by a SIGKILL.
+
 ### 2026-09-25 - CS-955, CS-1174 - FROZEN-FILE GRANT. NOT A COMPLETION RECORD. NOTHING CLOSED. CS-955 AND CS-1174 STAY OPEN and this entry does not close them. Granted by an adjudicator BEFORE the edit, and CS-955 is NARROWED to the hook
 Verification: this record is the grant, and each repair closes under its own later entry. The grant adjudicator wrote none of the work and may not close either item. Base `c6f36874194aeed450c6d75a93be883f72c8f45e`.
 
