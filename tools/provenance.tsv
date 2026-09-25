@@ -262,6 +262,7 @@ tests/ops/test_shared_slots.py	authored	CS-946	first-add:CS-946
 tests/ops/test_suite_ration.py	authored	CS-993	first-add:CS-993
 tests/ops/test_usage_limit_refusal.py	authored	CS-1178	stamped
 tests/pathless_clone_guard.py	authored	CS-885	first-add:CS-885
+tests/pre_push_floor.py	authored	CS-824	stamped
 tests/repr_rendering_guard.py	authored	CS-852	first-add:CS-852
 tests/save/__init__.py	authored	CS-1165	first-add:root
 tests/save/independent_table.py	authored	CS-829	first-add:CS-829
@@ -360,6 +361,8 @@ tests/test_chained_exemption_guard.py	authored	CS-857	first-add:CS-857
 tests/test_channel_doc.py	authored	CS-1095	first-add:CS-1095
 tests/test_citation_guard_shapes.py	authored	CS-811	stamped
 tests/test_citation_tables.py	authored	CS-1066	first-add:CS-1066
+tests/test_commit_msg_cleanup_matrix.py	authored	CS-813	stamped
+tests/test_commit_msg_control_bytes.py	authored	CS-822	stamped
 tests/test_commit_msg_gate.py	authored	CS-702	first-add:CS-702
 tests/test_community_health.py	authored	CS-959	first-add:CS-959
 tests/test_conftest_run_git.py	authored	CS-1116	first-add:CS-1116
@@ -368,6 +371,7 @@ tests/test_cs1166_vendor_prefix_secret.py	authored	CS-1166	first-add:CS-1166
 tests/test_cs1167_credential_canary_coverage.py	authored	CS-1167	first-add:CS-1167
 tests/test_cs1169_placeholder_bounds.py	authored	CS-1169	first-add:CS-1169
 tests/test_cs1172_branch_canaries.py	authored	CS-1172	first-add:CS-1172
+tests/test_cs1174_placeholder_delimiters.py	authored	CS-1174	stamped
 tests/test_cs1175_rule_narrowing.py	authored	CS-1175	stamped
 tests/test_cs1179_reseed_recovery.py	authored	CS-1179	stamped
 tests/test_cs1191_colour_xdist_redaction.py	authored	CS-1191	stamped
@@ -411,9 +415,11 @@ tests/test_pathless_clone_agreement.py	authored	CS-885	first-add:CS-885
 tests/test_pointer_claims.py	authored	CS-937	first-add:CS-937
 tests/test_posttooluse_census.py	authored	CS-845	first-add:CS-845
 tests/test_pre_push_ref_race.py	authored	CS-954	first-add:CS-954
+tests/test_pre_push_suite_floor.py	authored	CS-821	stamped
 tests/test_precommit_gate.py	authored	CS-1165	first-add:root
 tests/test_precommit_gate_lint_cwd.py	authored	CS-946	first-add:CS-946
 tests/test_precommit_gate_stdin_scope.py	authored	CS-957	first-add:CS-957
+tests/test_precommit_index_race.py	authored	CS-955	stamped
 tests/test_pretooluse_gate.py	authored	CS-425	first-add:CS-425
 tests/test_provenance_manifest.py	authored	CS-1165	first-add:CS-1165
 tests/test_provenance_stamp.py	authored	CS-1165	first-add:CS-1165
