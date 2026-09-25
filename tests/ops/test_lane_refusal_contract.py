@@ -30,7 +30,7 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 # A PLAIN IMPORT, never importorskip: a missing driver is a COLLECTION error.
-from ops.loop import queue_loop  # noqa: E402
+from ops.loop import lanes, queue_loop  # noqa: E402
 
 #: A path SEGMENT planted where an account name would sit. A segment carries no
 #: separator, so it survives every escaping a renderer can apply.
@@ -340,3 +340,76 @@ def test_cs1015_a_new_word_or_an_opaque_value_in_a_temp_copy_reddens(tmp_path: P
     words, opaque = _emitted_refusals(indirect.read_text(encoding="utf-8"))
     assert "lane_parked" in _driver_covers(words), "a subscript-store word was not seen"
     assert len(opaque) == 1, f"a non-literal refusal word was not flagged opaque: {opaque}"
+
+
+# ===========================================================================
+# CS-1016 - a REAL worktree collision, driven into run_cycle and onto disk
+# ===========================================================================
+
+
+def test_cs1016_a_real_worktree_collision_is_written_as_one_naming_the_occupant(
+    tmp_path: Path,
+) -> None:
+    """Two lanes, ONE worktree, REAL locks, and the row that reaches the file.
+
+    Every CS-1011 arm fed `run_cycle` a hand-built refusal dict, so what the
+    driver makes of the dict `lanes.try_acquire_lane` ACTUALLY returns was
+    never measured, and CS-1011 exists because a row once said one thing while
+    the driver decided another. Here `queue-b` takes a real lock on a tree,
+    `queue` asks for the same tree through the real acquire, and the bytes
+    `append_record` writes must name the fault and the occupying lane. Because
+    the refusal word is whatever the emitter really answers, this is also
+    CS-1015 end to end: a word renamed in `lanes.py` alone lands here as
+    `lane_held` and reddens the outcome assertion.
+
+    RESOURCE LIFETIME: both locks live under `tmp_path`, the occupant's is
+    released in a `finally`, and the arm proves no lock file and no ownership
+    entry survives it - a leaked entry in `lanes._OWNED` would outlive the test
+    in this process and bias every later arm that reads it.
+    """
+    root = tmp_path / "locks"
+    root.mkdir()
+    shared = tmp_path / "cs-lane-shared"
+    shared.mkdir()
+    occupant = "queue-b"
+    asking = "queue"
+    assert occupant in lanes.LANES
+    assert asking in lanes.LANES
+
+    held = lanes.try_acquire_lane(occupant, run_id="cs1016a", worktree=shared, root=root)
+    token = held.get("token")
+    try:
+        assert held.get("ok") is True, "the occupant could not take its real lock"
+        assert lanes.lane_state(root, None, occupant)["state"] == lanes.RUNNING
+
+        def acquire(lane: str, **kw: Any) -> dict[str, Any]:
+            return lanes.try_acquire_lane(lane, root=root, **kw)
+
+        def release(tok: Any, **_kw: Any) -> bool:
+            return lanes.release_lane(tok, root=root)
+
+        got = _cycle(acquire, worktree=str(shared), lane=asking, release=release)
+        written = _write_and_read_back(got, tmp_path / "cycles.jsonl")
+    finally:
+        lanes.release_lane(token, root=root)
+
+    rows = [json.loads(line) for line in written.splitlines() if line.strip()]
+    assert len(rows) == 1, "the writer did not write exactly one row"
+    row = rows[0]
+    # THE FAULT, as the driver's own word, read off the FILE.
+    assert row["outcome"] == queue_loop.OUTCOME_WORKTREE_IN_USE, (
+        f"a real collision was written as {row['outcome']!r}"
+    )
+    assert row["worker_ok"] is False
+    # THE OCCUPYING LANE, named - and not the asking lane, which holds nothing.
+    assert f"lane {occupant!r}" in row["detail"], "the written row does not name the occupant"
+    assert f"lane {asking!r}" not in row["detail"], "the row names the asking lane as occupant"
+    # The tree's path is on the real refusal and must not ride into the file.
+    assert not _leaked(written, shared.name), "the real refusal's worktree path reached the row"
+
+    # NOTHING LEAKS: the asking lane never got a lock, the occupant's is gone,
+    # and neither lock left an ownership entry behind in this process.
+    leftover = sorted(p.name for p in root.iterdir())
+    assert leftover == [], f"a lock survived the arm: {leftover}"
+    assert lanes.lane_state(root, None, occupant)["state"] == lanes.FREE
+    assert lanes.path_key(token) not in lanes._OWNED  # noqa: SLF001 - the lifetime under test
