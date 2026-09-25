@@ -60,6 +60,21 @@ act, and a note in one tree claiming agreement from three is not one.
    resource constants removed, the docstring retargeted, this project's own mutex names
    added) and says why a byte-identical join was refused. Clockspeed's own bytes are then
    pinned by a digest in Clockspeed's own suite, so this copy cannot drift silently either.
+   AMENDED 2026-09-24 by CS-1160: the upstream sha256 the header names is a statement
+   about HISTORY, and that upstream is now GONE. The CS-1160 census of 2026-09-20 found no
+   copy on this machine carrying the `winmutex.py` digest in Context above; the same census
+   recorded the carriers' shared file at
+   `0b112a4f6bfa88cf5f537f8869225c1821ebfe97428b1e899979797ddd71a61e` - a dated measurement
+   of sibling trees that nothing in this tree grades, recorded here only as that, and never
+   adopted as what this copy was forked from. The header keeps the historical digest,
+   labels it, and declares the upstream GONE with the measured date.
+   `tests/test_lane_lock.py::test_the_forked_mutex_wrapper_names_the_upstream_it_forked_from`
+   grades that claim against this tree's own files and history - reachable and matching,
+   or unreachable and declared GONE - instead of checking the string is present, and reads
+   no sibling copy, so point 3 below still holds. The header edit moved the fork's own
+   bytes, so `tests/test_lane_lock.py::FORKED_WINMUTEX_DIGEST` was re-pinned in the same
+   change. No tracked file declares this fork byte-identical with any other tree, so that
+   re-pin is not a cross-repo event. The decision is unchanged: a fork, not a join.
 
 2. **`slots.py` is NOT copied at all.** The lane needs exactly two things from it - a
    liveness probe and an exclusive-create bucket at one slot - and both are implemented

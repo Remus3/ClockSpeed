@@ -9,10 +9,23 @@ OS namespace, and no resource name is declared here - the caller names its own
 mutex, because a name declared in this file would be a name this file has to
 know the purpose of.
 
-THIS IS A FORK, DECLARED AS ONE. It descends from a file that is
+THIS IS A FORK, DECLARED AS ONE. It descends from a file that was
 BYTE-IDENTICAL-BY-CONTRACT across three sibling repositories, pinned there at
 
-    sha256  f1b4b011112685efb88616c52752657cf896fbb0993b2d2d264e7b3edde8b4f4
+    forked from - historical
+        sha256  f1b4b011112685efb88616c52752657cf896fbb0993b2d2d264e7b3edde8b4f4
+    upstream status  GONE - measured 2026-09-20
+
+The first line is the upstream these bytes were cut from. It is a statement
+about HISTORY and is never bumped to whatever the carriers hold today - this
+copy was not forked from that. The second says the upstream no longer exists to
+compare against: the CS-1160 census of 2026-09-20 found no copy on this machine
+carrying that digest, because the carriers have since moved their shared file.
+The FORK's own digest - a claim about the present - is not restated here, since
+no file can carry its own hash: ``tests/test_lane_lock.py`` owns it as
+``FORKED_WINMUTEX_DIGEST``, and grades the two lines above against what this
+tree can reach. An upstream this tree's files or history carry must match and
+must not be declared GONE; one it cannot reach must be, with the measured date.
 
 WHAT CHANGED:
 

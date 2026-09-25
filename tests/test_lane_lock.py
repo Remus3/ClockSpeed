@@ -3,11 +3,16 @@
 
 WHAT THIS GRADES. ``ops/loop/lanes.py`` decides WHO may run a headless lane. It
 starts nothing, so every arm here is pure state management over a lock file in
-``tmp_path``. NO ARM SPAWNS A PROCESS, SLEEPS, SHELLS OUT TO GIT OR TAKES A REAL
-OS MUTEX, and that is a hard rule rather than a preference: the sibling project
+``tmp_path``. NO ARM SLEEPS, TAKES A REAL OS MUTEX, OR SPAWNS ANY PROCESS BUT
+``git``, and that is a hard rule rather than a preference: the sibling project
 this substrate is ported from shipped two arms that took the real named mutex
 its driver holds, and those arms went red exactly when a lane was running - a
 suite that fails because the feature is working is a suite nobody reads.
+
+THE ONE CHILD, AND WHY IT IS ``git``. Section h grades the fork record's upstream
+claim, and that claim is about HISTORY, so git is its only witness (CS-1160).
+Its children READ this tree's own history, or build and read a throwaway
+repository under ``tmp_path``; none touches a lock, a mutex or a sibling tree.
 
 THE SEAMS, AND WHY THEY ARE MODULE ATTRIBUTES RATHER THAN PARAMETERS. The public
 signatures are fixed by the specification because a driver is being written
@@ -29,18 +34,24 @@ plain local first is what keeps the rendered frame down to a name and a verdict.
 
 from __future__ import annotations
 
+import ast
 import hashlib
 import importlib.util
 import json
 import os
 import re
+import shutil
+import subprocess
 import sys
 from collections.abc import Callable
+from datetime import date
 from pathlib import Path
 from types import ModuleType
 from typing import Any, Final
 
 import pytest
+
+from tests.git_env import scrubbed_env
 
 REPO_ROOT: Final = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
@@ -57,9 +68,10 @@ LANES_MODULE_NAME: Final = "clockspeed_loop_lanes"
 WINMUTEX_MODULE_NAME: Final = "clockspeed_loop_winmutex"
 
 #: The upstream files this repository FORKED FROM and DERIVED FROM, by digest.
-#: Neither upstream file is edited, read at runtime or vendored - the digests
-#: are recorded so the provenance stated in a header can be checked
-#: mechanically instead of believed.
+#: Neither upstream file is edited, read at runtime or vendored. Both are
+#: statements about HISTORY and are never bumped to what a carrier holds today.
+#: The winmutex one is GRADED in section h against what this tree can reach
+#: (CS-1160); the slots one is still checked only for presence in its header.
 UPSTREAM_WINMUTEX_DIGEST: Final = "f1b4b011112685efb88616c52752657cf896fbb0993b2d2d264e7b3edde8b4f4"
 UPSTREAM_SLOTS_DIGEST: Final = "71fa2a683f2eaa04dd61feb2bebc646b5f9086e692c5acc05a9239de49d07d1b"
 
@@ -814,18 +826,347 @@ def _digest(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
-def test_the_forked_mutex_wrapper_names_the_upstream_it_forked_from() -> None:
-    """A fourth copy of a byte-identical shared file is a fork, declared as one.
+# --- CS-1160: the upstream claim is GRADED against what this tree can reach -----------------
+#
+# A fork record makes a claim about HISTORY - the bytes this copy was cut from. The
+# arm that stood here asserted the digest STRING appeared in the header, which stayed
+# green while the thing it described stopped existing anywhere. These arms grade the
+# claim instead: an upstream this tree can reach must match and must not be declared
+# GONE; an upstream it cannot reach is not a failure, but then the header must SAY
+# it is gone and when that was measured. "Reach" means this tree's own files and its
+# own git history - never the machine, a sibling repository or a shared scratch
+# directory - so the grade is the same on CI, a shallow clone and this box.
 
-    The sibling projects pin their copies to one digest and coordinate through
-    the protocol those bytes implement, so joining the pin would mean joining
-    the protocol. This copy is FORKED, and its header carries the upstream
-    digest, the deletions and the reason a byte-identical join was refused.
+#: The one citation a fork record carries, in the shape the header writes it.
+UPSTREAM_CITATION_RE: Final = re.compile(r"sha256\s+([0-9a-f]{64})\b")
+
+#: The declaration that the cited upstream no longer exists to compare against.
+GONE_DECLARATION_RE: Final = re.compile(r"upstream status\s+GONE - measured (\d{4}-\d{2}-\d{2})\b")
+
+#: The two states the claim may be in. Anything else the grader returns is a fault.
+REACHABLE_MATCHES: Final = "reachable and matches"
+UNREACHABLE_DECLARED: Final = "unreachable and declared GONE"
+GRADED_OK: Final = frozenset({REACHABLE_MATCHES, UNREACHABLE_DECLARED})
+
+FAULT_CITATION: Final = "not exactly one upstream citation"
+FAULT_UNDECLARED: Final = "unreachable and NOT declared GONE"
+FAULT_FALSELY_GONE: Final = "reachable but declared GONE"
+FAULT_DATE: Final = "GONE date is not a real, past, measured date"
+
+#: The fork's path relative to any tree the reachability walk is pointed at.
+FORK_RELPATH: Final = "ops/loop/winmutex.py"
+
+#: Seconds allowed for each git child this section starts. A hang is RED.
+GIT_TIMEOUT: Final = 30
+
+#: Planted bytes for the throwaway repositories. Neither is real upstream content.
+PLANTED_UPSTREAM: Final = b'"""A planted upstream mutex wrapper."""\n'
+PLANTED_FORK: Final = b'"""A planted fork of it."""\n'
+MEASURED_ON: Final = "2026-09-20"
+
+
+def _git_child_env() -> dict[str, str]:
+    """This process's environment made safe for a git child that only reads.
+
+    Repository-locating and config-injecting variables are scrubbed
+    (``tests/git_env.py``), replace refs are ignored so a local graft cannot
+    forge history, and a partial clone may not fetch a missing blob over the
+    network - an absent blob is absent history, which is UNREACHABLE.
     """
-    header = WINMUTEX_SOURCE.read_text(encoding="utf-8")
-    states_fork = "FORKED" in header
-    names_upstream = UPSTREAM_WINMUTEX_DIGEST in header
-    assert (states_fork, names_upstream) == (True, True)
+    env = scrubbed_env()
+    env["GIT_NO_REPLACE_OBJECTS"] = "1"
+    env["GIT_NO_LAZY_FETCH"] = "1"
+    env["GIT_TERMINAL_PROMPT"] = "0"
+    return env
+
+
+def _git_read(root: Path, *args: str) -> bytes | None:
+    """Run a read-only git subcommand in ``root``; None when git cannot answer.
+
+    None covers no git program and a non-zero exit (not a repository, a missing
+    object), because each of those is history this tree cannot reach, and an
+    unreachable upstream is not a failure. A HANG is red, never a skip.
+    """
+    try:
+        proc = subprocess.run(
+            ["git", "--no-replace-objects", "-C", str(root), *args],
+            capture_output=True,
+            timeout=GIT_TIMEOUT,
+            check=False,
+            env=_git_child_env(),
+        )
+    except subprocess.TimeoutExpired:
+        pytest.fail(f"git {args[0]} timed out after {GIT_TIMEOUT}s - never a skip")
+    except FileNotFoundError:
+        return None
+    if proc.returncode != 0:
+        return None
+    return proc.stdout
+
+
+def _owns_history(root: Path) -> bool:
+    """Whether ``root`` is itself the top of a git work tree.
+
+    A directory that merely sits INSIDE some other repository has no history of
+    its own, and reading the enclosing one would grade a tree nobody named.
+    """
+    top = _git_read(root, "rev-parse", "--show-toplevel")
+    return top is not None and Path(top.decode("utf-8").strip()).samefile(root)
+
+
+def _history_blobs(root: Path, relpath: str) -> list[str]:
+    """Every blob id ever recorded at ``relpath`` in the history of ``root``."""
+    log = _git_read(
+        root,
+        "log",
+        "--all",
+        "--full-history",
+        "--no-renames",
+        "--format=",
+        "--raw",
+        "--no-abbrev",
+        "--",
+        relpath,
+    )
+    blobs: set[str] = set()
+    for line in (log or b"").decode("utf-8").splitlines():
+        if line.startswith(":"):
+            fields = line.split("\t", 1)[0].split()
+            blobs.update(oid for oid in fields[2:4] if oid.strip("0"))
+    return sorted(blobs)
+
+
+def _reachable_digests(root: Path, relpath: str) -> frozenset[str]:
+    """The sha256 of every copy of the fork's file this tree can reach.
+
+    Two sources, both inside the tree: every blob its own history ever
+    recorded at ``relpath``, and every file in its work tree carrying the same
+    basename. A shallow clone or a directory with no history reaches only the
+    second - which is UNREACHABLE for an upstream, never an error.
+    """
+    digests: set[str] = set()
+    candidates = [root / relpath]
+    if _owns_history(root):
+        for oid in _history_blobs(root, relpath):
+            body = _git_read(root, "cat-file", "blob", oid)
+            if body is not None:
+                digests.add(hashlib.sha256(body).hexdigest())
+        name = Path(relpath).name
+        listing = _git_read(root, "ls-files", "-z", "--cached", "--others", "--exclude-standard")
+        entries = (listing or b"").decode("utf-8").split("\0")
+        candidates.extend(root / entry for entry in entries if entry and Path(entry).name == name)
+    digests.update(_digest(path) for path in candidates if path.is_file())
+    return frozenset(digests)
+
+
+def _grade_fork_record(docstring: str, reachable: frozenset[str], *, today: date) -> str:
+    """Grade a fork record's upstream claim against what its tree can reach.
+
+    Returns ``REACHABLE_MATCHES`` or ``UNREACHABLE_DECLARED`` when the claim
+    holds, and a ``FAULT_*`` string naming how it rotted otherwise.
+    """
+    cited = UPSTREAM_CITATION_RE.findall(docstring)
+    declared = GONE_DECLARATION_RE.findall(docstring)
+    if len(cited) != ONE or len(declared) > ONE:
+        return FAULT_CITATION
+    if cited[0] in reachable:
+        return FAULT_FALSELY_GONE if declared else REACHABLE_MATCHES
+    if not declared:
+        return FAULT_UNDECLARED
+    try:
+        measured = date.fromisoformat(declared[0])
+    except ValueError:
+        return FAULT_DATE
+    return UNREACHABLE_DECLARED if measured <= today else FAULT_DATE
+
+
+def _fork_docstring(cited: str, *, gone: str | None) -> str:
+    """A fork record in the header's own shape, optionally declaring GONE."""
+    lines = [
+        "A planted fork record.",
+        "",
+        "    forked from - historical",
+        f"        sha256  {cited}",
+    ]
+    if gone is not None:
+        lines.append(f"    upstream status  GONE - measured {gone}")
+    return "\n".join(lines) + "\n"
+
+
+def _plant_git(root: Path, *args: str) -> None:
+    """Run a git subcommand that BUILDS a throwaway tree; any failure is red."""
+    subprocess.run(
+        ["git", "-C", str(root), *args],
+        capture_output=True,
+        timeout=GIT_TIMEOUT,
+        check=True,
+        env=_git_child_env(),
+    )
+
+
+def _plant_repo(root: Path, *versions: bytes, relpath: str = FORK_RELPATH) -> Path:
+    """A throwaway repository whose history records each version at ``relpath``."""
+    if shutil.which("git") is None:
+        pytest.skip("git is not installed")
+    root.mkdir(parents=True)
+    _plant_git(root, "init", "-q")
+    target = root / relpath
+    target.parent.mkdir(parents=True)
+    for index, body in enumerate(versions):
+        target.write_bytes(body)
+        _plant_git(root, "add", "--", relpath)
+        _plant_git(
+            root,
+            "-c",
+            "user.name=fixture",
+            "-c",
+            "user.email=fixture@example.invalid",
+            "-c",
+            "core.hooksPath=",
+            "-c",
+            "commit.gpgsign=false",
+            "commit",
+            "-q",
+            "-m",
+            f"version {index}",
+        )
+    return root
+
+
+def _planted_upstream_digest() -> str:
+    return hashlib.sha256(PLANTED_UPSTREAM).hexdigest()
+
+
+def test_the_forked_mutex_wrapper_names_the_upstream_it_forked_from() -> None:
+    """The live fork record, graded against this tree's own files and history.
+
+    Until CS-1160 this arm asserted only that the digest STRING was present,
+    which stayed green while the upstream it names ceased to exist.
+
+    The citation must be the historical upstream this suite records, and the
+    claim about it must hold: reachable and matching, or unreachable and
+    declared GONE with a measured date. A header that cites an upstream nobody
+    can reach and says nothing about it is red - that is the rot CS-1160 found.
+    """
+    docstring = ast.get_docstring(ast.parse(WINMUTEX_SOURCE.read_text(encoding="utf-8"))) or ""
+    cited = UPSTREAM_CITATION_RE.findall(docstring)
+    reachable = _reachable_digests(REPO_ROOT, FORK_RELPATH)
+    state = _grade_fork_record(docstring, reachable, today=date.today())
+    verdict = (cited == [UPSTREAM_WINMUTEX_DIGEST], state in GRADED_OK, state)
+    assert verdict == (True, True, state)
+
+
+def test_a_planted_upstream_in_this_trees_history_grades_reachable_and_matching(
+    tmp_path: Path,
+) -> None:
+    """REACHABLE: the upstream's bytes sit in the tree's own history, so it matches."""
+    repo = _plant_repo(tmp_path / "repo", PLANTED_UPSTREAM, PLANTED_FORK)
+    reachable = _reachable_digests(repo, FORK_RELPATH)
+    docstring = _fork_docstring(_planted_upstream_digest(), gone=None)
+    state = _grade_fork_record(docstring, reachable, today=date.today())
+    assert state == REACHABLE_MATCHES
+
+
+def test_a_gone_declaration_over_a_reachable_upstream_is_red(tmp_path: Path) -> None:
+    """The rot in the other direction: GONE is a claim, and here it is false."""
+    repo = _plant_repo(tmp_path / "repo", PLANTED_UPSTREAM, PLANTED_FORK)
+    reachable = _reachable_digests(repo, FORK_RELPATH)
+    docstring = _fork_docstring(_planted_upstream_digest(), gone=MEASURED_ON)
+    state = _grade_fork_record(docstring, reachable, today=date.today())
+    assert state == FAULT_FALSELY_GONE
+
+
+def test_an_unreachable_upstream_declared_gone_with_its_date_is_not_a_failure(
+    tmp_path: Path,
+) -> None:
+    """UNREACHABLE: the tree never carried the upstream, and the header says so."""
+    repo = _plant_repo(tmp_path / "repo", PLANTED_FORK)
+    reachable = _reachable_digests(repo, FORK_RELPATH)
+    docstring = _fork_docstring(_planted_upstream_digest(), gone=MEASURED_ON)
+    state = _grade_fork_record(docstring, reachable, today=date.today())
+    assert state == UNREACHABLE_DECLARED
+
+
+def test_an_unreachable_upstream_cited_without_a_gone_statement_is_red(tmp_path: Path) -> None:
+    """The mutant CS-1160 names: a citation that has rotted must not read as green."""
+    repo = _plant_repo(tmp_path / "repo", PLANTED_FORK)
+    reachable = _reachable_digests(repo, FORK_RELPATH)
+    docstring = _fork_docstring(_planted_upstream_digest(), gone=None)
+    state = _grade_fork_record(docstring, reachable, today=date.today())
+    assert state == FAULT_UNDECLARED
+
+
+def test_a_shallow_clone_counts_the_upstream_as_unreachable_not_as_a_failure(
+    tmp_path: Path,
+) -> None:
+    """CI checks out one commit deep. The upstream is then out of reach, not wrong.
+
+    The control is the full repository the clone was cut from, which DOES reach
+    the planted upstream - so the shallow result is the depth, not a broken walk.
+    """
+    full = _plant_repo(tmp_path / "full", PLANTED_UPSTREAM, PLANTED_FORK)
+    shallow = tmp_path / "shallow"
+    _plant_git(tmp_path, "clone", "-q", "--depth", "1", full.as_uri(), str(shallow))
+    upstream = _planted_upstream_digest()
+    full_reaches = upstream in _reachable_digests(full, FORK_RELPATH)
+    shallow_reachable = _reachable_digests(shallow, FORK_RELPATH)
+    declared = _grade_fork_record(
+        _fork_docstring(upstream, gone=MEASURED_ON), shallow_reachable, today=date.today()
+    )
+    undeclared = _grade_fork_record(
+        _fork_docstring(upstream, gone=None), shallow_reachable, today=date.today()
+    )
+    verdict = (full_reaches, upstream in shallow_reachable, declared, undeclared)
+    assert verdict == (True, False, UNREACHABLE_DECLARED, FAULT_UNDECLARED)
+
+
+def test_a_directory_inside_another_repository_borrows_none_of_its_history(
+    tmp_path: Path,
+) -> None:
+    """Reach is THIS tree's history. An enclosing repository is some other tree.
+
+    The outer repository records the planted upstream at the nested fork path,
+    and the control proves it does; the nested directory, which is not itself
+    the top of a work tree, must reach none of it.
+    """
+    outer = _plant_repo(
+        tmp_path / "outer", PLANTED_UPSTREAM, PLANTED_FORK, relpath=f"inner/{FORK_RELPATH}"
+    )
+    upstream = _planted_upstream_digest()
+    outer_reaches = upstream in _reachable_digests(outer, f"inner/{FORK_RELPATH}")
+    inner_reaches = upstream in _reachable_digests(outer / "inner", FORK_RELPATH)
+    assert (outer_reaches, inner_reaches) == (True, False)
+
+
+def test_a_tree_with_no_history_counts_the_upstream_as_unreachable(tmp_path: Path) -> None:
+    """No ``.git`` at all is absent history - unreachable, never an exception."""
+    target = tmp_path / "bare_tree" / FORK_RELPATH
+    target.parent.mkdir(parents=True)
+    target.write_bytes(PLANTED_FORK)
+    reachable = _reachable_digests(tmp_path / "bare_tree", FORK_RELPATH)
+    docstring = _fork_docstring(_planted_upstream_digest(), gone=MEASURED_ON)
+    state = _grade_fork_record(docstring, reachable, today=date.today())
+    verdict = (reachable == {hashlib.sha256(PLANTED_FORK).hexdigest()}, state)
+    assert verdict == (True, UNREACHABLE_DECLARED)
+
+
+@pytest.mark.parametrize(
+    ("docstring", "expected"),
+    [
+        pytest.param(_fork_docstring("a" * 64, gone="2026-02-30"), FAULT_DATE, id="no-such-day"),
+        pytest.param(_fork_docstring("a" * 64, gone="2999-01-01"), FAULT_DATE, id="future-day"),
+        pytest.param("no citation at all\n", FAULT_CITATION, id="no-citation"),
+        pytest.param(
+            _fork_docstring("a" * 64, gone=None) + _fork_docstring("b" * 64, gone=None),
+            FAULT_CITATION,
+            id="two-citations",
+        ),
+    ],
+)
+def test_a_malformed_fork_record_is_red(docstring: str, expected: str) -> None:
+    """A GONE date must be a real day already past; the record cites one upstream."""
+    state = _grade_fork_record(docstring, frozenset(), today=date(2026, 9, 24))
+    assert state == expected
 
 
 def test_the_forked_mutex_wrapper_declares_no_foreign_resource_name() -> None:
@@ -873,5 +1214,7 @@ def test_this_project_never_joins_the_shared_machine_wide_slot_bucket() -> None:
 #: THE DIGEST OF THIS REPOSITORY'S OWN FORKED COPY. Declared after the arms that
 #: read it so the number sits beside nothing it could be mistaken for, and typed
 #: by hand rather than computed - a pin derived from the file it pins is a
-#: tautology that reports green through any edit.
-FORKED_WINMUTEX_DIGEST: Final = "e0d3ac7d9ba0be16dbe27e95354820393b9bf4edd335c97c98b39dfafb662d3f"
+#: tautology that reports green through any edit. RE-PINNED deliberately by
+#: CS-1160 when the fork record gained its GONE line; the value before that was
+#: e0d3ac7d9ba0be16dbe27e95354820393b9bf4edd335c97c98b39dfafb662d3f.
+FORKED_WINMUTEX_DIGEST: Final = "150e5cbe22b6054add89a07b361d53b2f1b7b62c21a127e5f25c082fb9fbed82"
