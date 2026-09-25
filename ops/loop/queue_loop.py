@@ -595,6 +595,11 @@ OUTCOME_ERROR = "error"
 #: worker with no result stopped, and does not invent a reason it cannot observe.
 #: NOT A CYCLE - `run_loop` backs off and refunds it rather than spending the
 #: night's budget on it.
+#:
+#: RESIDUAL, NAMED RATHER THAN FIXED: a refusal that ends the runner INSIDE the
+#: launcher's 2.0s start-up grace never reaches this check - the launcher
+#: refuses first, and the row reads `launch_failed` / `runner_exited_early`.
+#: The refusals measured so far took about five seconds, outside the grace.
 OUTCOME_USAGE_REFUSED = "usage_refused"
 #: The row's own wording for a refused run - a literal, because nothing the
 #: worker wrote is rendered into the durable row.
@@ -2493,7 +2498,10 @@ def _worker_result(log: object) -> dict | None:
     `_is_usage_refusal` - and no field of it is copied into a row, because the
     log is worker-authored text that can carry a path.
 
-    NEVER RAISES, and reads only an ABSOLUTE path: the real launcher returns
+    NEVER RAISES, within a stated bound: at most `_RESULT_TAIL_BYTES` are read,
+    and a line the JSON decoder cannot finish - malformed, or nested past its
+    recursion limit - is skipped rather than raised. It reads only an ABSOLUTE
+    path: the real launcher returns
     one, and a relative placeholder from an injected fake must not make the
     driver read whatever sits in its working directory. A missing, unreadable,
     empty or garbled log answers None, which the caller treats as a run that
@@ -2525,7 +2533,9 @@ def _worker_result(log: object) -> dict | None:
             continue
         try:
             parsed = json.loads(candidate)
-        except ValueError:
+        except (ValueError, RecursionError):
+            # RecursionError TOO: the decoder recurses once per nesting level,
+            # and a line nested tens of thousands deep fits inside the tail.
             continue
         if type(parsed) is dict and parsed.get("type") == "result":
             return parsed
@@ -3619,7 +3629,11 @@ def main(argv=None, *, singleton=None) -> int:
         )
         return EXIT_ALREADY_RUNNING
 
-    _emit(f"queue-loop done: {summary['cycles_run']} cycle(s), stopped_by={summary['stopped_by']}")
+    refusals = int(summary.get("usage_refusals") or 0)
+    _emit(
+        f"queue-loop done: {summary['cycles_run']} cycle(s), {refusals} usage limit "
+        f"refusal(s), stopped_by={summary['stopped_by']}"
+    )
     # `usage_refusals` too, since CS-1178: a night whose only runs were refused
     # ran zero cycles but DID attempt, so its sentinel was not already there.
     if (
@@ -3633,9 +3647,19 @@ def main(argv=None, *, singleton=None) -> int:
             f"at {sentinel} - zero cycles ran. Delete that file to run."
         )
         return EXIT_STOP_SENTINEL
+    # CS-1178 - A NIGHT THAT WAS ONLY REFUSALS says so, whatever stopped it. A
+    # sentinel read mid-back-off would otherwise fall through to "no progress"
+    # and report zero cycles with nothing naming why.
     # Checked AFTER the sentinel branch and independently of cycles_run: a hard
     # stop always ran at least one cycle, so the two cannot collide.
     stopped = summary["stopped_by"]
+    if summary["cycles_run"] == 0 and refusals:
+        _emit(
+            f"queue-loop stop: every run tonight was a usage limit refusal "
+            f"({refusals}) - no cycle ran; see the usage_refused rows in {CYCLE_LOG.name}"
+        )
+        # The usage-limit word, so the table below answers with its own number.
+        stopped = STOPPED_BY_USAGE_LIMIT
     if stopped == OUTCOME_KILL_FAILED:
         _emit(
             "queue-loop ALERT: a worker outlived its kill - treat the lane "

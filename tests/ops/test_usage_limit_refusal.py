@@ -363,8 +363,9 @@ def test_cs1178_a_refused_night_that_is_stopped_is_not_a_sentinel_refusal(
         "stopped_by": "QUEUE_STOP",
         "records": [{"outcome": queue_loop.OUTCOME_USAGE_REFUSED, "commit": {"advanced": False}}],
     }
+    said: list[str] = []
     monkeypatch.setattr(queue_loop, "run_loop", lambda **_kw: summary)
-    monkeypatch.setattr(queue_loop, "_emit", lambda _line: None)
+    monkeypatch.setattr(queue_loop, "_emit", said.append)
 
     class Singleton:
         def __call__(self):
@@ -374,6 +375,11 @@ def test_cs1178_a_refused_night_that_is_stopped_is_not_a_sentinel_refusal(
         ["--once", "--control-dir", str(tmp_path / "control")], singleton=Singleton()
     )
     assert code != queue_loop.EXIT_STOP_SENTINEL, "a refused night read as never started"
+    # AND IT SAYS WHY: the only runs were refused, so the exit is the usage-limit
+    # code and a line names the refusals, rather than "0 cycle(s) ran" alone.
+    assert code == queue_loop.EXIT_USAGE_LIMIT, f"a refusal-only night exited {code}"
+    named = [line for line in said if "usage limit refusal" in line]
+    assert named, "no line names the refusals that were the whole night"
 
 
 def test_cs1178_the_reader_reads_only_an_absolute_log_and_never_raises(tmp_path: Path) -> None:
@@ -392,6 +398,13 @@ def test_cs1178_the_reader_reads_only_an_absolute_log_and_never_raises(tmp_path:
     assert reader(log.name) is None, "a relative log path was read"
     assert reader(None) is None
     assert reader(str((tmp_path / "absent.log").resolve())) is None
+    # NESTED PAST THE PARSER'S RECURSION LIMIT, and still inside the tail: a
+    # result-shaped line the decoder cannot finish must answer None, not raise.
+    depth = 30000
+    deep = tmp_path / "deep.log"
+    deep.write_bytes(('{"a":' + ("[" * depth) + ("]" * depth) + "}" + "\n").encode("ascii"))
+    assert deep.stat().st_size < queue_loop._RESULT_TAIL_BYTES  # noqa: SLF001 - the bound
+    assert reader(str(deep.resolve())) is None, "a deeply nested line escaped the reader"
     garbled = tmp_path / "garbled.log"
     garbled.write_bytes(b"\xff\xfe{not json\n\x00\x01")
     assert reader(str(garbled.resolve())) is None
