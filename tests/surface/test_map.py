@@ -158,6 +158,11 @@ BUILT_TRANSLATION: Final = (2048.0, -256.0, 128.0)
 #: ``"-0.5"``, whereas no two five-decimal 32nds of different magnitude contain
 #: one another. ``test_every_orientation_needle_is_unique_to_the_value_it_proves``
 #: measures this against the real response rather than trusting the reasoning.
+#:
+#: DELIBERATELY NOT UNIT (CS-1021), and neither is ``NODE_ROTATION``. Neither is
+#: an orientation the game produces; both are needles. The endpoint transcribes
+#: and never normalises, so a non-unit value grades the transcription exactly as
+#: well as a unit one would.
 BUILT_ROTATION: Final = (0.53125, -0.21875, 0.09375, 0.78125)
 BUILT_SCALE: Final = (2.03125, 0.65625, -1.28125)
 

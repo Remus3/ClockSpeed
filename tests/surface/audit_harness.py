@@ -312,10 +312,20 @@ _MAP_BUILT_CLASSES: Final = (
 _MAP_SPAN: Final = 240000
 _MAP_STEP: Final = 7919
 
-#: The four quarter turns about the vertical axis, as the exact decimal strings
-#: the wire carries. A canned orientation must have the SHAPE a real one has -
-#: an array of strings, never numbers - because a panel that parsed a number
-#: here would pass the audit and fail on the live wire.
+#: Four orientations about the vertical axis, as the exact decimal strings the
+#: wire carries. A canned orientation must have the SHAPE a real one has - an
+#: array of strings, never numbers - because a panel that parsed a number here
+#: would pass the audit and fail on the live wire.
+#:
+#: DELIBERATELY NOT UNIT, AND NOT FOUR QUARTER TURNS (CS-1021). Only the first
+#: two are unit quaternions: the identity and the half turn. The ``0.5`` pair
+#: has a norm-squared of one half, and a real quarter turn about the vertical
+#: axis is ``0.70710678`` in both of its last two components - a value no short
+#: exact decimal spells. These are chosen for SHAPE and exactness, not realism:
+#: the game does not produce the ``0.5`` spellings, and a panel that derived an
+#: angle from them under a unit-norm formula would read 45 degrees rather than
+#: 90. No panel reads an orientation today. The save layer transcribes and
+#: never normalises, so no unit-norm arm belongs there either (CS-1021's ruling).
 _MAP_QUARTER_TURNS: Final = (
     ("0.0", "0.0", "0.0", "1.0"),
     ("0.0", "0.0", "0.5", "0.5"),
@@ -366,9 +376,9 @@ def _map_placements(
             z = (seed % 20000) - 10000
             # THE ORIENTATION IS DRAWN FROM THE SAME LATTICE, so a rendered
             # fixture shows buildings at differing angles rather than a field of
-            # identical ones. Quarter turns about the vertical axis: the four
-            # spellings a factory actually contains, and every component is
-            # exactly representable so the string is short and exact.
+            # identical ones. Every component is exactly representable so the
+            # string is short and exact; two of the four are deliberately not
+            # unit quaternions - see ``_MAP_QUARTER_TURNS``.
             seed = (seed * 1103515245 + 12345) % 2147483648
             quarter = _MAP_QUARTER_TURNS[seed % len(_MAP_QUARTER_TURNS)]
             rows.append(
