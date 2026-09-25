@@ -71,7 +71,9 @@ from typing import TYPE_CHECKING, Any, Final
 import pytest
 
 from clockspeed.save.world import NODE_CLASS_NAMES
+from clockspeed.surface.api import map as map_endpoint
 from tests.surface import panel_harness
+from tests.surface.audit_harness import _assert_rows_match
 
 if TYPE_CHECKING:
     from collections.abc import Mapping
@@ -170,6 +172,16 @@ BUILT_A: Final = "Build_MinerMk1_C"
 #: can tell a verbatim string from a reformatted one.
 AWKWARD_X: Final = "-12345.5678901"
 
+#: A placement's rotation as the wire carries it - an (x, y, z, w) quaternion of
+#: decimal strings. Both are UNIT quaternions, as every real one is: no rotation,
+#: and a real quarter turn about the vertical axis, whose two non-zero members
+#: are the shortest float32 spelling of the square root of one half.
+IDENTITY_TURN: Final = ("0.0", "0.0", "0.0", "1.0")
+QUARTER_TURN: Final = ("0.0", "0.0", "0.70710677", "0.70710677")
+
+#: A placement's scale as the wire carries it - three decimal strings.
+UNIT_SCALE: Final = ("1.0", "1.0", "1.0")
+
 
 def _code(name: str) -> str:
     """One shipped asset with every comment stripped.
@@ -215,7 +227,11 @@ def _payload(**overrides: Any) -> dict[str, Any]:
 
 
 def _map_body(**overrides: Any) -> dict[str, Any]:
-    """A synthetic ``/api/map`` data object, shaped exactly as the contract froze it.
+    """A synthetic ``/api/map`` data object, keyed as the endpoint keys it.
+
+    That is ENFORCED rather than claimed: :func:`_assert_body_matches` checks
+    the default body at import against the endpoint's own key tuples, top level
+    and every row, so a key the endpoint adds or drops fails collection here.
 
     Every coordinate and every rate is a STRING here, because that is what the
     wire carries: a JSON number would be an IEEE double the reader cannot
@@ -232,6 +248,7 @@ def _map_body(**overrides: Any) -> dict[str, Any]:
         "masked_token": "cs1-abcdef",
         "coordinate_units": "centimetres",
         "node_semantics_available": False,
+        "node_orientation_available": True,
         "bounds": {
             "min_x": "-20000.0",
             "max_x": "20000.0",
@@ -241,11 +258,34 @@ def _map_body(**overrides: Any) -> dict[str, Any]:
             "max_z": "1500.0",
         },
         "nodes": [
-            {"class_name": NODE_A, "x": AWKWARD_X, "y": "6789.25", "z": "-100.0"},
-            {"class_name": NODE_B, "x": "900.5", "y": "-1200.75", "z": "12.0"},
+            {
+                "class_name": NODE_A,
+                "x": AWKWARD_X,
+                "y": "6789.25",
+                "z": "-100.0",
+                "rotation": list(IDENTITY_TURN),
+                "scale": list(UNIT_SCALE),
+            },
+            {
+                "class_name": NODE_B,
+                "x": "900.5",
+                "y": "-1200.75",
+                "z": "12.0",
+                "rotation": list(QUARTER_TURN),
+                "scale": list(UNIT_SCALE),
+            },
         ],
         "node_counts": {NODE_A: 1, NODE_B: 1},
-        "built": [{"class_name": BUILT_A, "x": "1.0", "y": "2.0", "z": "3.0"}],
+        "built": [
+            {
+                "class_name": BUILT_A,
+                "x": "1.0",
+                "y": "2.0",
+                "z": "3.0",
+                "rotation": list(QUARTER_TURN),
+                "scale": list(UNIT_SCALE),
+            }
+        ],
         "built_counts": {BUILT_A: 1},
         "inventory": [{"item_key": "Desc_OreIron_C", "display_name": "Iron Ore", "count": 4200}],
         "throughput": [
@@ -265,6 +305,38 @@ def _map_body(**overrides: Any) -> dict[str, Any]:
     }
     body.update(overrides)
     return body
+
+
+def _assert_body_matches(body: dict[str, Any]) -> None:
+    """Bind a canned map body to the endpoint's own key tuples, in both directions.
+
+    CS-1022. The docstring above claimed this fixture was "shaped exactly as the
+    contract froze it" while its rows carried four keys and the endpoint's
+    ``PLACEMENT_KEYS`` six, and nothing checked either claim. The top level is
+    checked here against ``map_endpoint.DATA_KEYS``; every row is checked by
+    ``tests/surface/audit_harness.py::_assert_rows_match``, IMPORTED rather than
+    copied, so the two canned map bodies in this suite answer to one row guard.
+
+    Args:
+        body: A canned ``/api/map`` data object.
+
+    Raises:
+        AssertionError: When a top-level key is missing or surplus, or - raised
+            by ``_assert_rows_match`` - when a row's key set differs from the
+            endpoint's tuple for its section.
+    """
+    missing = tuple(key for key in map_endpoint.DATA_KEYS if key not in body)
+    surplus = tuple(key for key in body if key not in map_endpoint.DATA_KEYS)
+    if missing or surplus:
+        message = f"canned map body does not match the endpoint: {missing} {surplus}"
+        raise AssertionError(message)
+    _assert_rows_match(body)
+
+
+# THE GUARD RUNS AT IMPORT, SO A DRIFTED FIXTURE FAILS COLLECTION. An arm that
+# ran it would be one arm among many going red; a module that cannot be
+# collected cannot report any arm green on a body the endpoint does not serve.
+_assert_body_matches(_map_body())
 
 
 def _mount(tmp_path: Path, **overrides: Any) -> Mapping[str, Any]:
