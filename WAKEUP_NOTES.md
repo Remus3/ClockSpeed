@@ -33,6 +33,15 @@ Keep every entry to that shape. If an item needs a paragraph, it needs its own f
 the line becomes a pointer.
 
 ---
+## Session 113 - 2026-09-25 - three orchestrated waves toward the public flip, the frozen hooks rebuilt under adjudicator grants, and tier 1 split into four shards
+
+- Shipped: 51 items closed, every one adversaried and adjudicated before its ledger entry. N0 flip decisions CS-1180, CS-1181, CS-1182 (ADR 0018 trailer strip, CS-G03 supersession, decide/confirm/act split, CLAUDE.md 6.1 irreversible-act floor). Wave 1: CS-1019, 1021, 1022, 1023, 1024, 1026, 1027, 1028, 1029, 1030, 1031, 1034, 1035, 1036, 1037, 1014, 1015, 1016, 1017, 1178, 1160, 811, 812, 1163, 820, 1177, 1168, 1158, 956, 1179. Wave 2: CS-1018, 1184, 1185, 1189, 1190, 1191, 1193. Wave 3 and frozen wave: CS-1183, 1188, 818, 816, 817, 813, 822, 821, 824, 955, 1174. Detail in docs/LEDGER.md.
+- In flight: nothing mid-edit. Open Phase 7: CS-700, 701, 704, 814, 815, 953, 1032, 1186 (no-game half gated CS-G08), 1194, 1195, 1196, 1197, 1198. CS-1187 moved to docs/GATED.md as CS-G08.
+- Decisions: ADR 0023 (a filename can be personal data, withheld by reason class), ADR 0024 (credential-scan boundary is publication; CS-1168 declined), ADR 0025 (tier-3 flip checks run locally, never CI). Frozen-file grants recorded in the ledger BEFORE each edit: G-816/G-817, G-813/G-822, G-821/G-824 (CS-704 pre-push route DENIED - CI route), G-955/G-1174 plus two G-955 addenda, and the CS-824 sandbox floor-substitution clarification. CS-815 (.claude/settings.json) was GRANTED but HELD for the operator - it rewrites what runs in every Claude session.
+- Surprises: adversaries refuted almost every first build, often twice; the recurring shapes were oracles blind to their subject (leak checks matching one spelling), docstrings claiming more than the code, and guards failing OPEN on an error path. Merged slices repeatedly reddened repo-wide guards their builders never ran (rendering, liveness, pointer, citation) - wave 3 made those guards mandatory per builder. CI tier 1 overran twice (565s, 509s): runner variance explained a third; the rest was real growth; fixed by CS-1193's cache plus a fourth hook shard, never by raising the pin.
+- Failed paths: shortening the hook probe bound in sandbox copies to save CI time (declined - saves ~25 worker-s on Linux, where only 5 arms wait, and leaves no safe fall-through window). Rewriting pytest node IDs to redact them (broke -k, --deselect and copied FAILED ids - redact at render time instead). A time-bounded full suite under the tool's 10-minute cap (use foreground halves or thirds, or the pre-push log).
+- Next action: read CI on the /done push, then decide CS-815 with the operator and start CS-704 (the CI trailer census step, tools/trailer_census.py now exists).
+
 ## Session 112 - 2026-09-24 - the secret rules got a derived fingerprint, and a deleted provenance manifest can no longer be re-seeded
 
 - Shipped: CS-1175 and CS-1176, both CLOSED by an adjudicator conditional on CI green on the pushed tip. Detail in docs/LEDGER.md. Filed and left open: CS-1177, CS-1178, CS-1179. Session 111's next action named both closed items, and both went.
@@ -54,78 +63,3 @@ the line becomes a pointer.
 - Failed paths: `\b` before the vendor prefix (a key after `%3D` or an escaped newline escaped it). Excluding import opens by frame NAME (forgeable) - identify import frames by code-object identity. Classifying a pushed citation as a line pointer when it is a renamed symbol - use a RENAMED disposition and read the site key from `scoped_text`, not `doc_text`.
 - Disclosure: one CS-1165 adversary read sibling trees read-only against the Q1 ruling; recorded in the CS-1165 ledger entry, nothing entered a tracked file. Disclosed on the channel in the CS 1715 CORRECTION note.
 - Next action: read CI on the tip, then pick CS-1176 (a re-seed launders) or CS-1175 (flag and quantifier narrowing) - both are tier 2 and fully specified.
-
-## Session 110 - 2026-09-20 - the inbox turned into a credential incident, and four guards that could not fail
-
-Operator directed: read the moon-sync inbox and implement, reply, monitor, loop. Mid-session
-the operator granted the standing shape - caveman-ultra, batched checklist, adjudicate
-rather than ask, always deliver a reply - and reaffirmed full authority. Both are filed in
-`memory/full-authority-adjudicate-do-not-ask.md`.
-
-CLOSED: CS-1159, CS-1161, CS-1162, CS-1164.
-
-**CS-1159 - the hook that took every shell down with it.** `.claude/settings.json` wired
-both hooks by a CWD-RELATIVE path. One `cd` into `moon_sync_inbox` to read notes denied
-every Bash and PowerShell call in the main session AND in four dispatched subagents, which
-inherit the cwd. They each lost their shell for a whole run and returned UNVERIFIABLE.
-`cd <root> && <cmd>` was refused too - the hook fires before the command, so the shell
-cannot recover itself. It DEFEATED the gate's own written contract, which promises exit 0
-on its own error precisely so this cannot happen: that branch is unreachable when the
-script is never entered. RC broadcast this exact defect, mechanism and fix to all five
-trees on 2026-09-13. CS did not act on it. Seven days later it cost a day of measurement.
-
-**CS-1162 - citation rot, and it was a recurrence against a shipped guard.** CS-1159's own
-adjudicator record says "a line pointer into a living document is a citation with a shelf
-life" - and a later record under the same ID did it three more times. The rule now lives in
-`docs/LEDGER.md`'s Entry-shape table. CS-1163 files what the guard still cannot SEE: a bare
-continuation pointer following a full citation is invisible to `LINE_POINTER_RE`, 67 of them
-across 8 files, 47 in two carriers whose own rules forbid editing them in place.
-
-**CS-1164 - CHANNEL v2.** CS reopened the v1 pin at 1447 naming RC as author, then lagged
-its own round while four trees moved, and was the LAST outstanding carrier. Vendored at
-`fc22e86e...`, 25425 bytes, hashing equal. The round caught a latent defect in CS's arms,
-not just its prose: CS had conflated PARTICIPANT with PIN-HOLDER, and at v1 the two counts
-were equal so the wording read correctly. A sentence that is accidentally true is not a
-guarded sentence.
-
-**THE CREDENTIAL INCIDENT.** LL asked CS to look at one file in the shared git-install
-scratch bucket. CS looked at the directory and found an Anthropic ADMIN-family key in
-plaintext, ten days old, in a world-readable location, in CS's own litter - plus 17 world
-names, the account name in 19 files, and the operator's email in two. The operator rotated;
-persistence verified at MACHINE scope by hash. The render defect was HISTORICAL, closed by
-CS-1156 the day before. What was LIVE was that no control could have caught it: CS's secret
-scanner has NO rule for that family and its coverage is ACCIDENTAL and spelling-dependent;
-the outbound canary is ONE family certifying ten; every credential population is
-repo-scoped, so nothing sees a file that is never committed; and `PLACEHOLDER_RE` can
-silently neuter any rule and already has. Filed CS-1166 through CS-1169. All four siblings
-answered CS's ACTION note and all four said they have no never-committed control either.
-
-**THE REUSABLE LESSON, and it is against CS.** Three trees swept that bucket - RSC, LW,
-CS - and all three measured SIZE. CS had the directory open twice and read not one file.
-A sweep that measures a directory without reading it produces a number, not a verdict.
-
-**CS-946 - joined the lane bucket**, reversing ADR-0017 by operator ruling. Two frozen-file
-grants, both recorded BEFORE their edits. The second turned on a fact nobody had: ruff
-resolves `exclude` and `per-file-ignores` against THE INVOCATION'S WORKING DIRECTORY, so a
-gate that lints a temp copy can never honour a project exemption - exit 0 on the real path
-and exit 1 on identical bytes in temp, same minute. The section 14 licence gate CLEARED,
-with two uncomfortable facts in the register row rather than smoothed over.
-
-**CS-1165 - the roster is DERIVED now**, and it immediately found a SECOND unregistered
-vendoring nobody knew was owed. The old hand-maintained dict could only grade what somebody
-remembered to add, so it reported green over both files for their entire lifetimes. Its
-acceptance is NOT met and it stays open: a lift with no byte pin AND no register row is
-still invisible.
-
-**WHAT CS PUBLISHED AND THEN WITHDREW, four times.** "51/14 copies" (carrier count is 4 -
-the figure counted worktree duplicates with no declared population). "Narrowing
-`max_concurrent_lanes` is a visibility cap, not an appetite cap" - FALSE, it is both, and
-SS's document was right; CS corrected a correct document with a wrong denial. "210 files /
-6,245,048 bytes" - does not reproduce under the marker set CS can write down (169 /
-5,986,621); an attribution count is a function of its marker set and one published without
-its regex is unfalsifiable. And the routing of `rm339_dangling.json` to RC.
-
-Twelve notes delivered, privacy gate CLEAN on every one. 44 inbox notes read in the second
-sweep alone.
-
----

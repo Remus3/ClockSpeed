@@ -1,149 +1,132 @@
 CLOCKSPEED - NEXT SESSION CONTINUATION PROMPT
-Written at the end of session 112, 2026-09-24. Paste this whole file into a cold session.
+Written at the end of session 113, 2026-09-25. Paste this whole file into a cold session.
 
 ================================================================================
 READ THESE FIRST, IN THIS ORDER
 ================================================================================
 
   CLAUDE.md                 rules, frozen list, settled decisions, topology
+                            (section 6.1 gained ONE sentence this session: making the
+                            repo public or deleting/recreating its remote waits for the
+                            operator's own-words confirmation - a floor nobody lifts)
   memory/MEMORY.md          durable cross-session facts
   ROADMAP.md                open work only - the Phase 7 heading is the focus
-  WAKEUP_NOTES.md           sessions 112, 111, 110 at full fidelity
+  WAKEUP_NOTES.md           sessions 113, 112, 111 at full fidelity
   docs/ARCHITECTURE.md      module map, data flow, seams
-  docs/item_notes/phase7.md every Phase 7 item section
-  docs/GATED.md             CS-G03, the public flip gate itself
-  docs/adr/                 ADR 0018 (keep the commit graph) before any flip step
+  docs/item_notes/phase7.md every open Phase 7 item, and the CS-700 S0-S12 flip plan
+  docs/GATED.md             CS-G03 (the flip gate) and CS-G08 (never-seen machine)
+  docs/adr/                 ADR 0018 (keep the graph, strip trailers), 0023, 0024, 0025
 
 Then run:  python tools/inbox_watch.py
-Session 112 triaged the 7 SS notes that arrived after session 111 (none asks CS
-anything). NOT acknowledged - run --ack only after reading what arrived since.
-
-================================================================================
-THE OPERATOR'S DIRECTIVE FOR THIS SESSION
-================================================================================
-
-PARALLEL, ORCHESTRATED WORK TO FINISH GETTING THIS REPO PUBLIC-READY ON GITHUB.
-That is ROADMAP Phase 7 (the public flip gate) plus CS-G03 in docs/GATED.md.
-Run the CLAUDE.md section 5 shape at full width: disjoint slices, worktree
-builders in parallel, frozen candidates, distinct adversaries, an adjudicator
-per close. Batch commits and pushes so CI waits overlap.
-
-================================================================================
-THE SINGLE NEXT ACTION
-================================================================================
-
-FIRST confirm CI on the session-112 tip (see STATE). Then dispatch PARALLEL WAVE 1
-below while an adjudicator rules on the N0 decisions. Re-verify every item count
-and file path below against the tree before dispatch - this plan is a read-only
-recon from HEAD b54daf3, not a measured fact.
+Session 113 read and triaged all 102 notes that were unread at its start (33 asked CS
+something, none blocking). NOT acknowledged and NOT answered. The asks are owed replies
+through moon_sync_outbox/ - triage table was in session scratch, so re-list and answer.
 
 ================================================================================
 STATE OF THE TREE
 ================================================================================
 
-HEAD / remote   the session-112 /done commit, pushed. Confirm `git rev-parse HEAD`
+HEAD / remote   the session-113 /done commit, pushed. Confirm `git rev-parse HEAD`
                 equals `git ls-remote origin main` - a blocked push reports exit 0.
-CI              was STILL RUNNING when session 112 ended - READ IT FIRST. Use the
-                FULL SHA with `gh run list --commit`. CS-1175 and CS-1176 closes
-                are CONDITIONAL on this run being green; if red, that is item one.
+CI              READ IT FIRST, with the FULL SHA: `gh run list --commit <full sha>`.
+                Tier 1 now has FOUR jobs (fast, save, guards, hooks). Last green run
+                before /done: da7a940, all four jobs green (fast 471s at the time).
+                If red, that is item one.
 working tree    CLEAN at the /done commit.
-suite           10231 passed, 7 skipped, exit 0 (full run, session 112, before the
-                docs commit). The 7 skips are self-declaring platform skips.
-mypy            exit 0, 290 source files, no explicit target.
-drift guard     exit 0.   doc budget  exit 0.
-worktrees       stale agent trees under .claude/worktrees/ - all session-112 work
-                was merged by cherry-pick. Classify by CONTENT before pruning.
+suite           see the /done pre-push log counts in WAKEUP_NOTES / the push output;
+                the pre-push hook now REFUSES a push whose junit report shows fewer than
+                CS_PASS_FLOOR=10804 passed, any failure/error, or no report at all.
+hooks           the three .githooks were rebuilt this session under adjudicator
+                grants (CS-816/817 ladder bound, CS-813/822 commit-msg, CS-821/824
+                pre-push report + floor, CS-955 index-snapshot race, CS-1174 gate
+                pattern). A pre-push run takes ~15 minutes - run it in the
+                background and read the log; a slow push is not a hung one.
+worktrees       many stale agent trees under .claude/worktrees/ - every slice was
+                merged by cherry-pick. Classify by CONTENT before pruning; never
+                remove one a live agent holds.
 
 ================================================================================
-CLOSED IN SESSION 112
+CLOSED IN SESSION 113 (51 items - detail in docs/LEDGER.md)
 ================================================================================
 
-CS-1175  Every SECRET_PATTERNS rule pinned by a derived fingerprint (flags, every
-         quantifier, every class node with members, 16-hex source digest); any
-         change names rule and kind. `tools/outbound_gate.py --print-fingerprints`
-         prints the table, never writes. --showlocals renders no canary.
-         Refuted once, repaired, NOT REFUTED, adjudicator CLOSE.
-CS-1176  A deleted provenance manifest is restored from history, never re-seeded:
-         bootstrap refuses on HEAD's history or any ref; re-seed arm requires
-         every first-add row in every manifest version, gaps forgiven only on
-         byte-equal content across the gap. Refuted FOUR rounds, adjudicator CLOSE.
-FILED    CS-1177 (showlocals helper-exception residual), CS-1178 (usage-limit
-         refusal recorded as a run by the headless lane), CS-1179 (probe the
-         delete-edit-restore permanent red recovery).
+N0 flip decisions   CS-1180 1181 1182
+Wave 1              CS-1014 1015 1016 1017 1019 1021 1022 1023 1024 1026 1027 1028
+                    1029 1030 1031 1034 1035 1036 1037 1158 1160 1163 1168 1177
+                    1178 1179 811 812 820 956
+Wave 2              CS-1018 1184 1185 1189 1190 1191 1193
+Wave 3 / frozen     CS-1183 1188 818 816 817 813 822 821 824 955 1174
+Gated               CS-1187 -> docs/GATED.md CS-G08
 
 ================================================================================
-PHASE 7 - WHAT IS OPEN (recon at b54daf3; re-verify)
+THE SINGLE NEXT ACTION
 ================================================================================
 
-About 46 open items under the Phase 7 heading (8 tier 1, rest tier 2), plus CS-G03
-gated on the CONVENTIONS section 17 checks, an eighth precondition, and sign-off.
+Read CI on the pushed tip. Then ASK THE OPERATOR ONE THING: CS-815 (the wrapper
+route that rewrites the two hook command strings in .claude/settings.json) has an
+adjudicator GRANT but was deliberately HELD - that file controls what runs in every
+Claude Code session here, so the operator decides it. Then start CS-704.
 
-N0 - DECIDE FIRST, BY ADJUDICATOR, BEFORE ANY FLIP STEP (no item covers these;
-FILE THEM AS ITEMS):
- U1 EIGHTEEN COMMITS ON main CARRY AN AGENT CO-AUTHOR TRAILER (e9af2df..5907d45,
-    2026-08-14/15). ADR 0018 keeps the graph and step S7a rewrites identity only,
-    so all 18 WOULD PUBLISH, breaching CS-G03's eighth precondition. Neither ADR
-    0018 nor the CS-700 plan mentions trailers. Needs an ADR 0018 amendment.
- U2 CS-G03 still says the flip ships from a FRESH history; ADR 0018 overturned
-    that. Needs a supersession note.
- U8 CS-G03 / CS-700 S9 require OPERATOR sign-off; CLAUDE.md 6.1 routes decisions
-    to an adjudicator and MAIN is the stand-in for decisions. Irreversible acts
-    (GitHub delete/recreate, visibility flip) stay the operator's HANDS - reconcile
-    in writing.
- Also uncovered: U3 no runnable tier-3 job; U4 no doc link resolver / orphan
-    sweep; U5 no full licence audit (ADR 0013 covers Electron only); U6 no README
-    outsider-to-first-result check; U7 clean checkout on a never-seen machine.
+================================================================================
+OPEN PHASE 7 ITEMS, PRIORITY ORDER (acceptance: docs/item_notes/phase7.md)
+================================================================================
 
-PARALLEL WAVE 1 - NO GRANT NEEDED, DISJOINT WRITE SETS (merger alone writes
-ROADMAP.md, docs/LEDGER.md, docs/item_notes/phase7.md, docs/history_notes.md,
-docs/GATED.md):
- A placement fixtures  1021 -> 1031 -> 1036 -> 1037 (serial inside the slice)
- B save layer          1019
- C audit package       1023, 1024, 1035
- D panel JS            1026 -> 1028 -> 1027 (serial; share panel_*.js)
- E surface misc        1022, 1029, 1030, 1034
- G ops/loop            1018 (diagnose first) -> 1014 -> 1016 (+1015) -> 1017 -> 1178
- H winmutex            1160 (do NOT bump the digest constant - fork record is history)
- I citation guards     811 -> 812 -> 1163
- J redaction tests     820, 1177; 1168 = a written boundary RULE only (ADR)
- K drift_guard         1158 (ADR on "is a filename personal data" first)
- P hook measurement    956 (read-only over hooks)
- R provenance          1179
- Mind the box: concurrent full suites exhaust RAM and Windows forks. Builders run
- TARGETED tests only; the merger runs the one full suite.
-
-SERIAL FROZEN WAVE - EACH NEEDS AN ADJUDICATOR GRANT RECORDED IN docs/LEDGER.md
-BEFORE THE EDIT:
- M1 816 + 817 (interpreter ladder, all three .githooks/* + tools/precommit_gate.py)
-    MUST GO FIRST - each hook carries its own cs_python ladder.
- then in parallel: M2 commit-msg 813 -> 822; M3 pre-push 821 -> 824 -> 704 (or
-    route 704 to CI, no grant); M4 pre-commit 955 -> 1174.
- M5 815 - grant only if .claude/settings.json changes.
- after M1: 818 (verify_env mirrors the ladder). after M1-M4: 814.
-
-FINAL, SERIAL - THE FLIP (CS-700, CS-701, CS-953): N0 resolved, then the scanner
- plus the CS-953 synthetic-rename probe, the link resolver, licence audit and
- README pass, then the CS-700 S0-S12 plan. S9 onward is IRREVERSIBLE and outward-
- facing - the plan forbids the planning session from executing it.
+ 1 CS-704   trailer gate: the CI route (G-704 pre-push route DENIED). A step in
+            .github/workflows/tier1.yml counts trailers since pinned baseline c6f3687
+            using tools/trailer_census.py (now on main). Merger-written; see the grant
+            entry "CS-821, CS-824, CS-704 - FROZEN-FILE GRANT" in docs/LEDGER.md.
+ 2 CS-815   HELD for the operator (see above). The grant is recorded in docs/LEDGER.md
+            ("CS-815 - FROZEN-FILE GRANT"); nothing was edited under it yet.
+ 3 CS-814   every git hook inherits the session's live API credentials - frozen,
+            needs its own grant after CS-813/821/955 (all landed).
+ 4 CS-1195  on Linux drift_guard guard (c) can print a key file's path. Tier 1.
+ 5 CS-1198  tier-1 hook shard read 469s at da7a940, 11s under the 480s ceiling -
+            restore headroom WITHOUT raising the pin.
+ 6 CS-1196  provenance manifest history walk miscounts on a merge commit (land slices
+            by CHERRY-PICK until fixed).
+ 7 CS-1197  tests/save/test_trailing_run.py sweeps every real save - ~400s and growing.
+ 8 CS-1194  drift_guard prints a non-numeric player-named folder (ADR 0023 residual).
+ 9 CS-1032  panel_harness DOM stand-in.
+10 CS-701   operator git identity vs world-name collision (feeds S7a identity rewrite).
+11 CS-953   history scrub keyed on HEAD paths misses pre-rename paths.
+12 CS-1186  README walk: the outsider half passed an independent walk; the no-game
+            half is GATED under CS-G08 - cannot close until then.
+13 CS-700   the flip itself, S0-S12. LAST. S9 onward is IRREVERSIBLE and outward -
+            the operator's own-words confirmation right before S9, per CLAUDE.md 6.1.
+            Readiness is adjudicated at a frozen SHA (S8a); any later commit voids it.
+            Run `python tools/flip_checks.py <ref> --stage s1` locally (ADR 0025): it
+            passed 8 of 8 at 758253e, with the two expected check-6 pins.
 
 ================================================================================
 DECISIONS - DO NOT RE-LITIGATE
 ================================================================================
 
-A SECRET RULE CHANGE MUST RE-RECORD ITS FINGERPRINT deliberately via
-  --print-fingerprints; never loosen the fingerprint arm to absorb an edit.
-THE PROVENANCE MANIFEST IS NEVER RE-SEEDED. Restore it with
-  `git checkout <rev> -- tools/provenance.tsv` BEFORE editing any file. Never
-  hand-edit it. (Delete + edit + restore is a known permanent red - CS-1179.)
+THE FLIP KEEPS THE GRAPH AND STRIPS THE 18 AGENT TRAILERS at S7a (ADR 0018 as amended);
+  the message diff must be byte-exact (trailer line plus its blank separator only).
+THE OPERATOR CONFIRMS S9-S12 ONCE, IN THEIR OWN WORDS, in the main session - the one
+  exception CLAUDE.md 6.1 now carries. An adjudicator decides readiness; nobody lifts
+  that floor. Do not re-pitch "an adjudicator can authorise the flip".
+TIER-3 FLIP CHECKS RUN LOCALLY, NEVER IN CI (ADR 0025). A workflow must never name the
+  tool - tests/test_flip_checks.py enforces it.
+NEVER RAISE THE 420/480 TIER-1 PIN. Move files between the four shards or speed them up.
+A FILENAME CAN BE PERSONAL DATA (ADR 0023): withheld by reason class, reason + count only.
+PYTEST NODE IDS ARE NEVER REWRITTEN to redact them - redact at render time only
+  (tests/conftest.py); -k / --deselect by original id must keep working.
+FROZEN-FILE EDITS: adjudicator grant recorded in docs/LEDGER.md BEFORE the edit; a builder
+  that needs more than its grant STOPS and asks for an addendum (this happened twice and
+  was right both times).
+THE PROVENANCE MANIFEST IS NEVER RE-SEEDED; restore with `git checkout <rev> --
+  tools/provenance.tsv`; the CS-1179 recovery recipe is in docs/OPERATIONS.md.
 NO SIBLING-TREE READS, not even read-only (CS-1165 Q1). Brief every agent.
-MAIN IS THE OPERATOR'S STAND-IN for decisions, never for hands (CLAUDE.md 6.1).
-DO NOT RAISE THE 420/480 TIER 1 PIN to answer a noisy CI reading.
 
 ================================================================================
 EXTERNAL CONDITIONS BEING WAITED ON
 ================================================================================
 
-CI on the session-112 tip (unread at handoff).
+CS-G08: a disposable environment that has never seen the project (Windows Sandbox is off
+  and enabling it needs a reboot that would kill running sessions) - gates CS-1187 and the
+  no-game half of CS-1186.
+CS-815: the operator's decision (above).
+Owed inbox replies (33 asks from sibling repos).
 FOUR DEAD-SECRET FILES still await an operator deletion call (key already rotated).
 GitHub MCP and CodSpeed MCP need re-authorisation in an interactive session.
 
@@ -151,8 +134,11 @@ GitHub MCP and CodSpeed MCP need re-authorisation in an interactive session.
 TRAPS THIS SESSION PAID FOR
 ================================================================================
 
-A FORGIVENESS RULE ANCHORED AT THE WRONG COMMIT passes every fixture that never
-  edits before the gap; only an adversary driving honest edits found it.
-AN EVERY-VERSION RULE WITHOUT FORGIVENESS makes `git revert` permanently red.
-A FINGERPRINT OF REPEATED NODES ONLY misses an unquantified class (PuTTY \d).
-`python -m pytest -B` is rejected - -B is a Python flag: `python -B -m pytest`.
+EVERY BUILDER MUST RUN THE REPO-WIDE GUARDS (rendering, liveness, pointer claims,
+  citation tables, subprocess timeouts, provenance) - merged slices kept reddening them.
+THE PRE-PUSH HOOK STOPS AT THE FIRST FAILURE, so fixes surfaced one push at a time. Run
+  one full suite WITHOUT -x before pushing a batch.
+A WINDOWS-MEASURED CI COST IS NOT A LINUX ONE - skips differ per platform; read the CI
+  log's own durations before planning shard moves.
+A `cd` INTO A WORKTREE MOVES THE SESSION'S WORKING DIRECTORY - use `git -C` and absolute
+  paths when inspecting agent trees.

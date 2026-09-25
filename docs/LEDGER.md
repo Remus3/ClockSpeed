@@ -75,6 +75,25 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-09-25 - CS-815 - FROZEN-FILE GRANT. NOT A COMPLETION RECORD. NOTHING CLOSED. CS-815 STAYS OPEN and this entry does not close it. Granted by an adjudicator BEFORE the edit, for the two hook command strings in `.claude/settings.json` and nothing else
+Verification: this record is the grant, and the repair closes under its own later entry. The grant adjudicator wrote none of the work and may not close it. Base `c6f36874194aeed450c6d75a93be883f72c8f45e`.
+
+SCOPE. File: `.claude/settings.json`. Permitted changes: the command value of the PreToolUse `Bash|PowerShell` hook and the command value of the PostToolUse `Edit|Write|MultiEdit` hook. Each may invoke the new `tools/claude_hook.sh`, anchored at the CLAUDE_PROJECT_DIR variable as CS-1159 ruled, and passes the same tool and arguments it does today. Byte-identical: the schema key, `attribution`, `includeCoAuthoredBy` (CS-1157), `env`, `permissions`, both matchers and both timeouts. Restoring the file's base bytes is inside this grant.
+
+CONDITIONS THAT ARE PART OF THE GRANT.
+1. THE WRAPPER carries the `cs_probe` block and the CS-818 marked ladder BYTE-IDENTICAL to `.githooks/pre-commit`, apart from the two closing-voice lines the ladder test already excludes. Its own test asserts that identity; `tests/test_hook_interpreter_ladder.py` is not edited. No absolute path and no account name appear in the wrapper.
+2. PASS-THROUGH. When the probe passes, the tool gets the harness's stdin byte-identical, and the probe never reads it. The tool's exit status, stdout and stderr pass through unchanged: a deny from `tools/pretooluse_gate.py` (exit 2) still denies through the wrapper, proven against the direct invocation. The PreToolUse leg keeps pythonw, resolved beside the winning interpreter by measurement.
+3. LOUD REPORT. On a failed probe the wrapper exits non-zero, and NOT 2 on the PreToolUse leg, with one stderr line naming the failed probe. That line echoes no environment value, path or interpreter string. The builder cites the harness's documented handling of that status. If the report would show only in a verbose view, the builder STOPS for a ruling - the candidate alternative is an exit-0 JSON systemMessage. An invisible report never ships.
+4. LATENCY. The median of 20 wrapper calls on this box is reported. The worst case - the probe bound plus the kill grace plus the tool - is strictly under each leg's timeout, 20s and 30s. If the median adds more than one second per call, the builder STOPS for a ruling.
+5. PROOF. The test drives the wrapper the way the harness does, with a stdin JSON envelope, pointed at each program in `tests/test_hook_interpreter_ladder.py::ARGUMENT_IGNORING_PROGRAMS`, imported and never copied. Each program is loudly reported, and the exit code and stderr are captured. Controls: a good interpreter passes, and a known-deny envelope still denies.
+6. LANDING. The builder edits only its worktree copy, and the merger lands the file. Immediately after landing, the merger confirms in the live session that one Bash call runs and one known-deny command is still denied. If either fails, the merger restores the base bytes in the next command.
+
+BLAST RADIUS. Every Bash, PowerShell, Edit and Write call in every session in this repository, from the moment the file lands. A wrong wrapper either fails open, which is today's state, or locks the session out of Bash, which condition 3 forbids on PreToolUse and condition 6 reverts. RESIDUAL, NOT GRANTED: the shell that runs the wrapper is itself unprobed - declared, and milder than the git hooks, as the item note records.
+
+---
+
+Recorded at session 113 /done so the grant survives; the edit is HELD for the operator's decision (it rewrites what runs in every Claude Code session here). Nothing was edited under it.
+
 ### 2026-09-25 - CS-813 - CLOSED. The commit-msg hook grades every stored message image, whatever cleanup mode git uses
 Verification: `python -B -m pytest tests/test_commit_msg_cleanup_matrix.py -q`. The merged file is `.githooks/commit-msg`, which grades every stored image; the arm is `tests/test_commit_msg_cleanup_matrix.py::test_no_stored_violation_lands_in_any_cell`. Measured by the adjudicator end to end in a fresh clone with the hooks installed, HEAD unchanged on every refusal: a stored subject of length 129 REFUSED; CRLF under `--cleanup=verbatim` REFUSED naming `0x0D`; a clean `-m` control LANDED, its stored bytes read with `git cat-file`. DECLARED over-refusals: a CRLF-writing editor; a non-ASCII `--author` in the template; `-v` over a non-ASCII removal. The adjudicator ruled CLOSE on the frozen candidate `da7a940`.
 
