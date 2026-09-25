@@ -891,6 +891,31 @@ DISPOSITIONS: Final[Mapping[tuple[str, str], Disposition]] = {
         "CS-1167 replaced the single canary with one per rule. Not a record defect.",
         ("ce711a9bd17c:4f5302be7ef4:0",),
     ),
+    # --- class 7: the record was RIGHT when written; CS-1193 MOVED the two
+    # whole-population forced arms out of the canary population module into
+    # their own file, after the CS-1177 entry cited them. Names unchanged.
+    (
+        LEDGER,
+        "tests/test_canary_population.py"
+        "::test_a_helper_raise_under_showlocals_renders_no_canary_forced_red_output",
+    ): Disposition(
+        MOVED,
+        "tests/test_canary_population_forced.py"
+        "::test_a_helper_raise_under_showlocals_renders_no_canary_forced_red_output",
+        "CS-1177 citation, relocated by CS-1193. Not a record defect.",
+        ("690192831736:40b2c3e72a51:0",),
+    ),
+    (
+        LEDGER,
+        "tests/test_canary_population.py"
+        "::test_a_new_canary_module_in_no_list_is_picked_up_and_graded_forced_red_output",
+    ): Disposition(
+        MOVED,
+        "tests/test_canary_population_forced.py"
+        "::test_a_new_canary_module_in_no_list_is_picked_up_and_graded_forced_red_output",
+        "CS-1177 citation, relocated by CS-1193. Not a record defect.",
+        ("690192831736:40b2c3e72a51:0",),
+    ),
 }
 
 
@@ -1210,7 +1235,14 @@ UNVERIFIED_LINE_POINTERS: Final[Mapping[tuple[str, str, int], str]] = {
 #: it with one canary per rule, so the citation is right-when-written and dead
 #: now. The carrier is append-only, the live target exists, and the class 6
 #: row in DISPOSITIONS is RENAMED - checked in all three directions every run.
-FORGIVEN_LINE_POINTER_CEILING: Final = 64
+#:
+#: RAISED TO 66 BY CS-1193, FOR A MOVE. The CS-1177 record cites the two
+#: whole-population forced arms in the canary population module; CS-1193 moved
+#: both, names unchanged, into their own file to bring the tier-1 fast shard
+#: back under its ceiling. Right-when-written and dead now, in an append-only
+#: carrier, with a live target - the two class 7 rows in DISPOSITIONS are
+#: MOVED and checked in all three directions every run.
+FORGIVEN_LINE_POINTER_CEILING: Final = 66
 
 
 #: R2's live membership, DISCLOSED. Every entry is a citation at a path this
