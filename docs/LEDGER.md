@@ -75,6 +75,32 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-09-25 - CS-955 - FROZEN-FILE GRANT ADDENDUM 2. NOT A COMPLETION RECORD. NOTHING CLOSED. CS-955 STAYS OPEN. Granted NARROWED by a grant adjudicator distinct from the closing adjudicator; widens the listing only
+Verification: this record is the grant addendum; CS-955 closes under its own later entry. The adjudicator wrote none of the work and may not close it. Frozen candidate `a272aebc195c0ac2e1c7a30d4416d68408dce03c`: GRANTED IN SUBSTANCE, NOT YET CONFORMING (condition 1 below).
+
+SCOPE, ADDED. `.githooks/pre-commit` ONLY; `tools/precommit_gate.py` stays DENIED for CS-955. Each of the three listings may be `git ls-files -s --debug`, captured by a plain assignment whose status is checked. Each is reduced by ONE shell function to the header line of each entry plus its `flags:` value, and the stat fields are dropped. The refusal stays "unless the three reduced listings are identical". Everything else in addendum 1 is unchanged, including every FORBIDDEN item: no index-writing command against either file.
+
+CONDITIONS.
+1. FAIL CLOSED. A failure of the reduction refuses. EITHER it uses no here-document, here-string, pipeline or temp file, OR its exit status is checked and a non-zero status refuses. In both cases, a non-empty raw listing that reduces to an empty view REFUSES, naming CS-955. The "builtins only" comment is corrected to match what ships.
+2. ARMS. All of these are green on the merged tip:
+   - the intent-to-add swap arm, which refuses;
+   - the untouched intent-to-add control, which commits;
+   - the benign-refresh arm, which commits;
+   - the no-index-write arm, with its refresh control;
+   - a fault-injection arm: the test installs a hook copy whose reduction is stubbed to print nothing and return non-zero, and the commit is refused with HEAD unmoved. Like the pre-push floor-line precedent, the helper asserts the copy differs from the tracked hook on the stub alone.
+3. MUTANTS, each asserted applied, each with a pristine floor in the same run, each killed:
+   - (i) the flags line dropped by the reduction - killed by the intent-to-add arm;
+   - (ii) the stat fields kept - killed by the benign-refresh arm;
+   - (iii) `--debug` removed from the listings - killed by the intent-to-add arm;
+   - (iv) the condition-1 refusal removed - killed by the fault-injection arm.
+4. CANARY NOT SKIPPED. The intent-to-add swap arm RUNS on both the ubuntu and the windows CI runners, and both skip counts are read. That arm is the only thing that detects a change in the `--debug` format, which git-ls-files(1) documents as unstable.
+
+BLAST RADIUS. Every commit in every worktree.
+- DECLARED: if the `--debug` format changes, the flags are dropped silently and the check degrades to its addendum-1 `-s` behaviour. Condition 4 is the detector.
+- DECLARED: in-memory flag bits under `core.fsmonitor` or `core.splitIndex` may refuse spuriously and LOUDLY. Neither is set on this box.
+- DECLARED, shared with addendum 1: the cache-tree extension is in no listing. A forged valid cache-tree under unchanged entries is the hostile-local-writer residual.
+- No stat-churn refusal is possible, because the stat fields are dropped.
+
 ### 2026-09-25 - CS-1183 - BOOTSTRAP.md section 2.2 amended under CLAUDE.md section 8. NOT A COMPLETION RECORD. NOTHING CLOSED. CS-1183 STAYS OPEN
 Verification: BOOTSTRAP.md section 2.2 plus tools/flip_checks.py plus
 tests/test_flip_checks.py::test_no_workflow_hook_or_lane_names_the_tool and
