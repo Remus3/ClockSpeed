@@ -1016,9 +1016,14 @@ def _history_digests(root: Path) -> tuple[set[str], int]:
             watchdog.cancel()
             if proc.stdout is not None:
                 proc.stdout.close()
-            returncode = proc.wait()
+            try:
+                returncode = proc.wait(timeout=GIT_TIMEOUT)
+            except subprocess.TimeoutExpired:
+                proc.kill()
+                proc.wait(timeout=GIT_TIMEOUT)
+                pytest.fail(f"git cat-file did not exit within {GIT_TIMEOUT}s - {UNREADABLE}")
     if expired.is_set():
-        pytest.fail(f"the history blob stream ran past {HISTORY_STREAM_TIMEOUT}s - {UNREADABLE}")
+        pytest.fail(f"git cat-file ran past {HISTORY_STREAM_TIMEOUT}s - {UNREADABLE}")
     if returncode != 0:
         pytest.fail(f"git cat-file exited {returncode} - {UNREADABLE}")
     if hashed == 0:
