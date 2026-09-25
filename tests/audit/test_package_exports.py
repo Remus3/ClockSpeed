@@ -13,7 +13,11 @@ reads the package namespace, so the ``WARN_*`` names a freshly imported package
 EXPOSES must equal the ``WARN_*`` members of ``__all__``, which must equal the
 derived set. A save-layer code imported into ``__init__.py`` is exposed, so it
 must be in ``__all__`` - and there it is not a code the package defines, so it
-is red either way. A module ``__getattr__`` or ``__dir__`` is refused outright.
+is red either way. ``vars`` IS exposure only because the three ways a module
+can serve a name its namespace lacks - a ``__getattr__`` or ``__dir__`` hook
+and a ``__class__`` swap - are refused in the source AND measured absent at run
+time: every audit module, imported fresh, is exactly ``types.ModuleType``,
+holds neither hook, and lists through ``dir()`` exactly its ``vars`` codes.
 
 WHY "DEFINES" AND NOT "HAS IN ITS NAMESPACE". ``placement.py`` imports
 ``WARN_NODE_SEMANTICS_UNAVAILABLE`` from ``clockspeed.save.world`` and raises it,
@@ -31,12 +35,14 @@ why - the omission was the arbitrary thing, not any one missing name.
 from __future__ import annotations
 
 import ast
+import functools
 import importlib
+import json
 import pkgutil
 import subprocess
 import sys
 from pathlib import Path
-from typing import Final
+from typing import Final, TypedDict
 
 import clockspeed.audit as audit_package
 from clockspeed.audit import placement
@@ -271,7 +277,11 @@ def refused_binding_forms(source: str) -> list[str]:
       lambda body. PEP 562 lets a module ``__getattr__`` serve an attribute no
       namespace holds, so a code it serves is exposed yet absent from both the
       source count and ``vars`` of the module. A method of that name, or a
-      function local, is not a module hook and is not refused.
+      function local, is not a module hook and is not refused;
+    - a store to (or delete of) any ``__class__`` attribute, anywhere - a
+      module whose class is swapped to a ModuleType subclass serves names
+      through that class, the third mechanism beside the two hooks. A read of
+      ``__class__`` is not refused.
 
     NOT refused: ``nonlocal``, which names an enclosing FUNCTION scope and can
     never reach the module; and ``except ... as WARN_X``, which Python unbinds
@@ -299,6 +309,12 @@ def refused_binding_forms(source: str) -> list[str]:
             found.append((node.lineno, "global statement"))
         elif isinstance(node, ast.Match):
             found.append((node.lineno, "match statement"))
+        elif (
+            isinstance(node, ast.Attribute)
+            and node.attr == "__class__"
+            and not isinstance(node.ctx, ast.Load)
+        ):
+            found.append((node.lineno, "store to attribute __class__"))
         elif isinstance(node, (ast.Import, ast.ImportFrom)):
             for alias in node.names:
                 if alias.name == "*":
@@ -407,25 +423,59 @@ def test_an_imported_save_layer_code_is_not_counted_as_defined_here() -> None:
     assert save_owned not in vars(audit_package)
 
 
-def exposed_warning_names() -> tuple[str, frozenset[str]]:
-    """Import ``clockspeed.audit`` in a FRESH interpreter and read its namespace.
+#: Run in a FRESH interpreter: import the audit package and every submodule,
+#: and report, per module, what it EXPOSES beside what its namespace holds.
+_FRESH_PROBE: Final = """
+import importlib, json, pkgutil, types
+import clockspeed.audit as package
+names = [package.__name__] + [
+    info.name for info in pkgutil.walk_packages(package.__path__, package.__name__ + '.')
+]
+report = {}
+for name in names:
+    module = importlib.import_module(name)
+    report[name] = {
+        'file': module.__file__,
+        'plain_module': type(module) is types.ModuleType,
+        'hooks': sorted(hook for hook in ('__getattr__', '__dir__') if hook in vars(module)),
+        'vars': sorted(key for key in vars(module) if key.startswith('WARN_')),
+        'dir': sorted(
+            key for key in dir(module) if key.startswith('WARN_') and hasattr(module, key)
+        ),
+    }
+print(json.dumps(report))
+"""
 
-    Fresh, so no test in this process that set an attribute on the package can
+
+class ModuleReport(TypedDict):
+    """What the fresh child reports for one module - see :func:`fresh_module_report`."""
+
+    file: str
+    plain_module: bool
+    hooks: list[str]
+    vars: list[str]
+    dir: list[str]
+
+
+@functools.cache
+def fresh_module_report() -> dict[str, ModuleReport]:
+    """Import ``clockspeed.audit`` and its submodules in a FRESH interpreter.
+
+    Fresh, so no test in this process that set an attribute on a module can
     add or hide a name. The child runs from the repository root this test was
-    collected from, and reports the file it imported so the caller can check it
+    collected from, and reports each module's file so the caller can check it
     read this tree and not an installed copy.
 
     Returns:
-        The imported package's file, and every ``WARN_*`` key of its namespace.
+        Per dotted module name: its ``file``; ``plain_module``, whether its
+        type is exactly ``types.ModuleType``; ``hooks``, the members of
+        :data:`MODULE_HOOKS` in its namespace; ``vars``, the ``WARN_*`` keys of
+        its namespace; and ``dir``, the ``WARN_*`` names ``dir()`` lists that
+        attribute access resolves.
     """
     root = Path(audit_package.__file__).parents[2]
-    probe = (
-        "import clockspeed.audit as package\n"
-        "print(package.__file__)\n"
-        "print(*sorted(name for name in vars(package) if name.startswith('WARN_')))\n"
-    )
     result = subprocess.run(
-        [sys.executable, "-B", "-c", probe],
+        [sys.executable, "-B", "-c", _FRESH_PROBE],
         cwd=root,
         capture_output=True,
         text=True,
@@ -433,8 +483,8 @@ def exposed_warning_names() -> tuple[str, frozenset[str]]:
         timeout=120,
     )
     assert result.returncode == 0, result.stderr
-    imported, _, names = result.stdout.partition("\n")
-    return imported.strip(), frozenset(names.split())
+    report: dict[str, ModuleReport] = json.loads(result.stdout.strip().splitlines()[-1])
+    return report
 
 
 def test_the_package_exposes_exactly_the_codes_it_re_exports() -> None:
@@ -446,17 +496,44 @@ def test_the_package_exposes_exactly_the_codes_it_re_exports() -> None:
     # save-layer code imported into ``__init__.py``, or a code assigned there,
     # is red either way: unlisted it fails here, listed it fails there. A
     # module ``__getattr__`` serves names no namespace holds, which is why
-    # :func:`refused_binding_forms` refuses that hook outright.
-    imported, exposed = exposed_warning_names()
+    # :func:`refused_binding_forms` refuses that hook outright, and the arm
+    # below proves at run time that the namespace IS what each module exposes.
+    package = fresh_module_report()[audit_package.__name__]
+    exposed = frozenset(package["vars"])
     declared = frozenset(name for name in audit_package.__all__ if name.startswith(WARNING_PREFIX))
 
-    assert Path(imported) == Path(audit_package.__file__)
+    assert Path(package["file"]) == Path(audit_package.__file__)
     unlisted = sorted(exposed - declared)
     unexposed = sorted(declared - exposed)
     assert unlisted == []
     assert unexposed == []
     # Anti-vacuity: the namespace holds the whole derived set, not nothing.
     assert exposed == frozenset(defining_modules())
+
+
+def test_every_audit_module_exposes_exactly_its_namespace() -> None:
+    # The exposure arm above reads ``vars``; this arm makes ``vars`` equal
+    # exposure. Python has three ways for a module to serve an attribute its
+    # namespace does not hold - a ``__getattr__`` or ``__dir__`` in the
+    # namespace (PEP 562), and a ``__class__`` swapped to a ModuleType
+    # subclass. With the type exactly ``types.ModuleType`` and neither hook in
+    # the namespace, attribute access on a module resolves its namespace and
+    # ModuleType's own members only - so no ``WARN_*`` code can be served from
+    # anywhere but ``vars``. Checked in a fresh interpreter, for the package
+    # and every submodule, whatever the static refusal missed.
+    report = fresh_module_report()
+    walked = {
+        info.name
+        for info in pkgutil.walk_packages(audit_package.__path__, audit_package.__name__ + ".")
+    }
+
+    assert set(report) == walked | {audit_package.__name__}
+    swapped = sorted(name for name, entry in report.items() if not entry["plain_module"])
+    hooked = sorted(f"{name} {hook}" for name, entry in report.items() for hook in entry["hooks"])
+    unlisted = sorted(name for name, entry in report.items() if entry["dir"] != entry["vars"])
+    assert swapped == []
+    assert hooked == []
+    assert unlisted == []
 
 
 def test_the_source_parser_separates_an_assignment_from_an_import() -> None:
@@ -626,6 +703,8 @@ _REFUSED_PLANTS: Final = (
     "    __dir__ = object.__dir__\n"  # 28
     "def local() -> None:\n"  # 29
     "    __getattr__ = print\n"  # 30 - a function local, never the module
+    "module.__class__ = Lazy\n"  # 31 - a module class swap serves any name
+    "kind = value.__class__\n"  # 32 - control: a read swaps nothing
 )
 
 #: What the refusal detector must report for :data:`_REFUSED_PLANTS`, in order.
@@ -641,6 +720,7 @@ _REFUSED_FINDINGS: Final = [
     "line 20: module hook __dir__",
     "line 23: module hook __getattr__",
     "line 24: module hook __dir__",
+    "line 31: store to attribute __class__",
 ]
 
 
