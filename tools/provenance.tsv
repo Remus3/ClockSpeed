@@ -244,6 +244,7 @@ tests/git_env.py	authored	CS-968	first-add:CS-968
 tests/liveness.py	authored	CS-846	first-add:CS-846
 tests/locals_rendering_guard.py	authored	CS-1165	first-add:root
 tests/ops/__init__.py	authored	CS-1000	first-add:CS-1000
+tests/ops/test_driver_log_per_night.py	authored	CS-1018	stamped
 tests/ops/test_driver_module_binding.py	authored	CS-1165	first-add:root
 tests/ops/test_lane_background_tasks.py	authored	CS-1108	first-add:CS-1108
 tests/ops/test_lane_inbox_surface.py	authored	CS-1104	first-add:CS-1104
@@ -321,8 +322,10 @@ tests/surface/test_contract.py	authored	CS-601	first-add:CS-601
 tests/surface/test_endpoint_opens_no_file_live.py	authored	CS-1171	first-add:CS-1171
 tests/surface/test_health.py	authored	CS-601	first-add:CS-601
 tests/surface/test_map.py	authored	CS-977	first-add:CS-977
+tests/surface/test_map_vocabulary.py	authored	CS-1189	stamped
 tests/surface/test_panel_global_scope.py	authored	CS-1026	stamped
 tests/surface/test_panel_map.py	authored	CS-977	first-add:CS-977
+tests/surface/test_panel_map_withheld.py	authored	CS-1189	stamped
 tests/surface/test_panel_optimize.py	authored	CS-962	first-add:CS-962
 tests/surface/test_panel_power.py	authored	CS-962	first-add:CS-962
 tests/surface/test_panel_registry.py	authored	CS-962	first-add:CS-962
@@ -362,10 +365,13 @@ tests/test_cs1169_placeholder_bounds.py	authored	CS-1169	first-add:CS-1169
 tests/test_cs1172_branch_canaries.py	authored	CS-1172	first-add:CS-1172
 tests/test_cs1175_rule_narrowing.py	authored	CS-1175	stamped
 tests/test_cs1179_reseed_recovery.py	authored	CS-1179	stamped
+tests/test_cs1191_colour_xdist_redaction.py	authored	CS-1191	stamped
 tests/test_dashboard_probe.py	authored	CS-918	first-add:CS-918
 tests/test_dated_headings.py	authored	CS-840	first-add:CS-840
 tests/test_disposition_sites.py	authored	CS-1121	first-add:CS-1121
 tests/test_doc_budget.py	authored	CS-475	first-add:CS-475
+tests/test_doc_sweep.py	authored	CS-1184	stamped
+tests/test_doc_sweep_tree.py	authored	CS-1184	stamped
 tests/test_docs_citations.py	authored	CS-442	first-add:CS-442
 tests/test_edit_lint_check.py	authored	CS-204	first-add:CS-204
 tests/test_exception_messages.py	authored	CS-852	first-add:CS-852
@@ -383,6 +389,7 @@ tests/test_lane_lock.py	authored	CS-918	first-add:CS-918
 tests/test_lane_runner_script.py	authored	CS-1165	first-add:root
 tests/test_launch_queue_loop.py	authored	CS-918	first-add:CS-918
 tests/test_ledger_entry_shape.py	authored	CS-1126	first-add:CS-1126
+tests/test_licence_audit.py	authored	CS-1185	stamped
 tests/test_liveness.py	authored	CS-846	first-add:CS-846
 tests/test_locals_rendering.py	authored	CS-1165	first-add:root
 tests/test_make_cert.py	authored	CS-601	first-add:CS-601
@@ -431,11 +438,13 @@ tests/toolpath_guard.py	authored	CS-910	first-add:CS-910
 tools/action_runtimes.py	authored	CS-990	first-add:CS-990
 tools/dashboard_probe.py	authored	CS-918	first-add:CS-918
 tools/doc_budget.py	authored	CS-1165	first-add:root
+tools/doc_sweep.py	authored	CS-1184	stamped
 tools/drift_guard.py	authored	CS-1165	first-add:root
 tools/edit_lint_check.py	authored	CS-1165	first-add:root
 tools/facts_probe.py	authored	CS-1165	first-add:root
 tools/headless-queue.md	authored	CS-918	first-add:CS-918
 tools/inbox_watch.py	authored	CS-926	first-add:CS-926
+tools/licence_audit.py	authored	CS-1185	stamped
 tools/measurement_record.py	authored	CS-920	first-add:CS-920
 tools/measurements.json	authored	CS-920	first-add:CS-920
 tools/memory_sync.py	authored	CS-1165	first-add:root
