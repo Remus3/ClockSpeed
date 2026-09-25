@@ -45,13 +45,6 @@ _OWN_SCOPES: Final = (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef, ast.L
 #: counts a walrus target alone.
 _COMPREHENSIONS: Final = (ast.ListComp, ast.SetComp, ast.DictComp, ast.GeneratorExp)
 
-#: Builtins whose return value IS a live module namespace when called at
-#: module scope - and, for ``globals``, from anywhere in the module.
-_NAMESPACE_CALLS: Final = frozenset({"globals", "vars"})
-
-#: Mapping methods that write through the namespace they are called on.
-_WRITING_METHODS: Final = frozenset({"update", "setdefault", "__setitem__"})
-
 
 def defined_warning_names(source: str) -> frozenset[str]:
     """Return every ``WARN_*`` name a module's source binds at module scope.
@@ -69,15 +62,25 @@ def defined_warning_names(source: str) -> frozenset[str]:
     anything bound inside a function, a class body or a lambda, none of which
     is a module constant.
 
-    FAILS CLOSED, BUT NOT HERE - a write through the module namespace at run
-    time (``globals()[...] =``, ``vars()[...] =``, ``globals().update``,
-    ``setattr(sys.modules[...], ...)``, ``...__dict__[...] =``) binds a name
-    no static read can recover. :func:`dynamic_namespace_writes` reports each
-    one by line and an arm holds the package free of them, so the derived set
-    here can never be silently short by one.
+    FAILS CLOSED, BUT NOT HERE - a name bound at run time through a door into
+    a module namespace (``globals()[...] =``, an aliased ``_ns = globals()``,
+    ``exec``, ``setattr`` on a module, a ``__dict__`` store, and the rest) is
+    one no static read can recover. :func:`namespace_doors` refuses every
+    REFERENCE to each door in :data:`NAMESPACE_DOORS` - not only a call, so an
+    alias is caught where it is taken - plus any store to a ``WARN_*``
+    attribute, and an arm holds every source file of the package,
+    ``__init__.py`` included, free of them. So the derived set here cannot be
+    short by one through any door that arm names without that arm reddening.
+
+    RESIDUAL, stated so it is not read as covered: a door reached only through
+    a name built from a string at run time, with no member of
+    :data:`NAMESPACE_DOORS` referenced - for example ``operator.attrgetter``
+    over a concatenated dunder - is invisible to any static read and is not
+    refused - a limit of every static read, named here rather than closed.
 
     The first draft read top-level ``Assign`` nodes only; two adversary passes
-    named the holes this docstring now lists.
+    named the holes this docstring now lists, and a third named the aliased
+    namespace and the ``exec`` that a call-shaped detector let through.
 
     Args:
         source: The module's source text.
@@ -107,66 +110,93 @@ def defined_warning_names(source: str) -> frozenset[str]:
     return frozenset(names)
 
 
-def _is_namespace(node: ast.expr) -> bool:
-    """Whether an expression evaluates to a live module namespace.
+#: Every name that opens a door into a module namespace a static read cannot
+#: follow. Refused on ANY reference - a load, a store, an attribute, an import
+#: name - not only on a call, so ``_ns = globals()`` is caught at ``globals``
+#: before the alias ever writes. The ruled seven (``globals``, ``vars``,
+#: ``exec``, ``eval``, ``setattr``, ``__dict__`` and ``sys.modules`` - the last
+#: as the ``modules`` attribute or import name, so an aliased ``sys`` is caught
+#: too) plus their siblings: ``locals`` is the module namespace at module scope,
+#: ``compile`` feeds ``exec``, ``getattr`` reaches ``__dict__`` by string,
+#: ``__import__``, ``__builtins__``, ``builtins`` and ``importlib`` hand back a
+#: module or the builtins whole, ``__globals__`` is a function's module
+#: namespace, ``__setattr__`` is ``setattr`` by another name, and
+#: ``f_globals`` and ``f_locals`` are a frame's.
+NAMESPACE_DOORS: Final = frozenset(
+    {
+        "globals",
+        "vars",
+        "exec",
+        "eval",
+        "setattr",
+        "__dict__",
+        "modules",
+        "locals",
+        "compile",
+        "getattr",
+        "__import__",
+        "__builtins__",
+        "builtins",
+        "importlib",
+        "__globals__",
+        "__setattr__",
+        "f_globals",
+        "f_locals",
+    }
+)
 
-    Args:
-        node: The expression.
 
-    Returns:
-        True for ``globals()``, ``vars()``, any ``...__dict__`` and any
-        ``sys.modules[...]`` subscript.
-    """
-    if isinstance(node, ast.Call) and isinstance(node.func, ast.Name):
-        return node.func.id in _NAMESPACE_CALLS and not node.args
-    if isinstance(node, ast.Attribute) and node.attr == "__dict__":
-        return True
-    return (
-        isinstance(node, ast.Subscript)
-        and isinstance(node.value, ast.Attribute)
-        and node.value.attr == "modules"
-        and isinstance(node.value.value, ast.Name)
-        and node.value.value.id == "sys"
-    )
-
-
-def dynamic_namespace_writes(source: str) -> list[str]:
-    """Every write through a module namespace that a static read cannot name.
+def namespace_doors(source: str) -> list[str]:
+    """Every reference in a module's source to a door into a module namespace.
 
     FAIL CLOSED, over the WHOLE module rather than module scope alone, because
-    ``globals()`` inside a function still writes the module. Each form below is
-    reported as ``line N: <form>``:
+    ``globals()`` inside a function still writes the module. Each finding is
+    ``line N: <name>``, in line order, for:
 
-    - a subscript store into ``globals()``, ``vars()`` or any ``__dict__``;
-    - ``update``, ``setdefault`` or ``__setitem__`` called on one of those;
-    - ``setattr`` whose target is ``sys.modules[...]`` or ``globals()``.
-
-    A store into an ordinary mapping and a ``setattr`` on an ordinary object
-    are NOT reported: neither can reach a module namespace.
+    - a ``Name`` whose identifier is in :data:`NAMESPACE_DOORS`, in any context;
+    - an ``Attribute`` whose attribute is in :data:`NAMESPACE_DOORS`;
+    - an ``import`` or ``from ... import`` that spells one as a dotted part of
+      the module, the imported name or the alias;
+    - a store to a ``WARN_*`` attribute of any object, which is how one module
+      binds a code in ANOTHER module's namespace without that module's source
+      spelling it.
 
     Args:
         source: The module's source text.
 
     Returns:
-        The findings, in line order.
+        The findings.
     """
     found: list[tuple[int, str]] = []
     for node in ast.walk(ast.parse(source)):
-        if isinstance(node, ast.Subscript) and isinstance(node.ctx, ast.Store):
-            if _is_namespace(node.value):
-                found.append((node.lineno, "subscript store into a module namespace"))
-        elif isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute):
-            if node.func.attr in _WRITING_METHODS and _is_namespace(node.func.value):
-                found.append((node.lineno, f"{node.func.attr} on a module namespace"))
-        elif (
-            isinstance(node, ast.Call)
-            and isinstance(node.func, ast.Name)
-            and node.func.id == "setattr"
-            and node.args
-            and _is_namespace(node.args[0])
-        ):
-            found.append((node.lineno, "setattr on a module"))
-    return [f"line {line}: {form}" for line, form in sorted(found)]
+        if isinstance(node, ast.Name) and node.id in NAMESPACE_DOORS:
+            found.append((node.lineno, node.id))
+        elif isinstance(node, ast.Attribute):
+            if node.attr in NAMESPACE_DOORS:
+                found.append((node.lineno, node.attr))
+            elif isinstance(node.ctx, ast.Store) and node.attr.startswith(WARNING_PREFIX):
+                found.append((node.lineno, f"store to attribute {node.attr}"))
+        elif isinstance(node, (ast.Import, ast.ImportFrom)):
+            spelled = [alias.name for alias in node.names]
+            spelled += [alias.asname for alias in node.names if alias.asname]
+            if isinstance(node, ast.ImportFrom) and node.module:
+                spelled.append(node.module)
+            doors = {part for dotted in spelled for part in dotted.split(".")} & NAMESPACE_DOORS
+            found.extend((node.lineno, door) for door in doors)
+    return [f"line {line}: {name}" for line, name in sorted(found)]
+
+
+def package_sources() -> list[Path]:
+    """Every Python source file of the audit package, ``__init__.py`` included.
+
+    Read from the package directory rather than from ``pkgutil``, which walks
+    submodules only and would leave ``__init__.py`` unscanned.
+
+    Returns:
+        The paths, sorted.
+    """
+    package_dir = Path(audit_package.__file__).parent
+    return sorted(path for path in package_dir.rglob("*.py") if "__pycache__" not in path.parts)
 
 
 def defining_modules() -> dict[str, str]:
@@ -323,44 +353,110 @@ def test_the_source_parser_reaches_every_module_scope_binding_form() -> None:
     )
 
 
-def test_the_dynamic_write_detector_names_every_form() -> None:
-    # FAIL CLOSED. A name written through the module namespace at run time
+#: The detector's planted source: one door per line, then controls.
+_DOOR_PLANTS: Final = (
+    "_ns = globals()\n"  # 1
+    "exec(\"WARN_EXEC = 'x'\")\n"  # 2
+    "vars()\n"  # 3
+    "eval('1')\n"  # 4
+    "setattr(obj, 'WARN_C', 'c')\n"  # 5
+    "obj.__dict__\n"  # 6
+    "import sys as s\n"  # 7 - no finding: sys alone opens nothing
+    "s.modules\n"  # 8
+    "locals()\n"  # 9
+    "compile('', '', 'exec')\n"  # 10
+    "getattr(obj, 'name')\n"  # 11
+    "__import__('os')\n"  # 12
+    "__builtins__\n"  # 13
+    "import builtins\n"  # 14
+    "from importlib import import_module\n"  # 15
+    "later.__globals__\n"  # 16
+    "object.__setattr__(obj, 'a', 1)\n"  # 17
+    "frame.f_globals\n"  # 18
+    "frame.f_locals\n"  # 19
+    "from sys import modules as mods\n"  # 20
+    "from builtins import print as run\n"  # 21
+    "other.WARN_INJECTED = 'x'\n"  # 22
+    "def later() -> None:\n"  # 23
+    "    run = exec\n"  # 24 - inside a function still counts
+    "table = {}\n"  # 25 - the controls: nothing from here on is a door
+    "table['WARN_NOT_A_NAMESPACE'] = 'fine'\n"  # 26
+    "value = other.WARN_READ\n"  # 27
+    "value.attribute = 1\n"  # 28
+)
+
+#: What the detector must report for :data:`_DOOR_PLANTS`, in order.
+_DOOR_FINDINGS: Final = [
+    "line 1: globals",
+    "line 2: exec",
+    "line 3: vars",
+    "line 4: eval",
+    "line 5: setattr",
+    "line 6: __dict__",
+    "line 8: modules",
+    "line 9: locals",
+    "line 10: compile",
+    "line 11: getattr",
+    "line 12: __import__",
+    "line 13: __builtins__",
+    "line 14: builtins",
+    "line 15: importlib",
+    "line 16: __globals__",
+    "line 17: __setattr__",
+    "line 18: f_globals",
+    "line 19: f_locals",
+    "line 20: modules",
+    "line 21: builtins",
+    "line 22: store to attribute WARN_INJECTED",
+    "line 24: exec",
+]
+
+
+def test_the_namespace_door_detector_names_every_reference() -> None:
+    # FAIL CLOSED. A name written through a module namespace at run time
     # cannot be read statically, so the derivation cannot count it - the only
-    # honest answer is a red finding naming the line.
-    source = (
-        "import sys\n"
-        "globals()['WARN_A'] = 'a'\n"
-        "globals().update(WARN_B='b')\n"
-        "setattr(sys.modules[__name__], 'WARN_C', 'c')\n"
-        "vars()['WARN_D'] = 'd'\n"
-        "sys.modules[__name__].__dict__['WARN_E'] = 'e'\n"
-        "def later() -> None:\n"
-        "    globals()['WARN_F'] = 'f'\n"
-        "globals().setdefault('WARN_G', 'g')\n"
-        "vars().update({'WARN_H': 'h'})\n"
-        "table = {}\n"
-        "table['WARN_NOT_A_NAMESPACE'] = 'fine'\n"
-        "setattr(table, 'harmless', 1)\n"
+    # honest answer is a red finding naming the line. The first two lines are
+    # the adjudicator's two escapes from the call-shaped detector this arm
+    # replaced: an aliased namespace and an ``exec``. Every door in the set is
+    # planted on at least one line whose only door it is, so dropping any one
+    # from the set removes that line from the findings.
+    assert namespace_doors(_DOOR_PLANTS) == _DOOR_FINDINGS
+
+
+def test_the_door_set_holds_the_ruled_seven_and_no_ungraded_member() -> None:
+    # Anti-shrink control. The ruling names seven doors, and every member of
+    # the set must be one the detector test above plants and expects - a door
+    # added without a planted line would go ungraded, and one dropped from
+    # the set would leave an expected line the detector no longer reports.
+    ruled = {"globals", "vars", "exec", "eval", "setattr", "__dict__", "modules"}
+    planted = {
+        finding.split(": ", 1)[1]
+        for finding in _DOOR_FINDINGS
+        if not finding.split(": ", 1)[1].startswith("store to attribute")
+    }
+    assert ruled <= NAMESPACE_DOORS
+    assert planted == NAMESPACE_DOORS, sorted(planted ^ NAMESPACE_DOORS)
+
+
+def test_the_scan_reaches_every_source_file_including_the_package_init() -> None:
+    # pkgutil walks submodules only; the door arm reads the directory, so the
+    # package's own ``__init__.py`` is scanned too.
+    scanned = frozenset(path.stem for path in package_sources())
+    walked = frozenset(
+        info.name.rsplit(".", 1)[-1]
+        for info in pkgutil.walk_packages(audit_package.__path__, audit_package.__name__ + ".")
     )
 
-    assert [finding.split(":", 1)[0] for finding in dynamic_namespace_writes(source)] == [
-        "line 2",
-        "line 3",
-        "line 4",
-        "line 5",
-        "line 6",
-        "line 8",
-        "line 9",
-        "line 10",
-    ]
+    assert scanned == walked | {"__init__"}
+    assert "placement" in scanned
 
 
-def test_no_audit_module_writes_its_namespace_dynamically() -> None:
+def test_no_audit_source_references_a_namespace_door() -> None:
     found: list[str] = []
-    for info in pkgutil.walk_packages(audit_package.__path__, audit_package.__name__ + "."):
-        source_path = importlib.import_module(info.name).__file__
-        assert source_path is not None, info.name
-        source = Path(source_path).read_text(encoding="utf-8")
-        found.extend(f"{info.name} {finding}" for finding in dynamic_namespace_writes(source))
+    root = Path(audit_package.__file__).parents[2]
+    for path in package_sources():
+        relative = path.relative_to(root).as_posix()
+        source = path.read_text(encoding="utf-8")
+        found.extend(f"{relative} {finding}" for finding in namespace_doors(source))
 
     assert found == []
