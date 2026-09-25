@@ -132,6 +132,7 @@ docs/adr/0019-the-map-underlay-and-the-purity-declaration.md	authored	CS-1038	fi
 docs/adr/0020-shipped-asset-extraction.md	authored	CS-1040	first-add:CS-1040
 docs/adr/0021-the-variable-power-law.md	authored	CS-301	first-add:CS-301
 docs/adr/0022-acceptance-lives-in-the-item-note.md	authored	CS-971	first-add:CS-971
+docs/adr/0024-the-credential-scan-population-boundary.md	authored	CS-1168	stamped
 docs/adr/README.md	authored	CS-1165	first-add:root
 docs/history_notes.md	authored	CS-1165	first-add:root
 docs/hud_doctrine.md	authored	CS-1165	first-add:root
@@ -344,6 +345,7 @@ tests/test_architecture_attributions.py	authored	CS-928	first-add:CS-928
 tests/test_archive_rot.py	authored	CS-1165	first-add:root
 tests/test_assertion_rendering.py	authored	CS-850	first-add:CS-850
 tests/test_bare_path_citations.py	authored	CS-891	first-add:CS-891
+tests/test_canary_population.py	authored	CS-1177	stamped
 tests/test_chained_cause.py	authored	CS-857	first-add:CS-857
 tests/test_chained_cause_census.py	authored	CS-857	first-add:CS-857
 tests/test_chained_exemption_guard.py	authored	CS-857	first-add:CS-857
