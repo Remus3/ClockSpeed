@@ -36,13 +36,17 @@ residual - a lift with no pin and no row - is CS-1165 and is still open.
 
 Two things that are NOT vendorings, stated because both get mistaken for one:
 
-- **A runtime or development dependency is not a vendoring and gains no row here.** ruff,
-  pytest, mypy, pytest-xdist and PyYAML are named in `pyproject.toml` and no line of their
-  source is in this tree. This register is for LIFTED code.
+- **A runtime or development dependency is not a vendoring and gains no row in the
+  Register.** ruff, pytest, mypy, pytest-xdist and PyYAML are named in `pyproject.toml`
+  and no line of their source is in this tree; the Register is for LIFTED code. Each
+  dependency's licence verdict is a row of the separate Dependency licence verdicts
+  section below instead, which grades what may be INSTALLED and changes nothing the
+  vendored-set claims above say.
 - **Electron is a dependency, not a lift.** `shell/` is authored against the documented
   API rather than seeded from a quickstart template, and its package tree is gitignored,
   so no Electron-owned text is tracked here. The three-scope licence verdict lives in
-  `docs/adr/0013-electron-licence-gate.md`.
+  `docs/adr/0013-electron-licence-gate.md`, and Electron's dependency row cites it rather
+  than re-deriving it.
 
 An entry is written BEFORE the lift, not after. Every row below whose gate ran after its
 lift says so in the row, because a late gate that reads like a timely one teaches the
@@ -157,6 +161,100 @@ Concretely that means:
 - **Community-compiled node datasets are already refused** by the section 11 decision log
   and are not a candidate for this gate. The refusal is about provenance risk, and a
   license gate cannot repair unknown provenance.
+
+---
+
+## Dependency licence verdicts
+
+**Owner of: the `CONVENTIONS.md` section 14 verdict for every runtime and development
+dependency, direct and transitive, of `pyproject.toml` and `shell/package.json`**
+(CS-1185). A dependency is not a vendoring, so these rows sit OUTSIDE the Register above
+and change nothing it claims. The gate is the same five traps, read against the files each
+package INSTALLS - its dist-info licence files, or its LICENSE under `node_modules/` - and
+against its manifest: the METADATA `License-Expression`, `License` field or classifier on
+the Python side, and the `package.json` and lockfile licence field on the node side.
+
+**The set is DERIVED, never held here.** `tools/licence_audit.py::audit` derives it from
+the manifests and compares it with these two tables in both directions: a dependency with
+no row, a row naming no dependency, a row whose verdict does not begin `**CLEARED`, a
+row recording neither a copyright line nor an explicit `NONE`, and a row with no date are
+each a finding. `python tools/licence_audit.py` exits 0 when clean, 1 on any finding and 2
+when it could not run, and prints counts and package names only.
+
+- **Node is machine-independent.** The set is every package `shell/package-lock.json`
+  pins, nested ones included, and that file is tracked. The version below must equal the
+  lockfile's, so a lockfile bump without a re-read goes red.
+- **Python is ENVIRONMENT-DEPENDENT, and that is stated rather than hidden.** There is no
+  lockfile (ruling D-Z of the wave-2 plan: none is added for this item), so the closure of
+  `[project].dependencies` - empty by decision - plus every extra is walked through the
+  installed metadata of the interpreter that RUNS the audit. A different platform, Python
+  version, or point inside the dev extra's version ranges can add or drop a transitive
+  package, and the audit then goes red until this table is re-read. That is the check
+  working, not a flake. Versions are the version READ and are not compared, because CI
+  resolves its own point in each range. The Reached-when cell is `always` or the PEP 508
+  condition derived from the `Requires-Dist` markers on the way in; a row whose condition
+  is false in the auditing interpreter - colorama on a Linux runner - is neither required
+  nor stale there, but its condition must still equal the derived one.
+- **`[build-system].requires` is NOT in the derived set, and so setuptools has no row.**
+  It is installed into pip's isolated build environment and never into the environment the
+  audit and the suite run in, so its licence files are not on this machine to read, and a
+  row claiming a copyright line nobody read is the failure this section exists to prevent.
+  NOT GATED HERE, stated as such.
+
+**What CLEARED means in this section:** the package may be installed and run as this
+project's toolchain or shell dependency. Nothing of it is in this tree and nothing is
+distributed. It is NOT a vendoring clearance - lifting any line of any package below goes
+through the gate above from step 1 and gains a Register row. **DO-NOT-VENDOR** marks the
+rows where a lift would be refused outright: copyleft terms, or a licence file naming no
+holder.
+
+**Copyright lines are recorded as read, never the licence text.** E-mail addresses and
+URLs are omitted where a line carries them. The one non-ASCII holder name is transliterated
+and its row declares it. Where the licence file names nobody, the cell says `NONE` and
+names where a holder does appear, if anywhere - trap 3.
+
+**Every gate below ran AFTER the dependency was in use.** These packages entered the
+toolchain from the first commit onward and CS-1185 is the first gate over any of them
+except Electron, whose verdict is ADR 0013's and is consumed here rather than re-derived.
+
+### Python dependencies
+
+| Package | Version read | Reached when | Licence read (files / manifest) | Copyright line | Verdict | Date |
+|---|---|---|---|---|---|---|
+| `ast-serialize` | 0.5.0 | `always` | MIT in `licenses/LICENSE`, warranty clause intact / `License-Expression: MIT`. Reached through mypy | Copyright (c) 2025-2026 Jukka Lehtosalo and contributors | **CLEARED** as a dependency | 2026-09-25 |
+| `colorama` | 0.4.6 | `sys_platform == "win32"` | BSD-3-Clause text in `licenses/LICENSE.txt`, warranty clause intact / no SPDX field, classifier `BSD License` - the two agree on BSD and only the file says which | Copyright (c) 2010 Jonathan Hartley | **CLEARED** as a dependency. Reached through pytest, on Windows only | 2026-09-25 |
+| `execnet` | 2.1.2 | `always` | MIT text in `licenses/LICENSE`, warranty clause intact / `License-Expression: MIT` | NONE - the licence file carries no copyright line at all, so it names no grantor (trap 3). A holder appears only in the source: `execnet/gateway_base.py` reads a bare `:copyright: 2004-2015` above an authors list led by Holger Krekel, and METADATA reads `Author: holger krekel and others` | **CLEARED as a dependency ONLY, DO-NOT-VENDOR.** Installed from the publisher's own distribution and run as pytest-xdist's transport, with nothing copied. A lift would need a grant this licence file does not render, so it stops at trap 3 | 2026-09-25 |
+| `iniconfig` | 2.3.0 | `always` | MIT, warranty clause intact / `License-Expression: MIT` | Copyright (c) 2010 - 2023 Holger Krekel and others | **CLEARED** as a dependency | 2026-09-25 |
+| `librt` | 0.11.0 | `platform_python_implementation != "PyPy"` | MIT for the mypyc runtime, followed in the same file by PSF-2.0 terms for portions derived from CPython / `License-Expression: MIT` alone - trap 1 in shape, the manifest naming one licence where the file carries two, both permissive | Copyright (c) 2025 Mypyc contributors; the PSF portions are the Python Software Foundation's | **CLEARED** as a dependency. Reached through mypy | 2026-09-25 |
+| `mypy` | 2.1.0 | `always` | MIT plus PSF-2.0 portions in `licenses/LICENSE`, and typeshed's `licenses/mypy/typeshed/LICENSE`, Apache-2.0 with an MIT part / `License-Expression: MIT` alone - trap 1 in shape, as for librt | Copyright (c) 2012-2023 Jukka Lehtosalo and contributors; Copyright (c) 2015-2023 Dropbox, Inc. Typeshed's Apache appendix is the unrendered how-to-apply template, the licence's own boilerplate rather than a grant line; its MIT part names Jukka Lehtosalo and contributors, 2015 | **CLEARED** as a dependency. Several holders (trap 2), so nobody can offer other terms - which a dependency never needs | 2026-09-25 |
+| `mypy-extensions` | 1.1.0 | `always` | MIT, warranty clause intact / `License-Expression: MIT` | Copyright (c) 2016-2017 Jukka Lehtosalo and contributors | **CLEARED** as a dependency | 2026-09-25 |
+| `packaging` | 26.1 | `always` | `Apache-2.0 OR BSD-2-Clause`: `licenses/LICENSE` states the dual grant and `LICENSE.APACHE` and `LICENSE.BSD` carry the two texts / `License-Expression` agrees | Copyright (c) Donald Stufft and individual contributors. - from the BSD file; the Apache file's appendix is unrendered boilerplate | **CLEARED** as a dependency. `tools/licence_audit.py` imports it to evaluate markers | 2026-09-25 |
+| `pathspec` | 1.1.1 | `always` | MPL-2.0 full text in `licenses/LICENSE` / no SPDX field, classifier `Mozilla Public License 2.0 (MPL 2.0)` | The licence file names no holder, as MPL-2.0 texts do not; `pathspec/_meta.py` reads Copyright (c) 2013-2026 Caleb P. Burns - TRANSLITERATED, the source spells the (c) as the non-ASCII copyright sign | **CLEARED as a dependency ONLY, DO-NOT-VENDOR.** MPL-2.0 is file-level copyleft: running it imposes nothing, while lifting any file of it would carry MPL terms into this tree. Reached through mypy | 2026-09-25 |
+| `pluggy` | 1.6.0 | `always` | MIT, warranty clause intact / `License: MIT` and an MIT classifier, no SPDX field | Copyright (c) 2015 holger krekel (rather uses bitbucket/hpk42) | **CLEARED** as a dependency | 2026-09-25 |
+| `pygments` | 2.20.0 | `always` | BSD-2-Clause in `licenses/LICENSE`, beside `licenses/AUTHORS` / `License-Expression: BSD-2-Clause` | Copyright (c) 2006-2022 by the respective authors (see AUTHORS file). - the AUTHORS file lists many holders, led by Georg Brandl | **CLEARED** as a dependency. Several holders, trap 2 fires benignly | 2026-09-25 |
+| `pytest` | 9.0.3 | `always` | MIT, warranty clause intact / `License-Expression: MIT` | Copyright (c) 2004 Holger Krekel and others | **CLEARED** as a dependency | 2026-09-25 |
+| `pytest-xdist` | 3.8.0 | `always` | MIT, warranty clause intact / `License-Expression: MIT` | Copyright (c) 2010 Holger Krekel and contributors. | **CLEARED** as a dependency | 2026-09-25 |
+| `pyyaml` | 6.0.3 | `always` | MIT, warranty clause intact / `License: MIT` and an MIT classifier, no SPDX field | Copyright (c) 2017-2021 Ingy dot Net; Copyright (c) 2006-2016 Kirill Simonov - TRANSLITERATED, the file spells the first holder's "dot" with a non-ASCII o-umlaut, written here as a plain o | **CLEARED** as a dependency | 2026-09-25 |
+| `ruff` | 0.15.12 | `always` | MIT for ruff itself, followed in the same file by fourteen notices for the externally maintained projects parts of it derive from, each MIT by the name it carries / `License-Expression: MIT` | Copyright (c) 2022 Charles Marsh; the appended notices name further holders, the first Copyright (C) 2012-2018 Steven Myint for autoflake | **CLEARED** as a dependency. A binary wheel, run as a linter, with nothing lifted | 2026-09-25 |
+| `typing-extensions` | 4.15.0 | `(python_version < "3.15") or (python_version >= "3.15")` | PSF-2.0 / `License-Expression: PSF-2.0` | Copyright (c) 2001, 2002, ... 2023 Python Software Foundation; All Rights Reserved - the file lists every year from 2001 to 2023 singly | **CLEARED** as a dependency. Reached through mypy, whose two markers together hold on every Python | 2026-09-25 |
+
+### Node dependencies
+
+| Package | Version read | Licence read (files / manifest) | Copyright line | Verdict | Date |
+|---|---|---|---|---|---|
+| `@electron-internal/extract-zip` | 1.0.5 | NO licence file in the installed package. Its README's License heading, its `package.json` and the lockfile all say BSD-2-Clause | NONE - no licence file ships, so no copyright line exists to read; `package.json` names no author, and its repository field points at the Electron organisation's extract-zip | **CLEARED as a local install ONLY, DO-NOT-VENDOR, and a BLOCKER for ADR 0013 scope (c).** Absence of a LICENSE file is not permission, so this rests on the publisher's own declaration in the manifest it published. Installing and running it locally redistributes nothing, which is ADR 0013 scope (a). BSD-2-Clause conditions redistribution on reproducing a copyright notice these bytes do not carry, so a packaged binary bundling it cannot meet that condition from them. It also ships prebuilt native binaries | 2026-09-25 |
+| `@electron/get` | 5.1.0 | MIT, warranty clause intact / MIT in `package.json` and the lockfile | Copyright (c) Contributors to the Electron project | **CLEARED** as a dependency | 2026-09-25 |
+| `@types/node` | 24.13.3 | MIT, warranty clause intact / MIT | Copyright (c) Microsoft Corporation. | **CLEARED** as a dependency | 2026-09-25 |
+| `debug` | 4.4.3 | MIT, warranty clause intact / MIT | Copyright (c) 2014-2017 TJ Holowaychuk; Copyright (c) 2018-2021 Josh Junon - e-mail address omitted | **CLEARED** as a dependency | 2026-09-25 |
+| `electron` | 44.0.0 | MIT, warranty clause intact / MIT in `package.json` and the lockfile - the PUBLISHED manifest, which is the read ADR 0013 records as the one that gives the right answer | Copyright (c) Electron contributors; Copyright (c) 2013-2020 GitHub Inc. | **CLEARED - CONSUMED from `docs/adr/0013-electron-licence-gate.md`, not re-derived.** Scopes (a) a local devDependency and (b) a manifest naming it are CLEARED; (c) distributing a packaged binary is CLEARED WITH OBLIGATIONS, listed in that ADR. This row re-read only the version and the copyright line, and both match the ADR | 2026-09-25 |
+| `env-paths` | 3.0.0 | MIT in `license`, warranty clause intact / MIT | Copyright (c) Sindre Sorhus - e-mail address and URL omitted | **CLEARED** as a dependency | 2026-09-25 |
+| `graceful-fs` | 4.2.11 | ISC, warranty clause intact / ISC | Copyright (c) 2011-2022 Isaac Z. Schlueter, Ben Noordhuis, and Contributors | **CLEARED** as a dependency | 2026-09-25 |
+| `ms` | 2.1.3 | MIT in `license.md`, warranty clause intact / MIT | Copyright (c) 2020 Vercel, Inc. | **CLEARED** as a dependency | 2026-09-25 |
+| `progress` | 2.0.3 | MIT, warranty clause intact / MIT | Copyright (c) 2017 TJ Holowaychuk - e-mail address omitted | **CLEARED** as a dependency | 2026-09-25 |
+| `semver` | 7.8.5 | ISC, warranty clause intact / ISC | Copyright (c) Isaac Z. Schlueter and Contributors | **CLEARED** as a dependency. `package.json` names GitHub Inc. as author, a second name beside the holder line - trap 2, benign | 2026-09-25 |
+| `sumchecker` | 3.0.1 | Apache-2.0 full text, warranty clause intact, appendix left as the unrendered how-to-apply template / Apache-2.0 | The licence file names no holder; the rendered line is the source header of `index.js`: Copyright 2016, 2017, 2019 Mark Lee and contributors | **CLEARED** as a dependency. Apache-2.0 places the notice in the source files, and there it is rendered; a lift would still owe section 4's notices | 2026-09-25 |
+| `undici` | 7.29.0 | MIT, warranty clause intact / MIT | Copyright (c) Matteo Collina and Undici contributors | **CLEARED** as a dependency | 2026-09-25 |
+| `undici-types` | 7.18.2 | MIT, warranty clause intact / MIT | Copyright (c) Matteo Collina and Undici contributors | **CLEARED** as a dependency | 2026-09-25 |
 
 ---
 
