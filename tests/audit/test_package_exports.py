@@ -1,9 +1,10 @@
 """CS-1023: the warning codes the audit package re-exports, and the rule choosing them.
 
 THE RULE. ``clockspeed/audit/__init__.py`` re-exports EVERY ``WARN_*`` constant
-that a module inside the ``clockspeed.audit`` package DEFINES - a module-level
-assignment to that name in that module's own source - and no other ``WARN_*``
-name at all. The set is DERIVED here by walking the package and parsing each
+that a module inside the ``clockspeed.audit`` package DEFINES - a module-scope
+binding of that name in that module's own source, every form of which
+``defined_warning_names`` enumerates as counted or refused - and no other
+``WARN_*`` name at all. The set is DERIVED here by walking the package and parsing each
 module's source, never listed by hand, so a code added to any module in the
 package reddens the arm until the package re-exports it.
 
@@ -13,7 +14,7 @@ so the name is reachable as ``placement.WARN_NODE_SEMANTICS_UNAVAILABLE``. That
 code is OWNED by the save layer; re-exporting it from the audit layer would make
 the audit package a second publisher of a save-layer fact. A walk over module
 namespaces would sweep it in, which is why the walk reads each module's source
-and counts an assignment, never an import.
+and counts a binding, never an import.
 
 Before this arm the package re-exported three of the five codes ``placement.py``
 defines and none of the codes the other five modules define, with nothing saying
@@ -49,18 +50,33 @@ _COMPREHENSIONS: Final = (ast.ListComp, ast.SetComp, ast.DictComp, ast.Generator
 def defined_warning_names(source: str) -> frozenset[str]:
     """Return every ``WARN_*`` name a module's source binds at module scope.
 
-    COUNTED - every ``Name`` STORED at module scope, whatever statement makes
-    it: a plain or annotated assignment, a tuple or starred unpack, a binding
-    inside an ``if``, ``else``, ``try`` or ``except`` block, a ``for`` or
-    ``with`` target, an augmented assignment, and a walrus - including a walrus
+    COUNTED - every ``Name`` STORED at module scope: a plain or annotated
+    assignment, a tuple or starred unpack, a binding inside an ``if``,
+    ``else``, ``try`` or ``except`` block, a ``for`` or ``with`` target, an
+    augmented assignment, a ``type`` alias, and a walrus - including a walrus
     inside a comprehension at module scope, nested or not, because PEP 572
-    binds that in the enclosing scope.
+    binds that in the enclosing scope. Also the NAME of a module-scope
+    ``def``, ``async def`` or ``class``, and a walrus in any part of a def,
+    class or lambda that the module scope evaluates - its decorators, its
+    defaults, its bases and its class keywords; only the body opens a new scope.
 
-    NOT COUNTED - an ``import`` or ``from ... import`` binding (an alias node,
-    never a stored ``Name``: the module that assigns a code owns it, a module
-    that imports one only uses it); a comprehension's own loop variable; and
-    anything bound inside a function, a class body or a lambda, none of which
-    is a module constant.
+    NOT COUNTED - a ``from M import WARN_X`` under the same name (the module
+    that binds a code owns it, a module that imports one only uses it); a
+    comprehension's own loop variable; an ``except ... as`` target, which
+    Python unbinds at the end of the clause; and anything bound inside the
+    BODY of a function, a class or a lambda. That last exclusion is sound only
+    because :func:`refused_binding_forms` refuses the ``global`` statement, the
+    one way a body binds a module name statically.
+
+    REFUSED, not counted - every other static binding form: ``global``, a
+    ``match`` capture, a star import, and any import binding a ``WARN_*`` name
+    other than a same-name ``from M import WARN_X``. :func:`refused_binding_forms`
+    reddens its own arm on each, anywhere in the package, so none can leave an
+    uncounted constant.
+
+    GRADED - :func:`test_the_static_count_matches_what_the_interpreter_binds`
+    executes a source holding every counted form and requires this count to
+    equal the ``WARN_*`` names the interpreter leaves in the namespace.
 
     FAILS CLOSED, BUT NOT HERE - a name bound at run time through a door into
     a module namespace (``globals()[...] =``, an aliased ``_ns = globals()``,
@@ -80,7 +96,9 @@ def defined_warning_names(source: str) -> frozenset[str]:
 
     The first draft read top-level ``Assign`` nodes only; two adversary passes
     named the holes this docstring now lists, and a third named the aliased
-    namespace and the ``exec`` that a call-shaped detector let through.
+    namespace and the ``exec`` that a call-shaped detector let through. A
+    fourth named ``global`` and a ``match`` capture, both static, and a def or
+    class named ``WARN_*``; the census above is the answer.
 
     Args:
         source: The module's source text.
@@ -93,6 +111,20 @@ def defined_warning_names(source: str) -> frozenset[str]:
     while pending:
         node, walrus_only = pending.pop()
         if isinstance(node, _OWN_SCOPES):
+            # A def or class statement binds its OWN name in the enclosing
+            # scope, and the enclosing scope evaluates every part but the body
+            # - decorators, defaults, bases, keywords - so a walrus there binds
+            # here. Only the body opens the new scope.
+            named = getattr(node, "name", "")
+            if not walrus_only and named.startswith(WARNING_PREFIX):
+                names.add(named)
+            for field, value in ast.iter_fields(node):
+                if field == "body":
+                    continue
+                children = value if isinstance(value, list) else [value]
+                pending.extend(
+                    (child, walrus_only) for child in children if isinstance(child, ast.AST)
+                )
             continue
         if isinstance(node, _COMPREHENSIONS):
             walrus_only = True
@@ -184,6 +216,49 @@ def namespace_doors(source: str) -> list[str]:
             doors = {part for dotted in spelled for part in dotted.split(".")} & NAMESPACE_DOORS
             found.extend((node.lineno, door) for door in doors)
     return [f"line {line}: {name}" for line, name in sorted(found)]
+
+
+def refused_binding_forms(source: str) -> list[str]:
+    """Every binding form a module's source uses that the census refuses.
+
+    FAIL CLOSED, over the WHOLE module, because each of these binds a name the
+    static count in :func:`defined_warning_names` does not read. Each finding is
+    ``line N: <form>``, in line order, for:
+
+    - a ``global`` statement, anywhere - it lets a function or class body bind
+      a module name, which is why that count may skip every body;
+    - a ``match`` statement, anywhere - its capture patterns bind names;
+    - a star import - it binds names no source line spells;
+    - an import whose BOUND name is ``WARN_*``, unless it is
+      ``from M import WARN_X`` (or ``as WARN_X``) under the same name - the
+      one import form that serves a code owned by another module unchanged.
+
+    NOT refused: ``nonlocal``, which names an enclosing FUNCTION scope and can
+    never reach the module; and ``except ... as WARN_X``, which Python unbinds
+    at the end of the clause, so it leaves no module name behind.
+
+    Args:
+        source: The module's source text.
+
+    Returns:
+        The findings.
+    """
+    found: list[tuple[int, str]] = []
+    for node in ast.walk(ast.parse(source)):
+        if isinstance(node, ast.Global):
+            found.append((node.lineno, "global statement"))
+        elif isinstance(node, ast.Match):
+            found.append((node.lineno, "match statement"))
+        elif isinstance(node, (ast.Import, ast.ImportFrom)):
+            for alias in node.names:
+                if alias.name == "*":
+                    found.append((node.lineno, "star import"))
+                    continue
+                bound = alias.asname or alias.name.split(".")[0]
+                same_name = isinstance(node, ast.ImportFrom) and bound == alias.name
+                if bound.startswith(WARNING_PREFIX) and not same_name:
+                    found.append((node.lineno, f"import bound to {bound}"))
+    return [f"line {line}: {form}" for line, form in sorted(found)]
 
 
 def package_sources() -> list[Path]:
@@ -351,6 +426,119 @@ def test_the_source_parser_reaches_every_module_scope_binding_form() -> None:
             "WARN_WALRUS_NESTED",
         }
     )
+
+
+#: An EXECUTABLE source binding a ``WARN_*`` name through every form the
+#: static read counts, beside the look-alikes that bind no module name. It is
+#: run by the interpreter as the oracle, so the static count is graded against
+#: what Python actually leaves in the module namespace, not against a list.
+_ORACLE_SOURCE: Final = (
+    "import contextlib\n"
+    "WARN_O_PLAIN = 'plain'\n"
+    "WARN_O_A, *WARN_O_REST = 'a', 'b'\n"
+    "for WARN_O_FOR in ('f',):\n"
+    "    pass\n"
+    "with contextlib.nullcontext('w') as WARN_O_WITH:\n"
+    "    pass\n"
+    "(WARN_O_WALRUS := 'w')\n"
+    "_ = [WARN_O_IN_COMP := v for v in ('c',)]\n"
+    "type WARN_O_ALIAS = int\n"
+    "class WARN_O_CLASS:\n"
+    "    WARN_O_CLASS_ATTRIBUTE = 'attribute, not module'\n"
+    "def WARN_O_FUNCTION() -> None:\n"
+    "    WARN_O_FUNCTION_LOCAL = 'local, not module'\n"
+    "async def WARN_O_ASYNC() -> None:\n"
+    "    pass\n"
+    "@(WARN_O_DECORATOR := (lambda f: f))\n"
+    "def _decorated(a=(WARN_O_DEFAULT := 1), *, b=(WARN_O_KW_DEFAULT := 2)) -> None:\n"
+    "    (WARN_O_BODY_WALRUS := 'local, not module')\n"
+    "class _Based((WARN_O_BASE := object), metaclass=(WARN_O_KEYWORD := type)):\n"
+    "    pass\n"
+    "_lam = lambda a=(WARN_O_LAMBDA_DEFAULT := 3): (WARN_O_LAMBDA_BODY := a)\n"
+    "_lam()\n"
+    "_decorated()\n"
+    "try:\n"
+    "    raise ValueError\n"
+    "except ValueError as WARN_O_EXCEPT_TARGET:\n"
+    "    pass\n"
+)
+
+
+#: How many ``WARN_*`` names :data:`_ORACLE_SOURCE` leaves bound when run.
+_ORACLE_BINDS: Final = 17
+
+
+def test_the_static_count_matches_what_the_interpreter_binds() -> None:
+    # The re-adjudication's holes were forms the walk skipped: a def or class
+    # NAMED ``WARN_*``, and a walrus in the parts of a def, class or lambda
+    # that the ENCLOSING scope evaluates - decorators, defaults, bases and
+    # class keywords. The interpreter is the oracle: every ``WARN_*`` key it
+    # leaves in a fresh module namespace must be counted, and nothing else.
+    # The except target is the control that Python binds and then UNBINDS at
+    # the end of the clause, so it leaves no module name and is not counted.
+    namespace: dict[str, object] = {}
+    exec(compile(_ORACLE_SOURCE, "<oracle>", "exec"), namespace)  # noqa: S102 - a literal oracle
+    bound = frozenset(name for name in namespace if name.startswith(WARNING_PREFIX))
+    counted = defined_warning_names(_ORACLE_SOURCE)
+
+    uncounted = sorted(bound - counted)
+    overcounted = sorted(counted - bound)
+    assert uncounted == []
+    assert overcounted == []
+    # Anti-vacuity: the oracle binds every counted form, so neither side is empty.
+    assert len(bound) == _ORACLE_BINDS
+
+
+#: The refusal detector's planted source: one refused form per finding line,
+#: then controls that bind a ``WARN_*`` name no other way than is counted or
+#: owned elsewhere.
+_REFUSED_PLANTS: Final = (
+    "def bind() -> None:\n"  # 1
+    "    global WARN_G\n"  # 2
+    "match subject:\n"  # 3
+    "    case WARN_M:\n"  # 4
+    "        pass\n"  # 5
+    "from os.path import *\n"  # 6
+    "import os as WARN_IMPORT_AS\n"  # 7
+    "import WARN_BARE_MODULE\n"  # 8
+    "from os import sep as WARN_RENAMED\n"  # 9
+    "from elsewhere import WARN_OTHER as WARN_RENAMED_CODE\n"  # 10
+    "from elsewhere import WARN_OWNED_ELSEWHERE\n"  # 11 - controls from here on
+    "from elsewhere import WARN_SAME as WARN_SAME\n"  # 12
+    "import package.WARN_SUBMODULE\n"  # 13 - binds ``package``, not the code
+    "def outer() -> None:\n"  # 14
+    "    value = 1\n"  # 15
+    "    def inner() -> None:\n"  # 16
+    "        nonlocal value\n"  # 17 - names a function scope, never the module
+)
+
+#: What the refusal detector must report for :data:`_REFUSED_PLANTS`, in order.
+_REFUSED_FINDINGS: Final = [
+    "line 2: global statement",
+    "line 3: match statement",
+    "line 6: star import",
+    "line 7: import bound to WARN_IMPORT_AS",
+    "line 8: import bound to WARN_BARE_MODULE",
+    "line 9: import bound to WARN_RENAMED",
+    "line 10: import bound to WARN_RENAMED_CODE",
+]
+
+
+def test_the_refusal_detector_names_every_refused_binding_form() -> None:
+    # Each refused form is planted on a line whose only finding it is, so
+    # dropping any one refusal from the detector removes that line.
+    assert refused_binding_forms(_REFUSED_PLANTS) == _REFUSED_FINDINGS
+
+
+def test_no_audit_source_uses_a_refused_binding_form() -> None:
+    found: list[str] = []
+    root = Path(audit_package.__file__).parents[2]
+    for path in package_sources():
+        relative = path.relative_to(root).as_posix()
+        source = path.read_text(encoding="utf-8")
+        found.extend(f"{relative} {finding}" for finding in refused_binding_forms(source))
+
+    assert found == []
 
 
 #: The detector's planted source: one door per line, then controls.
