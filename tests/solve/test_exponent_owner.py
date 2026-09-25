@@ -7,19 +7,31 @@ modules that used to restate an exponent now point at that pin in prose and
 spell no value, so a balance patch moves the exponent in one place and leaves
 no stale copy behind in them that still reads as current.
 
-THE SCOPE IS THE NAMED MODULES, AND DELIBERATELY SO. The ban reads exactly the
-modules in :data:`SCOPE` - the five the CS-1030 ruling measured as carriers. It
-does not read the rest of ``clockspeed/``, because the ban is by VALUE and a
-pinned exponent's value is not unique there: a bare decimal of the same value
-is also a CSS length, a line height, a version string or a section number, and
-no reader can tell those apart from a restatement by value alone. Widening the
-scope is therefore a deliberate act, and
-``test_the_scope_is_the_ruling_module_set`` makes it one.
+THE SCOPE IS EVERY SHIPPED SOURCE. The CS-1030 ruling bans the pinned values
+"in shipped sources under clockspeed/ other than version.py", so the ban reads
+every file under ``clockspeed/`` - every Python module and every web asset -
+except the owner and the ``__pycache__`` bytecode caches, which are build
+output, not source. The population is DERIVED from the tree at test time and
+never listed, so a module added tomorrow is read the day it lands. A Python
+module is read by both readers below; every other file - the dashboard's
+JavaScript, CSS and HTML - is read whole by the prose reader, the digit-bounded
+value check. A file that is not UTF-8 text fails the scan loudly rather than
+being skipped. ``test_the_scan_population_is_the_whole_shipped_tree`` grades
+the population against a second, independent walk of the tree and reddens if
+it is ever narrowed below it.
+
+An earlier cut read a hand list of the five modules the ruling MEASURED as
+carriers, reasoning that a bare decimal of a pinned value is also a CSS length
+or a version string elsewhere in the tree. That list was the ruling's carrier
+census misread as its scope, and the reason did not hold: the whole tree
+carried no such value when the scope was widened. A shipped file that must one
+day carry one gets an exemption recorded per file with its reason - never a
+narrower population.
 
 THE BAN IS BY VALUE, NOT BY TEXT. Every key of the owner's map is read at test
 time - never typed in this file, because a typed copy would be one more
 restatement - and parsed to an exact Fraction. The spellings listed below are
-parsed the same way, and a scoped module is refused when any of them EQUALS a
+parsed the same way, and a shipped file is refused when any of them EQUALS a
 pinned exponent. Comparing values catches a spelling that differs from the
 census key only by a trailing zero, which is the same value, and lets through a
 number that merely contains the key's digits but is another value.
@@ -52,12 +64,16 @@ NAMED RESIDUALS - spellings of a pinned value this scan does NOT recognise:
 
 - any argument or operand that is a name, a call, a parenthesised expression or
   a keyword argument, and any arithmetic other than the forms above;
+- in a web asset, every code-only form: a JavaScript or CSS file is read by the
+  prose rules alone, so its arithmetic is recognised only where it has a prose
+  spelling - a number, a two-term quotient or a written-out ``Fraction(a, b)``;
 - a value in words, a percentage, or a string handed to another parser;
 - a prose quotient of three or more terms that happens to evaluate to a pin.
 
 OUT OF SCOPE, stated so it is not read as covered:
 
-- every file under ``clockspeed/`` outside :data:`SCOPE`, for the reason above;
+- the owner, ``clockspeed/data/version.py``, which is where the value belongs,
+  and the ``__pycache__`` bytecode caches, which are not source;
 - ``tests/``, whose fixtures carry the exponent as INPUT DATA, and ``docs/``;
 - the float the power law degrades to when evaluated - the measured RESULT of
   evaluating the law, not the exponent, and outside CS-1030.
@@ -72,6 +88,7 @@ from __future__ import annotations
 
 import io
 import keyword
+import os
 import re
 import tokenize
 from collections.abc import Callable, Mapping
@@ -92,18 +109,13 @@ OWNER: Final = Path(version.__file__).resolve()
 CENSUS_SECTION: Final = "census"
 EXPONENT_CENSUS_KEY: Final = "power_consumption_exponents"
 
-#: The modules the ban reads. Held apart from the ruling's set below so that
-#: changing either one alone reddens the scope arm.
-SCOPE: Final = (
-    "clockspeed/data/registry.py",
-    "clockspeed/solve/exact.py",
-    "clockspeed/solve/optimize.py",
-    "clockspeed/solve/power.py",
-    "clockspeed/surface/api/power.py",
-)
+#: Every shipped source lives under here.
+SHIPPED_ROOT: Final = REPO_ROOT / "clockspeed"
 
-#: The carrier set the CS-1030 adjudicator ruling measured at base.
-RULING_MODULE_SET: Final = frozenset(
+#: The carrier set the CS-1030 adjudicator ruling measured at base. NOT the
+#: scope - an anti-vacuity control: a population that stopped reading any one
+#: of the modules that once carried the value would pass for that reason.
+RULING_CARRIERS: Final = frozenset(
     {
         "clockspeed/surface/api/power.py",
         "clockspeed/solve/power.py",
@@ -378,7 +390,7 @@ def pinned_exponents() -> list[str]:
 
 
 def restatements(key: str) -> list[str]:
-    """Name every scoped module line that spells the value of one pinned exponent.
+    """Name every shipped source line that spells the value of one pinned exponent.
 
     Args:
         key: A key of the pinned exponent map.
@@ -388,12 +400,63 @@ def restatements(key: str) -> list[str]:
     """
     exponents = frozenset({Fraction(key)})
     found = []
-    for relative in SCOPE:
-        source = (REPO_ROOT / relative).read_text(encoding="utf-8")
-        for line, value in source_values(source):
+    for path in scan_population():
+        relative = path.relative_to(REPO_ROOT).as_posix()
+        for line, value in file_values(path):
             if is_pinned(value, exponents):
                 found.append(f"{relative}:{line}")
     return found
+
+
+def scan_population() -> list[Path]:
+    """Return every file the ban reads: all of ``clockspeed/`` but the owner.
+
+    Derived from the tree, never listed. The bytecode caches are skipped
+    because they are build output, not source.
+
+    Returns:
+        Absolute paths, sorted.
+    """
+    return sorted(
+        path
+        for path in SHIPPED_ROOT.rglob("*")
+        if path.is_file() and "__pycache__" not in path.parts and path.resolve() != OWNER
+    )
+
+
+def file_values(path: Path) -> list[tuple[int, Fraction]]:
+    """Every recognised value one shipped file spells, with its line.
+
+    A Python module is read by both readers. Any other file - a web asset - is
+    read whole by the prose reader, the digit-bounded value check.
+
+    Args:
+        path: The file.
+
+    Returns:
+        ``(line, value)`` pairs, exact.
+    """
+    text = path.read_text(encoding="utf-8")
+    if path.suffix == ".py":
+        return source_values(text)
+    return [(text.count("\n", 0, offset) + 1, value) for offset, value in prose_values(text)]
+
+
+def shipped_tree() -> frozenset[Path]:
+    """Every file under ``clockspeed/`` but the bytecode caches, walked independently.
+
+    Deliberately a second enumeration - ``os.walk`` with no filter but
+    ``__pycache__`` - so a narrowing of :func:`scan_population` cannot also
+    narrow the tree it is graded against.
+
+    Returns:
+        Absolute paths.
+    """
+    found: set[Path] = set()
+    for directory, subdirectories, names in os.walk(SHIPPED_ROOT):
+        subdirectories[:] = [name for name in subdirectories if name != "__pycache__"]
+        found.update(Path(directory, name).resolve() for name in names)
+    return frozenset(found)
 
 
 # --- the spellings, derived from the owner -----------------------------------
@@ -479,23 +542,47 @@ def test_the_pinned_exponent_map_is_a_parsable_census() -> None:
     assert census_problems([]), "a census that is not a mapping was accepted"
 
 
-def test_the_scope_is_the_ruling_module_set() -> None:
-    """The ban reads exactly the ruling's modules, each real, and never the owner.
+def test_the_scan_population_is_the_whole_shipped_tree() -> None:
+    """The ban reads every shipped file but the owner, and never fewer.
 
-    Widening or narrowing :data:`SCOPE` without the ruling's set moving with it
-    reddens here, so a change of scope is a decision rather than a drift.
+    Graded against :func:`shipped_tree`, a second walk of ``clockspeed/``, so a
+    population narrowed by suffix, by directory or by hand list reddens here.
+    Anti-vacuity: the population is non-empty, holds each carrier the ruling
+    measured at base, and reaches at least one file that is not Python.
     """
-    assert set(SCOPE) == RULING_MODULE_SET, sorted(set(SCOPE) ^ RULING_MODULE_SET)
-    assert len(SCOPE) == len(RULING_MODULE_SET), "SCOPE lists a module twice"
-    missing = [relative for relative in SCOPE if not (REPO_ROOT / relative).is_file()]
-    assert not missing, f"scoped modules that do not exist: {missing}"
-    owner_relative = OWNER.relative_to(REPO_ROOT).as_posix()
-    assert owner_relative not in SCOPE, "the scan reads the owner it exists to defer to"
+    population = [path.resolve() for path in scan_population()]
+    assert len(population) == len(set(population)), "the population reads a file twice"
+    tree = shipped_tree()
+    assert OWNER in tree, "the owner is not where the scan expects it"
+    unread = sorted(
+        path.relative_to(REPO_ROOT).as_posix() for path in tree - {OWNER} - set(population)
+    )
+    assert not unread, f"shipped files the ban does not read: {unread}"
+    assert OWNER not in population, "the scan reads the owner it exists to defer to"
+    relative = {path.relative_to(REPO_ROOT).as_posix() for path in population}
+    missing = sorted(RULING_CARRIERS - relative)
+    assert not missing, f"the ruling's measured carriers are not read: {missing}"
+    assert any(path.suffix != ".py" for path in population), "no web asset is read"
+
+
+@pytest.mark.parametrize("suffix", [".js", ".css", ".html"])
+@pytest.mark.parametrize("key", _KEYS)
+def test_a_web_asset_is_read_by_the_prose_reader(key: str, suffix: str, tmp_path: Path) -> None:
+    """A pinned value spelled in a web asset is caught, so reading it is not vacuous.
+
+    The population arm proves each asset is IN the scan; this proves the scan
+    reads its text. The value is rebuilt from the key as a two-term quotient,
+    never typed.
+    """
+    value = Fraction(key)
+    asset = tmp_path / f"planted{suffix}"
+    asset.write_text(f"const ratio = {value.numerator}/{value.denominator};\n", encoding="utf-8")
+    assert any(is_pinned(found, frozenset({value})) for _, found in file_values(asset))
 
 
 @pytest.mark.parametrize("key", _KEYS)
-def test_no_scoped_module_restates_a_pinned_exponent(key: str) -> None:
-    """No scoped module spells a pinned exponent's value in a recognised form.
+def test_no_shipped_source_restates_a_pinned_exponent(key: str) -> None:
+    """No shipped source spells a pinned exponent's value in a recognised form.
 
     Parametrized one key per case, so the weakest member is graded on its own
     rather than hidden inside a pooled count.
@@ -504,7 +591,7 @@ def test_no_scoped_module_restates_a_pinned_exponent(key: str) -> None:
     count = len(carriers)
     listed = "\n  ".join(carriers)
     assert count == 0, (
-        f"{count} scoped line(s) spell the value of a pinned exponent; cite the pin in "
+        f"{count} shipped line(s) spell the value of a pinned exponent; cite the pin in "
         f"clockspeed/data/version.py instead of the digits:\n  {listed}"
     )
 
