@@ -821,9 +821,17 @@ parent control below fails a wrong pairing closed:
   seconds plus timezone offset, are equal. Any difference ABORTS.
 - PARENTS: every paired commit has the same parent count, and each new parent is
   the image of the corresponding old parent under the pairing, in order.
-- MESSAGE: a commit-for-commit diff, old against new, in which a commit passes
-  only when its message is byte-equal or differs solely by the stripped trailer
-  line and the blank line before it; any other difference ABORTS.
+- MESSAGE: byte-exact, commit for commit, on the raw message - the bytes after the
+  header's blank line in `git cat-file commit`, never `%B` or any `git log` format,
+  which normalise trailing whitespace. A line here is its bytes INCLUDING its
+  terminating LF when it has one. A commit with no census hit passes only if the new
+  message is byte-equal to the old. A commit with a census hit passes only if the
+  new message equals the old with exactly two lines removed - the trailer line and
+  the blank separator line immediately before it - and nothing else, so
+  `subject LF LF body LF LF trailer LF` must become `subject LF LF body LF`, and a
+  trailer carrying no final LF removes the same two lines. A result that keeps the
+  blank separator, loses or gains any other byte, or gains or loses a trailing LF
+  ABORTS.
 - CENSUS: the trailer-shaped census returns the pre-rewrite count, non-zero, BEFORE and
   zero AFTER, and exactly that many commits have a changed message.
 - IDENTITY: `git log --format='%an%x09%ae%x09%cn%x09%ce'` over the rewritten graph
@@ -875,22 +883,52 @@ preservation bundle, outside the repository tree per S5, and enters
 `docs/LEDGER.md` only in a commit made after S12 completes. No commit records it
 before then, so recording the ruling never moves `main` and never voids itself.
 
+**TIP CHECK, immediately before EACH of S9, S10, S11 and S12.** Assert that the local
+`main` tip equals the adjudicated SHA. From S11 on, also assert the remote side from
+what ARRIVED, not from the advertisement: before S11 its own mirror clone does it,
+and before S12 a fresh mirror clone of the recreated remote must return exactly one
+head, at the adjudicated SHA. Before S10 the recreated remote must hold no ref at
+all. A failed tip check HALTS the run at that step: a commit after S8a aborts before
+S9 deletes anything, and a commit after S10 is caught before S12 publishes.
+
+**ONE CONFIRMATION, ONE RUN, ONE SHA - and what a halt leaves behind.** The
+operator's own-words confirmation covers S9 through S12 as one continuous run on the
+one adjudicated SHA. Any halt - a failed control, a failed tip check, a session end -
+spends it; it is never reused, and continuing needs a NEW own-words confirmation.
+The remote's state at each halt point, so a halt is never a stall with no way on:
+
+- Halt before S9: nothing outward has happened; the old remote is intact.
+- Halt after S9, before S10: the old remote is GONE - the S3/S4 bundle is the only
+  copy of its refs - and the recreated remote is private and empty.
+- Halt after S10, before S12: the recreated remote is private and holds `main` at
+  the adjudicated SHA, and nothing has been published, because S12 is the only
+  publication event.
+
+To continue after S9 has run: if `main` moved, apply S7a's late-commit rule first,
+which yields a new adjudicated SHA. Then take a new confirmation covering the run
+from the resume point to S12 on that one SHA. If the adjudicated SHA is unchanged,
+resume at the step that halted. If it changed and S10 had already pushed, resume at
+S9: delete and recreate the still-private remote, which holds nothing published, so
+S10 again pushes one SHA to an empty remote.
+
 **S9 - Delete the remote repository and RECREATE IT PRIVATE.** The first
 irreversible step, and **it requires the operator's explicit go-ahead at the
 moment of running, not this plan's existence.** The recreated repository is
 created PRIVATE and explicitly asserted private before S10, so that S12 stays
 the sole publication event; a repo created public would make S10 the publication
 and strand S11's protections. Immediately before S9, re-confirm (1d) with its
-controls - delete-and-recreate is only free while it holds.
+controls - delete-and-recreate is only free while it holds. The tip check above
+runs first.
 Who decides and who confirms: `docs/GATED.md` CS-G03, "who decides the flip and who performs it" (CS-1182).
 
 **S10 - Push `main` alone, BY SHA.** No `--mirror`, no `--all`, no `--tags`. Push
 the S8a-adjudicated SHA itself - `git push origin <adjudicated-sha>:refs/heads/main`,
 never a branch name - after a pre-push assertion that the local `main` tip equals
 that SHA. If it does not, the late-commit rule in S7a applies and nothing is pushed,
-so no later commit can ride along.
+so no later commit can ride along. The tip check above runs first.
 
-**S11 - Verify by MIRROR CLONE, not by `ls-remote`.** Brief section 2(a) says
+**S11 - Verify by MIRROR CLONE, not by `ls-remote`.** The tip check above runs
+first, and the mirror clone's one head must be the adjudicated SHA. Brief section 2(a) says
 check what actually ARRIVED, never what the forge advertises. `ls-remote` reads
 the advertisement, and after S9 there is no 6-heads control left to check a
 pattern against - so the first draft's read-back was trap (b) relocated, not
@@ -900,7 +938,7 @@ namespace. Then set branch protection on `main`, which the old remote never had,
 turn on the security features that were all off, and re-enter by hand the 20
 topics, 10 labels, description and homepage that deletion discarded.
 
-**S12 - Flip visibility. Last, and blocked by section 6.**
+**S12 - Flip visibility. Last, and blocked by section 6.** The tip check above runs first.
 Covered by the confirmation taken before S9: `docs/GATED.md` CS-G03 (CS-1182).
 
 #### 4. What deletion costs, stated so it is chosen and not discovered
@@ -1555,9 +1593,11 @@ commits on `main` carry an agent co-authorship trailer that the kept-graph flip 
 
 The ruling measured the trailer-shaped census at `599528c` and confirmed the
 recon's count: one trailer per commit, each the last body line after a blank
-separator, no merges. A plain body grep returns one more, and that extra commit
-is PROSE naming the trailer, not a trailer - which is why the census is defined
-by position and token rather than by substring.
+separator, no merges. A plain body grep returns one more:
+`git log -i --grep='co-authored-by' --format=%h 599528c | wc -l`, the colon-less
+token, prints 19 against the census's 18, re-measured at `599528c` on 2026-09-24,
+and the extra commit is PROSE naming the trailer, not a trailer. The census itself
+is defined only in CS-700 step S7a.
 
 ADR 0018's measurement 1 and CS-700's S1 share one six-axis needle set, and a
 trailer is on none of the six axes, so every "commit messages clean" claim in

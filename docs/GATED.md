@@ -71,7 +71,7 @@ repair this file's own guard forbids.
 CS-700 is MENTIONED because the two notes filed 2026-09-24 at the end of CS-G03 cite it
 as the plan the flip runs, and the dependency runs the other way: CS-G03 waits on
 CS-700, not CS-700 on a gate here. Its irreversible steps S9 and S12 are held by the
-operator confirmation those notes require be typed into this repository's session,
+operator confirmation those notes require be typed into the main session,
 not by a fence in this file, and MENTIONED leaves the lane's scope exactly as it was
 before the notes named the id.
 
@@ -636,9 +636,11 @@ recording it never moves `main` - CS-700 step S8a states where.
 **(b) The operator's single confirmation is the irreversible-act FLOOR, not a
 decision.** S9 deletes and recreates the remote and S12 publishes the repository;
 both are outward-facing and cannot be undone. The operator confirms them in their
-own words typed into this repository's session, once, immediately before S9, and
+own words typed into the main session, once, immediately before S9, and
 that confirmation covers S9 through S12 as one run. It lapses if any step's control
-aborts, if the session ends, or if `main` moves past the adjudicated SHA. It
+aborts, if the session ends, or if `main` moves past the adjudicated SHA, and is
+never reused: continuing needs a new own-words confirmation, and CS-700's plan
+states the remote's state at each halt point and where a run resumes. It
 confirms a plan already ruled at (a). It is not a request to authorise a choice or
 to pick a direction - section 6.1 routes those away from the operator - and it is
 not delegable: section 6.1 names this exact act as its one exception, an
