@@ -1549,7 +1549,7 @@ strip is CS-700's, not this item's.
 
 ### Full headline
 
-eighteen commits on `main` carry an agent co-authorship trailer that the kept-graph flip would publish
+commits on `main` carry an agent co-authorship trailer that the kept-graph flip would publish
 
 ### FILED 2026-09-24, from the N0 adjudicator ruling at `599528c`
 
