@@ -192,7 +192,7 @@ import time
 import uuid
 from pathlib import Path
 from types import MappingProxyType
-from typing import NamedTuple
+from typing import IO, NamedTuple
 
 _HERE = Path(__file__).resolve().parent
 
@@ -1112,8 +1112,113 @@ def _emit(line: str) -> None:
     and a redirected non-tty stdout is block-buffered - without the flush the
     log stays empty for the whole run and an operator tailing it cannot tell a
     working driver from a hung one.
+
+    CS-1018 - THE SAME LINE ALSO GOES TO THIS NIGHT'S OWN LOG, when `main` has
+    opened one (see `night_log`). The redirected stdout is a copy the launcher
+    owns; the night log is the copy the driver owns, and it is never
+    truncated. A write that fails detaches the sink rather than killing the
+    night: losing the human tail must never cost the work.
     """
     print(line, flush=True)
+    sink = _NIGHT_SINK["handle"]
+    if sink is None:
+        return
+    try:
+        sink.write(line + "\n")
+        sink.flush()
+    except (OSError, ValueError) as exc:
+        _NIGHT_SINK["handle"] = None
+        print(
+            f"queue-loop night log: write failed ({type(exc).__name__}) - "
+            f"the rest of this night is on stdout only",
+            flush=True,
+        )
+
+
+#: CS-1018. The one open night log, or None. A holder rather than a rebound
+#: global, and set ONLY by `night_log`, which restores it on the way out.
+_NIGHT_SINK: dict[str, IO[str] | None] = {"handle": None}
+
+#: What a night log's name is built from, and nothing else: the folded lane,
+#: the UTC start stamp and a run token. No account, world or home path.
+NIGHT_LOG_PREFIX = "queue_loop_night"
+_NIGHT_STAMP = "%Y%m%dT%H%M%SZ"
+#: A token that collides is re-minted, never reopened. Eight tries of a fresh
+#: 32-bit token is not a bound anyone reaches; it exists so a broken `mint`
+#: cannot spin forever.
+_NIGHT_MINT_TRIES = 8
+
+
+def _open_night_log(lane, directory: Path, *, clock, mint) -> tuple[IO[str] | None, str | None]:
+    """Create this night's log EXCLUSIVELY, or report that it could not.
+
+    Mode "x" is the whole mechanism: an existing file is an error, never a
+    truncation, so no night can erase another's log however the names line up.
+
+    Returns:
+        The open handle and its file name, or `(None, None)` when no file
+        could be created - the night then runs on stdout alone.
+    """
+    folded = _MUTEX_UNSAFE.sub("_", str(lane)) or "_"
+    stamp = time.strftime(_NIGHT_STAMP, time.gmtime(clock()))
+    try:
+        directory.mkdir(parents=True, exist_ok=True)
+    except OSError:
+        return None, None
+    for _ in range(_NIGHT_MINT_TRIES):
+        name = f"{NIGHT_LOG_PREFIX}-{folded}-{stamp}-{mint()}.log"
+        try:
+            handle = (directory / name).open("x", encoding="utf-8", newline="")
+        except FileExistsError:
+            continue
+        except OSError:
+            return None, None
+        return handle, name
+    return None, None
+
+
+@contextlib.contextmanager
+def night_log(lane, directory=None, *, clock=time.time, mint=None):
+    """Hold this night's own log open for the body, and close it after.
+
+    CS-1018. The launcher's stdout log was ONE file per lane and
+    `Start-Process` truncates its redirect target on every launch, so a later
+    night erased the only record of the 2026-09-10 gap. This file is named by
+    lane, UTC start stamp and run token and opened exclusively, so every night
+    keeps its own. Retention is unbounded by design - pruning is a separate,
+    filed decision, not something to add silently here.
+
+    A night that RAISES leaves the exception's TYPE as its last line and never
+    its text: `str()` on a caught exception is the personal-data channel
+    non-negotiable 12 closes.
+
+    Args:
+        lane: The lane, folded to an identifier-safe spelling for the name.
+        directory: Where the log goes; the reports directory by default.
+        clock: The start-stamp seam.
+        mint: The run-token seam, a zero-argument callable returning a string.
+
+    Yields:
+        The log's file name, or None when none could be created.
+    """
+    mint = (lambda: uuid.uuid4().hex[:_TOKEN_HEX_SHORT]) if mint is None else mint
+    root = REPORTS if directory is None else Path(directory)
+    handle, name = _open_night_log(lane, root, clock=clock, mint=mint)
+    previous = _NIGHT_SINK["handle"]
+    _NIGHT_SINK["handle"] = handle
+    try:
+        if name is None:
+            _emit("queue-loop night log: could not be created - this night is on stdout only")
+        else:
+            _emit(f"queue-loop night log: {name} lane={lane!r} pid={os.getpid()}")
+        yield name
+    except BaseException as exc:
+        _emit(f"queue-loop night log: the driver raised {type(exc).__name__}")
+        raise
+    finally:
+        _NIGHT_SINK["handle"] = previous
+        if handle is not None:
+            handle.close()
 
 
 def _repo_token() -> str:
@@ -3483,7 +3588,7 @@ _STOP_EXIT = {
 _SUCCESS_STOPS = frozenset({STOPPED_BY_MAX_CYCLES, *STOP_NAMES})
 
 
-def main(argv=None, *, singleton=None) -> int:
+def main(argv=None, *, singleton=None, retain_log: bool = False) -> int:
     """CLI entry point for the detached launcher.
 
     A drained queue IS a successful outcome - but it is not the same outcome as
@@ -3508,6 +3613,11 @@ def main(argv=None, *, singleton=None) -> int:
         argv: Command line, for testing.
         singleton: A zero-argument callable returning a context manager held for
             the whole run. The seam exists so tests never touch a real OS mutex.
+        retain_log: CS-1018 - keep this night's own log under the reports
+            directory (see `night_log`). The `__main__` block passes True, so
+            every process the launcher or an operator starts keeps one; a
+            function call defaults to False so a caller that did not ask for a
+            file never gets one in the real reports directory.
 
     Returns:
         One of the EXIT_* codes.
@@ -3584,7 +3694,20 @@ def main(argv=None, *, singleton=None) -> int:
         "--once", action="store_true", help="run exactly one cycle - overrides --cycles"
     )
     args = parser.parse_args(argv)
+    if not retain_log:
+        return _drive(args, singleton)
+    # OPENED BEFORE THE SINGLETON GUARD, so a refused second driver leaves its
+    # refusal in a night log of its own too.
+    with night_log(args.lane, None if args.reports_dir is None else Path(args.reports_dir)):
+        return _drive(args, singleton)
 
+
+def _drive(args, singleton) -> int:
+    """Run one night from parsed arguments; `main` documents the exit codes.
+
+    Split out of `main` so `main` can hold the night log open around the
+    whole of it without changing a single exit path.
+    """
     cycles = 1 if args.once else args.cycles
     cycle_log = None if args.reports_dir is None else Path(args.reports_dir) / CYCLE_LOG.name
     control_dir = None if args.control_dir is None else Path(args.control_dir)
@@ -3700,4 +3823,4 @@ def main(argv=None, *, singleton=None) -> int:
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    raise SystemExit(main(retain_log=True))

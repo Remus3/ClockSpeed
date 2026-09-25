@@ -223,3 +223,52 @@ def test_the_flags_it_forwards_are_flags_the_driver_actually_has():
     assert parser_flags, "no argparse flags were found - the walk matched nothing"
     unknown = sorted(forwarded - parser_flags)
     assert not unknown, f"the launcher forwards flags the driver rejects: {unknown}"
+
+
+# ---------------------------------------------------------------------------
+# CS-1018 - every launch keeps its own log. The EXECUTABLE half of this - two
+# nights of the driver leave two logs - is tests/ops/test_driver_log_per_night.py;
+# this file stays static, so these arms read the launcher's source.
+# ---------------------------------------------------------------------------
+
+
+def _default_log_block() -> str:
+    """The body of the `if (-not $Log) { ... }` block that names the default log."""
+    found = re.search(r"if \(-not \$Log\) \{\n(.*?)\n\}\n", SOURCE, re.DOTALL)
+    assert found, "no default-log block found"
+    return found.group(1)
+
+
+def test_the_default_log_name_is_new_for_every_launch():
+    """ONE FIXED NAME PER LANE IS WHAT LOST THE 2026-09-10 EVIDENCE.
+
+    Start-Process truncates its redirect target on every launch, so a later
+    night erased the only record of that night's cycle gap. The default name
+    now carries a UTC launch stamp and a run token, and a name already on disk
+    is re-minted rather than handed to Start-Process to truncate.
+    """
+    block = _default_log_block()
+    target = re.search(r"\$Log = Join-Path \$PSScriptRoot \"([^\"]+)\"", block)
+    assert target, "the default log is not built under the script root"
+    name = target.group(1)
+    assert "$stamp" in name, f"the default log name carries no launch stamp: {name}"
+    assert "$token" in name, f"the default log name carries no run token: {name}"
+    assert "ToUniversalTime()" in block, "the launch stamp is not UTC"
+    assert "NewGuid()" in block, "the run token is not minted per launch"
+    assert re.search(r"\}\s*while \(\(Test-Path \$Log\)", block), (
+        "a default name already on disk is not re-minted before Start-Process truncates it"
+    )
+
+
+def test_the_banner_still_names_the_log_and_points_at_the_drivers_night_logs():
+    """The operator reads the banner, so it names both kept copies.
+
+    The night-log pattern is pinned against the driver's own prefix: two copies
+    of one fact is the drift CLAUDE.md section 4 is about.
+    """
+    assert '"  log:    $Log"' in SOURCE, "the banner no longer prints the launch's log"
+    night = [line for line in SOURCE.splitlines() if line.startswith('"  night:')]
+    assert len(night) == 1, "the banner does not name the driver's night logs"
+    assert f"reports\\{queue_loop.NIGHT_LOG_PREFIX}-*.log" in night[0], (
+        f"the banner's night-log pattern disagrees with the driver: {night[0]}"
+    )

@@ -32,15 +32,27 @@ param(
   [switch]$NoCiGate,
   [switch]$LocalSuite
 )
-# ONE LOG PER LANE, and this is a real collision rather than tidiness.
-# Start-Process TRUNCATES its redirect target at every launch, so a second lane
-# pointed at one file erases the first lane's log the moment it starts - and the
-# first driver's handle stays open on a file nobody can read any more. The
-# durable record is the JSONL ledger either way; this is the human tail.
+# ONE LOG PER LAUNCH, and this is a measured loss rather than tidiness.
+# Start-Process TRUNCATES its redirect target at every launch. With one fixed
+# name per lane, a second lane pointed at one file erased the first lane's log
+# the moment it started - and, CS-1018, a later NIGHT of the same lane erased
+# the only record of the 2026-09-10 cycle gap, which is why that gap can never
+# be diagnosed now. So the default name carries a UTC launch stamp and a run
+# token, and a name already on disk is re-minted rather than truncated.
+#
+# This file is the copy that ALSO catches a crash before the driver opens its
+# own log. The driver keeps its own night log as well (queue_loop.night_log),
+# opened exclusively, so an explicit -Log - which is taken exactly as given,
+# and which Start-Process WILL truncate - still loses no night. The durable
+# record is the JSONL ledger either way; these are the human tail.
 if (-not $Log) {
   $suffix = ""
   if ($Lane) { $suffix = "-$Lane" }
-  $Log = Join-Path $PSScriptRoot "reports\queue_loop$suffix.log"
+  do {
+    $stamp = (Get-Date).ToUniversalTime().ToString("yyyyMMdd'T'HHmmss'Z'")
+    $token = [guid]::NewGuid().ToString("N").Substring(0, 8)
+    $Log = Join-Path $PSScriptRoot "reports\queue_loop$suffix-$stamp-$token.log"
+  } while ((Test-Path $Log) -or (Test-Path "$Log.err"))
 }
 
 $ErrorActionPreference = "Stop"   # unlike run_lane.ps1: nothing here is long-lived
@@ -125,9 +137,10 @@ if ($present.Count -gt 0) {
 }
 
 # Start-Process refuses to point stdout and stderr at the SAME file, so stderr
-# gets a sibling. Both are truncated on each launch, which is fine because the
-# DURABLE record is ops/loop/reports/queue_loop.jsonl - these two are the human
-# tail, not the ledger.
+# gets a sibling. Start-Process truncates both, which is why the default name
+# above is new for every launch; the DURABLE record is still
+# ops/loop/reports/queue_loop.jsonl - these two are the human tail, not the
+# ledger.
 $logDir = Split-Path $Log -Parent
 if (-not (Test-Path $logDir)) { New-Item -ItemType Directory -Force -Path $logDir | Out-Null }
 $errLog = "$Log.err"
@@ -168,6 +181,7 @@ $laneSaid = if ($Lane) { $Lane } else { "the driver's default" }
 "queue-loop driver started pid=$($proc.Id) lane=$laneSaid cycles=$Cycles settle=$Settle"
 "  log:    $Log"
 "  errlog: $errLog"
+"  night:  $(Join-Path $PSScriptRoot 'reports\queue_loop_night-*.log') (the driver's own, one per night)"
 "  ledger: $(Join-Path $PSScriptRoot 'reports\queue_loop.jsonl')"
 "  stop:   create ops\loop\control\lanes\QUEUE_STOP (or control\STOP for everything)"
 "  kill:   taskkill /F /T /PID $($proc.Id)"
