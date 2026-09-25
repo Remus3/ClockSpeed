@@ -24,6 +24,41 @@ Where current truth actually lives:
 | Commands and runbooks | `docs/OPERATIONS.md` |
 
 
+## CS-1175 - item section, CLOSED and relocated from `docs/item_notes/phase7.md` 2026-09-24
+
+**Moved here from `docs/item_notes/phase7.md` when the item closed.**
+The closure record is in `docs/LEDGER.md`.
+
+## CS-1175
+
+### Acceptance
+
+a narrowing of any `SECRET_PATTERNS` rule that is not an alternation branch - dropping
+the case-insensitive flag, dropping or shortening a word-prefix quantifier, raising a
+length quantifier's minimum, or removing a member range from a character class - reddens
+the credential row naming the rule and what narrowed, proven by mutation on at least one
+rule per narrowing kind with the pristine tree green in the same run; OR, where a kind
+cannot be graded by canaries without a hand list, an arm pins each rule's compiled
+flags and quantifier bounds against a DERIVED fingerprint so any change reddens and
+must be re-recorded deliberately. Separately, no canary value renders under
+`--showlocals`, proven by forcing an arm red with that flag and grepping; and the
+comment in `tools/outbound_gate.py` about a missing private regex parser states what
+actually happens, measured.
+
+### Full headline
+
+a secret rule narrowed by its flags, a quantifier or a character class keeps every
+canary green, and `--showlocals` still renders canary values
+
+### FILED 2026-09-22, from the adversary pass that could not refute CS-1172
+
+Measured on the frozen CS-1172 candidate. The most consequential single case is the
+flag: without it the quoted-assignment and high-entropy rules stop catching an
+upper-case assignment spelling, and nothing reddens. The rules live in the frozen
+`tools/precommit_gate.py`, but nothing here requires editing it - the grading side is
+`tools/outbound_gate.py` and the tests.
+
+
 ## CS-1161 - item section, CLOSED and relocated from `docs/item_notes/phase7.md` 2026-09-20
 
 **Moved here from `docs/item_notes/phase7.md` when the item closed.**

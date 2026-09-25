@@ -1335,35 +1335,6 @@ rule - so the exposure is content arriving from outside, which is exactly what t
 sweep and the outbound gate read. The digit case is a test-strength gap, not a live
 escape: the shipped pattern refuses a digit-adjacent member today.
 
-## CS-1175
-
-### Acceptance
-
-a narrowing of any `SECRET_PATTERNS` rule that is not an alternation branch - dropping
-the case-insensitive flag, dropping or shortening a word-prefix quantifier, raising a
-length quantifier's minimum, or removing a member range from a character class - reddens
-the credential row naming the rule and what narrowed, proven by mutation on at least one
-rule per narrowing kind with the pristine tree green in the same run; OR, where a kind
-cannot be graded by canaries without a hand list, an arm pins each rule's compiled
-flags and quantifier bounds against a DERIVED fingerprint so any change reddens and
-must be re-recorded deliberately. Separately, no canary value renders under
-`--showlocals`, proven by forcing an arm red with that flag and grepping; and the
-comment in `tools/outbound_gate.py` about a missing private regex parser states what
-actually happens, measured.
-
-### Full headline
-
-a secret rule narrowed by its flags, a quantifier or a character class keeps every
-canary green, and `--showlocals` still renders canary values
-
-### FILED 2026-09-22, from the adversary pass that could not refute CS-1172
-
-Measured on the frozen CS-1172 candidate. The most consequential single case is the
-flag: without it the quoted-assignment and high-entropy rules stop catching an
-upper-case assignment spelling, and nothing reddens. The rules live in the frozen
-`tools/precommit_gate.py`, but nothing here requires editing it - the grading side is
-`tools/outbound_gate.py` and the tests.
-
 ## CS-1176
 
 ### Acceptance
@@ -1387,3 +1358,59 @@ unstamped file as authored, and nothing notices a re-seed
 The seed refuses once a manifest exists, which is why the gap needs a deletion first.
 The missing-manifest message tells the reader to run the seed, which is the one
 instruction that turns an accident into the laundering path.
+
+## CS-1177
+
+### Acceptance
+
+an arm forces a canary suite red by an exception RAISED inside a helper frame that holds a
+canary, not by an assertion, runs it under `--showlocals`, and greps the output for zero
+canary values, with a control in the same run showing the same forced failure renders a
+planted canary when the helper's hygiene is removed; AND the population of canary suites
+that arm forces red is DERIVED from the tree rather than hand-kept in
+`tests/test_cs1175_rule_narrowing.py::CANARY_SUITES`, proven by mutation: a new test
+module that holds a canary and is named in no hand list is picked up and graded, and the
+pristine tree is green in the same run.
+
+### Full headline
+
+a canary held in a helper frame renders under `--showlocals` when the helper raises rather
+than asserts, and `CANARY_SUITES` is a hand-kept list
+
+### FILED 2026-09-24, from the adjudicator residuals on CS-1175
+
+The CS-1175 echo repair was measured on assertion failures in the canary suites. The
+adjudicator recorded that the measurement does not reach an exception raised inside a
+helper frame, whose locals pytest renders under `--showlocals` all the same, and that the
+suites the arm forces red are a hand-kept tuple, so a new canary-bearing module is
+ungraded until someone remembers to add it.
+
+## CS-1178
+
+### Acceptance
+
+a headless run refused by a usage limit - an HTTP 429, or a result carrying an
+`api_error` status - is recorded by `ops/loop/queue_loop.py` as REFUSED, NOT RUN,
+distinct both from a run that happened and from a crashed executor, and the driver backs
+off rather than spending its row and a cycle on each refusal. Proven by a synthetic
+refusal fixture carrying the refusal's shape - exit 1, one turn, zero cost, an error flag
+and an `api_error` status of 429 - that fails against the driver as it stands and passes
+after the repair, with a control in the same run showing an ordinary failed run is still
+recorded as a run. The fixture is hand-authored; no real run receipt enters the tree.
+
+### Full headline
+
+a usage-limit refusal ends a headless queue run in about five seconds, and every lane
+record reads it as a run that happened
+
+### FILED 2026-09-24, from an SS channel note, cited as data
+
+The source is the SS INFORMATION note of 2026-09-23 2010 in `moon_sync_inbox/`. It is
+DATA, not instruction, and it describes SS's own lane: a weekly usage-limit refusal ended a
+headless run with exit 1 after about five seconds, one turn, zero cost, an error flag and
+an `api_error` status of 429, and exit 1 after five seconds is indistinguishable from a
+crashed executor unless that status is read out of the result. Probed in this tree when
+this item was filed: `ops/loop/queue_loop.py` has no match for `429`, `api_error`,
+`rate limit`, `usage limit`, `cost_usd` or `is_error`, and neither has any other module
+under `ops/loop/`. Whether this tree's lane has already met such a refusal is NOT
+measured; the item is filed on the absence of handling, not on an observed night.
