@@ -780,39 +780,89 @@ in section 6. No commit count is written here: the census and the count controls
 below measure it at run time, and a count written into this plan is stale by the
 time S7a runs. Author and committer, plus removal of the agent co-authorship trailer
 line and its preceding blank line (ADR 0018, amended 2026-09-24); trees, paths,
-dates, parent topology and every other message byte unchanged. **BASELINE,
-immediately before the rewrite and after S6 and S7 have landed:** bundle `main` at
-its current tip beside the S3 bundle, placed per S5 and proven restorable per S4 -
-that is the preservation bundle taken before S7a - and take the trailer-shaped
-census over it. That count, not S1's, is the pre-rewrite count. Added controls:
-the trailer-shaped census (a column-zero line whose trimmed token before the
-first colon folds to `co-authored-by`) returns the pre-rewrite count, non-zero,
-BEFORE and zero AFTER; exactly that many commits have a changed message; and for
-each of them the old message minus the stripped lines equals the new message
-byte for byte. Controls: assert the rewritten commit COUNT equals the pre-rewrite
-count, assert every tree SHA is unchanged commit-for-commit - the rewrite must
-touch identity and the trailer strip and nothing else - assert a commit-for-commit
-MESSAGE diff, old against new, in which a commit passes only when its message is
-byte-equal or differs solely by the stripped trailer line and the blank line before
-it, and any other message difference ABORTS, and assert `git log --format='%ae %ce'` yields
-exactly one address across the whole graph, with a pre-rewrite control showing
-it yielded two. **The S3/S4 bundle must already exist and be proven restorable
-before this runs**, because this step invalidates every SHA the remote holds.
+dates, parent topology and every other message byte unchanged - each of those is
+asserted by a control below, none is assumed. **BASELINE, immediately before the
+rewrite and after S6 and S7 have landed:** bundle `main` at its current tip beside
+the S3 bundle, placed per S5 and proven restorable per S4 - that is the
+preservation bundle taken before S7a - and take the trailer-shaped census over it. That
+count, not S1's, is the pre-rewrite count.
 
-**S8 - RE-RUN S1 AND S2 IN FULL.** S6, S7 and S7a all change `main`.
-**S1 scanned a tree that no longer exists by push time**, and the first draft
-said so in prose while omitting the step. It costs about 7 seconds. This is the
-last check before anything irreversible. The re-run includes S1's seventh axis,
-the trailer census, which must return zero here.
+**THE TRAILER-SHAPED CENSUS - defined here and ONLY here; every other file points at this
+paragraph.** Walk every commit message reachable from the tip being measured and
+count the lines that sit at column zero, carry a colon, and whose token before the
+first colon - trailing whitespace trimmed - folds case-insensitively to
+`co-authored-by`. That is the shape git's own trailer parser reads and the shape
+`.githooks/commit-msg` refuses. A plain substring search is NOT this census: it also
+matches prose naming the trailer.
+
+**THE IDENTITY ALLOWLIST** holds exactly one address, the ruled noreply address,
+derived at run time from the operator's forge account and never written into a
+tracked file. Every author address and every committer address in the rewritten
+graph must be on it.
+
+**FORBIDDEN, because each re-commits and restamps what S7a must keep:**
+`--reset-author`, `--ignore-date`, `--committer-date-is-author-date`, any `--date`
+override, and any rebase, amend, cherry-pick or re-commit route. The rewrite is one
+history-rewriting pass that maps identity and message bytes only, and its tool and
+exact invocation are recorded before it runs.
+
+Controls, each pairing a commit of the pre-S7a bundle with its image on the
+rewritten `main` - by the rewrite tool's old-to-new commit map where it writes one,
+otherwise by position in `git rev-list --topo-order --reverse` of each tip; the
+parent control below fails a wrong pairing closed:
+
+- COUNT: the rewritten commit count equals the pre-rewrite count.
+- TREE: every paired commit's tree hash is byte-equal - only messages and identity
+  change, so a single differing tree ABORTS.
+- DATES: every paired commit's author date and committer date, read raw as epoch
+  seconds plus timezone offset, are equal. Any difference ABORTS.
+- PARENTS: every paired commit has the same parent count, and each new parent is
+  the image of the corresponding old parent under the pairing, in order.
+- MESSAGE: a commit-for-commit diff, old against new, in which a commit passes
+  only when its message is byte-equal or differs solely by the stripped trailer
+  line and the blank line before it; any other difference ABORTS.
+- CENSUS: the trailer-shaped census returns the pre-rewrite count, non-zero, BEFORE and
+  zero AFTER, and exactly that many commits have a changed message.
+- IDENTITY: `git log --format='%ae %ce'` over the rewritten graph yields exactly one
+  address, the allowlisted one, with a pre-rewrite control showing the bundle
+  yielded two.
+
+**The S3/S4 bundle must already exist and be proven restorable before this runs**,
+because this step invalidates every SHA the remote holds.
+
+**A COMMIT LANDING ON `main` AFTER S7a VOIDS S7a THROUGH S8a.** Never re-run S7a on
+already-rewritten history: its census would read zero before and its identity
+control would find one address, so both of its positive controls would fail - and
+rightly. Instead, restore `main` from the preservation bundle taken before S7a,
+bring the new commit's change onto that un-rewritten tip, take a fresh preservation
+bundle at the resulting tip (placed per S5, proven restorable per S4), which
+replaces the earlier one as S7a's baseline, and run S7a, S8 and S8a again from the
+top. A correct restart therefore sees S7a's census non-zero before and its identity
+control yield two.
+
+**S8 - RE-RUN S1 AND S2 IN FULL, AND S7a's IDENTITY CHECK.** S6, S7 and S7a all
+change `main`. **S1 scanned a tree that no longer exists by push time**, and the
+first draft said so in prose while omitting the step. It costs about 7 seconds.
+This is the last check before anything irreversible. The re-run includes S1's
+seventh axis, the trailer-shaped census, which must return zero here, and it re-runs S7a's
+IDENTITY control against the identity allowlist: every author and committer address
+reachable from the scanned SHA is the one allowlisted address. **S8 records the one
+`main` SHA it scanned; S8a adjudicates exactly that SHA.** If `main` is not at that
+SHA when S8a freezes it, S8 is void and runs again.
 
 **S8a - READINESS ADJUDICATION, ANCHORED.** After S8 passes and before S9, an
-in-session adjudicator that produced none of the flip's work freezes `main` at one
-SHA and rules on readiness at that SHA, on evidence re-run that session against all
-eight CS-G03 preconditions - the decide half in `docs/GATED.md` CS-G03 (CS-1182).
+in-session adjudicator that produced none of the flip's work freezes `main` at the
+SHA S8 recorded - the same SHA, no other - and rules on readiness at that SHA, on
+evidence re-run that session against all eight CS-G03 preconditions - the decide
+half in `docs/GATED.md` CS-G03 (CS-1182).
 **The adjudicated SHA is the SHA S9 onward operates on:** S10 pushes exactly it,
 S11's mirror clone must return exactly it as the one head, and S12 publishes it.
 Any commit to `main` after it VOIDS the adjudication - re-adjudicate `<sha>..HEAD`
-before S9 runs, and never carry the verdict forward.
+before S9 runs, and never carry the verdict forward. **The ruling is recorded
+OUTSIDE the adjudicated history:** it is written to a companion note beside the
+preservation bundle, outside the repository tree per S5, and enters
+`docs/LEDGER.md` only in a commit made after S12 completes. No commit records it
+before then, so recording the ruling never moves `main` and never voids itself.
 
 **S9 - Delete the remote repository and RECREATE IT PRIVATE.** The first
 irreversible step, and **it requires the operator's explicit go-ahead at the
@@ -1557,7 +1607,9 @@ stands in for the operator's hands. S9 deletes the remote and S12 makes it publi
 both are irreversible and outward-facing. The runner-up - an adjudicator grant
 alone suffices - lost because the same section names that floor and CS-G03 calls
 its own gate necessary and not sufficient. Whether the operator reads the MAIN
-clause's floor the same way is recorded by the ruling as a residual.
+clause's floor the same way is recorded by the ruling as a residual. That residual is
+discharged: `CLAUDE.md` section 6.1 now names the floor directly, as its one
+exception for an irreversible outward act on the repository itself.
 
 ## CS-1183
 

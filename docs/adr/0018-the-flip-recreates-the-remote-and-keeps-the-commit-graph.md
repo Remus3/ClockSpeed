@@ -128,15 +128,15 @@ personal email address in both the author and the committer field. `CONVENTIONS`
 17 gate item 2 does not reach it - it says tracked files and commit messages, and
 identity is neither - and measurement 1 did not look for it. **Whether to publish
 under that identity was put to the operator on 2026-09-08 and RULED: rewrite
-author and committer across all 521 commits to a GitHub noreply address.
+author and committer across every commit on `main` to a GitHub noreply address.
 Accept-as-is and squash-to-fresh-history were both declined.** The mechanics and
 the sequencing consequence - every SHA changes, so the preservation bundle must
 be taken and proven restorable BEFORE the rewrite - are in CS-700's plan section
 6 and step S7a. A rewrite undertaken for that reason is not the rewrite this ADR
 rejects, and CS-701 is the same surface already filed.
 AMENDED 2026-09-24 by CS-700: the S7a rewrite also STRIPS the agent co-authorship
-trailer. Eighteen commits on `main` carry one, oldest `e9af2df`, newest `5907d45`,
-one trailer each as the final body line; `docs/GATED.md` CS-G03's eighth
+trailer. Measured at `599528c`, eighteen commits on `main` carry one, oldest
+`e9af2df`, newest `5907d45`, one trailer each as the final body line; `docs/GATED.md` CS-G03's eighth
 precondition forbids any in the published history, and measurement 1's six axes
 never looked for one. The strip removes that line and the blank line before it
 and changes nothing else: every other message byte, every tree, every parent

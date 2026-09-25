@@ -285,7 +285,10 @@ or the dashboard is allowed even mid-game.
 **A blocked decision goes to an ADJUDICATOR, never to the operator.** Anything an agent
 would have marked "not without operator approval" is adjudicated and the best
 recommendation is taken immediately. Never ask the operator to authorise a send or to pick
-a direction - they intervene by typing into the main session. Section 6's frozen-file route
+a direction - they intervene by typing into the main session. The one exception is an
+irreversible outward act on the repository itself - making it public, or deleting or
+recreating its remote: that waits for the operator's own-words confirmation in the main
+session, a safety floor no adjudicator or stand-in lifts. Section 6's frozen-file route
 is unchanged in shape: adjudicator grant, recorded in `docs/LEDGER.md` before the edit.
 Only the grantor changed.
 
