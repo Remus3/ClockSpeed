@@ -19,6 +19,7 @@ import ast
 import contextlib
 import json
 import re
+import subprocess
 import sys
 from pathlib import Path
 from typing import Any, Final
@@ -30,7 +31,7 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 # A PLAIN IMPORT, never importorskip: a missing driver is a COLLECTION error.
-from ops.loop import lanes, queue_loop  # noqa: E402
+from ops.loop import lane_launcher, lanes, queue_loop  # noqa: E402
 
 #: A path SEGMENT planted where an account name would sit. A segment carries no
 #: separator, so it survives every escaping a renderer can apply.
@@ -413,3 +414,166 @@ def test_cs1016_a_real_worktree_collision_is_written_as_one_naming_the_occupant(
     assert leftover == [], f"a lock survived the arm: {leftover}"
     assert lanes.lane_state(root, None, occupant)["state"] == lanes.FREE
     assert lanes.path_key(token) not in lanes._OWNED  # noqa: SLF001 - the lifetime under test
+
+
+# ===========================================================================
+# CS-1017 - the consumed wait and the reason word, ON THE ROW
+# ===========================================================================
+
+#: The launcher's liveness grace, read from the launcher rather than restated.
+GRACE_S: Final = float(lane_launcher._SPAWN_LIVENESS_GRACE_S)  # noqa: SLF001 - the grace under test
+
+#: How long the early-exiting runner lives. Deliberately a clean fraction of the
+#: grace, so the row's number can be compared exactly.
+EARLY_EXIT_S: Final = 0.5
+
+
+class _LaunchClock:
+    """The launcher's monotonic clock, advanced only by the fake process."""
+
+    def __init__(self) -> None:
+        """Start at a fixed reading."""
+        self.now = 100.0
+
+    def __call__(self) -> float:
+        """The current reading."""
+        return self.now
+
+
+def _fake_popen(clock: _LaunchClock, exits_after: float | None, spawned: list[list[str]]):
+    """A `subprocess.Popen` stand-in that NEVER starts a process.
+
+    `wait(timeout)` advances the launcher's clock by exactly what a real wait
+    would have consumed: `exits_after` when the runner dies inside the grace,
+    the whole timeout when it does not.
+    """
+
+    class FakeProc:
+        pid = 4242
+
+        def __init__(self, argv: list[str], **_kw: Any) -> None:
+            spawned.append(list(argv))
+
+        def wait(self, timeout: float | None = None) -> int:
+            limit = float(timeout or 0.0)
+            if exits_after is not None and exits_after < limit:
+                clock.now += exits_after
+                return 1
+            clock.now += limit
+            raise subprocess.TimeoutExpired("runner", limit)
+
+    return FakeProc
+
+
+def _launch_row(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    *,
+    exits_after: float | None,
+    repoint: bool,
+) -> dict[str, Any]:
+    """Drive ONE cycle through the REAL `launch_lane` and `_spawn`, then the writer.
+
+    Only what would touch the world is faked: the process, the worktree, the
+    tool lookup, the lock re-point, the kill. The measurement, the refusal and
+    the row are the real code.
+    """
+    tmp_path.mkdir(parents=True, exist_ok=True)
+    clock = _LaunchClock()
+    spawned: list[list[str]] = []
+    killed: list[Any] = []
+    tree = tmp_path / "cs-lane-queue"
+    tree.mkdir(exist_ok=True)
+    prompt = tmp_path / "prompt.md"
+    prompt.write_bytes(b"# synthetic\n")
+    monkeypatch.setattr(lane_launcher.subprocess, "Popen", _fake_popen(clock, exits_after, spawned))
+    # NOT raising at base, where the attribute does not exist yet: the arm must
+    # fail on the missing FIELD, not on its own set-up.
+    monkeypatch.setattr(lane_launcher, "_monotonic", clock, raising=False)
+    monkeypatch.setattr(lane_launcher, "resolve_tool", lambda _name: "synthetic-shell")
+    monkeypatch.setattr(lane_launcher, "command_path", lambda _lane, **_kw: prompt)
+    monkeypatch.setattr(lane_launcher, "ensure_worktree", lambda _lane, **_kw: tree)
+    monkeypatch.setattr(lane_launcher, "_refuse_main_tree", lambda *_a: None)
+    monkeypatch.setattr(lane_launcher, "_kill", killed.append)
+    monkeypatch.setattr(lane_launcher.lanes, "repoint_lane_pid", lambda *_a, **_k: repoint)
+    monkeypatch.setattr(lane_launcher.lanes, "release_lane", lambda *_a, **_k: True)
+
+    def launch(lane: str, **kw: Any) -> dict[str, Any]:
+        return lane_launcher.launch_lane(lane, log_dir=tmp_path / "logs", **kw)
+
+    got = _cycle(lambda _lane, **_kw: {"ok": True, "token": "T"}, launch=launch)
+    written = _write_and_read_back(got, tmp_path / "cycles.jsonl")
+    assert len(spawned) == 1, "the fake process was not the one spawned"
+    rows = [json.loads(line) for line in written.splitlines() if line.strip()]
+    assert len(rows) == 1
+    row: dict[str, Any] = rows[0]
+    row["_killed"] = len(killed)
+    return row
+
+
+def test_cs1017_an_early_exit_and_a_post_grace_kill_are_one_field_apart(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The 2026-09-11 diagnosis had to INVENT a duration argument, and it was wrong.
+
+    `duration_s` is the driver's cycle clock; the 2.0s grace runs from the
+    `Popen`. A runner that died at 1.97s and a runner killed after a refused
+    re-point after the full grace both came out as `launch_failed` with a
+    duration a little over two seconds. The row now carries the seconds
+    `proc.wait` actually consumed and the reason word, so the two are told apart
+    by READING a field, not by subtracting clocks that do not share an origin.
+    """
+    early = _launch_row(tmp_path / "early", monkeypatch, exits_after=EARLY_EXIT_S, repoint=True)
+    killed = _launch_row(tmp_path / "killed", monkeypatch, exits_after=None, repoint=False)
+
+    # THE CONTROL: the two really are the two cases, and the row as it stood
+    # could not tell them apart - same outcome, same kind of detail.
+    outcomes = (early["outcome"], killed["outcome"])
+    kills = (early["_killed"], killed["_killed"])
+    assert outcomes == (queue_loop.OUTCOME_LAUNCH_FAILED,) * 2, f"outcomes {outcomes}"
+    assert kills == (0, 1), f"the kill path was not the one driven: {kills}"
+
+    # THE CONSUMED WAIT, one field, and it alone separates them.
+    # BOUND TO SCALARS: a row carries a temp path, and pytest renders an
+    # asserted dict whole whatever message the assertion carries.
+    early_waited = early.get("launch_waited_s")
+    killed_waited = killed.get("launch_waited_s")
+    assert early_waited == EARLY_EXIT_S, f"early exit waited {early_waited}"
+    assert killed_waited == GRACE_S, f"post-grace kill waited {killed_waited}"
+    # AND THE REASON WORD, as its own field rather than a suffix inside detail.
+    early_reason = early.get("launch_reason")
+    killed_reason = killed.get("launch_reason")
+    assert early_reason == "runner_exited_early", f"early exit reason {early_reason}"
+    assert killed_reason == "repoint_refused", f"post-grace kill reason {killed_reason}"
+
+
+def test_cs1017_a_launched_worker_s_row_carries_both_fields_as_none(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """ON EVERY ROW, so a reader never has to ask whether the field exists.
+
+    A worker that survived its grace is not a refusal, so it has no reason word
+    and the launcher reports no wait for it - `launch_lane`'s return key set is
+    pinned by `tests/test_lane_launcher.py`. Both fields are PRESENT and None,
+    which is distinguishable from a row written before this item, where they
+    were absent.
+    """
+    row = _launch_row(tmp_path, monkeypatch, exits_after=None, repoint=True)
+    outcome = row["outcome"]
+    present = ("launch_reason" in row, "launch_waited_s" in row)
+    values = (row.get("launch_reason"), row.get("launch_waited_s"))
+    assert outcome == queue_loop.OUTCOME_COMPLETED, f"outcome {outcome}"
+    assert present == (True, True), f"a launched row omits a field: {present}"
+    assert values == (None, None), f"a launched row carries {values}"
+
+
+@pytest.mark.parametrize(
+    "waited", [float("nan"), float("inf"), -1.0, True, "2.0", 10**9, None, object()]
+)
+def test_cs1017_a_wait_the_driver_cannot_vouch_for_is_written_as_none(waited: object) -> None:
+    """The number comes from another module and lands in a durable row.
+
+    Only a finite, non-negative real inside the ceiling is written; anything
+    else - a string, a bool, a NaN, an absurd value - is None, never rendered.
+    """
+    assert queue_loop._launch_waited(waited) is None  # noqa: SLF001 - the validator

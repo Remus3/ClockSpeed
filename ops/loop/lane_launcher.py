@@ -192,6 +192,18 @@ _NO_WINDOW = 0x08000000 if os.name == "nt" else 0
 #: it exists to catch happens before the process has done anything at all.
 _SPAWN_LIVENESS_GRACE_S = 2.0
 
+#: CS-1017. The clock the liveness wait is MEASURED on - monotonic, because the
+#: number is a duration and a wall-clock step inside the grace would falsify it.
+#: A module attribute so an arm can substitute it without starting a process.
+_monotonic = time.monotonic
+
+#: CS-1017. Where ``_spawn`` leaves the seconds its liveness wait consumed on a
+#: runner that SURVIVED the grace, so ``launch_lane`` can carry the number past
+#: a refused re-point. An attribute on the handle rather than a second return
+#: value, because ``spawn`` is an injection seam whose one-value shape every
+#: caller and fake already honours.
+_WAITED_ATTR = "cs_liveness_waited_s"
+
 _GIT_TIMEOUT_S = 120
 _KILL_TIMEOUT_S = 20
 
@@ -334,8 +346,10 @@ class LaneLaunchError(RuntimeError):
     precisely so that no caller's rendering changes.
     """
 
-    def __init__(self, message: str, *, reason: str = REASON_UNSPECIFIED) -> None:
-        """Record the message and the closed-vocabulary reason for the refusal.
+    def __init__(
+        self, message: str, *, reason: str = REASON_UNSPECIFIED, waited_s: float | None = None
+    ) -> None:
+        """Record the message, the refusal's reason, and the liveness wait it consumed.
 
         Args:
             message: What went wrong, in prose. May embed a path, so a caller
@@ -344,9 +358,14 @@ class LaneLaunchError(RuntimeError):
             reason: A member of ``LAUNCH_REASONS``. Defaults to
                 ``REASON_UNSPECIFIED`` so a site that names none still hands a
                 reader a word that is in the set.
+            waited_s: CS-1017 - the seconds ``_spawn``'s liveness wait actually
+                consumed, or None when the refusal came before any wait. It is
+                what separates a runner that died INSIDE the grace from one
+                killed AFTER it, which a cycle's total duration cannot.
         """
         super().__init__(message)
         self.reason = reason
+        self.waited_s = waited_s
 
 
 def worktree_path(lane: str, base: Any = None) -> Path:
@@ -597,15 +616,20 @@ def _spawn(runner: Path, prompt: Path, cwd: Path, log: Path) -> Any:
         message = f"spawn failed: {exc.strerror or type(exc).__name__}"
         raise LaneLaunchError(message, reason=REASON_SPAWN_FAILED) from exc
 
+    # CS-1017 - MEASURED around the wait itself and nothing else, so the number
+    # is the grace consumed rather than the spawn plus the grace.
+    wait_began = _monotonic()
     try:
         code = proc.wait(timeout=_SPAWN_LIVENESS_GRACE_S)
     except subprocess.TimeoutExpired:
+        setattr(proc, _WAITED_ATTR, round(_monotonic() - wait_began, 3))
         return proc
+    waited = round(_monotonic() - wait_began, 3)
     message = (
         f"the runner exited {code} within {_SPAWN_LIVENESS_GRACE_S}s of starting,"
         " so no worker is behind this lane"
     )
-    raise LaneLaunchError(message, reason=REASON_RUNNER_EXITED_EARLY)
+    raise LaneLaunchError(message, reason=REASON_RUNNER_EXITED_EARLY, waited_s=waited)
 
 
 def _kill_argv(pid: Any) -> list[str] | None:
@@ -685,7 +709,10 @@ def launch_lane(
 
     Returns:
         The lane, the run id, the worker pid, the worktree, the log, the prompt
-        and the wall-clock start time.
+        and the wall-clock start time. The liveness wait a SURVIVING worker
+        consumed is not among them: this key set is pinned by
+        ``tests/test_lane_launcher.py``, and the wait is carried only on a
+        refusal, where it is what tells an early exit from a post-grace kill.
 
     Raises:
         LaneLaunchError: Anything at all went wrong. The lane is released first.
@@ -703,13 +730,16 @@ def launch_lane(
         log = _log_path(lane, run_id, log_dir=log_dir)
         proc = starter(RUNNER, prompt, worktree, log)
         pid = getattr(proc, "pid", None)
+        # CS-1017. None from a spawn seam that does not measure, which the
+        # driver writes as None rather than as a number nobody took.
+        waited = getattr(proc, _WAITED_ATTR, None)
         if not pid:
             message = "spawn returned no pid"
-            raise LaneLaunchError(message, reason=REASON_SPAWN_NO_PID)
+            raise LaneLaunchError(message, reason=REASON_SPAWN_NO_PID, waited_s=waited)
         if not lanes.repoint_lane_pid(token, pid):
             _kill(pid)
             message = "could not re-point the lane lock at the worker"
-            raise LaneLaunchError(message, reason=REASON_REPOINT_REFUSED)
+            raise LaneLaunchError(message, reason=REASON_REPOINT_REFUSED, waited_s=waited)
     except LaneLaunchError as exc:
         lanes.release_lane(token)
         # AFTER the release, never before. The lane is the thing another cycle

@@ -183,6 +183,7 @@ import hashlib
 import importlib
 import importlib.util
 import json
+import math
 import os
 import re
 import subprocess
@@ -961,6 +962,56 @@ def _launch_fault(exc: BaseException) -> str:
         return named
     # THE DRIVER'S OWN LITERAL, fetched by index. `reason` is not rendered.
     return f"{named}: {_LAUNCH_REASONS[_LAUNCH_REASONS.index(reason)]}"
+
+
+def _launch_reason(exc: BaseException) -> str | None:
+    """CS-1017 - the launch refusal's reason word as ITS OWN FIELD, or None.
+
+    The same substitution as `_launch_fault`: the incoming value only LOOKS UP
+    an index into `_LAUNCH_REASONS` and the value returned is this module's own
+    literal, so a subclass that lies about its comparison or its rendering, or a
+    word this driver does not hold, yields None rather than the caller's object.
+
+    Args:
+        exc: The caught launch refusal. Any exception type.
+
+    Returns:
+        A member of `_LAUNCH_REASONS`, or None.
+    """
+    reason = getattr(exc, "reason", None)
+    if type(reason) is not str or reason not in _LAUNCH_REASONS:
+        return None
+    return _LAUNCH_REASONS[_LAUNCH_REASONS.index(reason)]
+
+
+#: The largest liveness wait a row will carry. Far above the launcher's grace,
+#: so it never clips an honest reading; its job is to refuse a number no grace
+#: could have produced.
+_LAUNCH_WAITED_CEILING_S = 3600.0
+
+
+def _launch_waited(value: object) -> float | None:
+    """CS-1017 - the seconds the launcher's liveness wait consumed, or None.
+
+    The number is built in another module and written into a durable row, so
+    only a finite, non-negative `int` or `float` inside the ceiling is kept -
+    exact types, because `True` is an int. Anything else is None, never
+    rendered.
+
+    Args:
+        value: The launcher's `waited_s`. Any object.
+
+    Returns:
+        The wait rounded to milliseconds, or None.
+    """
+    # BOTH tests: the exact-type one refuses a subclass, the isinstance one is
+    # what narrows the type for the conversion below.
+    if type(value) not in (int, float) or not isinstance(value, (int, float)):
+        return None
+    seconds = float(value)
+    if not math.isfinite(seconds) or seconds < 0 or seconds > _LAUNCH_WAITED_CEILING_S:
+        return None
+    return round(seconds, 3)
 
 
 #: THE REFUSAL WORDS THIS DRIVER ITSELF HOLDS, parallel to `_REFUSAL_OUTCOMES`.
@@ -2587,6 +2638,11 @@ def run_cycle(  # noqa: PLR0913, PLR0912, PLR0915 - see THE SEAMS ARE THE POINT
     # rather than hardcoded here, so a lane relocation moves one definition.
     run_id = uuid.uuid4().hex[:8] if run_id is None else str(run_id)
     started_at = clock()
+    # CS-1017 - ON EVERY ROW, so no row is ambiguous about whether the field
+    # exists. Set only by a launch REFUSAL, which is the one case where the
+    # launcher measures and reports the wait; None everywhere else.
+    launch_reason: str | None = None
+    launch_waited: float | None = None
 
     def _record(outcome, ok, pid, ended_at, detail="") -> dict:
         return {
@@ -2599,6 +2655,14 @@ def run_cycle(  # noqa: PLR0913, PLR0912, PLR0915 - see THE SEAMS ARE THE POINT
             "duration_s": round(ended_at - started_at, 3),
             "outcome": outcome,
             "detail": detail,
+            # CS-1017. The seconds the launcher's liveness wait CONSUMED, on its
+            # own monotonic clock, and the refusal's reason word as a field.
+            # `duration_s` above is this driver's cycle clock and cannot be
+            # compared with the grace; these two can be read directly, which is
+            # what separates a runner that died inside the grace from one killed
+            # after a refused re-point.
+            "launch_reason": launch_reason,
+            "launch_waited_s": launch_waited,
             # CS-1104. Taken when the row is built, on EVERY outcome, so a
             # refused or failed cycle still says what was waiting in the channel.
             #
@@ -2664,6 +2728,8 @@ def run_cycle(  # noqa: PLR0913, PLR0912, PLR0915 - see THE SEAMS ARE THE POINT
             # is idempotent, and an unconditional release is the only shape that
             # survives a future launcher that stops cleaning up after itself.
             outcome, detail = OUTCOME_LAUNCH_FAILED, _launch_fault(exc)[:400]
+            launch_reason = _launch_reason(exc)
+            launch_waited = _launch_waited(getattr(exc, "waited_s", None))
         else:
             pid = run.get("pid")
             if not pid:
@@ -2929,6 +2995,9 @@ def run_loop(  # noqa: PLR0913, PLR0912, PLR0915 - see THE SEAMS ARE THE POINT
                 "duration_s": round(ended_at - started_at, 3),
                 "outcome": OUTCOME_ERROR,
                 "detail": _fault(exc)[:400],
+                # CS-1017 - the same fields as every other row, unmeasured here.
+                "launch_reason": None,
+                "launch_waited_s": None,
                 # CS-1104. `run_cycle` surfaces only when it builds its own row,
                 # which a raise skips, so this row surfaces here - once. Names in
                 # this gitignored ledger are required by the CS-1104 acceptance
