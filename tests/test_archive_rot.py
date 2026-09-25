@@ -346,8 +346,23 @@ _CYCLE_MODULE_FLOOR: Final = 4
 #: EMPTY, so a row there would silence nothing here anyway, and the contract
 #: below asserts that no live forgiveness table has started answering an archive
 #: site. One relocation, two arms, two numbers that each moved by what it saw.
+#:
+#: `_ROT_CITATION` 7 TO 9, 2026-09-24 BY CS-1029, AND BOTH NEW SITES WERE READ
+#: BEFORE THE PIN MOVED. Eleven closed item sections were relocated VERBATIM from
+#: `docs/item_notes/phase7.md` into the archive at close, and two of them cite, in
+#: their full headlines, a symbol their own item renamed: CS-1029's names the web
+#: assets test whose one-post name CS-1029 renamed to state its count, and
+#: CS-1036's names the map test's hand-enumerated orientation constant, which
+#: CS-1036 replaced with a derived count. Neither old name is spelled here, since
+#: this module is itself a guarded carrier and would count it as live rot. Each
+#: headline is ABOUT the old name - it
+#: is what the item was filed over - so both were TRUE WHEN WRITTEN, and
+#: repointing either at the new name would make the record say the item was filed
+#: over the fix. That is the stated exemption, not a hole in it. The guarded leaf
+#: was green while the sections lived there because each rename landed with its
+#: close and the relocation carried the sentence out in the same change.
 ARCHIVE_ROT: Final[Mapping[str, int]] = {
-    _ROT_CITATION: 7,
+    _ROT_CITATION: 9,
     _ROT_RANGE: 0,
     _ROT_EMPTY: 2,
     _ROT_NAME: 3,

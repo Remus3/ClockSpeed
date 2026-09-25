@@ -1278,6 +1278,7 @@ DECLINED_AS_DECLARED_UNTRACKED: Final[Mapping[tuple[str, str, str], int]] = {
     ("tests/test_session_start_wiring.py", ".claude/settings.local.json", ""): 1,
     ("tools/inbox_watch.py", ".claude/settings.local.json", ""): 1,
     ("tests/test_outbound_send.py", "data/outbound_deliveries.json", ""): 1,
+    ("ops/loop/queue_loop.py", "ops/loop/config.json", ""): 1,
     (
         "docs/item_notes/phase4-followups-900.md",
         "data/outbound_deliveries.json",
@@ -1444,7 +1445,19 @@ DECLINED_AS_A_FIXTURE_LITERAL: Final[Mapping[tuple[str, str, str], int]] = {
 #: file. Appended TOGETHER WITH the citation it describes would have been the
 #: silent path this budget exists to price; the citation was already in the tree
 #: and red, so this row is the disclosure catching up with it.
-DECLARED_UNTRACKED_CEILING: Final = 16
+#:
+#: 16 TO 17 FOR THE LANE DRIVER'S USAGE BACK-OFF COMMENT, 2026-09-24 BY CS-1178.
+#: The comment above the usage-refusal back-off constant in the lane driver names
+#: the lane's machine-local configuration file to say why the value is a named
+#: constant and NOT a key there: that file is ignored, absent from every
+#: worktree, so a value held in it would be one no arm and no reviewer can see.
+#: The citation is the argument itself - the untracked file IS the reason - so
+#: repointing it would delete the reason, and there is nowhere tracked to point.
+#: Same standing as the lane-start failure record's row, which names the same
+#: file. The row REFUNDS and the ceiling returns to 16 if that comment ever stops
+#: naming the file. As above, the citation was already in the tree and red when
+#: this row was added; it was not appended together with it.
+DECLARED_UNTRACKED_CEILING: Final = 17
 #: 9 TO 6 WHEN CS-928 DELETED THE THREE FALSE ADVISOR ATTRIBUTIONS. Six
 #: `docs/ARCHITECTURE.md` rows left the rung and three arrived from the guard
 #: that now asserts those files absent, so the disclosure holds six rows and the
