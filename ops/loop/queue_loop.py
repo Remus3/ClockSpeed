@@ -2454,11 +2454,10 @@ def _worker_result(log: object) -> dict | None:
     asked for JSON output emits it as one object with `"type": "result"`, and
     `ops/loop/run_lane.ps1` appends everything the run emits to this log.
 
-    DORMANT UNTIL THE RUNNER ASKS FOR IT. The runner as it stands invokes the
-    run with its default TEXT output, which carries no result object, so every
-    real log answers None here and every real refusal still reads as a run that
-    happened. This reader and `_is_usage_refusal` are the driver's half; the
-    runner's half - requesting JSON output - is outside this module.
+    THE RUNNER ASKS FOR IT. `run_lane.ps1` invokes the run with
+    `--output-format json` and writes the result's text as readable lines ahead
+    of the JSON line, so the object sits at the log's tail. A log written by an
+    older runner, in text mode, carries no result object and answers None here.
 
     READ, NEVER RENDERED. What this returns is used only to CLASSIFY - see
     `_is_usage_refusal` - and no field of it is copied into a row, because the

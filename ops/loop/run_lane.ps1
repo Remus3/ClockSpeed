@@ -143,11 +143,38 @@ try {
   # for all of them, which KEEPS the "native stderr must not kill the lane"
   # property above: the streams are still folded into the same file, they are
   # just written as UTF-8 now.
-  Get-Content -LiteralPath "$PromptFile" -Raw |
-    & $claude -p --model $model --effort $effort --dangerously-skip-permissions *>&1 |
-    Out-File "$Log" -Append -Encoding utf8
+  #
+  # CS-1178 - `--output-format json`, so the run ends in ONE result object the
+  # driver can read. In the default text mode a usage-limit refusal (exit 1,
+  # one turn, zero cost, an error flag, api_error_status 429) and a crashed
+  # executor are the same five seconds and the same exit code, and the driver
+  # recorded the refusal as a run that happened. The object is what separates
+  # them; see `_worker_result` in ops/loop/queue_loop.py.
+  #
+  # CAPTURED, then written in THIS order: the result's text as readable lines,
+  # then everything the run emitted (the JSON line and any stderr), then the
+  # exit line below. A person reading the log still sees the worker's words
+  # rather than one escaped JSON string, and the JSON stays at the tail where
+  # the driver reads it. `claude -p` writes nothing until it finishes, so
+  # capturing costs no live output the log ever had.
+  $out = @(Get-Content -LiteralPath "$PromptFile" -Raw |
+    & $claude -p --model $model --effort $effort --output-format json --dangerously-skip-permissions *>&1)
 
   $code = $LASTEXITCODE
+
+  foreach ($item in $out) {
+    $text = [string]$item
+    if (-not $text.TrimStart().StartsWith("{")) { continue }
+    try {
+      $parsed = $text | ConvertFrom-Json -ErrorAction Stop
+      if ($parsed.type -eq "result" -and $null -ne $parsed.result) {
+        [string]$parsed.result | Out-File "$Log" -Append -Encoding utf8
+      }
+    } catch {
+      # Not a result object; it is still written whole just below.
+    }
+  }
+  $out | Out-File "$Log" -Append -Encoding utf8
 } catch {
   # THE TYPE AND THE ERROR ID, NEVER $_.Exception.Message. An error id is
   # symbolic - "CommandNotFoundException,Microsoft.PowerShell.Commands.GetCommandCommand"

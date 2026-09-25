@@ -12,8 +12,8 @@ and no real log enters the tree: the result dicts below are written from the
 refusal's SHAPE, and the worker log is assembled under `tmp_path` in the layout
 `ops/loop/run_lane.ps1` writes - a header line, the worker's output, an exit
 line - with the worker's output being the JSON result object a run emits when
-asked for JSON output. The runner as it stands does not ask, which is why the
-driver's reader is dormant on real logs; see `queue_loop._worker_result`.
+asked for JSON output, which the runner now asks for. The last arm runs the
+REAL runner over a shim `claude` and feeds the driver the log it wrote.
 
 No arm spawns a process, sleeps, takes a lock or reads the live channel.
 """
@@ -22,6 +22,8 @@ from __future__ import annotations
 
 import contextlib
 import json
+import os
+import subprocess
 import sys
 from pathlib import Path
 from typing import Any, Final
@@ -328,3 +330,158 @@ def test_cs1178_only_the_refusal_shape_classifies_as_a_refusal(
 ) -> None:
     """Every field of the shape is load-bearing, and each is graded alone."""
     assert queue_loop._is_usage_refusal(result) is refused  # noqa: SLF001 - the classifier
+
+
+# ===========================================================================
+# The runner's half: a REAL run_lane.ps1 writes the log the driver reads
+# ===========================================================================
+
+#: The runner under test - the file the launcher really spawns.
+RUNNER_SOURCE: Final = ROOT / "ops" / "loop" / "run_lane.ps1"
+
+#: A wedged child fails the arm rather than hanging the run.
+_CHILD_TIMEOUT_S: Final = 120.0
+
+#: Characters `cmd.exe` would interpret inside an `echo`. The shim's JSON line
+#: must hold none of them, or the arm would grade cmd's quoting, not the runner.
+_CMD_SPECIALS: Final = frozenset("&|<>^%")
+
+#: Long enough that a runner or an `Out-File` that wrapped or truncated its lines
+#: at a console width would split the JSON and make it unparseable.
+_PADDING: Final = "x" * 600
+
+
+def _powershell() -> str:
+    """The interpreter, resolved from PATH and never named as a bare string."""
+    tools = ROOT / "tools"
+    if str(tools) not in sys.path:
+        sys.path.insert(0, str(tools))
+    from toolpath import resolve_tool  # noqa: PLC0415 - tools/ is not a package
+
+    shell = resolve_tool("powershell")
+    if shell is None:
+        pytest.skip("powershell could not be resolved from PATH")
+    return str(shell)
+
+
+def _shim(tmp_path: Path, result: dict[str, Any], code: int) -> tuple[Path, Path]:
+    """A `claude` that records its argv, prints ONE result line and exits `code`.
+
+    NO REAL CLI IS EVER INVOKED: PATH is rebuilt from this directory and the
+    system directory, so `claude` resolves to this batch file or to nothing.
+    """
+    line = json.dumps(result, separators=(",", ":"))
+    unsafe = sorted(set(line) & _CMD_SPECIALS)
+    assert unsafe == [], f"the shim's JSON holds cmd specials {unsafe}"
+    shim_dir = tmp_path / "shim"
+    shim_dir.mkdir(parents=True, exist_ok=True)
+    # RELATIVE, so no path is baked into the shim: the runner sets its location
+    # to the tree before it invokes the CLI, so this lands in the tree.
+    argv_file = tmp_path / "tree" / "argv.txt"
+    (shim_dir / "claude.cmd").write_bytes(
+        b"@echo off\r\n"
+        + b"echo %* > argv.txt\r\n"
+        + b"echo "
+        + line.encode("ascii")
+        + b"\r\nexit /b "
+        + str(code).encode("ascii")
+        + b"\r\n"
+    )
+    return shim_dir, argv_file
+
+
+def _run_real_runner(tmp_path: Path, shim_dir: Path) -> Path:
+    """Run the REAL runner with PATH rebuilt from the shim, and return its log."""
+    prompt = tmp_path / "prompt.md"
+    prompt.write_bytes(b"# a prompt the shim never reads\n")
+    tree = tmp_path / "tree"
+    tree.mkdir(exist_ok=True)
+    log = tmp_path / "lane_queue_real.log"
+    env = dict(os.environ)
+    system_root = env.get("SYSTEMROOT") or env.get("SystemRoot") or "C:\\Windows"
+    env["PATH"] = f"{shim_dir}{os.pathsep}{Path(system_root) / 'System32'}"
+    env.pop("ANTHROPIC_API_KEY", None)
+    subprocess.run(
+        [
+            _powershell(),
+            "-NoProfile",
+            "-ExecutionPolicy",
+            "Bypass",
+            "-File",
+            str(RUNNER_SOURCE),
+            "-PromptFile",
+            str(prompt),
+            "-Cwd",
+            str(tree),
+            "-Log",
+            str(log),
+        ],
+        capture_output=True,
+        check=False,
+        timeout=_CHILD_TIMEOUT_S,
+        env=env,
+    )
+    return log
+
+
+def _real_log(tmp_path: Path, result: dict[str, Any], code: int) -> tuple[Path, str]:
+    """A log written by the real runner over a shim, and the argv the shim saw."""
+    shim_dir, argv_file = _shim(tmp_path, result, code)
+    log = _run_real_runner(tmp_path, shim_dir)
+    ran = argv_file.is_file()
+    assert ran, "the shim never ran - the arm grades nothing"
+    argv = argv_file.read_bytes().decode("ascii", errors="replace")
+    return log, argv
+
+
+@pytest.mark.skipif(os.name != "nt", reason="run_lane.ps1 is driven by Windows PowerShell")
+def test_cs1178_a_real_runner_refusal_log_is_recognised_end_to_end(tmp_path: Path) -> None:
+    """THE RUNNER ASKS FOR JSON, and the log it writes is one the driver reads.
+
+    Before this, the runner invoked the CLI in its default TEXT mode, which
+    emits no result object, so `_worker_result` answered None on every real log
+    and the driver's refusal check could never fire. Here the real runner runs
+    over a shim that prints a refusal-shaped result line, and the driver - fed
+    that very file - records no run and backs off.
+    """
+    refusal = {**REFUSAL, "result": f"synthetic usage limit refusal {_PADDING}"}
+    log, argv = _real_log(tmp_path / "refused", refusal, 1)
+    control_log, _ = _real_log(tmp_path / "ordinary", ORDINARY_FAILURE, 1)
+
+    # THE RUNNER'S HALF: the CLI was asked for its JSON result.
+    asked = "--output-format json" in argv
+    assert asked, "the runner did not ask the CLI for JSON output"
+
+    # THE LOG KEEPS A HUMAN-READABLE BODY and the machine-readable line, and
+    # still ends on the runner's own exit line carrying the worker's code.
+    lines = [
+        line.strip()
+        for line in log.read_bytes().decode("utf-8-sig", errors="replace").splitlines()
+        if line.strip()
+    ]
+    first, last = lines[0], lines[-1]
+    assert first.startswith("lane start "), "the header is gone"
+    assert last.startswith("lane exit "), "the exit line is gone"
+    assert last.endswith("code=1"), "the exit line does not carry the worker's code"
+    readable = any(line.startswith("synthetic usage limit refusal") for line in lines)
+    assert readable, "the result text was not written as a readable line"
+    parsed = queue_loop._worker_result(str(log.resolve()))  # noqa: SLF001 - the reader
+    assert parsed == refusal, "the JSON line did not survive the runner intact"
+
+    # THE DRIVER'S HALF, over the runner's own file: refused, not run, backed off.
+    logs = [log, control_log, control_log]
+    fired: list[int] = []
+
+    def launch(_lane: str, **_kw: Any) -> dict[str, Any]:
+        fired.append(len(fired))
+        return {"pid": 4242, "log": str(logs[len(fired) - 1].resolve())}
+
+    summary, rows, _, clock, _, _ = _drive(tmp_path, [], budget=2, launch=launch)
+    outcomes = [row["outcome"] for row in rows]
+    assert outcomes == [
+        queue_loop.OUTCOME_USAGE_REFUSED,
+        queue_loop.OUTCOME_COMPLETED,
+        queue_loop.OUTCOME_COMPLETED,
+    ], f"outcomes {outcomes}"
+    assert clock.slept[0] == queue_loop.USAGE_LIMIT_BACKOFF_S, f"no back-off: {clock.slept}"
+    assert summary["stopped_by"] == queue_loop.STOPPED_BY_MAX_CYCLES
