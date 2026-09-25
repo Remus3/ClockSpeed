@@ -53,6 +53,14 @@
   those requests already returned.
 */
 
+/*
+  WRAPPED IN AN IIFE, AS EVERY OTHER PANEL MODULE IS - CS-1026. Every helper
+  here already lives inside the mount, so nothing leaks today; the wrapper is
+  what keeps the next top-level helper added to this file out of the page's
+  shared global scope, where a later script could silently replace it.
+  tests/surface/test_panel_global_scope.py counts the names each module adds.
+*/
+(function () {
 registerPanel("scope", function mountScope(root, data) {
   var UNKNOWN = "did not answer";
 
@@ -261,3 +269,4 @@ registerPanel("scope", function mountScope(root, data) {
       + " the World note, and the solve bench."
   );
 });
+}());

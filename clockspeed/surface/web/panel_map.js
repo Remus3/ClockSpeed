@@ -67,6 +67,14 @@
   loaded is its ordinary state, not a fault.
 */
 
+/*
+  WRAPPED IN AN IIFE, AS EVERY OTHER PANEL MODULE IS - CS-1026. Every helper
+  here already lives inside the mount, so nothing leaks today; the wrapper is
+  what keeps the next top-level helper added to this file out of the page's
+  shared global scope, where a later script could silently replace it.
+  tests/surface/test_panel_global_scope.py counts the names each module adds.
+*/
+(function () {
 registerPanel("map", function mountMap(root, data) {
   /* How much of the current extent one zoom press takes, and one pan press moves. */
   var NARROW = 0.5;
@@ -742,3 +750,4 @@ registerPanel("map", function mountMap(root, data) {
   renderMarks();
   applyView();
 });
+}());

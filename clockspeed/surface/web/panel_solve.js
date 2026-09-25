@@ -56,6 +56,19 @@
   inputs, a button, and one click listener.
 */
 
+/*
+  WRAPPED IN AN IIFE, AS EVERY OTHER PANEL MODULE IS - CS-1026. These are
+  classic scripts sharing ONE global scope, and this file declares FIELDS,
+  textOf, vocabularyLine, approximateDecimal and every helper below. At top
+  level each of them was a binding any later script could replace without a
+  word: a var or function redeclaration across scripts is not an error, a
+  mount closes over the BINDING rather than a snapshot, and mountPanel's try
+  fires only on a throw - so a sibling redeclaring FIELDS would have this
+  bench build that sibling's inputs on the next repaint, marked mounted, with
+  nothing thrown. tests/surface/test_panel_global_scope.py plants exactly that
+  collision.
+*/
+(function () {
 /* --- what the endpoint requires, and what the sheet sizes ---------------- */
 
 /*
@@ -600,3 +613,4 @@ registerPanel("solve", function mountSolve(root, data) {
   button.addEventListener("click", onPress);
   say("no solve has been asked for yet. Fill the fields above and press Solve.");
 });
+}());

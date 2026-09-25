@@ -513,11 +513,13 @@ def test_the_panel_is_wrapped_so_it_cannot_capture_a_siblings_globals() -> None:
     """The bench's helpers must not land in the page's shared global scope.
 
     THE FAULT THIS CLOSES IS SILENT AND WOULD NOT THROW. These are classic
-    scripts sharing one scope, and ``panel_solve.js`` declares ``FIELDS``,
-    ``textOf`` and a dozen more at top level. Declared globally here too, the
-    last script ``index.html`` loads would win every one of them - and a mount
-    closes over the BINDING rather than a snapshot, so the solve bench would
-    start building this bench's fields on the next repaint.
+    scripts sharing one scope, and ``panel_solve.js`` declared ``FIELDS``,
+    ``textOf`` and a dozen more at top level until CS-1026 wrapped it too.
+    Declared globally in both, the last script ``index.html`` loads would win
+    every one of them - and a mount closes over the BINDING rather than a
+    snapshot, so the solve bench would start building this bench's fields on
+    the next repaint. ``tests/surface/test_panel_global_scope.py`` measures the
+    whole page for that fault behaviourally; this arm is the static shape pin.
     """
     source = read_asset(MODULE)
     assert "(function () {" in source, f"{MODULE} is not wrapped in an IIFE"
