@@ -3848,9 +3848,13 @@ def _env_render(tmp_path: Path, test: str) -> tuple[int, int]:
     Returns:
         The child's exit code and how many times the plant was rendered.
     """
+    # pytest's saferepr elides the MIDDLE of a long repr, so the plant must lead
+    # the child's environ: first by insertion (POSIX keeps it), and sorting before
+    # every kept key (Windows sorts the block). Planted last, a long runner PATH
+    # pushed it into the elided middle and the arm went red on ubuntu only.
     kept = ("PATH", "SYSTEMROOT", "TEMP", "TMP", "HOME", "USERPROFILE")
-    child_env = {key: os.environ[key] for key in kept if key in os.environ}
-    child_env["CS1199_PLANT"] = _ENV_PLANT
+    child_env = {"CS1199_PLANT": _ENV_PLANT}
+    child_env.update({key: os.environ[key] for key in kept if key in os.environ})
     child_env["PYTHONDONTWRITEBYTECODE"] = "1"
     result = subprocess.run(
         [
