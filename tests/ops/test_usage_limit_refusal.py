@@ -216,14 +216,19 @@ def test_cs1178_a_usage_limit_refusal_is_recorded_as_refused_not_run(tmp_path: P
     assert refused["worker_ok"] is False
     assert refused["ok"] is False
 
-    # NOT A CYCLE: the budget of two still bought two runs that happened.
+    # NOT A CYCLE: the budget of two still bought two runs that happened, the
+    # refused row carries no cycle number, and the summary counts it apart.
     ran = [row["outcome"] for row in rows[1:]]
     assert ran == [queue_loop.OUTCOME_COMPLETED] * 2, f"the refusal spent a cycle: {ran}"
     assert len(fired) == len(results), "the driver did not launch again after backing off"
     assert summary["stopped_by"] == queue_loop.STOPPED_BY_MAX_CYCLES
+    numbers = [row["cycle"] for row in rows]
+    assert numbers == [None, 1, 2], f"a refused run was numbered as a cycle: {numbers}"
+    counted = (summary["cycles_run"], summary.get("usage_refusals"))
+    assert counted == (2, 1), f"cycles_run and refusals {counted}"
 
     # THE BACK-OFF, and it is the FIRST wait after the refusal - not the settle.
-    assert clock.slept[0] == queue_loop.USAGE_LIMIT_BACKOFF_S, f"no back-off: {clock.slept}"
+    assert sum(clock.slept[:_POLLS]) == queue_loop.USAGE_LIMIT_BACKOFF_S, clock.slept[:4]
     assert queue_loop.USAGE_LIMIT_BACKOFF_S > SETTLE_S, "the back-off is no longer than the settle"
 
     # NOTHING THE WORKER WROTE reaches the durable row.
@@ -266,7 +271,10 @@ def test_cs1178_repeated_refusals_stop_the_night_with_their_own_word(tmp_path: P
     assert summary["stopped_by"] == queue_loop.STOPPED_BY_USAGE_LIMIT
     assert len(fired) == limit, f"launched {len(fired)} times against a limit of {limit}"
     assert [row["outcome"] for row in rows] == [queue_loop.OUTCOME_USAGE_REFUSED] * limit
-    assert clock.slept == [queue_loop.USAGE_LIMIT_BACKOFF_S] * (limit - 1), clock.slept
+    backed_off = sum(clock.slept)
+    assert backed_off == queue_loop.USAGE_LIMIT_BACKOFF_S * (limit - 1), backed_off
+    counted = (summary["cycles_run"], summary.get("usage_refusals"))
+    assert counted == (0, limit), f"cycles_run and refusals {counted}"
     assert any("usage" in line for line in lines if line.startswith("queue-loop stop:"))
 
     table = queue_loop._STOP_EXIT  # noqa: SLF001 - the table under test
@@ -287,6 +295,85 @@ def test_cs1178_a_run_between_refusals_resets_the_count(tmp_path: Path) -> None:
     assert len(fired) == len(results)
     completed = [row for row in rows if row["outcome"] == queue_loop.OUTCOME_COMPLETED]
     assert len(completed) == limit
+
+
+#: The back-off is taken in polls of this many seconds, each fronted by a
+#: stop-sentinel check.
+_POLLS: Final = int(
+    queue_loop.USAGE_LIMIT_BACKOFF_S // getattr(queue_loop, "USAGE_LIMIT_BACKOFF_POLL_S", 1)
+)
+
+
+def test_cs1178_a_budget_of_one_is_one_attempt(tmp_path: Path) -> None:
+    """`--once` MEANS ONE ATTEMPT. A refusal ends it, recorded, with no back-off.
+
+    Measured by the second adversary pass: with a budget of one and three
+    refusals the driver launched three workers over two hours while the flag
+    promised one cycle. A one-cycle night now makes exactly one attempt; the
+    refusal is recorded as refused and ends the night on the usage-limit word.
+    """
+    summary, rows, _, clock, fired, _ = _drive(tmp_path, [REFUSAL] * 5, budget=1)
+
+    assert len(fired) == 1, f"a budget of one launched {len(fired)} workers"
+    assert clock.slept == [], f"a budget of one backed off: {sum(clock.slept)}s"
+    assert [row["outcome"] for row in rows] == [queue_loop.OUTCOME_USAGE_REFUSED]
+    assert summary["stopped_by"] == queue_loop.STOPPED_BY_USAGE_LIMIT
+    counted = (summary["cycles_run"], summary.get("usage_refusals"))
+    assert counted == (0, 1), f"cycles_run and refusals {counted}"
+
+
+def test_cs1178_a_stop_sentinel_interrupts_the_back_off(tmp_path: Path) -> None:
+    """THE BACK-OFF IS INTERRUPTIBLE, and the driver still owns the wait.
+
+    An hour-long sleep would hold `QUEUE_STOP` unread for an hour. The wait is
+    taken in short polls with the sentinel checked before each, so a sentinel
+    written during the back-off ends the night within one poll and no further
+    worker is launched.
+    """
+    control = tmp_path / "control"
+    stop = control / "lanes" / "QUEUE_STOP"
+    clock = FakeClock()
+
+    def sleep(seconds: float) -> None:
+        clock.sleep(seconds)
+        stop.parent.mkdir(parents=True, exist_ok=True)
+        stop.write_bytes(b"synthetic stop\n")
+
+    summary, _, _, _, fired, _ = _drive(
+        tmp_path, [REFUSAL, ORDINARY_SUCCESS], budget=2, sleep=sleep, control_dir=control
+    )
+    waited = sum(clock.slept)
+    assert len(fired) == 1, f"a worker was launched after the stop: {len(fired)}"
+    assert summary["stopped_by"] == "QUEUE_STOP", summary["stopped_by"]
+    assert waited < queue_loop.USAGE_LIMIT_BACKOFF_S, f"the whole back-off was slept: {waited}"
+
+
+def test_cs1178_a_refused_night_that_is_stopped_is_not_a_sentinel_refusal(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """`main` reads zero cycles plus a sentinel as "the sentinel was already there".
+
+    A night whose only runs were refused and which was then stopped mid-back-off
+    ran zero cycles too, but the sentinel was NOT already there - it attempted.
+    It must not exit as if it had refused to start.
+    """
+    summary = {
+        "cycles_run": 0,
+        "usage_refusals": 1,
+        "stopped_by": "QUEUE_STOP",
+        "records": [{"outcome": queue_loop.OUTCOME_USAGE_REFUSED, "commit": {"advanced": False}}],
+    }
+    monkeypatch.setattr(queue_loop, "run_loop", lambda **_kw: summary)
+    monkeypatch.setattr(queue_loop, "_emit", lambda _line: None)
+
+    class Singleton:
+        def __call__(self):
+            return contextlib.nullcontext()
+
+    code = queue_loop.main(
+        ["--once", "--control-dir", str(tmp_path / "control")], singleton=Singleton()
+    )
+    assert code != queue_loop.EXIT_STOP_SENTINEL, "a refused night read as never started"
 
 
 def test_cs1178_the_reader_reads_only_an_absolute_log_and_never_raises(tmp_path: Path) -> None:
@@ -483,5 +570,5 @@ def test_cs1178_a_real_runner_refusal_log_is_recognised_end_to_end(tmp_path: Pat
         queue_loop.OUTCOME_COMPLETED,
         queue_loop.OUTCOME_COMPLETED,
     ], f"outcomes {outcomes}"
-    assert clock.slept[0] == queue_loop.USAGE_LIMIT_BACKOFF_S, f"no back-off: {clock.slept}"
+    assert sum(clock.slept[:_POLLS]) == queue_loop.USAGE_LIMIT_BACKOFF_S, clock.slept[:4]
     assert summary["stopped_by"] == queue_loop.STOPPED_BY_MAX_CYCLES

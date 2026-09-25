@@ -279,6 +279,13 @@ USAGE_LIMIT_BACKOFF_S = 3600
 #: refused run is not a cycle, so without this bound a limit that never lifts
 #: would back off and re-arm for ever.
 MAX_CONSECUTIVE_USAGE_REFUSALS = 3
+#: The back-off is SLEPT IN POLLS of this length, the stop sentinels checked
+#: before each, so an operator's `QUEUE_STOP` is honoured within one poll rather
+#: than an hour later. The driver still owns the whole wait.
+USAGE_LIMIT_BACKOFF_POLL_S = 30
+#: RESIDUAL, NAMED RATHER THAN FIXED: `MAX_CONSECUTIVE_USAGE_REFUSALS - 1`
+#: back-offs is two hours, so a ROLLING limit that lifts later than that still
+#: ends the night on `usage_limit` - the next night starts clean.
 #: The HTTP status of a usage-limit refusal, as the run's result reports it in
 #: `api_error_status`.
 USAGE_LIMIT_STATUS = 429
@@ -2446,6 +2453,29 @@ def _await_death(pid, started, *, alive, stranger, kill_grace_s, poll_s, sleep, 
         sleep(step)
 
 
+def _back_off(sleep, control_dir) -> str | None:
+    """CS-1178 - sleep `USAGE_LIMIT_BACKOFF_S` in polls, or stop at a sentinel.
+
+    The driver owns this wait like every other; it is only cut into polls so
+    that a stop sentinel written during it is read within one poll rather than
+    an hour later.
+
+    Returns:
+        The NAME of a stop sentinel that appeared, or None when the whole
+        back-off was slept.
+    """
+    remaining = float(USAGE_LIMIT_BACKOFF_S)
+    step = float(USAGE_LIMIT_BACKOFF_POLL_S)
+    while remaining > 0:
+        reason = stop_reason(control_dir)
+        if reason:
+            return reason
+        chunk = min(step, remaining)
+        sleep(chunk)
+        remaining -= chunk
+    return stop_reason(control_dir)
+
+
 def _worker_result(log: object) -> dict | None:
     """The worker's RESULT object, read off the END of its log, or None.
 
@@ -3222,13 +3252,23 @@ def run_loop(  # noqa: PLR0913, PLR0912, PLR0915 - see THE SEAMS ARE THE POINT
             and (verdict is None or verdict["verdict"] not in _CI_ROLLUP_BAD)
         )
 
+        refused = record["outcome"] == OUTCOME_USAGE_REFUSED
+        if refused:
+            # CS-1178 - NOT A CYCLE, SO NOT NUMBERED AS ONE. The row is written,
+            # because the refusal happened; its `cycle` is None so no reader
+            # counting rows by cycle number counts it, and its own line below
+            # does not start `queue-loop cycle`.
+            record["cycle"] = None
         records.append(record)
         append_record(record, cycle_log, hold=hold, emit=emit)
         # ONE line per cycle, still. The verdicts ride on it rather than taking
         # lines of their own, because an operator tailing this reads a night by
         # counting cycles down the left margin.
+        head = (
+            "queue-loop refused (not a cycle)" if refused else f"queue-loop cycle {cycle}/{total}"
+        )
         emit(
-            f"queue-loop cycle {cycle}/{total} {record['outcome']} "
+            f"{head} {record['outcome']} "
             f"run_id={record['run_id']} pid={record['pid']} "
             f"{record['duration_s']}s{note} {record['detail']}".rstrip()
         )
@@ -3238,21 +3278,30 @@ def run_loop(  # noqa: PLR0913, PLR0912, PLR0915 - see THE SEAMS ARE THE POINT
         # launch-failure or no-progress counters nor resets them: it is not a
         # judgement on this tree. Its row is already written above - the
         # refusal is recorded, not hidden.
-        if record["outcome"] == OUTCOME_USAGE_REFUSED:
+        #
+        # A BUDGET OF ONE IS ONE ATTEMPT. `--once` promises one cycle, and a
+        # refusal there ends the run recorded, without backing off and
+        # re-launching - otherwise one refused `--once` became three launches
+        # over two hours.
+        if refused:
             consecutive_usage_refusals += 1
-            if consecutive_usage_refusals >= usage_refusal_limit:
+            if total == 1 or consecutive_usage_refusals >= usage_refusal_limit:
                 stopped_by = STOPPED_BY_USAGE_LIMIT
                 emit(
                     f"queue-loop stop: {consecutive_usage_refusals} consecutive usage "
-                    f"limit refusals - not re-arming against a limit that has not lifted"
+                    f"limit refusal(s) - not re-arming against a limit that has not lifted"
                 )
                 break
             emit(
                 f"queue-loop backoff: usage limit refusal {consecutive_usage_refusals}/"
-                f"{usage_refusal_limit} - sleeping {USAGE_LIMIT_BACKOFF_S}s, and the "
-                f"refused run does not spend cycle {cycle}"
+                f"{usage_refusal_limit} - waiting {USAGE_LIMIT_BACKOFF_S}s in "
+                f"{USAGE_LIMIT_BACKOFF_POLL_S}s polls; the refused run is not a cycle"
             )
-            sleep(USAGE_LIMIT_BACKOFF_S)
+            interrupted = _back_off(sleep, control_dir)
+            if interrupted:
+                stopped_by = interrupted
+                emit(f"queue-loop stop: {interrupted} present during the back-off")
+                break
             cycle -= 1
             continue
         consecutive_usage_refusals = 0
@@ -3374,7 +3423,15 @@ def run_loop(  # noqa: PLR0913, PLR0912, PLR0915 - see THE SEAMS ARE THE POINT
             sleep(settle_s)
     if stopped_by is None:
         stopped_by = STOPPED_BY_MAX_CYCLES
-    return {"cycles_run": len(records), "stopped_by": stopped_by, "records": records}
+    # CS-1178 - A REFUSED RUN IS NOT A CYCLE, and the summary says so: the
+    # refusals are counted apart rather than folded into `cycles_run`.
+    refusals = sum(1 for record in records if record["outcome"] == OUTCOME_USAGE_REFUSED)
+    return {
+        "cycles_run": len(records) - refusals,
+        "usage_refusals": refusals,
+        "stopped_by": stopped_by,
+        "records": records,
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -3563,7 +3620,13 @@ def main(argv=None, *, singleton=None) -> int:
         return EXIT_ALREADY_RUNNING
 
     _emit(f"queue-loop done: {summary['cycles_run']} cycle(s), stopped_by={summary['stopped_by']}")
-    if summary["cycles_run"] == 0 and summary["stopped_by"] in STOP_NAMES:
+    # `usage_refusals` too, since CS-1178: a night whose only runs were refused
+    # ran zero cycles but DID attempt, so its sentinel was not already there.
+    if (
+        summary["cycles_run"] == 0
+        and not summary.get("usage_refusals")
+        and summary["stopped_by"] in STOP_NAMES
+    ):
         sentinel = stop_path_for(summary["stopped_by"], control_dir)
         _emit(
             f"queue-loop refused: {summary['stopped_by']} was ALREADY present "

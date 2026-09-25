@@ -157,6 +157,11 @@ try {
   # rather than one escaped JSON string, and the JSON stays at the tail where
   # the driver reads it. `claude -p` writes nothing until it finishes, so
   # capturing costs no live output the log ever had.
+  #
+  # RESIDUAL, NAMED RATHER THAN FIXED: everything is held in $out until the CLI
+  # exits, so a worker the driver KILLS at its timeout leaves none of its
+  # stderr in this log - the kill unwinds nothing, and the write below never
+  # runs. Streaming would keep it, at the cost of the ordering above.
   $out = @(Get-Content -LiteralPath "$PromptFile" -Raw |
     & $claude -p --model $model --effort $effort --output-format json --dangerously-skip-permissions *>&1)
 
