@@ -350,7 +350,8 @@ def commit_attempt(box: Sandbox, env: dict[str, str], content: bytes = CLEAN_CON
     _PAYLOADS[0] += 1
     payload = box.work / f"payload-{_PAYLOADS[0]}.txt"
     payload.write_bytes(content)
-    assert run_git(box, "add", payload.name, env=env) == 0, "the sandbox change did not stage"
+    staged = run_git(box, "add", payload.name, env=env)
+    assert staged == 0, "the sandbox change did not stage"
     message = box.hooks.parent / "message.txt"
     message.write_bytes(MESSAGE.encode("ascii"))
     before = head_of(box, env)

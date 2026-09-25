@@ -165,7 +165,8 @@ def commit_file(box: Sandbox, env: dict[str, str], suffix: str, content: bytes) 
     _STAGED[0] += 1
     payload = box.work / f"staged_{_STAGED[0]}{suffix}"
     payload.write_bytes(content)
-    assert run_git(box, "add", payload.name, env=env) == 0, "the sandbox change did not stage"
+    staged = run_git(box, "add", payload.name, env=env)
+    assert staged == 0, "the sandbox change did not stage"
     before = head_of(box, env)
     run = run_bounded(
         ["git", "commit", "-q", "-m", "CS-817: stage one file"],
