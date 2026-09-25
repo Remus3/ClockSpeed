@@ -43,6 +43,7 @@ from typing import Final, NamedTuple
 import pytest
 
 from tests.git_env import scrub
+from tests.pre_push_floor import differs_only_on_floor_line, wired_hook_bytes
 
 REPO_ROOT: Final = Path(__file__).resolve().parent.parent
 HOOKS_DIR: Final = REPO_ROOT / ".githooks"
@@ -210,11 +211,14 @@ def make_sandbox(tmp_path: Path, isolated: Environment, *, seconds: float) -> Sa
 
     The identity is synthetic. Falling back to the machine's real user.name would
     write the Windows account name into a commit object (non-negotiable 3).
+
+    The copy differs from the tracked hook on its CS-824 floor line only, which is
+    rewritten to a test-local value so this one-test suite clears it.
     """
     hooks = tmp_path / "hooks"
     hooks.mkdir(exist_ok=True)
     installed = hooks / PRE_PUSH
-    installed.write_bytes((HOOKS_DIR / PRE_PUSH).read_bytes())
+    installed.write_bytes(wired_hook_bytes(PRE_PUSH, (HOOKS_DIR / PRE_PUSH).read_bytes()))
     installed.chmod(0o755)
 
     work = tmp_path / "work"
@@ -319,9 +323,17 @@ def test_the_wired_hook_is_a_byte_identical_copy_of_the_tracked_hook(
     read instead moves the same field into the asserted EXPRESSION, which pytest
     reprs independently of the message. Only a plain scalar satisfies both: it
     neither holds the field nor renders it.
+
+    BYTE-IDENTICAL EXCEPT THE SINGLE CS-824 FLOOR LINE. The copy must equal the
+    helper's output AND differ from the tracked hook on that one line only, so any
+    other drift is still red. Both halves are bound to one bool for the reason above.
     """
     box = make_sandbox(tmp_path, isolated, seconds=0.0)
-    identical = (box.hooks / PRE_PUSH).read_bytes() == (HOOKS_DIR / PRE_PUSH).read_bytes()
+    identical = (box.hooks / PRE_PUSH).read_bytes() == wired_hook_bytes(
+        PRE_PUSH, (HOOKS_DIR / PRE_PUSH).read_bytes()
+    ) and differs_only_on_floor_line(
+        (box.hooks / PRE_PUSH).read_bytes(), (HOOKS_DIR / PRE_PUSH).read_bytes()
+    )
     assert identical, (
         "the sandbox hook is not the tracked hook, so nothing below grades the real file"
     )

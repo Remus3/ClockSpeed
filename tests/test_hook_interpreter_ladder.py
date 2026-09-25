@@ -26,7 +26,9 @@ ONE WIRED HOOK PER SANDBOX, deliberately. Pointing ``core.hooksPath`` at the
 repository's own ``.githooks`` would arm all three, and pre-commit runs first and
 has its own reasons to reject - a refusal could then not be attributed to the hook
 under test, and an arm expecting a block would pass for the wrong reason. Each copy
-is asserted byte-identical to the tracked hook, so the isolation costs no fidelity.
+is asserted byte-identical to the tracked hook - pre-push EXCEPT its single CS-824
+floor line, rewritten to a test-local value by ``tests/pre_push_floor.py`` - so the
+isolation costs no fidelity.
 
 THE HARNESS CONTROLS ARE NOT OPTIONAL AND THEY ARE HALF THIS MODULE. An arm that
 only ever expects a BLOCK is satisfied by a sandbox where the hook never ran at
@@ -62,6 +64,7 @@ from typing import Final, NamedTuple
 import pytest
 
 from tests.git_env import scrub
+from tests.pre_push_floor import differs_only_on_floor_line, wired_hook_bytes
 
 REPO_ROOT: Final = Path(__file__).resolve().parent.parent
 HOOKS_DIR: Final = REPO_ROOT / ".githooks"
@@ -517,7 +520,8 @@ def make_sandbox(
     hooks = tmp_path / "hooks"
     hooks.mkdir(exist_ok=True)
     installed = hooks / hook
-    installed.write_bytes((HOOKS_DIR / hook).read_bytes())
+    # CS-824: pre-push gets the one-line test floor; the other hooks are verbatim.
+    installed.write_bytes(wired_hook_bytes(hook, (HOOKS_DIR / hook).read_bytes()))
     installed.chmod(0o755)
 
     work = tmp_path / "work"
@@ -581,12 +585,23 @@ def make_sandbox(
 def test_the_wired_hook_is_a_byte_identical_copy_of_the_tracked_hook(
     tmp_path: Path, isolated: Environment, hook: str
 ) -> None:
-    """Without this, every arm below could be grading a copy that drifted."""
+    """Without this, every arm below could be grading a copy that drifted.
+
+    Byte-identical EXCEPT the single CS-824 floor line of pre-push, which the
+    ruling rewrites to a test-local value. For pre-push the arm asserts both that
+    the copy is exactly the helper's output and that it differs from the tracked
+    hook on that one line only, so any other drift is still red.
+    """
     box = make_sandbox(tmp_path, isolated, hook, suite_passes=True)
     copied = (box.hooks / hook).read_bytes()
-    assert copied == (HOOKS_DIR / hook).read_bytes(), (
+    tracked = (HOOKS_DIR / hook).read_bytes()
+    assert copied == wired_hook_bytes(hook, tracked), (
         "the sandbox hook is not the tracked hook, so nothing below grades the real file"
     )
+    if hook == PRE_PUSH:
+        assert differs_only_on_floor_line(copied, tracked), (
+            "the sandbox pre-push differs from the tracked hook beyond the CS-824 floor line"
+        )
 
 
 @pytest.mark.parametrize("hook", HOOK_NAMES)

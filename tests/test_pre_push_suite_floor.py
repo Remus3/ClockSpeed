@@ -19,6 +19,13 @@ notice of the push. The remote is seeded FIRST, through ``--no-verify``, so an
 arm that is refused can prove the remote ref did not MOVE, which is stronger
 than proving no ref exists. No arm pushes from this repository.
 
+CS-824, THE FLOOR. A green run must also have PASSED at least one literal count
+of tests, declared on one line of the hook. The CS-821 arms install a copy whose
+floor line alone is rewritten to a test-local value through
+``tests/pre_push_floor.py``; the CS-824 arms install the tracked hook UNMODIFIED
+and read the shipped value from it (ruling recorded in ``docs/LEDGER.md`` under
+"CS-824 - GRANT CLARIFICATION", condition C4).
+
 RESOURCE LIFETIME. Every child is a ``subprocess.run`` bounded by
 ``GIT_TIMEOUT``, which reaps it. The sandbox, its bare remote and the hook's own
 temporary directory all live under pytest's ``tmp_path``, which pytest removes on
@@ -29,6 +36,7 @@ arm owns, so the arm can prove the hook removed its report on every exit path.
 from __future__ import annotations
 
 import os
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -37,6 +45,14 @@ from typing import Final, NamedTuple
 import pytest
 
 from tests.git_env import scrub
+from tests.pre_push_floor import (
+    FLOOR_LINE,
+    FloorLineError,
+    differs_only_on_floor_line,
+    shipped_floor,
+    wired_hook_bytes,
+    with_test_floor,
+)
 
 REPO_ROOT: Final = Path(__file__).resolve().parent.parent
 TRACKED_HOOK: Final = REPO_ROOT / ".githooks" / "pre-push"
@@ -240,10 +256,15 @@ def make_sandbox(
     isolated: Environment,
     *,
     tests: dict[str, str],
-    hook: bytes | None = None,
+    real_floor: bool = False,
     root_files: dict[str, bytes] | None = None,
 ) -> Sandbox:
-    """A real repository wired to ``hook`` (the tracked bytes by default), seeded remotely.
+    """A real repository wired to a copy of the tracked hook, seeded remotely.
+
+    The CS-821 arms install the copy with its CS-824 floor line rewritten to a
+    test-local value (``tests/pre_push_floor.py``), so a three-test tree clears
+    it. ``real_floor`` installs the tracked bytes UNMODIFIED, which is what the
+    CS-824 boundary arms grade (ruling condition C4).
 
     The seed reaches the remote through ``--no-verify``, so it grades nothing and
     exists only so a refused arm can prove the remote ref did not move.
@@ -251,7 +272,8 @@ def make_sandbox(
     hooks = tmp_path / "hooks"
     hooks.mkdir()
     installed = hooks / "pre-push"
-    installed.write_bytes(TRACKED_HOOK.read_bytes() if hook is None else hook)
+    tracked = TRACKED_HOOK.read_bytes()
+    installed.write_bytes(tracked if real_floor else with_test_floor(tracked))
     installed.chmod(0o755)
 
     work = tmp_path / "work"
@@ -479,3 +501,102 @@ def test_a_report_directory_inside_the_repository_is_refused(
     assert result.unmoved, f"a report aimed into the tree moved the remote:\n{result.report}"
     assert result.said(INSIDE_REPO), f"the refusal named another cause:\n{result.report}"
     assert sum(1 for _ in inside.iterdir()) == 0, "the hook left a directory inside the tree"
+
+
+# --- CS-824: the shipped floor, graded through an UNMODIFIED copy -----------
+
+BELOW_FLOOR: Final = "below the floor of"
+FLOOR_NAME: Final = "CS_PASS_FLOOR"
+
+#: ``count`` trivially passing cases, generated rather than written out.
+PARAMETRIZED_SUITE: Final = (
+    "import pytest\n"
+    "\n"
+    "\n"
+    "@pytest.mark.parametrize('case', range({count}))\n"
+    "def test_case(case: int) -> None:\n"
+    "    assert case >= 0\n"
+)
+
+
+def test_the_hook_declares_its_floor_on_exactly_one_literal_line() -> None:
+    """Ruling C1. One ``NAME=digits`` line, and the name is never set any other way.
+
+    A second assignment, an ``export``, a ``read`` or a default expansion such as
+    ``${NAME:-...}`` would each let the environment or a config reach the floor.
+    Only plain ``$NAME`` expansions may appear outside the declaration.
+    """
+    lines = TRACKED_HOOK.read_bytes().decode("ascii").split("\n")
+    declared = sum(1 for line in lines if FLOOR_LINE.fullmatch(line.encode("ascii")))
+    stray = [
+        line.strip()
+        for line in lines
+        if FLOOR_NAME in line
+        and not line.lstrip().startswith("#")
+        and not FLOOR_LINE.fullmatch(line.encode("ascii"))
+        and re.search(r"(?<!\$)" + FLOOR_NAME + r"|\$\{" + FLOOR_NAME, line)
+    ]
+    assert declared == 1, f"the hook declares the floor on {declared} lines, not one"
+    assert stray == [], f"the floor name is set outside its one literal line: {stray}"
+    assert shipped_floor(TRACKED_HOOK.read_bytes()) > 1, "the shipped floor is not a floor"
+
+
+def test_a_tree_cut_to_one_passing_test_is_refused_by_the_shipped_floor(
+    tmp_path: Path, isolated: Environment
+) -> None:
+    """THE CS-824 ACCEPTANCE ARM, through the tracked hook UNMODIFIED.
+
+    The environment also names the floor variable with a value of 1, and the
+    push is refused anyway: the literal line overwrites anything inherited.
+    """
+    box = make_sandbox(tmp_path, isolated, tests=suite_of(PASSING_TEST, 1), real_floor=True)
+    result = push(box, extra_env={FLOOR_NAME: "1"})
+    assert result.unmoved, f"a one-test tree moved the remote:\n{result.report}"
+    assert result.said(BELOW_FLOOR), f"the refusal named another cause:\n{result.report}"
+
+
+@pytest.mark.parametrize(("offset", "lands"), [(-1, False), (0, True)], ids=["below", "at"])
+def test_the_shipped_floor_boundary_both_ways(
+    tmp_path: Path, isolated: Environment, offset: int, lands: bool
+) -> None:
+    """Grant condition 4: floor minus one is refused and the floor itself pushes.
+
+    The count is READ from the tracked hook, never restated here, so a re-pinned
+    floor moves this arm with it.
+    """
+    count = shipped_floor(TRACKED_HOOK.read_bytes()) + offset
+    tests = {"test_sandbox.py": PARAMETRIZED_SUITE.format(count=count)}
+    box = make_sandbox(tmp_path, isolated, tests=tests, real_floor=True)
+    result = push(box)
+    if lands:
+        assert result.landed, f"a tree AT the floor was refused:\n{result.report}"
+    else:
+        assert result.unmoved, f"a tree one below the floor moved the remote:\n{result.report}"
+        assert result.said(BELOW_FLOOR), f"the refusal named another cause:\n{result.report}"
+
+
+# --- the substitution helper (ruling C2) ------------------------------------
+
+
+def test_the_helper_refuses_a_hook_without_exactly_one_floor_line() -> None:
+    """C2(i). Zero floor lines and two floor lines each raise, never pass through."""
+    tracked = TRACKED_HOOK.read_bytes()
+    line = next(ln for ln in tracked.split(b"\n") if FLOOR_LINE.fullmatch(ln))
+    for broken in (
+        tracked.replace(line, b"# no floor"),
+        tracked.replace(line, line + b"\n" + line),
+    ):
+        with pytest.raises(FloorLineError):
+            with_test_floor(broken)
+
+
+def test_the_helper_changes_the_floor_line_and_nothing_else() -> None:
+    """C2(ii)-(iv). One line differs, a planted drift is caught, other hooks stay verbatim."""
+    tracked = TRACKED_HOOK.read_bytes()
+    copy = with_test_floor(tracked)
+    drifted = copy.replace(b"set -u", b"set -u ", 1)
+    assert differs_only_on_floor_line(copy, tracked), "the floor copy is not a one-line change"
+    assert not differs_only_on_floor_line(tracked, tracked), "an unsubstituted copy passed"
+    assert not differs_only_on_floor_line(drifted, tracked), "a second drifted line passed"
+    assert wired_hook_bytes("pre-commit", b"x\n") == b"x\n", "a non-push hook was rewritten"
+    assert wired_hook_bytes("commit-msg", b"x\n") == b"x\n", "a non-push hook was rewritten"

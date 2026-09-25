@@ -638,6 +638,27 @@ if [ "$STATUS" -eq 0 ] && [ "$cs_passed" -ne "$cs_executed" ]; then
         "BLOCKED (CS-821): the report of what ran outranks the exit status."
 fi
 
+# CS-824: A GREEN RUN MUST ALSO BE A WHOLE ONE. Under the frozen-file grant
+# recorded in docs/LEDGER.md under "CS-821, CS-824, CS-704 - FROZEN-FILE GRANT"
+# and its "CS-824 - GRANT CLARIFICATION". A tree cut down to a handful of passing
+# tests runs, reports and exits 0, and every check above accepts it.
+#
+# THE FLOOR IS ONE LITERAL LINE and nothing else sets it: not the environment,
+# not a config file, not the pushed tree. The assignment below overwrites any
+# inherited value of the same name. Raising or lowering it needs a fresh grant,
+# and its value and the pre-push count it was derived from are recorded in the
+# closing entry of CS-824 in docs/LEDGER.md. Suite growth never raises it.
+#
+# SANDBOX COPIES in the hook tests rewrite this ONE line to a test-local value
+# through tests/pre_push_floor.py, which refuses unless the line keeps exactly
+# this shape: the name, an equals sign and digits, alone on the line.
+CS_PASS_FLOOR=9840
+if [ "$STATUS" -eq 0 ] && [ "$cs_passed" -lt "$CS_PASS_FLOOR" ]; then
+    die "pytest passed $cs_passed tests, below the floor of $CS_PASS_FLOOR." \
+        "A suite cut down below the floor is not the suite this gate grades." \
+        "BLOCKED (CS-824): restore the tests, or seek a fresh grant to move the floor."
+fi
+
 if [ "$STATUS" -ne 0 ]; then
     printf 'clockspeed pre-push: BLOCKED (pytest exit %s). Nothing was pushed.\n' \
         "$STATUS" >&2

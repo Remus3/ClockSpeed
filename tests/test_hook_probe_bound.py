@@ -57,6 +57,7 @@ from typing import Final, NamedTuple
 import pytest
 
 from tests.git_env import scrub
+from tests.pre_push_floor import wired_hook_bytes
 
 REPO_ROOT: Final = Path(__file__).resolve().parent.parent
 HOOKS_DIR: Final = REPO_ROOT / ".githooks"
@@ -398,11 +399,15 @@ def isolated(tmp_path: Path) -> Environment:
 
 
 def make_sandbox(tmp_path: Path, isolated: Environment, hook: str) -> Sandbox:
-    """A real repository with exactly one tracked hook wired and one commit in it."""
+    """A real repository with exactly one tracked hook wired and one commit in it.
+
+    A pre-push copy differs from the tracked hook on its CS-824 floor line only.
+    """
     hooks = tmp_path / "hooks"
     hooks.mkdir()
     installed = hooks / hook
-    installed.write_bytes((HOOKS_DIR / hook).read_bytes())
+    # CS-824: pre-push gets the one-line test floor; the other hooks are verbatim.
+    installed.write_bytes(wired_hook_bytes(hook, (HOOKS_DIR / hook).read_bytes()))
     installed.chmod(0o755)
     work = tmp_path / "work"
     work.mkdir()
