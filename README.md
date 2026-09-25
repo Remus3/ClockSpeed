@@ -122,16 +122,37 @@ hooked or read from memory.
 | **Game** | A local installation, kept current |
 | **Python** | 3.x, at or above the floor `scripts/verify_env.py` asserts |
 | **Also** | `git` and `openssl` |
+| **Python packages** | `pytest` and `ruff` - `scripts/verify_env.py` counts both as HARD |
 | **Node** | Only for the optional companion window, not for the core |
 
 ## Install and run
+
+Run every command below from the root of the clone, in the order given.
+`docs/OPERATIONS.md` owns the full bootstrap order for working on the code; run it first
+in any clone you will commit from.
+
+If `pytest` or `ruff` is missing:
+
+```
+python -m pip install pytest ruff
+```
+
+Then:
+
+```
+python scripts/install_hooks.py
+```
+
+Points this clone's `core.hooksPath` at the tracked `.githooks/`. The next command counts
+that setting as a HARD dependency, so in a fresh clone it fails until this has run.
 
 ```
 python scripts/verify_env.py
 ```
 
 Prints every dependency found and missing, split into HARD and SOFT. It exits non-zero
-only on a HARD one.
+only on a HARD one. A missing game or save is SOFT: it is reported and does not fail the
+check.
 
 ```
 python scripts/make_cert.py
@@ -145,15 +166,19 @@ says why.
 python -m clockspeed.surface
 ```
 
-Starts the dashboard on the port recorded in `config/ports.json`. It takes no arguments:
-it finds the newest save on this machine and serves it.
+Starts the dashboard on the port recorded in `config/ports.json` - the entry under
+`allocations` - bound to this machine only. It takes no arguments: it finds the newest
+save on this machine and serves it. It prints nothing on startup and keeps the terminal
+until you stop it.
+
+**First result.** Open `https://localhost:<port>/`, where `<port>` is that
+`allocations` entry. The certificate is self-signed and your system does not trust it,
+so the browser shows a certificate warning to accept before the page titled "Clockspeed
+dashboard" loads. `https://localhost:<port>/api/health` answers `"status": "ok"`.
 
 A machine with no save and no game still starts and still binds; the absence is reported
-as a status, not an error. If the port is taken the process exits and names it. No second
-port is ever tried.
-
-`docs/OPERATIONS.md` owns the full bootstrap order and should be run first in a fresh
-clone.
+as a status, not an error - `/api/health` reports the registry and the world as `absent`.
+If the port is taken the process exits and names it. No second port is ever tried.
 
 ---
 
