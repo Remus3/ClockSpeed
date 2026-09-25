@@ -363,3 +363,6 @@ CS-1184 - no orphan or staleness sweep and no anchor check over tracked markdown
 CS-1185 - the third-party licence audit covers Electron only - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1186 - README.md has never been walked from zero to a first result - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1187 - the clean-checkout probe has never run on a machine that has never seen the project - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
+CS-1188 - the tracked-file walk arm fails in every linked worktree, because `.git` is a file there - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
+CS-1189 - the map endpoint serves the save's `ItemTotal.item_key` text verbatim with no closed-vocabulary check - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
+CS-1190 - the CS-700 flip plan does not quiesce other pushers - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`

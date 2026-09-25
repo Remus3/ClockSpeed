@@ -1596,3 +1596,68 @@ Gate item 7. CS-700 section 5 records that it FAILS today; CS-938 is one known
 cause, not the probe. The `clean-checkout-probe` job in
 `.github/workflows/tier2.yml` says in its own comment that it is NOT a substitute,
 because a runner is not a machine that has never seen the project.
+
+## CS-1188
+
+### Acceptance
+
+the walk excludes the `.git` entry whether it is a file or a directory, with an arm
+that builds a linked worktree in `tmp_path` and passes there, and a control that a
+genuine untracked extra in the same worktree still reddens.
+
+### Full headline
+
+the tracked-file walk arm fails in every linked worktree, because `.git` is a FILE
+there and the walk reports it as an extra entry
+
+### FILED 2026-09-24, found in wave 1 (session 113)
+
+The failing arm is `test_the_walk_reaches_every_tracked_file_in_this_repository` in
+`tests/data/test_drift_guard_data.py`, and `tests/data/test_phase2_gate.py` reaches it
+through its child run of the data-layer suite, so the gate reddens with it. Reproduced
+at base `403e775` in a linked worktree; the same commit passes in a normal clone,
+where `.git` is a directory.
+
+## CS-1189
+
+### Acceptance
+
+item keys reaching any surface response are checked against the registry's closed
+vocabulary - an unknown key is flagged per `CLAUDE.md` section 3 rule 7 and never
+echoed raw; an arm plants a home-path-shaped key and an account-shaped key through
+`tests/save/synthetic.py` and asserts neither reaches the `/api/map` body; and
+`MachineState.class_name` gets the same treatment before any route serves it.
+
+### Full headline
+
+the map endpoint serves the save's `ItemTotal.item_key` text verbatim with no
+closed-vocabulary check
+
+### FILED 2026-09-24, found in wave 1 (session 113)
+
+An adversary probe planted a synthetic save carrying a dotless ItemClass shaped like a
+home path, and one shaped like an account id; both reached the map JSON and the repr of
+the route's Response. `ItemTotal` is in `clockspeed/audit/inventory.py` and
+`MachineState` in `clockspeed/audit/machines.py`.
+
+## CS-1190
+
+### Acceptance
+
+the CS-700 plan stops the headless queue lane - stop sentinel written, and no driver
+verified running - and every other pusher before S7a, and re-checks the remote's refs
+immediately before S12; and S9 is split into named sub-steps, each stating the remote's
+state on a halt at that sub-step and the rule for resuming from it.
+
+### Full headline
+
+the CS-700 flip plan does not quiesce other pushers, and a partial failure inside S9
+leaves the remote in a state the plan does not name
+
+### FILED 2026-09-24, found in wave 1 (session 113)
+
+Nothing in S0 to S12 stops the lane, whose worker prompt `tools/headless-queue.md`
+pushes lane branches at its step 9 on un-rewritten history, nor a push from another
+clone landing after the mirror check before S12. Inside S9 the delete can succeed and
+the recreate fail, or the repository can come up public, and the plan names neither
+state.
