@@ -46,12 +46,14 @@ run and count it, and nothing but scalars reaches a test frame.
 from __future__ import annotations
 
 import ast
+import functools
 import importlib.util
 import operator
 import os
 import re
 import subprocess
 import sys
+from collections.abc import Iterator
 from itertools import chain
 from pathlib import Path
 from types import ModuleType
@@ -135,33 +137,106 @@ def gate_readers(gate_source: str) -> frozenset[str]:
 GATE_READERS = gate_readers(OUTBOUND_PATH.read_text(encoding="utf-8"))
 
 
-def _docstrings(tree: ast.AST) -> set[int]:
-    """The ids of every docstring node, so prose is never read as code."""
-    found: set[int] = set()
+#: The kinds of node whose first statement, when a string, is a docstring.
+_SCOPES = (ast.Module, ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)
+_FUNCTIONS = (ast.FunctionDef, ast.AsyncFunctionDef)
+
+
+class Facts(NamedTuple):
+    """What one module's code shows, gathered in ONE walk of its tree - CS-1193.
+
+    The derivation used to walk every tree once per question - reads, strings,
+    docstrings, loader calls, imports, parameters - over the whole of
+    ``tests/``, and that was most of its cost. Every question is answered by
+    the single walk in :func:`facts`; the rule each field serves is stated on
+    the function that consumes it.
+    """
+
+    #: A table read by attribute, bare name or import, or a gate reader by attribute.
+    reads_by_name: bool
+    #: Every string constant in the module's CODE - docstrings excluded.
+    strings: tuple[str, ...]
+    #: Every dotted name an import or a ``pytest_plugins`` entry names.
+    imports: frozenset[str]
+    #: Whether the module calls a file loader in :data:`LOADERS`.
+    loads: bool
+    #: Every parameter name any function in the module takes.
+    parameters: frozenset[str]
+
+
+def _loaded_names(node: ast.Import | ast.ImportFrom | ast.Assign, package: str) -> set[str]:
+    """The dotted names one import statement or ``pytest_plugins`` binding names."""
+    if isinstance(node, ast.Import):
+        return {alias.name for alias in node.names}
+    if isinstance(node, ast.ImportFrom):
+        base = package
+        for _ in range(max(node.level - 1, 0)):
+            base = base.rpartition(".")[0]
+        if node.level == 0:
+            base = node.module or ""
+        elif node.module:
+            base = base + "." + node.module if base else node.module
+        return {base} | {base + "." + alias.name for alias in node.names}
+    if any(
+        isinstance(target, ast.Name) and target.id == "pytest_plugins" for target in node.targets
+    ):
+        return {
+            item.value
+            for item in ast.walk(node.value)
+            if isinstance(item, ast.Constant) and isinstance(item.value, str)
+        }
+    return set()
+
+
+def facts(tree: ast.AST, name: str = "", is_package: bool = False) -> Facts:
+    """Walk `tree` once and gather every fact the membership rule reads.
+
+    `name` and `is_package` place the module for a RELATIVE import:
+    ``from x import y`` yields both ``x`` and ``x.y``, because ``y`` may be a
+    submodule; a name that is not a module simply matches nothing. A
+    ``pytest_plugins`` entry is an import by another spelling. Prose is never
+    code: a docstring's constant is left out of :attr:`Facts.strings`.
+    """
+    package = name if is_package else name.rpartition(".")[0]
+    attributes = CANARY_TABLES | GATE_READERS
+    prose: set[int] = set()
+    constants: list[tuple[int, str]] = []
+    reads = False
+    loads = False
+    found: set[str] = set()
+    parameters: set[str] = set()
     for node in ast.walk(tree):
-        if isinstance(node, (ast.Module, ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+        if isinstance(node, ast.Constant):
+            if isinstance(node.value, str):
+                constants.append((id(node), node.value))
+        elif isinstance(node, ast.Name):
+            reads = reads or node.id in CANARY_TABLES
+        elif isinstance(node, ast.Attribute):
+            reads = reads or node.attr in attributes
+        elif isinstance(node, ast.alias):
+            reads = reads or node.name in CANARY_TABLES
+        elif isinstance(node, ast.Call):
+            func = node.func
+            called = func.attr if isinstance(func, ast.Attribute) else getattr(func, "id", "")
+            loads = loads or called in LOADERS
+        elif isinstance(node, (ast.Import, ast.ImportFrom, ast.Assign)):
+            found |= _loaded_names(node, package)
+        if isinstance(node, _SCOPES):
             body = node.body
             if body and isinstance(body[0], ast.Expr) and isinstance(body[0].value, ast.Constant):
-                found.add(id(body[0].value))
-    return found
-
-
-def _strings(tree: ast.AST) -> list[str]:
-    """Every string constant in the module's CODE - docstrings excluded."""
-    prose = _docstrings(tree)
-    return [
-        node.value
-        for node in ast.walk(tree)
-        if isinstance(node, ast.Constant) and isinstance(node.value, str) and id(node) not in prose
-    ]
+                prose.add(id(body[0].value))
+            if isinstance(node, _FUNCTIONS):
+                parameters.update(arg.arg for arg in node.args.args + node.args.kwonlyargs)
+    strings = tuple(value for key, value in constants if key not in prose)
+    return Facts(reads, strings, frozenset(found), loads, frozenset(parameters))
 
 
 def reads_a_canary_table(source: str) -> bool:
     """True when `source`'s CODE reads either canary table - never its prose."""
-    return _reads(ast.parse(source))
+    return _reads(facts(ast.parse(source)))
 
 
-def _reads(tree: ast.AST) -> bool:
+def _reads(found: Facts) -> bool:
     """True when the module's code reads a table or a gate reader, or loads the gate.
 
     A table by attribute, bare name or import; a gate reader by attribute, as
@@ -169,16 +244,11 @@ def _reads(tree: ast.AST) -> bool:
     that loads the gate by path may read a table in a way no syntax shows, so
     naming the gate's file in code is itself a read.
     """
-    for node in ast.walk(tree):
-        if isinstance(node, ast.Attribute) and node.attr in CANARY_TABLES | GATE_READERS:
-            return True
-        if isinstance(node, ast.Name) and node.id in CANARY_TABLES:
-            return True
-        if isinstance(node, ast.alias) and node.name in CANARY_TABLES:
-            return True
+    if found.reads_by_name:
+        return True
     gate = OUTBOUND_PATH.name
     return any(
-        value == gate or value.replace("\\", "/").endswith("/" + gate) for value in _strings(tree)
+        value == gate or value.replace("\\", "/").endswith("/" + gate) for value in found.strings
     )
 
 
@@ -196,67 +266,30 @@ def _module_name(path: Path, root: Path) -> tuple[str, bool]:
 LOADERS = frozenset({"spec_from_file_location", "run_path", "SourceFileLoader"})
 
 
-def _calls_a_loader(tree: ast.AST) -> bool:
-    """Whether the module's code calls a file loader in :data:`LOADERS`."""
-    for node in ast.walk(tree):
-        if isinstance(node, ast.Call):
-            func = node.func
-            called = func.attr if isinstance(func, ast.Attribute) else getattr(func, "id", "")
-            if called in LOADERS:
-                return True
-    return False
-
-
-def _imported(tree: ast.AST, name: str, is_package: bool, by_path: dict[str, str]) -> set[str]:
+def _imported(found: Facts, by_path: dict[str, str]) -> set[str]:
     """Every dotted name the module could load: imports, plugins and path loads.
 
-    ``from x import y`` yields both ``x`` and ``x.y``, because ``y`` may be a
-    submodule; a name that is not a module simply matches nothing. A
-    ``pytest_plugins`` entry is an import by another spelling. A module that
-    calls a loader in :data:`LOADERS` loads every ``.py`` file under the tree
-    its code names - the path may be built anywhere in the module and handed
-    over by a name. A module that names a file but calls no loader - a table of
-    citations - loads nothing, which is what keeps prose about a file from
-    joining it to every module that mentions it.
+    A module that calls a loader in :data:`LOADERS` loads every ``.py`` file
+    under the tree its code names - the path may be built anywhere in the
+    module and handed over by a name. A module that names a file but calls no
+    loader - a table of citations - loads nothing, which is what keeps prose
+    about a file from joining it to every module that mentions it.
     """
-    package = name if is_package else name.rpartition(".")[0]
-    found: set[str] = set()
-    for node in ast.walk(tree):
-        if isinstance(node, ast.Import):
-            found.update(alias.name for alias in node.names)
-        elif isinstance(node, ast.ImportFrom):
-            base = package
-            for _ in range(max(node.level - 1, 0)):
-                base = base.rpartition(".")[0]
-            if node.level == 0:
-                base = node.module or ""
-            elif node.module:
-                base = base + "." + node.module if base else node.module
-            found.add(base)
-            found.update(base + "." + alias.name for alias in node.names)
-        elif isinstance(node, ast.Assign) and any(
-            isinstance(target, ast.Name) and target.id == "pytest_plugins"
-            for target in node.targets
-        ):
-            found.update(
-                item.value
-                for item in ast.walk(node.value)
-                if isinstance(item, ast.Constant) and isinstance(item.value, str)
-            )
-    if not _calls_a_loader(tree):
-        return found
-    for value in _strings(tree):
+    loaded = set(found.imports)
+    if not found.loads:
+        return loaded
+    for value in found.strings:
         spelled = value.replace("\\", "/").removeprefix("./")
         if not spelled.endswith(".py"):
             continue
         # Whole path components only: ``conftest.py`` names every conftest, and
         # a bare suffix match would join every module to every other.
-        found.update(
+        loaded.update(
             module
             for suffix, module in by_path.items()
             if suffix == spelled or suffix.endswith("/" + spelled)
         )
-    return found
+    return loaded
 
 
 def _fixtures(tree: ast.AST) -> set[str]:
@@ -269,26 +302,17 @@ def _fixtures(tree: ast.AST) -> set[str]:
     }
 
 
-def _parameters(tree: ast.AST) -> set[str]:
-    """Every parameter name any function in the module takes."""
-    return {
-        argument.arg
-        for node in ast.walk(tree)
-        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
-        for argument in node.args.args + node.args.kwonlyargs
-    }
-
-
 def canary_suites(tests_dir: Path) -> list[Path]:
     """Every ``test_*.py`` under `tests_dir` that reads a canary table, sorted.
 
     READS TRANSITIVELY - CS-1177, from two adversary passes. Every module under
-    `tests_dir` is parsed once. A module is a READER when its own code reads a
-    table, calls a gate reader by attribute, or names the gate's file (fail
-    closed, see :func:`_reads`); or when it loads a reader - by import, by
-    ``pytest_plugins`` or by a path string; or, for a test module, when it
-    takes a fixture a reader ``conftest.py`` above it defines. Closed over
-    chains of any length. Members are the readers that are test modules.
+    `tests_dir` is parsed once and walked once (:func:`facts`). A module is a
+    READER when its own code reads a table, calls a gate reader by attribute,
+    or names the gate's file (fail closed, see :func:`_reads`); or when it
+    loads a reader - by import, by ``pytest_plugins`` or by a path string; or,
+    for a test module, when it takes a fixture a reader ``conftest.py`` above
+    it defines. Closed over chains of any length. Members are the readers that
+    are test modules.
 
     WHAT NO SYNTAX HERE CAN SEE, declared rather than implied: a table reached
     through ``getattr`` with a computed name on a gate imported under a name
@@ -297,17 +321,15 @@ def canary_suites(tests_dir: Path) -> list[Path]:
     module loaded from a path by a loader outside :data:`LOADERS`.
     """
     root = tests_dir.parent
-    trees: dict[str, tuple[Path, ast.AST, bool]] = {}
+    trees: dict[str, tuple[Path, ast.Module, Facts]] = {}
     for path in sorted(tests_dir.rglob("*.py")):
         name, is_package = _module_name(path, root)
-        trees[name] = (path, ast.parse(path.read_text(encoding="utf-8")), is_package)
+        tree = ast.parse(path.read_text(encoding="utf-8"))
+        trees[name] = (path, tree, facts(tree, name, is_package))
     by_path = {path.relative_to(root).as_posix(): name for name, (path, _, _) in trees.items()}
-    reaches = {
-        name: _imported(tree, name, is_package, by_path)
-        for name, (_, tree, is_package) in trees.items()
-    }
-    parameters = {name: _parameters(tree) for name, (_, tree, _) in trees.items()}
-    readers = {name for name, (_, tree, _) in trees.items() if _reads(tree)}
+    reaches = {name: _imported(found, by_path) for name, (_, _, found) in trees.items()}
+    readers = {name for name, (_, _, found) in trees.items() if _reads(found)}
+    defined: dict[str, set[str]] = {}
     grown = True
     while grown:
         added = {name for name in trees if name not in readers and reaches[name] & readers}
@@ -315,13 +337,15 @@ def canary_suites(tests_dir: Path) -> list[Path]:
             path, tree, _ = trees[conftest]
             if path.name != "conftest.py":
                 continue
-            fixtures = _fixtures(tree)
+            if conftest not in defined:
+                defined[conftest] = _fixtures(tree)
+            fixtures = defined[conftest]
             added |= {
                 name
-                for name, (other, _, _) in trees.items()
+                for name, (other, _, found) in trees.items()
                 if name not in readers
                 and other.is_relative_to(path.parent)
-                and parameters[name] & fixtures
+                and found.parameters & fixtures
             }
         readers |= added
         grown = bool(added)
@@ -332,8 +356,16 @@ def canary_suites(tests_dir: Path) -> list[Path]:
     )
 
 
+@functools.cache
 def derived_canary_suites() -> tuple[str, ...]:
-    """This tree's canary suites as repo-relative POSIX paths - the child's arguments."""
+    """This tree's canary suites as repo-relative POSIX paths - the child's arguments.
+
+    DERIVED ONCE PER PROCESS - CS-1193. The tree cannot change under one run,
+    and every caller in a process - the import of the CS-1175 suite, the
+    ``pristine`` fixture, the floor arm - read the same answer at several
+    seconds a call. A temporary tree is never cached: :func:`canary_suites` is
+    called on it directly.
+    """
     return tuple(path.relative_to(REPO_ROOT).as_posix() for path in canary_suites(TESTS_DIR))
 
 
@@ -686,6 +718,50 @@ def test_canary_suites_in_the_cs1175_suite_is_the_derivation() -> None:
     bound = len(derived)
     assert count == 1, "CANARY_SUITES is bound %d times" % count
     assert bound == 1, "CANARY_SUITES is not bound to derived_canary_suites()"
+
+
+def test_the_derivation_runs_once_per_process() -> None:
+    """CS-1193: the tree's population is derived once and every caller reads that answer.
+
+    MEASURED on CI: the derivation cost about ten seconds a call and ran at the
+    import of the CS-1175 suite, in the ``pristine`` fixture and in the floor
+    arm, in every worker and every child. The same object back is the proof
+    the second call derived nothing.
+    """
+    first = derived_canary_suites()
+    again = derived_canary_suites()
+    same = first is again
+    assert same, "derived_canary_suites() derived the population a second time"
+
+
+def test_every_module_is_walked_once(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """CS-1193: the derivation walks each module's tree ONCE, not once per question.
+
+    A tree of plain modules - no reader, so no conftest fixture read either -
+    is walked exactly as many times as it has modules.
+    """
+    tests_dir = tmp_path / "tests"
+    tests_dir.mkdir()
+    modules = 3
+    for index in range(modules):
+        (tests_dir / ("test_plain_%d.py" % index)).write_text(
+            '"""Plain."""\n\nimport os\n\n\ndef test_x(a, b):\n    return os.sep\n',
+            encoding="ascii",
+        )
+    walked: list[int] = []
+    real = ast.walk
+
+    def counting(node: ast.AST) -> Iterator[ast.AST]:
+        if isinstance(node, ast.Module):
+            walked.append(1)
+        return real(node)
+
+    monkeypatch.setattr(ast, "walk", counting)
+    members = canary_suites(tests_dir)
+    count = len(walked)
+    found = len(members)
+    assert found == 0, "plain modules admitted: %d" % found
+    assert count == modules, "%d module walks for %d modules" % (count, modules)
 
 
 def test_the_population_is_derived_and_reaches_every_known_reader() -> None:
