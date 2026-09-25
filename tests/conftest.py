@@ -816,6 +816,19 @@ UNCOVERED_SECRETS: Mapping[str, str] = MappingProxyType(
             "never a value this module can enumerate, so no literal rule can "
             "be built from it. Only the vendor shapes can reach one."
         ),
+        "cut-tail-of-an-unlisted-key": (
+            "a cut that lands inside a key held under an UNLISTED name leaves "
+            "its tail beside the marker with no prefix. The shape rules need "
+            "the prefix and no literal was built for the name, so the tail "
+            "stands; its head, which keeps the prefix, does not."
+        ),
+        "node-ids-outside-the-reporter": (
+            "a node id is REDACTED WHERE IT IS RENDERED and never rewritten, so "
+            "selection by it keeps working. The terminal reporter's location "
+            "and summary lines and each failure's header are reached; "
+            "--durations, the warnings summary and --collect-only print ids "
+            "through paths no hook here sees."
+        ),
         "internal-errors": (
             "a pytest INTERNALERROR is rendered by pytest itself and not from "
             "a report object, so no report hook sees it. Collection reports "
@@ -877,36 +890,85 @@ def redact_personal_data(text: str) -> str:
     return text
 
 
-#: CS-820 - pytest's CUT MARKER and the letters that stand against it. pytest
-#: shortens a long repr by keeping its two ends and joining them with ``...``,
-#: and the terminal crops a long summary line the same way. Whatever the cut
-#: landed inside is left as a FRAGMENT on either side of the marker: the tail of
-#: a key with no prefix any shape could anchor on, a key's prefix with a short
-#: stub, or the last letters of an account name in a home path whose head is
-#: gone. No rule built from the WHOLE value can recognise a piece of it, so the
-#: pieces are removed by position instead: a run of identifier characters
-#: touching the marker, on either side.
+#: CS-820 - a PIECE of a known value standing against pytest's cut marker.
+#: pytest shortens a long repr by keeping its two ends and joining them with
+#: ``...``, and whatever the cut landed inside is left as a piece on either side
+#: of the marker. An adversary measured the last four letters of the account
+#: name surviving in a home path whose head the cut had removed, and a listed
+#: secret's tail survives the same way. No rule built from the WHOLE value can
+#: match a piece of it.
 #:
-#: STATED COST. An ordinary word that happens to touch a cut loses its visible
-#: half - ``...Full output truncated`` reads ``... output truncated``. That is
-#: paid only by a report pytest had already cut.
-_CUT_FRAGMENT = re.compile(r"[A-Za-z0-9_\-]+(?=\.\.\.)|(?<=\.\.\.)[A-Za-z0-9_\-]+")
+#: ONLY PIECES OF A KNOWN VALUE ARE REMOVED, and that is the whole rule. A run of
+#: identifier characters touching a ``...`` loses its part that is a piece - at
+#: least :data:`_MIN_CUT_PIECE` characters, or the whole value if it is shorter
+#: - of an account-name spelling from :func:`_account_names` or of a listed
+#: credential variable's value. The first build removed EVERY run touching a
+#: ``...``, and a message pytest never cut - ``retrying connection...giving_up``
+#: - lost both words; this rule leaves any text whose touching runs are not such
+#: pieces exactly as written, whether or not pytest cut it.
+#:
+#: A key's prefix with a short stub is the shape layer's, which has no length
+#: floor; the tail of a key held under an UNLISTED name is reachable by neither
+#: and is declared in :data:`UNCOVERED_SECRETS`.
+_CUT_RUN = re.compile(r"(?P<head>[A-Za-z0-9_\-]+)(?=\.\.\.)|(?<=\.\.\.)(?P<tail>[A-Za-z0-9_\-]+)")
+
+#: The shortest piece counted, below which a piece of a name is too likely to be
+#: a piece of an ordinary word as well.
+_MIN_CUT_PIECE = 4
+
+
+def _cut_sources() -> tuple[str, ...]:
+    """The known values whose pieces are removed, lower-cased, built at import."""
+    names = {name.strip().lower() for name in _account_names(_home_like_roots())}
+    values = {os.environ.get(name, "").strip().lower() for name in _CREDENTIAL_VARIABLES}
+    literals = {value for value in values if len(value) >= _CREDENTIAL_MIN_LITERAL}
+    return tuple(sorted(source for source in names | literals if source))
+
+
+#: Built at import, for the reason :data:`_CREDENTIAL_RULES` is.
+_CUT_SOURCES: tuple[str, ...] = _cut_sources()
+
+
+def _is_piece(piece: str, *, head: bool) -> bool:
+    """Whether `piece` is a piece of a known value - its start if `head`, else its end."""
+    lowered = piece.lower()
+    return any(
+        len(lowered) >= min(_MIN_CUT_PIECE, len(source))
+        and (source.startswith(lowered) if head else source.endswith(lowered))
+        for source in _CUT_SOURCES
+    )
+
+
+def _without_piece(match: re.Match[str]) -> str:
+    """The run with its longest known-value piece removed from the side touching the cut."""
+    head = match.group("head")
+    if head is not None:
+        for size in range(len(head), 0, -1):
+            if _is_piece(head[-size:], head=True):
+                return head[:-size]
+        return head
+    tail = match.group("tail")
+    for size in range(len(tail), 0, -1):
+        if _is_piece(tail[:size], head=False):
+            return tail[size:]
+    return tail
 
 
 def redact_cut_fragments(text: str) -> str:
-    """Remove every identifier-character run that touches a ``...`` cut marker.
+    """Remove every piece of a known value that stands against a ``...`` marker.
 
-    A third layer beside the personal-data and credential layers, and neither
-    of them: it recognises no value, only the POSITION a value is cut at. See
-    :data:`_CUT_FRAGMENT` for the measurement that made it necessary.
+    A third layer beside the personal-data and credential layers: it removes
+    pieces of the values those layers replace whole, where a cut left only a
+    piece. See :data:`_CUT_RUN` for the rule and the measurement behind it.
 
     Args:
         text: Rendered output.
 
     Returns:
-        The text with each touching run removed and the marker kept.
+        The text with each known-value piece beside a marker removed and every
+        other character, the marker included, left as it was.
     """
-    return _CUT_FRAGMENT.sub("", text)
+    return _CUT_RUN.sub(_without_piece, text)
 
 
 def redact_report(text: str) -> str:
@@ -923,15 +985,15 @@ def redact_report(text: str) -> str:
     a fixed placeholder containing no path and no account name, so running the
     personal layer afterwards would find nothing new; the reverse order is safe
     too, and the choice is stated rather than left to be inferred. The cut
-    fragments go LAST - CS-820 - so a whole value standing beside a cut is
-    still replaced by its own rule and only the piece the cut left is removed.
+    pieces go LAST - CS-820 - so a whole value standing beside a cut is still
+    replaced by its own rule and only the piece the cut left is removed.
 
     Args:
         text: Rendered output.
 
     Returns:
-        The text with both classes of value replaced and every cut fragment
-        removed.
+        The text with both classes of value replaced and every known-value
+        piece beside a cut marker removed.
     """
     return redact_cut_fragments(redact_credentials(redact_personal_data(text)))
 
@@ -1042,6 +1104,13 @@ def _redact_report(report: pytest.TestReport | pytest.CollectReport) -> None:
     Args:
         report: The report to sanitize in place.
     """
+    if isinstance(report, pytest.TestReport):
+        # CS-820: the failure's header line is the location's name, which is
+        # the parametrize id - redacted here, where it is rendered from.
+        fspath, lineno, domain = report.location
+        moved = redact_report(domain)
+        if moved != domain:
+            report.location = (fspath, lineno, moved)
     longrepr = report.longrepr
     if longrepr is not None and not isinstance(longrepr, tuple):
         rendered = report.longreprtext
@@ -1158,48 +1227,47 @@ def _redact_worker_description(node: Any) -> None:
         node._workerinfocache = redact_report(cached)  # noqa: SLF001
 
 
-@pytest.hookimpl(tryfirst=True)
-def pytest_collection_modifyitems(items: list[pytest.Item]) -> None:
-    """Redact every collected item's NAME and NODE ID - CS-820.
+@pytest.hookimpl(trylast=True)
+def pytest_configure(config: pytest.Config) -> None:
+    """Redact node ids WHERE THEY ARE RENDERED - CS-820, and never rewrite one.
 
-    MEASURED by an adversary on the first build: a parametrize id is printed in
-    each failure's section header, on its FAILED line and on every ``-v``
-    progress line, and no report hook ever sees an id - the id is not in the
-    report's text, it is the report's NAME. An id derived from a mapping's
-    items, from an ``ids=`` callable or from an ``ids=`` list printed whole
-    credentials at default verbosity. Rewriting the id at collection is the one
-    place every one of those renderings reads from.
+    MEASURED by an adversary: a parametrize id derived from a mapping's items,
+    an ``ids=`` callable or an ``ids=`` list printed whole credentials on the
+    ``-v`` progress line, the FAILED summary line and each failure's header. The
+    first repair rewrote the ids at collection, and a second adversary measured
+    what that broke: ``-k`` and ``--deselect`` by the original id matched
+    nothing, and an id copied from the output reran nothing.
 
-    Only an item whose name redaction MOVES is touched, so every ordinary node
-    id is left byte for byte as pytest built it. The function is still found by
-    its ``originalname``. A rewritten id that collides with another gets a
-    numeric suffix, because two items sharing a node id is a collection pytest
-    and its workers cannot tell apart.
+    So the id is left exactly as pytest built it and only its RENDERINGS pass
+    through :func:`redact_report`: ``Config.cwd_relative_nodeid``, which the
+    terminal reporter renders every summary line's id through, and the
+    reporter's own location line, whose trailing name it renders from the
+    report's location - redacted by :func:`_redact_report` for the header too.
+    An id redaction does not move renders byte for byte as pytest built it.
+
+    Duck-typed, for the reason `_redact_report` gives: each is wrapped only
+    where it exists, so a rename in pytest leaves this conftest importable.
 
     Args:
-        items: The collected items, rewritten in place.
+        config: The session's configuration.
     """
-    taken = {item.nodeid for item in items}
-    for item in items:
-        name = item.name
-        redacted = redact_report(name)
-        nodeid = item.nodeid
-        if redacted == name or not nodeid.endswith(name):
-            continue
-        stem = nodeid[: len(nodeid) - len(name)]
-        candidate, suffix = redacted, 0
-        while stem + candidate in taken:
-            suffix += 1
-            candidate = "%s-%d" % (redacted, suffix)
-        taken.add(stem + candidate)
-        item.name = candidate
-        # Duck-typed on purpose, for the reason _redact_report gives: pytest
-        # keeps the id in a private attribute and caches the location it
-        # renders headers from, and a rename there must not make this conftest
-        # unimportable - so each is set only where it exists.
-        if hasattr(item, "_nodeid"):
-            item._nodeid = stem + candidate  # noqa: SLF001
-        item.__dict__.pop("location", None)
+    if getattr(config, "_cs820_ids_redacted", False):
+        return
+    config._cs820_ids_redacted = True  # type: ignore[attr-defined]  # noqa: SLF001
+    relative = config.cwd_relative_nodeid
+
+    def redacted_relative(nodeid: str) -> str:
+        return redact_report(relative(nodeid))
+
+    config.cwd_relative_nodeid = redacted_relative  # type: ignore[method-assign]
+    reporter = config.pluginmanager.get_plugin("terminalreporter")
+    locate = getattr(reporter, "_locationline", None)
+    if callable(locate):
+
+        def redacted_location(nodeid: str, fspath: str, lineno: int | None, domain: str) -> str:
+            return redact_report(locate(nodeid, fspath, lineno, redact_report(domain)))
+
+        reporter._locationline = redacted_location  # noqa: SLF001
 
 
 @pytest.hookimpl(tryfirst=True)

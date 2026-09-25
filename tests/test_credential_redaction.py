@@ -66,6 +66,7 @@ from tests.conftest import (
     REDACTED_CREDENTIAL,
     UNCOVERED_SECRETS,
     redact_credentials,
+    redact_report,
 )
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -201,6 +202,7 @@ MARKER = "AAAA-zz-cs820-" + "rendered-arg-zz"
 VARIABLES = {variables!r}
 KEY = os.environ[VARIABLES[0]]
 TOKEN = os.environ[VARIABLES[1]]
+BARE = os.environ[{bare!r}]
 HOME = str(Path.home())
 PLANTED = {{"AAAA_KEY": KEY, "AAAA_TOKEN": TOKEN}}
 
@@ -223,7 +225,13 @@ def test_a_parameter_holds_an_environment_mapping(parameter, environment):
 @pytest.mark.parametrize(
     "parameter",
     [
-        {{"AAAA_pad": "p" * width, "AAAA_tok": TOKEN, "AAAB_key": KEY, "ZZZZ": "q" * 300}}
+        {{
+            "AAAA_pad": "p" * width,
+            "AAAA_tok": TOKEN,
+            "AAAB_key": KEY,
+            "AAAC_bare": BARE,
+            "ZZZZ": "q" * 300,
+        }}
         for width in range(40, 125)
     ],
 )
@@ -234,7 +242,7 @@ def test_a_cut_lands_inside_a_token(parameter):
 @pytest.mark.parametrize(
     "parameter",
     [
-        {{"AAAA_pad": "p" * 300, "ZZZA_tok": TOKEN, "ZZZB_key": KEY, "ZZZZ": "q" * width}}
+        {{"AAAA_pad": "p" * 300, "ZZZA_bare": BARE, "ZZZZ": "q" * width}}
         for width in range(0, 125)
     ],
 )
@@ -306,8 +314,11 @@ CREDENTIAL_SHAPE_ORACLE = re.compile(
 FRAGMENT_WIDTH = 8
 
 #: Account-name letters on either side of pytest's ``...`` cut marker, counted
-#: when at least this many letters of the name survive.
-ACCOUNT_FRAGMENT_WIDTH = 3
+#: when at least this many letters of the name survive. It is the floor the
+#: cut layer in tests/conftest.py states for itself: a shorter piece is too
+#: likely to be a piece of an ordinary word too, and removing those is what the
+#: second adversary refuted. Pieces below it stand, by declaration.
+ACCOUNT_FRAGMENT_WIDTH = 4
 
 #: The four children: redacted or bare, at default verbosity or at ``-vvv``.
 #: The default is the one the adversary measured leaking; ``-vvv`` is the one
@@ -364,6 +375,7 @@ def _render(
     *,
     redacted: bool = True,
     flags: tuple[str, ...] = ("--showlocals",),
+    select: tuple[str, ...] | None = None,
 ) -> str:
     """Run a child pytest that fails, and return its combined output.
 
@@ -382,6 +394,8 @@ def _render(
             instead: below that verbosity pytest also cuts a rendered
             ARGUMENT's repr to a fixed length, and at it only the four-item
             limit stated beside CHILD_AT_PARAMETER remains.
+        select: Node ids, relative to `root`, run IN PLACE of the module path -
+            how an arm reruns ids copied from an earlier report.
 
     Returns:
         The child's combined output, exactly as a log or a CI artifact would
@@ -392,12 +406,15 @@ def _render(
     target = root / "test_cs1156_child.py"
     target.write_text(source, encoding="ascii")
     plugin = ["-p", "tests.conftest"] if redacted else []
+    # `select` replaces the module path with node ids relative to `root`, so a
+    # run can name exactly the ids a reader copied from an earlier report.
+    targets = [str(target)] if select is None else list(select)
     completed = subprocess.run(
         [
             sys.executable,
             "-m",
             "pytest",
-            str(target),
+            *targets,
             *plugin,
             "-p",
             "no:randomly",
@@ -551,11 +568,15 @@ def test_a_credential_does_not_survive_captured_output(
 
 
 def _fragment_oracle() -> re.Pattern[str]:
-    """Every run of :data:`FRAGMENT_WIDTH` consecutive characters of either plant."""
+    """Every run of :data:`FRAGMENT_WIDTH` consecutive characters of the LISTED plant.
+
+    Only the listed plant: a cut piece is removed only when it is a piece of a
+    KNOWN value, and the unlisted plants' prefix-less tails are declared
+    uncovered in ``UNCOVERED_SECRETS`` and probed there rather than counted here.
+    """
     windows = {
-        plant[start : start + FRAGMENT_WIDTH]
-        for plant in (PLANTED_KEY, PLANTED_GH_TOKEN)
-        for start in range(len(plant) - FRAGMENT_WIDTH + 1)
+        PLANTED_BARE_TOKEN[start : start + FRAGMENT_WIDTH]
+        for start in range(len(PLANTED_BARE_TOKEN) - FRAGMENT_WIDTH + 1)
     }
     return re.compile("|".join(re.escape(window) for window in sorted(windows)))
 
@@ -618,8 +639,9 @@ def parameter_counts(
     Returns:
         Counts keyed by ``(redacted, verbosity flags joined)``.
     """
-    source = CHILD_AT_PARAMETER.format(variables=SORTED_FIRST_VARIABLES)
+    source = CHILD_AT_PARAMETER.format(variables=SORTED_FIRST_VARIABLES, bare=LISTED_VARIABLE)
     plant = dict(zip(SORTED_FIRST_VARIABLES, (PLANTED_KEY, PLANTED_GH_TOKEN), strict=True))
+    plant[LISTED_VARIABLE] = PLANTED_BARE_TOKEN
     return {
         (redacted, " ".join(flags)): _parameter_counts(
             _render(tmp_path_factory.mktemp("cs820"), source, plant, redacted=redacted, flags=flags)
@@ -690,6 +712,154 @@ def test_the_counts_see_every_door_when_redaction_is_removed(
         assert account >= 1, "account fragments seen with redaction removed: %d" % account
 
 
+#: CS-820, the second adversary's refutation of the first repair. That repair
+#: REWROTE node ids to redact them, and selection by the original id broke:
+#: ``-k`` matched nothing, ``--deselect`` removed nothing, and an id copied from
+#: the output reran nothing. Its cut rule also ate a message pytest never cut.
+#: The ids here are the adversary's: a shape-like one, one carrying ``...``, and
+#: a plain one; the message is the one that lost both its words.
+CHILD_SELECTION = """
+import pytest
+
+
+@pytest.mark.parametrize("value", ["ghp_note", "wait...then", "plain"])
+def test_sel(value):
+    raise RuntimeError("retrying connection...giving_up")
+"""
+
+#: How many tests the selection child holds - one per parametrize id.
+SELECTION_TESTS = 3
+
+#: The message the child raises, which must render exactly as written.
+UNCUT_MESSAGE = "retrying connection...giving_up"
+
+#: Ids that carry no shape and must render, and rerun, exactly as pytest built them.
+ORDINARY_IDS = ("test_sel[wait...then]", "test_sel[plain]")
+
+#: A prefix followed by ANY run, the widest shape, for the selection child.
+ANY_SHAPE = re.compile(
+    "(?:" + "|".join(re.escape(prefix) for prefix in ORACLE_PREFIXES) + r")[A-Za-z0-9_\-]"
+)
+
+
+class SelectionCounts(NamedTuple):
+    """What the selection child showed - counts only."""
+
+    failed: int
+    shapes: int
+    uncut_messages: int
+    ordinary_ids: int
+    keyword_failed: int
+    keyword_deselected: int
+    shape_deselect_failed: int
+    cut_deselect_failed: int
+    copied: int
+    reran: int
+
+
+def _summary(rendered: str, word: str) -> int:
+    """The count pytest's final summary line gives for `word`, or 0."""
+    found = re.search(r"(\d+) " + word, rendered)
+    return int(found.group(1)) if found else 0
+
+
+def _copied_ids(rendered: str) -> list[str]:
+    """Every id on a FAILED line that carries no placeholder - what a reader would copy."""
+    return [
+        found.group(1)
+        for found in re.finditer(r"^FAILED (\S+::\S+)", rendered, re.MULTILINE)
+        if "<redacted" not in found.group(1)
+    ]
+
+
+@pytest.fixture(scope="module")
+def selection_counts(tmp_path_factory: pytest.TempPathFactory) -> SelectionCounts:
+    """Run the selection child every way the adversary did; scalars only leave."""
+    root = tmp_path_factory.mktemp("cs820_selection")
+    child = "test_cs1156_child.py"
+
+    def run(*flags: str) -> str:
+        return _render(root, CHILD_SELECTION, {}, flags=flags)
+
+    full = run("-v")
+    copied = _copied_ids(full)
+    reran = sum(
+        1
+        for nodeid in copied
+        if _summary(_render(root, CHILD_SELECTION, {}, flags=(), select=(nodeid,)), "failed") == 1
+    )
+    keyword = run("-k", "ghp_note")
+    return SelectionCounts(
+        failed=_summary(full, "failed"),
+        shapes=len(ANY_SHAPE.findall(full)),
+        uncut_messages=full.count(UNCUT_MESSAGE),
+        ordinary_ids=sum(1 for nodeid in ORDINARY_IDS if nodeid in full),
+        keyword_failed=_summary(keyword, "failed"),
+        keyword_deselected=_summary(keyword, "deselected"),
+        shape_deselect_failed=_summary(run("--deselect", child + "::test_sel[ghp_note]"), "failed"),
+        cut_deselect_failed=_summary(
+            run("--deselect", child + "::test_sel[wait...then]"), "failed"
+        ),
+        copied=len(copied),
+        reran=reran,
+    )
+
+
+def test_selection_by_the_original_id_still_works(selection_counts: SelectionCounts) -> None:
+    """``-k`` and ``--deselect`` by the id pytest built select and deselect exactly one.
+
+    The first repair rewrote ids and both matched nothing. Ids are now redacted
+    only where they are RENDERED, so the id a user types is the id pytest holds.
+    """
+    counts = selection_counts
+    failed = counts.failed
+    keyword_failed = counts.keyword_failed
+    keyword_deselected = counts.keyword_deselected
+    shape_deselect = counts.shape_deselect_failed
+    cut_deselect = counts.cut_deselect_failed
+    assert failed == SELECTION_TESTS, "the child's failures: %d" % failed
+    assert keyword_failed == 1, "-k by the original id ran %d" % keyword_failed
+    assert keyword_deselected == SELECTION_TESTS - 1, (
+        "-k by the original id deselected %d" % keyword_deselected
+    )
+    assert shape_deselect == SELECTION_TESTS - 1, (
+        "--deselect of the shape-like id left %d" % shape_deselect
+    )
+    assert cut_deselect == SELECTION_TESTS - 1, (
+        "--deselect of the id carrying ... left %d" % cut_deselect
+    )
+
+
+def test_an_id_copied_from_the_output_reruns(selection_counts: SelectionCounts) -> None:
+    """Every id on a FAILED line that carries no placeholder reruns exactly one test."""
+    copied = selection_counts.copied
+    reran = selection_counts.reran
+    assert copied == len(ORDINARY_IDS), "ids a reader could copy: %d" % copied
+    assert reran == copied, "copied ids that reran: %d of %d" % (reran, copied)
+
+
+def test_ordinary_text_renders_exactly_as_written(selection_counts: SelectionCounts) -> None:
+    """No shape renders, and an id or a message carrying no known value is untouched.
+
+    The first repair's cut rule ate a message pytest never cut; the rule now
+    removes only a piece of a KNOWN value beside a ``...``. The message renders
+    on its error line and on its summary line for each of three failures.
+    """
+    shapes = selection_counts.shapes
+    uncut = selection_counts.uncut_messages
+    ordinary = selection_counts.ordinary_ids
+    assert shapes == 0, "shapes rendered: %d" % shapes
+    assert uncut >= SELECTION_TESTS, "the uncut message rendered as written %d times" % uncut
+    assert ordinary == len(ORDINARY_IDS), "ordinary ids rendered as built: %d" % ordinary
+
+
+def test_a_message_touching_no_known_value_passes_the_render_path_unchanged() -> None:
+    """The cut layer's claim, pinned as a unit: text with ``...`` and no known piece is kept."""
+    for text in (UNCUT_MESSAGE, "wait...then", "...Full output truncated"):
+        kept = redact_report(text) == text
+        assert kept, "the render path rewrote an ordinary text"
+
+
 def test_the_live_environment_holds_no_credential_the_redactor_leaves_standing() -> None:
     """The LIVE arm. The other arms plant; this one reads what this machine carries.
 
@@ -722,6 +892,8 @@ def test_every_uncovered_secret_is_declared_and_still_uncovered() -> None:
     assert set(UNCOVERED_SECRETS) == {
         "unlisted-and-unprefixed",
         "not-in-the-environment",
+        "cut-tail-of-an-unlisted-key",
+        "node-ids-outside-the-reporter",
         "internal-errors",
     }, sorted(UNCOVERED_SECRETS)
     assert all(reason.strip() for reason in UNCOVERED_SECRETS.values()), sorted(UNCOVERED_SECRETS)
@@ -731,6 +903,11 @@ def test_every_uncovered_secret_is_declared_and_still_uncovered() -> None:
     # this ever starts being redacted, the declaration is stale and must move.
     unreachable = "9c2e" * 12
     assert redact_credentials(unreachable) == unreachable, unreachable
+
+    # The probe for "cut-tail-of-an-unlisted-key": a prefix-less tail beside a
+    # cut marker, of no known value, survives the whole render path.
+    tail = "x..." + "Q" * 12
+    assert redact_report(tail) == tail, tail
 
 
 def _looks_like_a_credential(value: str) -> bool:
