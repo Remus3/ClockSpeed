@@ -187,11 +187,11 @@ WALK_SKIP_ROOT_PATHS: Mapping[str, str] = MappingProxyType(
 #: this walk. Two true harms remain. A `.json` IS an authored text type, so
 #: the machine-local settings override and the lane's own config file were
 #: opened and read. And a `.sav` is a save file - CLAUDE.md non-negotiables 11
-#: and 12 - which must not be enumerated and handed to a reader at all. NOT
-#: CLAIMED: an adjudicator measured a pruned save file's FILENAME reaching the
-#: rendered skip list and the --json payload, and a save filename carries the
-#: world name. Pruning stops the CONTENT being read; the name in the report is
-#: a separate surface and a separate item.
+#: and 12 - which must not be enumerated and handed to a reader at all. The
+#: NAME is a separate surface from the content: an adjudicator measured a
+#: pruned save file's FILENAME reaching the rendered skip list and the --json
+#: payload, and a save filename carries the world name. CS-1158 closed that
+#: surface by REASON CLASS, under ADR 0023 - see WITHHELD_REASON_CLASSES below.
 #:
 #: WHY THIS IS A FLOOR AND NOT THE RULE. git is the authority on what this tree
 #: ignores and it answers with no commits at all, so `_git_ignored` below asks
@@ -221,6 +221,22 @@ WALK_SKIP_FILE_PATTERNS: Mapping[str, str] = MappingProxyType(
         "ops/loop/config.json": "local-only - the headless lane's model choice, a machine choice",
     }
 )
+
+#: CS-1158, ADR 0023 - the reason CLASSES whose skip records never name their
+#: path in a rendered report or the --json payload. The class is the text before
+#: the first " - " in a reason, which is how every entry in the two tables above
+#: declares it, so a new entry in either class is withheld by its reason alone
+#: and there is no second list of paths to keep in step. ADR 0023 rule 3 makes
+#: the reason the deciding fact: a name that locates an artifact pruned because
+#: its contents are PII-bearing or credential-bearing is withheld even when the
+#: name alone is innocuous. The withheld form is the reason plus a COUNT - never
+#: the leaf, a masked leaf or a hash, because a world name is low-entropy and
+#: its digest is confirmed by guessing. The count stays, per CONVENTIONS.md
+#: section 15.1.
+WITHHELD_REASON_CLASSES = frozenset({"PII-bearing", "credential material"})
+
+#: The line printed under a withheld reason in place of its paths.
+WITHHELD_MARKER = "(names withheld - ADR 0023: this class never names its path)"
 
 #: CS-1155 - the reason git's own answer carries. Distinct from every reason in
 #: the two static tables, so a skip record says WHICH authority pruned a path.
@@ -5686,6 +5702,36 @@ def _detail_lines(guards: list[Guard]) -> list[str]:
     return out
 
 
+def is_withheld(reason: str) -> bool:
+    """Whether a skip record with this reason must not name its path (ADR 0023)."""
+    return reason.split(" - ", 1)[0] in WITHHELD_REASON_CLASSES
+
+
+def partition_skips(skips: list[Skip]) -> tuple[list[Skip], dict[str, int]]:
+    """Split skip records into those that may name a path and a count per withheld reason.
+
+    CS-1158. Both renderers of the skip list - the text report and the --json
+    payload - go through this, so they cannot disagree about which records name
+    their path. Decided by the reason's CLASS, never by the path's spelling: a
+    name regex would be a denylist, and ADR 0023 rejects one.
+
+    Args:
+        skips: Every skip record the run produced.
+
+    Returns:
+        (the records whose path may render, withheld reason -> record count).
+    """
+    shown: list[Skip] = []
+    withheld: dict[str, int] = {}
+    for skip in skips:
+        reason = skip["reason"]
+        if is_withheld(reason):
+            withheld[reason] = withheld.get(reason, 0) + 1
+        else:
+            shown.append(skip)
+    return shown, withheld
+
+
 def _skip_lines(skips: list[Skip]) -> list[str]:
     out = [
         "SKIPPED - printed every run, not only when verbose.",
@@ -5695,10 +5741,15 @@ def _skip_lines(skips: list[Skip]) -> list[str]:
     if not skips:
         out.append("  (nothing skipped)")
         return out
+    shown, withheld = partition_skips(skips)
     collapsed: dict[str, list[str]] = {}
-    for skip in skips:
+    for skip in shown:
         collapsed.setdefault(skip["reason"], []).append(skip["path"])
-    for reason in sorted(collapsed):
+    for reason in sorted({*collapsed, *withheld}):
+        if reason in withheld:
+            out.append(f"  {reason}  ({withheld[reason]})")
+            out.append(f"      {WITHHELD_MARKER}")
+            continue
         paths = sorted(collapsed[reason])
         out.append(f"  {reason}  ({len(paths)})")
         out.extend(f"      {path}" for path in paths)
@@ -5770,13 +5821,19 @@ def main(argv: list[str] | None = None) -> int:
     verdict = overall_verdict(guards)
 
     if args.json:
+        # CS-1158 - schema 2: "skipped" carries only the records that may name a
+        # path, and "withheld" carries every other one as its reason and count.
+        shown, withheld = partition_skips(skips)
         print(
             json.dumps(
                 {
-                    "schema": 1,
+                    "schema": 2,
                     "enumeration": source,
                     "guards": guards,
-                    "skipped": skips,
+                    "skipped": shown,
+                    "withheld": [
+                        {"reason": reason, "count": withheld[reason]} for reason in sorted(withheld)
+                    ],
                     "drift": [guard["id"] for guard in failed],
                     "ungraded": [guard["id"] for guard in ungraded_guards(guards)],
                     "verdict": verdict,
