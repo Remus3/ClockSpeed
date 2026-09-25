@@ -1085,3 +1085,72 @@ every tracked text file and names it in its own detail lines. Where git keeps ca
 a withheld-class shape that is text-typed is walked, read by guard (c) and can be
 named there - a renderer outside the skip records, so ADR 0023 files it as a new
 item rather than folding it into CS-1158.
+
+## CS-1196
+
+### Acceptance
+
+the history walk in `tests/test_provenance_manifest.py` (the CS-1176 arms) handles
+a merge commit by a stated rule - first-parent, or an explicit rule for a row first
+added on a side branch - and counts each first-add exactly once whichever way a slice
+reaches `main`; an arm builds a real merge commit in `tmp_path`, with a side branch
+adding a row, and asserts the walk counts the same first-adds as the equivalent
+linear history.
+
+### Full headline
+
+the provenance manifest's history walk miscounts first-adds across a merge commit:
+in the CS-1176 walk, a slice merged by `git merge` reads 14 first-adds where its
+linear equivalent reads 13
+
+### FILED 2026-09-25, found at the wave-3 close (session 113)
+
+Found by the merger at the wave-3 close and reported with the counts above; the
+filer did not re-measure them. Every slice this session reached `main` by
+cherry-pick or fast-forward, so the walk has only ever graded linear history, and
+no arm builds a merge commit.
+
+## CS-1197
+
+### Acceptance
+
+the library sweep in `tests/save/test_trailing_run.py` (`_sweep_trailing_runs`) is
+bounded by a stated rule - a sample, or a per-save cap - written in the module, and
+its library arms finish under a stated seconds budget recorded beside that rule,
+serially and under parallel workers, while still grading every save SHAPE the arms
+name; an arm proves the bound holds as the library grows, and a control proves a
+shape absent from the sample still reddens.
+
+### Full headline
+
+`tests/save/test_trailing_run.py` sweeps every real save, so its run time grows
+with the save library: at the wave-3 close one test took 398s of a 400s per-test
+cap, and it times out under parallel workers
+
+### FILED 2026-09-25, found at the wave-3 close (session 113)
+
+Found by the merger at the wave-3 close and reported with the timing above; the
+filer did not re-measure it. The save library grows while the operator plays, so an
+unbounded sweep drifts toward any per-test cap without a line of code changing.
+
+## CS-1198
+
+### Acceptance
+
+the next CI reading of the tier-1 hook shard in `.github/workflows/tier1.yml` is at
+or under `TIER1_BUDGET_SECONDS` (420s), by moving files out of it or speeding them
+up, with every moved file still run by some tier-1 shard and no other tier-1 shard
+reading over the 480s ceiling as a result; neither `TIER1_BUDGET_SECONDS` nor
+`TIER1_CEILING_SECONDS` is raised to meet it.
+
+### Full headline
+
+the tier-1 hook shard read 469s at `da7a940`, 11s under its 480s ceiling - in the
+WARN band, after the four hook-driving test files joined it
+
+### FILED 2026-09-25, found at the wave-3 close (session 113)
+
+The CS-1193 closing adjudicator's COMMON-MODE RISK, filed as it directed. At
+`da7a940`, run 36159442880, the fast shard read 471s and the hook shard 469s, each
+within about 11s of the ceiling; the hook shard read 301s at `102bc01` before the
+four hook-driving files joined it.

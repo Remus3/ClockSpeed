@@ -329,3 +329,6 @@ CS-1032 - `tests/surface/panel_harness.py`'s DOM stand-in has no known-good brow
 CS-1186 - README.md has never been walked from zero to a first result - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1194 - drift_guard prints a non-numeric player-named directory that holds no sensitive file - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1195 - on Linux, drift_guard guard (c) can print a text-typed key file's path in its own detail lines - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
+CS-1196 - the provenance manifest's history walk miscounts first-adds across a merge commit - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
+CS-1197 - `tests/save/test_trailing_run.py` sweeps every real save, so its run time grows with the save library - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
+CS-1198 - the tier-1 hook shard read 469s at `da7a940`, 11s under its 480s ceiling - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
