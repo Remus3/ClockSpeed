@@ -9,6 +9,12 @@
 # passing suite." Exit code 5 (no tests collected) is likewise a failure - an
 # empty suite proves nothing.
 #
+# CS-821: THE VERDICT IS WHAT THE RUN EXECUTED, NOT THE EXIT CODE PYTEST CHOSE.
+# The run writes a junit report into a private mktemp directory outside the
+# repository and the hook reads it back. A missing report, an unreadable one, or
+# one recording zero executed tests REFUSES, whatever status pytest returned. A
+# skipped test is NOT RUN. See the block above the pytest run for the detail.
+#
 # LF line endings, no BOM - see the note in .githooks/pre-commit.
 
 set -u
@@ -317,11 +323,73 @@ else
 fi
 # <<< CS-818 LADDER END
 
-if ! cs_python -c "import pytest" >/dev/null 2>&1; then
+# CS-821: PYTEST MUST BE THE INSTALLED ONE, CHECKED THE WAY THE RUN WILL SEE IT.
+#
+# THE DEFECT. `import pytest` succeeding proved only that SOMETHING named pytest
+# imported. A pytest.py first on PYTHONPATH, or at the repository root where
+# `-m` puts the working directory on sys.path, ran instead of the real one - and
+# one that wrote a plausible report and exited 0 shipped a push that ran nothing.
+#
+# TWO DEFENCES, AND THE CHECK RUNS UNDER EXACTLY THE RUN'S SETTINGS. `-P` is the
+# interpreter's safe-path mode: the working directory is never put on sys.path,
+# so a pytest.py in the pushed tree cannot shadow the real one. The check then
+# requires the pytest it imports to live under one of the interpreter's own
+# site-packages directories, which refuses a PYTHONPATH shadow. PYTHONPATH is
+# deliberately NOT stripped from the run: an operator or a test may use it to
+# hide a plugin, and the check below grades the same sys.path the run gets.
+#
+# An interpreter without safe-path mode (before 3.11) rejects `-P` or reports
+# the flag unset, and either REFUSES - it is never retried without the flag.
+#
+# NOT COVERED, stated rather than implied. xdist starts its workers with its own
+# command line and no `-P`, so a worker still has the working directory on
+# sys.path; the controller that writes the report does not.
+CS_PYTEST_WHERE='
+import os
+import site
+import sys
+import sysconfig
+if not sys.flags.safe_path:
+    sys.exit(5)
+try:
+    import pytest
+except Exception:
+    sys.exit(3)
+where = getattr(pytest, "__file__", None)
+if not isinstance(where, str):
+    sys.exit(4)
+roots = list(site.getsitepackages())
+roots.append(site.getusersitepackages())
+roots.extend(sysconfig.get_path(key) for key in ("purelib", "platlib"))
+where = os.path.normcase(os.path.realpath(where))
+for root in roots:
+    base = os.path.normcase(os.path.realpath(root))
+    try:
+        if os.path.commonpath([base, where]) == base:
+            sys.exit(0)
+    except ValueError:
+        pass
+sys.exit(4)
+'
+cs_python -P -c "$CS_PYTEST_WHERE" >/dev/null 2>&1 </dev/null
+cs_where_rc=$?
+if [ "$cs_where_rc" = 3 ]; then
     die "pytest is not available to the resolved interpreter." \
         "The unit subset did NOT run, so this push is BLOCKED." \
         "A skipped suite is not a passing suite (CONVENTIONS.md 7.2)." \
         "Run: python scripts/verify_env.py"
+fi
+if [ "$cs_where_rc" = 4 ]; then
+    die "pytest does not resolve from the interpreter's site-packages; refusing a shadow." \
+        "Something named pytest - on PYTHONPATH, most likely - would run in place of" \
+        "the installed one, and it need not run a single test." \
+        "BLOCKED (CS-821): unset PYTHONPATH or remove the stray pytest module."
+fi
+if [ "$cs_where_rc" != 0 ]; then
+    die "the resolved interpreter cannot run pytest in safe-path mode (-P)." \
+        "Observed status: [$cs_where_rc]. Safe-path mode needs Python 3.11 or later;" \
+        "without it the working directory can shadow pytest." \
+        "BLOCKED (CS-821): point CLOCKSPEED_PYTHON at a newer interpreter."
 fi
 
 # CS-989: A PUSH THAT ONLY DELETES REFS IS NOT GRADED, BECAUSE THERE IS NOTHING
@@ -445,14 +513,129 @@ else
     printf 'python -m pip install -e ".[dev]"\n' >&2
 fi
 
+# CS-821: THE RUN IS JUDGED BY WHAT IT EXECUTED, READ FROM PYTEST'S OWN REPORT.
+# Authorized by the frozen-file grant recorded in docs/LEDGER.md under "CS-821,
+# CS-824, CS-704 - FROZEN-FILE GRANT"; read its conditions before changing this.
+#
+# THE DEFECT. The importability check above passes a one-comment pytest.py placed
+# first on PYTHONPATH, `-m pytest` then runs that empty module and exits 0, and
+# the push shipped with not one test run. A tree whose every test is skipped
+# exits 0 the same way. An exit status says what pytest CHOSE to return; only a
+# record of the tests themselves says what ran.
+#
+# THE REPORT GOES INTO A FRESH mktemp DIRECTORY, never a pre-made file: mktemp's
+# own empty file would read as "a report exists" to a shadow that never wrote
+# one. The directory must resolve OUTSIDE the repository, measured on the
+# resolved paths, and a trap removes it on every exit path, `die` included.
+#
+# NOTHING HERE RENDERS THE REPORT'S PATH. It sits under the operator's temporary
+# directory, which is under a home directory (CLAUDE.md non-negotiable 3).
+#
+# RESIDUAL, NAMED AND NOT DEFENDED: A HOSTILE TRACKED CONFTEST. Code in the
+# pushed tree runs inside the pytest process, so a conftest that writes a forged
+# report and then calls os._exit(0) passes every check here. This gate protects
+# against an ACCIDENTAL no-run and against environment and working-directory
+# shadowing of pytest, never against a pushed tree written to lie about itself.
+CS_REPORT_DIR=$(mktemp -d 2>/dev/null </dev/null) || CS_REPORT_DIR=""
+if [ -z "$CS_REPORT_DIR" ] || [ ! -d "$CS_REPORT_DIR" ]; then
+    die "no private directory could be made for pytest's report." \
+        "Without a report the run cannot be judged, so the push is BLOCKED (CS-821)."
+fi
+trap 'rm -rf "$CS_REPORT_DIR"' EXIT
+trap 'exit 129' HUP
+trap 'exit 130' INT
+trap 'exit 143' TERM
+cs_report_real=$(cd "$CS_REPORT_DIR" 2>/dev/null && pwd -P) || cs_report_real=""
+cs_root_real=$(cd "$ROOT" 2>/dev/null && pwd -P) || cs_root_real=""
+if [ -z "$cs_report_real" ] || [ -z "$cs_root_real" ]; then
+    die "the report directory or the repository root would not resolve." \
+        "The report's place cannot be checked, so the push is BLOCKED (CS-821)."
+fi
+case "$cs_report_real/" in
+    "$cs_root_real"/*)
+        die "the report directory resolves inside the repository; refusing to write there." \
+            "Point TMPDIR outside the work tree. The push is BLOCKED (CS-821)."
+        ;;
+esac
+CS_REPORT="$CS_REPORT_DIR/report.xml"
+
+# THE READER. It prints "<executed> <passed>" and nothing else, and exits
+# non-zero on anything it cannot read as a pytest junit report. A testcase with
+# a skipped child is NOT RUN - xfail is written that way too. Deselected tests
+# never appear in the report at all. `-I` keeps PYTHONPATH and the user site out
+# of the reader. That is hardening against a shadowed xml module, and no arm
+# in tests/test_pre_push_suite_floor.py measures it.
+CS_REPORT_PROGRAM='
+import sys
+import xml.etree.ElementTree as ET
+try:
+    root = ET.parse(sys.argv[1]).getroot()
+except Exception:
+    sys.exit(3)
+if root.tag not in ("testsuites", "testsuite"):
+    sys.exit(3)
+executed = 0
+passed = 0
+for case in root.iter("testcase"):
+    kinds = {child.tag for child in case}
+    if "skipped" in kinds:
+        continue
+    executed += 1
+    if not kinds & {"failure", "error"}:
+        passed += 1
+sys.stdout.write("%d %d" % (executed, passed))
+'
+
 # Unquoted on purpose: the empty case must expand to NO argument, and sh has
 # no arrays. The variable is initialised above, so `set -u` is satisfied.
-cs_python -m pytest "$TESTS" -q -x $PYTEST_PARALLEL </dev/null
+cs_python -P -m pytest "$TESTS" -q -x $PYTEST_PARALLEL --junitxml "$CS_REPORT" </dev/null
 STATUS=$?
 
 if [ "$STATUS" -eq 5 ]; then
     die "pytest collected zero tests from $TESTS." \
         "An empty suite is not a green suite; the push is BLOCKED."
+fi
+
+# CS-821: A RUN THAT CANNOT SAY WHAT IT EXECUTED IS NOT A PASSING RUN. Judged
+# whatever the exit status was, so a PYTEST_ADDOPTS or plugin flag that stops
+# the report being written lands here and never passes.
+if [ ! -s "$CS_REPORT" ]; then
+    die "pytest wrote no report of what it executed, so the run cannot be judged." \
+        "pytest exit status: [$STATUS]. Known causes: a pytest that is not the real" \
+        "one, such as a shadow first on PYTHONPATH; a flag in PYTEST_ADDOPTS or the" \
+        "ini file that disables the junitxml plugin." \
+        "BLOCKED (CS-821): an exit status alone is not evidence that a test ran."
+fi
+cs_counts=$(cs_python -I -c "$CS_REPORT_PROGRAM" "$CS_REPORT" 2>/dev/null </dev/null) ||
+    cs_counts=""
+cs_executed=${cs_counts% *}
+cs_passed=${cs_counts#* }
+# Both fields digits only, AND they must rebuild the reader's output exactly,
+# so an answer with no separator or with a doubled one is refused too.
+cs_counts_ok=1
+case "$cs_executed:$cs_passed" in
+    :*|*:|*[!0-9:]*) cs_counts_ok=0 ;;
+esac
+if [ "$cs_executed $cs_passed" != "$cs_counts" ]; then
+    cs_counts_ok=0
+fi
+if [ "$cs_counts_ok" -ne 1 ]; then
+    die "pytest's report could not be read as a record of executed tests." \
+        "pytest exit status: [$STATUS]." \
+        "BLOCKED (CS-821): a report that cannot be read judges nothing."
+fi
+if [ "$cs_executed" -eq 0 ]; then
+    die "pytest executed zero tests; every collected test was skipped or deselected." \
+        "A skipped test is NOT RUN, so this suite proves nothing." \
+        "BLOCKED (CS-821): a skipped suite is not a passing suite."
+fi
+# A GREEN EXIT BESIDE A RED REPORT IS REFUSED. A conftest that rewrites
+# session.exitstatus to 0 hands this hook a success over failed tests. Only the
+# green case is judged here: a red exit already blocks below, with its own words.
+if [ "$STATUS" -eq 0 ] && [ "$cs_passed" -ne "$cs_executed" ]; then
+    die "pytest's report records failed or errored tests, yet pytest exited 0." \
+        "Executed: [$cs_executed]. Passed: [$cs_passed]." \
+        "BLOCKED (CS-821): the report of what ran outranks the exit status."
 fi
 
 if [ "$STATUS" -ne 0 ]; then
