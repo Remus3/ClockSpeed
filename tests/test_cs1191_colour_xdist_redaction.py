@@ -11,10 +11,17 @@ needs a non-word character on its left and the letter the escape code ends in
 is a word character, so the name printed whole, once per token, with the
 redaction loaded.
 
-WHY -n 2 COLOURS WITHOUT --color=yes. A worker renders the highlighted diff
-when the controller was told nothing about colour and its output is a pipe, so
-the xdist report path is a coloured path. The ``-n 2 -vvv`` child passes no
-colour flag and is graded as coloured below.
+THE -n 2 -vvv CHILD IS COLOURED BY THE ENVIRONMENT, NOT BY A FLAG. Left to
+detect colour for itself, pytest colours only when the terminal it runs in
+allows it. The adjudicator's ``-n 2 -vvv`` run was coloured with no flag
+because the terminal it ran in allowed it. The ubuntu CI runner's did not, and
+there the child printed 0 escape codes (CI run 36130961603). A ``TERM=dumb``
+parent reproduces that zero on Windows too. So every child runs under
+``TERM=dumb``, which means no child can be coloured just because of where the
+suite happens to run. The ``-n 2 -vvv`` child is told to colour through
+``PY_COLORS`` and ``FORCE_COLOR``, which xdist workers inherit. The
+colour-steering route this suite covers is then the environment, not the flag,
+and that child is graded as coloured below on every platform.
 
 EVERY ARM RUNS A REAL CHILD PYTEST, for the reason
 tests/test_credential_redaction.py gives: the render path is the subject, and
@@ -112,6 +119,13 @@ CHILDREN = (ACCEPTANCE, COLOURED, XDIST_VVV, PLAIN, BARE)
 #: The redacted children the zero is asserted over, the acceptance one first.
 REDACTED_CHILDREN = (ACCEPTANCE, COLOURED, XDIST_VVV, PLAIN)
 
+#: Colour asked for through the environment, per child. ``PY_COLORS`` is the
+#: variable pytest consults first; ``FORCE_COLOR`` is the fallback it also
+#: honours. Neither is inherited from this process - `_STEERING` strips both.
+COLOUR_BY_ENVIRONMENT: dict[tuple[bool, tuple[str, ...]], dict[str, str]] = {
+    XDIST_VVV: {"PY_COLORS": "1", "FORCE_COLOR": "1"},
+}
+
 
 class Counts(NamedTuple):
     """What one child rendered - counts only, never a value."""
@@ -158,8 +172,12 @@ def _count(output: str) -> Counts:
     )
 
 
-def _child_environment() -> dict[str, str]:
-    """This process's environment, minus pytest's and the colour-steering variables."""
+def _child_environment(colour: dict[str, str] | None = None) -> dict[str, str]:
+    """This process's environment, minus pytest's and the colour-steering variables.
+
+    ``TERM`` is pinned to ``dumb``, so the parent's terminal can colour no
+    child, and ``colour`` then adds back only the steering asked for.
+    """
     steering = {name.upper() for name in _STEERING}
     environment = {
         name: value
@@ -168,10 +186,18 @@ def _child_environment() -> dict[str, str]:
     }
     environment["PYTHONPATH"] = str(REPO_ROOT)
     environment["PYTHONDONTWRITEBYTECODE"] = "1"
+    environment["TERM"] = "dumb"
+    environment.update(colour or {})
     return environment
 
 
-def _run(root: Path, *, redacted: bool, flags: tuple[str, ...]) -> Counts:
+def _run(
+    root: Path,
+    *,
+    redacted: bool,
+    flags: tuple[str, ...],
+    colour: dict[str, str] | None = None,
+) -> Counts:
     """Run the failing child once and return its counts."""
     root.mkdir(parents=True, exist_ok=True)
     target = root / "test_cs1191_child.py"
@@ -196,7 +222,7 @@ def _run(root: Path, *, redacted: bool, flags: tuple[str, ...]) -> Counts:
         capture_output=True,
         check=False,
         cwd=str(root),
-        env=_child_environment(),
+        env=_child_environment(colour),
         timeout=SUBPROCESS_TIMEOUT,
     )
     return _count((completed.stdout + completed.stderr).decode("utf-8", errors="replace"))
@@ -212,7 +238,12 @@ def _label(child: tuple[bool, tuple[str, ...]]) -> str:
 def counts(tmp_path_factory: pytest.TempPathFactory) -> dict[str, Counts]:
     """Every child once, reduced to counts. SCALARS ONLY LEAVE THIS FIXTURE."""
     return {
-        _label(child): _run(tmp_path_factory.mktemp("cs1191"), redacted=child[0], flags=child[1])
+        _label(child): _run(
+            tmp_path_factory.mktemp("cs1191"),
+            redacted=child[0],
+            flags=child[1],
+            colour=COLOUR_BY_ENVIRONMENT.get(child),
+        )
         for child in CHILDREN
     }
 
