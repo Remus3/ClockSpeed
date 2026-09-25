@@ -116,9 +116,15 @@ forgiving it would forgive one. The recovery replaces the row, in one commit:
 1. Copy PATH somewhere outside the repository, then `git rm -q -- PATH` - the tool's
    `rm` refuses a path that is still tracked or untracked-unignored.
 2. `python tools/provenance_stamp.py rm PATH`
-3. Copy the bytes back to PATH and `git add -- PATH`.
-4. `python tools/provenance_stamp.py add PATH --class authored --item CS-NNNN`
-5. `git add -- tools/provenance.tsv` and commit.
+3. `git rm` deletes a directory it leaves empty, so recreate PATH's parent first -
+   `mkdir -p "$(dirname PATH)"` in Git Bash, or
+   `New-Item -ItemType Directory -Force (Split-Path PATH)` in PowerShell - then copy
+   the bytes back to PATH and `git add -- PATH`.
+4. `python tools/provenance_stamp.py add PATH --class authored --item CS-NNNN`, where
+   CS-NNNN is the item the recovery commit is made under. The id is traceability, not
+   evidence: `add` checks only that it is `CS-` and digits and appears in `ROADMAP.md`
+   or `docs/LEDGER.md`, and refuses otherwise.
+5. `git add -- tools/provenance.tsv` and commit, citing that same item.
 
 What it does NOT do: it never turns the first-add row green - it swaps it for a
 `stamped` row, which the re-seed arm does not grade. That row is a declaration with an
