@@ -52,14 +52,20 @@ the only writer of many rows and it REFUSES when the manifest already exists, so
 stroke - cannot be done through this tool at all.
 
 A DELETED MANIFEST IS RESTORED, NEVER RE-SEEDED (CS-1176). ``bootstrap`` also
-refuses whenever any commit on HEAD's history holds the manifest - a deletion,
-committed or not, does not reopen the seed - and every missing-manifest message
-points at ``git checkout <rev> -- tools/provenance.tsv``, where ``<rev>`` is the
-newest commit holding one. It never recommends the seed: re-deriving a deleted
-manifest would classify every unstamped file, a lift included, as authored.
-The arm grades a re-seed made around this refusal separately. Residual: a
-history that never held a manifest - a branch cut before it existed, a fresh
-orphan history - is seeded as a first seed would be.
+refuses whenever any commit reachable from ANY ref - HEAD, every branch, tag
+and ``refs/remotes/*`` - holds the manifest, so neither a deletion (committed or
+not) nor an orphan or squashed branch reopens the seed, and every
+missing-manifest message points at ``git checkout <rev> -- tools/provenance.tsv``,
+where ``<rev>`` is the newest commit holding one (HEAD's line first). It never
+recommends the seed: re-deriving a deleted manifest would classify every
+unstamped file, a lift included, as authored. The arm grades a re-seed made
+around this refusal separately.
+
+NAMED RESIDUAL, for an adjudicator to rule on: a rewrite that ALSO deletes
+every ref reaching a manifest - every branch, tag and remote-tracking ref - and
+so leaves only the reflog (not searched) looks exactly like a history that never
+held one, and is seeded as a first seed would be. So is a branch cut before the
+manifest existed in a clone that holds no ref to the manifest at all.
 
 CLI (``--root`` defaults to this repository; exit 0 done, 1 check found
 something, 2 refused or bad usage)::
@@ -250,17 +256,29 @@ def _git_succeeds(root: Path, *args: str) -> bool:
 
 
 def last_committed_manifest(root: Path) -> str | None:
-    """Return the full SHA of the newest commit on HEAD's history holding the manifest.
+    """Return the full SHA of the newest commit holding the manifest on ANY ref.
 
-    A commit that deleted it is skipped, so the answer is always a commit a
+    HEAD's own history is searched first, so the restore it names is on the
+    line being worked; then every ref - branches, tags and ``refs/remotes/*``
+    (CS-1176 F4) - so an orphan or squashed branch cut away from the manifest
+    does not reopen the seed while any ref still reaches one. Both walks keep
+    ``--full-history``, so no side of a merge is simplified away. A commit that
+    deleted it is skipped, so the answer is always a commit a
     ``git checkout <rev> -- tools/provenance.tsv`` can restore from. None when
-    there is no commit at all or none ever held one.
+    no ref reaches a commit that holds one.
     """
-    if not _git_succeeds(root, "rev-parse", "--verify", "-q", "HEAD"):
+    if not _git(root, "for-each-ref", "--count=1").strip():
         return None
-    for rev in _git(root, "log", "--format=%H", "--", MANIFEST_RELATIVE).split():
-        if _git_succeeds(root, "cat-file", "-e", f"{rev}:{MANIFEST_RELATIVE}"):
-            return rev
+    scopes = [["--all"]]
+    if _git_succeeds(root, "rev-parse", "--verify", "-q", "HEAD"):
+        scopes.insert(0, ["HEAD"])
+    for scope in scopes:
+        listing = _git(
+            root, "log", *scope, "--full-history", "--format=%H", "--", MANIFEST_RELATIVE
+        )
+        for rev in listing.split():
+            if _git_succeeds(root, "cat-file", "-e", f"{rev}:{MANIFEST_RELATIVE}"):
+                return rev
     return None
 
 

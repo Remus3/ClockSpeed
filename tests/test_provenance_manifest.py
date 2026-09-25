@@ -42,25 +42,35 @@ This module therefore ships in the same push as the manifest (CS-1165 S3).
 A DELETED MANIFEST IS RESTORED, NEVER RE-SEEDED (CS-1176). Re-running the
 one-time seed after a deletion would classify every unstamped file - a lift
 included - as authored, and every arm above would then be green. Two layers
-close that, chosen so either alone still holds:
+close that:
 
-* THE SEED REFUSES. ``bootstrap`` refuses whenever any commit on HEAD's history
-  holds the manifest, and points at ``git checkout <rev> -- tools/provenance.tsv``.
+* THE SEED REFUSES. ``bootstrap`` refuses whenever any commit reachable from
+  ANY ref - HEAD, branches, tags, ``refs/remotes/*`` - holds the manifest, so an
+  orphan or squashed branch does not reopen it either, and points at
+  ``git checkout <rev> -- tools/provenance.tsv``.
   The missing-manifest red here names that same restore, NEVER the seed, and
   grades the tree against the restorable manifest so the red names every file
   that manifest lacks - the lift included.
 * THE ARM DETECTS A RE-SEED. A ``first-add:`` row is only ever written by the
-  seed, so every one the manifest holds must equal a row of the SEED manifest -
-  the manifest in the oldest commit that added it. A re-seed by any means (an
-  older tool, a hand edit) adds ``first-add:`` rows the seed never held and is
-  red naming each. Rows added later carry ``stamped``.
+  one-time seed, and once its row is dropped (``rm``) or re-stamped (``mv``) no
+  honest writer brings a first-add row back. So every first-add row the manifest
+  holds must be present, identically, in EVERY committed version of the
+  manifest reachable from HEAD, walked with ``--full-history`` so no side of a
+  merge is simplified away. That names a re-seed by any means (an older tool,
+  a hand edit), a seed-era path that left and came back as a lift - the seed
+  regenerates a byte-identical row for it, so comparing with the seed alone is
+  blind - and a stale branch's own seed merged back, whose rows the main line's
+  versions never held. Rows added later carry ``stamped``.
 
 Residuals, stated rather than left to be discovered. The re-seed arm reads
 history, so on a SHALLOW clone - CI's depth-1 checkout - it SKIPS, visibly; the
 full-history pre-push run is where it grades. A hand-written row with basis
 ``stamped`` passes it: that is a declaration with a commit on it, graded by the
-near-duplicate arm like any stamp. A branch cut before the manifest existed, or
-a fresh orphan history, holds no seed to compare against or restore from.
+near-duplicate arm like any stamp. The arm walks HEAD's history only - other
+refs may honestly hold a row HEAD has since dropped - so an orphan branch whose
+own seed was committed is caught by the tool's all-refs refusal, not here. A
+rewrite that also deletes every ref reaching a manifest leaves nothing to refuse
+on, compare against or restore from; that residual is the tool's, named there.
 Every other arm grades synthetic manifests - in a throwaway git repository
 under ``tmp_path`` and over an in-memory population read from the real index -
 and each mutant is asserted to have LANDED before its verdict is read.
@@ -569,21 +579,47 @@ def _last_committed_manifest(root: Path) -> tuple[str, bytes] | None:
     return None
 
 
-def _seed_manifest(root: Path) -> tuple[str, bytes] | None:
-    """Return the OLDEST commit that added the manifest, with its bytes - the seed.
+def _committed_versions(root: Path) -> list[dict[str, Row]]:
+    """Return the rows of every committed manifest reachable from HEAD.
+
+    ``--full-history`` keeps every side of every merge: default simplification
+    follows the parent a merge result is TREESAME to, so a manifest resolved to
+    a side branch would hide the main line's versions. A commit that deleted
+    the manifest holds no version and is skipped. One ``cat-file --batch`` child
+    reads every blob.
 
     Args:
         root: A work tree.
 
     Returns:
-        ``(sha, bytes)``, or None when no commit on this history added one.
+        One row mapping per commit whose tree holds the manifest, newest first.
     """
-    adds = _manifest_revisions(root, "--diff-filter=A")
-    if not adds:
-        return None
-    blob = _committed_blob(root, adds[-1])
-    assert blob is not None, "a commit that adds the manifest does not hold it"
-    return adds[-1], blob
+    revs = _manifest_revisions(root, "--full-history")
+    if not revs:
+        return []
+    request = "".join(f"{rev}:{MANIFEST_RELATIVE}\n" for rev in revs).encode("ascii")
+    done = subprocess.run(
+        ["git", "cat-file", "--batch"],
+        cwd=root,
+        input=request,
+        capture_output=True,
+        check=False,
+        timeout=GIT_TIMEOUT,
+        env=_git_env(),
+    )
+    assert done.returncode == 0, "git cat-file --batch over the manifest versions failed"
+    out, at, versions = done.stdout, 0, []
+    for _rev in revs:
+        end = out.index(b"\n", at)
+        header = out[at:end].split()
+        at = end + 1
+        if header[-1] == b"missing":
+            continue
+        size = int(header[2])
+        versions.append(_parse_manifest(out[at : at + size])[0])
+        at += size + 1
+    assert at == len(out), "git cat-file --batch returned bytes nobody asked for"
+    return versions
 
 
 def _is_shallow(root: Path) -> bool:
@@ -600,17 +636,18 @@ def _is_shallow(root: Path) -> bool:
     return done.stdout.strip() != b"false"
 
 
-def _reseeded_rows(rows: Mapping[str, Row], seed: Mapping[str, Row]) -> list[str]:
-    """Return every ``first-add:`` row the seed manifest does not hold identically.
+def _reseeded_rows(rows: Mapping[str, Row], versions: Sequence[Mapping[str, Row]]) -> list[str]:
+    """Return every ``first-add:`` row some committed version does not hold identically.
 
-    Only the one-time seed writes a ``first-add:`` basis, and ``add`` and
-    ``mv`` write ``stamped``, so the set of first-add rows can only SHRINK
-    after the seed. A first-add row the seed lacks - a new path, or an old path
-    whose class or item changed - was written by a re-seed or by hand.
+    Only the one-time seed writes a ``first-add:`` basis; ``add`` and ``mv``
+    write ``stamped`` and ``rm`` drops the row. So an honest first-add row is in
+    every version from the seed on. One missing from ANY version - a new path, a
+    path whose row once left, or a row whose class or item changed - was written
+    by a re-seed or by hand, whatever the seed itself holds.
 
     Args:
         rows: The manifest's rows.
-        seed: The seed manifest's rows.
+        versions: The rows of every committed version of the manifest.
 
     Returns:
         One ``path (basis)`` entry per offending row, sorted by path bytes.
@@ -618,8 +655,41 @@ def _reseeded_rows(rows: Mapping[str, Row], seed: Mapping[str, Row]) -> list[str
     return [
         f"{path} ({row.basis})"
         for path, row in sorted(rows.items(), key=lambda pair: _path_key(pair[0]))
-        if row.basis.startswith("first-add:") and seed.get(path) != row
+        if row.basis.startswith("first-add:")
+        and any(version.get(path) != row for version in versions)
     ]
+
+
+class ReseedGrade(NamedTuple):
+    """What the re-seed arm found, and how much it graded."""
+
+    findings: list[str]
+    versions: int
+    first_adds: int
+
+
+def _reseed_grade(root: Path) -> ReseedGrade:
+    """Grade a tree's manifest against every committed version of it - THE re-seed arm.
+
+    The real-tree test and every mutation test call exactly this, so a mutant
+    of the wiring is a mutant of the real-tree arm too. A shallow clone holds no
+    history to compare with, so it SKIPS, visibly.
+
+    Args:
+        root: A work tree.
+
+    Returns:
+        The re-seeded rows, the number of versions graded against, and the
+        number of first-add rows graded.
+    """
+    if _is_shallow(root):
+        pytest.skip("CS-1176 re-seed arm: a shallow clone holds no history; a full clone grades it")
+    versions = _committed_versions(root)
+    assert versions, f"no commit on this history holds {MANIFEST_RELATIVE}"
+    rows, faults = _parse_manifest(_require_manifest(root, root / MANIFEST_RELATIVE))
+    assert faults == [], f"{MANIFEST_RELATIVE} breaks its grammar: {faults}"
+    first_adds = sum(1 for row in rows.values() if row.basis.startswith("first-add:"))
+    return ReseedGrade(_reseeded_rows(rows, versions), len(versions), first_adds)
 
 
 def _missing_manifest_message(root: Path) -> str:
@@ -1113,33 +1183,18 @@ def _delete_manifest_and_commit_a_lift(root: Path) -> None:
     assert RESEED_LIFT in _candidate_paths(root, isolated=True), "the lift never landed"
 
 
-def _reseed_findings(root: Path) -> list[str]:
-    """Grade a throwaway tree's manifest against its own seed.
-
-    Args:
-        root: The throwaway work tree.
-
-    Returns:
-        The re-seeded rows.
-    """
-    seed = _seed_manifest(root)
-    assert seed is not None, "no commit on this history adds the manifest"
-    seed_rows, faults = _parse_manifest(seed[1])
-    assert faults == []
-    rows, faults = _parse_manifest(_require_manifest(root, root / MANIFEST_RELATIVE))
-    assert faults == []
-    return _reseeded_rows(rows, seed_rows)
-
-
 def test_cs1176_the_seeded_repo_is_green_pristine(seeded_repo: tuple[Path, str]) -> None:
     root, seed = seeded_repo
-    assert _seed_manifest(root) == (seed, (root / MANIFEST_RELATIVE).read_bytes())
+    assert _committed_blob(root, seed) == (root / MANIFEST_RELATIVE).read_bytes()
+    assert _committed_versions(root) == [
+        _parse_manifest((root / MANIFEST_RELATIVE).read_bytes())[0]
+    ]
     assert {name: found for name, found in _grade_repo(root).items() if found} == {}
-    assert _reseed_findings(root) == []
+    assert _reseed_grade(root).findings == []
     # A file stamped after the seed carries `stamped`, so it is never a re-seed.
     (root / "pkg" / "later.py").write_bytes(b"x = 'stamped after the seed'\n")
     assert _tool(root, "add", "pkg/later.py", "--class", "authored", "--item", "CS-1165") == 0
-    assert _reseed_findings(root) == []
+    assert _reseed_grade(root).findings == []
 
 
 def test_cs1176_a_reseed_after_a_deletion_is_refused_and_the_red_names_the_lift(
@@ -1176,16 +1231,104 @@ def test_cs1176_a_forced_reseed_passes_every_other_arm_but_is_named(
     # THE GAP IS REAL: every CS-1165 arm is green over the laundered manifest ...
     assert {name: found for name, found in _grade_repo(root).items() if found} == {}
     # ... and the re-seed arm names the lift, and only the lift.
-    assert _reseed_findings(root) == [f"{RESEED_LIFT} ({rows[RESEED_LIFT].basis})"]
+    assert _reseed_grade(root).findings == [f"{RESEED_LIFT} ({rows[RESEED_LIFT].basis})"]
+
+
+#: The seed-era path F1 removes and brings back as an unstamped lift.
+RETURNING = "pkg/alpha.py"
+
+
+def test_cs1176_f1_a_row_that_left_and_returned_through_a_reseed_is_named(
+    seeded_repo: tuple[Path, str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # F1: a seed-era path is rm-ed (its row dropped), re-created as an unstamped
+    # lift, and re-seeded. The seed takes the OLDEST add, so it regenerates a
+    # row byte-identical to the seed's - a seed-only comparison stays green.
+    root, _seed = seeded_repo
+    seed_row = _parse_manifest((root / MANIFEST_RELATIVE).read_bytes())[0][RETURNING]
+    _git(root, "rm", "-q", "--", RETURNING)
+    assert _tool(root, "rm", RETURNING) == 0
+    _git(root, "add", "--", MANIFEST_RELATIVE)
+    _commit(root, "CS-1165 - drop alpha")
+    assert RETURNING not in _parse_manifest((root / MANIFEST_RELATIVE).read_bytes())[0]
+    (root / RETURNING).parent.mkdir(parents=True, exist_ok=True)
+    (root / RETURNING).write_bytes(RESEED_LIFT_BYTES)
+    _git(root, "add", "--", RETURNING)
+    _commit(root, "CS-1165 - alpha returns as a lift")
+    _git(root, "rm", "-q", "--", MANIFEST_RELATIVE)
+    _commit(root, "CS-1165 - lose the manifest")
+    monkeypatch.setattr(_stamp_tool(), "last_committed_manifest", lambda _root: None)
+    assert _tool(root, "bootstrap") == 0, "the blinded seed did not run"
+    rows, _faults = _parse_manifest((root / MANIFEST_RELATIVE).read_bytes())
+    assert rows[RETURNING] == seed_row, "F1 never landed: the re-seed row differs from the seed"
+    assert (root / RETURNING).read_bytes() == RESEED_LIFT_BYTES, "F1 never landed: no lift"
+    assert {name: found for name, found in _grade_repo(root).items() if found} == {}
+    assert _reseed_grade(root).findings == [f"{RETURNING} ({seed_row.basis})"]
+
+
+def test_cs1176_f2_a_stale_branch_seed_merged_back_is_named(
+    seeded_repo: tuple[Path, str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # F2: a branch cut BEFORE the manifest holds none in its own history. It
+    # seeds, lifts, and merges back with the manifest conflict resolved to its
+    # side; default history simplification then follows that branch, and its
+    # seed - which holds the lift - reads as THE seed. Since F4 the tool refuses
+    # that seed while any ref reaches a manifest (asserted first), so the arm is
+    # graded here against a seed made around the refusal - a clone holding no
+    # such ref, simulated by blinding only the tool's history lookup.
+    root, _seed = seeded_repo
+    main = _git(root, "rev-parse", "--abbrev-ref", "HEAD").strip()
+    _git(root, "checkout", "-q", "-b", "stale", "HEAD~1")
+    assert not (root / MANIFEST_RELATIVE).exists(), "the stale branch holds a manifest"
+    (root / RESEED_LIFT).write_bytes(RESEED_LIFT_BYTES)
+    _git(root, "add", "--", RESEED_LIFT)
+    _commit(root, "CS-1165 - a file nobody stamped")
+    assert _tool(root, "bootstrap") == REFUSED_EXIT, "the main ref did not refuse the stale seed"
+    monkeypatch.setattr(_stamp_tool(), "last_committed_manifest", lambda _root: None)
+    assert _tool(root, "bootstrap") == 0, "the stale branch's own seed was refused"
+    _git(root, "add", "--", MANIFEST_RELATIVE)
+    _commit(root, "CS-1165 - the stale branch seeds its own manifest")
+    _git(root, "checkout", "-q", main)
+    merge = _git_bytes(
+        root,
+        "-c",
+        "core.autocrlf=false",
+        "-c",
+        "user.name=fixture",
+        "-c",
+        "user.email=fixture@example.invalid",
+        "-c",
+        "core.hooksPath=",
+        "merge",
+        "--no-edit",
+        "stale",
+    )
+    assert merge.returncode != 0, "the two seeds merged without a conflict"
+    assert _git(root, "ls-files", "-u", "--", MANIFEST_RELATIVE), "F2 never conflicted"
+    _git(root, "checkout", "--theirs", "--", MANIFEST_RELATIVE)
+    _git(root, "add", "--", MANIFEST_RELATIVE)
+    _commit(root, "CS-1165 - merge the stale branch, its manifest wins")
+    rows, _faults = _parse_manifest((root / MANIFEST_RELATIVE).read_bytes())
+    assert rows[RESEED_LIFT].basis.startswith("first-add:"), "F2 never landed"
+    assert {name: found for name, found in _grade_repo(root).items() if found} == {}
+    assert _reseed_grade(root).findings == [f"{RESEED_LIFT} ({rows[RESEED_LIFT].basis})"]
 
 
 def test_cs1176_a_first_add_row_whose_class_changed_is_named() -> None:
-    seed = {"a.py": Row("vendored", "CS-1", "first-add:root")}
+    seed = [{"a.py": Row("vendored", "CS-1", "first-add:root")}]
     assert _reseeded_rows({"a.py": Row("authored", "CS-1", "first-add:root")}, seed) == [
         "a.py (first-add:root)"
     ]
     assert _reseeded_rows({"a.py": Row("vendored", "CS-1", "first-add:root")}, seed) == []
     assert _reseeded_rows({"b.py": Row("authored", "CS-1", "stamped")}, seed) == []
+
+
+def test_cs1176_a_first_add_row_absent_from_any_one_version_is_named() -> None:
+    row = Row("authored", "CS-1", "first-add:root")
+    present: dict[str, Row] = {"a.py": row}
+    absent: dict[str, Row] = {}
+    assert _reseeded_rows({"a.py": row}, [present, present]) == []
+    assert _reseeded_rows({"a.py": row}, [present, absent, present]) == ["a.py (first-add:root)"]
 
 
 def test_an_ignored_file_is_outside_the_population_and_an_unignored_one_is_in(
@@ -1402,24 +1545,55 @@ def test_no_authored_row_is_a_near_duplicate_of_a_vendored_file() -> None:
     assert found == [], f"these authored rows duplicate a vendored file: {found}"
 
 
+def _independent_version_count(root: Path) -> int:
+    """Count the commits holding the manifest WITHOUT the arm's own walk.
+
+    Every commit ``rev-list --full-history`` lists for the path, less the ones
+    that deleted it. Different git plumbing from :func:`_committed_versions`,
+    so a walk that silently read fewer versions disagrees with it.
+
+    Args:
+        root: A work tree.
+
+    Returns:
+        The number of committed versions.
+    """
+    listed = _git(root, "rev-list", "--full-history", "HEAD", "--", MANIFEST_RELATIVE).split()
+    deleted = _git(
+        root, "log", "--full-history", "--diff-filter=D", "--format=%H", "--", MANIFEST_RELATIVE
+    ).split()
+    return len(set(listed) - set(deleted))
+
+
 def test_no_first_add_row_postdates_the_seed() -> None:
-    # CS-1176, THE RE-SEED ARM on the real tree. Every first-add row must be one
-    # the seed commit wrote; a re-seed adds first-add rows the seed never held.
-    if _is_shallow(REPO_ROOT):
-        pytest.skip(
-            "CS-1176 re-seed arm: a shallow clone holds no seed; the full-history run grades it"
-        )
-    seed = _seed_manifest(REPO_ROOT)
-    assert seed is not None, f"no commit on this history adds {MANIFEST_RELATIVE}"
-    seed_rows, faults = _parse_manifest(seed[1])
-    assert faults == [], f"the seed manifest at {seed[0]} breaks its grammar: {faults}"
-    rows, _faults = _parse_manifest(_real_manifest())
-    reseeded = _reseeded_rows(rows, seed_rows)
-    assert reseeded == [], (
-        f"these first-add rows are not in the seed manifest at {seed[0]}: {reseeded}. A re-seed "
-        f"launders every unstamped file into the authored class; restore the committed "
-        f"manifest and stamp each file with `python {STAMP_TOOL} add` (CS-1176)."
+    # CS-1176, THE RE-SEED ARM on the real tree - the SAME helper the mutation
+    # tests drive, so their mutants are mutants of this wiring. Every first-add
+    # row must be in every committed version of the manifest.
+    grade = _reseed_grade(REPO_ROOT)
+    # ANTI-VACUITY: the arm read every version history holds, and graded rows.
+    assert grade.versions == _independent_version_count(REPO_ROOT) >= 1
+    assert grade.first_adds > 0, "the manifest holds no first-add row, so nothing was graded"
+    assert grade.findings == [], (
+        f"these first-add rows are missing from some committed version of {MANIFEST_RELATIVE}: "
+        f"{grade.findings}. A re-seed launders every unstamped file into the authored class; "
+        f"restore the committed manifest and stamp each file with `python {STAMP_TOOL} add` "
+        f"(CS-1176)."
     )
+
+
+def test_the_version_count_control_counts_every_side_of_a_merge_history(
+    seeded_repo: tuple[Path, str],
+) -> None:
+    # The control for the anti-vacuity equality above: on a tree with more than
+    # one version, both counts see all of them and agree.
+    root, _seed = seeded_repo
+    (root / "pkg" / "later.py").write_bytes(b"x = 'stamped after the seed'\n")
+    assert _tool(root, "add", "pkg/later.py", "--class", "authored", "--item", "CS-1165") == 0
+    _git(root, "add", "-A")
+    _commit(root, "CS-1165 - stamp a later file")
+    grade = _reseed_grade(root)
+    assert grade.versions == _independent_version_count(root) == 2  # noqa: PLR2004
+    assert grade.findings == []
 
 
 def test_every_cited_item_is_on_record() -> None:

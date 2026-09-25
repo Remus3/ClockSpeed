@@ -720,6 +720,49 @@ def test_a_writer_over_a_missing_manifest_points_at_the_restore(
     assert not _manifest(repo).exists()
 
 
+def _orphan_squash(root: Path) -> None:
+    """F4: squash the current tree onto an orphan branch whose history holds no manifest."""
+    _git(root, "checkout", "-q", "--orphan", "rewritten")
+    _commit(root, "CS-42 - squash the history away")
+    assert _git(root, "log", "--format=%H", "--", "tools/provenance.tsv") == "", "F4 never landed"
+    assert not _manifest(root).exists()
+
+
+def test_bootstrap_refuses_on_an_orphan_branch_while_any_ref_holds_a_manifest(
+    tool: ModuleType, repo: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    # F4: HEAD's own history holds no manifest after an orphan squash, but the
+    # old branch still does, so the seed must still refuse and name it.
+    seed = _seed_and_commit(tool, repo)
+    _delete_and_lift(repo)
+    _orphan_squash(repo)
+    capsys.readouterr()
+    assert _run(tool, repo, "bootstrap") == REFUSED, "the orphan squash reopened the seed"
+    assert not _manifest(repo).exists()
+    assert f"git checkout {seed} -- tools/provenance.tsv" in capsys.readouterr().err
+
+
+def test_bootstrap_refuses_while_only_a_remote_ref_holds_a_manifest(
+    tool: ModuleType, repo: Path, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    # F4, the clone shape: every local branch is rewritten away and only
+    # refs/remotes/origin/* still reaches the manifest.
+    seed = _seed_and_commit(tool, repo)
+    clone = tmp_path / "clone"
+    _git(tmp_path, "clone", "-q", repo.resolve().as_uri(), str(clone))
+    _git(clone, "rm", "-q", "tools/provenance.tsv")
+    _commit(clone, "CS-42 - lose the manifest")
+    main = _git(clone, "rev-parse", "--abbrev-ref", "HEAD").strip()
+    _orphan_squash(clone)
+    _git(clone, "branch", "-q", "-D", main)
+    assert _git(clone, "for-each-ref", "--format=%(refname)", "refs/heads").split() == [
+        "refs/heads/rewritten"
+    ], "a local branch still holds the manifest"
+    capsys.readouterr()
+    assert _run(tool, clone, "bootstrap") == REFUSED, "a remote-only manifest reopened the seed"
+    assert f"git checkout {seed} -- tools/provenance.tsv" in capsys.readouterr().err
+
+
 def test_bootstrap_still_seeds_a_history_that_never_held_a_manifest(
     tool: ModuleType, repo: Path
 ) -> None:
