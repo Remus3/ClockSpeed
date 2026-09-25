@@ -88,6 +88,31 @@ FORCED = "ForcedHelperRaise"
 #: tests/test_canary_population_forced.py, carries it in its name.
 NO_RECURSION = "not forced_red_output"
 
+#: Set to "1" by the PARENT in the environment of every forced child it spawns
+#: - here and in the CS-1175 suite - so a child can skip the arms that only
+#: re-derive this tree's population - CS-1193. Never guessed from anything
+#: else: a run without it derives in full.
+CHILD_FLAG = "CLOCKSPEED_CANARY_FORCED_CHILD"
+
+
+def in_a_forced_child() -> bool:
+    """Whether this process is a forced child, by the flag its parent set."""
+    return os.environ.get(CHILD_FLAG) == "1"
+
+
+#: An arm that only re-derives the population, which its parent derived and
+#: graded already. It reads no canary, so a forced child loses nothing by it.
+DERIVATION_ONLY = pytest.mark.skipif(
+    in_a_forced_child(), reason="derivation-only arm - the parent run grades it (CS-1193)"
+)
+
+#: The arms :data:`DERIVATION_ONLY` marks, by name, so a forced run can count
+#: any that ran in its child.
+DERIVATION_ARMS = (
+    "test_the_derivation_runs_once_per_process",
+    "test_the_population_is_derived_and_reaches_every_known_reader",
+)
+
 
 def load_outbound() -> ModuleType:
     """Load the outbound gate by path under a module name private to this file."""
@@ -485,6 +510,8 @@ class Verdict(NamedTuple):
     leaked: int
     graded: dict[str, int]
     forced: dict[str, int]
+    #: Derivation-only arms that RAN in the child - zero when the flag reached it.
+    rederived: int
 
 
 def canaries_in(output: str) -> int:
@@ -527,7 +554,13 @@ def _verdict(code: int, output: str, suites: tuple[str, ...]) -> Verdict:
         )
         for suite in suites
     }
-    return Verdict(code, canaries_in(output), graded, forced)
+    rederived = sum(
+        1
+        for line in lines
+        if any("::" + arm + " " in line for arm in DERIVATION_ARMS)
+        and re.search(r" (PASSED|FAILED|ERROR)\b", line)
+    )
+    return Verdict(code, canaries_in(output), graded, forced, rederived)
 
 
 def forced_run(
@@ -573,6 +606,7 @@ def forced_run(
     env["PYTHONDONTWRITEBYTECODE"] = "1"
     env["CLOCKSPEED_SAVE_ROOT"] = str(workdir / "absent-save-root")
     env["CLOCKSPEED_LOCAL_CONFIG"] = str(workdir / "absent-local-config.json")
+    env[CHILD_FLAG] = "1"
     plugin = [] if root == REPO_ROOT else ["-p", "tests.conftest", "--rootdir", str(root)]
     proc = subprocess.run(
         [
@@ -719,6 +753,7 @@ def test_canary_suites_in_the_cs1175_suite_is_the_derivation() -> None:
     assert bound == 1, "CANARY_SUITES is not bound to derived_canary_suites()"
 
 
+@DERIVATION_ONLY
 def test_the_derivation_runs_once_per_process() -> None:
     """CS-1193: the tree's population is derived once and every caller reads that answer.
 
@@ -763,6 +798,24 @@ def test_every_module_is_walked_once(tmp_path: Path, monkeypatch: pytest.MonkeyP
     assert count == modules, "%d module walks for %d modules" % (count, modules)
 
 
+def test_the_derivation_arms_are_the_marked_arms() -> None:
+    """:data:`DERIVATION_ARMS` names exactly the arms :data:`DERIVATION_ONLY` marks.
+
+    The forced arm counts the named arms that ran in its child, so a marked arm
+    missing from the names would run there unseen, and a named arm that is not
+    marked would redden the forced arm for a skip that was never asked for.
+    """
+    marked = sorted(
+        name
+        for name, value in globals().items()
+        if name.startswith("test_")
+        and any(mark is DERIVATION_ONLY.mark for mark in getattr(value, "pytestmark", []))
+    )
+    named = sorted(DERIVATION_ARMS)
+    assert marked == named, "marked: %s; named: %s" % (", ".join(marked), ", ".join(named))
+
+
+@DERIVATION_ONLY
 def test_the_population_is_derived_and_reaches_every_known_reader() -> None:
     """The derivation reaches the modules the retired hand list named, and this one.
 

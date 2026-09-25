@@ -23,6 +23,7 @@ from pathlib import Path
 import pytest
 
 from tests.test_canary_population import (
+    DERIVATION_ARMS,
     OUTBOUND_PATH,
     REPO_ROOT,
     Verdict,
@@ -102,6 +103,10 @@ def test_a_helper_raise_under_showlocals_renders_no_canary_forced_red_output(
     hygiene removed, forced the same way, renders the planted canary - so the
     zero from the tree is a measurement of hygiene, not a capture that cannot
     see a local.
+
+    CS-1193: the forced child is told it is one, and skips the arms that only
+    re-derive the population; that none of them RAN there is asserted too, so
+    a flag that stops reaching the child is red rather than merely slow.
     """
     relative, hygiene, rooted = unhygienic_copy(tmp_path / "control")
     assert hygiene == 1, "the hygiene edit landed %d times" % hygiene
@@ -118,10 +123,13 @@ def test_a_helper_raise_under_showlocals_renders_no_canary_forced_red_output(
     ungraded = sorted(suite for suite, count in pristine.graded.items() if count == 0)
     total = sum(pristine.forced.values())
     leaked = pristine.leaked
+    rederived = pristine.rederived
+    arms = len(DERIVATION_ARMS)
     assert code == 1, "the forced run did not fail: exit %d" % code
     assert ungraded == [], "members no test of which ran: " + ", ".join(ungraded)
     assert total >= 1, "no helper raise was forced in the tree"
     assert leaked == 0, "the forced run rendered %d canary value(s)" % leaked
+    assert rederived == 0, "%d of %d derivation-only arms ran in the child" % (rederived, arms)
 
 
 # --------------------------------------------------------------------------

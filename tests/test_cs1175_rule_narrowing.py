@@ -41,7 +41,7 @@ from types import ModuleType
 
 import pytest
 
-from tests.test_canary_population import derived_canary_suites
+from tests.test_canary_population import CHILD_FLAG, DERIVATION_ARMS, derived_canary_suites
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 OUTBOUND_PATH = REPO_ROOT / "tools" / "outbound_gate.py"
@@ -516,9 +516,15 @@ def canaries_in(output: str) -> int:
 
 
 def child_pytest(tmp_path: Path, args: list[str]) -> tuple[int, str]:
-    """Run pytest in a child with `tmp_path` importable; return (code, output)."""
+    """Run pytest in a child with `tmp_path` importable; return (code, output).
+
+    CS-1193: the child is told it is a forced child, so the canary population
+    suite's derivation-only arms skip there - the parent derived and graded
+    them already.
+    """
     env = {key: value for key, value in os.environ.items() if not key.startswith("PYTEST_")}
     env["PYTHONPATH"] = str(tmp_path)
+    env[CHILD_FLAG] = "1"
     env["CLOCKSPEED_SAVE_ROOT"] = str(tmp_path / "absent-save-root")
     env["CLOCKSPEED_LOCAL_CONFIG"] = str(tmp_path / "absent-local-config.json")
     proc = subprocess.run(
@@ -560,7 +566,14 @@ def test_showlocals_forced_red_output_renders_no_canary(tmp_path: Path) -> None:
     failures = int(failed.group(1)) if failed else 0
     leaked = canaries_in(output)
     shows_locals = len(re.findall(r"tmp_path\s+= ", output))
+    rederived = sum(
+        1
+        for line in output.splitlines()
+        if any("::" + arm + " " in line for arm in DERIVATION_ARMS)
+        and re.search(r" (PASSED|FAILED|ERROR)\b", line)
+    )
     assert code == 1, "the forced run did not fail: exit %d" % code
     assert failures >= len(GATE.SECRET_PATTERNS), "too few arms went red: %d" % failures
     assert shows_locals > 0, "the forced run rendered no locals at all"
     assert leaked == 0, "the forced-red output rendered %d canary value(s)" % leaked
+    assert rederived == 0, "%d derivation-only arm(s) ran in the child" % rederived
