@@ -8,6 +8,13 @@ binding of that name in that module's own source, every form of which
 module's source, never listed by hand, so a code added to any module in the
 package reddens the arm until the package re-exports it.
 
+EXPOSURE IS THE CONTRACT, not ``__all__`` alone. ``from clockspeed.audit import``
+reads the package namespace, so the ``WARN_*`` names a freshly imported package
+EXPOSES must equal the ``WARN_*`` members of ``__all__``, which must equal the
+derived set. A save-layer code imported into ``__init__.py`` is exposed, so it
+must be in ``__all__`` - and there it is not a code the package defines, so it
+is red either way. A module ``__getattr__`` or ``__dir__`` is refused outright.
+
 WHY "DEFINES" AND NOT "HAS IN ITS NAMESPACE". ``placement.py`` imports
 ``WARN_NODE_SEMANTICS_UNAVAILABLE`` from ``clockspeed.save.world`` and raises it,
 so the name is reachable as ``placement.WARN_NODE_SEMANTICS_UNAVAILABLE``. That
@@ -26,6 +33,8 @@ from __future__ import annotations
 import ast
 import importlib
 import pkgutil
+import subprocess
+import sys
 from pathlib import Path
 from typing import Final
 
@@ -218,6 +227,31 @@ def namespace_doors(source: str) -> list[str]:
     return [f"line {line}: {name}" for line, name in sorted(found)]
 
 
+#: The PEP 562 module hooks. Either one lets a module expose a name that
+#: neither its source nor its namespace holds.
+MODULE_HOOKS: Final = frozenset({"__getattr__", "__dir__"})
+
+
+def _hooks_bound(node: ast.AST) -> list[str]:
+    """The members of :data:`MODULE_HOOKS` one node binds in its own scope.
+
+    Args:
+        node: Any node.
+
+    Returns:
+        The hook names it binds - by def or class name, a stored ``Name``, or
+        an import alias.
+    """
+    bound: list[str] = []
+    if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+        bound.append(node.name)
+    elif isinstance(node, ast.Name) and isinstance(node.ctx, ast.Store):
+        bound.append(node.id)
+    elif isinstance(node, (ast.Import, ast.ImportFrom)):
+        bound.extend(alias.asname or alias.name.split(".")[0] for alias in node.names)
+    return [name for name in bound if name in MODULE_HOOKS]
+
+
 def refused_binding_forms(source: str) -> list[str]:
     """Every binding form a module's source uses that the census refuses.
 
@@ -231,7 +265,13 @@ def refused_binding_forms(source: str) -> list[str]:
     - a star import - it binds names no source line spells;
     - an import whose BOUND name is ``WARN_*``, unless it is
       ``from M import WARN_X`` (or ``as WARN_X``) under the same name - the
-      one import form that serves a code owned by another module unchanged.
+      one import form that serves a code owned by another module unchanged;
+    - a module hook - a ``def``, ``async def``, ``class``, stored name or import
+      binding a name in :data:`MODULE_HOOKS` outside every def, class and
+      lambda body. PEP 562 lets a module ``__getattr__`` serve an attribute no
+      namespace holds, so a code it serves is exposed yet absent from both the
+      source count and ``vars`` of the module. A method of that name, or a
+      function local, is not a module hook and is not refused.
 
     NOT refused: ``nonlocal``, which names an enclosing FUNCTION scope and can
     never reach the module; and ``except ... as WARN_X``, which Python unbinds
@@ -243,8 +283,18 @@ def refused_binding_forms(source: str) -> list[str]:
     Returns:
         The findings.
     """
+    tree = ast.parse(source)
+    in_a_body = {
+        id(inner)
+        for scope in ast.walk(tree)
+        if isinstance(scope, _OWN_SCOPES)
+        for statement in (scope.body if isinstance(scope.body, list) else [scope.body])
+        for inner in ast.walk(statement)
+    }
     found: list[tuple[int, str]] = []
-    for node in ast.walk(ast.parse(source)):
+    for node in ast.walk(tree):
+        if isinstance(node, (ast.stmt, ast.expr)) and id(node) not in in_a_body:
+            found.extend((node.lineno, f"module hook {name}") for name in _hooks_bound(node))
         if isinstance(node, ast.Global):
             found.append((node.lineno, "global statement"))
         elif isinstance(node, ast.Match):
@@ -354,6 +404,59 @@ def test_an_imported_save_layer_code_is_not_counted_as_defined_here() -> None:
     assert getattr(placement, save_owned) == getattr(world, save_owned)
     assert save_owned not in defining_modules()
     assert save_owned not in audit_package.__all__
+    assert save_owned not in vars(audit_package)
+
+
+def exposed_warning_names() -> tuple[str, frozenset[str]]:
+    """Import ``clockspeed.audit`` in a FRESH interpreter and read its namespace.
+
+    Fresh, so no test in this process that set an attribute on the package can
+    add or hide a name. The child runs from the repository root this test was
+    collected from, and reports the file it imported so the caller can check it
+    read this tree and not an installed copy.
+
+    Returns:
+        The imported package's file, and every ``WARN_*`` key of its namespace.
+    """
+    root = Path(audit_package.__file__).parents[2]
+    probe = (
+        "import clockspeed.audit as package\n"
+        "print(package.__file__)\n"
+        "print(*sorted(name for name in vars(package) if name.startswith('WARN_')))\n"
+    )
+    result = subprocess.run(
+        [sys.executable, "-B", "-c", probe],
+        cwd=root,
+        capture_output=True,
+        text=True,
+        check=False,
+        timeout=120,
+    )
+    assert result.returncode == 0, result.stderr
+    imported, _, names = result.stdout.partition("\n")
+    return imported.strip(), frozenset(names.split())
+
+
+def test_the_package_exposes_exactly_the_codes_it_re_exports() -> None:
+    # EXPOSURE IS THE CONTRACT. ``from clockspeed.audit import WARN_X`` reads
+    # the package namespace, never ``__all__``, so a code the package exposes
+    # is published whether ``__all__`` lists it or not. Every ``WARN_*`` key of
+    # a freshly imported package must therefore be in ``__all__``, and the
+    # re-export arm above holds ``__all__`` to the derived set - so a
+    # save-layer code imported into ``__init__.py``, or a code assigned there,
+    # is red either way: unlisted it fails here, listed it fails there. A
+    # module ``__getattr__`` serves names no namespace holds, which is why
+    # :func:`refused_binding_forms` refuses that hook outright.
+    imported, exposed = exposed_warning_names()
+    declared = frozenset(name for name in audit_package.__all__ if name.startswith(WARNING_PREFIX))
+
+    assert Path(imported) == Path(audit_package.__file__)
+    unlisted = sorted(exposed - declared)
+    unexposed = sorted(declared - exposed)
+    assert unlisted == []
+    assert unexposed == []
+    # Anti-vacuity: the namespace holds the whole derived set, not nothing.
+    assert exposed == frozenset(defining_modules())
 
 
 def test_the_source_parser_separates_an_assignment_from_an_import() -> None:
@@ -510,6 +613,19 @@ _REFUSED_PLANTS: Final = (
     "    value = 1\n"  # 15
     "    def inner() -> None:\n"  # 16
     "        nonlocal value\n"  # 17 - names a function scope, never the module
+    "def __getattr__(name: str) -> str:\n"  # 18 - a module hook serves names lazily
+    "    return name\n"  # 19
+    "async def __dir__() -> list[str]:\n"  # 20
+    "    return []\n"  # 21
+    "if True:\n"  # 22
+    "    __getattr__ = print\n"  # 23 - a hook bound by assignment, in a block
+    "from os import getcwd as __dir__\n"  # 24 - a hook bound by import
+    "class Proxy:\n"  # 25 - controls: a method hook serves an INSTANCE only
+    "    def __getattr__(self, name: str) -> str:\n"  # 26
+    "        return name\n"  # 27
+    "    __dir__ = object.__dir__\n"  # 28
+    "def local() -> None:\n"  # 29
+    "    __getattr__ = print\n"  # 30 - a function local, never the module
 )
 
 #: What the refusal detector must report for :data:`_REFUSED_PLANTS`, in order.
@@ -521,6 +637,10 @@ _REFUSED_FINDINGS: Final = [
     "line 8: import bound to WARN_BARE_MODULE",
     "line 9: import bound to WARN_RENAMED",
     "line 10: import bound to WARN_RENAMED_CODE",
+    "line 18: module hook __getattr__",
+    "line 20: module hook __dir__",
+    "line 23: module hook __getattr__",
+    "line 24: module hook __dir__",
 ]
 
 
