@@ -382,7 +382,182 @@ CS_GATE_PASS='precommit_gate: PASS - '
 # and `set -u` would abort the hook on an unset one instead.
 CS_GATE_OUT=""
 CS_GATE_LAST=""
-CS_GATE_OUT=$(cs_python "$GATE" --staged)
+
+# CS-955: THE GATE GRADES A SNAPSHOT OF THE INDEX, AND THE COMMIT IS REFUSED
+# UNLESS WHAT GIT WILL COMMIT IS STILL EXACTLY THAT SNAPSHOT.
+#
+# The gate grades the index, and git builds the commit from the index it RE-READS
+# after this hook returns. A stage that lands while the gate is running is
+# therefore committed without ever being graded - CS-954's shape one level down.
+# MEASURED before this repair with a gate stand-in: a new path, new content for a
+# staged path, a mode change and a removal were each COMMITTED, exit 0, on a plain
+# commit, `commit -a` and a pathspec commit alike.
+#
+# WHY A SNAPSHOT AND NOT TWO LIVE LISTINGS. Listing the live index before and
+# after the gate was the first repair, and it was REFUTED: an entry removed while
+# the gate read the index and restored before the second listing (an A-B-A
+# excursion) left both listings equal, so the gate graded an index without that
+# entry and git committed it ungraded. So the gate never reads the live index. The
+# hook copies the index git handed it into a file only this run knows the name
+# of, the gate grades THAT, and afterwards the live index must list exactly what
+# the snapshot lists. A live A-B-A excursion then commits A, which is what was
+# graded; anything else refuses.
+#
+# THE SOURCE IS `GIT_INDEX_FILE`, NEVER `.git/index`. Git hands each commit shape
+# a different file and re-reads that same file after the hook: a plain commit the
+# real index, `commit -a` its `index.lock`, a pathspec commit a temporary
+# `next-index-*.lock`. Copying the real index on `-a` would grade the index from
+# BEFORE `-a` staged anything.
+#
+# THE SNAPSHOT LIVES IN THE GIT DIR, from `git rev-parse --absolute-git-dir`, and
+# never under TMP: MSYS rewrites POSIX paths it hands a native child, and a split
+# index resolves its shared part from the git dir. `git add` cannot stage it, and
+# it is never cloned or pushed. It is written by `cp` and read by `ls-files`, and
+# NOTHING here writes either index - `write-tree` would rewrite the cache-tree of
+# the index git is about to commit.
+#
+# THE EXPORT IS CONFINED TO THE GATE'S COMMAND SUBSTITUTION. The ladder above and
+# the live listing below see the value git handed; only the gate and its children
+# see the snapshot. A prefix assignment on the `cs_python` FUNCTION call would not
+# do: POSIX leaves its persistence unspecified, and dash and bash differ.
+#
+# THE TRAPS REMOVE ONLY THIS RUN'S SNAPSHOT, on every exit path - a pass, the
+# gate's refusal, every die, and HUP, INT or TERM, whose trap exits so that the
+# EXIT trap runs (dash runs no EXIT trap on a signal death). There is no sweep of
+# other snapshots: two commits in one worktree can run this hook at once. A
+# SIGKILL or a power cut leaves the file behind; it holds nothing the index does
+# not, and a unique name means no later run reads it.
+#
+# LISTINGS ARE `git ls-files -s --debug` REDUCED BY `cs_index_view`: mode, object
+# id, stage and path of every entry, PLUS its index FLAGS. The flags are what
+# carry intent-to-add, and `ls-files -s` alone prints the SAME line for an
+# intent-to-add entry and a real empty-file entry. MEASURED: `git add -N` of an
+# empty file, then a plain `git add` of it against the live index while the gate
+# ran, left every `-s` listing equal and COMMITTED a file the gate never graded -
+# the gate reads `diff --cached`, which hides intent-to-add entries. The ctime,
+# mtime, dev, ino, uid, gid and size fields are DROPPED, because a benign refresh
+# rewrites them while what git commits does not change. Refusing every commit that
+# carries an intent-to-add entry was the alternative, and it lost: such an entry
+# is neither graded nor committed, so it is consistent as it stands, and refusing
+# it would block an ordinary `git add -N` workflow. Only a CHANGE of the bit
+# between the snapshot and the live index is a defect, and this refuses exactly
+# that. The listings are COMPARED EXACTLY, NOT HASHED: a hash needs a pipeline,
+# whose status is its LAST command's, so a failing `ls-files` would hash to the
+# same empty digest twice and PASS. The raw listing is captured by a plain
+# assignment whose status is checked. Git C-quotes any path carrying a newline,
+# tab, quote or backslash, so each entry header stays on one line.
+#
+# THE REDUCTION FAILS CLOSED. An earlier form fed its loop from a here-document,
+# which bash backs with a TEMP FILE once the text outgrows a pipe buffer - every
+# real listing does. Had that file failed, the loop would never run, all three
+# views would come back EMPTY, compare equal, and the commit would PASS with
+# nothing compared at all. So the reduction now splits its argument on newlines
+# by parameter expansion in a `for` loop - no here-document, no pipeline, no temp
+# file - and its status is STILL checked, and a NON-EMPTY raw listing that
+# reduces to an EMPTY view refuses. An index with genuinely no entries lists
+# nothing raw, and that is the only empty view accepted.
+#
+# DECLARED, NOT CLOSED: the window between this hook's LAST listing and git's
+# re-read of the index. Nothing a hook does can close it, because git re-reads the
+# index after the hook whatever the hook did. MEASURED (tests/test_precommit_index_race.py):
+# on a PLAIN commit the handed index is the real one with no lock held, so an
+# ordinary concurrent `git add` from another process reaches it - mid-hook that is
+# refused here, and after the last listing it is not seen at all. On `commit -a`
+# and a pathspec commit git holds `index.lock` for the whole hook, so an ordinary
+# `git add` is refused by the lock, and only a writer that names the handed index
+# file itself - a child of this hook outliving it - can reach the window.
+#
+# NAMED RESIDUAL, NOT DEFENDED: SNAPSHOT TAMPERING. A concurrent process that can
+# write the git dir can rewrite the snapshot while the gate reads it and restore
+# it before the second listing, and both snapshot listings then match. Such a
+# process can equally rewrite this hook, rewrite the index after the hook exits,
+# or commit with --no-verify, so a check here would stop nothing it could not step
+# around. The snapshot defends against an ACCIDENTAL concurrent stage, not a
+# hostile local writer.
+#
+# THIS IS AN ACCIDENT DETECTOR, NOT A SECURITY BOUNDARY, like the two guards
+# above it. `git commit --no-verify` skips it, as it skips every hook here.
+CS_INDEX_SNAP=""
+CS_INDEX_RAW=""
+CS_INDEX_BEFORE=""
+CS_INDEX_AFTER=""
+CS_INDEX_LIVE=""
+
+# Reduces a `git ls-files -s --debug` listing to each entry's header line and its
+# flags, dropping the stat fields. It is only ever called inside a command
+# substitution, so `set -f` and the newline-only IFS never reach the hook itself.
+# Its failure is never trusted to be impossible: see cs_index_view_or_die.
+cs_index_view() {
+    set -f
+    IFS='
+'
+    for cs_index_line in $1; do
+        case "$cs_index_line" in
+            "  size: "*"flags: "*)
+                printf '  flags: %s\n' "${cs_index_line##*flags: }" || return 1
+                ;;
+            "  "*)
+                ;;
+            *)
+                printf '%s\n' "$cs_index_line" || return 1
+                ;;
+        esac
+    done
+}
+
+# Refuses when a reduction failed: a non-zero status, or a non-empty raw listing
+# ($2) that reduced to an empty view ($3). $1 names which listing it was.
+cs_index_view_or_die() {
+    if [ "$CS_INDEX_STATUS" -ne 0 ] || { [ -n "$2" ] && [ -z "$3" ]; }; then
+        die "the $1 listing of the index could not be reduced for comparison (status $CS_INDEX_STATUS)." \
+            "An empty or failed view would compare equal to another and pass unchecked (CS-955)." \
+            "The commit is BLOCKED: an index that was not compared is not graded."
+    fi
+}
+trap 'if [ -n "$CS_INDEX_SNAP" ]; then rm -f -- "$CS_INDEX_SNAP"; fi' EXIT
+trap 'exit 1' HUP INT TERM
+CS_GIT_DIR=$(git rev-parse --absolute-git-dir)
+CS_INDEX_STATUS=$?
+if [ "$CS_INDEX_STATUS" -ne 0 ] || [ -z "$CS_GIT_DIR" ]; then
+    die "the git dir could not be located for the index snapshot (git exit $CS_INDEX_STATUS)." \
+        "Without a snapshot the gate cannot grade exactly what git commits (CS-955)." \
+        "The commit is BLOCKED: an ungraded snapshot is not a graded index."
+fi
+CS_INDEX_SNAP=$(mktemp "$CS_GIT_DIR/cs-precommit-index.XXXXXXXX")
+CS_INDEX_STATUS=$?
+if [ "$CS_INDEX_STATUS" -ne 0 ] || [ -z "$CS_INDEX_SNAP" ]; then
+    CS_INDEX_SNAP=""
+    die "the index snapshot could not be created in the git dir (mktemp exit $CS_INDEX_STATUS)." \
+        "Without a snapshot the gate cannot grade exactly what git commits (CS-955)." \
+        "The commit is BLOCKED: an ungraded snapshot is not a graded index."
+fi
+CS_INDEX_SRC=${GIT_INDEX_FILE:-}
+if [ -z "$CS_INDEX_SRC" ]; then
+    CS_INDEX_SRC=$(git rev-parse --git-path index)
+    CS_INDEX_STATUS=$?
+    if [ "$CS_INDEX_STATUS" -ne 0 ] || [ -z "$CS_INDEX_SRC" ]; then
+        die "the index git will commit could not be located (git exit $CS_INDEX_STATUS)." \
+            "Without a snapshot the gate cannot grade exactly what git commits (CS-955)." \
+            "The commit is BLOCKED: an ungraded snapshot is not a graded index."
+    fi
+fi
+if ! cp -- "$CS_INDEX_SRC" "$CS_INDEX_SNAP"; then
+    die "the index could not be copied into its snapshot." \
+        "Without a snapshot the gate cannot grade exactly what git commits (CS-955)." \
+        "The commit is BLOCKED: an ungraded snapshot is not a graded index."
+fi
+CS_INDEX_RAW=$(GIT_INDEX_FILE="$CS_INDEX_SNAP" git ls-files -s --debug)
+CS_INDEX_STATUS=$?
+if [ "$CS_INDEX_STATUS" -ne 0 ]; then
+    die "the index snapshot could not be listed before the gate ran (git exit $CS_INDEX_STATUS)." \
+        "Without that listing a stage landing mid-hook cannot be detected (CS-955)." \
+        "The commit is BLOCKED: an unlisted index is not a graded index."
+fi
+CS_INDEX_BEFORE=$(cs_index_view "$CS_INDEX_RAW")
+CS_INDEX_STATUS=$?
+cs_index_view_or_die "first snapshot" "$CS_INDEX_RAW" "$CS_INDEX_BEFORE"
+
+CS_GATE_OUT=$(GIT_INDEX_FILE="$CS_INDEX_SNAP"; export GIT_INDEX_FILE; cs_python "$GATE" --staged)
 STATUS=$?
 
 # RE-EMITTED BEFORE ANY DECISION IS TAKEN, so the gate's own stdout reaches the
@@ -439,5 +614,43 @@ case "$CS_GATE_LAST" in
             "The commit is BLOCKED: an unrun gate is not a passed gate."
         ;;
 esac
+
+# CS-955: THE SECOND AND THIRD LISTINGS, taken only once the gate is proven to
+# have run and passed. The snapshot must still list what it listed before the
+# gate, and the live index git will commit must list exactly the same. See the
+# block above the gate for why.
+CS_INDEX_RAW=$(GIT_INDEX_FILE="$CS_INDEX_SNAP" git ls-files -s --debug)
+CS_INDEX_STATUS=$?
+if [ "$CS_INDEX_STATUS" -ne 0 ]; then
+    die "the index snapshot could not be listed after the gate ran (git exit $CS_INDEX_STATUS)." \
+        "Without that listing a change under the gate cannot be detected (CS-955)." \
+        "The commit is BLOCKED: an unlisted index is not a graded index."
+fi
+CS_INDEX_AFTER=$(cs_index_view "$CS_INDEX_RAW")
+CS_INDEX_STATUS=$?
+cs_index_view_or_die "second snapshot" "$CS_INDEX_RAW" "$CS_INDEX_AFTER"
+CS_INDEX_RAW=$(git ls-files -s --debug)
+CS_INDEX_STATUS=$?
+if [ "$CS_INDEX_STATUS" -ne 0 ]; then
+    die "the index could not be listed after the gate ran (git exit $CS_INDEX_STATUS)." \
+        "Without that listing a stage landing mid-hook cannot be detected (CS-955)." \
+        "The commit is BLOCKED: an unlisted index is not a graded index."
+fi
+CS_INDEX_LIVE=$(cs_index_view "$CS_INDEX_RAW")
+CS_INDEX_STATUS=$?
+cs_index_view_or_die "live" "$CS_INDEX_RAW" "$CS_INDEX_LIVE"
+if [ "$CS_INDEX_AFTER" != "$CS_INDEX_BEFORE" ]; then
+    die "the SNAPSHOT the gate graded changed while the gate ran." \
+        "Something wrote into the private copy of the index the gate was reading," \
+        "so what it graded is not one index (CS-955)." \
+        "The commit is BLOCKED: an index that moved under the gate is not graded."
+fi
+if [ "$CS_INDEX_LIVE" != "$CS_INDEX_BEFORE" ]; then
+    die "the index MOVED while the gate ran, so it is not the index the gate graded." \
+        "Something staged, unstaged or re-staged a path after the hook copied the" \
+        "index for the gate, and git would commit the moved index ungraded (CS-955)." \
+        "Let whatever else is staging finish, then run the commit again." \
+        "The commit is BLOCKED: an index that moved under the gate is not graded."
+fi
 
 exit 0
