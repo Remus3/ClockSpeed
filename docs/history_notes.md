@@ -24,6 +24,29 @@ Where current truth actually lives:
 | Commands and runbooks | `docs/OPERATIONS.md` |
 
 
+## CS-704 - item section, CLOSED and relocated from `docs/item_notes/phase7.md` 2026-09-25
+
+**Moved here from `docs/item_notes/phase7.md` when the item closed.**
+The closure record is in `docs/LEDGER.md`.
+
+## CS-704
+
+### NOTE - relocated from `ROADMAP.md` 2026-08-23
+
+NOTE: filed 2026-08-22 (session 31). Detail in this file under **CS-704 - detail**; read it before taking this item.
+
+### detail - relocated from `docs/history_notes.md` 2026-08-23
+
+Relocated from `ROADMAP.md` 2026-08-22 (session 31) for budget, not deleted. The item itself
+stays OPEN in `ROADMAP.md`.
+
+filed 2026-08-22 (session 31) by the CS-702 bypass adversary, each route confirmed with a real commit. `git rebase` on BOTH backends, `git am`, `git cherry-pick`, `git revert` and `git commit --no-verify` all land a trailer git itself recognises while the hook stays silent - `git revert` was MISSED by the first enumeration and found later by an adversary, which is worth noting because it is a sequencer sibling of cherry-pick and the list was built by naming routes rather than by asking which hooks each route fires, and an unbootstrapped fresh clone runs no hook at all because `core.hooksPath` is machine-local and is never cloned. Remapping `core.commentChar` or `core.commentString` also defeats the comment-stripping premise. REBASE IS MORE ROUTINE THAN CHERRY-PICK in a worktree-slice workflow, so this class is reachable by accident rather than by evasion. CS-702 is forward-only and single-command by construction; this is the class it cannot cover. A range scan on pre-push or a check on the CI side is the route, and the first **NEEDS A FROZEN-FILE GRANT for `.githooks/pre-push`**.
+
+### Acceptance
+
+a trailer reaching `main` is caught by something that is not the commit-msg hook, proven by replaying a trailer-bearing commit through each named route and asserting each is caught
+
+
 ## CS-813 - item section, CLOSED and relocated from `docs/item_notes/phase7.md` 2026-09-25
 
 **Moved here from `docs/item_notes/phase7.md` when the item closed.**

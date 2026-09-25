@@ -444,6 +444,7 @@ tests/test_tmp_path_privacy.py	authored	CS-428	first-add:CS-428
 tests/test_tmp_retention.py	authored	CS-946	first-add:CS-946
 tests/test_toolpath.py	authored	CS-910	first-add:CS-910
 tests/test_trailer_census.py	authored	CS-1183	stamped
+tests/test_trailer_routes.py	authored	CS-704	stamped
 tests/test_truncation_conditions_block.py	authored	CS-1105	first-add:CS-1105
 tests/test_unregistered_lift.py	authored	CS-1165	first-add:CS-1165
 tests/test_verify_env.py	authored	CS-1165	first-add:root

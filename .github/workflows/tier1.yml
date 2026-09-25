@@ -425,6 +425,7 @@ jobs:
           --ignore=tests/test_commit_msg_control_bytes.py
           --ignore=tests/test_pre_push_suite_floor.py
           --ignore=tests/test_precommit_index_race.py
+          --ignore=tests/test_trailer_routes.py
           -q -n auto --dist loadfile
           --durations=15 --durations-min=5.0
 
@@ -578,8 +579,14 @@ jobs:
       - name: Record the start
         run: echo "TIER1_STARTED=$(date +%s)" >> "$GITHUB_ENV"
 
+      # FULL HISTORY IN THIS JOB ONLY, for the trailer census step below (CS-704):
+      # its ancestor check needs the pinned baseline in the object store, and a
+      # shallow checkout holds one commit. The other jobs stay shallow - they gate
+      # the working tree, and history is tier 3's job.
       - name: Checkout
         uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
 
       - name: Set up Python
         uses: actions/setup-python@v6
@@ -590,6 +597,66 @@ jobs:
 
       - name: Install toolchain
         run: python -m pip install -e ".[dev]"
+
+      # -- THE TRAILER CENSUS, AND WHY IT LIVES IN CI (CS-704). --
+      #
+      # .githooks/commit-msg refuses the agent co-authorship trailer only on the
+      # commands that fire it. rebase on both backends, am, cherry-pick, revert,
+      # commit --no-verify, a fresh clone nobody bootstrapped, and a remapped
+      # core.commentChar or core.commentString each land one it never sees. The
+      # 2026-09-25 grant in docs/LEDGER.md DENIED a pre-push route and put the
+      # catcher here, where no local configuration can skip it.
+      #
+      # THE COUNT IS NOT COMPUTED HERE. tools/trailer_census.py is the only
+      # implementation of the shape, which docs/item_notes/phase7.md owns under
+      # THE TRAILER-SHAPED CENSUS. This step only frames the range and reads the
+      # exit code: any non-zero - a hit, or a census that could not run - fails.
+      #
+      # THE BASELINE MUST BE AN ANCESTOR, and a rewrite past it (S7a) makes this
+      # red until the pin moves - that is the point. Absent and not-an-ancestor
+      # are refused under different names, because the repairs differ.
+      #
+      # THE EMPTY RANGE IS DECIDED, NOT INHERITED. With the ancestor check
+      # passed, baseline..HEAD is empty ONLY when HEAD is the baseline, which is
+      # answered by name. --allow-empty is NEVER passed, so any other zero-commit
+      # walk keeps the census's refusal. (No push reaches that branch today: the
+      # baseline's own tree carries no such step.)
+      #
+      # WHY THIS JOB. Read from the jobs API on runs 36165968009 and 36159442880:
+      # this shard finished at 290s and 285s while the catch-all read 466s and
+      # 478s and the hook shard 384s and 476s. The census walks tens of commits
+      # and the full fetch of a small pack adds seconds, so the one leg with
+      # room carries it. tests/test_trailer_routes.py EXECUTES this step's text,
+      # read from here by a YAML parse, against every route above.
+      - name: Trailer census since the baseline
+        run: |
+          BASELINE=c6f36874194aeed450c6d75a93be883f72c8f45e
+          ANCESTOR=0
+          git merge-base --is-ancestor "$BASELINE" HEAD || ANCESTOR=$?
+          case "$ANCESTOR" in
+            0) ;;
+            1)
+              echo "FAIL: the trailer baseline ${BASELINE} is not an ancestor of HEAD."
+              echo "History was rewritten past it or this branch never held it; re-pin it."
+              exit 1
+              ;;
+            *)
+              echo "FAIL: the trailer baseline ${BASELINE} is absent from this checkout."
+              echo "A shallow checkout or a rewritten history cannot be censused from it."
+              exit 1
+              ;;
+          esac
+          if [ "$(git rev-parse HEAD)" = "$BASELINE" ]; then
+            echo "HEAD is the baseline itself: no commit follows it, so none is censused."
+            exit 0
+          fi
+          CENSUS=0
+          python tools/trailer_census.py "${BASELINE}..HEAD" || CENSUS=$?
+          if [ "$CENSUS" -ne 0 ]; then
+            echo "FAIL: the trailer census exited ${CENSUS} over ${BASELINE}..HEAD."
+            echo "1 is a trailer-shaped line on a commit named above; 2 is a census that could not run."
+            exit 1
+          fi
 
       # THE FREE RIDER (CS-1073), AND IT IS A DIAGNOSTIC ECHO RATHER THAN A GATE.
       # Nothing in this lane, in tools/ or in ops/loop/ may read its value. The
@@ -616,6 +683,10 @@ jobs:
       # drives a shipped hook. The reasons are stated at the guard shard below; the
       # job id and name are unchanged, because the lane driver and the tracked
       # readings key on them.
+      #
+      # AND tests/test_trailer_routes.py SINCE CS-704, beside the step it grades
+      # and for the reason that step is here: this is the leg with room. It runs
+      # synthetic hooks only, never a shipped one, so it is not hook-shard work.
       #
       # THE ONE `--ignore=` IN THIS LANE IS A DELETION, NOT PARTITION BOOKKEEPING,
       # AND IT IS GOVERNED (CS-1073). Every other ignore in this file sits on the
@@ -654,7 +725,7 @@ jobs:
       # install and no save, exactly what this job demonstrates simultaneously.
       - name: Unit tests
         run: >-
-          python -m pytest tests/test_toolpath.py tests/save
+          python -m pytest tests/test_toolpath.py tests/test_trailer_routes.py tests/save
           -q -n auto --dist loadfile
           --ignore=tests/save/test_phase4_gate.py
           --durations=15 --durations-min=5.0

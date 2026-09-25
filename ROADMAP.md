@@ -320,7 +320,6 @@ CS-1065 - the power endpoint serves `variable_power_inputs` and nothing else, so
 ## Phase 7 - public flip gate
 
 CS-701 - Resolve the collision between the operator git identity and a world name - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
-CS-704 - The trailer gate is client-side, and six git commands route around it - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-814 - Every git hook inherits the session's live API credentials - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
 CS-815 - `.claude/settings.json` hardcodes its interpreter with no probe - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-700 - Phase 7 gate: the tier-3 flip checklist from CONVENTIONS section 17 - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
