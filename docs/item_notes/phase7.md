@@ -922,8 +922,11 @@ S9: delete and recreate the still-private remote, which holds nothing published,
 S10 again pushes one SHA to an empty remote.
 
 **The halt states are owned by S9's sub-steps, S10b and S12a, filed 2026-09-25 by
-CS-1190;** the three bullets above are now pointers. "Halt before S9" is S9a's halt
-on the old remote. "Halt after S9, before S10" is S9c's pass. "Halt after S10,
+CS-1190;** the three bullets above are now pointers, and the first one is
+CORRECTED here: "nothing outward has happened" is FALSE once S7q part 3 has archived
+the old remote, which is an outward act - reversible, and not one the own-words
+confirmation covers, but outward. "Halt before S9" is S9a's OLD-REMOTE halt, which
+S9a defines directly. "Halt after S9, before S10" is S9c's pass. "Halt after S10,
 before S12" is S10b's halt or S10b's pass. "Resume at S9" above means S9a against
 the recreated repository, under S9a's recreated-repository precondition.
 
@@ -968,8 +971,12 @@ goes in the note, never in a tracked file.
   credentials can read and which exists, returning 200 and a ref list - so an
   expired token or a dead network cannot read as deleted.
 
-  HALT AT S9a: the target is INTACT and private - for the old remote, the "halt
-  before S9" state plus the archive. If the delete was REFUSED and the target reads
+  HALT AT S9a, OLD REMOTE: the old remote exists under its recorded `node_id`,
+  private, archived by S7q part 3 unless the retry below unarchived it, and holding
+  the ref set S7q part 4 recorded; the recreated repository does not exist and
+  nothing is published. HALT AT S9a, RECREATED REPOSITORY: it exists under the
+  `node_id` S9b recorded, private, and its refs are in the evidence bundle. Either
+  way the target is INTACT. If the delete was REFUSED and the target reads
   `archived` true, unarchive it - reversible - read `archived` false back, re-run
   the old-remote precondition because unarchiving reopened it to pushers, and retry
   the delete ONCE. A SECOND REFUSAL, a refusal of an unarchived target, or a ref set
@@ -986,22 +993,29 @@ goes in the note, never in a tracked file.
   the REST read returns 404, with S9a's positive control - NO repository holds the
   name, the old refs exist only in the S3/S4 bundle and the pre-S7a preservation
   bundle, and nothing is published. Resume at S9b; a second refused create is
-  TERMINAL and hands to the operator on the same reasoning as S9a's. A repository
-  that exists though the create reported failure is unasserted: resume at S9c,
-  never at S10.
+  TERMINAL and hands to the operator on the same reasoning as S9a's. HALT AT S9b,
+  UNRECORDED REPOSITORY: a repository holds the name though the create reported
+  failure, so no `node_id` was recorded for it - it is private or public as S9c
+  will measure, and unasserted. Resume by recording its `node_id` now, in the same
+  two families, as S9b's own; then S9c, never S10.
 - **S9c - ASSERT PRIVATE AND EMPTY.** Two families: the authenticated REST read
   returns `private` true and `visibility` private; and an ANONYMOUS read of the
   same endpoint, no credential sent, returns 404 - the outsider's view. Positive
   control for the anonymous family, same pass: the same anonymous request against
   a repository known to be public returns 200, so a blocked network cannot read as
   private. Then the before-S10 half of the tip check above: no ref at all. A pass
-  is the state S10 starts from. HALT AT S9c, PRIVATE BUT NOT EMPTY: a ref arrived
-  that S10 did not push - a pusher escaped the quiesce, or the create initialised.
-  Nothing is published. Re-run S7q part 1's control and part 2, record the escape,
-  and resume at S9a against THIS repository under S9a's recreated-repository
-  precondition. HALT AT S9c, NOT PROVEN PRIVATE: either family reads public, the
-  two disagree, or a positive control failed. All three are the PUBLIC STATE below
-  - uncertainty is not privacy.
+  is the state S10 starts from. HALT AT S9c, UNEXPECTED REF - THE ONE OWNER of a
+  private recreated repository holding any ref the steps run so far did not leave
+  there, found at S9c, at S10b, at S11 or at the check before S12: before S10 any
+  ref at all, from S10 on anything beside the adjudicated head, INCLUDING a probe
+  ref of S10b's that its own delete failed to remove. Nothing is published. Each
+  such halt is recorded in the note as an ESCAPE. The FIRST escape: re-run S7q part
+  1's control and part 2, and resume at S9a against THIS repository under S9a's
+  recreated-repository precondition. A SECOND escape in one flip is TERMINAL and
+  hands to the operator: the quiesce is not holding, and recreating the repository
+  again would not make it hold. HALT AT S9c, NOT PROVEN PRIVATE: either family
+  reads public, the two disagree, or a positive control failed. All three are the
+  PUBLIC STATE below - uncertainty is not privacy.
 
 **THE PUBLIC STATE IS A PUBLICATION EVENT, NOT A RESUMABLE HALT.** It is a
 repository that came up world-readable BEFORE S12 was issued - never the public
@@ -1044,26 +1058,40 @@ which the forge actually does. NOT MEASURED when filed: whether this account's p
 offers rulesets on a private repository.
 
 Controls: (a) both rulesets read back through REST - enforcement active, bypass list
-empty, every name included. (b) REFUSAL PROBES from the flip session, each naming
-the adjudicated SHA and each expected REFUSED: a probe branch, a probe tag, and a
-probe ref in a namespace no ruleset targets. Their positive control is S10's own
-push moments earlier - same credential, same command family, and it landed.
-(c) A mirror clone enumerated as S11 does returns exactly what S10 left: no probe
-landed. A pass is the state S11 starts from.
+empty, every name included. (b) REFUSAL PROBES from the flip session, each pushing
+the adjudicated SHA and each expected REFUSED with a message naming a repository
+rule, never a transport or authentication error: the branch `cs700-probe`, the tag
+`cs700-probe`, and the ref `refs/wip/cs700-probe`. The third probe's namespace is
+chosen because the old remote's `refs/wip` refs prove the forge ACCEPTS pushes
+there, so a refusal is the forge's answer and not a reservation. A forge-reserved
+namespace such as `refs/pull` is NEVER the probe: the forge refuses it whatever
+the rulesets say, so its refusal clears nothing. Even `refs/wip`'s refusal measures
+that one namespace, not every name outside `refs/heads` and `refs/tags`; S12a's
+enumeration still reads them all. POSITIVE CONTROL, SAME PASS, immediately before
+AND immediately after the three probes: a no-op push of the adjudicated SHA to
+`refs/heads/main`, which reaches the forge's receive side with the same credential
+and updates nothing, returns exit 0 and reports the ref up to date - so a dead
+network or an expired token cannot read as a refusal. NOT MEASURED when filed: that
+the forge authenticates a no-op push; a no-op push that exits 0 without reaching it
+would leave the probes UNMEASURED, so the run records the transport trace of the
+control. (c) A mirror clone enumerated as S11 does returns exactly what S10 left:
+no probe landed. A pass is the state S11 starts from.
 
 HALT AT S10b: the recreated remote is private and holds `main` at the adjudicated
-SHA, plus any probe ref that landed; nothing is published. A landed probe ref is
-deleted and the deletion read back by a mirror clone. If the ruleset call was
-refused, or the branch or tag probe LANDED, the window cannot be closed as written:
-that halt is TERMINAL for this run, an in-session adjudicator rules on another
-block - the candidate is archiving the recreated repository, whose interaction with
-S12's visibility change is NOT MEASURED - and that block is measured before it is
-relied on. If only the unmodeled-namespace probe landed, the limit above is real on
-this forge: the note records it, and the flip continues past S10b only on an
-in-session adjudicator's ruling recorded there, with S12a's enumeration as the only
-check on that namespace class - after publication, not before. Any other failure
-resumes at S10b. The rulesets are removed only after S12a passes, and only then may
-the post-S12 ledger commit be pushed.
+SHA, and its rulesets are absent, partial or not yet measured; nothing is published.
+A probe ref that LANDED is deleted by the flip session and the deletion read back by
+a mirror clone; one that will not go is a ref beside the adjudicated head, which S9c
+owns as an UNEXPECTED REF - S10b does not. If the ruleset call was refused, or the
+branch or tag probe LANDED, the window cannot be closed as written: that halt is
+TERMINAL for this run, an in-session adjudicator rules on another block - the
+candidate is archiving the recreated repository, whose interaction with S12's
+visibility change is NOT MEASURED - and that block is measured before it is relied
+on. If only the `refs/wip` probe landed, the limit above is real on this forge: the
+note records it, and the flip continues past S10b only on an in-session
+adjudicator's ruling recorded there, with S12a's enumeration as the only check on
+that namespace class - after publication, not before. Every other S10b failure - a
+ruleset read back wrong, a probe or control unanswered - resumes at S10b. The
+rulesets are removed only inside S12a's pass sequence.
 
 **S11 - Verify by MIRROR CLONE, not by `ls-remote`.** The tip check above runs
 first, and the mirror clone's one head must be the adjudicated SHA. Brief section 2(a) says
@@ -1086,19 +1114,30 @@ repository S12 made from one that came up public at S9b; without it a halt after
 flip that TOOK would read as the PUBLIC STATE and the plan would delete its own
 intended result. Immediately AFTER the call: S9c's anonymous read, same request and
 same positive control, now returns 200; a fresh mirror clone runs S11's enumeration
-in full; S10b's rulesets read back as S10b left them. A pass completes the flip:
-then S10b's rulesets are removed and read back gone, then the post-S12 ledger commit
-is pushed, then S7q lifts.
+in full; S10b's rulesets read back as S10b left them. A pass starts the CLOSING
+SEQUENCE, three acts in order, each recorded in the note before it is issued:
+(i) S10b's rulesets are removed and read back gone; (ii) the post-S12 ledger commit,
+whose SHA and whose single parent - the adjudicated SHA - are recorded first, is
+pushed to `main`; (iii) S7q lifts. The EXPECTED HEAD is the adjudicated SHA until
+act (ii) is recorded issued, and from then on either the adjudicated SHA or the
+recorded ledger commit - both are legitimate until (ii) is read back landed.
 
 HALT AT S12a, FLIP DID NOT TAKE: the anonymous read still returns 404 with its
 positive control passing - the remote is private and unchanged, nothing is
 published, and the resume is S12's tip check under a new confirmation. HALT AT
-S12a, STRAY REF: any ref beside the one adjudicated head is PUBLISHED. It is a
-POST-PUBLICATION EVENT, never a silent pass: record it and its window in the note,
-fetch it into an evidence bundle, scan its reachable history on S1's axes, and put
-the scan result in `docs/LEDGER.md` in the post-S12 commit. Its removal - which
-needs the deletion rule lifted for that one act - is an in-session adjudicator's
-ruling, and the rulesets stay in place until it is made.
+S12a, INSIDE THE CLOSING SEQUENCE: the repository is public, holds exactly the
+expected head and nothing else, and the note shows which acts were issued. The
+reads settle each issued act - rulesets present or gone, `main` at the adjudicated
+SHA or at the recorded ledger commit - and the resume is the FIRST act they do not
+show done; act (i) and act (ii) are each idempotent against those reads, so
+re-issuing one that took is never needed. HALT AT S12a, STRAY REF: any ref beside
+the expected head is PUBLISHED - including one that landed after act (i) removed
+the rulesets. It is a POST-PUBLICATION EVENT, never a silent pass: record it and its
+window in the note, fetch it into an evidence bundle, scan its reachable history on
+S1's axes, and put the scan result in `docs/LEDGER.md` in the post-S12 commit. Its
+removal is an in-session adjudicator's ruling - which, while the rulesets stand,
+needs the deletion rule lifted for that one act - and the closing sequence does not
+advance past the act it halted at until that ruling is made.
 
 **RESUME FROM THE MEASURED STATE, NEVER THE REMEMBERED ONE, filed 2026-09-25 by
 CS-1190.** Any resume from S9 on first measures: the REST read and its `node_id`,
@@ -1106,17 +1145,25 @@ S9c's two families, a mirror clone enumerated as S11 does, the rulesets read bac
 and the note's S12 issuing record. The facts select exactly one owned state, and
 the resume is that state's own rule; this paragraph restates none of them:
 
-- the old remote's recorded `node_id` reads back - S9a's halt;
+- the old remote's recorded `node_id` reads back - S9a's OLD-REMOTE halt;
 - no repository holds the name - S9b's halt;
+- a repository whose `node_id` the note does not record - S9b's UNRECORDED
+  REPOSITORY halt;
 - the recreated `node_id`, S12 not issued, not proven private - the PUBLIC STATE;
-- the recreated `node_id`, S12 issued - S12a, pass or halt as its reads say;
-- the recreated `node_id`, private, no ref - S9c's pass;
-- private, exactly the adjudicated head, rulesets not as S10b left them - S10b's
-  halt;
-- private, exactly the adjudicated head, rulesets as S10b left them, and the note
+- the recreated `node_id`, S12 issued, S7q's lift recorded done - the flip is
+  complete and there is nothing to resume;
+- the recreated `node_id`, S12 issued, anything else - S12a, whose four outcomes -
+  pass, FLIP DID NOT TAKE, INSIDE THE CLOSING SEQUENCE, STRAY REF - its reads
+  select;
+- the recreated `node_id`, S12 not issued, private, holding any ref the steps run
+  so far did not leave - S9c's UNEXPECTED REF halt, the one owner of that state;
+- the recreated `node_id`, S12 not issued, private, no ref - S9c's pass;
+- the recreated `node_id`, S12 not issued, private, exactly the adjudicated head,
+  rulesets not as S10b left them - S10b's halt;
+- the recreated `node_id`, S12 not issued, private, exactly the adjudicated head,
+  rulesets as S10b left them, and the note
   recording S10b's controls passed or the adjudicator's ruling on its limit -
-  S10b's pass;
-- private, holding any other ref - S9c's PRIVATE BUT NOT EMPTY halt.
+  S10b's pass.
 
 Facts matching no row, or more than one, are a TERMINAL halt handed to the operator.
 Every resume still needs the new own-words confirmation the halt rule above
