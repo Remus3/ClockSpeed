@@ -2635,10 +2635,114 @@ def test_the_moved_guard_files_run_in_the_guard_shard_and_not_in_the_catch_all()
     assert REBALANCED_TO_SAVE not in guard_targets, (
         f"the {GUARD_JOB_ID!r} shard still names {REBALANCED_TO_SAVE!r}: {guard_targets}"
     )
-    assert REBALANCED_TO_SAVE in save_targets[1:], (
-        f"the {SAVE_JOB_ID!r} shard must name {REBALANCED_TO_SAVE!r} after its first"
-        f" target; it names {save_targets}"
+    # CS-1193 MOVED IT ON AGAIN, to the hook shard, because it drives a real
+    # hook. The arm below pins where it lives now; this one keeps only the half
+    # CS-1173 decided - it is not in the guard shard - and adds that it is not
+    # back in the save shard either, so the file cannot run in two legs.
+    assert REBALANCED_TO_SAVE not in save_targets, (
+        f"the {SAVE_JOB_ID!r} shard still names {REBALANCED_TO_SAVE!r}, which CS-1193 moved"
+        f" to the {HOOK_JOB_ID!r} shard: {save_targets}"
     )
+
+
+#: The fourth shard CS-1193 added, by the adjudicated route (A) of the wave-3
+#: CI route ruling. Its job id; the display name is read by the lane driver.
+HOOK_JOB_ID = "hooks"
+
+#: Named FIRST in the hook shard, as the ruling's condition A2 requires. It is
+#: the file that waits out the hooks' literal probe bound, so under
+#: `--dist loadfile` it must start at t=0 rather than form the tail.
+HOOK_SHARD_FIRST = "tests/test_hook_probe_bound.py"
+
+#: Every file that DRIVES A SHIPPED HOOK - installs `.githooks/<hook>` into a
+#: throwaway repo and runs it through a real git command, or runs the hook file
+#: itself. Sleep- and subprocess-bound work, the part of the lane least sensitive
+#: to the bimodal runner, which is why the ruling isolated it. Enumerated by what
+#: each file EXERCISES, not by its name: tests/test_hook_file_mode.py (a static
+#: mode check), tests/test_install_hooks.py and tests/test_git_env_scrub.py (both
+#: run synthetic hooks, never the shipped ones) stay where they were.
+HOOK_DRIVING_FILES = (
+    HOOK_SHARD_FIRST,
+    "tests/test_hook_interpreter_ladder.py",
+    "tests/test_commit_msg_gate.py",
+    "tests/test_precommit_gate.py",
+    "tests/test_pre_push_ref_race.py",
+    "tests/test_hook_toolchain.py",
+    "tests/test_precommit_gate_lint_cwd.py",
+)
+
+#: The ruling's condition A5: the fast shard still projects into the warn band
+#: on a slow runner once the hook files leave it, so the hook shard's headroom
+#: is filled from the fast shard's heaviest CPU-bound files, heaviest first,
+#: rather than from the guard shard that tools/tier1_growth.py already pins in
+#: BUDGET_UNMET. CI durations, run 36130961603: 69.37s, 23.92s and 27.46s for
+#: their heaviest single test.
+HOOK_SHARD_FILL = (
+    "tests/test_canary_population_forced.py",
+    "tests/test_cs1175_rule_narrowing.py",
+    "tests/test_citation_tables.py",
+)
+
+
+def test_the_hook_driving_files_run_in_the_hook_shard_and_nowhere_else() -> None:
+    """CS-1193 - the catch-all read over its ceiling, and the hook files were why.
+
+    Run 36130961603 read the catch-all at 509s against a 480s ceiling. The new
+    offender was tests/test_hook_probe_bound.py, which waits out the hooks'
+    literal probe bound on every refusal arm - sleep, not CPU, so it costs the
+    same on every runner and all of it on ONE worker under loadfile. The ruling
+    took route (A): a fourth job carrying every file that drives a shipped
+    hook, plus the fast shard's heaviest CPU-bound files as fill. No level
+    moved and no test was dropped: the partition arm still proves every file
+    runs in exactly one leg, and this arm pins WHICH leg.
+    """
+    shards = suite_shards()
+    for job_id in (JOB_ID, HOOK_JOB_ID):
+        assert job_id in shards, f"no {job_id!r} shard runs {SUITE_STEP!r}: {sorted(shards)}"
+    hook_targets = shard_targets(shards[HOOK_JOB_ID])
+    assert hook_targets[:1] == [HOOK_SHARD_FIRST], (
+        f"the {HOOK_JOB_ID!r} shard must name {HOOK_SHARD_FIRST!r} FIRST so loadfile"
+        f" starts its bound-waiting arms at once; it names {hook_targets}"
+    )
+    expected = [*HOOK_DRIVING_FILES, *HOOK_SHARD_FILL]
+    missing = [path for path in expected if path not in hook_targets]
+    assert missing == [], (
+        f"the {HOOK_JOB_ID!r} shard does not name {missing}, so the shard CS-1193"
+        f" relieved is carrying them again: {hook_targets}"
+    )
+    elsewhere = sorted(
+        f"{path} in {job_id}"
+        for job_id, tokens in shards.items()
+        if job_id != HOOK_JOB_ID
+        for path in shard_targets(tokens)
+        if path in expected
+    )
+    assert elsewhere == [], f"{elsewhere}; a moved file named by two shards runs twice"
+    catch_all_ignores = shard_ignores(shards[JOB_ID])
+    not_ignored = [path for path in expected if IGNORE_PREFIX + path not in catch_all_ignores]
+    assert not_ignored == [], (
+        f"the {JOB_ID!r} shard still runs {not_ignored}; a moved file it does not"
+        f" ignore runs twice: {catch_all_ignores}"
+    )
+
+
+def test_every_path_a_shard_names_exists_in_the_tree() -> None:
+    """A target that does not exist is not a claim, it is a red CI run.
+
+    pytest refuses a missing target with `file or directory not found` and
+    exits 4, so a shard naming a file that has not landed yet turns the lane
+    red on a runner rather than here. The partition arm cannot see it: a
+    missing target and its matching ignore still pair up one for one. So a
+    file on its way in from another slice is named at MERGE, once it exists,
+    and never ahead of it.
+    """
+    absent = sorted(
+        f"{path} in {job_id}"
+        for job_id, tokens in suite_shards().items()
+        for path in shard_targets(tokens)
+        if not (REPO_ROOT / path).exists()
+    )
+    assert absent == [], f"{absent}; pytest exits 4 on a target that is not there"
 
 
 def test_no_shard_narrows_itself_by_any_route_the_ignore_list_cannot_name() -> None:

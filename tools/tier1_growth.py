@@ -186,6 +186,30 @@ ORDERING_UNMET = ("gates, lint, types, tests",)
 # lane is the move CS-896 exists to refuse.
 BUDGET_UNMET = ("tests (guard shard)",)
 
+# EVERY DECLARED JOB THAT IS NEW AND STILL UNDER THE READING FLOOR (CS-1193).
+#
+# A job added to the workflow has no readings, so the floor above reddens the
+# shipped-record arm and the pre-push hook on the very commit that adds it -
+# before CI has had a chance to produce a single reading. The floor is NOT
+# lowered for it; it is waived for the jobs named here, and for NOTHING else:
+#
+#   - only the reading-floor offence, in both of its forms - a job the record
+#     does not hold at all has zero readings, and one it holds may have fewer
+#     than the floor. A breach, a jitter past the ratchet or a malformed row on
+#     a pending job is graded exactly as on any other.
+#   - only the jobs named. Every other declared job keeps its floor.
+#
+# THE SET IS A TWO-WAY RATCHET, like the two above, and it is graded in the tool
+# rather than only in a test. A name whose job has REACHED the floor is red in
+# `grade`, which forces this literal down at the refresh that records its fifth
+# green reading; a name the workflow does not declare is red in `grade_tree`,
+# through `pending_undeclared`. That direction sits on the TREE and not in
+# `grade` for the reason the two sets above are intersected with the declared
+# jobs there: a synthetic workflow must be graded on its own jobs, and an
+# offence it cannot avoid would make every negative arm over one pass vacuously.
+# Basis: the wave-3 CI route ruling, condition A3.
+PENDING_READINGS = ("tests (hook shard)",)
+
 # THE CRASH THRESHOLD, AND WHAT IT IS NOT. A tier1 job that dies on a syntax
 # error or a missing dependency concludes in a couple of seconds, and the
 # shipped record carries several such rows.
@@ -724,11 +748,57 @@ def _window_offences(record: dict[str, Any], found: dict[str, list[Reading]]) ->
     return offences
 
 
+def _floor_offences(
+    declared: Sequence[str],
+    recorded_names: set[str],
+    found: dict[str, list[Reading]],
+    pending: Sequence[str],
+) -> list[str]:
+    """The reading floor, per declared job, with the pending set's one waiver.
+
+    THE PENDING SET IS READ AGAINST THE DECLARED JOBS, as the two pinned sets
+    are in :func:`grade`, so a synthetic workflow is graded on its own jobs
+    alone. The set's OTHER direction - a name the workflow does not declare -
+    is a fact about the shipped pin, and :func:`pending_undeclared` grades it
+    for the tree.
+
+    Args:
+        declared: Every job the workflow declares.
+        recorded_names: Every job name the record carries a row for.
+        found: The readings, by job.
+        pending: The pinned pending set.
+
+    Returns:
+        Every floor offence, in declaration order.
+    """
+    offences = []
+    for name in declared:
+        count = len(found.get(name, []))
+        if name in pending:
+            # THE ONLY OFFENCE THE PENDING SET WAIVES IS THE FLOOR, so the one
+            # thing graded here is the closing direction of its ratchet.
+            if count >= MINIMUM_READINGS_PER_JOB:
+                offences.append(
+                    f"{name!r} is pending but has {count} readings, at or over the floor of "
+                    f"{MINIMUM_READINGS_PER_JOB}; drop it from the pending set"
+                )
+            continue
+        if name not in recorded_names:
+            offences.append(f"the workflow declares {name!r}, which the record does not hold")
+            continue
+        if count < MINIMUM_READINGS_PER_JOB:
+            offences.append(
+                f"{name!r} has {count} readings, under the floor of {MINIMUM_READINGS_PER_JOB}"
+            )
+    return offences
+
+
 def grade(
     record: object,
     workflow_text: str,
     unmet: Sequence[str] = ORDERING_UNMET,
     over_budget: Sequence[str] = BUDGET_UNMET,
+    pending: Sequence[str] = PENDING_READINGS,
 ) -> list[str]:
     """Grade one record against one workflow.
 
@@ -739,6 +809,10 @@ def grade(
         over_budget: The pinned set of jobs whose worst reading is over the
             budget. Compared BOTH ways, so an unreported breach and a reported
             compliance are each an offence.
+        pending: The pinned set of NEW jobs whose reading floor is waived. A
+            named job that has reached the floor is an offence here; a name
+            the workflow does not declare is graded by
+            :func:`pending_undeclared`, which :func:`grade_tree` adds.
 
     Returns:
         Every offence, in reading order. Empty means clean.
@@ -767,15 +841,7 @@ def grade(
         f"the record names {name!r}, which the workflow does not declare"
         for name in sorted(recorded_names - set(declared))
     )
-    for name in declared:
-        if name not in recorded_names:
-            offences.append(f"the workflow declares {name!r}, which the record does not hold")
-            continue
-        count = len(found.get(name, []))
-        if count < MINIMUM_READINGS_PER_JOB:
-            offences.append(
-                f"{name!r} has {count} readings, under the floor of {MINIMUM_READINGS_PER_JOB}"
-            )
+    offences.extend(_floor_offences(declared, recorded_names, found, pending))
 
     offences.extend(_window_offences(record, found))
 
@@ -809,6 +875,7 @@ def grade_tree(
     root: Path,
     unmet: Sequence[str] = ORDERING_UNMET,
     over_budget: Sequence[str] = BUDGET_UNMET,
+    pending: Sequence[str] = PENDING_READINGS,
 ) -> list[str]:
     """Grade the tracked record of one checkout.
 
@@ -816,6 +883,7 @@ def grade_tree(
         root: The repository root.
         unmet: The pinned set, passed through to :func:`grade`.
         over_budget: The pinned over-budget set, passed through to :func:`grade`.
+        pending: The pinned pending set, passed through to :func:`grade`.
 
     Returns:
         Every offence. Empty means clean.
@@ -830,12 +898,40 @@ def grade_tree(
         record = json.loads(record_path.read_text(encoding="ascii"))
     except (ValueError, UnicodeDecodeError) as failure:
         return [f"{RECORD_RELATIVE} is not readable as ascii JSON: {_detail(failure)}"]
-    return grade(
+    workflow_text = workflow_path.read_text(encoding="utf-8")
+    offences = grade(
         record,
-        workflow_path.read_text(encoding="utf-8"),
+        workflow_text,
         unmet=unmet,
         over_budget=over_budget,
+        pending=pending,
     )
+    return offences + pending_undeclared(workflow_text, pending)
+
+
+def pending_undeclared(workflow_text: str, pending: Sequence[str] = PENDING_READINGS) -> list[str]:
+    """The pending set's opening direction: every name the workflow does not declare.
+
+    A pending name that matches no declared job exempts nothing today, and it
+    would silently exempt a job added under that name later. So it is an
+    offence, and the name must be removed or corrected.
+
+    Args:
+        workflow_text: The workflow file's text.
+        pending: The pinned pending set.
+
+    Returns:
+        One offence per undeclared name, sorted. An unreadable workflow yields
+        nothing here, because :func:`grade` has already reported it.
+    """
+    try:
+        declared = set(declared_jobs(workflow_text))
+    except ValueError:
+        return []
+    return [
+        f"the pending set names {name!r}, which the workflow does not declare"
+        for name in sorted(set(pending) - declared)
+    ]
 
 
 # ---------------------------------------------------------------------------
@@ -856,6 +952,27 @@ def _seconds(value: Fraction) -> str:
     sign = "-" if value < 0 else "+"
     hundredths = int(abs(value) * 100)
     return f"{sign}{hundredths // 100}.{hundredths % 100:02d}"
+
+
+def _unmeasured_lines(workflow_text: str, found: dict[str, list[Reading]]) -> list[str]:
+    """One report line per declared job the record holds no reading for.
+
+    A DECLARED JOB WITH NO READING IS NAMED TOO, so a new shard is visibly
+    unmeasured rather than absent from the one report watching the lane.
+
+    Args:
+        workflow_text: The workflow file's text.
+        found: The readings, by job.
+
+    Returns:
+        The lines, sorted by job; empty when the workflow is unreadable, which
+        the caller has already reported.
+    """
+    try:
+        declared = declared_jobs(workflow_text)
+    except ValueError:
+        return []
+    return [f"  {job}: n=0, no reading measured" for job in sorted(set(declared) - set(found))]
 
 
 def report(record: object, workflow_text: str) -> str:
@@ -906,6 +1023,7 @@ def report(record: object, workflow_text: str) -> str:
         else:
             level = "budget covers it"
         lines.append(f"  {job}: n={len(durations)}, worst {worst}s, {growth}, {verdict}, {level}")
+    lines.extend(_unmeasured_lines(workflow_text, found))
     unmet = ordering_unmet(record, workflow_text)
     if unmet:
         lines.append(

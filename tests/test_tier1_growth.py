@@ -103,6 +103,16 @@ EXPECTED_ORDERING_UNMET = ("gates, lint, types, tests",)
 #: is red at once and a job that improves out of it is red too.
 EXPECTED_BUDGET_UNMET = ("tests (guard shard)",)
 
+#: THE PENDING RATCHET (CS-1193). Every declared job still under the reading
+#: floor because it is NEW - the hook shard, added by the wave-3 CI route
+#: ruling's route (A). Two-way: a listed job the workflow does not declare is
+#: red, and a listed job that has reached the floor is red, which forces this
+#: literal down at the refresh that records its fifth green reading.
+EXPECTED_PENDING_READINGS = ("tests (hook shard)",)
+
+#: A synthetic second job for the pending arms, beside `_FLAT_JOBS`.
+_NEW_JOB = "a new job"
+
 #: The guard shard's worst SUCCESSFUL reading in the shipped record, and the
 #: margin by which it breaches the shipped budget. Measured rather than
 #: transcribed from prose: the arm below re-derives both off the record.
@@ -315,9 +325,110 @@ def test_the_shipped_record_grades_clean_against_the_shipped_workflow() -> None:
 
 
 def test_the_shipped_record_covers_every_job_the_workflow_expands_to() -> None:
+    """Every declared job is recorded, or pending its first readings - never neither.
+
+    The union is what keeps the pending set from widening this arm: a pending
+    name the workflow does not declare makes the right-hand side larger than
+    the left, so it is red here as well as in the tool.
+    """
     declared = set(TOOL.declared_jobs(WORKFLOW_TEXT))
     recorded = {row["job"] for row in SHIPPED_RECORD["jobs"]}
-    assert declared == recorded
+    assert declared == recorded | set(TOOL.PENDING_READINGS)
+
+
+# ---------------------------------------------------------------------------
+# The pending set - a NEW job's floor exemption, and nothing wider (CS-1193)
+# ---------------------------------------------------------------------------
+
+
+def _pending_case(new_job_durations: list[int]) -> tuple[dict[str, Any], str]:
+    """A green job beside a new one carrying ``new_job_durations`` readings.
+
+    Args:
+        new_job_durations: The new job's durations; empty leaves it unrecorded.
+
+    Returns:
+        The record and a workflow declaring both jobs.
+    """
+    series = {_FLAT_JOBS[0]: _FLAT}
+    if new_job_durations:
+        series[_NEW_JOB] = new_job_durations
+    return _record(series), _workflow(BUDGET, CEILING, (*_FLAT_JOBS, _NEW_JOB))
+
+
+def test_the_pending_set_is_what_this_module_pins() -> None:
+    assert tuple(TOOL.PENDING_READINGS) == EXPECTED_PENDING_READINGS
+
+
+@pytest.mark.parametrize("count", [0, 1, EXPECTED_MINIMUM_READINGS_PER_JOB - 1])
+def test_a_pending_job_under_the_floor_is_exempt_from_the_floor(count: int) -> None:
+    """Zero readings is the floor offence too: an unrecorded job has none at all."""
+    record, workflow = _pending_case(_FLAT[:count])
+    assert any(_NEW_JOB in offence for offence in TOOL.grade(record, workflow, pending=()))
+    assert TOOL.grade(record, workflow, pending=(_NEW_JOB,)) == []
+
+
+def test_a_pending_job_that_reached_the_floor_is_an_offence() -> None:
+    """The ratchet's closing direction: five readings and the name must go."""
+    record, workflow = _pending_case(_FLAT[:EXPECTED_MINIMUM_READINGS_PER_JOB])
+    assert TOOL.grade(record, workflow, pending=()) == []
+    offences = TOOL.grade(record, workflow, pending=(_NEW_JOB,))
+    assert any(_NEW_JOB in offence and "floor" in offence for offence in offences), offences
+
+
+def test_a_pending_job_the_workflow_does_not_declare_is_an_offence(tmp_path: Path) -> None:
+    """The ratchet's other direction: a name that exempts nothing is not kept.
+
+    Graded on the TREE, which is what the entry point and the shipped arm
+    below read, so a stale name cannot pass the tool while the suite is red.
+    """
+    record, workflow = _flat_case()
+    (tmp_path / "tools").mkdir()
+    (tmp_path / ".github" / "workflows").mkdir(parents=True)
+    (tmp_path / TOOL.WORKFLOW_RELATIVE).write_text(workflow, encoding="ascii")
+    (tmp_path / TOOL.RECORD_RELATIVE).write_text(json.dumps(record) + "\n", encoding="ascii")
+    assert TOOL.grade_tree(tmp_path, pending=()) == []
+    offences = TOOL.grade_tree(tmp_path, pending=("ghost job",))
+    assert any("ghost job" in offence for offence in offences), offences
+    assert TOOL.pending_undeclared(workflow, ("ghost job", _FLAT_JOBS[0])) == [
+        "the pending set names 'ghost job', which the workflow does not declare"
+    ]
+
+
+def test_every_shipped_pending_name_is_a_declared_job() -> None:
+    assert TOOL.pending_undeclared(WORKFLOW_TEXT) == []
+
+
+def test_the_pending_exemption_does_not_reach_a_job_it_does_not_name() -> None:
+    record = _record({_FLAT_JOBS[0]: _FLAT[:3]})
+    workflow = _workflow(BUDGET, CEILING, (*_FLAT_JOBS, _NEW_JOB))
+    offences = TOOL.grade(record, workflow, pending=(_NEW_JOB,))
+    assert any(_FLAT_JOBS[0] in offence for offence in offences), offences
+
+
+def test_the_pending_exemption_suppresses_no_other_offence_on_its_own_job() -> None:
+    """Only the reading floor is waived. A breach, a jump or a bad row still reds."""
+    over, workflow = _pending_case(_OVER_BUDGET_FLAT[:3])
+    offences = TOOL.grade(over, workflow, pending=(_NEW_JOB,), over_budget=())
+    assert any(_NEW_JOB in offence and "budget" in offence for offence in offences), offences
+
+    jump = [RATCHET_ARM_FLOOR, RATCHET_ARM_FLOOR + EXPECTED_JITTER_RATCHET_SECONDS + 1]
+    jumped, workflow = _pending_case(jump)
+    offences = TOOL.grade(jumped, workflow, pending=(_NEW_JOB,))
+    assert any("ratchet" in offence and _NEW_JOB in offence for offence in offences), offences
+
+    malformed, workflow = _pending_case(_FLAT[:3])
+    for row in malformed["jobs"]:
+        if row["job"] == _NEW_JOB:
+            row["completed_at"] = _stamp(-30)
+            break
+    assert TOOL.grade(malformed, workflow, pending=(_NEW_JOB,)) != []
+
+
+def test_the_report_names_a_declared_job_that_has_no_reading_yet() -> None:
+    record, workflow = _pending_case([])
+    text = TOOL.report(record, workflow)
+    assert f"{_NEW_JOB}: n=0" in text, text
 
 
 # ---------------------------------------------------------------------------
@@ -713,10 +824,10 @@ def test_main_exits_non_zero_over_a_red_tree_and_zero_over_a_green_one(tmp_path:
     (tmp_path / TOOL.WORKFLOW_RELATIVE).write_text(workflow, encoding="ascii")
     target = tmp_path / TOOL.RECORD_RELATIVE
     target.write_text(json.dumps(record) + "\n", encoding="ascii")
-    assert TOOL.grade_tree(tmp_path, unmet=()) == []
+    assert TOOL.grade_tree(tmp_path, unmet=(), pending=()) == []
     record["jobs"][0]["conclusion"] = "cancelled"
     target.write_text(json.dumps(record) + "\n", encoding="ascii")
-    assert TOOL.grade_tree(tmp_path, unmet=()) != []
+    assert TOOL.grade_tree(tmp_path, unmet=(), pending=()) != []
 
 
 def test_grade_tree_is_red_when_the_record_is_absent(tmp_path: Path) -> None:

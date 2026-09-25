@@ -235,6 +235,7 @@ TIER1_GREEN = (
     ("gates, lint, types, tests", "success"),
     ("tests (save shard)", "success"),
     ("tests (guard shard)", "success"),
+    ("tests (hook shard)", "success"),
 )
 TIER2_GREEN = (
     ("full suite (ubuntu-latest)", "success"),
@@ -482,6 +483,26 @@ def test_a_required_shard_that_was_skipped_is_not_success():
     assert verdict != queue_loop.CI_SUCCESS
     assert verdict == queue_loop.CI_SKIPPED
     assert "tests (guard shard)" in detail
+
+
+def test_the_hook_shard_is_required_and_a_skipped_one_is_not_success():
+    """CS-1193 - the fourth shard is graded, not waved through the grader's tail.
+
+    The same ungraded-shard case as the guard shard's arm above, on the job the
+    wave-3 CI route ruling added. Without its own matcher a skipped hook shard
+    reads as a green tier1 and the lane ships onto a main whose hook-driving
+    tests never ran.
+    """
+    jobs = [
+        (name, "skipped" if name == "tests (hook shard)" else conclusion)
+        for name, conclusion in TIER1_GREEN
+    ]
+    verdict, detail = queue_loop.grade_ci_jobs(queue_loop.CI_TIER1, jobs_payload(jobs))
+    assert verdict == queue_loop.CI_SKIPPED, (verdict, detail)
+    assert "tests (hook shard)" in detail
+    absent = [row for row in TIER1_GREEN if row[0] != "tests (hook shard)"]
+    verdict, detail = queue_loop.grade_ci_jobs(queue_loop.CI_TIER1, jobs_payload(absent))
+    assert verdict == queue_loop.CI_UNAVAILABLE, (verdict, detail)
 
 
 def test_a_required_shard_the_run_never_reached_is_unavailable():
