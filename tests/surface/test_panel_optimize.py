@@ -47,6 +47,7 @@ from clockspeed.solve import optimize, ratio
 from clockspeed.surface import server
 from clockspeed.surface.api import contract, solve
 from tests.surface import panel_harness
+from tests.surface.test_panel_solve import TRUNCATION_CASES, truncated_decimal
 
 if TYPE_CHECKING:
     from collections.abc import Mapping, Sequence
@@ -606,6 +607,39 @@ def test_no_rendered_amount_stands_alone_as_a_decimal(tmp_path: Path) -> None:
     for decimal in decimals:
         at = text.index(decimal)
         assert "display only" in text[at : at + len(decimal) + 20], (decimal, text)
+
+
+def test_every_approximation_is_the_exact_truncation_of_its_pair(tmp_path: Path) -> None:
+    """CS-1028: this panel's copy of ``approximateDecimal`` is graded for its DIGITS.
+
+    The arms above prove a decimal is labelled and that nothing divides; neither
+    notices a decimal whose digits are wrong, and a digit-corrupting mutant of
+    this copy was measured surviving every arm in this file. The oracle is the
+    solve bench's own table and truncation, imported rather than restated, so
+    one case added there grades every copy. Each pair must render EXACTLY ONCE,
+    so a matching rendering from some other leaf of the body cannot stand in for
+    the row under test.
+    """
+    body = real_body()
+    plan = body["plan"]
+    assert isinstance(plan, dict)
+    plan["targets"] = {
+        f"Desc_Case{index}_C": {"num": num, "den": den}
+        for index, (num, den) in enumerate(TRUNCATION_CASES)
+    }
+    report = drive(
+        tmp_path,
+        panel_harness.null_payload(),
+        steps=[{"press": True}, {"settle": {"call": 0, "outcome": envelope(body)}}],
+    )
+    text = report["steps"][-1]["text"]
+    for num, den in TRUNCATION_CASES:
+        # A digit may not precede the pair, or "120/1" would count as "0/1".
+        opened = re.compile(rf"(?<!\d){num}/{den} \(approx ")
+        renderings = len(opened.findall(text))
+        assert renderings == 1, f"{num}/{den} rendered {renderings} time(s): {text}"
+        rendered = f"{num}/{den} (approx {truncated_decimal(num, den)}, display only)"
+        assert rendered in text, f"expected {rendered!r} on the page: {text}"
 
 
 def test_the_bench_omits_a_blank_backend_rather_than_sending_it_empty(

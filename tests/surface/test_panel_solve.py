@@ -1699,6 +1699,11 @@ def test_the_no_division_arm_would_fire_on_a_module_that_divided(tmp_path: Path)
 #: company with a truncating one. ``22/7`` and ``2/3`` both round UP at the
 #: fourth place, so the ``toFixed`` spelling this repair removed would render
 #: ``3.1429`` and ``0.6667`` and go red here.
+#:
+#: CS-1028: THIS TABLE AND :func:`truncated_decimal` ARE THE ONE DIGIT ORACLE
+#: for every panel copy of ``approximateDecimal``. ``tests/surface/
+#: test_panel_optimize.py`` and ``tests/surface/test_panel_power.py`` import both
+#: rather than restating them, so a case added here grades every copy.
 TRUNCATION_CASES: Final = (
     (1, 8),
     (100, 7),
@@ -1713,15 +1718,16 @@ TRUNCATION_CASES: Final = (
 APPROX_PLACES: Final = 4
 
 
-def _truncated(num: int, den: int) -> str:
+def truncated_decimal(num: int, den: int) -> str:
     """The exact truncation of ``num/den`` to :data:`APPROX_PLACES` places.
 
     Computed with integer arithmetic only. A float here would make the oracle
-    share the defect it exists to catch.
+    share the defect it exists to catch. Floor division truncates only for a
+    non-negative ratio, which every row of :data:`TRUNCATION_CASES` is.
 
     Args:
-        num: The numerator.
-        den: The denominator, non-zero.
+        num: The numerator, non-negative.
+        den: The denominator, positive.
 
     Returns:
         The truncated decimal, always carrying every place.
@@ -1753,7 +1759,7 @@ def test_every_approximation_is_the_exact_truncation_of_its_pair(tmp_path: Path)
     assert report["steps"][-1]["threw"] is None, report["steps"][-1]["threw"]
     text = panel_text(report)
     for num, den in TRUNCATION_CASES:
-        rendered = f"{num}/{den} (approx {_truncated(num, den)}, display only)"
+        rendered = f"{num}/{den} (approx {truncated_decimal(num, den)}, display only)"
         assert rendered in text, f"expected {rendered!r} on the page: {text}"
 
 

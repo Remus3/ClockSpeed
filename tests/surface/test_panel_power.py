@@ -48,6 +48,7 @@ from clockspeed.surface import server
 from clockspeed.surface.api import contract
 from clockspeed.surface.api import power as endpoint
 from tests.surface import panel_harness
+from tests.surface.test_panel_solve import TRUNCATION_CASES, truncated_decimal
 
 if TYPE_CHECKING:
     from collections.abc import Mapping, Sequence
@@ -514,6 +515,42 @@ def test_a_fixed_draw_renders_as_the_exact_pair_and_not_as_a_decimal_alone(
     pair = f"{megawatts['num']}/{megawatts['den']}"
     assert pair in text, text
     assert "display only" in text
+
+
+def test_every_approximation_is_the_exact_truncation_of_its_pair(tmp_path: Path) -> None:
+    """CS-1028: this panel's copy of ``approximateDecimal`` is graded for its DIGITS.
+
+    The arm above proves the pair is there and a decimal is labelled; it does
+    not notice a decimal whose digits are wrong, and a digit-corrupting mutant
+    of this copy was measured surviving every arm in this file. One real body is
+    settled once per case with its declared draw replaced, because each leaf of
+    a power answer is a single rational. The oracle is the solve bench's own
+    table and truncation, imported rather than restated. Each pair must render
+    EXACTLY ONCE, so a matching rendering from another leaf cannot stand in.
+    """
+    from tests.data import synthetic as corpus  # noqa: PLC0415
+
+    steps: list[dict[str, Any]] = []
+    for call, (num, den) in enumerate(TRUNCATION_CASES):
+        body = real_body(building=corpus.BLENDER_BUILDING, clock="1")
+        declared = body["declared"]
+        assert isinstance(declared, dict)
+        declared["megawatts"] = {"num": num, "den": den}
+        steps.append({"press": True})
+        steps.append({"settle": {"call": call, "outcome": envelope(body)}})
+    report = drive(tmp_path, panel_harness.null_payload(), steps=steps)
+    asked = len(report["calls"])
+    assert asked == len(TRUNCATION_CASES), report["calls"]
+
+    settled = [step["text"] for step in report["steps"] if step["kind"] == "settle"]
+    assert len(settled) == len(TRUNCATION_CASES), settled
+    for (num, den), text in zip(TRUNCATION_CASES, settled, strict=True):
+        # A digit may not precede the pair, or "120/1" would count as "0/1".
+        opened = re.compile(rf"(?<!\d){num}/{den} \(approx ")
+        renderings = len(opened.findall(text))
+        assert renderings == 1, f"{num}/{den} rendered {renderings} time(s): {text}"
+        rendered = f"megawatts: {num}/{den} (approx {truncated_decimal(num, den)}, display only)"
+        assert rendered in text, f"expected {rendered!r} on the page: {text}"
 
 
 def test_an_unmodeled_draw_is_never_rendered_as_a_zero(tmp_path: Path) -> None:
