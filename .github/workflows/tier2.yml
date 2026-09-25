@@ -881,47 +881,32 @@ jobs:
           exit "$FLOOR"
 
 # =============================================================================
-# TIER 3 - THE VISIBILITY-FLIP GATE. NOT BUILT YET, AND NOT AN OVERSIGHT.
+# TIER 3 - THE VISIBILITY-FLIP GATE. IT RUNS LOCALLY, BY HAND - ADR 0025.
 #
-# There is no .github/workflows/tier3.yml on purpose. Tier 3 is the manual
-# pre-flip gate (CONVENTIONS.md section 17, BOOTSTRAP.md section 10 phase 7) and
-# it is not due until phase 7. Creating it early invites it to be run, passed
-# synthetically, and treated as satisfied - which is precisely the failure mode
-# CONVENTIONS.md section 4 names: "gated items are never closed synthetically".
-# The repo is private first, public later; the flip is the irreversible step and
-# it gets a real gate at the time, not a placeholder now.
+# There is no .github/workflows/tier3.yml, and ADR 0025 rules there never will
+# be. The seven checks CONVENTIONS.md section 17 lists, plus the CS-1180 trailer
+# axis, run as ONE local entry point, the one ADR 0025 names, against a
+# NAMED ref with --stage s1 or s8.
 #
-# The seven checks that must all pass at the flip (CONVENTIONS.md section 17):
+# Check 2's PII needles are derived from this machine's save header and account
+# directory; a runner has neither, and uploading them as repository secrets
+# would move the personal data the check guards onto the forge. The tool also
+# refuses to run under GitHub Actions.
 #
-#   1. Full-history secret scan. The WHOLE history, not just the working tree -
-#      history is what leaks. A clean tree over a dirty history is the trap.
-#   2. PII scan across all tracked files AND all commit messages. Patterns
-#      include: the numeric platform account id, the Windows account name, any
-#      absolute path under a user home, and the machine name. BOOTSTRAP.md
-#      section 2.2 adds two more that are measured, not hypothetical: the save
-#      header carries the platform account identifier and the player's DISPLAY
-#      NAME as plaintext inside its options string, so both decoded values are
-#      tier-3 scan patterns too.
-#   3. Third-party license audit against CONVENTIONS.md section 14. Read the
-#      copyright LINE, not just the SPDX name; a repo can contradict itself
-#      between its LICENSE file and its manifest.
-#   4. No publisher-owned data assets tracked, in history or in the tree - no
-#      docs JSON, no usmap, no extracted asset, and no .sav. A save file is a
-#      personal-data-bearing artifact (BOOTSTRAP.md section 2.2), so this check
-#      overlaps check 2 and both must run.
-#   5. README.md gets an outsider from zero to a first result.
-#   6. All doc cross-references resolve; no orphaned or stale markdown. Tier 1
-#      already runs the relative-link half of this every push; tier 3 adds the
-#      orphan and staleness sweep and should also validate external URLs, which
-#      tier 1 deliberately does not (a network check would make the fast lane
-#      flaky).
-#   7. A clean-checkout probe passes on a machine that has never seen the
-#      project. The `clean-checkout-probe` job above is the CI approximation and
-#      is NOT a substitute: a runner is not a machine that has never seen the
-#      project in the sense that matters, because the workflow itself supplies
-#      the interpreter and the toolchain.
+# A GREEN RUN DOES NOT CLEAR THE GATE. CS-G03 clears only on an adjudicated
+# docs/LEDGER.md record at the flip SHA that cites a run of the tool at that
+# SHA plus the recorded human-half walks (ADR 0025 decision item 8). That is the
+# answer to the risk this comment used to guard against - a tier-3 job built
+# early, run, passed synthetically and treated as satisfied.
+#
+# Checks 5 and 7 have human halves the tool never runs and reports as
+# NOT-RUN-HERE: the README walk on a machine with no game (CS-1186) and the
+# clean-checkout probe on a machine that has never seen the project (CS-1187),
+# both gated under CS-G08. The `clean-checkout-probe` job above is still NOT a
+# substitute for check 7: a runner is not a machine that has never seen the
+# project, because the workflow itself supplies the interpreter and toolchain.
 #
 # If history turns out to be dirty, CONVENTIONS.md section 17 says the honest fix
-# is a fresh-history public repo, not an incomplete rewrite - and that this is
-# decided before the first commit, because it is far cheaper then.
+# is a fresh-history public repo, not an incomplete rewrite; ADR 0018 records
+# what the flip does instead and why.
 # =============================================================================

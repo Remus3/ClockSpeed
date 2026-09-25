@@ -114,7 +114,7 @@ Consequences, all mandatory:
 - **Any code path that echoes raw header bytes leaks PII** - error messages, debug dumps,
   hex previews, log lines, exception context. The header parser must redact the options
   string by default and require an explicit opt-in flag to render it.
-- Add the decoded display name and account id to the tier-3 CI PII scan patterns.
+- Add the decoded display name and account id to the tier-3 PII scan patterns (run locally - ADR 0025).
 - The world name is operator-chosen and may be anything; treat it as data, never as an
   identifier and never as a filename component in a tracked file.
 

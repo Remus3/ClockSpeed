@@ -75,6 +75,20 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-09-25 - CS-1183 - BOOTSTRAP.md section 2.2 amended under CLAUDE.md section 8. NOT A COMPLETION RECORD. NOTHING CLOSED. CS-1183 STAYS OPEN
+Verification: BOOTSTRAP.md section 2.2 plus tools/flip_checks.py plus
+tests/test_flip_checks.py::test_no_workflow_hook_or_lane_names_the_tool and
+tests/test_trailer_census.py.
+ADR: docs/adr/0025-the-tier-3-flip-checks-run-locally.md
+
+BOOTSTRAP.md section 2.2 amended under CLAUDE.md section 8: "tier-3 CI PII scan patterns"
+became "tier-3 PII scan patterns (run locally - ADR 0025)". Adjudicator ruling D-T3
+(session 113). CONVENTIONS.md section 17's "(CI tier 3)" is NOT edited - ADR 0025 reads it
+as naming the tier, not the executor. Merged files:
+docs/adr/0025-the-tier-3-flip-checks-run-locally.md, tools/trailer_census.py,
+tools/flip_checks.py. Tests: tests/test_trailer_census.py,
+tests/test_flip_checks.py::test_no_workflow_hook_or_lane_names_the_tool.
+
 ### 2026-09-25 - CS-824 - GRANT CLARIFICATION: test-local floor by single-line substitution in sandbox hook copies. NOT A COMPLETION RECORD. NOTHING CLOSED. CS-824 STAYS OPEN
 Verification: this record amends the 2026-09-25 CS-821, CS-824, CS-704 frozen-file grant
 without widening its frozen scope. The adjudicator wrote none of the work and may not close
