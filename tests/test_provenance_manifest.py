@@ -57,14 +57,20 @@ close that:
   continuously after it, across the manifest's own version graph reachable from
   HEAD, walked with ``--full-history`` so no side of a merge is simplified away.
   One forgiveness: a GAP - a version where the row is absent, differs or does
-  not parse - is forgiven when the path's blob at the nearest versions holding
-  the row before it equals its blob at the nearest ones after it (the work tree
-  when none follows). A reverted removal or a fixed typo keeps the bytes and is
-  forgiven; a row a root lacks never is. That names a re-seed by any means (an
-  older tool, a hand edit), a seed-era path that left and came back as a lift
-  with other bytes - the seed regenerates a byte-identical ROW for it, so the
-  rows alone are blind - and a stale branch's own seed merged back, whose rows
-  the main line's seed never held. Rows added later carry ``stamped``.
+  not parse - is forgiven when the path's blob where the gap CLOSES (the first
+  commit holding the row again; the work tree when none has) equals its blob in
+  the git parent of the gap-OPENING commit that still held the row - not at the
+  last manifest version, so an honest edit made before the gap is no
+  difference - or, for a closing merge, in a parent of that merge that kept the
+  row. A reverted removal, a fixed typo, an advised restore and a merged-away
+  side-branch loss keep the bytes and are forgiven; a row a root lacks never is.
+  That names a re-seed by any means (an older tool, a hand edit), a seed-era
+  path that left and came back as a lift with other bytes - the seed
+  regenerates a byte-identical ROW for it, so the rows alone are blind - and a
+  stale branch's own seed merged back, whose rows the main line's seed never
+  held. Rows added later carry ``stamped``. History is read with
+  ``GIT_NO_REPLACE_OBJECTS`` set, so a local ``git replace --graft`` cannot
+  slip a forged root under the seed.
 
 Residuals, stated rather than left to be discovered. The re-seed arm reads
 history, so on a SHALLOW clone - CI's depth-1 checkout - it SKIPS, visibly; the
@@ -75,6 +81,11 @@ refs may honestly hold a row HEAD has since dropped - so an orphan branch whose
 own seed was committed is caught by the tool's all-refs refusal, not here. A
 rewrite that also deletes every ref reaching a manifest leaves nothing to refuse
 on, compare against or restore from; that residual is the tool's, named there.
+NAMED RESIDUAL (R3): delete the manifest, commit an honest edit to a seed-era
+file, then restore the manifest as advised - that file is red for good, because
+a gap closing on bytes other than it opened on is exactly F1's lift, and
+forgiving it would forgive F1. The remedy is to restore the manifest BEFORE
+editing anything, which the missing-manifest messages say.
 Every other arm grades synthetic manifests - in a throwaway git repository
 under ``tmp_path`` and over an in-memory population read from the real index -
 and each mutant is asserted to have LANDED before its verdict is read.
@@ -446,15 +457,20 @@ def _grade(
 
 
 def _git_env() -> dict[str, str]:
-    """Return the environment with every ``GIT_`` variable removed.
+    """Return the environment with every ``GIT_`` variable removed, replace refs off.
 
     The pre-push hook exports ``GIT_DIR``; a child inheriting it would act on
     the REAL repository instead of the one its working directory names.
+    ``GIT_NO_REPLACE_OBJECTS`` is then SET (CS-1176 R1): a local
+    ``git replace --graft`` would otherwise rewrite the history the re-seed arm
+    reads, and graft a forged root under the seed.
 
     Returns:
         A copy of the environment safe to run git in a throwaway tree with.
     """
-    return {key: value for key, value in os.environ.items() if not key.upper().startswith("GIT_")}
+    env = {key: value for key, value in os.environ.items() if not key.upper().startswith("GIT_")}
+    env["GIT_NO_REPLACE_OBJECTS"] = "1"
+    return env
 
 
 def _candidate_paths(root: Path, *, isolated: bool = False) -> list[str]:
@@ -833,6 +849,12 @@ def _reseeded_rows(
     from editing any authored file and is not a re-seed; the near-duplicate arm
     grades those bytes as it grades every edit.
 
+    NAMED RESIDUAL (R3), the other way: delete the manifest, commit an honest
+    edit to a seed-era file, then restore the manifest as advised - that row is
+    red for good. The gap closes on bytes other than those it opened on, which
+    is exactly F1's lift; forgiving it would forgive F1. Restore the manifest
+    BEFORE editing anything; the missing-manifest messages say so.
+
     Args:
         rows: The manifest's rows.
         nodes: The manifest's version DAG, parents before children.
@@ -950,7 +972,8 @@ def _missing_manifest_message(root: Path) -> str:
     ]
     return (
         f"{MANIFEST_RELATIVE} does not exist. Restore the committed manifest with "
-        f"`git checkout {rev} -- {MANIFEST_RELATIVE}`; never re-derive it, which would "
+        f"`git checkout {rev} -- {MANIFEST_RELATIVE}` BEFORE editing any file, or the "
+        f"re-seed arm reads the edit as a lift; never re-derive it, which would "
         f"classify every unlisted file as authored (CS-1176). Against that manifest these "
         f"files have no row: {unlisted}. Classify each with "
         f"`python {STAMP_TOOL} add PATH --class authored|vendored --item CS-NNNN`."
@@ -1441,6 +1464,36 @@ def test_cs1176_a_reseed_after_a_deletion_is_refused_and_the_red_names_the_lift(
     assert f"'{RESEED_LIFT}'" in message, "the missing-manifest red does not name the lift"
     assert f"git checkout {seed} -- {MANIFEST_RELATIVE}" in message
     assert "bootstrap" not in message
+
+
+def test_cs1176_r1_a_replace_graft_cannot_hide_a_reseed(
+    seeded_repo: tuple[Path, str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # R1: commit a forced re-seed, then graft the seed onto a forged root whose
+    # manifest already holds the lift row. With replace objects honoured, the
+    # forged root becomes the only root and the lift reads as continuous.
+    root, seed = seeded_repo
+    _delete_manifest_and_commit_a_lift(root)
+    monkeypatch.setattr(_stamp_tool(), "last_committed_manifest", lambda _root: None)
+    assert _tool(root, "bootstrap") == 0, "the blinded seed did not run"
+    _git(root, "add", "--", MANIFEST_RELATIVE)
+    reseeded = _commit(root, "CS-1165 - commit the re-seed")
+    tree = _git(root, "rev-parse", f"{reseeded}^{{tree}}").strip()
+    forged = _git(
+        root,
+        "-c",
+        "user.name=fixture",
+        "-c",
+        "user.email=fixture@example.invalid",
+        "commit-tree",
+        tree,
+        "-m",
+        "CS-1165 - a forged root",
+    ).strip()
+    before = _git(root, "rev-parse", f"{seed}^").strip()
+    _git(root, "replace", "--graft", seed, before, forged)
+    assert _git(root, "replace", "-l").strip(), "R1 never landed: no replace ref"
+    assert _reseed_grade(root).findings == [f"{RESEED_LIFT} (first-add:CS-1165)"]
 
 
 def test_cs1176_a_forced_reseed_passes_every_other_arm_but_is_named(

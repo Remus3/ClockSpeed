@@ -200,12 +200,17 @@ class RefusalError(Exception):
 
 
 def _child_env() -> dict[str, str]:
-    """Return a copy of the environment with every git relocating variable removed."""
+    """Return a copy of the environment with every git relocating variable removed.
+
+    ``GIT_NO_REPLACE_OBJECTS`` is set (CS-1176 R1), so a local
+    ``git replace --graft`` cannot rewrite the history the refusal reads.
+    """
     env = dict(os.environ)
     for name in list(env):
         folded = name.upper()
         if folded in _GIT_RELOCATING or folded.startswith(_GIT_RELOCATING_PREFIXES):
             del env[name]
+    env["GIT_NO_REPLACE_OBJECTS"] = "1"
     return env
 
 
@@ -313,7 +318,8 @@ def restore_advice(root: Path) -> str:
             f" never re-derive it (CS-1176){truncated}"
         )
     return (
-        f"restore the committed manifest with `git checkout {rev} -- {MANIFEST_RELATIVE}`;"
+        f"restore the committed manifest with `git checkout {rev} -- {MANIFEST_RELATIVE}`"
+        " BEFORE editing any file, or the re-seed arm reads the edit as a lift;"
         " never re-derive it, which would classify every unstamped file as authored"
         f" (CS-1176){truncated}"
     )
