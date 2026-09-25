@@ -53,9 +53,18 @@ populations that disagree and five schedules to forget.
 **This tree's credential scans read exactly the bytes this repository can PUBLISH. The
 boundary is publication, not location.** A byte is in scope if and only if it can leave
 through one of this repository's own publication paths: a commit and the push that
-carries it, or an outbound note this tree sends. So the populations are the git index
-population - the staged set at commit, the tracked set and the reachable history on sweep
-- and the outbound payload at send. No directory is named, because the rule names none.
+carries it, an outbound note this tree sends, or the CI run log a push produces. So the
+populations are the git index population - the staged set at commit, the tracked set and
+the reachable history on sweep - the outbound payload at send, and the rendered test
+report. No directory is named, because the rule names none.
+
+**THE CI RUN LOG IS A PUBLICATION PATH, AND ITS SCAN IS THE RENDER PATH.** What CI prints
+while it grades a pushed tree is published with the run, and its bytes are made from the
+tracked tree PLUS the runner's environment - which is where a credential that was never
+in any file reaches the log. No file sweep can read those bytes before they exist, so the
+scan that owns this population is the report redaction every test run passes through,
+`tests/conftest.py::redact_report`, applied to each failure report, its captured output
+and each collected item's id before pytest renders them.
 
 **WHAT STAYS INVISIBLE, AND WHY - stated rather than left to be discovered:**
 
@@ -90,6 +99,8 @@ item does not wait on the note being answered.
   the new boundary, an arm reporting a plant OUTSIDE it as NOT COVERED rather than passing
   silently, a control proving the staged set is still read, and a MEASURED cost.
 - **Revisit if a premise changes:** if this repository gains a publication path that is
-  not a commit or an outbound note - an uploaded artifact, a release asset, a published
-  page built from the working tree - that path's bytes join the population under the same
-  rule, and the scan that reads them is owed before the path ships.
+  not a commit, an outbound note or a CI run log - an uploaded artifact, a release asset,
+  a published page built from the working tree - that path's bytes join the population
+  under the same rule, and the scan that reads them is owed before the path ships. What
+  the render-path redaction does NOT reach is declared beside it in `tests/conftest.py`
+  (`UNCOVERED_SECRETS`), not restated here.
