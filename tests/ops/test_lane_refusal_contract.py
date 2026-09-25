@@ -296,22 +296,29 @@ def _emitted_refusals(source: str) -> tuple[set[str], list[str]]:
       `.pop` - the positions where a snake-case literal names a field rather
       than carrying a word.
 
+    AND A KEY IT CANNOT RESOLVE IS A FINDING TOO - see `_opaque_keys`. A key
+    spelled through a class attribute, a concatenation or a module constant is
+    RESOLVED statically first, so `{C.KEY: ...}` and `{'refu' + 'sed': ...}`
+    are read as the refusal key they are rather than walked past.
+
     Args:
         source: Python source text.
 
     Returns:
         The set of literal words, and one `line N: ...` finding per site.
     """
-    nodes = list(ast.walk(ast.parse(source)))
+    tree = ast.parse(source)
+    nodes = list(ast.walk(tree))
     aliases, consumed = _key_aliases(nodes)
+    static = _static_resolver(tree)
     words: set[str] = set()
     values: set[int] = set()
     findings: list[str] = []
 
     def is_key(node: ast.AST | None) -> bool:
-        if isinstance(node, ast.Constant):
-            return node.value == REFUSED_KEY
-        return isinstance(node, ast.Name) and node.id in aliases
+        if isinstance(node, ast.Name) and node.id in aliases:
+            return True
+        return node is not None and static(node) == REFUSED_KEY
 
     def take(value: ast.AST, line: int) -> None:
         if isinstance(value, ast.Constant) and isinstance(value.value, str):
@@ -337,7 +344,130 @@ def _emitted_refusals(source: str) -> tuple[set[str], list[str]]:
                     take(node.value, node.lineno)
 
     accounted = values | _field_name_positions(nodes)
-    return words, findings + _stray_sites(nodes, is_key, consumed, accounted)
+    stray = _stray_sites(nodes, is_key, consumed, accounted)
+    return words, findings + stray + _opaque_keys(nodes, static)
+
+
+def _static_resolver(tree: ast.Module):
+    """A function answering the STATIC string value of an expression, or None.
+
+    Cheap on purpose: a string literal; a name bound ONCE, at module or class
+    level, to a string literal; `Class.NAME` for such a class binding; a `+` of
+    two resolvable strings; an f-string whose every part resolves. Anything else
+    - a call, a local, a name bound twice - is None, which `_opaque_keys` then
+    treats as a key it cannot vouch for.
+    """
+    module: dict[object, str | None] = {}
+    classes: dict[object, str | None] = {}
+
+    def bind(table: dict[object, str | None], key: object, value: ast.AST | None) -> None:
+        literal = value.value if isinstance(value, ast.Constant) else None
+        text = literal if isinstance(literal, str) else None
+        table[key] = text if key not in table or table[key] == text else None
+
+    def bindings(body: list[ast.stmt]) -> list[tuple[str, ast.AST | None]]:
+        found: list[tuple[str, ast.AST | None]] = []
+        for stmt in body:
+            if isinstance(stmt, ast.Assign):
+                found += [(t.id, stmt.value) for t in stmt.targets if isinstance(t, ast.Name)]
+            elif isinstance(stmt, ast.AnnAssign) and isinstance(stmt.target, ast.Name):
+                found.append((stmt.target.id, stmt.value))
+        return found
+
+    for name, value in bindings(tree.body):
+        bind(module, name, value)
+    for stmt in tree.body:
+        if isinstance(stmt, ast.ClassDef):
+            for name, value in bindings(stmt.body):
+                bind(classes, (stmt.name, name), value)
+
+    def joined(node: ast.JoinedStr) -> str | None:
+        parts: list[str] = []
+        for part in node.values:
+            if isinstance(part, ast.FormattedValue):
+                if part.conversion != -1 or part.format_spec is not None:
+                    return None
+                text = resolve(part.value)
+            else:
+                text = resolve(part)
+            if text is None:
+                return None
+            parts.append(text)
+        return "".join(parts)
+
+    def resolve(node: ast.AST) -> str | None:
+        if isinstance(node, ast.Constant):
+            return node.value if isinstance(node.value, str) else None
+        if isinstance(node, ast.Name):
+            return module.get(node.id)
+        if isinstance(node, ast.Attribute) and isinstance(node.value, ast.Name):
+            return classes.get((node.value.id, node.attr))
+        if isinstance(node, ast.BinOp) and isinstance(node.op, ast.Add):
+            left, right = resolve(node.left), resolve(node.right)
+            return None if left is None or right is None else left + right
+        if isinstance(node, ast.JoinedStr):
+            return joined(node)
+        return None
+
+    return resolve
+
+
+def _provably_not_str(value: ast.AST | None) -> bool:
+    """True only when `value` can never evaluate to a string.
+
+    The ONE exemption from the opaque-key rule, and a narrow one: a container
+    display, a comprehension, a non-string literal, or a conditional both of
+    whose arms are one of those. `lanes.py`'s own ownership table is keyed by
+    computed paths and holds tuples, and a tuple is never a refusal word.
+    """
+    if value is None:
+        return True
+    if isinstance(value, ast.Constant):
+        return not isinstance(value.value, str)
+    displays = (ast.Tuple, ast.List, ast.Set, ast.Dict, ast.ListComp, ast.SetComp)
+    if isinstance(value, (*displays, ast.DictComp, ast.GeneratorExp)):
+        return True
+    if isinstance(value, ast.IfExp):
+        return _provably_not_str(value.body) and _provably_not_str(value.orelse)
+    return False
+
+
+def _key_pairs(node: ast.AST, found: list[str]) -> list[tuple[ast.AST, ast.AST | None]]:
+    """The (key, value) pairs one node WRITES, noting the writes it cannot read."""
+    pairs: list[tuple[ast.AST, ast.AST | None]] = []
+    if isinstance(node, ast.Dict):
+        for key, value in zip(node.keys, node.values, strict=True):
+            if key is None:
+                found.append(f"line {node.lineno}: a ** unpack this derivation cannot read")
+            else:
+                pairs.append((key, value))
+    elif isinstance(node, (ast.Assign, ast.AugAssign)):
+        targets = node.targets if isinstance(node, ast.Assign) else [node.target]
+        pairs += [(t.slice, node.value) for t in targets if isinstance(t, ast.Subscript)]
+    elif isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute):
+        if node.func.attr == "setdefault" and node.args:
+            pairs.append((node.args[0], node.args[1] if len(node.args) > 1 else None))
+        elif node.func.attr == "update" and any(not isinstance(a, ast.Dict) for a in node.args):
+            found.append(f"line {node.lineno}: an update this derivation cannot read")
+    return pairs
+
+
+def _opaque_keys(nodes: list[ast.AST], static) -> list[str]:
+    """FAIL CLOSED on every key this derivation cannot see through.
+
+    A dict literal key, a subscript STORE key, and a `setdefault` key whose
+    static value cannot be resolved are findings - unless the value beside it
+    provably cannot be a string. So are a `**` unpack inside a dict literal and
+    an `update` fed anything but a dict literal, because either can carry the
+    refusal key in from somewhere this parse never looks.
+    """
+    found: list[str] = []
+    for node in nodes:
+        for key, value in _key_pairs(node, found):
+            if static(key) is None and not _provably_not_str(value):
+                line = getattr(key, "lineno", getattr(node, "lineno", 0))
+                found.append(f"line {line}: a key this derivation cannot resolve")
+    return found
 
 
 def _stray_sites(
@@ -456,6 +586,17 @@ _UNRECOGNISED_FORMS: Final = {
     "dict-of-pairs": "def _y():\n    return dict([('refused', 'lane_gone')])\n",
     "update-of-pairs": "def _z(a):\n    a.update([('refused', 'lane_away')])\n",
     "aliased-key": "K = 'refused'\n\n\ndef _k():\n    return {K: 'lane_keyed'}\n",
+    # THE SECOND ADVERSARY PASS: keys that are not literals, with a one-word
+    # value that the refusal-word SHAPE alone does not catch.
+    "class-attribute-key": (
+        "class C:\n    KEY = 'refused'\n\n\ndef _a():\n    return {C.KEY: 'parked'}\n"
+    ),
+    "concatenated-key": "def _c():\n    return {'refu' + 'sed': 'parked'}\n",
+    "fstring-key": "def _f():\n    k = 'sed'\n    return {f'refu{k}': 'parked'}\n",
+    "computed-setdefault-key": "def _s(a, k):\n    a.setdefault(k, 'parked')\n",
+    "computed-subscript-key": "def _t(a, k):\n    a[k] = 'parked'\n",
+    "opaque-update": "def _u(a, other):\n    a.update(other)\n",
+    "unpacked-dict": "def _v(other):\n    return {**other, 'ok': False}\n",
 }
 
 
