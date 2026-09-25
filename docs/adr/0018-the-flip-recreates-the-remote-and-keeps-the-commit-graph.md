@@ -128,7 +128,7 @@ personal email address in both the author and the committer field. `CONVENTIONS`
 17 gate item 2 does not reach it - it says tracked files and commit messages, and
 identity is neither - and measurement 1 did not look for it. **Whether to publish
 under that identity was put to the operator on 2026-09-08 and RULED: rewrite
-author and committer across every commit on `main` to a GitHub noreply address.
+author and committer across all 521 commits to a GitHub noreply address.
 Accept-as-is and squash-to-fresh-history were both declined.** The mechanics and
 the sequencing consequence - every SHA changes, so the preservation bundle must
 be taken and proven restorable BEFORE the rewrite - are in CS-700's plan section
@@ -141,7 +141,9 @@ precondition forbids any in the published history, and measurement 1's six axes
 never looked for one. The strip removes that line and the blank line before it
 and changes nothing else: every other message byte, every tree, every parent
 relationship, every date and the commit count are unchanged, so the graph shape
-this ADR keeps is kept. It is not a rewrite on CONTENT grounds and reopens
+this ADR keeps is kept. The ruling's "all 521 commits" is its count at
+`c885879`; S7a rewrites every commit on `main` as it stands when S7a runs. It is not
+a rewrite on CONTENT grounds and reopens
 nothing this ADR forecloses; it rides on S7a because S7a already changes every
 SHA, so it costs no additional SHA change.
 

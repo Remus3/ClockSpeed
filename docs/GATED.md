@@ -627,7 +627,9 @@ governs. Steps and controls: CS-700 in `docs/item_notes/phase7.md`.
 is an in-session adjudicator's, ruled at a frozen SHA - CS-700 step S8a - on
 evidence re-run that session against all eight preconditions; a ruling from MAIN
 may stand in for that decision. The adjudicated SHA is the SHA S9 onward operates
-on, and any commit after it voids the ruling until `<sha>..HEAD` is re-adjudicated.
+on. A commit to `main` after S7a voids S7a through S8a and restarts them from the
+preservation bundle - CS-700's one late-commit rule, stated at S7a; no range is
+re-adjudicated. S10 pushes the adjudicated SHA itself, not a branch name.
 The ruling itself is recorded outside that history until S12 completes, so
 recording it never moves `main` - CS-700 step S8a states where.
 

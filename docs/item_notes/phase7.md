@@ -797,8 +797,11 @@ matches prose naming the trailer.
 
 **THE IDENTITY ALLOWLIST** holds exactly one address, the ruled noreply address,
 derived at run time from the operator's forge account and never written into a
-tracked file. Every author address and every committer address in the rewritten
-graph must be on it.
+tracked file, plus exactly one name, the operator's chosen author name, derived the
+same way and never written into a tracked file either - CS-701 records why that
+name must stay out of tracked text. Every author name and address and every
+committer name and address in the rewritten graph must be on it; CS-701 covers the
+same identity surface and is settled with it.
 
 **FORBIDDEN, because each re-commits and restamps what S7a must keep:**
 `--reset-author`, `--ignore-date`, `--committer-date-is-author-date`, any `--date`
@@ -823,14 +826,19 @@ parent control below fails a wrong pairing closed:
   line and the blank line before it; any other difference ABORTS.
 - CENSUS: the trailer-shaped census returns the pre-rewrite count, non-zero, BEFORE and
   zero AFTER, and exactly that many commits have a changed message.
-- IDENTITY: `git log --format='%ae %ce'` over the rewritten graph yields exactly one
-  address, the allowlisted one, with a pre-rewrite control showing the bundle
-  yielded two.
+- IDENTITY: `git log --format='%an%x09%ae%x09%cn%x09%ce'` over the rewritten graph
+  yields exactly one name and one address, both on the identity allowlist, in the
+  author AND the committer fields, with a pre-rewrite control showing the bundle
+  yielded two addresses.
+- OUTPUT TIP: once every control above passes, S7a RECORDS the rewritten `main` tip
+  SHA. S8 scans exactly that SHA.
 
 **The S3/S4 bundle must already exist and be proven restorable before this runs**,
 because this step invalidates every SHA the remote holds.
 
-**A COMMIT LANDING ON `main` AFTER S7a VOIDS S7a THROUGH S8a.** Never re-run S7a on
+**THE ONE LATE-COMMIT RULE: a commit landing on `main` after S7a and before S12
+completes VOIDS S7a THROUGH S8a** - including a commit after S8a's ruling. Nothing
+is re-adjudicated over a range, and no verdict is carried forward. Never re-run S7a on
 already-rewritten history: its census would read zero before and its identity
 control would find one address, so both of its positive controls would fail - and
 rightly. Instead, restore `main` from the preservation bundle taken before S7a,
@@ -846,9 +854,12 @@ first draft said so in prose while omitting the step. It costs about 7 seconds.
 This is the last check before anything irreversible. The re-run includes S1's
 seventh axis, the trailer-shaped census, which must return zero here, and it re-runs S7a's
 IDENTITY control against the identity allowlist: every author and committer address
-reachable from the scanned SHA is the one allowlisted address. **S8 records the one
-`main` SHA it scanned; S8a adjudicates exactly that SHA.** If `main` is not at that
-SHA when S8a freezes it, S8 is void and runs again.
+and every author and committer name reachable from the scanned SHA is on the identity
+allowlist. **S8 scans exactly S7a's recorded output tip, and first asserts that
+`main` still equals it** - a commit between S7a and S8 fails that assertion and
+falls under the late-commit rule above. **S8 records the one `main` SHA it scanned;
+S8a adjudicates exactly that SHA.** If `main` is not at that SHA when S8a freezes
+it, the late-commit rule applies.
 
 **S8a - READINESS ADJUDICATION, ANCHORED.** After S8 passes and before S9, an
 in-session adjudicator that produced none of the flip's work freezes `main` at the
@@ -857,8 +868,8 @@ evidence re-run that session against all eight CS-G03 preconditions - the decide
 half in `docs/GATED.md` CS-G03 (CS-1182).
 **The adjudicated SHA is the SHA S9 onward operates on:** S10 pushes exactly it,
 S11's mirror clone must return exactly it as the one head, and S12 publishes it.
-Any commit to `main` after it VOIDS the adjudication - re-adjudicate `<sha>..HEAD`
-before S9 runs, and never carry the verdict forward. **The ruling is recorded
+Any commit to `main` after it falls under S7a's late-commit rule: S7a through S8a
+are void and restart from the preservation bundle. **The ruling is recorded
 OUTSIDE the adjudicated history:** it is written to a companion note beside the
 preservation bundle, outside the repository tree per S5, and enters
 `docs/LEDGER.md` only in a commit made after S12 completes. No commit records it
@@ -871,12 +882,13 @@ created PRIVATE and explicitly asserted private before S10, so that S12 stays
 the sole publication event; a repo created public would make S10 the publication
 and strand S11's protections. Immediately before S9, re-confirm (1d) with its
 controls - delete-and-recreate is only free while it holds.
-Who decides and who acts is filed in `docs/GATED.md` CS-G03 under "who decides
-the flip and who performs it" (CS-1182): an in-session adjudicator decides
-readiness at S8a's adjudicated SHA, and the operator's own typed confirmation, once,
-immediately before S9, covers S9 through S12 as one run.
+Who decides and who confirms: `docs/GATED.md` CS-G03, "who decides the flip and who performs it" (CS-1182).
 
-**S10 - Push `main` alone.** No `--mirror`, no `--all`, no `--tags`.
+**S10 - Push `main` alone, BY SHA.** No `--mirror`, no `--all`, no `--tags`. Push
+the S8a-adjudicated SHA itself - `git push origin <adjudicated-sha>:refs/heads/main`,
+never a branch name - after a pre-push assertion that the local `main` tip equals
+that SHA. If it does not, the late-commit rule in S7a applies and nothing is pushed,
+so no later commit can ride along.
 
 **S11 - Verify by MIRROR CLONE, not by `ls-remote`.** Brief section 2(a) says
 check what actually ARRIVED, never what the forge advertises. `ls-remote` reads
@@ -889,9 +901,7 @@ turn on the security features that were all off, and re-enter by hand the 20
 topics, 10 labels, description and homepage that deletion discarded.
 
 **S12 - Flip visibility. Last, and blocked by section 6.**
-Covered by the operator confirmation taken before S9 (CS-G03, CS-1182), which
-lapses if any step's control aborts, if the session ends, or if `main` moves past
-the adjudicated SHA.
+Covered by the confirmation taken before S9: `docs/GATED.md` CS-G03 (CS-1182).
 
 #### 4. What deletion costs, stated so it is chosen and not discovered
 
