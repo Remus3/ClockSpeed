@@ -1312,6 +1312,9 @@ DECLINED_UNDER_AN_UNTRACKED_ROOT: Final[Mapping[tuple[str, str, str], int]] = {
     ("tests/test_architecture_attributions.py", "advisor/trace.py", ""): 2,
     ("tests/test_chained_cause_census.py", "also/not/frozen.py", "_FROZEN_MARKDOWN"): 1,
     ("tests/test_chained_cause_census.py", "not/frozen.py", "_FROZEN_MARKDOWN"): 1,
+    ("THIRD_PARTY.md", "execnet/gateway_base.py", "### Python dependencies"): 1,
+    ("THIRD_PARTY.md", "licenses/LICENSE.txt", "### Python dependencies"): 1,
+    ("THIRD_PARTY.md", "pathspec/_meta.py", "### Python dependencies"): 1,
 }
 
 #: R4's live membership, DISCLOSED. Every entry is a synthetic fixture path
@@ -1346,6 +1349,51 @@ DECLINED_AS_A_FIXTURE_LITERAL: Final[Mapping[tuple[str, str, str], int]] = {
     ): 1,
     ("tests/test_chained_cause_census.py", "scripts/example.py", ""): 1,
     ("tests/test_chained_cause_census.py", "scripts/example.py", "_FROZEN_MARKDOWN"): 1,
+    (
+        "tests/test_doc_sweep.py",
+        "docs/_archive/digest-2026-09-01.md",
+        "test_a_dated_artifact_inside_the_archive_is_not_stale",
+    ): 1,
+    (
+        "tests/test_doc_sweep.py",
+        "docs/also.md",
+        "test_an_empty_comment_closes_itself",
+    ): 1,
+    (
+        "tests/test_doc_sweep.py",
+        "docs/cited.md",
+        "test_a_backticked_path_mention_is_a_reference",
+    ): 1,
+    (
+        "tests/test_doc_sweep.py",
+        "docs/digest-2026-09-01.md",
+        "test_a_dated_artifact_outside_the_archive_is_stale",
+    ): 1,
+    (
+        "tests/test_doc_sweep.py",
+        "docs/ledger.md",
+        "BASE_FILES",
+    ): 1,
+    (
+        "tests/test_doc_sweep.py",
+        "docs/self.md",
+        "test_a_self_reference_does_not_rescue_an_orphan",
+    ): 1,
+    (
+        "tests/test_doc_sweep.py",
+        "docs/shown.md",
+        "test_a_mention_after_a_closed_comment_on_its_line_is_a_reference",
+    ): 1,
+    (
+        "tests/test_doc_sweep.py",
+        "docs/shown.md",
+        "test_an_empty_comment_closes_itself",
+    ): 1,
+    (
+        "tests/test_doc_sweep.py",
+        "tools/x.py",
+        "test_a_fragment_into_a_non_markdown_target_is_skipped_and_counted",
+    ): 1,
 }
 
 #: THE THREE DECLINE DISCLOSURES' RECORDED BUDGETS, one per rung and never
@@ -1463,8 +1511,27 @@ DECLARED_UNTRACKED_CEILING: Final = 17
 #: that now asserts those files absent, so the disclosure holds six rows and the
 #: ceiling comes down to six. It counts ROWS, not sites: the three new rows
 #: disclose two sites each.
-UNTRACKED_ROOT_CEILING: Final = 6
-FIXTURE_LITERAL_CEILING: Final = 7
+#:
+#: 6 TO 9 FOR CS-1185'S LICENCE REGISTER, 2026-09-25. Under its Python
+#: dependencies heading the register names, for three packages, the file
+#: inside the INSTALLED distribution that carries its licence text or its
+#: copyright holder - a path relative to that package's own root, which this
+#: repository does not own and which is never tracked here. Naming the file is
+#: the register's evidence for the verdict it records, so repointing it would
+#: delete the evidence, and there is nowhere tracked to point. The citations
+#: were already in the tree and red when these rows were added; they were not
+#: appended together with them. The rows REFUND and the ceiling comes back
+#: down if the register ever stops naming those files.
+UNTRACKED_ROOT_CEILING: Final = 9
+#: 7 TO 16 FOR CS-1184'S DOC SWEEP TESTS, 2026-09-25. Every new row is a
+#: synthetic markdown or code path that the sweep's own unit tests write into a
+#: throwaway repository under a temporary directory, to plant an orphan, a
+#: reference, a dated artifact or a non-markdown anchor target and grade what
+#: the sweep reports. Each is supposed NOT to exist in this tree, and would be
+#: a defect if it did. The rows are bought for the test module, not for the
+#: item, so closing CS-1184 refunds none of them. As above, the literals were
+#: already in the tree and red when these rows were added.
+FIXTURE_LITERAL_CEILING: Final = 16
 
 
 #: THE ONLY BUDGET IN THIS SECTION. Everything above is a disclosure that
