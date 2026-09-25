@@ -2424,13 +2424,31 @@ def run_ruff_format(
         )
 
 
-def run_ruff(units: list[Unit], report: Report, root: Path | None = None) -> None:
+def run_ruff(
+    units: list[Unit],
+    report: Report,
+    root: Path | None = None,
+    *,
+    require_ruff: bool = False,
+) -> None:
     """Lint the checked bytes. Only the real-error band blocks.
 
     Every failure to RUN ruff is a note, never a block. That fail-open is
     deliberate and narrow: a gate that refuses every commit on a machine
     without a linter is a gate the operator turns off. Everything else in
     this file fails closed.
+
+    ONE EXCEPTION, CS-817: `require_ruff`. A ruff that is on neither PATH
+    nor importable is a BLOCKING finding when the caller asks for it, and
+    only main() under --staged does. The measured case is `py -3`: a
+    genuine python that passes the hooks' interpreter probe and carries no
+    toolchain, so staged python committed with no linter ever run, and the
+    note saying so is not even printed on a passing run. Only the ABSENT
+    branch changes. A ruff that is present but fails to run keeps its note
+    (CS-821 owns that), and --files and tools/edit_lint_check.py pass
+    nothing, so an editor without ruff keeps today's note rather than a
+    block on every edit. Nothing to lint - no python staged - needs no
+    linter and refuses nothing.
 
     THE WORKING DIRECTORY IS PART OF THE CONFIGURATION (CS-946). Ruff matches
     `exclude` and `per-file-ignores` globs against the path relative to the
@@ -2464,6 +2482,21 @@ def run_ruff(units: list[Unit], report: Report, root: Path | None = None) -> Non
         return
     command = ruff_command()
     if command is None:
+        if require_ruff:
+            report.add(
+                Diagnostic(
+                    "<ruff>",
+                    0,
+                    0,
+                    "RUFF",
+                    "ruff is not on PATH and not importable by the interpreter running "
+                    "this gate, so the staged python was never linted and the commit is "
+                    "BLOCKED (CS-817). Fix: install ruff for that interpreter - "
+                    "python scripts/verify_env.py checks the toolchain - or point "
+                    "CLOCKSPEED_PYTHON at the interpreter that carries it",
+                )
+            )
+            return
         report.notes.append(
             "ruff: not on PATH and not importable - lint was NOT run and is "
             "NOT blocking; install it via scripts/verify_env.py"
@@ -2977,7 +3010,7 @@ def main(argv: list[str] | None = None) -> int:
             root: Path | None = Path(repo_root())
         except (GitError, OSError):
             root = None
-        run_ruff(report.units, report, root)
+        run_ruff(report.units, report, root, require_ruff=not args.files)
 
     return emit(report, args.verbose, args.list_skipped)
 
