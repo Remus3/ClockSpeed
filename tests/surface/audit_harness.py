@@ -100,6 +100,7 @@ from typing import TYPE_CHECKING, Final
 import clockspeed
 from clockspeed.audit import placement
 from clockspeed.data import version
+from clockspeed.data.registry import Building, Recipe
 from clockspeed.save.header import masked_token
 from clockspeed.save.objects import REASON_CLASS_NOT_MODELLED
 from clockspeed.save.world import (
@@ -669,6 +670,36 @@ _POWER_BUILDING: Final = "Build_ExampleSmelter_C"
 #: that cannot expose a surface which evaluates the power law.
 _POWER_CLOCK: Final = Fraction(3, 2)
 
+#: The canned building AS AN ENTRY, so every canned ``reason`` can be READ from
+#: ``clockspeed/solve/power.py`` rather than written here (CS-1031). Authored in
+#: this file like every other identifier the harness serves. Each value is the
+#: one the canned body already depicts: a scalar draw of 4, an un-sharded base
+#: of 1 - so the canned clock of 3/2 is clamped - and an exponent that is
+#: DELIBERATELY NOT A SHIPPED ONE, for the reason recorded at the deferred term.
+_POWER_ENTRY: Final = Building(
+    key=_POWER_BUILDING,
+    display_name="Example Smelter",
+    power_consumption=Fraction(4),
+    power_exponent=Fraction(11, 7),
+    estimated_min_power=None,
+    estimated_max_power=None,
+    is_variable_power=False,
+    unsharded_clock_base=Fraction(1),
+)
+
+#: The recipe the variable-inputs section is read against. It declares neither
+#: variable-power operand, which is what the canned section depicts.
+_POWER_RECIPE: Final = Recipe(
+    key="Recipe_ExampleIngot_C",
+    display_name="Example Ingot",
+    duration=Fraction(2),
+    inputs=(),
+    outputs=(),
+    produced_in=(_POWER_BUILDING,),
+    variable_power_constant=None,
+    variable_power_factor=None,
+)
+
 
 def _power_data() -> dict[str, object]:
     """Build the ``/api/power`` data object, bound to the endpoint's own keys.
@@ -690,26 +721,39 @@ def _power_data() -> dict[str, object]:
     exponent; this fixture carries the two operands and applies neither, so a
     panel that evaluated one would have nothing correct to compare against.
 
+    EVERY REASON IS READ, NONE IS WRITTEN (CS-1031). Each of the five is the
+    ``reason`` field of what the public function in ``clockspeed/solve/power.py``
+    returns for :data:`_POWER_ENTRY` - the same functions the endpoint calls -
+    and :func:`_assert_reason_published` refuses a section whose branch fields
+    disagree with what that function computed, so a reason cannot be read off
+    one branch and served beside another.
+
     Returns:
         The body, keyed by ``power_endpoint.DATA_KEYS``.
 
     Raises:
         AssertionError: When the body or any nested object differs from the
-            endpoint's published key tuple in either direction.
+            endpoint's published key tuple in either direction, or when a
+            section's reason or branch differs from what its owner published.
     """
+    decl = power.declared_draw(_POWER_ENTRY)
+    drawn = power.draw_at_clock(_POWER_ENTRY, _POWER_CLOCK)
+    capped = power.clock_ceiling(_POWER_ENTRY)
+    clamp = power.clamp_to_unsharded_base(_POWER_ENTRY, _POWER_CLOCK)
+    inputs = power.variable_power_inputs(_POWER_ENTRY, _POWER_RECIPE)
     declared = {
         "shape": power.SHAPE_FIXED,
         "megawatts": contract.rational(Fraction(4)),
         "minimum": None,
         "maximum": None,
         "modeled": True,
-        "reason": "the entry declares a scalar draw, which is the draw at the reference clock",
+        "reason": decl.reason,
     }
     ceiling = {
         "base": contract.rational(Fraction(1)),
         "slots": None,
         "known": False,
-        "reason": power.ceiling_reason(None),
+        "reason": capped.reason,
     }
     at_clock = {
         "outcome": power.OUTCOME_DEFERRED,
@@ -725,13 +769,13 @@ def _power_data() -> dict[str, object]:
             # fixture gives it nothing correct to be confused with.
             "exponent": contract.rational(Fraction(11, 7)),
         },
-        "reason": "away from the reference clock the power law has no exact rational value",
+        "reason": drawn.reason,
     }
     clamped = {
         "clock": contract.rational(Fraction(1)),
         "base": contract.rational(Fraction(1)),
         "clamped": True,
-        "reason": "the clock was clamped to the un-sharded base, which is not the ceiling",
+        "reason": clamp.reason,
     }
     variable = {
         "constant": None,
@@ -739,7 +783,7 @@ def _power_data() -> dict[str, object]:
         "minimum": None,
         "maximum": None,
         "modeled": False,
-        "reason": "no law is applied here; bounded_draw applies it",
+        "reason": inputs.reason,
     }
     body: dict[str, object] = {
         "building_key": _POWER_BUILDING,
@@ -757,7 +801,59 @@ def _power_data() -> dict[str, object]:
     _assert_keys_match("power deferred term", at_clock["deferred"], power_endpoint.TERM_KEYS)
     _assert_keys_match("power clamped", clamped, power_endpoint.CLAMPED_KEYS)
     _assert_keys_match("power variable_inputs", variable, power_endpoint.VARIABLE_KEYS)
+
+    _assert_reason_published(
+        "power declared", declared, decl.reason, {"shape": decl.shape, "modeled": decl.modeled}
+    )
+    _assert_reason_published(
+        "power ceiling", ceiling, capped.reason, {"known": capped.known, "slots": capped.slots}
+    )
+    _assert_reason_published("power at_clock", at_clock, drawn.reason, {"outcome": drawn.outcome})
+    _assert_reason_published("power clamped", clamped, clamp.reason, {"clamped": clamp.clamped})
+    _assert_reason_published(
+        "power variable_inputs", variable, inputs.reason, {"modeled": inputs.modeled}
+    )
     return body
+
+
+def _assert_reason_published(
+    what: str,
+    section: Mapping[str, object],
+    published: str,
+    branch: Mapping[str, object],
+) -> None:
+    """Bind one canned ``reason`` to the reason its owner publishes (CS-1031).
+
+    A REASON IS A FACT ``clockspeed/solve/power.py`` OWNS, exactly as a key
+    tuple is a fact the endpoint owns. The earlier cut bound one of five and
+    hand-authored the other four, three of them shortened or reworded from the
+    published prose, so a panel arm graded against the canned body could pass
+    while the real endpoint said something else. This guard refuses that at
+    import.
+
+    THE BRANCH IS CHECKED FIRST, because a reason read off the wrong branch is
+    a published reason that is still wrong for the section: the canned fields
+    that decide which reason the owner publishes must agree with what the owner
+    computed for the canned entry, or the reason describes some other answer.
+
+    Args:
+        what: What to call the section in the message. A literal authored here.
+        section: The canned object.
+        published: The reason the owner published for the canned entry.
+        branch: The canned keys that select the branch, mapped to the values
+            the owner computed for them.
+
+    Raises:
+        AssertionError: A branch field differs from the owner's value, or the
+            canned reason is not the published one.
+    """
+    for key, value in branch.items():
+        if section.get(key) != value:
+            message = f"canned {what} depicts a different branch than its owner computed: {key}"
+            raise AssertionError(message)
+    if section.get("reason") != published:
+        message = f"canned {what} reason is not the one its owner publishes"
+        raise AssertionError(message)
 
 
 def _assert_keys_match(what: str, section: object, key_tuple: tuple[str, ...]) -> None:
