@@ -280,6 +280,142 @@ def test_the_scratch_directory_is_inside_the_git_directory_and_removed(tmp_path:
     assert not scratch.exists()
 
 
+def rendered_leak(text: str) -> bool:
+    """Whether ``text`` carries the home directory or the interpreter's path."""
+    folded = text.lower()
+    return str(Path.home()).lower() in folded or sys.executable.lower() in folded
+
+
+def test_a_child_that_will_not_die_exits_two_and_renders_no_path(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """A reap that times out escapes every check; main names the TYPE and exits 2."""
+    repo = tmp_path / "repo"
+    work_repo(repo, {"README.md": b"x\n"})
+    tree = readme_tree(
+        tmp_path / "tree",
+        {"hangs.py": b"import time\ntime.sleep(3600)\n"},
+        "```\npython scripts/hangs.py\n```\n",
+    )
+
+    def never_reaps(_self: subprocess.Popen[bytes], timeout: float | None = None) -> int:
+        raise subprocess.TimeoutExpired([sys.executable, str(Path.home())], timeout or 0)
+
+    def runner(*_args: object) -> list[object]:
+        monkeypatch.setattr(subprocess.Popen, "wait", never_reaps)
+        walk = lambda: flip.readme_walk(tree, python=sys.executable, timeout=1)  # noqa: E731
+        return [flip.measure("5", "readme-walk", walk, lambda: True)]
+
+    code = flip.main(["HEAD", "--stage", "s8", "--repo", str(repo)], runner=runner)
+    monkeypatch.undo()
+    captured = capsys.readouterr()
+    text = captured.out + captured.err
+    leaked = rendered_leak(text)
+    named = "TimeoutExpired during check 5" in captured.err
+
+    assert code == flip.EXIT_COULD_NOT_RUN
+    assert named
+    assert not leaked
+
+
+@pytest.mark.parametrize(
+    ("raised", "expected"),
+    [
+        (KeyboardInterrupt(), 130),
+        (RuntimeError(sys.executable + " " + str(Path.home())), 2),
+        (SystemExit(sys.executable), 2),
+    ],
+    ids=["ctrl-c", "runtime-error-carrying-paths", "system-exit"],
+)
+def test_no_exception_renders_a_traceback_or_a_path(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    raised: BaseException,
+    expected: int,
+) -> None:
+    """Every exception ends in one fixed line: the phase and the TYPE, nothing else."""
+    repo = tmp_path / "repo"
+    work_repo(repo, {"README.md": b"x\n"})
+
+    def runner(*_args: object) -> list[object]:
+        flip.PHASE[0] = "check 2"
+        raise raised
+
+    code = flip.main(["HEAD", "--stage", "s8", "--repo", str(repo)], runner=runner)
+    captured = capsys.readouterr()
+    text = captured.out + captured.err
+    leaked = rendered_leak(text)
+    traceback_rendered = "Traceback" in text
+
+    assert code == expected
+    assert "during check 2" in captured.err
+    assert not leaked
+    assert not traceback_rendered
+
+
+def test_a_git_failure_never_carries_git_stderr(tmp_path: Path) -> None:
+    """A child's stderr quotes its arguments and can quote paths; the reason is fixed text."""
+    repo = flip.ControlRepo(tmp_path / "repo")
+    repo.commit({"README.md": b"x\n"}, b"x\n")
+    marker = "flipstderrmarker" + "5a0d"
+
+    with pytest.raises(flip.FlipError) as caught:
+        flip.git(repo.path, ["cat-file", "-p", marker])
+    carried = marker in caught.value.reason
+
+    assert not carried
+
+
+#: Identifiers that would put a child's argv, output or stderr - or the
+#: interpreter's path - into printed text, a FlipError reason or a failure.
+UNRENDERABLE: Final = frozenset({"argv", "cmd", "stderr", "stdout", "output", "executable"})
+
+
+def test_no_rendering_call_can_reach_an_argv_or_a_child_stream() -> None:
+    """Every print, FlipError and failure reason in the tool names none of them."""
+    import ast  # noqa: PLC0415 - only this arm reads the tool as source
+
+    tree = ast.parse(FLIP_SOURCE.read_text(encoding="utf-8"))
+    offending: list[int] = []
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Call):
+            continue
+        func = node.func
+        renders = (isinstance(func, ast.Name) and func.id in {"print", "FlipError"}) or (
+            isinstance(func, ast.Attribute)
+            and func.attr == "append"
+            and isinstance(func.value, ast.Attribute)
+            and func.value.attr == "failures"
+        )
+        if not renders:
+            continue
+        names = {
+            inner.id if isinstance(inner, ast.Name) else inner.attr
+            for argument in node.args
+            for inner in ast.walk(argument)
+            if isinstance(inner, ast.Name | ast.Attribute)
+        }
+        if names & UNRENDERABLE:
+            offending.append(node.lineno)
+
+    assert offending == []
+
+
+def test_a_failing_readme_command_renders_no_argv(tmp_path: Path) -> None:
+    """A failed child is counted; its argv, interpreter path included, is never printed."""
+    tree = readme_tree(
+        tmp_path / "tree",
+        {"fails.py": b"raise SystemExit(3)\n"},
+        "```\npython scripts/fails.py\n```\n",
+    )
+
+    result = flip.readme_walk(tree, python=sys.executable, timeout=30)
+    leaked = rendered_leak("\n".join(result.render()))
+
+    assert result.counts["failed"] == 1
+    assert not leaked
+
+
 def test_a_step_that_could_not_be_taken_fails_its_check() -> None:
     """``measure`` turns a raise into a failure and a raising control into NOT FOUND."""
 

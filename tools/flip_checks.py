@@ -23,7 +23,14 @@ THE CLI CONTRACT:
     exit 1   any check failed, any control was not found, anything skipped, or
              the scratch directory could not be removed
     exit 2   the run could not run at all - no git, not a repository, an
-             unresolvable REF, a half-given baseline, or a refusal under CI
+             unresolvable REF, a half-given baseline, a refusal under CI, or
+             any exception no check absorbed (a child that would not die)
+    exit 130 the operator interrupted it
+
+    NO TRACEBACK EVER RENDERS. The last-resort handler in :func:`main` prints a
+    fixed line naming the phase (``check N`` and the like) and the exception's
+    TYPE only, because a traceback's frames carry the interpreter's install
+    path and an exception's text can carry a child's argv or stderr.
 
     THE FINAL LINE IS NEVER A BARE PASS. It states the automated verdict, the
     number of human halves NOT-RUN-HERE, and that this run does not clear CS-G03.
@@ -82,13 +89,14 @@ child's argv or environment. Matching is in-process over ``git cat-file
 --batch`` output. :class:`NeedleSet` and :class:`Matcher` withhold every value
 from ``repr``.
 
-WHAT A CHILD STILL CARRIES, stated rather than implied: its own executable path
-and the environment the operator handed this process, both unchanged. When the
-interpreter is installed under a home directory, its path carries that home - a
-fact the child already holds about itself, and nothing this tool derived. Every
-path this tool BUILDS is relative, and the scratch directory lives inside the
-repository's git directory, never under the temp directory, whose 8.3 short
-form carries the account name.
+WHAT A CHILD STILL CARRIES, stated rather than implied (ADR 0025 decision item
+3): no NEEDLE ever enters a child's argv or environment. A child's argv[0] may
+carry the interpreter's own path, which on this machine sits under a home
+directory, and the child inherits the environment the operator handed this
+process unchanged; the tool never renders an argv, a child's output or a child's
+stderr. Every path this tool BUILDS is relative, and the scratch directory lives
+inside the repository's git directory, never under the temp directory, whose 8.3
+short form carries the account name.
 
 A NEEDLE SOURCE THAT DOES NOT RESOLVE FAILS CHECK 2, never a skip - a PII scan
 with no needles is vacuous (decision item 4). A needle dropped as too short to
@@ -137,6 +145,14 @@ from clockspeed.save import header  # noqa: E402
 EXIT_PASS: Final = 0
 EXIT_FAIL: Final = 1
 EXIT_COULD_NOT_RUN: Final = 2
+
+#: The conventional status for a run the operator interrupted with Ctrl-C.
+EXIT_INTERRUPTED: Final = 130
+
+#: What the run is doing now, as fixed text - ``setup``, ``check N`` or
+#: ``report``. Read only by :func:`main`'s last-resort handler,
+#: which names it and the exception TYPE and nothing else.
+PHASE: list[str] = ["setup"]
 
 STAGE_S1: Final = "s1"
 STAGE_S8: Final = "s8"
@@ -1504,7 +1520,13 @@ _MEASURE_ERRORS: Final = (FlipError, trailer_census.CensusError, OSError, Runtim
 def measure(
     key: str, title: str, body: Callable[[], CheckResult], control: Callable[[], bool]
 ) -> CheckResult:
-    """Run one check and its control; a step that could not be taken FAILS the check."""
+    """Run one check and its control; a step that could not be taken FAILS the check.
+
+    Only the listed error types are turned into a failure here. Anything else -
+    a child that would not die, an interrupt - escapes to :func:`main`, which
+    ends the run with exit 2 or 130 and names the check id recorded below.
+    """
+    PHASE[0] = f"check {key}"
     try:
         result = body()
     except _MEASURE_ERRORS as exc:
@@ -1616,6 +1638,25 @@ def main(argv: Sequence[str] | None = None, *, runner: Runner = run_all) -> int:
     parser.add_argument("--trailer-baseline-ref", default=None)
     parser.add_argument("--trailer-baseline-count", type=int, default=None)
     args = parser.parse_args(argv)
+    PHASE[0] = "setup"
+    # EVERY exception ends here, and none renders a traceback. A traceback prints
+    # stdlib frames whose file paths carry the interpreter's install directory -
+    # under a home directory on this machine - and an exception's own text can
+    # carry a child's argv. So the only words printed are the phase and the
+    # exception's TYPE (ADR 0025 decision item 3).
+    try:
+        return _run(args, runner)
+    except KeyboardInterrupt:
+        print(f"flip_checks: interrupted during {PHASE[0]}", file=sys.stderr)
+        return EXIT_INTERRUPTED
+    except BaseException as exc:
+        name = type(exc).__name__
+        print(f"flip_checks: could not run - {name} during {PHASE[0]}", file=sys.stderr)
+        return EXIT_COULD_NOT_RUN
+
+
+def _run(args: argparse.Namespace, runner: Runner) -> int:
+    """The body of :func:`main`, after argument parsing."""
     if os.environ.get("GITHUB_ACTIONS", "").lower() == "true":
         print("flip_checks: could not run - tier 3 runs locally only (ADR 0025)", file=sys.stderr)
         return EXIT_COULD_NOT_RUN
@@ -1641,7 +1682,10 @@ def main(argv: Sequence[str] | None = None, *, runner: Runner = run_all) -> int:
         print(f"flip_checks: could not run - {exc.reason}", file=sys.stderr)
         return EXIT_COULD_NOT_RUN
     finally:
+        # PHASE is left alone here: when an exception is unwinding, the phase it
+        # escaped from is the one the last-resort handler must name.
         cleaned = remove_tree(scratch)
+    PHASE[0] = "report"
     for result in results:
         for line in result.render():
             print(line)
@@ -1655,4 +1699,7 @@ def main(argv: Sequence[str] | None = None, *, runner: Runner = run_all) -> int:
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    try:
+        sys.exit(main())
+    except KeyboardInterrupt:
+        sys.exit(EXIT_INTERRUPTED)

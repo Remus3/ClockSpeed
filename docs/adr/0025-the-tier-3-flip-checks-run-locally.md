@@ -67,9 +67,18 @@ and 8 are the answer: a green run of the tool is never the gate clearing.
 3. **NEEDLES ARE DERIVED IN-PROCESS AT RUN TIME** from `clockspeed/data/locate.py` and
    `clockspeed/save/header.py::reveal_strings`, with its explicit opt-in used at the render
    site only. A needle is never written to disk. It never reaches a log, an exception, an
-   assertion message or a test id, and never a child process's argv or environment.
-   Matching is done in-process over `git cat-file --batch` output, or a needle goes to a
-   child on stdin. Output is counts, commit SHAs and blob SHAs only.
+   assertion message or a test id, and no NEEDLE ever enters a child process's argv or
+   environment. A child's argv[0] may carry the interpreter's own path, which can sit
+   under a home directory, and a child inherits the operator's environment unchanged;
+   the tool never renders an argv, a child's output or a child's stderr, and no
+   traceback is ever rendered - the last-resort handler prints the phase and the
+   exception's type only. Matching is done in-process over `git cat-file --batch`
+   output, or a needle goes to a child on stdin. Output is counts, commit SHAs and blob
+   SHAs only.
+
+   *Amended 2026-09-25, before merge, after the adversary pass on CS-1183: the first text
+   said "never a child process's argv", which the interpreter path in argv[0]
+   contradicted. The rule was always about needles; the wording now says so.*
 4. **A NEEDLE SOURCE THAT DOES NOT RESOLVE FAILS CHECK 2.** It is never a skip, because a
    PII scan with no needles is vacuous.
 5. **EVERY CHECK CARRIES A POSITIVE CONTROL** in its own command family: a planted hit in a
@@ -81,7 +90,7 @@ and 8 are the answer: a green run of the tool is never the gate clearing.
    CS-G08 - never as PASS.
 7. **EXIT CODES:** 0 only when every automated half passed, every control was found and
    there were zero automated skips. 1 on any failure or missing control. 2 when the run
-   could not run. The final line is NEVER a bare PASS. It states the automated verdict,
+   could not run, including any exception no check absorbed. 130 on an interrupt. The final line is NEVER a bare PASS. It states the automated verdict,
    the number of human halves NOT-RUN-HERE, and that this run does not clear CS-G03.
 8. **CS-G03 CLEARS ONLY on an adjudicated `docs/LEDGER.md` record at the flip SHA.** That
    record must cite a run of this tool at that SHA plus the recorded human-half walks. An
