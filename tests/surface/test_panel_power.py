@@ -48,7 +48,11 @@ from clockspeed.surface import server
 from clockspeed.surface.api import contract
 from clockspeed.surface.api import power as endpoint
 from tests.surface import panel_harness
-from tests.surface.test_panel_solve import TRUNCATION_CASES, truncated_decimal
+from tests.surface.test_panel_solve import (
+    TRUNCATION_CASES,
+    division_sites,
+    truncated_decimal,
+)
 
 if TYPE_CHECKING:
     from collections.abc import Mapping, Sequence
@@ -86,7 +90,22 @@ NETWORK_PRIMITIVES: Final = (
 #: A division operator applied to something, outside a comment and outside a
 #: string. Matched as an operator rather than as the character, so the "/" in a
 #: rendered num/den separator and the "/" inside a route path do not fire it.
-DIVISION: Final = re.compile(r"[)\]\w\s]/(?!/|\*)\s*[(\w]")
+#: The tail admits "=" for a compound ``x /= y`` and a unary sign or negation for
+#: ``x / -y`` - CS-1027, the two spellings the earlier ``[(\w]`` tail missed.
+DIVISION: Final = re.compile(r"[)\]\w\s]/(?!/|\*)\s*[(\w=+\-!~]")
+
+#: The division spellings the planted-positive arm plants, one case each. CS-1027
+#: added the last two: an adversarial probe found the detector's tail class
+#: missed a compound assignment (``x /= y``) and a negated divisor (``x / -y``),
+#: neither of which starts its right-hand side with a word character or a paren.
+PLANTED_QUOTIENTS: Final = (
+    "var leak = rational.num / rational.den;",
+    "var leak = rational.num;\nleak /= rational.den;",
+    "var leak = rational.num / -rational.den;",
+)
+
+#: One readable id per planting, in the same order.
+PLANTED_QUOTIENT_IDS: Final = ("quotient", "compound-assignment", "negated-divisor")
 
 #: A comment or a string literal, blanked before every source scan so a "/" in
 #: prose or in a path cannot read as an operator - and so a paragraph SAYING
@@ -473,13 +492,37 @@ def test_nothing_in_the_render_path_divides() -> None:
     assert count == 0, offences
 
 
-def test_the_division_detector_fires_on_a_planted_quotient() -> None:
+@pytest.mark.parametrize("quotient", PLANTED_QUOTIENTS, ids=PLANTED_QUOTIENT_IDS)
+def test_the_division_detector_fires_on_a_planted_quotient(quotient: str) -> None:
     # A detector that matched nothing would make the arm above green over a
-    # panel that divided in every line.
-    planted = code_only(read_module()) + "\nvar leak = rational.num / rational.den;\n"
+    # panel that divided in every line. Every spelling is planted on its own,
+    # so a detector that saw one of them cannot pass for one that sees all.
+    planted = code_only(read_module()) + "\n" + quotient + "\n"
     offences = tuple(match.group(0) for match in DIVISION.finditer(planted))
     count = len(offences)
     assert count == 1, offences
+
+
+def test_the_tokenizer_sweep_finds_no_bare_slash_in_the_module() -> None:
+    """The INDEPENDENT control: a tokenizer that counts every slash, not a pattern.
+
+    ``tests/surface/test_panel_solve.py::executable_source`` blanks block comments
+    and string literals and :func:`~tests.surface.test_panel_solve.division_sites`
+    counts every slash that survives, operator or not. It shares no code with
+    :data:`DIVISION`, so the two agreeing on zero is two readings rather than one
+    read twice - and CS-1027 was found exactly where the pattern had a blind
+    spot the character count does not.
+    """
+    sites = division_sites(read_module())
+    assert sites == (), f"{len(sites)} bare slash(es) survive: {sites}"
+
+
+@pytest.mark.parametrize("quotient", PLANTED_QUOTIENTS, ids=PLANTED_QUOTIENT_IDS)
+def test_the_tokenizer_sweep_fires_on_every_planted_spelling(quotient: str) -> None:
+    """The control is proved able to fire, on each spelling the detector must see."""
+    sites = division_sites(read_module() + "\n" + quotient + "\n")
+    count = len(sites)
+    assert count == 1, sites
 
 
 def test_the_division_detector_does_not_fire_on_the_pair_separator() -> None:
