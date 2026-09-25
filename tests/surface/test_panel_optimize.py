@@ -679,8 +679,9 @@ def test_every_approximation_is_the_exact_truncation_of_its_pair(tmp_path: Path)
     )
     text = report["steps"][-1]["text"]
     for num, den in TRUNCATION_CASES:
-        # A digit may not precede the pair, or "120/1" would count as "0/1".
-        opened = re.compile(rf"(?<!\d){num}/{den} \(approx ")
+        # A digit or a sign may not precede the pair, or "120/1" would count as "0/1"
+        # and "-22/7" as "22/7".
+        opened = re.compile(rf"(?<![\d-]){num}/{den} \(approx ")
         renderings = len(opened.findall(text))
         assert renderings == 1, f"{num}/{den} rendered {renderings} time(s): {text}"
         rendered = f"{num}/{den} (approx {truncated_decimal(num, den)}, display only)"

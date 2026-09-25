@@ -1704,6 +1704,13 @@ def test_the_no_division_arm_would_fire_on_a_module_that_divided(tmp_path: Path)
 #: for every panel copy of ``approximateDecimal``. ``tests/surface/
 #: test_panel_optimize.py`` and ``tests/surface/test_panel_power.py`` import both
 #: rather than restating them, so a case added here grades every copy.
+#:
+#: THE TWO NEGATIVE ROWS carry the sign on either integer. No shipped endpoint
+#: was measured putting a negative leaf on the wire, and none was proved unable
+#: to - ``solve.RATIONAL_PATTERN`` admits a leading minus - so the sign branch of
+#: every copy is graded rather than left to a path nobody has walked. A copy
+#: that dropped the minus rendered every other row correctly and passed this
+#: table without them.
 TRUNCATION_CASES: Final = (
     (1, 8),
     (100, 7),
@@ -1712,6 +1719,8 @@ TRUNCATION_CASES: Final = (
     (2, 3),
     (7, 1),
     (0, 1),
+    (-22, 7),
+    (5, -8),
 )
 
 #: Places the panel's approximation carries (panel_solve.js APPROX_PLACES).
@@ -1719,22 +1728,24 @@ APPROX_PLACES: Final = 4
 
 
 def truncated_decimal(num: int, den: int) -> str:
-    """The exact truncation of ``num/den`` to :data:`APPROX_PLACES` places.
+    """The exact truncation of ``num/den`` toward zero, to :data:`APPROX_PLACES` places.
 
     Computed with integer arithmetic only. A float here would make the oracle
-    share the defect it exists to catch. Floor division truncates only for a
-    non-negative ratio, which every row of :data:`TRUNCATION_CASES` is.
+    share the defect it exists to catch. The magnitude is truncated and the sign
+    is prefixed when the two integers' signs differ, which is the panels' own
+    rule - floor division on a negative ratio would round AWAY from zero.
 
     Args:
-        num: The numerator, non-negative.
-        den: The denominator, positive.
+        num: The numerator.
+        den: The denominator, non-zero.
 
     Returns:
         The truncated decimal, always carrying every place.
     """
     scale = 10**APPROX_PLACES
-    whole, fraction = divmod(num * scale // den, scale)
-    return f"{whole}.{fraction:0{APPROX_PLACES}d}"
+    whole, fraction = divmod(abs(num) * scale // abs(den), scale)
+    sign = "-" if (num < 0) != (den < 0) else ""
+    return f"{sign}{whole}.{fraction:0{APPROX_PLACES}d}"
 
 
 def test_every_approximation_is_the_exact_truncation_of_its_pair(tmp_path: Path) -> None:

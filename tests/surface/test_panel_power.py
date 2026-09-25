@@ -588,8 +588,9 @@ def test_every_approximation_is_the_exact_truncation_of_its_pair(tmp_path: Path)
     settled = [step["text"] for step in report["steps"] if step["kind"] == "settle"]
     assert len(settled) == len(TRUNCATION_CASES), settled
     for (num, den), text in zip(TRUNCATION_CASES, settled, strict=True):
-        # A digit may not precede the pair, or "120/1" would count as "0/1".
-        opened = re.compile(rf"(?<!\d){num}/{den} \(approx ")
+        # A digit or a sign may not precede the pair, or "120/1" would count as "0/1"
+        # and "-22/7" as "22/7".
+        opened = re.compile(rf"(?<![\d-]){num}/{den} \(approx ")
         renderings = len(opened.findall(text))
         assert renderings == 1, f"{num}/{den} rendered {renderings} time(s): {text}"
         rendered = f"megawatts: {num}/{den} (approx {truncated_decimal(num, den)}, display only)"
