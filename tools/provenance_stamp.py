@@ -256,12 +256,14 @@ def _git_succeeds(root: Path, *args: str) -> bool:
 
 
 def last_committed_manifest(root: Path) -> str | None:
-    """Return the full SHA of the newest commit holding the manifest on ANY ref.
+    """Return the newest commit on HEAD's history holding the manifest, else on any ref.
 
-    HEAD's own history is searched first, so the restore it names is on the
-    line being worked; then every ref - branches, tags and ``refs/remotes/*``
-    (CS-1176 F4) - so an orphan or squashed branch cut away from the manifest
-    does not reopen the seed while any ref still reaches one. Both walks keep
+    HEAD's own history is searched first and WINS: its newest holding commit is
+    returned even when another ref holds a newer one, so the restore it names is
+    on the line being worked. Only when HEAD's history holds none is every ref
+    searched - branches, tags and ``refs/remotes/*`` (CS-1176 F4) - newest by
+    commit date, so an orphan or squashed branch cut away from the manifest does
+    not reopen the seed while any ref still reaches one. Both walks keep
     ``--full-history``, so no side of a merge is simplified away. A commit that
     deleted it is skipped, so the answer is always a commit a
     ``git checkout <rev> -- tools/provenance.tsv`` can restore from. None when

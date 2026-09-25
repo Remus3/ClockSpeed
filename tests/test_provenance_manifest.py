@@ -736,10 +736,79 @@ def _nearest_holding(
     return found
 
 
+class History(NamedTuple):
+    """How the re-seed rule reads the repository - injected, so unit tests can fake it."""
+
+    #: The blob id of a path at a commit, or in the work tree for None.
+    blob: Callable[[str | None, str], str | None]
+    #: A commit's own parents - git's, not the version graph's.
+    commit_parents: Callable[[str], tuple[str, ...]]
+    #: The manifest rows at any commit, or None when it holds none.
+    rows_at: Callable[[str], dict[str, Row] | None]
+
+
+def _repo_history(root: Path) -> History:
+    """Return the :class:`History` of a real work tree, each read cached.
+
+    Args:
+        root: A work tree.
+
+    Returns:
+        The reader.
+    """
+
+    @functools.cache
+    def blob(rev: str | None, path: str) -> str | None:
+        return _path_blob(root, rev, path)
+
+    @functools.cache
+    def commit_parents(rev: str) -> tuple[str, ...]:
+        listed = _git_bytes(root, "rev-list", "--parents", "-n", "1", rev)
+        assert listed.returncode == 0, "git rev-list could not read a commit's parents"
+        return tuple(listed.stdout.decode("ascii").split()[1:])
+
+    @functools.cache
+    def rows_at(rev: str) -> dict[str, Row] | None:
+        raw = _committed_blob(root, rev)
+        return None if raw is None else _parse_manifest(raw)[0]
+
+    return History(blob, commit_parents, rows_at)
+
+
+def _gap_openings(
+    start: str, parents: Mapping[str, Sequence[str]], holds: Callable[[str], bool]
+) -> set[str]:
+    """Return the version nodes where the gap containing ``start`` OPENED.
+
+    Walks up through non-holding versions; an opening is one with at least one
+    version parent that still held the row.
+
+    Args:
+        start: A gap node.
+        parents: Each version node mapped to its version parents.
+        holds: Whether a node holds the row.
+
+    Returns:
+        The opening nodes.
+    """
+    openings: set[str] = set()
+    seen: set[str] = set()
+    frontier = [start]
+    while frontier:
+        rev = frontier.pop()
+        if rev in seen:
+            continue
+        seen.add(rev)
+        if any(holds(parent) for parent in parents.get(rev, ())):
+            openings.add(rev)
+        frontier.extend(parent for parent in parents.get(rev, ()) if not holds(parent))
+    return openings
+
+
 def _reseeded_rows(
     rows: Mapping[str, Row],
     nodes: Sequence[ManifestNode],
-    blob: Callable[[str | None, str], str | None],
+    history: History,
 ) -> list[str]:
     """Return every ``first-add:`` row whose presence is not continuous from the seed.
 
@@ -747,16 +816,27 @@ def _reseeded_rows(
     write ``stamped``. So an honest first-add row is in every ROOT version (the
     seed; there is no forgiveness for a row a root lacks) and in every version
     after it, with ONE forgiveness: a GAP - a version where the row is absent,
-    differs, or does not parse - is forgiven when the path's blob at the nearest
-    versions holding the row before the gap equals its blob at the nearest ones
-    after it (the work tree when none follows). A reverted removal and a fixed
-    typo keep the bytes and are forgiven; a lift reusing a seed-era path, a
-    re-seed of a new path, and a stale branch's own seed merged back are not.
+    differs, or does not parse - is forgiven when the path's blob where the gap
+    CLOSES equals its blob where it OPENED. "Opened" is the path's blob in the
+    git parent of the gap-opening commit that still held the row (any one, for a
+    merge) - NOT the last manifest version, so an honest edit made between that
+    version and the gap is not a difference. "Closes" is the path's blob in the
+    first commit holding the row again (the work tree when none has); where that
+    commit is a merge whose other parent kept the row, the bytes it took from
+    that parent are accepted too. A reverted removal, a fixed typo, an advised
+    restore and a side branch's merged-away loss keep the bytes and are
+    forgiven; a lift reusing a seed-era path, a re-seed of a new path, and a
+    stale branch's own seed merged back are not.
+
+    RESIDUAL, recorded: a gap closed with the original bytes and the file
+    edited to lifted bytes in a LATER commit is green. That is indistinguishable
+    from editing any authored file and is not a re-seed; the near-duplicate arm
+    grades those bytes as it grades every edit.
 
     Args:
         rows: The manifest's rows.
         nodes: The manifest's version DAG, parents before children.
-        blob: The blob id of a path at a commit, or in the work tree for None.
+        history: How blobs, commit parents and manifest rows are read.
 
     Returns:
         One ``path (basis)`` entry per offending row, sorted by path bytes.
@@ -776,15 +856,32 @@ def _reseeded_rows(
             held = by_rev[rev].rows
             return held is not None and held.get(path) == row
 
+        def held_at(rev: str, path: str = path, row: Row = row) -> bool:
+            held = history.rows_at(rev)
+            return held is not None and held.get(path) == row
+
+        def blobs_before(revs: Iterable[str], path: str = path) -> set[str | None]:
+            return {
+                history.blob(parent, path)
+                for rev in revs
+                for parent in history.commit_parents(rev)
+                if held_at(parent)
+            }
+
         gaps = [node for node in nodes if not holds(node.rev)]
         if any(not node.parents for node in gaps):
             found.append(f"{path} ({row.basis})")
             continue
         for gap in gaps:
-            before = _nearest_holding(gap.rev, parents, holds)
-            after: set[str | None] = set(_nearest_holding(gap.rev, children, holds)) or {None}
-            blobs = {blob(rev, path) for rev in before | after}
-            if not before or len(blobs) != 1:
+            before = blobs_before(_gap_openings(gap.rev, parents, holds))
+            closings = _nearest_holding(gap.rev, children, holds)
+            after: dict[str | None, set[str | None]] = {
+                closing: before | blobs_before([closing]) for closing in closings
+            } or {None: before}
+            if any(
+                history.blob(closing, path) not in allowed - {None}
+                for closing, allowed in after.items()
+            ):
                 found.append(f"{path} ({row.basis})")
                 break
     return found
@@ -820,11 +917,7 @@ def _reseed_grade(root: Path) -> ReseedGrade:
     rows, faults = _parse_manifest(_require_manifest(root, root / MANIFEST_RELATIVE))
     assert faults == [], f"{MANIFEST_RELATIVE} breaks its grammar: {faults}"
     first_adds = sum(1 for row in rows.values() if row.basis.startswith("first-add:"))
-
-    def blob(rev: str | None, path: str) -> str | None:
-        return _path_blob(root, rev, path)
-
-    return ReseedGrade(_reseeded_rows(rows, nodes, blob), versions, first_adds)
+    return ReseedGrade(_reseeded_rows(rows, nodes, _repo_history(root)), versions, first_adds)
 
 
 def _missing_manifest_message(root: Path) -> str:
@@ -1513,6 +1606,183 @@ def test_cs1176_g2_a_version_with_a_typo_row_fixed_next_commit_is_forgiven(
     assert _reseed_grade(root).findings == []
 
 
+def _edit_returning(root: Path) -> bytes:
+    """Commit an honest edit to the seed-era path, touching no manifest row.
+
+    Args:
+        root: The throwaway work tree.
+
+    Returns:
+        The edited bytes.
+    """
+    edited = (root / RETURNING).read_bytes() + b"# an honest edit\n"
+    (root / RETURNING).write_bytes(edited)
+    _git(root, "add", "--", RETURNING)
+    _commit(root, "CS-1165 - edit alpha")
+    return edited
+
+
+def _rm_returning(root: Path) -> str:
+    """Remove the seed-era path and its row in one commit.
+
+    Args:
+        root: The throwaway work tree.
+
+    Returns:
+        The removal commit's full SHA.
+    """
+    _git(root, "rm", "-q", "--", RETURNING)
+    assert _tool(root, "rm", RETURNING) == 0
+    _git(root, "add", "--", MANIFEST_RELATIVE)
+    return _commit(root, "CS-1165 - remove alpha")
+
+
+def _assert_forgiven(root: Path, edited: bytes, seed_row: Row) -> None:
+    """Assert the scenario landed - edited bytes, the seed's row back - and is green.
+
+    Args:
+        root: The throwaway work tree.
+        edited: The bytes the honest edit left.
+        seed_row: The seed's row for the path.
+    """
+    assert (root / RETURNING).read_bytes() == edited, "the scenario never landed: bytes"
+    rows, _faults = _parse_manifest((root / MANIFEST_RELATIVE).read_bytes())
+    assert rows.get(RETURNING) == seed_row, "the scenario never landed: row"
+    assert _reseed_grade(root).findings == []
+
+
+@pytest.fixture
+def seed_row(seeded_repo: tuple[Path, str]) -> Row:
+    """Return the seed's row for the seed-era path.
+
+    Args:
+        seeded_repo: The seeded throwaway tree.
+
+    Returns:
+        The row.
+    """
+    return _parse_manifest((seeded_repo[0] / MANIFEST_RELATIVE).read_bytes())[0][RETURNING]
+
+
+def test_cs1176_h1_edit_then_remove_then_revert_is_forgiven(
+    seeded_repo: tuple[Path, str], seed_row: Row
+) -> None:
+    root, _seed = seeded_repo
+    edited = _edit_returning(root)
+    removal = _rm_returning(root)
+    _fixture_git(root, "revert", "--no-edit", removal)
+    _assert_forgiven(root, edited, seed_row)
+
+
+def test_cs1176_h1_edit_then_lose_the_manifest_then_the_advised_restore_is_forgiven(
+    seeded_repo: tuple[Path, str], seed_row: Row
+) -> None:
+    root, _seed = seeded_repo
+    edited = _edit_returning(root)
+    _git(root, "rm", "-q", "--", MANIFEST_RELATIVE)
+    _commit(root, "CS-1165 - lose the manifest")
+    rev = _stamp_tool().last_committed_manifest(root)
+    assert rev is not None
+    _git(root, "checkout", rev, "--", MANIFEST_RELATIVE)
+    _commit(root, "CS-1165 - restore the manifest as advised")
+    _assert_forgiven(root, edited, seed_row)
+
+
+def test_cs1176_h1_a_typo_after_an_edit_is_forgiven(
+    seeded_repo: tuple[Path, str], seed_row: Row
+) -> None:
+    root, _seed = seeded_repo
+    edited = _edit_returning(root)
+    good = (root / MANIFEST_RELATIVE).read_bytes()
+    typo = good.replace(f"{RETURNING}\tauthored".encode(), f"{RETURNING}\tauthord".encode())
+    assert typo != good
+    (root / MANIFEST_RELATIVE).write_bytes(typo)
+    _git(root, "add", "--", MANIFEST_RELATIVE)
+    _commit(root, "CS-1165 - a typo")
+    (root / MANIFEST_RELATIVE).write_bytes(good)
+    _git(root, "add", "--", MANIFEST_RELATIVE)
+    _commit(root, "CS-1165 - fix the typo")
+    _assert_forgiven(root, edited, seed_row)
+
+
+def test_cs1176_h1_edit_then_mv_then_revert_is_forgiven(
+    seeded_repo: tuple[Path, str], seed_row: Row
+) -> None:
+    root, _seed = seeded_repo
+    edited = _edit_returning(root)
+    _git(root, "mv", RETURNING, "pkg/alpha2.py")
+    assert _tool(root, "mv", RETURNING, "pkg/alpha2.py") == 0
+    _git(root, "add", "-A")
+    moved = _commit(root, "CS-1165 - move alpha")
+    _fixture_git(root, "revert", "--no-edit", moved)
+    _assert_forgiven(root, edited, seed_row)
+
+
+def test_cs1176_h1_a_cherry_picked_removal_then_reverted_is_forgiven(
+    seeded_repo: tuple[Path, str], seed_row: Row
+) -> None:
+    root, _seed = seeded_repo
+    main = _git(root, "rev-parse", "--abbrev-ref", "HEAD").strip()
+    _git(root, "checkout", "-q", "-b", "side")
+    removal = _rm_returning(root)
+    _git(root, "checkout", "-q", main)
+    edited = _edit_returning(root)
+    picked = _git_bytes(
+        root,
+        "-c",
+        "core.autocrlf=false",
+        "-c",
+        "user.name=fixture",
+        "-c",
+        "user.email=fixture@example.invalid",
+        "-c",
+        "core.hooksPath=",
+        "cherry-pick",
+        removal,
+    )
+    assert picked.returncode != 0, "the pick of a removal over an edit did not conflict"
+    _git(root, "rm", "-q", "--", RETURNING)
+    _git(root, "add", "--", MANIFEST_RELATIVE)
+    pick = _commit(root, "CS-1165 - pick the removal")
+    _fixture_git(root, "revert", "--no-edit", pick)
+    _assert_forgiven(root, edited, seed_row)
+
+
+def test_cs1176_h1_a_side_branch_manifest_loss_merged_under_a_main_edit_is_forgiven(
+    seeded_repo: tuple[Path, str], seed_row: Row
+) -> None:
+    root, _seed = seeded_repo
+    main = _git(root, "rev-parse", "--abbrev-ref", "HEAD").strip()
+    _git(root, "checkout", "-q", "-b", "side")
+    _git(root, "rm", "-q", "--", MANIFEST_RELATIVE)
+    _commit(root, "CS-1165 - the side branch loses the manifest")
+    _git(root, "checkout", "-q", main)
+    edited = _edit_returning(root)
+    (root / "pkg" / "new.py").write_bytes(b"new = 'stamped on main'\n")
+    assert _tool(root, "add", "pkg/new.py", "--class", "authored", "--item", "CS-1165") == 0
+    _git(root, "add", "-A")
+    _commit(root, "CS-1165 - stamp a new file on main")
+    merged = _git_bytes(
+        root,
+        "-c",
+        "core.autocrlf=false",
+        "-c",
+        "user.name=fixture",
+        "-c",
+        "user.email=fixture@example.invalid",
+        "-c",
+        "core.hooksPath=",
+        "merge",
+        "--no-edit",
+        "side",
+    )
+    assert merged.returncode != 0, "the manifest loss merged without a conflict"
+    _git(root, "checkout", "--ours", "--", MANIFEST_RELATIVE)
+    _git(root, "add", "--", MANIFEST_RELATIVE)
+    _commit(root, "CS-1165 - merge side, keep main's manifest")
+    _assert_forgiven(root, edited, seed_row)
+
+
 def _chain(*states: dict[str, Row] | None) -> list[ManifestNode]:
     """Return a linear synthetic version DAG, one node per state, oldest first.
 
@@ -1528,21 +1798,35 @@ def _chain(*states: dict[str, Row] | None) -> list[ManifestNode]:
     ]
 
 
-def _blobs(table: Mapping[str | None, str]) -> Callable[[str | None, str], str | None]:
-    """Return a blob lookup over ``table``, keyed by commit and ignoring the path.
+def _fake(
+    nodes: Sequence[ManifestNode],
+    table: Mapping[str | None, str],
+    extra: Mapping[str, tuple[tuple[str, ...], dict[str, Row] | None]] | None = None,
+    parents: Mapping[str, tuple[str, ...]] | None = None,
+) -> History:
+    """Return a :class:`History` over synthetic nodes, commits and blobs.
 
     Args:
-        table: Commit (None for the work tree) mapped to a blob id.
+        nodes: The version nodes; each one's commit parents default to its version parents.
+        table: Commit (None for the work tree) mapped to a blob id, whatever the path.
+        extra: Non-version commits, each mapped to its parents and manifest rows.
+        parents: Commit parents overriding the version parents.
 
     Returns:
-        The lookup.
+        The reader.
     """
-    return lambda rev, _path: table.get(rev)
+    commits = {node.rev: (node.parents, node.rows) for node in nodes} | dict(extra or {})
+    override = dict(parents or {})
+    return History(
+        lambda rev, _path: table.get(rev),
+        lambda rev: override.get(rev, commits[rev][0]),
+        lambda rev: commits[rev][1],
+    )
 
 
 def test_cs1176_a_first_add_row_whose_class_changed_is_named() -> None:
     seed = _chain({"a.py": Row("vendored", "CS-1", "first-add:root")})
-    same = _blobs({"v0": "x", None: "x"})
+    same = _fake(seed, {"v0": "x", None: "x"})
     assert _reseeded_rows({"a.py": Row("authored", "CS-1", "first-add:root")}, seed, same) == [
         "a.py (first-add:root)"
     ]
@@ -1556,17 +1840,47 @@ def test_cs1176_a_gap_is_forgiven_only_when_the_bytes_either_side_agree() -> Non
     gap: dict[str, Row] = {}
     rows = {"a.py": row}
     nodes = _chain(held, gap, held)
-    assert _reseeded_rows(rows, _chain(held, held), _blobs({})) == []
-    assert _reseeded_rows(rows, nodes, _blobs({"v0": "x", "v2": "x"})) == []
-    assert _reseeded_rows(rows, nodes, _blobs({"v0": "x", "v2": "y"})) == ["a.py (first-add:root)"]
-    # A gap with nothing after it is compared with the work tree.
-    tail = _chain(held, gap)
-    assert _reseeded_rows(rows, tail, _blobs({"v0": "x", None: "x"})) == []
-    assert _reseeded_rows(rows, tail, _blobs({"v0": "x", None: "y"})) == ["a.py (first-add:root)"]
-    # A root that lacks the row is never forgiven, whatever the bytes say.
-    assert _reseeded_rows(rows, _chain(gap, held), _blobs({"v1": "x", None: "x"})) == [
+    flat = _chain(held, held)
+    assert _reseeded_rows(rows, flat, _fake(flat, {})) == []
+    assert _reseeded_rows(rows, nodes, _fake(nodes, {"v0": "x", "v2": "x"})) == []
+    assert _reseeded_rows(rows, nodes, _fake(nodes, {"v0": "x", "v2": "y"})) == [
         "a.py (first-add:root)"
     ]
+    # A gap with nothing after it is compared with the work tree.
+    tail = _chain(held, gap)
+    assert _reseeded_rows(rows, tail, _fake(tail, {"v0": "x", None: "x"})) == []
+    assert _reseeded_rows(rows, tail, _fake(tail, {"v0": "x", None: "y"})) == [
+        "a.py (first-add:root)"
+    ]
+    # A root that lacks the row is never forgiven, whatever the bytes say.
+    head = _chain(gap, held)
+    assert _reseeded_rows(rows, head, _fake(head, {"v1": "x", None: "x"})) == [
+        "a.py (first-add:root)"
+    ]
+
+
+def test_cs1176_the_before_anchor_is_the_gap_commits_parent_not_the_last_version() -> None:
+    # H1: v0 holds the row with bytes x; commit e edits the file to y (no manifest
+    # change, so no version); v1 opens the gap with e as its commit parent; v2
+    # closes it with y. Anchored at e the gap is forgiven; anchored at the last
+    # version v0 it would read x and go red.
+    row = Row("authored", "CS-1", "first-add:root")
+    held: dict[str, Row] = {"a.py": row}
+    nodes = _chain(held, {}, held)
+    history = _fake(
+        nodes,
+        {"v0": "x", "e": "y", "v2": "y"},
+        extra={"e": (("v0",), held)},
+        parents={"v1": ("e",)},
+    )
+    assert _reseeded_rows({"a.py": row}, nodes, history) == []
+    lifted = _fake(
+        nodes,
+        {"v0": "x", "e": "y", "v2": "z"},
+        extra={"e": (("v0",), held)},
+        parents={"v1": ("e",)},
+    )
+    assert _reseeded_rows({"a.py": row}, nodes, lifted) == ["a.py (first-add:root)"]
 
 
 def test_an_ignored_file_is_outside_the_population_and_an_unignored_one_is_in(
