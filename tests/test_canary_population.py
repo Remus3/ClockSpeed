@@ -57,6 +57,7 @@ import importlib.util
 import operator
 import os
 import re
+import secrets
 import subprocess
 import sys
 from collections.abc import Iterator
@@ -88,16 +89,57 @@ FORCED = "ForcedHelperRaise"
 #: tests/test_canary_population_forced.py, carries it in its name.
 NO_RECURSION = "not forced_red_output"
 
-#: Set to "1" by the PARENT in the environment of every forced child it spawns
-#: - here and in the CS-1175 suite - so a child can skip the arms that only
-#: re-derive this tree's population - CS-1193. Never guessed from anything
-#: else: a run without it derives in full.
+#: Set by the PARENT in the environment of every forced child it spawns - here
+#: and in the CS-1175 suite - so a child can skip the arms that only re-derive
+#: this tree's population - CS-1193. FAIL CLOSED, from the adjudicator's HOLD:
+#: the value is ``<nonce>|<path>``, a per-child nonce the parent generates and
+#: writes to `path` for the child's lifetime only (:func:`issue_child_flag`).
+#: A session that sees the flag without that nonce on disk is not a child its
+#: parent issued - it FAILS at collection rather than skip anything.
 CHILD_FLAG = "CLOCKSPEED_CANARY_FORCED_CHILD"
+
+#: What a session shows when it sees the flag without the nonce its parent wrote.
+CHILD_REFUSAL = "CS-1193 child flag refused"
+
+#: The nonce's size, in bytes; it travels as hex.
+NONCE_BYTES = 16
+
+
+def issue_child_flag(workdir: Path) -> tuple[str, Path]:
+    """Write a fresh nonce under `workdir`; return the flag's value and the nonce file.
+
+    The caller deletes the file once the child exits, so the value is good for
+    that one child and never again.
+    """
+    nonce = secrets.token_hex(NONCE_BYTES)
+    workdir.mkdir(parents=True, exist_ok=True)
+    held = workdir / "cs1193_child_nonce"
+    held.write_text(nonce, encoding="ascii")
+    return nonce + "|" + str(held), held
 
 
 def in_a_forced_child() -> bool:
-    """Whether this process is a forced child, by the flag its parent set."""
-    return os.environ.get(CHILD_FLAG) == "1"
+    """Whether this process is a forced child its parent issued - never guessed.
+
+    Raises:
+        RuntimeError: the flag is set but no file holds its nonce - a flag set
+            by hand, leaked from a shell, or outliving its child. Refused
+            loudly, because obeying it would skip arms a top-level run grades.
+    """
+    value = os.environ.get(CHILD_FLAG)
+    if value is None:
+        return False
+    nonce, _, path = value.partition("|")
+    try:
+        held = Path(path).read_text(encoding="ascii") if path else ""
+    except OSError:
+        held = ""
+    if len(nonce) != 2 * NONCE_BYTES or held != nonce:
+        raise RuntimeError(
+            CHILD_REFUSAL + ": " + CHILD_FLAG + " is set but carries no nonce a parent"
+            " wrote for this run - unset it; only a forced run's parent may set it"
+        )
+    return True
 
 
 #: An arm that only re-derives the population, which its parent derived and
@@ -110,6 +152,7 @@ DERIVATION_ONLY = pytest.mark.skipif(
 #: any that ran in its child.
 DERIVATION_ARMS = (
     "test_the_derivation_runs_once_per_process",
+    "test_a_child_flag_its_parent_did_not_issue_fails_loudly",
     "test_the_population_is_derived_and_reaches_every_known_reader",
 )
 
@@ -606,31 +649,34 @@ def forced_run(
     env["PYTHONDONTWRITEBYTECODE"] = "1"
     env["CLOCKSPEED_SAVE_ROOT"] = str(workdir / "absent-save-root")
     env["CLOCKSPEED_LOCAL_CONFIG"] = str(workdir / "absent-local-config.json")
-    env[CHILD_FLAG] = "1"
+    env[CHILD_FLAG], held = issue_child_flag(workdir)
     plugin = [] if root == REPO_ROOT else ["-p", "tests.conftest", "--rootdir", str(root)]
-    proc = subprocess.run(
-        [
-            sys.executable,
-            "-m",
-            "pytest",
-            "-vv",
-            "--showlocals",
-            "-p",
-            "no:cacheprovider",
-            "-p",
-            "no:randomly",
-            *forcer,
-            *plugin,
-            "-k",
-            NO_RECURSION,
-            *suites,
-        ],
-        capture_output=True,
-        cwd=root,
-        env=env,
-        timeout=TIMEOUT,
-        check=False,
-    )
+    try:
+        proc = subprocess.run(
+            [
+                sys.executable,
+                "-m",
+                "pytest",
+                "-vv",
+                "--showlocals",
+                "-p",
+                "no:cacheprovider",
+                "-p",
+                "no:randomly",
+                *forcer,
+                *plugin,
+                "-k",
+                NO_RECURSION,
+                *suites,
+            ],
+            capture_output=True,
+            cwd=root,
+            env=env,
+            timeout=TIMEOUT,
+            check=False,
+        )
+    finally:
+        held.unlink(missing_ok=True)
     return _verdict(
         proc.returncode,
         proc.stdout.decode("utf-8", "replace") + proc.stderr.decode("utf-8", "replace"),
@@ -813,6 +859,78 @@ def test_the_derivation_arms_are_the_marked_arms() -> None:
     )
     named = sorted(DERIVATION_ARMS)
     assert marked == named, "marked: %s; named: %s" % (", ".join(marked), ", ".join(named))
+
+
+def flagged_session(value: str) -> tuple[int, int, int, int]:
+    """Run the once-per-process arm in a TOP-LEVEL session whose env carries `value`.
+
+    Returns:
+        ``(exit code, refusals shown, skipped, passed)`` - counts only.
+    """
+    env = {key: val for key, val in os.environ.items() if not key.startswith("PYTEST_")}
+    env[CHILD_FLAG] = value
+    proc = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "pytest",
+            "-q",
+            "-rs",
+            "-p",
+            "no:cacheprovider",
+            "-p",
+            "no:randomly",
+            "tests/test_canary_population.py",
+            "-k",
+            "test_the_derivation_runs_once_per_process",
+        ],
+        capture_output=True,
+        cwd=REPO_ROOT,
+        env=env,
+        timeout=TIMEOUT,
+        check=False,
+    )
+    output = proc.stdout.decode("utf-8", "replace") + proc.stderr.decode("utf-8", "replace")
+    skipped = re.search(r"(\d+) skipped", output)
+    passed = re.search(r"(\d+) passed", output)
+    return (
+        proc.returncode,
+        output.count(CHILD_REFUSAL),
+        int(skipped.group(1)) if skipped else 0,
+        int(passed.group(1)) if passed else 0,
+    )
+
+
+@DERIVATION_ONLY
+def test_a_child_flag_its_parent_did_not_issue_fails_loudly(tmp_path: Path) -> None:
+    """CS-1193, from the adjudicator's HOLD: a flag in a TOP-LEVEL env is refused, not obeyed.
+
+    MEASURED on the first build: with the flag set in the parent session and a
+    population member dropped, the run went green - the derivation arms
+    skipped in the very session that was meant to grade them. A flag counts
+    only when it carries the nonce its parent wrote for this child; any other
+    value - the bare switch, or a nonce no file holds - fails the session at
+    collection. THE CONTROL: a flag issued the way a parent issues one skips.
+    """
+    for value in ("1", "0" * 32 + "|" + str(tmp_path / "no-such-nonce")):
+        code, refused, skipped, passed = flagged_session(value)
+        assert code != 0, "a flag no parent issued was obeyed: exit %d" % code
+        assert refused >= 1, "the refusal was not shown"
+        assert skipped == 0, "%d arm(s) skipped on a flag no parent issued" % skipped
+        assert passed == 0, "%d arm(s) passed on a flag no parent issued" % passed
+
+    issued, held = issue_child_flag(tmp_path / "issued")
+    try:
+        code, refused, skipped, passed = flagged_session(issued)
+    finally:
+        held.unlink(missing_ok=True)
+    assert code == 0, "an issued flag failed the child: exit %d" % code
+    assert refused == 0, "an issued flag was refused"
+    assert skipped == 1, "an issued flag skipped %d arm(s), not 1" % skipped
+
+    code, refused, skipped, passed = flagged_session(issued)
+    assert code != 0, "a flag outliving its nonce file was obeyed: exit %d" % code
+    assert refused >= 1, "the spent flag's refusal was not shown"
 
 
 @DERIVATION_ONLY

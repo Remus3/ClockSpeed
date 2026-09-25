@@ -41,7 +41,12 @@ from types import ModuleType
 
 import pytest
 
-from tests.test_canary_population import CHILD_FLAG, DERIVATION_ARMS, derived_canary_suites
+from tests.test_canary_population import (
+    CHILD_FLAG,
+    DERIVATION_ARMS,
+    derived_canary_suites,
+    issue_child_flag,
+)
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 OUTBOUND_PATH = REPO_ROOT / "tools" / "outbound_gate.py"
@@ -518,23 +523,26 @@ def canaries_in(output: str) -> int:
 def child_pytest(tmp_path: Path, args: list[str]) -> tuple[int, str]:
     """Run pytest in a child with `tmp_path` importable; return (code, output).
 
-    CS-1193: the child is told it is a forced child, so the canary population
-    suite's derivation-only arms skip there - the parent derived and graded
-    them already.
+    CS-1193: the child is told it is a forced child, by a nonce issued for it
+    alone, so the canary population suite's derivation-only arms skip there -
+    the parent derived and graded them already.
     """
     env = {key: value for key, value in os.environ.items() if not key.startswith("PYTEST_")}
     env["PYTHONPATH"] = str(tmp_path)
-    env[CHILD_FLAG] = "1"
+    env[CHILD_FLAG], held = issue_child_flag(tmp_path / "cs1193_flag")
     env["CLOCKSPEED_SAVE_ROOT"] = str(tmp_path / "absent-save-root")
     env["CLOCKSPEED_LOCAL_CONFIG"] = str(tmp_path / "absent-local-config.json")
-    proc = subprocess.run(
-        [sys.executable, "-m", "pytest", "-vv", "-p", "no:cacheprovider", *args],
-        capture_output=True,
-        cwd=REPO_ROOT,
-        env=env,
-        timeout=TIMEOUT,
-        check=False,
-    )
+    try:
+        proc = subprocess.run(
+            [sys.executable, "-m", "pytest", "-vv", "-p", "no:cacheprovider", *args],
+            capture_output=True,
+            cwd=REPO_ROOT,
+            env=env,
+            timeout=TIMEOUT,
+            check=False,
+        )
+    finally:
+        held.unlink(missing_ok=True)
     output = proc.stdout.decode("utf-8", "replace") + proc.stderr.decode("utf-8", "replace")
     return proc.returncode, output
 
