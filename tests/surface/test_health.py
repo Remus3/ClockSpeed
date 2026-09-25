@@ -322,9 +322,13 @@ def reflected_in(blob: bytes, needle: str) -> bool:
     the body is decoded, every string in it - keys included - is joined in
     document order into ONE haystack (a path split across strings rejoins
     there), the haystack is folded by :func:`fold_for_leaks`, and the tokens
-    :func:`personal_tokens` derives are hunted in it. The planted tokens are
-    ones no clean body carries, and
-    ``test_the_reflection_oracle_stays_quiet_on_a_clean_body`` holds that floor.
+    :func:`personal_tokens` derives are hunted in it. The account and leaf
+    tokens are made up and cannot occur naturally; the home-prefix token
+    ``c:users`` is not, and can over-match where adjacent strings join into it.
+    That over-match fails SAFE - a false red, never a missed leak - and
+    ``test_the_home_prefix_token_over_matches_adjacent_strings`` measures it,
+    while ``test_the_reflection_oracle_stays_quiet_on_a_clean_body`` holds the
+    floor for common words.
 
     Args:
         blob: Bytes ``contract.encode`` produced.
@@ -407,12 +411,15 @@ def test_the_reflection_oracle_finds_every_leak_shape(shape: str) -> None:
 
 
 def test_the_reflection_oracle_stays_quiet_on_a_clean_body() -> None:
-    """The over-matching floor: common words and path fragments, apart, are clean.
+    """The over-matching floor: common words a legitimate body carries are clean.
 
     Every word here is one a legitimate body can carry - including the drive
     letter, the home segment and the word the planted path once used for its
     account - so a hunt loose enough to find the split and folded shapes above
-    must still not trip on them.
+    must still not trip on them. It holds for THIS arrangement only: the
+    home-prefix token can over-match when a string ending in a drive letter
+    and colon meets one starting with the home segment, which the next arm
+    measures.
     """
     clean = {
         "note": "someone asked which users can see this world",
@@ -423,6 +430,22 @@ def test_the_reflection_oracle_stays_quiet_on_a_clean_body() -> None:
     }
     found = reflected_in(contract.encode(clean), HOME_SHAPED)
     assert found is False
+
+
+def test_the_home_prefix_token_over_matches_adjacent_strings() -> None:
+    """A PINNED over-match: ``c:users`` is not a made-up token, so it can form.
+
+    The haystack joins every string with no separator and strips slashes, so a
+    drive-and-colon string followed by a home-segment key, or one string
+    carrying the two run together, reads as the home prefix. This fails safe -
+    an arm reddens on a body that leaked nothing, and never passes one that
+    leaked - and the oracle is deliberately NOT narrowed to avoid it, because
+    the join is what finds a path split across strings. If this arm goes red
+    the oracle was narrowed, and the split shapes above say what it now misses.
+    """
+    adjacent = reflected_in(contract.encode({"a": "C:", "users": 1}), HOME_SHAPED)
+    run_together = reflected_in(contract.encode({"u": "abc:users"}), HOME_SHAPED)
+    assert (adjacent, run_together) == (True, True)
 
 
 # ---------------------------------------------------------------------------
