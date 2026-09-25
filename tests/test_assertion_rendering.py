@@ -98,6 +98,11 @@ word is not derivable from this machine's environment, so no redactor can know
 it. That is the gap this guard exists to close, and it is measured here rather
 than asserted.
 
+THE ENVIRONMENT IS GRADED HERE TOO, BY SOURCE RATHER THAN BY DECLARATION.
+``os.environ`` ships no withholding ``__repr__``, so it sits outside the
+declaration-derived population above by construction. CS-1199 grades it as a
+named source instead, in the section at the foot of this module.
+
 THE MARKERS ARE SYNTHETIC AND THE MACHINE'S ARE NEVER PRINTED. Every planted
 token below is invented. The one place this module touches real machine state -
 the redactor measurement - derives its spellings at run time and reports a
@@ -110,7 +115,9 @@ import ast
 import os
 import subprocess
 import sys
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Iterator, Mapping, Sequence
+from dataclasses import dataclass
+from functools import cache
 from pathlib import Path
 from types import MappingProxyType
 from typing import Final, NamedTuple
@@ -134,10 +141,13 @@ from tests.assertion_rendering_guard import (
     describe,
     describe_echoes,
     explained,
+    rendered_parts,
     scan_repo,
     scan_repo_source_echoes,
     scan_source,
+    scope_statements,
     source_echoes,
+    tracked_python_files,
 )
 from tests.conftest import REDACTED_HOME, REDACTED_USER, redact_personal_data
 from tests.save import reach_guard
@@ -2186,3 +2196,1696 @@ def test_an_element_returning_reduction_still_keeps_the_field_withheld():
         "Reading an element-returning reduction as disclosure drops the field "
         "out of the withheld set and stops the guard grading it at all"
     )
+
+
+# ---------------------------------------------------------------------------
+# CS-1199 - no assertion renders a process-environment VALUE
+# ---------------------------------------------------------------------------
+#
+#
+# THE DEFECT. ``tests/test_doc_budget.py`` carried::
+#
+#     before = dict(os.environ)
+#     doc_budget.evaluate(REPO_ROOT)
+#     assert dict(os.environ) == before
+#
+# pytest rewrites that assertion and, on failure, reprs BOTH operands and the
+# ``os.environ`` argument inside the call - every environment value, live API
+# credentials included, into the local log and into CI output. The message of an
+# assertion does not control that channel; ``tests/assertion_rendering_guard.py``
+# names the mechanism in full.
+#
+# WHY THE CS-850 GUARD DID NOT SEE IT, stated as that guard's own boundary rather
+# than as a bug in it. ``tests/assertion_rendering_guard.py`` grades ONE class of
+# defect: an assertion rendering a field that a class DECLARED unsafe by shipping
+# a hand-written, withholding ``__repr__``. ``os.environ`` is an ``os._Environ``
+# whose repr discloses everything, and ``dict(os.environ)`` is a plain dict - there
+# is no declaration to bypass, so both are outside that guard by construction, as
+# its docstring says ("a plain dict, list or set"). This module closes the
+# environment subset of that gap by SOURCE rather than by declaration: the process
+# environment is a named source, and its values are tainted wherever they flow.
+#
+# MEASURED, NOT ASSUMED - including the shape that looks safe. Run under real
+# pytest with a planted token in a controlled child environment,
+# ``assert "X" not in os.environ`` renders the whole (truncated) environment,
+# because the rewriter's ``visit_Attribute`` reprs ``os.environ`` itself; so do
+# ``assert len(os.environ) > 0`` (``visit_Call`` reprs each argument) and
+# ``assert os.environ.get("X") is None`` (the value). A membership test is safe
+# only once it is bound to a bool BEFORE the assert. The behavioural arm at the
+# foot of this module re-measures the flagged shape and the remedy every run.
+#
+# THE RULE. Every sub-expression pytest's rewriter reprs - :func:`explained` and
+# :func:`rendered_parts`, borrowed from the CS-850 guard so the two agree about the
+# channel - is graded for whether its VALUE carries an environment value, and so
+# is the assertion MESSAGE, which is rendered whole. Environment KEY NAMES are not
+# values: ``sorted(os.environ)``, ``set(os.environ)`` and ``os.environ.keys()`` are
+# clean, which is what makes the remedy expressible - compare the names of the
+# added, removed and changed entries, bound to a list before the assert.
+#
+# WHERE THE RULE LOOKS. The expression channel exists only in modules pytest
+# rewrites - ``test_*.py``, ``*_test.py`` and ``conftest.py`` under ``tests/`` -
+# and is graded there. The message channel exists in every assert, rewritten or
+# not, and is graded in every tracked ``*.py``.
+#
+# CALLS ARE RESOLVED ACROSS MODULES, which is the repair of the first refutation.
+# The shipped carrier of the environment is ``tests/git_env.py``, imported by
+# many modules, and a same-module-only reader read ``scrubbed_env()`` as clean.
+# Every module under ``tests/`` that another imports - ``from tests.x import f``,
+# ``from .x import f``, ``from tests import x``, ``import tests.x [as m]`` - is
+# summarised once (cached, cycle-bounded): per function, what its return carries
+# with every parameter clean and with each parameter alone holding the
+# environment, so ``scrub(leaky)`` carries and ``plain_git(..., env=env)``,
+# whose ``env`` only reaches ``subprocess.run(env=...)``, does not. A top-level
+# class that ships a hand-written ``__repr__`` is a SEALED holder: rendering it
+# runs that repr, and only its environment-named fields carry.
+#
+# PARAMETERS ARE GRADED THREE WAYS, which is the repair of the second
+# refutation, where ``_run_like_the_hook(layout: HookLayout)`` rendered a
+# NamedTuple whose default repr prints its ``env``. A parameter is graded as
+# (1) a same-module fixture's provision, (2) what its ANNOTATION names - a class
+# with an environment-named field and no hand-written ``__repr__`` is a HOLDER,
+# graded as a value, and constructing one is graded the same whatever it was
+# handed; a class that seals itself is a sealed holder - and (3) the strongest
+# thing any call site in the same module hands it, read on a first pass.
+#
+# THE UNRESOLVED DEFAULT IS THE CARRYING ONE. A call this module cannot resolve
+# and has no vocabulary for is read as carrying every tainted argument into its
+# result, with ONE carve-out, measured rather than assumed: a FUNCTION (a
+# lower-case callee, or ``subprocess.run`` and its siblings) handed ``env=``
+# runs under it and does not return it, while a CONSTRUCTOR handed ``env=``
+# holds it. Without that carve-out every ``subprocess.run(..., env=env)`` result
+# in the tree read as a leak - over two thousand findings, all false.
+#
+# STATED LIMITS, named rather than implied away. Each is a DECLARED RESIDUAL.
+#   * Production modules under ``clockspeed/``, ``tools/`` and ``scripts/`` are
+#     not summarised: they are the subject of the assertions, not a carrier
+#     between them. A call into one falls to the unresolved default.
+#   * A fixture defined in a ``conftest.py`` is not followed into the test that
+#     names it; a same-module fixture is. A call site in ANOTHER module does not
+#     seed a parameter, and a call site is recorded only where the guard
+#     evaluates it - an assignment, a bare call, a return, an ``if`` or
+#     ``while`` test, an assertion.
+#   * A holder is recognised by a field NAMED like an environment; a class that
+#     keeps one under another name is read as clean.
+#   * A lower-case function that RETURNS the ``env=`` it was handed, outside the
+#     summarised package, is read as returning clean.
+#   * A method of an object that holds the environment - ``repo.commit()`` - is
+#     read as returning clean unless it is a string, path or mapping method or is
+#     environment-named. The object itself is always graded whole.
+#   * An attribute assignment target - ``self.env = dict(os.environ)`` - is not
+#     followed. A subscript target taints its container.
+#   * A lambda's body, ``getattr`` with a computed attribute name, and a value
+#     serialised by any call other than ``json.dumps``, ``pprint.pformat``,
+#     ``saferepr``, ``str``, ``repr``, ``ascii`` or ``format`` are not followed.
+#   * Taint is STICKY within a scope: a name once bound to an environment value
+#     stays tainted even if rebound to something clean. That over-reports; it
+#     never under-reports.
+
+
+#: A value carries no environment content.
+ENV_CLEAN: Final = 0
+#: An object that HOLDS environment content behind a hand-written ``__repr__``
+#: - the ``Environment`` and ``Sandbox`` carriers of CS-703. Rendering it runs
+#: that repr, which is what it was written for; the CS-850 guard grades any
+#: assertion that bypasses it. Its environment-named FIELDS still carry values.
+ENV_SEALED: Final = 1
+#: A MAPPING of the environment: rendering it prints values, iterating it
+#: yields key NAMES only.
+ENV_MAPPING: Final = 2
+#: An environment VALUE, or a collection that renders or iterates values. The
+#: conservative top: anything that cannot be classified more narrowly is this.
+ENV_VALUE: Final = 3
+
+#: Attribute names that ARE the process environment, whatever module alias
+#: carries them - ``os.environ``, ``_os.environ``, ``os.environb``.
+ENVIRON_ATTRIBUTES: Final = frozenset({"environ", "environb"})
+
+#: Calls that return an environment value whatever their argument.
+ENVIRONMENT_READERS: Final = frozenset({"getenv", "getenvb"})
+
+#: Callees that ITERATE their argument. Over a mapping that yields key names -
+#: clean - and over values it yields values.
+ENV_ITERATING: Final = frozenset(
+    {
+        "enumerate",
+        "filter",
+        "frozenset",
+        "iter",
+        "join",
+        "list",
+        "map",
+        "max",
+        "min",
+        "next",
+        "reversed",
+        "set",
+        "sorted",
+        "tuple",
+        "zip",
+    }
+)
+
+#: Callees that carry their argument's contents through whole, mapping stays
+#: mapping.
+ENV_PRESERVING: Final = frozenset(
+    {"ChainMap", "MappingProxyType", "OrderedDict", "copy", "deepcopy", "dict"}
+)
+
+#: Callees that print their argument into a string.
+ENV_STRINGIFYING: Final = frozenset(
+    {"ascii", "dumps", "format", "pformat", "repr", "saferepr", "str"}
+)
+
+#: Callees known to CONSUME an environment argument without embedding it in
+#: what they return. A ``CompletedProcess`` renders its args, return code and
+#: output; a ``Popen`` its args and return code - never the ``env`` it was given.
+#: Every other call this module cannot resolve is read as CARRYING a tainted
+#: argument into its result, which is the direction that over-reports.
+ENV_OPAQUE_SINKS: Final = frozenset({"Popen", "call", "check_call", "check_output", "run"})
+
+#: Field names that carry an environment when read off an object that holds
+#: one. Every other field of such an object is read as clean; the object itself
+#: is always graded whole.
+ENV_FIELD_NAMES: Final = frozenset(
+    {"child_env", "env", "environ", "environment", "extra_env", "variables"}
+)
+
+#: The package whose modules are resolved and summarised. Test-SUPPORT code
+#: lives here; production code under ``clockspeed/`` and ``tools/`` is the
+#: subject of the assertions rather than a carrier between them, and a call into
+#: it falls to the unresolved default like any other.
+ENV_RESOLVED_PACKAGE: Final = "tests"
+
+
+@dataclass(frozen=True)
+class EnvSummary:
+    """What one in-repo function's return carries, per parameter.
+
+    Attributes:
+        own: The return's kind with every parameter clean.
+        through: Parameter name to the return's kind when THAT parameter alone
+            holds an environment mapping.
+        positional: Positional parameter names, in order.
+        vararg: The ``*args`` name, if any.
+        kwarg: The ``**kwargs`` name, if any.
+    """
+
+    own: int
+    through: Mapping[str, int]
+    positional: tuple[str, ...]
+    vararg: str | None
+    kwarg: str | None
+    sealed: bool = False
+    holder: bool = False
+
+    def receiving(self, call: ast.Call, tainted: Callable[[ast.expr], bool]) -> set[str]:
+        """The parameters a call hands a tainted argument to.
+
+        Args:
+            call: The call.
+            tainted: Whether an argument expression carries the environment.
+
+        Returns:
+            The parameter names; every parameter for a tainted ``*`` or ``**``
+            unpacking, whose destination cannot be read statically.
+        """
+        every = set(self.through)
+        names: set[str] = set()
+        for index, argument in enumerate(call.args):
+            if not tainted(argument):
+                continue
+            if isinstance(argument, ast.Starred):
+                return every
+            if index < len(self.positional):
+                names.add(self.positional[index])
+            elif self.vararg is not None:
+                names.add(self.vararg)
+        for keyword in call.keywords:
+            if not tainted(keyword.value):
+                continue
+            if keyword.arg is None:
+                return every
+            if keyword.arg in self.through:
+                names.add(keyword.arg)
+            elif self.kwarg is not None:
+                names.add(self.kwarg)
+        return names
+
+    def result(self, call: ast.Call, tainted: Callable[[ast.expr], bool]) -> int:
+        """What this call of the function returns.
+
+        Args:
+            call: The call.
+            tainted: Whether an argument expression carries the environment.
+
+        Returns:
+            The kind.
+        """
+        carried = [self.through.get(name, ENV_CLEAN) for name in self.receiving(call, tainted)]
+        return max([self.own, *carried])
+
+
+#: The methods of a dict. Read off an environment MAPPING, any of these is a
+#: value or a method object whose repr embeds the mapping; any other attribute
+#: read off a mapping-kinded name is a FIELD of an object that name really
+#: holds, graded by :data:`ENV_FIELD_NAMES`.
+MAPPING_METHOD_NAMES: Final = frozenset(
+    {
+        "__getitem__",
+        "copy",
+        "get",
+        "items",
+        "keys",
+        "pop",
+        "popitem",
+        "setdefault",
+        "update",
+        "values",
+    }
+)
+
+#: Methods of a string, a path, a list or a dict that hand back content derived
+#: from the receiver. Any OTHER method called on a value-kinded receiver is a
+#: method of an object that holds the environment, and is read as returning
+#: clean - a declared residual.
+VALUE_CARRYING_METHODS: Final = frozenset(
+    {
+        "__getitem__",
+        "absolute",
+        "as_posix",
+        "casefold",
+        "center",
+        "copy",
+        "decode",
+        "encode",
+        "expandtabs",
+        "format",
+        "get",
+        "items",
+        "join",
+        "joinpath",
+        "ljust",
+        "lower",
+        "lstrip",
+        "partition",
+        "pop",
+        "removeprefix",
+        "removesuffix",
+        "replace",
+        "resolve",
+        "rjust",
+        "rpartition",
+        "rsplit",
+        "rstrip",
+        "setdefault",
+        "split",
+        "splitlines",
+        "strip",
+        "swapcase",
+        "title",
+        "translate",
+        "upper",
+        "values",
+        "with_name",
+        "with_suffix",
+        "zfill",
+    }
+)
+
+#: Methods of a mapping that yield key NAMES or a flag, never a value.
+MAPPING_NAME_METHODS: Final = frozenset({"__contains__", "__len__", "keys"})
+
+#: Methods of a string value that yield a flag or a position, never the value.
+VALUE_PREDICATE_METHODS: Final = frozenset(
+    {
+        "endswith",
+        "find",
+        "index",
+        "isalnum",
+        "isalpha",
+        "isdecimal",
+        "isdigit",
+        "isidentifier",
+        "islower",
+        "isnumeric",
+        "isspace",
+        "isupper",
+        "rfind",
+        "rindex",
+        "startswith",
+    }
+)
+
+#: Methods that pour an argument INTO their receiver, so a receiver named by a
+#: plain name becomes tainted by a tainted argument.
+MUTATING_METHODS: Final = frozenset(
+    {"add", "append", "extend", "insert", "setdefault", "update", "__setitem__"}
+)
+
+
+@dataclass(frozen=True)
+class EnvFinding:
+    """One assertion whose failure report would render an environment value.
+
+    Attributes:
+        module: Repo-relative path of the asserting file.
+        lineno: The line of the offending sub-expression.
+        channel: ``expression`` for a rewritten sub-expression, ``message`` for
+            the assertion message.
+        source: The offending sub-expression, unparsed. Repo SOURCE TEXT, never
+            a runtime value - nothing in this module reads a value.
+    """
+
+    module: str
+    lineno: int
+    channel: str
+    source: str
+
+
+def describe_env_findings(findings: Sequence[EnvFinding]) -> str:
+    """Render findings as file, line, channel and shape.
+
+    Args:
+        findings: What to render.
+
+    Returns:
+        One indented line each, sorted, carrying source text only.
+    """
+    return "\n".join(
+        sorted(f"  {f.module}:{f.lineno}  [{f.channel}]  `{f.source}`" for f in findings)
+    )
+
+
+def _env_callee_name(call: ast.Call) -> str | None:
+    """The bare name of whatever a call calls.
+
+    Args:
+        call: The call node.
+
+    Returns:
+        The function name, the method name, or None.
+    """
+    func = call.func
+    if isinstance(func, ast.Name):
+        return func.id
+    if isinstance(func, ast.Attribute):
+        return func.attr
+    return None
+
+
+def _env_iterated(kind: int) -> int:
+    """What one element of an iteration over a value of this kind carries.
+
+    Args:
+        kind: The iterated value's kind.
+
+    Returns:
+        CLEAN over a mapping (key names), VALUE over values or over a sealed
+        holder, whose iteration yields its fields.
+    """
+    return ENV_VALUE if kind in (ENV_VALUE, ENV_SEALED) else ENV_CLEAN
+
+
+def _env_identity(target: ast.expr) -> Callable[[ast.expr], bool]:
+    """A predicate true of exactly one argument node.
+
+    Args:
+        target: The node.
+
+    Returns:
+        The predicate.
+    """
+
+    def matches(node: ast.expr) -> bool:
+        return node is target
+
+    return matches
+
+
+def env_renders(kind: int) -> bool:
+    """Whether rendering a value of this kind prints environment content.
+
+    Args:
+        kind: The value's kind.
+
+    Returns:
+        True for a mapping or a value; False for clean and for a sealed holder.
+    """
+    return kind >= ENV_MAPPING
+
+
+def _env_container(kinds: Sequence[int]) -> int:
+    """What a literal container or a formatted string of these parts carries.
+
+    Args:
+        kinds: The parts' kinds.
+
+    Returns:
+        VALUE when any part renders, SEALED when a part only holds, else CLEAN.
+    """
+    if any(env_renders(kind) for kind in kinds):
+        return ENV_VALUE
+    return ENV_SEALED if ENV_SEALED in kinds else ENV_CLEAN
+
+
+class _EnvScope:
+    """The taint state of one lexical scope, and the grader over it.
+
+    Args:
+        environ_names: Bare names imported from ``os`` as the environment.
+        functions: Callable name - a same-module function or one imported from
+            an in-repo module - to its summary.
+        inherited: Names bound tainted in an enclosing scope.
+        modules: In-repo module alias, as spelled at the call site, to its
+            functions' summaries.
+    """
+
+    def __init__(
+        self,
+        environ_names: frozenset[str],
+        functions: Mapping[str, EnvSummary],
+        inherited: Mapping[str, int],
+        modules: Mapping[str, Mapping[str, EnvSummary]] | None = None,
+    ) -> None:
+        self.environ_names = environ_names
+        self.functions = functions
+        self.modules: Mapping[str, Mapping[str, EnvSummary]] = modules or {}
+        self.bound: dict[str, int] = dict(inherited)
+        #: Function name to parameter name to the strongest kind any call site
+        #: in this module passed it - the REVERSE direction, read on a second
+        #: pass so a helper's parameter is graded as what its callers hand it.
+        self.callsites: dict[str, dict[str, int]] = {}
+        self.returned = ENV_CLEAN
+
+    # -- kinds --------------------------------------------------------------
+
+    def kind(self, node: ast.AST | None) -> int:  # noqa: PLR0911, PLR0912
+        """What environment content a node's VALUE carries.
+
+        Args:
+            node: The expression.
+
+        Returns:
+            CLEAN, MAPPING or VALUE.
+        """
+        if node is None:
+            return ENV_CLEAN
+        match node:
+            case ast.Constant() | ast.Lambda() | ast.Compare():
+                return ENV_CLEAN
+            case ast.Attribute(attr=attr) if attr in ENVIRON_ATTRIBUTES:
+                return ENV_MAPPING
+            case ast.Attribute(value=value, attr=attr):
+                return self._attribute_kind(value, attr)
+            case ast.Name(id=name):
+                if name in self.environ_names:
+                    return ENV_MAPPING
+                return self.bound.get(name, ENV_CLEAN)
+            case ast.Subscript(value=value):
+                return ENV_VALUE if self.kind(value) else ENV_CLEAN
+            case ast.Call():
+                return self._call_kind(node)
+            case ast.Dict(keys=keys, values=values):
+                if any(self.kind(key) for key in keys if key is not None):
+                    return ENV_VALUE
+                return ENV_MAPPING if any(self.kind(value) for value in values) else ENV_CLEAN
+            case ast.List(elts=elts) | ast.Tuple(elts=elts) | ast.Set(elts=elts):
+                return _env_container([self.kind(elt) for elt in elts])
+            case ast.JoinedStr(values=values):
+                return _env_container([self.kind(value) for value in values])
+            case ast.FormattedValue(value=value):
+                return _env_container([self.kind(value)])
+            case ast.BinOp(left=left, op=op, right=right):
+                kinds = (self.kind(left), self.kind(right))
+                if isinstance(op, ast.BitOr) and ENV_MAPPING in kinds and ENV_VALUE not in kinds:
+                    return ENV_MAPPING
+                return ENV_VALUE if any(kinds) else ENV_CLEAN
+            case ast.BoolOp(values=values):
+                return max(self.kind(value) for value in values)
+            case ast.IfExp(body=body, orelse=orelse):
+                return max(self.kind(body), self.kind(orelse))
+            case ast.UnaryOp(op=op, operand=operand):
+                return ENV_CLEAN if isinstance(op, ast.Not) else self.kind(operand)
+            case ast.NamedExpr(value=value) | ast.Starred(value=value) | ast.Await(value=value):
+                return self.kind(value)
+            case ast.ListComp() | ast.SetComp() | ast.GeneratorExp() | ast.DictComp():
+                return self._comprehension_kind(node)
+        return (
+            ENV_VALUE
+            if any(self.kind(child) for child in ast.iter_child_nodes(node))
+            else ENV_CLEAN
+        )
+
+    def _attribute_kind(self, value: ast.expr, attr: str) -> int:
+        """What reading one attribute off a value carries.
+
+        A read off the environment MAPPING itself is a method object whose repr
+        embeds the mapping. A read off anything else tainted - an object built
+        from an environment argument, a parameter seeded in a summary - is a
+        FIELD, and only a field named like an environment carries one: a
+        ``Sandbox(env=..., git_dir=...)`` renders its ``env`` whole, while its
+        ``git_dir`` is a path the environment never touched.
+
+        Args:
+            value: The receiver.
+            attr: The attribute name.
+
+        Returns:
+            The kind.
+        """
+        receiver = self.kind(value)
+        if receiver == ENV_MAPPING and attr in MAPPING_METHOD_NAMES:
+            return ENV_VALUE
+        if receiver and attr in ENV_FIELD_NAMES:
+            return ENV_MAPPING
+        return ENV_CLEAN
+
+    def _record_call_site(self, name: str, summary: EnvSummary, call: ast.Call) -> None:
+        """Remember what one call of a same-module function hands each parameter.
+
+        Args:
+            name: The function's name.
+            summary: Its summary, for the parameter layout.
+            call: The call.
+        """
+        seen = self.callsites.setdefault(name, {})
+        for argument in (*call.args, *(keyword.value for keyword in call.keywords)):
+            kind = self.kind(argument)
+            if not kind:
+                continue
+            for parameter in summary.receiving(call, _env_identity(argument)):
+                seen[parameter] = max(seen.get(parameter, ENV_CLEAN), kind)
+
+    def annotation_kind(self, annotation: ast.expr | None) -> int:
+        """What a value annotated this way carries, read off the class it names.
+
+        A class with an environment-named field and NO hand-written ``__repr__``
+        renders that field through its default repr, so a value of it is graded
+        as a value; a class that seals itself is graded as a sealed holder.
+
+        Args:
+            annotation: A parameter's annotation, or None.
+
+        Returns:
+            The kind; CLEAN for an annotation naming no such class.
+        """
+        if annotation is None:
+            return ENV_CLEAN
+        summaries = [self.functions.get(word) for word in guard.annotation_names(annotation)]
+        if isinstance(annotation, ast.Attribute):
+            owner = self.modules.get(ast.unparse(annotation.value), {})
+            summaries.append(owner.get(annotation.attr))
+        kind = ENV_CLEAN
+        for summary in summaries:
+            if summary is not None and summary.holder:
+                kind = max(kind, ENV_VALUE)
+            elif summary is not None and summary.sealed:
+                kind = max(kind, ENV_SEALED)
+        return kind
+
+    def _resolve(self, func: ast.expr) -> EnvSummary | None:
+        """The summary of an in-repo function a call names, if it names one.
+
+        Args:
+            func: The call's callee expression.
+
+        Returns:
+            The summary, or None for a callee this module cannot resolve.
+        """
+        if isinstance(func, ast.Name):
+            return self.functions.get(func.id)
+        if isinstance(func, ast.Attribute):
+            owner = self.modules.get(ast.unparse(func.value))
+            if owner is not None:
+                return owner.get(func.attr)
+        return None
+
+    def _call_kind(self, call: ast.Call) -> int:  # noqa: PLR0911, PLR0912
+        """What a call's result carries.
+
+        Args:
+            call: The call.
+
+        Returns:
+            Its kind.
+        """
+        func = call.func
+        name = _env_callee_name(call)
+        if isinstance(func, ast.Attribute) and func.attr not in ENVIRON_ATTRIBUTES:
+            receiver = self.kind(func.value)
+            if receiver == ENV_MAPPING and func.attr in MAPPING_METHOD_NAMES:
+                if func.attr in MAPPING_NAME_METHODS:
+                    return ENV_CLEAN
+                return ENV_MAPPING if func.attr == "copy" else ENV_VALUE
+            if receiver == ENV_VALUE and func.attr in VALUE_CARRYING_METHODS:
+                return ENV_VALUE
+            if receiver and func.attr in ENV_FIELD_NAMES:
+                return ENV_MAPPING
+            if receiver:
+                return ENV_CLEAN
+        if name in ENVIRONMENT_READERS:
+            return ENV_VALUE
+        if (
+            name == "getattr"
+            and len(call.args) >= 2  # noqa: PLR2004 - getattr(owner, name)
+            and isinstance(call.args[1], ast.Constant)
+            and call.args[1].value in ENVIRON_ATTRIBUTES
+        ):
+            return ENV_MAPPING
+        if name in MEASURE_REDUCERS:
+            return ENV_CLEAN
+        arguments = [*call.args, *(keyword.value for keyword in call.keywords)]
+        carried = max((self.kind(argument) for argument in arguments), default=ENV_CLEAN)
+        if name in ENV_PRESERVING:
+            return carried
+        if name in ENV_ITERATING:
+            return _env_iterated(carried)
+        if name in ENV_STRINGIFYING:
+            return ENV_VALUE if env_renders(carried) else ENV_CLEAN
+        summary = self._resolve(func)
+        if summary is not None and summary.sealed:
+            return ENV_SEALED if carried else ENV_CLEAN
+        if summary is not None and summary.holder:
+            return ENV_VALUE
+        if summary is not None:
+            if isinstance(func, ast.Name):
+                self._record_call_site(func.id, summary, call)
+            return summary.result(call, lambda argument: bool(self.kind(argument)))
+        if name in ENV_OPAQUE_SINKS or (name is not None and not name[:1].isupper()):
+            # A FUNCTION handed ``env=`` runs under it; a CONSTRUCTOR holds it.
+            embedded = [
+                *call.args,
+                *(keyword.value for keyword in call.keywords if keyword.arg != "env"),
+            ]
+            carried = max((self.kind(argument) for argument in embedded), default=ENV_CLEAN)
+        return ENV_VALUE if carried else ENV_CLEAN
+
+    def _comprehension_kind(
+        self, node: ast.ListComp | ast.SetComp | ast.GeneratorExp | ast.DictComp
+    ) -> int:
+        """What a comprehension's result carries.
+
+        Args:
+            node: The comprehension.
+
+        Returns:
+            Its kind.
+        """
+        saved = dict(self.bound)
+        for generator in node.generators:
+            self._bind_iteration(generator.target, generator.iter)
+        if isinstance(node, ast.DictComp):
+            value_kind = ENV_MAPPING if self.kind(node.value) else ENV_CLEAN
+            result = ENV_VALUE if self.kind(node.key) else value_kind
+        else:
+            result = ENV_VALUE if self.kind(node.elt) else ENV_CLEAN
+        self.bound = saved
+        return result
+
+    # -- binding ------------------------------------------------------------
+
+    def taint(self, name: str, kind: int) -> None:
+        """Bind a name, stickily - a tainted name never becomes clean.
+
+        Args:
+            name: The bound name.
+            kind: What it now holds.
+        """
+        self.bound[name] = max(self.bound.get(name, ENV_CLEAN), kind)
+
+    def _bind(self, target: ast.expr, kind: int, value: ast.expr | None = None) -> None:
+        """Bind an assignment target.
+
+        Args:
+            target: The target expression.
+            kind: What the assigned value carries.
+            value: The assigned expression, for element-wise tuple unpacking.
+        """
+        match target:
+            case ast.Name(id=name):
+                self.taint(name, kind)
+            case ast.Tuple(elts=elts) | ast.List(elts=elts):
+                values = getattr(value, "elts", None)
+                if values is not None and len(values) == len(elts):
+                    for element, part in zip(elts, values, strict=True):
+                        self._bind(element, self.kind(part), part)
+                else:
+                    for element in elts:
+                        self._bind(element, _env_iterated(kind))
+            case ast.Starred(value=inner):
+                self._bind(inner, kind)
+            case ast.Subscript(value=ast.Name(id=name)):
+                self.taint(name, ENV_VALUE if kind else ENV_CLEAN)
+
+    def _bind_iteration(self, target: ast.expr, iterable: ast.expr) -> None:
+        """Bind a loop or comprehension target from what it iterates.
+
+        ``for name, value in env.items()`` binds a key NAME and a VALUE.
+
+        Args:
+            target: The loop target.
+            iterable: The iterated expression.
+        """
+        if (
+            isinstance(iterable, ast.Call)
+            and isinstance(iterable.func, ast.Attribute)
+            and iterable.func.attr == "items"
+            and self.kind(iterable.func.value) == ENV_MAPPING
+            and isinstance(target, (ast.Tuple, ast.List))
+            and len(target.elts) == 2  # noqa: PLR2004 - a (key, value) pair
+        ):
+            self._bind(target.elts[0], ENV_CLEAN)
+            self._bind(target.elts[1], ENV_VALUE)
+            return
+        if (
+            isinstance(iterable, ast.Call)
+            and _env_callee_name(iterable) == "enumerate"
+            and iterable.args
+            and isinstance(target, (ast.Tuple, ast.List))
+            and len(target.elts) == 2  # noqa: PLR2004 - an (index, element) pair
+        ):
+            self._bind(target.elts[0], ENV_CLEAN)
+            self._bind(target.elts[1], _env_iterated(self.kind(iterable.args[0])))
+            return
+        if isinstance(iterable, (ast.Tuple, ast.List, ast.Set)):
+            # A literal's elements keep their OWN kinds: a sealed holder
+            # iterated out of ``(one, two)`` is still sealed.
+            element = max((self.kind(elt) for elt in iterable.elts), default=ENV_CLEAN)
+            self._bind(target, element)
+            return
+        self._bind(target, _env_iterated(self.kind(iterable)))
+
+    def _bind_walruses(self, stmt: ast.stmt) -> None:
+        """Bind every assignment expression inside one statement.
+
+        Args:
+            stmt: The statement.
+        """
+        for inner in ast.walk(stmt):
+            if isinstance(inner, ast.NamedExpr):
+                self._bind(inner.target, self.kind(inner.value))
+
+    def _bind_mutation(self, call: ast.Call) -> None:
+        """Taint a plain-named receiver that a mutating method pours a value into.
+
+        ``env.update(os.environ)`` makes ``env`` carry the environment.
+
+        Args:
+            call: A call made as a bare statement.
+        """
+        func = call.func
+        if not (isinstance(func, ast.Attribute) and isinstance(func.value, ast.Name)):
+            return
+        if func.attr not in MUTATING_METHODS:
+            return
+        arguments = [*call.args, *(keyword.value for keyword in call.keywords)]
+        if any(self.kind(argument) for argument in arguments):
+            self.taint(func.value.id, ENV_VALUE)
+
+    def bind_statement(self, stmt: ast.stmt) -> None:
+        """Apply every binding one statement makes.
+
+        Args:
+            stmt: The statement.
+        """
+        self._bind_walruses(stmt)
+        match stmt:
+            case ast.Assign(targets=targets, value=value):
+                for target in targets:
+                    self._bind(target, self.kind(value), value)
+            case ast.AnnAssign(target=target, value=value) if value is not None:
+                self._bind(target, self.kind(value), value)
+            case ast.AugAssign(target=target, value=value):
+                self._bind(target, self.kind(value), value)
+            case ast.For(target=target, iter=iterable) | ast.AsyncFor(target=target, iter=iterable):
+                self._bind_iteration(target, iterable)
+            case ast.With(items=items) | ast.AsyncWith(items=items):
+                for item in items:
+                    if item.optional_vars is not None:
+                        self._bind(item.optional_vars, self.kind(item.context_expr))
+            case ast.Expr(value=ast.Call() as call):
+                self._bind_mutation(call)
+                # Evaluated for its side effect alone: a bare call is a call
+                # site, and the reverse direction records what it hands over.
+                self.kind(call)
+            case ast.If(test=test) | ast.While(test=test):
+                self.kind(test)
+            case ast.Return(value=value) | ast.Expr(value=ast.Yield(value=value)):
+                self.returned = max(self.returned, self.kind(value))
+
+    # -- grading ------------------------------------------------------------
+
+    def grade(self, stmt: ast.Assert, module: str, rewritten: bool) -> Iterator[EnvFinding]:
+        """Every environment value one assertion's failure report renders.
+
+        Args:
+            stmt: The assertion.
+            module: Repo-relative path, carried onto each finding.
+            rewritten: Whether pytest rewrites this module.
+
+        Yields:
+            One finding per offending rendered sub-expression.
+        """
+        if rewritten:
+            seen: set[int] = set()
+            for node in explained(stmt.test):
+                for part in (node, *rendered_parts(node)):
+                    if id(part) in seen:
+                        continue
+                    seen.add(id(part))
+                    if env_renders(self.kind(part)):
+                        yield EnvFinding(module, part.lineno, "expression", ast.unparse(part))
+        if stmt.msg is not None and env_renders(self.kind(stmt.msg)):
+            yield EnvFinding(module, stmt.msg.lineno, "message", ast.unparse(stmt.msg))
+
+
+def _environ_names(tree: ast.Module) -> frozenset[str]:
+    """Bare names a module imports from ``os`` as the environment.
+
+    Args:
+        tree: The parsed module.
+
+    Returns:
+        ``environ`` for ``from os import environ``, or its alias.
+    """
+    found: set[str] = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.ImportFrom) and node.module == "os":
+            for alias in node.names:
+                if alias.name in ENVIRON_ATTRIBUTES:
+                    found.add(alias.asname or alias.name)
+    return frozenset(found)
+
+
+def _env_function_parameters(node: ast.FunctionDef | ast.AsyncFunctionDef) -> list[ast.arg]:
+    """Every named parameter of a function.
+
+    Args:
+        node: The function.
+
+    Returns:
+        The parameters, including ``*args`` and ``**kwargs``.
+    """
+    args = node.args
+    extra = [arg for arg in (args.vararg, args.kwarg) if arg is not None]
+    return [*args.posonlyargs, *args.args, *args.kwonlyargs, *extra]
+
+
+def _env_parameter_defaults(
+    node: ast.FunctionDef | ast.AsyncFunctionDef,
+) -> list[tuple[ast.arg, ast.expr]]:
+    """Each parameter that has a default, paired with it.
+
+    Args:
+        node: The function.
+
+    Returns:
+        The pairs.
+    """
+    args = node.args
+    positional = [*args.posonlyargs, *args.args]
+    pairs = list(
+        zip(positional[len(positional) - len(args.defaults) :], args.defaults, strict=True)
+    )
+    pairs += [
+        (arg, default)
+        for arg, default in zip(args.kwonlyargs, args.kw_defaults, strict=True)
+        if default is not None
+    ]
+    return pairs
+
+
+def _env_walk_scope(
+    scope: ast.AST,
+    scope_state: _EnvScope,
+    module: str,
+    rewritten: bool,
+    fixtures: Mapping[str, int],
+    callsites: Mapping[str, Mapping[str, int]] | None = None,
+) -> Iterator[EnvFinding]:
+    """Grade every assertion in one scope, then in each scope nested in it.
+
+    Args:
+        scope: A module, function or class.
+        scope_state: The scope's taint state, already seeded.
+        module: Repo-relative path.
+        rewritten: Whether pytest rewrites this module.
+        fixtures: Same-module fixture name to the kind it provides.
+        callsites: Function name to parameter name to what the module's call
+            sites hand it, from a first pass; None on that first pass.
+
+    Yields:
+        Findings.
+    """
+    nested: list[ast.AST] = []
+    for stmt in scope_statements(scope):
+        if isinstance(stmt, (*ANY_FUNCTION, ast.ClassDef)):
+            nested.append(stmt)
+            continue
+        scope_state.bind_statement(stmt)
+        if isinstance(stmt, ast.Assert):
+            yield from scope_state.grade(stmt, module, rewritten)
+    for child in nested:
+        inner = _EnvScope(
+            scope_state.environ_names,
+            scope_state.functions,
+            scope_state.bound,
+            scope_state.modules,
+        )
+        inner.callsites = scope_state.callsites
+        if isinstance(child, ANY_FUNCTION):
+            for arg in _env_function_parameters(child):
+                if arg.arg in fixtures:
+                    inner.taint(arg.arg, fixtures[arg.arg])
+                inner.taint(arg.arg, inner.annotation_kind(arg.annotation))
+                inner.taint(arg.arg, (callsites or {}).get(child.name, {}).get(arg.arg, 0))
+            for arg, default in _env_parameter_defaults(child):
+                inner.taint(arg.arg, inner.kind(default))
+        yield from _env_walk_scope(child, inner, module, rewritten, fixtures, callsites)
+
+
+def _env_is_fixture(node: ast.FunctionDef | ast.AsyncFunctionDef) -> bool:
+    """Whether a function is declared a pytest fixture.
+
+    Args:
+        node: The function.
+
+    Returns:
+        True for any spelling of the decorator, bare or called.
+    """
+    for decorator in node.decorator_list:
+        target = decorator.func if isinstance(decorator, ast.Call) else decorator
+        if isinstance(target, ast.Attribute) and target.attr == "fixture":
+            return True
+        if isinstance(target, ast.Name) and target.id == "fixture":
+            return True
+    return False
+
+
+def _env_returned(
+    node: ast.FunctionDef | ast.AsyncFunctionDef,
+    environ_names: frozenset[str],
+    functions: Mapping[str, EnvSummary],
+    modules: Mapping[str, Mapping[str, EnvSummary]],
+    seeded: Mapping[str, int],
+) -> int:
+    """What one function's return carries, with some parameters seeded.
+
+    Args:
+        node: The function.
+        environ_names: Bare names imported as the environment.
+        functions: Callable summaries known so far.
+        modules: In-repo module aliases to their summaries.
+        seeded: Parameter name to the kind it is seeded with.
+
+    Returns:
+        The return kind.
+    """
+    state = _EnvScope(environ_names, functions, seeded, modules)
+    for stmt in scope_statements(node):
+        if not isinstance(stmt, (*ANY_FUNCTION, ast.ClassDef)):
+            state.bind_statement(stmt)
+    return state.returned
+
+
+def _env_summarise(
+    node: ast.FunctionDef | ast.AsyncFunctionDef,
+    environ_names: frozenset[str],
+    functions: Mapping[str, EnvSummary],
+    modules: Mapping[str, Mapping[str, EnvSummary]],
+) -> EnvSummary:
+    """One function's summary under the summaries known so far.
+
+    Args:
+        node: The function.
+        environ_names: Bare names imported as the environment.
+        functions: Callable summaries known so far.
+        modules: In-repo module aliases to their summaries.
+
+    Returns:
+        The summary.
+    """
+    args = node.args
+    names = [arg.arg for arg in _env_function_parameters(node)]
+    probe = _EnvScope(environ_names, functions, {}, modules)
+    annotated = {
+        arg.arg: kind
+        for arg in _env_function_parameters(node)
+        if (kind := probe.annotation_kind(arg.annotation))
+    }
+    through = {
+        name: _env_returned(
+            node, environ_names, functions, modules, {**annotated, name: ENV_MAPPING}
+        )
+        or _env_returned(node, environ_names, functions, modules, {**annotated, name: ENV_VALUE})
+        for name in names
+    }
+    return EnvSummary(
+        own=_env_returned(node, environ_names, functions, modules, annotated),
+        through=through,
+        positional=tuple(arg.arg for arg in (*args.posonlyargs, *args.args)),
+        vararg=args.vararg.arg if args.vararg is not None else None,
+        kwarg=args.kwarg.arg if args.kwarg is not None else None,
+    )
+
+
+def _env_join(old: EnvSummary, new: EnvSummary) -> EnvSummary:
+    """The pointwise maximum of two summaries of one function.
+
+    Args:
+        old: The summary so far.
+        new: A fresh evaluation.
+
+    Returns:
+        The join, so the fixpoint only ever rises.
+    """
+    through = {
+        name: max(old.through.get(name, ENV_CLEAN), kind) for name, kind in new.through.items()
+    }
+    return EnvSummary(
+        max(old.own, new.own), through, new.positional, new.vararg, new.kwarg, old.sealed
+    )
+
+
+def _env_return_kinds(
+    tree: ast.Module,
+    environ_names: frozenset[str],
+    imported: Mapping[str, EnvSummary] | None = None,
+    modules: Mapping[str, Mapping[str, EnvSummary]] | None = None,
+) -> tuple[dict[str, EnvSummary], dict[str, int]]:
+    """Summarise every module-level function, to a fixpoint.
+
+    EVERY function gets a summary, clean ones included, so a call to a clean
+    in-repo function resolves to clean instead of falling to the unresolved
+    default, which reads a tainted argument as carried.
+
+    Args:
+        tree: The parsed module.
+        environ_names: Bare names imported as the environment.
+        imported: Summaries of callables imported from in-repo modules.
+        modules: In-repo module aliases to their summaries.
+
+    Returns:
+        Function name to its summary, and fixture name to the kind it provides
+        for the tainted fixtures only.
+    """
+    functions = [node for node in tree.body if isinstance(node, ANY_FUNCTION)]
+    aliases = modules or {}
+    known: dict[str, EnvSummary] = dict(imported or {})
+    for node in functions:
+        known[node.name] = EnvSummary(ENV_CLEAN, {}, (), None, None)
+    for statement in tree.body:
+        if not isinstance(statement, ast.ClassDef):
+            continue
+        if guard.repr_method(statement) is not None:
+            known[statement.name] = EnvSummary(ENV_CLEAN, {}, (), None, None, sealed=True)
+        elif set(guard.declared_fields(statement)) & ENV_FIELD_NAMES:
+            known[statement.name] = EnvSummary(ENV_CLEAN, {}, (), None, None, holder=True)
+    for _ in range(2 * len(functions) + 2):
+        changed = False
+        for node in functions:
+            joined = _env_join(
+                known[node.name], _env_summarise(node, environ_names, known, aliases)
+            )
+            if joined != known[node.name]:
+                known[node.name] = joined
+                changed = True
+        if not changed:
+            break
+    fixtures = {
+        node.name: known[node.name].own
+        for node in functions
+        if known[node.name].own and _env_is_fixture(node)
+    }
+    return known, fixtures
+
+
+def _env_module_file(root: Path, dotted: str) -> str | None:
+    """The in-repo source file a dotted module name resolves to.
+
+    Args:
+        root: The repository root.
+        dotted: The module's dotted name.
+
+    Returns:
+        Its repo-relative path, or None for anything outside the repository.
+    """
+    if dotted.split(".", 1)[0] != ENV_RESOLVED_PACKAGE:
+        return None
+    base = "/".join(dotted.split("."))
+    for relative in (f"{base}.py", f"{base}/__init__.py"):
+        if (root / relative).is_file():
+            return relative
+    return None
+
+
+def _env_package_of(module: str, level: int) -> str:
+    """The dotted package a relative import of this level is anchored at.
+
+    Args:
+        module: Repo-relative path of the importing file.
+        level: The number of leading dots.
+
+    Returns:
+        The dotted package name, possibly empty.
+    """
+    parts = module.split("/")[:-1]
+    if level > 1:
+        parts = parts[: len(parts) - (level - 1)]
+    return ".".join(parts)
+
+
+#: Modules whose summary is being computed, so an import cycle reads as an
+#: empty summary rather than recursing without bound.
+_ENV_IN_PROGRESS: set[tuple[str, str]] = set()
+
+
+@cache
+def _env_module_summary(root: str, module: str) -> Mapping[str, EnvSummary]:
+    """Every function summary of one in-repo module, imports resolved.
+
+    Args:
+        root: The repository root, as a string so the cache can key it.
+        module: Repo-relative path of the module.
+
+    Returns:
+        Function name to summary; empty for a module in an import cycle or one
+        that does not parse.
+    """
+    key = (root, module)
+    if key in _ENV_IN_PROGRESS:
+        return {}
+    _ENV_IN_PROGRESS.add(key)
+    try:
+        tree = ast.parse((Path(root) / module).read_bytes())
+    except (OSError, SyntaxError, ValueError):
+        return {}
+    else:
+        environ_names = _environ_names(tree)
+        imported, modules = _env_resolve_imports(tree, module, Path(root))
+        return _env_return_kinds(tree, environ_names, imported, modules)[0]
+    finally:
+        _ENV_IN_PROGRESS.discard(key)
+
+
+def _env_resolve_imports(
+    tree: ast.Module, module: str, root: Path
+) -> tuple[dict[str, EnvSummary], dict[str, Mapping[str, EnvSummary]]]:
+    """Resolve a module's imports of in-repo code to function summaries.
+
+    Handles ``from tests.x import f``, ``from .x import f``, ``from tests
+    import x`` and ``import tests.x`` with or without ``as``.
+
+    Args:
+        tree: The parsed importing module.
+        module: Its repo-relative path.
+        root: The repository root.
+
+    Returns:
+        Imported callable name to summary, and module alias as spelled at a
+        call site to that module's summaries.
+    """
+    imported: dict[str, EnvSummary] = {}
+    modules: dict[str, Mapping[str, EnvSummary]] = {}
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            for alias in node.names:
+                found = _env_module_file(root, alias.name)
+                if found is not None:
+                    modules[alias.asname or alias.name] = _env_module_summary(str(root), found)
+        elif isinstance(node, ast.ImportFrom):
+            package = node.module or ""
+            if node.level:
+                anchor = _env_package_of(module, node.level)
+                package = ".".join(part for part in (anchor, package) if part)
+            source = _env_module_file(root, package)
+            for alias in node.names:
+                bound = alias.asname or alias.name
+                submodule = _env_module_file(root, f"{package}.{alias.name}".strip("."))
+                if submodule is not None:
+                    modules[bound] = _env_module_summary(str(root), submodule)
+                elif source is not None:
+                    summary = _env_module_summary(str(root), source).get(alias.name)
+                    if summary is not None:
+                        imported[bound] = summary
+    return imported, modules
+
+
+def is_rewritten_module(module: str) -> bool:
+    """Whether pytest rewrites a module's assertions on this project.
+
+    No module calls ``register_assert_rewrite``, so the set is exactly the
+    collected test modules plus conftest files under ``tests/``.
+
+    Args:
+        module: Repo-relative, forward-slashed path.
+
+    Returns:
+        True for ``tests/**/test_*.py``, ``tests/**/*_test.py`` and
+        ``tests/**/conftest.py``.
+    """
+    if not module.startswith("tests/"):
+        return False
+    name = module.rsplit("/", 1)[-1]
+    return name == "conftest.py" or name.startswith("test_") or name.endswith("_test.py")
+
+
+def scan_env_source(module: str, source: str, root: Path = REPO_ROOT) -> list[EnvFinding]:
+    """Every environment-rendering assertion in one module's source.
+
+    Args:
+        module: Repo-relative path; decides whether the expression channel
+            applies and anchors relative imports.
+        source: The module's text.
+        root: The tree imports are resolved against.
+
+    Returns:
+        The findings, in source order.
+    """
+    tree = ast.parse(source)
+    environ_names = _environ_names(tree)
+    imported, modules = _env_resolve_imports(tree, module, root)
+    functions, fixtures = _env_return_kinds(tree, environ_names, imported, modules)
+    rewritten = is_rewritten_module(module)
+    collector = _EnvScope(environ_names, functions, {}, modules)
+    for _ in _env_walk_scope(tree, collector, module, rewritten, fixtures):
+        pass
+    state = _EnvScope(environ_names, functions, {}, modules)
+    found = list(_env_walk_scope(tree, state, module, rewritten, fixtures, collector.callsites))
+    return sorted(found, key=lambda finding: (finding.lineno, finding.source))
+
+
+@cache
+def scan_env_repo() -> tuple[EnvFinding, ...]:
+    """Every environment-rendering assertion in the tracked tree.
+
+    Returns:
+        The findings.
+    """
+    found: list[EnvFinding] = []
+    for module in tracked_python_files():
+        path = REPO_ROOT / module
+        if not path.is_file():
+            continue
+        found += scan_env_source(module, path.read_text(encoding="utf-8"))
+    return tuple(found)
+
+
+# ---------------------------------------------------------------------------
+# The tree is clean
+# ---------------------------------------------------------------------------
+
+
+def test_no_assertion_renders_an_environment_value() -> None:
+    findings = scan_env_repo()
+    count = len(findings)
+    listing = describe_env_findings(findings)
+    assert count == 0, (
+        f"{count} assertion(s) would render a process-environment value into a failure"
+        f" report. Bind the KEY NAMES of what changed to a list first:\n{listing}"
+    )
+
+
+def test_the_sweep_graded_a_real_population() -> None:
+    graded = sum(1 for module in tracked_python_files() if is_rewritten_module(module))
+    assert graded > 100, f"only {graded} rewritten modules were found to grade"  # noqa: PLR2004
+
+
+# ---------------------------------------------------------------------------
+# The shapes, pinned - flagged and not flagged
+# ---------------------------------------------------------------------------
+
+_ENV_REWRITTEN: Final = "tests/test_synthetic.py"
+_ENV_PLAIN: Final = "tests/synthetic_helper.py"
+
+
+def _env_lines(source: str, module: str = _ENV_REWRITTEN) -> list[tuple[int, str]]:
+    """The (line, channel) pairs a synthetic module is flagged at.
+
+    Args:
+        source: The synthetic module.
+        module: The path it pretends to live at.
+
+    Returns:
+        The pairs, in source order.
+    """
+    return [(finding.lineno, finding.channel) for finding in scan_env_source(module, source)]
+
+
+def test_the_cs1199_shape_is_flagged_at_its_line() -> None:
+    source = (
+        "import os\n"
+        "def test_walk():\n"
+        "    before = dict(os.environ)\n"
+        "    walk()\n"
+        "    assert dict(os.environ) == before\n"
+    )
+    flagged = _env_lines(source)
+    assert (5, "expression") in flagged, f"the dict(os.environ) == before shape passed: {flagged}"
+
+
+def test_a_membership_test_against_the_environment_is_flagged() -> None:
+    # MEASURED: visit_Attribute reprs os.environ itself, so this renders the
+    # whole environment. The behavioural arm below re-measures it every run.
+    source = 'import os\ndef test_x():\n    assert "X" not in os.environ\n'
+    assert _env_lines(source) == [(3, "expression")]
+
+
+def test_a_reduction_over_the_environment_still_renders_its_argument() -> None:
+    source = "import os\ndef test_x():\n    assert len(os.environ) > 0\n"
+    assert _env_lines(source) == [(3, "expression")]
+
+
+def test_a_single_value_read_is_flagged() -> None:
+    for read in ('os.environ.get("X")', 'os.getenv("X")', 'os.environ["X"]'):
+        source = f'import os\ndef test_x():\n    assert {read} == "v"\n'
+        count = len(_env_lines(source))
+        assert count > 0, f"a value read passed unflagged: {read}"
+
+
+def test_every_binding_form_carries_the_taint() -> None:
+    bindings = (
+        "env = os.environ.copy()",
+        "env = {**os.environ}",
+        "env, other = dict(os.environ), 1",
+        "if (env := dict(os.environ)): pass",
+        "env = {}\n    env.update(os.environ)",
+        "env = {}\n    env['k'] = os.environ['k']",
+        "for _, env in os.environ.items(): pass",
+        "env = [v for v in os.environ.values()]",
+    )
+    for binding in bindings:
+        source = f"import os\ndef test_x():\n    {binding}\n    assert env == 1\n"
+        count = len(_env_lines(source))
+        assert count > 0, f"a binding form dropped the taint: {binding}"
+
+
+def test_an_imported_alias_and_a_same_module_helper_are_followed() -> None:
+    aliased = "from os import environ as e\ndef test_x():\n    assert e == {}\n"
+    helper = (
+        "import os\n"
+        "def _snapshot():\n"
+        "    return dict(os.environ)\n"
+        "def test_x():\n"
+        "    assert _snapshot() == {}\n"
+    )
+    fixture = (
+        "import os, pytest\n"
+        "@pytest.fixture\n"
+        "def env():\n"
+        "    return dict(os.environ)\n"
+        "def test_x(env):\n"
+        "    assert env == {}\n"
+    )
+    assert _env_lines(aliased) == [(3, "expression")]
+    assert _env_lines(helper) == [(5, "expression")]
+    assert _env_lines(fixture) == [(6, "expression")]
+
+
+def test_the_message_channel_is_graded_even_where_nothing_is_rewritten() -> None:
+    source = 'import os\ndef check():\n    env = dict(os.environ)\n    assert not env, f"{env}"\n'
+    assert _env_lines(source, _ENV_PLAIN) == [(4, "message")]
+    assert _env_lines(source) == [(4, "expression"), (4, "message")]
+
+
+def test_the_expression_channel_is_not_graded_where_pytest_does_not_rewrite() -> None:
+    source = "import os\ndef check():\n    assert dict(os.environ) == {}\n"
+    assert _env_lines(source, _ENV_PLAIN) == []
+
+
+def test_the_remedies_are_not_flagged() -> None:
+    remedies = (
+        # key NAMES of what changed, bound before the assert
+        "before = dict(os.environ)\n"
+        "    walk()\n"
+        "    after = dict(os.environ)\n"
+        "    changed = sorted(k for k in set(before) | set(after)"
+        " if before.get(k) != after.get(k))\n"
+        '    assert changed == [], f"changed: {changed}"',
+        # a membership bound to a bool
+        'present = "X" in os.environ\n    assert not present, "X is set"',
+        # names only
+        'names = sorted(os.environ)\n    assert "X" in names',
+        'names = set(os.environ.keys())\n    assert "X" not in names',
+        "count = len(os.environ)\n    assert count > 0",
+        # the loop variable over items() that holds the NAME
+        "for name, _ in os.environ.items():\n        assert name",
+    )
+    for remedy in remedies:
+        source = f"import os\ndef test_x():\n    {remedy}\n"
+        flagged = _env_lines(source)
+        assert flagged == [], f"a remedy was flagged at {flagged}:\n{remedy}"
+
+
+def test_an_unrelated_dict_and_a_subprocess_result_are_not_flagged() -> None:
+    source = (
+        "import os, subprocess\n"
+        "def test_x():\n"
+        "    env = dict(os.environ)\n"
+        "    result = subprocess.run(['x'], env=env)\n"
+        "    other = {'a': 1}\n"
+        "    assert result.returncode == 0\n"
+        "    assert other == {'a': 1}\n"
+    )
+    assert _env_lines(source) == []
+
+
+#: A synthetic test-support module, shaped like ``tests/git_env.py``.
+_ENV_HELPER: Final = (
+    "import os, subprocess\n"
+    "def scrub(env):\n"
+    "    return {k: v for k, v in env.items() if not k.startswith('GIT_')}\n"
+    "def scrubbed_env():\n"
+    "    return scrub(dict(os.environ))\n"
+    "def plain_git(*args, cwd, env):\n"
+    "    return subprocess.run(['git', *args], cwd=cwd, env=env)\n"
+    "class Sealed:\n"
+    "    def __init__(self, env):\n"
+    "        self.env = env\n"
+    "    def __repr__(self):\n"
+    "        return 'Sealed(<withheld>)'\n"
+)
+
+
+def _env_tree_lines(tmp_path: Path, body: str) -> list[tuple[int, str]]:
+    """Flag a synthetic test module that imports from a synthetic helper.
+
+    Args:
+        tmp_path: The synthetic repository root.
+        body: The test module's source.
+
+    Returns:
+        The (line, channel) pairs it is flagged at.
+    """
+    helpers = tmp_path / "tests"
+    helpers.mkdir(exist_ok=True)
+    (helpers / "__init__.py").write_bytes(b"")
+    (helpers / "git_helper.py").write_bytes(_ENV_HELPER.encode("ascii"))
+    findings = scan_env_source("tests/test_synthetic.py", body, root=tmp_path)
+    return [(finding.lineno, finding.channel) for finding in findings]
+
+
+def test_a_helper_imported_from_a_support_module_is_resolved(tmp_path: Path) -> None:
+    # The refuted shape: tests/test_git_env_scrub.py read scrubbed_env() clean.
+    spellings = (
+        ("from tests.git_helper import plain_git, scrubbed_env\n", "scrubbed_env"),
+        ("from .git_helper import plain_git, scrubbed_env\n", "scrubbed_env"),
+        ("from tests.git_helper import plain_git, scrubbed_env as carrier\n", "carrier"),
+    )
+    for spelling, carrier in spellings:
+        body = (
+            f"{spelling}"
+            "def test_x():\n"
+            f"    assert plain_git('init', cwd='.', env={carrier}()).returncode == 0\n"
+        )
+        line = body.count("\n")
+        flagged = _env_tree_lines(tmp_path, body)
+        assert (line, "expression") in flagged, f"an imported carrier passed: {spelling!r}"
+
+
+def test_a_module_alias_call_is_resolved(tmp_path: Path) -> None:
+    for spelling, prefix in (
+        ("import tests.git_helper as h\n", "h"),
+        ("import tests.git_helper\n", "tests.git_helper"),
+        ("from tests import git_helper\n", "git_helper"),
+    ):
+        body = f"{spelling}def test_x():\n    assert {prefix}.scrubbed_env() == {{}}\n"
+        flagged = _env_tree_lines(tmp_path, body)
+        assert flagged == [(3, "expression")], f"a module alias call passed: {spelling!r}"
+
+
+def test_a_parameter_is_carried_only_where_the_helper_returns_it(tmp_path: Path) -> None:
+    body = (
+        "import os\n"
+        "from tests.git_helper import plain_git, scrub\n"
+        "def test_x():\n"
+        "    leaky = dict(os.environ)\n"
+        "    scrubbed = scrub(leaky)\n"
+        "    done = plain_git('status', cwd='.', env=leaky)\n"
+        "    assert done.returncode == 0\n"
+        "    assert scrubbed == {}\n"
+    )
+    assert _env_tree_lines(tmp_path, body) == [(8, "expression")]
+
+
+def test_a_sealed_holder_renders_clean_and_its_env_field_does_not(tmp_path: Path) -> None:
+    body = (
+        "import os\n"
+        "from tests.git_helper import Sealed\n"
+        "def test_x():\n"
+        "    box = Sealed(env=dict(os.environ))\n"
+        "    assert box is None\n"
+        "    assert box.env == {}\n"
+    )
+    assert _env_tree_lines(tmp_path, body) == [(6, "expression")]
+
+
+def test_an_unresolved_call_carries_a_tainted_argument() -> None:
+    carriers = (
+        "wrap(os.environ)",
+        "Holder(env=dict(os.environ))",
+        "json.dumps(dict(os.environ))",
+        "pprint.pformat(dict(os.environ))",
+        'getattr(os, "environ")',
+    )
+    for carrier in carriers:
+        source = f"import os\ndef test_x():\n    held = {carrier}\n    assert held == 1\n"
+        count = len(_env_lines(source))
+        assert count > 0, f"an unresolved carrier passed: {carrier}"
+
+
+#: A holder with an environment field and the DEFAULT repr, beside one that
+#: seals itself - the HookLayout shape of the second refutation.
+_ENV_HOLDERS: Final = (
+    "import os\n"
+    "from typing import NamedTuple\n"
+    "class Layout(NamedTuple):\n"
+    "    root: str\n"
+    "    env: dict\n"
+    "class Carrier(NamedTuple):\n"
+    "    root: str\n"
+    "    env: dict\n"
+    "    def __repr__(self):\n"
+    "        return 'Carrier(<withheld>)'\n"
+)
+
+
+def test_a_parameter_annotated_with_an_unsealed_holder_is_graded() -> None:
+    source = (
+        f"{_ENV_HOLDERS}"
+        "def check(layout: Layout, carrier: Carrier) -> None:\n"
+        "    assert layout.root\n"
+        "    assert carrier.root\n"
+        "    assert carrier.env == {}\n"
+    )
+    assert _env_lines(source) == [(12, "expression"), (14, "expression")]
+
+
+def test_an_unsealed_holder_built_from_nothing_tainted_is_still_graded() -> None:
+    source = f"{_ENV_HOLDERS}def test_x():\n    made = Layout('r', {{}})\n    assert made.root\n"
+    assert _env_lines(source) == [(13, "expression")]
+
+
+def test_a_parameter_is_graded_as_what_its_call_sites_hand_it() -> None:
+    source = (
+        "import os\n"
+        "def check(env, name):\n"
+        "    assert env.get(name, '').endswith('x')\n"
+        "    assert name\n"
+        "def test_x():\n"
+        "    check(dict(os.environ), 'HOME')\n"
+    )
+    assert sorted(set(_env_lines(source))) == [(3, "expression")]
+
+
+def test_a_sealed_holder_iterated_out_of_a_literal_stays_sealed() -> None:
+    source = (
+        f"{_ENV_HOLDERS}"
+        "def check(one: Carrier, two: Carrier) -> None:\n"
+        "    for run in (one, two):\n"
+        "        assert run.root\n"
+    )
+    assert _env_lines(source) == []
+
+
+def test_a_function_handed_env_runs_under_it_rather_than_returning_it() -> None:
+    source = (
+        "import os\n"
+        "def test_x():\n"
+        "    row = ladder_row('.', env=dict(os.environ))\n"
+        "    assert row['ok']\n"
+    )
+    assert _env_lines(source) == []
+
+
+# ---------------------------------------------------------------------------
+# The channel, measured under real pytest every run
+# ---------------------------------------------------------------------------
+
+#: A synthetic token planted in the CHILD's environment only. It never exists in
+#: this process's environment, so nothing real is rendered by this arm.
+_ENV_PLANT: Final = "CS1199PLANTEDTOKEN"
+
+_ENV_PROBE: Final = (
+    "import os\n"
+    "\n"
+    "def test_flagged():\n"
+    '    assert "CS1199_ABSENT" in os.environ\n'
+    "\n"
+    "def test_remedied():\n"
+    '    present = "CS1199_ABSENT" in os.environ\n'
+    '    assert present, "CS1199_ABSENT is not set"\n'
+)
+
+
+def _env_render(tmp_path: Path, test: str) -> tuple[int, int]:
+    """Run one probe test in a child pytest; count the plant in its report.
+
+    Args:
+        tmp_path: Where the probe module and an empty ini are written.
+        test: The probe test's name.
+
+    Returns:
+        The child's exit code and how many times the plant was rendered.
+    """
+    kept = ("PATH", "SYSTEMROOT", "TEMP", "TMP", "HOME", "USERPROFILE")
+    child_env = {key: os.environ[key] for key in kept if key in os.environ}
+    child_env["CS1199_PLANT"] = _ENV_PLANT
+    child_env["PYTHONDONTWRITEBYTECODE"] = "1"
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "pytest",
+            "-q",
+            "-p",
+            "no:cacheprovider",
+            "-c",
+            str(tmp_path / "pytest.ini"),
+            "--rootdir",
+            str(tmp_path),
+            f"{tmp_path / 'test_probe.py'}::{test}",
+        ],
+        cwd=tmp_path,
+        env=child_env,
+        capture_output=True,
+        check=False,
+        timeout=120,
+    )
+    rendered = result.stdout.decode("utf-8", errors="replace")
+    return result.returncode, rendered.count(_ENV_PLANT)
+
+
+def test_the_flagged_shape_renders_the_environment_and_the_remedy_does_not(
+    tmp_path: Path,
+) -> None:
+    (tmp_path / "pytest.ini").write_bytes(b"[pytest]\n")
+    (tmp_path / "test_probe.py").write_bytes(_ENV_PROBE.encode("ascii"))
+    flagged_exit, flagged_count = _env_render(tmp_path, "test_flagged")
+    remedied_exit, remedied_count = _env_render(tmp_path, "test_remedied")
+    assert flagged_exit == 1, "the flagged probe did not fail, so it rendered nothing"
+    assert remedied_exit == 1, "the remedied probe did not fail, so it rendered nothing"
+    assert flagged_count > 0, "the flagged shape no longer renders the environment"
+    assert remedied_count == 0, "the remedy still renders the environment"
+    lines = [(f.lineno, f.channel) for f in scan_env_source("tests/test_probe.py", _ENV_PROBE)]
+    assert lines == [(4, "expression")], f"the guard does not agree with pytest: {lines}"

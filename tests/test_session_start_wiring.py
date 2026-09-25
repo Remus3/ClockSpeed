@@ -544,12 +544,15 @@ def _run_like_the_hook(layout: HookLayout, *extra: str) -> subprocess.CompletedP
     a given client is outside this repository - the module docstring already
     names it as not covered.
     """
-    assert not (layout.root / "moon_sync_inbox").exists()
-    assert (layout.root / ".git").is_file(), "the copy is not in a git worktree"
-    assert (layout.cwd / "moon_sync_inbox").is_dir()
-    assert (layout.cwd / ".git").is_dir()
-    assert (layout.ancestor / "moon_sync_inbox").is_dir()
-    assert (layout.ancestor / ".git").is_dir()
+    # CS-1199. ``layout`` carries the child environment and its default repr
+    # renders it, so no assertion names ``layout`` - only paths bound out of it.
+    root, cwd, ancestor = layout.root, layout.cwd, layout.ancestor
+    assert not (root / "moon_sync_inbox").exists()
+    assert (root / ".git").is_file(), "the copy is not in a git worktree"
+    assert (cwd / "moon_sync_inbox").is_dir()
+    assert (cwd / ".git").is_dir()
+    assert (ancestor / "moon_sync_inbox").is_dir()
+    assert (ancestor / ".git").is_dir()
     command = HOOK_COMMAND.split()
     assert command == ["python", WATCHED_TOOL]
     child = dict(layout.env)

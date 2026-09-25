@@ -1298,7 +1298,8 @@ def test_the_exclusion_arm_does_not_report_on_the_ambient_environment(
     config = _build_exclusion_project(project)
     for variable, value in _resolve_plant(plant, project).items():
         monkeypatch.setenv(variable, value)
-        assert os.environ.get(variable) == value, f"the ambient {variable} was never planted"
+        planted = os.environ.get(variable) == value
+        assert planted, f"the ambient {variable} was never planted"
 
     _run_exclusion_arm(project, config, _seeded_cache(warm_mypy_cache, tmp_path / "cache"))
 
@@ -1379,11 +1380,16 @@ def test_the_controlled_environment_is_an_allowlist_in_any_case() -> None:
         "PYTHONIOENCODING": "utf-16",
         "SOME_FUTURE_VARIABLE": "1",
     }
-    assert _controlled_environment(ambient) == {
-        "Path": "kept",
-        "SystemRoot": "kept",
-        **_PINNED_ENVIRONMENT,
-    }
+    expected = {"Path": "kept", "SystemRoot": "kept", **_PINNED_ENVIRONMENT}
+    # CS-1199. The helper's return reads this process's environment on its
+    # default path, so only KEY NAMES cross the assertion.
+    controlled = _controlled_environment(ambient)
+    differing = sorted(
+        name
+        for name in set(controlled) | set(expected)
+        if controlled.get(name) != expected.get(name)
+    )
+    assert differing == [], f"the controlled environment differs at: {differing}"
 
 
 def _hostile_home(root: Path) -> dict[str, str]:

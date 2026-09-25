@@ -169,7 +169,8 @@ def test_a_scrubbed_environment_keeps_a_config_write_inside_its_own_repository(
     """
     throwaway = tmp_path / "throwaway"
     throwaway.mkdir()
-    assert plain_git("init", "-q", "-b", "main", cwd=throwaway, env=scrubbed_env()).returncode == 0
+    code = plain_git("init", "-q", "-b", "main", cwd=throwaway, env=scrubbed_env()).returncode
+    assert code == 0
     leaky = dict(os.environ)
     leaky["GIT_DIR"] = str(decoy / ".git")
 
@@ -196,25 +197,29 @@ def hooked_throwaway(root: Path) -> Path:
     examined the change and approved it.
     """
     root.mkdir()
-    assert plain_git("init", "-q", "-b", "main", cwd=root, env=scrubbed_env()).returncode == 0
+    code = plain_git("init", "-q", "-b", "main", cwd=root, env=scrubbed_env()).returncode
+    assert code == 0
     for key, value in (
         ("user.email", "gate@example.invalid"),
         ("user.name", "Gate Test"),
         ("commit.gpgsign", "false"),
         ("core.hooksPath", "own-hooks"),
     ):
-        assert plain_git("config", key, value, cwd=root, env=scrubbed_env()).returncode == 0
+        code = plain_git("config", key, value, cwd=root, env=scrubbed_env()).returncode
+        assert code == 0
     hooks = root / "own-hooks"
     hooks.mkdir()
     hook = hooks / "pre-commit"
     hook.write_bytes(b"#!/bin/sh\nprintf 'refused by the repo-local hook\n' >&2\nexit 1\n")
     hook.chmod(0o755)
     (root / "seed.txt").write_bytes(b"seed\n")
-    assert plain_git("add", "seed.txt", cwd=root, env=scrubbed_env()).returncode == 0
+    code = plain_git("add", "seed.txt", cwd=root, env=scrubbed_env()).returncode
+    assert code == 0
     seeded = plain_git("commit", "-q", "-m", "seed", "--no-verify", cwd=root, env=scrubbed_env())
     assert seeded.returncode == 0, seeded.stderr
     (root / "change.txt").write_bytes(b"change\n")
-    assert plain_git("add", "change.txt", cwd=root, env=scrubbed_env()).returncode == 0
+    code = plain_git("add", "change.txt", cwd=root, env=scrubbed_env()).returncode
+    assert code == 0
     return root
 
 

@@ -732,7 +732,10 @@ def test_the_personal_data_oracle_actually_detects() -> None:
     function, and only counts cross the assertion boundary.
     """
     needles = personal_data_needles()
-    assert needles, "the oracle derived no needles, so the privacy test below proves nothing"
+    needle_count = len(needles)
+    assert needle_count > 0, (
+        "the oracle derived no needles, so the privacy test below proves nothing"
+    )
 
     sample = f"repo: {Path.home().as_posix()}/some-clone"
     caught = sum(1 for needle in needles if needle.lower() in sample.lower())

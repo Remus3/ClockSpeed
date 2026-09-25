@@ -563,9 +563,9 @@ def test_every_discard_path_names_a_reason_without_echoing_the_path(
     _, warnings = _collect("{ this is not json", monkeypatch, tmp_path)
 
     rendered = " ".join(f"{item.code} {item.subject} {item.detail}" for item in warnings)
-    leaked = sorted(name for name in account_name_renderings() if name in rendered)
+    leaked = sum(1 for name in account_name_renderings() if name in rendered)
 
-    assert not leaked, "a local-config skip record carried an account name rendering"
+    assert leaked == 0, "a local-config skip record carried an account name rendering"
     assert warnings, "the discard produced no skip record at all"
     assert warnings[0].detail, "a skip record named no reason at all"
 

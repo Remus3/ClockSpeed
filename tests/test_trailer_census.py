@@ -198,7 +198,9 @@ def test_the_census_counts_lines_and_commits_over_a_real_walk(repo: Repo) -> Non
 
     walked = census.walk(repo.path, "main")
 
-    assert len(walked) == len(repo.shas)
+    # CS-1199. ``repo`` is a dataclass whose default repr renders its ``env``.
+    made = len(repo.shas)
+    assert len(walked) == made
     hits = {entry.sha: len(entry.hit_lines) for entry in walked if entry.hit_lines}
     assert hits == {first: 1, second: 2}
 

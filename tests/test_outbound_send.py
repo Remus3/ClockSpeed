@@ -498,9 +498,8 @@ def run_send(
     assert resolved.is_dir(), "the channel root does not exist"
     assert resolved != REPO_ROOT.parent, "the channel root is the real sibling root"
     assert REPO_ROOT not in resolved.parents, "the channel root is inside the repository"
-    assert env.get(ENV_RECORD, "").endswith(RECORD_NAME), (
-        "the delivery record was not redirected out of the repository"
-    )
+    redirected = env.get(ENV_RECORD, "").endswith(RECORD_NAME)
+    assert redirected, "the delivery record was not redirected out of the repository"
     proc = subprocess.run(
         [sys.executable, str(SENDER), "--channel-root", str(channel), *args],
         capture_output=True,
@@ -770,7 +769,8 @@ def test_dry_run_is_the_default(tmp_path: Path) -> None:
     channel = make_channel(tmp_path, with_inbox=(DEST_A, DEST_B))
     env = base_env(tmp_path)
     note = clean_note(tmp_path)
-    assert gate_verdict(note, env) != EXIT_REFUSED, (
+    verdict = gate_verdict(note, env)
+    assert verdict != EXIT_REFUSED, (
         "the gate refuses this suite's clean prose on this machine; the arm cannot grade"
     )
     before = tree_snapshot(channel)
@@ -849,7 +849,8 @@ def test_unmeasured_needs_the_flag(tmp_path: Path) -> None:
 
     assert held_code == EXIT_UNMEASURED, f"exit {held_code}; stderr {text(held_err)!r}"
     assert not held_changed, f"an unmeasured verdict still wrote to {held_changed}"
-    assert len(record_entries(env)) == 0, "an unmeasured verdict recorded a delivery"
+    recorded = len(record_entries(env))
+    assert recorded == 0, "an unmeasured verdict recorded a delivery"
 
     sent_code, _, sent_err = run_send(
         "--note",
@@ -913,7 +914,8 @@ def test_a_missing_destination_refuses_the_whole_send(tmp_path: Path) -> None:
         assert code == EXIT_REFUSED, f"exit {code} for a missing destination; out {text(out)!r}"
         assert not landed, f"a partial delivery reached {landed}"
         assert not changed, f"a refused whole-send changed {changed}"
-        assert len(record_entries(env)) == 0, "a refused whole-send wrote a record entry"
+        recorded = len(record_entries(env))
+        assert recorded == 0, "a refused whole-send wrote a record entry"
         assert missing in text(out) + text(err), "the refusal does not name the destination"
 
 
@@ -961,7 +963,8 @@ def test_a_filename_collision_refuses_and_leaves_the_bytes_untouched(tmp_path: P
     assert not delivered(channel, DEST_A).is_file(), "the first destination was written anyway"
     assert survived, "the existing note's bytes were modified by a refused send"
     assert not changed, f"a refused send changed {changed}"
-    assert len(record_entries(env)) == 0, "a refused send wrote a record entry"
+    recorded = len(record_entries(env))
+    assert recorded == 0, "a refused send wrote a record entry"
     assert "REFUSED" in text(out) + text(err), "the collision was not reported as a refusal"
 
 
@@ -1001,7 +1004,8 @@ def test_undecodable_bytes_refuse(tmp_path: Path) -> None:
 
     assert code == EXIT_REFUSED, f"exit {code} on undecodable input; stdout {text(out)!r}"
     assert not changed, f"undecodable bytes were written to {changed}"
-    assert len(record_entries(env)) == 0, "undecodable bytes produced a record entry"
+    recorded = len(record_entries(env))
+    assert recorded == 0, "undecodable bytes produced a record entry"
     assert "REFUSED" in text(out) + text(err)
 
 
@@ -1099,7 +1103,8 @@ def test_a_clean_note_lands_byte_identical_at_every_destination(tmp_path: Path) 
     env = base_env(tmp_path)
     note = clean_note(tmp_path)
     source = note.read_bytes()
-    assert gate_verdict(note, env) != EXIT_REFUSED, (
+    verdict = gate_verdict(note, env)
+    assert verdict != EXIT_REFUSED, (
         "the gate refuses this suite's clean prose on this machine; the arm cannot grade"
     )
 
@@ -1161,7 +1166,8 @@ def test_all_discovers_every_sibling_with_an_inbox_and_no_others(tmp_path: Path)
 
     assert code == EXIT_OK, f"exit {code}; stdout {text(out)!r} stderr {text(err)!r}"
     assert changed == expected, f"--all changed {changed}"
-    assert len(record_entries(env)) == len(expected), "the record does not match what was delivered"
+    recorded = len(record_entries(env))
+    assert recorded == len(expected), "the record does not match what was delivered"
 
 
 def test_the_record_gains_one_entry_per_destination(tmp_path: Path) -> None:
@@ -1490,7 +1496,8 @@ def test_a_link_that_leaves_the_channel_root_is_refused(tmp_path: Path) -> None:
 
     assert escaped == [], f"the send escaped the channel root and wrote {escaped}"
     assert code == EXIT_REFUSED, f"exit {code}; stdout {text(out)!r} stderr {text(err)!r}"
-    assert len(record_entries(env)) == 0, "an escaping destination reached the record"
+    recorded = len(record_entries(env))
+    assert recorded == 0, "an escaping destination reached the record"
     assert not DRIVE_LETTER_RE.search(streams), "the refusal rendered an absolute path"
 
 
@@ -1516,7 +1523,8 @@ def test_an_ordinary_sibling_delivers_while_an_escaping_link_sits_beside_it(
     env = base_env(tmp_path)
     note = clean_note(tmp_path)
     source = note.read_bytes()
-    assert gate_verdict(note, env) != EXIT_REFUSED, (
+    verdict = gate_verdict(note, env)
+    assert verdict != EXIT_REFUSED, (
         "the gate refuses this suite's clean prose on this machine; the arm cannot grade"
     )
 
@@ -1625,7 +1633,8 @@ def test_two_spellings_of_one_directory_collapse_to_one_destination(tmp_path: Pa
     assert code == EXIT_OK, f"exit {code}; stdout {text(out)!r} stderr {text(err)!r}"
     assert not partial, "a complete delivery to one directory was reported as partial"
     assert changed == [f"{DEST_A}/{INBOX}/{NOTE_NAME}"], f"the send changed {changed}"
-    assert len(record_entries(env)) == 1, "one directory was recorded more than once"
+    recorded = len(record_entries(env))
+    assert recorded == 1, "one directory was recorded more than once"
 
 
 def test_a_trailing_dot_is_recorded_under_the_name_the_directory_has(tmp_path: Path) -> None:
@@ -1950,9 +1959,8 @@ def run_copy_dry(sender: Path, *args: str, env: dict[str, str]) -> tuple[int, by
     """
     assert "--send" not in args, "this helper is dry-run only and must never deliver"
     assert sender.is_file(), "the sender copy under test does not exist"
-    assert env.get(ENV_RECORD, "").endswith(RECORD_NAME), (
-        "the delivery record was not redirected out of the repository"
-    )
+    redirected = env.get(ENV_RECORD, "").endswith(RECORD_NAME)
+    assert redirected, "the delivery record was not redirected out of the repository"
     proc = subprocess.run(
         [sys.executable, str(sender), *args],
         capture_output=True,
@@ -2133,7 +2141,8 @@ def test_a_look_alike_grandparent_is_not_the_channel_root(tmp_path: Path) -> Non
 
     assert escaped == [], f"the send escaped into a look-alike tree and wrote {escaped}"
     assert code == EXIT_REFUSED, f"exit {code}; stdout {text(out)!r} stderr {text(err)!r}"
-    assert len(record_entries(env)) == 0, "an escaping destination reached the record"
+    recorded = len(record_entries(env))
+    assert recorded == 0, "an escaping destination reached the record"
 
 
 def test_three_spellings_of_one_directory_are_one_delivery(tmp_path: Path) -> None:
@@ -2187,7 +2196,8 @@ def test_three_spellings_of_one_directory_are_one_delivery(tmp_path: Path) -> No
     assert code == EXIT_OK, f"exit {code}; stdout {text(out)!r} stderr {text(err)!r}"
     assert not partial, "a complete delivery to one directory was reported as partial"
     assert changed == [f"{DEST_A}/{INBOX}/{NOTE_NAME}"], f"the send changed {changed}"
-    assert len(record_entries(env)) == 1, "one directory was recorded more than once"
+    recorded = len(record_entries(env))
+    assert recorded == 1, "one directory was recorded more than once"
 
 
 def test_a_non_canonical_channel_root_still_contains(tmp_path: Path) -> None:

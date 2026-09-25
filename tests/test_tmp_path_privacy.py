@@ -652,7 +652,8 @@ def test_the_oracle_is_not_vacuous() -> None:
     homes = home_path_spellings()
     names = account_name_spellings()
     assert homes, "no home-directory spelling could be derived; the scan would be vacuous"
-    assert names, "no account-name spelling could be derived; the scan would be vacuous"
+    name_count = len(names)
+    assert name_count > 0, "no account-name spelling could be derived; the scan would be vacuous"
     assert all(len(spelling) >= MIN_HOME_SPELLING for spelling in homes), (
         "a home-directory spelling is shorter than a bare drive or filesystem "
         "root, so it is not a home directory and scanning for it would be worse "
@@ -693,7 +694,8 @@ def test_the_control_run_leaks_through_both_exception_types(control_run: Sandbox
     blocks = failure_blocks(control_run.output)
     markers = account_name_spellings()
     for name in (MEMORY_TEST, EXIT_TEST):
-        assert hit_counts(blocks[name], markers), (
+        hits = hit_counts(blocks[name], markers)
+        assert hits, (
             f"the unguarded control's {name} block carries no account-name "
             f"spelling, so the guarded assertion for that block proves nothing"
         )
@@ -845,7 +847,8 @@ def test_an_earlier_test_that_repoints_the_home_directory_cannot_poison_a_later_
         )
 
     control_blocks = failure_blocks(control_poison_run.output)
-    assert hit_counts(control_blocks[victim], account_name_spellings()), (
+    victim_hits = hit_counts(control_blocks[victim], account_name_spellings())
+    assert victim_hits, (
         "the UNGUARDED victim block carries no account-name spelling, so the "
         "guarded assertion below proves nothing on this machine"
     )
@@ -879,7 +882,8 @@ def test_a_line_style_traceback_renders_no_crash_path(
 
     control_region = guarded_region(control_tb_line_run.output)
     markers = (*home_path_spellings(), *account_name_spellings())
-    assert hit_counts(control_region, markers), (
+    control_hits = hit_counts(control_region, markers)
+    assert control_hits, (
         "the UNGUARDED --tb=line run rendered no marker at all, so the guarded "
         "assertion below proves nothing. This arm depends on the sandbox living "
         "under a home directory; where it does not, this channel is unmeasured "
@@ -959,7 +963,8 @@ def test_a_url_quoted_path_renders_no_account_name(
         )
 
     control_region = guarded_region(control_quoted_run.output)
-    assert hit_counts(control_region, account_name_spellings()), (
+    control_hits = hit_counts(control_region, account_name_spellings())
+    assert control_hits, (
         "the UNGUARDED quoted-path run rendered no account-name spelling, so "
         "the guarded assertion below proves nothing on this machine"
     )

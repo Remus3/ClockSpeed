@@ -209,14 +209,18 @@ def test_the_bare_interpreter_is_genuinely_python_and_genuinely_missing_the_tool
     bare_python: Path,
 ) -> None:
     """The acceptance's own words: genuinely python, genuinely missing them."""
+    # CS-1199. ``scrubbed`` is this machine's PATH; it never crosses an assertion.
     scrubbed = path_without_ruff(os.environ.get("PATH", ""))
-    assert (
-        runs(bare_python, "import sys; sys.exit(0 if sys.version_info[0] == 3 else 1)", scrubbed)
-        == 0
-    ), "the bare interpreter is not a working python 3"
-    assert runs(bare_python, "import ruff", scrubbed) != 0, "the bare interpreter imports ruff"
-    assert runs(bare_python, "import pytest", scrubbed) != 0, "the bare interpreter imports pytest"
-    assert shutil.which("ruff", path=scrubbed) is None, "the scrubbed PATH still reaches a ruff"
+    python3 = runs(
+        bare_python, "import sys; sys.exit(0 if sys.version_info[0] == 3 else 1)", scrubbed
+    )
+    assert python3 == 0, "the bare interpreter is not a working python 3"
+    has_ruff = runs(bare_python, "import ruff", scrubbed)
+    assert has_ruff != 0, "the bare interpreter imports ruff"
+    has_pytest = runs(bare_python, "import pytest", scrubbed)
+    assert has_pytest != 0, "the bare interpreter imports pytest"
+    reached = shutil.which("ruff", path=scrubbed) is not None
+    assert not reached, "the scrubbed PATH still reaches a ruff"
 
 
 # --- the refusal, by a real commit --------------------------------------------

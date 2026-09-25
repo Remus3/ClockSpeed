@@ -866,9 +866,15 @@ def test_every_worktree_command_in_this_module_targets_a_scratch_repo() -> None:
 
 
 def test_the_walk_does_not_touch_the_process_environment() -> None:
+    # CS-1199. Only KEY NAMES cross the assertion: rendering either mapping
+    # would print every environment value, credentials included, on a failure.
     before = dict(os.environ)
     doc_budget.evaluate(REPO_ROOT)
-    assert dict(os.environ) == before
+    after = dict(os.environ)
+    changed = sorted(
+        name for name in set(before) | set(after) if before.get(name) != after.get(name)
+    )
+    assert changed == [], f"the walk added, removed or changed: {changed}"
 
 
 # ---------------------------------------------------------------------------
