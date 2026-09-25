@@ -652,7 +652,7 @@ fi
 # SANDBOX COPIES in the hook tests rewrite this ONE line to a test-local value
 # through tests/pre_push_floor.py, which refuses unless the line keeps exactly
 # this shape: the name, an equals sign and digits, alone on the line.
-CS_PASS_FLOOR=9840
+CS_PASS_FLOOR=10804
 if [ "$STATUS" -eq 0 ] && [ "$cs_passed" -lt "$CS_PASS_FLOOR" ]; then
     die "pytest passed $cs_passed tests, below the floor of $CS_PASS_FLOOR." \
         "A suite cut down below the floor is not the suite this gate grades." \
