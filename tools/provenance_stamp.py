@@ -321,7 +321,8 @@ def restore_advice(root: Path) -> str:
         f"restore the committed manifest with `git checkout {rev} -- {MANIFEST_RELATIVE}`"
         " BEFORE editing any file, or the re-seed arm reads the edit as a lift;"
         " never re-derive it, which would classify every unstamped file as authored"
-        f" (CS-1176){truncated}"
+        " (CS-1176); an edit already committed while it was absent is recovered by the"
+        f" runbook in docs/OPERATIONS.md (CS-1179){truncated}"
     )
 
 

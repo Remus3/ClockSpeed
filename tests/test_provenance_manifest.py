@@ -82,10 +82,12 @@ own seed was committed is caught by the tool's all-refs refusal, not here. A
 rewrite that also deletes every ref reaching a manifest leaves nothing to refuse
 on, compare against or restore from; that residual is the tool's, named there.
 NAMED RESIDUAL (R3): delete the manifest, commit an honest edit to a seed-era
-file, then restore the manifest as advised - that file is red for good, because
-a gap closing on bytes other than it opened on is exactly F1's lift, and
-forgiving it would forgive F1. The remedy is to restore the manifest BEFORE
-editing anything, which the missing-manifest messages say.
+file, then restore the manifest as advised - that file's first-add row stays
+red, because a gap closing on bytes other than it opened on is exactly F1's
+lift, and forgiving it would forgive F1. The remedy is to restore the manifest
+BEFORE editing anything, which the missing-manifest messages say; after the
+fact, the CS-1179 runbook in docs/OPERATIONS.md replaces that row with a
+``stamped`` one, which this arm does not grade - the residual above.
 Every other arm grades synthetic manifests - in a throwaway git repository
 under ``tmp_path`` and over an in-memory population read from the real index -
 and each mutant is asserted to have LANDED before its verdict is read.
@@ -850,10 +852,12 @@ def _reseeded_rows(
     grades those bytes as it grades every edit.
 
     NAMED RESIDUAL (R3), the other way: delete the manifest, commit an honest
-    edit to a seed-era file, then restore the manifest as advised - that row is
-    red for good. The gap closes on bytes other than those it opened on, which
-    is exactly F1's lift; forgiving it would forgive F1. Restore the manifest
-    BEFORE editing anything; the missing-manifest messages say so.
+    edit to a seed-era file, then restore the manifest as advised - that
+    first-add row stays red. The gap closes on bytes other than those it opened
+    on, which is exactly F1's lift; forgiving it would forgive F1. Restore the
+    manifest BEFORE editing anything; the missing-manifest messages say so.
+    After the fact, the CS-1179 runbook in docs/OPERATIONS.md replaces the row
+    with a ``stamped`` one, which this function never grades.
 
     Args:
         rows: The manifest's rows.
@@ -974,7 +978,9 @@ def _missing_manifest_message(root: Path) -> str:
         f"{MANIFEST_RELATIVE} does not exist. Restore the committed manifest with "
         f"`git checkout {rev} -- {MANIFEST_RELATIVE}` BEFORE editing any file, or the "
         f"re-seed arm reads the edit as a lift; never re-derive it, which would "
-        f"classify every unlisted file as authored (CS-1176). Against that manifest these "
+        f"classify every unlisted file as authored (CS-1176). An edit already committed "
+        f"while it was absent is recovered by the runbook in docs/OPERATIONS.md "
+        f"(CS-1179). Against that manifest these "
         f"files have no row: {unlisted}. Classify each with "
         f"`python {STAMP_TOOL} add PATH --class authored|vendored --item CS-NNNN`."
     )

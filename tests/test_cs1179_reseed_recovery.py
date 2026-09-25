@@ -54,6 +54,7 @@ from tests.test_provenance_manifest import (
     _commit,
     _git,
     _grade_repo,
+    _missing_manifest_message,
     _parse_manifest,
     _repo_history,
     _reseed_grade,
@@ -73,6 +74,15 @@ STAMPED_PATH = "pkg/later.py"
 
 #: The item every stamp in the throwaway tree cites; its ROADMAP.md records it.
 ITEM = "CS-1165"
+
+#: The runbook that carries the recovery recipe, repo-relative.
+RUNBOOK = "docs/OPERATIONS.md"
+
+#: The recipe's two tool commands, exactly as the runbook spells them.
+RECIPE_COMMANDS = (
+    "python tools/provenance_stamp.py rm PATH",
+    "python tools/provenance_stamp.py add PATH --class authored --item CS-NNNN",
+)
 
 
 def _rows(root: Path) -> dict[str, Row]:
@@ -224,6 +234,19 @@ def _finding(path: str, row: Row) -> str:
     return f"{path} ({row.basis})"
 
 
+def blind(tree: Path) -> History:
+    """THE F1 MUTANT: the real history, but every blob compares equal.
+
+    Args:
+        tree: A work tree.
+
+    Returns:
+        A history under which every gap is forgiven.
+    """
+    real = _repo_history(tree)
+    return real._replace(blob=lambda _rev, _path: "same")
+
+
 class Scenario(NamedTuple):
     """The combined F1 plus R3 tree, before the recovery is run."""
 
@@ -333,11 +356,6 @@ def test_cs1179_mutant_a_history_blind_to_bytes_forgives_f1(
     # forgiveness forgives F1's lift, so the control above is red only because
     # the arm compares the bytes either side of the gap.
     root = f1_and_r3.root
-
-    def blind(tree: Path) -> History:
-        real = _repo_history(tree)
-        return real._replace(blob=lambda _rev, _path: "same")
-
     monkeypatch.setattr(manifest_arm, "_repo_history", blind)
     assert vars(manifest_arm)["_repo_history"] is blind, "the mutant never landed"
     assert _reseed_grade(root).findings == []
@@ -366,3 +384,57 @@ def test_cs1179_residual_the_recovery_is_a_declaration_on_any_path(
     _recover(root, F1_PATH)
     assert _rows(root)[F1_PATH] == Row("authored", ITEM, "stamped")
     assert _finding(F1_PATH, f1_and_r3.f1_row) not in _reseed_grade(root).findings
+
+
+def test_cs1179_after_the_recovery_f1_is_still_named_and_only_by_the_byte_check(
+    f1_and_r3: Scenario, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # The F1 control AFTER the recovery, with no precondition in front of it, so
+    # a mutant of the byte comparison reddens THIS assert rather than a
+    # precondition that happens to run first.
+    root = f1_and_r3.root
+    _recover(root, R3_PATH)
+    assert _reseed_grade(root).findings == [_finding(F1_PATH, f1_and_r3.f1_row)]
+    with monkeypatch.context() as mutant:
+        mutant.setattr(manifest_arm, "_repo_history", blind)
+        assert vars(manifest_arm)["_repo_history"] is blind, "the mutant never landed"
+        assert _reseed_grade(root).findings == [], "F1 survived a history blind to bytes"
+
+
+def _lose_the_manifest(root: Path) -> None:
+    """Delete the manifest in a commit.
+
+    Args:
+        root: The throwaway work tree.
+    """
+    _git(root, "rm", "-q", "--", MANIFEST_RELATIVE)
+    _commit(root, f"{ITEM} - lose the manifest")
+    assert not (root / MANIFEST_RELATIVE).exists(), "the deletion never landed"
+
+
+def test_cs1179_the_tool_missing_manifest_advice_names_the_recovery(seeded: Path) -> None:
+    _lose_the_manifest(seeded)
+    advice = _stamp_tool().restore_advice(seeded)
+    assert "git checkout " in advice, "the advice lost the restore"
+    assert RUNBOOK in advice, "the tool's missing-manifest advice does not name the runbook"
+    assert "CS-1179" in advice
+
+
+def test_cs1179_the_arm_missing_manifest_red_names_the_recovery(seeded: Path) -> None:
+    _lose_the_manifest(seeded)
+    message = _missing_manifest_message(seeded)
+    assert "git checkout " in message, "the red lost the restore"
+    assert RUNBOOK in message, "the arm's missing-manifest red does not name the runbook"
+    assert "CS-1179" in message
+
+
+def test_cs1179_the_runbook_carries_the_recipe_and_what_it_does_not_do() -> None:
+    text = (REPO_ROOT / RUNBOOK).read_text(encoding="ascii")
+    start = text.find("(CS-1179)")
+    assert start >= 0, f"{RUNBOOK} carries no CS-1179 recovery entry"
+    end = text.find("\n\n**", start)
+    entry = text[start : end if end >= 0 else len(text)]
+    for command in RECIPE_COMMANDS:
+        assert command in entry, f"the runbook entry lacks `{command}`"
+    assert "`stamped`" in entry, "the entry does not say the row it leaves is stamped"
+    assert "tests/test_provenance_manifest.py" in entry, "the entry cites no residual"

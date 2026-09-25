@@ -107,6 +107,27 @@ restored with `git checkout <rev> -- tools/provenance.tsv` - restore BEFORE edit
 any file - and never re-seeded, because a re-seed classifies every unstamped file as
 authored.
 
+**An edit committed while the manifest was absent (CS-1179).** If a file whose row
+carries a `first-add:` basis was edited and committed while `tools/provenance.tsv` was
+gone, the restore above leaves the re-seed arm red for that path, and that first-add row
+stays red: its bytes changed across the gap, which is exactly the shape of a lift, and
+forgiving it would forgive one. The recovery replaces the row, in one commit:
+
+1. Copy PATH somewhere outside the repository, then `git rm -q -- PATH` - the tool's
+   `rm` refuses a path that is still tracked or untracked-unignored.
+2. `python tools/provenance_stamp.py rm PATH`
+3. Copy the bytes back to PATH and `git add -- PATH`.
+4. `python tools/provenance_stamp.py add PATH --class authored --item CS-NNNN`
+5. `git add -- tools/provenance.tsv` and commit.
+
+What it does NOT do: it never turns the first-add row green - it swaps it for a
+`stamped` row, which the re-seed arm does not grade. That row is a declaration with an
+item id and a commit on it, the residual the module docstring of
+`tests/test_provenance_manifest.py` already names (a hand-written row with basis
+`stamped` passes that arm), so the recipe adds no capability a hand edit of the basis
+cell lacked. The near-duplicate arm and `add`'s own refusals still grade the bytes. Run it
+only for a file you authored; on anything else it is a false declaration on the record.
+
 **Never run a bare recursive test invocation from the repo root.** Always name the target
 directory explicitly. A bare sweep from the root can walk runtime state directories and
 destroy live locks or data.
