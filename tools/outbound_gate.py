@@ -82,7 +82,9 @@ from __future__ import annotations
 import argparse
 import contextlib
 import difflib
+import hashlib
 import importlib.util
+import json
 import os
 import re
 import sys
@@ -319,57 +321,136 @@ CREDENTIAL_EQUIVALENT_BRANCHES: frozenset[tuple[str, str]] = frozenset(
 )
 
 #: CS-1175. The RECORDED fingerprint of every rule, as
-#: `credential_rule_fingerprint` derives it: the compiled flags, then every
-#: quantifier rendered as source in walk order. A narrowing that is not an
+#: `credential_rule_fingerprint` derives it: the compiled flags, a digest of
+#: the source, then every quantifier and every class atom - under a quantifier
+#: or not - rendered as source in walk order. A narrowing that is not an
 #: alternation branch - a flag dropped, a word-prefix quantifier dropped or
 #: shortened, a length minimum raised, a class member removed - matched every
 #: canary and kept the row green; a canary cannot see one without encoding the
 #: pristine shape, and derived from the live rule it would be derived from the
 #: narrowed rule. So this pins it: `credential_fingerprint_gaps` names every
-#: difference, and a DELIBERATE change to a rule is re-recorded here by
-#: pasting what that function derives, never by editing a value by hand.
+#: difference, and any change to a rule's source or flags differs here. A
+#: DELIBERATE change is re-recorded by running
+#: `python tools/outbound_gate.py --print-fingerprints` and pasting its output
+#: over this table - the command prints and never rewrites this file.
 CREDENTIAL_RULE_FINGERPRINTS: dict[str, tuple[str, ...]] = {
-    "PEM private key block": ("flags UNICODE", "[A-Z0-9 ]{0,32}"),
-    "PuTTY private key file": ("flags UNICODE",),
-    "AWS access key id": ("flags UNICODE", "[0-9A-Z]{16}"),
-    "GitHub token": ("flags UNICODE", "[A-Za-z0-9]{20,}"),
-    "GitHub fine-grained personal access token": ("flags UNICODE", "[A-Za-z0-9_]{20,}"),
-    "Slack token": ("flags UNICODE", "[A-Za-z0-9\\-]{10,}"),
-    "Google API key": ("flags UNICODE", "[A-Za-z0-9_\\-]{35}"),
-    "bearer token": ("flags UNICODE", "\\s+", "[A-Za-z0-9._~+/=\\-]{20,}"),
-    _QUOTED_RULE: (
-        "flags IGNORECASE UNICODE",
-        "[_\\-]?",
-        "s?",
-        "s?",
-        "s?",
-        "s?",
-        "s?",
-        "[_\\-]?",
-        "s?",
-        "[_\\-]?",
-        "s?",
-        "[_\\-]?",
-        "s?",
-        "[_\\-]?",
-        "s?",
-        "\\s*",
-        "\\s*",
-        "[^\"'\\n]{16,}",
+    "PEM private key block": (
+        "flags UNICODE",
+        "source sha256 36709d83860d5cde",
+        "quantifier [A-Z0-9 ]{0,32}",
+        "class [A-Z0-9 ]",
     ),
-    _ENTROPY_RULE: (
-        "flags IGNORECASE UNICODE",
-        "\\w*",
-        "\\w*",
-        "\\s*",
-        "\\s*",
-        "[A-Fa-f0-9]{32,}",
-        "[A-Za-z+/]*",
-        "[A-Za-z0-9+/]*",
-        "[A-Za-z0-9+/]{40,}",
-        "={0,2}",
+    "PuTTY private key file": (
+        "flags UNICODE",
+        "source sha256 423db67c186b15a2",
+        "class \\d",
     ),
-    _ANT_RULE: ("flags UNICODE", "\\d{2}", "[A-Za-z0-9_\\-]{20,}"),
+    "AWS access key id": (
+        "flags UNICODE",
+        "source sha256 7f8a678753a46ba3",
+        "quantifier [0-9A-Z]{16}",
+        "class [0-9A-Z]",
+    ),
+    "GitHub token": (
+        "flags UNICODE",
+        "source sha256 3687247a3d33b96f",
+        "class [pousr]",
+        "quantifier [A-Za-z0-9]{20,}",
+        "class [A-Za-z0-9]",
+    ),
+    "GitHub fine-grained personal access token": (
+        "flags UNICODE",
+        "source sha256 f244775d791a38f4",
+        "quantifier [A-Za-z0-9_]{20,}",
+        "class [A-Za-z0-9_]",
+    ),
+    "Slack token": (
+        "flags UNICODE",
+        "source sha256 adc4c4e0323750b9",
+        "class [abprs]",
+        "quantifier [A-Za-z0-9\\-]{10,}",
+        "class [A-Za-z0-9\\-]",
+    ),
+    "Google API key": (
+        "flags UNICODE",
+        "source sha256 b758a12691be4a76",
+        "quantifier [A-Za-z0-9_\\-]{35}",
+        "class [A-Za-z0-9_\\-]",
+    ),
+    "bearer token": (
+        "flags UNICODE",
+        "source sha256 2d3fad4836d9f91e",
+        "class [Bb]",
+        "quantifier \\s+",
+        "class \\s",
+        "quantifier [A-Za-z0-9._~+/=\\-]{20,}",
+        "class [A-Za-z0-9._~+/=\\-]",
+    ),
+    "credential assigned a quoted literal of 16 or more characters": (
+        "flags IGNORECASE UNICODE",
+        "source sha256 17b40a71e72342ba",
+        "quantifier [_\\-]?",
+        "class [_\\-]",
+        "quantifier s?",
+        "quantifier s?",
+        "quantifier s?",
+        "quantifier s?",
+        "quantifier s?",
+        "quantifier [_\\-]?",
+        "class [_\\-]",
+        "quantifier s?",
+        "quantifier [_\\-]?",
+        "class [_\\-]",
+        "quantifier s?",
+        "quantifier [_\\-]?",
+        "class [_\\-]",
+        "quantifier s?",
+        "quantifier [_\\-]?",
+        "class [_\\-]",
+        "quantifier s?",
+        "quantifier \\s*",
+        "class \\s",
+        "class [:=]",
+        "quantifier \\s*",
+        "class \\s",
+        "class [\"']",
+        "quantifier [^\"'\\n]{16,}",
+        "class [^\"'\\n]",
+        "class [\"']",
+    ),
+    "credential assigned a bare high-entropy literal": (
+        "flags IGNORECASE UNICODE",
+        "source sha256 97dfbd4e70252151",
+        "quantifier \\w*",
+        "class \\w",
+        "quantifier \\w*",
+        "class \\w",
+        "quantifier \\s*",
+        "class \\s",
+        "class [:=]",
+        "quantifier \\s*",
+        "class \\s",
+        "quantifier [A-Fa-f0-9]{32,}",
+        "class [A-Fa-f0-9]",
+        "quantifier [A-Za-z+/]*",
+        "class [A-Za-z+/]",
+        "class [0-9]",
+        "quantifier [A-Za-z0-9+/]*",
+        "class [A-Za-z0-9+/]",
+        "class [0-9]",
+        "quantifier [A-Za-z0-9+/]{40,}",
+        "class [A-Za-z0-9+/]",
+        "quantifier ={0,2}",
+        "class [\\w=]",
+    ),
+    "Anthropic API or admin key (vendor prefix)": (
+        "flags UNICODE",
+        "source sha256 0aef9e683de479ba",
+        "quantifier \\d{2}",
+        "class \\d",
+        "quantifier [A-Za-z0-9_\\-]{20,}",
+        "class [A-Za-z0-9_\\-]",
+    ),
 }
 
 TOOL = "outbound-gate"
@@ -766,8 +847,9 @@ def _pattern_text(seq: Iterable[_Node]) -> str:
         name = str(op)
         if name == "LITERAL":
             out.append(_char_text(int(av), _REGEX_SPECIALS))
-        elif name == "IN":
-            out.append(_in_text(av))
+        elif name in ("IN", "NOT_LITERAL"):
+            negated = "[^" + _char_text(int(av), _CLASS_SPECIALS) + "]" if name != "IN" else ""
+            out.append(negated or _in_text(av))
         elif name == "ANY":
             out.append(".")
         elif name == "FAILURE":
@@ -957,46 +1039,70 @@ def credential_branch_gaps(gate: ModuleType) -> list[str]:
     return gaps
 
 
-def _quantifier_nodes(seq: Any, found: list[_Node]) -> None:
-    """Every repeat node under `seq`, in a fixed walk order, lookarounds included."""
+#: The atoms a fingerprint records as a CLASS, wherever they sit: a character
+#: class or lone category (`IN`), a negated single character (`NOT_LITERAL`)
+#: and the dot (`ANY`). Each is what a class-member narrowing edits.
+_CLASS_OPS = frozenset({"IN", "NOT_LITERAL", "ANY"})
+_QUANTIFIER = "quantifier "
+_CLASS = "class "
+_SOURCE = "source sha256 "
+_FLAGS = "flags "
+
+
+def _fingerprint_nodes(seq: Any, found: list[tuple[str, _Node]]) -> None:
+    """Every quantifier and every class atom under `seq`, in a fixed walk order.
+
+    Nothing is skipped by position: a class under a quantifier, inside a
+    lookaround, a group or an alternative is recorded on its own as well as
+    inside the quantifier that repeats it.
+    """
     for op, av in seq:
         name = str(op)
         if name in _REPEATS:
-            found.append((op, av))
-            _quantifier_nodes(av[2], found)
+            found.append((_QUANTIFIER, (op, av)))
+            _fingerprint_nodes(av[2], found)
+        elif name in _CLASS_OPS:
+            found.append((_CLASS, (op, av)))
         elif name == "BRANCH":
             for alt in av[1]:
-                _quantifier_nodes(alt, found)
+                _fingerprint_nodes(alt, found)
         elif name == "SUBPATTERN":
-            _quantifier_nodes(av[-1], found)
+            _fingerprint_nodes(av[-1], found)
         elif name == "ATOMIC_GROUP":
-            _quantifier_nodes(av, found)
+            _fingerprint_nodes(av, found)
         elif name in ("ASSERT", "ASSERT_NOT"):
-            _quantifier_nodes(av[1], found)
+            _fingerprint_nodes(av[1], found)
+        elif name == "GROUPREF_EXISTS":
+            for sub in av[1:]:
+                if sub is not None:
+                    _fingerprint_nodes(sub, found)
 
 
 def credential_rule_fingerprint(pattern: re.Pattern[str]) -> tuple[str, ...]:
-    """The rule's compiled flags, then every quantifier as source, in walk order.
+    """The rule's flags, a digest of its source, then every quantifier and class.
 
-    CS-1175. DERIVED from the compiled pattern's own parse, never typed: the
-    first element names every flag set on the compiled pattern, and each
-    further element is one repeat node rendered back to source - so it carries
-    the minimum, the maximum, the greedy or lazy mode, and the class members
-    of what is repeated. Each element is proven to parse back to the very node
-    it came from, or the rule is refused as underivable. Raises one of
+    CS-1175. DERIVED from the compiled pattern's own parse, never typed. The
+    first element names every flag set on the compiled pattern. The second is
+    a SHA-256 digest of the rule's source, so a change that touches no flag,
+    quantifier or class - an anchor, a literal, a group - still changes the
+    fingerprint. Every further element is one quantifier (minimum, maximum,
+    mode and what it repeats) or one class atom (its members), rendered back
+    to source, wherever it sits. Each is proven to parse back to the very
+    node it came from, or the rule is refused as underivable. Raises one of
     `_PARSE_ERRORS` if the parser cannot be read.
     """
     tree = _RE_PARSER.parse(pattern.pattern, pattern.flags)
     names = sorted(str(flag.name) for flag in re.RegexFlag if flag.name and pattern.flags & flag)
-    found: list[_Node] = []
-    _quantifier_nodes(tree, found)
-    parts = ["flags " + " ".join(names)]
-    for node in found:
+    digest = hashlib.sha256(pattern.pattern.encode("utf-8")).hexdigest()[:16]
+    found: list[tuple[str, _Node]] = []
+    _fingerprint_nodes(tree, found)
+    parts = [_FLAGS + " ".join(names), _SOURCE + digest]
+    for prefix, node in found:
         rendered = _pattern_text([node])
         if repr(_RE_PARSER.parse(rendered, pattern.flags).data) != repr([node]):
-            message = "the fingerprint renderer does not reproduce a quantifier of this rule"
+            message = "the fingerprint renderer does not reproduce an element of this rule"
             raise re.error(message)
-        parts.append(rendered)
+        parts.append(prefix + rendered)
     return tuple(parts)
 
 
@@ -1005,13 +1111,44 @@ def _bound(high: int) -> str:
     return "unbounded" if high == _RE_OPS.MAXREPEAT else str(high)
 
 
+def _one_node(rendered: str, flags: int) -> _Node:
+    """The single node one fingerprint element parses to."""
+    data = _RE_PARSER.parse(rendered, flags).data
+    if len(data) != 1:
+        message = "a fingerprint element is not one node"
+        raise re.error(message)
+    return (data[0][0], data[0][1])
+
+
+def _class_members(rendered: str, flags: int) -> frozenset[str]:
+    """The members of one class element, each rendered as class source."""
+    op, av = _one_node(rendered, flags)
+    name = str(op)
+    if name == "IN":
+        return frozenset(_class_text([member])[1:-1] for member in av)
+    if name == "NOT_LITERAL":
+        return frozenset({"^" + _char_text(int(av), _CLASS_SPECIALS)})
+    if name == "ANY":
+        return frozenset({"."})
+    message = "a fingerprint element is not one class"
+    raise re.error(message)
+
+
+def _class_changes(old: str, new: str, flags: int) -> list[str]:
+    """What changed between two renderings of the class at one position."""
+    was, now = _class_members(old, flags), _class_members(new, flags)
+    changes = ["member %s removed from %s" % (m, old) for m in sorted(was - now)]
+    changes.extend("member %s added to %s" % (m, old) for m in sorted(now - was))
+    return changes or ["class %s is now %s" % (old, new)]
+
+
 def _quantifier_facts(rendered: str, flags: int) -> tuple[str, int, int, str, Any]:
     """(mode, minimum, maximum, repeated atom, class members or None) of one element."""
-    data = _RE_PARSER.parse(rendered, flags).data
-    if len(data) != 1 or str(data[0][0]) not in _REPEATS:
+    op, av = _one_node(rendered, flags)
+    if str(op) not in _REPEATS:
         message = "a fingerprint element is not one quantifier"
         raise re.error(message)
-    op, (low, high, sub) = data[0]
+    low, high, sub = av
     items = list(sub)
     members = None
     if len(items) == 1 and str(items[0][0]) == "IN":
@@ -1043,24 +1180,47 @@ def _quantifier_changes(old: str, new: str, flags: int) -> list[str]:
     return changes or ["%s is now %s" % (old, new)]
 
 
+def _element_changes(old: str, new: str, flags: int) -> list[str]:
+    """What changed between two fingerprint elements at one position."""
+    for prefix, compare in ((_QUANTIFIER, _quantifier_changes), (_CLASS, _class_changes)):
+        if old.startswith(prefix) and new.startswith(prefix):
+            return compare(old[len(prefix) :], new[len(prefix) :], flags)
+    return ["%s is now %s" % (old, new)]
+
+
+def _head(fingerprint: Sequence[str], prefix: str) -> str:
+    """The head element carrying `prefix`, without it, or empty if absent."""
+    return next((part[len(prefix) :] for part in fingerprint[:2] if part.startswith(prefix)), "")
+
+
 def _fingerprint_changes(recorded: Sequence[str], live: Sequence[str], flags: int) -> list[str]:
-    """Name every difference between a recorded fingerprint and the live one."""
+    """Name every difference between a recorded fingerprint and the live one.
+
+    A difference in the source digest alone - every flag, quantifier and class
+    unchanged - is named as a change outside them, so no edit goes unnamed.
+    """
     changes: list[str] = []
-    was = set(recorded[0].split()[1:]) if recorded else set()
-    now = set(live[0].split()[1:])
+    was, now = set(_head(recorded, _FLAGS).split()), set(_head(live, _FLAGS).split())
     changes.extend("flag %s dropped" % name for name in sorted(was - now))
     changes.extend("flag %s added" % name for name in sorted(now - was))
-    old, new = list(recorded[1:]), list(live[1:])
+    old = [part for part in recorded if not part.startswith((_FLAGS, _SOURCE))]
+    new = [part for part in live if not part.startswith((_FLAGS, _SOURCE))]
     matcher = difflib.SequenceMatcher(a=old, b=new, autojunk=False)
     for tag, i1, i2, j1, j2 in matcher.get_opcodes():
         if tag == "equal":
             continue
         if tag == "replace" and i2 - i1 == j2 - j1:
             for before, after in zip(old[i1:i2], new[j1:j2], strict=True):
-                changes.extend(_quantifier_changes(before, after, flags))
+                changes.extend(_element_changes(before, after, flags))
             continue
-        changes.extend("quantifier %s dropped" % element for element in old[i1:i2])
-        changes.extend("quantifier %s added" % element for element in new[j1:j2])
+        changes.extend("%s dropped" % element for element in old[i1:i2])
+        changes.extend("%s added" % element for element in new[j1:j2])
+    source0, source1 = _head(recorded, _SOURCE), _head(live, _SOURCE)
+    if not changes and source0 != source1:
+        changes.append(
+            "a change outside its flags, quantifiers and classes (source sha256 %s -> %s)"
+            % (source0 or "unrecorded", source1)
+        )
     return changes
 
 
@@ -1068,12 +1228,16 @@ def credential_fingerprint_gaps(gate: ModuleType) -> list[str]:
     """Every rule whose DERIVED fingerprint differs from its recorded one.
 
     CS-1175. A rule narrowed without touching a branch - a flag dropped, a
-    quantifier dropped or shortened, a minimum raised, a class member removed -
-    still matched every canary, so nothing reddened. A canary cannot see such a
-    change unless it encodes the rule's PRISTINE shape, and one derived from
-    the live rule is derived from the narrowed rule; so the pin is this
-    fingerprint, and ANY change is named with what changed, to be re-recorded
-    in `CREDENTIAL_RULE_FINGERPRINTS` deliberately. Never carries a canary.
+    quantifier dropped or shortened, a minimum raised, a class member removed,
+    under a quantifier or not - still matched every canary, so nothing
+    reddened. A canary cannot see such a change unless it encodes the rule's
+    PRISTINE shape, and one derived from the live rule is derived from the
+    narrowed rule; so the pin is this fingerprint. Because it carries a digest
+    of the source as well as the flags, ANY change to a rule's source or flags
+    is named - by kind where it is a flag, quantifier or class, otherwise as a
+    change outside them - to be re-recorded deliberately with
+    `--print-fingerprints`. A renamed rule is named twice: no recorded
+    fingerprint, and a fingerprint for no such rule. Never carries a canary.
     """
     gaps: list[str] = []
     rules = list(gate.SECRET_PATTERNS)
@@ -1101,6 +1265,31 @@ def credential_fingerprint_gaps(gate: ModuleType) -> list[str]:
         if reason not in known
     )
     return gaps
+
+
+def fingerprint_source(gate: ModuleType) -> tuple[str, list[str]]:
+    """`CREDENTIAL_RULE_FINGERPRINTS` as Python source, derived from the live rules.
+
+    CS-1175. What `--print-fingerprints` prints, so a DELIBERATE change to a
+    rule is re-recorded by pasting derived output, never by typing a value.
+    Returns (source, reasons of rules whose fingerprint could not be derived);
+    an underivable rule is left out of the source and named instead. Every
+    string is JSON-quoted, which is a valid Python string literal for the
+    ASCII this renderer emits.
+    """
+    lines = ["CREDENTIAL_RULE_FINGERPRINTS: dict[str, tuple[str, ...]] = {"]
+    underivable: list[str] = []
+    for pattern, reason in gate.SECRET_PATTERNS:
+        try:
+            fingerprint = credential_rule_fingerprint(pattern)
+        except _PARSE_ERRORS:
+            underivable.append(reason)
+            continue
+        lines.append("    %s: (" % json.dumps(reason))
+        lines.extend("        %s," % json.dumps(element) for element in fingerprint)
+        lines.append("    ),")
+    lines.append("}")
+    return "\n".join(lines) + "\n", underivable
 
 
 def _canary_row(klass: str, gaps: Sequence[str]) -> Coverage:
@@ -1279,6 +1468,29 @@ def _refuse_ungraded(detail: str) -> int:
     return EXIT_REFUSED
 
 
+def _print_fingerprints() -> int:
+    """Print the fingerprint table as source for a deliberate re-record.
+
+    CS-1175. Prints only: pasting the output over `CREDENTIAL_RULE_FINGERPRINTS`
+    is the human act that makes a re-record deliberate. Exit 3 names every rule
+    whose fingerprint could not be derived. The output carries regex source and
+    reasons, never a canary or a payload.
+    """
+    try:
+        source, underivable = fingerprint_source(load_precommit_gate())
+    except BaseException as exc:
+        if isinstance(exc, KeyboardInterrupt):
+            raise
+        write_stream(sys.stderr, "%s: no fingerprints derived (%s)\n" % (TOOL, type(exc).__name__))
+        return EXIT_UNMEASURED
+    write_stream(sys.stdout, source)
+    if underivable:
+        named = _ascii("; ".join(underivable))
+        write_stream(sys.stderr, "%s: UNMEASURED - no fingerprint for: %s\n" % (TOOL, named))
+        return EXIT_UNMEASURED
+    return EXIT_CLEAN
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     """Grade one payload and report. Writes nothing, reaches no network."""
     parser = QuietParser(
@@ -1290,7 +1502,15 @@ def main(argv: Sequence[str] | None = None) -> int:
         default=None,
         help="read the payload from this path instead of standard input",
     )
+    parser.add_argument(
+        "--print-fingerprints",
+        action="store_true",
+        help="print CREDENTIAL_RULE_FINGERPRINTS as source derived from the live rules "
+        "and exit; writes no file and reads no payload",
+    )
     args = parser.parse_args(argv)
+    if args.print_fingerprints:
+        return _print_fingerprints()
 
     try:
         text = read_payload(args.file)

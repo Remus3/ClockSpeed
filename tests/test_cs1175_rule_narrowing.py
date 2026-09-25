@@ -13,10 +13,11 @@ length, the case, the class endpoint. Derived from the LIVE rule, it is
 derived from the already-narrowed rule, so it matches that rule and the row
 stays green - circular. Recorded, it is a hand list. So the pin is the
 fingerprint `tools/outbound_gate.py::credential_rule_fingerprint` DERIVES from
-each compiled rule - its flags and every quantifier, rendered with its bounds
-and its class members - checked against `CREDENTIAL_RULE_FINGERPRINTS`. Any
-change reddens the row, naming the rule and what changed, and is re-recorded
-deliberately.
+each compiled rule - its flags, a digest of its source, every quantifier with
+its bounds and every class atom with its members, under a quantifier or not -
+checked against `CREDENTIAL_RULE_FINGERPRINTS`. Any change to a rule's source
+or flags reddens the row, naming the rule and what changed, and is re-recorded
+deliberately from `--print-fingerprints` output.
 
 EVERY PLANT IS INDEPENDENT. Each mutation edits a rule's SOURCE TEXT in-test
 and recompiles it, never through the module's own derivation, and never by
@@ -116,6 +117,50 @@ PLANTS: tuple[tuple[str, str, str, str, int, str], ...] = (
         "member 0-9 removed from [A-Z0-9 ]{0,32}",
     ),
     ("class-member", "bearer token", "._~+/=-]", "._+/=-]", 0, "member ~ removed from"),
+    # REPAIR F1: a class that NO quantifier repeats. Before the repair the
+    # fingerprint held only quantifiers, so these four read MEASURED.
+    (
+        "class-unquantified",
+        "PuTTY private key file",
+        "-\\d",
+        "-[0-8]",
+        0,
+        "member \\d removed from \\d",
+    ),
+    (
+        "class-unquantified",
+        "PuTTY private key file",
+        "-\\d",
+        "-[0-9]",
+        0,
+        "member \\d removed from \\d",
+    ),
+    (
+        "class-unquantified",
+        _ENTROPY,
+        "*[0-9][",
+        "*[0-8][",
+        0,
+        "member 0-9 removed from [0-9]",
+    ),
+    (
+        "class-unquantified",
+        _ENTROPY,
+        "*[0-9])",
+        "*[0-8])",
+        0,
+        "member 0-9 removed from [0-9]",
+    ),
+    # REPAIR F2: a change outside every flag, quantifier and class - here an
+    # anchor the canaries still satisfy - is named too.
+    (
+        "other",
+        "Anthropic API or admin key (vendor prefix)",
+        "{20,}",
+        "{20,}\\b",
+        0,
+        "a change outside its flags, quantifiers and classes",
+    ),
 )
 
 #: Floors for the pinned population: two case-insensitive rules, one word
@@ -125,7 +170,9 @@ MIN_FLOORED = 3
 MIN_RANGED = 3
 
 #: The acceptance's four kinds; the plants above must reach every one.
-KINDS = frozenset({"flag", "prefix-drop", "prefix-shorten", "min-raise", "class-range"})
+KINDS = frozenset(
+    {"flag", "prefix-drop", "prefix-shorten", "min-raise", "class-range", "class-unquantified"}
+)
 
 
 def pin_environment(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
@@ -250,11 +297,13 @@ def test_the_recorded_population_reaches_every_kind() -> None:
     """
     prints = [OUTBOUND.credential_rule_fingerprint(pattern) for pattern, _ in GATE.SECRET_PATTERNS]
     folded = sum(1 for fp in prints if "IGNORECASE" in fp[0].split())
-    prefixed = sum(1 for fp in prints if "\\w*" in fp[1:])
+    prefixed = sum(1 for fp in prints if "quantifier \\w*" in fp)
+    unquantified = sum(1 for fp in prints if "class \\d" in fp)
     floored = sum(1 for fp in prints for q in fp[1:] if re.search(r"\{[1-9]\d*[,}]", q))
     ranged = sum(1 for fp in prints for q in fp[1:] if re.search(r"\[[^\]]*\w-\w", q))
     assert folded >= MIN_FOLDED, "case-insensitive rules pinned: %d" % folded
     assert prefixed >= 1, "word-prefix quantifiers pinned: %d" % prefixed
+    assert unquantified >= 1, "classes no quantifier repeats pinned: %d" % unquantified
     assert floored >= MIN_FLOORED, "length minimums pinned: %d" % floored
     assert ranged >= MIN_RANGED, "classes with a member range pinned: %d" % ranged
 
@@ -295,6 +344,44 @@ def test_an_underivable_parser_names_every_fingerprint(monkeypatch: pytest.Monke
     suffix = " (its fingerprint could not be derived)"
     matched = gaps == [reason + suffix for _, reason in GATE.SECRET_PATTERNS]
     assert matched, "; ".join(gaps)
+
+
+def run_print_fingerprints() -> tuple[int, str, str]:
+    """Run the CLI's `--print-fingerprints` mode: (exit, stdout, stderr)."""
+    proc = subprocess.run(
+        [sys.executable, str(OUTBOUND_PATH), "--print-fingerprints"],
+        capture_output=True,
+        cwd=REPO_ROOT,
+        timeout=TIMEOUT,
+        check=False,
+    )
+    return proc.returncode, proc.stdout.decode("ascii"), proc.stderr.decode("ascii")
+
+
+def test_print_fingerprints_emits_the_table_as_source() -> None:
+    """REPAIR F3: re-recording is deliberate but never hand-typed.
+
+    The printed source, executed with the module's own reason constants, is
+    exactly the live derivation - and on the pristine tree, exactly the
+    recorded table. It prints; it never rewrites a file.
+    """
+    before = OUTBOUND_PATH.read_bytes()
+    code, out, err = run_print_fingerprints()
+    after = OUTBOUND_PATH.read_bytes()
+    assert code == 0, "exit %d: %s" % (code, err)
+    unchanged = before == after
+    assert unchanged, "--print-fingerprints rewrote the module"
+    namespace: dict[str, object] = {}
+    exec(out, namespace)  # noqa: S102 - the module's own printed source
+    printed = namespace["CREDENTIAL_RULE_FINGERPRINTS"]
+    live = {
+        reason: OUTBOUND.credential_rule_fingerprint(pattern)
+        for pattern, reason in GATE.SECRET_PATTERNS
+    }
+    derived = printed == live
+    recorded = printed == OUTBOUND.CREDENTIAL_RULE_FINGERPRINTS
+    assert derived, "the printed table is not the live derivation"
+    assert recorded, "the printed table is not the recorded one on a pristine tree"
 
 
 # --------------------------------------------------------------------------
