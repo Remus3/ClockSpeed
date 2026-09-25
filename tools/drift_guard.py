@@ -1118,9 +1118,11 @@ def _walk(
                 # directory.
                 # CS-1188 - the marker is excluded by NAME whatever its kind,
                 # and BEFORE git is consulted: git never names it as ignored,
-                # so git's answer would keep it. Any depth, though only the
-                # root can reach here - a nested checkout's directory is
-                # pruned first as a boundary by _skip_dir_reason.
+                # so git's answer would keep it. Any depth. A nested
+                # checkout's directory is normally pruned first as a boundary
+                # by _skip_dir_reason, but a nested .git the boundary test
+                # cannot see - a dangling symlink, or one whose stat raises -
+                # arrives here and is excluded by name too.
                 if entry.name == WALK_BOUNDARY_MARKER:
                     skips.append({"path": relative, "reason": VCS_MARKER_FILE_REASON})
                     continue

@@ -198,9 +198,11 @@ def test_a_nested_linked_worktree_is_still_pruned_by_the_boundary_rule(
 ) -> None:
     """The at-any-depth decision's control: a nested .git FILE never reaches the file branch.
 
-    Its directory is pruned first as a checkout root of its own, so excluding
-    the marker by name at any depth widens nothing. The registration is
-    withheld (worktrees=()) so the marker rule, not the registry, is graded.
+    Its directory is pruned first as a checkout root of its own, so a nested
+    linked worktree's marker never reaches the name rule. The name rule does
+    widen in one shape: a nested .git the boundary test cannot see (a dangling
+    symlink) is skipped where it was walked. The registration is withheld
+    (worktrees=()) so the marker rule, not the registry, is graded.
     """
     main, _linked = repos
     _git(main, "worktree", "add", "--quiet", "--detach", "inside/nested")
