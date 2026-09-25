@@ -2538,7 +2538,7 @@ EXPECTED_NON_GET_FETCHES: Final = 2
 NON_GET_TARGETS: Final = ('"/api/solve?" + query', '"/api/optimize?" + query')
 
 
-def test_the_page_issues_exactly_one_post_and_no_form() -> None:
+def test_the_page_issues_exactly_two_posts_and_no_form() -> None:
     """Two non-GET requests, each pinned to a path, no body and still no form.
 
     THE SUCCESSOR TO ``test_the_page_issues_no_post_and_no_form``, WHICH WAS
@@ -2548,8 +2548,15 @@ def test_the_page_issues_exactly_one_post_and_no_form() -> None:
     bench. CS-962 does not relax the claim, it re-aims it: the question a CSRF
     reader needs answered is not "does this page ever POST" but "how many
     state-changing requests can it make, where do they go, and what do they
-    carry". A count of ONE, pinned to ONE path, is a stronger statement than an
-    absence that any later slice could quietly spend.
+    carry". A count pinned to a path set - two POSTs, one to each named path -
+    is a stronger statement than an absence that any later slice could quietly
+    spend.
+
+    THE NAME CARRIES THE COUNT THE BODY ASSERTS (CS-1029). It read "exactly one
+    post" for as long as the body asserted two, because the docstring moved
+    with the second door and the function name did not - and a reader greps the
+    name, not the body. When ``EXPECTED_NON_GET_FETCHES`` moves, rename this
+    function in the same change.
 
     AND THE PARAMETERS RIDE IN THE QUERY STRING, WHICH IS WHY THE BODY LEG IS
     HERE. ``clockspeed/surface/server.py`` parses the query and reads the

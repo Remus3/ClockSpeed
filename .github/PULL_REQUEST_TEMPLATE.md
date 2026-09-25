@@ -64,6 +64,9 @@ tier:
 - [ ] No save file, no game data file, and no extracted game asset added to the tree
 - [ ] No account name, world name, host name or absolute home-directory path hardcoded
 - [ ] No fact restated that another file owns - see `CLAUDE.md` section 4
+- [ ] Every test whose assertion this change altered still has a NAME that states
+      what its body now asserts - a docstring updated beside a stale function name
+      leaves the grep-able claim false (CS-1029)
 
 ---
 
