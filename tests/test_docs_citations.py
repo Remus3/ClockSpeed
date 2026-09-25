@@ -274,11 +274,13 @@ from tests.bare_path_guard import (
     bare_path_problems,
     bare_path_reason_problems,
     bare_path_sites,
+    census_problems,
     declares_untracked,
     decline_budget_problems,
     derived_bound_problems,
     floor_problems,
     graded_floor_names,
+    held_patterns,
     module_containers,
     module_patterns,
     non_citation_budget_problems,
@@ -2747,6 +2749,23 @@ def test_every_pattern_this_module_judges_by_also_decides_what_carries_a_citatio
         + "\n".join(f"  {name}" for name in missing)
         + "\nAdd it to JUDGED_SHAPES, or stop judging by it."
     )
+
+
+def test_every_shape_this_module_holds_or_builds_is_declared_or_counted() -> None:
+    """CS-811 - all five escaping shapes, read over THIS module, so a plant here reds here.
+
+    A pattern held under any name or in any container must be declared; a regex
+    call or a substring test anywhere in this source must match its pin in
+    :func:`tests.bare_path_guard.census_problems`. The family-wide twin lives in
+    ``tests/test_citation_guard_shapes.py``.
+    """
+    declared = JUDGED_SHAPES + NON_CITATION_PATTERNS
+    held = held_patterns(globals())
+    problems = [f"  {name} is held and undeclared" for name in held if held[name] not in declared]
+    problems += census_problems(__name__, Path(__file__).read_text(encoding="utf-8"))
+
+    assert held, "this module holds no pattern, so the walk reads an empty namespace"
+    assert not problems, "\n".join(["shapes this module holds or builds unanswered:", *problems])
 
 
 @pytest.mark.parametrize("doc", sorted(_ONE_SHAPE_EACH))

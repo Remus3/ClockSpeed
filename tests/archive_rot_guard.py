@@ -104,7 +104,8 @@ _ARCHIVE_HEADER_LINES: Final = 30
 #: so losing ANY ONE of those five entirely reddens rather than passing quietly.
 #: CS-1163's SIXTH shape, the bare continuation, adds too few archive sites for
 #: this floor to notice its loss; that count is held instead by the equality pin
-#: :data:`tests.test_citation_guard_shapes.BARE_CONTINUATIONS_DECLINED`.
+#: :data:`tests.test_citation_guard_shapes.BARE_CONTINUATIONS_DECLINED`, and the
+#: archive contract records it as the one shape counted outside these arms.
 _ARCHIVE_SITE_FLOOR: Final = 550
 
 #: The six answers this family's arms would give about the deep archive, one

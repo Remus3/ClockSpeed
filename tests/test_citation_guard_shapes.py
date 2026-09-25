@@ -11,8 +11,9 @@ THREE BLIND SPOTS, ONE PER ITEM.
 
 * CS-811 - the boundary contract that keeps every judging pattern declared read
   ONE shape: a module-scope ``re.Pattern`` whose name ends ``_RE``. Five other
-  shapes escaped it, all measured green. Four are now seen here; the fifth is
-  recorded in :data:`ESCAPING_SHAPES` with the reason it cannot be.
+  shapes escaped it, all measured green. All five are now answered, here across
+  the family and inside ``tests/test_docs_citations.py`` over its own source;
+  :data:`ESCAPING_SHAPES` names the arm for each.
 * CS-812 - the two de-duplicating arms answered a forgiven citation by its KEY,
   so a second site of an already-forgiven name, and a bare disposition whose
   name had come back to life, were both invisible to the arm itself.
@@ -28,6 +29,7 @@ family imports it back, which is the same arrangement
 from __future__ import annotations
 
 import re
+from collections import Counter
 from collections.abc import Mapping
 from typing import Final
 
@@ -35,11 +37,15 @@ import pytest
 
 from tests import test_docs_citations
 from tests.bare_path_guard import (
+    REGEX_CALL_SITES,
+    SUBSTRING_SITES,
+    census_drift,
     held_patterns,
     module_file,
     module_patterns,
     namespace_closure,
     regex_call_sites,
+    substring_sites,
 )
 from tests.test_bare_path_citations import WALK_ROOT, family
 from tests.test_citation_tables import (
@@ -56,6 +62,7 @@ from tests.test_citation_tables import tracked as _tracked
 from tests.test_docs_citations import (
     bare_name_problems,
     citation_site_identities,
+    landing_digest,
     line_pointer_problems,
     unresolved_citations,
 )
@@ -66,11 +73,11 @@ tracked = _tracked
 
 # --- CS-811: every shape a judging pattern can be held in -------------------
 
-#: EVERY SHAPE CS-811 MEASURED ESCAPING THE ``*_RE`` WALK, AND HOW EACH IS ANSWERED.
-#: A shape is answered either by the arm named, which a planted control below
-#: proves live, or by the recorded reason it cannot be caught. The contract
-#: after this table asserts every named arm exists in this module, so the record
-#: cannot outlive the arm it points at.
+#: EVERY SHAPE CS-811 MEASURED ESCAPING THE ``*_RE`` WALK, AND THE ARM ANSWERING
+#: EACH here, which a planted control below proves live. The same census also
+#: runs INSIDE ``tests/test_docs_citations.py`` over that module's own source, so
+#: a plant there reddens that file. The contract after this table asserts every
+#: named arm exists, so the record cannot outlive the arm it points at.
 ESCAPING_SHAPES: Final[Mapping[str, str]] = {
     "a module-scope pattern named without the _RE suffix": (
         "test_every_pattern_held_anywhere_in_the_family_is_a_declared_shape"
@@ -84,41 +91,12 @@ ESCAPING_SHAPES: Final[Mapping[str, str]] = {
     "a pattern compiled at call time": (
         "test_every_regex_call_site_in_the_family_is_on_the_census"
     ),
-    "an arm judging by substring": (
-        "RECORDED, NOT CAUGHT. A substring judgement is an `in` test or a str"
-        " method call, and Python spells it identically to membership in a set, a"
-        " dict or a tuple and to every assertion message check this family makes."
-        " The syntax tree carries no operand types, and the needle is as often a"
-        " variable as a literal, so no reading of the source can tell a judging"
-        " test from a plumbing one. A census of every such site would be bumped on"
-        " every unrelated edit, which is a pin nobody keeps - the same reason the"
-        " range arm refuses to assert what sits AT a line."
-    ),
+    "an arm judging by substring": ("test_every_substring_site_in_the_family_is_on_the_census"),
 }
 
 #: How many shapes the CS-811 verifier measured escaping, so the record above
 #: cannot quietly lose a row.
 _MEASURED_ESCAPING_SHAPES: Final = 5
-
-#: EVERY REGEX CALL SITE IN THE FAMILY'S SOURCE, by module and enclosing scope.
-#: AN EQUALITY PIN, so a pattern compiled or matched at call time - which no
-#: namespace walk can see, because it is never bound at module scope - is a
-#: number in the diff before it can judge anything. ``<module>`` is the top
-#: level; a nested scope is dotted. A module with no site has no row.
-#:
-#: MODULE-SCOPE SITES ARE COUNTED TOO, deliberately. The namespace walk sees a
-#: pattern that is BOUND; a top-level ``re.search`` whose Match is used and
-#: dropped binds nothing, and only the count sees it.
-REGEX_CALL_SITES: Final[Mapping[str, Mapping[str, int]]] = {
-    "tests.bare_path_guard": {"<module>": 2},
-    "tests.test_bare_path_citations": {
-        "test_a_pattern_declared_one_module_over_is_reported_rather_than_unseen": 1,
-    },
-    "tests.test_docs_citations": {
-        "<module>": 8,
-        "test_appending_a_non_citation_pattern_spends_its_budget": 2,
-    },
-}
 
 
 @pytest.fixture(scope="module")
@@ -233,29 +211,83 @@ def test_every_regex_call_site_in_the_family_is_on_the_census(
     }
 
     assert measured, "the family makes no regex call at all, so the census reads nothing"
-    pinned = REGEX_CALL_SITES
-    drifted = sorted(
-        f"  {dotted}: measured {measured.get(dotted, {})}, pinned {pinned.get(dotted, {})}"
-        for dotted in set(measured) | set(pinned)
-        if measured.get(dotted, {}) != pinned.get(dotted, {})
-    )
+    drifted = census_drift(REGEX_CALL_SITES, measured)
     assert not drifted, (
         "the family's regex call sites moved under REGEX_CALL_SITES:"
         + NEWLINE
         + NEWLINE.join(drifted)
         + NEWLINE
         + "A new site that judges a citation shape belongs at module scope as a declared"
-        " *_RE; a site that does not is recorded here by moving the pin in the same change."
+        " *_RE; a site that does not is recorded by moving the pin in the same change."
     )
 
 
-def test_every_escaping_shape_names_a_live_arm_or_records_why_not() -> None:
+_SUBSTRING_SOURCE: Final = (
+    "LEAD = '::test_' in TEXT\n"
+    "def judge(text, needle):\n"
+    "    return '::test_' in text or f'{needle}:' not in text or needle in text\n"
+    "class Arm:\n"
+    "    def grade(self, text):\n"
+    "        return text.startswith('docs/') and text.partition('::')[0] == 'x'\n"
+    "def plain(text):\n"
+    "    return text == 'x' or 1 in (1, 2)\n"
+)
+
+
+def test_a_substring_judgement_is_counted_by_scope() -> None:
+    """A literal needle tested with ``in``, and a str-method probe, are each one site.
+
+    THE PLANT THE ADVERSARY USED, ``'::test_' in text``, is the first site. A
+    needle held in a variable is NOT counted and is disclosed as such on
+    :func:`tests.bare_path_guard.substring_sites`; ``plain`` has no row, so a
+    census that counted every comparison could not pass.
+    """
+    found = substring_sites(_SUBSTRING_SOURCE)
+
+    assert found == {"<module>": 1, "judge": 2, "Arm.grade": 2}, f"the census read {found}"
+
+
+def test_every_substring_site_in_the_family_is_on_the_census(
+    walked: list[tuple[str, Mapping[str, object]]],
+) -> None:
+    """An arm judging by substring is a number in the diff before it can judge."""
+    measured = {
+        dotted: sites
+        for dotted, _namespace in walked
+        if (sites := substring_sites(module_file(dotted).read_text(encoding="utf-8")))
+    }
+
+    assert measured, "the family makes no substring test at all, so the census reads nothing"
+    drifted = census_drift(SUBSTRING_SITES, measured)
+    assert not drifted, (
+        "the family's substring sites moved under SUBSTRING_SITES:"
+        + NEWLINE
+        + NEWLINE.join(drifted)
+        + NEWLINE
+        + "A site that judges a citation shape belongs in a declared *_RE; a site that"
+        " does not is recorded by moving the pin in the same change."
+    )
+
+
+def test_the_census_comparison_reports_a_moved_scope_in_either_direction() -> None:
+    """The drift comparison both census arms share, on a pin it must disagree with.
+
+    A clean tree gives it nothing to report, so without this a comparison that
+    never reported anything would pass every live arm.
+    """
+    pinned = {"m": {"f": 1}}
+
+    assert census_drift(pinned, {"m": {"f": 1}}) == [], "an unmoved census was reported"
+    assert len(census_drift(pinned, {"m": {"f": 2}})) == 1, "a raised scope went unreported"
+    assert len(census_drift(pinned, {})) == 1, "a vanished module went unreported"
+    assert len(census_drift({}, {"n": {"<module>": 1}})) == 1, "a new module went unreported"
+
+
+def test_every_escaping_shape_names_a_live_arm() -> None:
     """The record of the five shapes cannot point at an arm that is not there."""
     here = globals()
     dangling = sorted(
-        shape
-        for shape, answer in ESCAPING_SHAPES.items()
-        if not answer.startswith("RECORDED, NOT CAUGHT.") and not callable(here.get(answer))
+        shape for shape, answer in ESCAPING_SHAPES.items() if not callable(here.get(answer))
     )
 
     assert len(ESCAPING_SHAPES) == _MEASURED_ESCAPING_SHAPES, "CS-811 measured five shapes"
@@ -385,6 +417,58 @@ def test_the_path_arm_reports_a_forgiven_citation_that_resolves_again() -> None:
 #: suite reads rather than as a sentence, so it cannot drift from the corpus.
 BARE_CONTINUATIONS_DECLINED: Final[Mapping[str, int]] = {LEDGER: 48, DEEP_ARCHIVE: 5}
 
+#: WHERE THOSE SITES ARE, not just how many: ``(carrier, digest of the stripped
+#: line)`` to the number of bare continuations on that line. The count above is
+#: satisfied by a SWAP - retire one site and write a new one in the same edit -
+#: and this is not. DIGESTS, not the lines, because those lines carry paths and
+#: pointers this tracked module would then carry and be judged for; the digest is
+#: :func:`tests.test_docs_citations.landing_digest`, which ignores a reindent.
+BARE_CONTINUATION_LINES: Final[Mapping[tuple[str, str], int]] = {
+    (LEDGER, "002005f7ce98"): 1,
+    (LEDGER, "01799cc346c4"): 1,
+    (LEDGER, "1589b2a004f7"): 1,
+    (LEDGER, "1e01d71e4da1"): 1,
+    (LEDGER, "20048649c66c"): 1,
+    (LEDGER, "27f3163b1191"): 1,
+    (LEDGER, "288464f368bd"): 1,
+    (LEDGER, "2cf16ded23cb"): 1,
+    (LEDGER, "3c1d80fcf858"): 1,
+    (LEDGER, "3d0900b1bc00"): 1,
+    (LEDGER, "3feb69a3cf4b"): 1,
+    (LEDGER, "4395570df702"): 2,
+    (LEDGER, "455ca3aa6905"): 6,
+    (LEDGER, "4694b04f9202"): 2,
+    (LEDGER, "4a4873654959"): 3,
+    (LEDGER, "4c8093cd9fdc"): 1,
+    (LEDGER, "693085ae957f"): 1,
+    (LEDGER, "8e2774b832c0"): 4,
+    (LEDGER, "9495180623e4"): 3,
+    (LEDGER, "94dcc86fdd9e"): 1,
+    (LEDGER, "9552af9db0ce"): 1,
+    (LEDGER, "96c7f2989a35"): 1,
+    (LEDGER, "96ef7d77d36c"): 1,
+    (LEDGER, "9db44452750c"): 1,
+    (LEDGER, "9e9acf1fcdb4"): 2,
+    (LEDGER, "9f045cd65f0b"): 1,
+    (LEDGER, "b07dfe9f49ed"): 1,
+    (LEDGER, "cd9901960802"): 3,
+    (LEDGER, "d30f9f442772"): 1,
+    (LEDGER, "d363153a13e6"): 1,
+    (LEDGER, "ff555a12873a"): 1,
+    (DEEP_ARCHIVE, "2370ecbb2bda"): 2,
+    (DEEP_ARCHIVE, "3fb0958d53cf"): 1,
+    (DEEP_ARCHIVE, "cf01ad88281a"): 2,
+}
+
+
+def bare_continuation_lines(doc: str, text: str) -> Counter[tuple[str, str]]:
+    """``(doc, line digest)`` to the bare continuations on that line, for one doc."""
+    lines = text.split(NEWLINE)
+    return Counter(
+        (doc, landing_digest(lines[text.count(NEWLINE, 0, match.start())]))
+        for match in test_docs_citations.BARE_CONTINUATION_RE.finditer(text)
+    )
+
 
 def bare_continuation_problems(text: str) -> list[str]:
     """One finding per bare continuation in ``text``, located by line.
@@ -392,6 +476,12 @@ def bare_continuation_problems(text: str) -> list[str]:
     Read with :data:`tests.test_docs_citations.BARE_CONTINUATION_RE`, the judged
     shape the carrier boundary also reads, so the boundary and the arm cannot
     disagree about what a continuation is.
+
+    THE PROSE FORM IS INVISIBLE, DISCLOSED. Only the BACKTICKED spelling is read.
+    A continuation written as plain text - a colon and a number with no backticks
+    - is not, because unbackticked it cannot be told from a time of day, a ratio
+    or a list ordinal. The census that sized CS-1163 found that form only in the
+    append-only ledger, so no editable doc carries one today.
 
     Args:
         text: A doc's whole text.
@@ -470,6 +560,35 @@ def test_no_tracked_markdown_file_carries_a_bare_continuation_outside_the_pinned
         + NEWLINE.join(found)
         + NEWLINE
         + "Write the full pointer, or a path::symbol citation for a tracked module."
+    )
+
+
+def test_a_swap_that_keeps_the_count_still_moves_the_line_census() -> None:
+    """The control the line pin exists for: same count, different lines, different census."""
+    before = bare_continuation_lines("d", "first `:2`\nsecond\n")
+    after = bare_continuation_lines("d", "first\nsecond `:2`\n")
+
+    assert sum(before.values()) == sum(after.values()) == 1, "the plant is not one site each"
+    assert before != after, "a site moved to another line and the line census did not move"
+
+
+def test_each_pinned_carrier_holds_its_bare_continuations_on_exactly_the_pinned_lines() -> None:
+    """The same carriers, located: a swap that keeps the count still reds here."""
+    measured: Counter[tuple[str, str]] = Counter()
+    for doc in BARE_CONTINUATIONS_DECLINED:
+        measured += bare_continuation_lines(doc, doc_text(doc))
+    pinned = Counter(BARE_CONTINUATION_LINES)
+    by_doc = {
+        doc: sum(n for (d, _), n in pinned.items() if d == doc)
+        for doc in BARE_CONTINUATIONS_DECLINED
+    }
+
+    assert by_doc == dict(BARE_CONTINUATIONS_DECLINED), "the line pin and the count pin disagree"
+    arrived, departed = sorted(measured - pinned), sorted(pinned - measured)
+    assert (arrived, departed) == ([], []), (
+        f"bare continuations on lines the pin does not name {arrived}, and pinned lines"
+        f" that no longer carry one {departed}. An arrival is a new site in a carrier"
+        " that may not be edited in place - write a full pointer in the new entry instead."
     )
 
 

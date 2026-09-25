@@ -51,7 +51,7 @@ import importlib
 import re
 import subprocess
 import tomllib
-from collections.abc import Iterable, Mapping, Sequence
+from collections.abc import Callable, Iterable, Mapping, Sequence
 from collections.abc import Set as AbstractSet
 from dataclasses import dataclass
 from fnmatch import fnmatchcase
@@ -1464,6 +1464,34 @@ def regex_call_sites(source: str) -> dict[str, int]:
         elif isinstance(node, ast.ImportFrom) and node.module == "re":
             named = [alias for alias in node.names if alias.name in functions]
             direct |= {alias.asname or alias.name for alias in named}
+
+    def is_regex_call(node: ast.AST) -> int:
+        return int(
+            isinstance(node, ast.Call)
+            and (
+                (isinstance(node.func, ast.Name) and node.func.id in direct)
+                or (
+                    isinstance(node.func, ast.Attribute)
+                    and node.func.attr in functions
+                    and isinstance(node.func.value, ast.Name)
+                    and node.func.value.id in modules
+                )
+            )
+        )
+
+    return _count_by_scope(tree, is_regex_call)
+
+
+def _count_by_scope(tree: ast.AST, weigh: Callable[[ast.AST], int]) -> dict[str, int]:
+    """Sum ``weigh`` over every node, keyed by the enclosing class and function path.
+
+    Args:
+        tree: A parsed module.
+        weigh: How many sites one node is.
+
+    Returns:
+        ``<module>`` or the dotted scope path to its total; a zero scope is absent.
+    """
     counts: dict[str, int] = {}
     pending: list[tuple[ast.AST, str]] = [(tree, "<module>")]
     while pending:
@@ -1472,18 +1500,202 @@ def regex_call_sites(source: str) -> dict[str, int]:
             inner = scope
             if isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
                 inner = child.name if scope == "<module>" else f"{scope}.{child.name}"
-            if isinstance(child, ast.Call) and (
-                (isinstance(child.func, ast.Name) and child.func.id in direct)
-                or (
-                    isinstance(child.func, ast.Attribute)
-                    and child.func.attr in functions
-                    and isinstance(child.func.value, ast.Name)
-                    and child.func.value.id in modules
-                )
-            ):
-                counts[scope] = counts.get(scope, 0) + 1
+            if weight := weigh(child):
+                counts[scope] = counts.get(scope, 0) + weight
             pending.append((child, inner))
     return counts
+
+
+def substring_sites(source: str) -> dict[str, int]:
+    """How many substring judgements a module's source makes, keyed by enclosing scope.
+
+    CS-811's FIFTH SHAPE, an arm judging by substring rather than by a pattern.
+    Two spellings are counted: an ``in`` or ``not in`` whose NEEDLE is a string
+    or f-string literal, and a call to a str method that probes for a substring
+    (``startswith``, ``endswith``, ``find``, ``rfind``, ``index``, ``rindex``,
+    ``count``, ``partition``, ``rpartition``, ``split``, ``rsplit``,
+    ``replace``, ``removeprefix``, ``removesuffix``).
+
+    DECLINED FOR COST, NOT IMPOSSIBLE, AND DISCLOSED: a needle held in a
+    variable (``needle in text``), ``operator.contains``, and slice equality
+    (``text[:3] == "abc"``) are not counted. The syntax tree carries no operand
+    types, so counting them means counting every membership and comparison
+    test the family makes, and that pin would move on every unrelated edit.
+
+    Args:
+        source: A module's text.
+
+    Returns:
+        Scope path to site count, as :func:`regex_call_sites` keys it.
+    """
+    methods = {"startswith", "endswith", "find", "rfind", "index", "rindex", "count"}
+    methods |= {"partition", "rpartition", "split", "rsplit", "replace"}
+    methods |= {"removeprefix", "removesuffix"}
+
+    def is_text(node: ast.expr) -> bool:
+        literal = isinstance(node, ast.Constant) and isinstance(node.value, str)
+        return literal or isinstance(node, ast.JoinedStr)
+
+    def weigh(node: ast.AST) -> int:
+        if isinstance(node, ast.Compare):
+            needles = [node.left, *node.comparators[:-1]]
+            tests = zip(node.ops, needles, strict=True)
+            return sum(isinstance(op, (ast.In, ast.NotIn)) and is_text(left) for op, left in tests)
+        return int(
+            isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Attribute)
+            and node.func.attr in methods
+        )
+
+    return _count_by_scope(ast.parse(source), weigh)
+
+
+#: CS-811 - EVERY REGEX CALL SITE IN THE FAMILY'S SOURCE, by module and scope.
+#: AN EQUALITY PIN, so a pattern compiled or matched at call time - which no
+#: namespace walk can see, because it is never bound - is a number in the diff
+#: before it can judge anything. Module-scope sites are counted too: a top-level
+#: ``re.search`` whose Match is dropped binds nothing. A module with no site has
+#: no row. HELD HERE rather than beside the family-wide arm so the module that
+#: judges can run the same census over itself without importing its own grader.
+REGEX_CALL_SITES: Final[Mapping[str, Mapping[str, int]]] = {
+    "tests.bare_path_guard": {
+        "<module>": 2,
+    },
+    "tests.test_bare_path_citations": {
+        "test_a_pattern_declared_one_module_over_is_reported_rather_than_unseen": 1,
+    },
+    "tests.test_docs_citations": {
+        "<module>": 8,
+        "test_appending_a_non_citation_pattern_spends_its_budget": 2,
+    },
+}
+
+#: CS-811 - EVERY SUBSTRING SITE IN THE FAMILY'S SOURCE, as :func:`substring_sites`
+#: counts them. The same equality pin, for the same reason, one shape over.
+SUBSTRING_SITES: Final[Mapping[str, Mapping[str, int]]] = {
+    "tests.bare_path_guard": {
+        "bare_path_ladder": 4,
+        "bare_path_sites": 3,
+        "declares_untracked": 1,
+        "markdown_anchor": 2,
+        "module_file": 1,
+        "module_patterns": 1,
+        "registry_problems": 1,
+        "sibling_imports": 1,
+        "source_roots": 5,
+        "stale_declaration_problems": 2,
+        "tracked_suffixes": 1,
+    },
+    "tests.test_archive_rot": {
+        "test_the_archive_rot_pin_is_typed_rather_than_computed_from_what_it_measures": 4,
+        "test_the_deep_archive_exemption_rests_on_the_claim_its_own_header_makes": 1,
+    },
+    "tests.test_bare_path_citations": {
+        "test_a_table_relocated_into_another_module_without_a_record_is_reported": 4,
+        "test_the_import_walk_reads_both_spellings_of_a_module_import_and_no_function": 1,
+        "test_the_separate_guard_ceiling_is_not_derived_from_the_table_it_bounds": 2,
+    },
+    "tests.test_citation_tables": {
+        "file_lines": 1,
+        "in_domain": 2,
+        "line_pointer_carriers": 1,
+        "module_basenames": 2,
+        "scoped_text": 1,
+        "sources": 1,
+        "tracked_files": 1,
+    },
+    "tests.test_docs_citations": {
+        "bare_name_problems": 1,
+        "citation_site_anchors": 1,
+        "citation_site_identities": 2,
+        "citation_site_offsets": 2,
+        "heading_chain": 2,
+        "line_pointer_content_problems": 1,
+        "line_pointer_problems": 1,
+        "line_pointer_sites": 2,
+        "test_a_bare_path_ceiling_left_slack_after_a_repair_is_reported": 1,
+        "test_a_ceiling_left_slack_after_a_repair_is_reported": 1,
+        "test_a_disposition_for_a_citation_that_has_vanished_is_reported": 1,
+        "test_a_disposition_whose_target_stopped_resolving_is_reported": 1,
+        "test_a_module_qualified_pointer_is_not_read_as_an_elided_one": 1,
+        "test_a_pinned_pointer_whose_line_has_moved_under_it_is_reported": 1,
+        "test_a_record_for_a_doc_that_has_since_been_guarded_is_reported": 1,
+        "test_a_record_for_a_doc_that_stopped_carrying_citations_is_reported": 1,
+        "test_a_record_naming_a_doc_that_is_not_tracked_is_reported": 1,
+        "test_a_recorded_redirect_whose_target_stopped_resolving_is_reported": 1,
+        "test_a_second_site_for_a_forgiven_citation_is_reported": 2,
+        "test_a_stale_pin_is_reported": 1,
+        "test_an_ambiguous_suffix_is_reported_rather_than_resolved": 1,
+        "test_an_elided_only_name_is_visible_to_the_stale_disposition_check": 2,
+        "test_appending_a_bare_path_reason_is_itself_a_finding": 1,
+        "test_appending_a_fabricated_disposition_is_itself_a_finding": 1,
+        "test_appending_a_non_citation_pattern_spends_its_budget": 2,
+        "test_appending_a_pin_is_itself_a_finding": 1,
+        "test_appending_to_a_decline_disclosure_is_itself_a_finding": 3,
+        "test_appending_to_a_decline_disclosure_spends_its_budget": 2,
+        "test_each_named_leg_of_the_bare_path_shape_is_load_bearing": 2,
+        "test_every_bounded_table_names_a_contract_that_exists_and_every_exemption_a_reason": 1,
+        "test_every_correctable_disposition_names_a_target_and_the_others_do_not": 1,
+        "test_every_recorded_disposition_is_still_in_use": 2,
+        "test_no_recorded_bound_is_computed_from_the_table_it_bounds": 2,
+        "test_the_bare_path_population_is_the_line_pointer_population": 2,
+        "test_the_carrier_population_is_every_tracked_file_less_the_recorded_ones": 1,
+        "test_the_domain_excludes_a_harness_file_that_would_otherwise_be_a_carrier": 2,
+        "test_the_domain_excludes_the_dated_archive": 2,
+        "test_the_ignore_probe_answers_a_declared_path_and_a_tracked_one": 1,
+        "test_the_ignore_probe_raises_rather_than_reading_a_bad_exit_as_nothing_ignored": 1,
+        "test_the_interpreter_exclusion_is_a_closed_set_and_not_a_prefix": 2,
+        "test_the_non_citation_pattern_ceiling_is_visible_to_the_derived_bound_check": 2,
+        "test_the_recorded_exemptions_are_the_only_files_the_line_arm_declines": 1,
+        "test_the_source_roots_are_derived_from_the_manifests_this_repo_tracks": 3,
+        "unresolved_citations": 1,
+    },
+}
+
+
+def census_drift(
+    pinned: Mapping[str, Mapping[str, int]], measured: Mapping[str, Mapping[str, int]]
+) -> list[str]:
+    """Every module whose measured census differs from its pin, in either direction.
+
+    Args:
+        pinned: Module to scope to count, as recorded.
+        measured: The same, as counted now. A module absent from either side
+            reads as having no site.
+
+    Returns:
+        One line per module that differs, naming each scope that moved.
+    """
+    lines: list[str] = []
+    for dotted in sorted(set(pinned) | set(measured)):
+        want, have = pinned.get(dotted, {}), measured.get(dotted, {})
+        moved = sorted(
+            f"{scope} {want.get(scope, 0)}->{have.get(scope, 0)}"
+            for scope in set(want) | set(have)
+            if want.get(scope, 0) != have.get(scope, 0)
+        )
+        if moved:
+            lines.append(f"  {dotted}: " + ", ".join(moved))
+    return lines
+
+
+def census_problems(dotted: str, source: str) -> list[str]:
+    """Both CS-811 source censuses for ONE module, against their pins.
+
+    Args:
+        dotted: The module's dotted name, the pins' key.
+        source: Its text.
+
+    Returns:
+        Drift lines for the regex census, then the substring census.
+    """
+    regex = census_drift(
+        {dotted: REGEX_CALL_SITES.get(dotted, {})}, {dotted: regex_call_sites(source)}
+    )
+    text = census_drift(
+        {dotted: SUBSTRING_SITES.get(dotted, {})}, {dotted: substring_sites(source)}
+    )
+    return [f"{line} (regex calls)" for line in regex] + [f"{line} (substring)" for line in text]
 
 
 #: The package every module in the walked population belongs to. A DOTTED PREFIX rather than a
@@ -1709,7 +1921,9 @@ NOT_A_FORGIVENESS: Final[Mapping[str, str]] = {
     "FORGIVENESS_TABLES": "the registry itself, walked by the contract that reads it",
     "LADDER_RUNGS": "the ladder's rung names, in order",
     "NOT_A_FORGIVENESS": "the registry itself, walked by the contract that reads it",
+    "REGEX_CALL_SITES": "an equality census of source sites; every site is counted, none forgiven",
     "REGISTRY_NAMES": "the two names a module declares the pair under; it forgives nothing",
+    "SUBSTRING_SITES": "an equality census of source sites; every site is counted, none forgiven",
     "_INTERPRETER_NAMES": "the three names the interpreter installs, excluded by exact match",
     "_SETUPTOOLS_FIND": "the manifest key path source_roots reads; it forgives nothing",
 }

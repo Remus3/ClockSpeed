@@ -570,18 +570,34 @@ def test_the_deep_archives_rot_is_measured_and_pinned_per_arm(
         " and the pin still reports the site - but the exemption is now being answered in"
         " two places, and only one of them costs a number. Answer it in the pin."
     )
-    # CS-1163 ADDED THE SIXTH SHAPE WITHOUT AN ARM HERE, BY RULING (session 113):
-    # the bare continuation's archive population is counted by the equality pin
-    # tests.test_citation_guard_shapes.BARE_CONTINUATIONS_DECLINED, so it is not
-    # answered twice. This count still holds only because the form arm is not
-    # per-shape; a SEVENTH shape reddens here and must be answered.
-    judged = len(test_docs_citations.JUDGED_SHAPES)
+    # AN EQUALITY OVER THE SHAPE LIST, NOT A COUNT. Arms and shapes are not one to
+    # one - three arms read the line-pointer shape and one reads two - so comparing
+    # how many of each was vacuous at six arms against five shapes. Each arm names
+    # the shapes it reads, and every judged shape must be read by an arm or be
+    # recorded as counted elsewhere. CS-1163's bare continuation is the one such
+    # record, by the session 113 ruling: its archive population is the equality pin
+    # tests.test_citation_guard_shapes.BARE_CONTINUATIONS_DECLINED, answered once.
+    docs = test_docs_citations
+    arm_shapes = {
+        _ROT_CITATION: (docs.CITATION_RE,),
+        _ROT_RANGE: (docs.LINE_POINTER_RE,),
+        _ROT_EMPTY: (docs.LINE_POINTER_RE,),
+        _ROT_NAME: (docs.BARE_RE, docs.ELIDED_RE),
+        _ROT_PATH: (docs.BARE_PATH_RE,),
+        _ROT_FORM: (docs.LINE_POINTER_RE,),
+    }
+    elsewhere = [docs.BARE_CONTINUATION_RE]
+    read = [shape for shapes in arm_shapes.values() for shape in shapes]
+    unanswered = [shape.pattern for shape in docs.JUDGED_SHAPES if shape not in read + elsewhere]
+    foreign = [shape.pattern for shape in read + elsewhere if shape not in docs.JUDGED_SHAPES]
+    twice = [shape.pattern for shape in elsewhere if shape in read]
 
-    assert len(ARCHIVE_ROT) >= judged, (
-        f"{len(ARCHIVE_ROT)} arms are counted against the archive and this family judges"
-        f" {judged} shapes, so a shape has no arm here. A sixth shape added to"
-        " JUDGED_SHAPES must bring an arm with it, or the exemption quietly starts hiding"
-        " a population nothing counts - which is CS-897 itself, one shape along."
+    assert set(arm_shapes) == set(ARCHIVE_ROT), "an archive arm names no shapes it reads"
+    assert (unanswered, foreign, twice) == ([], [], []), (
+        f"judged shapes no archive arm reads {unanswered}, shapes read that are not judged"
+        f" {foreign}, shapes answered twice {twice}. A new shape added to JUDGED_SHAPES must"
+        " bring an arm, or the exemption quietly starts hiding a population nothing counts -"
+        " which is CS-897 itself, one shape along."
     )
     assert set(archive_rot_counts) == set(ARCHIVE_ROT), (
         "the measured arms and the pinned arms are not the same set:"
