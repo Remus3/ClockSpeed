@@ -717,8 +717,8 @@ def first_adds(root: Path) -> dict[str, str]:
 def cmd_bootstrap(root: Path) -> str:
     """Seed the manifest once, from full history.
 
-    Refuses if it exists, and refuses if any commit on HEAD's history ever held
-    it (CS-1176): a deleted manifest is restored from that commit, never
+    Refuses if it exists, and refuses if any commit on HEAD's history or on any
+    ref ever held it (CS-1176): a deleted manifest is restored from that commit, never
     re-derived, because a re-derivation classifies every unstamped file as
     authored.
     """

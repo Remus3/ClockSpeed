@@ -1,5 +1,5 @@
 CLOCKSPEED - NEXT SESSION CONTINUATION PROMPT
-Written at the end of session 111, 2026-09-22. Paste this whole file into a cold session.
+Written at the end of session 112, 2026-09-24. Paste this whole file into a cold session.
 
 ================================================================================
 READ THESE FIRST, IN THIS ORDER
@@ -7,134 +7,152 @@ READ THESE FIRST, IN THIS ORDER
 
   CLAUDE.md                 rules, frozen list, settled decisions, topology
   memory/MEMORY.md          durable cross-session facts
-  ROADMAP.md                open work only
-  WAKEUP_NOTES.md           sessions 111, 110, 109 at full fidelity
+  ROADMAP.md                open work only - the Phase 7 heading is the focus
+  WAKEUP_NOTES.md           sessions 112, 111, 110 at full fidelity
   docs/ARCHITECTURE.md      module map, data flow, seams
+  docs/item_notes/phase7.md every Phase 7 item section
+  docs/GATED.md             CS-G03, the public flip gate itself
+  docs/adr/                 ADR 0018 (keep the commit graph) before any flip step
 
 Then run:  python tools/inbox_watch.py
-Session 111 triaged 87 unread notes (NOT acknowledged - run --ack only after you have
-read what arrived since) and sent ONE consolidated ANSWER to all six inboxes.
+Session 112 triaged the 7 SS notes that arrived after session 111 (none asks CS
+anything). NOT acknowledged - run --ack only after reading what arrived since.
+
+================================================================================
+THE OPERATOR'S DIRECTIVE FOR THIS SESSION
+================================================================================
+
+PARALLEL, ORCHESTRATED WORK TO FINISH GETTING THIS REPO PUBLIC-READY ON GITHUB.
+That is ROADMAP Phase 7 (the public flip gate) plus CS-G03 in docs/GATED.md.
+Run the CLAUDE.md section 5 shape at full width: disjoint slices, worktree
+builders in parallel, frozen candidates, distinct adversaries, an adjudicator
+per close. Batch commits and pushes so CI waits overlap.
 
 ================================================================================
 THE SINGLE NEXT ACTION
 ================================================================================
 
-TAKE CS-1176 (a re-seed of the provenance manifest launders unstamped files) or
-CS-1175 (secret-rule narrowing by flag or quantifier stays green). Both are fully
-specified, tier 2, and need no adjudication round to start. Neither touches a frozen
-file.
-
-CI IS GREEN ON THE TIP - nothing to diagnose first. Session 111's last run measured all
-three legs under budget. When you do read a run, use `git rev-parse origin/main` for the
-FULL SHA (a short SHA makes `gh run list --commit` return nothing and exit 0) and read
-the three `tier 1 took Ns` lines, not just the conclusion.
+FIRST confirm CI on the session-112 tip (see STATE). Then dispatch PARALLEL WAVE 1
+below while an adjudicator rules on the N0 decisions. Re-verify every item count
+and file path below against the tree before dispatch - this plan is a read-only
+recon from HEAD b54daf3, not a measured fact.
 
 ================================================================================
 STATE OF THE TREE
 ================================================================================
 
-HEAD / remote   0dfd746, pushed, with CI GREEN on it. Confirm `git rev-parse HEAD`
-                equals `git ls-remote origin main`. A blocked push reports exit 0.
-working tree    CLEAN. Nothing half-done.
-suite           10170 passed, 7 skipped, exit 0 - the pre-push run on the tip. The 7
-                skips are self-declaring platform skips.
-mypy            exit 0, 289 source files, no explicit target.
+HEAD / remote   the session-112 /done commit, pushed. Confirm `git rev-parse HEAD`
+                equals `git ls-remote origin main` - a blocked push reports exit 0.
+CI              was STILL RUNNING when session 112 ended - READ IT FIRST. Use the
+                FULL SHA with `gh run list --commit`. CS-1175 and CS-1176 closes
+                are CONDITIONAL on this run being green; if red, that is item one.
+working tree    CLEAN at the /done commit.
+suite           10231 passed, 7 skipped, exit 0 (full run, session 112, before the
+                docs commit). The 7 skips are self-declaring platform skips.
+mypy            exit 0, 290 source files, no explicit target.
 drift guard     exit 0.   doc budget  exit 0.
-worktrees       many stale agent worktrees under .claude/worktrees/. Every one this
-                session produced was merged by cherry-pick. Classify by CONTENT before
-                pruning - ancestor-merged is not prunable, and a live agent's fresh tree
-                looks content-free.
+worktrees       stale agent trees under .claude/worktrees/ - all session-112 work
+                was merged by cherry-pick. Classify by CONTENT before pruning.
 
 ================================================================================
-CLOSED IN SESSION 111
+CLOSED IN SESSION 112
 ================================================================================
 
-CS-1166  Vendor-prefix secret rule for the admin and api key families, no leading
-         word boundary (a key after %3D or an escaped newline escaped the first cut).
-CS-1167  Outbound credential coverage earned PER RULE - one canary per SECRET_PATTERNS
-         rule, a rule added without one fails.
-CS-1169  PLACEHOLDER_RE forgives a member only as the whole body, at an edge, or
-         delimited on both sides - never inside a run of letters and digits.
-CS-1170  test_toolpath.py moved from the guard shard to the save shard.
-CS-1171  Behavioural twin for every endpoint "opens no file" arm. Refuted three times,
-         closed by an adjudicator with three residuals named in its docstring.
-CS-1172  One canary per derived alternation branch and prefix-family member.
-CS-1173  All three tier 1 legs under budget (run 35750828417: 319 / 370 / 354).
-CS-1165  Produced provenance manifest tools/provenance.tsv, maintained ONLY through
-         tools/provenance_stamp.py; every tracked and untracked-unignored file must
-         have a row. EVERY NEW FILE NOW NEEDS A STAMP - see docs/OPERATIONS.md.
+CS-1175  Every SECRET_PATTERNS rule pinned by a derived fingerprint (flags, every
+         quantifier, every class node with members, 16-hex source digest); any
+         change names rule and kind. `tools/outbound_gate.py --print-fingerprints`
+         prints the table, never writes. --showlocals renders no canary.
+         Refuted once, repaired, NOT REFUTED, adjudicator CLOSE.
+CS-1176  A deleted provenance manifest is restored from history, never re-seeded:
+         bootstrap refuses on HEAD's history or any ref; re-seed arm requires
+         every first-add row in every manifest version, gaps forgiven only on
+         byte-equal content across the gap. Refuted FOUR rounds, adjudicator CLOSE.
+FILED    CS-1177 (showlocals helper-exception residual), CS-1178 (usage-limit
+         refusal recorded as a run by the headless lane), CS-1179 (probe the
+         delete-edit-restore permanent red recovery).
 
 ================================================================================
-OPEN ITEMS, IN PRIORITY ORDER
+PHASE 7 - WHAT IS OPEN (recon at b54daf3; re-verify)
 ================================================================================
 
-CS-1176  TIER 2. Deleting tools/provenance.tsv and re-running `bootstrap` classifies
-         every unstamped file as authored. Acceptance: a re-seed cannot launder -
-         restore from history or detect the re-seed - proven by mutation; and the
-         missing-manifest message stops recommending the seed.
-CS-1175  TIER 2. Dropping (?i) from the quoted-assignment or high-entropy rule, or
-         narrowing a quantifier or character class, keeps every canary green;
-         --showlocals renders canary values; a comment about a missing re._parser
-         is false. Grading side is tools/outbound_gate.py - NOT the frozen gate.
-CS-1174  TIER 2, NEEDS A FROZEN-FILE GRANT FIRST. PLACEHOLDER_RE treats a non-ASCII
-         letter as a delimiter; no behavioural arm puts a digit beside a member.
-CS-1168  TIER 2. No control sees a secret in a never-committed file. Weigh cost and
-         boundary; the shared scratch area is the fleet's, and reading sibling trees
-         is forbidden by docs/CHANNEL.md.
-CS-946   TIER 2, IN PROGRESS. Shared lane-slot bucket: S2 onward (identity adapter,
-         lane and claim keys, driver). S5 MUST be filed as its own item before
-         CS-946 closes. The channel still asks CS for a measured hold() duration
-         against the 16200s default - CS declared 14400s; confirm it is measured.
-CS-1163  TIER 2. LINE_POINTER_RE cannot see a bare continuation pointer; 67 sites,
-         47 in append-only files. Needs a route for those before widening.
-CS-1160  TIER 2. winmutex fork record cites the PRE-ROTATION digest (LW ADR-012,
-         2026-09-06). Superseded, not corrupt. Do NOT bump the constant; a fork
-         record is a statement about history.
-CS-917 / CS-900 / CS-1134 / CS-1140  tier 1 growth, concentration and jitter. Session
-         111 MEASURED that CI runners swing about two-fold on identical work, so any
-         single reading is weak evidence. BUDGET_UNMET in tools/tier1_growth.py
-         still names the guard shard; shrink it only on more than one reading.
+About 46 open items under the Phase 7 heading (8 tier 1, rest tier 2), plus CS-G03
+gated on the CONVENTIONS section 17 checks, an eighth precondition, and sign-off.
+
+N0 - DECIDE FIRST, BY ADJUDICATOR, BEFORE ANY FLIP STEP (no item covers these;
+FILE THEM AS ITEMS):
+ U1 EIGHTEEN COMMITS ON main CARRY AN AGENT CO-AUTHOR TRAILER (e9af2df..5907d45,
+    2026-08-14/15). ADR 0018 keeps the graph and step S7a rewrites identity only,
+    so all 18 WOULD PUBLISH, breaching CS-G03's eighth precondition. Neither ADR
+    0018 nor the CS-700 plan mentions trailers. Needs an ADR 0018 amendment.
+ U2 CS-G03 still says the flip ships from a FRESH history; ADR 0018 overturned
+    that. Needs a supersession note.
+ U8 CS-G03 / CS-700 S9 require OPERATOR sign-off; CLAUDE.md 6.1 routes decisions
+    to an adjudicator and MAIN is the stand-in for decisions. Irreversible acts
+    (GitHub delete/recreate, visibility flip) stay the operator's HANDS - reconcile
+    in writing.
+ Also uncovered: U3 no runnable tier-3 job; U4 no doc link resolver / orphan
+    sweep; U5 no full licence audit (ADR 0013 covers Electron only); U6 no README
+    outsider-to-first-result check; U7 clean checkout on a never-seen machine.
+
+PARALLEL WAVE 1 - NO GRANT NEEDED, DISJOINT WRITE SETS (merger alone writes
+ROADMAP.md, docs/LEDGER.md, docs/item_notes/phase7.md, docs/history_notes.md,
+docs/GATED.md):
+ A placement fixtures  1021 -> 1031 -> 1036 -> 1037 (serial inside the slice)
+ B save layer          1019
+ C audit package       1023, 1024, 1035
+ D panel JS            1026 -> 1028 -> 1027 (serial; share panel_*.js)
+ E surface misc        1022, 1029, 1030, 1034
+ G ops/loop            1018 (diagnose first) -> 1014 -> 1016 (+1015) -> 1017 -> 1178
+ H winmutex            1160 (do NOT bump the digest constant - fork record is history)
+ I citation guards     811 -> 812 -> 1163
+ J redaction tests     820, 1177; 1168 = a written boundary RULE only (ADR)
+ K drift_guard         1158 (ADR on "is a filename personal data" first)
+ P hook measurement    956 (read-only over hooks)
+ R provenance          1179
+ Mind the box: concurrent full suites exhaust RAM and Windows forks. Builders run
+ TARGETED tests only; the merger runs the one full suite.
+
+SERIAL FROZEN WAVE - EACH NEEDS AN ADJUDICATOR GRANT RECORDED IN docs/LEDGER.md
+BEFORE THE EDIT:
+ M1 816 + 817 (interpreter ladder, all three .githooks/* + tools/precommit_gate.py)
+    MUST GO FIRST - each hook carries its own cs_python ladder.
+ then in parallel: M2 commit-msg 813 -> 822; M3 pre-push 821 -> 824 -> 704 (or
+    route 704 to CI, no grant); M4 pre-commit 955 -> 1174.
+ M5 815 - grant only if .claude/settings.json changes.
+ after M1: 818 (verify_env mirrors the ladder). after M1-M4: 814.
+
+FINAL, SERIAL - THE FLIP (CS-700, CS-701, CS-953): N0 resolved, then the scanner
+ plus the CS-953 synthetic-rename probe, the link resolver, licence audit and
+ README pass, then the CS-700 S0-S12 plan. S9 onward is IRREVERSIBLE and outward-
+ facing - the plan forbids the planning session from executing it.
 
 ================================================================================
-DECISIONS MADE IN SESSION 111 - DO NOT RE-LITIGATE
+DECISIONS - DO NOT RE-LITIGATE
 ================================================================================
 
-NO SIBLING-TREE READS, not even a one-time read-only audit (CS-1165 Q1 ruling;
-  docs/CHANNEL.md forbids it with no exception). One adversary broke this
-  session; it is disclosed in the CS-1165 ledger entry and was disclosed on the
-  channel in the CS 1715 CORRECTION note. Brief every agent explicitly.
-"SEPARATE COMMIT" in a frozen-file grant bars other ITEMS' work, not an edit the
-  granted change itself forces (CS-1169 addendum). Do not re-argue it.
-THE PROVENANCE MANIFEST IS PRODUCED, NOT HAND-EDITED. Never hand-edit
-  tools/provenance.tsv; never answer a near-duplicate refusal by rewording a file;
-  never delete the manifest to re-run bootstrap.
-MAIN IS THE OPERATOR'S STAND-IN - the operator CONFIRMED it in session 111 after
-  CS had declined MAIN 2230 on the channel. CLAUDE.md 6.1 records the scope and the
-  hash check. The decline is reversed; a correcting note went to the channel.
-DO NOT RAISE THE 420/480 TIER 1 PIN to answer a noisy reading. Rebalance with a
-  partition arm, and read all three legs.
+A SECRET RULE CHANGE MUST RE-RECORD ITS FINGERPRINT deliberately via
+  --print-fingerprints; never loosen the fingerprint arm to absorb an edit.
+THE PROVENANCE MANIFEST IS NEVER RE-SEEDED. Restore it with
+  `git checkout <rev> -- tools/provenance.tsv` BEFORE editing any file. Never
+  hand-edit it. (Delete + edit + restore is a known permanent red - CS-1179.)
+NO SIBLING-TREE READS, not even read-only (CS-1165 Q1). Brief every agent.
+MAIN IS THE OPERATOR'S STAND-IN for decisions, never for hands (CLAUDE.md 6.1).
+DO NOT RAISE THE 420/480 TIER 1 PIN to answer a noisy CI reading.
 
 ================================================================================
 EXTERNAL CONDITIONS BEING WAITED ON
 ================================================================================
 
-CI - green on the session-111 tip, all three tier 1 legs under budget. Nothing owed.
-Channel: LW proposed a joint slots.py round on 2026-09-23 without CS; CS now carries
-  slots.py at 71fa2a68 and CHANNEL.md v2 at fc22e86e, and said so on 2026-09-22.
+CI on the session-112 tip (unread at handoff).
 FOUR DEAD-SECRET FILES still await an operator deletion call (key already rotated).
+GitHub MCP and CodSpeed MCP need re-authorisation in an interactive session.
 
 ================================================================================
 TRAPS THIS SESSION PAID FOR
 ================================================================================
 
-A HEREDOC TURNS \b INTO A BACKSPACE BYTE - it happened in a ledger entry. Write any
-  payload with a backslash through the Write tool, and scan for bytes outside 7-bit.
-"## Entries" appears in LEDGER.md's own format prose before the real heading - match
-  "\n## Entries\n", not the bare string.
-A RENAMED SYMBOL cited by an append-only record needs a RENAMED row in
-  tests/test_citation_tables.py::DISPOSITIONS, and its site key comes from
-  scoped_text(doc, doc_text(doc)), NOT doc_text alone.
-drift_guard (g) rejects a dated heading in an unknown idiom ("### PROGRESS <date>");
-  use a provenance verb such as "### MEASURED <date> - ...".
-A REBALANCE PROJECTED OFF ONE CI RUN can be off by a runner's speed; check both legs
-  on the next run before closing.
+A FORGIVENESS RULE ANCHORED AT THE WRONG COMMIT passes every fixture that never
+  edits before the gap; only an adversary driving honest edits found it.
+AN EVERY-VERSION RULE WITHOUT FORGIVENESS makes `git revert` permanently red.
+A FINGERPRINT OF REPEATED NODES ONLY misses an unquantified class (PuTTY \d).
+`python -m pytest -B` is rejected - -B is a Python flag: `python -B -m pytest`.

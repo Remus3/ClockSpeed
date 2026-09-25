@@ -33,6 +33,17 @@ Keep every entry to that shape. If an item needs a paragraph, it needs its own f
 the line becomes a pointer.
 
 ---
+## Session 112 - 2026-09-24 - the secret rules got a derived fingerprint, and a deleted provenance manifest can no longer be re-seeded
+
+- Shipped: CS-1175 and CS-1176, both CLOSED by an adjudicator conditional on CI green on the pushed tip. Detail in docs/LEDGER.md. Filed and left open: CS-1177, CS-1178, CS-1179. Session 111's next action named both closed items, and both went.
+- CS-1175 took the FINGERPRINT route, because a canary cannot grade a narrowing without a hand list. One refutation round (an unquantified digit class no field fingerprinted, docstrings claiming "any change" was caught, no re-record command), then NOT REFUTED, then adjudicator CLOSE.
+- CS-1176 took FOUR refutation rounds. R1 REFUTED twice: F1 a reused path, F2 a stale-branch seed merged back, F3 real-tree wiring no mutation exercised, F4 an orphan squash. R2 REFUTED: false reds on a revert and on a typo version, a detached HEAD with no refs was seeded, the shallow message named no truncation. R3 REFUTED: gap forgiveness anchored at the last manifest version made honest edits red. R4: no acceptance-breaking bypass across merge, octopus, criss-cross and evil merges; the residual graft bypass it found was fixed with `GIT_NO_REPLACE_OBJECTS=1`. Adjudicator CLOSE; the four residuals are in the ledger entry, the last of them is CS-1179.
+- In flight: both closures are conditional on CI green on the pushed tip.
+- Inbox: 7 new SS notes triaged; none asks CS anything; not acked.
+- Failed paths: a gap-forgiveness rule anchored at the WRONG commit produces false reds that only an adversary exercising HONEST edits finds. An every-version rule with no forgiveness at all makes a revert permanently red.
+- Next action: read CI on the pushed tip, then pick from CS-1177, CS-1178 and CS-1179 - all tier 2 and fully specified.
+
+---
 ## Session 111 - 2026-09-22 - the credential guards got per-rule and per-branch teeth, tier 1 came back under budget on all three legs, and the provenance manifest shipped
 
 - Shipped: CS-1166, CS-1167, CS-1169, CS-1170, CS-1171, CS-1172, CS-1173, CS-1165. Detail in docs/LEDGER.md. Filed and left open: CS-1174, CS-1175, CS-1176. Operator away; run headless end to end.
@@ -116,63 +127,5 @@ its regex is unfalsifiable. And the routing of `rm339_dangling.json` to RC.
 
 Twelve notes delivered, privacy gate CLEAN on every one. 44 inbox notes read in the second
 sweep alone.
-
-## Session 109 - 2026-09-19 - the file half of the walk, and a table that turned out to be a second authority
-
-- Shipped: CS-1155 (closed), CS-1158 (filed). Detail in docs/LEDGER.md, not here - and that
-  file carries TWO records for CS-1155, the second correcting the first, because it is
-  append-only and the first record's central sentence was disproved hours after it landed.
-
-- CS-1155 WAS THE FILED NEXT ACTION AND IT WENT AS FILED, then took three rounds. The note
-  carried a measured reproduction, so the first move was a failing test rather than an
-  investigation, and `tools/drift_guard.py::_walk` had a file half within the hour. Every
-  round after that came from an adversary or the adjudicator, and each one found the
-  previous round's stated REASON false rather than its behaviour wrong.
-
-- THE FIRST BUILD WAS A RESTATEMENT AND ALL THREE ADVERSARIES SAID SO. It answered with a
-  table of three shapes copied out of `.gitignore` - which were exactly the three ignored
-  files lying on this machine's disk that day. `.gitignore` carries some thirty more. The
-  grading was one-directional: every arm asked whether each table entry was ignored by git,
-  none asked whether git ignored a shape the table lacked, so the table could fall
-  arbitrarily far behind its source and stay green. Parity was a SNAPSHOT, not a property.
-  `_git_ignored` asks git directly now - `git ls-files --others --ignored
-  --exclude-standard --directory`, which answers with NO COMMITS AT ALL, and the empty
-  index is precisely the case the walk exists for.
-
-- THEN THE ADJUDICATOR DISPROVED THE SENTENCE THAT JUSTIFIED KEEPING THE TABLE. "It is only
-  the floor for a tree with no git" was the whole answer to the section-4 objection, and it
-  was false: the floor was consulted FIRST, so on a tree where `build.log` was TRACKED and
-  git ignored nothing, the walk dropped it anyway. The repair is a three-state answer -
-  NONE for a git that could not be asked, an EMPTY SET for a git that said nothing is
-  ignored, and NOT PASSED for "ask git yourself". The first build collapsed the first two,
-  which is exactly how a floor becomes a second authority.
-
-- Decisions: no ADR, no frozen-file grant. CS-1158 filed rather than absorbed, and its note
-  says why: whether a FILENAME is personal data under this repository's own classification
-  is not something CLAUDE.md answers in either direction, and that answer belongs in an ADR
-  rather than in a redaction call site.
-
-- Surprises: nothing contradicted BOOTSTRAP.md. What did surprise: a `.log` is NOT read by
-  the character-set guard - `_classify` refuses it unopened - and this module has no secret
-  reader at all. The item's own filed motive sentence was false on both halves, and it had
-  been copied into three authored places before anyone measured it.
-
-- Failed paths: a multi-edit patch script that asserts part-way writes NOTHING, so the
-  follow-up patch lands on the original file. Four edits went silently missing that way and
-  the half-repair passed ruff, ruff format and mypy at 276 files. Only a behavioural arm the
-  adjudicator had demanded caught it. Also: a detached suite redirected into the REPOSITORY
-  ROOT left two untracked files there and reddened four whole-suite arms as if they were
-  defects - including the new parity arm, which was doing its job.
-
-- THE ONE THAT REPEATS. A CS-1156 arm went red on ubuntu last session because its control
-  named a Windows-only value. This session the SAME fault arrived inverted: the case arm
-  asserted agreement with git, which is right, but on a case-sensitive checkout git says
-  not-ignored and a walk that pruned NOTHING satisfied both the assertion and its own
-  control. tier 1 is ubuntu only, so the arm written to stop a platform-specific control was
-  itself dead on the only runner that grades it. It is parametrized over `core.ignorecase`
-  now - a config value, not a filesystem property, so both halves run everywhere.
-
-- Next action: pick up CS-1158. Its note carries the measurement and names the open
-  question the fix must settle first.
 
 ---

@@ -101,8 +101,11 @@ restated here.
 account for every tracked and untracked-unignored file, and `tests/test_provenance_manifest.py` reddens pre-push and CI for any file it does not
 list. Stamp it with the tool in the same commit; never hand-edit the TSV, and never
 answer a near-duplicate refusal by rewording the file - a refusal is the guard doing
-its job. `bootstrap` is a one-time seed that refuses once the manifest exists; deleting
-the manifest to re-run it would classify every unstamped file as authored, so do not.
+its job. `bootstrap` is a one-time seed that refuses once the manifest exists, and refuses
+too wherever HEAD's history or any ref ever held one (CS-1176). A deleted manifest is
+restored with `git checkout <rev> -- tools/provenance.tsv` - restore BEFORE editing
+any file - and never re-seeded, because a re-seed classifies every unstamped file as
+authored.
 
 **Never run a bare recursive test invocation from the repo root.** Always name the target
 directory explicitly. A bare sweep from the root can walk runtime state directories and

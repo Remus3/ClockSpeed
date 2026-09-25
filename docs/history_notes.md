@@ -24,6 +24,35 @@ Where current truth actually lives:
 | Commands and runbooks | `docs/OPERATIONS.md` |
 
 
+## CS-1176 - item section, CLOSED and relocated from `docs/item_notes/phase7.md` 2026-09-24
+
+**Moved here from `docs/item_notes/phase7.md` when the item closed.**
+The closure record is in `docs/LEDGER.md`.
+
+## CS-1176
+
+### Acceptance
+
+a re-seed of `tools/provenance.tsv` cannot silently launder an unstamped file into the
+authored class. Either the seed refuses unless it is reconstructing exactly the rows a
+committed manifest already held - so a deleted manifest is restored from history, not
+re-derived - or the arm detects a re-seed by comparing the manifest against its own
+committed predecessor and reddens on any row that was added without the stamp tool's
+basis. Proven by mutation: delete the manifest, commit an unstamped lift, re-run the
+seed, and the suite goes red naming the lift; the pristine tree is green in the same
+run. The missing-manifest error message must stop recommending the seed as the fix.
+
+### Full headline
+
+deleting `tools/provenance.tsv` and re-running the one-time seed classifies every
+unstamped file as authored, and nothing notices a re-seed
+
+### FILED 2026-09-22, from the adversary pass that could not refute CS-1165
+
+The seed refuses once a manifest exists, which is why the gap needs a deletion first.
+The missing-manifest message tells the reader to run the seed, which is the one
+instruction that turns an accident into the laundering path.
+
 ## CS-1175 - item section, CLOSED and relocated from `docs/item_notes/phase7.md` 2026-09-24
 
 **Moved here from `docs/item_notes/phase7.md` when the item closed.**
@@ -193,6 +222,67 @@ carries the identical relative path for its `SessionStart` hook. It is gitignore
 grant reaches it and no tracked test can pin it. Also unmeasured: whether a worktree's
 `$CLAUDE_PROJECT_DIR` resolves to the worktree or to the primary, which decides whether a
 lane session gates against its own tree.
+
+
+## Session 109 - archived 2026-09-24 from `WAKEUP_NOTES.md`, verbatim
+
+## Session 109 - 2026-09-19 - the file half of the walk, and a table that turned out to be a second authority
+
+- Shipped: CS-1155 (closed), CS-1158 (filed). Detail in docs/LEDGER.md, not here - and that
+  file carries TWO records for CS-1155, the second correcting the first, because it is
+  append-only and the first record's central sentence was disproved hours after it landed.
+
+- CS-1155 WAS THE FILED NEXT ACTION AND IT WENT AS FILED, then took three rounds. The note
+  carried a measured reproduction, so the first move was a failing test rather than an
+  investigation, and `tools/drift_guard.py::_walk` had a file half within the hour. Every
+  round after that came from an adversary or the adjudicator, and each one found the
+  previous round's stated REASON false rather than its behaviour wrong.
+
+- THE FIRST BUILD WAS A RESTATEMENT AND ALL THREE ADVERSARIES SAID SO. It answered with a
+  table of three shapes copied out of `.gitignore` - which were exactly the three ignored
+  files lying on this machine's disk that day. `.gitignore` carries some thirty more. The
+  grading was one-directional: every arm asked whether each table entry was ignored by git,
+  none asked whether git ignored a shape the table lacked, so the table could fall
+  arbitrarily far behind its source and stay green. Parity was a SNAPSHOT, not a property.
+  `_git_ignored` asks git directly now - `git ls-files --others --ignored
+  --exclude-standard --directory`, which answers with NO COMMITS AT ALL, and the empty
+  index is precisely the case the walk exists for.
+
+- THEN THE ADJUDICATOR DISPROVED THE SENTENCE THAT JUSTIFIED KEEPING THE TABLE. "It is only
+  the floor for a tree with no git" was the whole answer to the section-4 objection, and it
+  was false: the floor was consulted FIRST, so on a tree where `build.log` was TRACKED and
+  git ignored nothing, the walk dropped it anyway. The repair is a three-state answer -
+  NONE for a git that could not be asked, an EMPTY SET for a git that said nothing is
+  ignored, and NOT PASSED for "ask git yourself". The first build collapsed the first two,
+  which is exactly how a floor becomes a second authority.
+
+- Decisions: no ADR, no frozen-file grant. CS-1158 filed rather than absorbed, and its note
+  says why: whether a FILENAME is personal data under this repository's own classification
+  is not something CLAUDE.md answers in either direction, and that answer belongs in an ADR
+  rather than in a redaction call site.
+
+- Surprises: nothing contradicted BOOTSTRAP.md. What did surprise: a `.log` is NOT read by
+  the character-set guard - `_classify` refuses it unopened - and this module has no secret
+  reader at all. The item's own filed motive sentence was false on both halves, and it had
+  been copied into three authored places before anyone measured it.
+
+- Failed paths: a multi-edit patch script that asserts part-way writes NOTHING, so the
+  follow-up patch lands on the original file. Four edits went silently missing that way and
+  the half-repair passed ruff, ruff format and mypy at 276 files. Only a behavioural arm the
+  adjudicator had demanded caught it. Also: a detached suite redirected into the REPOSITORY
+  ROOT left two untracked files there and reddened four whole-suite arms as if they were
+  defects - including the new parity arm, which was doing its job.
+
+- THE ONE THAT REPEATS. A CS-1156 arm went red on ubuntu last session because its control
+  named a Windows-only value. This session the SAME fault arrived inverted: the case arm
+  asserted agreement with git, which is right, but on a case-sensitive checkout git says
+  not-ignored and a walk that pruned NOTHING satisfied both the assertion and its own
+  control. tier 1 is ubuntu only, so the arm written to stop a platform-specific control was
+  itself dead on the only runner that grades it. It is parametrized over `core.ignorecase`
+  now - a config value, not a filesystem property, so both halves run everywhere.
+
+- Next action: pick up CS-1158. Its note carries the measurement and names the open
+  question the fix must settle first.
 
 
 ## Session 108 - archived 2026-09-22 from `WAKEUP_NOTES.md`, verbatim

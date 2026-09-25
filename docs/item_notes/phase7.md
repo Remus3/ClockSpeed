@@ -1335,30 +1335,6 @@ rule - so the exposure is content arriving from outside, which is exactly what t
 sweep and the outbound gate read. The digit case is a test-strength gap, not a live
 escape: the shipped pattern refuses a digit-adjacent member today.
 
-## CS-1176
-
-### Acceptance
-
-a re-seed of `tools/provenance.tsv` cannot silently launder an unstamped file into the
-authored class. Either the seed refuses unless it is reconstructing exactly the rows a
-committed manifest already held - so a deleted manifest is restored from history, not
-re-derived - or the arm detects a re-seed by comparing the manifest against its own
-committed predecessor and reddens on any row that was added without the stamp tool's
-basis. Proven by mutation: delete the manifest, commit an unstamped lift, re-run the
-seed, and the suite goes red naming the lift; the pristine tree is green in the same
-run. The missing-manifest error message must stop recommending the seed as the fix.
-
-### Full headline
-
-deleting `tools/provenance.tsv` and re-running the one-time seed classifies every
-unstamped file as authored, and nothing notices a re-seed
-
-### FILED 2026-09-22, from the adversary pass that could not refute CS-1165
-
-The seed refuses once a manifest exists, which is why the gap needs a deletion first.
-The missing-manifest message tells the reader to run the seed, which is the one
-instruction that turns an accident into the laundering path.
-
 ## CS-1177
 
 ### Acceptance
@@ -1414,3 +1390,30 @@ this item was filed: `ops/loop/queue_loop.py` has no match for `429`, `api_error
 `rate limit`, `usage limit`, `cost_usd` or `is_error`, and neither has any other module
 under `ops/loop/`. Whether this tree's lane has already met such a refusal is NOT
 measured; the item is filed on the absence of handling, not on an observed night.
+
+## CS-1179
+
+### Acceptance
+
+a temp-repo test drives the sequence: delete `tools/provenance.tsv`, make an honest edit
+to a stamped file while it is absent, run the advised restore
+`git checkout <rev> -- tools/provenance.tsv`, then the documented recovery - for example
+`python tools/provenance_stamp.py rm <path>` followed by a re-`add` - and the CS-1176
+re-seed arm returns green WITHOUT forgiving F1, a row that left and returned through a
+re-seed, which stays red in the same run; OR the recovery is shown impossible, and the
+`tools/provenance_stamp.py` docstring and the missing-manifest message say so. Proven by
+mutation, with the pristine tree green in the same run.
+
+### Full headline
+
+probe the recovery from a delete-edit-restore permanent red in the provenance re-seed arm
+
+### FILED 2026-09-24, from the adjudicator residuals on CS-1176
+
+The CS-1176 re-seed arm forgives a gap in a row's manifest history only when the path's
+bytes either side of the gap agree. An honest edit made while the manifest is absent
+changes those bytes, so after the advised restore the row reads as one that left and
+returned, and the arm is red for good. That is fail-closed, the safe direction, and the
+restore advice already says to restore BEFORE editing - but a reader who did not has no
+recorded way out. The adjudicator recorded that the recovery through `rm` and a re-`add`
+is unproven; whether it would itself read as a row postdating the seed is NOT measured.
