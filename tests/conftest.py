@@ -460,7 +460,7 @@ _PERCENT_ESCAPE = "%[0-9A-Fa-f]{2}"
 #: makes a plain boundary refuse to match inside a quoted path. Each lookaround
 #: is individually fixed-width, which Python's lookbehind requires.
 _NAME_LEFT_BOUNDARY = f"(?:(?<={_PERCENT_ESCAPE})|(?<![0-9A-Za-z_]))"
-_NAME_RIGHT_BOUNDARY = f"(?:(?={_PERCENT_ESCAPE})|(?![0-9A-Za-z_]))"
+_NAME_RIGHT_BOUNDARY = rf"(?=(?:\x1b\[[0-9;]*m)*(?:{_PERCENT_ESCAPE}|(?![0-9A-Za-z_\x1b])))"
 
 #: One backslash. Named so the doubled home spelling below is PRODUCED by
 #: calling ``str.replace`` on an already-derived root rather than written out a
@@ -627,13 +627,13 @@ def _build_redaction_rules() -> tuple[tuple[re.Pattern[str], str, str], ...]:
         for transform in _HOME_SPELLING_TRANSFORMS
     }
     rules: list[tuple[re.Pattern[str], str, str]] = [
-        (re.compile(re.escape(spelling), re.IGNORECASE), REDACTED_HOME, CLASS_HOME_PATH)
+        (re.compile(_colour_tolerant(spelling), re.IGNORECASE), REDACTED_HOME, CLASS_HOME_PATH)
         for spelling in sorted((s for s in spellings if s), key=len, reverse=True)
     ]
     rules.extend(
         (
             re.compile(
-                rf"{_NAME_LEFT_BOUNDARY}{re.escape(name)}{_NAME_RIGHT_BOUNDARY}",
+                rf"{_NAME_LEFT_BOUNDARY}{_SGR}*{re.escape(name)}{_NAME_RIGHT_BOUNDARY}",
                 re.IGNORECASE,
             ),
             REDACTED_USER,
@@ -679,6 +679,48 @@ def _seed_redaction_rules() -> tuple[tuple[re.Pattern[str], str, str], ...]:
         The frozen rule set.
     """
     return _build_redaction_rules()
+
+
+#: CS-1191 - ONE TERMINAL COLOUR ESCAPE, as pytest's syntax highlighter emits it
+#: around every token of an assertion diff under ``--color=yes -vv``, and in an
+#: xdist worker's report at ``-vv`` when the controller was given no colour flag.
+#:
+#: THE DEFECT, MEASURED. A string repr's escape sequences are tokens of their
+#: own, so a doubled home path renders as its separate components with codes
+#: between them and no home spelling matched it. The account name then stood
+#: between a code ending in the letter ``m`` and one starting with ESC, and the
+#: left boundary refused it because that letter is a word character: the name
+#: printed whole, once per token, across an environment mapping's diff.
+#:
+#: TOLERATED, NOT STRIPPED, so a report keeps its colour. Three places read
+#: past a run of these codes, and each needs ESC to do anything, so ON TEXT
+#: WITHOUT ESC EVERY RULE MATCHES EXACTLY WHAT IT MATCHED BEFORE - which is
+#: the equivalence tests/test_cs1191_colour_xdist_redaction.py grades with a
+#: plain ``--color=no`` child beside the coloured ones:
+#:
+#:   - between the characters of every home spelling, :func:`_colour_tolerant`.
+#:     An account name is one token and is matched as written;
+#:   - in front of an account name, where the run is CONSUMED, so the left
+#:     boundary is judged at the run's start - on the visible character before
+#:     it, exactly as on plain text. The cost is that run's colour: the
+#:     placeholder renders in the colour already set before it;
+#:   - behind an account name, inside :data:`_NAME_RIGHT_BOUNDARY`, which skips
+#:     the run before judging the next visible character. ESC is in that
+#:     boundary's refused class so a backtrack that stops INSIDE the run cannot
+#:     pass it off as a non-word character.
+_SGR = r"(?:\x1b\[[0-9;]*m)"
+
+
+def _colour_tolerant(literal: str) -> str:
+    """``literal`` as a pattern that also matches it with colour escapes between its characters.
+
+    Args:
+        literal: The exact text a rule is built from.
+
+    Returns:
+        A pattern source matching ``literal`` alone on text without ESC.
+    """
+    return f"{_SGR}*".join(re.escape(character) for character in literal)
 
 
 #: Built at import. THIS NAME MUST BE ASSIGNED EXACTLY ONCE, HERE. A second
