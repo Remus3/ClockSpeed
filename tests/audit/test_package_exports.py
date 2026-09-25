@@ -36,11 +36,32 @@ from clockspeed.save import world
 WARNING_PREFIX: Final = "WARN_"
 
 
-def defined_warning_names(source: str) -> frozenset[str]:
-    """Return every ``WARN_*`` name a module's source binds by assignment at top level.
+#: Nodes that open a NEW scope. A name bound inside one is not a module
+#: constant, so the walk does not descend into them.
+_NESTED_SCOPES: Final = (
+    ast.FunctionDef,
+    ast.AsyncFunctionDef,
+    ast.ClassDef,
+    ast.Lambda,
+    ast.ListComp,
+    ast.SetComp,
+    ast.DictComp,
+    ast.GeneratorExp,
+)
 
-    An ``import`` or ``from ... import`` binding is deliberately NOT counted: the
-    module that assigns a code owns it, and a module that imports one only uses it.
+
+def defined_warning_names(source: str) -> frozenset[str]:
+    """Return every ``WARN_*`` name a module's source binds at module scope.
+
+    ANY STORE AT MODULE SCOPE COUNTS, whatever statement makes it - a plain or
+    annotated assignment, a tuple unpack, a binding inside an ``if`` or ``try``
+    block, a loop or ``with`` target, an augmented assignment or a walrus -
+    because each one leaves a module constant behind. Reading only top-level
+    ``Assign`` nodes was the first draft and an adversary named two holes in
+    it. An ``import`` or ``from ... import`` binding is deliberately NOT
+    counted: its binding is an alias node, never a stored ``Name``, and the
+    module that assigns a code owns it while a module that imports one only
+    uses it.
 
     Args:
         source: The module's source text.
@@ -49,15 +70,18 @@ def defined_warning_names(source: str) -> frozenset[str]:
         The names.
     """
     names: set[str] = set()
-    for node in ast.parse(source).body:
-        targets: list[ast.expr] = []
-        if isinstance(node, ast.Assign):
-            targets = list(node.targets)
-        elif isinstance(node, ast.AnnAssign):
-            targets = [node.target]
-        for target in targets:
-            if isinstance(target, ast.Name) and target.id.startswith(WARNING_PREFIX):
-                names.add(target.id)
+    pending: list[ast.AST] = [ast.parse(source)]
+    while pending:
+        node = pending.pop()
+        if isinstance(node, _NESTED_SCOPES):
+            continue
+        if (
+            isinstance(node, ast.Name)
+            and isinstance(node.ctx, ast.Store)
+            and node.id.startswith(WARNING_PREFIX)
+        ):
+            names.add(node.id)
+        pending.extend(ast.iter_child_nodes(node))
     return frozenset(names)
 
 
@@ -155,3 +179,50 @@ def test_the_source_parser_separates_an_assignment_from_an_import() -> None:
     )
 
     assert defined_warning_names(source) == frozenset({"WARN_PLAIN", "WARN_ANNOTATED"})
+
+
+def test_the_source_parser_reaches_every_module_scope_binding_form() -> None:
+    # An adversary named two holes in a top-level-Assign-only parser: a code
+    # bound by tuple unpacking and a code bound inside an ``if`` block. Either
+    # would define a module constant the derivation cannot see, so the
+    # expected set would come up short and the equality arm would pass against
+    # a short re-export. Every module-scope binding form is graded here; the
+    # nested scopes - a function, a class body, a comprehension - are not
+    # module constants and stay out.
+    source = (
+        "WARN_UNPACK_A, (WARN_UNPACK_B, *WARN_STARRED) = 'a', ('b', 'c')\n"
+        "if True:\n"
+        "    WARN_IN_IF = 'if'\n"
+        "else:\n"
+        "    WARN_IN_ELSE = 'else'\n"
+        "try:\n"
+        "    WARN_IN_TRY = 'try'\n"
+        "except ValueError:\n"
+        "    WARN_IN_EXCEPT = 'except'\n"
+        "with open('x') as WARN_WITH_TARGET:\n"
+        "    pass\n"
+        "for WARN_LOOP_TARGET in ():\n"
+        "    pass\n"
+        "WARN_AUGMENTED += 'x'\n"
+        "(WARN_WALRUS := 'w')\n"
+        "class Holder:\n"
+        "    WARN_CLASS_BODY = 'class'\n"
+        "_ = [WARN_COMPREHENSION for WARN_COMPREHENSION in ()]\n"
+        "del WARN_DELETED\n"
+    )
+
+    assert defined_warning_names(source) == frozenset(
+        {
+            "WARN_UNPACK_A",
+            "WARN_UNPACK_B",
+            "WARN_STARRED",
+            "WARN_IN_IF",
+            "WARN_IN_ELSE",
+            "WARN_IN_TRY",
+            "WARN_IN_EXCEPT",
+            "WARN_WITH_TARGET",
+            "WARN_LOOP_TARGET",
+            "WARN_AUGMENTED",
+            "WARN_WALRUS",
+        }
+    )
