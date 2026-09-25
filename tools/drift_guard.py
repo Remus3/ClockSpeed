@@ -287,6 +287,14 @@ BOUNDARY_REASON = (
     f"{WALK_BOUNDARY_MARKER} entry, so its files belong to that tree"
 )
 
+#: CS-1188 - the reason the marker carries when it is a FILE. WALK_SKIP_DIRS
+#: prunes it as a directory, but a linked worktree's marker is a file holding a
+#: gitdir pointer, and the file branch of _walk never consulted that set.
+VCS_MARKER_FILE_REASON = (
+    f"vcs internals - a {WALK_BOUNDARY_MARKER} FILE is a linked worktree's "
+    "gitdir pointer, not authored content"
+)
+
 REGISTERED_WORKTREE_REASON = (
     "git lists this as a linked worktree of this repository. `git worktree "
     "remove` deletes the marker BEFORE it deletes the files, so in that window "
@@ -1108,6 +1116,14 @@ def _walk(
                 # CS-1155 - the record's path carries NO trailing slash, which
                 # is the only thing in a skip record telling a file from a
                 # directory.
+                # CS-1188 - the marker is excluded by NAME whatever its kind,
+                # and BEFORE git is consulted: git never names it as ignored,
+                # so git's answer would keep it. Any depth, though only the
+                # root can reach here - a nested checkout's directory is
+                # pruned first as a boundary by _skip_dir_reason.
+                if entry.name == WALK_BOUNDARY_MARKER:
+                    skips.append({"path": relative, "reason": VCS_MARKER_FILE_REASON})
+                    continue
                 file_reason = _skip_file_reason(relative, entry.name, ignored, pii_patterns)
                 if file_reason is None:
                     files.append(entry)
