@@ -24,6 +24,166 @@ Where current truth actually lives:
 | Commands and runbooks | `docs/OPERATIONS.md` |
 
 
+## CS-1023 - item section, CLOSED and relocated from `docs/item_notes/phase7.md` 2026-09-25
+
+**Moved here from `docs/item_notes/phase7.md` when the item closed.**
+The closure record is in `docs/LEDGER.md`.
+
+## CS-1023
+
+### Acceptance
+
+the set is completed or the selection rule is written down and enforced by an arm
+
+### Full headline
+
+`clockspeed/audit/__init__.py` re-exports an arbitrary subset of the placement warning codes: `WARN_PLACEMENT_ORIENTATION_NON_FINITE`, `WARN_NODE_SEMANTICS_UNAVAILABLE` and `WARN_BUILT_CLASS_NOT_PLOTTED` are absent while two siblings are present, and the omission predates CS-1013 - so the package `__init__` is the arbitrary thing rather than any one slice
+
+## CS-1030 - item section, CLOSED and relocated from `docs/item_notes/phase7.md` 2026-09-25
+
+**Moved here from `docs/item_notes/phase7.md` when the item closed.**
+The closure record is in `docs/LEDGER.md`.
+
+## CS-1030
+
+### Acceptance
+
+the exponent has ONE owner that the other six cite, or the restatement is placed under a drift guard that reddens when the owner moves
+
+### Full headline
+
+`clockspeed/surface/api/power.py` restates the shipped exponent `1.321929` and its measured float in prose, making a SIXTH tracked copy of a measured number: five modules already do this so it is within precedent rather than a new fault, but CLAUDE.md section 4 says a restated number is a number that will drift and a hardcoded count in a doc is a lie with a timestamp on it
+
+## CS-820 - item section, CLOSED and relocated from `docs/item_notes/phase7.md` 2026-09-25
+
+**Moved here from `docs/item_notes/phase7.md` when the item closed.**
+The closure record is in `docs/LEDGER.md`.
+
+## CS-820
+
+### NOTE - relocated from `ROADMAP.md` 2026-08-23
+
+NOTE: filed 2026-08-22 (session 32), MEASURED. Detail in this file under **CS-820 - detail**; read it before taking this item.
+
+### detail - relocated from `docs/history_notes.md` 2026-08-23
+
+Filed 2026-08-22 (session 32); the item stays OPEN in `ROADMAP.md`.
+
+**MEASURED, and reported as counts rather than values throughout - the finding is that this class of
+output leaks, so the check for it must not leak in turn.** `tests/conftest.py` carries a redaction
+hook that covers home paths and account names. It has NO rule for a secret, a token or a credential
+of any shape. pytest renders a failing test's ARGUMENTS at the top of its report, so any test taking
+an environment mapping as a parameter prints that mapping's values.
+
+One forced failure of one arm rendered an Anthropic API-key-shaped credential IN FULL, together with
+several other long opaque tokens. In CI that output goes to the run log.
+
+**THIS IS CS-814's SHAPE ARRIVING THROUGH A SECOND DOOR.** Non-negotiable 12 already rules that error
+messages, debug dumps, log lines and exception context ALL COUNT as echo paths; it is written for
+save headers and, again, was never carried across. CS-814 records five live credentials in the hook
+environment and an outstanding rotation; this item is the reason a test failure is also an exposure.
+
+**THE POPULATION IS UNMEASURED AND THAT IS STATED RATHER THAN GUESSED.** One narrow scan matched two
+tracked modules; a broader scan by a different agent reported more. Measuring it is part of the work.
+The module that surfaced it, `tests/test_hook_interpreter_ladder.py`, was fixed in place at
+`CS-703`'s merge by routing the mapping through a carrier whose repr withholds its contents - so the
+instance is closed and the CLASS is this item.
+
+### Acceptance
+
+a forced failure of a test holding such a mapping renders no value matching a credential shape, asserted on COUNTS rather than values
+
+## CS-1177 - item section, CLOSED and relocated from `docs/item_notes/phase7.md` 2026-09-25
+
+**Moved here from `docs/item_notes/phase7.md` when the item closed.**
+The closure record is in `docs/LEDGER.md`.
+
+## CS-1177
+
+### Acceptance
+
+an arm forces a canary suite red by an exception RAISED inside a helper frame that holds a
+canary, not by an assertion, runs it under `--showlocals`, and greps the output for zero
+canary values, with a control in the same run showing the same forced failure renders a
+planted canary when the helper's hygiene is removed; AND the population of canary suites
+that arm forces red is DERIVED from the tree rather than hand-kept in
+`tests/test_cs1175_rule_narrowing.py::CANARY_SUITES`, proven by mutation: a new test
+module that holds a canary and is named in no hand list is picked up and graded, and the
+pristine tree is green in the same run.
+
+### Full headline
+
+a canary held in a helper frame renders under `--showlocals` when the helper raises rather
+than asserts, and `CANARY_SUITES` is a hand-kept list
+
+### FILED 2026-09-24, from the adjudicator residuals on CS-1175
+
+The CS-1175 echo repair was measured on assertion failures in the canary suites. The
+adjudicator recorded that the measurement does not reach an exception raised inside a
+helper frame, whose locals pytest renders under `--showlocals` all the same, and that the
+suites the arm forces red are a hand-kept tuple, so a new canary-bearing module is
+ungraded until someone remembers to add it.
+
+## CS-1168 - item section, CLOSED and relocated from `docs/item_notes/phase7.md` 2026-09-25
+
+**Moved here from `docs/item_notes/phase7.md` when the item closed.**
+The closure record is in `docs/LEDGER.md`.
+
+## CS-1168
+
+### Acceptance
+
+the question is SETTLED IN WRITING before any sweep widens, and the settlement names the
+boundary as a RULE rather than as a list of directories. Either outcome closes it: a
+widened sweep, or a recorded declination that states what stays invisible and why. A
+widened sweep must carry an arm that plants a synthetic fragment-assembled credential in
+an uncommitted file INSIDE the boundary and asserts it is DETECTED, a second arm that
+plants one OUTSIDE the boundary and asserts the run reports it as NOT COVERED rather than
+passing silently, and a control proving the same run still detects a staged one - because
+a widened population that quietly stopped reading the old one is a regression wearing a
+feature's clothes. The boundary must not read a sibling tree's files. The cost must be
+MEASURED and recorded, not estimated, and the fleet half must be routed outbound rather
+than implemented here.
+
+### Full headline
+
+every credential-scanning population in this tree is REPO-SCOPED - the commit gate grades
+the staged set and the repo-wide sweep grades the tracked set, so nothing here can see a
+credential sitting in a file that is never committed, which is exactly where the key found
+on this machine sat for ten days
+
+### FILED 2026-09-20, as the population half of the plaintext-key incident
+
+**THE DISTINCTION THAT MAKES THIS THE ONLY DETECTING CONTROL.** CS-1166 makes the rules
+able to recognise the family. CS-1167 makes the coverage row honest about which rules are
+alive. Neither would have found the key, because neither changes WHICH BYTES ARE READ. The
+commit gate's population is the staged set and the sweep's is the tracked set; the exposed
+files were in neither for ten days. Widening the population is the only proposed control
+that would have DETECTED the incident rather than prevented a different one.
+
+**WHY IT IS FILED RATHER THAN DONE.** The obvious fix - point the sweep at the shared
+scratch directory - crosses two lines this tree holds. That directory is not this
+project's: it is shared across the fleet, and a sweep that reads it reads files other
+trees wrote, which collides directly with the rule that a tree does not read a sibling's
+files. And a boundary drawn as a path is a boundary that rots the first time a tool writes
+somewhere else, which is the same defect as an allowlist wearing a guard's clothes. So the
+item has to decide the RULE - what makes a directory in scope - before it decides any
+path.
+
+**THE HALF THAT IS NOT OURS.** A machine-wide credential sweep is a fleet control with one
+owner and several beneficiaries. Implementing it five times, once per repository, produces
+five populations that disagree and five places to forget. The split this item must
+propose: this tree owns the detection RULES and the arms that grade them, and the fleet
+owns the population and the schedule. The outbound half goes to the sync inboxes as a
+note, and this item does not close on the note being sent - only on the boundary being
+written down here.
+
+**THE COST IS REAL AND MUST BE MEASURED.** A tracked-set sweep is bounded by the index. An
+unbounded filesystem walk is not, and this machine has already recorded a runaway process
+filling a disk and a walk that descended into directories it should have stopped at. Any
+widening arrives with a measured runtime and a stated stopping rule, or it does not
+arrive.
+
 ## CS-1180 - item section, CLOSED and relocated from `docs/item_notes/phase7.md` 2026-09-25
 
 **Moved here from `docs/item_notes/phase7.md` when the item closed.**

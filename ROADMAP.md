@@ -327,7 +327,6 @@ CS-815 - `.claude/settings.json` hardcodes its interpreter with no probe - accep
 CS-816 - The interpreter probe is bounded neither in time nor in output - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-817 - The interpreter probe asserts PYTHONHOOD but not TOOLCHAIN - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
 CS-818 - `scripts/verify_env.py` never evaluates `CLOCKSPEED_PYTHON` - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
-CS-820 - `tests/conftest.py` has NO secret rule - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
 CS-821 - `pre-push` decides pytest is available from an exit code alone - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
 CS-822 - The commit-msg byte check tests only for bytes ABOVE 0x7E - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-824 - `.githooks/pre-push` proves pytest RAN but not that it DID ANY WORK - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
@@ -335,12 +334,8 @@ CS-700 - Phase 7 gate: the tier-3 flip checklist from CONVENTIONS section 17 - a
 CS-953 - a history scrub keyed on paths as they exist at HEAD leaves every PRE-MOVE path unrenamed - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-955 - the pre-commit gate has CS-954's shape one level down - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1018 - lane run `62f29b90` on the 2026-09-10 night started 262.5s after its predecessor where every other gap is 47.9 to 70.4s, and left no worker log at all - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
-CS-1023 - `clockspeed/audit/__init__.py` re-exports an arbitrary subset of the placement warning codes - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
-CS-1030 - `clockspeed/surface/api/power.py` restates the shipped exponent `1.321929` and its measured float in prose, making a SIXTH tracked copy of a measured number - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1032 - `tests/surface/panel_harness.py`'s DOM stand-in has no known-good browser control anywhere in the repo - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1158 - a pruned save file's FILENAME reaches the rendered skip list and the `--json` payload of `tools/drift_guard.py`, and a save filename carries the world name - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
-CS-1177 - a canary held in a helper frame renders under `--showlocals` when the helper raises rather than asserts, and `CANARY_SUITES` is a hand-kept list - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
-CS-1168 - every credential-scanning population in this tree is REPO-SCOPED - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1174 - `PLACEHOLDER_RE` treats a non-ASCII letter as a delimiter, and no behavioural arm puts a digit beside a member - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1183 - the seven tier-3 flip checks have no runnable job - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1184 - no orphan or staleness sweep and no anchor check over tracked markdown - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
