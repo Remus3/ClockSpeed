@@ -175,11 +175,26 @@ against its manifest: the METADATA `License-Expression`, `License` field or clas
 the Python side, and the `package.json` and lockfile licence field on the node side.
 
 **The set is DERIVED, never held here.** `tools/licence_audit.py::audit` derives it from
-the manifests and compares it with these two tables in both directions: a dependency with
-no row, a row naming no dependency, a row whose verdict does not begin `**CLEARED`, a
-row recording neither a copyright line nor an explicit `NONE`, and a row with no date are
-each a finding. `python tools/licence_audit.py` exits 0 when clean, 1 on any finding and 2
-when it could not run, and prints counts and package names only.
+the manifests and compares it with these two tables in both directions. `python
+tools/licence_audit.py` exits 0 when there is no finding, 1 on any finding and 2 when it
+could not run, and prints counts and package names only. THE POLICY, stated once here and
+in the tool's docstring:
+
+- **A FINDING (exit 1):** a dependency with no verdict row, on either side - a newly
+  installed package without a verdict is exactly the licence risk this exists to catch; a
+  row whose verdict does not begin `**CLEARED`, that records neither a copyright line nor
+  an explicit `NONE`, that has no date, or that repeats a name; a node row naming no
+  pinned package or at a version the lockfile does not pin.
+- **A NOTE (printed, exit unaffected):** a Python row the auditing environment does not
+  reach, or reaches under a different condition. That is version or platform drift, never
+  a licence risk, and failing on it turned the committed suite red on an older allowed
+  pytest or mypy with nothing wrong in the tree.
+- **Where each half runs.** `tests/test_licence_audit.py` grades the logic over a
+  SYNTHETIC tree and environment, so the suite is deterministic; it grades this file only
+  where this file is deterministic (complete rows, the node table against the tracked
+  lockfile, Electron's ADR citation); and its ONE live arm asserts only that every package
+  the running environment derives is recorded here or reported as a finding, so it never
+  goes red on drift. The live verdict is the CLI's exit code, run by the merger or CI.
 
 - **Node is machine-independent.** The set is every package `shell/package-lock.json`
   pins, nested ones included, and that file is tracked. The version below must equal the
@@ -189,12 +204,12 @@ when it could not run, and prints counts and package names only.
   `[project].dependencies` - empty by decision - plus every extra is walked through the
   installed metadata of the interpreter that RUNS the audit. A different platform, Python
   version, or point inside the dev extra's version ranges can add or drop a transitive
-  package, and the audit then goes red until this table is re-read. That is the check
-  working, not a flake. Versions are the version READ and are not compared, because CI
+  package. An added one without a row is a finding until this table gains its verdict; a
+  dropped one is a note. Versions are the version READ and are not compared, because CI
   resolves its own point in each range. The Reached-when cell is `always` or the PEP 508
   condition derived from the `Requires-Dist` markers on the way in; a row whose condition
-  is false in the auditing interpreter - colorama on a Linux runner - is neither required
-  nor stale there, but its condition must still equal the derived one.
+  is false in the auditing interpreter - colorama on a Linux runner - is not required
+  there, and a condition that differs from the derived one is a note.
 - **`[build-system].requires` is NOT in the derived set, and so setuptools has no row.**
   It is installed into pip's isolated build environment and never into the environment the
   audit and the suite run in, so its licence files are not on this machine to read, and a
@@ -242,7 +257,7 @@ except Electron, whose verdict is ADR 0013's and is consumed here rather than re
 
 | Package | Version read | Licence read (files / manifest) | Copyright line | Verdict | Date |
 |---|---|---|---|---|---|
-| `@electron-internal/extract-zip` | 1.0.5 | NO licence file in the installed package. Its README's License heading, its `package.json` and the lockfile all say BSD-2-Clause | NONE - no licence file ships, so no copyright line exists to read; `package.json` names no author, and its repository field points at the Electron organisation's extract-zip | **CLEARED as a local install ONLY, DO-NOT-VENDOR, and a BLOCKER for ADR 0013 scope (c).** Absence of a LICENSE file is not permission, so this rests on the publisher's own declaration in the manifest it published. Installing and running it locally redistributes nothing, which is ADR 0013 scope (a). BSD-2-Clause conditions redistribution on reproducing a copyright notice these bytes do not carry, so a packaged binary bundling it cannot meet that condition from them. It also ships prebuilt native binaries | 2026-09-25 |
+| `@electron-internal/extract-zip` | 1.0.5 | NO licence file in the installed package. Its README's License heading, its `package.json` and the lockfile all say BSD-2-Clause | NONE - no licence file ships, so no copyright line exists to read; `package.json` names no author, and its repository field points at the Electron organisation's extract-zip | **CLEARED as a local install ONLY, DO-NOT-VENDOR.** It is an install-time unpacker: `electron/install.js` calls it to unzip the downloaded Electron archive during `npm install`, and nothing of it is tracked here. Absence of a LICENSE file is not permission, so this rests on the publisher's own declaration in the manifest it published, and with no copyright notice to retain, a lift of any of it stops at trap 3. It also ships prebuilt native binaries | 2026-09-25 |
 | `@electron/get` | 5.1.0 | MIT, warranty clause intact / MIT in `package.json` and the lockfile | Copyright (c) Contributors to the Electron project | **CLEARED** as a dependency | 2026-09-25 |
 | `@types/node` | 24.13.3 | MIT, warranty clause intact / MIT | Copyright (c) Microsoft Corporation. | **CLEARED** as a dependency | 2026-09-25 |
 | `debug` | 4.4.3 | MIT, warranty clause intact / MIT | Copyright (c) 2014-2017 TJ Holowaychuk; Copyright (c) 2018-2021 Josh Junon - e-mail address omitted | **CLEARED** as a dependency | 2026-09-25 |

@@ -5,13 +5,30 @@ WHAT THIS CHECKS. ``THIRD_PARTY.md``'s dependency verdicts section records one
 row per dependency, each carrying the version read, the licence read from the
 installed files and from the manifest, the copyright LINE read
 (``CONVENTIONS.md`` section 14 trap 3) and a verdict. This tool derives the
-dependency set from the manifests and compares the two in both directions:
+dependency set from the manifests and compares the two in both directions.
 
-- A dependency with no row is a finding.
-- A row naming no dependency is a finding.
+THE POLICY - what fails and what is only reported:
+
+- A dependency with no verdict row is a FINDING (exit 1) - on either side. A
+  newly installed Python package without a verdict is exactly the licence risk
+  this exists to catch.
 - A row whose verdict does not begin ``**CLEARED``, whose copyright cell names
-  neither a ``Copyright`` / ``(c)`` line nor an explicit ``NONE`` record, or
-  whose date is not ``YYYY-MM-DD`` is a finding.
+  neither a ``Copyright`` / ``(c)`` line nor an explicit ``NONE`` record, whose
+  date is not ``YYYY-MM-DD``, or that repeats a name is a FINDING. Those are
+  properties of the committed document and do not vary with the machine.
+- A NODE row naming no pinned package, or at a version the lockfile does not
+  pin, is a FINDING: the lockfile is tracked, so that is deterministic.
+- A PYTHON row this environment does not reach, or reaches under a different
+  condition, is a NOTE: printed, exit unaffected. The Python set is measured in
+  whatever environment runs the audit, so a row going unreached is version or
+  platform drift and never a licence risk. Failing on it made the committed
+  suite red on an older allowed pytest or mypy with nothing wrong in the tree.
+
+WHERE EACH HALF RUNS. ``tests/test_licence_audit.py`` grades the logic over a
+SYNTHETIC environment (``--metadata``, or an injected lookup), so the suite is
+deterministic. Its one live arm asserts only that every package the running
+environment derives is either recorded or REPORTED - it never goes red on
+drift. The live verdict is this CLI, run by the merger or CI with a clear exit.
 
 THE TWO DERIVATIONS, AND WHICH ONE DEPENDS ON THE MACHINE.
 
@@ -30,25 +47,24 @@ THE TWO DERIVATIONS, AND WHICH ONE DEPENDS ON THE MACHINE.
   edge's condition: a package's "Reached when" cell is ``always`` or the
   disjunction of its incoming conditions (each conjoined with its parent's), and
   it is a member HERE only when that condition evaluates true in this
-  interpreter. A row whose condition is false here is neither required nor
-  stale - that is what lets a ``sys_platform == "win32"`` row pass on a Linux
-  runner - but its recorded condition must still equal the derived one.
-  VERSIONS are recorded for Python and NOT compared, because the dev extra is a
-  range and CI resolves its own point in it.
+  interpreter. A row whose condition is false here is not required - that is
+  what lets a ``sys_platform == "win32"`` row pass on a Linux runner - and a
+  recorded condition that differs from the derived one is a note. VERSIONS are
+  recorded for Python and NOT compared, because the dev extra is a range and CI
+  resolves its own point in it.
 
 ``[build-system].requires`` is NOT part of the derived set: it is installed into
 pip's isolated build environment, not into the environment the tool and the
 suite run in, so its files are not on disk to read. The register states that
 exclusion rather than leaving it silent.
 
-EXIT CODES. 0 when the recorded set equals the derived set and every row is
-complete; 1 on any finding; 2 when the audit could not run - an input missing
-or unparseable, a register section absent, ``packaging`` not importable, a
-requirement shape this tool does not model, or an applicable requirement whose
-metadata is not installed so its children could not be walked. A finding
-outranks an incomplete walk: what was seen to be wrong is reported as wrong.
-While the walk is incomplete, a Python row it could not reach is NOT called
-stale, because it may name one of the unseen children.
+EXIT CODES. 0 when there is no finding (notes may be printed); 1 on any
+finding; 2 when the audit could not run - an input missing or unparseable, a
+register section absent, ``packaging`` not importable, a requirement shape this
+tool does not model (a requested extra, or an extra-bearing marker that holds
+with no extra), or an applicable requirement whose metadata is not installed so
+its children could not be walked. A finding outranks an incomplete walk: what
+was seen to be wrong is reported as wrong.
 
 OUTPUT IS COUNTS AND PACKAGE NAMES, never licence text and never a filesystem
 path - an installed distribution's location carries a home directory.
@@ -143,6 +159,42 @@ def installed(name: str) -> Dist | None:
         return importlib.metadata.distribution(name)
     except importlib.metadata.PackageNotFoundError:
         return None
+
+
+@dataclass(frozen=True)
+class RecordedDist:
+    """An installed distribution as a ``--metadata`` map records it."""
+
+    version: str
+    requires: list[str]
+
+
+def metadata_lookup(path: Path) -> Lookup:
+    """Return a lookup over a JSON map standing in for the installed environment.
+
+    The map is ``{name: {"version": str, "requires": [requirement, ...]}}``. It
+    is how the committed tests run the CLI over a SYNTHETIC environment, so the
+    suite's verdict never depends on what happens to be installed.
+
+    Args:
+        path: The JSON file.
+
+    Returns:
+        A lookup that answers from the map and returns None for any other name.
+
+    Raises:
+        AuditError: If the file is unreadable or not that shape.
+    """
+    try:
+        raw = json.loads(path.read_bytes())
+        table = {
+            normalise(name): RecordedDist(str(entry["version"]), list(entry.get("requires", [])))
+            for name, entry in raw.items()
+        }
+    except (OSError, ValueError, TypeError, KeyError, AttributeError) as exc:
+        message = "the --metadata map could not be read"
+        raise AuditError(message) from exc
+    return lambda name: table.get(normalise(name))
 
 
 def normalise(name: str) -> str:
@@ -441,7 +493,7 @@ def parse_register(text: str) -> tuple[list[Row], list[Row], list[str]]:
     return python_rows, node_rows, findings
 
 
-def _row_findings(ecosystem: str, rows: list[Row]) -> list[str]:
+def row_findings(ecosystem: str, rows: list[Row]) -> list[str]:
     """Return the completeness findings of ``rows``: verdict, copyright, date, duplicates."""
     findings: list[str] = []
     seen: set[str] = set()
@@ -465,6 +517,8 @@ class AuditResult:
     """Everything one audit observed."""
 
     findings: list[str] = field(default_factory=list)
+    #: Drift that is not a licence risk; printed, and never fails the audit.
+    notes: list[str] = field(default_factory=list)
     incomplete: list[str] = field(default_factory=list)
     python_derived: int = 0
     python_recorded: int = 0
@@ -486,27 +540,31 @@ def _read(root: Path, relative: str) -> str:
     return raw.decode("utf-8", errors="replace").replace("\r\n", "\n")
 
 
-def _python_findings(derivation: PythonDerivation, rows: list[Row]) -> list[str]:
-    """Compare the Python rows with the derivation in both directions."""
-    findings: list[str] = []
+def _python_findings(derivation: PythonDerivation, rows: list[Row]) -> tuple[list[str], list[str]]:
+    """Compare the Python rows with the derivation in both directions.
+
+    Returns:
+        The findings - a dependency here with no verdict row - and the notes: a
+        row this environment does not reach, or reaches under another condition.
+        A note is version or platform drift, never a licence risk, so it does
+        not fail the audit.
+    """
     recorded = {row.name: row for row in rows}
-    findings.extend(
+    findings = [
         f"python: `{name}` is a dependency here and has no register row"
         for name in sorted(derivation.members - recorded.keys())
-    )
+    ]
+    notes: list[str] = []
     for name, row in sorted(recorded.items()):
         derived = derivation.conditions.get(name)
         if derived is None:
-            # An incomplete walk has unseen children, so a row it cannot reach
-            # may name one of them. That is "could not run", not a finding.
-            if not derivation.incomplete:
-                findings.append(f"python: `{name}` has a register row and is no dependency")
+            notes.append(f"python: `{name}` has a register row and is not reached here")
         elif row.condition != derived:
-            findings.append(f"python: `{name}` is reached when `{derived}`, not as recorded")
-    return findings
+            notes.append(f"python: `{name}` is reached here when `{derived}`, not as recorded")
+    return findings, notes
 
 
-def _node_findings(derivation: NodeDerivation, rows: list[Row]) -> list[str]:
+def node_findings(derivation: NodeDerivation, rows: list[Row]) -> list[str]:
     """Compare the node rows with the lockfile in both directions."""
     findings = [
         f"node: `{name}` is declared in {PACKAGE_JSON} and absent from {LOCKFILE}"
@@ -542,10 +600,11 @@ def audit(root: Path, lookup: Lookup = installed) -> AuditResult:
     python = derive_python(_read(root, PYPROJECT), lookup)
     node = derive_node(_read(root, PACKAGE_JSON), _read(root, LOCKFILE))
     python_rows, node_rows, findings = parse_register(_read(root, REGISTER))
-    findings.extend(_row_findings("python", python_rows))
-    findings.extend(_row_findings("node", node_rows))
-    findings.extend(_python_findings(python, python_rows))
-    findings.extend(_node_findings(node, node_rows))
+    findings.extend(row_findings("python", python_rows))
+    findings.extend(row_findings("node", node_rows))
+    python_findings, notes = _python_findings(python, python_rows)
+    findings.extend(python_findings)
+    findings.extend(node_findings(node, node_rows))
     applicable = sum(
         1
         for row in python_rows
@@ -553,6 +612,7 @@ def audit(root: Path, lookup: Lookup = installed) -> AuditResult:
     )
     return AuditResult(
         findings=findings,
+        notes=notes,
         incomplete=python.incomplete,
         python_derived=len(python.members),
         python_recorded=applicable,
@@ -593,19 +653,28 @@ def main(argv: list[str] | None = None) -> int:
         default=Path(__file__).resolve().parents[1],
         help="the tree to audit (default: this repository)",
     )
+    parser.add_argument(
+        "--metadata",
+        type=Path,
+        default=None,
+        help="a JSON map standing in for the installed environment (default: the real one)",
+    )
     args = parser.parse_args(argv)
     try:
-        result = audit(args.root)
+        lookup = installed if args.metadata is None else metadata_lookup(args.metadata)
+        result = audit(args.root, lookup)
     except AuditError as exc:
         print(f"licence_audit: could not run - {exc}")
         return EXIT_COULD_NOT_RUN
     print(
         f"licence_audit: python derived {result.python_derived}, recorded "
         f"{result.python_recorded}; node derived {result.node_derived}, recorded "
-        f"{result.node_recorded}; findings {len(result.findings)}"
+        f"{result.node_recorded}; findings {len(result.findings)}; notes {len(result.notes)}"
     )
     for finding in result.findings:
         print(f"  {finding}")
+    for note in result.notes:
+        print(f"  note: {note}")
     for name in result.incomplete:
         print(f"  python: `{name}` applies here and is not installed, so its children are unseen")
     return exit_code(result)
