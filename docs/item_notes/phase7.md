@@ -1033,16 +1033,6 @@ either a commit cannot carry an index the gate did not grade, or the hook refuse
 
 the pre-commit gate has CS-954's shape one level down: it grades THE INDEX at hook time and git then commits from the index, so a stage that lands while the hook runs is committed ungraded - the window is far narrower than pre-push's suite but the mechanism is identical
 
-## CS-956
-
-### Acceptance
-
-each of the three is measured end to end on a real clone with a positive control proving the instrument can see the opposite answer, and the results are recorded whichever way they fall
-
-### Full headline
-
-three hook properties this project relies on are unmeasured anywhere in it, and CS-952 refused a frozen-file grant on the strength of two of them: whether a hook declared in a TRACKED project settings file fires at all in an untrusted fresh clone, whether a hook's stdout reaches the transcript when it exits NON-ZERO, and whether `python` in a hook command resolves to the toolchain-bearing interpreter, which is guarded for `PreToolUse` and for nothing else
-
 ## CS-1014
 
 ### Acceptance
@@ -1092,26 +1082,6 @@ the 262.5s gap is attributed to a named cause or the row is shown to be a differ
 ### Full headline
 
 lane run `62f29b90` on the 2026-09-10 night started 262.5s after its predecessor where every other gap is 47.9 to 70.4s, and left no worker log at all while being the LONGEST failing row at 3.151s - `_log_path` creates only the directory and the runner creates the file, so an absent log does not place the failure before the spawn, and a pre-spawn failure would be the fastest row rather than the slowest
-
-## CS-1019
-
-### Acceptance
-
-a save-layer arm packs a distinct quaternion into an actor record's bytes and asserts the returned `ResourceNode` carries it, reddening when `_node_or_none` substitutes an identity
-
-### Full headline
-
-`clockspeed/save/world.py::_node_or_none`'s rotation and scale carry-through has no arm in its own layer: its only grader is `tests/surface/test_map.py::test_a_node_row_carries_its_own_orientation_off_the_real_parser`, two seams away, and the audit-layer arm is structurally blind to it because it builds `ResourceNode` through a test helper
-
-## CS-1021
-
-### Acceptance
-
-the comments are corrected to say deliberately-not-unit or the values are made unit, and it is decided on the record whether a unit-norm assertion belongs in the save layer's own arms
-
-### Full headline
-
-the rotation constants in `tests/surface/audit_harness.py`, `tests/surface/test_map.py` and `tests/audit/test_placement.py` are NON-UNIT quaternions documented as real factory values: `_MAP_QUARTER_TURNS` calls `(0,0,0.5,0.5)` one of "the four quarter turns about the vertical axis" and "the four spellings a factory actually contains" when its norm-squared is 0.5 and a real quarter turn is `(0,0,+-0.70710678,0.70710678)`, and no arm anywhere asserts unit norm - the shipped code is unaffected because it transcribes and must not normalise, but a panel developed against this fixture is developed against a value the game does not produce
 
 ## CS-1022
 
@@ -1173,16 +1143,6 @@ one owner for the routine or a digit-correctness oracle over every copy, proven 
 
 `approximateDecimal` now exists in FOUR panel files and only one copy is graded for correctness: `panel_solve.js`'s copy has a digit oracle in `tests/surface/test_panel_solve.py`, while the copies in `panel_registry.js`, `panel_optimize.js` and `panel_power.js` are graded only for "does not divide" and never for "produces the right digits" - so a silently wrong reading aid in the power bench passes today, which is the silently-wrong half of non-negotiable 7 wearing a helper
 
-## CS-1029
-
-### Acceptance
-
-the name states what the arm asserts, and a guard or a review note covers the general case of a renamed assertion keeping its old name
-
-### Full headline
-
-`tests/surface/test_web_assets.py::test_the_page_issues_exactly_one_post_and_no_form` now asserts TWO posts: the docstring was updated when `/api/optimize` gained its door and the FUNCTION NAME was not, so the name states a property the body contradicts and a later reader greps the name rather than reading the body
-
 ## CS-1030
 
 ### Acceptance
@@ -1192,16 +1152,6 @@ the exponent has ONE owner that the other six cite, or the restatement is placed
 ### Full headline
 
 `clockspeed/surface/api/power.py` restates the shipped exponent `1.321929` and its measured float in prose, making a SIXTH tracked copy of a measured number: five modules already do this so it is within precedent rather than a new fault, but CLAUDE.md section 4 says a restated number is a number that will drift and a hardcoded count in a doc is a lie with a timestamp on it
-
-## CS-1031
-
-### Acceptance
-
-every reason in the canned body is read from the module that publishes it, proven by a mutant that changes a published reason and reddens the fixture guard
-
-### Full headline
-
-`tests/surface/audit_harness.py::_power_data` binds ONE reason string to its owner and hand-authors the other four: `ceiling.reason` reads `power.ceiling_reason(None)` while four sibling `reason` values are invented prose, so a panel arm graded against the canned body can pass while the real endpoint says something else - partial binding is the shape CS-1013 was refuted over, one field at a time rather than one row at a time
 
 ## CS-1032
 
@@ -1213,16 +1163,6 @@ one end-to-end control renders a known panel in a real browser and is compared a
 
 `tests/surface/panel_harness.py`'s DOM stand-in has no known-good browser control anywhere in the repo, and every panel verdict in the project rests on it: all 37 arms added for the optimize and power panels, plus every existing panel arm, run under `drive()` against a stand-in that nothing compares to a real browser, so "the page renders X" is a claim about the stand-in and not about the page - this project has already recorded that the dashboard's self-signed HTTPS defeats automation browsers and that browser-pane resize, focus and default key scrolling are silently faked, which is why the gap is unclosed rather than merely unnoticed
 
-## CS-1034
-
-### Acceptance
-
-every path-shaped privacy needle is asserted through an oracle proven potent by a planted positive that the arm FINDS, and the four arms above redden on a body carrying the reflected path
-
-### Full headline
-
-four anti-leak privacy arms hunt a needle the encoder can never produce: `tests/surface/test_health.py::test_health_answers_200_even_when_a_parameter_it_does_not_accept_arrives` and `::test_a_present_registry_and_world_render_as_words_not_as_what_they_are`, `tests/surface/test_world.py::test_an_unknown_parameter_is_a_400_that_reflects_nothing` and `tests/surface/test_registry.py::test_a_request_naming_a_parameter_is_refused_and_reflects_nothing` each assert a home-shaped path is ABSENT from an encoded body using `needle.encode("ascii") in blob`, but `clockspeed/surface/api/contract.py::encode` is `json.dumps`, which doubles every backslash, so the needle cannot match under any circumstances and a body that genuinely reflects a refused path passes all four - measured, a reflecting body returns True for the not-in assertion - none of the four carries a planted positive, and these guard non-negotiables 3 and 12 - the repo already does it right twice, at `tests/surface/test_registry.py::test_the_body_carries_no_path_shaped_value` which hunts a lone backslash character and `tests/surface/test_map.py::test_an_unknown_parameter_is_a_400_that_reflects_nothing` which uses a JSON-safe canary, so this is a gap and not a limitation
-
 ## CS-1035
 
 ### Acceptance
@@ -1232,27 +1172,6 @@ the count-carrying raises are graded by an arm that reddens when the count argum
 ### Full headline
 
 `clockspeed/audit/inventory.py` carries CS-1020's ungraded-count shape in the module named beside `placement.py`: `_warning` defaults `count=1` and the two raises inside `inventory_of` pass `unread` and `undecoded`, and NO arm anywhere grades any inventory warning's `.count` - the only arm driving the code, `tests/audit/test_inventory.py::test_the_unread_payload_count_travels_as_the_honest_denominator`, asserts presence alone, so deleting the `unread` argument from that raise takes the served count from 2 to 1 under a fixture where `unread == 2` and the whole suite stays green - the `containers_read` and `undecoded` model FIELDS are properly count-graded by `tests/audit/test_inventory.py::test_the_container_count_actually_read_travels_beside_the_total` and `::test_an_undecoded_container_entry_is_counted_rather_than_dropped`, so the defect is confined to the warning counts
-
-## CS-1036
-
-### Acceptance
-
-both sets are DERIVED - the population set from the `*_placements` fields of `WorldPlacement`, the orientation count from the served rows rather than the constants - each reddening when the shipped model grows, which is the shape CS-1015 already filed for the lane vocabulary
-
-### Full headline
-
-both CS-1025 and CS-1020 enforce their sweeps over a HAND-ENUMERATED population rather than one derived from the shipped model, which is the exact defect class they were filed over: `tests/audit/test_placement.py::POPULATIONS` is the literal pair node and built with nothing binding it to `WorldPlacement`'s own fields, and `tests/surface/test_map.py::EXPECTED_ORIENTATION_COMPONENTS = 14` is asserted against the length of four fixture tuples that exist in no other file - measured, no mutation of shipped code can fail that assertion, so it is a fixture-integrity guard and grades nothing about behaviour - CS-1020 exists precisely because `placement_of` grew a second loop and the test population did not follow it, so a third population would repeat it with every arm green
-
-## CS-1037
-
-### Acceptance
-
-the uniqueness enforcement covers every needle-eligible fixture family rather than the orientation family alone, and the colliding planted pair is either re-picked or documented on the record as safe because its arms compare whole tuples
-
-### Full headline
-
-the fixture collision CS-1025 was filed over survives in two places the repair did not reach: `tests/audit/test_placement.py` still holds, at module level, `PLANTED_ROTATION = (0.5, -0.25, 0.125, 0.8125)` and `PLANTED_SCALE = (2.0, 0.5, -1.5)`, byte-identical to the pre-fix constants and colliding on the same rendering, feeding the membership-based anti-vacuity control inside `test_no_orientation_component_reaches_the_model_as_a_float` where one of seven needles is non-load-bearing; and in `tests/surface/test_map.py` the TRANSLATION components are needle-eligible but unswept, with `BUILT_TRANSLATION[0]` deliberately ambiguous at a count of two - no mutant was found for either, so both are weakened rather than defeated, but a future author writing an anti-vacuity control off a translation walks into the identical trap and the new uniqueness sweep will not see it
-
 
 ## CS-1158
 
@@ -1544,33 +1463,6 @@ this item was filed: `ops/loop/queue_loop.py` has no match for `429`, `api_error
 under `ops/loop/`. Whether this tree's lane has already met such a refusal is NOT
 measured; the item is filed on the absence of handling, not on an observed night.
 
-## CS-1179
-
-### Acceptance
-
-a temp-repo test drives the sequence: delete `tools/provenance.tsv`, make an honest edit
-to a stamped file while it is absent, run the advised restore
-`git checkout <rev> -- tools/provenance.tsv`, then the documented recovery - for example
-`python tools/provenance_stamp.py rm <path>` followed by a re-`add` - and the CS-1176
-re-seed arm returns green WITHOUT forgiving F1, a row that left and returned through a
-re-seed, which stays red in the same run; OR the recovery is shown impossible, and the
-`tools/provenance_stamp.py` docstring and the missing-manifest message say so. Proven by
-mutation, with the pristine tree green in the same run.
-
-### Full headline
-
-probe the recovery from a delete-edit-restore permanent red in the provenance re-seed arm
-
-### FILED 2026-09-24, from the adjudicator residuals on CS-1176
-
-The CS-1176 re-seed arm forgives a gap in a row's manifest history only when the path's
-bytes either side of the gap agree. An honest edit made while the manifest is absent
-changes those bytes, so after the advised restore the row reads as one that left and
-returned, and the arm is red for good. That is fail-closed, the safe direction, and the
-restore advice already says to restore BEFORE editing - but a reader who did not has no
-recorded way out. The adjudicator recorded that the recovery through `rm` and a re-`add`
-is unproven; whether it would itself read as a row postdating the seed is NOT measured.
-
 ## CS-1180
 
 ### Acceptance
@@ -1606,60 +1498,6 @@ re-exposed trailers the 2026-08-13 operator decision in CS-G03 forbids from the
 published history. Ruled: strip at S7a, because S7a already changes every SHA;
 accepting the trailers was the runner-up and lost to the older, more specific,
 never-withdrawn operator decision.
-
-## CS-1181
-
-### Acceptance
-
-`docs/GATED.md` CS-G03 carries a note appended after its CS-702 section and before
-`### CS-G04`, under a heading led by a provenance verb so guard (g) stays green,
-stating that ADR 0018 replaced the squash or orphan-branch mechanism, how the
-eighth precondition's first clause now reads, that its other two clauses are
-discharged at S7a and proven by the S8 re-scan, and that the paragraph holding the
-trailer commits harmless no longer holds; no dated text above it is edited; and
-`tools/drift_guard.py` exits 0 on the result.
-
-### Full headline
-
-CS-G03 still says the flip ships from a fresh history and never cites ADR 0018
-
-### FILED 2026-09-24, from the N0 adjudicator ruling at `599528c`
-
-CS-G03's 2026-08-13 heading, its eighth precondition and the CS-702 section's
-closing paragraph all rest on a history generated fresh. ADR 0018 retired that
-mechanism on 2026-09-08 and nothing re-read the paragraph, and CS-G03 carried no
-reference to ADR 0018 at all when the ruling probed it. CS-G03 is what a flip
-session reads first, so two owners disagreeing there is the dangerous place for it.
-
-## CS-1182
-
-### Acceptance
-
-`docs/GATED.md` CS-G03 carries a note after the CS-1181 note splitting the flip three
-ways - an in-session adjudicator DECIDES readiness at a frozen SHA on evidence it
-re-runs against all eight preconditions, with a MAIN ruling able to stand in for
-that decision only; the operator CONFIRMS the irreversible acts in their own words
-typed into this repository's session, once, immediately before S9, covering S9
-through S12 and lapsing on an aborted control, a session end or `main` moving past
-the adjudicated SHA; the session agent ACTS, with the operator's hands needed only
-for a credential or scope grant - and CS-700 steps S9 and S12 each carry one line
-pointing at it.
-
-### Full headline
-
-CS-G03 and CS-700 S9 ask for an operator sign-off with no split between deciding the flip and confirming its irreversible acts
-
-### FILED 2026-09-24, from the N0 adjudicator ruling at `599528c`
-
-`CLAUDE.md` section 6.1 routes decisions to an adjudicator and lets MAIN stand in
-for them, but lifts no safety floor for destructive or irreversible acts and never
-stands in for the operator's hands. S9 deletes the remote and S12 makes it public;
-both are irreversible and outward-facing. The runner-up - an adjudicator grant
-alone suffices - lost because the same section names that floor and CS-G03 calls
-its own gate necessary and not sufficient. Whether the operator reads the MAIN
-clause's floor the same way is recorded by the ruling as a residual. That residual is
-discharged: `CLAUDE.md` section 6.1 now names the floor directly, as its one
-exception for an irreversible outward act on the repository itself.
 
 ## CS-1183
 

@@ -336,39 +336,28 @@ CS-824 - `.githooks/pre-push` proves pytest RAN but not that it DID ANY WORK - a
 CS-700 - Phase 7 gate: the tier-3 flip checklist from CONVENTIONS section 17 - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-953 - a history scrub keyed on paths as they exist at HEAD leaves every PRE-MOVE path unrenamed - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-955 - the pre-commit gate has CS-954's shape one level down - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
-CS-956 - three hook properties this project relies on are unmeasured anywhere in it, and CS-952 refused a frozen-file grant on the strength of two of them - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1014 - `queue_loop._holder_pid`'s type guard is ungraded and the mutation `return pid` survives every arm in the file: the guard exists and is correct, but nothing measures it - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1015 - the lane refusal vocabulary is an unpinned cross-module string contract - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1016 - no arm drives a real `lanes.try_acquire_lane` worktree collision into `run_cycle`, so the whole CS-1011 proof rests on hand-built dicts - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1017 - a lane cycle row records neither the seconds `proc.wait` actually consumed nor the refusal reason - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1018 - lane run `62f29b90` on the 2026-09-10 night started 262.5s after its predecessor where every other gap is 47.9 to 70.4s, and left no worker log at all - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
-CS-1019 - `clockspeed/save/world.py::_node_or_none`'s rotation and scale carry-through has no arm in its own layer - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
-CS-1021 - the rotation constants in `tests/surface/audit_harness.py`, `tests/surface/test_map.py` and `tests/audit/test_placement.py` are NON-UNIT quaternions documented as real factory values - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1022 - `tests/surface/test_panel_map.py::_map_body` claims to be "shaped exactly as the contract froze it" while carrying 4-key placement rows - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1023 - `clockspeed/audit/__init__.py` re-exports an arbitrary subset of the placement warning codes - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1024 - `clockspeed/audit/placement.py::Placement` carries a GENERATED dataclass repr, now rendering six fields, and is invisible to both PII censuses - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1026 - `panel_solve.js`, `panel_map.js` and `panel_scope.js` declare their helpers in the page's SHARED GLOBAL SCOPE - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1027 - the panel division detectors miss two real spellings: the `DIVISION` pattern in `tests/surface/test_panel_power.py` and `tests/surface/test_panel_optimize.py` fired on 8 of 10 realistic plantings under an adversarial probe and MISSED `x /= y` and `x / -y` - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
 CS-1028 - `approximateDecimal` now exists in FOUR panel files and only one copy is graded for correctness - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
-CS-1029 - `tests/surface/test_web_assets.py::test_the_page_issues_exactly_one_post_and_no_form` now asserts TWO posts - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1030 - `clockspeed/surface/api/power.py` restates the shipped exponent `1.321929` and its measured float in prose, making a SIXTH tracked copy of a measured number - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
-CS-1031 - `tests/surface/audit_harness.py::_power_data` binds ONE reason string to its owner and hand-authors the other four - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1032 - `tests/surface/panel_harness.py`'s DOM stand-in has no known-good browser control anywhere in the repo - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
-CS-1034 - four anti-leak privacy arms hunt a needle the encoder can never produce - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
 CS-1035 - `clockspeed/audit/inventory.py` carries CS-1020's ungraded-count shape in the module named beside `placement.py`: `_warning` defaults `count=1` - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
-CS-1036 - both CS-1025 and CS-1020 enforce their sweeps over a HAND-ENUMERATED population rather than one derived from the shipped model - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
-CS-1037 - the fixture collision CS-1025 was filed over survives in two places the repair did not reach - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1158 - a pruned save file's FILENAME reaches the rendered skip list and the `--json` payload of `tools/drift_guard.py`, and a save filename carries the world name - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1160 - the fork record for `ops/loop/winmutex.py` cites an UPSTREAM digest no file on this machine carries, and the two arms that mention it assert the string is present rather than that the upstream matches - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1163 - the citation guard's `LINE_POINTER_RE` requires a full `path.ext:NNN`, so the BARE continuation pointer that follows a full citation in the same sentence is invisible to it, and 67 of them sit in the corpus today - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1177 - a canary held in a helper frame renders under `--showlocals` when the helper raises rather than asserts, and `CANARY_SUITES` is a hand-kept list - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1178 - a usage-limit refusal ends a headless queue run in about five seconds, and every lane record reads it as a run that happened - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
-CS-1179 - probe the recovery from a delete-edit-restore permanent red in the provenance re-seed arm - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1168 - every credential-scanning population in this tree is REPO-SCOPED - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1174 - `PLACEHOLDER_RE` treats a non-ASCII letter as a delimiter, and no behavioural arm puts a digit beside a member - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1180 - commits on `main` carry an agent co-authorship trailer that the kept-graph flip would publish - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
-CS-1181 - CS-G03 still says the flip ships from a fresh history and never cites ADR 0018 - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
-CS-1182 - CS-G03 and CS-700 S9 ask for an operator sign-off with no split between deciding the flip and confirming its irreversible acts - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1183 - the seven tier-3 flip checks have no runnable job - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1184 - no orphan or staleness sweep and no anchor check over tracked markdown - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1185 - the third-party licence audit covers Electron only - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
