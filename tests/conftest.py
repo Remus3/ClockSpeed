@@ -1262,7 +1262,7 @@ def pytest_configure(config: pytest.Config) -> None:
     config.cwd_relative_nodeid = redacted_relative  # type: ignore[method-assign]
     reporter = config.pluginmanager.get_plugin("terminalreporter")
     locate = getattr(reporter, "_locationline", None)
-    if callable(locate):
+    if reporter is not None and callable(locate):
 
         def redacted_location(nodeid: str, fspath: str, lineno: int | None, domain: str) -> str:
             return redact_report(locate(nodeid, fspath, lineno, redact_report(domain)))
