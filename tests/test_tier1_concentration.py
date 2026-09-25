@@ -33,8 +33,17 @@ import tier1_concentration as concentration  # noqa: E402
 WORKFLOW_PATH = _ROOT / concentration.WORKFLOW_RELATIVE
 RECORD_PATH = _ROOT / concentration.RECORD_RELATIVE
 
-#: The fast shard, the save shard and the guard shard - the partition CS-896 split into.
-SUITE_RUNNING_JOBS = 3
+#: The fast shard, the save shard, the guard shard and the hook shard. Three was
+#: the partition CS-896 and CS-1060 split into; CS-1193 added the fourth, the hook
+#: shard, when the catch-all read over its ceiling (the wave-3 CI route ruling).
+SUITE_RUNNING_JOBS = 4
+
+#: THE PENDING-PROFILE RATCHET (CS-1193). Every declared job no recorded run has
+#: profiled yet because it is NEW. Two-way, the rule tools/tier1_growth.py uses
+#: for its reading floor: a listed job the workflow does not declare is red, and
+#: a listed job profiled in EVERY recorded run is red, which forces this literal
+#: down at the refresh that profiles it at both ends.
+EXPECTED_PENDING_PROFILE = ("tests (hook shard)",)
 
 
 @pytest.fixture(scope="module")
@@ -296,12 +305,143 @@ def test_the_record_carries_exactly_one_before_and_one_after(record: object) -> 
 
 
 def test_every_declared_job_is_profiled_at_both_ends(record: object, workflow_text: str) -> None:
-    """The ruling's owed half - the share is reported for ALL THREE suite-running jobs."""
+    """The ruling's owed half - the share is reported for EVERY suite-running job.
+
+    Every job but a PENDING one, which no recorded run can have profiled yet -
+    and a pending job is never profiled by a made-up row to satisfy this arm.
+    """
     declared = set(concentration.declared_jobs(workflow_text))
     assert isinstance(record, dict)
     assert len(declared) == SUITE_RUNNING_JOBS, declared
+    pending = set(concentration.PENDING_PROFILE)
     for run in record["runs"]:
-        assert {profile["job"] for profile in run["profiles"]} == declared, run["label"]
+        profiled = {profile["job"] for profile in run["profiles"]}
+        assert profiled | pending == declared, run["label"]
+
+
+# ---------------------------------------------------------------------------
+# The pending set - a NEW job's profile exemption, and nothing wider (CS-1193)
+# ---------------------------------------------------------------------------
+
+_NEW_JOB = "tests (new shard)"
+
+
+def _with_new_job(workflow_text: str) -> str:
+    """The shipped workflow plus one more job the record has never profiled.
+
+    The shipped workflow already carries the shipped pending job, so every arm
+    below names that one alongside the new job and varies ONLY the new job.
+    """
+    return workflow_text + (
+        "\n  newshard:\n"
+        f"    name: {_NEW_JOB}\n"
+        "    runs-on: ubuntu-latest\n"
+        "    timeout-minutes: 10\n"
+        "    steps:\n"
+        "      - run: echo hi\n"
+    )
+
+
+def _profiled_everywhere(record: object, job: str, centiseconds: int = 500) -> dict:
+    """A copy of the record carrying one more profile, for ``job``, in every run."""
+    copied = dict(json.loads(json.dumps(record)))
+    for run in copied["runs"]:
+        run["profiles"].append(
+            {
+                "job": job,
+                "step_seconds": 200,
+                "top_test": "tests/test_shape.py::test_shape",
+                "top_test_centiseconds": centiseconds,
+            }
+        )
+    return copied
+
+
+def test_the_pending_profile_set_is_what_this_module_pins() -> None:
+    assert tuple(concentration.PENDING_PROFILE) == EXPECTED_PENDING_PROFILE
+
+
+def test_a_pending_job_no_run_profiled_is_exempt_from_the_absence_offence(
+    record: object, workflow_text: str
+) -> None:
+    workflow = _with_new_job(workflow_text)
+    unpended = concentration.grade(record, workflow, pending=EXPECTED_PENDING_PROFILE)
+    assert any(_NEW_JOB in offence for offence in unpended), unpended
+    assert (
+        concentration.grade(record, workflow, pending=(*EXPECTED_PENDING_PROFILE, _NEW_JOB)) == []
+    )
+
+
+def test_a_pending_job_profiled_in_every_run_is_an_offence(
+    record: object, workflow_text: str
+) -> None:
+    """The closing direction: profiled at both ends, and the name must go."""
+    workflow = _with_new_job(workflow_text)
+    both = _profiled_everywhere(record, _NEW_JOB)
+    assert concentration.grade(both, workflow, pending=EXPECTED_PENDING_PROFILE) == []
+    offences = concentration.grade(both, workflow, pending=(*EXPECTED_PENDING_PROFILE, _NEW_JOB))
+    assert any(_NEW_JOB in offence and "pending" in offence for offence in offences)
+
+
+def test_a_pending_job_profiled_in_one_run_only_stays_pending(
+    record: object, workflow_text: str
+) -> None:
+    """A job added after the before run can be profiled only in the after one."""
+    workflow = _with_new_job(workflow_text)
+    one = _profiled_everywhere(record, _NEW_JOB)
+    del one["runs"][0]["profiles"][-1]
+    assert concentration.grade(one, workflow, pending=(*EXPECTED_PENDING_PROFILE, _NEW_JOB)) == []
+    assert concentration.grade(one, workflow, pending=EXPECTED_PENDING_PROFILE) != []
+
+
+def test_a_pending_job_that_is_profiled_is_still_graded_on_its_share(
+    record: object, workflow_text: str
+) -> None:
+    """Only ABSENCE is waived. A pending job's breaching profile still reddens."""
+    workflow = _with_new_job(workflow_text)
+    breaching = _profiled_everywhere(record, _NEW_JOB, centiseconds=19000)
+    del breaching["runs"][0]["profiles"][-1]
+    offences = concentration.grade(
+        breaching, workflow, pending=(*EXPECTED_PENDING_PROFILE, _NEW_JOB)
+    )
+    assert any("BREACH" in offence for offence in offences), offences
+
+
+def test_the_pending_exemption_does_not_reach_a_job_it_does_not_name(
+    record: object, workflow_text: str
+) -> None:
+    workflow = _with_new_job(workflow_text)
+    stripped = json.loads(json.dumps(record))
+    stripped["runs"][0]["profiles"] = [
+        profile
+        for profile in stripped["runs"][0]["profiles"]
+        if profile["job"] != "tests (save shard)"
+    ]
+    offences = concentration.grade(
+        stripped, workflow, pending=(*EXPECTED_PENDING_PROFILE, _NEW_JOB)
+    )
+    assert any("tests (save shard)" in offence for offence in offences), offences
+
+
+def test_a_pending_job_the_workflow_does_not_declare_is_an_offence(
+    workflow_text: str,
+) -> None:
+    assert concentration.pending_undeclared(workflow_text, ("ghost job",)) == [
+        "the pending set names 'ghost job', which the workflow does not declare"
+    ]
+    assert concentration.pending_undeclared(workflow_text) == []
+
+
+def test_the_tree_grade_carries_the_undeclared_direction(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    (tmp_path / ".github" / "workflows").mkdir(parents=True)
+    (tmp_path / "tools").mkdir()
+    (tmp_path / concentration.WORKFLOW_RELATIVE).write_bytes(WORKFLOW_PATH.read_bytes())
+    (tmp_path / concentration.RECORD_RELATIVE).write_bytes(RECORD_PATH.read_bytes())
+    assert concentration.grade_tree(tmp_path) == []
+    monkeypatch.setattr(concentration, "PENDING_PROFILE", (*EXPECTED_PENDING_PROFILE, "ghost job"))
+    assert any("ghost job" in offence for offence in concentration.grade_tree(tmp_path))
 
 
 def test_a_job_renamed_in_the_workflow_is_red_against_the_record(

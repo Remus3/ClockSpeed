@@ -2675,12 +2675,16 @@ HOOK_DRIVING_FILES = (
 #: on a slow runner once the hook files leave it, so the hook shard's headroom
 #: is filled from the fast shard's heaviest CPU-bound files, heaviest first,
 #: rather than from the guard shard that tools/tier1_growth.py already pins in
-#: BUDGET_UNMET. CI durations, run 36130961603: 69.37s, 23.92s and 27.46s for
-#: their heaviest single test.
+#: BUDGET_UNMET. CI durations, run 36130961603: 69.37s, 23.92s, 27.46s and
+#: 25.24s for their heaviest single test. The fourth was added when the fast
+#: shard's slow-runner projection still sat in the warn band and the hook
+#: shard's worst projection had room for it under the budget; it re-runs the
+#: data suite as a nested child, so it shares no cache with the files it left.
 HOOK_SHARD_FILL = (
     "tests/test_canary_population_forced.py",
     "tests/test_cs1175_rule_narrowing.py",
     "tests/test_citation_tables.py",
+    "tests/data/test_phase2_gate.py",
 )
 
 

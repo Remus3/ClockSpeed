@@ -149,6 +149,22 @@ PROFILE_FIELDS = ("job", "step_seconds", "top_test", "top_test_centiseconds")
 #: The two ends the acceptance asks for, exactly one row each.
 RUN_LABELS = ("before", "after")
 
+# EVERY DECLARED JOB NO RECORDED RUN HAS PROFILED YET, BECAUSE IT IS NEW (CS-1193).
+#
+# A job added to the workflow appears in no run the record already holds, so the
+# absence offence reddens the shipped record on the very commit that adds it.
+# No profile is made up for it, and no level moves; the ABSENCE is waived for the
+# jobs named here and nothing else. A pending job that IS profiled is graded on
+# its share exactly as any other.
+#
+# THE SET IS A TWO-WAY RATCHET, the rule tools/tier1_growth.py applies to its
+# reading floor. A name profiled in EVERY recorded run is red in `grade`, which
+# forces this literal down at the refresh that profiles it at both ends; a name
+# the workflow does not declare is red in `grade_tree`, through
+# `pending_undeclared`, so a synthetic workflow is graded on its own jobs alone.
+# Basis: the wave-3 CI route ruling, condition A3.
+PENDING_PROFILE: tuple[str, ...] = ("tests (hook shard)",)
+
 # Bounds every `gh` call. A hung credential prompt must not hang the refresh.
 SUBPROCESS_TIMEOUT_SECONDS = 300
 
@@ -526,6 +542,7 @@ def _grade_run_profiles(
     declared: Sequence[str],
     warn: Fraction,
     hard: dict[str, Fraction],
+    pending: Sequence[str] = (),
 ) -> list[str]:
     """Grade one run's profile list, structurally and then on its verdicts.
 
@@ -536,6 +553,7 @@ def _grade_run_profiles(
         declared: Every job the workflow declares.
         warn: The warn level.
         hard: Each job's hard level.
+        pending: The jobs whose ABSENCE from this run is waived.
 
     Returns:
         Every offence.
@@ -556,7 +574,7 @@ def _grade_run_profiles(
             )
             continue
         offences.extend(grade_profile(label, graded, warn, hard[graded.job]))
-    absent = [job for job in declared if job not in seen]
+    absent = [job for job in declared if job not in seen and job not in pending]
     if absent:
         offences.append(f"{where} ({label}) profiles no reading for: {absent}")
     repeated = sorted({job for job in seen if seen.count(job) > 1})
@@ -571,6 +589,7 @@ def _grade_run(
     declared: Sequence[str],
     warn: Fraction,
     hard: dict[str, Fraction],
+    pending: Sequence[str] = (),
 ) -> tuple[list[str], str | None]:
     """Grade one recorded run.
 
@@ -580,6 +599,7 @@ def _grade_run(
         declared: Every job the workflow declares.
         warn: The warn level.
         hard: Each job's hard level.
+        pending: The jobs whose absence is waived.
 
     Returns:
         ``(offences, label)``. The label is None when the row carried no usable one.
@@ -602,16 +622,24 @@ def _grade_run(
     head = run["head_sha"]
     if not isinstance(head, str) or not _SHA.match(head):
         offences.append(f"{where} records a head_sha that is not 40 hex characters")
-    offences.extend(_grade_run_profiles(where, label, run["profiles"], declared, warn, hard))
+    offences.extend(
+        _grade_run_profiles(where, label, run["profiles"], declared, warn, hard, pending)
+    )
     return (offences, label)
 
 
-def grade(record: object, workflow_text: str) -> list[str]:
+def grade(
+    record: object, workflow_text: str, pending: Sequence[str] = PENDING_PROFILE
+) -> list[str]:
     """Grade a parsed record against the live workflow.
 
     Args:
         record: The parsed record.
         workflow_text: The workflow file's text.
+        pending: The pinned set of NEW jobs whose absence from a run is
+            waived. A named job profiled in every run is an offence here; a
+            name the workflow does not declare is graded by
+            :func:`pending_undeclared`, which :func:`grade_tree` adds.
 
     Returns:
         Every offence. Empty means clean.
@@ -632,10 +660,11 @@ def grade(record: object, workflow_text: str) -> list[str]:
     offences: list[str] = []
     labels: list[str] = []
     for index, run in enumerate(runs):
-        run_offences, label = _grade_run(f"run {index}", run, declared, warn, hard)
+        run_offences, label = _grade_run(f"run {index}", run, declared, warn, hard, pending)
         offences.extend(run_offences)
         if label is not None:
             labels.append(label)
+    offences.extend(_pending_reached(runs, declared, pending))
 
     offences.extend(
         f"the record carries {labels.count(wanted)} run(s) labelled {wanted!r}; "
@@ -665,7 +694,59 @@ def grade_tree(root: Path) -> list[str]:
         record = json.loads(record_path.read_text(encoding="ascii"))
     except (ValueError, UnicodeDecodeError) as failure:
         return [f"{RECORD_RELATIVE} is not readable as ascii JSON: {_detail(failure)}"]
-    return grade(record, workflow_path.read_text(encoding="utf-8"))
+    workflow_text = workflow_path.read_text(encoding="utf-8")
+    return grade(record, workflow_text) + pending_undeclared(workflow_text)
+
+
+def _pending_reached(runs: list[Any], declared: Sequence[str], pending: Sequence[str]) -> list[str]:
+    """The closing direction: every pending job every recorded run now profiles.
+
+    Args:
+        runs: The recorded runs.
+        declared: Every job the workflow declares.
+        pending: The pinned pending set.
+
+    Returns:
+        One offence per such job, sorted.
+    """
+    profiled_by_run = [
+        {entry.get("job") for entry in run.get("profiles") or [] if isinstance(entry, dict)}
+        for run in runs
+        if isinstance(run, dict) and isinstance(run.get("profiles"), list)
+    ]
+    if not profiled_by_run:
+        return []
+    return [
+        f"{job!r} is pending but every recorded run profiles it; drop it from the pending set"
+        for job in sorted(set(pending) & set(declared))
+        if all(job in profiled for profiled in profiled_by_run)
+    ]
+
+
+def pending_undeclared(workflow_text: str, pending: Sequence[str] | None = None) -> list[str]:
+    """The pending set's opening direction: every name the workflow does not declare.
+
+    A pending name matching no declared job waives nothing today and would
+    silently waive a job added under that name later, so it is an offence.
+
+    Args:
+        workflow_text: The workflow file's text.
+        pending: The set to check; the module's pinned set when omitted, read
+            at call time.
+
+    Returns:
+        One offence per undeclared name, sorted. An unreadable workflow yields
+        nothing here, because :func:`grade` has already reported it.
+    """
+    names = PENDING_PROFILE if pending is None else pending
+    try:
+        declared = set(declared_jobs(workflow_text))
+    except ValueError:
+        return []
+    return [
+        f"the pending set names {name!r}, which the workflow does not declare"
+        for name in sorted(set(names) - declared)
+    ]
 
 
 # ---------------------------------------------------------------------------
@@ -1038,6 +1119,12 @@ def main(argv: list[str] | None = None) -> int:
         for offence in offences:
             print(f"  - {offence}")
         return 1
+    if PENDING_PROFILE:
+        print(
+            "PASS: no profiled job's most expensive test breaches its hard level; "
+            f"not yet profiled, pending: {list(PENDING_PROFILE)}"
+        )
+        return 0
     print("PASS: no job's most expensive test breaches its hard level, and every job measured.")
     return 0
 

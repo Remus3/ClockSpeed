@@ -420,6 +420,7 @@ jobs:
           --ignore=tests/test_canary_population_forced.py
           --ignore=tests/test_cs1175_rule_narrowing.py
           --ignore=tests/test_citation_tables.py
+          --ignore=tests/data/test_phase2_gate.py
           -q -n auto --dist loadfile
           --durations=15 --durations-min=5.0
 
@@ -992,6 +993,7 @@ jobs:
           tests/test_precommit_gate.py
           tests/test_citation_tables.py
           tests/test_cs1175_rule_narrowing.py
+          tests/data/test_phase2_gate.py
           tests/test_pre_push_ref_race.py
           tests/test_hook_toolchain.py
           tests/test_precommit_gate_lint_cwd.py
