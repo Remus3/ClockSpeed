@@ -375,6 +375,26 @@ REDACTED_USER = "<redacted-user>"
 #: consequences and a shared token would flatten them.
 REDACTED_CREDENTIAL = "<redacted-credential>"
 
+
+class Withheld(str):
+    """A string whose REPR withholds its value - CS-1177.
+
+    For a suite's own synthetic credential: the value compares, hashes,
+    formats, encodes and concatenates exactly as the plain string would, and
+    only ``repr`` - which is what pytest renders a local or an argument
+    through - says ``<withheld>``. A string DERIVED from it by concatenation
+    or a method call is a plain string again, so a helper that binds a derived
+    value still holds it; the population arm in
+    tests/test_canary_population.py is what finds one.
+    """
+
+    __slots__ = ()
+
+    def __repr__(self) -> str:
+        """Render as a fixed marker, never the value."""
+        return "<withheld>"
+
+
 #: THE FOUR PERSONAL-DATA CLASSES CLAUDE.md NAMES, one id each, and every rule
 #: below is TAGGED with the one it serves. These ids are not the definition of
 #: what gets redacted - CLAUDE.md is. tests/test_report_redaction_classes.py

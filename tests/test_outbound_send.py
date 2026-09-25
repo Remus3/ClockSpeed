@@ -71,6 +71,8 @@ from types import ModuleType, SimpleNamespace
 
 import pytest
 
+from tests.conftest import Withheld
+
 REPO_ROOT = Path(__file__).resolve().parents[1]
 SENDER = REPO_ROOT / "tools" / "outbound_send.py"
 GATE = REPO_ROOT / "tools" / "outbound_gate.py"
@@ -176,9 +178,14 @@ SECOND_NOTE_NAME = "note958-second.md"
 # a boundary and the value would stop being refused at all - a fixture that
 # quietly grades nothing. Measured against the rule before these arms were
 # written: bare, hyphen-marked and hyphen-marked-with-a-suffix all refuse.
-SYNTHETIC_CREDENTIAL = "AKIA" + ("Q7" * 8)
-DIRTY_NOTE_NAME = SYNTHETIC_CREDENTIAL + "-958.md"
-DEST_DIRTY = SYNTHETIC_CREDENTIAL + "-958"
+#
+# WITHHELD, BECAUSE THE VALUE IS THE GATE'S OWN AWS CANARY - CS-1177. The same
+# assembled string is filed in tools/outbound_gate.py::CREDENTIAL_CANARIES, and a
+# helper holding it as an argument printed it whenever it raised under
+# --showlocals. The value is unchanged; only its repr is withheld.
+SYNTHETIC_CREDENTIAL = Withheld("AKIA" + ("Q7" * 8))
+DIRTY_NOTE_NAME = Withheld(SYNTHETIC_CREDENTIAL + "-958.md")
+DEST_DIRTY = Withheld(SYNTHETIC_CREDENTIAL + "-958")
 
 # Two links inside the channel, one at a clean destination and one at the dirty
 # one. They are what separates grading the name an operator TYPED from grading
@@ -431,12 +438,15 @@ def write_note(tmp_path: Path, name: str, payload: bytes) -> Path:
     before and after a run, and a source note living inside the channel would
     be indistinguishable from a delivered one - and would also be discovered by
     ``--all`` if it happened to sit beside an inbox.
+
+    CS-1177: the path is never bound to a name here. A note named after the
+    synthetic credential has that credential in its path, and a helper that
+    raises has its locals rendered under ``--showlocals``.
     """
     notes = tmp_path / "notes958"
     notes.mkdir(exist_ok=True)
-    path = notes / name
-    path.write_bytes(payload)
-    return path
+    (notes / name).write_bytes(payload)
+    return notes / name
 
 
 def clean_note(tmp_path: Path, name: str = NOTE_NAME, extra: str = "") -> Path:

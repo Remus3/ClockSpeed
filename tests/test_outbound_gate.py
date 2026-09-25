@@ -56,6 +56,8 @@ from typing import Any
 
 import pytest
 
+from tests.conftest import Withheld
+
 REPO_ROOT = Path(__file__).resolve().parents[1]
 GATE = REPO_ROOT / "tools" / "outbound_gate.py"
 PRECOMMIT_GATE = REPO_ROOT / "tools" / "precommit_gate.py"
@@ -92,7 +94,9 @@ POSIX_HOME_PATH = "/" + "home" + "/someoperator" + "/app.log"
 # (tools/precommit_gate.py::SECRET_PATTERNS) and matching no branch of PLACEHOLDER_RE, so
 # the placeholder allowance cannot excuse it. Assembled, because the joined
 # literal would be a finding in this very file.
-SYNTHETIC_CREDENTIAL = "AKIA" + ("Q7" * 8)
+# CS-1177: the same value is the gate's own AWS canary, so its repr is withheld
+# and a helper holding it cannot print it under --showlocals.
+SYNTHETIC_CREDENTIAL = Withheld("AKIA" + ("Q7" * 8))
 
 # Synthetic seeds for the three save-derived classes. Each is above its
 # matchability floor: MIN_ACCOUNT_DIR_CHARS is 8, MIN_WORLD_TOKEN_CHARS is 8
@@ -471,8 +475,11 @@ def test_refusal_never_echoes_the_value(tmp_path: Path) -> None:
     whole item.
     """
     for planted in (WINDOWS_HOME_PATH, POSIX_HOME_PATH, SYNTHETIC_CREDENTIAL):
-        payload = ("value " + planted + " here\n").encode("ascii")
-        code, out, err = run_gate(env=base_env(tmp_path), stdin=payload)
+        # CS-1177: the payload is built inside the call, never bound - a plain
+        # string derived from the withheld credential would print whole.
+        code, out, err = run_gate(
+            env=base_env(tmp_path), stdin=("value " + planted + " here\n").encode("ascii")
+        )
 
         assert code == REFUSED, f"exit {code}; the echo check needs a refusal to grade"
         assert_absent_in_any_case(planted, (out, err))

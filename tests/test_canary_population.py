@@ -102,21 +102,84 @@ OUTBOUND = load_outbound()
 # --------------------------------------------------------------------------
 
 
+def gate_readers(gate_source: str) -> frozenset[str]:
+    """The gate's functions that reach a canary table, derived from its source.
+
+    A function whose own code names a table, and every PRIVATE function that
+    calls one, closed over call chains. The gate's public entry points that
+    reach a table only through those - ``scan`` and ``main`` - are left out on
+    purpose: every outbound suite calls them, and a suite that loads the gate
+    at all is admitted by the fail-closed rule in :func:`canary_suites` instead.
+    """
+    functions = {
+        node.name: node for node in ast.parse(gate_source).body if isinstance(node, ast.FunctionDef)
+    }
+
+    def names(node: ast.AST) -> set[str]:
+        return {found.id for found in ast.walk(node) if isinstance(found, ast.Name)}
+
+    readers = {name for name, node in functions.items() if names(node) & CANARY_TABLES}
+    grown = True
+    while grown:
+        added = {
+            name
+            for name, node in functions.items()
+            if name not in readers and name.startswith("_") and names(node) & readers
+        }
+        readers |= added
+        grown = bool(added)
+    return frozenset(readers)
+
+
+#: Derived once, from the gate this tree ships.
+GATE_READERS = gate_readers(OUTBOUND_PATH.read_text(encoding="utf-8"))
+
+
+def _docstrings(tree: ast.AST) -> set[int]:
+    """The ids of every docstring node, so prose is never read as code."""
+    found: set[int] = set()
+    for node in ast.walk(tree):
+        if isinstance(node, (ast.Module, ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+            body = node.body
+            if body and isinstance(body[0], ast.Expr) and isinstance(body[0].value, ast.Constant):
+                found.add(id(body[0].value))
+    return found
+
+
+def _strings(tree: ast.AST) -> list[str]:
+    """Every string constant in the module's CODE - docstrings excluded."""
+    prose = _docstrings(tree)
+    return [
+        node.value
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Constant) and isinstance(node.value, str) and id(node) not in prose
+    ]
+
+
 def reads_a_canary_table(source: str) -> bool:
     """True when `source`'s CODE reads either canary table - never its prose."""
     return _reads(ast.parse(source))
 
 
 def _reads(tree: ast.AST) -> bool:
-    """True when the parsed module's code reads either canary table by name."""
+    """True when the module's code reads a table or a gate reader, or loads the gate.
+
+    A table by attribute, bare name or import; a gate reader by attribute, as
+    the suites reach it - ``OUTBOUND._canary(...)``. And FAIL CLOSED: a module
+    that loads the gate by path may read a table in a way no syntax shows, so
+    naming the gate's file in code is itself a read.
+    """
     for node in ast.walk(tree):
-        if isinstance(node, ast.Attribute) and node.attr in CANARY_TABLES:
+        if isinstance(node, ast.Attribute) and node.attr in CANARY_TABLES | GATE_READERS:
             return True
         if isinstance(node, ast.Name) and node.id in CANARY_TABLES:
             return True
         if isinstance(node, ast.alias) and node.name in CANARY_TABLES:
             return True
-    return False
+    gate = OUTBOUND_PATH.name
+    return any(
+        value == gate or value.replace("\\", "/").endswith("/" + gate) for value in _strings(tree)
+    )
 
 
 def _module_name(path: Path, root: Path) -> tuple[str, bool]:
@@ -127,11 +190,34 @@ def _module_name(path: Path, root: Path) -> tuple[str, bool]:
     return ".".join(parts), False
 
 
-def _imported(tree: ast.AST, name: str, is_package: bool) -> set[str]:
-    """Every dotted name the module's imports could reach, relative ones resolved.
+#: Calls that load a module from a file path. A module calling one of these
+#: under another name loads nothing this derivation can see - declared in
+#: :func:`canary_suites`.
+LOADERS = frozenset({"spec_from_file_location", "run_path", "SourceFileLoader"})
+
+
+def _calls_a_loader(tree: ast.AST) -> bool:
+    """Whether the module's code calls a file loader in :data:`LOADERS`."""
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Call):
+            func = node.func
+            called = func.attr if isinstance(func, ast.Attribute) else getattr(func, "id", "")
+            if called in LOADERS:
+                return True
+    return False
+
+
+def _imported(tree: ast.AST, name: str, is_package: bool, by_path: dict[str, str]) -> set[str]:
+    """Every dotted name the module could load: imports, plugins and path loads.
 
     ``from x import y`` yields both ``x`` and ``x.y``, because ``y`` may be a
-    submodule; a name that is not a module simply matches nothing.
+    submodule; a name that is not a module simply matches nothing. A
+    ``pytest_plugins`` entry is an import by another spelling. A module that
+    calls a loader in :data:`LOADERS` loads every ``.py`` file under the tree
+    its code names - the path may be built anywhere in the module and handed
+    over by a name. A module that names a file but calls no loader - a table of
+    citations - loads nothing, which is what keeps prose about a file from
+    joining it to every module that mentions it.
     """
     package = name if is_package else name.rpartition(".")[0]
     found: set[str] = set()
@@ -148,30 +234,95 @@ def _imported(tree: ast.AST, name: str, is_package: bool) -> set[str]:
                 base = base + "." + node.module if base else node.module
             found.add(base)
             found.update(base + "." + alias.name for alias in node.names)
+        elif isinstance(node, ast.Assign) and any(
+            isinstance(target, ast.Name) and target.id == "pytest_plugins"
+            for target in node.targets
+        ):
+            found.update(
+                item.value
+                for item in ast.walk(node.value)
+                if isinstance(item, ast.Constant) and isinstance(item.value, str)
+            )
+    if not _calls_a_loader(tree):
+        return found
+    for value in _strings(tree):
+        spelled = value.replace("\\", "/").removeprefix("./")
+        if not spelled.endswith(".py"):
+            continue
+        # Whole path components only: ``conftest.py`` names every conftest, and
+        # a bare suffix match would join every module to every other.
+        found.update(
+            module
+            for suffix, module in by_path.items()
+            if suffix == spelled or suffix.endswith("/" + spelled)
+        )
     return found
+
+
+def _fixtures(tree: ast.AST) -> set[str]:
+    """The names of the fixtures a module defines."""
+    return {
+        node.name
+        for node in ast.walk(tree)
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+        and any("fixture" in ast.unparse(decorator) for decorator in node.decorator_list)
+    }
+
+
+def _parameters(tree: ast.AST) -> set[str]:
+    """Every parameter name any function in the module takes."""
+    return {
+        argument.arg
+        for node in ast.walk(tree)
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+        for argument in node.args.args + node.args.kwonlyargs
+    }
 
 
 def canary_suites(tests_dir: Path) -> list[Path]:
     """Every ``test_*.py`` under `tests_dir` that reads a canary table, sorted.
 
-    READS TRANSITIVELY - CS-1177, from an adversary's measurement: a module
-    whose canaries arrive through a helper it imports holds them all the same.
-    Every module under `tests_dir` is parsed once; a module is a READER when its
-    own code reads a table by name, or when it imports a reader, closed over
-    import chains of any length. Members are the readers that are test modules.
+    READS TRANSITIVELY - CS-1177, from two adversary passes. Every module under
+    `tests_dir` is parsed once. A module is a READER when its own code reads a
+    table, calls a gate reader by attribute, or names the gate's file (fail
+    closed, see :func:`_reads`); or when it loads a reader - by import, by
+    ``pytest_plugins`` or by a path string; or, for a test module, when it
+    takes a fixture a reader ``conftest.py`` above it defines. Closed over
+    chains of any length. Members are the readers that are test modules.
+
+    WHAT NO SYNTAX HERE CAN SEE, declared rather than implied: a table reached
+    through ``getattr`` with a computed name on a gate imported under a name
+    other than its file's, which neither reads a table by name nor names the
+    gate's file; a fixture supplied by a plugin rather than a conftest; and a
+    module loaded from a path by a loader outside :data:`LOADERS`.
     """
     root = tests_dir.parent
     trees: dict[str, tuple[Path, ast.AST, bool]] = {}
     for path in sorted(tests_dir.rglob("*.py")):
         name, is_package = _module_name(path, root)
         trees[name] = (path, ast.parse(path.read_text(encoding="utf-8")), is_package)
+    by_path = {path.relative_to(root).as_posix(): name for name, (path, _, _) in trees.items()}
     reaches = {
-        name: _imported(tree, name, is_package) for name, (_, tree, is_package) in trees.items()
+        name: _imported(tree, name, is_package, by_path)
+        for name, (_, tree, is_package) in trees.items()
     }
+    parameters = {name: _parameters(tree) for name, (_, tree, _) in trees.items()}
     readers = {name for name, (_, tree, _) in trees.items() if _reads(tree)}
     grown = True
     while grown:
         added = {name for name in trees if name not in readers and reaches[name] & readers}
+        for conftest in readers:
+            path, tree, _ = trees[conftest]
+            if path.name != "conftest.py":
+                continue
+            fixtures = _fixtures(tree)
+            added |= {
+                name
+                for name, (other, _, _) in trees.items()
+                if name not in readers
+                and other.is_relative_to(path.parent)
+                and parameters[name] & fixtures
+            }
         readers |= added
         grown = bool(added)
     return sorted(
@@ -362,7 +513,11 @@ def forced_run(
     ``text`` argument - a message carrying a canary, in the CS-1167 suite - and
     a raise anywhere beneath it renders that argument. Holding its input is what
     a scanner is; a raise inside ``scan`` rendering a real payload is a residual
-    of the gate's API, recorded here, not a helper's hygiene.
+    of the gate's API, recorded here, not a helper's hygiene. The same holds one
+    frame further down: ``tools/precommit_gate.py::check_secrets`` takes the
+    text it scans as its ``text`` argument - staged content at commit, a canary
+    when a gap helper probes one - and a raise inside it renders that argument.
+    That file is FROZEN, so this is declared rather than repaired here.
 
     `force` False runs the same child without the forcer, for an arm whose
     raise is planted by the child itself.
@@ -449,6 +604,14 @@ def test_a_module_reading_through_a_helper_import_is_a_member(tmp_path: Path) ->
     helper was named in no list AND derived by no rule. Every import form is
     planted - absolute, from a package, relative, and through a chain of two
     helpers - beside a module importing an unrelated helper, which must stay out.
+
+    THE SECOND ADVERSARY'S FORMS are planted too: the gate's ``_canary``
+    accessor and a gap helper called by attribute, a fixture from a reader
+    ``conftest.py``, ``pytest_plugins``, a helper loaded by a path string, and a
+    module that loads the gate by its file name (fail closed). The one form no
+    syntax can show - ``getattr`` with a computed name on a gate imported under
+    another name - is DECLARED uncovered, and pinned out so the declaration
+    cannot silently go stale; a gate file named only in a docstring is prose.
     """
     tests_dir = tmp_path / "tests"
     (tests_dir / "deep").mkdir(parents=True)
@@ -464,11 +627,32 @@ def test_a_module_reading_through_a_helper_import_is_a_member(tmp_path: Path) ->
         "test_chained.py": "import tests.chained_helper\n",
         "deep/test_up_two.py": "from ..chained_helper import TABLE\n",
         "test_unrelated.py": "from tests.plain_helper import VALUE\n",
+        "test_accessor.py": "import gate\n\nVALUE = gate._canary('AWS access key id')\n",
+        "test_gap_helper.py": "import gate\n\nGAPS = gate.credential_canary_gaps\n",
+        "conftest.py": (
+            "import pytest\nimport gate\n\n\n@pytest.fixture\n"
+            "def canary():\n    return gate.CREDENTIAL_CANARIES\n"
+        ),
+        "test_fixture.py": "def test_x(canary):\n    raise RuntimeError(canary)\n",
+        "test_plugins.py": "pytest_plugins = ['tests.canary_helper']\n",
+        "test_path_load.py": (
+            "import importlib.util\n\n"
+            "SPEC = importlib.util.spec_from_file_location('h', 'tests/canary_helper.py')\n"
+        ),
+        "test_loads_the_gate.py": "GATE = 'tools/' + 'outbound_gate.py'\n",
+        "test_unrelated_getattr.py": (
+            "import gate\n\nTABLE = getattr(gate, 'CREDENTIAL_' + 'CANARIES')\n"
+        ),
+        "test_gate_in_prose.py": '"""Mentions tools/outbound_gate.py in prose."""\n',
     }
     for relative, source in sources.items():
         (tests_dir / relative).write_text(source, encoding="ascii")
     members = sorted(path.relative_to(tests_dir).as_posix() for path in canary_suites(tests_dir))
-    expected = sorted(name for name in sources if "test_" in name and "unrelated" not in name)
+    expected = sorted(
+        name
+        for name in sources
+        if "test_" in name and "unrelated" not in name and "prose" not in name
+    )
     missing = sorted(set(expected) - set(members))
     extra = sorted(set(members) - set(expected))
     assert missing == [], "helper-import members the rule missed: " + ", ".join(missing)

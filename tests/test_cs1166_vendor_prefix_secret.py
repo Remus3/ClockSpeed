@@ -37,6 +37,7 @@ from types import ModuleType
 import pytest
 
 from tests import secret_sweep_guard as sweep
+from tests.conftest import Withheld
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 GATE_PATH = REPO_ROOT / "tools" / "precommit_gate.py"
@@ -200,9 +201,11 @@ def test_the_placeholder_token_is_caught_once_the_allowlist_is_disabled(
 
 _Q = '"'
 NEIGHBOUR_CONTROLS: dict[str, tuple[str, ...]] = {
-    "PEM private key block": ("-----BEGIN " + "RSA PRIVATE " + "KEY-----",),
+    # CS-1177: these two equal the gate's own canaries, so their reprs are
+    # withheld and a helper handed one cannot print it under --showlocals.
+    "PEM private key block": (Withheld("-----BEGIN " + "RSA PRIVATE " + "KEY-----"),),
     "PuTTY private key file": ("PuTTY-User-" + "Key-File-" + "2",),
-    "AWS access key id": ("AKIA" + ("Q7" * 8),),
+    "AWS access key id": (Withheld("AKIA" + ("Q7" * 8)),),
     "GitHub token": ("ghp" + "_" + ("Q7vR" * 6),),
     "GitHub fine-grained personal access token": ("github" + "_pat_" + ("Q7vR" * 6),),
     "Slack token": ("xox" + "b-" + ("Q7vR" * 4),),
