@@ -36,32 +36,48 @@ from clockspeed.save import world
 WARNING_PREFIX: Final = "WARN_"
 
 
-#: Nodes that open a NEW scope. A name bound inside one is not a module
-#: constant, so the walk does not descend into them.
-_NESTED_SCOPES: Final = (
-    ast.FunctionDef,
-    ast.AsyncFunctionDef,
-    ast.ClassDef,
-    ast.Lambda,
-    ast.ListComp,
-    ast.SetComp,
-    ast.DictComp,
-    ast.GeneratorExp,
-)
+#: Nodes that open a NEW scope for every binding made inside them. A name bound
+#: inside one is not a module constant, so the walk does not descend into them.
+_OWN_SCOPES: Final = (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef, ast.Lambda)
+
+#: Comprehensions: their loop variables are their own, but a walrus inside one
+#: binds in the ENCLOSING scope (PEP 572), so the walk descends into them and
+#: counts a walrus target alone.
+_COMPREHENSIONS: Final = (ast.ListComp, ast.SetComp, ast.DictComp, ast.GeneratorExp)
+
+#: Builtins whose return value IS a live module namespace when called at
+#: module scope - and, for ``globals``, from anywhere in the module.
+_NAMESPACE_CALLS: Final = frozenset({"globals", "vars"})
+
+#: Mapping methods that write through the namespace they are called on.
+_WRITING_METHODS: Final = frozenset({"update", "setdefault", "__setitem__"})
 
 
 def defined_warning_names(source: str) -> frozenset[str]:
     """Return every ``WARN_*`` name a module's source binds at module scope.
 
-    ANY STORE AT MODULE SCOPE COUNTS, whatever statement makes it - a plain or
-    annotated assignment, a tuple unpack, a binding inside an ``if`` or ``try``
-    block, a loop or ``with`` target, an augmented assignment or a walrus -
-    because each one leaves a module constant behind. Reading only top-level
-    ``Assign`` nodes was the first draft and an adversary named two holes in
-    it. An ``import`` or ``from ... import`` binding is deliberately NOT
-    counted: its binding is an alias node, never a stored ``Name``, and the
-    module that assigns a code owns it while a module that imports one only
-    uses it.
+    COUNTED - every ``Name`` STORED at module scope, whatever statement makes
+    it: a plain or annotated assignment, a tuple or starred unpack, a binding
+    inside an ``if``, ``else``, ``try`` or ``except`` block, a ``for`` or
+    ``with`` target, an augmented assignment, and a walrus - including a walrus
+    inside a comprehension at module scope, nested or not, because PEP 572
+    binds that in the enclosing scope.
+
+    NOT COUNTED - an ``import`` or ``from ... import`` binding (an alias node,
+    never a stored ``Name``: the module that assigns a code owns it, a module
+    that imports one only uses it); a comprehension's own loop variable; and
+    anything bound inside a function, a class body or a lambda, none of which
+    is a module constant.
+
+    FAILS CLOSED, BUT NOT HERE - a write through the module namespace at run
+    time (``globals()[...] =``, ``vars()[...] =``, ``globals().update``,
+    ``setattr(sys.modules[...], ...)``, ``...__dict__[...] =``) binds a name
+    no static read can recover. :func:`dynamic_namespace_writes` reports each
+    one by line and an arm holds the package free of them, so the derived set
+    here can never be silently short by one.
+
+    The first draft read top-level ``Assign`` nodes only; two adversary passes
+    named the holes this docstring now lists.
 
     Args:
         source: The module's source text.
@@ -70,19 +86,87 @@ def defined_warning_names(source: str) -> frozenset[str]:
         The names.
     """
     names: set[str] = set()
-    pending: list[ast.AST] = [ast.parse(source)]
+    pending: list[tuple[ast.AST, bool]] = [(ast.parse(source), False)]
     while pending:
-        node = pending.pop()
-        if isinstance(node, _NESTED_SCOPES):
+        node, walrus_only = pending.pop()
+        if isinstance(node, _OWN_SCOPES):
             continue
-        if (
+        if isinstance(node, _COMPREHENSIONS):
+            walrus_only = True
+        if walrus_only:
+            target = node.target if isinstance(node, ast.NamedExpr) else None
+            if isinstance(target, ast.Name) and target.id.startswith(WARNING_PREFIX):
+                names.add(target.id)
+        elif (
             isinstance(node, ast.Name)
             and isinstance(node.ctx, ast.Store)
             and node.id.startswith(WARNING_PREFIX)
         ):
             names.add(node.id)
-        pending.extend(ast.iter_child_nodes(node))
+        pending.extend((child, walrus_only) for child in ast.iter_child_nodes(node))
     return frozenset(names)
+
+
+def _is_namespace(node: ast.expr) -> bool:
+    """Whether an expression evaluates to a live module namespace.
+
+    Args:
+        node: The expression.
+
+    Returns:
+        True for ``globals()``, ``vars()``, any ``...__dict__`` and any
+        ``sys.modules[...]`` subscript.
+    """
+    if isinstance(node, ast.Call) and isinstance(node.func, ast.Name):
+        return node.func.id in _NAMESPACE_CALLS and not node.args
+    if isinstance(node, ast.Attribute) and node.attr == "__dict__":
+        return True
+    return (
+        isinstance(node, ast.Subscript)
+        and isinstance(node.value, ast.Attribute)
+        and node.value.attr == "modules"
+        and isinstance(node.value.value, ast.Name)
+        and node.value.value.id == "sys"
+    )
+
+
+def dynamic_namespace_writes(source: str) -> list[str]:
+    """Every write through a module namespace that a static read cannot name.
+
+    FAIL CLOSED, over the WHOLE module rather than module scope alone, because
+    ``globals()`` inside a function still writes the module. Each form below is
+    reported as ``line N: <form>``:
+
+    - a subscript store into ``globals()``, ``vars()`` or any ``__dict__``;
+    - ``update``, ``setdefault`` or ``__setitem__`` called on one of those;
+    - ``setattr`` whose target is ``sys.modules[...]`` or ``globals()``.
+
+    A store into an ordinary mapping and a ``setattr`` on an ordinary object
+    are NOT reported: neither can reach a module namespace.
+
+    Args:
+        source: The module's source text.
+
+    Returns:
+        The findings, in line order.
+    """
+    found: list[tuple[int, str]] = []
+    for node in ast.walk(ast.parse(source)):
+        if isinstance(node, ast.Subscript) and isinstance(node.ctx, ast.Store):
+            if _is_namespace(node.value):
+                found.append((node.lineno, "subscript store into a module namespace"))
+        elif isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute):
+            if node.func.attr in _WRITING_METHODS and _is_namespace(node.func.value):
+                found.append((node.lineno, f"{node.func.attr} on a module namespace"))
+        elif (
+            isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Name)
+            and node.func.id == "setattr"
+            and node.args
+            and _is_namespace(node.args[0])
+        ):
+            found.append((node.lineno, "setattr on a module"))
+    return [f"line {line}: {form}" for line, form in sorted(found)]
 
 
 def defining_modules() -> dict[str, str]:
@@ -208,6 +292,11 @@ def test_the_source_parser_reaches_every_module_scope_binding_form() -> None:
         "class Holder:\n"
         "    WARN_CLASS_BODY = 'class'\n"
         "_ = [WARN_COMPREHENSION for WARN_COMPREHENSION in ()]\n"
+        "_ = [WARN_WALRUS_IN_COMPREHENSION := v for v in ('x',)]\n"
+        "_ = {k: [WARN_WALRUS_NESTED := k for _ in ()] for k in ()}\n"
+        "_ = (lambda: (WARN_WALRUS_IN_LAMBDA := 1))\n"
+        "def later() -> None:\n"
+        "    _ = [WARN_WALRUS_IN_FUNCTION := v for v in ()]\n"
         "del WARN_DELETED\n"
     )
 
@@ -224,5 +313,54 @@ def test_the_source_parser_reaches_every_module_scope_binding_form() -> None:
             "WARN_LOOP_TARGET",
             "WARN_AUGMENTED",
             "WARN_WALRUS",
+            # A walrus inside a comprehension binds in the ENCLOSING scope (PEP
+            # 572), so at module level it leaves a module constant behind -
+            # the re-adversary's second hole. A comprehension's own loop
+            # variable, a lambda's walrus and a function's do not.
+            "WARN_WALRUS_IN_COMPREHENSION",
+            "WARN_WALRUS_NESTED",
         }
     )
+
+
+def test_the_dynamic_write_detector_names_every_form() -> None:
+    # FAIL CLOSED. A name written through the module namespace at run time
+    # cannot be read statically, so the derivation cannot count it - the only
+    # honest answer is a red finding naming the line.
+    source = (
+        "import sys\n"
+        "globals()['WARN_A'] = 'a'\n"
+        "globals().update(WARN_B='b')\n"
+        "setattr(sys.modules[__name__], 'WARN_C', 'c')\n"
+        "vars()['WARN_D'] = 'd'\n"
+        "sys.modules[__name__].__dict__['WARN_E'] = 'e'\n"
+        "def later() -> None:\n"
+        "    globals()['WARN_F'] = 'f'\n"
+        "globals().setdefault('WARN_G', 'g')\n"
+        "vars().update({'WARN_H': 'h'})\n"
+        "table = {}\n"
+        "table['WARN_NOT_A_NAMESPACE'] = 'fine'\n"
+        "setattr(table, 'harmless', 1)\n"
+    )
+
+    assert [finding.split(":", 1)[0] for finding in dynamic_namespace_writes(source)] == [
+        "line 2",
+        "line 3",
+        "line 4",
+        "line 5",
+        "line 6",
+        "line 8",
+        "line 9",
+        "line 10",
+    ]
+
+
+def test_no_audit_module_writes_its_namespace_dynamically() -> None:
+    found: list[str] = []
+    for info in pkgutil.walk_packages(audit_package.__path__, audit_package.__name__ + "."):
+        source_path = importlib.import_module(info.name).__file__
+        assert source_path is not None, info.name
+        source = Path(source_path).read_text(encoding="utf-8")
+        found.extend(f"{info.name} {finding}" for finding in dynamic_namespace_writes(source))
+
+    assert found == []
