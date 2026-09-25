@@ -75,6 +75,31 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-09-25 - CS-824 - GRANT CLARIFICATION: test-local floor by single-line substitution in sandbox hook copies. NOT A COMPLETION RECORD. NOTHING CLOSED. CS-824 STAYS OPEN
+Verification: this record amends the 2026-09-25 CS-821, CS-824, CS-704 frozen-file grant
+without widening its frozen scope. The adjudicator wrote none of the work and may not close
+CS-824.
+
+The shipped floor stays ONE literal line in .githooks/pre-push, matching the anchored
+pattern CS_PASS_FLOOR=[0-9]+ on a line of its own. It is never read from the environment,
+config or a tracked value file. A tracked floor file was considered and REJECTED: it is
+config, and it is read from the pushed tree. No file joins the CLAUDE.md s6 frozen list.
+
+tests/test_pre_push_ref_race.py, tests/test_hook_interpreter_ladder.py and
+tests/test_hook_probe_bound.py push one-test sandbox trees. They install a pre-push copy
+whose floor line, and ONLY that line, is rewritten to 1. One shared helper does this: it
+raises unless exactly one floor line exists, and it asserts the copy differs from the
+tracked hook on exactly that line. Their identity arms assert that relation instead of
+whole-file equality. The pre-commit and commit-msg copies stay wholly byte-identical.
+
+The shipped floor is still proven against an UNMODIFIED copy by the grant condition 4
+boundary arms and the condition 7 fresh-clone push.
+
+The M3 write-list is widened to those three files, plus one optional shared helper under
+tests/. Within them M3 may edit only the pre-push install path and the pre-push identity
+arm. Floor-size sandbox trees were considered and rejected on cost and on race-window
+calibration.
+
 ### 2026-09-25 - CS-955 - FROZEN-FILE GRANT ADDENDUM. NOT A COMPLETION RECORD. NOTHING CLOSED. CS-955 STAYS OPEN. Granted by an adjudicator BEFORE the edit, widening G-955 on `.githooks/pre-commit` to the index-snapshot route
 Verification: this record is the grant addendum; CS-955 closes under its own later entry. The adjudicator wrote none of the work and may not close it. Refuted candidate `1d533fe`: an index entry removed while the gate ran and restored before the second listing (ABA) was never seen, and the file committed ungraded.
 
