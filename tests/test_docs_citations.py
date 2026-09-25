@@ -622,6 +622,15 @@ BARE_RE: Final = re.compile(r"(?<![:.\w])(test_[a-z0-9_]{8,})\b")
 # below it, and judging those would redden the documentation of the rule.
 ELIDED_RE: Final = re.compile(r"(?<![A-Za-z0-9_])::(test_[a-z0-9_]{8,})\b")
 
+# CS-1163 - THE BARE CONTINUATION: a backticked colon and a line number, or a
+# range, written after a full pointer in the same sentence. LINE_POINTER_RE needs
+# the path, so this was invisible to every arm. NO PATH IS RECOVERED, for the
+# reason ELIDED_RE gives: the continuation is itself the finding, answered by a
+# full pointer or a `path::symbol` citation. Judged in
+# tests/test_citation_guard_shapes.py, which pins the two carriers that may not
+# be edited in place.
+BARE_CONTINUATION_RE: Final = re.compile(r"`:([0-9]+)(?:-[0-9]+)?`")
+
 
 # EVERY SHAPE THIS MODULE JUDGES, IN ONE PLACE, because the boundary contract
 # needs the same answer the arms use and once did not have it. It decided
@@ -635,7 +644,14 @@ ELIDED_RE: Final = re.compile(r"(?<![A-Za-z0-9_])::(test_[a-z0-9_]{8,})\b")
 # walks this module's own compiled patterns and fails on any that is not here.
 # That is what keeps a FUTURE arm from falling out of the boundary the way the
 # elided arm did - the arm and the boundary cannot drift apart quietly.
-JUDGED_SHAPES: Final = (CITATION_RE, LINE_POINTER_RE, BARE_RE, ELIDED_RE, BARE_PATH_RE)
+JUDGED_SHAPES: Final = (
+    CITATION_RE,
+    LINE_POINTER_RE,
+    BARE_RE,
+    ELIDED_RE,
+    BARE_PATH_RE,
+    BARE_CONTINUATION_RE,
+)
 
 #: THE PATTERNS THIS FAMILY COMPILES THAT ARE NOT CITATION SHAPES, and the
 #: boundary contract reads this beside :data:`JUDGED_SHAPES` rather than
@@ -2671,6 +2687,7 @@ _ONE_SHAPE_EACH: Final = {
     "docs/elided_only.md": "Verification: `::test_a_name_that_is_not_bound_anywhere`.\n",
     "docs/bare_only.md": 'Verification: `grep -c "test_a_name_that_is_not_bound_anywhere" x`\n',
     "docs/line_only.md": "see `tools/thing.py:900`\n",
+    "docs/continuation_only.md": "and again at `:900`\n",
     "docs/path_only.md": "see `tests/synthetic/test_planted.py::test_a_name_that_is_not_there`\n",
     # THE ONLY MEMBER NAMING A PATH THAT RESOLVES, and the reason is a
     # measurement rather than a preference. Carrier-hood does not depend on

@@ -101,7 +101,10 @@ _ARCHIVE_HEADER_LINES: Final = 30
 #:
 #: HOW IT WAS CHOSEN. 639 sites measured across the five shapes, the largest
 #: single shape contributing 410 of them. This sits above 639 minus that shape,
-#: so losing ANY ONE shape entirely reddens rather than passing quietly.
+#: so losing ANY ONE of those five entirely reddens rather than passing quietly.
+#: CS-1163's SIXTH shape, the bare continuation, adds too few archive sites for
+#: this floor to notice its loss; that count is held instead by the equality pin
+#: :data:`tests.test_citation_guard_shapes.BARE_CONTINUATIONS_DECLINED`.
 _ARCHIVE_SITE_FLOOR: Final = 550
 
 #: The six answers this family's arms would give about the deep archive, one

@@ -193,7 +193,8 @@ to rule out:
 
 - `mCurrentPotential` at `FGBuildableFactory.h:670` and `mPendingPotential` at
   `FGBuildableFactory.h:609` are both `SaveGame`.
-- `mMaxPotential` at `FGBuildableFactory.h:621`, `mPotentialShardSlots` at `:629` and
+- `mMaxPotential` at `FGBuildableFactory.h:621`, `mPotentialShardSlots` at
+  `FGBuildableFactory.h:629` and
   `mDefaultPotentialShardSlots` at `FGBuildableSubsystem.h:615` are `EditDefaultsOnly` and
   **not** `SaveGame`.
 

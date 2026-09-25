@@ -570,6 +570,11 @@ def test_the_deep_archives_rot_is_measured_and_pinned_per_arm(
         " and the pin still reports the site - but the exemption is now being answered in"
         " two places, and only one of them costs a number. Answer it in the pin."
     )
+    # CS-1163 ADDED THE SIXTH SHAPE WITHOUT AN ARM HERE, BY RULING (session 113):
+    # the bare continuation's archive population is counted by the equality pin
+    # tests.test_citation_guard_shapes.BARE_CONTINUATIONS_DECLINED, so it is not
+    # answered twice. This count still holds only because the form arm is not
+    # per-shape; a SEVENTH shape reddens here and must be answered.
     judged = len(test_docs_citations.JUDGED_SHAPES)
 
     assert len(ARCHIVE_ROT) >= judged, (

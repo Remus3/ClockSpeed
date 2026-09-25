@@ -19,9 +19,9 @@ itself, and the load carries `WARN_UNLOCK_GRAMMAR_UNMEASURED` for that reason.
 CS-913 was filed on the premise that the published unlock state is empty BECAUSE that
 grammar was never measured. **That premise is wrong, and the code says so before any save
 is opened.** `_read_unlocks` at `clockspeed/save/world.py::_read_unlocks` takes zero arguments - no
-bytes, no `ObjectTable`, no `PropertyMap` - and its body at `:868` returns
-`EMPTY_UNLOCK_STATE` plus one warning unconditionally. Its only call site, `:1003`, is
-argument-free too. Nothing in scope could vary by save, so every world publishes
+bytes, no `ObjectTable`, no `PropertyMap` - and its body returns
+`EMPTY_UNLOCK_STATE` plus one warning unconditionally. Its only call site, in
+`clockspeed/save/world.py::load_world_from_bytes`, is argument-free too. Nothing in scope could vary by save, so every world publishes
 `is_empty` identically. The pinned development world's genuine emptiness is a coincidence
 rather than the mechanism, and `/api/world` is innocent: it would publish real state the
 moment the producer returned any.

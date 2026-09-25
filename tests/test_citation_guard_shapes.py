@@ -42,12 +42,27 @@ from tests.bare_path_guard import (
     regex_call_sites,
 )
 from tests.test_bare_path_citations import WALK_ROOT, family
-from tests.test_citation_tables import DELIBERATE, NEWLINE, NO_TARGET, Disposition, bare_path
+from tests.test_citation_tables import (
+    DEEP_ARCHIVE,
+    DELIBERATE,
+    LEDGER,
+    NEWLINE,
+    NO_TARGET,
+    Disposition,
+    bare_path,
+    doc_text,
+)
+from tests.test_citation_tables import tracked as _tracked
 from tests.test_docs_citations import (
     bare_name_problems,
     citation_site_identities,
+    line_pointer_problems,
     unresolved_citations,
 )
+
+# The corpus fixture, rebound under the name pytest resolves it by - an import
+# alias alone does not bind a fixture, as tests/test_disposition_sites.py measured.
+tracked = _tracked
 
 # --- CS-811: every shape a judging pattern can be held in -------------------
 
@@ -100,7 +115,7 @@ REGEX_CALL_SITES: Final[Mapping[str, Mapping[str, int]]] = {
         "test_a_pattern_declared_one_module_over_is_reported_rather_than_unseen": 1,
     },
     "tests.test_docs_citations": {
-        "<module>": 7,
+        "<module>": 8,
         "test_appending_a_non_citation_pattern_spends_its_budget": 2,
     },
 }
@@ -350,4 +365,121 @@ def test_the_path_arm_reports_a_forgiven_citation_that_resolves_again() -> None:
     assert reported == [_full()], f"a forgiven citation that resolves again read {reported}"
     assert unresolved_citations(_DOC, text, live, {}) == [], (
         "a live citation with no record was reported, so the arm reports every citation"
+    )
+
+
+# --- CS-1163: a bare continuation is a finding, or a pinned declination ------
+
+#: THE CARRIERS THAT MAY NOT BE REPAIRED IN PLACE, AND HOW MANY BARE CONTINUATIONS
+#: EACH HOLDS. An EQUALITY pin, measured over the whole file with
+#: ``test_docs_citations.BARE_CONTINUATION_RE``. The ledger is append-only and the
+#: deep archive is historical, so neither may be edited to discharge its sites;
+#: every other tracked markdown file may, and carries none.
+#:
+#: WHY EQUALITY AND NOT A CEILING. OVER the pin is a NEW bare continuation in a
+#: carrier that is still being appended to - write that entry with a full pointer
+#: or a ``path::symbol`` citation instead. UNDER it is room banked for the next
+#: append; lower the pin in the same change that retires a site.
+#:
+#: This is the declination CS-1163's acceptance allows, recorded as a number the
+#: suite reads rather than as a sentence, so it cannot drift from the corpus.
+BARE_CONTINUATIONS_DECLINED: Final[Mapping[str, int]] = {LEDGER: 48, DEEP_ARCHIVE: 5}
+
+
+def bare_continuation_problems(text: str) -> list[str]:
+    """One finding per bare continuation in ``text``, located by line.
+
+    Read with :data:`tests.test_docs_citations.BARE_CONTINUATION_RE`, the judged
+    shape the carrier boundary also reads, so the boundary and the arm cannot
+    disagree about what a continuation is.
+
+    Args:
+        text: A doc's whole text.
+
+    Returns:
+        ``line N: <spelling>`` per site, in order.
+    """
+    return [
+        f"line {text.count(NEWLINE, 0, match.start()) + 1}: {match.group(0)}"
+        for match in test_docs_citations.BARE_CONTINUATION_RE.finditer(text)
+    ]
+
+
+def pointer_findings(text: str, line_counts: Mapping[str, int]) -> list[str]:
+    """Every line-pointer finding in ``text``, in BOTH forms: full and bare continuation.
+
+    The range arm's findings for full ``path.ext:NNN`` pointers, plus one per
+    bare continuation. ONE COUNT OVER BOTH FORMS is what lets a single planted
+    control prove neither half has stopped matching.
+    """
+    full, _declined = line_pointer_problems(text, line_counts)
+    return full + bare_continuation_problems(text)
+
+
+def test_a_bare_continuation_beside_a_full_pointer_raises_the_finding_count() -> None:
+    """THE PLANT CS-1163 ASKS FOR: the count RISES, and the full pointer is still seen.
+
+    The full pointer is out of range, so it is a finding in both texts - the
+    control that the same run still reads the full form. The continuation is
+    then the only difference, so a guard blind to it cannot rise, and a guard
+    that stopped reading the full form fails the control.
+    """
+    cited = bare_path("tools", "synthetic", "planted.py")
+    counts = {cited: 10}
+    alone = f"see `{cited}:900`.\n"
+    beside = f"see `{cited}:900` and then `:901`.\n"
+
+    before = pointer_findings(alone, counts)
+    after = pointer_findings(beside, counts)
+
+    full_seen = [any(f"{cited}:900" in line for line in run) for run in (before, after)]
+    assert full_seen == [True, True], f"the full pointer was not a finding: {before} {after}"
+    assert len(after) > len(before), (
+        f"a bare continuation beside a full pointer did not raise the count: {after}"
+    )
+
+
+def test_a_ranged_continuation_is_seen_and_a_bare_colon_is_not() -> None:
+    """Both spellings the corpus uses are read, and nothing shorter is."""
+    found = bare_continuation_problems("at `:990-996`, then `:1094`, not `:` or `:x`\n")
+
+    assert len(found) == 2, f"the continuation shapes read {found}"  # noqa: PLR2004
+
+
+def test_no_tracked_markdown_file_carries_a_bare_continuation_outside_the_pinned_carriers(
+    tracked: list[str],
+) -> None:
+    """Every tracked markdown file, less the pinned carriers, carries none.
+
+    THE POPULATION IS THE INDEX, not the guarded set: a continuation is a pointer
+    whatever doc carries it, and the census that sized this item read every
+    tracked markdown file.
+    """
+    docs = [path for path in tracked if path.endswith(".md")]
+    assert set(BARE_CONTINUATIONS_DECLINED) <= set(docs), "a pinned carrier is not tracked"
+    found = [
+        f"  {doc} {problem}"
+        for doc in docs
+        if doc not in BARE_CONTINUATIONS_DECLINED
+        for problem in bare_continuation_problems(doc_text(doc))
+    ]
+
+    assert not found, (
+        "bare continuations in a doc that may be edited:"
+        + NEWLINE
+        + NEWLINE.join(found)
+        + NEWLINE
+        + "Write the full pointer, or a path::symbol citation for a tracked module."
+    )
+
+
+def test_each_pinned_carrier_holds_exactly_its_pinned_bare_continuations() -> None:
+    """The declined carriers are counted, not exempted - in both directions."""
+    measured = {
+        doc: len(bare_continuation_problems(doc_text(doc))) for doc in BARE_CONTINUATIONS_DECLINED
+    }
+
+    assert measured == dict(BARE_CONTINUATIONS_DECLINED), (
+        f"measured {measured} against the pin {dict(BARE_CONTINUATIONS_DECLINED)}. OVER is a"
+        " new bare continuation in an append-only carrier; UNDER is a pin gone slack."
     )
