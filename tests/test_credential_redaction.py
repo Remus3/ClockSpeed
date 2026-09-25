@@ -50,11 +50,13 @@ happens to be is a control about nothing.
 
 from __future__ import annotations
 
+import getpass
 import os
 import re
 import subprocess
 import sys
 from pathlib import Path
+from typing import NamedTuple
 
 import pytest
 
@@ -173,16 +175,38 @@ def test_the_captured_output_renders():
 #: pytest prints the SOURCE of the failing function - decorators included - and
 #: a marker spelled whole there would be counted whether or not the arguments
 #: were rendered.
+#:
+#: THE REST OF THE CHILD IS THE ADVERSARY'S REFUTATION OF THE FIRST BUILD, each
+#: door measured leaking on the frozen candidate:
+#:
+#: - A CUT. At default verbosity pytest cuts a long argument repr in the MIDDLE
+#:   and joins the halves with ``...``. A cut inside a token leaves a prefix and
+#:   a few characters - under a length floor - on one side, and a bare tail on
+#:   the other; a cut inside a home path leaves the account name's last letters.
+#:   The sweeps move the cut across every offset of both, from the head side
+#:   and from the tail side.
+#: - A TEST ID. A parametrize id is printed in the section header and on the
+#:   FAILED line, and the report hooks never saw a node id: an id derived from
+#:   the mapping's items, from an ``ids=`` callable and from an ``ids=`` list.
+#: - AN ASSERTION DIFF, which renders the mapping through the same cut.
+#: - A SHORTENED TOKEN with no cut marker beside it - a prefix and ten
+#:   characters, under the length floor the first build's shapes carried.
 CHILD_AT_PARAMETER = """
 import os
+from pathlib import Path
 
 import pytest
 
 MARKER = "AAAA-zz-cs820-" + "rendered-arg-zz"
+VARIABLES = {variables!r}
+KEY = os.environ[VARIABLES[0]]
+TOKEN = os.environ[VARIABLES[1]]
+HOME = str(Path.home())
+PLANTED = {{"AAAA_KEY": KEY, "AAAA_TOKEN": TOKEN}}
 
 
 def mapping():
-    planted = {{name: os.environ[name] for name in {variables!r}}}
+    planted = {{name: os.environ[name] for name in VARIABLES}}
     return {{MARKER: "1", **planted, **os.environ}}
 
 
@@ -194,6 +218,61 @@ def environment():
 @pytest.mark.parametrize("parameter", [mapping()])
 def test_a_parameter_holds_an_environment_mapping(parameter, environment):
     raise RuntimeError("zz-cs1156-no-such-program-zz")
+
+
+@pytest.mark.parametrize(
+    "parameter",
+    [
+        {{"AAAA_pad": "p" * width, "AAAA_tok": TOKEN, "AAAB_key": KEY, "ZZZZ": "q" * 300}}
+        for width in range(40, 125)
+    ],
+)
+def test_a_cut_lands_inside_a_token(parameter):
+    raise RuntimeError("forced")
+
+
+@pytest.mark.parametrize(
+    "parameter",
+    [
+        {{"AAAA_pad": "p" * 300, "ZZZA_tok": TOKEN, "ZZZB_key": KEY, "ZZZZ": "q" * width}}
+        for width in range(0, 125)
+    ],
+)
+def test_a_cut_leaves_only_a_token_tail(parameter):
+    raise RuntimeError("forced")
+
+
+@pytest.mark.parametrize(
+    "parameter",
+    ["p" * width + HOME + "q" * 300 for width in range(60, 125)]
+    + ["p" * 300 + HOME + "q" * width for width in range(60, 125)],
+)
+def test_a_cut_lands_inside_a_home_path(parameter):
+    raise RuntimeError("forced")
+
+
+@pytest.mark.parametrize("name,value", sorted(PLANTED.items()))
+def test_an_id_from_the_items(name, value):
+    raise RuntimeError("forced")
+
+
+@pytest.mark.parametrize("parameter", [PLANTED], ids=lambda planted: planted["AAAA_KEY"])
+def test_an_id_from_a_callable(parameter):
+    raise RuntimeError("forced")
+
+
+@pytest.mark.parametrize("parameter", [PLANTED], ids=[TOKEN])
+def test_an_id_from_a_list(parameter):
+    raise RuntimeError("forced")
+
+
+def test_an_assertion_diff_renders_the_mapping():
+    parameter = {{"AAAA_pad": "p" * 3, **PLANTED}}
+    assert parameter == {{}}
+
+
+def test_a_token_the_test_itself_shortened():
+    raise RuntimeError("shown as " + TOKEN[:14] + " only")
 """
 
 #: The marker CHILD_AT_PARAMETER assembles. Each rendered parameter carries it
@@ -215,11 +294,35 @@ RENDERED_PARAMETERS = 2
 ORACLE_PREFIXES = ("sk-ant-", "ghp_", "gho_", "ghs_", "ghu_", "github_pat_")
 
 #: A credential SHAPE, for counting. The run after the prefix is 8 - half the
-#: shortest floor the redactor's own shapes use - so residue a narrowed rule
-#: leaves standing beside its placeholder still counts.
+#: shortest floor the redactor's own shapes used when this arm was built - so
+#: residue a narrowed rule leaves standing beside its placeholder still counts.
 CREDENTIAL_SHAPE_ORACLE = re.compile(
     "(?:" + "|".join(re.escape(prefix) for prefix in ORACLE_PREFIXES) + r")[A-Za-z0-9_\-]{8,}"
 )
+
+#: The TAIL half of a cut token carries no prefix, so no shape can see it. This
+#: oracle counts any eight consecutive characters of a PLANT instead - built
+#: from the plants the parent authored, never from the redactor's rules.
+FRAGMENT_WIDTH = 8
+
+#: Account-name letters on either side of pytest's ``...`` cut marker, counted
+#: when at least this many letters of the name survive.
+ACCOUNT_FRAGMENT_WIDTH = 3
+
+#: The four children: redacted or bare, at default verbosity or at ``-vvv``.
+#: The default is the one the adversary measured leaking; ``-vvv`` is the one
+#: that renders the most of every argument.
+VERBOSITIES: tuple[tuple[str, ...], ...] = ((), ("-vvv",))
+
+
+class ParameterCounts(NamedTuple):
+    """What one CS-820 child rendered - counts only, never a value."""
+
+    shapes: int
+    fragments: int
+    account_fragments: int
+    id_shapes: int
+    markers: int
 
 
 def _child_environment(plant: dict[str, str]) -> dict[str, str]:
@@ -447,87 +550,144 @@ def test_a_credential_does_not_survive_captured_output(
     assert REDACTED_CREDENTIAL in rendered, _tail(rendered)
 
 
-def _parameter_counts(rendered: str) -> tuple[int, int]:
-    """(credential shapes, rendered-argument markers) in one child's output.
+def _fragment_oracle() -> re.Pattern[str]:
+    """Every run of :data:`FRAGMENT_WIDTH` consecutive characters of either plant."""
+    windows = {
+        plant[start : start + FRAGMENT_WIDTH]
+        for plant in (PLANTED_KEY, PLANTED_GH_TOKEN)
+        for start in range(len(plant) - FRAGMENT_WIDTH + 1)
+    }
+    return re.compile("|".join(re.escape(window) for window in sorted(windows)))
+
+
+def _account_fragments(rendered: str) -> int:
+    """Account-name letters standing against a ``...`` cut, on either side.
+
+    The name is read here, at run time, and never written down: a count of
+    runs that touch the cut marker and are a piece of it.
+    """
+    try:
+        account = getpass.getuser().lower()
+    except (KeyError, OSError):
+        return 0
+    width = min(ACCOUNT_FRAGMENT_WIDTH, len(account))
+    return sum(
+        1
+        for run in re.findall(r"([A-Za-z0-9_\-]+)\.\.\.|\.\.\.([A-Za-z0-9_\-]+)", rendered)
+        for piece in run
+        if len(piece) >= width and piece.lower() in account
+    )
+
+
+def _parameter_counts(rendered: str) -> ParameterCounts:
+    """Every CS-820 count in one child's output.
 
     COUNTS, NEVER VALUES, and the output is held only by this frame's
     argument: the item's own finding is that this class of output leaks, so
-    the check for it must not leak in turn.
+    the check for it must not leak in turn. ``id_shapes`` counts shapes on the
+    two lines a node id is printed on - a section header and a FAILED line - so
+    the id door is graded apart from the argument door.
     """
-    return len(CREDENTIAL_SHAPE_ORACLE.findall(rendered)), rendered.count(RENDERED_ARGUMENT_MARKER)
+    id_lines = "\n".join(
+        line for line in rendered.splitlines() if line.startswith(("FAILED ", "_"))
+    )
+    return ParameterCounts(
+        shapes=len(CREDENTIAL_SHAPE_ORACLE.findall(rendered)),
+        fragments=len(_fragment_oracle().findall(rendered)),
+        account_fragments=_account_fragments(rendered),
+        id_shapes=len(CREDENTIAL_SHAPE_ORACLE.findall(id_lines)),
+        markers=rendered.count(RENDERED_ARGUMENT_MARKER),
+    )
 
 
 @pytest.fixture(scope="module")
-def parameter_counts(tmp_path_factory: pytest.TempPathFactory) -> tuple[int, int, int, int]:
-    """CS-820: shapes and markers for the redacted child, then for the bare one.
+def parameter_counts(
+    tmp_path_factory: pytest.TempPathFactory,
+) -> dict[tuple[bool, str], ParameterCounts]:
+    """CS-820: every count, for the redacted and the bare child at each verbosity.
 
     The bare child runs WITHOUT `tests.conftest`, so nothing redacts - the
-    hygiene-removed control. Both children are forced red by the same raise,
-    render arguments uncut by length under ``-vvv``, and plant two vendor shapes
-    under unlisted names, so only the SHAPE rules can reach them.
+    hygiene-removed control. Every child is forced red by the same raises and
+    plants two vendor shapes under unlisted names, so only the SHAPE rules can
+    reach them.
 
     SCALARS ONLY LEAVE THIS FIXTURE. A fixture value is a test ARGUMENT, and a
     failing arm renders its arguments - the very door CS-820 names - so a
     fixture handing back the child's output would print what it counts.
 
     Returns:
-        ``(shapes, markers, bare shapes, bare markers)``.
+        Counts keyed by ``(redacted, verbosity flags joined)``.
     """
     source = CHILD_AT_PARAMETER.format(variables=SORTED_FIRST_VARIABLES)
     plant = dict(zip(SORTED_FIRST_VARIABLES, (PLANTED_KEY, PLANTED_GH_TOKEN), strict=True))
-    shapes, markers = _parameter_counts(
-        _render(tmp_path_factory.mktemp("cs820_redacted"), source, plant, flags=("-vvv",))
-    )
-    bare_shapes, bare_markers = _parameter_counts(
-        _render(
-            tmp_path_factory.mktemp("cs820_bare"),
-            source,
-            plant,
-            redacted=False,
-            flags=("-vvv",),
+    return {
+        (redacted, " ".join(flags)): _parameter_counts(
+            _render(tmp_path_factory.mktemp("cs820"), source, plant, redacted=redacted, flags=flags)
         )
-    )
-    return shapes, markers, bare_shapes, bare_markers
+        for redacted in (True, False)
+        for flags in VERBOSITIES
+    }
 
 
+@pytest.mark.parametrize("verbosity", [" ".join(flags) for flags in VERBOSITIES])
 def test_both_parameter_kinds_reached_the_report(
-    parameter_counts: tuple[int, int, int, int],
+    parameter_counts: dict[tuple[bool, str], ParameterCounts], verbosity: str
 ) -> None:
     """CS-820's RENDERED-FRAME CONTROL: the fixture and the parametrize argument both rendered.
 
     Without it a zero below passes on a child whose arguments never reached
     the report - the same vacuity this file's CS-1156 controls exist to stop.
     """
-    _, markers, _, bare_markers = parameter_counts
+    markers = parameter_counts[True, verbosity].markers
+    bare_markers = parameter_counts[False, verbosity].markers
     assert markers >= RENDERED_PARAMETERS, "rendered parameters, redacted child: %d" % markers
     assert bare_markers >= RENDERED_PARAMETERS, "rendered parameters, bare child: %d" % bare_markers
 
 
+@pytest.mark.parametrize("verbosity", [" ".join(flags) for flags in VERBOSITIES])
 def test_a_credential_in_a_test_parameter_renders_no_credential_shape(
-    parameter_counts: tuple[int, int, int, int],
+    parameter_counts: dict[tuple[bool, str], ParameterCounts], verbosity: str
 ) -> None:
-    """CS-820: a forced failure of a test holding an environment mapping, counted by shape.
+    """CS-820: a forced failure of a test holding such a mapping, counted by shape.
 
-    The acceptance asks for COUNTS rather than values, and the count is taken
-    by :data:`CREDENTIAL_SHAPE_ORACLE`, which is typed in this file and not
-    read from the rules it grades. Bound to a scalar before the assertion, so
-    a failure renders a number and nothing else.
+    The acceptance asks for COUNTS rather than values, and the counts are taken
+    by oracles typed in this file and not read from the rules they grade: a
+    vendor shape, a run of a plant's characters that survives a cut, and an
+    account-name fragment beside a cut. Each is bound to a scalar before the
+    assertion, so a failure renders a number and nothing else.
     """
-    shapes, markers, _, _ = parameter_counts
+    counts = parameter_counts[True, verbosity]
+    markers = counts.markers
+    shapes = counts.shapes
+    fragments = counts.fragments
+    account = counts.account_fragments
     assert markers >= RENDERED_PARAMETERS, "rendered parameters: %d" % markers
-    assert shapes == 0, "credential shapes rendered through a test parameter: %d" % shapes
+    assert shapes == 0, "credential shapes rendered: %d" % shapes
+    assert fragments == 0, "plant fragments rendered: %d" % fragments
+    assert account == 0, "account-name fragments beside a cut: %d" % account
 
 
-def test_the_shape_count_sees_a_parameter_when_redaction_is_removed(
-    parameter_counts: tuple[int, int, int, int],
+@pytest.mark.parametrize("verbosity", [" ".join(flags) for flags in VERBOSITIES])
+def test_the_counts_see_every_door_when_redaction_is_removed(
+    parameter_counts: dict[tuple[bool, str], ParameterCounts], verbosity: str
 ) -> None:
-    """CS-820's HYGIENE-REMOVED CONTROL: the same child, no redaction, counts at least one.
+    """CS-820's HYGIENE-REMOVED CONTROL: the same child, no redaction, counts on every oracle.
 
-    A zero from an oracle that cannot see the plant is a zero about nothing.
+    A zero from an oracle that cannot see the plant is a zero about nothing,
+    so each oracle - and the node-id door on its own - must count at least one
+    here. The account-fragment oracle is graded at default verbosity only,
+    because ``-vvv`` renders an argument uncut and no cut is made there.
     """
-    _, _, bare_shapes, bare_markers = parameter_counts
-    assert bare_markers >= RENDERED_PARAMETERS, "rendered parameters, bare child: %d" % bare_markers
-    assert bare_shapes >= 1, "shapes the oracle saw with redaction removed: %d" % bare_shapes
+    counts = parameter_counts[False, verbosity]
+    shapes = counts.shapes
+    fragments = counts.fragments
+    id_shapes = counts.id_shapes
+    account = counts.account_fragments
+    assert shapes >= 1, "shapes the oracle saw with redaction removed: %d" % shapes
+    assert fragments >= 1, "plant fragments seen with redaction removed: %d" % fragments
+    assert id_shapes >= 1, "shapes in node ids with redaction removed: %d" % id_shapes
+    if not verbosity:
+        assert account >= 1, "account fragments seen with redaction removed: %d" % account
 
 
 def test_the_live_environment_holds_no_credential_the_redactor_leaves_standing() -> None:

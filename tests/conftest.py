@@ -728,13 +728,20 @@ _CREDENTIAL_MIN_LITERAL = 16
 
 #: Vendor-assigned prefixes and the alphabet that follows them. Every entry is
 #: a prefix no English word, path or identifier begins with.
+#:
+#: NO LENGTH FLOOR ONCE THE PREFIX IS PRESENT - CS-820, from an adversary's
+#: measurement. The first build required a run of 16 or 20 after the prefix,
+#: and pytest's middle cut of a long repr left a prefix with 8 to 19 characters
+#: in front of its ``...`` marker: twelve such stubs survived. A floor protects
+#: nothing here, because the prefix alone is what makes a string look like a
+#: key, so any run of the alphabet after it goes with it.
 _CREDENTIAL_SHAPES: tuple[str, ...] = (
-    r"sk-ant-[A-Za-z0-9_\-]{16,}",
-    r"ghp_[A-Za-z0-9]{20,}",
-    r"gho_[A-Za-z0-9]{20,}",
-    r"ghs_[A-Za-z0-9]{20,}",
-    r"ghu_[A-Za-z0-9]{20,}",
-    r"github_pat_[A-Za-z0-9_]{20,}",
+    r"sk-ant-[A-Za-z0-9_\-]*",
+    r"ghp_[A-Za-z0-9]*",
+    r"gho_[A-Za-z0-9]*",
+    r"ghs_[A-Za-z0-9]*",
+    r"ghu_[A-Za-z0-9]*",
+    r"github_pat_[A-Za-z0-9_]*",
 )
 
 
@@ -870,8 +877,40 @@ def redact_personal_data(text: str) -> str:
     return text
 
 
+#: CS-820 - pytest's CUT MARKER and the letters that stand against it. pytest
+#: shortens a long repr by keeping its two ends and joining them with ``...``,
+#: and the terminal crops a long summary line the same way. Whatever the cut
+#: landed inside is left as a FRAGMENT on either side of the marker: the tail of
+#: a key with no prefix any shape could anchor on, a key's prefix with a short
+#: stub, or the last letters of an account name in a home path whose head is
+#: gone. No rule built from the WHOLE value can recognise a piece of it, so the
+#: pieces are removed by position instead: a run of identifier characters
+#: touching the marker, on either side.
+#:
+#: STATED COST. An ordinary word that happens to touch a cut loses its visible
+#: half - ``...Full output truncated`` reads ``... output truncated``. That is
+#: paid only by a report pytest had already cut.
+_CUT_FRAGMENT = re.compile(r"[A-Za-z0-9_\-]+(?=\.\.\.)|(?<=\.\.\.)[A-Za-z0-9_\-]+")
+
+
+def redact_cut_fragments(text: str) -> str:
+    """Remove every identifier-character run that touches a ``...`` cut marker.
+
+    A third layer beside the personal-data and credential layers, and neither
+    of them: it recognises no value, only the POSITION a value is cut at. See
+    :data:`_CUT_FRAGMENT` for the measurement that made it necessary.
+
+    Args:
+        text: Rendered output.
+
+    Returns:
+        The text with each touching run removed and the marker kept.
+    """
+    return _CUT_FRAGMENT.sub("", text)
+
+
 def redact_report(text: str) -> str:
-    """Both layers, in the order a rendered report needs them.
+    """Every layer, in the order a rendered report needs them.
 
     CS-1156 - THE RENDER PATH APPLIES BOTH, AND NEITHER FUNCTION KNOWS ABOUT
     THE OTHER. `redact_personal_data` keeps its exact contract and its honest
@@ -883,15 +922,18 @@ def redact_report(text: str) -> str:
     ORDER. Personal data first, credentials second. A credential is replaced by
     a fixed placeholder containing no path and no account name, so running the
     personal layer afterwards would find nothing new; the reverse order is safe
-    too, and the choice is stated rather than left to be inferred.
+    too, and the choice is stated rather than left to be inferred. The cut
+    fragments go LAST - CS-820 - so a whole value standing beside a cut is
+    still replaced by its own rule and only the piece the cut left is removed.
 
     Args:
         text: Rendered output.
 
     Returns:
-        The text with both classes of value replaced.
+        The text with both classes of value replaced and every cut fragment
+        removed.
     """
-    return redact_credentials(redact_personal_data(text))
+    return redact_cut_fragments(redact_credentials(redact_personal_data(text)))
 
 
 class _LineWriter(Protocol):
@@ -1114,6 +1156,50 @@ def _redact_worker_description(node: Any) -> None:
     cached = getattr(node, "_workerinfocache", None)
     if isinstance(cached, str):
         node._workerinfocache = redact_report(cached)  # noqa: SLF001
+
+
+@pytest.hookimpl(tryfirst=True)
+def pytest_collection_modifyitems(items: list[pytest.Item]) -> None:
+    """Redact every collected item's NAME and NODE ID - CS-820.
+
+    MEASURED by an adversary on the first build: a parametrize id is printed in
+    each failure's section header, on its FAILED line and on every ``-v``
+    progress line, and no report hook ever sees an id - the id is not in the
+    report's text, it is the report's NAME. An id derived from a mapping's
+    items, from an ``ids=`` callable or from an ``ids=`` list printed whole
+    credentials at default verbosity. Rewriting the id at collection is the one
+    place every one of those renderings reads from.
+
+    Only an item whose name redaction MOVES is touched, so every ordinary node
+    id is left byte for byte as pytest built it. The function is still found by
+    its ``originalname``. A rewritten id that collides with another gets a
+    numeric suffix, because two items sharing a node id is a collection pytest
+    and its workers cannot tell apart.
+
+    Args:
+        items: The collected items, rewritten in place.
+    """
+    taken = {item.nodeid for item in items}
+    for item in items:
+        name = item.name
+        redacted = redact_report(name)
+        nodeid = item.nodeid
+        if redacted == name or not nodeid.endswith(name):
+            continue
+        stem = nodeid[: len(nodeid) - len(name)]
+        candidate, suffix = redacted, 0
+        while stem + candidate in taken:
+            suffix += 1
+            candidate = "%s-%d" % (redacted, suffix)
+        taken.add(stem + candidate)
+        item.name = candidate
+        # Duck-typed on purpose, for the reason _redact_report gives: pytest
+        # keeps the id in a private attribute and caches the location it
+        # renders headers from, and a rename there must not make this conftest
+        # unimportable - so each is set only where it exists.
+        if hasattr(item, "_nodeid"):
+            item._nodeid = stem + candidate  # noqa: SLF001
+        item.__dict__.pop("location", None)
 
 
 @pytest.hookimpl(tryfirst=True)
