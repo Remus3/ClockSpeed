@@ -216,40 +216,115 @@ LANES_SOURCE: Final = ROOT / "ops" / "loop" / "lanes.py"
 REFUSED_KEY: Final = "refused"
 
 
-def _is_refused_key(node: ast.AST | None) -> bool:
-    """True when `node` is the literal `"refused"`."""
-    return isinstance(node, ast.Constant) and node.value == REFUSED_KEY
+#: The SHAPE of a refusal word - lower-case snake case of two or more parts, as
+#: `lane_held` and `worktree_in_use` are. A literal of this shape that no
+#: recognised emit form accounts for is a finding, because a word can reach the
+#: dict by a route that never spells the key beside it.
+_WORD_SHAPE: Final = re.compile(r"[a-z]+(?:_[a-z]+)+")
+
+#: Method calls whose FIRST argument is a mapping key being READ, which is the
+#: one place a key-shaped literal may sit outside a dict literal or a subscript.
+_KEY_READERS: Final = frozenset({"get", "pop"})
 
 
-def _emitted_refusals(source: str) -> tuple[set[str], list[int]]:
-    """Every `refused` word `source` can emit, and every site it cannot read.
+def _key_aliases(nodes: list[ast.AST]) -> tuple[set[str], set[int]]:
+    """Names bound to the refusal key, and the binding literals themselves.
 
-    THREE SPELLINGS of "put a word under `refused`", because the arm must not go
-    green by a refactor that moves the word out of a dict literal: a dict
-    literal key, a `dict(refused=...)` keyword, and a `x["refused"] = ...`
-    subscript store. A value that is not a string literal cannot be derived, so
-    it is returned as an OPAQUE site by line number rather than skipped - an
-    unreadable site is a word this arm cannot vouch for, and it fails closed.
+    A binding literal is ACCOUNTED FOR by the binding - every later load of the
+    name is then graded like the literal - so it is not a stray key. A binding
+    that is anything but plain names (a tuple unpack, an attribute) is left
+    unconsumed, and the stray-key sweep reports it.
+    """
+    aliases: set[str] = set()
+    bindings: set[int] = set()
+    for node in nodes:
+        if isinstance(node, ast.Assign):
+            targets: list[ast.expr] = list(node.targets)
+        elif isinstance(node, ast.AnnAssign):
+            targets = [node.target]
+        else:
+            continue
+        value = node.value
+        if not (isinstance(value, ast.Constant) and value.value == REFUSED_KEY):
+            continue
+        names = [target.id for target in targets if isinstance(target, ast.Name)]
+        if names and len(names) == len(targets):
+            aliases.update(names)
+            bindings.add(id(value))
+    return aliases, bindings
+
+
+def _field_name_positions(nodes: list[ast.AST]) -> set[int]:
+    """Positions where a snake-case literal NAMES a field rather than carries one.
+
+    A dict literal key, a subscript index, and the key argument of `.get` or
+    `.pop`. Nowhere else may a literal of refusal-word shape sit unaccounted.
+    """
+    positions: set[int] = set()
+    for node in nodes:
+        if isinstance(node, ast.Dict):
+            positions.update(id(key) for key in node.keys if key is not None)
+        elif isinstance(node, ast.Subscript):
+            positions.add(id(node.slice))
+        elif (
+            isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Attribute)
+            and node.func.attr in _KEY_READERS
+            and node.args
+        ):
+            positions.add(id(node.args[0]))
+    return positions
+
+
+def _emitted_refusals(source: str) -> tuple[set[str], list[str]]:
+    """Every `refused` word `source` can emit, and every site it cannot vouch for.
+
+    THREE RECOGNISED EMIT FORMS: a dict literal key, a `dict(refused=...)`
+    keyword, and a `x["refused"] = ...` subscript store - the key spelled as the
+    literal or as any name bound to it. A recognised form whose value is not a
+    string literal is a finding.
+
+    FAIL CLOSED BEYOND THAT, which is what the first version did not do: it
+    knew three spellings and silently walked past a fourth. So two sweeps run
+    over the WHOLE tree after the forms are read, and each hit is a finding:
+
+    - the refusal KEY - the literal, or a load of a name bound to it - anywhere a
+      recognised form did not consume it (`setdefault`, a list of pairs, an
+      `update`, a tuple unpack, a call argument);
+    - a literal of refusal-word SHAPE anywhere but a recognised form's value, a
+      dict literal key, a subscript index, or the key argument of `.get` /
+      `.pop` - the positions where a snake-case literal names a field rather
+      than carrying a word.
 
     Args:
         source: Python source text.
 
     Returns:
-        The set of literal words, and the line numbers of opaque sites.
+        The set of literal words, and one `line N: ...` finding per site.
     """
+    nodes = list(ast.walk(ast.parse(source)))
+    aliases, consumed = _key_aliases(nodes)
     words: set[str] = set()
-    opaque: list[int] = []
+    values: set[int] = set()
+    findings: list[str] = []
+
+    def is_key(node: ast.AST | None) -> bool:
+        if isinstance(node, ast.Constant):
+            return node.value == REFUSED_KEY
+        return isinstance(node, ast.Name) and node.id in aliases
 
     def take(value: ast.AST, line: int) -> None:
         if isinstance(value, ast.Constant) and isinstance(value.value, str):
             words.add(value.value)
+            values.add(id(value))
         else:
-            opaque.append(line)
+            findings.append(f"line {line}: a non-literal refusal word")
 
-    for node in ast.walk(ast.parse(source)):
+    for node in nodes:
         if isinstance(node, ast.Dict):
             for key, value in zip(node.keys, node.values, strict=True):
-                if _is_refused_key(key):
+                if is_key(key):
+                    consumed.add(id(key))
                     take(value, node.lineno)
         elif isinstance(node, ast.Call):
             for keyword in node.keywords:
@@ -257,9 +332,32 @@ def _emitted_refusals(source: str) -> tuple[set[str], list[int]]:
                     take(keyword.value, node.lineno)
         elif isinstance(node, ast.Assign):
             for target in node.targets:
-                if isinstance(target, ast.Subscript) and _is_refused_key(target.slice):
+                if isinstance(target, ast.Subscript) and is_key(target.slice):
+                    consumed.add(id(target.slice))
                     take(node.value, node.lineno)
-    return words, opaque
+
+    accounted = values | _field_name_positions(nodes)
+    return words, findings + _stray_sites(nodes, is_key, consumed, accounted)
+
+
+def _stray_sites(
+    nodes: list[ast.AST], is_key, consumed: set[int], accounted: set[int]
+) -> list[str]:
+    """The fail-closed sweep: every key and word-shaped literal nothing accounted for."""
+    stray: list[str] = []
+    for node in nodes:
+        line = getattr(node, "lineno", 0)
+        loaded = not isinstance(node, ast.Name) or isinstance(node.ctx, ast.Load)
+        if is_key(node) and loaded and id(node) not in consumed:
+            stray.append(f"line {line}: the refusal key outside a recognised emit form")
+        elif (
+            isinstance(node, ast.Constant)
+            and isinstance(node.value, str)
+            and _WORD_SHAPE.fullmatch(node.value)
+            and id(node) not in accounted
+        ):
+            stray.append(f"line {line}: a refusal-shaped literal outside a recognised form")
+    return stray
 
 
 def _driver_covers(words: set[str]) -> set[str]:
@@ -281,7 +379,7 @@ def test_cs1015_every_refused_word_lanes_can_emit_is_one_the_driver_holds() -> N
     # at least the two faults CS-1011 separated, so fewer than two means the
     # parse is looking in the wrong place, not that the vocabulary shrank.
     assert len(words) >= len(REFUSAL_WORDS), f"the derivation found too few words: {sorted(words)}"
-    assert opaque == [], f"lanes.py puts a non-literal under 'refused' at lines {opaque}"
+    assert opaque == [], f"lanes.py has refusal sites this contract cannot vouch for: {opaque}"
     uncovered = sorted(_driver_covers(words))
     assert uncovered == [], f"lanes.py emits refusal words the driver does not hold: {uncovered}"
 
@@ -340,7 +438,55 @@ def test_cs1015_a_new_word_or_an_opaque_value_in_a_temp_copy_reddens(tmp_path: P
     )
     words, opaque = _emitted_refusals(indirect.read_text(encoding="utf-8"))
     assert "lane_parked" in _driver_covers(words), "a subscript-store word was not seen"
-    assert len(opaque) == 1, f"a non-literal refusal word was not flagged opaque: {opaque}"
+    flagged = [f for f in opaque if "non-literal" in f]
+    assert len(flagged) == 1, f"a non-literal refusal word was not flagged: {opaque}"
+
+
+def _contract_faults(source: str) -> list[str]:
+    """Everything that makes the contract RED for `source`: findings, then gaps."""
+    words, findings = _emitted_refusals(source)
+    return findings + [f"uncovered word {w}" for w in sorted(_driver_covers(words))]
+
+
+#: THE FOUR FORMS the first derivation walked straight past, each measured by an
+#: adversary to leave the contract green while `lanes.py` grew a word. Every one
+#: is planted as the LAST line of a temp copy, so its line number is known.
+_UNRECOGNISED_FORMS: Final = {
+    "setdefault": "def _x(a):\n    a.setdefault('refused', 'lane_orphaned')\n",
+    "dict-of-pairs": "def _y():\n    return dict([('refused', 'lane_gone')])\n",
+    "update-of-pairs": "def _z(a):\n    a.update([('refused', 'lane_away')])\n",
+    "aliased-key": "K = 'refused'\n\n\ndef _k():\n    return {K: 'lane_keyed'}\n",
+}
+
+
+@pytest.mark.parametrize("form", sorted(_UNRECOGNISED_FORMS))
+def test_cs1015_every_way_to_emit_a_refusal_word_reddens_the_contract(
+    form: str, tmp_path: Path
+) -> None:
+    """FAIL CLOSED: a form the derivation does not recognise is a finding.
+
+    A derivation that knows three spellings of "put a word under `refused`" is
+    blind to the fourth, and a blind derivation reports that the contract holds.
+    So any occurrence of the refusal KEY - as a literal or through a name bound
+    to it - that no recognised emit form accounts for is itself red, as is any
+    refusal-shaped literal no recognised form accounts for. The planted line is
+    named, so the finding points at the code rather than at the arm.
+    """
+    pristine = LANES_SOURCE.read_text(encoding="utf-8")
+    planted = tmp_path / "lanes.py"
+    planted.write_text(pristine + "\n\n" + _UNRECOGNISED_FORMS[form], encoding="utf-8")
+    text = planted.read_text(encoding="utf-8")
+    applied = text.endswith(_UNRECOGNISED_FORMS[form])
+    assert applied, "THE PLANT DID NOT APPLY - a green here would measure nothing"
+    last_line = len(text.splitlines())
+
+    faults = _contract_faults(text)
+    assert faults, f"the {form} form left the contract GREEN"
+    named = [f for f in faults if f"line {last_line}" in f or f"line {last_line - 1}" in f]
+    assert named or any("uncovered" in f for f in faults), f"{form}: no fault names it: {faults}"
+    # AND THE PRISTINE FLOOR IN THE SAME RUN.
+    floor = _contract_faults(pristine)
+    assert floor == [], f"the pristine emitter is red: {floor}"
 
 
 # ===========================================================================
