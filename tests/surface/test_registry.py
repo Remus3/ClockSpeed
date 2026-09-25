@@ -70,7 +70,7 @@ from clockspeed.surface.api import solve as solve_endpoint
 from clockspeed.surface.api.routes import ENDPOINT_STATUS, ROUTES
 from tests.data import synthetic as rich
 from tests.solve import synthetic
-from tests.surface.test_health import planted_reflection, reflected_in
+from tests.surface.test_health import HOME_SHAPED, planted_reflection, reflected_in
 
 if TYPE_CHECKING:
     from collections.abc import Mapping, Sequence
@@ -941,7 +941,7 @@ def test_a_machine_with_no_install_is_unavailable_and_never_unimplemented() -> N
 
 def test_a_request_naming_a_parameter_is_refused_and_reflects_nothing(corpus: Registry) -> None:
     handler = endpoint.make_handler(_StubRegistryProvider(corpus))
-    supplied = "C:" + chr(92) + "Users" + chr(92) + "someone"
+    supplied = HOME_SHAPED
     response = handler({"path": supplied})
     assert response.http_status == contract.HTTP_BAD_REQUEST, response.http_status
     assert response.payload["reason"] == contract.REASON_UNKNOWN_PARAMETER, response.payload

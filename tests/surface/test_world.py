@@ -68,7 +68,7 @@ from clockspeed.save.header import masked_token
 from clockspeed.surface.api import contract
 from clockspeed.surface.api import world as endpoint
 from tests.save import synthetic
-from tests.surface.test_health import planted_reflection, reflected_in
+from tests.surface.test_health import HOME_SHAPED, planted_reflection, reflected_in
 
 # ---------------------------------------------------------------------------
 # The canaries. INVENTED MARKERS, never a value read off this machine.
@@ -743,11 +743,11 @@ def test_no_world_names_no_path_and_carries_no_canary() -> None:
 def test_an_unknown_parameter_is_a_400_that_reflects_nothing() -> None:
     """This endpoint takes no parameters, and reflects none of what it refused.
 
-    The refused value is a home-path-shaped string ASSEMBLED FROM FRAGMENTS: a
-    tracked file may not carry an absolute path under a user home directory
-    (non-negotiable 3).
+    The refused value is the health suite's home-path-shaped string, ASSEMBLED
+    FROM FRAGMENTS there: a tracked file may not carry an absolute path under a
+    user home directory (non-negotiable 3).
     """
-    reflected = "C:" + chr(92) + "Users" + chr(92) + "someone" + chr(92) + "world"
+    reflected = HOME_SHAPED
     response = endpoint.make_handler(_Worlds(None))({"path": reflected})
     blob = contract.encode(response.payload)
     present = reflected_in(blob, reflected)
