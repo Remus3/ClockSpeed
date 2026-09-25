@@ -339,3 +339,6 @@ CS-1174 - `PLACEHOLDER_RE` treats a non-ASCII letter as a delimiter, and no beha
 CS-1183 - the seven tier-3 flip checks have no runnable job - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1186 - README.md has never been walked from zero to a first result - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1188 - the tracked-file walk arm fails in every linked worktree, because `.git` is a file there - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
+CS-1193 - tier-1 CI fast shard ran 565s against its 480s ceiling after CS-1177's canary population grew - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
+CS-1194 - drift_guard prints a non-numeric player-named directory that holds no sensitive file - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
+CS-1195 - on Linux, drift_guard guard (c) can print a text-typed key file's path in its own detail lines - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`

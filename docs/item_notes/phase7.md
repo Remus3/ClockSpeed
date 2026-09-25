@@ -1404,3 +1404,72 @@ The failing arm is `test_the_walk_reaches_every_tracked_file_in_this_repository`
 through its child run of the data-layer suite, so the gate reddens with it. Reproduced
 at base `403e775` in a linked worktree; the same commit passes in a normal clone,
 where `.git` is a directory.
+
+## CS-1193
+
+### Acceptance
+
+the next CI tier-1 fast-shard reading is at or under the 480s ceiling with no
+redaction guarantee weakened; the ceiling pin is never raised to meet it.
+
+### Full headline
+
+tier-1 CI fast shard ran 565s against its 480s ceiling after CS-1177's canary
+population grew
+
+### FILED 2026-09-25, from the wave-2 merge (session 113)
+
+The commits already carrying this id move the two whole-population forced arms to
+`tests/test_canary_population_forced.py`, derive the canary population once per
+process, and let a forced child skip the derivation-only arms by a flag its parent
+issued. They are the repair, not the discharge: only a CI reading can meet the
+clause above.
+
+## CS-1194
+
+### Acceptance
+
+`tools/drift_guard.py` withholds, in the text report and the `--json` payload, any
+rendered path with a component equal to a value this machine resolves locally as
+the player's - the account directory name, the world name, the Windows account
+name or the player display name - whatever its shape, and fails closed to the
+withheld form when that value cannot be resolved; the values come from local
+resolution, never a typed list in a tracked file. An arm plants a non-numeric
+player-named directory holding no withheld-class file and asserts it is withheld,
+and a control asserts a repository-chosen name still renders.
+
+### Full headline
+
+drift_guard prints a non-numeric player-named directory that holds no sensitive file
+
+### FILED 2026-09-25, the ADR 0023 residual (session 113)
+
+`docs/adr/0023-whether-a-filename-is-personal-data.md` rules this outside CS-1158: a
+directory named for the player by a non-numeric name - a world name, a hex or GUID
+account token - holding no withheld-class file is indistinguishable by shape from
+any other directory, and renders. Rule 2's shape test catches only the digit-run
+account id.
+
+## CS-1195
+
+### Acceptance
+
+no guard (c) detail line in `tools/drift_guard.py` names a path whose shape is in a
+withheld class of ADR 0023, under case-keeping git on a Linux runner as on Windows;
+an arm plants a text-typed withheld-class file (for example an upper-case key file
+shape) that git tracks with its case kept, asserts guard (c)'s rendered detail
+withholds it by reason and count, and a control asserts an ordinary tracked file
+with a charset finding is still named.
+
+### Full headline
+
+on Linux, drift_guard guard (c) can print a text-typed key file's path in its own
+detail lines
+
+### FILED 2026-09-25, the CS-1158 closing adjudicator's second residual (session 113)
+
+CS-1158's render seam withholds skip records by reason class, but guard (c) reads
+every tracked text file and names it in its own detail lines. Where git keeps case,
+a withheld-class shape that is text-typed is walked, read by guard (c) and can be
+named there - a renderer outside the skip records, so ADR 0023 files it as a new
+item rather than folding it into CS-1158.
