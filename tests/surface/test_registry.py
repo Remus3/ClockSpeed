@@ -70,6 +70,7 @@ from clockspeed.surface.api import solve as solve_endpoint
 from clockspeed.surface.api.routes import ENDPOINT_STATUS, ROUTES
 from tests.data import synthetic as rich
 from tests.solve import synthetic
+from tests.surface.test_health import planted_reflection, reflected_in
 
 if TYPE_CHECKING:
     from collections.abc import Mapping, Sequence
@@ -945,7 +946,10 @@ def test_a_request_naming_a_parameter_is_refused_and_reflects_nothing(corpus: Re
     assert response.http_status == contract.HTTP_BAD_REQUEST, response.http_status
     assert response.payload["reason"] == contract.REASON_UNKNOWN_PARAMETER, response.payload
     raw = contract.encode(response.payload)
-    assert supplied.encode("ascii") not in raw, "the refusal reflected what it refused"
+    planted = reflected_in(planted_reflection(response.payload, supplied), supplied)
+    assert planted is True, "the oracle cannot find the path in a body that reflects it"
+    reflected = reflected_in(raw, supplied)
+    assert reflected is False, "the refusal reflected what it refused"
 
 
 def test_every_response_this_endpoint_can_build_conforms_to_the_contract(

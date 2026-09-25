@@ -68,6 +68,7 @@ from clockspeed.save.header import masked_token
 from clockspeed.surface.api import contract
 from clockspeed.surface.api import world as endpoint
 from tests.save import synthetic
+from tests.surface.test_health import planted_reflection, reflected_in
 
 # ---------------------------------------------------------------------------
 # The canaries. INVENTED MARKERS, never a value read off this machine.
@@ -749,7 +750,9 @@ def test_an_unknown_parameter_is_a_400_that_reflects_nothing() -> None:
     reflected = "C:" + chr(92) + "Users" + chr(92) + "someone" + chr(92) + "world"
     response = endpoint.make_handler(_Worlds(None))({"path": reflected})
     blob = contract.encode(response.payload)
-    present = reflected.encode("ascii") in blob
+    present = reflected_in(blob, reflected)
+    planted = reflected_in(planted_reflection(response.payload, reflected), reflected)
+    assert planted is True, "the oracle cannot find the path in a body that reflects it"
     assert response.http_status == contract.HTTP_BAD_REQUEST
     assert response.payload["reason"] == contract.REASON_UNKNOWN_PARAMETER
     assert present is False

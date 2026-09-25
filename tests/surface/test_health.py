@@ -27,12 +27,17 @@ e. THE LIVENESS MAP IS TOTAL. A template the server never registered reads as
 Test-quality discipline (CONVENTIONS.md section 7.2, and this package's own
 ``__init__``): every sweep binds a scalar and asserts an expected count before
 it iterates, and no assertion renders a provider's contents.
+
+Every anti-leak arm asserts absence through ``reflected_in``, which decodes the
+body rather than hunting raw bytes the encoder cannot produce, and each first
+plants a reflecting body that the oracle must find (CS-1034).
 """
 
 from __future__ import annotations
 
 import ast
 import inspect
+import json
 import re
 from typing import TYPE_CHECKING, Final
 
@@ -42,6 +47,7 @@ from clockspeed.surface.api import contract
 from clockspeed.surface.api import health as endpoint
 
 if TYPE_CHECKING:
+    from collections.abc import Mapping
     from pathlib import Path
 
 # ---------------------------------------------------------------------------
@@ -190,6 +196,81 @@ def call_names(tree: ast.AST) -> frozenset[str]:
     return frozenset(found)
 
 
+def reflected_in(blob: bytes, needle: str) -> bool:
+    """Whether an encoded body carries ``needle``, however the encoder spelled it.
+
+    THE RAW-BYTES HUNT IS BLIND TO A WINDOWS PATH (CS-1034). ``contract.encode``
+    is ``json.dumps``, which writes every backslash as two, so
+    ``needle.encode("ascii") in blob`` is False for a path-shaped needle even
+    when the body reflects that path verbatim. This oracle decodes the body and
+    searches every string in it, KEYS INCLUDED - a map keyed by a raw path is
+    one of the leaks the health arms guard - so it finds the value whatever
+    escaping carried it. Every arm that uses it also plants a reflecting body
+    and asserts this returns True there, which is what makes its False mean
+    something.
+
+    Args:
+        blob: Bytes ``contract.encode`` produced.
+        needle: The value a leaking body would carry.
+
+    Returns:
+        True when any string in the decoded body contains the needle.
+    """
+    pending: list[object] = [json.loads(blob.decode("ascii"))]
+    while pending:
+        item = pending.pop()
+        if isinstance(item, str) and needle in item:
+            return True
+        if isinstance(item, dict):
+            pending.extend(item)
+            pending.extend(item.values())
+        elif isinstance(item, list):
+            pending.extend(item)
+    return False
+
+
+def planted_reflection(payload: Mapping[str, object], needle: str) -> bytes:
+    """The body a LEAKING handler would send, built through the real encoder.
+
+    It is the handler's own payload plus the refused value under one more key,
+    encoded by ``contract.encode`` so the backslash doubling is the real one -
+    a planted positive written by hand could spell the path the way no body
+    ever does, and prove the oracle potent against a body that cannot exist.
+
+    Args:
+        payload: The payload the handler really built.
+        needle: The value a leaking handler would echo.
+
+    Returns:
+        The encoded bytes of the reflecting body.
+    """
+    return contract.encode({**payload, "reflected": needle})
+
+
+# ---------------------------------------------------------------------------
+# 0 - the reflection oracle every anti-leak arm here asserts through
+# ---------------------------------------------------------------------------
+
+
+def test_the_reflection_oracle_finds_a_path_the_encoder_doubled() -> None:
+    """The needle as a value, as a key and inside a list is found; its absence is not.
+
+    The first assertion is the reason the oracle exists: the encoded body
+    carries the path, and its raw ASCII bytes are nowhere in it.
+    """
+    as_value = contract.encode({"echo": HOME_SHAPED})
+    doubled = HOME_SHAPED.encode("ascii") in as_value
+    assert doubled is False, "the encoder no longer doubles a backslash"
+    found = (
+        reflected_in(as_value, HOME_SHAPED),
+        reflected_in(contract.encode({"map": {HOME_SHAPED: 1}}), HOME_SHAPED),
+        reflected_in(contract.encode({"rows": [{"at": "at-" + HOME_SHAPED}]}), HOME_SHAPED),
+    )
+    assert found == (True, True, True), found
+    absent = reflected_in(contract.encode({"echo": "elsewhere"}), HOME_SHAPED)
+    assert absent is False
+
+
 # ---------------------------------------------------------------------------
 # 1 - health is 200 and nothing else (arm a)
 # ---------------------------------------------------------------------------
@@ -214,7 +295,9 @@ def test_health_answers_200_even_when_a_parameter_it_does_not_accept_arrives() -
     handler = endpoint.make_handler(_Worlds(None), _Registries(None), {})
     response = handler({"target": "anything", "path": HOME_SHAPED})
     blob = contract.encode(response.payload)
-    reflected = HOME_SHAPED.encode("ascii") in blob
+    reflected = reflected_in(blob, HOME_SHAPED)
+    planted = reflected_in(planted_reflection(response.payload, HOME_SHAPED), HOME_SHAPED)
+    assert planted is True, "the oracle cannot find the path in a body that reflects it"
     assert response.http_status == contract.HTTP_OK
     assert reflected is False
 
@@ -237,8 +320,11 @@ def test_a_present_registry_and_world_render_as_words_not_as_what_they_are() -> 
     response = answer(world_value=HOME_SHAPED, registry_value=HOME_SHAPED)
     data = response.payload["data"]
     blob = contract.encode(response.payload)
-    reflected = HOME_SHAPED.encode("ascii") in blob
+    reflected = reflected_in(blob, HOME_SHAPED)
     assert isinstance(data, dict)
+    leaking = contract.encode({**response.payload, "data": {**data, "world": HOME_SHAPED}})
+    planted = reflected_in(leaking, HOME_SHAPED)
+    assert planted is True, "the oracle cannot find the path in a body that reflects it"
     assert data["world"] == endpoint.LOADED
     assert data["registry"] == endpoint.PRESENT
     assert reflected is False
@@ -300,8 +386,12 @@ def test_a_liveness_map_keyed_by_a_raw_path_publishes_none_of_it() -> None:
     response = answer(endpoint_status={HOME_SHAPED: endpoint.LIVE, "/api/health": endpoint.LIVE})
     data = response.payload["data"]
     blob = contract.encode(response.payload)
-    reflected = HOME_SHAPED.encode("ascii") in blob
+    reflected = reflected_in(blob, HOME_SHAPED)
     assert isinstance(data, dict)
+    # The leak this arm guards is a path as a KEY, so the plant is one.
+    keyed = {**data, "endpoints": {HOME_SHAPED: endpoint.LIVE}}
+    planted = reflected_in(contract.encode({**response.payload, "data": keyed}), HOME_SHAPED)
+    assert planted is True, "the oracle cannot find the path in a body that reflects it"
     assert sorted(data["endpoints"]) == sorted(endpoint.ENDPOINT_TEMPLATES)
     assert reflected is False
 
@@ -312,7 +402,9 @@ def test_a_liveness_value_outside_the_vocabulary_is_not_published() -> None:
     response = answer(endpoint_status={"/api/health": smuggled})
     data = response.payload["data"]
     blob = contract.encode(response.payload)
-    reflected = smuggled.encode("ascii") in blob
+    reflected = reflected_in(blob, smuggled)
+    planted = reflected_in(planted_reflection(response.payload, smuggled), smuggled)
+    assert planted is True, "the oracle cannot find the value in a body that reflects it"
     assert isinstance(data, dict)
     endpoints = data["endpoints"]
     assert isinstance(endpoints, dict)
