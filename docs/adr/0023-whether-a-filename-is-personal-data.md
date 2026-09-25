@@ -86,10 +86,27 @@ of paths:
   reason and a count, in both the text report and the `--json` payload. A new table entry
   in either class joins the withheld set by its reason alone, with no second list to
   update.
-- **A generic reason cannot carry this rule.** A path skipped only because git ignores it
-  carries no class, so the reason cannot say whether its name is sensitive. Rule 3 closes
-  the named classes; a player-named path reaching a renderer under a classless reason is
-  a gap in the CLASSIFICATION, filed as its own item, never patched with a name regex.
+- **A generic reason cannot carry this rule, so no path is left under one when a class
+  applies.** AMENDED 2026-09-25 under CS-1158, after an adversary refuted the first
+  change: a path skipped only because git ignores it carried no class, and three leaks
+  followed. The rule is closed in the same item rather than deferred, three ways:
+  - **The class comes from `.gitignore`, where it is declared.** A pattern `.gitignore`
+    files under its `PII-BEARING` banner gives the path a `PII-bearing` reason, matched
+    case-insensitively as git does on this platform, so a rotated or upper-cased save
+    shape is not left to a floor that restated one spelling of it. A pruned root that
+    `.gitignore` files as PII-bearing carries a PII-bearing reason in the walk's table
+    too, and a test holds the two in agreement.
+  - **A directory git collapses to one ignored entry is withheld when it holds a
+    PII-bearing or credential file anywhere beneath it** - it locates one, so rule 3
+    applies to its name.
+  - **Rule 2 is enforced by shape at the render seam.** A skip record whose path has a
+    component shaped like a platform account id - the digit-run floor
+    `clockspeed/data/locate.py::redact` already uses - is withheld whatever it was
+    skipped for, and counted under its own reason. This is the one shape test, and it
+    is the account-id classification itself, not a list of names.
+  **Still not closed, stated rather than implied:** a directory named for the player by a
+  NON-numeric name - a world name, a hex or GUID account token - holding no withheld-class
+  file is indistinguishable by name from any other directory, and renders.
 - **Any other renderer found printing a withheld-class name is a new item**, not a fix
   folded into the change that found it.
 - **Harder:** a reader debugging a pruned save or key file cannot learn WHICH file from

@@ -157,8 +157,8 @@ WALK_SKIP_ROOT_PATHS: Mapping[str, str] = MappingProxyType(
         "corpus": "PII-bearing - snapshot corpus of the pinned development world",
         "moon_sync_inbox": "PII-bearing - the cross-project channel, authored elsewhere",
         "certs": "local-only - generated certificate material",
-        "captures": "local-only - capture artifacts of the game and the player",
-        "screenshots": "local-only - capture artifacts of the game and the player",
+        "captures": "PII-bearing - capture artifacts of the game and the player",
+        "screenshots": "PII-bearing - capture artifacts of the game and the player",
         "run": "local-only - live process state",
         "logs": "local-only - logs, which can echo parsed header bytes",
         "var": "local-only - runtime state",
@@ -237,6 +237,30 @@ WITHHELD_REASON_CLASSES = frozenset({"PII-bearing", "credential material"})
 
 #: The line printed under a withheld reason in place of its paths.
 WITHHELD_MARKER = "(names withheld - ADR 0023: this class never names its path)"
+
+#: CS-1158 repair - the `.gitignore` banner class whose patterns are PII-bearing.
+#: `.gitignore` is where a pattern's class is DECLARED - each group sits under a
+#: `# ====` banner whose next line reads `# CLASS - title` - so the walk reads
+#: the class from there rather than restating the file's PII shapes in the floor
+#: above. An adversary measured the restatement leaking: the floor carried
+#: `*.sav` alone, and `*.sav.bak`, `*.savbackup` and an upper-cased `*.SAV` fell
+#: to the classless gitignored reason, or were walked, and printed their names.
+GITIGNORE_PII_CLASS = "PII-BEARING"
+
+#: The reason a path carries when `.gitignore`'s PII-BEARING section names it and
+#: the floor table does not.
+GITIGNORE_PII_REASON = "PII-bearing - `.gitignore` files this shape under its PII-BEARING section"
+
+#: The reason a directory git collapses to one ignored entry carries when it
+#: holds a PII-bearing or credential file anywhere beneath it (ADR 0023 rule 3).
+COLLAPSED_WITHHELD_REASON = (
+    "PII-bearing - an ignored directory holding a PII-bearing or credential file"
+)
+
+#: The reason a skip record is withheld under when a component of its path is
+#: shaped like an account id, whatever reason it was skipped for (ADR 0023
+#: rules 1 and 2). Counted under this reason so the count survives.
+ACCOUNT_ID_PATH_REASON = "PII-bearing - a path component is shaped like a platform account id"
 
 #: CS-1155 - the reason git's own answer carries. Distinct from every reason in
 #: the two static tables, so a skip record says WHICH authority pruned a path.
@@ -746,7 +770,14 @@ def _git_ignored(root: Path) -> frozenset[str] | None:
     return frozenset(entry.rstrip("/") for entry in (proc.stdout or "").split("\x00") if entry)
 
 
-def _skip_file_reason(relative: str, name: str, ignored: frozenset[str] | None) -> str | None:
+def _skip_file_reason(
+    relative: str,
+    name: str,
+    ignored: frozenset[str] | None,
+    pii_patterns: tuple[str, ...] = (),
+    *,
+    is_dir: bool = False,
+) -> str | None:
     """Return why ``relative`` is not authored here, or None to keep it.
 
     CS-1155. The FLOOR, not the rule - `_git_ignored` is the authority wherever
@@ -783,6 +814,12 @@ def _skip_file_reason(relative: str, name: str, ignored: frozenset[str] | None) 
         ignored: git's own answer, from _git_ignored, or NONE when git could
             not be asked at all - the only case the floor decides alone. An
             EMPTY set is git saying nothing here is ignored, which is an answer.
+        pii_patterns: The patterns `.gitignore` files under PII-BEARING, from
+            _gitignore_pii_patterns. Matched CASE-INSENSITIVELY, unlike the
+            floor: git folds case on this platform, and folding here errs only
+            toward not reading and not naming a save, which is the safe side.
+        is_dir: Whether the entry is a directory, for a pattern with a
+            trailing slash.
 
     Returns:
         The reason it was pruned, or None if no authority named it.
@@ -793,7 +830,122 @@ def _skip_file_reason(relative: str, name: str, ignored: frozenset[str] | None) 
         subject = relative if "/" in pattern else name
         if fnmatch.fnmatchcase(subject, pattern):
             return reason
+    if any(_gitignore_matches(p, relative, name, is_dir=is_dir) for p in pii_patterns):
+        return GITIGNORE_PII_REASON
     return GITIGNORED_REASON if ignored is not None else None
+
+
+def _gitignore_pii_patterns(root: Path) -> tuple[str, ...]:
+    """Return the patterns ``root``'s `.gitignore` files under PII-BEARING.
+
+    CS-1158 repair. A banner is a `# ====` line followed by `# CLASS - title`;
+    every pattern after it, up to the next banner, carries that class. A
+    negation is dropped rather than honoured: honouring one could only narrow
+    what is withheld. An absent or unreadable file yields nothing, and the
+    floor table still decides alone.
+
+    Args:
+        root: The tree whose top-level `.gitignore` is read.
+
+    Returns:
+        The PII-BEARING patterns, in file order.
+    """
+    try:
+        lines = (root / ".gitignore").read_text(encoding="utf-8").splitlines()
+    except (OSError, UnicodeDecodeError):
+        return ()
+    patterns: list[str] = []
+    current = ""
+    for index, line in enumerate(lines):
+        if line.startswith("# ====") and index + 1 < len(lines):
+            head = lines[index + 1]
+            if head.startswith("# ") and " - " in head:
+                current = head[2:].split(" - ", 1)[0].strip()
+            continue
+        stripped = line.strip()
+        if not stripped or stripped.startswith(("#", "!")):
+            continue
+        if current == GITIGNORE_PII_CLASS:
+            patterns.append(stripped)
+    return tuple(patterns)
+
+
+def _gitignore_matches(pattern: str, relative: str, name: str, *, is_dir: bool) -> bool:
+    """Whether one `.gitignore` pattern names ``relative``, case folded.
+
+    The subset of git's grammar the PII section uses: a trailing slash means a
+    directory only; a pattern with a slash before its end is anchored to the
+    root; one without matches a NAME at any depth. Folded to lower case on
+    both sides, as git does where core.ignorecase is set.
+    """
+    if pattern.endswith("/"):
+        if not is_dir:
+            return False
+        pattern = pattern.rstrip("/")
+    if "/" in pattern:
+        return fnmatch.fnmatchcase(relative.lower(), pattern.lstrip("/").lower())
+    return fnmatch.fnmatchcase(name.lower(), pattern.lower())
+
+
+def account_id_min_digits() -> int:
+    """The shortest digit run the resolver treats as an account id.
+
+    Read from `clockspeed/data/locate.py` rather than restated. FAILS CLOSED:
+    if the resolver is not importable, every digit run counts, so a name is
+    withheld rather than printed on exactly the day something else broke.
+    """
+    try:
+        return int(_load_locate().MIN_ACCOUNT_ID_DIGITS)
+    except ImportError:
+        return 1
+
+
+def _names_account_id(path: str) -> bool:
+    """Whether any component of a skip record's path is account-id-shaped."""
+    floor = account_id_min_digits()
+    return any(
+        len(part) >= floor and part.isascii() and part.isdigit()
+        for part in path.strip("/").split("/")
+    )
+
+
+def _withheld_content(directory: Path, pii_patterns: tuple[str, ...]) -> bool:
+    """Whether a directory holds a PII-bearing or credential file anywhere below it.
+
+    Reads NAMES only, never content. FAILS CLOSED: a level that cannot be
+    listed counts as holding one, so an unreadable collapsed directory is
+    withheld rather than named.
+    """
+    stack = [directory]
+    while stack:
+        current = stack.pop()
+        try:
+            entries = list(current.iterdir())
+        except OSError:
+            return True
+        for entry in entries:
+            try:
+                is_dir = entry.is_dir()
+            except OSError:
+                return True
+            if is_dir:
+                stack.append(entry)
+                continue
+            relative = entry.relative_to(directory).as_posix()
+            reason = _skip_file_reason(relative, entry.name, None, pii_patterns)
+            if reason is None:
+                folded = entry.name.lower()
+                reason = next(
+                    (
+                        r
+                        for pattern, r in WALK_SKIP_FILE_PATTERNS.items()
+                        if "/" not in pattern and fnmatch.fnmatchcase(folded, pattern.lower())
+                    ),
+                    None,
+                )
+            if reason is not None and is_withheld(reason):
+                return True
+    return False
 
 
 def _skip_dir_reason(
@@ -801,6 +953,7 @@ def _skip_dir_reason(
     relative: str,
     worktrees: tuple[str, ...],
     ignored: frozenset[str] | None,
+    pii_patterns: tuple[str, ...] = (),
 ) -> str | None:
     """Return why the directory ``entry`` is not entered, or None to enter it.
 
@@ -816,6 +969,8 @@ def _skip_dir_reason(
             not be asked. WALK_SKIP_ROOT_PATHS is checked BEFORE it, because
             those roots are this tree's own classification and must prune a
             directory git happens not to ignore - a linked worktree, for one.
+        pii_patterns: The `.gitignore` PII-BEARING patterns, passed to
+            _skip_file_reason and to the collapsed-directory content search.
 
     Returns:
         The reason it was pruned, or None if nothing pruned it.
@@ -830,7 +985,13 @@ def _skip_dir_reason(
     # order they are asked for a file.
     named = WALK_SKIP_ROOT_PATHS.get(relative)
     if named is None:
-        named = _skip_file_reason(relative, entry.name, ignored)
+        named = _skip_file_reason(relative, entry.name, ignored, pii_patterns, is_dir=True)
+    # CS-1158 repair - git collapses a directory whose every entry it ignores
+    # into ONE entry, so the classless reason would print a directory that
+    # locates a save or a key. The content decides here; a NAME shaped like an
+    # account id is withheld at the render seam, by partition_skips.
+    if named == GITIGNORED_REASON and _withheld_content(entry, pii_patterns):
+        return COLLAPSED_WITHHELD_REASON
     if named is not None:
         return named
     if _is_registered_worktree(entry, worktrees):
@@ -893,6 +1054,7 @@ def _walk(
         worktrees = _registered_worktrees(root)
     if isinstance(ignored, _Unset):
         ignored = _git_ignored(root)
+    pii_patterns = _gitignore_pii_patterns(root)
     files: list[Path] = []
     skips: list[Skip] = []
     stack = [root]
@@ -920,13 +1082,13 @@ def _walk(
                 # CS-1155 - the record's path carries NO trailing slash, which
                 # is the only thing in a skip record telling a file from a
                 # directory.
-                file_reason = _skip_file_reason(relative, entry.name, ignored)
+                file_reason = _skip_file_reason(relative, entry.name, ignored, pii_patterns)
                 if file_reason is None:
                     files.append(entry)
                 else:
                     skips.append({"path": relative, "reason": file_reason})
                 continue
-            dir_reason = _skip_dir_reason(entry, relative, worktrees, ignored)
+            dir_reason = _skip_dir_reason(entry, relative, worktrees, ignored, pii_patterns)
             if dir_reason is None:
                 stack.append(entry)
                 continue
@@ -5712,8 +5874,12 @@ def partition_skips(skips: list[Skip]) -> tuple[list[Skip], dict[str, int]]:
 
     CS-1158. Both renderers of the skip list - the text report and the --json
     payload - go through this, so they cannot disagree about which records name
-    their path. Decided by the reason's CLASS, never by the path's spelling: a
-    name regex would be a denylist, and ADR 0023 rejects one.
+    their path. Decided by the reason's CLASS, not by a list of names, which
+    ADR 0023 rejects as a denylist. The one shape test is the account id, the
+    classification rules 1 and 2 are about: a record whose path has a component
+    shaped like one is withheld whatever it was skipped for, under
+    ACCOUNT_ID_PATH_REASON, because every path beneath a directory named for the
+    player is personal data in whole.
 
     Args:
         skips: Every skip record the run produced.
@@ -5727,6 +5893,8 @@ def partition_skips(skips: list[Skip]) -> tuple[list[Skip], dict[str, int]]:
         reason = skip["reason"]
         if is_withheld(reason):
             withheld[reason] = withheld.get(reason, 0) + 1
+        elif _names_account_id(skip["path"]):
+            withheld[ACCOUNT_ID_PATH_REASON] = withheld.get(ACCOUNT_ID_PATH_REASON, 0) + 1
         else:
             shown.append(skip)
     return shown, withheld

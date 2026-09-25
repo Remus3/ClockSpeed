@@ -269,3 +269,203 @@ def test_the_same_holds_where_git_answers(
     assert {CONTROL_LOCAL, CONTROL_LANE, "zzhoard.txt"} <= shown, sorted(shown)
     withheld = {entry["reason"]: entry["count"] for entry in report["withheld"]}
     assert withheld == planted.counts, withheld
+
+
+# ---------------------------------------------------------------------------
+# The adversary's two leak paths - the repair, ADR 0023 rules 1 and 2
+# ---------------------------------------------------------------------------
+#
+# 1. `.gitignore` files `*.sav.bak` and `*.savbackup` under its PII-BEARING
+#    section, and git on this platform folds case, so `*.SAV` too. The static
+#    floor carried `*.sav` alone and matched case-sensitively, so all three fell
+#    to the classless gitignored reason - or, with git unreachable, were walked
+#    and named by a reader's own skip record - and printed their names.
+# 2. A directory git collapses to ONE ignored entry, because everything in it
+#    is ignored, printed its own name. An account-id-shaped name is personal
+#    data under rule 1, and a directory holding a withheld-class file locates
+#    one.
+
+# The PII-BEARING shapes this arm plants, beyond the floor's own `*.sav`. Their
+# presence in the real `.gitignore` section is pinned by the arm below, so the
+# plants cannot drift from the file that classifies them.
+SECTION_SHAPES = ("*.sav.bak", "*.savbackup")
+
+
+def _gitignore_sections() -> dict[str, list[str]]:
+    """The real `.gitignore` as banner class -> patterns, read independently.
+
+    A banner is a `# ====` rule followed by a `# CLASS - title` line. Written
+    here rather than imported so the guard's parser and this one cannot agree
+    by construction.
+    """
+    sections: dict[str, list[str]] = {}
+    current = ""
+    lines = (REPO_ROOT / ".gitignore").read_text(encoding="utf-8").splitlines()
+    for index, line in enumerate(lines):
+        if line.startswith("# ====") and index + 1 < len(lines):
+            head = lines[index + 1]
+            if head.startswith("# ") and " - " in head:
+                current = head[2:].split(" - ", 1)[0].strip()
+            continue
+        if line.strip() and not line.startswith("#"):
+            sections.setdefault(current, []).append(line.strip())
+    return sections
+
+
+def _real_gitignore_repo(root: Path, monkeypatch: pytest.MonkeyPatch) -> bool:
+    """A real git repository at ``root`` carrying the REAL `.gitignore`.
+
+    core.ignorecase is set TRUE explicitly, so git folds case the way it does
+    on this platform on every runner, and the arm is not a statement about the
+    host. Returns False when git is not installed.
+    """
+    from tests import conftest  # noqa: PLC0415 - the one git runner the suite owns
+    from tests.git_env import relocates  # noqa: PLC0415
+
+    for key in [key for key in os.environ if relocates(key)]:
+        monkeypatch.delenv(key, raising=False)
+    root.mkdir(parents=True, exist_ok=True)
+    (root / ".gitignore").write_bytes((REPO_ROOT / ".gitignore").read_bytes())
+    for args in (("init", "--quiet"), ("config", "core.ignorecase", "true")):
+        proc = conftest.run_git(root, *args)
+        if proc is None:
+            return False
+        assert proc.returncode == 0, f"control: git {args[0]} exited {proc.returncode}"
+    return True
+
+
+def test_the_section_shapes_are_filed_under_pii_bearing() -> None:
+    """Anti-drift: the shapes planted below are the real file's PII shapes."""
+    pii = _gitignore_sections().get("PII-BEARING", [])
+    missing = [shape for shape in (*SECTION_SHAPES, "*.sav") if shape not in pii]
+    assert not missing, f"no longer under PII-BEARING in .gitignore: {missing}"
+
+
+def test_every_root_path_gitignore_files_as_pii_carries_a_withheld_reason() -> None:
+    """The two classifications of a pruned ROOT may not disagree.
+
+    `.gitignore` is where a pattern's class is declared; WALK_SKIP_ROOT_PATHS
+    restates a reason for each root it prunes. A root the file puts under
+    PII-BEARING and the table calls `local-only` renders its name under a class
+    the source of truth denies it. Measured: `captures` and `screenshots`.
+    """
+    pii = {p.strip("/") for p in _gitignore_sections().get("PII-BEARING", []) if p.startswith("/")}
+    assert pii, "control: no anchored root under PII-BEARING at all"
+    table = drift_guard.WALK_SKIP_ROOT_PATHS
+    wrong = sorted(r for r in pii if r in table and _class_of(table[r]) not in WITHHELD_CLASSES)
+    assert not wrong, f"roots .gitignore files as PII that the table does not withhold: {wrong}"
+
+
+def _plant_section_shapes(root: Path) -> list[str]:
+    """Plant each section shape plus an upper-cased save; return the tokens."""
+    tokens: list[str] = []
+    (root / "zzsec").mkdir(parents=True, exist_ok=True)
+    (root / "zzsec" / "keep.md").write_text("# kept\n", encoding="utf-8")
+    leaves = [shape.replace("*", f"zzsec{n}x") for n, shape in enumerate(SECTION_SHAPES)]
+    leaves.append("ZZSECUPPER.SAV")
+    for leaf in leaves:
+        (root / "zzsec" / leaf).write_bytes(b"\x00synthetic\x00")
+        tokens.append(leaf.split(".")[0].lower())
+    (root / CONTROL_LOCAL).write_text("{}\n", encoding="utf-8")
+    (root / "top.md").write_text("# clean\n", encoding="utf-8")
+    return tokens
+
+
+def _leaks(text: str, tokens: list[str]) -> int:
+    folded = text.lower()
+    return sum(1 for token in tokens if token in folded)
+
+
+def test_a_section_shape_is_withheld_with_git_unreachable(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    root = tmp_path / "tree"
+    root.mkdir()
+    (root / ".gitignore").write_bytes((REPO_ROOT / ".gitignore").read_bytes())
+    tokens = _plant_section_shapes(root)
+    # Rule 2 with git unreachable: nothing prunes this directory, so it is
+    # walked and a READER's skip record ("not an authored text file type")
+    # carries the path. The account-id-shaped component must not render.
+    digits = "8" * drift_guard.account_id_min_digits()
+    (root / digits).mkdir()
+    (root / digits / "Thumbs.db").write_bytes(b"\x00synthetic\x00")
+    tokens.append(digits)
+    _point_at(monkeypatch, root, tmp_path)
+    _floor_only(monkeypatch)
+
+    text = _run(capsys)
+    raw = _run(capsys, "--json")
+    report: dict[str, Any] = json.loads(raw)
+
+    leaked = _leaks(text, tokens) + _leaks(raw, tokens)
+    assert leaked == 0, f"{leaked} section-shape name(s) rendered with git unreachable"
+    assert CONTROL_LOCAL in {skip["path"] for skip in report["skipped"]}, "control vanished"
+    assert sum(entry["count"] for entry in report["withheld"]) >= len(tokens), report["withheld"]
+
+
+def test_a_section_shape_is_withheld_where_git_answers(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    root = tmp_path / "tree"
+    if not _real_gitignore_repo(root, monkeypatch):
+        pytest.skip("git is not installed, so its answer cannot be asked")
+    tokens = _plant_section_shapes(root)
+    _point_at(monkeypatch, root, tmp_path)
+
+    text = _run(capsys)
+    raw = _run(capsys, "--json")
+    report: dict[str, Any] = json.loads(raw)
+
+    assert report["enumeration"].startswith("directory walk"), report["enumeration"]
+    leaked = _leaks(text, tokens) + _leaks(raw, tokens)
+    assert leaked == 0, f"{leaked} section-shape name(s) rendered with git answering"
+    assert CONTROL_LOCAL in {skip["path"] for skip in report["skipped"]}, "control vanished"
+    assert sum(entry["count"] for entry in report["withheld"]) >= len(tokens), report["withheld"]
+
+
+def test_a_collapsed_directory_is_withheld_by_shape_or_by_content(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Rule 1 and rule 3 for the entry git collapses a whole directory into.
+
+    Three collapsed directories must not render: one named like an account id
+    holding only an ignored non-sensitive file (the NAME decides), one with an
+    ordinary name holding only a save (the CONTENT decides), and one holding a
+    save only two levels down (the content search is not one level deep). Two
+    must: an ordinary name over ordinary content, and a digit run too short to
+    be an account id - the controls that keep both halves from being a blanket
+    withhold of every collapsed entry.
+    """
+    root = tmp_path / "tree"
+    if not _real_gitignore_repo(root, monkeypatch):
+        pytest.skip("git is not installed, so its answer cannot be asked")
+    digits = "9" * drift_guard.account_id_min_digits()
+    short = "9" * (drift_guard.account_id_min_digits() - 1)
+    plants = {
+        f"{digits}/Thumbs.db": False,
+        "zzcoll/zzinner.sav": False,
+        "zzdeep/zzmid/zzlow.sav": False,
+        "zzplain/Thumbs.db": True,
+        f"{short}/Thumbs.db": True,
+    }
+    for relative in plants:
+        target = root / relative
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_bytes(b"\x00synthetic\x00")
+    (root / "top.md").write_text("# clean\n", encoding="utf-8")
+    _point_at(monkeypatch, root, tmp_path)
+
+    text = _run(capsys)
+    raw = _run(capsys, "--json")
+    report: dict[str, Any] = json.loads(raw)
+
+    lines = {line.strip() for line in text.splitlines()}
+    shown = {skip["path"] for skip in report["skipped"]}
+    tops = {relative.split("/", 1)[0] + "/": renders for relative, renders in plants.items()}
+    # Proof git collapsed them: each directory appears as ONE entry somewhere.
+    assert {top for top, renders in tops.items() if renders} <= shown, sorted(shown)
+    assert {top for top, renders in tops.items() if renders} <= lines, "a control did not render"
+    hidden = [top for top, renders in tops.items() if not renders]
+    leaked = sum(1 for top in hidden if top in lines or top in shown or top.rstrip("/") in raw)
+    assert leaked == 0, f"{leaked} collapsed directory name(s) rendered"
+    assert sum(entry["count"] for entry in report["withheld"]) >= len(hidden), report["withheld"]
