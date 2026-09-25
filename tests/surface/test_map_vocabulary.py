@@ -316,10 +316,13 @@ def test_the_plants_are_pii_shaped_and_dotless() -> None:
 def test_every_plant_reaches_the_inventory_model_through_the_real_loader() -> None:
     """The anti-vacuity control: an absence on the wire must not be an absent plant."""
     held = inventory_model.inventory_of(planted_world())
-    keys = {total.item_key for total in held.items}
-    known = ITEM_KEY in keys
+    # CS-1189: the item keys are never bound to a local - WorldInventory's repr
+    # withholds them, and a bound set would render under --showlocals.
+    known = any(total.item_key == ITEM_KEY for total in held.items)
     assert known, "the known key did not reach the model"
-    reached = sum(1 for plant in planted_keys() if plant in keys)
+    reached = sum(
+        1 for plant in planted_keys() if any(total.item_key == plant for total in held.items)
+    )
     assert reached == UNKNOWN_PLANTS, "plants reaching the model: " + str(reached)
 
 
