@@ -205,6 +205,7 @@ import pytest
 
 OUTBOUND = Path(%r)
 SUITES = frozenset(os.path.normcase(os.path.realpath(path)) for path in %r)
+GATE = os.path.normcase(os.path.realpath(OUTBOUND))
 TABLES = frozenset({"CREDENTIAL_CANARIES", "CREDENTIAL_BRANCH_CANARIES"})
 VALUES = []
 
@@ -221,6 +222,11 @@ def pytest_configure(config):
     VALUES.extend(module.CREDENTIAL_CANARIES.values())
     for table in module.CREDENTIAL_BRANCH_CANARIES.values():
         VALUES.extend(table.values())
+
+
+@functools.lru_cache(maxsize=None)
+def in_the_gate(filename):
+    return os.path.normcase(os.path.realpath(filename)) == GATE
 
 
 @functools.lru_cache(maxsize=None)
@@ -259,7 +265,15 @@ def select(frame, event, arg):
         return None
     if not in_a_suite(code.co_filename):
         return None
-    if TABLES & names(code) or any(holds(value) for value in frame.f_locals.values()):
+    if in_the_gate(code.co_filename):
+        caller = frame.f_back
+        called_by_a_member = caller is not None and not in_the_gate(caller.f_code.co_filename)
+        if TABLES & names(code) and called_by_a_member and in_a_suite(caller.f_code.co_filename):
+            return raise_at_return
+        return None
+    if TABLES & names(code):
+        return raise_at_return
+    if any(holds(value) for value in frame.f_locals.values()):
         return raise_at_return
     return None
 
@@ -326,16 +340,37 @@ def _verdict(code: int, output: str, suites: tuple[str, ...]) -> Verdict:
     return Verdict(code, canaries_in(output), graded, forced)
 
 
-def forced_run(workdir: Path, root: Path, suites: tuple[str, ...]) -> Verdict:
+def forced_run(
+    workdir: Path, root: Path, suites: tuple[str, ...], *, force: bool = True
+) -> Verdict:
     """Run `suites` (relative to `root`) in a child with every holding helper forced to raise.
 
     Under ``--showlocals`` and ``-vv``, so locals are rendered uncut - the
     greatest exposure pytest offers. `tests.conftest` is loaded in every run,
     as a plugin when `root` is not this tree, so a tree-local run and a
     temporary one render through the same hooks.
+
+    THE GATE'S OWN FRAMES ARE GRADED TOO - CS-1177, from an adversary's probe:
+    ``tools/outbound_gate.py`` is where the canary tables live and where they
+    are read, and a raise inside its helper printed a canary under
+    ``--showlocals`` with every suite's own helpers clean. So the traced
+    population is the member modules PLUS the gate, whichever member called it.
+    A gate frame is selected when its code READS a table AND a member module
+    called it directly - the gate's own hygiene, as the suites reach it. NOT
+    GRADED, and said rather than implied: a table reader the gate calls from
+    inside ``scan``, because ``scan`` holds the payload it was handed as its
+    ``text`` argument - a message carrying a canary, in the CS-1167 suite - and
+    a raise anywhere beneath it renders that argument. Holding its input is what
+    a scanner is; a raise inside ``scan`` rendering a real payload is a residual
+    of the gate's API, recorded here, not a helper's hygiene.
+
+    `force` False runs the same child without the forcer, for an arm whose
+    raise is planted by the child itself.
     """
     workdir.mkdir(parents=True, exist_ok=True)
     real = [os.path.realpath(root / suite) for suite in suites]
+    real.append(os.path.realpath(OUTBOUND_PATH))
+    forcer = ["-p", FORCER_NAME] if force else []
     (workdir / (FORCER_NAME + ".py")).write_text(
         HELPER_FORCER % (str(OUTBOUND_PATH), real), encoding="ascii"
     )
@@ -356,8 +391,7 @@ def forced_run(workdir: Path, root: Path, suites: tuple[str, ...]) -> Verdict:
             "no:cacheprovider",
             "-p",
             "no:randomly",
-            "-p",
-            FORCER_NAME,
+            *forcer,
             *plugin,
             "-k",
             NO_RECURSION,
@@ -555,6 +589,86 @@ def test_a_helper_raise_under_showlocals_renders_no_canary_forced_red_output(
     assert ungraded == [], "members no test of which ran: " + ", ".join(ungraded)
     assert total >= 1, "no helper raise was forced in the tree"
     assert leaked == 0, "the forced run rendered %d canary value(s)" % leaked
+
+
+#: The adversary's probe, planted: the gate's own gap helpers driven with a
+#: gate whose ``check_secrets`` is a BUILTIN that raises, so no frame of this
+#: child holds the canary and the last Python frames in the traceback are the
+#: gate's. The rule is named by its reason - a key, never a value.
+GATE_PROBE = """
+import importlib.util
+import math
+import re
+import sys
+from pathlib import Path
+
+spec = importlib.util.spec_from_file_location("cs1177_gate_probe_outbound", Path(%r))
+OUTBOUND = importlib.util.module_from_spec(spec)
+sys.modules["cs1177_gate_probe_outbound"] = OUTBOUND
+spec.loader.exec_module(OUTBOUND)
+REASON = "AWS access key id"
+
+
+class RaisingGate:
+    SECRET_PATTERNS = [(re.compile("(?:A|B)"), REASON)]
+    PLACEHOLDER_RE = re.compile("x^")
+    Report = list
+    check_secrets = staticmethod(math.sqrt)
+
+
+def test_the_canary_gap_helper_raises():
+    OUTBOUND.credential_canary_gaps(RaisingGate)
+
+
+def test_the_branch_gap_helper_raises():
+    OUTBOUND.credential_branch_gaps(RaisingGate)
+"""
+
+#: How many tests GATE_PROBE holds - one per gap helper.
+GATE_PROBE_TESTS = 2
+
+#: The same raise from a frame that DOES bind the canary - the control.
+GATE_PROBE_CONTROL = (
+    GATE_PROBE
+    + """
+
+def test_a_frame_that_binds_the_canary_raises():
+    held = OUTBOUND.CREDENTIAL_CANARIES[REASON]
+    math.sqrt(held, held)
+"""
+)
+
+
+def test_a_raise_inside_the_gates_own_helper_renders_no_canary_forced_red_output(
+    tmp_path: Path,
+) -> None:
+    """CS-1177: the adversary's probe - a raise INSIDE the gate's gap helpers - renders none.
+
+    Measured on the first build: one canary printed, from the gate helper's own
+    ``canary`` local. The control is the same child plus one frame that binds
+    the canary before the same builtin raises, so a zero here is a measurement.
+    """
+    root = tmp_path / "probe"
+    (root / "tests").mkdir(parents=True)
+    probe = root / "tests" / "test_cs1177_gate_probe.py"
+    probe.write_text(GATE_PROBE % str(OUTBOUND_PATH), encoding="ascii")
+    control = root / "tests" / "test_cs1177_gate_probe_control.py"
+    control.write_text(GATE_PROBE_CONTROL % str(OUTBOUND_PATH), encoding="ascii")
+
+    shown = forced_run(
+        tmp_path / "control_work", root, (control.relative_to(root).as_posix(),), force=False
+    )
+    shown_leaked = shown.leaked
+    assert shown_leaked >= 1, "the control rendered no canary"
+
+    relative = probe.relative_to(root).as_posix()
+    verdict = forced_run(tmp_path / "probe_work", root, (relative,), force=False)
+    code = verdict.code
+    graded = verdict.graded[relative]
+    leaked = verdict.leaked
+    assert code == 1, "the probe did not fail: exit %d" % code
+    assert graded == GATE_PROBE_TESTS, "probe tests run: %d" % graded
+    assert leaked == 0, "a raise inside the gate helper rendered %d canary value(s)" % leaked
 
 
 # --------------------------------------------------------------------------

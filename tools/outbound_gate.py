@@ -84,7 +84,9 @@ import contextlib
 import difflib
 import hashlib
 import importlib.util
+import itertools
 import json
+import operator
 import os
 import re
 import sys
@@ -704,18 +706,7 @@ def credential_canary_gaps(gate: ModuleType) -> list[str]:
     gaps: list[str] = []
     rules = list(gate.SECRET_PATTERNS)
     for pattern, reason in rules:
-        canary = CREDENTIAL_CANARIES.get(reason)
-        if canary is None:
-            gaps.append(reason)
-            continue
-        probe = gate.Report()
-        gate.check_secrets("canary", canary, probe)
-        flagged = any(diag.reason == reason for diag in probe.diagnostics)
-        own = any(
-            not gate.PLACEHOLDER_RE.search(match.group(match.lastindex or 0))
-            for match in pattern.finditer(canary)
-        )
-        if not (flagged and own):
+        if reason not in CREDENTIAL_CANARIES or not _flags_own(gate, pattern, reason):
             gaps.append(reason)
     known = {reason for _, reason in rules}
     gaps.extend(reason + " (no such rule)" for reason in CREDENTIAL_CANARIES if reason not in known)
@@ -975,19 +966,56 @@ def credential_branches(pattern: re.Pattern[str]) -> list[tuple[str, re.Pattern[
     return branches
 
 
-def _flags_own(gate: ModuleType, pattern: re.Pattern[str], reason: str, canary: str) -> bool:
-    """Whether `pattern` itself flags `canary` under `reason`, placeholders applied."""
+def _canary(reason: str, label: str | None = None) -> str:
+    """The canary filed for a rule, or for one branch of it - RETURNED, never bound.
+
+    CS-1177, from an adversary's probe. The helpers below used to hold a canary
+    as an argument or a local, and pytest renders every local of every frame in
+    a traceback under ``--showlocals``: a raise inside `credential_canary_gaps`
+    printed one. They now take the rule's reason and the branch label - keys,
+    never values - and read the canary through this call INSIDE the expression
+    that consumes it, so no frame of this module ever names a canary.
+    """
+    if label is None:
+        return CREDENTIAL_CANARIES[reason]
+    return CREDENTIAL_BRANCH_CANARIES[reason][label]
+
+
+def _flags_own(
+    gate: ModuleType, pattern: re.Pattern[str], reason: str, label: str | None = None
+) -> bool:
+    """Whether `pattern` itself flags the canary filed under `reason` (and `label`)."""
     probe = gate.Report()
-    gate.check_secrets("canary", canary, probe)
+    gate.check_secrets("canary", _canary(reason, label), probe)
     flagged = any(diag.reason == reason for diag in probe.diagnostics)
-    return flagged and _matches_unsuppressed(gate, pattern, canary)
+    return flagged and _matches_unsuppressed(gate, pattern, reason, label)
 
 
-def _matches_unsuppressed(gate: ModuleType, pattern: re.Pattern[str], canary: str) -> bool:
-    """Whether `pattern` matches `canary` somewhere `PLACEHOLDER_RE` does not forgive."""
-    return any(
-        not gate.PLACEHOLDER_RE.search(match.group(match.lastindex or 0))
-        for match in pattern.finditer(canary)
+def _group_index(lastindex: int | None) -> int:
+    """The group a match's candidate is read from: its last group, or the whole match."""
+    return lastindex or 0
+
+
+def _matches_unsuppressed(
+    gate: ModuleType, pattern: re.Pattern[str], reason: str, label: str | None = None
+) -> bool:
+    """Whether `pattern` matches the canary somewhere `PLACEHOLDER_RE` does not forgive.
+
+    Built from builtins that take and yield iterators, so no match and no
+    candidate string is ever bound to a name of a frame here - CS-1177. The
+    candidate of each match is its last group or, with none, the whole match,
+    and the canary is unsuppressed unless EVERY candidate is forgiven.
+    """
+    matches, indexed = itertools.tee(pattern.finditer(_canary(reason, label)))
+    return not all(
+        map(
+            gate.PLACEHOLDER_RE.search,
+            map(
+                re.Match.group,
+                matches,
+                map(_group_index, map(operator.attrgetter("lastindex"), indexed)),
+            ),
+        )
     )
 
 
@@ -1006,7 +1034,9 @@ def credential_branch_gaps(gate: ModuleType) -> list[str]:
     gaps: list[str] = []
     rules = list(gate.SECRET_PATTERNS)
     for pattern, reason in rules:
-        table = CREDENTIAL_BRANCH_CANARIES.get(reason, {})
+        # The LABELS only, in table order - CS-1177: the table itself, and each
+        # canary in it, is read through `_canary` inside the call that needs it.
+        labels = tuple(CREDENTIAL_BRANCH_CANARIES.get(reason, {}))
         try:
             branches = credential_branches(pattern)
         except _PARSE_ERRORS:
@@ -1014,21 +1044,20 @@ def credential_branch_gaps(gate: ModuleType) -> list[str]:
             continue
         for label, narrowed in branches:
             name = reason + " / branch " + label
-            canary = table.get(label)
-            if canary is None:
+            if label not in labels:
                 gaps.append(name + " (no canary)")
-            elif not _flags_own(gate, pattern, reason, canary):
+            elif not _flags_own(gate, pattern, reason, label):
                 gaps.append(name + " (its canary is not flagged)")
             elif (reason, label) in CREDENTIAL_EQUIVALENT_BRANCHES:
-                if not _matches_unsuppressed(gate, narrowed, canary):
+                if not _matches_unsuppressed(gate, narrowed, reason, label):
                     gaps.append(name + " (declared equivalent, but its canary proves it)")
-            elif _matches_unsuppressed(gate, narrowed, canary):
+            elif _matches_unsuppressed(gate, narrowed, reason, label):
                 gaps.append(name + " (its canary is matched without it)")
         derived = {label for label, _ in branches}
-        for label, canary in table.items():
+        for label in labels:
             if label in derived:
                 continue
-            lost = "" if _flags_own(gate, pattern, reason, canary) else ", its canary unflagged"
+            lost = "" if _flags_own(gate, pattern, reason, label) else ", its canary unflagged"
             gaps.append(reason + " / branch " + label + " (no such branch" + lost + ")")
     known = {reason for _, reason in rules}
     gaps.extend(
