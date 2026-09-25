@@ -15,6 +15,7 @@ gone before it returns.
 
 from __future__ import annotations
 
+import ast
 import contextlib
 import json
 import re
@@ -198,3 +199,144 @@ def test_cs1014_an_honest_integer_pid_is_still_rendered(word: str, tmp_path: Pat
 
     flagged = _cycle(_refusing(word, pid=True))
     assert "(pid None)" in flagged["detail"], f"a bool was rendered as a pid on {word}"
+
+
+# ===========================================================================
+# CS-1015 - the refusal vocabulary, DERIVED from lanes.py rather than restated
+# ===========================================================================
+
+#: The emitter, read as SOURCE. Parsed rather than imported and introspected,
+#: because the vocabulary is not a constant `lanes.py` exports - it lives in the
+#: dict literals its refusal builders return - and exporting one would be a
+#: second copy of the same words, which is the defect this item names.
+LANES_SOURCE: Final = ROOT / "ops" / "loop" / "lanes.py"
+
+#: The key a refusal is spelled under, the one literal this arm has to name.
+REFUSED_KEY: Final = "refused"
+
+
+def _is_refused_key(node: ast.AST | None) -> bool:
+    """True when `node` is the literal `"refused"`."""
+    return isinstance(node, ast.Constant) and node.value == REFUSED_KEY
+
+
+def _emitted_refusals(source: str) -> tuple[set[str], list[int]]:
+    """Every `refused` word `source` can emit, and every site it cannot read.
+
+    THREE SPELLINGS of "put a word under `refused`", because the arm must not go
+    green by a refactor that moves the word out of a dict literal: a dict
+    literal key, a `dict(refused=...)` keyword, and a `x["refused"] = ...`
+    subscript store. A value that is not a string literal cannot be derived, so
+    it is returned as an OPAQUE site by line number rather than skipped - an
+    unreadable site is a word this arm cannot vouch for, and it fails closed.
+
+    Args:
+        source: Python source text.
+
+    Returns:
+        The set of literal words, and the line numbers of opaque sites.
+    """
+    words: set[str] = set()
+    opaque: list[int] = []
+
+    def take(value: ast.AST, line: int) -> None:
+        if isinstance(value, ast.Constant) and isinstance(value.value, str):
+            words.add(value.value)
+        else:
+            opaque.append(line)
+
+    for node in ast.walk(ast.parse(source)):
+        if isinstance(node, ast.Dict):
+            for key, value in zip(node.keys, node.values, strict=True):
+                if _is_refused_key(key):
+                    take(value, node.lineno)
+        elif isinstance(node, ast.Call):
+            for keyword in node.keywords:
+                if keyword.arg == REFUSED_KEY:
+                    take(keyword.value, node.lineno)
+        elif isinstance(node, ast.Assign):
+            for target in node.targets:
+                if isinstance(target, ast.Subscript) and _is_refused_key(target.slice):
+                    take(node.value, node.lineno)
+    return words, opaque
+
+
+def _driver_covers(words: set[str]) -> set[str]:
+    """The emitted words the driver does NOT hold. Empty means covered."""
+    return words - set(queue_loop._ACQUIRE_REFUSALS)  # noqa: SLF001 - the contract under test
+
+
+def test_cs1015_every_refused_word_lanes_can_emit_is_one_the_driver_holds() -> None:
+    """THE CONTRACT: `set(_ACQUIRE_REFUSALS)` covers what `lanes.py` emits.
+
+    Measured when this item was filed: renaming the word at the emitter alone
+    left every queue-loop arm passing, because each fake spelled the word again
+    by hand. This arm reads the words OUT OF THE EMITTER, so a rename or a new
+    word there is a word the driver does not hold, and this reddens.
+    """
+    words, opaque = _emitted_refusals(LANES_SOURCE.read_text(encoding="utf-8"))
+
+    # ANTI-VACUITY: an empty derivation covers trivially. The emitter answers
+    # at least the two faults CS-1011 separated, so fewer than two means the
+    # parse is looking in the wrong place, not that the vocabulary shrank.
+    assert len(words) >= len(REFUSAL_WORDS), f"the derivation found too few words: {sorted(words)}"
+    assert opaque == [], f"lanes.py puts a non-literal under 'refused' at lines {opaque}"
+    uncovered = sorted(_driver_covers(words))
+    assert uncovered == [], f"lanes.py emits refusal words the driver does not hold: {uncovered}"
+
+
+def test_cs1015_a_rename_in_a_temp_copy_of_lanes_reddens_the_contract(tmp_path: Path) -> None:
+    """THE RENAME MUTANT, in a TEMP COPY, so the real emitter is never touched.
+
+    Proves the arm above is live against the exact edit the item was filed on:
+    one word renamed at the emitter and nowhere else.
+    """
+    pristine = LANES_SOURCE.read_text(encoding="utf-8")
+    # THE BUILDER'S OWN LINE, anchored on its indentation: the same pair also
+    # appears in `try_acquire_lane`'s docstring, and renaming prose would be a
+    # mutant the AST never sees.
+    old = '\n        "refused": "worktree_in_use",\n'
+    sites = pristine.count(old)
+    assert sites == 1, f"the rename site moved - re-aim the mutant ({sites} matches)"
+    copy = tmp_path / "lanes.py"
+    copy.write_text(
+        pristine.replace(old, '\n        "refused": "worktree_taken",\n'), encoding="utf-8"
+    )
+    mutated = copy.read_text(encoding="utf-8")
+    assert old not in mutated, "THE MUTANT DID NOT APPLY - a green here would measure nothing"
+
+    words, opaque = _emitted_refusals(mutated)
+    assert opaque == []
+    assert _driver_covers(words) == {"worktree_taken"}, "the rename was not seen as uncovered"
+    # AND THE PRISTINE FLOOR IN THE SAME RUN: the same derivation, the real file.
+    assert _driver_covers(_emitted_refusals(pristine)[0]) == set()
+
+
+def test_cs1015_a_new_word_or_an_opaque_value_in_a_temp_copy_reddens(tmp_path: Path) -> None:
+    """GROWTH and INDIRECTION: a third word, and a word the parse cannot read.
+
+    Both spellings a later edit could reach for - a new refusal builder, and a
+    word held in a variable or a subscript store - must fail the contract
+    rather than slip past it.
+    """
+    pristine = LANES_SOURCE.read_text(encoding="utf-8")
+    grown = tmp_path / "lanes_grown.py"
+    grown.write_text(
+        pristine + '\n\ndef _third(state):\n    return {"ok": False, "refused": "lane_retired"}\n',
+        encoding="utf-8",
+    )
+    words, _ = _emitted_refusals(grown.read_text(encoding="utf-8"))
+    assert _driver_covers(words) == {"lane_retired"}, "a new emitter word was not seen"
+
+    indirect = tmp_path / "lanes_indirect.py"
+    indirect.write_text(
+        pristine
+        + "\n\nWORD = 'lane_held'\n\n"
+        + "def _fourth(answer):\n"
+        + "    answer['refused'] = 'lane_parked'\n"
+        + "    return dict(ok=False, refused=WORD)\n",
+        encoding="utf-8",
+    )
+    words, opaque = _emitted_refusals(indirect.read_text(encoding="utf-8"))
+    assert "lane_parked" in _driver_covers(words), "a subscript-store word was not seen"
+    assert len(opaque) == 1, f"a non-literal refusal word was not flagged opaque: {opaque}"
