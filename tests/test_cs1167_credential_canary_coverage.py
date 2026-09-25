@@ -113,10 +113,11 @@ def test_every_secret_rule_has_a_live_canary(reason: str) -> None:
     # CS-1172: every verdict is bound to a scalar before it is asserted, because
     # assertion rewriting renders each call inside an asserted expression -
     # `secret_reasons(canary)` printed the whole canary when this arm failed.
-    canary = OUTBOUND.CREDENTIAL_CANARIES.get(reason)
-    present = canary is not None
+    # CS-1175: and no canary is ever bound to a local of this frame, because
+    # `--showlocals` renders every local of a failing test.
+    present = reason in OUTBOUND.CREDENTIAL_CANARIES
     assert present, "no canary for rule: " + reason
-    flagged = reason in secret_reasons(str(canary))
+    flagged = reason in secret_reasons(OUTBOUND.CREDENTIAL_CANARIES[reason])
     assert flagged, "the canary for this rule is not flagged: " + reason
     named = reason in OUTBOUND.credential_canary_gaps(GATE)
     assert not named, "the gate names it a gap: " + reason
@@ -209,20 +210,34 @@ def test_a_placeholder_suppressed_canary_is_not_live(monkeypatch: pytest.MonkeyP
 # --------------------------------------------------------------------------
 
 
+def refused_lines(reason: str) -> set[int]:
+    """The lines `scan` refuses as credentials in prose carrying this rule's canary.
+
+    A HELPER, so the message is a local of this frame and never of the test's:
+    `--showlocals` renders the locals of a failing test's own frame, and an
+    assertion failing in the test never enters this one. CS-1175.
+    """
+    message = "Status report.\nsee " + OUTBOUND.CREDENTIAL_CANARIES[reason] + " here\n"
+    refusals, _, _ = OUTBOUND.scan(message)
+    return {f.line for f in refusals if f.klass == OUTBOUND.CLASS_CREDENTIAL}
+
+
 @pytest.mark.parametrize("reason", RULE_REASONS)
 def test_scan_refuses_each_canary_in_a_message(
     reason: str, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     """Each canary, inside ordinary prose, yields a credential refusal."""
     pin_environment(monkeypatch, tmp_path)
-    message = "Status report.\nsee " + OUTBOUND.CREDENTIAL_CANARIES[reason] + " here\n"
-    refusals, _, _ = OUTBOUND.scan(message)
-    lines = {f.line for f in refusals if f.klass == OUTBOUND.CLASS_CREDENTIAL}
+    lines = refused_lines(reason)
     assert lines == {2}, "the message carrying this canary was not refused: " + reason
 
 
-def test_cli_refuses_a_message_carrying_every_canary(tmp_path: Path) -> None:
-    """End to end: the CLI refuses, finds one credential per line, echoes none."""
+def run_cli_over_every_canary(tmp_path: Path) -> tuple[int, set[int], int, int]:
+    """Run the CLI on one line per canary: (exit, refused lines, lines, leaked).
+
+    A helper for the same reason as `refused_lines`: the payload and the
+    output carry canaries, so they are locals of this frame only. CS-1175.
+    """
     canaries = [OUTBOUND.CREDENTIAL_CANARIES[reason] for reason in RULE_REASONS]
     payload = "".join("line " + canary + "\n" for canary in canaries)
     env = dict(os.environ)
@@ -238,12 +253,18 @@ def test_cli_refuses_a_message_carrying_every_canary(tmp_path: Path) -> None:
         check=False,
     )
     both = proc.stdout.decode("ascii") + proc.stderr.decode("ascii")
-    assert proc.returncode == OUTBOUND.EXIT_REFUSED, "exit %d" % proc.returncode
     refused = {
         int(match.group(1))
         for match in re.finditer(r"<pii:credential>  line (\d+) col \d+", proc.stderr.decode())
     }
-    assert refused == set(range(1, len(canaries) + 1)), "a canary line was not refused"
     # A COUNT, never the list: a failing `leaked == []` would render the values.
     leaked = sum(1 for canary in canaries if canary in both)
+    return proc.returncode, refused, len(canaries), leaked
+
+
+def test_cli_refuses_a_message_carrying_every_canary(tmp_path: Path) -> None:
+    """End to end: the CLI refuses, finds one credential per line, echoes none."""
+    code, refused, lines, leaked = run_cli_over_every_canary(tmp_path)
+    assert code == OUTBOUND.EXIT_REFUSED, "exit %d" % code
+    assert refused == set(range(1, lines + 1)), "a canary line was not refused"
     assert leaked == 0, "the refusal echoed %d canary value(s)" % leaked

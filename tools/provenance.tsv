@@ -351,6 +351,7 @@ tests/test_cs1166_vendor_prefix_secret.py	authored	CS-1166	first-add:CS-1166
 tests/test_cs1167_credential_canary_coverage.py	authored	CS-1167	first-add:CS-1167
 tests/test_cs1169_placeholder_bounds.py	authored	CS-1169	first-add:CS-1169
 tests/test_cs1172_branch_canaries.py	authored	CS-1172	first-add:CS-1172
+tests/test_cs1175_rule_narrowing.py	authored	CS-1175	stamped
 tests/test_dashboard_probe.py	authored	CS-918	first-add:CS-918
 tests/test_dated_headings.py	authored	CS-840	first-add:CS-840
 tests/test_disposition_sites.py	authored	CS-1121	first-add:CS-1121

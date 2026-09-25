@@ -294,14 +294,25 @@ def test_a_false_equivalence_declaration_is_named(monkeypatch: pytest.MonkeyPatc
     assert matched, "; ".join(gaps)
 
 
+def file_one_canary_twice(
+    monkeypatch: pytest.MonkeyPatch, reason: str, source: str, target: str
+) -> None:
+    """File the canary of branch `source` under branch `target` too.
+
+    CS-1175: a helper, so the canary tables are locals of THIS frame and never
+    of the test's, whose locals `--showlocals` renders when it fails.
+    """
+    table = dict(OUTBOUND.CREDENTIAL_BRANCH_CANARIES)
+    shared = dict(table[reason])
+    shared[target] = shared[source]
+    table[reason] = shared
+    monkeypatch.setattr(OUTBOUND, "CREDENTIAL_BRANCH_CANARIES", table)
+
+
 def test_a_canary_another_branch_matches_is_named(monkeypatch: pytest.MonkeyPatch) -> None:
     """A canary the rule still flags with its branch removed proves nothing."""
     reason = "bearer token"
-    table = dict(OUTBOUND.CREDENTIAL_BRANCH_CANARIES)
-    shared = dict(table[reason])
-    shared["[b]earer"] = shared["[B]earer"]
-    table[reason] = shared
-    monkeypatch.setattr(OUTBOUND, "CREDENTIAL_BRANCH_CANARIES", table)
+    file_one_canary_twice(monkeypatch, reason, "[B]earer", "[b]earer")
     gaps = OUTBOUND.credential_branch_gaps(GATE)
     expected = [reason + " / branch [b]earer (its canary is matched without it)"]
     matched = gaps == expected
@@ -383,6 +394,15 @@ def every_canary() -> list[str]:
     return values
 
 
+def canaries_in(output: str) -> int:
+    """How many canary values appear in `output`, counted in THIS frame.
+
+    CS-1175: a helper, so the values are never a local of a test frame that
+    `--showlocals` would render if the test failed.
+    """
+    return sum(output.count(canary) for canary in every_canary())
+
+
 def child_pytest(tmp_path: Path, args: list[str]) -> tuple[int, str]:
     """Run pytest in a child with `tmp_path` importable; return (code, output)."""
     env = {key: value for key, value in os.environ.items() if not key.startswith("PYTEST_")}
@@ -411,10 +431,9 @@ def test_forced_red_output_renders_no_canary(tmp_path: Path) -> None:
     (tmp_path / "cs1172_forcer.py").write_text(FORCER % str(REPO_ROOT), encoding="ascii")
     leaky = tmp_path / "cs1172_leaky_check.py"
     leaky.write_text(LEAKY % str(OUTBOUND_PATH), encoding="ascii")
-    canaries = every_canary()
 
     code, output = child_pytest(tmp_path, [str(leaky)])
-    control = sum(output.count(canary) for canary in canaries)
+    control = canaries_in(output)
     assert code == 1, "the leaky control did not fail: exit %d" % code
     assert control > 0, "the capture cannot see a rendered canary"
 
@@ -431,7 +450,7 @@ def test_forced_red_output_renders_no_canary(tmp_path: Path) -> None:
     )
     failed = re.search(r"(\d+) failed", output)
     failures = int(failed.group(1)) if failed else 0
-    leaked = sum(output.count(canary) for canary in canaries)
+    leaked = canaries_in(output)
     assert code == 1, "the forced run did not fail: exit %d" % code
     assert failures >= len(GATE.SECRET_PATTERNS), "too few arms went red: %d" % failures
     assert leaked == 0, "the forced-red output rendered %d canary value(s)" % leaked

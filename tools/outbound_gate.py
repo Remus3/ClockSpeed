@@ -81,6 +81,7 @@ from __future__ import annotations
 
 import argparse
 import contextlib
+import difflib
 import importlib.util
 import os
 import re
@@ -316,6 +317,60 @@ CREDENTIAL_EQUIVALENT_BRANCHES: frozenset[tuple[str, str]] = frozenset(
         (_QUOTED_RULE, "auth[\\-]token"),
     }
 )
+
+#: CS-1175. The RECORDED fingerprint of every rule, as
+#: `credential_rule_fingerprint` derives it: the compiled flags, then every
+#: quantifier rendered as source in walk order. A narrowing that is not an
+#: alternation branch - a flag dropped, a word-prefix quantifier dropped or
+#: shortened, a length minimum raised, a class member removed - matched every
+#: canary and kept the row green; a canary cannot see one without encoding the
+#: pristine shape, and derived from the live rule it would be derived from the
+#: narrowed rule. So this pins it: `credential_fingerprint_gaps` names every
+#: difference, and a DELIBERATE change to a rule is re-recorded here by
+#: pasting what that function derives, never by editing a value by hand.
+CREDENTIAL_RULE_FINGERPRINTS: dict[str, tuple[str, ...]] = {
+    "PEM private key block": ("flags UNICODE", "[A-Z0-9 ]{0,32}"),
+    "PuTTY private key file": ("flags UNICODE",),
+    "AWS access key id": ("flags UNICODE", "[0-9A-Z]{16}"),
+    "GitHub token": ("flags UNICODE", "[A-Za-z0-9]{20,}"),
+    "GitHub fine-grained personal access token": ("flags UNICODE", "[A-Za-z0-9_]{20,}"),
+    "Slack token": ("flags UNICODE", "[A-Za-z0-9\\-]{10,}"),
+    "Google API key": ("flags UNICODE", "[A-Za-z0-9_\\-]{35}"),
+    "bearer token": ("flags UNICODE", "\\s+", "[A-Za-z0-9._~+/=\\-]{20,}"),
+    _QUOTED_RULE: (
+        "flags IGNORECASE UNICODE",
+        "[_\\-]?",
+        "s?",
+        "s?",
+        "s?",
+        "s?",
+        "s?",
+        "[_\\-]?",
+        "s?",
+        "[_\\-]?",
+        "s?",
+        "[_\\-]?",
+        "s?",
+        "[_\\-]?",
+        "s?",
+        "\\s*",
+        "\\s*",
+        "[^\"'\\n]{16,}",
+    ),
+    _ENTROPY_RULE: (
+        "flags IGNORECASE UNICODE",
+        "\\w*",
+        "\\w*",
+        "\\s*",
+        "\\s*",
+        "[A-Fa-f0-9]{32,}",
+        "[A-Za-z+/]*",
+        "[A-Za-z0-9+/]*",
+        "[A-Za-z0-9+/]{40,}",
+        "={0,2}",
+    ),
+    _ANT_RULE: ("flags UNICODE", "\\d{2}", "[A-Za-z0-9_\\-]{20,}"),
+}
 
 TOOL = "outbound-gate"
 
@@ -587,12 +642,31 @@ def credential_canary_gaps(gate: ModuleType) -> list[str]:
 
 
 # The standard library's own regex parser and its opcodes, reached by name so no
-# deprecated `sre_parse` import warns on a script run. The branch population is
-# read from the SAME parse `re.compile` performs, so it cannot drift from what
-# the rule matches; if the private API ever moves, `credential_branch_gaps`
-# names every rule underivable rather than calling the row measured.
-_RE_PARSER = importlib.import_module("re._parser")
-_RE_OPS = importlib.import_module("re._constants")
+# deprecated `sre_parse` import warns on a script run. The branch population and
+# the rule fingerprints are read from the SAME parse `re.compile` performs, so
+# they cannot drift from what the rule matches.
+#
+# WHAT A MISSING PRIVATE MODULE DOES, MEASURED 2026-09-24 and not assumed. The
+# pair is one API: if EITHER `re._parser` or `re._constants` cannot be imported,
+# BOTH are bound to None, every `_RE_PARSER.parse` raises AttributeError, and
+# `credential_branch_gaps` and `credential_fingerprint_gaps` name every rule
+# underivable - the gate still runs, prints its coverage block, and reads the
+# credential row UNMEASURED, exit 3 on a clean payload. Before CS-1175 this
+# comment claimed that and the code did not: a bare module-level import raised
+# ModuleNotFoundError at load, so the script died with an interpreter traceback
+# carrying absolute file paths and printed no coverage block at all. A module
+# that is present but whose API moved takes the same `_PARSE_ERRORS` path.
+
+
+def _private_regex_api() -> tuple[Any, Any]:
+    """The private parser and its opcode module, or (None, None) if either is gone."""
+    try:
+        return importlib.import_module("re._parser"), importlib.import_module("re._constants")
+    except ImportError:
+        return None, None
+
+
+_RE_PARSER, _RE_OPS = _private_regex_api()
 
 #: What a drifted private parser API can raise; caught so the row degrades to
 #: UNMEASURED by name instead of the gate crashing.
@@ -653,6 +727,17 @@ def _class_text(members: Sequence[_Node]) -> str:
     return "[" + "".join(parts) + "]"
 
 
+def _in_text(members: Sequence[_Node]) -> str:
+    """A class at one position as regex source; a lone category is written bare.
+
+    A bare word class rather than one in brackets: both parse to the one node, so the round-trip
+    proofs hold either way, and the bare form is what a rule author wrote.
+    """
+    if len(members) == 1 and str(members[0][1]) in _CATEGORY_TEXT:
+        return _CATEGORY_TEXT[str(members[0][1])]
+    return _class_text(members)
+
+
 def _repeat_text(low: int, high: int) -> str:
     """A quantifier as regex source."""
     unbounded = high == _RE_OPS.MAXREPEAT
@@ -682,7 +767,7 @@ def _pattern_text(seq: Iterable[_Node]) -> str:
         if name == "LITERAL":
             out.append(_char_text(int(av), _REGEX_SPECIALS))
         elif name == "IN":
-            out.append(_class_text(av))
+            out.append(_in_text(av))
         elif name == "ANY":
             out.append(".")
         elif name == "FAILURE":
@@ -872,6 +957,152 @@ def credential_branch_gaps(gate: ModuleType) -> list[str]:
     return gaps
 
 
+def _quantifier_nodes(seq: Any, found: list[_Node]) -> None:
+    """Every repeat node under `seq`, in a fixed walk order, lookarounds included."""
+    for op, av in seq:
+        name = str(op)
+        if name in _REPEATS:
+            found.append((op, av))
+            _quantifier_nodes(av[2], found)
+        elif name == "BRANCH":
+            for alt in av[1]:
+                _quantifier_nodes(alt, found)
+        elif name == "SUBPATTERN":
+            _quantifier_nodes(av[-1], found)
+        elif name == "ATOMIC_GROUP":
+            _quantifier_nodes(av, found)
+        elif name in ("ASSERT", "ASSERT_NOT"):
+            _quantifier_nodes(av[1], found)
+
+
+def credential_rule_fingerprint(pattern: re.Pattern[str]) -> tuple[str, ...]:
+    """The rule's compiled flags, then every quantifier as source, in walk order.
+
+    CS-1175. DERIVED from the compiled pattern's own parse, never typed: the
+    first element names every flag set on the compiled pattern, and each
+    further element is one repeat node rendered back to source - so it carries
+    the minimum, the maximum, the greedy or lazy mode, and the class members
+    of what is repeated. Each element is proven to parse back to the very node
+    it came from, or the rule is refused as underivable. Raises one of
+    `_PARSE_ERRORS` if the parser cannot be read.
+    """
+    tree = _RE_PARSER.parse(pattern.pattern, pattern.flags)
+    names = sorted(str(flag.name) for flag in re.RegexFlag if flag.name and pattern.flags & flag)
+    found: list[_Node] = []
+    _quantifier_nodes(tree, found)
+    parts = ["flags " + " ".join(names)]
+    for node in found:
+        rendered = _pattern_text([node])
+        if repr(_RE_PARSER.parse(rendered, pattern.flags).data) != repr([node]):
+            message = "the fingerprint renderer does not reproduce a quantifier of this rule"
+            raise re.error(message)
+        parts.append(rendered)
+    return tuple(parts)
+
+
+def _bound(high: int) -> str:
+    """A quantifier maximum as words."""
+    return "unbounded" if high == _RE_OPS.MAXREPEAT else str(high)
+
+
+def _quantifier_facts(rendered: str, flags: int) -> tuple[str, int, int, str, Any]:
+    """(mode, minimum, maximum, repeated atom, class members or None) of one element."""
+    data = _RE_PARSER.parse(rendered, flags).data
+    if len(data) != 1 or str(data[0][0]) not in _REPEATS:
+        message = "a fingerprint element is not one quantifier"
+        raise re.error(message)
+    op, (low, high, sub) = data[0]
+    items = list(sub)
+    members = None
+    if len(items) == 1 and str(items[0][0]) == "IN":
+        members = frozenset(_class_text([member])[1:-1] for member in items[0][1])
+    return str(op), low, high, _pattern_text(sub), members
+
+
+def _quantifier_changes(old: str, new: str, flags: int) -> list[str]:
+    """What changed between two renderings of the quantifier at one position."""
+    mode0, low0, high0, atom0, members0 = _quantifier_facts(old, flags)
+    mode1, low1, high1, atom1, members1 = _quantifier_facts(new, flags)
+    changes = []
+    if low1 != low0:
+        verb = "raised" if low1 > low0 else "lowered"
+        changes.append("minimum of %s %s %d -> %d" % (old, verb, low0, low1))
+    if high1 != high0:
+        verb = "lowered" if high1 < high0 else "raised"
+        changes.append("maximum of %s %s %s -> %s" % (old, verb, _bound(high0), _bound(high1)))
+    if mode1 != mode0:
+        changes.append("mode of %s changed %s -> %s" % (old, mode0, mode1))
+    if atom1 != atom0:
+        if members0 is not None and members1 is not None:
+            changes.extend(
+                "member %s removed from %s" % (m, old) for m in sorted(members0 - members1)
+            )
+            changes.extend("member %s added to %s" % (m, old) for m in sorted(members1 - members0))
+        else:
+            changes.append("atom of %s is now %s" % (old, atom1))
+    return changes or ["%s is now %s" % (old, new)]
+
+
+def _fingerprint_changes(recorded: Sequence[str], live: Sequence[str], flags: int) -> list[str]:
+    """Name every difference between a recorded fingerprint and the live one."""
+    changes: list[str] = []
+    was = set(recorded[0].split()[1:]) if recorded else set()
+    now = set(live[0].split()[1:])
+    changes.extend("flag %s dropped" % name for name in sorted(was - now))
+    changes.extend("flag %s added" % name for name in sorted(now - was))
+    old, new = list(recorded[1:]), list(live[1:])
+    matcher = difflib.SequenceMatcher(a=old, b=new, autojunk=False)
+    for tag, i1, i2, j1, j2 in matcher.get_opcodes():
+        if tag == "equal":
+            continue
+        if tag == "replace" and i2 - i1 == j2 - j1:
+            for before, after in zip(old[i1:i2], new[j1:j2], strict=True):
+                changes.extend(_quantifier_changes(before, after, flags))
+            continue
+        changes.extend("quantifier %s dropped" % element for element in old[i1:i2])
+        changes.extend("quantifier %s added" % element for element in new[j1:j2])
+    return changes
+
+
+def credential_fingerprint_gaps(gate: ModuleType) -> list[str]:
+    """Every rule whose DERIVED fingerprint differs from its recorded one.
+
+    CS-1175. A rule narrowed without touching a branch - a flag dropped, a
+    quantifier dropped or shortened, a minimum raised, a class member removed -
+    still matched every canary, so nothing reddened. A canary cannot see such a
+    change unless it encodes the rule's PRISTINE shape, and one derived from
+    the live rule is derived from the narrowed rule; so the pin is this
+    fingerprint, and ANY change is named with what changed, to be re-recorded
+    in `CREDENTIAL_RULE_FINGERPRINTS` deliberately. Never carries a canary.
+    """
+    gaps: list[str] = []
+    rules = list(gate.SECRET_PATTERNS)
+    for pattern, reason in rules:
+        try:
+            live = credential_rule_fingerprint(pattern)
+        except _PARSE_ERRORS:
+            gaps.append(reason + " (its fingerprint could not be derived)")
+            continue
+        recorded = CREDENTIAL_RULE_FINGERPRINTS.get(reason)
+        if recorded is None:
+            gaps.append(reason + " (no recorded fingerprint)")
+            continue
+        if tuple(recorded) == live:
+            continue
+        try:
+            changes = _fingerprint_changes(recorded, live, pattern.flags)
+        except _PARSE_ERRORS:
+            changes = ["recorded %s, now %s" % (" | ".join(recorded), " | ".join(live))]
+        gaps.append(reason + " / fingerprint: " + "; ".join(changes))
+    known = {reason for _, reason in rules}
+    gaps.extend(
+        reason + " (fingerprint for no such rule)"
+        for reason in CREDENTIAL_RULE_FINGERPRINTS
+        if reason not in known
+    )
+    return gaps
+
+
 def _canary_row(klass: str, gaps: Sequence[str]) -> Coverage:
     """A canary-derived coverage row that NAMES every uncovered rule."""
     if not gaps:
@@ -950,6 +1181,7 @@ def scan(text: str) -> tuple[list[Finding], list[Finding], list[Coverage]]:
             continue
         if klass == CLASS_CREDENTIAL:
             gaps = credential_canary_gaps(gate) + credential_branch_gaps(gate)
+            gaps += credential_fingerprint_gaps(gate)
             coverage.append(_canary_row(klass, gaps))
             continue
         values, label, hint = populations[klass]
