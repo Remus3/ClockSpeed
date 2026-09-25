@@ -126,7 +126,16 @@ MAX_CONDITIONS_PER_PACKAGE = 32
 
 
 class AuditError(Exception):
-    """The audit could not run; the message says why and names no path."""
+    """The audit could not run; the message says why and names no path.
+
+    The message is carried as :attr:`reason` so the CLI renders that field, not
+    the exception object (CS-1185).
+    """
+
+    def __init__(self, reason: str) -> None:
+        """Keep ``reason`` as the one field the CLI prints."""
+        super().__init__(reason)
+        self.reason = reason
 
 
 class Dist(Protocol):
@@ -664,7 +673,7 @@ def main(argv: list[str] | None = None) -> int:
         lookup = installed if args.metadata is None else metadata_lookup(args.metadata)
         result = audit(args.root, lookup)
     except AuditError as exc:
-        print(f"licence_audit: could not run - {exc}")
+        print(f"licence_audit: could not run - {exc.reason}")
         return EXIT_COULD_NOT_RUN
     print(
         f"licence_audit: python derived {result.python_derived}, recorded "

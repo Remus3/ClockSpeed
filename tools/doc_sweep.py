@@ -263,7 +263,17 @@ _PARK_BASE: Final = 0xE000
 
 
 class CouldNotRunError(Exception):
-    """The sweep could not measure anything; the CLI exits 2."""
+    """The sweep could not measure anything; the CLI exits 2.
+
+    Every raise site builds its message from repo-relative paths and literals
+    only; it is carried as :attr:`reason` so the CLI renders that field, not the
+    exception object (CS-1184).
+    """
+
+    def __init__(self, reason: str) -> None:
+        """Keep ``reason`` as the one field the CLI prints."""
+        super().__init__(reason)
+        self.reason = reason
 
 
 @dataclass(frozen=True)
@@ -906,7 +916,7 @@ def main(
     try:
         report = sweep(args.root, check_urls=args.urls, fetch=fetch)
     except CouldNotRunError as error:
-        print(f"doc_sweep: could not run: {error}", file=sys.stderr)
+        print(f"doc_sweep: could not run: {error.reason}", file=sys.stderr)
         return EXIT_COULD_NOT_RUN
     _print_report(report)
     return EXIT_FINDINGS if report.findings else EXIT_CLEAN
