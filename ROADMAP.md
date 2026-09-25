@@ -333,16 +333,10 @@ CS-824 - `.githooks/pre-push` proves pytest RAN but not that it DID ANY WORK - a
 CS-700 - Phase 7 gate: the tier-3 flip checklist from CONVENTIONS section 17 - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-953 - a history scrub keyed on paths as they exist at HEAD leaves every PRE-MOVE path unrenamed - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-955 - the pre-commit gate has CS-954's shape one level down - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
-CS-1018 - lane run `62f29b90` on the 2026-09-10 night started 262.5s after its predecessor where every other gap is 47.9 to 70.4s, and left no worker log at all - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1032 - `tests/surface/panel_harness.py`'s DOM stand-in has no known-good browser control anywhere in the repo - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1158 - a pruned save file's FILENAME reaches the rendered skip list and the `--json` payload of `tools/drift_guard.py`, and a save filename carries the world name - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1174 - `PLACEHOLDER_RE` treats a non-ASCII letter as a delimiter, and no behavioural arm puts a digit beside a member - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1183 - the seven tier-3 flip checks have no runnable job - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
-CS-1184 - no orphan or staleness sweep and no anchor check over tracked markdown - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
-CS-1185 - the third-party licence audit covers Electron only - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1186 - README.md has never been walked from zero to a first result - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1187 - the clean-checkout probe has never run on a machine that has never seen the project - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
 CS-1188 - the tracked-file walk arm fails in every linked worktree, because `.git` is a file there - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
-CS-1189 - the map endpoint serves the save's `ItemTotal.item_key` text verbatim with no closed-vocabulary check - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
-CS-1190 - the CS-700 flip plan does not quiesce other pushers - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
-CS-1191 - under colour output or xdist at `-vv`, the pytest report renders the Windows account name - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`

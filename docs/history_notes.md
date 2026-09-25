@@ -24,6 +24,251 @@ Where current truth actually lives:
 | Commands and runbooks | `docs/OPERATIONS.md` |
 
 
+## CS-1190 - item section, CLOSED and relocated from `docs/item_notes/phase7.md` 2026-09-25
+
+**Moved here from `docs/item_notes/phase7.md` when the item closed.**
+The closure record is in `docs/LEDGER.md`.
+
+## CS-1190
+
+### Acceptance
+
+the CS-700 plan stops the headless queue lane - stop sentinel written, and no driver
+verified running - and every other pusher before S7a, and re-checks the remote's refs
+immediately before S12; and S9 is split into named sub-steps, each stating the remote's
+state on a halt at that sub-step and the rule for resuming from it.
+
+### Full headline
+
+the CS-700 flip plan does not quiesce other pushers, and a partial failure inside S9
+leaves the remote in a state the plan does not name
+
+### FILED 2026-09-24, found in wave 1 (session 113)
+
+Nothing in S0 to S12 stops the lane, whose worker prompt `tools/headless-queue.md`
+pushes lane branches at its step 9 on un-rewritten history, nor a push from another
+clone landing after the mirror check before S12. Inside S9 the delete can succeed and
+the recreate fail, or the repository can come up public, and the plan names neither
+state.
+
+## CS-1018 - item section, CLOSED and relocated from `docs/item_notes/phase7.md` 2026-09-25
+
+**Moved here from `docs/item_notes/phase7.md` when the item closed.**
+The closure record is in `docs/LEDGER.md`.
+
+## CS-1018
+
+### Acceptance
+
+the 262.5s gap is attributed to a named cause or the row is shown to be a different failure from the other eleven, with the evidence recorded either way
+
+**RE-SCOPED 2026-09-25 by the merger, on the slice G re-diagnosis filed below. The
+clause above is kept as written and is SUPERSEDED by this paragraph.** The 262.5s gap
+is UNDETERMINABLE from the evidence that survives: the one record that would settle it,
+the driver's own stdout log for that night, was overwritten by a later night. The item
+now requires instead that the driver's own log is RETAINED PER NIGHT, never overwritten,
+so the next such gap can be diagnosed, proven by an arm in which two consecutive nights
+of the driver leave two logs, each holding its own night's output.
+
+### Full headline
+
+lane run `62f29b90` on the 2026-09-10 night started 262.5s after its predecessor where every other gap is 47.9 to 70.4s, and left no worker log at all while being the LONGEST failing row at 3.151s - `_log_path` creates only the directory and the runner creates the file, so an absent log does not place the failure before the spawn, and a pre-spawn failure would be the fastest row rather than the slowest
+
+### FILED 2026-09-25, from the slice G read-only re-diagnosis in wave 1 (session 113)
+
+Filed verbatim except that its own subheadings are demoted one level to sit inside
+this section, and its title line is replaced by the heading above.
+
+Measured 2026-09-24, read-only, slice G, second attempt. The first attempt named host
+memory exhaustion as the likely cause; an adversary refuted that on timing, and the
+refutation is correct - see "Ruled out" below. Nothing was run against the lane.
+
+#### Verdict
+
+**UNDETERMINED. Neither acceptance clause is met.** The gap is not attributed to a named
+cause, and the row is NOT shown to be a different failure from the other eleven - on every
+measure available it is the same failure. What the evidence does settle is recorded below
+so the next reader does not re-derive it.
+
+#### Evidence read
+
+- `ops/loop/reports/queue_loop.jsonl` (gitignored, primary checkout): the 2026-09-10 night
+  is twelve rows. Cycle 1 completed; cycles 2-12 are `launch_failed`, detail
+  `LaneLaunchError`, durations 2.165 to 3.151s. Run 62f29b90 is cycle 8: started
+  23:25:52.394 local, ended 23:25:55.546, duration 3.151s. Cycle 7 ended 23:21:32.702.
+- Gap split: start-to-start 262.5s; END of cycle 7 to START of cycle 8 is 259.7s.
+- Worker logs `ops/loop/reports/lane_queue_<run_id>.log`: eleven of the twelve runs have
+  one, each exactly 134 bytes (header only). 62f29b90 has none.
+- Header-write latency (log mtime minus the row's `started_at`), cycles 2-12 in order:
+  0.145, 0.152, 0.147, 0.220, 0.567, 2.037, (none), 1.984, 1.244, 1.289, 2.210s.
+- Windows event logs, every log with records, 23:10-23:35 that night.
+- Driver code in force that night: `ops/loop/queue_loop.py` at `dd182d7`,
+  `ops/loop/lane_launcher.py` at `dd182d7`, `ops/loop/launch_queue_loop.ps1` at `e0523d8`.
+
+#### What the driver code allows between two cycles
+
+At `dd182d7`, between one cycle's `ended_at` and the next cycle's `started_at`, the driver
+does only: `append_record` (the ledger mutex is bounded at `LEDGER_MUTEX_TIMEOUT_S` = 5.0s,
+then fails open), one `print(..., flush=True)` to stdout, `sleep(settle_s)` with
+`settle_s` = 45, `stop_reason` (three file-existence checks), a uuid, and `clock()`. The CI
+gate's `head_sha()` runs INSIDE a cycle (after `started_at`) and after a cycle only when the
+outcome is `completed`, so it is not in this interval for a `launch_failed` row. The code
+therefore bounds the interval at about 50s. The observed 259.7s leaves about 214.7s that no
+code path accounts for: the driver process was stalled or not scheduled.
+
+#### Base rate
+
+Across all 40 consecutive-cycle pairs in the ledger, unexplained time
+(`next start - prev end - 45 - ci.waited_s`) is 0.7 to 1.7s on every other night, 4.7 to
+22.4s in the back half of the 2026-09-10 night, and 214.7s for this one pair. It is unique.
+
+#### Ruled out
+
+- **Host memory exhaustion as the cause of THIS gap.** The Resource-Exhaustion-Detector
+  events (System 2004, operational 1003; commit charge at 99.95 per cent of the commit
+  limit), the out-of-virtual-memory popup (26) and the error-reporting service stopping on
+  "paging file is too small" (7023) are at 23:28:32-33 and 23:34:36 - two minutes forty
+  AFTER the gap closed, inside the gap before cycle 11. That later gap carries 22.4s of
+  unexplained time, not 214.7s: heavier measured pressure produced a far smaller stall.
+- **System sleep or standby.** No Kernel-Power or power-transition event in any log
+  between 23:10 and 23:35.
+- **A console QuickEdit freeze of the driver's output.** The driver was started by
+  `launch_queue_loop.ps1` as `pythonw` with stdout and stderr redirected to files and a
+  hidden window; there was no console to freeze.
+- **A network wait.** No `gh` or `git` call is on the driver's path between two
+  `launch_failed` cycles (see above).
+- **A different failure for the row itself.** Its outcome, detail and duration match the
+  other ten failed rows. Its missing log fits the same kill: header latency had already
+  reached 2.04s at cycle 7 and 1.98s at cycle 9, against a kill that lands a little after
+  the 2.0s grace, so a start slightly slower than its neighbours puts the kill before the
+  header write. That is consistent with, not proof of, the same mechanism.
+
+#### What remains, and why it cannot be settled now
+
+- Events inside the gap window are only LiveId (23:23:23), Audio (23:23:59), Shell-Core
+  (23:24:58), HelloForBusiness (23:25:11-12) and Crypto-NCrypt (23:25:12, 23:25:46) - signs
+  of interactive activity at the machine, none of which names a stall. A lock or sign-in
+  would be in the Security log, whose oldest record now postdates the night.
+- A python.exe process started at 23:19:51 and was the second-largest committer at 23:28;
+  header latency began climbing at cycle 6 (23:20:37). That is a correlation with rising
+  load, not a cause of a 214s stall that the later, worse pressure did not reproduce.
+- The one record that would settle it - the driver's own stdout log for that night - was
+  overwritten; only a later driver log survives.
+
+#### For the merger
+
+The acceptance clause is UNMET on the evidence that exists. Either close CS-1018 as
+undeterminable, recording the ruled-out list above, or re-scope it. CS-1017, merged in this
+slice, makes the next such row self-describing (`launch_reason`, `launch_waited_s`), which
+is the only instrument that would have discriminated this case.
+
+## CS-1189 - item section, CLOSED and relocated from `docs/item_notes/phase7.md` 2026-09-25
+
+**Moved here from `docs/item_notes/phase7.md` when the item closed.**
+The closure record is in `docs/LEDGER.md`.
+
+## CS-1189
+
+### Acceptance
+
+item keys reaching any surface response are checked against the registry's closed
+vocabulary - an unknown key is flagged per `CLAUDE.md` section 3 rule 7 and never
+echoed raw; an arm plants a home-path-shaped key and an account-shaped key through
+`tests/save/synthetic.py` and asserts neither reaches the `/api/map` body; and
+`MachineState.class_name` gets the same treatment before any route serves it.
+
+### Full headline
+
+the map endpoint serves the save's `ItemTotal.item_key` text verbatim with no
+closed-vocabulary check
+
+### FILED 2026-09-24, found in wave 1 (session 113)
+
+An adversary probe planted a synthetic save carrying a dotless ItemClass shaped like a
+home path, and one shaped like an account id; both reached the map JSON and the repr of
+the route's Response. `ItemTotal` is in `clockspeed/audit/inventory.py` and
+`MachineState` in `clockspeed/audit/machines.py`.
+
+## CS-1191 - item section, CLOSED and relocated from `docs/item_notes/phase7.md` 2026-09-25
+
+**Moved here from `docs/item_notes/phase7.md` when the item closed.**
+The closure record is in `docs/LEDGER.md`.
+
+## CS-1191
+
+### Acceptance
+
+the render-time redaction in `tests/conftest.py` covers the coloured and the
+xdist-verbose report paths, with an arm that runs a child pytest under
+`--color=yes -n 2 -vv` and asserts zero account-name renderings in its output beyond
+the session header CS-447 declares.
+
+### Full headline
+
+under colour output or xdist at `-vv`, the pytest report renders the Windows account
+name, because the highlighted assertion diff wraps each token in terminal escape
+codes and splits a home path before the personal-data redaction reads it
+
+### FILED 2026-09-25, found by the CS-820 closing adjudicator (session 113)
+
+The adjudicator measured 81 account-name occurrences in the highlighted assertion diff
+of an environment mapping, under `--color=yes -vv` and under `-n 2` with `-vv` or
+`-vvv`, and zero credential shapes. The same count reproduced at base `403e775`, so the
+defect is pre-existing and not introduced by CS-820, whose clause is credential shapes
+only. The miss is in `tests/conftest.py::redact_personal_data`, which reads the text
+after the escape codes have split the path; stripping or tolerating the escape codes
+before it matches is the likely repair.
+
+## CS-1184 - item section, CLOSED and relocated from `docs/item_notes/phase7.md` 2026-09-25
+
+**Moved here from `docs/item_notes/phase7.md` when the item closed.**
+The closure record is in `docs/LEDGER.md`.
+
+## CS-1184
+
+### Acceptance
+
+a tool reports every tracked md file reachable from no other tracked file and not
+on a named allowlist, and every fragment matching no heading in its target, each
+proven RED on a synthetic orphan and a synthetic dead anchor; external URLs are
+checked only in the tier-3 job, never on push.
+
+### Full headline
+
+no orphan or staleness sweep and no anchor check over tracked markdown
+
+### FILED 2026-09-24, from the N0 adjudicator ruling at `599528c`
+
+Relative-link resolution is ALREADY covered: `.github/workflows/tier1.yml` step
+`Markdown link check`, present since the first commit, resolves every relative
+markdown link in every tracked `.md` file. It strips fragments, never fetches a URL
+and runs no orphan or staleness sweep. CS-700 S6's sentence saying nothing resolves
+markdown links is false, and the correction is appended beneath it in CS-700. The
+gap this item owns is the narrower remainder of gate item 6.
+
+## CS-1185 - item section, CLOSED and relocated from `docs/item_notes/phase7.md` 2026-09-25
+
+**Moved here from `docs/item_notes/phase7.md` when the item closed.**
+The closure record is in `docs/LEDGER.md`.
+
+## CS-1185
+
+### Acceptance
+
+every runtime and dev dependency in pyproject.toml and shell/package.json, direct
+and transitive, has a CONVENTIONS s14 verdict recorded with its copyright LINE
+read; THIRD_PARTY.md matches that set exactly; a check goes RED on a synthetic
+undeclared dependency. ADR 0013 is consumed, not re-derived.
+
+### Full headline
+
+the third-party licence audit covers Electron only
+
+### FILED 2026-09-24, from the N0 adjudicator ruling at `599528c`
+
+CS-G03 records `docs/adr/0013-electron-licence-gate.md` as the audit's first and
+only verdict. CS-700 S6 names the audit as gate item 3 and no open item builds it.
+
 ## CS-1023 - item section, CLOSED and relocated from `docs/item_notes/phase7.md` 2026-09-25
 
 **Moved here from `docs/item_notes/phase7.md` when the item closed.**
