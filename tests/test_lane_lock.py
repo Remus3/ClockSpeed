@@ -43,6 +43,8 @@ import re
 import shutil
 import subprocess
 import sys
+import tempfile
+import threading
 from collections.abc import Callable
 from datetime import date
 from pathlib import Path
@@ -851,13 +853,17 @@ GRADED_OK: Final = frozenset({REACHABLE_MATCHES, UNREACHABLE_DECLARED})
 FAULT_CITATION: Final = "not exactly one upstream citation"
 FAULT_UNDECLARED: Final = "unreachable and NOT declared GONE"
 FAULT_FALSELY_GONE: Final = "reachable but declared GONE"
-FAULT_DATE: Final = "GONE date is not a real, past, measured date"
+FAULT_DATE: Final = "GONE date is not a real day between the fork arriving and today"
 
 #: The fork's path relative to any tree the reachability walk is pointed at.
 FORK_RELPATH: Final = "ops/loop/winmutex.py"
 
 #: Seconds allowed for each git child this section starts. A hang is RED.
 GIT_TIMEOUT: Final = 30
+
+#: Seconds the whole-history blob stream may run before it is killed, which is RED.
+#: Measured 2026-09-24 on this repository's own history: about five seconds.
+HISTORY_STREAM_TIMEOUT: Final = 300
 
 #: Planted bytes for the throwaway repositories. Neither is real upstream content.
 PLANTED_UPSTREAM: Final = b'"""A planted upstream mutex wrapper."""\n'
@@ -914,56 +920,113 @@ def _owns_history(root: Path) -> bool:
     return top is not None and Path(top.decode("utf-8").strip()).samefile(root)
 
 
-def _history_blobs(root: Path, relpath: str) -> list[str]:
-    """Every blob id ever recorded at ``relpath`` in the history of ``root``."""
-    log = _git_read(
-        root,
-        "log",
-        "--all",
-        "--full-history",
-        "--no-renames",
-        "--format=",
-        "--raw",
-        "--no-abbrev",
-        "--",
-        relpath,
+def _line_ending_digests(body: bytes) -> set[str]:
+    """The sha256 of ``body`` as stored and, for text, in both line-ending forms.
+
+    git stores the LF blob, while a digest measured on a CRLF checkout names
+    the other form; a claim must not escape the grade on its line endings.
+    """
+    forms = {body}
+    if b"\0" not in body and b"\n" in body:
+        lf = body.replace(b"\r\n", b"\n")
+        forms.update((lf, lf.replace(b"\n", b"\r\n")))
+    return {hashlib.sha256(form).hexdigest() for form in forms}
+
+
+def _history_digests(root: Path) -> set[str]:
+    """Digests of EVERY blob reachable from any ref of ``root``, at any path.
+
+    Path-independent on purpose: an upstream vendored under another name, or
+    renamed into place and then edited - the normal way a fork is made - is in
+    this tree's history whatever path it sat at. Objects absent from a shallow
+    or partial clone are skipped, never fetched: absent history is UNREACHABLE.
+    The blob stream is read one object at a time, so memory stays bounded by
+    the largest blob rather than by the whole history.
+    """
+    listing = _git_read(
+        root, "rev-list", "--objects", "--all", "--missing=allow-any", "--no-object-names"
     )
-    blobs: set[str] = set()
-    for line in (log or b"").decode("utf-8").splitlines():
-        if line.startswith(":"):
-            fields = line.split("\t", 1)[0].split()
-            blobs.update(oid for oid in fields[2:4] if oid.strip("0"))
-    return sorted(blobs)
+    if not listing:
+        return set()
+    digests: set[str] = set()
+    expired = threading.Event()
+    with tempfile.TemporaryFile() as oids:
+        oids.write(listing)
+        oids.seek(0)
+        proc = subprocess.Popen(
+            [
+                "git",
+                "--no-replace-objects",
+                "-C",
+                str(root),
+                "cat-file",
+                "--batch=%(objecttype) %(objectsize)",
+            ],
+            stdin=oids,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+            env=_git_child_env(),
+        )
+
+        def _expire() -> None:
+            expired.set()
+            proc.kill()
+
+        watchdog = threading.Timer(HISTORY_STREAM_TIMEOUT, _expire)
+        watchdog.start()
+        try:
+            stream = proc.stdout
+            if stream is None:
+                pytest.fail("git cat-file opened no output stream")
+            while header := stream.readline():
+                fields = header.split()
+                if len(fields) != TWO or not fields[1].isdigit():
+                    continue
+                body = stream.read(int(fields[1]) + 1)[:-1]
+                if fields[0] == b"blob":
+                    digests.update(_line_ending_digests(body))
+        finally:
+            watchdog.cancel()
+            if proc.stdout is not None:
+                proc.stdout.close()
+            proc.wait()
+    if expired.is_set():
+        pytest.fail(f"the history blob stream ran past {HISTORY_STREAM_TIMEOUT}s - never a skip")
+    return digests
 
 
 def _reachable_digests(root: Path, relpath: str) -> frozenset[str]:
-    """The sha256 of every copy of the fork's file this tree can reach.
+    """The sha256 of every copy of an upstream this tree can reach.
 
-    Two sources, both inside the tree: every blob its own history ever
-    recorded at ``relpath``, and every file in its work tree carrying the same
-    basename. A shallow clone or a directory with no history reaches only the
-    second - which is UNREACHABLE for an upstream, never an error.
+    Two sources, both inside the tree: every blob reachable from any of its
+    own refs, at any path, and every file in its work tree carrying the fork's
+    basename - each in both line-ending forms. A shallow clone or a directory
+    with no history of its own reaches only what it actually holds, and an
+    upstream outside that is UNREACHABLE, never an error.
     """
     digests: set[str] = set()
     candidates = [root / relpath]
     if _owns_history(root):
-        for oid in _history_blobs(root, relpath):
-            body = _git_read(root, "cat-file", "blob", oid)
-            if body is not None:
-                digests.add(hashlib.sha256(body).hexdigest())
+        digests.update(_history_digests(root))
         name = Path(relpath).name
         listing = _git_read(root, "ls-files", "-z", "--cached", "--others", "--exclude-standard")
         entries = (listing or b"").decode("utf-8").split("\0")
         candidates.extend(root / entry for entry in entries if entry and Path(entry).name == name)
-    digests.update(_digest(path) for path in candidates if path.is_file())
+    for path in candidates:
+        if path.is_file():
+            digests.update(_line_ending_digests(path.read_bytes()))
     return frozenset(digests)
 
 
-def _grade_fork_record(docstring: str, reachable: frozenset[str], *, today: date) -> str:
+def _grade_fork_record(
+    docstring: str, reachable: frozenset[str], *, today: date, floor: date | None = None
+) -> str:
     """Grade a fork record's upstream claim against what its tree can reach.
 
     Returns ``REACHABLE_MATCHES`` or ``UNREACHABLE_DECLARED`` when the claim
-    holds, and a ``FAULT_*`` string naming how it rotted otherwise.
+    holds, and a ``FAULT_*`` string naming how it rotted otherwise. A GONE date
+    must be a real day no later than ``today`` and, when ``floor`` is known, no
+    earlier than the day the fork file was introduced.
     """
     cited = UPSTREAM_CITATION_RE.findall(docstring)
     declared = GONE_DECLARATION_RE.findall(docstring)
@@ -977,7 +1040,9 @@ def _grade_fork_record(docstring: str, reachable: frozenset[str], *, today: date
         measured = date.fromisoformat(declared[0])
     except ValueError:
         return FAULT_DATE
-    return UNREACHABLE_DECLARED if measured <= today else FAULT_DATE
+    if measured > today or (floor is not None and measured < floor):
+        return FAULT_DATE
+    return UNREACHABLE_DECLARED
 
 
 def _fork_docstring(cited: str, *, gone: str | None) -> str:
@@ -1015,22 +1080,46 @@ def _plant_repo(root: Path, *versions: bytes, relpath: str = FORK_RELPATH) -> Pa
     for index, body in enumerate(versions):
         target.write_bytes(body)
         _plant_git(root, "add", "--", relpath)
-        _plant_git(
-            root,
-            "-c",
-            "user.name=fixture",
-            "-c",
-            "user.email=fixture@example.invalid",
-            "-c",
-            "core.hooksPath=",
-            "-c",
-            "commit.gpgsign=false",
-            "commit",
-            "-q",
-            "-m",
-            f"version {index}",
-        )
+        _plant_commit(root, f"version {index}")
     return root
+
+
+def _plant_commit(root: Path, message: str) -> None:
+    """Commit whatever is staged in a throwaway tree, hooks and signing off."""
+    _plant_git(
+        root,
+        "-c",
+        "user.name=fixture",
+        "-c",
+        "user.email=fixture@example.invalid",
+        "-c",
+        "core.hooksPath=",
+        "-c",
+        "commit.gpgsign=false",
+        "commit",
+        "-q",
+        "-m",
+        message,
+    )
+
+
+def _fork_introduced_on(root: Path, relpath: str) -> date | None:
+    """The day the commit that introduced the fork file was made, or None.
+
+    The earliest ADD of ``relpath`` in the history of ``root``, following
+    renames, so a fork made by renaming the upstream into place dates from the
+    upstream's arrival. None when there is no history of its own to ask, and
+    None for a SHALLOW clone: its boundary commit reports every file as added
+    on the day of that commit, which is not when anything was introduced.
+    """
+    if not _owns_history(root):
+        return None
+    shallow = _git_read(root, "rev-parse", "--is-shallow-repository")
+    if shallow is None or shallow.strip() != b"false":
+        return None
+    log = _git_read(root, "log", "--diff-filter=A", "--follow", "--format=%cs", "--", relpath)
+    days = (log or b"").decode("utf-8").split()
+    return date.fromisoformat(days[-1]) if days else None
 
 
 def _planted_upstream_digest() -> str:
@@ -1051,7 +1140,8 @@ def test_the_forked_mutex_wrapper_names_the_upstream_it_forked_from() -> None:
     docstring = ast.get_docstring(ast.parse(WINMUTEX_SOURCE.read_text(encoding="utf-8"))) or ""
     cited = UPSTREAM_CITATION_RE.findall(docstring)
     reachable = _reachable_digests(REPO_ROOT, FORK_RELPATH)
-    state = _grade_fork_record(docstring, reachable, today=date.today())
+    floor = _fork_introduced_on(REPO_ROOT, FORK_RELPATH)
+    state = _grade_fork_record(docstring, reachable, today=date.today(), floor=floor)
     verdict = (cited == [UPSTREAM_WINMUTEX_DIGEST], state in GRADED_OK, state)
     assert verdict == (True, True, state)
 
@@ -1116,8 +1206,9 @@ def test_a_shallow_clone_counts_the_upstream_as_unreachable_not_as_a_failure(
     undeclared = _grade_fork_record(
         _fork_docstring(upstream, gone=None), shallow_reachable, today=date.today()
     )
-    verdict = (full_reaches, upstream in shallow_reachable, declared, undeclared)
-    assert verdict == (True, False, UNREACHABLE_DECLARED, FAULT_UNDECLARED)
+    no_floor = _fork_introduced_on(shallow, FORK_RELPATH) is None
+    verdict = (full_reaches, upstream in shallow_reachable, declared, undeclared, no_floor)
+    assert verdict == (True, False, UNREACHABLE_DECLARED, FAULT_UNDECLARED, True)
 
 
 def test_a_directory_inside_another_repository_borrows_none_of_its_history(
@@ -1146,8 +1237,77 @@ def test_a_tree_with_no_history_counts_the_upstream_as_unreachable(tmp_path: Pat
     reachable = _reachable_digests(tmp_path / "bare_tree", FORK_RELPATH)
     docstring = _fork_docstring(_planted_upstream_digest(), gone=MEASURED_ON)
     state = _grade_fork_record(docstring, reachable, today=date.today())
-    verdict = (reachable == {hashlib.sha256(PLANTED_FORK).hexdigest()}, state)
+    verdict = (hashlib.sha256(PLANTED_FORK).hexdigest() in reachable, state)
     assert verdict == (True, UNREACHABLE_DECLARED)
+
+
+def test_an_upstream_stored_under_another_path_is_reachable(tmp_path: Path) -> None:
+    """Reach is PATH-INDEPENDENT: a vendored copy anywhere in history is in reach.
+
+    The upstream is committed under an unrelated path and then deleted, while the
+    fork lives at its own path the whole time. Its blob is in this tree's
+    history, so declaring it GONE is a lie and must be red.
+    """
+    repo = _plant_repo(tmp_path / "repo", PLANTED_FORK)
+    vendored = repo / "vendor" / "upstream_mutex.py"
+    vendored.parent.mkdir()
+    vendored.write_bytes(PLANTED_UPSTREAM)
+    _plant_git(repo, "add", "--", "vendor")
+    _plant_commit(repo, "vendor the upstream")
+    _plant_git(repo, "rm", "-q", "--", "vendor/upstream_mutex.py")
+    _plant_commit(repo, "drop the vendored copy")
+    reachable = _reachable_digests(repo, FORK_RELPATH)
+    docstring = _fork_docstring(_planted_upstream_digest(), gone=MEASURED_ON)
+    state = _grade_fork_record(docstring, reachable, today=date.today())
+    assert state == FAULT_FALSELY_GONE
+
+
+def test_an_upstream_renamed_into_place_then_edited_is_reachable(tmp_path: Path) -> None:
+    """The normal way a fork is made: move the upstream in, then change it."""
+    repo = _plant_repo(tmp_path / "repo", PLANTED_UPSTREAM, relpath="ops/winmutex_upstream.py")
+    (repo / FORK_RELPATH).parent.mkdir(parents=True)
+    _plant_git(repo, "mv", "ops/winmutex_upstream.py", FORK_RELPATH)
+    (repo / FORK_RELPATH).write_bytes(PLANTED_FORK)
+    _plant_git(repo, "add", "-A")
+    _plant_commit(repo, "fork it")
+    reachable = _reachable_digests(repo, FORK_RELPATH)
+    docstring = _fork_docstring(_planted_upstream_digest(), gone=MEASURED_ON)
+    state = _grade_fork_record(docstring, reachable, today=date.today())
+    assert state == FAULT_FALSELY_GONE
+
+
+def test_an_upstream_digest_taken_over_crlf_bytes_is_reachable(tmp_path: Path) -> None:
+    """A digest measured on a CRLF checkout still names the LF blob git stores."""
+    repo = _plant_repo(tmp_path / "repo", PLANTED_UPSTREAM, PLANTED_FORK)
+    crlf = hashlib.sha256(PLANTED_UPSTREAM.replace(b"\n", b"\r\n")).hexdigest()
+    reachable = _reachable_digests(repo, FORK_RELPATH)
+    state = _grade_fork_record(
+        _fork_docstring(crlf, gone=MEASURED_ON), reachable, today=date.today()
+    )
+    assert state == FAULT_FALSELY_GONE
+
+
+def test_a_gone_date_before_the_fork_file_was_introduced_is_red(tmp_path: Path) -> None:
+    """GONE cannot have been measured before the fork it describes existed.
+
+    The floor is the day of the commit that introduced the fork file. A date
+    below it is a lie only the byte pin would otherwise notice; the floor
+    itself is accepted, which proves the bound is inclusive rather than shut.
+    """
+    repo = _plant_repo(tmp_path / "repo", PLANTED_FORK)
+    floor = _fork_introduced_on(repo, FORK_RELPATH)
+    assert floor is not None
+    upstream = _planted_upstream_digest()
+    early = _grade_fork_record(
+        _fork_docstring(upstream, gone="1999-01-01"), frozenset(), today=date.today(), floor=floor
+    )
+    on_floor = _grade_fork_record(
+        _fork_docstring(upstream, gone=floor.isoformat()),
+        frozenset(),
+        today=date.today(),
+        floor=floor,
+    )
+    assert (early, on_floor) == (FAULT_DATE, UNREACHABLE_DECLARED)
 
 
 @pytest.mark.parametrize(
