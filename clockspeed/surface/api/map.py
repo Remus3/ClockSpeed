@@ -3,7 +3,8 @@
 Owns (BOOTSTRAP.md section 7.1): the JSON rendering of one
 ``clockspeed.audit.placement.WorldPlacement`` and one
 ``clockspeed.audit.inventory.WorldInventory``, joined against the normalized
-registry for display names and extraction rates, and nothing else. It computes
+registry for display names, extraction rates and the closed item-key
+vocabulary, and nothing else. It computes
 nothing, it opens nothing, and it obtains both inputs through the providers the
 server binds into it rather than by reading a save or the install.
 
@@ -102,9 +103,28 @@ AN AUDIT WARNING KEEPS ITS OWN SOURCE. ``clockspeed/audit/`` does not know an
 endpoint exists, so its advisories arrive under the sources ``placement`` and
 ``inventory`` and are served with those verbatim. Remapping them to ``map`` would
 destroy the one field that says which layer flagged the thing. Only a warning
-THIS module raises carries :data:`SOURCE_MAP`, and the three it can raise are all
+THIS module raises carries :data:`SOURCE_MAP`, and the four it can raise are all
 about the registry join, which is the only thing this module does that the layers
 below cannot see.
+
+AN ITEM KEY IS SERVED ONLY WHEN THE REGISTRY NAMES IT (CS-1189). An item key is
+whatever string a save's ``ItemClass`` carried, reduced by
+``clockspeed.audit.placement.class_name_of_path`` - which returns a DOTLESS
+string unchanged, so a key shaped like a home path or a platform account id
+survives as a "class name". :func:`closed_key` is a membership lookup against
+the registry's closed vocabulary, the same kind of join as
+:func:`display_name_of`: a key the registry names ships, and a key it does not
+name is withheld with its row and counted under
+:data:`WARN_ITEM_KEY_UNKNOWN` - flagged and skipped, the key text never echoed
+(non-negotiable 7). With NO registry there is no vocabulary at all, so every key
+is withheld and :data:`WARN_REGISTRY_UNAVAILABLE` says why: failing closed is
+the only direction that cannot publish an account directory. A placement's
+``class_name`` needs no second check here because ``clockspeed/audit/`` admits
+one only through a closed allowlist of its own - measured, not assumed, in
+``tests/surface/test_map_vocabulary.py``. ``MachineState.class_name`` is served
+by no route; the same file fails the day a surface module imports
+``clockspeed.audit.machines`` and reads that field other than through
+:func:`closed_key`.
 
 NO WORLD IS 503, NEVER 501, for the reason ``clockspeed/surface/api/world.py``
 states at length: the save layer is written and works, and what is absent is its
@@ -174,8 +194,10 @@ __all__ = [
     "WARNING_KEYS",
     "WARNING_SOURCES",
     "WARN_EXTRACTION_RATE_UNAVAILABLE",
+    "WARN_ITEM_KEY_UNKNOWN",
     "WARN_NO_MODELLED_EXTRACTOR_BUILT",
     "WARN_REGISTRY_UNAVAILABLE",
+    "closed_key",
     "display_name_of",
     "make_handler",
     "routes",
@@ -195,7 +217,7 @@ METHOD_GET: Final = "GET"
 #: than mis-render one. An INTEGER, because a count is exact.
 SCHEMA: Final = 1
 
-#: Which layer noticed a warning this module raised. The three codes below are
+#: Which layer noticed a warning this module raised. The four codes below are
 #: the only ones that carry it - see the module docstring on why an audit warning
 #: keeps ``placement`` or ``inventory`` instead.
 SOURCE_MAP: Final = "map"
@@ -210,9 +232,10 @@ WARNING_SOURCES: Final = (
 )
 
 #: There is no registry on this machine, so no rate and no display name could be
-#: joined onto anything. The placement, the counts, the bounds and the inventory
-#: are all still true, which is why this is a warning inside a 200 rather than a
-#: refusal.
+#: joined onto anything, and no item key can be shown to be publisher content -
+#: so every item total is withheld (see :func:`closed_key`). The placement, the
+#: counts and the bounds are all still true, which is why this is a warning
+#: inside a 200 rather than a refusal.
 WARN_REGISTRY_UNAVAILABLE: Final = "registry-unavailable"
 
 #: A rate could not be derived. Raised when the registry is absent, and raised
@@ -225,6 +248,12 @@ WARN_EXTRACTION_RATE_UNAVAILABLE: Final = "extraction-rate-unavailable"
 #: because the remedy is different: this one is answered by building an extractor
 #: or by modelling one, not by installing the game.
 WARN_NO_MODELLED_EXTRACTOR_BUILT: Final = "no-modelled-extractor-built"
+
+#: An item total's key is not in the registry's closed vocabulary, so the row
+#: was withheld rather than served. Carries the count of withheld totals and
+#: NEVER the key: an unknown key is exactly the string that may be a home path
+#: or an account directory, so naming it here would be the leak this code flags.
+WARN_ITEM_KEY_UNKNOWN: Final = "item-key-unknown"
 
 #: The purity vocabulary, in ascending yield order so a consumer can render the
 #: three in a fixed sequence without sorting strings.
@@ -295,8 +324,9 @@ BOUNDS_KEYS: Final = ("min_x", "max_x", "min_y", "max_y", "min_z", "max_z")
 #: project has not measured. See :func:`_placements` for when each is null.
 PLACEMENT_KEYS: Final = ("class_name", "x", "y", "z", "rotation", "scale")
 
-#: One item total's keys. ``display_name`` is the registry join and is ``null``
-#: when there is no registry or when it holds no descriptor for the key.
+#: One item total's keys. A row is served only when the registry names its
+#: ``item_key`` - see :func:`closed_key` - so ``display_name`` is the verbatim
+#: descriptor name, which may be the empty string the document carries.
 INVENTORY_KEYS: Final = ("item_key", "display_name", "count")
 
 #: One throughput row's keys. ``per_minute_normal`` is exact and derived;
@@ -379,13 +409,37 @@ def _scaling() -> dict[str, str]:
     return {purity: _exact_string(PURITY_SCALING[purity]) for purity in PURITIES}
 
 
+def closed_key(vocabulary: Mapping[str, object] | None, key: str) -> str | None:
+    """Admit a save-derived key only when a closed vocabulary names it.
+
+    A MEMBERSHIP LOOKUP, THE SAME KIND OF JOIN AS :func:`display_name_of`, and
+    never a computation: nothing is reduced, trimmed, matched by prefix or
+    synthesised. A save's string is whatever the file carried, and on this
+    machine that file is a personal-data-bearing artifact; only a key the
+    registry itself publishes is known to be publisher content.
+
+    Args:
+        vocabulary: The registry's closed mapping for this kind of key - its
+            ``items`` for an item key - or None when there is no registry.
+        key: The key as the audit layer reduced it.
+
+    Returns:
+        The key when the vocabulary holds it, else None. None ALSO when there is
+        no vocabulary at all: with nothing to check against, nothing is admitted.
+    """
+    if vocabulary is None or key not in vocabulary:
+        return None
+    return key
+
+
 def display_name_of(registry: Registry | None, item_key: str) -> str | None:
     """Look one item's display name up in the registry.
 
-    THE ONE JOIN THIS MODULE PERFORMS, AND IT IS A LOOKUP RATHER THAN A
-    COMPUTATION. A name synthesised from the key would invent a fact the registry
-    does not hold, which is the failure ``clockspeed/data/registry.py`` documents
-    for a defaulted rate wearing a different hat.
+    A JOIN, AND IT IS A LOOKUP RATHER THAN A COMPUTATION - the naming half of
+    the two item joins this module performs, beside :func:`closed_key`. A name
+    synthesised from the key would invent a fact the registry does not hold,
+    which is the failure ``clockspeed/data/registry.py`` documents for a
+    defaulted rate wearing a different hat.
 
     Args:
         registry: The normalized registry, or None when this machine has no
@@ -493,24 +547,43 @@ def _counts(counts: Mapping[str, int]) -> dict[str, int]:
 
 def _inventory(
     items: Sequence[inventory_model.ItemTotal], registry: Registry | None
-) -> list[dict[str, object]]:
-    """Render every item total, with the registry's display name joined on.
+) -> tuple[list[dict[str, object]], list[dict[str, object]]]:
+    """Render every item total the registry names, with its display name joined on.
+
+    THE KEY SERVED IS THE ONE :func:`closed_key` ADMITTED, never the model's own
+    field read a second time. A total whose key the registry does not name is
+    withheld whole - its count under an unnamed row would be a figure about
+    nothing a reader can identify - and counted into one
+    :data:`WARN_ITEM_KEY_UNKNOWN` advisory that carries no key text.
+
+    NO REGISTRY WITHHOLDS EVERY TOTAL AND RAISES NOTHING HERE, because
+    :func:`_throughput` already raises :data:`WARN_REGISTRY_UNAVAILABLE` for
+    that world and a second copy would count one absence twice.
 
     Args:
         items: The totals, sorted by item key by the model that built them.
         registry: The normalized registry, or None.
 
     Returns:
-        One mapping per total, keyed by :data:`INVENTORY_KEYS`.
+        One mapping per admitted total, keyed by :data:`INVENTORY_KEYS`, and
+        the advisories this module raises about the withheld ones.
     """
-    return [
+    if registry is None:
+        return [], []
+    vetted = [(closed_key(registry.items, total.item_key), total.count) for total in items]
+    served: list[dict[str, object]] = [
         {
-            "item_key": total.item_key,
-            "display_name": display_name_of(registry, total.item_key),
-            "count": total.count,
+            "item_key": key,
+            "display_name": display_name_of(registry, key),
+            "count": count,
         }
-        for total in items
+        for key, count in vetted
+        if key is not None
     ]
+    withheld = [count for key, count in vetted if key is None]
+    if withheld:
+        return served, [_warning(WARN_ITEM_KEY_UNKNOWN, len(withheld))]
+    return served, []
 
 
 def _row(class_name: str, built: int, extractor: Extractor) -> dict[str, object]:
@@ -639,6 +712,7 @@ def _body(model: WorldModel, registry: Registry | None) -> dict[str, object]:
     placed = placement_model.placement_of(model)
     held = inventory_model.inventory_of(model)
     served, raised = _throughput(placed, registry)
+    stocked, withheld = _inventory(held.items, registry)
     return {
         "schema": SCHEMA,
         "masked_token": masked_token(model.token),
@@ -650,9 +724,14 @@ def _body(model: WorldModel, registry: Registry | None) -> dict[str, object]:
         "node_counts": _counts(placed.node_counts),
         "built": _placements(placed.built_placements),
         "built_counts": _counts(placed.built_counts),
-        "inventory": _inventory(held.items, registry),
+        "inventory": stocked,
         "throughput": served,
-        "warnings": [*_carried(placed.warnings), *_carried(held.warnings), *raised],
+        "warnings": [
+            *_carried(placed.warnings),
+            *_carried(held.warnings),
+            *raised,
+            *withheld,
+        ],
     }
 
 
