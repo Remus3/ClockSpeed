@@ -300,6 +300,7 @@ tests/solve/__init__.py	authored	CS-1165	first-add:root
 tests/solve/synthetic.py	authored	CS-300	first-add:CS-300
 tests/solve/test_ceiling_fence.py	authored	CS-303	first-add:CS-303
 tests/solve/test_exact.py	authored	CS-300	first-add:CS-300
+tests/solve/test_exponent_owner.py	authored	CS-1030	stamped
 tests/solve/test_optimize.py	authored	CS-300	first-add:CS-300
 tests/solve/test_phase3_gate.py	authored	CS-300	first-add:CS-300
 tests/solve/test_power.py	authored	CS-300	first-add:CS-300
