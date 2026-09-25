@@ -219,6 +219,7 @@ tests/audit/test_footprint.py	authored	CS-1044	first-add:CS-1044
 tests/audit/test_inventory.py	authored	CS-977	first-add:CS-977
 tests/audit/test_machines.py	authored	CS-1041	first-add:CS-1041
 tests/audit/test_network.py	authored	CS-1041	first-add:CS-1041
+tests/audit/test_package_exports.py	authored	CS-1023	stamped
 tests/audit/test_placement.py	authored	CS-977	first-add:CS-977
 tests/bare_path_guard.py	authored	CS-891	first-add:CS-891
 tests/chained_cause_guard.py	authored	CS-857	first-add:CS-857
