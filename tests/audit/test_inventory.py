@@ -356,6 +356,41 @@ def test_the_unread_payload_count_travels_as_the_honest_denominator() -> None:
     assert inventory.WARN_INVENTORY_PAYLOAD_UNREAD in [warning.code for warning in result.warnings]
 
 
+def test_each_count_carrying_warning_serves_the_count_it_aggregates() -> None:
+    # CS-1035. The unread raise and the undecoded raise each pass a count to
+    # ``_warning``, whose default is 1. An arm that grades presence alone stays
+    # green when either argument is dropped, so each served ``.count`` is graded
+    # here against a fixture where the true count is NOT 1 - at 1 the dropped
+    # argument and the default are the same value and the mutant is equivalent.
+    # The two counts are also distinct from each other, so an argument swapped
+    # between the two raises reddens too.
+    model = world(
+        by_record_index={
+            0: entry({"mSyntheticStacks": container(stack("Desc_OreIron_C", 5), None, None, None)}),
+            1: entry({}, payload_read=False),
+            2: entry({}, payload_read=False),
+        }
+    )
+
+    result = inventory.inventory_of(model)
+
+    expected_unread = 2
+    expected_undecoded = 3
+    served = [
+        (warning.code, warning.count)
+        for warning in result.warnings
+        if warning.code
+        in (inventory.WARN_INVENTORY_PAYLOAD_UNREAD, inventory.WARN_INVENTORY_ENTRY_UNDECODED)
+    ]
+    assert served == [
+        (inventory.WARN_INVENTORY_PAYLOAD_UNREAD, expected_unread),
+        (inventory.WARN_INVENTORY_ENTRY_UNDECODED, expected_undecoded),
+    ]
+    # The warning count and the model field are one fact and must not diverge.
+    assert result.unread_payload_count == expected_unread
+    assert result.undecoded_entry_count == expected_undecoded
+
+
 def test_the_container_count_actually_read_travels_beside_the_total() -> None:
     model = world(
         by_record_index={
