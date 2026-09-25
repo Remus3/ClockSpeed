@@ -86,7 +86,7 @@ from __future__ import annotations
 import json
 import re
 from collections.abc import Callable, Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from fractions import Fraction
 from types import MappingProxyType
 from typing import Final, Protocol, runtime_checkable
@@ -531,11 +531,14 @@ class Response:
             than a ``MappingProxyType`` because ``json.dumps`` refuses a
             mappingproxy outright, and an envelope whose own encoder cannot read
             it is worse than one a caller could in principle mutate -
-            :func:`contract_problems` is what catches the mutation.
+            :func:`contract_problems` is what catches the mutation. WITHHELD
+            FROM THE REPR (CS-1024): it is the serialised world answer, and a
+            generated repr rendered it in full - every save-derived string in
+            the body included.
     """
 
     http_status: int
-    payload: Mapping[str, object]
+    payload: Mapping[str, object] = field(repr=False)
 
 
 #: What the server calls once a route matches. The parsed query parameters go
@@ -552,12 +555,15 @@ class Route:
     Attributes:
         method: The HTTP method, uppercase.
         template: The route template, matching :data:`ENDPOINT_PATTERN`.
-        handler: What answers a request that matches both.
+        handler: What answers a request that matches both. WITHHELD FROM THE
+            REPR (CS-1024): a handler is a closure or a partial over whatever
+            the server bound into it, and a partial renders its bound
+            arguments in full.
     """
 
     method: str
     template: str
-    handler: Handler
+    handler: Handler = field(repr=False)
 
 
 @runtime_checkable

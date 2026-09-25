@@ -34,6 +34,7 @@ from __future__ import annotations
 import ast
 import re
 import warnings
+from collections.abc import Mapping
 from dataclasses import fields, is_dataclass
 from functools import partial
 from pathlib import Path
@@ -48,6 +49,8 @@ from clockspeed.save.header import _Cursor as HeaderCursor
 from clockspeed.save.objects import _Cursor as ObjectCursor
 from clockspeed.save.usmap import _Reader as UsmapReader
 from clockspeed.save.workdir import ForbiddenRoot, SaveListing
+from clockspeed.surface.api.contract import Response, Route
+from clockspeed.surface.api.power import _Shaped as PowerShaped
 from clockspeed.surface.config import ServerConfig
 from clockspeed.surface.providers import (
     InstalledRegistryProvider,
@@ -69,6 +72,7 @@ from tests.repr_rendering_guard import (
     R1_LAYERS,
     REPO_ROOT,
     SAVE_LAYER,
+    SURFACE_LAYER,
     ReprCandidate,
     alternate_rendering_methods,
     candidates_in,
@@ -148,6 +152,12 @@ UNGRADED_EXCEPTION_CHANNEL: tuple[str, ...] = (
 #: LEAVING silently, which an adversary produced by widening
 #: ``opaque_class_names``: the population went 43 to 42, one save-layer class
 #: dropped out of grading, and every arm stayed green.
+#:
+#: TWO CS-1024 MODELS ARE ABSENT BY DESIGN. ``Response`` and ``_Shaped`` hold
+#: no rendered field that can disclose once their text-bearing fields are
+#: ``field(repr=False)``, so they leave the population; the forced arms below
+#: construct both with a planted marker, and removing either ``repr=False``
+#: brings the class back here as an arrival AND as a finding.
 RECORDED_POPULATION: tuple[str, ...] = (
     "clockspeed/audit/balance.py::DrawContribution",
     "clockspeed/audit/balance.py::DrawGap",
@@ -221,10 +231,17 @@ RECORDED_POPULATION: tuple[str, ...] = (
     "clockspeed/save/world.py::WorldLoadError",
     "clockspeed/save/world.py::WorldModel",
     "clockspeed/save/world.py::WorldWarning",
+    "clockspeed/surface/api/contract.py::Route",
+    "clockspeed/surface/api/power.py::_PowerParameterError",
+    "clockspeed/surface/api/solve.py::_ParameterError",
+    "clockspeed/surface/config.py::ConfigError",
     "clockspeed/surface/config.py::ServerConfig",
     "clockspeed/surface/providers.py::InstalledRegistryProvider",
     "clockspeed/surface/providers.py::SaveWorldProvider",
     "clockspeed/surface/providers.py::StaticAssets",
+    "clockspeed/surface/server.py::BindError",
+    "clockspeed/surface/server.py::CertificateError",
+    "clockspeed/surface/server.py::DashboardServer",
 )
 
 
@@ -507,12 +524,79 @@ def test_a_plain_string_in_the_audit_layer_is_a_finding() -> None:
     assert [(c.class_name, c.rule) for c in leaking] == [("Note", "R1")]
 
 
-def test_the_audit_layer_is_inside_r1() -> None:
+def test_the_published_path_layers_are_inside_r1() -> None:
     """The reach is a stated constant, and narrowing it is one visible edit."""
     assert SAVE_LAYER in R1_LAYERS
     assert AUDIT_LAYER in R1_LAYERS
-    swept_audit = [m for m in swept_modules() if m.startswith(AUDIT_LAYER)]
-    assert swept_audit, "the sweep walks no audit module at all"
+    assert SURFACE_LAYER in R1_LAYERS
+    for layer in (AUDIT_LAYER, SURFACE_LAYER):
+        swept = [m for m in swept_modules() if m.startswith(layer)]
+        assert swept, f"the sweep walks no module under {layer}"
+
+
+def test_a_plain_string_in_the_surface_layer_is_a_finding() -> None:
+    """R1 REACHES THE SERVING LAYER - the adversary's refutation, as an arm.
+
+    A surface envelope holding a serialised payload renders it through a
+    generated repr exactly as an audit model would; the first CS-1024 draft
+    stopped R1 one layer short of it.
+    """
+    source = (
+        "from dataclasses import dataclass\n"
+        "@dataclass(frozen=True)\n"
+        "class Envelope:\n"
+        "    body: str\n"
+    )
+    module = f"{SURFACE_LAYER}synthetic_corpus.py"
+    found = candidates_in(module, ast.parse(source), opaque_class_names())
+    assert [(c.class_name, c.rule) for c in found if is_finding(c)] == [("Envelope", "R1")]
+
+
+def test_a_field_declared_repr_false_is_not_graded() -> None:
+    """A GENERATED repr SKIPS a ``field(repr=False)``, so the guard does too.
+
+    That is the remedy CS-1024 applies to the surface models, and it only
+    counts if the guard reads it: without this, the fix would be invisible and
+    the only way to go green would be a hand-written ``__repr__``. Both
+    spellings of ``field`` are read, and ``repr=True`` or no ``repr`` keyword
+    at all still renders and stays graded.
+    """
+    source = (
+        "import dataclasses\n"
+        "from dataclasses import dataclass, field\n"
+        "@dataclass(frozen=True)\n"
+        "class Hidden:\n"
+        "    count: int\n"
+        "    body: str = field(repr=False)\n"
+        "    other: str = dataclasses.field(default='', repr=False)\n"
+        "    shown: str = field(default='')\n"
+        "    also_shown: str = field(repr=True)\n"
+    )
+    module = f"{SURFACE_LAYER}synthetic_corpus.py"
+    (hidden,) = candidates_in(module, ast.parse(source), opaque_class_names())
+    assert hidden.graded == ("shown", "also_shown")
+
+
+def test_a_repr_false_field_does_not_excuse_a_hand_written_repr() -> None:
+    """The field keyword speaks for the GENERATED repr only.
+
+    A hand-written ``__repr__`` ignores ``field(repr=False)`` entirely, so a
+    carrier it renders is still ``disclosed`` whatever the field says.
+    """
+    source = (
+        "from dataclasses import dataclass, field\n"
+        "from pathlib import Path\n"
+        "@dataclass(frozen=True, repr=False)\n"
+        "class Loud:\n"
+        "    where: Path = field(repr=False)\n"
+        "    def __repr__(self) -> str:\n"
+        "        return f'Loud({self.where})'\n"
+    )
+    module = f"{SURFACE_LAYER}synthetic_corpus.py"
+    kinds = {
+        c.class_name: c.kind for c in candidates_in(module, ast.parse(source), opaque_class_names())
+    }
+    assert kinds == {"Loud": KIND_DISCLOSED}
 
 
 def test_a_field_clearance_covers_only_the_fields_it_names() -> None:
@@ -542,20 +626,22 @@ def test_a_field_clearance_covers_only_the_fields_it_names() -> None:
 
 
 def test_no_published_path_model_is_exempted_class_wide() -> None:
-    """EVERY AUDIT MODEL IS GRADED PER FIELD, never cleared whole.
+    """EVERY PUBLISHED-PATH MODEL IS GRADED PER FIELD, never cleared whole.
 
-    A class-wide :data:`EXEMPT` entry for an audit model would re-open the
-    exact gap CS-1024 closes: the next field added to it renders unmeasured.
+    A class-wide :data:`EXEMPT` entry for an audit or surface model would
+    re-open the exact gap CS-1024 closes: the next field added to it renders
+    unmeasured.
     """
-    whole = sorted(key for key in EXEMPT if key.startswith(AUDIT_LAYER))
-    assert whole == [], f"audit model(s) exempted class-wide: {whole}"
+    published = (AUDIT_LAYER, SURFACE_LAYER)
+    whole = sorted(key for key in EXEMPT if key.startswith(published))
+    assert whole == [], f"published-path model(s) exempted class-wide: {whole}"
     population, _ = scan_tree()
     rendering = sorted(
-        c.key for c in population if c.module.startswith(AUDIT_LAYER) and c.kind in LEAKING_KINDS
+        c.key for c in population if c.module.startswith(published) and c.kind in LEAKING_KINDS
     )
-    assert rendering, "no audit model renders through a generated repr - the census is blind"
+    assert rendering, "no published-path model renders through a generated repr - census blind"
     unrecorded = sorted(set(rendering) - set(CLEARED_FIELDS))
-    assert unrecorded == [], f"rendering audit model(s) with no field clearance: {unrecorded}"
+    assert unrecorded == [], f"rendering model(s) with no field clearance: {unrecorded}"
 
 
 def test_every_field_clearance_names_a_class_and_states_a_reason() -> None:
@@ -780,6 +866,24 @@ def _install_under(root: Path) -> tuple[Path | None, str]:
     return (root, "test")
 
 
+def _planted_handler(marker: str, params: Mapping[str, str]) -> Response:
+    """Stand in for an endpoint handler, so a bound string reaches a ``Route`` repr.
+
+    A ``functools.partial`` over this renders its bound argument, which is how
+    a real handler that bound a world-derived value would leak through the
+    route table's repr.
+
+    Args:
+        marker: The planted value, bound by the partial.
+        params: The query parameters, unused.
+
+    Returns:
+        A response carrying nothing.
+    """
+    del marker, params
+    return Response(http_status=200, payload={})
+
+
 #: Every carrier-holding class in the population, built with a planted marker.
 #: Hand-written because a constructor signature is not in an annotation, and
 #: cross-checked against the derivation by the coverage arm below.
@@ -822,6 +926,20 @@ FORCED: Final[dict[str, object]] = {
     ),
     "clockspeed/surface/providers.py::StaticAssets": StaticAssets(
         Path(f"C:/Users/{MARKER}/web"), ("app.js",)
+    ),
+    # CS-1024: the three surface models an adversary found rendering a planted
+    # string once R1 reached the surface layer. Not carriers - each holds the
+    # marker in a plain ``str``, a mapping or a bound callable - so the
+    # coverage arm below does not require them; they are here because the
+    # three forced arms are exactly the planted-string proof each one needs.
+    "clockspeed/surface/api/contract.py::Response": Response(
+        http_status=200, payload={"world": MARKER}
+    ),
+    "clockspeed/surface/api/contract.py::Route": Route(
+        method="GET", template="/api/synthetic", handler=partial(_planted_handler, MARKER)
+    ),
+    "clockspeed/surface/api/power.py::_Shaped": PowerShaped(
+        building_key=MARKER, clock=None, recipe_key=MARKER
     ),
 }
 

@@ -22,8 +22,8 @@ THE POPULATION IS DERIVED BY TWO MECHANICAL RULES, NEITHER OF THEM A LIST:
 
   R1  every generated-repr class under any :data:`R1_LAYERS` prefix - the
       layer ``docs/ARCHITECTURE.md`` names as the one that reads a save, and
-      the audit layer whose models are the published path - holding at least
-      one field whose annotation is not provably non-disclosing.
+      the audit and surface layers its content is published through - holding
+      at least one field whose annotation is not provably non-disclosing.
   R2  every generated-repr class anywhere under :data:`SHIPPED_ROOT` holding a
       field annotated with a :data:`CARRIER_TYPES` word.
 
@@ -82,27 +82,27 @@ from tests.assertion_rendering_guard import (
 #: graded on arrival instead of on somebody remembering to add it.
 SAVE_LAYER: Final = "clockspeed/save/"
 
-#: The layer whose models ARE the published path (CS-1024). Every value the
-#: dashboard serves about a world is one of these models, assembled from the
-#: save layer's model and handed to ``clockspeed/surface/`` to serialise.
-#:
-#: WHY THE AUDIT LAYER AND NOT THE SURFACE LAYER TOO - the rule, stated so it
-#: can be refuted. "Every model on the published path" is read as every model
-#: that CARRIES WORLD CONTENT on its way out: a model assembled from a save.
-#: ``CLAUDE.md`` section 2.1 fixes that ``surface/`` never computes, so every
-#: world-derived value a surface class holds arrived inside a save or audit
-#: model already graded under R1; the surface layer's own dataclasses hold
-#: routes, request parameters, server configuration and the serialised
-#: response mapping built FROM those graded models, and R2 still grades every
-#: one of them for a ``bytes`` or ``Path`` carrier. A surface class that
-#: began CACHING a world value in its own ``str`` field would escape R1 - that
-#: residual is the price of this rule and is named here rather than hidden.
+#: The layer that assembles the published models from the save layer's model
+#: (CS-1024). Every value the dashboard serves about a world is one of these.
 AUDIT_LAYER: Final = "clockspeed/audit/"
 
-#: Every prefix R1 grades. A tuple so ``str.startswith`` reads it directly, and
-#: so a narrowing is one visible edit that the membership pin in
-#: ``tests/test_repr_rendering.py`` reddens on.
-R1_LAYERS: Final = (SAVE_LAYER, AUDIT_LAYER)
+#: The layer that serialises and serves them (CS-1024).
+#:
+#: THE RULE, stated so it can be refuted: "every model on the published path"
+#: is every model that CARRIES WORLD CONTENT on its way out, whichever layer
+#: holds it. An earlier draft stopped at the audit layer on the argument that
+#: ``surface/`` never computes, so anything it held had already been graded one
+#: layer down. An adversary refuted that on this rule's own words: the response
+#: envelope holds the SERIALISED payload built from those models, and a
+#: generated repr of the envelope rendered a planted string in full. Grading a
+#: value where it is made does not grade the containers it is later put in.
+SURFACE_LAYER: Final = "clockspeed/surface/"
+
+#: Every prefix R1 grades: the save layer that reads a save, and the two layers
+#: its content travels through on the way to a consumer. A tuple so
+#: ``str.startswith`` reads it directly, and so a narrowing is one visible edit
+#: that the membership pin in ``tests/test_repr_rendering.py`` reddens on.
+R1_LAYERS: Final = (SAVE_LAYER, AUDIT_LAYER, SURFACE_LAYER)
 
 #: Everything shipped. Tests, tools and scripts are not graded here: this item is
 #: about what the PRODUCT renders, and a test that reprs a value is CS-850's and
@@ -305,6 +305,13 @@ CLEARED_FIELDS: Final[Mapping[str, tuple[frozenset[str], str]]] = {
         "decimal_string over finite floats; rotation and scale are _rotation_of "
         "and _scale_of, decimal strings or None. No instance name, no path.",
     ),
+    "clockspeed/surface/api/contract.py::Route": (
+        frozenset({"method", "template"}),
+        "MEASURED at every construction site in the api package: method is a "
+        "module constant HTTP verb and template a module constant route string "
+        "matching ENDPOINT_PATTERN, or a pair from a module-level constant table. "
+        "The handler, which binds whatever the server supplied, is withheld.",
+    ),
     "clockspeed/audit/placement.py::WorldBounds": (
         frozenset({"x", "y", "z"}),
         "Three AxisBounds and nothing else, each graded here on its own entry, "
@@ -379,6 +386,42 @@ def _generating(node: ast.ClassDef) -> bool:
         if (getattr(base, "id", None) or getattr(base, "attr", None)) in GENERATING_BASES:
             return True
     return False
+
+
+def _repr_suppressed_fields(node: ast.ClassDef) -> frozenset[str]:
+    """Fields declared ``field(repr=False)``, which a GENERATED repr skips.
+
+    Read only for a class whose repr is generated: a hand-written ``__repr__``
+    ignores the keyword, so honouring it there would excuse a method that
+    renders the field anyway. Both ``field(...)`` and ``dataclasses.field(...)``
+    are read; only a literal ``False`` suppresses, so anything the AST cannot
+    settle stays graded - the direction that keeps grading.
+
+    Args:
+        node: The class.
+
+    Returns:
+        The suppressed field names.
+    """
+    suppressed: set[str] = set()
+    for item in node.body:
+        if not (
+            isinstance(item, ast.AnnAssign)
+            and isinstance(item.target, ast.Name)
+            and isinstance(item.value, ast.Call)
+        ):
+            continue
+        func = item.value.func
+        if (getattr(func, "id", None) or getattr(func, "attr", None)) != "field":
+            continue
+        for keyword in item.value.keywords:
+            if (
+                keyword.arg == "repr"
+                and isinstance(keyword.value, ast.Constant)
+                and keyword.value.value is False
+            ):
+                suppressed.add(item.target.id)
+    return frozenset(suppressed)
 
 
 @cache
@@ -467,10 +510,17 @@ def candidates_in(module: str, tree: ast.Module, opaque: frozenset[str]) -> list
         if not isinstance(node, ast.ClassDef):
             continue
         fields = declared_fields(node)
+        hidden = (
+            _repr_suppressed_fields(node)
+            if repr_method(node) is None and _generating(node)
+            else frozenset()
+        )
         disclosing: list[str] = []
         carriers: list[str] = []
         tails: list[str] = []
         for name, annotation in fields.items():
+            if name in hidden:
+                continue
             words = annotation_names(annotation)
             is_carrier = bool(words & CARRIER_TYPES)
             if is_carrier:

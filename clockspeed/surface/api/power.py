@@ -98,7 +98,7 @@ for nothing.
 from __future__ import annotations
 
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from fractions import Fraction
 from typing import TYPE_CHECKING, Final
 
@@ -346,9 +346,10 @@ class _Shaped:
         recipe_key: A well-formed identifier, or None when none was stated.
     """
 
-    building_key: str
+    # CS-1024: both keys are caller-typed text and are withheld from the repr.
+    building_key: str = field(repr=False)
     clock: Fraction | None
-    recipe_key: str | None
+    recipe_key: str | None = field(repr=False)
 
 
 def _shaped(parameters: Mapping[str, str]) -> _Shaped:
