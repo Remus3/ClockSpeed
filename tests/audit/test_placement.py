@@ -17,7 +17,7 @@ from __future__ import annotations
 
 import math
 import struct
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from dataclasses import fields, is_dataclass
 from pathlib import Path
 from typing import Final
@@ -700,17 +700,87 @@ def test_no_advisory_claims_a_node_orientation_is_unavailable() -> None:
     assert [code for code in codes if "orientation-unavailable" in code] == [], sorted(codes)
 
 
-#: The two populations ``placement_of`` walks. The orientation rules below hold
-#: identically for both, and the arms that follow drive both, because the
-#: function counts them in two separate loops behind two separate copies of the
-#: same guard - CS-1020, where the node copy was graded by nothing at all.
-POPULATIONS: Final = ("node", "built")
+#: The field-name suffix every population of ``WorldPlacement`` carries.
+_POPULATION_SUFFIX: Final = "_placements"
+
+
+def _published_populations() -> tuple[str, ...]:
+    """The populations ``WorldPlacement`` publishes, read off its own fields.
+
+    Returns:
+        Each ``*_placements`` field's prefix, in field order.
+    """
+    return tuple(
+        field.name.removesuffix(_POPULATION_SUFFIX)
+        for field in fields(placement.WorldPlacement)
+        if field.name.endswith(_POPULATION_SUFFIX)
+    )
+
+
+#: The populations ``placement_of`` walks. The orientation rules below hold
+#: identically for each, and the arms that follow drive each, because the
+#: function counts them in separate loops behind separate copies of the same
+#: guard - CS-1020, where the node copy was graded by nothing at all.
+#:
+#: DERIVED, NOT ENUMERATED (CS-1036). A literal pair here was the defect class
+#: CS-1020 was filed over one level up: a third population the model grew would
+#: have left every parametrized arm green. Read off the model instead, a new
+#: population joins every arm and reddens it until a fixture can build it.
+POPULATIONS: Final = _published_populations()
 
 #: One measured class per population. Distinct on purpose: a helper that fed the
 #: wrong class to the wrong loop would build a world with no placement in it,
 #: and an arm over an empty population passes for that reason alone.
 NODE_CLASS: Final = "BP_ResourceNode_C"
 BUILT_CLASS: Final = "Build_MinerMk1_C"
+
+
+def _node_world(
+    translation: tuple[float, float, float],
+    rotation: tuple[float, float, float, float],
+    scale: tuple[float, float, float],
+) -> WorldModel:
+    """One node placement.
+
+    Args:
+        translation: The placement.
+        rotation: The quaternion, in file order.
+        scale: The per-axis scale.
+
+    Returns:
+        The model.
+    """
+    return world(nodes=(node(NODE_CLASS, translation, rotation=rotation, scale=scale),))
+
+
+def _built_world(
+    translation: tuple[float, float, float],
+    rotation: tuple[float, float, float, float],
+    scale: tuple[float, float, float],
+) -> WorldModel:
+    """One built placement.
+
+    Args:
+        translation: The placement.
+        rotation: The quaternion, in file order.
+        scale: The per-axis scale.
+
+    Returns:
+        The model.
+    """
+    return world(records=(actor(BUILT_CLASS, translation, rotation=rotation, scale=scale),))
+
+
+#: How a fixture builds a one-placement world for each population. HAND-WRITTEN
+#: BECAUSE IT MUST BE - a builder is fixture code - and GRADED against the
+#: model's own population set by
+#: ``test_every_population_the_model_publishes_is_driven_by_a_fixture``, so a
+#: population the model grows has no silent default to fall into. The earlier
+#: cut built every population that was not the node one as a built actor.
+FIXTURE_BUILDERS: Final[Mapping[str, Callable[..., WorldModel]]] = {
+    "node": _node_world,
+    "built": _built_world,
+}
 
 
 def one_placement_world(
@@ -732,9 +802,9 @@ def one_placement_world(
         The model.
     """
     assert population in POPULATIONS, population
-    if population == "node":
-        return world(nodes=(node(NODE_CLASS, translation, rotation=rotation, scale=scale),))
-    return world(records=(actor(BUILT_CLASS, translation, rotation=rotation, scale=scale),))
+    build = FIXTURE_BUILDERS.get(population)
+    assert build is not None, "no fixture builds the population " + population
+    return build(translation, rotation, scale)
 
 
 def placements_in(
@@ -756,7 +826,25 @@ def placements_in(
         That population's rows, in model order.
     """
     assert population in POPULATIONS, population
-    return result.node_placements if population == "node" else result.built_placements
+    selected: tuple[placement.Placement, ...] = getattr(result, population + _POPULATION_SUFFIX)
+    return selected
+
+
+def test_every_population_the_model_publishes_is_driven_by_a_fixture() -> None:
+    """CS-1036. The population set is the model's, and each member has a builder.
+
+    The set is read off the ``*_placements`` fields of ``WorldPlacement``, so a
+    third population the shipped model grows joins every parametrized arm below
+    on its own - and this arm, and every one of those, turns red until a
+    fixture builder exists for it. CS-1020 is what that prevents: the function
+    grew a second loop and a hand-enumerated test population did not follow.
+    """
+    published = _published_populations()
+    assert published != (), "the model publishes no population, so this arm grades nothing"
+    assert published == POPULATIONS, "the arms drive " + str(POPULATIONS)
+
+    unbuilt = [name for name in published if name not in FIXTURE_BUILDERS]
+    assert unbuilt == [], "populations no fixture can build: " + str(unbuilt)
 
 
 @pytest.mark.parametrize("population", POPULATIONS)

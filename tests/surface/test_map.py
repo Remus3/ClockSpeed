@@ -60,6 +60,7 @@ from __future__ import annotations
 
 import ast
 import inspect
+import json
 from fractions import Fraction
 from types import MappingProxyType
 from typing import TYPE_CHECKING, Final
@@ -174,12 +175,6 @@ NODE_SCALE: Final = (0.59375, -2.40625, 4.84375)
 
 ROTATION_COMPONENTS: Final = 4
 SCALE_COMPONENTS: Final = 3
-
-#: Every orientation component the fixture puts on the wire - both rotations and
-#: both scales. CS-1025 requires each of them to be a needle unique to itself,
-#: so that ANY of them is a sound anti-vacuity control rather than only the ones
-#: that happen not to collide today.
-EXPECTED_ORIENTATION_COMPONENTS: Final = 14
 
 #: One node and one built actor survive the allowlist; the third record is a
 #: belt, which the allowlist deliberately excludes.
@@ -615,6 +610,40 @@ def served_body() -> str:
         decode cannot invent a character the wire does not carry.
     """
     return contract.encode(answer(canary_world(), fixture_registry()).payload).decode("ascii")
+
+
+def served_orientation_components(served: str) -> list[str]:
+    """Every orientation component the served body carries, read off its ROWS.
+
+    CS-1036. The count a uniqueness sweep is held to comes from here rather than
+    from a literal, because a literal compared against the length of the fixture
+    tuples grades only that the tuples were typed consistently: no change to the
+    shipped emitter could fail it. A row is any object carrying every published
+    placement key, wherever it sits in the body, and every array in such a row
+    is an orientation block - so a block, a component or a population the
+    endpoint grows is counted here and the sweep reddens until a needle covers
+    it.
+
+    Args:
+        served: The encoded response, decoded.
+
+    Returns:
+        The components, as the strings the wire carries, in body order.
+    """
+    published = frozenset(endpoint.PLACEMENT_KEYS)
+    found: list[str] = []
+    pending: list[object] = [json.loads(served)]
+    while pending:
+        value = pending.pop(0)
+        if isinstance(value, dict) and published <= frozenset(value):
+            for block in value.values():
+                if isinstance(block, list):
+                    found.extend(str(part) for part in block)
+        elif isinstance(value, dict):
+            pending.extend(value.values())
+        elif isinstance(value, list):
+            pending.extend(value)
+    return found
 
 
 def assert_needle_occurrences(served: str, needle: str, expected: int, reason: str) -> None:
@@ -1370,12 +1399,19 @@ def test_every_orientation_needle_is_unique_to_the_value_it_proves() -> None:
     rendered the same substring, so an anti-vacuity control drawn from either
     was satisfied by the other. Pinning only the one call site leaves the next
     author free to pick a colliding component, so the sweep is over EVERY
-    component of both rotations and both scales.
+    component of both rotations and both scales - and, since CS-1036, it is held
+    to the components the served rows actually carry rather than to a literal
+    count, so an orientation the endpoint grows reddens it until a needle
+    covers the new component.
     """
     served = served_body()
     components = BUILT_ROTATION + BUILT_SCALE + NODE_ROTATION + NODE_SCALE
     swept = len(components)
-    assert swept == EXPECTED_ORIENTATION_COMPONENTS, "components swept: " + str(swept)
+    on_the_wire = served_orientation_components(served)
+    carried = len(on_the_wire)
+    assert swept == carried, "components swept: " + str(swept) + " of " + str(carried)
+    unswept = sorted(set(on_the_wire) - {str(part) for part in components})
+    assert unswept == [], "served orientation components no needle covers: " + str(unswept)
 
     ambiguous = [str(part) for part in components if served.count(str(part)) != ONE_OCCURRENCE]
     assert ambiguous == [], "orientation renderings that are not unique on the wire: " + str(
