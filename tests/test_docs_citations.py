@@ -1125,13 +1125,44 @@ def carries_a_citation(text: str) -> bool:
     return any(pattern.search(text) for pattern in JUDGED_SHAPES)
 
 
+#: CS-812 - the finding for a record whose citation needs no forgiveness any more.
+LIVE_AGAIN: Final = "resolves on its own and still carries a disposition - delete the record"
+
+
+def unforgiven_sites(text: str, cited: str, recorded: Disposition) -> list[str]:
+    """CS-812 - the sites of a FORGIVEN citation its record does not name, as findings.
+
+    The two de-duplicating arms answered a forgiven citation by its key alone, so
+    a new site of an adjudicated name came back empty from the ARM and only the
+    module-level site contract saw it. The arm now asks the same identity
+    question :func:`disposition_site_problems` asks, in the arrival direction.
+
+    Args:
+        text: The scoped doc text the arm reads.
+        cited: The disposition key's citation half.
+        recorded: The record found for it.
+
+    Returns:
+        One finding if any site is unnamed by the record, else none.
+    """
+    try:
+        found = citation_site_identities(text, cited)
+    except UnanchoredCitationSiteError as unanchored:
+        return [f"spelled at line {unanchored.line} above the first heading, so no record names it"]
+    arrived = sum((Counter(found) - Counter(recorded.at)).values())
+    return [f"{arrived} site(s) its disposition does not name"] if arrived else []
+
+
 def unresolved_citations(
     doc: str,
     text: str,
     sources: Mapping[str, str],
     dispositions: Mapping[tuple[str, str], Disposition] | None = None,
 ) -> list[tuple[str, str, str]]:
-    """Every citation in one doc that neither resolves nor carries a disposition.
+    """Every citation in one doc that is dead and unforgiven, or whose record is wrong.
+
+    A record is wrong, since CS-812, when the citation resolves on its own or is
+    spelled at a site the record does not name.
 
     Args:
         doc: The repo-relative doc path, used to key
@@ -1152,13 +1183,19 @@ def unresolved_citations(
     """
     table = tables.DISPOSITIONS if dispositions is None else dispositions
     problems: list[tuple[str, str, str]] = []
-    for path, name in citations_in(scoped_text(doc, text)):
-        if resolves(path, name, sources):
-            continue
+    scoped = scoped_text(doc, text)
+    for path, name in citations_in(scoped):
         recorded = table.get((doc, f"{path}::{name}"))
+        if resolves(path, name, sources):
+            if recorded is not None:
+                problems.append((path, name, LIVE_AGAIN))
+            continue
         if recorded is None:
             problems.append((path, name, "dead and carries NO recorded disposition"))
             continue
+        problems += [
+            (path, name, why) for why in unforgiven_sites(scoped, f"{path}::{name}", recorded)
+        ]
         if recorded.kind in (MOVED, RENAMED):
             target_path, _, target_name = recorded.target.partition("::")
             if not resolves(target_path, target_name, sources):
@@ -1655,6 +1692,9 @@ def bare_name_problems(
 ) -> list[tuple[str, str]]:
     """Judge ``test_*`` identifiers carrying no path, in either spelling.
 
+    Since CS-812 a forgiven name is judged per SITE and a record for a name the
+    tree binds again is reported, both here rather than only in a contract.
+
     This is the shape the item calls the most important one to cover: the
     mandatory Verification field spends them inside ``grep -c <name>``, with no
     path attached, and a ``path::name`` scanner is structurally blind to them.
@@ -1687,13 +1727,19 @@ def bare_name_problems(
     problems: list[tuple[str, str]] = []
     seen: set[str] = set()
     for name in judged_bare_names(text):
-        if name in seen or name in known or name in modules:
+        if name in seen:
             continue
         seen.add(name)
         recorded = table.get((doc, name))
+        if name in known or name in modules:
+            if recorded is not None:
+                problems.append((name, LIVE_AGAIN))
+            continue
         if recorded is None:
             problems.append((name, "bound nowhere in the tree and carries NO recorded disposition"))
-        elif recorded.kind in (MOVED, RENAMED):
+            continue
+        problems += [(name, why) for why in unforgiven_sites(text, name, recorded)]
+        if recorded.kind in (MOVED, RENAMED):
             _target_path, _, target_name = recorded.target.partition("::")
             if target_name not in known:
                 problems.append(
@@ -2488,11 +2534,12 @@ def test_a_disposition_keyed_on_the_bare_name_also_forgives_the_elided_site() ->
     DELIBERATE disposition's whole purpose.
     """
     text = (
-        'Verification: `grep -c "test_a_name_that_is_not_bound" x.py` returns 0.\n'
+        '## An entry\n\nVerification: `grep -c "test_a_name_that_is_not_bound" x.py` returns 0.\n'
         "The entry below spends `::test_a_name_that_is_not_bound`.\n"
     )
     key = ("ROADMAP.md", "test_a_name_that_is_not_bound")
-    table = {key: Disposition(DELIBERATE, "", "cited to prove it is dead", ())}
+    at = citation_site_identities(text, key[1])
+    table = {key: Disposition(DELIBERATE, "", "cited to prove it is dead", at)}
 
     assert bare_name_problems("ROADMAP.md", text, [], [], table) == []
     assert len(bare_name_problems("ROADMAP.md", text, [], [], {})) == 1, (
@@ -2811,17 +2858,24 @@ def test_the_domain_excludes_the_dated_archive(tracked: list[str]) -> None:
 # path, which is the shape this project's own TDD rules call out as untested by
 # construction. The controls below reach it with a synthetic table.
 
-_REDIRECT_TEXT: Final = "see `tests/synthetic/test_planted.py::test_a_name_that_is_not_there`\n"
+_REDIRECT_TEXT: Final = (
+    "## E\n\nsee `tests/synthetic/test_planted.py::test_a_name_that_is_not_there`\n"
+)
 _REDIRECT_KEY: Final = (
     "ROADMAP.md",
     "tests/synthetic/test_planted.py::test_a_name_that_is_not_there",
 )
 
 
+def _redirect_at() -> tuple[str, ...]:
+    """The one site of :data:`_REDIRECT_KEY`, so a record names it since CS-812."""
+    return citation_site_identities(_REDIRECT_TEXT, _REDIRECT_KEY[1])
+
+
 def test_a_disposition_whose_target_resolves_forgives_the_citation() -> None:
     table = {
         _REDIRECT_KEY: Disposition(
-            MOVED, "tests/synthetic/test_planted.py::test_a_real_one", "the target is live", ()
+            MOVED, "tests/synthetic/test_planted.py::test_a_real_one", "live", _redirect_at()
         )
     }
 
@@ -2832,7 +2886,7 @@ def test_a_disposition_whose_target_stopped_resolving_is_reported() -> None:
     """The mutant that survived until this test was written."""
     table = {
         _REDIRECT_KEY: Disposition(
-            MOVED, "tests/synthetic/test_planted.py::test_gone_now", "the target rotted", ()
+            MOVED, "tests/synthetic/test_planted.py::test_gone_now", "rotted", _redirect_at()
         )
     }
 
@@ -2845,7 +2899,7 @@ def test_a_disposition_whose_target_stopped_resolving_is_reported() -> None:
 def test_a_disposition_whose_target_file_vanished_is_reported() -> None:
     table = {
         _REDIRECT_KEY: Disposition(
-            MOVED, "tests/synthetic/test_deleted.py::test_a_real_one", "the file is gone", ()
+            MOVED, "tests/synthetic/test_deleted.py::test_a_real_one", "gone", _redirect_at()
         )
     }
 
@@ -2854,11 +2908,12 @@ def test_a_disposition_whose_target_file_vanished_is_reported() -> None:
 
 def test_a_bare_disposition_whose_target_stopped_resolving_is_reported() -> None:
     """The same non-default branch, on the arm that has no path to check."""
-    text = 'Verification: `grep -c "test_a_name_that_is_not_bound" x.py`\n'
+    text = '## E\n\nVerification: `grep -c "test_a_name_that_is_not_bound" x.py`\n'
     key = ("ROADMAP.md", "test_a_name_that_is_not_bound")
+    at = citation_site_identities(text, key[1])
 
-    live = {key: Disposition(RENAMED, "tests/x.py::test_a_real_one", "live", ())}
-    rotted = {key: Disposition(RENAMED, "tests/x.py::test_gone_now", "rotted", ())}
+    live = {key: Disposition(RENAMED, "tests/x.py::test_a_real_one", "live", at)}
+    rotted = {key: Disposition(RENAMED, "tests/x.py::test_gone_now", "rotted", at)}
 
     assert bare_name_problems("ROADMAP.md", text, ["test_a_real_one"], [], live) == []
     assert len(bare_name_problems("ROADMAP.md", text, ["test_a_real_one"], [], rotted)) == 1
@@ -2871,7 +2926,7 @@ def test_a_no_target_disposition_forgives_without_naming_anything() -> None:
     empty target, which would resolve to nothing and report a defect on a
     citation that was deliberately left unassigned.
     """
-    table = {_REDIRECT_KEY: Disposition(NO_TARGET, "", "no test bears this meaning", ())}
+    table = {_REDIRECT_KEY: Disposition(NO_TARGET, "", "no test bears it", _redirect_at())}
 
     assert unresolved_citations("ROADMAP.md", _REDIRECT_TEXT, _CORPUS, table) == []
 

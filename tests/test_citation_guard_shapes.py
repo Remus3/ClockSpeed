@@ -42,7 +42,12 @@ from tests.bare_path_guard import (
     regex_call_sites,
 )
 from tests.test_bare_path_citations import WALK_ROOT, family
-from tests.test_citation_tables import NEWLINE
+from tests.test_citation_tables import DELIBERATE, NEWLINE, NO_TARGET, Disposition, bare_path
+from tests.test_docs_citations import (
+    bare_name_problems,
+    citation_site_identities,
+    unresolved_citations,
+)
 
 # --- CS-811: every shape a judging pattern can be held in -------------------
 
@@ -240,3 +245,109 @@ def test_every_escaping_shape_names_a_live_arm_or_records_why_not() -> None:
 
     assert len(ESCAPING_SHAPES) == _MEASURED_ESCAPING_SHAPES, "CS-811 measured five shapes"
     assert not dangling, f"shapes whose answering arm does not exist here: {dangling}"
+
+
+# --- CS-812: the ARM reports what only a contract used to --------------------
+
+#: The doc every CS-812 control keys its disposition on. Any guarded doc would
+#: do; this one is scoped whole, so the text the arm reads is the text written.
+_DOC: Final = "ROADMAP.md"
+_BARE: Final = "test_a_name_that_is_not_bound"
+
+
+def _full() -> str:
+    """A dead ``path::name`` citation, assembled at call time for :func:`bare_path`'s reason."""
+    return bare_path("tests", "synthetic", "test_planted.py") + "::" + "test_a_name_thats_out"
+
+
+def _entry(heading: str) -> str:
+    """One ledger-shaped entry spelling the bare name and the full citation once each."""
+    return f'## {heading}\n\ngrep -c "{_BARE}" x\nsee `{_full()}`\n\n'
+
+
+def _forgiving(text: str, cited: str, kind: str = DELIBERATE) -> dict[tuple[str, str], Disposition]:
+    """A record forgiving exactly the sites ``cited`` has in ``text`` today."""
+    at = citation_site_identities(text, cited)
+    return {(_DOC, cited): Disposition(kind, "", "adjudicated as dead", at)}
+
+
+def test_the_bare_arm_itself_reports_a_second_site_of_a_forgiven_name() -> None:
+    """A dead name written again under a NEW heading is a new finding, in the arm.
+
+    The record answers the first entry. Before CS-812 the arm asked only whether
+    the NAME was forgiven, so the second entry came back empty from the arm and
+    only the module-level site contract noticed it.
+    """
+    first = _entry("The adjudicated entry")
+    table = _forgiving(first, _BARE)
+    twice = first + _entry("A later entry nobody adjudicated")
+
+    assert bare_name_problems(_DOC, first, [], [], table) == [], (
+        "the record did not forgive the one site it names, so the report below proves nothing"
+    )
+    reported = [name for name, _why in bare_name_problems(_DOC, twice, [], [], table)]
+    assert reported == [_BARE], f"the second site of a forgiven bare name read {reported}"
+
+
+def test_the_path_arm_itself_reports_a_second_site_of_a_forgiven_citation() -> None:
+    """The same arrival, on the ``path::name`` arm, which de-duplicated the same way."""
+    first = _entry("The adjudicated entry")
+    table = _forgiving(first, _full())
+    twice = first + _entry("A later entry nobody adjudicated")
+
+    assert unresolved_citations(_DOC, first, {}, table) == [], (
+        "the record did not forgive the one site it names, so the report below proves nothing"
+    )
+    found = unresolved_citations(_DOC, twice, {}, table)
+    reported = [f"{path}::{name}" for path, name, _why in found]
+    assert reported == [_full()], f"the second site of a forgiven citation read {reported}"
+
+
+def test_a_forgiven_site_above_the_first_heading_is_a_finding_not_an_abort() -> None:
+    """A site with no identity cannot be named by any record, so the arm reports it.
+
+    Raising would take the whole arm down as an ERROR over one doc; forgiving
+    would be the key-only answer CS-812 removed.
+    """
+    text = f'grep -c "{_BARE}" x\n\n## A heading below the site\n'
+    table = {(_DOC, _BARE): Disposition(DELIBERATE, "", "adjudicated as dead", ("x",))}
+
+    found = bare_name_problems(_DOC, text, [], [], table)
+
+    assert [name for name, _why in found] == [_BARE], f"an unanchored forgiven site read {found}"
+    assert "above the first heading" in found[0][1], found[0][1]
+
+
+def test_the_bare_arm_reports_a_forgiven_name_that_has_come_back_to_life() -> None:
+    """A bare disposition for a name the tree binds again forgives nothing, and says so.
+
+    THE PRE-EXISTING HALF OF CS-812. The contract's now-resolves branch is gated
+    on a path separator in the key, so it never fires for a bare key, and the
+    arm skipped every bound name before it looked at the table at all.
+    """
+    text = _entry("The adjudicated entry")
+    table = _forgiving(text, _BARE)
+
+    assert bare_name_problems(_DOC, text, [], [], table) == [], "the control is not clean"
+    revived = [name for name, _why in bare_name_problems(_DOC, text, [_BARE], [], table)]
+    as_module = [name for name, _why in bare_name_problems(_DOC, text, [], [_BARE], table)]
+    assert revived == [_BARE], f"a forgiven name bound again read {revived}"
+    assert as_module == [_BARE], f"a forgiven name that became a module read {as_module}"
+    assert bare_name_problems(_DOC, text, [_BARE], [], {}) == [], (
+        "a live name with no record was reported, so the arm now reports every bound name"
+    )
+
+
+def test_the_path_arm_reports_a_forgiven_citation_that_resolves_again() -> None:
+    """The ``path::name`` twin: a record for a citation that resolves is stale in the arm."""
+    text = _entry("The adjudicated entry")
+    table = _forgiving(text, _full(), NO_TARGET)
+    path, _, name = _full().partition("::")
+    live = {path: f"def {name}() -> None:\n    pass\n"}
+
+    assert unresolved_citations(_DOC, text, {}, table) == [], "the control is not clean"
+    reported = [f"{p}::{n}" for p, n, _why in unresolved_citations(_DOC, text, live, table)]
+    assert reported == [_full()], f"a forgiven citation that resolves again read {reported}"
+    assert unresolved_citations(_DOC, text, live, {}) == [], (
+        "a live citation with no record was reported, so the arm reports every citation"
+    )
