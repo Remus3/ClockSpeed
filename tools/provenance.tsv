@@ -351,6 +351,7 @@ tests/test_archive_rot.py	authored	CS-1165	first-add:root
 tests/test_assertion_rendering.py	authored	CS-850	first-add:CS-850
 tests/test_bare_path_citations.py	authored	CS-891	first-add:CS-891
 tests/test_canary_population.py	authored	CS-1177	stamped
+tests/test_canary_population_forced.py	authored	CS-1193	stamped
 tests/test_chained_cause.py	authored	CS-857	first-add:CS-857
 tests/test_chained_cause_census.py	authored	CS-857	first-add:CS-857
 tests/test_chained_exemption_guard.py	authored	CS-857	first-add:CS-857
