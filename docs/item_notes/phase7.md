@@ -53,42 +53,6 @@ filed 2026-08-22 (session 31) by the CS-702 bypass adversary, each route confirm
 a trailer reaching `main` is caught by something that is not the commit-msg hook, proven by replaying a trailer-bearing commit through each named route and asserting each is caught
 
 
-## CS-811
-
-### NOTE - relocated from `ROADMAP.md` 2026-08-23
-
-NOTE: filed 2026-08-22 (session 31). Detail in this file under **CS-811 - detail**; read it before taking this item.
-
-### detail - relocated from `docs/history_notes.md` 2026-08-23
-
-Relocated from `ROADMAP.md` 2026-08-22 (session 31) for budget, not deleted. The item itself
-stays OPEN in `ROADMAP.md`.
-
-filed 2026-08-22 (session 31) by the verifier of the CS-809 repair, MEASURED with proven-landed mutants. The walk is `name.endswith("_RE") and isinstance(value, re.Pattern)` over module globals, so it sees ONE shape; a pattern named without the suffix, held in a dict or a list, compiled at call time, or an arm judging by substring all escape it, and all five were measured green. Its docstring claims it sees anything the module compiles, which is wider than what it enforces. SECOND HALF, same file: `carries_a_citation` decides carrier-hood by SHAPE, so a doc that merely names a tracked test module becomes a carrier and must be guarded or recorded even when nothing in it can rot - 31 currently-clean tracked docs are one pytest-invocation line away, and `docs/OPERATIONS.md` is the likeliest next. That is the intended forcing function but it is an undisclosed recurring hand edit.
-
-### Acceptance
-
-a judging pattern added in any of the five measured escaping shapes turns `tests/test_docs_citations.py` RED, or each escaping shape is recorded with the reason it cannot be caught
-
-
-## CS-812
-
-### NOTE - relocated from `ROADMAP.md` 2026-08-23
-
-NOTE: filed 2026-08-22 (session 31). Detail in this file under **CS-812 - detail**; read it before taking this item.
-
-### detail - relocated from `docs/history_notes.md` 2026-08-23
-
-Relocated from `ROADMAP.md` 2026-08-22 (session 31) for budget, not deleted. The item itself
-stays OPEN in `ROADMAP.md`.
-
-filed 2026-08-22 (session 31) as the CS-810 repair's disclosed residual plus one PRE-EXISTING defect its verifier found. The arms de-duplicate by name and cannot say which site is new, which is why the site pin sits in a contract test; the consequence is that `bare_name_problems` and `unresolved_citations` return empty on a genuinely new dead citation of a forgiven name. LATENT rather than live - this module is imported by nothing today, measured. SEPARATELY AND PRE-EXISTING, inherited unchanged from `f938062`: a BARE disposition whose forgiven name later becomes LIVE is never reported stale, because the now-resolves-on-its-own branch is gated on the key containing a path separator and so never fires for a bare key. Four bare-keyed entries are affected. Proven by resurrecting a forgiven name as a real def and observing the module stay green.
-
-### Acceptance
-
-an extra site for an already-forgiven citation, and a bare disposition whose name has become live again, are both reported BY THE ARM rather than only by a module-level assertion, or the split is recorded with the reason
-
-
 ## CS-813
 
 ### NOTE - relocated from `ROADMAP.md` 2026-08-23
@@ -1033,46 +997,6 @@ either a commit cannot carry an index the gate did not grade, or the hook refuse
 
 the pre-commit gate has CS-954's shape one level down: it grades THE INDEX at hook time and git then commits from the index, so a stage that lands while the hook runs is committed ungraded - the window is far narrower than pre-push's suite but the mechanism is identical
 
-## CS-1014
-
-### Acceptance
-
-an arm drives a path-shaped `pid` through the refusal seam and asserts it reaches neither `detail` nor the written row, and the arm reddens under `return pid`, with a control proving the plant is potent
-
-### Full headline
-
-`queue_loop._holder_pid`'s type guard is ungraded and the mutation `return pid` survives every arm in the file: the guard exists and is correct, but nothing measures it, and `pid` is interpolated bare into the durable JSONL as `(pid {pid})`, so a path-shaped pid off a hand-edited or older lock file reaches the row - this is the same field-by-field shape as the privacy oracle that passed while a row carried an account name, one field over
-
-## CS-1015
-
-### Acceptance
-
-an arm asserts `set(queue_loop._ACQUIRE_REFUSALS)` covers every `refused` word `ops/loop/lanes.py` can emit, DERIVED from lanes rather than restated, reddening when lanes grows or renames one
-
-### Full headline
-
-the lane refusal vocabulary is an unpinned cross-module string contract: `ops/loop/lanes.py` emits `worktree_in_use`, `ops/loop/queue_loop.py` hardcodes the same literal in `_ACQUIRE_REFUSALS`, and four test fakes spell it again, with no import, no shared constant and no contract arm - measured, renaming the word at the emitter alone leaves all 141 queue-loop arms passing, so a coherent rename silently un-fixes CS-1011
-
-## CS-1016
-
-### Acceptance
-
-one arm acquires a lane for real, has a second lane collide on the same worktree, and asserts the WRITTEN row names the fault and the occupying lane, discharging CS-1015 at the same time
-
-### Full headline
-
-no arm drives a real `lanes.try_acquire_lane` worktree collision into `run_cycle`, so the whole CS-1011 proof rests on hand-built dicts and row fidelity against a real refusal is untested end to end - this matters more than an ordinary coverage gap because CS-1011 exists precisely because the row said one thing while the driver decided another
-
-## CS-1017
-
-### Acceptance
-
-the row carries the consumed wait and the reason word, and an arm shows an early exit and a post-grace kill are one field apart in the written row rather than inferred from a total
-
-### Full headline
-
-a lane cycle row records neither the seconds `proc.wait` actually consumed nor the refusal reason, which is why the 2026-09-11 diagnosis had to invent a duration argument that was then refuted: `runner_exited_early` and a post-grace `repoint_refused` kill are indistinguishable in the record, and `duration_s` is the driver cycle clock while the 2.0s liveness grace is measured from the `Popen`, so the two cannot be compared at all
-
 ## CS-1018
 
 ### Acceptance
@@ -1083,16 +1007,6 @@ the 262.5s gap is attributed to a named cause or the row is shown to be a differ
 
 lane run `62f29b90` on the 2026-09-10 night started 262.5s after its predecessor where every other gap is 47.9 to 70.4s, and left no worker log at all while being the LONGEST failing row at 3.151s - `_log_path` creates only the directory and the runner creates the file, so an absent log does not place the failure before the spawn, and a pre-spawn failure would be the fastest row rather than the slowest
 
-## CS-1022
-
-### Acceptance
-
-`_map_body` is bound to the same two-way guard, proven by a mutant that drops a key from a canned row and fails collection at the named raise
-
-### Full headline
-
-`tests/surface/test_panel_map.py::_map_body` claims to be "shaped exactly as the contract froze it" while carrying 4-key placement rows and no `node_orientation_available`, imports the map endpoint not at all, and binds to neither `PLACEMENT_KEYS` nor `DATA_KEYS` - CS-1013 built `_assert_rows_match` for exactly this drift and left the identical unguarded fixture next door
-
 ## CS-1023
 
 ### Acceptance
@@ -1102,46 +1016,6 @@ the set is completed or the selection rule is written down and enforced by an ar
 ### Full headline
 
 `clockspeed/audit/__init__.py` re-exports an arbitrary subset of the placement warning codes: `WARN_PLACEMENT_ORIENTATION_NON_FINITE`, `WARN_NODE_SEMANTICS_UNAVAILABLE` and `WARN_BUILT_CLASS_NOT_PLOTTED` are absent while two siblings are present, and the omission predates CS-1013 - so the package `__init__` is the arbitrary thing rather than any one slice
-
-## CS-1024
-
-### Acceptance
-
-the census reaches every model on the published path, proven by planting a disclosing `str` field on `Placement` and showing the guard reddens
-
-### Full headline
-
-`clockspeed/audit/placement.py::Placement` carries a GENERATED dataclass repr, now rendering six fields, and is invisible to both PII censuses: R1 in `tests/repr_rendering_guard.py` covers only `clockspeed/save/`, and R2 fires only on a `bytes` or `Path` annotation, so `scan_tree()` holds no `Placement` entry at all - no leak today because the six fields are a class name and decimal strings, but this is the one model on the published path whose repr no guard grades, and the next `str` field added there is unmeasured
-
-## CS-1026
-
-### Acceptance
-
-the three are wrapped, proven by a planted-collision arm asserting nothing threw, the panel was NOT marked failed, AND the solve bench built the planted module's field ids - the third clause is what separates a real proof from an arm that passes because the collision silently did nothing; the measured note is reproduced in the CS-1026 ledger citation, which is where it stays - this line carries no routing field because the item has no section
-
-### Full headline
-
-`panel_solve.js`, `panel_map.js` and `panel_scope.js` declare their helpers in the page's SHARED GLOBAL SCOPE while only `panel_registry.js`, `panel_warnings.js`, `panel_optimize.js` and `panel_power.js` are IIFE-wrapped, leaving the unwrapped three one name collision away from a SILENT wrong-render rather than an error: a redeclaration is silent, a mount closes over the binding rather than a snapshot, and `mountPanel`'s `try` only fires on a throw, so the symptom is a normal-looking bench whose request is permanently refused with a message naming the wrong cause
-
-## CS-1027
-
-### Acceptance
-
-both spellings are added to the planted-positive arm and the arm reddens on each, with the tokenizer sweep kept as the independent control
-
-### Full headline
-
-the panel division detectors miss two real spellings: the `DIVISION` pattern in `tests/surface/test_panel_power.py` and `tests/surface/test_panel_optimize.py` fired on 8 of 10 realistic plantings under an adversarial probe and MISSED `x /= y` and `x / -y`, so the arm that enforces non-negotiable 6 in the render path has two holes in its oracle - neither spelling is present today, proven by an independently written JS tokenizer that found zero bare slashes across both panels and `app.js`, so this is an oracle gap rather than a live defect
-
-## CS-1028
-
-### Acceptance
-
-one owner for the routine or a digit-correctness oracle over every copy, proven by a mutant that corrupts a digit and reddens an arm for each panel
-
-### Full headline
-
-`approximateDecimal` now exists in FOUR panel files and only one copy is graded for correctness: `panel_solve.js`'s copy has a digit oracle in `tests/surface/test_panel_solve.py`, while the copies in `panel_registry.js`, `panel_optimize.js` and `panel_power.js` are graded only for "does not divide" and never for "produces the right digits" - so a silently wrong reading aid in the power bench passes today, which is the silently-wrong half of non-negotiable 7 wearing a helper
 
 ## CS-1030
 
@@ -1162,16 +1036,6 @@ one end-to-end control renders a known panel in a real browser and is compared a
 ### Full headline
 
 `tests/surface/panel_harness.py`'s DOM stand-in has no known-good browser control anywhere in the repo, and every panel verdict in the project rests on it: all 37 arms added for the optimize and power panels, plus every existing panel arm, run under `drive()` against a stand-in that nothing compares to a real browser, so "the page renders X" is a claim about the stand-in and not about the page - this project has already recorded that the dashboard's self-signed HTTPS defeats automation browsers and that browser-pane resize, focus and default key scrolling are silently faked, which is why the gap is unclosed rather than merely unnoticed
-
-## CS-1035
-
-### Acceptance
-
-the count-carrying raises are graded by an arm that reddens when the count argument is dropped, for the unread raise and the undecoded raise both
-
-### Full headline
-
-`clockspeed/audit/inventory.py` carries CS-1020's ungraded-count shape in the module named beside `placement.py`: `_warning` defaults `count=1` and the two raises inside `inventory_of` pass `unread` and `undecoded`, and NO arm anywhere grades any inventory warning's `.count` - the only arm driving the code, `tests/audit/test_inventory.py::test_the_unread_payload_count_travels_as_the_honest_denominator`, asserts presence alone, so deleting the `unread` argument from that raise takes the served count from 2 to 1 under a fixture where `unread == 2` and the whole suite stays green - the `containers_read` and `undecoded` model FIELDS are properly count-graded by `tests/audit/test_inventory.py::test_the_container_count_actually_read_travels_beside_the_total` and `::test_an_undecoded_container_entry_is_counted_rather_than_dropped`, so the defect is confined to the warning counts
 
 ## CS-1158
 
@@ -1200,130 +1064,6 @@ whether a FILENAME is personal data under this repository's own classification, 
 CLAUDE.md does not say in either direction - if the answer is yes for a `.sav` it is
 arguably yes for every path under a directory named for the player, and the answer belongs
 in an ADR rather than in a redaction call site
-## CS-1160
-
-### Acceptance
-
-the fork record for `ops/loop/winmutex.py` either cites an upstream digest that some file
-on this machine actually carries, or states in the file that the upstream it was forked
-from is GONE and gives the date that was measured - and a test grades the claim rather
-than the string, so a provenance line that has rotted cannot read as green. The test must
-distinguish the two states it can be in: an upstream that is REACHABLE and matches, and an
-upstream that is UNREACHABLE from this tree, which is not a failure. It must NOT assert
-merely that the digest string appears in the file, which is what the two arms present
-today do and is why the rot was invisible.
-
-### Full headline
-
-the fork record for `ops/loop/winmutex.py` cites an UPSTREAM digest no file on this machine carries, and the two arms that mention it assert the string is present rather than that the upstream matches - the constant is
-`UPSTREAM_WINMUTEX_DIGEST = f1b4b011112685efb88616c52752657cf896fbb0993b2d2d264e7b3edde8b4f4`
-in the fork-record docstring of `ops/loop/winmutex.py` and at
-`tests/test_lane_lock.py::UPSTREAM_WINMUTEX_DIGEST`, recorded as the upstream
-this tree forked from, and it matches ZERO files on this machine. Measured 2026-09-20 by a census over
-every reachable copy: 51 copies carry `0b112a4f6bfa88cf5f537f8869225c1821ebfe97428b1e899979797ddd71a61e`,
-14 carry this tree's own fork digest `e0d3ac7d9ba0be16dbe27e95354820393b9bf4edd335c97c98b39dfafb662d3f`,
-and none carries `f1b4b011...`. The carriers moved their shared file and this tree's fork
-record still names the version it was cut from, which no longer exists anywhere to compare
-against. A sixth repository published `0b112a4f...` on the note channel on 2026-09-20 as
-the current shared value, which is what prompted the census.
-
-NO ARM BREAKS, AND THAT IS THE POINT. Nothing hashes the upstream. The two arms that
-mention it - `tests/test_lane_lock.py::test_the_forked_mutex_wrapper_names_the_upstream_it_forked_from`
-and `::test_the_derived_bucket_records_the_file_it_was_derived_from` - assert that the digest STRING
-appears in the file's text, which is a presence check on prose. Both stay green while the
-thing the prose describes ceases to exist. This is the same class as a docstring whose
-behavioural claim rotted across a repair: the assertion grades the sentence, not the world
-the sentence is about.
-
-WHAT IS NOT WRONG, recorded so a reader does not go looking for a second defect. The fork
-itself is sound and its own pin is correct: `sha256` of `ops/loop/winmutex.py` computed
-2026-09-20 equals `tests/test_lane_lock.py::FORKED_WINMUTEX_DIGEST`, and
-`python -m pytest tests/test_lane_lock.py -q` is 59 passed, exit 0. The slots digest is
-also fine and was briefly mis-transcribed during this investigation: the derivation
-docstring of `ops/loop/lanes.py`
-and `tests/test_lane_lock.py::UPSTREAM_SLOTS_DIGEST` carry `71fa2a683f2eaa04...`, which is BYTE-EQUAL to the
-value the sixth repository published, and byte-equal to the file that repository carries.
-There is no slots divergence to reconcile.
-
-THE DECISION THE FIX MUST TAKE FIRST, and why this is not a one-line digest bump. Bumping
-`UPSTREAM_WINMUTEX_DIGEST` to `0b112a4f...` would be a LIE of a different shape: this tree
-did not fork from that version, it forked from `f1b4b011...`. A fork record is a statement
-about history, not about the present. The candidate answers are to keep the historical
-digest and add a measured note that it is unreachable, or to record both - what it was cut
-from, and what the carriers hold now - and say which is which. ADR 0017 owns the fork
-decision and is where the answer belongs if it changes that decision's basis.
-## CS-1163
-
-### Acceptance
-
-the citation guard sees a BARE continuation pointer - the `` `:NNN` `` form that follows a
-full `path.ext:NNN` citation in the same sentence - or the repository records, in one
-place with a measured count, that it deliberately does not and why. A test plants a bare
-continuation beside a full pointer and asserts the guard's finding count RISES, with a
-control proving the same run still detects the full pointer, so a guard that silently
-stopped matching either form cannot pass. Widening the pattern is acceptable only with a
-route for every site it newly reddens - the count is 67 and the largest carrier is
-append-only - so the acceptance is met by a widened guard PLUS a discharged census, or by
-a recorded declination that names the number.
-
-### Full headline
-
-the citation guard's `LINE_POINTER_RE` requires a full `path.ext:NNN`, so the BARE
-continuation pointer that follows a full citation in the same sentence is invisible to it,
-and 67 of them sit in the corpus today - the form is `` `:NNN` ``. Confirmed by MEASUREMENT rather
-than by reading, 2026-09-20, during CS-1162: the `## CS-1160` section wrote
-a full pointer at `tests/test_lane_lock.py` followed by a bare continuation, and the
-guard reported the full one and NOT the continuation - while the continuation named a
-live arm, `tests/test_lane_lock.py::test_the_derived_bucket_records_the_file_it_was_derived_from`.
-The two offending pointers are NOT reproduced here in their original form, deliberately:
-this section would otherwise carry the defect it describes, which is one of the ways the
-corpus grew the other 67.
-Both were repaired to symbol form under CS-1162, so the instance is gone and the BLIND
-SPOT is not.
-
-THE CENSUS, measured independently of the slice that found it, over every tracked markdown
-file excluding `.git`, the channel directories and worktrees:
-
-    42  docs/LEDGER.md                                   APPEND-ONLY, unrepairable in place
-    11  docs/_scratch/cs1087_spec.md
-     5  docs/history_notes.md                            HISTORICAL, unrepairable in place
-     4  docs/item_notes/lane-start-failure-record.md
-     2  docs/adr/0016-unlock-arrays-carriers-and-serialized-grammar.md
-     1  docs/adr/0005-overclock-ceiling-source.md
-     1  docs/item_notes/phase4-followups-850.md
-     1  docs/item_notes/phase4-followups.md
-    67  TOTAL across 8 files
-
-**WIDENING THE REGEX WITHOUT A ROUTE FOR THOSE 67 CONVERTS A BLIND SPOT INTO AN UNPAYABLE
-BILL**, which is why this is filed rather than fixed inside CS-1162. Forty-seven of the 67
-are in the two carriers whose own rules forbid editing them in place, so they cannot simply
-be repaired the way CS-1162 repaired the live ones. Every `ARCHIVE_ROT` pin would move at
-the same time, and a pin that moves to accommodate rot is the exemption-by-convenience this
-repository has already recorded against itself.
-
-THE NUMBER IS ALSO A CORRECTION. The slice that found the blind spot reported the census as
-41 in the ledger, 5 in the archive and 4 in one item-notes leaf - three files, about 50
-sites. Re-measured here it is 67 across EIGHT files, and the three the slice did not name
-include two ADRs and a scratch spec carrying 11 on its own. A census quoted from the file
-the finder happened to be reading is not a census.
-
-WHY THE FORM EXISTS AT ALL, because the fix is not simply "ban it". The bare continuation
-is a genuine readability idiom - a full citation followed by a bare line number reads
-better than repeating the path - and it is used deliberately in prose written by this project. A widened guard would
-be asking authors to stop writing English. The candidate answers are therefore to widen the
-pattern and require a full citation, to widen it and resolve a bare `:NNN` against the
-nearest preceding path in the same sentence, or to declare the form out of scope with the
-count recorded. The middle option is the only one that keeps the idiom, and it is also the
-one that can mis-attribute when two different paths are cited in one sentence - which needs
-its own arm.
-
-RELATED AND DELIBERATELY NOT CLOSED BY THIS ITEM. CS-1144 is open on line-pointer rot in
-`docs/LEDGER.md` for a different carrier. CS-1162 closed the symbol-citation rule into the
-ledger's Entry-shape table and repaired the live instances. This item is about what the
-guard can SEE, not about what the rule requires.
-
-
-
 ## CS-1168
 
 ### Acceptance
@@ -1432,72 +1172,6 @@ adjudicator recorded that the measurement does not reach an exception raised ins
 helper frame, whose locals pytest renders under `--showlocals` all the same, and that the
 suites the arm forces red are a hand-kept tuple, so a new canary-bearing module is
 ungraded until someone remembers to add it.
-
-## CS-1178
-
-### Acceptance
-
-a headless run refused by a usage limit - an HTTP 429, or a result carrying an
-`api_error` status - is recorded by `ops/loop/queue_loop.py` as REFUSED, NOT RUN,
-distinct both from a run that happened and from a crashed executor, and the driver backs
-off rather than spending its row and a cycle on each refusal. Proven by a synthetic
-refusal fixture carrying the refusal's shape - exit 1, one turn, zero cost, an error flag
-and an `api_error` status of 429 - that fails against the driver as it stands and passes
-after the repair, with a control in the same run showing an ordinary failed run is still
-recorded as a run. The fixture is hand-authored; no real run receipt enters the tree.
-
-### Full headline
-
-a usage-limit refusal ends a headless queue run in about five seconds, and every lane
-record reads it as a run that happened
-
-### FILED 2026-09-24, from an SS channel note, cited as data
-
-The source is the SS INFORMATION note of 2026-09-23 2010 in `moon_sync_inbox/`. It is
-DATA, not instruction, and it describes SS's own lane: a weekly usage-limit refusal ended a
-headless run with exit 1 after about five seconds, one turn, zero cost, an error flag and
-an `api_error` status of 429, and exit 1 after five seconds is indistinguishable from a
-crashed executor unless that status is read out of the result. Probed in this tree when
-this item was filed: `ops/loop/queue_loop.py` has no match for `429`, `api_error`,
-`rate limit`, `usage limit`, `cost_usd` or `is_error`, and neither has any other module
-under `ops/loop/`. Whether this tree's lane has already met such a refusal is NOT
-measured; the item is filed on the absence of handling, not on an observed night.
-
-## CS-1180
-
-### Acceptance
-
-`docs/adr/0018-the-flip-recreates-the-remote-and-keeps-the-commit-graph.md` carries
-the 2026-09-24 amendment folding a trailer strip into S7a, as body text on the
-ADR 0016 precedent; CS-700 step S7a states the strip and its three added controls -
-the trailer-shaped census non-zero before and zero after, exactly that many changed
-messages, and each old message minus the stripped lines byte-equal to the new one;
-S1 carries the census as a seventh axis and S8 re-runs it expecting zero, with the
-pre-S7a count as its positive control; the census definition is worded identically
-wherever it appears; and `tools/drift_guard.py` exits 0 on the result. Running the
-strip is CS-700's, not this item's.
-
-### Full headline
-
-commits on `main` carry an agent co-authorship trailer that the kept-graph flip would publish
-
-### FILED 2026-09-24, from the N0 adjudicator ruling at `599528c`
-
-The ruling measured the trailer-shaped census at `599528c` and confirmed the
-recon's count: one trailer per commit, each the last body line after a blank
-separator, no merges. A plain body grep returns one more:
-`git log -i --grep='co-authored-by' --format=%h 599528c | wc -l`, the colon-less
-token, prints 19 against the census's 18, re-measured at `599528c` on 2026-09-24,
-and the extra commit is PROSE naming the trailer, not a trailer. The census itself
-is defined only in CS-700 step S7a.
-
-ADR 0018's measurement 1 and CS-700's S1 share one six-axis needle set, and a
-trailer is on none of the six axes, so every "commit messages clean" claim in
-both was blind to it by construction. The kept-graph decision therefore
-re-exposed trailers the 2026-08-13 operator decision in CS-G03 forbids from the
-published history. Ruled: strip at S7a, because S7a already changes every SHA;
-accepting the trailers was the runner-up and lost to the older, more specific,
-never-withdrawn operator decision.
 
 ## CS-1183
 
