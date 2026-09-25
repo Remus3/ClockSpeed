@@ -296,6 +296,10 @@ def _emitted_refusals(source: str) -> tuple[set[str], list[str]]:
       `.pop` - the positions where a snake-case literal names a field rather
       than carrying a word.
 
+    AND THE KEY AS A NAME OR INSIDE TEXT - see `_key_as_a_name`: a dataclass or
+    NamedTuple field called `refused` is an emit form, and any other identifier,
+    attribute, parameter or non-docstring string mentioning the key is a finding.
+
     AND A KEY IT CANNOT RESOLVE IS A FINDING TOO - see `_opaque_keys`. A key
     spelled through a class attribute, a concatenation or a module constant is
     RESOLVED statically first, so `{C.KEY: ...}` and `{'refu' + 'sed': ...}`
@@ -343,9 +347,11 @@ def _emitted_refusals(source: str) -> tuple[set[str], list[str]]:
                     consumed.add(id(target.slice))
                     take(node.value, node.lineno)
 
-    accounted = values | _field_name_positions(nodes)
+    field_words, field_findings, field_values = _key_as_a_name(tree, nodes)
+    words |= field_words
+    accounted = values | field_values | _field_name_positions(nodes)
     stray = _stray_sites(nodes, is_key, consumed, accounted)
-    return words, findings + stray + _opaque_keys(nodes, static)
+    return words, findings + field_findings + stray + _opaque_keys(nodes, static)
 
 
 def _static_resolver(tree: ast.Module):
@@ -468,6 +474,88 @@ def _opaque_keys(nodes: list[ast.AST], static) -> list[str]:
                 line = getattr(key, "lineno", getattr(node, "lineno", 0))
                 found.append(f"line {line}: a key this derivation cannot resolve")
     return found
+
+
+#: The key quoted inside a longer string - a serialised payload, a format.
+_QUOTED_KEY: Final = re.compile(r"[\"']" + REFUSED_KEY + r"[\"']")
+
+
+def _docstring_ids(tree: ast.Module) -> set[int]:
+    """The string nodes that are docstrings - prose, never an emit site."""
+    found: set[int] = set()
+    for node in [tree, *ast.walk(tree)]:
+        body = getattr(node, "body", None)
+        if not isinstance(node, (ast.Module, ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef)):
+            continue
+        if body and isinstance(body[0], ast.Expr) and isinstance(body[0].value, ast.Constant):
+            found.add(id(body[0].value))
+    return found
+
+
+def _class_fields(nodes: list[ast.AST]) -> tuple[set[str], list[str], set[int], set[int]]:
+    """Class fields named by the refusal key: words, findings, word ids, field ids."""
+    words: set[str] = set()
+    findings: list[str] = []
+    values: set[int] = set()
+    fields: set[int] = set()
+    for node in nodes:
+        if not isinstance(node, ast.ClassDef):
+            continue
+        for stmt in node.body:
+            target: ast.expr | None = stmt.target if isinstance(stmt, ast.AnnAssign) else None
+            if isinstance(stmt, ast.Assign) and len(stmt.targets) == 1:
+                target = stmt.targets[0]
+            if not (isinstance(target, ast.Name) and target.id == REFUSED_KEY):
+                continue
+            fields.add(id(target))
+            value = getattr(stmt, "value", None)
+            if isinstance(value, ast.Constant) and isinstance(value.value, str):
+                words.add(value.value)
+                values.add(id(value))
+            else:
+                findings.append(f"line {stmt.lineno}: a class field named by the refusal key")
+    return words, findings, values, fields
+
+
+def _key_as_a_name(tree: ast.Module, nodes: list[ast.AST]) -> tuple[set[str], list[str], set[int]]:
+    """The refusal key spelled as an IDENTIFIER or inside TEXT, not as a dict key.
+
+    A CLASS FIELD named `refused` is an EMIT FORM - `dataclasses.asdict` and
+    `NamedTuple._asdict` turn it into exactly the key - so a string default is a
+    word, and a field with no string default is a finding: its value arrives
+    positionally, where no parse can follow it. Any OTHER store of the name, an
+    attribute or a parameter named `refused`, a `dict(...)` built from anything
+    but keywords or a dict literal, and a non-docstring string that quotes the
+    key are findings too.
+
+    Returns:
+        The words, the findings, and the ids of the string nodes read as words.
+    """
+    words, findings, values, fields = _class_fields(nodes)
+    prose = _docstring_ids(tree)
+    for node in nodes:
+        line = getattr(node, "lineno", 0)
+        if isinstance(node, ast.Name) and node.id == REFUSED_KEY and id(node) not in fields:
+            findings.append(f"line {line}: a name spelled as the refusal key")
+        elif isinstance(node, ast.Attribute) and node.attr == REFUSED_KEY:
+            findings.append(f"line {line}: an attribute named by the refusal key")
+        elif isinstance(node, ast.arg) and node.arg == REFUSED_KEY:
+            findings.append(f"line {line}: a parameter named by the refusal key")
+        elif (
+            isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Name)
+            and node.func.id == "dict"
+            and any(not isinstance(arg, ast.Dict) for arg in node.args)
+        ):
+            findings.append(f"line {line}: a dict() built from pairs this derivation cannot read")
+        elif (
+            isinstance(node, ast.Constant)
+            and isinstance(node.value, str)
+            and id(node) not in prose
+            and _QUOTED_KEY.search(node.value)
+        ):
+            findings.append(f"line {line}: the refusal key quoted inside a string")
+    return words, findings, values
 
 
 def _stray_sites(
@@ -597,6 +685,23 @@ _UNRECOGNISED_FORMS: Final = {
     "computed-subscript-key": "def _t(a, k):\n    a[k] = 'parked'\n",
     "opaque-update": "def _u(a, other):\n    a.update(other)\n",
     "unpacked-dict": "def _v(other):\n    return {**other, 'ok': False}\n",
+    # THE THIRD ADVERSARY PASS: the key as a FIELD NAME, the key inside a
+    # serialised string, and a key assembled by a call.
+    "dataclass-field": (
+        "import dataclasses\n\n\n@dataclasses.dataclass\nclass _Refusal:\n"
+        "    ok: bool = False\n    refused: str = 'parked'\n\n\n"
+        "def _r():\n    return dataclasses.asdict(_Refusal())\n"
+    ),
+    "namedtuple-field": (
+        "from typing import NamedTuple\n\n\nclass _R(NamedTuple):\n    ok: bool\n"
+        "    refused: str\n\n\ndef _r():\n    return _R(False, 'parked')._asdict()\n"
+    ),
+    "attribute-store": "class _S:\n    def __init__(self):\n        self.refused = 'parked'\n",
+    "json-string": (
+        "import json\n\n\ndef _j():\n"
+        '    return json.loads(\'{"ok": false, "refused": "parked"}\')\n'
+    ),
+    "joined-key": "def _q():\n    return dict([(''.join(('refu', 'sed')), 'parked')])\n",
 }
 
 
@@ -619,11 +724,14 @@ def test_cs1015_every_way_to_emit_a_refusal_word_reddens_the_contract(
     text = planted.read_text(encoding="utf-8")
     applied = text.endswith(_UNRECOGNISED_FORMS[form])
     assert applied, "THE PLANT DID NOT APPLY - a green here would measure nothing"
-    last_line = len(text.splitlines())
+    first_planted = len(pristine.splitlines()) + 1
 
     faults = _contract_faults(text)
     assert faults, f"the {form} form left the contract GREEN"
-    named = [f for f in faults if f"line {last_line}" in f or f"line {last_line - 1}" in f]
+    # A FAULT THAT POINTS INTO THE PLANT, or a word it made uncovered - never a
+    # fault somewhere in the pristine emitter that merely happens to fire.
+    lines = [int(m.group(1)) for f in faults if (m := re.match(r"line (\d+):", f))]
+    named = [n for n in lines if n >= first_planted]
     assert named or any("uncovered" in f for f in faults), f"{form}: no fault names it: {faults}"
     # AND THE PRISTINE FLOOR IN THE SAME RUN.
     floor = _contract_faults(pristine)
