@@ -235,6 +235,7 @@ tests/data/test_build_cost.py	authored	CS-930	first-add:CS-930
 tests/data/test_docs_extract.py	authored	CS-1165	first-add:root
 tests/data/test_drift_guard_data.py	authored	CS-1165	first-add:root
 tests/data/test_drift_guard_skip_names.py	authored	CS-1158	stamped
+tests/data/test_drift_guard_walk_worktree.py	authored	CS-1188	stamped
 tests/data/test_extraction_rates.py	authored	CS-977	first-add:CS-977
 tests/data/test_item_notes_index.py	authored	CS-856	first-add:CS-856
 tests/data/test_locate.py	authored	CS-1165	first-add:root
@@ -437,6 +438,7 @@ tests/test_toolpath.py	authored	CS-910	first-add:CS-910
 tests/test_truncation_conditions_block.py	authored	CS-1105	first-add:CS-1105
 tests/test_unregistered_lift.py	authored	CS-1165	first-add:CS-1165
 tests/test_verify_env.py	authored	CS-1165	first-add:root
+tests/test_verify_env_ladder.py	authored	CS-818	stamped
 tests/test_world_token_bound_count.py	authored	CS-1096	first-add:CS-1096
 tests/tier2_jobs_payload.json	authored	CS-1124	first-add:CS-1124
 tests/toolpath_guard.py	authored	CS-910	first-add:CS-910
