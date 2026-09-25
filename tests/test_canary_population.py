@@ -11,8 +11,9 @@ ungraded until somebody remembered to add it.
 THE MEMBERSHIP RULE, STATED ONCE. A canary suite is a ``test_*.py`` module
 under ``tests/`` whose CODE reads either canary table of
 ``tools/outbound_gate.py`` - an attribute access, a bare name or an import of
-``CREDENTIAL_CANARIES`` or ``CREDENTIAL_BRANCH_CANARIES``. A mention in a
-string or a comment is not a read. The population is derived from source by
+``CREDENTIAL_CANARIES`` or ``CREDENTIAL_BRANCH_CANARIES`` - itself or through
+any chain of modules under ``tests/`` that it imports. A mention in a string
+or a comment is not a read. The population is derived from source by
 :func:`canary_suites` and is never typed; ``CANARY_SUITES`` in
 ``tests/test_cs1175_rule_narrowing.py`` is that derivation, not a list.
 
@@ -103,7 +104,12 @@ OUTBOUND = load_outbound()
 
 def reads_a_canary_table(source: str) -> bool:
     """True when `source`'s CODE reads either canary table - never its prose."""
-    for node in ast.walk(ast.parse(source)):
+    return _reads(ast.parse(source))
+
+
+def _reads(tree: ast.AST) -> bool:
+    """True when the parsed module's code reads either canary table by name."""
+    for node in ast.walk(tree):
         if isinstance(node, ast.Attribute) and node.attr in CANARY_TABLES:
             return True
         if isinstance(node, ast.Name) and node.id in CANARY_TABLES:
@@ -113,12 +119,65 @@ def reads_a_canary_table(source: str) -> bool:
     return False
 
 
+def _module_name(path: Path, root: Path) -> tuple[str, bool]:
+    """The dotted name `path` imports as under `root`, and whether it is a package."""
+    parts = path.relative_to(root).with_suffix("").parts
+    if parts[-1] == "__init__":
+        return ".".join(parts[:-1]), True
+    return ".".join(parts), False
+
+
+def _imported(tree: ast.AST, name: str, is_package: bool) -> set[str]:
+    """Every dotted name the module's imports could reach, relative ones resolved.
+
+    ``from x import y`` yields both ``x`` and ``x.y``, because ``y`` may be a
+    submodule; a name that is not a module simply matches nothing.
+    """
+    package = name if is_package else name.rpartition(".")[0]
+    found: set[str] = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            found.update(alias.name for alias in node.names)
+        elif isinstance(node, ast.ImportFrom):
+            base = package
+            for _ in range(max(node.level - 1, 0)):
+                base = base.rpartition(".")[0]
+            if node.level == 0:
+                base = node.module or ""
+            elif node.module:
+                base = base + "." + node.module if base else node.module
+            found.add(base)
+            found.update(base + "." + alias.name for alias in node.names)
+    return found
+
+
 def canary_suites(tests_dir: Path) -> list[Path]:
-    """Every ``test_*.py`` under `tests_dir` whose code reads a canary table, sorted."""
+    """Every ``test_*.py`` under `tests_dir` that reads a canary table, sorted.
+
+    READS TRANSITIVELY - CS-1177, from an adversary's measurement: a module
+    whose canaries arrive through a helper it imports holds them all the same.
+    Every module under `tests_dir` is parsed once; a module is a READER when its
+    own code reads a table by name, or when it imports a reader, closed over
+    import chains of any length. Members are the readers that are test modules.
+    """
+    root = tests_dir.parent
+    trees: dict[str, tuple[Path, ast.AST, bool]] = {}
+    for path in sorted(tests_dir.rglob("*.py")):
+        name, is_package = _module_name(path, root)
+        trees[name] = (path, ast.parse(path.read_text(encoding="utf-8")), is_package)
+    reaches = {
+        name: _imported(tree, name, is_package) for name, (_, tree, is_package) in trees.items()
+    }
+    readers = {name for name, (_, tree, _) in trees.items() if _reads(tree)}
+    grown = True
+    while grown:
+        added = {name for name in trees if name not in readers and reaches[name] & readers}
+        readers |= added
+        grown = bool(added)
     return sorted(
         path
-        for path in tests_dir.rglob("test_*.py")
-        if reads_a_canary_table(path.read_text(encoding="utf-8"))
+        for name, (path, _, _) in trees.items()
+        if name in readers and path.name.startswith("test_")
     )
 
 
@@ -346,6 +405,69 @@ def test_the_rule_reads_code_and_not_prose(tmp_path: Path) -> None:
     members = canary_suites(tests_dir)
     exact = members == [reader]
     assert exact, "members: %d" % len(members)
+
+
+def test_a_module_reading_through_a_helper_import_is_a_member(tmp_path: Path) -> None:
+    """A test module that reaches a table only THROUGH a helper it imports is a member.
+
+    MEASURED by an adversary on the first build: membership read each test
+    module's own source, so a module whose canaries came from an imported
+    helper was named in no list AND derived by no rule. Every import form is
+    planted - absolute, from a package, relative, and through a chain of two
+    helpers - beside a module importing an unrelated helper, which must stay out.
+    """
+    tests_dir = tmp_path / "tests"
+    (tests_dir / "deep").mkdir(parents=True)
+    (tests_dir / "__init__.py").write_text("", encoding="ascii")
+    (tests_dir / "deep" / "__init__.py").write_text("", encoding="ascii")
+    sources = {
+        "canary_helper.py": "import gate\n\nTABLE = gate.CREDENTIAL_CANARIES\n",
+        "chained_helper.py": "from tests.canary_helper import TABLE\n",
+        "plain_helper.py": "VALUE = 1\n",
+        "test_absolute.py": "from tests.canary_helper import TABLE\n",
+        "test_package.py": "from tests import canary_helper\n",
+        "test_relative.py": "from .canary_helper import TABLE\n",
+        "test_chained.py": "import tests.chained_helper\n",
+        "deep/test_up_two.py": "from ..chained_helper import TABLE\n",
+        "test_unrelated.py": "from tests.plain_helper import VALUE\n",
+    }
+    for relative, source in sources.items():
+        (tests_dir / relative).write_text(source, encoding="ascii")
+    members = sorted(path.relative_to(tests_dir).as_posix() for path in canary_suites(tests_dir))
+    expected = sorted(name for name in sources if "test_" in name and "unrelated" not in name)
+    missing = sorted(set(expected) - set(members))
+    extra = sorted(set(members) - set(expected))
+    assert missing == [], "helper-import members the rule missed: " + ", ".join(missing)
+    assert extra == [], "modules admitted that reach no table: " + ", ".join(extra)
+
+
+def test_canary_suites_in_the_cs1175_suite_is_the_derivation() -> None:
+    """``CANARY_SUITES`` is BOUND to the derivation, not merely equal to it today.
+
+    MEASURED by an adversary on the first build: restoring the hand-kept
+    three-module tuple SURVIVED, because every arm here graded
+    :func:`canary_suites` and none graded the name the forced arm actually
+    reads. Equality alone would pass a hand list typed to match; the binding is
+    read from source, so a list typed in its place is red on the day it lands.
+    """
+    source = (TESTS_DIR / "test_cs1175_rule_narrowing.py").read_text(encoding="utf-8")
+    bindings = [
+        node.value
+        for node in ast.walk(ast.parse(source))
+        if isinstance(node, ast.Assign)
+        and any(isinstance(t, ast.Name) and t.id == "CANARY_SUITES" for t in node.targets)
+    ]
+    count = len(bindings)
+    derived = [
+        value
+        for value in bindings
+        if isinstance(value, ast.Call)
+        and isinstance(value.func, ast.Name)
+        and value.func.id == "derived_canary_suites"
+    ]
+    bound = len(derived)
+    assert count == 1, "CANARY_SUITES is bound %d times" % count
+    assert bound == 1, "CANARY_SUITES is not bound to derived_canary_suites()"
 
 
 def test_the_population_is_derived_and_reaches_every_known_reader() -> None:
