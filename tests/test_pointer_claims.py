@@ -120,12 +120,14 @@ POINTER_CLAIM_DECLINES: Final[frozenset[tuple[str, str, int]]] = frozenset(
 
 UNVERIFIED_POINTER_CLAIMS: Final[Mapping[tuple[str, str, int], ClaimResidual]] = {
     ("docs/LEDGER.md", ".github/workflows/tier1.yml", 250): ClaimResidual(
-        digest="dc72a3e2bbf5",
+        digest="e118897e6650",
         why=(
             "MEASURED WRONG, not unexamined. The sentence claims CI runs mypy bare"
             " at this line; the workflow grew and that step is now far below it."
-            " The carrier is append-only, so the pointer cannot be re-cut - the"
-            " repair is CS-1144."
+            " RE-READ AND RESTATED after CS-1193's hook shard moved the landing:"
+            " the line is now the per-line loop header of an inline markdown scan"
+            " step, still not the mypy step. The carrier is append-only, so the"
+            " pointer cannot be re-cut - the repair is CS-1144."
         ),
     ),
 }

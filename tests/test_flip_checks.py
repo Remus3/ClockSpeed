@@ -266,13 +266,13 @@ def test_the_scratch_directory_is_inside_the_git_directory_and_removed(tmp_path:
     work_repo(repo, {"README.md": b"x\n"})
     seen: list[Path] = []
 
-    def runner(*args: object) -> list[object]:
+    def recording_scratch_runner(*args: object) -> list[object]:
         scratch = args[3]
         assert isinstance(scratch, Path)
         seen.append(scratch)
         return [passing()]
 
-    flip.main(["HEAD", "--stage", "s8", "--repo", str(repo)], runner=runner)
+    flip.main(["HEAD", "--stage", "s8", "--repo", str(repo)], runner=recording_scratch_runner)
 
     (scratch,) = seen
     inside = scratch.resolve().is_relative_to((repo / ".git").resolve())
@@ -791,13 +791,13 @@ def test_a_short_name_repo_path_is_resolved_before_cloning(tmp_path: Path) -> No
     if not short or short.lower() == str(repo).lower():
         pytest.skip("this volume generates no 8.3 short names")
 
-    def runner(repo_arg: Path, sha_arg: str, *rest: object) -> list[object]:
+    def short_path_runner(repo_arg: Path, sha_arg: str, *rest: object) -> list[object]:
         scratch = rest[1]
         assert isinstance(scratch, Path)
         flip.clone_at(repo_arg, sha_arg, scratch / "tree")
         return [passing()]
 
-    code = flip.main(["HEAD", "--stage", "s8", "--repo", short], runner=runner)
+    code = flip.main(["HEAD", "--stage", "s8", "--repo", short], runner=short_path_runner)
 
     assert sha
     assert code == flip.EXIT_PASS
