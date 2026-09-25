@@ -13,9 +13,12 @@ below, so the whole of that module's answer is askable rather than half of it.
 after ``/api/registry`` (CS-912) and ``/api/map`` (CS-977).
 
 THE DEFERRED TERM LEAVES UNEVALUATED, AND THAT IS THIS DOOR'S WHOLE EXACTNESS
-PROBLEM. ``clockspeed/solve/power.py`` records the measurement:
-``Fraction(5, 2) ** Fraction('1.321929')`` returns the FLOAT
-3.3577506181236285 on this interpreter, without raising and without warning,
+PROBLEM. ``clockspeed/solve/power.py`` records the measurement: with
+``exponent`` a shipped NON-INTEGER exponent (the pin in
+``clockspeed/data/version.py`` owns the values),
+``Fraction(5, 2) ** Fraction(exponent)`` returns the FLOAT
+3.3577506181236285 on this interpreter for one of them, without raising and
+without warning,
 because the result is irrational for essentially every rational clock. So away
 from the reference clock the answer is an exact coefficient beside a
 ``DeferredPowerTerm``, and this module renders that term as its two exact

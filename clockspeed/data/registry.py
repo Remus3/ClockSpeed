@@ -48,8 +48,9 @@ passes its own tests, so each is handled explicitly and each has a named test.
   model, and keeping it would publish a zero the document never stated.
 
 - **No floats, anywhere (non-negotiable 6).** ``float()`` succeeds on every
-  decimal string in the document and silently poisons exactness, and 1.321929
-  is not representable in binary floating point. Every conversion here goes
+  decimal string in the document and silently poisons exactness, and no
+  shipped exponent (the pin in ``clockspeed/data/version.py`` owns the
+  values) is representable in binary floating point. Every conversion here goes
   straight from the decimal STRING to a Fraction. There is no ``float(`` in
   this file and there must never be one.
 
@@ -87,7 +88,7 @@ passes its own tests, so each is handled explicitly and each has a named test.
 - **``mMaxPotential`` is the un-sharded BASE. The ceiling is not read, and
   neither is any other operand of it.** The base IS read, per ADR 0005: it is
   a per-building-class document value, and reading it here is what keeps a
-  literal ``1.0`` out of the solver for exactly the reason a literal 1.321929
+  literal ``1.0`` out of the solver for exactly the reason a literal exponent
   is banned - a balance patch moves it, and a literal turns that into silently
   wrong advice instead of a red build. It is ``'1.000000'`` on every measured
   entry, which is what makes a folded constant pass every test that does not
@@ -808,8 +809,8 @@ def _text(entry: Mapping[str, object], key: str, subject: str, log: _WarningLog)
 def _fraction(text: str) -> Fraction | None:
     """Convert a decimal string straight to an exact Fraction.
 
-    Straight, meaning never via ``float``. ``float('1.321929')`` succeeds and
-    silently substitutes the nearest binary approximation, which is a
+    Straight, meaning never via ``float``. ``float`` of a shipped exponent
+    string succeeds and silently substitutes the nearest binary approximation, which is a
     correctness bug in a ratio calculator rather than a rounding nuisance
     (non-negotiable 6).
 

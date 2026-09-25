@@ -57,7 +57,8 @@ WHY POWER IS COMPARED ONLY AT THE UN-SHARDED BASE, AND WHAT THAT DOES NOT MEAN
 --------------------------------------------------------------------------------
 Comparing two plans by power draw is well defined ONLY at each building's own
 un-sharded clock base. Away from it the law is ``draw`` times ``clock`` raised
-to the shipped exponent, the exponent is 1.321929, and the result is irrational
+to the shipped exponent, the exponent is non-integer (the pin in
+``clockspeed/data/version.py`` owns its value), and the result is irrational
 for essentially every rational clock - there is no exact rational value to
 compare, and evaluating it returns a float (measured; see
 ``clockspeed/solve/exact.py``). The achievable overclock ceiling is separately

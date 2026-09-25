@@ -17,15 +17,19 @@ shape: they produce the right TYPE, a plausible VALUE, and no error.
 THE MEASURED TRAPS
 ------------------
 - **``Fraction ** Fraction`` SILENTLY RETURNS A FLOAT.** Measured on CPython
-  3.14: ``Fraction(5, 2) ** Fraction('1.321929')`` returns ``<class 'float'>``
-  ``3.3577506181236285``. It does not raise and it does not warn, because
-  x^(1321929/1000000) is irrational for essentially every rational x and there
-  is no exact rational answer to return. This matters because
+  3.14 with ``exponent`` a shipped NON-INTEGER exponent (the
+  ``power_consumption_exponents`` map of the pin in
+  ``clockspeed/data/version.py`` owns the values):
+  ``Fraction(5, 2) ** Fraction(exponent)`` returns ``<class 'float'>``,
+  ``3.3577506181236285`` for one of them. It does not raise and it does not
+  warn, because x raised to a non-integer rational power is irrational for
+  essentially every rational x and there is no exact rational answer to
+  return. This matters because
   ``draw * clock ** exponent`` is the most natural way anyone would write the
   power law, it reads as exact, and it cannot be.
   Worse, the defect is DATA-DEPENDENT: ``Fraction(5, 2) ** Fraction(2, 1)``
   returns a Fraction, so a test written with a whole-number exponent passes
-  while the shipped 1.321929 exponent quietly returns a float. That is why this
+  while the shipped non-integer exponent quietly returns a float. That is why this
   module contains no ``**``, no ``pow`` and no ``math`` import, offers no helper
   that invites one, and publishes :class:`DeferredPowerTerm` as a SYMBOLIC
   record instead - a caller that wants a number out of it has to confront the
@@ -240,10 +244,11 @@ class DeferredPowerTerm:
     """A power law held symbolically, because it has no exact rational value.
 
     The overclock power law is ``draw * clock ** exponent`` and the shipped
-    exponent is 1.321929, so the middle term is irrational for essentially every
-    clock speed. This record exists so that a caller who needs that term has
-    something to REACH FOR other than the ``**`` operator, which would silently
-    hand back a float (see the module docstring for the measured value).
+    exponent is non-integer (the pin in ``clockspeed/data/version.py`` owns its
+    value), so the middle term is irrational for essentially every clock speed.
+    This record exists so that a caller who needs that term has something to
+    REACH FOR other than the ``**`` operator, which would silently hand back a
+    float (see the module docstring for the measured value).
 
     It models only ``base ** exponent`` - the sub-expression that cannot be
     exact. Whatever multiplies it stays an ordinary Fraction in the caller,
@@ -402,9 +407,10 @@ def to_exact(text: str) -> Fraction:
     """Convert a decimal string straight to an exact Fraction, never via float.
 
     Straight, meaning the string is handed to :class:`~fractions.Fraction`
-    unmodified. ``float('1.321929')`` succeeds and substitutes the nearest
-    binary approximation, and 1.321929 is not representable in binary floating
-    point.
+    unmodified. ``float`` of a shipped exponent string succeeds and substitutes
+    the nearest binary approximation, and no shipped exponent (the pin in
+    ``clockspeed/data/version.py`` owns the values) is representable in binary
+    floating point.
 
     A non-string argument is REFUSED rather than converted, and that refusal is
     the whole reason this function exists as more than an alias.

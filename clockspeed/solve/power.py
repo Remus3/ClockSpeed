@@ -105,8 +105,11 @@ answer is the named :data:`OUTCOME_NOT_SCALABLE` instead.
 WHY THERE IS NO ``**`` IN THIS FILE
 ------------------------------------
 The overclock power law is ``draw * clock ** exponent``. Measured on this
-interpreter: ``Fraction(5, 2) ** Fraction('1.321929')`` returns a FLOAT,
-``3.3577506181236285``. It does not raise and it does not warn, because the
+interpreter, with ``exponent`` a shipped NON-INTEGER exponent (the
+``power_consumption_exponents`` map of the pin in
+``clockspeed/data/version.py`` owns the values):
+``Fraction(5, 2) ** Fraction(exponent)`` returns a FLOAT,
+``3.3577506181236285`` for one of them. It does not raise and it does not warn, because the
 result is irrational for essentially every rational clock and there is no exact
 rational answer to return. The defect is DATA-DEPENDENT -
 ``Fraction(5, 2) ** Fraction(2, 1)`` returns a Fraction - so a test written with

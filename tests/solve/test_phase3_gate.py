@@ -27,8 +27,10 @@ f. The whole ``tests/solve`` suite passes with the install unresolvable.
 THE SCAN IS OVER THE AST, NEVER OVER THE FILE TEXT, AND THAT IS LOAD-BEARING
 ----------------------------------------------------------------------------
 ``clockspeed/solve/exact.py`` and ``clockspeed/solve/power.py`` both quote the
-measurement ``Fraction(5, 2) ** Fraction('1.321929')`` VERBATIM in their module
-docstrings, as the evidence for why the ban exists. A text sweep for ``**``
+measurement ``Fraction(5, 2) ** Fraction(exponent)`` VERBATIM in their module
+docstrings, as the evidence for why the ban exists. The quotation is
+digit-free because the exponent's one owner is the pin in
+``clockspeed/data/version.py`` (CS-1030). A text sweep for ``**``
 flags its own evidence: measured on this tree, a regex sweep for the banned
 spellings reports 47 hits in ``exact.py`` alone, every one of them prose, and
 zero of them defects. A guard that fires on the documentation explaining the
@@ -179,6 +181,7 @@ SOLVE_TEST_SOURCES: tuple[str, ...] = (
     "synthetic.py",
     "test_ceiling_fence.py",
     "test_exact.py",
+    "test_exponent_owner.py",
     "test_optimize.py",
     "test_power.py",
     "test_ratio.py",
@@ -487,7 +490,7 @@ def test_no_solve_module_contains_inexact_arithmetic(relative: str) -> None:
 # The measurement both modules quote verbatim as evidence for the ban. Held here
 # so the negative control asserts against the REAL files: a synthetic stand-in
 # would prove only that the scanner handles a string this module wrote itself.
-_QUOTED_MEASUREMENT = "Fraction(5, 2) ** Fraction('1.321929')"
+_QUOTED_MEASUREMENT = "Fraction(5, 2) ** Fraction(exponent)"
 
 
 @pytest.mark.parametrize("relative", ["exact.py", "power.py"])
