@@ -91,6 +91,7 @@ Status line to point at the successor and leave every other word of it untouched
 | [0020](0020-shipped-asset-extraction.md) | Shipped-asset extraction, and where each of the four map requirements is recoverable from | `accepted` |
 | [0021](0021-the-variable-power-law.md) | The variable-power law is two bounds, and the building estimate is their envelope | `accepted` |
 | [0022](0022-acceptance-lives-in-the-item-note.md) | An item's acceptance lives in its item-notes section, with a pointer on the line | `accepted` |
+| [0023](0023-whether-a-filename-is-personal-data.md) | Whether a filename is personal data - withheld by reason class | `accepted` |
 | [0024](0024-the-credential-scan-population-boundary.md) | The credential-scan population boundary is publication, not location | `accepted` |
 
 Slots 0002, 0003 and 0004 were reserved for the three phase-1 spike decisions and have now
