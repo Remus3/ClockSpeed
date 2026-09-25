@@ -13,9 +13,11 @@ normal-looking panel that is quietly wrong.
 WHAT THE ARMS BELOW MEASURE, AND WHY THERE ARE TWO COLLISION RUNS.
 
 - :func:`test_no_panel_module_adds_a_global` loads the SHIPPED scripts in the
-  page's own order and records, per script, every global name it added. Every
-  panel module must add none. Its detector is proved able to fire by
-  :func:`test_the_global_census_fires_on_a_planted_top_level_helper`.
+  page's own order, with ``window`` as the global object, and records every
+  global-object property each script added on load and every one the mounts
+  added after it. It then takes :func:`census` of each module alone, which
+  also sees a top-level ``let``, ``const`` or ``class``. Every panel module
+  must add none. Each reading is proved able to fire by a planted arm below.
 - :func:`test_a_planted_collision_corrupts_an_unwrapped_solve_bench` is the
   PROOF THAT THE PLANT BITES. It loads ``panel_solve.js`` with its wrapper
   removed, then a planted module that redeclares the solve bench's ``FIELDS``
@@ -37,7 +39,9 @@ from __future__ import annotations
 import json
 import re
 import shutil
+import string
 import subprocess
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Final
 
@@ -107,11 +111,32 @@ IIFE_CLOSE: Final = "}());"
 #: A JavaScript block comment.
 _BLOCK_COMMENT: Final = re.compile(r"/\*[\s\S]*?\*/")
 
-#: A JavaScript line comment, a string literal of either quoting style, and an
-#: identifier - what :func:`probe_names` blanks and then collects.
-_LINE_COMMENT: Final = re.compile(r"//[^\n]*")
-_STRING_LITERAL: Final = re.compile(r"\"(?:[^\"\\\n]|\\.)*\"|'(?:[^'\\\n]|\\.)*'")
-_IDENTIFIER: Final = re.compile(r"[A-Za-z_$][\w$]*")
+#: The characters an ASCII identifier starts with, and those it continues with.
+_IDENT_START: Final = frozenset(string.ascii_letters + "_$")
+_IDENT_PART: Final = _IDENT_START | frozenset(string.digits)
+
+#: An identifier's unicode escape, in either spelling JavaScript admits.
+_UNICODE_ESCAPE: Final = re.compile(r"\\u(?:\{([0-9A-Fa-f]+)\}|([0-9A-Fa-f]{4}))")
+
+#: Keywords after which a "/" opens a regular expression rather than dividing.
+_REGEX_AFTER_KEYWORD: Final = frozenset(
+    {
+        "await",
+        "case",
+        "delete",
+        "do",
+        "else",
+        "in",
+        "instanceof",
+        "new",
+        "of",
+        "return",
+        "throw",
+        "typeof",
+        "void",
+        "yield",
+    }
+)
 
 #: A classic script tag in ``index.html``, capturing its source.
 _SCRIPT_TAG: Final = re.compile(r'<script src="([^"]+)"')
@@ -298,12 +323,26 @@ request.scripts.forEach(function (file) {
   loads.push({ script: path.basename(file), threw: threw, added: added.sort() });
 });
 
+/*
+  THE GLOBAL OBJECT IS READ AGAIN AROUND THE MOUNTS. Loading a module runs its
+  top level only; a helper published from inside a mount appears here and
+  nowhere earlier.
+*/
+var beforeMount = Object.create(null);
+Object.getOwnPropertyNames(globalThis).forEach(function (name) {
+  beforeMount[name] = true;
+});
 var mountPanelsThrew = null;
 try {
   mountPanels({});
 } catch (failure) {
   mountPanelsThrew = describe(failure);
 }
+var mountAdded = Object.getOwnPropertyNames(globalThis)
+  .filter(function (name) {
+    return !beforeMount[name];
+  })
+  .sort();
 
 function inputIds(node, into) {
   if (node.tagName === "INPUT") {
@@ -320,6 +359,7 @@ process.stdout.write(
   JSON.stringify({
     loads: loads,
     mount_panels_threw: mountPanelsThrew,
+    mount_added: mountAdded,
     mount_throws: mountThrows,
     plant_loaded: globalThis.plantedCollisionLoaded === true,
     sections: host.childNodes.map(function (section) {
@@ -587,6 +627,10 @@ def test_no_panel_module_adds_a_global(tmp_path: Path) -> None:
     total = len(leaks)
     assert total == 0, f"{total} panel module(s) put names in the shared global scope: {leaks}"
 
+    # AND AFTER EVERY PANEL HAS MOUNTED, since a mount runs code a load does not.
+    mounted = list(report["mount_added"])
+    assert mounted == [], f"mounting the panels put names in the shared global scope: {mounted}"
+
     # THE ISOLATED CENSUS TOO, which alone sees a script-scope let, const or
     # class: the page run above reads global-object properties only.
     isolated = {path.name: sorted(census(tmp_path, path)) for path in scripts}
@@ -613,20 +657,267 @@ def test_the_global_census_fires_on_a_planted_top_level_helper(tmp_path: Path) -
     assert seen == expected, seen
 
 
-def probe_names(source: str) -> tuple[str, ...]:
-    """Every identifier in a script's code - the names the lexical probe tries.
+def _read_identifier(source: str, at: int) -> tuple[str, int]:
+    """One identifier starting at ``at``, with its unicode escapes decoded.
 
-    A script-scope binding can only be named by an identifier the script
-    contains, so probing each one covers every binding it could have made.
+    Args:
+        source: The script's full text.
+        at: Where the identifier starts.
+
+    Returns:
+        The decoded name, and the index just past it.
+    """
+    chars: list[str] = []
+    while at < len(source):
+        char = source[at]
+        if char in _IDENT_PART:
+            chars.append(char)
+            at += 1
+            continue
+        escape = _UNICODE_ESCAPE.match(source, at) if char == "\\" else None
+        if escape is None:
+            break
+        chars.append(chr(int(escape.group(1) or escape.group(2), 16)))
+        at = escape.end()
+    return "".join(chars), at
+
+
+def _skip_quoted(source: str, at: int, quote: str) -> int:
+    """The index just past a string literal whose body starts at ``at``.
+
+    Args:
+        source: The script's full text.
+        at: The first character after the opening quote.
+        quote: The quote character that closes it.
+
+    Returns:
+        The index after the closing quote, or of the line end that leaves an
+        unterminated literal (which the script could not have parsed with).
+    """
+    while at < len(source):
+        char = source[at]
+        if char == "\\":
+            at += 2
+            continue
+        if char == quote:
+            return at + 1
+        if char == "\n":
+            return at
+        at += 1
+    return at
+
+
+def _skip_template(source: str, at: int) -> tuple[int, bool]:
+    """Scan a template literal's text from ``at`` to its end or its next substitution.
+
+    Args:
+        source: The script's full text.
+        at: The first character of template text.
+
+    Returns:
+        The index just past the closing backtick or the ``${`` opener, and
+        whether a substitution - which is code - was entered.
+    """
+    while at < len(source):
+        char = source[at]
+        if char == "\\":
+            at += 2
+            continue
+        if char == "`":
+            return at + 1, False
+        if source.startswith("${", at):
+            return at + 2, True
+        at += 1
+    return at, False
+
+
+def _skip_regex(source: str, at: int) -> int:
+    """The index just past a regular-expression literal whose body starts at ``at``.
+
+    Args:
+        source: The script's full text.
+        at: The first character after the opening slash.
+
+    Returns:
+        The index after the closing slash and any flags.
+    """
+    in_class = False
+    while at < len(source):
+        char = source[at]
+        if char == "\\":
+            at += 2
+            continue
+        if char == "\n":
+            return at
+        if in_class:
+            in_class = char != "]"
+        elif char == "[":
+            in_class = True
+        elif char == "/":
+            at += 1
+            while at < len(source) and source[at] in _IDENT_PART:
+                at += 1
+            return at
+        at += 1
+    return at
+
+
+def probe_names(source: str) -> tuple[str, ...]:
+    r"""Every identifier in a script's code - the names the lexical probe tries.
+
+    ONE LEFT-TO-RIGHT PASS, so each delimiter is read in the state it actually
+    sits in: a ``//`` or ``/*`` inside a string is text, a quote inside a
+    comment is prose, and a template literal's ``${ }`` substitutions are code
+    while its text is not. Identifiers are collected in code only, with
+    ``\uXXXX`` and ``\u{X}`` escapes decoded, so ``let leak`` is probed
+    as ``leak``. A script-scope binding can only be named by such an
+    identifier, so every binding the script declares is among the names
+    returned - with ONE NAMED RESIDUAL: whether a ``/`` opens a regular
+    expression or divides is decided from the token before it, the usual
+    heuristic, which misreads a regular expression written directly after a
+    ``)``, ``]`` or ``}`` - an ``if (x) /re/.test(y)``, say - as a division.
+    :func:`test_no_shipped_panel_module_holds_a_regular_expression_literal`
+    pins that no shipped panel module holds a regular expression literal at
+    all, so the residual has no instance there.
 
     Args:
         source: The script's full text.
 
     Returns:
-        Each distinct identifier outside comments and string literals, sorted.
+        Each distinct identifier in the script's code, sorted.
     """
-    code = _STRING_LITERAL.sub(" ", _LINE_COMMENT.sub(" ", _BLOCK_COMMENT.sub(" ", source)))
-    return tuple(sorted(set(_IDENTIFIER.findall(code))))
+    return tuple(sorted(_scan(source)[0]))
+
+
+def regex_literal_count(source: str) -> int:
+    """How many regular expression literals :func:`probe_names` read in a script.
+
+    Args:
+        source: The script's full text.
+
+    Returns:
+        The count.
+    """
+    return _scan(source)[1]
+
+
+def _scan(source: str) -> tuple[frozenset[str], int]:
+    """The one pass behind :func:`probe_names` and :func:`regex_literal_count`.
+
+    Args:
+        source: The script's full text.
+
+    Returns:
+        The identifiers in the script's code, and how many regular expression
+        literals it read.
+    """
+    state = _ScanState()
+    at = 0
+    while at < len(source):
+        skipped = _step_over_literal(source, at, state)
+        at = _step_through_code(source, at, state) if skipped is None else skipped
+    return frozenset(state.names), state.regexes
+
+
+@dataclass
+class _ScanState:
+    """What the one pass carries between characters.
+
+    Attributes:
+        names: The identifiers collected so far.
+        regexes: How many regular expression literals were read.
+        substitutions: One entry per open brace, True where the brace opened a
+            template substitution - so its closing brace resumes template text.
+        regex_allowed: Whether a ``/`` here would open a regular expression.
+    """
+
+    names: set[str] = field(default_factory=set)
+    regexes: int = 0
+    substitutions: list[bool] = field(default_factory=list)
+    regex_allowed: bool = True
+
+
+def _resume_template(source: str, at: int, state: _ScanState) -> int:
+    """Read template text from ``at`` and record whether a substitution opened.
+
+    Args:
+        source: The script's full text.
+        at: The first character of template text.
+        state: The pass's state, updated in place.
+
+    Returns:
+        The index the pass continues from.
+    """
+    at, entered = _skip_template(source, at)
+    if entered:
+        state.substitutions.append(True)
+    state.regex_allowed = entered
+    return at
+
+
+def _step_over_literal(source: str, at: int, state: _ScanState) -> int | None:
+    """Skip a comment, string, template text or regular expression starting at ``at``.
+
+    Args:
+        source: The script's full text.
+        at: The current index, in code.
+        state: The pass's state, updated in place.
+
+    Returns:
+        The index past the skipped span, or None when none starts here.
+    """
+    char = source[at]
+    if source.startswith("//", at):
+        end = source.find("\n", at)
+        return len(source) if end < 0 else end
+    if source.startswith("/*", at):
+        end = source.find("*/", at + 2)
+        return len(source) if end < 0 else end + 2
+    if char in "\"'":
+        state.regex_allowed = False
+        return _skip_quoted(source, at + 1, char)
+    if char == "`":
+        return _resume_template(source, at + 1, state)
+    if char == "/" and state.regex_allowed:
+        state.regexes += 1
+        state.regex_allowed = False
+        return _skip_regex(source, at + 1)
+    return None
+
+
+def _step_through_code(source: str, at: int, state: _ScanState) -> int:
+    """Consume one code token - an identifier, a number or one character.
+
+    Args:
+        source: The script's full text.
+        at: The current index, in code.
+        state: The pass's state, updated in place.
+
+    Returns:
+        The index past the token.
+    """
+    char = source[at]
+    if char in _IDENT_START or source.startswith("\\u", at):
+        name, end = _read_identifier(source, at)
+        if name:
+            state.names.add(name)
+        state.regex_allowed = name in _REGEX_AFTER_KEYWORD
+        return max(end, at + 1)
+    if char in string.digits:
+        while at < len(source) and (source[at] in _IDENT_PART or source[at] == "."):
+            at += 1
+        state.regex_allowed = False
+        return at
+    if char == "}" and state.substitutions and state.substitutions[-1]:
+        state.substitutions.pop()
+        return _resume_template(source, at + 1, state)
+    if char == "{":
+        state.substitutions.append(False)
+    elif char == "}" and state.substitutions:
+        state.substitutions.pop()
+    if not char.isspace():
+        state.regex_allowed = char not in ")]}"
+    return at + 1
 
 
 def census(tmp_path: Path, script: Path) -> set[str]:
@@ -745,6 +1036,86 @@ def test_the_census_sees_a_top_level_lexical_binding(tmp_path: Path, declaration
     plant = _planted_copy(tmp_path, "panel_map.js", IIFE_OPEN, declaration)
     seen = sorted(census(tmp_path, plant))
     assert "mapZoomState" in seen, seen
+
+
+def test_the_page_census_sees_a_global_a_mount_publishes(tmp_path: Path) -> None:
+    """A helper published from INSIDE a mount is a leak, and only a mount shows it.
+
+    Loading a module runs its top level and no more; ``window.leakL = data``
+    written inside ``mountSolve`` runs when the seam mounts the panel. The page
+    census therefore reads the global object again after ``mountPanels`` and
+    names what the mounts added.
+    """
+    plant = _planted_copy(
+        tmp_path,
+        SOLVE_MODULE,
+        "  var registry = data && data.registry",
+        "  window.leakL = data;\n",
+    )
+    scripts = [plant if name == SOLVE_MODULE else WEB_DIR / name for name in panel_scripts()]
+    report = run_page(tmp_path, scripts)
+    assert_nothing_threw(report)
+    seen = sorted(report["mount_added"])
+    assert "leakL" in seen, seen
+
+
+def test_probe_names_reads_past_a_url_inside_a_string() -> None:
+    """A ``//`` inside a string is text, so the identifiers after it are collected.
+
+    ``panel_map.js`` names the SVG namespace in a string literal on the same
+    line as the ``tag`` argument after it. A scan that took the ``//`` for a
+    line comment dropped the rest of that line - so a binding declared there
+    would never have been probed.
+    """
+    lines = [line for line in read_module("panel_map.js").split("\n") if "http://" in line]
+    assert len(lines) == 1, lines
+    names = probe_names(lines[0])
+    assert "tag" in names, names
+    assert "createElementNS" in names, names
+    planted = probe_names('var ns = "http://example.invalid/"; var leakA = 1;\n')
+    assert "leakA" in planted, planted
+
+
+def test_no_shipped_panel_module_holds_a_regular_expression_literal() -> None:
+    """The scanner's one named residual has no instance in a shipped panel.
+
+    :func:`probe_names` decides regex-versus-division from the token before a
+    slash. Every slash in a shipped panel module is read as a division, so no
+    module rests on that decision being right for a regular expression.
+    """
+    found = {name: regex_literal_count(read_module(name)) for name in panel_scripts()}
+    holding = {name: count for name, count in found.items() if count}
+    assert not holding, holding
+
+
+def test_the_scanner_reads_a_regex_literal_as_one_token() -> None:
+    """The control: a quote inside a regular expression opens no string."""
+    source = 'var pattern = /a"b/g;\nvar leakR = 1;\n'
+    assert regex_literal_count(source) == 1
+    names = probe_names(source)
+    assert "leakR" in names, names
+    divided = "var half = total / 2;\nvar leakD = 1;\n"
+    assert regex_literal_count(divided) == 0
+    assert "leakD" in probe_names(divided)
+
+
+def test_the_census_sees_a_binding_between_comment_markers_in_strings(tmp_path: Path) -> None:
+    """Comment delimiters inside strings do not hide the code between them."""
+    plant = _planted_copy(
+        tmp_path, "panel_map.js", IIFE_OPEN, 'void "/*";\nlet leakJ = 2;\nvoid "*/";\n'
+    )
+    seen = sorted(census(tmp_path, plant))
+    assert "leakJ" in seen, seen
+
+
+def test_the_census_sees_a_binding_spelled_with_a_unicode_escape(tmp_path: Path) -> None:
+    r"""``let leakK`` binds ``leakK``, and the probe decodes the escape to see it."""
+    backslash = chr(92)
+    plant = _planted_copy(
+        tmp_path, "panel_map.js", IIFE_OPEN, "let " + backslash + "u006ceakK = 1;\n"
+    )
+    seen = sorted(census(tmp_path, plant))
+    assert "leakK" in seen, seen
 
 
 def test_the_census_names_the_helpers_of_an_unwrapped_solve_bench(tmp_path: Path) -> None:
