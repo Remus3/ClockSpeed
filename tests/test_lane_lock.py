@@ -1426,19 +1426,40 @@ def test_the_floor_is_the_earliest_add_not_the_latest(tmp_path: Path) -> None:
     assert floor == date(2026, 1, 5)
 
 
+@pytest.mark.parametrize("refusal", ["foreign-owner", "garbage-head"])
 def test_a_repository_git_refuses_to_read_is_red_not_unreachable(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, refusal: str
 ) -> None:
     """FAIL CLOSED: an unreadable history proves nothing about the upstream.
 
-    The upstream IS in this repository's history. When git refuses the
-    repository's owner, the walk has read nothing, and grading that as
-    "unreachable, declared GONE" would be a green built on no evidence.
+    The upstream IS in this repository's history, and the control grades it so
+    before anything is refused. Once git refuses the repository, the walk has
+    read nothing, and grading that as "unreachable, declared GONE" would be a
+    green built on no evidence.
+
+    TWO REFUSALS, BECAUSE ONE IS AT THE MERCY OF AMBIENT CONFIG. The owner
+    check is disarmed by ``safe.directory = *``, which a CI runner's system or
+    global config may carry - measured: this arm went green-by-no-raise on
+    ubuntu CI while red on this box. So the owner refusal runs with system and
+    global config CUT OFF, and a garbage ``HEAD`` - which no config can make
+    git accept - proves the same thing on every platform.
     """
     repo = _plant_repo(tmp_path / "repo", PLANTED_UPSTREAM, PLANTED_FORK)
-    monkeypatch.setenv("GIT_TEST_ASSUME_DIFFERENT_OWNER", "1")
+    docstring = _fork_docstring(_planted_upstream_digest(), gone=MEASURED_ON)
+    control = _grade_fork_record(
+        docstring, _reachable_digests(repo, FORK_RELPATH), today=date.today()
+    )
+    if refusal == "foreign-owner":
+        empty_global = tmp_path / "empty.gitconfig"
+        empty_global.write_bytes(b"")
+        monkeypatch.setenv("GIT_CONFIG_NOSYSTEM", "1")
+        monkeypatch.setenv("GIT_CONFIG_GLOBAL", str(empty_global))
+        monkeypatch.setenv("GIT_TEST_ASSUME_DIFFERENT_OWNER", "1")
+    else:
+        (repo / ".git" / "HEAD").write_bytes(b"not a ref at all\n")
     with pytest.raises(pytest.fail.Exception, match=r"git rev-parse exited \d+ - an unreadable"):
         _reachable_digests(repo, FORK_RELPATH)
+    assert control == FAULT_FALSELY_GONE
 
 
 def test_a_repository_with_a_corrupt_ref_is_red_not_unreachable(tmp_path: Path) -> None:
