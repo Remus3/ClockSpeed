@@ -265,13 +265,15 @@ def last_committed_manifest(root: Path) -> str | None:
     ``--full-history``, so no side of a merge is simplified away. A commit that
     deleted it is skipped, so the answer is always a commit a
     ``git checkout <rev> -- tools/provenance.tsv`` can restore from. None when
-    no ref reaches a commit that holds one.
+    neither HEAD nor any ref reaches a commit that holds one. HEAD is searched
+    whether or not any ref exists (G3): a detached HEAD with every ref deleted
+    still reaches its own history.
     """
-    if not _git(root, "for-each-ref", "--count=1").strip():
-        return None
-    scopes = [["--all"]]
+    scopes: list[list[str]] = []
     if _git_succeeds(root, "rev-parse", "--verify", "-q", "HEAD"):
-        scopes.insert(0, ["HEAD"])
+        scopes.append(["HEAD"])
+    if _git(root, "for-each-ref", "--count=1").strip():
+        scopes.append(["--all"])
     for scope in scopes:
         listing = _git(
             root, "log", *scope, "--full-history", "--format=%H", "--", MANIFEST_RELATIVE
@@ -282,17 +284,36 @@ def last_committed_manifest(root: Path) -> str | None:
     return None
 
 
+def is_shallow(root: Path) -> bool:
+    """Return whether ``root`` is a shallow clone, whose history is truncated."""
+    return _git(root, "rev-parse", "--is-shallow-repository").strip() != "false"
+
+
 def restore_advice(root: Path) -> str:
-    """Return what to do about a missing manifest. It never recommends the seed."""
+    """Return what to do about a missing manifest. It never recommends the seed.
+
+    In a shallow clone it says so (G4): the history below the cut is not here,
+    so the restore it names is only the newest this clone can read, and no
+    re-seed can be graded in it.
+    """
     rev = last_committed_manifest(root)
+    shallow = is_shallow(root)
+    truncated = (
+        "; this is a shallow clone, its history is truncated, so a re-seed cannot be"
+        " graded here - fetch the full history to grade it"
+        if shallow
+        else ""
+    )
     if rev is None:
+        where = "this shallow clone can read" if shallow else "HEAD or any ref reaches"
         return (
-            "no commit on this history holds one; restore it from a full-history clone,"
-            " never re-derive it (CS-1176)"
+            f"no commit {where} holds one; restore it from a full-history clone,"
+            f" never re-derive it (CS-1176){truncated}"
         )
     return (
         f"restore the committed manifest with `git checkout {rev} -- {MANIFEST_RELATIVE}`;"
-        " never re-derive it, which would classify every unstamped file as authored (CS-1176)"
+        " never re-derive it, which would classify every unstamped file as authored"
+        f" (CS-1176){truncated}"
     )
 
 
@@ -696,7 +717,7 @@ def cmd_bootstrap(root: Path) -> str:
     if (root / MANIFEST_RELATIVE).exists():
         message = f"{MANIFEST_RELATIVE} exists; bootstrap never overwrites it - use add"
         raise RefusalError(message)
-    if _git(root, "rev-parse", "--is-shallow-repository").strip() != "false":
+    if is_shallow(root):
         message = "this is a shallow clone; bootstrap needs the full history"
         raise RefusalError(message)
     if last_committed_manifest(root) is not None:

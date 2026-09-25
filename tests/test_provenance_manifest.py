@@ -52,15 +52,19 @@ close that:
   grades the tree against the restorable manifest so the red names every file
   that manifest lacks - the lift included.
 * THE ARM DETECTS A RE-SEED. A ``first-add:`` row is only ever written by the
-  one-time seed, and once its row is dropped (``rm``) or re-stamped (``mv``) no
-  honest writer brings a first-add row back. So every first-add row the manifest
-  holds must be present, identically, in EVERY committed version of the
-  manifest reachable from HEAD, walked with ``--full-history`` so no side of a
-  merge is simplified away. That names a re-seed by any means (an older tool,
-  a hand edit), a seed-era path that left and came back as a lift - the seed
-  regenerates a byte-identical row for it, so comparing with the seed alone is
-  blind - and a stale branch's own seed merged back, whose rows the main line's
-  versions never held. Rows added later carry ``stamped``.
+  one-time seed. So every first-add row the manifest holds must be present,
+  identically, in every ROOT version of the manifest (the seed) and
+  continuously after it, across the manifest's own version graph reachable from
+  HEAD, walked with ``--full-history`` so no side of a merge is simplified away.
+  One forgiveness: a GAP - a version where the row is absent, differs or does
+  not parse - is forgiven when the path's blob at the nearest versions holding
+  the row before it equals its blob at the nearest ones after it (the work tree
+  when none follows). A reverted removal or a fixed typo keeps the bytes and is
+  forgiven; a row a root lacks never is. That names a re-seed by any means (an
+  older tool, a hand edit), a seed-era path that left and came back as a lift
+  with other bytes - the seed regenerates a byte-identical ROW for it, so the
+  rows alone are blind - and a stale branch's own seed merged back, whose rows
+  the main line's seed never held. Rows added later carry ``stamped``.
 
 Residuals, stated rather than left to be discovered. The re-seed arm reads
 history, so on a SHALLOW clone - CI's depth-1 checkout - it SKIPS, visibly; the
@@ -93,7 +97,7 @@ import re
 import shutil
 import subprocess
 import sys
-from collections.abc import Iterable, Mapping, Sequence
+from collections.abc import Callable, Iterable, Mapping, Sequence
 from fractions import Fraction
 from pathlib import Path
 from types import ModuleType
@@ -579,25 +583,52 @@ def _last_committed_manifest(root: Path) -> tuple[str, bytes] | None:
     return None
 
 
-def _committed_versions(root: Path) -> list[dict[str, Row]]:
-    """Return the rows of every committed manifest reachable from HEAD.
+class ManifestNode(NamedTuple):
+    """One commit that touched the manifest, in the history reachable from HEAD."""
+
+    rev: str
+    #: The nearest ancestor commits that touched it - git's rewritten parents.
+    parents: tuple[str, ...]
+    #: Its rows, or None when the commit deleted the manifest.
+    rows: dict[str, Row] | None
+
+
+def _manifest_history(root: Path) -> list[ManifestNode]:
+    """Return every commit touching the manifest, as a DAG, oldest first.
 
     ``--full-history`` keeps every side of every merge: default simplification
     follows the parent a merge result is TREESAME to, so a manifest resolved to
-    a side branch would hide the main line's versions. A commit that deleted
-    the manifest holds no version and is skipped. One ``cat-file --batch`` child
-    reads every blob.
+    a side branch would hide the main line's versions. ``--parents`` under a
+    path limit rewrites each commit's parents to the nearest commits that touched
+    the manifest, so the result is the manifest's own version graph. A commit
+    that deleted the manifest is a node with no rows. A row that fails its own
+    line's grammar is absent from that version's rows. One ``cat-file --batch``
+    child reads every blob.
 
     Args:
         root: A work tree.
 
     Returns:
-        One row mapping per commit whose tree holds the manifest, newest first.
+        The nodes in topological order, parents before children.
     """
-    revs = _manifest_revisions(root, "--full-history")
-    if not revs:
+    if _git_bytes(root, "rev-parse", "--verify", "-q", "HEAD").returncode != 0:
         return []
-    request = "".join(f"{rev}:{MANIFEST_RELATIVE}\n" for rev in revs).encode("ascii")
+    listing = _git_bytes(
+        root,
+        "log",
+        "--full-history",
+        "--topo-order",
+        "--reverse",
+        "--parents",
+        "--format=%H %P",
+        "--",
+        MANIFEST_RELATIVE,
+    )
+    assert listing.returncode == 0, "git log over the manifest path failed"
+    graph = [line.split() for line in listing.stdout.decode("ascii").splitlines() if line]
+    if not graph:
+        return []
+    request = "".join(f"{line[0]}:{MANIFEST_RELATIVE}\n" for line in graph).encode("ascii")
     done = subprocess.run(
         ["git", "cat-file", "--batch"],
         cwd=root,
@@ -608,18 +639,59 @@ def _committed_versions(root: Path) -> list[dict[str, Row]]:
         env=_git_env(),
     )
     assert done.returncode == 0, "git cat-file --batch over the manifest versions failed"
-    out, at, versions = done.stdout, 0, []
-    for _rev in revs:
+    out, at, nodes = done.stdout, 0, []
+    for line in graph:
         end = out.index(b"\n", at)
         header = out[at:end].split()
         at = end + 1
-        if header[-1] == b"missing":
-            continue
-        size = int(header[2])
-        versions.append(_parse_manifest(out[at : at + size])[0])
-        at += size + 1
+        rows: dict[str, Row] | None = None
+        if header[-1] != b"missing":
+            size = int(header[2])
+            rows = _parse_manifest(out[at : at + size])[0]
+            at += size + 1
+        nodes.append(ManifestNode(line[0], tuple(line[1:]), rows))
     assert at == len(out), "git cat-file --batch returned bytes nobody asked for"
-    return versions
+    # Full history keeps merges from BEFORE the manifest existed; they hold no
+    # manifest and descend from none, so they are not versions or gaps. Prune
+    # them, and every parent edge into them, so a seed is a root.
+    kept: dict[str, ManifestNode] = {}
+    for node in nodes:
+        parents = tuple(parent for parent in node.parents if parent in kept)
+        if node.rows is not None or parents:
+            kept[node.rev] = ManifestNode(node.rev, parents, node.rows)
+    return list(kept.values())
+
+
+def _committed_versions(root: Path) -> list[dict[str, Row]]:
+    """Return the rows of every committed manifest reachable from HEAD, newest first.
+
+    Args:
+        root: A work tree.
+
+    Returns:
+        One row mapping per commit whose tree holds the manifest.
+    """
+    return [node.rows for node in reversed(_manifest_history(root)) if node.rows is not None]
+
+
+def _path_blob(root: Path, rev: str | None, path: str) -> str | None:
+    """Return the blob id of ``path`` at commit ``rev``, or in the work tree for None.
+
+    Args:
+        root: A work tree.
+        rev: A commit, or None for the work tree being graded.
+        path: A repo-relative path.
+
+    Returns:
+        The object id, or None when the path is absent there.
+    """
+    if rev is None:
+        if not (root / path).is_file():
+            return None
+        done = _git_bytes(root, "hash-object", "--", path)
+    else:
+        done = _git_bytes(root, "rev-parse", "--verify", "-q", f"{rev}:{path}")
+    return done.stdout.decode("ascii").strip() if done.returncode == 0 else None
 
 
 def _is_shallow(root: Path) -> bool:
@@ -636,28 +708,86 @@ def _is_shallow(root: Path) -> bool:
     return done.stdout.strip() != b"false"
 
 
-def _reseeded_rows(rows: Mapping[str, Row], versions: Sequence[Mapping[str, Row]]) -> list[str]:
-    """Return every ``first-add:`` row some committed version does not hold identically.
+def _nearest_holding(
+    start: str, step: Mapping[str, Sequence[str]], holds: Callable[[str], bool]
+) -> set[str]:
+    """Walk ``step`` from ``start`` and return the nearest nodes that hold the row.
+
+    Args:
+        start: The gap node.
+        step: Each node mapped to its parents, or to its children.
+        holds: Whether a node holds the row.
+
+    Returns:
+        The first holding node on every path out of ``start``.
+    """
+    found: set[str] = set()
+    seen: set[str] = set()
+    frontier = list(step.get(start, ()))
+    while frontier:
+        rev = frontier.pop()
+        if rev in seen:
+            continue
+        seen.add(rev)
+        if holds(rev):
+            found.add(rev)
+        else:
+            frontier.extend(step.get(rev, ()))
+    return found
+
+
+def _reseeded_rows(
+    rows: Mapping[str, Row],
+    nodes: Sequence[ManifestNode],
+    blob: Callable[[str | None, str], str | None],
+) -> list[str]:
+    """Return every ``first-add:`` row whose presence is not continuous from the seed.
 
     Only the one-time seed writes a ``first-add:`` basis; ``add`` and ``mv``
-    write ``stamped`` and ``rm`` drops the row. So an honest first-add row is in
-    every version from the seed on. One missing from ANY version - a new path, a
-    path whose row once left, or a row whose class or item changed - was written
-    by a re-seed or by hand, whatever the seed itself holds.
+    write ``stamped``. So an honest first-add row is in every ROOT version (the
+    seed; there is no forgiveness for a row a root lacks) and in every version
+    after it, with ONE forgiveness: a GAP - a version where the row is absent,
+    differs, or does not parse - is forgiven when the path's blob at the nearest
+    versions holding the row before the gap equals its blob at the nearest ones
+    after it (the work tree when none follows). A reverted removal and a fixed
+    typo keep the bytes and are forgiven; a lift reusing a seed-era path, a
+    re-seed of a new path, and a stale branch's own seed merged back are not.
 
     Args:
         rows: The manifest's rows.
-        versions: The rows of every committed version of the manifest.
+        nodes: The manifest's version DAG, parents before children.
+        blob: The blob id of a path at a commit, or in the work tree for None.
 
     Returns:
         One ``path (basis)`` entry per offending row, sorted by path bytes.
     """
-    return [
-        f"{path} ({row.basis})"
-        for path, row in sorted(rows.items(), key=lambda pair: _path_key(pair[0]))
-        if row.basis.startswith("first-add:")
-        and any(version.get(path) != row for version in versions)
-    ]
+    parents = {node.rev: node.parents for node in nodes}
+    children: dict[str, list[str]] = {node.rev: [] for node in nodes}
+    for node in nodes:
+        for parent in node.parents:
+            children.setdefault(parent, []).append(node.rev)
+    by_rev = {node.rev: node for node in nodes}
+    found: list[str] = []
+    for path, row in sorted(rows.items(), key=lambda pair: _path_key(pair[0])):
+        if not row.basis.startswith("first-add:"):
+            continue
+
+        def holds(rev: str, path: str = path, row: Row = row) -> bool:
+            held = by_rev[rev].rows
+            return held is not None and held.get(path) == row
+
+        gaps = [node for node in nodes if not holds(node.rev)]
+        if any(not node.parents for node in gaps):
+            found.append(f"{path} ({row.basis})")
+            continue
+        for gap in gaps:
+            before = _nearest_holding(gap.rev, parents, holds)
+            after: set[str | None] = set(_nearest_holding(gap.rev, children, holds)) or {None}
+            blobs = {blob(rev, path) for rev in before | after}
+            if not before or len(blobs) != 1:
+                found.append(f"{path} ({row.basis})")
+                break
+    return found
 
 
 class ReseedGrade(NamedTuple):
@@ -669,7 +799,7 @@ class ReseedGrade(NamedTuple):
 
 
 def _reseed_grade(root: Path) -> ReseedGrade:
-    """Grade a tree's manifest against every committed version of it - THE re-seed arm.
+    """Grade a tree's first-add rows against the manifest's version graph - THE re-seed arm.
 
     The real-tree test and every mutation test call exactly this, so a mutant
     of the wiring is a mutant of the real-tree arm too. A shallow clone holds no
@@ -684,12 +814,17 @@ def _reseed_grade(root: Path) -> ReseedGrade:
     """
     if _is_shallow(root):
         pytest.skip("CS-1176 re-seed arm: a shallow clone holds no history; a full clone grades it")
-    versions = _committed_versions(root)
+    nodes = _manifest_history(root)
+    versions = sum(1 for node in nodes if node.rows is not None)
     assert versions, f"no commit on this history holds {MANIFEST_RELATIVE}"
     rows, faults = _parse_manifest(_require_manifest(root, root / MANIFEST_RELATIVE))
     assert faults == [], f"{MANIFEST_RELATIVE} breaks its grammar: {faults}"
     first_adds = sum(1 for row in rows.values() if row.basis.startswith("first-add:"))
-    return ReseedGrade(_reseeded_rows(rows, versions), len(versions), first_adds)
+
+    def blob(rev: str | None, path: str) -> str | None:
+        return _path_blob(root, rev, path)
+
+    return ReseedGrade(_reseeded_rows(rows, nodes, blob), versions, first_adds)
 
 
 def _missing_manifest_message(root: Path) -> str:
@@ -1314,21 +1449,124 @@ def test_cs1176_f2_a_stale_branch_seed_merged_back_is_named(
     assert _reseed_grade(root).findings == [f"{RESEED_LIFT} ({rows[RESEED_LIFT].basis})"]
 
 
+def _fixture_git(root: Path, *args: str) -> None:
+    """Run a committing git verb in the throwaway tree with a fixture identity, hooks off.
+
+    Args:
+        root: The throwaway work tree.
+        *args: The git arguments.
+    """
+    _git(
+        root,
+        "-c",
+        "user.name=fixture",
+        "-c",
+        "user.email=fixture@example.invalid",
+        "-c",
+        "core.hooksPath=",
+        *args,
+    )
+
+
+def test_cs1176_g1_a_reverted_removal_is_forgiven(seeded_repo: tuple[Path, str]) -> None:
+    # G1: a seed-era file removed by mistake and restored by `git revert` comes
+    # back with its original bytes and its identical first-add row. The gap is
+    # forgiven because the path's blob after it equals its blob before it.
+    root, _seed = seeded_repo
+    before = (root / RETURNING).read_bytes()
+    seed_row = _parse_manifest((root / MANIFEST_RELATIVE).read_bytes())[0][RETURNING]
+    _git(root, "rm", "-q", "--", RETURNING)
+    assert _tool(root, "rm", RETURNING) == 0
+    _git(root, "add", "--", MANIFEST_RELATIVE)
+    removal = _commit(root, "CS-1165 - drop alpha by mistake")
+    _fixture_git(root, "revert", "--no-edit", removal)
+    assert (root / RETURNING).read_bytes() == before, "G1 never landed: the bytes differ"
+    rows, _faults = _parse_manifest((root / MANIFEST_RELATIVE).read_bytes())
+    assert rows[RETURNING] == seed_row, "G1 never landed: the row differs"
+    grade = _reseed_grade(root)
+    assert grade.versions == 3, grade  # noqa: PLR2004 - seed, removal, revert
+    assert grade.findings == []
+    assert _tool(root, "check") == 0
+    # A later honest edit, with no manifest change, keeps it forgiven.
+    (root / RETURNING).write_bytes(before + b"# edited after the revert\n")
+    _git(root, "add", "--", RETURNING)
+    _commit(root, "CS-1165 - edit alpha")
+    assert _reseed_grade(root).findings == []
+
+
+def test_cs1176_g2_a_version_with_a_typo_row_fixed_next_commit_is_forgiven(
+    seeded_repo: tuple[Path, str],
+) -> None:
+    # G2: one committed version whose row for a seed-era path does not parse,
+    # fixed in the next commit. The path's bytes never changed, so it is forgiven.
+    root, _seed = seeded_repo
+    good = (root / MANIFEST_RELATIVE).read_bytes()
+    typo = good.replace(f"{RETURNING}\tauthored".encode(), f"{RETURNING}\tauthord".encode())
+    assert typo != good, "G2 never landed"
+    (root / MANIFEST_RELATIVE).write_bytes(typo)
+    _git(root, "add", "--", MANIFEST_RELATIVE)
+    _commit(root, "CS-1165 - a typo in the manifest")
+    assert RETURNING not in _committed_versions(root)[0], "the typo version still parsed the row"
+    (root / MANIFEST_RELATIVE).write_bytes(good)
+    _git(root, "add", "--", MANIFEST_RELATIVE)
+    _commit(root, "CS-1165 - fix the typo")
+    assert _reseed_grade(root).findings == []
+
+
+def _chain(*states: dict[str, Row] | None) -> list[ManifestNode]:
+    """Return a linear synthetic version DAG, one node per state, oldest first.
+
+    Args:
+        *states: Each version's rows, or None for a deletion.
+
+    Returns:
+        Nodes ``v0``, ``v1`` ... each the parent of the next.
+    """
+    return [
+        ManifestNode(f"v{index}", (f"v{index - 1}",) if index else (), state)
+        for index, state in enumerate(states)
+    ]
+
+
+def _blobs(table: Mapping[str | None, str]) -> Callable[[str | None, str], str | None]:
+    """Return a blob lookup over ``table``, keyed by commit and ignoring the path.
+
+    Args:
+        table: Commit (None for the work tree) mapped to a blob id.
+
+    Returns:
+        The lookup.
+    """
+    return lambda rev, _path: table.get(rev)
+
+
 def test_cs1176_a_first_add_row_whose_class_changed_is_named() -> None:
-    seed = [{"a.py": Row("vendored", "CS-1", "first-add:root")}]
-    assert _reseeded_rows({"a.py": Row("authored", "CS-1", "first-add:root")}, seed) == [
+    seed = _chain({"a.py": Row("vendored", "CS-1", "first-add:root")})
+    same = _blobs({"v0": "x", None: "x"})
+    assert _reseeded_rows({"a.py": Row("authored", "CS-1", "first-add:root")}, seed, same) == [
         "a.py (first-add:root)"
     ]
-    assert _reseeded_rows({"a.py": Row("vendored", "CS-1", "first-add:root")}, seed) == []
-    assert _reseeded_rows({"b.py": Row("authored", "CS-1", "stamped")}, seed) == []
+    assert _reseeded_rows({"a.py": Row("vendored", "CS-1", "first-add:root")}, seed, same) == []
+    assert _reseeded_rows({"b.py": Row("authored", "CS-1", "stamped")}, seed, same) == []
 
 
-def test_cs1176_a_first_add_row_absent_from_any_one_version_is_named() -> None:
+def test_cs1176_a_gap_is_forgiven_only_when_the_bytes_either_side_agree() -> None:
     row = Row("authored", "CS-1", "first-add:root")
-    present: dict[str, Row] = {"a.py": row}
-    absent: dict[str, Row] = {}
-    assert _reseeded_rows({"a.py": row}, [present, present]) == []
-    assert _reseeded_rows({"a.py": row}, [present, absent, present]) == ["a.py (first-add:root)"]
+    held: dict[str, Row] = {"a.py": row}
+    gap: dict[str, Row] = {}
+    rows = {"a.py": row}
+    nodes = _chain(held, gap, held)
+    assert _reseeded_rows(rows, _chain(held, held), _blobs({})) == []
+    assert _reseeded_rows(rows, nodes, _blobs({"v0": "x", "v2": "x"})) == []
+    assert _reseeded_rows(rows, nodes, _blobs({"v0": "x", "v2": "y"})) == ["a.py (first-add:root)"]
+    # A gap with nothing after it is compared with the work tree.
+    tail = _chain(held, gap)
+    assert _reseeded_rows(rows, tail, _blobs({"v0": "x", None: "x"})) == []
+    assert _reseeded_rows(rows, tail, _blobs({"v0": "x", None: "y"})) == ["a.py (first-add:root)"]
+    # A root that lacks the row is never forgiven, whatever the bytes say.
+    assert _reseeded_rows(rows, _chain(gap, held), _blobs({"v1": "x", None: "x"})) == [
+        "a.py (first-add:root)"
+    ]
 
 
 def test_an_ignored_file_is_outside_the_population_and_an_unignored_one_is_in(
@@ -1568,16 +1806,18 @@ def _independent_version_count(root: Path) -> int:
 def test_no_first_add_row_postdates_the_seed() -> None:
     # CS-1176, THE RE-SEED ARM on the real tree - the SAME helper the mutation
     # tests drive, so their mutants are mutants of this wiring. Every first-add
-    # row must be in every committed version of the manifest.
+    # row must run continuously from the seed, a gap forgiven only when the
+    # path's bytes either side of it agree.
     grade = _reseed_grade(REPO_ROOT)
     # ANTI-VACUITY: the arm read every version history holds, and graded rows.
     assert grade.versions == _independent_version_count(REPO_ROOT) >= 1
     assert grade.first_adds > 0, "the manifest holds no first-add row, so nothing was graded"
     assert grade.findings == [], (
-        f"these first-add rows are missing from some committed version of {MANIFEST_RELATIVE}: "
-        f"{grade.findings}. A re-seed launders every unstamped file into the authored class; "
-        f"restore the committed manifest and stamp each file with `python {STAMP_TOOL} add` "
-        f"(CS-1176)."
+        f"these first-add rows in {MANIFEST_RELATIVE} do not run continuously from the seed "
+        f"with the same bytes: {grade.findings}. A re-seed launders every unstamped file into "
+        f"the authored class. Delete a lift; otherwise restore the committed manifest with "
+        f"`git checkout <rev> -- {MANIFEST_RELATIVE}` (which drops the row) and stamp the file "
+        f"with `python {STAMP_TOOL} add` (CS-1176)."
     )
 
 

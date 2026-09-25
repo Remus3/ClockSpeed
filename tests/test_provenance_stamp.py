@@ -763,6 +763,49 @@ def test_bootstrap_refuses_while_only_a_remote_ref_holds_a_manifest(
     assert f"git checkout {seed} -- tools/provenance.tsv" in capsys.readouterr().err
 
 
+def test_bootstrap_refuses_on_a_detached_head_with_no_refs_at_all(
+    tool: ModuleType, repo: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    # G3: every ref deleted, HEAD detached - HEAD itself still reaches the
+    # manifest, so the seed must refuse rather than read "no refs" as "no history".
+    seed = _seed_and_commit(tool, repo)
+    _stage(repo, LIFT, LIFT_BYTES)
+    _commit(repo, "CS-42 - a file nobody stamped")
+    main = _git(repo, "rev-parse", "--abbrev-ref", "HEAD").strip()
+    _git(repo, "checkout", "-q", "--detach")
+    _git(repo, "branch", "-q", "-D", main)
+    assert _git(repo, "for-each-ref") == "", "G3 never landed: a ref survives"
+    _manifest(repo).unlink()
+    capsys.readouterr()
+    assert _run(tool, repo, "bootstrap") == REFUSED, "a ref-less detached HEAD reopened the seed"
+    assert not _manifest(repo).exists()
+    assert f"git checkout {seed} -- tools/provenance.tsv" in capsys.readouterr().err
+
+
+def test_check_in_a_shallow_clone_names_the_restore_and_the_truncation(
+    tool: ModuleType, repo: Path, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    # G4: a depth-1 clone whose seed commit was cut off. HEAD still holds the
+    # manifest, so "no commit holds one" would be false; and the clone cannot
+    # read the history a re-seed is graded against, so it must say so.
+    _seed_and_commit(tool, repo)
+    _stage(repo, "lib/later.py", b"x = 'committed after the seed'\n")
+    _commit(repo, "CS-42 - a later commit, so the seed is cut off below it")
+    shallow = tmp_path / "shallow"
+    _git(tmp_path, "clone", "-q", "--depth", "1", repo.resolve().as_uri(), str(shallow))
+    assert _git(shallow, "rev-parse", "--is-shallow-repository").strip() == "true"
+    tip = _git(shallow, "rev-parse", "HEAD").strip()
+    _manifest(shallow).unlink()
+    capsys.readouterr()
+    assert _run(tool, shallow, "check") == FOUND
+    said = capsys.readouterr()
+    text = said.out + said.err
+    assert f"git checkout {tip} -- tools/provenance.tsv" in text, text
+    assert "shallow" in text, text
+    assert "no commit" not in text, text
+    assert "bootstrap" not in text, text
+
+
 def test_bootstrap_still_seeds_a_history_that_never_held_a_manifest(
     tool: ModuleType, repo: Path
 ) -> None:
