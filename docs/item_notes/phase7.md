@@ -727,10 +727,15 @@ message control. ABORT on any hit outside the S0 allowlist.
 **A SEVENTH AXIS, filed 2026-09-24 by CS-1180 under the ADR 0018 amendment:** the
 trailer-shaped census S7a defines, over the publishable closure. The six axes above
 never looked for an agent co-authorship trailer. S1 runs BEFORE S7a strips them, so
-here its hits ARE the population S7a removes: record that count as S7a's pre-rewrite
-control, ABORT if it is zero, and ABORT on any hit in a commit S7a will not rewrite.
-At S8, after the strip, ABORT on any hit at all; the positive control there is the
-same census over the pre-S7a graph returning the pre-S7a count.
+here its hits ARE the population S7a removes: record that count as an EARLY WARNING
+only, ABORT if it is zero, and ABORT unless every hit is a line S7a's strip removes -
+the final body line of a non-merge commit's message, preceded by a blank line, one per
+commit - so a census hit the strip would leave behind aborts here, before any SHA
+changes. S1's count is NOT S7a's baseline: S6 and S7 change `main` between S1 and
+S7a, so S7a takes its own baseline census immediately before it rewrites. At S8,
+after the strip, ABORT on any hit at all; the positive control there is the same
+census over the preservation bundle taken before S7a, returning the count S7a's
+pre-rewrite baseline recorded.
 
 **S2 - Search for the player display name.** Derive it without writing it
 anywhere; report a count, never a value. ABORT on any hit.
@@ -760,7 +765,7 @@ BUILT - it does not exist.** `tools/drift_guard.py` has `link_targets` and
 `memory/`. Nothing resolves markdown links in `docs/`, `CLAUDE.md`, `README.md`
 or `ROADMAP.md`. Budget a build, not a run.
 
-**CORRECTED 2026-09-24 by CS-1184: the sentence above saying nothing resolves
+**CORRECTED 2026-09-24 by the N0 adjudicator ruling at `599528c`: the sentence above saying nothing resolves
 markdown links is FALSE.** `.github/workflows/tier1.yml` step `Markdown link check`,
 present since the first commit `9d24823`, resolves every relative markdown link in
 every tracked `.md` file on every push. It strips fragments, never fetches a URL and
@@ -770,17 +775,26 @@ budgeted here is that, not a link resolver.
 
 **S7 - Gate item 7, and CS-952 closes here.** See section 5.
 
-**S7a - Rewrite commit identity across all 521 commits**, per the ruling in
-section 6. Author and committer, plus removal of the agent co-authorship trailer
+**S7a - Rewrite commit identity across every commit on `main`**, per the ruling
+in section 6. No commit count is written here: the census and the count controls
+below measure it at run time, and a count written into this plan is stale by the
+time S7a runs. Author and committer, plus removal of the agent co-authorship trailer
 line and its preceding blank line (ADR 0018, amended 2026-09-24); trees, paths,
-dates, parent topology and every other message byte unchanged. Added controls:
+dates, parent topology and every other message byte unchanged. **BASELINE,
+immediately before the rewrite and after S6 and S7 have landed:** bundle `main` at
+its current tip beside the S3 bundle, placed per S5 and proven restorable per S4 -
+that is the preservation bundle taken before S7a - and take the trailer-shaped
+census over it. That count, not S1's, is the pre-rewrite count. Added controls:
 the trailer-shaped census (a column-zero line whose trimmed token before the
 first colon folds to `co-authored-by`) returns the pre-rewrite count, non-zero,
 BEFORE and zero AFTER; exactly that many commits have a changed message; and for
 each of them the old message minus the stripped lines equals the new message
 byte for byte. Controls: assert the rewritten commit COUNT equals the pre-rewrite
 count, assert every tree SHA is unchanged commit-for-commit - the rewrite must
-touch identity and nothing else - and assert `git log --format='%ae %ce'` yields
+touch identity and the trailer strip and nothing else - assert a commit-for-commit
+MESSAGE diff, old against new, in which a commit passes only when its message is
+byte-equal or differs solely by the stripped trailer line and the blank line before
+it, and any other message difference ABORTS, and assert `git log --format='%ae %ce'` yields
 exactly one address across the whole graph, with a pre-rewrite control showing
 it yielded two. **The S3/S4 bundle must already exist and be proven restorable
 before this runs**, because this step invalidates every SHA the remote holds.
@@ -791,6 +805,15 @@ said so in prose while omitting the step. It costs about 7 seconds. This is the
 last check before anything irreversible. The re-run includes S1's seventh axis,
 the trailer census, which must return zero here.
 
+**S8a - READINESS ADJUDICATION, ANCHORED.** After S8 passes and before S9, an
+in-session adjudicator that produced none of the flip's work freezes `main` at one
+SHA and rules on readiness at that SHA, on evidence re-run that session against all
+eight CS-G03 preconditions - the decide half in `docs/GATED.md` CS-G03 (CS-1182).
+**The adjudicated SHA is the SHA S9 onward operates on:** S10 pushes exactly it,
+S11's mirror clone must return exactly it as the one head, and S12 publishes it.
+Any commit to `main` after it VOIDS the adjudication - re-adjudicate `<sha>..HEAD`
+before S9 runs, and never carry the verdict forward.
+
 **S9 - Delete the remote repository and RECREATE IT PRIVATE.** The first
 irreversible step, and **it requires the operator's explicit go-ahead at the
 moment of running, not this plan's existence.** The recreated repository is
@@ -800,7 +823,7 @@ and strand S11's protections. Immediately before S9, re-confirm (1d) with its
 controls - delete-and-recreate is only free while it holds.
 Who decides and who acts is filed in `docs/GATED.md` CS-G03 under "who decides
 the flip and who performs it" (CS-1182): an in-session adjudicator decides
-readiness at a frozen SHA, and the operator's own typed confirmation, once,
+readiness at S8a's adjudicated SHA, and the operator's own typed confirmation, once,
 immediately before S9, covers S9 through S12 as one run.
 
 **S10 - Push `main` alone.** No `--mirror`, no `--all`, no `--tags`.
@@ -862,7 +885,9 @@ which this section explicitly does NOT foreclose for identity.
 
 **RULED 2026-09-08: REWRITE IDENTITY TO NOREPLY.** Author and committer are
 rewritten across all 521 commits to the operator's GitHub noreply address,
-keeping every message, tree, path and date. ACCEPT-as-is and SQUASH-to-fresh-
+keeping every message, tree, path and date - AMENDED 2026-09-24 by the ADR
+0018 amendment: every message byte except the agent co-authorship trailer line
+and the blank line before it, which S7a strips. ACCEPT-as-is and SQUASH-to-fresh-
 history were both put and both declined. **Do not re-pitch either**, and do not
 re-pitch publishing under the real identity as a simplification.
 

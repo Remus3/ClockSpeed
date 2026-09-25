@@ -388,10 +388,14 @@ obligations.
 
 #### Operator decision 2026-08-13: the flip ships from a FRESH history
 
+(Mechanism superseded by ADR 0018 - read the note filed below, "ADR 0018 replaces
+the fresh-history mechanism above", before acting on this section.)
+
 **The working tree is clean of PII; the history is not, and cannot be made clean without
 a rewrite.** Decided: do not rewrite. The public artifact is produced from a squashed or
 orphan-branch history instead, and the local development history is kept intact and
-private because it is genuinely useful.
+private because it is genuinely useful. (Superseded by ADR 0018 - see the note filed
+below.)
 
 Two facts force this, both measured rather than assumed:
 
@@ -433,10 +437,15 @@ Two facts force this, both measured rather than assumed:
    written down rather than left to be discovered.
 
 **Therefore the flip has an eighth precondition, additional to the seven above:** the
-published history is generated fresh; the identity it is authored under is chosen
+published history is generated fresh (superseded by ADR 0018 - see the note filed
+below); the identity it is authored under is chosen
 deliberately at that point rather than inherited from the local git config; and no commit
 in it carries an agent co-authorship trailer. A scrubbed working tree pushed onto the
-existing history satisfies none of the three.
+existing history satisfies none of the three. (Under ADR 0018 the three read: the
+published history is `main` after CS-700 step S7a, not a fresh one; its identity is
+chosen at S7a, which rewrites author and committer to the ruled noreply address; and
+no trailer survives S7a's strip, proven by the S8 census. `main` pushed WITHOUT S7a
+still satisfies none of the three.)
 
 **Do not** treat the working-tree scrub as having cleared this item. It cleared the tree,
 which is the PREP half. The DRAIN half is the flip itself and it remains gated.
@@ -584,12 +593,14 @@ break on purpose.
 
 **The eighth precondition above is NOT breached by the eighteen.** It speaks of the
 PUBLISHED history, and this section already rules that the published history is generated
-fresh from a squash or an orphan branch, which need not carry them. What the eighteen broke
+fresh from a squash or an orphan branch, which need not carry them (superseded by ADR
+0018 - the next note records that this no longer holds). What the eighteen broke
 was the standing rule and the consequence drawn from it, not the flip.
 
 #### Filed 2026-09-24 (CS-700): ADR 0018 replaces the fresh-history mechanism above
 
-Nothing above is edited. `docs/adr/0018-the-flip-recreates-the-remote-and-keeps-the-commit-graph.md`,
+No sentence above is reworded; each site above that rested on a fresh history
+carries only an appended pointer to this note. `docs/adr/0018-the-flip-recreates-the-remote-and-keeps-the-commit-graph.md`,
 accepted 2026-09-08, replaced the squash or orphan-branch mechanism of the
 2026-08-13 decision: the remote is deleted and recreated and `main` is pushed
 with its commit graph kept. The eighth precondition's first clause therefore
@@ -604,18 +615,33 @@ Steps and controls: CS-700 in `docs/item_notes/phase7.md`.
 #### Filed 2026-09-24 (CS-700): who decides the flip and who performs it
 
 "Operator sign-off" above and in CS-700 S9 is read through `CLAUDE.md` section
-6.1. The DECISION that the gate has cleared is an in-session adjudicator's,
-ruled at a frozen SHA on evidence re-run that session against all eight
-preconditions; a ruling from MAIN may stand in for that decision. The two
-IRREVERSIBLE ACTS - S9, deleting the remote, and S12, making it public - sit
-under the safety floor section 6.1 leaves untouched, so neither an adjudicator
-nor MAIN consents to them: the operator confirms, in their own words typed into
-this repository's session, once, immediately before S9, and that confirmation
-covers S9 through S12 as one run. It lapses if any step's control aborts, if
-the session ends, or if `main` moves past the adjudicated SHA. The session
-agent executes every step; the operator's hands are needed only for a
-credential or scope grant. This confirms a ruled plan and is not a choice put
-to the operator.
+6.1, and it splits three ways.
+
+**(a) The adjudicator DECIDES readiness.** The decision that the gate has cleared
+is an in-session adjudicator's, ruled at a frozen SHA - CS-700 step S8a - on
+evidence re-run that session against all eight preconditions; a ruling from MAIN
+may stand in for that decision. The adjudicated SHA is the SHA S9 onward operates
+on, and any commit after it voids the ruling until `<sha>..HEAD` is re-adjudicated.
+
+**(b) The operator's single confirmation is the irreversible-act FLOOR, not a
+decision.** S9 deletes and recreates the remote and S12 publishes the repository;
+both are outward-facing and cannot be undone. The operator confirms them in their
+own words typed into this repository's session, once, immediately before S9, and
+that confirmation covers S9 through S12 as one run. It lapses if any step's control
+aborts, if the session ends, or if `main` moves past the adjudicated SHA. It
+confirms a plan already ruled at (a). It is not a request to authorise a choice or
+to pick a direction - section 6.1 routes those away from the operator - and it is
+not delegable.
+
+**(c) The floor binds every actor** - an adjudicator, MAIN and any session,
+including the one running the flip. Section 6.1 says of MAIN's stand-in that it
+"lifts no safety floor - destructive or irreversible acts" among them. This note
+cites that sentence and does not extend it: 6.1 grants an adjudicator blocked
+DECISIONS and grants no actor a power over the floor that MAIN, the operator's
+named stand-in, lacks. The session agent executes every step; the operator's hands
+are needed only for a credential or scope grant. Whether the operator reads 6.1's
+floor this way remains a residual recorded by the N0 adjudicator ruling, in
+`docs/item_notes/phase7.md`.
 
 ### CS-G04 - Dedicated-server data lane
 
