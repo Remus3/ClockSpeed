@@ -103,6 +103,8 @@ def repos(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Iterator[tuple[Pat
     (main / "top.md").write_bytes(b"# clean\n")
     (main / "docs" / "deep.md").write_bytes(b"# deep\n")
     (main / ".gitignore").write_bytes(b"*.log\n")
+    # Each step is graded in the loop body itself, not through `_git`, so the
+    # loop the liveness survey credits carries its own assertion.
     for args in (
         ("init", "--quiet"),
         ("config", "user.email", "suite@example.invalid"),
@@ -111,7 +113,10 @@ def repos(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Iterator[tuple[Pat
         ("add", "--", "top.md", "docs/deep.md", ".gitignore"),
         ("commit", "--quiet", "--no-verify", "-m", "base"),
     ):
-        _git(main, *args)
+        proc = conftest.run_git(main, *args)
+        if proc is None:
+            pytest.skip("git is not installed, so no repository can be built")
+        assert proc.returncode == 0, f"control: git {args[0]} exited {proc.returncode}"
     linked = tmp_path / "linked"
     _git(main, "worktree", "add", "--quiet", "--detach", str(linked))
     # An ignored file on disk in the worktree: git's answer, not the marker
