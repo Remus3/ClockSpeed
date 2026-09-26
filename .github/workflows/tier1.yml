@@ -428,7 +428,7 @@ jobs:
           --ignore=tests/surface/test_server.py
           --ignore=tests/test_pathless_clone_agreement.py
           --ignore=tests/test_credential_redaction.py
-          --ignore=tests/test_flip_checks.py
+          --ignore=tests/test_provenance_stamp.py
           --ignore=tests/test_commit_msg_cleanup_matrix.py
           --ignore=tests/test_commit_msg_control_bytes.py
           --ignore=tests/test_pre_push_suite_floor.py
@@ -1261,7 +1261,7 @@ jobs:
           tests/surface/test_server.py
           tests/test_pathless_clone_agreement.py
           tests/test_credential_redaction.py
-          tests/test_flip_checks.py
+          tests/test_provenance_stamp.py
           -q -n auto --dist loadfile
           --durations=15 --durations-min=5.0
 

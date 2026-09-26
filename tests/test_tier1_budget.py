@@ -2742,7 +2742,8 @@ FILL_FROM_HOOK = (
 #: single test stays under the concentration limit (tools/tier1_concentration.py)
 #: and the catch-all leaves the warn band. The last was added by the S0
 #: measurement's share fallback, heaviest first, skipping the two files pinned
-#: to the catch-all in :data:`RETURNED_TO_CATCH_ALL`.
+#: to the catch-all in :data:`RETURNED_TO_CATCH_ALL` and tests/test_flip_checks.py,
+#: which pins that no workflow names its tool - naming the file here would.
 FILL_FROM_CATCH_ALL = (
     "tests/solve/test_phase3_gate.py",
     "tests/test_cs1174_placeholder_delimiters.py",
@@ -2751,7 +2752,7 @@ FILL_FROM_CATCH_ALL = (
     "tests/surface/test_server.py",
     "tests/test_pathless_clone_agreement.py",
     "tests/test_credential_redaction.py",
-    "tests/test_flip_checks.py",
+    "tests/test_provenance_stamp.py",
 )
 
 #: The fill shard's whole membership, exactly.
