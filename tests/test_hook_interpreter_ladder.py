@@ -126,13 +126,15 @@ ONE_EXECUTABLE: Final = "ONE EXECUTABLE"
 OBSERVED_OUTPUT: Final = "Observed probe output"
 ITEM_ID: Final = "CS-703"
 
-# The cap the hook renders the observed output through, and the slack allowed on
-# top of it for the two-space indent and the label around it.
+# CS-814: the refusal renders NONE of the candidate's output, only its byte count
+# in this form. The cap bounds every refusal line, with slack for the indent.
+OBSERVED_COUNT: Final = re.compile(re.escape(OBSERVED_OUTPUT) + r": \[([0-9]+)\] bytes")
 OBSERVED_CAP: Final = 200
 OBSERVED_SLACK: Final = 80
 
-# A candidate that ignores its arguments and floods stdout, so the truncation has
-# something to truncate. 40 characters, 40 times, with no trailing newline.
+# A candidate that ignores its arguments and floods stdout, so a refusal that
+# rendered its output would have something to flood with. 40 characters, 40
+# times, with no trailing newline.
 CHATTY_MARKER: Final = "CHATTY0123456789CHATTY0123456789CHATTY01"
 CHATTY_REPEATS: Final = 40
 CHATTY_SHIM: Final = (
@@ -931,15 +933,16 @@ def test_a_command_line_in_the_variable_is_refused_and_the_message_says_why(
 
 
 @pytest.mark.parametrize("hook", HOOK_NAMES)
-def test_the_refusal_prints_the_observed_probe_output(
+def test_the_refusal_counts_the_observed_output_and_withholds_it(
     tmp_path: Path, isolated: Environment, hook: str
 ) -> None:
-    """Condition 4's other half: the message shows what the candidate actually said.
+    """Condition 4's other half, re-pinned by CS-814: the size, never the content.
 
     ``echo`` re-emits the probe program, so its observed output carries a fragment
-    no other part of the message contains. Finding that fragment in the refusal is
-    what proves the OBSERVED output is rendered rather than a fixed description of
-    it.
+    no other part of the message contains. The refusal must report a non-zero byte
+    count for it AND must not contain that fragment: a candidate that ignores its
+    arguments can print the hook's environment, so its output is never rendered
+    (CLAUDE.md non-negotiable 13).
     """
     box = make_sandbox(tmp_path, isolated, hook, suite_passes=True)
     outcome = clean_attempt(box, "echo")
@@ -947,11 +950,13 @@ def test_the_refusal_prints_the_observed_probe_output(
         f"{hook}: expected a refusal:\n{outcome.report}"
     )
     rendered = "\n".join(outcome.hook_output)
-    assert OBSERVED_OUTPUT in rendered, (
-        f"{hook}: the refusal does not label the observed output:\n{outcome.report}"
+    counted = OBSERVED_COUNT.search(rendered)
+    assert counted is not None, (
+        f"{hook}: the refusal does not report the observed byte count:\n{outcome.report}"
     )
-    assert "sys.stdout.write" in rendered, (
-        f"{hook}: the refusal omits what the candidate printed:\n{outcome.report}"
+    assert int(counted.group(1)) > 0, f"{hook}: the refusal counted no bytes:\n{outcome.report}"
+    assert "sys.stdout.write" not in rendered, (
+        f"{hook}: the refusal rendered what the candidate printed:\n{outcome.report}"
     )
 
 
@@ -959,14 +964,15 @@ def test_the_refusal_prints_the_observed_probe_output(
 def test_a_chatty_candidate_cannot_flood_the_terminal(
     tmp_path: Path, isolated: Environment, hook: str
 ) -> None:
-    """The truncation, measured rather than assumed, on every hook.
+    """No refusal line can be flooded, measured rather than assumed, on every hook.
 
-    A candidate that ignores its arguments is free to print without limit, and the
-    refusal quotes what it printed. Without a cap, one misconfigured value turns
-    every commit into a wall of that program's output. The shim emits 1600
-    characters on one line.
+    A candidate that ignores its arguments is free to print without limit. Before
+    CS-814 the refusal quoted it through a 200-character cap; since CS-814 it
+    renders none of it, only its byte count. The shim emits 1600 characters on
+    one line: no refusal line may carry any of them, and the count must be all
+    1600.
 
-    PARAMETRIZED FOR THE SAME REASON AS THE ARM ABOVE. Removing the cap from
+    PARAMETRIZED FOR THE SAME REASON AS THE ARM ABOVE. Removing the old cap from
     commit-msg and pre-push was a MEASURED SURVIVOR at 41 passed; the longest
     banner line went from 204 characters to 1564 and nothing failed.
     """
@@ -979,11 +985,16 @@ def test_a_chatty_candidate_cannot_flood_the_terminal(
     assert outcome.blocked_by_the_interpreter_check, (
         f"{hook}: the chatty candidate was accepted as an interpreter:\n{outcome.report}"
     )
-    quoting = [line for line in outcome.hook_output if CHATTY_MARKER in line]
-    assert quoting, f"{hook}: the refusal did not quote the candidate's output at all"
-    assert len(quoting) == 1, f"{hook}: the output was rendered across several lines"
-    assert len(quoting[0]) <= OBSERVED_CAP + OBSERVED_SLACK, (
-        f"{hook}: the observed output was not truncated: {len(quoting[0])} characters"
+    quoting = sum(1 for line in outcome.hook_output if CHATTY_MARKER in line)
+    assert quoting == 0, f"{hook}: {quoting} refusal line(s) quote the candidate's output"
+    longest = max((len(line) for line in outcome.hook_output), default=0)
+    assert longest <= OBSERVED_CAP + OBSERVED_SLACK, (
+        f"{hook}: a refusal line is {longest} characters long"
+    )
+    counted = OBSERVED_COUNT.search("\n".join(outcome.hook_output))
+    total = int(counted.group(1)) if counted else -1
+    assert total == len(CHATTY_MARKER) * CHATTY_REPEATS, (
+        f"{hook}: the refusal counted {total} bytes of the candidate's output"
     )
 
 
@@ -1157,9 +1168,10 @@ def test_the_liar_is_refused_by_the_exit_code_half_and_not_the_stdout_half(
     The liar's stdout is CORRECT - it forwards the real interpreter's, token and
     all - so a refusal that came from the stdout comparison would mean the probe
     is rejecting it for the wrong reason and would also reject every honest
-    wrapper. The refusal must quote the token as the observed output, which is
-    only possible if the stdout half PASSED, and must then report the exit status
-    it got back.
+    wrapper. The refusal must report the exit-status half as REACHED - the liar's
+    dropped status, 0, rather than "not reached" - which is only possible if the
+    stdout half PASSED. Since CS-814 the output itself is never rendered, so the
+    byte count standing in for it must equal the token's length.
     """
     box = make_sandbox(tmp_path, isolated, PRE_COMMIT)
     liar = write_shim(box.hooks.parent / "shims", "liar.sh", LIAR_SHIM)
@@ -1169,12 +1181,14 @@ def test_the_liar_is_refused_by_the_exit_code_half_and_not_the_stdout_half(
         f"the liar was accepted as an interpreter:\n{outcome.report}"
     )
     rendered = "\n".join(outcome.hook_output)
-    assert PROBE_ANSWER in rendered, (
-        "the refusal does not quote the expected answer as the observed output, so the stdout "
-        f"half did not pass and this is not the exit-code refusal:\n{outcome.report}"
+    assert EXIT_STATUS_LABEL + " when asked to fail: [0]" in rendered, (
+        "the refusal does not report the exit-status half as reached, so the stdout half "
+        f"did not pass and this is not the exit-code refusal:\n{outcome.report}"
     )
-    assert EXIT_STATUS_LABEL in rendered, (
-        f"the refusal does not report the observed exit status:\n{outcome.report}"
+    counted = OBSERVED_COUNT.search(rendered)
+    total = int(counted.group(1)) if counted else -1
+    assert total == len(PROBE_ANSWER), (
+        f"the refusal counted {total} bytes, not the answer's {len(PROBE_ANSWER)}"
     )
 
 
@@ -1234,8 +1248,11 @@ def test_the_refusal_extractor_finds_a_refusal_in_each_hook(hook: str) -> None:
     assert ONE_EXECUTABLE.encode("ascii") in block, (
         "the extracted refusal does not carry the ONE EXECUTABLE line"
     )
-    assert b"$cs_probe_shown" in block, (
-        "the extracted refusal does not render the TRUNCATED observed output"
+    assert b"$cs_probe_bytes" in block, (
+        "the extracted refusal does not render the BYTE COUNT of the observed output"
+    )
+    assert b"$cs_probe_out" not in block, (
+        "the extracted refusal renders the observed output itself (CS-814)"
     )
 
 
@@ -1281,19 +1298,24 @@ def test_output_that_merely_contains_the_answer_is_refused(
     stdout. Under exact equality it is refused; under containment it would pass.
     The second assertion is what makes the arm sharp - it proves the answer really
     was present in the output, so the refusal is attributable to exactness rather
-    than to the answer being absent.
+    than to the answer being absent. Since CS-814 the output itself is never
+    rendered, so that proof is the byte count: exactly the prefix plus the answer.
     """
     box = make_sandbox(tmp_path, isolated, PRE_COMMIT)
     noisy = write_shim(box.hooks.parent / "shims", "noisy.sh", NOISY_SHIM)
+    noise = "sitecustomize noise "
+    assert "printf '" + noise + "'" in NOISY_SHIM, "the noise prefix no longer matches the shim"
 
     outcome = commit_attempt(box, interpreter=str(noisy))
     assert outcome.blocked_by_the_interpreter_check, (
         f"output merely CONTAINING the answer was accepted:\n{outcome.report}"
     )
     rendered = "\n".join(outcome.hook_output)
-    assert PROBE_ANSWER in rendered, (
-        "the observed output does not contain the expected answer, so this arm is "
-        f"not measuring exactness at all:\n{outcome.report}"
+    counted = OBSERVED_COUNT.search(rendered)
+    total = int(counted.group(1)) if counted else -1
+    assert total == len(noise) + len(PROBE_ANSWER), (
+        f"the refusal counted {total} bytes, not the prefix plus the answer, so this arm is "
+        "not measuring exactness at all"
     )
 
 

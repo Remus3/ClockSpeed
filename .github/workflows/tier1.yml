@@ -427,6 +427,8 @@ jobs:
           --ignore=tests/test_precommit_index_race.py
           --ignore=tests/test_trailer_routes.py
           --ignore=tests/test_claude_hook.py
+          --ignore=tests/test_hook_env_echo.py
+          --ignore=tests/test_probe_refusal_output.py
           -q -n auto --dist loadfile
           --durations=15 --durations-min=5.0
 
@@ -906,10 +908,17 @@ jobs:
       # probe bound - about 43s serial on the operator's box. MEASURED on run
       # 36192391765 at d5a4378: this shard read 220.87s, the save shard 401.38s
       # and the hook shard 448.84s, so only this shard had the room.
+      #
+      # tests/test_hook_env_echo.py and tests/test_probe_refusal_output.py ARE HERE
+      # FOR THE SAME REASON (CS-814, CS-1200). They drive every shipped hook through
+      # real git and the wrapper with planted canaries - about 51s and 15s serial on
+      # the operator's box - and this is still the shard with room.
       - name: Unit tests
         run: >-
           python -m pytest
           tests/test_claude_hook.py
+          tests/test_hook_env_echo.py
+          tests/test_probe_refusal_output.py
           tests/test_liveness.py
           tests/test_mypy_gate.py tests/test_docs_citations.py
           tests/test_chained_cause_census.py

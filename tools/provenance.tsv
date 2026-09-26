@@ -392,6 +392,7 @@ tests/test_flip_checks.py	authored	CS-1183	stamped
 tests/test_git_env_scrub.py	authored	CS-968	first-add:CS-968
 tests/test_handler_exception_rendering.py	authored	CS-855	first-add:CS-855
 tests/test_headless_queue_prompt.py	authored	CS-918	first-add:CS-918
+tests/test_hook_env_echo.py	authored	CS-814	stamped
 tests/test_hook_file_mode.py	authored	CS-922	first-add:CS-922
 tests/test_hook_interpreter_ladder.py	authored	CS-703	first-add:CS-703
 tests/test_hook_probe_bound.py	authored	CS-816	stamped
@@ -423,6 +424,7 @@ tests/test_precommit_gate_lint_cwd.py	authored	CS-946	first-add:CS-946
 tests/test_precommit_gate_stdin_scope.py	authored	CS-957	first-add:CS-957
 tests/test_precommit_index_race.py	authored	CS-955	stamped
 tests/test_pretooluse_gate.py	authored	CS-425	first-add:CS-425
+tests/test_probe_refusal_output.py	authored	CS-814	stamped
 tests/test_provenance_manifest.py	authored	CS-1165	first-add:CS-1165
 tests/test_provenance_stamp.py	authored	CS-1165	first-add:CS-1165
 tests/test_queue_loop.py	authored	CS-918	first-add:CS-918

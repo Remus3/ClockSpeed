@@ -181,19 +181,25 @@ cs_probe() {
     # binary must pass an ordinary exit status straight through AND return 124
     # when a short bound expires. Absent, foreign, or never expiring, it refuses
     # the hook: a probe is never run without a time limit.
+    #
+    # CS-1200: 137 IS A WORKING BOUND TOO. It is the KILL sent after the
+    # one-second grace, and a loaded box measured it in 2 of 12 runs, when
+    # 'sleep' outlived the TERM. Either status proves the bound fired; a binary
+    # that never expires still answers 0 here and still refuses.
     timeout -k 1 "$CS_PROBE_BOUND" sh -c 'exit 42' </dev/null >/dev/null 2>&1
     if [ "$?" = 42 ]; then
         timeout -k 1 0.2 sleep 5 </dev/null >/dev/null 2>&1
-        if [ "$?" = 124 ]; then
-            cs_probe_bound_ok="yes"
-        fi
+        case "$?" in
+            124 | 137) cs_probe_bound_ok="yes" ;;
+        esac
     fi
     if [ "$cs_probe_bound_ok" != "yes" ]; then
         die "no working GNU timeout was found, so the interpreter probe cannot be bounded." \
             "The hook refuses rather than run a probe with no time limit (CS-816)." \
             "'timeout' is checked by behaviour: it must pass an ordinary exit status" \
-            "through and return 124 when its bound expires. A different program of" \
-            "the same name, such as the Windows pause command, fails that check." \
+            "through and return 124 when its bound expires, or 137 when the kill" \
+            "after its grace ends the run. A different program of the same name," \
+            "such as the Windows pause command, fails that check." \
             "Fix: put GNU coreutils 'timeout' and 'sleep' first on PATH. Git for" \
             "Windows ships both in its own usr/bin directory." \
             "BLOCKED: an unbounded probe is not a passed probe."
@@ -337,24 +343,24 @@ if [ -n "${CLOCKSPEED_PYTHON:-}" ]; then
     if cs_probe "$CLOCKSPEED_PYTHON"; then
         CS_PY="$CLOCKSPEED_PYTHON"
     else
-        # Flattened to ONE line and capped, so a candidate that ignores its
-        # arguments and prints without limit cannot flood the terminal. The
-        # VALUE of CLOCKSPEED_PYTHON is deliberately NOT echoed back: it is
-        # routinely an absolute path under a home directory, and this text
-        # reaches logs and reports (CLAUDE.md non-negotiable 3).
-        cs_probe_flat=$(printf '%s' "$cs_probe_out" | tr '\r\n' '  ' 2>/dev/null)
-        cs_probe_shown=$(printf '%.200s' "$cs_probe_flat")
+        # NONE OF THE CANDIDATE'S OUTPUT IS RENDERED, only its size (CS-814). A
+        # candidate that ignores its arguments can print anything - its own
+        # environment, and the live credentials in it, included - and this text
+        # reaches logs and reports (CLAUDE.md non-negotiable 13). The VALUE of
+        # CLOCKSPEED_PYTHON is not echoed back either: it is routinely an
+        # absolute path under a home directory (non-negotiable 3).
+        cs_probe_bytes=$(printf '%s' "$cs_probe_out" | wc -c 2>/dev/null | tr -d ' ')
         die "CLOCKSPEED_PYTHON is set but did not answer the probe." \
             "It must name ONE EXECUTABLE, not a command line with arguments." \
             "'py -3' is two tokens, so it cannot be this variable's value. Unset" \
             "the variable and the ladder reaches 'py -3' by itself, last." \
-            "Observed probe output, truncated to 200 characters:" \
-            "[$cs_probe_shown]" \
+            "Observed probe output: [$cs_probe_bytes] bytes, not shown - a candidate" \
+            "that ignores its arguments can print the environment (CS-814)." \
             "Observed exit status when asked to fail: [$cs_probe_code]" \
             "(expected $CS_PROBE_EXIT_EXPECTED; 'not reached' means this half" \
             "never ran. That happens BOTH when the candidate could not be" \
             "executed at all AND when it ran but answered the output check" \
-            "wrongly - empty output above points at the first.)" \
+            "wrongly - zero bytes above point at the first.)" \
             "An interpreter must BOTH run the program it is handed AND report a" \
             "failure back. That is CS-703: judging the exit code alone let 'true'," \
             "':' and 'echo' through, and judging stdout alone let a wrapper that" \
