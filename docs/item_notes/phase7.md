@@ -999,30 +999,6 @@ account token - holding no withheld-class file is indistinguishable by shape fro
 any other directory, and renders. Rule 2's shape test catches only the digit-run
 account id.
 
-## CS-1195
-
-### Acceptance
-
-no guard (c) detail line in `tools/drift_guard.py` names a path whose shape is in a
-withheld class of ADR 0023, under case-keeping git on a Linux runner as on Windows;
-an arm plants a text-typed withheld-class file (for example an upper-case key file
-shape) that git tracks with its case kept, asserts guard (c)'s rendered detail
-withholds it by reason and count, and a control asserts an ordinary tracked file
-with a charset finding is still named.
-
-### Full headline
-
-on Linux, drift_guard guard (c) can print a text-typed key file's path in its own
-detail lines
-
-### FILED 2026-09-25, the CS-1158 closing adjudicator's second residual (session 113)
-
-CS-1158's render seam withholds skip records by reason class, but guard (c) reads
-every tracked text file and names it in its own detail lines. Where git keeps case,
-a withheld-class shape that is text-typed is walked, read by guard (c) and can be
-named there - a renderer outside the skip records, so ADR 0023 files it as a new
-item rather than folding it into CS-1158.
-
 ## CS-1196
 
 ### Acceptance
@@ -1244,3 +1220,26 @@ report
 The final CS-814 adversary printed allowlisted personal values and echoed from inside a
 permitted site while every arm stayed green. The allowlist grades reads, never where a
 read value goes.
+
+## CS-1210
+
+### Acceptance
+
+no guard (e) detail line in `tools/drift_guard.py` (`guard_dated`) names a path whose
+shape `tools/drift_guard.py::withheld_path_reason` withholds - neither a heading record,
+an undeclared-file line, a NOT READ line nor an unlisted-directory line - under
+case-keeping git as under case-folding git; withheld entries render by reason and count
+in the CS-1158 form; guard (e)'s verdict and counts are unchanged; a control shows an
+ordinary tracked file's dated heading still named; every new arm is shown red with the
+corresponding bypass mutant applied.
+
+### Full headline
+
+drift_guard guard (e) names a withheld-class path in its heading, NOT READ and unlisted
+detail lines, the CS-1195 leak one guard over
+
+### FILED 2026-09-26, the CS-1195 planner's and builder's open residual (session 116)
+
+CS-1195 routed guard (c) through `withheld_path_reason`; `guard_dated` still renders
+`_rel(root, path)` unclassified in its heading records, undeclared list, NOT READ lines
+and unlisted-directory lines. Reuse the classifier; do not restate it.
