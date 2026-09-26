@@ -1528,3 +1528,48 @@ def test_guard_dated_withholds_a_tracked_upper_case_key_file_under_either_git_ca
     block = [line.strip() for line in _group_block(guard["detail"], "DRIFT - dated headings")]
     assert f"{reason}  (1)" in block, "guard_dated did not count the withheld heading record"
     assert _leaks(text, [CONTROL_HEAD]) == 1, "control: an ordinary dated heading is not named"
+
+
+def test_guard_dated_withholds_an_unread_file_beneath_a_dir_only_pattern_directory(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A NOT READ file whose parent ONLY the `.gitignore` PII-BEARING section withholds.
+
+    The parent is in no table, so only the tree's own section - not an empty
+    pattern set - decides that its unread child is counted, never named.
+    """
+    entries = [(f"{DATED_DIR_ONLY_PARENT}/zz1210unl", "unread", WITHHELD_HEAD)]
+
+    guard = _run_dated(tmp_path / "tree", monkeypatch, entries, _dated_dir_only_gitignore())
+
+    detail: list[str] = guard["detail"]
+    leaked = _leaks("\n".join(detail), [DATED_DIR_ONLY_PARENT, "zz1210unl"])
+    assert leaked == 0, f"guard_dated named {leaked} token(s) of an unread dir-only child"
+    assert guard["status"] == "WARN", f"guard_dated is {guard['status']}, not WARN"
+    block = [line.strip() for line in _group_block(detail, _dated_group_heading("unread"))]
+    expected = f"{drift_guard.GITIGNORE_PII_REASON}  (1)"
+    assert expected in block, "the withheld NOT READ entry was not counted"
+
+
+@pytest.mark.parametrize("kind", ["status", "provenance"])
+def test_guard_dated_does_not_call_withheld_headings_absent(
+    kind: str, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Every dated heading withheld: they are counted, so none is `not found`.
+
+    The whole detail is compared with the twin's, line for line, once the
+    records themselves are set aside - the two differ only in how a record
+    is shown, never in what the guard says it found.
+    """
+    guard, twin = _withheld_and_twin(tmp_path, monkeypatch, kind, ["zz1210w"], [])
+
+    detail: list[str] = guard["detail"]
+    absent = "no dated headings found; nothing is self-marked historical"
+    said_absent = absent in detail
+    assert not said_absent, f"guard_dated called its withheld {kind} heading absent"
+    assert absent not in twin["detail"], "control: the twin's heading was called absent"
+    unindented = [line for line in detail if not line.startswith(" ")]
+    twin_unindented = [line for line in twin["detail"] if not line.startswith(" ")]
+    same = unindented == twin_unindented
+    assert same, f"guard_dated's {kind} detail differs from the ordinary twin's"
+    _assert_twin_verdict(guard, twin)
