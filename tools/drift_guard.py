@@ -1272,16 +1272,18 @@ def _ascii_violations(path: Path) -> tuple[list[str], str]:
 
 
 def _partition_paths(
-    paths: list[str], pii_patterns: tuple[str, ...], *, is_dir: bool
+    paths: list[str], pii_patterns: tuple[str, ...]
 ) -> tuple[list[str], dict[str, int]]:
     """Split root-relative paths into those a detail line may name and a count per reason.
 
     CS-1195. The same classifier partition_skips asks, for a guard's own lines.
+    No file-or-directory flag: the classifier reads every path as a directory
+    as well as by its leaf, so a directory needs no trailing slash to be seen.
     """
     shown: list[str] = []
     withheld: dict[str, int] = {}
     for relative in paths:
-        reason = withheld_path_reason(relative + "/" if is_dir else relative, pii_patterns)
+        reason = withheld_path_reason(relative, pii_patterns)
         if reason is None:
             shown.append(relative)
         else:
@@ -1330,8 +1332,8 @@ def guard_charset(root: Path, files: list[Path], source: str) -> tuple[Guard, li
         f"text files checked: {checked}",
         f"text files listed: {checked + len(unread)}",
     ]
-    shown_unread, withheld_unread = _partition_paths(unread, pii_patterns, is_dir=False)
-    shown_unlisted, withheld_unlisted = _partition_paths(unlisted, pii_patterns, is_dir=True)
+    shown_unread, withheld_unread = _partition_paths(unread, pii_patterns)
+    shown_unlisted, withheld_unlisted = _partition_paths(unlisted, pii_patterns)
     detail.extend(
         f"{relative} NOT READ - its bytes were never checked" for relative in shown_unread
     )
@@ -5962,11 +5964,13 @@ def partition_skips(
     CS-1158. Both renderers of the skip list - the text report and the --json
     payload - go through this, so they cannot disagree about which records name
     their path. Decided by the reason's CLASS, not by a list of names, which
-    ADR 0023 rejects as a denylist. The one shape test is the account id, the
-    classification rules 1 and 2 are about: a record whose path has a component
-    shaped like one is withheld whatever it was skipped for, under
-    ACCOUNT_ID_PATH_REASON, because every path beneath a directory named for the
-    player is personal data in whole.
+    ADR 0023 rejects as a denylist. A record whose reason is of no withheld
+    class is then asked about its PATH by withheld_path_reason, the one path
+    classifier guard (c) asks too (CS-1195): an account-id-shaped component
+    (rules 1 and 2 - every path beneath a directory named for the player is
+    personal data in whole), the path's own shape, and the shape of the path
+    and every ancestor read as a directory. Such a record is withheld whatever
+    it was skipped for, counted under the class reason its path carries.
 
     Args:
         skips: Every skip record the run produced.
@@ -5998,11 +6002,15 @@ def withheld_path_reason(path: str, pii_patterns: tuple[str, ...]) -> str | None
     list through partition_skips, and guard (c)'s own detail lines, which named
     a tracked file with no classification at all. Three tests, in order: a
     component shaped like an account id (ADR 0023 rules 1 and 2); the path's
-    own shape by _withheld_shape; then every proper ANCESTOR, as a directory,
-    against the root table, the file floor and the `.gitignore` PII-BEARING
-    section - an ordinary `x.txt` beneath `CORPUS/` or `NOTES.LOG/` is located
-    by its parent, and _withheld_shape asks the leaf alone. Returns a class
-    reason, never the path, so nothing downstream can render what it withheld.
+    own shape by _withheld_shape; then every ancestor AND the path itself, each
+    read as a DIRECTORY, against the root table, the file floor and the
+    `.gitignore` PII-BEARING section. An ordinary `x.txt` beneath `CORPUS/` or
+    `NOTES.LOG/` is located by its parent, and _withheld_shape asks the leaf
+    alone; a gitlink named `MOON_SYNC_INBOX` is in the index but not on disk,
+    so its record carries no trailing slash and only the directory reading of
+    the path itself withholds it. Reading a FILE as a directory too can only
+    withhold more, never less. Returns a class reason, never the path, so
+    nothing downstream can render what it withheld.
 
     Args:
         path: A root-relative posix path; a trailing slash marks a directory.
@@ -6018,13 +6026,13 @@ def withheld_path_reason(path: str, pii_patterns: tuple[str, ...]) -> str | None
     if shape is not None:
         return shape
     parts = path.strip("/").split("/")
-    for depth in range(1, len(parts)):
-        ancestor = "/".join(parts[:depth])
+    for depth in range(1, len(parts) + 1):
+        prefix = "/".join(parts[:depth])
         name = parts[depth - 1]
-        for reason in (_root_reason(ancestor), _floor_reason(ancestor, name)):
+        for reason in (_root_reason(prefix), _floor_reason(prefix, name)):
             if reason is not None and is_withheld(reason):
                 return reason
-        if any(_gitignore_matches(p, ancestor, name, is_dir=True) for p in pii_patterns):
+        if any(_gitignore_matches(p, prefix, name, is_dir=True) for p in pii_patterns):
             return GITIGNORE_PII_REASON
     return None
 
