@@ -331,3 +331,6 @@ CS-1195 - on Linux, drift_guard guard (c) can print a text-typed key file's path
 CS-1196 - the provenance manifest's history walk miscounts first-adds across a merge commit - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1197 - `tests/save/test_trailing_run.py` sweeps every real save, so its run time grows with the save library - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1198 - the tier-1 hook shard read 469s at `da7a940`, 11s under its 480s ceiling - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
+CS-1200 - the hook probe's timeout self-check accepts only 124, so a loaded box reads a working timeout as missing - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
+CS-1201 - `tests/test_hook_probe_bound.py` elapsed-time arms go red under box load and block a push - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
+CS-1202 - the PostToolUse lint hook's `--files "$CLAUDE_FILE_PATHS"` argument may always be empty under the live harness - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`

@@ -1136,3 +1136,72 @@ The CS-1193 closing adjudicator's COMMON-MODE RISK, filed as it directed. At
 `da7a940`, run 36159442880, the fast shard read 471s and the hook shard 469s, each
 within about 11s of the ceiling; the hook shard read 301s at `102bc01` before the
 four hook-driving files joined it.
+
+## CS-1200
+
+### Acceptance
+
+the shared interpreter-probe block carried byte-identical by `.githooks/pre-commit`,
+`.githooks/commit-msg`, `.githooks/pre-push` and `tools/claude_hook.sh` treats a
+bounding-program self-check that ends by the kill grace (137) as a working bound, not
+a missing one, under its own frozen-file grant that re-pins every carrier in one
+change; an arm drives the self-check with a child that ignores TERM and shows the hook
+proceeding, and a control with no working timeout still refuses.
+
+### Full headline
+
+the hook probe's timeout self-check accepts only 124, so a loaded box reads a working
+timeout as missing and the hook refuses with a line naming the wrong cause
+
+### FILED 2026-09-25, found by the CS-815 latency adversary (session 115)
+
+Under 16 to 32 busy processes, `timeout -k 1 0.2 sleep 5` returned 137 in 2 of 12
+runs: `sleep` outlived the one-second grace after TERM. The check requires exactly
+124, so the wrapper refused with "no working bounding program was found". On the
+Claude hook legs this fails open with a false reason; on the git hooks it blocks a
+commit. The CS-815 adjudicator ruled it a new item, not a CS-815 blocker, because the
+block is byte-pinned across every carrier.
+
+## CS-1201
+
+### Acceptance
+
+the elapsed-time arms of `tests/test_hook_probe_bound.py` either hold under a box
+running a concurrent `-n auto` suite or grade elapsed time against a bound that is
+measured, not assumed; a pre-push run on a loaded box does not go red on them while
+the same module is green alone.
+
+### Full headline
+
+`tests/test_hook_probe_bound.py` elapsed-time arms go red under box load and block a
+push while the module is green alone
+
+### FILED 2026-09-25, measured in session 115
+
+With three adversaries running, the pre-push suite (908s, 10743 passed) went red on
+`test_a_dev_null_stdin_wrapper_is_refused_inside_the_bound[pre-commit]` at 32.5s; a
+lone re-run under the same load went red on
+`test_wrapper_control_an_honest_wrapper_commits[commit-msg]` at 13.8s against a 10s
+bound; the module alone on a quieter box read 33 passed, 1 skipped. Related to CS-1200.
+
+## CS-1202
+
+### Acceptance
+
+it is MEASURED, in a live Claude Code session in this repository, whether the harness
+sets `CLAUDE_FILE_PATHS` for the PostToolUse hook; if it does not, the hook command in
+`.claude/settings.json` stops passing it (a frozen-file grant) and
+`tools/edit_lint_check.py` reads the edited path from the stdin envelope alone, with an
+arm proving an edited file with a violation is reported.
+
+### Full headline
+
+the PostToolUse lint hook's `--files "$CLAUDE_FILE_PATHS"` argument may always be empty
+under the live harness
+
+### FILED 2026-09-25, reported by the CS-815 shell adversary (session 115)
+
+UNVERIFIED BY THE MERGER. The adversary read the harness binary and found no mention of
+`CLAUDE_FILE_PATHS`, and counted 352 past PostToolUse hook errors in which
+`edit_lint_check` reported `precommit_gate: BLOCKED`, mostly "could not read" the
+file, cause not established. Predates CS-815 and is outside its grant.
