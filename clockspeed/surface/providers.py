@@ -31,16 +31,29 @@ write in the save package. Nothing here bypasses it, and nothing here writes at
 all - a sweep in ``tests/surface/test_server.py`` asserts that across the whole
 package with no exceptions.
 
-NO CACHING, DELIBERATELY. A world is re-read per call. Caching one would mean
-holding save-derived content in this layer across requests and inventing an
-invalidation rule for a file the game rewrites on its own schedule, and a stale
-world rendered as current is worse than a slow one. If that changes, the cached
-value is a carrier and ``tests/repr_rendering_guard.py`` rule R2 starts grading
-whatever holds it - which is precisely the case R2 was written for.
+ONE PARSE PER SAVE IDENTITY (CS-1203). This module said "no caching,
+deliberately" and re-read the world on every call, on the argument that a stale
+world rendered as current is worse than a slow one. MEASURED FALSE AS A TRADE:
+the parse outgrew the companion's per-probe timeout, ``/api/health`` asks for
+the world on every request, and every probe aborted - slow became absent. The
+invalidation rule that argument said would have to be invented is the file's
+own identity: the resolved newest path, its size in bytes and its
+``st_mtime_ns``, all three read fresh on EVERY call. THE GUARANTEE IS EXACTLY
+THAT AND NO MORE: a rewrite that changes any of the three is re-read on the
+next call, and a rewrite that preserves all three - same path, same size, the
+modification time restored - is NOT detected and serves the previously parsed
+world. An ordinary write moves the modification time on NTFS, so reaching that
+case takes a deliberate restore. A re-read that fails answers None, never the
+previous world. The remembered world is held by :class:`SaveWorldProvider`,
+which is NOT a dataclass and inherits ``object.__repr__``, so
+``tests/repr_rendering_guard.py`` rule R2 has no generated repr to grade; the
+runtime arm that renders a provider AFTER a world is remembered is in
+``tests/test_repr_rendering.py``.
 """
 
 from __future__ import annotations
 
+import threading
 from typing import TYPE_CHECKING, Final
 
 from clockspeed.data import locate, registry, version
@@ -78,7 +91,16 @@ class SaveWorldProvider:
     NOT A DATACLASS AND HOLDS NO ANNOTATED ``Path`` FIELD, so it is outside the
     population ``tests/repr_rendering_guard.py`` grades and inherits
     ``object.__repr__``, which renders no attribute at all. A dataclass here
-    would render an account directory in full.
+    would render an account directory in full. The same holds for what it
+    remembers: the identity tuple carries the resolved save path, and it lives
+    only in private attributes that ``object.__repr__`` never reads.
+
+    ONE PARSE PER IDENTITY, SHARED BY CONCURRENT CALLERS (CS-1203). The server
+    is threaded, so a lock spans the resolve, the identity read and the load:
+    a caller arriving while a parse is in flight waits for it, then reads the
+    identity afresh. When that parse succeeded and the identity is unchanged,
+    the caller is handed the remembered world rather than starting a second
+    parse of the same bytes; when it was refused, the caller tries again.
     """
 
     def __init__(
@@ -104,6 +126,8 @@ class SaveWorldProvider:
         self._account_dir = account_dir
         self._find_save = find_save
         self._load = load
+        self._lock = threading.Lock()
+        self._remembered: tuple[tuple[Path, int, int], WorldModel] | None = None
 
     def world(self) -> WorldModel | None:
         """The current world, or None when this machine has no save to read.
@@ -113,17 +137,52 @@ class SaveWorldProvider:
             directory", "an empty save directory" and "a save that would not
             parse" - the endpoint tells the first two from the third through the
             reason it picks, not through an exception it has to catch.
+
+        A save whose identity - path, size, modification time - matches the
+        last successful load is handed up without being copied or parsed
+        again. A refused load is never remembered, so the next call retries
+        it; a save whose identity cannot be read is loaded per call, exactly
+        as before this provider remembered anything.
         """
-        try:
-            path = self._find_save(self._account_dir)
-        except OSError:
-            return None
-        if path is None:
-            return None
-        try:
-            return self._load(path)
-        except (WorldLoadError, OSError, ValueError):
-            return None
+        with self._lock:
+            try:
+                path = self._find_save(self._account_dir)
+            except OSError:
+                return None
+            if path is None:
+                self._remembered = None
+                return None
+            identity = _identity(path)
+            remembered = self._remembered
+            if identity is not None and remembered is not None and remembered[0] == identity:
+                return remembered[1]
+            self._remembered = None
+            try:
+                world = self._load(path)
+            except (WorldLoadError, OSError, ValueError):
+                return None
+            if identity is not None:
+                self._remembered = (identity, world)
+            return world
+
+
+def _identity(path: Path) -> tuple[Path, int, int] | None:
+    """The identity a remembered world is keyed by, or None when unreadable.
+
+    Args:
+        path: The resolved newest save.
+
+    Returns:
+        (path, size in bytes, modification time in nanoseconds), or None when
+        the file cannot be stat-ed - for example it vanished between the
+        listing and here, which on a machine where the game is running is the
+        ordinary case.
+    """
+    try:
+        status = path.stat()
+    except OSError:
+        return None
+    return (path, status.st_size, status.st_mtime_ns)
 
 
 class InstalledRegistryProvider:

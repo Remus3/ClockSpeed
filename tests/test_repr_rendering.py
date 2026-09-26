@@ -1002,6 +1002,56 @@ def test_a_forced_rendering_still_names_its_type(key: str) -> None:
     )
 
 
+def _synthetic_world(_path: Path) -> object:
+    """Stand in for the save loader, so a world is remembered without a parse.
+
+    Args:
+        _path: The synthetic save, unread.
+
+    Returns:
+        A sentinel world.
+    """
+    return object()
+
+
+def test_a_world_provider_holding_a_remembered_world_renders_no_save_path(
+    tmp_path: Path,
+) -> None:
+    """CS-1203: the FORCED entry above only ever sees an EMPTY memo.
+
+    ``SaveWorldProvider`` in :data:`FORCED` is built without a call to
+    ``world()``, so the only field carrying the marker is ``_account_dir``. An
+    adversary planted a ``__repr__`` rendering the remembered identity - once
+    through a helper method, once through ``getattr`` - and every arm stayed
+    green, because nothing had populated what it rendered. This arm populates
+    it: the marker is ONLY in the synthetic save's filename, never in the
+    account directory, so the positive control below cannot be satisfied by
+    the field the FORCED entry already covers.
+
+    EVERY ASSERTION IS ON A BOOLEAN. The save lives under ``tmp_path``, which
+    is under a home directory, so no rendering is ever allowed into a message.
+    """
+    save = tmp_path / f"{MARKER}.sav"
+    save.write_bytes(b"synthetic")
+    account = tmp_path / "account"
+    provider = SaveWorldProvider(
+        account,
+        find_save=lambda _dir: save,
+        load=_synthetic_world,  # type: ignore[arg-type]
+    )
+    remembered = provider.world() is not None
+    assert remembered, "the provider handed up no world, so nothing was remembered"
+    held = vars(provider)
+    account_carries = MARKER in repr(held["_account_dir"])
+    assert not account_carries, "the account directory carries the marker, so the control is moot"
+    carrying = sum(1 for value in held.values() if MARKER in repr(value))
+    assert carrying, "no held field carries the marker, so the withholding arm is vacuous"
+    direct = MARKER in repr(provider)
+    safe = MARKER in saferepr(provider)
+    assert not direct, "a populated world provider renders a save path through repr()"
+    assert not safe, "a populated world provider renders a save path through saferepr"
+
+
 def test_the_population_membership_is_pinned_in_both_directions() -> None:
     """A MEMBER MAY NOT LEAVE THE POPULATION SILENTLY.
 
