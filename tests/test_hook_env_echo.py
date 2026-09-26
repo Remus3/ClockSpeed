@@ -3,6 +3,21 @@
 THE RULE this module grades is owned by CLAUDE.md non-negotiable 13 and is not
 restated here. This module is the PROBE half of CS-814's acceptance.
 
+WHAT THIS MODULE GRADES, in one place. (1) DRIVEN: every refusal class of every
+hook program, reached through the real hooks, renders no canary - the gate's
+short and generic account-name skips included, which render no name either.
+(2) STATIC SHELL: no line of a shell carrier renders the environment. (3) STATIC
+PYTHON: in every program the hooks run, the environment AND every value the
+operating system derives from the person at the keyboard - account and machine
+names, home, profile, temp and interpreter paths - are reached only at a
+PERMITTED site: an allowlisted import, an allowlisted member of a surface
+module or path method (personal ones in the one function that needs them), a
+read whose key resolves to an allowlisted name. The whole environment may only
+become a child's ``env=``; aliases, dynamic code and locals-capturing calls are
+refused; and a child command is literal words naming git or python that neither
+dump nor expand the environment. Everything not permitted is a finding, and
+every permission no shipped program uses is red.
+
 HOW THE PROOF WORKS. Every child this module spawns inherits the real
 environment PLUS several synthetic credential-shaped canaries - named like the
 kinds that actually sit in a developer's environment, valued with markers made
@@ -22,7 +37,8 @@ JSON envelope arrives on stdin. One arm per hook program per refusal CLASS:
     pre-commit and tools/precommit_gate.py
         pass; charset refusal; secret refusal; syntax refusal; the probe failing;
         PYTHONINSPECT; no usable python; the gate crashing with its
-        CLOCKSPEED_CRASH_TRACEBACK opt-in engaged
+        CLOCKSPEED_CRASH_TRACEBACK opt-in engaged; the short and the generic
+        account-name skips of current_account_names
     commit-msg
         accept; placeholder, non-ASCII and over-long subjects; the probe
         failing; no usable python
@@ -53,7 +69,9 @@ their parser inside ``main``.
 THE ANTI-VACUITY CONTROLS. A probe that finds nothing proves nothing unless the
 SAME harness is measured finding something. Each control installs a copy of a
 tracked hook differing from it by exactly one inserted ``env >&2`` line and
-asserts every canary IS found.
+asserts every canary IS found. The account-name skip arm has its own: a
+SANDBOX copy of the gate whose skip line renders the value, which the same
+oracle must see, lower- and upper-cased.
 
 TWO STATIC ARMS. The shell scan reads the four shell carriers for constructs that
 render the environment. The PYTHON arm is an ALLOWLIST, AST-level, over every
@@ -62,21 +80,26 @@ repository program the hooks run - discovered from the hooks and
 every inline program the shell carriers embed, and every repository python
 program they launch as a literal child. A blocklist of rendering shapes was
 REFUTED: three mutants leaked a canary through real hooks while it stayed green.
-So every read by name must resolve to an allowlisted key - personal values only
-inside the one function that needs them - the whole environment may only become
-a subprocess ``env=``, aliases and dynamic code are refused, and a child command
-must be literal words that neither dump nor expand the environment. The rules
-and the review table sit at the arm itself. It is proven against each refuted
-mutant planted into the shipped source, and by a synthetic control per shape.
+And a list of the READERS it knew was refuted too (CS-1207): an unlisted reader
+such as ``os.path.expandvars`` rendered a marker through the real gate. So the
+arm lists what is PERMITTED - imports, surface-module members, path methods,
+keys and child programs - and refuses the rest unnamed, personal values only
+inside the one function that needs them. The rules and the tables sit at the
+arm itself. It is proven against each refuted mutant planted into the shipped
+source, and by a synthetic control per shape that names the rule refusing it.
 
 THE STATIC BOUNDARY, stated rather than implied. The tests tree is OUT of the
 static scope, although pre-push runs it: assertion rendering there is graded by
 CS-1199 in ``tests/test_assertion_rendering.py``, and a non-assert echo in a test
-is CS-1206. The driven pre-push arms still run the shipped conftest. DECLARED
+is CS-1206. The driven pre-push arms still run the shipped conftest. The key
+resolver follows literals, constants, loops, locals, and a parameter's call
+sites across every scanned module and through ``map`` and ``partial``. DECLARED
 RESIDUALS: deliberate obfuscation - a key or a command assembled at run time
-beyond what the resolver follows, or indirection through another process - and
-an ``env=`` handed to a program that is not python or not a literal, whose own
-handling of the environment this arm cannot read.
+beyond what the resolver follows, or indirection through another process; an
+``env=`` handed to a program that is not python or not a literal, whose own
+handling of the environment this arm cannot read; an untyped receiver exposing
+a personal lookup under a name that is not a public ``pathlib.Path`` name; and
+where a permitted value GOES once read, which is CS-1208.
 
 The CLOCKSPEED_PYTHON refusal's rendering of candidate output is graded by the
 ``test_probe_refusal_output`` module beside this one.
@@ -867,6 +890,11 @@ RENDERING_CONSTRUCTS: Final = (
     ("shell -x", re.compile(r"\b(?:ba|da|z|k)?sh\s+-[a-zA-Z]*x")),
     ("os.environ used whole", re.compile(r"\bos\.environb?\b(?!\s*(?:\.get\s*\(|\[))")),
     ("environ imported bare", re.compile(r"\bfrom\s+os\s+import\b[^#\n]*\benviron")),
+    ("PowerShell Env: drive", re.compile(r"(?<![\w$\{])env:", re.IGNORECASE)),
+    ("PowerShell dollar-env read", re.compile(r"\$\{?env:", re.IGNORECASE)),
+    (".NET environment API", re.compile(r"\[(?:System\.)?Environment\]::", re.IGNORECASE)),
+    ("process.env", re.compile(r"\bprocess\.env\b")),
+    ("pytest showlocals", re.compile(r"\bpytest\b.*\s(?:--showlocals|-l)(?=\s|$)")),
 )
 
 #: A shebang that switches tracing on for the whole script.
@@ -1002,17 +1030,38 @@ def test_the_scanner_flags_the_control_copies() -> None:
 # --- the python static arm: an ALLOWLIST over every program the hooks run ----------
 #
 # A blocklist of rendering shapes loses by construction - there is always one more
-# way to print a value. So the arm grades what the programs are ALLOWED to do with
-# the environment, and everything else is a finding. CLAUDE.md non-negotiable 13
-# covers ANY environment value, account and machine names included.
+# way to print a value. So the arm grades what the programs are ALLOWED to reach -
+# the environment, and the values the operating system derives from the person at
+# the keyboard: the account and machine names, and the home, profile, temp and
+# interpreter paths that carry them - and everything else is a finding. CLAUDE.md
+# non-negotiable 13 covers ANY environment value, account and machine names
+# included. Every rule below REFUSES BY DEFAULT: an unlisted import, member, path
+# method, key or program is a finding without anyone having had to name it.
 #
+#   IMPORT   every imported module is on PURE_MODULES (no member reads the
+#            environment or OS identity, so members are not graded), on
+#            SURFACE_MODULES (members graded by MEMBER), or a repository module of
+#            the scanned population. getpass, socket, platform, pwd, cgitb and
+#            every other module are refused without being listed.
+#   MEMBER   every member reached on a surface namespace - ``ns.member``, ``from m
+#            import member``, ``getattr(ns, literal)`` - must be on GLOBAL_MEMBERS,
+#            or on SITE_SCOPED_MEMBERS for the one function it sits in. A method
+#            or attribute whose name is a public ``pathlib.Path`` name
+#            (PATH_METHODS), on a receiver the scanner cannot type, is graded the
+#            same way as ``Path.NAME`` against PATH_METHODS_GLOBAL. ``os.environ``
+#            and the key functions are ROUTED to READS and WHOLE instead. A surface
+#            module handed anywhere whole is a finding.
 #   READS    every read by name - ``os.environ[k]``, ``.get(k)``, ``.pop(k)``,
 #            ``.setdefault(k)``, ``k in os.environ``, ``os.getenv(k)``,
-#            ``os.putenv(k)``, ``os.unsetenv(k)`` - must resolve to string keys,
-#            each on ALLOWED_ENV_KEYS or on SITE_SCOPED_KEYS for the function the
-#            read sits in. Keys resolve through literals, module constants, loop
-#            variables over constant sequences that the loop body never rebinds,
-#            and a parameter's call sites in the same module.
+#            ``os.putenv(k)``, ``os.unsetenv(k)``, and each of those readers handed
+#            to ``map`` or ``partial`` - must resolve to string keys, each on
+#            ALLOWED_ENV_KEYS or on SITE_SCOPED_KEYS for the function the read sits
+#            in. Keys resolve through literals, module constants, loop variables
+#            over constant sequences that the loop body never rebinds, locals bound
+#            by a plain, annotated or walrus assignment, and a parameter's call
+#            sites in EVERY scanned module - by name, import alias or attribute,
+#            and through ``map`` and ``partial``. Any other binding of the name, or
+#            the function handed anywhere else as a value, leaves it unresolved.
 #   WHOLE    an expression that is the whole environment - ``os.environ``,
 #            ``environ`` imported bare, ``sys.modules[...].environ``,
 #            ``vars(os)``, ``os.__dict__``, ``dict(...)``, ``.copy()``,
@@ -1020,20 +1069,26 @@ def test_the_scanner_flags_the_control_copies() -> None:
 #            only be the ``env=`` of a subprocess call, or a COPY assigned to a
 #            local whose every later use is such an ``env=`` or an allowlisted
 #            read, pop, set or delete. A bare alias is a finding.
-#   ALIAS    ``os.getenv`` and its siblings referenced without being called,
-#            ``getattr`` reaching ``environ`` or ``getenv`` by a literal, and ANY
-#            ``getattr`` on ``os`` with a computed name.
-#   DYNAMIC  ``exec``, ``eval``, ``compile``, ``__import__`` and ``importlib``.
-#   COMMAND  a subprocess or ``os`` command must resolve to literal words. A word
-#            that would dump the environment (the shell constructs above), that
-#            expands ``$NAME``, ``${NAME}`` or ``%NAME%`` off the allowlist, or a
-#            ``python -c`` program that fails this same allowlist, is a finding.
+#   ALIAS    ``os.getenv`` and its siblings referenced without being called, other
+#            than as the reader ``map`` or ``partial`` is handed; ``getattr``
+#            reaching ``environ`` or ``getenv`` by a literal; and ANY ``getattr`` on
+#            a surface module with a computed name.
+#   DYNAMIC  ``exec``, ``eval``, ``compile``, ``__import__``, ``importlib``, and a
+#            call whose ``capture_locals``, ``show_locals`` or ``showlocals``
+#            keyword is anything but the constant False.
+#   COMMAND  a subprocess or ``os`` command must resolve to literal words whose
+#            PROGRAM is git or a python interpreter - whose ``-c`` program is
+#            graded by this same allowlist. A word that would dump the environment
+#            (the shell constructs above), or that expands ``$NAME``, ``${NAME}``
+#            or ``%NAME%`` off the allowlist, is a finding as well.
 #
 # Every finding the shipped programs need is on REVIEWED, pinned to the file, the
 # function, the kind AND the exact detail, with its reason. REVIEWED is graded in
 # BOTH directions: an unreviewed finding is red, and an entry that no longer
 # matches a finding is red, so an allowance cannot outlive its site or cover a
-# different finding at the same site.
+# different finding at the same site. Every permission table is graded the same
+# two ways: an unlisted use is a finding, and a listed permission no shipped
+# program uses is red.
 
 #: Operator configuration any hook-run program may read, and why it is not a
 #: credential or a personal value.
@@ -1071,10 +1126,240 @@ SITE_SCOPED_KEYS: Final = {
     ),
 }
 
+#: Modules whose members are NOT graded: none reads the environment or an
+#: OS-derived personal value, so importing one grants nothing.
+PURE_MODULES: Final = {
+    "__future__": "compiler directives",
+    "argparse": "argument parsing over the argv it is handed",
+    "contextlib": "context-manager helpers",
+    "dataclasses": "class decoration",
+    "functools": "higher-order helpers; partial is resolved by READS",
+    "hashlib": "digests of the bytes it is handed",
+    "heapq": "heap algorithms",
+    "json": "serialization of the values it is handed",
+    "re": "regular expressions",
+    "struct": "binary packing",
+    "time": "clocks and sleep",
+    "types": "type objects",
+    "typing": "annotations",
+    "unicodedata": "the Unicode database",
+    "xml.etree.ElementTree": "parsing of the text it is handed",
+    "yaml": "parsing of the text it is handed",
+}
+
+#: Modules whose members ARE graded: some member reads the environment or an
+#: OS-derived personal value, so every member reached is on a permission table.
+SURFACE_MODULES: Final = {
+    "os": "the environment, the account and the working directory",
+    "os.path": "home expansion, environment expansion and absolute paths",
+    "sys": "the interpreter path and the import path",
+    "pathlib": "home, working-directory and owner lookups",
+    "tempfile": "the temp directory, which carries the account name",
+    "shutil": "PATH lookup",
+    "subprocess": "child processes, graded by COMMAND",
+    "site": "the per-user site directory",
+    "sysconfig": "installation paths",
+    "ctypes": "any native call, the account-bearing short-path API among them",
+    "ctypes.wintypes": "native types for the calls above",
+    "winreg": "the registry, per-user hive included",
+    "traceback": "frame and locals capture",
+    "ruff": "the location of the ruff binary",
+    "pytest": "the location of the installed package",
+}
+
+#: Members the rules above route elsewhere rather than permit: READS and WHOLE grade
+#: every use of them. They are grading routes, not permissions.
+ROUTED_MEMBERS: Final = {"os": frozenset({"environ", "getenv", "putenv", "unsetenv"})}
+
+#: Members of a surface module any program may reach, and why none of them is an
+#: environment value or an OS-derived personal value.
+GLOBAL_MEMBERS: Final = {
+    "os": (
+        frozenset({"name", "scandir", "DirEntry"}),
+        "the platform name, and a listing of a directory the caller names",
+    ),
+    "os.path": (
+        frozenset(
+            {"commonpath", "dirname", "isabs", "isfile", "join", "normcase", "normpath", "relpath"}
+        ),
+        "path algebra and a file test over the paths handed in",
+    ),
+    "sys": (
+        frozenset({"argv", "exit", "platform", "stderr", "stdin", "stdout", "flags"}),
+        "the hook's own arguments, exit, the platform switch, the standard streams and "
+        "the interpreter flags",
+    ),
+    "pathlib": (
+        frozenset({"Path", "PurePosixPath"}),
+        "the path classes; their personal lookups are graded as path methods",
+    ),
+    "subprocess": (
+        frozenset(
+            {"run", "CalledProcessError", "SubprocessError", "TimeoutExpired", "CREATE_NO_WINDOW"}
+        ),
+        "the runner COMMAND grades, its exception classes and a creation flag",
+    ),
+    "traceback": (
+        frozenset({"print_exc"}),
+        "prints the exception being handled; a locals-capturing form is refused by DYNAMIC",
+    ),
+}
+
+#: EVERY public name of ``pathlib.Path``, pinned as a literal so the graded set is
+#: the same on every platform and interpreter; a guard arm reddens when the running
+#: interpreter grows a name this list lacks.
+PATH_METHODS: Final = frozenset(
+    {
+        "absolute", "anchor", "as_posix", "as_uri", "chmod", "copy", "copy_into", "cwd",
+        "drive", "exists", "expanduser", "from_uri", "full_match", "glob", "group",
+        "hardlink_to", "home", "info", "is_absolute", "is_block_device", "is_char_device",
+        "is_dir", "is_fifo", "is_file", "is_junction", "is_mount", "is_relative_to",
+        "is_reserved", "is_socket", "is_symlink", "iterdir", "joinpath", "lchmod", "lstat",
+        "match", "mkdir", "move", "move_into", "name", "open", "owner", "parent", "parents",
+        "parser", "parts", "read_bytes", "read_text", "readlink", "relative_to", "rename",
+        "replace", "resolve", "rglob", "rmdir", "root", "samefile", "stat", "stem",
+        "suffix", "suffixes", "symlink_to", "touch", "unlink", "walk", "with_name",
+        "with_segments", "with_stem", "with_suffix", "write_bytes", "write_text",
+    }
+)  # fmt: skip
+
+#: Path names any program may use on an untyped receiver, and why.
+PATH_METHODS_GLOBAL: Final = (
+    frozenset(
+        {
+            "exists", "is_absolute", "is_dir", "is_file", "iterdir", "joinpath", "match",
+            "mkdir", "name", "open", "parent", "parents", "parts", "read_bytes", "read_text",
+            "replace", "stat", "suffix", "write_bytes",
+        }
+    ),
+    "path algebra, file tests and file I/O on a path the program was handed - and the "
+    "same names on strings and matches; none reads the home, the working directory "
+    "or an owner",
+)  # fmt: skip
+
+#: Members that yield an OS-derived personal value - a value that can carry the
+#: account name, the profile path or the machine name - reachable ONLY in the one
+#: function that needs them, and why. ``Path.NAME`` is a path method.
+SITE_SCOPED_MEMBERS: Final = {
+    ("clockspeed/data/locate.py", "_redaction_pairs"): (
+        frozenset({"Path.home"}),
+        "the REDACTOR: the home directory is paired with the placeholder that replaces it",
+    ),
+    ("clockspeed/data/locate.py", "resolve_save_root"): (
+        frozenset({"Path.home"}),
+        "the per-user root the save directory sits under; joined into a path",
+    ),
+    ("clockspeed/data/locate.py", "_win_path_form"): (
+        frozenset(
+            {
+                "ctypes.windll",
+                "ctypes.create_unicode_buffer",
+                "ctypes.wintypes.DWORD",
+                "ctypes.wintypes.LPCWSTR",
+                "ctypes.wintypes.LPWSTR",
+            }
+        ),
+        "GetShortPathNameW, so the REDACTOR also strips the 8.3 form of the account name",
+    ),
+    ("clockspeed/data/locate.py", "_registry_steam_roots"): (
+        frozenset(
+            {
+                "winreg.OpenKey",
+                "winreg.QueryValueEx",
+                "winreg.HKEY_CURRENT_USER",
+                "winreg.HKEY_LOCAL_MACHINE",
+            }
+        ),
+        "the Steam install root, read from the registry to locate the game install",
+    ),
+    ("clockspeed/data/locate.py", "_repo_root"): (
+        frozenset({"Path.resolve"}),
+        "the repository root, from this module's own absolute path",
+    ),
+    ("clockspeed/data/locate.py", "_steam_library_paths"): (
+        frozenset({"Path.group"}),
+        "re.Match.group: the scanner cannot tell it from PosixPath.group, which returns "
+        "the owning group name - so it is permitted only where a match is grouped",
+    ),
+    ("tools/precommit_gate.py", "_world_names_from_saves"): (
+        frozenset({"Path.group"}),
+        "re.Match.group: the scanner cannot tell it from PosixPath.group, which returns "
+        "the owning group name - so it is permitted only where a match is grouped",
+    ),
+    ("tools/precommit_gate.py", "check_secrets"): (
+        frozenset({"Path.group"}),
+        "re.Match.group: the scanner cannot tell it from PosixPath.group, which returns "
+        "the owning group name - so it is permitted only where a match is grouped",
+    ),
+    ("tools/precommit_gate.py", "_repo_root"): (
+        frozenset({"Path.resolve"}),
+        "the repository root, from this module's own absolute path",
+    ),
+    ("tools/precommit_gate.py", "normalized_key"): (
+        frozenset({"Path.resolve"}),
+        "a comparison key for a path; compared, never rendered",
+    ),
+    ("tools/precommit_gate.py", "label_for"): (
+        frozenset({"Path.absolute"}),
+        "the absolute form of a path, only to relativise it to a repository label",
+    ),
+    ("tools/precommit_gate.py", "stage_for_lint"): (
+        frozenset({"Path.absolute", "Path.resolve"}),
+        "maps each staged copy to the temp directory and back to its repository label",
+    ),
+    ("tools/precommit_gate.py", "run_ruff"): (
+        frozenset({"tempfile.TemporaryDirectory"}),
+        "the staging directory ruff lints; findings are mapped back to repository labels",
+    ),
+    ("tools/precommit_gate.py", "ruff_command"): (
+        frozenset({"sys.executable"}),
+        "the interpreter ruff runs under when no ruff is on PATH",
+    ),
+    ("tools/precommit_gate.py", "<module>"): (
+        frozenset({"shutil.which"}),
+        "imported for ruff_command, which locates ruff on PATH",
+    ),
+    ("tools/precommit_gate.py", "_load_header_reader"): (
+        frozenset({"sys.path"}),
+        "puts the repository root on the import path for the save reader, then removes it",
+    ),
+    ("tools/precommit_gate.py", "_load_token_scanner"): (
+        frozenset({"sys.path"}),
+        "puts the repository root on the import path for the scanner, then removes it",
+    ),
+    ("tools/edit_lint_check.py", "<module>"): (
+        frozenset({"Path.resolve", "sys.path"}),
+        "puts this directory on the import path so the gate imports",
+    ),
+    ("tools/pretooluse_gate.py", "load_gate"): (
+        frozenset({"Path.resolve", "sys.path"}),
+        "puts this directory on the import path so the gate imports",
+    ),
+    ("claude_hook.sh#2", "<module>"): (
+        frozenset({"sys.executable"}),
+        "names the pythonw beside the winning interpreter; the shell captures it to "
+        "exec it, and it is never shown",
+    ),
+    ("pre-push#2", "<module>"): (
+        frozenset(
+            {
+                "site.getsitepackages",
+                "site.getusersitepackages",
+                "sysconfig.get_path",
+                "os.path.realpath",
+                "pytest.__file__",
+            }
+        ),
+        "the shadow check: pytest must resolve inside the interpreter's own site "
+        "directories; paths are compared, never printed",
+    ),
+}
+
 #: The finding details that recur, spelled once.
 UNRESOLVED_KEY: Final = "a key that does not resolve to a literal"
 NONLITERAL_COMMAND: Final = "a command that does not resolve to a literal"
 DUMPING_COMMAND: Final = "a command that dumps the environment"
+CAPTURED_LOCALS: Final = "a call that captures locals"
 
 #: Every finding the shipped programs need, pinned to (file, function, kind,
 #: detail), and why it is safe.
@@ -1090,11 +1375,17 @@ REVIEWED: Final = {
     ),
 }
 
-ENV_ATTRS: Final = frozenset({"environ", "environb"})
+ENV_ATTRS: Final = frozenset({"environ"})
 READ_METHODS: Final = frozenset({"get", "pop", "setdefault", "__getitem__", "__contains__"})
 WHOLE_METHODS: Final = frozenset({"copy", "items", "keys", "values"})
-KEY_FUNCTIONS: Final = frozenset({"getenv", "getenvb", "putenv", "unsetenv"})
+KEY_FUNCTIONS: Final = frozenset({"getenv", "putenv", "unsetenv"})
+#: What a ``getattr`` by a literal must never reach, whatever its receiver.
+ALIAS_REACH: Final = frozenset({"environ", "environb", "getenv", "getenvb", "putenv", "unsetenv"})
 DYNAMIC_BUILTINS: Final = frozenset({"exec", "eval", "compile", "__import__"})
+#: The keywords that make a traceback or a logger render the locals of each frame.
+CAPTURE_KEYWORDS: Final = frozenset({"capture_locals", "show_locals", "showlocals"})
+#: The calls that hand a function on to be called later, with its arguments.
+HANDING_FUNCTIONS: Final = frozenset({"map", "partial"})
 SUBPROCESS_FUNCTIONS: Final = frozenset(
     {"run", "Popen", "call", "check_call", "check_output", "getoutput", "getstatusoutput"}
 )
@@ -1105,6 +1396,8 @@ NONLITERAL_WORD: Final = "<non-literal>"
 EXPANSION: Final = re.compile(r"\$\{?([A-Za-z_]\w*)|%([A-Za-z_]\w*)%")
 #: A program name that is a python interpreter.
 PYTHON_PROGRAM: Final = re.compile(r"(?:python(?:\d+(?:\.\d+)?)?w?|py)(?:\.exe)?", re.IGNORECASE)
+#: The one other program a hook-run program may launch by literal name.
+GIT_PROGRAM: Final = re.compile(r"git(?:\.exe)?", re.IGNORECASE)
 #: How far key and command resolution follows names before giving up.
 MAX_RESOLUTION_DEPTH: Final = 6
 #: What a loop variable the loop body rebinds resolves through: nothing.
@@ -1154,31 +1447,145 @@ def context_of(node: ast.AST | None) -> str:
     return "used in " + type(node).__name__ if node is not None else "at module level"
 
 
-class Allowlist:
-    """One program's environment uses, graded against the allowlist."""
+def handing_call(node: ast.AST, up: ast.AST | None) -> ast.Call | None:
+    """The ``map`` or ``partial`` call ``node`` is the handed function of, if any."""
+    if isinstance(up, ast.Call) and callee(up) in HANDING_FUNCTIONS and up.args:
+        return up if up.args[0] is node else None
+    return None
 
-    def __init__(self, label: str, tree: ast.Module, constants: dict[str, list[ast.expr]]) -> None:
-        """Index parents and the names ``os`` and its members are imported as."""
-        self.label = label
-        self.tree = tree
-        self.constants = constants
-        self.parent: dict[ast.AST, ast.AST] = {}
+
+class Population(NamedTuple):
+    """Every scanned tree, indexed once: parents, constants, calls and value uses.
+
+    ``calls`` and ``handed`` are keyed by every name a callee can mean - its own
+    and what an ``import ... as`` alias binds - so a parameter is resolved from
+    its call sites in every module, not only its own. ``valued`` holds every name
+    loaded as a value anywhere else, which leaves a function's keys unresolved.
+    """
+
+    labels: frozenset[str]
+    constants: dict[str, list[ast.expr]]
+    parent: dict[ast.AST, ast.AST]
+    calls: dict[str, list[ast.Call]]
+    handed: dict[str, list[ast.Call]]
+    valued: frozenset[str]
+
+
+def reference_names(node: ast.AST, aliases: dict[str, set[str]]) -> set[str]:
+    """The function names a reference can mean: its own, and what an alias binds."""
+    name = ""
+    if isinstance(node, ast.Name):
+        name = node.id
+    elif isinstance(node, ast.Attribute):
+        name = node.attr
+    return {name, *aliases.get(name, set())} if name else set()
+
+
+def index_population(
+    trees: dict[str, ast.Module],
+    constants: dict[str, list[ast.expr]],
+    labels: frozenset[str] | None = None,
+) -> Population:
+    """Index every tree once, for key resolution across modules."""
+    parent: dict[ast.AST, ast.AST] = {}
+    aliases: dict[str, set[str]] = {}
+    for tree in trees.values():
         for node in ast.walk(tree):
             for child in ast.iter_child_nodes(node):
-                self.parent[child] = node
+                parent[child] = node
+            if isinstance(node, ast.ImportFrom):
+                for alias in node.names:
+                    if alias.asname:
+                        aliases.setdefault(alias.asname, set()).add(alias.name)
+    calls: dict[str, list[ast.Call]] = {}
+    handed: dict[str, list[ast.Call]] = {}
+    valued: set[str] = set()
+    for tree in trees.values():
+        for node in ast.walk(tree):
+            index_reference(node, parent, aliases, (calls, handed, valued))
+    return Population(
+        frozenset(trees) if labels is None else labels,
+        constants,
+        parent,
+        calls,
+        handed,
+        frozenset(valued),
+    )
+
+
+def index_reference(
+    node: ast.AST,
+    parent: dict[ast.AST, ast.AST],
+    aliases: dict[str, set[str]],
+    into: tuple[dict[str, list[ast.Call]], dict[str, list[ast.Call]], set[str]],
+) -> None:
+    """File one node: a call under its callee's names, a handed or valued reference."""
+    calls, handed, valued = into
+    if isinstance(node, ast.Call):
+        for name in reference_names(node.func, aliases):
+            calls.setdefault(name, []).append(node)
+    if not (isinstance(node, ast.Name | ast.Attribute) and isinstance(node.ctx, ast.Load)):
+        return
+    up = parent.get(node)
+    if isinstance(up, ast.Call) and up.func is node:
+        return
+    handing = handing_call(node, up)
+    for name in reference_names(node, aliases):
+        if handing is not None:
+            handed.setdefault(name, []).append(handing)
+        else:
+            valued.add(name)
+
+
+def repository_module(module: str, labels: frozenset[str]) -> bool:
+    """Whether an imported module is one of the scanned population's own sources."""
+    path = module.replace(".", "/") + ".py"
+    return any(label in {module, path} or label.endswith("/" + path) for label in labels)
+
+
+class Allowlist:
+    """One program's environment and OS-identity uses, graded against the allowlist."""
+
+    def __init__(
+        self,
+        label: str,
+        tree: ast.Module,
+        constants: dict[str, list[ast.expr]],
+        population: Population | None = None,
+    ) -> None:
+        """Index what ``os``, its members and every surface module are imported as."""
+        self.label = label
+        self.tree = tree
+        self.population = population or index_population({label: tree}, constants)
+        self.constants = self.population.constants
+        self.parent = self.population.parent
         self.bare_environ: set[str] = set()
         self.bare_key_functions: set[str] = set()
         self.bare_commands: set[str] = set()
-        self.os_names = {"os"}
+        self.namespaces: dict[str, str] = {}
         for node in ast.walk(tree):
             if isinstance(node, ast.Import):
-                self.os_names |= {a.asname or a.name for a in node.names if a.name == "os"}
-            if isinstance(node, ast.ImportFrom) and node.module in {"os", "subprocess"}:
                 for alias in node.names:
-                    self.bind_import(alias.name, alias.asname or alias.name)
+                    bound = alias.asname or alias.name.split(".")[0]
+                    module = alias.name if alias.asname else bound
+                    if module in SURFACE_MODULES:
+                        self.namespaces[bound] = module
+            if isinstance(node, ast.ImportFrom) and node.level == 0 and node.module:
+                for alias in node.names:
+                    full = node.module + "." + alias.name
+                    if full in SURFACE_MODULES:
+                        self.namespaces[alias.asname or alias.name] = full
+                    if node.module in {"os", "subprocess"}:
+                        self.bind_import(alias.name, alias.asname or alias.name)
+        self.os_names = {"os"} | {b for b, m in self.namespaces.items() if m == "os"}
+        self.subprocess_names = {"subprocess"} | {
+            b for b, m in self.namespaces.items() if m == "subprocess"
+        }
         self.findings: list[Finding] = []
         self.read_keys: set[str] = set()
         self.children: list[list[str]] = []
+        #: Every permission a use matched, so a listed permission nothing uses is red.
+        self.used: set[tuple[str, ...]] = set()
 
     def bind_import(self, name: str, bound: str) -> None:
         """Remember what a ``from os`` or ``from subprocess`` import binds."""
@@ -1246,22 +1653,54 @@ class Allowlist:
         return self.union(list(expr.elts), depth)
 
     def name_keys(self, name: ast.Name, depth: int) -> set[str] | None:
-        """A name: a loop variable, a parameter, a local, or a constant."""
-        scope = self.function_of(name)
+        """A loop variable, a parameter or local of an enclosing function, or a constant."""
         loop = self.binding_loop(name)
         if loop is not None:
             return self.sequence_keys(loop, depth + 1)
-        if isinstance(scope, ast.FunctionDef | ast.AsyncFunctionDef):
-            params = [a.arg for a in (*scope.args.posonlyargs, *scope.args.args)]
-            if name.id in params:
-                return self.parameter_keys(scope, params.index(name.id), name.id, depth)
-            local = self.local_values(name)
-            if local:
-                return self.union(local, depth)
+        if self.lambda_bound(name):
+            return None
+        scope = self.function_of(name)
+        while isinstance(scope, ast.FunctionDef | ast.AsyncFunctionDef):
+            bound, keys = self.scope_binding(scope, name.id, depth)
+            if bound:
+                return keys
+            scope = self.function_of(self.parent[scope])
         return self.constant_keys(name.id, depth)
 
+    def scope_binding(
+        self, scope: ast.FunctionDef | ast.AsyncFunctionDef, name: str, depth: int
+    ) -> tuple[bool, set[str] | None]:
+        """Whether ``scope`` binds ``name``, and the keys it can hold there."""
+        args = scope.args
+        positional = [a.arg for a in (*args.posonlyargs, *args.args)]
+        if name in positional:
+            return True, self.parameter_keys(scope, positional.index(name), name, depth)
+        if name in [a.arg for a in args.kwonlyargs]:
+            return True, self.parameter_keys(scope, -1, name, depth)
+        if any(a is not None and a.arg == name for a in (args.vararg, args.kwarg)):
+            return True, None
+        local = self.local_values(scope, name)
+        if local is None:
+            return True, None
+        return bool(local), self.union(local, depth)
+
+    def lambda_bound(self, name: ast.Name) -> bool:
+        """Whether a lambda between ``name`` and its function binds it as a parameter."""
+        current: ast.AST = name
+        while not isinstance(current, ast.FunctionDef | ast.AsyncFunctionDef | ast.Module):
+            current = self.parent[current]
+            if isinstance(current, ast.Lambda) and name.id in {
+                a.arg for a in ast.walk(current.args) if isinstance(a, ast.arg)
+            }:
+                return True
+        return False
+
     def binding_loop(self, name: ast.Name) -> ast.expr | None:
-        """The iterable of the NEAREST loop binding ``name``; REBOUND if its body rebinds it."""
+        """The iterable of the NEAREST loop binding ``name``; REBOUND if it cannot resolve.
+
+        REBOUND when the loop body binds the name again, or when the name is one
+        part of an unpacked target.
+        """
         current: ast.AST = name
         while not isinstance(current, ast.FunctionDef | ast.AsyncFunctionDef | ast.Module):
             current = self.parent[current]
@@ -1276,6 +1715,8 @@ class Allowlist:
                     if isinstance(generator, ast.For) and self.rebinds(generator, name.id):
                         return REBOUND
                     return generator.iter
+                if any(isinstance(n, ast.Name) and n.id == name.id for n in ast.walk(target)):
+                    return REBOUND
         return None
 
     @staticmethod
@@ -1290,19 +1731,69 @@ class Allowlist:
     def parameter_keys(
         self, function: ast.FunctionDef | ast.AsyncFunctionDef, index: int, arg: str, depth: int
     ) -> set[str] | None:
-        """A parameter resolves through every call site of its function in this module."""
+        """A parameter resolves through every call site of its function in the POPULATION.
+
+        ``index`` is -1 for a keyword-only parameter. Call sites are matched by name,
+        by import alias and by attribute; ``map`` hands each sequence's members to
+        the parameter at its position and ``partial`` hands what it binds. A
+        function loaded anywhere else as a value, a site that does not bind the
+        parameter, or a starred argument, leaves it unresolved.
+        """
+        if function.name in self.population.valued:
+            return None
+        sites = self.parameter_sites(function.name, index, arg, depth)
+        if sites is None or not (sites[0] or sites[1]):
+            return None
+        handed, found = sites
+        resolved = self.union(handed, depth) if handed else set()
+        return None if resolved is None else resolved | found
+
+    def parameter_sites(
+        self, name: str, index: int, arg: str, depth: int
+    ) -> tuple[list[ast.expr], set[str]] | None:
+        """What every call, ``map`` and ``partial`` site hands the parameter, or None."""
         handed: list[ast.expr] = []
-        for call in ast.walk(self.tree):
-            if not isinstance(call, ast.Call) or callee(call) != function.name:
-                continue
-            by_name = [k.value for k in call.keywords if k.arg == arg]
-            if by_name:
-                handed.append(by_name[0])
-            elif index < len(call.args):
-                handed.append(call.args[index])
-            else:
+        found: set[str] = set()
+        for call in self.population.calls.get(name, []):
+            value = self.bound_argument(call, call.args, index, arg)
+            if value is None:
                 return None
-        return self.union(handed, depth) if handed else None
+            handed.append(value)
+        for call in self.population.handed.get(name, []):
+            if callee(call) == "map":
+                members = self.map_members(call, index, depth)
+                if members is None:
+                    return None
+                found |= members
+                continue
+            value = self.bound_argument(call, call.args[1:], index, arg)
+            if value is None:
+                return None
+            handed.append(value)
+        return handed, found
+
+    def map_members(self, call: ast.Call, index: int, depth: int) -> set[str] | None:
+        """The keys ``map`` hands the parameter at ``index``: its sequence's members."""
+        sequences = call.args[1:]
+        if index < 0 or index >= len(sequences):
+            return None
+        return self.sequence_keys(sequences[index], depth + 1)
+
+    @staticmethod
+    def bound_argument(
+        call: ast.Call, positional: list[ast.expr], index: int, arg: str
+    ) -> ast.expr | None:
+        """What one call site binds to a parameter, or None when it cannot be told."""
+        by_name = [k.value for k in call.keywords if k.arg == arg]
+        if by_name:
+            return by_name[0]
+        if any(k.arg is None for k in call.keywords):
+            return None
+        if index < 0 or index >= len(positional):
+            return None
+        if any(isinstance(a, ast.Starred) for a in positional[: index + 1]):
+            return None
+        return positional[index]
 
     def union(self, exprs: list[ast.expr], depth: int) -> set[str] | None:
         """Every expression resolved, or None if any one is not (or there are none)."""
@@ -1316,24 +1807,61 @@ class Allowlist:
             found |= got
         return found
 
-    def local_values(self, name: ast.Name) -> list[ast.expr]:
-        """Every value assigned to ``name`` in the function it is used in."""
-        return [
-            node.value
-            for node in ast.walk(self.function_of(name))
-            if isinstance(node, ast.Assign)
-            and any(isinstance(t, ast.Name) and t.id == name.id for t in node.targets)
-        ]
+    def local_values(self, scope: ast.AST, name: str) -> list[ast.expr] | None:
+        """Every value bound to ``name`` in ``scope``; None if any binding has no one value.
+
+        A plain, annotated or walrus assignment contributes its value. Any other
+        binding - augmented, unpacked, a ``for`` or ``with`` target, an ``except``
+        or ``import`` name - makes the local unresolved rather than letting a
+        module constant of the same name stand in for it.
+        """
+        values: list[ast.expr] = []
+        for node in ast.walk(scope):
+            if isinstance(node, ast.ExceptHandler) and node.name == name:
+                return None
+            if isinstance(node, ast.Import | ast.ImportFrom) and any(
+                (a.asname or a.name.split(".")[0]) == name for a in node.names
+            ):
+                return None
+            if not (isinstance(node, ast.Name) and node.id == name):
+                continue
+            if not isinstance(node.ctx, ast.Store):
+                continue
+            up = self.parent.get(node)
+            if isinstance(up, ast.comprehension) and up.target is node:
+                continue
+            if isinstance(up, ast.Assign) and node in up.targets:
+                values.append(up.value)
+            elif isinstance(up, ast.AnnAssign | ast.NamedExpr) and up.target is node:
+                if up.value is not None:
+                    values.append(up.value)
+            else:
+                return None
+        return values
 
     def check_key(self, site: ast.AST, key: ast.AST | None) -> None:
         """A read's key must resolve, and every value it can take must be allowed here."""
-        resolved = self.keys(key)
+        self.check_resolved(site, self.keys(key))
+
+    def check_resolved(self, site: ast.AST, resolved: set[str] | None) -> None:
+        """Every resolved key must be allowed here; an unresolved read is a finding."""
         if resolved is None:
             self.find(site, "read", UNRESOLVED_KEY)
             return
         self.read_keys |= resolved
         for name in sorted(resolved - self.allowed_at(site)):
             self.find(site, "read", name)
+
+    def check_handed(self, call: ast.Call) -> None:
+        """A reader handed to ``map`` or ``partial``: the keys it will be called with."""
+        if callee(call) == "map":
+            keys = self.sequence_keys(call.args[1], 0) if len(call.args) > 1 else None
+            self.check_resolved(call, keys)
+            return
+        key = call.args[1] if len(call.args) > 1 else None
+        if key is None:
+            key = next((k.value for k in call.keywords if k.arg == "key"), None)
+        self.check_key(call, key)
 
     # -- the whole environment ---------------------------------------------------
 
@@ -1386,7 +1914,7 @@ class Allowlist:
         if isinstance(func, ast.Name):
             return func.id in self.bare_commands
         if isinstance(func, ast.Attribute) and isinstance(func.value, ast.Name):
-            if func.value.id == "subprocess":
+            if func.value.id in self.subprocess_names:
                 return func.attr in SUBPROCESS_FUNCTIONS
             if func.value.id in self.os_names:
                 return func.attr.startswith(OS_COMMAND_PREFIXES)
@@ -1399,6 +1927,10 @@ class Allowlist:
             call = self.parent.get(up)
             if isinstance(call, ast.Call) and call.func is up:
                 self.check_key(call, call.args[0] if call.args else None)
+                return
+            handing = handing_call(up, call)
+            if handing is not None:
+                self.check_handed(handing)
                 return
         if isinstance(up, ast.Subscript) and up.value is node:
             self.check_key(up, up.slice)
@@ -1449,6 +1981,92 @@ class Allowlist:
             ):
                 self.whole_use(node, local=True)
 
+    # -- imports, surface members and path methods --------------------------------
+
+    def namespace_of(self, node: ast.AST) -> str | None:
+        """The surface module ``node`` IS - a bound name, a submodule, ``sys.modules[m]``."""
+        if isinstance(node, ast.Name) and isinstance(node.ctx, ast.Load):
+            return self.namespaces.get(node.id)
+        if isinstance(node, ast.Attribute):
+            base = self.namespace_of(node.value)
+            full = f"{base}.{node.attr}"
+            return full if base is not None and full in SURFACE_MODULES else None
+        if (
+            isinstance(node, ast.Subscript)
+            and isinstance(node.value, ast.Attribute)
+            and node.value.attr == "modules"
+            and self.namespace_of(node.value.value) == "sys"
+        ):
+            named = self.keys(node.slice)
+            module = next(iter(named)) if named is not None and len(named) == 1 else ""
+            return module if module in SURFACE_MODULES else None
+        return None
+
+    def grade_member(self, node: ast.AST, module: str, member: str) -> None:
+        """One member of a surface module - or one path method - must be permitted here."""
+        if member in ROUTED_MEMBERS.get(module, frozenset()):
+            return
+        qualified = f"{module}.{member}"
+        listed, _reason = (
+            PATH_METHODS_GLOBAL
+            if module == "Path"
+            else GLOBAL_MEMBERS.get(module, (frozenset(), ""))
+        )
+        if member in listed:
+            self.used.add(("global", module, member))
+            return
+        site = (self.label, self.name_of(node))
+        scoped, _why = SITE_SCOPED_MEMBERS.get(site, (frozenset(), ""))
+        if qualified in scoped:
+            self.used.add(("site", *site, qualified))
+            return
+        self.find(node, "member", "an unlisted reader " + qualified)
+
+    def check_import(self, node: ast.AST) -> None:
+        """Every imported module must be pure, surface or the population's own."""
+        if isinstance(node, ast.Import):
+            for alias in node.names:
+                self.grade_module(node, alias.name)
+        if isinstance(node, ast.ImportFrom):
+            module = "." * node.level + (node.module or "")
+            self.grade_module(node, module)
+            if module not in SURFACE_MODULES:
+                return
+            for alias in node.names:
+                if f"{module}.{alias.name}" not in SURFACE_MODULES:
+                    self.grade_member(node, module, alias.name)
+
+    def grade_module(self, node: ast.AST, module: str) -> None:
+        """One imported module against the import allowlist."""
+        if module in PURE_MODULES or module in SURFACE_MODULES:
+            self.used.add(("module", module))
+        elif not repository_module(module, self.population.labels):
+            self.find(node, "import", "an unlisted import " + module)
+
+    def check_member(self, node: ast.AST) -> None:
+        """A member reached on a surface namespace, or a path method on anything else."""
+        if not isinstance(node, ast.Attribute):
+            return
+        namespace = self.namespace_of(node.value)
+        if namespace is not None:
+            self.used.add(("module", namespace))
+            if self.namespace_of(node) is None:
+                self.grade_member(node, namespace, node.attr)
+        elif node.attr in PATH_METHODS and not self.is_whole_root(node.value):
+            self.grade_member(node, "Path", node.attr)
+
+    def check_module_whole(self, node: ast.AST) -> None:
+        """A surface module may be reached through, never handed on whole."""
+        namespace = self.namespace_of(node)
+        if namespace is None:
+            return
+        up = self.parent.get(node)
+        if isinstance(up, ast.Attribute) and up.value is node:
+            return
+        if isinstance(up, ast.Call) and callee(up) == "getattr" and up.args[:1] == [node]:
+            return
+        self.find(node, "whole", f"the module {namespace} handed whole")
+
     # -- aliases and dynamic code ------------------------------------------------------
 
     def check_alias(self, node: ast.AST) -> None:
@@ -1456,23 +2074,43 @@ class Allowlist:
         up = self.parent.get(node)
         called = isinstance(up, ast.Call) and up.func is node
         if isinstance(node, ast.Attribute) and node.attr in KEY_FUNCTIONS and not called:
-            self.find(node, "alias", node.attr + " referenced without a call")
+            self.reader_reference(node, node.attr, up)
         if (
             isinstance(node, ast.Name)
             and node.id in self.bare_key_functions
             and isinstance(node.ctx, ast.Load)
             and not called
         ):
-            self.find(node, "alias", node.id + " referenced without a call")
+            self.reader_reference(node, node.id, up)
         if isinstance(node, ast.Call) and callee(node) == "getattr" and len(node.args) >= 2:  # noqa: PLR2004
-            reached = self.keys(node.args[1])
-            if reached is not None and reached & (ENV_ATTRS | KEY_FUNCTIONS):
-                self.find(node, "alias", "getattr reaching " + ", ".join(sorted(reached)))
-            elif reached is None and self.is_os(node.args[0]):
-                self.find(node, "alias", "a getattr on os with a computed name")
+            self.check_getattr(node)
+
+    def reader_reference(self, node: ast.AST, name: str, up: ast.AST | None) -> None:
+        """A key function referenced uncalled: graded where ``map`` or ``partial`` calls it."""
+        handing = handing_call(node, up)
+        if handing is not None:
+            self.check_handed(handing)
+            return
+        self.find(node, "alias", name + " referenced without a call")
+
+    def check_getattr(self, node: ast.Call) -> None:
+        """``getattr`` by a literal is a member reach; on a surface module, never computed."""
+        reached = self.keys(node.args[1])
+        if reached is not None and reached & ALIAS_REACH:
+            self.find(node, "alias", "getattr reaching " + ", ".join(sorted(reached)))
+        namespace = self.namespace_of(node.args[0])
+        if namespace is None and self.is_os(node.args[0]):
+            namespace = "os"
+        if namespace is None:
+            return
+        if reached is None:
+            self.find(node, "alias", f"a getattr on {namespace} with a computed name")
+            return
+        for member in sorted(reached):
+            self.grade_member(node, namespace, member)
 
     def check_dynamic(self, node: ast.AST) -> None:
-        """``exec``, ``eval``, ``compile``, ``__import__``, and any use of ``importlib``."""
+        """``exec`` and its kin, ``importlib``, and a call that captures frame locals."""
         if isinstance(node, ast.Call):
             func = node.func
             name = func.id if isinstance(func, ast.Name) else ""
@@ -1480,12 +2118,26 @@ class Allowlist:
                 name = func.attr if func.value.id == "builtins" else ""
             if name in DYNAMIC_BUILTINS:
                 self.find(node, "dynamic", name)
+            if any(self.captures_locals(k) for k in node.keywords):
+                self.find(node, "dynamic", CAPTURED_LOCALS)
         if isinstance(node, ast.Import) and any(
             a.name.split(".")[0] == "importlib" for a in node.names
         ):
             self.find(node, "dynamic", "importlib")
         if isinstance(node, ast.ImportFrom) and (node.module or "").split(".")[0] == "importlib":
             self.find(node, "dynamic", "importlib")
+
+    @staticmethod
+    def captures_locals(keyword: ast.keyword) -> bool:
+        """A locals-capturing keyword not set to the constant False, or one in ``**{...}``."""
+        if keyword.arg is None:
+            return isinstance(keyword.value, ast.Dict) and any(
+                isinstance(k, ast.Constant) and k.value in CAPTURE_KEYWORDS
+                for k in keyword.value.keys
+            )
+        if keyword.arg not in CAPTURE_KEYWORDS:
+            return False
+        return not (isinstance(keyword.value, ast.Constant) and keyword.value.value is False)
 
     # -- commands ------------------------------------------------------------------
 
@@ -1498,8 +2150,8 @@ class Allowlist:
         if isinstance(expr, ast.List | ast.Tuple) and expr.elts:
             return self.sequence_words(expr, depth)
         if isinstance(expr, ast.Name):
-            local = self.local_values(expr)
-            return self.command_words(local[0], depth + 1) if len(local) == 1 else None
+            local = self.local_values(self.function_of(expr), expr.id)
+            return self.command_words(local[0], depth + 1) if local and len(local) == 1 else None
         return None
 
     def sequence_words(self, expr: ast.List | ast.Tuple, depth: int) -> list[str] | None:
@@ -1518,7 +2170,7 @@ class Allowlist:
         return [*first, *rest]
 
     def check_command(self, call: ast.Call) -> None:
-        """A command must be literal words that neither dump nor expand the environment."""
+        """Literal words naming an allowed program, that neither dump nor expand the env."""
         command = call.args[0] if call.args else None
         if command is None:
             command = next((k.value for k in call.keywords if k.arg == "args"), None)
@@ -1526,6 +2178,9 @@ class Allowlist:
         if words is None:
             self.find(call, "command", NONLITERAL_COMMAND)
             return
+        program = Path(words[0].split()[0]).name if words[0].split() else ""
+        if not (GIT_PROGRAM.fullmatch(program) or PYTHON_PROGRAM.fullmatch(program)):
+            self.find(call, "command", f"a child program {program or '<empty>'} off the allowlist")
         # The whole line, and each later word on its own - a `sh -c` payload.
         if any(rendering_findings(text) for text in (" ".join(words), *words[1:])):
             self.find(call, "command", DUMPING_COMMAND)
@@ -1535,11 +2190,10 @@ class Allowlist:
                 name = match.group(1) or match.group(2)
                 if name not in allowed:
                     self.find(call, "command", "a child command expanding " + name)
-        self.check_child_python(call, words)
+        self.check_child_python(call, words, program)
 
-    def check_child_python(self, call: ast.Call, words: list[str]) -> None:
+    def check_child_python(self, call: ast.Call, words: list[str], program: str) -> None:
         """A python child: its ``-c`` program is graded here, its script is discovered."""
-        program = Path(words[0].split()[0]).name if words[0].split() else ""
         if not PYTHON_PROGRAM.fullmatch(program):
             return
         self.children.append(words)
@@ -1554,13 +2208,18 @@ class Allowlist:
         except SyntaxError:
             self.find(call, "command", "a python -c program that does not parse")
             return
-        inner = Allowlist(f"{self.label}:{self.name_of(call)}:-c", tree, self.constants)
+        label = f"{self.label}:{self.name_of(call)}:-c"
+        labels = self.population.labels | {label}
+        population = index_population({label: tree}, self.constants, labels)
+        inner = Allowlist(label, tree, self.constants, population)
         self.findings.extend(inner.run())
+        self.used |= inner.used
+        self.read_keys |= inner.read_keys
 
     # -- the pass ----------------------------------------------------------------------
 
     def run(self) -> list[Finding]:
-        """Grade every read, whole use, alias, dynamic use and command."""
+        """Grade every import, member, read, whole use, alias, dynamic use and command."""
         for node in ast.walk(self.tree):
             if self.is_whole_root(node) and not self.inside_whole(node):
                 self.whole_use(self.widen(node))
@@ -1568,6 +2227,9 @@ class Allowlist:
                 self.check_key(node, node.args[0] if node.args else None)
             self.check_alias(node)
             self.check_dynamic(node)
+            self.check_import(node)
+            self.check_member(node)
+            self.check_module_whole(node)
             if self.is_command_call(node) and isinstance(node, ast.Call):
                 self.check_command(node)
         return self.findings
@@ -1586,10 +2248,12 @@ class Allowlist:
 
 
 def environment_scan(sources: dict[str, str]) -> list[Allowlist]:
-    """One graded pass per source, constants shared between them."""
+    """One graded pass per source, over one population index shared between them."""
     trees = {label: ast.parse(text) for label, text in sources.items()}
-    constants = module_constants(trees)
-    flows = [Allowlist(label, tree, constants) for label, tree in trees.items()]
+    population = index_population(trees, module_constants(trees))
+    flows = [
+        Allowlist(label, tree, population.constants, population) for label, tree in trees.items()
+    ]
     for flow in flows:
         flow.run()
     return flows
@@ -1608,6 +2272,11 @@ def unreviewed(findings: list[Finding]) -> list[Finding]:
 def keys_read(sources: dict[str, str]) -> set[str]:
     """Every key the programs read that resolved, allowed or not."""
     return {key for flow in environment_scan(sources) for key in flow.read_keys}
+
+
+def permissions_used(sources: dict[str, str]) -> set[tuple[str, ...]]:
+    """Every module, member and site permission a use in ``sources`` matched."""
+    return {entry for flow in environment_scan(sources) for entry in flow.used}
 
 
 #: Where a shell carrier or the settings file names a repository tool.
@@ -1746,6 +2415,62 @@ def test_every_allowed_key_is_read_by_a_shipped_program() -> None:
     listed = set(ALLOWED_ENV_KEYS).union(*(keys for keys, _reason in SITE_SCOPED_KEYS.values()))
     unread = sorted(listed - keys_read(shipped_sources()))
     assert not unread, f"allowed keys no shipped program reads: {unread}"
+
+
+def listed_permissions() -> set[tuple[str, ...]]:
+    """Every permission the tables grant, in the shape a matched use records."""
+    listed: set[tuple[str, ...]] = {
+        ("module", module) for module in (*PURE_MODULES, *SURFACE_MODULES)
+    }
+    for module, (members, _reason) in GLOBAL_MEMBERS.items():
+        listed |= {("global", module, member) for member in members}
+    listed |= {("global", "Path", member) for member in PATH_METHODS_GLOBAL[0]}
+    for (label, function), (members, _why) in SITE_SCOPED_MEMBERS.items():
+        listed |= {("site", label, function, member) for member in members}
+    return listed
+
+
+def test_every_listed_permission_is_used_by_a_shipped_program() -> None:
+    """The permission tables are DERIVED: a module, member or site nothing uses is red."""
+    unused = sorted(listed_permissions() - permissions_used(shipped_sources()))
+    assert not unused, f"permissions no shipped program uses: {unused}"
+
+
+def test_an_unused_permission_is_caught_as_stale() -> None:
+    """THE CONTROL for the stale arm: one extra permission IS reported unused."""
+    extra = ("global", "os.path", "cs1207_never_used")
+    unused = extra in (listed_permissions() | {extra}) - permissions_used(shipped_sources())
+    assert unused, "an extra permission was not reported unused"
+
+
+def test_the_path_method_list_holds_every_public_path_name() -> None:
+    """PATH_METHODS is pinned; the running pathlib.Path must not have grown past it."""
+    running = {name for name in dir(Path) if not name.startswith("_")}
+    missing = sorted(running - PATH_METHODS)
+    assert not missing, f"public pathlib.Path names PATH_METHODS lacks: {missing}"
+    stray = sorted(PATH_METHODS_GLOBAL[0] - PATH_METHODS)
+    assert not stray, f"PATH_METHODS_GLOBAL names that are not path names: {stray}"
+
+
+def test_every_permission_table_names_a_listed_surface_module() -> None:
+    """A member permission for a module the import rule does not list grants nothing."""
+    modules = set(GLOBAL_MEMBERS) | {
+        member.rsplit(".", 1)[0]
+        for members, _why in SITE_SCOPED_MEMBERS.values()
+        for member in members
+    }
+    unknown = sorted(modules - set(SURFACE_MODULES) - {"Path"})
+    assert not unknown, f"permissions for modules that are not surface modules: {unknown}"
+    both = sorted(set(PURE_MODULES) & set(SURFACE_MODULES))
+    assert not both, f"modules listed both pure and surface: {both}"
+    paths = {
+        m.split(".", 1)[1]
+        for ms, _why in SITE_SCOPED_MEMBERS.values()
+        for m in ms
+        if m.startswith("Path.")
+    }
+    stray = sorted(paths - PATH_METHODS)
+    assert not stray, f"site-scoped path names that are not path names: {stray}"
 
 
 def test_a_review_entry_covers_only_its_exact_detail() -> None:
@@ -2174,6 +2899,38 @@ PY_MUST_NAME: Final = {
         KEY_HELPER + "x = sorted(['GITHUB_TOKEN'], key=read)\n",
         "read",
         UNRESOLVED_KEY,
+    ),
+    "lambda-parameter-shadows-an-allowed-constant": (
+        "import os\nk = 'CLOCKSPEED_SAVE_ROOT'\nf = lambda k: os.environ.get(k)\n",
+        "read",
+        UNRESOLVED_KEY,
+    ),
+    "unpacked-loop-target-shadows-an-allowed-constant": (
+        "import os\nk = 'CLOCKSPEED_SAVE_ROOT'\nfor k, v in [('GITHUB_TOKEN', 1)]:\n"
+        "    os.environ.get(k)\n",
+        "read",
+        UNRESOLVED_KEY,
+    ),
+    "except-name-shadows-an-allowed-constant": (
+        "import os\nk = 'CLOCKSPEED_SAVE_ROOT'\n\n\ndef f():\n    try:\n        pass\n"
+        "    except OSError as k:\n        return os.environ.get(k)\n    return None\n",
+        "read",
+        UNRESOLVED_KEY,
+    ),
+    "a-starred-call-site-is-unresolved": (
+        KEY_HELPER + "read(*['GITHUB_TOKEN'])\n",
+        "read",
+        UNRESOLVED_KEY,
+    ),
+    "subprocess-imported-under-an-alias": (
+        "import subprocess as sp\nsp.run(['env'])\n",
+        "command",
+        "a child program env off the allowlist",
+    ),
+    "os-reached-through-sys-modules": (
+        "import sys\nx = sys.modules['os'].getlogin()\n",
+        "member",
+        "an unlisted reader os.getlogin",
     ),
     "node-prints-process-env": (
         "import subprocess\nsubprocess.run(['node', '-e', 'console.log(process.env)'])\n",
