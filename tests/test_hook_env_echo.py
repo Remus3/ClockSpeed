@@ -977,6 +977,8 @@ MUST_FLAG: Final = (
     ("node -p process.env.X", "process.env"),
     ("python -m pytest -q -l", "pytest showlocals"),
     ("python -m pytest --showlocals tests", "pytest showlocals"),
+    ("git -c alias.x=!env x", "env with no command"),
+    ("git -c core.pager=env -p log", "env with no command"),
 )
 
 #: Ordinary shapes the hooks do use, which the scanner must pass.
@@ -2691,6 +2693,11 @@ PY_MUST_PASS: Final = (
     "def f(e):\n    return helper(e, capture_locals=False)\n",
     "import os\nx = os.path.join('a', 'b')\n",
     "from pathlib import Path\nx = Path('a').parent.name\n",
+    "import yaml\nx = yaml.safe_load(s)\n",
+    "import yaml\nx = yaml.load(s, Loader=yaml.SafeLoader)\n",
+    "from typing import Final\nX: Final = 1\n",
+    "import subprocess\nsubprocess.run(['git', '-c', 'core.quotepath=off', 'status'])\n",
+    "x = open('/tmp/proc/a')\n",
 )
 
 
@@ -2931,6 +2938,176 @@ PY_MUST_NAME: Final = {
         "import sys\nx = sys.modules['os'].getlogin()\n",
         "member",
         "an unlisted reader os.getlogin",
+    ),
+    "globals-builtins-import": (
+        "x = globals()['__builtins__'].__import__('os')\nprint(x.path.expandvars('$A'))\n",
+        "dynamic",
+        "globals",
+    ),
+    "globals-os-getlogin": (
+        "import os\nprint(globals()['os'].getlogin())\n",
+        "dynamic",
+        "globals",
+    ),
+    "vars-with-no-argument": (
+        "import os\nprint(vars()['os'].path.expandvars('$A'))\n",
+        "dynamic",
+        "vars with no argument",
+    ),
+    "locals-call": (
+        "def f():\n    return locals()\n",
+        "dynamic",
+        "locals",
+    ),
+    "builtins-by-name": (
+        "x = __builtins__\n",
+        "dynamic",
+        "__builtins__",
+    ),
+    "builtins-by-subscript": (
+        "def f():\n    pass\n\n\nx = f.__globals__['__builtins__']\n",
+        "dynamic",
+        "__builtins__",
+    ),
+    "function-globals": (
+        "def f():\n    pass\n\n\nx = f.__globals__['os'].getlogin()\n",
+        "dynamic",
+        "__globals__",
+    ),
+    "breakpoint": (
+        "breakpoint()\n",
+        "dynamic",
+        "breakpoint",
+    ),
+    "yaml-unsafe-load": (
+        "import yaml\nx = yaml.unsafe_load(s)\n",
+        "member",
+        "an unlisted reader yaml.unsafe_load",
+    ),
+    "yaml-full-load": (
+        "import yaml\nx = yaml.full_load(s)\n",
+        "member",
+        "an unlisted reader yaml.full_load",
+    ),
+    "yaml-load-with-no-loader": (
+        "import yaml\nx = yaml.load(s)\n",
+        "member",
+        "an unlisted reader yaml.load",
+    ),
+    "yaml-load-unsafe-loader": (
+        "import yaml\nx = yaml.load(s, Loader=yaml.UnsafeLoader)\n",
+        "member",
+        "an unlisted reader yaml.load",
+    ),
+    "yaml-load-imported-bare": (
+        "from yaml import load\nx = load(s)\n",
+        "member",
+        "an unlisted reader yaml.load",
+    ),
+    "typing-get-type-hints": (
+        "import typing\n\n\ndef f(x: 'int'):\n    pass\n\n\nprint(typing.get_type_hints(f))\n",
+        "member",
+        "an unlisted reader typing.get_type_hints",
+    ),
+    "typing-forward-ref": (
+        "import typing\nr = typing.ForwardRef('int')\n",
+        "member",
+        "an unlisted reader typing.ForwardRef",
+    ),
+    "typing-forward-ref-imported-bare": (
+        "from typing import ForwardRef\n",
+        "member",
+        "an unlisted reader typing.ForwardRef",
+    ),
+    "typing-eval-type": (
+        "import typing\nx = typing._eval_type\n",
+        "member",
+        "an unlisted reader typing._eval_type",
+    ),
+    "git-alias-runs-a-program": (
+        "import subprocess\nsubprocess.run(['git', '-c', 'alias.x=!env', 'x'])\n",
+        "command",
+        "a git config key that runs a program: alias.x",
+    ),
+    "git-pager-runs-a-program": (
+        "import subprocess\nsubprocess.run(['git', '-c', 'core.pager=env', '-p', 'log'])\n",
+        "command",
+        "a git config key that runs a program: core.pager",
+    ),
+    "git-editor-runs-a-program": (
+        "import subprocess\nsubprocess.run(['git', '-c', 'core.editor=true', 'commit'])\n",
+        "command",
+        "a git config key that runs a program: core.editor",
+    ),
+    "git-ssh-command": (
+        "import subprocess\nsubprocess.run(['git', '-c', 'core.sshCommand=ssh', 'fetch'])\n",
+        "command",
+        "a git config key that runs a program: core.sshcommand",
+    ),
+    "git-credential-helper": (
+        "import subprocess\nsubprocess.run(['git', '-c', 'credential.helper=store', 'fetch'])\n",
+        "command",
+        "a git config key that runs a program: credential.helper",
+    ),
+    "git-bang-value": (
+        "import subprocess\nsubprocess.run(['git', '-c', 'x.y=!true', 'status'])\n",
+        "command",
+        "a git config key that runs a program: x.y",
+    ),
+    "git-config-env": (
+        "import subprocess\nsubprocess.run(['git', '--config-env=core.pager=A', 'log'])\n",
+        "command",
+        "a git --config-env option",
+    ),
+    "python-m-site": (
+        "import subprocess\nsubprocess.run(['python', '-m', 'site'])\n",
+        "command",
+        "a python -m site off the allowlist",
+    ),
+    "python-m-sysconfig": (
+        "import subprocess\nsubprocess.run(['python', '-m', 'sysconfig'])\n",
+        "command",
+        "a python -m sysconfig off the allowlist",
+    ),
+    "python-verbose-flag": (
+        "import subprocess\nsubprocess.run(['python', '-v', '-c', 'pass'])\n",
+        "command",
+        "a python flag -v off the allowlist",
+    ),
+    "python-x-flag": (
+        "import subprocess\nsubprocess.run(['python', '-X', 'importtime', '-c', 'pass'])\n",
+        "command",
+        "a python flag -X off the allowlist",
+    ),
+    "open-proc-environ": (
+        "print(open('/proc/self/environ').read())\n",
+        "path",
+        "a literal /proc path",
+    ),
+    "path-proc-read-text": (
+        "from pathlib import Path\nprint(Path('/proc/self/environ').read_text())\n",
+        "path",
+        "a literal /proc path",
+    ),
+    "os-open-proc": (
+        "import os\nfd = os.open('/proc/self/environ', 0)\n",
+        "path",
+        "a literal /proc path",
+    ),
+    "traceback-print-exc-unscoped": (
+        "import traceback\ntraceback.print_exc()\n",
+        "member",
+        "an unlisted reader traceback.print_exc",
+    ),
+    "traceback-format-exc-unscoped": (
+        "import traceback\nx = traceback.format_exc()\n",
+        "member",
+        "an unlisted reader traceback.format_exc",
+    ),
+    "traceback-print-exception-unscoped": (
+        "import traceback\ntraceback.print_exception(e)\n",
+        "member",
+        "an unlisted reader traceback.print_exception",
     ),
     "node-prints-process-env": (
         "import subprocess\nsubprocess.run(['node', '-e', 'console.log(process.env)'])\n",
