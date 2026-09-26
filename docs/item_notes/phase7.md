@@ -1259,3 +1259,29 @@ Run 36260379206 at `788695d`: guard 443, save 397, gates 332, hook 320 (fast mod
 slow-mode re-run read 355), fill 200. The guard shard's membership did not change in
 CS-1198; it read 407 and 413 on earlier slow runners and holds the CS-814 and CS-815
 hook-driving modules for room.
+
+## CS-1215
+
+### Acceptance
+
+no output of `tools/precommit_gate.py` - its `GitError` crash line, its handled INDEX
+diagnostic reason, or any other rendering of a git child's stderr - carries a path
+segment that locates a home directory or an account name, shown by arms that run the
+gate by hand against a synthetic home path containing a space (git's dubious-ownership
+refusal, a `GIT_DIR` naming a missing directory, a corrupt staged blob in a linked
+worktree) and assert no marker fragment appears, each red first; the edit to the frozen
+gate carries an adjudicator grant recorded in `docs/LEDGER.md` before it is made; the
+`display_note` space-split (not reproduced end to end) is pinned by a direct-call arm.
+
+### Full headline
+
+the pre-commit gate run by hand echoes git's own stderr, home path included, through
+its GitError crash line
+
+### FILED 2026-09-26, the CS-1208 planner's lead H2, reproduced (session 116)
+
+Reproduced with synthetic markers only, running `--staged` without `--verbose`: each of
+the three triggers above rendered the marker. A real `git commit` failed before the hook
+ran in the ownership and corrupt-blob cases, so the leak is reached when the gate is run
+by hand or from another tool, not through the hook. Lead H1 (`display_note` splitting
+on spaces under `--verbose`) reproduced only as a direct call.

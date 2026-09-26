@@ -329,6 +329,7 @@ CS-1194 - drift_guard prints a non-numeric player-named directory that holds no 
 CS-1196 - the provenance manifest's history walk miscounts first-adds across a merge commit - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1197 - `tests/save/test_trailing_run.py` sweeps every real save, so its run time grows with the save library - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1214 - the tier-1 guard shard read 443s at `788695d`, over its 420s budget and in the WARN band - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
+CS-1215 - the pre-commit gate run by hand echoes git's own stderr, home path included, through its GitError crash line - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1211 - `tests/test_hook_probe_bound.py::hangs` reads a slow-but-returning interpreter as hung under load, un-skipping an arm that then fails - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1212 - `tests/test_hook_toolchain.py` kills its commit at a fixed bound plus slack that counts pre-hang start-up under load, the CS-1201 defect one module over - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1213 - the save shard's named-first arm in `tests/test_tier1_budget.py` asserts a dispatch order that pytest-xdist 3.8 reorders away - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
