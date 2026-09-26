@@ -116,7 +116,7 @@ by it.
 such a hook BLOCKS or is loudly reported, proven by pointing it at a program that ignores its arguments
 
 
-### LANDED 2026-09-25, one check owed (session 115)
+### FILED 2026-09-25, landed with one check owed (session 115)
 
 The wrapper and the two command values landed; see the CS-815 LANDED record in
 `docs/LEDGER.md`. The ONLY remaining check: the operator confirms by eye that the
