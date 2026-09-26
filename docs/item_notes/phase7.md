@@ -116,6 +116,13 @@ by it.
 such a hook BLOCKS or is loudly reported, proven by pointing it at a program that ignores its arguments
 
 
+### LANDED 2026-09-25, one check owed (session 115)
+
+The wrapper and the two command values landed; see the CS-815 LANDED record in
+`docs/LEDGER.md`. The ONLY remaining check: the operator confirms by eye that the
+desktop app shows the `REFUSED (CS-815)` hook-error line for a failed probe. If it
+does, CS-815 closes; if not, rebuild the report on the exit-0 JSON systemMessage route.
+
 ## CS-953
 
 ### FILED 2026-09-07 (session 73), from a sibling's measured failure
