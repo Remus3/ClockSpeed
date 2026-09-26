@@ -1,107 +1,113 @@
 CLOCKSPEED - NEXT SESSION CONTINUATION PROMPT
-Written at the end of session 115, 2026-09-25. Paste this whole file into a cold session.
+Written at the end of session 116, 2026-09-26. Paste this whole file into a cold session.
 
 ================================================================================
 READ THESE FIRST, IN THIS ORDER
 ================================================================================
 
   CLAUDE.md                 rules, frozen list, settled decisions, topology
-                            - NOTE the new non-negotiable 13 (environment echo)
   memory/MEMORY.md          durable cross-session facts
   ROADMAP.md                open work only - the Phase 7 heading is the focus
-  WAKEUP_NOTES.md           sessions 115, 114, 113 at full fidelity
+  WAKEUP_NOTES.md           sessions 116, 115, 114 at full fidelity
   docs/ARCHITECTURE.md      module map, data flow, seams
   docs/item_notes/phase7.md every open Phase 7 item and its acceptance
   docs/GATED.md             CS-G03 (the flip gate) and CS-G08 (never-seen machine)
-  docs/LEDGER.md            the 2026-09-25 CS-815 LANDED record and the CS-814 close
+  docs/LEDGER.md            the 2026-09-26 records: CS-1209, CS-1195, CS-1210, CS-1201,
+                            CS-1198 CLOSED; CS-1207 LANDED NOT CLOSED
 
 Then run:  python tools/inbox_watch.py
-No inbox note arrived after session 114's answers. Still NOT acknowledged (--ack).
+The inbox was NOT reviewed or acknowledged this session (102 unread at session start).
 
 ================================================================================
 STATE OF THE TREE
 ================================================================================
 
-HEAD / remote   the session-115 /done commit. Confirm `git rev-parse HEAD` equals
+HEAD / remote   the session-116 /done commit. Confirm `git rev-parse HEAD` equals
                 `git ls-remote origin main` - a blocked push reports exit 0.
-CI              RED. Run 36213463506 at 20b23c2 (the CS-814 landing): guard shard
-                FAILED on ONE arm - test_hook_env_echo.py [pre-commit-under-
-                pythoninspect] did not reach its path on ubuntu (0 canaries). The
-                other three jobs passed. The /done tip will carry the same red.
-                That is CS-1209 and it is ITEM ONE. Last fully green: 30d3800.
+CI              READ the tier-1 run at the /done tip before anything else. Tier 1
+                now has FIVE jobs (gates, save, guard, hook, fill). Last read green:
+                36260379206 at 788695d. The /done tip carries the CS-1207 scanner
+                changes, which CI had not yet run when this was written.
 working tree    CLEAN at the /done commit.
-worktrees       this session's landed trees were removed. .claude/worktrees/
-                agent-a3c959f555e19f86f is LOCKED (a finished CS-814 builder; its
-                content landed) - left alone. Many older stale trees remain; classify
-                by CONTENT before pruning.
-companion       the operator's Electron companion and its dashboard may still be
-                running. A dashboard that re-reads a save DURING a pre-push suite trips
-                the real-save-copies guard - if a push blocks on that, wait and re-push.
+worktrees       .claude/worktrees/agent-ae99f307afe82e753 (the CS-1207 builder) is
+                LOCKED; its content LANDED - leave it or unlock and remove it. Older
+                stale trees remain; classify by CONTENT before pruning.
 
 ================================================================================
-CLOSED IN SESSION 115 (detail in docs/LEDGER.md)
+CLOSED IN SESSION 116 (detail in docs/LEDGER.md)
 ================================================================================
 
-CS-1203  the companion launches again: SaveWorldProvider parses a save once per
-         (path, size, mtime) identity; tests/surface/test_world_provider_memo.py.
-CS-814   CLAUDE.md non-negotiable 13; tests/test_hook_env_echo.py proves no shipped
-         hook path echoes the environment (declared residuals in the ledger).
-CS-1200  the probe self-check accepts 137 as well as 124; one frozen re-pin with
-         CS-814; tests/test_probe_refusal_output.py.
-CS-1199  repaired (already closed): the control arm's plant now leads the child env.
+CS-1209  the PYTHONINSPECT arm names one MEASURED path per platform; ubuntu green.
+CS-1195  drift_guard guard (c) withholds a withheld-class path by reason and count.
+CS-1210  the same for guard_dated - which is guard (g), NOT (e) as the item said.
+CS-1201  probe-bound arms graded by a per-call shim log and a window from the hang.
+CS-1198  fifth tier-1 job `fill`; `--no-loadscope-reorder` on the hook job; slow-mode
+         hook reading 355 against 420.
 
 ================================================================================
 THE SINGLE NEXT ACTION
 ================================================================================
 
-FIX CS-1209 FIRST: measure on ubuntu (CI, or a Linux shell if one exists) what
-pre-commit does under PYTHONINSPECT=1, then make the arm reach a measured path
-or skip with a measured reason like test_hook_probe_bound.py's INSPECT_SKIP.
-Read CI green at the pushed tip. Then take CS-1195 (tier 1). If the operator has said
-whether the desktop app SHOWS the "REFUSED (CS-815)" hook-error line, record it in
-docs/LEDGER.md and close CS-815 (shown) or rebuild on the exit-0 JSON systemMessage
-route (not shown). Do NOT ask them for it - they volunteer it or it waits.
+READ CI AT THE /DONE TIP. If red, that is item one. Otherwise CONTINUE CS-1207 from
+its item note's "MEASURED 2026-09-26" section: three adversary rounds each found a
+NEW escape class. Close CLASSES with allowlists, not shapes - every str.format /
+format_map / Formatter field walk; any builtin (__import__, exec, eval, compile,
+getattr) bound to a name, stored or passed as a value; `match` class patterns
+reading attributes; ANY attribute chain that reaches a module through a scanned
+repository module (precommit_gate.os); git subcommands that run a program
+(difftool -x, grep -O, rebase --exec, clone -u, bisect run). Then a FRESH
+adversary round that re-runs every earlier probe. Close only when a round finds
+no live escape outside the declared list.
 
 ================================================================================
 OPEN PHASE 7 ITEMS, PRIORITY ORDER (acceptance: docs/item_notes/phase7.md)
 ================================================================================
 
- 1 CS-815   LANDED, one operator look owed (see above). Nothing else to do.
- 1b CS-1209 the tier-1 guard shard is RED on ubuntu - see THE SINGLE NEXT ACTION.
- 2 CS-1195  on Linux drift_guard guard (c) can print a key file's path. Tier 1.
- 3 CS-1201  tests/test_hook_probe_bound.py elapsed-time arms go red under load and
-            block a push; green alone.
- 4 CS-1198  tier-1 hook shard in the WARN band - restore headroom WITHOUT the pin.
-            The guard shard now also carries three hook modules (~110s serial).
- 5 CS-1207  hook env allowlist lists known readers (expandvars etc. escape it).
- 6 CS-1208  value-flow: an allowed personal value can still reach a sink.
- 7 CS-1204  /api/health still waits on the first full save parse (cold probe aborts).
- 8 CS-1205  pre-push does not scrub PYTEST_ADDOPTS (frozen - needs a grant).
- 9 CS-1206  tests can print an environment value outside an assert.
-10 CS-1202  PostToolUse `--files "$CLAUDE_FILE_PATHS"` may always be empty (UNVERIFIED).
-11 CS-1196  provenance history walk miscounts on a merge (land by CHERRY-PICK).
-12 CS-1197  tests/save/test_trailing_run.py sweeps every real save, ~400s and growing.
-13 CS-1194  drift_guard prints a non-numeric player-named folder.
-14 CS-1032, CS-701, CS-953, CS-1186 (no-game half GATED under CS-G08).
-15 CS-700   the flip, S0-S12, LAST. S9 onward needs the operator's own-words
+ 1 CS-815   LANDED, one operator look owed: does the desktop app SHOW the
+            "REFUSED (CS-815)" hook-error line? Record it if volunteered; never ask.
+ 2 CS-1207  env scan allowlist - LANDED NOT CLOSED, see THE SINGLE NEXT ACTION.
+ 3 CS-1208  value flow from permitted reads to print/log/report/exception sinks.
+            Depends on CS-1207's permitted-site table. MERGER RULING: its driven
+            module runs in the FILL shard (guard is over budget). Planner leads:
+            H2 reproduced by hand and filed as CS-1215; H1 (display_note splits on
+            spaces under --verbose) reproduced only as a direct call.
+ 4 CS-1214  tier-1 guard shard read 443 (slow runner) over its 420 budget.
+ 5 CS-1204  /api/health still waits on the first full save parse.
+ 6 CS-1205  pre-push does not scrub PYTEST_ADDOPTS (frozen - needs a grant).
+ 7 CS-1206  tests can print an environment value outside an assert.
+ 8 CS-1215  the gate run by hand echoes git stderr, home path included (frozen).
+ 9 CS-1211  test_hook_probe_bound.hangs reads a slow interpreter as hung.
+10 CS-1212  test_hook_toolchain kills at a fixed bound that counts start-up.
+11 CS-1213  the save shard's named-first arm is false under xdist 3.8 reorder.
+12 CS-1202  PostToolUse `--files "$CLAUDE_FILE_PATHS"` may always be empty.
+13 CS-1196  provenance history walk miscounts on a merge (land by CHERRY-PICK).
+14 CS-1197  tests/save/test_trailing_run.py sweeps every real save, ~400s.
+15 CS-1194  drift_guard prints a non-numeric player-named folder.
+16 CS-1032, CS-701, CS-953, CS-1186 (no-game half GATED under CS-G08).
+17 CS-700   the flip, S0-S12, LAST. S9 onward needs the operator's own-words
             confirmation. CS-704's census baseline c6f3687 MUST be re-pinned after S7a.
 
 ================================================================================
 DECISIONS - DO NOT RE-LITIGATE
 ================================================================================
 
-RULE 13 LIVES ONLY IN CLAUDE.md - no pointer comments in the hooks (placement ruling).
-CS-814 CLOSED ON THE ADJUDICATED BAR. Obfuscation, env= to non-Python children, the
-  tests tree and PYTEST_ADDOPTS are DECLARED RESIDUALS, carried by CS-1205..CS-1208.
-  Do not reopen CS-814 for a new mutant - file it against CS-1207 or CS-1208.
-THE ENV SCAN IS AN ALLOWLIST. A blocklist was refuted three times. Never go back.
-CS-815 KEPT, NOT REVERTED: an unobserved report is not an invisible one (adjudicated).
-CS-1203 MEMOIZES by (path, size, st_mtime_ns); a rewrite preserving all three is not
-  detected - stated, accepted. The old "NO CACHING" docstring was superseded on purpose.
-ONE RE-PIN FOR ONE BYTE-PINNED BLOCK: fold changes to cs_probe into one grant and one
-  commit touching all four carriers.
-NEVER RAISE THE 420/480 TIER-1 PIN. Move files or speed them up.
-AN ASSERT MUST NEVER RENDER AN ENVIRONMENT VALUE. Bind names, counts or bools first.
+THE ENV SCAN IS AN ALLOWLIST OF PERMITTED READERS PER SITE (CS-1207). Never a list of
+  known readers. Six must-pass lines were RETIRED to must-flag on purpose (ledger).
+CS-1207 declared out of scope: __file__, __spec__.origin, directory listings, relpath
+  depth, time.tzname, /proc paths built at run time, git config user.email, git var,
+  personal git log fields, python from stdin, contextlib.chdir, argparse prog, the
+  gate's git(args) pass-through, sys.argv. Value flow of these belongs to CS-1208.
+TIER 1 IS FIVE JOBS. The hook job carries --no-loadscope-reorder so it dispatches in
+  command order; pytest-xdist is floored at 3.8. tests/test_flip_checks.py can NEVER be
+  named in a workflow (it pins that no workflow names its tool) - it stays catch-all.
+NEVER RAISE THE 420/480 TIER-1 PIN. A tier-1 close needs a SLOW-MODE reading (canary
+  setup at or above ~120s); a fast-mode reading is not evidence.
+CS-1201: no skip, marker, retry or widened slack for load; LOWER_EDGE_TOLERANCE is 1s
+  because the unloaded margin measured 68ms.
+CS-1195/CS-1210: a path is read as its own directory shape only when it IS a directory
+  entry (gitlink or unlisted dir); a plain file named `corpus` is still named (ADR 0023
+  rule 5). Fail closed if `git ls-files -s` fails.
+RULE 13 LIVES ONLY IN CLAUDE.md. AN ASSERT MUST NEVER RENDER AN ENVIRONMENT VALUE.
 FROZEN-FILE EDITS: adjudicator grant in docs/LEDGER.md BEFORE the edit.
 THE PROVENANCE MANIFEST IS NEVER RE-SEEDED. PYTEST NODE IDS ARE NEVER REWRITTEN.
 NO SIBLING-TREE READS, not even read-only. Brief every agent.
@@ -113,17 +119,19 @@ EXTERNAL CONDITIONS BEING WAITED ON
 CS-815: the operator's eye on the desktop app's hook-error rendering.
 CS-G08: a disposable never-seen environment - gates CS-1187 and half of CS-1186.
 FOUR DEAD-SECRET FILES still await an operator deletion call (key already rotated).
-GitHub MCP needs re-authorisation in an interactive session. CodSpeed was REMOVED.
+GitHub MCP needs re-authorisation in an interactive session.
 
 ================================================================================
 TRAPS THIS SESSION PAID FOR
 ================================================================================
 
-A settings.local.json `env` key reaches the live session, and DELETING it does not
-  unset it - overwrite it empty, then prove a known deny still denies.
-The editable install beats PYTHONPATH: to time a worktree's module, load it by path.
-A verifier's module list is not the suite: tests/test_liveness.py refused a push the
-  verifier had passed. Two narrowing asserts made a helper a "grader".
-Running the dashboard during a push copies a save and blocks the push.
-A `cd` INTO A WORKTREE MOVES THE SESSION'S WORKING DIRECTORY - use `git -C`.
-The pre-push suite runs ~16 min on this box; background it and wait.
+Only an ubuntu measurement settles an ubuntu-only red: a throwaway branch with its own
+  workflow printing a REDACTED outcome (every child env value replaced by its name)
+  took one CI run. Delete the branch after.
+A worktree agent's measurement script must be stamped into tools/provenance.tsv or the
+  pre-push suite blocks the push.
+Two pytest runs at once on this box make timing arms and nested-pytest controls fail
+  spuriously (a nested control exited 2). Do not run a mutation adversary beside a push.
+Each adversary round on a static scanner found a NEW class: brief builders to close the
+  CLASS the counter-example belongs to.
+The pre-push suite runs ~16 min; background it and wait.

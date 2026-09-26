@@ -1838,6 +1838,17 @@ grant reaches it and no tracked test can pin it. Also unmeasured: whether a work
 lane session gates against its own tree.
 
 
+## Session 113 - archived 2026-09-26 from `WAKEUP_NOTES.md`, verbatim
+
+## Session 113 - 2026-09-25 - three orchestrated waves toward the public flip, the frozen hooks rebuilt under adjudicator grants, and tier 1 split into four shards
+
+- Shipped: 51 items closed, every one adversaried and adjudicated before its ledger entry. N0 flip decisions CS-1180, CS-1181, CS-1182 (ADR 0018 trailer strip, CS-G03 supersession, decide/confirm/act split, CLAUDE.md 6.1 irreversible-act floor). Wave 1: CS-1019, 1021, 1022, 1023, 1024, 1026, 1027, 1028, 1029, 1030, 1031, 1034, 1035, 1036, 1037, 1014, 1015, 1016, 1017, 1178, 1160, 811, 812, 1163, 820, 1177, 1168, 1158, 956, 1179. Wave 2: CS-1018, 1184, 1185, 1189, 1190, 1191, 1193. Wave 3 and frozen wave: CS-1183, 1188, 818, 816, 817, 813, 822, 821, 824, 955, 1174. Detail in docs/LEDGER.md.
+- In flight: nothing mid-edit. Open Phase 7: CS-700, 701, 704, 814, 815, 953, 1032, 1186 (no-game half gated CS-G08), 1194, 1195, 1196, 1197, 1198. CS-1187 moved to docs/GATED.md as CS-G08.
+- Decisions: ADR 0023 (a filename can be personal data, withheld by reason class), ADR 0024 (credential-scan boundary is publication; CS-1168 declined), ADR 0025 (tier-3 flip checks run locally, never CI). Frozen-file grants recorded in the ledger BEFORE each edit: G-816/G-817, G-813/G-822, G-821/G-824 (CS-704 pre-push route DENIED - CI route), G-955/G-1174 plus two G-955 addenda, and the CS-824 sandbox floor-substitution clarification. CS-815 (.claude/settings.json) was GRANTED but HELD for the operator - it rewrites what runs in every Claude session.
+- Surprises: adversaries refuted almost every first build, often twice; the recurring shapes were oracles blind to their subject (leak checks matching one spelling), docstrings claiming more than the code, and guards failing OPEN on an error path. Merged slices repeatedly reddened repo-wide guards their builders never ran (rendering, liveness, pointer, citation) - wave 3 made those guards mandatory per builder. CI tier 1 overran twice (565s, 509s): runner variance explained a third; the rest was real growth; fixed by CS-1193's cache plus a fourth hook shard, never by raising the pin.
+- Failed paths: shortening the hook probe bound in sandbox copies to save CI time (declined - saves ~25 worker-s on Linux, where only 5 arms wait, and leaves no safe fall-through window). Rewriting pytest node IDs to redact them (broke -k, --deselect and copied FAILED ids - redact at render time instead). A time-bounded full suite under the tool's 10-minute cap (use foreground halves or thirds, or the pre-push log).
+- Next action: read CI on the /done push, then decide CS-815 with the operator and start CS-704 (the CI trailer census step, tools/trailer_census.py now exists).
+
 ## Session 112 - archived 2026-09-25 from `WAKEUP_NOTES.md`, verbatim
 
 ## Session 112 - 2026-09-24 - the secret rules got a derived fingerprint, and a deleted provenance manifest can no longer be re-seeded
