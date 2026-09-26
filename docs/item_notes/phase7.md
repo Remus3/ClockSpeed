@@ -1303,3 +1303,25 @@ the three triggers above rendered the marker. A real `git commit` failed before 
 ran in the ownership and corrupt-blob cases, so the leak is reached when the gate is run
 by hand or from another tool, not through the hook. Lead H1 (`display_note` splitting
 on spaces under `--verbose`) reproduced only as a direct call.
+
+## CS-1216
+
+### Acceptance
+
+the `ops/loop/slots.py` release fallback no longer claims a torn in-place write reads
+stale: either the neutralising write goes through a temp file and `os.replace` where
+the platform allows it, or the docstring states the measured behaviour - a torn record
+is unreadable, `is_stale` falls back to mtime, and a fresh write's mtime reads HELD
+until `stale_after` elapses; an arm drives `is_stale` on a truncated record with a
+fresh mtime and pins the verdict the docstring states, red first.
+
+### Full headline
+
+the slots release fallback docstring says a torn in-place write reads stale; its fresh
+mtime makes it read held
+
+### FILED 2026-09-26, an inbox hazard (write before validate) checked against the tree (session 117)
+
+A read-only verifier found every other writer uses temp-then-replace or
+create-exclusive-then-fill. The in-place write is a documented Windows workaround; the
+effect is benign (the lane holds until `stale_after`), the defect is the false claim.

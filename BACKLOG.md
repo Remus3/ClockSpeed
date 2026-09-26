@@ -255,3 +255,7 @@ The declines themselves are recorded in `docs/LEDGER.md`. Nothing here is starte
 - A Windows media-ingest skill - the idea observed in the declined pack's ingest skill, which is
   macOS-only, ZERO bytes copied - TRIGGER: a work item needs audio or video turned into a text
   note on this machine, and a `CLAUDE.md` section 4 owner row for it lands first.
+- Re-measure tier-1 and tier-2 on the Ubuntu 26 runner image - GitHub's notice on run
+  36269312405 says `ubuntu-latest` migrates from 2026-10-19; every ubuntu-only arm and the
+  420/480 shard budgets were measured on the old image - TRIGGER: the first tier-1 run whose
+  runner reports the new image, or a red on an ubuntu job after 2026-10-19.
