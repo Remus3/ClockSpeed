@@ -105,9 +105,11 @@ dev = [
   # never ran. The specific risk here is narrower than a formatter's output
   # shape - a major bump may change the DEFAULT DISTRIBUTION MODE, and a budget
   # measured under one scheduler and then enforced under another is a number
-  # nobody has measured. The floor is where `-n auto` core detection settled.
+  # nobody has measured. The floor is the scheduler tier 1 was MEASURED on
+  # (CS-1198): 3.8 reorders the loadfile queue by test count by default, and the
+  # hook shard's `--no-loadscope-reorder` is verified against that code.
   # Bump the upper bound only alongside a fresh timing sample on the runner.
-  "pytest-xdist>=3.5,<4",
+  "pytest-xdist>=3.8,<4",
   # UPPER BOUND ADDED 2026-08-23 AND IT IS LOAD-BEARING, NOT TIDINESS. `ruff
   # format --check` changes its OUTPUT SHAPE between minor versions, and 0.16
   # reworded the line CS-838's pre-commit format check reads to NAME the

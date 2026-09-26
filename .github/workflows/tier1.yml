@@ -9,7 +9,7 @@
 # LEANNESS IS A REQUIREMENT, NOT A STYLE CHOICE. This repo is private and CI
 # minutes are metered (CONVENTIONS.md section 8, budget note), so this lane uses
 # the cheapest runner, one interpreter and one dependency install PER SHARD. It
-# runs FOUR jobs and once ran one - the reason for each added job, and the
+# runs FIVE jobs and once ran one - the reason for each added job, and the
 # measurement that forced it, are on that job below. Everything expensive -
 # the Windows runner, the clean-checkout probe, the audits - lives in
 # tier2.yml, nightly and on tag.
@@ -421,6 +421,14 @@ jobs:
           --ignore=tests/test_cs1175_rule_narrowing.py
           --ignore=tests/test_citation_tables.py
           --ignore=tests/data/test_phase2_gate.py
+          --ignore=tests/solve/test_phase3_gate.py
+          --ignore=tests/test_cs1174_placeholder_delimiters.py
+          --ignore=tests/test_exception_messages.py
+          --ignore=tests/data/test_drift_guard_data.py
+          --ignore=tests/surface/test_server.py
+          --ignore=tests/test_pathless_clone_agreement.py
+          --ignore=tests/test_credential_redaction.py
+          --ignore=tests/test_flip_checks.py
           --ignore=tests/test_commit_msg_cleanup_matrix.py
           --ignore=tests/test_commit_msg_control_bytes.py
           --ignore=tests/test_pre_push_suite_floor.py
@@ -1027,12 +1035,17 @@ jobs:
   # .githooks/ into a throwaway repo and runs it through a real git command, or
   # runs the hook file itself - chosen by what each file exercises rather than
   # by its name. That work is the part of the lane least sensitive to the
-  # bimodal runner, which is why it was isolated. Then, as fill, the catch-all's
-  # heaviest CPU-bound files, heaviest first, because the catch-all still
-  # projected into the warn band on a slow runner without them; the guard shard
-  # was not used as the fill because tools/tier1_growth.py pins it in
-  # BUDGET_UNMET. tests/test_hook_probe_bound.py is named FIRST so loadfile
-  # starts it at t=0 instead of leaving it as the tail.
+  # bimodal runner, which is why it was isolated. Then one fill file, the canary
+  # child, which is too heavy for the fill shard below; the CPU-bound fill that
+  # once sat here moved to that shard in CS-1198, when this shard itself read
+  # over its budget on a slow runner.
+  #
+  # DISPATCH ORDER IS COMMAND ORDER ONLY BECAUSE OF --no-loadscope-reorder.
+  # pytest-xdist 3.8 sorts the loadfile queue by test count, descending, by
+  # default, so without the flag tests/test_hook_probe_bound.py dispatched
+  # seventh and the 3-test canary file dispatched LAST, running alone for about
+  # 160s on a slow runner. With it, the probe-bound file and the canary are
+  # named first and second and both start at t=0.
   #
   # THIS COSTS THE LEANNESS RULE IN THE HEADER AGAIN, KNOWINGLY: a fourth checkout
   # and install, about 35 metered seconds per push. The adjudicator's ruling on
@@ -1075,6 +1088,8 @@ jobs:
       # invocation from the repo root - CONVENTIONS.md section 7.1. Every path here is
       # named as an `--ignore=` on the catch-all shard above, and the arms in
       # tests/test_tier1_budget.py are red unless the two lists match exactly.
+      # The reorder flag is on THIS job alone, by the CS-1198 ruling; the other
+      # shards keep xdist's default schedule, which is what they were measured on.
       - name: Unit tests
         run: >-
           python -m pytest
@@ -1083,9 +1098,6 @@ jobs:
           tests/test_hook_interpreter_ladder.py
           tests/test_commit_msg_gate.py
           tests/test_precommit_gate.py
-          tests/test_citation_tables.py
-          tests/test_cs1175_rule_narrowing.py
-          tests/data/test_phase2_gate.py
           tests/test_pre_push_ref_race.py
           tests/test_hook_toolchain.py
           tests/test_precommit_gate_lint_cwd.py
@@ -1093,6 +1105,163 @@ jobs:
           tests/test_commit_msg_control_bytes.py
           tests/test_pre_push_suite_floor.py
           tests/test_precommit_index_race.py
+          -q -n auto --dist loadfile --no-loadscope-reorder
+          --durations=15 --durations-min=5.0
+
+      - name: Duration against the budget
+        if: always()
+        run: |
+          if [ -z "${TIER1_STARTED:-}" ]; then
+            echo "FAIL: no start was recorded, so there is nothing to compare against."
+            echo "Refusing to report a duration this job did not measure."
+            exit 1
+          fi
+          case "$TIER1_STARTED" in
+            *[!0-9]*)
+              echo "FAIL: the recorded start is not a whole number of seconds."
+              echo "Refusing to report a duration this job did not measure."
+              exit 1
+              ;;
+          esac
+          ELAPSED=$(( $(date +%s) - TIER1_STARTED ))
+          if [ "$ELAPSED" -lt 0 ]; then
+            echo "FAIL: the clock ran backwards - elapsed came out as ${ELAPSED}s."
+            echo "Refusing to report a duration this job did not measure."
+            exit 1
+          fi
+          BUDGET="${TIER1_BUDGET_SECONDS:-}"
+          CEILING="${TIER1_CEILING_SECONDS:-}"
+          # THE LEVELS GET THE SAME REFUSAL THE START DOES, FOR THE SAME REASON.
+          # MEASURED 2026-09-06 (session 65), against this very script: with
+          # either level empty or carrying a unit, `[ 900 -gt "" ]` exits 2 with
+          # `integer expression expected` on stderr - and an `if` CONDITION is
+          # exempt from `set -e`, so the script did NOT stop. Both comparisons
+          # fell through to `else`, and a 900-second run printed
+          # `tier 1 took 900s - within budget` and exited 0.
+          #
+          # So the healthiest verdict this step can print was exactly what it
+          # printed when its own configuration was broken. The comment above
+          # already claimed every meaningless number "has to end in a refusal
+          # rather than in a cheerful verdict"; all three refusals it shipped
+          # guarded TIER1_STARTED and neither level had one.
+          case "$BUDGET" in
+            "" | *[!0-9]*)
+              echo "FAIL: TIER1_BUDGET_SECONDS is '${BUDGET}', not a whole number of seconds."
+              echo "Refusing to report a duration against a level this job cannot read."
+              exit 1
+              ;;
+          esac
+          case "$CEILING" in
+            "" | *[!0-9]*)
+              echo "FAIL: TIER1_CEILING_SECONDS is '${CEILING}', not a whole number of seconds."
+              echo "Refusing to report a duration against a level this job cannot read."
+              exit 1
+              ;;
+          esac
+          if [ "$ELAPSED" -gt "$CEILING" ]; then
+            VERDICT="OVER THE CEILING"
+          elif [ "$ELAPSED" -gt "$BUDGET" ]; then
+            VERDICT="over budget"
+          else
+            VERDICT="within budget"
+          fi
+          LINE="tier 1 took ${ELAPSED}s - ${VERDICT}"
+          DETAIL="budget ${BUDGET}s, ceiling ${CEILING}s"
+          echo "${LINE} (${DETAIL})"
+          {
+            echo "### tier 1 duration"
+            echo ""
+            echo "| level | seconds |"
+            echo "| --- | --- |"
+            echo "| elapsed | ${ELAPSED} |"
+            echo "| budget | ${BUDGET} |"
+            echo "| ceiling | ${CEILING} |"
+            echo ""
+            echo "${LINE} (${DETAIL})"
+          } >> "$GITHUB_STEP_SUMMARY"
+          if [ "$ELAPSED" -gt "$CEILING" ]; then
+            echo "::error::${LINE} (${DETAIL})"
+            echo "The ceiling sits BELOW the runaway cutoff on purpose, so this is a"
+            echo "failure naming a number rather than a cancellation naming none."
+            exit 1
+          fi
+          if [ "$ELAPSED" -gt "$BUDGET" ]; then
+            echo "::warning::${LINE} (${DETAIL})"
+            echo "Over budget is a REPORT, not a failure - the lane must never be red"
+            echo "for runner noise. The ceiling is what fails it."
+          fi
+
+  # -- THE FIFTH SHARD, AND THE MEASUREMENT THAT FORCED IT (CS-1198). --
+  #
+  # MEASURED: the hook shard read 460 and 471 against the 420s budget on slow
+  # runners (runs 36243556427 and 36210761779), and the catch-all read 470 on
+  # the second of them. THE LEVELS WERE NOT RAISED AND MUST NOT BE - guard (k)
+  # ratchets them in BOTH directions. No existing shard had the room: the save
+  # shard's worst reading sat in the warn band, and the guard shard is pinned
+  # in BUDGET_UNMET by tools/tier1_growth.py. So the work is PARTITIONED again
+  # rather than trimmed: every test that ran before still runs on every push,
+  # in exactly one shard, with no deselect and no skip.
+  #
+  # WHAT RUNS HERE. CPU-bound files with no hook in them: the three the hook
+  # shard carried as fill, and the catch-all's measured head. The canary child
+  # stays in the hook shard - at about 154s on a slow runner it would be over
+  # half of this shard's step, which tools/tier1_concentration.py refuses.
+  #
+  # THIS COSTS THE LEANNESS RULE IN THE HEADER AGAIN, KNOWINGLY: a fifth checkout
+  # and install, about 35 metered seconds per push. The adjudicator's ruling on
+  # the route stands in for the operator decision that authorised the second
+  # job (CLAUDE.md section 6.1).
+  #
+  # A NEW JOB HAS NO READINGS. tools/tier1_growth.py names it in its
+  # PENDING_READINGS set until five green readings are recorded, and
+  # tools/tier1_concentration.py in its PENDING_PROFILE set until a profile is.
+  #
+  # NO GATES HERE, for the reason the save shard already states.
+  fill:
+    name: tests (fill shard)
+    runs-on: ubuntu-latest
+    # THE SAME CUTOFF AS EVERY OTHER JOB, and guard (k) pins this one too. A shard is
+    # not a licence to run long.
+    timeout-minutes: 10
+    defaults:
+      run:
+        shell: bash
+
+    steps:
+      - name: Record the start
+        run: echo "TIER1_STARTED=$(date +%s)" >> "$GITHUB_ENV"
+
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.14'
+          cache: pip
+          cache-dependency-path: pyproject.toml
+
+      - name: Install toolchain
+        run: python -m pip install -e ".[dev]"
+
+      # THE FIFTH LEG OF THE PARTITION. Explicit targets, never a bare recursive
+      # invocation from the repo root - CONVENTIONS.md section 7.1. Every path here is
+      # named as an `--ignore=` on the catch-all shard above, and the arms in
+      # tests/test_tier1_budget.py are red unless the two lists match exactly.
+      - name: Unit tests
+        run: >-
+          python -m pytest
+          tests/test_cs1175_rule_narrowing.py
+          tests/test_citation_tables.py
+          tests/data/test_phase2_gate.py
+          tests/solve/test_phase3_gate.py
+          tests/test_cs1174_placeholder_delimiters.py
+          tests/test_exception_messages.py
+          tests/data/test_drift_guard_data.py
+          tests/surface/test_server.py
+          tests/test_pathless_clone_agreement.py
+          tests/test_credential_redaction.py
+          tests/test_flip_checks.py
           -q -n auto --dist loadfile
           --durations=15 --durations-min=5.0
 
