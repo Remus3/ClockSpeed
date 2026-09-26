@@ -353,12 +353,16 @@ def shadow_pytest_env(root: Path) -> dict[str, str]:
     return {"PYTHONPATH": str(shadow)}
 
 
-def make_repo(root: Path, hooks: dict[str, bytes], suite: bytes | None = None) -> Path:
+def make_repo(
+    root: Path, hooks: dict[str, bytes], suite: bytes | None = None, gate: bytes | None = None
+) -> Path:
     """A throwaway repository wired to hook copies, with the real gate in place.
 
     With a ``suite`` it also carries the shipped pytest configuration and
     conftest, and a bare remote seeded through ``--no-verify`` so a refused push
-    can be told apart from one that never reached the hook.
+    can be told apart from one that never reached the hook. With ``gate`` the
+    SANDBOX copy of the gate is those bytes instead - a control's one planted
+    edit; the tracked gate is never written.
     """
     hooks_dir = root / "hooks"
     hooks_dir.mkdir()
@@ -376,7 +380,10 @@ def make_repo(root: Path, hooks: dict[str, bytes], suite: bytes | None = None) -
         assert git_ok(work, root, "config", key, value), "a sandbox config key did not write"
     # UNTRACKED ON PURPOSE: the hook loads the gate from the working tree.
     (work / "tools").mkdir()
-    shutil.copy2(GATE, work / "tools" / "precommit_gate.py")
+    if gate is None:
+        shutil.copy2(GATE, work / "tools" / "precommit_gate.py")
+    else:
+        (work / "tools" / "precommit_gate.py").write_bytes(gate)
     if suite is not None:
         (work / "tests").mkdir()
         for relative in SUITE_SUPPORT:
@@ -403,9 +410,10 @@ def commit_through(
     staged: tuple[str, bytes] = ("staged.txt", CLEAN_FILE),
     extra: dict[str, str] | None = None,
     path_first: Path | None = None,
+    gate: bytes | None = None,
 ) -> Run:
     """Stage one file and commit it through the hooks."""
-    work = make_repo(root, hooks)
+    work = make_repo(root, hooks, gate=gate)
     name, content = staged
     (work / name).write_bytes(content)
     (root / "message.txt").write_bytes(message)
@@ -762,6 +770,81 @@ def test_a_wrapper_copy_that_dumps_the_environment_is_caught(tmp_path: Path) -> 
     )
 
 
+# --- the account-name skip branches of the gate, driven -----------------------------
+#
+# precommit_gate.current_account_names reads USERNAME and USER, and a value too
+# short or too generic to match safely is dropped with a skip line that the
+# pre-commit invocation renders. The canaries above put a long marker in
+# USERNAME, so the name is appended and neither skip branch is ever reached;
+# these arms set the two names themselves. Short values are two letters outside
+# [a-f0-9], so no hex marker or object name in the output can collide with one.
+
+#: Each skip branch: the names it sets, and the text that proves it was reached.
+ACCOUNT_SKIP_ARMS: Final = {
+    "short-account-names": (
+        {"USERNAME": "qz", "USER": "jx"},
+        (b"USERNAME=<2 chars> is too short", b"USER=<2 chars> is too short"),
+    ),
+    "generic-account-names": (
+        {"USERNAME": "admin", "USER": "root"},
+        (b"USERNAME is a generic account name", b"USER is a generic account name"),
+    ),
+}
+
+#: The skip line's format in the tracked gate, and each control's one planted edit
+#: to the SANDBOX copy - a skip line that renders the value itself.
+SHORT_SKIP_SITE: Final = b'"%s=<%d chars> is too short to match safely" % (key, len(value))'
+SHORT_SKIP_PLANTS: Final = {
+    "renders-the-value": b'"%s=<%s chars> is too short to match safely" % (key, value)',
+    "renders-the-value-upper-cased": (
+        b'"%s=<%s chars> is too short to match safely" % (key, value.upper())'
+    ),
+}
+
+
+def bounded_hits(output: bytes, value: str) -> int:
+    """How often ``value`` occurs as a whole token, case-insensitively."""
+    token = re.escape(value.encode("ascii"))
+    pattern = re.compile(rb"(?<![A-Za-z0-9])" + token + rb"(?![A-Za-z0-9])", re.IGNORECASE)
+    return len(pattern.findall(output))
+
+
+def drive_account_skip(root: Path, arm: str, gate: bytes | None = None) -> tuple[bool, int, int]:
+    """One commit with the arm's names set: reached, marker hits, name hits."""
+    names, said = ACCOUNT_SKIP_ARMS[arm]
+    run = commit_through(root, both_commit_hooks(), extra=dict(names), gate=gate)
+    reached = run.code == 0 and run.landed and all(words in run.out for words in said)
+    hits, _found = marker_hits(run.out)
+    shown = sum(bounded_hits(run.out, value) for value in names.values())
+    return reached, hits, shown
+
+
+@pytest.mark.parametrize("arm", sorted(ACCOUNT_SKIP_ARMS))
+def test_no_account_name_skip_renders_the_name(tmp_path: Path, arm: str) -> None:
+    """Each skip branch of current_account_names, reached, renders no name and no canary."""
+    reached, hits, shown = drive_account_skip(tmp_path, arm)
+    assert reached, f"{arm}: the commit did not reach the skip branch it names"
+    assert hits == 0, f"{arm}: {hits} canary occurrence(s) in the hook output"
+    assert shown == 0, f"{arm}: an account name occurred {shown} time(s) in the hook output"
+
+
+@pytest.mark.parametrize("plant", sorted(SHORT_SKIP_PLANTS))
+def test_a_gate_copy_whose_skip_renders_the_name_is_caught(tmp_path: Path, plant: str) -> None:
+    """THE CONTROL for the skip arm: the same oracle DOES see a rendered short name."""
+    pristine = GATE.read_bytes()
+    sites = pristine.count(SHORT_SKIP_SITE)
+    assert sites == 1, f"the skip format occurs {sites} time(s) in the tracked gate"
+    planted_gate = pristine.replace(SHORT_SKIP_SITE, SHORT_SKIP_PLANTS[plant], 1)
+    moved = planted_gate != pristine
+    assert moved, "the control plant was not applied"
+    names, _said = ACCOUNT_SKIP_ARMS["short-account-names"]
+    run = commit_through(tmp_path, both_commit_hooks(), extra=dict(names), gate=planted_gate)
+    reached = run.landed and b"is too short to match safely" in run.out
+    assert reached, f"{plant}: the control commit did not reach the skip branch"
+    shown = bounded_hits(run.out, names["USERNAME"])
+    assert shown >= 1, f"{plant}: the oracle saw no rendered name - the skip arm proves nothing"
+
+
 # --- the shell static arm -----------------------------------------------------------
 
 #: Where a shell command word can start: line start, a separator, a substitution,
@@ -854,6 +937,18 @@ MUST_FLAG: Final = (
     ("'%s' % (os.environb,)", "os.environ used whole"),
     ("f'{os.environ}'", "os.environ used whole"),
     ("from os import environ", "environ imported bare"),
+    ("Get-ChildItem Env:", "PowerShell Env: drive"),
+    ("pwsh -c 'gci env:/'", "PowerShell Env: drive"),
+    ("Get-Item Env:USERNAME", "PowerShell Env: drive"),
+    ("dir env:", "PowerShell Env: drive"),
+    ('powershell -Command "Write-Output $Env:GITHUB_TOKEN"', "PowerShell dollar-env read"),
+    ("echo ${env:USERNAME}", "PowerShell dollar-env read"),
+    ("[Environment]::GetEnvironmentVariables()", ".NET environment API"),
+    ("[System.Environment]::UserName", ".NET environment API"),
+    ('node -e "console.log(process.env)"', "process.env"),
+    ("node -p process.env.X", "process.env"),
+    ("python -m pytest -q -l", "pytest showlocals"),
+    ("python -m pytest --showlocals tests", "pytest showlocals"),
 )
 
 #: Ordinary shapes the hooks do use, which the scanner must pass.
@@ -870,6 +965,11 @@ MUST_PASS: Final = (
     "CS_PROBE_BOUND=10",
     "cs_msg_leaders=$(timeout -k 1 10 git config --get-regexp x)",
     '    "Unset PYTHONINSPECT, or point it at a plain python." \\',
+    "the environment and its envelope",
+    "# Get-ChildItem Env: in a comment",
+    "python -m pytest -q -p no:cacheprovider",
+    "ls -l hooks",
+    "node --version",
 )
 
 
@@ -1665,6 +1765,11 @@ JSON_SITE: Final = (
     '        detail = getattr(exc, "msg", None) or type(exc).__name__\n'
 )
 SCRUBBED_SITE: Final = '    """\n    return scrub(dict(os.environ))\n'
+#: The short-name skip line in current_account_names, and the first line of redact().
+ACCOUNT_SKIP_SITE: Final = (
+    '                    "%s=<%d chars> is too short to match safely" % (key, len(value)),\n'
+)
+REDACT_SITE: Final = '    out = str(text).replace("\\\\", "/")\n'
 
 #: The refuted mutants, each planted into a source in memory: (label, the site,
 #: its replacement, a helper appended to the module). The last one sits in the
@@ -1702,6 +1807,37 @@ MUTANTS: Final = {
         JSON_SITE + "        from pprint import pprint\n\n        pprint(dict(os.environ))\n",
         "",
     ),
+    "gate-account-skip-renders-through-expandvars": (
+        "tools/precommit_gate.py",
+        ACCOUNT_SKIP_SITE,
+        '                    os.path.expandvars("%s=$%s" % (key, key)),\n',
+        "",
+    ),
+    "locate-redact-reads-the-home-directory": (
+        "clockspeed/data/locate.py",
+        REDACT_SITE,
+        REDACT_SITE + "    out = out.replace(str(Path.home()), '~')\n",
+        "",
+    ),
+    "gate-check-nul-prints-the-temp-dir": (
+        "tools/precommit_gate.py",
+        NUL_SITE,
+        NUL_SITE + "    print(tempfile.gettempdir(), file=sys.stderr)\n",
+        "",
+    ),
+    "gate-check-nul-prints-the-account-through-getpass": (
+        "tools/precommit_gate.py",
+        NUL_SITE,
+        NUL_SITE + "    import getpass\n\n    print(getpass.getuser(), file=sys.stderr)\n",
+        "",
+    ),
+    "lint-check-json-captures-locals": (
+        "tools/edit_lint_check.py",
+        JSON_SITE,
+        JSON_SITE
+        + "        traceback.TracebackException.from_exception(exc, capture_locals=True)\n",
+        "",
+    ),
     "git-env-scrubbed-env-prints-the-environment": (
         "tests/git_env.py",
         SCRUBBED_SITE,
@@ -1731,6 +1867,12 @@ def test_each_refuted_mutant_is_refused_and_the_pristine_source_is_not(mutant: s
     after = len(unreviewed(environment_findings(sources)))
     assert after >= 1, f"{mutant}: the plant was not refused"
 
+
+#: A helper that reads the key it is handed, with one allowed call site of its own.
+KEY_HELPER: Final = (
+    "import functools\nimport os\n\n\ndef read(k):\n    return os.environ.get(k)\n\n\n"
+    "read('CLOCKSPEED_SAVE_ROOT')\n"
+)
 
 #: One synthetic program per refused shape.
 PY_MUST_FLAG: Final = (
@@ -1788,6 +1930,11 @@ PY_MUST_FLAG: Final = (
     "subprocess.run(['python', '-c', \"import os;print(getattr(os,'environ'))\"],"
     " env=os.environ)\n",
     "import subprocess\nsubprocess.run(['python', '-c', program])\n",
+    # Retired from PY_MUST_PASS by the CS-1207 ruling: a child program off the
+    # program allowlist is a finding whatever it is handed, and the second one
+    # echoes a personal value.
+    "import subprocess\nsubprocess.run(['env', 'A=1', 'git', 'status'])\n",
+    "import subprocess\nsubprocess.run(['sh', '-c', 'echo $CLOCKSPEED_SAVE_ROOT'])\n",
 )
 
 #: Shapes the allowlist permits: configuration reads, resolved keys, child envs.
@@ -1804,11 +1951,21 @@ PY_MUST_PASS: Final = (
     "import os, subprocess\nsubprocess.run(['git', 'status'], env=os.environ)\n",
     "import os, subprocess\nenv = os.environ.copy()\nenv['CLOCKSPEED_SAVE_ROOT'] = 'x'\n"
     "env.pop('CLOCKSPEED_LOCAL_CONFIG', None)\nsubprocess.run(['git'], env=env)\n",
-    "import subprocess\nsubprocess.run(['env', 'A=1', 'git', 'status'])\n",
     "import subprocess\nGIT = ('git',)\nsubprocess.run([*GIT, 'status'])\n",
-    "import subprocess\nsubprocess.run(['sh', '-c', 'echo $CLOCKSPEED_SAVE_ROOT'])\n",
     "import subprocess\nsubprocess.run(['python', '-c', 'import sys; sys.exit(0)'])\n",
     "import re\nx = re.compile('a')\n",
+    "import os\nx = list(map(os.getenv, ('CLOCKSPEED_SAVE_ROOT',)))\n",
+    "import os\n"
+    "x = list(map(os.environ.get, ('CLOCKSPEED_WORLD_NAMES', 'CLOCKSPEED_WORLD_TOKENS')))\n",
+    "import functools\nimport os\nx = functools.partial(os.getenv, 'CLOCKSPEED_LOCAL_CONFIG')\n",
+    "from functools import partial\nimport os\n"
+    "x = partial(os.environ.get, 'CLOCKSPEED_GAME_DIR')()\n",
+    KEY_HELPER + "x = list(map(read, ['CLOCKSPEED_ACCOUNT_DIR']))\n",
+    KEY_HELPER + "x = functools.partial(read, 'CLOCKSPEED_ACCOUNT_DIR')()\n",
+    KEY_HELPER + "x = functools.partial(read, k='CLOCKSPEED_ACCOUNT_DIR')()\n",
+    "def f(e):\n    return helper(e, capture_locals=False)\n",
+    "import os\nx = os.path.join('a', 'b')\n",
+    "from pathlib import Path\nx = Path('a').parent.name\n",
 )
 
 
@@ -1824,3 +1981,289 @@ def test_the_allowlist_permits_configuration_reads_and_child_envs(program: str) 
     """The other half: an allowlist that refuses everything proves nothing."""
     found = len(environment_findings({"synthetic": program}))
     assert found == 0, f"a permitted environment use read as {found} finding(s)"
+
+
+#: One synthetic program per reader, route or shape the inverted rules must NAME:
+#: (program, the finding's kind, its detail) - so each arm proves WHICH rule
+#: refused it, not merely that something did.
+PY_MUST_NAME: Final = {
+    "expandvars-by-attribute": (
+        "import os\nx = os.path.expandvars('$GITHUB_TOKEN')\n",
+        "member",
+        "an unlisted reader os.path.expandvars",
+    ),
+    "expandvars-imported-bare": (
+        "from os.path import expandvars\nx = expandvars('$GITHUB_TOKEN')\n",
+        "member",
+        "an unlisted reader os.path.expandvars",
+    ),
+    "expandvars-by-a-literal-getattr": (
+        "import os\nx = getattr(os.path, 'expandvars')\n",
+        "member",
+        "an unlisted reader os.path.expandvars",
+    ),
+    "getpass": ("import getpass\nx = getpass.getuser()\n", "import", "an unlisted import getpass"),
+    "os-getlogin": ("import os\nx = os.getlogin()\n", "member", "an unlisted reader os.getlogin"),
+    "os-uname": ("import os\nx = os.uname()\n", "member", "an unlisted reader os.uname"),
+    "os-getuid": ("import os\nx = os.getuid()\n", "member", "an unlisted reader os.getuid"),
+    "path-home": (
+        "from pathlib import Path\nx = Path.home()\n",
+        "member",
+        "an unlisted reader Path.home",
+    ),
+    "path-home-through-the-module": (
+        "import pathlib\nx = pathlib.Path.home()\n",
+        "member",
+        "an unlisted reader Path.home",
+    ),
+    "path-expanduser": (
+        "from pathlib import Path\nx = Path('~').expanduser()\n",
+        "member",
+        "an unlisted reader Path.expanduser",
+    ),
+    "os-path-expanduser": (
+        "import os\nx = os.path.expanduser('~')\n",
+        "member",
+        "an unlisted reader os.path.expanduser",
+    ),
+    "platform-node": (
+        "import platform\nx = platform.node()\n",
+        "import",
+        "an unlisted import platform",
+    ),
+    "platform-uname": (
+        "from platform import uname\nx = uname()\n",
+        "import",
+        "an unlisted import platform",
+    ),
+    "socket-gethostname": (
+        "import socket\nx = socket.gethostname()\n",
+        "import",
+        "an unlisted import socket",
+    ),
+    "tempfile-gettempdir": (
+        "import tempfile\nx = tempfile.gettempdir()\n",
+        "member",
+        "an unlisted reader tempfile.gettempdir",
+    ),
+    "pwd-getpwuid": (
+        "import os\nimport pwd\nx = pwd.getpwuid(os.getuid()).pw_name\n",
+        "import",
+        "an unlisted import pwd",
+    ),
+    "cgitb": ("import cgitb\ncgitb.enable()\n", "import", "an unlisted import cgitb"),
+    "os-environb-read": (
+        "import os\nx = os.environb.get(b'CLOCKSPEED_SAVE_ROOT')\n",
+        "member",
+        "an unlisted reader os.environb",
+    ),
+    "os-environb-whole": (
+        "import os\nprint(os.environb)\n",
+        "member",
+        "an unlisted reader os.environb",
+    ),
+    "os-getenvb": (
+        "import os\nx = os.getenvb(b'CLOCKSPEED_SAVE_ROOT')\n",
+        "member",
+        "an unlisted reader os.getenvb",
+    ),
+    "environb-imported-bare": (
+        "from os import environb\nx = environb\n",
+        "member",
+        "an unlisted reader os.environb",
+    ),
+    "rich-traceback-show-locals": (
+        "from rich.traceback import install\ninstall(show_locals=True)\n",
+        "dynamic",
+        "a call that captures locals",
+    ),
+    "traceback-capture-locals": (
+        "import traceback\n\n\ndef f(e):\n"
+        "    return traceback.TracebackException.from_exception(e, capture_locals=True)\n",
+        "dynamic",
+        "a call that captures locals",
+    ),
+    "capture-locals-by-a-flag": (
+        "def f(e, flag):\n    return helper(e, capture_locals=flag)\n",
+        "dynamic",
+        "a call that captures locals",
+    ),
+    "show-locals-by-a-number": (
+        "helper(show_locals=1)\n",
+        "dynamic",
+        "a call that captures locals",
+    ),
+    "showlocals": ("helper(showlocals=True)\n", "dynamic", "a call that captures locals"),
+    "getattr-on-sys-computed": (
+        "import sys\n\n\ndef f(name):\n    return getattr(sys, name)\n",
+        "alias",
+        "a getattr on sys with a computed name",
+    ),
+    "os-path-handed-whole": (
+        "import os\nm = os.path\n",
+        "whole",
+        "the module os.path handed whole",
+    ),
+    "os-handed-whole": ("import os\nhelper(os)\n", "whole", "the module os handed whole"),
+    "annotated-local-shadows-an-allowed-constant": (
+        "import os\nk = 'CLOCKSPEED_SAVE_ROOT'\n\n\ndef f():\n"
+        "    k: str = 'GITHUB_TOKEN'\n    return os.environ.get(k)\n",
+        "read",
+        "GITHUB_TOKEN",
+    ),
+    "walrus-local-shadows-an-allowed-constant": (
+        "import os\nk = 'CLOCKSPEED_SAVE_ROOT'\n\n\ndef f():\n"
+        "    if k := 'GITHUB_TOKEN':\n        return os.environ.get(k)\n    return None\n",
+        "read",
+        "GITHUB_TOKEN",
+    ),
+    "augmented-local-is-unresolved": (
+        "import os\n\n\ndef f(suffix):\n    k = 'CLOCKSPEED_SAVE_ROOT'\n    k += suffix\n"
+        "    return os.environ.get(k)\n",
+        "read",
+        UNRESOLVED_KEY,
+    ),
+    "with-bound-local-is-unresolved": (
+        "import os\nk = 'CLOCKSPEED_SAVE_ROOT'\n\n\ndef f():\n"
+        "    with open('n') as k:\n        return os.environ.get(k)\n",
+        "read",
+        UNRESOLVED_KEY,
+    ),
+    "keyword-only-parameter-shadows-an-allowed-constant": (
+        "import os\nk = 'CLOCKSPEED_SAVE_ROOT'\n\n\ndef f(*, k):\n    return os.environ.get(k)\n"
+        "\n\nf(k='GITHUB_TOKEN')\n",
+        "read",
+        "GITHUB_TOKEN",
+    ),
+    "map-of-getenv": (
+        "import os\nx = list(map(os.getenv, ('GITHUB_TOKEN',)))\n",
+        "read",
+        "GITHUB_TOKEN",
+    ),
+    "map-of-environ-get": (
+        "import os\nx = list(map(os.environ.get, ['USERNAME']))\n",
+        "read",
+        "USERNAME",
+    ),
+    "partial-of-environ-get": (
+        "from functools import partial\nimport os\nx = partial(os.environ.get, 'GH_TOKEN')\n",
+        "read",
+        "GH_TOKEN",
+    ),
+    "partial-of-getenv-with-no-key": (
+        "import functools\nimport os\ng = functools.partial(os.getenv)\n",
+        "read",
+        UNRESOLVED_KEY,
+    ),
+    "map-of-a-helper": (
+        KEY_HELPER + "x = list(map(read, ['GITHUB_TOKEN']))\n",
+        "read",
+        "GITHUB_TOKEN",
+    ),
+    "partial-of-a-helper": (
+        KEY_HELPER + "x = functools.partial(read, 'GITHUB_TOKEN')()\n",
+        "read",
+        "GITHUB_TOKEN",
+    ),
+    "partial-of-a-helper-by-keyword": (
+        KEY_HELPER + "x = functools.partial(read, k='GITHUB_TOKEN')()\n",
+        "read",
+        "GITHUB_TOKEN",
+    ),
+    "a-helper-handed-as-a-value": (
+        KEY_HELPER + "x = sorted(['GITHUB_TOKEN'], key=read)\n",
+        "read",
+        UNRESOLVED_KEY,
+    ),
+    "node-prints-process-env": (
+        "import subprocess\nsubprocess.run(['node', '-e', 'console.log(process.env)'])\n",
+        "command",
+        DUMPING_COMMAND,
+    ),
+    "pwsh-lists-the-env-drive": (
+        "import subprocess\nsubprocess.run(['pwsh', '-c', 'gci env:'])\n",
+        "command",
+        DUMPING_COMMAND,
+    ),
+    "pytest-showlocals": (
+        "import subprocess\nsubprocess.run(['python', '-m', 'pytest', '--showlocals'])\n",
+        "command",
+        DUMPING_COMMAND,
+    ),
+    "a-program-off-the-allowlist": (
+        "import subprocess\nsubprocess.run(['node', '-e', 'process.exit(0)'])\n",
+        "command",
+        "a child program node off the allowlist",
+    ),
+    "env-as-the-program": (
+        "import subprocess\nsubprocess.run(['env', 'A=1', 'git', 'status'])\n",
+        "command",
+        "a child program env off the allowlist",
+    ),
+}
+
+
+@pytest.mark.parametrize("arm", sorted(PY_MUST_NAME))
+def test_the_allowlist_names_each_reader_it_refuses(arm: str) -> None:
+    """Each refused reader is refused BY the rule that owns it, and named."""
+    program, kind, detail = PY_MUST_NAME[arm]
+    seen = {(f.kind, f.detail) for f in environment_findings({"synthetic": program})}
+    named = (kind, detail) in seen
+    others = len(seen)
+    assert named, f"{arm}: no {kind} finding {detail!r} ({others} other finding(s))"
+
+
+#: A helper module that reads the key it is handed, and callers in another module.
+CROSS_MODULE_HELPER: Final = (
+    "import os\n\n\ndef read(k):\n    return os.environ.get(k)\n\n\nread('CLOCKSPEED_SAVE_ROOT')\n"
+)
+CROSS_MODULE_CALLERS: Final = {
+    "from-import": "from helper import read\n\nread('{key}')\n",
+    "from-import-as": "from helper import read as fetch\n\nfetch('{key}')\n",
+    "module-attribute": "import helper\n\nhelper.read('{key}')\n",
+    "map-across-modules": "from helper import read\n\nx = list(map(read, ['{key}']))\n",
+    "partial-across-modules": (
+        "import functools\n\nfrom helper import read\n\nx = functools.partial(read, '{key}')()\n"
+    ),
+}
+
+
+@pytest.mark.parametrize("caller", sorted(CROSS_MODULE_CALLERS))
+def test_a_key_handed_across_modules_is_resolved(caller: str) -> None:
+    """A key handed to a reader's helper from ANOTHER module is resolved and graded."""
+    sources = {
+        "helper": CROSS_MODULE_HELPER,
+        "caller": CROSS_MODULE_CALLERS[caller].format(key="GITHUB_TOKEN"),
+    }
+    named = any(
+        f.kind == "read" and f.detail == "GITHUB_TOKEN" for f in environment_findings(sources)
+    )
+    assert named, f"{caller}: a disallowed key handed across modules was not refused"
+
+
+@pytest.mark.parametrize("caller", sorted(CROSS_MODULE_CALLERS))
+def test_an_allowed_key_handed_across_modules_passes(caller: str) -> None:
+    """The other half: an allowed key on both sides is resolved, not merely refused."""
+    sources = {
+        "helper": CROSS_MODULE_HELPER,
+        "caller": CROSS_MODULE_CALLERS[caller].format(key="CLOCKSPEED_ACCOUNT_DIR"),
+    }
+    found = len(environment_findings(sources))
+    assert found == 0, f"{caller}: an allowed key across modules read as {found} finding(s)"
+
+
+#: A personal member read in a named function of a real label.
+HOME_IN: Final = "from pathlib import Path\n\n\ndef {name}():\n    return Path.home()\n"
+LOCATE_LABEL: Final = "clockspeed/data/locate.py"
+
+
+def test_a_personal_member_is_permitted_only_in_its_own_function() -> None:
+    """A site-scoped member is keyed by label AND function: one file is not a licence."""
+    inside = len(environment_findings({LOCATE_LABEL: HOME_IN.format(name="_redaction_pairs")}))
+    outside = {
+        (f.kind, f.detail)
+        for f in environment_findings({LOCATE_LABEL: HOME_IN.format(name="elsewhere")})
+    }
+    refused = ("member", "an unlisted reader Path.home") in outside
+    assert inside == 0, f"Path.home in its scoped function read as {inside} finding(s)"
+    assert refused, "Path.home in an unscoped function of the same file was not refused"
