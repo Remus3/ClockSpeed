@@ -2774,9 +2774,16 @@ PY_MUST_FLAG: Final = (
     # echoes a personal value.
     "import subprocess\nsubprocess.run(['env', 'A=1', 'git', 'status'])\n",
     "import subprocess\nsubprocess.run(['sh', '-c', 'echo $CLOCKSPEED_SAVE_ROOT'])\n",
+    # Retired from PY_MUST_PASS by the CS-1207 round-2 ruling: a child env= must be a
+    # scrub helper's, and a git -c key must be on the measured key allowlist.
+    "import os, subprocess\nsubprocess.run(['git', 'status'], env=dict(os.environ))\n",
+    "import os, subprocess\nsubprocess.run(['git', 'status'], env=os.environ)\n",
+    "import os, subprocess\nenv = os.environ.copy()\nenv['CLOCKSPEED_SAVE_ROOT'] = 'x'\n"
+    "env.pop('CLOCKSPEED_LOCAL_CONFIG', None)\nsubprocess.run(['git'], env=env)\n",
+    "import subprocess\nsubprocess.run(['git', '-c', 'core.quotepath=off', 'status'])\n",
 )
 
-#: Shapes the allowlist permits: configuration reads, resolved keys, child envs.
+#: Shapes the allowlist permits: configuration reads, resolved keys, literal children.
 PY_MUST_PASS: Final = (
     "import os\nx = os.environ.get('CLOCKSPEED_SAVE_ROOT')\n",
     "import os\nx = os.getenv('CLOCKSPEED_LOCAL_CONFIG')\n",
@@ -2786,10 +2793,6 @@ PY_MUST_PASS: Final = (
     "    x = os.environ.get(key)\n",
     "import os\n\n\ndef f(name):\n    return os.environ.get(name)\n\n\n"
     "f('CLOCKSPEED_ACCOUNT_DIR')\n",
-    "import os, subprocess\nsubprocess.run(['git', 'status'], env=dict(os.environ))\n",
-    "import os, subprocess\nsubprocess.run(['git', 'status'], env=os.environ)\n",
-    "import os, subprocess\nenv = os.environ.copy()\nenv['CLOCKSPEED_SAVE_ROOT'] = 'x'\n"
-    "env.pop('CLOCKSPEED_LOCAL_CONFIG', None)\nsubprocess.run(['git'], env=env)\n",
     "import subprocess\nGIT = ('git',)\nsubprocess.run([*GIT, 'status'])\n",
     "import subprocess\nsubprocess.run(['python', '-c', 'import sys; sys.exit(0)'])\n",
     "import re\nx = re.compile('a')\n",
@@ -2808,8 +2811,10 @@ PY_MUST_PASS: Final = (
     "import yaml\nx = yaml.safe_load(s)\n",
     "import yaml\nx = yaml.load(s, Loader=yaml.SafeLoader)\n",
     "from typing import Final\nX: Final = 1\n",
-    "import subprocess\nsubprocess.run(['git', '-c', 'core.quotepath=off', 'status'])\n",
     "x = open('/tmp/proc/a')\n",
+    "import json\nx = json.loads('1')\n",
+    "def f(e):\n    return type(e).__name__\n",
+    "def f(e):\n    return getattr(e, 'msg', None)\n",
 )
 
 
@@ -3139,32 +3144,32 @@ PY_MUST_NAME: Final = {
     "git-alias-runs-a-program": (
         "import subprocess\nsubprocess.run(['git', '-c', 'alias.x=!env', 'x'])\n",
         "command",
-        "a git config key that runs a program: alias.x",
+        "a git -c key off the allowlist: alias.x",
     ),
     "git-pager-runs-a-program": (
         "import subprocess\nsubprocess.run(['git', '-c', 'core.pager=env', '-p', 'log'])\n",
         "command",
-        "a git config key that runs a program: core.pager",
+        "a git -c key off the allowlist: core.pager",
     ),
     "git-editor-runs-a-program": (
         "import subprocess\nsubprocess.run(['git', '-c', 'core.editor=true', 'commit'])\n",
         "command",
-        "a git config key that runs a program: core.editor",
+        "a git -c key off the allowlist: core.editor",
     ),
     "git-ssh-command": (
         "import subprocess\nsubprocess.run(['git', '-c', 'core.sshCommand=ssh', 'fetch'])\n",
         "command",
-        "a git config key that runs a program: core.sshcommand",
+        "a git -c key off the allowlist: core.sshcommand",
     ),
     "git-credential-helper": (
         "import subprocess\nsubprocess.run(['git', '-c', 'credential.helper=store', 'fetch'])\n",
         "command",
-        "a git config key that runs a program: credential.helper",
+        "a git -c key off the allowlist: credential.helper",
     ),
     "git-bang-value": (
         "import subprocess\nsubprocess.run(['git', '-c', 'x.y=!true', 'status'])\n",
         "command",
-        "a git config key that runs a program: x.y",
+        "a git -c key off the allowlist: x.y",
     ),
     "git-config-env": (
         "import subprocess\nsubprocess.run(['git', '--config-env=core.pager=A', 'log'])\n",
@@ -3220,6 +3225,171 @@ PY_MUST_NAME: Final = {
         "import traceback\ntraceback.print_exception(e)\n",
         "member",
         "an unlisted reader traceback.print_exception",
+    ),
+    "pure-module-reexports-os": (
+        "import contextlib\nprint(contextlib.os.path.expandvars('$A'))\n",
+        "member",
+        "an unlisted reader contextlib.os",
+    ),
+    "pure-module-reexport-imported-bare": (
+        "from contextlib import os as o\nprint(o.getlogin())\n",
+        "member",
+        "an unlisted reader contextlib.os",
+    ),
+    "pure-module-private-member": (
+        "import argparse\nprint(argparse._os.getcwd())\n",
+        "member",
+        "an unlisted reader argparse._os",
+    ),
+    "pure-module-reexports-inspect": (
+        "import dataclasses\nx = dataclasses.inspect.stack()\n",
+        "member",
+        "an unlisted reader dataclasses.inspect",
+    ),
+    "pure-submodule-reexports-contextlib": (
+        "import xml.etree.ElementTree as ET\nprint(ET.contextlib.os.getlogin())\n",
+        "member",
+        "an unlisted reader xml.etree.ElementTree.contextlib",
+    ),
+    "pure-module-reader-stored-in-a-dict": (
+        "import contextlib\nd = {'f': contextlib.os.path.expandvars}\nprint(d['f']('$A'))\n",
+        "member",
+        "an unlisted reader contextlib.os",
+    ),
+    "json-reexports-codecs": (
+        "import json\nx = json.codecs\n",
+        "member",
+        "an unlisted reader json.codecs",
+    ),
+    "getattr-computed-on-any-receiver": (
+        "import contextlib\nprint(dict(getattr(contextlib.os, 'envi' + 'ron')))\n",
+        "dynamic",
+        "a getattr with a computed name",
+    ),
+    "hasattr-computed": (
+        "def f(o, n):\n    return hasattr(o, n)\n",
+        "dynamic",
+        "a hasattr with a computed name",
+    ),
+    "setattr-computed": (
+        "def f(o, n):\n    setattr(o, n, 1)\n",
+        "dynamic",
+        "a setattr with a computed name",
+    ),
+    "getattr-handed-to-reduce": (
+        "import contextlib\nimport functools\n"
+        "x = functools.reduce(getattr, ['os', 'path'], contextlib)\n",
+        "dynamic",
+        "getattr used as a value",
+    ),
+    "getattr-stored-in-a-list": (
+        "fs = [getattr]\n",
+        "dynamic",
+        "getattr used as a value",
+    ),
+    "vars-of-an-object": (
+        "import contextlib\nprint(vars(contextlib.os)['environ'])\n",
+        "dynamic",
+        "vars of an object",
+    ),
+    "generator-frame-builtins": (
+        "imp = (x for x in ()).gi_frame.f_builtins['__import__']\n",
+        "dynamic",
+        "a dunder or frame attribute gi_frame",
+    ),
+    "traceback-frame-globals": (
+        "try:\n    raise ValueError\nexcept ValueError as e:\n"
+        "    g = e.__traceback__.tb_frame.f_globals\n",
+        "dynamic",
+        "a dunder or frame attribute tb_frame",
+    ),
+    "subclasses-walk": (
+        "c = ().__class__.__base__.__subclasses__()\n",
+        "dynamic",
+        "a dunder or frame attribute __subclasses__",
+    ),
+    "code-object-replace": (
+        "def f():\n    return 0\n\n\nf.__code__ = f.__code__.replace(co_names=('x',))\n",
+        "dynamic",
+        "a dunder or frame attribute __code__",
+    ),
+    "closure-cells": (
+        "def f():\n    return 0\n\n\nx = f.__closure__\n",
+        "dynamic",
+        "a dunder or frame attribute __closure__",
+    ),
+    "instance-dict": (
+        "class C:\n    pass\n\n\nx = C().__dict__\n",
+        "dynamic",
+        "a dunder or frame attribute __dict__",
+    ),
+    "dunder-by-a-literal-getattr": (
+        "def f():\n    return 0\n\n\nx = getattr(f, '__globals__')\n",
+        "dynamic",
+        "a dunder or frame attribute __globals__",
+    ),
+    "env-spreads-the-environment": (
+        "import os\nimport subprocess\n"
+        "subprocess.run(['git', 'x'], env={**os.environ, 'GIT_CONFIG_PARAMETERS': 'a'})\n",
+        "command",
+        "a child env= that is not a scrub helper's",
+    ),
+    "env-sets-a-pager": (
+        "import os\nimport subprocess\n"
+        "subprocess.run(['git', 'log'], env={**os.environ, 'GIT_PAGER': 'env'})\n",
+        "command",
+        "a child env= that is not a scrub helper's",
+    ),
+    "env-sets-python-verbose": (
+        "import os\nimport subprocess\n"
+        "subprocess.run(['python', '-c', 'pass'], env={**os.environ, 'PYTHONVERBOSE': '1'})\n",
+        "command",
+        "a child env= that is not a scrub helper's",
+    ),
+    "env-is-the-environment": (
+        "import os\nimport subprocess\nsubprocess.run(['git', 'status'], env=os.environ)\n",
+        "command",
+        "a child env= that is not a scrub helper's",
+    ),
+    "git-c-joined-with-its-key": (
+        "import subprocess\nsubprocess.run(['git', '-calias.x=!env', 'x'])\n",
+        "command",
+        "a git -c key off the allowlist: alias.x",
+    ),
+    "git-c-include-path": (
+        "import subprocess\nsubprocess.run(['git', '-c', 'include.path=/tmp/x', 'log'])\n",
+        "command",
+        "a git -c key off the allowlist: include.path",
+    ),
+    "git-c-protocol-allow": (
+        "import subprocess\nsubprocess.run(['git', '-c', 'protocol.ext.allow=always', 'log'])\n",
+        "command",
+        "a git -c key off the allowlist: protocol.ext.allow",
+    ),
+    "git-c-difftool-cmd": (
+        "import subprocess\nsubprocess.run(['git', '-c', 'difftool.x.cmd=env', 'difftool'])\n",
+        "command",
+        "a git -c key off the allowlist: difftool.x.cmd",
+    ),
+    "git-c-ordinary-key": (
+        "import subprocess\nsubprocess.run(['git', '-c', 'core.quotepath=true', 'status'])\n",
+        "command",
+        "a git -c key off the allowlist: core.quotepath",
+    ),
+    "git-exec-path": (
+        "import subprocess\nsubprocess.run(['git', '--exec-path'])\n",
+        "command",
+        "a git --exec-path option",
+    ),
+    "git-ext-remote": (
+        "import subprocess\nsubprocess.run(['git', 'ls-remote', 'ext::sh -c env'])\n",
+        "command",
+        "a git ext:: remote",
+    ),
+    "git-upload-pack": (
+        "import subprocess\nsubprocess.run(['git', 'ls-remote', '--upload-pack=env', 'x'])\n",
+        "command",
+        "a git option that names a program: --upload-pack",
     ),
     "node-prints-process-env": (
         "import subprocess\nsubprocess.run(['node', '-e', 'console.log(process.env)'])\n",
