@@ -29,6 +29,7 @@ from __future__ import annotations
 import importlib.util
 import json
 import os
+import subprocess
 import sys
 from collections.abc import Callable
 from dataclasses import dataclass, field
@@ -993,3 +994,77 @@ def test_guard_c_fails_when_its_only_offender_is_withheld(tmp_path: Path) -> Non
     assert guard["status"] == "FAIL", f"guard (c) is {guard['status']}, not FAIL"
     assert "non-ASCII or control bytes in 1 file(s):" in guard["detail"], "the count was lost"
     assert _withheld_group_total(guard["detail"]) == 1, "the withheld offender was not counted"
+
+
+# CS-1195 repair - the index-entry type question. A missing index entry is a
+# directory entry when git says gitlink OR the disk says directory, and EVERY
+# entry is when git cannot answer (fails closed). The index listing itself is
+# stubbed so only the `ls-files -s` question varies; no git runs.
+GONE_FILE = "zz1195gone.txt"
+
+
+def _missing_entries(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, entries: list[str]
+) -> tuple[list[dict[str, str]], dict[str, int]]:
+    root = tmp_path / "tree"
+    root.mkdir(exist_ok=True)
+    (root / ".gitignore").write_bytes((REPO_ROOT / ".gitignore").read_bytes())
+    (root / "top.md").write_text("# clean\n", encoding="utf-8")
+    monkeypatch.setattr(drift_guard, "_git_ls_files", lambda _root: ["top.md", *entries])
+    _files, _source, skips = drift_guard.enumerate_files(root)
+    return drift_guard.partition_skips(skips, drift_guard._gitignore_pii_patterns(root))  # noqa: SLF001
+
+
+def _refusing_run(*_args: object, **_kwargs: object) -> subprocess.CompletedProcess[str]:
+    return subprocess.CompletedProcess(args=["git"], returncode=128, stdout="", stderr="")
+
+
+def _raising_run(*_args: object, **_kwargs: object) -> subprocess.CompletedProcess[str]:
+    message = "synthetic start fault"
+    raise OSError(message)
+
+
+@pytest.mark.parametrize("failure", ["answer-is-none", "git-not-found", "non-zero", "start-fault"])
+def test_a_gitlink_stays_withheld_when_git_cannot_say_it_is_one(
+    failure: str, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Fails closed: with no answer from `ls-files -s`, every missing entry is a directory.
+
+    DECLARED, not accidental: a missing plain file then renders as
+    `zz1195gone.txt/` - named, with a slash - because git could not say it
+    was a file. The gitlink shaped like a withheld root is counted, never named.
+    """
+    if failure == "answer-is-none":
+        monkeypatch.setattr(drift_guard, "_git_gitlinks", lambda _root: None)
+    elif failure == "git-not-found":
+        monkeypatch.setattr(drift_guard, "resolve_tool", lambda _name: None)
+    else:
+        monkeypatch.setattr(drift_guard, "resolve_tool", lambda _name: "git-synthetic")
+        runner = _refusing_run if failure == "non-zero" else _raising_run
+        monkeypatch.setattr(drift_guard.subprocess, "run", runner)
+
+    shown, withheld = _missing_entries(tmp_path, monkeypatch, [ROOT_TABLE_ONLY_DIR, GONE_FILE])
+
+    shown_paths = [skip["path"] for skip in shown]
+    assert shown_paths == [f"{GONE_FILE}/"], "the fail-closed branch did not read a directory"
+    reason = drift_guard.WALK_SKIP_ROOT_PATHS[ROOT_TABLE_ONLY_DIR.lower()]
+    assert withheld == {reason: 1}, "the gitlink was not withheld under its root reason"
+
+
+def test_an_index_entry_the_disk_calls_a_directory_is_read_as_one(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Git answers "not a gitlink", and the entry is a DIRECTORY on disk.
+
+    Only the disk's own answer marks it a directory entry, so only that
+    withholds a directory named like a withheld root. A missing plain file
+    beside it, which git DID answer for, renders as the file it is.
+    """
+    monkeypatch.setattr(drift_guard, "_git_gitlinks", lambda _root: frozenset())
+    (tmp_path / "tree" / ROOT_TABLE_ONLY_DIR).mkdir(parents=True)
+
+    shown, withheld = _missing_entries(tmp_path, monkeypatch, [ROOT_TABLE_ONLY_DIR, GONE_FILE])
+
+    reason = drift_guard.WALK_SKIP_ROOT_PATHS[ROOT_TABLE_ONLY_DIR.lower()]
+    assert withheld == {reason: 1}, "the on-disk directory entry was not withheld"
+    assert [skip["path"] for skip in shown] == [GONE_FILE], "control: a missing file moved"
