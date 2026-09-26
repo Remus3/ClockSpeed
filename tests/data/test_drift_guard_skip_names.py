@@ -943,11 +943,53 @@ def test_a_gitlink_named_like_a_withheld_root_is_withheld_from_the_skip_list(
     report: dict[str, Any] = json.loads(raw)
 
     assert report["enumeration"].startswith("git ls-files"), "control: git did not enumerate"
-    skipped = {skip["path"] for skip in report["skipped"]}
+    # A gitlink is a directory entry, so it may render with a trailing slash.
+    skipped = {skip["path"].rstrip("/") for skip in report["skipped"]}
     assert control in skipped, "control: an ordinary gitlink is no longer named"
-    lines = {line.strip() for line in text.splitlines()}
+    lines = {line.strip().rstrip("/") for line in text.splitlines()}
     named = int(ROOT_TABLE_ONLY_DIR in skipped) + int(ROOT_TABLE_ONLY_DIR in lines)
     assert named == 0, f"{named} surface(s) named a gitlink shaped like a withheld root"
     reason = drift_guard.WALK_SKIP_ROOT_PATHS[ROOT_TABLE_ONLY_DIR.lower()]
     counts = {entry["reason"]: entry["count"] for entry in report["withheld"]}
     assert counts.get(reason) == 1, "the withheld gitlink was not counted under its root reason"
+
+
+@pytest.mark.parametrize("name", ["corpus", "moon_sync_inbox", "CORPUS"])
+def test_a_plain_file_named_like_a_withheld_root_is_still_named(name: str) -> None:
+    """ADR 0023 rule 5 against rule 3: a FILE is not the directory its name matches.
+
+    The root table and the `.gitignore` section name DIRECTORIES. A plain file
+    whose name happens to equal one locates nothing the rule withholds, so its
+    skip record still names it. Only a directory entry - a trailing slash, as
+    the walk and a gitlink record carry - is read as the directory shape.
+    """
+    reason = "not an authored text file type (no extension)"
+    skips = [
+        {"path": name, "reason": reason},
+        {"path": f"{name}/", "reason": "in the git index but not on disk"},
+    ]
+    pii = drift_guard._gitignore_pii_patterns(REPO_ROOT)  # noqa: SLF001 - the real section
+
+    shown, withheld = drift_guard.partition_skips(skips, pii)
+
+    assert [skip["path"] for skip in shown] == [name], "a plain file was withheld as a directory"
+    assert sum(withheld.values()) == 1, "control: the directory entry was not withheld"
+
+
+def test_guard_c_fails_when_its_only_offender_is_withheld(tmp_path: Path) -> None:
+    """No control offender: the withheld one alone must still make guard (c) FAIL."""
+    root = tmp_path / "tree"
+    root.mkdir()
+    (root / ".gitignore").write_bytes((REPO_ROOT / ".gitignore").read_bytes())
+    (root / "CORPUS").mkdir()
+    (root / "CORPUS" / "zz1195only.txt").write_bytes(NON_ASCII)
+    (root / "top.md").write_text("# clean\n", encoding="utf-8")
+    files = [root / "CORPUS" / "zz1195only.txt", root / "top.md"]
+
+    guard, _skips = drift_guard.guard_charset(root, files, "test enumeration")
+
+    joined = "\n".join(guard["detail"])
+    assert _leaks(joined, ["zz1195only"]) == 0, "guard (c) named its only, withheld offender"
+    assert guard["status"] == "FAIL", f"guard (c) is {guard['status']}, not FAIL"
+    assert "non-ASCII or control bytes in 1 file(s):" in guard["detail"], "the count was lost"
+    assert _withheld_group_total(guard["detail"]) == 1, "the withheld offender was not counted"
