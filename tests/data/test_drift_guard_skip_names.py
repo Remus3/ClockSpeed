@@ -503,8 +503,8 @@ def _plant_upper(root: Path) -> list[str]:
         (root / shape_dir).mkdir(parents=True)
         # Clean ASCII on purpose. Under `git-keeps-case` a text-typed shape
         # (`.MCP.JSON`) is an authored file by git's answer and guard (c) READS
-        # it; a violation there would print the path in that GUARD's detail,
-        # which is a different renderer from the skip list this item grades.
+        # it; a violation there reaches that GUARD's detail, a different
+        # renderer from the skip list this arm grades - CS-1195's arms below.
         (root / shape_dir / leaf).write_bytes(b"synthetic\n")
         (root / shape_dir / "keep.md").write_text("# kept\n", encoding="utf-8")
         tokens.append(shape_dir)
@@ -796,3 +796,158 @@ def test_guard_c_withholds_unread_and_unlisted_entries_of_a_withheld_shape(
     shown_unread = sum(1 for line in guard["detail"] if line.startswith("zz1195ushown.txt NOT"))
     shown_unlisted = sum(1 for line in guard["detail"] if line.startswith("zz1195dshown/ NOT"))
     assert (shown_unread, shown_unlisted) == (1, 1), "control: an ordinary entry is no longer named"
+
+
+# CS-1195 repair - each directory authority the classifier asks gets a plant
+# ONLY that authority withholds, so dropping any one of them reddens an arm.
+# A plant two authorities both cover (`CORPUS`, in the root table AND the
+# `.gitignore` section) survives the loss of either one.
+ROOT_TABLE_ONLY_DIR = "MOON_SYNC_INBOX"
+FLOOR_ONLY_DIR = "ZZ1195F.LOG"
+SECTION_ONLY_DIR = "zz1195q.SAV.BAK"
+
+
+def test_each_single_authority_plant_is_covered_by_that_authority_alone() -> None:
+    """Anti-vacuity: the three plants below separate the three authorities."""
+    pii = drift_guard._gitignore_pii_patterns(REPO_ROOT)  # noqa: SLF001 - the section reader under test
+
+    def _section(relative: str) -> bool:
+        name = relative.rsplit("/", 1)[-1]
+        matches = drift_guard._gitignore_matches  # noqa: SLF001
+        return any(matches(p, relative, name, is_dir=True) for p in pii)
+
+    def _root(relative: str) -> bool:
+        reason = drift_guard._root_reason(relative)  # noqa: SLF001
+        return reason is not None and _class_of(reason) in WITHHELD_CLASSES
+
+    def _floor(relative: str) -> bool:
+        reason = drift_guard._floor_reason(relative, relative)  # noqa: SLF001
+        return reason is not None and _class_of(reason) in WITHHELD_CLASSES
+
+    observed = {
+        shape: (_root(shape), _floor(shape), _section(shape))
+        for shape in (ROOT_TABLE_ONLY_DIR, FLOOR_ONLY_DIR, SECTION_ONLY_DIR)
+    }
+    assert observed == {
+        ROOT_TABLE_ONLY_DIR: (True, False, False),
+        FLOOR_ONLY_DIR: (False, True, False),
+        SECTION_ONLY_DIR: (False, False, True),
+    }
+
+
+@pytest.mark.parametrize("directory", [ROOT_TABLE_ONLY_DIR, FLOOR_ONLY_DIR, SECTION_ONLY_DIR])
+def test_guard_c_withholds_an_offender_under_a_single_authority_directory(
+    directory: str, tmp_path: Path
+) -> None:
+    root = tmp_path / "tree"
+    root.mkdir()
+    (root / ".gitignore").write_bytes((REPO_ROOT / ".gitignore").read_bytes())
+    (root / directory).mkdir()
+    (root / directory / "zz1195leaf.txt").write_bytes(NON_ASCII)
+    control = "zz1195plain.txt"
+    (root / control).write_bytes(NON_ASCII)
+    files = [root / directory / "zz1195leaf.txt", root / control]
+
+    guard, _skips = drift_guard.guard_charset(root, files, "test enumeration")
+
+    joined = "\n".join(guard["detail"])
+    leaked = _leaks(joined, [directory.lower(), "zz1195leaf"])
+    assert leaked == 0, f"guard (c) named {leaked} token(s) under a single-authority directory"
+    assert guard["status"] == "FAIL", f"guard (c) is {guard['status']}, not FAIL"
+    assert _withheld_group_total(guard["detail"]) == 1, "the withheld offender was not counted"
+    named = sum(1 for line in guard["detail"] if line.strip().startswith(f"{control} -> "))
+    assert named == 1, "control: guard (c) no longer names an ordinary offender"
+
+
+@pytest.mark.parametrize("directory", [ROOT_TABLE_ONLY_DIR, FLOOR_ONLY_DIR, SECTION_ONLY_DIR])
+def test_partition_skips_withholds_a_record_beneath_a_withheld_directory_shape(
+    directory: str,
+) -> None:
+    """The ancestor widening, through the skip-list seam itself.
+
+    Before CS-1195 a reader's own skip record beneath `MOON_SYNC_INBOX/` or
+    `zz.SAV.BAK/` carried its path: the leaf is an ordinary `.bin`.
+    """
+    reason = "not an authored text file type (.bin)"
+    skips = [
+        {"path": f"{directory}/zz1195p.bin", "reason": reason},
+        {"path": "zz1195ordinary.bin", "reason": reason},
+    ]
+    pii = drift_guard._gitignore_pii_patterns(REPO_ROOT)  # noqa: SLF001 - the real section
+
+    shown, withheld = drift_guard.partition_skips(skips, pii)
+
+    shown_paths = [skip["path"] for skip in shown]
+    assert shown_paths == ["zz1195ordinary.bin"], "the record beneath the shape was named"
+    assert sum(withheld.values()) == 1, "the withheld record was not counted"
+    assert all(_class_of(key) in WITHHELD_CLASSES for key in withheld), "counted outside a class"
+
+
+def test_guard_c_withholds_an_unlisted_directory_a_dir_only_pattern_names(
+    tmp_path: Path,
+) -> None:
+    """A directory handed to the reader is classified AS a directory.
+
+    The `.gitignore` here files one dir-only pattern under PII-BEARING that no
+    table carries, so only a directory reading of the path withholds it.
+    """
+    root = tmp_path / "tree"
+    root.mkdir()
+    (root / ".gitignore").write_text(
+        "# ====\n# PII-BEARING - synthetic\n# ====\n/zz1195dironly/\n", encoding="utf-8"
+    )
+    hidden = root / "zz1195dironly"
+    shown = root / "zz1195dirshown"
+    hidden.mkdir()
+    shown.mkdir()
+
+    guard, _skips = drift_guard.guard_charset(root, [hidden, shown], "test enumeration")
+
+    joined = "\n".join(guard["detail"])
+    assert _leaks(joined, ["zz1195dironly"]) == 0, "guard (c) named a dir-only PII directory"
+    assert guard["status"] == "WARN", f"guard (c) is {guard['status']}, not WARN"
+    assert _withheld_group_total(guard["detail"]) == 1, "the withheld directory was not counted"
+    named = sum(1 for line in guard["detail"] if line.startswith("zz1195dirshown/ NOT"))
+    assert named == 1, "control: an ordinary unlisted directory is no longer named"
+
+
+def test_a_gitlink_named_like_a_withheld_root_is_withheld_from_the_skip_list(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """The path ITSELF is a directory shape: a gitlink is in the index, not on disk.
+
+    `enumerate_files` records it "in the git index but not on disk" under its
+    own path, and that path is a withheld ROOT - not an ancestor, not a leaf
+    shape the file floor knows. A second gitlink of no shape is the control.
+    """
+    root = tmp_path / "tree"
+    if not _real_gitignore_repo(root, monkeypatch):
+        pytest.skip("git is not installed, so its answer cannot be asked")
+    from tests import conftest  # noqa: PLC0415 - the one git runner the suite owns
+
+    (root / "top.md").write_text("# clean\n", encoding="utf-8")
+    added = conftest.run_git(root, "add", "--", "top.md", ".gitignore")
+    assert added is not None
+    assert added.returncode == 0, "control: git refused to stage the plain files"
+    control = "zz1195gitlink"
+    for link in (ROOT_TABLE_ONLY_DIR, control):
+        proc = conftest.run_git(
+            root, "update-index", "--add", "--cacheinfo", f"160000,{'1' * 40},{link}"
+        )
+        assert proc is not None
+        assert proc.returncode == 0, "control: git refused the gitlink"
+    _point_at(monkeypatch, root, tmp_path)
+
+    text = _run(capsys)
+    raw = _run(capsys, "--json")
+    report: dict[str, Any] = json.loads(raw)
+
+    assert report["enumeration"].startswith("git ls-files"), "control: git did not enumerate"
+    skipped = {skip["path"] for skip in report["skipped"]}
+    assert control in skipped, "control: an ordinary gitlink is no longer named"
+    lines = {line.strip() for line in text.splitlines()}
+    named = int(ROOT_TABLE_ONLY_DIR in skipped) + int(ROOT_TABLE_ONLY_DIR in lines)
+    assert named == 0, f"{named} surface(s) named a gitlink shaped like a withheld root"
+    reason = drift_guard.WALK_SKIP_ROOT_PATHS[ROOT_TABLE_ONLY_DIR.lower()]
+    counts = {entry["reason"]: entry["count"] for entry in report["withheld"]}
+    assert counts.get(reason) == 1, "the withheld gitlink was not counted under its root reason"
