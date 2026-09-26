@@ -99,6 +99,14 @@ FALLBACK_BOUND: Final = 10
 # slack smaller than one bound makes that impossible to hide inside the window.
 EXIT_SLACK: Final = 8
 
+# CS-1201: how far BELOW the bound a refusal may land, measured from the last
+# stamp that must precede the hanging call's bounding binary. The edge compares
+# two wall-clock reads, and its unloaded margin MEASURED only 68ms, so a quiet
+# fast box or a clock step could redden a correct refusal. One second absorbs
+# that and still refuses the early-expiry mutant it exists for: a half bounded
+# at 5s expired about 4s inside this tolerance.
+LOWER_EDGE_TOLERANCE: Final = 1
+
 # The outer harness limit beyond the bound. A hook still running at bound plus
 # this is HUNG, and the harness kills its whole process tree.
 HARNESS_SLACK: Final = 40
@@ -772,7 +780,7 @@ def assert_refused_inside_the_bound(
       EXIT_SLACK, which stays below one bound. The lower edge runs from the last
       stamp that must precede the hang's bounding binary - the answering call
       before it, else git's own start - so it is load-immune: an expiry cannot
-      arrive early.
+      arrive early. It allows LOWER_EDGE_TOLERANCE for the two clock reads.
     """
     bound = harness_bound()
     assert not outcome.killed, f"the hook HUNG - the harness had to kill it:\n{outcome.report}"
@@ -795,7 +803,7 @@ def assert_refused_inside_the_bound(
     before = calls[-2].done if len(calls) > 1 else None
     anchor = outcome.started_at if before is None else before
     floor = outcome.returned_at - anchor
-    assert floor >= bound, (
+    assert floor >= bound - LOWER_EDGE_TOLERANCE, (
         f"refused {floor:.2f}s after the hanging call could first have started, "
         f"before the bound of {bound}s could expire:\n{outcome.report}"
     )
@@ -1091,10 +1099,27 @@ def test_grader_refuses_a_refusal_before_the_bound() -> None:
         (NUL_STDIN, "-c", 2.0, 2.5, 97),
         (NUL_STDIN, "-", 3.0, None, None),
     )
-    outcome = synthetic(2.5 + harness_bound() - 1.0)
-    assert outcome.returned_at - SYNTHETIC_T0 - 2.5 < harness_bound(), "the plant did not apply"
+    # The measured early-expiry mutant: the stdin half bounded at half the bound.
+    outcome = synthetic(2.5 + harness_bound() / 2)
+    early = outcome.returned_at - SYNTHETIC_T0 - 2.5
+    assert early < harness_bound() - LOWER_EDGE_TOLERANCE, "the plant did not apply"
     with pytest.raises(AssertionError, match="before the bound"):
         assert_refused_inside_the_bound(outcome, calls, (NUL_STDIN, "-"))
+
+
+def test_grader_lower_edge_tolerance_sits_between_its_two_plants() -> None:
+    """A clock step or a quiet fast box inside the tolerance passes; one past it fails."""
+    bound = harness_bound()
+    calls = call_log(
+        (NUL_STDIN, "-c", 1.0, 1.5, 0),
+        (NUL_STDIN, "-c", 2.0, 2.5, 97),
+        (NUL_STDIN, "-", 3.0, None, None),
+    )
+    inside = synthetic(2.5 + bound - 0.5)
+    past = synthetic(2.5 + bound - 1.5)
+    assert_refused_inside_the_bound(inside, calls, (NUL_STDIN, "-"))
+    with pytest.raises(AssertionError, match="before the bound"):
+        assert_refused_inside_the_bound(past, calls, (NUL_STDIN, "-"))
 
 
 def test_grader_refuses_an_empty_call_log() -> None:
