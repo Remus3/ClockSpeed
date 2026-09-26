@@ -41,6 +41,7 @@ from __future__ import annotations
 import importlib.util
 import io
 import json
+import os
 import re
 import shlex
 import shutil
@@ -639,8 +640,9 @@ def test_the_configured_interpreter_can_actually_be_resolved() -> None:
     """
     interpreter = _settings_interpreter()
     assert interpreter, "PreToolUse has no command"
-    assert shutil.which(interpreter) is not None, (
-        f"settings.json names interpreter {interpreter!r}, which is not on PATH"
+    assert resolve_program(interpreter) is not None, (
+        f"settings.json names interpreter {interpreter!r}, which cannot be resolved "
+        "the way the harness resolves it"
     )
 
 
@@ -684,6 +686,114 @@ def hook_commands(event: str) -> list[str]:
     return [hook["command"] for entry in entries for hook in entry["hooks"]]
 
 
+# --- which sh the harness runs a hook command under (CS-815) ---------------
+#
+# The hook commands name `sh`. The harness runs them in a POSIX shell - Git
+# Bash on Windows - whose own usr/bin is on PATH, so `sh` resolves there. A
+# pytest launched from PowerShell or cmd has NO sh on PATH on this platform,
+# and an arm that looked `sh` up by name alone went red depending on which
+# shell started pytest. MEASURED from PowerShell: the fallback to the running
+# interpreter then handed a shell script to python, a SyntaxError at line 72.
+#
+# THE RESOLUTION RULE, in order, never a literal install path:
+#   1. `sh` on PATH, which is what the harness itself would run.
+#   2. Git for Windows' own sh, found from git: the install root is an
+#      ancestor of `git --exec-path` (and of the `git` found on PATH), and
+#      under it `usr/bin/sh.exe` - the very file rule 1 finds when pytest is
+#      launched from Git Bash, so both launches run the same program - with
+#      its own directory put first on PATH by the caller, as Git Bash has it.
+#      `bin/sh.exe`, the Git Bash launcher, is the second choice. It is not
+#      the first because it PREPENDS its own usr/bin to whatever PATH it is
+#      given, so a caller's PATH-prefixed fake could no longer shadow a tool.
+#   3. Nothing found: the caller SKIPS with a stated reason. On Windows with
+#      git installed that can never happen, and an arm asserts it.
+#
+# How many ancestors of the exec path are searched. `git --exec-path` is
+# <root>/mingw64/libexec/git-core, so the root is the third; the fourth is
+# slack for a layout one level deeper, and no further - a search that reached
+# the drive root could find an unrelated sh.
+GIT_ROOT_DEPTH = 4
+GIT_SH_CANDIDATES = (("usr", "bin", "sh.exe"), ("bin", "sh.exe"))
+NO_POSIX_SHELL = (
+    "NOT RUN: no POSIX sh on PATH and no Git for Windows sh found from git; "
+    "the harness runs every hook command in one"
+)
+
+
+def git_install_ancestors() -> list[Path]:
+    """Directories that may be the Git for Windows root, nearest first."""
+    starts: list[Path] = []
+    git = shutil.which("git")
+    if git is None:
+        return starts
+    try:
+        exec_path = subprocess.run(
+            [git, "--exec-path"], capture_output=True, text=True, timeout=TIMEOUT, check=False
+        ).stdout.strip()
+    except (OSError, subprocess.SubprocessError):
+        exec_path = ""
+    if exec_path:
+        starts.append(Path(exec_path))
+    starts.append(Path(git).resolve().parent)
+    ancestors: list[Path] = []
+    for start in starts:
+        for ancestor in [start, *start.parents][:GIT_ROOT_DEPTH]:
+            if ancestor not in ancestors:
+                ancestors.append(ancestor)
+    return ancestors
+
+
+def posix_shell() -> str | None:
+    """The sh a hook command runs under, by the rule above, or None."""
+    found = shutil.which("sh")
+    if found:
+        return found
+    if os.name != "nt":
+        return None
+    for root in git_install_ancestors():
+        for parts in GIT_SH_CANDIDATES:
+            candidate = root.joinpath(*parts)
+            if candidate.is_file():
+                return str(candidate)
+    return None
+
+
+def require_posix_shell() -> str:
+    """The resolved sh, or an explicit skip when the machine has none at all."""
+    shell = posix_shell()
+    if shell is None:
+        pytest.skip(NO_POSIX_SHELL)
+    return shell
+
+
+def shell_environment(shell: str) -> dict[str, str]:
+    """The inherited environment with the shell's own directory first on PATH.
+
+    usr/bin/sh does not set its own PATH, and without this would meet the
+    Windows pause command named `timeout` in System32 (measured).
+    """
+    variables = dict(os.environ)
+    variables["PATH"] = str(Path(shell).parent) + os.pathsep + variables.get("PATH", "")
+    return variables
+
+
+def resolve_program(name: str) -> str | None:
+    """A hook command's first token, resolved the way the harness would."""
+    return posix_shell() if name == "sh" else shutil.which(name)
+
+
+def test_a_posix_shell_resolves_wherever_git_is_installed() -> None:
+    """The skip above is for a machine with no sh at all, never for a launch shell.
+
+    On Windows with git installed, Git for Windows ships its own sh and the
+    rule must find it from any launching shell. Elsewhere sh is on PATH.
+    """
+    if os.name == "nt" and shutil.which("git") is None:
+        pytest.skip("NOT RUN: git is not installed, so no Git for Windows sh can exist")
+    found = posix_shell() is not None
+    assert found, "no POSIX sh resolved, so every sh-driven hook arm would skip"
+
+
 def resolve_hook_argv(command: str) -> list[str]:
     """Turn a settings.json hook command into an argv this test can spawn.
 
@@ -695,11 +805,18 @@ def resolve_hook_argv(command: str) -> list[str]:
     nothing, and the subject of these arms is the SCRIPT path, not the
     interpreter - which test_the_configured_interpreter_can_actually_be_resolved
     already owns.
+
+    CS-815: a leading `sh` is resolved by the rule above and NEVER falls back to
+    the interpreter, which would hand a shell script to python. With no sh at
+    all the arm skips with the stated reason.
     """
     tokens = shlex.split(command, posix=True)
     assert tokens, f"hook command is empty: {command!r}"
     resolved = [token.replace(PROJECT_DIR_ANCHOR, str(REPO_ROOT)) for token in tokens]
-    resolved[0] = shutil.which(resolved[0]) or sys.executable
+    if resolved[0] == "sh":
+        resolved[0] = require_posix_shell()
+    else:
+        resolved[0] = shutil.which(resolved[0]) or sys.executable
     reject_unanchored_script(resolved)
     return resolved
 
@@ -731,11 +848,17 @@ def reject_unanchored_script(argv: list[str]) -> None:
 
 
 def run_hook_argv(argv: list[str], payload: bytes, cwd: Path) -> subprocess.CompletedProcess[str]:
-    """Spawn a resolved hook argv from an explicitly supplied foreign cwd."""
+    """Spawn a resolved hook argv from an explicitly supplied foreign cwd.
+
+    The environment is inherited, with the resolved shell's directory first on
+    PATH when one exists - the PATH the harness shell gives a hook command.
+    """
+    shell = posix_shell()
     proc = subprocess.run(
         argv,
         input=payload,
         capture_output=True,
+        env=shell_environment(shell) if shell else None,
         cwd=str(cwd),
         timeout=TIMEOUT,
         check=False,

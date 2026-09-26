@@ -426,6 +426,7 @@ jobs:
           --ignore=tests/test_pre_push_suite_floor.py
           --ignore=tests/test_precommit_index_race.py
           --ignore=tests/test_trailer_routes.py
+          --ignore=tests/test_claude_hook.py
           -q -n auto --dist loadfile
           --durations=15 --durations-min=5.0
 
@@ -899,9 +900,16 @@ jobs:
       # invocation from the repo root - CONVENTIONS.md section 7.1. Every path here is
       # named as an `--ignore=` on the catch-all shard above, and the arms in
       # tests/test_tier1_budget.py are red unless the two lists match exactly.
+      #
+      # tests/test_claude_hook.py IS HERE FOR ROOM, NOT FOR KINSHIP (CS-815). It
+      # spawns the wrapper dozens of times and one arm waits out the ten second
+      # probe bound - about 43s serial on the operator's box. MEASURED on run
+      # 36192391765 at d5a4378: this shard read 220.87s, the save shard 401.38s
+      # and the hook shard 448.84s, so only this shard had the room.
       - name: Unit tests
         run: >-
           python -m pytest
+          tests/test_claude_hook.py
           tests/test_liveness.py
           tests/test_mypy_gate.py tests/test_docs_citations.py
           tests/test_chained_cause_census.py
