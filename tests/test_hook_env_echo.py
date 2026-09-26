@@ -525,9 +525,10 @@ def drive_pre_commit_bootstrap(arm: str, root: Path, hooks: dict[str, bytes]) ->
     if arm == "pre-commit-under-pythoninspect":
         # MEASURED, one named path per platform, never a disjunction (CS-1209).
         # Windows under MSYS: the probe hangs and the bound refuses. ubuntu, CI
-        # run 36241835384: the probe returns, but the flag turns its sys.exit(97)
-        # into a reported SystemExit and status 1, so every rung fails the probe
-        # and the ladder refuses with no usable python. No platform lands.
+        # run 36241835384: the probe returns, but the flag reports a SystemExit
+        # and exits 1 for sys.exit(0) and sys.exit(1) alike, and the commit was
+        # refused with no usable python - so no rung's probe answered 97 there.
+        # Neither measured platform lands.
         run = commit_through(root, hooks, extra={"PYTHONINSPECT": "1"})
         if INSPECT_PROBE_HANGS:
             return outcome(run, refused(run, b"the interpreter probe did not answer within"))
