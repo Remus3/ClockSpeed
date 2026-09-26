@@ -19,7 +19,8 @@ dump nor expand the environment. Everything not permitted is a finding, and
 every permission no shipped program uses is red. OUT OF SCOPE, stated rather
 than implied: ``__file__`` and ``__spec__.origin`` (a module's own path is a
 CS-1208 value-flow source, not an environment read), what an ``os.scandir``
-listing names, how many levels a ``relpath`` climbs, and ``time.tzname``.
+listing names, how many levels a ``relpath`` climbs, ``time.tzname``, and a
+``/proc`` path built at run time rather than written as a literal (CS-1208).
 
 HOW THE PROOF WORKS. Every child this module spawns inherits the real
 environment PLUS several synthetic credential-shaped canaries - named like the
@@ -1045,12 +1046,12 @@ def test_the_scanner_flags_the_control_copies() -> None:
 # included. Every rule below REFUSES BY DEFAULT: an unlisted import, member, path
 # method, key or program is a finding without anyone having had to name it.
 #
-#   IMPORT   every imported module is on PURE_MODULES (no member reads the
-#            environment or OS identity, so members are not graded), on
-#            SURFACE_MODULES (members graded by MEMBER), or a repository module of
-#            the scanned population. getpass, socket, platform, pwd, cgitb and
-#            every other module are refused without being listed.
-#   MEMBER   every member reached on a surface namespace - ``ns.member``, ``from m
+#   IMPORT   every imported module is on PURE_MODULES or SURFACE_MODULES, or a
+#            repository module of the scanned population. Members of BOTH kinds
+#            are graded by MEMBER - a pure module re-exports os, sys and inspect.
+#            getpass, socket, platform, pwd, cgitb and every other module are refused
+#            without being listed.
+#   MEMBER   every member reached on an imported module - ``ns.member``, ``from m
 #            import member``, ``getattr(ns, literal)`` - must be on GLOBAL_MEMBERS,
 #            or on SITE_SCOPED_MEMBERS for the one function it sits in. A method
 #            or attribute whose name is a public ``pathlib.Path`` name
@@ -1076,6 +1077,8 @@ def test_the_scanner_flags_the_control_copies() -> None:
 #            only be the ``env=`` of a subprocess call, or a COPY assigned to a
 #            local whose every later use is such an ``env=`` or an allowlisted
 #            read, pop, set or delete. A bare alias is a finding.
+#            A private or dunder member is never globally permitted, and a dunder
+#            or frame attribute on any object must be on DUNDER_ATTRIBUTES.
 #   ALIAS    ``os.getenv`` and its siblings referenced without being called, other
 #            than as the reader ``map`` or ``partial`` is handed; ``getattr``
 #            reaching ``environ`` or ``getenv`` by a literal; and ANY ``getattr`` on
@@ -1084,14 +1087,17 @@ def test_the_scanner_flags_the_control_copies() -> None:
 #            ``globals()``, ``locals()``, ``vars()`` with no argument,
 #            ``breakpoint()``, any ``__builtins__`` or ``__globals__`` reach, a
 #            call whose ``capture_locals``, ``show_locals`` or ``showlocals``
-#            keyword is anything but the constant False, and a literal path
-#            under ``/proc``.
+#            keyword is anything but the constant False, a literal path under
+#            ``/proc``, and ``getattr``, ``setattr``, ``hasattr`` or ``delattr``
+#            by a computed name, or any of them or ``vars`` used as a value.
 #   COMMAND  a subprocess or ``os`` command must resolve to literal words whose
 #            PROGRAM is git or a python interpreter - whose ``-c`` program is
 #            graded by this same allowlist, whose flags are on
 #            PYTHON_CHILD_FLAGS and whose ``-m`` module is on PYTHON_CHILD_MODULES.
-#            A git child may not set a config key that runs a program, nor use
-#            ``--config-env``. A word that would dump the environment
+#            A git child's ``-c`` keys are on GIT_CONFIG_KEYS, and ``--config-env``,
+#            ``--exec-path``, ``ext::`` remotes and program-naming options are
+#            refused. A child's ``env=`` must be an ENV_SCRUB_HELPERS result. A
+#            word that would dump the environment
 #            (the shell constructs above), or that expands ``$NAME``, ``${NAME}``
 #            or ``%NAME%`` off the allowlist, is a finding as well.
 #
@@ -1182,11 +1188,34 @@ SURFACE_MODULES: Final = {
 
 #: Members the rules above route elsewhere rather than permit: READS and WHOLE grade
 #: every use of them. They are grading routes, not permissions.
-ROUTED_MEMBERS: Final = {"os": frozenset({"environ", "getenv", "putenv", "unsetenv"})}
+ROUTED_MEMBERS: Final = {
+    "os": frozenset({"environ", "getenv", "putenv", "unsetenv"}),
+    "functools": frozenset({"partial"}),
+}
 
-#: Members of a surface module any program may reach, and why none of them is an
-#: environment value or an OS-derived personal value.
+#: Why a pure module's measured members are permitted.
+PURE_MEMBER: Final = "a pure module's member; it computes over what it is handed"
+
+#: Members of an imported module any program may reach, and why none of them is an
+#: environment value or an OS-derived personal value. Never a private name.
 GLOBAL_MEMBERS: Final = {
+    "__future__": (frozenset({"annotations"}), PURE_MEMBER),
+    "argparse": (frozenset({"ArgumentParser"}), PURE_MEMBER),
+    "contextlib": (frozenset({"suppress"}), PURE_MEMBER),
+    "dataclasses": (frozenset({"dataclass", "field", "fields"}), PURE_MEMBER),
+    "functools": (frozenset({"lru_cache"}), PURE_MEMBER),
+    "hashlib": (frozenset({"sha256"}), PURE_MEMBER),
+    "heapq": (frozenset({"heappush", "heapreplace"}), PURE_MEMBER),
+    "json": (frozenset({"loads"}), PURE_MEMBER),
+    "re": (
+        frozenset({"IGNORECASE", "Pattern", "compile", "escape", "finditer", "sub"}),
+        PURE_MEMBER,
+    ),
+    "struct": (frozenset({"pack", "unpack_from"}), PURE_MEMBER),
+    "time": (frozenset({"monotonic"}), PURE_MEMBER),
+    "types": (frozenset({"ModuleType"}), PURE_MEMBER),
+    "unicodedata": (frozenset({"name"}), PURE_MEMBER),
+    "xml.etree.ElementTree": (frozenset({"parse"}), PURE_MEMBER),
     "os": (
         frozenset({"name", "scandir", "DirEntry"}),
         "the platform name, and a listing of a directory the caller names",
@@ -1412,14 +1441,36 @@ DYNAMIC_BUILTINS: Final = frozenset(
 NAMESPACE_DUNDERS: Final = frozenset({"__builtins__", "__globals__"})
 #: A literal path into the process filesystem, which serves the environment itself.
 PROC_PATH: Final = re.compile(r"/proc(?:/|$)")
-#: git config keys whose value is a program git runs - aliases, pagers, editors,
-#: helpers, hooks and drivers.
-GIT_PROGRAM_KEY: Final = re.compile(
-    r"^alias\.|pager|editor|sshcommand|askpass|^credential\.(?:.*\.)?helper$|"
-    r"^core\.(?:fsmonitor|hookspath)$|^diff\.(?:.*\.)?(?:external|command)$|"
-    r"^gpg\.(?:.*\.)?program$|^merge\..*\.driver$|^filter\..*\.(?:clean|smudge|process)$"
-)
-GIT_RUNS_A_PROGRAM: Final = "a git config key that runs a program: "
+#: git ``-c`` keys a hook-run program may set. Measured: no shipped program sets
+#: one as a literal, so the list is empty and every ``-c`` key is a finding.
+GIT_CONFIG_KEYS: Final[frozenset[str]] = frozenset()
+#: git options whose value is a program git runs, refused wherever they sit.
+GIT_PROGRAM_OPTIONS: Final = ("--upload-pack", "--receive-pack", "--exec=")
+#: git top-level options that consume the next word.
+GIT_OPTIONS_WITH_A_VALUE: Final = frozenset({"-c", "-C"})
+#: Helpers whose result a child may be handed as its ``env=``. Measured: no
+#: shipped program hands a child an ``env=``, so the list is empty.
+ENV_SCRUB_HELPERS: Final[frozenset[str]] = frozenset()
+SCRUBBED_ENV_ONLY: Final = "a child env= that is not a scrub helper's"
+#: Builtins that reach an attribute by a name: the name must be a literal, and
+#: none of them may be handed on as a value.
+ATTRIBUTE_BUILTINS: Final = frozenset({"getattr", "setattr", "hasattr", "delattr"})
+VALUE_REFUSED_BUILTINS: Final = ATTRIBUTE_BUILTINS | {"vars"}
+#: Frame, code and generator attributes, which reach a frame's globals or builtins.
+FRAME_ATTRIBUTES: Final = frozenset(
+    {
+        "gi_frame", "gi_code", "cr_frame", "cr_code", "ag_frame", "ag_code", "f_back",
+        "f_builtins", "f_globals", "f_locals", "f_code", "tb_frame", "tb_next",
+        "co_code", "co_consts", "co_names",
+    }
+)  # fmt: skip
+#: Dunder attributes a program may read on an object, and why each reaches no
+#: namespace, frame or code object.
+DUNDER_ATTRIBUTES: Final = {
+    "__name__": "the name of a class or function, rendered in place of its value",
+    "__init__": "a base-class constructor reached through super()",
+}
+DUNDER_OR_FRAME: Final = "a dunder or frame attribute "
 #: Modules a python child may be launched on with ``-m``. Measured: no shipped
 #: program launches a literal ``python -m`` child, so the list is empty.
 PYTHON_CHILD_MODULES: Final[frozenset[str]] = frozenset()
@@ -1580,6 +1631,18 @@ def index_reference(
             valued.add(name)
 
 
+def listed_module(module: str) -> bool:
+    """Whether a module is on the import allowlist, pure or surface."""
+    return module in PURE_MODULES or module in SURFACE_MODULES
+
+
+def package_of_listed(module: str) -> bool:
+    """Whether a module is a listed module or a package a listed module sits in."""
+    return listed_module(module) or any(
+        m.startswith(module + ".") for m in (*PURE_MODULES, *SURFACE_MODULES)
+    )
+
+
 def repository_module(module: str, labels: frozenset[str]) -> bool:
     """Whether an imported module is one of the scanned population's own sources."""
     path = module.replace(".", "/") + ".py"
@@ -1611,12 +1674,12 @@ class Allowlist:
                 for alias in node.names:
                     bound = alias.asname or alias.name.split(".")[0]
                     module = alias.name if alias.asname else bound
-                    if module in SURFACE_MODULES:
+                    if not repository_module(alias.name, self.population.labels):
                         self.namespaces[bound] = module
             if isinstance(node, ast.ImportFrom) and node.level == 0 and node.module:
                 for alias in node.names:
                     full = node.module + "." + alias.name
-                    if full in SURFACE_MODULES:
+                    if package_of_listed(full):
                         self.namespaces[alias.asname or alias.name] = full
                     if node.module in {"os", "subprocess"}:
                         self.bind_import(alias.name, alias.asname or alias.name)
@@ -2027,13 +2090,13 @@ class Allowlist:
     # -- imports, surface members and path methods --------------------------------
 
     def namespace_of(self, node: ast.AST) -> str | None:
-        """The surface module ``node`` IS - a bound name, a submodule, ``sys.modules[m]``."""
+        """The module ``node`` IS - a bound name, a submodule, ``sys.modules[m]``."""
         if isinstance(node, ast.Name) and isinstance(node.ctx, ast.Load):
             return self.namespaces.get(node.id)
         if isinstance(node, ast.Attribute):
             base = self.namespace_of(node.value)
             full = f"{base}.{node.attr}"
-            return full if base is not None and full in SURFACE_MODULES else None
+            return full if base is not None and package_of_listed(full) else None
         if (
             isinstance(node, ast.Subscript)
             and isinstance(node.value, ast.Attribute)
@@ -2042,11 +2105,15 @@ class Allowlist:
         ):
             named = self.keys(node.slice)
             module = next(iter(named)) if named is not None and len(named) == 1 else ""
-            return module if module in SURFACE_MODULES else None
+            return module if package_of_listed(module) else None
         return None
 
     def grade_member(self, node: ast.AST, module: str, member: str) -> None:
-        """One member of a surface module - or one path method - must be permitted here."""
+        """One member of an imported module - or one path method - must be permitted here.
+
+        A private or dunder member is never globally permitted: only a site entry
+        can grant one.
+        """
         if member in ROUTED_MEMBERS.get(module, frozenset()):
             return
         if module == "yaml" and (
@@ -2059,7 +2126,7 @@ class Allowlist:
             if module == "Path"
             else GLOBAL_MEMBERS.get(module, (frozenset(), ""))
         )
-        if member in listed:
+        if member in listed and not member.startswith("_"):
             self.used.add(("global", module, member))
             return
         site = (self.label, self.name_of(node))
@@ -2084,17 +2151,20 @@ class Allowlist:
         )
 
     def check_import(self, node: ast.AST) -> None:
-        """Every imported module must be pure, surface or the population's own."""
+        """Every imported module is listed or the population's own.
+
+        Every name imported from a listed module is a listed member.
+        """
         if isinstance(node, ast.Import):
             for alias in node.names:
                 self.grade_module(node, alias.name)
         if isinstance(node, ast.ImportFrom):
             module = "." * node.level + (node.module or "")
             self.grade_module(node, module)
-            if module not in SURFACE_MODULES:
+            if not listed_module(module):
                 return
             for alias in node.names:
-                if f"{module}.{alias.name}" not in SURFACE_MODULES:
+                if not package_of_listed(f"{module}.{alias.name}"):
                     self.grade_member(node, module, alias.name)
 
     def grade_module(self, node: ast.AST, module: str) -> None:
@@ -2105,19 +2175,32 @@ class Allowlist:
             self.find(node, "import", "an unlisted import " + module)
 
     def check_member(self, node: ast.AST) -> None:
-        """A member reached on a surface namespace, or a path method on anything else."""
+        """A member reached on a module; a path method or dunder on anything else."""
         if not isinstance(node, ast.Attribute):
             return
         namespace = self.namespace_of(node.value)
         if namespace is not None:
-            self.used.add(("module", namespace))
+            if listed_module(namespace):
+                self.used.add(("module", namespace))
             if self.namespace_of(node) is None:
                 self.grade_member(node, namespace, node.attr)
-        elif node.attr in PATH_METHODS and not self.is_whole_root(node.value):
+            return
+        self.grade_dunder(node, node.attr)
+        if node.attr in PATH_METHODS and not self.is_whole_root(node.value):
             self.grade_member(node, "Path", node.attr)
 
+    def grade_dunder(self, node: ast.AST, name: str) -> None:
+        """A dunder or frame attribute on an object must be on DUNDER_ATTRIBUTES."""
+        dunder = name.startswith("__") and name.endswith("__")
+        if not (dunder or name in FRAME_ATTRIBUTES):
+            return
+        if name in DUNDER_ATTRIBUTES:
+            self.used.add(("dunder", name))
+            return
+        self.find(node, "dynamic", DUNDER_OR_FRAME + name)
+
     def check_module_whole(self, node: ast.AST) -> None:
-        """A surface module may be reached through, never handed on whole."""
+        """A module may be reached through, never handed on whole."""
         namespace = self.namespace_of(node)
         if namespace is None:
             return
@@ -2181,8 +2264,19 @@ class Allowlist:
                 self.find(node, "dynamic", name)
             if name == "vars" and not node.args:
                 self.find(node, "dynamic", "vars with no argument")
+            if name == "vars" and node.args and not self.is_whole_root(node):
+                self.find(node, "dynamic", "vars of an object")
+            if name in ATTRIBUTE_BUILTINS:
+                self.check_attribute_builtin(node, name)
             if any(self.captures_locals(k) for k in node.keywords):
                 self.find(node, "dynamic", CAPTURED_LOCALS)
+        if (
+            isinstance(node, ast.Name)
+            and node.id in VALUE_REFUSED_BUILTINS
+            and isinstance(node.ctx, ast.Load)
+            and not self.is_called(node)
+        ):
+            self.find(node, "dynamic", node.id + " used as a value")
         if isinstance(node, ast.Import) and any(
             a.name.split(".")[0] == "importlib" for a in node.names
         ):
@@ -2194,6 +2288,22 @@ class Allowlist:
             text = node.value if isinstance(node.value, str) else node.value.decode("latin-1")
             if PROC_PATH.match(text):
                 self.find(node, "path", "a literal /proc path")
+
+    def is_called(self, node: ast.AST) -> bool:
+        """Whether ``node`` is the function of the call around it."""
+        up = self.parent.get(node)
+        return isinstance(up, ast.Call) and up.func is node
+
+    def check_attribute_builtin(self, call: ast.Call, name: str) -> None:
+        """``getattr`` and its kin: a literal name only, and never a dunder or frame one."""
+        named = self.keys(call.args[1]) if len(call.args) > 1 else None
+        if named is None:
+            self.find(call, "dynamic", f"a {name} with a computed name")
+            return
+        if self.namespace_of(call.args[0]) is not None:
+            return
+        for attribute in sorted(named):
+            self.grade_dunder(call, attribute)
 
     def check_namespace_dunder(self, node: ast.AST) -> None:
         """``__builtins__`` and ``__globals__`` by name, attribute or literal subscript."""
@@ -2274,21 +2384,52 @@ class Allowlist:
                 name = match.group(1) or match.group(2)
                 if name not in allowed:
                     self.find(call, "command", "a child command expanding " + name)
+        env = next((k.value for k in call.keywords if k.arg == "env"), None)
+        if env is not None and not self.scrubbed(env):
+            self.find(call, "command", SCRUBBED_ENV_ONLY)
         if GIT_PROGRAM.fullmatch(program):
             self.check_git_options(call, words)
         self.check_child_python(call, words, program)
 
+    def scrubbed(self, env: ast.AST) -> bool:
+        """An ``env=`` that is a scrub helper's result, or a name bound only to one."""
+        if isinstance(env, ast.Call):
+            return callee(env) in ENV_SCRUB_HELPERS
+        if isinstance(env, ast.Name):
+            local = self.local_values(self.function_of(env), env.id)
+            return local is not None and bool(local) and all(map(self.scrubbed, local))
+        return False
+
     def check_git_options(self, call: ast.Call, words: list[str]) -> None:
-        """A git child may not set a config key whose value is a program it runs."""
-        for index, word in enumerate(words[1:], 1):
+        """A git child's ``-c`` keys are on GIT_CONFIG_KEYS; no option names a program."""
+        for word in words[1:]:
+            if "ext::" in word:
+                self.find(call, "command", "a git ext:: remote")
+            if word.startswith(GIT_PROGRAM_OPTIONS):
+                option = word.split("=", 1)[0]
+                self.find(call, "command", "a git option that names a program: " + option)
+        for key, value in self.git_top_level_config(call, words):
+            if key not in GIT_CONFIG_KEYS or value.lstrip().startswith("!"):
+                self.find(call, "command", "a git -c key off the allowlist: " + key)
+
+    def git_top_level_config(self, call: ast.Call, words: list[str]) -> list[tuple[str, str]]:
+        """The ``-c`` pairs among git's top-level options; other options are graded here."""
+        pairs: list[tuple[str, str]] = []
+        index = 1
+        while index < len(words) and words[index].startswith("-"):
+            word = words[index]
             if word.startswith("--config-env"):
                 self.find(call, "command", "a git --config-env option")
-            if word != "-c" or index + 1 >= len(words):
-                continue
-            key, _eq, value = words[index + 1].partition("=")
-            key = key.lower()
-            if GIT_PROGRAM_KEY.search(key) or value.lstrip().startswith("!"):
-                self.find(call, "command", GIT_RUNS_A_PROGRAM + key)
+            if word.startswith("--exec-path"):
+                self.find(call, "command", "a git --exec-path option")
+            setting = words[index + 1] if word == "-c" and index + 1 < len(words) else ""
+            if word.startswith("-c") and not word.startswith("--") and word != "-c":
+                setting = word[2:]
+            if setting:
+                key, _eq, value = setting.partition("=")
+                pairs.append((key.lower(), value))
+            index += 2 if word in GIT_OPTIONS_WITH_A_VALUE else 1
+        return pairs
 
     def check_child_python(self, call: ast.Call, words: list[str], program: str) -> None:
         """A python child: its ``-c`` program is graded here, its script is discovered."""
@@ -2539,6 +2680,7 @@ def listed_permissions() -> set[tuple[str, ...]]:
     for module, (members, _reason) in GLOBAL_MEMBERS.items():
         listed |= {("global", module, member) for member in members}
     listed |= {("global", "Path", member) for member in PATH_METHODS_GLOBAL[0]}
+    listed |= {("dunder", name) for name in DUNDER_ATTRIBUTES}
     for (label, function), (members, _why) in SITE_SCOPED_MEMBERS.items():
         listed |= {("site", label, function, member) for member in members}
     return listed
@@ -2573,8 +2715,15 @@ def test_every_permission_table_names_a_listed_surface_module() -> None:
         for members, _why in SITE_SCOPED_MEMBERS.values()
         for member in members
     }
-    unknown = sorted(modules - set(SURFACE_MODULES) - {"Path"})
-    assert not unknown, f"permissions for modules that are not surface modules: {unknown}"
+    unknown = sorted(modules - set(SURFACE_MODULES) - set(PURE_MODULES) - {"Path"})
+    assert not unknown, f"permissions for modules the import rule does not list: {unknown}"
+    private = sorted(
+        f"{module}.{member}"
+        for module, (members, _reason) in GLOBAL_MEMBERS.items()
+        for member in members
+        if member.startswith("_")
+    )
+    assert not private, f"private members granted globally: {private}"
     both = sorted(set(PURE_MODULES) & set(SURFACE_MODULES))
     assert not both, f"modules listed both pure and surface: {both}"
     paths = {
@@ -3255,6 +3404,11 @@ PY_MUST_NAME: Final = {
         "import contextlib\nd = {'f': contextlib.os.path.expandvars}\nprint(d['f']('$A'))\n",
         "member",
         "an unlisted reader contextlib.os",
+    ),
+    "dotted-import-reaches-a-reexport": (
+        "import xml.etree.ElementTree\nx = xml.etree.ElementTree.contextlib.os\n",
+        "member",
+        "an unlisted reader xml.etree.ElementTree.contextlib",
     ),
     "json-reexports-codecs": (
         "import json\nx = json.codecs\n",
