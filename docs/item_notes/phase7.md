@@ -1238,3 +1238,25 @@ pre-hang start-up under load, the CS-1201 defect one module over
 
 The CS-1201 adversary named the fixed kill in the module that imports
 `tests/test_hook_probe_bound.py`; it was outside the item's write-list.
+
+## CS-1213
+
+### Acceptance
+
+the save shard's named-first arm in `tests/test_tier1_budget.py` (the one asserting
+`REBALANCED_FILE` is the save shard's FIRST target so loadfile starts it at once) grades
+a claim that holds under the installed scheduler: either the save job carries
+`--no-loadscope-reorder` as the hook job does since CS-1198, with the arm asserting both
+the order and the flag, or the arm and its docstring are rewritten to state the measured
+dispatch order; the save shard's next CI reading does not rise as a result.
+
+### Full headline
+
+the save shard's named-first arm asserts a dispatch order that pytest-xdist 3.8 reorders
+away
+
+### FILED 2026-09-26, the CS-1198 re-ruling's second finding (session 116)
+
+pytest-xdist 3.8 sorts loadfile work by descending test count unless
+`--no-loadscope-reorder` is given, so naming a file first no longer starts it first. S0
+measured the same false claim at the hook shard's comment, repaired there by CS-1198.

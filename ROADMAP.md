@@ -331,6 +331,7 @@ CS-1197 - `tests/save/test_trailing_run.py` sweeps every real save, so its run t
 CS-1198 - the tier-1 hook shard read 469s at `da7a940`, 11s under its 480s ceiling - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1211 - `tests/test_hook_probe_bound.py::hangs` reads a slow-but-returning interpreter as hung under load, un-skipping an arm that then fails - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1212 - `tests/test_hook_toolchain.py` kills its commit at a fixed bound plus slack that counts pre-hang start-up under load, the CS-1201 defect one module over - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
+CS-1213 - the save shard's named-first arm in `tests/test_tier1_budget.py` asserts a dispatch order that pytest-xdist 3.8 reorders away - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1202 - the PostToolUse lint hook's `--files "$CLAUDE_FILE_PATHS"` argument may always be empty under the live harness - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1204 - `/api/health` still waits on a full save parse on a cold start - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1205 - pre-push does not scrub `PYTEST_ADDOPTS`, so an operator `-l` renders test locals - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
