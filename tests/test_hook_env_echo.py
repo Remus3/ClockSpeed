@@ -16,7 +16,10 @@ read whose key resolves to an allowlisted name. The whole environment may only
 become a child's ``env=``; aliases, dynamic code and locals-capturing calls are
 refused; and a child command is literal words naming git or python that neither
 dump nor expand the environment. Everything not permitted is a finding, and
-every permission no shipped program uses is red.
+every permission no shipped program uses is red. OUT OF SCOPE, stated rather
+than implied: ``__file__`` and ``__spec__.origin`` (a module's own path is a
+CS-1208 value-flow source, not an environment read), what an ``os.scandir``
+listing names, how many levels a ``relpath`` climbs, and ``time.tzname``.
 
 HOW THE PROOF WORKS. Every child this module spawns inherits the real
 environment PLUS several synthetic credential-shaped canaries - named like the
@@ -872,9 +875,9 @@ def test_a_gate_copy_whose_skip_renders_the_name_is_caught(tmp_path: Path, plant
 
 #: Where a shell command word can start: line start, a separator, a substitution,
 #: or a keyword that introduces a command.
-_CMD: Final = r"(?:^|[;&|({`]|\$\(|\bthen\b|\bdo\b|\belse\b|\bexec\b)\s*"
+_CMD: Final = r"(?:^|[;&|({`!=]|\$\(|\bthen\b|\bdo\b|\belse\b|\bexec\b)\s*"
 #: What may follow a command that takes no operand: end, a separator or a redirect.
-_END: Final = r"\s*(?:$|[;&|)`>]|[0-9]>)"
+_END: Final = r"\s*(?:$|[;&|)`>'\"]|[0-9]>)"
 
 #: Each construct that renders the environment, with the label a finding carries.
 RENDERING_CONSTRUCTS: Final = (
@@ -977,8 +980,10 @@ MUST_FLAG: Final = (
     ("node -p process.env.X", "process.env"),
     ("python -m pytest -q -l", "pytest showlocals"),
     ("python -m pytest --showlocals tests", "pytest showlocals"),
-    ("git -c alias.x=!env x", "env with no command"),
-    ("git -c core.pager=env -p log", "env with no command"),
+    ("git -c 'alias.x=!env' x", "env with no command"),
+    ('git -c "core.pager=env" -p log', "env with no command"),
+    ("alias.x=!env", "env with no command"),
+    ("core.pager=env", "env with no command"),
 )
 
 #: Ordinary shapes the hooks do use, which the scanner must pass.
@@ -1075,12 +1080,18 @@ def test_the_scanner_flags_the_control_copies() -> None:
 #            than as the reader ``map`` or ``partial`` is handed; ``getattr``
 #            reaching ``environ`` or ``getenv`` by a literal; and ANY ``getattr`` on
 #            a surface module with a computed name.
-#   DYNAMIC  ``exec``, ``eval``, ``compile``, ``__import__``, ``importlib``, and a
+#   DYNAMIC  ``exec``, ``eval``, ``compile``, ``__import__``, ``importlib``,
+#            ``globals()``, ``locals()``, ``vars()`` with no argument,
+#            ``breakpoint()``, any ``__builtins__`` or ``__globals__`` reach, a
 #            call whose ``capture_locals``, ``show_locals`` or ``showlocals``
-#            keyword is anything but the constant False.
+#            keyword is anything but the constant False, and a literal path
+#            under ``/proc``.
 #   COMMAND  a subprocess or ``os`` command must resolve to literal words whose
 #            PROGRAM is git or a python interpreter - whose ``-c`` program is
-#            graded by this same allowlist. A word that would dump the environment
+#            graded by this same allowlist, whose flags are on
+#            PYTHON_CHILD_FLAGS and whose ``-m`` module is on PYTHON_CHILD_MODULES.
+#            A git child may not set a config key that runs a program, nor use
+#            ``--config-env``. A word that would dump the environment
 #            (the shell constructs above), or that expands ``$NAME``, ``${NAME}``
 #            or ``%NAME%`` off the allowlist, is a finding as well.
 #
@@ -1143,10 +1154,8 @@ PURE_MODULES: Final = {
     "struct": "binary packing",
     "time": "clocks and sleep",
     "types": "type objects",
-    "typing": "annotations",
     "unicodedata": "the Unicode database",
     "xml.etree.ElementTree": "parsing of the text it is handed",
-    "yaml": "parsing of the text it is handed",
 }
 
 #: Modules whose members ARE graded: some member reads the environment or an
@@ -1167,6 +1176,8 @@ SURFACE_MODULES: Final = {
     "traceback": "frame and locals capture",
     "ruff": "the location of the ruff binary",
     "pytest": "the location of the installed package",
+    "typing": "a string annotation evaluates through ForwardRef and get_type_hints",
+    "yaml": "an unsafe loader constructs any python object, a call among them",
 }
 
 #: Members the rules above route elsewhere rather than permit: READS and WHOLE grade
@@ -1201,11 +1212,20 @@ GLOBAL_MEMBERS: Final = {
         ),
         "the runner COMMAND grades, its exception classes and a creation flag",
     ),
-    "traceback": (
-        frozenset({"print_exc"}),
-        "prints the exception being handled; a locals-capturing form is refused by DYNAMIC",
+    "typing": (
+        frozenset({"Final", "TextIO"}),
+        "annotation markers; neither evaluates a string",
+    ),
+    "yaml": (
+        frozenset({"safe_load", "YAMLError"}),
+        "the safe loader, which constructs plain data only, and its exception class",
     ),
 }
+
+#: The yaml loaders that construct plain data only. ``yaml.load`` and
+#: ``yaml.load_all`` are permitted exactly when their Loader is one of these.
+YAML_SAFE_LOADERS: Final = frozenset({"SafeLoader", "CSafeLoader"})
+YAML_LOADS: Final = frozenset({"load", "load_all"})
 
 #: EVERY public name of ``pathlib.Path``, pinned as a literal so the graded set is
 #: the same on every platform and interpreter; a guard arm reddens when the running
@@ -1318,8 +1338,9 @@ SITE_SCOPED_MEMBERS: Final = {
         "the interpreter ruff runs under when no ruff is on PATH",
     ),
     ("tools/precommit_gate.py", "<module>"): (
-        frozenset({"shutil.which"}),
-        "imported for ruff_command, which locates ruff on PATH",
+        frozenset({"shutil.which", "traceback.print_exc"}),
+        "which is imported for ruff_command to locate ruff on PATH; print_exc renders "
+        "absolute frame paths, reached only under the CLOCKSPEED_CRASH_TRACEBACK opt-in",
     ),
     ("tools/precommit_gate.py", "_load_header_reader"): (
         frozenset({"sys.path"}),
@@ -1330,8 +1351,9 @@ SITE_SCOPED_MEMBERS: Final = {
         "puts the repository root on the import path for the scanner, then removes it",
     ),
     ("tools/edit_lint_check.py", "<module>"): (
-        frozenset({"Path.resolve", "sys.path"}),
-        "puts this directory on the import path so the gate imports",
+        frozenset({"Path.resolve", "sys.path", "traceback.print_exc"}),
+        "puts this directory on the import path so the gate imports; print_exc renders "
+        "absolute frame paths, reached only under the CLOCKSPEED_CRASH_TRACEBACK opt-in",
     ),
     ("tools/pretooluse_gate.py", "load_gate"): (
         frozenset({"Path.resolve", "sys.path"}),
@@ -1383,7 +1405,26 @@ WHOLE_METHODS: Final = frozenset({"copy", "items", "keys", "values"})
 KEY_FUNCTIONS: Final = frozenset({"getenv", "putenv", "unsetenv"})
 #: What a ``getattr`` by a literal must never reach, whatever its receiver.
 ALIAS_REACH: Final = frozenset({"environ", "environb", "getenv", "getenvb", "putenv", "unsetenv"})
-DYNAMIC_BUILTINS: Final = frozenset({"exec", "eval", "compile", "__import__"})
+DYNAMIC_BUILTINS: Final = frozenset(
+    {"exec", "eval", "compile", "__import__", "globals", "locals", "breakpoint"}
+)
+#: Names that hand out a whole namespace, the builtins or a function's module globals.
+NAMESPACE_DUNDERS: Final = frozenset({"__builtins__", "__globals__"})
+#: A literal path into the process filesystem, which serves the environment itself.
+PROC_PATH: Final = re.compile(r"/proc(?:/|$)")
+#: git config keys whose value is a program git runs - aliases, pagers, editors,
+#: helpers, hooks and drivers.
+GIT_PROGRAM_KEY: Final = re.compile(
+    r"^alias\.|pager|editor|sshcommand|askpass|^credential\.(?:.*\.)?helper$|"
+    r"^core\.(?:fsmonitor|hookspath)$|^diff\.(?:.*\.)?(?:external|command)$|"
+    r"^gpg\.(?:.*\.)?program$|^merge\..*\.driver$|^filter\..*\.(?:clean|smudge|process)$"
+)
+GIT_RUNS_A_PROGRAM: Final = "a git config key that runs a program: "
+#: Modules a python child may be launched on with ``-m``. Measured: no shipped
+#: program launches a literal ``python -m`` child, so the list is empty.
+PYTHON_CHILD_MODULES: Final[frozenset[str]] = frozenset()
+#: Interpreter flags a python child may carry; each changes no output.
+PYTHON_CHILD_FLAGS: Final = frozenset({"-B", "-E", "-I", "-s", "-S", "-u", "-q", "-P"})
 #: The keywords that make a traceback or a logger render the locals of each frame.
 CAPTURE_KEYWORDS: Final = frozenset({"capture_locals", "show_locals", "showlocals"})
 #: The calls that hand a function on to be called later, with its arguments.
@@ -2008,6 +2049,10 @@ class Allowlist:
         """One member of a surface module - or one path method - must be permitted here."""
         if member in ROUTED_MEMBERS.get(module, frozenset()):
             return
+        if module == "yaml" and (
+            member in YAML_SAFE_LOADERS or (member in YAML_LOADS and self.safe_yaml_load(node))
+        ):
+            return
         qualified = f"{module}.{member}"
         listed, _reason = (
             PATH_METHODS_GLOBAL
@@ -2023,6 +2068,20 @@ class Allowlist:
             self.used.add(("site", *site, qualified))
             return
         self.find(node, "member", "an unlisted reader " + qualified)
+
+    def safe_yaml_load(self, node: ast.AST) -> bool:
+        """``yaml.load(text, Loader=yaml.SafeLoader)`` and its CSafeLoader sibling."""
+        call = self.parent.get(node)
+        if not (isinstance(call, ast.Call) and call.func is node):
+            return False
+        loader = next((k.value for k in call.keywords if k.arg == "Loader"), None)
+        if loader is None and len(call.args) > 1:
+            loader = call.args[1]
+        return (
+            isinstance(loader, ast.Attribute)
+            and loader.attr in YAML_SAFE_LOADERS
+            and self.namespace_of(loader.value) == "yaml"
+        )
 
     def check_import(self, node: ast.AST) -> None:
         """Every imported module must be pure, surface or the population's own."""
@@ -2120,6 +2179,8 @@ class Allowlist:
                 name = func.attr if func.value.id == "builtins" else ""
             if name in DYNAMIC_BUILTINS:
                 self.find(node, "dynamic", name)
+            if name == "vars" and not node.args:
+                self.find(node, "dynamic", "vars with no argument")
             if any(self.captures_locals(k) for k in node.keywords):
                 self.find(node, "dynamic", CAPTURED_LOCALS)
         if isinstance(node, ast.Import) and any(
@@ -2128,6 +2189,27 @@ class Allowlist:
             self.find(node, "dynamic", "importlib")
         if isinstance(node, ast.ImportFrom) and (node.module or "").split(".")[0] == "importlib":
             self.find(node, "dynamic", "importlib")
+        self.check_namespace_dunder(node)
+        if isinstance(node, ast.Constant) and isinstance(node.value, str | bytes):
+            text = node.value if isinstance(node.value, str) else node.value.decode("latin-1")
+            if PROC_PATH.match(text):
+                self.find(node, "path", "a literal /proc path")
+
+    def check_namespace_dunder(self, node: ast.AST) -> None:
+        """``__builtins__`` and ``__globals__`` by name, attribute or literal subscript."""
+        name = ""
+        if isinstance(node, ast.Name) and isinstance(node.ctx, ast.Load):
+            name = node.id
+        elif isinstance(node, ast.Attribute):
+            name = node.attr
+        elif isinstance(node, ast.Subscript):
+            keys = self.keys(node.slice)
+            name = next(iter(keys)) if keys is not None and len(keys) == 1 else ""
+        elif isinstance(node, ast.Call) and callee(node) == "getattr" and len(node.args) > 1:
+            keys = self.keys(node.args[1])
+            name = next(iter(keys)) if keys is not None and len(keys) == 1 else ""
+        if name in NAMESPACE_DUNDERS:
+            self.find(node, "dynamic", name)
 
     @staticmethod
     def captures_locals(keyword: ast.keyword) -> bool:
@@ -2192,13 +2274,28 @@ class Allowlist:
                 name = match.group(1) or match.group(2)
                 if name not in allowed:
                     self.find(call, "command", "a child command expanding " + name)
+        if GIT_PROGRAM.fullmatch(program):
+            self.check_git_options(call, words)
         self.check_child_python(call, words, program)
+
+    def check_git_options(self, call: ast.Call, words: list[str]) -> None:
+        """A git child may not set a config key whose value is a program it runs."""
+        for index, word in enumerate(words[1:], 1):
+            if word.startswith("--config-env"):
+                self.find(call, "command", "a git --config-env option")
+            if word != "-c" or index + 1 >= len(words):
+                continue
+            key, _eq, value = words[index + 1].partition("=")
+            key = key.lower()
+            if GIT_PROGRAM_KEY.search(key) or value.lstrip().startswith("!"):
+                self.find(call, "command", GIT_RUNS_A_PROGRAM + key)
 
     def check_child_python(self, call: ast.Call, words: list[str], program: str) -> None:
         """A python child: its ``-c`` program is graded here, its script is discovered."""
         if not PYTHON_PROGRAM.fullmatch(program):
             return
         self.children.append(words)
+        self.check_python_flags(call, words)
         if "-c" not in words[1:-1]:
             return
         text = words[words.index("-c", 1) + 1]
@@ -2217,6 +2314,21 @@ class Allowlist:
         self.findings.extend(inner.run())
         self.used |= inner.used
         self.read_keys |= inner.read_keys
+
+    def check_python_flags(self, call: ast.Call, words: list[str]) -> None:
+        """A python child's flags are on PYTHON_CHILD_FLAGS and its ``-m`` module on the list."""
+        for index, word in enumerate(words[1:], 1):
+            if word == "-c":
+                return
+            if word == "-m":
+                module = words[index + 1] if index + 1 < len(words) else NONLITERAL_WORD
+                if module not in PYTHON_CHILD_MODULES:
+                    self.find(call, "command", f"a python -m {module} off the allowlist")
+                return
+            if not word.startswith("-"):
+                return
+            if word not in PYTHON_CHILD_FLAGS:
+                self.find(call, "command", f"a python flag {word} off the allowlist")
 
     # -- the pass ----------------------------------------------------------------------
 
