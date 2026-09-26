@@ -334,4 +334,4 @@ CS-1198 - the tier-1 hook shard read 469s at `da7a940`, 11s under its 480s ceili
 CS-1200 - the hook probe's timeout self-check accepts only 124, so a loaded box reads a working timeout as missing - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1201 - `tests/test_hook_probe_bound.py` elapsed-time arms go red under box load and block a push - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1202 - the PostToolUse lint hook's `--files "$CLAUDE_FILE_PATHS"` argument may always be empty under the live harness - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
-CS-1203 - the dashboard's health endpoint re-copies and re-parses the newest save on every call, so the companion never launches - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
+CS-1204 - `/api/health` still waits on a full save parse on a cold start - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
