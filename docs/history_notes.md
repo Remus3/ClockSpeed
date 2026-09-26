@@ -24,6 +24,91 @@ Where current truth actually lives:
 | Commands and runbooks | `docs/OPERATIONS.md` |
 
 
+## CS-814 - item section, CLOSED and relocated from `docs/item_notes/phase7.md` 2026-09-25
+
+**Moved here from `docs/item_notes/phase7.md` when the item closed.**
+The closure record is in `docs/LEDGER.md`.
+
+## CS-814
+
+### NOTE - relocated from `ROADMAP.md` 2026-08-23
+
+NOTE: filed 2026-08-22 (session 31). Detail in this file under **CS-814 - detail**; read it before taking this item.
+
+### detail - relocated from `docs/history_notes.md` 2026-08-23
+
+Filed 2026-08-22 (session 31); the item stays OPEN in `ROADMAP.md`.
+
+Filed 2026-08-22 (session 31). Found by an adjudicator that dumped the hook environment during an
+unrelated probe, and CONFIRMED by the merger without echoing any value.
+
+**MEASURED: five live credentials sit in the environment every git hook inherits** - a GitHub
+personal access token, three third-party API keys and a harness messaging token. Confirmed by name
+and length only. NOTHING IS COMMITTED: no tracked file and no git configuration key carries any of
+them, checked. The exposure was into a session transcript, not into the repository.
+
+**THE RULE THIS PROJECT ALREADY OWNS, ONE DOMAIN OVER.** Non-negotiable 12 rules that any code path
+echoing raw header bytes leaks personal data, and that error messages, debug dumps, hex previews,
+log lines and exception context ALL COUNT AS ECHO PATHS. A hook or a debug path that renders the
+environment is exactly that shape for credentials. The reasoning is written down for save headers
+and nowhere for the hooks, which is the gap.
+
+**THIS IS THE CS-806 PATTERN AGAIN** - a rule already decided, never carried across to the place it
+also applies. That makes three in three sessions, so treat the pattern as the finding rather than
+the instance.
+
+**WHAT THIS ITEM IS NOT.** It is not a request to rotate a credential - that is an operator action
+and was raised directly. It is not a claim that any shipped hook echoes the environment today;
+proving that none does is half the acceptance. The other half is writing the rule where the next
+author of a hook will read it, so the third repetition of this pattern is the last.
+
+**ASKED AGAIN AND ANSWERED 2026-08-23. The answer sits with the operator and is deliberately
+NOT written here.** What this file records is only that the question has been PUT, so it stops
+being carried forward every session as though unasked.
+
+**THE ROTATION STATE OF A LIVE CREDENTIAL IS NEVER WRITTEN INTO A TRACKED FILE.** CS-G03 makes
+this repository public eventually, and a tracked sentence asserting the current state of a live
+credential is an adversary-useful standing fact that no phase-7 check would strip. A first
+version of this paragraph wrote that state down; an adversary caught it and was right.
+
+**THIS CHANGES NOTHING ABOUT THIS ITEM'S ACCEPTANCE**, which was never about rotation: the code
+half is still to write the env-echo rule where the next author of a hook will read it, and to
+prove no shipped hook path echoes the environment.
+
+### Acceptance
+
+the rule that a hook or debug path rendering the environment leaks credentials is written where the hooks' authors will read it, and a probe proves no shipped hook path echoes the environment
+
+## CS-1200 - item section, CLOSED and relocated from `docs/item_notes/phase7.md` 2026-09-25
+
+**Moved here from `docs/item_notes/phase7.md` when the item closed.**
+The closure record is in `docs/LEDGER.md`.
+
+## CS-1200
+
+### Acceptance
+
+the shared interpreter-probe block carried byte-identical by `.githooks/pre-commit`,
+`.githooks/commit-msg`, `.githooks/pre-push` and `tools/claude_hook.sh` treats a
+bounding-program self-check that ends by the kill grace (137) as a working bound, not
+a missing one, under its own frozen-file grant that re-pins every carrier in one
+change; an arm drives the self-check with a child that ignores TERM and shows the hook
+proceeding, and a control with no working timeout still refuses.
+
+### Full headline
+
+the hook probe's timeout self-check accepts only 124, so a loaded box reads a working
+timeout as missing and the hook refuses with a line naming the wrong cause
+
+### FILED 2026-09-25, found by the CS-815 latency adversary (session 115)
+
+Under 16 to 32 busy processes, `timeout -k 1 0.2 sleep 5` returned 137 in 2 of 12
+runs: `sleep` outlived the one-second grace after TERM. The check requires exactly
+124, so the wrapper refused with "no working bounding program was found". On the
+Claude hook legs this fails open with a false reason; on the git hooks it blocks a
+commit. The CS-815 adjudicator ruled it a new item, not a CS-815 blocker, because the
+block is byte-pinned across every carrier.
+
 ## CS-1203 - item section, CLOSED and relocated from `docs/item_notes/phase7.md` 2026-09-25
 
 **Moved here from `docs/item_notes/phase7.md` when the item closed.**

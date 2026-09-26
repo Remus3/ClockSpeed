@@ -320,7 +320,6 @@ CS-1065 - the power endpoint serves `variable_power_inputs` and nothing else, so
 ## Phase 7 - public flip gate
 
 CS-701 - Resolve the collision between the operator git identity and a world name - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
-CS-814 - Every git hook inherits the session's live API credentials - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
 CS-815 - `.claude/settings.json` hardcodes its interpreter with no probe - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-700 - Phase 7 gate: the tier-3 flip checklist from CONVENTIONS section 17 - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-953 - a history scrub keyed on paths as they exist at HEAD leaves every PRE-MOVE path unrenamed - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
@@ -331,9 +330,10 @@ CS-1195 - on Linux, drift_guard guard (c) can print a text-typed key file's path
 CS-1196 - the provenance manifest's history walk miscounts first-adds across a merge commit - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1197 - `tests/save/test_trailing_run.py` sweeps every real save, so its run time grows with the save library - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1198 - the tier-1 hook shard read 469s at `da7a940`, 11s under its 480s ceiling - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
-CS-1200 - the hook probe's timeout self-check accepts only 124, so a loaded box reads a working timeout as missing - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1201 - `tests/test_hook_probe_bound.py` elapsed-time arms go red under box load and block a push - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1202 - the PostToolUse lint hook's `--files "$CLAUDE_FILE_PATHS"` argument may always be empty under the live harness - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1204 - `/api/health` still waits on a full save parse on a cold start - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1205 - pre-push does not scrub `PYTEST_ADDOPTS`, so an operator `-l` renders test locals - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1206 - a test run by pre-push can print an environment value outside any assert - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
+CS-1207 - the hook environment allowlist lists known readers, so an unlisted reader such as `os.path.expandvars` escapes it - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
+CS-1208 - a personal value the hook allowlist lets a program read can still reach a print, log or report - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
