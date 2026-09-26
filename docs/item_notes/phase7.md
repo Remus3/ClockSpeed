@@ -1244,27 +1244,3 @@ report
 The final CS-814 adversary printed allowlisted personal values and echoed from inside a
 permitted site while every arm stayed green. The allowlist grades reads, never where a
 read value goes.
-
-## CS-1209
-
-### Acceptance
-
-the tier-1 guard shard is green on ubuntu at a pushed tip, with
-`tests/test_hook_env_echo.py::test_no_pre_commit_path_echoes_a_canary[pre-commit-under-pythoninspect]`
-either reaching a path it names on that platform - established by MEASURING what the
-pre-commit hook does under `PYTHONINSPECT=1` on ubuntu, not by guessing - or skipped
-there with a measured reason in the shape of `tests/test_hook_probe_bound.py`'s
-`INSPECT_SKIP`; the canary count stays graded wherever the arm runs.
-
-### Full headline
-
-the PYTHONINSPECT arm of the hook env-echo probe fails to reach its path on ubuntu, so
-the tier-1 guard shard is red
-
-### FILED 2026-09-25, read on CI run 36213463506 at the CS-814 landing (session 115)
-
-On ubuntu the arm ended with return code 1, zero canaries, and neither the bound
-refusal nor a landed commit, so its reach check failed; the arm assumed the only
-non-MSYS outcome is a landed commit. `tests/test_hook_probe_bound.py` already records
-that `PYTHONINSPECT=1` with a null-device stdin returns on Linux. The echo property held
-(0 hits); only the reach assertion failed.

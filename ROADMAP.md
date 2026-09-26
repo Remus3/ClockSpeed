@@ -337,4 +337,3 @@ CS-1205 - pre-push does not scrub `PYTEST_ADDOPTS`, so an operator `-l` renders 
 CS-1206 - a test run by pre-push can print an environment value outside any assert - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1207 - the hook environment allowlist lists known readers, so an unlisted reader such as `os.path.expandvars` escapes it - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1208 - a personal value the hook allowlist lets a program read can still reach a print, log or report - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
-CS-1209 - the PYTHONINSPECT arm of the hook env-echo probe fails to reach its path on ubuntu, so the tier-1 guard shard is red - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
