@@ -1070,3 +1070,137 @@ def test_an_index_entry_the_disk_calls_a_directory_is_read_as_one(
     reason = drift_guard.WALK_SKIP_ROOT_PATHS[ROOT_TABLE_ONLY_DIR.lower()]
     assert withheld == {reason: 1}, "the on-disk directory entry was not withheld"
     assert [skip["path"] for skip in shown] == [GONE_FILE], "control: a missing file moved"
+
+
+# CS-1195 repair - a `.gitignore` PII-BEARING section of DIRECTORY-ONLY
+# patterns no table carries, so only the directory reading decides. One names a
+# directory the offender sits BENEATH; two name directories whose spelling a
+# plain text FILE also has - and a file is not the directory (ADR 0023 rule 5).
+DIR_ONLY_PARENT = "zz1195dironly"
+DIR_ONLY_FILE_OFFENDER = "zz1195dirfile.txt"
+DIR_ONLY_FILE_UNREAD = "zz1195dirunread.txt"
+
+
+def _dir_only_tree(tmp_path: Path) -> Path:
+    root = tmp_path / "tree"
+    root.mkdir()
+    patterns = "".join(
+        f"/{name}/\n" for name in (DIR_ONLY_PARENT, DIR_ONLY_FILE_OFFENDER, DIR_ONLY_FILE_UNREAD)
+    )
+    (root / ".gitignore").write_text(
+        f"# ====\n# PII-BEARING - synthetic\n# ====\n{patterns}", encoding="utf-8"
+    )
+    return root
+
+
+def test_guard_c_withholds_an_offender_beneath_a_dir_only_pattern_directory(
+    tmp_path: Path,
+) -> None:
+    root = _dir_only_tree(tmp_path)
+    (root / DIR_ONLY_PARENT).mkdir()
+    hidden = root / DIR_ONLY_PARENT / "zz1195in.txt"
+    hidden.write_bytes(NON_ASCII)
+
+    guard, _skips = drift_guard.guard_charset(root, [hidden], "test enumeration")
+
+    joined = "\n".join(guard["detail"])
+    leaked = _leaks(joined, [DIR_ONLY_PARENT, "zz1195in"])
+    assert leaked == 0, f"guard (c) named {leaked} token(s) beneath a dir-only PII directory"
+    assert guard["status"] == "FAIL", f"guard (c) is {guard['status']}, not FAIL"
+    assert _withheld_group_total(guard["detail"]) == 1, "the withheld offender was not counted"
+
+
+def test_guard_c_names_a_plain_file_spelt_like_a_dir_only_pattern(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Neither an offender FILE nor a NOT READ FILE is read as a directory."""
+    root = _dir_only_tree(tmp_path)
+    offender = root / DIR_ONLY_FILE_OFFENDER
+    offender.write_bytes(NON_ASCII)
+    unread = root / DIR_ONLY_FILE_UNREAD
+    unread.write_bytes(b"clean\n")
+    original: Callable[[Path], tuple[list[str], str]] = vars(drift_guard)["_ascii_violations"]
+
+    def _fail_one(path: Path) -> tuple[list[str], str]:
+        if path == unread:
+            return [], "unreadable: synthetic refusal"
+        return original(path)
+
+    monkeypatch.setattr(drift_guard, "_ascii_violations", _fail_one)
+
+    guard, _skips = drift_guard.guard_charset(root, [offender, unread], "test enumeration")
+
+    detail = [line.strip() for line in guard["detail"]]
+    named_offender = sum(1 for line in detail if line.startswith(f"{DIR_ONLY_FILE_OFFENDER} -> "))
+    named_unread = sum(1 for line in detail if line.startswith(f"{DIR_ONLY_FILE_UNREAD} NOT READ"))
+    assert named_offender == 1, "a plain offender FILE was withheld as a directory"
+    assert named_unread == 1, "a plain NOT READ FILE was withheld as a directory"
+    assert _withheld_group_total(guard["detail"]) == 0, "a plain file was counted as withheld"
+
+
+def test_guard_c_names_a_nested_directory_spelt_like_a_withheld_root(tmp_path: Path) -> None:
+    """The root table is ANCHORED: `zz/MOON_SYNC_INBOX/` is not the root it names."""
+    root = tmp_path / "tree"
+    root.mkdir()
+    (root / ".gitignore").write_bytes((REPO_ROOT / ".gitignore").read_bytes())
+    nested = root / "zz1195sub" / ROOT_TABLE_ONLY_DIR / "zz1195n.txt"
+    nested.parent.mkdir(parents=True)
+    nested.write_bytes(NON_ASCII)
+
+    guard, _skips = drift_guard.guard_charset(root, [nested], "test enumeration")
+
+    expected = f"zz1195sub/{ROOT_TABLE_ONLY_DIR}/zz1195n.txt -> "
+    named = sum(1 for line in guard["detail"] if line.strip().startswith(expected))
+    assert named == 1, "a nested directory was withheld as the anchored root it is not"
+    assert _withheld_group_total(guard["detail"]) == 0, "a nested directory was counted as a root"
+
+
+def test_guard_c_counts_every_withheld_entry_under_its_own_heading(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """TWO of each withheld kind under one reason: the count is 2, never capped at 1.
+
+    Each withheld group follows its own heading - NOT READ, NOT LISTED and the
+    offender header - so the line after each heading carries that group's count.
+    """
+    root = tmp_path / "tree"
+    root.mkdir()
+    (root / ".gitignore").write_bytes((REPO_ROOT / ".gitignore").read_bytes())
+    corpus = root / "CORPUS"
+    corpus.mkdir()
+    offenders = [corpus / "zz1195o1.txt", corpus / "zz1195o2.txt"]
+    unread = [corpus / "zz1195u1.txt", corpus / "zz1195u2.txt"]
+    unlisted = [corpus / "zz1195d1", corpus / "zz1195d2"]
+    for path in offenders:
+        path.write_bytes(NON_ASCII)
+    for path in unread:
+        path.write_bytes(b"clean\n")
+    for path in unlisted:
+        path.mkdir()
+    original: Callable[[Path], tuple[list[str], str]] = vars(drift_guard)["_ascii_violations"]
+
+    def _fail_unread(path: Path) -> tuple[list[str], str]:
+        if path in unread:
+            return [], "unreadable: synthetic refusal"
+        return original(path)
+
+    monkeypatch.setattr(drift_guard, "_ascii_violations", _fail_unread)
+
+    guard, _skips = drift_guard.guard_charset(
+        root, [*offenders, *unread, *unlisted], "test enumeration"
+    )
+
+    detail = guard["detail"]
+    assert _leaks("\n".join(detail), ["zz1195"]) == 0, "guard (c) named a withheld entry"
+    assert guard["status"] == "FAIL", f"guard (c) is {guard['status']}, not FAIL"
+    group = f"  {drift_guard.WALK_SKIP_ROOT_PATHS['corpus']}  ({len(offenders)})"
+    headings = [
+        "NOT READ - its bytes were never checked, under a withheld reason:",
+        f"{drift_guard.UNLISTED_CONSEQUENCE}, under a withheld reason:",
+        f"non-ASCII or control bytes in {len(offenders)} file(s):",
+    ]
+    for heading in headings:
+        present = heading in detail
+        assert present, f"guard (c) lost a withheld group heading ({headings.index(heading)})"
+        after = detail[detail.index(heading) + 1]
+        assert after == group, f"group {headings.index(heading)} does not carry the count 2"
