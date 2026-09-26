@@ -2926,6 +2926,16 @@ def guard_dated(root: Path, files: list[Path]) -> tuple[Guard, list[Skip]]:
     unclassified: list[str] = []
     historical_in_live: list[str] = []
     undeclared: list[str] = []
+    # CS-1210 - the CS-1195 leak one guard over. Every path a detail line would
+    # carry asks withheld_path_reason, the one classifier guard (c) and the
+    # skip list ask. A withheld-class path is counted under its reason in the
+    # group it would have been listed in, and its heading TEXT goes with it: a
+    # heading can carry a leaf. The counts and the verdict are unchanged.
+    pii_patterns = _gitignore_pii_patterns(root)
+    held: dict[str, dict[str, int]] = {
+        group: {}
+        for group in (STATUS_DATE, PROVENANCE_DATE, "unclassified", "historical", "undeclared")
+    }
     # CS-1117 - the guard (c) sibling: an unread markdown file was a bare skip.
     unread: list[str] = []
     scanned = 0
@@ -2941,36 +2951,34 @@ def guard_dated(root: Path, files: list[Path]) -> tuple[Guard, list[Skip]]:
         if not headings:
             continue
         relative = _rel(root, path)
+        withheld = withheld_path_reason(relative, pii_patterns)
         declaration = read_status_declaration(text)
         if declaration is None:
-            undeclared.append(relative)
+            _shown_or_counted(undeclared, held["undeclared"], relative, withheld)
         for number, heading in headings:
             record = f"{relative}:{number}  {heading.strip()}"
             family = classify_dated_heading(heading)
             if family is None:
-                unclassified.append(record)
+                _shown_or_counted(unclassified, held["unclassified"], record, withheld)
                 continue
-            classified[family].append(record)
+            _shown_or_counted(classified[family], held[family], record, withheld)
             if family == STATUS_DATE and declaration == LIVE:
-                historical_in_live.append(record)
+                _shown_or_counted(historical_in_live, held["historical"], record, withheld)
 
-    detail = _dated_detail(scanned, classified)
-    detail.extend(
-        f"{relative} NOT READ - its headings were never classified" for relative in unread
-    )
-    detail.extend(f"{relative}/ {UNLISTED_CONSEQUENCE}" for relative in unlisted)
-    if undeclared:
-        detail.append(
+    detail = _dated_detail(scanned, classified, held)
+    detail.extend(_dated_entry_lines(unread, unlisted, pii_patterns))
+    groups = (
+        (
             "DRIFT - files carrying dated headings that declare no section status. This "
             "guard cannot tell a record from a live section marked historical without the "
             "declaration, and REPORTING that rather than failing on it is the exact defect "
             "CS-840 was filed for. Add one line to the file's header, above its first "
             f"level-2 heading: **Section status: {LIVE}** or **Section status: "
-            f"{HISTORICAL}**:"
-        )
-        detail.extend(f"  {item}" for item in undeclared)
-    if historical_in_live:
-        detail.append(
+            f"{HISTORICAL}**:",
+            undeclared,
+            held["undeclared"],
+        ),
+        (
             f"DRIFT - a {STATUS_DATE} date inside a file that declares itself {LIVE}. The "
             "heading marks its own section historical while the file says its sections are "
             "current, and those two cannot both be true. RESOLVE IT BY DECIDING WHICH IS "
@@ -2979,52 +2987,104 @@ def guard_dated(root: Path, files: list[Path]) -> tuple[Guard, list[Skip]]:
             "section is current, the heading is misdescribing it and the HEADING is what "
             "has to change. Do NOT reword the heading to get past this check while leaving "
             "a historical section in a live file, and do NOT delete the date - both leave "
-            "the reader believing something the tree does not support:"
-        )
-        detail.extend(f"  {item}" for item in historical_in_live)
-    if unclassified:
-        detail.append(
+            "the reader believing something the tree does not support:",
+            historical_in_live,
+            held["historical"],
+        ),
+        (
             "DRIFT - dated headings in an idiom the closed vocabulary does not cover. "
             "Whoever wrote each one decides what its date MEANS and makes the heading say "
             f"it: a {STATUS_DATE} date, which marks the section historical, or a "
             f"{PROVENANCE_DATE} date, which records only when the text was filed. If the "
             "idiom is a real one this project should know, widen the vocabulary in "
             "tools/drift_guard.py deliberately. Choose by what is TRUE of the section, "
-            "never by which answer clears the check, and do NOT delete the date:"
-        )
-        detail.extend(f"  {item}" for item in unclassified)
-    drifted = bool(undeclared or historical_in_live or unclassified)
+            "never by which answer clears the check, and do NOT delete the date:",
+            unclassified,
+            held["unclassified"],
+        ),
+    )
+    drifted = False
+    for heading, shown, withheld_counts in groups:
+        # A group whose only members are withheld still drifts: the verdict
+        # and its heading are those of the same entries under ordinary names.
+        if shown or withheld_counts:
+            drifted = True
+            detail.append(heading)
+            detail.extend(f"  {item}" for item in shown)
+            detail.extend(_withheld_lines(withheld_counts))
     if (unread or unlisted) and not drifted:
         detail.append("NOT A PASS - a listed markdown file was never read")
     status = "FAIL" if drifted else ("WARN" if unread or unlisted else "PASS")
     return _guard("g", "dated sections", status, detail), skips
 
 
-def _dated_detail(scanned: int, classified: dict[str, list[str]]) -> list[str]:
+def _dated_entry_lines(
+    unread: list[str], unlisted: list[str], pii_patterns: tuple[str, ...]
+) -> list[str]:
+    """The NOT READ and NOT LISTED lines, each path asked of withheld_path_reason - CS-1210.
+
+    The guard (c) render form: an ordinary entry is named; a withheld one is
+    counted under its reason beneath its own heading, and a directory entry is
+    read as the directory shape it is.
+    """
+    shown_unread, withheld_unread = _partition_paths(unread, pii_patterns, directories=False)
+    shown_unlisted, withheld_unlisted = _partition_paths(unlisted, pii_patterns, directories=True)
+    lines = [
+        f"{relative} NOT READ - its headings were never classified" for relative in shown_unread
+    ]
+    if withheld_unread:
+        lines.append("NOT READ - its headings were never classified, under a withheld reason:")
+        lines.extend(_withheld_lines(withheld_unread))
+    lines.extend(f"{relative}/ {UNLISTED_CONSEQUENCE}" for relative in shown_unlisted)
+    if withheld_unlisted:
+        lines.append(f"{UNLISTED_CONSEQUENCE}, under a withheld reason:")
+        lines.extend(_withheld_lines(withheld_unlisted))
+    return lines
+
+
+def _shown_or_counted(
+    shown: list[str], withheld: dict[str, int], line: str, reason: str | None
+) -> None:
+    """List ``line``, or count it under ``reason`` when its path is withheld - CS-1210."""
+    if reason is None:
+        shown.append(line)
+    else:
+        withheld[reason] = withheld.get(reason, 0) + 1
+
+
+def _dated_detail(
+    scanned: int, classified: dict[str, list[str]], held: Mapping[str, Mapping[str, int]]
+) -> list[str]:
     """Render the classified populations. Counts are DERIVED here, never written.
 
     Args:
         scanned: How many markdown files were read.
-        classified: Records per family.
+        classified: Records per family whose path may be named.
+        held: Per family, withheld reason -> record count (CS-1210). Each
+            family's count includes them; they render in the CS-1158 form.
 
     Returns:
         The detail lines.
     """
     status = classified[STATUS_DATE]
     provenance = classified[PROVENANCE_DATE]
+    status_count = len(status) + sum(held[STATUS_DATE].values())
+    provenance_count = len(provenance) + sum(held[PROVENANCE_DATE].values())
     detail = [
         f"markdown files scanned: {scanned}",
-        f"{STATUS_DATE} dates ({len(status)}) - the section IS historical and must not be "
+        f"{STATUS_DATE} dates ({status_count}) - the section IS historical and must not be "
         "audited as current:",
     ]
     detail.extend(f"  {item}" for item in status)
+    detail.extend(_withheld_lines(held[STATUS_DATE]))
     detail.append(
-        f"{PROVENANCE_DATE} dates ({len(provenance)}) - these record WHEN the text was "
+        f"{PROVENANCE_DATE} dates ({provenance_count}) - these record WHEN the text was "
         "filed, moved or measured. They say nothing about the section's status, and a "
         "live instruction is free to carry one:"
     )
     detail.extend(f"  {item}" for item in provenance)
-    if not status and not provenance:
+    detail.extend(_withheld_lines(held[PROVENANCE_DATE]))
+    if not status_count and not provenance_count:
         detail.append("no dated headings found; nothing is self-marked historical")
     return detail
 
