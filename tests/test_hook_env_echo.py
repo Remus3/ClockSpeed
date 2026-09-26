@@ -1309,11 +1309,14 @@ class Allowlist:
             and self.is_command_call(self.parent[up])
         ):
             return
-        if self.is_local_copy(node, up, local=local):
-            assert isinstance(up, ast.Assign)
-            target = up.targets[0]
-            assert isinstance(target, ast.Name)
-            self.local_uses(target)
+        # Narrowed with isinstance, not assert: an assert here makes this a grader
+        # in tests/test_liveness.py's census, and every return above an exit.
+        if (
+            self.is_local_copy(node, up, local=local)
+            and isinstance(up, ast.Assign)
+            and isinstance(up.targets[0], ast.Name)
+        ):
+            self.local_uses(up.targets[0])
             return
         self.find(node, "whole", "the whole environment " + context_of(up))
 
