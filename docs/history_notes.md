@@ -1838,6 +1838,20 @@ grant reaches it and no tracked test can pin it. Also unmeasured: whether a work
 lane session gates against its own tree.
 
 
+## Session 112 - archived 2026-09-25 from `WAKEUP_NOTES.md`, verbatim
+
+## Session 112 - 2026-09-24 - the secret rules got a derived fingerprint, and a deleted provenance manifest can no longer be re-seeded
+
+- Shipped: CS-1175 and CS-1176, both CLOSED by an adjudicator conditional on CI green on the pushed tip. Detail in docs/LEDGER.md. Filed and left open: CS-1177, CS-1178, CS-1179. Session 111's next action named both closed items, and both went.
+- CS-1175 took the FINGERPRINT route, because a canary cannot grade a narrowing without a hand list. One refutation round (an unquantified digit class no field fingerprinted, docstrings claiming "any change" was caught, no re-record command), then NOT REFUTED, then adjudicator CLOSE.
+- CS-1176 took FOUR refutation rounds. R1 REFUTED twice: F1 a reused path, F2 a stale-branch seed merged back, F3 real-tree wiring no mutation exercised, F4 an orphan squash. R2 REFUTED: false reds on a revert and on a typo version, a detached HEAD with no refs was seeded, the shallow message named no truncation. R3 REFUTED: gap forgiveness anchored at the last manifest version made honest edits red. R4: no acceptance-breaking bypass across merge, octopus, criss-cross and evil merges; the residual graft bypass it found was fixed with `GIT_NO_REPLACE_OBJECTS=1`. Adjudicator CLOSE; the four residuals are in the ledger entry, the last of them is CS-1179.
+- In flight: both closures are conditional on CI green on the pushed tip.
+- Inbox: 7 new SS notes triaged; none asks CS anything; not acked.
+- Failed paths: a gap-forgiveness rule anchored at the WRONG commit produces false reds that only an adversary exercising HONEST edits finds. An every-version rule with no forgiveness at all makes a revert permanently red.
+- Next action: read CI on the pushed tip, then pick from CS-1177, CS-1178 and CS-1179 - all tier 2 and fully specified.
+
+---
+
 ## Session 111 - archived 2026-09-25 from `WAKEUP_NOTES.md`, verbatim
 
 ## Session 111 - 2026-09-22 - the credential guards got per-rule and per-branch teeth, tier 1 came back under budget on all three legs, and the provenance manifest shipped

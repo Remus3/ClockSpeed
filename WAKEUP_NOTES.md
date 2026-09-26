@@ -33,6 +33,15 @@ Keep every entry to that shape. If an item needs a paragraph, it needs its own f
 the line becomes a pointer.
 
 ---
+## Session 115 - 2026-09-25 - the companion launches again, CS-815 landed pending one look, and CS-814 closed after five adversary rounds
+
+- Shipped: CS-1203 (per-identity world memo in clockspeed/surface/providers.py; the operator's "the app doesnt launch" - health took 2.5s against a 2.0s probe; end-to-end launch opened the window in 7s), CS-814 (CLAUDE.md non-negotiable 13; tests/test_hook_env_echo.py), CS-1200 (137 accepted by the probe self-check; tests/test_probe_refusal_output.py), and a CS-1199 repair (the plant sat in saferepr's elided middle on ubuntu). Detail in docs/LEDGER.md.
+- In flight: CS-815 LANDED at fd3c167 but STAYS OPEN on one check only the operator can make - does the desktop app visibly show a "REFUSED (CS-815)" hook-error line? The transcript records it as a hook_non_blocking_error attachment; computer use cannot capture Claude's own window. Filed and open: CS-1201, CS-1202, CS-1204 to CS-1208.
+- Decisions: CS-814's rule lives ONLY in CLAUDE.md rule 13 (no hook-header pointers). One frozen re-pin served CS-814 and CS-1200 together. CS-814 closed on the adjudicated bar with obfuscation, non-Python env= children, the tests tree and PYTEST_ADDOPTS declared residual.
+- Surprises: a settings.local.json env key reaches the live session on reload but deleting it does NOT unset it - the gate failed open for three calls until the key was set empty. The pre-push suite counts real-save copies, so running the dashboard during a push blocks it. The verifier's module list missed tests/test_liveness.py, which refused the first CS-814 push.
+- Failed paths: a blocklist env scan (refuted three times) - replaced by an allowlist; a save-shard home for the CS-815 tests (no room) - moved to the guard shard.
+- Next action: read CI at the /done push; ask nothing, but record the operator's answer on the CS-815 hook-error line if they give one; then CS-1195.
+
 ## Session 114 - 2026-09-25 - the trailer gate moved to CI, environment values left every assert rendering, and CS-815 was built but not landed
 
 - Shipped: CS-704 (CI trailer census step in the tier-1 save job, tests/test_trailer_routes.py) and CS-1199 (filed and closed: the assert-rendering guard for process-environment values, tests/test_assertion_rendering.py). Detail in docs/LEDGER.md. The 33 owed inbox asks were answered in two outbox notes (moon_sync_outbox/2026-09-25-1409 and -1410); the inbox is still NOT acknowledged.
@@ -50,15 +59,3 @@ the line becomes a pointer.
 - Surprises: adversaries refuted almost every first build, often twice; the recurring shapes were oracles blind to their subject (leak checks matching one spelling), docstrings claiming more than the code, and guards failing OPEN on an error path. Merged slices repeatedly reddened repo-wide guards their builders never ran (rendering, liveness, pointer, citation) - wave 3 made those guards mandatory per builder. CI tier 1 overran twice (565s, 509s): runner variance explained a third; the rest was real growth; fixed by CS-1193's cache plus a fourth hook shard, never by raising the pin.
 - Failed paths: shortening the hook probe bound in sandbox copies to save CI time (declined - saves ~25 worker-s on Linux, where only 5 arms wait, and leaves no safe fall-through window). Rewriting pytest node IDs to redact them (broke -k, --deselect and copied FAILED ids - redact at render time instead). A time-bounded full suite under the tool's 10-minute cap (use foreground halves or thirds, or the pre-push log).
 - Next action: read CI on the /done push, then decide CS-815 with the operator and start CS-704 (the CI trailer census step, tools/trailer_census.py now exists).
-
-## Session 112 - 2026-09-24 - the secret rules got a derived fingerprint, and a deleted provenance manifest can no longer be re-seeded
-
-- Shipped: CS-1175 and CS-1176, both CLOSED by an adjudicator conditional on CI green on the pushed tip. Detail in docs/LEDGER.md. Filed and left open: CS-1177, CS-1178, CS-1179. Session 111's next action named both closed items, and both went.
-- CS-1175 took the FINGERPRINT route, because a canary cannot grade a narrowing without a hand list. One refutation round (an unquantified digit class no field fingerprinted, docstrings claiming "any change" was caught, no re-record command), then NOT REFUTED, then adjudicator CLOSE.
-- CS-1176 took FOUR refutation rounds. R1 REFUTED twice: F1 a reused path, F2 a stale-branch seed merged back, F3 real-tree wiring no mutation exercised, F4 an orphan squash. R2 REFUTED: false reds on a revert and on a typo version, a detached HEAD with no refs was seeded, the shallow message named no truncation. R3 REFUTED: gap forgiveness anchored at the last manifest version made honest edits red. R4: no acceptance-breaking bypass across merge, octopus, criss-cross and evil merges; the residual graft bypass it found was fixed with `GIT_NO_REPLACE_OBJECTS=1`. Adjudicator CLOSE; the four residuals are in the ledger entry, the last of them is CS-1179.
-- In flight: both closures are conditional on CI green on the pushed tip.
-- Inbox: 7 new SS notes triaged; none asks CS anything; not acked.
-- Failed paths: a gap-forgiveness rule anchored at the WRONG commit produces false reds that only an adversary exercising HONEST edits finds. An every-version rule with no forgiveness at all makes a revert permanently red.
-- Next action: read CI on the pushed tip, then pick from CS-1177, CS-1178 and CS-1179 - all tier 2 and fully specified.
-
----

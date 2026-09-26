@@ -1,134 +1,125 @@
 CLOCKSPEED - NEXT SESSION CONTINUATION PROMPT
-Written at the end of session 114, 2026-09-25. Paste this whole file into a cold session.
+Written at the end of session 115, 2026-09-25. Paste this whole file into a cold session.
 
 ================================================================================
 READ THESE FIRST, IN THIS ORDER
 ================================================================================
 
   CLAUDE.md                 rules, frozen list, settled decisions, topology
+                            - NOTE the new non-negotiable 13 (environment echo)
   memory/MEMORY.md          durable cross-session facts
   ROADMAP.md                open work only - the Phase 7 heading is the focus
-  WAKEUP_NOTES.md           sessions 114, 113, 112 at full fidelity
+  WAKEUP_NOTES.md           sessions 115, 114, 113 at full fidelity
   docs/ARCHITECTURE.md      module map, data flow, seams
-  docs/item_notes/phase7.md every open Phase 7 item, and the CS-700 S0-S12 flip plan
+  docs/item_notes/phase7.md every open Phase 7 item and its acceptance
   docs/GATED.md             CS-G03 (the flip gate) and CS-G08 (never-seen machine)
-  docs/LEDGER.md            "2026-09-25 - CS-815 - FROZEN-FILE GRANT" - read it whole
-                            before touching CS-815
+  docs/LEDGER.md            the 2026-09-25 CS-815 LANDED record and the CS-814 close
 
 Then run:  python tools/inbox_watch.py
-Session 114 ANSWERED the owed asks in moon_sync_outbox/2026-09-25-1409-* and -1410-*.
-The inbox is still NOT acknowledged (--ack). New notes since then: triage only.
+No inbox note arrived after session 114's answers. Still NOT acknowledged (--ack).
 
 ================================================================================
 STATE OF THE TREE
 ================================================================================
 
-HEAD / remote   the session-114 /done commit. Confirm `git rev-parse HEAD` equals
+HEAD / remote   the session-115 /done commit. Confirm `git rev-parse HEAD` equals
                 `git ls-remote origin main` - a blocked push reports exit 0.
 CI              READ IT FIRST, with the FULL SHA: `gh run list --commit <full sha>`.
-                Four tier-1 jobs (fast, save, guards, hooks). Last READ green: 9c4ff2a
-                (CS-704), save job ~300s. If red, that is item one.
+                Last READ green: 30d3800 (all four jobs). NOT YET READ: 20b23c2 (the
+                CS-814 landing) and the /done tip. The ubuntu real-commit arm of
+                tests/test_probe_refusal_output.py is NOT RUN on Windows - it is only
+                claimed once CI at a tip carrying it is read green. If red, item one.
 working tree    CLEAN at the /done commit.
-CS-815 WORKTREE .claude/worktrees/agent-a4f0885163222ba12, branch
-                worktree-agent-a4f0885163222ba12, clean, two commits on 9c4ff2a:
-                  ecb7b53  the wrapper script and its test module,
-                           the two .claude/settings.json command strings (worktree copy
-                           only), save-shard routing in tier1.yml, provenance rows
-                  8186634  resolve sh from any launching shell (tests/test_pretooluse_gate.py
-                           - the merger WIDENED the write-list to it)
-                NOT adversaried. NOT landed. The builder was stopped mid full suite at
-                /done; its classification of 23 PowerShell-launched failures (incl.
-                test_pre_push_ref_race, test_precommit_index_race) never arrived.
-other worktrees many stale agent trees under .claude/worktrees/. Classify by CONTENT before
-                pruning; never remove one a live agent holds.
+worktrees       this session's landed trees were removed. .claude/worktrees/
+                agent-a3c959f555e19f86f is LOCKED (a finished CS-814 builder; its
+                content landed) - left alone. Many older stale trees remain; classify
+                by CONTENT before pruning.
+companion       the operator's Electron companion and its dashboard may still be
+                running. A dashboard that re-reads a save DURING a pre-push suite trips
+                the real-save-copies guard - if a push blocks on that, wait and re-push.
 
 ================================================================================
-CLOSED IN SESSION 114 (detail in docs/LEDGER.md)
+CLOSED IN SESSION 115 (detail in docs/LEDGER.md)
 ================================================================================
 
-CS-704   a trailer reaching main by any route is caught by the CI census step in the
-         tier-1 save job; tests/test_trailer_routes.py (19). Pushed at 9c4ff2a, CI green.
-CS-1199  filed and closed: no assert in tests/ renders a process-environment value;
-         guard in tests/test_assertion_rendering.py, 10 test files repaired.
+CS-1203  the companion launches again: SaveWorldProvider parses a save once per
+         (path, size, mtime) identity; tests/surface/test_world_provider_memo.py.
+CS-814   CLAUDE.md non-negotiable 13; tests/test_hook_env_echo.py proves no shipped
+         hook path echoes the environment (declared residuals in the ledger).
+CS-1200  the probe self-check accepts 137 as well as 124; one frozen re-pin with
+         CS-814; tests/test_probe_refusal_output.py.
+CS-1199  repaired (already closed): the control arm's plant now leads the child env.
 
 ================================================================================
 THE SINGLE NEXT ACTION
 ================================================================================
 
-Read CI on the pushed tip. Then FINISH CS-815 - the operator approved it in their own
-words this session ("go CS-815"); do not ask again:
-  1. From Git Bash AND from PowerShell, run the CS-815 worktree's touched modules plus
-     test_pre_push_ref_race / test_precommit_index_race; classify every failure as
-     pre-existing on 9c4ff2a (prove in a detached scratch worktree) or caused by CS-815.
-  2. Adversary pass at the frozen SHA 8186634 (lenses: pass-through and deny preserved;
-     live-harness shell resolution; latency and the loud-report line leaking nothing).
-  3. Land by cherry-pick (never merge - CS-1196), ONE commit; then condition 6 of the
-     grant IN THE LIVE SESSION: one Bash call runs, one known-deny command is still
-     denied. If either fails, restore the base bytes of .claude/settings.json in the
-     very next command. Ledger entry, ROADMAP line out, push.
-Then CS-814.
+Read CI on the /done tip. If green, take CS-1195 (tier 1). If the operator has said
+whether the desktop app SHOWS the "REFUSED (CS-815)" hook-error line, record it in
+docs/LEDGER.md and close CS-815 (shown) or rebuild on the exit-0 JSON systemMessage
+route (not shown). Do NOT ask them for it - they volunteer it or it waits.
 
 ================================================================================
 OPEN PHASE 7 ITEMS, PRIORITY ORDER (acceptance: docs/item_notes/phase7.md)
 ================================================================================
 
- 1 CS-815   see above. Grant in docs/LEDGER.md ("CS-815 - FROZEN-FILE GRANT").
- 2 CS-814   every git hook inherits the session's live API credentials - frozen,
-            needs its own grant (CS-813/821/955 all landed).
- 3 CS-1195  on Linux drift_guard guard (c) can print a key file's path. Tier 1.
- 4 CS-1198  tier-1 hook shard near its 480s ceiling - restore headroom WITHOUT raising
-            the pin.
- 5 CS-1196  provenance manifest history walk miscounts on a merge commit (land slices
-            by CHERRY-PICK until fixed).
- 6 CS-1197  tests/save/test_trailing_run.py sweeps every real save - ~400s and growing.
- 7 CS-1194  drift_guard prints a non-numeric player-named folder (ADR 0023 residual).
- 8 CS-1032  panel_harness DOM stand-in.
- 9 CS-701   operator git identity vs world-name collision (feeds S7a identity rewrite).
-10 CS-953   history scrub keyed on HEAD paths misses pre-rename paths.
-11 CS-1186  README walk: no-game half GATED under CS-G08.
-12 CS-700   the flip itself, S0-S12. LAST. S9 onward is IRREVERSIBLE and outward -
-            the operator's own-words confirmation right before S9, per CLAUDE.md 6.1.
-            CS-704's census step pins baseline c6f3687: after S7a rewrites history the
-            baseline MUST be re-pinned - the step's ancestor check will go red and force it.
+ 1 CS-815   LANDED, one operator look owed (see above). Nothing else to do.
+ 2 CS-1195  on Linux drift_guard guard (c) can print a key file's path. Tier 1.
+ 3 CS-1201  tests/test_hook_probe_bound.py elapsed-time arms go red under load and
+            block a push; green alone.
+ 4 CS-1198  tier-1 hook shard in the WARN band - restore headroom WITHOUT the pin.
+            The guard shard now also carries three hook modules (~110s serial).
+ 5 CS-1207  hook env allowlist lists known readers (expandvars etc. escape it).
+ 6 CS-1208  value-flow: an allowed personal value can still reach a sink.
+ 7 CS-1204  /api/health still waits on the first full save parse (cold probe aborts).
+ 8 CS-1205  pre-push does not scrub PYTEST_ADDOPTS (frozen - needs a grant).
+ 9 CS-1206  tests can print an environment value outside an assert.
+10 CS-1202  PostToolUse `--files "$CLAUDE_FILE_PATHS"` may always be empty (UNVERIFIED).
+11 CS-1196  provenance history walk miscounts on a merge (land by CHERRY-PICK).
+12 CS-1197  tests/save/test_trailing_run.py sweeps every real save, ~400s and growing.
+13 CS-1194  drift_guard prints a non-numeric player-named folder.
+14 CS-1032, CS-701, CS-953, CS-1186 (no-game half GATED under CS-G08).
+15 CS-700   the flip, S0-S12, LAST. S9 onward needs the operator's own-words
+            confirmation. CS-704's census baseline c6f3687 MUST be re-pinned after S7a.
 
 ================================================================================
 DECISIONS - DO NOT RE-LITIGATE
 ================================================================================
 
-CS-815 IS OPERATOR-APPROVED (session 114, own words). Do not re-ask; do not widen the grant.
-CS-704 TOOK THE CI ROUTE; the pre-push route was DENIED. Do not re-pitch a pre-push census.
-AN ASSERT MUST NEVER RENDER AN ENVIRONMENT VALUE. Bind names, counts or bools first. A bare
-  `assert "X" not in os.environ` renders the WHOLE environment - measured.
-CS-1199's lower-case `f(env=...)` "runs under it" default stands (the strict default gave
-  2107 findings on 1039 lines). Re-open only with a LIVE counter-example.
-A SUITE THAT GOES RED BY WHICH SHELL LAUNCHED PYTEST IS A DEFECT, not an operating rule.
-THE FLIP KEEPS THE GRAPH AND STRIPS THE 18 AGENT TRAILERS at S7a (ADR 0018 as amended).
-THE OPERATOR CONFIRMS S9-S12 ONCE, IN THEIR OWN WORDS - no adjudicator lifts that floor.
-TIER-3 FLIP CHECKS RUN LOCALLY, NEVER IN CI (ADR 0025).
-NEVER RAISE THE 420/480 TIER-1 PIN. Move files between shards or speed them up.
-A FILENAME CAN BE PERSONAL DATA (ADR 0023).
-PYTEST NODE IDS ARE NEVER REWRITTEN to redact them - redact at render time only.
+RULE 13 LIVES ONLY IN CLAUDE.md - no pointer comments in the hooks (placement ruling).
+CS-814 CLOSED ON THE ADJUDICATED BAR. Obfuscation, env= to non-Python children, the
+  tests tree and PYTEST_ADDOPTS are DECLARED RESIDUALS, carried by CS-1205..CS-1208.
+  Do not reopen CS-814 for a new mutant - file it against CS-1207 or CS-1208.
+THE ENV SCAN IS AN ALLOWLIST. A blocklist was refuted three times. Never go back.
+CS-815 KEPT, NOT REVERTED: an unobserved report is not an invisible one (adjudicated).
+CS-1203 MEMOIZES by (path, size, st_mtime_ns); a rewrite preserving all three is not
+  detected - stated, accepted. The old "NO CACHING" docstring was superseded on purpose.
+ONE RE-PIN FOR ONE BYTE-PINNED BLOCK: fold changes to cs_probe into one grant and one
+  commit touching all four carriers.
+NEVER RAISE THE 420/480 TIER-1 PIN. Move files or speed them up.
+AN ASSERT MUST NEVER RENDER AN ENVIRONMENT VALUE. Bind names, counts or bools first.
 FROZEN-FILE EDITS: adjudicator grant in docs/LEDGER.md BEFORE the edit.
-THE PROVENANCE MANIFEST IS NEVER RE-SEEDED.
+THE PROVENANCE MANIFEST IS NEVER RE-SEEDED. PYTEST NODE IDS ARE NEVER REWRITTEN.
 NO SIBLING-TREE READS, not even read-only. Brief every agent.
 
 ================================================================================
 EXTERNAL CONDITIONS BEING WAITED ON
 ================================================================================
 
-CS-G08: a disposable never-seen environment - gates CS-1187 and the no-game half of CS-1186.
+CS-815: the operator's eye on the desktop app's hook-error rendering.
+CS-G08: a disposable never-seen environment - gates CS-1187 and half of CS-1186.
 FOUR DEAD-SECRET FILES still await an operator deletion call (key already rotated).
-GitHub MCP and CodSpeed MCP need re-authorisation in an interactive session.
+GitHub MCP needs re-authorisation in an interactive session. CodSpeed was REMOVED.
 
 ================================================================================
 TRAPS THIS SESSION PAID FOR
 ================================================================================
 
-A STOPPED BUILDER LEAVES ITS FULL SUITE RUNNING - its pytest tree survived TaskStop and
-  had to be killed by PID. Check `python` processes after stopping any agent.
-provenance_stamp.py REFUSES a file for an item id not yet in ROADMAP.md or LEDGER.md -
-  file the item line BEFORE dispatching a builder that adds a file under it.
-THE BOX RUNS OUT OF RAM WITH TWO SUITES - sibling repos run pytest here too; serialise
-  our own suites and pushes.
-EVERY BUILDER MUST RUN THE REPO-WIDE GUARDS; the pre-push hook stops at the first failure.
+A settings.local.json `env` key reaches the live session, and DELETING it does not
+  unset it - overwrite it empty, then prove a known deny still denies.
+The editable install beats PYTHONPATH: to time a worktree's module, load it by path.
+A verifier's module list is not the suite: tests/test_liveness.py refused a push the
+  verifier had passed. Two narrowing asserts made a helper a "grader".
+Running the dashboard during a push copies a save and blocks the push.
 A `cd` INTO A WORKTREE MOVES THE SESSION'S WORKING DIRECTORY - use `git -C`.
+The pre-push suite runs ~16 min on this box; background it and wait.
