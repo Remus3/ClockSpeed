@@ -37,6 +37,19 @@ the measured reason where it does not hold, so a POSIX runner reports them as NO
 RUN rather than passing them vacuously. Shape 2 and the plain sleeper hang
 everywhere and run everywhere.
 
+WHY A CALL LOG AND A WINDOW FROM THE HANG (CS-1201). A window measured from
+before ``git`` starts charges every process creation ahead of the hang - git, the
+hook, the timeout self-check, each probe half that ANSWERED - to the bound, so a
+loaded box reddened a correct refusal at 32.5s. Each test shim therefore appends
+one line per invocation to a call log under ``tmp_path`` (``start``, and ``done``
+where it returns), holding only a fixed shim label, the probe MODE and a wall
+clock stamp - never a path, never an environment value. Two claims are graded
+from it. NO FALL-THROUGH is a COUNT: exactly one call never answered, it is the
+last call, and it is the expected half - load cannot change an invocation count.
+INSIDE THE BOUND is a window that starts at the hanging call's own logged start,
+so only the post-expiry tail rides on the slack. The honest-wrapper control
+grades each probe half, never the whole commit, against the bound.
+
 PATHS STAY OUT OF EVERY ASSERTION MESSAGE. ``tmp_path`` sits under the user
 profile, and the wrapper scripts carry the running interpreter's absolute path.
 Every outcome is reduced to ints, bools and the hook's own filtered lines before
@@ -113,29 +126,167 @@ DRIVE_PATH: Final = re.compile(r"[A-Za-z]:[\\/]")
 ENVIRONMENT_REPR: Final = "<CS-816 child environment, contents withheld>"
 
 
-def honest_shim() -> str:
-    """A well-behaved wrapper: the real interpreter, arguments and streams intact."""
-    return '#!/bin/sh\nexec "' + REAL_PYTHON_POSIX + '" "$@"\n'
+# --- the call log (CS-1201) ---------------------------------------------------
+
+# The one file every test shim appends to, under the arm's own tmp_path.
+CALL_LOG: Final = "calls.log"
+
+# A done line whose status is at or above this ended on a SIGNAL - the bound's
+# TERM or KILL - so the call did not answer, whatever else the line says.
+KILLED_BY_SIGNAL: Final = 128
+
+# The probe's three halves, in the order every hook's cs_probe runs them.
+PROBE_HALVES: Final = ("-c", "-c", "-")
+
+# Fixed shim labels. A label is test vocabulary, never a path.
+HONEST: Final = "honest"
+NUL_STDIN: Final = "nul-stdin"
+BACKGROUND: Final = "background"
+SLEEPER: Final = "sleeper"
+LADDER_RUNGS: Final = ("python", "python3", "py")
+
+# Fields on a start line (start, label, mode, stamp) and a done line (plus status).
+START_FIELDS: Final = 4
+DONE_FIELDS: Final = 5
 
 
-def nul_stdin_shim() -> str:
-    """Shape 3: the real interpreter with stdin replaced by /dev/null."""
-    return '#!/bin/sh\nexec "' + REAL_PYTHON_POSIX + '" "$@" </dev/null\n'
+def log_start(log: Path, label: str) -> str:
+    """Shell lines that append ``start <label> <mode> <stamp>`` to ``log``.
+
+    The mode is the first argument ONLY when it is one of the probe's own
+    flags; anything else - a script path included - is written as ``other``.
+    The stamp is the system wall clock, the same clock ``time.time`` reads.
+    """
+    return (
+        'case "$1" in -c|-|-3) cs_m="$1" ;; *) cs_m=other ;; esac\n'
+        "printf 'start "
+        + label
+        + ' %s %s\\n\' "$cs_m" "$(date +%s.%N)" >>"'
+        + log.as_posix()
+        + '"\n'
+    )
 
 
-def background_shim(pid_file: Path) -> str:
-    """Shape 2: leaves a background process holding stdout, then runs python."""
+def log_done(log: Path, label: str) -> str:
+    """Shell lines that append ``done <label> <mode> <stamp> <status>`` and exit with it."""
+    return (
+        "cs_r=$?\n"
+        "printf 'done "
+        + label
+        + ' %s %s %s\\n\' "$cs_m" "$(date +%s.%N)" "$cs_r" >>"'
+        + log.as_posix()
+        + '"\n'
+        'exit "$cs_r"\n'
+    )
+
+
+def honest_shim(log: Path) -> str:
+    """A well-behaved wrapper: the real interpreter, arguments and streams intact.
+
+    NOT an exec, so it can log the call's return and pass the status through.
+    """
     return (
         "#!/bin/sh\n"
-        "sleep 600 &\n"
+        + log_start(log, HONEST)
+        + '"'
+        + REAL_PYTHON_POSIX
+        + '" "$@"\n'
+        + log_done(log, HONEST)
+    )
+
+
+def nul_stdin_shim(log: Path) -> str:
+    """Shape 3: the real interpreter with stdin replaced by /dev/null."""
+    return (
+        "#!/bin/sh\n"
+        + log_start(log, NUL_STDIN)
+        + '"'
+        + REAL_PYTHON_POSIX
+        + '" "$@" </dev/null\n'
+        + log_done(log, NUL_STDIN)
+    )
+
+
+def background_shim(pid_file: Path, log: Path) -> str:
+    """Shape 2: leaves a background process holding stdout, then runs python."""
+    return (
+        "#!/bin/sh\n" + log_start(log, BACKGROUND) + "sleep 600 &\n"
         'printf \'%s\' "$!" >"' + pid_file.as_posix() + '"\n'
         'exec "' + REAL_PYTHON_POSIX + '" "$@"\n'
     )
 
 
-def sleeper_shim(pid_file: Path) -> str:
+def sleeper_shim(pid_file: Path, log: Path) -> str:
     """The plainest hang: a candidate that never answers anything."""
-    return '#!/bin/sh\nprintf \'%s\' "$$" >"' + pid_file.as_posix() + '"\nexec sleep 600\n'
+    return (
+        "#!/bin/sh\n"
+        + log_start(log, SLEEPER)
+        + 'printf \'%s\' "$$" >"'
+        + pid_file.as_posix()
+        + '"\nexec sleep 600\n'
+    )
+
+
+def ladder_shim(log: Path, rung: str) -> str:
+    """A PATH-first stand-in for one ladder rung: log, then exec the real interpreter.
+
+    The ``py`` rung is asked with ``-3`` first, which the real interpreter would
+    reject, so that one flag is dropped before the exec.
+    """
+    drop = 'if [ "$1" = "-3" ]; then shift; fi\n' if rung == "py" else ""
+    return "#!/bin/sh\n" + log_start(log, rung) + drop + 'exec "' + REAL_PYTHON_POSIX + '" "$@"\n'
+
+
+class Call(NamedTuple):
+    """One logged shim invocation: which shim, which probe mode, and when."""
+
+    shim: str
+    mode: str
+    start: float
+    done: float | None = None
+    status: int | None = None
+
+    @property
+    def answered(self) -> bool:
+        """It returned on its own: a done line, and not ended by a signal."""
+        return self.done is not None and self.status is not None and self.status < KILLED_BY_SIGNAL
+
+    @property
+    def duration(self) -> float | None:
+        """Seconds from its start to its return, or None when it never answered."""
+        return self.done - self.start if self.answered and self.done is not None else None
+
+
+def parse_calls(text: str) -> tuple[Call, ...]:
+    """The calls a call log records, in order. A malformed log fails loudly.
+
+    Calls are sequential, so a done line closes the call opened by the line
+    before it. No line's content is rendered on failure, only its number.
+    """
+    calls: list[Call] = []
+    for number, line in enumerate(text.splitlines(), start=1):
+        fields = line.split(" ")
+        if fields[0] == "start" and len(fields) == START_FIELDS:
+            calls.append(Call(fields[1], fields[2], float(fields[3])))
+            continue
+        if fields[0] == "done" and len(fields) == DONE_FIELDS:
+            open_call = calls[-1] if calls else None
+            closes = (
+                open_call is not None
+                and open_call.done is None
+                and (open_call.shim, open_call.mode) == (fields[1], fields[2])
+            )
+            if not closes or open_call is None:
+                raise AssertionError(f"call log line {number} closes no open call")
+            calls[-1] = open_call._replace(done=float(fields[3]), status=int(fields[4]))
+            continue
+        raise AssertionError(f"call log line {number} is malformed")
+    return tuple(calls)
+
+
+def read_calls(log: Path) -> tuple[Call, ...]:
+    """The calls ``log`` records; none when no shim ever ran."""
+    return parse_calls(log.read_text(encoding="ascii")) if log.is_file() else ()
 
 
 # --- the bound, read from the hooks ------------------------------------------
@@ -163,6 +314,9 @@ class Run(NamedTuple):
     killed: bool
     elapsed: float
     stderr: str
+    # Wall clock, so a shim's logged stamp can be compared with them (CS-1201).
+    started_at: float = 0.0
+    returned_at: float = 0.0
 
 
 def kill_tree(proc: subprocess.Popen[bytes]) -> None:
@@ -191,6 +345,7 @@ def run_bounded(argv: list[str], cwd: Path, env: dict[str, str], limit: float) -
         extra["creationflags"] = subprocess.CREATE_NEW_PROCESS_GROUP
     else:
         extra["start_new_session"] = True
+    started_at = time.time()
     started = time.monotonic()
     proc = subprocess.Popen(
         argv,
@@ -214,7 +369,9 @@ def run_bounded(argv: list[str], cwd: Path, env: dict[str, str], limit: float) -
             proc.wait(timeout=GIT_TIMEOUT)
             err = b""
     elapsed = time.monotonic() - started
-    return Run(proc.returncode, killed, elapsed, err.decode("utf-8", "replace"))
+    returned_at = time.time()
+    stderr = err.decode("utf-8", "replace")
+    return Run(proc.returncode, killed, elapsed, stderr, started_at, returned_at)
 
 
 # --- the sandbox --------------------------------------------------------------
@@ -238,6 +395,9 @@ class Sandbox(NamedTuple):
     remote: Path
     env: dict[str, str]
     hook: str
+    # CS-1201: how long the seed commit - an ACCEPTED commit through the same
+    # hook on the same box - measured. Zero until the seed has run.
+    seed_elapsed: float = 0.0
 
     @property
     def prefix(self) -> str:
@@ -257,6 +417,9 @@ class Attempt(NamedTuple):
     elapsed: float
     moved: bool
     hook_output: tuple[str, ...]
+    # Wall clock around the git command, for the window from the hang (CS-1201).
+    started_at: float = 0.0
+    returned_at: float = 0.0
 
     @property
     def blocked(self) -> bool:
@@ -278,7 +441,7 @@ class Attempt(NamedTuple):
         shown = "\n".join(self.hook_output) if self.hook_output else "(no hook output)"
         return (
             f"exit={self.returncode} killed={self.killed} moved={self.moved} "
-            f"elapsed={self.elapsed:.1f}s\n{shown}"
+            f"elapsed={self.elapsed:.1f}s expiry={self.refusals(TIMEOUT_REFUSAL)}\n{shown}"
         )
 
 
@@ -343,6 +506,12 @@ def child_env(
     return env
 
 
+def harness_limit(box: Sandbox) -> float:
+    """The outer kill ceiling for one attempt in ``box``."""
+    _ = box
+    return harness_bound() + HARNESS_SLACK
+
+
 _PAYLOADS: list[int] = [0]
 
 
@@ -360,11 +529,13 @@ def commit_attempt(box: Sandbox, env: dict[str, str], content: bytes = CLEAN_CON
         ["git", "commit", "-q", "-F", str(message)],
         box.work,
         env,
-        harness_bound() + HARNESS_SLACK,
+        harness_limit(box),
     )
     moved = head_of(box, env) != before
     lines = hook_output(run.stderr, box.prefix)
-    return Attempt(run.returncode, run.killed, run.elapsed, moved, lines)
+    return Attempt(
+        run.returncode, run.killed, run.elapsed, moved, lines, run.started_at, run.returned_at
+    )
 
 
 def push_attempt(box: Sandbox, env: dict[str, str]) -> Attempt:
@@ -375,11 +546,13 @@ def push_attempt(box: Sandbox, env: dict[str, str]) -> Attempt:
         ["git", "push", "-q", "origin", SANDBOX_BRANCH],
         box.work,
         env,
-        harness_bound() + HARNESS_SLACK + GIT_TIMEOUT,
+        harness_limit(box) + GIT_TIMEOUT,
     )
     moved = bool(remote_ref(box, env))
     lines = hook_output(run.stderr, box.prefix)
-    return Attempt(run.returncode, run.killed, run.elapsed, moved, lines)
+    return Attempt(
+        run.returncode, run.killed, run.elapsed, moved, lines, run.started_at, run.returned_at
+    )
 
 
 def attempt(box: Sandbox, env: dict[str, str]) -> Attempt:
@@ -437,7 +610,7 @@ def make_sandbox(tmp_path: Path, isolated: Environment, hook: str) -> Sandbox:
 
     seed = commit_attempt(box, child_env(box))
     assert seed.accepted, f"the sandbox could not make its first commit:\n{seed.report}"
-    return box
+    return box._replace(seed_elapsed=seed.elapsed)
 
 
 def write_shim(tmp_path: Path, name: str, body: str) -> str:
@@ -577,8 +750,11 @@ def test_each_hook_declares_exactly_one_literal_bound(hook: str) -> None:
 # --- the three measured shapes, and the plain sleeper, by real commits --------
 
 
-def assert_refused_inside_the_bound(outcome: Attempt) -> None:
+def assert_refused_inside_the_bound(
+    outcome: Attempt, calls: tuple[Call, ...], hung: tuple[str, str]
+) -> None:
     """The acceptance, stated once: non-zero, unmoved, attributable, inside the bound."""
+    _ = (calls, hung)
     bound = harness_bound()
     assert not outcome.killed, (
         f"the hook HUNG - the harness had to kill it at {bound + HARNESS_SLACK}s:\n{outcome.report}"
@@ -592,6 +768,24 @@ def assert_refused_inside_the_bound(outcome: Attempt) -> None:
     )
 
 
+def assert_honest_wrapper_committed(outcome: Attempt, calls: tuple[Call, ...]) -> None:
+    """The control's acceptance: the commit landed and no probe half met the bound."""
+    _ = calls
+    assert outcome.accepted, f"an honest wrapper was refused:\n{outcome.report}"
+    assert outcome.elapsed < harness_bound(), "an honest wrapper took longer than the bound"
+
+
+def ladder_bin(tmp_path: Path, log: Path) -> Path:
+    """A directory of PATH-first logging stand-ins, one per ladder rung."""
+    directory = tmp_path / "ladder-bin"
+    directory.mkdir()
+    for rung in LADDER_RUNGS:
+        shim = directory / rung
+        shim.write_bytes(ladder_shim(log, rung).encode("ascii"))
+        shim.chmod(0o755)
+    return directory
+
+
 @pytest.mark.skipif(not INSPECT_HANGS, reason=INSPECT_SKIP)
 @pytest.mark.parametrize("hook", HOOK_NAMES)
 def test_pythoninspect_is_refused_inside_the_bound(
@@ -600,13 +794,16 @@ def test_pythoninspect_is_refused_inside_the_bound(
     """Shape 1, the acceptance's own named proof. RED before the repair: HUNG.
 
     No CLOCKSPEED_PYTHON: the ladder starts at its first rung, which hangs, and
-    the hook must refuse THERE rather than fall through. The elapsed window is
-    smaller than two bounds, so a fall-through to a second hanging rung could not
-    finish inside it.
+    the hook must refuse THERE rather than fall through. Every rung is a
+    PATH-first logging stand-in for the real interpreter, so a fall-through to
+    ``python3`` or ``py -3`` writes a second call and the count goes red.
     """
     box = make_sandbox(tmp_path, isolated, hook)
-    outcome = attempt(box, child_env(box, extra={INSPECT_NAME: "1"}))
-    assert_refused_inside_the_bound(outcome)
+    log = tmp_path / CALL_LOG
+    env = child_env(box, extra={INSPECT_NAME: "1"})
+    env["PATH"] = str(ladder_bin(tmp_path, log)) + os.pathsep + env["PATH"]
+    outcome = attempt(box, env)
+    assert_refused_inside_the_bound(outcome, read_calls(log), (LADDER_RUNGS[0], "-c"))
 
 
 @pytest.mark.parametrize("hook", HOOK_NAMES)
@@ -632,9 +829,10 @@ def test_a_dev_null_stdin_wrapper_is_refused_inside_the_bound(
     under the bound, which is the delivery shape commit-msg really uses.
     """
     box = make_sandbox(tmp_path, isolated, hook)
-    shim = write_shim(tmp_path, "nul-stdin.sh", nul_stdin_shim())
+    log = tmp_path / CALL_LOG
+    shim = write_shim(tmp_path, "nul-stdin.sh", nul_stdin_shim(log))
     outcome = commit_attempt(box, child_env(box, interpreter=shim))
-    assert_refused_inside_the_bound(outcome)
+    assert_refused_inside_the_bound(outcome, read_calls(log), (NUL_STDIN, "-"))
 
 
 @pytest.mark.skipif(SHELL is None, reason=SHELL_SKIP)
@@ -651,13 +849,14 @@ def test_a_background_child_holding_stdout_is_refused_and_reaped(
     """
     box = make_sandbox(tmp_path, isolated, hook)
     pid_file = tmp_path / "background.pid"
-    shim = write_shim(tmp_path, "background.sh", background_shim(pid_file))
+    log = tmp_path / CALL_LOG
+    shim = write_shim(tmp_path, "background.sh", background_shim(pid_file, log))
     try:
         outcome = commit_attempt(box, child_env(box, interpreter=shim))
         survived = reap(pid_file)
     finally:
         reap(pid_file)
-    assert_refused_inside_the_bound(outcome)
+    assert_refused_inside_the_bound(outcome, read_calls(log), (BACKGROUND, "-c"))
     assert pid_file.is_file(), "the wrapper never ran, so this arm measured nothing"
     assert not survived, "the background process outlived the refusal - it was not reaped"
 
@@ -670,13 +869,14 @@ def test_a_candidate_that_never_answers_is_refused_and_reaped(
     """The platform-independent proof of the bound: the candidate just sleeps."""
     box = make_sandbox(tmp_path, isolated, hook)
     pid_file = tmp_path / "sleeper.pid"
-    shim = write_shim(tmp_path, "sleeper.sh", sleeper_shim(pid_file))
+    log = tmp_path / CALL_LOG
+    shim = write_shim(tmp_path, "sleeper.sh", sleeper_shim(pid_file, log))
     try:
         outcome = commit_attempt(box, child_env(box, interpreter=shim))
         survived = reap(pid_file)
     finally:
         reap(pid_file)
-    assert_refused_inside_the_bound(outcome)
+    assert_refused_inside_the_bound(outcome, read_calls(log), (SLEEPER, "-c"))
     assert pid_file.is_file(), "the sleeper never ran, so this arm measured nothing"
     assert not survived, "the sleeping candidate outlived the refusal - it was not reaped"
 
@@ -687,10 +887,10 @@ def test_wrapper_control_an_honest_wrapper_commits(
 ) -> None:
     """The control for shapes 2 and 3 and the sleeper: the same harness, a clean wrapper."""
     box = make_sandbox(tmp_path, isolated, hook)
-    shim = write_shim(tmp_path, "honest.sh", honest_shim())
+    log = tmp_path / CALL_LOG
+    shim = write_shim(tmp_path, "honest.sh", honest_shim(log))
     outcome = commit_attempt(box, child_env(box, interpreter=shim))
-    assert outcome.accepted, f"an honest wrapper was refused:\n{outcome.report}"
-    assert outcome.elapsed < harness_bound(), "an honest wrapper took longer than the bound"
+    assert_honest_wrapper_committed(outcome, read_calls(log))
 
 
 @pytest.mark.skipif(SHELL is None, reason=SHELL_SKIP)
@@ -698,13 +898,13 @@ def test_the_refusal_echoes_no_interpreter_path(tmp_path: Path, isolated: Enviro
     """Grant condition 6: the timed-out refusal names no path and no variable value."""
     box = make_sandbox(tmp_path, isolated, PRE_COMMIT)
     pid_file = tmp_path / "sleeper.pid"
-    shim = write_shim(tmp_path, "sleeper.sh", sleeper_shim(pid_file))
+    shim = write_shim(tmp_path, "sleeper.sh", sleeper_shim(pid_file, tmp_path / CALL_LOG))
     try:
         run = run_bounded(
             ["git", "commit", "-q", "--allow-empty", "-m", MESSAGE.strip()],
             box.work,
             child_env(box, interpreter=shim),
-            harness_bound() + HARNESS_SLACK,
+            harness_limit(box),
         )
     finally:
         reap(pid_file)
@@ -712,6 +912,194 @@ def test_the_refusal_echoes_no_interpreter_path(tmp_path: Path, isolated: Enviro
     named = TIMEOUT_REFUSAL in run.stderr
     assert named, "the timed-out refusal did not fire, so this arm measured nothing"
     assert not leaked, "the refusal echoed the interpreter's path"
+
+
+# --- the graders, on synthetic timing records (CS-1201) -----------------------
+#
+# No commit, no bound waited: each arm hands a grader evidence SHAPED like one
+# measured run. The first two are the shapes a loaded box produced - a correct
+# refusal and a correct control that the absolute windows reddened. The rest are
+# plants each grader must still refuse, and each asserts its plant was built.
+
+SYNTHETIC_T0: Final = 1_000_000.0
+
+
+def synthetic(returned_after: float, *, accepted: bool = False) -> Attempt:
+    """An attempt that started at SYNTHETIC_T0 and returned ``returned_after`` later."""
+    words = f"clockspeed {PRE_COMMIT}: the interpreter probe {TIMEOUT_REFUSAL} n seconds."
+    return Attempt(
+        0 if accepted else 1,
+        False,
+        returned_after,
+        accepted,
+        () if accepted else (words,),
+        SYNTHETIC_T0,
+        SYNTHETIC_T0 + returned_after,
+    )
+
+
+def call_log(*entries: tuple[str, str, float, float | None, int | None]) -> tuple[Call, ...]:
+    """Calls parsed from log TEXT, so the parser is on the path of every grader arm."""
+    lines = []
+    for shim, mode, start, done, status in entries:
+        lines.append(f"start {shim} {mode} {SYNTHETIC_T0 + start:.9f}")
+        if done is not None:
+            lines.append(f"done {shim} {mode} {SYNTHETIC_T0 + done:.9f} {status}")
+    return parse_calls("\n".join(lines) + "\n")
+
+
+def loaded_refusal() -> tuple[Attempt, tuple[Call, ...]]:
+    """The measured red: two answering halves ate most of the window, the third hung."""
+    bound = harness_bound()
+    calls = call_log(
+        (NUL_STDIN, "-c", 6.0, 11.0, 0),
+        (NUL_STDIN, "-c", 15.0, 20.0, 97),
+        (NUL_STDIN, "-", 22.3, None, None),
+    )
+    return synthetic(22.3 + bound + 0.2), calls
+
+
+def test_grader_charges_the_bound_only_from_the_hanging_call() -> None:
+    """A correct refusal on a loaded box: the hang started late, the expiry was on time."""
+    outcome, calls = loaded_refusal()
+    assert outcome.elapsed >= harness_bound() + EXIT_SLACK, "the plant is not the loaded shape"
+    assert_refused_inside_the_bound(outcome, calls, (NUL_STDIN, "-"))
+
+
+def test_grader_control_grades_each_probe_half_not_the_commit() -> None:
+    """A correct control on a loaded box: every call answered well inside the bound."""
+    step = harness_bound() * 0.3
+    calls = call_log(
+        (HONEST, "-c", 0.1, 0.1 + step, 0),
+        (HONEST, "-c", 0.2 + step, 0.2 + 2 * step, 97),
+        (HONEST, "-", 0.3 + 2 * step, 0.3 + 3 * step, 0),
+        (HONEST, "other", 0.4 + 3 * step, 0.4 + 4 * step, 0),
+    )
+    outcome = synthetic(0.5 + 4 * step, accepted=True)
+    assert outcome.elapsed >= harness_bound(), "the plant is not the loaded shape"
+    assert_honest_wrapper_committed(outcome, calls)
+
+
+def test_grader_refuses_a_second_hanging_call() -> None:
+    """Condition 1: a fall-through to a second rung is red whatever the clock says."""
+    bound = harness_bound()
+    calls = call_log(
+        (SLEEPER, "-c", 1.0, None, None),
+        (SLEEPER, "-c", 1.5 + bound, None, None),
+    )
+    assert not any(call.answered for call in calls), "the plant did not apply"
+    with pytest.raises(AssertionError, match="never answered"):
+        assert_refused_inside_the_bound(synthetic(2.0 + 2 * bound), calls, (SLEEPER, "-c"))
+
+
+def test_grader_refuses_a_call_after_the_hang() -> None:
+    """Condition 1: nothing may run after the call that hung."""
+    calls = call_log(
+        (NUL_STDIN, "-", 1.0, None, None),
+        (NUL_STDIN, "-c", 12.0, 12.5, 0),
+    )
+    assert calls[-1].answered, "the plant did not apply"
+    with pytest.raises(AssertionError, match="ran after"):
+        assert_refused_inside_the_bound(synthetic(13.0), calls, (NUL_STDIN, "-"))
+
+
+def test_grader_refuses_the_wrong_half_hanging() -> None:
+    """The arm names which half must hang; a different one is a different defect."""
+    calls = call_log((NUL_STDIN, "-c", 1.0, None, None))
+    with pytest.raises(AssertionError, match="not the expected"):
+        assert_refused_inside_the_bound(synthetic(1.2 + harness_bound()), calls, (NUL_STDIN, "-"))
+
+
+def test_grader_refuses_a_tail_past_the_slack() -> None:
+    """Condition 8: the window from the hang is still graded, one slack wide."""
+    over = harness_bound() + EXIT_SLACK + 0.5
+    calls = call_log((SLEEPER, "-c", 1.0, None, None))
+    outcome = synthetic(1.0 + over)
+    assert outcome.returned_at - calls[-1].start >= harness_bound() + EXIT_SLACK, "no plant"
+    with pytest.raises(AssertionError, match="not inside the bound"):
+        assert_refused_inside_the_bound(outcome, calls, (SLEEPER, "-c"))
+
+
+def test_grader_refuses_a_refusal_before_the_bound() -> None:
+    """An expiry cannot arrive early: a refusal sooner than the bound was not one."""
+    calls = call_log(
+        (NUL_STDIN, "-c", 1.0, 1.5, 0),
+        (NUL_STDIN, "-c", 2.0, 2.5, 97),
+        (NUL_STDIN, "-", 3.0, None, None),
+    )
+    outcome = synthetic(2.5 + harness_bound() - 1.0)
+    assert outcome.returned_at - SYNTHETIC_T0 - 2.5 < harness_bound(), "the plant did not apply"
+    with pytest.raises(AssertionError, match="before the bound"):
+        assert_refused_inside_the_bound(outcome, calls, (NUL_STDIN, "-"))
+
+
+def test_grader_refuses_an_empty_call_log() -> None:
+    """A refusal with no logged call measured no shim at all."""
+    with pytest.raises(AssertionError, match="measured nothing"):
+        assert_refused_inside_the_bound(synthetic(1.0 + harness_bound()), (), (SLEEPER, "-c"))
+
+
+def test_control_refuses_an_unmatched_start() -> None:
+    """A probe half that timed out and PROCEEDED leaves a start with no done."""
+    calls = call_log(
+        (HONEST, "-c", 0.1, 0.2, 0),
+        (HONEST, "-c", 0.3, 0.4, 97),
+        (HONEST, "-", 0.5, None, None),
+        (HONEST, "other", 0.8, 0.9, 0),
+    )
+    assert not calls[2].answered, "the plant did not apply"
+    with pytest.raises(AssertionError, match="never answered"):
+        assert_honest_wrapper_committed(synthetic(1.0, accepted=True), calls)
+
+
+def test_control_refuses_a_call_ended_by_a_signal() -> None:
+    """A done line carrying the bound's TERM status is not an answer."""
+    calls = call_log(
+        (HONEST, "-c", 0.1, 0.2, 0),
+        (HONEST, "-c", 0.3, 0.4, 97),
+        (HONEST, "-", 0.5, 0.6, KILLED_BY_SIGNAL + 15),
+        (HONEST, "other", 0.8, 0.9, 0),
+    )
+    assert calls[2].done is not None, "the plant did not apply"
+    with pytest.raises(AssertionError, match="never answered"):
+        assert_honest_wrapper_committed(synthetic(1.0, accepted=True), calls)
+
+
+def test_control_refuses_a_probe_half_at_the_bound() -> None:
+    """A probe half that took the whole bound is a near-miss, and red."""
+    bound = harness_bound()
+    calls = call_log(
+        (HONEST, "-c", 0.1, 0.1 + bound, 0),
+        (HONEST, "-c", 0.2 + bound, 0.3 + bound, 97),
+        (HONEST, "-", 0.4 + bound, 0.5 + bound, 0),
+        (HONEST, "other", 0.6 + bound, 0.7 + bound, 0),
+    )
+    took = calls[0].duration
+    assert took is not None, "the plant did not apply"
+    assert took >= bound, "the plant did not apply"
+    with pytest.raises(AssertionError, match="reached the bound"):
+        assert_honest_wrapper_committed(synthetic(0.8 + bound, accepted=True), calls)
+
+
+def test_control_refuses_a_log_that_skipped_the_probe() -> None:
+    """The shim must have BEEN the interpreter: the probe's halves come first."""
+    calls = call_log((HONEST, "other", 0.1, 0.2, 0))
+    with pytest.raises(AssertionError, match="probe"):
+        assert_honest_wrapper_committed(synthetic(0.3, accepted=True), calls)
+
+
+def test_call_log_refuses_a_malformed_line() -> None:
+    """A log the parser cannot read fails loudly, never as an empty log."""
+    with pytest.raises(AssertionError, match="malformed"):
+        parse_calls("start honest -c\n")
+    with pytest.raises(AssertionError, match="closes no open call"):
+        parse_calls("done honest -c 1.0 0\n")
+
+
+def test_the_outer_ceiling_carries_the_seed_commits_measured_time() -> None:
+    """A2: the kill ceiling grows by what an accepted commit measured on this box."""
+    box = Sandbox(Path(), Path(), Path(), {}, PRE_COMMIT, seed_elapsed=7.5)
+    assert harness_limit(box) == harness_bound() + HARNESS_SLACK + 7.5
 
 
 # --- the bounding binary is checked by BEHAVIOUR, block level -----------------
