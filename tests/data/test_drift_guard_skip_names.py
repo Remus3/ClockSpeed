@@ -1204,3 +1204,327 @@ def test_guard_c_counts_every_withheld_entry_under_its_own_heading(
         assert present, f"guard (c) lost a withheld group heading ({headings.index(heading)})"
         after = detail[detail.index(heading) + 1]
         assert after == group, f"group {headings.index(heading)} does not carry the count 2"
+
+
+# --- CS-1210: guard_dated's own detail lines ------------------------------
+#
+# The CS-1195 leak one guard over. guard_dated rendered `_rel(root, path)`
+# with no classification in its heading records (both families, the
+# historical-in-live list and the unclassified list), its undeclared list,
+# its NOT READ lines and its unlisted-directory lines. Each render site is a
+# KIND below with its own plant, so a bypass at any one site reddens that kind
+# alone. A withheld path drops its heading TEXT with its name - a heading can
+# carry a leaf. Every arm also runs a TWIN tree, the same plants beneath an
+# ordinary directory, and asserts the verdict and the counts do not move.
+
+WITHHELD_HEAD = "zz1210head"
+CONTROL_HEAD = "zz1210hctl"
+CONTROL_STEM = "zz1210ctl"
+WITHHELD_PARENT = "CORPUS"
+TWIN_PARENT = "zz1210twin"
+REFUSED_READ = "synthetic refusal"
+
+#: kind -> (the file's declaration or None, the heading with `{token}` in it).
+DATED_FILE_KINDS: dict[str, tuple[str | None, str]] = {
+    "status": ("HISTORICAL", "## 2031-02-03 {token}"),
+    "provenance": ("LIVE", "## Notes - filed 2031-02-03 {token}"),
+    "historical_in_live": ("LIVE", "## 2031-02-03 {token}"),
+    "unclassified": ("LIVE", "## {token} sits 2031-02-03"),
+    "undeclared": (None, "## Notes - filed 2031-02-03 {token}"),
+}
+DATED_KINDS = (*DATED_FILE_KINDS, "unread", "unlisted")
+#: The kinds that decide guard_dated's verdict on their own.
+DATED_VERDICT_KINDS = ("historical_in_live", "unclassified", "undeclared", "unread", "unlisted")
+
+
+def _dated_group_heading(kind: str) -> str:
+    """The detail line each kind's group follows, by prefix."""
+    return {
+        "status": f"{drift_guard.STATUS_DATE} dates (",
+        "provenance": f"{drift_guard.PROVENANCE_DATE} dates (",
+        "historical_in_live": f"DRIFT - a {drift_guard.STATUS_DATE} date inside",
+        "unclassified": "DRIFT - dated headings in an idiom",
+        "undeclared": "DRIFT - files carrying dated headings",
+        "unread": "NOT READ - its headings were never classified, under a withheld reason:",
+        "unlisted": f"{drift_guard.UNLISTED_CONSEQUENCE}, under a withheld reason:",
+    }[kind]
+
+
+def _group_block(detail: list[str], prefix: str) -> list[str]:
+    """The indented lines under the first detail line starting ``prefix``."""
+    starts = [index for index, line in enumerate(detail) if line.startswith(prefix)]
+    assert starts, f"no detail line opens the group ({prefix[:24]})"
+    block: list[str] = []
+    for line in detail[starts[0] + 1 :]:
+        if not line.startswith(" "):
+            break
+        block.append(line)
+    return block
+
+
+def _plant_dated(root: Path, stem: str, kind: str, token: str) -> Path:
+    """One entry of ``kind`` at ``stem``: a directory, or `stem.md` carrying a dated heading."""
+    if kind == "unlisted":
+        path = root / stem
+        path.mkdir(parents=True)
+        return path
+    declaration, heading = DATED_FILE_KINDS.get(kind, ("LIVE", "## Notes {token}"))
+    header = "" if declaration is None else f"**Section status: {declaration}**\n\n"
+    path = root / f"{stem}.md"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    body = f"# zz title\n\n{header}{heading.format(token=token)}\n\nbody\n"
+    path.write_bytes(body.encode("ascii"))
+    return path
+
+
+def _refuse_reads(monkeypatch: pytest.MonkeyPatch, refused: set[Path]) -> None:
+    """Make ``read_text`` refuse exactly ``refused``, so the guard's own read path runs."""
+    original: Callable[..., str] = Path.read_text
+
+    def _read_text(self: Path, *args: Any, **kwargs: Any) -> str:
+        if self in refused:
+            raise PermissionError(13, REFUSED_READ)
+        return original(self, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "read_text", _read_text)
+
+
+def _run_dated(
+    root: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    entries: list[tuple[str, str, str]],
+    gitignore: bytes | None = None,
+) -> dict[str, Any]:
+    """Plant (stem, kind, heading token) entries under ``root`` and run guard_dated."""
+    root.mkdir(parents=True)
+    ignore = (REPO_ROOT / ".gitignore").read_bytes() if gitignore is None else gitignore
+    (root / ".gitignore").write_bytes(ignore)
+    files = [_plant_dated(root, stem, kind, token) for stem, kind, token in entries]
+    kinds = [kind for _stem, kind, _token in entries]
+    refused = {path for path, kind in zip(files, kinds, strict=True) if kind == "unread"}
+    with monkeypatch.context() as patch:
+        _refuse_reads(patch, refused)
+        guard, _skips = drift_guard.guard_dated(root, files)
+    record: dict[str, Any] = dict(guard)
+    return record
+
+
+def _dated_counts(detail: list[str]) -> list[str]:
+    """The count lines guard_dated derives - they must not move for a withheld path."""
+    prefixes = (
+        "markdown files scanned:",
+        f"{drift_guard.STATUS_DATE} dates (",
+        f"{drift_guard.PROVENANCE_DATE} dates (",
+    )
+    return [line for line in detail if line.startswith(prefixes)]
+
+
+def _withheld_and_twin(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    kind: str,
+    leaves: list[str],
+    extra: list[tuple[str, str, str]],
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    """Run ``leaves`` of ``kind`` beneath the withheld parent, and again beneath a twin."""
+    guards = []
+    for tree, parent in (("withheld", WITHHELD_PARENT), ("twin", TWIN_PARENT)):
+        entries = [(f"{parent}/{leaf}", kind, WITHHELD_HEAD) for leaf in leaves]
+        guards.append(_run_dated(tmp_path / tree, monkeypatch, [*entries, *extra]))
+    return guards[0], guards[1]
+
+
+def _assert_twin_verdict(withheld: dict[str, Any], twin: dict[str, Any]) -> None:
+    assert withheld["status"] == twin["status"], (
+        f"the verdict moved: {withheld['status']} withheld, {twin['status']} ordinary"
+    )
+    same_counts = _dated_counts(withheld["detail"]) == _dated_counts(twin["detail"])
+    assert same_counts, "a count line moved when the path was withheld"
+
+
+@pytest.mark.parametrize("kind", DATED_KINDS)
+def test_guard_dated_withholds_each_render_site_and_names_the_control(
+    kind: str, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Each render site alone: the withheld entry is counted, the control still named.
+
+    The heading token is asserted absent too - the heading TEXT of a withheld
+    path is dropped with its name. The twin run proves the verdict and the
+    count lines are those of the same entry beneath an ordinary directory.
+    """
+    control = [(CONTROL_STEM, kind, CONTROL_HEAD)]
+    guard, twin = _withheld_and_twin(tmp_path, monkeypatch, kind, ["zz1210w"], control)
+
+    detail: list[str] = guard["detail"]
+    joined = "\n".join(detail)
+    leaked = _leaks(joined, ["zz1210w", WITHHELD_HEAD])
+    assert leaked == 0, f"guard_dated named {leaked} token(s) of a withheld {kind} entry"
+    reason = drift_guard.WALK_SKIP_ROOT_PATHS[WITHHELD_PARENT.lower()]
+    prefix = _dated_group_heading(kind)
+    block = [line.strip() for line in _group_block(detail, prefix)]
+    assert f"{reason}  (1)" in block, f"the withheld {kind} entry was not counted in its group"
+    assert drift_guard.WITHHELD_MARKER in block, f"the {kind} group carries no withheld marker"
+    assert _leaks(joined, [CONTROL_STEM]) == 1, f"control: an ordinary {kind} entry is not named"
+    if kind in DATED_FILE_KINDS:
+        assert _leaks(joined, [CONTROL_HEAD]) == 1, "control: an ordinary heading is not named"
+    _assert_twin_verdict(guard, twin)
+
+
+@pytest.mark.parametrize("kind", DATED_VERDICT_KINDS)
+def test_guard_dated_keeps_its_verdict_when_its_only_finding_is_withheld(
+    kind: str, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """No control finding: the withheld entry alone must keep guard_dated off PASS."""
+    clean = [("zz1210top", "clean", CONTROL_HEAD)]
+    guard, twin = _withheld_and_twin(tmp_path, monkeypatch, kind, ["zz1210w"], clean)
+
+    leaked = _leaks("\n".join(guard["detail"]), ["zz1210w", WITHHELD_HEAD])
+    assert leaked == 0, f"guard_dated named {leaked} token(s) of its only, withheld finding"
+    assert twin["status"] != "PASS", f"control: an ordinary {kind} entry alone passed"
+    _assert_twin_verdict(guard, twin)
+
+
+@pytest.mark.parametrize("kind", DATED_KINDS)
+def test_guard_dated_counts_two_withheld_entries_as_two(
+    kind: str, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """TWO withheld entries of one kind under one reason: the count is 2, never capped."""
+    leaves = ["zz1210w1", "zz1210w2"]
+    guard, twin = _withheld_and_twin(tmp_path, monkeypatch, kind, leaves, [])
+
+    detail: list[str] = guard["detail"]
+    leaked = _leaks("\n".join(detail), ["zz1210w", WITHHELD_HEAD])
+    assert leaked == 0, f"guard_dated named {leaked} token(s) of two withheld {kind} entries"
+    reason = drift_guard.WALK_SKIP_ROOT_PATHS[WITHHELD_PARENT.lower()]
+    block = [line.strip() for line in _group_block(detail, _dated_group_heading(kind))]
+    assert block[:1] == [f"{reason}  ({len(leaves)})"], f"the {kind} group does not count 2"
+    _assert_twin_verdict(guard, twin)
+
+
+# A `.gitignore` PII-BEARING section of DIRECTORY-ONLY patterns no table
+# carries, so only the directory reading decides: one names a directory a
+# markdown file sits BENEATH, one a directory handed to the reader, and two
+# name directories whose spelling a plain markdown FILE also has - and a file
+# is not the directory (ADR 0023 rule 5).
+DATED_DIR_ONLY_PARENT = "zz1210dironly"
+DATED_DIR_ONLY_LISTED = "zz1210dirlisted"
+DATED_DIR_ONLY_FILE = "zz1210dirfile"
+DATED_DIR_ONLY_UNREAD = "zz1210dirunread"
+
+
+def _dated_dir_only_gitignore() -> bytes:
+    patterns = "".join(
+        f"/{name}/\n"
+        for name in (
+            DATED_DIR_ONLY_PARENT,
+            DATED_DIR_ONLY_LISTED,
+            f"{DATED_DIR_ONLY_FILE}.md",
+            f"{DATED_DIR_ONLY_UNREAD}.md",
+        )
+    )
+    return f"# ====\n# PII-BEARING - synthetic\n# ====\n{patterns}".encode("ascii")
+
+
+def test_guard_dated_withholds_entries_a_dir_only_pattern_names(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Beneath a dir-only directory, and a handed directory a dir-only pattern names."""
+    entries = [
+        (f"{DATED_DIR_ONLY_PARENT}/zz1210in", "unclassified", WITHHELD_HEAD),
+        (DATED_DIR_ONLY_LISTED, "unlisted", WITHHELD_HEAD),
+    ]
+
+    guard = _run_dated(tmp_path / "tree", monkeypatch, entries, _dated_dir_only_gitignore())
+
+    detail: list[str] = guard["detail"]
+    tokens = [DATED_DIR_ONLY_PARENT, DATED_DIR_ONLY_LISTED, "zz1210in", WITHHELD_HEAD]
+    leaked = _leaks("\n".join(detail), tokens)
+    assert leaked == 0, f"guard_dated named {leaked} token(s) a dir-only PII pattern withholds"
+    assert guard["status"] == "FAIL", f"guard_dated is {guard['status']}, not FAIL"
+    for kind in ("unclassified", "unlisted"):
+        block = [line.strip() for line in _group_block(detail, _dated_group_heading(kind))]
+        expected = f"{drift_guard.GITIGNORE_PII_REASON}  (1)"
+        assert expected in block, f"the withheld {kind} entry was not counted"
+
+
+def test_guard_dated_names_a_plain_file_spelt_like_a_dir_only_pattern(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Neither a heading-bearing FILE nor a NOT READ FILE is read as a directory."""
+    entries = [
+        (DATED_DIR_ONLY_FILE, "unclassified", CONTROL_HEAD),
+        (DATED_DIR_ONLY_UNREAD, "unread", CONTROL_HEAD),
+    ]
+
+    guard = _run_dated(tmp_path / "tree", monkeypatch, entries, _dated_dir_only_gitignore())
+
+    detail = [line.strip() for line in guard["detail"]]
+    record = f"{DATED_DIR_ONLY_FILE}.md:5  ## {CONTROL_HEAD} sits 2031-02-03"
+    named_record = sum(1 for line in detail if line == record)
+    named_unread = sum(1 for line in detail if line.startswith(f"{DATED_DIR_ONLY_UNREAD}.md NOT"))
+    assert named_record == 1, "a plain heading-bearing FILE was withheld as a directory"
+    assert named_unread == 1, "a plain NOT READ FILE was withheld as a directory"
+    assert _withheld_group_total(guard["detail"]) == 0, "a plain file was counted as withheld"
+
+
+@pytest.mark.parametrize("ignorecase", ["false", "true"])
+def test_guard_dated_withholds_a_tracked_upper_case_key_file_under_either_git_case(
+    ignorecase: str,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """The acceptance arm: `.ENV.MD` git TRACKS, with case kept and with case folded.
+
+    Under core.ignorecase false `.gitignore`'s `.env.*` misses `.ENV.MD` and a
+    plain `git add` admits it; under true it is ignored, so it is force-added.
+    Either way git lists it, guard_dated reads it, and its dated heading made
+    the heading record print its path and its heading text.
+    """
+    root = tmp_path / "tree"
+    if not _real_gitignore_repo(root, monkeypatch):
+        pytest.skip("git is not installed, so its answer cannot be asked")
+    from tests import conftest  # noqa: PLC0415 - the one git runner the suite owns
+
+    proc = conftest.run_git(root, "config", "core.ignorecase", ignorecase)
+    assert proc is not None
+    assert proc.returncode == 0, "control: core.ignorecase did not set"
+    key_dir = "zz1210key"
+    (root / key_dir).mkdir()
+    (root / key_dir / ".ENV.MD").write_bytes(
+        f"# zz\n\n**Section status: LIVE**\n\n## {WITHHELD_HEAD} sits 2031-02-03\n".encode("ascii")
+    )
+    (root / key_dir / "keep.md").write_text("# kept\n", encoding="utf-8")
+    _plant_dated(root, CONTROL_STEM, "unclassified", CONTROL_HEAD)
+    (root / "top.md").write_text("# clean\n", encoding="utf-8")
+    plain = [f"{key_dir}/keep.md", f"{CONTROL_STEM}.md", "top.md", ".gitignore"]
+    key = [f"{key_dir}/.ENV.MD"]
+    staged = [*plain, *key] if ignorecase == "false" else plain
+    added = conftest.run_git(root, "add", "--", *staged)
+    assert added is not None
+    assert added.returncode == 0, "control: git refused to stage the plants without -f"
+    if ignorecase == "true":
+        forced = conftest.run_git(root, "add", "-f", "--", *key)
+        assert forced is not None
+        assert forced.returncode == 0, "control: git refused to force-add the key file"
+    listed = conftest.run_git(root, "ls-files", "-z")
+    assert listed is not None
+    tracked = listed.stdout.decode("utf-8").split("\0")
+    assert key[0] in tracked, "control: git does not track the key file"
+    _point_at(monkeypatch, root, tmp_path)
+
+    text = _run(capsys)
+    raw = _run(capsys, "--json")
+    report: dict[str, Any] = json.loads(raw)
+
+    assert report["enumeration"].startswith("git ls-files"), "control: git did not enumerate"
+    matches = [guard for guard in report["guards"] if guard["name"] == "dated sections"]
+    assert len(matches) == 1, f"control: {len(matches)} guard_dated record(s) in the payload"
+    guard = matches[0]
+    assert guard["status"] == "FAIL", f"guard_dated is {guard['status']}, not FAIL"
+    leaked = _leaks(text, [key_dir, WITHHELD_HEAD]) + _leaks(raw, [key_dir, WITHHELD_HEAD])
+    assert leaked == 0, f"{leaked} surface(s) named the tracked withheld-class markdown file"
+    reason = drift_guard.WALK_SKIP_FILE_PATTERNS[".env.*"]
+    block = [line.strip() for line in _group_block(guard["detail"], "DRIFT - dated headings")]
+    assert f"{reason}  (1)" in block, "guard_dated did not count the withheld heading record"
+    assert _leaks(text, [CONTROL_HEAD]) == 1, "control: an ordinary dated heading is not named"
