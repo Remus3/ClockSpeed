@@ -107,8 +107,9 @@ EXPECTED_BUDGET_UNMET = ("tests (guard shard)",)
 #: floor because it is NEW - the hook shard, added by the wave-3 CI route
 #: ruling's route (A). Two-way: a listed job the workflow does not declare is
 #: red, and a listed job that has reached the floor is red, which forces this
-#: literal down at the refresh that records its fifth green reading.
-EXPECTED_PENDING_READINGS = ("tests (hook shard)",)
+#: literal down at the refresh that records its fifth green reading. The fill
+#: shard joined it with CS-1198, by the same rule.
+EXPECTED_PENDING_READINGS = ("tests (hook shard)", "tests (fill shard)")
 
 #: A synthetic second job for the pending arms, beside `_FLAT_JOBS`.
 _NEW_JOB = "a new job"
