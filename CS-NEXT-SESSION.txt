@@ -24,11 +24,11 @@ STATE OF THE TREE
 
 HEAD / remote   the session-115 /done commit. Confirm `git rev-parse HEAD` equals
                 `git ls-remote origin main` - a blocked push reports exit 0.
-CI              READ IT FIRST, with the FULL SHA: `gh run list --commit <full sha>`.
-                Last READ green: 30d3800 (all four jobs). NOT YET READ: 20b23c2 (the
-                CS-814 landing) and the /done tip. The ubuntu real-commit arm of
-                tests/test_probe_refusal_output.py is NOT RUN on Windows - it is only
-                claimed once CI at a tip carrying it is read green. If red, item one.
+CI              RED. Run 36213463506 at 20b23c2 (the CS-814 landing): guard shard
+                FAILED on ONE arm - test_hook_env_echo.py [pre-commit-under-
+                pythoninspect] did not reach its path on ubuntu (0 canaries). The
+                other three jobs passed. The /done tip will carry the same red.
+                That is CS-1209 and it is ITEM ONE. Last fully green: 30d3800.
 working tree    CLEAN at the /done commit.
 worktrees       this session's landed trees were removed. .claude/worktrees/
                 agent-a3c959f555e19f86f is LOCKED (a finished CS-814 builder; its
@@ -54,7 +54,10 @@ CS-1199  repaired (already closed): the control arm's plant now leads the child 
 THE SINGLE NEXT ACTION
 ================================================================================
 
-Read CI on the /done tip. If green, take CS-1195 (tier 1). If the operator has said
+FIX CS-1209 FIRST: measure on ubuntu (CI, or a Linux shell if one exists) what
+pre-commit does under PYTHONINSPECT=1, then make the arm reach a measured path
+or skip with a measured reason like test_hook_probe_bound.py's INSPECT_SKIP.
+Read CI green at the pushed tip. Then take CS-1195 (tier 1). If the operator has said
 whether the desktop app SHOWS the "REFUSED (CS-815)" hook-error line, record it in
 docs/LEDGER.md and close CS-815 (shown) or rebuild on the exit-0 JSON systemMessage
 route (not shown). Do NOT ask them for it - they volunteer it or it waits.
@@ -64,6 +67,7 @@ OPEN PHASE 7 ITEMS, PRIORITY ORDER (acceptance: docs/item_notes/phase7.md)
 ================================================================================
 
  1 CS-815   LANDED, one operator look owed (see above). Nothing else to do.
+ 1b CS-1209 the tier-1 guard shard is RED on ubuntu - see THE SINGLE NEXT ACTION.
  2 CS-1195  on Linux drift_guard guard (c) can print a key file's path. Tier 1.
  3 CS-1201  tests/test_hook_probe_bound.py elapsed-time arms go red under load and
             block a push; green alone.
