@@ -1252,8 +1252,8 @@ dispatch order; the save shard's next CI reading does not rise as a result.
 
 ### Full headline
 
-the save shard's named-first arm asserts a dispatch order that pytest-xdist 3.8 reorders
-away
+the save shard's named-first arm in `tests/test_tier1_budget.py` asserts a dispatch order
+that pytest-xdist 3.8 reorders away
 
 ### FILED 2026-09-26, the CS-1198 re-ruling's second finding (session 116)
 
