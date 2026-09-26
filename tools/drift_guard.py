@@ -668,6 +668,41 @@ def _git_ls_files(root: Path) -> list[str]:
     return [entry for entry in (proc.stdout or "").split("\x00") if entry]
 
 
+#: The index mode git records for a gitlink - a submodule's directory entry.
+GITLINK_MODE = "160000"
+
+
+def _git_gitlinks(root: Path) -> frozenset[str] | None:
+    """The index entries of ``root`` that are gitlinks, or None when git cannot say.
+
+    CS-1195. A gitlink is a DIRECTORY entry, and a skip record for one must say
+    so, or the render seam cannot tell it from a plain file of the same name.
+    None, not an empty set, on any failure: the caller then reads every entry
+    it asked about as a directory, which can only withhold more (fails closed).
+    """
+    git = resolve_tool(GIT_NAME)
+    if git is None:
+        return None
+    try:
+        proc = subprocess.run(
+            [git, "-C", str(root), "ls-files", "-s", "-z"],
+            capture_output=True,
+            text=True,
+            timeout=30,
+            check=False,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return None
+    if proc.returncode != 0:
+        return None
+    links: set[str] = set()
+    for entry in (proc.stdout or "").split("\x00"):
+        meta, tab, relative = entry.partition("\t")
+        if tab and meta.split(" ", 1)[0] == GITLINK_MODE:
+            links.add(relative)
+    return frozenset(links)
+
+
 def _is_checkout_root(path: Path) -> bool:
     """True when ``path`` is the root of a checkout of its own.
 
@@ -1152,6 +1187,7 @@ def enumerate_files(root: Path) -> tuple[list[Path], str, list[Skip]]:
     tracked = _git_ls_files(root)
     if tracked:
         files = []
+        missing: list[str] = []
         for relative in tracked:
             path = root / relative
             if path.is_file() or (_lstat_answers(path) and not path.is_dir()):
@@ -1160,7 +1196,15 @@ def enumerate_files(root: Path) -> tuple[list[Path], str, list[Skip]]:
                 # reader ever met it; the readers now name it NOT READ.
                 files.append(path)
             else:
-                skips.append({"path": relative, "reason": "in the git index but not on disk"})
+                missing.append(relative)
+        # CS-1195 - a DIRECTORY entry carries a trailing slash, as the walk's
+        # do, so the render seam reads it as the directory shape it is and a
+        # plain file of the same name as the file it is (ADR 0023 rule 5).
+        gitlinks = _git_gitlinks(root) if missing else frozenset()
+        for relative in missing:
+            directory = gitlinks is None or relative in gitlinks or (root / relative).is_dir()
+            path_text = relative + "/" if directory else relative
+            skips.append({"path": path_text, "reason": "in the git index but not on disk"})
         return files, f"git ls-files ({len(tracked)} entries)", skips
 
     files, walk_skips = _walk(root)
@@ -1272,18 +1316,18 @@ def _ascii_violations(path: Path) -> tuple[list[str], str]:
 
 
 def _partition_paths(
-    paths: list[str], pii_patterns: tuple[str, ...]
+    paths: list[str], pii_patterns: tuple[str, ...], *, directories: bool
 ) -> tuple[list[str], dict[str, int]]:
     """Split root-relative paths into those a detail line may name and a count per reason.
 
     CS-1195. The same classifier partition_skips asks, for a guard's own lines.
-    No file-or-directory flag: the classifier reads every path as a directory
-    as well as by its leaf, so a directory needs no trailing slash to be seen.
+    ``directories`` marks each path with the trailing slash that makes the
+    classifier read the path itself as a directory shape.
     """
     shown: list[str] = []
     withheld: dict[str, int] = {}
     for relative in paths:
-        reason = withheld_path_reason(relative, pii_patterns)
+        reason = withheld_path_reason(relative + "/" if directories else relative, pii_patterns)
         if reason is None:
             shown.append(relative)
         else:
@@ -1332,8 +1376,8 @@ def guard_charset(root: Path, files: list[Path], source: str) -> tuple[Guard, li
         f"text files checked: {checked}",
         f"text files listed: {checked + len(unread)}",
     ]
-    shown_unread, withheld_unread = _partition_paths(unread, pii_patterns)
-    shown_unlisted, withheld_unlisted = _partition_paths(unlisted, pii_patterns)
+    shown_unread, withheld_unread = _partition_paths(unread, pii_patterns, directories=False)
+    shown_unlisted, withheld_unlisted = _partition_paths(unlisted, pii_patterns, directories=True)
     detail.extend(
         f"{relative} NOT READ - its bytes were never checked" for relative in shown_unread
     )
@@ -5968,8 +6012,9 @@ def partition_skips(
     class is then asked about its PATH by withheld_path_reason, the one path
     classifier guard (c) asks too (CS-1195): an account-id-shaped component
     (rules 1 and 2 - every path beneath a directory named for the player is
-    personal data in whole), the path's own shape, and the shape of the path
-    and every ancestor read as a directory. Such a record is withheld whatever
+    personal data in whole), the path's own shape, and every ancestor - plus
+    the path itself when it is a directory entry - read as a directory. A
+    record carrying such a path is withheld whatever
     it was skipped for, counted under the class reason its path carries.
 
     Args:
@@ -6002,15 +6047,16 @@ def withheld_path_reason(path: str, pii_patterns: tuple[str, ...]) -> str | None
     list through partition_skips, and guard (c)'s own detail lines, which named
     a tracked file with no classification at all. Three tests, in order: a
     component shaped like an account id (ADR 0023 rules 1 and 2); the path's
-    own shape by _withheld_shape; then every ancestor AND the path itself, each
-    read as a DIRECTORY, against the root table, the file floor and the
-    `.gitignore` PII-BEARING section. An ordinary `x.txt` beneath `CORPUS/` or
+    own shape by _withheld_shape; then every ancestor, read as a DIRECTORY,
+    against the root table, the file floor and the `.gitignore` PII-BEARING
+    section - and the path itself too, but ONLY when it is a directory entry,
+    marked by a trailing slash. An ordinary `x.txt` beneath `CORPUS/` or
     `NOTES.LOG/` is located by its parent, and _withheld_shape asks the leaf
-    alone; a gitlink named `MOON_SYNC_INBOX` is in the index but not on disk,
-    so its record carries no trailing slash and only the directory reading of
-    the path itself withholds it. Reading a FILE as a directory too can only
-    withhold more, never less. Returns a class reason, never the path, so
-    nothing downstream can render what it withheld.
+    alone; a gitlink `MOON_SYNC_INBOX/` is withheld by the directory reading of
+    itself. A plain FILE named `corpus` is not the directory the root table
+    names, so it matches file-leaf shapes only (ADR 0023 rule 5). Returns a
+    class reason, never the path, so nothing downstream can render what it
+    withheld.
 
     Args:
         path: A root-relative posix path; a trailing slash marks a directory.
@@ -6026,7 +6072,8 @@ def withheld_path_reason(path: str, pii_patterns: tuple[str, ...]) -> str | None
     if shape is not None:
         return shape
     parts = path.strip("/").split("/")
-    for depth in range(1, len(parts) + 1):
+    depths = len(parts) + 1 if path.endswith("/") else len(parts)
+    for depth in range(1, depths):
         prefix = "/".join(parts[:depth])
         name = parts[depth - 1]
         for reason in (_root_reason(prefix), _floor_reason(prefix, name)):
