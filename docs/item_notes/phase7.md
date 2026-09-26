@@ -1068,28 +1068,6 @@ The CS-1193 closing adjudicator's COMMON-MODE RISK, filed as it directed. At
 within about 11s of the ceiling; the hook shard read 301s at `102bc01` before the
 four hook-driving files joined it.
 
-## CS-1201
-
-### Acceptance
-
-the elapsed-time arms of `tests/test_hook_probe_bound.py` either hold under a box
-running a concurrent `-n auto` suite or grade elapsed time against a bound that is
-measured, not assumed; a pre-push run on a loaded box does not go red on them while
-the same module is green alone.
-
-### Full headline
-
-`tests/test_hook_probe_bound.py` elapsed-time arms go red under box load and block a
-push while the module is green alone
-
-### FILED 2026-09-25, measured in session 115
-
-With three adversaries running, the pre-push suite (908s, 10743 passed) went red on
-`test_a_dev_null_stdin_wrapper_is_refused_inside_the_bound[pre-commit]` at 32.5s; a
-lone re-run under the same load went red on
-`test_wrapper_control_an_honest_wrapper_commits[commit-msg]` at 13.8s against a 10s
-bound; the module alone on a quieter box read 33 passed, 1 skipped. Related to CS-1200.
-
 ## CS-1202
 
 ### Acceptance
@@ -1220,3 +1198,43 @@ report
 The final CS-814 adversary printed allowlisted personal values and echoed from inside a
 permitted site while every arm stayed green. The allowlist grades reads, never where a
 read value goes.
+
+## CS-1211
+
+### Acceptance
+
+`tests/test_hook_probe_bound.py::hangs`, the import-time precondition behind
+`INSPECT_HANGS` and `NUL_STDIN_HANGS`, cannot read a slow-but-returning interpreter as
+hung: under the load that reproduced CS-1201 (24 CPU spinners plus 32 process-spawning
+threads) a POSIX box whose interpreter returns still skips the arms with their measured
+reasons, shown red first on the current code with an injected slow-returning shim.
+
+### Full headline
+
+`tests/test_hook_probe_bound.py::hangs` reads a slow-but-returning interpreter as hung
+under load, un-skipping an arm that then fails
+
+### FILED 2026-09-26, the CS-1201 planner's residual C1 (session 116)
+
+`hangs` waits `PRECONDITION_WAIT` (5s) and calls anything slower a hang. Not observed;
+outside CS-1201's acceptance, filed as its spec directed rather than folded in.
+
+## CS-1212
+
+### Acceptance
+
+the commit in `tests/test_hook_toolchain.py` that runs under `run_bounded` with
+`harness_bound() + HARNESS_SLACK` no longer charges pre-hang start-up to that kill:
+under the CS-1201 load it does not go red while green alone, using the CS-1201 call log
+and hang-anchored window rather than a wider slack, shown red first with the 4s-per-call
+shim.
+
+### Full headline
+
+`tests/test_hook_toolchain.py` kills its commit at a fixed bound plus slack that counts
+pre-hang start-up under load, the CS-1201 defect one module over
+
+### FILED 2026-09-26, the CS-1201 adversary's residual (session 116)
+
+The CS-1201 adversary named the fixed kill in the module that imports
+`tests/test_hook_probe_bound.py`; it was outside the item's write-list.

@@ -329,7 +329,8 @@ CS-1194 - drift_guard prints a non-numeric player-named directory that holds no 
 CS-1196 - the provenance manifest's history walk miscounts first-adds across a merge commit - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1197 - `tests/save/test_trailing_run.py` sweeps every real save, so its run time grows with the save library - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1198 - the tier-1 hook shard read 469s at `da7a940`, 11s under its 480s ceiling - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
-CS-1201 - `tests/test_hook_probe_bound.py` elapsed-time arms go red under box load and block a push - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
+CS-1211 - `tests/test_hook_probe_bound.py::hangs` reads a slow-but-returning interpreter as hung under load, un-skipping an arm that then fails - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
+CS-1212 - `tests/test_hook_toolchain.py` kills its commit at a fixed bound plus slack that counts pre-hang start-up under load, the CS-1201 defect one module over - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1202 - the PostToolUse lint hook's `--files "$CLAUDE_FILE_PATHS"` argument may always be empty under the live harness - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1204 - `/api/health` still waits on a full save parse on a cold start - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1205 - pre-push does not scrub `PYTEST_ADDOPTS`, so an operator `-l` renders test locals - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
