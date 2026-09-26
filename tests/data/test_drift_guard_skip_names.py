@@ -1012,7 +1012,9 @@ def _missing_entries(
     (root / "top.md").write_text("# clean\n", encoding="utf-8")
     monkeypatch.setattr(drift_guard, "_git_ls_files", lambda _root: ["top.md", *entries])
     _files, _source, skips = drift_guard.enumerate_files(root)
-    return drift_guard.partition_skips(skips, drift_guard._gitignore_pii_patterns(root))  # noqa: SLF001
+    pii = drift_guard._gitignore_pii_patterns(root)  # noqa: SLF001 - the tree's own section
+    result: tuple[list[dict[str, str]], dict[str, int]] = drift_guard.partition_skips(skips, pii)
+    return result
 
 
 def _refusing_run(*_args: object, **_kwargs: object) -> subprocess.CompletedProcess[str]:

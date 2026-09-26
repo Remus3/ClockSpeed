@@ -679,6 +679,12 @@ def _git_gitlinks(root: Path) -> frozenset[str] | None:
     so, or the render seam cannot tell it from a plain file of the same name.
     None, not an empty set, on any failure: the caller then reads every entry
     it asked about as a directory, which can only withhold more (fails closed).
+
+    DECLARED CONSEQUENCES, adjudicated: every gitlink's skip record carries a
+    trailing slash, so an ordinary one renders as `name/`; and on the
+    fail-closed branch a missing plain file renders as `gone.txt/` too,
+    because git could not say it was a file. Both are named, never withheld,
+    unless their shape is in a withheld class.
     """
     git = resolve_tool(GIT_NAME)
     if git is None:
