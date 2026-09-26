@@ -1212,3 +1212,33 @@ UNVERIFIED BY THE MERGER. The adversary read the harness binary and found no men
 `CLAUDE_FILE_PATHS`, and counted 352 past PostToolUse hook errors in which
 `edit_lint_check` reported `precommit_gate: BLOCKED`, mostly "could not read" the
 file, cause not established. Predates CS-815 and is outside its grant.
+
+## CS-1203
+
+### Acceptance
+
+`/api/health` answers inside the companion's per-probe timeout (`PROBE_TIMEOUT_MS` in
+`shell/lib/supervisor.js`, not raised) on the operator's real save library, measured
+end to end by `tools/dashboard_probe.py` or an equivalent real launch; the world
+provider parses a given save at most once for as long as that save's identity (path,
+size, modification time) is unchanged, and concurrent callers share one parse rather
+than each starting their own; a changed save is re-read on the next call; arms driven
+through the injectable seams in `clockspeed/surface/providers.py`, with no real save,
+prove the single parse, the shared in-flight parse and the re-read, and a control
+proves a parse failure still reports the world absent.
+
+### Full headline
+
+the dashboard's health endpoint re-copies and re-parses the newest save on every call,
+so the companion never launches
+
+### FILED 2026-09-25, reported by the operator and measured in session 115
+
+The operator reported the app does not launch. MEASURED: the companion shows "the
+dashboard was started but never answered"; `/api/health` answers 200 in 2.5s to 2.7s
+on every call, steady, while each probe aborts at 2.0s, so every probe fails until the
+30s wait budget ends. `SaveWorldProvider.world()` resolves, copies and parses the newest
+save on EVERY call - 2.6s each on the pinned development world; the registry provider
+takes 0.06s. The parse time grows with the world, which is why this began without a
+code change. Each call also writes a real-save copy, which a concurrent pre-push suite
+counted as the suite's own leak.
