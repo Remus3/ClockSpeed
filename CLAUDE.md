@@ -154,6 +154,14 @@ account and player-display-name strings in plaintext inside an options string:
     it. Error messages, debug dumps, hex previews, log lines and exception context all
     count as echo paths.
 
+Owned here, with no `BOOTSTRAP.md` source - filed for CS-814, the same echo rule one
+domain over:
+
+13. The environment every hook inherits carries live credentials, so any path that
+    renders it leaks them. No hook, gate, test assertion or error path echoes an
+    environment value - name a variable, never its value. Debug dumps, `env` and
+    `set -x` traces, exception context and assertion rendering all count as echo paths.
+
 Rule 4 has a mechanism, not just a preference behind it: Windows PowerShell 5.1
 ANSI-decodes a `.ps1` with no BOM, and a UTF-8 em-dash inside a double-quoted string
 becomes a character the tokenizer treats as a string terminator. One incident made it

@@ -75,6 +75,23 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-09-25 - CS-814 - FROZEN-FILE GRANT. NOT A COMPLETION RECORD. NOTHING CLOSED. CS-814 STAYS OPEN. The probe refusal stops rendering the candidate's output
+Verification: this record is the grant; CS-814 closes under its own later entry. The granting adjudicator wrote none of the work. Found by the CS-814 residual adversary: an argument-ignoring `CLOCKSPEED_PYTHON` that prints its environment leaked a synthetic canary through a real commit, 4 of 4 runs, via the 200-character probe-output preview.
+
+SCOPE. Files: `.githooks/pre-commit`, `.githooks/commit-msg`, `.githooks/pre-push` (frozen) and `tools/claude_hook.sh`, the `cs_probe` block and its `CLOCKSPEED_PYTHON` refusal ONLY. Permitted: (a) CS-814 - the probe refusal renders NONE of the candidate's output; it may report that the candidate did not answer, its byte count and its exit status; (b) CS-1200 - the bounding-program self-check accepts 137 as well as 124. Inside the grant: the pins in `tests/test_hook_interpreter_ladder.py` on `$cs_probe_shown` and "Observed probe output", superseding CS-815 grant condition 1's "not edited" for this change only. Everything else in all four files is byte-identical.
+
+CONDITIONS.
+1. All four carriers change in ONE commit and remain byte-identical to each other; the identity tests pass unchanged.
+2. A permanent arm drives `CLOCKSPEED_PYTHON` at an argument-ignoring program that prints its environment, canaries planted, through a real commit and push and through the wrapper: no canary in pre-commit, commit-msg or pre-push output.
+3. The CS-1200 arm drives a child that ignores TERM and shows the hook proceeding; a control with no working timeout still refuses.
+4. No path, account name or environment value appears in any new line.
+5. The builder's worktree is cut from HEAD, fast-forwarded and verified before the edit.
+
+BLAST RADIUS. Every commit, every push and every Claude hook call in this repository. Granted by the CS-814 repair adjudicator, which ruled one re-pin rather than two because every re-pin must touch all four carriers and the two changes touch different lines.
+
+### 2026-09-25 - CS-1200 - FROZEN-FILE GRANT. NOT A COMPLETION RECORD. NOTHING CLOSED. CS-1200 STAYS OPEN. Recorded as its own grant, as its acceptance requires, for the same single re-pin as CS-814 above
+Verification: this record is the grant; CS-1200 closes under its own later entry. Scope, conditions and blast radius are those of the CS-814 grant immediately above, of which change (b) is this item.
+
 ### 2026-09-25 - CS-1203 - CLOSED. The companion launches again: the world provider parses a save once per identity, so the dashboard's health probe answers in time
 Verification: `python -B -m pytest tests/surface/test_world_provider_memo.py tests/test_repr_rendering.py -q`. The merged file is `clockspeed/surface/providers.py` (`SaveWorldProvider` keeps the last parsed world keyed by path, size and `st_mtime_ns`, concurrent callers sharing one parse under a lock); the arms are `tests/surface/test_world_provider_memo.py` and the populated-memo rendering arm in `tests/test_repr_rendering.py`. Reported by the operator ("the app doesnt launch"); MEASURED: the companion refused with "the dashboard was started but never answered" because `/api/health` took 2.5s to 2.7s per call against the 2.0s probe timeout, every call copying and parsing the newest save. Adversaries: staleness and concurrency NOT REFUTED (eight mutants killed; the "nothing stale" overclaim reworded - a rewrite preserving path, size and mtime is not detected); leakage REFUTED on coverage, repaired by the populated-memo arm, which kills the helper-method and getattr `__repr__` mutants that had passed every guard. The adjudicator ruled LAND on the frozen candidate `ad5aaff` and closure on the end-to-end launch. END TO END, on the pinned development world after landing: the provider answered 2.575s cold then 0.004s; four concurrent callers shared one parse; the companion launched exactly as its desktop shortcut does opened its "Clockspeed dashboard" window after 7s with no refusal, and `/api/health` then answered in 0.052s. RESIDUAL filed as CS-1204: the cold first probe still aborts, because health still waits on the first parse.
 

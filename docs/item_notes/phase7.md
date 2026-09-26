@@ -1234,3 +1234,24 @@ After CS-1203 the first `world()` call on the pinned development world still tak
 the parse continues after the abort and the second probe finds it. Also recorded: the
 import-time `ROUTES` table in `clockspeed/surface/api/routes.py` builds its own
 `SaveWorldProvider`, which the launch path never serves.
+
+## CS-1205
+
+### Acceptance
+
+the pre-push hook's pytest run is not reshaped by an inherited `PYTEST_ADDOPTS` (or the
+hook refuses one it did not set), so an operator setting such as `-l` cannot make a
+failing test render its locals through the hook; an arm plants `PYTEST_ADDOPTS=-l` and a
+synthetic canary in a failing test's locals and shows no canary in the hook's output.
+Needs its own frozen-file grant for `.githooks/pre-push`.
+
+### Full headline
+
+pre-push does not scrub `PYTEST_ADDOPTS`, so an operator `-l` renders test locals
+
+### FILED 2026-09-25, the CS-814 repair adjudicator's ruling (session 115)
+
+Found by the CS-814 vacuity adversary: the probe's pre-push sandbox stripped `PYTEST_*`,
+so an inherited `PYTEST_ADDOPTS` was never exercised, and the hook does not scrub it.
+Ruled a new item rather than CS-814 scope, because it is reachable only through the
+operator's own environment and its fix edits the frozen pre-push file.
