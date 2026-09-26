@@ -91,6 +91,7 @@ import re
 import secrets
 import shutil
 import subprocess
+import sys
 from pathlib import Path
 from typing import Final, NamedTuple
 
@@ -219,6 +220,8 @@ ANCHOR_LINE: Final = b"set -u"
 TRACEBACK: Final = b"Traceback (most recent call last)"
 PRE_COMMIT_BLOCKED: Final = b"clockspeed pre-commit: BLOCKED"
 NO_PYTHON: Final = b"no usable python interpreter found"
+#: Bound to a name so a type checker on either platform sees both arms as live.
+INSPECT_PROBE_HANGS: Final = sys.platform == "win32"
 REFUSED_WRAPPER: Final = b"REFUSED (CS-815)"
 
 
@@ -520,12 +523,15 @@ def drive_pre_commit_bootstrap(arm: str, root: Path, hooks: dict[str, bytes]) ->
         run = commit_through(root, hooks, extra=chatty_candidate(root))
         return outcome(run, refused(run, b"clockspeed pre-commit: CLOCKSPEED_PYTHON is set"))
     if arm == "pre-commit-under-pythoninspect":
-        # MEASURED: under MSYS the probe hangs and the bound refuses; where
-        # /dev/null is not a tty the interpreter does not go interactive and the
-        # commit proceeds. Either way the hook ran its bootstrap under the flag.
+        # MEASURED, one named path per platform, never a disjunction (CS-1209).
+        # Windows under MSYS: the probe hangs and the bound refuses. ubuntu, CI
+        # run 36241835384: the probe returns, but the flag turns its sys.exit(97)
+        # into a reported SystemExit and status 1, so every rung fails the probe
+        # and the ladder refuses with no usable python. No platform lands.
         run = commit_through(root, hooks, extra={"PYTHONINSPECT": "1"})
-        bound = refused(run, b"the interpreter probe did not answer within")
-        return outcome(run, bound or (run.code == 0 and run.landed))
+        if INSPECT_PROBE_HANGS:
+            return outcome(run, refused(run, b"the interpreter probe did not answer within"))
+        return outcome(run, refused(run, NO_PYTHON))
     if arm == "pre-commit-refuses-with-no-usable-python":
         run = commit_through(root, hooks, path_first=failing_rungs(root))
         return outcome(run, refused(run, NO_PYTHON))
