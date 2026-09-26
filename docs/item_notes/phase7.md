@@ -1325,3 +1325,29 @@ mtime makes it read held
 A read-only verifier found every other writer uses temp-then-replace or
 create-exclusive-then-fill. The in-place write is a documented Windows workaround; the
 effect is benign (the lane holds until `stale_after`), the defect is the false claim.
+
+## CS-1217
+
+### Acceptance
+
+a staged top-level `ruff.py` never runs when the pre-commit gate lints a staged unit:
+with `ruff` absent from PATH the gate's `python -m ruff` fallback no longer starts in a
+directory holding staged bytes, or runs with `-P` / `-I` (safe path) so the working
+directory is not on `sys.path`, or refuses the fallback outright; an arm stages a
+synthetic `ruff.py` that only writes a marker FILE into a temp directory, hides ruff
+from PATH for the child alone, runs the gate under `--staged`, and asserts the marker
+file is absent, red first; the edit to the frozen gate carries an adjudicator grant
+recorded in `docs/LEDGER.md` before it is made.
+
+### Full headline
+
+with ruff off PATH the gate runs `python -m ruff` from the staging directory, so a
+staged `ruff.py` runs in ruff's place
+
+### FILED 2026-09-26, the CS-1207 round-7 builder's residual, reproduced (session 117)
+
+`ruff_command()` falls back to `[sys.executable, "-m", "ruff"]`; `-m` puts the working
+directory first on `sys.path`, and the ruff calls run with the staging temp directory
+as `cwd`. A liveness adversary reproduced it end to end in a private tree: with ruff
+hidden from PATH but importable, a staged synthetic `ruff.py` ran under `--staged` and
+wrote its marker file. Declared as a residual in the CS-1207 scanner docstring.
