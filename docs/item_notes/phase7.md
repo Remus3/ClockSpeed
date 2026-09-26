@@ -1046,28 +1046,6 @@ Found by the merger at the wave-3 close and reported with the timing above; the
 filer did not re-measure it. The save library grows while the operator plays, so an
 unbounded sweep drifts toward any per-test cap without a line of code changing.
 
-## CS-1198
-
-### Acceptance
-
-the next CI reading of the tier-1 hook shard in `.github/workflows/tier1.yml` is at
-or under `TIER1_BUDGET_SECONDS` (420s), by moving files out of it or speeding them
-up, with every moved file still run by some tier-1 shard and no other tier-1 shard
-reading over the 480s ceiling as a result; neither `TIER1_BUDGET_SECONDS` nor
-`TIER1_CEILING_SECONDS` is raised to meet it.
-
-### Full headline
-
-the tier-1 hook shard read 469s at `da7a940`, 11s under its 480s ceiling - in the
-WARN band, after the four hook-driving test files joined it
-
-### FILED 2026-09-25, found at the wave-3 close (session 113)
-
-The CS-1193 closing adjudicator's COMMON-MODE RISK, filed as it directed. At
-`da7a940`, run 36159442880, the fast shard read 471s and the hook shard 469s, each
-within about 11s of the ceiling; the hook shard read 301s at `102bc01` before the
-four hook-driving files joined it.
-
 ## CS-1202
 
 ### Acceptance
@@ -1260,3 +1238,24 @@ that pytest-xdist 3.8 reorders away
 pytest-xdist 3.8 sorts loadfile work by descending test count unless
 `--no-loadscope-reorder` is given, so naming a file first no longer starts it first. S0
 measured the same false claim at the hook shard's comment, repaired there by CS-1198.
+
+## CS-1214
+
+### Acceptance
+
+the next slow-mode CI reading of the tier-1 guard shard in `.github/workflows/tier1.yml`
+is at or under `TIER1_BUDGET_SECONDS` (420s), by moving files or speeding them up, with
+every moved file still run by exactly one tier-1 shard and no shard over the 480s
+ceiling; neither level is raised. The fill shard, which read 200s, is the first
+candidate receiver.
+
+### Full headline
+
+the tier-1 guard shard read 443s at `788695d`, over its 420s budget and in the WARN band
+
+### FILED 2026-09-26, read at the CS-1198 landing (session 116)
+
+Run 36260379206 at `788695d`: guard 443, save 397, gates 332, hook 320 (fast mode; its
+slow-mode re-run read 355), fill 200. The guard shard's membership did not change in
+CS-1198; it read 407 and 413 on earlier slow runners and holds the CS-814 and CS-815
+hook-driving modules for room.
