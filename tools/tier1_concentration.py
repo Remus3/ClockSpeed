@@ -162,8 +162,9 @@ RUN_LABELS = ("before", "after")
 # forces this literal down at the refresh that profiles it at both ends; a name
 # the workflow does not declare is red in `grade_tree`, through
 # `pending_undeclared`, so a synthetic workflow is graded on its own jobs alone.
-# Basis: the wave-3 CI route ruling, condition A3.
-PENDING_PROFILE: tuple[str, ...] = ("tests (hook shard)",)
+# Basis: the wave-3 CI route ruling, condition A3, and for the fill shard the
+# CS-1198 ruling's Route N.
+PENDING_PROFILE: tuple[str, ...] = ("tests (hook shard)", "tests (fill shard)")
 
 # Bounds every `gh` call. A hung credential prompt must not hang the refresh.
 SUBPROCESS_TIMEOUT_SECONDS = 300

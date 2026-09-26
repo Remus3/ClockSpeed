@@ -207,8 +207,9 @@ BUDGET_UNMET = ("tests (guard shard)",)
 # `grade` for the reason the two sets above are intersected with the declared
 # jobs there: a synthetic workflow must be graded on its own jobs, and an
 # offence it cannot avoid would make every negative arm over one pass vacuously.
-# Basis: the wave-3 CI route ruling, condition A3.
-PENDING_READINGS = ("tests (hook shard)",)
+# Basis: the wave-3 CI route ruling, condition A3, and for the fill shard the
+# CS-1198 ruling's Route N.
+PENDING_READINGS = ("tests (hook shard)", "tests (fill shard)")
 
 # THE CRASH THRESHOLD, AND WHAT IT IS NOT. A tier1 job that dies on a syntax
 # error or a missing dependency concludes in a couple of seconds, and the
