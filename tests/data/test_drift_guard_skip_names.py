@@ -627,3 +627,170 @@ def test_a_section_shape_is_withheld_where_git_keeps_case(
     leaked = _leaks(text, tokens) + _leaks(raw, tokens)
     assert leaked == 0, f"{leaked} section-shape name(s) rendered with git keeping case"
     assert CONTROL_LOCAL in {skip["path"] for skip in report["skipped"]}, "control vanished"
+
+
+# --- CS-1195: guard (c)'s own detail lines --------------------------------
+#
+# The arms above keep every planted file clean so guard (c) has nothing to
+# say about it. These plant the violation on purpose: guard (c) READS a
+# text-typed file git lists, and its detail lines - an offender, a NOT READ
+# entry, an unlisted directory - carried the path with no classification. The
+# withheld form is the CS-1158 one: the reason and a count, then the marker.
+# The hits text (line, column, byte) is withheld with the name, because it
+# describes the content of a credential-bearing file.
+
+NON_ASCII = b"synthetic \xe9 byte\n"
+
+
+def _guard_c(report: dict[str, Any]) -> dict[str, Any]:
+    matches = [guard for guard in report["guards"] if guard["id"] == "c"]
+    assert len(matches) == 1, f"control: {len(matches)} guard (c) record(s) in the payload"
+    return matches[0]
+
+
+def _withheld_group_total(detail: list[str]) -> int:
+    """The sum of the counts on every `  {reason}  ({count})` line of a withheld class."""
+    total = 0
+    for line in detail:
+        stripped = line.strip()
+        if _class_of(stripped) not in WITHHELD_CLASSES or not stripped.endswith(")"):
+            continue
+        head, _, count = stripped.rpartition("  (")
+        if head and count[:-1].isdigit():
+            total += int(count[:-1])
+    return total
+
+
+def test_guard_c_withholds_a_tracked_upper_case_key_file_where_git_keeps_case(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """The acceptance arm: a text-typed withheld-class file git TRACKS with its case kept.
+
+    core.ignorecase false is set explicitly, as it is on the Linux runner, so
+    `.gitignore`'s `.mcp.json` misses `.MCP.JSON`, a plain `git add` admits
+    it, guard (c) reads it, and its non-ASCII byte made the offender line
+    print its path. The host's own setting is never consulted.
+    """
+    root = tmp_path / "tree"
+    if not _real_gitignore_repo(root, monkeypatch):
+        pytest.skip("git is not installed, so its answer cannot be asked")
+    from tests import conftest  # noqa: PLC0415 - the one git runner the suite owns
+
+    proc = conftest.run_git(root, "config", "core.ignorecase", "false")
+    assert proc is not None
+    assert proc.returncode == 0, "control: core.ignorecase false did not set"
+    key_dir = "zz1195key"
+    (root / key_dir).mkdir()
+    (root / key_dir / ".MCP.JSON").write_bytes(NON_ASCII)
+    (root / key_dir / "keep.md").write_text("# kept\n", encoding="utf-8")
+    control = "zz1195ctl.txt"
+    (root / control).write_bytes(NON_ASCII)
+    (root / "top.md").write_text("# clean\n", encoding="utf-8")
+    planted = [f"{key_dir}/.MCP.JSON", f"{key_dir}/keep.md", control, "top.md", ".gitignore"]
+    added = conftest.run_git(root, "add", "--", *planted)
+    assert added is not None
+    assert added.returncode == 0, "control: git refused to stage the plants without -f"
+    listed = conftest.run_git(root, "ls-files", "-z")
+    assert listed is not None
+    tracked = listed.stdout.decode("utf-8").split("\0")
+    assert f"{key_dir}/.MCP.JSON" in tracked, "control: git did not track the key file, case kept"
+    _point_at(monkeypatch, root, tmp_path)
+
+    text = _run(capsys)
+    raw = _run(capsys, "--json")
+    report: dict[str, Any] = json.loads(raw)
+
+    assert report["enumeration"].startswith("git ls-files"), "control: git did not enumerate"
+    guard = _guard_c(report)
+    assert guard["status"] == "FAIL", f"guard (c) is {guard['status']}, not FAIL"
+    leaked = _leaks(text, [key_dir]) + _leaks(raw, [key_dir])
+    assert leaked == 0, f"{leaked} surface(s) named the tracked withheld-class file"
+    reason = drift_guard.WALK_SKIP_FILE_PATTERNS[".mcp.json"]
+    detail = [line.strip() for line in guard["detail"]]
+    assert f"{reason}  (1)" in detail, "guard (c) did not count the withheld offender"
+    assert drift_guard.WITHHELD_MARKER in detail, "guard (c) carries no withheld marker"
+    named = sum(1 for line in detail if line.startswith(f"{control} -> line 1 col "))
+    assert named == 1, "control: guard (c) no longer names an ordinary offender"
+    assert "non-ASCII or control bytes in 2 file(s):" in detail, "the offender count moved"
+
+
+def test_guard_c_withholds_a_path_under_a_withheld_directory_shape(tmp_path: Path) -> None:
+    """A text file BENEATH a withheld-shape directory: the leaf alone is innocent.
+
+    Three ancestor shapes - a floor file shape used as a directory name, a
+    withheld root in upper case, and an account-id-shaped component - each
+    over an ordinary `.txt` carrying a non-ASCII byte, plus a control.
+    """
+    root = tmp_path / "tree"
+    root.mkdir()
+    (root / ".gitignore").write_bytes((REPO_ROOT / ".gitignore").read_bytes())
+    digits = "7" * drift_guard.account_id_min_digits()
+    plants = {
+        "ZZ1195.LOG/zzin.txt": "zz1195.log",
+        "CORPUS/zz1195c.txt": "zz1195c",
+        f"{digits}/zz1195acct.txt": digits,
+    }
+    for relative in plants:
+        target = root / relative
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_bytes(NON_ASCII)
+    control = "zz1195plain.txt"
+    (root / control).write_bytes(NON_ASCII)
+    files = [root / relative for relative in plants] + [root / control]
+
+    guard, _skips = drift_guard.guard_charset(root, files, "test enumeration")
+
+    joined = "\n".join(guard["detail"])
+    leaked = _leaks(joined, [*plants.values(), "zzin"])
+    assert leaked == 0, f"guard (c) named {leaked} path(s) under a withheld directory shape"
+    assert guard["status"] == "FAIL", f"guard (c) is {guard['status']}, not FAIL"
+    assert _withheld_group_total(guard["detail"]) == len(plants), "withheld counts do not add up"
+    assert drift_guard.WITHHELD_MARKER in {line.strip() for line in guard["detail"]}
+    named = sum(1 for line in guard["detail"] if line.strip().startswith(f"{control} -> "))
+    assert named == 1, "control: guard (c) no longer names an ordinary offender"
+    assert f"non-ASCII or control bytes in {len(plants) + 1} file(s):" in guard["detail"]
+
+
+def test_guard_c_withholds_unread_and_unlisted_entries_of_a_withheld_shape(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The NOT READ and NOT LISTED detail lines go through the same classifier.
+
+    A withheld-shape file whose read fails and a directory under a withheld
+    root that the reader was handed, each beside an ordinary one of the same
+    kind that must still be named. The status stays a could-not-look WARN.
+    """
+    root = tmp_path / "tree"
+    root.mkdir()
+    (root / ".gitignore").write_bytes((REPO_ROOT / ".gitignore").read_bytes())
+    unread_hidden = root / "zz1195u" / ".ENV.JSON"
+    unread_shown = root / "zz1195ushown.txt"
+    for path in (unread_hidden, unread_shown):
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(b"clean\n")
+    unlisted_hidden = root / "CORPUS" / "zz1195d"
+    unlisted_shown = root / "zz1195dshown"
+    for path in (unlisted_hidden, unlisted_shown):
+        path.mkdir(parents=True)
+    original = vars(drift_guard)["_ascii_violations"]
+
+    def _fail_two(path: Path) -> tuple[list[str], str]:
+        if path in (unread_hidden, unread_shown):
+            return [], "unreadable: synthetic refusal"
+        return original(path)
+
+    monkeypatch.setattr(drift_guard, "_ascii_violations", _fail_two)
+    files = [unread_hidden, unread_shown, unlisted_hidden, unlisted_shown]
+    hidden = (unread_hidden, unlisted_hidden)
+
+    guard, _skips = drift_guard.guard_charset(root, files, "test enumeration")
+
+    joined = "\n".join(guard["detail"])
+    leaked = _leaks(joined, ["zz1195u/", "zz1195d/", "zz1195d "])
+    assert leaked == 0, f"guard (c) named {leaked} withheld NOT READ or NOT LISTED entries"
+    assert guard["status"] == "WARN", f"guard (c) is {guard['status']}, not WARN"
+    assert _withheld_group_total(guard["detail"]) == len(hidden), "withheld counts do not add up"
+    assert "text files listed: 2" in guard["detail"], "the listed count dropped a withheld file"
+    shown_unread = sum(1 for line in guard["detail"] if line.startswith("zz1195ushown.txt NOT"))
+    shown_unlisted = sum(1 for line in guard["detail"] if line.startswith("zz1195dshown/ NOT"))
+    assert (shown_unread, shown_unlisted) == (1, 1), "control: an ordinary entry is no longer named"
