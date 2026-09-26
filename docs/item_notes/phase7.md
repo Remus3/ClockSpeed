@@ -1156,6 +1156,24 @@ The final CS-814 adversary rendered a synthetic personal marker through the real
 with an `os.path.expandvars` skip message while every arm stayed green; no shipped hook
 path uses any listed reader today, so CS-814 closed and this item carries the gap.
 
+
+### MEASURED 2026-09-26, three adversary rounds against the landed inversion (session 116)
+
+The inversion landed at `db87fff` and is NOT closed. Rounds one and two refuted it with
+20 and 11 live escapes; both classes are closed and pinned by arms. Round three, at the
+landed tree, rendered a synthetic marker live with no static finding through: attribute
+walks inside `str.format` and `format_map` fields (`{0.__globals__[os].environ[K]}`);
+`__import__` and `exec` bound to a name, stored in a container or passed to `map`;
+`match` class patterns reading `__globals__` or a `home` attribute; `getattr` on
+`pathlib.Path` with a literal `home`; reaching `os` through a scanned repository module
+(`precommit_gate.os`); and `git difftool -x`, with `grep -O`, `rebase --exec`,
+`clone -u` and `bisect run` passing statically. Probes and outputs sit in session 116's
+scratchpad as `adv1207c_*`; the next builder re-derives them from this list.
+DECLARED out of scope in the module docstring: `__file__` and `__spec__.origin`,
+directory listings, `relpath` depth, `time.tzname`, `/proc` paths built at run time,
+`git config user.email`, `git var`, personal `git log --format` fields, a python child
+reading its program from stdin, `contextlib.chdir`, argparse `prog`, the gate's
+`git(args)` pass-through, and `sys.argv`.
 ## CS-1208
 
 ### Acceptance
