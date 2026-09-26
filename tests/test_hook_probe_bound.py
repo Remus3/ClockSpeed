@@ -507,9 +507,15 @@ def child_env(
 
 
 def harness_limit(box: Sandbox) -> float:
-    """The outer kill ceiling for one attempt in ``box``."""
-    _ = box
-    return harness_bound() + HARNESS_SLACK
+    """The outer kill ceiling for one attempt in ``box``.
+
+    CS-1201: the bound plus the harness slack PLUS what the seed commit - an
+    accepted commit through the same hook on the same box - measured, so a
+    loaded box widens the ceiling by its own measured overhead rather than an
+    assumed one. A real hang is ``sleep 600`` or an endless REPL, so this costs
+    time only on a genuine regression.
+    """
+    return harness_bound() + HARNESS_SLACK + box.seed_elapsed
 
 
 _PAYLOADS: list[int] = [0]
@@ -753,26 +759,84 @@ def test_each_hook_declares_exactly_one_literal_bound(hook: str) -> None:
 def assert_refused_inside_the_bound(
     outcome: Attempt, calls: tuple[Call, ...], hung: tuple[str, str]
 ) -> None:
-    """The acceptance, stated once: non-zero, unmoved, attributable, inside the bound."""
-    _ = (calls, hung)
+    """The acceptance, stated once: non-zero, unmoved, attributable, inside the bound.
+
+    CS-1201 splits "inside the bound" into its two real claims, so neither is
+    graded against process creation that a loaded box stretches:
+
+    - NO FALL-THROUGH is a COUNT from the call log: exactly one call never
+      answered, nothing ran after it, and it is the ``hung`` shim and mode. A
+      second rung writes a second call whatever the clock says.
+    - THE EXPIRY is timed from the hang itself. The upper edge runs from the
+      hanging call's own logged start, so only the post-expiry tail rides on
+      EXIT_SLACK, which stays below one bound. The lower edge runs from the last
+      stamp that must precede the hang's bounding binary - the answering call
+      before it, else git's own start - so it is load-immune: an expiry cannot
+      arrive early.
+    """
     bound = harness_bound()
-    assert not outcome.killed, (
-        f"the hook HUNG - the harness had to kill it at {bound + HARNESS_SLACK}s:\n{outcome.report}"
-    )
+    assert not outcome.killed, f"the hook HUNG - the harness had to kill it:\n{outcome.report}"
     assert outcome.blocked, f"the hook did not refuse:\n{outcome.report}"
-    assert outcome.elapsed < bound + EXIT_SLACK, (
-        f"refused, but not inside the bound of {bound}s plus {EXIT_SLACK}s:\n{outcome.report}"
-    )
     assert outcome.refusals(TIMEOUT_REFUSAL) == 1, (
         f"refused, but NOT by the timed-out probe:\n{outcome.report}"
+    )
+    assert calls, f"no shim call was logged, so this arm measured nothing:\n{outcome.report}"
+    unanswered = sum(1 for call in calls if not call.answered)
+    assert unanswered == 1, (
+        f"{unanswered} of {len(calls)} calls never answered, expected exactly one - a "
+        f"second is a fall-through to another rung:\n{outcome.report}"
+    )
+    hang = calls[-1]
+    assert not hang.answered, f"a call ran after the one that hung:\n{outcome.report}"
+    assert (hang.shim, hang.mode) == hung, (
+        f"the call that hung was [{hang.shim} {hang.mode}], not the expected "
+        f"[{hung[0]} {hung[1]}]:\n{outcome.report}"
+    )
+    before = calls[-2].done if len(calls) > 1 else None
+    anchor = outcome.started_at if before is None else before
+    floor = outcome.returned_at - anchor
+    assert floor >= bound, (
+        f"refused {floor:.2f}s after the hanging call could first have started, "
+        f"before the bound of {bound}s could expire:\n{outcome.report}"
+    )
+    window = outcome.returned_at - hang.start
+    assert window < bound + EXIT_SLACK, (
+        f"refused {window:.2f}s after the hanging call started, not inside the bound "
+        f"of {bound}s plus {EXIT_SLACK}s:\n{outcome.report}"
     )
 
 
 def assert_honest_wrapper_committed(outcome: Attempt, calls: tuple[Call, ...]) -> None:
-    """The control's acceptance: the commit landed and no probe half met the bound."""
-    _ = calls
+    """The control's acceptance: the commit landed and no probe half met the bound.
+
+    CS-1201: the whole commit - git, the hook, three probe halves and the hook's
+    own program - was once graded against the PROBE bound, which no probe half
+    need approach for the sum to exceed. Each probe half is graded instead: it
+    ANSWERED (a start with no done, or a done by signal, is a half the bound cut
+    off) and its own duration stayed under the bound. Only the probe halves run
+    under the bound, so only they are timed against it.
+    """
+    bound = harness_bound()
     assert outcome.accepted, f"an honest wrapper was refused:\n{outcome.report}"
-    assert outcome.elapsed < harness_bound(), "an honest wrapper took longer than the bound"
+    modes = tuple(call.mode for call in calls[: len(PROBE_HALVES)])
+    assert modes == PROBE_HALVES, (
+        f"the log does not open with the probe's halves, so the shim was not the "
+        f"interpreter - modes {modes}:\n{outcome.report}"
+    )
+    assert len(calls) > len(PROBE_HALVES), (
+        f"only {len(calls)} calls: the hook's own program never reached the shim after "
+        f"the probe:\n{outcome.report}"
+    )
+    unanswered = sum(1 for call in calls if not call.answered)
+    assert unanswered == 0, (
+        f"{unanswered} of {len(calls)} calls never answered - a probe half that timed "
+        f"out and proceeded:\n{outcome.report}"
+    )
+    halves = [call.duration for call in calls[: len(PROBE_HALVES)]]
+    slowest = max((took for took in halves if took is not None), default=0.0)
+    assert slowest < bound, (
+        f"a probe half took {slowest:.2f}s, which reached the bound of {bound}s:\n{outcome.report}"
+    )
 
 
 def ladder_bin(tmp_path: Path, log: Path) -> Path:
