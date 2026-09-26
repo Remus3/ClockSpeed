@@ -30,6 +30,7 @@ import importlib.util
 import json
 import os
 import sys
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
 from types import ModuleType
@@ -645,7 +646,8 @@ NON_ASCII = b"synthetic \xe9 byte\n"
 def _guard_c(report: dict[str, Any]) -> dict[str, Any]:
     matches = [guard for guard in report["guards"] if guard["id"] == "c"]
     assert len(matches) == 1, f"control: {len(matches)} guard (c) record(s) in the payload"
-    return matches[0]
+    record: dict[str, Any] = matches[0]
+    return record
 
 
 def _withheld_group_total(detail: list[str]) -> int:
@@ -772,7 +774,7 @@ def test_guard_c_withholds_unread_and_unlisted_entries_of_a_withheld_shape(
     unlisted_shown = root / "zz1195dshown"
     for path in (unlisted_hidden, unlisted_shown):
         path.mkdir(parents=True)
-    original = vars(drift_guard)["_ascii_violations"]
+    original: Callable[[Path], tuple[list[str], str]] = vars(drift_guard)["_ascii_violations"]
 
     def _fail_two(path: Path) -> tuple[list[str], str]:
         if path in (unread_hidden, unread_shown):

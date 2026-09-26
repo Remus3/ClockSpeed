@@ -1271,6 +1271,24 @@ def _ascii_violations(path: Path) -> tuple[list[str], str]:
     return hits, ""
 
 
+def _partition_paths(
+    paths: list[str], pii_patterns: tuple[str, ...], *, is_dir: bool
+) -> tuple[list[str], dict[str, int]]:
+    """Split root-relative paths into those a detail line may name and a count per reason.
+
+    CS-1195. The same classifier partition_skips asks, for a guard's own lines.
+    """
+    shown: list[str] = []
+    withheld: dict[str, int] = {}
+    for relative in paths:
+        reason = withheld_path_reason(relative + "/" if is_dir else relative, pii_patterns)
+        if reason is None:
+            shown.append(relative)
+        else:
+            withheld[reason] = withheld.get(reason, 0) + 1
+    return shown, withheld
+
+
 def guard_charset(root: Path, files: list[Path], source: str) -> tuple[Guard, list[Skip]]:
     """Assert every authored text file is pure 7-bit ASCII."""
     skips: list[Skip] = []
@@ -1279,6 +1297,12 @@ def guard_charset(root: Path, files: list[Path], source: str) -> tuple[Guard, li
     # CS-1117 - a text file that EXISTS and cannot be read is could-not-look.
     # It was a bare skip, so the guard said PASS over bytes nobody had seen.
     unread: list[str] = []
+    # CS-1195 - every path a detail line would carry asks the one classifier
+    # the skip list asks. A withheld-class path is counted under its reason and
+    # its hits text goes with it: a line, column and byte of a credential file
+    # describe its content. The counts and the verdict are unchanged.
+    pii_patterns = _gitignore_pii_patterns(root)
+    withheld_offenders: dict[str, int] = {}
     files, unlisted = _split_unlisted(root, files)
     for path in files:
         ok, reason = _classify(path)
@@ -1293,7 +1317,12 @@ def guard_charset(root: Path, files: list[Path], source: str) -> tuple[Guard, li
             continue
         checked += 1
         if hits:
-            offenders.append(f"{_rel(root, path)} -> {'; '.join(hits)}")
+            relative = _rel(root, path)
+            withheld = withheld_path_reason(relative, pii_patterns)
+            if withheld is None:
+                offenders.append(f"{relative} -> {'; '.join(hits)}")
+            else:
+                withheld_offenders[withheld] = withheld_offenders.get(withheld, 0) + 1
 
     name = "character set (7-bit ASCII)"
     detail = [
@@ -1301,11 +1330,23 @@ def guard_charset(root: Path, files: list[Path], source: str) -> tuple[Guard, li
         f"text files checked: {checked}",
         f"text files listed: {checked + len(unread)}",
     ]
-    detail.extend(f"{relative} NOT READ - its bytes were never checked" for relative in unread)
-    detail.extend(f"{relative}/ {UNLISTED_CONSEQUENCE}" for relative in unlisted)
-    if offenders:
-        detail.append(f"non-ASCII or control bytes in {len(offenders)} file(s):")
+    shown_unread, withheld_unread = _partition_paths(unread, pii_patterns, is_dir=False)
+    shown_unlisted, withheld_unlisted = _partition_paths(unlisted, pii_patterns, is_dir=True)
+    detail.extend(
+        f"{relative} NOT READ - its bytes were never checked" for relative in shown_unread
+    )
+    if withheld_unread:
+        detail.append("NOT READ - its bytes were never checked, under a withheld reason:")
+        detail.extend(_withheld_lines(withheld_unread))
+    detail.extend(f"{relative}/ {UNLISTED_CONSEQUENCE}" for relative in shown_unlisted)
+    if withheld_unlisted:
+        detail.append(f"{UNLISTED_CONSEQUENCE}, under a withheld reason:")
+        detail.extend(_withheld_lines(withheld_unlisted))
+    if offenders or withheld_offenders:
+        total = len(offenders) + sum(withheld_offenders.values())
+        detail.append(f"non-ASCII or control bytes in {total} file(s):")
         detail.extend(f"  {line}" for line in offenders)
+        detail.extend(_withheld_lines(withheld_offenders))
         return _guard("c", name, "FAIL", detail), skips
     if unread or unlisted:
         detail.append("NOT A PASS - a listed text file was never read")
@@ -5943,13 +5984,58 @@ def partition_skips(
         reason = skip["reason"]
         if is_withheld(reason):
             withheld[reason] = withheld.get(reason, 0) + 1
-        elif _names_account_id(skip["path"]):
-            withheld[ACCOUNT_ID_PATH_REASON] = withheld.get(ACCOUNT_ID_PATH_REASON, 0) + 1
-        elif (shape := _withheld_shape(skip["path"], pii_patterns)) is not None:
+        elif (shape := withheld_path_reason(skip["path"], pii_patterns)) is not None:
             withheld[shape] = withheld.get(shape, 0) + 1
         else:
             shown.append(skip)
     return shown, withheld
+
+
+def withheld_path_reason(path: str, pii_patterns: tuple[str, ...]) -> str | None:
+    """The withheld-class reason a root-relative PATH carries by its shape, or None.
+
+    CS-1195 - the ONE path classifier every renderer of a path asks: the skip
+    list through partition_skips, and guard (c)'s own detail lines, which named
+    a tracked file with no classification at all. Three tests, in order: a
+    component shaped like an account id (ADR 0023 rules 1 and 2); the path's
+    own shape by _withheld_shape; then every proper ANCESTOR, as a directory,
+    against the root table, the file floor and the `.gitignore` PII-BEARING
+    section - an ordinary `x.txt` beneath `CORPUS/` or `NOTES.LOG/` is located
+    by its parent, and _withheld_shape asks the leaf alone. Returns a class
+    reason, never the path, so nothing downstream can render what it withheld.
+
+    Args:
+        path: A root-relative posix path; a trailing slash marks a directory.
+        pii_patterns: The `.gitignore` PII-BEARING patterns of the tree, from
+            _gitignore_pii_patterns.
+
+    Returns:
+        The reason to count the path under, or None when it may be named.
+    """
+    if _names_account_id(path):
+        return ACCOUNT_ID_PATH_REASON
+    shape = _withheld_shape(path, pii_patterns)
+    if shape is not None:
+        return shape
+    parts = path.strip("/").split("/")
+    for depth in range(1, len(parts)):
+        ancestor = "/".join(parts[:depth])
+        name = parts[depth - 1]
+        for reason in (_root_reason(ancestor), _floor_reason(ancestor, name)):
+            if reason is not None and is_withheld(reason):
+                return reason
+        if any(_gitignore_matches(p, ancestor, name, is_dir=True) for p in pii_patterns):
+            return GITIGNORE_PII_REASON
+    return None
+
+
+def _withheld_lines(withheld: Mapping[str, int]) -> list[str]:
+    """Render withheld reason counts in the CS-1158 form: reason and count, then the marker."""
+    out: list[str] = []
+    for reason in sorted(withheld):
+        out.append(f"  {reason}  ({withheld[reason]})")
+        out.append(f"      {WITHHELD_MARKER}")
+    return out
 
 
 def _withheld_shape(path: str, pii_patterns: tuple[str, ...]) -> str | None:
