@@ -1255,3 +1255,24 @@ Found by the CS-814 vacuity adversary: the probe's pre-push sandbox stripped `PY
 so an inherited `PYTEST_ADDOPTS` was never exercised, and the hook does not scrub it.
 Ruled a new item rather than CS-814 scope, because it is reachable only through the
 operator's own environment and its fix edits the frozen pre-push file.
+
+## CS-1206
+
+### Acceptance
+
+no module in the tests tree renders an environment value through a channel other than
+an assert - a `print`, a `sys.stdout`/`sys.stderr` write, a logging call, captured
+output echoed back, or a failure message built outside an assert - graded by a static
+guard over the tests tree in the shape of the CS-1199 assert-rendering guard, with a
+planted-mutant control per channel; the pre-push hook runs the whole tree, so its
+output is a hook echo path under CLAUDE.md non-negotiable 13.
+
+### Full headline
+
+a test run by pre-push can print an environment value outside any assert
+
+### FILED 2026-09-25, the CS-814 closing-bar adjudicator's ruling (session 115)
+
+CS-814's static scope covers the programs the hooks run, but not the test modules
+pre-push runs; the CS-1199 guard covers asserts only and the conftest redaction covers
+known credential names only. Ruled a new item rather than CS-814 scope.

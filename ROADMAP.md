@@ -336,3 +336,4 @@ CS-1201 - `tests/test_hook_probe_bound.py` elapsed-time arms go red under box lo
 CS-1202 - the PostToolUse lint hook's `--files "$CLAUDE_FILE_PATHS"` argument may always be empty under the live harness - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1204 - `/api/health` still waits on a full save parse on a cold start - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1205 - pre-push does not scrub `PYTEST_ADDOPTS`, so an operator `-l` renders test locals - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
+CS-1206 - a test run by pre-push can print an environment value outside any assert - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
