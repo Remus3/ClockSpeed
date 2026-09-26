@@ -180,7 +180,7 @@ EXPECTED_NARRATIVE_PREFIXES = (
 #: bound alone. Removing the bound entirely was killed by nothing; the comment
 #: above it in pyproject.toml argues at length that the bound is load-bearing,
 #: and an argument nothing enforces is a comment.
-EXPECTED_XDIST_REQUIREMENT = "pytest-xdist>=3.5,<4"
+EXPECTED_XDIST_REQUIREMENT = "pytest-xdist>=3.8,<4"
 
 #: The two by-line pointers docs/LEDGER.md holds into the workflow. Spelled as
 #: bare integers, never as `<path>:<number>`, because that form would enrol this
@@ -2671,21 +2671,15 @@ HOOK_DRIVING_FILES = (
     "tests/test_precommit_gate_lint_cwd.py",
 )
 
-#: The ruling's condition A5: the fast shard still projects into the warn band
-#: on a slow runner once the hook files leave it, so the hook shard's headroom
-#: is filled from the fast shard's heaviest CPU-bound files, heaviest first,
-#: rather than from the guard shard that tools/tier1_growth.py already pins in
-#: BUDGET_UNMET. CI durations, run 36130961603: 69.37s, 23.92s, 27.46s and
-#: 25.24s for their heaviest single test. The fourth was added when the fast
-#: shard's slow-runner projection still sat in the warn band and the hook
-#: shard's worst projection had room for it under the budget; it re-runs the
-#: data suite as a nested child, so it shares no cache with the files it left.
-HOOK_SHARD_FILL = (
-    "tests/test_canary_population_forced.py",
-    "tests/test_cs1175_rule_narrowing.py",
-    "tests/test_citation_tables.py",
-    "tests/data/test_phase2_gate.py",
-)
+#: The ruling's condition A5 filled the hook shard's headroom from the fast
+#: shard's heaviest CPU-bound files, rather than from the guard shard that
+#: tools/tier1_growth.py pins in BUDGET_UNMET. CS-1198 took three of the four
+#: back out - the hook shard itself read over its budget on a slow runner - and
+#: moved them to the fill shard below. Only the canary child stays: at about
+#: 154s on a slow runner it would be over half of any fill step, so it runs
+#: second here, and the hook shard dispatches in command order (see
+#: :data:`HOOK_NO_REORDER`) so it starts at t=0 instead of forming the tail.
+HOOK_SHARD_FILL = ("tests/test_canary_population_forced.py",)
 
 
 def test_the_hook_driving_files_run_in_the_hook_shard_and_nowhere_else() -> None:
@@ -2728,6 +2722,154 @@ def test_the_hook_driving_files_run_in_the_hook_shard_and_nowhere_else() -> None
         f"the {JOB_ID!r} shard still runs {not_ignored}; a moved file it does not"
         f" ignore runs twice: {catch_all_ignores}"
     )
+
+
+#: The fifth shard CS-1198 added, by the adjudicated Route N. Its job id, and
+#: the display name the lane driver and the two tier-1 readers key on.
+FILL_JOB_ID = "fill"
+FILL_JOB_NAME = "tests (fill shard)"
+
+#: The CPU-bound fill CS-1198 took back OUT of the hook shard. The hook shard
+#: read over its budget on every slow runner, and these carry no hook - they
+#: were there for room, and the room was gone.
+FILL_FROM_HOOK = (
+    "tests/test_cs1175_rule_narrowing.py",
+    "tests/test_citation_tables.py",
+    "tests/data/test_phase2_gate.py",
+)
+
+#: The catch-all's measured head, moved with them so the fill shard's heaviest
+#: single test stays under the concentration limit (tools/tier1_concentration.py)
+#: and the catch-all leaves the warn band. The last was added by the S0
+#: measurement's share fallback, heaviest first, skipping the two files pinned
+#: to the catch-all in :data:`RETURNED_TO_CATCH_ALL`.
+FILL_FROM_CATCH_ALL = (
+    "tests/solve/test_phase3_gate.py",
+    "tests/test_cs1174_placeholder_delimiters.py",
+    "tests/test_exception_messages.py",
+    "tests/data/test_drift_guard_data.py",
+    "tests/surface/test_server.py",
+    "tests/test_pathless_clone_agreement.py",
+    "tests/test_credential_redaction.py",
+    "tests/test_flip_checks.py",
+)
+
+#: The fill shard's whole membership, exactly.
+FILL_SHARD_FILES = (*FILL_FROM_HOOK, *FILL_FROM_CATCH_ALL)
+
+#: The flag that makes the hook shard dispatch its files in COMMAND ORDER.
+#: pytest-xdist 3.8 reorders the loadfile queue by test count, descending, by
+#: default, so the 3-test canary file was always dispatched LAST and ran alone
+#: for about 160s on a slow runner. `LoadFileScheduling` inherits the gate from
+#: `LoadScopeScheduling`, so this flag governs `--dist loadfile` too.
+HOOK_NO_REORDER = "--no-loadscope-reorder"
+
+#: Named second in the hook shard, so under command order it starts at t=0 on
+#: the other worker.
+HOOK_SHARD_SECOND = HOOK_SHARD_FILL[0]
+
+
+def test_the_fill_shard_runs_exactly_the_moved_files_and_no_other_shard_does() -> None:
+    """CS-1198 - the hook shard read over its budget, and a fifth job took the fill.
+
+    No level moved and no test was dropped. The generic partition arm already
+    proves every file runs in exactly one leg; this arm pins WHICH leg for each
+    moved file, that the fill shard names nothing else, that the display name
+    the lane driver keys on is the one written here, and that every moved file
+    is claimed by exactly one shard and ignored by the catch-all exactly once.
+    """
+    shards = suite_shards()
+    for job_id in (JOB_ID, HOOK_JOB_ID, FILL_JOB_ID):
+        assert job_id in shards, f"no {job_id!r} shard runs {SUITE_STEP!r}: {sorted(shards)}"
+    job_name = every_parsed_job()[FILL_JOB_ID].get("name")
+    assert job_name == FILL_JOB_NAME, (
+        f"the {FILL_JOB_ID!r} job is named {job_name!r}; the lane driver and both tier-1"
+        f" readers key on {FILL_JOB_NAME!r}"
+    )
+    fill_targets = shard_targets(shards[FILL_JOB_ID])
+    assert sorted(fill_targets) == sorted(FILL_SHARD_FILES), (
+        f"the {FILL_JOB_ID!r} shard names {fill_targets}; CS-1198 gave it exactly"
+        f" {list(FILL_SHARD_FILES)}"
+    )
+    claims = {
+        path: sorted(
+            job_id
+            for job_id, tokens in shards.items()
+            for target in shard_targets(tokens)
+            if target == path
+        )
+        for path in FILL_SHARD_FILES
+    }
+    wrong = {path: owners for path, owners in claims.items() if owners != [FILL_JOB_ID]}
+    assert wrong == {}, (
+        f"{wrong}; each moved file must be claimed by the {FILL_JOB_ID!r} shard alone,"
+        " or it runs twice or in the wrong leg"
+    )
+    catch_all_ignores = shard_ignores(shards[JOB_ID])
+    miscounted = {
+        path: catch_all_ignores.count(IGNORE_PREFIX + path)
+        for path in FILL_SHARD_FILES
+        if catch_all_ignores.count(IGNORE_PREFIX + path) != 1
+    }
+    assert miscounted == {}, (
+        f"the {JOB_ID!r} shard ignores these moved files the wrong number of times"
+        f" {miscounted}; each needs exactly one {IGNORE_PREFIX!r}"
+    )
+
+
+def test_the_hook_shard_dispatches_in_command_order_with_the_canary_second() -> None:
+    """CS-1198 - under xdist 3.8's default reorder the canary always ran last.
+
+    The S0 measurement found the hook shard's wall was about half its worker
+    time PLUS a 160s single-worker tail: the 3-test canary file, dispatched last
+    because loadfile sorts files by test count, descending. The adjudicated
+    repair turns that sort off on the HOOK job only, so the command order is the
+    dispatch order - the probe-bound file first and the canary second, each
+    starting at t=0 on its own worker. The flag is pinned here, on this job and
+    on no other: the ruling scoped it to this job, and widening it moves every
+    other shard's measured schedule.
+    """
+    shards = suite_shards()
+    assert HOOK_JOB_ID in shards, f"no {HOOK_JOB_ID!r} shard runs {SUITE_STEP!r}"
+    hook_args = after_pytest(shards[HOOK_JOB_ID])
+    assert HOOK_NO_REORDER in hook_args, (
+        f"the {HOOK_JOB_ID!r} shard does not pass {HOOK_NO_REORDER!r}, so xdist reorders"
+        f" its files by test count and the canary runs last and alone: {hook_args}"
+    )
+    hook_targets = shard_targets(shards[HOOK_JOB_ID])
+    assert hook_targets[:2] == [HOOK_SHARD_FIRST, HOOK_SHARD_SECOND], (
+        f"under command order the {HOOK_JOB_ID!r} shard must name {HOOK_SHARD_FIRST!r}"
+        f" then {HOOK_SHARD_SECOND!r}; it names {hook_targets}"
+    )
+    elsewhere = sorted(
+        job_id
+        for job_id, tokens in shards.items()
+        if job_id != HOOK_JOB_ID and HOOK_NO_REORDER in after_pytest(tokens)
+    )
+    assert elsewhere == [], (
+        f"the {elsewhere} shards also pass {HOOK_NO_REORDER!r}; CS-1198's ruling scoped it"
+        f" to the {HOOK_JOB_ID!r} job alone"
+    )
+
+
+def test_the_installed_pytest_accepts_the_hook_shards_dispatch_flag() -> None:
+    """A flag pytest does not know is exit 4 on the runner, not a slower shard.
+
+    The partition arms read tokens and would pass a misspelt flag, so the
+    installed scheduler is asked directly. The pinned floor
+    (:data:`EXPECTED_XDIST_REQUIREMENT`) is the version this was verified on.
+    """
+    proc = subprocess.run(
+        [sys.executable, "-m", "pytest", "--help", "-p", "no:cacheprovider"],
+        capture_output=True,
+        text=True,
+        check=False,
+        cwd=REPO_ROOT,
+        timeout=120,
+    )
+    known = HOOK_NO_REORDER in proc.stdout
+    assert proc.returncode == 0, f"pytest --help exited {proc.returncode}"
+    assert known, f"the installed pytest does not list {HOOK_NO_REORDER!r} in its help"
 
 
 def test_every_path_a_shard_names_exists_in_the_tree() -> None:
