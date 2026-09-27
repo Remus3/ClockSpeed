@@ -1,5 +1,5 @@
 CLOCKSPEED - NEXT SESSION CONTINUATION PROMPT
-Written at the end of session 116, 2026-09-26. Paste this whole file into a cold session.
+Written at the end of session 117, 2026-09-27. Paste this whole file into a cold session.
 
 ================================================================================
 READ THESE FIRST, IN THIS ORDER
@@ -8,83 +8,82 @@ READ THESE FIRST, IN THIS ORDER
   CLAUDE.md                 rules, frozen list, settled decisions, topology
   memory/MEMORY.md          durable cross-session facts
   ROADMAP.md                open work only - the Phase 7 heading is the focus
-  WAKEUP_NOTES.md           sessions 116, 115, 114 at full fidelity
+  WAKEUP_NOTES.md           sessions 117, 116, 115 at full fidelity
   docs/ARCHITECTURE.md      module map, data flow, seams
   docs/item_notes/phase7.md every open Phase 7 item and its acceptance
   docs/GATED.md             CS-G03 (the flip gate) and CS-G08 (never-seen machine)
-  docs/LEDGER.md            the 2026-09-26 records: CS-1209, CS-1195, CS-1210, CS-1201,
-                            CS-1198 CLOSED; CS-1207 LANDED NOT CLOSED
 
 Then run:  python tools/inbox_watch.py
-The inbox was NOT reviewed or acknowledged this session (102 unread at session start).
+Session 117 TRIAGED the inbox (103 unread) but did NOT acknowledge it. Nothing in it
+needs action beyond CS-1216, already filed.
 
 ================================================================================
 STATE OF THE TREE
 ================================================================================
 
-HEAD / remote   the session-116 /done commit. Confirm `git rev-parse HEAD` equals
+HEAD / remote   the session-117 /done commit. Confirm `git rev-parse HEAD` equals
                 `git ls-remote origin main` - a blocked push reports exit 0.
-CI              READ the tier-1 run at the /done tip before anything else. Tier 1
-                now has FIVE jobs (gates, save, guard, hook, fill). Last read green:
-                36260379206 at 788695d. The /done tip carries the CS-1207 scanner
-                changes, which CI had not yet run when this was written.
+CI              RED AT 61bce0b (run 36288873612): the tier-1 GUARD shard read 480.19s
+                against the 480s CEILING with 2228 passed. Docs-only changes - this is
+                CS-1214 breaching the ceiling on a slow runner, not a test failure.
+                Read the run at the /done tip too; expect the same shape.
 working tree    CLEAN at the /done commit.
-worktrees       .claude/worktrees/agent-ae99f307afe82e753 (the CS-1207 builder) is
-                LOCKED; its content LANDED - leave it or unlock and remove it. Older
-                stale trees remain; classify by CONTENT before pruning.
+CS-1207 branch  worktree-agent-ace624231ac7fd814 at 1ee41a5, worktree
+                .claude/worktrees/agent-ace624231ac7fd814 - rounds 4-16, UNMERGED, clean.
+                DO NOT prune it. Older stale trees remain; classify by CONTENT.
 
 ================================================================================
-CLOSED IN SESSION 116 (detail in docs/LEDGER.md)
+CLOSED IN SESSION 117
 ================================================================================
 
-CS-1209  the PYTHONINSPECT arm names one MEASURED path per platform; ubuntu green.
-CS-1195  drift_guard guard (c) withholds a withheld-class path by reason and count.
-CS-1210  the same for guard_dated - which is guard (g), NOT (e) as the item said.
-CS-1201  probe-bound arms graded by a per-call shim log and a window from the hang.
-CS-1198  fifth tier-1 job `fill`; `--no-loadscope-reorder` on the hook job; slow-mode
-         hook reading 355 against 420.
+Nothing closed. Filed CS-1216, CS-1217, CS-1218 and one BACKLOG line (Ubuntu 26
+runner re-measure, trigger 2026-10-19).
 
 ================================================================================
 THE SINGLE NEXT ACTION
 ================================================================================
 
-READ CI AT THE /DONE TIP. If red, that is item one. Otherwise CONTINUE CS-1207 from
-its item note's "MEASURED 2026-09-26" section: three adversary rounds each found a
-NEW escape class. Close CLASSES with allowlists, not shapes - every str.format /
-format_map / Formatter field walk; any builtin (__import__, exec, eval, compile,
-getattr) bound to a name, stored or passed as a value; `match` class patterns
-reading attributes; ANY attribute chain that reaches a module through a scanned
-repository module (precommit_gate.os); git subcommands that run a program
-(difftool -x, grep -O, rebase --exec, clone -u, bisect run). Then a FRESH
-adversary round that re-runs every earlier probe. Close only when a round finds
-no live escape outside the declared list.
+FIX THE RED GUARD SHARD (CS-1214). Move files from the tier-1 guard shard to the fill
+shard in .github/workflows/tier1.yml (the fill job took about 3.4 minutes end to end)
+until a SLOW-MODE reading of guard is at or under 420s. Never raise 420/480. Every
+moved file must still run in exactly one tier-1 shard. tests/test_flip_checks.py can
+never be named in a workflow. Run it as an orchestrated slice: planner, builder,
+adversary.
+
+================================================================================
+OPERATOR RULING OWED - CS-1207 (do not resume it without one)
+================================================================================
+
+The CS-1207 repair loop is HALTED. A safety classifier stopped two adversary turns and
+the round-17 repair brief. Do NOT re-dispatch an escape hunt to route around those
+stops. Record the operator's answer if volunteered in the main session:
+  (a) run round 17 (pytest config discovery: tests/pytest.ini and a root .pytest.ini
+      are neither pinned nor graded) interactively, or declare it out of scope;
+  (b) land branch 1ee41a5 LANDED-NOT-CLOSED with tests/test_hook_env_echo.py moved
+      from the guard shard to the fill shard (it reads ~145s locally - landing it in
+      the guard shard would deepen the ceiling breach).
+Detail: CS-1207's item note, "MEASURED 2026-09-26, rounds four to sixteen".
 
 ================================================================================
 OPEN PHASE 7 ITEMS, PRIORITY ORDER (acceptance: docs/item_notes/phase7.md)
 ================================================================================
 
- 1 CS-815   LANDED, one operator look owed: does the desktop app SHOW the
+ 1 CS-1214  guard shard over budget - NOW OVER THE CEILING, tier 1 red.
+ 2 CS-1207  env scan allowlist - halted, operator ruling owed (above).
+ 3 CS-815   LANDED, one operator look owed: does the desktop app SHOW the
             "REFUSED (CS-815)" hook-error line? Record it if volunteered; never ask.
- 2 CS-1207  env scan allowlist - LANDED NOT CLOSED, see THE SINGLE NEXT ACTION.
- 3 CS-1208  value flow from permitted reads to print/log/report/exception sinks.
-            Depends on CS-1207's permitted-site table. MERGER RULING: its driven
-            module runs in the FILL shard (guard is over budget). Planner leads:
-            H2 reproduced by hand and filed as CS-1215; H1 (display_note splits on
-            spaces under --verbose) reproduced only as a direct call.
- 4 CS-1214  tier-1 guard shard read 443 (slow runner) over its 420 budget.
- 5 CS-1204  /api/health still waits on the first full save parse.
- 6 CS-1205  pre-push does not scrub PYTEST_ADDOPTS (frozen - needs a grant).
- 7 CS-1206  tests can print an environment value outside an assert.
- 8 CS-1215  the gate run by hand echoes git stderr, home path included (frozen).
- 9 CS-1211  test_hook_probe_bound.hangs reads a slow interpreter as hung.
-10 CS-1212  test_hook_toolchain kills at a fixed bound that counts start-up.
-11 CS-1213  the save shard's named-first arm is false under xdist 3.8 reorder.
-12 CS-1202  PostToolUse `--files "$CLAUDE_FILE_PATHS"` may always be empty.
-13 CS-1196  provenance history walk miscounts on a merge (land by CHERRY-PICK).
-14 CS-1197  tests/save/test_trailing_run.py sweeps every real save, ~400s.
-15 CS-1194  drift_guard prints a non-numeric player-named folder.
-16 CS-1032, CS-701, CS-953, CS-1186 (no-game half GATED under CS-G08).
-17 CS-700   the flip, S0-S12, LAST. S9 onward needs the operator's own-words
+ 4 CS-1217  the gate's `python -m ruff` fallback runs a staged ruff.py (frozen, grant).
+ 5 CS-1218  a ruff config the gate cannot load reports PASS, lint unrun (frozen, grant).
+ 6 CS-1208  value flow to print/log/report/exception sinks; depends on CS-1207's
+            permitted-site table; its driven module runs in the FILL shard.
+ 7 CS-1204  /api/health still waits on the first full save parse.
+ 8 CS-1205  pre-push does not scrub PYTEST_ADDOPTS (frozen - needs a grant).
+ 9 CS-1206  tests can print an environment value outside an assert.
+10 CS-1215  the gate run by hand echoes git stderr, home path included (frozen).
+11 CS-1216  slots release fallback docstring claims a torn write reads stale.
+12 CS-1211, CS-1212, CS-1213, CS-1202, CS-1196, CS-1197, CS-1194.
+13 CS-1032, CS-701, CS-953, CS-1186 (no-game half GATED under CS-G08).
+14 CS-700   the flip, S0-S12, LAST. S9 onward needs the operator's own-words
             confirmation. CS-704's census baseline c6f3687 MUST be re-pinned after S7a.
 
 ================================================================================
@@ -92,21 +91,13 @@ DECISIONS - DO NOT RE-LITIGATE
 ================================================================================
 
 THE ENV SCAN IS AN ALLOWLIST OF PERMITTED READERS PER SITE (CS-1207). Never a list of
-  known readers. Six must-pass lines were RETIRED to must-flag on purpose (ledger).
-CS-1207 declared out of scope: __file__, __spec__.origin, directory listings, relpath
-  depth, time.tzname, /proc paths built at run time, git config user.email, git var,
-  personal git log fields, python from stdin, contextlib.chdir, argparse prog, the
-  gate's git(args) pass-through, sys.argv. Value flow of these belongs to CS-1208.
-TIER 1 IS FIVE JOBS. The hook job carries --no-loadscope-reorder so it dispatches in
-  command order; pytest-xdist is floored at 3.8. tests/test_flip_checks.py can NEVER be
-  named in a workflow (it pins that no workflow names its tool) - it stays catch-all.
-NEVER RAISE THE 420/480 TIER-1 PIN. A tier-1 close needs a SLOW-MODE reading (canary
-  setup at or above ~120s); a fast-mode reading is not evidence.
-CS-1201: no skip, marker, retry or widened slack for load; LOWER_EDGE_TOLERANCE is 1s
-  because the unloaded margin measured 68ms.
-CS-1195/CS-1210: a path is read as its own directory shape only when it IS a directory
-  entry (gitlink or unlisted dir); a plain file named `corpus` is still named (ADR 0023
-  rule 5). Fail closed if `git ls-files -s` fails.
+  known readers. On the branch: no data-flow following for commands, exact
+  permissions, reviewed entries pinned to their module's import closure, carriers
+  (hook files, settings hooks, pyproject pytest/entry-points tables) byte-pinned.
+PYPROJECT IS PINNED ON ITS PYTEST AND ENTRY-POINT TABLES ONLY, so a dependency bump
+  does not force a re-review - adversary found no leak through other tables.
+NEVER RE-DISPATCH WORK A SAFETY CLASSIFIER STOPPED. Report it to the operator instead.
+NEVER RAISE THE 420/480 TIER-1 PIN. A tier-1 close needs a SLOW-MODE reading.
 RULE 13 LIVES ONLY IN CLAUDE.md. AN ASSERT MUST NEVER RENDER AN ENVIRONMENT VALUE.
 FROZEN-FILE EDITS: adjudicator grant in docs/LEDGER.md BEFORE the edit.
 THE PROVENANCE MANIFEST IS NEVER RE-SEEDED. PYTEST NODE IDS ARE NEVER REWRITTEN.
@@ -116,22 +107,20 @@ NO SIBLING-TREE READS, not even read-only. Brief every agent.
 EXTERNAL CONDITIONS BEING WAITED ON
 ================================================================================
 
+CS-1207: the operator's ruling (above).
 CS-815: the operator's eye on the desktop app's hook-error rendering.
 CS-G08: a disposable never-seen environment - gates CS-1187 and half of CS-1186.
 FOUR DEAD-SECRET FILES still await an operator deletion call (key already rotated).
-GitHub MCP needs re-authorisation in an interactive session.
+GitHub and CodSpeed MCP need re-authorisation in an interactive session.
 
 ================================================================================
 TRAPS THIS SESSION PAID FOR
 ================================================================================
 
-Only an ubuntu measurement settles an ubuntu-only red: a throwaway branch with its own
-  workflow printing a REDACTED outcome (every child env value replaced by its name)
-  took one CI run. Delete the branch after.
-A worktree agent's measurement script must be stamped into tools/provenance.tsv or the
-  pre-push suite blocks the push.
-Two pytest runs at once on this box make timing arms and nested-pytest controls fail
-  spuriously (a nested control exited 2). Do not run a mutation adversary beside a push.
-Each adversary round on a static scanner found a NEW class: brief builders to close the
-  CLASS the counter-example belongs to.
-The pre-push suite runs ~16 min; background it and wait.
+A docs-only push can turn tier 1 red: the guard shard sits at the ceiling on a slow
+  runner, so ANY push is a coin flip until CS-1214 lands.
+`cd` into a worktree in a Bash call moves the session's working directory; use
+  absolute paths and never remove a worktree the shell sits in.
+drift_guard (j): a ROADMAP title must be a PREFIX of its filed full headline.
+drift_guard (g): LANDED is not a provenance verb - use RECORDED, MEASURED or FILED.
+The pre-push suite now runs ~18 min; background it and wait.

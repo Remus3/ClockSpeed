@@ -1174,6 +1174,18 @@ directory listings, `relpath` depth, `time.tzname`, `/proc` paths built at run t
 `git config user.email`, `git var`, personal `git log --format` fields, a python child
 reading its program from stdin, `contextlib.chdir`, argparse `prog`, the gate's
 `git(args)` pass-through, and `sys.argv`.
+
+### MEASURED 2026-09-26, rounds four to sixteen on an unmerged branch (session 117)
+
+Twelve repair rounds sit on branch `worktree-agent-ace624231ac7fd814` at `1ee41a5`,
+each recorded in that branch's copy of this section. Every adversary round refuted the
+candidate with a new class; the saved probes of every earlier round stayed caught.
+Round sixteen's open escape: pytest's config discovery reads `tests/pytest.ini` and a
+root `.pytest.ini`, and neither is pinned or graded. The loop is HALTED, not closed: a
+safety classifier stopped two adversary turns and the round-seventeen repair brief, and
+the operator's ruling is owed on running round seventeen interactively, on declaring
+pytest config discovery out of scope, and on landing the branch LANDED-NOT-CLOSED with
+the module moved out of the guard shard.
 ## CS-1208
 
 ### Acceptance
@@ -1278,6 +1290,12 @@ slow-mode re-run read 355), fill 200. The guard shard's membership did not chang
 CS-1198; it read 407 and 413 on earlier slow runners and holds the CS-814 and CS-815
 hook-driving modules for room.
 
+### MEASURED 2026-09-27, the ceiling breached at a docs-only tip (session 117)
+
+Run 36288873612 at `61bce0b`: the guard shard read 480.19s with 2228 passed, 3 skipped,
+over the 480s ceiling, so tier 1 went red on a push that changed only docs. The fill
+shard's job took about 3.4 minutes end to end in run 36269312405.
+
 ## CS-1215
 
 ### Acceptance
@@ -1351,3 +1369,25 @@ directory first on `sys.path`, and the ruff calls run with the staging temp dire
 as `cwd`. A liveness adversary reproduced it end to end in a private tree: with ruff
 hidden from PATH but importable, a staged synthetic `ruff.py` ran under `--staged` and
 wrote its marker file. Declared as a residual in the CS-1207 scanner docstring.
+
+## CS-1218
+
+### Acceptance
+
+the pre-commit gate never reports PASS for a staged Python unit whose lint did not run:
+when ruff exits on a configuration it cannot load, or returns output the gate cannot
+parse as its JSON report, the gate blocks with a finding that names the unit and says
+lint did not run, shown by an arm that stages a synthetic unit under a temp repository
+whose `pyproject.toml` carries an unloadable `[tool.ruff]` table and asserts a blocking
+exit, red first; the edit to the frozen gate carries an adjudicator grant recorded in
+`docs/LEDGER.md` before it is made.
+
+### Full headline
+
+a ruff config the gate cannot load makes the gate report PASS while lint did not run
+
+### FILED 2026-09-27, a CS-1207 round-sixteen adversary side finding (session 117)
+
+A private-tree commit whose `[tool.ruff]` table named an `extend` path ruff could not
+resolve printed the gate's PASS line; the gate discards ruff's stderr, so the failure
+was silent.
