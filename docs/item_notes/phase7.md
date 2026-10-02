@@ -1691,3 +1691,46 @@ the VALUE alongside the key - so the branch is still reached - makes the repaire
 with an excess of 2. The pre-existing control
 `test_a_gate_copy_whose_skip_renders_the_name_is_caught` is untouched by the diff, gets no
 baseline, and still passes on both of its plants.
+
+## CS-1222
+
+### Acceptance
+
+a doc carrying an unresolvable commit sha turns a guard red: a tracked gate resolves
+every sha-shaped citation in the authored docs with `git rev-parse --verify -q
+<sha>^{commit}` and FAILS on one that does not resolve, red first, with an arm that
+plants an unresolvable sha in a temp copy of a guarded doc and asserts the refusal, and
+a second arm that plants a RESOLVABLE one and asserts it passes so the gate is not
+merely refusing every hex run. The gate's inclusion rule is published and its exclusion
+set is reported per run, because a sweep that admits nothing reports clean; the known
+non-commit classes measured on 2026-10-02 - agent and worktree ids, sha256 prefixes,
+foreign-repository licence pins, git blob sha1s, lane run ids and synthetic fixture
+vectors - are each excluded by a STATED rule rather than by a path exemption. An empty
+result is never reported as a pass on its own: the gate states whether SS's
+discriminator was available, since `.git/filter-repo/` is absent here and a check that
+cannot fire proves nothing.
+
+### Full headline
+
+`docs/LEDGER.md` forbids citing a commit sha and nothing enforces it, so a doc carrying an unresolvable sha reddens nothing
+
+### MEASURED 2026-10-02, found answering the channel's re-pin round (session 118)
+
+`docs/LEDGER.md` already forbids the citation: "Cite the item ID, the merged file, and
+the test name. Do not cite the slice SHA.", and its invalid-pointer list names "A bare
+commit SHA" outright. NOTHING ENFORCES IT. Four tools validate a commit field's SHAPE
+with a regex and never call git - the measurement record's `_COMMIT` pattern over
+`tools/measurements.json`, and the concentration, growth and headroom tools;
+`tests/test_docs_citations.py` grades symbol-shaped pointers and is silent on shas; the
+one site that resolves a ref resolves a flip ref rather than a doc citation.
+
+THE SWEEP THAT FOUND IT CAME BACK CLEAN, WHICH IS THE POINT. 59 files, 765 sha-shaped
+occurrences, 393 distinct, 353 resolving as commits and 40 empty - and all 40 are
+explained by their own citing lines as things that were never commits. So CS's record is
+clean by discipline and not by any gate, and the next unresolvable sha to land will land
+silently. A clean result standing in for a guard is the shape
+`memory/` already records under a gate that skips its checks reporting PASS.
+
+RELATED, AND NOT THE SAME ITEM: [[CS-1220]] is the sibling defect one field over - a
+record that grades a commit's spelling while carrying no witness for the state it was
+taken in.

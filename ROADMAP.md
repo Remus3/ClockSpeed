@@ -336,6 +336,7 @@ CS-1218 - a ruff config the gate cannot load makes the gate report PASS while li
 CS-1219 - the adjudication candidate freeze is prose with no mechanical witness, and a porcelain one would be blind to a swapped `.pyc` - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1220 - `tools/measurement_record.py` grades a reading's commit spelling but records no clean-tree witness - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1221 - the account-name skip arm counts `root` inside the gate's own `save-root` prose, so a correct gate reads as a leak - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
+CS-1222 - `docs/LEDGER.md` forbids citing a commit sha and nothing enforces it, so a doc carrying an unresolvable sha reddens nothing - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1211 - `tests/test_hook_probe_bound.py::hangs` reads a slow-but-returning interpreter as hung under load, un-skipping an arm that then fails - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1212 - `tests/test_hook_toolchain.py` kills its commit at a fixed bound plus slack that counts pre-hang start-up under load, the CS-1201 defect one module over - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1213 - the save shard's named-first arm in `tests/test_tier1_budget.py` asserts a dispatch order that pytest-xdist 3.8 reorders away - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
