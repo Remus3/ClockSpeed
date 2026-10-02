@@ -248,6 +248,7 @@ def _reading(**overrides: Any) -> dict[str, Any]:
         "contended": False,
         "date": "2026-09-05",
         "commit": "c33afca",
+        "tree": "clean",
         "source": ["docs/LEDGER.md### Entries"],
         "superseded_by": None,
     }
@@ -374,3 +375,124 @@ def test_the_cli_answers_the_survives_query_for_every_bound_metric(
     assert tool.main(["--survives"]) == 0
     printed = capsys.readouterr().out
     assert "survives" in printed
+
+
+# ---------------------------------------------------------------------------
+# CS-1220. A reading records the TREE it was taken over, and a pair resting on
+# an unrecorded tree is never `comparable`.
+# ---------------------------------------------------------------------------
+
+#: A reading dated on or after the day the witness became required. Any later
+#: date works; this one is fixed so the arm cannot rot into the grandfathered
+#: window as the calendar moves.
+_NEW_READING_DATE = "2026-10-03"
+
+#: The locally-sourced methods - every method but the runner-checkout pair.
+_LOCAL_METHODS = ("paired", "unpaired", "local_suite", "profile")
+
+#: The rows seeded before CS-1220 - marked, never re-seeded or re-dated.
+_SEEDED_ROWS = 16
+
+
+def _new_local_reading(tracked: dict[str, Any], method: str) -> dict[str, Any]:
+    reading: dict[str, Any] = copy.deepcopy(tracked["readings"][8])
+    reading["method"] = method
+    reading["date"] = _NEW_READING_DATE
+    reading.pop("tree", None)
+    return reading
+
+
+@pytest.mark.parametrize("method", _LOCAL_METHODS)
+def test_a_new_local_reading_with_no_tree_field_is_refused(
+    tool: ModuleType, tracked: dict[str, Any], method: str
+) -> None:
+    """THE FIRST ACCEPTANCE ARM - a new local reading must say what tree it read."""
+    record = copy.deepcopy(tracked)
+    record["readings"].append(_new_local_reading(tracked, method))
+    new_index = len(record["readings"]) - 1
+    offences = tool.grade(record)
+    named = [o for o in offences if o.startswith(f"reading {new_index}:") and "tree" in o]
+    assert named, offences
+
+
+@pytest.mark.parametrize("method", _LOCAL_METHODS)
+def test_a_new_local_reading_may_not_claim_the_unwitnessed_escape(
+    tool: ModuleType, tracked: dict[str, Any], method: str
+) -> None:
+    """The escape exists for rows taken BEFORE the witness was required, only."""
+    record = copy.deepcopy(tracked)
+    reading = _new_local_reading(tracked, method)
+    reading["tree"] = tool.TREE_UNWITNESSED
+    record["readings"].append(reading)
+    new_index = len(record["readings"]) - 1
+    offences = tool.grade(record)
+    named = [o for o in offences if o.startswith(f"reading {new_index}:") and "tree" in o]
+    assert named, offences
+
+
+@pytest.mark.parametrize("tree", ["clean", "dirty"])
+def test_a_new_local_reading_that_records_its_tree_grades_clean(
+    tool: ModuleType, tracked: dict[str, Any], tree: str
+) -> None:
+    # The control for the two refusal arms: they refuse the omission, not the row.
+    record = copy.deepcopy(tracked)
+    reading = _new_local_reading(tracked, "profile")
+    reading["tree"] = tree
+    record["readings"].append(reading)
+    assert tool.grade(record) == []
+
+
+def test_a_tree_value_outside_its_domain_is_an_offence(
+    tool: ModuleType, tracked: dict[str, Any]
+) -> None:
+    record = copy.deepcopy(tracked)
+    record["readings"][0]["tree"] = "probably_clean"
+    offences = tool.grade(record)
+    assert any("tree" in offence for offence in offences), offences
+
+
+def test_every_tracked_row_predating_the_witness_is_marked_unwitnessed(
+    tool: ModuleType, tracked: dict[str, Any]
+) -> None:
+    """The sixteen seeded rows are MARKED, not re-seeded: no tree was recorded."""
+    legacy = [r for r in tracked["readings"] if r["date"] < tool.TREE_WITNESS_REQUIRED_FROM]
+    assert len(legacy) >= _SEEDED_ROWS
+    assert {r["tree"] for r in legacy} == {tool.TREE_UNWITNESSED}
+
+
+def test_a_pair_where_exactly_one_side_has_no_tree_witness_is_not_comparable(
+    tool: ModuleType,
+) -> None:
+    """THE SECOND ACCEPTANCE ARM. Every other field agrees; only the tree differs."""
+    witnessed = _reading(tree="clean")
+    unwitnessed = _reading(tree="unwitnessed")
+    for left, right in ((witnessed, unwitnessed), (unwitnessed, witnessed)):
+        verdict = tool.comparability(left, right)
+        assert verdict != tool.COMPARABLE
+        assert verdict == tool.UNWITNESSED_TREE
+    # The control: the same pair, both witnessed clean, IS comparable.
+    assert tool.comparability(witnessed, _reading(tree="clean")) == tool.COMPARABLE
+
+
+def test_a_pair_where_both_sides_have_no_tree_witness_is_not_comparable(
+    tool: ModuleType,
+) -> None:
+    verdict = tool.comparability(_reading(tree="unwitnessed"), _reading(tree="unwitnessed"))
+    assert verdict == tool.UNWITNESSED_TREE
+
+
+def test_a_reading_over_a_dirty_tree_is_not_comparable_with_anything(tool: ModuleType) -> None:
+    # A dirty tree is not identified by its commit, so it measured unnamed code.
+    for other in ("clean", "dirty"):
+        verdict = tool.comparability(_reading(tree="dirty"), _reading(tree=other))
+        assert verdict == tool.NOT_COMPARABLE
+
+
+def test_an_unwitnessed_pair_cannot_falsify_a_bound(tool: ModuleType) -> None:
+    record = _bound_record(
+        _reading(value=21, date="2026-09-05", tree="unwitnessed"),
+        _reading(value=36, date="2026-09-06", tree="clean"),
+    )
+    verdicts = tool.survives_next_reading(record, "a_noise_figure_seconds")
+    assert verdicts[0]["verdict"] == tool.UNTESTED
+    assert verdicts[0]["basis"] == tool.UNWITNESSED_TREE

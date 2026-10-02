@@ -58,6 +58,7 @@
       "contended": false,
       "date": "2026-09-05",
       "commit": "c33afca",
+      "tree": "unwitnessed",
       "source": [
         "docs/LEDGER.md#samples of the pytest step on a 2-vCPU runner over one byte-identical tree",
         "docs/LEDGER.md#### 2026-09-05 - CS-906 - FROZEN-FILE GRANT ISSUED WITH THIRTEEN CONDITIONS"
@@ -73,6 +74,7 @@
       "contended": false,
       "date": "2026-09-05",
       "commit": "c33afca",
+      "tree": "unwitnessed",
       "source": [
         "docs/LEDGER.md#samples of the pytest step on a 2-vCPU runner over one byte-identical tree",
         "docs/item_notes/phase4-followups-900.md#run 33972223350 on tree `c33afca`"
@@ -88,6 +90,7 @@
       "contended": false,
       "date": "2026-09-05",
       "commit": "c33afca",
+      "tree": "unwitnessed",
       "source": [
         "docs/LEDGER.md#samples of the pytest step on a 2-vCPU runner over one byte-identical tree",
         "docs/item_notes/phase4-followups-900.md#GitHub `ubuntu-latest`, `nproc` 2"
@@ -103,6 +106,7 @@
       "contended": false,
       "date": "2026-09-05",
       "commit": "c33afca",
+      "tree": "unwitnessed",
       "source": [
         "docs/LEDGER.md#samples of the pytest step on a 2-vCPU runner over one byte-identical tree",
         "docs/item_notes/phase4-followups-900.md#GitHub `ubuntu-latest`, `nproc` 2"
@@ -118,6 +122,7 @@
       "contended": false,
       "date": "2026-09-05",
       "commit": "c33afca",
+      "tree": "unwitnessed",
       "source": [
         "docs/LEDGER.md#samples of the pytest step on a 2-vCPU runner over one byte-identical tree",
         "docs/item_notes/phase4-followups-900.md#GitHub `ubuntu-latest`, `nproc` 2"
@@ -133,6 +138,7 @@
       "contended": false,
       "date": "2026-09-05",
       "commit": "c33afca",
+      "tree": "unwitnessed",
       "source": [
         "docs/LEDGER.md#samples of the pytest step on a 2-vCPU runner over one byte-identical tree",
         "docs/item_notes/phase4-followups-900.md#GitHub `ubuntu-latest`, `nproc` 2"
@@ -148,6 +154,7 @@
       "contended": false,
       "date": "2026-09-05",
       "commit": "c33afca",
+      "tree": "unwitnessed",
       "source": [
         "docs/LEDGER.md#Mean to mean 1.222x; pessimistic pair 1.121x; flattering pair 1.393x, WHICH MUST NOT BE QUOTED."
       ],
@@ -162,6 +169,7 @@
       "contended": false,
       "date": "2026-09-05",
       "commit": "c33afca",
+      "tree": "unwitnessed",
       "source": [
         "docs/item_notes/phase4-followups-900.md#run 33972223350 on tree `c33afca`"
       ],
@@ -176,6 +184,7 @@
       "contended": false,
       "date": "2026-09-05",
       "commit": "c33afca",
+      "tree": "unwitnessed",
       "source": [
         "docs/item_notes/phase4-followups-900.md#| 18.9 per cent | ONE test"
       ],
@@ -190,6 +199,7 @@
       "contended": false,
       "date": "2026-09-05",
       "commit": "c33afca",
+      "tree": "unwitnessed",
       "source": [
         "docs/item_notes/phase4-followups-900.md#| 18.9 per cent | ONE test"
       ],
@@ -204,6 +214,7 @@
       "contended": false,
       "date": "2026-09-17",
       "commit": "e3169a64770a00fd4484452148a9ef66ac33cb7b",
+      "tree": "unwitnessed",
       "source": [
         "tools/tier1_growth.py#measure the tier1 lane's growth per commit and grade its warn band",
         "tools/tier1_readings.json#e3169a64770a00fd4484452148a9ef66ac33cb7b"
@@ -219,6 +230,7 @@
       "contended": false,
       "date": "2026-09-17",
       "commit": "e3169a64770a00fd4484452148a9ef66ac33cb7b",
+      "tree": "unwitnessed",
       "source": [
         "tools/tier1_growth.py#measure the tier1 lane's growth per commit and grade its warn band",
         "tools/tier1_readings.json#e3169a64770a00fd4484452148a9ef66ac33cb7b"
@@ -234,6 +246,7 @@
       "contended": false,
       "date": "2026-09-17",
       "commit": "e3169a64770a00fd4484452148a9ef66ac33cb7b",
+      "tree": "unwitnessed",
       "source": [
         "tools/tier1_growth.py#measure the tier1 lane's growth per commit and grade its warn band",
         "tools/tier1_readings.json#e3169a64770a00fd4484452148a9ef66ac33cb7b"
@@ -249,6 +262,7 @@
       "contended": false,
       "date": "2026-09-17",
       "commit": "e3169a64770a00fd4484452148a9ef66ac33cb7b",
+      "tree": "unwitnessed",
       "source": [
         "tools/tier1_growth.py#measure the tier1 lane's growth per commit and grade its warn band",
         "tools/tier1_readings.json#e3169a64770a00fd4484452148a9ef66ac33cb7b"
@@ -264,6 +278,7 @@
       "contended": false,
       "date": "2026-09-17",
       "commit": "e3169a64770a00fd4484452148a9ef66ac33cb7b",
+      "tree": "unwitnessed",
       "source": [
         "tools/tier1_growth.py#measure the tier1 lane's growth per commit and grade its warn band",
         "tools/tier1_readings.json#e3169a64770a00fd4484452148a9ef66ac33cb7b"
@@ -279,6 +294,7 @@
       "contended": false,
       "date": "2026-09-17",
       "commit": "e3169a64770a00fd4484452148a9ef66ac33cb7b",
+      "tree": "unwitnessed",
       "source": [
         "tools/tier1_growth.py#measure the tier1 lane's growth per commit and grade its warn band",
         "tools/tier1_readings.json#e3169a64770a00fd4484452148a9ef66ac33cb7b"

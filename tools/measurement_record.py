@@ -19,6 +19,7 @@ corrected for the want of it:
     contended   whether another suite was live on the same box
     date        when it was taken
     commit      the tree it was taken on
+    tree        whether that commit WAS the tree - clean, dirty or unwitnessed (CS-1220)
 
 THE ONE LOAD STATE THIS TOOL LETS A READING CLAIM WITHOUT AN OBSERVATION, stated
 here because a rule that is applied and not written down is an inference wearing a
@@ -31,6 +32,28 @@ project's own notes say the operator runs several projects' sessions at once, so
 `unknown` there is closer to probably-contended than to quiet. CS-920's verifier
 raised this as the softest field on every seeded row and it is answered by naming
 the rule, not by hiding it.
+
+THE TREE WITNESS, AND THE RULE FOR WHO MAY CLAIM `clean` (CS-1220). A commit sha
+names a tree only when the working tree matched it; a reading taken over
+uncommitted edits measured code no sha names. So every reading carries `tree`:
+
+    clean        the working tree matched `commit` when the reading was taken
+    dirty        it did not - the reading measured code no sha names
+    unwitnessed  nobody recorded which - the escape for the seeded rows only
+
+A `ci_job` reading, and a `derived` reading every input of which is one, may
+claim `clean` BY THE FACT of the runner's fresh checkout of `commit`, the same
+fact that lets it claim `contended: false`. A locally-sourced reading - `paired`,
+`unpaired`, `local_suite` or `profile` - may claim `clean` only from an observed
+empty porcelain status at the time of the reading. `unwitnessed` is accepted only
+on a reading dated before :data:`TREE_WITNESS_REQUIRED_FROM`, which is how the
+sixteen seeded rows keep their values and dates unchanged while every reading
+taken after the rule landed must say which tree it read. The grader cannot see a
+porcelain observation, so the `clean` claim itself rests on whoever records it;
+what the grader DOES enforce is that the field is present on every row, in
+domain, and not the escape on a new row. :func:`comparability` returns
+:data:`UNWITNESSED_TREE` - a non-comparable verdict naming the cause - for any
+pair with an unwitnessed side, and `not_comparable` for any pair with a dirty one.
 
 TWO ESCAPE VALUES EXIST AND THEY ARE NOT A FREE PASS. A worker count that was
 never recorded is `unresolved` and a load state that was never recorded is
@@ -94,7 +117,17 @@ RECEIPT_FIELDS = (
 
 #: The receipt plus the two fields that make a row auditable and revisable:
 #: where the reading was published, and which later reading replaced it.
-READING_FIELDS = (*RECEIPT_FIELDS, "source", "superseded_by")
+READING_FIELDS = (*RECEIPT_FIELDS, "tree", "source", "superseded_by")
+
+#: CS-1220. The tree a reading was taken over. See the module docstring.
+TREE_CLEAN = "clean"
+TREE_DIRTY = "dirty"
+TREE_UNWITNESSED = "unwitnessed"
+TREE_STATES = (TREE_CLEAN, TREE_DIRTY, TREE_UNWITNESSED)
+
+#: A reading dated on or after this day may not claim `unwitnessed`. It is the
+#: day CS-1220 was filed; every seeded row predates it.
+TREE_WITNESS_REQUIRED_FROM = "2026-10-02"
 
 #: A metric is declared once. `sense` is required of a bound and refused of an
 #: observation, because only a bound has a direction it can be refuted from.
@@ -114,6 +147,9 @@ CONTENDED_UNKNOWN = "unknown"
 COMPARABLE = "comparable"
 UNPROVEN = "unproven"
 NOT_COMPARABLE = "not_comparable"
+#: Non-comparable BECAUSE a side's tree was never recorded. Distinct from
+#: `not_comparable` so the verdict names the cause (CS-1220).
+UNWITNESSED_TREE = "unwitnessed_tree"
 
 #: Verdicts of the survives-next-reading query.
 SURVIVED = "survived"
@@ -207,7 +243,25 @@ def _grade_receipt(where: str, reading: dict[str, Any], metrics: dict[str, Any])
     if not isinstance(commit, str) or not _COMMIT.match(commit):
         offences.append(f"{where}: commit {commit!r} is not a lowercase hex sha of 7 to 40 digits")
 
+    offences.extend(_grade_tree_witness(where, reading))
     return offences
+
+
+def _grade_tree_witness(where: str, reading: dict[str, Any]) -> list[str]:
+    """CS-1220. The field is in domain, and `unwitnessed` is refused on new rows.
+
+    Presence is graded with every other field in :func:`grade`. The escape is
+    refused on any reading dated on or after :data:`TREE_WITNESS_REQUIRED_FROM`.
+    """
+    tree = reading["tree"]
+    if isinstance(tree, bool) or tree not in TREE_STATES:
+        return [f"{where}: tree {tree!r} is not one of {TREE_STATES}"]
+    if tree == TREE_UNWITNESSED and str(reading["date"]) >= TREE_WITNESS_REQUIRED_FROM:
+        return [
+            f"{where}: tree {TREE_UNWITNESSED!r} is refused on a reading dated on or after"
+            f" {TREE_WITNESS_REQUIRED_FROM} - record 'clean' or 'dirty'"
+        ]
+    return []
 
 
 def _grade_source(where: str, reading: dict[str, Any]) -> list[str]:
@@ -336,7 +390,17 @@ def comparability(left: dict[str, Any], right: dict[str, Any]) -> str:
     this project published a growth of +57 seconds by comparing a serial reading
     against a parallel one. A pair agreeing only because both sides were never
     recorded is `unproven` - agreement about nothing is not agreement.
+
+    CS-1220: the tree is checked FIRST so the verdict names it. A side whose tree
+    was never recorded - or is absent or out of domain - makes the pair
+    `unwitnessed_tree`; a side read over a dirty tree measured code no sha names,
+    so the pair is `not_comparable`.
     """
+    trees = (left.get("tree", TREE_UNWITNESSED), right.get("tree", TREE_UNWITNESSED))
+    if any(tree not in (TREE_CLEAN, TREE_DIRTY) for tree in trees):
+        return UNWITNESSED_TREE
+    if TREE_DIRTY in trees:
+        return NOT_COMPARABLE
     for field in ("method", "workers", "contended"):
         if left[field] != right[field]:
             return NOT_COMPARABLE
@@ -395,7 +459,7 @@ def survives_next_reading(record: dict[str, Any], metric: str) -> list[dict[str,
             basis = comparability(reading, following)
             answer["basis"] = basis
             answer["next_index"] = next_index
-            if basis != NOT_COMPARABLE:
+            if basis not in (NOT_COMPARABLE, UNWITNESSED_TREE):
                 exceeded = (
                     following["value"] > reading["value"]
                     if sense == "upper"
@@ -431,7 +495,8 @@ def _print_readings(record: dict[str, Any]) -> None:
         print(
             f"{index:>3} {reading['metric']} = {reading['value']} {reading['unit']}"
             f" [{reading['method']}, workers {reading['workers']},"
-            f" contended {reading['contended']}, {reading['date']}, {reading['commit']}]"
+            f" contended {reading['contended']}, {reading['date']}, {reading['commit']},"
+            f" tree {reading['tree']}]"
         )
 
 
