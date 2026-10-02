@@ -1023,6 +1023,38 @@ filer did not re-measure them. Every slice this session reached `main` by
 cherry-pick or fast-forward, so the walk has only ever graded linear history, and
 no arm builds a merge commit.
 
+### MEASURED 2026-10-02, the counts the filer never took (session 118)
+
+This item blocked a push. Two slices were landed with `git merge --no-ff` rather than
+by cherry-pick or fast-forward, and
+`test_no_first_add_row_postdates_the_seed` went red on its ANTI-VACUITY equality, not on
+a finding: `findings` was empty and `first_adds` was 441, while `versions` read 21 against
+an independent count of 19.
+
+THE COUNT RISES BY EXACTLY ONE PER MERGE COMMIT, measured at every commit of the session
+with both counters re-implemented outside the module: 19 and 19 at the base and through
+three linear commits, 20 against 19 from the first merge onward, 21 against 19 from the
+second. The independent counter never moved.
+
+THE MECHANISM IS TWO WALKS WITH DIFFERENT MERGE SEMANTICS, which is narrower than this
+item's headline and is the part an arm has to pin. `_manifest_history` uses
+`git log --full-history --parents`, and a path limit with `--parents` turns on parent
+rewriting, which KEEPS a merge. `_independent_version_count` uses
+`git rev-list --full-history` with no `--parents`, so there is no parent rewriting and a
+merge TREESAME to a parent is OMITTED. A merge that does not itself modify the manifest is
+therefore counted by one walk and not the other.
+
+WHY THE 73 MERGES ALREADY IN THIS HISTORY DO NOT TRIP IT: they predate the manifest, so
+their trees hold no copy of it, and the walk's own pruning step drops a node that has
+neither rows nor a kept parent. The defect needs a merge whose tree HOLDS the manifest and
+does not modify it - which is what landing a slice by merge produces, and what
+cherry-pick and fast-forward never produce.
+
+LANDED LINEAR INSTEAD, and the item stays open. The session's two merges were rebased away,
+leaving seven commits whose combined tree is byte-identical to the merge-bearing one, and
+the module then read 67 passed. That restores the practice the paragraph above records
+rather than inventing a new one, and it fixes nothing: the next merge reproduces this.
+
 ## CS-1197
 
 ### Acceptance
