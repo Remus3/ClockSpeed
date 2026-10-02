@@ -1603,3 +1603,51 @@ depends on the operator's live save library rather than on the tree. A CI runner
 save directory at all and takes a different branch, which is why tier 1 stayed green while
 every local push is refused. The arm is therefore machine-dependent in a way its name does
 not say.
+
+### RECORDED 2026-10-02, the adjudicator's ruling and the repair it took (session 118)
+
+THE RULING, which is not re-litigated here. A BASELINE-DIFFERENCED ORACLE wins: run the
+same commit twice - once with the arm's own names planted, once with names the same branch
+drops that share no token with them - and refuse only the EXCESS over what the baseline
+found. Prose the hook always carries appears in both runs and cancels; a real rendering
+appears in one and reddens.
+
+REWORDING THE GATE'S SKIP PROSE WAS REFUSED, AND SO WAS THE FROZEN-FILE GRANT FOR IT.
+`tools/precommit_gate.py` stayed byte-identical through this repair. The reason is the
+dependency direction: the gate behaved correctly - it REFUSED to match on a generic name
+and said so - and the fault was the oracle's inability to tell a carried token from a
+rendered one. Editing a correct frozen gate to satisfy a defective test inverts that
+dependency and buys a green arm with a worse tree. Also refused as acceptance-forbidden:
+narrowing `bounded_hits`, a hyphen exception, any compound-aware token rule, dropping
+`root` or `admin` from a generic list, and reading the bound down to a number that
+happens to pass here.
+
+WHAT THE REPAIR IS, in `tests/test_hook_env_echo.py` alone. `account_skip_run` measures
+one commit and takes what it COUNTS as a parameter separate from what it PLANTS, so a
+baseline run plants values that cannot add to the count. `account_skip_verdict` runs both
+and returns a `SkipVerdict` of scalars - the excess is `rendered`. Both runs reach the
+same branch, which the arm asserts of each, so every line of fixed prose between them is
+identical by construction rather than by inspection. The baselines are the short pair
+`wv`/`kp` and the generic pair `guest`/`owner`.
+
+THE NEW ARM, machine-independent where the defect was not.
+`test_the_skip_arm_separates_a_carried_token_from_a_rendered_one` plants the colliding
+carriage into a SANDBOX gate copy - the tracked gate is never written - sets the planted
+account name TO the carried token, and asserts the token IS present before asserting the
+verdict separates it. One case per site measured in the gate: the save-root subdirectory
+skip and the save-root entry cap, both carrying `root`, and the two absolute-home-path
+findings, both carrying `home`.
+
+ALL FOUR SIBLING CARRIAGES CANCEL, measured this session with the baselines live:
+`shown` equals `carried` and `rendered` is 0 for every one of them, and for the live
+save-root line the main arm's own numbers are 1 and 1. The save-root cases read one count
+higher than the planted carriage alone, which is that live line being counted as well -
+it cancels too. Stated as unverified rather than claimed: the entry-cap line and the two
+home-path findings are not REACHABLE on this machine, so their cancellation is proven on
+the planted model of each, not against a live emission.
+
+NON-VACUITY, PROVEN BY PLANTING A REAL LEAK. A gate copy whose generic skip line renders
+the VALUE alongside the key - so the branch is still reached - makes the repaired arm red
+with an excess of 2. The pre-existing control
+`test_a_gate_copy_whose_skip_renders_the_name_is_caught` is untouched by the diff, gets no
+baseline, and still passes on both of its plants.

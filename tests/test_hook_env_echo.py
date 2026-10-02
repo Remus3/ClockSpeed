@@ -829,6 +829,46 @@ SHORT_SKIP_PLANTS: Final = {
 }
 
 
+#: Per skip branch, a second set of names the gate drops by the SAME branch whose
+#: values share no token with the arm's own. A run with these plants nothing the
+#: oracle counts, so every occurrence it finds is prose the branch always carries
+#: - CS-1221. The short pair is two letters outside [a-f0-9], like the arm's own.
+ACCOUNT_SKIP_BASELINES: Final = {
+    "short-account-names": {"USERNAME": "wv", "USER": "kp"},
+    "generic-account-names": {"USERNAME": "guest", "USER": "owner"},
+}
+
+#: The generic-name skip line in the tracked gate, and - one per site measured in
+#: it - prose a CORRECT gate prints that carries a generic account name as a
+#: BOUNDED token, because a hyphen and a space are both non-alphanumeric. The
+#: real sites are the save-root subdirectory skip, the save-root entry cap, and
+#: the two absolute-home-path findings; each is reachable only on a machine whose
+#: save root or staged file supplies it, so this arm plants the carriage instead.
+GENERIC_SKIP_HEAD: Final = b'f"{key} is a generic account name'
+GENERIC_SKIP_SITE: Final = GENERIC_SKIP_HEAD + b'; whole-word match would flag ordinary prose"'
+CARRIED_PROSE_SITES: Final = {
+    "posix-home-path-finding": ("home", b"; absolute POSIX home path, auto-detect it"),
+    "save-root-entry-cap": ("root", b"; save root holds more than that many entries"),
+    "save-root-subdirectory-skip": ("root", b"; save-root subdirectory is not an account id"),
+    "windows-home-path-finding": ("home", b"; absolute Windows home path, auto-detect it"),
+}
+#: Both account-name keys reach the generic branch, so prose planted in its skip
+#: line is printed once per key. The arm asserts the carriage is at least this
+#: present in both of its runs, so it cannot pass by observing nothing.
+CARRIED_PROSE_PRINTS: Final = 2
+
+
+class SkipVerdict(NamedTuple):
+    """One skip branch reduced to scalars: counts and bools, never a value."""
+
+    reached: bool
+    base_reached: bool
+    hits: int
+    shown: int
+    carried: int
+    rendered: int
+
+
 def bounded_hits(output: bytes, value: str) -> int:
     """How often ``value`` occurs as a whole token, case-insensitively."""
     token = re.escape(value.encode("ascii"))
@@ -836,23 +876,111 @@ def bounded_hits(output: bytes, value: str) -> int:
     return len(pattern.findall(output))
 
 
-def drive_account_skip(root: Path, arm: str, gate: bytes | None = None) -> tuple[bool, int, int]:
-    """One commit with the arm's names set: reached, marker hits, name hits."""
-    names, said = ACCOUNT_SKIP_ARMS[arm]
-    run = commit_through(root, both_commit_hooks(), extra=dict(names), gate=gate)
+def account_skip_run(
+    root: Path,
+    planted: dict[str, str],
+    counted: tuple[str, ...],
+    said: tuple[bytes, ...],
+    gate: bytes | None,
+) -> tuple[bool, int, int]:
+    """One commit with ``planted`` set: reached, canary hits, counted-token hits.
+
+    ``counted`` is deliberately NOT tied to ``planted``. A baseline run plants
+    values that cannot add to the count, so what it finds is the fixed prose
+    every run of that branch carries rather than anything the hook rendered.
+    """
+    root.mkdir(parents=True, exist_ok=True)
+    run = commit_through(root, both_commit_hooks(), extra=dict(planted), gate=gate)
     reached = run.code == 0 and run.landed and all(words in run.out for words in said)
     hits, _found = marker_hits(run.out)
-    shown = sum(bounded_hits(run.out, value) for value in names.values())
+    shown = sum(bounded_hits(run.out, value) for value in counted)
     return reached, hits, shown
+
+
+def account_skip_verdict(
+    root: Path,
+    planted: dict[str, str],
+    baseline: dict[str, str],
+    counted: tuple[str, ...],
+    said: tuple[bytes, ...],
+    gate: bytes | None = None,
+) -> SkipVerdict:
+    """Grade one skip branch AGAINST a baseline run of that same branch - CS-1221.
+
+    The two runs differ in the planted VALUES alone and reach the same branch,
+    so every line of fixed prose is identical between them. What the baseline
+    finds is therefore carried by that prose rather than rendered from a value,
+    and only the EXCESS is a leak. That is what lets a correct gate print a
+    compound such as a save-root path - whose own hyphen leaves the generic word
+    `root` bounded - without the oracle reading it as a rendered account name.
+    """
+    reached, hits, shown = account_skip_run(root / "planted", planted, counted, said, gate)
+    base_reached, _base_hits, carried = account_skip_run(
+        root / "baseline", baseline, counted, said, gate
+    )
+    return SkipVerdict(reached, base_reached, hits, shown, carried, shown - carried)
 
 
 @pytest.mark.parametrize("arm", sorted(ACCOUNT_SKIP_ARMS))
 def test_no_account_name_skip_renders_the_name(tmp_path: Path, arm: str) -> None:
     """Each skip branch of current_account_names, reached, renders no name and no canary."""
-    reached, hits, shown = drive_account_skip(tmp_path, arm)
-    assert reached, f"{arm}: the commit did not reach the skip branch it names"
+    names, said = ACCOUNT_SKIP_ARMS[arm]
+    verdict = account_skip_verdict(
+        tmp_path, names, ACCOUNT_SKIP_BASELINES[arm], tuple(names.values()), said
+    )
+    assert verdict.reached, f"{arm}: the commit did not reach the skip branch it names"
+    assert verdict.base_reached, f"{arm}: the baseline did not reach the same skip branch"
+    hits = verdict.hits
     assert hits == 0, f"{arm}: {hits} canary occurrence(s) in the hook output"
-    assert shown == 0, f"{arm}: an account name occurred {shown} time(s) in the hook output"
+    rendered = verdict.rendered
+    assert rendered <= 0, (
+        f"{arm}: an account name occurred {rendered} time(s) beyond what the hook's "
+        "own fixed prose carries"
+    )
+
+
+@pytest.mark.parametrize("site", sorted(CARRIED_PROSE_SITES))
+def test_the_skip_arm_separates_a_carried_token_from_a_rendered_one(
+    tmp_path: Path, site: str
+) -> None:
+    """A generic name the gate's own fixed prose CARRIES is not a rendered name.
+
+    The real collisions are machine-dependent - the save-root lines need a save
+    root, the home-path lines need a staged home path - so this arm plants the
+    carriage into a SANDBOX gate copy and holds on any machine. The planted name
+    IS the carried token, so an oracle with no baseline must read the gate's own
+    prose as a leak; one with a baseline must not.
+    """
+    token, prose = CARRIED_PROSE_SITES[site]
+    pristine = GATE.read_bytes()
+    sites = pristine.count(GENERIC_SKIP_SITE)
+    assert sites == 1, f"the generic skip format occurs {sites} time(s) in the tracked gate"
+    carrying = pristine.replace(GENERIC_SKIP_SITE, GENERIC_SKIP_HEAD + prose + b'"', 1)
+    assert carrying != pristine, f"{site}: the carried-prose plant was not applied"
+    _names, said = ACCOUNT_SKIP_ARMS["generic-account-names"]
+    verdict = account_skip_verdict(
+        tmp_path,
+        {"USERNAME": token, "USER": token},
+        ACCOUNT_SKIP_BASELINES["generic-account-names"],
+        (token,),
+        said,
+        carrying,
+    )
+    assert verdict.reached, f"{site}: the commit did not reach the generic skip branch"
+    assert verdict.base_reached, f"{site}: the baseline did not reach the same skip branch"
+    hits = verdict.hits
+    assert hits == 0, f"{site}: {hits} canary occurrence(s) in the hook output"
+    shown = verdict.shown
+    assert shown >= CARRIED_PROSE_PRINTS, (
+        f"{site}: the token occurs {shown} time(s) in the output, so the carriage "
+        "this arm exists to separate is not even present"
+    )
+    rendered = verdict.rendered
+    assert rendered <= 0, f"{site}: carried prose read as {rendered} rendered name(s)"
+    carried = verdict.carried
+    assert carried >= CARRIED_PROSE_PRINTS, (
+        f"{site}: the baseline measured the carriage {carried} time(s)"
+    )
 
 
 @pytest.mark.parametrize("plant", sorted(SHORT_SKIP_PLANTS))
