@@ -1425,6 +1425,28 @@ slow-mode CI reading of the guard shard is read at or under budget with no shard
 ceiling, this is PROGRESS and not CLOSED, and every number above is arithmetic rather
 than an observation.
 
+### MEASURED 2026-10-02, the first CI reading after the move (session 118)
+
+Run 37024524235 at the session tip, all five shards green. Self-measured readings:
+guard 238s, fill 334s. Job durations: save 407s, hook 359s, fill 339s, gates 295s,
+guard 243s. Guard fell from 461s to 238s and is now the FASTEST shard rather than the
+slowest; fill rose from 199s to 334s. No shard is over the 480s ceiling and none is
+over the 420s budget, so the WARN the lane carried on every push is gone.
+
+THIS DOES NOT CLOSE THE ITEM, because the acceptance asks for a SLOW-MODE reading and
+this run was a fast one: the gates shard read 295s against 382s on the comparable run
+before the move, so the runner was quick and 238s is not the number the acceptance
+wants. Keep the item open until a reading lands on a slow runner.
+
+THE ARITHMETIC OVER-PREDICTED, which is worth recording rather than quietly enjoying.
+The plan modelled a 349s makespan and a slow-runner reading near 363s, and CS-1221
+later added about 17s to a module on this shard. The observed 238s is well under all of
+it, so the two-worker critical-path model is conservative in a direction nobody
+measured. Do not reuse its margin figures as if they were observations.
+
+THE TIGHTEST SHARD IS NOW THE SAVE SHARD at 407s job time, not guard. Whatever breaches
+next will breach there, and CS-1197 is the item that owns its growth.
+
 ## CS-1215
 
 ### Acceptance
@@ -1586,111 +1608,6 @@ tree state is unrecorded. So two `profile` rows agreeing on method, workers and 
 compare as `comparable` when one of them measured uncommitted code, and the delta is
 published as fact. This bears directly on CS-1214, whose readings are the kind this record
 holds.
-
-## CS-1221
-
-### Acceptance
-
-`tests/test_hook_env_echo.py::test_no_account_name_skip_renders_the_name` passes on a
-machine whose save root holds a subdirectory named in `GENERIC_SAVE_ROOT_DIRS`, and the
-arm still fails when the gate really does render a planted account name - shown by the
-existing control arm continuing to pass unweakened, plus a new arm that plants the generic
-names while the gate's skip prose carries the colliding token and asserts the verdict
-separates the two. The oracle distinguishes an occurrence the hook RENDERED from one the
-hook's own fixed prose always carries; it does not do so by deleting the token from the
-oracle's alphabet, by dropping `root` from `GENERIC_ACCOUNT_NAMES`, or by reading the
-count down to a number that happens to pass here. If the repair edits
-`tools/precommit_gate.py`, that is a frozen file and the adjudicator grant is recorded in
-`docs/LEDGER.md` before the edit.
-
-### Full headline
-
-the account-name skip arm counts `root` inside the gate's own `save-root` prose, so a correct gate reads as a leak
-
-### MEASURED 2026-10-02, the pre-push suite blocked this session's push (session 118)
-
-The pre-push hook refused at `1f083ab` with one failure and nothing pushed - the notice
-reported exit 0, which is the shape `memory/` already records. `1 failed, 6537 passed in
-359.61s`, the failure being
-`test_no_account_name_skip_renders_the_name[generic-account-names]`: an account name
-occurred 1 time in the hook output where the arm requires 0.
-
-A probe that re-ran the arm's own driver and printed the matching LINE located it exactly.
-The arm plants `USERNAME=admin` and `USER=root`, both members of the gate's
-`GENERIC_ACCOUNT_NAMES`, and then forbids either token in the hook output. The single hit
-is the gate's own skip-reason prose, emitted from `tools/precommit_gate.py` where the
-save-root branch prefixes `_matchable`'s reason: the compound `save-root` carries `root` as
-a bounded token, because `bounded_hits` guards its match with `(?<![A-Za-z0-9])` and a
-hyphen is not an alphanumeric. So a gate that correctly REFUSED to match on a generic name
-is read as having leaked one.
-
-The defect is in the oracle, not the gate: the arm cannot tell a token the hook rendered
-from a token the hook's fixed prose always carries. NONE of this session's four changed
-files is involved - the diff against `3cc7175` touches `.github/workflows/tier1.yml`,
-`ROADMAP.md`, `docs/item_notes/phase7.md` and `tests/test_tier1_budget.py` only.
-
-WHY IT FIRED NOW, AND WHY CI DOES NOT SEE IT. That skip line is printed only when the save
-root holds a subdirectory whose name is in `GENERIC_SAVE_ROOT_DIRS`, so the arm's verdict
-depends on the operator's live save library rather than on the tree. A CI runner has no
-save directory at all and takes a different branch, which is why tier 1 stayed green while
-every local push is refused. The arm is therefore machine-dependent in a way its name does
-not say.
-
-### RECORDED 2026-10-02, the adjudicator's ruling and the repair it took (session 118)
-
-THE RULING, which is not re-litigated here. A BASELINE-DIFFERENCED ORACLE wins: run the
-same commit twice - once with the arm's own names planted, once with names the same branch
-drops that share no token with them - and refuse only the EXCESS over what the baseline
-found. Prose the hook always carries appears in both runs and cancels; a real rendering
-appears in one and reddens.
-
-REWORDING THE GATE'S SKIP PROSE WAS REFUSED, AND SO WAS THE FROZEN-FILE GRANT FOR IT.
-`tools/precommit_gate.py` stayed byte-identical through this repair. The reason is the
-dependency direction: the gate behaved correctly - it REFUSED to match on a generic name
-and said so - and the fault was the oracle's inability to tell a carried token from a
-rendered one. Editing a correct frozen gate to satisfy a defective test inverts that
-dependency and buys a green arm with a worse tree. Also refused as acceptance-forbidden:
-narrowing `bounded_hits`, a hyphen exception, any compound-aware token rule, dropping
-`root` or `admin` from a generic list, and reading the bound down to a number that
-happens to pass here.
-
-WHAT THE REPAIR IS, in `tests/test_hook_env_echo.py` alone. `account_skip_run` measures
-one commit and takes what it COUNTS as a parameter separate from what it PLANTS, so a
-baseline run plants values that cannot add to the count. `account_skip_verdict` runs both
-and returns a `SkipVerdict` of scalars - the excess is `rendered`. Both runs reach the
-same branch, which the arm asserts of each, so every line of fixed prose between them is
-identical by construction rather than by inspection. The baselines are the short pair
-`wv`/`kp` and the generic pair `guest`/`owner`.
-
-THE NEW ARM, machine-independent where the defect was not.
-`test_the_skip_arm_separates_a_carried_token_from_a_rendered_one` plants the colliding
-carriage into a SANDBOX gate copy - the tracked gate is never written - sets the planted
-account name TO the carried token, and asserts the token IS present before asserting the
-verdict separates it. One case per prose shape measured in the gate: the save-root
-subdirectory skip and the save-root entry cap, both carrying `root`, and the two
-absolute-home-path findings, both carrying `home`.
-
-THAT IS FOUR PROSE SHAPES OVER TWO TOKEN CLASSES, NOT FOUR BRANCHES, and the first wording
-of this paragraph said "one case per site" as though it were the latter. An independent
-refutation pass measured what the cases actually enter: all four plant into the SINGLE
-generic skip line and reach the generic branch. They are not vacuous - `shown` is at or
-above the carried count and `carried` is at least 2 in each, so the carriage demonstrably
-renders - but they model the three unreachable sites rather than covering them, and the
-distinction is the whole difference between a measurement and a model.
-
-ALL FOUR SIBLING CARRIAGES CANCEL, measured this session with the baselines live:
-`shown` equals `carried` and `rendered` is 0 for every one of them, and for the live
-save-root line the main arm's own numbers are 1 and 1. The save-root cases read one count
-higher than the planted carriage alone, which is that live line being counted as well -
-it cancels too. Stated as unverified rather than claimed: the entry-cap line and the two
-home-path findings are not REACHABLE on this machine, so their cancellation is proven on
-the planted model of each, not against a live emission.
-
-NON-VACUITY, PROVEN BY PLANTING A REAL LEAK. A gate copy whose generic skip line renders
-the VALUE alongside the key - so the branch is still reached - makes the repaired arm red
-with an excess of 2. The pre-existing control
-`test_a_gate_copy_whose_skip_renders_the_name_is_caught` is untouched by the diff, gets no
-baseline, and still passes on both of its plants.
 
 ## CS-1222
 

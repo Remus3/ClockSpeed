@@ -127,6 +127,35 @@ the tool-call labels carry the narration.
 - **Do NOT poll a background task in a loop of one-line turns.** Each poll is a whole turn.
   Wait for the completion notification.
 
+### 2.3.1 The session checklist, and caveman-ultra as the default - filed 2026-10-02 by operator directive
+
+**Every session is caveman-ultra.** The main session stays CLEAR for operator use. Prose
+to it is terse AND detailed - no padding, no restating a tool's output - and every
+action, bash call, tool call, agent and subagent dispatch carries an EXPECTED DURATION
+in its own label. The panel shows elapsed only, so an estimate is the only thing that
+makes a wait legible.
+
+**THE CHECKLIST IS THE STATUS FORMAT, NOT PROSE.** It lists what this session is
+required to do, what is DONE, what is STILL OPEN, and every ADDITION or RETRACTION as
+they happen. It is rendered inline, without prose around it, at exactly three moments:
+
+  1. ONCE at session start, planned from the handoff and the roadmap before any work.
+  2. Whenever FOUR OR MORE items have completed since it was last shown.
+  3. At pre-flight for `/done`.
+
+And on demand: **a status request from the operator or an agent is answered with the
+checklist inline** - done, still open, added, retracted - never with a narrative.
+
+**Nothing waits on the operator.** Any item an agent would mark "not without operator
+approval" is ADJUDICATED and the best recommendation taken immediately. Section 6.1 owns
+that rule and its one exception; this section only restates the cadence, not the grant.
+
+**Nothing stays uncommitted or unpushed.** Commit and push always, but BATCH smartly:
+CI runs only the tip of a push, so group commits whose waits can overlap other work
+rather than pushing each one and waiting. Keep the chat session's remaining context in
+mind when planning `/done`, and clear afterwards unless this is the background headless
+lane.
+
 ---
 
 ## 3. Non-negotiables

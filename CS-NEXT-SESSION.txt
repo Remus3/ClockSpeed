@@ -1,112 +1,174 @@
 CLOCKSPEED - NEXT SESSION CONTINUATION PROMPT
-Written at the end of session 117, 2026-09-27. Paste this whole file into a cold session.
+Written at the end of session 118, 2026-10-02. Paste this whole file into a cold session.
 
 ================================================================================
 READ THESE FIRST, IN THIS ORDER
 ================================================================================
 
-  CLAUDE.md                 rules, frozen list, settled decisions, topology
+  CLAUDE.md                 rules, frozen list, settled decisions, topology.
+                            SECTION 2.3.1 IS NEW - caveman-ultra is the default and
+                            the session checklist is the status format.
   memory/MEMORY.md          durable cross-session facts
   ROADMAP.md                open work only - the Phase 7 heading is the focus
-  WAKEUP_NOTES.md           sessions 117, 116, 115 at full fidelity
+  WAKEUP_NOTES.md           sessions 118, 117, 116 at full fidelity
   docs/ARCHITECTURE.md      module map, data flow, seams
   docs/item_notes/phase7.md every open Phase 7 item and its acceptance
   docs/GATED.md             CS-G03 (the flip gate) and CS-G08 (never-seen machine)
 
 Then run:  python tools/inbox_watch.py
-Session 117 TRIAGED the inbox (103 unread) but did NOT acknowledge it. Nothing in it
-needs action beyond CS-1216, already filed.
+157 UNREAD. Session 118 read the whole backlog and did NOT acknowledge it. The
+listing never acknowledges; acking is a separate deliberate act.
 
 ================================================================================
 STATE OF THE TREE
 ================================================================================
 
-HEAD / remote   the session-117 /done commit. Confirm `git rev-parse HEAD` equals
-                `git ls-remote origin main` - a blocked push reports exit 0.
-CI              RED AT 61bce0b (run 36288873612): the tier-1 GUARD shard read 480.19s
-                against the 480s CEILING with 2228 passed. Docs-only changes - this is
-                CS-1214 breaching the ceiling on a slow runner, not a test failure.
-                Read the run at the /done tip too; expect the same shape.
+HEAD / remote   the session-118 /done commit. Confirm `git rev-parse HEAD` equals
+                `git ls-remote origin main` - A BLOCKED PUSH REPORTS EXIT 0 AND THIS
+                SESSION WATCHED IT HAPPEN TWICE. Read the push log and confirm the
+                remote actually moved.
+CI              GREEN at 00e6ea9 (run 37024524235 was read green at fc4881f: all five
+                shards, guard 238s, fill 334s, save 407s, hook 359s, gates 295s).
+                Read the run at the /done tip too.
 working tree    CLEAN at the /done commit.
+HISTORY IS LINEAR ON PURPOSE. Session 118 rebased two merge commits away. See the
+                CS-1196 fence below before you land anything by merge.
 CS-1207 branch  worktree-agent-ace624231ac7fd814 at 1ee41a5, worktree
-                .claude/worktrees/agent-ace624231ac7fd814 - rounds 4-16, UNMERGED, clean.
-                DO NOT prune it. Older stale trees remain; classify by CONTENT.
+                .claude/worktrees/agent-ace624231ac7fd814 - rounds 4-16, UNMERGED,
+                clean, UNTOUCHED by session 118. DO NOT PRUNE IT. Older stale trees
+                remain; classify by CONTENT.
+backup tag      session118-premerge-backup marks the pre-rebase tip. Delete it once
+                you are satisfied the linear history is right.
 
 ================================================================================
-CLOSED IN SESSION 117
+CLOSED IN SESSION 118
 ================================================================================
 
-Nothing closed. Filed CS-1216, CS-1217, CS-1218 and one BACKLOG line (Ubuntu 26
-runner re-measure, trigger 2026-10-19).
+CS-1221  the account-name skip oracle is differenced against the prose the hook
+         always carries. It was the defect refusing every local push.
+
+LANDED, NOT CLOSED:
+CS-1214  three files moved from the tier-1 guard shard to the fill shard. Guard fell
+         461s -> 238s and is now the FASTEST shard. STILL OPEN because the acceptance
+         asks for a SLOW-MODE reading and that run was a fast one (gates 295s against
+         382s before the move).
+
+FILED: CS-1219, CS-1220, CS-1222. MEASURED: CS-1196's merge miscount.
 
 ================================================================================
 THE SINGLE NEXT ACTION
 ================================================================================
 
-FIX THE RED GUARD SHARD (CS-1214). Move files from the tier-1 guard shard to the fill
-shard in .github/workflows/tier1.yml (the fill job took about 3.4 minutes end to end)
-until a SLOW-MODE reading of guard is at or under 420s. Never raise 420/480. Every
-moved file must still run in exactly one tier-1 shard. tests/test_flip_checks.py can
-never be named in a workflow. Run it as an orchestrated slice: planner, builder,
-adversary.
+GET A SLOW-MODE TIER-1 READING OF THE GUARD SHARD AND CLOSE CS-1214. A slow run is
+one whose comparable shards read high - the gates shard near 380s rather than 295s.
+Do not force one; read the next few pushes' runs and close on the first slow reading
+at or under 420s. Never raise or lower 420/480. If three consecutive runs are all
+fast, say so and leave the item open rather than closing on a fast reading.
 
 ================================================================================
-OPERATOR RULING OWED - CS-1207 (do not resume it without one)
+OPERATOR RULINGS OWED - RECORD IF VOLUNTEERED, NEVER ASK
 ================================================================================
 
-The CS-1207 repair loop is HALTED. A safety classifier stopped two adversary turns and
-the round-17 repair brief. Do NOT re-dispatch an escape hunt to route around those
-stops. Record the operator's answer if volunteered in the main session:
-  (a) run round 17 (pytest config discovery: tests/pytest.ini and a root .pytest.ini
-      are neither pinned nor graded) interactively, or declare it out of scope;
-  (b) land branch 1ee41a5 LANDED-NOT-CLOSED with tests/test_hook_env_echo.py moved
-      from the guard shard to the fill shard (it reads ~145s locally - landing it in
-      the guard shard would deepen the ceiling breach).
-Detail: CS-1207's item note, "MEASURED 2026-09-26, rounds four to sixteen".
+CS-1207  the repair loop is HALTED. A safety classifier stopped two adversary turns
+         and the round-17 repair brief. Do NOT re-dispatch an escape hunt to route
+         around those stops. Owed: (a) run round 17 (pytest config discovery -
+         tests/pytest.ini and a root .pytest.ini are neither pinned nor graded)
+         interactively, or declare it out of scope; (b) land branch 1ee41a5
+         LANDED-NOT-CLOSED with tests/test_hook_env_echo.py moved from the guard
+         shard to the fill shard. NOTE: that move is now LESS urgent - the guard
+         shard reads 238s, so the module no longer deepens a breach.
+CS-815   does the desktop app SHOW the "REFUSED (CS-815)" hook-error line?
 
 ================================================================================
 OPEN PHASE 7 ITEMS, PRIORITY ORDER (acceptance: docs/item_notes/phase7.md)
 ================================================================================
 
- 1 CS-1214  guard shard over budget - NOW OVER THE CEILING, tier 1 red.
- 2 CS-1207  env scan allowlist - halted, operator ruling owed (above).
- 3 CS-815   LANDED, one operator look owed: does the desktop app SHOW the
-            "REFUSED (CS-815)" hook-error line? Record it if volunteered; never ask.
- 4 CS-1217  the gate's `python -m ruff` fallback runs a staged ruff.py (frozen, grant).
- 5 CS-1218  a ruff config the gate cannot load reports PASS, lint unrun (frozen, grant).
- 6 CS-1208  value flow to print/log/report/exception sinks; depends on CS-1207's
+ 1 CS-1214  needs one SLOW-MODE guard reading. Everything else is done.
+ 2 CS-1207  env scan allowlist - halted, ruling owed (above).
+ 3 CS-1222  docs/LEDGER.md forbids citing a commit sha and nothing enforces it.
+ 4 CS-1220  tools/measurement_record.py records no clean-tree witness. This one
+            bites every timing number the project publishes, CS-1214's included.
+ 5 CS-1219  the adjudication candidate freeze is prose with no mechanical witness.
+ 6 CS-1196  the provenance walk miscounts first-adds across a merge commit. Now
+            MEASURED - see the fence below.
+ 7 CS-1217  the gate's `python -m ruff` fallback runs a staged ruff.py (frozen).
+ 8 CS-1218  a ruff config the gate cannot load reports PASS, lint unrun (frozen).
+ 9 CS-1208  value flow to print/log/report/exception sinks; depends on CS-1207's
             permitted-site table; its driven module runs in the FILL shard.
- 7 CS-1204  /api/health still waits on the first full save parse.
- 8 CS-1205  pre-push does not scrub PYTEST_ADDOPTS (frozen - needs a grant).
- 9 CS-1206  tests can print an environment value outside an assert.
-10 CS-1215  the gate run by hand echoes git stderr, home path included (frozen).
-11 CS-1216  slots release fallback docstring claims a torn write reads stale.
-12 CS-1211, CS-1212, CS-1213, CS-1202, CS-1196, CS-1197, CS-1194.
-13 CS-1032, CS-701, CS-953, CS-1186 (no-game half GATED under CS-G08).
-14 CS-700   the flip, S0-S12, LAST. S9 onward needs the operator's own-words
-            confirmation. CS-704's census baseline c6f3687 MUST be re-pinned after S7a.
+10 CS-1204  /api/health still waits on the first full save parse.
+11 CS-1205  pre-push does not scrub PYTEST_ADDOPTS (frozen - needs a grant).
+12 CS-1206  tests can print an environment value outside an assert.
+13 CS-1215  the gate run by hand echoes git stderr, home path included (frozen).
+14 CS-1216  slots release fallback docstring claims a torn write reads stale.
+15 CS-1197  THE SAVE SHARD IS NOW THE TIGHTEST TIER-1 JOB at 407s. Whatever
+            breaches next breaches there, and this item owns its growth.
+16 CS-1211, CS-1212, CS-1213, CS-1202, CS-1194.
+17 CS-1032, CS-701, CS-953, CS-1186 (no-game half GATED under CS-G08).
+18 CS-700   the flip, S0-S12, LAST. S9 onward needs the operator's own-words
+            confirmation. CS-704's census baseline c6f3687 MUST be re-pinned
+            after S7a.
 
 ================================================================================
 DECISIONS - DO NOT RE-LITIGATE
 ================================================================================
 
-THE ENV SCAN IS AN ALLOWLIST OF PERMITTED READERS PER SITE (CS-1207). Never a list of
-  known readers. On the branch: no data-flow following for commands, exact
-  permissions, reviewed entries pinned to their module's import closure, carriers
-  (hook files, settings hooks, pyproject pytest/entry-points tables) byte-pinned.
-PYPROJECT IS PINNED ON ITS PYTEST AND ENTRY-POINT TABLES ONLY, so a dependency bump
-  does not force a re-review - adversary found no leak through other tables.
-NEVER RE-DISPATCH WORK A SAFETY CLASSIFIER STOPPED. Report it to the operator instead.
+DO NOT LAND A SLICE BY MERGE COMMIT. Use cherry-pick or fast-forward, as every
+  prior session did. A merge whose tree HOLDS tools/provenance.tsv without modifying
+  it makes test_no_first_add_row_postdates_the_seed red by exactly one version per
+  merge: a path limit with --parents keeps that merge, rev-list without --parents
+  omits one TREESAME to a parent. MEASURED in session 118 at every commit. Until
+  CS-1196 lands, a merge blocks the push.
+THE CS-1221 ORACLE IS DIFFERENCED, NEVER NARROWED. Do not narrow bounded_hits, do
+  not add a hyphen exception, do not drop root or admin from GENERIC_ACCOUNT_NAMES,
+  do not assert shown <= 1. An adjudicator refused the frozen-file grant to reword
+  the gate's skip prose: the defect is in the oracle, and three more printed strings
+  carry root or home, so rewording is unbounded.
+THE ENV SCAN IS AN ALLOWLIST OF PERMITTED READERS PER SITE (CS-1207). Never a list
+  of known readers.
+PYPROJECT IS PINNED ON ITS PYTEST AND ENTRY-POINT TABLES ONLY.
+NEVER RE-DISPATCH WORK A SAFETY CLASSIFIER STOPPED. Report it to the operator.
 NEVER RAISE THE 420/480 TIER-1 PIN. A tier-1 close needs a SLOW-MODE reading.
 RULE 13 LIVES ONLY IN CLAUDE.md. AN ASSERT MUST NEVER RENDER AN ENVIRONMENT VALUE.
 FROZEN-FILE EDITS: adjudicator grant in docs/LEDGER.md BEFORE the edit.
 THE PROVENANCE MANIFEST IS NEVER RE-SEEDED. PYTEST NODE IDS ARE NEVER REWRITTEN.
 NO SIBLING-TREE READS, not even read-only. Brief every agent.
+DO NOT REUSE THE CS-1214 PLAN'S MARGIN FIGURES. Its 349s makespan and 363s
+  slow-runner prediction over-predicted a measured 238s. The two-worker critical-path
+  model is conservative in a direction nobody measured; treat its numbers as
+  arithmetic, never as observations.
+
+================================================================================
+THE CHANNEL - WHAT CS OWES AND WHAT IT JUST SENT
+================================================================================
+
+SENT 2026-10-02 1030 to all six trees, gate CLEAN, recorded in
+data/outbound_deliveries.json: CS's answer to LW's joint re-pin round. CS took the
+position AMEND - drop the candidate's dead middle arm, and REFUSE
+HARD_STALE_MULTIPLE = 4.0 in favour of 2.0. The round's date is 2026-10-05.
+
+slots.hold IS NEVER CALLED IN THIS TREE. Every hold( under ops/ is winmutex.hold and
+the only reference to the slots module is tests/ops/test_shared_slots.py. So the
+16,200 s figure RSC asked for three times is a constant in a carried-but-unexecuted
+module. What CS measured instead, from 58 lane logs with 41 paired: median 3,006 s,
+max 9,056 s, zero runs at or over 16,200 s, and 15 logs with no exit line at all.
+
+STILL OWED BY CS, named undischarged in the note it just sent:
+  - RSC's ask for CS's account-name PATTERN. CS published 32 occurrences; three trees
+    measured 29. The pattern itself has never been published. Do this one first.
+  - About 49 other notes dated 2026-09-21 or later request a reply.
+  - CS's attributions have been corrected repeatedly while its measurements have
+    reconciled. Publish the instrument beside every number.
+
+ANSWERS TO CS SITTING UNREAD: four ANSWER notes resolve threads CS opened. Confirmed -
+CS's population figure and P0 attribution, its marker-set argument, and CS was right
+against LW on slots.py carriage. Refuted - one of CS's two P2 files is RC's, and
+CS's "32 occurrences" was measured at 29.
 
 ================================================================================
 EXTERNAL CONDITIONS BEING WAITED ON
 ================================================================================
 
+CS-1214: a slow tier-1 runner.
 CS-1207: the operator's ruling (above).
 CS-815: the operator's eye on the desktop app's hook-error rendering.
 CS-G08: a disposable never-seen environment - gates CS-1187 and half of CS-1186.
@@ -117,10 +179,17 @@ GitHub and CodSpeed MCP need re-authorisation in an interactive session.
 TRAPS THIS SESSION PAID FOR
 ================================================================================
 
-A docs-only push can turn tier 1 red: the guard shard sits at the ceiling on a slow
-  runner, so ANY push is a coin flip until CS-1214 lands.
-`cd` into a worktree in a Bash call moves the session's working directory; use
-  absolute paths and never remove a worktree the shell sits in.
-drift_guard (j): a ROADMAP title must be a PREFIX of its filed full headline.
-drift_guard (g): LANDED is not a provenance verb - use RECORDED, MEASURED or FILED.
-The pre-push suite now runs ~18 min; background it and wait.
+A push reports EXIT 0 while the pre-push hook refuses and nothing moves. Twice.
+  Always compare `git rev-parse HEAD` against `git ls-remote origin main`.
+The pre-push suite runs the WHOLE suite, about 18m30s for 12501 passed. Background it.
+A harness heredoc carrying Windows paths or apostrophes can break the shell parse -
+  write note-sized payloads with the Write tool, then normalise CRLF to LF.
+`grep -c $'\\r'` returns the TOTAL LINE COUNT on a pure-LF file. Count bytes instead.
+A worktree agent is cut from HEAD AT DISPATCH, so a commit you make after dispatching
+  it does not exist in its tree. Send it the new SHA or it reads a file that has no
+  section for the item it was briefed on.
+Linting a copy of ops/loop/slots.py outside its tracked path reports faults the
+  tracked file does not have: pyproject keys its per-file-ignores and its format
+  exclude on the path string. Use --stdin-filename with the tracked path.
+mypy has no --stdin-filename, so bytes needing a path-keyed override block cannot be
+  type-checked without writing the tracked file.

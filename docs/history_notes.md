@@ -14370,3 +14370,123 @@ Twelve notes delivered, privacy gate CLEAN on every one. 44 inbox notes read in 
 sweep alone.
 
 ---
+
+## CS-1221 - RETIRED 2026-10-02, closed in session 118
+
+Moved here whole from `docs/item_notes/phase7.md` when the item closed; the completion
+record is in `docs/LEDGER.md` under 2026-10-02.
+
+## CS-1221
+
+### Acceptance
+
+`tests/test_hook_env_echo.py::test_no_account_name_skip_renders_the_name` passes on a
+machine whose save root holds a subdirectory named in `GENERIC_SAVE_ROOT_DIRS`, and the
+arm still fails when the gate really does render a planted account name - shown by the
+existing control arm continuing to pass unweakened, plus a new arm that plants the generic
+names while the gate's skip prose carries the colliding token and asserts the verdict
+separates the two. The oracle distinguishes an occurrence the hook RENDERED from one the
+hook's own fixed prose always carries; it does not do so by deleting the token from the
+oracle's alphabet, by dropping `root` from `GENERIC_ACCOUNT_NAMES`, or by reading the
+count down to a number that happens to pass here. If the repair edits
+`tools/precommit_gate.py`, that is a frozen file and the adjudicator grant is recorded in
+`docs/LEDGER.md` before the edit.
+
+### Full headline
+
+the account-name skip arm counts `root` inside the gate's own `save-root` prose, so a correct gate reads as a leak
+
+### MEASURED 2026-10-02, the pre-push suite blocked this session's push (session 118)
+
+The pre-push hook refused at `1f083ab` with one failure and nothing pushed - the notice
+reported exit 0, which is the shape `memory/` already records. `1 failed, 6537 passed in
+359.61s`, the failure being
+`test_no_account_name_skip_renders_the_name[generic-account-names]`: an account name
+occurred 1 time in the hook output where the arm requires 0.
+
+A probe that re-ran the arm's own driver and printed the matching LINE located it exactly.
+The arm plants `USERNAME=admin` and `USER=root`, both members of the gate's
+`GENERIC_ACCOUNT_NAMES`, and then forbids either token in the hook output. The single hit
+is the gate's own skip-reason prose, emitted from `tools/precommit_gate.py` where the
+save-root branch prefixes `_matchable`'s reason: the compound `save-root` carries `root` as
+a bounded token, because `bounded_hits` guards its match with `(?<![A-Za-z0-9])` and a
+hyphen is not an alphanumeric. So a gate that correctly REFUSED to match on a generic name
+is read as having leaked one.
+
+The defect is in the oracle, not the gate: the arm cannot tell a token the hook rendered
+from a token the hook's fixed prose always carries. NONE of this session's four changed
+files is involved - the diff against `3cc7175` touches `.github/workflows/tier1.yml`,
+`ROADMAP.md`, `docs/item_notes/phase7.md` and `tests/test_tier1_budget.py` only.
+
+WHY IT FIRED NOW, AND WHY CI DOES NOT SEE IT. That skip line is printed only when the save
+root holds a subdirectory whose name is in `GENERIC_SAVE_ROOT_DIRS`, so the arm's verdict
+depends on the operator's live save library rather than on the tree. A CI runner has no
+save directory at all and takes a different branch, which is why tier 1 stayed green while
+every local push is refused. The arm is therefore machine-dependent in a way its name does
+not say.
+
+### RECORDED 2026-10-02, the adjudicator's ruling and the repair it took (session 118)
+
+THE RULING, which is not re-litigated here. A BASELINE-DIFFERENCED ORACLE wins: run the
+same commit twice - once with the arm's own names planted, once with names the same branch
+drops that share no token with them - and refuse only the EXCESS over what the baseline
+found. Prose the hook always carries appears in both runs and cancels; a real rendering
+appears in one and reddens.
+
+REWORDING THE GATE'S SKIP PROSE WAS REFUSED, AND SO WAS THE FROZEN-FILE GRANT FOR IT.
+`tools/precommit_gate.py` stayed byte-identical through this repair. The reason is the
+dependency direction: the gate behaved correctly - it REFUSED to match on a generic name
+and said so - and the fault was the oracle's inability to tell a carried token from a
+rendered one. Editing a correct frozen gate to satisfy a defective test inverts that
+dependency and buys a green arm with a worse tree. Also refused as acceptance-forbidden:
+narrowing `bounded_hits`, a hyphen exception, any compound-aware token rule, dropping
+`root` or `admin` from a generic list, and reading the bound down to a number that
+happens to pass here.
+
+WHAT THE REPAIR IS, in `tests/test_hook_env_echo.py` alone. `account_skip_run` measures
+one commit and takes what it COUNTS as a parameter separate from what it PLANTS, so a
+baseline run plants values that cannot add to the count. `account_skip_verdict` runs both
+and returns a `SkipVerdict` of scalars - the excess is `rendered`. Both runs reach the
+same branch, which the arm asserts of each, so every line of fixed prose between them is
+identical by construction rather than by inspection. The baselines are the short pair
+`wv`/`kp` and the generic pair `guest`/`owner`.
+
+THE NEW ARM, machine-independent where the defect was not.
+`test_the_skip_arm_separates_a_carried_token_from_a_rendered_one` plants the colliding
+carriage into a SANDBOX gate copy - the tracked gate is never written - sets the planted
+account name TO the carried token, and asserts the token IS present before asserting the
+verdict separates it. One case per prose shape measured in the gate: the save-root
+subdirectory skip and the save-root entry cap, both carrying `root`, and the two
+absolute-home-path findings, both carrying `home`.
+
+THAT IS FOUR PROSE SHAPES OVER TWO TOKEN CLASSES, NOT FOUR BRANCHES, and the first wording
+of this paragraph said "one case per site" as though it were the latter. An independent
+refutation pass measured what the cases actually enter: all four plant into the SINGLE
+generic skip line and reach the generic branch. They are not vacuous - `shown` is at or
+above the carried count and `carried` is at least 2 in each, so the carriage demonstrably
+renders - but they model the three unreachable sites rather than covering them, and the
+distinction is the whole difference between a measurement and a model.
+
+ALL FOUR SIBLING CARRIAGES CANCEL, measured this session with the baselines live:
+`shown` equals `carried` and `rendered` is 0 for every one of them, and for the live
+save-root line the main arm's own numbers are 1 and 1. The save-root cases read one count
+higher than the planted carriage alone, which is that live line being counted as well -
+it cancels too. Stated as unverified rather than claimed: the entry-cap line and the two
+home-path findings are not REACHABLE on this machine, so their cancellation is proven on
+the planted model of each, not against a live emission.
+
+NON-VACUITY, PROVEN BY PLANTING A REAL LEAK. A gate copy whose generic skip line renders
+the VALUE alongside the key - so the branch is still reached - makes the repaired arm red
+with an excess of 2. The pre-existing control
+`test_a_gate_copy_whose_skip_renders_the_name_is_caught` is untouched by the diff, gets no
+baseline, and still passes on both of its plants.
+
+## Session 115 - ARCHIVED 2026-10-02, pruned from WAKEUP_NOTES.md in session 118
+## Session 115 - 2026-09-25 - the companion launches again, CS-815 landed pending one look, and CS-814 closed after five adversary rounds
+
+- Shipped: CS-1203 (per-identity world memo in clockspeed/surface/providers.py; the operator's "the app doesnt launch" - health took 2.5s against a 2.0s probe; end-to-end launch opened the window in 7s), CS-814 (CLAUDE.md non-negotiable 13; tests/test_hook_env_echo.py), CS-1200 (137 accepted by the probe self-check; tests/test_probe_refusal_output.py), and a CS-1199 repair (the plant sat in saferepr's elided middle on ubuntu). Detail in docs/LEDGER.md.
+- In flight: CS-815 LANDED at fd3c167 but STAYS OPEN on one check only the operator can make - does the desktop app visibly show a "REFUSED (CS-815)" hook-error line? The transcript records it as a hook_non_blocking_error attachment; computer use cannot capture Claude's own window. Filed and open: CS-1201, CS-1202, CS-1204 to CS-1208.
+- Decisions: CS-814's rule lives ONLY in CLAUDE.md rule 13 (no hook-header pointers). One frozen re-pin served CS-814 and CS-1200 together. CS-814 closed on the adjudicated bar with obfuscation, non-Python env= children, the tests tree and PYTEST_ADDOPTS declared residual.
+- Surprises: a settings.local.json env key reaches the live session on reload but deleting it does NOT unset it - the gate failed open for three calls until the key was set empty. The pre-push suite counts real-save copies, so running the dashboard during a push blocks it. The verifier's module list missed tests/test_liveness.py, which refused the first CS-814 push.
+- Failed paths: a blocklist env scan (refuted three times) - replaced by an allowlist; a save-shard home for the CS-815 tests (no room) - moved to the guard shard.
+- Next action: read CI at the /done push; ask nothing, but record the operator's answer on the CS-815 hook-error line if they give one; then CS-1195.
