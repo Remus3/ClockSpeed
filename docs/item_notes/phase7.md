@@ -1554,3 +1554,52 @@ tree state is unrecorded. So two `profile` rows agreeing on method, workers and 
 compare as `comparable` when one of them measured uncommitted code, and the delta is
 published as fact. This bears directly on CS-1214, whose readings are the kind this record
 holds.
+
+## CS-1221
+
+### Acceptance
+
+`tests/test_hook_env_echo.py::test_no_account_name_skip_renders_the_name` passes on a
+machine whose save root holds a subdirectory named in `GENERIC_SAVE_ROOT_DIRS`, and the
+arm still fails when the gate really does render a planted account name - shown by the
+existing control arm continuing to pass unweakened, plus a new arm that plants the generic
+names while the gate's skip prose carries the colliding token and asserts the verdict
+separates the two. The oracle distinguishes an occurrence the hook RENDERED from one the
+hook's own fixed prose always carries; it does not do so by deleting the token from the
+oracle's alphabet, by dropping `root` from `GENERIC_ACCOUNT_NAMES`, or by reading the
+count down to a number that happens to pass here. If the repair edits
+`tools/precommit_gate.py`, that is a frozen file and the adjudicator grant is recorded in
+`docs/LEDGER.md` before the edit.
+
+### Full headline
+
+the account-name skip arm counts `root` inside the gate's own `save-root` prose, so a correct gate reads as a leak
+
+### MEASURED 2026-10-02, the pre-push suite blocked this session's push (session 118)
+
+The pre-push hook refused at `1f083ab` with one failure and nothing pushed - the notice
+reported exit 0, which is the shape `memory/` already records. `1 failed, 6537 passed in
+359.61s`, the failure being
+`test_no_account_name_skip_renders_the_name[generic-account-names]`: an account name
+occurred 1 time in the hook output where the arm requires 0.
+
+A probe that re-ran the arm's own driver and printed the matching LINE located it exactly.
+The arm plants `USERNAME=admin` and `USER=root`, both members of the gate's
+`GENERIC_ACCOUNT_NAMES`, and then forbids either token in the hook output. The single hit
+is the gate's own skip-reason prose, emitted from `tools/precommit_gate.py` where the
+save-root branch prefixes `_matchable`'s reason: the compound `save-root` carries `root` as
+a bounded token, because `bounded_hits` guards its match with `(?<![A-Za-z0-9])` and a
+hyphen is not an alphanumeric. So a gate that correctly REFUSED to match on a generic name
+is read as having leaked one.
+
+The defect is in the oracle, not the gate: the arm cannot tell a token the hook rendered
+from a token the hook's fixed prose always carries. NONE of this session's four changed
+files is involved - the diff against `3cc7175` touches `.github/workflows/tier1.yml`,
+`ROADMAP.md`, `docs/item_notes/phase7.md` and `tests/test_tier1_budget.py` only.
+
+WHY IT FIRED NOW, AND WHY CI DOES NOT SEE IT. That skip line is printed only when the save
+root holds a subdirectory whose name is in `GENERIC_SAVE_ROOT_DIRS`, so the arm's verdict
+depends on the operator's live save library rather than on the tree. A CI runner has no
+save directory at all and takes a different branch, which is why tier 1 stayed green while
+every local push is refused. The arm is therefore machine-dependent in a way its name does
+not say.
