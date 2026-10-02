@@ -438,6 +438,7 @@ tests/test_save_name_not_a_token.py	authored	CS-1097	first-add:CS-1097
 tests/test_scaffold.py	authored	CS-1165	first-add:root
 tests/test_secret_sweep.py	authored	CS-939	first-add:CS-939
 tests/test_session_start_wiring.py	authored	CS-952	first-add:CS-952
+tests/test_sha_citation_gate.py	authored	CS-1222	stamped
 tests/test_sphinx_roles.py	authored	CS-871	first-add:CS-871
 tests/test_subprocess_timeouts.py	authored	CS-1165	first-add:root
 tests/test_third_party_register.py	authored	CS-1165	first-add:root
@@ -479,6 +480,7 @@ tools/precommit_gate.py	authored	CS-1165	first-add:root
 tools/pretooluse_gate.py	authored	CS-425	first-add:CS-425
 tools/provenance.tsv	authored	CS-1165	stamped
 tools/provenance_stamp.py	authored	CS-1165	first-add:CS-1165
+tools/sha_citation_gate.py	authored	CS-1222	stamped
 tools/tier1_concentration.json	authored	CS-900	first-add:CS-900
 tools/tier1_concentration.py	authored	CS-900	first-add:CS-900
 tools/tier1_growth.py	authored	CS-917	first-add:CS-917
