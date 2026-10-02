@@ -1413,7 +1413,8 @@ the adjudication candidate freeze is prose with no mechanical witness, and a por
 
 ### FILED 2026-10-02, an inbox-derived finding that survived refutation (session 118)
 
-`tools/headless-queue.md:634` and `CLAUDE.md` section 5 both order the candidate frozen
+`tools/headless-queue.md`, under its "Freeze the candidate before dispatching an
+adjudicator" bullet, and `CLAUDE.md` section 5 both order the candidate frozen
 before dispatch. A sweep of `tools/`, `tests/`, `ops/` and `.githooks/` for the rule found
 only prose: every `freeze`-shaped hit is a `frozenset`, a `drift_guard` frozen-files
 report, or the doctrine itself. Nothing records an adjudication's subject and nothing
