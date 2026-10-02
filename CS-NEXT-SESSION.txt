@@ -46,12 +46,10 @@ CLOSED IN SESSION 118
 
 CS-1221  the account-name skip oracle is differenced against the prose the hook
          always carries. It was the defect refusing every local push.
-
-LANDED, NOT CLOSED:
-CS-1214  three files moved from the tier-1 guard shard to the fill shard. Guard fell
-         461s -> 238s and is now the FASTEST shard. STILL OPEN because the acceptance
-         asks for a SLOW-MODE reading and that run was a fast one (gates 295s against
-         382s before the move).
+CS-1214  three files moved from the tier-1 guard shard to the fill shard. The guard
+         shard fell 461s -> 309s on a SLOW runner, inside its 420s budget, with no
+         shard over the ceiling. Slow mode was established the CS-1198 way: the hook
+         shard's canary setup read 136.87s against the ruling's 120s floor.
 
 FILED: CS-1219, CS-1220, CS-1222. MEASURED: CS-1196's merge miscount.
 
@@ -59,11 +57,12 @@ FILED: CS-1219, CS-1220, CS-1222. MEASURED: CS-1196's merge miscount.
 THE SINGLE NEXT ACTION
 ================================================================================
 
-GET A SLOW-MODE TIER-1 READING OF THE GUARD SHARD AND CLOSE CS-1214. A slow run is
-one whose comparable shards read high - the gates shard near 380s rather than 295s.
-Do not force one; read the next few pushes' runs and close on the first slow reading
-at or under 420s. Never raise or lower 420/480. If three consecutive runs are all
-fast, say so and leave the item open rather than closing on a fast reading.
+PUBLISH CS'S ACCOUNT-NAME PATTERN TO RSC. CS published 32 occurrences, three trees
+measured 29, and the PATTERN itself has never been published - CS's own note of
+2026-10-02 names this debt as undischarged. Publish the pattern and the instrument
+beside it, re-measure on CS's own disk, and reconcile against 29. Then work the rest
+of the owed replies. Outbound goes through tools/outbound_send.py, which dry-runs by
+default and needs --send to write a byte.
 
 ================================================================================
 OPERATOR RULINGS OWED - RECORD IF VOLUNTEERED, NEVER ASK
@@ -83,28 +82,27 @@ CS-815   does the desktop app SHOW the "REFUSED (CS-815)" hook-error line?
 OPEN PHASE 7 ITEMS, PRIORITY ORDER (acceptance: docs/item_notes/phase7.md)
 ================================================================================
 
- 1 CS-1214  needs one SLOW-MODE guard reading. Everything else is done.
- 2 CS-1207  env scan allowlist - halted, ruling owed (above).
- 3 CS-1222  docs/LEDGER.md forbids citing a commit sha and nothing enforces it.
- 4 CS-1220  tools/measurement_record.py records no clean-tree witness. This one
-            bites every timing number the project publishes, CS-1214's included.
- 5 CS-1219  the adjudication candidate freeze is prose with no mechanical witness.
- 6 CS-1196  the provenance walk miscounts first-adds across a merge commit. Now
+ 1 CS-1207  env scan allowlist - halted, ruling owed (above).
+ 2 CS-1222  docs/LEDGER.md forbids citing a commit sha and nothing enforces it.
+ 3 CS-1220  tools/measurement_record.py records no clean-tree witness. This one
+            bites every timing number the project publishes.
+ 4 CS-1219  the adjudication candidate freeze is prose with no mechanical witness.
+ 5 CS-1196  the provenance walk miscounts first-adds across a merge commit. Now
             MEASURED - see the fence below.
- 7 CS-1217  the gate's `python -m ruff` fallback runs a staged ruff.py (frozen).
- 8 CS-1218  a ruff config the gate cannot load reports PASS, lint unrun (frozen).
- 9 CS-1208  value flow to print/log/report/exception sinks; depends on CS-1207's
+ 6 CS-1217  the gate's `python -m ruff` fallback runs a staged ruff.py (frozen).
+ 7 CS-1218  a ruff config the gate cannot load reports PASS, lint unrun (frozen).
+ 8 CS-1208  value flow to print/log/report/exception sinks; depends on CS-1207's
             permitted-site table; its driven module runs in the FILL shard.
-10 CS-1204  /api/health still waits on the first full save parse.
-11 CS-1205  pre-push does not scrub PYTEST_ADDOPTS (frozen - needs a grant).
-12 CS-1206  tests can print an environment value outside an assert.
-13 CS-1215  the gate run by hand echoes git stderr, home path included (frozen).
-14 CS-1216  slots release fallback docstring claims a torn write reads stale.
-15 CS-1197  THE SAVE SHARD IS NOW THE TIGHTEST TIER-1 JOB at 407s. Whatever
+ 9 CS-1204  /api/health still waits on the first full save parse.
+10 CS-1205  pre-push does not scrub PYTEST_ADDOPTS (frozen - needs a grant).
+11 CS-1206  tests can print an environment value outside an assert.
+12 CS-1215  the gate run by hand echoes git stderr, home path included (frozen).
+13 CS-1216  slots release fallback docstring claims a torn write reads stale.
+14 CS-1197  THE SAVE SHARD IS NOW THE TIGHTEST TIER-1 JOB at 407s. Whatever
             breaches next breaches there, and this item owns its growth.
-16 CS-1211, CS-1212, CS-1213, CS-1202, CS-1194.
-17 CS-1032, CS-701, CS-953, CS-1186 (no-game half GATED under CS-G08).
-18 CS-700   the flip, S0-S12, LAST. S9 onward needs the operator's own-words
+15 CS-1211, CS-1212, CS-1213, CS-1202, CS-1194.
+16 CS-1032, CS-701, CS-953, CS-1186 (no-game half GATED under CS-G08).
+17 CS-700   the flip, S0-S12, LAST. S9 onward needs the operator's own-words
             confirmation. CS-704's census baseline c6f3687 MUST be re-pinned
             after S7a.
 
@@ -133,7 +131,7 @@ FROZEN-FILE EDITS: adjudicator grant in docs/LEDGER.md BEFORE the edit.
 THE PROVENANCE MANIFEST IS NEVER RE-SEEDED. PYTEST NODE IDS ARE NEVER REWRITTEN.
 NO SIBLING-TREE READS, not even read-only. Brief every agent.
 DO NOT REUSE THE CS-1214 PLAN'S MARGIN FIGURES. Its 349s makespan and 363s
-  slow-runner prediction over-predicted a measured 238s. The two-worker critical-path
+  slow-runner prediction over-predicted a measured 309s slow-mode reading. The two-worker critical-path
   model is conservative in a direction nobody measured; treat its numbers as
   arithmetic, never as observations.
 
@@ -168,7 +166,6 @@ CS's "32 occurrences" was measured at 29.
 EXTERNAL CONDITIONS BEING WAITED ON
 ================================================================================
 
-CS-1214: a slow tier-1 runner.
 CS-1207: the operator's ruling (above).
 CS-815: the operator's eye on the desktop app's hook-error rendering.
 CS-G08: a disposable never-seen environment - gates CS-1187 and half of CS-1186.

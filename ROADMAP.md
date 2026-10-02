@@ -328,7 +328,6 @@ CS-1186 - README.md has never been walked from zero to a first result - acceptan
 CS-1194 - drift_guard prints a non-numeric player-named directory that holds no sensitive file - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1196 - the provenance manifest's history walk miscounts first-adds across a merge commit - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1197 - `tests/save/test_trailing_run.py` sweeps every real save, so its run time grows with the save library - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
-CS-1214 - the tier-1 guard shard read 443s at `788695d`, over its 420s budget and in the WARN band - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
 CS-1215 - the pre-commit gate run by hand echoes git's own stderr, home path included, through its GitError crash line - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1216 - the slots release fallback docstring says a torn in-place write reads stale; its fresh mtime makes it read held - acceptance: in detail - tier: 3 - detail: `docs/item_notes.md`
 CS-1217 - with ruff off PATH the gate runs `python -m ruff` from the staging directory, so a staged `ruff.py` runs in ruff's place - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
