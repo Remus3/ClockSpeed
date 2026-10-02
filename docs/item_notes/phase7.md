@@ -1303,8 +1303,10 @@ THE MOVE, in `.github/workflows/tier1.yml`: `tests/test_liveness.py`,
 step and joined the `fill` step. `FILL_FROM_GUARDS` in `tests/test_tier1_budget.py` is
 the new membership pin and `FILL_SHARD_FILES` is now the concatenation of three groups.
 NOTHING ELSE MOVED. Neither level was touched, no `timeout-minutes` was touched, and the
-39 `--ignore=` lines on the catch-all shard are BYTE-IDENTICAL to `06b8029` - checked by
-diffing the sorted ignore lists, not assumed. The reason that holds in general: both
+38 `--ignore=` lines on the catch-all shard are BYTE-IDENTICAL to `06b8029` - checked by
+diffing the sorted ignore lists, not assumed. The file carries 39 in all; the thirty-ninth
+is the save shard's own governed deletion and is not a catch-all line, which is the
+off-by-one an independent re-derivation of the partition caught in the first wording. The reason that holds in general: both
 `guards` and `fill` are non-catch-all shards, so the union of non-catch-all targets is
 unchanged and the catch-all's one-ignore-per-target set equality still holds. The arms
 that enforce it are the partition arm's clause (3) and the `miscounted` block in
