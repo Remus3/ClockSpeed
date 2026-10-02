@@ -917,18 +917,28 @@ jobs:
       # 36192391765 at d5a4378: this shard read 220.87s, the save shard 401.38s
       # and the hook shard 448.84s, so only this shard had the room.
       #
-      # tests/test_hook_env_echo.py and tests/test_probe_refusal_output.py ARE HERE
-      # FOR THE SAME REASON (CS-814, CS-1200). They drive every shipped hook through
-      # real git and the wrapper with planted canaries - about 51s and 15s serial on
-      # the operator's box - and this is still the shard with room.
+      # THAT CLAIM STOPPED HOLDING, and CS-1214 is what it cost. Readings after
+      # CS-1198 put this shard over its budget and then over its ceiling on a
+      # docs-only tip, so CS-1214 moved three files OUT of here to the fill
+      # shard - tests/test_liveness.py, tests/test_mypy_gate.py and
+      # tests/test_probe_refusal_output.py. The run 36192391765 measurement above
+      # stays as the record of THAT run; it is no longer a reason to add work here.
+      # No level moved, no test was dropped, and no `--ignore=` line changed: a
+      # move between two non-catch-all shards leaves the union of their targets
+      # identical.
+      #
+      # tests/test_hook_env_echo.py IS HERE FOR ROOM, NOT FOR KINSHIP (CS-814). It
+      # drives every shipped hook through real git and the wrapper with planted
+      # canaries - about 51s serial on the operator's box. Its sibling
+      # tests/test_probe_refusal_output.py was here for the same reason (CS-814,
+      # CS-1200) and went to the fill shard under CS-1214, carrying that reason
+      # with it; this file stayed because CS-1207 holds it.
       - name: Unit tests
         run: >-
           python -m pytest
           tests/test_claude_hook.py
           tests/test_hook_env_echo.py
-          tests/test_probe_refusal_output.py
-          tests/test_liveness.py
-          tests/test_mypy_gate.py tests/test_docs_citations.py
+          tests/test_docs_citations.py
           tests/test_chained_cause_census.py
           tests/test_archive_rot.py tests/test_sphinx_roles.py
           tests/test_handler_exception_rendering.py tests/test_locals_rendering.py
@@ -1248,6 +1258,21 @@ jobs:
       # invocation from the repo root - CONVENTIONS.md section 7.1. Every path here is
       # named as an `--ignore=` on the catch-all shard above, and the arms in
       # tests/test_tier1_budget.py are red unless the two lists match exactly.
+      #
+      # THE LAST THREE ARRIVED FROM THE GUARD SHARD UNDER CS-1214, which moved them
+      # because the guard shard read over its budget and then over its ceiling on a
+      # docs-only tip, and this shard was the receiver CS-1214's acceptance named.
+      # THEIR REASONS CAME WITH THEM. tests/test_liveness.py is the guard shard's
+      # heaviest single file and this tree has measured it at about twice its local
+      # wall on the runner. tests/test_mypy_gate.py is the second subprocess-heavy
+      # head, and this is the CPU-bound shard by construction.
+      # tests/test_probe_refusal_output.py drives every shipped hook through real git
+      # and the wrapper with planted canaries (CS-814, CS-1200) - it sat on the guard
+      # shard for ROOM, not for kinship, and the room was gone.
+      #
+      # ORDER IS NOT DISPATCH ORDER HERE. xdist 3.8 sorts the loadfile queue by test
+      # count, descending, and only the hook job turns that off, so appending these
+      # three at the end changes no schedule. Do not reorder them for speed.
       - name: Unit tests
         run: >-
           python -m pytest
@@ -1262,6 +1287,9 @@ jobs:
           tests/test_pathless_clone_agreement.py
           tests/test_credential_redaction.py
           tests/test_provenance_stamp.py
+          tests/test_liveness.py
+          tests/test_mypy_gate.py
+          tests/test_probe_refusal_output.py
           -q -n auto --dist loadfile
           --durations=15 --durations-min=5.0
 

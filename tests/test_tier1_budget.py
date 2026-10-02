@@ -2738,12 +2738,14 @@ FILL_FROM_HOOK = (
     "tests/data/test_phase2_gate.py",
 )
 
-#: The catch-all's measured head, moved with them so the fill shard's heaviest
-#: single test stays under the concentration limit (tools/tier1_concentration.py)
-#: and the catch-all leaves the warn band. The last was added by the S0
-#: measurement's share fallback, heaviest first, skipping the two files pinned
-#: to the catch-all in :data:`RETURNED_TO_CATCH_ALL` and tests/test_flip_checks.py,
-#: which pins that no workflow names its tool - naming the file here would.
+#: The catch-all's measured head, moved with them by CS-1198 so the fill shard's
+#: heaviest single test stays under the concentration limit
+#: (tools/tier1_concentration.py) and the catch-all leaves the warn band. The last
+#: was added by the S0 measurement's share fallback, heaviest first, skipping the
+#: two files pinned to the catch-all in :data:`RETURNED_TO_CATCH_ALL` and
+#: tests/test_flip_checks.py, which pins that no workflow names its tool - naming
+#: the file here would. CS-1214's later arrivals are a separate group below,
+#: because they came from the GUARD shard and not from here.
 FILL_FROM_CATCH_ALL = (
     "tests/solve/test_phase3_gate.py",
     "tests/test_cs1174_placeholder_delimiters.py",
@@ -2755,8 +2757,29 @@ FILL_FROM_CATCH_ALL = (
     "tests/test_provenance_stamp.py",
 )
 
+#: The guard shard's head, moved here by CS-1214. The guard shard read over its
+#: budget and then over its ceiling on a docs-only tip, and this shard was the
+#: receiver its acceptance clause named. No level moved and no test was dropped:
+#: both files were already named as an `--ignore=` on the catch-all shard, so a
+#: move between two non-catch-all shards changes no ignore line at all.
+#:
+#: THE REASONS CAME WITH THE FILES, because a reason left behind rots.
+#: tests/test_probe_refusal_output.py drives every shipped hook through real git
+#: and the wrapper with planted canaries (CS-814, CS-1200) - it was on the guard
+#: shard for ROOM, not for kinship, and the room was gone.
+#: tests/test_liveness.py is the guard shard's heaviest single file and this tree
+#: has measured it at about twice its local wall on the runner
+#: (docs/item_notes/phase4-followups-900.md). tests/test_mypy_gate.py is the
+#: second subprocess-heavy head, and this shard is the CPU-bound one by
+#: construction.
+FILL_FROM_GUARDS = (
+    "tests/test_liveness.py",
+    "tests/test_mypy_gate.py",
+    "tests/test_probe_refusal_output.py",
+)
+
 #: The fill shard's whole membership, exactly.
-FILL_SHARD_FILES = (*FILL_FROM_HOOK, *FILL_FROM_CATCH_ALL)
+FILL_SHARD_FILES = (*FILL_FROM_HOOK, *FILL_FROM_CATCH_ALL, *FILL_FROM_GUARDS)
 
 #: The flag that makes the hook shard dispatch its files in COMMAND ORDER.
 #: pytest-xdist 3.8 reorders the loadfile queue by test count, descending, by
@@ -2771,13 +2794,21 @@ HOOK_SHARD_SECOND = HOOK_SHARD_FILL[0]
 
 
 def test_the_fill_shard_runs_exactly_the_moved_files_and_no_other_shard_does() -> None:
-    """CS-1198 - the hook shard read over its budget, and a fifth job took the fill.
+    """CS-1198 then CS-1214 - two shards read over budget, and this one took the fill.
 
-    No level moved and no test was dropped. The generic partition arm already
-    proves every file runs in exactly one leg; this arm pins WHICH leg for each
-    moved file, that the fill shard names nothing else, that the display name
-    the lane driver keys on is the one written here, and that every moved file
-    is claimed by exactly one shard and ignored by the catch-all exactly once.
+    CS-1198 added the shard and gave it the hook shard's CPU-bound fill plus the
+    catch-all's measured head. CS-1214 added the guard shard's head to it, after
+    the guard shard read over its budget and then over its ceiling on a
+    docs-only tip; this shard is the receiver CS-1214's acceptance named.
+
+    No level moved in either item and no test was dropped. CS-1214 moved files
+    between two NON-CATCH-ALL shards, so the catch-all's ignore list is
+    byte-identical across it - the miscount block below is what proves that
+    rather than assuming it. The generic partition arm already proves every file
+    runs in exactly one leg; this arm pins WHICH leg for each moved file, that
+    the fill shard names nothing else, that the display name the lane driver
+    keys on is the one written here, and that every moved file is claimed by
+    exactly one shard and ignored by the catch-all exactly once.
     """
     shards = suite_shards()
     for job_id in (JOB_ID, HOOK_JOB_ID, FILL_JOB_ID):
@@ -2789,7 +2820,7 @@ def test_the_fill_shard_runs_exactly_the_moved_files_and_no_other_shard_does() -
     )
     fill_targets = shard_targets(shards[FILL_JOB_ID])
     assert sorted(fill_targets) == sorted(FILL_SHARD_FILES), (
-        f"the {FILL_JOB_ID!r} shard names {fill_targets}; CS-1198 gave it exactly"
+        f"the {FILL_JOB_ID!r} shard names {fill_targets}; CS-1198 and CS-1214 gave it exactly"
         f" {list(FILL_SHARD_FILES)}"
     )
     claims = {
