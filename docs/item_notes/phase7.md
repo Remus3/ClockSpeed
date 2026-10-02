@@ -1391,3 +1391,68 @@ a ruff config the gate cannot load makes the gate report PASS while lint did not
 A private-tree commit whose `[tool.ruff]` table named an `extend` path ruff could not
 resolve printed the gate's PASS line; the gate discards ruff's stderr, so the failure
 was silent.
+
+## CS-1219
+
+### Acceptance
+
+a tracked witness records the candidate an adjudication was dispatched over and refuses a
+verdict taken over a tree that moved under it: the witness records the candidate's tree
+object rather than its commit, so a commit that leaves the tree identical is not a move
+and an uncommitted edit is, and it covers compiled bytecode as well as tracked files,
+because `__pycache__/` is gitignored and a porcelain check is blind to a swapped `.pyc`.
+Shown by two arms, red first: one that edits a tracked file under a recorded freeze and
+asserts the witness reddens, and one that leaves every tracked file byte-identical while
+swapping a reachable `.pyc` and asserts the witness reddens for that reason alone. The
+prose in `tools/headless-queue.md` and `CLAUDE.md` section 5 then points at the witness
+rather than carrying the rule alone, and neither file restates what the witness measures.
+
+### Full headline
+
+the adjudication candidate freeze is prose with no mechanical witness, and a porcelain one would be blind to a swapped `.pyc`
+
+### FILED 2026-10-02, an inbox-derived finding that survived refutation (session 118)
+
+`tools/headless-queue.md:634` and `CLAUDE.md` section 5 both order the candidate frozen
+before dispatch. A sweep of `tools/`, `tests/`, `ops/` and `.githooks/` for the rule found
+only prose: every `freeze`-shaped hit is a `frozenset`, a `drift_guard` frozen-files
+report, or the doctrine itself. Nothing records an adjudication's subject and nothing
+re-checks it at verdict time. The harm is already MEASURED rather than hypothetical -
+`CLAUDE.md` section 5 records that the tree moved under an adjudicator four times in
+session 45 and that three whole-suite runs were spent proving a run straddling an edit
+says nothing. The bytecode half is live too: `.gitignore` excludes `__pycache__/`, so a
+porcelain-based witness reports a clean tree while a stale or swapped `.pyc` sits on disk
+and is what the interpreter loads.
+
+## CS-1220
+
+### Acceptance
+
+`tools/measurement_record.py` never reports two readings comparable when either was taken
+over a tree whose state is unrecorded: a reading records the tree it was taken over, the
+grader refuses a new locally-sourced reading that omits it, and `comparability()` returns a
+distinct non-comparable verdict naming the unrecorded tree rather than `comparable`. The
+sixteen rows already in `tools/measurements.json` are NOT re-seeded or re-dated - each
+keeps its value and is marked as carrying no tree witness, which is what the new verdict
+names. Shown by arms red first: one that grades a new local reading with no tree field and
+asserts the refusal, and one that asks `comparability()` about a pair where exactly one
+side carries no witness and asserts the verdict is not `comparable`.
+
+### Full headline
+
+`tools/measurement_record.py` grades a reading's commit spelling but records no clean-tree witness
+
+### FILED 2026-10-02, an inbox-derived finding that survived refutation (session 118)
+
+`tools/measurement_record.py` grades the `commit` field for spelling only - a lowercase hex
+sha of 7 to 40 digits - and carries no notion of tree state; `porcelain`, `dirty` and
+`clean_tree` appear nowhere in the module, and
+`tests/test_measurement_record.py::test_the_tracked_record_grades_clean` is a schema arm,
+not a tree witness. The live field set is `commit, contended, date, method, metric, source,
+superseded_by, unit, value, workers`, with no tree-state key. Reachability is bounded but
+not zero: of sixteen rows, seven `ci_job` and six `derived` rows are clean by the runner's
+own checkout, but two `profile` rows and one `unpaired` row were taken locally and their
+tree state is unrecorded. So two `profile` rows agreeing on method, workers and contention
+compare as `comparable` when one of them measured uncommitted code, and the delta is
+published as fact. This bears directly on CS-1214, whose readings are the kind this record
+holds.
