@@ -956,7 +956,8 @@ def test_the_skip_arm_separates_a_carried_token_from_a_rendered_one(
     sites = pristine.count(GENERIC_SKIP_SITE)
     assert sites == 1, f"the generic skip format occurs {sites} time(s) in the tracked gate"
     carrying = pristine.replace(GENERIC_SKIP_SITE, GENERIC_SKIP_HEAD + prose + b'"', 1)
-    assert carrying != pristine, f"{site}: the carried-prose plant was not applied"
+    moved = carrying != pristine
+    assert moved, f"{site}: the carried-prose plant was not applied"
     _names, said = ACCOUNT_SKIP_ARMS["generic-account-names"]
     verdict = account_skip_verdict(
         tmp_path,

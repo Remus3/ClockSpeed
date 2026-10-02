@@ -1634,9 +1634,17 @@ THE NEW ARM, machine-independent where the defect was not.
 `test_the_skip_arm_separates_a_carried_token_from_a_rendered_one` plants the colliding
 carriage into a SANDBOX gate copy - the tracked gate is never written - sets the planted
 account name TO the carried token, and asserts the token IS present before asserting the
-verdict separates it. One case per site measured in the gate: the save-root subdirectory
-skip and the save-root entry cap, both carrying `root`, and the two absolute-home-path
-findings, both carrying `home`.
+verdict separates it. One case per prose shape measured in the gate: the save-root
+subdirectory skip and the save-root entry cap, both carrying `root`, and the two
+absolute-home-path findings, both carrying `home`.
+
+THAT IS FOUR PROSE SHAPES OVER TWO TOKEN CLASSES, NOT FOUR BRANCHES, and the first wording
+of this paragraph said "one case per site" as though it were the latter. An independent
+refutation pass measured what the cases actually enter: all four plant into the SINGLE
+generic skip line and reach the generic branch. They are not vacuous - `shown` is at or
+above the carried count and `carried` is at least 2 in each, so the carriage demonstrably
+renders - but they model the three unreachable sites rather than covering them, and the
+distinction is the whole difference between a measurement and a model.
 
 ALL FOUR SIBLING CARRIAGES CANCEL, measured this session with the baselines live:
 `shown` equals `carried` and `rendered` is 0 for every one of them, and for the live
