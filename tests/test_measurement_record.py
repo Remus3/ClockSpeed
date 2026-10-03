@@ -32,6 +32,7 @@ import json
 import os
 import subprocess
 import sys
+import warnings
 from pathlib import Path
 from types import ModuleType
 from typing import Any
@@ -94,8 +95,21 @@ def test_the_receipt_is_the_eight_fields_the_acceptance_clause_names(tool: Modul
 
 
 def test_the_tracked_record_grades_clean(tool: ModuleType) -> None:
-    offences = tool.grade_tree(REPO_ROOT)
+    """CS-1223 F3: a witness the clone could not re-derive is never a silent pass.
+
+    In a full-history clone (tier2's suite job, the operator's box) an unchecked
+    witness FAILS here; in a shallow one (tier1's fast job) it warns, by count.
+    """
+    unchecked: list[str] = []
+    offences = tool.grade_tree(REPO_ROOT, unchecked)
     assert offences == [], "\n".join(offences)
+    count = len(unchecked)
+    if count and tool.is_shallow(REPO_ROOT):
+        warnings.warn(
+            f"{count} witness(es) not re-derived - shallow clone", UserWarning, stacklevel=1
+        )
+        return
+    assert count == 0, "\n".join(unchecked)
 
 
 def test_the_tracked_record_holds_at_least_one_reading(tracked: dict[str, Any]) -> None:
@@ -557,6 +571,24 @@ def test_a_copy_of_a_seeded_row_may_not_claim_the_escape_twice(
     assert _tree_offences(tool.grade(record), index)
 
 
+@pytest.mark.parametrize("field", ["source", "superseded_by", "extra_witness"])
+def test_a_seeded_row_with_any_field_edited_loses_the_escape(
+    tool: ModuleType, tracked: dict[str, Any], field: str
+) -> None:
+    """CS-1223 F1. A seed row is a frozen record: ANY edit loses the escape."""
+    record = copy.deepcopy(tracked)
+    row = record["readings"][8]
+    if field == "source":
+        row["source"] = list(tracked["readings"][0]["source"])
+    elif field == "superseded_by":
+        row["superseded_by"] = 9
+        record["readings"][9]["date"] = row["date"]
+        record["readings"][9]["metric"] = row["metric"]
+    else:
+        row["witness"] = _WELL_FORMED_WITNESS
+    assert _tree_offences(tool.grade(record), 8), tool.grade(record)
+
+
 def test_a_seeded_row_with_an_edited_value_loses_the_escape(
     tool: ModuleType, tracked: dict[str, Any]
 ) -> None:
@@ -579,13 +611,103 @@ def test_a_local_clean_reading_with_no_witness_is_refused(
     assert named, tool.grade(record)
 
 
-def test_a_runner_clean_reading_needs_no_witness(tool: ModuleType, tracked: dict[str, Any]) -> None:
-    # Control for the second arm: the runner's fresh checkout IS the witness.
-    record = copy.deepcopy(tracked)
+_CI_RUN = "https://github.com/example/clockspeed/actions/runs/12345678901/job/23456789012"
+
+
+def _ci_clean(tracked: dict[str, Any], **overrides: Any) -> dict[str, Any]:
     reading = _new_local_reading(tracked, "ci_job")
-    reading["tree"] = tool.TREE_CLEAN
-    record["readings"].append(reading)
+    reading["tree"] = "clean"
+    reading.update(overrides)
+    return reading
+
+
+def test_a_runner_clean_reading_needs_no_witness(tool: ModuleType, tracked: dict[str, Any]) -> None:
+    # Control for the second arm: the runner's fresh checkout, cited, IS the witness.
+    record = copy.deepcopy(tracked)
+    record["readings"].append(_ci_clean(tracked, ci_run=_CI_RUN))
     assert tool.grade(record) == []
+
+
+def _named(tool: ModuleType, record: dict[str, Any], index: int, word: str) -> list[str]:
+    return [o for o in tool.grade(record) if o.startswith(f"reading {index}:") and word in o]
+
+
+@pytest.mark.parametrize(
+    "ci_run",
+    [
+        None,
+        "",
+        "run 12345",
+        "https://github.com/example/clockspeed/actions/runs/",
+        "https://github.com/example/clockspeed/actions/runs/12x",
+        "https://example.invalid/example/clockspeed/actions/runs/123",
+        12345,
+    ],
+)
+def test_a_runner_clean_reading_must_cite_its_run(
+    tool: ModuleType, tracked: dict[str, Any], ci_run: Any
+) -> None:
+    """CS-1223 F2(b). `clean` BY THE RUNNER'S CHECKOUT names the run that checked out."""
+    record = copy.deepcopy(tracked)
+    reading = _ci_clean(tracked) if ci_run is None else _ci_clean(tracked, ci_run=ci_run)
+    record["readings"].append(reading)
+    assert _named(tool, record, len(record["readings"]) - 1, "ci_run"), tool.grade(record)
+
+
+def _derived_clean(tracked: dict[str, Any], **overrides: Any) -> dict[str, Any]:
+    reading = _new_local_reading(tracked, "derived")
+    reading["tree"] = "clean"
+    reading.update(overrides)
+    return reading
+
+
+def test_a_derived_clean_reading_over_runner_inputs_grades_clean(
+    tool: ModuleType, tracked: dict[str, Any]
+) -> None:
+    # Control for F2(a): every input is a cited, clean runner reading.
+    record = copy.deepcopy(tracked)
+    record["readings"].append(_ci_clean(tracked, ci_run=_CI_RUN))
+    first = len(record["readings"]) - 1
+    record["readings"].append(_ci_clean(tracked, ci_run=_CI_RUN, value=112.0))
+    record["readings"].append(_derived_clean(tracked, inputs=[first, first + 1]))
+    assert tool.grade(record) == []
+
+
+@pytest.mark.parametrize("inputs", ["absent", [], "local", "unwitnessed", "self", "range", "x"])
+def test_a_derived_clean_reading_needs_runner_inputs(
+    tool: ModuleType, tracked: dict[str, Any], inputs: Any
+) -> None:
+    """CS-1223 F2(a). `derived` may claim `clean` only if every input is a runner reading."""
+    record = copy.deepcopy(tracked)
+    local = _new_local_reading(tracked, "profile")
+    local["tree"] = "dirty"
+    record["readings"].append(local)
+    local_index = len(record["readings"]) - 1
+    derived_index = local_index + 1
+    named = {
+        "local": [local_index],
+        "unwitnessed": [0],
+        "self": [derived_index],
+        "range": [derived_index + 5],
+        "x": ["0"],
+    }
+    if inputs == "absent":
+        reading = _derived_clean(tracked)
+    else:
+        reading = _derived_clean(
+            tracked, inputs=named[inputs] if isinstance(inputs, str) else inputs
+        )
+    record["readings"].append(reading)
+    assert _named(tool, record, derived_index, "input"), tool.grade(record)
+
+
+def test_only_a_derived_reading_names_inputs(tool: ModuleType, tracked: dict[str, Any]) -> None:
+    record = copy.deepcopy(tracked)
+    reading = _new_local_reading(tracked, "profile")
+    reading["tree"] = "dirty"
+    reading["inputs"] = [0]
+    record["readings"].append(reading)
+    assert _named(tool, record, len(record["readings"]) - 1, "input")
 
 
 @pytest.mark.parametrize(
@@ -801,3 +923,40 @@ def test_a_shallow_clone_reports_an_absent_commit_unchecked(
     assert tool.grade_tree(shallow, unchecked) == []
     assert len(unchecked) == 1
     assert "shallow" in unchecked[0]
+
+
+def test_a_witness_with_the_right_digest_and_a_forged_file_count_is_refused(
+    tool: ModuleType, tmp_path: Path
+) -> None:
+    root, head = _witnessed_repo(tool, tmp_path)
+    witness = tool.freeze_witness.freeze(root)
+    witness["tree_files"] += 1
+    _write_record(root, _local_clean(head, witness))
+    offences = tool.grade_tree(root)
+    assert any("refuted" in o for o in offences), offences
+
+
+def _plant_index_entry(tool: ModuleType, root: Path, mode: str, sha: str, path: str) -> str:
+    _git(tool, root, "update-index", "--add", "--cacheinfo", f"{mode},{sha},{path}")
+    _git(tool, root, "commit", "-q", "-m", f"plant {mode}")
+    return _git(tool, root, "rev-parse", "HEAD")
+
+
+def test_a_commit_carrying_a_symlink_is_refused(tool: ModuleType, tmp_path: Path) -> None:
+    root, _ = _witnessed_repo(tool, tmp_path)
+    blob = _git(tool, root, "hash-object", "-w", "notes.md")
+    head = _plant_index_entry(tool, root, "120000", blob, "link")
+    witness = tool.freeze_witness.freeze(root)
+    _write_record(root, _local_clean(head, witness))
+    offences = tool.grade_tree(root)
+    assert any("symlink" in o for o in offences), offences
+
+
+def test_a_commit_carrying_a_submodule_is_refused(tool: ModuleType, tmp_path: Path) -> None:
+    root, first = _witnessed_repo(tool, tmp_path)
+    head = _plant_index_entry(tool, root, "160000", first, "sub")
+    (root / "sub").mkdir()
+    witness = tool.freeze_witness.freeze(root)
+    _write_record(root, _local_clean(head, witness))
+    offences = tool.grade_tree(root)
+    assert any("submodule" in o for o in offences), offences

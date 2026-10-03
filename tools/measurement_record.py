@@ -43,7 +43,12 @@ uncommitted edits measured code no sha names. So every reading carries `tree`:
 
 A `ci_job` reading, and a `derived` reading every input of which is one, may
 claim `clean` BY THE FACT of the runner's fresh checkout of `commit`, the same
-fact that lets it claim `contended: false`. A locally-sourced reading - `paired`,
+fact that lets it claim `contended: false` (CS-1223 F2). The `ci_job` reading
+must say WHICH run: a `ci_run` field holding the run's GitHub Actions URL. The
+grader checks only its shape - it never reaches the network, so it does NOT
+verify that the run exists, checked out `commit`, or produced the value. A
+`derived` reading names its `inputs` by index, and may claim `clean` only when
+every one is a `ci_job` reading itself claiming `clean`. A locally-sourced reading - `paired`,
 `unpaired`, `local_suite` or `profile` - may claim `clean` only by carrying a
 `witness` (CS-1223, below). `unwitnessed` is accepted only on one of the rows of
 :data:`SEEDED_UNWITNESSED_READINGS` (CS-1223, below), which is how the sixteen
@@ -55,9 +60,11 @@ pair with an unwitnessed side, and `not_comparable` for any pair with a dirty on
 THE ESCAPE IS A PINNED SEED SET, NOT A DATE (CS-1223). CS-1220 gated
 `unwitnessed` on the reading's own `date`, which whoever writes the row supplies,
 so a new row dated before the cutover passed. The escape is now granted by ROW
-IDENTITY: the eight receipt fields of each row that was in the record when
-CS-1220 landed are pinned in :data:`SEEDED_UNWITNESSED_READINGS`, each may claim
-the escape at most once, and any other row - whatever its date - is refused.
+IDENTITY: each row that was in the record when CS-1220 landed is pinned WHOLE -
+every field, its `source` included - by :data:`SEEDED_ROW_DIGESTS` (its receipt
+is also listed readably in :data:`SEEDED_UNWITNESSED_READINGS`). Each may claim
+the escape at most once, and any other row - an edited seed row, or a new row
+whatever its date - is refused.
 
 THE WITNESS A LOCAL `clean` CLAIM CARRIES, AND WHAT "CHECKABLE" MEANS (CS-1223).
 The `witness` field is the record `python tools/freeze_witness.py freeze` prints,
@@ -71,7 +78,10 @@ matches, file count included. :func:`grade` checks the shape; :func:`grade_tree`
 does the re-derivation, and refuses when the commit is not in the clone - an
 unpublished commit cannot be witnessed - except in a SHALLOW clone, where an
 absent commit is reported as unchecked rather than refused, because CI's
-depth-one checkout lacks every historical commit by construction.
+depth-one checkout lacks every historical commit by construction. Unchecked is
+never silent: the CLI prints each one, and the tracked-record test warns with
+the count in a shallow clone and FAILS on any in a full-history one (tier2's
+suite job checks out full history, so the record is enforced there).
 
 What this DOES catch: a reading taken over uncommitted edits, a stray untracked
 file, an LF-to-CRLF flip that porcelain cannot see, a witness copied from another
@@ -82,7 +92,8 @@ having read the tree. The witness turns `clean` from an unrecorded assertion int
 a mechanically-captured one that refutes an honest mistake; it does not bind a
 dishonest recorder. The `bytecode` half cannot be re-derived from any commit
 (bytecode is gitignored) and is shape-checked only. A symlink in the commit is
-refused, because its checkout on this platform is not determined by the commit.
+refused, because its checkout on this platform is not determined by the commit,
+and so is a submodule, whose content the witness hashes as one opaque entry.
 
 TWO ESCAPE VALUES EXIST AND THEY ARE NOT A FREE PASS. A worker count that was
 never recorded is `unresolved` and a load state that was never recorded is
@@ -161,7 +172,7 @@ RECEIPT_FIELDS = (
 READING_FIELDS = (*RECEIPT_FIELDS, "tree", "source", "superseded_by")
 
 #: CS-1223. Fields a reading MAY carry. Absence of `witness` means none was taken.
-OPTIONAL_READING_FIELDS = ("witness",)
+OPTIONAL_READING_FIELDS = ("witness", "ci_run", "inputs")
 
 #: CS-1223. The shape of a witness: the freeze_witness record, verbatim.
 WITNESS_FIELDS = ("schema", "tree", "tree_files", "bytecode", "bytecode_files")
@@ -208,8 +219,29 @@ SEEDED_UNWITNESSED_READINGS: tuple[tuple[Any, ...], ...] = (
     ),
 )
 
-#: The pin is compared as canonical JSON, so `true` and `1` never compare equal.
-_SEED_KEYS = frozenset(json.dumps(list(row)) for row in SEEDED_UNWITNESSED_READINGS)
+#: CS-1223 F1. The receipts above are the READABLE pin; the escape is granted by
+#: these - the SHA-256 of each seeded row's WHOLE canonical JSON (every field,
+#: `source` and `superseded_by` included), so any edit to a seed row loses it.
+SEEDED_ROW_DIGESTS = frozenset(
+    (
+        "2c55ef566946332277c3ef9ffbaca894eea7f1db127e74d47a3672b9f240d7cc",
+        "1d2bdbb3bab68cf0f6327b24f581af2548a893ce699fb74e4d226ba3b7bf7e0e",
+        "940e1e0878c97c0e03e000f92a2328a69eadbc23345233c99c9bc0b4c5582a5f",
+        "e662edb97017f18ea41511484d3f0b06b57c4298342b9c9a49da51d176f19ff7",
+        "33027a19e42869043e1c53bf6bed98f744153c903e68369870b68b3ca46066ee",
+        "7ac50a5a6e84ecc8f3be3d3c6ce1be5150d324cd349416e39b2802fef0a7aa1b",
+        "ed7a8904819532722fd4267706c2a8eba46ae6513078f62063330c87f27da063",
+        "43af0f347daa593bda21fcd0fba20bc3faf9bab055a8bef5891c1f48a76570df",
+        "e2a2fa9e9cd5d66d9a87ea3a10e8f1f350d2b9fa898b20ee67a2a342dafaaa99",
+        "690537c33357bc7c0a3ca8602947637e00b0d3da1ed1e1b6afab69a43c9ced4f",
+        "da3d15a16b9828f267a1789461194528fadc827a2482782a971be014ac0edede",
+        "6b8429c167dbf7e2e7780a29208c0d960421e03e565bb0c095631fe509f66ad4",
+        "1ac10daef8e1908c6bfdb6fa64db4e0ddcd65b6453f210502d5250104f5a83fe",
+        "3aae9c86f0456689a66c34b2b2f956bb34954a37a5a0454eeccda2d07bcf8d38",
+        "6870a1efe2bc8a673335ccbb379b0641ee02e6996b8194062ea546b91f77addd",
+        "faea539fb4bb0a586d0684c753676407518779f6e18b74ac8bd9570ee578fb61",
+    )
+)
 
 #: A metric is declared once. `sense` is required of a bound and refused of an
 #: observation, because only a bound has a direction it can be refuted from.
@@ -246,6 +278,11 @@ _DATE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 _COMMIT = re.compile(r"^[0-9a-f]{7,40}$")
 _CITATION = re.compile(r"^[A-Za-z0-9_][A-Za-z0-9_./-]*#\S.*$")
 _DIGEST = re.compile(r"^[0-9a-f]{64}$")
+#: CS-1223 F2(b). A GitHub Actions run, optionally narrowed to one job.
+_CI_RUN = re.compile(
+    r"^https://github\.com/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+/actions/runs/[1-9][0-9]*"
+    r"(/job/[1-9][0-9]*)?$"
+)
 _GIT_TIMEOUT_SECONDS = 300
 
 
@@ -332,28 +369,31 @@ def _grade_receipt(where: str, reading: dict[str, Any], metrics: dict[str, Any])
     return offences
 
 
-def _receipt_key(reading: dict[str, Any]) -> str:
-    return json.dumps([reading[field] for field in RECEIPT_FIELDS])
+def row_digest(reading: dict[str, Any]) -> str:
+    """SHA-256 of the whole row as canonical JSON - the identity a seed is pinned by."""
+    canonical = json.dumps(reading, sort_keys=True, separators=(",", ":"))
+    return hashlib.sha256(canonical.encode("ascii")).hexdigest()
 
 
 def _grade_tree_witness(where: str, reading: dict[str, Any], claimed: set[str]) -> list[str]:
     """CS-1220 and CS-1223. The field is in domain, the escape is a seeded row's.
 
     Presence is graded with every other field in :func:`grade`. `unwitnessed` is
-    accepted only on a row whose receipt is pinned in
-    :data:`SEEDED_UNWITNESSED_READINGS`, once; ``claimed`` carries the pins
-    already used. A local `clean` claim must carry a witness.
+    accepted only on a row whose whole digest is in :data:`SEEDED_ROW_DIGESTS`,
+    once; ``claimed`` carries the pins already used. A local `clean` claim must
+    carry a witness and a runner `clean` claim must cite its run; a `derived`
+    claim's inputs are graded in :func:`_grade_inputs`.
     """
     tree = reading["tree"]
     if isinstance(tree, bool) or tree not in TREE_STATES:
         return [f"{where}: tree {tree!r} is not one of {TREE_STATES}"]
     offences: list[str] = []
     if tree == TREE_UNWITNESSED:
-        key = _receipt_key(reading)
-        if key not in _SEED_KEYS:
+        key = row_digest(reading)
+        if key not in SEEDED_ROW_DIGESTS:
             offences.append(
-                f"{where}: tree {TREE_UNWITNESSED!r} is refused on any row but the seeded"
-                " rows CS-1220 marked, whatever its date - record 'clean' or 'dirty'"
+                f"{where}: tree {TREE_UNWITNESSED!r} is refused on any row but an unedited"
+                " seeded row CS-1220 marked, whatever its date - record 'clean' or 'dirty'"
             )
         elif key in claimed:
             offences.append(
@@ -368,6 +408,59 @@ def _grade_tree_witness(where: str, reading: dict[str, Any], claimed: set[str]) 
             f"{where}: tree {TREE_CLEAN!r} on a {reading['method']!r} reading carries no"
             " witness - record the output of tools/freeze_witness.py freeze, or 'dirty'"
         )
+    if "ci_run" in reading or (tree == TREE_CLEAN and reading["method"] == "ci_job"):
+        ci_run = reading.get("ci_run")
+        if reading["method"] != "ci_job":
+            offences.append(f"{where}: ci_run is carried only by a 'ci_job' reading")
+        elif not isinstance(ci_run, str) or not _CI_RUN.match(ci_run):
+            offences.append(
+                f"{where}: tree {TREE_CLEAN!r} on a 'ci_job' reading needs a ci_run naming"
+                " the GitHub Actions run whose checkout it read, as its run URL"
+            )
+    return offences
+
+
+def _grade_inputs(
+    where: str, index: int, reading: dict[str, Any], readings: list[Any]
+) -> list[str]:
+    """CS-1223 F2(a). A `derived` `clean` claim rests on runner readings only.
+
+    `inputs` lists the indices of the readings a derived figure was computed
+    from. A `derived` reading may claim `clean` only when every input is a
+    `ci_job` reading that itself claims `clean` - the fact the docstring names.
+    """
+    if "inputs" not in reading and not (
+        reading["method"] == "derived" and reading["tree"] == TREE_CLEAN
+    ):
+        return []
+    if reading["method"] != "derived":
+        return [f"{where}: inputs are carried only by a 'derived' reading"]
+    inputs = reading.get("inputs")
+    if not isinstance(inputs, list) or not inputs:
+        return [
+            f"{where}: tree {TREE_CLEAN!r} on a 'derived' reading needs inputs naming"
+            " the 'ci_job' readings it was computed from"
+        ]
+    offences: list[str] = []
+    for target in inputs:
+        if (
+            isinstance(target, bool)
+            or not isinstance(target, int)
+            or not 0 <= target < len(readings)
+            or target == index
+        ):
+            offences.append(f"{where}: input {target!r} names no other reading")
+            continue
+        named = readings[target]
+        if reading["tree"] == TREE_CLEAN and not (
+            isinstance(named, dict)
+            and named.get("method") == "ci_job"
+            and named.get("tree") == TREE_CLEAN
+        ):
+            offences.append(
+                f"{where}: input {target} is not a 'ci_job' reading claiming {TREE_CLEAN!r},"
+                f" so a 'derived' reading over it may not claim {TREE_CLEAN!r}"
+            )
     return offences
 
 
@@ -477,6 +570,7 @@ def grade(record: Any) -> list[str]:
             continue
         offences.extend(_grade_receipt(where, reading, record["metrics"]))
         offences.extend(_grade_tree_witness(where, reading, claimed))
+        offences.extend(_grade_inputs(where, index, reading, readings))
         offences.extend(_grade_source(where, reading))
 
     offences.extend(_grade_supersession(readings))
@@ -517,7 +611,8 @@ def _resolve_commit(root: Path, commit: str) -> str | None:
     return out.decode("ascii").strip() if rc == 0 else None
 
 
-def _is_shallow(root: Path) -> bool:
+def is_shallow(root: Path) -> bool:
+    """Whether ``root`` is a shallow clone, whose history lacks old commits."""
     rc, out = _git(root, "rev-parse", "--is-shallow-repository")
     if rc != 0:
         raise WitnessCheckError(f"git rev-parse exited {rc}")
@@ -528,9 +623,10 @@ def commit_tree_digest(root: Path, commit: str) -> tuple[str, int]:
     """CS-1223. The freeze_witness tree digest a CLEAN checkout of ``commit`` has.
 
     Re-derived from the commit's own objects: each path's bytes are its blob,
-    because this repository checks text out LF with no smudge filter. A gitlink
-    is the `dir` marker freeze_witness records for it. A symlink is refused -
-    its checkout on Windows is not determined by the commit.
+    because this repository checks text out LF with no smudge filter. A symlink
+    is refused - its checkout on Windows is not determined by the commit - and
+    so is a gitlink: freeze_witness hashes a submodule as an opaque `dir`, so
+    nothing inside it is witnessed.
     """
     rc, listing = _git(root, "ls-tree", "-r", "-z", "--full-tree", commit)
     if rc != 0:
@@ -544,7 +640,9 @@ def commit_tree_digest(root: Path, commit: str) -> tuple[str, int]:
         entries.append((raw_path.decode("utf-8", "surrogateescape"), mode, sha))
     if any(mode == "120000" for _, mode, _ in entries):
         raise WitnessCheckError("the commit carries a symlink, whose checkout it does not fix")
-    blobs = [sha for _, mode, sha in entries if mode != "160000"]
+    if any(mode == "160000" for _, mode, _ in entries):
+        raise WitnessCheckError("the commit carries a submodule, whose content is not witnessed")
+    blobs = [sha for _, _, sha in entries]
     rc, batch = _git(root, "cat-file", "--batch", stdin="".join(f"{s}\n" for s in blobs).encode())
     if rc != 0:
         raise WitnessCheckError(f"git cat-file exited {rc}")
@@ -559,12 +657,9 @@ def commit_tree_digest(root: Path, commit: str) -> tuple[str, int]:
         contents[sha] = batch[newline + 1 : newline + 1 + size]
         cursor = newline + 1 + size + 1
     digest = hashlib.sha256()
-    for path, mode, sha in sorted(entries):
+    for path, _, sha in sorted(entries):
         _feed(digest, path.encode("utf-8", "surrogateescape"))
-        if mode == "160000":
-            _feed(digest, b"dir")
-        else:
-            _feed(digest, b"file:" + hashlib.sha256(contents[sha]).digest())
+        _feed(digest, b"file:" + hashlib.sha256(contents[sha]).digest())
     return digest.hexdigest(), len(entries)
 
 
@@ -574,7 +669,7 @@ def _check_witness(root: Path, where: str, reading: dict[str, Any], unchecked: l
     try:
         full = _resolve_commit(root, commit)
         if full is None:
-            if _is_shallow(root):
+            if is_shallow(root):
                 unchecked.append(f"{where}: witness of {commit} not re-derived - shallow clone")
                 return ""
             return (
