@@ -209,6 +209,36 @@ def test_freezing_leaves_the_real_index_untouched(tmp_path: Path) -> None:
     assert _git(root, "diff", "--cached", "--name-only") == ""
 
 
+def test_a_crlf_flip_under_eol_lf_reddens_the_witness(tmp_path: Path) -> None:
+    """`* text=auto eol=lf` normalises on add, so a git tree object misses this."""
+    root = _repo(tmp_path)
+    (root / ".gitattributes").write_bytes(b"* text=auto eol=lf\n")
+    _git(root, "add", "-A")
+    _git(root, "commit", "-q", "-m", "attributes")
+    record = _freeze(root, tmp_path)
+    mod = root / "pkg" / "mod.py"
+    mod.write_bytes(mod.read_bytes().replace(b"\n", b"\r\n"))
+    rc, out = _check(root, record)
+    assert rc == EXIT_MOVED
+    assert "tree moved" in out
+
+
+def _object_files(root: Path) -> list[str]:
+    objects = root / ".git" / "objects"
+    return sorted(p.relative_to(objects).as_posix() for p in objects.rglob("*") if p.is_file())
+
+
+def test_freezing_writes_no_object_into_the_repository(tmp_path: Path) -> None:
+    root = _repo(tmp_path)
+    (root / "pkg" / "untracked.py").write_bytes(b"Y = 2\n")
+    (root / "pkg" / "mod.py").write_bytes(b"VALUE = 6\n")
+    before = _object_files(root)
+    record = _freeze(root, tmp_path)
+    _check(root, record)
+    after = _object_files(root)
+    assert after == before
+
+
 def test_a_malformed_record_is_refused(tmp_path: Path) -> None:
     root = _repo(tmp_path)
     bad = tmp_path / "bad.json"

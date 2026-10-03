@@ -7,17 +7,40 @@ it when the verdict came back.
 
 WHAT IT RECORDS, AND WHY THOSE TWO HALVES:
 
-    tree      the git TREE OBJECT of the working state - tracked files plus
-              untracked files that .gitignore does not exclude, uncommitted
-              edits included. Built through a private temporary index, so the
-              caller's real index is never touched. A tree and not a commit: a
-              commit that leaves the tree identical is not a move, and an
-              uncommitted edit is.
+    tree      a SHA-256 over the RAW ON-DISK BYTES of every tracked file and
+              every untracked file .gitignore does not exclude - each one's
+              repo-relative path and the SHA-256 of its bytes exactly as they
+              sit on disk, with a marker for a tracked path that is missing or
+              is a directory. Not a git tree object: ``git add`` applies
+              ``.gitattributes`` filters before hashing, so under this repo's
+              ``* text=auto eol=lf`` an LF to CRLF flip - the damage the harness
+              Edit tool does - hashes to the same blob and would read unmoved.
+              Raw bytes and not a commit either: a commit that leaves every file
+              identical is not a move, and an uncommitted edit is. Every file's
+              bytes are read - git's stat cache is never trusted - so a
+              same-size edit that kept its mtime is caught too. Nothing is
+              written to the index or the object store; the only git call is a
+              read-only ``ls-files``. The executable bit is not recorded - it
+              is not meaningful on the Windows filesystem this project runs on.
     bytecode  a SHA-256 over every ``.pyc`` in a ``__pycache__`` directory that
               sits beside a tracked or would-be-tracked file - each file's
               repo-relative path and bytes. ``__pycache__/`` is gitignored, so
               the tree half and every porcelain check are blind to a swapped
               ``.pyc``, and a swapped ``.pyc`` is what the interpreter loads.
+
+WHAT IS OUTSIDE THE WITNESS, by design:
+
+    * gitignored content other than ``__pycache__`` bytecode beside the
+      population - a gitignored ``.py``, a ``.pth`` or an installed package an
+      import can reach is not read. The witness covers the candidate, not the
+      interpreter's whole search path.
+    * bytecode under a ``PYTHONPYCACHEPREFIX`` directory outside the tree.
+
+A FIRST IMPORT IS A BYTECODE MOVE, by design. In a process that writes bytecode
+(no ``PYTHONDONTWRITEBYTECODE``), the first import or test collection of a module
+writes its ``.pyc``, and the bytecode half then differs from a record taken
+before it. So FREEZE AFTER the tree has been imported or collected once; a move
+reported over a tree that was never imported is that write, not a swap.
 
 WHERE THE RECORD LIVES. Wherever the caller says (``--out``), or stdout. Put it
 in a scratch path or the gitignored ``data/`` tree: a record written inside the
@@ -40,7 +63,6 @@ import json
 import os
 import subprocess
 import sys
-import tempfile
 import time
 from pathlib import Path
 
@@ -52,7 +74,7 @@ if str(_TOOLS_DIR) not in sys.path:
 
 from toolpath import resolve_tool  # noqa: E402
 
-SCHEMA = 1
+SCHEMA = 2
 SUBPROCESS_TIMEOUT_SECONDS = 300
 RENAME_ATTEMPTS = 5
 REPO_ROOT = _TOOLS_DIR.parent
@@ -77,14 +99,11 @@ class WitnessError(Exception):
     """A refusal: git could not answer, or a record does not parse."""
 
 
-def _git_env(index_file: Path | None = None) -> dict[str, str]:
-    env = {k: v for k, v in os.environ.items() if k.upper() not in _GIT_RELOCATING}
-    if index_file is not None:
-        env["GIT_INDEX_FILE"] = str(index_file)
-    return env
+def _git_env() -> dict[str, str]:
+    return {k: v for k, v in os.environ.items() if k.upper() not in _GIT_RELOCATING}
 
 
-def _git(root: Path, *args: str, index_file: Path | None = None) -> bytes:
+def _git(root: Path, *args: str) -> bytes:
     git = resolve_tool("git")
     if git is None:
         raise WitnessError("git is not on PATH")
@@ -92,7 +111,7 @@ def _git(root: Path, *args: str, index_file: Path | None = None) -> bytes:
         proc = subprocess.run(
             [git, "-c", "core.autocrlf=false", "-C", str(root), *args],
             capture_output=True,
-            env=_git_env(index_file),
+            env=_git_env(),
             timeout=SUBPROCESS_TIMEOUT_SECONDS,
             check=False,
         )
@@ -103,26 +122,39 @@ def _git(root: Path, *args: str, index_file: Path | None = None) -> bytes:
     return proc.stdout
 
 
-def working_tree_object(root: Path) -> str:
-    """Return the tree object id of the working state, via a private index."""
-    with tempfile.TemporaryDirectory(prefix="cs1219-") as tmp:
-        # An EMPTY private index, never a copy of the real one: a copy carries
-        # git's stat cache, and a same-size edit that keeps its mtime is then
-        # trusted as unchanged and never re-hashed. Hashing every file is the
-        # price of a witness that reads bytes rather than timestamps.
-        index = Path(tmp) / "index"
-        _git(root, "add", "-A", "--", ".", index_file=index)
-        return _git(root, "write-tree", index_file=index).decode().strip()
+def population(root: Path) -> list[str]:
+    """Every tracked or would-be-tracked file, repo-relative, sorted, deduplicated."""
+    out = _git(root, "ls-files", "-z", "--cached", "--others", "--exclude-standard")
+    names = {n for n in out.decode("utf-8", "surrogateescape").split("\0") if n}
+    return sorted(names)
+
+
+def _feed(digest: hashlib._Hash, chunk: bytes) -> None:
+    """Length-prefix ``chunk`` into ``digest`` so no two sequences collide."""
+    digest.update(len(chunk).to_bytes(8, "big") + chunk)
+
+
+def raw_tree_digest(root: Path) -> tuple[str, int]:
+    """SHA-256 over (path, raw-bytes SHA-256) of the population, and its size."""
+    names = population(root)
+    digest = hashlib.sha256()
+    for name in names:
+        path = root / name
+        _feed(digest, name.encode("utf-8", "surrogateescape"))
+        if path.is_symlink():
+            _feed(digest, b"link:" + str(path.readlink()).encode("utf-8", "surrogateescape"))
+        elif path.is_file():
+            _feed(digest, b"file:" + hashlib.sha256(path.read_bytes()).digest())
+        elif path.is_dir():
+            _feed(digest, b"dir")
+        else:
+            _feed(digest, b"missing")
+    return digest.hexdigest(), len(names)
 
 
 def population_dirs(root: Path) -> list[str]:
     """Every directory holding a tracked or would-be-tracked file, repo-relative."""
-    out = _git(root, "ls-files", "-z", "--cached", "--others", "--exclude-standard")
-    dirs = set()
-    for name in out.decode("utf-8", "surrogateescape").split("\0"):
-        if name:
-            dirs.add(name.rsplit("/", 1)[0] if "/" in name else "")
-    return sorted(dirs)
+    return sorted({n.rsplit("/", 1)[0] if "/" in n else "" for n in population(root)})
 
 
 def bytecode_digest(root: Path) -> tuple[str, int]:
@@ -138,19 +170,19 @@ def bytecode_digest(root: Path) -> tuple[str, int]:
     entries.sort()
     digest = hashlib.sha256()
     for rel_name, path in entries:
-        data = path.read_bytes()
-        encoded = rel_name.encode("utf-8", "surrogateescape")
-        digest.update(len(encoded).to_bytes(8, "big") + encoded)
-        digest.update(len(data).to_bytes(8, "big") + data)
+        _feed(digest, rel_name.encode("utf-8", "surrogateescape"))
+        _feed(digest, path.read_bytes())
     return digest.hexdigest(), len(entries)
 
 
 def freeze(root: Path) -> dict[str, object]:
     """Return the witness record for ``root`` as it stands now."""
     pyc_digest, pyc_count = bytecode_digest(root)
+    tree_digest, file_count = raw_tree_digest(root)
     return {
         "schema": SCHEMA,
-        "tree": working_tree_object(root),
+        "tree": tree_digest,
+        "tree_files": file_count,
         "bytecode": pyc_digest,
         "bytecode_files": pyc_count,
     }
