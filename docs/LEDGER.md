@@ -75,6 +75,21 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-10-03 - CS-1232 - a MAIN kit bundle file is verified at its bundle-relative path, placed by file identity
+Verification: `tools/main_provenance.py::verify_main_note`, tests
+`tests/test_main_provenance.py`. A file in the inbox is placed by its file identity
+against a link-ignoring census of this tree's inbox, never by how its path is spelled:
+directly in the inbox it is checked by bare name as before, one level down as
+`<bundle>/<file>` against MAIN's committed blob; deeper, linked, reserved or ambiguous
+placements refuse `bundle-path-refused`, any census error refuses `census-failed`, and an
+absent inbox refuses `inbox-absent`. The five files of the FLEET-KIT v4 bundle verify.
+Seven adversary rounds each refuted a bypass (an inbox-named bundle; 8.3, trailing-dot
+and junction spellings; links into and out of the inbox; a junction aliasing the inbox;
+extended-length and admin-share spellings; a census error failing open; an absent worktree inbox)
+and each was repaired. The merger stopped at round eight on cost against risk: every
+bypass also needed bytes equal to a committed MAIN blob. RESIDUAL, unrefuted: POSIX
+behaviour is untested; a file identity reused within the read window is not seen.
+
 ### 2026-10-03 - CS-1231 - section 14 gate RUN on FLEET-KIT v4 - CLEARED, before the lift (gate record; the item stays OPEN)
 Verification: the five kit files of MAIN's 2026-10-03 12:04 ORDER bundle (MANIFEST.json,
 FLEET-COMMON.md, fleet_headless.py, LICENSE, NOTICE), each sha256 equal to the ORDER

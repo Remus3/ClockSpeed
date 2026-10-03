@@ -1538,8 +1538,8 @@ MAIN names each path left out and why; MAIN's directives are still verified by
 
 ### Full headline
 
-adopt MAIN's FLEET-KIT v3 (vendor the kit, embed the common block in a condensed
-CLAUDE.md, route every headless spawn through it); held at the licence gate
+adopt MAIN's FLEET-KIT (vendor the kit, embed the common block in CLAUDE.md, route
+every headless spawn through it)
 
 ### FILED 2026-10-03, from MAIN's verified orders 0955, 1014 and 1016
 
@@ -1554,3 +1554,56 @@ Gaps reported to MAIN: `verify_main` hashes MAIN's working tree only; `claude_ex
 resolves through `shutil.which`; `check_url` admits any loopback port where CS-1225 pins
 one.
 
+### MEASURED 2026-10-03, v4 landed with slices A and B
+
+MAIN shipped FLEET-KIT v4 under Apache-2.0 with a NOTICE naming the holder by role. The
+section 14 gate ran and CLEARED before the lift (`docs/LEDGER.md` under CS-1231), and
+slices A and B landed as one commit at v4. The condensation was dropped: an adversary
+found it had moved binding rules into a non-binding history file, so `CLAUDE.md` keeps
+its full text, adds a precedence paragraph, and gives each Settled entry a Reversed-by
+clause that only the operator's own words satisfy. OPEN: slice C - route
+`ops/loop/inbox_responder.py` and `ops/loop/run_lane.ps1` through the kit's `spawn`
+with `floors_in_hooks=True`, then send MAIN the v4 ANSWER.
+
+## CS-1233
+
+### Acceptance
+
+The CS-815 latency arm in `tests/test_claude_hook.py` measures with no live xdist sibling
+in its run, fails if one was live when it finished, and keeps `LATENCY_BUDGET_SECONDS`
+unchanged; a nested two-worker test proves the wait is live; and every windows leg of a
+tier2 run at the landed tip is green on that arm.
+
+### Full headline
+
+the CS-815 latency arm read over budget on windows tier2 because xdist siblings contend;
+it now times after siblings go quiet
+
+### FILED 2026-10-03, from three red tier2 legs
+
+The windows guards-shard legs read 1.110s, 1.010s and 1.169s against a 1.0s budget in
+two consecutive tier2 runs; every other leg was green. Tier 1 runs only on ubuntu, so no
+tier-1 job ever exercised the arm on windows. Measured on a two-CPU emulation: the arm
+alone 0.68s, inside the shard 0.91s, inside the shard with the wait 0.64s. A wrapped call
+starts about ten processes and a direct one starts one, so pairing does not cancel
+contention. Detail: the builder's diagnosis, summarised here.
+
+## CS-1234
+
+### Acceptance
+
+The CS inbox responder writes `ops/loop/control/inbox_status.json` (gitignored) atomically
+in MAIN 0915's schema 1 on every state change and at least once per tick, including on
+its halted path; task names come only from the basic set; `task_eta_s` is the median of
+the last ten completed instances of a task, null under three; at most 120 headless runs
+start per rolling 24 hours, counted under a lock, and an unreadable counter refuses every
+start.
+
+### Full headline
+
+the inbox responder publishes `ops/loop/control/inbox_status.json` and caps headless
+starts at 120 per rolling 24 hours
+
+### FILED 2026-10-03, from MAIN orders 0915 and 0855, operator-approved in session
+
+RC's lane widget reads every tree's status file and showed CS as "Sync: no signal".
