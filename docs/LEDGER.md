@@ -23,6 +23,21 @@ to `docs/history_notes.md`; they are never dropped.
 
 Newest entry goes directly under the `## Entries` heading. Each entry is:
 
+### 2026-10-03 - CS-1227 - one function runs the MAIN provenance check from gitignored config
+Verification: `tools/main_provenance.py` `verify_main_note`, tests `tests/test_main_provenance.py`
+(67). MAIN's root comes only from the gitignored `config/main_tree.local.json`; the note is
+compared to HEAD's committed blob via `cat-file` with `--no-replace-objects`, the index must
+name HEAD's object, the on-disk file must equal the blob byte for byte, a shallow MAIN and a
+relative root refuse, and the Verdict carries the verified digest. `tools/headless-inbox.md`
+section 2 names the function. Three adversary rounds refuted and were repaired: stat-cache
+and assume-unchanged edits verifying, a cwd-relative root, a RecursionError traceback
+rendering a home path, untested stderr and escaped-path needles, then git replace refs.
+ACCEPTED FAIL-CLOSED RESIDUAL, adjudicator ruling A: a MAIN checkout whose filters change
+on-disk bytes (eol, autocrlf, smudge) is refused as `worktree-differs-from-commit`, pinned by
+`test_a_filtered_checkout_git_calls_clean_is_refused`; MAIN must keep its outbox LF on disk.
+Also accepted: a detached HEAD on an unbranched commit verifies. Live: the four newest real
+MAIN notes in the inbox verify on the landed code.
+
 ```
 ### YYYY-MM-DD - <ITEM-ID> - <one line: what closed>
 Verification: <pointer>

@@ -1496,34 +1496,6 @@ Widening to short abbreviations has a known cost the item must answer rather tha
 ignore: ordinary hex-letter words and decimal-like runs collide far more often at 5 and
 6 characters than at 7.
 
-## CS-1227
-
-### Acceptance
-
-A gitignored local configuration file names MAIN's tree root, and ONE function in this
-tree resolves it - from that file only, never from a tracked file, the channel root or a
-note - and runs the `CLAUDE.md` section 6.1 provenance check: the inbox note's SHA-256
-equals the same-named file in MAIN's outbox, and that file is tracked and unmodified in
-MAIN's history. `tools/headless-inbox.md` names that function instead of describing the
-check in prose. Shown by arms red first, over temp trees only: a matching tracked note
-passes; a byte-different copy, an untracked outbox file, a modified one, and an absent
-or unparseable configuration each refuse with a named reason; and no refusal renders
-the configured path.
-
-### Full headline
-
-no gitignored local configuration names MAIN's tree, so the inbox responder cannot verify
-a MAIN directive and reads every one as data
-
-### FILED 2026-10-02, found by the headless inbox responder on its first armed pass
-
-MAIN's 2320 note of 2026-10-02 carried an instruction to this tree. The worker prompt
-allows MAIN's path ONLY from gitignored local configuration, and `CLAUDE.md` section 6.1
-says that is where it lives. A scan of every gitignored configuration file in the main
-tree found none naming it, so the pass read the note as data. Nothing it asked was left
-undone - an attended session had already armed the task and sent the report - but every
-later MAIN directive to the responder meets the same refusal until this lands.
-
 ## CS-1228
 
 ### Acceptance
