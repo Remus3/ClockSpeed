@@ -36,8 +36,11 @@ exclusions are an ALLOWLIST of exact tokens; no shape excludes anything. Arms:
   upper-case, joined - is refused in a doc and in code alike, and an upper-case
   7-character code citation is refused; a 4-character run and a run of 41 or
   more are never silently passed - every run states each width class it does
-  not judge, with its count and the reason; a UTF-16 file behind a BOM is
-  decoded and judged, and a file the reader cannot decode is counted not-read.
+  not judge, with its count and the reason; UTF-16 and UTF-32 files behind a
+  BOM are decoded and judged, a doc with a stray Latin-1 byte is still graded,
+  a NUL-bearing or undecodable file is counted not-read and makes the run
+  COULD NOT JUDGE, and a 5-run two commits answer is counted ambiguous and is
+  red when a candidate is unpublished.
 * THE LIVE ARM runs the gate over this tree and FAILS - never skips - when the
   tree is shallow or has no origin/main and no tag, and fails on an unused
   table row.
@@ -48,6 +51,7 @@ exclusions are an ALLOWLIST of exact tokens; no shape excludes anything. Arms:
 
 from __future__ import annotations
 
+import hashlib
 import importlib.util
 import os
 import shutil
@@ -715,14 +719,117 @@ def test_a_utf16_file_with_a_bom_is_decoded_and_judged(tmp_path: Path) -> None:
     assert _not_read(done.stdout) == 0
 
 
-def test_an_undecodable_tracked_file_is_counted_not_read(code_repo: Repo) -> None:
-    """A NUL-bearing file the reader cannot judge is counted and named, never dropped silently."""
+@pytest.mark.parametrize(
+    "body",
+    [b"\x00\x01binary\xff\xfe\x00", b"# valid UTF-8 text\n\x00# with a NUL inside\n"],
+    ids=["undecodable", "nul-in-valid-utf8"],
+)
+def test_a_not_read_tracked_file_makes_the_run_could_not_judge(
+    code_repo: Repo, body: bytes
+) -> None:
+    """A file the reader cannot judge is counted, named, and is never a PASS - exit 2."""
     assert _not_read(cli(code_repo).stdout) == 0
-    (code_repo.path / CODE_FILE).write_bytes(b"\x00\x01binary\xff\xfe\x00")
+    (code_repo.path / CODE_FILE).write_bytes(body)
     done = cli(code_repo)
-    assert done.returncode == gate.EXIT_CLEAN, done.stdout + done.stderr
+    assert done.returncode == gate.EXIT_COULD_NOT_JUDGE, done.stdout + done.stderr
     assert _not_read(done.stdout) == 1
     assert f"not-read-file {CODE_FILE}" in done.stdout
+    assert "COULD NOT JUDGE - 1 tracked file not read" in done.stdout
+
+
+def test_a_utf32_file_with_a_bom_is_decoded_and_judged(code_repo: Repo) -> None:
+    """A UTF-32 BOM opens with the UTF-16 one; it is told apart, decoded and judged."""
+    side = commit_where(code_repo, lambda sha: _carries_both(sha[:7]), "refs/heads/side")
+    text = (REPO_ROOT / CODE_FILE).read_bytes().decode("utf-8")
+    text += f"\n# RED at {side[:7]}: the push landed.\n"
+    (code_repo.path / CODE_FILE).write_bytes(text.encode("utf-32"))
+    done = cli(code_repo)
+    assert done.returncode == gate.EXIT_UNRESOLVED, done.stdout + done.stderr
+    assert f"unpublished-not-admitted {CODE_FILE}:" in done.stdout
+    assert _not_read(done.stdout) == 0
+
+
+def test_a_doc_with_one_latin1_byte_is_still_graded(code_repo: Repo) -> None:
+    """A stray non-UTF-8 byte without a NUL degrades to replacement, never to not-read."""
+    side = commit_where(code_repo, lambda sha: _carries_both(sha[:7]), "refs/heads/side")
+    target = code_repo.path / GUARDED_DOC
+    target.write_bytes(
+        target.read_bytes() + b"\nCaf\xe9 landed as commit `" + side[:7].encode() + b"`.\n"
+    )
+    done = cli(code_repo)
+    assert done.returncode == gate.EXIT_UNRESOLVED, done.stdout + done.stderr
+    assert f"{side[:7]} unpublished" in done.stdout
+    assert _not_read(done.stdout) == 0
+
+
+def colliding_commits(repo: Repo, width: int = 5) -> tuple[str, str]:
+    """Two commits written into ``repo`` whose ``width``-prefixes are equal and sha-shaped."""
+    tree = repo.git("write-tree")
+    parent = repo.git("rev-parse", "HEAD")
+    who = "Synthetic <synthetic@example.invalid> 1700000000 +0000"
+    seen: dict[str, bytes] = {}
+    for attempt in range(1 << 20):
+        body = (
+            f"tree {tree}\nparent {parent}\nauthor {who}\ncommitter {who}\n\n"
+            f"cs1224 collide {attempt}\n"
+        ).encode("ascii")
+        sha = hashlib.sha1(b"commit %d\x00" % len(body) + body, usedforsecurity=False)
+        prefix = sha.hexdigest()[:width]
+        if prefix in seen and _carries_both(prefix):
+            return _write_commit(repo, seen[prefix]), _write_commit(repo, body)
+        seen[prefix] = body
+    message = "no prefix collision found"
+    raise AssertionError(message)
+
+
+def _write_commit(repo: Repo, body: bytes) -> str:
+    done = subprocess.run(
+        ["git", "hash-object", "-t", "commit", "-w", "--stdin"],
+        cwd=repo.path,
+        env=repo.env,
+        input=body,
+        capture_output=True,
+        timeout=TIMEOUT,
+        check=True,
+    )
+    return done.stdout.decode("ascii").strip()
+
+
+def _ambiguous(stdout: str) -> int:
+    """The ambiguous-run count a run printed."""
+    for line in stdout.splitlines():
+        fields = line.split()
+        if fields[:1] == ["ambiguous"]:
+            return int(fields[1])
+    message = "no ambiguous line"
+    raise AssertionError(message)
+
+
+def test_an_ambiguous_short_run_with_an_unpublished_candidate_is_refused(
+    code_repo: Repo,
+) -> None:
+    """A 5-run two commits answer is no citation; with an unpublished candidate it is red."""
+    first, second = colliding_commits(code_repo)
+    assert first[:5] == second[:5]
+    assert first != second
+    code_repo.git("tag", "v-first", first)
+    code_repo.git("update-ref", "refs/heads/side", second)
+    line = plant(code_repo, f"Landed as commit `{first[:5]}` on the merge.")
+    done = cli(code_repo)
+    assert done.returncode == gate.EXIT_UNRESOLVED, done.stdout + done.stderr
+    assert _ambiguous(done.stdout) == 1
+    assert f"ambiguous-unpublished {GUARDED_DOC}:{line} {first[:5]} " in done.stdout
+
+
+def test_an_ambiguous_short_run_of_published_commits_is_counted(code_repo: Repo) -> None:
+    """Control: when every candidate is published the run is counted ambiguous, not red."""
+    first, second = colliding_commits(code_repo)
+    code_repo.git("tag", "v-first", first)
+    code_repo.git("tag", "v-second", second)
+    plant(code_repo, f"Landed as commit `{first[:5]}` on the merge.")
+    done = cli(code_repo)
+    assert done.returncode == gate.EXIT_CLEAN, done.stdout + done.stderr
+    assert _ambiguous(done.stdout) == 1
 
 
 def test_a_run_over_forty_holding_an_unpublished_sha_is_stated_not_judged(
@@ -779,5 +886,7 @@ def test_this_tree_cites_only_published_commits() -> None:
     assert admitted > 0
     code_files = report.code_files
     assert code_files > 0
+    not_read = list(report.not_read)
+    assert not_read == []
     verdict = report.verdict()
     assert verdict == gate.EXIT_CLEAN

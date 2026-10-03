@@ -28,10 +28,13 @@ run of 5 or 6 hex characters, any case, joined to anything, in any tracked
 file, is resolved the same way - git accepts an abbreviation that short. The
 4-character and the 41-or-more classes are NOT JUDGED, and each run prints
 every such class (:data:`NOT_JUDGED`) with its count and the measured reason,
-so an empty result there is never read as a pass. A tracked file is decoded as
-UTF-8, or as UTF-16 behind a byte-order mark; one that is neither, or carries a
-NUL, is NOT READ, and every run prints that count and each such path, so a
-file dropping out of every population is a statement, never silence. All three
+so an empty result there is never read as a pass. A resolved-only run that
+more than one commit answers is counted ``ambiguous`` and is red when any
+candidate is unpublished. A tracked file is decoded as UTF-32 or UTF-16 behind
+a byte-order mark (UTF-32 first, since its mark opens with UTF-16's), else as
+UTF-8 with replacement; one that is absent or carries a NUL is NOT READ, every
+run prints that count and each such path, and any such file makes the run
+COULD NOT JUDGE - a file dropping out is never a pass. All three
 resolved-only populations share the blind spot above, and the overreach
 control and the allowlist apply to doc tokens only.
 
@@ -91,9 +94,11 @@ CLI::
              token is one, and at least one citation was admitted
     exit 1   an admitted citation is not a published commit, an allowlisted
              token is one (overreach), or a not-admitted, code or short run
-             names an existing unpublished commit
+             names an existing unpublished commit, or an ambiguous one has an
+             unpublished candidate
     exit 2   could not judge - no git, not a repository, a shallow clone, no
-             origin/main and no tag, or a sweep that admitted nothing
+             origin/main and no tag, a tracked file not read, or a sweep that
+             admitted nothing
 
 stdout prints only repository-relative paths, line numbers and the tokens
 themselves - never a doc line's text, and never an environment value.
@@ -158,9 +163,11 @@ INCLUSION_RULE: Final = (
     "resolved the same way and is red only when it names an existing unpublished commit, "
     "because hex literals that name nothing (test vectors, digests, ids) outnumber code "
     "citations there. Every run of 5 or 6 hex characters of any case, joined to anything, "
-    "in any tracked file, is resolved the same way too. A tracked file is read as UTF-8, "
-    "or as UTF-16 when it opens with a byte-order mark; one that decodes as neither, or "
-    "carries a NUL, is NOT READ, and its count is stated on every run. NOT JUDGED, stated "
+    "in any tracked file, is resolved the same way too, and one that more than one commit "
+    "answers is red when any candidate is unpublished. A tracked file is read as UTF-32 or "
+    "UTF-16 behind a byte-order mark, else as UTF-8 with replacement; one absent or "
+    "carrying a NUL is NOT READ, its count is stated on every run, and any such file "
+    "makes the run COULD NOT JUDGE. NOT JUDGED, stated "
     "with a count on every run: a 4-character run and a run of 41 or more - see each "
     "not-judged line for why"
 )
@@ -200,10 +207,13 @@ _NOT_JUDGED_RUNS: Final[dict[str, re.Pattern[str]]] = {
 
 #: CS-1224 - the reason printed beside the not-read count on every run.
 NOT_READ_REASON: Final = (
-    "tracked files absent from the work tree, or that decode as neither UTF-8 nor "
-    "BOM-marked UTF-16, or that carry a NUL, are binary or missing to this reader and "
-    "are not judged"
+    "tracked files absent from the work tree, or carrying a NUL once decoded (UTF-32 or "
+    "UTF-16 behind a byte-order mark, else UTF-8 with replacement), are binary or "
+    "missing to this reader; any such file makes the run COULD NOT JUDGE, never a pass"
 )
+
+#: The byte-order marks that make a tracked file read as UTF-32, tested first.
+_UTF32_BOMS: Final = (b"\xff\xfe\x00\x00", b"\x00\x00\xfe\xff")
 
 #: The byte-order marks that make a tracked file read as UTF-16.
 _UTF16_BOMS: Final = (b"\xff\xfe", b"\xfe\xff")
@@ -469,15 +479,23 @@ def count_not_judged(text: str) -> dict[str, int]:
 def decode_tracked(raw: bytes) -> str | None:
     """A tracked file's text, or None when this reader cannot judge it - CS-1224.
 
-    UTF-16 is decoded when the bytes open with a byte-order mark; anything else
-    must be strict UTF-8 (a UTF-8 BOM is dropped) and carry no NUL.
+    A UTF-32 byte-order mark is tested FIRST, because the little-endian one
+    opens with the UTF-16 one; then UTF-16; then strict UTF-8 (a UTF-8 BOM is
+    dropped). A file none of those decode falls back to UTF-8 with replacement,
+    so one stray Latin-1 byte still leaves the rest graded. Whatever path
+    decoded it, text carrying a NUL is binary to this reader: None.
     """
+    for boms, codec in ((_UTF32_BOMS, "utf-32"), (_UTF16_BOMS, "utf-16")):
+        if raw.startswith(boms):
+            try:
+                text = raw.decode(codec)
+            except UnicodeDecodeError:
+                return None
+            return None if "\0" in text else text
     try:
-        if raw.startswith(_UTF16_BOMS):
-            return raw.decode("utf-16")
         text = raw.decode("utf-8-sig")
     except UnicodeDecodeError:
-        return None
+        text = raw.decode("utf-8", errors="replace")
     return None if "\0" in text else text
 
 
@@ -488,20 +506,61 @@ def resolve_many(repo: Path, tokens: Sequence[str]) -> dict[str, str | None]:
     batch keeps thousands of decimal runs from costing thousands of processes.
     Upper-case runs are asked in lower case, which names the same object.
     """
-    if not tokens:
-        return {}
-    data = "".join(f"{token.lower()}^{{commit}}\n" for token in tokens).encode("ascii")
+    return resolve_batch(repo, tokens)[0]
+
+
+def _batch_check(repo: Path, names: Sequence[str]) -> list[list[str]]:
+    """Ask ``git cat-file --batch-check`` about each name; one answer's fields per name."""
+    data = "".join(f"{name}\n" for name in names).encode("ascii")
     done = _git(repo, ["cat-file", "--batch-check"], data)
     if done.returncode != 0:
         raise GateError(f"git cat-file exited {done.returncode}")
     answers = done.stdout.decode("ascii", errors="replace").splitlines()
-    if len(answers) != len(tokens):
+    if len(answers) != len(names):
         raise GateError("git cat-file answered a different number of lines")
-    resolved: dict[str, str | None] = {}
-    for token, answer in zip(tokens, answers, strict=True):
-        fields = answer.split()
-        resolved[token] = fields[0] if fields[1:2] == ["commit"] else None
-    return resolved
+    return [answer.split() for answer in answers]
+
+
+def _commits_of(repo: Path, tokens: Sequence[str]) -> dict[str, str | None]:
+    names = [f"{token.lower()}^{{commit}}" for token in tokens]
+    return {
+        token: fields[0] if fields[1:2] == ["commit"] else None
+        for token, fields in zip(tokens, _batch_check(repo, names), strict=True)
+    }
+
+
+def resolve_batch(
+    repo: Path, tokens: Sequence[str]
+) -> tuple[dict[str, str | None], dict[str, set[str]]]:
+    """:func:`resolve_many`, plus every run more than one COMMIT answers - CS-1224.
+
+    ``<run>^{commit}`` answers ``missing`` for a run two commits share, exactly
+    as for an absent one, so each missing run is asked again bare: an
+    ``ambiguous`` answer there is listed with ``rev-parse --disambiguate`` and
+    peeled, and the run is ambiguous when two or more commits remain.
+
+    Returns:
+        Each token mapped to its one commit or None, and each commit-ambiguous
+        token mapped to the commits that answer it.
+    """
+    if not tokens:
+        return {}, {}
+    resolved = _commits_of(repo, tokens)
+    missing = [token for token in tokens if resolved[token] is None]
+    ambiguous: dict[str, set[str]] = {}
+    if missing:
+        bare = _batch_check(repo, [token.lower() for token in missing])
+        for token, fields in zip(missing, bare, strict=True):
+            if fields[1:2] == ["ambiguous"] and len(found := candidate_commits(repo, token)) > 1:
+                ambiguous[token] = found
+    return resolved, ambiguous
+
+
+def candidate_commits(repo: Path, token: str) -> set[str]:
+    """Every commit an ambiguous ``token`` could name: ``rev-parse --disambiguate``, peeled."""
+    listed = _git_out(repo, ["rev-parse", f"--disambiguate={token.lower()}"]).decode("ascii")
+    objects = sorted(set(listed.split()))
+    return {commit for commit in _commits_of(repo, objects).values() if commit is not None}
 
 
 class GateError(Exception):
@@ -606,7 +665,10 @@ class SweepReport:
         code_runs: Every hex run of 7 to 40 in those files, resolved only.
         short_runs: Every judged 5- or 6-character run, docs and code, resolved only.
         not_judged: Each :data:`NOT_JUDGED` class mapped to its run count.
-        not_read: Tracked files :func:`decode_tracked` could not judge.
+        not_read: Tracked files :func:`decode_tracked` could not judge - any
+            one makes the run COULD NOT JUDGE.
+        ambiguous: Resolved-only runs more than one commit answers.
+        ambiguous_unpublished: Those of them with an unpublished candidate - red.
 
     ``not_admitted_unpublished`` carries every red run of all three resolved-only
     populations - not-admitted doc runs, code runs and short runs.
@@ -627,6 +689,8 @@ class SweepReport:
     short_runs: list[Occurrence] = field(default_factory=list)
     not_judged: dict[str, int] = field(default_factory=lambda: dict.fromkeys(NOT_JUDGED, 0))
     not_read: list[str] = field(default_factory=list)
+    ambiguous: list[Occurrence] = field(default_factory=list)
+    ambiguous_unpublished: list[Occurrence] = field(default_factory=list)
 
     @property
     def admitted(self) -> list[Occurrence]:
@@ -641,9 +705,14 @@ class SweepReport:
 
     def verdict(self) -> int:
         """Exit 2 when nothing can be judged, 1 on a failure, else 0."""
-        if self.shallow or not self.published_refs or not self.admitted:
+        if self.shallow or not self.published_refs or not self.admitted or self.not_read:
             return EXIT_COULD_NOT_JUDGE
-        failed = self.unresolved or self.overreach or self.not_admitted_unpublished
+        failed = (
+            self.unresolved
+            or self.overreach
+            or self.not_admitted_unpublished
+            or self.ambiguous_unpublished
+        )
         return EXIT_UNRESOLVED if failed else EXIT_CLEAN
 
 
@@ -706,11 +775,16 @@ def sweep(repo: Path, allowlist: Mapping[str, str] | None = None) -> SweepReport
         return report
     resolved_only = [*not_admitted, *code_runs, *short_runs]
     every = {entry.token for entry in resolved_only} | {entry.token for entry in occurrences}
-    runs = resolve_many(repo, sorted(every))
+    runs, ambiguous = resolve_batch(repo, sorted(every))
     report.not_admitted_unpublished = [
         entry
         for entry in resolved_only
         if (commit := runs[entry.token]) is not None and commit not in published
+    ]
+    report.ambiguous = [entry for entry in resolved_only if entry.token in ambiguous]
+    unpublished_candidates = {token for token, commits in ambiguous.items() if commits - published}
+    report.ambiguous_unpublished = [
+        entry for entry in report.ambiguous if entry.token in unpublished_candidates
     ]
     for entry in occurrences:
         commit = runs[entry.token]
@@ -742,6 +816,10 @@ def render(report: SweepReport) -> list[str]:
         for name, reason in NOT_JUDGED.items()
     ]
     out.append(f"not-read {len(report.not_read)} - {NOT_READ_REASON}")
+    out.append(
+        f"ambiguous {len(report.ambiguous)} - resolved-only runs more than one commit "
+        f"answers; red when any candidate is unpublished: {len(report.ambiguous_unpublished)}"
+    )
     out += [f"not-read-file {name}" for name in report.not_read]
     for name, sentence in CLASSES.items():
         count = sum(1 for entry in report.occurrences if entry.rule == name)
@@ -788,6 +866,11 @@ def render(report: SweepReport) -> list[str]:
         "existing commit that is not published"
         for entry in report.not_admitted_unpublished
     ]
+    out += [
+        f"ambiguous-unpublished {entry.path}:{entry.line} {entry.token} is answered by "
+        "more than one commit, at least one not published"
+        for entry in report.ambiguous_unpublished
+    ]
     verdict = report.verdict()
     if verdict == EXIT_CLEAN:
         out.append("sha_citation_gate: PASS - every admitted citation is a published commit")
@@ -802,6 +885,9 @@ def render(report: SweepReport) -> list[str]:
             reason = "a shallow clone"
         elif not report.published_refs:
             reason = "no origin/main and no tag"
+        elif report.not_read:
+            count = len(report.not_read)
+            reason = f"{count} tracked file{'' if count == 1 else 's'} not read"
         else:
             reason = "the sweep admitted nothing"
         out.append(f"sha_citation_gate: COULD NOT JUDGE - {reason}, which is not a pass")
