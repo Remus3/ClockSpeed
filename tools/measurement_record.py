@@ -220,26 +220,27 @@ SEEDED_UNWITNESSED_READINGS: tuple[tuple[Any, ...], ...] = (
 )
 
 #: CS-1223 F1. The receipts above are the READABLE pin; the escape is granted by
-#: these - the SHA-256 of each seeded row's WHOLE canonical JSON (every field,
-#: `source` and `superseded_by` included), so any edit to a seed row loses it.
+#: these - the SHA-256 of each seeded row's canonical JSON with every field but
+#: `superseded_by` (`source` included), so any edit to a seed row loses it while
+#: superseding one - ordinary record use - does not (R12).
 SEEDED_ROW_DIGESTS = frozenset(
     (
-        "2c55ef566946332277c3ef9ffbaca894eea7f1db127e74d47a3672b9f240d7cc",
-        "1d2bdbb3bab68cf0f6327b24f581af2548a893ce699fb74e4d226ba3b7bf7e0e",
-        "940e1e0878c97c0e03e000f92a2328a69eadbc23345233c99c9bc0b4c5582a5f",
-        "e662edb97017f18ea41511484d3f0b06b57c4298342b9c9a49da51d176f19ff7",
-        "33027a19e42869043e1c53bf6bed98f744153c903e68369870b68b3ca46066ee",
-        "7ac50a5a6e84ecc8f3be3d3c6ce1be5150d324cd349416e39b2802fef0a7aa1b",
-        "ed7a8904819532722fd4267706c2a8eba46ae6513078f62063330c87f27da063",
-        "43af0f347daa593bda21fcd0fba20bc3faf9bab055a8bef5891c1f48a76570df",
-        "e2a2fa9e9cd5d66d9a87ea3a10e8f1f350d2b9fa898b20ee67a2a342dafaaa99",
-        "690537c33357bc7c0a3ca8602947637e00b0d3da1ed1e1b6afab69a43c9ced4f",
-        "da3d15a16b9828f267a1789461194528fadc827a2482782a971be014ac0edede",
-        "6b8429c167dbf7e2e7780a29208c0d960421e03e565bb0c095631fe509f66ad4",
-        "1ac10daef8e1908c6bfdb6fa64db4e0ddcd65b6453f210502d5250104f5a83fe",
-        "3aae9c86f0456689a66c34b2b2f956bb34954a37a5a0454eeccda2d07bcf8d38",
-        "6870a1efe2bc8a673335ccbb379b0641ee02e6996b8194062ea546b91f77addd",
-        "faea539fb4bb0a586d0684c753676407518779f6e18b74ac8bd9570ee578fb61",
+        "aee06004a07acdef0efcb06c3873853328d155f4864e0c0a000ec99cf3d620ef",
+        "f15e2ddc282e6f9caff783998c832397148039acdca684ead46e8d87735bf78c",
+        "a2cda6ba3e0651e4b0b7237d9ca90e6e4da8828a577979dbfaa0e8beeb571b68",
+        "309a2a8e523ba5b367d990d694138153573a051a6fab0d0b5bc40d3e65a95403",
+        "fb7e72e826c063fde04d4ba01abc808d58c209221aa44f7adbefaad56124efcf",
+        "b65f0396b6f85a2a47fc2d77e9e95b116a25e912f504ec2830dd7bb0895ac25b",
+        "1a0859eb20a3294c72e787043adee7ca2efd8579a4b0cf61a343e3eacf7d5364",
+        "b5a4b52e313f33aab3b2c0619e49e473824c895d9d6f644b4a7bc57428fe495d",
+        "6407bfbfef598b917d5bf9755d813713ce07aa0092c97f9d6591448e1b123975",
+        "5689ba691094430899ee89b38a5477523b122d59e21f7e407df262a3c974e0a5",
+        "3a5cf7d1cdabbb6e0b373e5f3a50873a89fd92ff605e29b36aae89b878c9f864",
+        "af952c161e7708ac229345de40a7de47c650549caa894eb87b624c2f33acc86b",
+        "f5c9a0487114da22c277ed6347a37b665b9baa83c0c0d55d1d0246f7a267fc3c",
+        "24fc4b3a9db041fd0adfc78e7d42f3c58e9dd3cbea72c44ddbaa6c1758d22bb9",
+        "09ad140d7cd090a527a45396711586b18b01419584748fc08f4d08c486f72b04",
+        "546dec463b10920e7034256dce2e5d0b78e6be2c2ac14374fc91d6c4e13b032f",
     )
 )
 
@@ -278,10 +279,13 @@ _DATE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 _COMMIT = re.compile(r"^[0-9a-f]{7,40}$")
 _CITATION = re.compile(r"^[A-Za-z0-9_][A-Za-z0-9_./-]*#\S.*$")
 _DIGEST = re.compile(r"^[0-9a-f]{64}$")
-#: CS-1223 F2(b). A GitHub Actions run, optionally narrowed to one job.
+#: CS-1223. THIS repository, as the tracked CITATION.cff names it; a test pins
+#: the two equal, so a run of another repository can never be cited.
+REPOSITORY_URL = "https://github.com/Remus3/Clockspeed"
+#: CS-1223 F2(b). A GitHub Actions run of this repository, optionally narrowed
+#: to one job. Digits only after the fixed prefix, so no `..` can be spelt.
 _CI_RUN = re.compile(
-    r"^https://github\.com/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+/actions/runs/[1-9][0-9]*"
-    r"(/job/[1-9][0-9]*)?$"
+    "^" + re.escape(REPOSITORY_URL) + r"/actions/runs/[1-9][0-9]*(/job/[1-9][0-9]*)?\Z"
 )
 _GIT_TIMEOUT_SECONDS = 300
 
@@ -370,8 +374,9 @@ def _grade_receipt(where: str, reading: dict[str, Any], metrics: dict[str, Any])
 
 
 def row_digest(reading: dict[str, Any]) -> str:
-    """SHA-256 of the whole row as canonical JSON - the identity a seed is pinned by."""
-    canonical = json.dumps(reading, sort_keys=True, separators=(",", ":"))
+    """SHA-256 of the row as canonical JSON, `superseded_by` aside - a seed's identity."""
+    pinned = {field: value for field, value in reading.items() if field != "superseded_by"}
+    canonical = json.dumps(pinned, sort_keys=True, separators=(",", ":"))
     return hashlib.sha256(canonical.encode("ascii")).hexdigest()
 
 
@@ -427,7 +432,8 @@ def _grade_inputs(
 
     `inputs` lists the indices of the readings a derived figure was computed
     from. A `derived` reading may claim `clean` only when every input is a
-    `ci_job` reading that itself claims `clean` - the fact the docstring names.
+    `ci_job` reading that itself claims `clean` - the fact the docstring names -
+    taken on the derived reading's own `commit`, not superseded, and named once.
     """
     if "inputs" not in reading and not (
         reading["method"] == "derived" and reading["tree"] == TREE_CLEAN
@@ -442,6 +448,7 @@ def _grade_inputs(
             " the 'ci_job' readings it was computed from"
         ]
     offences: list[str] = []
+    seen: set[int] = set()
     for target in inputs:
         if (
             isinstance(target, bool)
@@ -451,8 +458,14 @@ def _grade_inputs(
         ):
             offences.append(f"{where}: input {target!r} names no other reading")
             continue
+        if target in seen:
+            offences.append(f"{where}: input {target} is named twice")
+            continue
+        seen.add(target)
         named = readings[target]
-        if reading["tree"] == TREE_CLEAN and not (
+        if reading["tree"] != TREE_CLEAN:
+            continue
+        if not (
             isinstance(named, dict)
             and named.get("method") == "ci_job"
             and named.get("tree") == TREE_CLEAN
@@ -461,6 +474,14 @@ def _grade_inputs(
                 f"{where}: input {target} is not a 'ci_job' reading claiming {TREE_CLEAN!r},"
                 f" so a 'derived' reading over it may not claim {TREE_CLEAN!r}"
             )
+            continue
+        if named.get("commit") != reading["commit"]:
+            offences.append(
+                f"{where}: input {target} was taken on another commit, so it does not"
+                " vouch for this reading's tree"
+            )
+        if named.get("superseded_by") is not None:
+            offences.append(f"{where}: input {target} is superseded and vouches for nothing")
     return offences
 
 

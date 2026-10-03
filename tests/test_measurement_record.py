@@ -571,22 +571,32 @@ def test_a_copy_of_a_seeded_row_may_not_claim_the_escape_twice(
     assert _tree_offences(tool.grade(record), index)
 
 
-@pytest.mark.parametrize("field", ["source", "superseded_by", "extra_witness"])
+@pytest.mark.parametrize("field", ["source", "extra_witness", "unit", "contended"])
 def test_a_seeded_row_with_any_field_edited_loses_the_escape(
     tool: ModuleType, tracked: dict[str, Any], field: str
 ) -> None:
-    """CS-1223 F1. A seed row is a frozen record: ANY edit loses the escape."""
+    """CS-1223 F1. Any edit to a seed row but its `superseded_by` loses the escape."""
     record = copy.deepcopy(tracked)
     row = record["readings"][8]
     if field == "source":
         row["source"] = list(tracked["readings"][0]["source"])
-    elif field == "superseded_by":
-        row["superseded_by"] = 9
-        record["readings"][9]["date"] = row["date"]
-        record["readings"][9]["metric"] = row["metric"]
+    elif field == "unit":
+        row["unit"] = "ratio"
+    elif field == "contended":
+        row["contended"] = "unknown"
     else:
         row["witness"] = _WELL_FORMED_WITNESS
     assert _tree_offences(tool.grade(record), 8), tool.grade(record)
+
+
+def test_a_seeded_row_may_still_be_superseded(tool: ModuleType, tracked: dict[str, Any]) -> None:
+    """CS-1223 R12. Setting `superseded_by` is ordinary record use, not an edit."""
+    record = copy.deepcopy(tracked)
+    later = _new_local_reading(tracked, "profile")
+    later["tree"] = "dirty"
+    record["readings"].append(later)
+    record["readings"][8]["superseded_by"] = len(record["readings"]) - 1
+    assert tool.grade(record) == []
 
 
 def test_a_seeded_row_with_an_edited_value_loses_the_escape(
@@ -611,7 +621,15 @@ def test_a_local_clean_reading_with_no_witness_is_refused(
     assert named, tool.grade(record)
 
 
-_CI_RUN = "https://github.com/example/clockspeed/actions/runs/12345678901/job/23456789012"
+_CI_RUN = "https://github.com/Remus3/Clockspeed/actions/runs/12345678901/job/23456789012"
+
+
+def test_the_pinned_repository_is_the_one_the_citation_file_names(tool: ModuleType) -> None:
+    # Ground truth with no remote: the tracked CITATION.cff names the repository.
+    lines = (REPO_ROOT / "CITATION.cff").read_text(encoding="utf-8").splitlines()
+    named = [ln.split(":", 1)[1].strip() for ln in lines if ln.startswith("repository-code:")]
+    assert named == [tool.REPOSITORY_URL]
+    assert _CI_RUN.startswith(tool.REPOSITORY_URL + "/actions/runs/")
 
 
 def _ci_clean(tracked: dict[str, Any], **overrides: Any) -> dict[str, Any]:
@@ -641,6 +659,13 @@ def _named(tool: ModuleType, record: dict[str, Any], index: int, word: str) -> l
         "https://github.com/example/clockspeed/actions/runs/",
         "https://github.com/example/clockspeed/actions/runs/12x",
         "https://example.invalid/example/clockspeed/actions/runs/123",
+        "https://github.com/example/clockspeed/actions/runs/123",
+        "https://github.com/Remus3/Other/actions/runs/123",
+        "https://github.com/Remus3/Clockspeed/actions/runs/123/../../../Other/runs/9",
+        "https://github.com/Remus3/Clockspeed/../Other/actions/runs/123",
+        "https://github.com/Remus3/Clockspeed/actions/workflows/123",
+        "https://github.com/Remus3/Clockspeed/actions/runs/123/job/",
+        "https://github.com/Remus3/Clockspeed/actions/runs/123?x=1",
         12345,
     ],
 )
@@ -699,6 +724,70 @@ def test_a_derived_clean_reading_needs_runner_inputs(
         )
     record["readings"].append(reading)
     assert _named(tool, record, derived_index, "input"), tool.grade(record)
+
+
+def _runner_record(tracked: dict[str, Any], *readings: dict[str, Any]) -> dict[str, Any]:
+    """A record of ONLY the given readings, so an index means exactly that row."""
+    return {"metrics": copy.deepcopy(tracked["metrics"]), "readings": list(readings)}
+
+
+def test_a_derived_clean_reading_over_a_witnessed_local_reading_is_refused(
+    tool: ModuleType, tracked: dict[str, Any]
+) -> None:
+    """Mutant C. A `clean` LOCAL input is still not a runner input."""
+    local = _new_local_reading(tracked, "profile")
+    local["tree"] = "clean"
+    local["witness"] = _WELL_FORMED_WITNESS
+    record = _runner_record(tracked, local, _derived_clean(tracked, inputs=[0]))
+    assert _named(tool, record, 1, "is not a 'ci_job' reading"), tool.grade(record)
+
+
+def test_a_ci_run_on_any_other_method_is_refused(tool: ModuleType, tracked: dict[str, Any]) -> None:
+    """Mutant R. A well-formed run URL on a local reading is a false citation."""
+    reading = _new_local_reading(tracked, "profile")
+    reading["tree"] = "dirty"
+    reading["ci_run"] = _CI_RUN
+    record = _runner_record(tracked, reading)
+    assert _named(tool, record, 0, "ci_run is carried only"), tool.grade(record)
+
+
+@pytest.mark.parametrize("target", ["self", True, False])
+def test_a_derived_input_naming_itself_or_a_bool_is_refused(
+    tool: ModuleType, tracked: dict[str, Any], target: Any
+) -> None:
+    """Mutants A and N. Rows 0 and 1 are valid runner inputs, so only the guard refuses."""
+    runner = _ci_clean(tracked, ci_run=_CI_RUN)
+    inputs = [2] if target == "self" else [target]
+    record = _runner_record(tracked, runner, copy.deepcopy(runner), {})
+    record["readings"][2] = _derived_clean(tracked, inputs=inputs)
+    assert _named(tool, record, 2, "names no other reading"), tool.grade(record)
+
+
+@pytest.mark.parametrize("fault", ["commit", "superseded", "duplicate"])
+def test_a_derived_clean_reading_is_tied_to_its_own_inputs(
+    tool: ModuleType, tracked: dict[str, Any], fault: str
+) -> None:
+    """R8. Inputs share the derived row's commit, are live, and are named once."""
+    first = _ci_clean(tracked, ci_run=_CI_RUN)
+    second = _ci_clean(tracked, ci_run=_CI_RUN, value=112.0)
+    inputs = [0, 1]
+    if fault == "commit":
+        second["commit"] = "e3169a64770a00fd4484452148a9ef66ac33cb7b"
+    elif fault == "superseded":
+        first["superseded_by"] = 1
+        second["date"] = "2026-10-04"
+    else:
+        inputs = [0, 0]
+    record = _runner_record(tracked, first, second, _derived_clean(tracked, inputs=inputs))
+    assert _named(tool, record, 2, "input"), tool.grade(record)
+    # Control: the same three rows, fault removed, grade clean.
+    healthy = _runner_record(
+        tracked,
+        _ci_clean(tracked, ci_run=_CI_RUN),
+        _ci_clean(tracked, ci_run=_CI_RUN, value=112.0),
+        _derived_clean(tracked, inputs=[0, 1]),
+    )
+    assert tool.grade(healthy) == []
 
 
 def test_only_a_derived_reading_names_inputs(tool: ModuleType, tracked: dict[str, Any]) -> None:
