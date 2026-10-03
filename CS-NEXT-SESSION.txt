@@ -33,7 +33,7 @@ CI              GREEN at 00e6ea9 (run 37024524235 was read green at fc4881f: all
 working tree    CLEAN at the /done commit.
 HISTORY IS LINEAR ON PURPOSE. Session 118 rebased two merge commits away. See the
                 CS-1196 fence below before you land anything by merge.
-CS-1207 branch  worktree-agent-ace624231ac7fd814 at 1ee41a5, worktree
+CS-1207 branch  worktree-agent-ace624231ac7fd814 (round-15 tip), worktree
                 .claude/worktrees/agent-ace624231ac7fd814 - rounds 4-16, UNMERGED,
                 clean, UNTOUCHED by session 118. DO NOT PRUNE IT. Older stale trees
                 remain; classify by CONTENT.
@@ -72,7 +72,7 @@ CS-1207  the repair loop is HALTED. A safety classifier stopped two adversary tu
          and the round-17 repair brief. Do NOT re-dispatch an escape hunt to route
          around those stops. Owed: (a) run round 17 (pytest config discovery -
          tests/pytest.ini and a root .pytest.ini are neither pinned nor graded)
-         interactively, or declare it out of scope; (b) land branch 1ee41a5
+         interactively, or declare it out of scope; (b) land that branch
          LANDED-NOT-CLOSED with tests/test_hook_env_echo.py moved from the guard
          shard to the fill shard. NOTE: that move is now LESS urgent - the guard
          shard reads 238s, so the module no longer deepens a breach.

@@ -434,6 +434,7 @@ jobs:
           --ignore=tests/test_pre_push_suite_floor.py
           --ignore=tests/test_precommit_index_race.py
           --ignore=tests/test_trailer_routes.py
+          --ignore=tests/test_sha_citation_gate.py
           --ignore=tests/test_claude_hook.py
           --ignore=tests/test_hook_env_echo.py
           --ignore=tests/test_probe_refusal_output.py
@@ -699,6 +700,11 @@ jobs:
       # and for the reason that step is here: this is the leg with room. It runs
       # synthetic hooks only, never a shipped one, so it is not hook-shard work.
       #
+      # AND tests/test_sha_citation_gate.py SINCE CS-1222, because its live arm
+      # resolves every commit sha the docs cite against PUBLISHED history and
+      # FAILS - never skips - on a shallow clone. This is the one tier-1 job with
+      # full history, so it is the one place that arm can run at all.
+      #
       # THE ONE `--ignore=` IN THIS LANE IS A DELETION, NOT PARTITION BOOKKEEPING,
       # AND IT IS GOVERNED (CS-1073). Every other ignore in this file sits on the
       # catch-all and names another shard's target, one for one. This one names a
@@ -736,7 +742,8 @@ jobs:
       # install and no save, exactly what this job demonstrates simultaneously.
       - name: Unit tests
         run: >-
-          python -m pytest tests/test_toolpath.py tests/test_trailer_routes.py tests/save
+          python -m pytest tests/test_toolpath.py tests/test_trailer_routes.py
+          tests/test_sha_citation_gate.py tests/save
           -q -n auto --dist loadfile
           --ignore=tests/save/test_phase4_gate.py
           --durations=15 --durations-min=5.0

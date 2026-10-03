@@ -688,7 +688,7 @@ so the next reader does not re-derive it.
   23:25:52.394 local, ended 23:25:55.546, duration 3.151s. Cycle 7 ended 23:21:32.702.
 - Gap split: start-to-start 262.5s; END of cycle 7 to START of cycle 8 is 259.7s.
 - Worker logs `ops/loop/reports/lane_queue_<run_id>.log`: eleven of the twelve runs have
-  one, each exactly 134 bytes (header only). 62f29b90 has none.
+  one, each exactly 134 bytes (header only). Run 62f29b90 has none.
 - Header-write latency (log mtime minus the row's `started_at`), cycles 2-12 in order:
   0.145, 0.152, 0.147, 0.220, 0.567, 2.037, (none), 1.984, 1.244, 1.289, 2.210s.
 - Windows event logs, every log with records, 23:10-23:35 that night.
@@ -1843,7 +1843,7 @@ lane session gates against its own tree.
 ## Session 114 - 2026-09-25 - the trailer gate moved to CI, environment values left every assert rendering, and CS-815 was built but not landed
 
 - Shipped: CS-704 (CI trailer census step in the tier-1 save job, tests/test_trailer_routes.py) and CS-1199 (filed and closed: the assert-rendering guard for process-environment values, tests/test_assertion_rendering.py). Detail in docs/LEDGER.md. The 33 owed inbox asks were answered in two outbox notes (moon_sync_outbox/2026-09-25-1409 and -1410); the inbox is still NOT acknowledged.
-- In flight: CS-815 - the operator said "go CS-815" in their own words this session. Built in worktree .claude/worktrees/agent-a4f0885163222ba12, branch worktree-agent-a4f0885163222ba12, commits ecb7b53 (the wrapper script and its test module, the two settings.json command strings, save-shard routing, provenance rows) and 8186634 (resolve sh from any launching shell, write-list widened by the merger to tests/test_pretooluse_gate.py). NOT adversaried, NOT landed. The builder was stopped at /done mid full suite; its PowerShell-launched failure classification (23 failures incl. test_pre_push_ref_race, test_precommit_index_race) was never reported.
+- In flight: CS-815 - the operator said "go CS-815" in their own words this session. Built in worktree .claude/worktrees/agent-a4f0885163222ba12, branch worktree-agent-a4f0885163222ba12, commits "route both Claude hooks through a probed wrapper" (the wrapper script and its test module, the two settings.json command strings, save-shard routing, provenance rows) and 8186634 (resolve sh from any launching shell, write-list widened by the merger to tests/test_pretooluse_gate.py). NOT adversaried, NOT landed. The builder was stopped at /done mid full suite; its PowerShell-launched failure classification (23 failures incl. test_pre_push_ref_race, test_precommit_index_race) was never reported.
 - Decisions: none new at ADR level. Merger ruling: CS-1199's unresolved-call default treats a lower-case callable given env= as RUNNING under it, not returning it (without it: 2107 findings on 1039 lines); an adversary found no live counter-example. Merger ruling: a suite that goes red by which shell launched pytest is a defect, not an operating rule.
 - Surprises: every first build was refuted again - CS-704 on an untested exit-2 path, CS-1199 twice on LIVE leaks (imported tests/git_env.py helpers; a HookLayout parameter). `assert "X" not in os.environ` renders the WHOLE environment, measured. The inbox answer agent's five extraction subagents never returned to it.
 - Failed paths: none abandoned.
@@ -6200,7 +6200,7 @@ not re-pitch it as the next hole** - the shared SCALARS are, and that is CS-863.
 
 - **Failed paths: none abandoned.** Two merger claims were withdrawn under measurement -
   that the CS-855 acceptance is unsatisfiable, and that the long-carried 115 was a category
-  error. 115 was correct when filed at `f19d1f2` and drifted to 117.
+  error. 115 was correct when filed at the Slice E commit and drifted to 117.
 
 - **THREE MERGER ERRORS, ALL CAUGHT BY SOMEONE ELSE, ALL WORTH REPEATING.** A brief said
   "five ChunkError subclasses"; the slice MEASURED four and corrected it. A `grep "planted"`
@@ -12378,7 +12378,7 @@ says in as many words not to push, edit or repair a contended tree. CS-210 is
 therefore HALF-LANDED: code committed, records not.
 
 **CS-964 - THE SEAM IS BUILT AND ONE ARM OF FIFTEEN IS CONVERTED.** On branch
-`cs964-seam`, THREE COMMITS, `81ed50c` then `09e749b` then `b885017`. The full
+`cs964-seam`, THREE COMMITS, "the seam" then "the seam completed" then "the widest header arm". The full
 detail is in `docs/item_notes/phase4-followups-900.md` under CS-964. The
 headline: the arms could not be converted at all until five shared things
 existed and only ONE of them did, so building them arm-by-arm would have meant
@@ -12511,12 +12511,12 @@ that nothing was misattributed was FALSE. Three unpushed commits were authored
 `Gate Test <gate@example.invalid>`. Re-authored on an explicit operator ruling; tree
 hashes byte-identical across the rewrite, so only authorship changed.
 
-FOUR DEAD DOC CITATIONS were red at `57d70e4` and would have blocked the first push on
+FOUR DEAD DOC CITATIONS were red at the session 81 records commit and would have blocked the first push on
 their own - the handoff's "0 failed" was wrong about that too. Three were abbreviated
 module paths.
 
 BOTH BRANCHES ARE ON ORIGIN. `main` at `77a43e2`, tier1 CI SUCCESS. `cs964-seam` at
-`aa30cd5`, 6209 passed, CI was still running when this note was written.
+its main merge, 6209 passed, CI was still running when this note was written.
 
 CS-964 IS STILL OPEN AND IS ONE ARM OF FIFTEEN. Pushing the branch published work in
 progress; it did not finish it.
@@ -14398,7 +14398,7 @@ the account-name skip arm counts `root` inside the gate's own `save-root` prose,
 
 ### MEASURED 2026-10-02, the pre-push suite blocked this session's push (session 118)
 
-The pre-push hook refused at `1f083ab` with one failure and nothing pushed - the notice
+The pre-push hook refused at an unpublished CS-1214 commit with one failure and nothing pushed - the notice
 reported exit 0, which is the shape `memory/` already records. `1 failed, 6537 passed in
 359.61s`, the failure being
 `test_no_account_name_skip_renders_the_name[generic-account-names]`: an account name

@@ -319,7 +319,7 @@ The line as first filed, relocated here intact because the ROADMAP owns
 the LINE and this file owns the reasoning:
 
     CS-936
-    the 2026-08-14 PII scrub (`0e273c4`, "Phase 2: data layer, plus the LICENSE ratification and the PII scrub") edited the files FORWARD, so three world names it removed from the working tree remain in the blobs at `10ca0cf` and `d483477`
+    the 2026-08-14 PII scrub (the local commit "Phase 2: data layer, plus the LICENSE ratification and the PII scrub") edited the files FORWARD, so three world names it removed from the working tree remain in the blobs at the local commits "Phase 0: scaffold" and "Fix interpreter resolution"
     measured 2026-09-07 with an armed pickaxe over every ref, controls behaving (a present-string control returned 32 files rc=0, an absent-string control rc=1)
     CONTAINMENT, measured not assumed: those three commits are reachable ONLY from the local branch `archive/local-history`, `git branch -r --contains` returns nothing for all three, and `origin/main` carries none of them, so NOTHING IS PUBLISHED and this is a latent rather than a live exposure
     the two needles that do hit `main` are four-letter alphabetic strings, one of them 54 sites across `registry.py`, `docs_extract.py` and `tier2.yml`, which is the shape of a domain word rather than a leak and is recorded here as a FALSE POSITIVE so a later session does not re-raise it

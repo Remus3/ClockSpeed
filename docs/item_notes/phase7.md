@@ -1209,7 +1209,7 @@ reading its program from stdin, `contextlib.chdir`, argparse `prog`, the gate's
 
 ### MEASURED 2026-09-26, rounds four to sixteen on an unmerged branch (session 117)
 
-Twelve repair rounds sit on branch `worktree-agent-ace624231ac7fd814` at `1ee41a5`,
+Twelve repair rounds sit on branch `worktree-agent-ace624231ac7fd814` at its round-15 tip,
 each recorded in that branch's copy of this section. Every adversary round refuted the
 candidate with a new class; the saved probes of every earlier round stayed caught.
 Round sixteen's open escape: pytest's config discovery reads a `pytest.ini` inside the `tests/` directory and a

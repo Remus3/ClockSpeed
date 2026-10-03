@@ -644,7 +644,7 @@ shape - zero path bytes in the frame-argument line. The remaining candidate was 
 scrubbing that shape too.
 
 **THE POPULATION IS 117, NOT 115, AND 115 WAS NOT A CATEGORY ERROR.** An adversary
-parsed git objects at `f19d1f2`, the commit that closed the `ast.Try` census hole: named
+parsed git objects at the Slice E commit, the commit that closed the `ast.Try` census hole: named
 was exactly 115 there, escape-capable-named 113. So 115 was CORRECT WHEN FILED and has
 drifted by two. The slice's first report claimed 115 had always meant the escape-capable
 subset; that claim is REFUTED and withdrawn. Today's coincidence that escape-capable-named
