@@ -95,7 +95,9 @@ WHAT A CHILD STILL CARRIES, stated rather than implied (ADR 0025 decision item
 carry the interpreter's own path, which on this machine sits under a home
 directory, and the child inherits the environment the operator handed this
 process unchanged; the tool never renders an argv, a child's output or a child's
-stderr. Every path this tool BUILDS is relative, and the scratch directory lives
+stderr. Every path this tool BUILDS is relative - save where two Windows drives
+leave no relative spelling, when it is drive-anchored and refused if it would
+render a home directory (CS-1230) - and the scratch directory lives
 inside the repository's git directory, never under the temp directory, whose 8.3
 short form carries the account name.
 
@@ -1037,9 +1039,44 @@ def run_child(argv: Sequence[str], cwd: Path, env: dict[str, str] | None = None)
     return ChildRun(completed.returncode, completed.stdout + completed.stderr)
 
 
+def _under_a_home(path: str) -> bool:
+    """Whether ``path`` renders a home directory - any home shape, or this one."""
+    rules = gate()
+    if rules.PII_WIN_HOME_RE.search(path) or rules.PII_NIX_HOME_RE.search(path):
+        return True
+    home = os.path.normcase(str(Path.home().absolute())).rstrip("\\/")
+    named = os.path.normcase(path)
+    return named == home or named.startswith(home + os.sep)
+
+
+def _relative_or_anchored(path: Path, start: Path) -> str:
+    """``path`` named relative to ``start``; across two drives, absolute but never a home.
+
+    ``os.path.relpath`` raises ``ValueError`` when the two sit on different
+    Windows drives - the GitHub windows runner checks the repository out on D:
+    while pytest's scratch is on C: (CS-1230). No relative spelling exists then,
+    so the drive-anchored absolute one is used, and only when it renders no home
+    directory; one that would is refused with fixed text naming no path.
+
+    Raises:
+        FlipError: No relative spelling exists and the absolute one is a home.
+    """
+    try:
+        return os.path.relpath(path, start)
+    except ValueError:
+        absolute = str(path.absolute())
+    if _under_a_home(absolute):
+        raise FlipError("a path on another drive sits under a home directory")
+    return absolute
+
+
 def _tool_argv(tool: Path, cwd: Path, *args: str) -> list[str]:
-    """This interpreter on a sibling tool, named by a path RELATIVE to ``cwd``."""
-    return [sys.executable, "-B", os.path.relpath(tool, cwd), *args]
+    """This interpreter on a sibling tool, named by a path RELATIVE to ``cwd``.
+
+    Across two Windows drives no relative path exists; :func:`_relative_or_anchored`
+    names the tool by its drive-anchored path instead, refusing one under a home.
+    """
+    return [sys.executable, "-B", _relative_or_anchored(tool, cwd), *args]
 
 
 def licence_audit(tree: Path) -> CheckResult:
@@ -1686,11 +1723,13 @@ def scratch_root(repo: Path) -> Path:
 
 
 def clone_at(repo: Path, sha: str, target: Path) -> Path:
-    """A fresh clone of ``repo`` checked out, detached, at ``sha``, named relatively."""
-    git(
-        target.parent,
-        ["clone", "-q", "--no-checkout", os.path.relpath(repo, target.parent), target.name],
-    )
+    """A fresh clone of ``repo`` checked out, detached, at ``sha``, named relatively.
+
+    Across two Windows drives the source is drive-anchored instead, never a home
+    (:func:`_relative_or_anchored`).
+    """
+    source = _relative_or_anchored(repo, target.parent)
+    git(target.parent, ["clone", "-q", "--no-checkout", source, target.name])
     git(target, ["checkout", "-q", "--detach", sha])
     return target
 

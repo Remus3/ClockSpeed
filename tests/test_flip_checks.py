@@ -677,6 +677,122 @@ def test_the_licence_control_adds_a_finding_over_the_real_inputs(tmp_path: Path)
     assert flip.control_licence(REPO_ROOT, tmp_path)
 
 
+# --- CS-1230: a path named across two Windows drives -------------------------
+
+
+def _other_drive_anchor() -> Path:
+    """An absolute directory under no home, on a drive other than this one's tmp's.
+
+    On Windows it is the ``D:`` anchor (the GitHub windows runner checks out
+    there); elsewhere a POSIX directory. Nothing is created under it.
+    """
+    root = Path("D:" + "\\") if Path.home().drive else Path("/srv")
+    return root / "cs1230-anchor" / "repo"
+
+
+def _cross_drive_relpath(*_args: object) -> str:
+    """``os.path.relpath`` as it behaves across two Windows drives."""
+    message = "path is on mount 'D:', start on mount 'C:'"
+    raise ValueError(message)
+
+
+def _carries_a_home(argv: list[str]) -> bool:
+    """Whether any argv element renders this machine's home, or any home shape."""
+    home = str(Path.home()).lower()
+    rules = flip.gate()
+    return any(
+        home in part.lower()
+        or rules.PII_WIN_HOME_RE.search(part) is not None
+        or rules.PII_NIX_HOME_RE.search(part) is not None
+        for part in argv
+    )
+
+
+def test_a_child_tool_on_another_drive_is_named_without_a_home(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A tool and a cwd on two drive anchors: no exception, and no home in the argv."""
+    monkeypatch.setattr(flip.os.path, "relpath", _cross_drive_relpath)
+    tool = _other_drive_anchor() / "tools" / "licence_audit.py"
+
+    argv = flip._tool_argv(tool, tmp_path, "--root", ".")  # noqa: SLF001 - the CS-1230 arm names the helper
+
+    leaked = _carries_a_home(argv[2:])
+    assert argv[3:] == ["--root", "."]
+    assert not leaked
+
+
+def test_a_real_second_drive_names_the_child_tool_without_a_home(tmp_path: Path) -> None:
+    """The same, with no monkeypatch, where this box really has a second drive."""
+    if sys.platform != "win32":
+        pytest.skip("drive letters exist only on Windows")
+    tool = _other_drive_anchor() / "tools" / "licence_audit.py"
+    if tool.drive.lower() == tmp_path.drive.lower():
+        pytest.skip("tmp_path already sits on the second drive")
+
+    argv = flip._tool_argv(tool, tmp_path)  # noqa: SLF001 - the CS-1230 arm names the helper
+
+    leaked = _carries_a_home(argv[2:])
+    assert not leaked
+
+
+def test_a_child_tool_under_a_home_on_another_drive_is_refused(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """No relative spelling and a home in the absolute one: refused, naming no path."""
+    monkeypatch.setattr(flip.os.path, "relpath", _cross_drive_relpath)
+    tool = Path.home() / "cs1230-tool.py"
+
+    with pytest.raises(flip.FlipError) as caught:
+        flip._tool_argv(tool, tmp_path)  # noqa: SLF001 - the CS-1230 arm names the helper
+
+    leaked = _carries_a_home([str(caught.value)])
+    assert not leaked
+
+
+def _recording_git(calls: list[list[str]]) -> Any:
+    """A stand-in for :func:`flip.git` that records each argv and runs nothing."""
+
+    def record(_repo: Path, args: Any, *_rest: object, **_named: object) -> bytes:
+        calls.append(list(args))
+        return b""
+
+    return record
+
+
+def test_a_clone_source_on_another_drive_is_named_without_a_home(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A clone source and a scratch target on two drive anchors: no home in git's argv."""
+    monkeypatch.setattr(flip.os.path, "relpath", _cross_drive_relpath)
+    calls: list[list[str]] = []
+    monkeypatch.setattr(flip, "git", _recording_git(calls))
+
+    flip.clone_at(_other_drive_anchor(), "0" * 40, tmp_path / "tree")
+
+    leaked = any(_carries_a_home(call) for call in calls)
+    clones = sum(1 for call in calls if call[:1] == ["clone"])
+    assert clones == 1
+    assert not leaked
+
+
+def test_a_clone_source_under_a_home_on_another_drive_is_refused(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The clone source has no relative spelling and its absolute one is a home: refused."""
+    monkeypatch.setattr(flip.os.path, "relpath", _cross_drive_relpath)
+    calls: list[list[str]] = []
+    monkeypatch.setattr(flip, "git", _recording_git(calls))
+
+    with pytest.raises(flip.FlipError) as caught:
+        flip.clone_at(Path.home() / "cs1230-repo", "0" * 40, tmp_path / "tree")
+
+    leaked = _carries_a_home([str(caught.value)])
+    ran = len(calls)
+    assert ran == 0
+    assert not leaked
+
+
 def test_the_doc_sweep_control_adds_a_finding(tmp_path: Path) -> None:
     """An orphan markdown file adds a finding to the sweep's own CLI."""
     assert flip.control_doc_sweep(tmp_path)
