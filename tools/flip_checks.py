@@ -1051,7 +1051,12 @@ def _under_a_home(named: str) -> bool:
     for rule in (rules.PII_WIN_HOME_RE, rules.PII_NIX_HOME_RE):
         if re.search(rule.pattern, named, re.IGNORECASE):
             return True
-    home = os.path.normcase(os.path.realpath(Path.home())).rstrip("\\/")
+    try:
+        located = Path.home()
+    except RuntimeError:
+        # No home to rule out is no proof of being outside one: refuse.
+        raise FlipError("the home directory did not resolve, so no path is allowed") from None
+    home = os.path.normcase(os.path.realpath(located)).rstrip("\\/")
     folded = os.path.normcase(named)
     return folded == home or folded.startswith(home + "\\")
 

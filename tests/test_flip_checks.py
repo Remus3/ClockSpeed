@@ -817,6 +817,72 @@ def test_a_home_on_another_drive_is_refused_by_its_location(
     assert allowed[2].lower().endswith("cs1230-tool.py")
 
 
+def _realpath_mapping(source: Path, target: str) -> Any:
+    """A stand-in ``os.path.realpath`` that resolves ``source`` alone to ``target``.
+
+    It models a ``subst`` or mapped drive without creating one; every other
+    path - the home itself included - resolves to its own spelling.
+    """
+    real = flip.os.path.realpath
+
+    def resolve(path: Any, *args: Any, **named: Any) -> str:
+        if str(path) == str(source):
+            return target
+        resolved: str = real(path, *args, **named)
+        return resolved
+
+    return resolve
+
+
+def test_a_drive_path_resolving_to_a_unc_home_is_refused(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A plain drive spelling whose REAL path is a UNC home: the real spelling decides."""
+    _drives_only()
+    home = str(Path.home())
+    unc = "\\\\localhost\\" + home[0].lower() + "$" + home[2:] + "\\cs1230-tool.py"
+    tool = _other_drive_anchor() / "cs1230-tool.py"
+    monkeypatch.setattr(flip.os.path, "realpath", _realpath_mapping(tool, unc))
+
+    refused = _refused_without_a_path(tool, tmp_path)
+
+    assert refused
+
+
+def test_a_drive_path_resolving_under_the_home_is_refused(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A plain drive spelling whose REAL path is under the home: the real path decides."""
+    _drives_only()
+    tool = Path("Q:" + "\\") / "x.py"
+    resolved = str(Path.home() / "x.py")
+    monkeypatch.setattr(flip.os.path, "realpath", _realpath_mapping(tool, resolved))
+
+    refused = _refused_without_a_path(tool, tmp_path)
+
+    assert refused
+
+
+def test_an_unresolvable_home_refuses_with_fixed_text(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """``Path.home()`` raising leaves no way to rule a home out: refused, naming no path."""
+    tool = _other_drive_anchor() / "cs1230-tool.py"
+
+    def no_home() -> Path:
+        message = "Could not determine home directory."
+        raise RuntimeError(message)
+
+    monkeypatch.setattr(flip.Path, "home", staticmethod(no_home))
+
+    with pytest.raises(flip.FlipError) as caught:
+        flip._tool_argv(tool, tmp_path)  # noqa: SLF001 - the CS-1230 arm names the helper
+
+    text = str(caught.value)
+    assert "\\" not in text
+    assert "home" in text
+
+
 def _recording_git(calls: list[list[str]]) -> Any:
     """A stand-in for :func:`flip.git` that records each argv and runs nothing."""
 
