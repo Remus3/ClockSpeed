@@ -863,6 +863,33 @@ def test_one_run_on_two_full_commits_is_refused_in_any_order(
             ), offences
 
 
+def test_a_full_commit_with_a_trailing_newline_is_not_full(
+    tool: ModuleType, tracked: dict[str, Any]
+) -> None:
+    """Round 5 mutant C. `$` would accept a newline after the forty digits."""
+    record = _runner_record(tracked, _ci_clean(tracked, ci_run=_CI_RUN, commit=_FULL_A + "\n"))
+    assert _named(tool, record, 0, "full 40-hex commit"), tool.grade(record)
+
+
+def test_a_superseded_reading_still_counts_against_its_run(
+    tool: ModuleType, tracked: dict[str, Any]
+) -> None:
+    """Round 5 mutant I. Supersession replaces a VALUE; it does not un-cite a run.
+
+    One run cited on two commits is refused on both rows even when the first is
+    superseded - the stricter policy is deliberate.
+    """
+    first = _ci_clean(tracked, ci_run=_CI_RUN, superseded_by=1)
+    second = _ci_clean(tracked, ci_run=_CI_RUN, commit=_FULL_B, date="2026-10-04")
+    record = _runner_record(tracked, first, second)
+    offences = tool.grade(record)
+    for index in (0, 1):
+        assert any(
+            o.startswith(f"reading {index}:") and "one run checks out one commit" in o
+            for o in offences
+        ), offences
+
+
 def test_one_run_may_vouch_for_two_readings_of_its_one_commit(
     tool: ModuleType, tracked: dict[str, Any]
 ) -> None:
