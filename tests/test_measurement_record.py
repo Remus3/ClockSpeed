@@ -29,6 +29,8 @@ from __future__ import annotations
 import copy
 import importlib.util
 import json
+import os
+import subprocess
 import sys
 from pathlib import Path
 from types import ModuleType
@@ -178,6 +180,9 @@ def test_the_two_escape_values_are_accepted_and_nothing_else_is(
     record = copy.deepcopy(tracked)
     record["readings"][0]["workers"] = tool.WORKERS_UNRESOLVED
     record["readings"][0]["contended"] = tool.CONTENDED_UNKNOWN
+    # CS-1223: an edited seed row is a new row and loses the tree escape, so it
+    # records a tree; the escapes graded here are the worker and load ones.
+    record["readings"][0]["tree"] = tool.TREE_DIRTY
     assert tool.grade(record) == []
 
 
@@ -438,6 +443,10 @@ def test_a_new_local_reading_that_records_its_tree_grades_clean(
     record = copy.deepcopy(tracked)
     reading = _new_local_reading(tracked, "profile")
     reading["tree"] = tree
+    if tree == "clean":
+        # CS-1223: a local `clean` claim carries a witness; its digest is
+        # re-derived only by grade_tree, so a well-formed one suffices here.
+        reading["witness"] = _WELL_FORMED_WITNESS
     record["readings"].append(reading)
     assert tool.grade(record) == []
 
@@ -496,3 +505,299 @@ def test_an_unwitnessed_pair_cannot_falsify_a_bound(tool: ModuleType) -> None:
     verdicts = tool.survives_next_reading(record, "a_noise_figure_seconds")
     assert verdicts[0]["verdict"] == tool.UNTESTED
     assert verdicts[0]["basis"] == tool.UNWITNESSED_TREE
+
+
+# ---------------------------------------------------------------------------
+# CS-1223. The `unwitnessed` escape is a PINNED SEED SET, not a date, and a
+# local `clean` claim carries a witness the grader re-derives from its commit.
+# ---------------------------------------------------------------------------
+
+#: A freeze_witness record of the right shape. Its digests are arbitrary, so it
+#: can only pass `grade`, which checks shape; `grade_tree` re-derives the digest.
+_WELL_FORMED_WITNESS: dict[str, Any] = {
+    "schema": 2,
+    "tree": "0" * 64,
+    "tree_files": 3,
+    "bytecode": "1" * 64,
+    "bytecode_files": 0,
+}
+
+#: A date BEFORE the CS-1220 cutover, so a date-gated escape would accept it.
+_BACKDATED = "2026-09-06"
+
+_GIT_TIMEOUT = 120
+
+
+def _tree_offences(offences: list[str], index: int) -> list[str]:
+    return [o for o in offences if o.startswith(f"reading {index}:") and "tree" in o]
+
+
+@pytest.mark.parametrize("method", [*_LOCAL_METHODS, "ci_job", "derived"])
+def test_a_backdated_new_row_may_not_claim_the_unwitnessed_escape(
+    tool: ModuleType, tracked: dict[str, Any], method: str
+) -> None:
+    """THE FIRST CS-1223 ARM. A new row dated before the cutover is still a new row."""
+    record = copy.deepcopy(tracked)
+    reading = _new_local_reading(tracked, method)
+    reading["date"] = _BACKDATED
+    reading["tree"] = tool.TREE_UNWITNESSED
+    assert reading["date"] < tool.TREE_WITNESS_REQUIRED_FROM
+    record["readings"].append(reading)
+    index = len(record["readings"]) - 1
+    assert _tree_offences(tool.grade(record), index), tool.grade(record)
+
+
+def test_a_copy_of_a_seeded_row_may_not_claim_the_escape_twice(
+    tool: ModuleType, tracked: dict[str, Any]
+) -> None:
+    # Pinned by identity, so a verbatim duplicate would otherwise ride the pin.
+    record = copy.deepcopy(tracked)
+    record["readings"].append(copy.deepcopy(tracked["readings"][8]))
+    index = len(record["readings"]) - 1
+    assert _tree_offences(tool.grade(record), index)
+
+
+def test_a_seeded_row_with_an_edited_value_loses_the_escape(
+    tool: ModuleType, tracked: dict[str, Any]
+) -> None:
+    record = copy.deepcopy(tracked)
+    record["readings"][8]["value"] = 111.4
+    assert _tree_offences(tool.grade(record), 8)
+
+
+@pytest.mark.parametrize("method", _LOCAL_METHODS)
+def test_a_local_clean_reading_with_no_witness_is_refused(
+    tool: ModuleType, tracked: dict[str, Any], method: str
+) -> None:
+    """THE SECOND CS-1223 ARM. `clean` from a local box must carry its evidence."""
+    record = copy.deepcopy(tracked)
+    reading = _new_local_reading(tracked, method)
+    reading["tree"] = tool.TREE_CLEAN
+    record["readings"].append(reading)
+    index = len(record["readings"]) - 1
+    named = [o for o in tool.grade(record) if o.startswith(f"reading {index}:") and "witness" in o]
+    assert named, tool.grade(record)
+
+
+def test_a_runner_clean_reading_needs_no_witness(tool: ModuleType, tracked: dict[str, Any]) -> None:
+    # Control for the second arm: the runner's fresh checkout IS the witness.
+    record = copy.deepcopy(tracked)
+    reading = _new_local_reading(tracked, "ci_job")
+    reading["tree"] = tool.TREE_CLEAN
+    record["readings"].append(reading)
+    assert tool.grade(record) == []
+
+
+@pytest.mark.parametrize(
+    ("field", "bad"),
+    [
+        ("schema", 1),
+        ("tree", "A" * 64),
+        ("tree", "0" * 63),
+        ("tree_files", -1),
+        ("tree_files", True),
+        ("bytecode", None),
+        ("bytecode_files", "0"),
+    ],
+)
+def test_a_malformed_witness_is_an_offence(
+    tool: ModuleType, tracked: dict[str, Any], field: str, bad: Any
+) -> None:
+    record = copy.deepcopy(tracked)
+    reading = _new_local_reading(tracked, "profile")
+    reading["tree"] = tool.TREE_CLEAN
+    reading["witness"] = {**_WELL_FORMED_WITNESS, field: bad}
+    record["readings"].append(reading)
+    index = len(record["readings"]) - 1
+    named = [o for o in tool.grade(record) if o.startswith(f"reading {index}:") and "witness" in o]
+    assert named, tool.grade(record)
+
+
+@pytest.mark.parametrize("shape", ["missing_key", "extra_key", "not_a_mapping"])
+def test_a_witness_of_the_wrong_shape_is_an_offence(
+    tool: ModuleType, tracked: dict[str, Any], shape: str
+) -> None:
+    witness: Any = dict(_WELL_FORMED_WITNESS)
+    if shape == "missing_key":
+        del witness["bytecode"]
+    elif shape == "extra_key":
+        witness["note"] = "trust me"
+    else:
+        witness = None
+    record = copy.deepcopy(tracked)
+    reading = _new_local_reading(tracked, "profile")
+    reading["tree"] = tool.TREE_CLEAN
+    reading["witness"] = witness
+    record["readings"].append(reading)
+    index = len(record["readings"]) - 1
+    named = [o for o in tool.grade(record) if o.startswith(f"reading {index}:") and "witness" in o]
+    assert named, tool.grade(record)
+
+
+def test_the_tracked_rows_are_exactly_the_pinned_seed_set(
+    tool: ModuleType, tracked: dict[str, Any]
+) -> None:
+    """CONTROL. The sixteen seeded rows keep their values and dates, and grade clean."""
+    pinned = [list(row) for row in tool.SEEDED_UNWITNESSED_READINGS]
+    assert len(pinned) == _SEEDED_ROWS
+    seeded = [r for r in tracked["readings"] if r["tree"] == tool.TREE_UNWITNESSED]
+    assert [[r[f] for f in EXPECTED_RECEIPT_FIELDS] for r in seeded] == pinned
+    assert tool.grade(tracked) == []
+
+
+# ---- the witness re-derived from the reading's commit ----------------------
+
+
+def _git(tool: ModuleType, root: Path, *args: str) -> str:
+    git = tool.resolve_tool("git")
+    assert git is not None
+    env = {k: v for k, v in os.environ.items() if not k.upper().startswith("GIT_")}
+    proc = subprocess.run(
+        [
+            git,
+            "-c",
+            "user.name=witness",
+            "-c",
+            "user.email=witness@example.invalid",
+            "-c",
+            "commit.gpgsign=false",
+            "-c",
+            "core.autocrlf=false",
+            "-C",
+            str(root),
+            *args,
+        ],
+        capture_output=True,
+        env=env,
+        timeout=_GIT_TIMEOUT,
+        check=False,
+    )
+    rc = proc.returncode
+    assert rc == 0, f"git {args[0]} exited {rc}"
+    return proc.stdout.decode("ascii", "replace").strip()
+
+
+def _witnessed_repo(tool: ModuleType, tmp_path: Path) -> tuple[Path, str]:
+    root = tmp_path / "cs1223_repo"
+    (root / "pkg").mkdir(parents=True)
+    (root / ".gitignore").write_bytes(b"__pycache__/\nwitness.json\n")
+    (root / "pkg" / "mod.py").write_bytes(b"VALUE = 1\n")
+    (root / "notes.md").write_bytes(b"# notes\n\nthe-reading-anchor\n")
+    _git(tool, root, "init", "-q")
+    _git(tool, root, "add", "-A")
+    _git(tool, root, "commit", "-q", "-m", "seed")
+    return root, _git(tool, root, "rev-parse", "HEAD")
+
+
+def _write_record(root: Path, reading: dict[str, Any]) -> None:
+    record = {
+        "metrics": {"a_local_seconds": {"kind": "observation", "unit": "seconds"}},
+        "readings": [reading],
+    }
+    (root / "tools").mkdir(exist_ok=True)
+    (root / "tools" / "measurements.json").write_bytes(json.dumps(record).encode("ascii"))
+
+
+def _local_clean(commit: str, witness: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "metric": "a_local_seconds",
+        "value": 12.5,
+        "unit": "seconds",
+        "method": "local_suite",
+        "workers": 4,
+        "contended": "unknown",
+        "date": _NEW_READING_DATE,
+        "commit": commit,
+        "tree": "clean",
+        "witness": witness,
+        "source": ["notes.md#the-reading-anchor"],
+        "superseded_by": None,
+    }
+
+
+def test_a_local_clean_reading_with_a_valid_witness_grades_clean(
+    tool: ModuleType, tmp_path: Path
+) -> None:
+    """CONTROL. Frozen over a clean checkout of its commit, the claim is re-derived."""
+    root, head = _witnessed_repo(tool, tmp_path)
+    witness = tool.freeze_witness.freeze(root)
+    _write_record(root, _local_clean(head, witness))
+    assert tool.grade_tree(root) == []
+    # The re-derivation agrees with the tool that took the witness.
+    assert tool.commit_tree_digest(root, head) == (witness["tree"], witness["tree_files"])
+
+
+def test_a_clean_claim_whose_witness_saw_other_bytes_is_refused(
+    tool: ModuleType, tmp_path: Path
+) -> None:
+    """The witness was taken honestly over a dirty tree; `clean` is then refuted."""
+    root, head = _witnessed_repo(tool, tmp_path)
+    (root / "pkg" / "mod.py").write_bytes(b"VALUE = 2\n")
+    witness = tool.freeze_witness.freeze(root)
+    _write_record(root, _local_clean(head, witness))
+    offences = tool.grade_tree(root)
+    assert any("witness" in o and "reading 0:" in o for o in offences), offences
+
+
+def test_a_clean_claim_over_a_crlf_flip_is_refused(tool: ModuleType, tmp_path: Path) -> None:
+    # The damage porcelain cannot see: git normalises it, the raw digest does not.
+    root, head = _witnessed_repo(tool, tmp_path)
+    (root / "pkg" / "mod.py").write_bytes(b"VALUE = 1\r\n")
+    witness = tool.freeze_witness.freeze(root)
+    _write_record(root, _local_clean(head, witness))
+    assert tool.grade_tree(root)
+
+
+def test_a_clean_claim_with_an_untracked_file_is_refused(tool: ModuleType, tmp_path: Path) -> None:
+    root, head = _witnessed_repo(tool, tmp_path)
+    (root / "stray.py").write_bytes(b"X = 1\n")
+    witness = tool.freeze_witness.freeze(root)
+    _write_record(root, _local_clean(head, witness))
+    assert tool.grade_tree(root)
+
+
+def test_a_forged_witness_digest_is_refused(tool: ModuleType, tmp_path: Path) -> None:
+    root, head = _witnessed_repo(tool, tmp_path)
+    witness = {**tool.freeze_witness.freeze(root), "tree": "f" * 64}
+    _write_record(root, _local_clean(head, witness))
+    assert tool.grade_tree(root)
+
+
+def test_a_witness_bound_to_a_commit_the_clone_lacks_is_refused(
+    tool: ModuleType, tmp_path: Path
+) -> None:
+    root, _ = _witnessed_repo(tool, tmp_path)
+    witness = tool.freeze_witness.freeze(root)
+    _write_record(root, _local_clean("abcdef0123456789abcdef0123456789abcdef01", witness))
+    offences = tool.grade_tree(root)
+    assert any("does not hold" in o for o in offences), offences
+
+
+def test_a_witness_is_bound_to_the_readings_own_commit(tool: ModuleType, tmp_path: Path) -> None:
+    # A valid witness of ONE commit does not vouch for a reading citing another.
+    root, first = _witnessed_repo(tool, tmp_path)
+    witness = tool.freeze_witness.freeze(root)
+    (root / "pkg" / "mod.py").write_bytes(b"VALUE = 3\n")
+    _git(tool, root, "commit", "-q", "-am", "second")
+    second = _git(tool, root, "rev-parse", "HEAD")
+    _write_record(root, _local_clean(second, witness))
+    assert tool.grade_tree(root)
+    _write_record(root, _local_clean(first, witness))
+    assert tool.grade_tree(root) == []
+
+
+def test_a_shallow_clone_reports_an_absent_commit_unchecked(
+    tool: ModuleType, tmp_path: Path
+) -> None:
+    # CI's depth-one checkout lacks history by construction: listed, not refused.
+    root, first = _witnessed_repo(tool, tmp_path)
+    witness = tool.freeze_witness.freeze(root)
+    (root / "pkg" / "mod.py").write_bytes(b"VALUE = 4\n")
+    _git(tool, root, "commit", "-q", "-am", "second")
+    shallow = tmp_path / "cs1223_shallow"
+    _git(tool, tmp_path, "clone", "-q", "--depth", "1", root.as_uri(), str(shallow))
+    _write_record(shallow, _local_clean(first, witness))
+    unchecked: list[str] = []
+    assert tool.grade_tree(shallow, unchecked) == []
+    assert len(unchecked) == 1
+    assert "shallow" in unchecked[0]
