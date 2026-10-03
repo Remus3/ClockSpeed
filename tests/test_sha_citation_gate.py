@@ -222,7 +222,8 @@ def mixed(sha: str, width: int = 7) -> str:
 
 def test_an_unresolvable_sha_in_a_guarded_doc_is_refused_by_name(repo: Repo) -> None:
     """A planted sha the object store lacks makes the gate exit 1 and name it."""
-    assert repo.lacks(ABSENT_SHA), "control: the planted sha must be absent from the store"
+    absent = repo.lacks(ABSENT_SHA)
+    assert absent, "control: the planted sha must be absent from the store"
     plant(repo, f"Landed as commit `{ABSENT_SHA}` on the merge.")
     done = cli(repo)
     assert done.returncode == gate.EXIT_UNRESOLVED, done.stdout + done.stderr
@@ -247,7 +248,8 @@ def test_an_ancestor_of_head_not_yet_on_origin_main_passes(repo: Repo) -> None:
     """The pre-push case: a commit of the batch being pushed is published by that push."""
     repo.git("commit", "-q", "--allow-empty", "-m", "earlier in the batch")
     batch = repo.git("rev-parse", "HEAD")
-    assert batch != repo.git("rev-parse", "refs/remotes/origin/main")
+    origin = repo.git("rev-parse", "refs/remotes/origin/main")
+    assert batch != origin
     repo.git("commit", "-q", "--allow-empty", "-m", "the tip being judged")
     plant(repo, f"Landed as commit `{mixed(batch, 9)}` earlier in this batch.")
     done = cli(repo)
@@ -378,7 +380,8 @@ def test_every_escape_shape_is_refused_in_a_ledger_copy(tmp_path: Path) -> None:
         sha2 = f"{index:x}e8b3d2c"
         run = f"{index:x}d7c4e3b"[:8]
         for value in (sha, sha2, run):
-            assert made.lacks(value), "control: every planted value is absent from the store"
+            absent = made.lacks(value)
+            assert absent, "control: every planted value is absent from the store"
         token = run if "{run}" in shape else sha
         line = plant(made, shape.format(sha=sha, sha2=sha2, run=run), LEDGER_DOC)
         planted.add((line, token))
