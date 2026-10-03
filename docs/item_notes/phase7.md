@@ -1423,42 +1423,6 @@ A private-tree commit whose `[tool.ruff]` table named an `extend` path ruff coul
 resolve printed the gate's PASS line; the gate discards ruff's stderr, so the failure
 was silent.
 
-## CS-1223
-
-### Acceptance
-
-`tools/measurement_record.py` refuses a tree claim it cannot tie to evidence. A reading
-claiming `tree: unwitnessed` is accepted only if it is one of the rows that were in
-`tools/measurements.json` when CS-1220 landed - a pinned seed set, not a comparison
-against the reading's own `date` - so a new reading dated before
-`TREE_WITNESS_REQUIRED_FROM` is refused like any other new row. A locally-sourced reading
-(`paired`, `unpaired`, `local_suite` or `profile`) that claims `clean` must carry a witness
-the grader can check - for example a `tools/freeze_witness.py` digest of the tree it read,
-or a recorded empty porcelain status bound to its `commit` - and is refused without one.
-Shown by arms red first: one that appends a new local reading dated before the cutover
-with `tree: unwitnessed` and asserts the refusal, and one that grades a local `clean`
-reading carrying no witness and asserts the refusal; controls show a local `clean`
-reading carrying a valid witness still grades clean and the sixteen seeded rows still
-grade clean with their values and dates unchanged.
-
-### Full headline
-
-the measurement record's tree witness can be backdated, and a local `clean` claim carries
-no evidence
-
-### FILED 2026-10-02, a residual of CS-1220 recorded at its close (session 119)
-
-CS-1220 gates the `unwitnessed` escape by date alone: `TREE_WITNESS_REQUIRED_FROM` is
-compared against the reading's own `date`, which whoever writes the row supplies, so a
-new local reading dated before the cutover with `tree: unwitnessed` grades clean today and
-then reads `unwitnessed_tree` rather than being refused. The module docstring of
-`tools/measurement_record.py` already says the other half plainly - the grader cannot see
-a porcelain observation, so a local `clean` claim rests on whoever records it. The CS-1220
-adversary returned NOT REFUTED against the clause as filed; these are gaps in what that
-clause asked for, not escapes from it, which is why they are a new item rather than a
-reopening. The witness this item needs already exists: `tools/freeze_witness.py`
-(CS-1219) records a raw on-disk digest of exactly the tree a reading was taken over.
-
 ## CS-1224
 
 ### Acceptance
@@ -1542,6 +1506,15 @@ which renames jobs and so needs `tools/tier2_durations.json` refreshed in the sa
 change. The `tests/test_sha_citation_gate.py` docstring sentence naming tier1's save
 shard as the only CI home of the module is now false and wants correcting.
 
+### MEASURED 2026-10-03 on the first tier2 run carrying the repair
+
+Run 37125738113 at 87ea30c. Ubuntu legs: the shallow failure is gone; both reddened only
+on a git auto-maintenance race in a `tests/test_freeze_witness.py` fixture, repaired in the
+same batch. Windows suite: pytest reported 2799s (46m39s) under the 50-minute cutoff, one
+failure (CS-1230). Windows probe: CANCELLED at the 50-minute cutoff at 99 per cent. So
+`--dist loadfile` did not buy the windows margin, and a further raise is not the repair:
+this item closes only once CS-1229 shards the suite and a tier2 run is green on both OSes.
+
 ## CS-1229
 
 ### Acceptance
@@ -1563,3 +1536,28 @@ CS-1228 sized the cutoff at the worst projected wall over the 4/5 headroom fract
 the first green windows wall lands on the headroom line itself. The adversary measured
 about three per cent suite growth a day, which passes the new 50-minute cutoff in about
 nine days. Raising the cutoff again is not the repair; sharding is.
+
+## CS-1230
+
+### Acceptance
+
+`tools/flip_checks.py` runs a child tool and clones a source when the repository, the
+scratch directory and the working directory sit on different Windows drives, without
+rendering an absolute home path in any argv, message or log. Shown by an arm red first
+that drives `_tool_argv` and `clone_at` with paths on two different drive anchors (a
+monkeypatched `os.path.relpath` raising the same `ValueError` is acceptable where a second
+drive is unavailable), and the real `test_the_licence_control_adds_a_finding_over_the_real_inputs`
+green on the windows tier2 leg.
+
+### Full headline
+
+`tools/flip_checks.py` names a child tool and a clone source by a path relative to the
+cwd, which raises across Windows drives
+
+### FILED 2026-10-03, found by the first windows tier2 suite to finish since 2026-09-25
+
+The GitHub windows runner checks the repository out on D: while pytest's `tmp_path` is on
+C:, so `os.path.relpath(tool, cwd)` in `_tool_argv` raised `ValueError: path is on mount
+'D:', start on mount 'C:'` in `test_the_licence_control_adds_a_finding_over_the_real_inputs`.
+`clone_at` has the same call. The relative spelling exists so that no argv carries a home
+path; the repair must keep that property.

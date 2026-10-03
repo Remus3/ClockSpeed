@@ -75,6 +75,20 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-10-03 - CS-1223 - the measurement record pins its seed escape by row and checks a local clean witness
+Verification: `tools/measurement_record.py`, tests `tests/test_measurement_record.py`. The
+`unwitnessed` escape is held only by the sixteen rows present when CS-1220 landed, pinned
+by a digest over every field except `superseded_by`; a new or edited row is refused
+whatever its date. A local `clean` reading must carry a `tools/freeze_witness.py` record,
+and `grade_tree` re-derives its digest from the reading's commit. A `ci_job` clean claim
+must cite a run of this repository with a full 40-hex commit, one run to one commit; a
+`derived` clean claim must name same-commit ci_job clean inputs. Malformed fields are
+refused, never raised. Five adversary rounds refuted and were repaired; round five
+returned NOT REFUTED. RESIDUALS, stated in the module docstring: a witness for a clean
+commit can be computed after the fact, the bytecode half is only shape-checked, a
+`ci_run` is checked for shape offline, and tier1's shallow job only warns on an unchecked
+witness - the full-history tier2 suite and the pre-push hook fail on one.
+
 ### 2026-10-03 - CS-1227 - one function runs the MAIN provenance check from gitignored config
 Verification: `tools/main_provenance.py` `verify_main_note`, tests `tests/test_main_provenance.py`
 (67). MAIN's root comes only from the gitignored local MAIN-tree config the module names; the note is
