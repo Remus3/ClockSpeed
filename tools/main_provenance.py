@@ -35,46 +35,45 @@ steers it. A shallow repository is refused outright (``main-shallow``).
 A FILE INSIDE A BUNDLE DIRECTORY (CS-1232). MAIN ships a kit as a directory,
 mirrored as ``<outbox>/<bundle-dir>/<file>`` and received as
 ``<inbox>/<bundle-dir>/<file>``. The inbox is THIS tree's inbox,
-:data:`DEFAULT_INBOX`, never anything read from the note's spelling; a test
-injects another with ``inbox_dir``, as it does ``config_path``. Both the inbox
-and the note are resolved strictly (a missing note through its resolved
-parent), so an 8.3 short name, a trailing dot, a ``.`` or ``..`` hop, or a
-symlink or junction aliasing the inbox all land on the same real path.
-Placement is then decided on the RESOLVED path alone:
+:data:`DEFAULT_INBOX`; a test injects another with ``inbox_dir``.
 
-- directly in the resolved inbox: looked up by its bare name, as before;
-- one directory below it: looked up as ``<bundle-dir>/<file>`` through every
-  step a top-level note takes, provided both names are plain components (see
-  ``_PLAIN_COMPONENT``) and neither is ``moon_sync_inbox`` or
-  ``moon_sync_outbox`` in any case - otherwise ``bundle-path-refused``;
-- the inbox itself, or anything deeper: ``bundle-path-refused``;
-- outside the resolved inbox, or when the inbox or note cannot be resolved:
-  looked up by its bare name, exactly as before CS-1232.
+PLACEMENT IS BY FILE IDENTITY, NEVER BY SPELLING. The note is stat-ed
+(following links) for its ``(st_dev, st_ino)``; a zero file index is
+``check-failed``, and a note that cannot be stat-ed is ``note-unreadable``.
+The tool then walks the resolved inbox ITSELF with ``os.scandir``, never
+following a link and ignoring every link entry, and records the identity of
+every entry at every depth, the inbox included. The note is placed by the
+ON-DISK names of the entries carrying its identity:
 
-THE SPELLED PLACEMENT MUST EQUAL THE RESOLVED ONE. The note's spelling is
-the path given, joined to the cwd and ``normpath``-ed: ``..`` collapsed
-lexically, no link followed, no trailing dot or space stripped.
-Its ANCHOR is the SHALLOWEST ancestor of that spelling which resolves to the
-inbox - the inbox as given, as resolved, or any alias of it (an 8.3 short
-name, a trailing dot, a junction elsewhere). The spelled placement is every
-component below the anchor; the resolved placement is every component of the
-resolved note below the resolved inbox. They must have the SAME LENGTH and the
-same names under ``normcase``, no spelled component below the anchor may be a
-symlink, a junction or any other reparse point. A trailing dot or space below
-the anchor therefore fails the name comparison (Windows strips it on open, so
-``LICENSE.`` would name ``LICENSE``). Any failure is ``bundle-path-refused``, as is a note spelled
-through the inbox that resolves outside it, and a note spelled with no
-anchor that resolves inside it (a link from outside). A hard link is a plain
-file and stays accepted. A note neither spelled through nor resolving into
-the inbox keeps the pre-CS-1232 answer, trailing dot and all. On MAIN's side a
-bundle directory that is a link is refused as ``outbox-file-absent``, the
-same reason a linked outbox file gets.
+- exactly one, a regular file directly in the inbox: its bare name;
+- exactly one, a regular file one directory down: ``<bundle-dir>/<file>``,
+  both names plain (``_PLAIN_COMPONENT``) and neither ``moon_sync_inbox`` nor
+  ``moon_sync_outbox`` in any case;
+- none: the note is outside the inbox, and keeps the pre-CS-1232 bare-name
+  answer;
+- anything else - two entries (a hard link at two inbox places), a deeper
+  file, a directory, the inbox itself: ``bundle-path-refused``.
 
-THE BYTES HASHED ARE THE FILE PLACED. A placed note is read through its
-RESOLVED path by ONE open, and the open file's identity is then compared with
-a fresh stat of that path; a note replaced or relinked under the read is
-``note-unreadable``. ACCEPTED RESIDUAL: a swap that is undone between the open
-and the stat is not seen - one open cannot see more.
+So no spelling - the Windows verbatim prefix, an admin-share UNC path, an 8.3 short name, a
+trailing dot, a ``..`` hop, a junction aliasing the inbox - can move a note
+from its place. Two rules still look at the path given, each by identity or
+by one name, never by comparing spellings: the note's own final component
+must name the entry it was placed as (under ``normcase``), so ``LICENSE.`` is
+not verified as ``LICENSE``; and no ancestor of the path given, the note
+included, may be a link that sits inside the inbox or leads to anything
+inside it other than the inbox root - so ``inbox/x/LICENSE`` with ``x`` a
+junction back to the inbox, or a link from outside to a bundle directory, is
+refused, while a link standing for the whole inbox is followed. A hard link
+is a plain file and is placed as its inbox twin. On MAIN's side a bundle
+directory that is a link is refused as ``outbox-file-absent``, the same
+reason a linked outbox file gets.
+
+THE BYTES HASHED ARE THE FILE PLACED. A placed note is read through the
+inbox entry it was placed as, by ONE open; the open file must carry the
+note's identity, and a fresh stat of the entry afterwards must still name
+the opened file - otherwise ``note-unreadable``. ACCEPTED RESIDUAL: a file
+deleted and a new one given the SAME identity within that window (an inode
+reused) is not seen - identity is all one open and two stats can compare.
 
 ACCEPTED RESIDUAL: a detached HEAD on a commit no branch reaches is accepted as
 "MAIN's history", because the check asks what HEAD names and not how it got
@@ -341,77 +340,106 @@ def inbox_rel(parts: tuple[str, ...]) -> tuple[str, str] | str:
     return parts[0] + "/" + parts[1], parts[0]
 
 
-def _resolve_note(note: Path) -> Path | None:
-    """The note's real path, through its parent when the note itself is absent."""
-    try:
-        return note.resolve(strict=True)
-    except OSError:
-        pass
-    if note.name in {"", ".", ".."}:
-        return None
-    try:
-        return note.parent.resolve(strict=True) / note.name
-    except OSError:
-        return None
+#: A file's identity: its device and file index.
+Identity = tuple[int, int]
 
 
-def _spelled_placement(note: Path, inbox: Path) -> tuple[Path, int] | None:
-    """The note's spelling and its anchor's depth, or None when it has no anchor.
+def _identity(status: os.stat_result) -> Identity:
+    return status.st_dev, status.st_ino
 
-    The anchor is the shallowest ancestor of the spelling that resolves to
-    ``inbox``; the int is how many leading components it spans.
+
+@dataclass(frozen=True)
+class _Entry:
+    """One inbox entry: its on-disk parts below the inbox, and its kind."""
+
+    parts: tuple[str, ...]
+    regular: bool
+
+
+def _census(inbox: Path) -> dict[Identity, list[_Entry]]:
+    """Every entry under ``inbox`` by identity, the inbox itself included.
+
+    Walks with ``os.scandir``; a link entry is ignored and never descended.
     """
-    # normpath, not resolve and not Windows abspath: the point is the spelling
-    # before any link is followed or any trailing dot or space is stripped.
-    spelled = Path(os.path.normpath(Path.cwd() / note))
-    for depth in range(1, len(spelled.parts)):
+    found: dict[Identity, list[_Entry]] = {_identity(inbox.stat()): [_Entry((), False)]}
+    pending: list[tuple[Path, tuple[str, ...]]] = [(inbox, ())]
+    while pending:
+        here, parts = pending.pop()
+        with os.scandir(here) as entries:
+            for entry in entries:
+                path = Path(entry.path)
+                if is_link(path):
+                    continue
+                status = path.lstat()
+                below = (*parts, entry.name)
+                is_dir = stat.S_ISDIR(status.st_mode)
+                regular = stat.S_ISREG(status.st_mode)
+                found.setdefault(_identity(status), []).append(_Entry(below, regular))
+                if is_dir:
+                    pending.append((path, below))
+    return found
+
+
+def _linked_in(note: Path, inside: dict[Identity, list[_Entry]], root: Identity) -> bool:
+    """Whether an ancestor of ``note`` (itself included) is a link into the inbox.
+
+    A link counts when its parent is inside the inbox, or when it leads to
+    anything inside the inbox other than the inbox root.
+    """
+    given = Path.cwd() / note
+    for path in (given, *given.parents):
+        if not is_link(path):
+            continue
         try:
-            prefix = Path(*spelled.parts[:depth]).resolve(strict=True)
+            parent = _identity(path.parent.stat())
+            target = _identity(path.stat())
         except OSError:
-            return None
-        if prefix == inbox:
-            return spelled, depth
-    return None
+            return True
+        if parent in inside or (target in inside and target != root):
+            return True
+    return False
 
 
-def _agrees(spelled: Path, depth: int, parts: tuple[str, ...]) -> bool:
-    """Whether the spelled placement equals ``parts``, whole and link-free."""
-    below = spelled.parts[depth:]
-    if len(below) != len(parts):
-        return False
-    if any(os.path.normcase(a) != os.path.normcase(b) for a, b in zip(below, parts, strict=True)):
-        return False
-    return not any(
-        is_link(Path(*spelled.parts[:level])) for level in range(depth + 1, len(spelled.parts) + 1)
-    )
+#: A placement: the outbox-relative path, the bundle name (empty for a
+#: top-level note), the inbox entry to read and the note's identity - both
+#: None where the note keeps the pre-CS-1232 bare-name answer.
+Placed = tuple[str, str, Path | None, Identity | None]
 
 
-def _placement(note: Path, inbox_dir: Path) -> tuple[str, str, Path | None] | str:
-    """Place ``note`` against the resolved inbox; see the module docstring.
-
-    Returns:
-        ``(rel, bundle, real)`` - ``real`` is the resolved note to read, or
-        None where the note keeps the pre-CS-1232 bare-name answer - or
-        :data:`BUNDLE_PATH_REFUSED`.
-    """
+def _placement(note: Path, inbox_dir: Path) -> Placed | str:
+    """Place ``note`` by its file identity; see the module docstring."""
+    try:
+        identity = _identity(note.stat())
+    except OSError:
+        return NOTE_UNREADABLE
+    if identity[1] == 0:
+        return CHECK_FAILED
     try:
         inbox = inbox_dir.resolve(strict=True)
+        inside = _census(inbox)
     except OSError:
-        return note.name, "", None
-    real = _resolve_note(note)
-    real_inside = real is not None and real.is_relative_to(inbox)
-    anchored = _spelled_placement(note, inbox)
-    if anchored is None and not real_inside:
-        return note.name, "", None
-    if anchored is None or real is None or not real_inside:
+        return note.name, "", None, None
+    if _linked_in(note, inside, _identity(inbox.stat())):
         return BUNDLE_PATH_REFUSED
-    parts = real.relative_to(inbox).parts
-    if not _agrees(anchored[0], anchored[1], parts):
+    entries = inside.get(identity, [])
+    if not entries:
+        return note.name, "", None, None
+    return _place_entry(note, entries, inbox, identity)
+
+
+def _place_entry(
+    note: Path, entries: list[_Entry], inbox: Path, identity: Identity
+) -> Placed | str:
+    """Place a note whose identity the inbox census holds."""
+    if len(entries) != 1 or not entries[0].regular:
+        return BUNDLE_PATH_REFUSED
+    parts = entries[0].parts
+    if os.path.normcase(note.name) != os.path.normcase(parts[-1]):
         return BUNDLE_PATH_REFUSED
     placed = inbox_rel(parts)
     if isinstance(placed, str):
         return placed
-    return placed[0], placed[1], real
+    return placed[0], placed[1], inbox.joinpath(*parts), identity
 
 
 def is_link(path: Path) -> bool:
@@ -471,14 +499,15 @@ def _check(note: Path, config_path: Path, inbox_dir: Path) -> tuple[str, str]:
     placed = _placement(note, inbox_dir)
     if isinstance(placed, str):
         return placed, ""
-    rel, bundle, real = placed
+    rel, bundle, entry, identity = placed
     located = _locate(resolved, rel, bundle)
     if located is not None:
         return located, ""
     blob = _committed_blob(resolved, OUTBOX_DIR + "/" + rel)
     if isinstance(blob, str):
         return blob, ""
-    return _compare(note if real is None else real, resolved / OUTBOX_DIR / rel, blob, real)
+    target = note if entry is None else entry
+    return _compare(target, resolved / OUTBOX_DIR / rel, blob, identity)
 
 
 def _repository(root: Path) -> str | None:
@@ -534,11 +563,14 @@ def _still(path: Path, opened: os.stat_result) -> bool:
         return False
 
 
-def _compare(note: Path, outbox_file: Path, blob: bytes, placed: Path | None) -> tuple[str, str]:
+def _compare(
+    note: Path, outbox_file: Path, blob: bytes, identity: Identity | None
+) -> tuple[str, str]:
     """Compare the working-tree file with the blob, then the note with the blob.
 
-    ``placed`` is the resolved note when the note was placed against the inbox;
-    the file opened must then still be the file at that path.
+    ``identity`` is the placed note's identity, or None for a note outside the
+    inbox; when given, the file opened must carry it and still be the file at
+    ``note``.
 
     Returns:
         The reason, and on VERIFIED the SHA-256 hex of the note bytes hashed.
@@ -552,7 +584,7 @@ def _compare(note: Path, outbox_file: Path, blob: bytes, placed: Path | None) ->
     read = read_note(note)
     if read is None:
         return NOTE_UNREADABLE, ""
-    if placed is not None and not _still(placed, read[1]):
+    if identity is not None and (_identity(read[1]) != identity or not _still(note, read[1])):
         return NOTE_UNREADABLE, ""
     note_bytes = read[0]
     note_digest = hashlib.sha256(note_bytes).hexdigest()

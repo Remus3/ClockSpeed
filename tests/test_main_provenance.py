@@ -1562,3 +1562,96 @@ def test_is_link_sees_a_junction(tmp_path: Path) -> None:
     junction_seen = bool(provenance.is_link(junction))
     assert not_symlink is True
     assert junction_seen is True
+
+
+# Round 6 - placement by FILE IDENTITY. A spelling the resolver keeps in a
+# different form (``\\?\`` or an admin-share UNC path) must still be placed as
+# the bundle file it is, so MAIN's top-level blob never binds to it.
+
+
+def test_a_verbatim_prefix_spelling_is_placed_by_identity(alias_world: World) -> None:
+    if sys.platform != "win32":
+        pytest.skip("the verbatim prefix is a Windows spelling")
+    w = alias_world
+    spelled = Path("\\\\?\\" + str(w.note))
+    _assert_mismatch(w, spelled)
+
+
+def _admin_share(path: Path) -> Path | None:
+    """``path`` spelled through the localhost admin share, or None off Windows."""
+    if sys.platform != "win32" or len(path.drive) != 2:  # noqa: PLR2004 - "C:"
+        return None
+    return Path("\\\\localhost\\" + path.drive[0] + "$" + str(path)[2:])
+
+
+def test_an_admin_share_spelling_is_placed_by_identity(alias_world: World) -> None:
+    w = alias_world
+    spelled = _admin_share(w.note)
+    if spelled is None:
+        pytest.skip("the admin share is a Windows spelling")
+    # Control: skip ONLY when the share demonstrably cannot reach the file.
+    try:
+        reachable = spelled.read_bytes() == _TOP
+    except OSError:
+        reachable = False
+    if not reachable:
+        pytest.skip("the localhost admin share is unavailable on this machine")
+    _assert_mismatch(w, spelled)
+
+
+def test_the_opened_file_must_be_the_identified_note(
+    world: World, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # The note is replaced (same bytes, new file) BEFORE the one open: the file
+    # read is not the file identified, so the bytes are not the note's.
+    w = world
+    original = provenance.read_note
+
+    def swap_first(path: Path) -> object:
+        target = _inbox(w) / NOTE_NAME
+        target.unlink()
+        target.write_bytes(NOTE_BYTES)
+        return original(path)
+
+    monkeypatch.setattr(provenance, "read_note", swap_first)
+    ok, reason, _digest = _verify_in(w)
+    assert reason == "note-unreadable"
+    assert ok is False
+
+
+def test_a_note_hardlinked_at_two_inbox_places_is_refused(bundle_world: World) -> None:
+    w = bundle_world
+    twin = _inbox(w) / BUNDLE_FILE
+    try:
+        os.link(w.note, twin)
+    except OSError:
+        pytest.skip("this volume cannot create a hard link here")
+    ok, reason, _digest = _verify_in(w)
+    assert reason == _BUNDLE_REFUSED
+    assert ok is False
+
+
+def test_a_hardlink_outside_the_inbox_is_placed_as_its_inbox_twin(
+    alias_world: World,
+) -> None:
+    # Identity, not spelling: an outside hard link IS the inbox bundle file.
+    w = alias_world
+    outside = w.base / "cs1232_hardlink_out"
+    outside.mkdir()
+    twin = outside / BUNDLE_FILE
+    try:
+        os.link(w.note, twin)
+    except OSError:
+        pytest.skip("this volume cannot create a hard link here")
+    _assert_mismatch(w, twin)
+
+
+def test_a_zero_file_index_is_check_failed(world: World, monkeypatch: pytest.MonkeyPatch) -> None:
+    # A filesystem that reports no file index cannot place by identity at all.
+    def no_index(status: os.stat_result) -> tuple[int, int]:
+        return int(status.st_dev), 0
+
+    monkeypatch.setattr(provenance, "_identity", no_index)
+    ok, reason, _digest = _verify_in(world)
+    assert reason == "check-failed"
+    assert ok is False
