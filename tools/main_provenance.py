@@ -68,6 +68,27 @@ is a plain file and is placed as its inbox twin. On MAIN's side a bundle
 directory that is a link is refused as ``outbox-file-absent``, the same
 reason a linked outbox file gets.
 
+THE CENSUS FAILS CLOSED. Only an ABSENT inbox means "no inbox" (every note
+keeps the bare-name answer). Once the inbox exists, any error resolving it,
+listing it, or stat-ing any entry at any depth is ``census-failed`` - never
+the bare-name fallback, which would bind a note the census never saw.
+
+DECLARED DIVERGENCES from the pre-CS-1232 tool (41f1835) for a note in the
+inbox; a plain top-level note spelled plainly otherwise answers exactly as it
+did, pinned by measured parity arms:
+
+- a missing note is ``note-unreadable`` before MAIN's outbox is consulted
+  (41f1835 named an outbox fault first where there was one);
+- a final component that is not the on-disk name (a trailing dot or space,
+  an 8.3 short name) is ``bundle-path-refused`` (41f1835: the name as given);
+- a note reached through a link into or inside the inbox, a note at two inbox
+  places, a deeper file, a directory, or the inbox itself is
+  ``bundle-path-refused`` (41f1835: the bare name);
+- an inbox census error is ``census-failed``, a zero file index
+  ``check-failed``;
+- a note outside the inbox hard-linked into it is placed as its inbox twin;
+- a file one bundle directory down is looked up as ``<bundle-dir>/<file>``.
+
 THE BYTES HASHED ARE THE FILE PLACED. A placed note is read through the
 inbox entry it was placed as, by ONE open; the open file must carry the
 note's identity, and a fresh stat of the entry afterwards must still name
@@ -176,6 +197,7 @@ GIT_FAILED: Final = "git-failed"
 DIGEST_MISMATCH: Final = "digest-mismatch"
 CHECK_FAILED: Final = "check-failed"
 BUNDLE_PATH_REFUSED: Final = "bundle-path-refused"
+CENSUS_FAILED: Final = "census-failed"
 INTERRUPTED: Final = "interrupted"
 USAGE_ERROR: Final = "usage-error"
 
@@ -200,6 +222,7 @@ REASONS: Final = frozenset(
         DIGEST_MISMATCH,
         CHECK_FAILED,
         BUNDLE_PATH_REFUSED,
+        CENSUS_FAILED,
         INTERRUPTED,
         USAGE_ERROR,
     }
@@ -356,7 +379,7 @@ class _Entry:
     regular: bool
 
 
-def _census(inbox: Path) -> dict[Identity, list[_Entry]]:
+def inbox_census(inbox: Path) -> dict[Identity, list[_Entry]]:
     """Every entry under ``inbox`` by identity, the inbox itself included.
 
     Walks with ``os.scandir``; a link entry is ignored and never descended.
@@ -368,9 +391,9 @@ def _census(inbox: Path) -> dict[Identity, list[_Entry]]:
         with os.scandir(here) as entries:
             for entry in entries:
                 path = Path(entry.path)
-                if is_link(path):
-                    continue
                 status = path.lstat()
+                if _is_link_status(status):
+                    continue
                 below = (*parts, entry.name)
                 is_dir = stat.S_ISDIR(status.st_mode)
                 regular = stat.S_ISREG(status.st_mode)
@@ -406,20 +429,45 @@ def _linked_in(note: Path, inside: dict[Identity, list[_Entry]], root: Identity)
 Placed = tuple[str, str, Path | None, Identity | None]
 
 
-def _placement(note: Path, inbox_dir: Path) -> Placed | str:
-    """Place ``note`` by its file identity; see the module docstring."""
+def _survey(
+    inbox_dir: Path,
+) -> tuple[Path, dict[Identity, list[_Entry]], Identity] | str | None:
+    """Resolve and census the inbox: None when it is ABSENT, else fail closed."""
+    try:
+        inbox = inbox_dir.resolve(strict=True)
+    except FileNotFoundError:
+        return None
+    except OSError:
+        return CENSUS_FAILED
+    try:
+        return inbox, inbox_census(inbox), _identity(inbox.stat())
+    except OSError:
+        return CENSUS_FAILED
+
+
+def _note_identity(note: Path) -> Identity | str:
+    """The note's identity, following links; or a refusal reason."""
     try:
         identity = _identity(note.stat())
     except OSError:
         return NOTE_UNREADABLE
     if identity[1] == 0:
         return CHECK_FAILED
-    try:
-        inbox = inbox_dir.resolve(strict=True)
-        inside = _census(inbox)
-    except OSError:
+    return identity
+
+
+def _placement(note: Path, inbox_dir: Path) -> Placed | str:
+    """Place ``note`` by its file identity; see the module docstring."""
+    identity = _note_identity(note)
+    if isinstance(identity, str):
+        return identity
+    surveyed = _survey(inbox_dir)
+    if surveyed is None:
         return note.name, "", None, None
-    if _linked_in(note, inside, _identity(inbox.stat())):
+    if isinstance(surveyed, str):
+        return surveyed
+    inbox, inside, root = surveyed
+    if _linked_in(note, inside, root):
         return BUNDLE_PATH_REFUSED
     entries = inside.get(identity, [])
     if not entries:
@@ -442,15 +490,26 @@ def _place_entry(
     return placed[0], placed[1], inbox.joinpath(*parts), identity
 
 
-def is_link(path: Path) -> bool:
-    """Whether ``path`` is a symlink, a junction, or any other reparse point."""
-    try:
-        status = path.lstat()
-    except OSError:
-        return False
+def _is_link_status(status: os.stat_result) -> bool:
+    """Whether an lstat result is a symlink, a junction, or any other reparse point."""
     if stat.S_ISLNK(status.st_mode):
         return True
     return bool(getattr(status, "st_file_attributes", 0) & _REPARSE_POINT)
+
+
+def is_link(path: Path) -> bool:
+    """Whether ``path`` is a symlink, a junction, or any other reparse point.
+
+    Fails closed: a missing path is not a link, but a path whose kind cannot
+    be read for any other reason counts as one.
+    """
+    try:
+        status = path.lstat()
+    except FileNotFoundError:
+        return False
+    except OSError:
+        return True
+    return _is_link_status(status)
 
 
 def verify_main_note(

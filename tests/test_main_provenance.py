@@ -166,7 +166,7 @@ def world(tmp_path: Path) -> World:
 
 def _verify(w: World) -> tuple[bool, str]:
     """Run the check over ``w`` and reduce the verdict to scalars."""
-    verdict = provenance.verify_main_note(w.note, config_path=w.config)
+    verdict = provenance.verify_main_note(w.note, config_path=w.config, inbox_dir=_inbox(w))
     return bool(verdict.ok), str(verdict.reason)
 
 
@@ -174,7 +174,9 @@ def _verify(w: World) -> tuple[bool, str]:
 
 
 def test_a_matching_tracked_note_passes(world: World) -> None:
-    verdict = provenance.verify_main_note(world.note, config_path=world.config)
+    verdict = provenance.verify_main_note(
+        world.note, config_path=world.config, inbox_dir=_inbox(world)
+    )
     reason = str(verdict.reason)
     ok = bool(verdict.ok)
     digest = str(verdict.digest)
@@ -446,7 +448,9 @@ def test_a_filtered_checkout_git_calls_clean_is_refused(world: World) -> None:
 def test_each_refusal_names_its_reason(world: World, case: str) -> None:
     plant, expected = REFUSALS[case]
     plant(world)
-    verdict = provenance.verify_main_note(world.note, config_path=world.config)
+    verdict = provenance.verify_main_note(
+        world.note, config_path=world.config, inbox_dir=_inbox(world)
+    )
     reason = str(verdict.reason)
     ok = bool(verdict.ok)
     digest = str(verdict.digest)
@@ -468,7 +472,15 @@ def test_every_reason_is_in_the_closed_set() -> None:
 def _cli(w: World, env: dict[str, str] | None = None) -> subprocess.CompletedProcess[bytes]:
     """Run the CLI over ``w`` and return the completed process."""
     return subprocess.run(
-        [sys.executable, str(TOOL), str(w.note), "--config", str(w.config)],
+        [
+            sys.executable,
+            str(TOOL),
+            str(w.note),
+            "--config",
+            str(w.config),
+            "--inbox",
+            str(_inbox(w)),
+        ],
         capture_output=True,
         env=_clean_env() if env is None else env,
         timeout=TIMEOUT,
@@ -510,7 +522,9 @@ def _leaks(w: World, rendered: str) -> bool:
 def test_no_refusal_renders_the_configured_path(world: World, case: str) -> None:
     plant, expected = REFUSALS[case]
     plant(world)
-    verdict = provenance.verify_main_note(world.note, config_path=world.config)
+    verdict = provenance.verify_main_note(
+        world.note, config_path=world.config, inbox_dir=_inbox(world)
+    )
     proc = _cli(world)
     rendered = "\n".join(
         [
@@ -572,7 +586,9 @@ def test_the_cli_turns_an_interrupt_into_a_reason(
     world: World, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
     monkeypatch.setattr(provenance, "verify_main_note", _interrupt)
-    code = provenance.main([str(world.note), "--config", str(world.config)])
+    code = provenance.main(
+        [str(world.note), "--config", str(world.config), "--inbox", str(_inbox(world))]
+    )
     captured = capsys.readouterr()
     out = captured.out.strip()
     quiet = captured.err == ""
@@ -601,7 +617,15 @@ def test_a_relative_main_root_refuses_whatever_the_cwd(
     monkeypatch.chdir(w.base)
     ok, reason = _verify(w)
     proc = subprocess.run(
-        [sys.executable, str(TOOL), str(w.note), "--config", str(w.config)],
+        [
+            sys.executable,
+            str(TOOL),
+            str(w.note),
+            "--config",
+            str(w.config),
+            "--inbox",
+            str(_inbox(w)),
+        ],
         capture_output=True,
         cwd=w.base,
         env=_clean_env(),
@@ -1655,3 +1679,297 @@ def test_a_zero_file_index_is_check_failed(world: World, monkeypatch: pytest.Mon
     ok, reason, _digest = _verify_in(world)
     assert reason == "check-failed"
     assert ok is False
+
+
+# Round 7 - a census error refuses; every arm names its inbox; parity with the
+# pre-CS-1232 tool (41f1835) for a plain top-level note.
+
+#: The fixed refusal for an inbox the census could not finish.
+_CENSUS: Final = "census-failed"
+
+
+def _plant_unstattable(w: World) -> bool:
+    """Plant an inbox entry ``zz.`` that scandir lists but lstat cannot reach."""
+    try:
+        Path("\\\\?\\" + str(_inbox(w).resolve(strict=True) / "zz.")).write_bytes(b"x")
+    except OSError:
+        return False
+    names = {entry.name for entry in os.scandir(_inbox(w))}
+    try:
+        (_inbox(w) / "zz.").lstat()
+    except OSError:
+        return "zz." in names
+    return False
+
+
+@pytest.mark.parametrize("twin", [False, True], ids=["plain", "hardlink_twin"])
+def test_an_inbox_entry_lstat_cannot_reach_refuses(alias_world: World, twin: bool) -> None:
+    if sys.platform != "win32":
+        pytest.skip("a trailing-dot entry is only unreachable on Windows")
+    w = alias_world
+    if twin:
+        os.link(w.note, _inbox(w) / BUNDLE_FILE)
+    # Control: the honest answer before the plant is the bundle-file mismatch,
+    # or with a hard-link twin the two-place refusal.
+    _ok, before, _d = _verify_in(w)
+    planted = _plant_unstattable(w)
+    assert planted is True
+    ok, reason, _digest = _verify_in(w)
+    proc = _cli_in(w)
+    out = proc.stdout.decode("ascii", "replace").strip()
+    leaked = _leaks(w, out + proc.stderr.decode("utf-8", "replace") + reason)
+    assert before == (_BUNDLE_REFUSED if twin else "digest-mismatch")
+    assert reason == _CENSUS
+    assert ok is False
+    assert out == _CENSUS
+    assert leaked is False
+
+
+def test_a_scandir_error_refuses(bundle_world: World, monkeypatch: pytest.MonkeyPatch) -> None:
+    def refuse(*_args: object, **_kwargs: object) -> None:
+        raise PermissionError
+
+    monkeypatch.setattr(os, "scandir", refuse)
+    ok, reason, _digest = _verify_in(bundle_world)
+    assert reason == _CENSUS
+    assert ok is False
+
+
+def test_an_inbox_that_exists_but_will_not_resolve_refuses(
+    bundle_world: World, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # Only an ABSENT inbox means "no inbox"; any other failure is fail-closed.
+    original = Path.resolve
+    inbox = _inbox(bundle_world)
+
+    def resolve(self: Path, strict: bool = False) -> Path:
+        if self == inbox:
+            raise PermissionError
+        return original(self, strict=strict)
+
+    monkeypatch.setattr(Path, "resolve", resolve)
+    ok, reason, _digest = _verify_in(bundle_world)
+    assert reason == _CENSUS
+    assert ok is False
+
+
+def test_an_absent_inbox_keeps_the_old_answer(world: World) -> None:
+    w = world
+    verdict = provenance.verify_main_note(
+        w.note, config_path=w.config, inbox_dir=w.base / "cs1232_no_inbox"
+    )
+    reason = str(verdict.reason)
+    assert reason == "verified"
+
+
+def test_is_link_counts_an_unreadable_path_as_a_link(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # Fail closed: a path whose kind cannot be read is treated as a link.
+    target = tmp_path / "cs1232_unreadable"
+    target.write_bytes(b"x")
+    original = Path.lstat
+
+    def lstat(self: Path) -> os.stat_result:
+        if self == target:
+            raise PermissionError
+        return original(self)
+
+    monkeypatch.setattr(Path, "lstat", lstat)
+    unreadable = bool(provenance.is_link(target))
+    missing = bool(provenance.is_link(tmp_path / "cs1232_missing"))
+    assert unreadable is True
+    assert missing is False
+
+
+def test_the_census_failure_is_in_the_closed_set() -> None:
+    member = _CENSUS in provenance.REASONS
+    constant = provenance.CENSUS_FAILED == _CENSUS
+    assert member is True
+    assert constant is True
+
+
+# Parity: a plain top-level note spelled plainly in the inbox gets 41f1835's
+# answer. Each expectation below was MEASURED by running the 41f1835 tool over
+# the same synthetic plant, not derived from the current code.
+
+_PARITY_41F1835: Final[dict[str, tuple[Callable[[World], None], str]]] = {
+    "verified": (lambda _w: None, "verified"),
+    "mismatch": (_byte_different, "digest-mismatch"),
+    "untracked": (_untracked, "untracked"),
+    "outbox_absent": (_outbox_absent, "outbox-file-absent"),
+    "missing_note": (_note_absent, "note-unreadable"),
+}
+
+
+@pytest.mark.parametrize("case", sorted(_PARITY_41F1835))
+def test_a_plain_top_level_note_matches_41f1835(world: World, case: str) -> None:
+    plant, expected = _PARITY_41F1835[case]
+    plant(world)
+    _ok, reason, _digest = _verify_in(world)
+    assert reason == expected
+
+
+def test_declared_divergence_a_missing_note_is_unreadable_first(world: World) -> None:
+    # 41f1835 answered outbox-file-absent here (measured); the note is now
+    # stat-ed before MAIN's outbox is consulted. Declared in the docstring.
+    _note_absent(world)
+    _outbox_absent(world)
+    _ok, reason, _digest = _verify_in(world)
+    assert reason == "note-unreadable"
+
+
+# Test hygiene: every call of the check names its inbox, so no arm's outcome
+# depends on the real moon_sync_inbox of whatever checkout runs it.
+
+
+def _unnamed_inbox_calls(source: str) -> tuple[int, int]:
+    """Count (calls of the check, those naming no inbox) in ``source``."""
+    import ast  # noqa: PLC0415 - only this guard parses source
+
+    total = 0
+    bad = 0
+    for node in ast.walk(ast.parse(source)):
+        if isinstance(node, ast.Call) and getattr(node.func, "attr", "") == "verify_main_note":
+            total += 1
+            bad += not any(k.arg == "inbox_dir" for k in node.keywords)
+        if isinstance(node, ast.List):
+            texts = {e.value for e in node.elts if isinstance(e, ast.Constant)}
+            names_tool = (
+                any(isinstance(e, ast.Call) and "TOOL" in ast.dump(e) for e in node.elts)
+                or "--config" in texts
+            )
+            if names_tool:
+                total += 1
+                bad += "--inbox" not in texts
+    return total, bad
+
+
+#: Fewer calls than this means the guard's parse missed the arms it polices.
+_MIN_CHECK_CALLS: Final = 10
+
+
+def test_every_call_of_the_check_names_its_inbox() -> None:
+    total, bad = _unnamed_inbox_calls(Path(__file__).read_text(encoding="ascii"))
+    assert total > _MIN_CHECK_CALLS
+    assert bad == 0
+
+
+def test_the_inbox_guard_sees_an_unnamed_call() -> None:
+    # Anti-vacuity: the guard fires on each shape it polices.
+    api = "provenance.verify_main_note(n, config_path=c)\n"
+    cli = "subprocess.run([sys.executable, str(TOOL), n, '--config', c])\n"
+    good = "provenance.verify_main_note(n, config_path=c, inbox_dir=i)\n"
+    assert _unnamed_inbox_calls(api) == (1, 1)
+    assert _unnamed_inbox_calls(cli) == (1, 1)
+    assert _unnamed_inbox_calls(good) == (1, 0)
+
+
+# Round 7 audit - every except clause in the tool fails closed. One arm per
+# clause not already pinned above (config_absent, the JSON arms, note_absent,
+# the boundary's check-failed, the interrupt, the census and is_link arms).
+
+
+def test_a_config_that_is_a_directory_is_unparseable(world: World) -> None:
+    w = world
+    w.config.unlink()
+    w.config.mkdir()
+    ok, reason = _verify(w)
+    assert reason == "config-unparseable"
+    assert ok is False
+
+
+def test_git_that_cannot_run_is_git_failed(world: World, monkeypatch: pytest.MonkeyPatch) -> None:
+    def no_git(*_args: object, **_kwargs: object) -> None:
+        raise OSError
+
+    monkeypatch.setattr(provenance.subprocess, "run", no_git)
+    ok, reason = _verify(world)
+    assert reason == "git-failed"
+    assert ok is False
+
+
+def test_an_ancestor_link_whose_parent_cannot_be_stat_ed_refuses(
+    bundle_world: World, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    w = bundle_world
+    original_link = provenance.is_link
+    original_stat = Path.stat
+
+    def link(path: Path) -> bool:
+        return path == w.note or bool(original_link(path))
+
+    def stat(self: Path, *, follow_symlinks: bool = True) -> os.stat_result:
+        if self == w.note.parent:
+            raise PermissionError
+        return original_stat(self, follow_symlinks=follow_symlinks)
+
+    monkeypatch.setattr(provenance, "is_link", link)
+    monkeypatch.setattr(Path, "stat", stat)
+    ok, reason, _digest = _verify_in(w)
+    assert reason == _BUNDLE_REFUSED
+    assert ok is False
+
+
+def test_a_placed_note_that_will_not_open_is_unreadable(
+    bundle_world: World, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    original = Path.open
+    placed = os.path.normcase(str(bundle_world.note.resolve(strict=True)))
+
+    def refuse(self: Path, *args: object, **kwargs: object) -> object:
+        if os.path.normcase(str(self)) == placed:
+            raise PermissionError
+        return original(self, *args, **kwargs)  # type: ignore[call-overload]
+
+    monkeypatch.setattr(Path, "open", refuse)
+    ok, reason, _digest = _verify_in(bundle_world)
+    assert reason == "note-unreadable"
+    assert ok is False
+
+
+def test_a_placed_note_deleted_under_the_read_is_unreadable(
+    bundle_world: World, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    w = bundle_world
+    original = provenance.read_note
+
+    def delete_after(path: Path) -> object:
+        result = original(path)
+        w.note.unlink()
+        return result
+
+    monkeypatch.setattr(provenance, "read_note", delete_after)
+    ok, reason, _digest = _verify_in(w)
+    assert reason == "note-unreadable"
+    assert ok is False
+
+
+def test_an_outbox_file_that_will_not_read_is_outbox_unreadable(
+    bundle_world: World, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    w = bundle_world
+    original = Path.read_bytes
+
+    def refuse(self: Path) -> bytes:
+        if self == _bundle_outbox_file(w):
+            raise PermissionError
+        return original(self)
+
+    monkeypatch.setattr(Path, "read_bytes", refuse)
+    ok, reason, _digest = _verify_in(w)
+    assert reason == "outbox-unreadable"
+    assert ok is False
+
+
+def test_the_census_records_no_link_entry(loop_world: World) -> None:
+    # Structural pin: a link entry is recorded under its own lstat identity and
+    # never descended, so skipping it changes no verdict - but the census must
+    # still hold none, so no future placement can land on one.
+    w = loop_world
+    census = provenance.inbox_census(_inbox(w).resolve(strict=True))
+    names = {entry.parts[-1] for entries in census.values() for entry in entries if entry.parts}
+    holds_link = "x" in names
+    holds_bundle = "b" in names
+    assert holds_bundle is True
+    assert holds_link is False
