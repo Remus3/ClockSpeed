@@ -177,6 +177,21 @@ MARGIN_DIVISOR = 2
 #: proves the near-duplicate red comes from the metric and not from vacuity.
 UNREACHABLE = Fraction(3, 2)
 
+#: AUTHORED FILES THAT EMBED A WHOLE VENDORED FILE BY CONTRACT, each exact
+#: (authored, vendored) PAIR mapped to its reason. Never a pattern and never a
+#: path alone: the pair is excused from the near-duplicate and margin arms and
+#: from nothing else, and only while the vendored file's bytes sit VERBATIM
+#: inside the authored one (:func:`test_every_embed_exemption_is_a_live_verbatim_embed`).
+#: Mirrored, not imported, from ``tools/provenance_stamp.py`` - this module
+#: re-derives every rule from bytes rather than trusting the tool.
+EMBED_EXEMPT: dict[tuple[str, str], str] = {
+    ("CLAUDE.md", "ops/fleet_kit/FLEET-COMMON.md"): (
+        "CS-1231 - the fleet kit's common block is embedded byte-for-byte between "
+        "CLAUDE.md's FLEET-COMMON markers by the kit's own conformance contract; "
+        "the embed is recorded in the FLEET-COMMON.md row of THIRD_PARTY.md"
+    ),
+}
+
 #: Seconds allowed for each git child this module spawns.
 GIT_TIMEOUT = 60
 
@@ -390,6 +405,8 @@ def _near_duplicates(
         if rows[path].klass != "authored" or path not in files:
             continue
         for source in sources:
+            if (path, source) in EMBED_EXEMPT:
+                continue
             shared = _shared(files[path], files[source])
             if shared is None:
                 if files[path].replace(b"\r\n", b"\n") == files[source].replace(b"\r\n", b"\n"):
@@ -2122,9 +2139,33 @@ def test_the_current_tree_stays_far_below_the_threshold() -> None:
         for name in files
         if name not in vendored
         for source in vendored
+        if (name, source) not in EMBED_EXEMPT
     }
     worst = max((score for score in scores.values() if score is not None), default=Fraction(0))
     assert worst < THRESHOLD / MARGIN_DIVISOR, f"the tree's worst overlap is {worst}"
+
+
+def test_every_embed_exemption_is_a_live_verbatim_embed() -> None:
+    # The escape hatch is graded, or it is a hole. Each exempt pair must name
+    # two tracked files, the source must be a registered vendored file, and the
+    # source's whole LF-normalised bytes must sit verbatim inside the authored
+    # file - a partial lift, a reworded block or a stale pair is red here.
+    _tracked, files = _real_population()
+    registered = set(_listed_paths(_register_text()))
+    faults: list[str] = []
+    for (authored, source), reason in sorted(EMBED_EXEMPT.items()):
+        if authored not in files or source not in files:
+            faults.append(f"{authored} / {source}: not both tracked files")
+            continue
+        if source not in registered or authored in registered:
+            faults.append(f"{authored} / {source}: source not registered, or embedder is")
+        embedded = files[source].replace(b"\r\n", b"\n")
+        if embedded not in files[authored].replace(b"\r\n", b"\n"):
+            faults.append(f"{authored} / {source}: the source is not embedded verbatim")
+        if not reason.strip():
+            faults.append(f"{authored} / {source}: no reason")
+    fault_count = len(faults)
+    assert fault_count == 0, f"stale or unearned embed exemptions: {faults}"
 
 
 def test_the_real_manifest_parses() -> None:

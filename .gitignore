@@ -252,6 +252,15 @@ shell/NVIDIA Corporation/
 # ops/loop/*.ps1 stay tracked: only these two subdirectories are runtime.
 /ops/loop/control/
 /ops/loop/reports/
+# The fleet kit (ops/fleet_kit/fleet_headless.py, CS-1231) writes its live
+# status, run budget and usage log here, and FLEET-COMMON item 12 has every
+# long-running sub-agent write progress/<task>.json beside them. Already covered
+# by the directory line above; named explicitly so these stay ignored even if
+# that line is ever narrowed.
+/ops/loop/control/inbox_status.json
+/ops/loop/control/headless_budget.json
+/ops/loop/control/headless_usage.jsonl
+/ops/loop/control/progress/
 
 # The lane's model config, read by ops/loop/run_lane.ps1 via $PSScriptRoot with
 # a known-good fallback so a lane never fails to spawn over a config read.

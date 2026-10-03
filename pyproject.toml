@@ -309,6 +309,27 @@ ignore = [
   "PLR0913", "S311",
 ]
 
+# ops/fleet_kit/fleet_headless.py IS VENDORED BYTE-IDENTICAL FROM MAIN (CS-1231,
+# FLEET-KIT version 4) and pinned by ops/fleet_kit/MANIFEST.json, which the kit's
+# own conformance() and tests/test_fleet_kit.py both check. Same rule as slots.py
+# above: the guard takes the exemption, never the file. One path, never a glob.
+# MAIN's v4 ORDER note itself says to keep this exclusion.
+#
+# EVERY CODE BELOW WAS MEASURED ON THE VERSION 4 BYTES (`ruff check` of this file
+# with this entry removed, 58 findings), each a property of upstream's code:
+#   A002     _run takes an `input` keyword, mirroring subprocess.run's own
+#   D102 D103 D107 D205 D209 D415   upstream's docstring layout and coverage
+#   N818     Refused is the kit's exception name and every carrier catches it
+#   PLC0415  `import winreg` sits inside _registry_value so POSIX imports work
+#   PLR0913  write_status, spawn and two helpers take the kit's keyword parameters
+#   PLR0915  spawn is one long function by upstream's design
+#   PLR2004  literal 2 and 65536 in pin parsing and the git index check
+#   PLW1510  _kill_tree's best-effort taskkill run has no check= argument
+"ops/fleet_kit/fleet_headless.py" = [
+  "A002", "D102", "D103", "D107", "D205", "D209", "D415", "N818", "PLC0415",
+  "PLR0913", "PLR0915", "PLR2004", "PLW1510",
+]
+
 [tool.ruff.lint.isort]
 known-first-party = ["clockspeed"]
 
@@ -336,7 +357,11 @@ quote-style = "double"
 # the narrower key stops the FORMATTER only and leaves the linter reading the
 # file, so the per-file-ignores above stay an explicit, reviewed list of what
 # upstream's code does instead of a blanket "ruff does not look here".
-exclude = ["ops/loop/slots.py"]
+#
+# ops/fleet_kit/fleet_headless.py takes the same exclusion for the same reason
+# (CS-1231): it is pinned by sha256 in the fleet kit's MANIFEST.json, and
+# `ruff format --check` MEASURED it as "Would reformat".
+exclude = ["ops/loop/slots.py", "ops/fleet_kit/fleet_headless.py"]
 # LF, matching .gitattributes. Content hashes are load-bearing in this project
 # (the game data version pin, BOOTSTRAP.md section 8.1) and a file whose line
 # endings depend on the checkout machine cannot be hashed reliably.
@@ -607,6 +632,23 @@ ignore_missing_imports = true
 # would not contain an error reached through an import anyway.
 module = ["ops.loop.slots"]
 warn_return_any = false
+
+[[tool.mypy.overrides]]
+# ops/fleet_kit/fleet_headless.py, VENDORED BYTE-IDENTICAL from MAIN's fleet kit
+# version 4 (CS-1231) and pinned by tests/test_fleet_kit.py. A block of its own
+# for the reason the slots.py block above states about itself.
+#
+# MEASURED on the version 4 bytes, four errors, one shape, all upstream's:
+#   fleet_headless.py:535-538 `u.get(...)` in usage_line - `u` is bound by
+#   `r.get("usage") if isinstance(r.get("usage"), dict) else {}`, a dict on
+#   every path, but mypy does not narrow a repeated call so it reads the type
+#   as `Any | dict | None` and reports union-attr on each `.get`.
+# The bytes are the protocol every fleet tree shares and may not be edited here.
+#
+# ONLY union-attr IS DISABLED, and only for this module. The rest of the gate
+# still reads the file; `exclude` is NOT used, for the reason above.
+module = ["ops.fleet_kit.fleet_headless"]
+disable_error_code = ["union-attr"]
 
 [[tool.mypy.overrides]]
 # Phase 2 rung. The data layer is the seam every other layer consumes, so an

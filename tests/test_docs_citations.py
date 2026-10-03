@@ -512,6 +512,12 @@ GUARDED_DOCS: Final = (
     # re-pin lands a path that does NOT resolve, this guard is the thing that must
     # fail - never the doc that must change.
     "docs/CHANNEL.md",
+    # CS-1231 - ops/fleet_kit/FLEET-COMMON.md is VENDORED from MAIN and
+    # byte-pinned by ops/fleet_kit/MANIFEST.json. GUARDED for docs/CHANNEL.md's
+    # reason above: its bare paths make it a carrier, and UNGUARDED_DOCS is
+    # pinned to the deep archive alone. Its one untracked citation is disclosed
+    # in tests/test_citation_tables.py under R2 declared untracked.
+    "ops/fleet_kit/FLEET-COMMON.md",
     "docs/GATED.md",
     "WAKEUP_NOTES.md",
     # CS-959 - THE THREE COMMUNITY-HEALTH FILES THAT CITE A PATH. They are the

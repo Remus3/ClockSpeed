@@ -97,7 +97,17 @@ PINNED_BUT_AUTHORED_HERE: dict[str, str] = {}
 #: because discovery that silently narrowed - a renamed digest style, a pin
 #: module that stopped binding its Path - would make every arm below agree
 #: about a smaller population and report green for it.
-DISCOVERY_FLOOR = ("docs/CHANNEL.md", "ops/loop/slots.py", "ops/loop/winmutex.py")
+DISCOVERY_FLOOR = (
+    "docs/CHANNEL.md",
+    "ops/loop/slots.py",
+    "ops/loop/winmutex.py",
+    # CS-1231 - the fleet kit, version 4, pinned by tests/test_fleet_kit.py.
+    "ops/fleet_kit/FLEET-COMMON.md",
+    "ops/fleet_kit/LICENSE",
+    "ops/fleet_kit/MANIFEST.json",
+    "ops/fleet_kit/NOTICE",
+    "ops/fleet_kit/fleet_headless.py",
+)
 
 #: A backticked token, which is how every path in this tree's docs is spelled.
 BACKTICK_RE = re.compile(r"`([^`\n]+)`")
@@ -150,6 +160,40 @@ ROW_FACTS: dict[str, tuple[str, ...]] = {
         "`Remus3/Legion-Wallpaper`",
         "ADR-0017",
         "`tests/test_lane_lock.py`",
+    ),
+    # CS-1231 - the fleet kit, gated CLEARED before the lift. The holder is
+    # recorded AS READ in the kit's NOTICE - a role, never a name inferred from
+    # elsewhere - and the kit has no public upstream repository to cite. Two rows
+    # quote NOTICE's whole holder line, so their fact is that line verbatim.
+    "ops/fleet_kit/fleet_headless.py": (
+        "Apache-2.0",
+        "`the operator - the kit's owner and sole copyright holder`",
+        "CS-1231",
+        "`tests/test_fleet_kit.py`",
+    ),
+    "ops/fleet_kit/FLEET-COMMON.md": (
+        "Apache-2.0",
+        "`the operator`",
+        "CS-1231",
+        "`tests/test_fleet_kit.py`",
+    ),
+    "ops/fleet_kit/MANIFEST.json": (
+        "Apache-2.0",
+        "`the operator`",
+        "CS-1231",
+        "`tests/test_fleet_kit.py`",
+    ),
+    "ops/fleet_kit/LICENSE": (
+        "Apache-2.0",
+        "`the operator`",
+        "CS-1231",
+        "`tests/test_fleet_kit.py`",
+    ),
+    "ops/fleet_kit/NOTICE": (
+        "Apache-2.0",
+        "`the operator - the kit's owner and sole copyright holder`",
+        "CS-1231",
+        "`tests/test_fleet_kit.py`",
     ),
 }
 

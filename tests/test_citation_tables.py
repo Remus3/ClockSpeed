@@ -1321,6 +1321,19 @@ DECLINED_AS_DECLARED_UNTRACKED: Final[Mapping[tuple[str, str, str], int]] = {
         "data/outbound_deliveries.json",
         "### MEASURED 2026-09-08 (session 76), four adversarial lenses against the REPAIRED sender",
     ): 1,
+    # CS-1231 - the VENDORED fleet kit's common block names the kit's live status
+    # file, which is gitignored runtime state by construction. The heading cell
+    # is the block's own 80-column banner rule, which the ladder reads as the
+    # nearest heading. The doc may not be edited, so the guard takes the row.
+    (
+        "ops/fleet_kit/FLEET-COMMON.md",
+        "ops/loop/control/inbox_status.json",
+        "################################################################################",
+    ): 1,
+    # CS-1231 - the same byte-pinned block, embedded in CLAUDE.md between its
+    # FLEET-COMMON markers. It cannot be reworded locally, and the nearest
+    # heading-shaped line is its banner rule.
+    ("CLAUDE.md", "ops/loop/control/inbox_status.json", "#" * 80): 1,
 }
 
 #: R3's live membership, DISCLOSED. Three are the names of the three files
@@ -1552,7 +1565,15 @@ DECLINED_AS_A_FIXTURE_LITERAL: Final[Mapping[tuple[str, str, str], int]] = {
 #: standing as the two rows above that name the same file. The row REFUNDS and
 #: the ceiling returns to 17 if the ADR ever stops naming the file. The citation
 #: arrived with the ADR at the CS-1158 merge and was red before this row existed.
-DECLARED_UNTRACKED_CEILING: Final = 18
+#:
+#: 18 TO 20 FOR THE VENDORED FLEET KIT, 2026-10-03 BY CS-1231 - TWO ROWS, ONE
+#: CITATION IN TWO FILES. FLEET-COMMON.md names the kit's live status file under
+#: the lane's control directory, which this tree gitignores as runtime state, and
+#: the file is byte-pinned by the kit's MANIFEST.json; the same block is embedded
+#: byte-for-byte in CLAUDE.md between its FLEET-COMMON markers. Neither copy can
+#: be repointed here. Each row REFUNDS, and the ceiling returns to 18, if a kit
+#: version stops naming the file.
+DECLARED_UNTRACKED_CEILING: Final = 20
 #: 9 TO 6 WHEN CS-928 DELETED THE THREE FALSE ADVISOR ATTRIBUTIONS. Six
 #: `docs/ARCHITECTURE.md` rows left the rung and three arrived from the guard
 #: that now asserts those files absent, so the disclosure holds six rows and the

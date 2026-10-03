@@ -149,6 +149,20 @@ BOOTSTRAP_ITEM = "CS-1165"
 #: under a rewritten header scores well above it.
 NEAR_DUPLICATE_THRESHOLD = Fraction(1, 2)
 
+#: AUTHORED FILES THAT EMBED A WHOLE VENDORED FILE BY CONTRACT, each exact
+#: (authored, vendored) PAIR mapped to its reason. The pair is excused from the
+#: near-duplicate metric and from nothing else; any other vendored file is still
+#: compared against the embedder. Never a pattern and never a path alone. The
+#: manifest arm keeps its own copy and grades that each pair is a live verbatim
+#: embed of a registered vendored file.
+EMBED_EXEMPT: dict[tuple[str, str], str] = {
+    ("CLAUDE.md", "ops/fleet_kit/FLEET-COMMON.md"): (
+        "CS-1231 - the fleet kit's common block is embedded byte-for-byte between "
+        "CLAUDE.md's FLEET-COMMON markers by the kit's own conformance contract; "
+        "the embed is recorded in the FLEET-COMMON.md row of THIRD_PARTY.md"
+    ),
+}
+
 #: Lines shorter than this carry no identity - blank lines, brackets, ``else:``,
 #: ``return None`` - and would make any two files in one language overlap.
 MIN_LINE_LENGTH = 20
@@ -460,6 +474,8 @@ def authored_objection(root: Path, path: str, vendored: Iterable[str]) -> str | 
         return f"{path} is not a file on disk, so its bytes cannot be graded"
     candidate = candidate_file.read_bytes()
     for other in vendored:
+        if (path, other) in EMBED_EXEMPT:
+            continue
         other_file = root / other
         if not other_file.is_file():
             return f"the vendored file {other} is not on disk, so {path} cannot be graded"

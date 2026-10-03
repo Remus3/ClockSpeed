@@ -357,7 +357,9 @@ def test_the_formatter_exclusion_is_scoped_to_the_one_vendored_path() -> None:
     config = _gate_config()
     excluded = list(config["tool"]["ruff"]["format"].get("exclude", []))
     literal = all(_is_literal_path(key) for key in excluded)
-    assert (excluded, literal) == ([RELATIVE], True)
+    # CS-1231 - the one other entry is the vendored fleet kit module, an exact
+    # path excluded for the same byte-pin reason. Exact list, never a pattern.
+    assert (excluded, literal) == ([RELATIVE, "ops/fleet_kit/fleet_headless.py"], True)
 
 
 def test_the_formatter_exclusion_survives_being_handed_the_path_explicitly() -> None:

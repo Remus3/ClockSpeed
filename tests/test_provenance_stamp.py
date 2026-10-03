@@ -348,6 +348,36 @@ def test_add_authored_accepts_overlap_just_below_the_threshold(
     assert _run(tool, repo, "add", "lib/fresh.py", "--class", "authored", "--item", "CS-1165") == 0
 
 
+def test_an_embed_exemption_excuses_its_exact_pair_and_nothing_else(
+    tool: ModuleType, repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # CS-1231. The exemption is a PAIR: the embedder is excused against the one
+    # vendored file it embeds, and still graded against every other one.
+    _stage(repo, "lib/fresh.py", VENDORED_BYTES)
+    _stage(repo, "lib/second.py", VENDORED_BYTES)
+    # Control first: with no exemption the embed is refused.
+    monkeypatch.setattr(tool, "EMBED_EXEMPT", {})
+    held = ["lib/vendored.py"]
+    assert tool.authored_objection(repo, "lib/fresh.py", held) is not None
+    monkeypatch.setattr(tool, "EMBED_EXEMPT", {("lib/fresh.py", "lib/vendored.py"): "test embed"})
+    assert tool.authored_objection(repo, "lib/fresh.py", held) is None
+    still = tool.authored_objection(repo, "lib/fresh.py", [*held, "lib/second.py"])
+    assert still is not None
+    assert "lib/second.py" in still
+    # Another authored path gains nothing from the pair.
+    _stage(repo, "lib/third.py", VENDORED_BYTES)
+    assert tool.authored_objection(repo, "lib/third.py", held) is not None
+
+
+def test_the_shipped_embed_exemptions_are_exact_pairs_with_reasons(tool: ModuleType) -> None:
+    pairs = dict(tool.EMBED_EXEMPT)
+    assert pairs, "the tool ships no embed exemption, so this arm graded nothing"
+    for (authored, vendored), reason in pairs.items():
+        assert "*" not in authored + vendored, "an embed exemption is a pair, never a pattern"
+        assert authored != vendored
+        assert reason.strip()
+
+
 def test_overlap_score_is_exact_and_uses_the_vendored_denominator(tool: ModuleType) -> None:
     # The branded header is itself a long line, so the denominator is eleven.
     five = ("\n".join(["short", *VENDORED_LINES[:5]]) + "\n").encode()

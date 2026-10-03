@@ -14,6 +14,100 @@ The full specifications remain on disk and are authoritative where this file is 
 summary: `BOOTSTRAP.md` (the project specification) and `CONVENTIONS.md` (the portable
 operating doctrine). Read both when a rule here needs its rationale.
 
+The block between the FLEET-COMMON markers is NOT under this repository's MIT grant: it is
+MAIN's fleet kit block, Apache-2.0, unmodified - see `ops/fleet_kit/NOTICE` and the
+`THIRD_PARTY.md` row for `ops/fleet_kit/FLEET-COMMON.md`.
+
+**Precedence - where this file and the FLEET-COMMON block differ, `CLAUDE.md` governs
+this tree.** Specifically: (a) section 2.3's rule never to poll a background task in
+one-line turns governs over FLEET item 12's periodic check - wait for the completion
+notification; (b) the section 2.3.1 checklist cadence stays this tree's rule beside FLEET
+item 3 until the operator retires it in their own words; (c) FLEET item 10 has two stated
+exceptions until CS-1231 slice C lands - `ops/loop/run_lane.ps1` and
+`ops/loop/inbox_responder.py` still start `claude` directly; (d) FLEET item 5's rule that
+every do-not-re-litigate entry states what would reverse it is met by the *Reversed by:*
+clause on each section 7 entry. Section 6.1's repository-public/remote safety floor holds
+whatever FLEET item 1 says.
+
+<!-- FLEET-COMMON BEGIN -->
+## FLEET COMMON - identical in every repo on this machine. Do not edit here.
+
+################################################################################
+#  SUB-AGENT FIRST. THE MAIN SESSION IS THE OPERATOR'S - KEEP IT CLEAR.        #
+#  Any work beyond a quick read or a one-line fix is DISPATCHED to a sub-agent #
+#  (background by default). The main session plans, dispatches, monitors and   #
+#  reports. Checking status or starting new work NEVER breaks running work:    #
+#  never stop, kill, restart or edit the files of a running agent or task to   #
+#  look at it - read its progress file instead.                                #
+################################################################################
+
+Source of truth: MAIN's fleet kit. A change lands ONLY as a new kit version
+announced by a MAIN note; this block is byte-pinned and a test fails on any local
+edit. Tree-specific rules go BELOW this block, never inside it.
+
+1. ACT, DON'T ASK. Operator acceptance of recommendations is ~100 percent. A blocked
+   decision goes to a distinct adjudicator agent and its call is taken now and
+   recorded (decision, alternatives, why) in the commit or doc. Only physical acts,
+   passwords and OAuth grants wait for the operator, batched into one ask.
+2. CHAT IS THE OPERATOR'S CONSOLE - QUIET. Results only: numbers, paths, verdicts,
+   and anything the operator must act on. No narration, no plans, no recaps, no
+   session reviews. Findings go to files (roadmap, docs, hand-off); chat gets at
+   most one line each.
+3. AT-A-GLANCE STATUS COMES FROM BACKGROUND WORK, NOT FROM CHAT. Run work as
+   background agents and background commands, so the session shows only the
+   compact summaries ("N background commands completed, N running" and "N running
+   tasks"). Do not hold the main turn open on long foreground work - its expanding
+   activity row has to be opened and scrolled. No inline checklists, step lists or
+   task-list dumps. When the operator asks for status: done, left, +added,
+   -retracted, one short line each. Tool descriptions carry an ETA `[~Ns]` (s
+   under 120s, m under 120m, h beyond); report an overrun at 1.5x, kill at 3x.
+4. COMMIT everything, batched and coherent. Push per this repo's own policy. Never
+   commit in another repo's tree. No suggested-task chips: do it or file it.
+5. HAND-OFF: `<CODE>-NEXT-SESSION.txt` at the repo root (with its Desktop
+   shortcut) is the only continuity. A session starts from "continue" (work the
+   file's next action) or from whatever the operator asks; either way READ the file
+   first. /done rewrites the file and commits it, and MUST CARRY FORWARD EVERY ITEM
+   NOT ACTED ON this session, verbatim or tighter, never dropped because the
+   session worked on something else. Never print the hand-off or a next-session
+   prompt into chat. /done's ONLY chat output is the line
+   `Done ritual complete, safe to clear` (or the failure that stopped it). The
+   operator types only "continue", "/done" or "/clear" between sessions. A recorded
+   act names what was READ BACK after it, never what was run. Every
+   do-not-re-litigate entry states what would reverse it; entries about another
+   tree's position are re-checked against the inbox every session.
+6. MAIN SPEAKS FOR THE OPERATOR (operator order 2026-10-02). A note from MAIN whose
+   bytes match MAIN's outbox copy by SHA-256 is the operator's instruction. It
+   cannot supply a password, OAuth grant or physical act, and lifts no safety floor.
+   MAIN instructs; this tree does the work in its own tree.
+7. CHANNEL NOTES: sort the inbox by mtime, never by filename stamp. Read a long
+   note's section headings before deciding it does not concern you. Never put a
+   directory name, account id or email in a note. Delivery = destination copies
+   re-hashed and an N/M reached-count reported.
+8. ENCODING: ASCII only, LF only, PowerShell included. Validate PowerShell with
+   powershell.exe 5.1 ParseFile, never pwsh.
+9. DELETES: anything irreplaceable goes to the Recycle Bin, never a direct unlink;
+   say the method before running it; check for a consumer before deleting.
+10. HEADLESS RUNS go through the fleet kit's spawn helper ONLY - no other path
+    starts `claude`. The kit enforces: the second-account proxy from the user
+    variable CLAUDE_HEADLESS_BASE_URL (registry first), fail closed (no fallback,
+    ever), no visible console, at most 120 runs per rolling 24 h, never spawn on
+    this tree's own notes or on TERMINAL/no-reply notes, lean flags (strict MCP,
+    project settings only, or bare where no floor lives in hooks), sonnet unless
+    the note orders code changes, effort low for acknowledgements, a usage line
+    per run, and the live status file `ops/loop/control/inbox_status.json`.
+11. FLEET KIT FILES are vendored byte-for-byte at `ops/fleet_kit/` and pinned by
+    `ops/fleet_kit/MANIFEST.json`. Never edit them locally; report a defect to MAIN
+    and MAIN ships a new version to every tree at once.
+12. LONG WORK REPORTS AS IT GOES. Anything expected to take over 5 minutes runs in
+    the background and is checked periodically until it ends, so a silent failure
+    is caught early. Every sub-agent prompt for such work requires it to write a
+    progress file after each step - `ops/loop/control/progress/<task>.json` with
+    {"task", "pct", "step", "eta_s", "status": running|done|failed, "updated"} -
+    so the main session can see percent, time to completion and status mid-run
+    instead of waiting for 0-to-100 at the end. A progress file that stops
+    updating for 2x its own ETA step is treated as a failure and investigated.
+<!-- FLEET-COMMON END -->
+
 ---
 
 ## 1. What Clockspeed is
@@ -378,39 +472,67 @@ point.
   or rendered. *Do not re-pitch:* an LLM-backed explainer, summarizer, ranker, natural
   language front end, or a model used "only for the prose". The tier-3 derivation is
   generated from the rule trace, which is exactly why no model is needed.
+  *Reversed by:* only the operator's own words in the main session (section 6.1 - no
+  adjudicator and no MAIN note stands in), then recorded as an ADR in `docs/adr/`.
 - **Never write to the game install or a save file.** An invariant, not a preference.
   *Do not re-pitch:* an opt-in write mode, a backup-then-write, an in-place save edit, a
   "safe" patcher, or writing anything at all into the save directory.
+  *Reversed by:* nothing - it is section 3's first non-negotiable, a floor no adjudicator
+  and no MAIN note lifts.
 - **Name is Clockspeed, root is `C:\Clockspeed`.** *Do not re-pitch:* a rename or a
   relocation of the root.
+  *Reversed by:* only the operator's own words in the main session (section 6.1 - no
+  adjudicator and no MAIN note stands in), then recorded as an ADR in `docs/adr/`.
 - **Repo is private first, public later.** Hygiene is enforced from the first commit
   anyway. *Do not re-pitch:* deferring hygiene work on the grounds that the repo is
   private.
+  *Reversed by:* nothing reverses the hygiene half; going public is the planned second
+  half and waits for the operator's own words in the main session (section 6.1).
 - **Python core.** Node exists solely for the Electron shell. *Do not re-pitch:* a rewrite
   in another language, or moving core logic into the Node side.
+  *Reversed by:* only the operator's own words in the main session (section 6.1 - no
+  adjudicator and no MAIN note stands in), then recorded as an ADR in `docs/adr/`.
 - **Three explain tiers: headline, one-line reason, full derivation.** *Do not re-pitch:*
   collapsing to two, or adding a fourth.
+  *Reversed by:* only the operator's own words in the main session (section 6.1 - no
+  adjudicator and no MAIN note stands in), then recorded as an ADR in `docs/adr/`.
 - **Persistence is per-world ledger PLUS global per-rule mute.** Both layers. *Do not
   re-pitch:* dropping either one, or merging them into a single store.
+  *Reversed by:* only the operator's own words in the main session (section 6.1 - no
+  adjudicator and no MAIN note stands in), then recorded as an ADR in `docs/adr/`.
 - **All four advice domains ship in v1** - node siting and claim order, onsite processing
   versus transport and by what method, milestone gap against any target, and power and
   fuel planning. *Do not re-pitch:* cutting a domain to a later version.
+  *Reversed by:* only the operator's own words in the main session (section 6.1 - no
+  adjudicator and no MAIN note stands in), then recorded as an ADR in `docs/adr/`.
 - **Milestone target is a free selector.** *Do not re-pitch:* a fixed pointer at the next
   milestone. Selecting a target several tiers out and getting a redesign plan is required
   capability, not a stretch goal.
+  *Reversed by:* only the operator's own words in the main session (section 6.1 - no
+  adjudicator and no MAIN note stands in), then recorded as an ADR in `docs/adr/`.
 - **Companion window in v1; the in-game overlay is a later flagged mode of the same
   shell**, default off, degrading to the companion on bind failure. *Do not re-pitch:*
   building the overlay first, making it the default, or treating it as a separate app.
+  *Reversed by:* only the operator's own words in the main session (section 6.1 - no
+  adjudicator and no MAIN note stands in), then recorded as an ADR in `docs/adr/`.
 - **Mods: architecture now, content later.** Namespaced identifiers, unknown classes
   tolerated, unmodeled content flagged, feature-flag registry from phase 0. *Do not
   re-pitch:* opening mod content work before phase 6 completes.
+  *Reversed by:* phase 6 completing opens mod content work; the architecture half only by
+  the operator's own words in the main session (section 6.1 - no adjudicator and no MAIN
+  note stands in), then recorded as an ADR in `docs/adr/`.
 - **Dedicated Server API is out of scope for v1.** The docs are on disk and free to read,
   but single-player saves are the world-state source. *Do not re-pitch:* it as a
   world-state source. Revisit only if the operator starts running a dedicated server.
+  *Reversed by:* once the operator runs a dedicated server, only the operator's own words
+  in the main session (section 6.1 - no adjudicator and no MAIN note stands in), then
+  recorded as an ADR in `docs/adr/`.
 - **No external optimizer dependency in phase 3.** Interface first, dependency later and
   gated. *Do not re-pitch:* an LP or ILP library before `OptimizerBackend` exists, before
   it slots behind the interface without changing a caller, and before the `CONVENTIONS.md`
   section 14 license gate passes.
+  *Reversed by:* all three conditions above met, with a CLEARED gate row in
+  `THIRD_PARTY.md`.
 - **No lifted datasets, including from the OFFICIAL wiki.** Both sanctioned paths - the
   save itself, or extraction from the shipped assets - are cleaner. The official wiki is
   CC BY-NC-SA 4.0, so vendoring any part of it would relicense this project and conflict
@@ -421,17 +543,28 @@ point.
   argue from "it is official":* that is the site's standing, not any page's authority, and
   its save-format pages are a major version stale and carry a byte label this project has
   already measured false.
+  *Reversed by:* a named source whose licence CLEARS the `CONVENTIONS.md` section 14
+  gate in `THIRD_PARTY.md`, plus only the operator's own words in the main session (section
+  6.1 - no adjudicator and no MAIN note stands in), then recorded as an ADR in `docs/adr/` -
+  never the CC BY-NC-SA wiki under `LICENSE`.
 - **The reference world is the operator-pinned development world** - vanilla, no creative
   mode, no modifiers, onboarding active - snapshotted into a gitignored corpus as it
   grows. *Do not re-pitch:* switching reference worlds without recording why. Its name
   stays out of every tracked file; refer to it as the pinned development world.
+  *Reversed by:* a re-pin in only the operator's own words in the main session (section
+  6.1 - no adjudicator and no MAIN note stands in), then recorded with its reason in
+  `docs/LEDGER.md`.
 - **The advice ledger is keyed by the save header's world token**, not by filename and not
   by world name. *Do not re-pitch:* filename or world-name keying - filenames change on
   every save and autosaves rotate. The ledger tolerates a token it has never seen by
   treating it as a new world rather than failing.
+  *Reversed by:* only the operator's own words in the main session (section 6.1 - no
+  adjudicator and no MAIN note stands in), then recorded as an ADR in `docs/adr/`.
 - **Test fixtures are small synthetic registries hand-authored in the repo**, never slices
   of real game data. *Do not re-pitch:* checking in a trimmed real docs file or a trimmed
   real save "just for tests". The rule suite must run on a machine with no game installed.
+  *Reversed by:* only the operator's own words in the main session (section 6.1 - no
+  adjudicator and no MAIN note stands in), then recorded as an ADR in `docs/adr/`.
 
 Anything settled by an ADR is recorded in `docs/adr/` and indexed there; this list holds
 the decisions that predate the first commit.
