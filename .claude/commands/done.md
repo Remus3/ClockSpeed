@@ -5,8 +5,10 @@ argument-hint: [item ids, e.g. CS-041 CS-042]
 
 # /done - end-of-session ritual
 
-Run EVERY step. Do not skip a step because it "looks clean". Report the observed result of
-each one. Items: $ARGUMENTS
+Run EVERY step. Do not skip a step because it "looks clean". Record the observed result of
+each one in the ledger and the hand-off file - NOT in chat. FLEET-COMMON item 5: the ONLY
+chat output of this ritual is the line `Done ritual complete, safe to clear`, or the
+failure that stopped it. Items: $ARGUMENTS
 
 ## 0. Preconditions
 
@@ -100,6 +102,9 @@ the dominant failure mode, and this prompt is the defence against it.
 It must be complete and self-contained - the operator pastes it into a cold session with no
 other context. WHAT GOES IN IT:
 
+- [ ] READ the current `CS-NEXT-SESSION.txt` FIRST. CARRY FORWARD EVERY ITEM in it that
+      this session did NOT act on, verbatim or tighter. An item is never dropped because
+      the session worked on something else - FLEET-COMMON item 5.
 - [ ] What this session closed, by item ID, one line each.
 - [ ] The exact state of anything left half-done, including which files are dirty.
 - [ ] The single next action, stated as an imperative.
@@ -133,11 +138,16 @@ it without finding the session it came from.
 - [ ] CONFIRM the Desktop shortcut still resolves: `CS-NEXT-SESSION.lnk` must target
       `C:\Clockspeed\CS-NEXT-SESSION.txt`. A shortcut that lost its target is a handoff that
       silently stopped being delivered, and nothing else in the ritual would notice.
-- [ ] In the chat, say the PATH in one line and nothing more. Do NOT also paste the prompt
-      into a fence - the transcript is a cost (CLAUDE.md 2.3) and the file is the mechanism.
+- [ ] NEVER print the hand-off, its path, or a next-session prompt into chat. The file and
+      its shortcut are the mechanism; the operator starts the next session with "continue".
 
-## 9. Final report
+## 9. Final report - in the hand-off file, never in chat
 
-State, in one block: the suite command and exit code, the counts observed this run, the
-commit SHA, the push result, the drift guard exit codes, the CI status you READ, and
-anything you could not verify - labelled unverified rather than rounded up to done.
+Write into `CS-NEXT-SESSION.txt`: the suite command and exit code, the counts observed this
+run, the commit SHA, the push result, the drift guard exit codes, the CI status you READ,
+and anything you could not verify - labelled unverified rather than rounded up to done.
+Then commit it, and print exactly one chat line and nothing else:
+
+    Done ritual complete, safe to clear
+
+If a step failed and stopped the ritual, print that failure instead of the line.

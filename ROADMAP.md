@@ -344,3 +344,4 @@ CS-1208 - a personal value the hook allowlist lets a program read can still reac
 CS-1228 - the nightly tier2 full suite is shallow-checked-out and its windows legs outrun a 30-minute cutoff, so the lane has not been green since 2026-09-24 - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1229 - the tier2 full suite is one job per OS, so suite growth outruns its measured cutoff within days - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1230 - `tools/flip_checks.py` names a child tool and a clone source by a path relative to the cwd, which raises across Windows drives - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
+CS-1231 - adopt MAIN's FLEET-KIT v3 (vendor the kit, embed the common block in a condensed CLAUDE.md, route every headless spawn through it); held at the licence gate - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`

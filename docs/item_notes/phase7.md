@@ -1524,3 +1524,33 @@ C:, so `os.path.relpath(tool, cwd)` in `_tool_argv` raised `ValueError: path is 
 'D:', start on mount 'C:'` in `test_the_licence_control_adds_a_finding_over_the_real_inputs`.
 `clone_at` has the same call. The relative spelling exists so that no argv carries a home
 path; the repair must keep that property.
+
+## CS-1231
+
+### Acceptance
+
+`ops/fleet_kit/` holds MAIN's current FLEET-KIT files byte-for-byte with a CLEARED
+`THIRD_PARTY.md` row each, the gate dated before the lift; `CLAUDE.md` embeds the common
+block between its markers and `fleet_headless.conformance(repo_root) == []` runs in the
+suite; every headless spawn in this tree goes through the kit's `spawn`, or the reply to
+MAIN names each path left out and why; MAIN's directives are still verified by
+`tools/main_provenance.py`, the kit's `verify_main` being weaker than section 6.1.
+
+### Full headline
+
+adopt MAIN's FLEET-KIT v3 (vendor the kit, embed the common block in a condensed
+CLAUDE.md, route every headless spawn through it); held at the licence gate
+
+### FILED 2026-10-03, from MAIN's verified orders 0955, 1014 and 1016
+
+Two slices are built and parked on their branches, unmerged: the vendoring with its guard
+exemptions, and the condensed `CLAUDE.md` with the block embedded. Both HOLD at the
+`THIRD_PARTY.md` section 14 gate: an adjudicator ruled the licence must be read before the
+lift (an operator instruction moves the decision, not the gate), and MAIN's commit
+holding the kit carries no LICENSE, NOTICE or manifest and no licence paragraph in its
+README. The adjudicator's fallback is to hold and ask MAIN for a licence. The `/done`
+command change the v2 order asked for is this tree's own text and landed separately.
+Gaps reported to MAIN: `verify_main` hashes MAIN's working tree only; `claude_exe`
+resolves through `shutil.which`; `check_url` admits any loopback port where CS-1225 pins
+one.
+
