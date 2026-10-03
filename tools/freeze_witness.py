@@ -104,7 +104,16 @@ _GIT_RELOCATING = frozenset(
 
 
 class WitnessError(Exception):
-    """A refusal: git could not answer, or a record does not parse."""
+    """A refusal: git could not answer, or a record does not parse.
+
+    ``reason`` is the authored refusal text and is what gets printed - never the
+    exception object itself (CLAUDE.md non-negotiable 12).
+    """
+
+    def __init__(self, reason: str) -> None:
+        """Keep the authored text as the printable field."""
+        super().__init__(reason)
+        self.reason = reason
 
 
 def _git_env() -> dict[str, str]:
@@ -295,7 +304,7 @@ def main(argv: list[str] | None = None) -> int:
         recorded = load_record(args.record)
         findings = compare(recorded, freeze(root))
     except WitnessError as exc:
-        print(f"freeze_witness: refused - {exc}", file=sys.stderr)
+        print(f"freeze_witness: refused - {exc.reason}", file=sys.stderr)
         return 2
     if findings:
         print("MOVED - a verdict taken over this candidate covers no recorded state")
