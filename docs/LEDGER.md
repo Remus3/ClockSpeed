@@ -75,6 +75,20 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-10-03 - CS-1231 - section 14 gate RUN on FLEET-KIT v4 - CLEARED, before the lift (gate record; the item stays OPEN)
+Verification: the five kit files of MAIN's 2026-10-03 12:04 ORDER bundle (MANIFEST.json,
+FLEET-COMMON.md, fleet_headless.py, LICENSE, NOTICE), each sha256 equal to the ORDER
+note's list and to the manifest; the ORDER note itself verified by `tools/main_provenance.py`. An adjudicator
+that built nothing read LICENSE (the complete Apache-2.0 text, one leading blank line the
+only difference from a known-good copy), NOTICE (scopes the grant to every manifest file
+AND the block each tree embeds in `CLAUDE.md`) and the SPDX line of `fleet_headless.py`.
+Verdict CLEARED for vendoring at `ops/fleet_kit/` and for the `CLAUDE.md` embed:
+permissive, one-way compatible with this tree's licence, unmodified so no change
+statement, LICENSE and NOTICE retained. The holder is named BY ROLE, `the operator`;
+that it is the same person as the `Moonbeam` holder of other rows is UNVERIFIED and is
+recorded so. Five `THIRD_PARTY.md` Vendored-files rows land IN the lift commit, which is
+this entry's child. Supersedes the session-120 HOLD on v3, which carried no licence.
+
 ### 2026-10-03 - CS-1224 - the sha citation gate grades code files, every 5-6 character run, and every encoding it reads
 Verification: `tools/sha_citation_gate.py`, tests `tests/test_sha_citation_gate.py`. Every
 tracked file outside `*.md` and `*.txt` is read, and a 7-40 hex run there is red when it
