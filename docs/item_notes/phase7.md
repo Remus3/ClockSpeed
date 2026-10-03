@@ -1423,43 +1423,6 @@ A private-tree commit whose `[tool.ruff]` table named an `extend` path ruff coul
 resolve printed the gate's PASS line; the gate discards ruff's stderr, so the failure
 was silent.
 
-## CS-1224
-
-### Acceptance
-
-`tools/sha_citation_gate.py` grades commit citations it currently cannot see. A tracked
-`.py` file - and any other tracked text the published inclusion rule is widened to -
-that cites an unpublished commit turns the gate red; and a 5- or 6-character hex
-abbreviation, or a hex run of 41 or more characters, that names an unpublished commit
-turns it red too, OR the gate states on every run each width class it does not judge
-and why, so an empty result in that class is never read as a pass. The two unpublished
-commits cited in code today - in the CS-971 comment above
-`_ROADMAP_ACCEPTANCE_SEPARATOR` in `tools/drift_guard.py`, and in three `RED at`
-docstrings in `tests/test_pre_push_suite_floor.py` - are rewritten to cite their item
-IDs. Shown by arms red first: one that plants an unpublished commit abbreviation in a
-temp copy of a tracked `.py` file and asserts the refusal, and one that plants a
-6-character unpublished abbreviation in a temp copy of a guarded doc and asserts the
-refusal or the stated non-judgement; a control in each shows a published commit passes.
-
-### Full headline
-
-commit citations outside `.md` and `.txt`, and hex runs under 7 or over 40 characters,
-are ungraded by the sha citation gate
-
-### FILED 2026-10-02, a residual of CS-1222 recorded at its close (session 119)
-
-`DOC_PATHSPECS` in `tools/sha_citation_gate.py` is `*.md` and `*.txt`, and both of its
-run patterns match 7 to 40 hex characters. So the gate passes while two commits that
-resolve in the local store and are reachable from neither HEAD nor any tag - measured
-this session with `git merge-base --is-ancestor` and `git tag --contains` - are cited in
-`.py` code at the two sites the acceptance names. git accepts an abbreviation down to 4
-characters, so a 5- or 6-character citation can resolve and is never graded; a run of 41
-or more is neither admitted nor resolved. The final CS-1222 adversary found no escape
-INSIDE the stated inclusion rule; this item is the population that rule does not cover.
-Widening to short abbreviations has a known cost the item must answer rather than
-ignore: ordinary hex-letter words and decimal-like runs collide far more often at 5 and
-6 characters than at 7.
-
 ## CS-1228
 
 ### Acceptance

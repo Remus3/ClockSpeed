@@ -75,6 +75,19 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-10-03 - CS-1224 - the sha citation gate grades code files, every 5-6 character run, and every encoding it reads
+Verification: `tools/sha_citation_gate.py`, tests `tests/test_sha_citation_gate.py`. Every
+tracked file outside `*.md` and `*.txt` is read, and a 7-40 hex run there is red when it
+names an unpublished commit; 5-6 character runs of every shape are judged in every
+tracked file; a run git calls ambiguous is red when any candidate peels to an unpublished
+commit. Only the 4-character and 41-or-more classes are not judged, each printed every run
+with its measured reason. A file that cannot be read is COULD NOT JUDGE (exit 2), never a
+pass, and an unpublished finding outranks it. A BOM file is graded through a raw byte view
+and decoded strictly. The code citations of unpublished commits in `tools/drift_guard.py`,
+`tests/test_pre_push_suite_floor.py` and `tests/data/test_item_notes_index.py` now cite
+item IDs. Five adversary rounds refuted and were repaired; round five returned NOT
+REFUTED. RESIDUAL: a citation of a commit this store does not hold is not caught.
+
 ### 2026-10-03 - CS-1223 - the measurement record pins its seed escape by row and checks a local clean witness
 Verification: `tools/measurement_record.py`, tests `tests/test_measurement_record.py`. The
 `unwitnessed` escape is held only by the sixteen rows present when CS-1220 landed, pinned
