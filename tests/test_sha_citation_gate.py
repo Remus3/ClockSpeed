@@ -39,8 +39,10 @@ exclusions are an ALLOWLIST of exact tokens; no shape excludes anything. Arms:
   not judge, with its count and the reason; UTF-16 and UTF-32 files behind a
   BOM are decoded and judged, a doc with a stray Latin-1 byte is still graded,
   a NUL-bearing or undecodable file is counted not-read and makes the run
-  COULD NOT JUDGE, and a 5-run two commits answer is counted ambiguous and is
-  red when a candidate is unpublished.
+  COULD NOT JUDGE unless an unpublished finding outranks it, a BOM over 8-bit
+  text still yields its ASCII citation through the byte view, and a 5-run
+  git calls ambiguous - two commits, or a commit and a tag at it - is counted
+  and is red when a candidate is unpublished.
 * THE LIVE ARM runs the gate over this tree and FAILS - never skips - when the
   tree is shallow or has no origin/main and no tag, and fails on an unused
   table row.
@@ -830,6 +832,96 @@ def test_an_ambiguous_short_run_of_published_commits_is_counted(code_repo: Repo)
     done = cli(code_repo)
     assert done.returncode == gate.EXIT_CLEAN, done.stdout + done.stderr
     assert _ambiguous(done.stdout) == 1
+
+
+def colliding_tag(repo: Repo, commit: str, width: int = 5) -> str:
+    """A tag object pointing at ``commit`` whose ``width``-prefix equals the commit's."""
+    for attempt in range(1 << 26):
+        body = (
+            f"object {commit}\ntype commit\ntag cs1224-{attempt}\n"
+            "tagger Synthetic <synthetic@example.invalid> 1700000000 +0000\n\nx\n"
+        ).encode("ascii")
+        sha = hashlib.sha1(b"tag %d\x00" % len(body) + body, usedforsecurity=False)
+        if sha.hexdigest()[:width] == commit[:width]:
+            done = subprocess.run(
+                ["git", "hash-object", "-t", "tag", "-w", "--stdin"],
+                cwd=repo.path,
+                env=repo.env,
+                input=body,
+                capture_output=True,
+                timeout=TIMEOUT,
+                check=True,
+            )
+            written = done.stdout.decode("ascii").strip()
+            assert written == sha.hexdigest()
+            return written
+    message = "no colliding tag found"
+    raise AssertionError(message)
+
+
+def test_an_ambiguous_run_peeling_to_one_unpublished_commit_is_refused(code_repo: Repo) -> None:
+    """A commit and a dangling tag at it share a 5-prefix: ONE peeled commit, still red."""
+    side = commit_where(code_repo, lambda sha: _carries_both(sha[:5]), "refs/heads/side")
+    colliding_tag(code_repo, side)
+    line = plant(code_repo, f"Landed as commit `{side[:5]}` on the merge.")
+    done = cli(code_repo)
+    assert done.returncode == gate.EXIT_UNRESOLVED, done.stdout + done.stderr
+    assert _ambiguous(done.stdout) == 1
+    assert f"ambiguous-unpublished {GUARDED_DOC}:{line} {side[:5]} " in done.stdout
+
+
+def _even(data: bytes) -> bytes:
+    """``data`` padded with one space, when needed, so it decodes cleanly as UTF-16."""
+    return data if len(data) % 2 == 0 else data + b" "
+
+
+@pytest.mark.parametrize("shape", ["bom-8bit-doc", "bom-8bit-code", "utf16-plus-ascii"])
+def test_a_bom_file_whose_bytes_carry_an_ascii_citation_is_judged(
+    tmp_path: Path, shape: str
+) -> None:
+    """A UTF-16 BOM over 8-bit text decodes as CJK; the byte view still finds the citation."""
+    made = _make(tmp_path, GUARDED_DOC, CODE_FILE, UTF16_FILE)
+    head = made.git("rev-parse", "HEAD")
+    side = commit_where(made, lambda sha: _carries_both(sha[:7]), "refs/heads/side")
+    cite = f"\n# Landed as commit `{side[:7]}` on the merge.\n".encode("ascii")
+    if shape == "utf16-plus-ascii":
+        target = UTF16_FILE
+        text = (REPO_ROOT / UTF16_FILE).read_bytes().decode("utf-8")
+        body = _even(text.encode("utf-16") + cite)
+        plant(made, f"Landed as `{head}`.")
+    else:
+        target = GUARDED_DOC if shape == "bom-8bit-doc" else CODE_FILE
+        original = (made.path / target).read_bytes()
+        if target == GUARDED_DOC:
+            original += f"\nLanded as `{head}`.\n".encode("ascii")
+        else:
+            plant(made, f"Landed as `{head}`.")
+        body = _even(b"\xff\xfe" + original + cite)
+    (made.path / target).write_bytes(body)
+    assert body.decode("utf-16", errors="replace").count(side[:7]) == 0
+    done = cli(made)
+    assert done.returncode == gate.EXIT_UNRESOLVED, done.stdout + done.stderr
+    assert side[:7] in done.stdout
+    assert _not_read(done.stdout) == 0
+
+
+def test_an_unpublished_run_beside_a_not_read_file_reports_both_and_exits_one(
+    code_repo: Repo,
+) -> None:
+    """Precedence: the unpublished finding is exit 1, and the not-read file is still printed."""
+    side = commit_where(code_repo, lambda sha: _carries_both(sha[:7]), "refs/heads/side")
+    plant(code_repo, f"Landed as commit `{side[:7]}` on the merge.")
+    (code_repo.path / CODE_FILE).write_bytes(b"\x00binary\x00")
+    done = cli(code_repo)
+    assert done.returncode == gate.EXIT_UNRESOLVED, done.stdout + done.stderr
+    assert f"{side[:7]} unpublished" in done.stdout
+    assert _not_read(done.stdout) == 1
+    assert "ALSO COULD NOT JUDGE - 1 tracked file not read" in done.stdout
+
+
+def test_the_inclusion_rule_states_the_not_read_precedence() -> None:
+    """The published rule says an unpublished finding outranks a not-read file."""
+    assert "an unpublished finding outranks it" in gate.INCLUSION_RULE
 
 
 def test_a_run_over_forty_holding_an_unpublished_sha_is_stated_not_judged(

@@ -34,7 +34,10 @@ candidate is unpublished. A tracked file is decoded as UTF-32 or UTF-16 behind
 a byte-order mark (UTF-32 first, since its mark opens with UTF-16's), else as
 UTF-8 with replacement; one that is absent or carries a NUL is NOT READ, every
 run prints that count and each such path, and any such file makes the run
-COULD NOT JUDGE - a file dropping out is never a pass. All three
+COULD NOT JUDGE - a file dropping out is never a pass - unless an unpublished
+finding makes it FAIL, which outranks it and prints both. A BOM-marked file is
+scanned decoded AND as raw latin-1 bytes, and the runs are the union, because
+8-bit text behind a stray mark decodes as CJK with every hex run gone. All three
 resolved-only populations share the blind spot above, and the overreach
 control and the allowlist apply to doc tokens only.
 
@@ -111,7 +114,7 @@ import os
 import re
 import subprocess
 import sys
-from collections.abc import Callable, Mapping, Sequence
+from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Final
@@ -165,9 +168,11 @@ INCLUSION_RULE: Final = (
     "citations there. Every run of 5 or 6 hex characters of any case, joined to anything, "
     "in any tracked file, is resolved the same way too, and one that more than one commit "
     "answers is red when any candidate is unpublished. A tracked file is read as UTF-32 or "
-    "UTF-16 behind a byte-order mark, else as UTF-8 with replacement; one absent or "
-    "carrying a NUL is NOT READ, its count is stated on every run, and any such file "
-    "makes the run COULD NOT JUDGE. NOT JUDGED, stated "
+    "UTF-16 behind a byte-order mark - scanned both decoded and as raw bytes, the union "
+    "of the two - else as UTF-8 with replacement; one absent or carrying a NUL is NOT "
+    "READ, its count is stated on every run, and any such file makes the run COULD NOT "
+    "JUDGE, except that an unpublished finding outranks it: that run exits 1 and prints "
+    "both. NOT JUDGED, stated "
     "with a count on every run: a 4-character run and a run of 41 or more - see each "
     "not-judged line for why"
 )
@@ -209,7 +214,8 @@ _NOT_JUDGED_RUNS: Final[dict[str, re.Pattern[str]]] = {
 NOT_READ_REASON: Final = (
     "tracked files absent from the work tree, or carrying a NUL once decoded (UTF-32 or "
     "UTF-16 behind a byte-order mark, else UTF-8 with replacement), are binary or "
-    "missing to this reader; any such file makes the run COULD NOT JUDGE, never a pass"
+    "missing to this reader; any such file makes the run COULD NOT JUDGE, never a pass, "
+    "unless an unpublished finding makes it FAIL"
 )
 
 #: The byte-order marks that make a tracked file read as UTF-32, tested first.
@@ -476,22 +482,38 @@ def count_not_judged(text: str) -> dict[str, int]:
     return {name: len(pattern.findall(text)) for name, pattern in _NOT_JUDGED_RUNS.items()}
 
 
-def decode_tracked(raw: bytes) -> str | None:
-    """A tracked file's text, or None when this reader cannot judge it - CS-1224.
+def tracked_views(raw: bytes) -> list[str] | None:
+    """The views of a tracked file that are scanned, or None when it is not read - CS-1224.
 
     A UTF-32 byte-order mark is tested FIRST, because the little-endian one
-    opens with the UTF-16 one; then UTF-16; then strict UTF-8 (a UTF-8 BOM is
-    dropped). A file none of those decode falls back to UTF-8 with replacement,
-    so one stray Latin-1 byte still leaves the rest graded. Whatever path
-    decoded it, text carrying a NUL is binary to this reader: None.
+    opens with the UTF-16 one; then UTF-16. A BOM-marked file is scanned in TWO
+    views and the runs are their union: the decoded text, which finds a real
+    UTF-16 file's citations, and the raw bytes read as latin-1, which finds an
+    ASCII citation in 8-bit text behind a stray mark - such text decodes
+    cleanly as UTF-16 into CJK, where every hex run vanishes. Anything else is
+    strict UTF-8 (a UTF-8 BOM is dropped), falling back to UTF-8 with
+    replacement, so one stray Latin-1 byte still leaves the rest graded.
+    Whatever path decoded it, decoded text carrying a NUL is binary: None.
     """
     for boms, codec in ((_UTF32_BOMS, "utf-32"), (_UTF16_BOMS, "utf-16")):
         if raw.startswith(boms):
-            try:
-                text = raw.decode(codec)
-            except UnicodeDecodeError:
-                return None
-            return None if "\0" in text else text
+            text = raw.decode(codec, errors="replace")
+            return None if "\0" in text else [text, raw.decode("latin-1")]
+    plain = decode_tracked(raw)
+    return None if plain is None else [plain]
+
+
+def _union(found: Iterable[list[Occurrence]]) -> list[Occurrence]:
+    """Every occurrence across a file's views, each (line, token, rule) once, in order."""
+    merged: dict[tuple[int, str, str | None], Occurrence] = {}
+    for entries in found:
+        for entry in entries:
+            merged.setdefault((entry.line, entry.token, entry.rule), entry)
+    return list(merged.values())
+
+
+def decode_tracked(raw: bytes) -> str | None:
+    """A non-BOM tracked file's UTF-8 text, or None when it carries a NUL."""
     try:
         text = raw.decode("utf-8-sig")
     except UnicodeDecodeError:
@@ -537,7 +559,9 @@ def resolve_batch(
     ``<run>^{commit}`` answers ``missing`` for a run two commits share, exactly
     as for an absent one, so each missing run is asked again bare: an
     ``ambiguous`` answer there is listed with ``rev-parse --disambiguate`` and
-    peeled, and the run is ambiguous when two or more commits remain.
+    peeled, and the run is ambiguous when ANY commit remains - a commit and a
+    tag object at it share a prefix and peel to one commit, which is still
+    ambiguous to git and is still red when that commit is unpublished.
 
     Returns:
         Each token mapped to its one commit or None, and each commit-ambiguous
@@ -551,7 +575,7 @@ def resolve_batch(
     if missing:
         bare = _batch_check(repo, [token.lower() for token in missing])
         for token, fields in zip(missing, bare, strict=True):
-            if fields[1:2] == ["ambiguous"] and len(found := candidate_commits(repo, token)) > 1:
+            if fields[1:2] == ["ambiguous"] and (found := candidate_commits(repo, token)):
                 ambiguous[token] = found
     return resolved, ambiguous
 
@@ -704,8 +728,12 @@ class SweepReport:
         return sorted(token for token in self.allowlist if token not in seen)
 
     def verdict(self) -> int:
-        """Exit 2 when nothing can be judged, 1 on a failure, else 0."""
-        if self.shallow or not self.published_refs or not self.admitted or self.not_read:
+        """Exit 2 when nothing can be judged, 1 on a failure, else 0.
+
+        A not-read file is exit 2 only when nothing else failed: an unpublished
+        finding outranks it, and both are printed.
+        """
+        if self.shallow or not self.published_refs or not self.admitted:
             return EXIT_COULD_NOT_JUDGE
         failed = (
             self.unresolved
@@ -713,7 +741,9 @@ class SweepReport:
             or self.not_admitted_unpublished
             or self.ambiguous_unpublished
         )
-        return EXIT_UNRESOLVED if failed else EXIT_CLEAN
+        if failed:
+            return EXIT_UNRESOLVED
+        return EXIT_COULD_NOT_JUDGE if self.not_read else EXIT_CLEAN
 
 
 def _state(report: SweepReport, token: str, commit: str | None) -> str:
@@ -751,18 +781,19 @@ def sweep(repo: Path, allowlist: Mapping[str, str] | None = None) -> SweepReport
     not_read: list[str] = []
     for name in [*paths, *code_paths]:
         target = repo / name
-        text = decode_tracked(target.read_bytes()) if target.is_file() else None
-        if text is None:
+        views = tracked_views(target.read_bytes()) if target.is_file() else None
+        if views is None:
             not_read.append(name)
             continue
         if name in code_set:
-            code_runs += scan_code(text, name)
+            code_runs += _union(scan_code(text, name) for text in views)
         else:
-            occurrences += scan_text(text, name, table)
-            not_admitted += scan_not_admitted(text, name)
-        short_runs += scan_short(text, name)
-        for klass, count in count_not_judged(text).items():
-            not_judged[klass] += count
+            occurrences += _union(scan_text(text, name, table) for text in views)
+            not_admitted += _union(scan_not_admitted(text, name) for text in views)
+        short_runs += _union(scan_short(text, name) for text in views)
+        for text in views:
+            for klass, count in count_not_judged(text).items():
+                not_judged[klass] += count
     ref_count, published = (0, set()) if shallow else _published(repo)
     report = SweepReport(len(paths), occurrences, shallow, ref_count, _commit_map(repo), table)
     report.not_admitted = not_admitted
@@ -880,18 +911,24 @@ def render(report: SweepReport) -> list[str]:
             "allowlisted token is one, or a not-admitted, code or short run names an "
             "unpublished commit"
         )
+        if report.not_read:
+            out.append(f"sha_citation_gate: ALSO COULD NOT JUDGE - {_not_read_reason(report)}")
     else:
         if report.shallow:
             reason = "a shallow clone"
         elif not report.published_refs:
             reason = "no origin/main and no tag"
-        elif report.not_read:
-            count = len(report.not_read)
-            reason = f"{count} tracked file{'' if count == 1 else 's'} not read"
-        else:
+        elif not report.admitted:
             reason = "the sweep admitted nothing"
+        else:
+            reason = _not_read_reason(report)
         out.append(f"sha_citation_gate: COULD NOT JUDGE - {reason}, which is not a pass")
     return out
+
+
+def _not_read_reason(report: SweepReport) -> str:
+    count = len(report.not_read)
+    return f"{count} tracked file{'' if count == 1 else 's'} not read"
 
 
 def main(argv: list[str] | None = None) -> int:
