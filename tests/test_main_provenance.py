@@ -86,8 +86,12 @@ def _clean_env() -> dict[str, str]:
 
 
 def _git(root: Path, *args: str) -> None:
-    """Run one git command in ``root``, raising on a non-zero exit."""
-    subprocess.run(
+    """Run one git command in ``root``, failing the test on a non-zero exit.
+
+    The failure names only the git subcommand. ``check=True`` would raise a
+    ``CalledProcessError`` whose rendering carries the temporary root.
+    """
+    proc = subprocess.run(
         [
             "git",
             "-c",
@@ -105,8 +109,11 @@ def _git(root: Path, *args: str) -> None:
         capture_output=True,
         env=_clean_env(),
         timeout=TIMEOUT,
-        check=True,
+        check=False,
     )
+    failed = proc.returncode != 0
+    if failed:
+        pytest.fail("fixture git step failed: " + args[0], pytrace=False)
 
 
 @dataclass
@@ -252,6 +259,64 @@ def _note_absent(w: World) -> None:
     w.note.unlink()
 
 
+# A1 - git's stat cache must never stand in for the committed bytes. Each plant
+# below leaves `git diff --quiet HEAD` reporting clean while the working-tree
+# file differs from HEAD's blob, and the inbox note matches the WORKING bytes.
+
+_EDITED: Final = NOTE_BYTES.replace(b"synthetic", b"SYNTHETIC")
+
+
+def _flagged_edit(w: World, flag: str) -> None:
+    _git(w.main_root, "update-index", flag, "--", "moon_sync_outbox/" + NOTE_NAME)
+    w.outbox_file.write_bytes(_EDITED)
+    w.note.write_bytes(_EDITED)
+
+
+def _assume_unchanged(w: World) -> None:
+    _flagged_edit(w, "--assume-unchanged")
+
+
+def _skip_worktree(w: World) -> None:
+    _flagged_edit(w, "--skip-worktree")
+
+
+def _same_size_mtime_restored(w: World) -> None:
+    # Age the file, refresh the index so its stat entry records the old mtime
+    # (and the index itself is newer, so the entry is not racily clean), then
+    # rewrite the same number of bytes and put the old mtime back.
+    old = 1_000_000_000
+    os.utime(w.outbox_file, (old, old))
+    _git(w.main_root, "update-index", "--refresh")
+    w.outbox_file.write_bytes(_EDITED)
+    os.utime(w.outbox_file, (old, old))
+    w.note.write_bytes(_EDITED)
+
+
+def _staged_edit_then_restored(w: World) -> None:
+    # The index holds bytes HEAD never committed; the working tree is back to
+    # HEAD's. The committed blob is the only truth, and the index disagrees.
+    w.outbox_file.write_bytes(_EDITED)
+    _git(w.main_root, "add", "--", "moon_sync_outbox/" + NOTE_NAME)
+    w.outbox_file.write_bytes(NOTE_BYTES)
+
+
+def _config_deeply_nested(w: World) -> None:
+    # B1 - the JSON decoder raises RecursionError on this, which is not a
+    # ValueError.
+    w.config.write_bytes(b"[" * 200_000)
+
+
+def _corrupt_gitdir(w: World) -> None:
+    # B2 - a root whose `.git` file points nowhere makes git print that path on
+    # stderr. The check must capture it and render nothing.
+    broken = w.base / "cs1227_broken"
+    (broken / "moon_sync_outbox").mkdir(parents=True)
+    (broken / "moon_sync_outbox" / NOTE_NAME).write_bytes(NOTE_BYTES)
+    gone = (w.base / "cs1227_gone_gitdir").as_posix()
+    (broken / ".git").write_bytes(("gitdir: " + gone + "\n").encode("utf-8"))
+    _write_config(w.config, broken)
+
+
 REFUSALS: Final[dict[str, tuple[Callable[[World], None], str]]] = {
     "byte_different": (_byte_different, "digest-mismatch"),
     "untracked": (_untracked, "untracked"),
@@ -269,6 +334,12 @@ REFUSALS: Final[dict[str, tuple[Callable[[World], None], str]]] = {
     "main_root_absent": (_main_root_absent, "main-root-absent"),
     "main_not_a_repo": (_main_not_a_repo, "main-not-a-repo"),
     "note_absent": (_note_absent, "note-unreadable"),
+    "assume_unchanged": (_assume_unchanged, "modified"),
+    "skip_worktree": (_skip_worktree, "modified"),
+    "same_size_mtime_restored": (_same_size_mtime_restored, "modified"),
+    "staged_edit_then_restored": (_staged_edit_then_restored, "modified"),
+    "config_deeply_nested": (_config_deeply_nested, "config-unparseable"),
+    "corrupt_gitdir": (_corrupt_gitdir, "main-not-a-repo"),
 }
 
 
@@ -282,7 +353,8 @@ def test_each_refusal_names_its_reason(world: World, case: str) -> None:
 
 
 def test_every_reason_is_in_the_closed_set() -> None:
-    named = {expected for _plant, expected in REFUSALS.values()} | {"verified"}
+    named = {expected for _plant, expected in REFUSALS.values()}
+    named |= {"verified", "config-root-not-absolute", "check-failed", "interrupted"}
     missing = sorted(named - set(provenance.REASONS))
     assert missing == []
 
@@ -301,12 +373,34 @@ def _cli(w: World, env: dict[str, str] | None = None) -> subprocess.CompletedPro
     )
 
 
+def _short_form(path: Path) -> str | None:
+    """The Windows 8.3 short spelling of ``path``, or None where unobtainable."""
+    if sys.platform != "win32":
+        return None
+    import ctypes  # noqa: PLC0415 - Windows-only, and only for this needle
+
+    buf = ctypes.create_unicode_buffer(1024)
+    got = ctypes.windll.kernel32.GetShortPathNameW(str(path), buf, len(buf))
+    return buf.value if 0 < got < len(buf) else None
+
+
+def _spellings(path: Path) -> set[str]:
+    """Every way a rendering could spell ``path``: native, POSIX, repr-escaped, 8.3."""
+    native = str(path)
+    forms = {native, path.as_posix(), native.replace("\\", "\\\\"), repr(native)[1:-1]}
+    short = _short_form(path)
+    if short:
+        forms |= {short, short.replace("\\", "\\\\"), short.replace("\\", "/")}
+    return forms
+
+
 def _leaks(w: World, rendered: str) -> bool:
-    """Whether ``rendered`` spells any configured or temporary path."""
-    needles = {str(w.main_root), str(w.base), w.main_root.as_posix(), w.base.as_posix()}
-    needles |= {n.lower() for n in needles}
+    """Whether ``rendered`` spells any configured, temporary or home path."""
+    needles: set[str] = set()
+    for path in (w.main_root, w.base, Path.home()):
+        needles |= _spellings(path)
     lowered = rendered.lower()
-    return any(n.lower() in lowered for n in needles)
+    return any(n.lower() in lowered for n in needles if n)
 
 
 @pytest.mark.parametrize("case", sorted(REFUSALS))
@@ -324,18 +418,99 @@ def test_no_refusal_renders_the_configured_path(world: World, case: str) -> None
         ]
     )
     leaked = _leaks(world, rendered)
-    names_reason = expected in proc.stdout.decode("ascii", "replace")
+    traceback = "Traceback" in rendered
+    names_reason = proc.stdout.decode("ascii", "replace").strip() == expected
     refused = proc.returncode == 1
     assert leaked is False
+    assert traceback is False
     assert names_reason is True
     assert refused is True
 
 
-def test_the_leak_detector_sees_a_planted_path(world: World) -> None:
+@pytest.mark.parametrize(
+    "spell",
+    [
+        str,
+        Path.as_posix,
+        lambda p: repr(str(p)),
+        lambda p: str(p).replace("\\", "\\\\"),
+    ],
+    ids=["native", "posix", "repr", "doubled"],
+)
+def test_the_leak_detector_sees_a_planted_path(world: World, spell: Callable[[Path], str]) -> None:
     # Anti-vacuity control: the detector the leak arm relies on must fire on a
-    # rendering that does carry the path, or its False means nothing.
-    fired = _leaks(world, "refused under " + str(world.main_root))
+    # rendering that does carry the path, in every spelling, or its False
+    # means nothing.
+    fired = _leaks(world, "refused under " + spell(world.main_root))
     assert fired is True
+
+
+def _explode(*_args: object, **_kwargs: object) -> None:
+    message = "cs1227 planted failure"
+    raise RuntimeError(message)
+
+
+def test_an_unexpected_failure_is_a_named_refusal(
+    world: World, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # B1 - verify_main_note never raises: any failure inside a step becomes a
+    # fixed reason, and the planted message is dropped.
+    monkeypatch.setattr(provenance, "_main_root", _explode)
+    ok, reason = _verify(world)
+    assert reason == "check-failed"
+    assert ok is False
+
+
+def _interrupt(*_args: object, **_kwargs: object) -> None:
+    raise KeyboardInterrupt
+
+
+def test_the_cli_turns_an_interrupt_into_a_reason(
+    world: World, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    monkeypatch.setattr(provenance, "verify_main_note", _interrupt)
+    code = provenance.main([str(world.note), "--config", str(world.config)])
+    captured = capsys.readouterr()
+    out = captured.out.strip()
+    quiet = captured.err == ""
+    assert out == "interrupted"
+    assert code == 1
+    assert quiet is True
+
+
+def test_the_leak_detector_sees_the_short_form(world: World) -> None:
+    short = _short_form(world.main_root)
+    if short is None:
+        pytest.skip("no 8.3 short form on this platform or volume")
+    fired = _leaks(world, "refused under " + short)
+    assert fired is True
+
+
+def test_a_relative_main_root_refuses_whatever_the_cwd(
+    world: World, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # A2 - a relative root would resolve against the cwd, so a worker started
+    # beside a look-alike tree would verify against it. Here the cwd makes the
+    # relative spelling land on the REAL fixture, so only the absoluteness rule
+    # can refuse it.
+    w = world
+    w.config.write_bytes(json.dumps({"main_root": w.main_root.name}).encode("ascii"))
+    monkeypatch.chdir(w.base)
+    ok, reason = _verify(w)
+    proc = subprocess.run(
+        [sys.executable, str(TOOL), str(w.note), "--config", str(w.config)],
+        capture_output=True,
+        cwd=w.base,
+        env=_clean_env(),
+        timeout=TIMEOUT,
+        check=False,
+    )
+    out = proc.stdout.decode("ascii", "replace").strip()
+    leaked = _leaks(w, out + proc.stderr.decode("utf-8", "replace"))
+    assert reason == "config-root-not-absolute"
+    assert ok is False
+    assert out == "config-root-not-absolute"
+    assert leaked is False
 
 
 # --- the CLI -----------------------------------------------------------------
