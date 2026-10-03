@@ -1039,35 +1039,44 @@ def run_child(argv: Sequence[str], cwd: Path, env: dict[str, str] | None = None)
     return ChildRun(completed.returncode, completed.stdout + completed.stderr)
 
 
-def _under_a_home(path: str) -> bool:
-    """Whether ``path`` renders a home directory - any home shape, or this one."""
+#: The ONE absolute shape the cross-drive fallback allows: a plain drive-letter
+#: path. A UNC share, a ``\\?\`` verbatim or a ``\\.\`` device spelling - each
+#: able to name a home in no drive-letter shape - never matches.
+_PLAIN_DRIVE_PATH: Final = re.compile(r"[A-Za-z]:\\(?![\\/])")
+
+
+def _under_a_home(named: str) -> bool:
+    """Whether ``named`` renders a home: any home shape in any case, or this home."""
     rules = gate()
-    if rules.PII_WIN_HOME_RE.search(path) or rules.PII_NIX_HOME_RE.search(path):
-        return True
-    home = os.path.normcase(str(Path.home().absolute())).rstrip("\\/")
-    named = os.path.normcase(path)
-    return named == home or named.startswith(home + os.sep)
+    for rule in (rules.PII_WIN_HOME_RE, rules.PII_NIX_HOME_RE):
+        if re.search(rule.pattern, named, re.IGNORECASE):
+            return True
+    home = os.path.normcase(os.path.realpath(Path.home())).rstrip("\\/")
+    folded = os.path.normcase(named)
+    return folded == home or folded.startswith(home + "\\")
 
 
 def _relative_or_anchored(path: Path, start: Path) -> str:
-    """``path`` named relative to ``start``; across two drives, absolute but never a home.
+    """``path`` named relative to ``start``; across two drives, an ALLOWLISTED absolute.
 
     ``os.path.relpath`` raises ``ValueError`` when the two sit on different
     Windows drives - the GitHub windows runner checks the repository out on D:
-    while pytest's scratch is on C: (CS-1230). No relative spelling exists then,
-    so the drive-anchored absolute one is used, and only when it renders no home
-    directory; one that would is refused with fixed text naming no path.
+    while pytest's scratch is on C: (CS-1230). No relative spelling exists then.
+    The real path is used instead ONLY when both it and the given spelling are
+    plain drive-letter paths and it is neither under the real home nor a home
+    shape in any case. Anything else is refused with fixed text naming no path.
 
     Raises:
-        FlipError: No relative spelling exists and the absolute one is a home.
+        FlipError: No relative spelling exists and no allowed absolute one does.
     """
     try:
         return os.path.relpath(path, start)
     except ValueError:
-        absolute = str(path.absolute())
-    if _under_a_home(absolute):
-        raise FlipError("a path on another drive sits under a home directory")
-    return absolute
+        anchored = os.path.realpath(path)
+    plain = all(_PLAIN_DRIVE_PATH.match(spelling) for spelling in (str(path), anchored))
+    if not plain or _under_a_home(anchored):
+        raise FlipError("a path on another drive has no spelling outside a home")
+    return anchored
 
 
 def _tool_argv(tool: Path, cwd: Path, *args: str) -> list[str]:

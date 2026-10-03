@@ -681,13 +681,21 @@ def test_the_licence_control_adds_a_finding_over_the_real_inputs(tmp_path: Path)
 
 
 def _other_drive_anchor() -> Path:
-    """An absolute directory under no home, on a drive other than this one's tmp's.
+    """An absolute directory under no home, on the ``D:`` drive anchor.
 
-    On Windows it is the ``D:`` anchor (the GitHub windows runner checks out
-    there); elsewhere a POSIX directory. Nothing is created under it.
+    The GitHub windows runner checks the repository out there. Nothing is
+    created under it. Only a drive-letter path is ever allowed as the absolute
+    fallback, so the arms that expect it allowed run where drives exist.
     """
-    root = Path("D:" + "\\") if Path.home().drive else Path("/srv")
-    return root / "cs1230-anchor" / "repo"
+    if not Path.home().drive:
+        pytest.skip("drive letters exist only on Windows")
+    return Path("D:" + "\\") / "cs1230-anchor" / "repo"
+
+
+def _drives_only() -> None:
+    """Skip an arm whose subject is Windows drive-letter path semantics."""
+    if not Path.home().drive:
+        pytest.skip("drive letters exist only on Windows")
 
 
 def _cross_drive_relpath(*_args: object) -> str:
@@ -700,10 +708,12 @@ def _carries_a_home(argv: list[str]) -> bool:
     """Whether any argv element renders this machine's home, or any home shape."""
     home = str(Path.home()).lower()
     rules = flip.gate()
+    shapes = [
+        re.compile(rules.PII_WIN_HOME_RE.pattern, re.IGNORECASE),
+        re.compile(rules.PII_NIX_HOME_RE.pattern, re.IGNORECASE),
+    ]
     return any(
-        home in part.lower()
-        or rules.PII_WIN_HOME_RE.search(part) is not None
-        or rules.PII_NIX_HOME_RE.search(part) is not None
+        home in part.lower() or any(shape.search(part) is not None for shape in shapes)
         for part in argv
     )
 
@@ -724,8 +734,6 @@ def test_a_child_tool_on_another_drive_is_named_without_a_home(
 
 def test_a_real_second_drive_names_the_child_tool_without_a_home(tmp_path: Path) -> None:
     """The same, with no monkeypatch, where this box really has a second drive."""
-    if sys.platform != "win32":
-        pytest.skip("drive letters exist only on Windows")
     tool = _other_drive_anchor() / "tools" / "licence_audit.py"
     if tool.drive.lower() == tmp_path.drive.lower():
         pytest.skip("tmp_path already sits on the second drive")
@@ -748,6 +756,65 @@ def test_a_child_tool_under_a_home_on_another_drive_is_refused(
 
     leaked = _carries_a_home([str(caught.value)])
     assert not leaked
+
+
+def _refused_without_a_path(tool: Path, start: Path) -> bool:
+    """Whether naming ``tool`` from ``start`` is refused with text naming no path."""
+    try:
+        flip._tool_argv(tool, start)  # noqa: SLF001 - the CS-1230 arm names the helper
+    except flip.FlipError as exc:
+        return not _carries_a_home([str(exc)]) and "\\" not in str(exc)
+    return False
+
+
+def test_a_unc_spelling_of_the_home_is_refused(tmp_path: Path) -> None:
+    """A UNC admin-share spelling of the home has no drive letter: never the fallback.
+
+    No monkeypatch - the real ``os.path.relpath`` raises between a UNC path and C:.
+    """
+    _drives_only()
+    home = str(Path.home())
+    unc = Path("\\\\localhost\\" + home[0].lower() + "$" + home[2:]) / "cs1230-tool.py"
+
+    refused = _refused_without_a_path(unc, tmp_path)
+
+    assert refused
+
+
+@pytest.mark.parametrize("prefix", ["\\\\?\\D:\\", "\\\\.\\D:\\"])
+def test_a_device_or_verbatim_prefix_is_refused(tmp_path: Path, prefix: str) -> None:
+    """Verbatim and device-namespace spellings are not plain drive-letter paths: refused."""
+    _drives_only()
+
+    refused = _refused_without_a_path(Path(prefix + "cs1230-anchor\\tool.py"), tmp_path)
+
+    assert refused
+
+
+def test_a_lower_case_home_shape_on_another_drive_is_refused(tmp_path: Path) -> None:
+    """A lower-case ``users`` home of ANOTHER account is a home shape all the same."""
+    _drives_only()
+    other = "e" if tmp_path.drive.lower() != "e:" else "f"
+    tool = Path(other + ":\\" + "users" + "\\other\\cs1230-tool.py")
+
+    refused = _refused_without_a_path(tool, tmp_path)
+
+    assert refused
+
+
+def test_a_home_on_another_drive_is_refused_by_its_location(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A home in no ``users`` shape, on another drive, is refused by its location alone."""
+    _drives_only()
+    home = Path("E:" + "\\") / "Profiles" / "x"
+    monkeypatch.setattr(flip.Path, "home", staticmethod(lambda: home))
+
+    refused = _refused_without_a_path(home / "cs1230-tool.py", tmp_path)
+    allowed = flip._tool_argv(home.parent / "cs1230-tool.py", tmp_path)  # noqa: SLF001 - the CS-1230 arm names the helper
+
+    assert refused
+    assert allowed[2].lower().endswith("cs1230-tool.py")
 
 
 def _recording_git(calls: list[list[str]]) -> Any:
