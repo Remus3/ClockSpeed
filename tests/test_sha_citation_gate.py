@@ -1,34 +1,34 @@
 """CS-1222 - a doc carrying an unpublished or unresolvable commit sha turns a guard red.
 
 WHAT THIS GRADES. ``tools/sha_citation_gate.py`` resolves every sha-shaped
-citation its published inclusion rule admits with ``git rev-parse --verify -q
-<sha>^{commit}`` and counts it only when the commit is reachable from a
-PUBLISHED ref (``refs/remotes/origin/main`` or a tag). The arms here:
+citation with ``git rev-parse --verify -q <sha>^{commit}`` and counts it only
+when the commit is reachable from ``refs/remotes/origin/main`` or a tag. Its
+exclusions are an ALLOWLIST of exact tokens; no shape excludes anything. Arms:
 
 * THE PLANT ARMS run in a throwaway repository holding a byte-copy of a guarded
-  doc, tracked there too so the gate's own discovery finds it, with its one
-  commit published as ``refs/remotes/origin/main``. One plants a sha the
-  throwaway store provably lacks and demands the refusal BY NAME; one plants a
-  commit that exists only on a local branch, and one only on a remote SIDE
-  branch, and demands ``unpublished`` for both; one
-  plants the published commit, short and full, and demands a pass - so the gate
-  is not merely refusing every hex run.
-* THE ANTI-ESCAPE ARMS: a token an exclusion rule swallows that IS a published
-  commit reddens the gate (overreach); ``path at <sha>`` in a copy of
-  ``docs/LEDGER.md`` is refused rather than read as a foreign pin; a ``hash``
-  label on the PREVIOUS line exempts nothing.
+  doc, with its one commit published as ``refs/remotes/origin/main``: an absent
+  sha is refused by name, a commit on a local or remote SIDE branch is refused
+  as ``unpublished``, and the published commit (short and full) or a tagged one
+  passes - so the gate is not merely refusing every hex run. Every planted
+  prefix is CONSTRUCTED to carry a digit and a letter, so no arm depends on the
+  luck of a random sha.
+* THE ESCAPE ARMS: every shape an adversary walked an unresolvable sha through
+  - ``name@``, ``owner/repo at``, ``-dirty``, ``...``, ``origin/main@``,
+  ``feature/lane at``, ``<sha>-<sha>``, ``run <8hex>``, a ``blob`` label, a
+  blob that really is in the store, ``path at`` - is planted in a copy of
+  ``docs/LEDGER.md`` and must be refused.
+* THE OVERREACH ARM: an allowlisted token that IS a published commit fails.
+* THE TABLE ARMS: the closed class set, one stated reason per row, no
+  duplicates, every row sha-shaped, and an exact-token match only.
 * THE EMPTY ARMS: a sweep that admits nothing, and a repository with no
   published ref, exit "could not judge", never 0.
-* THE CLASS ARMS: each stated exclusion rule is fed a line shaped like the
-  measured population it exists for, and the SAME token on a bare line is the
-  control that must be admitted.
-* THE REPORT ARMS: the inclusion rule (with what it does not admit), every
-  exclusion class with its count, and the filter-repo discriminator's
-  availability are printed on every run.
+* THE REPORT ARMS: the inclusion rule, every class with its count, the table
+  size, unused rows and the filter-repo discriminator are printed every run.
 * THE SHALLOW ARM: a shallow clone cannot judge, so it says so and exits 2.
 * THE LIVE ARM runs the gate over this tree and FAILS - never skips - when the
-  tree is shallow or has no published ref. CI runs this module only in the
-  full-history save shard of ``.github/workflows/tier1.yml``.
+  tree is shallow or has no published ref, and fails on an unused table row.
+  CI runs this module only in the full-history save shard of
+  ``.github/workflows/tier1.yml``.
 """
 
 from __future__ import annotations
@@ -201,6 +201,16 @@ def plant(repo: Repo, line: str, doc: str = GUARDED_DOC) -> int:
     return body.count(b"\n") - line.count("\n")
 
 
+def mixed(sha: str, width: int = 7) -> str:
+    """The shortest prefix of ``sha`` at least ``width`` long that carries a digit and a letter."""
+    for end in range(width, len(sha) + 1):
+        head = sha[:end]
+        if any(c.isdigit() for c in head) and any(c.isalpha() for c in head):
+            return head
+    message = "a full sha always carries both"
+    raise AssertionError(message)
+
+
 # --- the plant arms -----------------------------------------------------------
 
 
@@ -220,10 +230,11 @@ def test_an_unpublished_commit_is_refused(repo: Repo, ref: str) -> None:
     tree = repo.git("write-tree")
     side = repo.git("commit-tree", tree, "-p", "HEAD", "-m", "not on main")
     repo.git("update-ref", ref, side)
-    plant(repo, f"Landed as commit `{side[:9]}` on the merge.")
+    token = mixed(side, 9)
+    plant(repo, f"Landed as commit `{token}` on the merge.")
     done = cli(repo)
     assert done.returncode == gate.EXIT_UNRESOLVED, done.stdout + done.stderr
-    assert f"{side[:9]} unpublished" in done.stdout
+    assert f"{token} unpublished" in done.stdout
 
 
 def test_a_tagged_commit_is_published(repo: Repo) -> None:
@@ -231,7 +242,7 @@ def test_a_tagged_commit_is_published(repo: Repo) -> None:
     tree = repo.git("write-tree")
     tagged = repo.git("commit-tree", tree, "-p", "HEAD", "-m", "tagged")
     repo.git("tag", "v-synthetic", tagged)
-    plant(repo, f"Landed as commit `{tagged[:9]}` on the merge.")
+    plant(repo, f"Landed as commit `{mixed(tagged, 9)}` on the merge.")
     done = cli(repo)
     assert done.returncode == gate.EXIT_CLEAN, done.stdout + done.stderr
 
@@ -240,11 +251,18 @@ def test_a_tagged_commit_is_published(repo: Repo) -> None:
 def test_a_published_sha_in_a_guarded_doc_passes(repo: Repo, width: int) -> None:
     """The throwaway's published commit, short and full, is admitted and passes."""
     head = repo.git("rev-parse", "HEAD")
-    plant(repo, f"Landed as commit `{head[:width]}` on the merge.")
+    plant(repo, f"Landed as commit `{mixed(head, width)}` on the merge.")
     done = cli(repo)
     assert done.returncode == gate.EXIT_CLEAN, done.stdout + done.stderr
     assert "admitted 1 " in done.stdout
     assert "unresolved 0; overreach 0" in done.stdout
+
+
+def test_the_prefix_constructor_never_yields_an_unadmitted_token() -> None:
+    """An all-digit head is lengthened until it carries a letter, so it is admitted."""
+    head = mixed("1234567890abcdef" + "0" * 24)
+    assert head == "1234567890a"
+    assert [entry.token for entry in gate.scan_text(f"`{head}`", allowlist={})] == [head]
 
 
 def test_sweep_api_matches_the_cli_on_a_plant(repo: Repo) -> None:
@@ -257,133 +275,115 @@ def test_sweep_api_matches_the_cli_on_a_plant(repo: Repo) -> None:
     assert report.verdict() == gate.EXIT_UNRESOLVED
 
 
-# --- the anti-escape arms -------------------------------------------------------
+# --- the escape arms: no shape excludes anything ----------------------------------
+
+ESCAPES: Final = [
+    "Gate run at main@{sha}: MIT, two holders",
+    "**PIN.** Moonbeam/Clockspeed at {sha}, retrieved",
+    "built from `{sha}-dirty` on the runner",
+    "and none carries `{sha}...`. The carriers",
+    "fast-forwarded to origin/main@{sha} cleanly",
+    "branch feature/lane at {sha} was merged",
+    "the range `{sha}-{sha2}` was squashed",
+    "the pre-push run {run} refused",
+    "byte-identical, blob `{sha}`, verified by hash",
+    "the gate `tools/precommit_gate.py` at {sha} was identical",
+    "measured digest `{sha}` against the pin",
+    "worktree-agent-{sha} is halted",
+]
 
 
-def test_an_excluded_token_that_is_a_published_commit_reddens_the_gate(repo: Repo) -> None:
-    """A rule that swallows a real published commit is overreach, and overreach fails."""
-    head = repo.git("rev-parse", "HEAD")
-    plant(repo, f"the measured digest `{head[:10]}` first.")
-    plant(repo, f"Landed as `{head}` on the merge.")
-    done = cli(repo)
-    assert "excluded-count content-digest 1" in done.stdout, done.stdout
-    assert f"overreach content-digest {GUARDED_DOC}:" in done.stdout
-    assert done.returncode == gate.EXIT_UNRESOLVED
-
-
-def test_path_at_an_unresolvable_sha_in_a_ledger_copy_is_refused(tmp_path: Path) -> None:
-    """``path at <sha>`` is a citation, not a foreign pin - in a copy of the ledger."""
+def test_every_escape_shape_is_refused_in_a_ledger_copy(tmp_path: Path) -> None:
+    """Each shape the adversary used carries an unresolvable sha to a refusal, by line."""
     made = _make(tmp_path, LEDGER_DOC)
-    (made.path / "docs" / "adr").mkdir()
-    assert made.lacks(ABSENT_SHA)
-    planted = {
-        plant(made, f"`tools/precommit_gate.py` at {ABSENT_SHA} was byte-identical.", LEDGER_DOC),
-        plant(made, f"Measured docs/adr at {ABSENT_SHA}, clean.", LEDGER_DOC),
-        plant(made, f"fast-forwarded to origin/main at {ABSENT_SHA}.", LEDGER_DOC),
-    }
+    planted: set[tuple[int, str]] = set()
+    for index, shape in enumerate(ESCAPES):
+        sha = f"{index:x}f9a2c1d"
+        sha2 = f"{index:x}e8b3d2c"
+        run = f"{index:x}d7c4e3b"[:8]
+        for value in (sha, sha2, run):
+            assert made.lacks(value), "control: every planted value is absent from the store"
+        token = run if "{run}" in shape else sha
+        line = plant(made, shape.format(sha=sha, sha2=sha2, run=run), LEDGER_DOC)
+        planted.add((line, token))
     done = cli(made)
     assert done.returncode == gate.EXIT_UNRESOLVED
     refused = {
-        int(line.split()[1].rsplit(":", 1)[1])
-        for line in done.stdout.splitlines()
-        if line.startswith(f"unresolved {LEDGER_DOC}:") and f" {ABSENT_SHA} " in line
+        (int(fields[1].rsplit(":", 1)[1]), fields[2])
+        for fields in (line.split() for line in done.stdout.splitlines())
+        if fields and fields[0] == "unresolved" and fields[1].startswith(f"{LEDGER_DOC}:")
     }
-    assert refused == planted
+    escaped = sorted(planted - refused)
+    assert escaped == []
+
+
+def test_a_real_blob_in_the_store_is_still_refused(repo: Repo) -> None:
+    """A blob that exists is not a commit; with no table row it fails like any other."""
+    blob = mixed(repo.git("hash-object", "--", GUARDED_DOC), 10)
+    plant(repo, f"The hook blob `{blob}` is unchanged.")
+    done = cli(repo)
+    assert done.returncode == gate.EXIT_UNRESOLVED, done.stdout + done.stderr
+    assert f"{blob} never-resolved (hint: looks like a blob" in done.stdout
 
 
 def test_a_hash_label_on_the_previous_line_exempts_nothing(repo: Repo) -> None:
-    """A keyword one line up no longer reaches the token: the citation is refused."""
+    """A keyword one line up reaches nothing: the citation is refused."""
     plant(repo, f"assert `git hash-object x` is\n`{ABSENT_SHA}` before measuring.")
     done = cli(repo)
     assert done.returncode == gate.EXIT_UNRESOLVED, done.stdout + done.stderr
     assert f"{ABSENT_SHA} never-resolved" in done.stdout
 
 
-def test_a_blob_in_the_store_is_excluded_as_a_git_object(repo: Repo) -> None:
-    """A token naming a blob in this store is the verified half of the git-blob rule."""
-    blob = repo.git("hash-object", "--", GUARDED_DOC)
+# --- the overreach arm --------------------------------------------------------
+
+
+def test_an_allowlisted_token_that_is_a_published_commit_reddens_the_gate(repo: Repo) -> None:
+    """A table row that names a real published commit is overreach, and overreach fails."""
     head = repo.git("rev-parse", "HEAD")
-    plant(repo, f"The hook file `{blob[:10]}` is unchanged; landed as `{head}`.")
-    done = cli(repo)
-    assert done.returncode == gate.EXIT_CLEAN, done.stdout + done.stderr
-    assert f"excluded git-blob {GUARDED_DOC}:" in done.stdout
+    row = mixed(head, 10)
+    plant(repo, f"Run `{row}` first; landed as `{head}`.")
+    report = gate.sweep(repo.path, {row: "lane-run-id"})
+    assert [(entry.rule, entry.token) for entry in report.overreach] == [("lane-run-id", row)]
+    assert report.verdict() == gate.EXIT_UNRESOLVED
 
 
-# --- the empty arms -----------------------------------------------------------
+# --- the table arms -----------------------------------------------------------
 
 
-def test_an_empty_sweep_is_never_a_pass(repo: Repo) -> None:
-    """The unplanted copy admits nothing, and that is reported as could-not-judge."""
-    done = cli(repo)
-    assert "admitted 0 " in done.stdout, done.stdout
-    assert done.returncode == gate.EXIT_COULD_NOT_JUDGE
+def test_the_class_set_is_closed() -> None:
+    """The classes are the acceptance's measured set plus guid, and nothing else."""
+    assert set(gate.CLASSES) == {
+        "agent-id",
+        "sha256-prefix",
+        "foreign-pin",
+        "git-blob",
+        "lane-run-id",
+        "fixture-vector",
+        "guid",
+    }
 
 
-def test_no_published_ref_cannot_judge(tmp_path: Path) -> None:
-    """With nothing under refs/remotes or refs/tags, nothing counts as published."""
-    made = _make(tmp_path, GUARDED_DOC, publish=False)
-    plant(made, f"Landed as `{made.git('rev-parse', 'HEAD')}`.")
-    done = cli(made)
-    assert done.returncode == gate.EXIT_COULD_NOT_JUDGE, done.stdout + done.stderr
-    assert "resolver NO-PUBLISHED-REF" in done.stdout
+def test_every_row_is_classed_reasoned_shaped_and_unique() -> None:
+    """The table loads; a bad class, blank reason, bad shape or duplicate is refused."""
+    assert len(gate.allowlist_map()) == len(gate.ALLOWLIST)
+    row = gate.AllowRow
+    for bad in (
+        [row("5ca1ab1e0d", "commit", "x")],
+        [row("5ca1ab1e0d", "guid", " ")],
+        [row("ABCDEF1234", "guid", "x")],
+        [row("5ca1ab1e0d", "guid", "x"), row("5ca1ab1e0d", "guid", "y")],
+    ):
+        with pytest.raises(ValueError, match="allowlist row"):
+            gate.allowlist_map(bad)
 
 
-# --- the class arms: each stated rule against its measured shape -----------------
-
-
-CLASS_CASES: Final = [
-    ("agent-id", "branch worktree-agent-ace624231ac7fd814 is halted", "ace624231ac7fd814"),
-    ("guid", "`3f2504e0-4f89-11d3-9a0c-0305e82c3301` braceless GUID", "3f2504e0"),
-    ("compound-name", "note `2026-09-19-from-CS-e085b4a92ab2-sweep.md` merged", "e085b4a92ab2"),
-    ("foreign-pin", "Gate run at archify@72c750bb: MIT, two holders", "72c750bb"),
-    ("foreign-pin", "**PIN.** someone/somerepo at 5bca2948959a7fb5, retrieved", "5bca2948959a7fb5"),
-    ("git-blob", "byte-identical, blob `d90c7876`, verified by hash", "d90c7876"),
-    ("content-digest", "reported measured digest `fc22e86e` against", "fc22e86e"),
-    ("content-digest", "sha256 `899f6eb9...05f4c6b` re-hashed from this disk", "05f4c6b"),
-    ("truncation", "and none carries `f1b4b011...`. The carriers", "f1b4b011"),
-    ("run-id", 'cycle 1, "run_id": "e085d9aa", "outcome"', "e085d9aa"),
-    ("run-id", "lane run `62f29b90` on the night started late", "62f29b90"),
-    ("run-id", "Exactly ONE: run id `5ff0ddfd`, 13:02:03", "5ff0ddfd"),
-    ("fixture-vector", "| `a1b2c3d4e5f60718` | Epic-shaped hex | redacted |", "a1b2c3d4e5f60718"),
-]
-
-
-@pytest.mark.parametrize(("rule", "text", "token"), CLASS_CASES)
-def test_each_stated_rule_excludes_its_measured_shape(rule: str, text: str, token: str) -> None:
-    """The rule names the class on its shape, and the bare token is admitted."""
-    assert rule in gate.EXCLUSION_RULES, f"{rule} is not a published rule"
-    found = {entry.token: entry.rule for entry in gate.scan_text(text)}
-    assert found.get(token, "absent") == rule
-    control = {entry.token: entry.rule for entry in gate.scan_text(f"Merged as `{token}`.")}
-    if rule == "fixture-vector":
-        # The vector rule is a property of the token itself, so the bare control
-        # still excludes it; the control here is that it is the SAME rule.
-        assert control.get(token, "absent") == rule
-    else:
-        assert control.get(token, "absent") is None, f"{token} is excluded on a bare line"
-
-
-@pytest.mark.parametrize(
-    "text",
-    [
-        "fast-forwarded to origin/main at 0dbf309 with an empty status",
-        "the gate `tools/precommit_gate.py` at 0dbf309 was identical",
-        "the tree clockspeed/save/x at 0dbf309 held it",
-        "the digest arm reported measured `0dbf309` against",
-        "assert `git hash-object x` is\n`0dbf309` first",
-        "`0dbf309` is the row this document is named after",
-    ],
-)
-def test_near_miss_shapes_are_admitted(text: str) -> None:
-    """A remote ref, a path, a non-adjacent label and an unlabelled site are all admitted."""
-    rules = [entry.rule for entry in gate.scan_text(text, root=REPO_ROOT)]
-    assert rules == [None]
-
-
-def test_a_label_in_one_place_does_not_carry_to_another_site() -> None:
-    """No file-wide label propagation: the bare second site is admitted."""
-    text = "Exactly ONE: run id `5ff0ddfd`, 13:02:03.\n\n`5ff0ddfd` is the row named here.\n"
-    assert [entry.rule for entry in gate.scan_text(text)] == ["run-id", None]
+def test_the_match_is_exact_token_only() -> None:
+    """A prefix, an extension or a neighbour of an allowlisted token is admitted."""
+    listed = gate.ALLOWLIST[0].token
+    for near in (listed[:-1], listed + "0", "0" + listed[1:]):
+        found = [(e.token, e.rule) for e in gate.scan_text(f"See `{near}`.")]
+        assert found == [(near, None)], near
+    assert [e.rule for e in gate.scan_text(f"See `{listed}`.")] == [gate.ALLOWLIST[0].klass]
 
 
 @pytest.mark.parametrize(
@@ -402,18 +402,38 @@ def test_the_inclusion_rule_states_what_it_does_not_admit() -> None:
         assert phrase in rule, phrase
 
 
+# --- the empty arms -----------------------------------------------------------
+
+
+def test_an_empty_sweep_is_never_a_pass(repo: Repo) -> None:
+    """The unplanted copy admits nothing, and that is reported as could-not-judge."""
+    done = cli(repo)
+    assert "admitted 0 " in done.stdout, done.stdout
+    assert done.returncode == gate.EXIT_COULD_NOT_JUDGE
+
+
+def test_no_published_ref_cannot_judge(tmp_path: Path) -> None:
+    """With no origin/main and no tag, nothing counts as published."""
+    made = _make(tmp_path, GUARDED_DOC, publish=False)
+    plant(made, f"Landed as `{made.git('rev-parse', 'HEAD')}`.")
+    done = cli(made)
+    assert done.returncode == gate.EXIT_COULD_NOT_JUDGE, done.stdout + done.stderr
+    assert "resolver NO-PUBLISHED-REF" in done.stdout
+
+
 # --- the report arms ----------------------------------------------------------
 
 
 def test_every_run_publishes_its_rule_its_exclusions_and_its_discriminator(repo: Repo) -> None:
-    """Inclusion rule, every class with its count, resolver and discriminator lines."""
+    """Inclusion rule, table size, every class with its count, resolver and discriminator."""
     head = repo.git("rev-parse", "HEAD")
     plant(repo, f"Landed as `{head}`; worktree-agent-ace624231ac7fd814 built it.")
     done = cli(repo)
     assert done.returncode == gate.EXIT_CLEAN, done.stdout + done.stderr
     assert gate.INCLUSION_RULE in done.stdout
-    for rule in gate.EXCLUSION_RULES:
-        assert f"excluded-count {rule} " in done.stdout, rule
+    assert f"allowlist rows {len(gate.ALLOWLIST)}; " in done.stdout
+    for name in gate.CLASSES:
+        assert f"excluded-count {name} " in done.stdout, name
     assert "excluded-count agent-id 1" in done.stdout
     assert f"excluded agent-id {GUARDED_DOC}:" in done.stdout
     assert "resolver full" in done.stdout
@@ -477,6 +497,7 @@ def test_this_tree_cites_only_published_commits() -> None:
     assert unresolved == []
     overreach = [f"{e.rule} {e.path}:{e.line} {e.token}" for e in report.overreach]
     assert overreach == []
+    assert report.unused == []
     admitted = len(report.admitted)
     assert admitted > 0
     assert report.verdict() == gate.EXIT_CLEAN

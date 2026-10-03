@@ -9,7 +9,7 @@ silently. This gate asks git about every one.
 THE INCLUSION RULE is published verbatim as :data:`INCLUSION_RULE` and printed
 on every run, and it states what it does NOT admit and why.
 
-THE RESOLVER. Each distinct admitted token is resolved with ``git rev-parse
+THE RESOLVER. Each distinct sha-shaped token is resolved with ``git rev-parse
 --verify -q <token>^{commit}``, and the commit it names counts ONLY when it is
 reachable from a PUBLISHED ref - ``refs/remotes/origin/main`` or a tag, and
 nothing else. An object that lives only on a local branch, in a worktree, in
@@ -18,18 +18,21 @@ that branch is deleted, so it is reported ``unpublished`` and FAILS. An
 ambiguous short sha does not resolve either - a citation two commits answer is
 no citation.
 
-THE EXCLUSION RULES are published as :data:`EXCLUSION_RULES`, each counted on
-every run (zeros included) with every excluded site listed. Each is a STATED
-property of the token or of the SAME line's text immediately around it - never
-a path exemption, never a window reaching into another line - and each exists
-for a non-commit class measured on 2026-10-02. Rules are tried in order and the
-first match names the class.
+THE EXCLUSIONS ARE AN ALLOWLIST, NEVER A SHAPE. :data:`ALLOWLIST` is a table of
+the exact non-commit tokens measured in this tree's docs, one row per token,
+each with a class from the closed set :data:`CLASSES` and a stated reason. A
+token the table does not name is a citation, WHATEVER TEXT SURROUNDS IT - an
+``@``, an ``owner/repo at``, a ``...``, a ``-dirty``, a ``run`` label. A shape
+rule was tried first and an adversary walked unresolvable shas through every
+one of them; a shape is a denylist in disguise. Shapes survive only as HINTS
+printed beside a failing token (:func:`hint_for`), so whoever adds a row knows
+what the token looked like - a hint never excludes anything.
 
-THE ANTI-ESCAPE CONTROL. A rule wide enough to swallow a real commit is wide
-enough to hide an unresolvable one, so every EXCLUDED token is resolved too,
-and one that names a published commit is reported as ``overreach`` and makes
-the gate exit 1. The rules therefore have to stay exactly as narrow as the
-population they describe.
+THE ANTI-ESCAPE CONTROL. Every allowlisted token is resolved too, and one that
+names a published commit is reported as ``overreach`` and makes the gate exit
+1: a row may name only a thing that is not a commit. Each run also lists the
+rows no doc carries any more (``allowlist-unused``), so the table cannot rot
+into a set of standing exemptions nobody can see.
 
 AN EMPTY RESULT IS NEVER A PASS ON ITS OWN. Exit 0 needs a full-history
 repository with at least one published ref AND at least one admitted citation,
@@ -48,9 +51,9 @@ CLI::
 
     python tools/sha_citation_gate.py [--repo DIR]
 
-    exit 0   every admitted citation is a published commit, no exclusion
-             swallowed one, and at least one citation was admitted
-    exit 1   an admitted citation is not a published commit, or an excluded
+    exit 0   every admitted citation is a published commit, no allowlisted
+             token is one, and at least one citation was admitted
+    exit 1   an admitted citation is not a published commit, or an allowlisted
              token is one (overreach)
     exit 2   could not judge - no git, not a repository, a shallow clone, no
              published ref, or a sweep that admitted nothing
@@ -66,7 +69,7 @@ import os
 import re
 import subprocess
 import sys
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Final
@@ -89,7 +92,6 @@ GIT_TIMEOUT: Final = 120
 #: The tracked files the sweep reads, as git pathspecs.
 DOC_PATHSPECS: Final = ("*.md", "*.txt")
 
-#: The refs whose history counts as published.
 #: The refs whose history counts as published: the remote's main line and every
 #: tag. A side branch, even a pushed one, can be deleted - and its citations with it.
 PUBLISHED_REFS: Final = ("refs/remotes/origin/main", "refs/tags")
@@ -121,116 +123,135 @@ _GIT_REDIRECTS: Final = (
     "GIT_NAMESPACE",
 )
 
-_GUID: Final = re.compile(r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}")
-_JOINED_BEFORE: Final = re.compile(r"[0-9A-Za-z]-$")
-_JOINED_AFTER: Final = re.compile(r"-[0-9A-Za-z]")
-#: ``name@`` / ``owner/repo@`` - git has no ``name@<sha>`` spelling of a commit,
-#: so this form is never a native citation of one.
-_FOREIGN_AT_SIGN: Final = re.compile(r"(?<![\w./-])([\w-]+(?:/[\w-]+)?)@$")
-#: ``owner/repo at `` - two slash-joined dot-free segments with no further path
-#: before them, so ``tools/x.py at`` and ``a/b/c at`` never match.
-_FOREIGN_AT_WORD: Final = re.compile(r"(?<![\w./-])([\w-]+)/([\w-]+)\s+at\s+`?$")
-#: ``sha256 X``, ``digest: X`` - and the ``Y`` of a labelled ``X...Y`` head-tail pair.
-_DIGEST_LABEL: Final = re.compile(
-    r"(?i)(?<![\w-])(?:sha-?256|digest)\s*[:=]?\s*`?(?:[0-9a-f]{7,64}\.\.\.)?$"
-)
-_BLOB_LABEL: Final = re.compile(r"(?i)(?<![\w-])blob\s*[:=]?\s*`?$")
-_RUN_LABEL: Final = re.compile(r"(?i)(?<![\w-])run(?:[ _]id)?[\"'`:\s]*$")
-_RUN_ID_WIDTH: Final = 8
-#: The placeholder runs MEASURED in this tree's docs on 2026-10-02 - one, from
-#: the CS-1174 survival table's synthetic Epic-shaped hex. Nothing else.
-_PLACEHOLDER_RUNS: Final = ("a1b2c3d4",)
+#: The CLOSED set of non-commit classes - the acceptance's measured classes plus
+#: guid. A row naming any other class is refused when the table is loaded.
+CLASSES: Final[dict[str, str]] = {
+    "agent-id": "a subagent, worktree or review-session id, never a git object",
+    "sha256-prefix": "a prefix or tail of a sha256 content digest, never a git object",
+    "foreign-pin": "a commit of a FOREIGN repository, pinned by a licence gate",
+    "git-blob": "a git blob sha1 - an object, but not a commit",
+    "lane-run-id": "a queue-lane run id minted from uuid4 hex",
+    "fixture-vector": "a synthetic test vector written by hand",
+    "guid": "one group of a GUID",
+}
 
 
 @dataclass(frozen=True)
-class _Site:
-    """One token's place in its line, with the context the rules read."""
+class AllowRow:
+    """One allowlisted non-commit token.
+
+    Attributes:
+        token: The exact token, as the docs spell it.
+        klass: Its class, from :data:`CLASSES`.
+        reason: Why it is not a commit, and where it was measured.
+    """
 
     token: str
-    prefix: str
-    suffix: str
-    line: str
-    start: int
-    end: int
-    root: Path | None
-    remotes: frozenset[str]
+    klass: str
+    reason: str
 
 
-def _within_guid(site: _Site) -> bool:
-    return any(
-        match.start() <= site.start and site.end <= match.end()
-        for match in _GUID.finditer(site.line)
-    )
+_A, _S, _F, _B, _R, _V, _G = CLASSES.keys()
 
-
-def _hyphen_joined(site: _Site) -> bool:
-    return bool(_JOINED_BEFORE.search(site.prefix) or _JOINED_AFTER.match(site.suffix))
-
-
-def _foreign_pin(site: _Site) -> bool:
-    if _FOREIGN_AT_SIGN.search(site.prefix):
-        return True
-    match = _FOREIGN_AT_WORD.search(site.prefix)
-    if match is None or match.group(1) in site.remotes:
-        # ``origin/main at <sha>`` is a ref of THIS repository, not a foreign pin.
-        return False
-    # A pair that names a path in this tree is a path, not a foreign repository.
-    pair = f"{match.group(1)}/{match.group(2)}"
-    return site.root is None or not (site.root / pair).exists()
-
-
-#: The stated rules, in the order they are tried. Each maps its class name to
-#: the sentence that states it and the predicate that applies it.
-_RULES: Final[dict[str, tuple[str, Callable[[_Site], bool]]]] = {
-    "agent-id": (
-        "the token directly follows `agent-`: a subagent or worktree id",
-        lambda s: s.prefix.endswith("agent-"),
+#: The allowlist, MEASURED on this tree on 2026-10-02. Add a row only for a token
+#: that is provably not a commit of this repository; the overreach control
+#: reddens a row that turns out to be one.
+ALLOWLIST: Final[tuple[AllowRow, ...]] = (
+    AllowRow("ace624231ac7fd814", _A, "CS-1207 worktree id, CS-NEXT-SESSION and WAKEUP_NOTES"),
+    AllowRow("a1d0d1c85dd5bc8fc", _A, "worktree id named by a prune record, history_notes"),
+    AllowRow("a29bded19d0edd514", _A, "worktree branch id, phase4-followups-900"),
+    AllowRow("a4f0885163222ba12", _A, "CS-815 builder worktree id, history_notes"),
+    AllowRow("a7a207a7fac1a22b7", _A, "CS-492 round worktree id, phase4-followups-900"),
+    AllowRow("a8b7284852bf73422", _A, "worktree removed on instruction, history_notes"),
+    AllowRow("a8f0774be4d10c1fe", _A, "clean worktree removed by a prune, history_notes"),
+    AllowRow("a970f46db2e225244", _A, "CS-492 round worktree id, phase4-followups-900"),
+    AllowRow("ab7fcd5c63f9193ea", _A, "merged worktree branch id, history_notes"),
+    AllowRow("abccd667b38e14135", _A, "worktree branch id, phase4-followups and -900"),
+    AllowRow("ac95f3565beb2209d", _A, "worktree id holding unmerged work, history_notes"),
+    AllowRow("ad45630ce2d98d6dd", _A, "CS-988 sweep worktree id, cs988-sweep-record"),
+    AllowRow("af11f14194b6508f8", _A, "worktree branch id, phase4-followups-900"),
+    AllowRow("af6f0393f63bd2adb", _A, "clean worktree id, history_notes"),
+    AllowRow(
+        "e085b4a92ab2",
+        _A,
+        "the CS-REVIEW session id inside a channel note's filename, history_notes - the "
+        "one row whose class is inferred from the filename and not measured",
     ),
-    "guid": (
-        "the token sits inside an 8-4-4-4-12 lower-case hex GUID",
-        _within_guid,
-    ),
-    "compound-name": (
-        "the token is hyphen-joined to a letter or digit: one part of a file, branch or note name",
-        _hyphen_joined,
-    ),
-    "foreign-pin": (
-        "the token directly follows `name@` or `owner/repo@` (git has no `name@<sha>` "
-        "spelling of a commit), or `owner/repo at ` where the two segments are dot-free, no "
-        "further path precedes them, the owner is no remote of this repository and the pair "
-        "names no path in this tree: a foreign repository pin",
-        _foreign_pin,
-    ),
-    "content-digest": (
-        "the token directly follows `sha256`, `sha-256` or `digest` (optionally `:`, `=` or a "
-        "backtick) on the same line, or is the tail of such a labelled `head...tail` pair: a "
-        "content digest prefix",
-        lambda s: bool(_DIGEST_LABEL.search(s.prefix)),
-    ),
-    "git-blob": (
-        "the token directly follows `blob` (optionally `:`, `=` or a backtick) on the same "
-        "line, or names a blob or tree object in this store by `git cat-file -t`: a git "
-        "object that is not a commit",
-        lambda s: bool(_BLOB_LABEL.search(s.prefix)),
-    ),
-    "truncation": (
-        "the token is followed by `...` and then no letter or digit: a truncated digest",
-        lambda s: s.suffix.startswith("...") and not s.suffix[3:4].isalnum(),
-    ),
-    "run-id": (
-        "an 8-character token directly after `run`, `run id` or `run_id`: a lane run id",
-        lambda s: len(s.token) == _RUN_ID_WIDTH and bool(_RUN_LABEL.search(s.prefix)),
-    ),
-    "fixture-vector": (
-        "the token carries the measured placeholder run `a1b2c3d4`: a synthetic vector",
-        lambda s: any(run in s.token for run in _PLACEHOLDER_RUNS),
-    ),
-}
+    AllowRow("05f4c6b", _S, "tail of the CHANNEL.md v1 sha256 `899f6eb9...05f4c6b`, LEDGER"),
+    AllowRow("899f6eb9", _S, "head of the CHANNEL.md v1 sha256, LEDGER"),
+    AllowRow("fc22e86e", _S, "head of the CHANNEL.md v2 sha256, LEDGER and history_notes"),
+    AllowRow("fafa13c0", _S, "head of a regenerated integrity digest, LEDGER"),
+    AllowRow("f1b4b011", _S, "head of the carriers' shared-file sha256, history_notes"),
+    AllowRow("0b112a4f", _S, "head of a sixth repository's published digest, history_notes"),
+    AllowRow("71fa2a683f2eaa04", _S, "head of UPSTREAM_SLOTS_DIGEST, history_notes"),
+    AllowRow("72c750bb", _F, "tt-a1i/archify licence-gate pin, CS-1098 ruling quote, LEDGER"),
+    AllowRow("72c750bb070d95171dbb2244e5b62b1b7da69c12", _F, "tt-a1i/archify full pin, LEDGER"),
+    AllowRow("5bca294", _F, "mksglu/context-mode pin, CS-1099 ruling quote, LEDGER"),
+    AllowRow("5bca2948959a7fb538e895d9a032c1a19b8685a5", _F, "mksglu/context-mode full pin"),
+    AllowRow("a9317e03", _F, "timharris707/skills pin, CS-1100 ruling quote, LEDGER"),
+    AllowRow("a9317e03733da7f54b5da0eaa8edcb2697495cf5", _F, "timharris707/skills full pin"),
+    AllowRow("4b3a567", _B, "pre-commit hook blob, one of three blob SHAs, LEDGER"),
+    AllowRow("b7a4cd0", _B, "pre-commit hook blob, one of three blob SHAs, LEDGER"),
+    AllowRow("e12e087", _B, "pre-commit hook blob, one of three blob SHAs, LEDGER"),
+    AllowRow("d90c7876", _B, "tools/precommit_gate.py blob verified by hash, LEDGER"),
+    AllowRow("9c16958af3168e19005ab1c257b529f399d2fdfa", _B, "reach_guard.py hash-object"),
+    AllowRow("5ff0ddfd", _R, "the 2026-09-11 lane start failure row, lane-start-failure-record"),
+    AllowRow("62f29b90", _R, "the cycle-8 lane run with no worker log, history_notes"),
+    AllowRow("e085d9aa", _R, "a lane status row's run_id, LEDGER"),
+    AllowRow("a1b2c3d4e5f60718", _V, "CS-1174 survival table, synthetic Epic-shaped hex"),
+    AllowRow("a1b2c3d4", _G, "first group of the CS-1174 synthetic braceless GUID"),
+    AllowRow("def012345678", _G, "last group of the CS-1174 synthetic braceless GUID"),
+)
 
-#: The class the store-verified half of the ``git-blob`` rule assigns.
-GIT_BLOB: Final = "git-blob"
 
-EXCLUSION_RULES: Final[dict[str, str]] = {name: sentence for name, (sentence, _) in _RULES.items()}
+def allowlist_map(rows: Sequence[AllowRow] = ALLOWLIST) -> dict[str, str]:
+    """The table as ``token -> class``, refusing an unknown class or a duplicate.
+
+    Args:
+        rows: The rows to index.
+
+    Returns:
+        Each token mapped to its class.
+
+    Raises:
+        ValueError: On a class outside :data:`CLASSES`, an empty reason, a
+            token outside the inclusion shape, or a token listed twice.
+    """
+    mapped: dict[str, str] = {}
+    for row in rows:
+        if row.klass not in CLASSES or not row.reason.strip():
+            raise ValueError(f"allowlist row {row.token} has no stated class or reason")
+        if not (
+            _TOKEN.fullmatch(row.token)
+            and _HAS_DIGIT.search(row.token)
+            and _HAS_LETTER.search(row.token)
+        ):
+            raise ValueError(f"allowlist row {row.token} is not sha-shaped")
+        if row.token in mapped:
+            raise ValueError(f"allowlist row {row.token} is listed twice")
+        mapped[row.token] = row.klass
+    return mapped
+
+
+# --- hints: shapes, used ONLY to describe a failing token ---------------------
+
+_HINTS: Final[tuple[tuple[str, Callable[[str, str], bool]], ...]] = (
+    ("looks like an agent or worktree id", lambda p, _s: p.endswith("agent-")),
+    (
+        "looks like a foreign pin",
+        lambda p, _s: p.endswith("@") or bool(re.search(r"/\S+\s+at\s+`?$", p)),
+    ),
+    ("looks like a digest", lambda p, _s: bool(re.search(r"(?i)(sha-?256|digest)\W*$", p))),
+    ("looks like a blob", lambda p, _s: bool(re.search(r"(?i)blob\W*$", p))),
+    ("looks truncated", lambda p, s: s.startswith("...") or p.endswith("...")),
+    ("looks like a run id", lambda p, _s: bool(re.search(r"(?i)\brun\W*$", p))),
+    ("looks hyphen-joined", lambda p, s: p.endswith("-") or s.startswith("-")),
+)
+
+
+def hint_for(prefix: str, suffix: str) -> str | None:
+    """A description of the token's surroundings - NEVER an exemption."""
+    return next((text for text, applies in _HINTS if applies(prefix, suffix)), None)
 
 
 @dataclass(frozen=True)
@@ -241,52 +262,39 @@ class Occurrence:
         path: Repository-relative path, forward slashes.
         line: One-based line number.
         token: The token itself.
-        rule: The exclusion class that removed it, or None when admitted.
+        rule: The allowlist class that excluded it, or None when admitted.
+        hint: What its surroundings look like, for a reader - never a verdict.
     """
 
     path: str
     line: int
     token: str
     rule: str | None
+    hint: str | None = None
 
 
 def scan_text(
-    text: str,
-    path: str = "",
-    root: Path | None = None,
-    remotes: frozenset[str] = frozenset({"origin"}),
+    text: str, path: str = "", allowlist: Mapping[str, str] | None = None
 ) -> list[Occurrence]:
-    """Find every sha-shaped token in ``text`` and classify it by the text rules.
+    """Find every sha-shaped token in ``text`` and classify it by the allowlist alone.
 
     Args:
         text: One file's text.
         path: The name the occurrences carry.
-        root: The work tree, so the foreign-pin rule can refuse a real path;
-            None when there is no tree to ask.
-        remotes: This repository's remote names, which the foreign-pin rule
-            refuses as owners.
+        allowlist: ``token -> class``; the shipped table when None.
 
     Returns:
-        Every occurrence, in text order, each with its exclusion class or None.
+        Every occurrence, in text order, each with its class or None.
     """
+    table = allowlist_map() if allowlist is None else allowlist
     found: list[Occurrence] = []
     for index, line in enumerate(text.splitlines()):
         for match in _TOKEN.finditer(line):
             token = match.group(0)
             if not (_HAS_DIGIT.search(token) and _HAS_LETTER.search(token)):
                 continue
-            site = _Site(
-                token,
-                line[: match.start()],
-                line[match.end() :],
-                line,
-                match.start(),
-                match.end(),
-                root,
-                remotes,
-            )
-            rule = next((name for name, (_, applies) in _RULES.items() if applies(site)), None)
-            found.append(Occurrence(path, index + 1, token, rule))
+            hint = hint_for(line[: match.start()], line[match.end() :])
+            found.append(Occurrence(path, index + 1, token, table.get(token), hint))
     return found
 
 
@@ -339,11 +347,6 @@ def commit_of(repo: Path, token: str) -> str | None:
     return done.stdout.decode("ascii").strip() if done.returncode == 0 else None
 
 
-def _is_tree_or_blob(repo: Path, token: str) -> bool:
-    done = _git(repo, ["cat-file", "-t", token])
-    return done.returncode == 0 and done.stdout.strip() in {b"blob", b"tree"}
-
-
 def _published(repo: Path) -> tuple[int, set[str]]:
     refs = _git_out(repo, ["for-each-ref", "--format=%(refname)", *PUBLISHED_REFS]).split()
     if not refs:
@@ -351,8 +354,7 @@ def _published(repo: Path) -> tuple[int, set[str]]:
     done = _git(repo, ["rev-list", "--stdin"], b"".join(ref + b"\n" for ref in refs))
     if done.returncode != 0:
         raise GateError(f"git rev-list exited {done.returncode}")
-    listed = done.stdout.decode("ascii")
-    return len(refs), set(listed.split())
+    return len(refs), set(done.stdout.decode("ascii").split())
 
 
 def _commit_map(repo: Path) -> list[str] | None:
@@ -379,6 +381,7 @@ class SweepReport:
         published_refs: How many refs under :data:`PUBLISHED_REFS` exist.
         rewritten: The OLD shas a filter-repo commit-map names, or None when
             no map is present - the discriminator is unavailable.
+        allowlist: The ``token -> class`` table this run used.
         unresolved: Each admitted occurrence that is not a published commit,
             with its state - ``unpublished``, ``rewritten-away`` or
             ``never-resolved``.
@@ -390,13 +393,20 @@ class SweepReport:
     shallow: bool
     published_refs: int
     rewritten: list[str] | None
+    allowlist: Mapping[str, str]
     unresolved: list[tuple[Occurrence, str]] = field(default_factory=list)
     overreach: list[Occurrence] = field(default_factory=list)
 
     @property
     def admitted(self) -> list[Occurrence]:
-        """The occurrences no exclusion rule removed."""
+        """The occurrences the allowlist did not name."""
         return [entry for entry in self.occurrences if entry.rule is None]
+
+    @property
+    def unused(self) -> list[str]:
+        """Allowlist rows no doc carries any more."""
+        seen = {entry.token for entry in self.occurrences}
+        return sorted(token for token in self.allowlist if token not in seen)
 
     def verdict(self) -> int:
         """Exit 2 when nothing can be judged, 1 on a failure, else 0."""
@@ -413,11 +423,12 @@ def _state(report: SweepReport, token: str, commit: str | None) -> str:
     return "never-resolved"
 
 
-def sweep(repo: Path) -> SweepReport:
+def sweep(repo: Path, allowlist: Mapping[str, str] | None = None) -> SweepReport:
     """Read every tracked doc in ``repo`` and judge every citation against published history.
 
     Args:
         repo: A work tree.
+        allowlist: ``token -> class``; the shipped table when None.
 
     Returns:
         The report. On a shallow clone, or with no published ref, nothing is
@@ -426,36 +437,21 @@ def sweep(repo: Path) -> SweepReport:
     Raises:
         GateError: When git cannot be run or ``repo`` is not a repository.
     """
+    table = allowlist_map() if allowlist is None else allowlist
     shallow = _git_out(repo, ["rev-parse", "--is-shallow-repository"]).strip() != b"false"
     listed = _git_out(repo, ["ls-files", "-z", "--", *DOC_PATHSPECS]).decode("utf-8")
     paths = sorted(name for name in listed.split("\0") if name)
-    # A remote is any configured remote AND any name refs/remotes carries, so a
-    # ref fetched without a configured remote still reads as this repository's.
-    remote_refs = _git_out(repo, ["for-each-ref", "--format=%(refname)", "refs/remotes"])
-    remotes = frozenset(
-        _git_out(repo, ["remote"]).decode("utf-8").split()
-        + [ref.split("/")[2] for ref in remote_refs.decode("utf-8").split() if ref.count("/") > 1]
-    )
     occurrences: list[Occurrence] = []
     for name in paths:
         target = repo / name
         if target.is_file():
             text = target.read_text(encoding="utf-8", errors="replace")
-            occurrences += scan_text(text, name, repo, remotes)
+            occurrences += scan_text(text, name, table)
     ref_count, published = (0, set()) if shallow else _published(repo)
-    report = SweepReport(len(paths), occurrences, shallow, ref_count, _commit_map(repo))
+    report = SweepReport(len(paths), occurrences, shallow, ref_count, _commit_map(repo), table)
     if shallow or not ref_count:
         return report
     commits = {token: commit_of(repo, token) for token in sorted({e.token for e in occurrences})}
-    blobs = {
-        token
-        for token, commit in commits.items()
-        if commit is None and _is_tree_or_blob(repo, token)
-    }
-    report.occurrences = occurrences = [
-        Occurrence(e.path, e.line, e.token, GIT_BLOB) if e.rule is None and e.token in blobs else e
-        for e in occurrences
-    ]
     for entry in occurrences:
         commit = commits[entry.token]
         is_published = commit is not None and commit in published
@@ -475,8 +471,10 @@ def render(report: SweepReport) -> list[str]:
         f"{len(report.occurrences)}; admitted {len(admitted)} "
         f"({len({entry.token for entry in admitted})} distinct); "
         f"unresolved {len(report.unresolved)}; overreach {len(report.overreach)}",
+        f"allowlist rows {len(report.allowlist)}; unused {len(report.unused)} - exact tokens "
+        "only, never a shape",
     ]
-    for name, sentence in EXCLUSION_RULES.items():
+    for name, sentence in CLASSES.items():
         count = sum(1 for entry in report.occurrences if entry.rule == name)
         out.append(f"excluded-count {name} {count} - {sentence}")
     out += [
@@ -484,6 +482,7 @@ def render(report: SweepReport) -> list[str]:
         for entry in report.occurrences
         if entry.rule is not None
     ]
+    out += [f"allowlist-unused {token}" for token in report.unused]
     if report.shallow:
         out.append("resolver SHALLOW - a shallow clone holds no history, so nothing was resolved")
     elif not report.published_refs:
@@ -503,6 +502,11 @@ def render(report: SweepReport) -> list[str]:
     )
     out += [
         f"unresolved {entry.path}:{entry.line} {entry.token} {state}"
+        + (
+            f" (hint: {entry.hint}; if it is not a commit, add an ALLOWLIST row)"
+            if entry.hint
+            else ""
+        )
         for entry, state in report.unresolved
     ]
     out += [
@@ -515,7 +519,7 @@ def render(report: SweepReport) -> list[str]:
     elif verdict == EXIT_UNRESOLVED:
         out.append(
             "sha_citation_gate: FAIL - a citation is not a published commit, "
-            "or an exclusion swallowed one"
+            "or an allowlisted token is one"
         )
     else:
         if report.shallow:
