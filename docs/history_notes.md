@@ -14641,3 +14641,137 @@ measured. Do not reuse its margin figures as if they were observations.
 
 THE TIGHTEST SHARD IS NOW THE SAVE SHARD at 407s job time, not guard. Whatever breaches
 next will breach there, and CS-1197 is the item that owns its growth.
+
+## CS-1220 - RETIRED 2026-10-02, closed in session 119
+
+Moved here whole from `docs/item_notes/phase7.md` when the item closed; the completion
+record is in `docs/LEDGER.md` under 2026-10-02.
+
+## CS-1220
+
+### Acceptance
+
+`tools/measurement_record.py` never reports two readings comparable when either was taken
+over a tree whose state is unrecorded: a reading records the tree it was taken over, the
+grader refuses a new locally-sourced reading that omits it, and `comparability()` returns a
+distinct non-comparable verdict naming the unrecorded tree rather than `comparable`. The
+sixteen rows already in `tools/measurements.json` are NOT re-seeded or re-dated - each
+keeps its value and is marked as carrying no tree witness, which is what the new verdict
+names. Shown by arms red first: one that grades a new local reading with no tree field and
+asserts the refusal, and one that asks `comparability()` about a pair where exactly one
+side carries no witness and asserts the verdict is not `comparable`.
+
+### Full headline
+
+`tools/measurement_record.py` grades a reading's commit spelling but records no clean-tree witness
+
+### FILED 2026-10-02, an inbox-derived finding that survived refutation (session 118)
+
+`tools/measurement_record.py` grades the `commit` field for spelling only - a lowercase hex
+sha of 7 to 40 digits - and carries no notion of tree state; `porcelain`, `dirty` and
+`clean_tree` appear nowhere in the module, and
+`tests/test_measurement_record.py::test_the_tracked_record_grades_clean` is a schema arm,
+not a tree witness. The live field set is `commit, contended, date, method, metric, source,
+superseded_by, unit, value, workers`, with no tree-state key. Reachability is bounded but
+not zero: of sixteen rows, seven `ci_job` and six `derived` rows are clean by the runner's
+own checkout, but two `profile` rows and one `unpaired` row were taken locally and their
+tree state is unrecorded. So two `profile` rows agreeing on method, workers and contention
+compare as `comparable` when one of them measured uncommitted code, and the delta is
+published as fact. This bears directly on CS-1214, whose readings are the kind this record
+holds.
+
+## CS-1219 - RETIRED 2026-10-02, closed in session 119
+
+Moved here whole from `docs/item_notes/phase7.md` when the item closed; the completion
+record is in `docs/LEDGER.md` under 2026-10-02.
+
+## CS-1219
+
+### Acceptance
+
+a tracked witness records the candidate an adjudication was dispatched over and refuses a
+verdict taken over a tree that moved under it: the witness records the candidate's tree
+object rather than its commit, so a commit that leaves the tree identical is not a move
+and an uncommitted edit is, and it covers compiled bytecode as well as tracked files,
+because `__pycache__/` is gitignored and a porcelain check is blind to a swapped `.pyc`.
+Shown by two arms, red first: one that edits a tracked file under a recorded freeze and
+asserts the witness reddens, and one that leaves every tracked file byte-identical while
+swapping a reachable `.pyc` and asserts the witness reddens for that reason alone. The
+prose in `tools/headless-queue.md` and `CLAUDE.md` section 5 then points at the witness
+rather than carrying the rule alone, and neither file restates what the witness measures.
+
+### Full headline
+
+the adjudication candidate freeze is prose with no mechanical witness, and a porcelain one would be blind to a swapped `.pyc`
+
+### FILED 2026-10-02, an inbox-derived finding that survived refutation (session 118)
+
+`tools/headless-queue.md`, under its "Freeze the candidate before dispatching an
+adjudicator" bullet, and `CLAUDE.md` section 5 both order the candidate frozen
+before dispatch. A sweep of `tools/`, `tests/`, `ops/` and `.githooks/` for the rule found
+only prose: every `freeze`-shaped hit is a `frozenset`, a `drift_guard` frozen-files
+report, or the doctrine itself. Nothing records an adjudication's subject and nothing
+re-checks it at verdict time. The harm is already MEASURED rather than hypothetical -
+`CLAUDE.md` section 5 records that the tree moved under an adjudicator four times in
+session 45 and that three whole-suite runs were spent proving a run straddling an edit
+says nothing. The bytecode half is live too: `.gitignore` excludes `__pycache__/`, so a
+porcelain-based witness reports a clean tree while a stale or swapped `.pyc` sits on disk
+and is what the interpreter loads.
+
+## Session 116 - ARCHIVED 2026-10-02, pruned from WAKEUP_NOTES.md in session 119
+## Session 116 - 2026-09-26 - CI back to green, three withheld-path and timing items closed, a fifth tier-1 job, and the env scan inverted but not closed
+
+- Shipped: CS-1209 (measured on ubuntu via a throwaway branch: PYTHONINSPECT turns sys.exit(97) into status 1, so pre-commit refuses with no usable python; the arm names one path per platform), CS-1195 (drift_guard guard (c) withholds withheld-class paths - four adversary rounds), CS-1210 (the same for guard_dated, which is guard (g) not (e)), CS-1201 (probe-bound arms graded by a per-call shim log and a window from the hang; base went red under a 24-spinner load, candidate green), CS-1198 (fifth tier-1 job `fill` plus `--no-loadscope-reorder` on the hook job; slow-mode hook reading 355). Detail in docs/LEDGER.md.
+- In flight: CS-1207 LANDED NOT CLOSED at db87fff - the env scan is an allowlist of permitted readers per site, but adversary round three still got synthetic markers out live through str.format field walks, __import__/exec bound as values, match class patterns and reaching os through a scanned repo module (listed in its item note). CS-1208 has a spec (session scratchpad, not tracked - the next session re-plans from the item note) and depends on CS-1207's permitted-site table; the merger ruled its driven module runs in the fill shard.
+- Decisions: CS-1198 by adjudicator (Route N, then re-ruled after S0's NO-GO): fifth job fill, reorder flag on the hook job only, pytest-xdist>=3.8. CS-1207 by adjudicator: the Python-scope command rule is a program allowlist; resolve/absolute/sys.executable/sys.path graded per site; the pathlib method list is a pinned literal with a guard test; six must-pass lines retired to must-flag (ledger). No ADR.
+- Surprises: pytest-xdist 3.8 dispatches loadfile work by descending test count, so a file NAMED first does not START first - the hook shard's 160s canary always ran last and alone (CS-1213 files the save shard's identical false claim). tests/test_flip_checks.py pins that no workflow names its tool, so it cannot be moved into a named shard - the first CS-1198 push blocked on it. The guard shard read 443 on a slow runner (CS-1214). The gate echoes git's stderr, home path included, when run by hand (CS-1215, frozen).
+- Failed paths: a fifth job alone for CS-1198 (S0 projected hook 402-413, NO-GO). A static scanner reaching closure on Python env reads in one round - three rounds each found a new class; the next builder should close CLASSES (str.format fields, any builtin bound as a value, any attribute chain through a repository module) not shapes.
+- Next action: read CI at the /done push; then continue CS-1207 from its item note's round-three list, closing each CLASS with an allowlist, and send the result to a fresh adversary before CS-1208.
+
+## CS-1222 - RETIRED 2026-10-02, closed in session 119
+
+Moved here whole from `docs/item_notes/phase7.md` when the item closed; the completion
+record is in `docs/LEDGER.md` under 2026-10-02.
+
+## CS-1222
+
+### Acceptance
+
+a doc carrying an unresolvable commit sha turns a guard red: a tracked gate resolves
+every sha-shaped citation in the authored docs with `git rev-parse --verify -q
+<sha>^{commit}` and FAILS on one that does not resolve, red first, with an arm that
+plants an unresolvable sha in a temp copy of a guarded doc and asserts the refusal, and
+a second arm that plants a RESOLVABLE one and asserts it passes so the gate is not
+merely refusing every hex run. The gate's inclusion rule is published and its exclusion
+set is reported per run, because a sweep that admits nothing reports clean; the known
+non-commit classes measured on 2026-10-02 - agent and worktree ids, sha256 prefixes,
+foreign-repository licence pins, git blob sha1s, lane run ids and synthetic fixture
+vectors - are each excluded by a STATED rule rather than by a path exemption. An empty
+result is never reported as a pass on its own: the gate states whether SS's
+discriminator was available, since `.git/filter-repo/` is absent here and a check that
+cannot fire proves nothing.
+
+### Full headline
+
+`docs/LEDGER.md` forbids citing a commit sha and nothing enforces it, so a doc carrying an unresolvable sha reddens nothing
+
+### MEASURED 2026-10-02, found answering the channel's re-pin round (session 118)
+
+`docs/LEDGER.md` already forbids the citation: "Cite the item ID, the merged file, and
+the test name. Do not cite the slice SHA.", and its invalid-pointer list names "A bare
+commit SHA" outright. NOTHING ENFORCES IT. Four tools validate a commit field's SHAPE
+with a regex and never call git - the measurement record's `_COMMIT` pattern over
+`tools/measurements.json`, and the concentration, growth and headroom tools;
+`tests/test_docs_citations.py` grades symbol-shaped pointers and is silent on shas; the
+one site that resolves a ref resolves a flip ref rather than a doc citation.
+
+THE SWEEP THAT FOUND IT CAME BACK CLEAN, WHICH IS THE POINT. 59 files, 765 sha-shaped
+occurrences, 393 distinct, 353 resolving as commits and 40 empty - and all 40 are
+explained by their own citing lines as things that were never commits. So CS's record is
+clean by discipline and not by any gate, and the next unresolvable sha to land will land
+silently. A clean result standing in for a guard is the shape
+`memory/` already records under a gate that skips its checks reporting PASS.
+
+RELATED, AND NOT THE SAME ITEM: [[CS-1220]] is the sibling defect one field over - a
+record that grades a commit's spelling while carrying no witness for the state it was
+taken in.

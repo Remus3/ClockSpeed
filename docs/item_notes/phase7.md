@@ -1397,111 +1397,75 @@ A private-tree commit whose `[tool.ruff]` table named an `extend` path ruff coul
 resolve printed the gate's PASS line; the gate discards ruff's stderr, so the failure
 was silent.
 
-## CS-1219
+## CS-1223
 
 ### Acceptance
 
-a tracked witness records the candidate an adjudication was dispatched over and refuses a
-verdict taken over a tree that moved under it: the witness records the candidate's tree
-object rather than its commit, so a commit that leaves the tree identical is not a move
-and an uncommitted edit is, and it covers compiled bytecode as well as tracked files,
-because `__pycache__/` is gitignored and a porcelain check is blind to a swapped `.pyc`.
-Shown by two arms, red first: one that edits a tracked file under a recorded freeze and
-asserts the witness reddens, and one that leaves every tracked file byte-identical while
-swapping a reachable `.pyc` and asserts the witness reddens for that reason alone. The
-prose in `tools/headless-queue.md` and `CLAUDE.md` section 5 then points at the witness
-rather than carrying the rule alone, and neither file restates what the witness measures.
+`tools/measurement_record.py` refuses a tree claim it cannot tie to evidence. A reading
+claiming `tree: unwitnessed` is accepted only if it is one of the rows that were in
+`tools/measurements.json` when CS-1220 landed - a pinned seed set, not a comparison
+against the reading's own `date` - so a new reading dated before
+`TREE_WITNESS_REQUIRED_FROM` is refused like any other new row. A locally-sourced reading
+(`paired`, `unpaired`, `local_suite` or `profile`) that claims `clean` must carry a witness
+the grader can check - for example a `tools/freeze_witness.py` digest of the tree it read,
+or a recorded empty porcelain status bound to its `commit` - and is refused without one.
+Shown by arms red first: one that appends a new local reading dated before the cutover
+with `tree: unwitnessed` and asserts the refusal, and one that grades a local `clean`
+reading carrying no witness and asserts the refusal; controls show a local `clean`
+reading carrying a valid witness still grades clean and the sixteen seeded rows still
+grade clean with their values and dates unchanged.
 
 ### Full headline
 
-the adjudication candidate freeze is prose with no mechanical witness, and a porcelain one would be blind to a swapped `.pyc`
+the measurement record's tree witness can be backdated, and a local `clean` claim carries
+no evidence
 
-### FILED 2026-10-02, an inbox-derived finding that survived refutation (session 118)
+### FILED 2026-10-02, a residual of CS-1220 recorded at its close (session 119)
 
-`tools/headless-queue.md`, under its "Freeze the candidate before dispatching an
-adjudicator" bullet, and `CLAUDE.md` section 5 both order the candidate frozen
-before dispatch. A sweep of `tools/`, `tests/`, `ops/` and `.githooks/` for the rule found
-only prose: every `freeze`-shaped hit is a `frozenset`, a `drift_guard` frozen-files
-report, or the doctrine itself. Nothing records an adjudication's subject and nothing
-re-checks it at verdict time. The harm is already MEASURED rather than hypothetical -
-`CLAUDE.md` section 5 records that the tree moved under an adjudicator four times in
-session 45 and that three whole-suite runs were spent proving a run straddling an edit
-says nothing. The bytecode half is live too: `.gitignore` excludes `__pycache__/`, so a
-porcelain-based witness reports a clean tree while a stale or swapped `.pyc` sits on disk
-and is what the interpreter loads.
+CS-1220 gates the `unwitnessed` escape by date alone: `TREE_WITNESS_REQUIRED_FROM` is
+compared against the reading's own `date`, which whoever writes the row supplies, so a
+new local reading dated before the cutover with `tree: unwitnessed` grades clean today and
+then reads `unwitnessed_tree` rather than being refused. The module docstring of
+`tools/measurement_record.py` already says the other half plainly - the grader cannot see
+a porcelain observation, so a local `clean` claim rests on whoever records it. The CS-1220
+adversary returned NOT REFUTED against the clause as filed; these are gaps in what that
+clause asked for, not escapes from it, which is why they are a new item rather than a
+reopening. The witness this item needs already exists: `tools/freeze_witness.py`
+(CS-1219) records a raw on-disk digest of exactly the tree a reading was taken over.
 
-## CS-1220
+## CS-1224
 
 ### Acceptance
 
-`tools/measurement_record.py` never reports two readings comparable when either was taken
-over a tree whose state is unrecorded: a reading records the tree it was taken over, the
-grader refuses a new locally-sourced reading that omits it, and `comparability()` returns a
-distinct non-comparable verdict naming the unrecorded tree rather than `comparable`. The
-sixteen rows already in `tools/measurements.json` are NOT re-seeded or re-dated - each
-keeps its value and is marked as carrying no tree witness, which is what the new verdict
-names. Shown by arms red first: one that grades a new local reading with no tree field and
-asserts the refusal, and one that asks `comparability()` about a pair where exactly one
-side carries no witness and asserts the verdict is not `comparable`.
+`tools/sha_citation_gate.py` grades commit citations it currently cannot see. A tracked
+`.py` file - and any other tracked text the published inclusion rule is widened to -
+that cites an unpublished commit turns the gate red; and a 5- or 6-character hex
+abbreviation, or a hex run of 41 or more characters, that names an unpublished commit
+turns it red too, OR the gate states on every run each width class it does not judge
+and why, so an empty result in that class is never read as a pass. The two unpublished
+commits cited in code today - in the CS-971 comment above
+`_ROADMAP_ACCEPTANCE_SEPARATOR` in `tools/drift_guard.py`, and in three `RED at`
+docstrings in `tests/test_pre_push_suite_floor.py` - are rewritten to cite their item
+IDs. Shown by arms red first: one that plants an unpublished commit abbreviation in a
+temp copy of a tracked `.py` file and asserts the refusal, and one that plants a
+6-character unpublished abbreviation in a temp copy of a guarded doc and asserts the
+refusal or the stated non-judgement; a control in each shows a published commit passes.
 
 ### Full headline
 
-`tools/measurement_record.py` grades a reading's commit spelling but records no clean-tree witness
+commit citations outside `.md` and `.txt`, and hex runs under 7 or over 40 characters,
+are ungraded by the sha citation gate
 
-### FILED 2026-10-02, an inbox-derived finding that survived refutation (session 118)
+### FILED 2026-10-02, a residual of CS-1222 recorded at its close (session 119)
 
-`tools/measurement_record.py` grades the `commit` field for spelling only - a lowercase hex
-sha of 7 to 40 digits - and carries no notion of tree state; `porcelain`, `dirty` and
-`clean_tree` appear nowhere in the module, and
-`tests/test_measurement_record.py::test_the_tracked_record_grades_clean` is a schema arm,
-not a tree witness. The live field set is `commit, contended, date, method, metric, source,
-superseded_by, unit, value, workers`, with no tree-state key. Reachability is bounded but
-not zero: of sixteen rows, seven `ci_job` and six `derived` rows are clean by the runner's
-own checkout, but two `profile` rows and one `unpaired` row were taken locally and their
-tree state is unrecorded. So two `profile` rows agreeing on method, workers and contention
-compare as `comparable` when one of them measured uncommitted code, and the delta is
-published as fact. This bears directly on CS-1214, whose readings are the kind this record
-holds.
-
-## CS-1222
-
-### Acceptance
-
-a doc carrying an unresolvable commit sha turns a guard red: a tracked gate resolves
-every sha-shaped citation in the authored docs with `git rev-parse --verify -q
-<sha>^{commit}` and FAILS on one that does not resolve, red first, with an arm that
-plants an unresolvable sha in a temp copy of a guarded doc and asserts the refusal, and
-a second arm that plants a RESOLVABLE one and asserts it passes so the gate is not
-merely refusing every hex run. The gate's inclusion rule is published and its exclusion
-set is reported per run, because a sweep that admits nothing reports clean; the known
-non-commit classes measured on 2026-10-02 - agent and worktree ids, sha256 prefixes,
-foreign-repository licence pins, git blob sha1s, lane run ids and synthetic fixture
-vectors - are each excluded by a STATED rule rather than by a path exemption. An empty
-result is never reported as a pass on its own: the gate states whether SS's
-discriminator was available, since `.git/filter-repo/` is absent here and a check that
-cannot fire proves nothing.
-
-### Full headline
-
-`docs/LEDGER.md` forbids citing a commit sha and nothing enforces it, so a doc carrying an unresolvable sha reddens nothing
-
-### MEASURED 2026-10-02, found answering the channel's re-pin round (session 118)
-
-`docs/LEDGER.md` already forbids the citation: "Cite the item ID, the merged file, and
-the test name. Do not cite the slice SHA.", and its invalid-pointer list names "A bare
-commit SHA" outright. NOTHING ENFORCES IT. Four tools validate a commit field's SHAPE
-with a regex and never call git - the measurement record's `_COMMIT` pattern over
-`tools/measurements.json`, and the concentration, growth and headroom tools;
-`tests/test_docs_citations.py` grades symbol-shaped pointers and is silent on shas; the
-one site that resolves a ref resolves a flip ref rather than a doc citation.
-
-THE SWEEP THAT FOUND IT CAME BACK CLEAN, WHICH IS THE POINT. 59 files, 765 sha-shaped
-occurrences, 393 distinct, 353 resolving as commits and 40 empty - and all 40 are
-explained by their own citing lines as things that were never commits. So CS's record is
-clean by discipline and not by any gate, and the next unresolvable sha to land will land
-silently. A clean result standing in for a guard is the shape
-`memory/` already records under a gate that skips its checks reporting PASS.
-
-RELATED, AND NOT THE SAME ITEM: [[CS-1220]] is the sibling defect one field over - a
-record that grades a commit's spelling while carrying no witness for the state it was
-taken in.
+`DOC_PATHSPECS` in `tools/sha_citation_gate.py` is `*.md` and `*.txt`, and both of its
+run patterns match 7 to 40 hex characters. So the gate passes while two commits that
+resolve in the local store and are reachable from neither HEAD nor any tag - measured
+this session with `git merge-base --is-ancestor` and `git tag --contains` - are cited in
+`.py` code at the two sites the acceptance names. git accepts an abbreviation down to 4
+characters, so a 5- or 6-character citation can resolve and is never graded; a run of 41
+or more is neither admitted nor resolved. The final CS-1222 adversary found no escape
+INSIDE the stated inclusion rule; this item is the population that rule does not cover.
+Widening to short abbreviations has a known cost the item must answer rather than
+ignore: ordinary hex-letter words and decimal-like runs collide far more often at 5 and
+6 characters than at 7.
