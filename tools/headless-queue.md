@@ -631,9 +631,10 @@ does, and the justification goes in the cycle report.
 - Decompose into DISJOINT slices BEFORE any of it starts. Disjointness is a precondition
   checked before dispatch, not a hope.
 - **The agent that produced a thing NEVER grades it.**
-- **Freeze the candidate before dispatching an adjudicator.** A tree that edits itself
-  mid-verdict makes the ruling a statement about no state at all, and any finding repaired
-  while the adjudicator writes is one it cannot see it discharged.
+- **Freeze the candidate before dispatching an adjudicator**, and witness it with
+  `tools/freeze_witness.py` - `freeze` before dispatch, `check` on the verdict. A tree
+  that edits itself mid-verdict makes the ruling a statement about no state at all, and
+  any finding repaired while the adjudicator writes is one it cannot see it discharged.
 - **Agreement between two agents is not evidence.** Two agents derive from the same stale
   doc or the same fixture and are wrong the same way.
 - Give refuters distinct LENSES - correctness, security, does-it-reproduce, resource
