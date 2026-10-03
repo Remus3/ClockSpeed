@@ -763,7 +763,8 @@ def _refused_without_a_path(tool: Path, start: Path) -> bool:
     try:
         flip._tool_argv(tool, start)  # noqa: SLF001 - the CS-1230 arm names the helper
     except flip.FlipError as exc:
-        return not _carries_a_home([str(exc)]) and "\\" not in str(exc)
+        text = exc.args[0] if exc.args and isinstance(exc.args[0], str) else ""
+        return bool(text) and not _carries_a_home([text]) and "\\" not in text
     return False
 
 
