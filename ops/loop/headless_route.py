@@ -7,11 +7,24 @@ applied, so a spawn site never spells the route itself.
 
 `child_env(base_env)` returns a COPY of `base_env` with `ANTHROPIC_BASE_URL` set
 to the value of `CLAUDE_HEADLESS_BASE_URL`. The value is read AT CALL TIME from
-the user environment store first (`HKEY_CURRENT_USER\Environment`) and from the
-process environment only when the store holds nothing, because a long-lived
-parent - a scheduled task, the queue driver - carries the copy it inherited at
-its own start, and a value the operator set since would otherwise never reach a
-child. Nothing here mutates `os.environ` or writes any variable at any scope.
+the user environment store (`HKEY_CURRENT_USER\Environment`), because a
+long-lived parent - a scheduled task, the queue driver - carries the copy it
+inherited at its own start, and a value the operator set since would otherwise
+never reach a child. Nothing here mutates `os.environ` or writes any variable
+at any scope.
+
+THE STORE IS THE KILL SWITCH. Deleting the user variable must stop the next
+spawn even while a long-lived parent still carries an inherited copy, so an
+ABSENT store value REFUSES. The process environment is read ONLY when the store
+cannot be read at all - off Windows, or when the registry key cannot be opened.
+
+THE VALUE IS MATCHED WHOLE AGAINST AN ALLOWLIST, never parsed. A parser is a
+second opinion on what a URL means, and the CLI's parser is a different one:
+`http://evil.example` plus a backslash plus `@127.0.0.1:3456` reads as loopback
+to Python's `urlsplit` and as the remote host to a WHATWG parser, so credentials
+would travel elsewhere. Scheme http(s), host 127.0.0.1, localhost or [::1], the
+probed port, and URL-safe path segments - nothing else, so no backslash, no
+`@` or userinfo, no query, no fragment and no whitespace can pass.
 
 FAIL CLOSED, NO FALLBACK. An unset or blank variable, a value that does not
 name the loopback proxy, or a proxy that refuses or times out a TCP connect
@@ -44,7 +57,6 @@ import socket
 import sys
 from collections.abc import Callable, Mapping
 from typing import Final
-from urllib.parse import urlsplit
 
 #: The variable the operator sets, naming the proxy.
 SOURCE_VAR: Final = "CLAUDE_HEADLESS_BASE_URL"
@@ -62,10 +74,11 @@ PROXY_PORT: Final = 3456
 #: How long the liveness connect may take before the proxy counts as down.
 CONNECT_TIMEOUT_S: Final = 2.0
 
-#: Host spellings that name the loopback proxy.
-LOOPBACK_HOSTS: Final = frozenset({"127.0.0.1", "localhost", "::1"})
+#: The whole-string allowlist, with the port substituted. Mirrored in
+#: ops/loop/run_lane.ps1, which re-checks the value the child actually gets.
+_ROUTE_SHAPE: Final = r"https?://(?:127\.0\.0\.1|localhost|\[::1\]):{port}(?:/[A-Za-z0-9._~-]+)*/?"
 
-REASON_UNSET: Final = f"{SOURCE_VAR} is unset or empty in the user store and the process"
+REASON_UNSET: Final = f"{SOURCE_VAR} is unset or empty in the user store"
 REASON_NOT_LOCAL: Final = f"{SOURCE_VAR} does not name the loopback proxy endpoint"
 REASON_PROXY_DOWN: Final = (
     f"the proxy {SOURCE_VAR} names is not accepting connections on its loopback port"
@@ -99,22 +112,34 @@ class HeadlessRouteRefused(RuntimeError):  # noqa: N818 - the ruled name
         self.reason = reason
 
 
+class UserStoreUnreadableError(OSError):
+    """The user environment store could not be read at all - not merely absent."""
+
+
 def user_store_value(name: str) -> str | None:
-    """The named variable from the USER environment store, or None. Never raises.
+    """The named variable from the USER environment store, or None when absent.
 
     Args:
         name: The variable name.
 
     Returns:
         The stored string, expanded when stored as an expandable string, or
-        None off Windows, when absent, or on any read fault.
+        None when the store holds no such value (or a non-string one).
+
+    Raises:
+        UserStoreUnreadableError: Off Windows, or the store could not be opened.
+            Only THIS lets a caller fall back to the process environment.
     """
     if sys.platform != "win32":
-        return None
+        raise UserStoreUnreadableError
     try:
         import winreg  # noqa: PLC0415 - Windows-only, deferred so import stays portable
 
-        with winreg.OpenKey(winreg.HKEY_CURRENT_USER, "Environment") as key:
+        key = winreg.OpenKey(winreg.HKEY_CURRENT_USER, "Environment")
+    except (ImportError, OSError):
+        raise UserStoreUnreadableError from None
+    try:
+        with key:
             value, kind = winreg.QueryValueEx(key, name)
     except OSError:
         return None
@@ -126,25 +151,20 @@ def user_store_value(name: str) -> str | None:
 
 
 def _read_source(user_store: Callable[[str], str | None]) -> str:
-    """The route value, user store first. Raises when neither store holds one."""
-    stored = user_store(SOURCE_VAR)
-    if stored is not None and stored.strip():
-        return stored.strip()
-    process = os.environ.get(SOURCE_VAR, "")
-    if process.strip():
-        return process.strip()
-    raise HeadlessRouteRefused(REASON_UNSET)
-
-
-def _names_proxy(value: str, port: int) -> bool:
-    """Whether ``value`` is an http(s) URL naming the loopback proxy on ``port``."""
+    """The route value. The store decides; the process env only when it is unreadable."""
     try:
-        parts = urlsplit(value)
-        named_port = parts.port
-    except ValueError:
-        return False
-    host = (parts.hostname or "").lower()
-    return parts.scheme in ("http", "https") and host in LOOPBACK_HOSTS and named_port == port
+        value = user_store(SOURCE_VAR)
+    except UserStoreUnreadableError:
+        value = os.environ.get(SOURCE_VAR)
+    if value is None or not value.strip():
+        raise HeadlessRouteRefused(REASON_UNSET)
+    return value
+
+
+def names_proxy(value: str, port: int = PROXY_PORT) -> bool:
+    """Whether ``value`` WHOLE matches the loopback-proxy allowlist on ``port``."""
+    shape = _ROUTE_SHAPE.format(port=int(port))
+    return re.fullmatch(shape, value, flags=re.ASCII) is not None
 
 
 def child_env(
@@ -176,7 +196,7 @@ def child_env(
     reader = user_store_value if user_store is None else user_store
     opener = socket.create_connection if connect is None else connect
     value = _read_source(reader)
-    if not _names_proxy(value, port):
+    if not names_proxy(value, port):
         raise HeadlessRouteRefused(REASON_NOT_LOCAL)
     try:
         connection = opener((host, port), timeout=CONNECT_TIMEOUT_S)
@@ -201,13 +221,24 @@ def _result_says_limit(output: str) -> bool:
             parsed = json.loads(candidate)
         except (ValueError, RecursionError):
             continue
-        if type(parsed) is dict and parsed.get("api_error_status") == _USAGE_LIMIT_STATUS:
+        if (
+            type(parsed) is dict
+            and parsed.get("is_error") is True
+            and parsed.get("api_error_status") == _USAGE_LIMIT_STATUS
+        ):
             return True
     return False
 
 
 def classify_exit(returncode: int | None, output: str) -> str:
     """Map a finished child to ``ok``, ``usage_limit`` or ``failed``.
+
+    THE EXIT CODE IS MEASURED, NOT ASSUMED: CS-1178 recorded a real usage-limit
+    refusal as exit 1 with a result object carrying ``is_error`` and an
+    ``api_error_status`` of 429. In case a later CLI exits 0 on the same
+    refusal, an exit 0 whose RESULT OBJECT carries that error shape is also a
+    usage limit. Free text is NOT scanned on exit 0: a successful worker may
+    well write the words "usage limit" in its own reply.
 
     Args:
         returncode: The child's exit code; None counts as a failure.
@@ -216,9 +247,9 @@ def classify_exit(returncode: int | None, output: str) -> str:
     Returns:
         One of the three OUTCOME_ constants.
     """
-    if returncode == 0:
-        return OUTCOME_OK
     text = output if isinstance(output, str) else ""
+    if returncode == 0:
+        return OUTCOME_USAGE_LIMIT if _result_says_limit(text) else OUTCOME_OK
     if _result_says_limit(text) or _LIMIT_MARKERS.search(text):
         return OUTCOME_USAGE_LIMIT
     return OUTCOME_FAILED

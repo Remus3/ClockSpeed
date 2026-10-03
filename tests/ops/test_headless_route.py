@@ -169,13 +169,119 @@ def test_the_user_store_wins_over_the_process_env(
     assert store_won
 
 
-def test_the_process_env_is_the_fallback(monkeypatch: pytest.MonkeyPatch, listening: int) -> None:
-    """With nothing in the user store, the process copy is read."""
+def _unreadable_store(name: str) -> str | None:
+    """A user store that cannot be read at all."""
+    del name
+    raise headless_route.UserStoreUnreadableError
+
+
+def test_the_process_env_is_read_only_when_the_store_is_unreadable(
+    monkeypatch: pytest.MonkeyPatch, listening: int
+) -> None:
+    """No readable store (off Windows, key unopenable): the process copy is read."""
     planted = _url(listening)
     monkeypatch.setenv(SOURCE, planted)
-    env = headless_route.child_env({}, port=listening, user_store=_store(None))
+    env = headless_route.child_env({}, port=listening, user_store=_unreadable_store)
     fell_back = env.get(TARGET) == planted
     assert fell_back
+
+
+def test_an_absent_store_value_refuses_despite_an_inherited_copy(
+    monkeypatch: pytest.MonkeyPatch, listening: int
+) -> None:
+    """THE KILL SWITCH: deleting the user variable stops the spawn, inherited copy or not."""
+    monkeypatch.setenv(SOURCE, _url(listening))
+    with pytest.raises(headless_route.HeadlessRouteRefused) as caught:
+        headless_route.child_env({}, port=listening, user_store=_store(None))
+    assert caught.value.reason == headless_route.REASON_UNSET
+
+
+def test_an_unreadable_store_and_no_process_copy_refuses(
+    monkeypatch: pytest.MonkeyPatch, listening: int
+) -> None:
+    monkeypatch.delenv(SOURCE, raising=False)
+    with pytest.raises(headless_route.HeadlessRouteRefused) as caught:
+        headless_route.child_env({}, port=listening, user_store=_unreadable_store)
+    assert caught.value.reason == headless_route.REASON_UNSET
+
+
+_BACKSLASH: Final = chr(92)
+
+
+@pytest.mark.parametrize(
+    "planted",
+    [
+        "http://evil.example" + _BACKSLASH + "@127.0.0.1:{port}",
+        "http://user:pw@127.0.0.1:{port}",
+        "http://evil.example@127.0.0.1:{port}",
+        "http://127.0.0.1:{port}/a?x=1",
+        "http://127.0.0.1:{port}/a#frag",
+        "http://127.0.0.1:{port}/a b",
+        " http://127.0.0.1:{port}",
+        "http://127.0.0.1:{port}\n",
+        "http://127.0.0.1:{port}" + _BACKSLASH + "a",
+        "http://127.0.0.2:{port}",
+        "http://127.0.0.1:{port}0",
+        "ftp://127.0.0.1:{port}",
+        "http://localhost.evil.example:{port}",
+    ],
+    ids=[
+        "backslash-at",
+        "userinfo",
+        "at-host",
+        "query",
+        "fragment",
+        "inner-space",
+        "leading-space",
+        "trailing-newline",
+        "backslash-path",
+        "other-loopback",
+        "longer-port",
+        "scheme",
+        "suffix-host",
+    ],
+)
+def test_a_value_outside_the_allowlist_refuses(
+    monkeypatch: pytest.MonkeyPatch, listening: int, planted: str
+) -> None:
+    """Whole-string allowlist: every parser-confusion shape is refused before any connect."""
+    monkeypatch.delenv(SOURCE, raising=False)
+    connects: list[object] = []
+
+    def recording(address: tuple[str, int], timeout: float) -> socket.socket:
+        connects.append((address, timeout))
+        raise ConnectionRefusedError
+
+    with pytest.raises(headless_route.HeadlessRouteRefused) as caught:
+        headless_route.child_env(
+            {},
+            port=listening,
+            user_store=_store(planted.format(port=listening)),
+            connect=recording,
+        )
+    reason = caught.value.reason
+    assert (reason == headless_route.REASON_NOT_LOCAL, len(connects)) == (True, 0)
+
+
+@pytest.mark.parametrize(
+    "shape",
+    [
+        "http://localhost:{port}/abcdefghijklmnop/qrstuvwxyz0123",
+        "http://localhost:{port}/seg-one/seg_two/",
+        "http://127.0.0.1:{port}",
+        "http://[::1]:{port}/x",
+        "https://localhost:{port}",
+    ],
+)
+def test_a_loopback_value_with_url_safe_segments_is_accepted(
+    monkeypatch: pytest.MonkeyPatch, listening: int, shape: str
+) -> None:
+    """The real value's shape - http, localhost, the port, two URL-safe segments - routes."""
+    monkeypatch.delenv(SOURCE, raising=False)
+    planted = shape.format(port=listening)
+    env = headless_route.child_env({}, port=listening, user_store=_store(planted))
+    routed = env.get(TARGET) == planted
+    assert routed
 
 
 def test_a_mixed_case_target_in_the_base_is_replaced(
@@ -203,11 +309,18 @@ def test_a_refusal_never_carries_the_value(monkeypatch: pytest.MonkeyPatch, dead
     assert not leaked
 
 
-def test_the_real_store_reader_answers_none_or_a_string() -> None:
-    """The default reader never raises, whatever this box holds. Its value is never shown."""
+@pytest.mark.skipif(sys.platform != "win32", reason="the user store is the Windows registry")
+def test_the_real_store_reader_answers_none_for_an_absent_name() -> None:
+    """An absent name is None (readable, absent), never the unreadable error."""
     got = headless_route.user_store_value("CS_1225_SURELY_UNSET_NAME")
     is_none = got is None
     assert is_none
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="off Windows there is no store")
+def test_off_windows_the_store_is_unreadable() -> None:
+    with pytest.raises(headless_route.UserStoreUnreadableError):
+        headless_route.user_store_value(SOURCE)
 
 
 @pytest.mark.parametrize(
@@ -220,6 +333,8 @@ def test_the_real_store_reader_answers_none_or_a_string() -> None:
         (1, "some other crash", "failed"),
         (2, "", "failed"),
         (0, "usage limit reached", "ok"),
+        (0, '{"type":"result","is_error":true,"api_error_status":429}', "usage_limit"),
+        (0, '{"type":"result","is_error":false,"api_error_status":429}', "ok"),
     ],
 )
 def test_classify_exit(returncode: int, output: str, expected: str) -> None:
@@ -303,9 +418,11 @@ def test_the_lane_spawn_hands_the_child_the_routed_env(
 RUNNER: Final = ROOT / "ops" / "loop" / "run_lane.ps1"
 _CHILD_TIMEOUT_S: Final = 120
 _REFUSED_EXIT: Final = 3
+#: A SYNTHETIC value in the allowlisted shape. The shim CLI never connects to it.
+_RUNNER_GOOD: Final = "http://localhost:3456/synthetic/route"
 
 
-def _run_runner(tmp_path: Path, *, routed: bool) -> tuple[int, bool, list[str]]:
+def _run_runner(tmp_path: Path, *, value: str | None) -> tuple[int, bool, list[str]]:
     """Run the real runner over a shim CLI; return exit code, whether the shim ran, log lines."""
     shell = shutil.which("powershell")
     if shell is None:
@@ -323,8 +440,8 @@ def _run_runner(tmp_path: Path, *, routed: bool) -> tuple[int, bool, list[str]]:
     env = {key: val for key, val in os.environ.items() if key.upper() != TARGET}
     env = {key: val for key, val in env.items() if key.upper() != "PATH"}
     env["PATH"] = f"{shim_dir}{os.pathsep}{system}"
-    if routed:
-        env[TARGET] = "http://127.0.0.1:1"
+    if value is not None:
+        env[TARGET] = value
     argv = [shell, "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", str(RUNNER)]
     argv += ["-PromptFile", str(prompt), "-Cwd", str(tree), "-Log", str(log)]
     done = subprocess.run(
@@ -342,7 +459,7 @@ def _run_runner(tmp_path: Path, *, routed: bool) -> tuple[int, bool, list[str]]:
 @pytest.mark.skipif(sys.platform != "win32", reason="the runner is Windows PowerShell")
 def test_the_runner_refuses_an_unrouted_start_without_running_the_cli(tmp_path: Path) -> None:
     """Empty ANTHROPIC_BASE_URL: exit non-zero, the shim never ran, both lines written."""
-    code, ran, lines = _run_runner(tmp_path, routed=False)
+    code, ran, lines = _run_runner(tmp_path, value=None)
     refused = any(line.startswith("lane refused") and TARGET in line for line in lines)
     exit_line = bool(lines) and lines[-1].startswith("lane exit") and lines[-1].endswith("code=3")
     assert (code, ran, refused, exit_line) == (_REFUSED_EXIT, False, True, True)
@@ -351,6 +468,26 @@ def test_the_runner_refuses_an_unrouted_start_without_running_the_cli(tmp_path: 
 @pytest.mark.skipif(sys.platform != "win32", reason="the runner is Windows PowerShell")
 def test_control_a_routed_start_reaches_the_cli(tmp_path: Path) -> None:
     """THE CONTROL: the same harness with the variable set does run the shim."""
-    code, ran, lines = _run_runner(tmp_path, routed=True)
+    code, ran, lines = _run_runner(tmp_path, value=_RUNNER_GOOD)
     refused = any(line.startswith("lane refused") for line in lines)
     assert (code, ran, refused) == (0, True, False)
+
+
+@pytest.mark.skipif(sys.platform != "win32", reason="the runner is Windows PowerShell")
+@pytest.mark.parametrize(
+    "planted",
+    [
+        "http://evil.example" + _BACKSLASH + "@127.0.0.1:3456",
+        "http://user:pw@localhost:3456",
+        "http://localhost:3456/a?x=1",
+        "http://localhost:3457",
+        "http://evil.example:3456",
+    ],
+    ids=["backslash-at", "userinfo", "query", "other-port", "remote-host"],
+)
+def test_the_runner_refuses_a_value_outside_the_allowlist(tmp_path: Path, planted: str) -> None:
+    """The fallback check is the same whole-string shape, not merely non-empty."""
+    code, ran, lines = _run_runner(tmp_path, value=planted)
+    refused = any(line.startswith("lane refused") and TARGET in line for line in lines)
+    leaked = any("evil" in line or "pw" in line for line in lines)
+    assert (code, ran, refused, leaked) == (_REFUSED_EXIT, False, True, False)

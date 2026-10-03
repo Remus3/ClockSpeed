@@ -704,10 +704,10 @@ def _poisoned_env(shim_dir: Path) -> dict[str, str]:
     env = {key.upper(): value for key, value in os.environ.items()}
     env["PATH"] = f"{shim_dir}{os.pathsep}{_system_dir()}"
     env.pop("ANTHROPIC_API_KEY", None)
-    # CS-1225 - the runner refuses an empty ANTHROPIC_BASE_URL before it looks
-    # for the CLI. A SYNTHETIC loopback value on a closed port, so no arm
-    # depends on this machine's own route and nothing ever connects to it.
-    env["ANTHROPIC_BASE_URL"] = "http://127.0.0.1:1"
+    # CS-1225 - the runner refuses an ANTHROPIC_BASE_URL outside the loopback
+    # allowlist before it looks for the CLI. A SYNTHETIC value in that shape,
+    # so no arm depends on this machine's route; the stub never connects.
+    env["ANTHROPIC_BASE_URL"] = "http://localhost:3456/synthetic/route"
     env.update(POISON)
     return env
 

@@ -128,8 +128,15 @@ try {
   # account the box happens to be logged into. Inside the try, after the header,
   # so the refusal still gets its exit line from the finally below. The variable
   # is NAMED, never its value.
-  if ([string]::IsNullOrEmpty($env:ANTHROPIC_BASE_URL)) {
-    "lane refused $(Get-Date -Format s) reason=ANTHROPIC_BASE_URL is empty - headless route not established" |
+  #
+  # THE SAME WHOLE-STRING ALLOWLIST as ops/loop/headless_route.py, not a
+  # non-empty test: http(s), a loopback host, port 3456, URL-safe segments. A
+  # backslash or an at-sign lets two URL parsers disagree on the host, so
+  # nothing outside this shape reaches the CLI. Case-sensitive and anchored on
+  # \z, so a trailing newline cannot slip past the end anchor.
+  $routeShape = '^https?://(127\.0\.0\.1|localhost|\[::1\]):3456(/[A-Za-z0-9._~-]+)*/?\z'
+  if ([string]::IsNullOrEmpty($env:ANTHROPIC_BASE_URL) -or ($env:ANTHROPIC_BASE_URL -cnotmatch $routeShape)) {
+    "lane refused $(Get-Date -Format s) reason=ANTHROPIC_BASE_URL is empty or outside the loopback allowlist - headless route not established" |
       Out-File "$Log" -Append -Encoding utf8
     $code = 3
     exit 3
