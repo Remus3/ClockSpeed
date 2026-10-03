@@ -51,11 +51,24 @@ Placement is then decided on the RESOLVED path alone:
 - outside the resolved inbox, or when the inbox or note cannot be resolved:
   looked up by its bare name, exactly as before CS-1232.
 
-There is no inbox-side link refusal: after a strict resolve no component of
-the placed path is a link, and an inbox entry that links OUT of the inbox
-resolves outside it and takes the bare-name path. On MAIN's side a bundle
-directory that is a symlink or junction is refused as ``outbox-file-absent``,
-the same reason a linked outbox file gets.
+A NOTE REACHED THROUGH A LINK IS REFUSED (``bundle-path-refused``) when it is
+placed against the inbox: the note given lexically inside the inbox (after
+``abspath`` and ``normcase``, against the inbox as given or as resolved) but
+resolving outside it; a spelling whose trailing components, compared with
+``normcase``, differ from the resolved parts below the inbox (a link that
+lands elsewhere, an 8.3 short name or a trailing dot or space BELOW the
+inbox, or a ``..`` inside the bundle); and a note file, or for a bundle file
+its bundle directory, that is a symlink, a junction or any other reparse
+point. A hard link is a plain file and stays accepted. A note given and
+resolving outside the inbox keeps the pre-CS-1232 answer, trailing dot and
+all. On MAIN's side a bundle directory that is a link is refused as
+``outbox-file-absent``, the same reason a linked outbox file gets.
+
+THE BYTES HASHED ARE THE FILE PLACED. A placed note is read through its
+RESOLVED path by ONE open, and the open file's identity is then compared with
+a fresh stat of that path; a note replaced or relinked under the read is
+``note-unreadable``. ACCEPTED RESIDUAL: a swap that is undone between the open
+and the stat is not seen - one open cannot see more.
 
 ACCEPTED RESIDUAL: a detached HEAD on a commit no branch reaches is accepted as
 "MAIN's history", because the check asks what HEAD names and not how it got
@@ -89,6 +102,7 @@ import hashlib
 import json
 import os
 import re
+import stat
 import subprocess
 import sys
 from dataclasses import dataclass
@@ -128,6 +142,9 @@ _PLAIN_COMPONENT: Final = re.compile(r"[A-Za-z0-9._+-](?:[A-Za-z0-9._+ -]*[A-Za-
 
 #: Names a bundle or bundle file may never take, compared case-insensitively.
 _RESERVED_NAMES: Final = frozenset({INBOX_DIR.casefold(), OUTBOX_DIR.casefold()})
+
+#: The Windows reparse-point attribute - a junction, a symlink, or another link.
+_REPARSE_POINT: Final = getattr(stat, "FILE_ATTRIBUTE_REPARSE_POINT", 0x400)
 
 #: Components below the inbox in a bundle file's path: the bundle, then the file.
 _BUNDLE_DEPTH: Final = 2
@@ -332,21 +349,58 @@ def _resolve_note(note: Path) -> Path | None:
         return None
 
 
-def _placement(note: Path, inbox_dir: Path) -> tuple[str, str] | str:
-    """Place ``note`` against the resolved inbox; see the module docstring."""
+def _inside(note: Path, inbox_dir: Path, inbox: Path) -> bool:
+    """Whether ``note`` is spelled inside the inbox, lexically - nothing is resolved."""
+    # abspath, not resolve: the point is the spelling, before any link is followed.
+    spelled = Path(os.path.normcase(os.path.abspath(note)))  # noqa: PTH100
+    given_root = os.path.normcase(os.path.abspath(inbox_dir))  # noqa: PTH100
+    roots = {given_root, os.path.normcase(str(inbox))}
+    return any(spelled.is_relative_to(Path(root)) for root in roots)
+
+
+def _agrees(note: Path, parts: tuple[str, ...]) -> bool:
+    """Whether the spelling's tail names ``parts`` and no placed component is a link."""
+    given = note.parts[-len(parts) :] if parts else ()
+    if [os.path.normcase(p) for p in given] != [os.path.normcase(p) for p in parts]:
+        return False
+    return not (_is_link(note) or (len(parts) == _BUNDLE_DEPTH and _is_link(note.parent)))
+
+
+def _placement(note: Path, inbox_dir: Path) -> tuple[str, str, Path | None] | str:
+    """Place ``note`` against the resolved inbox; see the module docstring.
+
+    Returns:
+        ``(rel, bundle, real)`` - ``real`` is the resolved note to read, or
+        None where the note keeps the pre-CS-1232 bare-name answer - or
+        :data:`BUNDLE_PATH_REFUSED`.
+    """
     try:
         inbox = inbox_dir.resolve(strict=True)
     except OSError:
-        return note.name, ""
+        return note.name, "", None
     real = _resolve_note(note)
     if real is None or not real.is_relative_to(inbox):
-        return note.name, ""
-    return inbox_rel(real.relative_to(inbox).parts)
+        if _inside(note, inbox_dir, inbox):
+            return BUNDLE_PATH_REFUSED
+        return note.name, "", None
+    parts = real.relative_to(inbox).parts
+    if not _agrees(note, parts):
+        return BUNDLE_PATH_REFUSED
+    placed = inbox_rel(parts)
+    if isinstance(placed, str):
+        return placed
+    return placed[0], placed[1], real
 
 
 def _is_link(path: Path) -> bool:
-    """Whether ``path`` is a symlink or a Windows junction."""
-    return path.is_symlink() or path.is_junction()
+    """Whether ``path`` is a symlink, a junction, or any other reparse point."""
+    try:
+        status = path.lstat()
+    except OSError:
+        return False
+    if stat.S_ISLNK(status.st_mode):
+        return True
+    return bool(getattr(status, "st_file_attributes", 0) & _REPARSE_POINT)
 
 
 def verify_main_note(
@@ -395,14 +449,14 @@ def _check(note: Path, config_path: Path, inbox_dir: Path) -> tuple[str, str]:
     placed = _placement(note, inbox_dir)
     if isinstance(placed, str):
         return placed, ""
-    rel, bundle = placed
+    rel, bundle, real = placed
     located = _locate(resolved, rel, bundle)
     if located is not None:
         return located, ""
     blob = _committed_blob(resolved, OUTBOX_DIR + "/" + rel)
     if isinstance(blob, str):
         return blob, ""
-    return _compare(note, resolved / OUTBOX_DIR / rel, blob)
+    return _compare(note if real is None else real, resolved / OUTBOX_DIR / rel, blob, real)
 
 
 def _repository(root: Path) -> str | None:
@@ -441,8 +495,28 @@ def _locate(root: Path, rel: str, bundle: str) -> str | None:
     return None
 
 
-def _compare(note: Path, outbox_file: Path, blob: bytes) -> tuple[str, str]:
+def read_note(path: Path) -> tuple[bytes, os.stat_result] | None:
+    """Read ``path`` through ONE open; return its bytes and the open file's stat."""
+    try:
+        with path.open("rb") as handle:
+            return handle.read(), os.fstat(handle.fileno())
+    except OSError:
+        return None
+
+
+def _still(path: Path, opened: os.stat_result) -> bool:
+    """Whether ``path`` still names the file that was opened."""
+    try:
+        return os.path.samestat(opened, path.stat())
+    except OSError:
+        return False
+
+
+def _compare(note: Path, outbox_file: Path, blob: bytes, placed: Path | None) -> tuple[str, str]:
     """Compare the working-tree file with the blob, then the note with the blob.
+
+    ``placed`` is the resolved note when the note was placed against the inbox;
+    the file opened must then still be the file at that path.
 
     Returns:
         The reason, and on VERIFIED the SHA-256 hex of the note bytes hashed.
@@ -453,10 +527,12 @@ def _compare(note: Path, outbox_file: Path, blob: bytes) -> tuple[str, str]:
         return OUTBOX_UNREADABLE, ""
     if outbox_bytes != blob:
         return WORKTREE_DIFFERS, ""
-    try:
-        note_bytes = note.read_bytes()
-    except OSError:
+    read = read_note(note)
+    if read is None:
         return NOTE_UNREADABLE, ""
+    if placed is not None and not _still(placed, read[1]):
+        return NOTE_UNREADABLE, ""
+    note_bytes = read[0]
     note_digest = hashlib.sha256(note_bytes).hexdigest()
     if note_digest != hashlib.sha256(blob).hexdigest():
         return DIGEST_MISMATCH, ""

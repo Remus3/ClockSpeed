@@ -871,12 +871,9 @@ def _make_dir_link(link: Path, target: Path) -> bool:
     return True
 
 
-def test_an_inbox_bundle_link_leading_outside_is_looked_up_by_bare_name(
-    bundle_world: World,
-) -> None:
-    # The inbox entry is a link to a bundle OUTSIDE the inbox. Resolved, the
-    # note lies outside the inbox, so it takes the pre-CS-1232 bare-name path:
-    # MAIN has no top-level twin, so it is absent - never verified as a bundle.
+def test_an_inbox_bundle_link_leading_outside_is_refused(bundle_world: World) -> None:
+    # The inbox entry is a link to a bundle OUTSIDE the inbox: spelled inside,
+    # resolved outside - refused (round 4; round 3 sent it to the bare name).
     w = bundle_world
     elsewhere = w.base / "cs1232_elsewhere"
     w.note.parent.rename(elsewhere)
@@ -886,7 +883,7 @@ def test_an_inbox_bundle_link_leading_outside_is_looked_up_by_bare_name(
     readable = w.note.read_bytes() == BUNDLE_BYTES
     ok, reason, _digest = _verify_in(w)
     assert readable is True
-    assert reason == "outbox-file-absent"
+    assert reason == _BUNDLE_REFUSED
     assert ok is False
 
 
@@ -1157,3 +1154,229 @@ def test_an_inbox_injected_under_an_alias_spelling_is_resolved(alias_world: Worl
     ok = bool(verdict.ok)
     assert reason == "digest-mismatch"
     assert ok is False
+
+
+# Round 4 - a note reached through a link, and a note that moves under the read.
+
+
+def _commit_outbox(w: World, files: dict[str, bytes]) -> None:
+    """Commit ``files`` (outbox-relative POSIX paths) into MAIN's outbox."""
+    for rel, data in files.items():
+        target = (w.main_root / "moon_sync_outbox").joinpath(*rel.split("/"))
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_bytes(data)
+    _git(w.main_root, "add", "-A")
+    _git(w.main_root, "commit", "-q", "-m", "round4")
+
+
+def _refused_quietly(w: World, note: Path) -> tuple[str, str, bool]:
+    """The API reason, the CLI line, and whether either rendered a path."""
+    _ok, reason, _digest = _verify_in(w, note)
+    proc = _cli_in(w, note)
+    out = proc.stdout.decode("ascii", "replace").strip()
+    leaked = _leaks(w, out + proc.stderr.decode("utf-8", "replace") + reason)
+    return reason, out, leaked
+
+
+def test_a_bundle_file_linking_to_a_top_level_note_is_refused(bundle_world: World) -> None:
+    # Repro (a): inbox/<b>/SYM -> inbox/LICENSE. Resolved, it is the top-level
+    # note, whose bare name verifies against MAIN's top-level LICENSE.
+    w = bundle_world
+    _commit_outbox(w, {BUNDLE_FILE: _TOP, BUNDLE_DIR + "/SYM": b"bsym\n"})
+    (_inbox(w) / BUNDLE_FILE).write_bytes(_TOP)
+    sym = _inbox(w) / BUNDLE_DIR / "SYM"
+    try:
+        sym.symlink_to(_inbox(w) / BUNDLE_FILE)
+    except OSError:
+        pytest.skip("this platform cannot create a file symlink here")
+    reaches = sym.read_bytes() == _TOP
+    reason, out, leaked = _refused_quietly(w, sym)
+    assert reaches is True
+    assert reason == _BUNDLE_REFUSED
+    assert out == _BUNDLE_REFUSED
+    assert leaked is False
+
+
+def test_a_bundle_dir_linking_outside_the_inbox_is_refused(bundle_world: World) -> None:
+    # Repro (b): inbox/jb -> an OUTSIDE dir holding LICENSE "top". Resolved, it
+    # lies outside the inbox, whose bare-name fallback verifies it.
+    w = bundle_world
+    _commit_outbox(w, {BUNDLE_FILE: _TOP, "jb/" + BUNDLE_FILE: b"jbund\n"})
+    outside = w.base / "cs1232_outside"
+    outside.mkdir()
+    (outside / BUNDLE_FILE).write_bytes(_TOP)
+    made = _make_dir_link(_inbox(w) / "jb", outside)
+    if not made:
+        pytest.skip("this platform cannot create a directory link here")
+    note = _inbox(w) / "jb" / BUNDLE_FILE
+    reaches = note.read_bytes() == _TOP
+    reason, out, leaked = _refused_quietly(w, note)
+    assert reaches is True
+    assert reason == _BUNDLE_REFUSED
+    assert out == _BUNDLE_REFUSED
+    assert leaked is False
+
+
+def test_a_linked_bundle_dir_is_refused_even_where_placement_agrees(
+    bundle_world: World,
+) -> None:
+    # outside/<b> is a link to inbox/<b>: the resolved placement is the honest
+    # bundle file, and the spelling's tail agrees - only the link rule refuses.
+    w = bundle_world
+    other = w.base / "cs1232_other"
+    other.mkdir()
+    made = _make_dir_link(other / BUNDLE_DIR, _inbox(w) / BUNDLE_DIR)
+    if not made:
+        pytest.skip("this platform cannot create a directory link here")
+    note = other / BUNDLE_DIR / BUNDLE_FILE
+    reaches = note.read_bytes() == BUNDLE_BYTES
+    reason, out, leaked = _refused_quietly(w, note)
+    assert reaches is True
+    assert reason == _BUNDLE_REFUSED
+    assert out == _BUNDLE_REFUSED
+    assert leaked is False
+
+
+def test_a_note_file_that_is_a_link_is_refused_even_where_placement_agrees(
+    world: World,
+) -> None:
+    w = world
+    other = w.base / "cs1232_other_file"
+    other.mkdir()
+    link = other / NOTE_NAME
+    try:
+        link.symlink_to(_inbox(w) / NOTE_NAME)
+    except OSError:
+        pytest.skip("this platform cannot create a file symlink here")
+    reaches = link.read_bytes() == NOTE_BYTES
+    reason, out, leaked = _refused_quietly(w, link)
+    assert reaches is True
+    assert reason == _BUNDLE_REFUSED
+    assert out == _BUNDLE_REFUSED
+    assert leaked is False
+
+
+@pytest.mark.parametrize("tail", [".", " ", ". "], ids=["dot", "space", "dot_space"])
+def test_a_trailing_dot_or_space_spelling_inside_the_inbox_is_refused(
+    world: World, tail: str
+) -> None:
+    # Parity, decided: inside the inbox a spelling Windows strips is refused,
+    # since it names the note by a name its own directory does not hold.
+    if sys.platform != "win32":
+        pytest.skip("a trailing dot or space names a different file off Windows")
+    w = world
+    spelled = Path(str(_inbox(w) / NOTE_NAME) + tail)
+    reaches = spelled.read_bytes() == NOTE_BYTES
+    reason, out, leaked = _refused_quietly(w, spelled)
+    assert reaches is True
+    assert reason == _BUNDLE_REFUSED
+    assert out == _BUNDLE_REFUSED
+    assert leaked is False
+
+
+def test_a_trailing_dot_spelling_outside_the_inbox_keeps_its_old_answer(world: World) -> None:
+    # Parity, decided: outside the inbox nothing changed - the bare name as
+    # spelled is looked up, and MAIN tracks no such name.
+    if sys.platform != "win32":
+        pytest.skip("a trailing dot names a different file off Windows")
+    w = world
+    elsewhere = w.base / "cs1232_elsewhere_dot"
+    elsewhere.mkdir()
+    (elsewhere / NOTE_NAME).write_bytes(NOTE_BYTES)
+    ok, reason, _digest = _verify_in(w, Path(str(elsewhere / NOTE_NAME) + "."))
+    assert reason == "untracked"
+    assert ok is False
+
+
+def test_the_note_is_read_once_through_its_resolved_path(
+    world: World, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # A recording spy: the bytes hashed are read from the RESOLVED path, by one
+    # open - not from the spelling the caller passed.
+    w = world
+    (_inbox(w) / "cs1232_hop").mkdir()
+    spelled = _inbox(w) / "cs1232_hop" / ".." / NOTE_NAME
+    resolved = (_inbox(w) / NOTE_NAME).resolve(strict=True)
+    original = provenance.read_note
+    seen: list[Path] = []
+
+    def spy(path: Path) -> object:
+        seen.append(Path(path))
+        return original(path)
+
+    monkeypatch.setattr(provenance, "read_note", spy)
+    ok, reason, _digest = _verify_in(w, spelled)
+    reads = len(seen)
+    through_resolved = reads == 1 and seen[0] == resolved
+    assert reason == "verified"
+    assert ok is True
+    assert through_resolved is True
+
+
+def test_a_note_replaced_under_the_read_is_refused(
+    world: World, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # The note is swapped for a new file of the SAME bytes right after the one
+    # open: the bytes hashed are no longer the file placed, so it is refused.
+    w = world
+    original = provenance.read_note
+
+    def swap(path: Path) -> object:
+        result = original(path)
+        target = _inbox(w) / NOTE_NAME
+        target.unlink()
+        target.write_bytes(NOTE_BYTES)
+        return result
+
+    monkeypatch.setattr(provenance, "read_note", swap)
+    ok, reason, _digest = _verify_in(w)
+    assert reason == "note-unreadable"
+    assert ok is False
+
+
+@pytest.mark.parametrize("spelled_via", ["alias", "canonical"])
+def test_a_lexical_inbox_is_either_spelling_of_it(bundle_world: World, spelled_via: str) -> None:
+    # The inbox is injected as an ALIAS (a link to the real inbox). A note under
+    # inbox/jb, where jb links OUTSIDE, must be refused whether the note is
+    # spelled through the alias (inside the inbox as given) or canonically
+    # (inside the inbox as resolved) - each spelling needs its own root.
+    w = bundle_world
+    _commit_outbox(w, {BUNDLE_FILE: _TOP, "jb/" + BUNDLE_FILE: b"jbund\n"})
+    outside = w.base / "cs1232_outside_root"
+    outside.mkdir()
+    (outside / BUNDLE_FILE).write_bytes(_TOP)
+    alias = w.base / "cs1232_inbox_alias"
+    made = _make_dir_link(_inbox(w) / "jb", outside) and _make_dir_link(alias, _inbox(w))
+    if not made:
+        pytest.skip("this platform cannot create a directory link here")
+    root = alias if spelled_via == "alias" else _inbox(w)
+    note = root / "jb" / BUNDLE_FILE
+    reaches = note.read_bytes() == _TOP
+    verdict = provenance.verify_main_note(note, config_path=w.config, inbox_dir=alias)
+    reason = str(verdict.reason)
+    assert reaches is True
+    assert reason == _BUNDLE_REFUSED
+
+
+def test_a_junctioned_bundle_dir_is_refused_even_where_placement_agrees(
+    bundle_world: World,
+) -> None:
+    # The reparse-point arm: a JUNCTION, which is not a symlink to lstat, must
+    # be refused as one.
+    if sys.platform != "win32":
+        pytest.skip("junctions exist only on Windows")
+    import _winapi  # noqa: PLC0415 - Windows-only
+
+    w = bundle_world
+    other = w.base / "cs1232_junction_other"
+    other.mkdir()
+    _winapi.CreateJunction(str(_inbox(w) / BUNDLE_DIR), str(other / BUNDLE_DIR))
+    note = other / BUNDLE_DIR / BUNDLE_FILE
+    is_symlink = (other / BUNDLE_DIR).is_symlink()
+    reaches = note.read_bytes() == BUNDLE_BYTES
+    reason, out, leaked = _refused_quietly(w, note)
+    assert is_symlink is False
+    assert reaches is True
+    assert reason == _BUNDLE_REFUSED
+    assert out == _BUNDLE_REFUSED
+    assert leaked is False
