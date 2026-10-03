@@ -69,6 +69,14 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Final, NoReturn
 
+# `tools` carries no __init__.py, so the sibling resolver is imported under its
+# BARE name, the way tools/sha_citation_gate.py does it.
+_TOOLS_DIR: Final = Path(__file__).resolve().parent
+if str(_TOOLS_DIR) not in sys.path:
+    sys.path.insert(0, str(_TOOLS_DIR))
+
+from toolpath import resolve_tool  # noqa: E402
+
 #: This repository's root - the default configuration resolves against it.
 REPO_ROOT: Final = Path(__file__).resolve().parents[1]
 
@@ -189,10 +197,13 @@ def _git(root: Path, *args: str) -> tuple[int, bytes] | None:
         The exit code and stdout, or None when git could not be run. Stderr is
         captured and discarded - git's error text names paths.
     """
+    git = resolve_tool("git")
+    if git is None:
+        return None
     try:
         proc = subprocess.run(
             [
-                "git",
+                git,
                 "--no-optional-locks",
                 "--no-replace-objects",
                 "-c",
