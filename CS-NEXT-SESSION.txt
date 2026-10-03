@@ -69,8 +69,7 @@ CS-1233  LANDED NOT CLOSED. The CS-815 latency arm times only after xdist siblin
 THE SINGLE NEXT ACTION
 ================================================================================
 
-Read the session-121 push result and CI at the pushed tip (report below). If the push
-landed: `gh workflow run tier2.yml --ref main` and read EVERY leg (the windows guards
+Read tier1 and tier2 run 37156039418 at the pushed tip (report below) and read EVERY leg (the windows guards
 legs carry the CS-815 arm). On green: close CS-1228, CS-1229, CS-1230, CS-1233. Then
 finish the two in-flight items below and START CS-400.
 
@@ -174,7 +173,11 @@ SECOND PUSH BLOCKED: whole suite 1 failed, 13165 passed, 12 skipped in 24m36s -
   tests/test_citation_tables.py R2 declared-untracked: the CS-1234 filing cited the
   gitignored status-file path in ROADMAP.md and the phase 7 leaf; reworded. Re-run:
   test_citation_tables + test_item_notes_index 269 passed, PYTEST_EXIT 0; drift_guard 0.
-THIRD PUSH: if `git ls-remote origin main` does not equal HEAD, it was blocked too - read
-  the hook output, repair, push. Its result was NOT read by this session - UNVERIFIED.
-CI: tier1 and tier2 at the pushed tip NOT READ by this session - UNVERIFIED.
+THIRD PUSH LANDED: whole suite 13189 passed, 12 skipped, 0 failed in 21m32s (hook,
+  `pytest tests -n auto --dist loadfile`); origin/main moved 41f1835..d7f583d, HEAD equal
+  to ls-remote, read back.
+CI at d7f583d: tier1 run 37156032109 IN PROGRESS when read - UNVERIFIED. tier2 dispatched
+  by hand, run 37156039418, QUEUED - read it first; on green close CS-1228, CS-1229,
+  CS-1230 and CS-1233. This report is committed in a follow-up commit; its own push
+  re-runs the suite - confirm HEAD equals ls-remote.
 Desktop shortcut CS-NEXT-SESSION.lnk targets C:\Clockspeed\CS-NEXT-SESSION.txt (read).
