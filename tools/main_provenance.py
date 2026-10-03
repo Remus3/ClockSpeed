@@ -34,21 +34,28 @@ steers it. A shallow repository is refused outright (``main-shallow``).
 
 A FILE INSIDE A BUNDLE DIRECTORY (CS-1232). MAIN ships a kit as a directory,
 mirrored as ``<outbox>/<bundle-dir>/<file>`` and received as
-``moon_sync_inbox/<bundle-dir>/<file>``. The tool learns where the inbox is from
-the note's OWN path and nothing else: the one component spelled
-``moon_sync_inbox`` (compared case-insensitively on every platform) marks the
-inbox root, read lexically from the path as given - a relative path is first
-joined to the cwd, never normalised, never resolved. A path naming the inbox
-more than once is refused outright, and neither a bundle nor a bundle file may
-be named ``moon_sync_inbox`` or ``moon_sync_outbox`` in any case. Exactly one shape is a bundle
-file: the inbox, then ONE bundle directory, then the file. It is checked
-against the outbox path ``<bundle-dir>/<file>`` through every step a top-level
-note takes. Anything else below the inbox - a deeper nesting, a ``.``, a
-``..``, an empty component, a trailing separator, a name outside the plain
-character set, or a bundle directory that is a symlink or junction on either
-side - is refused as ``bundle-path-refused``. A note directly in the inbox, or
-in no directory named for the inbox at all, is looked up by its bare name
-exactly as before.
+``<inbox>/<bundle-dir>/<file>``. The inbox is THIS tree's inbox,
+:data:`DEFAULT_INBOX`, never anything read from the note's spelling; a test
+injects another with ``inbox_dir``, as it does ``config_path``. Both the inbox
+and the note are resolved strictly (a missing note through its resolved
+parent), so an 8.3 short name, a trailing dot, a ``.`` or ``..`` hop, or a
+symlink or junction aliasing the inbox all land on the same real path.
+Placement is then decided on the RESOLVED path alone:
+
+- directly in the resolved inbox: looked up by its bare name, as before;
+- one directory below it: looked up as ``<bundle-dir>/<file>`` through every
+  step a top-level note takes, provided both names are plain components (see
+  ``_PLAIN_COMPONENT``) and neither is ``moon_sync_inbox`` or
+  ``moon_sync_outbox`` in any case - otherwise ``bundle-path-refused``;
+- the inbox itself, or anything deeper: ``bundle-path-refused``;
+- outside the resolved inbox, or when the inbox or note cannot be resolved:
+  looked up by its bare name, exactly as before CS-1232.
+
+There is no inbox-side link refusal: after a strict resolve no component of
+the placed path is a link, and an inbox entry that links OUT of the inbox
+resolves outside it and takes the bare-name path. On MAIN's side a bundle
+directory that is a symlink or junction is refused as ``outbox-file-absent``,
+the same reason a linked outbox file gets.
 
 ACCEPTED RESIDUAL: a detached HEAD on a commit no branch reaches is accepted as
 "MAIN's history", because the check asks what HEAD names and not how it got
@@ -108,8 +115,11 @@ ROOT_KEY: Final = "main_root"
 #: MAIN's outbox, relative to its root.
 OUTBOX_DIR: Final = "moon_sync_outbox"
 
-#: This tree's inbox directory name - the note's own path locates it.
+#: This tree's inbox directory name.
 INBOX_DIR: Final = "moon_sync_inbox"
+
+#: This tree's inbox - the root a bundle file is placed against.
+DEFAULT_INBOX: Final = REPO_ROOT / INBOX_DIR
 
 #: One plain path component of a bundle path: printable, no separator, drive
 #: or wildcard character, no leading space, and no trailing dot or space -
@@ -122,8 +132,6 @@ _RESERVED_NAMES: Final = frozenset({INBOX_DIR.casefold(), OUTBOX_DIR.casefold()}
 #: Components below the inbox in a bundle file's path: the bundle, then the file.
 _BUNDLE_DEPTH: Final = 2
 
-#: The separators a raw note path is split on - both, where Windows accepts both.
-_SEPARATORS: Final = re.compile(r"[\\/]" if os.name == "nt" else r"/")
 
 #: Seconds one git call may take.
 GIT_TIMEOUT: Final = 60
@@ -293,33 +301,47 @@ def _is_plain(component: str) -> bool:
     return component not in {".", ".."} and _PLAIN_COMPONENT.fullmatch(component) is not None
 
 
-def outbox_rel(raw: str) -> tuple[str, str] | str:
-    """Map a raw note path to its outbox-relative path, or refuse it.
-
-    Lexical only - nothing is read, resolved or normalised.
+def inbox_rel(parts: tuple[str, ...]) -> tuple[str, str] | str:
+    """Map a resolved note's parts below the resolved inbox to its outbox path.
 
     Returns:
-        ``(rel, bundle)``: for a note directly in the inbox, or in no directory
-        named for the inbox, the bare name and ``""``; for a file one bundle
-        directory below the inbox, ``"<bundle>/<file>"`` and the bundle name.
+        ``(rel, bundle)``: for one part, the bare name and ``""``; for two
+        plain, unreserved parts, ``"<bundle>/<file>"`` and the bundle name.
         Otherwise :data:`BUNDLE_PATH_REFUSED`.
     """
-    full = raw if Path(raw).is_absolute() else str(Path.cwd()) + os.sep + raw
-    parts = _SEPARATORS.split(full)
-    inbox = INBOX_DIR.casefold()
-    marks = [i for i, part in enumerate(parts) if part.casefold() == inbox]
-    if len(marks) > 1:
-        # The inbox named twice - as a bundle, a file, or an ancestor - would
-        # let the parser pick which one is the root.
+    if len(parts) == 1:
+        return parts[0], ""
+    if len(parts) != _BUNDLE_DEPTH or not all(_is_plain(part) for part in parts):
         return BUNDLE_PATH_REFUSED
-    if not marks or marks[0] >= len(parts) - 2:
-        return Path(raw).name, ""
-    below = parts[marks[0] + 1 :]
-    if len(below) != _BUNDLE_DEPTH or not all(_is_plain(part) for part in below):
+    if any(part.casefold() in _RESERVED_NAMES for part in parts):
         return BUNDLE_PATH_REFUSED
-    if any(part.casefold() in _RESERVED_NAMES for part in below):
-        return BUNDLE_PATH_REFUSED
-    return below[0] + "/" + below[1], below[0]
+    return parts[0] + "/" + parts[1], parts[0]
+
+
+def _resolve_note(note: Path) -> Path | None:
+    """The note's real path, through its parent when the note itself is absent."""
+    try:
+        return note.resolve(strict=True)
+    except OSError:
+        pass
+    if note.name in {"", ".", ".."}:
+        return None
+    try:
+        return note.parent.resolve(strict=True) / note.name
+    except OSError:
+        return None
+
+
+def _placement(note: Path, inbox_dir: Path) -> tuple[str, str] | str:
+    """Place ``note`` against the resolved inbox; see the module docstring."""
+    try:
+        inbox = inbox_dir.resolve(strict=True)
+    except OSError:
+        return note.name, ""
+    real = _resolve_note(note)
+    if real is None or not real.is_relative_to(inbox):
+        return note.name, ""
+    return inbox_rel(real.relative_to(inbox).parts)
 
 
 def _is_link(path: Path) -> bool:
@@ -327,7 +349,12 @@ def _is_link(path: Path) -> bool:
     return path.is_symlink() or path.is_junction()
 
 
-def verify_main_note(note_path: Path | str, *, config_path: Path | None = None) -> Verdict:
+def verify_main_note(
+    note_path: Path,
+    *,
+    config_path: Path | None = None,
+    inbox_dir: Path | None = None,
+) -> Verdict:
     """Decide whether an inbox note is MAIN's, per ``CLAUDE.md`` section 6.1.
 
     Never raises: an unexpected failure anywhere in the check is the fixed
@@ -335,9 +362,11 @@ def verify_main_note(note_path: Path | str, *, config_path: Path | None = None) 
 
     Args:
         note_path: The note in this tree's inbox, or a file one bundle
-            directory below it. A string is parsed as given, unnormalised.
+            directory below it.
         config_path: The local configuration naming MAIN's root. Defaults to
             :data:`DEFAULT_CONFIG`; only a test passes another.
+        inbox_dir: This tree's inbox. Defaults to :data:`DEFAULT_INBOX`; only
+            a test passes another.
 
     Returns:
         ``Verdict(ok=True, reason="verified")`` when the note's SHA-256 equals
@@ -348,7 +377,9 @@ def verify_main_note(note_path: Path | str, *, config_path: Path | None = None) 
     """
     try:
         reason, digest = _check(
-            os.fspath(note_path), DEFAULT_CONFIG if config_path is None else config_path
+            Path(note_path),
+            DEFAULT_CONFIG if config_path is None else config_path,
+            DEFAULT_INBOX if inbox_dir is None else inbox_dir,
         )
     except Exception:  # the boundary: no exception text may escape
         reason, digest = CHECK_FAILED, ""
@@ -356,18 +387,15 @@ def verify_main_note(note_path: Path | str, *, config_path: Path | None = None) 
     return Verdict(ok=ok, reason=reason, digest=digest if ok else "")
 
 
-def _check(raw: str, config_path: Path) -> tuple[str, str]:
+def _check(note: Path, config_path: Path, inbox_dir: Path) -> tuple[str, str]:
     """Run every step in order; return the first refusal, or VERIFIED and the digest."""
     resolved = _main_root(config_path)
     if isinstance(resolved, str):
         return resolved, ""
-    parsed = outbox_rel(raw)
-    if isinstance(parsed, str):
-        return parsed, ""
-    rel, bundle = parsed
-    note = Path(raw)
-    if bundle and _is_link(note.parent):
-        return BUNDLE_PATH_REFUSED, ""
+    placed = _placement(note, inbox_dir)
+    if isinstance(placed, str):
+        return placed, ""
+    rel, bundle = placed
     located = _locate(resolved, rel, bundle)
     if located is not None:
         return located, ""
@@ -450,17 +478,22 @@ def main(argv: list[str] | None = None) -> int:
         prog="main_provenance.py",
         description="The CLAUDE.md section 6.1 MAIN provenance check (CS-1227).",
     )
-    # A string, not a Path: the bundle parser reads the spelling as given.
-    parser.add_argument("note", help="the inbox note, or a bundle file, to check")
+    parser.add_argument("note", type=Path, help="the inbox note, or a bundle file, to check")
     parser.add_argument(
         "--config",
         type=Path,
         default=None,
         help="the local configuration naming MAIN's root (default: the gitignored file)",
     )
+    parser.add_argument(
+        "--inbox",
+        type=Path,
+        default=None,
+        help="this tree's inbox (default: the repository's moon_sync_inbox)",
+    )
     args = parser.parse_args(argv)
     try:
-        verdict = verify_main_note(args.note, config_path=args.config)
+        verdict = verify_main_note(args.note, config_path=args.config, inbox_dir=args.inbox)
     except KeyboardInterrupt:
         verdict = Verdict(ok=False, reason=INTERRUPTED)
     except Exception:  # the CLI boundary: a reason, never a traceback

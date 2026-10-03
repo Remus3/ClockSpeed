@@ -675,8 +675,9 @@ def test_the_worker_prompt_names_the_function() -> None:
 # --- CS-1232: a file inside a MAIN kit bundle directory ----------------------
 #
 # MAIN's outbox mirrors a bundle as ``<outbox>/<bundle-dir>/<file>``, and the
-# inbox holds it as ``moon_sync_inbox/<bundle-dir>/<file>``. The lookup must use
-# the bundle-relative path, not the bare file name.
+# inbox holds it as ``moon_sync_inbox/<bundle-dir>/<file>``. The tool knows THIS
+# tree's inbox (``inbox_dir``, injected here as ``config_path`` is) and places
+# the RESOLVED note against the RESOLVED inbox - never the note's spelling.
 
 #: The bundle directory's name, on both sides.
 BUNDLE_DIR: Final = "cs1232-kit-v1"
@@ -698,6 +699,39 @@ _BUNDLE_REFUSED: Final = "bundle-path-refused"
 _BUNDLE_REL: Final = "moon_sync_outbox/" + BUNDLE_DIR + "/" + BUNDLE_FILE
 
 
+def _inbox(w: World) -> Path:
+    """This tree's inbox in ``w`` - the fixture's note sits directly in it."""
+    return w.base / "cs1227_this" / "moon_sync_inbox"
+
+
+def _verify_in(w: World, note: Path | None = None) -> tuple[bool, str, str]:
+    """Run the check with the inbox injected; reduce the verdict to scalars."""
+    verdict = provenance.verify_main_note(
+        w.note if note is None else note, config_path=w.config, inbox_dir=_inbox(w)
+    )
+    return bool(verdict.ok), str(verdict.reason), str(verdict.digest)
+
+
+def _cli_in(w: World, note: Path | str | None = None) -> subprocess.CompletedProcess[bytes]:
+    """Run the CLI over ``w`` with the inbox injected."""
+    target = str(w.note if note is None else note)
+    return subprocess.run(
+        [
+            sys.executable,
+            str(TOOL),
+            target,
+            "--config",
+            str(w.config),
+            "--inbox",
+            str(_inbox(w)),
+        ],
+        capture_output=True,
+        env=_clean_env(),
+        timeout=TIMEOUT,
+        check=False,
+    )
+
+
 @pytest.fixture
 def bundle_world(world: World) -> World:
     """``world`` plus a committed bundle file in MAIN and its inbox twin."""
@@ -706,7 +740,7 @@ def bundle_world(world: World) -> World:
     (outbox_bundle / BUNDLE_FILE).write_bytes(BUNDLE_BYTES)
     _git(world.main_root, "add", "-A")
     _git(world.main_root, "commit", "-q", "-m", "bundle")
-    inbox_bundle = world.note.parent / BUNDLE_DIR
+    inbox_bundle = _inbox(world) / BUNDLE_DIR
     inbox_bundle.mkdir()
     world.note = inbox_bundle / BUNDLE_FILE
     world.note.write_bytes(BUNDLE_BYTES)
@@ -718,21 +752,24 @@ def _bundle_outbox_file(w: World) -> Path:
 
 
 def test_a_bundle_file_verifies_by_its_bundle_relative_path(bundle_world: World) -> None:
-    verdict = provenance.verify_main_note(bundle_world.note, config_path=bundle_world.config)
-    reason = str(verdict.reason)
-    ok = bool(verdict.ok)
-    digest = str(verdict.digest)
+    ok, reason, digest = _verify_in(bundle_world)
     assert reason == "verified"
     assert ok is True
     assert digest == BUNDLE_SHA256
 
 
 def test_the_cli_verifies_a_bundle_file(bundle_world: World) -> None:
-    proc = _cli(bundle_world)
+    proc = _cli_in(bundle_world)
     lines = proc.stdout.decode("ascii", "replace").strip().splitlines()
     code = proc.returncode
     assert lines == ["verified", BUNDLE_SHA256]
     assert code == 0
+
+
+def test_the_default_inbox_is_this_trees_inbox() -> None:
+    default = provenance.DEFAULT_INBOX
+    rel = default.relative_to(REPO_ROOT).as_posix()
+    assert rel == "moon_sync_inbox"
 
 
 def _bundle_top_level_twin_only(w: World) -> None:
@@ -806,13 +843,10 @@ BUNDLE_REFUSALS: Final[dict[str, tuple[Callable[[World], None], str]]] = {
 def test_each_bundle_refusal_names_its_reason(bundle_world: World, case: str) -> None:
     plant, expected = BUNDLE_REFUSALS[case]
     plant(bundle_world)
-    verdict = provenance.verify_main_note(bundle_world.note, config_path=bundle_world.config)
-    proc = _cli(bundle_world)
-    reason = str(verdict.reason)
-    ok = bool(verdict.ok)
-    digest = str(verdict.digest)
+    ok, reason, digest = _verify_in(bundle_world)
+    proc = _cli_in(bundle_world)
     rendered = proc.stdout.decode("utf-8", "replace") + proc.stderr.decode("utf-8", "replace")
-    leaked = _leaks(bundle_world, rendered + repr(verdict))
+    leaked = _leaks(bundle_world, rendered + reason)
     cli_reason = proc.stdout.decode("ascii", "replace").strip() == expected
     assert reason == expected
     assert ok is False
@@ -837,26 +871,23 @@ def _make_dir_link(link: Path, target: Path) -> bool:
     return True
 
 
-def test_a_symlinked_inbox_bundle_dir_is_refused(bundle_world: World) -> None:
-    # The real bundle sits elsewhere; the inbox entry is a link to it. The bytes
-    # would verify, so only the link refusal can stop it.
+def test_an_inbox_bundle_link_leading_outside_is_looked_up_by_bare_name(
+    bundle_world: World,
+) -> None:
+    # The inbox entry is a link to a bundle OUTSIDE the inbox. Resolved, the
+    # note lies outside the inbox, so it takes the pre-CS-1232 bare-name path:
+    # MAIN has no top-level twin, so it is absent - never verified as a bundle.
     w = bundle_world
-    inbox = w.note.parent.parent
     elsewhere = w.base / "cs1232_elsewhere"
     w.note.parent.rename(elsewhere)
-    made = _make_dir_link(inbox / BUNDLE_DIR, elsewhere)
+    made = _make_dir_link(_inbox(w) / BUNDLE_DIR, elsewhere)
     if not made:
         pytest.skip("this platform cannot create a directory link here")
     readable = w.note.read_bytes() == BUNDLE_BYTES
-    ok, reason = _verify(w)
-    proc = _cli(w)
-    out = proc.stdout.decode("ascii", "replace").strip()
-    leaked = _leaks(w, out + proc.stderr.decode("utf-8", "replace"))
+    ok, reason, _digest = _verify_in(w)
     assert readable is True
-    assert reason == _BUNDLE_REFUSED
+    assert reason == "outbox-file-absent"
     assert ok is False
-    assert out == _BUNDLE_REFUSED
-    assert leaked is False
 
 
 def test_a_symlinked_outbox_bundle_dir_is_refused(bundle_world: World) -> None:
@@ -870,72 +901,81 @@ def test_a_symlinked_outbox_bundle_dir_is_refused(bundle_world: World) -> None:
     if not made:
         pytest.skip("this platform cannot create a directory link here")
     readable = (outbox_bundle / BUNDLE_FILE).read_bytes() == BUNDLE_BYTES
-    ok, reason = _verify(w)
+    ok, reason, _digest = _verify_in(w)
     assert readable is True
     assert reason == "outbox-file-absent"
     assert ok is False
 
 
-_SEP: Final = os.sep
-
-
-#: Raw note spellings, relative to the inbox, that the check must refuse.
-_BAD_SPELLINGS: Final = {
-    "deeper_nesting": BUNDLE_DIR + _SEP + "inner" + _SEP + BUNDLE_FILE,
-    "dotdot_bundle": ".." + _SEP + BUNDLE_FILE,
-    "dotdot_after_bundle": BUNDLE_DIR + _SEP + ".." + _SEP + BUNDLE_FILE,
-    "dot_bundle": "." + _SEP + BUNDLE_FILE,
-    "empty_component": _SEP + BUNDLE_FILE,
-    "trailing_separator": BUNDLE_DIR + _SEP + BUNDLE_FILE + _SEP,
-    "dotdot_file": BUNDLE_DIR + _SEP + "..",
-    "dot_file": BUNDLE_DIR + _SEP + ".",
-}
-
-
-@pytest.mark.parametrize("case", sorted(_BAD_SPELLINGS))
-def test_a_bundle_path_it_will_not_interpret_is_refused(bundle_world: World, case: str) -> None:
+def test_a_deeper_nesting_is_refused(bundle_world: World) -> None:
     w = bundle_world
-    raw = str(w.note.parent.parent) + _SEP + _BAD_SPELLINGS[case]
-    verdict = provenance.verify_main_note(raw, config_path=w.config)
-    proc = subprocess.run(
-        [sys.executable, str(TOOL), raw, "--config", str(w.config)],
-        capture_output=True,
-        env=_clean_env(),
-        timeout=TIMEOUT,
-        check=False,
-    )
-    reason = str(verdict.reason)
-    ok = bool(verdict.ok)
+    deep = _inbox(w) / BUNDLE_DIR / "inner"
+    deep.mkdir()
+    (deep / BUNDLE_FILE).write_bytes(BUNDLE_BYTES)
+    ok, reason, _digest = _verify_in(w, deep / BUNDLE_FILE)
+    proc = _cli_in(w, deep / BUNDLE_FILE)
     out = proc.stdout.decode("ascii", "replace").strip()
-    code = proc.returncode
-    leaked = _leaks(w, out + proc.stderr.decode("utf-8", "replace") + repr(verdict))
+    leaked = _leaks(w, out + proc.stderr.decode("utf-8", "replace"))
     assert reason == _BUNDLE_REFUSED
     assert ok is False
     assert out == _BUNDLE_REFUSED
-    assert code == 1
     assert leaked is False
 
 
+def test_the_inbox_itself_is_refused(bundle_world: World) -> None:
+    ok, reason, _digest = _verify_in(bundle_world, _inbox(bundle_world))
+    assert reason == _BUNDLE_REFUSED
+    assert ok is False
+
+
 @pytest.mark.parametrize(
-    "bad",
-    ["a:b", "a\\b", "a\x00b", "a\nb", "a*b", "a\tb"],
-    ids=["colon", "backslash", "nul", "newline", "star", "tab"],
+    "parts",
+    [
+        ("a:b", BUNDLE_FILE),
+        ("a\\b", BUNDLE_FILE),
+        ("a\x00b", BUNDLE_FILE),
+        ("a\nb", BUNDLE_FILE),
+        ("a*b", BUNDLE_FILE),
+        (BUNDLE_DIR, "LICENSE."),
+        ("..", BUNDLE_FILE),
+        (".", BUNDLE_FILE),
+        ("", BUNDLE_FILE),
+        ("moon_sync_inbox", BUNDLE_FILE),
+        ("MOON_SYNC_OUTBOX", BUNDLE_FILE),
+        (BUNDLE_DIR, "Moon_Sync_Inbox"),
+        (BUNDLE_DIR, "moon_sync_outbox"),
+        (BUNDLE_DIR, "inner", BUNDLE_FILE),
+        (),
+    ],
+    ids=[
+        "colon",
+        "backslash",
+        "nul",
+        "newline",
+        "star",
+        "trailing_dot",
+        "dotdot",
+        "dot",
+        "empty",
+        "inbox_bundle",
+        "outbox_bundle",
+        "inbox_file",
+        "outbox_file",
+        "deeper",
+        "none",
+    ],
 )
-def test_a_bundle_name_that_is_not_a_plain_component_is_refused(bad: str) -> None:
-    # Unrepresentable on some filesystems, so the arm asks the pure parser on a
-    # POSIX-separated spelling rather than creating the directory.
-    raw = "/srv/x/moon_sync_inbox/" + bad + "/" + BUNDLE_FILE
-    parsed = provenance.outbox_rel(raw)
+def test_inbox_rel_refuses_a_shape_it_will_not_interpret(parts: tuple[str, ...]) -> None:
+    # Unrepresentable on some filesystems, so the arm asks the pure mapping.
+    parsed = provenance.inbox_rel(parts)
     refused = parsed == _BUNDLE_REFUSED
     assert refused is True
 
 
-def test_the_parser_maps_each_shape_to_its_rel() -> None:
-    top = provenance.outbox_rel("/srv/x/moon_sync_inbox/" + NOTE_NAME)
-    outside = provenance.outbox_rel("/srv/x/elsewhere/" + NOTE_NAME)
-    bundle = provenance.outbox_rel("/srv/x/moon_sync_inbox/" + BUNDLE_DIR + "/" + BUNDLE_FILE)
+def test_inbox_rel_maps_each_accepted_shape() -> None:
+    top = provenance.inbox_rel((NOTE_NAME,))
+    bundle = provenance.inbox_rel((BUNDLE_DIR, BUNDLE_FILE))
     assert top == (NOTE_NAME, "")
-    assert outside == (NOTE_NAME, "")
     assert bundle == (BUNDLE_DIR + "/" + BUNDLE_FILE, BUNDLE_DIR)
 
 
@@ -946,18 +986,13 @@ def test_the_bundle_refusal_is_in_the_closed_set() -> None:
     assert constant is True
 
 
-# --- CS-1232 round 2: a path naming the inbox (or the outbox) twice ----------
-#
-# The parser keyed on the LAST inbox-named component, so a bundle directory
-# itself named for the inbox shifted the inbox root down a level and a
-# three-deep file verified as a bundle file.
+# --- CS-1232 rounds 2 and 3: a reserved name, or a spelling of the inbox -----
 
 #: A second outbox file, committed both top-level and inside the bundle.
 _RUN: Final = "run.md"
 _RUN_BYTES: Final = b"synthetic run note for the CS-1232 round 2 arms\n"
 
-#: Inbox-relative spellings that must be refused, each naming a reserved
-#: directory name below the inbox.
+#: Inbox-relative spellings that must be refused, each naming a reserved name.
 _TWICE: Final = {
     "inbox_bundle_then_kit": "moon_sync_inbox/" + BUNDLE_DIR + "/" + _RUN,
     "inbox_as_bundle": "moon_sync_inbox/" + _RUN,
@@ -985,9 +1020,8 @@ def twice_world(bundle_world: World) -> World:
         (outbox / BUNDLE_DIR / reserved).write_bytes(_RUN_BYTES)
     _git(w.main_root, "add", "-A")
     _git(w.main_root, "commit", "-q", "-m", "run")
-    inbox = w.note.parent.parent
     for rel in _TWICE.values():
-        target = inbox.joinpath(*rel.split("/"))
+        target = _inbox(w).joinpath(*rel.split("/"))
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_bytes(_RUN_BYTES)
     return w
@@ -998,64 +1032,128 @@ def test_a_path_naming_a_reserved_dir_below_the_inbox_is_refused(
     twice_world: World, case: str
 ) -> None:
     w = twice_world
-    raw = str(w.note.parent.parent) + os.sep + _TWICE[case].replace("/", os.sep)
-    verdict = provenance.verify_main_note(raw, config_path=w.config)
-    proc = subprocess.run(
-        [sys.executable, str(TOOL), raw, "--config", str(w.config)],
-        capture_output=True,
-        env=_clean_env(),
-        timeout=TIMEOUT,
-        check=False,
-    )
-    reason = str(verdict.reason)
-    ok = bool(verdict.ok)
+    note = _inbox(w).joinpath(*_TWICE[case].split("/"))
+    ok, reason, _digest = _verify_in(w, note)
+    proc = _cli_in(w, note)
     out = proc.stdout.decode("ascii", "replace").strip()
-    leaked = _leaks(w, out + proc.stderr.decode("utf-8", "replace") + repr(verdict))
+    leaked = _leaks(w, out + proc.stderr.decode("utf-8", "replace") + reason)
     assert reason == _BUNDLE_REFUSED
     assert ok is False
     assert out == _BUNDLE_REFUSED
     assert leaked is False
 
 
-@pytest.mark.parametrize(
-    "raw",
-    [
-        "/srv/x/moon_sync_inbox/moon_sync_inbox/kit/run.md",
-        "/srv/x/moon_sync_inbox/moon_sync_inbox/run.md",
-        "/srv/x/moon_sync_inbox/MOON_SYNC_INBOX/run.md",
-        "/srv/x/Moon_Sync_Inbox/moon_sync_inbox/run.md",
-        "/srv/x/moon_sync_inbox/moon_sync_outbox/run.md",
-        "/srv/x/moon_sync_inbox/kit/MOON_SYNC_INBOX",
-        "/srv/x/moon_sync_inbox/kit/moon_sync_outbox",
-        "/srv/x/moon_sync_inbox/Moon_Sync_Inbox",
-    ],
-    ids=[
-        "twice_deep",
-        "twice",
-        "twice_upper",
-        "twice_mixed",
-        "outbox",
-        "file_inbox",
-        "file_outbox",
-        "top_level_file_inbox",
-    ],
-)
-def test_the_parser_refuses_a_reserved_name_below_the_inbox(raw: str) -> None:
-    parsed = provenance.outbox_rel(raw)
-    refused = parsed == _BUNDLE_REFUSED
-    assert refused is True
-
-
 def test_the_twice_world_controls_still_verify(twice_world: World) -> None:
     # Anti-vacuity: the committed run.md files verify through their honest
     # spellings, so a refusal above is the path rule and not a broken fixture.
     w = twice_world
-    inbox = w.note.parent.parent
+    inbox = _inbox(w)
     (inbox / _RUN).write_bytes(_RUN_BYTES)
     (inbox / BUNDLE_DIR / _RUN).write_bytes(_RUN_BYTES)
-    top = provenance.verify_main_note(inbox / _RUN, config_path=w.config)
-    bundled = provenance.verify_main_note(inbox / BUNDLE_DIR / _RUN, config_path=w.config)
-    top_reason = str(top.reason)
-    bundled_reason = str(bundled.reason)
+    _ok, top_reason, _d = _verify_in(w, inbox / _RUN)
+    _ok2, bundled_reason, _d2 = _verify_in(w, inbox / BUNDLE_DIR / _RUN)
     assert top_reason == "verified"
     assert bundled_reason == "verified"
+
+
+# Round 3 - the spelling of the path must not decide placement. MAIN commits a
+# top-level LICENSE "top" and a bundle LICENSE "bund"; the inbox bundle file
+# carries "top". Placed as a bundle file it is a digest mismatch; looked up by
+# bare name it would wrongly verify against the top-level file.
+
+_TOP: Final = b"top\n"
+_BUND: Final = b"bund\n"
+
+
+@pytest.fixture
+def alias_world(bundle_world: World) -> World:
+    w = bundle_world
+    (w.main_root / "moon_sync_outbox" / BUNDLE_FILE).write_bytes(_TOP)
+    _bundle_outbox_file(w).write_bytes(_BUND)
+    _git(w.main_root, "add", "-A")
+    _git(w.main_root, "commit", "-q", "-m", "alias")
+    w.note.write_bytes(_TOP)
+    return w
+
+
+def _assert_mismatch(w: World, note: Path) -> None:
+    # Control first: the spelling really does reach the inbox bundle file.
+    reaches = note.read_bytes() == _TOP
+    ok, reason, _digest = _verify_in(w, note)
+    proc = _cli_in(w, note)
+    out = proc.stdout.decode("ascii", "replace").strip()
+    leaked = _leaks(w, out + proc.stderr.decode("utf-8", "replace") + reason)
+    assert reaches is True
+    assert reason == "digest-mismatch"
+    assert ok is False
+    assert out == "digest-mismatch"
+    assert leaked is False
+
+
+def test_the_alias_world_honest_spelling_mismatches(alias_world: World) -> None:
+    _assert_mismatch(alias_world, alias_world.note)
+
+
+def test_an_8dot3_inbox_spelling_is_placed_by_the_resolved_inbox(alias_world: World) -> None:
+    w = alias_world
+    inbox = _inbox(w)
+    short = _short_form(inbox)
+    if short is None or Path(short).name.lower() == inbox.name.lower():
+        pytest.skip("no 8.3 short name on this platform or volume")
+    # Control: the short spelling is a DIFFERENT name for the SAME directory.
+    same = Path(short).resolve(strict=True) == inbox.resolve(strict=True)
+    assert same is True
+    _assert_mismatch(w, Path(short) / BUNDLE_DIR / BUNDLE_FILE)
+
+
+def test_a_trailing_dot_inbox_spelling_is_placed_by_the_resolved_inbox(
+    alias_world: World,
+) -> None:
+    if sys.platform != "win32":
+        pytest.skip("a trailing dot names a different directory off Windows")
+    w = alias_world
+    inbox = _inbox(w)
+    _assert_mismatch(w, Path(str(inbox) + ".") / BUNDLE_DIR / BUNDLE_FILE)
+
+
+def test_a_linked_alias_of_the_inbox_is_placed_by_the_resolved_inbox(
+    alias_world: World,
+) -> None:
+    w = alias_world
+    alias = w.base / "cs1232_alias"
+    made = _make_dir_link(alias, _inbox(w))
+    if not made:
+        pytest.skip("this platform cannot create a directory link here")
+    (w.base / "cs1232_sub").mkdir()
+    spelled = w.base / "cs1232_sub" / ".." / "cs1232_alias" / BUNDLE_DIR / BUNDLE_FILE
+    _assert_mismatch(w, spelled)
+
+
+@pytest.mark.parametrize("hop", ["dot", "dotdot"])
+def test_a_top_level_note_spelled_with_a_hop_still_verifies(world: World, hop: str) -> None:
+    # Regression against the pre-CS-1232 tool: these spellings verified there.
+    w = world
+    inbox = _inbox(w)
+    (inbox / "cs1232_hop").mkdir()
+    middle = "." if hop == "dot" else "cs1232_hop" + os.sep + ".."
+    raw = str(inbox) + os.sep + middle + os.sep + NOTE_NAME
+    ok, reason, digest = _verify_in(w, Path(raw))
+    proc = _cli_in(w, raw)
+    lines = proc.stdout.decode("ascii", "replace").strip().splitlines()
+    assert reason == "verified"
+    assert ok is True
+    assert digest == NOTE_SHA256
+    assert lines == ["verified", NOTE_SHA256]
+
+
+def test_an_inbox_injected_under_an_alias_spelling_is_resolved(alias_world: World) -> None:
+    # The INBOX side of the same rule: the injected inbox is spelled with a hop,
+    # the note canonically. Only resolving the inbox places the note in it.
+    w = alias_world
+    (w.base / "cs1232_sub").mkdir()
+    hopped = w.base / "cs1232_sub" / ".." / "cs1227_this" / "moon_sync_inbox"
+    verdict = provenance.verify_main_note(w.note, config_path=w.config, inbox_dir=hopped)
+    reason = str(verdict.reason)
+    ok = bool(verdict.ok)
+    assert reason == "digest-mismatch"
+    assert ok is False
