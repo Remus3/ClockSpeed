@@ -60,7 +60,7 @@ CHANNEL: sent 1834 (account-name pattern: five shapes, instant, manifest digest;
 P1 case-sensitive per match reproduced RSC's 24 in 15 files over 541 exactly; CS
 withdrew 32, most likely a case-insensitive count), and 1855 / 1856 / 1857 - two
 answers drafted 2026-09-25 that were NEVER DELIVERED, re-measured, plus a new note
-re-deriving LW's da35f8b1 (the 336 B gap is comment text only). Inbox ACKED, 421.
+re-deriving LW's frozen slots.py candidate (the 336 B gap is comment text only). Inbox ACKED, 421.
 
 ================================================================================
 THE SINGLE NEXT ACTION
