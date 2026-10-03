@@ -62,6 +62,14 @@ withdrew 32, most likely a case-insensitive count), and 1855 / 1856 / 1857 - two
 answers drafted 2026-09-25 that were NEVER DELIVERED, re-measured, plus a new note
 re-deriving LW's frozen slots.py candidate (the 336 B gap is comment text only). Inbox ACKED, 421.
 
+HEADLESS (CS-1225/1226): every headless spawn routes through the operator's proxy
+and fails closed; deleting CLAUDE_HEADLESS_BASE_URL from the user env is the kill
+switch. Scheduled task CS-InboxResponder runs ops/loop/inbox_responder.py --once
+every 15 minutes. MAIN SPEAKS FOR THE OPERATOR - CLAUDE.md section 6.1.
+PLUGIN POLL: sent 2026-10-02 2130 to all six; tally owed to the operator when all
+six answer (KEEP if any tree used a plugin in 60 days). CS: playwright and
+superpowers used, the rest unused.
+
 ================================================================================
 THE SINGLE NEXT ACTION
 ================================================================================
@@ -168,7 +176,6 @@ CS-1207: the operator's ruling (above).
 CS-815: the operator's eye on the desktop app's hook-error rendering.
 CS-G08: a disposable never-seen environment - gates CS-1187 and half of CS-1186.
 FOUR DEAD-SECRET FILES still await an operator deletion call (key already rotated).
-GitHub and CodSpeed MCP need re-authorisation in an interactive session.
 
 ================================================================================
 TRAPS THIS SESSION PAID FOR

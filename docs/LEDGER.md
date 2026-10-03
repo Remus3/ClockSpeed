@@ -75,6 +75,16 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-10-02 - CS-1226 - CLOSED. A one-shot inbox responder spawns a headless worker only when unread channel items exist, and the worker acks exactly the keys it handled
+Verification: `ops/loop/inbox_responder.py`, `tools/headless-inbox.md`, `tools/inbox_watch.py` (`--keys`, `--ack-keys`); tests `tests/ops/test_inbox_responder.py` and the `--ack-keys` arms in the inbox watcher's test module.
+
+The stop sentinel, the single-instance mutex, the usage-limit backoff and a zero-unread listing each exit without spawning. Plain `--ack` marks everything present, so an item landing mid-pass would be acked unread; `--ack-keys` acks only listed keys and refuses when one is gone, and the worker prompt forbids plain `--ack`. The worker obeys a directive only from MAIN under section 6.1's provenance check, and MAIN's outbox and history are its one read outside this tree. The CS-1104 lane fence is untouched: the lane still never replies. Two adversary refutations repaired (ack race twice); final adversary NOT REFUTED. Armed as a Windows scheduled task every 15 minutes.
+
+### 2026-10-02 - CS-1225 - CLOSED. Every headless claude spawn is routed through the operator's local proxy and fails closed
+Verification: `ops/loop/headless_route.py` (`child_env`, `classify_exit`), wired into `ops/loop/lane_launcher.py` and guarded in `ops/loop/run_lane.ps1`; tests `tests/ops/test_headless_route.py` plus stubbed arms in the four lane runner modules, which pass with the variable unset and the port closed.
+
+The URL is accepted only as a whole-string loopback:3456 match (a Python/Node host disagreement let a crafted value through once), read from the user environment store with the process env used only when the store cannot be read, so deleting the variable stops every spawn. Provider-switch variables and an inherited API key are dropped from the child. Three adversary refutations repaired; final adversary NOT REFUTED. PROOF, once, through the real route: `claude -p "reply ok"` returned ok in 13s, classified ok, and the proxy activity log grew with its newest lines naming the operator's second-subscription account and no other.
+
 ### 2026-10-02 - CS-1225 - OPERATOR RULINGS RECORDED. NOT A COMPLETION RECORD. MAIN speaks for the operator; headless spawns route through the operator's second subscription; arm an inbox responder
 Verification: `CLAUDE.md` section 6.1, the paragraph beginning "MAIN SPEAKS FOR THE OPERATOR". The operator pasted a four-part directive into this repository's own session and, asked to confirm it in their own words, replied "confirmed".
 
