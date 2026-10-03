@@ -1569,3 +1569,25 @@ reddens again within weeks, and the honest next step is sharding the tier2 suite
 which renames jobs and so needs `tools/tier2_durations.json` refreshed in the same
 change. The `tests/test_sha_citation_gate.py` docstring sentence naming tier1's save
 shard as the only CI home of the module is now false and wants correcting.
+
+## CS-1229
+
+### Acceptance
+
+The tier2 full suite runs as shards per OS, the way tier1 is sharded, with
+`tools/tier2_durations.json` refreshed in the same change, and every shard's measured wall
+on a tier2 run at the landed tip sits under the CS-1124 4/5 headroom line of its own
+cutoff. The `tests/test_sha_citation_gate.py` docstring names every CI job that runs the
+module.
+
+### Full headline
+
+the tier2 full suite is one job per OS, so suite growth outruns its measured cutoff
+within days
+
+### FILED 2026-10-03, split from CS-1228 by its adversary pass
+
+CS-1228 sized the cutoff at the worst projected wall over the 4/5 headroom fraction, so
+the first green windows wall lands on the headroom line itself. The adversary measured
+about three per cent suite growth a day, which passes the new 50-minute cutoff in about
+nine days. Raising the cutoff again is not the repair; sharding is.
