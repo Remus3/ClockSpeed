@@ -819,7 +819,7 @@ def test_two_acceptance_headings_in_one_section_is_red(family: Path) -> None:
 def test_a_line_carrying_a_truncated_acceptance_beside_its_section_acceptance_is_red(
     family: Path,
 ) -> None:
-    """The e63668b shape: part of the clause on the line, the whole in the section."""
+    """The CS-971 relocation shape: part of the clause on the line, the whole in the section."""
     _point_line_at_section(family, "CS-401", acceptance="a cond")
     _append_to_section(family, "phase4.md", "CS-401", f"{ACCEPTANCE_HEADING}\n\na condition\n\n")
 
