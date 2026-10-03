@@ -1380,3 +1380,185 @@ def test_a_junctioned_bundle_dir_is_refused_even_where_placement_agrees(
     assert reason == _BUNDLE_REFUSED
     assert out == _BUNDLE_REFUSED
     assert leaked is False
+
+
+# Round 5 - the SPELLED placement must equal the resolved one, whole: same
+# length, same names, and no link anywhere below the inbox in the spelling.
+
+_XBUND: Final = b"xbund\n"
+_DEEP: Final = b"deep\n"
+
+
+@pytest.fixture
+def loop_world(bundle_world: World) -> World:
+    """MAIN commits four LICENSE files; inbox/x links back at the inbox itself.
+
+    MAIN: LICENSE, x/LICENSE, x/b/LICENSE and b/LICENSE. The inbox holds
+    LICENSE "top" and b/LICENSE "deep".
+    """
+    w = bundle_world
+    _commit_outbox(
+        w,
+        {
+            BUNDLE_FILE: _TOP,
+            "x/" + BUNDLE_FILE: _XBUND,
+            "x/b/" + BUNDLE_FILE: _DEEP,
+            "b/" + BUNDLE_FILE: _DEEP,
+        },
+    )
+    (_inbox(w) / BUNDLE_FILE).write_bytes(_TOP)
+    (_inbox(w) / "b").mkdir()
+    (_inbox(w) / "b" / BUNDLE_FILE).write_bytes(_DEEP)
+    made = _make_dir_link(_inbox(w) / "x", _inbox(w))
+    if not made:
+        pytest.skip("this platform cannot create a directory link here")
+    return w
+
+
+def test_a_child_aliasing_the_inbox_does_not_bind_to_the_top_level(loop_world: World) -> None:
+    # inbox/x/LICENSE resolves to inbox/LICENSE: the spelling is two deep, the
+    # resolved placement one deep - they disagree, so it is refused.
+    w = loop_world
+    note = _inbox(w) / "x" / BUNDLE_FILE
+    reaches = note.read_bytes() == _TOP
+    reason, out, leaked = _refused_quietly(w, note)
+    assert reaches is True
+    assert reason == _BUNDLE_REFUSED
+    assert out == _BUNDLE_REFUSED
+    assert leaked is False
+
+
+def test_a_three_deep_spelling_through_an_inbox_alias_is_refused(loop_world: World) -> None:
+    # inbox/x/b/LICENSE resolves to inbox/b/LICENSE - a bundle file reached by a
+    # spelling three deep.
+    w = loop_world
+    note = _inbox(w) / "x" / "b" / BUNDLE_FILE
+    reaches = note.read_bytes() == _DEEP
+    reason, out, leaked = _refused_quietly(w, note)
+    assert reaches is True
+    assert reason == _BUNDLE_REFUSED
+    assert out == _BUNDLE_REFUSED
+    assert leaked is False
+
+
+def test_the_loop_world_honest_spellings_still_verify(loop_world: World) -> None:
+    # Anti-vacuity: the same files spelled without the alias verify, so the
+    # refusals above are the placement rule and not a broken fixture.
+    w = loop_world
+    _ok, top, _d = _verify_in(w, _inbox(w) / BUNDLE_FILE)
+    _ok2, bundled, _d2 = _verify_in(w, _inbox(w) / "b" / BUNDLE_FILE)
+    assert top == "verified"
+    assert bundled == "verified"
+
+
+@pytest.mark.parametrize(
+    ("link", "target", "spelled"),
+    [
+        (("y",), (), ("y", "b", BUNDLE_FILE)),
+        (("y",), ("b",), ("y", BUNDLE_FILE)),
+        (("y",), None, ("y", BUNDLE_FILE)),
+        (("b", "back"), (), ("b", "back", BUNDLE_FILE)),
+        (("b", "same"), ("b",), ("b", "same", BUNDLE_FILE)),
+        (("b", "out"), None, ("b", "out", BUNDLE_FILE)),
+    ],
+    ids=[
+        "depth1_aliases_inbox",
+        "depth1_aliases_bundle",
+        "depth1_aliases_outside",
+        "depth2_aliases_inbox",
+        "depth2_aliases_bundle",
+        "depth2_aliases_outside",
+    ],
+)
+def test_a_link_at_any_depth_below_the_inbox_is_refused(
+    loop_world: World,
+    link: tuple[str, ...],
+    target: tuple[str, ...] | None,
+    spelled: tuple[str, ...],
+) -> None:
+    # ``target`` is a path under the inbox, or None for a directory outside it
+    # holding the same bytes. Every spelling reaches a file whose bytes some
+    # MAIN path carries; only the placement rule refuses it.
+    w = loop_world
+    if target is None:
+        aim = w.base / ("cs1232_out_" + "_".join(link))
+        aim.mkdir()
+        (aim / BUNDLE_FILE).write_bytes(_TOP)
+        (aim / "b").mkdir()
+        (aim / "b" / BUNDLE_FILE).write_bytes(_DEEP)
+    else:
+        aim = _inbox(w).joinpath(*target)
+    made = _make_dir_link(_inbox(w).joinpath(*link), aim)
+    if not made:
+        pytest.skip("this platform cannot create a directory link here")
+    note = _inbox(w).joinpath(*spelled)
+    reaches = note.is_file()
+    reason, out, leaked = _refused_quietly(w, note)
+    assert reaches is True
+    assert reason == _BUNDLE_REFUSED
+    assert out == _BUNDLE_REFUSED
+    assert leaked is False
+
+
+def test_a_note_linking_to_its_own_bundle_dir_is_refused(bundle_world: World) -> None:
+    # The spelled placement is one longer than the resolved one, and agrees on
+    # every shared name - only the length rule refuses it with the right reason.
+    w = bundle_world
+    made = _make_dir_link(_inbox(w) / BUNDLE_DIR / "c", _inbox(w) / BUNDLE_DIR)
+    if not made:
+        pytest.skip("this platform cannot create a directory link here")
+    reason, out, leaked = _refused_quietly(w, _inbox(w) / BUNDLE_DIR / "c")
+    assert reason == _BUNDLE_REFUSED
+    assert out == _BUNDLE_REFUSED
+    assert leaked is False
+
+
+def test_every_spelled_component_below_the_inbox_is_lstat_checked(
+    bundle_world: World, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # With whole-placement equality a link below the inbox already changes the
+    # resolved placement, so the lstat walk is behaviourally redundant; this
+    # recording spy pins it structurally - each spelled component is checked.
+    w = bundle_world
+    original = provenance.is_link
+    seen: list[str] = []
+
+    def spy(path: Path) -> bool:
+        seen.append(os.path.normcase(str(path)))
+        return bool(original(path))
+
+    monkeypatch.setattr(provenance, "is_link", spy)
+    ok, reason, _digest = _verify_in(w)
+    want = {os.path.normcase(str(_inbox(w) / BUNDLE_DIR)), os.path.normcase(str(w.note))}
+    missing = len(want - set(seen))
+    assert reason == "verified"
+    assert ok is True
+    assert missing == 0
+
+
+def test_is_link_sees_a_directory_link_and_not_a_plain_dir(tmp_path: Path) -> None:
+    plain = tmp_path / "cs1232_plain_dir"
+    plain.mkdir()
+    link = tmp_path / "cs1232_dir_link"
+    made = _make_dir_link(link, plain)
+    if not made:
+        pytest.skip("this platform cannot create a directory link here")
+    link_seen = bool(provenance.is_link(link))
+    plain_seen = bool(provenance.is_link(plain))
+    assert link_seen is True
+    assert plain_seen is False
+
+
+def test_is_link_sees_a_junction(tmp_path: Path) -> None:
+    if sys.platform != "win32":
+        pytest.skip("junctions exist only on Windows")
+    import _winapi  # noqa: PLC0415 - Windows-only
+
+    plain = tmp_path / "cs1232_junction_target"
+    plain.mkdir()
+    junction = tmp_path / "cs1232_junction"
+    _winapi.CreateJunction(str(plain), str(junction))
+    not_symlink = junction.is_symlink() is False
+    junction_seen = bool(provenance.is_link(junction))
+    assert not_symlink is True
+    assert junction_seen is True
