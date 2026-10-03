@@ -52,26 +52,46 @@ env:
 
 jobs:
   # ===========================================================================
-  # Job 1 - the full suite on both target platforms.
+  # Job 1 - the full suite on both platforms, SHARDED (CS-1229).
+  #
+  # ONE JOB PER OS OUTGREW ITS TIMEOUT AND RAISING IT AGAIN WAS NOT THE REPAIR.
+  # CS-1228 raised timeout-minutes from 30 to 50 on measurement; the first run
+  # carrying that, 37125738113 at 87ea30c, still put the windows pytest step at
+  # 2802s and the windows probe was cancelled at 99 per cent. So the suite runs
+  # as shards.
+  #
+  # THE SHARDS ARE NOT A PARTITION OF THIS FILE'S OWN. Each leg runs, token for
+  # token, the `Unit tests` command of the tier1.yml job its `shard` value names,
+  # with one difference: the `--ignore=` of a path tests/test_tier1_budget.py
+  # lists in PERMITTED_DELETIONS is dropped, because this lane is where such a
+  # path is still run. That module derives both sides and is red on any drift,
+  # so a file moved between shards over there moves here in the same diff or
+  # not at all. Five shards, because that partition has five jobs.
+  #
+  # SIZED FROM MEASURED WALLS, NOT BY FEEL. At 87ea30c the tier1.yml run
+  # 37125732357 read pytest steps of fast 340s, save 370s, guards 282s, hooks
+  # 291s and fill 331s on ubuntu, 1614s together; this job's ubuntu pytest step
+  # read 1866s on the same tree. The 252s difference is charged whole to the
+  # save shard, which carries the restored deletion, as an upper bound. The
+  # windows step read 2802s against ubuntu's 1866s, a factor of 1.50, so the
+  # projected windows pytest steps are fast 510s, save 933s, guards 423s, hooks
+  # 437s and fill 497s, plus about 51s of job outside the step.
   # ===========================================================================
   suite:
-    name: full suite (${{ matrix.os }})
+    name: full suite (${{ matrix.os }}, ${{ matrix.shard }} shard)
     runs-on: ${{ matrix.os }}
-    # CS-1228 - RAISED FROM 30, BY MEASUREMENT AND NOT BY TASTE. The windows leg
-    # of this job was CANCELLED at the 30-minute cutoff on every scheduled run
-    # 2026-09-26..2026-10-03, ended by the cutoff and not by a failing step.
-    # Its last progress line before each cancellation put the pytest step at 75
-    # to 88 per cent after 29 minutes - a projected full wall of 33.0 to 39.0
-    # minutes, worst 39.0 (75 per cent at 29.2 minutes). The ubuntu leg reached 28.6 minutes and was itself
-    # cancelled once at 99 per cent. The new ceiling is that worst measurement
-    # plus under a minute of job overhead, divided by the 4/5 headroom fraction
-    # tools/tier2_headroom.py grades every job against (CS-1124): 40 / (4/5) = 50.
-    # It is still a runaway detector, and that guard is what reddens first when
-    # the suite grows into it again.
-    timeout-minutes: 50
+    # Worst projected leg: windows save, 933s plus 51s, 16.4 minutes. 4/5 of
+    # this value - the CS-1124 headroom tools/tier2_headroom.py grades every
+    # job against - is 24.0, so the worst projected leg sits at 68 per cent
+    # of that line. It is the timeout-minutes this job carried before CS-1228,
+    # and it is still a runaway detector: the headroom guard reddens first when
+    # a shard grows into it, and the answer then is a rebalance, not a raise.
+    timeout-minutes: 30
     strategy:
       # A Windows-only failure and a Linux-only failure are different bugs, and
       # this project's primary target is Windows. Never let one abort the other.
+      # Nor one shard another: a red leg must not cancel the measurement of the
+      # rest.
       fail-fast: false
       matrix:
         # windows-latest is here because the character-set, path and
@@ -80,6 +100,10 @@ jobs:
         # write_text, and backslash paths in JSON config. ubuntu-latest is the
         # cheap canary and the portability check.
         os: [ubuntu-latest, windows-latest]
+        # The tier1.yml job ids, one leg each. Each value selects exactly one
+        # suite step below by its `if:`, and tests/test_tier1_budget.py is red
+        # on a value with no step, a step with no value, or a second step.
+        shard: [fast, save, guards, hooks, fill]
     defaults:
       run:
         # One script for both platforms. Git Bash ships on the Windows runner.
@@ -109,29 +133,127 @@ jobs:
         # the same way it does on a developer machine.
         run: python -m pip install -e ".[dev]"
 
-      # `--dist loadfile` (CS-1228) is the scheduler tier1.yml's suite shards
-      # and the pre-push hook already run, adopted there on a measured win over
-      # the default (see the Unit tests step in tier1.yml). Parallelism parity
-      # with those lanes, NOT a substitute for the ceiling above: the windows
-      # gain from it is unmeasured on this runner, so the ceiling is sized to
-      # the default scheduler's measured wall.
-      - name: Enable test parallelism if pytest-xdist is available
-        id: xdist
-        run: |
-          if python -m pip install pytest-xdist && python -c "import xdist" 2>/dev/null; then
-            echo "args=-n auto --dist loadfile" >> "$GITHUB_OUTPUT"
-            echo "pytest-xdist available - the suite runs in parallel"
-          else
-            echo "args=" >> "$GITHUB_OUTPUT"
-            echo "pytest-xdist unavailable - the suite runs serially"
-          fi
-
-      # EXPLICIT TARGET DIRECTORY, never a bare recursive run from the repo root.
+      # EXPLICIT TARGETS, never a bare recursive run from the repo root.
       # CONVENTIONS.md section 7.1: a bare root invocation can sweep runtime
-      # state directories and destroy live locks or data. The invocation is kept
-      # identical to the local one so CI and the developer machine never diverge.
-      - name: Full test suite
-        run: python -m pytest tests -q ${{ steps.xdist.outputs.args }}
+      # state directories and destroy live locks or data.
+      #
+      # ONE STEP PER SHARD, EACH SELECTED BY ITS LEG'S `shard` VALUE, and every
+      # command a literal. A command assembled at run time from a matrix value
+      # could not be read by tests/test_tier1_budget.py, which grades both that
+      # these are the partition and that a governed deletion is still run here.
+      #
+      # pytest-xdist is a HARD dependency now, from the `.[dev]` extra installed
+      # above, as it already was for job 2: the opportunistic install that let
+      # this job fall back to serial is gone, because a serial shard is the
+      # cancellation this item exists to end, arriving silently.
+      - name: Full test suite (fast shard)
+        if: matrix.shard == 'fast'
+        run: >-
+          python -m pytest
+          tests
+          --ignore=tests/save
+          --ignore=tests/test_hook_interpreter_ladder.py
+          --ignore=tests/test_liveness.py
+          --ignore=tests/test_commit_msg_gate.py
+          --ignore=tests/test_pre_push_ref_race.py
+          --ignore=tests/test_mypy_gate.py
+          --ignore=tests/test_docs_citations.py
+          --ignore=tests/test_toolpath.py
+          --ignore=tests/test_precommit_gate.py
+          --ignore=tests/test_chained_cause_census.py
+          --ignore=tests/test_archive_rot.py
+          --ignore=tests/test_sphinx_roles.py
+          --ignore=tests/test_handler_exception_rendering.py
+          --ignore=tests/test_locals_rendering.py
+          --ignore=tests/test_assertion_rendering.py
+          --ignore=tests/test_hook_probe_bound.py
+          --ignore=tests/test_hook_toolchain.py
+          --ignore=tests/test_precommit_gate_lint_cwd.py
+          --ignore=tests/test_canary_population_forced.py
+          --ignore=tests/test_cs1175_rule_narrowing.py
+          --ignore=tests/test_citation_tables.py
+          --ignore=tests/data/test_phase2_gate.py
+          --ignore=tests/solve/test_phase3_gate.py
+          --ignore=tests/test_cs1174_placeholder_delimiters.py
+          --ignore=tests/test_exception_messages.py
+          --ignore=tests/data/test_drift_guard_data.py
+          --ignore=tests/surface/test_server.py
+          --ignore=tests/test_pathless_clone_agreement.py
+          --ignore=tests/test_credential_redaction.py
+          --ignore=tests/test_provenance_stamp.py
+          --ignore=tests/test_commit_msg_cleanup_matrix.py
+          --ignore=tests/test_commit_msg_control_bytes.py
+          --ignore=tests/test_pre_push_suite_floor.py
+          --ignore=tests/test_precommit_index_race.py
+          --ignore=tests/test_trailer_routes.py
+          --ignore=tests/test_sha_citation_gate.py
+          --ignore=tests/test_claude_hook.py
+          --ignore=tests/test_hook_env_echo.py
+          --ignore=tests/test_probe_refusal_output.py
+          -q -n auto --dist loadfile --durations=15 --durations-min=5.0
+
+      - name: Full test suite (save shard)
+        if: matrix.shard == 'save'
+        run: >-
+          python -m pytest
+          tests/test_toolpath.py
+          tests/test_trailer_routes.py
+          tests/test_sha_citation_gate.py
+          tests/save
+          -q -n auto --dist loadfile --durations=15 --durations-min=5.0
+
+      - name: Full test suite (guards shard)
+        if: matrix.shard == 'guards'
+        run: >-
+          python -m pytest
+          tests/test_claude_hook.py
+          tests/test_hook_env_echo.py
+          tests/test_docs_citations.py
+          tests/test_chained_cause_census.py
+          tests/test_archive_rot.py
+          tests/test_sphinx_roles.py
+          tests/test_handler_exception_rendering.py
+          tests/test_locals_rendering.py
+          tests/test_assertion_rendering.py
+          -q -n auto --dist loadfile --durations=15 --durations-min=5.0
+
+      - name: Full test suite (hooks shard)
+        if: matrix.shard == 'hooks'
+        run: >-
+          python -m pytest
+          tests/test_hook_probe_bound.py
+          tests/test_canary_population_forced.py
+          tests/test_hook_interpreter_ladder.py
+          tests/test_commit_msg_gate.py
+          tests/test_precommit_gate.py
+          tests/test_pre_push_ref_race.py
+          tests/test_hook_toolchain.py
+          tests/test_precommit_gate_lint_cwd.py
+          tests/test_commit_msg_cleanup_matrix.py
+          tests/test_commit_msg_control_bytes.py
+          tests/test_pre_push_suite_floor.py
+          tests/test_precommit_index_race.py
+          -q -n auto --dist loadfile --no-loadscope-reorder --durations=15 --durations-min=5.0
+
+      - name: Full test suite (fill shard)
+        if: matrix.shard == 'fill'
+        run: >-
+          python -m pytest
+          tests/test_cs1175_rule_narrowing.py
+          tests/test_citation_tables.py
+          tests/data/test_phase2_gate.py
+          tests/solve/test_phase3_gate.py
+          tests/test_cs1174_placeholder_delimiters.py
+          tests/test_exception_messages.py
+          tests/data/test_drift_guard_data.py
+          tests/surface/test_server.py
+          tests/test_pathless_clone_agreement.py
+          tests/test_credential_redaction.py
+          tests/test_provenance_stamp.py
+          tests/test_liveness.py
+          tests/test_mypy_gate.py
+          tests/test_probe_refusal_output.py
+          -q -n auto --dist loadfile --durations=15 --durations-min=5.0
 
   # ===========================================================================
   # Job 2 - THE CLEAN-CHECKOUT PROBE. The highest-value job in this file.
@@ -146,14 +268,18 @@ jobs:
   # prove nothing, because the checkout is not the thing a new contributor gets.
   # ===========================================================================
   clean-checkout-probe:
-    name: clean-checkout probe (${{ matrix.os }})
+    name: clean-checkout probe (${{ matrix.os }}, ${{ matrix.shard }} shard)
     runs-on: ${{ matrix.os }}
-    # CS-1228 - RAISED FROM 30 on the same measurement as job 1. The windows leg
-    # was CANCELLED at 30 minutes on every scheduled run 2026-09-25..2026-10-03;
-    # its suite step's last progress line projected a full wall of 28.5 to 38.8
-    # minutes, and every step outside it took under a minute on the last green
-    # run. 40 / (4/5) = 50, the CS-1124 headroom fraction again.
-    timeout-minutes: 50
+    # CS-1229 - SHARDED EXACTLY AS JOB 1, and for the same measurement: the
+    # windows leg was CANCELLED at the 50 cutoff CS-1228 set, at 99 per cent,
+    # on run 37125738113. On that run the ubuntu probe pytest step read 1960s
+    # against job 1's 1866s, a factor of 1.05, and the windows steps outside it
+    # took about 63s. So the worst projected leg, windows save, is 933s times
+    # 1.05 plus 63s, 17.4 minutes, at 73 per cent of the 24.0 that 4/5 of this
+    # value puts the headroom line at. Every leg runs the whole bootstrap and
+    # both firing and wiring steps - they are seconds - and only its own shard
+    # of the suite, so no leg of the probe is a lesser probe.
+    timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
@@ -164,6 +290,8 @@ jobs:
         # Windows' bundled bash, but dash and ash on this POSIX runner are stricter,
         # which is exactly why the probe runs on both platforms.
         os: [ubuntu-latest, windows-latest]
+        # The same five values as job 1, graded by the same arm.
+        shard: [fast, save, guards, hooks, fill]
     defaults:
       run:
         shell: bash
@@ -362,6 +490,9 @@ jobs:
       # job 1. It is the only lane that runs the suite AFTER the bootstrap, so
       # it is the only one where an environment-shaped arm takes its wired
       # branch - tests/test_make_cert.py names this job as the one that does.
+      # WHOLE ACROSS THE LEGS SINCE CS-1229: each leg runs one shard, the same
+      # command as job 1's step for that shard, and the five together are the
+      # whole suite - the partition argument job 1's header states.
       #
       # `-n auto`, THE SAME PARALLELISM AS JOB 1. This step ran serially until
       # three consecutive windows-latest legs were CANCELLED at this job's
@@ -374,14 +505,124 @@ jobs:
       # The cutoff was NOT raised for that incident: it is a runaway detector,
       # and the suite's growth is the signal it exists to surface. CS-1228 is
       # that signal arriving - nine nights cancelled with nothing failed - and
-      # the raise is sized to the measured wall, stated at timeout-minutes
-      # above, never by feel. `--dist loadfile` keeps this invocation identical
-      # to job 1's. pytest-xdist comes from the
+      # CS-1229 answered it with shards rather than a second raise, sized at
+      # timeout-minutes above from measured walls. Each command is identical
+      # to job 1's for the same shard. pytest-xdist comes from the
       # clone's own `.[dev]` extra installed above - no extra install here, so
       # a clone whose pyproject lost it goes red rather than quietly serial.
-      - name: Suite in the fresh clone
+      - name: Suite in the fresh clone (fast shard)
+        if: matrix.shard == 'fast'
         working-directory: probe
-        run: python -m pytest tests -q -n auto --dist loadfile
+        run: >-
+          python -m pytest
+          tests
+          --ignore=tests/save
+          --ignore=tests/test_hook_interpreter_ladder.py
+          --ignore=tests/test_liveness.py
+          --ignore=tests/test_commit_msg_gate.py
+          --ignore=tests/test_pre_push_ref_race.py
+          --ignore=tests/test_mypy_gate.py
+          --ignore=tests/test_docs_citations.py
+          --ignore=tests/test_toolpath.py
+          --ignore=tests/test_precommit_gate.py
+          --ignore=tests/test_chained_cause_census.py
+          --ignore=tests/test_archive_rot.py
+          --ignore=tests/test_sphinx_roles.py
+          --ignore=tests/test_handler_exception_rendering.py
+          --ignore=tests/test_locals_rendering.py
+          --ignore=tests/test_assertion_rendering.py
+          --ignore=tests/test_hook_probe_bound.py
+          --ignore=tests/test_hook_toolchain.py
+          --ignore=tests/test_precommit_gate_lint_cwd.py
+          --ignore=tests/test_canary_population_forced.py
+          --ignore=tests/test_cs1175_rule_narrowing.py
+          --ignore=tests/test_citation_tables.py
+          --ignore=tests/data/test_phase2_gate.py
+          --ignore=tests/solve/test_phase3_gate.py
+          --ignore=tests/test_cs1174_placeholder_delimiters.py
+          --ignore=tests/test_exception_messages.py
+          --ignore=tests/data/test_drift_guard_data.py
+          --ignore=tests/surface/test_server.py
+          --ignore=tests/test_pathless_clone_agreement.py
+          --ignore=tests/test_credential_redaction.py
+          --ignore=tests/test_provenance_stamp.py
+          --ignore=tests/test_commit_msg_cleanup_matrix.py
+          --ignore=tests/test_commit_msg_control_bytes.py
+          --ignore=tests/test_pre_push_suite_floor.py
+          --ignore=tests/test_precommit_index_race.py
+          --ignore=tests/test_trailer_routes.py
+          --ignore=tests/test_sha_citation_gate.py
+          --ignore=tests/test_claude_hook.py
+          --ignore=tests/test_hook_env_echo.py
+          --ignore=tests/test_probe_refusal_output.py
+          -q -n auto --dist loadfile --durations=15 --durations-min=5.0
+
+      - name: Suite in the fresh clone (save shard)
+        if: matrix.shard == 'save'
+        working-directory: probe
+        run: >-
+          python -m pytest
+          tests/test_toolpath.py
+          tests/test_trailer_routes.py
+          tests/test_sha_citation_gate.py
+          tests/save
+          -q -n auto --dist loadfile --durations=15 --durations-min=5.0
+
+      - name: Suite in the fresh clone (guards shard)
+        if: matrix.shard == 'guards'
+        working-directory: probe
+        run: >-
+          python -m pytest
+          tests/test_claude_hook.py
+          tests/test_hook_env_echo.py
+          tests/test_docs_citations.py
+          tests/test_chained_cause_census.py
+          tests/test_archive_rot.py
+          tests/test_sphinx_roles.py
+          tests/test_handler_exception_rendering.py
+          tests/test_locals_rendering.py
+          tests/test_assertion_rendering.py
+          -q -n auto --dist loadfile --durations=15 --durations-min=5.0
+
+      - name: Suite in the fresh clone (hooks shard)
+        if: matrix.shard == 'hooks'
+        working-directory: probe
+        run: >-
+          python -m pytest
+          tests/test_hook_probe_bound.py
+          tests/test_canary_population_forced.py
+          tests/test_hook_interpreter_ladder.py
+          tests/test_commit_msg_gate.py
+          tests/test_precommit_gate.py
+          tests/test_pre_push_ref_race.py
+          tests/test_hook_toolchain.py
+          tests/test_precommit_gate_lint_cwd.py
+          tests/test_commit_msg_cleanup_matrix.py
+          tests/test_commit_msg_control_bytes.py
+          tests/test_pre_push_suite_floor.py
+          tests/test_precommit_index_race.py
+          -q -n auto --dist loadfile --no-loadscope-reorder --durations=15 --durations-min=5.0
+
+      - name: Suite in the fresh clone (fill shard)
+        if: matrix.shard == 'fill'
+        working-directory: probe
+        run: >-
+          python -m pytest
+          tests/test_cs1175_rule_narrowing.py
+          tests/test_citation_tables.py
+          tests/data/test_phase2_gate.py
+          tests/solve/test_phase3_gate.py
+          tests/test_cs1174_placeholder_delimiters.py
+          tests/test_exception_messages.py
+          tests/data/test_drift_guard_data.py
+          tests/surface/test_server.py
+          tests/test_pathless_clone_agreement.py
+          tests/test_credential_redaction.py
+          tests/test_provenance_stamp.py
+          tests/test_liveness.py
+          tests/test_mypy_gate.py
+          tests/test_probe_refusal_output.py
+          -q -n auto --dist loadfile --durations=15 --durations-min=5.0
 
       # =====================================================================
       # CS-924 - HOOK FIRING, END TO END. The step every other assertion in

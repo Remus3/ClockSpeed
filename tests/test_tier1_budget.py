@@ -2251,10 +2251,10 @@ def run_by_any(invocations: list[tuple[str, list[str]]], path: str) -> bool:
     for, arriving one lane out, so the same vocabulary answers it: an invocation
     carrying ANY narrowing selector is no cover at all, whatever it targets.
 
-    THE TEMPLATE EXPANSION IS NOT A NARROWING AND IS DELIBERATELY NOT REFUSED.
-    tier 2's full-suite command ends in a `${{ steps.xdist.outputs.args }}` that
-    resolves to `-n auto` or to nothing; neither subtracts a test. A scan that
-    refused every token it could not resolve would refuse the shipped lane.
+    A TEMPLATE EXPANSION IS NOT A NARROWING AND IS DELIBERATELY NOT REFUSED.
+    tier 2's full-suite command once ended in a `${{ steps.xdist.outputs.args }}`
+    resolving to `-n auto` or to nothing; neither subtracts a test. Its shard
+    commands are literal since CS-1229, and the rule stands for any future one.
 
     Args:
         invocations: The commands to consider.
@@ -3105,12 +3105,51 @@ def test_every_path_tier_one_deletes_is_recorded_and_still_run_by_a_required_tie
 #: excluding it too leaves the directory running in NO shard; `tests` is the
 #: entire suite. The first rule could refuse only paths OUTSIDE the suite root,
 #: which is to say only paths no tier-1 shard would ever write.
+#:
+#: CS-1229 RE-DREW THIS SET, AND DID NOT WEAKEN IT. Tier 2 used to run the bare
+#: suite root unnarrowed, so `tests`, `tests/solve` and `tests/advisor` were
+#: paths it demonstrably ran. Sharded, its only bare-root leg is the catch-all,
+#: which carries `--ignore=` and so is no cover at all; those three are now
+#: refused by BOTH halves - :data:`DELETIONS_TIER_TWO_NO_LONGER_COVERS` pins
+#: that - and cannot grade the allowlist alone. The adversary's own plant,
+#: `tests/save`, stays: the save shard still names it unnarrowed. The other two
+#: are explicit targets of tier-2 shard legs, so each is a path tier 2
+#: demonstrably runs and only the allowlist can refuse.
 DELETIONS_THE_LANE_COULD_PLAUSIBLY_WRITE = (
-    SUITE_ROOT,
     SUITE_ROOT + "/save",
+    SUITE_ROOT + "/surface/test_server.py",
+    SUITE_ROOT + "/test_hook_interpreter_ladder.py",
+)
+
+#: The shapes CS-1229 moved out of the set above: no unnarrowed tier-2 command
+#: names a target containing them any more.
+DELETIONS_TIER_TWO_NO_LONGER_COVERS = (
+    SUITE_ROOT,
     SUITE_ROOT + "/solve",
     SUITE_ROOT + "/advisor",
 )
+
+
+def test_the_paths_sharding_uncovered_are_refused_by_the_tier_two_half_too() -> None:
+    """CS-1229 - the three plants that left the set above, each still refused.
+
+    Refused by the allowlist (none is on it) AND by the tier-2 half (no
+    unnarrowed required command collects it). If tier 2 ever runs the bare root
+    unnarrowed again, this is red, and they belong back in the set above.
+    """
+    invocations = tier_two_pytest_invocations(required_tier_two_matchers())
+    assert invocations, "nothing was parsed, so every check below would be vacuous"
+    covered = [
+        path for path in DELETIONS_TIER_TWO_NO_LONGER_COVERS if run_by_any(invocations, path)
+    ]
+    assert covered == []
+    refused = ungoverned_deletions(
+        {"planted": list(DELETIONS_TIER_TWO_NO_LONGER_COVERS)}, invocations, PERMITTED_DELETIONS
+    )
+    assert named_paths(refused) == sorted(
+        f"planted -> {path}" for path in DELETIONS_TIER_TWO_NO_LONGER_COVERS
+    )
+
 
 #: A path NO pytest invocation in either workflow names. Deliberately OUTSIDE
 #: the suite root, so it is refused by the tier-2 half rather than by the
@@ -3367,6 +3406,139 @@ def test_the_permission_is_spent_by_what_the_driver_requires_not_by_what_tier_tw
         "a deletion stayed covered with NO tier-2 job visible at all, so the cross-check is"
         " not reading the workflow it claims to"
     )
+
+
+#: CS-1229 - the tier-2 jobs that run the suite as shards. THEY HAVE NO PARTITION
+#: OF THEIR OWN. Each runs, per matrix leg, the command of the tier-1 shard named
+#: by the leg's ``shard`` value, with :data:`PERMITTED_DELETIONS` restored, so this
+#: lane's partition stays the one partition truth and tier 2 cannot drift from it.
+TIER2_SHARDED_JOBS = ("suite", "clean-checkout-probe")
+
+#: The matrix key a tier-2 shard leg is selected by.
+TIER2_SHARD_KEY = "shard"
+
+#: The only `if:` a tier-2 suite step may carry: one leg's shard, spelled once.
+TIER2_SHARD_CONDITION = re.compile(r"^matrix\.shard == '([a-z0-9-]+)'$")
+
+
+def tier_two_shard_commands(
+    job_id: str, document: dict[str, Any] | None = None
+) -> tuple[list[str], dict[str, list[str]], list[str]]:
+    """One sharded tier-2 job, read as its shard list and one command per shard.
+
+    Args:
+        job_id: The tier-2 job's key.
+        document: The parsed workflow; the shipped one when None, so a plant can
+            be graded through the same reader.
+
+    Returns:
+        (the ``shard`` matrix values, shard value to its pytest command split
+        into tokens, every fault found reading the job).
+    """
+    parsed = tier_two_document() if document is None else document
+    jobs = parsed.get("jobs")
+    assert isinstance(jobs, dict), f"{TIER2_RELATIVE} declares no jobs mapping"
+    job = jobs.get(job_id)
+    assert isinstance(job, dict), f"{TIER2_RELATIVE} declares no job {job_id!r}"
+    matrix = (job.get("strategy") or {}).get("matrix") or {}
+    listed = matrix.get(TIER2_SHARD_KEY) if isinstance(matrix, dict) else None
+    shards = [str(value) for value in listed] if isinstance(listed, list) else []
+
+    commands: dict[str, list[str]] = {}
+    faults: list[str] = []
+    for index, step in enumerate(job.get("steps") or []):
+        script = step.get("run") if isinstance(step, dict) else None
+        if not isinstance(script, str):
+            continue
+        lines = [line.split() for line in script.splitlines() if "pytest" in line.split()]
+        if not lines:
+            continue
+        where = f"{job_id} step {step.get('name', index)!r}"
+        condition = TIER2_SHARD_CONDITION.match(str(step.get("if", "")))
+        if condition is None or len(lines) != 1:
+            faults.append(f"{where} runs pytest without exactly one `if: matrix.shard == ...`")
+            continue
+        shard = condition.group(1)
+        if shard in commands:
+            faults.append(f"{where} is a second command for shard {shard!r}")
+            continue
+        commands[shard] = lines[0]
+    return shards, commands, faults
+
+
+def test_the_tier_two_suite_shards_are_this_lanes_partition_with_its_deletions_restored() -> None:
+    """CS-1229 - tier 2 is sharded by THIS lane's partition, never by a second one.
+
+    The tier-2 full suite outgrew its cutoff as one job per OS, so it runs per
+    shard. A partition written separately into tier2.yml would be a second copy
+    of the fact the partition arm above already grades, and the copy is the one
+    that drifts: a module moved between tier-1 shards would run twice or nowhere
+    in tier 2 with every arm green.
+
+    SO EACH TIER-2 LEG RUNS A TIER-1 SHARD'S COMMAND, TOKEN FOR TOKEN, minus only
+    the ``--ignore=`` of a path on :data:`PERMITTED_DELETIONS` - tier 2 is where a
+    governed deletion is still run, and the arms above grade that it is. Then the
+    tier-1 partition proof carries over whole: the tier-2 shards together are the
+    tier-1 shards plus the deleted paths, which is the entire suite.
+
+    THE STEP CONDITION IS GRADED TOO. One step per shard value, selected by an
+    exact ``if:``, because a misspelled condition skips the step and leaves a
+    green leg that ran nothing.
+    """
+    tier_one = suite_shards()
+    restored = {IGNORE_PREFIX + path for path in PERMITTED_DELETIONS}
+    for job_id in TIER2_SHARDED_JOBS:
+        shards, commands, faults = tier_two_shard_commands(job_id)
+        assert faults == [], faults
+        assert sorted(shards) == sorted(tier_one), (
+            f"{TIER2_RELATIVE} job {job_id!r} shards over {shards}, but this lane's"
+            f" partition is {sorted(tier_one)}; a tier-1 shard missing there runs in no"
+            " tier-2 leg"
+        )
+        assert sorted(commands) == sorted(shards), (
+            f"{job_id}: matrix shards {sorted(shards)} but suite steps for {sorted(commands)};"
+            " a leg whose step is missing runs nothing and still goes green"
+        )
+        for shard, tokens in sorted(commands.items()):
+            expected = [token for token in tier_one[shard] if token not in restored]
+            assert tokens == expected, (
+                f"{TIER2_RELATIVE} job {job_id!r} shard {shard!r} runs {tokens}, but this"
+                f" lane's {shard!r} shard with its governed deletions restored is {expected}"
+            )
+
+
+def test_a_tier_two_shard_drifting_from_this_lanes_partition_is_named() -> None:
+    """The arm above, graded on a plant: a target moved in tier 2 alone is red."""
+    tier_one = suite_shards()
+    restored = {IGNORE_PREFIX + path for path in PERMITTED_DELETIONS}
+    shards, commands, faults = tier_two_shard_commands(TIER2_SHARDED_JOBS[0])
+    assert faults == [], "the shipped job did not read, so the plant grades nothing"
+    assert shards, "the shipped job lists no shard, so the plant grades nothing"
+    planted = dict(commands)
+    victim = sorted(planted)[0]
+    planted[victim] = [*planted[victim], "tests/planted_extra_target.py"]
+    drifted = [
+        shard
+        for shard, tokens in sorted(planted.items())
+        if tokens != [token for token in tier_one[shard] if token not in restored]
+    ]
+    assert drifted == [victim]
+
+
+def test_a_tier_two_suite_step_without_its_shard_condition_is_named() -> None:
+    """A suite step that every leg runs, or none, is refused by the reader itself."""
+    for planted_if in ("matrix.shard == 'fast' || true", None):
+        document = tier_two_document()
+        job = document["jobs"][TIER2_SHARDED_JOBS[0]]
+        step = next(s for s in job["steps"] if "pytest" in str(s.get("run", "")).split())
+        assert TIER2_SHARD_CONDITION.match(str(step.get("if", ""))), "the plant cannot land"
+        if planted_if is None:
+            del step["if"]
+        else:
+            step["if"] = planted_if
+        _shards, _commands, faults = tier_two_shard_commands(TIER2_SHARDED_JOBS[0], document)
+        assert len(faults) == 1, f"{planted_if!r}: {faults}"
+        assert str(step["name"]) in faults[0], faults
 
 
 def test_both_shards_run_in_parallel_because_one_of_them_owns_an_open_item() -> None:

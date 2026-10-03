@@ -52,6 +52,11 @@ EXPECTED_RECORD_FIELDS = (
     "completed_at",
 )
 
+#: CS-1229 - the jobs whose renamed shard legs have no recorded run yet, each
+#: against the item that renamed them. PINNED, so a widening is red here until
+#: this literal moves in the same diff.
+EXPECTED_PENDING = {"suite": "CS-1229", "clean-checkout-probe": "CS-1229"}
+
 #: What the tool's parser must derive from the recorded API payload. Literal, so
 #: a parser change and a fixture change both turn this red.
 EXPECTED_PARSED_FIXTURE = [
@@ -209,12 +214,18 @@ def test_the_shipped_record_grades_clean_against_the_shipped_workflow() -> None:
 
 
 def test_the_shipped_record_covers_every_job_the_workflow_expands_to() -> None:
+    """Every declared job is recorded, bar a PENDING job's unrun legs (CS-1229)."""
     workflow = (REPO_ROOT / tool.WORKFLOW_RELATIVE).read_text(encoding="utf-8")
-    declared = set(tool.declared_timeouts(workflow))
+    owners = tool.declared_jobs(workflow)
+    declared = set(owners)
     document = json.loads((REPO_ROOT / tool.RECORD_RELATIVE).read_text(encoding="utf-8"))
     recorded = {entry["job"] for entry in document["jobs"]}
     assert declared, "the shipped workflow expanded to no jobs"
-    assert declared == recorded
+    assert sorted(recorded - declared) == []
+    unrecorded = sorted(
+        name for name in declared - recorded if owners[name][0] not in EXPECTED_PENDING
+    )
+    assert unrecorded == []
 
 
 # ---------------------------------------------------------------------------
@@ -394,8 +405,34 @@ def test_the_parser_refuses_a_truncated_page() -> None:
         tool.parse_jobs_payload(payload)
 
 
+def write_workflow(root: Path, text: str) -> None:
+    """Stage ``text`` as the workflow under ``root``.
+
+    Args:
+        root: The synthetic repository root.
+        text: The workflow text.
+    """
+    workflow = root / tool.WORKFLOW_RELATIVE
+    workflow.parent.mkdir(parents=True, exist_ok=True)
+    workflow.write_bytes(text.encode("ascii"))
+
+
+#: A workflow declaring both jobs the recorded payload names.
+FIXTURE_WORKFLOW = workflow_text() + (
+    "  clean-checkout-probe:\n"
+    "    name: clean-checkout probe (${{ matrix.os }})\n"
+    "    runs-on: ${{ matrix.os }}\n"
+    "    timeout-minutes: 30\n"
+    "    strategy:\n"
+    "      matrix:\n"
+    "        os: [ubuntu-latest, windows-latest]\n"
+    "    steps: []\n"
+)
+
+
 def test_a_refresh_writes_the_parsed_rows_through_an_injected_fetch(tmp_path: Path) -> None:
     """The refresh path, exercised with no network: the fetch is handed in."""
+    write_workflow(tmp_path, FIXTURE_WORKFLOW)
     payload_text = PAYLOAD_FIXTURE.read_text(encoding="utf-8")
     listing = json.dumps(
         [
@@ -419,7 +456,117 @@ def test_a_refresh_writes_the_parsed_rows_through_an_injected_fetch(tmp_path: Pa
     assert "35201160041" in fetched_runs[0][1], calls
 
 
-def test_main_exits_non_zero_over_a_red_tree_and_zero_over_a_green_one(tmp_path: Path) -> None:
+def test_a_refresh_drops_rows_for_jobs_the_workflow_no_longer_declares(tmp_path: Path) -> None:
+    """CS-1229 - a renamed job's old rows measure nothing the workflow still runs.
+
+    Kept, they are graded recorded-but-undeclared forever. Dropped, the new names
+    are graded by the run floor instead, so a rename is still red until it is
+    measured - or named in the pinned PENDING table.
+    """
+    write_workflow(tmp_path, workflow_text())
+    payload_text = PAYLOAD_FIXTURE.read_text(encoding="utf-8")
+    listing = json.dumps([{"databaseId": 35201160041, "status": "completed"}])
+
+    def fetch(args: list[str]) -> str:
+        return listing if args[:2] == ["run", "list"] else payload_text
+
+    written = tool.refresh(tmp_path, runs=1, fetch=fetch)
+    document = json.loads(written.read_text(encoding="utf-8"))
+    assert document == {"jobs": EXPECTED_PARSED_FIXTURE[:1]}
+
+
+def test_a_refresh_with_no_workflow_to_filter_by_refuses(tmp_path: Path) -> None:
+    def fetch(args: list[str]) -> str:  # pragma: no cover - never reached
+        raise AssertionError(args)
+
+    with pytest.raises(ValueError, match="workflow"):
+        tool.refresh(tmp_path, runs=1, fetch=fetch)
+    assert not (tmp_path / tool.RECORD_RELATIVE).exists()
+
+
+# ---------------------------------------------------------------------------
+# CS-1229 - the PENDING transition: a renamed job awaiting its first runs
+# ---------------------------------------------------------------------------
+
+SUITE_LEGS = ("full suite (ubuntu-latest)", "full suite (windows-latest)")
+
+
+def without_suite_rows(document: dict[str, Any]) -> dict[str, Any]:
+    """The record with every row of the matrix job removed.
+
+    Args:
+        document: A record.
+
+    Returns:
+        A new record.
+    """
+    return {"jobs": [entry for entry in document["jobs"] if entry["job"] not in SUITE_LEGS]}
+
+
+def test_a_job_with_no_runs_is_red_without_a_pending_entry() -> None:
+    """The control for every pending arm below."""
+    offences = tool.grade(without_suite_rows(record()), workflow_text())
+    assert sorted(offence.split(":")[0] for offence in offences) == sorted(SUITE_LEGS)
+
+
+def test_a_pending_job_below_the_run_floor_is_tolerated() -> None:
+    offences = tool.grade(without_suite_rows(record()), workflow_text(), {"suite": "CS-0"})
+    assert offences == []
+
+
+def test_a_pending_job_is_still_graded_against_the_fraction() -> None:
+    """Pending lifts the run floor only; a recorded run past the fraction is red."""
+    document = without_suite_rows(record())
+    document["jobs"].append(row(SUITE_LEGS[1], 7, int(EXPECTED_HEADROOM * 30 * 60)))
+    offences = tool.grade(document, workflow_text(), {"suite": "CS-0"})
+    assert len(offences) == 1, offences
+    assert SUITE_LEGS[1] in offences[0]
+
+
+def test_a_pending_entry_whose_legs_all_reached_the_floor_is_red() -> None:
+    """Self-expiring: once measured, the entry must go, so it cannot stand as a hole."""
+    offences = tool.grade(record(), workflow_text(), {"suite": "CS-0"})
+    assert len(offences) == 1, offences
+    assert "'suite'" in offences[0]
+    assert "remove" in offences[0]
+
+
+def test_a_pending_entry_naming_an_undeclared_job_is_red() -> None:
+    offences = tool.grade(record(), workflow_text(), {"retired": "CS-0"})
+    assert len(offences) == 1, offences
+    assert "retired" in offences[0]
+
+
+def test_a_pending_entry_without_an_item_id_is_red() -> None:
+    offences = tool.grade(without_suite_rows(record()), workflow_text(), {"suite": "soon"})
+    assert len(offences) == 1, offences
+    assert "soon" in offences[0]
+
+
+def test_the_tolerated_legs_are_reported_rather_than_silent(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    write_workflow(tmp_path, workflow_text())
+    target = tmp_path / tool.RECORD_RELATIVE
+    target.parent.mkdir(parents=True)
+    target.write_bytes(json.dumps(without_suite_rows(record())).encode("ascii"))
+    monkeypatch.setattr(tool, "PENDING_FIRST_RECORD", {"suite": "CS-0"})
+    assert tool.main(["--root", str(tmp_path)]) == 0
+    pending = [line for line in capsys.readouterr().out.splitlines() if line.startswith("PENDING")]
+    assert len(pending) == len(SUITE_LEGS), pending
+    assert all("CS-0" in line for line in pending), pending
+
+
+def test_the_shipped_pending_entries_are_what_this_module_pins() -> None:
+    assert tool.PENDING_FIRST_RECORD == EXPECTED_PENDING
+
+
+def test_main_exits_non_zero_over_a_red_tree_and_zero_over_a_green_one(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # The synthetic workflow is not the shipped one, so the shipped PENDING
+    # table - which names shipped job ids - does not describe it.
+    monkeypatch.setattr(tool, "PENDING_FIRST_RECORD", {})
     for name, document, expected in (
         ("red", record({"audit": 19 * 60}), 1),
         ("green", record(), 0),

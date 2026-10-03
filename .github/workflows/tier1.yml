@@ -736,8 +736,8 @@ jobs:
       # runs a bare `pytest tests` on the operator's box, where the game IS
       # installed and a save library DOES exist - which is the only environment
       # that can reproduce the mistake its docstring describes. tier2.yml's
-      # `full suite (${{ matrix.os }})` runs a bare `pytest tests` on both legs on
-      # every lane row. Neither is narrowed here. What this deletion drops is a
+      # `full suite (<os>, save shard)` legs run this job's command WITHOUT this
+      # ignore on both OSes on every lane row (CS-1229). Neither is narrowed here. What this deletion drops is a
       # subprocess that re-proved, inside an ubuntu runner already running with no
       # install and no save, exactly what this job demonstrates simultaneously.
       - name: Unit tests

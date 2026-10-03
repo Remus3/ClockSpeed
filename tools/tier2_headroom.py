@@ -40,6 +40,13 @@ second commit refreshed the record; and wall-clock age is not deterministic. Wha
 IS checked offline covers the structural half of staleness: a job added, renamed
 or removed in the workflow is red against the record, and every timeout is read
 live from the workflow rather than from the record.
+
+A RENAME IS THE ONE STRUCTURAL CHANGE THAT CANNOT BE RECORDED IN ITS OWN COMMIT,
+for the second reason above. :data:`PENDING_FIRST_RECORD` is the bounded answer
+CS-1229 needed: it lifts the run floor, and only that, for the named jobs until
+their legs are measured, and then turns red itself until removed. A refresh
+drops rows for jobs the workflow no longer declares, so a renamed job's old rows
+do not stand as an offence no run can clear.
 """
 
 from __future__ import annotations
@@ -97,6 +104,30 @@ HEADROOM = Fraction(HEADROOM_NUMERATOR, HEADROOM_DENOMINATOR)
 # than zero seconds. Counting rows let one run copied three times, or one real
 # run beside two skipped ones, satisfy the floor with a single measurement.
 MINIMUM_RUNS_PER_JOB = 3
+
+# CS-1229 - THE TRANSITION, AND WHY IT IS A TABLE AND NOT A SKIP. Sharding the
+# tier2 suite RENAMED its jobs, and a job can only be measured after the commit
+# renaming it is pushed and a tier2 run on it completes. So for the first nights
+# the new legs have no recorded run, and the run floor above would ship every
+# such commit red - the dilemma this module's docstring already names.
+#
+# An entry here, keyed by workflow JOB ID and naming the item that renamed it,
+# lifts THE RUN FLOOR ONLY, for that job's legs, and nothing else:
+# - every recorded run of a pending leg is still graded against the fraction;
+# - an entry naming a job the workflow does not declare is an offence;
+# - an entry not naming an item in the `CS-<number>` spelling is an offence;
+# - SELF-EXPIRING: once every leg of the job holds the floor's worth of runs,
+#   the entry itself is an offence until it is removed, so it cannot stand on as
+#   a standing exemption for the next rename;
+# - every tolerated leg is PRINTED on each grade, never silently passed;
+# - tests/test_tier2_headroom.py pins this literal, so widening it is red there
+#   until that pin moves in the same diff.
+PENDING_FIRST_RECORD: dict[str, str] = {
+    "suite": "CS-1229",
+    "clean-checkout-probe": "CS-1229",
+}
+
+_ITEM_ID = re.compile(r"^CS-\d+$")
 
 # How many completed tier2 runs a refresh records by default.
 DEFAULT_RUNS = 5
@@ -195,6 +226,18 @@ def declared_timeouts(workflow_text: str) -> dict[str, int]:
 
     Returns:
         Display name to ``timeout-minutes``.
+    """
+    return {name: timeout for name, (_job_id, timeout) in declared_jobs(workflow_text).items()}
+
+
+def declared_jobs(workflow_text: str) -> dict[str, tuple[str, int]]:
+    """Every job display name the workflow expands to, with its job id and timeout.
+
+    Args:
+        workflow_text: The workflow file's text.
+
+    Returns:
+        Display name to (the job's key, its ``timeout-minutes``).
 
     Raises:
         ValueError: The workflow cannot be read into that mapping.
@@ -204,7 +247,7 @@ def declared_timeouts(workflow_text: str) -> dict[str, int]:
     if not isinstance(jobs, dict) or not jobs:
         message = f"{WORKFLOW_RELATIVE} declares no jobs mapping"
         raise ValueError(message)
-    declared: dict[str, int] = {}
+    declared: dict[str, tuple[str, int]] = {}
     for job_id, job in jobs.items():
         if not isinstance(job, dict):
             message = f"job {job_id!r} is not a mapping"
@@ -219,7 +262,7 @@ def declared_timeouts(workflow_text: str) -> dict[str, int]:
             if name in declared:
                 message = f"two jobs expand to the display name {name!r}"
                 raise ValueError(message)
-            declared[name] = timeout
+            declared[name] = (str(job_id), timeout)
     return declared
 
 
@@ -290,27 +333,64 @@ def _row_offence(index: int, entry: object) -> str | tuple[str, int, int, str]:
     return str(job), int(run_id), seconds, str(entry["conclusion"])
 
 
-def grade(record: object, workflow_text: str) -> list[str]:
-    """Every offence of one record against one workflow.
+def _pending_offences(
+    pending: dict[str, str],
+    declared: dict[str, tuple[str, int]],
+    samples: dict[str, set[int]],
+) -> list[str]:
+    """Every fault of the pending table itself - see :data:`PENDING_FIRST_RECORD`.
+
+    Args:
+        pending: Job id to item id.
+        declared: Display name to (job id, timeout), from the workflow.
+        samples: Display name to the distinct run ids that ran.
+
+    Returns:
+        The offences.
+    """
+    offences: list[str] = []
+    declared_ids = {job_id for job_id, _timeout in declared.values()}
+    for job_id, item in sorted(pending.items()):
+        if job_id not in declared_ids:
+            offences.append(
+                f"pending entry {job_id!r}: {WORKFLOW_RELATIVE} declares no such job id"
+            )
+        if not isinstance(item, str) or not _ITEM_ID.match(item):
+            offences.append(f"pending entry {job_id!r} names no item id: {item!r}")
+        legs = [name for name, (owner, _timeout) in declared.items() if owner == job_id]
+        if legs and all(len(samples.get(leg, set())) >= MINIMUM_RUNS_PER_JOB for leg in legs):
+            offences.append(
+                f"pending entry {job_id!r}: every leg now holds {MINIMUM_RUNS_PER_JOB} runs, "
+                "so the transition is over - remove the entry"
+            )
+    return offences
+
+
+def _graded(
+    record: object, workflow_text: str, pending: dict[str, str]
+) -> tuple[list[str], list[str]]:
+    """Every offence of one record against one workflow, and every tolerated leg.
 
     Args:
         record: The parsed record document.
         workflow_text: The workflow file's text.
+        pending: Job id to the item id whose rename it awaits a record for.
 
     Returns:
-        The offences, empty when the record is clean.
+        (the offences, the pending legs tolerated below the run floor).
     """
     try:
-        timeouts = declared_timeouts(workflow_text)
+        declared = declared_jobs(workflow_text)
     except (ValueError, yaml.YAMLError) as exc:
         # The type and an authored first argument, never the object.
         detail = exc.args[0] if exc.args and isinstance(exc.args[0], str) else ""
-        return [f"{WORKFLOW_RELATIVE}: {type(exc).__name__}: {detail}"]
+        return [f"{WORKFLOW_RELATIVE}: {type(exc).__name__}: {detail}"], []
     rows = record.get("jobs") if isinstance(record, dict) else None
     if not isinstance(record, dict) or set(record) != {"jobs"} or not isinstance(rows, list):
-        return [f"{RECORD_RELATIVE} is not a mapping holding exactly one 'jobs' list"]
+        return [f"{RECORD_RELATIVE} is not a mapping holding exactly one 'jobs' list"], []
 
     offences: list[str] = []
+    tolerated: list[str] = []
     durations: dict[str, list[tuple[int, int]]] = {}
     samples: dict[str, set[int]] = {}
     for index, entry in enumerate(rows):
@@ -325,12 +405,18 @@ def grade(record: object, workflow_text: str) -> list[str]:
 
     offences.extend(
         f"{job}: recorded, but {WORKFLOW_RELATIVE} declares no such job"
-        for job in sorted(set(durations) - set(timeouts))
+        for job in sorted(set(durations) - set(declared))
     )
-    for job, timeout_minutes in sorted(timeouts.items()):
+    offences.extend(_pending_offences(pending, declared, samples))
+    for job, (job_id, timeout_minutes) in sorted(declared.items()):
         runs = durations.get(job, [])
         distinct = len(samples.get(job, set()))
-        if distinct < MINIMUM_RUNS_PER_JOB:
+        if distinct < MINIMUM_RUNS_PER_JOB and job_id in pending:
+            tolerated.append(
+                f"{job}: {distinct} distinct run(s), below {MINIMUM_RUNS_PER_JOB} and tolerated "
+                f"while {pending[job_id]} awaits its first record"
+            )
+        elif distinct < MINIMUM_RUNS_PER_JOB:
             offences.append(
                 f"{job}: {distinct} distinct run(s) that ran, fewer than {MINIMUM_RUNS_PER_JOB}; "
                 f"refresh with `python {Path(__file__).name} --refresh`"
@@ -343,7 +429,60 @@ def grade(record: object, workflow_text: str) -> list[str]:
                     f"{job}: run {run_id} took {seconds}s, at or past {HEADROOM} of its "
                     f"{timeout_minutes}-minute timeout-minutes ({limit}s)"
                 )
-    return offences
+    return offences, tolerated
+
+
+def grade(record: object, workflow_text: str, pending: dict[str, str] | None = None) -> list[str]:
+    """Every offence of one record against one workflow.
+
+    Args:
+        record: The parsed record document.
+        workflow_text: The workflow file's text.
+        pending: Job id to item id, lifting the run floor per
+            :data:`PENDING_FIRST_RECORD`; none when omitted.
+
+    Returns:
+        The offences, empty when the record is clean.
+    """
+    return _graded(record, workflow_text, pending or {})[0]
+
+
+def pending_notes(
+    record: object, workflow_text: str, pending: dict[str, str] | None = None
+) -> list[str]:
+    """Every leg the pending table tolerates below the run floor, one line each.
+
+    Args:
+        record: The parsed record document.
+        workflow_text: The workflow file's text.
+        pending: Job id to item id; none when omitted.
+
+    Returns:
+        The tolerated legs, empty when none is.
+    """
+    return _graded(record, workflow_text, pending or {})[1]
+
+
+def _tree_inputs(root: Path) -> tuple[object, str] | str:
+    """The record and the workflow text under ``root``, or why they cannot be read.
+
+    Args:
+        root: The repository root.
+
+    Returns:
+        (the parsed record, the workflow text), or the offence.
+    """
+    record_path = root / RECORD_RELATIVE
+    workflow_path = root / WORKFLOW_RELATIVE
+    if not workflow_path.is_file():
+        return f"{WORKFLOW_RELATIVE} is absent"
+    if not record_path.is_file():
+        return f"{RECORD_RELATIVE} is absent; run this tool with --refresh"
+    try:
+        document = json.loads(record_path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as exc:
+        return f"{RECORD_RELATIVE} is not JSON: {exc.msg} at line {exc.lineno}"
+    return document, workflow_path.read_text(encoding="utf-8")
 
 
 def grade_tree(root: Path) -> list[str]:
@@ -355,17 +494,25 @@ def grade_tree(root: Path) -> list[str]:
     Returns:
         The offences.
     """
-    record_path = root / RECORD_RELATIVE
-    workflow_path = root / WORKFLOW_RELATIVE
-    if not workflow_path.is_file():
-        return [f"{WORKFLOW_RELATIVE} is absent"]
-    if not record_path.is_file():
-        return [f"{RECORD_RELATIVE} is absent; run this tool with --refresh"]
-    try:
-        document = json.loads(record_path.read_text(encoding="utf-8"))
-    except json.JSONDecodeError as exc:
-        return [f"{RECORD_RELATIVE} is not JSON: {exc.msg} at line {exc.lineno}"]
-    return grade(document, workflow_path.read_text(encoding="utf-8"))
+    inputs = _tree_inputs(root)
+    if isinstance(inputs, str):
+        return [inputs]
+    return grade(inputs[0], inputs[1], PENDING_FIRST_RECORD)
+
+
+def pending_tree(root: Path) -> list[str]:
+    """The legs :data:`PENDING_FIRST_RECORD` tolerates under ``root``.
+
+    Args:
+        root: The repository root.
+
+    Returns:
+        One line per tolerated leg.
+    """
+    inputs = _tree_inputs(root)
+    if isinstance(inputs, str):
+        return []
+    return pending_notes(inputs[0], inputs[1], PENDING_FIRST_RECORD)
 
 
 # ---------------------------------------------------------------------------
@@ -475,7 +622,21 @@ def refresh(root: Path, runs: int, fetch: Callable[[list[str]], str] = gh_fetch)
 
     Returns:
         The record path written.
+
+    Raises:
+        ValueError: The workflow under ``root`` cannot be read, so there is
+            nothing to keep rows for.
     """
+    # CS-1229 - ROWS FOR A JOB THE WORKFLOW NO LONGER DECLARES ARE DROPPED. A
+    # rename leaves the old name's rows measuring nothing the lane still runs,
+    # and kept they are an offence no future run can clear. The new names are
+    # graded by the run floor, so a rename is still red until it is measured,
+    # unless PENDING_FIRST_RECORD names it - which a test pins.
+    workflow_path = root / WORKFLOW_RELATIVE
+    if not workflow_path.is_file():
+        message = f"{WORKFLOW_RELATIVE} is absent, so no job can be kept"
+        raise ValueError(message)
+    declared = declared_jobs(workflow_path.read_text(encoding="utf-8"))
     listing = json.loads(
         fetch(
             [
@@ -500,7 +661,7 @@ def refresh(root: Path, runs: int, fetch: Callable[[list[str]], str] = gh_fetch)
         payload = json.loads(
             fetch(["api", f"repos/{{owner}}/{{repo}}/actions/runs/{run_id}/jobs?per_page=100"])
         )
-        rows.extend(parse_jobs_payload(payload))
+        rows.extend(row for row in parse_jobs_payload(payload) if row["job"] in declared)
     target = root / RECORD_RELATIVE
     text = json.dumps({"jobs": rows}, indent=2, sort_keys=False) + "\n"
     _atomic_write(target, text.encode("ascii"))
@@ -538,6 +699,8 @@ def main(argv: list[str] | None = None) -> int:
         sys.stdout.write(f"wrote {written.relative_to(args.root).as_posix()}\n")
 
     offences = grade_tree(args.root)
+    for note in pending_tree(args.root):
+        sys.stdout.write(f"PENDING {note}\n")
     for offence in offences:
         sys.stdout.write(f"OFFENCE {offence}\n")
     if not offences:

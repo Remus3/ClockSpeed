@@ -46,9 +46,11 @@ exclusions are an ALLOWLIST of exact tokens; no shape excludes anything. Arms:
 * THE LIVE ARM runs the gate over this tree and FAILS - never skips - when the
   tree is shallow or has no origin/main and no tag, and fails on an unused
   table row.
-  CI runs this module in the full-history save shard of
-  ``.github/workflows/tier1.yml`` and, since CS-1228, in the full-history
-  suite and clean-checkout probe jobs of ``.github/workflows/tier2.yml``.
+  CI runs this module in three jobs, each checking out full history: the
+  ``tests (save shard)`` job of ``.github/workflows/tier1.yml``, and the
+  ``full suite (<os>, save shard)`` and ``clean-checkout probe (<os>, save
+  shard)`` legs of ``.github/workflows/tier2.yml`` on both ubuntu-latest and
+  windows-latest. ``tests/test_full_history_checkouts.py`` pins that set.
 """
 
 from __future__ import annotations
@@ -1014,7 +1016,7 @@ def test_the_inclusion_rule_states_the_code_and_short_width_rules() -> None:
 def test_this_tree_cites_only_published_commits() -> None:
     """The gate passes on this tree - and a tree it cannot judge FAILS here, never skips.
 
-    CI runs this module only in the full-history save shard, so a shallow
+    CI runs this module only in full-history save shards, so a shallow
     checkout or a checkout with no origin/main and no tag there is a broken premise,
     reported as red rather than as a skip that reads like a pass.
     """

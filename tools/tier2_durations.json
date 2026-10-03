@@ -1,284 +1,124 @@
 {
   "jobs": [
     {
-      "run_id": 35201300783,
-      "head_sha": "7fde21f3ee616701a8a83cc9cba8c9268a15f56f",
-      "job": "shell suite (windows-latest)",
-      "conclusion": "failure",
-      "started_at": "2026-09-17T09:06:32Z",
-      "completed_at": "2026-09-17T09:07:11Z"
-    },
-    {
-      "run_id": 35201300783,
-      "head_sha": "7fde21f3ee616701a8a83cc9cba8c9268a15f56f",
-      "job": "full suite (ubuntu-latest)",
-      "conclusion": "success",
-      "started_at": "2026-09-17T09:06:30Z",
-      "completed_at": "2026-09-17T09:23:44Z"
-    },
-    {
-      "run_id": 35201300783,
-      "head_sha": "7fde21f3ee616701a8a83cc9cba8c9268a15f56f",
-      "job": "clean-checkout probe (windows-latest)",
-      "conclusion": "success",
-      "started_at": "2026-09-17T09:06:32Z",
-      "completed_at": "2026-09-17T09:30:05Z"
-    },
-    {
-      "run_id": 35201300783,
-      "head_sha": "7fde21f3ee616701a8a83cc9cba8c9268a15f56f",
+      "run_id": 37125738113,
+      "head_sha": "87ea30cc59b28a9bcb3eb02941b8df7040e84f3b",
       "job": "shell suite (ubuntu-latest)",
       "conclusion": "success",
-      "started_at": "2026-09-17T09:06:30Z",
-      "completed_at": "2026-09-17T09:06:38Z"
+      "started_at": "2026-10-03T13:18:43Z",
+      "completed_at": "2026-10-03T13:18:52Z"
     },
     {
-      "run_id": 35201300783,
-      "head_sha": "7fde21f3ee616701a8a83cc9cba8c9268a15f56f",
+      "run_id": 37125738113,
+      "head_sha": "87ea30cc59b28a9bcb3eb02941b8df7040e84f3b",
       "job": "dependency and license audit (advisory)",
       "conclusion": "success",
-      "started_at": "2026-09-17T09:06:30Z",
-      "completed_at": "2026-09-17T09:07:09Z"
+      "started_at": "2026-10-03T13:18:43Z",
+      "completed_at": "2026-10-03T13:19:04Z"
     },
     {
-      "run_id": 35201300783,
-      "head_sha": "7fde21f3ee616701a8a83cc9cba8c9268a15f56f",
-      "job": "full suite (windows-latest)",
-      "conclusion": "success",
-      "started_at": "2026-09-17T09:06:32Z",
-      "completed_at": "2026-09-17T09:29:49Z"
-    },
-    {
-      "run_id": 35201300783,
-      "head_sha": "7fde21f3ee616701a8a83cc9cba8c9268a15f56f",
-      "job": "clean-checkout probe (ubuntu-latest)",
-      "conclusion": "success",
-      "started_at": "2026-09-17T09:06:30Z",
-      "completed_at": "2026-09-17T09:23:32Z"
-    },
-    {
-      "run_id": 35201160041,
-      "head_sha": "7fde21f3ee616701a8a83cc9cba8c9268a15f56f",
-      "job": "clean-checkout probe (windows-latest)",
-      "conclusion": "success",
-      "started_at": "2026-09-17T08:42:54Z",
-      "completed_at": "2026-09-17T08:59:29Z"
-    },
-    {
-      "run_id": 35201160041,
-      "head_sha": "7fde21f3ee616701a8a83cc9cba8c9268a15f56f",
+      "run_id": 37125738113,
+      "head_sha": "87ea30cc59b28a9bcb3eb02941b8df7040e84f3b",
       "job": "shell suite (windows-latest)",
       "conclusion": "success",
-      "started_at": "2026-09-17T08:42:54Z",
-      "completed_at": "2026-09-17T08:43:34Z"
+      "started_at": "2026-10-03T13:18:45Z",
+      "completed_at": "2026-10-03T13:19:10Z"
     },
     {
-      "run_id": 35201160041,
-      "head_sha": "7fde21f3ee616701a8a83cc9cba8c9268a15f56f",
+      "run_id": 37112434671,
+      "head_sha": "d8985950702a1cfcd65ca62be6233373fc29169d",
       "job": "dependency and license audit (advisory)",
       "conclusion": "success",
-      "started_at": "2026-09-17T08:42:54Z",
-      "completed_at": "2026-09-17T08:43:10Z"
+      "started_at": "2026-10-03T09:15:34Z",
+      "completed_at": "2026-10-03T09:16:03Z"
     },
     {
-      "run_id": 35201160041,
-      "head_sha": "7fde21f3ee616701a8a83cc9cba8c9268a15f56f",
-      "job": "full suite (ubuntu-latest)",
-      "conclusion": "success",
-      "started_at": "2026-09-17T08:42:54Z",
-      "completed_at": "2026-09-17T08:55:49Z"
-    },
-    {
-      "run_id": 35201160041,
-      "head_sha": "7fde21f3ee616701a8a83cc9cba8c9268a15f56f",
-      "job": "clean-checkout probe (ubuntu-latest)",
-      "conclusion": "success",
-      "started_at": "2026-09-17T08:42:54Z",
-      "completed_at": "2026-09-17T08:55:51Z"
-    },
-    {
-      "run_id": 35201160041,
-      "head_sha": "7fde21f3ee616701a8a83cc9cba8c9268a15f56f",
-      "job": "shell suite (ubuntu-latest)",
-      "conclusion": "success",
-      "started_at": "2026-09-17T08:42:55Z",
-      "completed_at": "2026-09-17T08:43:05Z"
-    },
-    {
-      "run_id": 35201160041,
-      "head_sha": "7fde21f3ee616701a8a83cc9cba8c9268a15f56f",
-      "job": "full suite (windows-latest)",
-      "conclusion": "success",
-      "started_at": "2026-09-17T08:42:55Z",
-      "completed_at": "2026-09-17T09:06:27Z"
-    },
-    {
-      "run_id": 35193390104,
-      "head_sha": "47ce32ed71c33b517cf9030a8c9e75d7d22b4d23",
-      "job": "clean-checkout probe (windows-latest)",
-      "conclusion": "success",
-      "started_at": "2026-09-17T07:12:32Z",
-      "completed_at": "2026-09-17T07:35:34Z"
-    },
-    {
-      "run_id": 35193390104,
-      "head_sha": "47ce32ed71c33b517cf9030a8c9e75d7d22b4d23",
+      "run_id": 37112434671,
+      "head_sha": "d8985950702a1cfcd65ca62be6233373fc29169d",
       "job": "shell suite (windows-latest)",
       "conclusion": "success",
-      "started_at": "2026-09-17T07:12:33Z",
-      "completed_at": "2026-09-17T07:13:07Z"
+      "started_at": "2026-10-03T09:15:34Z",
+      "completed_at": "2026-10-03T09:16:00Z"
     },
     {
-      "run_id": 35193390104,
-      "head_sha": "47ce32ed71c33b517cf9030a8c9e75d7d22b4d23",
+      "run_id": 37112434671,
+      "head_sha": "d8985950702a1cfcd65ca62be6233373fc29169d",
       "job": "shell suite (ubuntu-latest)",
       "conclusion": "success",
-      "started_at": "2026-09-17T07:12:31Z",
-      "completed_at": "2026-09-17T07:12:40Z"
+      "started_at": "2026-10-03T09:15:34Z",
+      "completed_at": "2026-10-03T09:15:42Z"
     },
     {
-      "run_id": 35193390104,
-      "head_sha": "47ce32ed71c33b517cf9030a8c9e75d7d22b4d23",
-      "job": "clean-checkout probe (ubuntu-latest)",
-      "conclusion": "success",
-      "started_at": "2026-09-17T07:12:31Z",
-      "completed_at": "2026-09-17T07:29:40Z"
-    },
-    {
-      "run_id": 35193390104,
-      "head_sha": "47ce32ed71c33b517cf9030a8c9e75d7d22b4d23",
-      "job": "full suite (ubuntu-latest)",
-      "conclusion": "success",
-      "started_at": "2026-09-17T07:12:32Z",
-      "completed_at": "2026-09-17T07:26:21Z"
-    },
-    {
-      "run_id": 35193390104,
-      "head_sha": "47ce32ed71c33b517cf9030a8c9e75d7d22b4d23",
-      "job": "dependency and license audit (advisory)",
-      "conclusion": "success",
-      "started_at": "2026-09-17T07:12:33Z",
-      "completed_at": "2026-09-17T07:12:56Z"
-    },
-    {
-      "run_id": 35193390104,
-      "head_sha": "47ce32ed71c33b517cf9030a8c9e75d7d22b4d23",
-      "job": "full suite (windows-latest)",
-      "conclusion": "success",
-      "started_at": "2026-09-17T07:12:32Z",
-      "completed_at": "2026-09-17T07:29:34Z"
-    },
-    {
-      "run_id": 35184891376,
-      "head_sha": "5ae7d720998613efc07881aa733e9888459591fb",
-      "job": "dependency and license audit (advisory)",
-      "conclusion": "success",
-      "started_at": "2026-09-17T05:13:27Z",
-      "completed_at": "2026-09-17T05:13:50Z"
-    },
-    {
-      "run_id": 35184891376,
-      "head_sha": "5ae7d720998613efc07881aa733e9888459591fb",
-      "job": "clean-checkout probe (windows-latest)",
-      "conclusion": "success",
-      "started_at": "2026-09-17T05:13:27Z",
-      "completed_at": "2026-09-17T05:36:28Z"
-    },
-    {
-      "run_id": 35184891376,
-      "head_sha": "5ae7d720998613efc07881aa733e9888459591fb",
+      "run_id": 36992310087,
+      "head_sha": "3cc71755adc555f41eb037c4b48a54fd8dcc0c03",
       "job": "shell suite (windows-latest)",
       "conclusion": "success",
-      "started_at": "2026-09-17T05:13:27Z",
-      "completed_at": "2026-09-17T05:13:57Z"
+      "started_at": "2026-10-02T09:52:49Z",
+      "completed_at": "2026-10-02T09:53:27Z"
     },
     {
-      "run_id": 35184891376,
-      "head_sha": "5ae7d720998613efc07881aa733e9888459591fb",
-      "job": "full suite (windows-latest)",
-      "conclusion": "success",
-      "started_at": "2026-09-17T05:13:27Z",
-      "completed_at": "2026-09-17T05:34:29Z"
-    },
-    {
-      "run_id": 35184891376,
-      "head_sha": "5ae7d720998613efc07881aa733e9888459591fb",
-      "job": "shell suite (ubuntu-latest)",
-      "conclusion": "success",
-      "started_at": "2026-09-17T05:13:27Z",
-      "completed_at": "2026-09-17T05:13:37Z"
-    },
-    {
-      "run_id": 35184891376,
-      "head_sha": "5ae7d720998613efc07881aa733e9888459591fb",
-      "job": "clean-checkout probe (ubuntu-latest)",
-      "conclusion": "success",
-      "started_at": "2026-09-17T05:13:27Z",
-      "completed_at": "2026-09-17T05:30:47Z"
-    },
-    {
-      "run_id": 35184891376,
-      "head_sha": "5ae7d720998613efc07881aa733e9888459591fb",
-      "job": "full suite (ubuntu-latest)",
-      "conclusion": "success",
-      "started_at": "2026-09-17T05:13:28Z",
-      "completed_at": "2026-09-17T05:30:32Z"
-    },
-    {
-      "run_id": 35180515534,
-      "head_sha": "dee994af9106ab205e77a5d86b9d538420b42152",
+      "run_id": 36992310087,
+      "head_sha": "3cc71755adc555f41eb037c4b48a54fd8dcc0c03",
       "job": "dependency and license audit (advisory)",
       "conclusion": "success",
-      "started_at": "2026-09-17T04:04:14Z",
-      "completed_at": "2026-09-17T04:04:36Z"
+      "started_at": "2026-10-02T09:52:49Z",
+      "completed_at": "2026-10-02T09:53:10Z"
     },
     {
-      "run_id": 35180515534,
-      "head_sha": "dee994af9106ab205e77a5d86b9d538420b42152",
+      "run_id": 36992310087,
+      "head_sha": "3cc71755adc555f41eb037c4b48a54fd8dcc0c03",
       "job": "shell suite (ubuntu-latest)",
       "conclusion": "success",
-      "started_at": "2026-09-17T04:04:13Z",
-      "completed_at": "2026-09-17T04:04:21Z"
+      "started_at": "2026-10-02T09:52:48Z",
+      "completed_at": "2026-10-02T09:53:00Z"
     },
     {
-      "run_id": 35180515534,
-      "head_sha": "dee994af9106ab205e77a5d86b9d538420b42152",
+      "run_id": 36847980763,
+      "head_sha": "3cc71755adc555f41eb037c4b48a54fd8dcc0c03",
+      "job": "dependency and license audit (advisory)",
+      "conclusion": "success",
+      "started_at": "2026-10-01T10:15:27Z",
+      "completed_at": "2026-10-01T10:15:50Z"
+    },
+    {
+      "run_id": 36847980763,
+      "head_sha": "3cc71755adc555f41eb037c4b48a54fd8dcc0c03",
+      "job": "shell suite (ubuntu-latest)",
+      "conclusion": "success",
+      "started_at": "2026-10-01T10:15:26Z",
+      "completed_at": "2026-10-01T10:15:36Z"
+    },
+    {
+      "run_id": 36847980763,
+      "head_sha": "3cc71755adc555f41eb037c4b48a54fd8dcc0c03",
       "job": "shell suite (windows-latest)",
       "conclusion": "success",
-      "started_at": "2026-09-17T04:04:15Z",
-      "completed_at": "2026-09-17T04:04:42Z"
+      "started_at": "2026-10-01T10:15:26Z",
+      "completed_at": "2026-10-01T10:15:48Z"
     },
     {
-      "run_id": 35180515534,
-      "head_sha": "dee994af9106ab205e77a5d86b9d538420b42152",
-      "job": "full suite (ubuntu-latest)",
+      "run_id": 36698436208,
+      "head_sha": "3cc71755adc555f41eb037c4b48a54fd8dcc0c03",
+      "job": "dependency and license audit (advisory)",
       "conclusion": "success",
-      "started_at": "2026-09-17T04:04:14Z",
-      "completed_at": "2026-09-17T04:21:26Z"
+      "started_at": "2026-09-30T09:48:19Z",
+      "completed_at": "2026-09-30T09:48:37Z"
     },
     {
-      "run_id": 35180515534,
-      "head_sha": "dee994af9106ab205e77a5d86b9d538420b42152",
-      "job": "clean-checkout probe (ubuntu-latest)",
+      "run_id": 36698436208,
+      "head_sha": "3cc71755adc555f41eb037c4b48a54fd8dcc0c03",
+      "job": "shell suite (ubuntu-latest)",
       "conclusion": "success",
-      "started_at": "2026-09-17T04:04:15Z",
-      "completed_at": "2026-09-17T04:21:13Z"
+      "started_at": "2026-09-30T09:48:19Z",
+      "completed_at": "2026-09-30T09:48:29Z"
     },
     {
-      "run_id": 35180515534,
-      "head_sha": "dee994af9106ab205e77a5d86b9d538420b42152",
-      "job": "full suite (windows-latest)",
+      "run_id": 36698436208,
+      "head_sha": "3cc71755adc555f41eb037c4b48a54fd8dcc0c03",
+      "job": "shell suite (windows-latest)",
       "conclusion": "success",
-      "started_at": "2026-09-17T04:04:13Z",
-      "completed_at": "2026-09-17T04:25:18Z"
-    },
-    {
-      "run_id": 35180515534,
-      "head_sha": "dee994af9106ab205e77a5d86b9d538420b42152",
-      "job": "clean-checkout probe (windows-latest)",
-      "conclusion": "success",
-      "started_at": "2026-09-17T04:04:15Z",
-      "completed_at": "2026-09-17T04:27:04Z"
+      "started_at": "2026-09-30T09:48:19Z",
+      "completed_at": "2026-09-30T09:48:54Z"
     }
   ]
 }

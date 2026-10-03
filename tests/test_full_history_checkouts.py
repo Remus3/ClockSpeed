@@ -165,9 +165,19 @@ def test_every_job_collecting_a_full_history_module_checks_out_full_history() ->
 
 
 def test_the_tier2_suite_job_is_among_the_jobs_read() -> None:
-    """Anti-vacuity: the job that broke must be one this module grades."""
+    """Anti-vacuity: the job that broke must be one this module grades.
+
+    CS-1229 sharded both tier2 suite jobs. Each is still ONE job whose matrix legs
+    share its one checkout, and the module is collected by its save-shard step, so
+    both jobs - and the tier1 save shard - must be read here, and nothing else
+    may collect the module unseen.
+    """
     jobs = {(relative, job_id) for relative, job_id, _ in collecting_jobs(shipped())}
-    assert (".github/workflows/tier2.yml", "suite") in jobs, sorted(jobs)
+    assert jobs == {
+        (".github/workflows/tier1.yml", "save"),
+        (".github/workflows/tier2.yml", "suite"),
+        (".github/workflows/tier2.yml", "clean-checkout-probe"),
+    }, sorted(jobs)
 
 
 def test_every_listed_module_still_refuses_a_shallow_clone() -> None:
