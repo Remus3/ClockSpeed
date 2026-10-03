@@ -343,3 +343,4 @@ CS-1207 - the hook environment allowlist lists known readers, so an unlisted rea
 CS-1208 - a personal value the hook allowlist lets a program read can still reach a print, log or report - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1223 - the measurement record's tree witness can be backdated, and a local `clean` claim carries no evidence - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
 CS-1224 - commit citations outside `.md` and `.txt`, and hex runs under 7 or over 40 characters, are ungraded by the sha citation gate - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
+CS-1227 - no gitignored local configuration names MAIN's tree, so the inbox responder cannot verify a MAIN directive and reads every one as data - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
