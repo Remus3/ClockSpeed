@@ -223,6 +223,25 @@ def test_a_crlf_flip_under_eol_lf_reddens_the_witness(tmp_path: Path) -> None:
     assert "tree moved" in out
 
 
+def test_a_case_only_rename_reddens_the_witness(tmp_path: Path) -> None:
+    """On a case-insensitive filesystem the old spelling still opens the file."""
+    root = _repo(tmp_path)
+    record = _freeze(root, tmp_path)
+    (root / "pkg" / "mod.py").rename(root / "pkg" / "Mod.py")
+    rc, out = _check(root, record)
+    assert rc == EXIT_MOVED
+    assert "tree moved" in out
+
+
+def test_a_case_only_directory_rename_reddens_the_witness(tmp_path: Path) -> None:
+    root = _repo(tmp_path)
+    record = _freeze(root, tmp_path)
+    (root / "pkg").rename(root / "PKG")
+    rc, out = _check(root, record)
+    assert rc == EXIT_MOVED
+    assert "tree moved" in out
+
+
 def _object_files(root: Path) -> list[str]:
     objects = root / ".git" / "objects"
     return sorted(p.relative_to(objects).as_posix() for p in objects.rglob("*") if p.is_file())

@@ -22,6 +22,11 @@ WHAT IT RECORDS, AND WHY THOSE TWO HALVES:
               written to the index or the object store; the only git call is a
               read-only ``ls-files``. The executable bit is not recorded - it
               is not meaningful on the Windows filesystem this project runs on.
+              Each path is recorded in its ON-DISK spelling, read from its
+              parent directory's real listing: ``ls-files`` keeps the old
+              spelling and a case-insensitive open still finds the file, so a
+              case-only rename (``mod.py`` to ``Mod.py``, which breaks an import)
+              would otherwise read unmoved.
     bytecode  a SHA-256 over every ``.pyc`` in a ``__pycache__`` directory that
               sits beside a tracked or would-be-tracked file - each file's
               repo-relative path and bytes. ``__pycache__/`` is gitignored, so
@@ -35,6 +40,9 @@ WHAT IS OUTSIDE THE WITNESS, by design:
       import can reach is not read. The witness covers the candidate, not the
       interpreter's whole search path.
     * bytecode under a ``PYTHONPYCACHEPREFIX`` directory outside the tree.
+    * the contents of a nested untracked git repository. ``ls-files`` lists it
+      as one directory entry, so it is hashed as an opaque ``dir`` marker and
+      an edit inside it is not seen.
 
 A FIRST IMPORT IS A BYTECODE MOVE, by design. In a process that writes bytecode
 (no ``PYTHONDONTWRITEBYTECODE``), the first import or test collection of a module
@@ -134,13 +142,48 @@ def _feed(digest: hashlib._Hash, chunk: bytes) -> None:
     digest.update(len(chunk).to_bytes(8, "big") + chunk)
 
 
+class _Spelling:
+    """The on-disk spelling of a repo-relative path, one listing per directory."""
+
+    def __init__(self, root: Path) -> None:
+        self._root = root
+        self._listings: dict[str, dict[str, str]] = {}
+
+    def _listing(self, rel_dir: str) -> dict[str, str]:
+        if rel_dir not in self._listings:
+            folded: dict[str, str] = {}
+            try:
+                with os.scandir(self._root / rel_dir if rel_dir else self._root) as it:
+                    for entry in it:
+                        # Exact spelling wins over a casefold twin on a
+                        # case-sensitive filesystem.
+                        folded.setdefault(entry.name.casefold(), entry.name)
+                        folded[entry.name] = entry.name
+            except OSError:
+                pass
+            self._listings[rel_dir] = folded
+        return self._listings[rel_dir]
+
+    def of(self, name: str) -> str:
+        """``name`` re-spelt component by component as the filesystem lists it."""
+        parts: list[str] = []
+        for part in name.split("/"):
+            listing = self._listing("/".join(parts))
+            actual = listing.get(part) or listing.get(part.casefold())
+            if actual is None:
+                return name
+            parts.append(actual)
+        return "/".join(parts)
+
+
 def raw_tree_digest(root: Path) -> tuple[str, int]:
-    """SHA-256 over (path, raw-bytes SHA-256) of the population, and its size."""
+    """SHA-256 over (on-disk path, raw-bytes SHA-256) of the population, and its size."""
     names = population(root)
+    spelling = _Spelling(root)
     digest = hashlib.sha256()
     for name in names:
         path = root / name
-        _feed(digest, name.encode("utf-8", "surrogateescape"))
+        _feed(digest, spelling.of(name).encode("utf-8", "surrogateescape"))
         if path.is_symlink():
             _feed(digest, b"link:" + str(path.readlink()).encode("utf-8", "surrogateescape"))
         elif path.is_file():
