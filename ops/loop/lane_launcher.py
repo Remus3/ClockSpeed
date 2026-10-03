@@ -71,6 +71,31 @@ if str(_TOOLS_DIR) not in sys.path:
 
 from toolpath import resolve_tool  # noqa: E402
 
+
+def _load_route() -> Any:
+    """Bind ops/loop/headless_route.py - package route first, file path as fallback.
+
+    CS-1225. The route module holds NO process-global state, so the CS-1000
+    two-copies hazard ``_load_lanes`` guards against cannot arise here: a second
+    copy loaded by path behaves identically. The fallback exists for the same
+    detached caller ``_load_lanes`` names, which has no ``ops`` package to import.
+    """
+    try:
+        return importlib.import_module("ops.loop.headless_route")
+    except ImportError:
+        spec = importlib.util.spec_from_file_location(
+            "cs_loop_headless_route", _HERE / "headless_route.py"
+        )
+        if spec is None or spec.loader is None:
+            raise
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        return module
+
+
+#: CS-1225 - every headless spawn is routed through the local proxy, or refused.
+headless_route = _load_route()
+
 #: The ONE name ops/loop/lanes.py is bound under anywhere in this project.
 #: lanes.py carries process-global state - ``_OWNED``, the ABA guard that
 #: decides whether a release is ours. A file-path bind under a private name
@@ -594,6 +619,13 @@ def _spawn(runner: Path, prompt: Path, cwd: Path, log: Path) -> Any:
         str(log),
     ]
     try:
+        # CS-1225 - ROUTED OR REFUSED. The child's environment is a COPY built
+        # by the route module, which fails closed when the proxy variable is
+        # unset or the proxy is down. A refusal joins the OSError below at the
+        # ONE spawn-failed raise site rather than adding a thirteenth, because
+        # the reason vocabulary is pinned one-to-one to raise sites and copied
+        # into the driver; the authored ``.reason`` is what reaches the message.
+        env = headless_route.child_env(os.environ)
         # A fixed argv assembled here - no shell, and no caller string reaches
         # the command line. "powershell" is resolved from PATH because an
         # absolute tool path in a tracked file is forbidden by CLAUDE.md
@@ -601,19 +633,25 @@ def _spawn(runner: Path, prompt: Path, cwd: Path, log: Path) -> Any:
         proc = subprocess.Popen(
             argv,
             cwd=str(cwd),
+            env=env,
             stdin=subprocess.DEVNULL,
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
             creationflags=_NO_WINDOW,
         )
-    except OSError as exc:
+    except (OSError, headless_route.HeadlessRouteRefused) as exc:
         # A NAMED FIELD, NEVER THE OBJECT. ``str()`` on an OSError appends the
         # PATH it failed on, and the paths this function handles run through a
         # user profile - so rendering the exception whole is a personal-data
         # echo path (CLAUDE.md non-negotiable 12). ``strerror`` is the operating
         # system's message text and carries no path; the type name is the
-        # fallback when there is no strerror to render.
-        message = f"spawn failed: {exc.strerror or type(exc).__name__}"
+        # fallback when there is no strerror to render. A route refusal's
+        # ``reason`` is authored, names the variable and never its value.
+        if isinstance(exc, OSError):
+            detail = exc.strerror or type(exc).__name__
+        else:
+            detail = f"headless route refused - {exc.reason}"
+        message = f"spawn failed: {detail}"
         raise LaneLaunchError(message, reason=REASON_SPAWN_FAILED) from exc
 
     # CS-1017 - MEASURED around the wait itself and nothing else, so the number

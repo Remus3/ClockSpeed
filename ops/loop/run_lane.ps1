@@ -121,6 +121,20 @@ try {
 # launcher's REASON_UNSPECIFIED.
 $code = "none"
 try {
+  # CS-1225 - ROUTED OR REFUSED, BEFORE THE CLI IS EVEN LOOKED UP. The launcher
+  # hands this process a copy of its environment routed through the local proxy
+  # by ops/loop/headless_route.py; an empty value here means this runner was
+  # started some other way, and running the CLI anyway would bill whatever
+  # account the box happens to be logged into. Inside the try, after the header,
+  # so the refusal still gets its exit line from the finally below. The variable
+  # is NAMED, never its value.
+  if ([string]::IsNullOrEmpty($env:ANTHROPIC_BASE_URL)) {
+    "lane refused $(Get-Date -Format s) reason=ANTHROPIC_BASE_URL is empty - headless route not established" |
+      Out-File "$Log" -Append -Encoding utf8
+    $code = 3
+    exit 3
+  }
+
   # RESOLVED, NOT ASSUMED, and inside the try. This is a TERMINATING failure -
   # it used to run above the header, so a box with no CLI on PATH produced no
   # log at all and the launcher blamed the runner for exiting early.

@@ -892,6 +892,10 @@ def _launch_row(
     monkeypatch.setattr(lane_launcher, "_kill", killed.append)
     monkeypatch.setattr(lane_launcher.lanes, "repoint_lane_pid", lambda *_a, **_k: repoint)
     monkeypatch.setattr(lane_launcher.lanes, "release_lane", lambda *_a, **_k: True)
+    # CS-1225 - the route is world-touching too: it reads the user store and
+    # connects to the proxy. Stubbed, so this arm never reaches the real proxy
+    # and passes with the variable unset and the port closed.
+    monkeypatch.setattr(lane_launcher.headless_route, "child_env", lambda base, **_k: dict(base))
 
     def launch(lane: str, **kw: Any) -> dict[str, Any]:
         return lane_launcher.launch_lane(lane, log_dir=tmp_path / "logs", **kw)

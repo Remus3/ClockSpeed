@@ -116,6 +116,10 @@ def _env_with_path(shim_dir: Path) -> dict[str, str]:
     # The runner clears this for its own process; cleared here too so that a
     # machine-scope key can never make an arm depend on a credit balance.
     env.pop("ANTHROPIC_API_KEY", None)
+    # CS-1225 - the runner refuses an empty ANTHROPIC_BASE_URL before it looks
+    # for the CLI. A SYNTHETIC loopback value on a closed port, so no arm
+    # depends on this machine's own route and nothing ever connects to it.
+    env["ANTHROPIC_BASE_URL"] = "http://127.0.0.1:1"
     return env
 
 

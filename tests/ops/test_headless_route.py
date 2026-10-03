@@ -16,7 +16,9 @@ sub-expressions of an asserted comparison whatever message it carries.
 from __future__ import annotations
 
 import os
+import shutil
 import socket
+import subprocess
 import sys
 from collections.abc import Callable, Iterator
 from pathlib import Path
@@ -223,3 +225,132 @@ def test_the_real_store_reader_answers_none_or_a_string() -> None:
 def test_classify_exit(returncode: int, output: str, expected: str) -> None:
     """A non-zero exit with a usage-limit marker backs off; any other non-zero failed."""
     assert headless_route.classify_exit(returncode, output) == expected
+
+
+# ---------------------------------------------------------------------------
+# The lane launcher's spawn is routed, and refuses without spawning.
+# ---------------------------------------------------------------------------
+
+
+class _PopenSpy:
+    """Records every construction and starts nothing."""
+
+    def __init__(self) -> None:
+        self.calls: list[dict[str, object]] = []
+
+    def __call__(self, argv: list[str], **kwargs: object) -> object:
+        del argv
+        self.calls.append(dict(kwargs))
+        raise OSError(0, "spy refuses to start anything")
+
+
+def _spawn_inputs(tmp_path: Path) -> tuple[Path, Path, Path, Path]:
+    runner = tmp_path / "run_lane.ps1"
+    runner.write_bytes(b"# synthetic\n")
+    prompt = tmp_path / "prompt.md"
+    prompt.write_bytes(b"# synthetic\n")
+    return runner, prompt, tmp_path, tmp_path / "lane.log"
+
+
+def test_the_lane_spawn_refuses_without_spawning(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """No route: the launcher refuses, names the variable, and Popen is never reached."""
+    from ops.loop import lane_launcher  # noqa: PLC0415 - the module under test
+
+    spy = _PopenSpy()
+    monkeypatch.setattr(lane_launcher.subprocess, "Popen", spy)
+    monkeypatch.setattr(lane_launcher, "resolve_tool", lambda _name: "synthetic-shell")
+    monkeypatch.setattr(lane_launcher.headless_route, "user_store_value", lambda _name: None)
+    monkeypatch.delenv(SOURCE, raising=False)
+    with pytest.raises(lane_launcher.LaneLaunchError) as caught:
+        lane_launcher._spawn(*_spawn_inputs(tmp_path))  # noqa: SLF001 - the seam under test
+    reason = caught.value.reason
+    names_var = SOURCE in str(caught.value)
+    spawned = len(spy.calls)
+    assert (reason, names_var, spawned) == (lane_launcher.REASON_SPAWN_FAILED, True, 0)
+
+
+def test_the_lane_spawn_hands_the_child_the_routed_env(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """With a route, the env Popen receives is exactly what child_env built."""
+    from ops.loop import lane_launcher  # noqa: PLC0415 - the module under test
+
+    spy = _PopenSpy()
+    routed = {"PLANTED_ROUTE_MARKER": "1"}
+    handed: list[object] = []
+
+    def fake_child_env(base: object, **_kw: object) -> dict[str, str]:
+        handed.append(base)
+        return dict(routed)
+
+    monkeypatch.setattr(lane_launcher.subprocess, "Popen", spy)
+    monkeypatch.setattr(lane_launcher, "resolve_tool", lambda _name: "synthetic-shell")
+    monkeypatch.setattr(lane_launcher.headless_route, "child_env", fake_child_env)
+    with pytest.raises(lane_launcher.LaneLaunchError):
+        lane_launcher._spawn(*_spawn_inputs(tmp_path))  # noqa: SLF001 - the seam under test
+    got_env = [call.get("env") for call in spy.calls]
+    was_routed = got_env == [routed]
+    from_environ = len(handed) == 1 and handed[0] is os.environ
+    assert (was_routed, from_environ) == (True, True)
+
+
+# ---------------------------------------------------------------------------
+# The PowerShell runner refuses an unrouted start without running the CLI.
+# ---------------------------------------------------------------------------
+
+RUNNER: Final = ROOT / "ops" / "loop" / "run_lane.ps1"
+_CHILD_TIMEOUT_S: Final = 120
+_REFUSED_EXIT: Final = 3
+
+
+def _run_runner(tmp_path: Path, *, routed: bool) -> tuple[int, bool, list[str]]:
+    """Run the real runner over a shim CLI; return exit code, whether the shim ran, log lines."""
+    shell = shutil.which("powershell")
+    if shell is None:
+        pytest.skip("Windows PowerShell is not on PATH")
+    shim_dir = tmp_path / "shim"
+    shim_dir.mkdir()
+    marker = shim_dir / "ran.txt"
+    (shim_dir / "claude.cmd").write_bytes(b'@echo ran> "%~dp0ran.txt"\r\n@exit /b 0\r\n')
+    prompt = tmp_path / "prompt.md"
+    prompt.write_bytes(b"# synthetic\n")
+    tree = tmp_path / "tree"
+    tree.mkdir()
+    log = tmp_path / "lane.log"
+    system = Path(os.environ.get("SYSTEMROOT") or r"C:\Windows") / "System32"
+    env = {key: val for key, val in os.environ.items() if key.upper() != TARGET}
+    env = {key: val for key, val in env.items() if key.upper() != "PATH"}
+    env["PATH"] = f"{shim_dir}{os.pathsep}{system}"
+    if routed:
+        env[TARGET] = "http://127.0.0.1:1"
+    argv = [shell, "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", str(RUNNER)]
+    argv += ["-PromptFile", str(prompt), "-Cwd", str(tree), "-Log", str(log)]
+    done = subprocess.run(
+        argv,
+        capture_output=True,
+        check=False,
+        timeout=_CHILD_TIMEOUT_S,
+        env=env,
+    )
+    text = log.read_bytes().decode("utf-8-sig", errors="replace") if log.is_file() else ""
+    lines = [line.strip() for line in text.splitlines() if line.strip()]
+    return done.returncode, marker.is_file(), lines
+
+
+@pytest.mark.skipif(sys.platform != "win32", reason="the runner is Windows PowerShell")
+def test_the_runner_refuses_an_unrouted_start_without_running_the_cli(tmp_path: Path) -> None:
+    """Empty ANTHROPIC_BASE_URL: exit non-zero, the shim never ran, both lines written."""
+    code, ran, lines = _run_runner(tmp_path, routed=False)
+    refused = any(line.startswith("lane refused") and TARGET in line for line in lines)
+    exit_line = bool(lines) and lines[-1].startswith("lane exit") and lines[-1].endswith("code=3")
+    assert (code, ran, refused, exit_line) == (_REFUSED_EXIT, False, True, True)
+
+
+@pytest.mark.skipif(sys.platform != "win32", reason="the runner is Windows PowerShell")
+def test_control_a_routed_start_reaches_the_cli(tmp_path: Path) -> None:
+    """THE CONTROL: the same harness with the variable set does run the shim."""
+    code, ran, lines = _run_runner(tmp_path, routed=True)
+    refused = any(line.startswith("lane refused") for line in lines)
+    assert (code, ran, refused) == (0, True, False)
