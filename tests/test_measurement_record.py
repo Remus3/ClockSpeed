@@ -632,9 +632,15 @@ def test_the_pinned_repository_is_the_one_the_citation_file_names(tool: ModuleTy
     assert _CI_RUN.startswith(tool.REPOSITORY_URL + "/actions/runs/")
 
 
+#: Round 4: a reading citing a run carries a FULL commit. Two distinct ones.
+_FULL_A = "e3169a64770a00fd4484452148a9ef66ac33cb7b"
+_FULL_B = "0123456789abcdef0123456789abcdef01234567"
+
+
 def _ci_clean(tracked: dict[str, Any], **overrides: Any) -> dict[str, Any]:
     reading = _new_local_reading(tracked, "ci_job")
     reading["tree"] = "clean"
+    reading["commit"] = _FULL_A
     reading.update(overrides)
     return reading
 
@@ -688,6 +694,7 @@ def test_a_runner_clean_reading_must_cite_its_run(
 def _derived_clean(tracked: dict[str, Any], **overrides: Any) -> dict[str, Any]:
     reading = _new_local_reading(tracked, "derived")
     reading["tree"] = "clean"
+    reading["commit"] = _FULL_A
     reading.update(overrides)
     return reading
 
@@ -778,7 +785,7 @@ def test_a_derived_clean_reading_is_tied_to_its_own_inputs(
     second = _ci_clean(tracked, ci_run=_CI_RUN, value=112.0)
     inputs = [0, 1]
     if fault == "commit":
-        second["commit"] = "e3169a64770a00fd4484452148a9ef66ac33cb7b"
+        second["commit"] = _FULL_B
     elif fault == "superseded":
         first["superseded_by"] = 1
         second["date"] = "2026-10-04"
@@ -802,11 +809,58 @@ def test_one_run_may_not_vouch_for_two_commits(tool: ModuleType, tracked: dict[s
     other = _ci_clean(
         tracked,
         ci_run=_CI_RUN.rsplit("/job/", 1)[0],
-        commit="e3169a64770a00fd4484452148a9ef66ac33cb7b",
+        commit=_FULL_B,
     )
     record = _runner_record(tracked, first, other)
     offences = tool.grade(record)
     assert any(o.startswith("reading 1:") and "ci_run" in o for o in offences), offences
+
+
+def test_a_reading_citing_a_run_must_give_a_full_commit(
+    tool: ModuleType, tracked: dict[str, Any]
+) -> None:
+    """Round 4. A short sha prefix-matches many commits, so a run's one commit is spelt whole."""
+    record = _runner_record(tracked, _ci_clean(tracked, ci_run=_CI_RUN, commit="abcdef1"))
+    assert _named(tool, record, 0, "full 40-hex commit"), tool.grade(record)
+
+
+_K1_SHORT = "abcdef1"
+_K1_A = "abcdef1" + "0" * 33
+_K1_B = "abcdef1" + "1" * 33
+
+
+@pytest.mark.parametrize(
+    "order",
+    [
+        (_K1_SHORT, _K1_A, _K1_B),
+        (_K1_A, _K1_SHORT, _K1_B),
+        (_K1_A, _K1_B, _K1_SHORT),
+        (_K1_B, _K1_A, _K1_SHORT),
+        (_K1_SHORT, _K1_B, _K1_A),
+    ],
+)
+def test_one_run_on_two_full_commits_is_refused_in_any_order(
+    tool: ModuleType, tracked: dict[str, Any], order: tuple[str, str, str]
+) -> None:
+    """Round 4 K1. A short first can no longer bridge two distinct full shas.
+
+    EVERY reading on a run that names two commits is refused, so the verdict does
+    not depend on which reading came first.
+    """
+    readings = [
+        _ci_clean(tracked, ci_run=_CI_RUN, commit=commit, value=100.0 + n)
+        for n, commit in enumerate(order)
+    ]
+    record = _runner_record(tracked, *readings)
+    offences = tool.grade(record)
+    for index, commit in enumerate(order):
+        if commit == _K1_SHORT:
+            assert _named(tool, record, index, "full 40-hex commit"), offences
+        else:
+            assert any(
+                o.startswith(f"reading {index}:") and "one run checks out one commit" in o
+                for o in offences
+            ), offences
 
 
 def test_one_run_may_vouch_for_two_readings_of_its_one_commit(

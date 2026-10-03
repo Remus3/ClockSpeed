@@ -277,6 +277,8 @@ SUPERSEDED = "superseded"
 _METRIC_SLUG = re.compile(r"^[a-z][a-z0-9_]*$")
 _DATE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 _COMMIT = re.compile(r"^[0-9a-f]{7,40}$")
+#: Round 4. A reading citing a run spells its commit whole.
+_FULL_COMMIT = re.compile(r"^[0-9a-f]{40}\Z")
 _CITATION = re.compile(r"^[A-Za-z0-9_][A-Za-z0-9_./-]*#\S.*$")
 _DIGEST = re.compile(r"^[0-9a-f]{64}$")
 #: CS-1223. THIS repository, as the tracked CITATION.cff names it; a test pins
@@ -420,6 +422,11 @@ def _grade_tree_witness(where: str, reading: dict[str, Any], claimed: set[str]) 
         ci_run = reading.get("ci_run")
         if reading["method"] != "ci_job":
             offences.append(f"{where}: ci_run is carried only by a 'ci_job' reading")
+        elif not isinstance(reading["commit"], str) or not _FULL_COMMIT.match(reading["commit"]):
+            offences.append(
+                f"{where}: a reading citing a ci_run needs a full 40-hex commit - a short"
+                " sha can name more than one commit"
+            )
         elif not isinstance(ci_run, str) or not _CI_RUN.match(ci_run):
             offences.append(
                 f"{where}: tree {TREE_CLEAN!r} on a 'ci_job' reading needs a ci_run naming"
@@ -565,20 +572,17 @@ def _grade_supersession(readings: list[Any]) -> list[str]:
     return offences
 
 
-def _same_commit(left: str, right: str) -> bool:
-    """Two sha spellings name one commit when one is a prefix of the other."""
-    return left.startswith(right) or right.startswith(left)
-
-
 def _grade_run_commits(readings: list[Any]) -> list[str]:
-    """Round-3 F1. A run checks out ONE commit, so its URL vouches for one commit.
+    """A run checks out ONE commit, so its URL vouches for one commit (rounds 3-4).
 
     The run id is the number after `/actions/runs/`; a `/job/` suffix names a job
-    of the same run and the same checkout, so it is ignored. A reading whose run
-    was already cited by a reading on a different commit is refused.
+    of the same run and the same checkout, so it is ignored. Every reading citing
+    a run carries a FULL commit (graded in :func:`_grade_tree_witness`), so commit
+    identity is plain equality - no prefix rule, which is not transitive. When one
+    run is cited on more than one commit, EVERY reading citing it is refused, so
+    the verdict does not depend on the order of the record.
     """
-    offences: list[str] = []
-    first_by_run: dict[str, tuple[int, str]] = {}
+    by_run: dict[str, list[tuple[int, str]]] = {}
     for index, reading in enumerate(readings):
         if not isinstance(reading, dict):
             continue
@@ -586,18 +590,19 @@ def _grade_run_commits(readings: list[Any]) -> list[str]:
         if not isinstance(ci_run, str) or not isinstance(commit, str):
             continue
         matched = _CI_RUN.match(ci_run)
-        if not matched:
+        if not matched or not _FULL_COMMIT.match(commit):
             continue
-        run = matched.group("run")
-        if run not in first_by_run:
-            first_by_run[run] = (index, commit)
+        by_run.setdefault(matched.group("run"), []).append((index, commit))
+    offences: list[str] = []
+    for run, citations in sorted(by_run.items()):
+        commits = sorted({commit for _, commit in citations})
+        if len(commits) < 2:  # noqa: PLR2004 - one commit is the rule itself
             continue
-        earlier, earlier_commit = first_by_run[run]
-        if not _same_commit(commit, earlier_commit):
-            offences.append(
-                f"reading {index}: ci_run cites run {run}, which reading {earlier} cites on"
-                f" commit {earlier_commit} - one run checks out one commit"
-            )
+        offences.extend(
+            f"reading {index}: ci_run cites run {run}, which the record cites on"
+            f" {len(commits)} commits - one run checks out one commit"
+            for index, _ in citations
+        )
     return offences
 
 
