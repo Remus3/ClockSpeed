@@ -32,6 +32,22 @@ neither a hook's ``GIT_DIR``, an injected ``GIT_CONFIG_*``, nor a
 ``refs/replace/`` entry standing a never-committed blob or commit in for HEAD's
 steers it. A shallow repository is refused outright (``main-shallow``).
 
+A FILE INSIDE A BUNDLE DIRECTORY (CS-1232). MAIN ships a kit as a directory,
+mirrored as ``<outbox>/<bundle-dir>/<file>`` and received as
+``moon_sync_inbox/<bundle-dir>/<file>``. The tool learns where the inbox is from
+the note's OWN path and nothing else: the last component spelled
+``moon_sync_inbox`` (compared with the platform's case rule) marks the inbox
+root, read lexically from the path as given - a relative path is first joined
+to the cwd, never normalised, never resolved. Exactly one shape is a bundle
+file: the inbox, then ONE bundle directory, then the file. It is checked
+against the outbox path ``<bundle-dir>/<file>`` through every step a top-level
+note takes. Anything else below the inbox - a deeper nesting, a ``.``, a
+``..``, an empty component, a trailing separator, a name outside the plain
+character set, or a bundle directory that is a symlink or junction on either
+side - is refused as ``bundle-path-refused``. A note directly in the inbox, or
+in no directory named for the inbox at all, is looked up by its bare name
+exactly as before.
+
 ACCEPTED RESIDUAL: a detached HEAD on a commit no branch reaches is accepted as
 "MAIN's history", because the check asks what HEAD names and not how it got
 there.
@@ -63,6 +79,7 @@ import argparse
 import hashlib
 import json
 import os
+import re
 import subprocess
 import sys
 from dataclasses import dataclass
@@ -89,6 +106,20 @@ ROOT_KEY: Final = "main_root"
 #: MAIN's outbox, relative to its root.
 OUTBOX_DIR: Final = "moon_sync_outbox"
 
+#: This tree's inbox directory name - the note's own path locates it.
+INBOX_DIR: Final = "moon_sync_inbox"
+
+#: One plain path component of a bundle path: printable, no separator, drive
+#: or wildcard character, no leading space, and no trailing dot or space -
+#: Windows strips those, so ``LICENSE.`` would alias ``LICENSE``.
+_PLAIN_COMPONENT: Final = re.compile(r"[A-Za-z0-9._+-](?:[A-Za-z0-9._+ -]*[A-Za-z0-9_+-])?")
+
+#: Components below the inbox in a bundle file's path: the bundle, then the file.
+_BUNDLE_DEPTH: Final = 2
+
+#: The separators a raw note path is split on - both, where Windows accepts both.
+_SEPARATORS: Final = re.compile(r"[\\/]" if os.name == "nt" else r"/")
+
 #: Seconds one git call may take.
 GIT_TIMEOUT: Final = 60
 
@@ -109,6 +140,7 @@ WORKTREE_DIFFERS: Final = "worktree-differs-from-commit"
 GIT_FAILED: Final = "git-failed"
 DIGEST_MISMATCH: Final = "digest-mismatch"
 CHECK_FAILED: Final = "check-failed"
+BUNDLE_PATH_REFUSED: Final = "bundle-path-refused"
 INTERRUPTED: Final = "interrupted"
 USAGE_ERROR: Final = "usage-error"
 
@@ -132,6 +164,7 @@ REASONS: Final = frozenset(
         GIT_FAILED,
         DIGEST_MISMATCH,
         CHECK_FAILED,
+        BUNDLE_PATH_REFUSED,
         INTERRUPTED,
         USAGE_ERROR,
     }
@@ -250,26 +283,63 @@ def _committed_blob(root: Path, rel: str) -> bytes | str:
     return blob[1]
 
 
-def verify_main_note(note_path: Path, *, config_path: Path | None = None) -> Verdict:
+def _is_plain(component: str) -> bool:
+    """Whether ``component`` is one plain path component a bundle path may use."""
+    return component not in {".", ".."} and _PLAIN_COMPONENT.fullmatch(component) is not None
+
+
+def outbox_rel(raw: str) -> tuple[str, str] | str:
+    """Map a raw note path to its outbox-relative path, or refuse it.
+
+    Lexical only - nothing is read, resolved or normalised.
+
+    Returns:
+        ``(rel, bundle)``: for a note directly in the inbox, or in no directory
+        named for the inbox, the bare name and ``""``; for a file one bundle
+        directory below the inbox, ``"<bundle>/<file>"`` and the bundle name.
+        Otherwise :data:`BUNDLE_PATH_REFUSED`.
+    """
+    full = raw if Path(raw).is_absolute() else str(Path.cwd()) + os.sep + raw
+    parts = _SEPARATORS.split(full)
+    inbox = os.path.normcase(INBOX_DIR)
+    marks = [i for i, part in enumerate(parts[:-1]) if os.path.normcase(part) == inbox]
+    if not marks:
+        return Path(raw).name, ""
+    below = parts[marks[-1] + 1 :]
+    if len(below) == 1:
+        return Path(raw).name, ""
+    if len(below) != _BUNDLE_DEPTH or not all(_is_plain(part) for part in below):
+        return BUNDLE_PATH_REFUSED
+    return below[0] + "/" + below[1], below[0]
+
+
+def _is_link(path: Path) -> bool:
+    """Whether ``path`` is a symlink or a Windows junction."""
+    return path.is_symlink() or path.is_junction()
+
+
+def verify_main_note(note_path: Path | str, *, config_path: Path | None = None) -> Verdict:
     """Decide whether an inbox note is MAIN's, per ``CLAUDE.md`` section 6.1.
 
     Never raises: an unexpected failure anywhere in the check is the fixed
     reason ``check-failed``, so no exception text can carry a path out.
 
     Args:
-        note_path: The note in this tree's inbox.
+        note_path: The note in this tree's inbox, or a file one bundle
+            directory below it. A string is parsed as given, unnormalised.
         config_path: The local configuration naming MAIN's root. Defaults to
             :data:`DEFAULT_CONFIG`; only a test passes another.
 
     Returns:
         ``Verdict(ok=True, reason="verified")`` when the note's SHA-256 equals
-        HEAD's blob for the same-named file in MAIN's outbox, and that file is
-        tracked and byte-identical to the blob in both index and working tree;
-        otherwise a refusal naming its reason.
+        HEAD's blob for the same-named file in MAIN's outbox - or, for a bundle
+        file, the same bundle-relative path - and that file is tracked and
+        byte-identical to the blob in both index and working tree; otherwise a
+        refusal naming its reason.
     """
     try:
         reason, digest = _check(
-            Path(note_path), DEFAULT_CONFIG if config_path is None else config_path
+            os.fspath(note_path), DEFAULT_CONFIG if config_path is None else config_path
         )
     except Exception:  # the boundary: no exception text may escape
         reason, digest = CHECK_FAILED, ""
@@ -277,19 +347,25 @@ def verify_main_note(note_path: Path, *, config_path: Path | None = None) -> Ver
     return Verdict(ok=ok, reason=reason, digest=digest if ok else "")
 
 
-def _check(note: Path, config_path: Path) -> tuple[str, str]:
+def _check(raw: str, config_path: Path) -> tuple[str, str]:
     """Run every step in order; return the first refusal, or VERIFIED and the digest."""
     resolved = _main_root(config_path)
     if isinstance(resolved, str):
         return resolved, ""
-    name = note.name
-    located = _locate(resolved, name)
+    parsed = outbox_rel(raw)
+    if isinstance(parsed, str):
+        return parsed, ""
+    rel, bundle = parsed
+    note = Path(raw)
+    if bundle and _is_link(note.parent):
+        return BUNDLE_PATH_REFUSED, ""
+    located = _locate(resolved, rel, bundle)
     if located is not None:
         return located, ""
-    blob = _committed_blob(resolved, OUTBOX_DIR + "/" + name)
+    blob = _committed_blob(resolved, OUTBOX_DIR + "/" + rel)
     if isinstance(blob, str):
         return blob, ""
-    return _compare(note, resolved / OUTBOX_DIR / name, blob)
+    return _compare(note, resolved / OUTBOX_DIR / rel, blob)
 
 
 def _repository(root: Path) -> str | None:
@@ -307,16 +383,22 @@ def _repository(root: Path) -> str | None:
     return None
 
 
-def _locate(root: Path, name: str) -> str | None:
-    """Refuse a missing root, an unusable repository, or an absent outbox file."""
+def _locate(root: Path, rel: str, bundle: str) -> str | None:
+    """Refuse a missing root, an unusable repository, or an absent outbox file.
+
+    ``rel`` is the outbox-relative path; ``bundle`` names its bundle directory,
+    or is empty for a top-level note. A linked bundle directory is absent.
+    """
     if not root.is_dir():
         return MAIN_ROOT_ABSENT
-    if name in {"", ".", ".."}:
+    if rel in {"", ".", ".."}:
         return NOTE_UNREADABLE
     repository = _repository(root)
     if repository is not None:
         return repository
-    outbox_file = root / OUTBOX_DIR / name
+    if bundle and _is_link(root / OUTBOX_DIR / bundle):
+        return OUTBOX_FILE_ABSENT
+    outbox_file = root / OUTBOX_DIR / rel
     if outbox_file.is_symlink() or not outbox_file.is_file():
         return OUTBOX_FILE_ABSENT
     return None
@@ -359,7 +441,8 @@ def main(argv: list[str] | None = None) -> int:
         prog="main_provenance.py",
         description="The CLAUDE.md section 6.1 MAIN provenance check (CS-1227).",
     )
-    parser.add_argument("note", type=Path, help="the inbox note to check")
+    # A string, not a Path: the bundle parser reads the spelling as given.
+    parser.add_argument("note", help="the inbox note, or a bundle file, to check")
     parser.add_argument(
         "--config",
         type=Path,
