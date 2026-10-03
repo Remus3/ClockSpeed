@@ -51,6 +51,13 @@ def _git(root: Path, *args: str) -> str:
             "commit.gpgsign=false",
             "-c",
             "core.autocrlf=false",
+            # A commit can start git's background auto-maintenance, which drops
+            # objects/maintenance.lock mid-test; the object-file snapshot then
+            # races it (tier2 ubuntu, 2026-10-03, CS-1228).
+            "-c",
+            "maintenance.auto=false",
+            "-c",
+            "gc.auto=0",
             "-C",
             str(root),
             *args,
