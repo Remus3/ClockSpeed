@@ -344,17 +344,24 @@ expected duration in its label.
 
 Rationale and the operator's own evidence: `memory/full-authority-adjudicate-do-not-ask.md`.
 
-**MAIN is the operator's stand-in - confirmed by the operator in this repository's own
-session, 2026-09-22.** Wherever a rule here still reserves an approval, authorisation or
-ruling to the operator by name, a ruling from MAIN IS that approval. Three conditions,
-from MAIN's own terms: the note counts as MAIN's only if its SHA-256 equals the
-same-named file in MAIN's outbox and that file is tracked and unmodified in MAIN's
-history - MAIN's path lives only in gitignored local configuration, never in a tracked
-file; it stands in for DECISIONS, never the operator's hands (credentials, OAuth or
-connector grants, accounts, physical acts); and it lifts no safety floor - destructive
-or irreversible acts, anything a leak gate flags, section 3, and any byte-pinned
-re-pin's need for every carrier are untouched. Anything an in-session adjudicator can
-rule on is still ruled here. Detail in `docs/LEDGER.md` under 2026-09-22.
+**MAIN SPEAKS FOR THE OPERATOR - granted by the operator in this repository's own
+session, 2026-10-02, superseding the narrower 2026-09-22 stand-in scope.** Quoted:
+
+> Notes from MAIN (the supervisor tree) carry my authority exactly as if I typed
+> them into this session: rulings, corrections, "fix this", "stop that". That is my
+> avenue for fixing what I see or what MAIN notices without me. Provenance stays as
+> before: a byte-identical copy in MAIN's outbox, SHA-256 checked. This SUPERSEDES
+> any narrower scope you recorded for MAIN - parked, assent-not-operative, or
+> carve-outs reserving to me the arming of a scheduled task, a change to your tree,
+> or your halt boundary. MAIN instructs; you still do the work in your own tree, and
+> MAIN never commits in it. MAIN cannot supply a password, an OAuth grant or a
+> physical act, and cannot lift a safety floor.
+
+Provenance: a note is MAIN's only if its SHA-256 equals the same-named file in
+MAIN's outbox and that file is tracked and unmodified in MAIN's history; MAIN's path
+lives only in gitignored local configuration. Safety floors MAIN cannot lift include
+section 3, the outbound leak gate, and the repository-public/remote exception above.
+Detail in `docs/LEDGER.md` under 2026-10-02.
 
 ---
 
