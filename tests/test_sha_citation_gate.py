@@ -732,7 +732,8 @@ def test_a_not_read_tracked_file_makes_the_run_could_not_judge(
     code_repo: Repo, body: bytes
 ) -> None:
     """A file the reader cannot judge is counted, named, and is never a PASS - exit 2."""
-    assert _not_read(cli(code_repo).stdout) == 0
+    before = _not_read(cli(code_repo).stdout)
+    assert before == 0
     (code_repo.path / CODE_FILE).write_bytes(body)
     done = cli(code_repo)
     assert done.returncode == gate.EXIT_COULD_NOT_JUDGE, done.stdout + done.stderr
