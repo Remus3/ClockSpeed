@@ -1,5 +1,5 @@
 CLOCKSPEED - NEXT SESSION CONTINUATION PROMPT
-Written at the end of session 119, 2026-10-02. Paste this whole file into a cold session.
+Written at the end of session 119, 2026-10-03. Paste this whole file into a cold session.
 
 ================================================================================
 READ THESE FIRST, IN THIS ORDER
@@ -29,7 +29,8 @@ HEAD / remote   the session-119 /done commit. Confirm `git rev-parse HEAD` equal
 CI              read the run at the /done tip. NEW THIS SESSION: the save shard now
                 also runs tests/test_sha_citation_gate.py (about 17s of module wall
                 on one xdist worker). The save shard was already the tightest tier-1
-                job at 407s of 420. If it breaches, that is CS-1197's to fix - never
+                job at 407s of 420; it read about 379s on the first run carrying the
+                module (run 37088133975, green). If it breaches, that is CS-1197's to fix - never
                 raise the pin.
 working tree    CLEAN at the /done commit.
 HISTORY IS LINEAR ON PURPOSE. Land slices by cherry-pick, never by merge (CS-1196).
@@ -53,6 +54,19 @@ CS-1219  tools/freeze_witness.py - freeze/check over raw on-disk bytes, on-disk 
          spelling and __pycache__ .pyc. Acceptance AMENDED from "tree object" to a
          raw content digest (a tree object is blind to a CRLF flip) - in the ledger.
 
+CS-1225  every headless claude spawn routes through the operator's local proxy:
+         ops/loop/headless_route.py, fail closed, whole-string loopback:3456
+         allowlist, the user env store is the kill switch. PROVEN once against
+         the proxy's activity log.
+CS-1226  ops/loop/inbox_responder.py + tools/headless-inbox.md, scheduled task
+         CS-InboxResponder every 15 min; inbox_watch --ack-keys acks only the
+         keys a pass handled.
+OPERATOR GRANT: MAIN SPEAKS FOR THE OPERATOR - CLAUDE.md section 6.1, ledger
+         CS-1225 entry. Report sent to MAIN (note 2330).
+PLUGIN POLL, all six answered, reported to the operator: KEEP superpowers,
+         playwright, chrome-devtools-mcp, nimble (MAIN's machine-root use only);
+         NOT REQUIRED the other ten. Turning them off is the operator's act.
+
 FILED: CS-1223 (tree witness backdating, unproven `clean`), CS-1224 (citations in
 .py code and 5-6 / 41+ hex runs are ungraded).
 
@@ -62,21 +76,23 @@ withdrew 32, most likely a case-insensitive count), and 1855 / 1856 / 1857 - two
 answers drafted 2026-09-25 that were NEVER DELIVERED, re-measured, plus a new note
 re-deriving LW's frozen slots.py candidate (the 336 B gap is comment text only). Inbox ACKED, 421.
 
-HEADLESS (CS-1225/1226): every headless spawn routes through the operator's proxy
-and fails closed; deleting CLAUDE_HEADLESS_BASE_URL from the user env is the kill
-switch. Scheduled task CS-InboxResponder runs ops/loop/inbox_responder.py --once
-every 15 minutes. MAIN SPEAKS FOR THE OPERATOR - CLAUDE.md section 6.1.
-PLUGIN POLL: sent 2026-10-02 2130 to all six; tally owed to the operator when all
-six answer (KEEP if any tree used a plugin in 60 days). CS: playwright and
-superpowers used, the rest unused.
+THE RESPONDER IS PAUSED. /done of session 119 left the stop sentinel
+ops/loop/control/lanes/INBOX_STOP (gitignored) so it could not commit beside the
+ritual. DELETE IT TO RESUME. Its first armed pass ran 79 minutes, landed and
+pushed CS-1216 obligations and filed CS-1227 itself. Its log is
+data/inbox_responder.jsonl. Deleting CLAUDE_HEADLESS_BASE_URL from the user env
+stops every headless spawn. A session working in the main tree while the
+responder is live risks two writers - pause it first, as /done did.
 
 ================================================================================
 THE SINGLE NEXT ACTION
 ================================================================================
 
-READ CI AT THE /DONE TIP, SAVE SHARD FIRST. Then take CS-1223 or CS-1224, or read
-the channel's replies to 1834-1857 and answer what they ask. Outbound goes through
-tools/outbound_send.py, which dry-runs by default and needs --send.
+TAKE CS-1227. Until a gitignored local config names MAIN's tree root and one
+function runs the section 6.1 provenance check, the responder reads every MAIN
+directive as DATA - MAIN's 2320 note of 2026-10-02 was read that way. Then read CI
+at the /done tip, then CS-1223 and CS-1224. Outbound goes through
+tools/outbound_send.py (dry run by default, --send to write).
 
 ================================================================================
 OPERATOR RULINGS OWED - RECORD IF VOLUNTEERED, NEVER ASK
@@ -96,10 +112,10 @@ CS-815   does the desktop app SHOW the "REFUSED (CS-815)" hook-error line?
 OPEN PHASE 7 ITEMS, PRIORITY ORDER (acceptance: docs/item_notes/phase7.md)
 ================================================================================
 
+ 0 CS-1227  MAIN provenance resolver - the responder cannot honour MAIN without it.
  1 CS-1207  env scan allowlist - halted, ruling owed (above).
  2 CS-1223  measurement tree witness can be backdated; local `clean` is unproven.
  3 CS-1224  commit citations in .py code and 5-6 / 41+ hex runs are ungraded.
- 4 CS-1197  the save shard now also carries the sha-citation module - watch it.
  5 CS-1196  the provenance walk miscounts first-adds across a merge commit. Now
             MEASURED - see the fence below.
  6 CS-1217  the gate's `python -m ruff` fallback runs a staged ruff.py (frozen).
