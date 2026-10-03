@@ -413,6 +413,7 @@ tests/test_ledger_entry_shape.py	authored	CS-1126	first-add:CS-1126
 tests/test_licence_audit.py	authored	CS-1185	stamped
 tests/test_liveness.py	authored	CS-846	first-add:CS-846
 tests/test_locals_rendering.py	authored	CS-1165	first-add:root
+tests/test_main_provenance.py	authored	CS-1227	stamped
 tests/test_make_cert.py	authored	CS-601	first-add:CS-601
 tests/test_make_shortcut.py	authored	CS-909	first-add:CS-909
 tests/test_measurement_record.py	authored	CS-920	first-add:CS-920
@@ -477,6 +478,7 @@ tools/headless-inbox.md	authored	CS-1226	stamped
 tools/headless-queue.md	authored	CS-918	first-add:CS-918
 tools/inbox_watch.py	authored	CS-926	first-add:CS-926
 tools/licence_audit.py	authored	CS-1185	stamped
+tools/main_provenance.py	authored	CS-1227	stamped
 tools/measurement_record.py	authored	CS-920	first-add:CS-920
 tools/measurements.json	authored	CS-920	first-add:CS-920
 tools/memory_sync.py	authored	CS-1165	first-add:root
