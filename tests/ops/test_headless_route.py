@@ -77,7 +77,6 @@ def test_the_route_constants_are_the_ruled_ones() -> None:
     """The probe target is the ruled loopback proxy, and the names are the ruled ones."""
     assert headless_route.SOURCE_VAR == SOURCE
     assert headless_route.TARGET_VAR == TARGET
-    assert headless_route.PROXY_HOST == "127.0.0.1"
     assert headless_route.PROXY_PORT == 3456  # noqa: PLR2004 - the ruled port
     assert 0 < headless_route.CONNECT_TIMEOUT_S <= 2.0  # noqa: PLR2004 - ruled ceiling
 
@@ -269,7 +268,6 @@ def test_a_value_outside_the_allowlist_refuses(
         "http://localhost:{port}/abcdefghijklmnop/qrstuvwxyz0123",
         "http://localhost:{port}/seg-one/seg_two/",
         "http://127.0.0.1:{port}",
-        "http://[::1]:{port}/x",
         "https://localhost:{port}",
     ],
 )
@@ -328,8 +326,22 @@ def test_off_windows_the_store_is_unreadable() -> None:
     [
         (0, '{"type":"result","is_error":false}', "ok"),
         (1, '{"type":"result","is_error":true,"api_error_status":429}', "usage_limit"),
-        (1, "Claude AI usage limit reached|1760000000", "usage_limit"),
-        (1, "API Error: 429 rate_limit_error", "usage_limit"),
+        (1, "Claude AI usage limit reached|1760000000", "failed"),
+        (1, "API Error: 429 rate_limit_error", "failed"),
+        (1, "result 429 somewhere in prose", "failed"),
+        (1, '{"type":"result","is_error":true,"api_error_status":"429"}', "failed"),
+        (1, '{"type":"result","is_error":true,"api_error_status":429,"num_turns":7}', "failed"),
+        (
+            1,
+            '{"type":"result","is_error":true,"api_error_status":429,"total_cost_usd":1.5}',
+            "failed",
+        ),
+        (
+            1,
+            '{"type":"result","is_error":true,"api_error_status":429,"num_turns":1,'
+            '"total_cost_usd":0}',
+            "usage_limit",
+        ),
         (1, "some other crash", "failed"),
         (2, "", "failed"),
         (0, "usage limit reached", "ok"),
@@ -491,3 +503,44 @@ def test_the_runner_refuses_a_value_outside_the_allowlist(tmp_path: Path, plante
     refused = any(line.startswith("lane refused") and TARGET in line for line in lines)
     leaked = any("evil" in line or "pw" in line for line in lines)
     assert (code, ran, refused, leaked) == (_REFUSED_EXIT, False, True, False)
+
+
+@pytest.mark.parametrize(
+    "name",
+    ["CLAUDE_CODE_USE_BEDROCK", "CLAUDE_CODE_USE_VERTEX", "CLAUDE_CODE_USE_FOUNDRY"],
+)
+def test_a_provider_switch_is_dropped_from_the_child(
+    monkeypatch: pytest.MonkeyPatch, listening: int, name: str
+) -> None:
+    """A provider switch would send the child past the proxy; it never reaches it."""
+    monkeypatch.delenv(SOURCE, raising=False)
+    base = {name: "1", name.lower(): "1", "KEEP_ME": "1"}
+    env = headless_route.child_env(base, port=listening, user_store=_store(_url(listening)))
+    survivors = sorted(key for key in env if key.upper() == name)
+    kept = env.get("KEEP_ME") == "1"
+    assert (survivors, kept) == ([], True)
+
+
+@pytest.mark.parametrize(
+    ("shape", "probed"),
+    [
+        ("http://127.0.0.1:{port}", "127.0.0.1"),
+        ("http://localhost:{port}/a/b", "localhost"),
+        ("http://[::1]:{port}/x", "::1"),
+    ],
+)
+def test_the_probe_targets_the_host_the_value_names(
+    monkeypatch: pytest.MonkeyPatch, listening: int, shape: str, probed: str
+) -> None:
+    """The liveness connect goes where the child will go, not to a fixed host."""
+    monkeypatch.delenv(SOURCE, raising=False)
+    seen: list[tuple[str, int]] = []
+
+    def recording(address: tuple[str, int], timeout: float) -> socket.socket:
+        seen.append((address[0], address[1] + int(timeout * 0)))
+        return socket.create_connection(("127.0.0.1", listening), timeout=timeout)
+
+    headless_route.child_env(
+        {}, port=listening, user_store=_store(shape.format(port=listening)), connect=recording
+    )
+    assert seen == [(probed, listening)]

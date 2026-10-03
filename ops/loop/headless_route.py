@@ -64,11 +64,19 @@ SOURCE_VAR: Final = "CLAUDE_HEADLESS_BASE_URL"
 #: The variable the child CLI reads its API base from.
 TARGET_VAR: Final = "ANTHROPIC_BASE_URL"
 
-#: Dropped from every routed child - see the module docstring.
-DROPPED_VARS: Final = ("ANTHROPIC_API_KEY",)
+#: Dropped from every routed child - see the module docstring. The API key
+#: outranks any login; each provider switch sends the CLI to a cloud provider
+#: and past the proxy entirely. ANTHROPIC_AUTH_TOKEN is NOT dropped: nothing
+#: in the proxy contract says it must be, and a blind drop could break it.
+DROPPED_VARS: Final = (
+    "ANTHROPIC_API_KEY",
+    "CLAUDE_CODE_USE_BEDROCK",
+    "CLAUDE_CODE_USE_VERTEX",
+    "CLAUDE_CODE_USE_FOUNDRY",
+)
 
-#: The ruled proxy endpoint. Tests inject a port; production never does.
-PROXY_HOST: Final = "127.0.0.1"
+#: The ruled proxy port. Tests inject one; production never does. The probed
+#: HOST is the one the accepted value names - see `child_env`.
 PROXY_PORT: Final = 3456
 
 #: How long the liveness connect may take before the proxy counts as down.
@@ -76,7 +84,12 @@ CONNECT_TIMEOUT_S: Final = 2.0
 
 #: The whole-string allowlist, with the port substituted. Mirrored in
 #: ops/loop/run_lane.ps1, which re-checks the value the child actually gets.
-_ROUTE_SHAPE: Final = r"https?://(?:127\.0\.0\.1|localhost|\[::1\]):{port}(?:/[A-Za-z0-9._~-]+)*/?"
+_ROUTE_SHAPE: Final = (
+    r"https?://(?P<host>127\.0\.0\.1|localhost|\[::1\]):{port}(?:/[A-Za-z0-9._~-]+)*/?"
+)
+
+#: The connect target for each host spelling the allowlist admits.
+_PROBE_HOSTS: Final = {"127.0.0.1": "127.0.0.1", "localhost": "localhost", "[::1]": "::1"}
 
 REASON_UNSET: Final = f"{SOURCE_VAR} is unset or empty in the user store"
 REASON_NOT_LOCAL: Final = f"{SOURCE_VAR} does not name the loopback proxy endpoint"
@@ -91,11 +104,6 @@ OUTCOME_FAILED: Final = "failed"
 #: The HTTP status of a usage-limit refusal, as a run's result reports it.
 _USAGE_LIMIT_STATUS: Final = 429
 
-#: Text markers of a usage or rate limit, for output that is not a result object.
-_LIMIT_MARKERS: Final = re.compile(
-    r"usage limit|rate limit|rate_limit|limit reached|limit will reset|\b429\b",
-    re.IGNORECASE,
-)
 
 _REG_EXPAND_SZ: Final = 2
 
@@ -161,16 +169,21 @@ def _read_source(user_store: Callable[[str], str | None]) -> str:
     return value
 
 
+def _proxy_host(value: str, port: int) -> str | None:
+    """The connect host ``value`` names when it WHOLE matches the allowlist, else None."""
+    shape = _ROUTE_SHAPE.format(port=int(port))
+    matched = re.fullmatch(shape, value, flags=re.ASCII)
+    return None if matched is None else _PROBE_HOSTS[matched.group("host")]
+
+
 def names_proxy(value: str, port: int = PROXY_PORT) -> bool:
     """Whether ``value`` WHOLE matches the loopback-proxy allowlist on ``port``."""
-    shape = _ROUTE_SHAPE.format(port=int(port))
-    return re.fullmatch(shape, value, flags=re.ASCII) is not None
+    return _proxy_host(value, port) is not None
 
 
 def child_env(
     base_env: Mapping[str, str],
     *,
-    host: str = PROXY_HOST,
     port: int = PROXY_PORT,
     user_store: Callable[[str], str | None] | None = None,
     connect: Callable[..., socket.socket] | None = None,
@@ -179,7 +192,6 @@ def child_env(
 
     Args:
         base_env: The environment to copy. Never mutated.
-        host: The proxy host to probe. Tests only.
         port: The proxy port to probe and to require in the value. Tests only.
         user_store: Reads one variable from the user store, or None for
             :func:`user_store_value` looked up AT CALL TIME. Tests only.
@@ -196,9 +208,11 @@ def child_env(
     reader = user_store_value if user_store is None else user_store
     opener = socket.create_connection if connect is None else connect
     value = _read_source(reader)
-    if not names_proxy(value, port):
+    host = _proxy_host(value, port)
+    if host is None:
         raise HeadlessRouteRefused(REASON_NOT_LOCAL)
     try:
+        # THE HOST THE VALUE NAMES, so the probe checks where the child will go.
         connection = opener((host, port), timeout=CONNECT_TIMEOUT_S)
     except OSError:
         # The cause is dropped on purpose: a socket error can render the address
@@ -211,8 +225,27 @@ def child_env(
     return env
 
 
+def _is_limit_result(parsed: object) -> bool:
+    """The CS-1178 refusal shape: error flag, int 429, and no evidence of work.
+
+    The same fields `ops/loop/queue_loop.py` `_is_usage_refusal` reads: at most
+    one turn and no cost, each a disqualifier when present. Exact types, since
+    `True` is an int and `"429"` is not a status.
+    """
+    if type(parsed) is not dict or parsed.get("is_error") is not True:
+        return False
+    status = parsed.get("api_error_status")
+    if type(status) is not int or status != _USAGE_LIMIT_STATUS:
+        return False
+    turns = parsed.get("num_turns")
+    if turns is not None and (type(turns) is not int or turns > 1):
+        return False
+    cost = parsed.get("total_cost_usd")
+    return cost is None or (type(cost) in (int, float) and cost == 0)
+
+
 def _result_says_limit(output: str) -> bool:
-    """Whether any JSON line of ``output`` is a result object carrying a 429."""
+    """Whether any JSON line of ``output`` is a usage-limit result object."""
     for line in output.splitlines():
         candidate = line.strip().lstrip("\ufeff")
         if not candidate.startswith("{"):
@@ -221,11 +254,7 @@ def _result_says_limit(output: str) -> bool:
             parsed = json.loads(candidate)
         except (ValueError, RecursionError):
             continue
-        if (
-            type(parsed) is dict
-            and parsed.get("is_error") is True
-            and parsed.get("api_error_status") == _USAGE_LIMIT_STATUS
-        ):
+        if _is_limit_result(parsed):
             return True
     return False
 
@@ -237,8 +266,9 @@ def classify_exit(returncode: int | None, output: str) -> str:
     refusal as exit 1 with a result object carrying ``is_error`` and an
     ``api_error_status`` of 429. In case a later CLI exits 0 on the same
     refusal, an exit 0 whose RESULT OBJECT carries that error shape is also a
-    usage limit. Free text is NOT scanned on exit 0: a successful worker may
-    well write the words "usage limit" in its own reply.
+    usage limit. FREE TEXT IS NEVER SCANNED, on any exit code: a worker may
+    write "429" or "usage limit" in its own reply, and a crash that happens to
+    print one must not buy an hour of silence.
 
     Args:
         returncode: The child's exit code; None counts as a failure.
@@ -248,8 +278,6 @@ def classify_exit(returncode: int | None, output: str) -> str:
         One of the three OUTCOME_ constants.
     """
     text = output if isinstance(output, str) else ""
-    if returncode == 0:
-        return OUTCOME_USAGE_LIMIT if _result_says_limit(text) else OUTCOME_OK
-    if _result_says_limit(text) or _LIMIT_MARKERS.search(text):
+    if _result_says_limit(text):
         return OUTCOME_USAGE_LIMIT
-    return OUTCOME_FAILED
+    return OUTCOME_OK if returncode == 0 else OUTCOME_FAILED
