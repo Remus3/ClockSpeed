@@ -346,4 +346,4 @@ CS-1229 - the tier2 full suite is one job per OS, so suite growth outruns its me
 CS-1230 - `tools/flip_checks.py` names a child tool and a clone source by a path relative to the cwd, which raises across Windows drives - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
 CS-1231 - adopt MAIN's FLEET-KIT (vendor the kit, embed the common block in CLAUDE.md, route every headless spawn through it) - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
 CS-1233 - the CS-815 latency arm read over budget on windows tier2 because xdist siblings contend; it now times after siblings go quiet - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
-CS-1234 - the inbox responder publishes `ops/loop/control/inbox_status.json` and caps headless starts at 120 per rolling 24 hours - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
+CS-1234 - the inbox responder publishes its inbox-status file (MAIN 0915) and caps headless starts at 120 per rolling 24 hours - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`

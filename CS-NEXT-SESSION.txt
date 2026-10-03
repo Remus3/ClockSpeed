@@ -170,7 +170,11 @@ suite ran 2 failed, 9047 passed, 1 skipped in 15m05s; origin/main stayed 41f1835
     Targeted re-run: test_toolpath -k current_directory 4 passed, PYTEST_EXIT 0;
     test_main_provenance -k junction 2 passed, PYTEST_EXIT 0.
 Gates on the /done tree: drift_guard 0, doc_budget 0, sha_citation_gate 0.
-SECOND PUSH: see the follow-up block below; if it is absent, the /done commit's push
-outcome is UNVERIFIED - read `git ls-remote origin main` first.
+SECOND PUSH BLOCKED: whole suite 1 failed, 13165 passed, 12 skipped in 24m36s -
+  tests/test_citation_tables.py R2 declared-untracked: the CS-1234 filing cited the
+  gitignored status-file path in ROADMAP.md and the phase 7 leaf; reworded. Re-run:
+  test_citation_tables + test_item_notes_index 269 passed, PYTEST_EXIT 0; drift_guard 0.
+THIRD PUSH: if `git ls-remote origin main` does not equal HEAD, it was blocked too - read
+  the hook output, repair, push. Its result was NOT read by this session - UNVERIFIED.
 CI: tier1 and tier2 at the pushed tip NOT READ by this session - UNVERIFIED.
 Desktop shortcut CS-NEXT-SESSION.lnk targets C:\Clockspeed\CS-NEXT-SESSION.txt (read).

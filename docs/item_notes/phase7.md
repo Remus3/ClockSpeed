@@ -1592,7 +1592,7 @@ contention. Detail: the builder's diagnosis, summarised here.
 
 ### Acceptance
 
-The CS inbox responder writes `ops/loop/control/inbox_status.json` (gitignored) atomically
+The CS inbox responder writes its gitignored inbox-status file atomically
 in MAIN 0915's schema 1 on every state change and at least once per tick, including on
 its halted path; task names come only from the basic set; `task_eta_s` is the median of
 the last ten completed instances of a task, null under three; at most 120 headless runs
@@ -1601,7 +1601,7 @@ start.
 
 ### Full headline
 
-the inbox responder publishes `ops/loop/control/inbox_status.json` and caps headless
+the inbox responder publishes its inbox-status file (MAIN 0915) and caps headless
 starts at 120 per rolling 24 hours
 
 ### FILED 2026-10-03, from MAIN orders 0915 and 0855, operator-approved in session
