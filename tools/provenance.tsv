@@ -394,6 +394,7 @@ tests/test_exception_rendering.py	authored	CS-205	first-add:CS-205
 tests/test_facts_probe.py	authored	CS-1165	first-add:root
 tests/test_flip_checks.py	authored	CS-1183	stamped
 tests/test_freeze_witness.py	authored	CS-1219	stamped
+tests/test_full_history_checkouts.py	authored	CS-1228	stamped
 tests/test_git_env_scrub.py	authored	CS-968	first-add:CS-968
 tests/test_handler_exception_rendering.py	authored	CS-855	first-add:CS-855
 tests/test_headless_queue_prompt.py	authored	CS-918	first-add:CS-918

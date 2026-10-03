@@ -1523,3 +1523,49 @@ says that is where it lives. A scan of every gitignored configuration file in th
 tree found none naming it, so the pass read the note as data. Nothing it asked was left
 undone - an attended session had already armed the task and sent the report - but every
 later MAIN directive to the responder meets the same refusal until this lands.
+
+## CS-1228
+
+### Acceptance
+
+The `suite` job of `.github/workflows/tier2.yml` checks out full history, so the CS-1222
+live arm in `tests/test_sha_citation_gate.py` can judge it, and
+`tests/test_full_history_checkouts.py` - red first against the shallow checkout - pins
+`fetch-depth: 0` on every job of either workflow whose pytest run collects that module.
+The windows legs of `suite` and `clean-checkout-probe` complete inside their
+`timeout-minutes`, whose value is stated beside it as a measured wall plus a stated
+margin. Closed only by a tier2 run on the landed tip in which both legs of both jobs
+conclude `success`, its measured windows walls recorded at close.
+
+### Full headline
+
+the nightly tier2 full suite is shallow-checked-out and its windows legs outrun a
+30-minute cutoff, so the lane has not been green since 2026-09-24
+
+### FILED 2026-10-03, measured from the tier2 run history by the main session
+
+Every scheduled tier2 run 2026-09-25..2026-10-03 concluded `cancelled` or `failure`. Two
+defects, independent of each other. FIRST, the `suite` checkout carried no `fetch-depth`,
+so the CS-1222 live arm failed - by design, never skipping - on the shallow clone; the
+ubuntu leg of run 37112434671 was red on exactly that one test, while the module's
+docstring claims CI runs it only in tier1's full-history save shard. The probe job was
+unaffected: it checks out with `fetch-depth: 0` and clones from that. SECOND, the windows
+legs of `suite` and `clean-checkout-probe` were cancelled at the 30-minute cutoff on every
+night, ended by the cutoff and not by a failing step: the last progress line of the
+pytest step put it at 75 to 88 per cent after 29 minutes, a projected wall of 33.0 to 39.0
+minutes (suite) and 28.5 to 38.8 (probe). Both legs already ran `-n auto`, so this is
+suite growth, not lost parallelism: the last green windows suite passed 10456 tests on
+2026-09-25, the 2026-10-03 ubuntu leg 12518 (one of them the shallow failure). The ubuntu
+legs reached 28.6 minutes; on 2026-10-01 both jobs' ubuntu legs were cancelled at 99 and
+97 per cent.
+
+THE REPAIR, AND WHAT IT LEAVES OPEN. `fetch-depth: 0` on the `suite` checkout; both jobs
+now run `--dist loadfile`, the scheduler tier1 and the pre-push hook already use; both
+cutoffs raised 30 to 50, sized as the worst projected wall plus under a minute of job
+overhead divided by the CS-1124 headroom fraction of 4/5. The loadfile gain on the
+windows runner is unmeasured, so the ceiling does not count on it. The suite grew by over
+a third in eleven days (9061 passed on 2026-09-22); at that rate the 4/5 headroom guard
+reddens again within weeks, and the honest next step is sharding the tier2 suite the way tier1 is sharded,
+which renames jobs and so needs `tools/tier2_durations.json` refreshed in the same
+change. The `tests/test_sha_citation_gate.py` docstring sentence naming tier1's save
+shard as the only CI home of the module is now false and wants correcting.

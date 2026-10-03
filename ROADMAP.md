@@ -344,3 +344,4 @@ CS-1208 - a personal value the hook allowlist lets a program read can still reac
 CS-1223 - the measurement record's tree witness can be backdated, and a local `clean` claim carries no evidence - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
 CS-1224 - commit citations outside `.md` and `.txt`, and hex runs under 7 or over 40 characters, are ungraded by the sha citation gate - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
 CS-1227 - no gitignored local configuration names MAIN's tree, so the inbox responder cannot verify a MAIN directive and reads every one as data - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
+CS-1228 - the nightly tier2 full suite is shallow-checked-out and its windows legs outrun a 30-minute cutoff, so the lane has not been green since 2026-09-24 - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`

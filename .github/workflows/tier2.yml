@@ -57,7 +57,18 @@ jobs:
   suite:
     name: full suite (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 30
+    # CS-1228 - RAISED FROM 30, BY MEASUREMENT AND NOT BY TASTE. The windows leg
+    # of this job was CANCELLED at the 30-minute cutoff on every scheduled run
+    # 2026-09-26..2026-10-03, ended by the cutoff and not by a failing step.
+    # Its last progress line before each cancellation put the pytest step at 75
+    # to 88 per cent after 29 minutes - a projected full wall of 33.0 to 39.0
+    # minutes, worst 39.0 (75 per cent at 29.2 minutes). The ubuntu leg reached 28.6 minutes and was itself
+    # cancelled once at 99 per cent. The new ceiling is that worst measurement
+    # plus under a minute of job overhead, divided by the 4/5 headroom fraction
+    # tools/tier2_headroom.py grades every job against (CS-1124): 40 / (4/5) = 50.
+    # It is still a runaway detector, and that guard is what reddens first when
+    # the suite grows into it again.
+    timeout-minutes: 50
     strategy:
       # A Windows-only failure and a Linux-only failure are different bugs, and
       # this project's primary target is Windows. Never let one abort the other.
@@ -77,6 +88,13 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v5
+        with:
+          # CS-1228 - FULL HISTORY. The default depth of 1 is a shallow clone,
+          # and the CS-1222 live arm in tests/test_sha_citation_gate.py FAILS
+          # rather than skips on one: this job's ubuntu leg went red on exactly
+          # that arm. tests/test_full_history_checkouts.py pins this key on
+          # every job whose pytest run collects that module.
+          fetch-depth: 0
 
       - name: Set up Python
         uses: actions/setup-python@v6
@@ -91,11 +109,17 @@ jobs:
         # the same way it does on a developer machine.
         run: python -m pip install -e ".[dev]"
 
+      # `--dist loadfile` (CS-1228) is the scheduler tier1.yml's suite shards
+      # and the pre-push hook already run, adopted there on a measured win over
+      # the default (see the Unit tests step in tier1.yml). Parallelism parity
+      # with those lanes, NOT a substitute for the ceiling above: the windows
+      # gain from it is unmeasured on this runner, so the ceiling is sized to
+      # the default scheduler's measured wall.
       - name: Enable test parallelism if pytest-xdist is available
         id: xdist
         run: |
           if python -m pip install pytest-xdist && python -c "import xdist" 2>/dev/null; then
-            echo "args=-n auto" >> "$GITHUB_OUTPUT"
+            echo "args=-n auto --dist loadfile" >> "$GITHUB_OUTPUT"
             echo "pytest-xdist available - the suite runs in parallel"
           else
             echo "args=" >> "$GITHUB_OUTPUT"
@@ -124,7 +148,12 @@ jobs:
   clean-checkout-probe:
     name: clean-checkout probe (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 30
+    # CS-1228 - RAISED FROM 30 on the same measurement as job 1. The windows leg
+    # was CANCELLED at 30 minutes on every scheduled run 2026-09-25..2026-10-03;
+    # its suite step's last progress line projected a full wall of 28.5 to 38.8
+    # minutes, and every step outside it took under a minute on the last green
+    # run. 40 / (4/5) = 50, the CS-1124 headroom fraction again.
+    timeout-minutes: 50
     strategy:
       fail-fast: false
       matrix:
@@ -342,13 +371,17 @@ jobs:
       # `-n auto` step on windows-latest in 26 of 30 same-tree pairings. On
       # ubuntu-latest the pairing is mixed, and the flag is applied to both
       # legs anyway so this invocation stays identical to job 1's.
-      # The cutoff is NOT raised: it is a runaway detector, and the suite's
-      # growth is the signal it exists to surface. pytest-xdist comes from the
+      # The cutoff was NOT raised for that incident: it is a runaway detector,
+      # and the suite's growth is the signal it exists to surface. CS-1228 is
+      # that signal arriving - nine nights cancelled with nothing failed - and
+      # the raise is sized to the measured wall, stated at timeout-minutes
+      # above, never by feel. `--dist loadfile` keeps this invocation identical
+      # to job 1's. pytest-xdist comes from the
       # clone's own `.[dev]` extra installed above - no extra install here, so
       # a clone whose pyproject lost it goes red rather than quietly serial.
       - name: Suite in the fresh clone
         working-directory: probe
-        run: python -m pytest tests -q -n auto
+        run: python -m pytest tests -q -n auto --dist loadfile
 
       # =====================================================================
       # CS-924 - HOOK FIRING, END TO END. The step every other assertion in
