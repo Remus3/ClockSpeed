@@ -1383,13 +1383,12 @@ def test_a_lexical_inbox_is_either_spelling_of_it(bundle_world: World, spelled_v
     assert reason == _BUNDLE_REFUSED
 
 
+@pytest.mark.skipif(os.name != "nt", reason="junctions exist only on Windows")
 def test_a_junctioned_bundle_dir_is_refused_even_where_placement_agrees(
     bundle_world: World,
 ) -> None:
     # The reparse-point arm: a JUNCTION, which is not a symlink to lstat, must
     # be refused as one.
-    if sys.platform != "win32":
-        pytest.skip("junctions exist only on Windows")
     import _winapi  # noqa: PLC0415 - Windows-only
 
     w = bundle_world
@@ -1574,9 +1573,8 @@ def test_is_link_sees_a_directory_link_and_not_a_plain_dir(tmp_path: Path) -> No
     assert plain_seen is False
 
 
+@pytest.mark.skipif(os.name != "nt", reason="junctions exist only on Windows")
 def test_is_link_sees_a_junction(tmp_path: Path) -> None:
-    if sys.platform != "win32":
-        pytest.skip("junctions exist only on Windows")
     import _winapi  # noqa: PLC0415 - Windows-only
 
     plain = tmp_path / "cs1232_junction_target"

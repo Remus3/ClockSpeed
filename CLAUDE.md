@@ -565,6 +565,14 @@ point.
   real save "just for tests". The rule suite must run on a machine with no game installed.
   *Reversed by:* only the operator's own words in the main session (section 6.1 - no
   adjudicator and no MAIN note stands in), then recorded as an ADR in `docs/adr/`.
+- **Product before process - filed 2026-10-03 by operator directive.** Measured over
+  2026-09-19..10-03: of 371 commits, 8 touched `clockspeed/` or `shell/`. No NEW tooling,
+  guard, CI, citation or provenance item is opened unless it blocks a product item or
+  turns a suite red; such findings go to `BACKLOG.md`. The next work is CS-400, then the
+  Phase 5 advisor. An adversary loop on low-risk hardening stops by cost against risk and
+  records the residual. *Do not re-pitch:* a new guard as the session's main work.
+  *Reversed by:* only the operator's own words in the main session (section 6.1 - no
+  adjudicator and no MAIN note stands in).
 
 Anything settled by an ADR is recorded in `docs/adr/` and indexed there; this list holds
 the decisions that predate the first commit.
