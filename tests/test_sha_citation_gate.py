@@ -947,6 +947,19 @@ def test_a_bom_file_that_fails_a_strict_decode_is_not_read_but_its_bytes_are_gra
         assert done.returncode == gate.EXIT_COULD_NOT_JUDGE, done.stdout + done.stderr
 
 
+def test_a_bom_file_decoding_to_a_nul_still_grades_its_bytes(code_repo: Repo) -> None:
+    """Strict UTF-16 succeeds but yields a NUL: not read, yet the byte view's citation is red."""
+    side = commit_where(code_repo, lambda sha: _carries_both(sha[:7]), "refs/heads/side")
+    head = _even(b"\xff\xfe" + (code_repo.path / CODE_FILE).read_bytes())
+    body = _even(head + b"\x00\x00" + f"\n# RED at {side[:7]}: landed.\n".encode("ascii"))
+    assert "\0" in body.decode("utf-16")
+    (code_repo.path / CODE_FILE).write_bytes(body)
+    done = cli(code_repo)
+    assert done.returncode == gate.EXIT_UNRESOLVED, done.stdout + done.stderr
+    assert f"unpublished-not-admitted {CODE_FILE}:" in done.stdout
+    assert _not_read(done.stdout) == 1
+
+
 def test_an_unpublished_run_beside_a_not_read_file_reports_both_and_exits_one(
     code_repo: Repo,
 ) -> None:
