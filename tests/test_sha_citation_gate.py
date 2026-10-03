@@ -42,6 +42,7 @@ import os
 import shutil
 import subprocess
 import sys
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 from types import ModuleType
@@ -248,6 +249,52 @@ def test_an_ancestor_of_head_not_yet_on_origin_main_passes(repo: Repo) -> None:
     assert batch != repo.git("rev-parse", "refs/remotes/origin/main")
     repo.git("commit", "-q", "--allow-empty", "-m", "the tip being judged")
     plant(repo, f"Landed as commit `{mixed(batch, 9)}` earlier in this batch.")
+    done = cli(repo)
+    assert done.returncode == gate.EXIT_CLEAN, done.stdout + done.stderr
+
+
+def side_commit(repo: Repo, wanted: str = "") -> str:
+    """A commit on a side ref HEAD cannot reach; ``wanted`` digit-only makes its 7-prefix digits."""
+    tree = repo.git("write-tree")
+    for attempt in range(4000):
+        sha = repo.git("commit-tree", tree, "-p", "HEAD", "-m", f"side {attempt}")
+        if wanted != "digits" or sha[:7].isdigit():
+            repo.git("update-ref", "refs/heads/side", sha)
+            return sha
+    message = "no digit-only prefix in 4000 commits"
+    raise AssertionError(message)
+
+
+NOT_ADMITTED_SHAPES: Final = [
+    ("digits", "Landed as commit `{tok}` on the merge.", lambda sha: sha[:7]),
+    ("", "Landed as commit `{tok}` on the merge.", lambda sha: mixed(sha, 9).upper()),
+    ("", "built as v1.0-3-g{tok} on the runner", lambda sha: mixed(sha, 9)),
+    ("", "the address 0x{tok} was hit", lambda sha: mixed(sha, 9)),
+    ("", "the symbol sha_{tok} was kept", lambda sha: mixed(sha, 9)),
+    ("", "the branch {tok}_fix was merged", lambda sha: mixed(sha, 9)),
+]
+
+
+@pytest.mark.parametrize(("wanted", "shape", "make"), NOT_ADMITTED_SHAPES)
+def test_a_not_admitted_run_naming_an_unpublished_commit_fails(
+    repo: Repo, wanted: str, shape: str, make: Callable[[str], str]
+) -> None:
+    """Digit-only, upper-case, describe, 0x and underscore-joined runs are resolved too."""
+    side = side_commit(repo, wanted)
+    token = make(side)
+    head = repo.git("rev-parse", "HEAD")
+    plant(repo, shape.format(tok=token))
+    plant(repo, f"Landed as `{head}`.")
+    done = cli(repo)
+    assert f"unpublished-not-admitted {GUARDED_DOC}:" in done.stdout, done.stdout
+    assert done.returncode == gate.EXIT_UNRESOLVED
+
+
+def test_a_not_admitted_run_naming_nothing_or_a_published_commit_is_silent(repo: Repo) -> None:
+    """The noise rule: a decimal, a word, or a run naming a PUBLISHED commit stays silent."""
+    head = repo.git("rev-parse", "HEAD")
+    plant(repo, f"run 36192391765 read 1234567 and DEFACED at v1-g{mixed(head, 9)}.")
+    plant(repo, f"Landed as `{head}`.")
     done = cli(repo)
     assert done.returncode == gate.EXIT_CLEAN, done.stdout + done.stderr
 

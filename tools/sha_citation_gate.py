@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""CS-1222 - every commit sha an authored doc cites must be PUBLISHED, or the gate is red.
+"""CS-1222 - a doc naming a commit that is not published turns the gate red.
 
 WHY. ``docs/LEDGER.md`` forbids citing a slice sha and names "A bare commit SHA"
 an invalid pointer, and nothing enforced it: four tools grade a commit field's
@@ -8,6 +8,17 @@ silently. This gate asks git about every one.
 
 THE INCLUSION RULE is published verbatim as :data:`INCLUSION_RULE` and printed
 on every run, and it states what it does NOT admit and why.
+
+WHAT IS RED, EXACTLY. (1) An ADMITTED token that is not a published commit and
+not on the allowlist. (2) ANY other run of 7 to 40 hex characters - digit-only,
+all-letter, upper- or mixed-case, or joined to a letter, digit or underscore
+(``-g<hex>`` from ``git describe``, ``0x<hex>``, ``sha_<hex>``, ``<hex>_fix``) -
+that names a commit this store HOLDS but that is not published. Such a run
+that names no commit at all, or a published one, is NOISE and stays silent:
+decimal counts and run ids, English words and constants vastly outnumber
+citations in those shapes, and only a run git itself resolves is evidence of
+one. A run naming an unpublished commit the store does not hold is invisible
+here - the one blind spot, stated rather than hidden.
 
 THE RESOLVER. Each distinct sha-shaped token is resolved with ``git rev-parse
 --verify -q <token>^{commit}``, and the commit it names counts ONLY when it is
@@ -57,8 +68,9 @@ CLI::
 
     exit 0   every admitted citation is a published commit, no allowlisted
              token is one, and at least one citation was admitted
-    exit 1   an admitted citation is not a published commit, or an allowlisted
-             token is one (overreach)
+    exit 1   an admitted citation is not a published commit, an allowlisted
+             token is one (overreach), or a not-admitted run names an existing
+             unpublished commit
     exit 2   could not judge - no git, not a repository, a shallow clone, no
              origin/main and no tag, or a sweep that admitted nothing
 
@@ -110,8 +122,13 @@ INCLUSION_RULE: Final = (
     "from one; an all-letter run, because that is an English word as often as a sha; "
     "upper-case hex, because git prints every object name in lower case, so an upper-case "
     "run is a constant or an identifier and never a copied sha; and a run longer than 40, "
-    "which is a sha256 and not a sha1 object name"
+    "which is a sha256 and not a sha1 object name. A NOT-ADMITTED run of 7 to 40 hex "
+    "characters of any case, joined to anything, is still resolved: it is red when it "
+    "names an existing commit that is not published, and silent noise otherwise"
 )
+
+#: Every maximal run of hex characters, either case, joined to anything.
+_ANY_RUN: Final = re.compile(r"(?<![0-9A-Fa-f])[0-9A-Fa-f]{7,40}(?![0-9A-Fa-f])")
 
 _TOKEN: Final = re.compile(r"(?<![0-9A-Za-z_])[0-9a-f]{7,40}(?![0-9A-Za-z_])")
 _HAS_DIGIT: Final = re.compile(r"[0-9]")
@@ -304,6 +321,55 @@ def scan_text(
     return found
 
 
+def scan_not_admitted(text: str, path: str = "") -> list[Occurrence]:
+    """Every hex run of 7 to 40 characters the inclusion rule does NOT admit.
+
+    Args:
+        text: One file's text.
+        path: The name the occurrences carry.
+
+    Returns:
+        Each run, in text order, with ``rule`` None - these are resolved, never
+        allowlisted, and fail only when they name an existing unpublished commit.
+    """
+    runs: list[Occurrence] = []
+    for index, line in enumerate(text.splitlines()):
+        admitted = {
+            match.span()
+            for match in _TOKEN.finditer(line)
+            if _HAS_DIGIT.search(match.group(0)) and _HAS_LETTER.search(match.group(0))
+        }
+        runs += [
+            Occurrence(path, index + 1, match.group(0), None)
+            for match in _ANY_RUN.finditer(line)
+            if match.span() not in admitted
+        ]
+    return runs
+
+
+def _resolve_many(repo: Path, tokens: Sequence[str]) -> dict[str, str | None]:
+    """Resolve many runs to commits in ONE ``git cat-file --batch-check`` call.
+
+    ``<run>^{commit}`` is the same question ``rev-parse --verify`` answers; a
+    batch keeps thousands of decimal runs from costing thousands of processes.
+    Upper-case runs are asked in lower case, which names the same object.
+    """
+    if not tokens:
+        return {}
+    data = "".join(f"{token.lower()}^{{commit}}\n" for token in tokens).encode("ascii")
+    done = _git(repo, ["cat-file", "--batch-check"], data)
+    if done.returncode != 0:
+        raise GateError(f"git cat-file exited {done.returncode}")
+    answers = done.stdout.decode("ascii", errors="replace").splitlines()
+    if len(answers) != len(tokens):
+        raise GateError("git cat-file answered a different number of lines")
+    resolved: dict[str, str | None] = {}
+    for token, answer in zip(tokens, answers, strict=True):
+        fields = answer.split()
+        resolved[token] = fields[0] if fields[1:2] == ["commit"] else None
+    return resolved
+
+
 class GateError(Exception):
     """The gate could not run. The reason is fixed text, never a value."""
 
@@ -394,6 +460,9 @@ class SweepReport:
             with its state - ``unpublished``, ``rewritten-away`` or
             ``never-resolved``.
         overreach: Each EXCLUDED occurrence whose token IS a published commit.
+        not_admitted: Every hex run the inclusion rule does not admit.
+        not_admitted_unpublished: Each of those that names an EXISTING commit
+            that is not published - red, like an unresolved citation.
     """
 
     files: int
@@ -404,6 +473,8 @@ class SweepReport:
     allowlist: Mapping[str, str]
     unresolved: list[tuple[Occurrence, str]] = field(default_factory=list)
     overreach: list[Occurrence] = field(default_factory=list)
+    not_admitted: list[Occurrence] = field(default_factory=list)
+    not_admitted_unpublished: list[Occurrence] = field(default_factory=list)
 
     @property
     def admitted(self) -> list[Occurrence]:
@@ -420,7 +491,8 @@ class SweepReport:
         """Exit 2 when nothing can be judged, 1 on a failure, else 0."""
         if self.shallow or not self.published_refs or not self.admitted:
             return EXIT_COULD_NOT_JUDGE
-        return EXIT_UNRESOLVED if self.unresolved or self.overreach else EXIT_CLEAN
+        failed = self.unresolved or self.overreach or self.not_admitted_unpublished
+        return EXIT_UNRESOLVED if failed else EXIT_CLEAN
 
 
 def _state(report: SweepReport, token: str, commit: str | None) -> str:
@@ -450,15 +522,24 @@ def sweep(repo: Path, allowlist: Mapping[str, str] | None = None) -> SweepReport
     listed = _git_out(repo, ["ls-files", "-z", "--", *DOC_PATHSPECS]).decode("utf-8")
     paths = sorted(name for name in listed.split("\0") if name)
     occurrences: list[Occurrence] = []
+    not_admitted: list[Occurrence] = []
     for name in paths:
         target = repo / name
         if target.is_file():
             text = target.read_text(encoding="utf-8", errors="replace")
             occurrences += scan_text(text, name, table)
+            not_admitted += scan_not_admitted(text, name)
     ref_count, published = (0, set()) if shallow else _published(repo)
     report = SweepReport(len(paths), occurrences, shallow, ref_count, _commit_map(repo), table)
+    report.not_admitted = not_admitted
     if shallow or not ref_count:
         return report
+    runs = _resolve_many(repo, sorted({entry.token for entry in not_admitted}))
+    report.not_admitted_unpublished = [
+        entry
+        for entry in not_admitted
+        if (commit := runs[entry.token]) is not None and commit not in published
+    ]
     commits = {token: commit_of(repo, token) for token in sorted({e.token for e in occurrences})}
     for entry in occurrences:
         commit = commits[entry.token]
@@ -479,6 +560,8 @@ def render(report: SweepReport) -> list[str]:
         f"{len(report.occurrences)}; admitted {len(admitted)} "
         f"({len({entry.token for entry in admitted})} distinct); "
         f"unresolved {len(report.unresolved)}; overreach {len(report.overreach)}",
+        f"not-admitted runs {len(report.not_admitted)} resolved too; naming an unpublished "
+        f"commit {len(report.not_admitted_unpublished)}",
         f"allowlist rows {len(report.allowlist)}; unused {len(report.unused)} - exact tokens "
         "only, never a shape",
     ]
@@ -522,13 +605,18 @@ def render(report: SweepReport) -> list[str]:
         f"overreach {entry.rule} {entry.path}:{entry.line} {entry.token} is a published commit"
         for entry in report.overreach
     ]
+    out += [
+        f"unpublished-not-admitted {entry.path}:{entry.line} {entry.token} names an "
+        "existing commit that is not published"
+        for entry in report.not_admitted_unpublished
+    ]
     verdict = report.verdict()
     if verdict == EXIT_CLEAN:
         out.append("sha_citation_gate: PASS - every admitted citation is a published commit")
     elif verdict == EXIT_UNRESOLVED:
         out.append(
-            "sha_citation_gate: FAIL - a citation is not a published commit, "
-            "or an allowlisted token is one"
+            "sha_citation_gate: FAIL - a citation is not a published commit, an "
+            "allowlisted token is one, or a not-admitted run names an unpublished commit"
         )
     else:
         if report.shallow:
