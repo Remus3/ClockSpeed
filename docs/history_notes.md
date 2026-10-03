@@ -10526,7 +10526,7 @@ Relocated 2026-08-22 (session 29) because a fourth session entry landed and that
 
 - **Next action: GRADE ROUND NINE, on both lenses at once.** Its base is `6f7aa3b` plus round
   eight's two files, NOT HEAD - assert `git hash-object tests/save/reach_guard.py` is
-  `9c16958af3168e19005ab1c257b529f399d2fdfa` before measuring anything. The false-flag lens
+  blob `9c16958af3168e19005ab1c257b529f399d2fdfa` before measuring anything. The false-flag lens
   owns the six-row table above; the control lens owns battery size, the ceiling constant, the
   standing claim and the seed rule. If round nine comes back clean, CS-492 closes on its
   acceptance; if it does not, the open question is no longer which spelling escaped but
