@@ -2,14 +2,17 @@
 
 WHAT THIS GRADES. ``tools/sha_citation_gate.py`` resolves every sha-shaped
 citation with ``git rev-parse --verify -q <sha>^{commit}`` and counts it only
-when the commit is reachable from ``refs/remotes/origin/main`` or a tag. Its
+when the commit is reachable from ``HEAD``, ``refs/remotes/origin/main`` or a
+tag. Its
 exclusions are an ALLOWLIST of exact tokens; no shape excludes anything. Arms:
 
 * THE PLANT ARMS run in a throwaway repository holding a byte-copy of a guarded
   doc, with its one commit published as ``refs/remotes/origin/main``: an absent
-  sha is refused by name, a commit on a local or remote SIDE branch is refused
-  as ``unpublished``, and the published commit (short and full) or a tagged one
-  passes - so the gate is not merely refusing every hex run. Every planted
+  sha is refused by name, a commit on a local or remote SIDE branch that HEAD
+  cannot reach is refused as ``unpublished``, and the published commit (short
+  and full), a tagged one, or an ancestor of HEAD that origin/main has not
+  reached yet - the pre-push case - passes, so the gate is not merely refusing
+  every hex run. Every planted
   prefix is CONSTRUCTED to carry a digit and a letter, so no arm depends on the
   luck of a random sha.
 * THE ESCAPE ARMS: every shape an adversary walked an unresolvable sha through
@@ -21,12 +24,13 @@ exclusions are an ALLOWLIST of exact tokens; no shape excludes anything. Arms:
 * THE TABLE ARMS: the closed class set, one stated reason per row, no
   duplicates, every row sha-shaped, and an exact-token match only.
 * THE EMPTY ARMS: a sweep that admits nothing, and a repository with no
-  published ref, exit "could not judge", never 0.
+  origin/main and no tag, exit "could not judge", never 0.
 * THE REPORT ARMS: the inclusion rule, every class with its count, the table
   size, unused rows and the filter-repo discriminator are printed every run.
 * THE SHALLOW ARM: a shallow clone cannot judge, so it says so and exits 2.
 * THE LIVE ARM runs the gate over this tree and FAILS - never skips - when the
-  tree is shallow or has no published ref, and fails on an unused table row.
+  tree is shallow or has no origin/main and no tag, and fails on an unused
+  table row.
   CI runs this module only in the full-history save shard of
   ``.github/workflows/tier1.yml``.
 """
@@ -226,7 +230,7 @@ def test_an_unresolvable_sha_in_a_guarded_doc_is_refused_by_name(repo: Repo) -> 
 
 @pytest.mark.parametrize("ref", ["refs/heads/local-only", "refs/remotes/origin/side"])
 def test_an_unpublished_commit_is_refused(repo: Repo, ref: str) -> None:
-    """A commit on a local branch or a remote SIDE branch resolves here and is refused."""
+    """A side-branch commit HEAD cannot reach resolves here and is still refused."""
     tree = repo.git("write-tree")
     side = repo.git("commit-tree", tree, "-p", "HEAD", "-m", "not on main")
     repo.git("update-ref", ref, side)
@@ -235,6 +239,17 @@ def test_an_unpublished_commit_is_refused(repo: Repo, ref: str) -> None:
     done = cli(repo)
     assert done.returncode == gate.EXIT_UNRESOLVED, done.stdout + done.stderr
     assert f"{token} unpublished" in done.stdout
+
+
+def test_an_ancestor_of_head_not_yet_on_origin_main_passes(repo: Repo) -> None:
+    """The pre-push case: a commit of the batch being pushed is published by that push."""
+    repo.git("commit", "-q", "--allow-empty", "-m", "earlier in the batch")
+    batch = repo.git("rev-parse", "HEAD")
+    assert batch != repo.git("rev-parse", "refs/remotes/origin/main")
+    repo.git("commit", "-q", "--allow-empty", "-m", "the tip being judged")
+    plant(repo, f"Landed as commit `{mixed(batch, 9)}` earlier in this batch.")
+    done = cli(repo)
+    assert done.returncode == gate.EXIT_CLEAN, done.stdout + done.stderr
 
 
 def test_a_tagged_commit_is_published(repo: Repo) -> None:
@@ -413,7 +428,7 @@ def test_an_empty_sweep_is_never_a_pass(repo: Repo) -> None:
 
 
 def test_no_published_ref_cannot_judge(tmp_path: Path) -> None:
-    """With no origin/main and no tag, nothing counts as published."""
+    """With no origin/main and no tag the gate refuses to judge, HEAD notwithstanding."""
     made = _make(tmp_path, GUARDED_DOC, publish=False)
     plant(made, f"Landed as `{made.git('rev-parse', 'HEAD')}`.")
     done = cli(made)
@@ -486,7 +501,7 @@ def test_this_tree_cites_only_published_commits() -> None:
     """The gate passes on this tree - and a tree it cannot judge FAILS here, never skips.
 
     CI runs this module only in the full-history save shard, so a shallow
-    checkout or a checkout with no published ref there is a broken premise,
+    checkout or a checkout with no origin/main and no tag there is a broken premise,
     reported as red rather than as a skip that reads like a pass.
     """
     report = gate.sweep(REPO_ROOT)

@@ -11,10 +11,14 @@ on every run, and it states what it does NOT admit and why.
 
 THE RESOLVER. Each distinct sha-shaped token is resolved with ``git rev-parse
 --verify -q <token>^{commit}``, and the commit it names counts ONLY when it is
-reachable from a PUBLISHED ref - ``refs/remotes/origin/main`` or a tag, and
-nothing else. An object that lives only on a local branch, in a worktree, in
-the reflog or on a side branch of the remote resolves today and dies the day
-that branch is deleted, so it is reported ``unpublished`` and FAILS. An
+PUBLISHED - reachable from ``HEAD``, from ``refs/remotes/origin/main`` or from
+a tag, and nothing else. ``HEAD`` counts because it is the commit whose tree is
+being judged: everything reachable from it ships with it, so a note citing an
+earlier commit of the same push batch passes the pre-push run that precedes
+the push. An object that lives only on a local side branch, in a worktree, in
+the reflog or on a side branch of the remote is not reachable from any of the
+three, resolves today and dies the day that branch is deleted, so it is
+reported ``unpublished`` and FAILS. An
 ambiguous short sha does not resolve either - a citation two commits answer is
 no citation.
 
@@ -35,9 +39,9 @@ rows no doc carries any more (``allowlist-unused``), so the table cannot rot
 into a set of standing exemptions nobody can see.
 
 AN EMPTY RESULT IS NEVER A PASS ON ITS OWN. Exit 0 needs a full-history
-repository with at least one published ref AND at least one admitted citation,
-every one published, and no overreach. A shallow clone, a repository with no
-published ref, a missing git, or a sweep that admitted nothing exits 2,
+repository carrying ``refs/remotes/origin/main`` or a tag AND at least one
+admitted citation, every one published, and no overreach. A shallow clone, a
+repository with neither ref, a missing git, or a sweep that admitted nothing exits 2,
 "could not judge", because each of those reads exactly like a clean sweep.
 
 THE DISCRIMINATOR. A sha that history rewriting removed and a sha that never
@@ -56,7 +60,7 @@ CLI::
     exit 1   an admitted citation is not a published commit, or an allowlisted
              token is one (overreach)
     exit 2   could not judge - no git, not a repository, a shallow clone, no
-             published ref, or a sweep that admitted nothing
+             origin/main and no tag, or a sweep that admitted nothing
 
 stdout prints only repository-relative paths, line numbers and the tokens
 themselves - never a doc line's text, and never an environment value.
@@ -92,8 +96,10 @@ GIT_TIMEOUT: Final = 120
 #: The tracked files the sweep reads, as git pathspecs.
 DOC_PATHSPECS: Final = ("*.md", "*.txt")
 
-#: The refs whose history counts as published: the remote's main line and every
-#: tag. A side branch, even a pushed one, can be deleted - and its citations with it.
+#: The refs whose history counts as published, beside ``HEAD`` itself: the
+#: remote's main line and every tag. A side branch, even a pushed one, can be
+#: deleted - and its citations with it. At least one of these must exist, or the
+#: gate cannot tell a published tree from a private one and refuses to judge.
 PUBLISHED_REFS: Final = ("refs/remotes/origin/main", "refs/tags")
 
 INCLUSION_RULE: Final = (
@@ -351,7 +357,8 @@ def _published(repo: Path) -> tuple[int, set[str]]:
     refs = _git_out(repo, ["for-each-ref", "--format=%(refname)", *PUBLISHED_REFS]).split()
     if not refs:
         return 0, set()
-    done = _git(repo, ["rev-list", "--stdin"], b"".join(ref + b"\n" for ref in refs))
+    roots = [b"HEAD", *refs]
+    done = _git(repo, ["rev-list", "--stdin"], b"".join(ref + b"\n" for ref in roots))
     if done.returncode != 0:
         raise GateError(f"git rev-list exited {done.returncode}")
     return len(refs), set(done.stdout.decode("ascii").split())
@@ -378,7 +385,8 @@ class SweepReport:
         files: How many docs were read.
         occurrences: Every sha-shaped occurrence, admitted or excluded.
         shallow: Whether the repository is a shallow clone.
-        published_refs: How many refs under :data:`PUBLISHED_REFS` exist.
+        published_refs: How many refs under :data:`PUBLISHED_REFS` exist -
+            ``HEAD`` is always a root as well, and is not counted here.
         rewritten: The OLD shas a filter-repo commit-map names, or None when
             no map is present - the discriminator is unavailable.
         allowlist: The ``token -> class`` table this run used.
@@ -431,8 +439,8 @@ def sweep(repo: Path, allowlist: Mapping[str, str] | None = None) -> SweepReport
         allowlist: ``token -> class``; the shipped table when None.
 
     Returns:
-        The report. On a shallow clone, or with no published ref, nothing is
-        resolved - nothing can be judged.
+        The report. On a shallow clone, or with neither origin/main nor a
+        tag, nothing is resolved - nothing can be judged.
 
     Raises:
         GateError: When git cannot be run or ``repo`` is not a repository.
@@ -492,7 +500,8 @@ def render(report: SweepReport) -> list[str]:
     else:
         out.append(
             "resolver full - git rev-parse --verify -q <sha>^{commit}, counted only when "
-            f"reachable from refs/remotes/origin/main or a tag ({report.published_refs} refs)"
+            "reachable from HEAD, refs/remotes/origin/main or a tag "
+            f"({report.published_refs} refs beside HEAD)"
         )
     out.append(
         "discriminator filter-repo commit-map: ABSENT - a sha rewritten away and one that "
@@ -525,7 +534,7 @@ def render(report: SweepReport) -> list[str]:
         if report.shallow:
             reason = "a shallow clone"
         elif not report.published_refs:
-            reason = "no published ref"
+            reason = "no origin/main and no tag"
         else:
             reason = "the sweep admitted nothing"
         out.append(f"sha_citation_gate: COULD NOT JUDGE - {reason}, which is not a pass")
