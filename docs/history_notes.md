@@ -14718,6 +14718,16 @@ says nothing. The bytecode half is live too: `.gitignore` excludes `__pycache__/
 porcelain-based witness reports a clean tree while a stale or swapped `.pyc` sits on disk
 and is what the interpreter loads.
 
+## Session 117 - ARCHIVED 2026-10-03, pruned from WAKEUP_NOTES.md in session 120
+## Session 117 - 2026-09-26 - CS-1207 driven through twelve repair rounds on a branch, halted unmerged after three safety-classifier stops
+
+- Shipped: nothing closed. Filed CS-1216 (slots torn-write docstring claim), CS-1217 (gate's `python -m ruff` fallback runs a staged `ruff.py`, reproduced end to end), CS-1218 (a ruff config the gate cannot load reports PASS with lint unrun); backlog line for the Ubuntu 26 runner re-measure from 2026-10-19. Inbox triaged (103 unread, NOT acknowledged); five hazards checked against the tree - four not live, one filed as CS-1216.
+- In flight: CS-1207 rounds 4-16 sit UNMERGED on branch worktree-agent-ace624231ac7fd814 at its round-15 tip (worktree .claude/worktrees/agent-ace624231ac7fd814): class closures for format walks, builtins as values, match patterns, repo-module reach, git program-running flags, command callables as values, keyword and character allowlists, no data-flow following, exact permissions, closure pins over each reviewed module's import closure, read-only repo modules, immutable module values, a derived scan set with a measured import control, hook-command grading, plugin loads as import edges, carrier byte pins. Round 16 refuted it: pytest discovers a `pytest.ini` inside the `tests/` directory and a root `.pytest.ini`, neither pinned. The module reads ~145s locally and lives in the over-budget guard shard.
+- Decisions: CS-1207 is halted, not abandoned - the round-17 repair brief and two adversary turns were stopped by a safety classifier, so the loop waits for an operator ruling (run round 17 interactively, or declare pytest config discovery out of scope; and whether to land the branch LANDED-NOT-CLOSED with the module moved to the fill shard). No ADR.
+- Surprises: the /done push tip 61bce0b went RED on the guard shard at 480.19s against the 480s ceiling with 2228 passed - docs-only changes, so CS-1214 has now breached the ceiling on a slow runner. Every round on the static env scan found a new class; the loop did not converge in twelve rounds.
+- Failed paths: re-dispatching an adversary after a classifier stop (it declined, correctly). Modelling shell as the sole guard over hook carriers (round 14: eight live escapes) - replaced by carrier byte pins.
+- Next action: fix the red guard shard (CS-1214) - move files to the fill shard, never raise 420/480 - then read the operator's ruling on CS-1207.
+
 ## Session 116 - ARCHIVED 2026-10-02, pruned from WAKEUP_NOTES.md in session 119
 ## Session 116 - 2026-09-26 - CI back to green, three withheld-path and timing items closed, a fifth tier-1 job, and the env scan inverted but not closed
 

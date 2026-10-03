@@ -1,98 +1,105 @@
 CLOCKSPEED - NEXT SESSION CONTINUATION PROMPT
-Written at the end of session 119, 2026-10-03. Paste this whole file into a cold session.
+Written at the end of session 120, 2026-10-03. The operator starts with "continue".
 
 ================================================================================
 READ THESE FIRST, IN THIS ORDER
 ================================================================================
 
-  CLAUDE.md                 rules, frozen list, settled decisions, topology.
-                            SECTION 2.3.1 IS NEW - caveman-ultra is the default and
-                            the session checklist is the status format.
+  CLAUDE.md                 rules, frozen list, settled decisions, topology
   memory/MEMORY.md          durable cross-session facts
   ROADMAP.md                open work only - the Phase 7 heading is the focus
-  WAKEUP_NOTES.md           sessions 118, 117, 116 at full fidelity
+  WAKEUP_NOTES.md           sessions 120, 119, 118 at full fidelity
   docs/ARCHITECTURE.md      module map, data flow, seams
   docs/item_notes/phase7.md every open Phase 7 item and its acceptance
   docs/GATED.md             CS-G03 (the flip gate) and CS-G08 (never-seen machine)
 
-Then run:  python tools/inbox_watch.py
-157 UNREAD. Session 118 read the whole backlog and did NOT acknowledge it. The
-listing never acknowledges; acking is a separate deliberate act.
+Then run:  python tools/inbox_watch.py   (listing never acknowledges)
 
 ================================================================================
 STATE OF THE TREE
 ================================================================================
 
-HEAD / remote   the session-119 /done commit. Confirm `git rev-parse HEAD` equals
-                `git ls-remote origin main` - A BLOCKED PUSH REPORTS EXIT 0. Read
-                the push log and confirm the remote actually moved.
-CI              read the run at the /done tip. NEW THIS SESSION: the save shard now
-                also runs tests/test_sha_citation_gate.py (about 17s of module wall
-                on one xdist worker). The save shard was already the tightest tier-1
-                job at 407s of 420; it read about 379s on the first run carrying the
-                module (run 37088133975, green). If it breaches, that is CS-1197's to fix - never
-                raise the pin.
+HEAD / remote   the session-120 /done commit. Confirm `git rev-parse HEAD` equals
+                `git ls-remote origin main` - A BLOCKED PUSH REPORTS EXIT 0. Read the
+                push log; this session's pushes were blocked three times (a hook-timing
+                test on a loaded box, an env-rendering assert, a ledger placement).
+CI              read tier1 at the /done tip. TIER2 HAS NOT RUN ON THE SHARDED WORKFLOW.
 working tree    CLEAN at the /done commit.
 HISTORY IS LINEAR ON PURPOSE. Land slices by cherry-pick, never by merge (CS-1196).
-CS-1207 branch  worktree-agent-ace624231ac7fd814 (round-15 tip), worktree
-                .claude/worktrees/agent-ace624231ac7fd814 - rounds 4-16, UNMERGED,
-                clean, UNTOUCHED by sessions 118-119. DO NOT PRUNE IT. Older stale
-                trees remain; classify by CONTENT.
-backup tag      session118-premerge-backup DELETED in session 119 after git cherry
-                showed every commit patch-equivalent on main.
+UNMERGED BRANCHES - DO NOT PRUNE:
+  CS-1231 slice A and slice B: find with `git log --all --oneline --grep CS-1231`
+    (the two commits not on main). Held at the licence gate, see below.
+  CS-1207 branch worktree-agent-ace624231ac7fd814 (round-15 tip), rounds 4-16,
+    untouched since session 117. Classify any other stale tree by CONTENT.
+LOCAL CONFIG    config/main_tree.local.json (gitignored) names MAIN's root; four real
+                MAIN notes verified through tools/main_provenance.py.
+RESPONDER       STILL PAUSED by ops/loop/control/lanes/INBOX_STOP (gitignored). Delete
+                it to resume CS-InboxResponder. It now CAN verify MAIN directives
+                (CS-1227). A session working in the main tree while it is live risks
+                two writers - pause it first.
 
 ================================================================================
-CLOSED IN SESSION 119
+CLOSED IN SESSION 120 (detail in docs/LEDGER.md)
 ================================================================================
 
-CS-1222  tools/sha_citation_gate.py - every commit sha an authored doc cites must be
-         PUBLISHED (reachable from HEAD, origin/main or a tag). Exact-token allowlist
-         for non-commits, never shape exclusions. Four adversary refutations repaired.
-CS-1220  measurement readings carry a `tree` witness; unwitnessed pairs are never
-         `comparable`.
-CS-1219  tools/freeze_witness.py - freeze/check over raw on-disk bytes, on-disk name
-         spelling and __pycache__ .pyc. Acceptance AMENDED from "tree object" to a
-         raw content digest (a tree object is blind to a CRLF flip) - in the ledger.
+CS-1227  one function runs the MAIN provenance check from gitignored config.
+CS-1223  measurement seed escape pinned by row; local clean needs a checkable witness.
+CS-1224  sha citation gate grades code files, every 5-6 run, and every encoding.
 
-CS-1225  every headless claude spawn routes through the operator's local proxy:
-         ops/loop/headless_route.py, fail closed, whole-string loopback:3456
-         allowlist, the user env store is the kill switch. PROVEN once against
-         the proxy's activity log.
-CS-1226  ops/loop/inbox_responder.py + tools/headless-inbox.md, scheduled task
-         CS-InboxResponder every 15 min; inbox_watch --ack-keys acks only the
-         keys a pass handled.
-OPERATOR GRANT: MAIN SPEAKS FOR THE OPERATOR - CLAUDE.md section 6.1, ledger
-         CS-1225 entry. Report sent to MAIN (note 2330).
-PLUGIN POLL, all six answered, reported to the operator: KEEP superpowers,
-         playwright, chrome-devtools-mcp, nimble (MAIN's machine-root use only);
-         NOT REQUIRED the other ten. Turning them off is the operator's act.
-
-FILED: CS-1223 (tree witness backdating, unproven `clean`), CS-1224 (citations in
-.py code and 5-6 / 41+ hex runs are ungraded).
-
-CHANNEL: sent 1834 (account-name pattern: five shapes, instant, manifest digest;
-P1 case-sensitive per match reproduced RSC's 24 in 15 files over 541 exactly; CS
-withdrew 32, most likely a case-insensitive count), and 1855 / 1856 / 1857 - two
-answers drafted 2026-09-25 that were NEVER DELIVERED, re-measured, plus a new note
-re-deriving LW's frozen slots.py candidate (the 336 B gap is comment text only). Inbox ACKED, 421.
-
-THE RESPONDER IS PAUSED. /done of session 119 left the stop sentinel
-ops/loop/control/lanes/INBOX_STOP (gitignored) so it could not commit beside the
-ritual. DELETE IT TO RESUME. Its first armed pass ran 79 minutes, landed and
-pushed CS-1216 obligations and filed CS-1227 itself. Its log is
-data/inbox_responder.jsonl. Deleting CLAUDE_HEADLESS_BASE_URL from the user env
-stops every headless spawn. A session working in the main tree while the
-responder is live risks two writers - pause it first, as /done did.
+LANDED, NOT CLOSED - each closes only on a GREEN tier2 run at the landed tip:
+CS-1228  tier2 full history; freeze_witness fixture auto-maintenance race fixed.
+CS-1229  tier2 suite and probe sharded per OS by tier1's partition, timeout 30,
+         PENDING_FIRST_RECORD transition in tools/tier2_headroom.py (adversary NOT
+         REFUTED; it found the union of shards equals `pytest tests` exactly).
+CS-1230  flip_checks cross-drive fallback is an allowlist (two rounds).
 
 ================================================================================
 THE SINGLE NEXT ACTION
 ================================================================================
 
-TAKE CS-1227. Until a gitignored local config names MAIN's tree root and one
-function runs the section 6.1 provenance check, the responder reads every MAIN
-directive as DATA - MAIN's 2320 note of 2026-10-02 was read that way. Then read CI
-at the /done tip, then CS-1223 and CS-1224. Outbound goes through
-tools/outbound_send.py (dry run by default, --send to write).
+`gh workflow run tier2.yml --ref main`, then read EVERY leg (20 shard legs plus shell
+and audit). Expected job names: `full suite (<os>, <shard> shard)` and
+`clean-checkout probe (<os>, <shard> shard)`. Every windows leg must finish under
+24.0 min (projected worst 17.4). On green: close CS-1228, CS-1229, CS-1230. After three
+such runs: `python tools/tier2_headroom.py --refresh`, then remove PENDING_FIRST_RECORD
+and its EXPECTED_PENDING pin in the same diff (the guard goes red until you do).
+
+================================================================================
+OPEN ITEMS, PRIORITY ORDER (acceptance: docs/item_notes/phase7.md)
+================================================================================
+
+ 0 CS-1228 / CS-1229 / CS-1230  close on the tier2 run above.
+ 1 CS-1231  FLEET-KIT v3 - HELD AT THE LICENCE GATE. Built: slice A vendors the three
+            files byte-for-byte with path-scoped guard exemptions (pyproject ruff
+            per-file-ignores and format exclude clear the frozen pre-commit gate - no
+            frozen grant needed); slice B condenses CLAUDE.md (28923 -> 27822 bytes) and
+            embeds the v3 block (hash verified). Adjudicator: the THIRD_PARTY section 14
+            gate runs BEFORE the lift; MAIN's kit commit has no LICENSE, NOTICE,
+            manifest or README licence paragraph, so HOLD. Reply sent to MAIN asking for
+            v4 with a licence and naming three gaps (verify_main is working-tree only;
+            claude_exe uses shutil.which; check_url admits any loopback port). ON A
+            LICENSED v4: re-vendor v4 files, re-embed, add three CLEARED THIRD_PARTY
+            rows (gate dated before the lift), stamp provenance as CS-1231 (vendored
+            class for the kit), land A then B by cherry-pick, then slice C: route
+            ops/loop/inbox_responder.py and lane_launcher.py through the kit's spawn
+            (bare=no; floors live in hooks), keep tools/main_provenance.py. Slice B
+            note: FLEET-COMMON item 5 wants every do-not-re-litigate entry to state what
+            would reverse it; only the Dedicated Server entry does.
+ 2 CS-1207  env scan allowlist - HALTED, ruling owed (below).
+ 3 CS-1196  the provenance walk miscounts first-adds across a merge commit (measured).
+ 4 CS-1217  the gate's `python -m ruff` fallback runs a staged ruff.py (frozen).
+ 5 CS-1218  a ruff config the gate cannot load reports PASS, lint unrun (frozen).
+ 6 CS-1208  value flow to print/log/report/exception sinks; depends on CS-1207.
+ 7 CS-1204  /api/health still waits on the first full save parse.
+ 8 CS-1205  pre-push does not scrub PYTEST_ADDOPTS (frozen - needs a grant).
+ 9 CS-1206  tests can print an environment value outside an assert.
+10 CS-1215  the gate run by hand echoes git stderr, home path included (frozen).
+11 CS-1216  slots release fallback docstring claims a torn write reads stale.
+12 CS-1197  the save shard is the tightest tier-1 job; it owns its growth.
+13 CS-1211, CS-1212, CS-1213, CS-1202, CS-1194.
+14 CS-1032, CS-701, CS-953, CS-1186 (no-game half GATED under CS-G08).
+15 CS-700   the flip, S0-S12, LAST. S9 onward needs the operator's own-words
+            confirmation. CS-704's census baseline c6f3687 MUST be re-pinned after S7a.
 
 ================================================================================
 OPERATOR RULINGS OWED - RECORD IF VOLUNTEERED, NEVER ASK
@@ -100,114 +107,77 @@ OPERATOR RULINGS OWED - RECORD IF VOLUNTEERED, NEVER ASK
 
 CS-1207  the repair loop is HALTED. A safety classifier stopped two adversary turns
          and the round-17 repair brief. Do NOT re-dispatch an escape hunt to route
-         around those stops. Owed: (a) run round 17 (pytest config discovery -
-         tests/pytest.ini and a root .pytest.ini are neither pinned nor graded)
-         interactively, or declare it out of scope; (b) land that branch
-         LANDED-NOT-CLOSED with tests/test_hook_env_echo.py moved from the guard
-         shard to the fill shard. NOTE: that move is now LESS urgent - the guard
-         shard reads 238s, so the module no longer deepens a breach.
+         around those stops. Owed: (a) run round 17 interactively or declare it out of
+         scope; (b) land that branch LANDED-NOT-CLOSED with tests/test_hook_env_echo.py
+         moved from the guard shard to the fill shard.
 CS-815   does the desktop app SHOW the "REFUSED (CS-815)" hook-error line?
 
 ================================================================================
-OPEN PHASE 7 ITEMS, PRIORITY ORDER (acceptance: docs/item_notes/phase7.md)
+DECISIONS - DO NOT RE-LITIGATE (each with what would reverse it)
 ================================================================================
 
- 0 CS-1227  MAIN provenance resolver - the responder cannot honour MAIN without it.
- 1 CS-1207  env scan allowlist - halted, ruling owed (above).
- 2 CS-1223  measurement tree witness can be backdated; local `clean` is unproven.
- 3 CS-1224  commit citations in .py code and 5-6 / 41+ hex runs are ungraded.
- 5 CS-1196  the provenance walk miscounts first-adds across a merge commit. Now
-            MEASURED - see the fence below.
- 6 CS-1217  the gate's `python -m ruff` fallback runs a staged ruff.py (frozen).
- 7 CS-1218  a ruff config the gate cannot load reports PASS, lint unrun (frozen).
- 8 CS-1208  value flow to print/log/report/exception sinks; depends on CS-1207's
-            permitted-site table; its driven module runs in the FILL shard.
- 9 CS-1204  /api/health still waits on the first full save parse.
-10 CS-1205  pre-push does not scrub PYTEST_ADDOPTS (frozen - needs a grant).
-11 CS-1206  tests can print an environment value outside an assert.
-12 CS-1215  the gate run by hand echoes git stderr, home path included (frozen).
-13 CS-1216  slots release fallback docstring claims a torn write reads stale.
-14 CS-1197  THE SAVE SHARD IS NOW THE TIGHTEST TIER-1 JOB at 407s. Whatever
-            breaches next breaches there, and this item owns its growth.
-15 CS-1211, CS-1212, CS-1213, CS-1202, CS-1194.
-16 CS-1032, CS-701, CS-953, CS-1186 (no-game half GATED under CS-G08).
-17 CS-700   the flip, S0-S12, LAST. S9 onward needs the operator's own-words
-            confirmation. CS-704's census baseline c6f3687 MUST be re-pinned
-            after S7a.
-
-================================================================================
-DECISIONS - DO NOT RE-LITIGATE
-================================================================================
-
-DO NOT LAND A SLICE BY MERGE COMMIT. Use cherry-pick or fast-forward, as every
-  prior session did. A merge whose tree HOLDS tools/provenance.tsv without modifying
-  it makes test_no_first_add_row_postdates_the_seed red by exactly one version per
-  merge: a path limit with --parents keeps that merge, rev-list without --parents
-  omits one TREESAME to a parent. MEASURED in session 118 at every commit. Until
-  CS-1196 lands, a merge blocks the push.
-THE CS-1221 ORACLE IS DIFFERENCED, NEVER NARROWED. Do not narrow bounded_hits, do
-  not add a hyphen exception, do not drop root or admin from GENERIC_ACCOUNT_NAMES,
-  do not assert shown <= 1. An adjudicator refused the frozen-file grant to reword
-  the gate's skip prose: the defect is in the oracle, and three more printed strings
-  carry root or home, so rewording is unbounded.
-THE ENV SCAN IS AN ALLOWLIST OF PERMITTED READERS PER SITE (CS-1207). Never a list
-  of known readers.
+FLEET-KIT LANDS ONLY AFTER ITS LICENCE GATE. An operator order moves the decision, not
+  the gate. Reversed by: MAIN shipping a licensed kit (then land it), or an ADR changing
+  THIRD_PARTY.md's gate rule.
+MAIN PROVENANCE STAYS tools/main_provenance.py, never the kit's verify_main. Reversed by:
+  a kit verify_main that hashes the committed blob with --no-replace-objects and checks
+  the index.
+CS-1227 REFUSES A CRLF-ON-DISK MAIN NOTE (worktree-differs-from-commit), fail closed.
+  Reversed by: MAIN changing its outbox to a filtered checkout AND an adjudicator ruling.
+NEVER RAISE A TIER2 TIMEOUT TO FIT GROWTH - SHARD. 50 minutes failed (windows probe cut
+  at 99 percent). Reversed by: a measured per-shard wall that a ceiling honestly fits.
+DO NOT LAND A SLICE BY MERGE COMMIT (CS-1196 measured). Reversed by: CS-1196 landing.
+THE CS-1221 ORACLE IS DIFFERENCED, NEVER NARROWED. Reversed by: a new adjudicated item.
+THE ENV SCAN IS AN ALLOWLIST OF PERMITTED READERS PER SITE (CS-1207).
 PYPROJECT IS PINNED ON ITS PYTEST AND ENTRY-POINT TABLES ONLY.
 NEVER RE-DISPATCH WORK A SAFETY CLASSIFIER STOPPED. Report it to the operator.
 NEVER RAISE THE 420/480 TIER-1 PIN. A tier-1 close needs a SLOW-MODE reading.
-RULE 13 LIVES ONLY IN CLAUDE.md. AN ASSERT MUST NEVER RENDER AN ENVIRONMENT VALUE.
+RULE 13 LIVES ONLY IN CLAUDE.md. AN ASSERT MUST NEVER RENDER AN ENVIRONMENT VALUE - bind
+  to a scalar first (this session's push was blocked by exactly that).
 FROZEN-FILE EDITS: adjudicator grant in docs/LEDGER.md BEFORE the edit.
 THE PROVENANCE MANIFEST IS NEVER RE-SEEDED. PYTEST NODE IDS ARE NEVER REWRITTEN.
-NO SIBLING-TREE READS, not even read-only. Brief every agent.
-DO NOT REUSE THE CS-1214 PLAN'S MARGIN FIGURES. Its 349s makespan and 363s
-  slow-runner prediction over-predicted a measured 309s slow-mode reading. The two-worker critical-path
-  model is conservative in a direction nobody measured; treat its numbers as
-  arithmetic, never as observations.
+NO SIBLING-TREE READS beyond MAIN's outbox and git history for provenance; the one
+  licence read of MAIN's git objects this session was an adjudicated, scoped exception.
+DO NOT REUSE THE CS-1214 PLAN'S MARGIN FIGURES - arithmetic, not observations.
 
 ================================================================================
-THE CHANNEL - WHAT CS OWES AND WHAT IT JUST SENT
+THE CHANNEL
 ================================================================================
 
-SENT 2026-10-02 1030 to all six trees, gate CLEAN, recorded in
-data/outbound_deliveries.json: CS's answer to LW's joint re-pin round. CS took the
-position AMEND - drop the candidate's dead middle arm, and REFUSE
-HARD_STALE_MULTIPLE = 4.0 in favour of 2.0. The round's date is 2026-10-05.
-
-slots.hold IS NEVER CALLED IN THIS TREE. Every hold( under ops/ is winmutex.hold and
-the only reference to the slots module is tests/ops/test_shared_slots.py. So the
-16,200 s figure RSC asked for three times is a constant in a carried-but-unexecuted
-module. What CS measured instead, from 58 lane logs with 41 paired: median 3,006 s,
-max 9,056 s, zero runs at or over 16,200 s, and 15 logs with no exit line at all.
-
-DISCHARGED IN SESSION 119: the account-name pattern (note 1834) and every live
-ask a triage found from 2026-09-21 onward (1855, 1856, 1857). The triage counted 27
-asks: 18 live, 9 superseded, 0 needing the operator. Replies to those four notes are
-what to read next. Publish the instrument beside every number, as 1834 did.
+SENT 2026-10-03 12:00 to MAIN, gate CLEAN: FLEET-KIT v3 ACCEPTED, built, HELD at the
+licence gate; asks for v4 with a licence; names three gaps. Read MAIN's answer first.
+Earlier owed asks from sessions 118-119 were discharged (1834, 1855-1857, and the
+2026-10-02 joint re-pin answer: AMEND, 2.0 not 4.0; round date 2026-10-05).
+slots.hold IS NEVER CALLED IN THIS TREE (measured; carried module).
+FLEET-COMMON behaviour adopted now as this tree's own practice: quiet chat, background
+work, no inline checklists, /done prints one line, carry-forward hand-off.
 
 ================================================================================
 EXTERNAL CONDITIONS BEING WAITED ON
 ================================================================================
 
-CS-1207: the operator's ruling (above).
-CS-815: the operator's eye on the desktop app's hook-error rendering.
-CS-G08: a disposable never-seen environment - gates CS-1187 and half of CS-1186.
+MAIN: a licensed FLEET-KIT v4 (CS-1231).
+CS-1207 and CS-815: operator rulings above.
+CS-G08: a disposable never-seen environment.
 FOUR DEAD-SECRET FILES still await an operator deletion call (key already rotated).
+
+================================================================================
+SESSION 120 /done REPORT
+================================================================================
+
+Recorded in the /done commit body: the pre-push whole-suite run and its counts, the
+drift_guard, doc_budget and sha_citation_gate exit codes, and the CI status read at
+push time. Anything not observed there is UNVERIFIED.
 
 ================================================================================
 TRAPS THIS SESSION PAID FOR
 ================================================================================
 
-A push reports EXIT 0 while the pre-push hook refuses and nothing moves. Twice.
-  Always compare `git rev-parse HEAD` against `git ls-remote origin main`.
-The pre-push suite runs the WHOLE suite, about 18m30s for 12501 passed. Background it.
-A harness heredoc carrying Windows paths or apostrophes can break the shell parse -
-  write note-sized payloads with the Write tool, then normalise CRLF to LF.
-`grep -c $'\\r'` returns the TOTAL LINE COUNT on a pure-LF file. Count bytes instead.
-A worktree agent is cut from HEAD AT DISPATCH, so a commit you make after dispatching
-  it does not exist in its tree. Send it the new SHA or it reads a file that has no
-  section for the item it was briefed on.
-Linting a copy of ops/loop/slots.py outside its tracked path reports faults the
-  tracked file does not have: pyproject keys its per-file-ignores and its format
-  exclude on the path string. Use --stdin-filename with the tracked path.
-mypy has no --stdin-filename, so bytes needing a path-keyed override block cannot be
-  type-checked without writing the tracked file.
+A loaded box (several agents running pytest) fails the hook-timing test and blocks a
+  push - push only when the builders are idle.
+`python tools/outbound_send.py` writes to a gitignored outbox; delivery is recorded in
+  data/, not git.
+A worktree agent can report the wrong branch name; check `git branch --contains`.
+Branch names carrying agent ids trip the sha citation gate in docs; cite a locator
+  command instead.
+A pipe eats the pytest exit code; write to a log and read PYTEST_EXIT.
