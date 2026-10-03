@@ -589,6 +589,9 @@ GUARDED_DOCS: Final = (
     # watching. That is precisely where a rotted pointer goes unobserved - the
     # worker would follow it, find nothing, and improvise.
     "tools/headless-queue.md",
+    # The inbox responder's worker prompt (CS-1226), guarded for the same reason
+    # as the lane's: an unattended worker reads it with nobody watching.
+    "tools/headless-inbox.md",
 )
 
 # A path segment may begin with a dot - `.github/workflows/tier1.yml:250` is a
