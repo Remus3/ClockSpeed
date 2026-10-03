@@ -29,11 +29,18 @@ exclusions are an ALLOWLIST of exact tokens; no shape excludes anything. Arms:
 * THE REPORT ARMS: the inclusion rule, every class with its count, the table
   size, unused rows and the filter-repo discriminator are printed every run.
 * THE SHALLOW ARM: a shallow clone cannot judge, so it says so and exits 2.
+* THE CS-1224 ARMS: an unpublished commit abbreviation planted in a byte-copy
+  of a tracked ``.py`` file is refused, and a 5- or 6-character unpublished
+  abbreviation in a guarded doc is refused, each beside a control in which a
+  published commit passes; a 5- or 6-character run the rule does not admit,
+  and a run of 41 or more, is never silently passed - every run states each
+  width class it does not judge, with its count and the reason.
 * THE LIVE ARM runs the gate over this tree and FAILS - never skips - when the
   tree is shallow or has no origin/main and no tag, and fails on an unused
   table row.
-  CI runs this module only in the full-history save shard of
-  ``.github/workflows/tier1.yml``.
+  CI runs this module in the full-history save shard of
+  ``.github/workflows/tier1.yml`` and, since CS-1228, in the full-history
+  suite and clean-checkout probe jobs of ``.github/workflows/tier2.yml``.
 """
 
 from __future__ import annotations
@@ -57,6 +64,9 @@ GATE_SOURCE: Final = REPO_ROOT / "tools" / "sha_citation_gate.py"
 #: The guarded doc a throwaway repository carries a byte-copy of. It carries no
 #: sha-shaped token of its own - the empty arm asserts that rather than trusting it.
 GUARDED_DOC: Final = "CLAUDE.md"
+
+#: A tracked code file a throwaway repository carries a byte-copy of - CS-1224.
+CODE_FILE: Final = "tools/toolpath.py"
 
 #: The ledger, whose copy carries the ``path at <sha>`` plant.
 LEDGER_DOC: Final = "docs/LEDGER.md"
@@ -558,6 +568,126 @@ def test_a_shallow_clone_cannot_judge(repo: Repo, tmp_path: Path) -> None:
     assert "resolver SHALLOW" in done.stdout
 
 
+# --- the CS-1224 arms: code files, short and over-long widths -------------------
+
+
+def commit_where(repo: Repo, ok: Callable[[str], bool], ref: str) -> str:
+    """A commit off HEAD whose sha satisfies ``ok``, pointed at by ``ref``."""
+    tree = repo.git("write-tree")
+    for attempt in range(4000):
+        sha = repo.git("commit-tree", tree, "-p", "HEAD", "-m", f"cs1224 {attempt}")
+        if ok(sha):
+            repo.git("update-ref", ref, sha)
+            return sha
+    message = "no commit satisfied the predicate in 4000 attempts"
+    raise AssertionError(message)
+
+
+def _carries_both(text: str) -> bool:
+    return any(c.isdigit() for c in text) and any(c.isalpha() for c in text)
+
+
+@pytest.fixture
+def code_repo(tmp_path: Path) -> Repo:
+    """A published repository tracking the guarded doc and a byte-copy of a tracked .py."""
+    made = _make(tmp_path, GUARDED_DOC, CODE_FILE)
+    plant(made, f"Landed as `{made.git('rev-parse', 'HEAD')}`.")
+    return made
+
+
+def _not_judged(stdout: str, name: str) -> int:
+    """The count a run printed for the not-judged width class ``name``."""
+    for line in stdout.splitlines():
+        fields = line.split()
+        if fields[:2] == ["not-judged", name]:
+            return int(fields[2])
+    message = f"no not-judged line for {name}"
+    raise AssertionError(message)
+
+
+def test_an_unpublished_commit_cited_in_a_tracked_py_file_is_refused(code_repo: Repo) -> None:
+    """A side-branch abbreviation in a .py copy turns the gate red and is named by line."""
+    side = commit_where(code_repo, lambda sha: _carries_both(sha[:7]), "refs/heads/side")
+    line = plant(code_repo, f"# RED at {side[:7]}: the push landed.", CODE_FILE)
+    done = cli(code_repo)
+    assert done.returncode == gate.EXIT_UNRESOLVED, done.stdout + done.stderr
+    assert f"unpublished-not-admitted {CODE_FILE}:{line} {side[:7]} " in done.stdout
+
+
+def test_a_published_commit_cited_in_a_tracked_py_file_passes(code_repo: Repo) -> None:
+    """Control: the published commit, cited the same way in the same .py copy, passes."""
+    head = code_repo.git("rev-parse", "HEAD")
+    plant(code_repo, f"# RED at {mixed(head, 7)}: the push landed.", CODE_FILE)
+    done = cli(code_repo)
+    assert done.returncode == gate.EXIT_CLEAN, done.stdout + done.stderr
+    assert "code files 1;" in done.stdout
+
+
+@pytest.mark.parametrize("width", [5, 6])
+def test_a_short_unpublished_abbreviation_in_a_guarded_doc_is_refused(
+    code_repo: Repo, width: int
+) -> None:
+    """A 5- or 6-character abbreviation of an unpublished commit is refused."""
+    side = commit_where(code_repo, lambda sha: _carries_both(sha[:width]), "refs/heads/side")
+    token = side[:width]
+    line = plant(code_repo, f"Landed as commit `{token}` on the merge.")
+    done = cli(code_repo)
+    assert done.returncode == gate.EXIT_UNRESOLVED, done.stdout + done.stderr
+    assert f"unpublished-not-admitted {GUARDED_DOC}:{line} {token} " in done.stdout
+
+
+@pytest.mark.parametrize("width", [5, 6])
+def test_a_short_published_abbreviation_in_a_guarded_doc_passes(
+    code_repo: Repo, width: int
+) -> None:
+    """Control: a 5- or 6-character abbreviation of a TAGGED commit passes."""
+    tagged = commit_where(code_repo, lambda sha: _carries_both(sha[:width]), "refs/tags/v-short")
+    plant(code_repo, f"Landed as commit `{tagged[:width]}` on the merge.")
+    done = cli(code_repo)
+    assert done.returncode == gate.EXIT_CLEAN, done.stdout + done.stderr
+
+
+def test_a_digit_only_six_character_unpublished_run_is_stated_not_judged(
+    code_repo: Repo,
+) -> None:
+    """A digit-only 6-run is a number as often as a sha: counted as NOT JUDGED, never passed."""
+    before = _not_judged(cli(code_repo).stdout, "w5-6-not-admitted")
+    side = commit_where(code_repo, lambda sha: sha[:6].isdigit(), "refs/heads/side")
+    plant(code_repo, f"Landed as commit `{side[:6]}` on the merge.")
+    done = cli(code_repo)
+    assert done.returncode == gate.EXIT_CLEAN, done.stdout + done.stderr
+    assert _not_judged(done.stdout, "w5-6-not-admitted") == before + 1
+
+
+def test_a_run_over_forty_holding_an_unpublished_sha_is_stated_not_judged(
+    code_repo: Repo,
+) -> None:
+    """A 41-character run is no sha1 name git resolves: counted as NOT JUDGED, never passed."""
+    before = _not_judged(cli(code_repo).stdout, "w41+")
+    side = commit_where(code_repo, lambda _sha: True, "refs/heads/side")
+    plant(code_repo, f"digest {side}0 recorded", CODE_FILE)
+    done = cli(code_repo)
+    assert done.returncode == gate.EXIT_CLEAN, done.stdout + done.stderr
+    assert _not_judged(done.stdout, "w41+") == before + 1
+
+
+def test_every_run_states_each_width_class_it_does_not_judge(code_repo: Repo) -> None:
+    """Each not-judged width class is printed with its count and reason, even at zero."""
+    done = cli(code_repo)
+    assert done.returncode == gate.EXIT_CLEAN, done.stdout + done.stderr
+    assert set(gate.NOT_JUDGED) == {"w4", "w5-6-not-admitted", "w41+"}
+    for name, reason in gate.NOT_JUDGED.items():
+        assert f" - {reason}" in done.stdout, name
+        assert _not_judged(done.stdout, name) >= 0
+
+
+def test_the_inclusion_rule_states_the_code_and_short_width_rules() -> None:
+    """The published rule names the code sweep and the short and over-long widths."""
+    rule = gate.INCLUSION_RULE
+    for phrase in ("every other tracked file", "5 or 6", "41 or more", "NOT JUDGED"):
+        assert phrase in rule, phrase
+
+
 # --- the live arm -------------------------------------------------------------
 
 
@@ -577,6 +707,11 @@ def test_this_tree_cites_only_published_commits() -> None:
     overreach = [f"{e.rule} {e.path}:{e.line} {e.token}" for e in report.overreach]
     assert overreach == []
     assert report.unused == []
+    runs = [f"{e.path}:{e.line} {e.token}" for e in report.not_admitted_unpublished]
+    assert runs == []
     admitted = len(report.admitted)
     assert admitted > 0
-    assert report.verdict() == gate.EXIT_CLEAN
+    code_files = report.code_files
+    assert code_files > 0
+    verdict = report.verdict()
+    assert verdict == gate.EXIT_CLEAN

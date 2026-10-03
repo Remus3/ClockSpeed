@@ -20,6 +20,18 @@ citations in those shapes, and only a run git itself resolves is evidence of
 one. A run naming an unpublished commit the store does not hold is invisible
 here - the one blind spot, stated rather than hidden.
 
+CS-1224 WIDENS WHAT IS READ AND WHAT IS STATED. (3) Every tracked file OUTSIDE
+the doc pathspecs - code, config, data - is read too (:data:`CODE_PATHSPECS`),
+and each 7-to-40 run in it of any shape is resolved like a not-admitted doc run:
+red when it names an existing unpublished commit, silent otherwise. (4) A run
+of 5 or 6 lower-case hex characters carrying a digit and a letter, word-bounded,
+in any tracked file, is resolved the same way - git accepts an abbreviation
+that short. Every other width class git might resolve is NOT JUDGED, and each
+run prints every such class (:data:`NOT_JUDGED`) with its count and the reason,
+so an empty result there is never read as a pass. All three resolved-only
+populations share the blind spot above, and the overreach control and the
+allowlist apply to doc tokens only.
+
 THE RESOLVER. Every distinct run is asked ``<token>^{commit}`` in ONE ``git
 cat-file --batch-check`` call - the object-name resolution ``git rev-parse
 --verify -q <token>^{commit}`` performs (:func:`commit_of`, kept as the
@@ -75,8 +87,8 @@ CLI::
     exit 0   every admitted citation is a published commit, no allowlisted
              token is one, and at least one citation was admitted
     exit 1   an admitted citation is not a published commit, an allowlisted
-             token is one (overreach), or a not-admitted run names an existing
-             unpublished commit
+             token is one (overreach), or a not-admitted, code or short run
+             names an existing unpublished commit
     exit 2   could not judge - no git, not a repository, a shallow clone, no
              origin/main and no tag, or a sweep that admitted nothing
 
@@ -111,8 +123,16 @@ EXIT_COULD_NOT_JUDGE: Final = 2
 #: Seconds one git call may take.
 GIT_TIMEOUT: Final = 120
 
-#: The tracked files the sweep reads, as git pathspecs.
+#: The tracked files the sweep reads as DOCS, as git pathspecs.
 DOC_PATHSPECS: Final = ("*.md", "*.txt")
+
+#: CS-1224 - every OTHER tracked file, read as CODE: each hex run in it is
+#: resolved and red only when it names an existing unpublished commit. Measured
+#: 2026-10-03 on this tree: 395 such files carry 442 distinct 7-to-40 runs, of
+#: which 380 name no commit - fixture vectors, digests, ids - so grading code
+#: like a doc would need hundreds of allowlist rows; resolving finds the
+#: unpublished citations (two commits, five sites) without one.
+CODE_PATHSPECS: Final = (".", *(f":(exclude){spec}" for spec in DOC_PATHSPECS))
 
 #: The refs whose history counts as published, beside ``HEAD`` itself: the
 #: remote's main line and every tag. A side branch, even a pushed one, can be
@@ -130,11 +150,53 @@ INCLUSION_RULE: Final = (
     "run is a constant or an identifier and never a copied sha; and a run longer than 40, "
     "which is a sha256 and not a sha1 object name. A NOT-ADMITTED run of 7 to 40 hex "
     "characters of any case, joined to anything, is still resolved: it is red when it "
-    "names an existing commit that is not published, and silent noise otherwise"
+    "names an existing commit that is not published, and silent noise otherwise. In every "
+    "other tracked file - code, config, data - every run of 7 to 40 hex characters is "
+    "resolved the same way and is red only when it names an existing unpublished commit, "
+    "because hex literals that name nothing (test vectors, digests, ids) outnumber code "
+    "citations there. A run of 5 or 6 lower-case hex characters carrying a digit and a "
+    "letter, word-bounded, in any tracked file, is resolved the same way too. NOT JUDGED, "
+    "stated with a count on every run: a 4-character run, a 5 or 6 character run of any "
+    "other shape, and a run of 41 or more - see each not-judged line for why"
 )
+
+#: CS-1224 - the width classes the gate does NOT judge, each with the reason
+#: printed beside its count on every run, so an empty result there is never
+#: read as a pass. Measured 2026-10-03 over every tracked file of this tree,
+#: whose store held 1737 commits: 4-character runs 43984 (1079 distinct, 849
+#: all-digit), of which 28 resolve to a commit and 7 to an UNPUBLISHED one -
+#: grading them would redden the tree today on numbers alone; 5- or 6-character
+#: runs outside the judged shape 6998 (336 distinct, 227 all-digit), none a
+#: commit; runs of 41 or more 45 (30 distinct), none whose leading 40 is a
+#: commit. The judged short shape carried 49 distinct runs, none a commit.
+NOT_JUDGED: Final[dict[str, str]] = {
+    "w4": (
+        "git's shortest abbreviation, but 4 hex characters are every year, port and "
+        "4-digit count; a match against this store's commits is chance, not citation"
+    ),
+    "w5-6-not-admitted": (
+        "an all-digit, all-letter, upper-case or joined run of 5 or 6 is a number, a word "
+        "or a constant far more often than a sha, and resolving it reddens the tree by "
+        "chance as the commit count grows, with no citation to repair"
+    ),
+    "w41+": (
+        "no sha1 object name is longer than 40, so git resolves nothing here and the "
+        "answer would be vacuous; such a run is a sha256 digest or a concatenation"
+    ),
+}
 
 #: Every maximal run of hex characters, either case, joined to anything.
 _ANY_RUN: Final = re.compile(r"(?<![0-9A-Fa-f])[0-9A-Fa-f]{7,40}(?![0-9A-Fa-f])")
+
+#: CS-1224 - the judged short shape: 5 or 6 lower-case hex, word-bounded.
+_SHORT_TOKEN: Final = re.compile(r"(?<![0-9A-Za-z_])[0-9a-f]{5,6}(?![0-9A-Za-z_])")
+
+#: Each not-judged width class, as the maximal hex run that measures it.
+_NOT_JUDGED_RUNS: Final[dict[str, re.Pattern[str]]] = {
+    "w4": re.compile(r"(?<![0-9A-Fa-f])[0-9A-Fa-f]{4}(?![0-9A-Fa-f])"),
+    "w5-6-not-admitted": re.compile(r"(?<![0-9A-Fa-f])[0-9A-Fa-f]{5,6}(?![0-9A-Fa-f])"),
+    "w41+": re.compile(r"(?<![0-9A-Fa-f])[0-9A-Fa-f]{41,}(?![0-9A-Fa-f])"),
+}
 
 _TOKEN: Final = re.compile(r"(?<![0-9A-Za-z_])[0-9a-f]{7,40}(?![0-9A-Za-z_])")
 _HAS_DIGIT: Final = re.compile(r"[0-9]")
@@ -353,6 +415,53 @@ def scan_not_admitted(text: str, path: str = "") -> list[Occurrence]:
     return runs
 
 
+def scan_code(text: str, path: str = "") -> list[Occurrence]:
+    """Every hex run of 7 to 40 characters in a CODE file, any shape - CS-1224.
+
+    Args:
+        text: One file's text.
+        path: The name the occurrences carry.
+
+    Returns:
+        Each run, in text order, with ``rule`` None - resolved, never allowlisted,
+        red only when it names an existing unpublished commit.
+    """
+    return [
+        Occurrence(path, index + 1, match.group(0), None)
+        for index, line in enumerate(text.splitlines())
+        for match in _ANY_RUN.finditer(line)
+    ]
+
+
+def scan_short(text: str, path: str = "") -> list[Occurrence]:
+    """Every judged 5- or 6-character run: lower-case, a digit and a letter, word-bounded.
+
+    Args:
+        text: One file's text.
+        path: The name the occurrences carry.
+
+    Returns:
+        Each run, in text order, with ``rule`` None - resolved like a not-admitted
+        run, red only when it names an existing unpublished commit.
+    """
+    return [
+        Occurrence(path, index + 1, match.group(0), None)
+        for index, line in enumerate(text.splitlines())
+        for match in _SHORT_TOKEN.finditer(line)
+        if _HAS_DIGIT.search(match.group(0)) and _HAS_LETTER.search(match.group(0))
+    ]
+
+
+def count_not_judged(text: str) -> dict[str, int]:
+    """How many runs of each :data:`NOT_JUDGED` width class ``text`` carries.
+
+    The 5-and-6 class counts only the runs :func:`scan_short` does not judge.
+    """
+    counts = {name: len(pattern.findall(text)) for name, pattern in _NOT_JUDGED_RUNS.items()}
+    counts["w5-6-not-admitted"] -= len(scan_short(text))
+    return counts
+
+
 def resolve_many(repo: Path, tokens: Sequence[str]) -> dict[str, str | None]:
     """Resolve many runs to commits in ONE ``git cat-file --batch-check`` call.
 
@@ -436,6 +545,11 @@ def _published(repo: Path) -> tuple[int, set[str]]:
     return len(refs), set(done.stdout.decode("ascii").split())
 
 
+def _tracked(repo: Path, pathspecs: Sequence[str]) -> list[str]:
+    listed = _git_out(repo, ["ls-files", "-z", "--", *pathspecs]).decode("utf-8")
+    return sorted(name for name in listed.split("\0") if name)
+
+
 def _commit_map(repo: Path) -> list[str] | None:
     common = _git_out(repo, ["rev-parse", "--path-format=absolute", "--git-common-dir"])
     target = Path(common.decode("utf-8").strip()) / "filter-repo" / "commit-map"
@@ -469,6 +583,13 @@ class SweepReport:
         not_admitted: Every hex run the inclusion rule does not admit.
         not_admitted_unpublished: Each of those that names an EXISTING commit
             that is not published - red, like an unresolved citation.
+        code_files: How many tracked files outside :data:`DOC_PATHSPECS` were read.
+        code_runs: Every hex run of 7 to 40 in those files, resolved only.
+        short_runs: Every judged 5- or 6-character run, docs and code, resolved only.
+        not_judged: Each :data:`NOT_JUDGED` class mapped to its run count.
+
+    ``not_admitted_unpublished`` carries every red run of all three resolved-only
+    populations - not-admitted doc runs, code runs and short runs.
     """
 
     files: int
@@ -481,6 +602,10 @@ class SweepReport:
     overreach: list[Occurrence] = field(default_factory=list)
     not_admitted: list[Occurrence] = field(default_factory=list)
     not_admitted_unpublished: list[Occurrence] = field(default_factory=list)
+    code_files: int = 0
+    code_runs: list[Occurrence] = field(default_factory=list)
+    short_runs: list[Occurrence] = field(default_factory=list)
+    not_judged: dict[str, int] = field(default_factory=lambda: dict.fromkeys(NOT_JUDGED, 0))
 
     @property
     def admitted(self) -> list[Occurrence]:
@@ -525,26 +650,42 @@ def sweep(repo: Path, allowlist: Mapping[str, str] | None = None) -> SweepReport
     """
     table = allowlist_map() if allowlist is None else allowlist
     shallow = _git_out(repo, ["rev-parse", "--is-shallow-repository"]).strip() != b"false"
-    listed = _git_out(repo, ["ls-files", "-z", "--", *DOC_PATHSPECS]).decode("utf-8")
-    paths = sorted(name for name in listed.split("\0") if name)
+    paths = _tracked(repo, DOC_PATHSPECS)
+    code_paths = _tracked(repo, CODE_PATHSPECS)
+    code_set = set(code_paths)
     occurrences: list[Occurrence] = []
     not_admitted: list[Occurrence] = []
-    for name in paths:
+    code_runs: list[Occurrence] = []
+    short_runs: list[Occurrence] = []
+    not_judged = dict.fromkeys(NOT_JUDGED, 0)
+    for name in [*paths, *code_paths]:
         target = repo / name
-        if target.is_file():
-            text = target.read_text(encoding="utf-8", errors="replace")
+        if not target.is_file():
+            continue
+        text = target.read_text(encoding="utf-8", errors="replace")
+        if name in code_set:
+            code_runs += scan_code(text, name)
+        else:
             occurrences += scan_text(text, name, table)
             not_admitted += scan_not_admitted(text, name)
+        short_runs += scan_short(text, name)
+        for klass, count in count_not_judged(text).items():
+            not_judged[klass] += count
     ref_count, published = (0, set()) if shallow else _published(repo)
     report = SweepReport(len(paths), occurrences, shallow, ref_count, _commit_map(repo), table)
     report.not_admitted = not_admitted
+    report.code_files = len(code_paths)
+    report.code_runs = code_runs
+    report.short_runs = short_runs
+    report.not_judged = not_judged
     if shallow or not ref_count:
         return report
-    every = {entry.token for entry in not_admitted} | {entry.token for entry in occurrences}
+    resolved_only = [*not_admitted, *code_runs, *short_runs]
+    every = {entry.token for entry in resolved_only} | {entry.token for entry in occurrences}
     runs = resolve_many(repo, sorted(every))
     report.not_admitted_unpublished = [
         entry
-        for entry in not_admitted
+        for entry in resolved_only
         if (commit := runs[entry.token]) is not None and commit not in published
     ]
     for entry in occurrences:
@@ -566,10 +707,15 @@ def render(report: SweepReport) -> list[str]:
         f"{len(report.occurrences)}; admitted {len(admitted)} "
         f"({len({entry.token for entry in admitted})} distinct); "
         f"unresolved {len(report.unresolved)}; overreach {len(report.overreach)}",
-        f"not-admitted runs {len(report.not_admitted)} resolved too; naming an unpublished "
-        f"commit {len(report.not_admitted_unpublished)}",
+        f"code files {report.code_files}; code runs {len(report.code_runs)}; short runs "
+        f"{len(report.short_runs)}; not-admitted runs {len(report.not_admitted)}; all "
+        f"resolved too; naming an unpublished commit {len(report.not_admitted_unpublished)}",
         f"allowlist rows {len(report.allowlist)}; unused {len(report.unused)} - exact tokens "
         "only, never a shape",
+    ]
+    out += [
+        f"not-judged {name} {report.not_judged.get(name, 0)} - {reason}"
+        for name, reason in NOT_JUDGED.items()
     ]
     for name, sentence in CLASSES.items():
         count = sum(1 for entry in report.occurrences if entry.rule == name)
@@ -622,7 +768,8 @@ def render(report: SweepReport) -> list[str]:
     elif verdict == EXIT_UNRESOLVED:
         out.append(
             "sha_citation_gate: FAIL - a citation is not a published commit, an "
-            "allowlisted token is one, or a not-admitted run names an unpublished commit"
+            "allowlisted token is one, or a not-admitted, code or short run names an "
+            "unpublished commit"
         )
     else:
         if report.shallow:

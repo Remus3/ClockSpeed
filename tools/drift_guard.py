@@ -4190,9 +4190,10 @@ def _roadmap_detail_lines(roadmap_text: str) -> list[tuple[str, str | None, str,
 # ROADMAP line, or the line carries the literal pointer and the whole clause sits
 # under exactly one acceptance heading in the item's section. A clause on the line
 # beside a heading in the section is two owners, and one of them is a truncation:
-# e63668b cut clauses part-way and changed what those items require. The field is
-# found by position - after the first acceptance separator, before the last tier
-# separator - so a clause holding its own spaced hyphens is read whole.
+# the CS-971 relocation of item-line tails cut clauses part-way and changed what
+# those items require. The field is found by position - after the first
+# acceptance separator, before the last tier separator - so a clause holding
+# its own spaced hyphens is read whole.
 _ROADMAP_ACCEPTANCE_SEPARATOR = " - acceptance: "
 _ROADMAP_TIER_SEPARATOR = " - tier: "
 ITEM_NOTES_ACCEPTANCE_POINTER = "in detail"

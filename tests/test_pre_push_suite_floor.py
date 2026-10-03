@@ -390,7 +390,7 @@ def test_a_report_forging_shadow_on_pythonpath_is_refused(
 ) -> None:
     """A3. The shadow WRITES a plausible report and exits 0.
 
-    RED at 73beebc: every report check accepted the forged report and the push
+    RED at the first CS-821 repair: every report check accepted the forged report and the push
     landed. The report cannot tell a forged record from a real one, so the refusal
     has to come from where pytest resolves.
     """
@@ -409,7 +409,7 @@ def test_a_report_forging_pytest_at_the_repository_root_is_ignored(
     """A3, working-directory route. ``-m`` puts the working directory on sys.path.
 
     The pushed tree carries a forging pytest.py at its root and one FAILING test.
-    RED at 73beebc: the forgery ran in place of pytest, reported a pass and the
+    RED at the first CS-821 repair: the forgery ran in place of pytest, reported a pass and the
     push landed. Under safe-path mode the real pytest runs, the test fails, and
     the push is refused for THAT reason - which is what proves the real one ran.
     """
@@ -447,7 +447,7 @@ def test_a_conftest_that_turns_a_red_session_green_is_refused(
 ) -> None:
     """A1. The exit status says 0 while the report records a failed test.
 
-    RED at 73beebc: the passed count was computed and never compared, so the
+    RED at the first CS-821 repair: the passed count was computed and never compared, so the
     hook trusted the rewritten exit status and the push landed.
     """
     tests = suite_of(FAILING_TEST, 1)
