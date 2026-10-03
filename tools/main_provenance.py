@@ -68,10 +68,12 @@ is a plain file and is placed as its inbox twin. On MAIN's side a bundle
 directory that is a link is refused as ``outbox-file-absent``, the same
 reason a linked outbox file gets.
 
-THE CENSUS FAILS CLOSED. Only an ABSENT inbox means "no inbox" (every note
-keeps the bare-name answer). Once the inbox exists, any error resolving it,
-listing it, or stat-ing any entry at any depth is ``census-failed`` - never
-the bare-name fallback, which would bind a note the census never saw.
+THE INBOX AND ITS CENSUS FAIL CLOSED. An absent inbox is NOT "no inbox":
+every note is refused as ``inbox-absent`` - a worktree carries no inbox, and
+:data:`DEFAULT_INBOX` derives from this file's location, so the bare-name
+answer there would bind a bundle file elsewhere to MAIN's top-level blob. Any
+other error resolving the inbox, listing it, or stat-ing any entry at any
+depth is ``census-failed``. Neither ever falls back to the bare name.
 
 DECLARED DIVERGENCES from the pre-CS-1232 tool (41f1835) for a note in the
 inbox; a plain top-level note spelled plainly otherwise answers exactly as it
@@ -84,6 +86,8 @@ did, pinned by measured parity arms:
 - a note reached through a link into or inside the inbox, a note at two inbox
   places, a deeper file, a directory, or the inbox itself is
   ``bundle-path-refused`` (41f1835: the bare name);
+- an absent inbox refuses every note as ``inbox-absent`` (41f1835 had no
+  notion of an inbox and answered by bare name);
 - an inbox census error is ``census-failed``, a zero file index
   ``check-failed``;
 - a note outside the inbox hard-linked into it is placed as its inbox twin;
@@ -198,6 +202,7 @@ DIGEST_MISMATCH: Final = "digest-mismatch"
 CHECK_FAILED: Final = "check-failed"
 BUNDLE_PATH_REFUSED: Final = "bundle-path-refused"
 CENSUS_FAILED: Final = "census-failed"
+INBOX_ABSENT: Final = "inbox-absent"
 INTERRUPTED: Final = "interrupted"
 USAGE_ERROR: Final = "usage-error"
 
@@ -223,6 +228,7 @@ REASONS: Final = frozenset(
         CHECK_FAILED,
         BUNDLE_PATH_REFUSED,
         CENSUS_FAILED,
+        INBOX_ABSENT,
         INTERRUPTED,
         USAGE_ERROR,
     }
@@ -429,14 +435,12 @@ def _linked_in(note: Path, inside: dict[Identity, list[_Entry]], root: Identity)
 Placed = tuple[str, str, Path | None, Identity | None]
 
 
-def _survey(
-    inbox_dir: Path,
-) -> tuple[Path, dict[Identity, list[_Entry]], Identity] | str | None:
-    """Resolve and census the inbox: None when it is ABSENT, else fail closed."""
+def _survey(inbox_dir: Path) -> tuple[Path, dict[Identity, list[_Entry]], Identity] | str:
+    """Resolve and census the inbox, or a refusal - every failure is fail-closed."""
     try:
         inbox = inbox_dir.resolve(strict=True)
     except FileNotFoundError:
-        return None
+        return INBOX_ABSENT
     except OSError:
         return CENSUS_FAILED
     try:
@@ -462,8 +466,6 @@ def _placement(note: Path, inbox_dir: Path) -> Placed | str:
     if isinstance(identity, str):
         return identity
     surveyed = _survey(inbox_dir)
-    if surveyed is None:
-        return note.name, "", None, None
     if isinstance(surveyed, str):
         return surveyed
     inbox, inside, root = surveyed

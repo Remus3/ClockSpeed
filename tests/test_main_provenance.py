@@ -20,6 +20,7 @@ import hashlib
 import importlib.util
 import json
 import os
+import shutil
 import subprocess
 import sys
 from collections.abc import Callable
@@ -1753,13 +1754,15 @@ def test_an_inbox_that_exists_but_will_not_resolve_refuses(
     assert ok is False
 
 
-def test_an_absent_inbox_keeps_the_old_answer(world: World) -> None:
+def test_an_absent_inbox_refuses_a_plain_note(world: World) -> None:
+    # Round 8 ruling: an absent inbox fails closed, even for a note 41f1835
+    # verified - declared in the docstring.
     w = world
     verdict = provenance.verify_main_note(
         w.note, config_path=w.config, inbox_dir=w.base / "cs1232_no_inbox"
     )
     reason = str(verdict.reason)
-    assert reason == "verified"
+    assert reason == "inbox-absent"
 
 
 def test_is_link_counts_an_unreadable_path_as_a_link(
@@ -1973,3 +1976,94 @@ def test_the_census_records_no_link_entry(loop_world: World) -> None:
     holds_bundle = "b" in names
     assert holds_bundle is True
     assert holds_link is False
+
+
+# Round 8 - an absent inbox is not "no inbox": it refuses, fail-closed.
+
+#: The fixed refusal when this tree's inbox does not exist.
+_INBOX_ABSENT: Final = "inbox-absent"
+
+
+def test_an_absent_default_inbox_refuses_a_bundle_file(
+    alias_world: World, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # Repro h9: the DEFAULT inbox (derived from the tool's location) is absent
+    # - as in any worktree - while the note sits in a populated inbox elsewhere.
+    # The bare-name answer would verify the bundle file against MAIN's
+    # top-level LICENSE; an absent inbox must refuse instead.
+    w = alias_world
+    monkeypatch.setattr(provenance, "DEFAULT_INBOX", w.base / "cs1232_absent_default")
+    verdict = provenance.verify_main_note(w.note, config_path=w.config, inbox_dir=None)
+    reason = str(verdict.reason)
+    ok = bool(verdict.ok)
+    assert reason == _INBOX_ABSENT
+    assert ok is False
+
+
+def test_an_absent_injected_inbox_refuses_through_the_cli(alias_world: World) -> None:
+    w = alias_world
+    missing = w.base / "cs1232_absent_inbox"
+    proc = subprocess.run(
+        [
+            sys.executable,
+            str(TOOL),
+            str(w.note),
+            "--config",
+            str(w.config),
+            "--inbox",
+            str(missing),
+        ],
+        capture_output=True,
+        env=_clean_env(),
+        timeout=TIMEOUT,
+        check=False,
+    )
+    out = proc.stdout.decode("ascii", "replace").strip()
+    code = proc.returncode
+    leaked = _leaks(w, out + proc.stderr.decode("utf-8", "replace"))
+    assert out == _INBOX_ABSENT
+    assert code == 1
+    assert leaked is False
+
+
+def test_the_inbox_absent_refusal_is_in_the_closed_set() -> None:
+    member = _INBOX_ABSENT in provenance.REASONS
+    constant = provenance.INBOX_ABSENT == _INBOX_ABSENT
+    assert member is True
+    assert constant is True
+
+
+#: Everyone, by its well-known SID - no account name is ever named.
+_EVERYONE: Final = "*S-1-1-0"
+
+
+def test_an_unreadable_inbox_subdirectory_refuses(world: World) -> None:
+    # The h7 lens: a subdirectory the census cannot list. An icacls deny on
+    # Everyone makes it unlistable; the arm skips only when a CONTROL shows the
+    # deny did not take.
+    if sys.platform != "win32":
+        pytest.skip("icacls is a Windows tool")
+    w = world
+    locked = _inbox(w) / "cs1232_locked"
+    locked.mkdir()
+    (locked / "inner.md").write_bytes(b"x\n")
+    icacls = shutil.which("icacls")
+    if icacls is None:
+        pytest.skip("icacls is not on PATH")
+    deny = [icacls, str(locked), "/deny", _EVERYONE + ":(OI)(CI)(RD)"]
+    undo = [icacls, str(locked), "/remove:d", _EVERYONE]
+    subprocess.run(deny, capture_output=True, timeout=TIMEOUT, check=False)
+    try:
+        try:
+            with os.scandir(locked) as entries:
+                list(entries)
+            denied = False
+        except PermissionError:
+            denied = True
+        if not denied:
+            pytest.skip("the icacls deny did not take on this volume")
+        ok, reason, _digest = _verify_in(w)
+    finally:
+        subprocess.run(undo, capture_output=True, timeout=TIMEOUT, check=False)
+    assert reason == _CENSUS
+    assert ok is False
