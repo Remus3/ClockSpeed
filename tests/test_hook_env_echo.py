@@ -148,6 +148,7 @@ SUITE_SUPPORT: Final = (
     "tests/__init__.py",
     "tests/conftest.py",
     "tests/git_env.py",
+    "tests/xdist_quiet.py",
     "clockspeed/__init__.py",
     "clockspeed/data/__init__.py",
     "clockspeed/data/locate.py",
