@@ -377,14 +377,32 @@ def _shallow_clone(w: World) -> None:
     _write_config(w.config, w.base / "cs1227_shallow")
 
 
+def _crlf_checkout(w: World) -> None:
+    # Ruling A, round 3 - a checkout filter rewrites the bytes on disk while
+    # git reports the tree clean. `.gitattributes` rather than core.autocrlf, so
+    # Linux CI behaves the same. The note carries the COMMITTED (LF) bytes, so
+    # only the working-tree comparison can refuse.
+    (w.main_root / ".gitattributes").write_bytes(b"* text eol=crlf\n")
+    _git(w.main_root, "add", "--", ".gitattributes")
+    _git(w.main_root, "commit", "-q", "-m", "eol")
+    w.outbox_file.unlink()
+    _git(w.main_root, "checkout", "--", "moon_sync_outbox/" + NOTE_NAME)
+
+
+#: Every refusal where the working-tree file differs from HEAD's blob while the
+#: index agrees with HEAD - distinct from an index that disagrees (`modified`).
+_DIFFERS: Final = "worktree-differs-from-commit"
+
+
 REFUSALS: Final[dict[str, tuple[Callable[[World], None], str]]] = {
-    "replaced_blob": (_replaced_blob, "modified"),
+    "replaced_blob": (_replaced_blob, _DIFFERS),
     "replaced_head_commit": (_replaced_head_commit, "modified"),
     "shallow_clone": (_shallow_clone, "main-shallow"),
+    "crlf_checkout": (_crlf_checkout, _DIFFERS),
     "byte_different": (_byte_different, "digest-mismatch"),
     "untracked": (_untracked, "untracked"),
     "staged_not_committed": (_staged_not_committed, "untracked"),
-    "modified": (_modified, "modified"),
+    "modified": (_modified, _DIFFERS),
     "modified_and_staged": (_modified_and_staged, "modified"),
     "outbox_absent": (_outbox_absent, "outbox-file-absent"),
     "config_absent": (_config_absent, "config-absent"),
@@ -397,13 +415,31 @@ REFUSALS: Final[dict[str, tuple[Callable[[World], None], str]]] = {
     "main_root_absent": (_main_root_absent, "main-root-absent"),
     "main_not_a_repo": (_main_not_a_repo, "main-not-a-repo"),
     "note_absent": (_note_absent, "note-unreadable"),
-    "assume_unchanged": (_assume_unchanged, "modified"),
-    "skip_worktree": (_skip_worktree, "modified"),
-    "same_size_mtime_restored": (_same_size_mtime_restored, "modified"),
+    "assume_unchanged": (_assume_unchanged, _DIFFERS),
+    "skip_worktree": (_skip_worktree, _DIFFERS),
+    "same_size_mtime_restored": (_same_size_mtime_restored, _DIFFERS),
     "staged_edit_then_restored": (_staged_edit_then_restored, "modified"),
     "config_deeply_nested": (_config_deeply_nested, "config-unparseable"),
     "corrupt_gitdir": (_corrupt_gitdir, "main-not-a-repo"),
 }
+
+
+def test_a_filtered_checkout_git_calls_clean_is_refused(world: World) -> None:
+    # Pins fail-closed behaviour (Ruling A): git says clean, the bytes on disk
+    # are CRLF, HEAD's blob is LF - refused, and nothing renders a path.
+    _crlf_checkout(world)
+    on_disk_crlf = b"\r\n" in world.outbox_file.read_bytes()
+    porcelain = _git(world.main_root, "status", "--porcelain")
+    git_clean = porcelain == ""
+    ok, reason = _verify(world)
+    proc = _cli(world)
+    rendered = proc.stdout.decode("utf-8", "replace") + proc.stderr.decode("utf-8", "replace")
+    leaked = _leaks(world, rendered + reason)
+    assert on_disk_crlf is True
+    assert git_clean is True
+    assert reason == _DIFFERS
+    assert ok is False
+    assert leaked is False
 
 
 @pytest.mark.parametrize("case", sorted(REFUSALS))

@@ -16,10 +16,13 @@ tracked file, never the channel root, never the note. A test passes
 THE COMMITTED BLOB IS THE TRUTH, NOT GIT'S STAT CACHE. The note is hashed
 against the bytes of HEAD's blob for the outbox path, read with ``git cat-file``.
 "Unmodified" is then decided by comparing BYTES: the index entry must name the
-same object as HEAD, and the working-tree file must equal the blob byte for
-byte. ``git diff --quiet HEAD`` is never asked - it trusts the stat cache, so
+same object as HEAD (else ``modified``), and the working-tree file must equal
+the blob byte for byte (else ``worktree-differs-from-commit``). ``git diff
+--quiet HEAD`` is never asked - it trusts the stat cache, so
 ``--assume-unchanged``, ``--skip-worktree`` or a same-size edit with its mtime
-restored would all read as clean.
+restored would all read as clean. A tree whose checkout filters change the
+bytes on disk (eol, autocrlf, smudge) is refused by design, so MAIN must keep
+its outbox LF on disk.
 
 WHAT IS READ OUTSIDE THIS TREE: the one outbox file, and MAIN's git - asked for
 the object ids of that path in HEAD and in the index, and for HEAD's blob.
@@ -94,6 +97,7 @@ OUTBOX_FILE_ABSENT: Final = "outbox-file-absent"
 OUTBOX_UNREADABLE: Final = "outbox-unreadable"
 UNTRACKED: Final = "untracked"
 MODIFIED: Final = "modified"
+WORKTREE_DIFFERS: Final = "worktree-differs-from-commit"
 GIT_FAILED: Final = "git-failed"
 DIGEST_MISMATCH: Final = "digest-mismatch"
 CHECK_FAILED: Final = "check-failed"
@@ -116,6 +120,7 @@ REASONS: Final = frozenset(
         OUTBOX_UNREADABLE,
         UNTRACKED,
         MODIFIED,
+        WORKTREE_DIFFERS,
         GIT_FAILED,
         DIGEST_MISMATCH,
         CHECK_FAILED,
@@ -317,7 +322,7 @@ def _compare(note: Path, outbox_file: Path, blob: bytes) -> tuple[str, str]:
     except OSError:
         return OUTBOX_UNREADABLE, ""
     if outbox_bytes != blob:
-        return MODIFIED, ""
+        return WORKTREE_DIFFERS, ""
     try:
         note_bytes = note.read_bytes()
     except OSError:
