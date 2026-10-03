@@ -36,7 +36,8 @@ UTF-8 with replacement; one that is absent or carries a NUL is NOT READ, every
 run prints that count and each such path, and any such file makes the run
 COULD NOT JUDGE - a file dropping out is never a pass - unless an unpublished
 finding makes it FAIL, which outranks it and prints both. A BOM-marked file is
-scanned decoded AND as raw latin-1 bytes, and the runs are the union, because
+decoded STRICTLY (a failure is NOT READ, never replacement) and is always also
+scanned as raw latin-1 bytes, the runs being the union, because
 8-bit text behind a stray mark decodes as CJK with every hex run gone. All three
 resolved-only populations share the blind spot above, and the overreach
 control and the allowlist apply to doc tokens only.
@@ -168,8 +169,10 @@ INCLUSION_RULE: Final = (
     "citations there. Every run of 5 or 6 hex characters of any case, joined to anything, "
     "in any tracked file, is resolved the same way too, and one that more than one commit "
     "answers is red when any candidate is unpublished. A tracked file is read as UTF-32 or "
-    "UTF-16 behind a byte-order mark - scanned both decoded and as raw bytes, the union "
-    "of the two - else as UTF-8 with replacement; one absent or carrying a NUL is NOT "
+    "UTF-16 behind a byte-order mark, STRICTLY - scanned both decoded and as raw bytes, "
+    "the union of the two, and NOT READ when the strict decode fails, though its raw "
+    "bytes are still graded - else as UTF-8 with replacement; one absent or carrying a "
+    "NUL is NOT "
     "READ, its count is stated on every run, and any such file makes the run COULD NOT "
     "JUDGE, except that an unpublished finding outranks it: that run exits 1 and prints "
     "both. NOT JUDGED, stated "
@@ -212,8 +215,9 @@ _NOT_JUDGED_RUNS: Final[dict[str, re.Pattern[str]]] = {
 
 #: CS-1224 - the reason printed beside the not-read count on every run.
 NOT_READ_REASON: Final = (
-    "tracked files absent from the work tree, or carrying a NUL once decoded (UTF-32 or "
-    "UTF-16 behind a byte-order mark, else UTF-8 with replacement), are binary or "
+    "tracked files absent from the work tree, failing a strict decode behind a UTF-32 or "
+    "UTF-16 byte-order mark, or carrying a NUL once decoded (else UTF-8 with "
+    "replacement), are binary or "
     "missing to this reader; any such file makes the run COULD NOT JUDGE, never a pass, "
     "unless an unpublished finding makes it FAIL"
 )
@@ -482,25 +486,32 @@ def count_not_judged(text: str) -> dict[str, int]:
     return {name: len(pattern.findall(text)) for name, pattern in _NOT_JUDGED_RUNS.items()}
 
 
-def tracked_views(raw: bytes) -> list[str] | None:
-    """The views of a tracked file that are scanned, or None when it is not read - CS-1224.
+def tracked_views(raw: bytes) -> tuple[list[str], bool]:
+    """The views of a tracked file that are scanned, and whether it was READ - CS-1224.
 
     A UTF-32 byte-order mark is tested FIRST, because the little-endian one
-    opens with the UTF-16 one; then UTF-16. A BOM-marked file is scanned in TWO
-    views and the runs are their union: the decoded text, which finds a real
-    UTF-16 file's citations, and the raw bytes read as latin-1, which finds an
-    ASCII citation in 8-bit text behind a stray mark - such text decodes
-    cleanly as UTF-16 into CJK, where every hex run vanishes. Anything else is
-    strict UTF-8 (a UTF-8 BOM is dropped), falling back to UTF-8 with
-    replacement, so one stray Latin-1 byte still leaves the rest graded.
-    Whatever path decoded it, decoded text carrying a NUL is binary: None.
+    opens with the UTF-16 one; then UTF-16. A BOM-marked file is ALWAYS scanned
+    as its raw bytes read as latin-1, which finds an ASCII citation in 8-bit
+    text behind a stray mark - such text decodes cleanly as UTF-16 into CJK,
+    where every hex run vanishes. Its mark's codec is then tried STRICTLY: a
+    decode that fails, or text carrying a NUL, means the file is NOT READ -
+    never replacement, which turns a UTF-16LE file opening with U+0000 (whose
+    bytes are the UTF-32LE mark) into U+FFFD with no run and no NUL, a silent
+    pass. A strict decode with no NUL is scanned too, the runs being the union.
+    Anything else is strict UTF-8 (a UTF-8 BOM is dropped), falling back to
+    UTF-8 with replacement, so one stray Latin-1 byte still leaves the rest
+    graded; text carrying a NUL there is not read and not scanned.
     """
     for boms, codec in ((_UTF32_BOMS, "utf-32"), (_UTF16_BOMS, "utf-16")):
         if raw.startswith(boms):
-            text = raw.decode(codec, errors="replace")
-            return None if "\0" in text else [text, raw.decode("latin-1")]
+            byte_view = raw.decode("latin-1")
+            try:
+                text = raw.decode(codec)
+            except UnicodeDecodeError:
+                return [byte_view], False
+            return ([byte_view], False) if "\0" in text else ([text, byte_view], True)
     plain = decode_tracked(raw)
-    return None if plain is None else [plain]
+    return ([], False) if plain is None else ([plain], True)
 
 
 def _union(found: Iterable[list[Occurrence]]) -> list[Occurrence]:
@@ -781,10 +792,9 @@ def sweep(repo: Path, allowlist: Mapping[str, str] | None = None) -> SweepReport
     not_read: list[str] = []
     for name in [*paths, *code_paths]:
         target = repo / name
-        views = tracked_views(target.read_bytes()) if target.is_file() else None
-        if views is None:
+        views, read = tracked_views(target.read_bytes()) if target.is_file() else ([], False)
+        if not read:
             not_read.append(name)
-            continue
         if name in code_set:
             code_runs += _union(scan_code(text, name) for text in views)
         else:

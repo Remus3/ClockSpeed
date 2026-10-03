@@ -905,6 +905,48 @@ def test_a_bom_file_whose_bytes_carry_an_ascii_citation_is_judged(
     assert _not_read(done.stdout) == 0
 
 
+@pytest.mark.parametrize(
+    ("lead", "mark"),
+    [("\0", b"\xff\xfe\x00\x00"), ("x\0", b"\xff\xfex\x00")],
+    ids=["u0000-first", "u0000-second"],
+)
+def test_a_utf16_file_carrying_u0000_is_never_a_pass(
+    code_repo: Repo, lead: str, mark: bytes
+) -> None:
+    """U+0000 first opens UTF-16LE with the UTF-32LE mark; later, it is a NUL: exit 2 both."""
+    side = commit_where(code_repo, lambda sha: _carries_both(sha[:7]), "refs/heads/side")
+    text = (REPO_ROOT / CODE_FILE).read_bytes().decode("utf-8")
+    body = (lead + text + f"\n# RED at {side[:7]}: the push landed.\n").encode("utf-16")
+    assert body.startswith(mark)
+    (code_repo.path / CODE_FILE).write_bytes(body)
+    done = cli(code_repo)
+    assert done.returncode == gate.EXIT_COULD_NOT_JUDGE, done.stdout + done.stderr
+    assert _not_read(done.stdout) == 1
+    assert f"not-read-file {CODE_FILE}" in done.stdout
+
+
+@pytest.mark.parametrize("cited", [True, False], ids=["cited", "uncited"])
+def test_a_bom_file_that_fails_a_strict_decode_is_not_read_but_its_bytes_are_graded(
+    code_repo: Repo, cited: bool
+) -> None:
+    """Odd-length 8-bit text behind a UTF-16 mark: not read, yet an ASCII citation is red."""
+    original = (code_repo.path / CODE_FILE).read_bytes()
+    side = commit_where(code_repo, lambda sha: _carries_both(sha[:7]), "refs/heads/side")
+    tail = f"\n# RED at {side[:7]}: the push landed.\n".encode("ascii") if cited else b"\n"
+    body = b"\xff\xfe" + original + tail
+    if len(body) % 2 == 0:
+        body += b"#"
+    (code_repo.path / CODE_FILE).write_bytes(body)
+    done = cli(code_repo)
+    assert _not_read(done.stdout) == 1
+    if cited:
+        assert done.returncode == gate.EXIT_UNRESOLVED, done.stdout + done.stderr
+        assert f"unpublished-not-admitted {CODE_FILE}:" in done.stdout
+        assert "ALSO COULD NOT JUDGE - 1 tracked file not read" in done.stdout
+    else:
+        assert done.returncode == gate.EXIT_COULD_NOT_JUDGE, done.stdout + done.stderr
+
+
 def test_an_unpublished_run_beside_a_not_read_file_reports_both_and_exits_one(
     code_repo: Repo,
 ) -> None:
