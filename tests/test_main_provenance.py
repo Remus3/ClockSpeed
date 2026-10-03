@@ -944,3 +944,118 @@ def test_the_bundle_refusal_is_in_the_closed_set() -> None:
     constant = provenance.BUNDLE_PATH_REFUSED == _BUNDLE_REFUSED
     assert member is True
     assert constant is True
+
+
+# --- CS-1232 round 2: a path naming the inbox (or the outbox) twice ----------
+#
+# The parser keyed on the LAST inbox-named component, so a bundle directory
+# itself named for the inbox shifted the inbox root down a level and a
+# three-deep file verified as a bundle file.
+
+#: A second outbox file, committed both top-level and inside the bundle.
+_RUN: Final = "run.md"
+_RUN_BYTES: Final = b"synthetic run note for the CS-1232 round 2 arms\n"
+
+#: Inbox-relative spellings that must be refused, each naming a reserved
+#: directory name below the inbox.
+_TWICE: Final = {
+    "inbox_bundle_then_kit": "moon_sync_inbox/" + BUNDLE_DIR + "/" + _RUN,
+    "inbox_as_bundle": "moon_sync_inbox/" + _RUN,
+    "inbox_as_bundle_upper": "MOON_SYNC_INBOX/" + _RUN,
+    "outbox_as_bundle": "moon_sync_outbox/" + _RUN,
+    "outbox_as_bundle_upper": "MOON_SYNC_OUTBOX/" + _RUN,
+    "inbox_as_file": BUNDLE_DIR + "/moon_sync_inbox",
+    "outbox_as_file": BUNDLE_DIR + "/Moon_Sync_Outbox",
+}
+
+
+@pytest.fixture
+def twice_world(bundle_world: World) -> World:
+    """MAIN commits ``run.md`` top-level and in the bundle; the inbox holds each spelling.
+
+    Every spelling of :data:`_TWICE` carries the matching bytes, so only the path
+    rule can refuse it.
+    """
+    w = bundle_world
+    _git(w.main_root, "config", "core.ignorecase", "true")
+    outbox = w.main_root / "moon_sync_outbox"
+    (outbox / _RUN).write_bytes(_RUN_BYTES)
+    (outbox / BUNDLE_DIR / _RUN).write_bytes(_RUN_BYTES)
+    for reserved in ("moon_sync_inbox", "Moon_Sync_Outbox"):
+        (outbox / BUNDLE_DIR / reserved).write_bytes(_RUN_BYTES)
+    _git(w.main_root, "add", "-A")
+    _git(w.main_root, "commit", "-q", "-m", "run")
+    inbox = w.note.parent.parent
+    for rel in _TWICE.values():
+        target = inbox.joinpath(*rel.split("/"))
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_bytes(_RUN_BYTES)
+    return w
+
+
+@pytest.mark.parametrize("case", sorted(_TWICE))
+def test_a_path_naming_a_reserved_dir_below_the_inbox_is_refused(
+    twice_world: World, case: str
+) -> None:
+    w = twice_world
+    raw = str(w.note.parent.parent) + os.sep + _TWICE[case].replace("/", os.sep)
+    verdict = provenance.verify_main_note(raw, config_path=w.config)
+    proc = subprocess.run(
+        [sys.executable, str(TOOL), raw, "--config", str(w.config)],
+        capture_output=True,
+        env=_clean_env(),
+        timeout=TIMEOUT,
+        check=False,
+    )
+    reason = str(verdict.reason)
+    ok = bool(verdict.ok)
+    out = proc.stdout.decode("ascii", "replace").strip()
+    leaked = _leaks(w, out + proc.stderr.decode("utf-8", "replace") + repr(verdict))
+    assert reason == _BUNDLE_REFUSED
+    assert ok is False
+    assert out == _BUNDLE_REFUSED
+    assert leaked is False
+
+
+@pytest.mark.parametrize(
+    "raw",
+    [
+        "/srv/x/moon_sync_inbox/moon_sync_inbox/kit/run.md",
+        "/srv/x/moon_sync_inbox/moon_sync_inbox/run.md",
+        "/srv/x/moon_sync_inbox/MOON_SYNC_INBOX/run.md",
+        "/srv/x/Moon_Sync_Inbox/moon_sync_inbox/run.md",
+        "/srv/x/moon_sync_inbox/moon_sync_outbox/run.md",
+        "/srv/x/moon_sync_inbox/kit/MOON_SYNC_INBOX",
+        "/srv/x/moon_sync_inbox/kit/moon_sync_outbox",
+        "/srv/x/moon_sync_inbox/Moon_Sync_Inbox",
+    ],
+    ids=[
+        "twice_deep",
+        "twice",
+        "twice_upper",
+        "twice_mixed",
+        "outbox",
+        "file_inbox",
+        "file_outbox",
+        "top_level_file_inbox",
+    ],
+)
+def test_the_parser_refuses_a_reserved_name_below_the_inbox(raw: str) -> None:
+    parsed = provenance.outbox_rel(raw)
+    refused = parsed == _BUNDLE_REFUSED
+    assert refused is True
+
+
+def test_the_twice_world_controls_still_verify(twice_world: World) -> None:
+    # Anti-vacuity: the committed run.md files verify through their honest
+    # spellings, so a refusal above is the path rule and not a broken fixture.
+    w = twice_world
+    inbox = w.note.parent.parent
+    (inbox / _RUN).write_bytes(_RUN_BYTES)
+    (inbox / BUNDLE_DIR / _RUN).write_bytes(_RUN_BYTES)
+    top = provenance.verify_main_note(inbox / _RUN, config_path=w.config)
+    bundled = provenance.verify_main_note(inbox / BUNDLE_DIR / _RUN, config_path=w.config)
+    top_reason = str(top.reason)
+    bundled_reason = str(bundled.reason)
+    assert top_reason == "verified"
+    assert bundled_reason == "verified"

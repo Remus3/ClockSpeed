@@ -35,10 +35,12 @@ steers it. A shallow repository is refused outright (``main-shallow``).
 A FILE INSIDE A BUNDLE DIRECTORY (CS-1232). MAIN ships a kit as a directory,
 mirrored as ``<outbox>/<bundle-dir>/<file>`` and received as
 ``moon_sync_inbox/<bundle-dir>/<file>``. The tool learns where the inbox is from
-the note's OWN path and nothing else: the last component spelled
-``moon_sync_inbox`` (compared with the platform's case rule) marks the inbox
-root, read lexically from the path as given - a relative path is first joined
-to the cwd, never normalised, never resolved. Exactly one shape is a bundle
+the note's OWN path and nothing else: the one component spelled
+``moon_sync_inbox`` (compared case-insensitively on every platform) marks the
+inbox root, read lexically from the path as given - a relative path is first
+joined to the cwd, never normalised, never resolved. A path naming the inbox
+more than once is refused outright, and neither a bundle nor a bundle file may
+be named ``moon_sync_inbox`` or ``moon_sync_outbox`` in any case. Exactly one shape is a bundle
 file: the inbox, then ONE bundle directory, then the file. It is checked
 against the outbox path ``<bundle-dir>/<file>`` through every step a top-level
 note takes. Anything else below the inbox - a deeper nesting, a ``.``, a
@@ -113,6 +115,9 @@ INBOX_DIR: Final = "moon_sync_inbox"
 #: or wildcard character, no leading space, and no trailing dot or space -
 #: Windows strips those, so ``LICENSE.`` would alias ``LICENSE``.
 _PLAIN_COMPONENT: Final = re.compile(r"[A-Za-z0-9._+-](?:[A-Za-z0-9._+ -]*[A-Za-z0-9_+-])?")
+
+#: Names a bundle or bundle file may never take, compared case-insensitively.
+_RESERVED_NAMES: Final = frozenset({INBOX_DIR.casefold(), OUTBOX_DIR.casefold()})
 
 #: Components below the inbox in a bundle file's path: the bundle, then the file.
 _BUNDLE_DEPTH: Final = 2
@@ -301,14 +306,18 @@ def outbox_rel(raw: str) -> tuple[str, str] | str:
     """
     full = raw if Path(raw).is_absolute() else str(Path.cwd()) + os.sep + raw
     parts = _SEPARATORS.split(full)
-    inbox = os.path.normcase(INBOX_DIR)
-    marks = [i for i, part in enumerate(parts[:-1]) if os.path.normcase(part) == inbox]
-    if not marks:
+    inbox = INBOX_DIR.casefold()
+    marks = [i for i, part in enumerate(parts) if part.casefold() == inbox]
+    if len(marks) > 1:
+        # The inbox named twice - as a bundle, a file, or an ancestor - would
+        # let the parser pick which one is the root.
+        return BUNDLE_PATH_REFUSED
+    if not marks or marks[0] >= len(parts) - 2:
         return Path(raw).name, ""
-    below = parts[marks[-1] + 1 :]
-    if len(below) == 1:
-        return Path(raw).name, ""
+    below = parts[marks[0] + 1 :]
     if len(below) != _BUNDLE_DEPTH or not all(_is_plain(part) for part in below):
+        return BUNDLE_PATH_REFUSED
+    if any(part.casefold() in _RESERVED_NAMES for part in below):
         return BUNDLE_PATH_REFUSED
     return below[0] + "/" + below[1], below[0]
 
