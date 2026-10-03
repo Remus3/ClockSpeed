@@ -1940,3 +1940,93 @@ def test_the_main_guard_carries_no_logic_beyond_dispatching_to_main() -> None:
     assert (dispatched.args, dispatched.keywords) == ([], []), (
         "the block passes arguments of its own, which no in-process arm sees"
     )
+
+
+# --- CS-1226: a key-bearing listing, and an ack of exactly those keys --------
+
+_ARGS: Final = ("--source", "inbox-responder", "--session-id", "headless")
+
+
+def _listed_keys(repo: Path, capsys: pytest.CaptureFixture[str]) -> list[str]:
+    """Run `--keys` and return the keys it printed, one JSON object per line."""
+    capsys.readouterr()
+    code = inbox_watch.main(["--keys", "--root", str(repo), *_ARGS])
+    out = capsys.readouterr().out
+    assert code == 0
+    rows = [json.loads(line) for line in out.splitlines() if line.strip()]
+    return [str(row["key"]) for row in rows]
+
+
+def _keys_file(repo: Path, keys: list[str]) -> Path:
+    path = repo / "handled.keys"
+    path.write_bytes(("\n".join(keys) + "\n").encode("utf-8"))
+    return path
+
+
+def test_cs1226_the_key_listing_names_every_unread_item_and_writes_nothing(
+    repo: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    note(repo, "2026-01-01-0900-from-RC-one.md")
+    note(repo, "2026-01-01-0901-from-RC-two.md")
+    keys = _listed_keys(repo, capsys)
+    count, wrote = len(keys), seen_path(repo).exists()
+    assert (count, wrote) == (2, False)
+
+
+def test_cs1226_an_item_added_after_the_listing_is_not_acked(
+    repo: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """THE RACE: an item landing between the re-list and the ack stays unread."""
+    note(repo, "2026-01-01-0900-from-RC-one.md")
+    keys = _listed_keys(repo, capsys)
+    note(repo, "2026-01-01-0902-from-RC-late.md")
+    code = inbox_watch.main(
+        ["--ack-keys", str(_keys_file(repo, keys)), "--root", str(repo), *_ARGS]
+    )
+    left = inbox_watch.unread(repo / INBOX_DIRNAME, seen_path(repo))
+    late_unread = left == ["2026-01-01-0902-from-RC-late.md"]
+    assert (code, late_unread) == (0, True)
+
+
+def test_cs1226_a_listed_key_that_is_gone_refuses_and_writes_nothing(
+    repo: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    first = note(repo, "2026-01-01-0900-from-RC-one.md")
+    note(repo, "2026-01-01-0901-from-RC-two.md")
+    keys = _listed_keys(repo, capsys)
+    first.write_text("edited\n", encoding="ascii", newline="\n")
+    code = inbox_watch.main(
+        ["--ack-keys", str(_keys_file(repo, keys)), "--root", str(repo), *_ARGS]
+    )
+    wrote = seen_path(repo).exists()
+    assert (code != 0, wrote) == (True, False)
+    assert code == inbox_watch.EXIT_ACK_KEYS_STALE
+
+
+def test_cs1226_ack_keys_keeps_what_was_already_seen(
+    repo: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Unioned with the still-present seen keys, so an earlier ack is not undone."""
+    note(repo, "2026-01-01-0900-from-RC-one.md")
+    inbox_watch.main(["--ack", "--root", str(repo), *_ARGS])
+    note(repo, "2026-01-01-0901-from-RC-two.md")
+    keys = _listed_keys(repo, capsys)
+    code = inbox_watch.main(
+        ["--ack-keys", str(_keys_file(repo, keys)), "--root", str(repo), *_ARGS]
+    )
+    left = inbox_watch.unread(repo / INBOX_DIRNAME, seen_path(repo))
+    assert (code, left) == (0, [])
+
+
+def test_cs1226_ack_keys_with_no_inbox_refuses_even_without_strict(tmp_path: Path) -> None:
+    keys = tmp_path / "handled.keys"
+    keys.write_bytes(b"note:x.md:00\n")
+    code = inbox_watch.main(["--ack-keys", str(keys), "--root", str(tmp_path), *_ARGS])
+    assert code == inbox_watch.EXIT_NO_INBOX
+
+
+def test_cs1226_ack_and_ack_keys_are_exclusive(repo: Path) -> None:
+    keys = _keys_file(repo, [])
+    with pytest.raises(SystemExit) as caught:
+        inbox_watch.main(["--ack", "--ack-keys", str(keys), "--root", str(repo), *_ARGS])
+    assert caught.value.code == 2  # noqa: PLR2004 - argparse usage exit

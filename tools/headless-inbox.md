@@ -21,8 +21,10 @@ the mechanism behind that rule.
 
 1. `CLAUDE.md`, whole. You are bound by every rule in it - sections 3, 5, 6 and 6.1 above
    all.
-2. The unread list: `python tools/inbox_watch.py --source inbox-responder --session-id
-   headless`. Listing never acknowledges.
+2. The unread list, WITH KEYS: `python tools/inbox_watch.py --keys --source
+   inbox-responder --session-id headless` prints one JSON object per unread item - its
+   `key`, `kind` and `display`. Keep the keys; they are what you acknowledge. Listing never
+   acknowledges.
 3. Each unread item, whole - notes and payloads, including subdirectories. Never `cd` into
    one.
 
@@ -55,15 +57,16 @@ at all (section 4).
 - **Commit and push** per `CLAUDE.md` sections 2.3.1 and 6.1. Commit subjects start with a
   `CS-` id; no co-author trailer. The pre-push hook runs the whole suite; run it in the
   foreground and read the log, never the notice's exit code.
-- **Acknowledge** with `python tools/inbox_watch.py --ack` ONLY when EVERY unread item is
-  fully handled. That flag marks every item PRESENT in the inbox as seen - including one
-  that arrived while you worked - so a pass that leaves even one item open does not
-  acknowledge at all; the next pass sees the whole set again, and the outbound record is
-  what stops a duplicate reply.
-- **Re-list immediately before acking.** Run the listing command of section 1 again, the
-  last thing before `--ack`, and compare it with the set you read at the start. If ANY item
-  was added, changed or withdrawn, do NOT ack - an item that arrived mid-pass must never be
-  marked seen unread. The next pass picks the whole set up again.
+- **Acknowledge ONLY the keys you fully handled**: write them, one per line, to a
+  scratch file outside the repository and run `python tools/inbox_watch.py --ack-keys
+  <file> --source inbox-responder --session-id headless`. Items you did not list stay
+  unread, so an item that arrived mid-pass must never be marked seen unread - it waits
+  for the next pass. If the command refuses (a listed key changed or left the inbox),
+  nothing was stored: list again and ack nothing you have not re-read.
+- **NEVER run plain `--ack`.** It marks every item PRESENT as seen, including one that
+  landed after you last looked. It is for interactive sessions only.
+- **Re-list immediately before acking**, with the `--keys` command of section 1, and
+  compare with the set you read at the start, so you know what is still open.
 
 ## 4. Never
 

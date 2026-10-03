@@ -280,6 +280,13 @@ EXIT_NO_INBOX: Final = 3
 #: the channel is ordinary, and a run blind to a channel it does have is not.
 EXIT_BLIND_INBOX: Final = 4
 
+#: CS-1226. `--ack-keys` named a key that is no longer in the inbox - an item
+#: edited, renamed or withdrawn since the caller listed it. Nothing is stored.
+EXIT_ACK_KEYS_STALE: Final = 5
+
+#: CS-1226. The `--ack-keys` file could not be read. Nothing is stored.
+EXIT_ACK_KEYS_UNREADABLE: Final = 6
+
 
 class InboxUnreadableError(Exception):
     """The channel is present and this run could not list it (CS-1103).
@@ -1058,6 +1065,90 @@ def render(inbox: Path, seen_path: Path, report_path: Path | None = None) -> tup
     return "\n".join(lines), EXIT_UNREAD
 
 
+def _list_keys(inbox: Path, seen_path: Path) -> int:
+    """CS-1226 - print every unread deliverable as one JSON object per line. READ ONLY.
+
+    Returns:
+        0, or EXIT_NO_INBOX / EXIT_BLIND_INBOX when nothing could be listed. A
+        caller acting on the list needs those distinguished, so they are
+        returned without `--strict`.
+    """
+    if not inbox.is_dir():
+        sys.stderr.write(f"{TOOL_NAME}: {UNMEASURED} - no {INBOX_DIRNAME}/ here.\n")
+        return EXIT_NO_INBOX
+    try:
+        pending = unread_items(inbox, seen_path)
+    except InboxUnreadableError as blind_channel:
+        sys.stderr.write(f"{TOOL_NAME}: {UNMEASURED} - {blind_channel.reason}.\n")
+        return EXIT_BLIND_INBOX
+    for item in pending:
+        row = {"key": item.key, "kind": item.kind, "display": item.display}
+        sys.stdout.write(json.dumps(row, sort_keys=True, ensure_ascii=True) + "\n")
+    return 0
+
+
+def _ack_keys(
+    keys_file: Path,
+    inbox: Path,
+    seen_path: Path,
+    log_path: Path,
+    source: str,
+    session: str,
+) -> int:
+    """CS-1226 - acknowledge exactly the listed keys, or refuse and store nothing.
+
+    THE RACE THIS CLOSES. `--ack` rewrites the store from whatever is present
+    at ack time, so an item that lands between a caller's last look and its
+    ack is marked seen without ever being read. Here the caller names what it
+    handled; anything else present stays unread.
+
+    THE NEW STORE is the old one restricted to keys still present, plus the
+    listed keys - so an earlier ack is not undone and a withdrawn key drops out,
+    the same no-unbounded-growth rule `--ack` keeps. A blind store refuses:
+    unioning with a store this run could not read would forget what it held.
+    """
+    if not inbox.is_dir():
+        sys.stderr.write(f"{TOOL_NAME}: refusing to acknowledge - no {INBOX_DIRNAME}/ here.\n")
+        return EXIT_NO_INBOX
+    try:
+        wanted = {
+            line.strip()
+            for line in keys_file.read_bytes().decode("utf-8").splitlines()
+            if line.strip()
+        }
+    except (OSError, UnicodeDecodeError):
+        sys.stderr.write(f"{TOOL_NAME}: refusing to acknowledge - the key file is unreadable.\n")
+        return EXIT_ACK_KEYS_UNREADABLE
+    blind = seen_blind_reason(seen_path)
+    if blind:
+        sys.stderr.write(f"{TOOL_NAME}: refusing to acknowledge - the seen store {blind}.\n")
+        return EXIT_BLIND_INBOX
+    try:
+        present = {d.key for d in deliverables(inbox)}
+    except InboxUnreadableError as blind_channel:
+        sys.stderr.write(f"{TOOL_NAME}: refusing to acknowledge - {blind_channel.reason}.\n")
+        return EXIT_BLIND_INBOX
+    stale = len(wanted - present)
+    if stale:
+        sys.stderr.write(
+            f"{TOOL_NAME}: refusing to acknowledge - {stale} listed key(s) are no"
+            " longer in the inbox; nothing was stored. List again.\n"
+        )
+        return EXIT_ACK_KEYS_STALE
+    kept = load_seen(seen_path) & present
+    save_seen(seen_path, kept | wanted)
+    append_invocation(
+        log_path,
+        mode="ack-keys",
+        source=source,
+        session=session,
+        unread=len(present - kept - wanted),
+        withdrawn=0,
+    )
+    sys.stdout.write(f"{TOOL_NAME}: acknowledged {len(wanted)} listed item(s).\n")
+    return 0
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     """Run the watcher.
 
@@ -1084,6 +1175,28 @@ def main(argv: Sequence[str] | None = None) -> int:
             "Mark every deliverable currently in the inbox as acknowledged. This"
             " is a SEPARATE action from listing on purpose: listing must never"
             " consume an item, or a session that did not look would silence it."
+        ),
+    )
+    parser.add_argument(
+        "--keys",
+        action="store_true",
+        help=(
+            "CS-1226. List every unread deliverable as one JSON object per line"
+            " carrying its key, kind and display. Read-only, like the default"
+            " listing; it is what a caller hands back to --ack-keys."
+        ),
+    )
+    parser.add_argument(
+        "--ack-keys",
+        type=Path,
+        default=None,
+        metavar="FILE",
+        help=(
+            "CS-1226. Acknowledge EXACTLY the keys in FILE (one per line), as"
+            " printed by --keys. Refuses, storing nothing, when any listed key"
+            " is no longer present. Items not listed stay unread - unlike"
+            " --ack, which marks everything present, including an item that"
+            " arrived after the caller looked."
         ),
     )
     parser.add_argument(
@@ -1121,6 +1234,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         help="Repository root. Defaults to this file's parent's parent.",
     )
     args = parser.parse_args(list(argv) if argv is not None else None)
+    if args.ack and args.ack_keys is not None:
+        parser.error("--ack and --ack-keys are exclusive")
 
     root = args.root if args.root is not None else repo_root()
     inbox = root / INBOX_DIRNAME
@@ -1137,6 +1252,12 @@ def main(argv: Sequence[str] | None = None) -> int:
         if args.session_id is not None
         else hook_session_id(payload)
     )
+
+    if args.keys:
+        return _list_keys(inbox, seen_path)
+
+    if args.ack_keys is not None:
+        return _ack_keys(args.ack_keys, inbox, seen_path, log_path, source, session)
 
     if args.ack:
         if not inbox.is_dir():

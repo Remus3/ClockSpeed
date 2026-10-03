@@ -291,7 +291,9 @@ def test_the_worker_prompt_carries_the_ack_and_provenance_fences() -> None:
     relists = "Re-list immediately before acking" in text
     mid_pass = "arrived mid-pass must never be" in text
     one_read = "ONE permitted read outside this tree" in text
-    assert (relists, mid_pass, one_read) == (True, True, True)
+    keyed = "--ack-keys" in text and "--keys" in text
+    no_plain_ack = "NEVER run plain `--ack`" in text
+    assert (relists, mid_pass, one_read, keyed, no_plain_ack) == (True,) * 5
 
 
 def test_the_worker_prompt_is_tracked_beside_the_queue_prompt() -> None:
