@@ -23,14 +23,17 @@ here - the one blind spot, stated rather than hidden.
 CS-1224 WIDENS WHAT IS READ AND WHAT IS STATED. (3) Every tracked file OUTSIDE
 the doc pathspecs - code, config, data - is read too (:data:`CODE_PATHSPECS`),
 and each 7-to-40 run in it of any shape is resolved like a not-admitted doc run:
-red when it names an existing unpublished commit, silent otherwise. (4) A run
-of 5 or 6 lower-case hex characters carrying a digit and a letter, word-bounded,
-in any tracked file, is resolved the same way - git accepts an abbreviation
-that short. Every other width class git might resolve is NOT JUDGED, and each
-run prints every such class (:data:`NOT_JUDGED`) with its count and the reason,
-so an empty result there is never read as a pass. All three resolved-only
-populations share the blind spot above, and the overreach control and the
-allowlist apply to doc tokens only.
+red when it names an existing unpublished commit, silent otherwise. (4) Every
+run of 5 or 6 hex characters, any case, joined to anything, in any tracked
+file, is resolved the same way - git accepts an abbreviation that short. The
+4-character and the 41-or-more classes are NOT JUDGED, and each run prints
+every such class (:data:`NOT_JUDGED`) with its count and the measured reason,
+so an empty result there is never read as a pass. A tracked file is decoded as
+UTF-8, or as UTF-16 behind a byte-order mark; one that is neither, or carries a
+NUL, is NOT READ, and every run prints that count and each such path, so a
+file dropping out of every population is a statement, never silence. All three
+resolved-only populations share the blind spot above, and the overreach
+control and the allowlist apply to doc tokens only.
 
 THE RESOLVER. Every distinct run is asked ``<token>^{commit}`` in ONE ``git
 cat-file --batch-check`` call - the object-name resolution ``git rev-parse
@@ -154,49 +157,56 @@ INCLUSION_RULE: Final = (
     "other tracked file - code, config, data - every run of 7 to 40 hex characters is "
     "resolved the same way and is red only when it names an existing unpublished commit, "
     "because hex literals that name nothing (test vectors, digests, ids) outnumber code "
-    "citations there. A run of 5 or 6 lower-case hex characters carrying a digit and a "
-    "letter, word-bounded, in any tracked file, is resolved the same way too. NOT JUDGED, "
-    "stated with a count on every run: a 4-character run, a 5 or 6 character run of any "
-    "other shape, and a run of 41 or more - see each not-judged line for why"
+    "citations there. Every run of 5 or 6 hex characters of any case, joined to anything, "
+    "in any tracked file, is resolved the same way too. A tracked file is read as UTF-8, "
+    "or as UTF-16 when it opens with a byte-order mark; one that decodes as neither, or "
+    "carries a NUL, is NOT READ, and its count is stated on every run. NOT JUDGED, stated "
+    "with a count on every run: a 4-character run and a run of 41 or more - see each "
+    "not-judged line for why"
 )
 
 #: CS-1224 - the width classes the gate does NOT judge, each with the reason
 #: printed beside its count on every run, so an empty result there is never
 #: read as a pass. Measured 2026-10-03 over every tracked file of this tree,
-#: whose store held 1737 commits: 4-character runs 43984 (1079 distinct, 849
-#: all-digit), of which 28 resolve to a commit and 7 to an UNPUBLISHED one -
-#: grading them would redden the tree today on numbers alone; 5- or 6-character
-#: runs outside the judged shape 6998 (336 distinct, 227 all-digit), none a
-#: commit; runs of 41 or more 45 (30 distinct), none whose leading 40 is a
-#: commit. The judged short shape carried 49 distinct runs, none a commit.
+#: whose store held 1741 commits: 4-character runs 43994 (1079 distinct, 849
+#: all-digit), of which 29 resolve to a commit and 8 to an UNPUBLISHED one;
+#: runs of 41 or more 45 (30 distinct), none whose leading 40 is a commit.
+#: Every 5- or 6-character run of any shape - 386 distinct, 228 all-digit - named no
+#: commit at all, so judging that class cost nothing measurable and it is judged.
 NOT_JUDGED: Final[dict[str, str]] = {
     "w4": (
-        "git's shortest abbreviation, but 4 hex characters are every year, port and "
-        "4-digit count; a match against this store's commits is chance, not citation"
-    ),
-    "w5-6-not-admitted": (
-        "an all-digit, all-letter, upper-case or joined run of 5 or 6 is a number, a word "
-        "or a constant far more often than a sha, and resolving it reddens the tree by "
-        "chance as the commit count grows, with no citation to repair"
+        "measured 2026-10-03: of 1079 distinct 4-character runs, 849 all-digit, 29 named "
+        "a commit and 8 an unpublished one - judging them would redden the tree on years, "
+        "ports and counts that cite nothing"
     ),
     "w41+": (
         "no sha1 object name is longer than 40, so git resolves nothing here and the "
-        "answer would be vacuous; such a run is a sha256 digest or a concatenation"
+        "answer would be vacuous; measured 2026-10-03: 30 distinct such runs, none whose "
+        "leading 40 characters name a commit"
     ),
 }
 
 #: Every maximal run of hex characters, either case, joined to anything.
 _ANY_RUN: Final = re.compile(r"(?<![0-9A-Fa-f])[0-9A-Fa-f]{7,40}(?![0-9A-Fa-f])")
 
-#: CS-1224 - the judged short shape: 5 or 6 lower-case hex, word-bounded.
-_SHORT_TOKEN: Final = re.compile(r"(?<![0-9A-Za-z_])[0-9a-f]{5,6}(?![0-9A-Za-z_])")
+#: CS-1224 - every maximal run of 5 or 6 hex characters, either case, joined to anything.
+_SHORT_RUN: Final = re.compile(r"(?<![0-9A-Fa-f])[0-9A-Fa-f]{5,6}(?![0-9A-Fa-f])")
 
 #: Each not-judged width class, as the maximal hex run that measures it.
 _NOT_JUDGED_RUNS: Final[dict[str, re.Pattern[str]]] = {
     "w4": re.compile(r"(?<![0-9A-Fa-f])[0-9A-Fa-f]{4}(?![0-9A-Fa-f])"),
-    "w5-6-not-admitted": re.compile(r"(?<![0-9A-Fa-f])[0-9A-Fa-f]{5,6}(?![0-9A-Fa-f])"),
     "w41+": re.compile(r"(?<![0-9A-Fa-f])[0-9A-Fa-f]{41,}(?![0-9A-Fa-f])"),
 }
+
+#: CS-1224 - the reason printed beside the not-read count on every run.
+NOT_READ_REASON: Final = (
+    "tracked files absent from the work tree, or that decode as neither UTF-8 nor "
+    "BOM-marked UTF-16, or that carry a NUL, are binary or missing to this reader and "
+    "are not judged"
+)
+
+#: The byte-order marks that make a tracked file read as UTF-16.
+_UTF16_BOMS: Final = (b"\xff\xfe", b"\xfe\xff")
 
 _TOKEN: Final = re.compile(r"(?<![0-9A-Za-z_])[0-9a-f]{7,40}(?![0-9A-Za-z_])")
 _HAS_DIGIT: Final = re.compile(r"[0-9]")
@@ -434,7 +444,7 @@ def scan_code(text: str, path: str = "") -> list[Occurrence]:
 
 
 def scan_short(text: str, path: str = "") -> list[Occurrence]:
-    """Every judged 5- or 6-character run: lower-case, a digit and a letter, word-bounded.
+    """Every maximal 5- or 6-character hex run, any case, joined to anything.
 
     Args:
         text: One file's text.
@@ -447,19 +457,28 @@ def scan_short(text: str, path: str = "") -> list[Occurrence]:
     return [
         Occurrence(path, index + 1, match.group(0), None)
         for index, line in enumerate(text.splitlines())
-        for match in _SHORT_TOKEN.finditer(line)
-        if _HAS_DIGIT.search(match.group(0)) and _HAS_LETTER.search(match.group(0))
+        for match in _SHORT_RUN.finditer(line)
     ]
 
 
 def count_not_judged(text: str) -> dict[str, int]:
-    """How many runs of each :data:`NOT_JUDGED` width class ``text`` carries.
+    """How many runs of each :data:`NOT_JUDGED` width class ``text`` carries."""
+    return {name: len(pattern.findall(text)) for name, pattern in _NOT_JUDGED_RUNS.items()}
 
-    The 5-and-6 class counts only the runs :func:`scan_short` does not judge.
+
+def decode_tracked(raw: bytes) -> str | None:
+    """A tracked file's text, or None when this reader cannot judge it - CS-1224.
+
+    UTF-16 is decoded when the bytes open with a byte-order mark; anything else
+    must be strict UTF-8 (a UTF-8 BOM is dropped) and carry no NUL.
     """
-    counts = {name: len(pattern.findall(text)) for name, pattern in _NOT_JUDGED_RUNS.items()}
-    counts["w5-6-not-admitted"] -= len(scan_short(text))
-    return counts
+    try:
+        if raw.startswith(_UTF16_BOMS):
+            return raw.decode("utf-16")
+        text = raw.decode("utf-8-sig")
+    except UnicodeDecodeError:
+        return None
+    return None if "\0" in text else text
 
 
 def resolve_many(repo: Path, tokens: Sequence[str]) -> dict[str, str | None]:
@@ -587,6 +606,7 @@ class SweepReport:
         code_runs: Every hex run of 7 to 40 in those files, resolved only.
         short_runs: Every judged 5- or 6-character run, docs and code, resolved only.
         not_judged: Each :data:`NOT_JUDGED` class mapped to its run count.
+        not_read: Tracked files :func:`decode_tracked` could not judge.
 
     ``not_admitted_unpublished`` carries every red run of all three resolved-only
     populations - not-admitted doc runs, code runs and short runs.
@@ -606,6 +626,7 @@ class SweepReport:
     code_runs: list[Occurrence] = field(default_factory=list)
     short_runs: list[Occurrence] = field(default_factory=list)
     not_judged: dict[str, int] = field(default_factory=lambda: dict.fromkeys(NOT_JUDGED, 0))
+    not_read: list[str] = field(default_factory=list)
 
     @property
     def admitted(self) -> list[Occurrence]:
@@ -658,11 +679,13 @@ def sweep(repo: Path, allowlist: Mapping[str, str] | None = None) -> SweepReport
     code_runs: list[Occurrence] = []
     short_runs: list[Occurrence] = []
     not_judged = dict.fromkeys(NOT_JUDGED, 0)
+    not_read: list[str] = []
     for name in [*paths, *code_paths]:
         target = repo / name
-        if not target.is_file():
+        text = decode_tracked(target.read_bytes()) if target.is_file() else None
+        if text is None:
+            not_read.append(name)
             continue
-        text = target.read_text(encoding="utf-8", errors="replace")
         if name in code_set:
             code_runs += scan_code(text, name)
         else:
@@ -678,6 +701,7 @@ def sweep(repo: Path, allowlist: Mapping[str, str] | None = None) -> SweepReport
     report.code_runs = code_runs
     report.short_runs = short_runs
     report.not_judged = not_judged
+    report.not_read = not_read
     if shallow or not ref_count:
         return report
     resolved_only = [*not_admitted, *code_runs, *short_runs]
@@ -717,6 +741,8 @@ def render(report: SweepReport) -> list[str]:
         f"not-judged {name} {report.not_judged.get(name, 0)} - {reason}"
         for name, reason in NOT_JUDGED.items()
     ]
+    out.append(f"not-read {len(report.not_read)} - {NOT_READ_REASON}")
+    out += [f"not-read-file {name}" for name in report.not_read]
     for name, sentence in CLASSES.items():
         count = sum(1 for entry in report.occurrences if entry.rule == name)
         out.append(f"excluded-count {name} {count} - {sentence}")

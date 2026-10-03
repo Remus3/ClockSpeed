@@ -32,9 +32,12 @@ exclusions are an ALLOWLIST of exact tokens; no shape excludes anything. Arms:
 * THE CS-1224 ARMS: an unpublished commit abbreviation planted in a byte-copy
   of a tracked ``.py`` file is refused, and a 5- or 6-character unpublished
   abbreviation in a guarded doc is refused, each beside a control in which a
-  published commit passes; a 5- or 6-character run the rule does not admit,
-  and a run of 41 or more, is never silently passed - every run states each
-  width class it does not judge, with its count and the reason.
+  published commit passes; a 6-character run of any shape - digit-only,
+  upper-case, joined - is refused in a doc and in code alike, and an upper-case
+  7-character code citation is refused; a 4-character run and a run of 41 or
+  more are never silently passed - every run states each width class it does
+  not judge, with its count and the reason; a UTF-16 file behind a BOM is
+  decoded and judged, and a file the reader cannot decode is counted not-read.
 * THE LIVE ARM runs the gate over this tree and FAILS - never skips - when the
   tree is shallow or has no origin/main and no tag, and fails on an unused
   table row.
@@ -67,6 +70,9 @@ GUARDED_DOC: Final = "CLAUDE.md"
 
 #: A tracked code file a throwaway repository carries a byte-copy of - CS-1224.
 CODE_FILE: Final = "tools/toolpath.py"
+
+#: A tracked PowerShell file the decode arm re-encodes as UTF-16 - CS-1224.
+UTF16_FILE: Final = "ops/loop/run_lane.ps1"
 
 #: The ledger, whose copy carries the ``path at <sha>`` plant.
 LEDGER_DOC: Final = "docs/LEDGER.md"
@@ -647,16 +653,76 @@ def test_a_short_published_abbreviation_in_a_guarded_doc_passes(
     assert done.returncode == gate.EXIT_CLEAN, done.stdout + done.stderr
 
 
-def test_a_digit_only_six_character_unpublished_run_is_stated_not_judged(
+SHORT_SHAPES: Final = [
+    ("digit-only-doc", GUARDED_DOC, "Landed as commit `{tok}` on the merge.", "digits", False),
+    ("upper-doc", GUARDED_DOC, "Landed as commit `{tok}` on the merge.", "both", True),
+    ("lower-code", CODE_FILE, "# RED at {tok}: the push landed.", "both", False),
+    ("joined-code", CODE_FILE, "ADDRESS = 0x{tok}", "both", False),
+]
+
+
+@pytest.mark.parametrize(
+    ("label", "target", "shape", "kind", "upper"), SHORT_SHAPES, ids=[s[0] for s in SHORT_SHAPES]
+)
+def test_a_six_character_unpublished_run_of_any_shape_in_any_file_is_refused(
+    code_repo: Repo, label: str, target: str, shape: str, kind: str, upper: bool
+) -> None:
+    """A 6-run naming an unpublished commit is refused in a doc and in a .py copy alike."""
+    if kind == "digits":
+        side = commit_where(code_repo, lambda sha: sha[:6].isdigit(), "refs/heads/side")
+    else:
+        side = commit_where(code_repo, lambda sha: _carries_both(sha[:6]), "refs/heads/side")
+    token = side[:6].upper() if upper else side[:6]
+    line = plant(code_repo, shape.format(tok=token), target)
+    done = cli(code_repo)
+    assert done.returncode == gate.EXIT_UNRESOLVED, label + done.stdout + done.stderr
+    assert f"unpublished-not-admitted {target}:{line} {token} " in done.stdout, label
+
+
+def test_an_upper_case_unpublished_citation_in_a_tracked_py_file_is_refused(
     code_repo: Repo,
 ) -> None:
-    """A digit-only 6-run is a number as often as a sha: counted as NOT JUDGED, never passed."""
-    before = _not_judged(cli(code_repo).stdout, "w5-6-not-admitted")
-    side = commit_where(code_repo, lambda sha: sha[:6].isdigit(), "refs/heads/side")
-    plant(code_repo, f"Landed as commit `{side[:6]}` on the merge.")
+    """Code runs are read in either case: an UPPER-case 7-char citation in .py is refused."""
+    side = commit_where(code_repo, lambda sha: _carries_both(sha[:7]), "refs/heads/side")
+    token = side[:7].upper()
+    line = plant(code_repo, f"# RED at {token}: the push landed.", CODE_FILE)
+    done = cli(code_repo)
+    assert done.returncode == gate.EXIT_UNRESOLVED, done.stdout + done.stderr
+    assert f"unpublished-not-admitted {CODE_FILE}:{line} {token} " in done.stdout
+
+
+def _not_read(stdout: str) -> int:
+    """The not-read count a run printed."""
+    for line in stdout.splitlines():
+        fields = line.split()
+        if fields[:1] == ["not-read"]:
+            return int(fields[1])
+    message = "no not-read line"
+    raise AssertionError(message)
+
+
+def test_a_utf16_file_with_a_bom_is_decoded_and_judged(tmp_path: Path) -> None:
+    """A UTF-16 .ps1 carrying an unpublished citation is decoded, so it is refused."""
+    made = _make(tmp_path, GUARDED_DOC, UTF16_FILE)
+    plant(made, f"Landed as `{made.git('rev-parse', 'HEAD')}`.")
+    side = commit_where(made, lambda sha: _carries_both(sha[:7]), "refs/heads/side")
+    text = (REPO_ROOT / UTF16_FILE).read_bytes().decode("utf-8")
+    text += f"\n# RED at {side[:7]}: the push landed.\n"
+    (made.path / UTF16_FILE).write_bytes(text.encode("utf-16"))
+    done = cli(made)
+    assert done.returncode == gate.EXIT_UNRESOLVED, done.stdout + done.stderr
+    assert f"unpublished-not-admitted {UTF16_FILE}:" in done.stdout
+    assert _not_read(done.stdout) == 0
+
+
+def test_an_undecodable_tracked_file_is_counted_not_read(code_repo: Repo) -> None:
+    """A NUL-bearing file the reader cannot judge is counted and named, never dropped silently."""
+    assert _not_read(cli(code_repo).stdout) == 0
+    (code_repo.path / CODE_FILE).write_bytes(b"\x00\x01binary\xff\xfe\x00")
     done = cli(code_repo)
     assert done.returncode == gate.EXIT_CLEAN, done.stdout + done.stderr
-    assert _not_judged(done.stdout, "w5-6-not-admitted") == before + 1
+    assert _not_read(done.stdout) == 1
+    assert f"not-read-file {CODE_FILE}" in done.stdout
 
 
 def test_a_run_over_forty_holding_an_unpublished_sha_is_stated_not_judged(
@@ -675,7 +741,7 @@ def test_every_run_states_each_width_class_it_does_not_judge(code_repo: Repo) ->
     """Each not-judged width class is printed with its count and reason, even at zero."""
     done = cli(code_repo)
     assert done.returncode == gate.EXIT_CLEAN, done.stdout + done.stderr
-    assert set(gate.NOT_JUDGED) == {"w4", "w5-6-not-admitted", "w41+"}
+    assert set(gate.NOT_JUDGED) == {"w4", "w41+"}
     for name, reason in gate.NOT_JUDGED.items():
         assert f" - {reason}" in done.stdout, name
         assert _not_judged(done.stdout, name) >= 0
