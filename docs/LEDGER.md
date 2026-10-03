@@ -77,7 +77,7 @@ machine-checked artifact that produces it.
 
 ### 2026-10-03 - CS-1227 - one function runs the MAIN provenance check from gitignored config
 Verification: `tools/main_provenance.py` `verify_main_note`, tests `tests/test_main_provenance.py`
-(67). MAIN's root comes only from the gitignored `config/main_tree.local.json`; the note is
+(67). MAIN's root comes only from the gitignored local MAIN-tree config the module names; the note is
 compared to HEAD's committed blob via `cat-file` with `--no-replace-objects`, the index must
 name HEAD's object, the on-disk file must equal the blob byte for byte, a shallow MAIN and a
 relative root refuse, and the Verdict carries the verified digest. `tools/headless-inbox.md`
