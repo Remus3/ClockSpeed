@@ -1,7 +1,8 @@
 """CS-1222 - a doc carrying an unpublished or unresolvable commit sha turns a guard red.
 
 WHAT THIS GRADES. ``tools/sha_citation_gate.py`` resolves every sha-shaped
-citation with ``git rev-parse --verify -q <sha>^{commit}`` and counts it only
+citation as ``<sha>^{commit}`` - one ``git cat-file --batch-check`` for the tree,
+the resolution ``git rev-parse --verify -q`` performs - and counts it only
 when the commit is reachable from ``HEAD``, ``refs/remotes/origin/main`` or a
 tag. Its
 exclusions are an ALLOWLIST of exact tokens; no shape excludes anything. Arms:
@@ -325,6 +326,19 @@ def test_the_prefix_constructor_never_yields_an_unadmitted_token() -> None:
     head = mixed("1234567890abcdef" + "0" * 24)
     assert head == "1234567890a"
     assert [entry.token for entry in gate.scan_text(f"`{head}`", allowlist={})] == [head]
+
+
+def test_the_batch_resolver_agrees_with_rev_parse_verify(repo: Repo) -> None:
+    """The batch answers every token exactly as ``rev-parse --verify -q`` does, one by one."""
+    head = repo.git("rev-parse", "HEAD")
+    blob = repo.git("hash-object", "--", GUARDED_DOC)
+    tokens = [head, mixed(head, 7), mixed(head, 12).upper(), blob, mixed(blob, 9), ABSENT_SHA]
+    batch = gate.resolve_many(repo.path, tokens)
+    single = {token: gate.commit_of(repo.path, token.lower()) for token in tokens}
+    assert batch == single
+    assert batch[head] == head
+    assert batch[blob] is None
+    assert batch[ABSENT_SHA] is None
 
 
 def test_sweep_api_matches_the_cli_on_a_plant(repo: Repo) -> None:

@@ -20,8 +20,14 @@ citations in those shapes, and only a run git itself resolves is evidence of
 one. A run naming an unpublished commit the store does not hold is invisible
 here - the one blind spot, stated rather than hidden.
 
-THE RESOLVER. Each distinct sha-shaped token is resolved with ``git rev-parse
---verify -q <token>^{commit}``, and the commit it names counts ONLY when it is
+THE RESOLVER. Every distinct run is asked ``<token>^{commit}`` in ONE ``git
+cat-file --batch-check`` call - the object-name resolution ``git rev-parse
+--verify -q <token>^{commit}`` performs (:func:`commit_of`, kept as the
+single-token reference the arms compare against), answered for the whole tree
+in one process instead of one per token: an unknown or ambiguous name answers
+``missing`` or ``ambiguous`` there exactly as it fails ``--verify`` there.
+Reachability is ONE ``git rev-list`` into a set. The commit a token names counts
+ONLY when it is
 PUBLISHED - reachable from ``HEAD``, from ``refs/remotes/origin/main`` or from
 a tag, and nothing else. ``HEAD`` counts because it is the commit whose tree is
 being judged: everything reachable from it ships with it, so a note citing an
@@ -347,7 +353,7 @@ def scan_not_admitted(text: str, path: str = "") -> list[Occurrence]:
     return runs
 
 
-def _resolve_many(repo: Path, tokens: Sequence[str]) -> dict[str, str | None]:
+def resolve_many(repo: Path, tokens: Sequence[str]) -> dict[str, str | None]:
     """Resolve many runs to commits in ONE ``git cat-file --batch-check`` call.
 
     ``<run>^{commit}`` is the same question ``rev-parse --verify`` answers; a
@@ -534,15 +540,15 @@ def sweep(repo: Path, allowlist: Mapping[str, str] | None = None) -> SweepReport
     report.not_admitted = not_admitted
     if shallow or not ref_count:
         return report
-    runs = _resolve_many(repo, sorted({entry.token for entry in not_admitted}))
+    every = {entry.token for entry in not_admitted} | {entry.token for entry in occurrences}
+    runs = resolve_many(repo, sorted(every))
     report.not_admitted_unpublished = [
         entry
         for entry in not_admitted
         if (commit := runs[entry.token]) is not None and commit not in published
     ]
-    commits = {token: commit_of(repo, token) for token in sorted({e.token for e in occurrences})}
     for entry in occurrences:
-        commit = commits[entry.token]
+        commit = runs[entry.token]
         is_published = commit is not None and commit in published
         if entry.rule is not None and is_published:
             report.overreach.append(entry)
@@ -582,7 +588,7 @@ def render(report: SweepReport) -> list[str]:
         )
     else:
         out.append(
-            "resolver full - git rev-parse --verify -q <sha>^{commit}, counted only when "
+            "resolver full - <sha>^{commit} in one git cat-file --batch-check, counted only when "
             "reachable from HEAD, refs/remotes/origin/main or a tag "
             f"({report.published_refs} refs beside HEAD)"
         )
