@@ -178,6 +178,7 @@ ops/__init__.py	authored	CS-918	first-add:CS-918
 ops/loop/__init__.py	authored	CS-918	first-add:CS-918
 ops/loop/claims.py	authored	CS-991	first-add:CS-991
 ops/loop/headless_route.py	authored	CS-1225	stamped
+ops/loop/inbox_responder.py	authored	CS-1226	stamped
 ops/loop/inbox_surface.py	authored	CS-1104	first-add:CS-1104
 ops/loop/lane_launcher.py	authored	CS-918	first-add:CS-918
 ops/loop/lanes.py	authored	CS-918	first-add:CS-918
@@ -252,6 +253,7 @@ tests/ops/__init__.py	authored	CS-1000	first-add:CS-1000
 tests/ops/test_driver_log_per_night.py	authored	CS-1018	stamped
 tests/ops/test_driver_module_binding.py	authored	CS-1165	first-add:root
 tests/ops/test_headless_route.py	authored	CS-1225	stamped
+tests/ops/test_inbox_responder.py	authored	CS-1226	stamped
 tests/ops/test_lane_background_tasks.py	authored	CS-1108	first-add:CS-1108
 tests/ops/test_lane_inbox_surface.py	authored	CS-1104	first-add:CS-1104
 tests/ops/test_lane_refusal_contract.py	authored	CS-1015	stamped
@@ -470,6 +472,7 @@ tools/edit_lint_check.py	authored	CS-1165	first-add:root
 tools/facts_probe.py	authored	CS-1165	first-add:root
 tools/flip_checks.py	authored	CS-1183	stamped
 tools/freeze_witness.py	authored	CS-1219	stamped
+tools/headless-inbox.md	authored	CS-1226	stamped
 tools/headless-queue.md	authored	CS-918	first-add:CS-918
 tools/inbox_watch.py	authored	CS-926	first-add:CS-926
 tools/licence_audit.py	authored	CS-1185	stamped
