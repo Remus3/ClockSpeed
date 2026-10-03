@@ -16,6 +16,7 @@ holding the configured path would leak the very thing the arm forbids.
 
 from __future__ import annotations
 
+import hashlib
 import importlib.util
 import json
 import os
@@ -41,6 +42,9 @@ NOTE_NAME: Final = "cs1227-main-directive.md"
 
 #: The bytes MAIN sent.
 NOTE_BYTES: Final = b"directive: synthetic body for the CS-1227 arms\n"
+
+#: The SHA-256 hex a verified verdict must carry for NOTE_BYTES.
+NOTE_SHA256: Final = hashlib.sha256(NOTE_BYTES).hexdigest()
 
 #: Inherited variables that would point a child git at another repository.
 _GIT_REDIRECTS: Final = (
@@ -85,8 +89,10 @@ def _clean_env() -> dict[str, str]:
     return env
 
 
-def _git(root: Path, *args: str) -> None:
-    """Run one git command in ``root``, failing the test on a non-zero exit.
+def _git(root: Path, *args: str) -> str:
+    """Run one git command in ``root`` and return its stripped stdout.
+
+    Fails the test on a non-zero exit.
 
     The failure names only the git subcommand. ``check=True`` would raise a
     ``CalledProcessError`` whose rendering carries the temporary root.
@@ -114,6 +120,7 @@ def _git(root: Path, *args: str) -> None:
     failed = proc.returncode != 0
     if failed:
         pytest.fail("fixture git step failed: " + args[0], pytrace=False)
+    return proc.stdout.decode("ascii", "replace").strip()
 
 
 @dataclass
@@ -167,9 +174,15 @@ def _verify(w: World) -> tuple[bool, str]:
 
 
 def test_a_matching_tracked_note_passes(world: World) -> None:
-    ok, reason = _verify(world)
+    verdict = provenance.verify_main_note(world.note, config_path=world.config)
+    reason = str(verdict.reason)
+    ok = bool(verdict.ok)
+    digest = str(verdict.digest)
+    # The verdict binds to the bytes it verified, so a caller can refuse a note
+    # that changed after the check.
     assert reason == "verified"
     assert ok is True
+    assert digest == NOTE_SHA256
 
 
 # --- the refusal arms, one per named reason ----------------------------------
@@ -317,7 +330,57 @@ def _corrupt_gitdir(w: World) -> None:
     _write_config(w.config, broken)
 
 
+# Round 2 - replace refs. git follows `refs/replace/` in rev-parse and cat-file
+# unless told not to, so a replacement makes never-committed bytes look like
+# HEAD's. In both plants the note and the working tree carry the EVIL bytes.
+
+_EVIL: Final = b"directive: never committed by MAIN\n"
+
+
+def _evil_blob(w: World) -> str:
+    """Write the evil bytes as a loose blob in MAIN and return its id."""
+    source = w.base / "cs1227_evil_source"
+    source.write_bytes(_EVIL)
+    return _git(w.main_root, "hash-object", "-w", "--", str(source))
+
+
+def _replaced_blob(w: World) -> None:
+    rel = "moon_sync_outbox/" + NOTE_NAME
+    original = _git(w.main_root, "rev-parse", "HEAD:" + rel)
+    _git(w.main_root, "replace", original, _evil_blob(w))
+    w.outbox_file.write_bytes(_EVIL)
+    w.note.write_bytes(_EVIL)
+
+
+def _replaced_head_commit(w: World) -> None:
+    # A side commit carries the evil bytes; HEAD's commit is then REPLACED by
+    # it, and the index re-read through the replacement so index and
+    # (replaced) HEAD agree.
+    original = _git(w.main_root, "rev-parse", "HEAD")
+    _git(w.main_root, "checkout", "-q", "-b", "cs1227-side")
+    w.outbox_file.write_bytes(_EVIL)
+    _git(w.main_root, "commit", "-q", "-a", "-m", "evil")
+    fake = _git(w.main_root, "rev-parse", "HEAD")
+    _git(w.main_root, "checkout", "-q", "-")
+    _git(w.main_root, "replace", original, fake)
+    _git(w.main_root, "read-tree", "HEAD")
+    w.outbox_file.write_bytes(_EVIL)
+    w.note.write_bytes(_EVIL)
+
+
+def _shallow_clone(w: World) -> None:
+    # A shallow repository's history is cut off by a graft-like file; refuse
+    # it outright rather than reason about what the cut hides.
+    (w.main_root / "README.md").write_bytes(b"second\n")
+    _git(w.main_root, "commit", "-q", "-a", "-m", "second")
+    _git(w.base, "clone", "-q", "--depth", "1", w.main_root.as_uri(), "cs1227_shallow")
+    _write_config(w.config, w.base / "cs1227_shallow")
+
+
 REFUSALS: Final[dict[str, tuple[Callable[[World], None], str]]] = {
+    "replaced_blob": (_replaced_blob, "modified"),
+    "replaced_head_commit": (_replaced_head_commit, "modified"),
+    "shallow_clone": (_shallow_clone, "main-shallow"),
     "byte_different": (_byte_different, "digest-mismatch"),
     "untracked": (_untracked, "untracked"),
     "staged_not_committed": (_staged_not_committed, "untracked"),
@@ -347,9 +410,13 @@ REFUSALS: Final[dict[str, tuple[Callable[[World], None], str]]] = {
 def test_each_refusal_names_its_reason(world: World, case: str) -> None:
     plant, expected = REFUSALS[case]
     plant(world)
-    ok, reason = _verify(world)
+    verdict = provenance.verify_main_note(world.note, config_path=world.config)
+    reason = str(verdict.reason)
+    ok = bool(verdict.ok)
+    digest = str(verdict.digest)
     assert reason == expected
     assert ok is False
+    assert digest == ""
 
 
 def test_every_reason_is_in_the_closed_set() -> None:
@@ -520,7 +587,8 @@ def test_the_cli_exits_zero_and_prints_verified(world: World) -> None:
     proc = _cli(world)
     out = proc.stdout.decode("ascii", "replace").strip()
     code = proc.returncode
-    assert out == "verified"
+    lines = out.splitlines()
+    assert lines == ["verified", NOTE_SHA256]
     assert code == 0
 
 
@@ -535,7 +603,8 @@ def test_an_inherited_git_redirect_does_not_steer_the_check(world: World) -> Non
     proc = _cli(world, env=env)
     out = proc.stdout.decode("ascii", "replace").strip()
     code = proc.returncode
-    assert out == "verified"
+    lines = out.splitlines()
+    assert lines == ["verified", NOTE_SHA256]
     assert code == 0
 
 
@@ -561,5 +630,7 @@ def test_the_worker_prompt_names_the_function() -> None:
     text = WORKER_PROMPT.read_text(encoding="ascii")
     names_tool = "tools/main_provenance.py" in text
     names_function = "verify_main_note" in text
+    binds_digest = "SHA-256 hex" in text and "second line" in text
     assert names_tool is True
     assert names_function is True
+    assert binds_digest is True
