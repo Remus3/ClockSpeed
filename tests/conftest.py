@@ -1553,3 +1553,16 @@ RUN_GIT_PROGRAM: tuple[str, ...] = ("git",)
 
 #: Seconds ``run_git`` waits for one git command (CS-896 bound).
 RUN_GIT_TIMEOUT_SECONDS: float = 120
+
+
+# ---------------------------------------------------------------------------
+# CS-1233 - every xdist worker holds a liveness lock for as long as it runs
+# tests, so a wall-time measurement can wait until it is alone. The mechanism
+# and its reasons live in tests/xdist_quiet.py; importing the two hooks here is
+# what registers them. Appended at the foot for the line-number reason above.
+# ---------------------------------------------------------------------------
+
+from tests.xdist_quiet import (  # noqa: E402 - appended at the foot, see above
+    pytest_sessionfinish,  # noqa: F401 - a hook, registered by its name
+    pytest_sessionstart,  # noqa: F401 - a hook, registered by its name
+)

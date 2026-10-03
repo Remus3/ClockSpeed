@@ -470,6 +470,7 @@ tests/test_verify_env_ladder.py	authored	CS-818	stamped
 tests/test_world_token_bound_count.py	authored	CS-1096	first-add:CS-1096
 tests/tier2_jobs_payload.json	authored	CS-1124	first-add:CS-1124
 tests/toolpath_guard.py	authored	CS-910	first-add:CS-910
+tests/xdist_quiet.py	authored	CS-1233	stamped
 tools/action_runtimes.py	authored	CS-990	first-add:CS-990
 tools/claude_hook.sh	authored	CS-815	stamped
 tools/dashboard_probe.py	authored	CS-918	first-add:CS-918

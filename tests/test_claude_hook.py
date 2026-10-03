@@ -65,6 +65,13 @@ from tests.test_hook_interpreter_ladder import (
     write_shim,
 )
 from tests.test_pretooluse_gate import EM_DASH, envelope, require_posix_shell
+from tests.xdist_quiet import (
+    await_quiet_siblings,
+    hold_liveness_lock,
+    live_sibling_count,
+    live_siblings_now,
+    release_liveness_lock,
+)
 
 REPO_ROOT: Final = Path(__file__).resolve().parent.parent
 WRAPPER: Final = REPO_ROOT / "tools" / "claude_hook.sh"
@@ -597,6 +604,7 @@ def test_the_median_call_adds_under_a_second_and_the_worst_case_fits_both_timeou
     tmp_path: Path,
     harness: Environment,
     record_property: Callable[[str, object], None],
+    request: pytest.FixtureRequest,
 ) -> None:
     """Twenty paired calls of the real PreToolUse leg, wrapped and direct.
 
@@ -604,7 +612,16 @@ def test_the_median_call_adds_under_a_second_and_the_worst_case_fits_both_timeou
     and held under a second per call. The worst case is the probe bound plus the
     kill grace plus the slowest observed tool, and it must sit strictly under
     each leg's settings.json timeout.
+
+    MEASURED ALONE, CS-1233. Under xdist the pairs used to run beside CPU-bound
+    sibling workers, and the wrapped call - about ten process starts against the
+    direct call's one - pays for that contention far more than the direct call
+    does, so pairing never cancelled it. The windows guard shard read a median
+    of 1.010s to 1.169s that way. The measurement now waits until every sibling
+    worker has finished, and is red if one was live when it ended.
     """
+    waited = await_quiet_siblings(request.config)
+    record_property("cs815_quiet_wait_seconds", round(waited, 3))
     payload = json.dumps(envelope("git status --short")).encode("utf-8")
     added: list[float] = []
     tool_seconds: list[float] = []
@@ -619,6 +636,9 @@ def test_the_median_call_adds_under_a_second_and_the_worst_case_fits_both_timeou
     edited.write_bytes(b'"""A clean module."""\n')
     lint = [str(LINT), "--files", str(edited)]
     lint_seconds = [direct(POST, lint, b"{}", harness, tmp_path).seconds for _ in range(3)]
+    live_after = live_siblings_now(request.config)
+    record_property("cs815_live_siblings_after", live_after)
+    assert live_after == 0, "a sibling worker was live during the latency measurement"
 
     median = statistics.median(added)
     record_property("cs815_median_added_seconds", round(median, 3))
@@ -632,3 +652,129 @@ def test_the_median_call_adds_under_a_second_and_the_worst_case_fits_both_timeou
     post_worst = bound + grace + max(lint_seconds)
     assert pre_worst < settings_timeout("PreToolUse"), f"PreToolUse worst case {pre_worst:.1f}s"
     assert post_worst < settings_timeout("PostToolUse"), f"PostToolUse worst case {post_worst:.1f}s"
+
+
+# ---------------------------------------------------------------------------
+# CS-1233 - the latency arm measures alone, and that isolation is pinned here.
+# ---------------------------------------------------------------------------
+
+# The synthetic pair the nested run drives. The busy file holds its worker for
+# a few seconds; the measuring file records when it would start measuring.
+QUIET_BUSY_SECONDS: Final = 4
+QUIET_BUSY_SOURCE: Final = (
+    "import os, time\n"
+    "from pathlib import Path\n"
+    "def test_busy():\n"
+    "    out = Path(os.environ['CS1233_OUT'])\n"
+    "    (out / 'busy_start').write_text(repr(time.time()))\n"
+    "    (out / 'busy_worker').write_text(os.environ.get('PYTEST_XDIST_WORKER', ''))\n"
+    "    time.sleep(" + str(QUIET_BUSY_SECONDS) + ")\n"
+    "    (out / 'busy_end').write_text(repr(time.time()))\n"
+)
+QUIET_MEASURE_SOURCE: Final = (
+    "import os, time\n"
+    "from pathlib import Path\n"
+    "from tests.xdist_quiet import await_quiet_siblings\n"
+    "def test_measure(request):\n"
+    "    out = Path(os.environ['CS1233_OUT'])\n"
+    "    time.sleep(1)\n"
+    "    if os.environ.get('CS1233_WAIT') == '1':\n"
+    "        await_quiet_siblings(request.config)\n"
+    "    (out / 'measure_start').write_text(repr(time.time()))\n"
+    "    (out / 'measure_worker').write_text(os.environ.get('PYTEST_XDIST_WORKER', ''))\n"
+)
+
+
+def quiet_run(tmp_path: Path, *, wait: bool) -> dict[str, str]:
+    """Run the synthetic pair on two xdist workers and return what each recorded."""
+    tests_dir = tmp_path / "pair"
+    out = tmp_path / "out"
+    tests_dir.mkdir()
+    out.mkdir()
+    (tests_dir / "test_busy.py").write_text(QUIET_BUSY_SOURCE, encoding="ascii")
+    (tests_dir / "test_measure.py").write_text(QUIET_MEASURE_SOURCE, encoding="ascii")
+    env = {
+        **os.environ,
+        "CS1233_OUT": str(out),
+        "CS1233_WAIT": "1" if wait else "0",
+        "PYTHONPATH": str(REPO_ROOT),
+    }
+    env.pop("PYTEST_XDIST_WORKER", None)
+    env.pop("PYTEST_ADDOPTS", None)
+    argv = [sys.executable, "-m", "pytest", "-p", "tests.xdist_quiet", "-p", "no:cacheprovider"]
+    argv += ["-n", "2", "--dist", "loadfile", "-q", str(tests_dir)]
+    proc = subprocess.run(
+        argv, capture_output=True, env=env, cwd=str(REPO_ROOT), timeout=CALL_TIMEOUT, check=False
+    )
+    status = proc.returncode
+    assert status == 0, shown(proc.stdout + proc.stderr)
+    return {path.name: path.read_text(encoding="ascii") for path in out.iterdir()}
+
+
+@pytest.mark.parametrize("wait", [True, False], ids=["quiet", "control"])
+def test_the_measurement_starts_only_after_every_sibling_worker_finished(
+    tmp_path: Path, wait: bool
+) -> None:
+    """A measuring test that waits starts after its busy sibling ENDS.
+
+    The control does not wait, and must start while the sibling is still busy -
+    so the arm can see an overlap, and a barrier that never waits is red.
+    Both files must land on different workers, or the order is trivially serial.
+    """
+    seen = quiet_run(tmp_path, wait=wait)
+    distinct = seen["busy_worker"] != seen["measure_worker"]
+    assert distinct, "the pair shared a worker, so the arm proves nothing"
+    started_after_end = float(seen["measure_start"]) >= float(seen["busy_end"])
+    assert started_after_end is wait, "the measurement did not wait for its sibling"
+
+
+def test_a_sibling_holding_its_lock_is_live_until_its_process_dies(tmp_path: Path) -> None:
+    """The lock, not a marker file, is the liveness signal - a killed worker frees it.
+
+    The child takes its lock and is then ended without releasing it, as a crashed
+    worker would be; the operating system must free the lock with the process.
+    The prober's own lock is never counted.
+    """
+    directory = tmp_path / "live"
+    own = hold_liveness_lock(directory, "gw0")
+    child_source = (
+        "import sys\n"
+        "from pathlib import Path\n"
+        "from tests.xdist_quiet import hold_liveness_lock\n"
+        "hold_liveness_lock(Path(sys.argv[1]), 'gw1')\n"
+        "sys.stdout.write('held\\n')\n"
+        "sys.stdout.flush()\n"
+        "sys.stdin.read()\n"
+    )
+    child = subprocess.Popen(
+        [sys.executable, "-c", child_source, str(directory)],
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        cwd=str(REPO_ROOT),
+    )
+    try:
+        ready = child.stdout is not None and child.stdout.readline().strip() == b"held"
+        assert ready, "the child never took its lock"
+        live_while_held = live_sibling_count(directory, "gw0")
+        assert live_while_held == 1, "a held sibling lock was not counted live"
+    finally:
+        child.kill()
+        child.wait(timeout=CALL_TIMEOUT)
+    live_after_death = live_sibling_count(directory, "gw0")
+    assert live_after_death == 0, "a dead sibling's lock was still counted live"
+    release_liveness_lock(own)
+
+
+def test_a_released_sibling_lock_is_not_live_and_outside_xdist_nothing_waits(
+    tmp_path: Path, request: pytest.FixtureRequest
+) -> None:
+    """A worker that finished released its lock; a run with no workers waits for nothing."""
+    directory = tmp_path / "live"
+    sibling = hold_liveness_lock(directory, "gw1")
+    live_held = live_sibling_count(directory, "gw0")
+    release_liveness_lock(sibling)
+    live_released = live_sibling_count(directory, "gw0")
+    assert (live_held, live_released) == (1, 0), "release did not end liveness"
+    if getattr(request.config, "workerinput", None) is None:
+        waited = await_quiet_siblings(request.config)
+        assert waited == 0.0, "a run with no workers waited"
