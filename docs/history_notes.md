@@ -10673,7 +10673,7 @@ Aged out when session 32 landed and `WAKEUP_NOTES.md` keeps only the last three 
   `test_workdir::test_latest_save_returns_none_when_nothing_resolves` matches "no path at
   all" but genuinely calls the locator.
 
-- **In flight: branch `cs807-attribute-half` at `72f0f2c`, base `77336e5`, REFUTED and NOT
+- **In flight: branch `cs807-attribute-half` at its CS-807 Attribute-arm commit, base `77336e5`, REFUTED and NOT
   MERGED.** +242/-25 across three files. The working tree is CLEAN and nothing is unpushed;
   the branch is the only artifact. The four pre-existing worktrees (CS-492 rounds seven to
   nine and the two-site spike) are UNTOUCHED.

@@ -11,11 +11,12 @@ on every run, and it states what it does NOT admit and why.
 
 THE RESOLVER. Each distinct admitted token is resolved with ``git rev-parse
 --verify -q <token>^{commit}``, and the commit it names counts ONLY when it is
-reachable from a PUBLISHED ref - ``refs/remotes/*`` or ``refs/tags/*``. An
-object that lives only on a local branch, in a worktree or in the reflog
-resolves on this machine and in no fresh clone, so it is reported
-``local-only`` and FAILS. An ambiguous short sha does not resolve either - a
-citation two commits answer is no citation.
+reachable from a PUBLISHED ref - ``refs/remotes/origin/main`` or a tag, and
+nothing else. An object that lives only on a local branch, in a worktree, in
+the reflog or on a side branch of the remote resolves today and dies the day
+that branch is deleted, so it is reported ``unpublished`` and FAILS. An
+ambiguous short sha does not resolve either - a citation two commits answer is
+no citation.
 
 THE EXCLUSION RULES are published as :data:`EXCLUSION_RULES`, each counted on
 every run (zeros included) with every excluded site listed. Each is a STATED
@@ -89,7 +90,9 @@ GIT_TIMEOUT: Final = 120
 DOC_PATHSPECS: Final = ("*.md", "*.txt")
 
 #: The refs whose history counts as published.
-PUBLISHED_REFS: Final = ("refs/remotes", "refs/tags")
+#: The refs whose history counts as published: the remote's main line and every
+#: tag. A side branch, even a pushed one, can be deleted - and its citations with it.
+PUBLISHED_REFS: Final = ("refs/remotes/origin/main", "refs/tags")
 
 INCLUSION_RULE: Final = (
     "ADMITTED: a run of 7 to 40 lower-case hex characters carrying at least one digit and "
@@ -303,7 +306,9 @@ def _env() -> dict[str, str]:
     return env
 
 
-def _git(repo: Path, args: Sequence[str]) -> subprocess.CompletedProcess[bytes]:
+def _git(
+    repo: Path, args: Sequence[str], data: bytes | None = None
+) -> subprocess.CompletedProcess[bytes]:
     git = resolve_tool("git")
     if git is None:
         raise GateError("git is not on PATH")
@@ -312,6 +317,7 @@ def _git(repo: Path, args: Sequence[str]) -> subprocess.CompletedProcess[bytes]:
             [git, *args],
             cwd=repo,
             env=_env(),
+            input=data,
             capture_output=True,
             timeout=GIT_TIMEOUT,
             check=False,
@@ -342,7 +348,10 @@ def _published(repo: Path) -> tuple[int, set[str]]:
     refs = _git_out(repo, ["for-each-ref", "--format=%(refname)", *PUBLISHED_REFS]).split()
     if not refs:
         return 0, set()
-    listed = _git_out(repo, ["rev-list", "--remotes", "--tags"]).decode("ascii")
+    done = _git(repo, ["rev-list", "--stdin"], b"".join(ref + b"\n" for ref in refs))
+    if done.returncode != 0:
+        raise GateError(f"git rev-list exited {done.returncode}")
+    listed = done.stdout.decode("ascii")
     return len(refs), set(listed.split())
 
 
@@ -371,7 +380,7 @@ class SweepReport:
         rewritten: The OLD shas a filter-repo commit-map names, or None when
             no map is present - the discriminator is unavailable.
         unresolved: Each admitted occurrence that is not a published commit,
-            with its state - ``local-only``, ``rewritten-away`` or
+            with its state - ``unpublished``, ``rewritten-away`` or
             ``never-resolved``.
         overreach: Each EXCLUDED occurrence whose token IS a published commit.
     """
@@ -398,7 +407,7 @@ class SweepReport:
 
 def _state(report: SweepReport, token: str, commit: str | None) -> str:
     if commit is not None:
-        return "local-only"
+        return "unpublished"
     if report.rewritten is not None and any(old.startswith(token) for old in report.rewritten):
         return "rewritten-away"
     return "never-resolved"
@@ -478,11 +487,13 @@ def render(report: SweepReport) -> list[str]:
     if report.shallow:
         out.append("resolver SHALLOW - a shallow clone holds no history, so nothing was resolved")
     elif not report.published_refs:
-        out.append("resolver NO-PUBLISHED-REF - no refs/remotes or refs/tags, nothing resolved")
+        out.append(
+            "resolver NO-PUBLISHED-REF - no refs/remotes/origin/main and no tag, nothing resolved"
+        )
     else:
         out.append(
             "resolver full - git rev-parse --verify -q <sha>^{commit}, counted only when "
-            f"reachable from refs/remotes or refs/tags ({report.published_refs} refs)"
+            f"reachable from refs/remotes/origin/main or a tag ({report.published_refs} refs)"
         )
     out.append(
         "discriminator filter-repo commit-map: ABSENT - a sha rewritten away and one that "

@@ -3,13 +3,14 @@
 WHAT THIS GRADES. ``tools/sha_citation_gate.py`` resolves every sha-shaped
 citation its published inclusion rule admits with ``git rev-parse --verify -q
 <sha>^{commit}`` and counts it only when the commit is reachable from a
-PUBLISHED ref (``refs/remotes`` or ``refs/tags``). The arms here:
+PUBLISHED ref (``refs/remotes/origin/main`` or a tag). The arms here:
 
 * THE PLANT ARMS run in a throwaway repository holding a byte-copy of a guarded
   doc, tracked there too so the gate's own discovery finds it, with its one
   commit published as ``refs/remotes/origin/main``. One plants a sha the
   throwaway store provably lacks and demands the refusal BY NAME; one plants a
-  commit that exists only on a LOCAL branch and demands ``local-only``; one
+  commit that exists only on a local branch, and one only on a remote SIDE
+  branch, and demands ``unpublished`` for both; one
   plants the published commit, short and full, and demands a pass - so the gate
   is not merely refusing every hex run.
 * THE ANTI-ESCAPE ARMS: a token an exclusion rule swallows that IS a published
@@ -213,15 +214,26 @@ def test_an_unresolvable_sha_in_a_guarded_doc_is_refused_by_name(repo: Repo) -> 
     assert f"{ABSENT_SHA} never-resolved" in done.stdout
 
 
-def test_a_local_only_commit_is_refused(repo: Repo) -> None:
-    """A commit that exists only on a local branch resolves here and is still refused."""
+@pytest.mark.parametrize("ref", ["refs/heads/local-only", "refs/remotes/origin/side"])
+def test_an_unpublished_commit_is_refused(repo: Repo, ref: str) -> None:
+    """A commit on a local branch or a remote SIDE branch resolves here and is refused."""
     tree = repo.git("write-tree")
-    local = repo.git("commit-tree", tree, "-p", "HEAD", "-m", "local only")
-    repo.git("update-ref", "refs/heads/local-only", local)
-    plant(repo, f"Landed as commit `{local[:9]}` on the merge.")
+    side = repo.git("commit-tree", tree, "-p", "HEAD", "-m", "not on main")
+    repo.git("update-ref", ref, side)
+    plant(repo, f"Landed as commit `{side[:9]}` on the merge.")
     done = cli(repo)
     assert done.returncode == gate.EXIT_UNRESOLVED, done.stdout + done.stderr
-    assert f"{local[:9]} local-only" in done.stdout
+    assert f"{side[:9]} unpublished" in done.stdout
+
+
+def test_a_tagged_commit_is_published(repo: Repo) -> None:
+    """A commit reachable only from a tag counts as published."""
+    tree = repo.git("write-tree")
+    tagged = repo.git("commit-tree", tree, "-p", "HEAD", "-m", "tagged")
+    repo.git("tag", "v-synthetic", tagged)
+    plant(repo, f"Landed as commit `{tagged[:9]}` on the merge.")
+    done = cli(repo)
+    assert done.returncode == gate.EXIT_CLEAN, done.stdout + done.stderr
 
 
 @pytest.mark.parametrize("width", [7, FULL_SHA_WIDTH])
@@ -460,7 +472,7 @@ def test_this_tree_cites_only_published_commits() -> None:
     report = gate.sweep(REPO_ROOT)
     assert not report.shallow, "CS-1222 live arm needs full history: this clone is shallow"
     published = report.published_refs
-    assert published > 0, "CS-1222 live arm needs a published ref: none under refs/remotes"
+    assert published > 0, "CS-1222 live arm needs a published ref: no origin/main or tag"
     unresolved = [f"{e.path}:{e.line} {e.token} {state}" for e, state in report.unresolved]
     assert unresolved == []
     overreach = [f"{e.rule} {e.path}:{e.line} {e.token}" for e in report.overreach]

@@ -12814,7 +12814,7 @@ reports the most expensive test's share both times. The before half exists now; 
 half does not, because the profile below was taken on the tree that still carried the
 defect.
 
-**THE PROFILE, taken on the tier 1 runner** - run 34010764125 on `c189d33`, `pytest -n auto
+**THE PROFILE, taken on the tier 1 runner** - run 34010764125 on the CS-900 diagnostic profiling commit, `pytest -n auto
 --durations=40`, `5215 passed, 120 skipped in 554.70s`:
 
 | seconds | test |
@@ -12861,7 +12861,7 @@ figure has the same fault: on two workers the per-test shares of a makespan sum 
 was filed.
 
 **WHAT IS STILL OWED, AND IT IS A SLOPE AND NOT A LEVEL.** Measured: 26 commits landed
-between `c33afca` and `c189d33` in one working day, and the parallel step went 463.49s to
+between `c33afca` and the CS-900 diagnostic profiling commit in one working day, and the parallel step went 463.49s to
 554.70s over them - **3.51 seconds per commit**. Any fix that buys a fixed number of seconds
 buys a fixed number of commits. Verified by
 `tests/test_liveness.py::test_module_function_returns_the_first_definition_of_a_repeated_name`,

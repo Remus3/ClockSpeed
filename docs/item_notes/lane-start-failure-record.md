@@ -107,7 +107,7 @@ population:
 - **Eleven are 2026-09-10**, 23:17 to 23:29.
 - **Exactly ONE is 2026-09-11**: run id `5ff0ddfd`, 13:02:03, duration 2.091s.
 
-`5ff0ddfd` is the row this document is named after, and it is the weakest member of the pool
+Run `5ff0ddfd` is the row this document is named after, and it is the weakest member of the pool
 on every measure taken below - the shortest duration and the smallest header offset. Any
 claim asserted over the pooled twelve is met by its strongest members while this one goes
 unmeasured. That is the pooled-guard shape this project already has on record, and the
@@ -139,7 +139,7 @@ exit is excluded only when `duration - offset >= 2.0 + post_allowance`:
 | 0.05s | 1 of 11 |
 | 0.35s | 0 of 11 |
 
-**And it never excluded the 09-11 row at all.** `5ff0ddfd`: duration 2.091, offset 0.116,
+**And it never excluded the 09-11 row at all.** Run `5ff0ddfd`: duration 2.091, offset 0.116,
 room 1.975 - short of 2.0 even at zero allowance, margin **-0.025s**. The one row this
 document is about was never covered by the argument that was supposed to settle it.
 
