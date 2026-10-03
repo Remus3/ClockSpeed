@@ -285,7 +285,7 @@ REPOSITORY_URL = "https://github.com/Remus3/Clockspeed"
 #: CS-1223 F2(b). A GitHub Actions run of this repository, optionally narrowed
 #: to one job. Digits only after the fixed prefix, so no `..` can be spelt.
 _CI_RUN = re.compile(
-    "^" + re.escape(REPOSITORY_URL) + r"/actions/runs/[1-9][0-9]*(/job/[1-9][0-9]*)?\Z"
+    "^" + re.escape(REPOSITORY_URL) + r"/actions/runs/(?P<run>[1-9][0-9]*)(/job/[1-9][0-9]*)?\Z"
 )
 _GIT_TIMEOUT_SECONDS = 300
 
@@ -325,7 +325,10 @@ def _grade_receipt(where: str, reading: dict[str, Any], metrics: dict[str, Any])
     offences: list[str] = []
 
     metric = reading["metric"]
-    declaration = metrics.get(metric) if isinstance(metrics, dict) else None
+    # A non-string metric is refused by name, never raised on (rule 7).
+    declaration = (
+        metrics.get(metric) if isinstance(metrics, dict) and isinstance(metric, str) else None
+    )
     if not isinstance(metric, str) or declaration is None:
         offences.append(f"{where}: metric {metric!r} is not declared under 'metrics'")
     elif isinstance(declaration, dict) and reading["unit"] != declaration.get("unit"):
@@ -562,6 +565,42 @@ def _grade_supersession(readings: list[Any]) -> list[str]:
     return offences
 
 
+def _same_commit(left: str, right: str) -> bool:
+    """Two sha spellings name one commit when one is a prefix of the other."""
+    return left.startswith(right) or right.startswith(left)
+
+
+def _grade_run_commits(readings: list[Any]) -> list[str]:
+    """Round-3 F1. A run checks out ONE commit, so its URL vouches for one commit.
+
+    The run id is the number after `/actions/runs/`; a `/job/` suffix names a job
+    of the same run and the same checkout, so it is ignored. A reading whose run
+    was already cited by a reading on a different commit is refused.
+    """
+    offences: list[str] = []
+    first_by_run: dict[str, tuple[int, str]] = {}
+    for index, reading in enumerate(readings):
+        if not isinstance(reading, dict):
+            continue
+        ci_run, commit = reading.get("ci_run"), reading.get("commit")
+        if not isinstance(ci_run, str) or not isinstance(commit, str):
+            continue
+        matched = _CI_RUN.match(ci_run)
+        if not matched:
+            continue
+        run = matched.group("run")
+        if run not in first_by_run:
+            first_by_run[run] = (index, commit)
+            continue
+        earlier, earlier_commit = first_by_run[run]
+        if not _same_commit(commit, earlier_commit):
+            offences.append(
+                f"reading {index}: ci_run cites run {run}, which reading {earlier} cites on"
+                f" commit {earlier_commit} - one run checks out one commit"
+            )
+    return offences
+
+
 def grade(record: Any) -> list[str]:
     """Return every offence in ``record``. An empty list is the only pass."""
     if not isinstance(record, dict):
@@ -595,6 +634,7 @@ def grade(record: Any) -> list[str]:
         offences.extend(_grade_source(where, reading))
 
     offences.extend(_grade_supersession(readings))
+    offences.extend(_grade_run_commits(readings))
     return offences
 
 
@@ -740,7 +780,8 @@ def grade_tree(root: Path, unchecked: list[str] | None = None) -> list[str]:
             refuted = _check_witness(root, f"reading {index}", reading, gaps)
             if refuted:
                 offences.append(refuted)
-        for citation in reading.get("source") or []:
+        source = reading.get("source")
+        for citation in source if isinstance(source, list) else []:
             if not isinstance(citation, str) or "#" not in citation:
                 continue
             relative, anchor = citation.split("#", 1)

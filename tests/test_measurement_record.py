@@ -666,6 +666,12 @@ def _named(tool: ModuleType, record: dict[str, Any], index: int, word: str) -> l
         "https://github.com/Remus3/Clockspeed/actions/workflows/123",
         "https://github.com/Remus3/Clockspeed/actions/runs/123/job/",
         "https://github.com/Remus3/Clockspeed/actions/runs/123?x=1",
+        # Round 3: a trailing newline (`$` would accept it), the owner and name in
+        # another case (`(?i)` would), and non-ASCII digits (`\\d` would).
+        "https://github.com/Remus3/Clockspeed/actions/runs/123\n",
+        "https://github.com/remus3/clockspeed/actions/runs/123",
+        "https://github.com/Remus3/Clockspeed/actions/runs/\u0661\u0662\u0663",
+        "https://github.com/Remus3/Clockspeed/actions/runs/123/job/\u0661",
         12345,
     ],
 )
@@ -788,6 +794,57 @@ def test_a_derived_clean_reading_is_tied_to_its_own_inputs(
         _derived_clean(tracked, inputs=[0, 1]),
     )
     assert tool.grade(healthy) == []
+
+
+def test_one_run_may_not_vouch_for_two_commits(tool: ModuleType, tracked: dict[str, Any]) -> None:
+    """Round-3 F1. A run checks out exactly one commit, whatever job is cited."""
+    first = _ci_clean(tracked, ci_run=_CI_RUN)
+    other = _ci_clean(
+        tracked,
+        ci_run=_CI_RUN.rsplit("/job/", 1)[0],
+        commit="e3169a64770a00fd4484452148a9ef66ac33cb7b",
+    )
+    record = _runner_record(tracked, first, other)
+    offences = tool.grade(record)
+    assert any(o.startswith("reading 1:") and "ci_run" in o for o in offences), offences
+
+
+def test_one_run_may_vouch_for_two_readings_of_its_one_commit(
+    tool: ModuleType, tracked: dict[str, Any]
+) -> None:
+    # Control for round-3 F1: two metrics from the same run and commit.
+    first = _ci_clean(tracked, ci_run=_CI_RUN)
+    second = _ci_clean(tracked, ci_run=_CI_RUN, metric="tier1_slowest_test_share_percent")
+    second["unit"] = "percent"
+    record = _runner_record(tracked, first, second)
+    assert tool.grade(record) == []
+
+
+_MALFORMED = (["x"], {"k": 1}, None, 3.5, True, "")
+
+
+@pytest.mark.parametrize("field", ["metric", "unit", "method", "commit", "date", "tree"])
+@pytest.mark.parametrize("bad", _MALFORMED, ids=lambda v: type(v).__name__ + repr(v)[:6])
+def test_a_malformed_field_is_an_offence_never_a_crash(
+    tool: ModuleType, tracked: dict[str, Any], field: str, bad: Any
+) -> None:
+    """Rule 7. Unknown content is refused by name, never fatal."""
+    record = copy.deepcopy(tracked)
+    record["readings"][8][field] = bad
+    offences = tool.grade(record)
+    assert any(o.startswith("reading 8:") for o in offences), offences
+
+
+@pytest.mark.parametrize(
+    "field", ["value", "workers", "contended", "source", "superseded_by", "witness", "inputs"]
+)
+@pytest.mark.parametrize("bad", _MALFORMED, ids=lambda v: type(v).__name__ + repr(v)[:6])
+def test_no_malformed_field_crashes_the_grader(
+    tool: ModuleType, tracked: dict[str, Any], field: str, bad: Any
+) -> None:
+    record = copy.deepcopy(tracked)
+    record["readings"][8][field] = bad
+    tool.grade(record)
 
 
 def test_only_a_derived_reading_names_inputs(tool: ModuleType, tracked: dict[str, Any]) -> None:
@@ -1049,3 +1106,14 @@ def test_a_commit_carrying_a_submodule_is_refused(tool: ModuleType, tmp_path: Pa
     _write_record(root, _local_clean(head, witness))
     offences = tool.grade_tree(root)
     assert any("submodule" in o for o in offences), offences
+
+
+@pytest.mark.parametrize("bad", [5, {"k": 1}, None, "notes.md#the-reading-anchor"])
+def test_a_malformed_source_does_not_crash_the_tree_grader(
+    tool: ModuleType, tmp_path: Path, bad: Any
+) -> None:
+    root, head = _witnessed_repo(tool, tmp_path)
+    reading = _local_clean(head, tool.freeze_witness.freeze(root))
+    reading["source"] = bad
+    _write_record(root, reading)
+    assert any("source" in o for o in tool.grade_tree(root))
