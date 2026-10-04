@@ -75,6 +75,29 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-10-04 - CS-400 - CLOSED: a building's inventory is actually readable, per save and per version pair, through the published WorldModel
+Verification: clockspeed/save/objects.py, clockspeed/save/world.py, clockspeed/audit/inventory.py;
+tests/save/test_phase4_gate.py (clauses 2-4);
+tests/save/test_phase4_gate_depth.py::test_every_library_save_decodes_exactly_its_derived_item_population,
+::test_no_library_item_is_refused_or_ambiguous, ::test_a_library_class_is_present_exactly_when_its_count_is_positive;
+tests/audit/test_inventory_library.py::test_a_every_building_view_is_exactly_its_attributed_carriers,
+::test_b_the_four_way_partition_is_exact_for_stacks_and_items,
+::test_c_items_reached_through_owners_equal_the_tag_walk_population,
+::test_d_no_building_family_carrier_is_unattributed,
+::test_e_a_building_shows_a_decoded_item_wherever_one_is_held. Adjudicator run on the frozen
+tip: 380 passed, 0 skipped, exit 0 (-n 1). Closed by an adjudicator who authored none of it, on
+the operator's 2026-08-23 ruling that clause 1 waits until a building's inventory is readable.
+Decisions: the native InventoryItem form is chosen by trying both measured forms and accepting
+exactly one closing reading - ambiguity or no close is refused and counted; the item class rides
+a new value type, never an ObjectReference; item state is counted undecoded; carriers are
+attributed by actor reference, parent ownership or self, with a non-building bucket beside
+unattributed and conflict, and the four-way partition equals the world total exactly.
+Residuals: the audit-to-walk stack tie in test_c never went red under a mutant (unproven); the
+clean-clone independent byte counter (40/40 saves matched) is untracked; test_e is existential
+per save and per-building correctness rests on test_a; join and attribution edges and item-state
+decode are in BACKLOG.md; connection state is out of scope by the CS-400 grammar ruling and is a
+BACKLOG line; clock speed was already decoded. CS-828 and CS-829 stay open, scope unchanged.
+
 ### 2026-10-04 - CS-1239 - a hand-derived golden corpus for ratio, clock and power math, and one half-even display-rounding policy
 Verification: `clockspeed/solve/exact.py::display_decimal` and `DISPLAY_ROUNDING`, tests
 `tests/solve/test_golden.py` over `tests/solve/golden/` and

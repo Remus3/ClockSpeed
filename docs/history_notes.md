@@ -24,6 +24,61 @@ Where current truth actually lives:
 | Commands and runbooks | `docs/OPERATIONS.md` |
 
 
+## CS-400 - item section, CLOSED and relocated from `docs/item_notes/phase4.md` 2026-10-04
+
+**Moved here from `docs/item_notes/phase4.md` when the item closed.**
+The closure record is in `docs/LEDGER.md`.
+
+#### NOTE - relocated from `ROADMAP.md` 2026-08-23
+
+**CS-400 STAYS OPEN ON DEPTH.** **RULED BY THE OPERATOR 2026-08-23: CLAUSE 1 WAITS UNTIL A BUILDING'S INVENTORY IS ACTUALLY READABLE**, and CS-413's closure does NOT close it. The ruling is stated by SUBSTANCE and not by item id because its first version named an item on a premise measured false the same day. Detail relocated 2026-08-23 to this file under **CS-400 - detail**; read it before taking this item.
+
+#### detail - relocated from `docs/history_notes.md` 2026-08-23
+
+Relocated from `ROADMAP.md` 2026-08-23 for budget, not deleted. The item stays OPEN in
+`ROADMAP.md`. This block is a LIVE instruction, not history.
+
+**CS-400 STAYS OPEN ON DEPTH, NOT ON COVERAGE.** Clause 1's coverage half is MET and clauses 2,
+3 and 4 remain MET, all gated by `tests/save/test_phase4_gate.py`. **RULED BY THE OPERATOR
+2026-08-15 (session 6): a skeleton walk does NOT satisfy clause 1.** The superseded session-5
+coverage STATUS and the skeleton-grammar paragraph are relocated here too. Pillar 3, the
+whole-world audit this phase exists to feed, needs inventory, clock speed and connection state,
+and every one of those lives in the payload. The honest reading is that phase 4 can now
+enumerate a world but not inspect it.
+
+The ruling had two mechanical consequences. The object payload grammar was filed as **CS-413**,
+its own item and the natural successor to CS-407 - **CS-413 CLOSED 2026-08-23**. And phase 5
+did not open until a record's properties could be READ - **SUPERSEDED 2026-08-23** by a later
+operator ruling recorded under CS-500, which opens phase 5.
+
+**THE LINKAGE SENTENCE WAS MEASURABLY TOO STRONG, AND THE OPERATOR HAS SINCE RULED ON IT.** It read "Clause 1 closes when CS-413 closes, not before". CS-413 has closed on its
+three acceptance clauses, every one of them graded against the real library. **CLAUSE 1 IS NOT
+THEREBY SATISFIED**, and closing it on that sentence alone would be the error CS-421 was caught
+making one level down - honouring the letter of an acceptance while the thing it existed for is
+unmet. Of the three fields this item names as pillar 3's needs, INVENTORY is not readable.
+**IT IS NOT INSIDE A STRUCT INTERIOR** - a draft of this block said so and it was measured
+false the same day; the chain is CS-831, then CS-830, then CS-829. Clock speed is decoded.
+**RULED BY THE OPERATOR 2026-08-23, ASKED DIRECTLY: CLAUSE 1 WAITS UNTIL A BUILDING'S INVENTORY
+IS ACTUALLY READABLE.** CS-413's closure does not close it. The reasoning ABOVE is the author's
+and was put to the operator; what the operator ruled is the conclusion, and a draft of this
+block wrongly presented the reasoning as theirs.
+
+**THE RULING IS STATED BY SUBSTANCE AND NOT BY ITEM ID, AND THAT IS THE WHOLE LESSON.** Its
+first version read "waits on CS-829", on the author's statement that inventory sits inside
+`StructProperty`'s interior. **THAT WAS MEASURED FALSE THE SAME DAY** - no building record
+carries an `InventoryStack`; a building holds an `ObjectProperty` reference to a separate
+inventory component. The operator was given a one-blocker map when there are three, so the
+ruling was re-put and restated in a form that does not depend on the author's decomposition
+being right. The chain today is CS-831, then CS-830, then CS-829.
+
+**DO NOT re-derive whether clause 1 closes with CS-413 - it is ruled.** What IS open is the
+work in that chain.
+
+#### Acceptance
+
+a real world parses, a corrupted save and a truncated save each produce a clean error rather than a crash, and a test proves the save directory is never opened for write
+
+
 ## CS-1228 - item section, CLOSED and relocated from `docs/item_notes/phase7.md` 2026-10-04
 
 **Moved here from `docs/item_notes/phase7.md` when the item closed.**

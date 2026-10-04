@@ -82,7 +82,6 @@ budget or this file's size here - read both from the tool.
 
 ## Phase 4 - save reader
 
-CS-400 - Phase 4 gate: header, chunks, usmap, objects and world model, unknown classes skipped - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-828 - The trailing run before a payload's declared final byte is unexplained - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-829 - `StructProperty`'s interior is the largest opaque region by count and is read by nothing - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-896 - tier 1 CI was cancelled by its runaway cutoff with nothing failing - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`

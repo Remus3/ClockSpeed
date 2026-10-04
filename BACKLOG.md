@@ -342,3 +342,6 @@ Ideas only, from an untracked external survey; nothing lifted. The product direc
   every admitted recipe in registry order; CS-1239 - grade the plan-power goldens through the
   optimizer's own total, refuse an unknown clock-case kind, and add tie cases beyond three
   places and just below a tie.
+- Decode building connection state (belt and pipe links between buildings) - out of scope of
+  CS-400 by its grammar ruling - TRIGGER: an audit or advice rule that needs throughput between
+  buildings rather than what each one holds.

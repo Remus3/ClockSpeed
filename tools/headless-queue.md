@@ -324,11 +324,11 @@ take. Leave it and take the next.
 
 ### The fences. Each one is a measured trap, not a preference.
 
-**FENCE 1 - NEVER TAKE A PHASE GATE ROW.** The gates are CS-400, CS-500, CS-600 and CS-700.
+**FENCE 1 - NEVER TAKE A PHASE GATE ROW.** The open gates are CS-500, CS-600 and CS-700.
 A gate is a roll-up over its whole phase, it is tier 2, and it closes when its phase's
-follow-ups close - it is not a row a cycle can ship. CS-400 is the worked example and it is
-also fenced twice over: its section rules that clause 1 waits until a building's inventory
-is actually readable, and that chain runs CS-831 and CS-830, both closed, then CS-829.
+follow-ups close - it is not a row a cycle can ship. The phase 4 gate was the worked example:
+it closed 2026-10-04 only once a building's inventory was actually readable, by an
+adjudicated session, never by a cycle.
 **CS-829 WAS ROUTED OUT OF `docs/GATED.md` ON 2026-09-12 (CS-981) AND IS NOW AN OPEN
 `ROADMAP.md` ROW.** It is still not a row a cycle can ship, and the reason CHANGED rather
 than lapsed: the fence on it is no longer that it is gated, it is that its acceptance is an
