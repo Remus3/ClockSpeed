@@ -52,10 +52,10 @@
   therefore carries no body key, which sends Content-Length: 0.
 
   WHY FIVE ROWS SAY "not probed". The two /api/advice/<id>/... routes need a
-  card id, and this page has none to give: /api/advice is 501 until phase 5
-  builds the advisor, so it returns no card list and there is no id to put in
-  the path. Asking with an invented one would be asking about a card that does
-  not exist. The other three take a parameter this page has nothing to put in
+  card id. /api/advice now answers 200 with a card list and this page probes
+  it on a repaint, but the probe table takes no id from that body, so there is
+  no id to put in the path. Asking with an invented one would be asking about
+  a card that does not exist. The other three take a parameter this page has nothing to put in
   on a repaint, and the table below is a map of what this page may safely ask
   for on a REPAINT: /api/solve, /api/optimize and /api/power are each asked on
   a click and answer into the panel that clicked, so their rows still have no

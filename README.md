@@ -97,12 +97,15 @@ today", and this section is a summary of it.
 
 **Next**
 
-- **Milestone routing against any target** and **the advice card surface** are specified
-  and seam-fixed, and not yet written. Point the router at the next milestone or one
-  several tiers out and it returns a dependency-ordered plan: what to add, what to upgrade,
-  what to redesign, what to tear down, with "replace this" called out separately from
-  "build more of this". `/api/plan` and `/api/advice` answer 501 today and name the work
-  item that will build them.
+- **Milestone routing against any target** is specified and seam-fixed, and not yet
+  written. Point the router at the next milestone or one several tiers out and it returns
+  a dependency-ordered plan: what to add, what to upgrade, what to redesign, what to tear
+  down, with "replace this" called out separately from "build more of this". `/api/plan`
+  answers 501 today and names the work item that will build it.
+- **The advice card surface** reads live: `GET /api/advice` lists the current cards with
+  their headline and one-line reason, and `GET /api/advice/<id>/derivation` returns one
+  card's full derivation. Recording a card's state through `POST /api/advice/<id>/state`
+  answers 501 today and names CS-1269, the item that will build it.
 
 ---
 
