@@ -630,18 +630,31 @@ _PIN_NEEDED: Final = os.name != "nt"
 
 
 def _pin(note: Path) -> int | None:
-    """Hold ``note`` open where :data:`_PIN_NEEDED`; None where unneeded or unopenable.
+    """Hold ``note`` open where :data:`_PIN_NEEDED`; None where unneeded, unopenable or not regular.
 
-    Non-blocking, so a FIFO cannot hang the check, and never a controlling
-    terminal. The bytes are never read through the pin.
+    The pin is taken BEFORE placement has seen the note's kind, so it opens
+    non-blocking (a FIFO cannot hang the check), never as a controlling
+    terminal, never through a final-component link, and keeps only a regular
+    file - anything else is released and None returned, which a placed note
+    turns into ``note-unreadable``. The bytes are never read through the pin.
     """
     if not _PIN_NEEDED:
         return None
-    flags = os.O_RDONLY | getattr(os, "O_NONBLOCK", 0) | getattr(os, "O_NOCTTY", 0)
+    flags = os.O_RDONLY
+    for name in ("O_NONBLOCK", "O_NOCTTY", "O_NOFOLLOW"):
+        flags |= getattr(os, name, 0)
     try:
-        return os.open(note, flags)
+        fd = os.open(note, flags)
     except OSError:
         return None
+    try:
+        regular = stat.S_ISREG(os.fstat(fd).st_mode)
+    except OSError:
+        regular = False
+    if not regular:
+        os.close(fd)
+        return None
+    return fd
 
 
 def _pinned(pin: int | None, identity: Identity) -> bool:

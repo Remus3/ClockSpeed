@@ -21,8 +21,10 @@ import importlib.util
 import json
 import os
 import shutil
+import stat
 import subprocess
 import sys
+import threading
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
@@ -1661,6 +1663,44 @@ def test_a_placed_note_that_cannot_be_pinned_is_refused(
     monkeypatch.setattr(provenance, "_pin", lambda _note: None)
     ok, reason, _digest = _verify_in(world)
     assert reason == "note-unreadable"
+    assert ok is False
+
+
+def _verify_bounded(w: World, seconds: float = 20.0) -> tuple[bool, str, str]:
+    """Run the check on a daemon thread; a hang FAILS the arm instead of the run."""
+    out: list[tuple[bool, str, str]] = []
+    runner = threading.Thread(target=lambda: out.append(_verify_in(w)), daemon=True)
+    runner.start()
+    runner.join(seconds)
+    hung = runner.is_alive()
+    if hung:
+        pytest.fail("the check hung on a non-regular note")
+    return out[0]
+
+
+def test_a_non_regular_note_is_never_pinned(world: World, monkeypatch: pytest.MonkeyPatch) -> None:
+    # The pin opens the note BEFORE placement has seen its kind, so it opens
+    # non-blocking and refuses anything but a regular file: a FIFO planted as
+    # the note must be refused, never hang the tool. Where os.mkfifo exists a
+    # real FIFO replaces the note; elsewhere fstat is made to report one.
+    monkeypatch.setattr(provenance, "_PIN_NEEDED", True)
+    target = _inbox(world) / NOTE_NAME
+    mkfifo = getattr(os, "mkfifo", None)
+    if mkfifo is not None:
+        target.unlink()
+        mkfifo(target)
+    else:
+        real_fstat = os.fstat
+
+        def fifo_fstat(fd: int) -> os.stat_result:
+            got = real_fstat(fd)
+            fields = list(got[:10])
+            fields[0] = stat.S_IFIFO | 0o644
+            return os.stat_result(fields)
+
+        monkeypatch.setattr(os, "fstat", fifo_fstat)
+    ok, reason, _digest = _verify_bounded(world)
+    assert reason in {"note-unreadable", "bundle-path-refused"}
     assert ok is False
 
 
