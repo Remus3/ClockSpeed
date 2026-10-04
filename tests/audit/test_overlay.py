@@ -83,6 +83,8 @@ _THREE_HALVES = Fraction(3, 2)
 _MIN_CANONICAL_BYTES = 1000
 #: How many stand-in files the never-write arm plants.
 _STANDIN_FILES = 4
+#: Seconds one child interpreter may take to import and evaluate; it needs ~2.
+_CHILD_TIMEOUT_S = 120
 
 
 def _machine(building: str, recipe: str, clock: Fraction) -> MachineState:
@@ -156,8 +158,24 @@ def _count(machines: WorldMachines, recipe: str) -> int:
     return sum(1 for state in machines.machines if state.recipe_class_name == recipe)
 
 
-def _codes(warnings: tuple[object, ...]) -> list[str]:
-    return [warning.code for warning in warnings]  # type: ignore[attr-defined]
+def _fired(warnings: tuple[object, ...], code: str) -> int:
+    """How many occurrences of one warning code a result raised.
+
+    Reduced through ``sum`` so an assertion over it renders a number and never
+    the warning population (the assertion-rendering guard's rule).
+
+    Args:
+        warnings: A result's warnings.
+        code: The ``WARN_*`` code.
+
+    Returns:
+        The summed count, zero when the code was not raised.
+    """
+    return sum(
+        warning.count  # type: ignore[attr-defined]
+        for warning in warnings
+        if warning.code == code  # type: ignore[attr-defined]
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -182,10 +200,12 @@ def test_adding_machines_raises_the_flow_by_the_exact_clock_scaled_rate(
     edit = overlay.AddMachines(recipe_class_name=_R_PLATE, count=2, clock=_THREE_HALVES)
     result = overlay.evaluate_overlay(machines, overlay.Overlay(edits=(edit,)), recipes)
 
-    before = result.before_flow.items[_PLATE].produced
-    after = result.after_flow.items[_PLATE].produced
-    assert before == 2 * _PLATE_RATE
-    assert after == before + 2 * _THREE_HALVES * _PLATE_RATE
+    before_is_two_machines = result.before_flow.items[_PLATE].produced == 2 * _PLATE_RATE
+    after_adds_the_scaled_rate = result.after_flow.items[_PLATE].produced == (
+        2 * _PLATE_RATE + 2 * _THREE_HALVES * _PLATE_RATE
+    )
+    assert before_is_two_machines
+    assert after_adds_the_scaled_rate
     (record,) = result.application.records
     assert record.index == 0
     assert record.edit is edit
@@ -193,11 +213,12 @@ def test_adding_machines_raises_the_flow_by_the_exact_clock_scaled_rate(
     assert record.outcome == overlay.OUTCOME_APPLIED
     assert record.reason is None
     assert (record.count_before, record.count_after, record.machines_changed) == (2, 4, 2)
-    added = result.application.machines.machines[-2:]
-    assert all(state.class_name == _SMELTER for state in added)
-    assert all(state.overclock == _THREE_HALVES for state in added)
+    assert all(state.class_name == _SMELTER for state in result.application.machines.machines[-2:])
+    assert all(
+        state.overclock == _THREE_HALVES for state in result.application.machines.machines[-2:]
+    )
     # A virtual machine was never measured, so its producing flag is unread.
-    assert all(state.producing is None for state in added)
+    assert all(state.producing is None for state in result.application.machines.machines[-2:])
 
 
 def test_adding_machines_raises_the_draw_by_the_resolved_building(
@@ -255,7 +276,8 @@ def test_an_add_into_a_building_the_recipe_cannot_run_in_is_a_named_refusal(
     assert record.reason == overlay.REFUSED_BUILDING_MISMATCH
     assert result.machines == machines
     assert result.placement == placement
-    assert overlay.WARN_OVERLAY_EDIT_REFUSED in _codes(result.warnings)
+    fired = _fired(result.warnings, overlay.WARN_OVERLAY_EDIT_REFUSED)
+    assert fired > 0
 
 
 def test_an_add_into_a_building_the_registry_does_not_carry_is_a_named_refusal(
@@ -294,8 +316,8 @@ def test_a_clock_above_the_unsharded_base_is_applied_and_flagged_ceiling_unknown
         overlay.WARN_OVERLAY_CLOCK_ABOVE_BASE,
         None,
     ]
-    flagged = [w for w in result.warnings if w.code == overlay.WARN_OVERLAY_CLOCK_ABOVE_BASE]
-    assert [w.count for w in flagged] == [1]
+    fired = _fired(result.warnings, overlay.WARN_OVERLAY_CLOCK_ABOVE_BASE)
+    assert fired == 1
 
 
 def test_a_clock_with_no_buildings_to_check_against_is_flagged_unchecked(
@@ -306,7 +328,8 @@ def test_a_clock_with_no_buildings_to_check_against_is_flagged_unchecked(
 
     assert result.records[0].outcome == overlay.OUTCOME_APPLIED
     assert result.records[0].flag == overlay.WARN_OVERLAY_CLOCK_UNCHECKED
-    assert overlay.WARN_OVERLAY_CLOCK_UNCHECKED in _codes(result.warnings)
+    fired = _fired(result.warnings, overlay.WARN_OVERLAY_CLOCK_UNCHECKED)
+    assert fired > 0
 
 
 def test_an_add_whose_building_cannot_be_resolved_is_a_named_refusal(
@@ -320,7 +343,8 @@ def test_an_add_whose_building_cannot_be_resolved_is_a_named_refusal(
     assert record.outcome == overlay.OUTCOME_REFUSED
     assert record.reason == overlay.REFUSED_BUILDING_UNRESOLVED
     assert result.machines == machines
-    assert overlay.WARN_OVERLAY_EDIT_REFUSED in _codes(result.warnings)
+    fired = _fired(result.warnings, overlay.WARN_OVERLAY_EDIT_REFUSED)
+    assert fired > 0
 
 
 def test_removing_machines_takes_the_last_ones_and_lowers_flow_and_count(
@@ -365,7 +389,8 @@ def test_removing_more_machines_than_exist_is_a_named_refusal_not_a_clamp(
     assert (record.count_before, record.count_after) == (1, 1)
     assert _count(result.application.machines, _R_ROD) == 1
     assert result.after_flow == result.before_flow
-    assert overlay.WARN_OVERLAY_EDIT_REFUSED in _codes(result.warnings)
+    fired = _fired(result.warnings, overlay.WARN_OVERLAY_EDIT_REFUSED)
+    assert fired > 0
 
 
 def test_a_remove_the_placement_cannot_cover_is_a_named_refusal(
@@ -406,8 +431,10 @@ def test_swapping_a_recipe_keeps_clocks_and_buildings_and_moves_the_flow(
     assert record.machines_changed == len(swapped_states := _STATES[3:])
     assert all(state.recipe_class_name == _STD for state in swapped_states)
     assert result.after_draw == result.before_draw
-    swapped = result.application.machines.machines[3:]
-    assert all(state.class_name == _ASSEMBLER and state.overclock == _ONE for state in swapped)
+    assert all(
+        state.class_name == _ASSEMBLER and state.overclock == _ONE
+        for state in result.application.machines.machines[3:]
+    )
 
 
 def test_a_counted_swap_moves_only_the_first_n(
@@ -436,8 +463,8 @@ def test_a_swap_of_more_than_exist_and_a_swap_to_itself_are_named_refusals(
         overlay.REFUSED_SWAP_TO_SELF,
     ]
     assert result.machines == machines
-    refused = [w for w in result.warnings if w.code == overlay.WARN_OVERLAY_EDIT_REFUSED]
-    assert [w.count for w in refused] == [3]
+    fired = _fired(result.warnings, overlay.WARN_OVERLAY_EDIT_REFUSED)
+    assert fired == len(edits)
 
 
 def test_raising_a_target_names_the_new_deficit(
@@ -448,10 +475,14 @@ def test_raising_a_target_names_the_new_deficit(
     result = overlay.evaluate_overlay(machines, overlay.Overlay(edits=(edit,)), recipes)
 
     assert _PLATE not in [item.item_key for item in result.before_flow.deficits]
-    after = result.after_flow.items[_PLATE]
-    assert after.demand == asked
-    assert after.is_deficit
-    assert after.shortfall == asked - after.net
+    demand_is_asked = result.after_flow.items[_PLATE].demand == asked
+    is_deficit = bool(result.after_flow.items[_PLATE].is_deficit)
+    shortfall_is_exact = result.after_flow.items[_PLATE].shortfall == (
+        asked - result.after_flow.items[_PLATE].net
+    )
+    assert demand_is_asked
+    assert is_deficit
+    assert shortfall_is_exact
     (record,) = result.application.records
     assert record.kind == overlay.KIND_DEMAND
     assert (record.demand_before, record.demand_after) == (Fraction(0), asked)
@@ -494,8 +525,8 @@ def test_an_unknown_recipe_is_flagged_and_skipped_never_flowed(
     ]
     assert result.application.machines == machines
     assert result.after_flow == result.before_flow
-    unknown = [w for w in result.warnings if w.code == overlay.WARN_OVERLAY_RECIPE_UNKNOWN]
-    assert [w.count for w in unknown] == [2]
+    fired = _fired(result.warnings, overlay.WARN_OVERLAY_RECIPE_UNKNOWN)
+    assert fired == len(edits)
 
 
 def test_edits_apply_in_order_each_over_the_previous_result(
@@ -527,7 +558,10 @@ def test_a_remove_takes_exactly_the_last_n_machines_in_population_order(
     edit = overlay.RemoveMachines(recipe_class_name=_R_PLATE, count=2)
     result = overlay.apply_overlay(world, overlay.Overlay(edits=(edit,)), recipes)
 
-    assert [state.overclock for state in result.machines.machines] == [Fraction(1, 4)]
+    only_the_first_survives = [state.overclock for state in result.machines.machines] == [
+        Fraction(1, 4)
+    ]
+    assert only_the_first_survives
 
 
 def test_a_swap_keeps_each_machines_own_clock_and_unsets_producing(
@@ -542,17 +576,11 @@ def test_a_swap_keeps_each_machines_own_clock_and_unsets_producing(
     edit = overlay.SwapRecipe(from_recipe=_STD, to_recipe=_ALT, count=1)
     result = overlay.apply_overlay(world, overlay.Overlay(edits=(edit,)), recipes)
 
-    first, second = result.machines.machines
-    assert (first.recipe_class_name, first.overclock, first.producing) == (
-        _ALT,
-        Fraction(3, 4),
-        None,
-    )
-    assert (second.recipe_class_name, second.overclock, second.producing) == (
-        _STD,
-        Fraction(1, 2),
-        True,
-    )
+    states_as_expected = [
+        (state.recipe_class_name, state.overclock, state.producing)
+        for state in result.machines.machines
+    ] == [(_ALT, Fraction(3, 4), None), (_STD, Fraction(1, 2), True)]
+    assert states_as_expected
     (record,) = result.records
     assert record.machines_changed == 1
     assert (record.count_before, record.count_after) == (2, 1)
@@ -594,7 +622,8 @@ def test_a_refused_remove_across_two_buildings_leaves_the_placement_untouched(
 
     assert result.records[0].reason == overlay.REFUSED_PLACEMENT_SHORT
     assert result.placement is not None
-    assert dict(result.placement.built_counts) == {_SMELTER: 5}
+    placement_untouched = dict(result.placement.built_counts) == {_SMELTER: 5}
+    assert placement_untouched
 
 
 def test_the_demands_mapping_is_in_sorted_key_order_itself(
@@ -605,8 +634,10 @@ def test_the_demands_mapping_is_in_sorted_key_order_itself(
     edit = overlay.SetDemand(item_key=ore, rate=_ONE)
     result = overlay.apply_overlay(machines, overlay.Overlay(edits=(edit,)), recipes, demands=base)
 
-    assert list(result.demands) == sorted([ore, _PLATE, _ROD])
-    assert list(result.demands) != [*base, ore], "the insertion order is already sorted"
+    keys_sorted = list(result.demands) == sorted([ore, _PLATE, _ROD])
+    insertion_order_differs = [*base, ore] != sorted([ore, _PLATE, _ROD])
+    assert keys_sorted
+    assert insertion_order_differs, "the insertion order is already sorted"
 
 
 def test_a_building_declaring_no_unsharded_base_leaves_the_clock_flagged_unchecked(
@@ -626,7 +657,8 @@ def test_a_building_declaring_no_unsharded_base_leaves_the_clock_flagged_uncheck
     (record,) = result.records
     assert record.outcome == overlay.OUTCOME_APPLIED
     assert record.flag == overlay.WARN_OVERLAY_CLOCK_UNCHECKED
-    assert overlay.WARN_OVERLAY_CLOCK_UNCHECKED in _codes(result.warnings)
+    fired = _fired(result.warnings, overlay.WARN_OVERLAY_CLOCK_UNCHECKED)
+    assert fired > 0
 
 
 def _two_producer_recipes(recipes: dict[str, Recipe]) -> dict[str, Recipe]:
@@ -704,7 +736,11 @@ def test_a_counted_swap_ignores_an_unmoved_machine_that_could_not_run_the_target
 
     (record,) = result.records
     assert record.outcome == overlay.OUTCOME_APPLIED
-    assert [state.recipe_class_name for state in result.machines.machines] == [_ALT, _STD]
+    only_the_first_moved = [state.recipe_class_name for state in result.machines.machines] == [
+        _ALT,
+        _STD,
+    ]
+    assert only_the_first_moved
 
 
 # ---------------------------------------------------------------------------
@@ -862,7 +898,8 @@ def test_the_mixed_overlay_records_one_line_per_edit_in_order() -> None:
     result = _evaluate_mixed()
 
     records = result.application.records
-    assert [record.index for record in records] == list(range(len(_mixed_overlay().edits)))
+    edit_count = len(_mixed_overlay().edits)
+    assert [record.index for record in records] == list(range(edit_count))
     assert [record.outcome for record in records] == [
         overlay.OUTCOME_APPLIED,
         overlay.OUTCOME_APPLIED,
@@ -871,8 +908,10 @@ def test_the_mixed_overlay_records_one_line_per_edit_in_order() -> None:
         overlay.OUTCOME_REFUSED,
         overlay.OUTCOME_SKIPPED,
     ]
-    keys = [delta.item_key for delta in result.items]
-    assert keys == sorted(set(result.before_flow.items) | set(result.after_flow.items))
+    keys_cover_both_flows = [delta.item_key for delta in result.items] == sorted(
+        set(result.before_flow.items) | set(result.after_flow.items)
+    )
+    assert keys_cover_both_flows
     for delta in result.items:
         assert delta.delta == delta.net_after - delta.net_before
 
@@ -920,7 +959,12 @@ def test_the_same_world_and_overlay_give_byte_identical_output_across_processes(
     for seed in ("1", "2"):
         env = {**os.environ, "PYTHONHASHSEED": seed}
         run = subprocess.run(
-            [sys.executable, "-c", script], cwd=root, env=env, capture_output=True, check=False
+            [sys.executable, "-c", script],
+            cwd=root,
+            env=env,
+            capture_output=True,
+            check=False,
+            timeout=_CHILD_TIMEOUT_S,
         )
         assert run.returncode == 0, run.stderr.decode("ascii", "replace")[-2000:]
         outputs.append(run.stdout)
@@ -1030,7 +1074,8 @@ def test_an_overlay_evaluation_opens_no_file_and_changes_none(
     monkeypatch.setenv(locate.ENV_SAVE_ROOT, str(save_root))
     monkeypatch.setenv(locate.ENV_ACCOUNT_DIR, str(account))
     monkeypatch.setenv(locate.ENV_LOCAL_CONFIG, str(config))
-    assert all(os.environ.get(name) for name in _LOCATION_VARIABLES)
+    unset = [name for name in _LOCATION_VARIABLES if name not in os.environ]
+    assert unset == []
 
     tried: list[str] = []
 
@@ -1072,4 +1117,5 @@ def test_draw_is_withheld_and_said_so_without_a_placement(
 
     assert result.before_draw is None
     assert result.after_draw is None
-    assert overlay.WARN_OVERLAY_DRAW_UNAVAILABLE in _codes(result.warnings)
+    fired = _fired(result.warnings, overlay.WARN_OVERLAY_DRAW_UNAVAILABLE)
+    assert fired > 0
