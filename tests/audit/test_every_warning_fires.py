@@ -52,6 +52,7 @@ from clockspeed.audit import (
     inventory,
     machines,
     network,
+    overlay,
     placement,
 )
 from clockspeed.save import objects
@@ -111,6 +112,32 @@ def _smelter(recipe: str | None, clock: Fraction | None = Fraction(1)) -> machin
         recipe_class_name=recipe,
         overclock=clock,
     )
+
+
+def _overlay(*edits: overlay.OverlayEdit) -> tuple[WorldWarning, ...]:
+    """Evaluate an overlay over one plate smelter, with no placement supplied.
+
+    Args:
+        edits: The overlay's edits.
+
+    Returns:
+        The warnings raised.
+    """
+    states = (_smelter(synthetic.PLATE_RECIPE),)
+    model = machines.WorldMachines(
+        machines=states,
+        producing_available=True,
+        recipe_available=True,
+        overclock_available=True,
+        records_considered=len(states),
+        unread_payload_count=0,
+        refused_overclock_count=0,
+        refused_recipe_count=0,
+        warnings=(),
+    )
+    return overlay.evaluate_overlay(
+        model, overlay.Overlay(edits=edits), dict(synthetic.solve_registry().recipes)
+    ).warnings
 
 
 def _balance_composite(*, belts: bool) -> tuple[WorldWarning, ...]:
@@ -306,6 +333,14 @@ FIXTURES: Final[Mapping[str, Firing]] = {
         ).warnings
     ),
     "WARN_NETWORK_TOPOLOGY_UNAVAILABLE": lambda: network.network_of(network_fx.world()).warnings,
+    # overlay.py
+    "WARN_OVERLAY_EDIT_REFUSED": lambda: _overlay(
+        overlay.RemoveMachines(recipe_class_name=synthetic.PLATE_RECIPE, count=2)
+    ),
+    "WARN_OVERLAY_RECIPE_UNKNOWN": lambda: _overlay(
+        overlay.AddMachines(recipe_class_name=_UNKNOWN_RECIPE, count=1, clock=Fraction(1))
+    ),
+    "WARN_OVERLAY_DRAW_UNAVAILABLE": _overlay,
     # placement.py
     "WARN_BUILT_TRANSFORM_ABSENT": lambda: (
         placement.placement_of(
