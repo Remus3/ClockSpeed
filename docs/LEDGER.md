@@ -75,6 +75,16 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-10-04 - CS-500 - PROGRESS RECORD. NOT A COMPLETION RECORD. NOTHING CLOSED. CS-500 STAYS OPEN. Slice S5: every registered rule fires and stays silent on a synthetic world
+Verification: `tests/advisor/test_every_rule_fires.py::test_every_registered_rule_has_a_firing_fixture`,
+`::test_every_registered_rule_has_a_silent_fixture`, `::test_dropping_any_one_fixture_is_named_alone`,
+`::test_the_firing_fixture_fires_its_rule`, `::test_the_silent_fixture_keeps_its_rule_silent`,
+`::test_tier3_of_the_firing_card_is_generated_from_its_trace`; the rule ids are derived from
+`clockspeed/advisor/rules/__init__.py::registered_rules`. Acceptance clause A1 moves from PARTIAL
+to evidenced for the registry as it stands, per `docs/item_notes/phase5.md` under CS-500; the
+reload half of A3 stays OPEN for slice S6. The same arms meet CS-1238's advisor-rule half, which
+stays open until the merger grades it. Not yet adversary-checked.
+
 ### 2026-10-04 - CS-704 - PROGRESS RECORD. NOT A COMPLETION RECORD. The accept-set test now grades the ACCEPT tokens, not full-SHA matches
 Verification: `tests/test_trailer_routes.py::test_the_step_accepts_exactly_the_granted_pair`.
 An adversary showed the test collected only 40-hex lowercase names, so a third ACCEPT member

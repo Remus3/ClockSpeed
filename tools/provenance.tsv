@@ -233,6 +233,7 @@ tests/advisor/__init__.py	authored	CS-500	stamped
 tests/advisor/rules/__init__.py	authored	CS-500	stamped
 tests/advisor/rules/test_power.py	authored	CS-500	stamped
 tests/advisor/test_cards.py	authored	CS-500	stamped
+tests/advisor/test_every_rule_fires.py	authored	CS-500	stamped
 tests/advisor/test_ledger.py	authored	CS-500	stamped
 tests/advisor/test_trace.py	authored	CS-500	stamped
 tests/advisor/worlds.py	authored	CS-500	stamped

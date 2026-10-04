@@ -74,9 +74,21 @@ The engine, the card and the store landed (`clockspeed/advisor/trace.py`,
 `clockspeed/advisor/cards.py`, `clockspeed/advisor/ledger.py`). Clauses in order, A1 to A4
 from the acceptance line, A5 the clause moved here from CS-401:
 
-- A1, every rule has a synthetic-fixture test - PARTIAL. The D4 power family
-  (`clockspeed/advisor/rules/power.py`, registered in `clockspeed/advisor/rules/__init__.py`)
-  is covered by `tests/advisor/rules/test_power.py`; every later rule family owes the same.
+- A1, every rule has a synthetic-fixture test - EVIDENCED FOR THE REGISTRY AS IT STANDS, and
+  enforced for every later family. Slice S5 derives the rule ids from
+  `clockspeed/advisor/rules/__init__.py::registered_rules` and holds a firing and a silent
+  synthetic world per id in `tests/advisor/test_every_rule_fires.py`:
+  `::test_every_registered_rule_has_a_firing_fixture` and
+  `::test_every_registered_rule_has_a_silent_fixture` redden by rule id the moment a family
+  joins `_FAMILIES` without fixtures; `::test_dropping_any_one_fixture_is_named_alone`
+  shows a removed fixture names its id alone; `::test_the_firing_fixture_fires_its_rule`
+  requires a fault-free firing that reads every declared input;
+  `::test_the_silent_fixture_keeps_its_rule_silent` requires silence by a recorded
+  rejection, never by a refused, missing, unmet or rule-error step; and
+  `::test_tier3_of_the_firing_card_is_generated_from_its_trace` ties each firing card's
+  derivation line-for-line to its trace. The D4 family's own behaviour stays graded in
+  `tests/advisor/rules/test_power.py`. This also meets the ADVISOR-RULE half of CS-1238;
+  closing CS-1238 is the merger's call, not this slice's.
 - A2, the unmet-precondition invariant under a property test - EVIDENCED by
   `tests/advisor/test_trace.py::test_no_recommendation_has_an_unmet_precondition_over_generated_worlds`,
   with its anti-vacuity control
@@ -91,7 +103,7 @@ from the acceptance line, A5 the clause moved here from CS-401:
 - A5, an unseen world token is a new world - EVIDENCED by
   `tests/advisor/test_ledger.py::test_an_unseen_world_token_is_a_new_world`.
 
-The item stays OPEN on A1 and the reload half of A3.
+The item stays OPEN on the reload half of A3 (slice S6).
 
 ## Wave 2 - the pre-dispatch spec check, filed 2026-09-14
 

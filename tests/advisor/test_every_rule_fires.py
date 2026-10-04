@@ -1,0 +1,271 @@
+"""CS-500 slice S5: every registered advisor rule proves it can fire and stay silent.
+
+THE CLAIM (CS-500 acceptance clause A1, and the advisor-rule half of CS-1238).
+For every rule id :func:`clockspeed.advisor.rules.registered_rules` returns,
+this module holds TWO minimal synthetic worlds: one in which the rule fires,
+and one in which it declines for a reason it records. A rule no fixture can
+fire is advice nobody has seen given; a rule no fixture can silence is advice
+nobody has seen withheld. Either is indistinguishable from a rule wired to
+nothing - the silently-wrong half of non-negotiable 7, one layer up.
+
+THE RULE SET IS DERIVED, NEVER LISTED. The ids come from the registry itself,
+so a rule family added to ``_FAMILIES`` reddens
+:func:`test_every_registered_rule_has_a_firing_fixture` and
+:func:`test_every_registered_rule_has_a_silent_fixture` by name until a fixture
+here covers it. The two tables below are hand-written because they must be - a
+fixture is fixture code - and those arms are what grade them.
+
+ONE RULE, ONE TEST ID PER TABLE. The firing and silent arms are parametrised
+over their table with the rule id as the test id, so a fixture that stops
+firing, or stops being silent, reddens exactly the test naming its rule.
+
+REMOVING A FIXTURE REDDENS EXACTLY ONE NAME. :func:`test_dropping_any_one_fixture_is_named_alone`
+drops each entry of each table in turn and asserts the completeness predicate
+names that rule id and nothing else.
+
+WHAT "FIRES" MEANS HERE, AND WHAT "SILENT" MEANS. A firing trace carries a
+recommendation, ends in its one ``rule-fired`` step, reads EVERY input the rule
+declares, and carries no refused, missing, unmet or rule-error step. A silent
+trace carries no recommendation for a LEGITIMATE reason: it records at least
+one rejected alternative and no refused, missing, unmet or rule-error step - a
+rule that went quiet because it crashed or was starved of input is a fault,
+not silence.
+
+TIER 3 IS GENERATED FROM THE TRACE, PER RULE. Every firing fixture's card has
+exactly one numbered derivation line per trace step, renders identically on a
+second run of the same world, and renders differently when one step is taken
+out of the trace - so the derivation cannot be text authored beside the rule.
+
+EVERY WORLD IS SYNTHETIC. Each is a :class:`clockspeed.advisor.trace.WorldInputs`
+built by hand from invented exact values under ``synthetic.`` sources; nothing
+here reads a save, a docs file or a game install. Generated power is supplied
+directly because no audit model publishes it yet (CS-1059).
+"""
+
+from __future__ import annotations
+
+from collections.abc import Callable, Iterable, Mapping
+from fractions import Fraction
+from typing import Final
+
+import pytest
+
+from clockspeed.advisor.cards import Card, card_for
+from clockspeed.advisor.rules import power, registered_rules
+from clockspeed.advisor.trace import (
+    InputValue,
+    RuleSpec,
+    StepKind,
+    Trace,
+    WorldInputs,
+    run_rule,
+)
+
+#: One zero-argument builder per rule id: the synthetic world to run it on.
+WorldBuilder = Callable[[], WorldInputs]
+
+#: Step kinds that mark a fault, never a legitimate firing or a legitimate silence.
+_FAULT_KINDS: Final = frozenset(
+    {
+        StepKind.INPUT_REFUSED,
+        StepKind.INPUT_MISSING,
+        StepKind.PRECONDITION_UNMET,
+        StepKind.RULE_ERROR,
+    }
+)
+
+#: The line that opens the numbered derivation in tier 3.
+_STEPS_HEADER: Final = "Steps:"
+
+
+def _world(values: Mapping[str, object], unlocks: Iterable[str] = ()) -> WorldInputs:
+    """Wrap invented values as a world, each under a ``synthetic.`` source."""
+    offered = {name: InputValue(value, "synthetic." + name) for name, value in values.items()}
+    return WorldInputs(values=offered, unlocks=frozenset(unlocks))
+
+
+def _power(
+    *,
+    complete: bool,
+    lower: Fraction,
+    upper: Fraction,
+    exact: bool,
+    generation: Fraction,
+    considered: int = 10,
+    unread: int = 0,
+    unmodeled: int = 0,
+) -> WorldInputs:
+    """One synthetic power world offering every input the D4 family declares."""
+    return _world(
+        {
+            power.IN_COMPLETE: complete,
+            power.IN_EXACT: exact,
+            power.IN_LOWER: lower,
+            power.IN_UPPER: upper,
+            power.IN_CONSIDERED: considered,
+            power.IN_UNREAD: unread,
+            power.IN_UNMODELED: unmodeled,
+            power.IN_ELIDED: 0,
+            power.IN_PRODUCTION_AVAILABLE: True,
+            power.IN_GENERATION: generation,
+        }
+    )
+
+
+#: A world in which each registered rule FIRES.
+FIRING: Final[dict[str, WorldBuilder]] = {
+    # Three unpriced machines out of ten: the draw is a floor.
+    power.GAP_RULE.rule_id: lambda: _power(
+        complete=False,
+        lower=Fraction(50),
+        upper=Fraction(60),
+        exact=False,
+        generation=Fraction(100),
+        unread=2,
+        unmodeled=1,
+    ),
+    # An exact clocked draw of 120 MW against 100 MW of generation.
+    power.HEADROOM_RULE.rule_id: lambda: _power(
+        complete=True,
+        lower=Fraction(120),
+        upper=Fraction(120),
+        exact=True,
+        generation=Fraction(100),
+    ),
+}
+
+#: A world in which each registered rule DECLINES for a reason it records.
+SILENT: Final[dict[str, WorldBuilder]] = {
+    # Every considered machine is priced, so there is no gap to name.
+    power.GAP_RULE.rule_id: lambda: _power(
+        complete=True,
+        lower=Fraction(50),
+        upper=Fraction(60),
+        exact=False,
+        generation=Fraction(100),
+    ),
+    # Generation of 200 MW covers the whole 120 to 150 MW clocked bracket.
+    power.HEADROOM_RULE.rule_id: lambda: _power(
+        complete=True,
+        lower=Fraction(120),
+        upper=Fraction(150),
+        exact=False,
+        generation=Fraction(200),
+    ),
+}
+
+
+def _registry_ids() -> list[str]:
+    return [spec.rule_id for spec in registered_rules()]
+
+
+def _spec(rule_id: str) -> RuleSpec:
+    matches = [spec for spec in registered_rules() if spec.rule_id == rule_id]
+    count = len(matches)
+    assert count == 1, rule_id
+    return matches[0]
+
+
+def uncovered(table: Iterable[str], derived: Iterable[str]) -> list[str]:
+    """The registered rule ids the table holds no fixture for, sorted."""
+    return sorted(set(derived) - set(table))
+
+
+def orphaned(table: Iterable[str], derived: Iterable[str]) -> list[str]:
+    """The table's rule ids the registry no longer carries, sorted."""
+    return sorted(set(table) - set(derived))
+
+
+def _fault_count(trace: Trace) -> int:
+    return sum(1 for step in trace.steps if step.kind in _FAULT_KINDS)
+
+
+def _derivation_lines(card: Card) -> list[str]:
+    """The numbered step lines of a card's tier 3, after the steps header."""
+    lines = card.tier3.split("\n")
+    return lines[lines.index(_STEPS_HEADER) + 1 :]
+
+
+def test_the_registry_is_not_vacuous() -> None:
+    ids = _registry_ids()
+    count = len(ids)
+    assert count > 1, "a registry of fewer than two rules makes the drop arm grade nothing"
+
+
+def test_every_registered_rule_has_a_firing_fixture() -> None:
+    missing = uncovered(FIRING, _registry_ids())
+    assert missing == [], "no firing fixture: " + ", ".join(missing)
+
+
+def test_every_registered_rule_has_a_silent_fixture() -> None:
+    missing = uncovered(SILENT, _registry_ids())
+    assert missing == [], "no silent fixture: " + ", ".join(missing)
+
+
+def test_every_fixture_names_a_registered_rule() -> None:
+    stale = orphaned(FIRING, _registry_ids()) + orphaned(SILENT, _registry_ids())
+    assert stale == [], "fixture for a rule the registry does not carry: " + ", ".join(stale)
+
+
+@pytest.mark.parametrize("table_name", ["FIRING", "SILENT"])
+def test_dropping_any_one_fixture_is_named_alone(table_name: str) -> None:
+    """Each drop adds exactly its own rule id to what the completeness arm reports.
+
+    RELATIVE TO THE TABLE AS IT STANDS, so a real gap reddens the completeness
+    arm alone and never this one beside it.
+    """
+    table = FIRING if table_name == "FIRING" else SILENT
+    derived = _registry_ids()
+    baseline = uncovered(table, derived)
+    stale = orphaned(table, derived)
+    entries = len(table)
+    assert entries > 1, "a drop over a one-entry table proves nothing about the others"
+    for name in sorted(set(table) & set(derived)):
+        remaining = [other for other in table if other != name]
+        assert uncovered(remaining, derived) == sorted({*baseline, name}), name
+        assert orphaned(remaining, derived) == stale, name
+
+
+@pytest.mark.parametrize("rule_id", sorted(FIRING), ids=sorted(FIRING))
+def test_the_firing_fixture_fires_its_rule(rule_id: str) -> None:
+    spec = _spec(rule_id)
+    trace = run_rule(spec, FIRING[rule_id]())
+    fired = trace.recommendation is not None
+    assert fired, f"{rule_id} did not fire on its firing fixture"
+    faults = _fault_count(trace)
+    assert faults == 0, f"{rule_id} fired through {faults} fault steps"
+    last_is_fired = trace.steps[-1].kind is StepKind.RULE_FIRED
+    assert last_is_fired, rule_id
+    read = sorted({step.subject for step in trace.steps if step.kind is StepKind.INPUT_READ})
+    unread = sorted(set(spec.inputs) - set(read))
+    assert unread == [], f"{rule_id} fired without reading: " + ", ".join(unread)
+
+
+@pytest.mark.parametrize("rule_id", sorted(SILENT), ids=sorted(SILENT))
+def test_the_silent_fixture_keeps_its_rule_silent(rule_id: str) -> None:
+    trace = run_rule(_spec(rule_id), SILENT[rule_id]())
+    silent = trace.recommendation is None and card_for(trace) is None
+    assert silent, f"{rule_id} recommended on its silent fixture"
+    faults = _fault_count(trace)
+    assert faults == 0, f"{rule_id} went silent through {faults} fault steps, not a decision"
+    rejected = sum(1 for step in trace.steps if step.kind is StepKind.ALTERNATIVE_REJECTED)
+    assert rejected > 0, f"{rule_id} went silent without recording why"
+
+
+@pytest.mark.parametrize("rule_id", sorted(FIRING), ids=sorted(FIRING))
+def test_tier3_of_the_firing_card_is_generated_from_its_trace(rule_id: str) -> None:
+    spec = _spec(rule_id)
+    trace = run_rule(spec, FIRING[rule_id]())
+    card = card_for(trace)
+    built = card is not None
+    assert built, rule_id
+    assert card is not None
+    lines = len(_derivation_lines(card))
+    steps = len(trace.steps)
+    assert lines == steps, f"{rule_id}: {lines} derivation lines for {steps} steps"
+    again = card_for(run_rule(spec, FIRING[rule_id]()))
+    same = again is not None and again.tier3 == card.tier3
+    assert same, f"{rule_id}: two runs on one world rendered different derivations"
+    shortened = Card(Trace(trace.rule_id, trace.domain, trace.steps[1:], trace.recommendation))
+    moved = shortened.tier3 != card.tier3
+    assert moved, f"{rule_id}: dropping a trace step left tier 3 unchanged"
