@@ -324,7 +324,7 @@ take. Leave it and take the next.
 
 ### The fences. Each one is a measured trap, not a preference.
 
-**FENCE 1 - NEVER TAKE A PHASE GATE ROW.** The open gates are CS-500, CS-600 and CS-700.
+**FENCE 1 - NEVER TAKE A PHASE GATE ROW.** The open gates are CS-600 and CS-700.
 A gate is a roll-up over its whole phase, it is tier 2, and it closes when its phase's
 follow-ups close - it is not a row a cycle can ship. The phase 4 gate was the worked example:
 it closed 2026-10-04 only once a building's inventory was actually readable, by an
