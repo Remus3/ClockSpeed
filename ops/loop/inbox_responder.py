@@ -31,19 +31,27 @@ ONE SHOT, `--once`, meant for a Windows scheduled task every fifteen minutes:
      no-reply never start a run; with nothing else unread the pass is idle.
   4. A back-off file written after a usage-limit refusal holds every run for
      `BACKOFF_S`, so the account's "no" is not hammered every fifteen minutes.
-  5. The worker's environment comes from `headless_route.child_env` - routed
-     through the local proxy or REFUSED, never spawned any other way.
-     CS-1234, MAIN 0855: at most `inbox_status.RUNS_CAP` starts per rolling
-     24 hours, counted persistently under an exclusive lock. An unreadable
-     counter refuses every start and is never reset (fail closed).
-  6. `claude -p --output-format json --dangerously-skip-permissions`, the
-     prompt piped on stdin, cwd the main tree root.
+  5. CS-1231 SLICE C - THE WORKER STARTS ONLY THROUGH THE FLEET KIT'S SPAWN
+     HELPER (`ops/fleet_kit/fleet_headless.spawn`, FLEET item 10), the one path
+     that starts `claude` on this machine. The kit reads the second-account
+     proxy from the user store or REFUSES, with no fallback; counts the start
+     against its tree-wide budget of 120 per rolling 24 hours under a lock,
+     refusing every start on an unreadable budget and never resetting it
+     (CS-1234, MAIN 0855); keeps the CLI off the working directory; and kills
+     the whole tree on a timeout. `floors_in_hooks=True`, because this tree's
+     floors live in hooks and `--bare` skips them, so the kit refuses a bare run.
+  6. Strict MCP and project settings, the prompt on stdin, cwd the main tree
+     root, `--dangerously-skip-permissions` the one extra flag. Sonnet unless a
+     live note is an ORDER, FIX or RULING or sits past the listing cap; effort
+     low only when every live note is an acknowledgement (`_kit_inputs`).
   7. The exit is classified and one JSON line is appended to a gitignored log
      under `data/`. The line holds outcome words, counts and durations ONLY -
      no path, no env value, no message body, no worker output (CLAUDE.md rules
      12 and 13).
   8. Every state change publishes the inbox-status file in the control directory
-     (schema 1, MAIN 0915) through `ops/loop/inbox_status.py`.
+     (schema 1, MAIN 0915) through `ops/loop/inbox_status.py`. The kit writes the
+     same file on its own transitions; the responder writes after each of them,
+     so the published task, ETA and window are always the responder's.
 
 THE SCHEDULED TASK, armed by the merger, never by this module. `<pythonw>` is
 resolved at arm time (`(Get-Command pythonw).Source`); no interpreter path is
@@ -63,10 +71,9 @@ import contextlib
 import json
 import os
 import re
-import subprocess
 import sys
 import time
-from collections.abc import Callable, Mapping, Sequence
+from collections.abc import Callable, Iterator, Mapping, Sequence
 from pathlib import Path
 from typing import Any, Final
 
@@ -74,12 +81,8 @@ _HERE = Path(__file__).resolve().parent
 _REPO_ROOT = _HERE.parents[1]
 if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
-_TOOLS_DIR = _REPO_ROOT / "tools"
-if str(_TOOLS_DIR) not in sys.path:
-    sys.path.insert(0, str(_TOOLS_DIR))
 
-from toolpath import resolve_tool  # noqa: E402
-
+from ops.fleet_kit import fleet_headless as kit  # noqa: E402
 from ops.loop import headless_route, inbox_status, inbox_surface, winmutex  # noqa: E402
 
 #: The control directory and the sentinels that stop this responder.
@@ -104,11 +107,20 @@ BACKOFF_S: Final = 3600.0
 #: killing an honest one.
 WORKER_TIMEOUT_S: Final = 3 * 3600.0
 
-#: The worker argv after the resolved CLI. The prompt arrives on stdin.
-WORKER_ARGS: Final = ("-p", "--output-format", "json", "--dangerously-skip-permissions")
+#: The one flag the kit's argv does not carry. The worker runs unattended, so a
+#: permission prompt would wait forever; the kit refuses only fallback and bare
+#: flags here.
+KIT_EXTRA: Final = ("--dangerously-skip-permissions",)
+
+#: The kit's refusal when its budget lock stays busy - a counting failure, so it
+#: is logged with the unreadable budget rather than with a proxy refusal. The
+#: kit is byte-pinned, so this string moves only with a new kit version.
+KIT_LOCK_BUSY: Final = "budget lock busy"
 
 #: Set on the worker for the reasons `ops/loop/run_lane.ps1` records (CS-1108):
-#: nothing backgrounded, and a long foreground command survives.
+#: nothing backgrounded, and a long foreground command survives. The kit builds
+#: the child's environment from this process's own, so they are set here, for
+#: the length of the spawn only.
 WORKER_ENV: Final = {
     "CLAUDE_CODE_DISABLE_BACKGROUND_TASKS": "1",
     "CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS": "2400000",
@@ -135,61 +147,92 @@ _SENDER_RE: Final = re.compile(r"^\d{4}-\d{2}-\d{2}-\d{4}-from-([A-Za-z0-9]+)-")
 _TERMINAL_RE: Final = re.compile(r"terminal|no-?reply", re.IGNORECASE)
 _EXEMPT_SENDER: Final = "MAIN"
 
-_NO_WINDOW: Final = 0x08000000 if os.name == "nt" else 0
-_KILL_TIMEOUT_S: Final = 20
 _RENAME_ATTEMPTS: Final = 5
 _RENAME_PAUSE_S: Final = 0.2
 
-
-class WorkerTimeoutError(RuntimeError):
-    """The worker outlived `WORKER_TIMEOUT_S` and was killed."""
+#: The kit's own spawn, and its injectable seams by name. The responder passes
+#: every key through untouched; production passes none, so every seam is the
+#: kit's fail-closed default.
+KitSpawn = Callable[..., tuple[dict[str, Any], str]]
 
 
 def _default_lock() -> Any:
     return winmutex.hold(MUTEX_NAME, timeout=0.0)
 
 
-def _kill_tree(pid: int) -> None:
-    """Kill the worker and everything it started. Reports nothing."""
-    killer = resolve_tool("taskkill")
-    if killer is None:
-        return
-    with contextlib.suppress(OSError, subprocess.SubprocessError):
-        subprocess.run(
-            [killer, "/F", "/T", "/PID", str(pid)],
-            capture_output=True,
-            timeout=_KILL_TIMEOUT_S,
-            check=False,
-            creationflags=_NO_WINDOW,
-        )
+@contextlib.contextmanager
+def _worker_env() -> Iterator[None]:
+    """`WORKER_ENV` in this process's environment for the spawn, then restored."""
+    saved = {key: os.environ.get(key) for key in WORKER_ENV}
+    os.environ.update(WORKER_ENV)
+    try:
+        yield None
+    finally:
+        for key, value in saved.items():
+            if value is None:
+                os.environ.pop(key, None)
+            else:
+                os.environ[key] = value
 
 
-def _spawn_worker(
-    argv: list[str], stdin: bytes, cwd: Path, env: dict[str, str], timeout: float
-) -> tuple[int, str]:
-    """Run the worker to completion. THE DEFAULT REALLY STARTS A PROCESS.
+def kit_spawn(
+    root: Path,
+    prompt: str,
+    *,
+    writes_code: bool,
+    effort: str,
+    before_start: Callable[[], None],
+    **seams: Any,
+) -> tuple[dict[str, Any], str]:
+    """Start the worker through the fleet kit and wait. THE DEFAULT REALLY STARTS A PROCESS.
+
+    ``before_start`` runs after the kit has refused or counted the start and
+    written its own "running" status, immediately before the process starts, so
+    the responder's status is the one the run is shown under.
+
+    Args:
+        root: The main tree root - the worker's cwd and the kit's file root.
+        prompt: The worker prompt, sent on stdin.
+        writes_code: Whether the kit picks the code model.
+        effort: The kit effort word.
+        before_start: Called once, just before the process starts.
+        **seams: Passed to ``kit.spawn`` untouched. ``run`` is wrapped, not
+            replaced, so the worker's own output can be classified.
+
+    Returns:
+        The kit's usage line, and the worker's captured stdout.
 
     Raises:
-        OSError: The process could not be started.
-        WorkerTimeoutError: The worker outlived ``timeout`` and was killed.
+        kit.Refused: Before anything starts, when the fleet rules forbid it.
     """
-    proc = subprocess.Popen(
-        argv,
-        cwd=str(cwd),
-        env=env,
-        stdin=subprocess.PIPE,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT,
-        creationflags=_NO_WINDOW,
-    )
-    try:
-        out, _ = proc.communicate(stdin, timeout=timeout)
-    except subprocess.TimeoutExpired:
-        _kill_tree(proc.pid)
-        with contextlib.suppress(subprocess.SubprocessError, OSError):
-            proc.communicate(timeout=_KILL_TIMEOUT_S)
-        raise WorkerTimeoutError from None
-    return int(proc.returncode), out.decode("utf-8", errors="replace")
+    inner = seams.pop("run", None) or kit._run  # noqa: SLF001 - the kit's own default
+    captured: list[str] = []
+
+    def run(argv: list[str], **kw: Any) -> Any:
+        before_start()
+        proc = inner(argv, **kw)
+        out = getattr(proc, "stdout", None)
+        captured.append(out if isinstance(out, str) else "")
+        return proc
+
+    with _worker_env():
+        line = kit.spawn(
+            root,
+            inbox_status.CODE,
+            prompt,
+            writes_code=writes_code,
+            effort=effort,
+            bare=False,
+            floors_in_hooks=True,
+            stdin=True,
+            cwd=root,
+            timeout=WORKER_TIMEOUT_S,
+            extra=KIT_EXTRA,
+            run=run,
+            **seams,
+        )
+    usage: dict[str, Any] = dict(line) if isinstance(line, dict) else {}
+    return usage, captured[-1] if captured else ""
 
 
 def _replace_with_retry(tmp: Path, target: Path) -> None:
@@ -274,11 +317,33 @@ def is_damped(name: str) -> bool:
     return _TERMINAL_RE.search(name) is not None
 
 
+def _listed(fact: Mapping[str, Any]) -> list[str]:
+    names = fact.get("names")
+    return [n for n in names if isinstance(n, str)] if isinstance(names, list) else []
+
+
 def _worthy(fact: Mapping[str, Any], unread: int) -> int:
     """Unread items that may start a run. An item past the listing cap counts as live."""
-    names = fact.get("names")
-    listed = [n for n in names if isinstance(n, str)] if isinstance(names, list) else []
-    return max(0, unread - sum(1 for name in listed if is_damped(name)))
+    return max(0, unread - sum(1 for name in _listed(fact) if is_damped(name)))
+
+
+def _kit_inputs(fact: Mapping[str, Any], unread: int) -> tuple[bool, str]:
+    """``(writes_code, effort)`` for the kit, from the live note NAMES only.
+
+    MAIN 0855: sonnet unless the work writes code, effort low for
+    acknowledgements. One pass answers every live note, so the pass takes the
+    heaviest: the code model when any live note is an ORDER, FIX or RULING (the
+    classes the kit never damps), and effort low only when the kit reads every
+    live note as an acknowledgement. A note past the listing cap is unseen, so
+    it is assumed heavy rather than guessed light.
+    """
+    listed = _listed(fact)
+    live = [name for name in listed if not is_damped(name)]
+    unseen = unread > len(listed)
+    writes_code = unseen or any(str(kit.note_class(name)) in kit.NEVER_DAMP for name in live)
+    efforts = {str(kit.pick_effort(name)) for name in live}
+    effort = "low" if live and not unseen and efforts == {"low"} else "medium"
+    return writes_code, effort
 
 
 class _Board:
@@ -294,7 +359,9 @@ class _Board:
         self.now = now
         self.tick = tick
         self.clock = inbox_status.TaskClock(control)
-        self.budget = inbox_status.RunBudget(control)
+        # THE KIT'S BUDGET, read where the kit writes it: one tree-wide count
+        # for every headless start, never a second counter beside it.
+        self.budget = kit.RunBudget(control / kit.BUDGET_REL.name)
         self._tick: float | None = None
         self._tick_asked = False
 
@@ -306,20 +373,13 @@ class _Board:
         return self._tick
 
     def window(self, at: float) -> inbox_status.Window:
-        """The run window. An unreadable counter renders FULL - it refuses every start."""
-        try:
-            return self.budget.snapshot(at)
-        except inbox_status.CounterUnreadableError:
-            return inbox_status.Window(count=inbox_status.RUNS_CAP, frees_at=None)
+        """The kit's run window. An unreadable budget renders FULL - it refuses every start."""
+        self.budget.clock = lambda: at
+        count = int(self.budget.used())
+        frees = self.budget.frees_at()
+        return inbox_status.Window(count=count, frees_at=None if frees is None else float(frees))
 
-    def show(
-        self,
-        state: str,
-        task: str,
-        *,
-        started: float | None = None,
-        window: inbox_status.Window | None = None,
-    ) -> None:
+    def show(self, state: str, task: str, *, started: float | None = None) -> None:
         at = self.now()
         inbox_status.publish(
             self.control,
@@ -329,7 +389,7 @@ class _Board:
             task_started=at if started is None else started,
             eta_s=self.clock.eta(task),
             next_tick=self.next_tick(at),
-            window=self.window(at) if window is None else window,
+            window=self.window(at),
         )
 
     def idle(self) -> None:
@@ -357,16 +417,15 @@ def _outcome_exit(outcome: str) -> int:
     }.get(outcome, EXIT_WORKER_FAILED)
 
 
-def run_once(  # noqa: PLR0913 - every outward seam is injectable
+def run_once(
     *,
     root: Path | None = None,
     control_dir: Path | None = None,
     now: Callable[[], float] = time.time,
     surface: Callable[[Any], Mapping[str, Any]] | None = None,
     lock: Callable[[], Any] | None = None,
-    route: Callable[[Mapping[str, str]], dict[str, str]] | None = None,
-    spawn: Callable[..., tuple[int, str]] | None = None,
-    resolve: Callable[[str], str | None] | None = None,
+    spawn: KitSpawn | None = None,
+    kit_seams: Mapping[str, Any] | None = None,
     next_tick: Callable[[float], float | None] | None = None,
 ) -> int:
     """One responder pass. See the module docstring for the order.
@@ -377,9 +436,10 @@ def run_once(  # noqa: PLR0913 - every outward seam is injectable
         now: The wall clock.
         surface: The channel lister, or None for ``inbox_surface.surface``.
         lock: A zero-argument context-manager factory, or None for the mutex.
-        route: Builds the routed env, or None for ``headless_route.child_env``.
-        spawn: Runs the worker, or None for the real spawn.
-        resolve: Resolves a tool from PATH, or None for ``resolve_tool``.
+        spawn: The kit spawn, or None for `kit_spawn`.
+        kit_seams: Passed to the kit's ``spawn`` untouched - its proxy, probe,
+            executable and runner seams. None in production, so every one is
+            the kit's fail-closed default.
         next_tick: The scheduler's next fire after an epoch, or None for the
             real query of `inbox_status.TASK_NAME`.
 
@@ -402,9 +462,8 @@ def run_once(  # noqa: PLR0913 - every outward seam is injectable
                 main_root,
                 now,
                 inbox_surface.surface if surface is None else surface,
-                headless_route.child_env if route is None else route,
-                _spawn_worker if spawn is None else spawn,
-                resolve_tool if resolve is None else resolve,
+                kit_spawn if spawn is None else spawn,
+                dict(kit_seams or {}),
                 board,
             )
     except winmutex.MutexTimeout:
@@ -415,13 +474,12 @@ def run_once(  # noqa: PLR0913 - every outward seam is injectable
         return EXIT_OK
 
 
-def _locked_pass(
+def _locked_pass(  # noqa: PLR0911 - one return per recorded outcome
     root: Path,
     now: Callable[[], float],
     surface: Callable[[Any], Mapping[str, Any]],
-    route: Callable[[Mapping[str, str]], dict[str, str]],
-    spawn: Callable[..., tuple[int, str]],
-    resolve: Callable[[str], str | None],
+    spawn: KitSpawn,
+    seams: dict[str, Any],
     board: _Board,
 ) -> int:
     """Everything after the lock is held."""
@@ -444,70 +502,74 @@ def _locked_pass(
         board.show("backoff", "Backing Off", started=held_until - BACKOFF_S)
         return EXIT_OK
     try:
-        env = route(os.environ)
-    except headless_route.HeadlessRouteRefused as refused:
-        _log(
-            root, started, "route_refused", EXIT_ROUTE_REFUSED, unread=unread, reason=refused.reason
-        )
-        board.show("refused", "Halted")
-        return EXIT_ROUTE_REFUSED
-    env.update(WORKER_ENV)
-    cli = resolve("claude")
-    try:
-        prompt = (root / PROMPT_RELPATH).read_bytes()
-    except OSError:
-        cli = None
-    if cli is None:
+        prompt = (root / PROMPT_RELPATH).read_bytes().decode("utf-8")
+    except (OSError, UnicodeDecodeError):
         _log(root, started, "spawn_failed", EXIT_SPAWN_FAILED, unread=unread)
         board.show("refused", "Halted")
         return EXIT_SPAWN_FAILED
-    return _counted_spawn(
-        root,
-        now,
-        board,
-        lambda: spawn([cli, *WORKER_ARGS], prompt, root, env, WORKER_TIMEOUT_S),
-        unread,
-        started,
-    )
+    writes_code, effort = _kit_inputs(fact, unread)
 
+    def before_start() -> None:
+        board.show("running", "Running Session", started=started)
 
-def _counted_spawn(
-    root: Path,
-    now: Callable[[], float],
-    board: _Board,
-    run: Callable[[], tuple[int, str]],
-    unread: int,
-    started: float,
-) -> int:
-    """Count the start against the cap, run the worker, publish and log the outcome."""
     try:
-        verdict = board.budget.try_start(started)
-    except inbox_status.CounterUnreadableError:
-        # FAIL CLOSED: the counter is never reset, and nothing starts uncounted.
+        line, output = spawn(
+            root,
+            prompt,
+            writes_code=writes_code,
+            effort=effort,
+            before_start=before_start,
+            **seams,
+        )
+    except kit.Refused as refused:
+        return _refused(root, board, refused, unread, started)
+    except OSError:
+        finished = now()
+        board.ended(finished, finished - started)
+        _log(root, finished, "spawn_failed", EXIT_SPAWN_FAILED, unread=unread)
+        board.show("refused", "Halted")
+        return EXIT_SPAWN_FAILED
+    return _finished(root, now, board, line, output, unread, started)
+
+
+def _refused(root: Path, board: _Board, refused: Exception, unread: int, started: float) -> int:
+    """The kit refused before anything started. Nothing ran, so no duration is recorded."""
+    if isinstance(refused, kit.BudgetUnreadable) or str(refused) == KIT_LOCK_BUSY:
+        # FAIL CLOSED: the kit never resets its budget, and nothing starts uncounted.
         _log(root, started, "budget_refused", EXIT_BUDGET_REFUSED, unread=unread)
         board.show("refused", "Halted")
         return EXIT_BUDGET_REFUSED
-    window = inbox_status.Window(count=verdict.count, frees_at=verdict.frees_at)
-    if not verdict.allowed:
+    window = board.window(started)
+    if window.count >= board.budget.cap:
         _log(root, started, "limit", EXIT_OK, unread=unread)
-        board.show("limit", "Turn Limit Reached", window=window)
+        board.show("limit", "Turn Limit Reached")
         return EXIT_OK
-    board.show("running", "Running Session", started=started, window=window)
-    try:
-        returncode, output = run()
-    except WorkerTimeoutError:
-        finished = now()
-        board.ended(finished, finished - started)
+    # The proxy, the door or the executable. The kit's words are not logged:
+    # the outcome word is the closed vocabulary, and the reason stays authored.
+    _log(root, started, "kit_refused", EXIT_ROUTE_REFUSED, unread=unread, reason="kit")
+    board.show("refused", "Halted")
+    return EXIT_ROUTE_REFUSED
+
+
+def _finished(
+    root: Path,
+    now: Callable[[], float],
+    board: _Board,
+    line: Mapping[str, Any],
+    output: str,
+    unread: int,
+    started: float,
+) -> int:
+    """Classify the finished run, publish and log it."""
+    finished = now()
+    board.ended(finished, finished - started)
+    if line.get("error") == "timeout":
         _log(root, finished, "timeout", EXIT_TIMEOUT, unread=unread)
         board.idle()
         return EXIT_TIMEOUT
-    except OSError:
-        _log(root, started, "spawn_failed", EXIT_SPAWN_FAILED, unread=unread)
-        board.show("refused", "Halted")
-        return EXIT_SPAWN_FAILED
+    rc = line.get("rc")
+    returncode = rc if type(rc) is int else None
     outcome = headless_route.classify_exit(returncode, output)
-    finished = now()
-    board.ended(finished, finished - started)
     if outcome == headless_route.OUTCOME_USAGE_LIMIT:
         _write_backoff(root / BACKOFF_RELPATH, finished + BACKOFF_S)
     code = _outcome_exit(outcome)

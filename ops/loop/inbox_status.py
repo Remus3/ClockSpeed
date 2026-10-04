@@ -1,4 +1,4 @@
-r"""CS-1234 - the inbox responder's live status file and its 120-per-24h run budget.
+r"""CS-1234 - the inbox responder's live status file and its task clock.
 
 MAIN 0915 section 1 (operator order, relayed): every tree's responder publishes
 its live state in ONE file at ONE relative path - the published inbox-status file
@@ -7,22 +7,22 @@ written atomically on every state change and at least once per tick. The lane
 widget reads it and never writes it. MAIN 0855 (operator order, relayed): AT MOST 120
 headless runs STARTED per rolling 24 hours.
 
-Three gitignored files live in the control directory beside each other:
+Two untracked files of this module live in the control directory:
 
   inbox_status.json        the published schema-1 status. Holds NO path, no env
                            value and no note name (CLAUDE.md rules 12 and 13).
-  inbox_runs.json          the start counter, `{"schema": 1, "starts": [epoch]}`.
-                           FAIL CLOSED: a counter that exists but cannot be read
-                           or parsed refuses EVERY start and is never rewritten,
-                           so it can never be "reset" by a garbled byte.
   inbox_status_tasks.json  the task clock - the last ten durations per task
                            name, for `task_eta_s`, and when the last run ended.
                            Display only, so a garbled one reads as empty.
 
-SHAPED FOR THE KIT SWAP. FLEET-KIT v4 carries a `RunBudget` and a `STATES`
-tuple; the state names here are the kit's, and `RunBudget.try_start` /
-`RunBudget.snapshot` are the whole surface the responder uses, so a later slice
-can replace this class without touching a caller.
+THE START COUNT IS THE KIT'S (CS-1231 slice C). This module once carried its
+own `RunBudget`; it was retired when the responder moved onto FLEET-KIT v4's
+spawn, which counts every headless start in the tree against ONE budget under
+its lock and refuses every start on an unreadable one. Two counters would show
+two different windows, so the responder reads the kit's budget for the
+`runs_in_window` and `cap_frees_at` it publishes here. `RUNS_CAP` and
+`WINDOW_S` below are the schema's published numbers and are pinned equal to the
+kit's by the tests. The state names are the kit's `STATES`.
 """
 
 from __future__ import annotations
@@ -36,7 +36,7 @@ import subprocess
 import sys
 import time
 import xml.etree.ElementTree as ET
-from collections.abc import Callable, Iterator
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
@@ -72,8 +72,6 @@ RUNS_CAP: Final = 120
 WINDOW_S: Final = 86400
 
 STATUS_NAME: Final = "inbox_status.json"
-RUNS_NAME: Final = "inbox_runs.json"
-LOCK_NAME: Final = "inbox_runs.lock"
 TASKS_NAME: Final = "inbox_status_tasks.json"
 
 #: The scheduled task this responder runs under. A task NAME, not a path.
@@ -85,30 +83,16 @@ ETA_KEEP: Final = 10
 
 _RENAME_ATTEMPTS: Final = 5
 _RENAME_PAUSE_S: Final = 0.2
-_LOCK_POLL_S: Final = 0.05
 _QUERY_TIMEOUT_S: Final = 10
 _NO_WINDOW: Final = 0x08000000 if os.name == "nt" else 0
 _INTERVAL_RE: Final = re.compile(r"^P(?:(\d+)D)?(?:T(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?)?$")
 _TASK_NS: Final = "{http://schemas.microsoft.com/windows/2004/02/mit/task}"
 
 
-class CounterUnreadableError(RuntimeError):
-    """The start counter exists but cannot be read, parsed, locked or written."""
-
-
 @dataclass(frozen=True)
 class Window:
-    """The starts inside the rolling window, and when the count next drops."""
+    """The starts inside the kit's rolling window, and when the count next drops."""
 
-    count: int
-    frees_at: float | None
-
-
-@dataclass(frozen=True)
-class Verdict:
-    """One start request's answer. ``count`` is the window AFTER the answer."""
-
-    allowed: bool
     count: int
     frees_at: float | None
 
@@ -136,119 +120,6 @@ def _atomic_write(target: Path, payload: bytes) -> None:
 
 def _dump(obj: Any) -> bytes:
     return (json.dumps(obj, sort_keys=True, ensure_ascii=True, indent=2) + "\n").encode("ascii")
-
-
-# --- the run budget -------------------------------------------------------------
-
-
-@contextlib.contextmanager
-def _exclusive(lock_path: Path, timeout_s: float) -> Iterator[None]:
-    """An exclusive OS lock on ``lock_path``. Raises `CounterUnreadableError` on timeout."""
-    lock_path.parent.mkdir(parents=True, exist_ok=True)
-    fd = os.open(str(lock_path), os.O_RDWR | os.O_CREAT, 0o600)
-    try:
-        deadline = time.monotonic() + timeout_s
-        while True:
-            try:
-                if sys.platform == "win32":
-                    import msvcrt  # noqa: PLC0415 - platform-specific
-
-                    msvcrt.locking(fd, msvcrt.LK_NBLCK, 1)
-                else:
-                    import fcntl  # noqa: PLC0415 - platform-specific
-
-                    fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
-            except OSError:
-                if time.monotonic() >= deadline:
-                    msg = "the start counter lock is held"
-                    raise CounterUnreadableError(msg) from None
-                time.sleep(_LOCK_POLL_S)
-            else:
-                break
-        try:
-            yield None
-        finally:
-            with contextlib.suppress(OSError):
-                if sys.platform == "win32":
-                    import msvcrt  # noqa: PLC0415 - platform-specific
-
-                    os.lseek(fd, 0, os.SEEK_SET)
-                    msvcrt.locking(fd, msvcrt.LK_UNLCK, 1)
-                else:
-                    import fcntl  # noqa: PLC0415 - platform-specific
-
-                    fcntl.flock(fd, fcntl.LOCK_UN)
-    finally:
-        os.close(fd)
-
-
-class RunBudget:
-    """At most ``cap`` starts per rolling ``window_s``, counted persistently."""
-
-    def __init__(
-        self,
-        control: Path,
-        *,
-        cap: int = RUNS_CAP,
-        window_s: float = WINDOW_S,
-        lock_timeout_s: float = 5.0,
-    ) -> None:
-        """Count starts in ``control``/`RUNS_NAME` under ``control``/`LOCK_NAME`."""
-        self.path = Path(control) / RUNS_NAME
-        self.lock_path = Path(control) / LOCK_NAME
-        self.cap = cap
-        self.window_s = float(window_s)
-        self.lock_timeout_s = lock_timeout_s
-
-    def locked(self) -> contextlib.AbstractContextManager[None]:
-        """The counter's exclusive lock."""
-        return _exclusive(self.lock_path, self.lock_timeout_s)
-
-    def _starts(self) -> list[float]:
-        """Every recorded start. A missing file is zero starts; anything else unreadable refuses."""
-        try:
-            data = self.path.read_bytes()
-        except FileNotFoundError:
-            return []
-        except OSError:
-            msg = "the start counter cannot be read"
-            raise CounterUnreadableError(msg) from None
-        try:
-            parsed = json.loads(data.decode("ascii"))
-        except ValueError:
-            msg = "the start counter cannot be parsed"
-            raise CounterUnreadableError(msg) from None
-        starts = parsed.get("starts") if isinstance(parsed, dict) else None
-        if not isinstance(starts, list) or not all(type(s) in (int, float) for s in starts):
-            msg = "the start counter has the wrong shape"
-            raise CounterUnreadableError(msg)
-        return [float(s) for s in starts]
-
-    def _window(self, starts: list[float], now: float) -> list[float]:
-        return sorted(s for s in starts if s > now - self.window_s)
-
-    def _frees(self, live: list[float]) -> float | None:
-        return live[0] + self.window_s if live else None
-
-    def snapshot(self, now: float) -> Window:
-        """The window as it stands. Raises `CounterUnreadableError`."""
-        with self.locked():
-            live = self._window(self._starts(), now)
-        return Window(count=len(live), frees_at=self._frees(live))
-
-    def try_start(self, now: float) -> Verdict:
-        """Record a start if the window has room. Raises `CounterUnreadableError`."""
-        with self.locked():
-            live = self._window(self._starts(), now)
-            if len(live) >= self.cap:
-                return Verdict(allowed=False, count=len(live), frees_at=self._frees(live))
-            live.append(float(now))
-            try:
-                _atomic_write(self.path, _dump({"schema": SCHEMA, "starts": live}))
-            except OSError:
-                msg = "the start counter cannot be written"
-                raise CounterUnreadableError(msg) from None
-        return Verdict(allowed=True, count=len(live), frees_at=self._frees(live))
 
 
 # --- the task clock -------------------------------------------------------------

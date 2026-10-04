@@ -1,4 +1,4 @@
-"""CS-1234 - the responder's status file, its run budget and its task clock.
+"""CS-1234 - the responder's status file and its task clock.
 
 Every arm drives `ops/loop/inbox_status` against a tmp control directory. NO ARM
 queries the real scheduler, reads the live control plane or renders a path or
@@ -19,6 +19,7 @@ ROOT: Final = Path(__file__).resolve().parents[2]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+from ops.fleet_kit import fleet_headless as kit  # noqa: E402
 from ops.loop import inbox_status  # noqa: E402
 
 T0: Final = 1_000_000.0
@@ -40,10 +41,6 @@ SCHEMA_KEYS: Final = frozenset(
         "cap_frees_at",
     }
 )
-
-
-def _budget(control: Path) -> inbox_status.RunBudget:
-    return inbox_status.RunBudget(control)
 
 
 def _read(control: Path) -> dict[str, Any]:
@@ -162,79 +159,6 @@ def test_refresh_without_a_status_file_writes_nothing(tmp_path: Path) -> None:
     assert (refreshed, (tmp_path / inbox_status.STATUS_NAME).exists()) == (False, False)
 
 
-# --- the run budget -------------------------------------------------------------
-
-
-def test_the_budget_starts_empty_and_counts_each_start(tmp_path: Path) -> None:
-    budget = _budget(tmp_path)
-    first = budget.snapshot(T0)
-    verdict = budget.try_start(T0)
-    second = budget.try_start(T0 + 1)
-    after = budget.snapshot(T0 + 2)
-    assert (first.count, verdict.allowed, second.allowed, after.count, after.frees_at) == (
-        0,
-        True,
-        True,
-        2,
-        T0 + DAY,
-    )
-
-
-def test_the_budget_refuses_the_121st_start_and_names_when_it_frees(tmp_path: Path) -> None:
-    budget = _budget(tmp_path)
-    allowed = [budget.try_start(T0 + i).allowed for i in range(inbox_status.RUNS_CAP)]
-    over = budget.try_start(T0 + 500)
-    window = budget.snapshot(T0 + 500)
-    assert (all(allowed), over.allowed, over.count, over.frees_at, window.count) == (
-        True,
-        False,
-        120,
-        T0 + DAY,
-        120,
-    )
-
-
-def test_a_start_ages_out_of_the_rolling_window(tmp_path: Path) -> None:
-    budget = _budget(tmp_path)
-    for i in range(inbox_status.RUNS_CAP):
-        budget.try_start(T0 + i)
-    still_full = budget.try_start(T0 + DAY - 1).allowed
-    freed = budget.try_start(T0 + DAY + 0.5)
-    assert (still_full, freed.allowed, freed.count) == (False, True, 120)
-
-
-@pytest.mark.parametrize(
-    "garbage",
-    [b"", b"not json", b'{"schema": 1, "starts": "x"}', b'{"schema": 1, "starts": [true]}', b"[]"],
-)
-def test_an_unreadable_counter_refuses_every_start_and_is_never_reset(
-    tmp_path: Path, garbage: bytes
-) -> None:
-    counter = tmp_path / inbox_status.RUNS_NAME
-    counter.write_bytes(garbage)
-    budget = _budget(tmp_path)
-    refused_start = False
-    refused_snapshot = False
-    try:
-        budget.try_start(T0)
-    except inbox_status.CounterUnreadableError:
-        refused_start = True
-    try:
-        budget.snapshot(T0)
-    except inbox_status.CounterUnreadableError:
-        refused_snapshot = True
-    untouched = counter.read_bytes() == garbage
-    assert (refused_start, refused_snapshot, untouched) == (True, True, True)
-
-
-def test_a_held_counter_lock_refuses_the_start(tmp_path: Path) -> None:
-    budget = inbox_status.RunBudget(tmp_path, lock_timeout_s=0.2)
-    with budget.locked(), pytest.raises(inbox_status.CounterUnreadableError):
-        inbox_status.RunBudget(tmp_path, lock_timeout_s=0.2).try_start(T0)
-    counter = tmp_path / inbox_status.RUNS_NAME
-    assert counter.exists() is False
-
-
 # --- the task clock -------------------------------------------------------------
 
 
@@ -302,3 +226,19 @@ def test_an_unknowable_tick_is_null(text: str) -> None:
 def test_the_tick_query_answers_null_without_a_scheduler() -> None:
     tick = inbox_status.query_next_tick(T0, resolve=lambda _name: None)
     assert tick is None
+
+
+def test_the_published_cap_and_window_are_the_kits() -> None:
+    """One budget: the numbers this schema publishes are the kit's, never a second pair."""
+    numbers = (inbox_status.RUNS_CAP, inbox_status.WINDOW_S, set(inbox_status.STATES))
+    assert numbers == (kit.RUNS_CAP, kit.WINDOW_S, set(kit.STATES))
+
+
+def test_the_retired_counter_is_gone() -> None:
+    """CS-1231 slice C retired the second counter; nothing may bring it back beside the kit's."""
+    leftovers = [
+        name
+        for name in ("RunBudget", "CounterUnreadableError", "RUNS_NAME", "LOCK_NAME")
+        if hasattr(inbox_status, name)
+    ]
+    assert leftovers == []

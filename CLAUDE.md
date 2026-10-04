@@ -22,9 +22,9 @@ MAIN's fleet kit block, Apache-2.0, unmodified - see `ops/fleet_kit/NOTICE` and 
 this tree.** Specifically: (a) section 2.3's rule never to poll a background task in
 one-line turns governs over FLEET item 12's periodic check - wait for the completion
 notification; (b) the section 2.3.1 checklist cadence stays this tree's rule beside FLEET
-item 3 until the operator retires it in their own words; (c) FLEET item 10 has two stated
-exceptions until CS-1231 slice C lands - `ops/loop/run_lane.ps1` and
-`ops/loop/inbox_responder.py` still start `claude` directly; (d) FLEET item 5's rule that
+item 3 until the operator retires it in their own words; (c) FLEET item 10 has one stated
+exception until CS-1231 slice C finishes - `ops/loop/run_lane.ps1` still starts `claude`
+directly; `ops/loop/inbox_responder.py` goes through the kit's spawn; (d) FLEET item 5's rule that
 every do-not-re-litigate entry states what would reverse it is met by the *Reversed by:*
 clause on each section 7 entry. Section 6.1's repository-public/remote safety floor holds
 whatever FLEET item 1 says.
