@@ -624,9 +624,12 @@ jobs:
       # THE TRAILER-SHAPED CENSUS. This step only frames the range and reads the
       # exit code: any non-zero - a hit, or a census that could not run - fails.
       #
-      # THE BASELINE MUST BE AN ANCESTOR, and a rewrite past it (S7a) makes this
-      # red until the pin moves - that is the point. Absent and not-an-ancestor
-      # are refused under different names, because the repairs differ.
+      # THE ACCEPT SET IS EXACTLY TWO SHAS (CS-704 ruling, 2026-10-04, in
+      # docs/LEDGER.md): the 2026-09-25 baseline and its image under the CS-700
+      # S7a rewrite. The step passes when at least one is an ancestor of HEAD,
+      # censuses from the first that is, and fails closed when neither is - a
+      # shallow checkout holds neither. Absent and not-an-ancestor are named per
+      # member, because the repairs differ.
       #
       # THE EMPTY RANGE IS DECIDED, NOT INHERITED. With the ancestor check
       # passed, baseline..HEAD is empty ONLY when HEAD is the baseline, which is
@@ -642,22 +645,27 @@ jobs:
       # read from here by a YAML parse, against every route above.
       - name: Trailer census since the baseline
         run: |
-          BASELINE=c6f36874194aeed450c6d75a93be883f72c8f45e
-          ANCESTOR=0
-          git merge-base --is-ancestor "$BASELINE" HEAD || ANCESTOR=$?
-          case "$ANCESTOR" in
-            0) ;;
-            1)
-              echo "FAIL: the trailer baseline ${BASELINE} is not an ancestor of HEAD."
-              echo "History was rewritten past it or this branch never held it; re-pin it."
-              exit 1
-              ;;
-            *)
-              echo "FAIL: the trailer baseline ${BASELINE} is absent from this checkout."
-              echo "A shallow checkout or a rewritten history cannot be censused from it."
-              exit 1
-              ;;
-          esac
+          ACCEPT="c6f36874194aeed450c6d75a93be883f72c8f45e b7b4a2c4b71c942bb759aa2b4f3b9ba906ddc1ec"
+          BASELINE=
+          REASONS=
+          for MEMBER in $ACCEPT; do
+            ANCESTOR=0
+            git merge-base --is-ancestor "$MEMBER" HEAD 2>/dev/null || ANCESTOR=$?
+            case "$ANCESTOR" in
+              0)
+                BASELINE=$MEMBER
+                break
+                ;;
+              1) REASONS="${REASONS}  ${MEMBER} is present but not an ancestor of HEAD.\n" ;;
+              *) REASONS="${REASONS}  ${MEMBER} is absent from this checkout.\n" ;;
+            esac
+          done
+          if [ -z "$BASELINE" ]; then
+            echo "FAIL: no member of the trailer baseline accept set is an ancestor of HEAD."
+            printf "%b" "$REASONS"
+            echo "Absent: a shallow checkout cannot be censused. Present: history moved past both; re-pin."
+            exit 1
+          fi
           if [ "$(git rev-parse HEAD)" = "$BASELINE" ]; then
             echo "HEAD is the baseline itself: no commit follows it, so none is censused."
             exit 0

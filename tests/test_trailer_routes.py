@@ -8,11 +8,12 @@ fire that hook: ``git rebase`` on both backends, ``git am``, ``git cherry-pick``
 bootstrapped (``core.hooksPath`` is machine-local and never cloned), and a
 remapped ``core.commentChar`` or ``core.commentString``, which moves the comment
 leader the hook skips onto the trailer itself. The ledger's CS-704 ROUTE puts the
-catcher in ``.github/workflows/tier1.yml``: a step that refuses unless the pinned
-baseline is an ancestor of HEAD, then runs ``tools/trailer_census.py`` over
-``baseline..HEAD``. The trailer SHAPE is owned by the paragraph headed THE
-TRAILER-SHAPED CENSUS in ``docs/item_notes/phase7.md`` and computed only by that
-tool; nothing here restates it.
+catcher in ``.github/workflows/tier1.yml``: a step that refuses unless a member
+of the pinned accept set - the baseline or its CS-700 S7a image - is an ancestor
+of HEAD, then runs ``tools/trailer_census.py`` over ``baseline..HEAD``. The
+trailer SHAPE is owned by the paragraph headed THE TRAILER-SHAPED CENSUS in
+``docs/item_notes/phase7.md`` and computed only by that tool; nothing here
+restates it.
 
 THE STEP IS EXECUTED, NEVER COPIED. Every arm reads the step's ``run`` text out of
 the workflow by a YAML parse, substitutes the throwaway repository's own baseline
@@ -53,6 +54,7 @@ touches a remote other than a local clone inside ``tmp_path``, and none pushes.
 from __future__ import annotations
 
 import os
+import re
 import shlex
 import shutil
 import subprocess
@@ -74,6 +76,18 @@ STEP_NAME: Final = "Trailer census since the baseline"
 
 #: The baseline the 2026-09-25 grant pins, and the shape every substitute takes.
 GRANTED_BASELINE: Final = "c6f36874194aeed450c6d75a93be883f72c8f45e"
+
+#: Its image under the CS-700 S7a rewrite, admitted by the 2026-10-04 CS-704
+#: ruling in docs/LEDGER.md. The step accepts EXACTLY these two: it passes when
+#: at least one is an ancestor of HEAD and refuses when neither is.
+GRANTED_IMAGE: Final = "b7b4a2c4b71c942bb759aa2b4f3b9ba906ddc1ec"
+
+#: The accept set, as the ruling states it.
+ACCEPT_SET: Final = frozenset({GRANTED_BASELINE, GRANTED_IMAGE})
+
+#: A stand-in for the image that no throwaway repository holds - what every arm
+#: graded on unrewritten history substitutes, as a pre-S7a checkout lacks it.
+ABSENT_IMAGE: Final = "fedcba9876543210fedcba9876543210fedcba98"
 
 #: The tool the step must call, and the one sibling it imports.
 CENSUS_TOOL: Final = "tools/trailer_census.py"
@@ -142,20 +156,26 @@ def step_script() -> str:
     return script
 
 
-def substituted(baseline: str) -> str:
-    """The step's script with ``baseline`` in place of the granted one.
+def substituted(baseline: str, image: str = ABSENT_IMAGE) -> str:
+    """The step's script with ``baseline`` and ``image`` in place of the granted pair.
 
     Raises:
-        AssertionError: When the granted baseline does not appear exactly once,
-            or the substitute did not land - a substitution that never applied
-            looks exactly like a step that refuses every repository.
+        AssertionError: When either granted SHA does not appear exactly once, or
+            a substitute did not land - a substitution that never applied looks
+            exactly like a step that refuses every repository.
     """
     script = step_script()
-    occurrences = script.count(GRANTED_BASELINE)
-    assert occurrences == 1, f"the step names the granted baseline {occurrences} times, not once"
-    rewritten = script.replace(GRANTED_BASELINE, baseline)
-    landed = (rewritten.count(baseline), rewritten.count(GRANTED_BASELINE))
-    assert landed == (1, 0), f"the baseline substitution did not land: {landed}"
+    for granted in (GRANTED_BASELINE, GRANTED_IMAGE):
+        occurrences = script.count(granted)
+        assert occurrences == 1, f"the step names {granted} {occurrences} times, not once"
+    rewritten = script.replace(GRANTED_BASELINE, baseline).replace(GRANTED_IMAGE, image)
+    landed = (
+        rewritten.count(baseline),
+        rewritten.count(image),
+        rewritten.count(GRANTED_BASELINE),
+        rewritten.count(GRANTED_IMAGE),
+    )
+    assert landed == (1, 1, 0, 0), f"the accept-set substitution did not land: {landed}"
     return rewritten
 
 
@@ -253,11 +273,13 @@ def make_repo(tmp_path: Path, *, trailer_before_baseline: bool = False) -> tuple
     return repo, baseline
 
 
-def run_step(repo: Repo, baseline: str, tmp_path: Path) -> subprocess.CompletedProcess[str]:
-    """Execute the shipped step, baseline substituted, exactly as the runner would."""
+def run_step(
+    repo: Repo, baseline: str, tmp_path: Path, image: str = ABSENT_IMAGE
+) -> subprocess.CompletedProcess[str]:
+    """Execute the shipped step, accept set substituted, exactly as the runner would."""
     assert BASH is not None, "guarded by needs_tools"
     script = tmp_path / f"step-{repo.path.name}.sh"
-    script.write_bytes(substituted(baseline).encode("ascii"))
+    script.write_bytes(substituted(baseline, image).encode("ascii"))
     env = dict(repo.env)
     workflow_env = yaml.safe_load(WORKFLOW.read_text(encoding="utf-8")).get("env") or {}
     env.update({str(key): str(value) for key, value in workflow_env.items()})
@@ -298,9 +320,11 @@ def git_sees_trailer(repo: Repo, sha: str) -> bool:
     return TRAILER in parsed.stdout.splitlines()
 
 
-def step_outcome(repo: Repo, baseline: str, tmp_path: Path) -> tuple[int, str]:
+def step_outcome(
+    repo: Repo, baseline: str, tmp_path: Path, image: str = ABSENT_IMAGE
+) -> tuple[int, str]:
     """The step's exit code and stdout, as scalars an assertion may render."""
-    result = run_step(repo, baseline, tmp_path)
+    result = run_step(repo, baseline, tmp_path, image)
     return result.returncode, result.stdout
 
 
@@ -620,7 +644,8 @@ def test_a_baseline_that_is_not_an_ancestor_fails_and_names_why(tmp_path: Path) 
     repo.git("checkout", "-q", "-b", "elsewhere", "HEAD~2")
     repo.commit("CS-4 - a line the baseline is not on")
     code, stdout = step_outcome(repo, baseline, tmp_path)
-    assert (code != 0, "not an ancestor" in stdout) == (True, True), (
+    named = f"{baseline} is present but not an ancestor of HEAD" in stdout
+    assert (code != 0, named) == (True, True), (
         f"a non-ancestor baseline was not refused by name: exit {code}, stdout {stdout!r}"
     )
 
@@ -632,8 +657,13 @@ def test_a_baseline_absent_from_the_checkout_fails_and_names_why(tmp_path: Path)
     repo.commit("CS-4 - clean")
     absent = "0123456789abcdef0123456789abcdef01234567"
     code, stdout = step_outcome(repo, absent, tmp_path)
-    assert (code != 0, "absent" in stdout) == (True, True), (
-        f"an absent baseline was not refused by name: exit {code}, stdout {stdout!r}"
+    shape = (
+        code != 0,
+        f"{absent} is absent from this checkout" in stdout,
+        f"{ABSENT_IMAGE} is absent from this checkout" in stdout,
+    )
+    assert shape == (True, True, True), (
+        f"neither member present was not refused by name: {shape}, stdout {stdout!r}"
     )
 
 
@@ -665,4 +695,84 @@ def test_head_at_the_baseline_passes_by_name_and_walks_nothing(tmp_path: Path) -
     shape = (code, "HEAD is the baseline" in stdout, "trailer_census:" in stdout)
     assert shape == (0, True, False), (
         f"HEAD at the baseline was not answered by name: {shape}, stdout {stdout!r}"
+    )
+
+
+# --- CS-704 accept set: the baseline OR its S7a image ---------------------------
+
+
+def test_the_step_accepts_exactly_the_granted_pair() -> None:
+    """The step names the two ruled SHAs and no other full object name."""
+    script = step_script()
+    named = frozenset(re.findall(r"\b[0-9a-f]{40}\b", script))
+    assert named == ACCEPT_SET, f"the step's accept set is {sorted(named)}"
+
+
+def rewritten_repo(tmp_path: Path) -> tuple[Repo, str, str]:
+    """A repository standing in for history S7a rewrote.
+
+    The ORIGINAL stand-in sits on a side line HEAD does not contain, as the
+    pre-rewrite baseline does once ``main`` is replaced by its image; the IMAGE
+    stand-in is on ``main``.
+
+    Returns:
+        The repository, the original stand-in and the image stand-in.
+    """
+    repo, original = make_repo(tmp_path)
+    repo.git("checkout", "-q", "-b", "rewritten", "HEAD~2")
+    image = repo.commit("CS-3 - the baseline's image")
+    gone = is_ancestor(repo, original)
+    assert gone == 1, "the original stand-in is still an ancestor of HEAD"
+    return repo, original, image
+
+
+@needs_tools
+def test_the_image_passes_on_rewritten_history(tmp_path: Path) -> None:
+    """After S7a the original is not an ancestor; its image is, and the range starts there."""
+    repo, original, image = rewritten_repo(tmp_path)
+    repo.commit("CS-4 - clean after the image")
+    code, stdout = step_outcome(repo, original, tmp_path, image)
+    assert (code, "commits walked 1;" in stdout) == (0, True), (
+        f"rewritten history with the image present did not pass: exit {code}, stdout {stdout!r}"
+    )
+
+
+@needs_tools
+def test_a_trailer_after_the_image_is_caught(tmp_path: Path) -> None:
+    """Admitting the image never excuses what follows it: the census runs from it."""
+    repo, original, image = rewritten_repo(tmp_path)
+    product = repo.commit("CS-4 - trailer after the image", trailer=True)
+    bury(repo, product)
+    seen = git_sees_trailer(repo, product)
+    assert seen, "the plant carries no trailer"
+    code, stdout = step_outcome(repo, original, tmp_path, image)
+    assert (code != 0, f"hit {product}" in stdout) == (True, True), (
+        f"a trailer after the image was not caught: exit {code}, stdout {stdout!r}"
+    )
+
+
+@needs_tools
+def test_head_at_the_image_passes_by_name(tmp_path: Path) -> None:
+    """The empty range is decided for the image exactly as for the baseline."""
+    repo, original, image = rewritten_repo(tmp_path)
+    code, stdout = step_outcome(repo, original, tmp_path, image)
+    shape = (code, "HEAD is the baseline" in stdout, "trailer_census:" in stdout)
+    assert shape == (0, True, False), f"HEAD at the image: {shape}, stdout {stdout!r}"
+
+
+@needs_tools
+def test_a_history_holding_neither_member_as_an_ancestor_fails(tmp_path: Path) -> None:
+    """A non-member: both SHAs present, neither on HEAD's line - refused, each by name."""
+    repo, original, image = rewritten_repo(tmp_path)
+    repo.git("checkout", "-q", "-b", "third", "HEAD~1")
+    repo.commit("CS-4 - a line holding neither member")
+    code, stdout = step_outcome(repo, original, tmp_path, image)
+    shape = (
+        code != 0,
+        f"{original} is present but not an ancestor of HEAD" in stdout,
+        f"{image} is present but not an ancestor of HEAD" in stdout,
+        "trailer_census:" in stdout,
+    )
+    assert shape == (True, True, True, False), (
+        f"a history holding neither member was not refused: {shape}, stdout {stdout!r}"
     )
