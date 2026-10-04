@@ -1,6 +1,9 @@
 # Clockspeed
 
 [![tier1](https://github.com/Remus3/Clockspeed/actions/workflows/tier1.yml/badge.svg)](https://github.com/Remus3/Clockspeed/actions/workflows/tier1.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![Python 3.13+](https://img.shields.io/badge/python-3.13%2B-blue.svg)](pyproject.toml)
+![Platform: Windows](https://img.shields.io/badge/platform-Windows-lightgrey.svg)
 
 **A local, deterministic production planner, ratio calculator and advisor for Satisfactory.**
 
@@ -18,7 +21,8 @@ Build a second smelter line on the north iron node
 ```
 
 One line of instruction. One line of reason. The complete chain of reasoning one keystroke
-away, generated from the rule trace rather than written by hand.
+away, generated from the rule trace rather than written by hand. The card above shows the
+intended format; the advice surface that renders it is still being built - see Status.
 
 ---
 
@@ -31,57 +35,9 @@ away, generated from the rule trace rather than written by hand.
 | **Writes** | Nothing. Not to the install, not to a save. Ever. |
 | **Arithmetic** | Exact rational. No floating point in the solve path. |
 | **Language models** | None, anywhere in the advice path. |
-| **Interface** | A local HTTPS dashboard, plus an optional companion window. |
+| **Interface** | A local HTTPS dashboard, plus an optional Electron companion window. |
 
----
-
-## Working today
-
-**Target-rate ratio solve.** Ask for an output per minute and get the whole production
-tree: every intermediate, exact building counts, byproduct handling and raw input totals.
-This is the calculator at the centre of the project.
-
-**Alternate recipe selection under constraints.** Pick the recipe set that minimizes raw
-resource use, power draw or building count, over whichever recipe set you declare
-available. Those three objectives are the complete list, and anything outside it is
-refused rather than quietly ignored. Reading your unlocked recipes out of the save is part
-of the milestone work below, so for now the available set is supplied to the solver rather
-than inferred from your progress.
-
-**Power and clock speed mathematics.** Overclock and underclock cost curves, including the
-variable-power buildings whose draw is a bounded range rather than a single number.
-
-**Your world, read.** Clockspeed locates the install and the most recent save on its own,
-copies the save before parsing it, and serves header facts, world inventory counts and the
-normalized item and recipe registry over the dashboard.
-
-**A map of what you have built.** Placements with exact translation, rotation and scale,
-read straight from the save file.
-
-## Built, not yet wired to the dashboard
-
-**Whole-world audit.** Idle and starved machines with the upstream cause named, overclock
-waste, belt and pipe throughput saturation with the binding segment identified, power
-headroom and brownout risk, under-extracted resource nodes and extractor tier mismatches.
-The computation is written and tested; `/api/audit` answers a documented 501 until the
-advisor layer above it exists.
-
-## Next
-
-**Milestone routing against any target** and **the advice card surface** are specified and
-seam-fixed, and not yet written. Point the router at the next milestone or one several
-tiers out and it returns a dependency-ordered plan: what to add, what to upgrade, what to
-redesign, what to tear down, with "replace this" called out separately from "build more of
-this". The cards render that as one imperative line each, with state that survives a world
-reload and a game patch. `/api/plan` and the advice routes answer 501 today and name the
-work item that will build them.
-
-`/api/health` reports the live route table and what is wired to it. That endpoint is the
-authoritative answer to "what works today"; this page is a summary of it.
-
----
-
-## What makes it different
+## Why
 
 **It reads your install, not a wiki.** Community datasets and calculator sites drift from
 the game with every patch. Clockspeed extracts items, recipes and buildings from the
@@ -95,9 +51,92 @@ readme.
 recommendation. Two runs on the same save that disagree are a bug, and the full derivation
 is generated from the rule trace rather than composed as prose.
 
+**It is exact.** Ratios are solved in rational arithmetic and the solve path asserts that
+no float reaches it, so a fractional building count is reported exactly rather than as a
+rounded approximation.
+
 **It is not a mod, a cheat, or an overlay into the running game.** Nothing is installed
 into the game, no mod loader is required, and the game process is never injected into,
 hooked or read from memory.
+
+---
+
+## Status
+
+Pre-release, Windows only, under active development. `/api/health` reports the live route
+table and what is wired to it; that endpoint is the authoritative answer to "what works
+today", and this section is a summary of it.
+
+**Working today**
+
+- **Target-rate ratio solve** (`/api/solve`). Ask for an output per minute and get the
+  whole production tree: every intermediate, exact building counts, byproduct handling and
+  raw input totals.
+- **Alternate recipe selection under constraints** (`/api/optimize`). Pick the recipe set
+  that minimizes raw resource use, power draw or building count, over whichever recipe set
+  you declare available. Those three objectives are the complete list, and anything outside
+  it is refused rather than quietly ignored. Reading your unlocked recipes out of the save
+  is part of the milestone work, so for now the available set is supplied to the solver
+  rather than inferred from your progress.
+- **Power and clock speed mathematics** (`/api/power`). Overclock and underclock cost
+  curves, including the variable-power buildings whose draw is a bounded range rather than
+  a single number.
+- **Your world, read** (`/api/world`, `/api/registry`). Clockspeed locates the install and
+  the most recent save on its own, copies the save before parsing it, and serves header
+  facts, world inventory counts and the normalized item and recipe registry.
+- **A map of what you have built** (`/api/map`). Placements with exact translation,
+  rotation and scale, read straight from the save file.
+
+**Built, not yet wired to the dashboard**
+
+- **Whole-world audit.** Idle and starved machines with the upstream cause named, overclock
+  waste, belt and pipe throughput saturation with the binding segment identified, power
+  headroom and brownout risk, under-extracted resource nodes and extractor tier
+  mismatches. The computation is written and tested; `/api/audit` answers a documented 501
+  until the advisor layer above it exists.
+
+**Next**
+
+- **Milestone routing against any target** and **the advice card surface** are specified
+  and seam-fixed, and not yet written. Point the router at the next milestone or one
+  several tiers out and it returns a dependency-ordered plan: what to add, what to upgrade,
+  what to redesign, what to tear down, with "replace this" called out separately from
+  "build more of this". `/api/plan` and `/api/advice` answer 501 today and name the work
+  item that will build them.
+
+---
+
+## How it works
+
+```
+ your game install            your save file (copied first, never opened in place)
+        |                                |
+  clockspeed/data/                clockspeed/save/
+  locate, extract,                header, chunks, property
+  normalized registry             mappings, world-state model
+        |                                |
+        +---------------+----------------+
+                        |
+                 clockspeed/solve/        exact ratios, recipe optimizer,
+                        |                 power and clock math
+           +------------+-------------+
+           |                          |
+   clockspeed/audit/          clockspeed/progress/
+   whole-world audit          milestone routing
+           |                          |
+           +------------+-------------+
+                        |
+                clockspeed/advisor/       deterministic rules -> one-line cards
+                        |                 with a trace-generated derivation
+                clockspeed/surface/       local HTTPS API and dashboard
+                        |                 (computes nothing)
+                     shell/               optional Electron companion window
+```
+
+Each layer consumes only the layer below it through a stated model: the solver never reads
+a save, the advisor never reads the raw game files, and the dashboard never computes. The
+full module map and the seams are in [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md), and
+each architectural decision has its own record in [`docs/adr/`](docs/adr/).
 
 ## Your data stays yours
 
@@ -206,16 +245,28 @@ back to automatic detection.
 
 ---
 
-## Direction
+## How it is built
 
-The data layer, the solver core, the save reader and the local dashboard are built, tested
-and running. The audit engine is written and waiting on the layer above it. The work ahead
-is that layer: the milestone router, and the advice surface that presents both it and the
-audit.
+Clockspeed is developed with Claude Code working as a set of cooperating agents, under
+rules that are written down and enforced by the repository rather than left to habit.
 
-Open work is tracked as one line per item in [`ROADMAP.md`](ROADMAP.md), which is a working
-file rather than a narrative. Architectural decisions live in [`docs/adr/`](docs/adr/) and
-completed work in [`docs/LEDGER.md`](docs/LEDGER.md).
+- **Defined agent roles.** Planner, builder, verifier, adversary, adjudicator,
+  researcher, doc-sync and UI-auditor roles are defined in `.claude/agents/`. Work is
+  test-first: the failing test lands before the code, and an adversarial pass tries to
+  break a change before it is called done.
+- **Gates a commit cannot skip.** Tier-0 git hooks in `.githooks/` refuse non-ASCII
+  content, secrets, personal data and publisher-owned files at commit time, and the
+  `tier1` and `tier2` workflows in `.github/workflows/` run the suites in CI.
+- **A headless background lane.** Queued work rows are picked up by an unattended worker
+  running in its own git worktree, driven by `ops/loop/queue_loop.py` with its prompt in
+  `tools/headless-queue.md`, so routine items progress without an open interactive
+  session. The runbook is in [`docs/OPERATIONS.md`](docs/OPERATIONS.md).
+- **A cross-repository note channel.** This project is one of several on the same machine
+  that exchange plain-text notes through a file-based channel with hash-verified delivery;
+  its conventions are vendored in [`docs/CHANNEL.md`](docs/CHANNEL.md).
+
+None of this tooling is in the advice path. The product itself contains no language model
+and makes no network call.
 
 ## Documentation
 
@@ -224,13 +275,17 @@ completed work in [`docs/LEDGER.md`](docs/LEDGER.md).
 | [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) | Module map, data flow, layer seams |
 | [`docs/OPERATIONS.md`](docs/OPERATIONS.md) | Bootstrap, commands, runbooks |
 | [`docs/adr/`](docs/adr/) | One file per architectural decision |
-| [`ROADMAP.md`](ROADMAP.md) | Open work |
+| [`ROADMAP.md`](ROADMAP.md) | Open work, one line per item |
+| [`.github/CONTRIBUTING.md`](.github/CONTRIBUTING.md) | How to contribute, and the rules a change must keep |
+| [`.github/SECURITY.md`](.github/SECURITY.md) | How to report a vulnerability privately |
+| [`THIRD_PARTY.md`](THIRD_PARTY.md) | Vendored files and their licences |
 
 ---
 
 ## License
 
-See [`LICENSE`](LICENSE).
+MIT - see [`LICENSE`](LICENSE). A small number of vendored files carry their own licence;
+[`THIRD_PARTY.md`](THIRD_PARTY.md) lists each one.
 
 Clockspeed is an independent project. It is not affiliated with, endorsed by, or connected
 to Coffee Stain Studios. Satisfactory and its data files are the property of their

@@ -376,6 +376,9 @@ outsider from zero to a first result, all doc cross-references resolving with no
 or stale markdown, and a clean-checkout probe passing on a machine that has never seen
 the project.
 
+**The latest pre-publication audit** - findings, severities and the settings to re-apply
+after the remote is recreated - is `docs/public-readiness.md`.
+
 **This is an operator sign-off item as well as a technical one.** It is outward-facing
 and irreversible in practice, so the gate clearing is necessary and not sufficient.
 
