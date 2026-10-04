@@ -36,10 +36,13 @@ Check `I` in `tools/flip_checks.py` reads the RAW commit objects: every git call
 names no environment runs with replace objects off, and a shallow or grafted repository is
 refused by name rather than walked - in the identity walk and in checks 1, 2 and 4. The arms
 are multi-commit synthetic histories (tip-only, first-parent, malformed-skip and case-fold
-mutants killed); the record is in `docs/LEDGER.md`. OPEN RESIDUAL: the trailer axis, check
-`T`, walks through `tools/trailer_census.py`, which still honours replace refs and a cut
-history. Owed before S8 runs: the same raw-object environment and cut-history refusal there,
-with a replace-ref arm and a shallow arm.
+mutants killed); the record is in `docs/LEDGER.md`. The trailer axis, check `T`, now gets the
+same treatment in `tools/trailer_census.py`: every git call runs with replace objects off, and
+`walk` refuses a shallow or grafted repository by name (exit 2). It is a mirror, not an import,
+because `tools/flip_checks.py` imports the census. CI DEPTH: the tier-1 job that runs the
+census checks out with `fetch-depth: 0`, so the refusal is unconditional and cannot redden it;
+`tests/test_trailer_routes.py` already pins that depth. Arms: replace by content, replace
+`--graft`, shallow and grafts over a three-commit history; the record is in `docs/LEDGER.md`.
 
 ### Acceptance
 

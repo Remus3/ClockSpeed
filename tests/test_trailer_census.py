@@ -348,3 +348,92 @@ def test_the_cli_exits_two_outside_a_repository(tmp_path: Path) -> None:
     )
 
     assert completed.returncode == census.EXIT_COULD_NOT_RUN, completed.stdout + completed.stderr
+
+
+# --- raw objects and a cut history (CS-701 follow-up) -------------------------
+#
+# A replace ref swaps one object for another in every read that honours it, and
+# a shallow file or a graft ends the walk early. Each could hide a commit that
+# carries a trailer while the census reported a clean walk. Every arm below is
+# a THREE-COMMIT history - clean root, trailer commit, clean tip - so the hidden
+# commit sits mid-history, and every arm first reads the plant back through
+# plain git to prove it landed and does hide the commit.
+
+
+def hidden_history(repo: Repo) -> tuple[str, str, str]:
+    """A clean root, a commit carrying a trailer, and a clean tip on main."""
+    repo.env.pop("GIT_NO_REPLACE_OBJECTS", None)
+    root = repo.commit(message("CS-1 - root"))
+    bad = repo.commit(message("CS-2 - middle", "", "Co-authored-by: " + VALUE), root)
+    tip = repo.commit(message("CS-3 - tip"), bad)
+    (control,) = [entry.sha for entry in census.walk(repo.path, "main") if entry.hit_lines]
+    assert control == bad, "the unplanted walk did not find the trailer commit"
+    return root, bad, tip
+
+
+def test_a_replace_ref_cannot_hide_a_trailer_commit_by_content(repo: Repo) -> None:
+    """A replace ref that swaps the trailer commit for a clean one is not followed."""
+    root, bad, _tip = hidden_history(repo)
+    clean = repo.git("commit-tree", repo.empty_tree, "-p", root, data=message("CS-2 - middle"))
+    repo.git("replace", bad, clean)
+    landed = "Co-authored-by" not in repo.git("cat-file", "commit", bad)
+    assert landed, "replace did not land"
+
+    completed = cli(repo, "main")
+    code = completed.returncode
+
+    assert code == census.EXIT_HITS, completed.stdout + completed.stderr
+    assert f"hit {bad}" in completed.stdout
+
+
+def test_a_replace_graft_cannot_hide_a_trailer_commit_from_the_walk(repo: Repo) -> None:
+    """A ``git replace --graft`` that skips the trailer commit is not followed."""
+    root, bad, tip = hidden_history(repo)
+    repo.git("replace", "--graft", tip, root)
+    landed = bad not in repo.git("rev-list", "main").split()
+    assert landed, "the graft did not land"
+
+    completed = cli(repo, "main")
+    code = completed.returncode
+
+    assert code == census.EXIT_HITS, completed.stdout + completed.stderr
+    assert f"hit {bad}" in completed.stdout
+    assert "commits walked 3" in completed.stdout
+
+
+def _cut_shallow(repo: Repo, tip: str, _root: str) -> None:
+    (repo.path / ".git" / "shallow").write_bytes(f"{tip}\n".encode("ascii"))
+
+
+def _cut_grafts(repo: Repo, tip: str, root: str) -> None:
+    info = repo.path / ".git" / "info"
+    info.mkdir(exist_ok=True)
+    (info / "grafts").write_bytes(f"{tip} {root}\n".encode("ascii"))
+
+
+@pytest.mark.parametrize(
+    ("cut", "reason"),
+    [
+        (_cut_shallow, "the repository is shallow"),
+        (_cut_grafts, "the repository has grafts"),
+    ],
+    ids=["shallow", "grafts"],
+)
+def test_a_cut_history_is_refused_by_name_rather_than_walked(
+    repo: Repo, cut: object, reason: str
+) -> None:
+    """Fail closed: a shallow file or a graft hides the commits behind it."""
+    root, bad, tip = hidden_history(repo)
+    assert callable(cut)
+    cut(repo, tip, root)
+    landed = bad not in repo.git("rev-list", "main").split()
+    assert landed, "the cut did not land"
+
+    with pytest.raises(census.CensusError) as raised:
+        census.walk(repo.path, "main")
+    completed = cli(repo, "main")
+    code = completed.returncode
+
+    assert raised.value.reason == reason
+    assert code == census.EXIT_COULD_NOT_RUN, completed.stdout
+    assert reason in completed.stderr

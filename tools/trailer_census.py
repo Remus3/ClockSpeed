@@ -21,10 +21,11 @@ for CS-704, which code against it:
              an option cannot be smuggled in as a revision.
     exit 0   the walk found no trailer-shaped line
     exit 1   it found at least one
-    exit 2   it could not run - no git, not a repository, an unresolvable or
-             option-shaped REV, a stream it could not parse, or a walk of ZERO
-             commits without ``--allow-empty``, because a census of nothing
-             satisfies every zero and reads exactly like a clean one
+    exit 2   it could not run - no git, not a repository, a shallow or grafted
+             history, an unresolvable or option-shaped REV, a stream it could
+             not parse, or a walk of ZERO commits without ``--allow-empty``,
+             because a census of nothing satisfies every zero and reads
+             exactly like a clean one
 
     stdout carries ONE count line, ``trailer_census: commits walked N; trailer
     lines H; commits with a hit C``, then one ``hit <sha>`` line per offending
@@ -42,11 +43,23 @@ THE MESSAGE IS READ FROM THE OBJECT STORE with ``git cat-file --batch``, in one
 bounded call, and every object is checked to be the commit that was asked for:
 a reader that quietly dropped or misread one would report a census that looks
 exactly like a clean one.
+
+THE OBJECTS READ ARE THE RAW ONES, AND A CUT HISTORY IS REFUSED (CS-701). A
+``refs/replace/`` ref swaps one object for another in every read that honours
+it - a clean commit for one carrying a trailer, or a ``--graft`` that skips it -
+so every git call here runs with replace objects OFF. A shallow file or a graft
+ends the walk early, and no flag switches that off, so a shallow or grafted
+repository is refused by name (exit 2) rather than walked. This mirrors
+``raw_object_env`` and ``refuse_cut_history`` in ``tools/flip_checks.py``, kept
+here rather than imported because ``flip_checks`` imports this module. The CI
+step that runs the census checks out with ``fetch-depth: 0``, which is not
+shallow, and ``tests/test_trailer_routes.py`` pins that depth.
 """
 
 from __future__ import annotations
 
 import argparse
+import os
 import subprocess
 import sys
 from dataclasses import dataclass
@@ -188,8 +201,41 @@ def census_of(sha: str, raw: bytes) -> CommitCensus:
     return CommitCensus(sha, parents, hits, is_strippable(lines, hits, parents))
 
 
+def raw_object_env() -> dict[str, str]:
+    """This environment with replace objects OFF, for every git call the census makes.
+
+    Returns:
+        A copy of ``os.environ`` with ``GIT_NO_REPLACE_OBJECTS`` set, so the walk
+        and the read see the raw objects in the store. Grafts and a shallow file
+        are not switched off by this; :func:`refuse_cut_history` refuses them.
+    """
+    env = dict(os.environ)
+    env["GIT_NO_REPLACE_OBJECTS"] = "1"
+    return env
+
+
+def refuse_cut_history(repo: Path) -> None:
+    """Refuse a repository whose history is cut by a shallow file or by grafts.
+
+    Either one ends the walk early, so a commit behind the cut is never read
+    and a census over it reads exactly like a clean one.
+
+    Args:
+        repo: The repository.
+
+    Raises:
+        CensusError: Naming which of the two cuts was found.
+    """
+    shallow = _git(repo, ["rev-parse", "--is-shallow-repository"]).strip()
+    if shallow != b"false":
+        raise CensusError("the repository is shallow")
+    grafts = _git(repo, ["rev-parse", "--git-path", "info/grafts"]).decode("utf-8", "replace")
+    if (repo / grafts.strip()).exists():
+        raise CensusError("the repository has grafts")
+
+
 def _git(repo: Path, args: list[str], data: bytes | None = None) -> bytes:
-    """Run one git command in ``repo`` and return its stdout.
+    """Run one git command in ``repo``, replace objects off, and return its stdout.
 
     Args:
         repo: The repository to run in.
@@ -212,6 +258,7 @@ def _git(repo: Path, args: list[str], data: bytes | None = None) -> bytes:
             [git, *args],
             cwd=repo,
             input=data,
+            env=raw_object_env(),
             capture_output=True,
             timeout=GIT_TIMEOUT,
             check=False,
@@ -270,11 +317,12 @@ def walk(repo: Path, rev: str) -> list[CommitCensus]:
         One census per walked commit, in ``git rev-list`` order.
 
     Raises:
-        CensusError: When REV is empty or option shaped, or the walk or the read
-            could not be taken.
+        CensusError: When REV is empty or option shaped, the history is cut by
+            a shallow file or grafts, or the walk or the read could not be taken.
     """
     if not rev or rev.startswith("-"):
         raise CensusError("REV must be a revision, not empty and not an option")
+    refuse_cut_history(repo)
     listed = _git(repo, ["rev-list", "--end-of-options", rev]).decode("ascii", errors="replace")
     shas = [line.strip() for line in listed.splitlines() if line.strip()]
     objects = read_commits(repo, shas)

@@ -75,6 +75,22 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-10-04 - CS-701 - PROGRESS RECORD. NOT A COMPLETION RECORD. NOTHING CLOSED. CS-701 STAYS OPEN. The trailer census reads raw objects and refuses a cut history
+Verification: `tools/trailer_census.py::raw_object_env`, `::refuse_cut_history`, `::walk`;
+`tests/test_trailer_census.py::test_a_replace_ref_cannot_hide_a_trailer_commit_by_content`,
+`::test_a_replace_graft_cannot_hide_a_trailer_commit_from_the_walk`,
+`::test_a_cut_history_is_refused_by_name_rather_than_walked`. The residual the identity-axis
+record below filed: check `T` walks through the census, which honoured replace refs and walked a
+shallow or grafted history, so a replace ref or a cut could hide a commit carrying a trailer and
+the census exited 0. Measured red first: the replace arms read `commits with a hit 0`, exit 0;
+the cut arms raised nothing. Every census git call now runs with replace objects off, and `walk`
+refuses a shallow or grafted repository by name, exit 2 - a mirror of the `tools/flip_checks.py`
+pair, not an import, because that module imports the census. CI depth decision: the tier-1 job
+running the census checks out with `fetch-depth: 0`, pinned by `tests/test_trailer_routes.py`,
+so the refusal applies unconditionally. Four mutants - replace honoured, shallow walked, grafts
+walked, refusal never called - each read back as landed and KILLED under `python -B` with
+bytecode writes off; pristine floor green.
+
 ### 2026-10-04 - CS-1267 - CLOSED: the flip-checks scratch clone no longer hard-links object files
 Verification: `tools/flip_checks.py::clone_at` now clones with `--no-hardlinks`, so a concurrent
 git holding the source's commit-graph cannot make scratch removal fail; a genuine cleanup failure
