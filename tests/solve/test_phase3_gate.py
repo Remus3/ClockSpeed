@@ -171,6 +171,7 @@ SOLVE_SOURCES: tuple[str, ...] = (
     "optimize.py",
     "power.py",
     "ratio.py",
+    "relax.py",
 )
 
 # The same set under tests/solve, excluding this module. Pinned for the same
@@ -187,6 +188,7 @@ SOLVE_TEST_SOURCES: tuple[str, ...] = (
     "test_optimize.py",
     "test_power.py",
     "test_ratio.py",
+    "test_relax.py",
     "test_synthetic.py",
 )
 
