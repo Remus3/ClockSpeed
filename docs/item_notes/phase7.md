@@ -1456,54 +1456,6 @@ ran in the ownership and corrupt-blob cases, so the leak is reached when the gat
 by hand or from another tool, not through the hook. Lead H1 (`display_note` splitting
 on spaces under `--verbose`) reproduced only as a direct call.
 
-## CS-1216
-
-### Acceptance
-
-the `ops/loop/slots.py` release fallback no longer claims a torn in-place write reads
-stale: either the neutralising write goes through a temp file and `os.replace` where
-the platform allows it, or the docstring states the measured behaviour - a torn record
-is unreadable, `is_stale` falls back to mtime, and a fresh write's mtime reads HELD
-until `stale_after` elapses; an arm drives `is_stale` on a truncated record with a
-fresh mtime and pins the verdict the docstring states, red first.
-
-### Full headline
-
-the slots release fallback docstring says a torn in-place write reads stale; its fresh
-mtime makes it read held
-
-### FILED 2026-09-26, an inbox hazard (write before validate) checked against the tree (session 117)
-
-A read-only verifier found every other writer uses temp-then-replace or
-create-exclusive-then-fill. The in-place write is a documented Windows workaround; the
-effect is benign (the lane holds until `stale_after`), the defect is the false claim.
-
-### MEASURED 2026-10-02, the shared-file candidate C4 against this tree's gates (inbox responder)
-
-The carriers' joint round re-issued `ops/loop/slots.py` as C4 in LW's 2355 note of
-2026-10-02, landing date 2026-10-09. C4 rewrites the `release` docstring to say the mtime
-fallback "reports stale once stale_after has passed since the write (not at once: the
-write itself refreshes the mtime)" - this item's docstring branch, found by LW on its own.
-Landing C4 discharges that half; the red-first arm in the acceptance is still owed.
-
-THE LANDING OBLIGATIONS, measured in a scratch checkout of this tree's HEAD, with an
-adversary pass that did not refute them:
-
-- `python -m ruff check .` goes RED on C4: two findings at line 103, the new two-line
-  `is_stale` docstring, D205 and D209. The base bytes and the previous candidate C3-M2
-  are clean. The landing commit must add both codes to the slots.py ignore list in
-  `pyproject.toml` and to `EXEMPTED_RULE_CODES` in `tests/ops/test_shared_slots.py`, or
-  the shared bytes change. Whether the frozen pre-commit gate's staged-path lint accepts
-  the widened list was NOT checked.
-- Pins that move: `SLOTS_DIGEST` and `EXPECTED_BYTES` in `tests/ops/test_shared_slots.py`;
-  the derived-from citation in `ops/loop/lanes.py` with `UPSTREAM_SLOTS_DIGEST` in
-  `tests/test_lane_lock.py` if that citation moves; the allow row in
-  `tools/sha_citation_gate.py`.
-- With the two test pins moved to C4, the five test files that name slots.py passed 175
-  of 175; C3-M2 under the same move failed only the carrier-code arm, `code:rc` 1 against
-  0, as LW's and SS's guards did. mypy and `ruff format --check` were clean on C4. The
-  full suite was NOT run with C4 in place.
-
 ## CS-1217
 
 ### Acceptance

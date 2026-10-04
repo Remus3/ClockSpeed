@@ -75,6 +75,18 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-10-04 - CS-1216 - CLOSED: the slots release docstring states that a torn in-place write reads held until stale_after
+Verification: `ops/loop/slots.py`, the `release` docstring (its size and SHA-256 equal
+`EXPECTED_BYTES` and `SLOTS_DIGEST` in `tests/ops/test_shared_slots.py`);
+`tests/ops/test_shared_slots_staleness.py::test_a_torn_in_place_write_reads_held_until_stale_after_as_the_release_docstring_states`.
+Graded 2026-10-04 by a verifier against the acceptance in `docs/history_notes.md` under CS-1216:
+CONFIRMED, all three acceptance points PASS - the docstring states the measured behaviour (a torn
+record is unreadable, `is_stale` falls back to mtime, a fresh write reads HELD until `stale_after`
+elapses); the arm drives `is_stale` on a truncated record with a fresh mtime and pins held-then-stale;
+the arm is red first against the previous `ops/loop/slots.py` and green at the graded tip. This
+discharges the grade the LANDED record below left owed. The item section is relocated to
+`docs/history_notes.md`.
+
 ### 2026-10-04 - CS-1234 - GRADING RECORD. NOT A COMPLETION RECORD. NOTHING CLOSED. CS-1234 STAYS OPEN: the kit writes a task name outside the basic set
 Verification: `ops/loop/inbox_status.py::TASKS`; `ops/fleet_kit/fleet_headless.py`, its refusal
 path. Graded 2026-10-04 against the acceptance in `docs/item_notes/phase7.md` under CS-1234:
