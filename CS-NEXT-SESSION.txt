@@ -1,5 +1,5 @@
 CLOCKSPEED - NEXT SESSION CONTINUATION PROMPT
-Written at the end of session 124, 2026-10-04. The operator starts with "continue".
+Written at the end of session 125, 2026-10-04. The operator starts with "continue".
 
 ================================================================================
 READ THESE FIRST, IN THIS ORDER
@@ -8,10 +8,11 @@ READ THESE FIRST, IN THIS ORDER
   CLAUDE.md                 rules - section 7 "Product before process" governs
   memory/MEMORY.md          durable cross-session facts
   ROADMAP.md                open work only
-  WAKEUP_NOTES.md           sessions 124, 123, 122 at full fidelity
+  WAKEUP_NOTES.md           sessions 125, 124, 123 at full fidelity
   docs/ARCHITECTURE.md      module map, data flow, seams
   docs/item_notes/          per-item acceptance (phase7.md CS-700 holds the flip plan,
-                            S7a script recorded verbatim, S8/S10/S11 shapes)
+                            S7a script recorded verbatim, S8/S10/S11 shapes, section 6
+                            the accepted identity-oracle residual)
   docs/GATED.md             CS-G03 (the flip gate) and CS-G08 (never-seen machine)
   docs/public-readiness.md  the settings to re-apply after the CS-700 flip
 
@@ -25,13 +26,11 @@ HEAD / remote   see the /done REPORT at the bottom. Confirm `git rev-parse HEAD`
                 `git ls-remote origin main` - A BLOCKED PUSH REPORTS EXIT 0.
 HISTORY IS LINEAR. Land slices by cherry-pick, never by merge (CS-1196).
 ANOTHER WRITER MAY SHARE THIS TREE. Never touch another session's uncommitted work.
-  ALLOCATE NEW IDS FROM CS-1268 UPWARD AND RE-CHECK THE MAX FIRST (memory: two writers
+  ALLOCATE NEW IDS FROM CS-1271 UPWARD AND RE-CHECK THE MAX FIRST (memory: two writers
   allocate the same item id).
 UNMERGED BRANCHES - DO NOT PRUNE: the CS-1207 branch (round-15 tip), untouched since
   session 117: `git log --all --oneline --grep CS-1207`. Classify any leftover worktree
   branch by CONTENT before pruning.
-LEFTOVER SCRATCH  .git/flip-checks/run-jwsav2xk (from the CS-700 S1 run; CS-1267). Remove
-                once no git process holds it - scratch, plain removal is fine.
 LOCAL CONFIG    config/main_tree.local.json (gitignored) names MAIN's root.
 RESPONDER       STILL PAUSED by ops/loop/control/lanes/INBOX_STOP (gitignored).
 DESKTOP FILE    INSPIRATION-DIRECTIVE.md on the Desktop (untracked, outside the repo):
@@ -40,89 +39,104 @@ CLOUD KIT       a cloud-session kit exists OUTSIDE the repo, in the operator's
                 Documents\cloud-session-kits\clockspeed-* (env, prompt, README, setup.sh).
                 ANY CLOUD PR MUST MERGE BEFORE THE CS-700 FLIP. Check
                 `gh pr list --state open` before S9.
+REBOOT          the operator rebooted at the end of session 125 to enable Windows
+                Sandbox and a Linux VM. Background shells and agents from 125 are gone.
 REPO VISIBILITY PRIVATE.
 
 ================================================================================
-CLOSED / LANDED - SESSION 124 (detail in docs/LEDGER.md)
+CLOSED / LANDED - SESSION 125 (detail in docs/LEDGER.md)
 ================================================================================
 
-CS-1263  CLOSED. The audit draw reads each machine's clock (balance.clocked_draw_of):
-         exact where the power law yields a value, a named bracket otherwise, an
-         unread clock a named gap. Library: 40 saves, 3680 machines, 3162 untagged,
-         518 tagged, 0 at exactly 1. Section relocated to docs/history_notes.md.
-CS-400   TIER2 REPAIR: the phase 4 gate's nested save-suite run sharded in three, the
-         300s timeout NOT raised. Tier2 GREEN at c30e347 and at 69d44c5 (read).
-CS-500   PROGRESS: S1 trace engine, S2 cards, S3 ledger store (stale-lock break), S4
-         rule registry + D4 power rules (power.headroom, power.draw_incomplete).
-         Acceptance: A1 D4 family only, A2, A3 id half, A4, A5 evidenced. STILL OPEN on
-         A1 (every later rule family) and A3's reload half.
-CS-700   undici 7.29.1 - Dependabot open alerts READ 0. Pre-S7a batch landed: CS-704
-         two-SHA accept set, CS-701 S8 identity axis (check I), S7a script recorded
-         verbatim with SHA-256, S10/S11 shapes. Rehearsal S1..S8 all PASS, refs
-         71=71=71, bundle restorable, rewrite deterministic x2.
-CS-1216  LANDED NOT CLOSED: slots.py C4 adopted (11,426 B), torn-write arm
-         red first. Grade owed.
-CS-1234  GRADED KEEP OPEN: the kit writes task name "Refused", outside inbox_status.TASKS.
-MAIN     v4 ANSWER DELIVERED, 1/1 hash-matched (item 4's "send MAIN" half DONE).
-FILED    CS-1264 (boost unchecked), CS-1265 (flow vs balance on untagged clocks),
-         CS-1266 (considered vs built consumers), CS-1267 (flip_checks hard-link clone).
-         Minor residuals to BACKLOG.md "Session 124 residuals".
+CS-500   CLOSED. Phase 5 advisor gate: S5 every-rule-fires (tier-3 arm repaired after
+         an adversary left M7/M8 surviving), S6 advise() wiring plus the reload half of
+         A3. Verifier CONFIRMED all 5 clauses. Adversary S6 21/22 killed; residual a
+         discarded clock read, no behaviour. CAVEATS: only D4 registered, power rules
+         unlocks=(), A2 a seeded generator not hypothesis.
+CS-1216  CLOSED. Verifier CONFIRMED 3/3, size and SHA match the pin.
+CS-1267  CLOSED. flip_checks clones --no-hardlinks; leak arm matches the home path in
+         every spelling. Leftover .git/flip-checks/run-* removed.
+CS-1270  CLOSED. GET /api/advice and its derivation live via advise_world/inputs_of and
+         StoreAdviceSource; clause amended - map.py's pre-existing audit import pinned.
+CS-704   REFUTED then repaired: token-set equality (tests/test_trailer_routes.py).
+CS-701   REFUTED then repaired: GIT_NO_REPLACE_OBJECTS, cut-history refusal, multi-commit
+         tests in tools/flip_checks.py and tools/trailer_census.py (CI fetch-depth 0).
+CS-700   S7a script adversary HELD (two runs reproduce 389fe4a tip and c6f3687 ->
+         b7b4a2c4b71c942bb759aa2b4f3b9ba906ddc1ec). Branch protection AVAILABLE while
+         private (404 not protected, rulesets 200 []) - S11 stays at S11. Citation gate
+         design (d): tools/sha_citation_historical.json (377 tokens), witness PRE c6f3687
+         / POST the image (full SHA above), --emit-historical, --flip-readiness;
+         adversary refuted, repaired with HISTORICAL_SHA256 digest pin + witness
+         compare; flip-readiness READY on main.
+CS-G03   ADJUDICATED: CS-1186 walk may be a context-free agent; CS-1187 NOT waivable
+         post-flip; the flip waits for a CS-G08 environment (Windows Sandbox).
+CS-1186  Walk 1 PASS every step; README fixed for 9 defects; defects 8/10 (verify_env
+         wording) in BACKLOG "Session 125 residuals". STILL OPEN: clean repeat walk by a
+         DIFFERENT agent + the no-game clause in the CS-G08 environment.
+CS-959   Legacy .github/ISSUE_TEMPLATE.md added (inert in the chooser). STILL OPEN until
+         the profile issue_template row re-reads non-null after push. PVR endpoint 404.
+FILED    CS-1268 (ledger never sets completed when advice stops firing), CS-1269 (state
+         POST needs a cross-origin refusal first).
+CHANNEL  slots C4 reply delivered 6/6 hash-matched.
 
 ================================================================================
 THE SINGLE NEXT ACTION
 ================================================================================
 
-CONFIRM TIER1 ON THE PUSHED TIP IS GREEN (tier1 37228777599 at 9e3d3b3 was IN PROGRESS
-at /done; then read the run at the final tip). THEN, in order:
-  a. ADVERSARY PASS on the pre-S7a batch - lenses: the CS-704 accept set fails closed;
-     the CS-701 identity check's negative probe; the recorded S7a script reproduces the
-     rehearsal tip and the c6f3687 -> image mapping in phase7.md.
-  b. FIX CS-1267 (clone with --no-hardlinks; a genuine cleanup failure still fails).
-  c. PROBE whether the plan allows branch protection / rulesets on a PRIVATE repo. If
-     not, S11's protection moves to just after S12.
-  d. PRESENT THE OPERATOR ASK (below), batched with the operator-only acts.
-
-THE OPERATOR ASK, DRAFT - the operator's own words are required; MAIN cannot give it:
-  "I confirm CS-700 S9 through S12: delete and recreate the Clockspeed remote and
-   publish main at <SHA>."
-  Operator-only acts in the same ask: upload the social preview (data/social-preview.png);
-  security settings only if the admin scope is missing.
+AFTER THE REBOOT, VERIFY WINDOWS SANDBOX:
+  Get-WindowsOptionalFeature -Online -FeatureName Containers-DisposableClientVM
+  must read Enabled, and the Sandbox must launch. THEN, by a DIFFERENT context-free agent
+  (computer use drives the Sandbox window): the CS-1187 never-seen walk, and the CS-1186
+  clean repeat plus its no-game clause. Record the CS-G03 human-half walks.
+A Linux VM is also being enabled - a CANDIDATE CS-G08 environment; an adjudicator rules.
+THEN, in order:
+  a. Final-tip S3/S4/S5 bundle, S7q quiesce.
+  b. S7a baseline: `python tools/sha_citation_gate.py --emit-historical`, then
+     `--flip-readiness` MUST exit 0.
+  c. S7a - control commit-map[c6f3687] ==
+     b7b4a2c4b71c942bb759aa2b4f3b9ba906ddc1ec OR ABORT. Clone --no-local.
+  d. S8, S8a adjudication.
+  e. PRESENT THE OPERATOR the S9 own-words line with the S8a SHA (MAIN cannot give it):
+     "I confirm CS-700 S9 through S12: delete and recreate the Clockspeed remote and
+      publish main at <SHA>."
+     Operator-only acts in the same ask: upload the social preview
+     (data/social-preview.png); security settings only if the admin scope is missing.
+POST-CONFIRMATION: S9a/b/c, S10 push by SHA, S10b rulesets, S11 protection minimal shape
+  + settings table, S12 flip, S12a closing commit (ledger + CS-G03 clearance; drop
+  c6f3687 from the CS-704 accept set in tier1.yml and tests/test_trailer_routes.py;
+  delete the pre-publication-dead URL pin per ADR 0025 10b; retire the image and
+  389fe4a allow rows), enable PVR + secret scanning + push protection, social preview,
+  re-read the community profile issue_template row (CS-959 close), re-cut lane
+  worktrees, lift S7q, tier1 green on the published SHA.
 
 ================================================================================
 OPEN ITEMS, PRIORITY ORDER
 ================================================================================
 
- 1 PUBLIC FLIP - CS-700. DO NOT USE THE GITHUB VISIBILITY SWITCH. After the next action:
-     S9 onward on the operator's own-words confirmation; S7a's control
-     commit-map[c6f3687] == IMAGE or abort; post-S12a drop c6f3687 from the CS-704
-     accept set; re-apply settings from docs/public-readiness.md (fix its Branch
-     protection row line and phase7.md's matching lines to the CS-700 S11 shape); enable
-     secret scanning, push protection, private vulnerability reporting; social preview.
-     git-filter-repo THIRD_PARTY row is a residual before S7a.
- 2 PHASE 5 - THE PRODUCT FOCUS. CS-500 next slices: S5 every-rule-fires, S6 advise()
-     wiring with the reload half of A3, S9 overlay trace. S7/S8 BLOCKED on CS-1043,
-     CS-1048, CS-1058, CS-1243. D4 fuel rule (none yet). CS-1059 (generation figure)
-     unblocks power.headroom on real worlds. Then CS-1264, CS-1265, CS-1266.
- 3 CS-1216 grade with a verifier against acceptance, then close.
- 4 CS-1234 waits on a MAIN kit that writes only basic-set task names.
- 5 CS-1231 slice C second half: route ops/loop/run_lane.ps1 through the kit. WAITS on
+ 1 PUBLIC FLIP - CS-700 (the next action). DO NOT USE THE GITHUB VISIBILITY SWITCH.
+     Re-apply settings from docs/public-readiness.md (fix its Branch protection row line
+     and phase7.md's matching lines to the CS-700 S11 shape). git-filter-repo
+     THIRD_PARTY row is a residual before S7a.
+ 2 PHASE 6 / ADVISOR PRODUCT: CS-1268, CS-1269, D4 fuel rule (none yet), CS-1059
+     (generation figure; unblocks power.headroom on real worlds), CS-1264, CS-1265,
+     CS-1266, CS-1238 (advisor half met per the S5 builder - GRADE it). CS-500's S9
+     overlay trace and S7/S8 (blocked on CS-1043, CS-1048, CS-1058, CS-1243) as filed.
+ 3 CS-1234 waits on a MAIN kit that writes only basic-set task names.
+   CS-1231 slice C second half: route ops/loop/run_lane.ps1 through the kit. WAITS on
      a MAIN kit with a command-line entry and the xhigh/max efforts. Four test files
      drive the real script with a stub CLI (test_lane_runner_script,
      test_lane_background_tasks, test_usage_limit_refusal, test_headless_route).
- 6 CHANNEL REPLY OWED - slots C4 to LW cc RSC RC SS LL MAIN:
-     "CS LANDED C4 (11,426 B). Carriers on C4: LW, RSC, CS; open: RC, SS."
- 7 CS-828 / CS-829 stay open, scope unchanged. CS-828 (S0-d): on (13,42), (14,52),
+ 4 CS-828 / CS-829 stay open, scope unchanged. CS-828 (S0-d): on (13,42), (14,52),
      (14,60) every inventory component payload ends in an 8-byte trailing run, 4 bytes
      unread, int32 0 on every sampled save. CS-1151 owns the stale (14,60) sentence.
- 8 TIER2 HEADROOM: after THREE green tier2 runs (TWO so far: c30e347, 69d44c5) run
+ 5 TIER2 HEADROOM: after THREE green tier2 runs (TWO so far: c30e347, 69d44c5) run
      `python tools/tier2_headroom.py --refresh`, then remove PENDING_FIRST_RECORD and
      its EXPECTED_PENDING pin in the same diff.
- 9 BACKLOG CANDIDATE (BACKLOG.md "Push gate"): push-gate tests fail when several suites
+ 6 BACKLOG CANDIDATE (BACKLOG.md "Push gate"): push-gate tests fail when several suites
      run concurrently on this box. Promote only on its trigger.
-10 FROZEN by the directive unless it blocks product or reddens a suite: CS-1207 (halted,
+ 7 FROZEN by the directive unless it blocks product or reddens a suite: CS-1207 (halted,
      ruling owed), CS-1196, CS-1217, CS-1218, CS-1208, CS-1204, CS-1205, CS-1206,
-     CS-1215, CS-1197, CS-1211-1213, CS-1202, CS-1194, CS-1032, CS-953, CS-1186, CS-959
-     follow-ups. (CS-700, CS-701, CS-1216 are on the flip/landing track.)
+     CS-1215, CS-1197, CS-1211-1213, CS-1202, CS-1194, CS-1032, CS-953. (CS-700, CS-701,
+     CS-704, CS-1186, CS-1187, CS-959 are on the flip track.)
 
 ================================================================================
 OPERATOR RULINGS OWED - RECORD IF VOLUNTEERED, NEVER ASK
@@ -139,15 +153,29 @@ CS-815   does the desktop app SHOW the "REFUSED (CS-815)" hook-error line? This 
 DECISIONS - DO NOT RE-LITIGATE (each with what would reverse it)
 ================================================================================
 
+CS-700 CITATION GATE = DESIGN (d): a state-witnessed historical set
+  (tools/sha_citation_historical.json) pinned by HISTORICAL_SHA256 and a PRE/POST witness
+  compare. Residual: a hand edit of the pin line launders, visible as a gate change.
+  Reversed by: a new adjudication.
+CS-700 S7a IDENTITY-ORACLE RESIDUAL ACCEPTED - adjudicated, and the operator confirmed in
+  own words. Reversed by: the operator's words that the old address must be
+  unconfirmable - that reopens ADR 0018.
+CS-1187 IS NOT WAIVABLE POST-FLIP. Reversed by: an ADR superseding ADR 0025 point 8, or
+  any disposable never-cloned machine (which satisfies it rather than waiving it).
+CS-959 LEGACY .github/ISSUE_TEMPLATE.md for the profile row. Reversed by: the GitHub API
+  counting folder templates.
+CS-1270 IMPORT CLAUSE AMENDED to the advice-path form; api/map.py's pre-existing audit
+  import is pinned. Reversed by: an advice-path module importing clockspeed.audit.
 CS-1263 ELIDED CLOCK: a machine with no clock tag on a cleanly read payload with no
   disagreeing tag is at the class default, priced in its own counted group; refused,
   unread or disagreeing stays a named gap, never priced at one. Reversed by: a measured
   save where an untagged machine runs at a non-default clock.
-CS-704 BASELINE = TWO-SHA ACCEPT SET {c6f3687, its S7a image}, landed BEFORE
-  S7a. Rejected: re-pin at S12a, content-locate, workflow rewrite inside S7a. Reversed
-  by: the S7a map control failing twice -> re-pin with an explicit red-run waiver.
+CS-704 BASELINE = TWO-SHA ACCEPT SET {c6f3687, its S7a image}, graded by token-set
+  equality. Rejected: re-pin at S12a, content-locate, workflow rewrite inside S7a.
+  Reversed by: the S7a map control failing twice -> re-pin with an explicit red-run waiver.
 CS-700 BRANCH PROTECTION: S11 governs, minimal shape (block deletion and non-FF on main,
-  no reviews, no required checks). Reversed by: the lane moving to a PR route.
+  no reviews, no required checks); available while private, so it stays at S11.
+  Reversed by: the lane moving to a PR route.
 GATED.md'S 2026-08-13 FRESH-HISTORY DECISION IS SUPERSEDED BY ADR 0018 (keep the graph,
   recreate the remote). Reversed by: a new ADR.
 CS-700/CS-701 IDENTITY: config user.name + forge noreply address on author AND committer
@@ -188,23 +216,30 @@ FROZEN FILES (CLAUDE.md section 6): .githooks/*, scripts/install_hooks.py,
 THE CHANNEL
 ================================================================================
 
-OWED: the slots C4 reply (open item 6). DONE: the v4 ANSWER to MAIN.
-Inbox: 56+ unread, NOT acknowledged in sessions 121 through 124.
+DONE: the slots C4 reply (6/6 hash-matched, outbox gitignored); the v4 ANSWER to MAIN.
+Inbox: 56+ unread, NOT acknowledged in sessions 121 through 125.
 
 ================================================================================
 EXTERNAL CONDITIONS BEING WAITED ON
 ================================================================================
 
-CS-700 S9 onward: the operator's own-words confirmation; social preview and any
-admin-scope settings are operator or OAuth acts. Any open cloud-session PR. CS-1234 and
-CS-1231 slice C: a new MAIN kit version. CS-1207 and CS-815: operator rulings above.
-CS-G08: a disposable never-seen environment. FOUR DEAD-SECRET FILES still await an
-operator deletion call.
+CS-G08: Windows Sandbox enabled by the operator's reboot (verify first); a Linux VM is
+the candidate alternative. CS-700 S9 onward: the operator's own-words confirmation;
+social preview and any admin-scope settings are operator or OAuth acts. Any open
+cloud-session PR. CS-1234 and CS-1231 slice C: a new MAIN kit version. CS-1207 and
+CS-815: operator rulings above. FOUR DEAD-SECRET FILES still await an operator deletion
+call.
 
 ================================================================================
 TRAPS PAID FOR (carried)
 ================================================================================
 
+CLOSING A GATE OR BLOCKER ITEM REDDENS THE ARMS THAT CITE IT: surface OPEN_BLOCKERS,
+  headless-queue FENCE 1, the lane scope partition. Run tests/surface and
+  tests/ops/test_lane_scope.py whenever such an item closes. Two pushes were blocked by
+  this in session 125.
+THE PUSH HOOK GRADES THE WORKING TREE. Never cherry-pick or edit during a push.
+S7a CLONE MUST BE --no-local, NOT --no-hardlinks: --no-hardlinks aborts filter-repo.
 TARGETED RUNS MISS THE CENSUS GUARDS: repr population (a new class must be recorded; a
   generated repr rendering a str field fails), locals rendering (never bind a withheld
   value to a local in an asserting scope - inline it), REFERENCE_COUNT_COMMON_MODE
@@ -214,26 +249,22 @@ TARGETED RUNS MISS THE CENSUS GUARDS: repr population (a new class must be recor
 OTHER SESSIONS LOAD THE BOX. Pre-push has failed on MemoryError, an xdist worker crash
   and fork exhaustion while other sessions ran. Check load before pushing.
 A LOCAL CLONE HARD-LINKS OBJECT FILES; a concurrent git holding commit-graph makes its
-  removal fail (CS-1267).
+  removal fail (CS-1267, now cloned --no-hardlinks in flip_checks).
 An adversary pass caught a FAIL-OPEN in an adjudicator-granted design (the fixed-token
-  fold). A grant is not a review - always refute the candidate.
+  fold), and refuted the CS-704, CS-701 and citation-gate cuts in session 125. A grant
+  is not a review - always refute the candidate.
 Worktree isolation blocks writes to the shared progress directory; agents write their
   progress file inside their own worktree.
 
 ================================================================================
-SESSION 124 /done REPORT
+SESSION 125 /done REPORT
 ================================================================================
 
-PUSH: 9e3d3b3..aa22bee pushed, exit 0; pre-push hook whole suite (pytest tests -n auto --dist loadfile): 14196 passed, 12 skipped, 0 failed in 21m25s; HEAD read back equal to ls-remote. aa22bee carries the /done docs (d19afed) plus the CS-700 citation-gate allow rows for the unpublished S7a rehearsal SHAs (tools/sha_citation_gate.py; 69 passed). This report rides one more commit; CONFIRM HEAD equals ls-remote.
-CI READ: tier1 37228777599 at 9e3d3b3 SUCCESS; tier1 37230704457 at aa22bee IN PROGRESS when read - RESULT NOT KNOWN, READ IT FIRST. Last tier2: 37225284192 at 69d44c5 SUCCESS (tier2 green twice this session: c30e347, 69d44c5). UNVERIFIED: the pre-S7a batch (CS-704/CS-701/CS-700 commits) had no adversary pass.
-Suite: pre-push hook whole suite at 9e3d3b3: 14177 passed, 12 skipped (read from the
-  push log). The hook at the final push re-runs the whole suite; its result is the PUSH
-  line above.
-CI READ this session: tier2 37220097152 at c30e347 SUCCESS; tier1 37225272295 and tier2
-  37225284192 at 69d44c5 SUCCESS; tier1 37228777599 at 9e3d3b3 IN PROGRESS when read.
-Gates on the /done tree (exit codes read): drift_guard 0 (11 PASS), doc_budget 0
-  (38 measured, 0 over), memory_sync 0.
-Ledger: CS-1263 CLOSED; progress/grading records for CS-400, CS-500, CS-700, CS-1216,
-  CS-1234.
+PUSH: <PENDING>
+CI READ: <PENDING>
+SUITE: <PENDING>
+GATES: drift_guard 0 doc_budget 0 memory_sync 0 (sha_citation_gate 0; doc tests 512 passed)
+Earlier pushes this session: two BLOCKED by pre-push (fixed); 8792278 PASSED 14296
+  passed, 12 skipped; tier1 37242415726 at 8792278 SUCCESS.
 Desktop shortcut CS-NEXT-SESSION.lnk targets C:\Clockspeed\CS-NEXT-SESSION.txt (read).
 UNVERIFIED: the doc edits of this /done were not read by a second agent before commit.

@@ -2323,6 +2323,17 @@ grant reaches it and no tracked test can pin it. Also unmeasured: whether a work
 lane session gates against its own tree.
 
 
+## Session 122 - archived 2026-10-04 from `WAKEUP_NOTES.md`, verbatim
+
+## Session 122 - 2026-10-04 - tier1 and tier2 back to green, four tier2 items closed, the CS-815 nonce fold landed, and CS-400 built through S4 with a parent join
+
+- Shipped: CS-1228, CS-1229, CS-1230, CS-1233 closed on one green tier2 run at d1775ca; a CORRECTION record for CS-1232 discharges its "POSIX untested" residual. Detail in docs/LEDGER.md. LANDED NOT CLOSED: CS-815 (the probe folded into one interpreter start with a per-run nonce; open on the operator's by-eye check of the REFUSED line), CS-1234 (status file plus the 120 per 24h start cap), CS-1231 slice C half (the inbox responder spawns through the kit; `ops/loop/run_lane.ps1` stays the named exception).
+- In flight: CS-400, the Phase 4 gate. Built this session: the plan; S0 measurement (two InventoryItem forms, so try both and accept exactly one); an adjudicator (ADJ-G) ruling on 13 questions; S1 decoder; S2 reference join; S3 per-building inventory; S2b parent join plus a non-building bucket, so water pumps, miners and truck stations are no longer unattributed; S4 depth gate. A clean-clone independent byte counter matched the shipped decoder on 40 of 40 saves. Its residuals are in BACKLOG.md under Session 122 residuals.
+- Decisions: the CS-815 frozen-file grant was adjudicated, then AMENDED to a per-run nonce (both records in docs/LEDGER.md under CS-815). ADJ-G's CS-400 ruling. No ADR.
+- Surprises: tier1 and tier2 were both red at session start. The ubuntu provenance arms failed on inode reuse, now fixed. The windows CS-815 median was 1.297s. Another writer committed CS-959 (README, public-readiness) and CS-1235..1262 (inspiration ingest) on main during the session; the ingest reddened tests/ops/test_lane_scope.py, fixed by excluding CS-1254..1262 from the dashboard lane scope.
+- Failed paths: the fixed-token probe fold - an adversary showed it accepted `printf token; exit 97`. S3's first attribution through connection components - refuted for over-reach, replaced by attribution through actor references. Four pushes were blocked before the fifth landed at d1775ca (13330 passed, 12 skipped): by the citation guard, the repr census, the nested no-install suite and the locals-rendering guard. Traps: census guards (repr population, locals binding, the REFERENCE_COUNT_COMMON_MODE closure, the 72-char commit subject) are not hit by targeted runs; the worktree isolation sandbox blocks writing shared progress files.
+- Next action: read CI on the /done push, then carry CS-400 to its Phase 4 gate close.
+
 ## Session 121 - archived 2026-10-04 from `WAKEUP_NOTES.md`, verbatim
 
 ## Session 121 - 2026-10-03 - FLEET-KIT v4 vendored under a cleared licence gate, the bundle provenance check rebuilt on file identity, the tier2 latency red diagnosed, and the operator turned the project back to product
