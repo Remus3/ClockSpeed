@@ -1040,3 +1040,288 @@ def test_this_tree_cites_only_published_commits() -> None:
     assert not_read == []
     verdict = report.verdict()
     assert verdict == gate.EXIT_CLEAN
+
+
+# --- CS-700 S7a survival: the state-witnessed historical set ------------------
+#
+# A throwaway repository is REWRITTEN the way S7a rewrites this one: the same
+# trees are replayed under a new author with ``git commit-tree``, ``main`` and
+# ``origin/main`` move to the replay, and the old commits are expired out of
+# the TEMP store. A doc citing an old commit must then pass when its token is
+# on the generated historical set, and only then.
+
+#: The synthetic identity the replay commits under - never a real one.
+_REPLAY_ROLE: Final = "Replayed"
+
+#: A fixed date, so every commit of the arms is reproducible.
+_FIXED_DATE: Final = "2026-01-01T00:00:00+0000"
+
+
+def _commit_env(repo: Repo, name: str) -> dict[str, str]:
+    env = dict(repo.env)
+    for role in ("AUTHOR", "COMMITTER"):
+        env[f"GIT_{role}_NAME"] = name
+        env[f"GIT_{role}_EMAIL"] = f"{name.lower()}@example.invalid"
+        env[f"GIT_{role}_DATE"] = _FIXED_DATE
+    return env
+
+
+def _replay(repo: Repo, old: str, parents: list[str]) -> str:
+    """``old``'s tree and message, re-committed under the replay identity onto ``parents``."""
+    tree = repo.git("rev-parse", f"{old}^{{tree}}")
+    message = repo.git("log", "-1", "--format=%B", old)
+    args = ["git", "commit-tree", tree, "-m", message]
+    for parent in parents:
+        args += ["-p", parent]
+    done = subprocess.run(
+        args,
+        cwd=repo.path,
+        env=_commit_env(repo, _REPLAY_ROLE),
+        capture_output=True,
+        timeout=TIMEOUT,
+        check=True,
+    )
+    return done.stdout.decode("ascii").strip()
+
+
+def _commit_all(repo: Repo, message: str) -> str:
+    subprocess.run(
+        ["git", "-c", "core.autocrlf=false", "commit", "-q", "-m", message],
+        cwd=repo.path,
+        env=_commit_env(repo, "Synthetic"),
+        capture_output=True,
+        timeout=TIMEOUT,
+        check=True,
+    )
+    return repo.git("rev-parse", "HEAD")
+
+
+def _write_historical(repo: Repo, pre: str, post: str, tokens: list[str]) -> None:
+    body = (
+        "{\n"
+        '  "schema": 1,\n'
+        f'  "witness": {{"pre": "{pre}", "post": "{post}"}},\n'
+        '  "tokens": [' + ", ".join(f'"{token}"' for token in tokens) + "]\n"
+        "}\n"
+    )
+    target = repo.path / gate.HISTORICAL_FILE
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_bytes(body.encode("ascii"))
+
+
+def _listed(repo: Repo) -> list[str]:
+    loaded = gate.load_historical(repo.path)
+    assert loaded is not None, "control: the historical set must be present"
+    return sorted(loaded.tokens)
+
+
+@dataclass
+class Rewrite:
+    """A repository in the PRE state, and the commits the S7a replay will touch."""
+
+    repo: Repo
+    old_a: str
+    new_a: str
+    old_b: str
+    cited: str
+
+
+def _pre_state(tmp_path: Path) -> Rewrite:
+    """A PRE-state repository: ``A`` published, its replay ``A'`` held but not published.
+
+    ``A`` is the witness ``pre``, ``A'`` the witness ``post``; a doc in ``B``
+    cites ``A``, and ``--emit-historical`` has listed that citation.
+    """
+    path = tmp_path / "rewrite"
+    path.mkdir()
+    repo = Repo(path, _env(tmp_path))
+    repo.git("init", "-q")
+    (path / "README.md").write_bytes(b"A seed doc that cites nothing.\n")
+    repo.git("add", "--", "README.md")
+    old_a = _commit_all(repo, "seed")
+    new_a = _replay(repo, old_a, [])
+    cited = mixed(old_a)
+    (path / "docs").mkdir()
+    (path / "docs" / "notes.md").write_bytes(f"Landed as commit `{cited}`.\n".encode("ascii"))
+    _write_historical(repo, old_a, new_a, [])
+    repo.git("add", "--", "docs/notes.md", gate.HISTORICAL_FILE)
+    repo.git("update-ref", "refs/remotes/origin/main", "HEAD")
+    emitted = cli(repo, "--emit-historical")
+    assert emitted.returncode == gate.EXIT_CLEAN, emitted.stdout + emitted.stderr
+    repo.git("add", "--", gate.HISTORICAL_FILE)
+    old_b = _commit_all(repo, "cite A")
+    repo.git("update-ref", "refs/remotes/origin/main", "HEAD")
+    return Rewrite(repo, old_a, new_a, old_b, cited)
+
+
+def _rewrite(state: Rewrite) -> str:
+    """Replay ``B`` onto ``A'``, move main and origin/main, expire every old commit."""
+    repo = state.repo
+    new_b = _replay(repo, state.old_b, [state.new_a])
+    branch = repo.git("symbolic-ref", "HEAD")
+    repo.git("update-ref", branch, new_b)
+    repo.git("update-ref", "refs/remotes/origin/main", new_b)
+    repo.git("reflog", "expire", "--expire=now", "--all")
+    repo.git("gc", "--prune=now", "-q")
+    gone = repo.lacks(state.old_a) and repo.lacks(state.old_b)
+    assert gone, "control: the expired old commits must be absent from the temp store"
+    return new_b
+
+
+@pytest.fixture
+def pre(tmp_path: Path) -> Rewrite:
+    """A repository in the PRE state, its historical set emitted and committed."""
+    return _pre_state(tmp_path)
+
+
+def test_emit_lists_the_published_citation_and_no_pair(pre: Rewrite) -> None:
+    """The emitted set holds the cited token and nothing else, ASCII and LF."""
+    listed = _listed(pre.repo)
+    assert listed == [pre.cited]
+    raw = (pre.repo.path / gate.HISTORICAL_FILE).read_bytes()
+    assert b"\r" not in raw
+    assert raw.endswith(b"}\n")
+
+
+def test_the_pre_state_passes(pre: Rewrite) -> None:
+    """Before the rewrite, every listed token is a published commit: exit 0."""
+    done = cli(pre.repo)
+    assert done.returncode == gate.EXIT_CLEAN, done.stdout + done.stderr
+    assert "historical PRE" in done.stdout
+
+
+def test_a_rewritten_citation_on_the_set_survives_the_rewrite(pre: Rewrite) -> None:
+    """THE S7a ARM: after the replay and the expiry, the old citation passes as historical."""
+    _rewrite(pre)
+    done = cli(pre.repo)
+    assert done.returncode == gate.EXIT_CLEAN, done.stdout + done.stderr
+    assert "historical POST" in done.stdout
+
+
+def test_an_old_sha_not_on_the_set_stays_red_after_the_rewrite(pre: Rewrite) -> None:
+    """A citation of an expired commit the set does not list is refused by name."""
+    _rewrite(pre)
+    old = mixed(pre.old_b)
+    plant(pre.repo, f"Also landed as `{old}`.", "docs/notes.md")
+    done = cli(pre.repo)
+    assert done.returncode == gate.EXIT_UNRESOLVED, done.stdout + done.stderr
+    assert f"{old} never-resolved" in done.stdout
+
+
+def test_a_new_absent_citation_outside_the_set_is_red_after_the_rewrite(pre: Rewrite) -> None:
+    """A citation of a sha no store holds, outside the set, is red in the POST state."""
+    _rewrite(pre)
+    plant(pre.repo, f"Landed as commit `{ABSENT_SHA}`.", "docs/notes.md")
+    done = cli(pre.repo)
+    assert done.returncode == gate.EXIT_UNRESOLVED, done.stdout + done.stderr
+    assert f"{ABSENT_SHA} never-resolved" in done.stdout
+
+
+def test_a_listed_token_resolving_to_a_published_commit_after_the_rewrite_is_red(
+    pre: Rewrite,
+) -> None:
+    """POST: a listed token naming a published commit is a collision, never history."""
+    new_b = _rewrite(pre)
+    collide = mixed(new_b)
+    _write_historical(pre.repo, pre.old_a, pre.new_a, sorted([pre.cited, collide]))
+    done = cli(pre.repo)
+    assert done.returncode == gate.EXIT_UNRESOLVED, done.stdout + done.stderr
+    assert f"historical-collision {collide}" in done.stdout
+
+
+def test_a_listed_token_not_resolving_before_the_rewrite_is_red(pre: Rewrite) -> None:
+    """PRE: every listed token must name a published commit - and listing exempts nothing.
+
+    The stale token is also CITED, so the arm sees the PRE state exempt no
+    citation as history: it is still reported unresolved beside the stale line.
+    """
+    absent = pre.repo.lacks(ABSENT_SHA)
+    assert absent, "control: the listed sha must be absent from the store"
+    _write_historical(pre.repo, pre.old_a, pre.new_a, sorted([pre.cited, ABSENT_SHA]))
+    plant(pre.repo, f"Landed as commit `{ABSENT_SHA}`.", "docs/notes.md")
+    done = cli(pre.repo)
+    assert done.returncode == gate.EXIT_UNRESOLVED, done.stdout + done.stderr
+    assert f"historical-stale {ABSENT_SHA}" in done.stdout
+    assert f"{ABSENT_SHA} never-resolved" in done.stdout
+
+
+def test_both_witnesses_published_cannot_judge(pre: Rewrite) -> None:
+    """Both witnesses published reads as neither state: exit 2."""
+    pre.repo.git("tag", "both", pre.new_a)
+    done = cli(pre.repo)
+    assert done.returncode == gate.EXIT_COULD_NOT_JUDGE, done.stdout + done.stderr
+    assert "historical BOTH" in done.stdout
+
+
+def test_neither_witness_published_cannot_judge(pre: Rewrite) -> None:
+    """Neither witness published - a set from another history - exits 2."""
+    _write_historical(pre.repo, "1" * FULL_SHA_WIDTH, "2" * FULL_SHA_WIDTH, [pre.cited])
+    done = cli(pre.repo)
+    assert done.returncode == gate.EXIT_COULD_NOT_JUDGE, done.stdout + done.stderr
+    assert "historical NEITHER" in done.stdout
+
+
+def test_emit_refuses_outside_the_pre_state(pre: Rewrite) -> None:
+    """Regenerating after the rewrite would empty the set, so emit exits 2 and writes nothing."""
+    _rewrite(pre)
+    before = (pre.repo.path / gate.HISTORICAL_FILE).read_bytes()
+    done = cli(pre.repo, "--emit-historical")
+    assert done.returncode == gate.EXIT_COULD_NOT_JUDGE, done.stdout + done.stderr
+    after = (pre.repo.path / gate.HISTORICAL_FILE).read_bytes()
+    assert after == before
+
+
+def test_flip_readiness_passes_only_with_no_citation_outside_the_set(pre: Rewrite) -> None:
+    """Readiness is 0 on the emitted set, and 1 once a published citation sits outside it."""
+    ready = cli(pre.repo, "--flip-readiness")
+    assert ready.returncode == gate.EXIT_CLEAN, ready.stdout + ready.stderr
+    line = plant(pre.repo, f"The full name is `{pre.old_a}`.", "docs/notes.md")
+    outside = cli(pre.repo, "--flip-readiness")
+    assert outside.returncode == gate.EXIT_UNRESOLVED, outside.stdout + outside.stderr
+    assert f"flip-outside docs/notes.md:{line} {pre.old_a}" in outside.stdout
+
+
+def test_flip_readiness_refuses_outside_the_pre_state(pre: Rewrite) -> None:
+    """Readiness after the rewrite has nothing to measure: exit 2."""
+    _rewrite(pre)
+    done = cli(pre.repo, "--flip-readiness")
+    assert done.returncode == gate.EXIT_COULD_NOT_JUDGE, done.stdout + done.stderr
+
+
+def test_the_witness_image_on_the_allowlist_is_not_overreach_after_the_rewrite(
+    pre: Rewrite,
+) -> None:
+    """POST: the allowlisted witness image is published by design; any OTHER row still reddens."""
+    new_b = _rewrite(pre)
+    image = mixed(pre.new_a)
+    other = mixed(new_b)
+    plant(pre.repo, f"Image `{image}` and tip `{other}`.", "docs/notes.md")
+    allow = {image: "foreign-pin", other: "foreign-pin"}
+    report = gate.sweep(pre.repo.path, allowlist=allow)
+    flagged = sorted(entry.token for entry in report.overreach)
+    assert flagged == [other]
+    verdict = report.verdict()
+    assert verdict == gate.EXIT_UNRESOLVED
+
+
+def test_the_witness_image_on_the_allowlist_is_overreach_without_the_set(
+    pre: Rewrite,
+) -> None:
+    """Control: with no historical set, the same published image row IS overreach, as today."""
+    _rewrite(pre)
+    image = mixed(pre.new_a)
+    plant(pre.repo, f"Image `{image}`.", "docs/notes.md")
+    (pre.repo.path / gate.HISTORICAL_FILE).unlink()
+    report = gate.sweep(pre.repo.path, allowlist={image: "foreign-pin"})
+    flagged = [entry.token for entry in report.overreach]
+    assert flagged == [image]
+
+
+def test_this_tree_ships_its_historical_set() -> None:
+    """The tracked set exists, parses, and names this tree's S7a witness pair."""
+    listed = gate.load_historical(REPO_ROOT)
+    assert listed is not None
+    witness = listed.witness
+    assert witness == gate.WITNESS
+    count = len(listed.tokens)
+    assert count > 0

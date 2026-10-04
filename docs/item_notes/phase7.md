@@ -476,7 +476,13 @@ asserted by a control below, none is assumed. **BASELINE, immediately before the
 rewrite and after S6 and S7 have landed:** bundle `main` at its current tip beside
 the S3 bundle, placed per S5 and proven restorable per S4 - that is the
 preservation bundle taken before S7a - and take the trailer-shaped census over it. That
-count, not S1's, is the pre-rewrite count.
+count, not S1's, is the pre-rewrite count. The same baseline REGENERATES the SHA citation
+gate's historical set - `python tools/sha_citation_gate.py --emit-historical` on the
+un-rewritten tip, committed BEFORE the bundle is taken, so the set rides through the
+rewrite inside the trees - and REQUIRES `python tools/sha_citation_gate.py
+--flip-readiness` to exit 0 on that tip: no token in tracked text may name a published
+commit outside the set. Any other exit ABORTS S7a. See "SHA citation gate across S7a"
+below.
 
 **THE TRAILER-SHAPED CENSUS - defined here and ONLY here; every other file points at this
 paragraph.** Walk every commit message reachable from the tip being measured and
@@ -1082,6 +1088,39 @@ ref is a defect in the mechanism S10 depends on.
 is deliberate, and it is sound only because S3 and S4 preserve them first.
 Any one may be recovered from the bundle and pushed later, **only after it is
 measured on all six axes in its own right**, one at a time and on the record.
+
+### SHA citation gate across S7a - filed 2026-10-04 by adjudicated design (d)
+
+**Problem.** `tools/sha_citation_gate.py` reddens on any admitted citation that is not a
+published commit. S7a replays every commit of `main`, so every sha the tree cites stops
+resolving at once and the gate would turn the whole tree red the moment S7a lands.
+
+**Decision - design (d), a state-witnessed historical set.** A GENERATED tracked file,
+`tools/sha_citation_historical.json`, lists every token in tracked text that names a
+published commit at generation time - tokens only, never an old-to-new pair - plus one
+witness pair: `c6f3687` and its S7a image, the pair the CS-704 IMAGE control above pins.
+The gate reads its state from the tree. PRE (the old witness published, the image not):
+every listed token must name a published commit, and the image's allowlist row behaves as
+before. POST (the reverse): no listed token may name a published commit - a new commit
+answering an old citation is a collision and fails - and a listed token that is absent or
+unpublished is historical and passes; an allowlist row naming the image, or `389fe4a`
+(the rehearsal tip, which the real rewrite reproduces as the image of `69d44c5`), is not
+overreach there. Both or neither witness published: exit 2. A token NOT on the list is
+judged exactly as before, so an old sha nobody listed stays red. "Published" is unchanged:
+reachable from `HEAD`, `refs/remotes/origin/main` or a tag. `--emit-historical` regenerates
+the set, PRE only; `--flip-readiness` exits 0 only in PRE with no published citation
+outside the set and no stale listed token. The S7a BASELINE above runs both.
+
+**Alternatives set aside.** A tracked old-to-new commit map: it publishes the pairing of
+every rewritten commit, and the S5 rule keeps the map outside the tree. Re-pointing every
+citation after S7a: a commit after S7a voids S7a through S8a under the late-commit rule,
+and it rewrites the record. Exempting every unresolved sha once the flip is detected, or
+retiring the gate: fail-open - an old sha nobody listed, or a typo, would pass silently.
+
+**Why (d).** It carries no pairing, its state is witnessed by the tree rather than asserted
+by a flag a stale checkout could carry, it fails closed in every state it cannot read, and
+it keeps an unlisted old sha red. The set file is excluded from the gate's code sweep, and
+every token in it is judged by the PRE and POST arms instead.
 
 ### Acceptance
 

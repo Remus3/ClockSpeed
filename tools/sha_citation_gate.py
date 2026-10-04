@@ -90,19 +90,46 @@ whether it is present, and when it is, an unresolved sha the map names as an
 OLD commit is labelled ``rewritten-away`` instead of ``never-resolved``. Both
 still fail - the label says which repair applies, not whether one is due.
 
+CS-700 - THE HISTORICAL SET, SO THE GATE SURVIVES THE S7a REWRITE. S7a
+replays every commit of ``main`` under one identity, so every sha the tree
+cites stops resolving at once. :data:`HISTORICAL_FILE` is a GENERATED tracked
+file listing every token in tracked text that resolved to a published commit
+when it was generated - tokens only, never an old-to-new pair - plus one
+WITNESS pair the tree reads its own state from: ``pre`` (a commit of the
+history S7a rewrites) and ``post`` (its S7a image). PRE, ``pre`` published and
+``post`` not: every listed token must name a published commit
+(``historical-stale`` otherwise). POST, the reverse: no listed token may name a
+published commit (``historical-collision`` - a new commit answering an old
+citation is no citation), and a listed token that is absent or names an
+unpublished commit is HISTORICAL and passes; an allowlist row naming ``post``
+or an :data:`S7A_IMAGE_ROWS` token is not overreach there. Both or neither
+witness published: COULD NOT JUDGE. A token NOT on the list is judged exactly
+as before, so an old sha nobody listed stays red. With the file absent the
+gate is exactly the pre-CS-700 gate. The file itself is not swept as code:
+every token in it is judged by the arms above.
+
 CLI::
 
     python tools/sha_citation_gate.py [--repo DIR]
+    python tools/sha_citation_gate.py --emit-historical [--repo DIR]
+    python tools/sha_citation_gate.py --flip-readiness [--repo DIR]
 
     exit 0   every admitted citation is a published commit, no allowlisted
              token is one, and at least one citation was admitted
     exit 1   an admitted citation is not a published commit, an allowlisted
              token is one (overreach), or a not-admitted, code or short run
              names an existing unpublished commit, or an ambiguous one has an
-             unpublished candidate
+             unpublished candidate, or a historical-stale or
+             historical-collision token
     exit 2   could not judge - no git, not a repository, a shallow clone, no
-             origin/main and no tag, a tracked file not read, or a sweep that
-             admitted nothing
+             origin/main and no tag, a tracked file not read, a sweep that
+             admitted nothing, or a historical set whose witnesses are both or
+             neither published, or that does not parse
+
+``--emit-historical`` regenerates the set, in the PRE state only (exit 2
+otherwise, writing nothing), keeping the file's witness or :data:`WITNESS`.
+``--flip-readiness`` exits 0 only in the PRE state with no listed token stale
+and no token in tracked text naming a published commit outside the set.
 
 stdout prints only repository-relative paths, line numbers and the tokens
 themselves - never a doc line's text, and never an environment value.
@@ -111,10 +138,12 @@ themselves - never a doc line's text, and never an environment value.
 from __future__ import annotations
 
 import argparse
+import json
 import os
 import re
 import subprocess
 import sys
+import time
 from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -138,13 +167,35 @@ GIT_TIMEOUT: Final = 120
 #: The tracked files the sweep reads as DOCS, as git pathspecs.
 DOC_PATHSPECS: Final = ("*.md", "*.txt")
 
+#: CS-700 - the generated historical set, repository-relative.
+HISTORICAL_FILE: Final = "tools/sha_citation_historical.json"
+
+#: CS-700 - this tree's witness pair: ``c6f3687`` and its S7a image, the pair the
+#: S7a CS-704 IMAGE control pins. Used by ``--emit-historical`` when the file
+#: does not exist yet; afterwards the file's own witness is read.
+WITNESS: Final = (
+    "c6f36874194aeed450c6d75a93be883f72c8f45e",
+    "b7b4a2c4b71c942bb759aa2b4f3b9ba906ddc1ec",
+)
+
+#: CS-700 - allowlist rows that name an S7a IMAGE: unpublished in the PRE state,
+#: published by design in the POST state, so not overreach there. ``389fe4a`` is
+#: the rehearsal's output tip - the image of ``69d44c5``, which the real rewrite
+#: reproduces byte for byte.
+S7A_IMAGE_ROWS: Final = frozenset({"389fe4a", WITNESS[1]})
+
 #: CS-1224 - every OTHER tracked file, read as CODE: each hex run in it is
 #: resolved and red only when it names an existing unpublished commit. Measured
 #: 2026-10-03 on this tree: 395 such files carry 442 distinct 7-to-40 runs, of
 #: which 380 name no commit - fixture vectors, digests, ids - so grading code
 #: like a doc would need hundreds of allowlist rows; resolving finds the
-#: unpublished citations (two commits, five sites) without one.
-CODE_PATHSPECS: Final = (".", *(f":(exclude){spec}" for spec in DOC_PATHSPECS))
+#: unpublished citations (two commits, five sites) without one. CS-700 - the
+#: historical set is excluded: every token in it is judged by the historical arms.
+CODE_PATHSPECS: Final = (
+    ".",
+    *(f":(exclude){spec}" for spec in DOC_PATHSPECS),
+    f":(exclude){HISTORICAL_FILE}",
+)
 
 #: The refs whose history counts as published, beside ``HEAD`` itself: the
 #: remote's main line and every tag. A side branch, even a pushed one, can be
@@ -682,6 +733,95 @@ def _commit_map(repo: Path) -> list[str] | None:
     return olds
 
 
+# --- CS-700: the state-witnessed historical set --------------------------------
+
+_FULL_SHA: Final = re.compile(r"[0-9a-f]{40}")
+_LISTED: Final = re.compile(r"[0-9a-f]{5,40}")
+
+#: The states the witness pair can read: PRE and POST judge, the other two cannot.
+STATE_PRE: Final = "PRE"
+STATE_POST: Final = "POST"
+STATE_BOTH: Final = "BOTH"
+STATE_NEITHER: Final = "NEITHER"
+
+#: How many times a rename onto the set is tried - Windows can hold the target briefly.
+_RENAME_TRIES: Final = 5
+
+
+@dataclass(frozen=True)
+class Historical:
+    """The parsed historical set.
+
+    Attributes:
+        witness: ``(pre, post)`` - a commit of the history S7a rewrites, and its image.
+        tokens: Every listed token, lower case.
+    """
+
+    witness: tuple[str, str]
+    tokens: frozenset[str]
+
+
+def parse_historical(raw: bytes) -> Historical:
+    """Parse the set STRICTLY: exact keys, schema 1, full-sha witnesses, hex tokens.
+
+    Raises:
+        GateError: On any deviation. The reason is fixed text - never a value.
+    """
+    try:
+        data = json.loads(raw.decode("ascii"))
+    except (UnicodeDecodeError, ValueError):
+        raise GateError("historical set is not ASCII JSON") from None
+    if not isinstance(data, dict) or set(data) != {"schema", "witness", "tokens"}:
+        raise GateError("historical set keys are not exactly schema, witness, tokens")
+    witness, tokens = data["witness"], data["tokens"]
+    if data["schema"] != 1:
+        raise GateError("historical set schema is not 1")
+    if not isinstance(witness, dict) or set(witness) != {"pre", "post"}:
+        raise GateError("historical witness keys are not exactly pre, post")
+    pair = (witness["pre"], witness["post"])
+    if not all(isinstance(sha, str) and _FULL_SHA.fullmatch(sha) for sha in pair):
+        raise GateError("historical witness is not two full lower-case shas")
+    if pair[0] == pair[1]:
+        raise GateError("historical witness pre and post are the same commit")
+    if not isinstance(tokens, list) or not all(
+        isinstance(token, str) and _LISTED.fullmatch(token) for token in tokens
+    ):
+        raise GateError("historical tokens are not lower-case hex runs of 5 to 40")
+    if len(set(tokens)) != len(tokens):
+        raise GateError("historical set lists a token twice")
+    return Historical((pair[0], pair[1]), frozenset(tokens))
+
+
+def load_historical(repo: Path) -> Historical | None:
+    """The tree's historical set, or None when :data:`HISTORICAL_FILE` is absent."""
+    target = repo / HISTORICAL_FILE
+    return parse_historical(target.read_bytes()) if target.is_file() else None
+
+
+def render_historical(historical: Historical) -> bytes:
+    """The set as the generated file's exact bytes: ASCII, LF, sorted, one final LF."""
+    data = {
+        "schema": 1,
+        "witness": {"pre": historical.witness[0], "post": historical.witness[1]},
+        "tokens": sorted(historical.tokens),
+    }
+    return (json.dumps(data, indent=2) + "\n").encode("ascii")
+
+
+def write_atomic(target: Path, body: bytes) -> None:
+    """Write ``body`` to ``target`` through a sibling temp file and a rename, retried."""
+    tmp = target.with_name(target.name + ".tmp")
+    tmp.write_bytes(body)
+    for attempt in range(_RENAME_TRIES):
+        try:
+            tmp.replace(target)
+            return
+        except PermissionError:
+            if attempt == _RENAME_TRIES - 1:
+                raise
+            time.sleep(0.2)
+
+
 @dataclass
 class SweepReport:
     """One run of the gate.
@@ -732,6 +872,16 @@ class SweepReport:
     not_read: list[str] = field(default_factory=list)
     ambiguous: list[Occurrence] = field(default_factory=list)
     ambiguous_unpublished: list[Occurrence] = field(default_factory=list)
+    historical: Historical | None = None
+    state: str | None = None
+    historical_failures: list[tuple[str, str]] = field(default_factory=list)
+    historical_exempt: int = 0
+    text_published: set[str] = field(default_factory=set)
+
+    @property
+    def everywhere(self) -> list[Occurrence]:
+        """Every occurrence of every population - doc tokens, not-admitted, code, short."""
+        return [*self.occurrences, *self.not_admitted, *self.code_runs, *self.short_runs]
 
     @property
     def admitted(self) -> list[Occurrence]:
@@ -752,11 +902,14 @@ class SweepReport:
         """
         if self.shallow or not self.published_refs or not self.admitted:
             return EXIT_COULD_NOT_JUDGE
+        if self.historical is not None and self.state not in (STATE_PRE, STATE_POST):
+            return EXIT_COULD_NOT_JUDGE
         failed = (
             self.unresolved
             or self.overreach
             or self.not_admitted_unpublished
             or self.ambiguous_unpublished
+            or self.historical_failures
         )
         if failed:
             return EXIT_UNRESOLVED
@@ -771,12 +924,18 @@ def _state(report: SweepReport, token: str, commit: str | None) -> str:
     return "never-resolved"
 
 
-def sweep(repo: Path, allowlist: Mapping[str, str] | None = None) -> SweepReport:
+def sweep(
+    repo: Path,
+    allowlist: Mapping[str, str] | None = None,
+    historical: Historical | None = None,
+) -> SweepReport:
     """Read every tracked doc in ``repo`` and judge every citation against published history.
 
     Args:
         repo: A work tree.
         allowlist: ``token -> class``; the shipped table when None.
+        historical: The CS-700 set; read from :data:`HISTORICAL_FILE` when None,
+            and absent - the pre-CS-700 gate - when that file is absent too.
 
     Returns:
         The report. On a shallow clone, or with neither origin/main nor a
@@ -818,29 +977,98 @@ def sweep(repo: Path, allowlist: Mapping[str, str] | None = None) -> SweepReport
     report.short_runs = short_runs
     report.not_judged = not_judged
     report.not_read = not_read
+    report.historical = load_historical(repo) if historical is None else historical
     if shallow or not ref_count:
         return report
-    resolved_only = [*not_admitted, *code_runs, *short_runs]
+    _judge(repo, report, published)
+    return report
+
+
+def _witness_state(
+    historical: Historical, runs: Mapping[str, str | None], published: set[str]
+) -> str:
+    """The state the witness pair reads: which of ``pre`` and ``post`` is published."""
+    pre_pub, post_pub = (runs[sha] in published for sha in historical.witness)
+    return {
+        (True, False): STATE_PRE,
+        (False, True): STATE_POST,
+        (True, True): STATE_BOTH,
+    }.get((pre_pub, post_pub), STATE_NEITHER)
+
+
+def _judge(repo: Path, report: SweepReport, published: set[str]) -> None:
+    """Resolve every run, listed token and witness ONCE, and fill every verdict field."""
+    occurrences = report.occurrences
+    resolved_only = [*report.not_admitted, *report.code_runs, *report.short_runs]
     every = {entry.token for entry in resolved_only} | {entry.token for entry in occurrences}
-    runs, ambiguous = resolve_batch(repo, sorted(every))
+    historical = report.historical
+    listed = historical.tokens if historical is not None else frozenset()
+    witness = set(historical.witness) if historical is not None else set()
+    runs, ambiguous = resolve_batch(repo, sorted(every | listed | witness))
+    report.text_published = {token for token in every if runs[token] in published}
+    image_rows: frozenset[str] = frozenset()
+    if historical is not None:
+        report.state = _witness_state(historical, runs, published)
+        report.historical_failures = _historical_failures(
+            report.state, listed, runs, ambiguous, published
+        )
+        if report.state == STATE_POST:
+            image_rows = S7A_IMAGE_ROWS | {historical.witness[1]}
+    post = report.state == STATE_POST
+
+    def historical_exempt(token: str) -> bool:
+        if post and token.lower() in listed:
+            report.historical_exempt += 1
+            return True
+        return False
+
     report.not_admitted_unpublished = [
         entry
         for entry in resolved_only
-        if (commit := runs[entry.token]) is not None and commit not in published
+        if (commit := runs[entry.token]) is not None
+        and commit not in published
+        and not historical_exempt(entry.token)
     ]
     report.ambiguous = [entry for entry in resolved_only if entry.token in ambiguous]
     unpublished_candidates = {token for token, commits in ambiguous.items() if commits - published}
     report.ambiguous_unpublished = [
-        entry for entry in report.ambiguous if entry.token in unpublished_candidates
+        entry
+        for entry in report.ambiguous
+        if entry.token in unpublished_candidates and not historical_exempt(entry.token)
     ]
     for entry in occurrences:
         commit = runs[entry.token]
         is_published = commit is not None and commit in published
         if entry.rule is not None and is_published:
-            report.overreach.append(entry)
-        elif entry.rule is None and not is_published:
+            if not any(image.startswith(entry.token) for image in image_rows):
+                report.overreach.append(entry)
+        elif entry.rule is None and not is_published and not historical_exempt(entry.token):
             report.unresolved.append((entry, _state(report, entry.token, commit)))
-    return report
+
+
+def _historical_failures(
+    state: str,
+    listed: frozenset[str],
+    runs: Mapping[str, str | None],
+    ambiguous: Mapping[str, set[str]],
+    published: set[str],
+) -> list[tuple[str, str]]:
+    """Each listed token the witnessed state refuses, with its failure label.
+
+    PRE: a listed token that is not exactly one published commit is STALE. POST:
+    a listed token that one published commit - or any candidate of an ambiguous
+    answer - names is a COLLISION. Any other state judges nothing here; the
+    verdict already refuses to judge it.
+    """
+    failures: list[tuple[str, str]] = []
+    for token in sorted(listed):
+        commit = runs[token]
+        names_published = commit in published or bool(ambiguous.get(token, set()) & published)
+        if state == STATE_PRE and (commit is None or commit not in published):
+            failures.append((token, "historical-stale"))
+        elif state == STATE_POST and names_published:
+            failures.append((token, "historical-collision"))
+    return failures
 
 
 def render(report: SweepReport) -> list[str]:
@@ -918,6 +1146,7 @@ def render(report: SweepReport) -> list[str]:
         "more than one commit, at least one not published"
         for entry in report.ambiguous_unpublished
     ]
+    out += _render_historical(report)
     verdict = report.verdict()
     if verdict == EXIT_CLEAN:
         out.append("sha_citation_gate: PASS - every admitted citation is a published commit")
@@ -930,15 +1159,37 @@ def render(report: SweepReport) -> list[str]:
         if report.not_read:
             out.append(f"sha_citation_gate: ALSO COULD NOT JUDGE - {_not_read_reason(report)}")
     else:
-        if report.shallow:
-            reason = "a shallow clone"
-        elif not report.published_refs:
-            reason = "no origin/main and no tag"
-        elif not report.admitted:
-            reason = "the sweep admitted nothing"
-        else:
-            reason = _not_read_reason(report)
+        reason = _could_not_judge_reason(report)
         out.append(f"sha_citation_gate: COULD NOT JUDGE - {reason}, which is not a pass")
+    return out
+
+
+def _could_not_judge_reason(report: SweepReport) -> str:
+    """Why a run exits 2, first cause first."""
+    if report.shallow:
+        return "a shallow clone"
+    if not report.published_refs:
+        return "no origin/main and no tag"
+    if not report.admitted:
+        return "the sweep admitted nothing"
+    if report.historical is not None and report.state not in (STATE_PRE, STATE_POST):
+        return f"the historical witness pair reads {report.state}"
+    return _not_read_reason(report)
+
+
+def _render_historical(report: SweepReport) -> list[str]:
+    """The CS-700 lines: the set's presence, its witnessed state and every failure."""
+    if report.historical is None:
+        return [
+            f"historical ABSENT - no {HISTORICAL_FILE}; every citation is judged against "
+            "published history alone"
+        ]
+    out = [
+        f"historical {report.state or 'UNJUDGED'} - {len(report.historical.tokens)} listed "
+        f"tokens; exempt as history {report.historical_exempt}; PRE requires every listed "
+        "token published, POST forbids any, BOTH and NEITHER cannot judge"
+    ]
+    out += [f"{label} {token}" for token, label in report.historical_failures]
     return out
 
 
@@ -958,14 +1209,81 @@ def main(argv: list[str] | None = None) -> int:
     """
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0] if __doc__ else None)
     parser.add_argument("--repo", type=Path, default=_TOOLS_DIR.parent, help="the work tree")
+    mode = parser.add_mutually_exclusive_group()
+    mode.add_argument(
+        "--emit-historical", action="store_true", help="regenerate the CS-700 set (PRE only)"
+    )
+    mode.add_argument(
+        "--flip-readiness", action="store_true", help="0 only if no citation is outside the set"
+    )
     args = parser.parse_args(argv)
     try:
+        if args.emit_historical:
+            return emit_historical(args.repo)
+        if args.flip_readiness:
+            return flip_readiness(args.repo)
         report = sweep(args.repo)
     except GateError as exc:
         print(f"sha_citation_gate: COULD NOT JUDGE - {exc.reason}", file=sys.stderr)
         return EXIT_COULD_NOT_JUDGE
     print("\n".join(render(report)))
     return report.verdict()
+
+
+def _pre_report(repo: Path, historical: Historical, mode: str) -> SweepReport | None:
+    """A sweep under ``historical``, or None - with the reason printed - unless PRE."""
+    report = sweep(repo, historical=historical)
+    if report.shallow or not report.published_refs or report.state != STATE_PRE:
+        state = report.state or "UNJUDGED"
+        print(
+            f"sha_citation_gate: {mode} COULD NOT JUDGE - the witness pair reads {state}, "
+            "or the clone is shallow or has no published ref; PRE is required"
+        )
+        return None
+    return report
+
+
+def emit_historical(repo: Path) -> int:
+    """Regenerate :data:`HISTORICAL_FILE` from every published token in tracked text.
+
+    PRE state only: after the rewrite no old token is published, so a regeneration
+    would silently empty the set. Keeps the file's witness, else :data:`WITNESS`.
+    """
+    current = load_historical(repo)
+    witness = current.witness if current is not None else WITNESS
+    report = _pre_report(repo, Historical(witness, frozenset()), "emit-historical")
+    if report is None:
+        return EXIT_COULD_NOT_JUDGE
+    tokens = frozenset(token.lower() for token in report.text_published)
+    write_atomic(repo / HISTORICAL_FILE, render_historical(Historical(witness, tokens)))
+    print(f"sha_citation_gate: emit-historical wrote {len(tokens)} tokens to {HISTORICAL_FILE}")
+    return EXIT_CLEAN
+
+
+def flip_readiness(repo: Path) -> int:
+    """0 only in the PRE state with no stale listed token and no published token unlisted."""
+    historical = load_historical(repo)
+    if historical is None:
+        print(f"sha_citation_gate: flip-readiness COULD NOT JUDGE - no {HISTORICAL_FILE}")
+        return EXIT_COULD_NOT_JUDGE
+    report = _pre_report(repo, historical, "flip-readiness")
+    if report is None:
+        return EXIT_COULD_NOT_JUDGE
+    outside = [
+        entry
+        for entry in report.everywhere
+        if entry.token in report.text_published and entry.token.lower() not in historical.tokens
+    ]
+    out = [f"flip-outside {entry.path}:{entry.line} {entry.token}" for entry in outside]
+    out += [f"{label} {token}" for token, label in report.historical_failures]
+    failed = bool(outside or report.historical_failures)
+    out.append(
+        f"sha_citation_gate: flip-readiness {'NOT READY' if failed else 'READY'} - "
+        f"{len(historical.tokens)} listed; outside {len(outside)}; "
+        f"stale {len(report.historical_failures)}"
+    )
+    print("\n".join(out))
+    return EXIT_UNRESOLVED if failed else EXIT_CLEAN
 
 
 if __name__ == "__main__":

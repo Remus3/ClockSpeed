@@ -75,6 +75,25 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-10-04 - CS-700 - PROGRESS RECORD. NOT A COMPLETION RECORD. NOTHING CLOSED. CS-700 STAYS OPEN. The SHA citation gate survives the S7a rewrite through a state-witnessed historical set
+Verification: `tools/sha_citation_gate.py::sweep`, `::_historical_failures`, `::emit_historical`,
+`::flip_readiness`, `::parse_historical`; the generated set `tools/sha_citation_historical.json`;
+`tests/test_sha_citation_gate.py::test_a_rewritten_citation_on_the_set_survives_the_rewrite`,
+`::test_an_old_sha_not_on_the_set_stays_red_after_the_rewrite`,
+`::test_a_listed_token_resolving_to_a_published_commit_after_the_rewrite_is_red`,
+`::test_a_listed_token_not_resolving_before_the_rewrite_is_red`,
+`::test_both_witnesses_published_cannot_judge`, `::test_this_tree_ships_its_historical_set`.
+Adjudicated design (d), recorded with its alternatives in `docs/item_notes/phase7.md` under
+CS-700 "SHA citation gate across S7a". Measured red first: a temp repository whose doc cites
+commit A, replayed under a new author with `git commit-tree`, `main` and `origin/main` moved,
+the old commits expired from the TEMP store, exited 1 on the unmodified gate with the citation
+reported `never-resolved`; it exits 0 now. Eleven fail-open mutants - collision skipped, stale
+skipped, BOTH read as PRE, NEITHER read as POST, unlisted tokens exempt, exemption in any state,
+every image row exempt, failures ignored by the verdict, BOTH/NEITHER judged, emit or readiness
+outside PRE, readiness ignoring an outside citation - each read back as landed and KILLED under
+`python -B` in a scratch mirror; pristine floor green. The set was generated on this tree in the
+PRE state and `--flip-readiness` read READY.
+
 ### 2026-10-04 - CS-1270 - PROGRESS RECORD. NOT A COMPLETION RECORD. NOTHING CLOSED. CS-1270 STAYS OPEN. The surface refusals no longer blame the closed CS-500, and the advice handlers are built but not yet routed
 Verification: `clockspeed/surface/api/pending.py::BLOCKERS`, `clockspeed/surface/api/contract.py::OPEN_BLOCKERS`,
 `::BLOCKER_PATTERN`, `::REASON_ADVICE_STORE_UNREADABLE`, `clockspeed/surface/api/advice.py::routes`;
