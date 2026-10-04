@@ -4276,7 +4276,7 @@ class InventoryItem:
         )
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, repr=False)
 class InventoryItemRefusal:
     """An ``InventoryItem`` interior that was refused, and why - CS-400.
 
@@ -4289,6 +4289,15 @@ class InventoryItemRefusal:
     """
 
     reason: str
+
+    def __repr__(self) -> str:
+        """Render whether the reason is a recorded word, never the word - CS-400.
+
+        Returns:
+            The safe rendering.
+        """
+        known = self.reason in ITEM_REFUSAL_REASONS
+        return f"{type(self).__name__}(reason_recorded={known})"
 
 
 #: The type words whose VALUE encoding is measured and is therefore decoded.
