@@ -1357,9 +1357,6 @@ DECLINED_AS_DECLARED_UNTRACKED: Final[Mapping[tuple[str, str, str], int]] = {
 #: PINNED AND BUDGETED, for the table above's reason.
 DECLINED_UNDER_AN_UNTRACKED_ROOT: Final[Mapping[tuple[str, str, str], int]] = {
     ("tests/data/test_drift_guard_data.py", "notes/DONE.md", "_WORK_ITEM_CLAUDE_MD"): 1,
-    ("tests/test_architecture_attributions.py", "advisor/cards.py", ""): 2,
-    ("tests/test_architecture_attributions.py", "advisor/ledger.py", ""): 2,
-    ("tests/test_architecture_attributions.py", "advisor/trace.py", ""): 2,
     ("tests/test_chained_cause_census.py", "also/not/frozen.py", "_FROZEN_MARKDOWN"): 1,
     ("tests/test_chained_cause_census.py", "not/frozen.py", "_FROZEN_MARKDOWN"): 1,
     ("THIRD_PARTY.md", "execnet/gateway_base.py", "### Python dependencies"): 1,
@@ -1590,7 +1587,9 @@ DECLARED_UNTRACKED_CEILING: Final = 20
 #: were already in the tree and red when these rows were added; they were not
 #: appended together with them. The rows REFUND and the ceiling comes back
 #: down if the register ever stops naming those files.
-UNTRACKED_ROOT_CEILING: Final = 9
+#: 9 TO 6 FOR CS-500, 2026-10-04. The three advisor rows refunded: the files
+#: now exist, so the rung resolves their spellings instead of declining them.
+UNTRACKED_ROOT_CEILING: Final = 6
 #: 7 TO 16 FOR CS-1184'S DOC SWEEP TESTS, 2026-09-25. Every new row is a
 #: synthetic markdown or code path that the sweep's own unit tests write into a
 #: throwaway repository under a temporary directory, to plant an orphan, a
@@ -1660,22 +1659,14 @@ DECLARED_ABSENT_IN_DOC: Final[Mapping[tuple[str, str, str], int]] = {
         bare_path("docs", "item_notes", "README.md"),
         "## Decision",
     ): 1,
-    (
-        "docs/item_notes/phase4.md",
-        bare_path("clockspeed", "advisor", "ledger.py"),
-        "### detail - relocated from `docs/history_notes.md` 2026-08-23",
-    ): 1,
-    (
-        "docs/item_notes/phase5.md",
-        bare_path("clockspeed", "advisor", "ledger.py"),
-        "### detail - relocated from `docs/history_notes.md` 2026-08-23",
-    ): 1,
 }
 
 #: The ceiling on the rung above. Spelled rather than derived, for the reason
 #: :func:`tests.bare_path_guard.derived_bound_problems` enforces on every other
 #: bound in this family.
-DECLARED_ABSENT_CEILING: Final = 3
+#: 3 TO 1 FOR CS-500, 2026-10-04: the ledger landed, both absence
+#: declarations on it were dropped and their rows refunded.
+DECLARED_ABSENT_CEILING: Final = 1
 
 BARE_PATH_REASONS: Final[Mapping[tuple[str, str, str], BarePathReason]] = {
     # CS-899 RETIRED THREE ROWS FROM HERE AND DID NOT FORGIVE THEM ELSEWHERE.

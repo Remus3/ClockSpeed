@@ -772,7 +772,7 @@ UNFORBIDDEN_LINE_POINTERS: Final[frozenset[tuple[str, str, int]]] = frozenset(
         ("docs/LEDGER.md", ".github/workflows/tier1.yml", 250),
         ("docs/LEDGER.md", "docs/ARCHITECTURE.md", 136),
         ("tests/test_docs_citations.py", ".github/workflows/tier1.yml", 250),
-        ("tests/test_precommit_gate.py", "docs/ARCHITECTURE.md", 141),
+        ("tests/test_precommit_gate.py", "docs/ARCHITECTURE.md", 148),
     )
 )
 

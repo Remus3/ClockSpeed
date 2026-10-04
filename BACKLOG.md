@@ -357,5 +357,5 @@ Ideas only, from an untracked external survey; nothing lifted. The product direc
 
 - `clockspeed/save/header.py` masked_token docstring says the ledger holds the real token -
   stale since CS-500 S3 keys by sha256 digest - TRIGGER: that module is next touched.
-- `clockspeed/save/world.py:1333` says unlocks are empty on every path - stale since CS-1039
-  - TRIGGER: that module is next touched.
+- `clockspeed/save/world.py::WorldModel` docstring says unlocks are empty on every path -
+  stale since CS-1039 - TRIGGER: that module is next touched.
