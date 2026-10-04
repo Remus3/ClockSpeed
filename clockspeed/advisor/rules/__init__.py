@@ -28,3 +28,42 @@ D3 milestone gap analysis against any target, and D4 power and fuel planning.
 #     generated world states, not a code review item.
 #   - Every rule is testable against a synthetic world fixture with no save
 #     file and no game install present. The rule suite runs on a clean machine.
+#
+# THE REGISTRY (CS-500). Families are listed EXPLICITLY in ``_FAMILIES`` - no
+# import-time filesystem scan, no plugin entry point and no set - so the rule
+# population is a fact of this file's text and the same on every machine. A
+# new family module is registered by adding its ``RULES`` tuple there.
+
+from __future__ import annotations
+
+from typing import Final
+
+from clockspeed.advisor.rules import power
+from clockspeed.advisor.trace import RuleSpec
+
+
+def build_registry(families: tuple[tuple[RuleSpec, ...], ...]) -> tuple[RuleSpec, ...]:
+    """Flatten rule families into one tuple sorted by rule id.
+
+    Raises:
+        ValueError: a rule id is carried by more than one rule. Refused at
+            build time, so a duplicated id is a failure on import rather than
+            a pair of rule-error traces every run.
+    """
+    specs = [spec for family in families for spec in family]
+    ids = [spec.rule_id for spec in specs]
+    if len(set(ids)) != len(ids):
+        raise ValueError("a rule id is declared by more than one rule")
+    return tuple(sorted(specs, key=lambda spec: spec.rule_id))
+
+
+#: Every family module's rules, listed by hand.
+_FAMILIES: Final = (power.RULES,)
+
+#: The registered rules, sorted by rule id.
+REGISTRY: Final = build_registry(_FAMILIES)
+
+
+def registered_rules() -> tuple[RuleSpec, ...]:
+    """Return every registered rule, sorted by rule id."""
+    return REGISTRY

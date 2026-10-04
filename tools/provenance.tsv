@@ -47,6 +47,7 @@ clockspeed/advisor/__init__.py	authored	CS-1165	first-add:root
 clockspeed/advisor/cards.py	authored	CS-500	stamped
 clockspeed/advisor/ledger.py	authored	CS-500	stamped
 clockspeed/advisor/rules/__init__.py	authored	CS-1165	first-add:root
+clockspeed/advisor/rules/power.py	authored	CS-500	stamped
 clockspeed/advisor/trace.py	authored	CS-500	stamped
 clockspeed/audit/__init__.py	authored	CS-1165	first-add:root
 clockspeed/audit/balance.py	authored	CS-1045	first-add:CS-1045
@@ -229,6 +230,8 @@ shell/test/verdict.test.js	authored	CS-602	first-add:CS-602
 shell/test/window.test.js	authored	CS-602	first-add:CS-602
 tests/__init__.py	authored	CS-1165	first-add:root
 tests/advisor/__init__.py	authored	CS-500	stamped
+tests/advisor/rules/__init__.py	authored	CS-500	stamped
+tests/advisor/rules/test_power.py	authored	CS-500	stamped
 tests/advisor/test_cards.py	authored	CS-500	stamped
 tests/advisor/test_ledger.py	authored	CS-500	stamped
 tests/advisor/test_trace.py	authored	CS-500	stamped

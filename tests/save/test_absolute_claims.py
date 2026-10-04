@@ -263,6 +263,7 @@ CS420_FENCED: Final = True
 #: see the scoping residual in the module docstring for why it stops here.
 FENCED_MODULES: Final = (
     "tests/advisor/__init__.py",
+    "tests/advisor/rules/__init__.py",
     "tests/ops/__init__.py",
     "tests/save/test_absolute_claims.py",
     "tests/save/test_decode_oracles.py",
