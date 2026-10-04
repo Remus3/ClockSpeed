@@ -291,7 +291,9 @@ CS-1250 - no-double-count invariant: each built object contributes to audit tota
 CS-1251 - a save-settle grace period: parse only the newest save whose size and mtime are stable - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1252 - a freshness stamp and a stale marker on every card, API response and companion view - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1253 - a versioned per-world ledger and mute store: forward migration, refuse before touch - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
-CS-1263 - the audit's world draw is clock-blind, so it disagrees with the solver's power figure on every fractional plan - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
+CS-1264 - the clocked draw never checks a production boost, so a boosted machine is priced as unboosted - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
+CS-1265 - the flow audit reads an untagged clock as unread while the balance prices it at the elided default - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
+CS-1266 - nothing cross-checks the clocked draw's considered machines against the built power consumers - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 
 ## Phase 6 - surfaces
 
@@ -368,3 +370,4 @@ CS-1207 - the hook environment allowlist lists known readers, so an unlisted rea
 CS-1208 - a personal value the hook allowlist lets a program read can still reach a print, log or report - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1231 - adopt MAIN's FLEET-KIT (vendor the kit, embed the common block in CLAUDE.md, route every headless spawn through it) - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
 CS-1234 - the inbox responder publishes its inbox-status file (MAIN 0915) and caps headless starts at 120 per rolling 24 hours - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
+CS-1267 - `tools/flip_checks.py` clones with hard links, so a held commit-graph fails its cleanup and the run exits 1 - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`

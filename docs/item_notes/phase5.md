@@ -74,8 +74,9 @@ The engine, the card and the store landed (`clockspeed/advisor/trace.py`,
 `clockspeed/advisor/cards.py`, `clockspeed/advisor/ledger.py`). Clauses in order, A1 to A4
 from the acceptance line, A5 the clause moved here from CS-401:
 
-- A1, every rule has a synthetic-fixture test - OPEN. No rule exists yet; it rides the rule
-  slices (S4 onward).
+- A1, every rule has a synthetic-fixture test - PARTIAL. The D4 power family
+  (`clockspeed/advisor/rules/power.py`, registered in `clockspeed/advisor/rules/__init__.py`)
+  is covered by `tests/advisor/rules/test_power.py`; every later rule family owes the same.
 - A2, the unmet-precondition invariant under a property test - EVIDENCED by
   `tests/advisor/test_trace.py::test_no_recommendation_has_an_unmet_precondition_over_generated_worlds`,
   with its anti-vacuity control
@@ -625,24 +626,41 @@ From the inspiration ingest of 2026-10-04 - an untracked external survey whose i
 
 a v1 fixture loads under v2 with declared defaults; a corrupt fixture is refused and its bytes are unchanged afterwards; each store records its schema version and the tool version that wrote it
 
-## CS-1263
+## CS-1264
 
-### Filed 2026-10-04 by CS-1235's round trip
+### Filed 2026-10-04 by CS-1263's adversary pass
 
-`clockspeed/audit/balance.py::draw_of` prices each built class at its declared reference
-draw times the BUILT count and never reads a clock, while the solver prices a step at its
-fractional machine count. Over a materialised plan the audit exceeds the solver by exactly
-`sum(draw * (ceil(m) - m))` - 24 against 20 MW on the C1 chain at 50 per minute - and the two
-agree only on all-integral plans. Pinned, not repaired, at
-`tests/audit/test_round_trip.py`. NEITHER FIGURE IS PHYSICAL: an underclocked machine draws
-`draw * clock ** exponent`, which `clockspeed/solve/power.py::draw_at_clock` reports as
-deferred, so the honest answer is a bounded interval, which is CS-1064's territory. Do not
-close this by making the audit read fractional machines - a world has whole machines.
+`clockspeed/audit/balance.py::clocked_draw_of` prices an elided or tagged machine by its clock
+alone and never checks a production boost, so the balance reason line is false for a boosted
+machine. The 40-save library carries no boost tag, so no real save exercises it yet; the fix must
+not invent a boost reading, it must refuse or name what it cannot read.
 
 ### Acceptance
 
-the audit's draw reads each machine's clock and publishes the clock-scaled draw as an exact value where the power law yields one and as a named bound where it does not, and the round-trip power arm compares like with like: the pinned divergence test is replaced by an equality or bound check that reddens when the clock is ignored
+a machine carrying a production-boost tag is either priced by the boosted power law or published as a named gap, never priced as unboosted; an arm with a synthetic boosted machine reddens when the boost is ignored; the elided-default count excludes a boosted machine
 
-### Evidence measured 2026-10-04
+## CS-1265
 
-EVIDENCED, not closed here. The clock-scaled draw is `clockspeed/audit/balance.py::clocked_draw_of`, carried as `WorldBalance.clocked_draw`: exact at the reference clock, at a whole exponent and at a zero clock (`tests/audit/test_balance.py::test_the_reference_clock_is_exact_under_any_exponent`, `tests/audit/test_balance.py::test_a_whole_exponent_away_from_the_reference_clock_is_exact`, `tests/audit/test_balance.py::test_a_zero_clock_is_exact_zero_under_a_positive_exponent`); a named bound otherwise (`tests/audit/test_balance.py::test_a_fractional_exponent_is_a_named_bound_bracketing_the_law`, `tests/audit/test_balance.py::test_the_bracket_contains_the_physical_draw`); an unread clock a named gap, never one (`tests/audit/test_balance.py::test_an_unread_clock_is_a_named_gap_never_one`); an elided clock tag priced at the default and counted (`tests/audit/test_balance.py::test_an_elided_clock_is_priced_exactly_at_the_default_and_counted`). The pinned divergence test is replaced by `tests/audit/test_round_trip.py::test_audit_draw_upper_bound_equals_solver_figure_on_fractional_plans`, `tests/audit/test_round_trip.py::test_audit_draw_is_exact_and_equals_solver_figure_on_integral_plans` and `tests/audit/test_round_trip.py::test_the_clocked_draw_reddens_when_the_clock_is_ignored`.
+### Filed 2026-10-04 by CS-1263's adversary pass
+
+`clockspeed/audit/flow.py` returns `GAP_FLOW_CLOCK_UNREAD` for a machine with no clock tag, which
+is most of the library, while `clockspeed/audit/balance.py` prices the same machine at the elided
+default under CS-1263's ruling. Two audits over one world disagree about one fact. The CS-1263
+decision governs: an untagged machine on a cleanly read payload is at the class default unless a
+measured save shows otherwise.
+
+### Acceptance
+
+the flow audit reads the same `overclock_elided` mark the balance reads and treats an elided machine as at the class default, counted, while a refused or unread clock stays a named gap; one arm drives both audits over one synthetic world and asserts they classify every machine's clock the same way
+
+## CS-1266
+
+### Filed 2026-10-04 by CS-500's S4 adversary pass
+
+`power.draw_incomplete` scopes "complete" to the audit's considered population, but the clocked
+draw can report complete while omitting a built power consumer that has no clock, no recipe and no
+producing tag. Nothing cross-checks the considered population against what is actually built.
+
+### Acceptance
+
+the audit publishes, like for like, the count of built power consumers and the count its clocked draw considered, and a consumer the draw omits is named; an arm with a synthetic world holding such a consumer reddens when the omission goes unnamed

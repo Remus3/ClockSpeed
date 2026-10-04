@@ -1604,3 +1604,19 @@ starts at 120 per rolling 24 hours
 ### FILED 2026-10-03, from MAIN orders 0915 and 0855, operator-approved in session
 
 RC's lane widget reads every tree's status file and showed CS as "Sync: no signal".
+
+## CS-1267
+
+### Filed 2026-10-04 by the CS-700 pre-S7a batch run
+
+`tools/flip_checks.py::clone_at` makes a local `git clone --no-checkout`, which hard-links the
+source's object files, including `.git/objects/info/commit-graph`. A concurrent git process holds
+that file open, so removing the run's scratch directory fails and the whole run exits 1 even when
+every check passed - measured at S1 on the pre-S7a batch: 0 of 9 checks failed, exit 1 from
+cleanup alone. It blocks a clean S1 and S8 exit, so it blocks CS-700. A leftover scratch directory
+`.git/flip-checks/run-jwsav2xk` from that run is removed once nothing holds it. The fix clones with
+`--no-hardlinks`; it must not swallow a cleanup failure to get exit 0.
+
+### Acceptance
+
+the flip-checks clone shares no hard-linked object file with the source repository; an arm asserts the clone command carries `--no-hardlinks` (or that no object file of the clone shares an inode with the source); a run whose checks all pass exits 0 while another git process holds the source's commit-graph open; a genuine cleanup failure still fails the run and names the path

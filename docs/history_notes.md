@@ -24,6 +24,33 @@ Where current truth actually lives:
 | Commands and runbooks | `docs/OPERATIONS.md` |
 
 
+## CS-1263 - item section, CLOSED and relocated from `docs/item_notes/phase5.md` 2026-10-04
+
+**Moved here from `docs/item_notes/phase5.md` when the item closed.**
+The closure record is in `docs/LEDGER.md`.
+
+## CS-1263
+
+### Filed 2026-10-04 by CS-1235's round trip
+
+`clockspeed/audit/balance.py::draw_of` prices each built class at its declared reference
+draw times the BUILT count and never reads a clock, while the solver prices a step at its
+fractional machine count. Over a materialised plan the audit exceeds the solver by exactly
+`sum(draw * (ceil(m) - m))` - 24 against 20 MW on the C1 chain at 50 per minute - and the two
+agree only on all-integral plans. Pinned, not repaired, at
+`tests/audit/test_round_trip.py`. NEITHER FIGURE IS PHYSICAL: an underclocked machine draws
+`draw * clock ** exponent`, which `clockspeed/solve/power.py::draw_at_clock` reports as
+deferred, so the honest answer is a bounded interval, which is CS-1064's territory. Do not
+close this by making the audit read fractional machines - a world has whole machines.
+
+### Acceptance
+
+the audit's draw reads each machine's clock and publishes the clock-scaled draw as an exact value where the power law yields one and as a named bound where it does not, and the round-trip power arm compares like with like: the pinned divergence test is replaced by an equality or bound check that reddens when the clock is ignored
+
+### Evidence measured 2026-10-04
+
+EVIDENCED, not closed here. The clock-scaled draw is `clockspeed/audit/balance.py::clocked_draw_of`, carried as `WorldBalance.clocked_draw`: exact at the reference clock, at a whole exponent and at a zero clock (`tests/audit/test_balance.py::test_the_reference_clock_is_exact_under_any_exponent`, `tests/audit/test_balance.py::test_a_whole_exponent_away_from_the_reference_clock_is_exact`, `tests/audit/test_balance.py::test_a_zero_clock_is_exact_zero_under_a_positive_exponent`); a named bound otherwise (`tests/audit/test_balance.py::test_a_fractional_exponent_is_a_named_bound_bracketing_the_law`, `tests/audit/test_balance.py::test_the_bracket_contains_the_physical_draw`); an unread clock a named gap, never one (`tests/audit/test_balance.py::test_an_unread_clock_is_a_named_gap_never_one`); an elided clock tag priced at the default and counted (`tests/audit/test_balance.py::test_an_elided_clock_is_priced_exactly_at_the_default_and_counted`). The pinned divergence test is replaced by `tests/audit/test_round_trip.py::test_audit_draw_upper_bound_equals_solver_figure_on_fractional_plans`, `tests/audit/test_round_trip.py::test_audit_draw_is_exact_and_equals_solver_figure_on_integral_plans` and `tests/audit/test_round_trip.py::test_the_clocked_draw_reddens_when_the_clock_is_ignored`.
+
 ## CS-400 - item section, CLOSED and relocated from `docs/item_notes/phase4.md` 2026-10-04
 
 **Moved here from `docs/item_notes/phase4.md` when the item closed.**
@@ -2036,6 +2063,18 @@ carries the identical relative path for its `SessionStart` hook. It is gitignore
 grant reaches it and no tracked test can pin it. Also unmeasured: whether a worktree's
 `$CLAUDE_PROJECT_DIR` resolves to the worktree or to the primary, which decides whether a
 lane session gates against its own tree.
+
+
+## Session 121 - archived 2026-10-04 from `WAKEUP_NOTES.md`, verbatim
+
+## Session 121 - 2026-10-03 - FLEET-KIT v4 vendored under a cleared licence gate, the bundle provenance check rebuilt on file identity, the tier2 latency red diagnosed, and the operator turned the project back to product
+
+- Shipped: CS-1232 (a MAIN kit bundle file is verified at its bundle-relative path, placed by file identity against a census of the inbox; eight builder rounds, seven adversary refutations repaired; the merger stopped on cost against risk with residuals recorded). Detail in docs/LEDGER.md. LANDED NOT CLOSED: CS-1231 slices A and B at FLEET-KIT v4 in one commit after a gate entry recorded CLEARED before the lift; CS-1233 (the CS-815 latency arm times only after its xdist siblings go quiet). Filed CS-1233, CS-1234.
+- In flight: CS-1234 (inbox_status.json writer plus the 120-per-24h start cap) is a WIP commit on its own worktree branch (find it: `git log --all --oneline --grep "CS-1234 - WIP"`), suite NOT green (failures and a hang the builder had not named when stopped). CS-1231 slice C (route the responder and run_lane.ps1 through the kit spawn, floors_in_hooks=True) and the v4 ANSWER to MAIN are not started.
+- Decisions: CLAUDE.md is NOT condensed - the condensation moved binding rules into a non-binding history file and was dropped; each Settled entry gained a Reversed-by clause satisfied only by the operator's own words. Operator directive filed as a Settled entry: product before process. No ADR.
+- Surprises: tier1 never runs on windows, so the CS-815 latency arm was only ever exercised on windows by tier2, where it failed three legs running. The provenance check fell to a new path SPELLING five rounds in a row until placement moved to file identity. Last two weeks: 8 of 371 commits touched product code.
+- Failed paths: comparing note path spellings for placement (8.3, trailing dot, junction, extended-length and admin-share spellings each bypassed it). Condensing CLAUDE.md to fit the FLEET block - unnecessary, the full text plus the block is under budget.
+- Next action: read the push and tier2 results; then start CS-400 (the Phase 4 gate), not a tooling item.
 
 
 ## Session 120 - archived 2026-10-04 from `WAKEUP_NOTES.md`, verbatim

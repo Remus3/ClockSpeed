@@ -359,3 +359,14 @@ Ideas only, from an untracked external survey; nothing lifted. The product direc
   stale since CS-500 S3 keys by sha256 digest - TRIGGER: that module is next touched.
 - `clockspeed/save/world.py::WorldModel` docstring says unlocks are empty on every path -
   stale since CS-1039 - TRIGGER: that module is next touched.
+
+## Session 124 residuals - filed 2026-10-04 under product before process
+
+- `clockspeed/audit/balance.py::clocked_draw_of` - the overclock-is-None guard on the elided line
+  is untested; equivalent on real input (CS-1263 adversary) - TRIGGER: that line is next touched.
+- The elided-clock count includes non-clockable classes (storage, trading post, space elevator),
+  inflating it - TRIGGER: a surface displays the elided count, or CS-1264/CS-1265 touches it.
+- The CS-400 phase 4 gate shards: per-shard CI time unmeasured, round-robin deal uneven about
+  1.8x - TRIGGER: a shard nears `_CHILD_TIMEOUT_SECONDS` in a tier2 log.
+- The advisor ledger lock is exercised across threads only, never across processes - TRIGGER: a
+  second process writes the ledger (CS-500 S6 wiring or the surface).

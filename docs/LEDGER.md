@@ -75,6 +75,104 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-10-04 - CS-1234 - GRADING RECORD. NOT A COMPLETION RECORD. NOTHING CLOSED. CS-1234 STAYS OPEN: the kit writes a task name outside the basic set
+Verification: `ops/loop/inbox_status.py::TASKS`; `ops/fleet_kit/fleet_headless.py`, its refusal
+path. Graded 2026-10-04 against the acceptance in `docs/item_notes/phase7.md` under CS-1234:
+KEEP OPEN. The acceptance says task names come only from the basic set; the vendored kit writes
+the task name "Refused" on its refusal path, and "Refused" is not a member of `TASKS`. Kit files
+are never edited locally (FLEET item 11), so the defect is reported to MAIN with the slice C kit
+gaps and the item closes on a kit version that writes only basic-set names, or on a local mapping
+the acceptance permits. The v4 ANSWER to MAIN was delivered this session, 1 of 1 reached,
+destination copy SHA-256 re-hashed equal (note `2026-10-04-1320-from-CS-ANSWER-MAIN-1204-1326-v4-adopted-kit-gaps-cli-effort-task-name.md`).
+
+### 2026-10-04 - CS-1216 - LANDED, NOT CLOSED. NOTHING CLOSED. CS-1216 STAYS OPEN. The shared slots.py C4 is adopted, and its torn-write arm pins the verdict the release docstring states
+Verification: `ops/loop/slots.py` (C4 of the carriers' joint round, 11,426 bytes, its digest
+pinned by `tests/ops/test_shared_slots.py`);
+`tests/ops/test_shared_slots_staleness.py::test_a_torn_in_place_write_reads_held_until_stale_after_as_the_release_docstring_states`,
+`::test_a_live_holder_past_stale_after_but_below_the_ceiling_is_held`,
+`::test_a_live_holder_past_the_fail_open_ceiling_is_stale`,
+`::test_a_dead_holder_below_stale_after_is_stale`, `::test_the_fail_open_ceiling_is_twice_stale_after`,
+`::test_reap_removes_a_dead_foreign_lock_and_keeps_a_live_one`. C4 was rebuilt from the two fenced
+diffs on the previous bytes and equals the digest two carriers stated after landing; D205 and D209
+are exempted for slots.py in `pyproject.toml` and the test's exempted-code list; the arms were added
+red first. Landing C4 discharges the docstring half of the acceptance and the torn-write arm may
+meet the rest - a verifier grade against the acceptance is OWED before close. The channel reply to
+the carriers (carriers on C4: LW, RSC, CS; open: RC, SS) is OWED.
+
+### 2026-10-04 - CS-500 - PROGRESS RECORD. NOT A COMPLETION RECORD. NOTHING CLOSED. CS-500 STAYS OPEN. Slices S1 to S4: the trace engine, the card, the ledger store, the rule registry and the D4 power rules
+Verification: `clockspeed/advisor/trace.py`, `clockspeed/advisor/cards.py`,
+`clockspeed/advisor/ledger.py`, `clockspeed/advisor/rules/__init__.py`,
+`clockspeed/advisor/rules/power.py`; acceptance status per clause in
+`docs/item_notes/phase5.md` under CS-500, Evidence measured 2026-10-04. A1 (every rule has a
+synthetic-fixture test) holds for the D4 power family only -
+`tests/advisor/rules/test_power.py::test_headroom_rule_fires_on_synthetic_overdraw`,
+`::test_an_incomplete_draw_is_named_never_advised_as_exact`,
+`::test_rule_declares_every_input_it_reads`, `::test_registry_is_sorted_and_refuses_duplicates`,
+`::test_tier3_snapshot_shows_the_whole_derivation`; A2 evidenced by
+`tests/advisor/test_trace.py::test_no_recommendation_has_an_unmet_precondition_over_generated_worlds`;
+A3 id half by `tests/advisor/test_cards.py::test_card_id_ignores_volatile_inputs`, the reload half
+OPEN until slice S6; A4 by `tests/advisor/test_cards.py::test_card_accepts_no_authored_tier_text`;
+A5 by `tests/advisor/test_ledger.py::test_an_unseen_world_token_is_a_new_world`. Adversary passes:
+S1 refuted twice and repaired, S2 once, S3 once (plus the stale-lock break,
+`tests/advisor/test_ledger.py::test_a_stale_lock_left_by_a_killed_writer_is_broken`), S4 once
+for honesty (both rules now name an elided clock and scope "complete" to the audit's considered
+population, `tests/advisor/rules/test_power.py::test_an_elided_clock_is_named_in_tier2_and_tier3`);
+every slice was mutation-checked. The S1 to S3 adversary loops were STOPPED by cost against risk
+(`CLAUDE.md` section 7). RESIDUAL, recorded in the `clockspeed/advisor/trace.py` module docstring:
+hostile in-repo rule code reaching private attributes, `__self__`, `gc` or `ctypes` is outside the
+threat model; BaseException propagates by design; the ledger lock is exercised across threads only,
+never across processes. Open follow-ups: the audit-side considered-versus-built cross-check
+(CS-1266); the D4 fuel half has no rule; `power.headroom` is silent on real worlds until CS-1059
+publishes generation.
+
+### 2026-10-04 - CS-700 - PROGRESS RECORD. NOT A COMPLETION RECORD. NOTHING CLOSED. The transitive undici pin moves to 7.29.1 and the open Dependabot alerts read zero
+Verification: `shell/package-lock.json` (undici 7.29.1); `THIRD_PARTY.md` undici row. The
+session-123 push notice reported 10 Dependabot vulnerabilities on the default branch; after the
+bump GitHub's open-alert count was READ as 0. This clears the dependency-alert half of the
+pre-flip triage the session-123 report asked for; no GATED.md clause names it, so no gate row
+changes.
+
+### 2026-10-04 - CS-1263 - CLOSED: the audit's world draw reads each machine's clock, exact where the power law yields a value and a named bound where it does not
+Verification: `clockspeed/audit/balance.py::clocked_draw_of`, carried as
+`WorldBalance.clocked_draw`; `clockspeed/audit/machines.py` (`overclock_elided`);
+`tests/audit/test_balance.py::test_the_reference_clock_is_exact_under_any_exponent`,
+`::test_a_whole_exponent_away_from_the_reference_clock_is_exact`,
+`::test_a_zero_clock_is_exact_zero_under_a_positive_exponent`,
+`::test_a_fractional_exponent_is_a_named_bound_bracketing_the_law`,
+`::test_the_bracket_contains_the_physical_draw`, `::test_an_unread_clock_is_a_named_gap_never_one`,
+`::test_an_elided_clock_is_priced_exactly_at_the_default_and_counted`;
+`tests/audit/test_machines.py::test_an_absent_overclock_on_a_cleanly_read_payload_is_marked_elided`,
+`::test_an_absent_overclock_on_an_unread_payload_is_not_marked_elided`,
+`::test_an_absent_overclock_beside_a_disagreeing_tag_is_not_marked_elided`;
+`tests/audit/test_round_trip.py::test_audit_draw_upper_bound_equals_solver_figure_on_fractional_plans`,
+`::test_audit_draw_is_exact_and_equals_solver_figure_on_integral_plans`,
+`::test_the_clocked_draw_reddens_when_the_clock_is_ignored`, which replace the pinned divergence
+test as the acceptance requires. LIBRARY MEASUREMENT, counts only, over the 40-save library: 3680
+machines, 3162 with no clock tag, 518 with one, none of the 518 at exactly 1 (483 above, 35
+below); `mPendingPotential` absent on every elided machine. DECISION: a machine with no clock tag
+on a cleanly read payload with no disagreeing tag is ELIDED and priced at the class default
+(`ELIDED_CLOCK_DEFAULT`, the reference clock) in its own counted group,
+`WARN_BALANCE_CLOCK_ELIDED`; a refused value, an unread payload or a disagreeing tag stays a named
+gap and is never priced at one. REVERSED BY: a measured save in which an untagged machine runs at
+a non-default clock. Adversary passes: the bracket arithmetic SURVIVES; the elided-clock reading
+SURVIVES. Follow-ups filed: CS-1264 (production boost unchecked), CS-1265 (the flow audit reads an
+untagged clock as unread while the balance prices it at the default). The item section is
+relocated to `docs/history_notes.md`.
+
+### 2026-10-04 - CS-400 - REPAIR RECORD. NOT A RE-CLOSE. The phase 4 gate's nested save-suite run is sharded in three, and its timeout is not raised
+Verification: `tests/save/test_phase4_gate.py::test_the_save_suite_passes_with_no_install_and_no_save`
+(node id unchanged), `::test_the_nested_run_is_split_so_no_one_child_call_carries_the_whole_suite`,
+`::test_every_shard_command_is_the_whole_command_with_only_its_targets_swapped`,
+`::test_the_shards_partition_the_whole_collection_exactly`,
+`::test_a_broken_partition_is_named_rather_than_walked_past`. Tier2 schedule run 37193626407 was
+red on one job, the windows-latest clean-checkout probe save leg: the nested child ran the whole of
+`tests/save` as one call and crossed `_CHILD_TIMEOUT_SECONDS`. The whole now runs as three
+sequential child calls, each under the same bound; units are test files, except the two files
+split per top-level test because each alone outweighs a shard's share. Tier2 run 37220097152 on
+the repaired tip was READ as SUCCESS, every job. The adversary pass SURVIVES. RESIDUAL: per-shard
+CI time was not measured; the adversary projects the slowest shard near half the whole at `-n 2`,
+and the round-robin deal is uneven by about 1.8x.
+
 ### 2026-10-04 - CS-701 - ADJUDICATION RECORD. NOT A COMPLETION RECORD. The published identity is the configured author name plus the forge noreply address, and S8 grades it in the flip checks
 Verification: `tools/flip_checks.py::derive_identity_allowlist`, `::identity_scan`,
 `::control_identity`, `::run_all`; `tests/test_flip_checks.py::test_s8_passes_a_history_wholly_on_the_allowlist`,
