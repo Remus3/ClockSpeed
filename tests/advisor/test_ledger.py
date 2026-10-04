@@ -14,6 +14,8 @@ from __future__ import annotations
 
 import json
 import os
+import re
+import threading
 import time
 from pathlib import Path
 
@@ -28,7 +30,9 @@ from clockspeed.advisor.ledger import (
     Ledger,
     MuteStore,
     StoreCorruptError,
+    StoreError,
     StoreWriteError,
+    WorldTokenError,
     default_store_dir,
     world_key,
 )
@@ -43,10 +47,10 @@ SHA256_HEX_LENGTH = 64
 def _chain_hidden(exc: BaseException) -> bool:
     """Whether a default traceback prints nothing of this error's chain.
 
-    True when the raise set no cause and suppressed its context, so the only
+    True when the error has no cause and no context at all, so the only
     text a traceback adds beyond the frames is the error's own message.
     """
-    return exc.__cause__ is None and exc.__suppress_context__
+    return exc.__cause__ is None and exc.__context__ is None
 
 
 def test_the_synthetic_tokens_are_shaped_like_real_ones() -> None:
@@ -191,10 +195,25 @@ def test_world_key_is_a_stable_digest_not_the_token() -> None:
     assert all(c in "0123456789abcdef" for c in key)
 
 
-@pytest.mark.parametrize("bad", ["", 5, None, b"AAAAsyntheticTokenAAAA"])
-def test_a_non_token_is_refused(bad: object) -> None:
-    with pytest.raises((TypeError, ValueError)):
+@pytest.mark.parametrize(
+    "bad",
+    [
+        "",
+        5,
+        None,
+        b"AAAAsyntheticTokenAAAA",
+        "AAAAsynthetic\ud800TokenAAA",
+        "AAAAsynth\u00e9ticTokenAA",
+    ],
+)
+def test_a_non_token_is_refused_with_a_fixed_store_error(bad: object) -> None:
+    with pytest.raises(WorldTokenError) as info:
         world_key(bad)  # type: ignore[arg-type]
+    assert isinstance(info.value, StoreError)
+    fixed_args = info.value.args == (WorldTokenError.MESSAGE,)
+    assert fixed_args
+    assert info.value.__context__ is None
+    assert info.value.__cause__ is None
 
 
 def test_snooze_reads_the_injected_now_and_never_a_clock(
@@ -336,3 +355,330 @@ def test_the_default_store_dir_is_the_gitignored_data_dir() -> None:
     assert default_store_dir() == repo_root / "data"
     assert Ledger().directory_is_default
     assert MuteStore().directory_is_default
+
+
+# --- CS-500 S3 repair: the refuted findings, one arm each --------------------
+
+DIGEST_A = "a" * 64
+STALE_HEX = "0123456789abcdef"
+HELD_LOCK_ATTEMPTS = 3
+TEMP_NAME_DRAWS = 50
+
+
+def _write_both(directory: Path, payload: bytes) -> None:
+    for name in (LEDGER_FILENAME, MUTES_FILENAME):
+        (directory / name).write_bytes(payload)
+
+
+def _assert_both_refused_and_unchanged(directory: Path, payload: bytes) -> None:
+    with pytest.raises(StoreCorruptError):
+        Ledger(directory).set_state(TOKEN_A, "card-1", CardState.accepted())
+    with pytest.raises(StoreCorruptError):
+        MuteStore(directory).mute("power.headroom")
+    for name in (LEDGER_FILENAME, MUTES_FILENAME):
+        assert (directory / name).read_bytes() == payload
+
+
+def test_deep_nesting_is_refused_as_corrupt_and_unchanged(tmp_path: Path) -> None:
+    depth = 200_000
+    payload = b"[" * depth + b"]" * depth
+    _write_both(tmp_path, payload)
+    _assert_both_refused_and_unchanged(tmp_path, payload)
+
+
+def test_an_oversized_store_is_refused_and_unchanged(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    ledger_payload = b'{"schema_version": 1, "worlds": {}}'
+    mutes_payload = b'{"rules": ["a.rule", "b.rule"], "schema_version": 1}'
+    monkeypatch.setattr(ledger_mod, "MAX_STORE_BYTES", len(ledger_payload) - 1)
+    (tmp_path / LEDGER_FILENAME).write_bytes(ledger_payload)
+    (tmp_path / MUTES_FILENAME).write_bytes(mutes_payload)
+    with pytest.raises(StoreCorruptError):
+        Ledger(tmp_path).set_state(TOKEN_A, "card-1", CardState.accepted())
+    with pytest.raises(StoreCorruptError):
+        MuteStore(tmp_path).mute("power.headroom")
+    assert (tmp_path / LEDGER_FILENAME).read_bytes() == ledger_payload
+    assert (tmp_path / MUTES_FILENAME).read_bytes() == mutes_payload
+
+
+def test_the_size_cap_is_sixteen_mebibytes() -> None:
+    assert ledger_mod.MAX_STORE_BYTES == 16 * 1024 * 1024
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        b'{"schema_version": 1, "schema_version": 1, "worlds": {}}',
+        (
+            b'{"schema_version": 1, "worlds": {"' + DIGEST_A.encode() + b'": '
+            b'{"c": {"state": "pinned"}, "c": {"state": "accepted"}}}}'
+        ),
+        (
+            b'{"schema_version": 1, "worlds": {"'
+            + DIGEST_A.encode()
+            + b'": {}, "'
+            + DIGEST_A.encode()
+            + b'": {}}}'
+        ),
+    ],
+)
+def test_a_duplicate_key_is_refused_and_unchanged(tmp_path: Path, payload: bytes) -> None:
+    (tmp_path / LEDGER_FILENAME).write_bytes(payload)
+    with pytest.raises(StoreCorruptError):
+        Ledger(tmp_path).set_state(TOKEN_A, "card-1", CardState.accepted())
+    assert (tmp_path / LEDGER_FILENAME).read_bytes() == payload
+
+
+def test_a_duplicate_rule_document_key_is_refused(tmp_path: Path) -> None:
+    payload = b'{"rules": [], "rules": ["x"], "schema_version": 1}'
+    (tmp_path / MUTES_FILENAME).write_bytes(payload)
+    with pytest.raises(StoreCorruptError):
+        MuteStore(tmp_path).mute("power.headroom")
+    assert (tmp_path / MUTES_FILENAME).read_bytes() == payload
+
+
+@pytest.mark.parametrize(
+    "record",
+    [
+        b'{"state": "pinned", "until": null}',
+        b'{"state": "pinned", "until": 5}',
+        b'{"state": "snoozed", "until": null}',
+        b'{"state": "snoozed"}',
+    ],
+)
+def test_a_misplaced_until_is_refused_and_unchanged(tmp_path: Path, record: bytes) -> None:
+    payload = (
+        b'{"schema_version": 1, "worlds": {"' + DIGEST_A.encode() + b'": {"c": ' + record + b"}}}"
+    )
+    (tmp_path / LEDGER_FILENAME).write_bytes(payload)
+    with pytest.raises(StoreCorruptError):
+        Ledger(tmp_path).state(TOKEN_A, "card-1", now=0)
+    with pytest.raises(StoreCorruptError):
+        Ledger(tmp_path).set_state(TOKEN_A, "card-1", CardState.accepted())
+    assert (tmp_path / LEDGER_FILENAME).read_bytes() == payload
+
+
+@pytest.mark.parametrize("key", ["abc", "A" * 64, "g" * 64, "a" * 63, "a" * 65, TOKEN_A])
+def test_a_world_key_that_is_not_a_digest_is_refused(tmp_path: Path, key: str) -> None:
+    payload = b'{"schema_version": 1, "worlds": {"' + key.encode() + b'": {}}}'
+    (tmp_path / LEDGER_FILENAME).write_bytes(payload)
+    with pytest.raises(StoreCorruptError):
+        Ledger(tmp_path).set_state(TOKEN_A, "card-1", CardState.accepted())
+    assert (tmp_path / LEDGER_FILENAME).read_bytes() == payload
+
+
+def test_a_digest_world_key_is_accepted(tmp_path: Path) -> None:
+    # Control for the arm above: the same document with a digest key reads.
+    payload = b'{"schema_version": 1, "worlds": {"' + DIGEST_A.encode() + b'": {}}}'
+    (tmp_path / LEDGER_FILENAME).write_bytes(payload)
+    assert Ledger(tmp_path).state(TOKEN_A, "card-1", now=0) == CardState.new()
+
+
+def test_two_instances_interleaving_keep_both_cards(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # A reads, then pauses; B starts its own read-modify-write while A is
+    # paused. Without a lock B reads the store before A has written and its
+    # write then drops A's card.
+    real_read = ledger_mod._read_doc  # noqa: SLF001 - the seam under test
+    a_inside = threading.Event()
+    calls = {"n": 0}
+    guard = threading.Lock()
+
+    def slow_first_read(target: Path, payload_key: str) -> object:
+        with guard:
+            calls["n"] += 1
+            first = calls["n"] == 1
+        result = real_read(target, payload_key)
+        if first:
+            a_inside.set()
+            time.sleep(0.3)
+        return result
+
+    monkeypatch.setattr(ledger_mod, "_read_doc", slow_first_read)
+    errors: list[BaseException] = []
+
+    def write(card_id: str) -> None:
+        try:
+            Ledger(tmp_path).set_state(TOKEN_A, card_id, CardState.accepted())
+        except BaseException as exc:
+            errors.append(exc)
+
+    a = threading.Thread(target=write, args=("card-a",))
+    a.start()
+    assert a_inside.wait(5)
+    b = threading.Thread(target=write, args=("card-b",))
+    b.start()
+    a.join(10)
+    b.join(10)
+    assert errors == []
+    reread = Ledger(tmp_path)
+    assert reread.state(TOKEN_A, "card-a", now=0) == CardState.accepted()
+    assert reread.state(TOKEN_A, "card-b", now=0) == CardState.accepted()
+
+
+def test_threaded_writers_lose_nothing_silently(tmp_path: Path) -> None:
+    attempted = [f"card-{i}" for i in range(12)]
+    refused: list[str] = []
+    other: list[BaseException] = []
+
+    def write(card_id: str) -> None:
+        try:
+            Ledger(tmp_path).set_state(TOKEN_A, card_id, CardState.pinned())
+        except StoreWriteError:
+            refused.append(card_id)
+        except BaseException as exc:
+            other.append(exc)
+
+    threads = [threading.Thread(target=write, args=(c,)) for c in attempted]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join(30)
+    assert other == []
+    reread = Ledger(tmp_path)
+    persisted = {c for c in attempted if reread.state(TOKEN_A, c, now=0) == CardState.pinned()}
+    assert persisted == set(attempted) - set(refused)
+    leftovers = sorted(p.name for p in tmp_path.iterdir())
+    assert leftovers == [LEDGER_FILENAME]
+
+
+def test_a_held_lock_refuses_the_write_loudly(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    led = Ledger(tmp_path)
+    led.set_state(TOKEN_A, "card-1", CardState.accepted())
+    before = (tmp_path / LEDGER_FILENAME).read_bytes()
+    lock = tmp_path / f".{LEDGER_FILENAME}.lock"
+    lock.write_bytes(b"")
+    sleeps: list[float] = []
+    monkeypatch.setattr(ledger_mod, "_LOCK_ATTEMPTS", HELD_LOCK_ATTEMPTS)
+    monkeypatch.setattr(ledger_mod.time, "sleep", sleeps.append)
+    with pytest.raises(StoreWriteError) as info:
+        led.set_state(TOKEN_A, "card-1", CardState.dismissed())
+    assert info.value.__context__ is None
+    assert len(sleeps) == HELD_LOCK_ATTEMPTS
+    assert (tmp_path / LEDGER_FILENAME).read_bytes() == before
+    # Another holder's lock is never ours to remove.
+    assert lock.exists()
+
+
+def test_temp_names_are_unique_per_write_and_match_the_sweep(tmp_path: Path) -> None:
+    target = tmp_path / LEDGER_FILENAME
+    temp_path = ledger_mod._temp_path  # noqa: SLF001 - the seam under test
+    names = {temp_path(target).name for _ in range(TEMP_NAME_DRAWS)}
+    assert len(names) == TEMP_NAME_DRAWS
+    pattern = ledger_mod._temp_pattern(LEDGER_FILENAME)  # noqa: SLF001 - the seam under test
+    assert all(pattern.fullmatch(n) for n in names)
+    # Thread id and pid are both in the name, not the pid alone.
+    one = next(iter(names))
+    assert f".{os.getpid()}.{threading.get_ident()}." in one
+
+
+def test_stale_temp_files_are_swept_on_a_successful_write(tmp_path: Path) -> None:
+    stale = tmp_path / f".{LEDGER_FILENAME}.11.22.{STALE_HEX}.tmp"
+    not_ours = tmp_path / f".{LEDGER_FILENAME}.notours.tmp"
+    other_store = tmp_path / f".{MUTES_FILENAME}.11.22.{STALE_HEX}.tmp"
+    for p in (stale, not_ours, other_store):
+        p.write_bytes(b"x")
+    Ledger(tmp_path).set_state(TOKEN_A, "card-1", CardState.accepted())
+    assert not stale.exists()
+    assert not_ours.exists()
+    assert other_store.exists()
+
+
+def test_the_rename_retries_a_transient_lock(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    real_replace = os.replace
+    attempts = ledger_mod._RENAME_ATTEMPTS  # noqa: SLF001 - the bound under test
+    failures = {"left": attempts - 1}
+    sleeps: list[float] = []
+
+    def flaky(src: object, dst: object) -> None:
+        if failures["left"] > 0:
+            failures["left"] -= 1
+            raise PermissionError(13, "Access is denied")
+        real_replace(src, dst)  # type: ignore[arg-type]
+
+    monkeypatch.setattr(os, "replace", flaky)
+    monkeypatch.setattr(ledger_mod.time, "sleep", sleeps.append)
+    Ledger(tmp_path).set_state(TOKEN_A, "card-1", CardState.accepted())
+    assert Ledger(tmp_path).state(TOKEN_A, "card-1", now=0) == CardState.accepted()
+    assert len(sleeps) == attempts - 1
+
+
+def test_the_rename_gives_up_after_its_bound(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    attempts = ledger_mod._RENAME_ATTEMPTS  # noqa: SLF001 - the bound under test
+    calls = {"n": 0}
+
+    def always(_src: object, _dst: object) -> None:
+        calls["n"] += 1
+        raise PermissionError(13, "Access is denied")
+
+    monkeypatch.setattr(os, "replace", always)
+    monkeypatch.setattr(ledger_mod.time, "sleep", lambda _s: None)
+    with pytest.raises(StoreWriteError):
+        Ledger(tmp_path).set_state(TOKEN_A, "card-1", CardState.accepted())
+    assert calls["n"] == attempts
+
+
+def test_fsync_precedes_the_rename(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    events: list[str] = []
+    real_fsync = os.fsync
+    real_replace = os.replace
+
+    def spy_fsync(fd: int) -> None:
+        events.append("fsync")
+        real_fsync(fd)
+
+    def spy_replace(src: object, dst: object) -> None:
+        events.append("replace")
+        real_replace(src, dst)  # type: ignore[arg-type]
+
+    monkeypatch.setattr(os, "fsync", spy_fsync)
+    monkeypatch.setattr(os, "replace", spy_replace)
+    MuteStore(tmp_path).mute("power.headroom")
+    assert events == ["fsync", "replace"]
+
+
+def test_store_errors_carry_no_context_and_no_cause(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    caught: list[BaseException] = []
+    (tmp_path / "bad").mkdir()
+    (tmp_path / "bad" / LEDGER_FILENAME).write_bytes(b"{not json")
+    with pytest.raises(StoreCorruptError) as corrupt:
+        Ledger(tmp_path / "bad").state(TOKEN_A, "card-1", now=0)
+    caught.append(corrupt.value)
+    (tmp_path / "rec").mkdir()
+    (tmp_path / "rec" / LEDGER_FILENAME).write_bytes(
+        b'{"schema_version": 1, "worlds": {"' + DIGEST_A.encode() + b'": {"c": {"state": "x"}}}}'
+    )
+    with pytest.raises(StoreCorruptError) as record:
+        Ledger(tmp_path / "rec").state(TOKEN_A, "card-1", now=0)
+    caught.append(record.value)
+    with pytest.raises(WorldTokenError) as token:
+        world_key("")
+    caught.append(token.value)
+
+    def _refuse(_src: object, _dst: object) -> None:
+        raise OSError(28, "No space left on device")
+
+    monkeypatch.setattr(os, "replace", _refuse)
+    with pytest.raises(StoreWriteError) as write:
+        MuteStore(tmp_path / "w").mute("power.headroom")
+    caught.append(write.value)
+    with_context = [type(e).__name__ for e in caught if e.__context__ is not None]
+    with_cause = [type(e).__name__ for e in caught if e.__cause__ is not None]
+    assert with_context == []
+    assert with_cause == []
+
+
+def test_the_default_store_dir_uses_no_private_import() -> None:
+    source = Path(ledger_mod.__file__).read_text(encoding="ascii")
+    assert re.search(r"import\s+_\w+|import\s*\(?[^)\n]*\b_repo_root\b", source) is None
+    assert "_repo_root" not in vars(ledger_mod)

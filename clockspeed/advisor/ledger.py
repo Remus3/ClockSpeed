@@ -19,17 +19,44 @@ TIME. A snooze carries an ``until`` instant, and every read that resolves a
 snooze takes the current instant as an injected ``now``. This module never
 reads a clock, so the same inputs always give the same state.
 
-DURABILITY. Every write is atomic: the whole document is serialised to a
-temporary file in the same directory and renamed over the target, so a reader
-sees the old store or the new one and never a half-written file (CLAUDE.md
-non-negotiable 5). JSON is written with sorted keys, ASCII only, LF only, so two
-runs over the same state produce identical bytes.
+DURABILITY. Every write serialises the whole document to a temporary file in
+the same directory, fsyncs it, and renames it over the target with
+``os.replace`` (CLAUDE.md non-negotiable 5). What that guarantees differs by
+platform, and this module claims only the weaker half. On POSIX the rename is
+atomic. On Windows ``os.replace`` is ``MoveFileExW`` with
+``MOVEFILE_REPLACE_EXISTING``, which the platform does not document as atomic;
+what holds there is that the new bytes are complete and flushed before the
+rename, so a reader never sees a HALF-WRITTEN document, and that a reader
+holding the target open can make the rename fail, which is retried briefly and
+then refused as :class:`StoreWriteError` with the old store in place. A read
+racing a rename on Windows can likewise fail and is refused as
+:class:`StoreReadError`, never answered from partial bytes. JSON is written
+with sorted keys, ASCII only, LF only, so two runs over the same state produce
+identical bytes.
 
-CORRUPTION. A store that does not parse, or parses into anything other than the
-exact shape this version writes, is REFUSED with :class:`StoreCorruptError` and
-left byte-for-byte unchanged - a write never proceeds over a store it could not
-read. Every document carries ``schema_version`` from its first write; only that
-field ships here, and migration between versions belongs to CS-1253.
+CONCURRENCY. Every read-modify-write holds a per-store lock file created with
+``O_CREAT | O_EXCL``, so two writers - threads or processes - cannot both read
+the old document and each drop the other's change. The wait is bounded; a
+writer that cannot take the lock raises :class:`StoreWriteError` rather than
+writing nothing in silence. A lock left behind by a killed process is NOT
+broken automatically: every later write is refused loudly until it is removed,
+which is the safe failure for a store whose holder cannot be proven dead.
+Temporary names carry the pid, the thread id and a random suffix, and while
+holding the lock a successful write removes any stale temporary file of its
+own store, since no other writer of that store can be mid-write then.
+
+CORRUPTION. A store that does not parse, nests deeper than the parser can
+follow, exceeds :data:`MAX_STORE_BYTES`, repeats a key, or parses into anything
+other than the exact shape this version writes, is REFUSED with
+:class:`StoreCorruptError` and left byte-for-byte unchanged - a write never
+proceeds over a store it could not read. Every document carries
+``schema_version`` from its first write; only that field ships here, and
+migration between versions belongs to CS-1253.
+
+ERRORS. Every error this module raises carries a fixed message and is raised
+outside any ``except`` block, so it has no ``__cause__`` and no
+``__context__`` - a traceback prints nothing of the underlying failure, whose
+text can carry a path.
 """
 
 from __future__ import annotations
@@ -38,11 +65,13 @@ import contextlib
 import hashlib
 import json
 import os
+import re
+import secrets
+import threading
 import time
+from collections.abc import Iterator
 from pathlib import Path
 from typing import Final
-
-from clockspeed.data.locate import _repo_root
 
 #: The version every document this module writes carries from its first write.
 SCHEMA_VERSION: Final = 1
@@ -63,10 +92,22 @@ MUTES_FILENAME: Final = "mutes.json"
 _RENAME_ATTEMPTS: Final = 5
 _RENAME_BACKOFF_SECONDS: Final = 0.05
 
+# The lock wait: bounded, then refused. 500 x 10 ms is five seconds.
+_LOCK_ATTEMPTS = 500
+_LOCK_BACKOFF_SECONDS: Final = 0.01
+
+#: The largest store this module will read. A store is a few kilobytes; a
+#: larger one is not a document this module wrote, and reading it whole would
+#: be an unbounded allocation.
+MAX_STORE_BYTES = 16 * 1024 * 1024
+
+# A world key is a SHA-256 hex digest, exactly as world_key writes it.
+_WORLD_KEY_RE: Final = re.compile(r"[0-9a-f]{64}")
+
 _MSG_CORRUPT: Final = "the advice store is corrupt and was left unchanged"
 _MSG_UNREADABLE: Final = "the advice store could not be read"
 _MSG_UNWRITABLE: Final = "the advice store could not be written; it is unchanged"
-_MSG_BAD_WORLD: Final = "a world token must be a non-empty str"
+_MSG_BUSY: Final = "the advice store is locked by another writer; nothing was written"
 _MSG_BAD_KIND: Final = "unknown card state kind"
 _MSG_BAD_UNTIL: Final = "a snoozed state needs an until instant and no other state carries one"
 _MSG_BAD_INSTANT: Final = "an instant must be an int"
@@ -93,32 +134,44 @@ class StoreWriteError(StoreError):
     """The new document could not be put in place. The old store is unchanged."""
 
 
+class WorldTokenError(StoreError):
+    """The world token is not a non-empty ASCII str. The token is never in args."""
+
+    MESSAGE: Final = "a world token must be a non-empty ASCII str"
+
+
 # --- identity -----------------------------------------------------------------
 
 
 def world_key(token: str) -> str:
     """Return the digest a world is keyed by - never the token itself.
 
+    The digest is unsalted on purpose: it is a STABLE pseudonym, so the same
+    world maps to the same key on every run, and it is not reversible.
+
     Args:
         token: The save header's world token.
 
     Returns:
-        The SHA-256 hex digest of the token's UTF-8 bytes.
+        The SHA-256 hex digest of the token's ASCII bytes.
 
     Raises:
-        TypeError: The token is not a str.
-        ValueError: The token is empty.
+        WorldTokenError: The token is not a str, is empty, or is not ASCII. It
+            is checked before any encoding, so no codec error can carry it.
     """
-    if not isinstance(token, str):
-        raise TypeError(_MSG_BAD_WORLD)
-    if not token:
-        raise ValueError(_MSG_BAD_WORLD)
-    return hashlib.sha256(token.encode("utf-8")).hexdigest()
+    if not isinstance(token, str) or not token or not token.isascii():
+        raise WorldTokenError(WorldTokenError.MESSAGE)
+    return hashlib.sha256(token.encode("ascii")).hexdigest()
 
 
 def default_store_dir() -> Path:
-    """Return the default store directory - the gitignored ``data/``."""
-    return _repo_root() / "data"
+    """Return the default store directory - the gitignored ``data/``.
+
+    The repository root is derived from this file's own location, as
+    ``clockspeed/save/workdir.py`` derives it, rather than borrowed from
+    another layer's private helper.
+    """
+    return Path(__file__).resolve().parents[2] / "data"
 
 
 def _check_id(value: object) -> str:
@@ -224,18 +277,20 @@ class CardState:
         Raises:
             StoreCorruptError: The record is not a stored state.
         """
-        if not isinstance(doc, dict) or not set(doc) <= {"state", "until"}:
+        if not isinstance(doc, dict):
             raise StoreCorruptError(_MSG_CORRUPT)
         kind = doc.get("state")
+        # A snooze carries an int until and nothing else carries the key at
+        # all - not even as null, which this version never writes.
+        expected = {"state", "until"} if kind == "snoozed" else {"state"}
+        if set(doc) != expected or kind not in CARD_STATE_KINDS or kind == "new":
+            raise StoreCorruptError(_MSG_CORRUPT)
         until = doc.get("until")
-        if not isinstance(kind, str) or kind == "new":
+        if until is not None and type(until) is not int:
             raise StoreCorruptError(_MSG_CORRUPT)
-        if until is not None and (isinstance(until, bool) or not isinstance(until, int)):
+        if kind == "snoozed" and until is None:
             raise StoreCorruptError(_MSG_CORRUPT)
-        try:
-            return cls(kind, until)
-        except (TypeError, ValueError):
-            raise StoreCorruptError(_MSG_CORRUPT) from None
+        return cls(kind, until)
 
 
 # --- the shared file mechanics -----------------------------------------------
@@ -245,19 +300,44 @@ def _serialise(doc: dict[str, object]) -> bytes:
     return json.dumps(doc, sort_keys=True, indent=2, ensure_ascii=True).encode("ascii") + b"\n"
 
 
+def _unique_pairs(pairs: list[tuple[str, object]]) -> dict[str, object]:
+    """Build a JSON object, refusing a repeated key instead of keeping the last."""
+    out = dict(pairs)
+    if len(out) != len(pairs):
+        raise ValueError(_MSG_CORRUPT)
+    return out
+
+
+def _read_raw(target: Path) -> tuple[bytes | None, bool]:
+    """Read at most one byte past the cap. ``(None, False)`` means no store."""
+    raw: bytes | None = None
+    unreadable = False
+    try:
+        with target.open("rb") as handle:
+            raw = handle.read(MAX_STORE_BYTES + 1)
+    except FileNotFoundError:
+        pass
+    except OSError:
+        unreadable = True
+    return raw, unreadable
+
+
 def _read_doc(target: Path, payload_key: str) -> dict[str, object] | None:
     """Read and shape-check one store. ``None`` means no store exists yet."""
-    try:
-        raw = target.read_bytes()
-    except FileNotFoundError:
+    raw, unreadable = _read_raw(target)
+    if unreadable:
+        raise StoreReadError(_MSG_UNREADABLE)
+    if raw is None:
         return None
-    except OSError:
-        raise StoreReadError(_MSG_UNREADABLE) from None
+    if len(raw) > MAX_STORE_BYTES:
+        raise StoreCorruptError(_MSG_CORRUPT)
+    doc: object = None
+    corrupt = False
     try:
-        doc = json.loads(raw.decode("ascii"))
-    except (UnicodeDecodeError, ValueError):
-        raise StoreCorruptError(_MSG_CORRUPT) from None
-    if not isinstance(doc, dict) or set(doc) != {"schema_version", payload_key}:
+        doc = json.loads(raw.decode("ascii"), object_pairs_hook=_unique_pairs)
+    except (UnicodeDecodeError, ValueError, RecursionError):
+        corrupt = True
+    if corrupt or not isinstance(doc, dict) or set(doc) != {"schema_version", payload_key}:
         raise StoreCorruptError(_MSG_CORRUPT)
     version = doc["schema_version"]
     # bool and float compare equal to 1 but are not a version this wrote.
@@ -278,22 +358,92 @@ def _rename_with_retry(tmp: Path, target: Path) -> None:
     tmp.replace(target)
 
 
-def _write_doc(target: Path, doc: dict[str, object]) -> None:
-    """Put ``doc`` at ``target`` atomically: temp file, then rename."""
-    data = _serialise(doc)
-    tmp = target.with_name(f".{target.name}.{os.getpid()}.tmp")
+def _temp_pattern(name: str) -> re.Pattern[str]:
+    """The exact shape of this store's temporary names, and nothing else."""
+    return re.compile(rf"\.{re.escape(name)}\.[0-9]+\.[0-9]+\.[0-9a-f]{{16}}\.tmp")
+
+
+def _temp_path(target: Path) -> Path:
+    """A temporary name unique per write: pid, thread id and a random suffix."""
+    suffix = secrets.token_hex(8)
+    return target.with_name(f".{target.name}.{os.getpid()}.{threading.get_ident()}.{suffix}.tmp")
+
+
+def _sweep_stale_temps(target: Path) -> None:
+    """Remove this store's own leftover temporary files. Call holding the lock."""
+    pattern = _temp_pattern(target.name)
+    with contextlib.suppress(OSError):
+        for entry in target.parent.iterdir():
+            if pattern.fullmatch(entry.name):
+                with contextlib.suppress(OSError):
+                    entry.unlink()
+
+
+def _try_create_lock(lock: Path) -> tuple[int | None, bool]:
+    """One attempt at the lock. Returns ``(fd, retry)``."""
+    fd: int | None = None
+    retry = False
+    try:
+        fd = os.open(lock, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+    except FileExistsError:
+        retry = True
+    except PermissionError:
+        # Windows reports a lock file in delete-pending state this way.
+        retry = True
+    except OSError:
+        retry = False
+    return fd, retry
+
+
+@contextlib.contextmanager
+def _locked(target: Path) -> Iterator[None]:
+    """Hold ``target``'s lock file for one read-modify-write, waiting boundedly."""
+    lock = target.with_name(f".{target.name}.lock")
+    unwritable = False
     try:
         target.parent.mkdir(parents=True, exist_ok=True)
-        with tmp.open("wb") as handle:
+    except OSError:
+        unwritable = True
+    if unwritable:
+        raise StoreWriteError(_MSG_UNWRITABLE)
+    fd: int | None = None
+    for _ in range(_LOCK_ATTEMPTS):
+        fd, retry = _try_create_lock(lock)
+        if fd is not None or not retry:
+            break
+        time.sleep(_LOCK_BACKOFF_SECONDS)
+    if fd is None:
+        raise StoreWriteError(_MSG_BUSY)
+    try:
+        yield
+    finally:
+        os.close(fd)
+        with contextlib.suppress(OSError):
+            lock.unlink()
+
+
+def _write_doc(target: Path, doc: dict[str, object]) -> None:
+    """Put ``doc`` at ``target``: unique temp file, fsync, then rename.
+
+    The caller holds :func:`_locked` for ``target``.
+    """
+    data = _serialise(doc)
+    tmp = _temp_path(target)
+    failed = False
+    try:
+        with tmp.open("xb") as handle:
             handle.write(data)
             handle.flush()
             os.fsync(handle.fileno())
         _rename_with_retry(tmp, target)
     except OSError:
-        raise StoreWriteError(_MSG_UNWRITABLE) from None
+        failed = True
     finally:
         with contextlib.suppress(OSError):
             tmp.unlink(missing_ok=True)
+    if failed:
+        raise StoreWriteError(_MSG_UNWRITABLE)
+    _sweep_stale_temps(target)
 
 
 class _Store:
@@ -334,7 +484,7 @@ class Ledger(_Store):
             raise StoreCorruptError(_MSG_CORRUPT)
         out: dict[str, dict[str, CardState]] = {}
         for key, cards in worlds.items():
-            if not isinstance(cards, dict):
+            if not isinstance(cards, dict) or not _WORLD_KEY_RE.fullmatch(key):
                 raise StoreCorruptError(_MSG_CORRUPT)
             out[key] = {_check_stored_id(cid): CardState.from_record(s) for cid, s in cards.items()}
         return out
@@ -373,13 +523,14 @@ class Ledger(_Store):
         _check_id(card_id)
         if not isinstance(state, CardState):
             raise TypeError(_MSG_BAD_KIND)
-        worlds = self._worlds()
-        cards = worlds.setdefault(key, {})
-        if state.kind == "new":
-            cards.pop(card_id, None)
-        else:
-            cards[card_id] = state
-        self._save(worlds)
+        with _locked(self._path()):
+            worlds = self._worlds()
+            cards = worlds.setdefault(key, {})
+            if state.kind == "new":
+                cards.pop(card_id, None)
+            else:
+                cards[card_id] = state
+            self._save(worlds)
 
     def snooze(self, token: str, card_id: str, *, until: int, now: int) -> None:
         """Snooze a card until ``until``, which must lie after the injected ``now``."""
@@ -430,8 +581,12 @@ class MuteStore(_Store):
 
     def mute(self, rule_id: str) -> None:
         """Mute a rule across every world."""
-        self._save(self.muted() | {_check_id(rule_id)})
+        rule = _check_id(rule_id)
+        with _locked(self._path()):
+            self._save(self.muted() | {rule})
 
     def unmute(self, rule_id: str) -> None:
         """Lift a rule's mute. Unmuting a rule that is not muted is a no-op write."""
-        self._save(self.muted() - {_check_id(rule_id)})
+        rule = _check_id(rule_id)
+        with _locked(self._path()):
+            self._save(self.muted() - {rule})
