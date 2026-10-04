@@ -636,17 +636,18 @@ def full(class_path: str, count: int, **kwargs: bool) -> objects.StructValue:
     return save_stack(**{SAVE_ITEM_NAME: item(class_path, **kwargs), SAVE_COUNT_NAME: count})
 
 
-def actor_record(type_path: str) -> objects.ObjectRecord:
+def actor_record(type_path: str, kind: str = objects.KIND_ACTOR) -> objects.ObjectRecord:
     """Build one synthetic record of the given class.
 
     Args:
         type_path: The record's class path.
+        kind: The record kind; an ACTOR unless a component is asked for.
 
     Returns:
         The record.
     """
     return objects.ObjectRecord(
-        kind=objects.KIND_ACTOR,
+        kind=kind,
         type_path=type_path,
         root_object="Persistent_Level",
         instance_name="Persistent_Level:PersistentLevel.Synthetic_0",
@@ -689,6 +690,15 @@ def joined(
     )
 
 
+def component_record() -> objects.ObjectRecord:
+    """Build one synthetic COMPONENT record - an inventory carrier's kind.
+
+    Returns:
+        The record.
+    """
+    return actor_record(COMPONENT_CLASS_PATH, objects.KIND_COMPONENT)
+
+
 def resolved(index: int) -> world_layer.ReferenceTarget:
     """A reference resolved to exactly one record.
 
@@ -718,7 +728,7 @@ def building_world(
             0: joined({}, targets or (resolved(1),)),
             1: entry({"mInventoryStacks": container(*stacks)}),
         },
-        records=(actor_record(BUILDING_CLASS_PATH), actor_record(COMPONENT_CLASS_PATH)),
+        records=(actor_record(BUILDING_CLASS_PATH), component_record()),
     )
 
 
@@ -915,8 +925,8 @@ def test_an_unresolved_or_ambiguous_reference_is_counted_and_never_followed() ->
         },
         records=(
             actor_record(BUILDING_CLASS_PATH),
-            actor_record(COMPONENT_CLASS_PATH),
-            actor_record(COMPONENT_CLASS_PATH),
+            component_record(),
+            component_record(),
         ),
     )
 
@@ -947,7 +957,7 @@ def test_targets_misaligned_with_their_references_are_never_followed() -> None:
             0: misaligned,
             1: entry({"mInventoryStacks": container(full(ORE_PATH, 8))}),
         },
-        records=(actor_record(BUILDING_CLASS_PATH), actor_record(COMPONENT_CLASS_PATH)),
+        records=(actor_record(BUILDING_CLASS_PATH), component_record()),
     )
 
     result = inventory.inventory_of(model)
@@ -976,8 +986,8 @@ def test_a_building_reaches_each_carrier_once_and_sums_two_carriers() -> None:
         },
         records=(
             actor_record(BUILDING_CLASS_PATH),
-            actor_record(COMPONENT_CLASS_PATH),
-            actor_record(COMPONENT_CLASS_PATH),
+            component_record(),
+            component_record(),
         ),
     )
 
@@ -991,48 +1001,108 @@ def test_a_building_reaches_each_carrier_once_and_sums_two_carriers() -> None:
     assert result.references_resolved == expected_resolved
 
 
-def test_a_carrier_named_by_two_buildings_is_counted_once_in_the_world_total() -> None:
+def partition_holds(result: inventory.WorldInventory) -> list[str]:
+    """Which half of the ownership invariant fails, by name only.
+
+    The per-building sums plus the unattributed and conflict sums must equal the
+    world total EXACTLY, for stacks and for items alike - the merger's
+    acceptance for CS-400 S3.
+
+    Args:
+        result: The inventory model.
+
+    Returns:
+        ``"stacks"`` and/or ``"items"`` for each half that does not hold.
+    """
+    building_stacks = sum(building.stack_count for building in result.buildings)
+    building_items = sum(total.count for building in result.buildings for total in building.items)
+    failing: list[str] = []
+    if (
+        building_stacks + result.unattributed_stack_count + result.conflict_stack_count
+        != result.stack_count
+    ):
+        failing.append("stacks")
+    if (
+        building_items + result.unattributed_item_count + result.conflict_item_count
+        != result.total_count
+    ):
+        failing.append("items")
+    return failing
+
+
+def test_a_carrier_claimed_by_two_actors_is_a_conflict_in_neither_view() -> None:
     model = world(
         by_record_index={
             0: joined({}, (resolved(2),)),
             1: joined({}, (resolved(2),)),
-            2: entry({"mInventoryStacks": container(full(ORE_PATH, 10))}),
+            2: entry({"mInventoryStacks": container(full(ORE_PATH, 10), full("", 0))}),
         },
         records=(
             actor_record(BUILDING_CLASS_PATH),
             actor_record(BUILDING_CLASS_PATH),
-            actor_record(COMPONENT_CLASS_PATH),
+            component_record(),
         ),
     )
 
     result = inventory.inventory_of(model)
 
-    expected_buildings = 2
-    assert len(result.buildings) == expected_buildings
-    assert [rows_of(building) for building in result.buildings] == [
-        [(ORE_KEY, 10)],
-        [(ORE_KEY, 10)],
-    ]
+    expected_stacks = 2
+    assert result.buildings == ()
+    assert result.conflict_carrier_count == 1
+    assert result.conflict_stack_count == expected_stacks
+    assert result.conflict_item_count == 10  # noqa: PLR2004 - the planted count
+    assert result.unattributed_carrier_count == 0
+    # The world total still holds the carrier exactly once.
     assert [(total.item_key, total.count) for total in result.items] == [(ORE_KEY, 10)]
+    assert partition_holds(result) == []
 
 
-def test_a_resolved_target_holding_no_stack_makes_no_building() -> None:
+def test_a_component_reference_never_claims_a_carrier() -> None:
+    # MEASURED: a factory connection COMPONENT names the inventory it feeds,
+    # and following it made one carrier reachable from several records. Only
+    # an ACTOR's reference claims; the connection's is counted as resolved.
     model = world(
         by_record_index={
-            0: joined({}, (resolved(1), resolved(7))),
-            1: entry({"mSomethingElse": 3}),
+            0: joined({}, (resolved(2),)),
+            1: joined({}, (resolved(2),)),
+            2: entry({"mInventoryStacks": container(full(ORE_PATH, 4))}),
         },
-        records=(actor_record(BUILDING_CLASS_PATH), actor_record(COMPONENT_CLASS_PATH)),
+        records=(actor_record(BUILDING_CLASS_PATH), component_record(), component_record()),
     )
 
     result = inventory.inventory_of(model)
 
     expected_resolved = 2
-    assert result.buildings == ()
+    assert [rows_of(building) for building in result.buildings] == [[(ORE_KEY, 4)]]
+    assert result.conflict_carrier_count == 0
     assert result.references_resolved == expected_resolved
+    assert partition_holds(result) == []
 
 
-def test_a_building_beyond_the_record_table_gets_an_empty_class_name() -> None:
+def test_a_carrier_no_actor_claims_is_counted_unattributed() -> None:
+    model = world(
+        by_record_index={
+            0: joined({}, (resolved(1),)),
+            1: entry({"mInventoryStacks": container(full(ORE_PATH, 3))}),
+            2: entry({"mInventoryStacks": container(full(PLATE_PATH, 6), full("", 0))}),
+        },
+        records=(actor_record(BUILDING_CLASS_PATH), component_record(), component_record()),
+    )
+
+    result = inventory.inventory_of(model)
+
+    expected_carriers = 2
+    expected_stacks = 2
+    assert result.carrier_count == expected_carriers
+    assert result.unattributed_carrier_count == 1
+    assert result.unattributed_stack_count == expected_stacks
+    assert result.unattributed_item_count == 6  # noqa: PLR2004 - the planted count
+    assert [rows_of(building) for building in result.buildings] == [[(ORE_KEY, 3)]]
+    assert partition_holds(result) == []
+
+
+def test_a_record_outside_the_table_claims_nothing() -> None:
+    # Its kind cannot be read, so it is not known to be an actor.
     model = world(
         by_record_index={
             5: joined({}, (resolved(1),)),
@@ -1042,12 +1112,91 @@ def test_a_building_beyond_the_record_table_gets_an_empty_class_name() -> None:
 
     result = inventory.inventory_of(model)
 
-    assert [building.class_name for building in result.buildings] == [""]
+    assert result.buildings == ()
+    assert result.unattributed_carrier_count == 1
+    assert partition_holds(result) == []
+
+
+def test_a_resolved_target_with_no_properties_entry_is_counted() -> None:
+    model = world(
+        by_record_index={
+            0: joined({}, (resolved(7), resolved(1), resolved(8))),
+            1: entry({"mInventoryStacks": container(full(ORE_PATH, 2))}),
+        },
+        records=(actor_record(BUILDING_CLASS_PATH), component_record()),
+    )
+
+    result = inventory.inventory_of(model)
+
+    expected_unwalked = 2
+    assert result.references_to_unwalked == expected_unwalked
+    # Counting the first unwalked target must not stop the walk of the rest.
+    assert [rows_of(building) for building in result.buildings] == [[(ORE_KEY, 2)]]
+
+
+def test_a_building_carries_its_own_container_and_undecoded_counts() -> None:
+    model = building_world(full(ORE_PATH, 2), None, None)
+
+    result = inventory.inventory_of(model)
+
+    expected_undecoded = 2
+    building = result.buildings[0]
+    assert building.containers_read == 1
+    assert building.undecoded_entry_count == expected_undecoded
+    assert result.undecoded_entry_count == expected_undecoded
+
+
+def test_a_disagreeing_stack_is_never_counted_as_state_undecoded() -> None:
+    model = building_world(full(ORE_PATH, 0, state_undecoded=True))
+
+    result = inventory.inventory_of(model)
+
+    assert result.excluded == ((inventory.EXCLUDED_COUNT_DISAGREES, 1),)
+    assert result.state_undecoded_count == 0
+    assert result.buildings[0].state_undecoded_count == 0
+
+
+def test_the_partition_invariant_holds_over_every_shape_at_once() -> None:
+    model = world(
+        by_record_index={
+            0: joined({}, (resolved(3), resolved(4))),
+            1: joined({}, (resolved(5),)),
+            2: joined({}, (resolved(5), resolved(6))),
+            3: entry({"mInventoryStacks": container(full(ORE_PATH, 7), full("", 0))}),
+            4: entry({"mInventoryStacks": container(full(PLATE_PATH, 2), save_stack(NumItems=1))}),
+            5: entry({"mInventoryStacks": container(full(ORE_PATH, 11))}),
+            6: entry({"mInventoryStacks": container(full(PLATE_PATH, 13), full(ORE_PATH, 0))}),
+            7: entry({"mInventoryStacks": container(full(ORE_PATH, 17))}),
+        },
+        records=(
+            actor_record(BUILDING_CLASS_PATH),
+            actor_record(BUILDING_CLASS_PATH),
+            actor_record(BUILDING_CLASS_PATH),
+            component_record(),
+            component_record(),
+            component_record(),
+            component_record(),
+            component_record(),
+        ),
+    )
+
+    result = inventory.inventory_of(model)
+
+    expected_buildings = 2
+    expected_conflict_items = 11
+    expected_unattributed_items = 17
+    assert len(result.buildings) == expected_buildings
+    assert result.conflict_item_count == expected_conflict_items
+    assert result.unattributed_item_count == expected_unattributed_items
+    assert partition_holds(result) == []
 
 
 def test_no_item_class_path_reaches_any_repr() -> None:
     # Q7: an item class path is WORLD CONTENT for echo purposes. Only the
-    # reduced key may be published, and no repr renders even that.
+    # reduced key is published. ``ItemTotal``'s generated repr renders that
+    # key - the ACCEPTED DISCLOSURE ``tests/repr_rendering_guard.py`` records
+    # for it - so this arm grades the world and building reprs, which withhold
+    # it, and never ``ItemTotal``'s.
     planted_path = "/Game/" + PATH_MARKER + "/Desc_SyntheticOre.Desc_SyntheticOre_C"
     model = building_world(full(planted_path, 2))
 
@@ -1065,9 +1214,10 @@ def test_no_item_class_path_reaches_any_repr() -> None:
 def test_no_record_index_reaches_the_per_building_view() -> None:
     model = world(
         by_record_index={
-            RECORD_INDEX_MARKER: joined({}, (resolved(1),)),
-            1: entry({"mInventoryStacks": container(full(ORE_PATH, 1))}),
+            0: joined({}, (resolved(RECORD_INDEX_MARKER),)),
+            RECORD_INDEX_MARKER: entry({"mInventoryStacks": container(full(ORE_PATH, 1))}),
         },
+        records=(actor_record(BUILDING_CLASS_PATH),),
     )
 
     result = inventory.inventory_of(model)

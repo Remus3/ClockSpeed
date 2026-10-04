@@ -32,19 +32,38 @@ landed as ``RecordProperties.reference_targets`` (``clockspeed.save.world``
 reading that join and never by resolving a path itself - resolution is the save
 layer's, and running it here would reach past the neighbour.
 
-"BUILDING" IS NOT CLASSIFIED. :attr:`WorldInventory.buildings` holds every
-record with a RESOLVED reference to a record carrying at least one stack, in
-record-table order - a superset of buildings, by the ADJ-G Q1 ruling, so no
-building vocabulary is hand-written here. An UNRESOLVED or AMBIGUOUS reference
-is never followed: ambiguity hands over several candidates, and taking one of
-them would be the confident wrong answer non-negotiable 7 forbids. Both are
-COUNTED on the world model, because an inventory behind a reference that could
-not be followed is absent from the view rather than empty.
+"BUILDING" IS NOT CLASSIFIED, AND A CARRIER HAS AT MOST ONE OWNER. A CARRIER is
+any walked record whose own published values hold at least one stack. It is
+ATTRIBUTED to the ACTOR records (``ObjectRecord.kind``, published on the model)
+whose resolved references name it, and to nothing else:
+
+- exactly one claiming actor - the carrier is that building's;
+- none - the carrier is UNATTRIBUTED, counted on the world model;
+- more than one - the carrier is a CONFLICT, counted on the world model and
+  left out of every per-building total rather than handed to one claimant.
+
+WHY ACTORS ONLY, MEASURED RATHER THAN LISTED. A component record references
+inventories too - a factory connection names the inventory it feeds - and
+following those made 372 carriers in one library save reachable from several
+records, so the per-building sum overran the world total. Over four library
+saves across both version pairs (CS-400 S3 re-measure, counts only) every
+actor reference into a carrier came from that carrier's own parent actor, and
+every non-parent reference came from a component. The rule is therefore read
+off the record kind the model already publishes, and no inventory property
+name is hand-listed. The conflict count is what reports the day that stops
+holding.
+
+So the partition is exact by construction, and graded as an invariant: the
+per-building sums plus the unattributed and conflict sums equal the world
+total, for stacks and for items alike.
+
+An UNRESOLVED or AMBIGUOUS reference is never followed: ambiguity hands over
+several candidates, and taking one would be the confident wrong answer
+non-negotiable 7 forbids. Both are COUNTED on the world model, as is a resolved
+reference whose target has no published properties entry.
 
 THE WORLD TOTAL DOES NOT GO THROUGH THE JOIN. :attr:`WorldInventory.items` sums
-every stack in every walked record exactly once, whoever references it. A total
-built from the per-building view would count a component twice when two records
-name it and not at all when none does.
+every stack in every walked record exactly once, whoever references it.
 
 THE THREE STATES OF AN ``Item`` TAG, NEVER COLLAPSED
 ------------------------------------------------------
@@ -57,14 +76,16 @@ Inside one stack interior ``Item`` is either:
 - an ``InventoryItemRefusal`` - the save layer could not read the native
   interior, so the stack is excluded under the save layer's own reason word;
 - ABSENT, the key missing altogether - excluded as :data:`EXCLUDED_ITEM_ABSENT`.
-  ADJ-G Q4 measured this only on top-level pickup structs, which this walk never
-  reaches, and binds it as a THIRD state: an absent item is neither an empty
-  slot nor an unknown item.
+  ADJ-G Q4 measured it only on top-level pickup structs, outside every
+  inventory carrier, and binds it as a THIRD state: an absent item is neither
+  an empty slot nor an unknown item. The walk reads every struct the model
+  publishes in a record's values, so one reached anywhere is counted here.
 
 Every exclusion is COUNTED by reason on :attr:`WorldInventory.excluded` and
 raised as :data:`WARN_INVENTORY_STACK_EXCLUDED`; none is guessed and none
-raises. An item whose state was present and left undecoded keeps its class and
-count and is counted on ``state_undecoded_count``.
+raises. A row or an empty slot whose item state was present and left undecoded
+keeps its reading and is counted on ``state_undecoded_count``; an excluded stack
+is counted only under its exclusion reason.
 
 An empty ``items`` tuple is still accompanied by :data:`WARN_INVENTORY_TOTAL_EMPTY`:
 a world whose stacks were all refused, absent or unreachable is not the same
@@ -139,6 +160,7 @@ from typing import TYPE_CHECKING, Final
 from clockspeed.audit.placement import class_name_of_path
 from clockspeed.save.objects import (
     ITEM_REFUSAL_REASONS,
+    KIND_ACTOR,
     InventoryItem,
     InventoryItemRefusal,
     ObjectReference,
@@ -220,6 +242,12 @@ STACK_EXCLUSION_REASONS: Final = frozenset(
     }
 )
 
+#: The two join tallies beside the three target states: references never
+#: followed because their targets do not align, and resolved references whose
+#: target has no properties entry to walk.
+_JOIN_UNJOINED: Final = "unjoined"
+_JOIN_UNWALKED: Final = "unwalked"
+
 #: The two non-excluded outcomes of reading one stack.
 _OUTCOME_ROW: Final = "row"
 _OUTCOME_EMPTY: Final = "empty"
@@ -274,10 +302,12 @@ class ItemTotal:
 
 @dataclass(frozen=True)
 class BuildingInventory:
-    """What one record holds through the inventories its references reach - CS-400.
+    """What one actor holds through the inventory carriers it alone owns - CS-400.
 
-    ONE PER RECORD, NEVER PER REFERENCE. A record naming one component under two
-    tags reaches it once; a record reaching two components sums both.
+    ONE PER ACTOR, NEVER PER REFERENCE. An actor naming one carrier under two
+    tags owns it once; an actor owning two carriers sums both. A carrier another
+    actor also claims is a CONFLICT and is in neither actor's view - see the
+    module docstring.
 
     NO RECORD INDEX. The world model keys by one and this layer never hands it
     on (module docstring). The rows sit in record-table order on
@@ -290,18 +320,20 @@ class BuildingInventory:
     print.
 
     Attributes:
-        class_name: The record's class name, reduced by
-            ``clockspeed.audit.placement.class_name_of_path``; empty when the
-            record table holds no record at that index.
-        items: One total per item key over every stack reached, sorted by key.
-        carriers_reached: How many distinct records holding a stack this record's
-            resolved references reached.
-        stack_count: Every stack reached, whatever its outcome.
+        class_name: The actor's class name, reduced by
+            ``clockspeed.audit.placement.class_name_of_path``.
+        items: One total per item key over every stack owned, sorted by key.
+        carriers_reached: How many carriers this actor alone owns.
+        stack_count: Every stack owned, whatever its outcome.
         empty_slot_count: Stacks read as an empty slot - no class, a zero count.
-        state_undecoded_count: Item-bearing stacks whose item state was present
-            and left undecoded; their class and count still contribute.
+        state_undecoded_count: Rows and empty slots whose item state was present
+            and left undecoded; their reading still stands. An excluded stack is
+            counted under its reason only.
         excluded: ``(reason, count)`` per member of
             :data:`STACK_EXCLUSION_REASONS` that occurred, sorted by reason.
+        containers_read: Containers walked inside the owned carriers.
+        undecoded_entry_count: Container elements inside the owned carriers the
+            save layer did not decode - counted, never read as empty.
     """
 
     class_name: str = field(repr=False)
@@ -311,6 +343,8 @@ class BuildingInventory:
     empty_slot_count: int
     state_undecoded_count: int
     excluded: tuple[tuple[str, int], ...] = field(repr=False)
+    containers_read: int = 0
+    undecoded_entry_count: int = 0
 
     @property
     def excluded_count(self) -> int:
@@ -349,11 +383,11 @@ class WorldInventory:
             carried verbatim from ``WorldProperties.unread_payload_count`` - the
             honest denominator its own docstring names.
         warnings: Everything flagged, in the ``WorldWarning`` idiom.
-        buildings: One :class:`BuildingInventory` per record whose resolved
-            references reach a stack, in record-table order.
+        buildings: One :class:`BuildingInventory` per actor owning at least one
+            carrier alone, in record-table order.
         stack_count: Every stack the world walk reached, whatever its outcome.
         empty_slot_count: Stacks read as an empty slot.
-        state_undecoded_count: Item-bearing stacks whose state was left undecoded.
+        state_undecoded_count: Rows and empty slots whose state was left undecoded.
         excluded: ``(reason, count)`` per exclusion reason that occurred over the
             world walk, sorted by reason. Never part of :attr:`items`.
         references_resolved: Published references resolved to exactly one record.
@@ -364,6 +398,16 @@ class WorldInventory:
         references_unjoined: References on an entry whose published targets do
             not align with them one for one, or whose target carries a state
             outside ``clockspeed.save.world.TARGET_STATES`` - never followed.
+        references_to_unwalked: Resolved references whose target record has no
+            entry in ``WorldModel.properties`` - nothing there to walk, counted.
+        carrier_count: Records whose own values hold at least one stack.
+        unattributed_carrier_count: Carriers no actor claims.
+        unattributed_stack_count: Stacks in those carriers, whatever the outcome.
+        unattributed_item_count: Item count summed over those carriers' rows.
+        conflict_carrier_count: Carriers claimed by more than one actor - left
+            out of every per-building view.
+        conflict_stack_count: Stacks in those carriers.
+        conflict_item_count: Item count summed over those carriers' rows.
     """
 
     items: tuple[ItemTotal, ...]
@@ -381,6 +425,14 @@ class WorldInventory:
     references_unresolved: int = 0
     references_ambiguous: int = 0
     references_unjoined: int = 0
+    references_to_unwalked: int = 0
+    carrier_count: int = 0
+    unattributed_carrier_count: int = 0
+    unattributed_stack_count: int = 0
+    unattributed_item_count: int = 0
+    conflict_carrier_count: int = 0
+    conflict_stack_count: int = 0
+    conflict_item_count: int = 0
 
     @property
     def total_count(self) -> int:
@@ -420,7 +472,15 @@ class WorldInventory:
             f"references_resolved={self.references_resolved}, "
             f"references_unresolved={self.references_unresolved}, "
             f"references_ambiguous={self.references_ambiguous}, "
-            f"references_unjoined={self.references_unjoined})"
+            f"references_unjoined={self.references_unjoined}, "
+            f"references_to_unwalked={self.references_to_unwalked}, "
+            f"carrier_count={self.carrier_count}, "
+            f"unattributed_carrier_count={self.unattributed_carrier_count}, "
+            f"unattributed_stack_count={self.unattributed_stack_count}, "
+            f"unattributed_item_count={self.unattributed_item_count}, "
+            f"conflict_carrier_count={self.conflict_carrier_count}, "
+            f"conflict_stack_count={self.conflict_stack_count}, "
+            f"conflict_item_count={self.conflict_item_count})"
         )
 
 
@@ -568,7 +628,7 @@ def _read_stack(struct: StructValue) -> tuple[str, str, int, bool] | None:
     if key == "" and count == 0:
         return _OUTCOME_EMPTY, "", 0, undecoded
     if key == "" or count <= 0:
-        return EXCLUDED_COUNT_DISAGREES, "", 0, undecoded
+        return EXCLUDED_COUNT_DISAGREES, "", 0, False
     return _OUTCOME_ROW, key, count, undecoded
 
 
@@ -611,6 +671,24 @@ def _walk(values: Iterable[object], tally: _Tally) -> None:
         work.extend(value.properties.values())
 
 
+def _merge(into: _Tally, part: _Tally) -> None:
+    """Add one tally into another.
+
+    Args:
+        into: Filled in place.
+        part: Read only.
+    """
+    for key, count in part.totals.items():
+        into.totals[key] = into.totals.get(key, 0) + count
+    for reason, count in part.excluded.items():
+        into.excluded[reason] = into.excluded.get(reason, 0) + count
+    into.containers_read += part.containers_read
+    into.undecoded_entries += part.undecoded_entries
+    into.stacks += part.stacks
+    into.empty_slots += part.empty_slots
+    into.state_undecoded += part.state_undecoded
+
+
 def _followed(entry: RecordProperties, joins: dict[str, int]) -> list[int]:
     """The distinct record indices one entry's references resolve to.
 
@@ -627,7 +705,7 @@ def _followed(entry: RecordProperties, joins: dict[str, int]) -> list[int]:
         The resolved target indices, first occurrence first, each once.
     """
     if len(entry.reference_targets) != len(entry.references):
-        joins["unjoined"] += len(entry.references)
+        joins[_JOIN_UNJOINED] += len(entry.references)
         return []
     found: list[int] = []
     for target in entry.reference_targets:
@@ -639,51 +717,63 @@ def _followed(entry: RecordProperties, joins: dict[str, int]) -> list[int]:
         elif target.state in (TARGET_UNRESOLVED, TARGET_AMBIGUOUS):
             joins[target.state] += 1
         else:
-            joins["unjoined"] += 1
+            joins[_JOIN_UNJOINED] += 1
     return found
 
 
-def _buildings(model: WorldModel, joins: dict[str, int]) -> tuple[BuildingInventory, ...]:
-    """Follow every resolved reference to the stacks its target holds.
-
-    THE RECORD ORDER IS SORTED BY INDEX, so the view is in record-table order
-    and two runs over one model iterate identically.
+def _is_actor(model: WorldModel, index: int) -> bool:
+    """Whether the record table holds an ACTOR at this index.
 
     Args:
-        model: The world to read.
-        joins: Filled in place with the join-state counts.
+        model: The world.
+        index: A record index.
 
     Returns:
-        One view per record whose resolved references reach a stack.
+        False for a component and for an index the table does not hold.
+    """
+    records = model.objects.records
+    return 0 <= index < len(records) and records[index].kind == KIND_ACTOR
+
+
+def _claims(
+    model: WorldModel, carriers: Mapping[int, _Tally], joins: dict[str, int]
+) -> dict[int, list[int]]:
+    """Which actors claim each carrier, through their own resolved references.
+
+    EVERY record's references are counted into ``joins``; only an ACTOR's
+    resolved references stake a claim - see the module docstring for the
+    measurement behind that.
+
+    Args:
+        model: The world.
+        carriers: Carrier index to its own tally.
+        joins: Filled in place.
+
+    Returns:
+        Carrier index to its claimants in record-table order, for every carrier.
     """
     by_index = model.properties.by_record_index
-    records = model.objects.records
-    out: list[BuildingInventory] = []
+    claimants: dict[int, list[int]] = {index: [] for index in carriers}
     for index in sorted(by_index):
-        tally = _Tally()
-        carriers = 0
+        actor = _is_actor(model, index)
         for target in _followed(by_index[index], joins):
-            held = by_index.get(target)
-            if held is None:
-                continue
-            before = tally.stacks
-            _walk(held.values.values(), tally)
-            carriers += int(tally.stacks > before)
-        if carriers == 0:
-            continue
-        type_path = records[index].type_path if 0 <= index < len(records) else ""
-        out.append(
-            BuildingInventory(
-                class_name=class_name_of_path(type_path),
-                items=tally.items(),
-                carriers_reached=carriers,
-                stack_count=tally.stacks,
-                empty_slot_count=tally.empty_slots,
-                state_undecoded_count=tally.state_undecoded,
-                excluded=tally.exclusions(),
-            )
-        )
-    return tuple(out)
+            if target not in by_index:
+                joins[_JOIN_UNWALKED] += 1
+            elif actor and target in carriers:
+                claimants[target].append(index)
+    return claimants
+
+
+def _item_count(tally: _Tally) -> int:
+    """The item count a tally's rows sum to.
+
+    Args:
+        tally: Read only.
+
+    Returns:
+        The count.
+    """
+    return sum(tally.totals.values())
 
 
 def inventory_of(model: WorldModel) -> WorldInventory:
@@ -694,9 +784,8 @@ def inventory_of(model: WorldModel) -> WorldInventory:
     world whose containers held nothing this module recognises all return a valid
     :class:`WorldInventory` carrying the flags that say which of those happened.
 
-    THE RECORD ORDER IS SORTED BY INDEX. Nothing in the aggregate depends on the
-    order, but a walk whose order comes from a mapping's iteration is a walk
-    whose behaviour changes when the mapping's construction does.
+    THE RECORD ORDER IS SORTED BY INDEX, so two runs over one model iterate
+    identically, and the per-building view is in record-table order.
 
     Args:
         model: The world to read. Read only; nothing here mutates it and nothing
@@ -705,14 +794,62 @@ def inventory_of(model: WorldModel) -> WorldInventory:
     Returns:
         The inventory model.
     """
-    tally = _Tally()
     by_index = model.properties.by_record_index
+    world = _Tally()
+    carriers: dict[int, _Tally] = {}
     for index in sorted(by_index):
-        _walk(by_index[index].values.values(), tally)
-    joins = {TARGET_RESOLVED: 0, TARGET_UNRESOLVED: 0, TARGET_AMBIGUOUS: 0, "unjoined": 0}
-    buildings = _buildings(model, joins)
-    items = tally.items()
-    excluded = tally.exclusions()
+        own = _Tally()
+        _walk(by_index[index].values.values(), own)
+        _merge(world, own)
+        if own.stacks:
+            carriers[index] = own
+
+    joins = {
+        TARGET_RESOLVED: 0,
+        TARGET_UNRESOLVED: 0,
+        TARGET_AMBIGUOUS: 0,
+        _JOIN_UNJOINED: 0,
+        _JOIN_UNWALKED: 0,
+    }
+    claimants = _claims(model, carriers, joins)
+    owned: dict[int, list[int]] = {}
+    unattributed = _Tally()
+    conflict = _Tally()
+    unattributed_carriers = 0
+    conflict_carriers = 0
+    for carrier in sorted(carriers):
+        claimed_by = claimants[carrier]
+        if not claimed_by:
+            unattributed_carriers += 1
+            _merge(unattributed, carriers[carrier])
+        elif len(claimed_by) > 1:
+            conflict_carriers += 1
+            _merge(conflict, carriers[carrier])
+        else:
+            owned.setdefault(claimed_by[0], []).append(carrier)
+
+    records = model.objects.records
+    buildings: list[BuildingInventory] = []
+    for actor in sorted(owned):
+        held = _Tally()
+        for carrier in owned[actor]:
+            _merge(held, carriers[carrier])
+        buildings.append(
+            BuildingInventory(
+                class_name=class_name_of_path(records[actor].type_path),
+                items=held.items(),
+                carriers_reached=len(owned[actor]),
+                stack_count=held.stacks,
+                empty_slot_count=held.empty_slots,
+                state_undecoded_count=held.state_undecoded,
+                excluded=held.exclusions(),
+                containers_read=held.containers_read,
+                undecoded_entry_count=held.undecoded_entries,
+            )
+        )
+
+    items = world.items()
+    excluded = world.exclusions()
     unread = model.properties.unread_payload_count
 
     warnings: list[WorldWarning] = []
@@ -720,26 +857,34 @@ def inventory_of(model: WorldModel) -> WorldInventory:
         warnings.append(_warning(WARN_INVENTORY_TOTAL_EMPTY))
     if unread:
         warnings.append(_warning(WARN_INVENTORY_PAYLOAD_UNREAD, unread))
-    if tally.undecoded_entries:
-        warnings.append(_warning(WARN_INVENTORY_ENTRY_UNDECODED, tally.undecoded_entries))
+    if world.undecoded_entries:
+        warnings.append(_warning(WARN_INVENTORY_ENTRY_UNDECODED, world.undecoded_entries))
     excluded_total = sum(count for _, count in excluded)
     if excluded_total:
         warnings.append(_warning(WARN_INVENTORY_STACK_EXCLUDED, excluded_total))
 
     return WorldInventory(
         items=items,
-        containers_read=tally.containers_read,
-        undecoded_entry_count=tally.undecoded_entries,
+        containers_read=world.containers_read,
+        undecoded_entry_count=world.undecoded_entries,
         records_considered=model.properties.total,
         unread_payload_count=unread,
         warnings=tuple(warnings),
-        buildings=buildings,
-        stack_count=tally.stacks,
-        empty_slot_count=tally.empty_slots,
-        state_undecoded_count=tally.state_undecoded,
+        buildings=tuple(buildings),
+        stack_count=world.stacks,
+        empty_slot_count=world.empty_slots,
+        state_undecoded_count=world.state_undecoded,
         excluded=excluded,
         references_resolved=joins[TARGET_RESOLVED],
         references_unresolved=joins[TARGET_UNRESOLVED],
         references_ambiguous=joins[TARGET_AMBIGUOUS],
-        references_unjoined=joins["unjoined"],
+        references_unjoined=joins[_JOIN_UNJOINED],
+        references_to_unwalked=joins[_JOIN_UNWALKED],
+        carrier_count=len(carriers),
+        unattributed_carrier_count=unattributed_carriers,
+        unattributed_stack_count=unattributed.stacks,
+        unattributed_item_count=_item_count(unattributed),
+        conflict_carrier_count=conflict_carriers,
+        conflict_stack_count=conflict.stacks,
+        conflict_item_count=_item_count(conflict),
     )
