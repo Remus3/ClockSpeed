@@ -534,7 +534,7 @@ def _locked_pass(  # noqa: PLR0911 - one return per recorded outcome
 
 def _refused(root: Path, board: _Board, refused: Exception, unread: int, started: float) -> int:
     """The kit refused before anything started. Nothing ran, so no duration is recorded."""
-    if isinstance(refused, kit.BudgetUnreadable) or str(refused) == KIT_LOCK_BUSY:
+    if isinstance(refused, kit.BudgetUnreadable) or refused.args == (KIT_LOCK_BUSY,):
         # FAIL CLOSED: the kit never resets its budget, and nothing starts uncounted.
         _log(root, started, "budget_refused", EXIT_BUDGET_REFUSED, unread=unread)
         board.show("refused", "Halted")
