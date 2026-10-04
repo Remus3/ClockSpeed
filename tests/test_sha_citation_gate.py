@@ -1049,12 +1049,28 @@ def test_this_tree_cites_only_published_commits() -> None:
 # ``origin/main`` move to the replay, and the old commits are expired out of
 # the TEMP store. A doc citing an old commit must then pass when its token is
 # on the generated historical set, and only then.
+#
+# The gate PINS its set: the set's SHA-256 and the witness pair are constants
+# in the gate's own source. So each throwaway repository tracks its OWN copy of
+# the gate under test, with the witness pair of that repository written in,
+# and every arm runs that copy - never this tree's gate, whose pins name this
+# tree's set.
 
 #: The synthetic identity the replay commits under - never a real one.
 _REPLAY_ROLE: Final = "Replayed"
 
 #: A fixed date, so every commit of the arms is reproducible.
 _FIXED_DATE: Final = "2026-01-01T00:00:00+0000"
+
+#: The same date as git writes it into a commit object: epoch seconds and offset.
+_FIXED_STAMP: Final = "1767225600 +0000"
+
+#: Where a throwaway repository tracks its copy of the gate, and of its resolver.
+_OWN_GATE: Final = "tools/sha_citation_gate.py"
+_OWN_TOOLPATH: Final = "tools/toolpath.py"
+
+#: The adversary's laundering plant: a typo-shaped sha no store holds.
+_SMUGGLED: Final = "badc0de"
 
 
 def _commit_env(repo: Repo, name: str) -> dict[str, str]:
@@ -1077,6 +1093,28 @@ def _replay(repo: Repo, old: str, parents: list[str]) -> str:
         args,
         cwd=repo.path,
         env=_commit_env(repo, _REPLAY_ROLE),
+        capture_output=True,
+        timeout=TIMEOUT,
+        check=True,
+    )
+    return done.stdout.decode("ascii").strip()
+
+
+def _replay_name(repo: Repo, old: str) -> str:
+    """The name ``_replay(repo, old, [])`` WILL produce, computed without storing it.
+
+    A held but unpublished witness image would itself be an unpublished commit
+    the gate copy cites; the real tree's store does not hold the image either.
+    """
+    tree = repo.git("rev-parse", f"{old}^{{tree}}")
+    message = repo.git("log", "-1", "--format=%B", old)
+    ident = f"{_REPLAY_ROLE} <{_REPLAY_ROLE.lower()}@example.invalid> {_FIXED_STAMP}"
+    body = f"tree {tree}\nauthor {ident}\ncommitter {ident}\n\n{message}\n"
+    done = subprocess.run(
+        ["git", "hash-object", "-t", "commit", "--stdin"],
+        cwd=repo.path,
+        env=repo.env,
+        input=body.encode("ascii"),
         capture_output=True,
         timeout=TIMEOUT,
         check=True,
@@ -1109,6 +1147,56 @@ def _write_historical(repo: Repo, pre: str, post: str, tokens: list[str]) -> Non
     target.write_bytes(body.encode("ascii"))
 
 
+def _witness_block(pre: str, post: str) -> str:
+    return f'WITNESS: Final = (\n    "{pre}",\n    "{post}",\n)\n'
+
+
+def _own_gate(repo: Repo, pre: str, post: str) -> None:
+    """Track a copy of the gate under test whose WITNESS pin is ``(pre, post)``."""
+    source = GATE_SOURCE.read_bytes().decode("ascii")
+    block = _witness_block(*gate.WITNESS)
+    assert source.count(block) == 1, "control: the gate must carry one WITNESS block"
+    target = repo.path / _OWN_GATE
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_bytes(source.replace(block, _witness_block(pre, post)).encode("ascii"))
+    shutil.copyfile(GATE_SOURCE.parent / "toolpath.py", repo.path / _OWN_TOOLPATH)
+
+
+def _pin(repo: Repo) -> None:
+    """Re-pin the repository's gate copy to its set's CURRENT bytes - a deliberate re-pin."""
+    target = repo.path / _OWN_GATE
+    digest = hashlib.sha256((repo.path / gate.HISTORICAL_FILE).read_bytes()).hexdigest()
+    source = target.read_bytes().decode("ascii")
+    pinned = gate.repin_source(source, digest)
+    target.write_bytes(pinned.encode("ascii"))
+
+
+def own(repo: Repo, *args: str) -> Run:
+    """Run the repository's OWN gate copy against it, in a fresh interpreter."""
+    done = subprocess.run(
+        [sys.executable, "-B", str(repo.path / _OWN_GATE), "--repo", str(repo.path), *args],
+        env=repo.env,
+        capture_output=True,
+        text=True,
+        timeout=TIMEOUT,
+        check=False,
+    )
+    return Run(done.returncode, done.stdout, done.stderr)
+
+
+def _own_module(repo: Repo) -> ModuleType:
+    """Import the repository's own gate copy, for the in-process arms."""
+    name = f"clockspeed_own_gate_{hashlib.sha256(str(repo.path).encode()).hexdigest()[:12]}"
+    spec = importlib.util.spec_from_file_location(name, repo.path / _OWN_GATE)
+    if spec is None or spec.loader is None:
+        message = "could not load the gate copy"
+        raise ImportError(message)
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
+    spec.loader.exec_module(module)
+    return module
+
+
 def _listed(repo: Repo) -> list[str]:
     loaded = gate.load_historical(repo.path)
     assert loaded is not None, "control: the historical set must be present"
@@ -1127,10 +1215,11 @@ class Rewrite:
 
 
 def _pre_state(tmp_path: Path) -> Rewrite:
-    """A PRE-state repository: ``A`` published, its replay ``A'`` held but not published.
+    """A PRE-state repository: ``A`` published, its replay ``A'`` not even held.
 
-    ``A`` is the witness ``pre``, ``A'`` the witness ``post``; a doc in ``B``
-    cites ``A``, and ``--emit-historical`` has listed that citation.
+    ``A`` is the witness ``pre``, ``A'`` the witness ``post``, both pinned in
+    the repository's own gate copy; a doc in ``B`` cites ``A``, and the copy's
+    ``--emit-historical`` has listed that citation and pinned the set's digest.
     """
     path = tmp_path / "rewrite"
     path.mkdir()
@@ -1139,25 +1228,30 @@ def _pre_state(tmp_path: Path) -> Rewrite:
     (path / "README.md").write_bytes(b"A seed doc that cites nothing.\n")
     repo.git("add", "--", "README.md")
     old_a = _commit_all(repo, "seed")
-    new_a = _replay(repo, old_a, [])
+    new_a = _replay_name(repo, old_a)
+    held = repo.lacks(new_a)
+    assert held, "control: the witness image must not be held in the PRE store"
     cited = mixed(old_a)
     (path / "docs").mkdir()
     (path / "docs" / "notes.md").write_bytes(f"Landed as commit `{cited}`.\n".encode("ascii"))
-    _write_historical(repo, old_a, new_a, [])
-    repo.git("add", "--", "docs/notes.md", gate.HISTORICAL_FILE)
+    _own_gate(repo, old_a, new_a)
+    repo.git("add", "--", "docs/notes.md", _OWN_GATE, _OWN_TOOLPATH)
     repo.git("update-ref", "refs/remotes/origin/main", "HEAD")
-    emitted = cli(repo, "--emit-historical")
+    emitted = own(repo, "--emit-historical")
     assert emitted.returncode == gate.EXIT_CLEAN, emitted.stdout + emitted.stderr
-    repo.git("add", "--", gate.HISTORICAL_FILE)
+    repo.git("add", "--", gate.HISTORICAL_FILE, _OWN_GATE)
     old_b = _commit_all(repo, "cite A")
     repo.git("update-ref", "refs/remotes/origin/main", "HEAD")
     return Rewrite(repo, old_a, new_a, old_b, cited)
 
 
 def _rewrite(state: Rewrite) -> str:
-    """Replay ``B`` onto ``A'``, move main and origin/main, expire every old commit."""
+    """Replay ``A`` and ``B``, move main and origin/main, expire every old commit."""
     repo = state.repo
-    new_b = _replay(repo, state.old_b, [state.new_a])
+    new_a = _replay(repo, state.old_a, [])
+    reproduced = new_a == state.new_a
+    assert reproduced, "control: the replay must reproduce the pinned image"
+    new_b = _replay(repo, state.old_b, [new_a])
     branch = repo.git("symbolic-ref", "HEAD")
     repo.git("update-ref", branch, new_b)
     repo.git("update-ref", "refs/remotes/origin/main", new_b)
@@ -1170,22 +1264,24 @@ def _rewrite(state: Rewrite) -> str:
 
 @pytest.fixture
 def pre(tmp_path: Path) -> Rewrite:
-    """A repository in the PRE state, its historical set emitted and committed."""
+    """A repository in the PRE state, its historical set emitted, pinned and committed."""
     return _pre_state(tmp_path)
 
 
-def test_emit_lists_the_published_citation_and_no_pair(pre: Rewrite) -> None:
-    """The emitted set holds the cited token and nothing else, ASCII and LF."""
+def test_emit_lists_the_published_citation_and_pins_its_digest(pre: Rewrite) -> None:
+    """The emitted set holds the cited token and the witness, ASCII and LF, and is pinned."""
     listed = _listed(pre.repo)
-    assert listed == [pre.cited]
+    assert listed == sorted([pre.cited, pre.old_a])
     raw = (pre.repo.path / gate.HISTORICAL_FILE).read_bytes()
     assert b"\r" not in raw
     assert raw.endswith(b"}\n")
+    pinned = _own_module(pre.repo).HISTORICAL_SHA256
+    assert pinned == hashlib.sha256(raw).hexdigest()
 
 
 def test_the_pre_state_passes(pre: Rewrite) -> None:
     """Before the rewrite, every listed token is a published commit: exit 0."""
-    done = cli(pre.repo)
+    done = own(pre.repo)
     assert done.returncode == gate.EXIT_CLEAN, done.stdout + done.stderr
     assert "historical PRE" in done.stdout
 
@@ -1193,7 +1289,7 @@ def test_the_pre_state_passes(pre: Rewrite) -> None:
 def test_a_rewritten_citation_on_the_set_survives_the_rewrite(pre: Rewrite) -> None:
     """THE S7a ARM: after the replay and the expiry, the old citation passes as historical."""
     _rewrite(pre)
-    done = cli(pre.repo)
+    done = own(pre.repo)
     assert done.returncode == gate.EXIT_CLEAN, done.stdout + done.stderr
     assert "historical POST" in done.stdout
 
@@ -1203,7 +1299,7 @@ def test_an_old_sha_not_on_the_set_stays_red_after_the_rewrite(pre: Rewrite) -> 
     _rewrite(pre)
     old = mixed(pre.old_b)
     plant(pre.repo, f"Also landed as `{old}`.", "docs/notes.md")
-    done = cli(pre.repo)
+    done = own(pre.repo)
     assert done.returncode == gate.EXIT_UNRESOLVED, done.stdout + done.stderr
     assert f"{old} never-resolved" in done.stdout
 
@@ -1212,9 +1308,37 @@ def test_a_new_absent_citation_outside_the_set_is_red_after_the_rewrite(pre: Rew
     """A citation of a sha no store holds, outside the set, is red in the POST state."""
     _rewrite(pre)
     plant(pre.repo, f"Landed as commit `{ABSENT_SHA}`.", "docs/notes.md")
-    done = cli(pre.repo)
+    done = own(pre.repo)
     assert done.returncode == gate.EXIT_UNRESOLVED, done.stdout + done.stderr
     assert f"{ABSENT_SHA} never-resolved" in done.stdout
+
+
+def test_a_token_smuggled_into_the_set_by_hand_is_refused(pre: Rewrite) -> None:
+    """F1 - POST laundering: a hand-added token breaks the pinned digest, named by file.
+
+    Control: the same set DELIBERATELY re-pinned in the gate passes, so the
+    digest - and nothing else - is what refused the smuggled token.
+    """
+    _rewrite(pre)
+    absent = pre.repo.lacks(_SMUGGLED)
+    assert absent, "control: the smuggled sha must be absent from the store"
+    plant(pre.repo, f"Landed as commit `{_SMUGGLED}`.", "docs/notes.md")
+    _write_historical(pre.repo, pre.old_a, pre.new_a, sorted([pre.cited, pre.old_a, _SMUGGLED]))
+    done = own(pre.repo)
+    assert done.returncode == gate.EXIT_UNRESOLVED, done.stdout + done.stderr
+    assert f"historical-digest-mismatch {gate.HISTORICAL_FILE}" in done.stdout
+    _pin(pre.repo)
+    repinned = own(pre.repo)
+    assert repinned.returncode == gate.EXIT_CLEAN, repinned.stdout + repinned.stderr
+
+
+def test_a_witness_pair_differing_from_the_gate_is_refused(pre: Rewrite) -> None:
+    """F2 - a swapped witness, even re-pinned, would read PRE as POST; the gate refuses it."""
+    _write_historical(pre.repo, pre.new_a, pre.old_a, [])
+    _pin(pre.repo)
+    done = own(pre.repo)
+    assert done.returncode == gate.EXIT_UNRESOLVED, done.stdout + done.stderr
+    assert f"historical-witness-mismatch {gate.HISTORICAL_FILE}" in done.stdout
 
 
 def test_a_listed_token_resolving_to_a_published_commit_after_the_rewrite_is_red(
@@ -1223,8 +1347,9 @@ def test_a_listed_token_resolving_to_a_published_commit_after_the_rewrite_is_red
     """POST: a listed token naming a published commit is a collision, never history."""
     new_b = _rewrite(pre)
     collide = mixed(new_b)
-    _write_historical(pre.repo, pre.old_a, pre.new_a, sorted([pre.cited, collide]))
-    done = cli(pre.repo)
+    _write_historical(pre.repo, pre.old_a, pre.new_a, sorted([pre.cited, pre.old_a, collide]))
+    _pin(pre.repo)
+    done = own(pre.repo)
     assert done.returncode == gate.EXIT_UNRESOLVED, done.stdout + done.stderr
     assert f"historical-collision {collide}" in done.stdout
 
@@ -1237,9 +1362,10 @@ def test_a_listed_token_not_resolving_before_the_rewrite_is_red(pre: Rewrite) ->
     """
     absent = pre.repo.lacks(ABSENT_SHA)
     assert absent, "control: the listed sha must be absent from the store"
-    _write_historical(pre.repo, pre.old_a, pre.new_a, sorted([pre.cited, ABSENT_SHA]))
+    _write_historical(pre.repo, pre.old_a, pre.new_a, sorted([pre.cited, pre.old_a, ABSENT_SHA]))
+    _pin(pre.repo)
     plant(pre.repo, f"Landed as commit `{ABSENT_SHA}`.", "docs/notes.md")
-    done = cli(pre.repo)
+    done = own(pre.repo)
     assert done.returncode == gate.EXIT_UNRESOLVED, done.stdout + done.stderr
     assert f"historical-stale {ABSENT_SHA}" in done.stdout
     assert f"{ABSENT_SHA} never-resolved" in done.stdout
@@ -1247,16 +1373,20 @@ def test_a_listed_token_not_resolving_before_the_rewrite_is_red(pre: Rewrite) ->
 
 def test_both_witnesses_published_cannot_judge(pre: Rewrite) -> None:
     """Both witnesses published reads as neither state: exit 2."""
-    pre.repo.git("tag", "both", pre.new_a)
-    done = cli(pre.repo)
+    image = _replay(pre.repo, pre.old_a, [])
+    pre.repo.git("tag", "both", image)
+    done = own(pre.repo)
     assert done.returncode == gate.EXIT_COULD_NOT_JUDGE, done.stdout + done.stderr
     assert "historical BOTH" in done.stdout
 
 
 def test_neither_witness_published_cannot_judge(pre: Rewrite) -> None:
-    """Neither witness published - a set from another history - exits 2."""
-    _write_historical(pre.repo, "1" * FULL_SHA_WIDTH, "2" * FULL_SHA_WIDTH, [pre.cited])
-    done = cli(pre.repo)
+    """Neither witness published - a gate and set from another history - exits 2."""
+    first, second = "1" * FULL_SHA_WIDTH, "2" * FULL_SHA_WIDTH
+    _own_gate(pre.repo, first, second)
+    _write_historical(pre.repo, first, second, [pre.cited])
+    _pin(pre.repo)
+    done = own(pre.repo)
     assert done.returncode == gate.EXIT_COULD_NOT_JUDGE, done.stdout + done.stderr
     assert "historical NEITHER" in done.stdout
 
@@ -1265,26 +1395,58 @@ def test_emit_refuses_outside_the_pre_state(pre: Rewrite) -> None:
     """Regenerating after the rewrite would empty the set, so emit exits 2 and writes nothing."""
     _rewrite(pre)
     before = (pre.repo.path / gate.HISTORICAL_FILE).read_bytes()
-    done = cli(pre.repo, "--emit-historical")
+    pin_before = (pre.repo.path / _OWN_GATE).read_bytes()
+    done = own(pre.repo, "--emit-historical")
     assert done.returncode == gate.EXIT_COULD_NOT_JUDGE, done.stdout + done.stderr
     after = (pre.repo.path / gate.HISTORICAL_FILE).read_bytes()
     assert after == before
+    pin_after = (pre.repo.path / _OWN_GATE).read_bytes()
+    assert pin_after == pin_before
+
+
+def test_emit_refuses_a_tree_that_is_not_its_own(pre: Rewrite, tmp_path: Path) -> None:
+    """A gate pins only the set beside it: emit against ANOTHER tree exits 2, writing nothing.
+
+    The foreign gate is a byte-copy of the tree's own - the same WITNESS, so the
+    tree reads PRE to it - kept OUTSIDE the tree: only the own-file check refuses it.
+    """
+    foreign = tmp_path / "foreign" / _OWN_GATE
+    foreign.parent.mkdir(parents=True)
+    shutil.copyfile(pre.repo.path / _OWN_GATE, foreign)
+    shutil.copyfile(pre.repo.path / _OWN_TOOLPATH, foreign.parent / "toolpath.py")
+    before = (pre.repo.path / gate.HISTORICAL_FILE).read_bytes()
+    foreign_before = foreign.read_bytes()
+    done = subprocess.run(
+        [sys.executable, "-B", str(foreign), "--repo", str(pre.repo.path), "--emit-historical"],
+        env=pre.repo.env,
+        capture_output=True,
+        text=True,
+        timeout=TIMEOUT,
+        check=False,
+    )
+    code = done.returncode
+    assert code == gate.EXIT_COULD_NOT_JUDGE, done.stdout + done.stderr
+    after = (pre.repo.path / gate.HISTORICAL_FILE).read_bytes()
+    assert after == before
+    foreign_after = foreign.read_bytes()
+    assert foreign_after == foreign_before
 
 
 def test_flip_readiness_passes_only_with_no_citation_outside_the_set(pre: Rewrite) -> None:
     """Readiness is 0 on the emitted set, and 1 once a published citation sits outside it."""
-    ready = cli(pre.repo, "--flip-readiness")
+    ready = own(pre.repo, "--flip-readiness")
     assert ready.returncode == gate.EXIT_CLEAN, ready.stdout + ready.stderr
-    line = plant(pre.repo, f"The full name is `{pre.old_a}`.", "docs/notes.md")
-    outside = cli(pre.repo, "--flip-readiness")
+    longer = mixed(pre.old_a, 12)
+    line = plant(pre.repo, f"The longer name is `{longer}`.", "docs/notes.md")
+    outside = own(pre.repo, "--flip-readiness")
     assert outside.returncode == gate.EXIT_UNRESOLVED, outside.stdout + outside.stderr
-    assert f"flip-outside docs/notes.md:{line} {pre.old_a}" in outside.stdout
+    assert f"flip-outside docs/notes.md:{line} {longer}" in outside.stdout
 
 
 def test_flip_readiness_refuses_outside_the_pre_state(pre: Rewrite) -> None:
     """Readiness after the rewrite has nothing to measure: exit 2."""
     _rewrite(pre)
-    done = cli(pre.repo, "--flip-readiness")
+    done = own(pre.repo, "--flip-readiness")
     assert done.returncode == gate.EXIT_COULD_NOT_JUDGE, done.stdout + done.stderr
 
 
@@ -1297,7 +1459,7 @@ def test_the_witness_image_on_the_allowlist_is_not_overreach_after_the_rewrite(
     other = mixed(new_b)
     plant(pre.repo, f"Image `{image}` and tip `{other}`.", "docs/notes.md")
     allow = {image: "foreign-pin", other: "foreign-pin"}
-    report = gate.sweep(pre.repo.path, allowlist=allow)
+    report = _own_module(pre.repo).sweep(pre.repo.path, allowlist=allow)
     flagged = sorted(entry.token for entry in report.overreach)
     assert flagged == [other]
     verdict = report.verdict()
@@ -1312,16 +1474,19 @@ def test_the_witness_image_on_the_allowlist_is_overreach_without_the_set(
     image = mixed(pre.new_a)
     plant(pre.repo, f"Image `{image}`.", "docs/notes.md")
     (pre.repo.path / gate.HISTORICAL_FILE).unlink()
-    report = gate.sweep(pre.repo.path, allowlist={image: "foreign-pin"})
+    report = _own_module(pre.repo).sweep(pre.repo.path, allowlist={image: "foreign-pin"})
     flagged = [entry.token for entry in report.overreach]
     assert flagged == [image]
 
 
 def test_this_tree_ships_its_historical_set() -> None:
-    """The tracked set exists, parses, and names this tree's S7a witness pair."""
+    """The tracked set exists, parses, names this tree's witness and matches the pinned digest."""
     listed = gate.load_historical(REPO_ROOT)
     assert listed is not None
     witness = listed.witness
     assert witness == gate.WITNESS
     count = len(listed.tokens)
     assert count > 0
+    digest = hashlib.sha256((REPO_ROOT / gate.HISTORICAL_FILE).read_bytes()).hexdigest()
+    pinned = gate.HISTORICAL_SHA256
+    assert digest == pinned

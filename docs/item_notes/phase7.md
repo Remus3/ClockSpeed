@@ -1111,6 +1111,17 @@ reachable from `HEAD`, `refs/remotes/origin/main` or a tag. `--emit-historical` 
 the set, PRE only; `--flip-readiness` exits 0 only in PRE with no published citation
 outside the set and no stale listed token. The S7a BASELINE above runs both.
 
+**The set is PINNED by the gate - repaired 2026-10-04 after an adversary REFUTED the
+first cut.** Nothing protected the set's contents, so a token added by hand laundered a
+citation of it in POST (F1), and a swapped witness pair read a PRE tree as POST and passed
+(F2). The gate now carries the set's SHA-256 as a constant, `HISTORICAL_SHA256`, written
+only by `--emit-historical` in the PRE state into the gate that judges the tree (it refuses,
+exit 2, a tree whose `tools/sha_citation_gate.py` is not itself), and requires the set's
+witness pair to equal its own `WITNESS`. Both are checked on every run in every state; a
+mismatch FAILS naming the file. The set's bytes ride through S7a unchanged, so the pin
+survives the rewrite. The residual is stated, not hidden: whoever edits the gate's pin
+line by hand can still launder, and that edit is a reviewed change to the gate itself.
+
 **Alternatives set aside.** A tracked old-to-new commit map: it publishes the pairing of
 every rewritten commit, and the S5 rule keeps the map outside the tree. Re-pointing every
 citation after S7a: a commit after S7a voids S7a through S8a under the late-commit rule,

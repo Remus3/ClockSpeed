@@ -106,7 +106,13 @@ or an :data:`S7A_IMAGE_ROWS` token is not overreach there. Both or neither
 witness published: COULD NOT JUDGE. A token NOT on the list is judged exactly
 as before, so an old sha nobody listed stays red. With the file absent the
 gate is exactly the pre-CS-700 gate. The file itself is not swept as code:
-every token in it is judged by the arms above.
+every token in it is judged by the arms above. THE SET IS PINNED BY THE GATE:
+its SHA-256 is :data:`HISTORICAL_SHA256` and its witness pair must equal
+:data:`WITNESS`, both checked on every run in every state, and a set breaking
+either is a FAILURE naming the file (``historical-digest-mismatch``,
+``historical-witness-mismatch``) - so a token smuggled into the set by hand,
+or a swapped witness, launders nothing. The set's bytes ride through S7a
+unchanged, so the pin does too.
 
 CLI::
 
@@ -119,15 +125,16 @@ CLI::
     exit 1   an admitted citation is not a published commit, an allowlisted
              token is one (overreach), or a not-admitted, code or short run
              names an existing unpublished commit, or an ambiguous one has an
-             unpublished candidate, or a historical-stale or
-             historical-collision token
+             unpublished candidate, a historical-stale or
+             historical-collision token, or a set breaking a pin
     exit 2   could not judge - no git, not a repository, a shallow clone, no
              origin/main and no tag, a tracked file not read, a sweep that
              admitted nothing, or a historical set whose witnesses are both or
              neither published, or that does not parse
 
 ``--emit-historical`` regenerates the set, in the PRE state only (exit 2
-otherwise, writing nothing), keeping the file's witness or :data:`WITNESS`.
+otherwise, writing nothing), with :data:`WITNESS`, and pins its SHA-256 into
+this gate's own source - refusing, exit 2, a tree whose gate is not this file.
 ``--flip-readiness`` exits 0 only in the PRE state with no listed token stale
 and no token in tracked text naming a published commit outside the set.
 
@@ -138,6 +145,7 @@ themselves - never a doc line's text, and never an environment value.
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import re
@@ -167,6 +175,9 @@ GIT_TIMEOUT: Final = 120
 #: The tracked files the sweep reads as DOCS, as git pathspecs.
 DOC_PATHSPECS: Final = ("*.md", "*.txt")
 
+#: CS-700 - this gate, repository-relative: the file whose pin names the set.
+_GATE_PATH: Final = "tools/sha_citation_gate.py"
+
 #: CS-700 - the generated historical set, repository-relative.
 HISTORICAL_FILE: Final = "tools/sha_citation_historical.json"
 
@@ -183,6 +194,17 @@ WITNESS: Final = (
 #: the rehearsal's output tip - the image of ``69d44c5``, which the real rewrite
 #: reproduces byte for byte.
 S7A_IMAGE_ROWS: Final = frozenset({"389fe4a", WITNESS[1]})
+
+#: CS-700 - the SHA-256 of :data:`HISTORICAL_FILE`'s exact bytes, PINNED here so
+#: the set cannot be edited by hand: a token smuggled into it would launder a
+#: citation in the POST state. Written ONLY by ``--emit-historical``, in the PRE
+#: state, into the gate that judges the tree; checked on every run in every
+#: state. The set's bytes do not change across S7a, so the pin survives it.
+HISTORICAL_SHA256: Final = "4b7297dfb9ff78c9e6f0af7a0dc95427d1a009c9b31424fb0dbf7235e281d051"
+
+#: The one source line :data:`HISTORICAL_SHA256` lives on - ``--emit-historical``
+#: rewrites exactly this line and refuses a source carrying it other than once.
+_PIN_LINE: Final = re.compile(r'^HISTORICAL_SHA256: Final = "[0-9a-f]{64}"$', re.MULTILINE)
 
 #: CS-1224 - every OTHER tracked file, read as CODE: each hex run in it is
 #: resolved and red only when it names an existing unpublished commit. Measured
@@ -755,10 +777,12 @@ class Historical:
     Attributes:
         witness: ``(pre, post)`` - a commit of the history S7a rewrites, and its image.
         tokens: Every listed token, lower case.
+        digest: The SHA-256 of the bytes it was parsed from; empty when built in memory.
     """
 
     witness: tuple[str, str]
     tokens: frozenset[str]
+    digest: str = ""
 
 
 def parse_historical(raw: bytes) -> Historical:
@@ -789,7 +813,36 @@ def parse_historical(raw: bytes) -> Historical:
         raise GateError("historical tokens are not lower-case hex runs of 5 to 40")
     if len(set(tokens)) != len(tokens):
         raise GateError("historical set lists a token twice")
-    return Historical((pair[0], pair[1]), frozenset(tokens))
+    return Historical((pair[0], pair[1]), frozenset(tokens), hashlib.sha256(raw).hexdigest())
+
+
+def tamper_of(historical: Historical) -> list[str]:
+    """Each pin the tree's set breaks: the gate's digest, then the gate's witness pair.
+
+    A set whose bytes differ from :data:`HISTORICAL_SHA256` was edited outside
+    ``--emit-historical``; a witness pair other than :data:`WITNESS` reads a
+    state the gate never witnessed. Either one is a failure, in every state.
+    """
+    found: list[str] = []
+    if historical.digest != HISTORICAL_SHA256:
+        found.append("historical-digest-mismatch")
+    if historical.witness != WITNESS:
+        found.append("historical-witness-mismatch")
+    return found
+
+
+def repin_source(source: str, digest: str) -> str:
+    """``source`` with its one :data:`HISTORICAL_SHA256` line set to ``digest``.
+
+    Raises:
+        GateError: When the pin line is not present exactly once, or ``digest``
+            is not a SHA-256 hex digest.
+    """
+    if not re.fullmatch(r"[0-9a-f]{64}", digest):
+        raise GateError("a historical pin is not a SHA-256 hex digest")
+    if len(_PIN_LINE.findall(source)) != 1:
+        raise GateError("the gate source does not carry its pin line exactly once")
+    return _PIN_LINE.sub(f'HISTORICAL_SHA256: Final = "{digest}"', source)
 
 
 def load_historical(repo: Path) -> Historical | None:
@@ -875,6 +928,7 @@ class SweepReport:
     historical: Historical | None = None
     state: str | None = None
     historical_failures: list[tuple[str, str]] = field(default_factory=list)
+    historical_tamper: list[str] = field(default_factory=list)
     historical_exempt: int = 0
     text_published: set[str] = field(default_factory=set)
 
@@ -900,6 +954,8 @@ class SweepReport:
         A not-read file is exit 2 only when nothing else failed: an unpublished
         finding outranks it, and both are printed.
         """
+        if self.historical_tamper:
+            return EXIT_UNRESOLVED
         if self.shallow or not self.published_refs or not self.admitted:
             return EXIT_COULD_NOT_JUDGE
         if self.historical is not None and self.state not in (STATE_PRE, STATE_POST):
@@ -977,7 +1033,12 @@ def sweep(
     report.short_runs = short_runs
     report.not_judged = not_judged
     report.not_read = not_read
-    report.historical = load_historical(repo) if historical is None else historical
+    if historical is None:
+        report.historical = load_historical(repo)
+        if report.historical is not None:
+            report.historical_tamper = tamper_of(report.historical)
+    else:
+        report.historical = historical
     if shallow or not ref_count:
         return report
     _judge(repo, report, published)
@@ -1153,8 +1214,8 @@ def render(report: SweepReport) -> list[str]:
     elif verdict == EXIT_UNRESOLVED:
         out.append(
             "sha_citation_gate: FAIL - a citation is not a published commit, an "
-            "allowlisted token is one, or a not-admitted, code or short run names an "
-            "unpublished commit"
+            "allowlisted token is one, a not-admitted, code or short run names an "
+            "unpublished commit, or the historical set breaks a pin"
         )
         if report.not_read:
             out.append(f"sha_citation_gate: ALSO COULD NOT JUDGE - {_not_read_reason(report)}")
@@ -1190,7 +1251,18 @@ def _render_historical(report: SweepReport) -> list[str]:
         "token published, POST forbids any, BOTH and NEITHER cannot judge"
     ]
     out += [f"{label} {token}" for token, label in report.historical_failures]
+    out += [f"{label} {HISTORICAL_FILE} - {_TAMPER[label]}" for label in report.historical_tamper]
     return out
+
+
+#: CS-700 - what each broken pin means, printed beside the file it names.
+_TAMPER: Final[dict[str, str]] = {
+    "historical-digest-mismatch": (
+        "its bytes are not the ones HISTORICAL_SHA256 pins in this gate; regenerate it "
+        "with --emit-historical in the PRE state, never by hand"
+    ),
+    "historical-witness-mismatch": "its witness pair is not this gate's WITNESS",
+}
 
 
 def _not_read_reason(report: SweepReport) -> str:
@@ -1230,8 +1302,8 @@ def main(argv: list[str] | None = None) -> int:
     return report.verdict()
 
 
-def _pre_report(repo: Path, historical: Historical, mode: str) -> SweepReport | None:
-    """A sweep under ``historical``, or None - with the reason printed - unless PRE."""
+def _pre_report(repo: Path, historical: Historical | None, mode: str) -> SweepReport | None:
+    """A sweep under ``historical`` (the tree's own when None), or None unless PRE."""
     report = sweep(repo, historical=historical)
     if report.shallow or not report.published_refs or report.state != STATE_PRE:
         state = report.state or "UNJUDGED"
@@ -1247,16 +1319,30 @@ def emit_historical(repo: Path) -> int:
     """Regenerate :data:`HISTORICAL_FILE` from every published token in tracked text.
 
     PRE state only: after the rewrite no old token is published, so a regeneration
-    would silently empty the set. Keeps the file's witness, else :data:`WITNESS`.
+    would silently empty the set. The witness is always :data:`WITNESS`. The set's
+    SHA-256 is then pinned into THIS gate's own source - so only the gate that
+    judges ``repo`` may emit for it: one whose file is not ``repo``'s own
+    ``tools/sha_citation_gate.py`` exits 2 and writes nothing.
     """
-    current = load_historical(repo)
-    witness = current.witness if current is not None else WITNESS
-    report = _pre_report(repo, Historical(witness, frozenset()), "emit-historical")
+    own = Path(__file__).resolve()
+    if (repo / _GATE_PATH).resolve() != own:
+        print(
+            "sha_citation_gate: emit-historical COULD NOT JUDGE - this gate is not the "
+            f"judged tree's own {_GATE_PATH}, so it cannot pin that tree's set"
+        )
+        return EXIT_COULD_NOT_JUDGE
+    report = _pre_report(repo, Historical(WITNESS, frozenset()), "emit-historical")
     if report is None:
         return EXIT_COULD_NOT_JUDGE
     tokens = frozenset(token.lower() for token in report.text_published)
-    write_atomic(repo / HISTORICAL_FILE, render_historical(Historical(witness, tokens)))
-    print(f"sha_citation_gate: emit-historical wrote {len(tokens)} tokens to {HISTORICAL_FILE}")
+    body = render_historical(Historical(WITNESS, tokens))
+    pinned = repin_source(own.read_bytes().decode("ascii"), hashlib.sha256(body).hexdigest())
+    write_atomic(repo / HISTORICAL_FILE, body)
+    write_atomic(own, pinned.encode("ascii"))
+    print(
+        f"sha_citation_gate: emit-historical wrote {len(tokens)} tokens to {HISTORICAL_FILE} "
+        f"and pinned its SHA-256 in {_GATE_PATH}"
+    )
     return EXIT_CLEAN
 
 
@@ -1266,7 +1352,7 @@ def flip_readiness(repo: Path) -> int:
     if historical is None:
         print(f"sha_citation_gate: flip-readiness COULD NOT JUDGE - no {HISTORICAL_FILE}")
         return EXIT_COULD_NOT_JUDGE
-    report = _pre_report(repo, historical, "flip-readiness")
+    report = _pre_report(repo, None, "flip-readiness")
     if report is None:
         return EXIT_COULD_NOT_JUDGE
     outside = [
@@ -1276,7 +1362,8 @@ def flip_readiness(repo: Path) -> int:
     ]
     out = [f"flip-outside {entry.path}:{entry.line} {entry.token}" for entry in outside]
     out += [f"{label} {token}" for token, label in report.historical_failures]
-    failed = bool(outside or report.historical_failures)
+    out += [f"{label} {HISTORICAL_FILE}" for label in report.historical_tamper]
+    failed = bool(outside or report.historical_failures or report.historical_tamper)
     out.append(
         f"sha_citation_gate: flip-readiness {'NOT READY' if failed else 'READY'} - "
         f"{len(historical.tokens)} listed; outside {len(outside)}; "

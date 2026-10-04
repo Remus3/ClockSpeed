@@ -75,6 +75,23 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-10-04 - CS-700 - PROGRESS RECORD. NOT A COMPLETION RECORD. NOTHING CLOSED. CS-700 STAYS OPEN. The historical set is pinned by the gate after an adversary refuted the first cut
+Verification: `tools/sha_citation_gate.py::tamper_of`, `::repin_source`, `::emit_historical`,
+`::HISTORICAL_SHA256`; `tests/test_sha_citation_gate.py::test_a_token_smuggled_into_the_set_by_hand_is_refused`,
+`::test_a_witness_pair_differing_from_the_gate_is_refused`,
+`::test_emit_refuses_a_tree_that_is_not_its_own`, `::test_this_tree_ships_its_historical_set`.
+Corrects the record below: that cut left the set unprotected. F1, POST laundering - a token
+added to the set by hand exempted a citation of it; F2, witness tamper - a swapped witness
+pair read a PRE tree as POST and passed. Measured red first on the unrepaired gate with the
+adversary's plant shapes: the smuggled typo-shaped sha (the arm's `_SMUGGLED`) passed POST, exit 0, `exempt as history 2`;
+the swapped witness passed PRE as POST, exit 0. Now the gate pins the set's SHA-256 in its
+own source, written only by `--emit-historical` in PRE, and requires the set's witness to
+equal its own; either mismatch exits 1 naming the file, in every state. Four new mutants -
+digest check skipped, witness compare skipped, the verdict ignoring a broken pin, emit
+pinning a tree that is not its own - each read back as landed and KILLED under `python -B`
+beside the earlier eleven, re-run; pristine floor green. Residual: a hand edit to
+the gate's pin line can still launder; that is a reviewed change to the gate itself.
+
 ### 2026-10-04 - CS-700 - PROGRESS RECORD. NOT A COMPLETION RECORD. NOTHING CLOSED. CS-700 STAYS OPEN. The SHA citation gate survives the S7a rewrite through a state-witnessed historical set
 Verification: `tools/sha_citation_gate.py::sweep`, `::_historical_failures`, `::emit_historical`,
 `::flip_readiness`, `::parse_historical`; the generated set `tools/sha_citation_historical.json`;
