@@ -307,6 +307,12 @@ ALLOWLIST: Final[tuple[AllowRow, ...]] = (
     AllowRow("71fa2a683f2eaa04", _S, "head of UPSTREAM_SLOTS_DIGEST, history_notes"),
     AllowRow("72c750bb", _F, "tt-a1i/archify licence-gate pin, CS-1098 ruling quote, LEDGER"),
     AllowRow("72c750bb070d95171dbb2244e5b62b1b7da69c12", _F, "tt-a1i/archify full pin, LEDGER"),
+    AllowRow("389fe4a", _F, "CS-700 S7a rehearsal tip, rewritten graph, unpublished, phase7"),
+    AllowRow(
+        "b7b4a2c4b71c942bb759aa2b4f3b9ba906ddc1ec",
+        _F,
+        "CS-704 image of c6f3687 under the S7a rewrite, not yet published, LEDGER and phase7",
+    ),
     AllowRow("5bca294", _F, "mksglu/context-mode pin, CS-1099 ruling quote, LEDGER"),
     AllowRow("5bca2948959a7fb538e895d9a032c1a19b8685a5", _F, "mksglu/context-mode full pin"),
     AllowRow("a9317e03", _F, "timharris707/skills pin, CS-1100 ruling quote, LEDGER"),
