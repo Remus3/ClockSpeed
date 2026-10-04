@@ -114,11 +114,13 @@ def _smelter(recipe: str | None, clock: Fraction | None = Fraction(1)) -> machin
     )
 
 
-def _overlay(*edits: overlay.OverlayEdit) -> tuple[WorldWarning, ...]:
+def _overlay(*edits: overlay.OverlayEdit, priced: bool = False) -> tuple[WorldWarning, ...]:
     """Evaluate an overlay over one plate smelter, with no placement supplied.
 
     Args:
         edits: The overlay's edits.
+        priced: Whether the synthetic buildings are supplied, so a clock can
+            be checked against a base.
 
     Returns:
         The warnings raised.
@@ -135,8 +137,12 @@ def _overlay(*edits: overlay.OverlayEdit) -> tuple[WorldWarning, ...]:
         refused_recipe_count=0,
         warnings=(),
     )
+    registry = synthetic.solve_registry()
     return overlay.evaluate_overlay(
-        model, overlay.Overlay(edits=edits), dict(synthetic.solve_registry().recipes)
+        model,
+        overlay.Overlay(edits=edits),
+        dict(registry.recipes),
+        buildings=dict(registry.buildings) if priced else None,
     ).warnings
 
 
@@ -341,6 +347,15 @@ FIXTURES: Final[Mapping[str, Firing]] = {
         overlay.AddMachines(recipe_class_name=_UNKNOWN_RECIPE, count=1, clock=Fraction(1))
     ),
     "WARN_OVERLAY_DRAW_UNAVAILABLE": _overlay,
+    "WARN_OVERLAY_CLOCK_ABOVE_BASE": lambda: _overlay(
+        overlay.AddMachines(
+            recipe_class_name=synthetic.PLATE_RECIPE, count=1, clock=Fraction(3, 2)
+        ),
+        priced=True,
+    ),
+    "WARN_OVERLAY_CLOCK_UNCHECKED": lambda: _overlay(
+        overlay.AddMachines(recipe_class_name=synthetic.PLATE_RECIPE, count=1, clock=Fraction(1))
+    ),
     # placement.py
     "WARN_BUILT_TRANSFORM_ABSENT": lambda: (
         placement.placement_of(

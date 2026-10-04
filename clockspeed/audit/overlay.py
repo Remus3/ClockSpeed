@@ -36,7 +36,9 @@ An edit is APPLIED, REFUSED or SKIPPED, and its record says which and why.
 
 REFUSED is an edit that cannot apply to THIS world: removing more machines
 than run the recipe, a remove the placement's built count cannot cover, an add
-whose building cannot be resolved, a swap onto itself. A refused edit changes
+whose building cannot be resolved, an add or a swap that would run a recipe in a
+building its ``produced_in`` does not name, an add into a building the supplied
+buildings do not model, a swap onto itself. A refused edit changes
 NOTHING - removing five of three machines does not remove three. A clamp would
 be the overlay quietly answering a different question than the one asked,
 which is the silently-wrong shape non-negotiable 7 forbids.
@@ -52,6 +54,16 @@ not exactly a non-negative ``Fraction`` - is refused at CONSTRUCTION, because it
 is a fault in the caller's statement rather than a fact about the world. An
 inexact number raises ``InexactValueError`` from ``clockspeed/solve/exact.py``;
 anything else raises :class:`OverlayEditError`.
+
+THE CLOCK IS CHECKED AGAINST WHAT IS KNOWN, AND FLAGGED WHERE IT CANNOT BE.
+A clock of zero is refused at construction - a machine that never cycles is a
+remove, not an add. ``clockspeed/solve/power.py`` ``clock_ceiling`` publishes NO
+ceiling number (ADR 0005: the shard slot count is unmeasured), so an add above
+the building's un-sharded base is APPLIED and flagged
+:data:`WARN_OVERLAY_CLOCK_ABOVE_BASE` - it may or may not be reachable with
+shards - and an add whose clock nothing could be checked against (no buildings
+supplied, or no base declared) is flagged :data:`WARN_OVERLAY_CLOCK_UNCHECKED`.
+Neither is silently accepted, and neither is refused on a ceiling nobody knows.
 
 A VIRTUAL MACHINE WAS NEVER MEASURED. An added machine, and a swapped one,
 carries ``producing=None``: the producing flag is a reading, and nothing read it.
@@ -70,6 +82,7 @@ from clockspeed.audit.flow import WorldFlow, flow_of
 from clockspeed.audit.machines import MachineState, WorldMachines
 from clockspeed.save.world import WorldWarning
 from clockspeed.solve.exact import InexactValueError, audit_exact
+from clockspeed.solve.power import clock_ceiling
 
 if TYPE_CHECKING:
     from collections.abc import Iterable, Mapping
@@ -85,12 +98,16 @@ __all__ = [
     "OUTCOME_APPLIED",
     "OUTCOME_REFUSED",
     "OUTCOME_SKIPPED",
+    "REFUSED_BUILDING_MISMATCH",
+    "REFUSED_BUILDING_UNKNOWN",
     "REFUSED_BUILDING_UNRESOLVED",
     "REFUSED_PLACEMENT_SHORT",
     "REFUSED_SWAP_TO_SELF",
     "REFUSED_TOO_FEW_MACHINES",
     "SKIPPED_RECIPE_UNKNOWN",
     "SOURCE_OVERLAY",
+    "WARN_OVERLAY_CLOCK_ABOVE_BASE",
+    "WARN_OVERLAY_CLOCK_UNCHECKED",
     "WARN_OVERLAY_DRAW_UNAVAILABLE",
     "WARN_OVERLAY_EDIT_REFUSED",
     "WARN_OVERLAY_RECIPE_UNKNOWN",
@@ -133,6 +150,13 @@ REFUSED_PLACEMENT_SHORT: Final = "placement-short"
 #: An add named no building and its recipe names not exactly one producer.
 REFUSED_BUILDING_UNRESOLVED: Final = "building-unresolved"
 
+#: An add or a swap would run a recipe in a building its ``produced_in`` does
+#: not name.
+REFUSED_BUILDING_MISMATCH: Final = "building-mismatch"
+
+#: An add names a building the supplied buildings do not model.
+REFUSED_BUILDING_UNKNOWN: Final = "building-unknown"
+
 #: A swap whose source and target are the same recipe.
 REFUSED_SWAP_TO_SELF: Final = "swap-to-self"
 
@@ -144,6 +168,14 @@ WARN_OVERLAY_EDIT_REFUSED: Final = "overlay-edit-refused"
 
 #: This many edits named a recipe the mapping does not carry and were skipped.
 WARN_OVERLAY_RECIPE_UNKNOWN: Final = "overlay-recipe-unknown"
+
+#: This many adds run above the building's un-sharded base clock. Applied:
+#: the shard ceiling is unmeasured, so whether the clock is reachable is unknown.
+WARN_OVERLAY_CLOCK_ABOVE_BASE: Final = "overlay-clock-above-base"
+
+#: This many adds carry a clock nothing could be checked against - no buildings
+#: supplied, or the building declares no un-sharded base.
+WARN_OVERLAY_CLOCK_UNCHECKED: Final = "overlay-clock-unchecked"
 
 #: No placement or no buildings were supplied, so no draw was recomputed.
 WARN_OVERLAY_DRAW_UNAVAILABLE: Final = "overlay-draw-unavailable"
@@ -159,6 +191,15 @@ _WARNING_DETAIL: Final[Mapping[str, str]] = MappingProxyType(
         WARN_OVERLAY_RECIPE_UNKNOWN: (
             "this many overlay edits named a recipe the supplied mapping does not carry"
             " and were skipped, because its rate is unknown"
+        ),
+        WARN_OVERLAY_CLOCK_ABOVE_BASE: (
+            "this many overlay adds run above the building's un-sharded base clock;"
+            " the shard ceiling is unmeasured, so whether that clock is reachable is"
+            " unknown rather than accepted"
+        ),
+        WARN_OVERLAY_CLOCK_UNCHECKED: (
+            "this many overlay adds carry a clock that could not be checked - no"
+            " buildings were supplied or the building declares no un-sharded base"
         ),
         WARN_OVERLAY_DRAW_UNAVAILABLE: (
             "no placement or no buildings were supplied, so the power draw was not"
@@ -200,7 +241,7 @@ class AddMachines:
     Attributes:
         recipe_class_name: The recipe the new machines run.
         count: How many, a positive int.
-        clock: Their clock, exactly a non-negative Fraction.
+        clock: Their clock, exactly a Fraction above zero.
         building_class_name: Their building class, or None to take the
             recipe's single ``produced_in`` entry.
     """
@@ -217,6 +258,8 @@ class AddMachines:
         _require_name(self.recipe_class_name, "recipe_class_name")
         _require_count(self.count, "count")
         _require_non_negative(self.clock, "clock")
+        if self.clock == 0:
+            raise OverlayEditError("clock must be above zero; remove the machines instead")
         if self.building_class_name is not None:
             _require_name(self.building_class_name, "building_class_name")
 
@@ -369,6 +412,8 @@ class EditRecord:
         target_count_after: The same, after this edit.
         demand_before: The item's demand before a demand edit; None otherwise.
         demand_after: The same, after.
+        flag: A ``WARN_*`` code the edit applied under, or None - set when an
+            add's clock is above the un-sharded base or could not be checked.
     """
 
     index: int
@@ -383,6 +428,7 @@ class EditRecord:
     target_count_after: int | None = None
     demand_before: Fraction | None = None
     demand_after: Fraction | None = None
+    flag: str | None = None
 
     def __repr__(self) -> str:
         """Render the index, kind, outcome and counts, and no name.
@@ -561,8 +607,33 @@ def _skipped(index: int, edit: OverlayEdit, **counts: int | None) -> EditRecord:
     )
 
 
+def _clock_flag(clock: Fraction, entry: Building | None) -> str | None:
+    """Which flag, if any, an added clock carries against its building.
+
+    Args:
+        clock: The added machines' clock.
+        entry: The building, or None when no buildings were supplied.
+
+    Returns:
+        None when the clock is at or below the un-sharded base; a ``WARN_*``
+        code otherwise. See the module docstring.
+    """
+    if entry is None:
+        return WARN_OVERLAY_CLOCK_UNCHECKED
+    ceiling = clock_ceiling(entry)
+    if ceiling.base is None:
+        return WARN_OVERLAY_CLOCK_UNCHECKED
+    if clock > ceiling.base:
+        return WARN_OVERLAY_CLOCK_ABOVE_BASE
+    return None
+
+
 def _apply_add(
-    index: int, edit: AddMachines, world: _World, recipes: Mapping[str, Recipe]
+    index: int,
+    edit: AddMachines,
+    world: _World,
+    recipes: Mapping[str, Recipe],
+    buildings: Mapping[str, Building] | None,
 ) -> EditRecord:
     before = _count(world.states, edit.recipe_class_name)
     counts = {"count_before": before, "count_after": before}
@@ -574,6 +645,11 @@ def _apply_add(
         if len(recipe.produced_in) != 1:
             return _refused(index, edit, REFUSED_BUILDING_UNRESOLVED, **counts)
         building = recipe.produced_in[0]
+    if building not in recipe.produced_in:
+        return _refused(index, edit, REFUSED_BUILDING_MISMATCH, **counts)
+    if buildings is not None and building not in buildings:
+        return _refused(index, edit, REFUSED_BUILDING_UNKNOWN, **counts)
+    flag = _clock_flag(edit.clock, None if buildings is None else buildings[building])
     added = tuple(
         MachineState(
             class_name=building,
@@ -595,6 +671,7 @@ def _apply_add(
         machines_changed=edit.count,
         count_before=before,
         count_after=before + edit.count,
+        flag=flag,
     )
 
 
@@ -652,6 +729,12 @@ def _apply_swap(
     moved = before if edit.count is None else edit.count
     if moved < 1 or before < moved:
         return _refused(index, edit, REFUSED_TOO_FEW_MACHINES, **counts)
+    producers = recipes[edit.to_recipe].produced_in
+    chosen = [state for state in world.states if state.recipe_class_name == edit.from_recipe][
+        :moved
+    ]
+    if any(state.class_name not in producers for state in chosen):
+        return _refused(index, edit, REFUSED_BUILDING_MISMATCH, **counts)
     remaining = moved
     states: list[MachineState] = []
     for state in world.states:
@@ -698,6 +781,7 @@ def apply_overlay(
     recipes: Mapping[str, Recipe],
     *,
     placement: WorldPlacement | None = None,
+    buildings: Mapping[str, Building] | None = None,
     demands: Mapping[str, Fraction] | None = None,
 ) -> OverlayApplication:
     """Apply every edit in order and return new models plus one record per edit.
@@ -709,6 +793,9 @@ def apply_overlay(
         overlay: The edits.
         recipes: The recipes, keyed by class name. Supplied by the caller.
         placement: The measured placement, when the draw is to be recomputed.
+        buildings: The buildings, keyed by class name, which an add's building
+            must be one of and its clock is checked against. None leaves every
+            added clock flagged unchecked.
         demands: The caller's base demands, item to net rate per minute.
 
     Returns:
@@ -728,7 +815,7 @@ def apply_overlay(
     records: list[EditRecord] = []
     for index, edit in enumerate(overlay.edits):
         if isinstance(edit, AddMachines):
-            records.append(_apply_add(index, edit, world, recipes))
+            records.append(_apply_add(index, edit, world, recipes, buildings))
         elif isinstance(edit, RemoveMachines):
             records.append(_apply_remove(index, edit, world))
         elif isinstance(edit, SwapRecipe):
@@ -743,6 +830,10 @@ def apply_overlay(
         warnings.append(_warning(WARN_OVERLAY_EDIT_REFUSED, refused))
     if skipped:
         warnings.append(_warning(WARN_OVERLAY_RECIPE_UNKNOWN, skipped))
+    for code in (WARN_OVERLAY_CLOCK_ABOVE_BASE, WARN_OVERLAY_CLOCK_UNCHECKED):
+        flagged = sum(1 for record in records if record.flag == code)
+        if flagged:
+            warnings.append(_warning(code, flagged))
 
     result = OverlayApplication(
         machines=_with_states(machines, world.states),
@@ -791,7 +882,9 @@ def evaluate_overlay(
         InexactValueError: A base demand is not exactly a Fraction.
     """
     raw = tuple(sorted(set(raw_items)))
-    application = apply_overlay(machines, overlay, recipes, placement=placement, demands=demands)
+    application = apply_overlay(
+        machines, overlay, recipes, placement=placement, buildings=buildings, demands=demands
+    )
     before_flow = flow_of(machines, recipes, raw_items=raw, demands=dict(demands or {}))
     after_flow = flow_of(application.machines, recipes, raw_items=raw, demands=application.demands)
 

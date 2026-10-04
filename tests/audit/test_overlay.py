@@ -19,26 +19,34 @@ the evaluation, which would leak a what-if into the real world's answer.
 
 from __future__ import annotations
 
+import _io
 import builtins
 import copy
 import dataclasses
 import io
 import json
 import os
+import shutil
 import subprocess
 import sys
 from collections.abc import Mapping
 from fractions import Fraction
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Final
 
 import pytest
 
 from clockspeed.audit import balance, flow, overlay
 from clockspeed.audit.machines import MachineState, WorldMachines
-from clockspeed.solve import exact
+from clockspeed.data import locate
+from clockspeed.solve import exact, power
 from tests.audit import plan_world
 from tests.solve import synthetic
+
+if sys.platform == "win32":
+    import nt as _native_os
+else:
+    import posix as _native_os
 
 if TYPE_CHECKING:
     from clockspeed.audit.placement import WorldPlacement
@@ -74,7 +82,7 @@ _THREE_HALVES = Fraction(3, 2)
 #: A whole evaluation serialises to far more than this; less means a field went missing.
 _MIN_CANONICAL_BYTES = 1000
 #: How many stand-in files the never-write arm plants.
-_STANDIN_FILES = 3
+_STANDIN_FILES = 4
 
 
 def _machine(building: str, recipe: str, clock: Fraction) -> MachineState:
@@ -215,9 +223,26 @@ def test_adding_machines_raises_the_draw_by_the_resolved_building(
     assert after_placement.built_counts[_SMELTER] == placement.built_counts[_SMELTER] + 3
 
 
-def test_an_explicit_building_overrides_the_recipe_resolution(
+def test_an_explicit_building_on_the_recipes_producer_list_is_accepted(
     machines: WorldMachines, placement: WorldPlacement, recipes: dict[str, Recipe]
 ) -> None:
+    edit = overlay.AddMachines(
+        recipe_class_name=_R_PLATE, count=1, clock=_ONE, building_class_name=_SMELTER
+    )
+    result = overlay.apply_overlay(
+        machines, overlay.Overlay(edits=(edit,)), recipes, placement=placement
+    )
+
+    assert result.records[0].outcome == overlay.OUTCOME_APPLIED
+    assert result.machines.machines[-1].class_name == _SMELTER
+    assert result.placement is not None
+    assert result.placement.built_counts[_SMELTER] == placement.built_counts[_SMELTER] + 1
+
+
+def test_an_add_into_a_building_the_recipe_cannot_run_in_is_a_named_refusal(
+    machines: WorldMachines, placement: WorldPlacement, recipes: dict[str, Recipe]
+) -> None:
+    # R_Plate is produced in the smelter only; an assembler cannot run it.
     edit = overlay.AddMachines(
         recipe_class_name=_R_PLATE, count=1, clock=_ONE, building_class_name=_ASSEMBLER
     )
@@ -225,9 +250,63 @@ def test_an_explicit_building_overrides_the_recipe_resolution(
         machines, overlay.Overlay(edits=(edit,)), recipes, placement=placement
     )
 
-    assert result.machines.machines[-1].class_name == _ASSEMBLER
-    assert result.placement is not None
-    assert result.placement.built_counts[_ASSEMBLER] == placement.built_counts[_ASSEMBLER] + 1
+    (record,) = result.records
+    assert record.outcome == overlay.OUTCOME_REFUSED
+    assert record.reason == overlay.REFUSED_BUILDING_MISMATCH
+    assert result.machines == machines
+    assert result.placement == placement
+    assert overlay.WARN_OVERLAY_EDIT_REFUSED in _codes(result.warnings)
+
+
+def test_an_add_into_a_building_the_registry_does_not_carry_is_a_named_refusal(
+    machines: WorldMachines, recipes: dict[str, Recipe], buildings: dict[str, Building]
+) -> None:
+    # The recipe names the smelter, but the supplied buildings do not model it.
+    without_smelter = {key: value for key, value in buildings.items() if key != _SMELTER}
+    edit = overlay.AddMachines(recipe_class_name=_R_PLATE, count=1, clock=_ONE)
+    result = overlay.apply_overlay(
+        machines, overlay.Overlay(edits=(edit,)), recipes, buildings=without_smelter
+    )
+
+    (record,) = result.records
+    assert record.outcome == overlay.OUTCOME_REFUSED
+    assert record.reason == overlay.REFUSED_BUILDING_UNKNOWN
+    assert result.machines == machines
+
+
+def test_a_clock_above_the_unsharded_base_is_applied_and_flagged_ceiling_unknown(
+    machines: WorldMachines, recipes: dict[str, Recipe], buildings: dict[str, Building]
+) -> None:
+    # The smelter's un-sharded base is one; the shard ceiling is unmeasured
+    # (solve/power.py clock_ceiling is never known), so above-base is flagged.
+    assert power.clock_ceiling(buildings[_SMELTER]).base == synthetic.UNSHARDED_CLOCK_BASE == _ONE
+    above = overlay.AddMachines(recipe_class_name=_R_PLATE, count=1, clock=_THREE_HALVES)
+    at = overlay.AddMachines(recipe_class_name=_R_ROD, count=1, clock=_ONE)
+    result = overlay.apply_overlay(
+        machines, overlay.Overlay(edits=(above, at)), recipes, buildings=buildings
+    )
+
+    assert [record.outcome for record in result.records] == [
+        overlay.OUTCOME_APPLIED,
+        overlay.OUTCOME_APPLIED,
+    ]
+    assert [record.flag for record in result.records] == [
+        overlay.WARN_OVERLAY_CLOCK_ABOVE_BASE,
+        None,
+    ]
+    flagged = [w for w in result.warnings if w.code == overlay.WARN_OVERLAY_CLOCK_ABOVE_BASE]
+    assert [w.count for w in flagged] == [1]
+
+
+def test_a_clock_with_no_buildings_to_check_against_is_flagged_unchecked(
+    machines: WorldMachines, recipes: dict[str, Recipe]
+) -> None:
+    edit = overlay.AddMachines(recipe_class_name=_R_PLATE, count=1, clock=_ONE)
+    result = overlay.apply_overlay(machines, overlay.Overlay(edits=(edit,)), recipes)
+
+    assert result.records[0].outcome == overlay.OUTCOME_APPLIED
+    assert result.records[0].flag == overlay.WARN_OVERLAY_CLOCK_UNCHECKED
+    assert overlay.WARN_OVERLAY_CLOCK_UNCHECKED in _codes(result.warnings)
 
 
 def test_an_add_whose_building_cannot_be_resolved_is_a_named_refusal(
@@ -438,6 +517,98 @@ def test_edits_apply_in_order_each_over_the_previous_result(
     assert _count(result.machines, _R_ROD) == 0
 
 
+def test_a_remove_takes_exactly_the_last_n_machines_in_population_order(
+    recipes: dict[str, Recipe],
+) -> None:
+    clocks = (Fraction(1, 4), Fraction(1, 2), Fraction(3, 4))
+    world = plan_world.machines_model(
+        tuple(_machine(_SMELTER, _R_PLATE, clock) for clock in clocks)
+    )
+    edit = overlay.RemoveMachines(recipe_class_name=_R_PLATE, count=2)
+    result = overlay.apply_overlay(world, overlay.Overlay(edits=(edit,)), recipes)
+
+    assert [state.overclock for state in result.machines.machines] == [Fraction(1, 4)]
+
+
+def test_a_swap_keeps_each_machines_own_clock_and_unsets_producing(
+    recipes: dict[str, Recipe],
+) -> None:
+    world = plan_world.machines_model(
+        (
+            _machine(_ASSEMBLER, _STD, Fraction(3, 4)),
+            _machine(_ASSEMBLER, _STD, Fraction(1, 2)),
+        )
+    )
+    edit = overlay.SwapRecipe(from_recipe=_STD, to_recipe=_ALT, count=1)
+    result = overlay.apply_overlay(world, overlay.Overlay(edits=(edit,)), recipes)
+
+    first, second = result.machines.machines
+    assert (first.recipe_class_name, first.overclock, first.producing) == (
+        _ALT,
+        Fraction(3, 4),
+        None,
+    )
+    assert (second.recipe_class_name, second.overclock, second.producing) == (
+        _STD,
+        Fraction(1, 2),
+        True,
+    )
+    (record,) = result.records
+    assert record.machines_changed == 1
+    assert (record.count_before, record.count_after) == (2, 1)
+    assert (record.target_count_before, record.target_count_after) == (0, 1)
+
+
+def test_a_swap_onto_a_recipe_the_building_cannot_run_is_a_named_refusal(
+    machines: WorldMachines, placement: WorldPlacement, recipes: dict[str, Recipe]
+) -> None:
+    # R_Plate machines are smelters; Std_Gadget is produced in the assembler only.
+    edit = overlay.SwapRecipe(from_recipe=_R_PLATE, to_recipe=_STD)
+    result = overlay.apply_overlay(
+        machines, overlay.Overlay(edits=(edit,)), recipes, placement=placement
+    )
+
+    (record,) = result.records
+    assert record.outcome == overlay.OUTCOME_REFUSED
+    assert record.reason == overlay.REFUSED_BUILDING_MISMATCH
+    assert record.machines_changed == 0
+    assert result.machines == machines
+    assert result.placement == placement
+
+
+def test_a_refused_remove_across_two_buildings_leaves_the_placement_untouched(
+    recipes: dict[str, Recipe],
+) -> None:
+    # One plate machine in each of two classes; the placement covers the
+    # smelter but not the assembler. Decrementing as it went would have taken
+    # the smelter down before discovering the assembler was short.
+    states = (_machine(_SMELTER, _R_PLATE, _ONE), _machine(_ASSEMBLER, _R_PLATE, _ONE))
+    short = dataclasses.replace(plan_world.placement_model(states), built_counts={_SMELTER: 5})
+    edit = overlay.RemoveMachines(recipe_class_name=_R_PLATE, count=2)
+    result = overlay.apply_overlay(
+        plan_world.machines_model(states),
+        overlay.Overlay(edits=(edit,)),
+        recipes,
+        placement=short,
+    )
+
+    assert result.records[0].reason == overlay.REFUSED_PLACEMENT_SHORT
+    assert result.placement is not None
+    assert dict(result.placement.built_counts) == {_SMELTER: 5}
+
+
+def test_the_demands_mapping_is_in_sorted_key_order_itself(
+    machines: WorldMachines, recipes: dict[str, Recipe]
+) -> None:
+    ore = synthetic.SOLVE_ORE_ITEM
+    base = {_ROD: _ONE, _PLATE: _ONE}
+    edit = overlay.SetDemand(item_key=ore, rate=_ONE)
+    result = overlay.apply_overlay(machines, overlay.Overlay(edits=(edit,)), recipes, demands=base)
+
+    assert list(result.demands) == sorted([ore, _PLATE, _ROD])
+    assert list(result.demands) != [*base, ore], "the insertion order is already sorted"
+
+
 # ---------------------------------------------------------------------------
 # The value and its refusals
 # ---------------------------------------------------------------------------
@@ -449,6 +620,7 @@ def test_edits_apply_in_order_each_over_the_previous_result(
         lambda: overlay.AddMachines(recipe_class_name=_R_PLATE, count=0, clock=_ONE),
         lambda: overlay.AddMachines(recipe_class_name=_R_PLATE, count=True, clock=_ONE),
         lambda: overlay.AddMachines(recipe_class_name=_R_PLATE, count=1, clock=Fraction(-1)),
+        lambda: overlay.AddMachines(recipe_class_name=_R_PLATE, count=1, clock=Fraction(0)),
         lambda: overlay.AddMachines(recipe_class_name="", count=1, clock=_ONE),
         lambda: overlay.RemoveMachines(recipe_class_name=_R_PLATE, count=-1),
         lambda: overlay.SwapRecipe(from_recipe=_STD, to_recipe=_ALT, count=0),
@@ -462,6 +634,7 @@ def test_edits_apply_in_order_each_over_the_previous_result(
         "zero-count",
         "bool-count",
         "negative-clock",
+        "zero-clock",
         "empty-recipe",
         "negative-remove",
         "zero-swap",
@@ -681,6 +854,53 @@ def test_the_door_patch_bites() -> None:
     assert tried == ["x"]
 
 
+#: Every door through which a file could be opened, written, moved or touched,
+#: as (owner, attribute). Each is patched to raise during the evaluation.
+_FILE_DOORS: Final = (
+    (builtins, "open"),
+    (io, "open"),
+    (io, "FileIO"),
+    (_io, "open"),
+    (_io, "FileIO"),
+    (os, "open"),
+    (os, "replace"),
+    (os, "rename"),
+    (os, "remove"),
+    (os, "unlink"),
+    (os, "utime"),
+    (os, "mkdir"),
+    (os, "makedirs"),
+    (_native_os, "open"),
+    (_native_os, "replace"),
+    (_native_os, "rename"),
+    (_native_os, "remove"),
+    (_native_os, "unlink"),
+    (_native_os, "utime"),
+    (shutil, "copy"),
+    (shutil, "copy2"),
+    (shutil, "copyfile"),
+    (shutil, "copytree"),
+    (shutil, "move"),
+    (Path, "open"),
+    (Path, "write_bytes"),
+    (Path, "write_text"),
+    (Path, "touch"),
+    (Path, "unlink"),
+    (Path, "rename"),
+    (Path, "replace"),
+)
+
+#: Every environment variable auto-location consults, redirected into the
+#: temp tree so the snapshot covers wherever location would look.
+_LOCATION_VARIABLES: Final = (
+    "LOCALAPPDATA",
+    locate.ENV_GAME_DIR,
+    locate.ENV_SAVE_ROOT,
+    locate.ENV_ACCOUNT_DIR,
+    locate.ENV_LOCAL_CONFIG,
+)
+
+
 def test_an_overlay_evaluation_opens_no_file_and_changes_none(
     tmp_path: Path,
     machines: WorldMachines,
@@ -689,31 +909,43 @@ def test_an_overlay_evaluation_opens_no_file_and_changes_none(
     buildings: dict[str, Building],
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    # Stand-ins for the save and install directories. Synthetic bytes only.
-    save_dir = tmp_path / "save"
-    install_dir = tmp_path / "install"
-    (save_dir / "account").mkdir(parents=True)
-    (install_dir / "docs").mkdir(parents=True)
-    (save_dir / "account" / "world.sav").write_bytes(b"synthetic-save-bytes\x00\x01")
-    (save_dir / "account" / "world_autosave_0.sav").write_bytes(b"synthetic-autosave")
-    (install_dir / "docs" / "en-US.json").write_bytes(b'{"synthetic": true}')
+    # Stand-ins for the save and install directories, laid out where
+    # auto-location looks. Synthetic bytes only; the account directory is a
+    # synthetic numeric name.
+    local = tmp_path / "localappdata"
+    save_root = local / "FactoryGame" / "Saved" / "SaveGames"
+    account = save_root / "1000"
+    install = tmp_path / "install"
+    docs = install / "CommunityResources" / "Docs"
+    config = tmp_path / "config" / "local.json"
+    for directory in (account, docs, config.parent):
+        directory.mkdir(parents=True)
+    (account / "world.sav").write_bytes(b"synthetic-save-bytes\x00\x01")
+    (account / "world_autosave_0.sav").write_bytes(b"synthetic-autosave")
+    (docs / "en-US.json").write_bytes(b'{"synthetic": true}')
+    config.write_bytes(b"{}")
     before = _snapshot(tmp_path)
     assert len(before) == _STANDIN_FILES
 
+    monkeypatch.setenv("LOCALAPPDATA", str(local))
+    monkeypatch.setenv(locate.ENV_GAME_DIR, str(install))
+    monkeypatch.setenv(locate.ENV_SAVE_ROOT, str(save_root))
+    monkeypatch.setenv(locate.ENV_ACCOUNT_DIR, str(account))
+    monkeypatch.setenv(locate.ENV_LOCAL_CONFIG, str(config))
+    assert all(os.environ.get(name) for name in _LOCATION_VARIABLES)
+
     tried: list[str] = []
 
-    def opener(door: str) -> object:
+    def door(name: str) -> object:
         def refuse(*_args: object, **_kwargs: object) -> object:
-            tried.append(door)
-            raise AssertionError(f"the overlay path opened a file through {door}")
+            tried.append(name)
+            raise AssertionError(f"the overlay path reached a file door: {name}")
 
         return refuse
 
     with monkeypatch.context() as patch:
-        patch.setattr(builtins, "open", opener("builtins.open"))
-        patch.setattr(io, "open", opener("io.open"))
-        patch.setattr(os, "open", opener("os.open"))
-        patch.setattr(Path, "open", opener("Path.open"))
+        for owner, attribute in _FILE_DOORS:
+            patch.setattr(owner, attribute, door(attribute))
         result = overlay.evaluate_overlay(
             machines,
             _mixed_overlay(),
@@ -726,6 +958,13 @@ def test_an_overlay_evaluation_opens_no_file_and_changes_none(
     assert tried == []
     assert result.application.records, "nothing was evaluated, so the arm is vacuous"
     assert _snapshot(tmp_path) == before
+
+
+@pytest.mark.parametrize(("owner", "attribute"), _FILE_DOORS)
+def test_every_patched_door_exists_so_the_patch_is_not_a_no_op(
+    owner: object, attribute: str
+) -> None:
+    assert callable(getattr(owner, attribute))
 
 
 def test_draw_is_withheld_and_said_so_without_a_placement(
