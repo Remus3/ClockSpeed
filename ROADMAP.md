@@ -293,6 +293,7 @@ CS-1253 - a versioned per-world ledger and mute store: forward migration, refuse
 CS-1264 - the clocked draw never checks a production boost, so a boosted machine is priced as unboosted - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1265 - the flow audit reads an untagged clock as unread while the balance prices it at the elided default - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1266 - nothing cross-checks the clocked draw's considered machines against the built power consumers - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
+CS-1268 - the advice ledger never sets `completed` when advice stops firing: it cannot list a world's recorded cards - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
 
 ## Phase 6 - surfaces
 

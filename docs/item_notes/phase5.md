@@ -591,3 +591,25 @@ producing tag. Nothing cross-checks the considered population against what is ac
 ### Acceptance
 
 the audit publishes, like for like, the count of built power consumers and the count its clocked draw considered, and a consumer the draw omits is named; an arm with a synthetic world holding such a consumer reddens when the omission goes unnamed
+
+## CS-1268
+
+### Filed 2026-10-04 by CS-500's close
+
+`BOOTSTRAP.md` section 5.2 requires that `completed` is set automatically when the world state
+satisfies the advice, and calls that transition worth surfacing. It is never set:
+`clockspeed/advisor/ledger.py` offers no listing of a world's recorded cards, so
+`clockspeed/advisor/advise.py::advise` sees only the cards that fire now and cannot detect a
+recorded card that has vanished; and `advise` writes neither store by design
+(`tests/advisor/test_advise.py::test_advise_never_writes_either_store`), so the transition
+needs a stated write path. A Phase 5 product item, not tooling.
+
+`BOOTSTRAP.md` does NOT state what a completed card does when its rule fires again. Ruled here
+on the section's own wording - `completed` means the world satisfies the advice, so a firing
+rule means it no longer does: a completed card that fires again is surfaced as `new`, and a
+card the player set `dismissed`, `snoozed` or `pinned` keeps that state and is never marked
+`completed` over it. Recorded with this filing; an adjudicator may overrule it before build.
+
+### Acceptance
+
+red first: a synthetic world where a card is recorded `accepted` or `new` and shown, then a reload in which its rule stops firing, leaves that card `completed` in the per-world ledger, read back from disk, and the transition is surfaced in the result; the ledger can list one world's recorded cards; a `completed` card whose rule fires again is surfaced as `new`; a `dismissed`, `snoozed` or `pinned` card whose rule stops firing keeps its state; two runs over the same inputs give the same states
