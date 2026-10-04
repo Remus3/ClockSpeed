@@ -75,6 +75,16 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-10-04 - CS-704 - PROGRESS RECORD. NOT A COMPLETION RECORD. The accept-set test now grades the ACCEPT tokens, not full-SHA matches
+Verification: `tests/test_trailer_routes.py::test_the_step_accepts_exactly_the_granted_pair`.
+An adversary showed the test collected only 40-hex lowercase names, so a third ACCEPT member
+git also takes as an ancestor - a short prefix, an uppercase name - passed every test. The
+test now requires one plain quoted ACCEPT assignment and grades its whitespace-split tokens:
+two, no repeat, set-equal to the granted pair. Plants into a `git archive` copy of the
+workflow, each read back before the run: short third, uppercase third, `HEAD~1` third and a
+duplicate member each redden the new test and pass the old; pristine passes both. The
+workflow is unchanged.
+
 ### 2026-10-04 - CS-1216 - CLOSED: the slots release docstring states that a torn in-place write reads held until stale_after
 Verification: `ops/loop/slots.py`, the `release` docstring (its size and SHA-256 equal
 `EXPECTED_BYTES` and `SLOTS_DIGEST` in `tests/ops/test_shared_slots.py`);

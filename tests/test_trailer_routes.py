@@ -701,11 +701,34 @@ def test_head_at_the_baseline_passes_by_name_and_walks_nothing(tmp_path: Path) -
 # --- CS-704 accept set: the baseline OR its S7a image ---------------------------
 
 
+ACCEPT_ASSIGNMENT: Final = re.compile(r"^[ \t]*ACCEPT\+?=", re.MULTILINE)
+ACCEPT_VALUE: Final = re.compile(r'^[ \t]*ACCEPT="([^"$`\\]*)"[ \t]*$', re.MULTILINE)
+
+
 def test_the_step_accepts_exactly_the_granted_pair() -> None:
-    """The step names the two ruled SHAs and no other full object name."""
+    """The step's ACCEPT value is the two ruled SHAs as TOKENS, and nothing else.
+
+    A full-SHA regex over the script is blind to every member git would also take:
+    a short prefix, an uppercase name, a ``HEAD~1`` revision. So the value itself
+    is parsed - one plain quoted assignment, split on whitespace the way the
+    step's unquoted ``for MEMBER in $ACCEPT`` splits it - and the token LIST is
+    graded: exactly two, no repeat, and set-equal to the granted pair.
+    """
     script = step_script()
     named = frozenset(re.findall(r"\b[0-9a-f]{40}\b", script))
-    assert named == ACCEPT_SET, f"the step's accept set is {sorted(named)}"
+    assert named == ACCEPT_SET, f"the step's full object names are {sorted(named)}"
+    assignments = len(ACCEPT_ASSIGNMENT.findall(script))
+    values = ACCEPT_VALUE.findall(script)
+    shape = (assignments, len(values))
+    assert shape == (1, 1), f"ACCEPT assignments, plain quoted values: {shape}, not (1, 1)"
+    tokens = tuple(values[0].split())
+    count = len(tokens)
+    distinct = len(set(tokens))
+    exact = frozenset(tokens) == ACCEPT_SET
+    verdict = (count, distinct, exact)
+    assert verdict == (2, 2, True), (
+        f"ACCEPT tokens {tokens}: (count, distinct, equals the granted pair) is {verdict}"
+    )
 
 
 def rewritten_repo(tmp_path: Path) -> tuple[Repo, str, str]:
