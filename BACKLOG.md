@@ -278,6 +278,11 @@ None blocks a product item or reddens a suite.
   two records equal field for field, or a building whose inventory reference is nested.
 - Decode the InventoryItem state block, counted undecoded by CS-400 - TRIGGER: an advice
   rule that needs item state.
+- CS-400 S2b attribution: a carrier whose parent is a component lands in unattributed
+  with no counter of its own; where the reference rule names an actor while the parent
+  is ambiguous, the carrier is attributed although it may be a conflict; a future
+  buildable without a `Build_` prefix silently counts as non-building - TRIGGER: a save
+  showing any of the three.
 
 ## Inspiration ingest - process and evaluation items, filed 2026-10-04 under product before process
 

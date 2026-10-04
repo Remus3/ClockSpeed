@@ -369,9 +369,5 @@ CS-1205 - pre-push does not scrub `PYTEST_ADDOPTS`, so an operator `-l` renders 
 CS-1206 - a test run by pre-push can print an environment value outside any assert - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1207 - the hook environment allowlist lists known readers, so an unlisted reader such as `os.path.expandvars` escapes it - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1208 - a personal value the hook allowlist lets a program read can still reach a print, log or report - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
-CS-1228 - the nightly tier2 full suite is shallow-checked-out and its windows legs outrun a 30-minute cutoff, so the lane has not been green since 2026-09-24 - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
-CS-1229 - the tier2 full suite is one job per OS, so suite growth outruns its measured cutoff within days - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
-CS-1230 - `tools/flip_checks.py` names a child tool and a clone source by a path relative to the cwd, which raises across Windows drives - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
 CS-1231 - adopt MAIN's FLEET-KIT (vendor the kit, embed the common block in CLAUDE.md, route every headless spawn through it) - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`
-CS-1233 - the CS-815 latency arm read over budget on windows tier2 because xdist siblings contend; it now times after siblings go quiet - acceptance: in detail - tier: 2 - detail: `docs/item_notes.md`
 CS-1234 - the inbox responder publishes its inbox-status file (MAIN 0915) and caps headless starts at 120 per rolling 24 hours - acceptance: in detail - tier: 1 - detail: `docs/item_notes.md`

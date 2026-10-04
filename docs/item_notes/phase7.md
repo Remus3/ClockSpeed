@@ -1423,108 +1423,6 @@ A private-tree commit whose `[tool.ruff]` table named an `extend` path ruff coul
 resolve printed the gate's PASS line; the gate discards ruff's stderr, so the failure
 was silent.
 
-## CS-1228
-
-### Acceptance
-
-The `suite` job of `.github/workflows/tier2.yml` checks out full history, so the CS-1222
-live arm in `tests/test_sha_citation_gate.py` can judge it, and
-`tests/test_full_history_checkouts.py` - red first against the shallow checkout - pins
-`fetch-depth: 0` on every job of either workflow whose pytest run collects that module.
-The windows legs of `suite` and `clean-checkout-probe` complete inside their
-`timeout-minutes`, whose value is stated beside it as a measured wall plus a stated
-margin. Closed only by a tier2 run on the landed tip in which both legs of both jobs
-conclude `success`, its measured windows walls recorded at close.
-
-### Full headline
-
-the nightly tier2 full suite is shallow-checked-out and its windows legs outrun a
-30-minute cutoff, so the lane has not been green since 2026-09-24
-
-### FILED 2026-10-03, measured from the tier2 run history by the main session
-
-Every scheduled tier2 run 2026-09-25..2026-10-03 concluded `cancelled` or `failure`. Two
-defects, independent of each other. FIRST, the `suite` checkout carried no `fetch-depth`,
-so the CS-1222 live arm failed - by design, never skipping - on the shallow clone; the
-ubuntu leg of run 37112434671 was red on exactly that one test, while the module's
-docstring claims CI runs it only in tier1's full-history save shard. The probe job was
-unaffected: it checks out with `fetch-depth: 0` and clones from that. SECOND, the windows
-legs of `suite` and `clean-checkout-probe` were cancelled at the 30-minute cutoff on every
-night, ended by the cutoff and not by a failing step: the last progress line of the
-pytest step put it at 75 to 88 per cent after 29 minutes, a projected wall of 33.0 to 39.0
-minutes (suite) and 28.5 to 38.8 (probe). Both legs already ran `-n auto`, so this is
-suite growth, not lost parallelism: the last green windows suite passed 10456 tests on
-2026-09-25, the 2026-10-03 ubuntu leg 12518 (one of them the shallow failure). The ubuntu
-legs reached 28.6 minutes; on 2026-10-01 both jobs' ubuntu legs were cancelled at 99 and
-97 per cent.
-
-THE REPAIR, AND WHAT IT LEAVES OPEN. `fetch-depth: 0` on the `suite` checkout; both jobs
-now run `--dist loadfile`, the scheduler tier1 and the pre-push hook already use; both
-cutoffs raised 30 to 50, sized as the worst projected wall plus under a minute of job
-overhead divided by the CS-1124 headroom fraction of 4/5. The loadfile gain on the
-windows runner is unmeasured, so the ceiling does not count on it. The suite grew by over
-a third in eleven days (9061 passed on 2026-09-22); at that rate the 4/5 headroom guard
-reddens again within weeks, and the honest next step is sharding the tier2 suite the way tier1 is sharded,
-which renames jobs and so needs `tools/tier2_durations.json` refreshed in the same
-change. The `tests/test_sha_citation_gate.py` docstring sentence naming tier1's save
-shard as the only CI home of the module is now false and wants correcting.
-
-### MEASURED 2026-10-03 on the first tier2 run carrying the repair
-
-Run 37125738113 at 87ea30c. Ubuntu legs: the shallow failure is gone; both reddened only
-on a git auto-maintenance race in a `tests/test_freeze_witness.py` fixture, repaired in the
-same batch. Windows suite: pytest reported 2799s (46m39s) under the 50-minute cutoff, one
-failure (CS-1230). Windows probe: CANCELLED at the 50-minute cutoff at 99 per cent. So
-`--dist loadfile` did not buy the windows margin, and a further raise is not the repair:
-this item closes only once CS-1229 shards the suite and a tier2 run is green on both OSes.
-
-## CS-1229
-
-### Acceptance
-
-The tier2 full suite runs as shards per OS, the way tier1 is sharded, with
-`tools/tier2_durations.json` refreshed in the same change, and every shard's measured wall
-on a tier2 run at the landed tip sits under the CS-1124 4/5 headroom line of its own
-cutoff. The `tests/test_sha_citation_gate.py` docstring names every CI job that runs the
-module.
-
-### Full headline
-
-the tier2 full suite is one job per OS, so suite growth outruns its measured cutoff
-within days
-
-### FILED 2026-10-03, split from CS-1228 by its adversary pass
-
-CS-1228 sized the cutoff at the worst projected wall over the 4/5 headroom fraction, so
-the first green windows wall lands on the headroom line itself. The adversary measured
-about three per cent suite growth a day, which passes the new 50-minute cutoff in about
-nine days. Raising the cutoff again is not the repair; sharding is.
-
-## CS-1230
-
-### Acceptance
-
-`tools/flip_checks.py` runs a child tool and clones a source when the repository, the
-scratch directory and the working directory sit on different Windows drives, without
-rendering an absolute home path in any argv, message or log. Shown by an arm red first
-that drives `_tool_argv` and `clone_at` with paths on two different drive anchors (a
-monkeypatched `os.path.relpath` raising the same `ValueError` is acceptable where a second
-drive is unavailable), and the real `test_the_licence_control_adds_a_finding_over_the_real_inputs`
-green on the windows tier2 leg.
-
-### Full headline
-
-`tools/flip_checks.py` names a child tool and a clone source by a path relative to the
-cwd, which raises across Windows drives
-
-### FILED 2026-10-03, found by the first windows tier2 suite to finish since 2026-09-25
-
-The GitHub windows runner checks the repository out on D: while pytest's `tmp_path` is on
-C:, so `os.path.relpath(tool, cwd)` in `_tool_argv` raised `ValueError: path is on mount
-'D:', start on mount 'C:'` in `test_the_licence_control_adds_a_finding_over_the_real_inputs`.
-`clone_at` has the same call. The relative spelling exists so that no argv carries a home
-path; the repair must keep that property.
-
 ## CS-1231
 
 ### Acceptance
@@ -1564,29 +1462,6 @@ its full text, adds a precedence paragraph, and gives each Settled entry a Rever
 clause that only the operator's own words satisfy. OPEN: slice C - route
 `ops/loop/inbox_responder.py` and `ops/loop/run_lane.ps1` through the kit's `spawn`
 with `floors_in_hooks=True`, then send MAIN the v4 ANSWER.
-
-## CS-1233
-
-### Acceptance
-
-The CS-815 latency arm in `tests/test_claude_hook.py` measures with no live xdist sibling
-in its run, fails if one was live when it finished, and keeps `LATENCY_BUDGET_SECONDS`
-unchanged; a nested two-worker test proves the wait is live; and every windows leg of a
-tier2 run at the landed tip is green on that arm.
-
-### Full headline
-
-the CS-815 latency arm read over budget on windows tier2 because xdist siblings contend;
-it now times after siblings go quiet
-
-### FILED 2026-10-03, from three red tier2 legs
-
-The windows guards-shard legs read 1.110s, 1.010s and 1.169s against a 1.0s budget in
-two consecutive tier2 runs; every other leg was green. Tier 1 runs only on ubuntu, so no
-tier-1 job ever exercised the arm on windows. Measured on a two-CPU emulation: the arm
-alone 0.68s, inside the shard 0.91s, inside the shard with the wait 0.64s. A wrapped call
-starts about ten processes and a direct one starts one, so pairing does not cancel
-contention. Detail: the builder's diagnosis, summarised here.
 
 ## CS-1234
 

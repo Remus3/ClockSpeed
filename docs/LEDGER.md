@@ -75,6 +75,53 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-10-04 - CS-1228 - the tier2 full suite checks out full history and its windows legs finish inside their cutoffs
+Verification: `tests/test_full_history_checkouts.py`, which pins `fetch-depth: 0` on the
+Checkout step of both the `suite` and the `clean-checkout-probe` jobs of
+`.github/workflows/tier2.yml`. Closed on tier2 workflow_dispatch run 37178869813 at
+d1775ca: all 23 jobs concluded `success`. Measured windows walls at close, pytest time:
+suite shards 7:21 to 15:15, probe shards 7:26 to 14:43.
+
+### 2026-10-04 - CS-1229 - the tier2 full suite runs as shards per OS, every shard inside its headroom line
+Verification: `tests/test_tier2_headroom.py`. On tier2 run 37178869813 at d1775ca every
+shard's wall sits under the 24.0-minute CS-1124 headroom line of its 30-minute cutoff; the
+worst job is the windows hooks suite at about 16.1 minutes.
+
+### 2026-10-04 - CS-1230 - `tools/flip_checks.py` runs its child tool and clone across Windows drives
+Verification: `tests/test_flip_checks.py::test_the_licence_control_adds_a_finding_over_the_real_inputs`,
+green on both windows fast-shard legs of tier2 run 37178869813 at d1775ca.
+
+### 2026-10-04 - CS-1233 - the CS-815 latency arm times only after its xdist siblings go quiet
+Verification: `tests/test_claude_hook.py::test_the_median_call_adds_under_a_second_and_the_worst_case_fits_both_timeouts`,
+green in both windows guards legs of tier2 run 37178869813 at d1775ca.
+`LATENCY_BUDGET_SECONDS` in `tests/test_claude_hook.py` is unchanged at 1.0.
+
+### 2026-10-04 - CS-1232 - CORRECTION to the 2026-10-03 CS-1232 record. Its residual "POSIX untested" is discharged; this is not a re-close
+Verification: `tools/main_provenance.py`, tests
+`tests/test_main_provenance.py::test_a_note_replaced_under_the_read_is_refused`,
+`tests/test_main_provenance.py::test_the_opened_file_must_be_the_identified_note` and
+`tests/test_main_provenance.py::test_a_non_regular_note_is_never_pinned`. The ubuntu tier
+legs went red at 11542ef on inode reuse. `tools/main_provenance.py` now pins the placed
+note open off Windows and keeps only a regular file, and the ubuntu legs are green at
+d1775ca (tier2 run 37178869813). The 2026-10-03 record stands unedited except as stated
+here.
+
+### 2026-10-04 - CS-815 - LANDED, NOT CLOSED. NOTHING CLOSED. CS-815 STAYS OPEN. The hook probe folds into one interpreter start with a per-run nonce
+Verification: `tests/test_hook_probe_fold.py`. Landed under the 2026-10-03 CS-815
+frozen-file grant plus its 2026-10-03 amendment, both above. Local median 0.724s before,
+0.440s after; windows CI green. An adversary REFUTED the fixed-token fold and passed the
+nonce version. CS-815 stays open on the operator's by-eye check of the REFUSED line.
+
+### 2026-10-04 - CS-1234 - LANDED, NOT CLOSED. NOTHING CLOSED. CS-1234 STAYS OPEN. The inbox status file and the 120 per 24 hour start cap
+Verification: `tests/ops/test_inbox_status.py`. The status file plus the 120 per rolling
+24 hour headless start cap landed; not pushed when recorded - it goes out with the session
+122 `/done` push.
+
+### 2026-10-04 - CS-1231 - LANDED, NOT CLOSED. NOTHING CLOSED. CS-1231 STAYS OPEN. Slice C half: the inbox responder spawns through the fleet kit
+Verification: `ops/loop/inbox_responder.py`, which spawns via the kit; conformance `[]`.
+`ops/loop/run_lane.ps1` is NOT routed: the kit has no CLI entry, and its effort set lacks
+xhigh and max. `CLAUDE.md` precedence paragraph (c) names it as the one exception.
+
 ### 2026-10-03 - CS-815 - AMENDMENT TO THE FROZEN-FILE GRANT, NOT A COMPLETION RECORD, NOTHING CLOSED
 Verification: this record. Amends the 2026-10-03 CS-815 grant, which stands unedited except
 as stated here. Ruled by an adjudicator who authored none of the candidate.
