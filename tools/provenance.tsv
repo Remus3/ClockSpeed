@@ -53,6 +53,7 @@ clockspeed/audit/footprint.py	authored	CS-1044	first-add:CS-1044
 clockspeed/audit/inventory.py	authored	CS-977	first-add:CS-977
 clockspeed/audit/machines.py	authored	CS-1041	first-add:CS-1041
 clockspeed/audit/network.py	authored	CS-1041	first-add:CS-1041
+clockspeed/audit/overlay.py	authored	CS-1236	stamped
 clockspeed/audit/placement.py	authored	CS-977	first-add:CS-977
 clockspeed/data/__init__.py	authored	CS-1165	first-add:root
 clockspeed/data/assets.py	authored	CS-1040	first-add:CS-1040
@@ -237,6 +238,7 @@ tests/audit/test_inventory.py	authored	CS-977	first-add:CS-977
 tests/audit/test_inventory_library.py	authored	CS-400	stamped
 tests/audit/test_machines.py	authored	CS-1041	first-add:CS-1041
 tests/audit/test_network.py	authored	CS-1041	first-add:CS-1041
+tests/audit/test_overlay.py	authored	CS-1236	stamped
 tests/audit/test_package_exports.py	authored	CS-1023	stamped
 tests/audit/test_placement.py	authored	CS-977	first-add:CS-977
 tests/audit/test_round_trip.py	authored	CS-1235	stamped
