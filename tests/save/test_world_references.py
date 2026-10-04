@@ -328,3 +328,205 @@ def test_the_target_repr_renders_counts_and_state_only() -> None:
     has_count = "reference_targets=3" in repr(entry)
     assert leaked == 0
     assert has_count
+
+
+# ---------------------------------------------------------------------------
+# CS-400 S2b - the component -> parent-actor join
+# ---------------------------------------------------------------------------
+#
+# WHY A SECOND JOIN. Measured on the local library (counts only): a miner's,
+# a water pump's and a truck station's inventory carrier is named by NONE of
+# its parent actor's top-level reference tags - the link lives in the actor
+# head's component list, which ``objects.resolve_references`` steps over by
+# design (CS-834). The carrier's own record names its parent, so the save
+# layer publishes that join too, through the same ``objects.RecordIndex``, and
+# ``audit/`` never matches a path itself.
+
+_SECOND_ACTOR_INSTANCE: Final = "Persistent_Level:PersistentLevel.Build_SyntheticJoin_C_1"
+_ORPHAN_PARENT: Final = "Persistent_Level:PersistentLevel.SyntheticNoParent_0"
+_ORPHAN_INSTANCE: Final = "Persistent_Level:PersistentLevel.SyntheticNoParent_0.Inventory"
+_SHARED_ACTOR_INSTANCE: Final = "Persistent_Level:PersistentLevel.Build_SyntheticJoin_C_9"
+_SHARED_CHILD_INSTANCE: Final = "Persistent_Level:PersistentLevel.Build_SyntheticJoin_C_9.Inventory"
+_SECOND_CHILD_INSTANCE: Final = "Persistent_Level:PersistentLevel.Build_SyntheticJoin_C_1.Inventory"
+
+
+def _parent_world() -> world.WorldModel:
+    """Load a level whose components' parents land in each of the three states.
+
+    Actors: ``_ACTOR_INSTANCE``, ``_SECOND_ACTOR_INSTANCE`` and TWO records
+    bearing ``_SHARED_ACTOR_INSTANCE``. Components: one child of each named
+    actor, one child of the shared name, and one whose parent no record bears.
+
+    Returns:
+        The loaded world.
+    """
+    actors = (
+        synthetic.SyntheticObject(_ACTOR_CLASS, _ROOT, _ACTOR_INSTANCE),
+        synthetic.SyntheticObject(_ACTOR_CLASS, _ROOT, _SECOND_ACTOR_INSTANCE),
+        synthetic.SyntheticObject(_ACTOR_CLASS, _ROOT, _SHARED_ACTOR_INSTANCE),
+        synthetic.SyntheticObject(_ACTOR_CLASS, _ROOT, _SHARED_ACTOR_INSTANCE),
+    )
+    components = (
+        synthetic.SyntheticComponent(
+            _COMPONENT_CLASS, _ROOT, _COMPONENT_INSTANCE, parent_object_root=_ACTOR_INSTANCE
+        ),
+        synthetic.SyntheticComponent(
+            _COMPONENT_CLASS,
+            _ROOT,
+            _SECOND_CHILD_INSTANCE,
+            parent_object_root=_SECOND_ACTOR_INSTANCE,
+        ),
+        synthetic.SyntheticComponent(
+            _COMPONENT_CLASS,
+            _ROOT,
+            _SHARED_CHILD_INSTANCE,
+            parent_object_root=_SHARED_ACTOR_INSTANCE,
+        ),
+        synthetic.SyntheticComponent(
+            _COMPONENT_CLASS, _ROOT, _ORPHAN_INSTANCE, parent_object_root=_ORPHAN_PARENT
+        ),
+    )
+    actor_payload = synthetic.tagged_property_payload(
+        (), head=synthetic.actor_payload_head(synthetic.MAP_NAME, _ROOT, ()), trailing=_TRAILING
+    )
+    empty_component = synthetic.tagged_property_payload((), trailing=_TRAILING)
+    named = synthetic.SyntheticLevel(
+        name=_LEVEL_NAME,
+        objects=actors,
+        components=components,
+        payloads=(*(actor_payload,) * len(actors), *(empty_component,) * len(components)),
+    )
+    persistent = synthetic.SyntheticLevel(
+        name=None, second_collectables=(synthetic.SyntheticCollectable(),)
+    )
+    body = synthetic.build_levelled_body(
+        (named,),
+        persistent,
+        header_version=_HEADER,
+        save_version=_SAVE,
+        grids=synthetic.LEVELLED_GRIDS,
+    )
+    head = synthetic.build_header(header_version=_HEADER, save_version=_SAVE)
+    payload = synthetic.body_with_prefix(body, _HEADER)
+    return world.load_world_from_bytes(
+        head + synthetic.build_chunks(payload, framing=synthetic.default_framing(_HEADER))
+    )
+
+
+def _parent_state(model: world.WorldModel, instance: str) -> str:
+    """The published parent state of the one component bearing ``instance``.
+
+    Args:
+        model: The loaded world.
+        instance: The component's instance name.
+
+    Returns:
+        The state word.
+    """
+    (index,) = _indices_of(model, instance)
+    return model.parents.by_record_index[index].state
+
+
+def _parent_indices(model: world.WorldModel, instance: str) -> tuple[int, ...]:
+    """The published parent candidates of the one component bearing ``instance``.
+
+    Args:
+        model: The loaded world.
+        instance: The component's instance name.
+
+    Returns:
+        The candidate record indices.
+    """
+    (index,) = _indices_of(model, instance)
+    return model.parents.by_record_index[index].record_indices
+
+
+def test_a_component_publishes_its_parent_actor_record_index() -> None:
+    """The first failing test of S2b: the parent join exists on the world model.
+
+    The actor's index is DERIVED from the loaded table, so the arm cannot agree
+    with a join that picked the wrong record by sharing its arithmetic.
+    """
+    model = _parent_world()
+    (actor_index,) = _indices_of(model, _ACTOR_INSTANCE)
+    (second_index,) = _indices_of(model, _SECOND_ACTOR_INSTANCE)
+
+    assert _parent_state(model, _COMPONENT_INSTANCE) == world.TARGET_RESOLVED
+    assert _parent_indices(model, _COMPONENT_INSTANCE) == (actor_index,)
+    assert _parent_indices(model, _SECOND_CHILD_INSTANCE) == (second_index,)
+    assert model.objects.records[actor_index].kind == objects.KIND_ACTOR
+
+
+def test_a_parent_no_record_bears_is_unresolved_and_never_raises() -> None:
+    model = _parent_world()
+
+    assert _parent_state(model, _ORPHAN_INSTANCE) == world.TARGET_UNRESOLVED
+    assert _parent_indices(model, _ORPHAN_INSTANCE) == ()
+
+
+def test_a_parent_borne_by_two_records_is_ambiguous_and_claims_neither() -> None:
+    model = _parent_world()
+    shared = _indices_of(model, _SHARED_ACTOR_INSTANCE)
+
+    assert len(shared) == _TWIN_COUNT, "the fixture stopped carrying an ambiguous parent"
+    assert _parent_state(model, _SHARED_CHILD_INSTANCE) == world.TARGET_AMBIGUOUS
+    assert _parent_indices(model, _SHARED_CHILD_INSTANCE) == shared
+
+
+def test_the_parent_join_is_total_over_components_and_holds_no_actor() -> None:
+    """One entry per record carrying a parent path, and none for an actor."""
+    model = _parent_world()
+    expected = sorted(
+        index for index, record in enumerate(model.objects.records) if record.parent is not None
+    )
+    components = sum(1 for record in model.objects.records if record.kind == objects.KIND_COMPONENT)
+
+    assert sorted(model.parents.by_record_index) == expected
+    assert len(expected) == components
+    assert model.parents.total == components
+
+
+def test_a_world_built_without_the_parent_join_defaults_to_empty() -> None:
+    """Callers constructing ``WorldModel`` by keyword keep working."""
+    assert world.EMPTY_WORLD_PARENTS.total == 0
+    assert dict(world.EMPTY_WORLD_PARENTS.by_record_index) == {}
+
+
+def test_the_parent_join_type_is_exported_and_annotates_no_carrier_or_position() -> None:
+    assert "WorldParents" in world.__all__
+    assert "EMPTY_WORLD_PARENTS" in world.__all__
+    tree = ast.parse(inspect.getsource(world))
+    (node,) = (
+        item
+        for item in ast.walk(tree)
+        if isinstance(item, ast.ClassDef) and item.name == "WorldParents"
+    )
+    annotations = declared_fields(node)
+    carriers = sorted(
+        field
+        for field, annotation in annotations.items()
+        if annotation_names(annotation) & CARRIER_TYPES
+    )
+    positional = sorted(
+        field
+        for field in annotations
+        if any(word in field for word in ("offset", "start", "length", "position", "byte"))
+    )
+    assert carriers == []
+    assert positional == []
+    assert set(annotations) == {"by_record_index"}
+
+
+def test_the_parent_join_repr_renders_counts_only() -> None:
+    model = _parent_world()
+    rendered = repr(model.parents) + repr(model)
+
+    leaked = sum(
+        1
+        for marker in (_ACTOR_INSTANCE, _ORPHAN_PARENT, _SHARED_ACTOR_INSTANCE, "SyntheticJoin")
+        if marker in rendered
+    )
+    assert leaked == 0
+    assert "resolved=2" in repr(model.parents)
+    assert "unresolved=1" in repr(model.parents)
+    assert "ambiguous=1" in repr(model.parents)

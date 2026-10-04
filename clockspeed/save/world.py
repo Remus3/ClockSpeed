@@ -401,6 +401,7 @@ __all__ = [
     "BODY_LAYOUT_FLAT",
     "BODY_LAYOUT_LEVELLED",
     "EMPTY_UNLOCK_STATE",
+    "EMPTY_WORLD_PARENTS",
     "EMPTY_WORLD_PROPERTIES",
     "NODE_CLASS_NAMES",
     "SOURCE_CHUNKS",
@@ -430,6 +431,7 @@ __all__ = [
     "UnlockState",
     "WorldLoadError",
     "WorldModel",
+    "WorldParents",
     "WorldProperties",
     "WorldWarning",
     "load_world",
@@ -1237,6 +1239,82 @@ EMPTY_WORLD_PROPERTIES: Final = WorldProperties(by_record_index=MappingProxyType
 
 
 @dataclass(frozen=True, repr=False)
+class WorldParents:
+    """Where each component's parent path landed in the record table - CS-400 S2b.
+
+    WHY THIS JOIN EXISTS BESIDE :attr:`RecordProperties.reference_targets`.
+    Measured on the local library, counts only: the inventory carrier of a
+    miner, a water pump or a truck station is named by NONE of its parent
+    actor's top-level reference tags. The link lives in the actor head's
+    component list, which ``objects.resolve_references`` steps over by design
+    (CS-834), so the reference join cannot reach it however it resolves. The
+    unresolved references on those actors are a recipe asset and, on a water
+    pump, a level object no record bears - neither names the carrier. What does
+    name the owner is the carrier's OWN record: ``ObjectRecord.parent``.
+
+    THE RESOLUTION IS ``objects``' OWN, on the terms :class:`ReferenceTarget`
+    states: the parent path is looked up through ``objects.RecordIndex
+    .records_for`` over ``objects.index_records``, the same index the reference
+    join uses, so a higher layer follows a component to its owner by reading
+    a record index and never matches a path itself. The three states are
+    :data:`TARGET_STATES`, never collapsed - an ambiguous parent keeps every
+    candidate and claims none.
+
+    THE TARGET IS WHATEVER RECORD BEARS THE PATH. This join does not assert the
+    target is an ACTOR; ``ObjectRecord.kind`` is published beside it and a
+    consumer that needs an actor reads it there.
+
+    ``repr`` renders the per-state counts and nothing about any member.
+
+    Attributes:
+        by_record_index: One target per record carrying a parent path, keyed by
+            that record's index in :attr:`WorldModel.objects.records`. TOTAL
+            over those records; an actor, which carries a transform where a
+            component carries a parent path, has no entry.
+    """
+
+    by_record_index: Mapping[int, ReferenceTarget]
+
+    @property
+    def total(self) -> int:
+        """How many records got an entry.
+
+        Returns:
+            The count.
+        """
+        return len(self.by_record_index)
+
+    def count(self, state: str) -> int:
+        """How many entries landed in one state.
+
+        Args:
+            state: One of :data:`TARGET_STATES`.
+
+        Returns:
+            The count; zero for a word outside the vocabulary.
+        """
+        return sum(1 for target in self.by_record_index.values() if target.state == state)
+
+    def __repr__(self) -> str:
+        """Render the total and the per-state counts.
+
+        Returns:
+            The safe rendering.
+        """
+        return (
+            f"{type(self).__name__}(total={self.total}, "
+            f"resolved={self.count(TARGET_RESOLVED)}, "
+            f"unresolved={self.count(TARGET_UNRESOLVED)}, "
+            f"ambiguous={self.count(TARGET_AMBIGUOUS)})"
+        )
+
+
+#: The shape a :class:`WorldModel` built without the parent join carries, on
+#: the terms :data:`EMPTY_WORLD_PROPERTIES` gives.
+EMPTY_WORLD_PARENTS: Final = WorldParents(by_record_index=MappingProxyType({}))
+
+
+@dataclass(frozen=True, repr=False)
 class WorldModel:
     """Everything above the save layer is allowed to know about a world.
 
@@ -1267,6 +1345,10 @@ class WorldModel:
             NOT ON THE WIRE. ``clockspeed/surface/api/world.py`` serializes a
             fixed key set and this field has not joined it, asserted by
             ``tests/save/test_world.py::test_no_body_byte_reaches_any_echo_path``.
+        parents: Each component's parent path followed to a record index -
+            CS-400 S2b, see :class:`WorldParents`. DEFAULTED to
+            :data:`EMPTY_WORLD_PARENTS` on the terms ``properties`` gives.
+            Not on the wire either.
     """
 
     token: str
@@ -1276,6 +1358,7 @@ class WorldModel:
     nodes: tuple[ResourceNode, ...]
     warnings: tuple[WorldWarning, ...]
     properties: WorldProperties = EMPTY_WORLD_PROPERTIES
+    parents: WorldParents = EMPTY_WORLD_PARENTS
 
     @property
     def contains_unmodeled_content(self) -> bool:
@@ -2149,6 +2232,34 @@ def _record_properties(
     )
 
 
+def _parent_targets(table: ObjectTable) -> WorldParents:
+    """Follow every component's parent path to a record index - CS-400 S2b.
+
+    The lookup is ``objects``' own index, keyed by instance name exactly as
+    the reference join is, and the records are mapped to their positions BY
+    IDENTITY for the reason :func:`_decode_properties` gives.
+
+    Args:
+        table: The walked record table.
+
+    Returns:
+        One target per record carrying a parent path.
+    """
+    record_index = index_records(table)
+    positions = {id(record): position for position, record in enumerate(table.records)}
+    return WorldParents(
+        by_record_index=MappingProxyType(
+            {
+                position: _reference_target(
+                    tuple(positions[id(found)] for found in record_index.records_for(parent))
+                )
+                for position, record in enumerate(table.records)
+                if (parent := record.parent) is not None
+            }
+        )
+    )
+
+
 def _published_struct(interior: StructValue) -> StructValue:
     """Narrow one TOP-LEVEL struct interior to what a higher layer may hold.
 
@@ -2301,6 +2412,7 @@ def load_world_from_bytes(
             nodes=nodes,
             warnings=(*_carried(parsed, body, mapping, table), *warnings),
             properties=properties,
+            parents=_parent_targets(table),
         )
     except BaseException:
         del data
