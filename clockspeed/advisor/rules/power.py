@@ -30,6 +30,25 @@ comparison as a rejected alternative and recommends nothing. The day a
 production figure lands, the adapter offers it under :data:`IN_GENERATION` and
 the rule starts firing without an edit.
 
+AN ELIDED CLOCK IS NAMED, NEVER HIDDEN. A machine whose save omits its clock
+tag is priced at ``ELIDED_CLOCK_DEFAULT`` by ``clockspeed/audit/balance.py`` and
+so lands in the priced population, not in a gap. Both rules read
+:data:`IN_ELIDED` on every firing path, so tier 3 always carries it as a read
+step, and when it is above zero the one-line reason says the figure assumes
+the default clock for that many machines.
+
+WHAT "COMPLETE" COVERS, AND THE CROSS-CHECK THIS MODULE DOES NOT MAKE.
+``WorldClockedDraw.complete`` means every machine the audit CONSIDERED - the
+``WorldMachines`` population, records carrying a measured machine property -
+has a priced draw. It says nothing about built actors that never entered that
+population. ``WorldBalance.draw`` carries per-class built counts, but over a
+DIFFERENT population: the placement allowlist, which holds storage, generators
+and landmarks beside machines. Comparing ``machines_considered`` against that
+total would flag a difference on every world for reasons that are not a
+missing machine, so no rule here compares them; a like-for-like cross-check
+needs an audit-side figure and is the coordinator's to file as an audit item.
+The texts below claim only what ``complete`` means.
+
 UNLOCKS. Neither rule declares an unlock key. "Add generation" names no
 building and no recipe, and the first generator is available before any
 schematic is bought, so any key declared here would be invented rather than
@@ -69,6 +88,7 @@ IN_UNREAD: Final = "power.clocked_draw.unread_clock_count"
 IN_UNMODELED: Final = "power.clocked_draw.unmodeled_machine_count"
 IN_PRODUCTION_AVAILABLE: Final = "power.production_available"
 IN_GENERATION: Final = "power.generation_mw"
+IN_ELIDED: Final = "power.clocked_draw.elided_clock_count"
 
 _SOURCE_PREFIX: Final = "audit.balance."
 
@@ -94,6 +114,7 @@ def balance_inputs(balance: WorldBalance) -> dict[str, InputValue]:
         (IN_CONSIDERED, "clocked_draw.machines_considered", clocked.machines_considered),
         (IN_UNREAD, "clocked_draw.unread_clock_count", clocked.unread_clock_count),
         (IN_UNMODELED, "clocked_draw.unmodeled_machine_count", clocked.unmodeled_machine_count),
+        (IN_ELIDED, "clocked_draw.elided_clock_count", clocked.elided_clock_count),
         (IN_PRODUCTION_AVAILABLE, "production_available", balance.production_available),
     )
     return {name: InputValue(value, _SOURCE_PREFIX + field) for name, field, value in fields}
@@ -119,6 +140,14 @@ def _mw(value: Fraction) -> str:
     return render_value(value)
 
 
+def _elision(elided: int) -> str:
+    """The reason suffix naming machines priced at the default clock, or nothing."""
+    if elided == 0:
+        return ""
+    machines = "machine" if elided == 1 else "machines"
+    return f"; it assumes the default clock for {elided} {machines} whose save omits the clock tag"
+
+
 def _evaluate_headroom(ctx: RuleContext) -> Recommendation | None:
     """Recommend generation when the clocked draw can exceed it."""
     if not _read_flag(ctx, IN_COMPLETE):
@@ -136,6 +165,7 @@ def _evaluate_headroom(ctx: RuleContext) -> Recommendation | None:
     lower = ctx.read_exact(IN_LOWER)
     upper = ctx.read_exact(IN_UPPER)
     exact = _read_flag(ctx, IN_EXACT)
+    elided = _elision(_read_count(ctx, IN_ELIDED))
     generation = ctx.read_exact(IN_GENERATION)
     short_lower = ctx.compute("shortfall at the lower draw bound in MW", lower - generation)
     short_upper = ctx.compute("shortfall at the upper draw bound in MW", upper - generation)
@@ -152,7 +182,7 @@ def _evaluate_headroom(ctx: RuleContext) -> Recommendation | None:
             action=f"Add up to {_mw(short_upper)} MW of generation",
             reason=(
                 f"Generation of {_mw(generation)} MW sits inside the clocked draw of "
-                f"{_mw(lower)} to {_mw(upper)} MW, a brownout risk"
+                f"{_mw(lower)} to {_mw(upper)} MW, a brownout risk{elided}"
             ),
         )
     ctx.reject(
@@ -163,7 +193,10 @@ def _evaluate_headroom(ctx: RuleContext) -> Recommendation | None:
         return Recommendation(
             subject_key=SUBJECT_HEADROOM,
             action=f"Add {_mw(short_upper)} MW of generation",
-            reason=f"Clocked draw of {_mw(upper)} MW exceeds {_mw(generation)} MW of generation",
+            reason=(
+                f"Clocked draw of {_mw(upper)} MW exceeds "
+                f"{_mw(generation)} MW of generation{elided}"
+            ),
         )
     ctx.reject(
         "quote one shortfall figure",
@@ -174,7 +207,7 @@ def _evaluate_headroom(ctx: RuleContext) -> Recommendation | None:
         action=f"Add between {_mw(short_lower)} and {_mw(short_upper)} MW of generation",
         reason=(
             f"Clocked draw of {_mw(lower)} to {_mw(upper)} MW exceeds "
-            f"{_mw(generation)} MW of generation"
+            f"{_mw(generation)} MW of generation{elided}"
         ),
     )
 
@@ -186,11 +219,12 @@ def _plural(count: int, singular: str, plural: str) -> str:
 def _evaluate_gap(ctx: RuleContext) -> Recommendation | None:
     """Name an incomplete clocked draw and say its total is a floor."""
     if _read_flag(ctx, IN_COMPLETE):
-        ctx.reject("name unpriced machines", "every machine's draw is priced")
+        ctx.reject("name unpriced machines", "every machine the audit considered has a priced draw")
         return None
     considered = _read_count(ctx, IN_CONSIDERED)
     unread = _read_count(ctx, IN_UNREAD)
     unmodeled = _read_count(ctx, IN_UNMODELED)
+    elided = _elision(_read_count(ctx, IN_ELIDED))
     lower = ctx.read_exact(IN_LOWER)
     upper = ctx.read_exact(IN_UPPER)
     unpriced = unread + unmodeled
@@ -210,7 +244,7 @@ def _evaluate_gap(ctx: RuleContext) -> Recommendation | None:
         reason=(
             f"The clocked draw is a floor of {_mw(lower)} to {_mw(upper)} MW: "
             f"{_plural(unread, 'clock', 'clocks')} unread and "
-            f"{_plural(unmodeled, 'machine', 'machines')} unmodeled, of {considered}"
+            f"{_plural(unmodeled, 'machine', 'machines')} unmodeled, of {considered}{elided}"
         ),
     )
 
@@ -218,7 +252,15 @@ def _evaluate_gap(ctx: RuleContext) -> Recommendation | None:
 HEADROOM_RULE: Final = RuleSpec(
     rule_id="power.headroom",
     domain=DOMAIN,
-    inputs=(IN_COMPLETE, IN_PRODUCTION_AVAILABLE, IN_LOWER, IN_UPPER, IN_EXACT, IN_GENERATION),
+    inputs=(
+        IN_COMPLETE,
+        IN_PRODUCTION_AVAILABLE,
+        IN_LOWER,
+        IN_UPPER,
+        IN_EXACT,
+        IN_ELIDED,
+        IN_GENERATION,
+    ),
     unlocks=(),
     evaluate=_evaluate_headroom,
 )
@@ -226,7 +268,7 @@ HEADROOM_RULE: Final = RuleSpec(
 GAP_RULE: Final = RuleSpec(
     rule_id="power.draw_incomplete",
     domain=DOMAIN,
-    inputs=(IN_COMPLETE, IN_CONSIDERED, IN_UNREAD, IN_UNMODELED, IN_LOWER, IN_UPPER),
+    inputs=(IN_COMPLETE, IN_CONSIDERED, IN_UNREAD, IN_UNMODELED, IN_ELIDED, IN_LOWER, IN_UPPER),
     unlocks=(),
     evaluate=_evaluate_gap,
 )

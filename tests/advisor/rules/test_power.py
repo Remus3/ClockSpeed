@@ -27,6 +27,7 @@ from clockspeed.advisor.rules import build_registry, registered_rules
 from clockspeed.advisor.rules.power import (
     GAP_RULE,
     HEADROOM_RULE,
+    IN_ELIDED,
     IN_GENERATION,
     IN_LOWER,
     IN_UPPER,
@@ -63,6 +64,7 @@ def _balance(  # noqa: PLR0913 - one keyword per field the rules read
     considered: int = 10,
     unread: int = 0,
     unmodeled: int = 0,
+    elided: int = 0,
     blind: Fraction = Fraction(1),
     production: bool = True,
 ) -> WorldBalance:
@@ -87,7 +89,7 @@ def _balance(  # noqa: PLR0913 - one keyword per field the rules read
         machines_considered=considered,
         bounded_machine_count=0,
         unread_clock_count=unread,
-        elided_clock_count=0,
+        elided_clock_count=elided,
         unmodeled_machine_count=unmodeled,
         warnings=(),
     )
@@ -167,6 +169,54 @@ def test_headroom_rule_is_silent_with_spare_generation(
     assert trace.recommendation is None
     rejected = [s.subject for s in trace.steps if s.kind is StepKind.ALTERNATIVE_REJECTED]
     assert rejected == ["add generation"]
+
+
+def test_an_exact_flag_over_a_split_bracket_never_quotes_one_figure() -> None:
+    world = _world(_balance(lower=Fraction(120), upper=Fraction(130), exact=True), Fraction(100))
+    recommendation = run_rule(HEADROOM_RULE, world).recommendation
+    assert recommendation is not None
+    assert recommendation.action == "Add between 20.00 and 30.00 MW of generation"
+
+
+def test_generation_equal_to_the_lower_bound_is_a_brownout_risk() -> None:
+    world = _world(_balance(lower=Fraction(100), upper=Fraction(110), exact=False), Fraction(100))
+    recommendation = run_rule(HEADROOM_RULE, world).recommendation
+    assert recommendation is not None
+    assert recommendation.action == "Add up to 10.00 MW of generation"
+    assert recommendation.reason == (
+        "Generation of 100.00 MW sits inside the clocked draw of 100.00 to 110.00 MW,"
+        " a brownout risk"
+    )
+
+
+ELISION_WORDS = "assumes the default clock for 2 machines whose save omits the clock tag"
+
+
+@pytest.mark.parametrize("rule", [HEADROOM_RULE, GAP_RULE], ids=lambda spec: spec.rule_id)
+@pytest.mark.parametrize("elided", [0, 2])
+def test_an_elided_clock_is_named_in_tier2_and_tier3(rule: RuleSpec, elided: int) -> None:
+    world = _world(
+        _balance(
+            lower=Fraction(120),
+            upper=Fraction(130),
+            exact=False,
+            complete=rule is HEADROOM_RULE,
+            unread=0 if rule is HEADROOM_RULE else 2,
+            unmodeled=0 if rule is HEADROOM_RULE else 1,
+            elided=elided,
+        ),
+        Fraction(100),
+    )
+    card = card_for(run_rule(rule, world))
+    assert card is not None
+    elided_line = f"Read {IN_ELIDED} = {elided} from audit.balance.clocked_draw.elided_clock_count"
+    assert elided_line in card.tier3
+    if elided:
+        assert ELISION_WORDS in card.tier2
+        assert ELISION_WORDS in card.tier3
+    else:
+        assert "default clock" not in card.tier2
+        assert "default clock" not in card.tier3
 
 
 def test_headroom_rule_is_silent_when_production_is_not_modelled() -> None:
@@ -252,6 +302,8 @@ def test_an_incomplete_draw_is_named_never_advised_as_exact() -> None:
 def test_the_gap_rule_is_silent_on_a_complete_draw() -> None:
     trace = run_rule(GAP_RULE, _all_inputs_world(complete=True))
     assert trace.recommendation is None
+    reasons = [s.reason for s in trace.steps if s.kind is StepKind.ALTERNATIVE_REJECTED]
+    assert reasons == ["every machine the audit considered has a priced draw"]
 
 
 def test_registry_is_sorted_and_refuses_duplicates() -> None:
@@ -285,14 +337,16 @@ EXPECTED_TIER3 = "\n".join(
         "  4. Read power.clocked_draw.upper_mw = 130.00 from"
         " audit.balance.clocked_draw.upper_megawatts",
         "  5. Read power.clocked_draw.exact = false from audit.balance.clocked_draw.exact",
-        "  6. Read power.generation_mw = 100.00 from synthetic.generation",
-        "  7. Computed shortfall at the lower draw bound in MW = 20.00",
-        "  8. Computed shortfall at the upper draw bound in MW = 30.00",
-        "  9. Rejected hold generation as built: the draw exceeds generation"
+        "  6. Read power.clocked_draw.elided_clock_count = 0 from"
+        " audit.balance.clocked_draw.elided_clock_count",
+        "  7. Read power.generation_mw = 100.00 from synthetic.generation",
+        "  8. Computed shortfall at the lower draw bound in MW = 20.00",
+        "  9. Computed shortfall at the upper draw bound in MW = 30.00",
+        "  10. Rejected hold generation as built: the draw exceeds generation"
         " at both ends of the clock bracket",
-        "  10. Rejected quote one shortfall figure: the clock law brackets the draw,"
+        "  11. Rejected quote one shortfall figure: the clock law brackets the draw,"
         " so the shortfall is a range",
-        "  11. Rule power.headroom fired for power:generation-headroom",
+        "  12. Rule power.headroom fired for power:generation-headroom",
     ]
 )
 
