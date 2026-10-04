@@ -370,3 +370,10 @@ Ideas only, from an untracked external survey; nothing lifted. The product direc
   1.8x - TRIGGER: a shard nears `_CHILD_TIMEOUT_SECONDS` in a tier2 log.
 - The advisor ledger lock is exercised across threads only, never across processes - TRIGGER: a
   second process writes the ledger (CS-500 S6 wiring or the surface).
+
+## Session 125 residuals - filed 2026-10-04 under product before process
+
+- `scripts/verify_env.py` output, from the CS-1186 README walk: a nonexistent override reads
+  `not resolved (tried env, ...)`, which suggests a fallback README says never happens; and
+  the account-dir redaction over-matches a numeric non-account path segment as
+  `<account-dir>` - TRIGGER: `scripts/verify_env.py` is next touched, or a README re-walk.

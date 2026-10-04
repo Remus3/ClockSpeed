@@ -159,22 +159,33 @@ each architectural decision has its own record in [`docs/adr/`](docs/adr/).
 |---|---|
 | **OS** | Windows |
 | **Game** | A local installation, kept current |
-| **Python** | 3.x, at or above the floor `scripts/verify_env.py` asserts |
-| **Also** | `git`, plus `openssl` for `scripts/make_cert.py` only - `scripts/verify_env.py` reports it as SOFT |
-| **Python packages** | `pytest` and `ruff` - `scripts/verify_env.py` counts both as HARD |
+| **Python** | The minimum declared by `requires-python` in [`pyproject.toml`](pyproject.toml); `scripts/verify_env.py` asserts it and prints the version it found |
+| **Also** | `git`, plus `openssl` for `scripts/make_cert.py` only - Git for Windows ships one, and `scripts/verify_env.py` reports it as SOFT |
+| **Python packages** | The `dev` extra in `pyproject.toml`, installed below. Of it, `pytest` and `ruff` are the two `scripts/verify_env.py` counts as HARD |
 | **Node** | Only for the optional companion window, not for the core |
 
 ## Install and run
 
 Run every command below from the root of the clone, in the order given.
-`docs/OPERATIONS.md` owns the full bootstrap order for working on the code; run it first
-in any clone you will commit from.
 
-If `pytest` or `ruff` is missing:
+**Two kinds of clone, two starting points.** If you only want to run Clockspeed, this
+section is the whole procedure and you can skip `docs/OPERATIONS.md`. If you will commit
+from the clone, do the virtual-environment step below, then run the bootstrap in
+[`docs/OPERATIONS.md`](docs/OPERATIONS.md) - it runs the same hook and environment
+commands as the next two steps here, plus the contributor tooling - and continue here at
+`python scripts/make_cert.py`.
+
+Create a virtual environment, activate it, and install the project with its `dev` extra:
 
 ```
-python -m pip install pytest ruff
+python -m venv .venv
+.venv\Scripts\activate
+python -m pip install -e ".[dev]"
 ```
+
+The activation line is the Windows `cmd` and PowerShell form; in Git Bash it is
+`source .venv/Scripts/activate`. `.venv/` is gitignored. The core itself has no runtime
+dependencies; the `dev` extra is the toolchain the next steps check for.
 
 Then:
 
@@ -191,7 +202,7 @@ python scripts/verify_env.py
 
 Prints every dependency found and missing, split into HARD and SOFT. It exits non-zero
 only on a HARD one. A missing game or save is SOFT: it is reported and does not fail the
-check.
+check. Its `config/ports.json` row prints the dashboard's port.
 
 ```
 python scripts/make_cert.py
@@ -206,7 +217,7 @@ python -m clockspeed.surface
 ```
 
 Starts the dashboard on the port recorded in `config/ports.json` - the entry under
-`allocations` - bound to this machine only. With no arguments it finds the newest save on
+`allocations`, which `scripts/verify_env.py` also prints - bound to this machine only. With no arguments it finds the newest save on
 this machine and serves it. It prints nothing on startup, then logs one line per request,
 and keeps the terminal until you stop it.
 
@@ -221,11 +232,24 @@ Its options, all optional (`python -m clockspeed.surface --help` lists them):
 **First result.** Open `https://localhost:<port>/`, where `<port>` is that
 `allocations` entry. The certificate is self-signed and your system does not trust it,
 so the browser shows a certificate warning to accept before the page titled "Clockspeed
-dashboard" loads. `https://localhost:<port>/api/health` answers `"status": "ok"`.
+dashboard" loads. `https://localhost:<port>/api/health` answers a compact JSON object
+whose top-level `status` field is `ok`.
 
 A machine with no save and no game still starts and still binds; the absence is reported
 as a status, not an error - `/api/health` reports the registry and the world as `absent`.
 If the port is taken the process exits and names it. No second port is ever tried.
+
+**A first ratio.** With a game installed, ask the solver for 30 Iron Ingot per minute
+from iron ore. The parameters travel in the query string of a POST; `-k` accepts the
+self-signed certificate:
+
+```
+curl -k -X POST "https://localhost:<port>/api/solve?targets=Desc_IronIngot_C=30&recipes=Recipe_IngotIron_C&raw_items=Desc_OreIron_C&byproduct_policy=balanced"
+```
+
+The answer lists each recipe with its exact machine count and the raw input per minute,
+every rate as a `{"num", "den"}` pair. `/api/registry` lists the item and recipe
+identifiers to ask about. Without a game there is no registry, and the route answers 503.
 
 ### Pointing it at your game and saves
 
@@ -239,9 +263,16 @@ the commands above:
 | `CLOCKSPEED_SAVE_ROOT` | The folder holding the account folders, such as `<your SaveGames folder>` |
 | `CLOCKSPEED_ACCOUNT_DIR` | The one account folder to read - a full path, or a folder name inside the save root |
 | `CLOCKSPEED_LOCAL_CONFIG` | A JSON file whose `game_dir`, `save_root` and `account_dir` keys are read when the matching variable is unset |
+| `CLOCKSPEED_CERT_DIR` | The folder holding the dashboard's certificate pair, instead of `certs/` in the clone. `scripts/make_cert.py` writes there and the dashboard reads there; `--cert-dir` beats it |
+| `CLOCKSPEED_DASHBOARD_PORT` | The port the dashboard binds, instead of the recorded one; `--port` beats it |
 
 A variable naming a folder that does not exist is reported as not found; it does not fall
 back to automatic detection.
+
+To check that an override resolved, run `python scripts/verify_env.py`: each location row
+names the source it was resolved by, or reports it not found. The dashboard cannot tell
+you - an override pointing at an empty folder and no game at all both show there as no
+game installation found.
 
 ---
 

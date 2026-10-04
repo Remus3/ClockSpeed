@@ -1117,6 +1117,35 @@ were never exercised in their no-game state.
 
 `docs/GATED.md` classifies this id MENTIONED, not BLOCKED, so the walk stays takeable.
 
+### FILED 2026-10-04, walk 1 and its README repair (session 125)
+
+**WALK 1 PERFORMED. THE ITEM STAYS OPEN.** A context-free agent given only README.md
+walked it literally in a `git clone --no-local` of main, in a fresh venv, with
+`CLOCKSPEED_GAME_DIR`, `CLOCKSPEED_SAVE_ROOT`, `CLOCKSPEED_ACCOUNT_DIR` and
+`CLOCKSPEED_LOCAL_CONFIG` aimed at NONEXISTENT paths, plus positive controls (overrides
+at existing empty folders, the local-config JSON, and the overrides unset) - the
+override approximation above, adjudicated as permitted for this walk. Every README step
+reached its promise, first result included. The "no game installed" clause is NOT
+discharged: it still needs the CS-G08 environment.
+
+Defects the walk recorded, numbered as in its log. Repaired in README.md: 1 no venv or
+install step (now a venv plus `pip install -e ".[dev]"`); 2 a circular Python floor (now
+pointed at `requires-python`, not restated); 3 two competing install orders (run-only
+versus commit-from clones); 4 no way to learn the port (verify_env prints it); 5
+`CLOCKSPEED_CERT_DIR` and `CLOCKSPEED_DASHBOARD_PORT` undocumented; 6 no example
+request for a solve route (one `/api/solve` curl, its shape checked against a live
+server); 7 no source for openssl; 9 no pointer to where an override is diagnosed; 11 a
+spaced health-JSON literal the compact body never matches. Defects 8 and 10 live in
+`scripts/verify_env.py` output and went to `BACKLOG.md` under Session 125 residuals.
+
+**THE VENV BLOCK CARRIES A NON-PYTHON LINE ON PURPOSE.** `tools/flip_checks.py` check 5
+runs every fenced block whose lines all start with `python`, under its own
+interpreter. The activation line keeps it from running `pip install -e` against the
+scratch tree into that interpreter. The curl block is skipped for the same reason.
+
+Remaining for closure: a clean repeat walk of the repaired README, and the true no-game
+run under CS-G08.
+
 ## CS-1194
 
 ### Acceptance

@@ -75,6 +75,15 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-10-04 - CS-1186 - PROGRESS RECORD. NOT A COMPLETION RECORD. NOTHING CLOSED. CS-1186 STAYS OPEN. README walk 1 performed and its README defects repaired
+Verification: `README.md` sections `Requirements` and `Install and run`;
+`docs/item_notes/phase7.md` section CS-1186, heading `FILED 2026-10-04, walk 1`;
+`tools/flip_checks.py::readme_walk`. A context-free agent walked README.md in a
+`--no-local` clone with a fresh venv and nonexistent-path overrides plus positive controls
+(adjudicated as permitted); every step passed. Nine README defects repaired; two
+`scripts/verify_env.py` output defects filed to `BACKLOG.md`. Open: a clean repeat walk, and
+the no-game clause, which needs the CS-G08 environment.
+
 ### 2026-10-04 - CS-959 - PROGRESS RECORD. NOT A COMPLETION RECORD. NOTHING CLOSED. CS-959 STAYS OPEN. The legacy issue template is added for the profile's null issue_template row
 Verification: `.github/ISSUE_TEMPLATE.md`; `tests/test_community_health.py::COMMUNITY_FILES`,
 `::test_community_health_file_exists`. The profile read health 100 with `files.issue_template`
