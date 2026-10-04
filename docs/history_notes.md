@@ -2038,6 +2038,17 @@ grant reaches it and no tracked test can pin it. Also unmeasured: whether a work
 lane session gates against its own tree.
 
 
+## Session 120 - archived 2026-10-04 from `WAKEUP_NOTES.md`, verbatim
+
+## Session 120 - 2026-10-03 - three provenance and citation items closed, the tier2 nightly repaired and sharded, FLEET-KIT v3 built but held at the licence gate
+
+- Shipped: CS-1227 (`tools/main_provenance.py` `verify_main_note`; MAIN's root from gitignored local config only; committed-blob compare with `--no-replace-objects`; three adversary rounds plus a CRLF fail-closed ruling), CS-1223 (seed escape pinned by whole-row digest; local clean needs a re-derived freeze witness; ci_run pinned to this repo, one run one full commit; five rounds), CS-1224 (sha gate reads code files, judges every 5-6 run, strict BOM decode plus byte view, not-read is exit 2; five rounds). Detail in docs/LEDGER.md. LANDED NOT CLOSED: CS-1228 (tier2 full history, loadfile, freeze_witness auto-maintenance race), CS-1229 (tier2 sharded by tier1's partition per OS; adversary NOT REFUTED), CS-1230 (cross-drive relpath fallback as an allowlist; two rounds). Each closes only on a green tier2 run at the landed tip.
+- In flight: CS-1231 FLEET-KIT v3 - slice A (vendor + guard exemptions) and slice B (condensed CLAUDE.md with block, /done) each on its own worktree branch - find both with `git log --all --oneline --grep CS-1231`. Both UNMERGED, held: an adjudicator ruled the THIRD_PARTY gate must run before the lift, and MAIN's kit commit carries no licence. Only slice B's /done command change landed. Reply delivered to MAIN asking for a v4 with a licence and naming three kit gaps. The responder stays paused (INBOX_STOP).
+- Decisions: CS-1227 CRLF refusal accepted fail-closed (adjudicator ruling A). FLEET-KIT licence: adjudicator ruling B-then-C - MAIN's git objects read once for licence evidence (none found), so hold. No ADR.
+- Surprises: the tier2 nightly had been red since 2026-09-24 unnoticed - shallow checkout plus windows timeouts; once windows finished, it exposed a cross-drive relpath bug. A loaded box failed a hook-timing test and blocked one push.
+- Failed paths: raising the tier2 timeout to 50 (windows probe still cut at 99 percent) - sharding is the repair. A working-tree compare for MAIN provenance (bypassed four ways).
+- Next action: dispatch a tier2 run on the pushed tip and read every shard; close CS-1228, CS-1229, CS-1230 on green.
+
 ## Session 119 - archived 2026-10-04 from `WAKEUP_NOTES.md`, verbatim
 
 ## Session 119 - 2026-10-02 - three witness and citation items closed, the headless route and inbox responder armed, and MAIN made the operator's voice

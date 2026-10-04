@@ -33,6 +33,15 @@ Keep every entry to that shape. If an item needs a paragraph, it needs its own f
 the line becomes a pointer.
 
 ---
+## Session 123 - 2026-10-04 - the operator session (the other writer of session 122): inspiration ingest filed and partly built, public-readiness prepared, the flip procedure fixed
+
+- Shipped: nothing closed by this /done. The operator session filed the inspiration ingest as CS-1235..CS-1263; directives D1, D3 and D5 closed as CS-1235, CS-1237 and CS-1239 (ledger records 2026-10-04). D2 (CS-1236, what-if overlay) and D4 (CS-1238, every check proves it can go red) are PARTIAL - the rest of each waits on CS-500. CS-1263 filed: the audit's power figure ignores clocks.
+- In flight: the public flip (CS-700). Ruled: do NOT use the GitHub visibility switch. Order: tier1 green, run CS-700 (operator confirmation in own words before the remote recreate), re-apply settings from docs/public-readiness.md, enable secret scanning, push protection and private vulnerability reporting, upload the social preview from data/social-preview.png. A cloud-session kit exists OUTSIDE the repo (operator's Documents\cloud-session-kits\clockspeed-*); any cloud PR must merge before the CS-700 flip.
+- Decisions: the flip is a recreate under CS-700, never a visibility toggle. No ADR.
+- Surprises: tier2 schedule run 37193626407 at 07fcc61 is RED on one job - clean-checkout probe (windows-latest, save shard): tests/save/test_phase4_gate.py::test_the_save_suite_passes_with_no_install_and_no_save, nested suite TimeoutExpired at 300s (1 failed, 1934 passed, 125 skipped in 735.76s). Tier1 run 37191537735 at 07fcc61 is green.
+- Failed paths: push-gate suites fail when several run concurrently on this box (OOM, timeouts); filed to BACKLOG.md under Push gate.
+- Next action: repair the tier2 windows save-shard probe red without raising the 300s timeout (shard or trim), then the CS-700 flip sequence.
+
 ## Session 122 - 2026-10-04 - tier1 and tier2 back to green, four tier2 items closed, the CS-815 nonce fold landed, and CS-400 built through S4 with a parent join
 
 - Shipped: CS-1228, CS-1229, CS-1230, CS-1233 closed on one green tier2 run at d1775ca; a CORRECTION record for CS-1232 discharges its "POSIX untested" residual. Detail in docs/LEDGER.md. LANDED NOT CLOSED: CS-815 (the probe folded into one interpreter start with a per-run nonce; open on the operator's by-eye check of the REFUSED line), CS-1234 (status file plus the 120 per 24h start cap), CS-1231 slice C half (the inbox responder spawns through the kit; `ops/loop/run_lane.ps1` stays the named exception).
@@ -50,12 +59,3 @@ the line becomes a pointer.
 - Surprises: tier1 never runs on windows, so the CS-815 latency arm was only ever exercised on windows by tier2, where it failed three legs running. The provenance check fell to a new path SPELLING five rounds in a row until placement moved to file identity. Last two weeks: 8 of 371 commits touched product code.
 - Failed paths: comparing note path spellings for placement (8.3, trailing dot, junction, extended-length and admin-share spellings each bypassed it). Condensing CLAUDE.md to fit the FLEET block - unnecessary, the full text plus the block is under budget.
 - Next action: read the push and tier2 results; then start CS-400 (the Phase 4 gate), not a tooling item.
-
-## Session 120 - 2026-10-03 - three provenance and citation items closed, the tier2 nightly repaired and sharded, FLEET-KIT v3 built but held at the licence gate
-
-- Shipped: CS-1227 (`tools/main_provenance.py` `verify_main_note`; MAIN's root from gitignored local config only; committed-blob compare with `--no-replace-objects`; three adversary rounds plus a CRLF fail-closed ruling), CS-1223 (seed escape pinned by whole-row digest; local clean needs a re-derived freeze witness; ci_run pinned to this repo, one run one full commit; five rounds), CS-1224 (sha gate reads code files, judges every 5-6 run, strict BOM decode plus byte view, not-read is exit 2; five rounds). Detail in docs/LEDGER.md. LANDED NOT CLOSED: CS-1228 (tier2 full history, loadfile, freeze_witness auto-maintenance race), CS-1229 (tier2 sharded by tier1's partition per OS; adversary NOT REFUTED), CS-1230 (cross-drive relpath fallback as an allowlist; two rounds). Each closes only on a green tier2 run at the landed tip.
-- In flight: CS-1231 FLEET-KIT v3 - slice A (vendor + guard exemptions) and slice B (condensed CLAUDE.md with block, /done) each on its own worktree branch - find both with `git log --all --oneline --grep CS-1231`. Both UNMERGED, held: an adjudicator ruled the THIRD_PARTY gate must run before the lift, and MAIN's kit commit carries no licence. Only slice B's /done command change landed. Reply delivered to MAIN asking for a v4 with a licence and naming three kit gaps. The responder stays paused (INBOX_STOP).
-- Decisions: CS-1227 CRLF refusal accepted fail-closed (adjudicator ruling A). FLEET-KIT licence: adjudicator ruling B-then-C - MAIN's git objects read once for licence evidence (none found), so hold. No ADR.
-- Surprises: the tier2 nightly had been red since 2026-09-24 unnoticed - shallow checkout plus windows timeouts; once windows finished, it exposed a cross-drive relpath bug. A loaded box failed a hook-timing test and blocked one push.
-- Failed paths: raising the tier2 timeout to 50 (windows probe still cut at 99 percent) - sharding is the repair. A working-tree compare for MAIN provenance (bypassed four ways).
-- Next action: dispatch a tier2 run on the pushed tip and read every shard; close CS-1228, CS-1229, CS-1230 on green.

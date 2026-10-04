@@ -345,3 +345,10 @@ Ideas only, from an untracked external survey; nothing lifted. The product direc
 - Decode building connection state (belt and pipe links between buildings) - out of scope of
   CS-400 by its grammar ruling - TRIGGER: an audit or advice rule that needs throughput between
   buildings rather than what each one holds.
+
+## Push gate - filed 2026-10-04 by the session 123 /done
+
+- The pre-push whole suite fails when several suites run concurrently on this box
+  (MemoryError, xdist worker crash, fork exhaustion, timeouts) and passes on retry with no
+  code change - TRIGGER: a third blocked push in one week traced to box load rather than a
+  defect; candidates are a load check before the hook starts or a cap on concurrent suites.

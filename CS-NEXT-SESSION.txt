@@ -1,5 +1,6 @@
 CLOCKSPEED - NEXT SESSION CONTINUATION PROMPT
-Written at the end of session 122, 2026-10-04. The operator starts with "continue".
+Written at the end of session 123, 2026-10-04 (the /done for the operator's
+2026-10-03/04 session). The operator starts with "continue".
 
 ================================================================================
 READ THESE FIRST, IN THIS ORDER
@@ -8,10 +9,11 @@ READ THESE FIRST, IN THIS ORDER
   CLAUDE.md                 rules - section 7 "Product before process" governs
   memory/MEMORY.md          durable cross-session facts
   ROADMAP.md                open work only
-  WAKEUP_NOTES.md           sessions 122, 121, 120 at full fidelity
+  WAKEUP_NOTES.md           sessions 123, 122, 121 at full fidelity
   docs/ARCHITECTURE.md      module map, data flow, seams
   docs/item_notes/          per-item acceptance
   docs/GATED.md             CS-G03 (the flip gate) and CS-G08 (never-seen machine)
+  docs/public-readiness.md  the settings to re-apply after the CS-700 flip
 
 Then run:  python tools/inbox_watch.py   (listing never acknowledges)
 
@@ -19,25 +21,41 @@ Then run:  python tools/inbox_watch.py   (listing never acknowledges)
 STATE OF THE TREE
 ================================================================================
 
-HEAD / remote   2207428 pushed and read back equal to ls-remote. This hand-off is
-                committed in a follow-up commit; confirm `git rev-parse HEAD` equals
+HEAD / remote   see the /done REPORT at the bottom. Confirm `git rev-parse HEAD` equals
                 `git ls-remote origin main` - A BLOCKED PUSH REPORTS EXIT 0.
 HISTORY IS LINEAR. Land slices by cherry-pick, never by merge (CS-1196).
-ANOTHER WRITER SHARES THIS TREE. During session 122 a separate session committed
-  CS-959 (README, docs/public-readiness.md) and CS-1235..CS-1262 (the inspiration
-  ingest) on main. ALLOCATE NEW IDS FROM CS-1263 UPWARD AND RE-CHECK THE MAX FIRST
-  (memory: two writers allocate the same item id).
+ANOTHER WRITER MAY SHARE THIS TREE. Never touch another session's uncommitted work.
+  ALLOCATE NEW IDS FROM CS-1264 UPWARD AND RE-CHECK THE MAX FIRST (memory: two writers
+  allocate the same item id).
 UNMERGED BRANCHES - DO NOT PRUNE: the CS-1207 branch (round-15 tip), untouched since
-  session 117: `git log --all --oneline --grep CS-1207`. Session 122 worktree branches
-  were all landed by cherry-pick; classify any leftover tree by CONTENT before pruning.
+  session 117: `git log --all --oneline --grep CS-1207`. Classify any leftover worktree
+  branch by CONTENT before pruning.
 LOCAL CONFIG    config/main_tree.local.json (gitignored) names MAIN's root.
 RESPONDER       STILL PAUSED by ops/loop/control/lanes/INBOX_STOP (gitignored).
 DESKTOP FILE    INSPIRATION-DIRECTIVE.md on the Desktop (untracked, outside the repo):
-                41 directives for our own versions of ideas from an outside profile.
-                The other session has already filed CS-1235..1262 from it.
+                41 directives; ingested as CS-1235..CS-1263 (see below).
+CLOUD KIT       a cloud-session kit exists OUTSIDE the repo, in the operator's
+                Documents\cloud-session-kits\clockspeed-* (env, prompt, README, setup.sh).
+                ANY CLOUD PR MUST MERGE BEFORE THE CS-700 FLIP. At this /done
+                `gh pr list --state open` returned none (read).
+REPO VISIBILITY PRIVATE (read with gh at this /done).
 
 ================================================================================
-CLOSED / LANDED IN SESSION 122 (detail in docs/LEDGER.md)
+CLOSED / LANDED - SESSION 123 (operator session 2026-10-03/04; detail in docs/LEDGER.md)
+================================================================================
+
+INSPIRATION INGEST: CS-1235..CS-1263 filed.
+  D1, D3, D5 CLOSED as CS-1235 (flow audit + round trip), CS-1237 (relaxation ladder),
+    CS-1239 (golden corpus + half-even rounding).
+  D2 = CS-1236 (what-if overlay) PARTIAL - core landed; route and trace wait on CS-500.
+  D4 = CS-1238 (every check proves it can go red) PARTIAL - the rest waits on CS-500.
+  CS-1263 FILED: the audit's power figure ignores clocks (clock-blind world draw
+    disagrees with the solver on every fractional plan).
+CS-959 (README, docs/public-readiness.md) landed by the operator session.
+This /done closed no item; it filed one BACKLOG candidate (Push gate, item 8).
+
+================================================================================
+CLOSED / LANDED IN SESSION 122 (carried; detail in docs/LEDGER.md)
 ================================================================================
 
 CS-400   CLOSED (adjudicated). A building's inventory is actually readable per save and
@@ -59,17 +77,30 @@ CS-1254..CS-1262 excluded from the dashboard lane scope until planned (lane_scop
 THE SINGLE NEXT ACTION
 ================================================================================
 
-Read tier1 run 37188737728 and tier2 run 37188746002 at 2207428 - EVERY job, including
-the windows guards legs (CS-815 latency arm) and the ubuntu provenance arms. Then read
-CI for this hand-off's own push. Red is the top item. Green: start Phase 5 (item 3).
+TIER2 IS RED at 07fcc61 (schedule run 37193626407, read at this /done): ONE job,
+clean-checkout probe (windows-latest, save shard) -
+tests/save/test_phase4_gate.py::test_the_save_suite_passes_with_no_install_and_no_save,
+nested `pytest probe/tests/save -n 2` TimeoutExpired at 300s (1 failed, 1934 passed,
+125 skipped in 735.76s). Repair it WITHOUT raising the timeout (shard or trim the nested
+run), get tier1 AND tier2 green, then start the CS-700 flip sequence (item 2).
 
 ================================================================================
 OPEN ITEMS, PRIORITY ORDER
 ================================================================================
 
- 1 CS-1234  close it: acceptance in its phase 7 section; it landed and is pushed - grade
+ 1 TIER2 RED (above). Acceptance: tier2 run on the pushed tip, every job success, read.
+ 2 PUBLIC FLIP - CS-700. DO NOT USE THE GITHUB VISIBILITY SWITCH. Sequence:
+     a. tier1 green on the tip (and tier2, item 1);
+     b. every cloud-session PR merged first (cloud kit above);
+     c. run CS-700 - the operator's confirmation IN THEIR OWN WORDS before the remote
+        recreate (S9 onward); CS-704's census baseline re-pinned after S7a;
+     d. re-apply repository settings from docs/public-readiness.md;
+     e. enable secret scanning, push protection and private vulnerability reporting;
+     f. upload the social preview from data/social-preview.png.
+   Physical and OAuth acts wait for the operator, batched into one ask.
+ 3 CS-1234  close it: acceptance in its phase 7 section; it landed and is pushed - grade
             it against acceptance with a verifier, then ledger-close.
- 2 CS-1231 slice C, second half: route ops/loop/run_lane.ps1 through the kit. Blockers
+ 4 CS-1231 slice C, second half: route ops/loop/run_lane.ps1 through the kit. Blockers
             measured: the kit has NO command-line entry (needs a new Python entry file),
             its effort set lacks xhigh/max (the lane uses them), and four test files
             drive the real script with a stub CLI (test_lane_runner_script,
@@ -79,20 +110,23 @@ OPEN ITEMS, PRIORITY ORDER
             files are never edited locally). THEN send MAIN the v4 ANSWER: v4 adoption
             commit, conformance [] read back, inbox_responder moved, run_lane.ps1 left out
             and why, per-file provenance 6 of 6.
- 3 PHASE 5 - THE PRODUCT FOCUS (CS-400 is closed): advice rules, whole-world audit,
-            milestone planner, power planner. Read ROADMAP phase 5 rows and the
-            CS-1235..1262 ingest rows; plan with a planner agent, slice, build.
- 4 CS-828 / CS-829 stay open, scope unchanged by CS-400. New measurement for CS-828
+ 5 PHASE 5 - THE PRODUCT FOCUS (CS-400 is closed): CS-500 gate (trace engine first, then
+            rules, cards, ledger, pillars 3 and 4) - it unblocks the rest of CS-1236 and
+            CS-1238. Then CS-1263 (audit power must honour clocks). Read ROADMAP phase 5
+            rows and the CS-1235..1263 ingest rows; plan with a planner agent, slice, build.
+ 6 CS-828 / CS-829 stay open, scope unchanged by CS-400. New measurement for CS-828
    (S0-d): on (13,42), (14,52), (14,60) every inventory component payload ends in an
    8-byte trailing run, 4 bytes unread, int32 0 on every sampled save. CS-1151 owns the
    stale (14,60) terminator sentence.
- 5 After three green tier2 runs: `python tools/tier2_headroom.py --refresh`, then remove
+ 7 After three green tier2 runs: `python tools/tier2_headroom.py --refresh`, then remove
    PENDING_FIRST_RECORD and its EXPECTED_PENDING pin in the same diff.
- 6 FROZEN by the directive unless it blocks product or reddens a suite: CS-1207 (halted,
+ 8 BACKLOG CANDIDATE (filed, BACKLOG.md "Push gate"): push-gate tests fail when several
+   suites run concurrently on this box (MemoryError, worker crash, timeouts); passes on
+   retry. Promote only on its trigger.
+ 9 FROZEN by the directive unless it blocks product or reddens a suite: CS-1207 (halted,
    ruling owed), CS-1196, CS-1217, CS-1218, CS-1208, CS-1204, CS-1205, CS-1206, CS-1215,
    CS-1216, CS-1197, CS-1211-1213, CS-1202, CS-1194, CS-1032, CS-701, CS-953, CS-1186,
-   CS-959 follow-ups, and CS-700 (the flip, LAST; S9 onward needs the operator's
-   own-words confirmation; CS-704's census baseline must be re-pinned after S7a).
+   CS-959 follow-ups. (CS-700 is item 2 - the operator has opened the flip track.)
 
 ================================================================================
 OPERATOR RULINGS OWED - RECORD IF VOLUNTEERED, NEVER ASK
@@ -108,6 +142,8 @@ CS-815   does the desktop app SHOW the "REFUSED (CS-815)" hook-error line? This 
 DECISIONS - DO NOT RE-LITIGATE (each with what would reverse it)
 ================================================================================
 
+PUBLIC FLIP IS A CS-700 RECREATE, NEVER THE VISIBILITY SWITCH (operator, 2026-10-03/04).
+  Reversed by: the operator's own words.
 CS-815 PROBE: ONE START WITH A PER-RUN NONCE (od from /dev/urandom), FAILS CLOSED, NO
   FALLBACK. The fixed-token fold was REFUTED (`printf token; exit 97` passed). Option
   (b2) two starts and option (c) caching were REJECTED. Reversed by: a new adjudicated
@@ -134,18 +170,20 @@ DO NOT LAND A SLICE BY MERGE COMMIT. NEVER RAISE A TIER2 TIMEOUT - SHARD. NEVER 
 THE CHANNEL
 ================================================================================
 
-OWED: the v4 ANSWER to MAIN (item 2). MAIN 0915 status file: now published by CS-1234.
-Inbox: 50+ unread, NOT acknowledged in session 121 or 122.
+OWED: the v4 ANSWER to MAIN (item 4). MAIN 0915 status file: now published by CS-1234.
+Inbox: 50+ unread, NOT acknowledged in sessions 121, 122 or 123.
 
 ================================================================================
 EXTERNAL CONDITIONS BEING WAITED ON
 ================================================================================
 
-CS-1207 and CS-815: operator rulings above. CS-G08: a disposable never-seen environment.
-FOUR DEAD-SECRET FILES still await an operator deletion call.
+CS-700 S9 onward: the operator's own-words confirmation; the GitHub settings in 2d-2f are
+operator or OAuth acts. Any open cloud-session PR. CS-1207 and CS-815: operator rulings
+above. CS-G08: a disposable never-seen environment. FOUR DEAD-SECRET FILES still await an
+operator deletion call.
 
 ================================================================================
-TRAPS THIS SESSION PAID FOR
+TRAPS PAID FOR (carried)
 ================================================================================
 
 Five push attempts for one batch. TARGETED RUNS MISS THE CENSUS GUARDS: repr population
@@ -163,22 +201,17 @@ Worktree isolation blocks writes to the shared progress directory; agents write 
   progress file inside their own worktree.
 
 ================================================================================
-SESSION 122 /done REPORT
+SESSION 123 /done REPORT
 ================================================================================
 
-Pre-push whole suite (hook, `pytest tests -n auto --dist loadfile`) on the landed tree:
-  13935 passed, 12 skipped, 0 failed in 21m29s; origin/main moved d1775ca..2207428,
-  HEAD equal to ls-remote, read back. Earlier attempts this /done: one refused on a
-  real defect (str() of a received exception in ops/loop/inbox_responder.py, fixed),
-  three refused on box load (MemoryError, fork exhaustion in a hook sandbox) and passed
-  on retry with no code change.
-Gates on the /done tree: drift_guard 0, doc_budget 0, `python -m mypy clockspeed` 0.
-CI at d1775ca: tier1 37178869813 success, tier2 37178877472 success (read, every job).
-CI at 2207428: tier2 37188746002 SUCCESS; tier1 37188737728 FAILURE - ruff E501 at
-  clockspeed/surface/api/contract.py (a lost line break in the CS-400 comment edit; the
-  pre-push hook does not run whole-tree ruff). The OTHER WRITER in this tree fixed it in
-  518683c and also landed d475606 (CS-1231 lock-busy predicate); both ride this push.
-  Tier1 on the final tip is UNVERIFIED - READ IT FIRST. This report is committed in a follow-up commit whose own push re-runs the
-  suite; confirm HEAD equals ls-remote.
-UNVERIFIED: the doc edits of this /done were not read by a second agent before commit.
+Suite: TIER 0 - this /done changed docs only (BACKLOG.md, WAKEUP_NOTES.md,
+  docs/history_notes.md, CS-NEXT-SESSION.txt); no Python path changed, so ruff had no
+  target. The whole suite runs in the pre-push hook - its result is in the push line.
+Gates on the /done tree (exit codes read): drift_guard 0 (11 PASS), doc_budget 0
+  (38 measured, 0 over), memory_sync 0.
+CI READ at 07fcc61: tier1 37191537735 SUCCESS; tier2 37193626407 FAILURE (one job,
+  windows save-shard probe, see THE SINGLE NEXT ACTION).
+Push: recorded by the follow-up report commit.
+Ledger: no item closed this /done, so no ledger record appended.
 Desktop shortcut CS-NEXT-SESSION.lnk targets C:\Clockspeed\CS-NEXT-SESSION.txt (read).
+UNVERIFIED: the doc edits of this /done were not read by a second agent before commit.
