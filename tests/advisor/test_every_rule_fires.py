@@ -32,9 +32,15 @@ rule that went quiet because it crashed or was starved of input is a fault,
 not silence.
 
 TIER 3 IS GENERATED FROM THE TRACE, PER RULE. Every firing fixture's card has
-exactly one numbered derivation line per trace step, renders identically on a
-second run of the same world, and renders differently when one step is taken
-out of the trace - so the derivation cannot be text authored beside the rule.
+exactly one numbered derivation line per trace step and renders identically on
+a second run of the same world. And EACH LINE IS GENERATED FROM ITS OWN STEP'S
+CONTENT: :func:`test_each_tier3_line_carries_its_own_steps_content` replaces,
+one at a time, every field a step carries - subject, source, value, reason -
+with a fresh marker in the TRACE (never in the rule), and asserts that exactly
+that step's line changes and now carries the marker. A former arm that only
+dropped a step was vacuous: with the line count pinned, any drop changes the
+text, so a ``_step_line`` returning a constant or only the step kind survived
+it (adversary mutants M7 and M8, CS-500 S5 repair).
 
 EVERY WORLD IS SYNTHETIC. Each is a :class:`clockspeed.advisor.trace.WorldInputs`
 built by hand from invented exact values under ``synthetic.`` sources; nothing
@@ -44,9 +50,10 @@ directly because no audit model publishes it yet (CS-1059).
 
 from __future__ import annotations
 
+import dataclasses
 from collections.abc import Callable, Iterable, Mapping
 from fractions import Fraction
-from typing import Final
+from typing import Any, Final
 
 import pytest
 
@@ -57,6 +64,7 @@ from clockspeed.advisor.trace import (
     RuleSpec,
     StepKind,
     Trace,
+    TraceStep,
     WorldInputs,
     run_rule,
 )
@@ -76,6 +84,11 @@ _FAULT_KINDS: Final = frozenset(
 
 #: The line that opens the numbered derivation in tier 3.
 _STEPS_HEADER: Final = "Steps:"
+
+#: Markers planted into one trace field at a time. Each is absent from every
+#: fixture's tier 3 before the plant - asserted, never assumed.
+_TEXT_MARKER: Final = "zqplantedmarker"
+_VALUE_MARKER: Final = 918273645
 
 
 def _world(values: Mapping[str, object], unlocks: Iterable[str] = ()) -> WorldInputs:
@@ -266,6 +279,62 @@ def test_tier3_of_the_firing_card_is_generated_from_its_trace(rule_id: str) -> N
     again = card_for(run_rule(spec, FIRING[rule_id]()))
     same = again is not None and again.tier3 == card.tier3
     assert same, f"{rule_id}: two runs on one world rendered different derivations"
-    shortened = Card(Trace(trace.rule_id, trace.domain, trace.steps[1:], trace.recommendation))
-    moved = shortened.tier3 != card.tier3
-    assert moved, f"{rule_id}: dropping a trace step left tier 3 unchanged"
+
+
+def _carried_fields(step: TraceStep) -> list[str]:
+    """The fields this step actually carries - the ones its line must render."""
+    carried = ["subject"]
+    if step.source:
+        carried.append("source")
+    if step.value is not None:
+        carried.append("value")
+    if step.reason:
+        carried.append("reason")
+    return carried
+
+
+def _planted(trace: Trace, index: int, field: str) -> Card:
+    """The card of ``trace`` with one field of step ``index`` replaced by a marker.
+
+    The rule-fired step's subject must equal the recommendation's subject key
+    or the card refuses the trace, so that plant moves both together; the
+    subject key renders nowhere else in tier 3.
+    """
+    marker: object = _VALUE_MARKER if field == "value" else _TEXT_MARKER
+    step = trace.steps[index]
+    steps = list(trace.steps)
+    change: dict[str, Any] = {field: marker}
+    steps[index] = dataclasses.replace(step, **change)
+    recommendation = trace.recommendation
+    if step.kind is StepKind.RULE_FIRED and field == "subject" and recommendation is not None:
+        recommendation = dataclasses.replace(recommendation, subject_key=_TEXT_MARKER)
+    return Card(Trace(trace.rule_id, trace.domain, tuple(steps), recommendation))
+
+
+@pytest.mark.parametrize("rule_id", sorted(FIRING), ids=sorted(FIRING))
+def test_each_tier3_line_carries_its_own_steps_content(rule_id: str) -> None:
+    """Planting a marker in one step field changes that step's line and no other."""
+    trace = run_rule(_spec(rule_id), FIRING[rule_id]())
+    card = card_for(trace)
+    assert card is not None, rule_id
+    before = card.tier3.split("\n")
+    marker_texts = (_TEXT_MARKER, str(_VALUE_MARKER))
+    clean = not any(marker in card.tier3 for marker in marker_texts)
+    assert clean, f"{rule_id}: a marker already appears in the unplanted tier 3"
+    offset = before.index(_STEPS_HEADER) + 1
+    plants = 0
+    for index, step in enumerate(trace.steps):
+        for field in _carried_fields(step):
+            after = _planted(trace, index, field).tier3.split("\n")
+            same_length = len(after) == len(before)
+            assert same_length, f"{rule_id}: step {index} {field} changed the line count"
+            pairs = enumerate(zip(before, after, strict=True))
+            changed = [n for n, (old, new) in pairs if old != new]
+            expected = [offset + index]
+            assert changed == expected, f"{rule_id}: step {index} {field} moved other lines"
+            marker = str(_VALUE_MARKER) if field == "value" else _TEXT_MARKER
+            carried = marker in after[offset + index]
+            assert carried, f"{rule_id}: step {index} line does not render its {field}"
+            plants += 1
+    steps = len(trace.steps)
+    assert plants > steps, f"{rule_id}: {plants} plants over {steps} steps grades only subjects"

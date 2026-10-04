@@ -75,6 +75,16 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-10-04 - CS-500 - PROGRESS RECORD. NOT A COMPLETION RECORD. NOTHING CLOSED. CS-500 STAYS OPEN. S5 repair: the tier-3 arm proves each line renders its own step
+Verification: `tests/advisor/test_every_rule_fires.py::test_each_tier3_line_carries_its_own_steps_content`.
+An adversary REFUTED the S5 record below on one arm: its drop-a-step tier-3 check was vacuous,
+because the pinned line count already makes any drop change the text, so a step line returning a
+constant or only the step kind survived. The drop arm is replaced by one that plants a marker in
+each field a step carries, in the trace and never the rule, and requires exactly that step's line
+to change and carry it. Mutants in a scratch copy, each read back before the run: the constant
+line and the kind-only line pass the old arm and redden the new; dropping every step line and a
+nondeterministic line redden both; pristine passes. Production code is unchanged.
+
 ### 2026-10-04 - CS-500 - PROGRESS RECORD. NOT A COMPLETION RECORD. NOTHING CLOSED. CS-500 STAYS OPEN. Slice S5: every registered rule fires and stays silent on a synthetic world
 Verification: `tests/advisor/test_every_rule_fires.py::test_every_registered_rule_has_a_firing_fixture`,
 `::test_every_registered_rule_has_a_silent_fixture`, `::test_dropping_any_one_fixture_is_named_alone`,
