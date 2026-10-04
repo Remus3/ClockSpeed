@@ -1572,6 +1572,211 @@ def test_no_identity_value_is_rendered_or_reprd(tmp_path: Path) -> None:
     assert leaked == 0
 
 
+# --- the identity axis over MULTI-commit histories, and history rewrites ------
+#
+# Every arm below is a synthetic repository of two or more commits written with
+# plumbing, so each one kills a mutant a one-commit repository cannot see: a
+# tip-only walk, a first-parent-only walk, a malformed commit whose skip is
+# zeroed, a case-folding compare - and the replace-ref and shallow and graft
+# rewrites that hide a commit from the walk altogether (CS-701 adversary).
+
+#: An address that is on no allowlist. Synthetic.
+STRAY_ADDRESS: Final = "stray@example.invalid"
+
+
+def history_repo(tmp_path: Path) -> Any:
+    """A repository configured with the allowed name and holding no commit yet."""
+    repo = flip.ControlRepo(tmp_path / "history")
+    flip.git(repo.path, ["config", "user.name", ALLOWED_NAME], env=repo.env)
+    return repo
+
+
+def plumb_commit(
+    repo: Any,
+    parents: tuple[str, ...],
+    message: bytes,
+    files: dict[str, bytes] | None = None,
+    **overrides: str,
+) -> str:
+    """One commit on ``parents``, allowlisted except for ``overrides``, written with plumbing.
+
+    ``overrides`` maps a git identity variable suffix - ``AUTHOR_EMAIL`` and the
+    like - to the value that one field carries instead.
+    """
+    env = dict(repo.env)
+    for role in ("AUTHOR", "COMMITTER"):
+        env[f"GIT_{role}_NAME"] = ALLOWED_NAME
+        env[f"GIT_{role}_EMAIL"] = allowed_address()
+    for suffix, value in overrides.items():
+        env[f"GIT_{suffix}"] = value
+    entries = []
+    for name, data in sorted((files or {"README.md": message}).items()):
+        blob = flip.git(repo.path, ["hash-object", "-w", "--stdin"], data, env).strip()
+        entries.append(b"100644 blob " + blob + b"\t" + name.encode("utf-8"))
+    tree = flip.git(repo.path, ["mktree"], b"\n".join(entries) + b"\n", env).decode().strip()
+    argv = ["commit-tree", tree]
+    for parent in parents:
+        argv += ["-p", parent]
+    return str(flip.git(repo.path, argv, message, env).decode("ascii").strip())
+
+
+def literal_commit(repo: Any, header: bytes) -> str:
+    """A commit object written byte for byte, unchecked - for a header git would not write."""
+    argv = ["hash-object", "-t", "commit", "-w", "--literally", "--stdin"]
+    return str(flip.git(repo.path, argv, header).decode("ascii").strip())
+
+
+def test_s8_walks_past_the_tip_to_an_off_allowlist_root(tmp_path: Path) -> None:
+    """Kills a tip-only walk: the bad commit is the ROOT of a three-commit chain."""
+    repo = history_repo(tmp_path)
+    root = plumb_commit(repo, (), b"root\n", COMMITTER_EMAIL=STRAY_ADDRESS)
+    middle = plumb_commit(repo, (root,), b"middle\n")
+    tip = plumb_commit(repo, (middle,), b"tip\n")
+
+    result = flip.identity_scan(repo.path, tip, allowlist_for(repo), "s8")
+
+    shape = (result.shas, result.counts["off-allowlist fields"], result.counts["commits walked"])
+    assert shape == ([root], 1, 3)
+
+
+def test_s8_walks_a_merges_second_parent(tmp_path: Path) -> None:
+    """Kills a first-parent walk: the bad commit is reachable ONLY through a merge's side."""
+    repo = history_repo(tmp_path)
+    base = plumb_commit(repo, (), b"base\n")
+    mainline = plumb_commit(repo, (base,), b"mainline\n")
+    side = plumb_commit(repo, (base,), b"side\n", AUTHOR_EMAIL=STRAY_ADDRESS)
+    merge = plumb_commit(repo, (mainline, side), b"merge\n")
+
+    result = flip.identity_scan(repo.path, merge, allowlist_for(repo), "s8")
+
+    shape = (result.shas, result.counts["off-allowlist fields"], result.counts["commits walked"])
+    assert shape == ([side], 1, 4)
+
+
+@pytest.mark.parametrize(
+    "shape",
+    ["no committer line", "a committer line without a date", "a third identity line"],
+)
+def test_a_malformed_commit_mid_history_is_counted_and_fails_closed(
+    tmp_path: Path, shape: str
+) -> None:
+    """Kills zeroed skips: a malformed identity line is a counted skip, and a skip never passes.
+
+    The malformed commit sits BETWEEN two well-formed ones, so the walk has to
+    reach it through a parent link and keep going past it.
+    """
+    repo = history_repo(tmp_path)
+    root = plumb_commit(repo, (), b"root\n")
+    tree = flip.git(repo.path, ["rev-parse", f"{root}^{{tree}}"]).decode("ascii").strip()
+    ident = f"{ALLOWED_NAME} <{allowed_address()}>".encode("ascii")
+    lines = {
+        "no committer line": [b"author " + ident + b" 1700000000 +0000"],
+        "a committer line without a date": [
+            b"author " + ident + b" 1700000000 +0000",
+            b"committer " + ident,
+        ],
+        "a third identity line": [
+            b"author " + ident + b" 1700000000 +0000",
+            b"committer " + ident + b" 1700000000 +0000",
+            b"committer " + ident + b" not-a-date",
+        ],
+    }[shape]
+    header = b"\n".join([b"tree " + tree.encode("ascii"), b"parent " + root.encode("ascii")])
+    malformed = literal_commit(repo, header + b"\n" + b"\n".join(lines) + b"\n\nmalformed\n")
+    tip = plumb_commit(repo, (malformed,), b"tip\n")
+
+    result = flip.identity_scan(repo.path, tip, allowlist_for(repo), "s8")
+    result.control = True
+
+    verdict = (result.skips, result.passed, result.counts["commits walked"])
+    assert verdict == (1, False, 3)
+
+
+@pytest.mark.parametrize("fold", ["address", "name"])
+def test_an_identity_differing_only_in_case_is_off_the_allowlist(tmp_path: Path, fold: str) -> None:
+    """Kills a case-insensitive compare: the allowlist admits byte for byte, nothing looser."""
+    repo = history_repo(tmp_path)
+    root = plumb_commit(repo, (), b"root\n")
+    if fold == "address":
+        tip = plumb_commit(repo, (root,), b"tip\n", COMMITTER_EMAIL=allowed_address().upper())
+    else:
+        tip = plumb_commit(repo, (root,), b"tip\n", AUTHOR_NAME=ALLOWED_NAME.swapcase())
+
+    result = flip.identity_scan(repo.path, tip, allowlist_for(repo), "s8")
+
+    shape = (result.shas, result.counts["off-allowlist fields"])
+    assert shape == ([tip], 1)
+
+
+def test_a_replace_ref_cannot_hide_an_off_allowlist_commit(tmp_path: Path) -> None:
+    """The walk and the read see the RAW commit objects: a replace ref is not followed."""
+    repo = history_repo(tmp_path)
+    bad = plumb_commit(repo, (), b"root\n", AUTHOR_EMAIL=STRAY_ADDRESS)
+    tip = plumb_commit(repo, (bad,), b"tip\n")
+    twin = plumb_commit(repo, (), b"twin\n")
+    flip.git(repo.path, ["replace", bad, twin], env=repo.env)
+
+    result = flip.identity_scan(repo.path, tip, allowlist_for(repo), "s8")
+
+    shape = (result.shas, result.counts["off-allowlist fields"])
+    assert shape == ([bad], 1)
+
+
+def test_a_replace_ref_cannot_hide_a_credential_from_the_secret_scan(tmp_path: Path) -> None:
+    """Sibling of the identity arm: check 1's walk and read ignore replace refs too."""
+    repo = history_repo(tmp_path)
+    line = ("access" + "_key = " + flip.synthetic_credential() + "\n").encode("ascii")
+    bad = plumb_commit(repo, (), b"plant\n", files={"config.py": line})
+    tip = plumb_commit(repo, (bad,), b"remove\n")
+    twin = plumb_commit(repo, (), b"twin\n")
+    flip.git(repo.path, ["replace", bad, twin], env=repo.env)
+
+    result = flip.secret_scan(repo.path, tip)
+
+    assert result.counts["findings"] > 0
+
+
+def _shallow(repo: Any, tip: str) -> None:
+    """Cut the history at ``tip`` with a shallow file."""
+    (repo.path / ".git" / "shallow").write_bytes(tip.encode("ascii") + b"\n")
+
+
+def _grafted(repo: Any, tip: str) -> None:
+    """Cut the history at ``tip`` with a graft that gives it no parent."""
+    (repo.path / ".git" / "info").mkdir(exist_ok=True)
+    (repo.path / ".git" / "info" / "grafts").write_bytes(tip.encode("ascii") + b"\n")
+
+
+@pytest.mark.parametrize(
+    ("cut", "reason"),
+    [(_shallow, "the repository is shallow"), (_grafted, "the repository has grafts")],
+    ids=["shallow", "grafts"],
+)
+@pytest.mark.parametrize(
+    "scan",
+    [
+        lambda repo, tip: flip.identity_scan(repo.path, tip, allowlist_for(repo), "s8"),
+        lambda repo, tip: flip.secret_scan(repo.path, tip),
+        lambda repo, tip: flip.pii_scan(repo.path, tip, flip.NeedleSet()),
+        lambda repo, tip: flip.publisher_scan(repo.path, tip),
+    ],
+    ids=["identity", "secret", "pii", "publisher"],
+)
+def test_a_cut_history_is_refused_by_name_rather_than_walked(
+    tmp_path: Path, cut: Any, reason: str, scan: Any
+) -> None:
+    """Fail closed: a shallow file or a graft hides the commits behind it, so the walk refuses."""
+    repo = history_repo(tmp_path)
+    bad = plumb_commit(repo, (), b"root\n", AUTHOR_EMAIL=STRAY_ADDRESS)
+    tip = plumb_commit(repo, (bad,), b"tip\n")
+    cut(repo, tip)
+
+    with pytest.raises(flip.FlipError) as raised:
+        scan(repo, tip)
+
+    assert raised.value.reason == reason
+
+
 def test_run_all_counts_the_identity_axis(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """The gate's tally includes the identity axis, so a skipped one is visible.
 

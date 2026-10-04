@@ -75,6 +75,28 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-10-04 - CS-701 - PROGRESS RECORD. NOT A COMPLETION RECORD. NOTHING CLOSED. CS-701 STAYS OPEN. The identity axis reads raw objects, refuses a cut history, and is graded on multi-commit histories
+Verification: `tools/flip_checks.py::raw_object_env`, `::refuse_cut_history`, `::commit_identities`,
+`::identity_scan`; `tests/test_flip_checks.py::test_s8_walks_past_the_tip_to_an_off_allowlist_root`,
+`::test_s8_walks_a_merges_second_parent`,
+`::test_a_malformed_commit_mid_history_is_counted_and_fails_closed`,
+`::test_an_identity_differing_only_in_case_is_off_the_allowlist`,
+`::test_a_replace_ref_cannot_hide_an_off_allowlist_commit`,
+`::test_a_replace_ref_cannot_hide_a_credential_from_the_secret_scan`,
+`::test_a_cut_history_is_refused_by_name_rather_than_walked`. An adversary pass against check `I`
+found a BYPASS - a replace ref, a shallow file or a graft hid an off-allowlist commit and the axis
+reported PASS with zero off fields - and four SURVIVING MUTANTS that a one-commit fixture cannot
+kill: a tip-only walk, a first-parent walk, a zeroed malformed-commit skip and a case-folding
+compare. Every git call `flip_checks.py` makes without an explicit environment now runs with
+replace objects off, so the walk and the read grade the raw commit object; a shallow or grafted
+repository is refused by name in the identity walk and, as the same root cause, in the history
+walks of checks 1, 2 and 4. A header line naming a role that does not parse is now a counted
+skip. Each new arm was run against its mutant in a scratch copy, the mutation read back as
+landed, under `python -B` with bytecode writes off: every mutant KILLED, pristine floor green;
+the kill table is in the commit body. RESIDUAL: the trailer axis walks through
+`tools/trailer_census.py`, which still honours replace refs and a cut history - outside this
+slice's write-list, filed in the CS-701 section of `docs/item_notes/phase7.md`.
+
 ### 2026-10-04 - CS-500 - CLOSED: the Phase 5 advisor gate - trace engine, rules, cards, the per-world ledger and advise()
 Verification: `clockspeed/advisor/advise.py::advise`, over `clockspeed/advisor/trace.py`,
 `clockspeed/advisor/cards.py`, `clockspeed/advisor/ledger.py` and

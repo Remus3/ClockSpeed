@@ -379,6 +379,21 @@ def _git_path() -> str:
     return found
 
 
+def raw_object_env() -> dict[str, str]:
+    """This environment with replace objects OFF, for every git call that reads history.
+
+    A ``refs/replace/`` ref swaps one object for another in every read that
+    honours it, so a commit off the allowlist, or a blob carrying a credential,
+    could be hidden from a walk that followed it. With replace objects off the
+    walk and the read see the RAW objects in the store (CS-701 adversary).
+    Grafts and a shallow file are not switched off by this; they are refused by
+    :func:`refuse_cut_history`.
+    """
+    env = dict(os.environ)
+    env["GIT_NO_REPLACE_OBJECTS"] = "1"
+    return env
+
+
 def git(
     repo: Path,
     args: Sequence[str],
@@ -391,7 +406,8 @@ def git(
         repo: The directory to run in.
         args: The subcommand and its arguments, without git itself.
         data: Bytes for stdin, if any.
-        env: The child environment, or None to inherit this one.
+        env: The child environment, or None for this one with replace objects
+            off (:func:`raw_object_env`).
 
     Returns:
         Raw stdout.
@@ -405,7 +421,7 @@ def git(
             [_git_path(), *args],
             cwd=repo,
             input=data,
-            env=env,
+            env=raw_object_env() if env is None else env,
             capture_output=True,
             timeout=GIT_TIMEOUT,
             check=False,
@@ -437,6 +453,24 @@ def resolve_ref(repo: Path, ref: str) -> str:
     if not re.fullmatch(r"[0-9a-f]{40}|[0-9a-f]{64}", sha):
         raise FlipError("REF did not resolve to one commit")
     return sha
+
+
+def refuse_cut_history(repo: Path) -> None:
+    """Refuse a repository whose history is cut by a shallow file or by grafts.
+
+    Either one ends the walk early, so every commit behind the cut - and every
+    object only it reaches - is hidden from a scan that would otherwise report
+    PASS over it. A cut history is refused by name, never walked.
+
+    Raises:
+        FlipError: Naming which of the two cuts was found.
+    """
+    shallow = git(repo, ["rev-parse", "--is-shallow-repository"]).strip()
+    if shallow != b"false":
+        raise FlipError("the repository is shallow")
+    grafts = git(repo, ["rev-parse", "--git-path", "info/grafts"]).decode("utf-8", "replace")
+    if (repo / grafts.strip()).exists():
+        raise FlipError("the repository has grafts")
 
 
 def reachable_objects(repo: Path, sha: str) -> list[tuple[str, str]]:
@@ -478,6 +512,7 @@ def object_types(repo: Path, shas: Sequence[str]) -> dict[str, str]:
 
 def population(repo: Path, sha: str) -> tuple[dict[str, str], list[str], list[str]]:
     """REF's reachable objects: each object's first path, its blobs and its commits."""
+    refuse_cut_history(repo)
     named = dict(reachable_objects(repo, sha))
     types = object_types(repo, list(named))
     blobs = [obj for obj in named if types.get(obj) == "blob"]
@@ -508,6 +543,7 @@ def stream_objects(repo: Path, shas: Sequence[str]) -> Iterator[tuple[str, bytes
         proc = subprocess.Popen(
             [_git_path(), "cat-file", "--batch"],
             cwd=repo,
+            env=raw_object_env(),
             stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
             stderr=subprocess.DEVNULL,
@@ -552,6 +588,7 @@ def history_paths(repo: Path, sha: str) -> dict[str, str]:
     Returns:
         Each path mapped to the first commit the walk saw introduce it.
     """
+    refuse_cut_history(repo)
     out = git(
         repo,
         [
@@ -1735,23 +1772,36 @@ def derive_identity_allowlist(repo: Path, forge_user: ForgeUser | None = None) -
     return IdentityAllowlist(frozenset(names), frozenset(addresses), failures)
 
 
-def commit_identities(repo: Path, sha: str) -> list[tuple[str, list[tuple[bytes, bytes]]]]:
+def commit_identities(repo: Path, sha: str) -> list[tuple[str, list[tuple[bytes, bytes]], int]]:
     """Every commit reachable from ``sha`` with its raw author and committer identities.
 
+    Every parent of every commit is walked, and both the walk and the read run
+    with replace objects off (:func:`raw_object_env`), so what is graded is the
+    raw commit object in the store. A shallow or grafted repository is refused
+    (:func:`refuse_cut_history`).
+
     Returns:
-        ``(commit, [(name, address), ...])`` per commit, read from the raw object
-        header - author first, committer second.
+        ``(commit, [(name, address), ...], identity lines)`` per commit, read
+        from the raw object header - author first, committer second. The last
+        field counts every header line naming a role, parsed or not, so a line
+        that does not parse is visible to the caller as a mismatch.
+
+    Raises:
+        FlipError: When the history is cut, or git cannot walk or read it.
     """
+    refuse_cut_history(repo)
     walked = git(repo, ["rev-list", sha]).decode("ascii", errors="replace").split()
-    found: list[tuple[str, list[tuple[bytes, bytes]]]] = []
+    found: list[tuple[str, list[tuple[bytes, bytes]], int]] = []
     for commit_sha, raw in stream_objects(repo, walked):
         head = raw.split(b"\n\n", 1)[0]
         idents: list[tuple[bytes, bytes]] = []
+        role_lines = 0
         for line in head.split(b"\n"):
+            role_lines += line.startswith((b"author ", b"committer "))
             matched = _IDENT_RE.match(line)
             if matched:
                 idents.append((matched.group(2), matched.group(3)))
-        found.append((commit_sha, idents))
+        found.append((commit_sha, idents, role_lines))
     return found
 
 
@@ -1775,8 +1825,8 @@ def identity_scan(repo: Path, sha: str, allowlist: IdentityAllowlist, stage: str
     off_fields = 0
     off_commits: list[str] = []
     malformed = 0
-    for commit_sha, idents in walked:
-        if len(idents) != IDENT_FIELDS:
+    for commit_sha, idents, role_lines in walked:
+        if len(idents) != IDENT_FIELDS or role_lines != IDENT_FIELDS:
             malformed += 1
         off_here = 0
         for name, address in idents:
