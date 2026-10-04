@@ -288,6 +288,7 @@ tests/save/test_decode_oracles.py	authored	CS-420	first-add:CS-420
 tests/save/test_element_framing_refusals.py	authored	CS-829	first-add:CS-829
 tests/save/test_header.py	authored	CS-1165	first-add:root
 tests/save/test_independent_table.py	authored	CS-829	first-add:CS-829
+tests/save/test_inventory_item.py	authored	CS-400	stamped
 tests/save/test_inventory_potential.py	authored	CS-405	first-add:CS-405
 tests/save/test_item_list.py	authored	CS-1068	first-add:CS-1068
 tests/save/test_node_orientation_carry.py	authored	CS-1019	stamped
