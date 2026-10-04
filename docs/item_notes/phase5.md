@@ -429,6 +429,20 @@ From the inspiration ingest of 2026-10-04 - an untracked external survey whose i
 
 an overlay of edits (add N machines of a recipe at a clock, swap a recipe, remove a group, raise a target) round-trips through the API; the same save plus the same overlay gives byte-identical output on two runs; a test asserts no file under the save or install directory changes mtime during an overlay evaluation; once CS-500's trace exists the tier-3 derivation names each overlay edit as a trace step
 
+### Core half measured 2026-10-04
+
+MET: `clockspeed/audit/overlay.py` - add, remove, swap and set-demand edits applied as a pure
+transform with one record per edit, flow and draw recomputed before and after, a wrong
+building or an unknown recipe refused or skipped by name, never clamped; byte-identical
+output across two processes with different hash seeds; and a no-write arm over a temp save
+and install tree with every file entry point blocked, `tests/audit/test_overlay.py`. Two
+adversary rounds, the first REFUTED and repaired. OPEN, and the only reasons this item is
+not closed: (a) the API round trip - route handlers receive path parameters and no request
+body (`clockspeed/surface/api/contract.py`), so accepting an overlay needs a decided handler
+contract change, not a new route alone; (b) the tier-3 trace step and per-world overlay
+storage, which wait on CS-500. A clock above the un-sharded base is FLAGGED rather than
+refused because `clockspeed/solve/power.py::clock_ceiling` publishes no ceiling figure.
+
 ## CS-1238
 
 ### Filed 2026-10-04 by the inspiration ingest
