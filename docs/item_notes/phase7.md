@@ -1579,3 +1579,18 @@ cleanup alone. It blocks a clean S1 and S8 exit, so it blocks CS-700. A leftover
 ### Acceptance
 
 the flip-checks clone shares no hard-linked object file with the source repository; an arm asserts the clone command carries `--no-hardlinks` (or that no object file of the clone shares an inode with the source); a run whose checks all pass exits 0 while another git process holds the source's commit-graph open; a genuine cleanup failure still fails the run and names the path
+
+### MEASURED 2026-10-04, the fix on its slice branch, not yet closed
+
+`clone_at` now passes `--no-hardlinks`, and a scratch tree that will not go is named relative to
+the repository in the run's output, never as an absolute path. The hold that blocks cleanup is a
+MAPPING, as git holds it: a plain open handle on the commit-graph does not stop the clone's link
+from being unlinked, so an arm that holds it with `open()` alone passes against the defect. The
+four arms in `tests/test_flip_checks.py`, each observed red before the fix:
+`test_the_clone_command_carries_no_hardlinks`,
+`test_no_clone_object_file_shares_an_inode_with_the_source`,
+`test_a_passing_run_exits_zero_while_the_commit_graph_is_held` (mmap hold, with a Windows control
+that the hold blocks unlinking a second name) and
+`test_a_genuine_cleanup_failure_fails_the_run_and_names_the_path`. Closing needs the `ROADMAP.md`
+line removed and a `docs/LEDGER.md` entry, plus removal of the leftover `run-jwsav2xk` scratch
+directory under the primary checkout's git directory.

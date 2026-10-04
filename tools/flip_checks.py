@@ -1964,9 +1964,15 @@ def clone_at(repo: Path, sha: str, target: Path) -> Path:
 
     Across two Windows drives the source is drive-anchored instead, never a home
     (:func:`_relative_or_anchored`).
+
+    ``--no-hardlinks`` COPIES the object store (CS-1267). A local clone otherwise
+    hard-links it, commit-graph included, and a concurrent git that has the
+    source's commit-graph mapped then blocks removing the clone's name for the
+    same file - the scratch removal failed and a run whose checks all passed
+    exited 1.
     """
     source = _relative_or_anchored(repo, target.parent)
-    git(target.parent, ["clone", "-q", "--no-checkout", source, target.name])
+    git(target.parent, ["clone", "-q", "--no-checkout", "--no-hardlinks", source, target.name])
     git(target, ["checkout", "-q", "--detach", sha])
     return target
 
@@ -2084,6 +2090,18 @@ def remove_tree(path: Path) -> bool:
     return not path.exists()
 
 
+def _scratch_name(scratch: Path, repo: Path) -> str:
+    """The leftover scratch tree, named relative to ``repo`` so no home renders.
+
+    Across two drives with no allowed absolute spelling, fixed text naming no
+    path stands in (:func:`_relative_or_anchored`).
+    """
+    try:
+        return Path(_relative_or_anchored(scratch, repo)).as_posix()
+    except FlipError:
+        return f"{SCRATCH_DIRNAME}/{scratch.name} in the git directory"
+
+
 Runner = Callable[[Path, str, str, Path, "tuple[str, int] | None"], list[CheckResult]]
 
 
@@ -2163,7 +2181,8 @@ def _run(args: argparse.Namespace, runner: Runner) -> int:
     for key, owner in HUMAN_HALVES:
         print(f"check {key} human half: NOT-RUN-HERE - {owner}")
     if not cleaned:
-        print("flip_checks: the scratch directory could not be removed")
+        leftover = _scratch_name(scratch, args.repo)
+        print(f"flip_checks: the scratch directory could not be removed - {leftover}")
     print(final_line(results))
     passed = cleaned and bool(results) and all(result.passed for result in results)
     return EXIT_PASS if passed else EXIT_FAIL

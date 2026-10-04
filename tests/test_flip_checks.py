@@ -19,6 +19,7 @@ check that always passes render identically in a summary.
 from __future__ import annotations
 
 import importlib.util
+import mmap
 import re
 import subprocess
 import sys
@@ -924,6 +925,118 @@ def test_a_clone_source_under_a_home_on_another_drive_is_refused(
     leaked = _carries_a_home([str(caught.value)])
     ran = len(calls)
     assert ran == 0
+    assert not leaked
+
+
+# --- CS-1267: the clone shares no object file, so a held one cannot block cleanup
+
+
+def _object_identities(git_dir: Path) -> set[tuple[int, int]]:
+    """The (device, inode) of every file under ``git_dir``'s object store."""
+    return {
+        (found.stat().st_dev, found.stat().st_ino)
+        for found in (git_dir / "objects").rglob("*")
+        if found.is_file()
+    }
+
+
+def test_the_clone_command_carries_no_hardlinks(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """CS-1267: the one clone git is asked for copies its objects instead of linking them."""
+    calls: list[list[str]] = []
+    monkeypatch.setattr(flip, "git", _recording_git(calls))
+
+    flip.clone_at(tmp_path / "repo", "0" * 40, tmp_path / "scratch" / "tree")
+
+    clones = [call for call in calls if call[:1] == ["clone"]]
+    linked = sum(1 for call in clones if "--no-hardlinks" not in call)
+    assert len(clones) == 1
+    assert linked == 0
+
+
+def test_no_clone_object_file_shares_an_inode_with_the_source(tmp_path: Path) -> None:
+    """CS-1267: a real clone, commit-graph included, owns every one of its object files."""
+    repo = tmp_path / "repo"
+    sha = work_repo(repo, {"README.md": b"x\n"})
+    run_git(repo, "commit-graph", "write", "--reachable")
+    graph = repo / ".git" / "objects" / "info" / "commit-graph"
+    (tmp_path / "scratch").mkdir()
+
+    clone = flip.clone_at(repo, sha, tmp_path / "scratch" / "tree")
+
+    source = _object_identities(repo / ".git")
+    copied = _object_identities(clone / ".git")
+    shared = len(source & copied)
+    assert graph.is_file()
+    assert copied
+    assert shared == 0
+
+
+def test_a_passing_run_exits_zero_while_the_commit_graph_is_held(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """CS-1267: another process holding the source's commit-graph cannot fail cleanup."""
+    monkeypatch.setattr(flip, "REMOVE_PAUSE_SECONDS", 0)
+    repo = tmp_path / "repo"
+    work_repo(repo, {"README.md": b"x\n"})
+    run_git(repo, "commit-graph", "write", "--reachable")
+    graph = repo / ".git" / "objects" / "info" / "commit-graph"
+    seen: list[Path] = []
+
+    def cloning_runner(repo_arg: Path, sha_arg: str, *rest: object) -> list[object]:
+        scratch = rest[1]
+        assert isinstance(scratch, Path)
+        seen.append(scratch)
+        flip.clone_at(repo_arg, sha_arg, scratch / "tree")
+        return [passing()]
+
+    # Held as git holds it: MAPPED. A plain open handle does not block an unlink.
+    with graph.open("rb") as handle, mmap.mmap(handle.fileno(), 0, access=mmap.ACCESS_READ):
+        if sys.platform == "win32":
+            # Control: the hold really does block removing a SECOND name of the file,
+            # which is exactly what a hard-linked clone's cleanup would have to do.
+            twin = tmp_path / "twin-commit-graph"
+            twin.hardlink_to(graph)
+            twin.chmod(0o600)
+            with pytest.raises(PermissionError):
+                twin.unlink()
+        code = flip.main(["HEAD", "--stage", "s8", "--repo", str(repo)], runner=cloning_runner)
+
+    (scratch,) = seen
+    assert code == flip.EXIT_PASS
+    assert not scratch.exists()
+
+
+def test_a_genuine_cleanup_failure_fails_the_run_and_names_the_path(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """CS-1267: a scratch tree that will not go fails the run, named without a home."""
+    monkeypatch.setattr(flip, "REMOVE_PAUSE_SECONDS", 0)
+    repo = tmp_path / "repo"
+    work_repo(repo, {"README.md": b"x\n"})
+    seen: list[Path] = []
+
+    def refusing_rmtree(*_args: object, **_named: object) -> None:
+        raise PermissionError(13, "held")
+
+    def scratch_runner(*args: object) -> list[object]:
+        scratch = args[3]
+        assert isinstance(scratch, Path)
+        seen.append(scratch)
+        monkeypatch.setattr(flip.shutil, "rmtree", refusing_rmtree)
+        return [passing()]
+
+    code = flip.main(["HEAD", "--stage", "s8", "--repo", str(repo)], runner=scratch_runner)
+
+    out = capsys.readouterr().out
+    monkeypatch.undo()
+    (scratch,) = seen
+    named = f".git/flip-checks/{scratch.name}" in out
+    leaked = rendered_leak(out)
+    assert code == flip.EXIT_FAIL
+    assert scratch.exists()
+    assert named
     assert not leaked
 
 
