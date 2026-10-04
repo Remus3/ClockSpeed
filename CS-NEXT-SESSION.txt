@@ -211,7 +211,15 @@ Gates on the /done tree (exit codes read): drift_guard 0 (11 PASS), doc_budget 0
   (38 measured, 0 over), memory_sync 0.
 CI READ at 07fcc61: tier1 37191537735 SUCCESS; tier2 37193626407 FAILURE (one job,
   windows save-shard probe, see THE SINGLE NEXT ACTION).
-Push: recorded by the follow-up report commit.
+Push: 9175e92 (the /done docs) pushed, exit 0; pre-push hook whole suite
+  (`pytest tests -n auto --dist loadfile`): 13935 passed, 12 skipped, 0 failed in
+  21m28s; origin/main moved 07fcc61..9175e92, HEAD read back equal to ls-remote.
+  This report rides a follow-up commit whose own push re-runs the hook; confirm HEAD
+  equals ls-remote.
+CI at 9175e92: tier1 37209337370 IN PROGRESS when read - result NOT KNOWN, READ IT.
+  No tier2 run at 9175e92 (tier2 runs on schedule/dispatch).
+PUSH NOTICE: GitHub reported 10 Dependabot vulnerabilities on the default branch
+  (2 high, 5 moderate, 3 low). Triage BEFORE the CS-700 flip - not yet filed as an item.
 Ledger: no item closed this /done, so no ledger record appended.
 Desktop shortcut CS-NEXT-SESSION.lnk targets C:\Clockspeed\CS-NEXT-SESSION.txt (read).
 UNVERIFIED: the doc edits of this /done were not read by a second agent before commit.
