@@ -153,6 +153,7 @@ from types import NoneType
 from typing import Final
 
 __all__ = [
+    "DISPLAY_ROUNDING",
     "OUTCOME_INCONSISTENT",
     "OUTCOME_UNDERDETERMINED",
     "OUTCOME_UNIQUE",
@@ -163,6 +164,7 @@ __all__ = [
     "LinearSolution",
     "UndefinedRateError",
     "audit_exact",
+    "display_decimal",
     "isolating_rows",
     "per_minute",
     "solve_linear",
@@ -195,6 +197,29 @@ OUTCOME_INCONSISTENT: Final = "inconsistent"
 #: Infinitely many solutions - rank below the variable count.
 #: :attr:`LinearSolution.free_variables` names which columns are unconstrained.
 OUTCOME_UNDERDETERMINED: Final = "underdetermined"
+
+# ---------------------------------------------------------------------------
+# Display rounding (CS-1239)
+# ---------------------------------------------------------------------------
+
+#: The one rounding mode at the presentation edge: a tie goes to the even
+#: neighbour. Spelled as the standard library's ``decimal`` module spells it so
+#: no reader has to guess what it means, but held as a plain string, because
+#: this module imports neither ``decimal`` nor anything else that computes in
+#: base ten (see :func:`display_decimal`). Read at call time, which is what
+#: lets ``tests/solve/test_display_rounding.py`` flip it and watch the golden
+#: tie cases redden.
+DISPLAY_ROUNDING: Final = "ROUND_HALF_EVEN"
+
+_ROUND_HALF_EVEN: Final = "ROUND_HALF_EVEN"
+
+#: Away from zero on a tie. Supported ONLY so the pin above can be proved
+#: load-bearing by flipping it; nothing in the product selects it.
+_ROUND_HALF_UP: Final = "ROUND_HALF_UP"
+
+#: Every mode :func:`display_decimal` implements. Any other value of the pin is
+#: refused at call time rather than silently treated as half-even.
+_DISPLAY_MODES: Final = frozenset({_ROUND_HALF_EVEN, _ROUND_HALF_UP})
 
 # ---------------------------------------------------------------------------
 # The exactness allow-list
@@ -439,6 +464,74 @@ def to_exact(text: str) -> Fraction:
             "float here would read its binary approximation exactly and the decimal wrongly"
         )
     return Fraction(text)
+
+
+def display_decimal(value: Fraction, places: int) -> str:
+    """Render an exact value as a fixed-point decimal string, rounded ONCE, half-even.
+
+    THE ONE DISPLAY-ROUNDING POLICY (CS-1239). The solve path and the wire stay
+    exact; this is the single point where a Fraction is allowed to lose
+    information, and it loses it exactly once, at the presentation edge, under
+    the mode named by :data:`DISPLAY_ROUNDING`.
+
+    WHY IT LIVES HERE. Rounding is a Fraction primitive with the same front-door
+    discipline as :func:`to_exact`. The only other candidate owner,
+    ``clockspeed/surface/api/contract.py``, is wrong on its own terms: its
+    ``rational()`` transcribes and does not compute (its test asserts no
+    arithmetic in the body), and the surface layer is forbidden to compute at
+    all. Keeping it beside the other primitives keeps it under this module's
+    own fences: no ``**``, no ``math`` and no ``decimal`` arithmetic.
+
+    WHY NOT ``Decimal.quantize``. ``Decimal(numerator) / Decimal(denominator)``
+    is itself rounded to the context precision first, so a value a hair above a
+    tie (``1/8 + 10**-30`` at two places) is rounded onto the tie and then tied
+    DOWN - a double rounding that reports 0.12 where 0.13 is right. The split
+    below is integer arithmetic on the exact value, so the tie test is exact.
+
+    A result that rounds to zero carries no sign: ``-1/1000`` at two places is
+    ``0.00``, never ``-0.00``, because a sign with no magnitude is noise to a
+    reader and not information.
+
+    Args:
+        value: The exact value. Must be exactly a Fraction - a float would be
+            rounded for display with its binary drift already inside it, and an
+            int is refused for the reason :func:`per_minute` refuses one.
+        places: Digits after the point, zero or more, exactly an int.
+
+    Returns:
+        The rendered string, ASCII, with ``places`` digits after the point and
+        no point at all when ``places`` is zero.
+
+    Raises:
+        InexactValueError: ``value`` is not exactly a Fraction.
+        TypeError: ``places`` is not exactly an int (a bool is refused too).
+        ValueError: ``places`` is negative, or :data:`DISPLAY_ROUNDING` names a
+            mode this function does not implement.
+    """
+    _reject_inexact(value, "value")
+    if type(places) is not int:
+        raise TypeError(f"places must be an int, not {type(places).__name__} {places!r}")
+    if places < 0:
+        raise ValueError(f"places must be zero or more, not {places}")
+    mode = DISPLAY_ROUNDING
+    if mode not in _DISPLAY_MODES:
+        raise ValueError(
+            f"display rounding mode {mode!r} is not implemented; the policy is "
+            f"{_ROUND_HALF_EVEN} and nothing is rounded under a mode it does not name"
+        )
+
+    scaled = abs(value) * int("1" + "0" * places)
+    whole = scaled.numerator // scaled.denominator
+    remainder = scaled - whole
+    half = Fraction(1, 2)
+    if remainder > half or (remainder == half and (mode == _ROUND_HALF_UP or whole % 2 == 1)):
+        whole += 1
+
+    digits = str(whole)
+    if places:
+        digits = digits.rjust(places + 1, "0")
+        digits = f"{digits[:-places]}.{digits[-places:]}"
+    return f"-{digits}" if value < 0 and whole != 0 else digits
 
 
 def per_minute(amount: Fraction, duration: Fraction) -> Fraction:

@@ -328,8 +328,10 @@ tests/secret_sweep_guard.py	authored	CS-939	first-add:CS-939
 tests/shell/__init__.py	authored	CS-602	first-add:CS-602
 tests/shell/test_shell_assets.py	authored	CS-602	first-add:CS-602
 tests/solve/__init__.py	authored	CS-1165	first-add:root
+tests/solve/golden/display.json	authored	CS-1239	stamped
 tests/solve/synthetic.py	authored	CS-300	first-add:CS-300
 tests/solve/test_ceiling_fence.py	authored	CS-303	first-add:CS-303
+tests/solve/test_display_rounding.py	authored	CS-1239	stamped
 tests/solve/test_exact.py	authored	CS-300	first-add:CS-300
 tests/solve/test_exponent_owner.py	authored	CS-1030	stamped
 tests/solve/test_optimize.py	authored	CS-300	first-add:CS-300
