@@ -289,12 +289,108 @@ def test_a_new_form_item_carrying_state_closes_with_state_undecoded() -> None:
 
 
 def test_an_old_form_item_with_a_legacy_state_actor_is_state_undecoded() -> None:
-    """A non-empty legacy state actor is presence-only, never a reference."""
-    stack = _stack_result(_old_form(actor=("SyntheticLevel", "SyntheticLevel.SyntheticActor")))
+    """A non-empty legacy state actor is presence-only, never a reference.
+
+    EITHER HALF ALONE SETS THE FLAG, so a reader keyed on only one string of the
+    actor reference is caught whichever string it dropped.
+    """
+    for actor in (
+        ("SyntheticLevel", "SyntheticLevel.SyntheticActor"),
+        ("", "SyntheticLevel.SyntheticActor"),
+        ("SyntheticLevel", ""),
+    ):
+        stack = _stack_result(_old_form(actor=actor))
+
+        item = _decoded_item(stack)
+        assert item.state_undecoded is True, f"actor halves {tuple(map(bool, actor))} not flagged"
+        assert objects.ObjectReference not in type(item).__mro__
+
+
+@pytest.mark.parametrize("form", ["old", "new"])
+def test_a_non_empty_level_string_is_not_read_as_the_class(form: str) -> None:
+    """The class is the SECOND string of its reference; the level is carried apart.
+
+    Args:
+        form: Which form to build.
+    """
+    level = "SyntheticItemLevel"
+    tail = _ref("", "") if form == "old" else _i32(0)
+    stack = _stack_result(_ref(level, _CLASS_PATH) + tail)
 
     item = _decoded_item(stack)
-    assert item.state_undecoded is True
-    assert objects.ObjectReference not in type(item).__mro__
+    class_matches = item.class_path == _CLASS_PATH
+    level_matches = item.level_reference == level
+    assert class_matches, "the class path was not taken from the second string"
+    assert level_matches, "the level string was not carried as the level"
+
+
+def test_an_item_inside_an_inventory_array_element_decodes_through_the_payload() -> None:
+    """An Item one container deep - the mInventoryStacks shape - reads in full.
+
+    Two stack elements in one legacy ``ArrayProperty`` of ``StructProperty``,
+    one NEW form and one OLD, each beside its NumItems.
+    """
+    elements = (
+        _tag_list(
+            _struct_tag("Item", objects.INVENTORY_ITEM_STRUCT_WORD, _new_form()),
+            _int_tag("NumItems", _NUM_ITEMS),
+        ),
+        _tag_list(
+            _struct_tag("Item", objects.INVENTORY_ITEM_STRUCT_WORD, _old_form("")),
+            _int_tag("NumItems", 0),
+        ),
+    )
+    region = b"".join(elements)
+    inner_tag = (
+        _fstring("mInventoryStacks")
+        + _fstring(objects.STRUCT_TYPE_WORD)
+        + _i32(len(region))
+        + _i32(0)
+        + _fstring(_STACK_WORD)
+        + bytes(objects.GUID_BYTES)
+        + b"\x00"
+    )
+    array = test_properties._array_tag(  # noqa: SLF001
+        "mInventoryStacks", objects.STRUCT_TYPE_WORD, _i32(len(elements)) + inner_tag + region
+    )
+    payload = array + _fstring(objects._PAYLOAD_TERMINATOR)  # noqa: SLF001
+    body = test_properties._synthetic_body(payload)  # noqa: SLF001
+    record = test_properties._synthetic_record(payload, actor=False)  # noqa: SLF001
+    schema = test_properties._synthetic_map(test_properties._SYNTHETIC_SCHEMA)  # noqa: SLF001
+    result = objects.read_properties(body, record, schema)
+
+    container = result.properties.get("mInventoryStacks")
+    is_container = isinstance(container, objects.ContainerValue)
+    assert is_container, f"the array came back as {type(container).__name__}"
+    assert isinstance(container, objects.ContainerValue)
+    stacks = [element.value for element in container.elements]
+    assert len(stacks) == len(elements)
+    first, second = stacks
+    assert isinstance(first, objects.StructValue)
+    assert isinstance(second, objects.StructValue)
+    class_matches = _decoded_item(first).class_path == _CLASS_PATH
+    assert class_matches, "the array element's NEW-form class is not the planted one"
+    assert first.properties["NumItems"] == _NUM_ITEMS
+    empty_slot = _decoded_item(second).class_path == ""
+    assert empty_slot, "the array element's OLD-form empty slot did not read as empty"
+    assert second.properties["NumItems"] == 0
+
+
+def test_the_public_seam_refuses_bounds_past_the_body_without_raising() -> None:
+    """``read_inventory_item`` is exported, so it guards its own bounds.
+
+    Through the payload path the tag reader already bounds the region, so the
+    guard is inert there; called directly with an end past the body, the form
+    readers would hand ``struct.unpack_from`` an offset outside the buffer.
+    """
+    body = _new_form()
+    cases = ((0, len(body) + objects.INT32_SIZE), (-1, len(body)), (len(body), 0))
+    for at, end in cases:
+        result = objects.read_inventory_item(body, at, end)
+        refused = isinstance(result, objects.InventoryItemRefusal)
+        assert refused, f"bounds ({at}, end) were not refused"
+        assert isinstance(result, objects.InventoryItemRefusal)
+        assert result.reason == objects.ITEM_FORM_UNCLOSED
 
 
 @pytest.mark.parametrize("form", ["old", "new"])
@@ -383,10 +479,37 @@ def test_a_state_size_that_disagrees_with_the_declared_end_is_refused(delta: int
 
 
 def test_a_has_state_flag_of_two_is_refused() -> None:
-    """Has-state takes 0 or 1; any other value is refused, never guessed."""
-    stack = _stack_result(_ref("", _CLASS_PATH) + _i32(2))
+    """Has-state takes 0 or 1; any other value is refused, never guessed.
 
-    assert _refusal_reason(stack) == objects.ITEM_FORM_UNCLOSED
+    THE STATE BLOCK AFTER THE FLAG IS VALID, so the only thing wrong with each
+    run is the flag. An earlier version wrote the flag with nothing after it and
+    was refused for being short, which let ``has_state != 0`` survive.
+    """
+    for flag in (2, -1):
+        valid_tail = _ref("", _STATE_STRUCT_PATH) + _i32(len(_state_list())) + _state_list()
+        control = _decoded_item(_stack_result(_ref("", _CLASS_PATH) + _i32(1) + valid_tail))
+        assert control.state_undecoded is True, "the control run with flag 1 did not decode"
+        stack = _stack_result(_ref("", _CLASS_PATH) + _i32(flag) + valid_tail)
+
+        reason = _refusal_reason(stack)
+        assert reason == objects.ITEM_FORM_UNCLOSED, f"has-state {flag} was not refused"
+
+
+def test_a_state_size_below_the_terminator_width_is_refused() -> None:
+    """The state size has a floor: the terminator alone.
+
+    The run below sizes the state at five bytes and plants them so that the
+    size field and those five bytes together spell the terminator. Without the
+    floor, the terminator check reads back across the size field and passes.
+    """
+    terminator = _fstring(objects._PAYLOAD_TERMINATOR)  # noqa: SLF001
+    tail_len = len(terminator) - objects.INT32_SIZE
+    size_field, tail = terminator[: objects.INT32_SIZE], terminator[objects.INT32_SIZE :]
+    planted_size = struct.unpack("<i", size_field)[0]
+    assert planted_size == tail_len, "the plant does not size the state at its own tail"
+    item_bytes = _ref("", _CLASS_PATH) + _i32(1) + _ref("", _STATE_STRUCT_PATH) + size_field + tail
+
+    assert _refusal_reason(_stack_result(item_bytes)) == objects.ITEM_FORM_UNCLOSED
 
 
 def test_a_state_struct_outside_script_is_refused() -> None:
