@@ -609,6 +609,104 @@ def test_the_demands_mapping_is_in_sorted_key_order_itself(
     assert list(result.demands) != [*base, ore], "the insertion order is already sorted"
 
 
+def test_a_building_declaring_no_unsharded_base_leaves_the_clock_flagged_unchecked(
+    machines: WorldMachines, recipes: dict[str, Recipe], buildings: dict[str, Building]
+) -> None:
+    # A synthetic smelter with no declared base: the clock has nothing to be
+    # checked against, so it is flagged rather than passed.
+    baseless = {
+        **buildings,
+        _SMELTER: dataclasses.replace(buildings[_SMELTER], unsharded_clock_base=None),
+    }
+    edit = overlay.AddMachines(recipe_class_name=_R_PLATE, count=1, clock=_ONE)
+    result = overlay.apply_overlay(
+        machines, overlay.Overlay(edits=(edit,)), recipes, buildings=baseless
+    )
+
+    (record,) = result.records
+    assert record.outcome == overlay.OUTCOME_APPLIED
+    assert record.flag == overlay.WARN_OVERLAY_CLOCK_UNCHECKED
+    assert overlay.WARN_OVERLAY_CLOCK_UNCHECKED in _codes(result.warnings)
+
+
+def _two_producer_recipes(recipes: dict[str, Recipe]) -> dict[str, Recipe]:
+    """The corpus recipes with R_Plate producible in the smelter AND the assembler.
+
+    Synthetic content built here rather than in the shared corpus, so no other
+    suite sees a second producer.
+
+    Args:
+        recipes: The corpus recipes.
+
+    Returns:
+        A new mapping; the corpus is untouched.
+    """
+    plate = dataclasses.replace(recipes[_R_PLATE], produced_in=(_SMELTER, _ASSEMBLER))
+    return {**recipes, _R_PLATE: plate}
+
+
+def test_an_add_naming_no_building_for_a_two_producer_recipe_is_refused_unresolved(
+    machines: WorldMachines, recipes: dict[str, Recipe]
+) -> None:
+    edit = overlay.AddMachines(recipe_class_name=_R_PLATE, count=1, clock=_ONE)
+    result = overlay.apply_overlay(
+        machines, overlay.Overlay(edits=(edit,)), _two_producer_recipes(recipes)
+    )
+
+    (record,) = result.records
+    assert record.outcome == overlay.OUTCOME_REFUSED
+    assert record.reason == overlay.REFUSED_BUILDING_UNRESOLVED
+    assert result.machines == machines
+
+
+def test_an_add_naming_one_of_two_producers_is_accepted_in_that_building(
+    machines: WorldMachines, recipes: dict[str, Recipe]
+) -> None:
+    edit = overlay.AddMachines(
+        recipe_class_name=_R_PLATE, count=1, clock=_ONE, building_class_name=_ASSEMBLER
+    )
+    result = overlay.apply_overlay(
+        machines, overlay.Overlay(edits=(edit,)), _two_producer_recipes(recipes)
+    )
+
+    (record,) = result.records
+    assert record.outcome == overlay.OUTCOME_APPLIED
+    assert result.machines.machines[-1].class_name == _ASSEMBLER
+
+
+#: Two Std_Gadget machines: the first in an assembler, which can run Alt_Gadget,
+#: the second in a smelter, which cannot.
+_MIXED_SWAP_STATES = (
+    _machine(_ASSEMBLER, _STD, _ONE),
+    _machine(_SMELTER, _STD, _ONE),
+)
+
+
+def test_a_swap_whose_later_moved_machine_cannot_run_the_target_is_refused(
+    recipes: dict[str, Recipe],
+) -> None:
+    world = plan_world.machines_model(_MIXED_SWAP_STATES)
+    edit = overlay.SwapRecipe(from_recipe=_STD, to_recipe=_ALT, count=2)
+    result = overlay.apply_overlay(world, overlay.Overlay(edits=(edit,)), recipes)
+
+    (record,) = result.records
+    assert record.outcome == overlay.OUTCOME_REFUSED
+    assert record.reason == overlay.REFUSED_BUILDING_MISMATCH
+    assert result.machines == world
+
+
+def test_a_counted_swap_ignores_an_unmoved_machine_that_could_not_run_the_target(
+    recipes: dict[str, Recipe],
+) -> None:
+    world = plan_world.machines_model(_MIXED_SWAP_STATES)
+    edit = overlay.SwapRecipe(from_recipe=_STD, to_recipe=_ALT, count=1)
+    result = overlay.apply_overlay(world, overlay.Overlay(edits=(edit,)), recipes)
+
+    (record,) = result.records
+    assert record.outcome == overlay.OUTCOME_APPLIED
+    assert [state.recipe_class_name for state in result.machines.machines] == [_ALT, _STD]
+
+
 # ---------------------------------------------------------------------------
 # The value and its refusals
 # ---------------------------------------------------------------------------
