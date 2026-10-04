@@ -1,0 +1,553 @@
+"""CS-1235: the nominal item flow of a built world - per item, exact, per minute.
+
+WHAT THIS MODULE OWNS
+-----------------------
+One pure function, :func:`flow_of`. Given the machines a world has built and
+the recipes a caller supplies, it computes what every item's NOMINAL net rate
+per minute is: the sum, over every machine, of that machine's recipe rate scaled
+by that machine's clock. It then reports each item's gross production, gross
+consumption and net, which items are short (DEFICITS) and which are over
+(SURPLUSES), against whatever the caller declares raw and whatever net output
+the caller demands.
+
+"NOMINAL" IS THE WHOLE CLAIM AND IT IS A NARROW ONE. The answer is what the
+built machines move IF EVERY ONE OF THEM RUNS AT ITS CONFIGURED CLOCK. It does
+not consult the producing flag - a starved machine is
+``clockspeed/audit/balance.py``'s finding, not this one's - and it knows nothing
+about belts, so a world whose belts cannot carry the flow still reads balanced
+here. Its use is the diff between what was built and what a plan asked for: a
+built world that is short in NOMINAL terms is short no matter how its belts run.
+
+The rate is LINEAR IN THE CLOCK. A machine at clock ``c`` completes ``c`` times
+as many cycles per minute as one at the reference clock; only its POWER draw is
+non-linear in the clock, and power is not this module's question.
+
+THE CALLER SUPPLIES THE RECIPES, AS ``balance.py`` TAKES ITS BUILDINGS
+-------------------------------------------------------------------------
+``Recipe`` is imported for its type only. Nothing here builds a registry, reads
+``clockspeed/data/`` or opens a save; the per-minute conversion is
+``clockspeed/solve/exact.py`` ``per_minute``, the one owner of that arithmetic,
+so the rate this module computes cannot drift from the one the solver solved.
+
+FLAG AND SKIP, NEVER A CONFIDENT ZERO (NON-NEGOTIABLE 7)
+---------------------------------------------------------
+Every machine lands in EXACTLY ONE bucket. Either it flows - it carries a recipe
+the mapping knows, whose rate is defined, and a clock that is an exact
+non-negative ``Fraction`` - and is summed into a :class:`RecipeGroup`; or it is
+skipped into a :class:`FlowGap` of a NAMED kind, counted, and reported under a
+``WARN_FLOW_*`` code. ``FlowGap`` has no rate field at all, for the reason
+``balance.py`` ``DrawGap`` has no megawatts field: a skipped machine has no
+number, and a zero would read as a measurement. The buckets conserve -
+``sum(group.machine_count) + sum(gap.machine_count) == machines_considered``.
+
+THE CHECKS RUN IN A FIXED ORDER, so a machine wrong in two ways is reported
+under the first: no recipe, then a recipe the mapping does not carry, then a
+recipe with no defined rate (a zero duration, or an amount that is not exactly a
+Fraction), then an unread clock, then a refused clock. Recipe-side faults come
+first because they hold for every machine on that recipe whatever its clock.
+
+AN ABSENT CLOCK IS NEVER READ AS ONE. ``MachineState.overclock`` is None when
+the reader saw no tag, and the game's default clock IS one - so substituting one
+is right on every machine nobody overclocked and wrong on exactly the ones
+somebody did. ``clockspeed/audit/machines.py`` states the same fence.
+
+WHAT A DEFICIT IS
+-------------------
+An item is SHORT when its net rate falls below what the caller demands of it -
+zero by default, so an intermediate consumed faster than it is made is short -
+AND the caller has not declared it raw. A raw item is supplied from outside the
+built machines (an extractor, a delivery) and its negative net is the world's
+raw demand rather than a fault. A deficit NAMES the recipes that make the item
+and the recipes that eat it, because "Plate is short" is half a finding and
+"Plate is short and R_Plate is its only producer" is the whole one.
+"""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+from fractions import Fraction
+from types import MappingProxyType
+from typing import TYPE_CHECKING, Final
+
+from clockspeed.audit.machines import MachineState, WorldMachines
+from clockspeed.save.world import WorldWarning
+from clockspeed.solve.exact import ExactArithmeticError, audit_exact, per_minute
+
+if TYPE_CHECKING:
+    from collections.abc import Iterable, Mapping, Sequence
+
+    from clockspeed.data.registry import Recipe
+
+__all__ = [
+    "GAP_FLOW_CLOCK_REFUSED",
+    "GAP_FLOW_CLOCK_UNREAD",
+    "GAP_FLOW_KINDS",
+    "GAP_FLOW_NO_RECIPE",
+    "GAP_FLOW_RATE_UNDEFINED",
+    "GAP_FLOW_RECIPE_UNKNOWN",
+    "SOURCE_FLOW",
+    "WARN_FLOW_CLOCK_REFUSED",
+    "WARN_FLOW_CLOCK_UNREAD",
+    "WARN_FLOW_NOTHING_FLOWING",
+    "WARN_FLOW_NO_RECIPE",
+    "WARN_FLOW_RATE_UNDEFINED",
+    "WARN_FLOW_RECIPE_UNKNOWN",
+    "FlowGap",
+    "ItemFlow",
+    "RecipeGroup",
+    "WorldFlow",
+    "flow_of",
+]
+
+#: Which layer noticed a warning raised here, for ``WorldWarning.source``.
+SOURCE_FLOW: Final = "flow"
+
+#: A machine carrying no recipe. Whatever it moves - an extractor's output
+#: included - is outside this flow.
+GAP_FLOW_NO_RECIPE: Final = "no-recipe"
+
+#: A machine whose recipe the supplied mapping does not carry: modded content,
+#: or content not modelled. There is no entry to ask for a rate.
+GAP_FLOW_RECIPE_UNKNOWN: Final = "recipe-unknown"
+
+#: A machine whose recipe has no defined per-minute rate: a measured zero
+#: duration, or an amount or duration that is not exactly a Fraction.
+GAP_FLOW_RATE_UNDEFINED: Final = "rate-undefined"
+
+#: A machine whose clock never read. Never substituted with one.
+GAP_FLOW_CLOCK_UNREAD: Final = "clock-unread"
+
+#: A machine whose clock is not exactly a non-negative Fraction. Refused rather
+#: than converted, because a conversion here would be exact and wrong.
+GAP_FLOW_CLOCK_REFUSED: Final = "clock-refused"
+
+#: The closed vocabulary of gap kinds, so a consumer can branch on a full list.
+GAP_FLOW_KINDS: Final = (
+    GAP_FLOW_NO_RECIPE,
+    GAP_FLOW_RECIPE_UNKNOWN,
+    GAP_FLOW_RATE_UNDEFINED,
+    GAP_FLOW_CLOCK_UNREAD,
+    GAP_FLOW_CLOCK_REFUSED,
+)
+
+#: This many machines carried no recipe and moved nothing in this flow.
+WARN_FLOW_NO_RECIPE: Final = "flow-no-recipe"
+
+#: This many machines named a recipe the supplied mapping does not carry.
+WARN_FLOW_RECIPE_UNKNOWN: Final = "flow-recipe-unknown"
+
+#: This many machines ran a recipe with no defined per-minute rate.
+WARN_FLOW_RATE_UNDEFINED: Final = "flow-rate-undefined"
+
+#: This many machines carried no readable clock.
+WARN_FLOW_CLOCK_UNREAD: Final = "flow-clock-unread"
+
+#: This many machines carried a clock that is not an exact non-negative Fraction.
+WARN_FLOW_CLOCK_REFUSED: Final = "flow-clock-refused"
+
+#: No machine contributed to the flow - an empty population, or one wholly
+#: skipped. An empty item map then means nothing was measured, never that the
+#: world is balanced.
+WARN_FLOW_NOTHING_FLOWING: Final = "flow-nothing-flowing"
+
+_WARNING_OF_GAP: Final[Mapping[str, str]] = MappingProxyType(
+    {
+        GAP_FLOW_NO_RECIPE: WARN_FLOW_NO_RECIPE,
+        GAP_FLOW_RECIPE_UNKNOWN: WARN_FLOW_RECIPE_UNKNOWN,
+        GAP_FLOW_RATE_UNDEFINED: WARN_FLOW_RATE_UNDEFINED,
+        GAP_FLOW_CLOCK_UNREAD: WARN_FLOW_CLOCK_UNREAD,
+        GAP_FLOW_CLOCK_REFUSED: WARN_FLOW_CLOCK_REFUSED,
+    }
+)
+
+#: One fixed line per warning code. Keyed rather than formatted, so a detail can
+#: never be built from something read out of a save.
+_WARNING_DETAIL: Final[Mapping[str, str]] = MappingProxyType(
+    {
+        WARN_FLOW_NO_RECIPE: (
+            "this many machines carry no recipe, so whatever they move - extraction"
+            " included - is outside this flow; declare such items raw rather than"
+            " read their absence as zero"
+        ),
+        WARN_FLOW_RECIPE_UNKNOWN: (
+            "this many machines name a recipe the supplied mapping does not carry, so"
+            " they contributed nothing; every item total is short by whatever they move"
+        ),
+        WARN_FLOW_RATE_UNDEFINED: (
+            "this many machines run a recipe with no defined per-minute rate - a zero"
+            " duration or an inexact amount - so they contributed nothing"
+        ),
+        WARN_FLOW_CLOCK_UNREAD: (
+            "this many machines carry no readable clock, so they contributed nothing;"
+            " an absent clock is never read as one, because one is right exactly where"
+            " nobody overclocked and wrong everywhere else"
+        ),
+        WARN_FLOW_CLOCK_REFUSED: (
+            "this many machines carry a clock that is not an exact non-negative"
+            " Fraction, so it was refused rather than converted and they contributed"
+            " nothing"
+        ),
+        WARN_FLOW_NOTHING_FLOWING: (
+            "no machine contributed to the flow, so an empty item map means nothing"
+            " could be measured and never that the world is balanced"
+        ),
+    }
+)
+
+
+@dataclass(frozen=True, repr=False)
+class RecipeGroup:
+    """The machines that flowed on one recipe, summed.
+
+    Attributes:
+        recipe_class_name: The recipe, as ``MachineState.recipe_class_name``
+            names it and the supplied mapping keys it.
+        machine_count: How many machines run it.
+        machine_equivalents: The exact sum of their clocks - the number of
+            reference-clock machines that would move the same flow. This is the
+            figure a solver's ``PlanStep.machines`` is comparable to.
+    """
+
+    recipe_class_name: str
+    machine_count: int
+    machine_equivalents: Fraction
+
+    def __repr__(self) -> str:
+        """Render counts only.
+
+        Returns:
+            The safe rendering.
+        """
+        return (
+            f"{type(self).__name__}(machine_count={self.machine_count}, "
+            f"machine_equivalents={self.machine_equivalents})"
+        )
+
+
+@dataclass(frozen=True, repr=False)
+class FlowGap:
+    """Machines that contributed NO NUMBER to the flow, grouped by kind and recipe.
+
+    **THERE IS DELIBERATELY NO RATE FIELD ON THIS TYPE**, on the terms
+    ``clockspeed/audit/balance.py`` ``DrawGap`` states for its megawatts.
+
+    Attributes:
+        kind: One of :data:`GAP_FLOW_KINDS`.
+        recipe_class_name: The recipe the machines name, or None for
+            :data:`GAP_FLOW_NO_RECIPE`.
+        machine_count: How many machines this gap holds.
+    """
+
+    kind: str
+    recipe_class_name: str | None
+    machine_count: int
+
+    def __repr__(self) -> str:
+        """Render the kind and count, and no recipe name.
+
+        Returns:
+            The safe rendering.
+        """
+        return f"{type(self).__name__}(kind={self.kind!r}, machine_count={self.machine_count})"
+
+
+@dataclass(frozen=True, repr=False)
+class ItemFlow:
+    """One item's nominal flow, per minute, exact.
+
+    Attributes:
+        item_key: The item's class name.
+        produced: Gross production over every flowing machine.
+        consumed: Gross consumption over every flowing machine, positive.
+        net: ``produced - consumed``. Negative means the built machines eat it
+            faster than they make it.
+        demand: The net output the caller asked of this item, zero when it
+            asked none.
+        raw: Whether the caller declared it raw - supplied from outside the
+            built machines, so a negative net is demand rather than a fault.
+        shortfall: ``demand - net`` when this item is a deficit, else zero.
+        producers: The recipes that make it, sorted.
+        consumers: The recipes that eat it, sorted.
+    """
+
+    item_key: str
+    produced: Fraction
+    consumed: Fraction
+    net: Fraction
+    demand: Fraction
+    raw: bool
+    shortfall: Fraction
+    producers: tuple[str, ...]
+    consumers: tuple[str, ...]
+
+    @property
+    def is_deficit(self) -> bool:
+        """Whether this item is short: not raw, and below its demand.
+
+        Returns:
+            True for a deficit.
+        """
+        return not self.raw and self.net < self.demand
+
+    @property
+    def is_surplus(self) -> bool:
+        """Whether this item is over its demand.
+
+        Returns:
+            True for a surplus.
+        """
+        return self.net > self.demand
+
+    def __repr__(self) -> str:
+        """Render the numbers and no name.
+
+        Returns:
+            The safe rendering.
+        """
+        return (
+            f"{type(self).__name__}(net={self.net}, demand={self.demand}, raw={self.raw}, "
+            f"producers={len(self.producers)}, consumers={len(self.consumers)})"
+        )
+
+
+@dataclass(frozen=True, repr=False)
+class WorldFlow:
+    """The nominal item flow of one world, with what was skipped named.
+
+    Attributes:
+        groups: One per recipe that flowed, sorted by recipe class name.
+        gaps: One per (kind, recipe) that was skipped, in kind order then
+            recipe order.
+        items: Item key to its flow, sorted by key. Every item a flowing
+            recipe touches, plus every demanded item.
+        deficits: The items short of their demand and not raw, in key order.
+        surpluses: The items over their demand, in key order.
+        raw_items: What the caller declared raw, sorted.
+        machines_considered: How many machines the input held.
+        skipped_count: How many of them are in a gap.
+        complete: Whether every machine flowed. False means every item total
+            is short by whatever the skipped machines move.
+        warnings: Everything flagged, in the ``WorldWarning`` idiom.
+    """
+
+    groups: tuple[RecipeGroup, ...]
+    gaps: tuple[FlowGap, ...]
+    items: Mapping[str, ItemFlow]
+    deficits: tuple[ItemFlow, ...]
+    surpluses: tuple[ItemFlow, ...]
+    raw_items: tuple[str, ...]
+    machines_considered: int
+    skipped_count: int
+    complete: bool
+    warnings: tuple[WorldWarning, ...]
+
+    def __repr__(self) -> str:
+        """Render counts and flags, and nothing about any member.
+
+        Returns:
+            The safe rendering.
+        """
+        return (
+            f"{type(self).__name__}(groups={len(self.groups)}, gaps={len(self.gaps)}, "
+            f"items={len(self.items)}, deficits={len(self.deficits)}, "
+            f"surpluses={len(self.surpluses)}, "
+            f"machines_considered={self.machines_considered}, "
+            f"skipped_count={self.skipped_count}, complete={self.complete}, "
+            f"warnings={len(self.warnings)})"
+        )
+
+
+def _warning(code: str, count: int = 1) -> WorldWarning:
+    """Build one warning from this module's own fixed detail table.
+
+    Args:
+        code: One of this module's ``WARN_*`` constants.
+        count: How many occurrences it aggregates.
+
+    Returns:
+        The warning.
+    """
+    return WorldWarning(source=SOURCE_FLOW, code=code, detail=_WARNING_DETAIL[code], count=count)
+
+
+def _rates(recipe: Recipe) -> tuple[dict[str, Fraction], dict[str, Fraction]] | None:
+    """One reference-clock machine's gross inputs and outputs per minute.
+
+    Args:
+        recipe: The recipe.
+
+    Returns:
+        Item to rate consumed, and item to rate produced, both positive; or None
+        when the recipe has no defined rate.
+    """
+    consumed: dict[str, Fraction] = {}
+    produced: dict[str, Fraction] = {}
+    try:
+        for io in recipe.inputs:
+            consumed[io.item_key] = consumed.get(io.item_key, Fraction(0)) + per_minute(
+                io.amount, recipe.duration
+            )
+        for io in recipe.outputs:
+            produced[io.item_key] = produced.get(io.item_key, Fraction(0)) + per_minute(
+                io.amount, recipe.duration
+            )
+    except ExactArithmeticError:
+        return None
+    return consumed, produced
+
+
+def _gap_kind(
+    state: MachineState,
+    recipes: Mapping[str, Recipe],
+    rates: Mapping[str, tuple[dict[str, Fraction], dict[str, Fraction]] | None],
+) -> str | None:
+    """Decide whether one machine is skipped, and under which kind.
+
+    Args:
+        state: The machine.
+        recipes: The supplied recipes.
+        rates: The per-recipe rate cache, filled for every known recipe.
+
+    Returns:
+        The gap kind, or None when the machine flows. See the module docstring
+        for why the order is fixed.
+    """
+    recipe = state.recipe_class_name
+    if recipe is None:
+        return GAP_FLOW_NO_RECIPE
+    if recipe not in recipes:
+        return GAP_FLOW_RECIPE_UNKNOWN
+    if rates[recipe] is None:
+        return GAP_FLOW_RATE_UNDEFINED
+    clock = state.overclock
+    if clock is None:
+        return GAP_FLOW_CLOCK_UNREAD
+    if type(clock) is not Fraction or clock < 0:
+        return GAP_FLOW_CLOCK_REFUSED
+    return None
+
+
+def flow_of(
+    machines: WorldMachines | Sequence[MachineState],
+    recipes: Mapping[str, Recipe],
+    *,
+    raw_items: Iterable[str] = (),
+    demands: Mapping[str, Fraction] | None = None,
+) -> WorldFlow:
+    """Compute the nominal per-item flow of a built world, exactly.
+
+    PURE, AND TOTAL OVER THE WORLD: every machine population produces a model,
+    and unknown content is a named gap rather than an exception. The CALLER's
+    own demand is the one input refused outright when inexact, because it is a
+    statement of intent rather than world content, on the terms
+    ``clockspeed/solve/ratio.py`` refuses an inexact target.
+
+    Args:
+        machines: The machines, as a ``WorldMachines`` model or a bare sequence.
+        recipes: The recipes, keyed by class name. Supplied by the caller.
+        raw_items: Items supplied from outside the built machines.
+        demands: Item to the net output asked of it per minute. Absent items
+            are asked for zero.
+
+    Returns:
+        The flow, audited exact on the way out.
+
+    Raises:
+        InexactValueError: A demand is not exactly a Fraction.
+    """
+    population = machines.machines if isinstance(machines, WorldMachines) else tuple(machines)
+    asked: dict[str, Fraction] = dict(demands or {})
+    audit_exact(asked, path="demands")
+    raw = tuple(sorted(set(raw_items)))
+
+    rates = {key: _rates(recipe) for key, recipe in recipes.items()}
+
+    group_counts: dict[str, int] = {}
+    group_clocks: dict[str, Fraction] = {}
+    gap_counts: dict[tuple[str, str | None], int] = {}
+    for state in population:
+        kind = _gap_kind(state, recipes, rates)
+        recipe = state.recipe_class_name
+        if kind is not None:
+            gap_counts[kind, recipe] = gap_counts.get((kind, recipe), 0) + 1
+            continue
+        if recipe is None or state.overclock is None:  # pragma: no cover - _gap_kind's guard
+            continue
+        group_counts[recipe] = group_counts.get(recipe, 0) + 1
+        group_clocks[recipe] = group_clocks.get(recipe, Fraction(0)) + state.overclock
+
+    produced: dict[str, Fraction] = {}
+    consumed: dict[str, Fraction] = {}
+    producers: dict[str, set[str]] = {}
+    consumers: dict[str, set[str]] = {}
+    for recipe, equivalents in group_clocks.items():
+        recipe_rates = rates[recipe]
+        if recipe_rates is None:  # pragma: no cover - excluded by _gap_kind
+            continue
+        ins, outs = recipe_rates
+        for item, rate in ins.items():
+            consumed[item] = consumed.get(item, Fraction(0)) + rate * equivalents
+            consumers.setdefault(item, set()).add(recipe)
+        for item, rate in outs.items():
+            produced[item] = produced.get(item, Fraction(0)) + rate * equivalents
+            producers.setdefault(item, set()).add(recipe)
+
+    raw_set = set(raw)
+    items: dict[str, ItemFlow] = {}
+    for item in sorted(set(produced) | set(consumed) | set(asked)):
+        made = produced.get(item, Fraction(0))
+        eaten = consumed.get(item, Fraction(0))
+        net = made - eaten
+        demand = asked.get(item, Fraction(0))
+        is_raw = item in raw_set
+        short = not is_raw and net < demand
+        items[item] = ItemFlow(
+            item_key=item,
+            produced=made,
+            consumed=eaten,
+            net=net,
+            demand=demand,
+            raw=is_raw,
+            shortfall=demand - net if short else Fraction(0),
+            producers=tuple(sorted(producers.get(item, ()))),
+            consumers=tuple(sorted(consumers.get(item, ()))),
+        )
+
+    gaps = tuple(
+        FlowGap(kind=kind, recipe_class_name=recipe, machine_count=count)
+        for (kind, recipe), count in sorted(
+            gap_counts.items(),
+            key=lambda entry: (GAP_FLOW_KINDS.index(entry[0][0]), entry[0][1] or ""),
+        )
+    )
+    skipped = sum(gap.machine_count for gap in gaps)
+
+    warnings: list[WorldWarning] = []
+    for kind in GAP_FLOW_KINDS:
+        count = sum(gap.machine_count for gap in gaps if gap.kind == kind)
+        if count:
+            warnings.append(_warning(_WARNING_OF_GAP[kind], count))
+    if not group_counts:
+        warnings.append(_warning(WARN_FLOW_NOTHING_FLOWING))
+
+    result = WorldFlow(
+        groups=tuple(
+            RecipeGroup(
+                recipe_class_name=recipe,
+                machine_count=group_counts[recipe],
+                machine_equivalents=group_clocks[recipe],
+            )
+            for recipe in sorted(group_counts)
+        ),
+        gaps=gaps,
+        items=MappingProxyType(items),
+        deficits=tuple(entry for entry in items.values() if entry.is_deficit),
+        surpluses=tuple(entry for entry in items.values() if entry.is_surplus),
+        raw_items=raw,
+        machines_considered=len(population),
+        skipped_count=skipped,
+        complete=skipped == 0 and bool(group_counts),
+        warnings=tuple(warnings),
+    )
+    audit_exact(result, path="flow")
+    return result
