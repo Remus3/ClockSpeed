@@ -1075,3 +1075,92 @@ the power endpoint serves `variable_power_inputs` and nothing else, so a dashboa
 
 the 5-phase visual audit from CONVENTIONS section 13.2 passes before the page is committed
 
+## CS-1254
+
+### Filed 2026-10-04 by the inspiration ingest
+
+From the inspiration ingest of 2026-10-04 - an untracked external survey whose items are IDEAS ONLY; nothing was fetched, copied or lifted, and every part is re-derived here under section 3 and section 7 of `CLAUDE.md`. Surface renders only what the API computed (seam rule).
+
+### Acceptance
+
+the dashboard renders only API-computed cells; the shortfall row is empty when the target is met; a shortfall cell opens that card's derivation
+
+## CS-1255
+
+### Filed 2026-10-04 by the inspiration ingest
+
+From the inspiration ingest of 2026-10-04 - an untracked external survey whose items are IDEAS ONLY; nothing was fetched, copied or lifted, and every part is re-derived here under section 3 and section 7 of `CLAUDE.md`. Applies to target-rate and clock inputs in dashboard and companion.
+
+### Acceptance
+
+a browser test types a two-digit value one key at a time and the field holds it; a fraction input reaches the API as an exact value
+
+## CS-1256
+
+### Filed 2026-10-04 by the inspiration ingest
+
+From the inspiration ingest of 2026-10-04 - an untracked external survey whose items are IDEAS ONLY; nothing was fetched, copied or lifted, and every part is re-derived here under section 3 and section 7 of `CLAUDE.md`. The display string comes from CS-1239's rounding function; clients never round and never re-derive.
+
+### Acceptance
+
+a schema test asserts both forms exist for every numeric field; the shell renders the display string verbatim
+
+## CS-1257
+
+### Filed 2026-10-04 by the inspiration ingest
+
+From the inspiration ingest of 2026-10-04 - an untracked external survey whose items are IDEAS ONLY; nothing was fetched, copied or lifted, and every part is re-derived here under section 3 and section 7 of `CLAUDE.md`. Selected target, strategy, filters and open card only.
+
+### Acceptance
+
+a test round-trips state through the fragment; a test asserts no world token, world name, account id or path appears in the encoded string
+
+## CS-1258
+
+### Filed 2026-10-04 by the inspiration ingest
+
+From the inspiration ingest of 2026-10-04 - an untracked external survey whose items are IDEAS ONLY; nothing was fetched, copied or lifted, and every part is re-derived here under section 3 and section 7 of `CLAUDE.md`. Keyboard navigation, landmarks, dialog focus trap, labelled states, reduced motion, forced colours, AA contrast.
+
+### Acceptance
+
+an automated accessibility probe in the existing dashboard probe flow reports no serious violation; a keyboard-only path reaches every card's tier 3
+
+## CS-1259
+
+### Filed 2026-10-04 by the inspiration ingest
+
+From the inspiration ingest of 2026-10-04 - an untracked external survey whose items are IDEAS ONLY; nothing was fetched, copied or lifted, and every part is re-derived here under section 3 and section 7 of `CLAUDE.md`. Reinforces the local property.
+
+### Acceptance
+
+with networking disabled the dashboard renders; a test scans the built page for external URLs and finds none
+
+## CS-1260
+
+### Filed 2026-10-04 by the inspiration ingest
+
+From the inspiration ingest of 2026-10-04 - an untracked external survey whose items are IDEAS ONLY; nothing was fetched, copied or lifted, and every part is re-derived here under section 3 and section 7 of `CLAUDE.md`. Palette values stay out of `docs/hud_doctrine.md` per the topology table.
+
+### Acceptance
+
+both surfaces import the same token file with light and dark variants; no hard-coded colour literal remains in either surface outside it
+
+## CS-1261
+
+### Filed 2026-10-04 by the inspiration ingest
+
+From the inspiration ingest of 2026-10-04 - an untracked external survey whose items are IDEAS ONLY; nothing was fetched, copied or lifted, and every part is re-derived here under section 3 and section 7 of `CLAUDE.md`. Non-negotiable 13: never echo a value.
+
+### Acceptance
+
+binding a non-loopback address without an explicit local flag fails fast; no query-string token is accepted; refusal reasons are logged server-side and the caller gets a generic refusal; two generated certs differ in subject
+
+## CS-1262
+
+### Filed 2026-10-04 by the inspiration ingest
+
+From the inspiration ingest of 2026-10-04 - an untracked external survey whose items are IDEAS ONLY; nothing was fetched, copied or lifted, and every part is re-derived here under section 3 and section 7 of `CLAUDE.md`. The product form of non-negotiables 11 and 12.
+
+### Acceptance
+
+a fixture with planted personal strings produces an archive containing none of them; the header options string never appears

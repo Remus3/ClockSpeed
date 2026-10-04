@@ -425,3 +425,192 @@ the balance publishes a bounded total whose low and high ends are the exact Frac
 
 `clockspeed/audit/balance.py` still reports every variable-power and struct-range building as an unmodeled DRAW GAP, but CS-301 made both shapes BOUNDED, so the world consumption total drops three of the largest loads in the game while a narrower answer now exists
 
+## CS-1235
+
+### Filed 2026-10-04 by the inspiration ingest
+
+From the inspiration ingest of 2026-10-04 - an untracked external survey whose items are IDEAS ONLY; nothing was fetched, copied or lifted, and every part is re-derived here under section 3 and section 7 of `CLAUDE.md`. FIT CHECKED 2026-10-04: `clockspeed/audit/` has NO item-flow audit at HEAD - `balance.py` sums declared draw over built counts and is clock-blind - so this item builds the nominal item-flow audit the round trip needs. The materialiser lives outside `solve/` so `solve/` never imports `save/` or `audit/`.
+
+### Acceptance
+
+a nominal item-flow audit over built machines (recipe and exact clock) exists in `clockspeed/audit/`, flags and skips an unknown recipe or an unread clock with a named warning, and a parametrised test over the synthetic solve corpus materialises each solved plan and finds zero deficits with net rates equal to the plan's targets, raw inputs and byproducts; a planted one-machine shortfall reddens it and the finding names that recipe; the solver's power figure and the audit's draw are compared exactly, and any divergence is pinned by a test and filed rather than absorbed
+
+## CS-1236
+
+### Filed 2026-10-04 by the inspiration ingest
+
+From the inspiration ingest of 2026-10-04 - an untracked external survey whose items are IDEAS ONLY; nothing was fetched, copied or lifted, and every part is re-derived here under section 3 and section 7 of `CLAUDE.md`. FIT CHECKED 2026-10-04: `clockspeed/advisor/` holds no code, so the advice and tier-3 halves wait on CS-500's trace engine; the audit and power half can reuse CS-1235's materialiser. The overlay lives only in the per-world store; the save is never touched (non-negotiable 1).
+
+### Acceptance
+
+an overlay of edits (add N machines of a recipe at a clock, swap a recipe, remove a group, raise a target) round-trips through the API; the same save plus the same overlay gives byte-identical output on two runs; a test asserts no file under the save or install directory changes mtime during an overlay evaluation; once CS-500's trace exists the tier-3 derivation names each overlay edit as a trace step
+
+## CS-1237
+
+### Filed 2026-10-04 by the inspiration ingest
+
+From the inspiration ingest of 2026-10-04 - an untracked external survey whose items are IDEAS ONLY; nothing was fetched, copied or lifted, and every part is re-derived here under section 3 and section 7 of `CLAUDE.md`. FIT CHECKED 2026-10-04: `clockspeed/progress/` holds no router (CS-1043) and the advisor holds no trace, so the ladder lands in `solve/` over the constraints `OptimizeRequest` carries today and returns a structured relaxation record that the advisor trace projects later. Power cap, node subset and clock ceiling rungs join when those constraints exist.
+
+### Acceptance
+
+an infeasible request produces a plan plus a record naming the first relaxed constraint; the ladder order is ONE data table pinned by a test that reddens on reorder; a feasible request produces no relaxation record; two runs agree; every numeric leaf is an exact Fraction
+
+## CS-1238
+
+### Filed 2026-10-04 by the inspiration ingest
+
+From the inspiration ingest of 2026-10-04 - an untracked external survey whose items are IDEAS ONLY; nothing was fetched, copied or lifted, and every part is re-derived here under section 3 and section 7 of `CLAUDE.md`. FIT CHECKED 2026-10-04: the advisor rule registry does not exist yet, so the rule half rides CS-500; the audit half fits today - every `WARN_*` code `clockspeed/audit/__init__.py` re-exports. This is a product test over the product's own checks, not a new guard tool.
+
+### Acceptance
+
+enumerating the audit warning codes yields a minimal synthetic fixture for every code in which that code fires, asserted; a code without one is a failing test, and removing one fixture reddens exactly one test that names the code; the same holds for every advisor rule id once CS-500's registry exists
+
+## CS-1239
+
+### Filed 2026-10-04 by the inspiration ingest
+
+From the inspiration ingest of 2026-10-04 - an untracked external survey whose items are IDEAS ONLY; nothing was fetched, copied or lifted, and every part is re-derived here under section 3 and section 7 of `CLAUDE.md`. FIT CHECKED 2026-10-04: no display-rounding function exists anywhere at HEAD; the wire carries exact rationals. Goldens are hand-derived, never pasted from a run.
+
+### Acceptance
+
+a synthetic JSON corpus of hand-derived cases for ratio solve, clock math and power math asserts exact Fraction outputs of type Fraction; one display-rounding function with one documented mode carries parity cases at every half-step boundary that fail when the mode is flipped
+
+## CS-1240
+
+### Filed 2026-10-04 by the inspiration ingest
+
+From the inspiration ingest of 2026-10-04 - an untracked external survey whose items are IDEAS ONLY; nothing was fetched, copied or lifted, and every part is re-derived here under section 3 and section 7 of `CLAUDE.md`. Key every registry and save join on the stable class identifier, never a display name; one case-and-punctuation fallback; then flag, skip and list.
+
+### Acceptance
+
+a fixture with one unknown class yields a flagged-and-skipped record with no exception and the panel lists it with a count and first-seen save; a display-name change in the fixture registry changes no output
+
+## CS-1241
+
+### Filed 2026-10-04 by the inspiration ingest
+
+From the inspiration ingest of 2026-10-04 - an untracked external survey whose items are IDEAS ONLY; nothing was fetched, copied or lifted, and every part is re-derived here under section 3 and section 7 of `CLAUDE.md`. When the build pin moves, a rule whose meaning differs by build selects the pinned build's variant rather than assuming the newest.
+
+### Acceptance
+
+a synthetic two-build fixture where one recipe changed yields different solves per pinned build; the decisions table has no row without a test
+
+## CS-1242
+
+### Filed 2026-10-04 by the inspiration ingest
+
+From the inspiration ingest of 2026-10-04 - an untracked external survey whose items are IDEAS ONLY; nothing was fetched, copied or lifted, and every part is re-derived here under section 3 and section 7 of `CLAUDE.md`. Generated, never hand-written (section 4 rule on measured numbers). Sources are the shipped docs file and the save only.
+
+### Acceptance
+
+the census is generated by the extraction step and compared against the pinned build's census, a change being reported rather than absorbed; a fixture with a missing required field fails the build step naming the field
+
+## CS-1243
+
+### Filed 2026-10-04 by the inspiration ingest
+
+From the inspiration ingest of 2026-10-04 - an untracked external survey whose items are IDEAS ONLY; nothing was fetched, copied or lifted, and every part is re-derived here under section 3 and section 7 of `CLAUDE.md`. Coordinates come only from the save or extraction - never a wiki (section 7).
+
+### Acceptance
+
+a synthetic map fixture with three nodes and one gated region excludes the gated node until the unlock flag is set; distances are exact rationals or integers; claims rank by reachability band, then yield
+
+## CS-1244
+
+### Filed 2026-10-04 by the inspiration ingest
+
+From the inspiration ingest of 2026-10-04 - an untracked external survey whose items are IDEAS ONLY; nothing was fetched, copied or lifted, and every part is re-derived here under section 3 and section 7 of `CLAUDE.md`. Builds on `clockspeed/solve/optimize.py`'s exact objectives; player-tunable weights stay in `BACKLOG.md` until this lands.
+
+### Acceptance
+
+each named objective has golden cases; ties break on a documented stable key; switching objective changes ranking but never the plan arithmetic; a badge records the strongest threshold cleared in fixed ladder order
+
+## CS-1245
+
+### Filed 2026-10-04 by the inspiration ingest
+
+From the inspiration ingest of 2026-10-04 - an untracked external survey whose items are IDEAS ONLY; nothing was fetched, copied or lifted, and every part is re-derived here under section 3 and section 7 of `CLAUDE.md`. Stays behind `OptimizerBackend`; no external optimizer (section 7).
+
+### Acceptance
+
+a cap hit in a fixture produces a recorded step naming the cap and the trim rule; two runs choose the same candidate; the chosen candidate is the smallest that passes every validation check, not the first built
+
+## CS-1246
+
+### Filed 2026-10-04 by the inspiration ingest
+
+From the inspiration ingest of 2026-10-04 - an untracked external survey whose items are IDEAS ONLY; nothing was fetched, copied or lifted, and every part is re-derived here under section 3 and section 7 of `CLAUDE.md`. Waits on CS-500's ledger; aging is derived from the ledger's shown-and-deferred record, never from a timer.
+
+### Acceptance
+
+a fixture with one large and several small cards brings the large card to the top after the configured number of evaluations; the same ledger state gives the same order
+
+## CS-1247
+
+### Filed 2026-10-04 by the inspiration ingest
+
+From the inspiration ingest of 2026-10-04 - an untracked external survey whose items are IDEAS ONLY; nothing was fetched, copied or lifted, and every part is re-derived here under section 3 and section 7 of `CLAUDE.md`. A pure function over the four advice domains.
+
+### Acceptance
+
+a fixture with ten power cards and two milestone cards shows both milestone cards in the top five; the interleave is a pure function with golden cases
+
+## CS-1248
+
+### Filed 2026-10-04 by the inspiration ingest
+
+From the inspiration ingest of 2026-10-04 - an untracked external survey whose items are IDEAS ONLY; nothing was fetched, copied or lifted, and every part is re-derived here under section 3 and section 7 of `CLAUDE.md`. Rates carry their unit in the model type; only rendering rounds, through CS-1239's one rounding function.
+
+### Acceptance
+
+a type-level or runtime check refuses adding two rates of different units; a per-cycle value fed where per-minute is expected is refused; raw and display values are distinct fields wherever they travel
+
+## CS-1249
+
+### Filed 2026-10-04 by the inspiration ingest
+
+From the inspiration ingest of 2026-10-04 - an untracked external survey whose items are IDEAS ONLY; nothing was fetched, copied or lifted, and every part is re-derived here under section 3 and section 7 of `CLAUDE.md`. `clockspeed/solve/ratio.py` already solves the byproduct loop of the synthetic corpus exactly; this item makes cycle detection explicit and fences unsupported shapes.
+
+### Acceptance
+
+a two-recipe loop fixture solves to exact Fractions; an unsupported cycle shape is flagged and skipped, never fatal; any graph sorted topologically has a cycle test
+
+## CS-1250
+
+### Filed 2026-10-04 by the inspiration ingest
+
+From the inspiration ingest of 2026-10-04 - an untracked external survey whose items are IDEAS ONLY; nothing was fetched, copied or lifted, and every part is re-derived here under section 3 and section 7 of `CLAUDE.md`. A product test, not a new guard tool (section 7, product before process).
+
+### Acceptance
+
+a synthetic world with one object reachable two ways (grouped structure, sub-object, linked inventory) reports it once in every audit total
+
+## CS-1251
+
+### Filed 2026-10-04 by the inspiration ingest
+
+From the inspiration ingest of 2026-10-04 - an untracked external survey whose items are IDEAS ONLY; nothing was fetched, copied or lifted, and every part is re-derived here under section 3 and section 7 of `CLAUDE.md`. Never lock or touch the file (non-negotiable 1).
+
+### Acceptance
+
+a test writes a fixture save in two chunks to a temp directory and the reader does not parse the partial file; the read path opens read-only; a burst of autosaves is debounced to the newest settled file
+
+## CS-1252
+
+### Filed 2026-10-04 by the inspiration ingest
+
+From the inspiration ingest of 2026-10-04 - an untracked external survey whose items are IDEAS ONLY; nothing was fetched, copied or lifted, and every part is re-derived here under section 3 and section 7 of `CLAUDE.md`. The stamp carries the save timestamp and the build pin, never a world name or a path (non-negotiable 3).
+
+### Acceptance
+
+a fixture with a newer save on disk sets the stale flag in the API payload; a moved build pin sets it too; the stamp contains no world name or path
+
+## CS-1253
+
+### Filed 2026-10-04 by the inspiration ingest
+
+From the inspiration ingest of 2026-10-04 - an untracked external survey whose items are IDEAS ONLY; nothing was fetched, copied or lifted, and every part is re-derived here under section 3 and section 7 of `CLAUDE.md`. Both layers stay separate (section 7); writes stay atomic (non-negotiable 5). Waits on CS-500's ledger.
+
+### Acceptance
+
+a v1 fixture loads under v2 with declared defaults; a corrupt fixture is refused and its bytes are unchanged afterwards; each store records its schema version and the tool version that wrote it

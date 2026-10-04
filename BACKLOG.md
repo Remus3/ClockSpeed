@@ -278,3 +278,53 @@ None blocks a product item or reddens a suite.
   two records equal field for field, or a building whose inventory reference is nested.
 - Decode the InventoryItem state block, counted undecoded by CS-400 - TRIGGER: an advice
   rule that needs item state.
+
+## Inspiration ingest - process and evaluation items, filed 2026-10-04 under product before process
+
+Ideas only, from an untracked external survey; nothing lifted. The product directives went to
+`ROADMAP.md` as CS-1235 through CS-1262.
+
+- A local-only advice regression over the gitignored development-world corpus, diffing card
+  sets by card identity, outputs inside the gitignored data tree, world names and account ids
+  redacted - TRIGGER: the advisor emits its first card (CS-500).
+- A rule census derived from the rule registry: every rule id has a tier-3 renderer, a firing
+  fixture, a mute key and a card identity - TRIGGER: the first advisor rule lands (CS-500).
+- Confirm and fill test doubles for install and save discovery (fake install tree, obviously
+  synthetic numeric account directory, config override) - TRIGGER: the next change to
+  `clockspeed/data/locate.py` or save discovery.
+- Release tags carry our version and the pinned game build read from the pin, and release
+  notes ship inside the artifact - TRIGGER: a release is actually being cut.
+- EVALUATE a headless top-down map of buildings, nodes and claims rendered server-side - spike
+  on the synthetic map fixture under a second with approved dependencies only, go or no-go in
+  an ADR - TRIGGER: node-siting advice is being built (CS-1243).
+- EVALUATE a save-to-save diff attributing each audit-metric change to the built objects that
+  changed - TRIGGER: CS-1235's flow audit has landed and a consumer asks what changed.
+- EVALUATE measured-versus-nominal throughput: probe which per-machine state fields the save
+  exposes, record the result, no write to the save - TRIGGER: CS-1235's nominal flow audit
+  has landed.
+- EVALUATE exact value iteration over discrete unlock states for routing, against the greedy
+  router on synthetic targets; adopt only if it wins on a stated metric and stays
+  deterministic - TRIGGER: a milestone router exists (CS-1043).
+- EVALUATE player-tunable ranking weights per world, stored as exact rationals in the ledger,
+  shown in tier 3 - TRIGGER: CS-1244 lands.
+- EVALUATE an asynchronous far-target solve with a progress field - TRIGGER: the slowest
+  synthetic far-target solve, measured first, exceeds an agreed latency budget.
+- EVALUATE per-card before-and-after history in the per-world ledger, never merged with the
+  global mutes - TRIGGER: CS-500's ledger lands.
+- EVALUATE local config schema validation failing loud on unknown keys, never echoing a value
+  - TRIGGER: a product item hits a config bug.
+- EVALUATE a pre-release channel that never replaces stable, plus upgrade notes for store
+  migrations - TRIGGER: v1 ships.
+- Small lessons, each to be applied when its module is next touched - TRIGGER: that module
+  changes: card triggers compute from save state at fixture-tested boundaries, never from a
+  timer; inventory math reads per-instance capacity; every save field read has a fixture
+  proving it is not a neighbour; never assume index zero exists in a save array; advice says
+  when it falls back to a default; save-version dispatch flags and skips an unknown future
+  version; the save reader records whether a read completed, was truncated or was refused,
+  without echoing header bytes; ledger writes are idempotent per card identity and save
+  timestamp; writable state lives only in the gitignored data tree; profile registry load and
+  ledger writes once and record the number in a generated census; exclude any input not
+  reproducible from save, docs and local config; power planning shows supply and demand
+  trajectories, never one side; a retired route or surface is announced in
+  `docs/OPERATIONS.md`; an API route census test; README states measured save sizes and
+  target distances from the census.
