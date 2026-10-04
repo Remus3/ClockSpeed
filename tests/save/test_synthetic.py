@@ -86,7 +86,7 @@ from clockspeed.save import chunks, objects
 # format constant and no builder opinion crosses this import, so control 1's
 # independence claim in the module docstring is untouched. See the CS-429
 # section at the foot of this file.
-from tests.save import reach_guard, synthetic, test_properties
+from tests.save import reach_guard, synthetic, test_inventory_item, test_properties
 
 # ---------------------------------------------------------------------------
 # The independent minimal reader.
@@ -1904,3 +1904,96 @@ def test_the_two_encoders_disagree_on_the_empty_string_and_the_bound_is_recorded
         "the two encoders disagree on NON-empty text, which is the population the "
         "byte-equality cross-check above rests on - that check is now worthless"
     )
+
+
+# ---------------------------------------------------------------------------
+# CS-400 S4 - THE BUILDING WHOSE INVENTORY READS
+#
+# THE SAME SECOND OPINION THE CS-961 SECTION TAKES, ONE FIXTURE OVER. The
+# builder's inventory encoder and the depth gate's expectation were authored in
+# one slice, which is self-consistency and not evidence. The native ``Item``
+# bytes and the legacy stack tag list are therefore rebuilt here through
+# ``tests/save/test_inventory_item.py``'s encoders - written by CS-400 S1 in a
+# separate slice, out of the S0 measurement, on top of ``test_properties``'s
+# library-validated tag encoder - and held BYTE-EQUAL to the builder's.
+#
+# WHAT IS NOT CROSS-CHECKED HERE, named rather than implied away: the (14,60)
+# spelling of the same stack is assembled from the complete-type-name encoders
+# the CS-G05 section of the builder already publishes and its own arms grade.
+# This section adds no second opinion on that grammar.
+# ---------------------------------------------------------------------------
+
+
+def test_the_inventory_fixtures_do_not_widen_either_published_matrix() -> None:
+    """A slice does not quietly widen a contract other modules parametrize over."""
+    for fixture in synthetic.INVENTORY_SAVES:
+        assert fixture not in synthetic.LEVELLED_SAVES
+        assert fixture not in synthetic.ALL_SAVES
+
+
+@pytest.mark.parametrize("class_path", ["/Synthetic/Items/Desc_SyntheticCross.Desc_C", ""])
+def test_the_native_item_bytes_agree_with_the_independent_encoder(class_path: str) -> None:
+    """Both forms, a filled slot and an empty one, byte for byte.
+
+    Args:
+        class_path: An invented class path, or "" for an empty slot.
+    """
+    new = synthetic.inventory_item_native(class_path, form=synthetic.INVENTORY_FORM_NEW)
+    old = synthetic.inventory_item_native(class_path, form=synthetic.INVENTORY_FORM_OLD)
+
+    assert new == test_inventory_item._new_form(class_path)  # noqa: SLF001
+    assert old == test_inventory_item._old_form(class_path)  # noqa: SLF001
+    assert new != old, "the two forms encoded alike, so the fixture plants one form twice"
+
+
+def test_the_legacy_stack_element_agrees_with_the_independent_encoder() -> None:
+    """One whole stack tag list - Item struct tag, NumItems, terminator."""
+    for stack in synthetic.INVENTORY_STACKS:
+        native = test_inventory_item._old_form(stack.class_path)  # noqa: SLF001
+        if stack.form == synthetic.INVENTORY_FORM_NEW:
+            native = test_inventory_item._new_form(stack.class_path)  # noqa: SLF001
+        rebuilt = test_inventory_item._tag_list(  # noqa: SLF001
+            test_inventory_item._struct_tag(  # noqa: SLF001
+                "Item", objects.INVENTORY_ITEM_STRUCT_WORD, native
+            ),
+            test_inventory_item._int_tag("NumItems", stack.num_items),  # noqa: SLF001
+        )
+
+        assert synthetic.inventory_stack_element(stack) == rebuilt
+
+
+def test_the_legacy_stack_array_agrees_with_the_independent_encoder() -> None:
+    """The array of struct around the elements: count, ONE inner tag, region."""
+    elements = tuple(synthetic.inventory_stack_element(s) for s in synthetic.INVENTORY_STACKS)
+    region = b"".join(elements)
+    inner = (
+        test_properties._fstring("mInventoryStacks")  # noqa: SLF001
+        + test_properties._fstring(objects.STRUCT_TYPE_WORD)  # noqa: SLF001
+        + struct.pack("<ii", len(region), 0)
+        + test_properties._fstring("InventoryStack")  # noqa: SLF001
+        + bytes(objects.GUID_BYTES)
+        + b"\x00"
+    )
+    rebuilt = test_properties._array_tag(  # noqa: SLF001
+        "mInventoryStacks",
+        objects.STRUCT_TYPE_WORD,
+        struct.pack("<i", len(elements)) + inner + region,
+    )
+
+    built = synthetic.legacy_array_of_struct_tag(
+        synthetic.INVENTORY_STACKS_NAME, synthetic.INVENTORY_STACK_STRUCT_WORD, elements
+    )
+    assert built == rebuilt
+
+
+def test_an_unknown_native_form_is_refused_by_the_builder() -> None:
+    """A typo in a form name fails loudly instead of building the other form."""
+    with pytest.raises(ValueError, match="unknown inventory item form"):
+        synthetic.inventory_item_native("", form="newish")
+
+
+def test_the_inventory_fixtures_sit_on_the_two_tag_grammars() -> None:
+    """One fixture per tag grammar: legacy (14,52) and complete-type-name (14,60)."""
+    pairs = [(save.header_version, save.save_version) for save in synthetic.INVENTORY_SAVES]
+
+    assert pairs == [(14, 52), (14, 60)]

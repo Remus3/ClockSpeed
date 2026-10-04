@@ -3534,3 +3534,337 @@ SAVE_LEVELLED_DECODABLE_TYPE_TREE: Final = _assemble_levelled(
     persistent=DECODABLE_PERSISTENT,
     grids=LEVELLED_GRIDS,
 )
+
+
+# ---------------------------------------------------------------------------
+# CS-400 S4 - A BUILDING WHOSE INVENTORY IS READABLE
+#
+# WHAT THIS SECTION IS FOR. CS-400 clause 1 waits until a building's inventory
+# is actually readable, and "readable" was ruled (ADJ-G Q1) as: through the
+# published world model only, a building's reference resolves to a component
+# carrying ``mInventoryStacks``, and every stack element yields its item class
+# and its count. Nothing in this corpus carried that shape, so no arm could show
+# it without a real save on the machine - which the rule suite may not need.
+#
+# WHAT IS MEASURED AND WHAT IS NOT:
+#
+# MEASURED - the SHAPE. A building actor holds an object reference to an
+# inventory component; the component carries an array of struct named
+# ``mInventoryStacks``; each element is a tag list carrying an ``Item`` struct
+# tag of the word ``InventoryItem`` beside an ``NumItems`` int. The ``Item``
+# interior is NATIVE bytes in one of two forms, measured over the local library
+# by CS-400 S0 and ruled by ADJ-G:
+#
+#   OLD   class reference (two strings), legacy state-actor reference (two
+#         strings), then the declared end.
+#   NEW   class reference (two strings), an int32 has-state flag, then the
+#         declared end when the flag is 0.
+#
+# The empty string inside those native bytes is an int32 zero count - MEASURED
+# there (every site's level string reads so), which is the bare zero
+# :func:`fstring` writes for "" and which its own prose calls modelled
+# everywhere else. The three tag grammars around the item are the ones the
+# encoders above already write and the suites above already measured.
+#
+# MODELLED - every NAME but the four measured words, every class path, every
+# count, and the opaque run after each terminator. All invented, all obviously
+# synthetic. The reference property name is invented on purpose: the join keys
+# on the PATH a reference names, never on what the property is called.
+#
+# THE MEASURED WORDS ARE SPELLED AGAIN HERE rather than imported from the
+# shipped reader, because this module imports nothing from the package it feeds
+# and ``tests/save/test_synthetic.py`` asserts that it does not.
+# ---------------------------------------------------------------------------
+
+#: The struct word the game writes on an inventory stack's ``Item`` tag.
+#: MEASURED - every Item tag in the library carries it (CS-400 S0).
+INVENTORY_ITEM_STRUCT_WORD: Final = "InventoryItem"
+
+#: The struct word of one stack. MEASURED as the word, but nothing reads it: the
+#: native dispatch keys on the ITEM word alone.
+INVENTORY_STACK_STRUCT_WORD: Final = "InventoryStack"
+
+#: The array a building's inventory component carries, and the two names each
+#: element's tag list carries. MEASURED names; the values below are invented.
+INVENTORY_STACKS_NAME: Final = "mInventoryStacks"
+INVENTORY_ITEM_NAME: Final = "Item"
+INVENTORY_COUNT_NAME: Final = "NumItems"
+
+#: The two native forms an ``Item`` interior is written in.
+INVENTORY_FORM_OLD: Final = "old"
+INVENTORY_FORM_NEW: Final = "new"
+INVENTORY_FORMS: Final = (INVENTORY_FORM_OLD, INVENTORY_FORM_NEW)
+
+#: The legacy grammar's struct-tag guid: sixteen bytes after the struct word.
+_STRUCT_GUID: Final = bytes(16)
+
+#: The legacy and tree spellings of the type words this section writes. Spelled
+#: here because the tree constants above do not name an object reference.
+_STRUCT_TYPE_WORD: Final = "StructProperty"
+_ARRAY_TYPE_WORD: Final = "ArrayProperty"
+_INT_TYPE_WORD: Final = "IntProperty"
+_OBJECT_TYPE_WORD: Final = "ObjectProperty"
+
+
+@dataclass(frozen=True)
+class SyntheticInventoryStack:
+    """One stack a synthetic inventory holds. Every value invented.
+
+    Attributes:
+        class_path: The item class path, or "" for an empty slot.
+        num_items: The count. Zero exactly when ``class_path`` is empty, which
+            is the measured pairing (CS-400 S0: zero exceptions library-wide).
+        form: Which native form the ``Item`` interior is written in, one of
+            :data:`INVENTORY_FORMS`.
+    """
+
+    class_path: str
+    num_items: int
+    form: str
+
+
+#: The stacks the fixture's one inventory holds, in element order. A NEW-form
+#: item, an OLD-form item and a NEW-form EMPTY SLOT, so one inventory carries
+#: both forms - which the library does too: one real save holds both.
+INVENTORY_STACKS: Final = (
+    SyntheticInventoryStack(
+        "/Synthetic/Items/Desc_SyntheticIngot.Desc_SyntheticIngot_C", 37, INVENTORY_FORM_NEW
+    ),
+    SyntheticInventoryStack(
+        "/Synthetic/Items/Desc_SyntheticPlate.Desc_SyntheticPlate_C", 5, INVENTORY_FORM_OLD
+    ),
+    SyntheticInventoryStack("", 0, INVENTORY_FORM_NEW),
+)
+
+#: The building, its inventory component, and the reference between them.
+INVENTORY_BUILDING_CLASS_PATH: Final = (
+    "/Synthetic/Parts/Build_SyntheticStorage.Build_SyntheticStorage_C"
+)
+INVENTORY_BUILDING_INSTANCE: Final = "Persistent_Level:PersistentLevel.Build_SyntheticStorage_C_0"
+INVENTORY_COMPONENT_CLASS_PATH: Final = "/Script/Synthetic.SyntheticInventoryComponent"
+INVENTORY_COMPONENT_INSTANCE: Final = (
+    "Persistent_Level:PersistentLevel.Build_SyntheticStorage_C_0.SyntheticStorageInventory"
+)
+INVENTORY_REFERENCE_NAME: Final = "mSyntheticStorageInventory"
+INVENTORY_ROOT: Final = "Persistent_Level:PersistentLevel"
+
+
+def inventory_item_native(class_path: str, *, form: str) -> bytes:
+    """Encode one ``Item`` interior's native bytes, in the measured form named.
+
+    Args:
+        class_path: The item class path, or "" for an empty slot.
+        form: One of :data:`INVENTORY_FORMS`.
+
+    Returns:
+        The native interior. Its width is whatever the strings make it - the
+        declared size around it is computed from these bytes, never stated.
+
+    Raises:
+        ValueError: On a form outside :data:`INVENTORY_FORMS`, so a typo cannot
+            quietly build the other one.
+    """
+    class_reference = fstring("") + fstring(class_path)
+    if form == INVENTORY_FORM_OLD:
+        return class_reference + fstring("") + fstring("")
+    if form == INVENTORY_FORM_NEW:
+        return class_reference + _i32(0)
+    raise ValueError("unknown inventory item form")
+
+
+def legacy_tag_list(tags: tuple[bytes, ...]) -> bytes:
+    """Close a run of legacy tags with the terminator, as a struct interior is.
+
+    Args:
+        tags: The encoded tags, in file order.
+
+    Returns:
+        The tag list, terminator included.
+    """
+    return b"".join(tags) + fstring(PROPERTY_TERMINATOR)
+
+
+def legacy_struct_tag(name: str, struct_word: str, interior: bytes) -> bytes:
+    """Encode one legacy ``StructProperty`` tag around an already-built interior.
+
+    Args:
+        name: The property name.
+        struct_word: The struct word, carried in the tag data before the guid.
+        interior: The value bytes.
+
+    Returns:
+        The whole tag.
+    """
+    return property_tag(
+        name, _STRUCT_TYPE_WORD, interior, tag_extra=fstring(struct_word) + _STRUCT_GUID
+    )
+
+
+def legacy_array_of_struct_tag(name: str, struct_word: str, elements: tuple[bytes, ...]) -> bytes:
+    """Encode one legacy ``ArrayProperty`` of ``StructProperty``.
+
+    The legacy grammar writes the element count, then ONE inner tag naming the
+    struct and declaring the whole element region, then the elements - the
+    shape ``tests/save/test_container_elements.py`` measured.
+
+    Args:
+        name: The property name, repeated in the inner tag.
+        struct_word: The element struct word.
+        elements: The encoded elements, each a tag list.
+
+    Returns:
+        The whole tag.
+    """
+    region = b"".join(elements)
+    inner = (
+        fstring(name)
+        + fstring(_STRUCT_TYPE_WORD)
+        + _i32(len(region))
+        + _i32(0)
+        + fstring(struct_word)
+        + _STRUCT_GUID
+        + _GUID_FLAG_CLEAR
+    )
+    return property_tag(
+        name,
+        _ARRAY_TYPE_WORD,
+        _i32(len(elements)) + inner + region,
+        tag_extra=fstring(_STRUCT_TYPE_WORD),
+    )
+
+
+def inventory_stack_element(stack: SyntheticInventoryStack, *, type_tree: bool = False) -> bytes:
+    """Encode one ``mInventoryStacks`` element: its ``Item`` and its ``NumItems``.
+
+    Args:
+        stack: The stack.
+        type_tree: Write the (14,60) complete-type-name grammar rather than the
+            legacy one.
+
+    Returns:
+        The element's tag list.
+    """
+    native = inventory_item_native(stack.class_path, form=stack.form)
+    if type_tree:
+        return type_tree_tag_list(
+            (
+                type_tree_struct_tag(INVENTORY_ITEM_NAME, INVENTORY_ITEM_STRUCT_WORD, native),
+                type_tree_property_tag(
+                    INVENTORY_COUNT_NAME,
+                    type_name_tree(_INT_TYPE_WORD),
+                    _i32(stack.num_items),
+                ),
+            )
+        )
+    return legacy_tag_list(
+        (
+            legacy_struct_tag(INVENTORY_ITEM_NAME, INVENTORY_ITEM_STRUCT_WORD, native),
+            property_tag(INVENTORY_COUNT_NAME, _INT_TYPE_WORD, _i32(stack.num_items)),
+        )
+    )
+
+
+def inventory_payloads(
+    stacks: tuple[SyntheticInventoryStack, ...], *, type_tree: bool = False
+) -> tuple[bytes, bytes]:
+    """The building's payload and its inventory component's payload.
+
+    Args:
+        stacks: What the inventory holds, in element order.
+        type_tree: Write the (14,60) grammar rather than the legacy one.
+
+    Returns:
+        The actor payload, then the component payload.
+    """
+    reference = fstring(MAP_NAME) + fstring(INVENTORY_COMPONENT_INSTANCE)
+    head = actor_payload_head(MAP_NAME, INVENTORY_ROOT, (INVENTORY_COMPONENT_INSTANCE,))
+    elements = tuple(inventory_stack_element(stack, type_tree=type_tree) for stack in stacks)
+    if type_tree:
+        actor = type_tree_property_payload(
+            (
+                type_tree_property_tag(
+                    INVENTORY_REFERENCE_NAME, type_name_tree(_OBJECT_TYPE_WORD), reference
+                ),
+            ),
+            head=head,
+            trailing=DECODABLE_TRAILING_RUN,
+        )
+        component = type_tree_property_payload(
+            (
+                type_tree_array_of_struct_tag(
+                    INVENTORY_STACKS_NAME, INVENTORY_STACK_STRUCT_WORD, elements
+                ),
+            ),
+            trailing=DECODABLE_TRAILING_RUN,
+        )
+        return (actor, component)
+    actor = tagged_property_payload(
+        (property_tag(INVENTORY_REFERENCE_NAME, _OBJECT_TYPE_WORD, reference),),
+        head=head,
+        trailing=DECODABLE_TRAILING_RUN,
+    )
+    component = tagged_property_payload(
+        (legacy_array_of_struct_tag(INVENTORY_STACKS_NAME, INVENTORY_STACK_STRUCT_WORD, elements),),
+        trailing=DECODABLE_TRAILING_RUN,
+    )
+    return (actor, component)
+
+
+def _inventory_named(*, type_tree: bool) -> tuple[SyntheticLevel, ...]:
+    """The one named level: the building, then its inventory component.
+
+    Args:
+        type_tree: Write the (14,60) grammar rather than the legacy one.
+
+    Returns:
+        The named levels.
+    """
+    actor, component = inventory_payloads(INVENTORY_STACKS, type_tree=type_tree)
+    return (
+        SyntheticLevel(
+            name="Persistent_Level:SyntheticInventoryCell_0",
+            objects=(
+                SyntheticObject(
+                    INVENTORY_BUILDING_CLASS_PATH, INVENTORY_ROOT, INVENTORY_BUILDING_INSTANCE
+                ),
+            ),
+            components=(
+                SyntheticComponent(
+                    INVENTORY_COMPONENT_CLASS_PATH,
+                    INVENTORY_ROOT,
+                    INVENTORY_COMPONENT_INSTANCE,
+                    parent_object_root=INVENTORY_BUILDING_INSTANCE,
+                ),
+            ),
+            payloads=(actor, component),
+        ),
+    )
+
+
+#: A BUILDING WHOSE INVENTORY READS - CS-400 S4, on the legacy grammar. Header 14
+#: with save 52, the pair whose real saves hold BOTH native forms.
+#:
+#: DELIBERATELY ABSENT FROM :data:`LEVELLED_SAVES` and :data:`ALL_SAVES`, on the
+#: terms :data:`SAVE_LEVELLED_DECODABLE` states.
+SAVE_LEVELLED_INVENTORY: Final = _assemble_levelled(
+    "SAVE_LEVELLED_INVENTORY",
+    header_version=14,
+    save_version=52,
+    named=_inventory_named(type_tree=False),
+    persistent=DECODABLE_PERSISTENT,
+    grids=LEVELLED_GRIDS,
+)
+
+#: The same building and the same stacks on the (14,60) complete-type-name
+#: grammar, where the ``Item`` tag also declares native serialization.
+SAVE_LEVELLED_INVENTORY_TYPE_TREE: Final = _assemble_levelled(
+    "SAVE_LEVELLED_INVENTORY_TYPE_TREE",
+    header_version=14,
+    save_version=60,
+    named=_inventory_named(type_tree=True),
+    persistent=DECODABLE_PERSISTENT,
+    grids=LEVELLED_GRIDS,
+)
+
+#: Both inventory fixtures, one per tag grammar.
+INVENTORY_SAVES: Final = (SAVE_LEVELLED_INVENTORY, SAVE_LEVELLED_INVENTORY_TYPE_TREE)

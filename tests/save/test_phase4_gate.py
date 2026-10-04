@@ -54,7 +54,7 @@ non-empty payload over at least one chunk. The object walk is not attempted.
 That test is skip-if-absent: CI has no save library, and a clause that cannot
 be graded in CI is stated as such rather than implied to have passed.
 
-**CS-402 IS STILL NOT MET, AND ITS REASON ALSO CHANGED.** All four save
+**CS-402 SHIPPED (docs/LEDGER.md, 2026-08-15) - WHAT IT RESTED ON.** All four save
 versions in the operator's library now parse. Save version 42 used to be
 refused by design because its transform delta was unmeasured; CS-407 measured
 it at 4, against a real body, using a corroborator independent of the section
@@ -62,7 +62,7 @@ arithmetic - every actor rotation is a unit quaternion, and 17763 of 17763
 actors give one at shift 4. ``test_the_loadable_version_set_is_four_of_four``
 asserts that shape.
 
-What keeps CS-402 open is the same skeleton limit as clause 1, plus the rule
+What CS-402 left in force is the same skeleton limit as clause 1, plus the rule
 the old refusal existed to protect: a version with no measured delta must still
 RAISE rather than default to a plausible neighbour's value. That rule is now
 pinned against a version nobody has measured, so it survives the example that
@@ -338,7 +338,7 @@ def test_the_writer_is_on_the_scanned_set_and_is_the_only_exemption() -> None:
 
 
 # ===========================================================================
-# Clause 1 - A REAL WORLD PARSES.  PARTIAL - met for ONE measured pair only.
+# Clause 1 - A REAL WORLD PARSES.  PARTIAL - all pairs load; DEPTH: test_phase4_gate_depth
 # ===========================================================================
 
 
@@ -713,9 +713,9 @@ def test_the_loadable_version_set_is_four_of_four() -> None:
     at a still-unmeasured version keeps that alive; deleting it would have
     thrown the rule away with the example.
 
-    CS-402 IS STILL NOT MET ON THIS EVIDENCE ALONE. Four of four save versions
-    parsing is a statement about the SKELETON grammar - roughly three quarters
-    of every real body remains opaque property payload - so a green run here is
+    CS-402 SHIPPED (docs/LEDGER.md, 2026-08-15), and not on this evidence alone.
+    Four of four save versions parsing is a statement about the SKELETON grammar;
+    what a payload holds is graded by other arms, so a green run here is still
     not the reader understanding a save.
     """
     loadable = {fixture.save_version for fixture in LOADABLE_FIXTURES}
