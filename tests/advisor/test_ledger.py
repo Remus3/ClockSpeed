@@ -560,8 +560,44 @@ def test_a_held_lock_refuses_the_write_loudly(
     assert info.value.__context__ is None
     assert len(sleeps) == HELD_LOCK_ATTEMPTS
     assert (tmp_path / LEDGER_FILENAME).read_bytes() == before
-    # Another holder's lock is never ours to remove.
+    # A fresh lock belongs to a live holder and is never ours to remove.
     assert lock.exists()
+
+
+def test_a_stale_lock_left_by_a_killed_writer_is_broken(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    led = Ledger(tmp_path)
+    led.set_state(TOKEN_A, "card-1", CardState.accepted())
+    lock = tmp_path / f".{LEDGER_FILENAME}.lock"
+    lock.write_bytes(b"99999\n")
+    aged = time.time() - ledger_mod.LOCK_STALE_SECONDS - 60
+    os.utime(lock, (aged, aged))
+    monkeypatch.setattr(ledger_mod, "_LOCK_ATTEMPTS", HELD_LOCK_ATTEMPTS)
+    monkeypatch.setattr(ledger_mod.time, "sleep", lambda _s: None)
+    led.set_state(TOKEN_A, "card-1", CardState.dismissed())
+    assert Ledger(tmp_path).state(TOKEN_A, "card-1", now=0) == CardState.dismissed()
+    assert not lock.exists()
+
+
+def test_the_stale_threshold_is_well_above_a_hold() -> None:
+    assert ledger_mod.LOCK_STALE_SECONDS >= 30  # noqa: PLR2004 - the floor under test
+
+
+def test_a_held_lock_records_its_holder_pid(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    seen: list[bytes] = []
+    lock = tmp_path / f".{LEDGER_FILENAME}.lock"
+    real_read = ledger_mod._read_doc  # noqa: SLF001 - the seam under test
+
+    def peek(target: Path, payload_key: str) -> object:
+        seen.append(lock.read_bytes())
+        return real_read(target, payload_key)
+
+    monkeypatch.setattr(ledger_mod, "_read_doc", peek)
+    Ledger(tmp_path).set_state(TOKEN_A, "card-1", CardState.accepted())
+    assert seen[0].split(b"\n")[0] == str(os.getpid()).encode("ascii")
 
 
 def test_temp_names_are_unique_per_write_and_match_the_sweep(tmp_path: Path) -> None:

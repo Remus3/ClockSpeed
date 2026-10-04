@@ -38,9 +38,16 @@ CONCURRENCY. Every read-modify-write holds a per-store lock file created with
 ``O_CREAT | O_EXCL``, so two writers - threads or processes - cannot both read
 the old document and each drop the other's change. The wait is bounded; a
 writer that cannot take the lock raises :class:`StoreWriteError` rather than
-writing nothing in silence. A lock left behind by a killed process is NOT
-broken automatically: every later write is refused loudly until it is removed,
-which is the safe failure for a store whose holder cannot be proven dead.
+writing nothing in silence. The lock file records its holder's pid, and its
+own mtime is its creation stamp. A lock left behind by a killed process would
+otherwise refuse every later write forever, so on contention a lock whose mtime
+is older than :data:`LOCK_STALE_SECONDS` - far above any legitimate hold, which
+lasts one small read and one small write - is removed and the wait resumes. The
+mtime alone decides: probing the recorded pid with ``os.kill(pid, 0)`` is not a
+liveness test on Windows, and a pid can be reused. That staleness check is the
+ONE clock read in this module; it lives in the locking layer and only runs
+under contention. The no-clock rule above governs card state, which never
+reads a clock.
 Temporary names carry the pid, the thread id and a random suffix, and while
 holding the lock a successful write removes any stale temporary file of its
 own store, since no other writer of that store can be mid-write then.
@@ -95,6 +102,10 @@ _RENAME_BACKOFF_SECONDS: Final = 0.05
 # The lock wait: bounded, then refused. 500 x 10 ms is five seconds.
 _LOCK_ATTEMPTS = 500
 _LOCK_BACKOFF_SECONDS: Final = 0.01
+
+#: A lock file older than this is a dead holder's, never a live one's: a hold
+#: spans one small read and one small write, measured in milliseconds.
+LOCK_STALE_SECONDS: Final = 30
 
 #: The largest store this module will read. A store is a few kilobytes; a
 #: larger one is not a document this module wrote, and reading it whole would
@@ -384,7 +395,9 @@ def _try_create_lock(lock: Path) -> tuple[int | None, bool]:
     fd: int | None = None
     retry = False
     try:
-        fd = os.open(lock, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+        # O_BINARY (Windows only) stops a text-mode descriptor writing CRLF.
+        flags = os.O_CREAT | os.O_EXCL | os.O_WRONLY | getattr(os, "O_BINARY", 0)
+        fd = os.open(lock, flags)
     except FileExistsError:
         retry = True
     except PermissionError:
@@ -392,7 +405,32 @@ def _try_create_lock(lock: Path) -> tuple[int | None, bool]:
         retry = True
     except OSError:
         retry = False
+    if fd is not None:
+        # The holder's pid, for a person inspecting a stuck lock. Its mtime is
+        # the creation stamp; neither is load-bearing for mutual exclusion.
+        with contextlib.suppress(OSError):
+            os.write(fd, f"{os.getpid()}\n".encode("ascii"))
     return fd, retry
+
+
+def _break_if_stale(lock: Path) -> bool:
+    """Remove ``lock`` if its mtime is older than the stale threshold.
+
+    The one clock read in this module, and only under contention.
+
+    Returns:
+        Whether a stale lock was removed.
+    """
+    age: float | None = None
+    with contextlib.suppress(OSError):
+        age = time.time() - lock.stat().st_mtime
+    if age is None or age <= LOCK_STALE_SECONDS:
+        return False
+    removed = False
+    with contextlib.suppress(OSError):
+        lock.unlink()
+        removed = True
+    return removed
 
 
 @contextlib.contextmanager
@@ -407,10 +445,16 @@ def _locked(target: Path) -> Iterator[None]:
     if unwritable:
         raise StoreWriteError(_MSG_UNWRITABLE)
     fd: int | None = None
+    broke_stale = False
     for _ in range(_LOCK_ATTEMPTS):
         fd, retry = _try_create_lock(lock)
         if fd is not None or not retry:
             break
+        # A dead holder's lock is broken at most once per acquisition, so two
+        # waiters cannot keep removing each other's fresh locks.
+        if not broke_stale and _break_if_stale(lock):
+            broke_stale = True
+            continue
         time.sleep(_LOCK_BACKOFF_SECONDS)
     if fd is None:
         raise StoreWriteError(_MSG_BUSY)
