@@ -27,7 +27,7 @@ is world content and is never asserted by value. NEEDS NO SAVE LIBRARY.
 from __future__ import annotations
 
 import struct
-from typing import Final
+from typing import Final, cast
 
 import pytest
 
@@ -221,11 +221,9 @@ def _decoded_item(stack: objects.StructValue) -> objects.InventoryItem:
     Returns:
         The item.
     """
-    item = stack.properties.get("Item")
-    decoded = isinstance(item, objects.InventoryItem)
-    assert decoded, f"the Item came back as {type(item).__name__}, not a decoded InventoryItem"
-    assert isinstance(item, objects.InventoryItem)
-    return item
+    kind = type(stack.properties.get("Item")).__name__
+    assert kind == "InventoryItem", f"the Item came back as {kind}, not a decoded InventoryItem"
+    return cast("objects.InventoryItem", stack.properties.get("Item"))
 
 
 def _refusal_reason(stack: objects.StructValue) -> str:
@@ -237,13 +235,11 @@ def _refusal_reason(stack: objects.StructValue) -> str:
     Returns:
         The reason word.
     """
-    item = stack.properties.get("Item")
-    refused = isinstance(item, objects.InventoryItemRefusal)
-    assert refused, f"the Item came back as {type(item).__name__}, not a refusal"
-    assert isinstance(item, objects.InventoryItemRefusal)
+    kind = type(stack.properties.get("Item")).__name__
+    assert kind == "InventoryItemRefusal", f"the Item came back as {kind}, not a refusal"
     unmeasured = stack.unmeasured
     assert unmeasured == 1, f"a refused Item moved the stack's unmeasured count to {unmeasured}"
-    return item.reason
+    return cast("objects.InventoryItemRefusal", stack.properties.get("Item")).reason
 
 
 # ---------------------------------------------------------------------------
